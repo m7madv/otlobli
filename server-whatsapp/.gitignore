@@ -1,0 +1,4 @@
+node_modules/
+baileys-auth/
+otp-db.json
+.env

@@ -1,0 +1,44 @@
+node_modules
+dist
+.codex-temp
+.env
+.env.*
+!.env.example
+.vercel
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+.vercel
+
+# Android build output / machine-specific
+android/app/build
+android/build
+android/.gradle
+android/local.properties
+android/app/src/main/assets/public
+*.apk
+
+# iOS build output
+ios/App/Pods
+ios/App/build
+ios/App/App/public
+
+# Cloudflare worker
+.wrangler
+
+# Supabase local
+supabase/.temp
+
+# WhatsApp / auth session data (secrets, never commit)
+server/baileys-auth
+server/pair-auth
+server/test-auth
+server/test-auth2
+server/*.tar.gz
+server/otp-db.json
+server/qr-code.png
+server/workingsession_b64.txt
+server/logs
+*.tar.gz

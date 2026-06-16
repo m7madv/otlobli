@@ -1,0 +1,7 @@
+node_modules/
+.wwebjs_auth/
+baileys-auth/
+qr-code.png
+otp-db.json
+*.log
+.env.local

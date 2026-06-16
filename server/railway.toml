@@ -1,0 +1,11 @@
+[build]
+builder = "nixpacks"
+buildCommand = "npm install && npm rebuild"
+watchPatterns = ["src/**/*", "package.json", "railway.toml"]
+
+[deploy]
+startCommand = "node src/index.js"
+healthcheckPath = "/health"
+healthcheckInterval = 30
+restartPolicyType = "always"
+restartPolicyMaxRetries = 10

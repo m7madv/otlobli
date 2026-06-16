@@ -1,0 +1,527 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
+
+:root {
+  --background: #f7f9fb;
+  --surface: #ffffff;
+  --surface-soft: #f2f4f6;
+  --text: #191c1e;
+  --muted: #4c5a52;
+  --outline: #c7d0ca;
+  --primary: #006948;
+  --primary-soft: #e7f7ef;
+  --primary-strong: #005137;
+  --amber: #a36700;
+  --amber-soft: #fff4df;
+  --navy: #25292b;
+  --shadow: 0 18px 44px rgba(19, 27, 46, 0.08);
+  --radius: 8px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background: var(--background);
+  color: var(--text);
+  font-family: 'Noto Sans Arabic', system-ui, sans-serif;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+a {
+  color: var(--primary);
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+.material-symbols-outlined {
+  font-size: 1.25rem;
+  font-variation-settings: 'FILL' 0, 'wght' 450, 'GRAD' 0, 'opsz' 24;
+  line-height: 1;
+}
+
+.login-shell {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.login-card,
+.panel {
+  border: 1px solid var(--outline);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.login-card {
+  display: grid;
+  gap: 16px;
+  width: min(100%, 420px);
+  padding: 28px;
+}
+
+.brand {
+  display: grid;
+  gap: 4px;
+}
+
+.brand span {
+  color: var(--primary);
+  font-size: 1.7rem;
+  font-weight: 900;
+}
+
+.brand small,
+.login-card p,
+.topbar p,
+.stat p,
+.stat span,
+.customer p,
+.customer span {
+  color: var(--muted);
+}
+
+.login-card h1,
+.login-card p,
+.topbar h1,
+.topbar p,
+.panel h2,
+.panel h3,
+.panel p,
+.stat p,
+.stat span {
+  margin: 0;
+}
+
+.field {
+  display: grid;
+  gap: 8px;
+}
+
+.field span {
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.field input,
+.top-actions input,
+.shipping-list input {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--outline);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+  color: var(--text);
+  outline: none;
+  padding: 0 12px;
+}
+
+.primary-action,
+.ghost-action,
+.top-actions button,
+.shipping-list button,
+.row-actions button,
+.sidebar button,
+.customer-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  border-radius: var(--radius);
+  font-weight: 900;
+}
+
+.primary-action {
+  border: 0;
+  background: var(--primary);
+  color: white;
+}
+
+.ghost-action,
+.top-actions button,
+.shipping-list button,
+.row-actions button,
+.customer-link {
+  border: 1px solid var(--outline);
+  background: var(--surface);
+  color: var(--primary);
+}
+
+.admin-shell {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  min-height: 100vh;
+}
+
+.sidebar {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100vh;
+  padding: 24px 16px;
+  background: var(--navy);
+  color: white;
+}
+
+.sidebar .brand span {
+  color: #72e0ad;
+}
+
+.sidebar .brand small {
+  color: #c2c9c6;
+}
+
+.sidebar button,
+.customer-link {
+  justify-content: flex-start;
+  border: 0;
+  background: transparent;
+  color: #d8dfdb;
+  text-decoration: none;
+  padding: 0 12px;
+}
+
+.sidebar button.is-active {
+  background: var(--primary);
+  color: white;
+}
+
+.customer-link {
+  margin-top: auto;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.main {
+  min-width: 0;
+  padding: 24px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 22px;
+}
+
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.top-actions input {
+  width: min(360px, 42vw);
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.stat {
+  display: grid;
+  gap: 8px;
+  min-height: 140px;
+  padding: 18px;
+  border: 1px solid var(--outline);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.stat .material-symbols-outlined {
+  color: var(--primary);
+}
+
+.stat strong {
+  font-size: 1.45rem;
+}
+
+.stat--dark {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: var(--navy);
+  color: white;
+}
+
+.stat--dark p,
+.stat--dark span {
+  color: #c2c9c6;
+}
+
+.content-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(340px, 0.55fr);
+  gap: 18px;
+}
+
+.panel {
+  padding: 18px;
+}
+
+.panel > header,
+.detail header,
+.shipping-list header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.table-panel {
+  overflow: hidden;
+  padding: 0;
+}
+
+.table-panel header {
+  padding: 18px;
+  border-bottom: 1px solid var(--outline);
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: right;
+}
+
+th,
+td {
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--outline);
+  white-space: nowrap;
+}
+
+th {
+  background: var(--surface-soft);
+  color: var(--navy);
+  font-size: 0.82rem;
+}
+
+td:first-child {
+  color: var(--primary);
+  font-weight: 900;
+}
+
+.row-actions,
+.detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  min-height: 28px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.status--success {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.status--pending {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+.status--neutral {
+  background: var(--surface-soft);
+  color: var(--muted);
+}
+
+.detail,
+.settings {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+}
+
+.detail-product {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 14px;
+  align-items: center;
+}
+
+.detail-product img {
+  width: 96px;
+  height: 120px;
+  border-radius: var(--radius);
+  object-fit: cover;
+}
+
+.detail-product p {
+  margin-top: 4px;
+  color: var(--muted);
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px;
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+}
+
+.info-row span {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.shipping-list {
+  display: grid;
+  gap: 12px;
+}
+
+.shipping-list article {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(180px, 0.7fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid var(--outline);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+}
+
+.shipping-list b,
+.shipping-list span,
+.shipping-list small {
+  display: block;
+}
+
+.shipping-list span,
+.shipping-list small {
+  color: var(--muted);
+}
+
+.customers {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.customer {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: white;
+  font-size: 1.35rem;
+  font-weight: 900;
+}
+
+.empty {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  min-height: 320px;
+  gap: 8px;
+  text-align: center;
+}
+
+.empty .material-symbols-outlined {
+  color: var(--primary);
+  font-size: 3rem;
+}
+
+.notice,
+.toast {
+  margin: 0;
+  color: var(--primary);
+  font-weight: 900;
+}
+
+.toast {
+  position: fixed;
+  right: 50%;
+  bottom: 24px;
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 12px 16px;
+  transform: translateX(50%);
+  border-radius: 999px;
+  background: var(--navy);
+  color: white;
+  box-shadow: 0 18px 34px rgba(19, 27, 46, 0.22);
+}
+
+@media (max-width: 1040px) {
+  .admin-shell,
+  .content-grid,
+  .stats,
+  .customers {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: static;
+    height: auto;
+  }
+
+  .topbar,
+  .top-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .top-actions input {
+    width: 100%;
+  }
+
+  .shipping-list article {
+    grid-template-columns: 1fr;
+  }
+}

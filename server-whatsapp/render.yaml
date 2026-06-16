@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: talabieh-whatsapp
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node src/index.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: USD_TO_SYP_RATE
+        value: "13000"

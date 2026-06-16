@@ -1,0 +1,21 @@
+{
+  "project": "talabieh-whatsapp",
+  "summaryVersion": "final-2026-06-14",
+  "status": "✅ WORKING",
+  "whatsappNumber": "19253927137 (bot sender)",
+  "otpRecipient": "963990782172 (Syrian phone)",
+  "serverPath": "C:\\Users\\MOHAMMAD\\Projects\\SHEIN IN SIRYA\\server",
+  "serverPort": 3001,
+  "processManager": "PM2 - talabieh-whatsapp",
+  "nodeLib": "@whiskeysockets/baileys v6.6.0",
+  "mode": "QR Code v2.4",
+  "sessionDir": "server/baileys-auth (protected - NEVER auto-delete)",
+  "sessionProtection": "deletes only on DisconnectReason.loggedOut",
+  "frontendUrl": "https://talabieh.vercel.app",
+  "adminUrl": "https://talabieh-admin.vercel.app",
+  "healthEndpoint": "http://localhost:3001/health",
+  "lastOtpSent": "1955 to 963990782172 ✅",
+  "verifiedWorking": true,
+  "startupCommand": "cd server && pm2 start src/index.js --name talabieh-whatsapp",
+  "important": "Session survives restart/crash/disconnect. Only manual WhatsApp logout deletes it."
+}

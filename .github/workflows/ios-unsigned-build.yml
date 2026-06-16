@@ -1,0 +1,46 @@
+name: iOS Unsigned Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm install
+      - run: npm run build
+      - run: npx cap sync ios
+
+      - name: Build unsigned .app
+        working-directory: ios/App
+        run: |
+          xcodebuild \
+            -project App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Package unsigned IPA
+        working-directory: ios/App
+        run: |
+          mkdir -p Payload
+          cp -r build/Build/Products/Release-iphoneos/App.app Payload/
+          zip -r otlobli-unsigned.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: otlobli-ipa
+          path: ios/App/otlobli-unsigned.ipa

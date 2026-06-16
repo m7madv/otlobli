@@ -1,0 +1,186 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns='http://www.w3.org/2005/Atom' xmlns:apps='http://schemas.google.com/apps/2006'>
+  <title>Mail Filters</title>
+  <id>tag:mail.google.com,2008:filters:z_clean_low_priority</id>
+  <updated>2026-06-03T00:00:00Z</updated>
+
+  <entry>
+    <category term='filter'></category>
+    <title>Mail Filter</title>
+    <content></content>
+    <apps:property name='from' value='informational@email.snapchat.com'/>
+    <apps:property name='shouldArchive' value='true'/>
+    <apps:property name='shouldMarkAsRead' value='true'/>
+    <apps:property name='label' value='Filtered/Low Priority'/>
+  </entry>
+
+  <entry>
+    <category term='filter'></category>
+    <title>Mail Filter</title>
+    <content></content>
+    <apps:property name='from' value='notification@service.tiktok.com'/>
+    <apps:property name='shouldArchive' value='true'/>
+    <apps:property name='shouldMarkAsRead' value='true'/>
+    <apps:property name='label' value='Filtered/Low Priority'/>
+  </entry>
+
+  <entry>
+    <category term='filter'></category>
+    <title>Mail Filter</title>
+    <content></content>
+    <apps:property name='from' value='follow-suggestions@mail.instagram.com'/>
+    <apps:property name='shouldArchive' value='true'/>
+    <apps:property name='shouldMarkAsRead' value='true'/>
+    <apps:property name='label' value='Filtered/Low Priority'/>
+  </entry>
+
+  <entry>
+    <category term='filter'></category>
+    <title>Mail Filter</title>
+    <content></content>
+    <apps:property name='from' value='shein@armail.shein.com'/>
+    <apps:property name='shouldArchive' value='true'/>
+    <apps:property name='shouldMarkAsRead' value='true'/>
+    <apps:property name='label' value='Filtered/Low Priority'/>
+  </entry>
+
+  <entry>
+    <category term='filter'></category>
+    <title>Mail Filter</title>
+    <content></content>
+    <apps:property name='from' value='colonelsanders@offers.qatar.kfc.me'/>
+    <apps:property name='shouldArchive' value='true'/>
+    <apps:property name='shouldMarkAsRead' value='true'/>
+    <apps:property name='label' value='Filtered/Low Priority'/>
+  </entry>
+
+  <entry>
+    <category term='filter'></category>
+    <title>Mail Filter</title>
+    <content></content>
+    <apps:property name='from' value='noreply@member.alibaba.com'/>
+    <apps:property name='shouldArchive' value='true'/>
+    <apps:property name='shouldMarkAsRead' value='true'/>
+    <apps:property name='label' value='Filtered/Low Priority'/>
+  </entry>
+
+  <entry>
+    <category term='filter'></category>
+    <title>Mail Filter</title>
+    <content></content>
+    <apps:property name='from' value='newsletter@news.anker.com'/>
+    <apps:property name='shouldArchive' value='true'/>
+    <apps:property name='shouldMarkAsRead' value='true'/>
+    <apps:property name='label' value='Filtered/Low Priority'/>
+  </entry>
+
+  <entry>
+    <category term='filter'></category>
+    <title>Mail Filter</title>
+    <content></content>
+    <apps:property name='from' value='gaming@nvgaming.nvidia.com'/>
+    <apps:property name='shouldArchive' value='true'/>
+    <apps:property name='shouldMarkAsRead' value='true'/>
+    <apps:property name='label' value='Filtered/Low Priority'/>
+  </entry>
+
+  <entry>
+    <category term='filter'></category>
+    <title>Mail Filter</title>
+    <content></content>
+    <apps:property name='from' value='noreply@mailing.fifa.com'/>
+    <apps:property name='shouldArchive' value='true'/>
+    <apps:property name='shouldMarkAsRead' value='true'/>
+    <apps:property name='label' value='Filtered/Low Priority'/>
+  </entry>
+
+  <entry>
+    <category term='filter'></category>
+    <title>Mail Filter</title>
+    <content></content>
+    <apps:property name='from' value='mail.artlist.io'/>
+    <apps:property name='shouldArchive' value='true'/>
+    <apps:property name='shouldMarkAsRead' value='true'/>
+    <apps:property name='label' value='Filtered/Low Priority'/>
+  </entry>
+
+  <entry>
+    <category term='filter'></category>
+    <title>Mail Filter</title>
+    <content></content>
+    <apps:property name='from' value='email@email.playstation.com'/>
+    <apps:property name='shouldArchive' value='true'/>
+    <apps:property name='shouldMarkAsRead' value='true'/>
+    <apps:property name='label' value='Filtered/Low Priority'/>
+  </entry>
+
+  <entry>
+    <category term='filter'></category>
+    <title>Mail Filter</title>
+    <content></content>
+    <apps:property name='from' value='callofduty@comms.activision.com'/>
+    <apps:property name='shouldArchive' value='true'/>
+    <apps:property name='shouldMarkAsRead' value='true'/>
+    <apps:property name='label' value='Filtered/Low Priority'/>
+  </entry>
+
+  <entry>
+    <category term='filter'></category>
+    <title>Mail Filter</title>
+    <content></content>
+    <apps:property name='from' value='hello@builder.io'/>
+    <apps:property name='shouldArchive' value='true'/>
+    <apps:property name='shouldMarkAsRead' value='true'/>
+    <apps:property name='label' value='Filtered/Low Priority'/>
+  </entry>
+
+  <entry>
+    <category term='filter'></category>
+    <title>Mail Filter</title>
+    <content></content>
+    <apps:property name='from' value='mail.moremins.com'/>
+    <apps:property name='shouldArchive' value='true'/>
+    <apps:property name='shouldMarkAsRead' value='true'/>
+    <apps:property name='label' value='Filtered/Low Priority'/>
+  </entry>
+
+  <entry>
+    <category term='filter'></category>
+    <title>Mail Filter</title>
+    <content></content>
+    <apps:property name='from' value='welcome@mail.moremins.com'/>
+    <apps:property name='shouldArchive' value='true'/>
+    <apps:property name='shouldMarkAsRead' value='true'/>
+    <apps:property name='label' value='Filtered/Low Priority'/>
+  </entry>
+
+  <entry>
+    <category term='filter'></category>
+    <title>Mail Filter</title>
+    <content></content>
+    <apps:property name='from' value='number@mail.moremins.com'/>
+    <apps:property name='shouldArchive' value='true'/>
+    <apps:property name='shouldMarkAsRead' value='true'/>
+    <apps:property name='label' value='Filtered/Low Priority'/>
+  </entry>
+
+  <entry>
+    <category term='filter'></category>
+    <title>Mail Filter</title>
+    <content></content>
+    <apps:property name='from' value='travel@mail.moremins.com'/>
+    <apps:property name='shouldArchive' value='true'/>
+    <apps:property name='shouldMarkAsRead' value='true'/>
+    <apps:property name='label' value='Filtered/Low Priority'/>
+  </entry>
+
+  <entry>
+    <category term='filter'></category>
+    <title>Mail Filter</title>
+    <content></content>
+    <apps:property name='from' value='uber@uber.com'/>
+    <apps:property name='shouldArchive' value='true'/>
+    <apps:property name='shouldMarkAsRead' value='true'/>
+    <apps:property name='label' value='Filtered/Low Priority'/>
+  </entry>
+</feed>

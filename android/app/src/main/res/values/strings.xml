@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">otlobli</string>
+    <string name="title_activity_main">otlobli</string>
+    <string name="package_name">com.otlobli.app</string>
+    <string name="custom_url_scheme">com.otlobli.app</string>
+</resources>

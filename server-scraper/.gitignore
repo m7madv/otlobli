@@ -1,0 +1,4 @@
+node_modules/
+.playwright-browsers/
+.pw-browsers/
+.env
