@@ -30,6 +30,7 @@ export const storageKeys = {
   userProfile: 'talabieh.userProfile',
   exchangeRate: 'talabieh.exchangeRate',
   paymentCurrency: 'talabieh.paymentCurrency',
+  pendingPayment: 'talabieh.pendingPayment',
 } as const
 
 export function readStoredJson<T>(key: string, fallback: T) {

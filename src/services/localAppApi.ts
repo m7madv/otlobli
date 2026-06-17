@@ -1,6 +1,8 @@
-import { paymentSettings, product } from '../domain/fixtures'
+import { product } from '../domain/fixtures'
 import { today } from '../domain/orders'
 import type { TalabiehApi } from './appApi'
+
+const LOCAL_USD_TO_SYP_RATE = 13000
 
 function wait(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms))
@@ -40,25 +42,31 @@ export const localAppApi: TalabiehApi = {
     },
   },
   payments: {
-    async verifyB2BShamCashPayment(amountSyp) {
-      await wait(1100)
-
+    // لا يوجد باكند حقيقي بهذا الوضع المحلي، فما فيه إشعار شام كاش فعلي
+    // ممكن يوصل - نحاكي "وصلت الحوالة" بعد أول فحص حتى تبقى تجربة الديمو
+    // قابلة للتجربة كاملة بدون Supabase.
+    async checkPaymentStatus() {
+      await wait(900)
       return {
         mode: 'local-mock',
-        status: amountSyp > 0 && paymentSettings.provider ? 'matched' : 'failed',
-        amountSyp,
-        matchedAt: today(),
+        status: 'مدفوع',
+        paidAt: today(),
       }
     },
   },
   orders: {
-    async createOrder(order) {
+    async createPendingOrder(order, currency) {
       await wait(180)
+      const paymentAmount = currency === 'USD'
+        ? Math.round((order.total / LOCAL_USD_TO_SYP_RATE) * 100) / 100
+        : order.total
 
       return {
         mode: 'local-mock',
         orderId: order.id,
-        persisted: false,
+        paymentAmount,
+        paymentCurrency: currency,
+        paymentExpiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
       }
     },
   },

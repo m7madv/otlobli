@@ -1,7 +1,31 @@
 export const SHEIN_CAPTURE_SCRIPT = `
 (function () {
+  // SHEIN's Jordan site defaults to English ("language=joen"); "jo" renders Arabic.
+  // Force it once via cookie + a single reload, then it sticks for future loads.
+  var hasArabic = /(?:^|; )language=jo(?:;|$)/.test(document.cookie);
+  var hasEnglish = /(?:^|; )language=joen(?:;|$)/.test(document.cookie);
+  if (!hasArabic || hasEnglish) {
+    document.cookie = 'language=jo; path=/; max-age=31536000';
+    if (!sessionStorage.getItem('__otlobliArLoaded')) {
+      sessionStorage.setItem('__otlobliArLoaded', '1');
+      location.reload();
+      return;
+    }
+  }
+
   if (window.__otlobliInjected) return;
   window.__otlobliInjected = true;
+
+  // This WebView (hosted inside a native Dialog) reports window.innerWidth/innerHeight
+  // as 0, which breaks "position:fixed; left/right/bottom" math for our overlays
+  // (they render collapsed, off-screen). document.documentElement.clientWidth/Height
+  // stay correct, so compute pixel positions from those instead of CSS viewport units.
+  function viewportSize() {
+    return {
+      width: document.documentElement.clientWidth || window.innerWidth || 360,
+      height: document.documentElement.clientHeight || window.innerHeight || 640,
+    };
+  }
 
   function cleanTitle(raw) {
     return (raw || '')
@@ -16,14 +40,70 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return el ? (el.getAttribute('content') || '') : '';
   }
 
-  function getTitle() {
+  // SHEIN (like most e-commerce sites) embeds a Schema.org Product block as
+  // <script type="application/ld+json">. It's server-rendered into the initial
+  // HTML for SEO, so unlike CSS-class-based scraping it doesn't depend on
+  // guessing SHEIN's current class names (which break silently whenever they
+  // ship a redesign) and it's available even very early in the page load.
+  // This is the primary, most reliable source for name/image/price.
+  var __otlobliLdCache = null;
+  var __otlobliLdCacheUrl = '';
+  function getProductJsonLd() {
+    if (__otlobliLdCacheUrl === location.href && __otlobliLdCache !== null) return __otlobliLdCache;
+    __otlobliLdCacheUrl = location.href;
+    __otlobliLdCache = null;
+    try {
+      var scripts = document.querySelectorAll('script[type="application/ld+json"]');
+      for (var i = 0; i < scripts.length; i++) {
+        var data;
+        try { data = JSON.parse(scripts[i].textContent || ''); } catch (e) { continue; }
+        var list = Array.isArray(data) ? data : (data && data['@graph'] ? data['@graph'] : [data]);
+        for (var j = 0; j < list.length; j++) {
+          var node = list[j];
+          var type = node && node['@type'];
+          var isProduct = type === 'Product' || (Array.isArray(type) && type.indexOf('Product') !== -1);
+          if (node && isProduct) { __otlobliLdCache = node; return node; }
+        }
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  // SHEIN's <title> tag briefly (or sometimes permanently, on this site) holds
+  // a generic site-wide tagline rather than the product name - "Women's and
+  // men's clothing, shop fashion on the site | SHEIN" rather than the actual
+  // item. Treat that as "no title yet" so retries keep trying the real
+  // sources instead of locking onto the generic tagline on the first attempt.
+  function looksGenericTitle(t) {
+    if (!t) return true;
+    return /شي\\s*إن|shein/i.test(t) && /(تسوق|fashion|shop|الموضة)/i.test(t);
+  }
+
+  function getTitle(allowGenericFallback) {
+    var ld = getProductJsonLd();
+    if (ld && ld.name) {
+      var fromLd = cleanTitle(ld.name);
+      if (fromLd) return fromLd;
+    }
     var fromMeta = cleanTitle(getMeta('og:title'));
+    if (fromMeta && !looksGenericTitle(fromMeta)) return fromMeta;
+    var el = document.querySelector('h1, .product-intro__head-name, .goods-name, [class*="goods-name" i], [class*="product-name" i], [class*="head-name" i]');
+    var fromEl = cleanTitle(el ? el.textContent : '');
+    if (fromEl && !looksGenericTitle(fromEl)) return fromEl;
     if (fromMeta) return fromMeta;
-    var el = document.querySelector('h1, .product-intro__head-name, .goods-name');
-    return cleanTitle(el ? el.textContent : '');
+    if (fromEl) return fromEl;
+    if (!allowGenericFallback) return '';
+    // Absolute last resort, only once we've given up retrying for a real name.
+    return cleanTitle(document.title);
   }
 
   function getPrice() {
+    var ld = getProductJsonLd();
+    if (ld && ld.offers) {
+      var offers = Array.isArray(ld.offers) ? ld.offers[0] : ld.offers;
+      var ldPrice = offers && parseFloat(offers.price || offers.lowPrice);
+      if (ldPrice > 0) return ldPrice;
+    }
     var metaPrice = parseFloat(getMeta('product:price:amount'));
     if (metaPrice > 0) return metaPrice;
     var el = document.querySelector('.product-price .price-content, .product-intro__head-price, [class*="price" i]');
@@ -32,23 +112,207 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return match ? parseFloat(match[0]) : 0;
   }
 
-  function getImage() {
-    var mainImg = document.querySelector('.product-intro__main-image img, .product-intro__thumbs-item.active img, [class*="main-image" i] img');
-    if (mainImg && mainImg.src) return mainImg.src;
-    var og = getMeta('og:image');
-    if (og) return og;
-    var anyImg = document.querySelector('img[src*="ltwebstatic"], img[src*="img.shein"]');
-    return anyImg ? anyImg.src : '';
+  // Lazy-loaded SHEIN images often keep a tiny placeholder/blank gif in "src"
+  // until they scroll into view, with the real photo sitting in a data-* attr.
+  // Reading "src" directly grabs the placeholder, so we check those first.
+  // ".src"/".currentSrc" are DOM properties the browser already resolves to a
+  // full absolute URL. The raw data-* attributes are NOT resolved though -
+  // sites very commonly write protocol-relative image URLs ("//img.cdn.com/x.jpg")
+  // which work fine rendered inside SHEIN's own page (inherits SHEIN's https:
+  // protocol) but can come back broken once handed to a *different* app/page
+  // context downstream, so make sure every URL we hand off is fully absolute.
+  function normalizeImageUrl(url) {
+    if (!url) return '';
+    url = url.trim();
+    if (url.indexOf('//') === 0) return 'https:' + url;
+    if (url.indexOf('/') === 0) return location.origin + url;
+    return url;
   }
 
-  function findOptionContainer(keyword) {
+  function realImgSrc(img) {
+    if (!img) return '';
+    var candidates = [
+      img.getAttribute && img.getAttribute('data-src'),
+      img.getAttribute && img.getAttribute('data-original'),
+      img.getAttribute && img.getAttribute('data-lazy-src'),
+      img.currentSrc,
+      img.src,
+    ];
+    for (var i = 0; i < candidates.length; i++) {
+      var v = candidates[i];
+      if (v && !/^data:image\\/gif/i.test(v) && !/blank\\.gif|placeholder/i.test(v)) return normalizeImageUrl(v);
+    }
+    return '';
+  }
+
+  // SHEIN product pages often carry promo banners ("install our app", ad
+  // strips, etc.) with their own logo/icon <img> - those can be larger or
+  // load faster than the actual product photo, so any heuristic that just
+  // grabs "an image on the page" risks grabbing the wrong one. Walk up from
+  // each candidate image and skip it entirely if an ancestor's class/id
+  // hints it's a banner/ad/app-download widget rather than the product
+  // gallery.
+  // Confirmed via real captured page data: a generic "banner"/"ad"/"popup"
+  // blocklist false-positives on the actual product photo carousel itself
+  // (SHEIN's gallery wrapper class chain apparently includes a generic
+  // "banner"-ish name used for ANY image carousel, not just promo ones) -
+  // that single overly-broad match was excluding every real gallery photo.
+  // Scope this down to only the exact "install our app" widget signature.
+  function isInPromoWidget(img) {
+    var el = img;
+    var depth = 0;
+    while (el && depth < 6) {
+      var hint = ((el.className || '') + ' ' + (el.id || '')).toLowerCase();
+      if (/app-download|download-app|applink|app-banner|guide-popup/i.test(hint)) return true;
+      el = el.parentElement;
+      depth++;
+    }
+    return false;
+  }
+
+  // A real product photo gallery is a cluster of 3+ same-ish SHEIN-hosted
+  // <img> siblings sharing a close common ancestor (the swipeable carousel +
+  // its thumbnail strip). That structural shape is a far more reliable
+  // fingerprint than "biggest image on the page", which can accidentally
+  // match a single oversized promo banner instead.
+  // Confirmed from a real captured page: SHEIN's gallery photos each sit in
+  // their OWN individual <li> wrapper (so grouping by a shared parent/
+  // grandparent ELEMENT always produces one-image "groups" of size 1 and
+  // never finds anything). What they DO share is the exact same wrapper
+  // *className* string (e.g. every photo's direct parent is independently
+  // class="crop-image-container"). Group by that className text instead.
+  function getGalleryImage() {
+    var imgs = document.querySelectorAll(
+      'img[src*="ltwebstatic"], img[src*="img.shein"], img[data-src*="ltwebstatic"], img[data-src*="img.shein"]'
+    );
+    var byParentClass = {};
+    var order = [];
+    for (var i = 0; i < imgs.length; i++) {
+      var img = imgs[i];
+      if (isInPromoWidget(img)) continue;
+      var src = realImgSrc(img);
+      if (!src) continue;
+      var pCls = img.parentElement ? (img.parentElement.className || '').trim() : '';
+      if (!pCls) continue;
+      if (!byParentClass[pCls]) { byParentClass[pCls] = []; order.push(pCls); }
+      byParentClass[pCls].push(img);
+    }
+    var bestKey = null;
+    for (var k = 0; k < order.length; k++) {
+      var key = order[k];
+      if (byParentClass[key].length >= 3 && (!bestKey || byParentClass[key].length > byParentClass[bestKey].length)) {
+        bestKey = key;
+      }
+    }
+    if (!bestKey) return '';
+    // Picking items[0] (first in DOM order) is unreliable, and so is picking
+    // the largest on-screen rect: this carousel is an infinite-loop slider
+    // that prepends a clone of the LAST slide and appends a clone of the
+    // FIRST slide so it can wrap around, and every clone renders at the same
+    // size as a real slide (confirmed via logcat: 12 slides in the group,
+    // but only 10 unique src hashes - N0 duplicates N10, N11 duplicates N1).
+    // The clones sit parked off to the sides of the viewport; only the slide
+    // actually visible right now has a bounding rect left close to 0. So
+    // pick whichever loaded slide's left is closest to 0 instead.
+    var group = byParentClass[bestKey];
+    var best = group[0];
+    var bestAbsLeft = Infinity;
+    for (var g = 0; g < group.length; g++) {
+      var rect = group[g].getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) continue;
+      var absLeft = Math.abs(rect.left);
+      if (absLeft < bestAbsLeft) { bestAbsLeft = absLeft; best = group[g]; }
+    }
+    return realImgSrc(best);
+  }
+
+  // Last-resort fallback: scan every non-promo SHEIN-hosted <img> on the page
+  // and pick the one with the largest rendered/declared area.
+  function getLargestSheinImage() {
+    var imgs = document.querySelectorAll(
+      'img[src*="ltwebstatic"], img[src*="img.shein"], img[data-src*="ltwebstatic"], img[data-src*="img.shein"]'
+    );
+    var best = '';
+    var bestArea = 0;
+    for (var i = 0; i < imgs.length; i++) {
+      if (isInPromoWidget(imgs[i])) continue;
+      var src = realImgSrc(imgs[i]);
+      if (!src) continue;
+      var w = imgs[i].naturalWidth || imgs[i].clientWidth || parseInt(imgs[i].getAttribute('width') || '0', 10) || 0;
+      var h = imgs[i].naturalHeight || imgs[i].clientHeight || parseInt(imgs[i].getAttribute('height') || '0', 10) || 0;
+      var area = w * h;
+      if (area >= bestArea) { bestArea = area; best = src; }
+    }
+    return best;
+  }
+
+  function getMainImage() {
+    var ld = getProductJsonLd();
+    if (ld && ld.image) {
+      var ldImg = Array.isArray(ld.image) ? ld.image[0] : ld.image;
+      if (typeof ldImg === 'string' && ldImg) return normalizeImageUrl(ldImg);
+      if (ldImg && typeof ldImg.url === 'string' && ldImg.url) return normalizeImageUrl(ldImg.url);
+    }
+    var mainImg = document.querySelector('.product-intro__main-image img, .product-intro__thumbs-item.active img, [class*="main-image" i] img');
+    var fromMain = realImgSrc(mainImg);
+    if (fromMain && !isInPromoWidget(mainImg)) return fromMain;
+    var gallery = getGalleryImage();
+    if (gallery) return gallery;
+    var og = getMeta('og:image');
+    if (og) return normalizeImageUrl(og);
+    var largest = getLargestSheinImage();
+    if (largest) return largest;
+    var anyImg = document.querySelector('img[src*="ltwebstatic"], img[src*="img.shein"]');
+    return realImgSrc(anyImg);
+  }
+
+  function findOptionContainer(keyword, labelWords) {
     var all = document.querySelectorAll('[class*="' + keyword + '" i]');
     for (var i = 0; i < all.length; i++) {
       var el = all[i];
       var opts = el.querySelectorAll('li, button, [class*="item" i]');
       if (opts.length >= 2) return el;
     }
+    // Fallback for products where the attribute section's class doesn't
+    // literally contain "color"/"size" (SHEIN's internal naming isn't
+    // consistent across every product template): find a short text node
+    // matching the attribute's visible label (e.g. "اللون") and walk up from
+    // there looking for a nearby list of 2+ selectable options.
+    if (labelWords) {
+      var candidates = document.querySelectorAll('div, span, p, h1, h2, h3, label, b, strong');
+      for (var j = 0; j < candidates.length; j++) {
+        var text = (candidates[j].textContent || '').trim();
+        if (!text || text.length > 20) continue;
+        var matched = false;
+        for (var w = 0; w < labelWords.length; w++) {
+          if (text.indexOf(labelWords[w]) !== -1) { matched = true; break; }
+        }
+        if (!matched) continue;
+        var scope = candidates[j].parentElement;
+        for (var hop = 0; hop < 3 && scope; hop++) {
+          var opts2 = scope.querySelectorAll('li, button, [class*="item" i], img');
+          if (opts2.length >= 2) return scope;
+          scope = scope.parentElement;
+        }
+      }
+    }
     return null;
+  }
+
+  // Covers every common way a UI marks "this is the chosen option": aria
+  // state, a "selected/active/..." class, or an actually-checked radio /
+  // checkbox input nested inside the swatch (checked is a live DOM property,
+  // not always reflected back onto the HTML attribute, so element.checked
+  // has to be read directly rather than via getAttribute).
+  function isSelectedSwatchEl(el) {
+    if (el.getAttribute('aria-selected') === 'true') return true;
+    if (el.getAttribute('aria-checked') === 'true') return true;
+    if (el.getAttribute('aria-pressed') === 'true') return true;
+    var cls = ' ' + (el.className || '') + ' ';
+    if (/\\s(selected|active|checked|chosen|cur|current|picked)\\s/i.test(cls)) return true;
+    var input = el.tagName === 'INPUT' ? el : el.querySelector('input[type="radio"], input[type="checkbox"]');
+    if (input && input.checked) return true;
+    return false;
   }
 
   function getSelectedWithin(container) {
@@ -56,59 +320,486 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var nodes = container.querySelectorAll('*');
     for (var j = 0; j < nodes.length; j++) {
       var el = nodes[j];
-      var cls = ' ' + (el.className || '') + ' ';
-      var ariaSel = el.getAttribute('aria-selected') === 'true' || el.getAttribute('aria-checked') === 'true';
-      if (ariaSel || /\\s(selected|active|checked|chosen|cur|current)\\s/i.test(cls)) {
-        var label = el.getAttribute('aria-label') || el.getAttribute('title') || el.textContent || '';
-        label = label.trim();
-        if (label && label.length < 40) return label;
+      if (isSelectedSwatchEl(el)) {
+        var label = el.getAttribute('aria-label') || el.getAttribute('title') ||
+          el.getAttribute('data-color') || el.getAttribute('data-name') || el.getAttribute('data-value') ||
+          el.getAttribute('data-attr-value') || '';
+        label = (label || '').trim();
+        if (!label) {
+          var innerImg = el.tagName === 'IMG' ? el : el.querySelector('img');
+          if (innerImg) label = (innerImg.getAttribute('alt') || innerImg.getAttribute('title') || '').trim();
+        }
+        if (!label) label = (el.textContent || '').trim();
+        if (label && label.length < 60) return label;
+      }
+    }
+    return '';
+  }
+
+  // The most reliable, class-name-agnostic way to read "which color is
+  // currently selected": almost every shopping site prints it as plain text
+  // next to the attribute's own label, e.g. "اللون: Apricot" or "Color: Black"
+  // - look for any short text node containing one of those label words and
+  // take whatever follows the separator (":" / "(" / "-"). This depends only
+  // on the visible wording, not on guessing SHEIN's current CSS classes.
+  function getAttrLabelValue(container, labelWords) {
+    if (!container) return '';
+    var scope = container.parentElement || container;
+    for (var hop = 0; hop < 3 && scope; hop++) {
+      var nodes = scope.querySelectorAll('*');
+      for (var i = 0; i < nodes.length; i++) {
+        var el = nodes[i];
+        if (container.contains(el) && el !== container) continue;
+        var t = (el.textContent || '').trim();
+        if (!t || t.length > 70) continue;
+        for (var w = 0; w < labelWords.length; w++) {
+          var word = labelWords[w];
+          var idx = t.toLowerCase().indexOf(word.toLowerCase());
+          if (idx === -1) continue;
+          var rest = t.slice(idx + word.length).replace(/^[\\s:：\\-–(]+/, '').replace(/[)\\s]+$/, '').trim();
+          if (rest && rest.length < 40 && rest.toLowerCase() !== word.toLowerCase()) return rest;
+        }
+      }
+      scope = scope.parentElement;
+    }
+    return '';
+  }
+
+  // SHEIN often shows a generic swatch badge ("multicolor" thumbnail, a plain
+  // dot, etc.) but prints the actual precise color name as a separate text
+  // label next to/above the swatch row (e.g. "اللون: Apricot"), outside the
+  // swatch list itself. When that label exists it's far more accurate than
+  // anything we can infer from the swatch element, so prefer it.
+  function getColorHeadingLabel(container) {
+    if (!container) return '';
+    var scope = container.parentElement;
+    for (var hop = 0; hop < 3 && scope; hop++) {
+      var candidates = scope.querySelectorAll(
+        '[class*="color" i] [class*="name" i], [class*="color" i] [class*="value" i], ' +
+        '[class*="selected-attr" i], [class*="attr-value" i], [class*="sku-name" i]'
+      );
+      for (var i = 0; i < candidates.length; i++) {
+        if (container.contains(candidates[i])) continue;
+        var text = (candidates[i].textContent || '').trim();
+        if (text && text.length > 0 && text.length < 60) return text;
+      }
+      scope = scope.parentElement;
+    }
+    return '';
+  }
+
+  // The color swatch the user picked is the single most reliable source for a
+  // "this is exactly the color they chose" photo - SHEIN renders each swatch
+  // as either a small cropped <img> or a CSS background-image of the actual
+  // colorway. The big hero photo can lag a tick behind the swatch click (it
+  // fades/lazy-loads in), so prefer the swatch's own image over it.
+  function getSelectedColorSwatchImage(container) {
+    if (!container) return '';
+    var nodes = container.querySelectorAll('*');
+    for (var j = 0; j < nodes.length; j++) {
+      var el = nodes[j];
+      if (!isSelectedSwatchEl(el)) continue;
+      var img = el.tagName === 'IMG' ? el : el.querySelector('img');
+      var fromImg = realImgSrc(img);
+      if (fromImg) return fromImg;
+      var bg = window.getComputedStyle(el).backgroundImage;
+      var match = bg && bg.match(/url\\(["']?(.*?)["']?\\)/);
+      if (match && match[1] && !/blank|placeholder/i.test(match[1])) return match[1];
+      // The swatch sometimes wraps a small <li>/<button> whose own background
+      // is on a CHILD div instead of itself - check one level of children too.
+      var children = el.children;
+      for (var c = 0; c < (children ? children.length : 0); c++) {
+        var childBg = window.getComputedStyle(children[c]).backgroundImage;
+        var childMatch = childBg && childBg.match(/url\\(["']?(.*?)["']?\\)/);
+        if (childMatch && childMatch[1] && !/blank|placeholder/i.test(childMatch[1])) return childMatch[1];
       }
     }
     return '';
   }
 
   function getColorState() {
-    var container = findOptionContainer('color');
-    return { exists: !!container, selected: getSelectedWithin(container) };
+    var container = findOptionContainer('color', ['اللون', 'Color']);
+    var selected = getAttrLabelValue(container, ['اللون', 'Color', 'color']) ||
+      getColorHeadingLabel(container) || getSelectedWithin(container);
+    return { exists: !!container, selected: selected, image: getSelectedColorSwatchImage(container) };
   }
 
   function getSizeState() {
-    var container = findOptionContainer('size');
+    var container = findOptionContainer('size', ['المقاس', 'Size']);
     return { exists: !!container, selected: getSelectedWithin(container) };
   }
 
   function looksLikeProductPage() {
-    return !!getTitle() && getPrice() > 0 && !!getImage();
+    // SHEIN product detail pages always have a "-p-<id>" segment in the URL
+    // (e.g. /ar/some-name-p-12345678-cat-1727.html). The home/category/deals
+    // pages don't, so the URL is the reliable PDP signal on its own.
+    // IMPORTANT: this used to also require title/price/image to all be
+    // truthy before counting as a PDP - but that conflated "is this a
+    // product page" with "did our scraping succeed". Any single field
+    // failing (e.g. price selector not matching) made the button silently
+    // treat a real product page as "not a product page" and just open the
+    // (empty) cart instead of attempting to add anything - a totally silent
+    // dead end with no error. Now we only gate on the URL, and let
+    // addToCartFlow run regardless; its diagnostics chips show exactly
+    // which field(s) failed instead of hiding the failure entirely.
+    return /-p-\\d+/i.test(location.pathname);
   }
 
-  function sendProduct(color, size) {
+  function preloadImage(url, timeoutMs) {
+    return new Promise(function (resolve) {
+      if (!url) { resolve(false); return; }
+      var done = false;
+      var img = new Image();
+      var timer = setTimeout(function () {
+        if (!done) { done = true; resolve(false); }
+      }, timeoutMs || 2500);
+      img.onload = function () { if (!done) { done = true; clearTimeout(timer); resolve(true); } };
+      img.onerror = function () { if (!done) { done = true; clearTimeout(timer); resolve(false); } };
+      img.src = url;
+    });
+  }
+
+  function ensureOverlayStyle() {
+    if (document.getElementById('otlobli-overlay-style')) return;
+    var style = document.createElement('style');
+    style.id = 'otlobli-overlay-style';
+    style.textContent = '@keyframes otlobli-spin{to{transform:rotate(360deg)}}' +
+      '@keyframes otlobli-pop{0%{transform:scale(.86);opacity:0}100%{transform:scale(1);opacity:1}}' +
+      '@keyframes otlobli-fade-out{to{opacity:0}}';
+    document.head.appendChild(style);
+  }
+
+  // A small modal that blocks all touches/clicks behind it while we fetch and
+  // verify the chosen product photo - this is the "freeze + load" step the
+  // app side waits on before the item actually lands in the otlobli cart.
+  function showAddingOverlay(payload) {
+    ensureOverlayStyle();
+    var existing = document.getElementById('otlobli-overlay');
+    if (existing) existing.remove();
+    var vp = viewportSize();
+    document.body.style.overflow = 'hidden';
+
+    var overlay = document.createElement('div');
+    overlay.id = 'otlobli-overlay';
+    overlay.setAttribute('data-shown-at', String(Date.now()));
+    overlay.style.cssText = 'position:fixed;left:0;top:0;width:' + vp.width + 'px;height:' + vp.height + 'px;' +
+      'background:rgba(10,20,16,.55);z-index:2147483647;display:flex;align-items:center;justify-content:center;';
+    overlay.addEventListener('touchmove', function (e) { e.preventDefault(); }, { passive: false });
+    overlay.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); }, true);
+
+    var card = document.createElement('div');
+    card.style.cssText = 'background:#fff;border-radius:16px;padding:20px;width:min(78vw,290px);' +
+      'display:flex;flex-direction:column;align-items:center;gap:10px;animation:otlobli-pop .22s ease-out;' +
+      'box-shadow:0 14px 32px rgba(0,0,0,.32);';
+
+    var thumbWrap = document.createElement('div');
+    thumbWrap.style.cssText = 'width:84px;height:84px;border-radius:12px;overflow:hidden;background:#f2f4f6;' +
+      'border:1px solid #e6e8ea;position:relative;';
+    var thumb = document.createElement('img');
+    thumb.id = 'otlobli-overlay-thumb';
+    thumb.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
+    thumbWrap.appendChild(thumb);
+    var spinner = document.createElement('div');
+    spinner.id = 'otlobli-overlay-spinner';
+    spinner.style.cssText = 'position:absolute;inset:-3px;border-radius:14px;border:3px solid rgba(0,105,72,.2);' +
+      'border-top-color:#006948;animation:otlobli-spin .8s linear infinite;';
+    thumbWrap.appendChild(spinner);
+
+    var title = document.createElement('div');
+    title.id = 'otlobli-overlay-title';
+    title.style.cssText = 'font-size:13px;font-weight:700;color:#191c1e;text-align:center;direction:rtl;line-height:1.4;';
+
+    card.appendChild(thumbWrap);
+    card.appendChild(title);
+
+    var meta = document.createElement('div');
+    meta.id = 'otlobli-overlay-meta';
+    meta.style.cssText = 'font-size:12px;color:#3d4a42;direction:rtl;';
+    card.appendChild(meta);
+
+    var status = document.createElement('div');
+    status.id = 'otlobli-overlay-status';
+    status.style.cssText = 'font-size:12px;color:#006948;font-weight:700;text-align:center;direction:rtl;margin-top:4px;';
+    card.appendChild(status);
+
+    // Temporary visible diagnostics: shows exactly which fields were actually
+    // found vs missing, so failures can be screenshotted and fixed from real
+    // data instead of guessing blind at SHEIN's markup.
+    var diag = document.createElement('div');
+    diag.id = 'otlobli-overlay-diag';
+    diag.style.cssText = 'display:flex;flex-wrap:wrap;gap:5px;justify-content:center;margin-top:2px;';
+    card.appendChild(diag);
+
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+    updateOverlayContent(payload, 'جاري التأكد من بيانات المنتج...');
+  }
+
+  function updateOverlayContent(payload, statusText) {
+    var thumb = document.getElementById('otlobli-overlay-thumb');
+    if (thumb && thumb.getAttribute('src') !== payload.image) thumb.src = payload.image || '';
+
+    var title = document.getElementById('otlobli-overlay-title');
+    if (title) {
+      var titleText = payload.title || 'المنتج';
+      title.textContent = titleText.length > 40 ? titleText.slice(0, 40) + '…' : titleText;
+    }
+
+    var meta = document.getElementById('otlobli-overlay-meta');
+    if (meta) {
+      var metaParts = [];
+      if (payload.color) metaParts.push(payload.color);
+      if (payload.size) metaParts.push(payload.size);
+      meta.textContent = metaParts.join(' · ');
+      meta.style.display = metaParts.length ? 'block' : 'none';
+    }
+
+    var status = document.getElementById('otlobli-overlay-status');
+    if (status && statusText) status.textContent = statusText;
+
+    var diag = document.getElementById('otlobli-overlay-diag');
+    if (diag) {
+      diag.innerHTML = '';
+      var diagFields = [
+        ['اسم', !!payload.title],
+        ['صورة', !!payload.image],
+        ['أيقونة اللون', !!payload.colorImageFound],
+        ['سعر', payload.priceUsd > 0],
+        ['لون', !!payload.color],
+        ['مقاس', !!payload.size],
+      ];
+      for (var d = 0; d < diagFields.length; d++) {
+        var chip = document.createElement('span');
+        var ok = diagFields[d][1];
+        chip.textContent = (ok ? '✓ ' : '✗ ') + diagFields[d][0];
+        chip.style.cssText = 'font-size:10px;font-weight:700;padding:2px 6px;border-radius:8px;direction:rtl;' +
+          (ok ? 'background:#e7f7ef;color:#006948;' : 'background:#ffdad6;color:#ba1a1a;');
+        diag.appendChild(chip);
+      }
+    }
+  }
+
+  function markOverlaySuccess() {
+    var status = document.getElementById('otlobli-overlay-status');
+    if (status) status.textContent = '✓ تمت الإضافة لسلة otlobli';
+    var spinner = document.getElementById('otlobli-overlay-spinner');
+    if (spinner) {
+      spinner.style.animation = 'none';
+      spinner.style.borderColor = '#1aab6f';
+    }
+  }
+
+  function removeOverlay(delay) {
+    setTimeout(function () {
+      var overlay = document.getElementById('otlobli-overlay');
+      if (overlay) {
+        overlay.style.animation = 'otlobli-fade-out .25s ease-in forwards';
+        setTimeout(function () { overlay.remove(); }, 250);
+      }
+      document.body.style.overflow = '';
+    }, delay || 0);
+  }
+
+  function captureProductPayload(colorState, sizeState, allowGenericTitle) {
+    return {
+      title: getTitle(allowGenericTitle),
+      priceUsd: getPrice(),
+      image: colorState.image || getMainImage(),
+      colorImageFound: !!colorState.image,
+      color: colorState.selected,
+      size: sizeState.selected,
+      link: location.href,
+    };
+  }
+
+  // Dumps real ground-truth data about the current page to the JS console -
+  // Android WebView forwards console.log to logcat (tag "chromium"), so this
+  // can be read directly with "adb logcat" instead of guessing blind at
+  // SHEIN's markup or depending on a perfectly-timed screenshot.
+  // logcat truncates long single log entries hard, so log many SHORT lines
+  // instead of one big JSON blob - and log what our OWN extraction functions
+  // actually return right now, not just raw page data, so the real bug is
+  // visible directly instead of needing to re-derive it by hand.
+  function debugSnapshot(colorState, sizeState) {
     try {
-      var payload = {
-        title: getTitle(),
-        priceUsd: getPrice(),
-        image: getImage(),
-        color: color,
-        size: size,
-        link: location.href,
-      };
+      console.log('OTLOBLI_DBG A url=' + location.href.slice(0, 140));
+      console.log('OTLOBLI_DBG B mainImage()=' + (getMainImage() || 'EMPTY').slice(0, 160));
+      console.log('OTLOBLI_DBG C galleryImage()=' + (getGalleryImage() || 'EMPTY').slice(0, 160));
+
+      (function debugGalleryGroup() {
+        var imgs2 = document.querySelectorAll('img[src*="ltwebstatic"], img[src*="img.shein"], img[data-src*="ltwebstatic"], img[data-src*="img.shein"]');
+        var byCls = {};
+        var ord = [];
+        for (var i2 = 0; i2 < imgs2.length; i2++) {
+          var im = imgs2[i2];
+          if (isInPromoWidget(im)) continue;
+          var s2 = realImgSrc(im);
+          if (!s2) continue;
+          var pc = im.parentElement ? (im.parentElement.className || '').trim() : '';
+          if (!pc) continue;
+          if (!byCls[pc]) { byCls[pc] = []; ord.push(pc); }
+          byCls[pc].push(im);
+        }
+        var bk = null;
+        for (var k2 = 0; k2 < ord.length; k2++) {
+          if (byCls[ord[k2]].length >= 3 && (!bk || byCls[ord[k2]].length > byCls[bk].length)) bk = ord[k2];
+        }
+        console.log('OTLOBLI_DBG M bestGroupKey=[' + (bk || 'NONE') + '] size=' + (bk ? byCls[bk].length : 0));
+        if (bk) {
+          var grp = byCls[bk];
+          for (var g2 = 0; g2 < grp.length && g2 < 12; g2++) {
+            var r = grp[g2].getBoundingClientRect();
+            console.log('OTLOBLI_DBG N' + g2 + ' w=' + Math.round(r.width) + ' h=' + Math.round(r.height) + ' top=' + Math.round(r.top) + ' left=' + Math.round(r.left) + ' src=' + (realImgSrc(grp[g2]) || '').slice(-60));
+          }
+        }
+      })();
+      console.log('OTLOBLI_DBG D largestImage()=' + (getLargestSheinImage() || 'EMPTY').slice(0, 160));
+      console.log('OTLOBLI_DBG E ogImage=' + (getMeta('og:image') || 'EMPTY').slice(0, 140));
+      console.log('OTLOBLI_DBG F capturedColor=[' + colorState.selected + '] capturedSize=[' + sizeState.selected + '] colorImg=' + (colorState.image || 'EMPTY').slice(0, 140));
+
+      var colorContainer = findOptionContainer('color', ['اللون', 'Color']);
+      var sizeContainer = findOptionContainer('size', ['المقاس', 'Size']);
+      console.log('OTLOBLI_DBG H colorContainerFound=' + !!colorContainer + ' cls=[' + (colorContainer ? colorContainer.className.slice(0, 80) : '') + ']');
+      console.log('OTLOBLI_DBG I sizeContainerFound=' + !!sizeContainer + ' cls=[' + (sizeContainer ? sizeContainer.className.slice(0, 80) : '') + ']');
+      if (colorContainer) console.log('OTLOBLI_DBG J colorHTML=' + colorContainer.outerHTML.slice(0, 150));
+      if (sizeContainer) console.log('OTLOBLI_DBG K sizeHTML=' + sizeContainer.outerHTML.slice(0, 150));
+
+      var byClassColor = document.querySelectorAll('[class*="color" i]');
+      console.log('OTLOBLI_DBG L byClassColorCount=' + byClassColor.length);
+      for (var bc = 0; bc < byClassColor.length && bc < 5; bc++) {
+        console.log('OTLOBLI_DBG L' + bc + ' cls=[' + (byClassColor[bc].className || '').slice(0, 70) + '] kids=' + byClassColor[bc].children.length);
+      }
+
+      var imgs = document.querySelectorAll('img[src*="ltwebstatic"], img[src*="img.shein"], img[data-src*="ltwebstatic"], img[data-src*="img.shein"]');
+      console.log('OTLOBLI_DBG G imgCount=' + imgs.length);
+      for (var i = 0; i < imgs.length && i < 10; i++) {
+        var img = imgs[i];
+        var pCls = img.parentElement ? (img.parentElement.className || '') : '';
+        console.log('OTLOBLI_DBG IMG' + i + ' promo=' + isInPromoWidget(img) + ' parentCls=[' + pCls.slice(0, 50) + '] realSrc=' + (realImgSrc(img) || 'EMPTY').slice(0, 120));
+      }
+    } catch (e) {
+      console.log('OTLOBLI_DBG ERROR ' + e);
+    }
+  }
+
+  // Shared by both add-to-cart entry points (our floating button, and
+  // intercepting SHEIN's own "Add to bag" button): show the freeze/loading
+  // modal, then RETRY scraping the page for up to ~5s. SHEIN is a heavy SPA -
+  // on first tap the hero photo/title can still be mid-render, so a single
+  // immediate read often comes back empty. Polling gives the page time to
+  // finish rendering before we give up on any field, and the overlay updates
+  // live so the user can see it's actively working, not stuck.
+  function addToCartFlow(colorState, sizeState) {
+    if (document.getElementById('otlobli-overlay')) return;
+    debugSnapshot(colorState, sizeState);
+    var payload = captureProductPayload(colorState, sizeState);
+    showAddingOverlay(payload);
+
+    var attempts = 0;
+    var maxAttempts = 10;
+    var intervalMs = 500;
+
+    function isComplete(p, cs) {
+      return !!p.title && !!p.image && (!cs.exists || !!p.color);
+    }
+
+    function finalize(p) {
+      updateOverlayContent(p, 'جاري إضافة المنتج لسلة otlobli...');
+      preloadImage(p.image, 2500).then(function (ok) {
+        if (!ok) p.image = getMainImage() || p.image;
+        try {
+          if (window.mobileApp && window.mobileApp.postMessage) {
+            window.mobileApp.postMessage({ detail: { type: 'addToCart', product: p } });
+          }
+        } catch (e) {}
+        // Safety net: if the native side never acks (e.g. app backgrounded),
+        // don't leave the user stuck behind a frozen overlay forever.
+        setTimeout(function () {
+          if (document.getElementById('otlobli-overlay')) removeOverlay(0);
+        }, 4000);
+      });
+    }
+
+    function attempt() {
+      attempts++;
+      var exhausted = attempts >= maxAttempts;
+      var freshColor = getColorState();
+      var freshSize = getSizeState();
+      payload = captureProductPayload(freshColor, freshSize, exhausted);
+      if (isComplete(payload, freshColor) || exhausted) {
+        finalize(payload);
+        return;
+      }
+      updateOverlayContent(payload, 'جاري التأكد من بيانات المنتج... (' + attempts + ')');
+      setTimeout(attempt, intervalMs);
+    }
+
+    attempt();
+  }
+
+  // Badge on the cart-replacement button, mirroring the otlobli cart's actual
+  // item count - same little "bounce" a notification/app-icon badge gets
+  // whenever the count changes.
+  var __otlobliCartCount = 0;
+  function setCartBadge(count) {
+    __otlobliCartCount = count;
+    var btn = document.getElementById('otlobli-cart-btn');
+    if (!btn) return;
+    var badge = document.getElementById('otlobli-cart-badge');
+    if (!count || count <= 0) {
+      if (badge) badge.remove();
+      return;
+    }
+    if (!badge) {
+      ensureShakeStyle();
+      badge = document.createElement('span');
+      badge.id = 'otlobli-cart-badge';
+      badge.style.cssText = 'position:absolute;top:-6px;right:-6px;min-width:18px;height:18px;padding:0 4px;' +
+        'border-radius:9px;background:#e02424;color:#fff;font-size:11px;font-weight:800;line-height:18px;' +
+        'text-align:center;box-shadow:0 0 0 2px #fff;';
+      btn.appendChild(badge);
+    }
+    badge.textContent = count > 99 ? '99+' : String(count);
+    badge.style.animation = 'none';
+    requestAnimationFrame(function () {
+      badge.style.animation = 'otlobli-badge-pop .35s cubic-bezier(.34,1.56,.64,1)';
+    });
+  }
+
+  function requestOpenOtlobliCart() {
+    try {
       if (window.mobileApp && window.mobileApp.postMessage) {
-        window.mobileApp.postMessage({ detail: { type: 'addToCart', product: payload } });
+        window.mobileApp.postMessage({ detail: { type: 'openCart' } });
       }
     } catch (e) {}
   }
 
   window.addEventListener('messageFromNative', function (event) {
     var detail = event && event.detail;
+    if (detail && detail.type === '__resize') {
+      window.dispatchEvent(new Event('resize'));
+      tick();
+      return;
+    }
+    if (detail && detail.type === '__cartCount') {
+      setCartBadge(typeof detail.count === 'number' ? detail.count : 0);
+      return;
+    }
     if (detail && detail.type === 'addToCartAck') {
-      var btn = document.getElementById('otlobli-fab');
-      if (btn) {
-        var original = btn.textContent;
-        btn.textContent = '✓ تمت الإضافة لسلة otlobli';
-        btn.style.background = '#1aab6f';
+      var overlay = document.getElementById('otlobli-overlay');
+      if (overlay) {
+        var shownAt = parseInt(overlay.getAttribute('data-shown-at') || '0', 10);
+        var elapsed = Date.now() - shownAt;
+        var wait = Math.max(0, 550 - elapsed);
         setTimeout(function () {
-          btn.textContent = original;
-          btn.style.background = '#006948';
-        }, 1800);
+          markOverlaySuccess();
+          removeOverlay(700);
+        }, wait);
+      }
+      var btn = document.getElementById('otlobli-cart-btn');
+      if (btn) {
+        btn.style.background = '#1aab6f';
+        setTimeout(function () { btn.style.background = '#006948'; }, 1800);
       }
     }
   });
@@ -116,9 +807,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function showMessage(btn, text) {
     var msg = document.getElementById('otlobli-msg');
     if (!msg) {
+      var vp = viewportSize();
       msg = document.createElement('div');
       msg.id = 'otlobli-msg';
-      msg.style.cssText = 'position:fixed;left:16px;right:16px;bottom:78px;z-index:2147483647;' +
+      msg.style.cssText = 'position:fixed;left:16px;top:' + (vp.height - 122) + 'px;width:' + (vp.width - 32) + 'px;z-index:2147483647;' +
         'background:#fff3cd;color:#7a5b00;border:1px solid #ffe28a;border-radius:10px;' +
         'padding:10px 14px;font-size:14px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.2);';
       document.body.appendChild(msg);
@@ -144,29 +836,37 @@ export const SHEIN_CAPTURE_SCRIPT = `
       '10%,90%{transform:translateX(-1px)}' +
       '20%,80%{transform:translateX(2px)}' +
       '30%,50%,70%{transform:translateX(-4px)}' +
-      '40%,60%{transform:translateX(4px)}}';
+      '40%,60%{transform:translateX(4px)}}' +
+      '@keyframes otlobli-slide-up{from{transform:translateY(120%);opacity:0}to{transform:translateY(0);opacity:1}}' +
+      '@keyframes otlobli-pop2{from{transform:scale(.5);opacity:0}to{transform:scale(1);opacity:1}}' +
+      '@keyframes otlobli-badge-pop{0%{transform:scale(0)}60%{transform:scale(1.35)}100%{transform:scale(1)}}';
     document.head.appendChild(style);
   }
 
-  function ensureFloatingButton() {
-    var existing = document.getElementById('otlobli-fab');
-    if (!looksLikeProductPage()) {
-      if (existing) existing.remove();
-      var msg = document.getElementById('otlobli-msg');
-      if (msg) msg.remove();
-      return;
-    }
-    if (existing) return;
+  // Persistent small square button that takes over SHEIN's own cart icon spot
+  // (top-left of the header, where SHEIN normally puts its basket icon). It's
+  // always present - not just on product pages - so it visually and
+  // functionally replaces SHEIN's cart everywhere in the webview.
+  function ensureCartReplacementButton() {
+    if (document.getElementById('otlobli-cart-btn')) return;
     ensureShakeStyle();
     var btn = document.createElement('button');
-    btn.id = 'otlobli-fab';
-    btn.textContent = 'أضف لسلة otlobli';
-    btn.style.cssText = 'position:fixed;left:16px;right:16px;bottom:16px;z-index:2147483647;' +
-      'background:#006948;color:#fff;border:none;border-radius:12px;padding:14px;' +
-      'font-size:16px;font-weight:bold;box-shadow:0 4px 14px rgba(0,0,0,.35);';
+    btn.id = 'otlobli-cart-btn';
+    btn.setAttribute('aria-label', 'سلة otlobli');
+    btn.style.cssText = 'position:fixed;left:10px;top:12px;width:42px;height:42px;z-index:2147483647;' +
+      'background:#006948;color:#fff;border:none;border-radius:11px;display:flex;align-items:center;' +
+      'justify-content:center;font-size:21px;line-height:1;box-shadow:0 4px 12px rgba(0,0,0,.32);' +
+      'animation:otlobli-pop2 .25s ease-out;';
+    btn.textContent = '🛍';
     btn.addEventListener('click', function (event) {
       event.preventDefault();
       event.stopPropagation();
+      if (!looksLikeProductPage()) {
+        // Outside a product page this button just IS the cart icon - tapping
+        // it opens otlobli's real cart, same as tapping a cart icon anywhere.
+        requestOpenOtlobliCart();
+        return;
+      }
       var colorState = getColorState();
       var sizeState = getSizeState();
       if (sizeState.exists && !sizeState.selected) {
@@ -177,9 +877,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
         showMessage(btn, 'حدد اللون أولاً');
         return;
       }
-      sendProduct(colorState.selected, sizeState.selected);
+      addToCartFlow(colorState, sizeState);
     }, true);
     document.body.appendChild(btn);
+    setCartBadge(__otlobliCartCount);
   }
 
   function isAddToCartButton(el) {
@@ -190,13 +891,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function looksLikeCartUrl(href) {
     if (!href) return false;
-    return /\/(cart|bag|checkout|order-confirm|payment)(\b|[/?#.])/i.test(href);
+    return /\\/(cart|bag|checkout|order-confirm|payment)(\\b|[/?#.])/i.test(href);
   }
 
   function isCartLink(el) {
+    if (el.id && el.id.indexOf('otlobli') === 0) return false;
     if (el.tagName === 'A' && looksLikeCartUrl(el.getAttribute('href') || el.href || '')) return true;
     var cls = ' ' + (el.className || '') + ' ';
-    return /\s(cart-icon|header-cart|j-header-cart)\s/i.test(cls);
+    return /\\s(cart-icon|header-cart|j-header-cart|shopping-bag|bag-icon)\\s/i.test(cls);
   }
 
   var lastSafeUrl = location.href;
@@ -205,7 +907,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (looksLikeCartUrl(location.href)) {
       if (history.length > 1) history.back();
       else location.href = lastSafeUrl;
-      showMessage(null, 'سلة otlobli فقط — أكمل اختيار المنتج واضغط الزر بالأسفل');
+      requestOpenOtlobliCart();
     } else {
       lastSafeUrl = location.href;
     }
@@ -215,17 +917,23 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var el = event.target;
     var depth = 0;
     while (el && depth < 6) {
-      if (el.id === 'otlobli-fab') return;
+      if (el.id && el.id.indexOf('otlobli') === 0) return;
+      if (el.getAttribute && el.getAttribute('data-otlobli-blocked') === '1') {
+        event.preventDefault();
+        event.stopPropagation();
+        showMessage(null, 'هذا الخيار غير متوفر حالياً');
+        return;
+      }
       if (isCartLink(el)) {
         event.preventDefault();
         event.stopPropagation();
-        showMessage(null, 'سلة otlobli فقط — أكمل اختيار المنتج واضغط الزر بالأسفل');
+        requestOpenOtlobliCart();
         return;
       }
       if (isAddToCartButton(el)) {
         var colorState = getColorState();
         var sizeState = getSizeState();
-        sendProduct(colorState.selected, sizeState.selected);
+        addToCartFlow(colorState, sizeState);
         break;
       }
       el = el.parentElement;
@@ -233,9 +941,122 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }, true);
 
+  // Hide every SHEIN header icon except search (wishlist heart, inbox, hamburger
+  // menu, etc.) - same point-probing + "walk up to the nearest small clickable
+  // element" pattern as hideStrayFixedBottomBars below, deliberately avoiding a
+  // blind document-wide querySelectorAll('a,button') like the earlier cart-icon
+  // lockout used: that one matched an oversized wrapping element once and tore
+  // a transparent hole in SHEIN's header. Capping at icon-sized elements (and
+  // skipping anything that contains/looks like the search input) keeps this
+  // safe even if SHEIN's markup doesn't match our assumptions.
+  function hideExtraHeaderIcons() {
+    var vp = viewportSize();
+    var probeYs = [20, 36, 52];
+    var steps = 10;
+    for (var r = 0; r < probeYs.length; r++) {
+      for (var s = 0; s <= steps; s++) {
+        var x = Math.round((vp.width * s) / steps);
+        var el = document.elementFromPoint(x, probeYs[r]);
+        var depth = 0;
+        while (el && el !== document.body && el !== document.documentElement && depth < 6) {
+          if (el.id && el.id.indexOf('otlobli') === 0) break;
+          var isClickable = el.tagName === 'BUTTON' || el.tagName === 'A' || el.getAttribute('role') === 'button';
+          if (isClickable) {
+            var rect = el.getBoundingClientRect();
+            var isIconSized = rect.width > 0 && rect.width < 64 && rect.height > 0 && rect.height < 64;
+            var hasInput = !!el.querySelector('input');
+            var hint = ((el.className || '') + ' ' + (el.getAttribute('aria-label') || '') + ' ' + (el.textContent || '')).toLowerCase();
+            var isSearchish = hasInput || /search|بحث|camera|كاميرا/.test(hint);
+            if (isIconSized && !isSearchish) {
+              el.setAttribute('data-otlobli-blocked', '1');
+              el.style.setProperty('visibility', 'hidden', 'important');
+              el.style.setProperty('pointer-events', 'none', 'important');
+            }
+            break;
+          }
+          el = el.parentElement;
+          depth++;
+        }
+      }
+    }
+  }
+
+  // Visually hide any SHEIN cart icon/button wherever it shows up - header,
+  // or the sticky "add to bag" action bar at the bottom of product pages.
+  // Same point-probe + icon-size-cap safety pattern as hideExtraHeaderIcons:
+  // walk up from a probed point only until the nearest clickable element,
+  // and only touch it if it's actually icon-sized, never a big wrapping
+  // container (that size cap is what keeps this safe, unlike the original
+  // blind querySelectorAll('a,button') cart lockout that once tore a hole in
+  // SHEIN's header).
+  function hideSheinCartIcons() {
+    var vp = viewportSize();
+    var points = [];
+    var steps = 10;
+    for (var s = 0; s <= steps; s++) {
+      points.push([Math.round((vp.width * s) / steps), 20]);
+      points.push([Math.round((vp.width * s) / steps), 52]);
+      points.push([Math.round((vp.width * s) / steps), vp.height - 28]);
+    }
+    for (var p = 0; p < points.length; p++) {
+      var el = document.elementFromPoint(points[p][0], points[p][1]);
+      var depth = 0;
+      while (el && el !== document.body && el !== document.documentElement && depth < 6) {
+        if (el.id && el.id.indexOf('otlobli') === 0) break;
+        var isClickable = el.tagName === 'BUTTON' || el.tagName === 'A' || el.getAttribute('role') === 'button';
+        if (isClickable) {
+          if (isCartLink(el)) {
+            var rect = el.getBoundingClientRect();
+            if (rect.width > 0 && rect.width < 80 && rect.height > 0 && rect.height < 80) {
+              el.setAttribute('data-otlobli-blocked', '1');
+              el.style.setProperty('visibility', 'hidden', 'important');
+              el.style.setProperty('pointer-events', 'none', 'important');
+            }
+          }
+          break;
+        }
+        el = el.parentElement;
+        depth++;
+      }
+    }
+  }
+
+  // SHEIN pins its own promo bars (e.g. "free shipping over $X") to the bottom
+  // of its page with position:fixed/sticky. Those were designed to sit above
+  // SHEIN's own bottom tab bar, but our webview's viewport ends right where
+  // otlobli's bottom nav begins (we don't show SHEIN's tab bar at all), so
+  // SHEIN's banner now renders flush against otlobli's nav and looks like a
+  // glitchy stacked bar. Hide any such stray fixed/sticky bottom element that
+  // isn't one of ours.
+  function hideStrayFixedBottomBars() {
+    var vp = viewportSize();
+    var probeY = vp.height - 3;
+    var probeXs = [Math.round(vp.width * 0.15), Math.round(vp.width * 0.5), Math.round(vp.width * 0.85)];
+    for (var p = 0; p < probeXs.length; p++) {
+      var el = document.elementFromPoint(probeXs[p], probeY);
+      var depth = 0;
+      while (el && el !== document.body && el !== document.documentElement && depth < 10) {
+        if (el.id && el.id.indexOf('otlobli') === 0) break;
+        var style = window.getComputedStyle(el);
+        if (style.position === 'fixed' || style.position === 'sticky') {
+          var rect = el.getBoundingClientRect();
+          if (rect.height > 0 && rect.height < 160 && rect.bottom >= vp.height - 6) {
+            el.style.setProperty('display', 'none', 'important');
+          }
+          break;
+        }
+        el = el.parentElement;
+        depth++;
+      }
+    }
+  }
+
   function tick() {
     blockCartNavigation();
-    ensureFloatingButton();
+    ensureCartReplacementButton();
+    hideExtraHeaderIcons();
+    hideSheinCartIcons();
+    hideStrayFixedBottomBars();
   }
 
   var tickScheduled = false;
@@ -263,9 +1084,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
   window.addEventListener('popstate', scheduleTick);
 
   var observer = new MutationObserver(scheduleTick);
-  observer.observe(document.body, { childList: true, subtree: false });
+  observer.observe(document.body, { childList: true, subtree: true });
 
-  setInterval(tick, 3000);
+  setInterval(tick, 600);
   tick();
 })();
 `

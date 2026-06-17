@@ -10,7 +10,7 @@ import {
   shippingFees,
 } from './domain/fixtures'
 import { makeOrderId, today } from './domain/orders'
-import { buildPriceBreakdown, formatMoney, formatPriceSyp, sumPriceLines } from './domain/pricing'
+import { buildPriceBreakdown, formatMoney, formatPriceSyp, formatUsd, sumPriceLines } from './domain/pricing'
 import type { PaymentCurrency } from './domain/pricing'
 import type { Address, CartItem, Order, Product, ProductColor, ProductVariant, Recipient, Screen, StatusTone, UserProfile } from './domain/types'
 import { readStoredJson, storageKeys, useStoredState } from './infrastructure/localStorage'
@@ -157,6 +157,12 @@ function App() {
     name: '', phone: '', governorate: 'دمشق', city: '', details: '', notes: '',
   })
   const [verificationState, setVerificationState] = useState<'idle' | 'checking' | 'matched'>('idle')
+  const [pendingPayment, setPendingPayment] = useStoredState<{
+    orderId: string
+    amount: number
+    currency: PaymentCurrency
+    expiresAt: string
+  } | null>(storageKeys.pendingPayment, null)
   const [manualPriceUsd, setManualPriceUsd] = useState('')
   const [manualColorName, setManualColorName] = useState('')
 
@@ -440,36 +446,89 @@ function App() {
     setScreen('cart')
   }
 
+  const sheinOpenedRef = useRef(false)
+  const [sheinReady, setSheinReady] = useState(false)
+
   const browseShein = () => {
-    const dpr = window.devicePixelRatio || 1
-    const navEl = document.querySelector('.bottom-nav')
-    const navHeightCss = navEl ? navEl.getBoundingClientRect().height : 0
-    const widthPx = Math.round(window.innerWidth * dpr)
-    const heightPx = Math.round((window.innerHeight - navHeightCss) * dpr)
-    void InAppBrowser.openWebView({
-      url: 'https://m.shein.com/jo/?ref=jo&rep=dir&ret=mjo&currency=USD',
-      toolbarType: ToolBarType.BLANK,
-      width: widthPx,
-      height: heightPx,
-      x: 0,
-      y: 0,
-      preShowScript: SHEIN_CAPTURE_SCRIPT,
-      preShowScriptInjectionTime: 'documentStart',
-      isPresentAfterPageLoad: true,
+    sheinOpenedRef.current = true
+    // Wait for webfonts (Arabic + icon font) to finish loading before measuring the nav bar -
+    // on a cold start it can still be using fallback-font metrics, which under-measures its
+    // height and lets the SHEIN window overlap it.
+    const fontsReady = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve()
+    fontsReady.then(() => {
+      // openWebView's width/height/x/y are in dp (the native side converts dp->px itself),
+      // so pass CSS px values as-is. Multiplying by devicePixelRatio here double-converts
+      // and makes the native window render far larger than the screen (cropped/"zoomed" look).
+      const navEl = document.querySelector('.bottom-nav')
+      const navRect = navEl ? navEl.getBoundingClientRect() : null
+      // Leave a small gap above the nav bar instead of butting the webview right
+      // up against it - SHEIN renders its own fixed-position bottom banners flush
+      // with its viewport edge, and with zero gap those visually fuse with our nav.
+      const bottomGap = 40
+      const webviewHeight = (navRect ? navRect.top : window.innerHeight - 74) - bottomGap
+      return InAppBrowser.openWebView({
+        url: 'https://m.shein.com/jo/?ref=jo&rep=dir&ret=mjo&currency=USD',
+        toolbarType: ToolBarType.BLANK,
+        width: Math.round(window.innerWidth),
+        height: Math.round(webviewHeight),
+        x: 0,
+        y: 0,
+        preShowScript: SHEIN_CAPTURE_SCRIPT,
+        preShowScriptInjectionTime: 'documentStart',
+        isPresentAfterPageLoad: true,
+        // Without this, the Android system back button can dismiss the whole dialog
+        // outright (e.g. from a page with no in-page history, like an image gallery),
+        // leaving sheinOpenedRef stuck "true" with no actual webview behind it - a
+        // permanently blank home screen. This keeps back navigation inside the webview.
+        activeNativeNavigationForWebview: true,
+        disableGoBackOnNativeApplication: true,
+      })
     })
+      .then(() => {
+        setSheinReady(true)
+        void InAppBrowser.postMessage({ detail: { type: '__resize' } })
+      })
+      .catch(() => { sheinOpenedRef.current = false })
   }
+
+  const screenRef = useRef(screen)
+  useEffect(() => { screenRef.current = screen }, [screen])
 
   useEffect(() => {
     if (screen === 'home') {
-      browseShein()
-      return () => { void InAppBrowser.close() }
+      if (sheinOpenedRef.current) {
+        void InAppBrowser.show().then(() => {
+          void InAppBrowser.postMessage({ detail: { type: '__resize' } })
+        })
+      } else {
+        browseShein()
+      }
+    } else if (sheinOpenedRef.current) {
+      void InAppBrowser.hide()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen])
+
+  useEffect(() => {
+    const handle = InAppBrowser.addListener('closeEvent', () => {
+      sheinOpenedRef.current = false
+      setSheinReady(false)
+      if (screenRef.current === 'home') browseShein()
+    })
+    return () => {
+      void handle.then((h) => h.remove())
+      if (sheinOpenedRef.current) void InAppBrowser.close()
+    }
+  }, [])
 
   useEffect(() => {
     const handle = InAppBrowser.addListener('messageFromWebview', (event: { detail?: Record<string, unknown> }) => {
       const detail = event?.detail
+
+      if (detail?.type === 'openCart') {
+        setScreen('cart')
+        return
+      }
+
       const product = detail?.type === 'addToCart' ? (detail.product as Record<string, unknown> | undefined) : undefined
       const title = typeof product?.title === 'string' ? product.title : ''
       if (!title) return
@@ -491,12 +550,32 @@ function App() {
     return () => { void handle.then((h) => h.remove()) }
   }, [exchangeRate])
 
-  const createPaidOrder = () => {
+  // Keep SHEIN's cart-icon-replacement badge in sync with otlobli's real cart
+  // count, so it bounces with the familiar "+1" badge animation whenever an
+  // item is added or removed - same pattern as any app icon notification badge.
+  useEffect(() => {
+    if (sheinOpenedRef.current) {
+      void InAppBrowser.postMessage({ detail: { type: '__cartCount', count: cartItems.length } })
+    }
+  }, [cartItems.length])
+
+  const [isStartingPayment, setIsStartingPayment] = useState(false)
+
+  // ينشئ الطلب بحالة "بانتظار الدفع" مع مبلغ دفع فريد (لو ما فيه طلب معلّق
+  // أصلاً) وينتقل لشاشة الدفع - الطلب ما يصير "مدفوع" إلا لما يوصل تأكيد
+  // حقيقي من webhook شام كاش، لا يوجد أي "مطابقة" تُحسب هون بالواجهة.
+  const goToPaymentScreen = () => {
     if (cartItems.length === 0) {
       showNotice('السلة فارغة')
       return
     }
 
+    if (pendingPayment) {
+      setScreen('payment')
+      return
+    }
+
+    setIsStartingPayment(true)
     const orderId = makeOrderId(orders)
     const newOrder: Order = {
       id: orderId,
@@ -506,31 +585,43 @@ function App() {
       address: recipient.details || 'عنوان غير مكتمل',
       items: cartItems,
       total,
-      paymentStatus: 'مدفوع',
-      statusIndex: 1,
+      paymentStatus: 'بانتظار الدفع',
+      statusIndex: 0,
       qadmousNumber: '',
       createdAt: today(),
-      paidAt: today(),
     }
 
-    setOrders((list) => [newOrder, ...list])
-    setCurrentOrderId(orderId)
-    setCartItems([])
-    setVerificationState('matched')
-    setScreen('success')
-    void appApi.orders.createOrder(newOrder).then((result) => {
-      if (result.persisted) {
-        showNotice('تم حفظ الطلب في قاعدة البيانات')
-      }
-    })
+    void appApi.orders.createPendingOrder(newOrder, paymentCurrency)
+      .then((result) => {
+        setOrders((list) => [{ ...newOrder, id: result.orderId }, ...list])
+        setCurrentOrderId(result.orderId)
+        setPendingPayment({
+          orderId: result.orderId,
+          amount: result.paymentAmount,
+          currency: result.paymentCurrency,
+          expiresAt: result.paymentExpiresAt,
+        })
+        setScreen('payment')
+      })
+      .catch(() => showNotice('تعذر إنشاء الطلب الآن، حاول مرة ثانية'))
+      .finally(() => setIsStartingPayment(false))
   }
 
   const verifyB2BPayment = () => {
+    if (!pendingPayment) return
     setVerificationState('checking')
-    void appApi.payments.verifyB2BShamCashPayment(total).then((result) => {
-      if (result.status === 'matched') {
+    void appApi.payments.checkPaymentStatus(pendingPayment.orderId).then((result) => {
+      if (result.status === 'مدفوع') {
         showNotice('تم العثور على تحويل مطابق للمبلغ الدقيق')
-        createPaidOrder()
+        setOrders((list) => list.map((item) => (
+          item.id === pendingPayment.orderId
+            ? { ...item, paymentStatus: 'مدفوع', statusIndex: 1, paidAt: result.paidAt ?? today() }
+            : item
+        )))
+        setCartItems([])
+        setPendingPayment(null)
+        setVerificationState('matched')
+        setScreen('success')
         return
       }
 
@@ -1019,8 +1110,8 @@ function App() {
             <InfoRow icon="inventory_2" title="طريقة التوصيل" body="التسليم داخل سوريا عبر القدموس عند توفر رقم الشحنة." />
             <CurrencyToggle value={paymentCurrency} onChange={setPaymentCurrency} />
             <PriceBreakdown items={breakdown} total={total} format={formatPrice} />
-            <button className="primary-action" onClick={() => setScreen('payment')}>
-              الدفع الآن عبر شام كاش
+            <button className="primary-action" disabled={isStartingPayment} onClick={goToPaymentScreen}>
+              {isStartingPayment ? 'جاري تحضير الطلب...' : 'الدفع الآن عبر شام كاش'}
               <Icon name="account_balance_wallet" />
             </button>
           </main>
@@ -1029,22 +1120,38 @@ function App() {
     }
 
     if (screen === 'payment') {
+      if (!pendingPayment) {
+        return (
+          <MobileShell active="cart" onNavigate={setScreen} hideBottomNav>
+            <Header title="دفع شام كاش" back={() => setScreen('checkout')} />
+            <main className="mobile-content">
+              <EmptyState title="لا يوجد طلب بانتظار الدفع" body="رجّع لسلتك وابدأ الدفع من جديد." />
+            </main>
+          </MobileShell>
+        )
+      }
+
+      // المبلغ والعملة مثبّتين لحظة إنشاء الطلب (المطابقة التلقائية تعتمد
+      // عليه بالضبط) - تبديل عملة العرض هون ما بيغيّر المبلغ المطلوب تحويله.
+      const amountLabel = pendingPayment.currency === 'USD'
+        ? formatUsd(pendingPayment.amount)
+        : formatMoney(pendingPayment.amount)
+
       return (
         <MobileShell active="cart" onNavigate={setScreen} hideBottomNav>
           <Header title="دفع شام كاش" back={() => setScreen('checkout')} />
           <main className="mobile-content">
-            <CurrencyToggle value={paymentCurrency} onChange={setPaymentCurrency} />
             <section className="payment-card">
               <div className="qr-code"><Icon name="qr_code_2" /></div>
               <p>ادفع إلى حسابنا التجاري</p>
               <b>{paymentSettings.receiverName}</b>
               <span>{paymentSettings.receiverAccount}</span>
-              <strong>{formatPrice(total)}</strong>
+              <strong>{amountLabel}</strong>
             </section>
             <div className="instruction-list">
-              <p>الدفع من أي حساب شام كاش مقبول، بالليرة السورية أو بالدولار الأمريكي.</p>
+              <p>ادفع بـ{pendingPayment.currency === 'USD' ? 'الدولار الأمريكي' : 'الليرة السورية'} فقط لهذا الطلب.</p>
               <p>لا تحتاج كتابة رقم الطلب في الملاحظة.</p>
-              <p>المهم جداً: ادفع نفس المبلغ بالضبط بالعملة المختارة أعلاه حتى تتم المطابقة تلقائياً.</p>
+              <p>المهم جداً: ادفع نفس المبلغ أعلاه بالضبط حتى تتم المطابقة تلقائياً.</p>
             </div>
             <button className="primary-action" disabled={verificationState === 'checking'} onClick={verifyB2BPayment}>
               {verificationState === 'checking' ? 'جاري فحص التحويلات...' : 'فحص الدفع الآن'}
@@ -1361,8 +1468,8 @@ function App() {
 
     return (
       <MobileShell active="home" onNavigate={setScreen}>
-        <Header title="otlobli" />
-        <HomeScreen browseShein={browseShein} userName={userProfile?.name} />
+        {!sheinReady && <Header title="otlobli" />}
+        {!sheinReady && <HomeScreen userName={userProfile?.name} />}
       </MobileShell>
     )
   }
@@ -1425,23 +1532,14 @@ function Toast({ message }: { message: string }) {
   return <div className="toast">{message}</div>
 }
 
-function HomeScreen({
-  browseShein,
-  userName,
-}: {
-  browseShein: () => void
-  userName?: string
-}) {
+function HomeScreen({ userName }: { userName?: string }) {
   return (
     <main className="mobile-content shein-home">
       <section className="greeting">
         <h1>{userName ? `أهلاً، ${userName}` : 'أهلاً بك'}</h1>
-        <p>ابدأ تسوق منتجات SHEIN بكل سهولة</p>
+        <p>جاري تجهيز متجر SHEIN...</p>
       </section>
-      <button className="primary-action" onClick={browseShein}>
-        تصفح SHEIN
-        <Icon name="storefront" />
-      </button>
+      <span className="spinner" />
     </main>
   )
 }

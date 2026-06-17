@@ -1,4 +1,5 @@
-import type { Order, Product } from '../domain/types'
+import type { Order, PaymentStatus, Product } from '../domain/types'
+import type { PaymentCurrency } from '../domain/pricing'
 
 export type ApiMode = 'local-mock' | 'external'
 
@@ -22,17 +23,18 @@ export type ProductFetchResult = {
   normalizedLink: string
 }
 
-export type PaymentVerificationResult = {
-  mode: ApiMode
-  status: 'matched' | 'pending' | 'failed'
-  amountSyp: number
-  matchedAt?: string
-}
-
-export type OrderCreateResult = {
+export type PendingOrderResult = {
   mode: ApiMode
   orderId: string
-  persisted: boolean
+  paymentAmount: number
+  paymentCurrency: PaymentCurrency
+  paymentExpiresAt: string
+}
+
+export type PaymentStatusResult = {
+  mode: ApiMode
+  status: PaymentStatus
+  paidAt?: string
 }
 
 export type TalabiehApi = {
@@ -44,9 +46,11 @@ export type TalabiehApi = {
     fetchSheinProduct: (link: string, fallbackTitle?: string) => Promise<ProductFetchResult>
   }
   payments: {
-    verifyB2BShamCashPayment: (amountSyp: number) => Promise<PaymentVerificationResult>
+    checkPaymentStatus: (orderId: string) => Promise<PaymentStatusResult>
   }
   orders: {
-    createOrder: (order: Order) => Promise<OrderCreateResult>
+    // ينشئ الطلب بحالة "بانتظار الدفع" مع مبلغ دفع فريد، قبل عرض شاشة الدفع -
+    // الطلب لا يصبح "مدفوع" إلا لما يوصل تأكيد حقيقي من webhook شام كاش.
+    createPendingOrder: (order: Order, currency: PaymentCurrency) => Promise<PendingOrderResult>
   }
 }

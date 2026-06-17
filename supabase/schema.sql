@@ -270,3 +270,235 @@ on conflict (external_id) do update set
   payload = excluded.payload,
   is_active = excluded.is_active,
   updated_at = now();
+
+-- ============================================================================
+-- Real Sham Cash payment confirmation (replaces the client-side mock matcher)
+--
+-- Same mechanism as the "مكثفات بيان" project: every pending order gets a
+-- unique payment_amount (nudged down by tiny steps from the nominal total
+-- only on the rare collision with another currently-pending order), and a
+-- phone running MacroDroid on the merchant's Sham Cash account forwards the
+-- payment notification text to a webhook, which matches it to an order by
+-- that exact amount and confirms it automatically.
+-- ============================================================================
+
+create table if not exists public.app_settings (
+  key text primary key,
+  value text not null
+);
+
+insert into public.app_settings (key, value)
+values ('usd_to_syp_rate', '13000')
+on conflict (key) do nothing;
+
+alter table public.orders add column if not exists payment_amount numeric(14, 2);
+alter table public.orders add column if not exists payment_currency text not null default 'SYP' check (payment_currency in ('SYP', 'USD'));
+alter table public.orders add column if not exists payment_expires_at timestamptz;
+alter table public.orders add column if not exists payment_matched_by text not null default '';
+
+-- Guarantees no two currently-pending orders can ever be assigned the same
+-- (currency, amount) pair, even under concurrent checkout requests.
+create unique index if not exists orders_pending_payment_amount_uidx
+  on public.orders (payment_currency, payment_amount)
+  where payment_status = 'بانتظار الدفع';
+
+alter table public.app_settings enable row level security;
+
+-- Creates the order in "بانتظار الدفع" status and assigns it a unique payment
+-- amount. The SYP/USD conversion rate is read from app_settings (server-side
+-- truth) rather than trusted from the client, since the client's exchange
+-- rate is just a display preference and must never affect how much money is
+-- actually owed.
+create or replace function public.create_pending_order(order_payload jsonb, currency text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  target_order_id text := nullif(order_payload->>'id', '');
+  item_count integer := coalesce(jsonb_array_length(order_payload->'items'), 0);
+  order_total_syp numeric := greatest(coalesce(nullif(order_payload->>'total', '')::numeric, 0), 0);
+  usd_rate numeric;
+  nominal_amount numeric;
+  unit_step numeric;
+  candidate_amount numeric;
+  expires timestamptz := now() + interval '2 hours';
+  attempt integer;
+  max_attempts integer := 40;
+begin
+  if currency not in ('SYP', 'USD') then
+    raise exception 'invalid currency';
+  end if;
+
+  if target_order_id is null then
+    raise exception 'order id is required';
+  end if;
+
+  if item_count = 0 then
+    raise exception 'order items are required';
+  end if;
+
+  if currency = 'USD' then
+    select value::numeric into usd_rate from public.app_settings where key = 'usd_to_syp_rate';
+    usd_rate := coalesce(usd_rate, 13000);
+    nominal_amount := round(order_total_syp / usd_rate, 2);
+    unit_step := 0.01;
+  else
+    nominal_amount := order_total_syp;
+    unit_step := 1;
+  end if;
+
+  for attempt in 0..max_attempts loop
+    candidate_amount := nominal_amount - (attempt * unit_step);
+    if candidate_amount <= 0 then
+      exit;
+    end if;
+
+    begin
+      insert into public.orders (
+        id, customer_name, phone, city, address, total_syp,
+        payment_status, status_index, qadmous_number, created_at,
+        payment_amount, payment_currency, payment_expires_at
+      )
+      values (
+        target_order_id,
+        coalesce(nullif(order_payload->>'customer', ''), 'عميل طلبية'),
+        coalesce(nullif(order_payload->>'phone', ''), 'غير محدد'),
+        coalesce(nullif(order_payload->>'city', ''), 'غير محدد'),
+        coalesce(nullif(order_payload->>'address', ''), 'عنوان غير مكتمل'),
+        order_total_syp::integer,
+        'بانتظار الدفع',
+        0,
+        '',
+        current_date,
+        candidate_amount,
+        currency,
+        expires
+      );
+
+      insert into public.order_items (
+        order_id, product_id, title, image, color, size, quantity, price_syp, source_link
+      )
+      select
+        target_order_id, item.id, item.title, item.image, item.color, item.size,
+        greatest(coalesce(item.quantity, 1), 1), greatest(coalesce(item."priceSyp", 0), 0), item."sourceLink"
+      from jsonb_to_recordset(order_payload->'items') as item(
+        id text, title text, image text, color text, size text,
+        quantity integer, "priceSyp" integer, "sourceLink" text
+      );
+
+      insert into public.order_events (order_id, status_index, title, note)
+      values (target_order_id, 0, 'بانتظار الدفع', 'تم إنشاء الطلب وبانتظار تحويل شام كاش');
+
+      return jsonb_build_object(
+        'orderId', target_order_id,
+        'paymentAmount', candidate_amount,
+        'paymentCurrency', currency,
+        'paymentExpiresAt', expires
+      );
+    exception when unique_violation then
+      continue;
+    end;
+  end loop;
+
+  raise exception 'تعذر إيجاد مبلغ دفع فريد حالياً، حاول بعد دقيقة';
+end;
+$$;
+
+revoke all on function public.create_pending_order(jsonb, text) from public;
+grant execute on function public.create_pending_order(jsonb, text) to anon, authenticated;
+
+-- Called only by the payment-webhook Edge Function (service role), never
+-- exposed to the app directly - that's what makes "confirmed automatically
+-- by a real transfer" trustworthy instead of just another client claim.
+create or replace function public.confirm_payment_by_amount(
+  match_amount numeric,
+  match_currency text,
+  notification_text text default ''
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  matched_order public.orders%rowtype;
+  match_count integer;
+begin
+  select count(*) into match_count
+  from public.orders
+  where payment_status = 'بانتظار الدفع'
+    and payment_currency = match_currency
+    and payment_amount = match_amount
+    and (payment_expires_at is null or payment_expires_at > now());
+
+  if match_count = 0 then
+    return jsonb_build_object('matched', false, 'reason', 'not_found');
+  end if;
+
+  if match_count > 1 then
+    return jsonb_build_object('matched', false, 'reason', 'ambiguous');
+  end if;
+
+  select * into matched_order
+  from public.orders
+  where payment_status = 'بانتظار الدفع'
+    and payment_currency = match_currency
+    and payment_amount = match_amount
+    and (payment_expires_at is null or payment_expires_at > now())
+  limit 1
+  for update;
+
+  update public.orders
+  set payment_status = 'مدفوع',
+      status_index = 1,
+      paid_at = current_date,
+      payment_matched_by = 'sham-cash-webhook'
+  where id = matched_order.id;
+
+  insert into public.order_events (order_id, status_index, title, note)
+  values (matched_order.id, 1, 'تم تأكيد الدفع', 'تم تأكيد الدفع تلقائياً من إشعار شام كاش');
+
+  return jsonb_build_object(
+    'matched', true,
+    'orderId', matched_order.id,
+    'customerName', matched_order.customer_name,
+    'phone', matched_order.phone
+  );
+end;
+$$;
+
+revoke all on function public.confirm_payment_by_amount(numeric, text, text) from public;
+grant execute on function public.confirm_payment_by_amount(numeric, text, text) to service_role;
+
+-- Narrow, anon-callable status lookup so the app can poll "did the transfer
+-- arrive yet?" without needing a general SELECT policy on public.orders.
+create or replace function public.get_order_payment_status(target_order_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  found_order public.orders%rowtype;
+begin
+  select * into found_order from public.orders where id = target_order_id;
+  if not found then
+    return jsonb_build_object('found', false);
+  end if;
+
+  return jsonb_build_object(
+    'found', true,
+    'paymentStatus', found_order.payment_status,
+    'statusIndex', found_order.status_index,
+    'paidAt', found_order.paid_at,
+    'paymentAmount', found_order.payment_amount,
+    'paymentCurrency', found_order.payment_currency,
+    'paymentExpiresAt', found_order.payment_expires_at
+  );
+end;
+$$;
+
+revoke all on function public.get_order_payment_status(text) from public;
+grant execute on function public.get_order_payment_status(text) to anon, authenticated;

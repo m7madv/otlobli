@@ -1,5 +1,6 @@
 import { product } from '../domain/fixtures'
-import type { Order, Product } from '../domain/types'
+import type { PaymentCurrency } from '../domain/pricing'
+import type { Order, PaymentStatus, Product } from '../domain/types'
 import type { ProductFetchResult, TalabiehApi } from './appApi'
 import { localAppApi } from './localAppApi'
 import { supabase } from './supabaseClient'
@@ -243,53 +244,52 @@ export const supabaseAppApi: TalabiehApi = {
     },
   },
   payments: {
-    async verifyB2BShamCashPayment(amountSyp) {
-      const localResult = await localAppApi.payments.verifyB2BShamCashPayment(amountSyp)
-
+    // يستعلم عن حالة الدفع الحقيقية المخزنة بـSupabase - تتحول لـ"مدفوع" فقط
+    // لما webhook شام كاش (المُشغّل من إشعار MacroDroid الحقيقي) يأكّدها، لا
+    // يوجد أي "مطابقة" تُحسب بالواجهة نفسها.
+    async checkPaymentStatus(orderId) {
       if (!supabase) {
-        return localResult
+        return localAppApi.payments.checkPaymentStatus(orderId)
       }
 
-      const { error } = await supabase.from('payment_verifications').insert({
-        provider: 'Sham Cash B2B',
-        amount_syp: amountSyp,
-        status: localResult.status,
-        match_rule: 'exact_amount',
-        matched_at: localResult.matchedAt ?? null,
-        raw_result: {
-          source: 'client-side-mvp',
-          note: 'This logs the verification attempt. Real Sham Cash matching still needs an official API.',
-        },
+      const { data, error } = await supabase.rpc('get_order_payment_status', {
+        target_order_id: orderId,
       })
 
-      if (error) {
-        return localResult
+      if (error || !data || !(data as { found?: boolean }).found) {
+        return { mode: 'external', status: 'بانتظار الدفع' }
       }
 
+      const result = data as { paymentStatus: PaymentStatus; paidAt?: string }
       return {
-        ...localResult,
         mode: 'external',
+        status: result.paymentStatus,
+        paidAt: result.paidAt,
       }
     },
   },
   orders: {
-    async createOrder(order) {
+    async createPendingOrder(order, currency) {
       if (!supabase) {
-        return localAppApi.orders.createOrder(order)
+        return localAppApi.orders.createPendingOrder(order, currency)
       }
 
-      const { error } = await supabase.rpc('submit_order', {
+      const { data, error } = await supabase.rpc('create_pending_order', {
         order_payload: toOrderPayload(order),
+        currency,
       })
 
-      if (error) {
-        return localAppApi.orders.createOrder(order)
+      if (error || !data) {
+        return localAppApi.orders.createPendingOrder(order, currency)
       }
 
+      const result = data as { orderId: string; paymentAmount: number; paymentCurrency: PaymentCurrency; paymentExpiresAt: string }
       return {
         mode: 'external',
-        orderId: order.id,
-        persisted: true,
+        orderId: result.orderId,
+        paymentAmount: result.paymentAmount,
+        paymentCurrency: result.paymentCurrency,
+        paymentExpiresAt: result.paymentExpiresAt,
       }
     },
   },
