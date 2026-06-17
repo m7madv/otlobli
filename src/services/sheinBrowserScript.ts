@@ -424,9 +424,38 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return { exists: !!container, selected: selected, image: getSelectedColorSwatchImage(container) };
   }
 
+  // Walks every option inside the size container and splits it into
+  // available vs unavailable based on the common ways sites mark a sold-out
+  // option: aria-disabled, or a class hinting "disabled/soldout/out-of-stock".
+  // Heuristic (SHEIN's exact class names aren't guaranteed), but degrades
+  // safely - worst case an option lands in "available" when unsure.
+  function getSizeOptions(container) {
+    var available = [];
+    var unavailable = [];
+    if (!container) return { available: available, unavailable: unavailable };
+    var opts = container.querySelectorAll('li, button, [class*="item" i]');
+    for (var i = 0; i < opts.length; i++) {
+      var el = opts[i];
+      var label = (el.getAttribute('aria-label') || el.getAttribute('title') || el.textContent || '').trim();
+      if (!label || label.length > 12) continue;
+      var cls = ' ' + (el.className || '') + ' ';
+      var isDisabled = el.getAttribute('aria-disabled') === 'true' ||
+        /\\s(disable|disabled|soldout|sold-out|out-of-stock|unavailable)\\s/i.test(cls);
+      var bucket = isDisabled ? unavailable : available;
+      if (bucket.indexOf(label) === -1) bucket.push(label);
+    }
+    return { available: available, unavailable: unavailable };
+  }
+
   function getSizeState() {
     var container = findOptionContainer('size', ['المقاس', 'Size']);
-    return { exists: !!container, selected: getSelectedWithin(container) };
+    var opts = getSizeOptions(container);
+    return {
+      exists: !!container,
+      selected: getSelectedWithin(container),
+      available: opts.available,
+      unavailable: opts.unavailable,
+    };
   }
 
   function looksLikeProductPage() {
@@ -604,10 +633,16 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return {
       title: getTitle(allowGenericTitle),
       priceUsd: getPrice(),
-      image: colorState.image || getMainImage(),
+      // Main product photo - always the gallery/hero image, never swapped
+      // for the (much smaller) color swatch crop. The swatch travels
+      // separately as colorImage so the app can show both.
+      image: getMainImage(),
+      colorImage: colorState.image || '',
       colorImageFound: !!colorState.image,
       color: colorState.selected,
       size: sizeState.selected,
+      sizesAvailable: sizeState.available || [],
+      sizesUnavailable: sizeState.unavailable || [],
       link: location.href,
     };
   }
@@ -785,6 +820,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
       setCartBadge(typeof detail.count === 'number' ? detail.count : 0);
       return;
     }
+    if (detail && detail.type === '__backTarget') {
+      __otlobliBackTarget = detail.target === 'cart' ? 'cart' : 'home';
+      ensureBackButton();
+      return;
+    }
     if (detail && detail.type === 'addToCartAck') {
       var overlay = document.getElementById('otlobli-overlay');
       if (overlay) {
@@ -845,8 +885,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   // Persistent small square button that takes over SHEIN's own cart icon spot
   // (top-left of the header, where SHEIN normally puts its basket icon). It's
-  // always present - not just on product pages - so it visually and
-  // functionally replaces SHEIN's cart everywhere in the webview.
+  // always present - not just on product pages - and always just opens
+  // otlobli's own cart; adding a product has its own dedicated button (see
+  // ensureAddToCartButton) so the two actions don't share one icon.
   function ensureCartReplacementButton() {
     if (document.getElementById('otlobli-cart-btn')) return;
     ensureShakeStyle();
@@ -861,26 +902,87 @@ export const SHEIN_CAPTURE_SCRIPT = `
     btn.addEventListener('click', function (event) {
       event.preventDefault();
       event.stopPropagation();
-      if (!looksLikeProductPage()) {
-        // Outside a product page this button just IS the cart icon - tapping
-        // it opens otlobli's real cart, same as tapping a cart icon anywhere.
-        requestOpenOtlobliCart();
-        return;
-      }
-      var colorState = getColorState();
-      var sizeState = getSizeState();
-      if (sizeState.exists && !sizeState.selected) {
-        showMessage(btn, 'حدد المقاس أولاً');
-        return;
-      }
-      if (colorState.exists && !colorState.selected) {
-        showMessage(btn, 'حدد اللون أولاً');
-        return;
-      }
-      addToCartFlow(colorState, sizeState);
+      requestOpenOtlobliCart();
     }, true);
     document.body.appendChild(btn);
     setCartBadge(__otlobliCartCount);
+  }
+
+  // Dedicated "add to cart" action, separate from the cart icon above so the
+  // two actions don't fight over one button. Placed bottom-right (thumb
+  // reach, doesn't cover the header or SHEIN's own price/title block), and
+  // only visible while looking at an actual product page.
+  function ensureAddToCartButton() {
+    var btn = document.getElementById('otlobli-add-btn');
+    if (!btn) {
+      ensureShakeStyle();
+      btn = document.createElement('button');
+      btn.id = 'otlobli-add-btn';
+      btn.setAttribute('aria-label', 'إضافة إلى سلة otlobli');
+      btn.style.cssText = 'position:fixed;right:14px;bottom:18px;min-width:128px;height:48px;z-index:2147483647;' +
+        'background:#006948;color:#fff;border:none;border-radius:24px;display:none;align-items:center;' +
+        'justify-content:center;gap:6px;font-size:14px;font-weight:800;line-height:1;direction:rtl;' +
+        'box-shadow:0 6px 16px rgba(0,0,0,.32);padding:0 18px;animation:otlobli-pop2 .25s ease-out;';
+      btn.textContent = '🛍 أضف للسلة';
+      btn.addEventListener('click', function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        var colorState = getColorState();
+        var sizeState = getSizeState();
+        if (sizeState.exists && !sizeState.selected) {
+          showMessage(btn, 'حدد المقاس أولاً');
+          return;
+        }
+        if (colorState.exists && !colorState.selected) {
+          showMessage(btn, 'حدد اللون أولاً');
+          return;
+        }
+        addToCartFlow(colorState, sizeState);
+      }, true);
+      document.body.appendChild(btn);
+    }
+    btn.style.display = looksLikeProductPage() ? 'flex' : 'none';
+  }
+
+  // Lets the user always get back out of wherever they navigated to inside
+  // SHEIN. Two modes depending on how this view was entered:
+  // - "cart": this webview was opened from a cart item tap; tapping back
+  //   asks the app to switch back to the otlobli cart screen.
+  // - "home" (default): normal browsing from the home tab; tapping back just
+  //   walks the webview's own in-page history, same as a browser back button.
+  var __otlobliBackTarget = 'home';
+
+  function ensureBackButton() {
+    var btn = document.getElementById('otlobli-back-btn');
+    if (!btn) {
+      ensureShakeStyle();
+      btn = document.createElement('button');
+      btn.id = 'otlobli-back-btn';
+      btn.setAttribute('aria-label', 'رجوع');
+      btn.style.cssText = 'position:fixed;left:62px;top:12px;width:42px;height:42px;z-index:2147483647;' +
+        'background:rgba(20,24,22,.6);color:#fff;border:none;border-radius:11px;display:none;' +
+        'align-items:center;justify-content:center;font-size:20px;line-height:1;' +
+        'box-shadow:0 4px 12px rgba(0,0,0,.32);animation:otlobli-pop2 .25s ease-out;';
+      // Right-pointing arrow reads as "back" in this RTL UI, matching the
+      // app's own header back button convention (arrow_forward icon).
+      btn.innerHTML = '&#8594;';
+      btn.addEventListener('click', function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (__otlobliBackTarget === 'cart') {
+          try {
+            if (window.mobileApp && window.mobileApp.postMessage) {
+              window.mobileApp.postMessage({ detail: { type: 'backToCart' } });
+            }
+          } catch (e) {}
+          return;
+        }
+        if (history.length > 1) history.back();
+      }, true);
+      document.body.appendChild(btn);
+    }
+    var shouldShow = __otlobliBackTarget === 'cart' || looksLikeProductPage() || history.length > 1;
+    btn.style.display = shouldShow ? 'flex' : 'none';
   }
 
   function isAddToCartButton(el) {
@@ -931,10 +1033,16 @@ export const SHEIN_CAPTURE_SCRIPT = `
         return;
       }
       if (isAddToCartButton(el)) {
+        // Block SHEIN's own click handler from ever firing - otherwise it adds
+        // the item to SHEIN's real bag and shows its own "added to bag" toast
+        // alongside ours, which is exactly the native-cart usage we're trying
+        // to prevent entirely.
+        event.preventDefault();
+        event.stopPropagation();
         var colorState = getColorState();
         var sizeState = getSizeState();
         addToCartFlow(colorState, sizeState);
-        break;
+        return;
       }
       el = el.parentElement;
       depth++;
@@ -1054,6 +1162,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function tick() {
     blockCartNavigation();
     ensureCartReplacementButton();
+    ensureAddToCartButton();
+    ensureBackButton();
     hideExtraHeaderIcons();
     hideSheinCartIcons();
     hideStrayFixedBottomBars();

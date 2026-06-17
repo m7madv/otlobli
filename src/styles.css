@@ -938,6 +938,15 @@ a {
   object-fit: cover;
 }
 
+.cart-item-view {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  display: block;
+  text-align: inherit;
+  cursor: pointer;
+}
+
 .cart-item-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 
 .cart-item-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
@@ -957,6 +966,23 @@ a {
   margin: 0;
   color: var(--muted);
   font-size: 0.8rem;
+}
+
+.cart-item h3.cart-item-view { cursor: pointer; }
+
+.cart-item-variant {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cart-item-color-swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--outline);
+  flex: none;
 }
 
 .cart-item .delete-cart {

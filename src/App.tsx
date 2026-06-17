@@ -17,7 +17,7 @@ import { readStoredJson, storageKeys, useStoredState } from './infrastructure/lo
 import { appApi } from './services'
 import { buildWhatsappLink } from './services/whatsappLink'
 import { SHEIN_CAPTURE_SCRIPT } from './services/sheinBrowserScript'
-import { InAppBrowser, ToolBarType } from '@capgo/capacitor-inappbrowser'
+import { BackgroundColor, InAppBrowser, ToolBarType } from '@capgo/capacitor-inappbrowser'
 
 const API_BASE = import.meta.env.VITE_WHATSAPP_API_URL || ''
 
@@ -266,8 +266,8 @@ function App() {
 
   const breakdown = useMemo(() => {
     if (cartItems.length > 0) {
-      const itemLines = cartItems.map((item) => ({ label: item.title, value: item.priceSyp * item.quantity }))
-      return [...itemLines, ...shippingFees]
+      const productsTotal = cartItems.reduce((sum, item) => sum + item.priceSyp * item.quantity, 0)
+      return [{ label: 'مجموع المنتجات', value: productsTotal }, ...shippingFees]
     }
     return buildPriceBreakdown({
       label: 'سعر المنتج',
@@ -436,8 +436,11 @@ function App() {
       id: activeProduct.id,
       title: activeProduct.title,
       image: activeProduct.images[activeImage] ?? '',
+      colorImage: selectedColor?.image ?? '',
       color: selectedColor?.name ?? manualColorName.trim(),
       size: selectedSize,
+      sizesAvailable: availableSizes,
+      sizesUnavailable: activeProduct.sizes.filter((s) => !availableSizes.includes(s)),
       quantity,
       priceSyp: activeProduct.priceSyp,
       sourceLink: link || activeProduct.link,
@@ -448,6 +451,46 @@ function App() {
 
   const sheinOpenedRef = useRef(false)
   const [sheinReady, setSheinReady] = useState(false)
+  // Tracks which screen the in-page back button inside the SHEIN webview
+  // should return to: 'cart' right after the user taps a cart item (so back
+  // re-opens otlobli's cart), 'home' for ordinary browsing from the home tab.
+  const pendingBackTargetRef = useRef<'home' | 'cart'>('home')
+
+  // SHEIN sends the same UA-based page to every webview - keeping it
+  // identical on Android and iOS avoids SHEIN serving a different
+  // layout/markup (or an "open in app" gate) to one platform only, which
+  // would otherwise break product-data scraping on just one OS.
+  const SHEIN_USER_AGENT =
+    'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36'
+
+  // openWebView's width/height/x/y are in dp (the native side converts dp->px itself),
+  // so pass CSS px values as-is. Multiplying by devicePixelRatio here double-converts
+  // and makes the native window render far larger than the screen (cropped/"zoomed" look).
+  const computeWebviewHeight = () => {
+    const navEl = document.querySelector('.bottom-nav')
+    const navRect = navEl ? navEl.getBoundingClientRect() : null
+    // Leave a small gap above the nav bar instead of butting the webview right
+    // up against it - SHEIN renders its own fixed-position bottom banners flush
+    // with its viewport edge, and with zero gap those visually fuse with our nav.
+    const bottomGap = 40
+    return Math.round((navRect ? navRect.top : window.innerHeight - 74) - bottomGap)
+  }
+
+  // Re-measures the nav bar and pushes the result to the native webview.
+  // Needed beyond the one-shot measurement at open time because the nav
+  // bar's rendered height can still shift slightly after that point (e.g.
+  // late font-metric corrections), which otherwise leaves the native webview
+  // sized for the wrong nav position - visible as a stray gap/void above the
+  // nav bar that doesn't match React's own layout underneath.
+  const syncWebviewDimensions = () => {
+    if (!sheinOpenedRef.current) return
+    void InAppBrowser.updateDimensions({
+      width: Math.round(window.innerWidth),
+      height: computeWebviewHeight(),
+      x: 0,
+      y: 0,
+    })
+  }
 
   const browseShein = () => {
     sheinOpenedRef.current = true
@@ -456,23 +499,15 @@ function App() {
     // height and lets the SHEIN window overlap it.
     const fontsReady = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve()
     fontsReady.then(() => {
-      // openWebView's width/height/x/y are in dp (the native side converts dp->px itself),
-      // so pass CSS px values as-is. Multiplying by devicePixelRatio here double-converts
-      // and makes the native window render far larger than the screen (cropped/"zoomed" look).
-      const navEl = document.querySelector('.bottom-nav')
-      const navRect = navEl ? navEl.getBoundingClientRect() : null
-      // Leave a small gap above the nav bar instead of butting the webview right
-      // up against it - SHEIN renders its own fixed-position bottom banners flush
-      // with its viewport edge, and with zero gap those visually fuse with our nav.
-      const bottomGap = 40
-      const webviewHeight = (navRect ? navRect.top : window.innerHeight - 74) - bottomGap
       return InAppBrowser.openWebView({
         url: 'https://m.shein.com/jo/?ref=jo&rep=dir&ret=mjo&currency=USD',
         toolbarType: ToolBarType.BLANK,
         width: Math.round(window.innerWidth),
-        height: Math.round(webviewHeight),
+        height: computeWebviewHeight(),
         x: 0,
         y: 0,
+        headers: { 'User-Agent': SHEIN_USER_AGENT },
+        backgroundColor: BackgroundColor.WHITE,
         preShowScript: SHEIN_CAPTURE_SCRIPT,
         preShowScriptInjectionTime: 'documentStart',
         isPresentAfterPageLoad: true,
@@ -486,7 +521,11 @@ function App() {
     })
       .then(() => {
         setSheinReady(true)
+        const target = pendingBackTargetRef.current
+        pendingBackTargetRef.current = 'home'
         void InAppBrowser.postMessage({ detail: { type: '__resize' } })
+        void InAppBrowser.postMessage({ detail: { type: '__backTarget', target } })
+        window.setTimeout(syncWebviewDimensions, 400)
       })
       .catch(() => { sheinOpenedRef.current = false })
   }
@@ -495,10 +534,20 @@ function App() {
   useEffect(() => { screenRef.current = screen }, [screen])
 
   useEffect(() => {
+    const handleResize = () => syncWebviewDimensions()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  useEffect(() => {
     if (screen === 'home') {
       if (sheinOpenedRef.current) {
+        const target = pendingBackTargetRef.current
+        pendingBackTargetRef.current = 'home'
         void InAppBrowser.show().then(() => {
           void InAppBrowser.postMessage({ detail: { type: '__resize' } })
+          void InAppBrowser.postMessage({ detail: { type: '__backTarget', target } })
+          window.setTimeout(syncWebviewDimensions, 400)
         })
       } else {
         browseShein()
@@ -507,6 +556,24 @@ function App() {
       void InAppBrowser.hide()
     }
   }, [screen])
+
+  // Navigates the already-open SHEIN webview to a cart item's saved product
+  // link and switches back to it, so tapping a product inside the cart shows
+  // the real SHEIN page instead of just re-displaying the cart.
+  const openSheinProductFromCart = (sourceLink: string) => {
+    if (!sourceLink) {
+      showNotice('رابط المنتج غير متوفر على SHEIN')
+      return
+    }
+    if (!sheinOpenedRef.current) {
+      showNotice('الرجاء الانتظار حتى يتم تجهيز المتجر')
+      return
+    }
+    pendingBackTargetRef.current = 'cart'
+    void InAppBrowser.setUrl({ url: sourceLink })
+      .catch(() => undefined)
+      .then(() => setScreen('home'))
+  }
 
   useEffect(() => {
     const handle = InAppBrowser.addListener('closeEvent', () => {
@@ -529,17 +596,31 @@ function App() {
         return
       }
 
+      if (detail?.type === 'backToCart') {
+        setScreen('cart')
+        return
+      }
+
       const product = detail?.type === 'addToCart' ? (detail.product as Record<string, unknown> | undefined) : undefined
       const title = typeof product?.title === 'string' ? product.title : ''
       if (!title) return
 
       const priceUsd = typeof product?.priceUsd === 'number' ? product.priceUsd : 0
+      const sizesAvailable = Array.isArray(product?.sizesAvailable)
+        ? (product.sizesAvailable as unknown[]).filter((s): s is string => typeof s === 'string')
+        : []
+      const sizesUnavailable = Array.isArray(product?.sizesUnavailable)
+        ? (product.sizesUnavailable as unknown[]).filter((s): s is string => typeof s === 'string')
+        : []
       setCartItems((items) => [...items, {
         id: `shein-${Date.now()}`,
         title,
         image: typeof product?.image === 'string' ? product.image : '',
+        colorImage: typeof product?.colorImage === 'string' ? product.colorImage : '',
         color: typeof product?.color === 'string' ? product.color : '',
         size: typeof product?.size === 'string' ? product.size : '',
+        sizesAvailable,
+        sizesUnavailable,
         quantity: 1,
         priceSyp: Math.round(priceUsd * exchangeRate),
         sourceLink: typeof product?.link === 'string' ? product.link : '',
@@ -1022,14 +1103,26 @@ function App() {
               <>
                 {cartItems.map((item) => (
                   <article className="cart-item" key={item.id}>
-                    <img
-                      src={item.image}
-                      alt={item.title}
-                      onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/80x100/f5f5f5/aaa?text=صورة' }}
-                    />
+                    <button
+                      type="button"
+                      className="cart-item-view"
+                      onClick={() => openSheinProductFromCart(item.sourceLink)}
+                      aria-label={`عرض ${item.title} على SHEIN`}
+                    >
+                      <img
+                        src={item.image}
+                        alt={item.title}
+                        onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/80x100/f5f5f5/aaa?text=صورة' }}
+                      />
+                    </button>
                     <div className="cart-item-body">
                       <div className="cart-item-top">
-                        <h3>{item.title}</h3>
+                        <h3
+                          className="cart-item-view"
+                          onClick={() => openSheinProductFromCart(item.sourceLink)}
+                        >
+                          {item.title}
+                        </h3>
                         <button
                           className="delete-cart"
                           onClick={() => setCartItems((items) => items.filter((i) => i.id !== item.id))}
@@ -1038,7 +1131,10 @@ function App() {
                           <Icon name="delete" />
                         </button>
                       </div>
-                      <p>{item.color} · {item.size}</p>
+                      <p className="cart-item-variant">
+                        {item.colorImage && <img className="cart-item-color-swatch" src={item.colorImage} alt={item.color} />}
+                        {item.color} · {item.size}
+                      </p>
                       <div className="cart-item-bottom">
                         <strong>{formatPrice(item.priceSyp * item.quantity)}</strong>
                         <div className="qty-stepper">

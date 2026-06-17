@@ -98,8 +98,11 @@ export type CartItem = {
   id: string
   title: string
   image: string
+  colorImage?: string
   color: string
   size: string
+  sizesAvailable?: string[]
+  sizesUnavailable?: string[]
   quantity: number
   priceSyp: number
   sourceLink: string
