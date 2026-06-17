@@ -959,7 +959,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
       btn = document.createElement('button');
       btn.id = 'otlobli-back-btn';
       btn.setAttribute('aria-label', 'رجوع');
-      btn.style.cssText = 'position:fixed;left:62px;top:12px;width:42px;height:42px;z-index:2147483647;' +
+      // Top-right corner, mirroring the cart button's top-left spot, so the
+      // two don't crowd into the same corner.
+      btn.style.cssText = 'position:fixed;right:10px;top:12px;width:42px;height:42px;z-index:2147483647;' +
         'background:rgba(20,24,22,.6);color:#fff;border:none;border-radius:11px;display:none;' +
         'align-items:center;justify-content:center;font-size:20px;line-height:1;' +
         'box-shadow:0 4px 12px rgba(0,0,0,.32);animation:otlobli-pop2 .25s ease-out;';
@@ -1068,7 +1070,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var depth = 0;
         while (el && el !== document.body && el !== document.documentElement && depth < 6) {
           if (el.id && el.id.indexOf('otlobli') === 0) break;
-          var isClickable = el.tagName === 'BUTTON' || el.tagName === 'A' || el.getAttribute('role') === 'button';
+          // Not every clickable icon is a <button>/<a>/role="button" - sites
+          // commonly wire a click handler straight onto a styled <div>/<span>
+          // (SHEIN's own native-style "share" icon does exactly this). A
+          // pointer cursor is a reliable cross-markup signal that an element
+          // is meant to be tapped, so treat that as clickable too.
+          var isClickable = el.tagName === 'BUTTON' || el.tagName === 'A' || el.getAttribute('role') === 'button' ||
+            window.getComputedStyle(el).cursor === 'pointer';
           if (isClickable) {
             var rect = el.getBoundingClientRect();
             var isIconSized = rect.width > 0 && rect.width < 64 && rect.height > 0 && rect.height < 64;
