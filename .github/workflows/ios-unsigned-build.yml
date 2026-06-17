@@ -16,6 +16,8 @@ jobs:
           node-version: 22
 
       - run: npm install
+        env:
+          OTLOBLI_RELAY_KEY: ${{ secrets.OTLOBLI_RELAY_KEY }}
       - run: npm run build
       - run: npx cap sync ios
 
