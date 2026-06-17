@@ -308,6 +308,63 @@ async function handleImport(rawUrl) {
 }
 
 // ──────────────────────────────────────────────
+// Live-browsing relay (lets the in-app browser reach shein.com from
+// Cloudflare's network instead of the device's own — the device's IP is
+// what gets geo-blocked, not Cloudflare's). Forwards the request as-is and
+// streams the response back unmodified; no content rewriting.
+// ──────────────────────────────────────────────
+
+const RELAY_REQUEST_HEADER_BLOCKLIST = new Set(['host', 'x-relay-key', 'x-relay-url', 'cf-connecting-ip', 'cf-ray', 'cf-visitor'])
+
+async function handleRelay(request, env) {
+  const relayKey = request.headers.get('X-Relay-Key')
+  if (!env.RELAY_SECRET || relayKey !== env.RELAY_SECRET) {
+    return new Response('Forbidden', { status: 403 })
+  }
+
+  // Not restricted to shein.com hostnames: the page pulls sub-resources
+  // (images, fonts, analytics) from CDN domains that don't contain "shein"
+  // in the name. The shared secret above is the actual access control here.
+  const targetUrl = request.headers.get('X-Relay-Url')
+  let parsedTarget
+  try {
+    parsedTarget = new URL(targetUrl)
+    if (parsedTarget.protocol !== 'https:' && parsedTarget.protocol !== 'http:') throw new Error('bad scheme')
+  } catch {
+    return new Response('Bad target', { status: 400 })
+  }
+
+  const forwardHeaders = new Headers()
+  for (const [name, value] of request.headers) {
+    if (!RELAY_REQUEST_HEADER_BLOCKLIST.has(name.toLowerCase())) forwardHeaders.set(name, value)
+  }
+
+  const hasBody = request.method !== 'GET' && request.method !== 'HEAD'
+  const upstreamResponse = await fetch(parsedTarget.toString(), {
+    method: request.method,
+    headers: forwardHeaders,
+    body: hasBody ? request.body : undefined,
+    // Resolve redirects ourselves: the client needs the real absolute
+    // shein.com Location to keep following the chain in its own origin,
+    // not have Cloudflare quietly follow it and hand back unrelated content.
+    redirect: 'manual',
+  })
+
+  const responseHeaders = new Headers(upstreamResponse.headers)
+  responseHeaders.delete('content-security-policy')
+  responseHeaders.delete('content-security-policy-report-only')
+
+  const location = responseHeaders.get('location')
+  if (location) {
+    try {
+      responseHeaders.set('location', new URL(location, parsedTarget).toString())
+    } catch { /* leave as-is if unparseable */ }
+  }
+
+  return new Response(upstreamResponse.body, { status: upstreamResponse.status, headers: responseHeaders })
+}
+
+// ──────────────────────────────────────────────
 // Worker entry point
 // ──────────────────────────────────────────────
 
@@ -323,6 +380,10 @@ export default {
     // Health check
     if (url.pathname === '/health' || url.pathname === '/') {
       return Response.json({ status: 'ok', service: 'talabieh-shein-worker' }, { headers: CORS_HEADERS })
+    }
+
+    if (url.pathname === '/relay') {
+      return handleRelay(request, env)
     }
 
     // Main import endpoint

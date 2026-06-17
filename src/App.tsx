@@ -478,6 +478,13 @@ function App() {
       // permanently blank home screen. This keeps back navigation inside the webview.
       activeNativeNavigationForWebview: true,
       disableGoBackOnNativeApplication: true,
+      // SHEIN is geo-blocked for Syrian IPs. This single catch-all rule switches
+      // the plugin's per-request fetch (already native on both platforms - see
+      // the patched ProxySchemeHandler.swift / WebViewDialog.java in
+      // patches/@capgo+capacitor-inappbrowser+*.patch) from connecting to the
+      // target directly to going through the Cloudflare Worker relay instead,
+      // so the device's own IP is never what shein.com sees.
+      outboundProxyRules: [{ urlRegex: '.*', action: 'continue' }],
     })
       .then(() => {
         setSheinReady(true)

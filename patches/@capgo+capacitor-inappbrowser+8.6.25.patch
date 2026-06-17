@@ -1,0 +1,182 @@
+diff --git a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
+index 8ae3e61..4ce5eeb 100644
+--- a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
++++ b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
+@@ -215,6 +215,20 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+     private static final int REQUEST_CONNECT_TIMEOUT_MS = 15_000;
+     private static final int REQUEST_READ_TIMEOUT_MS = 30_000;
+     private static final int MAX_WEBVIEW_PROXY_REDIRECTS = 10;
++
++    // otlobli: every native proxy fetch below is routed through a Cloudflare
++    // Worker relay instead of opening a connection to requestContext.url
++    // directly. The relay forwards the request byte-for-byte and streams the
++    // response back unmodified - it exists only so the *device's* IP
++    // (geo-blocked in Syria) isn't what shein.com sees; Cloudflare's network
++    // already reaches it fine (same relay used by the product scraper Worker
++    // this file lives alongside). See worker/src/index.js `handleRelay` and
++    // CHAT_SUMMARY.md section 9 for the full picture.
++    private static final String OTLOBLI_RELAY_URL = "https://talabieh-shein.workers.dev/relay";
++    // Substituted at build time from the OTLOBLI_RELAY_KEY env var by
++    // scripts/inject-relay-key.cjs (see package.json postinstall) - never
++    // committed in real form, see CHAT_SUMMARY.md section 9.
++    private static final String OTLOBLI_RELAY_KEY = "OTLOBLI_RELAY_KEY_PLACEHOLDER";
+     private static final int MAX_MANAGED_DOWNLOAD_REDIRECTS = 10;
+     private static final int BLOB_DOWNLOAD_CHUNK_BYTES = 64 * 1024;
+     private static final long MAX_LEGACY_BLOB_DOWNLOAD_BYTES = 512L * 1024L;
+@@ -5591,12 +5605,19 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+         if (!ProxyRequestSupport.supportsNativeHttpRequest(url)) {
+             throw new IOException("Unsupported proxy URL: " + requestContext.url);
+         }
+-        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
++        // otlobli: open the connection to the relay (see OTLOBLI_RELAY_URL doc
++        // comment above), not to `url` directly - the real target travels in the
++        // X-Relay-Url header instead of being the connection's actual URL. `url`
++        // above is still parsed first so an actually-malformed requestContext.url
++        // fails the same way it always did.
++        HttpURLConnection conn = (HttpURLConnection) new URL(OTLOBLI_RELAY_URL).openConnection();
+         try {
+             conn.setConnectTimeout(REQUEST_CONNECT_TIMEOUT_MS);
+             conn.setReadTimeout(REQUEST_READ_TIMEOUT_MS);
+             conn.setRequestMethod(requestContext.method != null ? requestContext.method : "GET");
+             conn.setInstanceFollowRedirects(false);
++            conn.setRequestProperty("X-Relay-Key", OTLOBLI_RELAY_KEY);
++            conn.setRequestProperty("X-Relay-Url", requestContext.url);
+ 
+             // Strip conditional cache validators on the wire so upstream cannot return 304/3xx,
+             // which WebResourceResponse.setStatusCodeAndReasonPhrase rejects (kills the renderer).
+diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
+index 1c70884..35c244c 100644
+--- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
++++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
+@@ -449,6 +449,20 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
+     /// still reach finish() or the scheme task strands.
+     static let redirectStatusCodes: Set<Int> = [301, 302, 303, 307, 308]
+ 
++    /// otlobli: every native fetch this handler makes is routed through a
++    /// Cloudflare Worker relay instead of contacting the target host
++    /// directly. The relay forwards the request byte-for-byte and streams
++    /// the response back unmodified - it exists only so the *device's* IP
++    /// (geo-blocked in Syria) isn't what shein.com sees; Cloudflare's
++    /// network already reaches it fine (same relay used by the product
++    /// scraper Worker this file lives alongside). See worker/src/index.js
++    /// `handleRelay` and CHAT_SUMMARY.md section 9 for the full picture.
++    static let otlobliRelayURL = URL(string: "https://talabieh-shein.workers.dev/relay")!
++    // Substituted at build time from the OTLOBLI_RELAY_KEY env var by
++    // scripts/inject-relay-key.cjs (see package.json postinstall) - never
++    // committed in real form, see CHAT_SUMMARY.md section 9.
++    static let otlobliRelayKey = "OTLOBLI_RELAY_KEY_PLACEHOLDER"
++
+     weak var plugin: CapgoInAppBrowserPlugin?
+     private var pendingTasks: [String: PendingProxyTask] = [:]
+     private var stoppedRequests: [String: UUID] = [:]
+@@ -671,24 +685,31 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
+                 return
+             }
+             let responseHeaders = ProxySchemeRequestSupport.normalizedResponseHeaders(from: httpResponse)
+-            pendingTask.requestContext.url = ProxySchemeRequestSupport.resolvedResponseURL(
+-                response,
+-                fallback: pendingTask.requestContext.url
+-            )
++            // otlobli: response.url is the relay endpoint, not the real target -
++            // pendingTask.requestContext.url already holds the real one (set when
++            // this fetch was dispatched), so leave it alone instead of overwriting
++            // it from the transport URL.
+             let nativeResponse = NativeResponseData(
+                 statusCode: httpResponse?.statusCode ?? 200,
+                 headers: responseHeaders,
+                 body: data ?? Data(),
+                 contentType: responseHeaders["Content-Type"] ?? responseHeaders["content-type"] ?? "application/octet-stream"
+             )
+-            self.syncResponseCookies(
+-                from: response,
+-                fallbackURL: pendingTask.requestContext.url
+-            ) {
++            let finishUp: () -> Void = {
+                 guard let pendingTask = self.pendingTask(for: requestId) else { return }
+                 pendingTask.responseData = nativeResponse
+                 self.executeInboundDecision(requestId: requestId)
+             }
++            // otlobli: Set-Cookie headers are relayed verbatim from shein.com, but
++            // the HTTP transaction itself happened against the relay's domain - the
++            // system's automatic cookie jar would reject them as cross-domain.
++            // Parse them manually against the real target URL instead.
++            let cookies = ProxySchemeRequestSupport.responseCookies(from: responseHeaders, fallback: pendingTask.requestContext.url)
++            guard !cookies.isEmpty else {
++                finishUp()
++                return
++            }
++            self.writeCookiesOnMain(cookies, completion: finishUp)
+         }
+ 
+         taskLock.lock()
+@@ -819,22 +840,35 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
+             return
+         }
+ 
++        let responseHeaders = ProxySchemeRequestSupport.normalizedResponseHeaders(from: response)
+         let redirectResponse = NativeResponseData(
+             statusCode: response.statusCode,
+-            headers: ProxySchemeRequestSupport.normalizedResponseHeaders(from: response),
++            headers: responseHeaders,
+             body: Data(),
+             contentType: response.value(forHTTPHeaderField: "Content-Type") ?? "application/octet-stream"
+         )
+ 
+-        pendingTask.requestContext.url = ProxySchemeRequestSupport.resolvedResponseURL(
+-            response,
+-            fallback: pendingTask.requestContext.url
+-        )
++        // otlobli: this Set-Cookie (if any) belongs to the URL that issued the
++        // redirect, i.e. the pre-redirect target - capture it before overwriting
++        // requestContext.url below.
++        let preRedirectURL = pendingTask.requestContext.url
++        // response.url is the relay endpoint, not the real target. request.url is
++        // the one URLSession resolved from the relay's Location header, which the
++        // Worker normalizes to an absolute shein.com URL, so it's safe to use here.
++        pendingTask.requestContext.url = request.url?.absoluteString ?? preRedirectURL
+         pendingTask.responseData = redirectResponse
+         pendingTask.redirectRequest = request
+         completionHandler(nil)
+ 
+-        syncResponseCookies(from: response, fallbackURL: pendingTask.requestContext.url) { [weak self] in
++        // otlobli: manual header parsing against preRedirectURL instead of
++        // syncResponseCookies(from: response, ...) - see the matching comment in
++        // executeNativePipeline's dataTask completion for why.
++        let cookies = ProxySchemeRequestSupport.responseCookies(from: responseHeaders, fallback: preRedirectURL)
++        guard !cookies.isEmpty else {
++            executeInboundDecision(requestId: requestId)
++            return
++        }
++        writeCookiesOnMain(cookies) { [weak self] in
+             self?.executeInboundDecision(requestId: requestId)
+         }
+     }
+@@ -958,10 +992,13 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
+     }
+ 
+     private func makeURLRequest(from context: NativeRequestContext) throws -> URLRequest {
+-        guard let url = URL(string: context.url) else {
++        guard URL(string: context.url) != nil else {
+             throw ProxySchemeRequestSupport.RequestBuildError.invalidURL
+         }
+-        var request = URLRequest(url: url)
++        // otlobli: fetch via the relay (see otlobliRelayURL doc comment above)
++        // instead of `context.url` directly - the real target travels in the
++        // X-Relay-Url header instead of being the request's actual URL.
++        var request = URLRequest(url: ProxySchemeHandler.otlobliRelayURL)
+         request.httpMethod = context.method
+         // URLSession will auto-decompress gzip/br/zstd responses only when
+         // Accept-Encoding is NOT present in the request headers (URLSession
+@@ -971,9 +1008,11 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
+         // caller will handle decompression and passes the raw compressed bytes
+         // through, which the WKURLSchemeTask then renders as gibberish in the
+         // WebView. Strip it so URLSession's transparent decompression kicks in.
+-        let filteredHeaders = context.headers.filter { key, _ in
++        var filteredHeaders = context.headers.filter { key, _ in
+             key.caseInsensitiveCompare("Accept-Encoding") != .orderedSame
+         }
++        filteredHeaders["X-Relay-Key"] = ProxySchemeHandler.otlobliRelayKey
++        filteredHeaders["X-Relay-Url"] = context.url
+         request.allHTTPHeaderFields = filteredHeaders
+         if
+             ProxySchemeRequestSupport.supportsRequestBody(method: context.method),
