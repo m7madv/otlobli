@@ -1416,6 +1416,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
   observer.observe(document.body, { childList: true, subtree: true });
 
   setInterval(tick, 300);
+  // hideKnownHeaderIconsByHint specifically needs to win what looks like an
+  // ongoing fight against SHEIN periodically re-rendering its own header (a
+  // user found the hamburger/wishlist icons could stay reachable for
+  // several minutes on the home page even though the same code hid them
+  // instantly elsewhere) - run it on its own much tighter interval so any
+  // freshly re-created icon gets caught within ~120ms instead of waiting
+  // for the next general tick.
+  setInterval(hideKnownHeaderIconsByHint, 120);
   tick();
 })();
 `
