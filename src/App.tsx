@@ -17,7 +17,7 @@ import { readStoredJson, storageKeys, useStoredState } from './infrastructure/lo
 import { appApi } from './services'
 import { buildWhatsappLink } from './services/whatsappLink'
 import { SHEIN_CAPTURE_SCRIPT } from './services/sheinBrowserScript'
-import { BackgroundColor, InAppBrowser, ToolBarType } from '@capgo/capacitor-inappbrowser'
+import { InAppBrowser, ToolBarType } from '@capgo/capacitor-inappbrowser'
 
 const API_BASE = import.meta.env.VITE_WHATSAPP_API_URL || ''
 
@@ -456,60 +456,28 @@ function App() {
   // re-opens otlobli's cart), 'home' for ordinary browsing from the home tab.
   const pendingBackTargetRef = useRef<'home' | 'cart'>('home')
 
-  // openWebView's width/height/x/y are in dp (the native side converts dp->px itself),
-  // so pass CSS px values as-is. Multiplying by devicePixelRatio here double-converts
-  // and makes the native window render far larger than the screen (cropped/"zoomed" look).
-  const computeWebviewHeight = () => {
-    const navEl = document.querySelector('.bottom-nav')
-    const navRect = navEl ? navEl.getBoundingClientRect() : null
-    // Leave a small gap above the nav bar instead of butting the webview right
-    // up against it - SHEIN renders its own fixed-position bottom banners flush
-    // with its viewport edge, and with zero gap those visually fuse with our nav.
-    const bottomGap = 40
-    return Math.round((navRect ? navRect.top : window.innerHeight - 74) - bottomGap)
-  }
-
-  // Re-measures the nav bar and pushes the result to the native webview.
-  // Needed beyond the one-shot measurement at open time because the nav
-  // bar's rendered height can still shift slightly after that point (e.g.
-  // late font-metric corrections), which otherwise leaves the native webview
-  // sized for the wrong nav position - visible as a stray gap/void above the
-  // nav bar that doesn't match React's own layout underneath.
-  const syncWebviewDimensions = () => {
-    if (!sheinOpenedRef.current) return
-    void InAppBrowser.updateDimensions({
-      width: Math.round(window.innerWidth),
-      height: computeWebviewHeight(),
-      x: 0,
-      y: 0,
-    })
-  }
-
+  // The SHEIN webview is a separate native layer floating on top of our own
+  // React UI, not part of its DOM - trying to size it precisely to "leave a
+  // gap above React's bottom-nav" meant keeping two independent native
+  // surfaces pixel-aligned, which turned out to drift out of sync on iOS
+  // (reported as the nav bar vanishing behind a black void). Sidestep that
+  // category of bug entirely: let the webview take the full screen, and draw
+  // otlobli's own nav bar *inside* it (see ensureOtlobliNav in the injected
+  // script) so there's only ever one surface to get right.
   const browseShein = () => {
     sheinOpenedRef.current = true
-    // Wait for webfonts (Arabic + icon font) to finish loading before measuring the nav bar -
-    // on a cold start it can still be using fallback-font metrics, which under-measures its
-    // height and lets the SHEIN window overlap it.
-    const fontsReady = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve()
-    fontsReady.then(() => {
-      return InAppBrowser.openWebView({
-        url: 'https://m.shein.com/jo/?ref=jo&rep=dir&ret=mjo&currency=USD',
-        toolbarType: ToolBarType.BLANK,
-        width: Math.round(window.innerWidth),
-        height: computeWebviewHeight(),
-        x: 0,
-        y: 0,
-        backgroundColor: BackgroundColor.WHITE,
-        preShowScript: SHEIN_CAPTURE_SCRIPT,
-        preShowScriptInjectionTime: 'documentStart',
-        isPresentAfterPageLoad: true,
-        // Without this, the Android system back button can dismiss the whole dialog
-        // outright (e.g. from a page with no in-page history, like an image gallery),
-        // leaving sheinOpenedRef stuck "true" with no actual webview behind it - a
-        // permanently blank home screen. This keeps back navigation inside the webview.
-        activeNativeNavigationForWebview: true,
-        disableGoBackOnNativeApplication: true,
-      })
+    void InAppBrowser.openWebView({
+      url: 'https://m.shein.com/jo/?ref=jo&rep=dir&ret=mjo&currency=USD',
+      toolbarType: ToolBarType.BLANK,
+      preShowScript: SHEIN_CAPTURE_SCRIPT,
+      preShowScriptInjectionTime: 'documentStart',
+      isPresentAfterPageLoad: true,
+      // Without this, the Android system back button can dismiss the whole dialog
+      // outright (e.g. from a page with no in-page history, like an image gallery),
+      // leaving sheinOpenedRef stuck "true" with no actual webview behind it - a
+      // permanently blank home screen. This keeps back navigation inside the webview.
+      activeNativeNavigationForWebview: true,
+      disableGoBackOnNativeApplication: true,
     })
       .then(() => {
         setSheinReady(true)
@@ -517,19 +485,12 @@ function App() {
         pendingBackTargetRef.current = 'home'
         void InAppBrowser.postMessage({ detail: { type: '__resize' } })
         void InAppBrowser.postMessage({ detail: { type: '__backTarget', target } })
-        window.setTimeout(syncWebviewDimensions, 400)
       })
       .catch(() => { sheinOpenedRef.current = false })
   }
 
   const screenRef = useRef(screen)
   useEffect(() => { screenRef.current = screen }, [screen])
-
-  useEffect(() => {
-    const handleResize = () => syncWebviewDimensions()
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [])
 
   useEffect(() => {
     if (screen === 'home') {
@@ -539,7 +500,6 @@ function App() {
         void InAppBrowser.show().then(() => {
           void InAppBrowser.postMessage({ detail: { type: '__resize' } })
           void InAppBrowser.postMessage({ detail: { type: '__backTarget', target } })
-          window.setTimeout(syncWebviewDimensions, 400)
         })
       } else {
         browseShein()
@@ -583,13 +543,18 @@ function App() {
     const handle = InAppBrowser.addListener('messageFromWebview', (event: { detail?: Record<string, unknown> }) => {
       const detail = event?.detail
 
-      if (detail?.type === 'openCart') {
+      if (detail?.type === 'openCart' || detail?.type === 'backToCart') {
         setScreen('cart')
         return
       }
 
-      if (detail?.type === 'backToCart') {
-        setScreen('cart')
+      if (detail?.type === 'openOrders') {
+        setScreen('orders')
+        return
+      }
+
+      if (detail?.type === 'openProfile') {
+        setScreen('profile')
         return
       }
 
@@ -1555,7 +1520,11 @@ function App() {
     }
 
     return (
-      <MobileShell active="home" onNavigate={setScreen}>
+      // Once SHEIN is showing, its own injected nav bar (drawn inside that
+      // webview - see ensureOtlobliNav) is what the user actually sees and
+      // taps, so hide React's nav underneath instead of keeping two navs
+      // around.
+      <MobileShell active="home" onNavigate={setScreen} hideBottomNav={sheinReady}>
         {!sheinReady && <Header title="otlobli" />}
         {!sheinReady && <HomeScreen userName={userProfile?.name} />}
       </MobileShell>

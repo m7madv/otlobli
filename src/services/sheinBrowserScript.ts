@@ -919,7 +919,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
       btn = document.createElement('button');
       btn.id = 'otlobli-add-btn';
       btn.setAttribute('aria-label', 'إضافة إلى سلة otlobli');
-      btn.style.cssText = 'position:fixed;right:14px;bottom:18px;min-width:128px;height:48px;z-index:2147483647;' +
+      // Cleared above ensureOtlobliNav's bar (~64px + safe-area) instead of
+      // sitting flush with the screen edge, so the two never overlap.
+      btn.style.cssText = 'position:fixed;right:14px;bottom:calc(78px + env(safe-area-inset-bottom, 0px));' +
+        'min-width:128px;height:48px;z-index:2147483647;' +
         'background:#006948;color:#fff;border:none;border-radius:24px;display:none;align-items:center;' +
         'justify-content:center;gap:6px;font-size:14px;font-weight:800;line-height:1;direction:rtl;' +
         'box-shadow:0 6px 16px rgba(0,0,0,.32);padding:0 18px;animation:otlobli-pop2 .25s ease-out;';
@@ -942,6 +945,53 @@ export const SHEIN_CAPTURE_SCRIPT = `
       document.body.appendChild(btn);
     }
     btn.style.display = looksLikeProductPage() ? 'flex' : 'none';
+  }
+
+  // otlobli's own bottom navigation bar, drawn as part of this page instead
+  // of relying on a separately-sized native layer underneath to line up with
+  // it pixel-for-pixel (that cross-layer alignment is what went wrong on
+  // iOS - the webview and otlobli's React nav drifted out of sync and left a
+  // black gap where the nav should be). Since this bar lives inside the same
+  // webview as everything else here, env(safe-area-inset-bottom) handles the
+  // home-indicator inset correctly with zero native-side math.
+  function ensureOtlobliNav() {
+    if (document.getElementById('otlobli-nav')) return;
+    ensureShakeStyle();
+    var nav = document.createElement('div');
+    nav.id = 'otlobli-nav';
+    nav.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:2147483645;display:flex;' +
+      'background:#ffffff;border-top:1px solid #e6e8ea;box-shadow:0 -2px 10px rgba(0,0,0,.08);' +
+      'padding-bottom:env(safe-area-inset-bottom, 0px);';
+    var items = [
+      { label: 'الرئيسية', icon: '🏠', type: '' },
+      { label: 'طلباتي', icon: '📦', type: 'openOrders' },
+      { label: 'السلة', icon: '🛍', type: 'openCart' },
+      { label: 'حسابي', icon: '👤', type: 'openProfile' },
+    ];
+    for (var i = 0; i < items.length; i++) {
+      var item = items[i];
+      var tab = document.createElement('button');
+      var isActiveTab = !item.type;
+      tab.style.cssText = 'flex:1;border:0;background:transparent;display:flex;flex-direction:column;' +
+        'align-items:center;justify-content:center;gap:2px;padding:9px 0 7px;font-size:11px;' +
+        'font-weight:700;font-family:inherit;color:' + (isActiveTab ? '#006948' : '#3d4a42') + ';';
+      tab.innerHTML = '<span style="font-size:19px;line-height:1">' + item.icon + '</span><span>' + item.label + '</span>';
+      if (item.type) {
+        (function (messageType) {
+          tab.addEventListener('click', function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            try {
+              if (window.mobileApp && window.mobileApp.postMessage) {
+                window.mobileApp.postMessage({ detail: { type: messageType } });
+              }
+            } catch (e) {}
+          }, true);
+        })(item.type);
+      }
+      nav.appendChild(tab);
+    }
+    document.body.appendChild(nav);
   }
 
   // Lets the user always get back out of wherever they navigated to inside
@@ -1172,6 +1222,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     ensureCartReplacementButton();
     ensureAddToCartButton();
     ensureBackButton();
+    ensureOtlobliNav();
     hideExtraHeaderIcons();
     hideSheinCartIcons();
     hideStrayFixedBottomBars();
