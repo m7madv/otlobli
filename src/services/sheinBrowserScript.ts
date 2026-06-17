@@ -800,35 +800,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     attempt();
   }
 
-  // Badge on the cart-replacement button, mirroring the otlobli cart's actual
-  // item count - same little "bounce" a notification/app-icon badge gets
-  // whenever the count changes.
-  var __otlobliCartCount = 0;
-  function setCartBadge(count) {
-    __otlobliCartCount = count;
-    var btn = document.getElementById('otlobli-cart-btn');
-    if (!btn) return;
-    var badge = document.getElementById('otlobli-cart-badge');
-    if (!count || count <= 0) {
-      if (badge) badge.remove();
-      return;
-    }
-    if (!badge) {
-      ensureShakeStyle();
-      badge = document.createElement('span');
-      badge.id = 'otlobli-cart-badge';
-      badge.style.cssText = 'position:absolute;top:-6px;right:-6px;min-width:18px;height:18px;padding:0 4px;' +
-        'border-radius:9px;background:#e02424;color:#fff;font-size:11px;font-weight:800;line-height:18px;' +
-        'text-align:center;box-shadow:0 0 0 2px #fff;';
-      btn.appendChild(badge);
-    }
-    badge.textContent = count > 99 ? '99+' : String(count);
-    badge.style.animation = 'none';
-    requestAnimationFrame(function () {
-      badge.style.animation = 'otlobli-badge-pop .35s cubic-bezier(.34,1.56,.64,1)';
-    });
-  }
-
   function requestOpenOtlobliCart() {
     try {
       if (window.mobileApp && window.mobileApp.postMessage) {
@@ -842,10 +813,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (detail && detail.type === '__resize') {
       window.dispatchEvent(new Event('resize'));
       tick();
-      return;
-    }
-    if (detail && detail.type === '__cartCount') {
-      setCartBadge(typeof detail.count === 'number' ? detail.count : 0);
       return;
     }
     if (detail && detail.type === '__backTarget') {
@@ -863,11 +830,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
           markOverlaySuccess();
           removeOverlay(700);
         }, wait);
-      }
-      var btn = document.getElementById('otlobli-cart-btn');
-      if (btn) {
-        btn.style.background = '#1aab6f';
-        setTimeout(function () { btn.style.background = '#006948'; }, 1800);
       }
     }
   });
@@ -911,35 +873,43 @@ export const SHEIN_CAPTURE_SCRIPT = `
     document.head.appendChild(style);
   }
 
-  // Persistent small square button that takes over SHEIN's own cart icon spot
-  // (top-left of the header, where SHEIN normally puts its basket icon). It's
-  // always present - not just on product pages - and always just opens
-  // otlobli's own cart; adding a product has its own dedicated button (see
-  // ensureAddToCartButton) so the two actions don't share one icon.
-  function ensureCartReplacementButton() {
-    if (document.getElementById('otlobli-cart-btn')) return;
-    ensureShakeStyle();
-    var btn = document.createElement('button');
-    btn.id = 'otlobli-cart-btn';
-    btn.setAttribute('aria-label', 'سلة otlobli');
-    btn.style.cssText = 'position:fixed;left:10px;top:12px;width:42px;height:42px;z-index:2147483647;' +
-      'background:#006948;color:#fff;border:none;border-radius:11px;display:flex;align-items:center;' +
-      'justify-content:center;font-size:21px;line-height:1;box-shadow:0 4px 12px rgba(0,0,0,.32);' +
-      'animation:otlobli-pop2 .25s ease-out;';
-    btn.textContent = '🛍';
-    btn.addEventListener('click', function (event) {
-      event.preventDefault();
-      event.stopPropagation();
-      requestOpenOtlobliCart();
-    }, true);
-    document.body.appendChild(btn);
-    setCartBadge(__otlobliCartCount);
+  // Covers the whole page with an opaque, untappable overlay from the very
+  // first tick() until SHEIN's UI has had a few polling cycles to actually
+  // get hidden/blocked. Without this, there's a real (if short) window
+  // right after a page loads where SHEIN's own buttons are rendered but our
+  // hide/block pass hasn't reached them yet - confirmed by a user managing
+  // to add a product to SHEIN's real cart from that exact window. Better to
+  // make the user wait a beat than ever expose anything unprocessed.
+  var __otlobliLoadingDone = false;
+  function ensureLoadingOverlay() {
+    if (__otlobliLoadingDone || document.getElementById('otlobli-loading')) return;
+    ensureOverlayStyle();
+    var vp = viewportSize();
+    var overlay = document.createElement('div');
+    overlay.id = 'otlobli-loading';
+    overlay.style.cssText = 'position:fixed;left:0;top:0;width:' + vp.width + 'px;height:' + vp.height + 'px;' +
+      'background:#ffffff;z-index:2147483647;display:flex;align-items:center;justify-content:center;';
+    overlay.addEventListener('touchmove', function (e) { e.preventDefault(); }, { passive: false });
+    overlay.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); }, true);
+    var spinner = document.createElement('div');
+    spinner.style.cssText = 'width:38px;height:38px;border-radius:50%;border:4px solid #d8efe4;' +
+      'border-top-color:#006948;animation:otlobli-spin .8s linear infinite;';
+    overlay.appendChild(spinner);
+    document.body.appendChild(overlay);
+    window.setTimeout(function () {
+      __otlobliLoadingDone = true;
+      var el = document.getElementById('otlobli-loading');
+      if (el) el.remove();
+    }, 1100);
   }
 
-  // Dedicated "add to cart" action, separate from the cart icon above so the
-  // two actions don't fight over one button. Placed bottom-right (thumb
-  // reach, doesn't cover the header or SHEIN's own price/title block), and
-  // only visible while looking at an actual product page.
+  // Dedicated "add to cart" action. Used to share a corner with a floating
+  // cart-icon button, but that button was dropped entirely - the bottom nav
+  // (see ensureOtlobliNav) already has its own "السلة" tab that does the
+  // exact same thing, so the floating icon was pure redundancy. Placed
+  // bottom-right (thumb reach, doesn't cover the header or SHEIN's own
+  // price/title block), and only visible while looking at an actual
+  // product page.
   function ensureAddToCartButton() {
     var btn = document.getElementById('otlobli-add-btn');
     if (!btn) {
@@ -1111,6 +1081,22 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return /add to (bag|cart)/i.test(text) || /أضف.*(عربة|السلة|الحقيبة|التسوق)/.test(text);
   }
 
+  // SHEIN's "quick add" popup (opened from a listing card, without ever
+  // visiting the real product page) doesn't necessarily reuse the same
+  // wording as the real product page's button - a user confirmed the exact
+  // isAddToCartButton text match above still let one through. This is a
+  // deliberately looser net: ANY short button-ish text while we're not on a
+  // real product page that even loosely reads like a submit/confirm/add
+  // action gets caught too, since the consequence of a false positive here
+  // (blocking some unrelated short label) is far cheaper than letting a
+  // real add-to-SHEIN's-cart action slip through.
+  function isQuickAddSubmitButton(el) {
+    if (looksLikeProductPage()) return false;
+    var text = (el.textContent || '').trim();
+    if (!text || text.length > 30) return false;
+    return /^(إضافة|أضف|تأكيد|اضافة|add|confirm)\b/i.test(text) || /عربة|السلة|التسوق|الحقيبة|bag|cart/i.test(text);
+  }
+
   function looksLikeCartUrl(href) {
     if (!href) return false;
     return /\\/(cart|bag|checkout|order-confirm|payment)(\\b|[/?#.])/i.test(href);
@@ -1171,6 +1157,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
         showMessage(null, 'هذا الخيار غير متوفر حالياً');
         return;
       }
+      if (isQuickAddSubmitButton(el)) {
+        event.preventDefault();
+        event.stopPropagation();
+        showMessage(null, 'افتح المنتج كاملاً أولاً لإضافته إلى السلة');
+        return;
+      }
       if (isAddToCartButton(el)) {
         // Block SHEIN's own click handler from ever firing - otherwise it adds
         // the item to SHEIN's real bag and shows its own "added to bag" toast
@@ -1206,6 +1198,33 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // a transparent hole in SHEIN's header. Capping at icon-sized elements (and
   // skipping anything that contains/looks like the search input) keeps this
   // safe even if SHEIN's markup doesn't match our assumptions.
+  // Point-probing (hideExtraHeaderIcons below) can miss a small icon
+  // outright if it just happens to sit between two sample points - a user
+  // reported the wishlist heart and hamburger menu sometimes taking
+  // minutes to disappear, purely down to probe-grid luck. This is a direct,
+  // grid-independent pass: query for the hamburger/wishlist by name instead
+  // of by position, so it gets caught on literally the first tick
+  // regardless of exactly where it sits. The hamburger is a real risk
+  // beyond clutter too - it can lead to SHEIN's own account/region/currency
+  // settings, and a currency switch there would silently break price
+  // capture (which assumes USD).
+  function hideKnownHeaderIconsByHint() {
+    var candidates = document.querySelectorAll(
+      '[class*="menu" i], [aria-label*="menu" i], [class*="hamburger" i], [class*="nav-toggle" i], ' +
+      '[class*="wishlist" i], [class*="favorite" i], [aria-label*="favorite" i], [aria-label*="wishlist" i]'
+    );
+    for (var i = 0; i < candidates.length; i++) {
+      var el = candidates[i];
+      if (el.id && el.id.indexOf('otlobli') === 0) continue;
+      var rect = el.getBoundingClientRect();
+      if (rect.top < -10 || rect.top > 120) continue;
+      if (rect.width <= 0 || rect.width > 64 || rect.height <= 0 || rect.height > 64) continue;
+      el.setAttribute('data-otlobli-blocked', '1');
+      el.style.setProperty('visibility', 'hidden', 'important');
+      el.style.setProperty('pointer-events', 'none', 'important');
+    }
+  }
+
   function hideExtraHeaderIcons() {
     var vp = viewportSize();
     // Wider probe band than just the first ~50px - SHEIN's header height
@@ -1353,11 +1372,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   function tick() {
+    ensureLoadingOverlay();
     blockCartNavigation();
-    ensureCartReplacementButton();
     ensureAddToCartButton();
     ensureBackButton();
     ensureOtlobliNav();
+    hideKnownHeaderIconsByHint();
     hideExtraHeaderIcons();
     hideSheinCartIcons();
     hideForeignBottomNav();

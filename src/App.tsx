@@ -588,15 +588,6 @@ function App() {
     return () => { void handle.then((h) => h.remove()) }
   }, [exchangeRate])
 
-  // Keep SHEIN's cart-icon-replacement badge in sync with otlobli's real cart
-  // count, so it bounces with the familiar "+1" badge animation whenever an
-  // item is added or removed - same pattern as any app icon notification badge.
-  useEffect(() => {
-    if (sheinOpenedRef.current) {
-      void InAppBrowser.postMessage({ detail: { type: '__cartCount', count: cartItems.length } })
-    }
-  }, [cartItems.length])
-
   const [isStartingPayment, setIsStartingPayment] = useState(false)
 
   // ينشئ الطلب بحالة "بانتظار الدفع" مع مبلغ دفع فريد (لو ما فيه طلب معلّق
