@@ -16,6 +16,24 @@ export const SHEIN_CAPTURE_SCRIPT = `
   if (window.__otlobliInjected) return;
   window.__otlobliInjected = true;
 
+  // Remembers the very first page this webview session landed on (the
+  // SHEIN home root), persisted in sessionStorage since this whole script
+  // re-runs fresh on every navigation. Used to tell "the user is at the
+  // top, nothing to go back to" apart from "the user navigated somewhere
+  // and there's a real previous page" - relying on history.length for that
+  // is unsafe because the language-redirect reload above (and SHEIN's own
+  // Cloudflare verification redirect before that) can leave extra entries
+  // in history that aren't real user navigation, so a plain history.back()
+  // from the home root can land back on a half-finished verification page
+  // instead of just doing nothing.
+  if (!sessionStorage.getItem('__otlobliHomePath')) {
+    sessionStorage.setItem('__otlobliHomePath', location.pathname);
+  }
+  function looksLikeHomeRoot() {
+    var homePath = (sessionStorage.getItem('__otlobliHomePath') || '').replace(/\\/+$/, '');
+    return location.pathname.replace(/\\/+$/, '') === homePath;
+  }
+
   // This WebView (hosted inside a native Dialog) reports window.innerWidth/innerHeight
   // as 0, which breaks "position:fixed; left/right/bottom" math for our overlays
   // (they render collapsed, off-screen). document.documentElement.clientWidth/Height
@@ -1046,18 +1064,30 @@ export const SHEIN_CAPTURE_SCRIPT = `
           } catch (e) {}
           return;
         }
-        if (history.length > 1) history.back();
+        // Only ever go back while we're actually somewhere other than the
+        // SHEIN home root - history.length isn't a safe proxy for that (the
+        // language-redirect reload and SHEIN's own verification redirect
+        // both add entries that were never real user navigation, so a back()
+        // from the root could land back on a half-finished verification
+        // page instead of doing nothing).
+        if (!looksLikeHomeRoot()) history.back();
       }, true);
       document.body.appendChild(btn);
     }
-    var shouldShow = __otlobliBackTarget === 'cart' || looksLikeProductPage() || history.length > 1;
+    var shouldShow = __otlobliBackTarget === 'cart' || !looksLikeHomeRoot();
     btn.style.display = shouldShow ? 'flex' : 'none';
   }
 
   function isAddToCartButton(el) {
     var text = (el.textContent || '').trim();
-    if (!text || text.length > 40) return false;
-    return /add to (bag|cart)/i.test(text);
+    if (!text || text.length > 60) return false;
+    // The Arabic-only regex below is what was actually missing - SHEIN's
+    // Jordan site (forced to Arabic above) labels this "أضف إلى عربة
+    // التسوق"/"أضف للسلة", never the English text this previously only
+    // matched, so the click interceptor never caught it and SHEIN's real
+    // add-to-cart fired untouched (confirmed by a user screenshot showing
+    // SHEIN's own "أضف إلى عربة التسوق بنجاح" success bar).
+    return /add to (bag|cart)/i.test(text) || /أضف.*(عربة|السلة|الحقيبة|التسوق)/.test(text);
   }
 
   function looksLikeCartUrl(href) {
@@ -1070,6 +1100,19 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (el.tagName === 'A' && looksLikeCartUrl(el.getAttribute('href') || el.href || '')) return true;
     var cls = ' ' + (el.className || '') + ' ';
     return /\\s(cart-icon|header-cart|j-header-cart|shopping-bag|bag-icon)\\s/i.test(cls);
+  }
+
+  // Blocks wishlist/favorite anywhere it shows up - header, product page,
+  // or inside SHEIN's own quick-add bottom sheet (the heart icon sitting
+  // right next to its add-to-cart button). Matched on text/class/aria-label
+  // rather than position, so it's caught no matter which of those places it
+  // appears in, instead of needing a separate point-probe per location.
+  function isWishlistButton(el) {
+    if (el.id && el.id.indexOf('otlobli') === 0) return false;
+    var text = (el.textContent || '').trim();
+    if (text.length > 30) return false;
+    var hint = (el.className || '') + ' ' + (el.getAttribute('aria-label') || '') + ' ' + text;
+    return /wishlist|favorite|مفضل/i.test(hint);
   }
 
   var lastSafeUrl = location.href;
@@ -1099,6 +1142,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
         event.preventDefault();
         event.stopPropagation();
         requestOpenOtlobliCart();
+        return;
+      }
+      if (isWishlistButton(el)) {
+        event.preventDefault();
+        event.stopPropagation();
+        showMessage(null, 'هذا الخيار غير متوفر حالياً');
         return;
       }
       if (isAddToCartButton(el)) {
