@@ -954,28 +954,45 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // black gap where the nav should be). Since this bar lives inside the same
   // webview as everything else here, env(safe-area-inset-bottom) handles the
   // home-indicator inset correctly with zero native-side math.
+  // Plain inline-SVG outline icons instead of emoji - emoji glyphs render
+  // inconsistently across platforms/fonts, while these always look the same
+  // regardless of what page/font context they're injected into.
+  var OTLOBLI_NAV_ICONS = {
+    home: '<path d="M4 11.5 12 4l8 7.5"/><path d="M6 10v9h12v-9"/><path d="M10 19v-5h4v5"/>',
+    orders: '<rect x="4" y="7" width="16" height="13" rx="1.3"/><path d="M4 7l8-4 8 4"/><path d="M12 11v9"/>',
+    cart: '<circle cx="9" cy="20" r="1.3"/><circle cx="18" cy="20" r="1.3"/>' +
+      '<path d="M3 4h2l2.2 11.5a2 2 0 0 0 2 1.6h8.6a2 2 0 0 0 2-1.6L21 8H6"/>',
+    profile: '<circle cx="12" cy="8" r="3.6"/><path d="M5 20c0-3.8 3.1-6.4 7-6.4s7 2.6 7 6.4"/>',
+  };
+
   function ensureOtlobliNav() {
     if (document.getElementById('otlobli-nav')) return;
     ensureShakeStyle();
     var nav = document.createElement('div');
     nav.id = 'otlobli-nav';
-    nav.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:2147483645;display:flex;' +
+    // Max z-index (tied with the other otlobli overlays, and appended last
+    // so it wins paint order among ties) - guarantees this sits above any
+    // bottom bar SHEIN's own page might render now that the webview is
+    // full-screen, rather than hoping ours happens to be on top.
+    nav.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:2147483647;display:flex;' +
       'background:#ffffff;border-top:1px solid #e6e8ea;box-shadow:0 -2px 10px rgba(0,0,0,.08);' +
       'padding-bottom:env(safe-area-inset-bottom, 0px);';
     var items = [
-      { label: 'الرئيسية', icon: '🏠', type: '' },
-      { label: 'طلباتي', icon: '📦', type: 'openOrders' },
-      { label: 'السلة', icon: '🛍', type: 'openCart' },
-      { label: 'حسابي', icon: '👤', type: 'openProfile' },
+      { label: 'الرئيسية', icon: OTLOBLI_NAV_ICONS.home, type: '' },
+      { label: 'طلباتي', icon: OTLOBLI_NAV_ICONS.orders, type: 'openOrders' },
+      { label: 'السلة', icon: OTLOBLI_NAV_ICONS.cart, type: 'openCart' },
+      { label: 'حسابي', icon: OTLOBLI_NAV_ICONS.profile, type: 'openProfile' },
     ];
     for (var i = 0; i < items.length; i++) {
       var item = items[i];
       var tab = document.createElement('button');
       var isActiveTab = !item.type;
       tab.style.cssText = 'flex:1;border:0;background:transparent;display:flex;flex-direction:column;' +
-        'align-items:center;justify-content:center;gap:2px;padding:9px 0 7px;font-size:11px;' +
+        'align-items:center;justify-content:center;gap:3px;padding:9px 0 7px;font-size:11px;' +
         'font-weight:700;font-family:inherit;color:' + (isActiveTab ? '#006948' : '#3d4a42') + ';';
-      tab.innerHTML = '<span style="font-size:19px;line-height:1">' + item.icon + '</span><span>' + item.label + '</span>';
+      tab.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+        'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + item.icon + '</svg>' +
+        '<span>' + item.label + '</span>';
       if (item.type) {
         (function (messageType) {
           tab.addEventListener('click', function (event) {
@@ -1187,6 +1204,30 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
+  // Now that the webview is full-screen (see browseShein in App.tsx),
+  // SHEIN's own page can render its own persistent bottom tab bar, which
+  // used to be clipped off-screen in the old height-constrained webview.
+  // Find and remove it outright instead of just hoping otlobli's nav paints
+  // above it - otlobli's nav is the only bottom bar the user should ever see.
+  function hideForeignBottomNav() {
+    var vp = viewportSize();
+    var candidates = document.querySelectorAll(
+      'nav, footer, [class*="tab-bar" i], [class*="tabbar" i], [class*="bottom-nav" i], ' +
+      '[class*="footer-nav" i], [class*="nav-bar" i], [class*="navbar" i]'
+    );
+    for (var i = 0; i < candidates.length; i++) {
+      var el = candidates[i];
+      if (el.id && el.id.indexOf('otlobli') === 0) continue;
+      var style = window.getComputedStyle(el);
+      if (style.position !== 'fixed' && style.position !== 'sticky') continue;
+      var rect = el.getBoundingClientRect();
+      if (rect.width < vp.width * 0.85) continue;
+      if (rect.height <= 0 || rect.height > 160) continue;
+      if (rect.bottom < vp.height - 10) continue;
+      el.style.setProperty('display', 'none', 'important');
+    }
+  }
+
   // SHEIN pins its own promo bars (e.g. "free shipping over $X") to the bottom
   // of its page with position:fixed/sticky. Those were designed to sit above
   // SHEIN's own bottom tab bar, but our webview's viewport ends right where
@@ -1225,6 +1266,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     ensureOtlobliNav();
     hideExtraHeaderIcons();
     hideSheinCartIcons();
+    hideForeignBottomNav();
     hideStrayFixedBottomBars();
   }
 
