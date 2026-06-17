@@ -118,7 +118,7 @@ a {
   align-items: center;
   justify-content: space-between;
   min-height: 64px;
-  padding: 0 16px;
+  padding: env(safe-area-inset-top, 0px) 16px 0;
   border-bottom: 1px solid var(--outline);
   background: rgba(247, 249, 251, 0.88);
   backdrop-filter: blur(14px);

@@ -1178,6 +1178,16 @@ export const SHEIN_CAPTURE_SCRIPT = `
         // to prevent entirely.
         event.preventDefault();
         event.stopPropagation();
+        if (!looksLikeProductPage()) {
+          // This is SHEIN's "quick add" button on a listing card, which opens
+          // a stripped-down popup instead of the real product page - that
+          // popup's markup doesn't match what our scraping functions expect
+          // (built around the full product page), so capture from it is
+          // unreliable. Require opening the real product page instead, every
+          // time, so capture always runs against the same known layout.
+          showMessage(null, 'افتح المنتج كاملاً أولاً لإضافته إلى السلة');
+          return;
+        }
         var colorState = getColorState();
         var sizeState = getSizeState();
         addToCartFlow(colorState, sizeState);
@@ -1354,6 +1364,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
     hideStrayFixedBottomBars();
   }
 
+  // Kept tight on purpose - every visible millisecond here is a window where
+  // a SHEIN button/icon that's supposed to be hidden or blocked is instead
+  // tappable, which is exactly the "nothing should ever be reachable, not
+  // even briefly" requirement this whole hide/block system exists for.
   var tickScheduled = false;
   function scheduleTick() {
     if (tickScheduled) return;
@@ -1361,7 +1375,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     setTimeout(function () {
       tickScheduled = false;
       tick();
-    }, 250);
+    }, 80);
   }
 
   var originalPushState = history.pushState;
@@ -1381,7 +1395,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var observer = new MutationObserver(scheduleTick);
   observer.observe(document.body, { childList: true, subtree: true });
 
-  setInterval(tick, 600);
+  setInterval(tick, 300);
   tick();
 })();
 `
