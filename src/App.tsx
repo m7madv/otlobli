@@ -1511,11 +1511,16 @@ function App() {
     }
 
     return (
-      // Once SHEIN is showing, its own injected nav bar (drawn inside that
-      // webview - see ensureOtlobliNav) is what the user actually sees and
-      // taps, so hide React's nav underneath instead of keeping two navs
-      // around.
-      <MobileShell active="home" onNavigate={setScreen} hideBottomNav={sheinReady}>
+      // Keep React's own nav mounted here at all times, even while SHEIN's
+      // webview (with its own injected nav - see ensureOtlobliNav) is
+      // covering the whole screen on top of it. Conditionally unmounting it
+      // while SHEIN is showing meant React had to mount it fresh from
+      // scratch the moment the user switched to another tab, right as the
+      // native webview was hiding - a real source of the "jump"/flash
+      // reported when switching screens. With it always present underneath,
+      // hiding the webview just reveals a nav that was already laid out,
+      // not one that still needs to render.
+      <MobileShell active="home" onNavigate={setScreen}>
         {!sheinReady && <Header title="otlobli" />}
         {!sheinReady && <HomeScreen userName={userProfile?.name} />}
       </MobileShell>

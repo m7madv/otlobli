@@ -974,8 +974,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // full-screen, rather than hoping ours happens to be on top.
     // Matches otlobli's real .bottom-nav as closely as a separate webview
     // can: same colors (--primary #006948 / --muted #3d4a42), same ~74px
-    // min-height, same 4px top indicator bar on the active tab.
-    nav.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:2147483647;display:flex;' +
+    // min-height, same 4px top indicator bar on the active tab, and the
+    // same 440px max-width/centering (matters on tablets - on a phone-width
+    // screen this is identical to full width).
+    nav.style.cssText = 'position:fixed;left:50%;bottom:0;transform:translateX(-50%);' +
+      'width:min(100%, 440px);z-index:2147483647;display:flex;' +
       'min-height:74px;background:rgba(255,255,255,.97);border-top:1px solid #bccac0;' +
       'padding-bottom:env(safe-area-inset-bottom, 0px);';
     var items = [
