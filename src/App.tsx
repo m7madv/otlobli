@@ -456,13 +456,6 @@ function App() {
   // re-opens otlobli's cart), 'home' for ordinary browsing from the home tab.
   const pendingBackTargetRef = useRef<'home' | 'cart'>('home')
 
-  // SHEIN sends the same UA-based page to every webview - keeping it
-  // identical on Android and iOS avoids SHEIN serving a different
-  // layout/markup (or an "open in app" gate) to one platform only, which
-  // would otherwise break product-data scraping on just one OS.
-  const SHEIN_USER_AGENT =
-    'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36'
-
   // openWebView's width/height/x/y are in dp (the native side converts dp->px itself),
   // so pass CSS px values as-is. Multiplying by devicePixelRatio here double-converts
   // and makes the native window render far larger than the screen (cropped/"zoomed" look).
@@ -506,7 +499,6 @@ function App() {
         height: computeWebviewHeight(),
         x: 0,
         y: 0,
-        headers: { 'User-Agent': SHEIN_USER_AGENT },
         backgroundColor: BackgroundColor.WHITE,
         preShowScript: SHEIN_CAPTURE_SCRIPT,
         preShowScriptInjectionTime: 'documentStart',
