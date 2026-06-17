@@ -183,3 +183,38 @@ node --check check.js && echo OK && rm check.js
 - لو المستخدم رجع يشتكي من الشريط (قفزة/شكل)، ابدأ من نقطة "إبقاء شريط React مثبّت" فوق — هذا أحدث تعديل وغير مؤكد.
 - لو الحجب لسا بطيء/غير مكتمل، اطلب من المستخدم تفاصيل أدق (أي عنصر بالضبط، بعد كم وقت) بدل تخمين هيوريستيك إضافي.
 - IPA الناتج يُحمَّل لـ`ipa-output/otlobli-unsigned.ipa` عبر `gh run download <run-id> -n otlobli-ipa -D ipa-output` بعد ما الـworkflow ينجح (`gh run watch <run-id> --exit-status`).
+
+---
+
+## 9. حل مشكلة الـVPN — تصفح SHEIN بدون VPN عبر Cloudflare Worker (تاريخ هذه الجلسة)
+
+**المشكلة:** shein.com يحجب IP سوريا (عقوبات تقريباً)، فالمستخدم كان مضطر يشغّل VPN شخصي قبل ما يقدر يتصفح داخل التطبيق. المطلوب: حل "زابط" يشتغل تلقائياً بدون أي إجراء من المستخدم.
+
+**خيارات فُحصت ورُفضت:**
+- Reverse-proxy/مرايا كاملة لموقع شي إن (إعادة كتابة كل الروابط بصفحة مستقلة): هش جداً، أي تغيير بموقع شي إن يكسره.
+- سيرفر بروكسي خاص (Railway/VPS): يحتاج فلوس شهرية — المستخدم رفض أي حل مدفوع بشكل قاطع.
+- Oracle Cloud Free VPS: أكبر سعة مجانية نظرياً، لكن يحتاج تسجيل حساب جديد وفيه احتمال تأخير (مشكلة سعة معروفة بأوراكل) — لم يُنفَّذ، الأولوية كانت السرعة.
+
+**الحل المُنفَّذ:** اكتشفنا إنه `@capgo/capacitor-inappbrowser` (المكتبة المستخدمة لفتح SHEIN) أصلاً **لا تدع WKWebView/WebView يتصلوا مباشرة بالموقع** — كل طلب (صفحة/صورة/API) يُعترَض وينفَّذ عبر كود المكتبة نفسها (على iOS: `URLSession` بملف `ProxySchemeHandler.swift`؛ على أندرويد: `HttpURLConnection` بدالة `performNativeRequest` بملف `WebViewDialog.java`) — هذا مبني أصلاً لميزة "proxy rules" تبع المكتبة (تعديل/محاكاة الردود)، بس النقطة المهمة إنه **chokepoint واحد** على كل منصة بيتحكم بكل حركة الشبكة.
+
+استغلينا هذا: عدّلنا الـchokepoint بكل منصة عشان يتصل بـ**Cloudflare Worker موجود أصلاً بالمشروع** (`talabieh-shein`, اسمه بالكود `worker/src/index.js`, مستخدم سابقاً لجلب بيانات المنتج بالسكرابر) عبر مسار جديد `/relay` بدل الاتصال المباشر بـshein.com. الـWorker يستقبل الرابط الحقيقي بـheader (`X-Relay-Url`) ومفتاح سري (`X-Relay-Key`)، وينفّذ `fetch()` فعلي من شبكة Cloudflare (مؤكد إنها غير محجوبة — نفس الشبكة تجيب بيانات المنتج بنجاح بالسكرابر)، ويرجّع الرد كما هو (status/headers/body) بدون أي تعديل بالمحتوى.
+
+**التكلفة: $0** — استخدام إضافي بسيط على حساب Cloudflare Workers المجاني الموجود أصلاً (سقف 100,000 طلب/يوم، يكفي تقريباً 150-300 مستخدم نشط/يوم).
+
+**تفاصيل تقنية مهمة (لأي تعديل مستقبلي):**
+1. **الكوكيز:** كان فيه خطر إنه نظام الكوكيز التلقائي (iOS `HTTPCookieStorage.shared`) يرفض كوكيز shein.com لأنها فعلياً جاية من نقل HTTP لدومين الـrelay (workers.dev) — حماية أمان قياسية ضد cross-domain cookie injection. الحل: استبدال الاعتماد على النظام التلقائي بتحليل يدوي لـ`Set-Cookie` (`ProxySchemeRequestSupport.responseCookies(from:fallback:)`) مع تمرير رابط shein.com الحقيقي صراحة كـ`fallback`. أندرويد كان أصلاً محصّن من هذي المشكلة (`CookieManager.setCookie(requestContext.url, ...)` يدوي من البداية بالكود الأصلي).
+2. **إعادة التوجيه (redirects):** الـWorker يستخدم `redirect: 'manual'` ويحوّل أي `Location` نسبي لرابط مطلق بالنسبة لرابط شي إن الحقيقي (مش رابط الـrelay) — هذا يخلي منطق إعادة التوجيه الموجود أصلاً بالمكتبتين (`willPerformHTTPRedirection` بـiOS، `resolveRedirectUrl` بأندرويد) يعمل صحيح بدون أي تعديل إضافي عليه.
+3. **لا تقييد بالدومين على الـWorker:** أول نسخة قيّدت الـrelay لروابط فيها كلمة "shein" بس — انكسرت لأنه صور/CDN الموقع تجي من دومينات تانية. الحماية الوحيدة الآن هي المفتاح السري (`X-Relay-Key`)، **ليس** فحص الدومين.
+4. **السر غير موجود بالـgit نهائياً** — `patches/@capgo+capacitor-inappbrowser+8.6.25.patch` فيه placeholder (`OTLOBLI_RELAY_KEY_PLACEHOLDER`) بس، و`scripts/inject-relay-key.cjs` (يشتغل بـ`postinstall`) يستبدله بالقيمة الحقيقية من `OTLOBLI_RELAY_KEY` (env var، أو ملف محلي غير متتبَّع `.env.relay.local`). الـCI (GitHub Actions) فيه نفس المتغيّر كـ GitHub secret. **مهم:** أي `npm install` جديد بدون هذا المتغير محلياً بيرجّع الكود لـplaceholder وكل طلبات شي إن تطلع 403 من الـrelay لحد ما تشغّل `node scripts/inject-relay-key.cjs` بعد ما تحدد المتغير (القيمة الحقيقية موجودة بـ`.env.relay.local` المحلي، غير مرفوع لـgit).
+5. **التفعيل من جهة التطبيق:** `App.tsx` (`browseShein`) يمرّر `outboundProxyRules: [{ urlRegex: '.*', action: 'continue' }]` لـ`InAppBrowser.openWebView` — هذا هو المفتاح يلي يفعّل الـchokepoint أصلاً (بدونه المكتبة بترجع لسلوكها الافتراضي: اتصال مباشر بـWebView/WKWebView العادي).
+
+**حالة التأكيد:**
+- ✅ منطق الـWorker تأكد محلياً (اختبار بـ`fetch` مموّه: رفض مفتاح خاطئ، رفض رابط خاطئ، تمرير رد 200 + كوكيز، تصحيح رابط إعادة توجيه).
+- ✅ كود أندرويد بنى بنجاح (`gradlew assembleDebug`) وثُبّت على جهاز حقيقي (Samsung Note 8، `192.168.0.14:5555`، **ليس** محاكي).
+- ✅ بناء iOS عبر GitHub Actions نجح، الـIPA بـ`ipa-output/otlobli-unsigned.ipa`.
+- ⚠️ **لم يتم تأكيد التصفح الفعلي بدون VPN على جهاز حقيقي بعد** — تسجيل الدخول على جهاز الأندرويد يحتاج رمز واتساب حقيقي (ما قدرنا نتجاوزه آلياً، الجهاز ما كان فيه جلسة محفوظة). **هذا أول شي بالشات القادم لو رجع المستخدم: تأكد هل فتحت صفحات SHEIN فعلياً بدون VPN على الأندرويد و/أو الآيفون (بعد سايدلود الـIPA).**
+
+### لو رجع المستخدم يقول "ما زال يحتاج VPN" أو "صفحة بيضاء/خطأ"
+- اسحب logcat (`adb logcat | grep -i "relay\|chromium\|capacitor"`) وشوف هل الطلبات أصلاً عم تروح للـrelay (لو لسا رايحة مباشرة لـshein.com، يعني `outboundProxyRules` ما وصلت أو `shouldEnableNativeProxy()`/`proxySchemeHandler` ما تفعّل).
+- تحقق هل `.env.relay.local`/GitHub secret لسا متطابقين مع المفتاح المضبوط فعلياً بـ`wrangler secret put RELAY_SECRET` (لو غيّرت المفتاح لاحقاً لازم تحدّث الاثنين معاً).
+- جرّب طلب مباشر للـWorker (`curl`/Postman من جهاز عادي، مش من بيئة التطوير لو شبكتها مقيّدة) بهيدرز `X-Relay-Key`/`X-Relay-Url` صحيحة للتأكد إنه شغال من خارج التطبيق.
