@@ -333,6 +333,16 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return false;
   }
 
+  // Rejects captured text that's clearly not a real color/size value - e.g.
+  // a clock-formatted string like "1:52". Confirmed from a user report: a
+  // flash-sale countdown timer elsewhere on the page got mistaken for the
+  // size value by the generic "nearby short text" fallback heuristics
+  // below, so the cart ended up showing a time instead of S/M/L/XL.
+  function looksLikeJunkValue(text) {
+    if (!text) return true;
+    return /^\\d{1,2}:\\d{2}(:\\d{2})?$/.test(text);
+  }
+
   function getSelectedWithin(container) {
     if (!container) return '';
     var nodes = container.querySelectorAll('*');
@@ -348,7 +358,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
           if (innerImg) label = (innerImg.getAttribute('alt') || innerImg.getAttribute('title') || '').trim();
         }
         if (!label) label = (el.textContent || '').trim();
-        if (label && label.length < 60) return label;
+        if (label && label.length < 60 && !looksLikeJunkValue(label)) return label;
       }
     }
     return '';
@@ -375,7 +385,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
           var idx = t.toLowerCase().indexOf(word.toLowerCase());
           if (idx === -1) continue;
           var rest = t.slice(idx + word.length).replace(/^[\\s:：\\-–(]+/, '').replace(/[)\\s]+$/, '').trim();
-          if (rest && rest.length < 40 && rest.toLowerCase() !== word.toLowerCase()) return rest;
+          if (rest && rest.length < 40 && rest.toLowerCase() !== word.toLowerCase() && !looksLikeJunkValue(rest)) return rest;
         }
       }
       scope = scope.parentElement;
@@ -399,7 +409,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       for (var i = 0; i < candidates.length; i++) {
         if (container.contains(candidates[i])) continue;
         var text = (candidates[i].textContent || '').trim();
-        if (text && text.length > 0 && text.length < 60) return text;
+        if (text && text.length > 0 && text.length < 60 && !looksLikeJunkValue(text)) return text;
       }
       scope = scope.parentElement;
     }
@@ -455,7 +465,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     for (var i = 0; i < opts.length; i++) {
       var el = opts[i];
       var label = (el.getAttribute('aria-label') || el.getAttribute('title') || el.textContent || '').trim();
-      if (!label || label.length > 12) continue;
+      if (!label || label.length > 12 || looksLikeJunkValue(label)) continue;
       var cls = ' ' + (el.className || '') + ' ';
       var isDisabled = el.getAttribute('aria-disabled') === 'true' ||
         /\\s(disable|disabled|soldout|sold-out|out-of-stock|unavailable)\\s/i.test(cls);
@@ -992,8 +1002,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // so it wins paint order among ties) - guarantees this sits above any
     // bottom bar SHEIN's own page might render now that the webview is
     // full-screen, rather than hoping ours happens to be on top.
+    // Matches otlobli's real .bottom-nav as closely as a separate webview
+    // can: same colors (--primary #006948 / --muted #3d4a42), same ~74px
+    // min-height, same 4px top indicator bar on the active tab.
     nav.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:2147483647;display:flex;' +
-      'background:#ffffff;border-top:1px solid #e6e8ea;box-shadow:0 -2px 10px rgba(0,0,0,.08);' +
+      'min-height:74px;background:rgba(255,255,255,.97);border-top:1px solid #bccac0;' +
       'padding-bottom:env(safe-area-inset-bottom, 0px);';
     var items = [
       { label: 'الرئيسية', icon: OTLOBLI_NAV_ICONS.home, type: '' },
@@ -1005,12 +1018,20 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var item = items[i];
       var tab = document.createElement('button');
       var isActiveTab = !item.type;
-      tab.style.cssText = 'flex:1;border:0;background:transparent;display:flex;flex-direction:column;' +
-        'align-items:center;justify-content:center;gap:3px;padding:9px 0 7px;font-size:11px;' +
-        'font-weight:700;font-family:inherit;color:' + (isActiveTab ? '#006948' : '#3d4a42') + ';';
-      tab.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+      tab.style.cssText = 'position:relative;flex:1;border:0;background:transparent;display:flex;' +
+        'flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:6px 0;' +
+        'font-size:0.76rem;font-weight:700;font-family:inherit;color:' + (isActiveTab ? '#006948' : '#3d4a42') + ';';
+      if (isActiveTab) {
+        var indicator = document.createElement('span');
+        indicator.style.cssText = 'position:absolute;top:0;width:32px;height:4px;border-radius:999px;background:#006948;';
+        tab.appendChild(indicator);
+      }
+      var iconLabelWrap = document.createElement('span');
+      iconLabelWrap.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:4px;';
+      iconLabelWrap.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
         'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + item.icon + '</svg>' +
         '<span>' + item.label + '</span>';
+      tab.appendChild(iconLabelWrap);
       if (item.type) {
         (function (messageType) {
           tab.addEventListener('click', function (event) {
@@ -1177,7 +1198,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // safe even if SHEIN's markup doesn't match our assumptions.
   function hideExtraHeaderIcons() {
     var vp = viewportSize();
-    var probeYs = [20, 36, 52];
+    // Wider probe band than just the first ~50px - SHEIN's header height
+    // varies by page (the home page's is noticeably taller than a product
+    // page's), and a user screenshot showed the wishlist heart and hamburger
+    // menu still visible/tappable on the home page because the old probe
+    // rows never reached that low.
+    var probeYs = [20, 36, 52, 68, 84, 100];
     var steps = 10;
     for (var r = 0; r < probeYs.length; r++) {
       for (var s = 0; s <= steps; s++) {
@@ -1186,20 +1212,24 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var depth = 0;
         while (el && el !== document.body && el !== document.documentElement && depth < 6) {
           if (el.id && el.id.indexOf('otlobli') === 0) break;
+          var elRect = el.getBoundingClientRect();
+          var elIconSized = elRect.width > 0 && elRect.width < 64 && elRect.height > 0 && elRect.height < 64;
           // Not every clickable icon is a <button>/<a>/role="button" - sites
           // commonly wire a click handler straight onto a styled <div>/<span>
           // (SHEIN's own native-style "share" icon does exactly this). A
           // pointer cursor is a reliable cross-markup signal that an element
-          // is meant to be tapped, so treat that as clickable too.
+          // is meant to be tapped, so treat that as clickable too. As a last
+          // resort, an icon-sized element that simply contains an svg/img
+          // graphic (and nothing else interactive matched first) is almost
+          // always meant to be tapped even with no clickability signal at all.
           var isClickable = el.tagName === 'BUTTON' || el.tagName === 'A' || el.getAttribute('role') === 'button' ||
-            window.getComputedStyle(el).cursor === 'pointer';
+            window.getComputedStyle(el).cursor === 'pointer' ||
+            (elIconSized && (el.querySelector('svg') || el.querySelector('img')));
           if (isClickable) {
-            var rect = el.getBoundingClientRect();
-            var isIconSized = rect.width > 0 && rect.width < 64 && rect.height > 0 && rect.height < 64;
             var hasInput = !!el.querySelector('input');
             var hint = ((el.className || '') + ' ' + (el.getAttribute('aria-label') || '') + ' ' + (el.textContent || '')).toLowerCase();
             var isSearchish = hasInput || /search|بحث|camera|كاميرا/.test(hint);
-            if (isIconSized && !isSearchish) {
+            if (elIconSized && !isSearchish) {
               el.setAttribute('data-otlobli-blocked', '1');
               el.style.setProperty('visibility', 'hidden', 'important');
               el.style.setProperty('pointer-events', 'none', 'important');
@@ -1254,15 +1284,20 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   // Now that the webview is full-screen (see browseShein in App.tsx),
-  // SHEIN's own page can render its own persistent bottom tab bar, which
-  // used to be clipped off-screen in the old height-constrained webview.
-  // Find and remove it outright instead of just hoping otlobli's nav paints
-  // above it - otlobli's nav is the only bottom bar the user should ever see.
+  // SHEIN's own page can render its own persistent bottom tab bar AND its
+  // sticky product-page action bar (wishlist + add-to-cart), both of which
+  // used to be clipped off-screen in the old height-constrained webview -
+  // a user screenshot showed the action bar peeking out from behind
+  // otlobli's own floating buttons. Find and remove any of these outright
+  // instead of just hoping otlobli's own overlays paint above them.
   function hideForeignBottomNav() {
     var vp = viewportSize();
     var candidates = document.querySelectorAll(
       'nav, footer, [class*="tab-bar" i], [class*="tabbar" i], [class*="bottom-nav" i], ' +
-      '[class*="footer-nav" i], [class*="nav-bar" i], [class*="navbar" i]'
+      '[class*="footer-nav" i], [class*="nav-bar" i], [class*="navbar" i], ' +
+      '[class*="add-to-bag" i], [class*="addtobag" i], [class*="addtocart" i], ' +
+      '[class*="action-bar" i], [class*="fixed-bottom" i], [class*="sticky-bottom" i], ' +
+      '[class*="bottom-bar" i], [class*="buy-bar" i]'
     );
     for (var i = 0; i < candidates.length; i++) {
       var el = candidates[i];
@@ -1270,9 +1305,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var style = window.getComputedStyle(el);
       if (style.position !== 'fixed' && style.position !== 'sticky') continue;
       var rect = el.getBoundingClientRect();
-      if (rect.width < vp.width * 0.85) continue;
-      if (rect.height <= 0 || rect.height > 160) continue;
-      if (rect.bottom < vp.height - 10) continue;
+      if (rect.width < vp.width * 0.5) continue;
+      if (rect.height <= 0 || rect.height > 180) continue;
+      if (rect.bottom < vp.height - 200) continue;
       el.style.setProperty('display', 'none', 'important');
     }
   }
