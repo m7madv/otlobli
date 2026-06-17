@@ -1,5 +1,5 @@
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
-index 8ae3e61..4ce5eeb 100644
+index 8ae3e61..89dcdc6 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
 +++ b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
 @@ -215,6 +215,20 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
@@ -15,7 +15,7 @@ index 8ae3e61..4ce5eeb 100644
 +    // already reaches it fine (same relay used by the product scraper Worker
 +    // this file lives alongside). See worker/src/index.js `handleRelay` and
 +    // CHAT_SUMMARY.md section 9 for the full picture.
-+    private static final String OTLOBLI_RELAY_URL = "https://talabieh-shein.workers.dev/relay";
++    private static final String OTLOBLI_RELAY_URL = "https://talabieh-shein.talabieh.workers.dev/relay";
 +    // Substituted at build time from the OTLOBLI_RELAY_KEY env var by
 +    // scripts/inject-relay-key.cjs (see package.json postinstall) - never
 +    // committed in real form, see CHAT_SUMMARY.md section 9.
@@ -45,7 +45,7 @@ index 8ae3e61..4ce5eeb 100644
              // Strip conditional cache validators on the wire so upstream cannot return 304/3xx,
              // which WebResourceResponse.setStatusCodeAndReasonPhrase rejects (kills the renderer).
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
-index 1c70884..35c244c 100644
+index 1c70884..8a43cd2 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
 @@ -449,6 +449,20 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
@@ -60,7 +60,7 @@ index 1c70884..35c244c 100644
 +    /// network already reaches it fine (same relay used by the product
 +    /// scraper Worker this file lives alongside). See worker/src/index.js
 +    /// `handleRelay` and CHAT_SUMMARY.md section 9 for the full picture.
-+    static let otlobliRelayURL = URL(string: "https://talabieh-shein.workers.dev/relay")!
++    static let otlobliRelayURL = URL(string: "https://talabieh-shein.talabieh.workers.dev/relay")!
 +    // Substituted at build time from the OTLOBLI_RELAY_KEY env var by
 +    // scripts/inject-relay-key.cjs (see package.json postinstall) - never
 +    // committed in real form, see CHAT_SUMMARY.md section 9.
