@@ -378,6 +378,14 @@ async function handleRelay(request, env) {
   const responseHeaders = new Headers(upstreamResponse.headers)
   responseHeaders.delete('content-security-policy')
   responseHeaders.delete('content-security-policy-report-only')
+  // Workers' fetch() always hands back already-decompressed bytes via
+  // .body/.text() (confirmed: upstream sends br, the bytes we actually get
+  // are plain HTML) but doesn't strip the now-stale Content-Encoding/
+  // Content-Length headers from the upstream response. Forwarding those
+  // verbatim tells the client to decompress already-plain bytes, which is
+  // exactly what produced garbled text on screen instead of a real page.
+  responseHeaders.delete('content-encoding')
+  responseHeaders.delete('content-length')
 
   const location = responseHeaders.get('location')
   if (location) {
