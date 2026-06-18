@@ -1,8 +1,8 @@
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
-index 8ae3e61..453af5b 100644
+index 8ae3e61..12fb994 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
 +++ b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
-@@ -215,6 +215,20 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -215,6 +215,35 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
      private static final int REQUEST_CONNECT_TIMEOUT_MS = 15_000;
      private static final int REQUEST_READ_TIMEOUT_MS = 30_000;
      private static final int MAX_WEBVIEW_PROXY_REDIRECTS = 10;
@@ -15,7 +15,22 @@ index 8ae3e61..453af5b 100644
 +    // already reaches it fine (same relay used by the product scraper Worker
 +    // this file lives alongside). See worker/src/index.js `handleRelay` and
 +    // CHAT_SUMMARY.md section 9 for the full picture.
-+    private static final String OTLOBLI_RELAY_URL = "https://talabieh-shein.talabieh.workers.dev/relay";
++    // otlobli: sharded across 3 identical Workers (same code, same secret) -
++    // a real product/feed page fires dozens of requests "simultaneously",
++    // but HttpURLConnection (like most HTTP stacks) caps concurrent
++    // connections *per host*, so funneling every one of them through a
++    // single relay hostname serialized them into a trickle (observed: a
++    // heavy page stuck on its loading skeleton for a minute+). Spreading
++    // requests across 3 hostnames gives roughly 3x the effective concurrency.
++    private static final String[] OTLOBLI_RELAY_HOSTS = {
++        "talabieh-shein.talabieh.workers.dev",
++        "talabieh-shein-b.talabieh.workers.dev",
++        "talabieh-shein-c.talabieh.workers.dev",
++    };
++    private static String otlobliPickRelayUrl() {
++        String host = OTLOBLI_RELAY_HOSTS[java.util.concurrent.ThreadLocalRandom.current().nextInt(OTLOBLI_RELAY_HOSTS.length)];
++        return "https://" + host + "/relay";
++    }
 +    // Substituted at build time from the OTLOBLI_RELAY_KEY env var by
 +    // scripts/inject-relay-key.cjs (see package.json postinstall) - never
 +    // committed in real form, see CHAT_SUMMARY.md section 9.
@@ -23,7 +38,7 @@ index 8ae3e61..453af5b 100644
      private static final int MAX_MANAGED_DOWNLOAD_REDIRECTS = 10;
      private static final int BLOB_DOWNLOAD_CHUNK_BYTES = 64 * 1024;
      private static final long MAX_LEGACY_BLOB_DOWNLOAD_BYTES = 512L * 1024L;
-@@ -5586,17 +5600,50 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -5586,17 +5615,50 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          );
      }
  
@@ -60,11 +75,11 @@ index 8ae3e61..453af5b 100644
 +    }
 +
 +    private NativeResponseData performNativeRequestOnce(NativeRequestContext requestContext) throws IOException {
-+        // otlobli: open the connection to the relay (see OTLOBLI_RELAY_URL doc
-+        // comment above), not to `requestContext.url` directly - the real
-+        // target travels in the X-Relay-Url header instead of being the
-+        // connection's actual URL.
-+        HttpURLConnection conn = (HttpURLConnection) new URL(OTLOBLI_RELAY_URL).openConnection();
++        // otlobli: open the connection to one of the relay shards (see
++        // OTLOBLI_RELAY_HOSTS doc comment above), not to `requestContext.url`
++        // directly - the real target travels in the X-Relay-Url header
++        // instead of being the connection's actual URL.
++        HttpURLConnection conn = (HttpURLConnection) new URL(otlobliPickRelayUrl()).openConnection();
          try {
              conn.setConnectTimeout(REQUEST_CONNECT_TIMEOUT_MS);
              conn.setReadTimeout(REQUEST_READ_TIMEOUT_MS);
@@ -76,10 +91,10 @@ index 8ae3e61..453af5b 100644
              // Strip conditional cache validators on the wire so upstream cannot return 304/3xx,
              // which WebResourceResponse.setStatusCodeAndReasonPhrase rejects (kills the renderer).
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
-index 1c70884..b272f34 100644
+index 1c70884..abf1b9d 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
-@@ -449,6 +449,20 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
+@@ -449,6 +449,34 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
      /// still reach finish() or the scheme task strands.
      static let redirectStatusCodes: Set<Int> = [301, 302, 303, 307, 308]
  
@@ -91,7 +106,21 @@ index 1c70884..b272f34 100644
 +    /// network already reaches it fine (same relay used by the product
 +    /// scraper Worker this file lives alongside). See worker/src/index.js
 +    /// `handleRelay` and CHAT_SUMMARY.md section 9 for the full picture.
-+    static let otlobliRelayURL = URL(string: "https://talabieh-shein.talabieh.workers.dev/relay")!
++    // otlobli: sharded across 3 identical Workers (same code, same secret) -
++    // a real product/feed page fires dozens of requests "simultaneously",
++    // but URLSession (like most HTTP stacks) caps concurrent connections
++    // *per host*, so funneling every one of them through a single relay
++    // hostname serialized them into a trickle (observed: a heavy page stuck
++    // on its loading skeleton for a minute+). Spreading requests across 3
++    // hostnames gives roughly 3x the effective concurrency.
++    static let otlobliRelayHosts = [
++        "talabieh-shein.talabieh.workers.dev",
++        "talabieh-shein-b.talabieh.workers.dev",
++        "talabieh-shein-c.talabieh.workers.dev",
++    ]
++    static var otlobliRelayURL: URL {
++        URL(string: "https://\(otlobliRelayHosts.randomElement()!)/relay")!
++    }
 +    // Substituted at build time from the OTLOBLI_RELAY_KEY env var by
 +    // scripts/inject-relay-key.cjs (see package.json postinstall) - never
 +    // committed in real form, see CHAT_SUMMARY.md section 9.
@@ -100,7 +129,7 @@ index 1c70884..b272f34 100644
      weak var plugin: CapgoInAppBrowserPlugin?
      private var pendingTasks: [String: PendingProxyTask] = [:]
      private var stoppedRequests: [String: UUID] = [:]
-@@ -614,7 +628,15 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
+@@ -614,7 +642,15 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
          }
      }
  
@@ -117,7 +146,7 @@ index 1c70884..b272f34 100644
          guard let pendingTask = pendingTask(for: requestId) else { return }
          let request: URLRequest
          do {
-@@ -646,6 +668,14 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
+@@ -646,6 +682,14 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
                      // So just stop processing and let the owning path complete it.
                      return
                  }
@@ -132,7 +161,7 @@ index 1c70884..b272f34 100644
                  self.failSchemeTask(pendingTask, with: error)
                  return
              }
-@@ -671,24 +701,31 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
+@@ -671,24 +715,31 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
                  return
              }
              let responseHeaders = ProxySchemeRequestSupport.normalizedResponseHeaders(from: httpResponse)
@@ -172,7 +201,7 @@ index 1c70884..b272f34 100644
          }
  
          taskLock.lock()
-@@ -819,22 +856,35 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
+@@ -819,22 +870,35 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
              return
          }
  
@@ -214,7 +243,7 @@ index 1c70884..b272f34 100644
              self?.executeInboundDecision(requestId: requestId)
          }
      }
-@@ -958,10 +1008,13 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
+@@ -958,10 +1022,13 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
      }
  
      private func makeURLRequest(from context: NativeRequestContext) throws -> URLRequest {
@@ -230,7 +259,7 @@ index 1c70884..b272f34 100644
          request.httpMethod = context.method
          // URLSession will auto-decompress gzip/br/zstd responses only when
          // Accept-Encoding is NOT present in the request headers (URLSession
-@@ -971,9 +1024,11 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
+@@ -971,9 +1038,11 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
          // caller will handle decompression and passes the raw compressed bytes
          // through, which the WKURLSchemeTask then renders as gibberish in the
          // WebView. Strip it so URLSession's transparent decompression kicks in.
