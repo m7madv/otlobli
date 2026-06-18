@@ -91,7 +91,7 @@ index 8ae3e61..12fb994 100644
              // Strip conditional cache validators on the wire so upstream cannot return 304/3xx,
              // which WebResourceResponse.setStatusCodeAndReasonPhrase rejects (kills the renderer).
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
-index 1c70884..fecea1d 100644
+index 1c70884..be2b8ac 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
 @@ -449,6 +449,34 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
@@ -149,7 +149,7 @@ index 1c70884..fecea1d 100644
                  self.failSchemeTask(pendingTask, with: error)
                  return
              }
-@@ -671,24 +712,31 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
+@@ -671,24 +712,40 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
                  return
              }
              let responseHeaders = ProxySchemeRequestSupport.normalizedResponseHeaders(from: httpResponse)
@@ -180,16 +180,25 @@ index 1c70884..fecea1d 100644
 +            // the HTTP transaction itself happened against the relay's domain - the
 +            // system's automatic cookie jar would reject them as cross-domain.
 +            // Parse them manually against the real target URL instead.
++            //
++            // Deliver content immediately rather than gating finishUp() on the
++            // cookie write finishing first: WKHTTPCookieStore.setCookie is an
++            // async, cross-process call, and gating every single resource on
++            // a full page behind one (most pages set cookies on far more than
++            // just the main document) backed the main thread up badly enough
++            // to look like a frozen WebView - pinch-zoom (pure UIKit) still
++            // worked, nothing that needed the main run loop did. A few
++            // milliseconds' lag before a cookie is persisted is harmless here;
++            // nothing reads it synchronously.
 +            let cookies = ProxySchemeRequestSupport.responseCookies(from: responseHeaders, fallback: pendingTask.requestContext.url)
-+            guard !cookies.isEmpty else {
-+                finishUp()
-+                return
++            finishUp()
++            if !cookies.isEmpty {
++                self.writeCookiesOnMain(cookies) {}
 +            }
-+            self.writeCookiesOnMain(cookies, completion: finishUp)
          }
  
          taskLock.lock()
-@@ -819,22 +867,35 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
+@@ -819,23 +876,35 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
              return
          }
  
@@ -219,19 +228,20 @@ index 1c70884..fecea1d 100644
          completionHandler(nil)
  
 -        syncResponseCookies(from: response, fallbackURL: pendingTask.requestContext.url) { [weak self] in
+-            self?.executeInboundDecision(requestId: requestId)
 +        // otlobli: manual header parsing against preRedirectURL instead of
 +        // syncResponseCookies(from: response, ...) - see the matching comment in
-+        // executeNativePipeline's dataTask completion for why.
++        // executeNativePipeline's dataTask completion for why. Also don't gate
++        // executeInboundDecision on the cookie write finishing - same main-
++        // thread-backup reasoning as there.
 +        let cookies = ProxySchemeRequestSupport.responseCookies(from: responseHeaders, fallback: preRedirectURL)
-+        guard !cookies.isEmpty else {
-+            executeInboundDecision(requestId: requestId)
-+            return
-+        }
-+        writeCookiesOnMain(cookies) { [weak self] in
-             self?.executeInboundDecision(requestId: requestId)
++        executeInboundDecision(requestId: requestId)
++        if !cookies.isEmpty {
++            writeCookiesOnMain(cookies) {}
          }
      }
-@@ -958,10 +1019,13 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
+ 
+@@ -958,10 +1027,13 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
      }
  
      private func makeURLRequest(from context: NativeRequestContext) throws -> URLRequest {
@@ -247,7 +257,7 @@ index 1c70884..fecea1d 100644
          request.httpMethod = context.method
          // URLSession will auto-decompress gzip/br/zstd responses only when
          // Accept-Encoding is NOT present in the request headers (URLSession
-@@ -971,9 +1035,11 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
+@@ -971,9 +1043,11 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
          // caller will handle decompression and passes the raw compressed bytes
          // through, which the WKURLSchemeTask then renders as gibberish in the
          // WebView. Strip it so URLSession's transparent decompression kicks in.

@@ -471,12 +471,8 @@ function App() {
     void InAppBrowser.openWebView({
       url: SHEIN_HOME_URL,
       toolbarType: ToolBarType.BLANK,
-      // DIAGNOSTIC BUILD: preShowScript temporarily disabled to isolate
-      // whether the iOS freeze (page paints, pinch-zoom works, no taps -
-      // matches a hung/crashed WKWebView content process) comes from this
-      // injected script's periodic DOM work or from the native relay layer.
-      // Restore `preShowScript: SHEIN_CAPTURE_SCRIPT, preShowScriptInjectionTime: 'documentStart',`
-      // once the answer is in - see CHAT_SUMMARY.md section 9.
+      preShowScript: SHEIN_CAPTURE_SCRIPT,
+      preShowScriptInjectionTime: 'documentStart',
       isPresentAfterPageLoad: true,
       // Without this, the Android system back button can dismiss the whole dialog
       // outright (e.g. from a page with no in-page history, like an image gallery),
