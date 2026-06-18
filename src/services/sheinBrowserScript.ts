@@ -1387,7 +1387,15 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var sheinBlockReported = false;
   function checkForSheinSecurityBlock() {
     if (sheinBlockReported) return;
-    var bodyText = document.body && document.body.innerText;
+    // document.body.innerText forces a full layout/reflow over the whole
+    // page - on a real SHEIN page (hundreds of nodes) that's expensive
+    // enough on a 300ms timer to noticeably stall the main thread (tap/
+    // scroll responsiveness), which is worse than the block page itself.
+    // The real block page renders almost nothing, so a cheap childElement
+    // count (no reflow) filters out every normal page before ever touching
+    // innerText.
+    if (!document.body || document.body.children.length > 8) return;
+    var bodyText = document.body.innerText;
     if (bodyText && bodyText.length < 2000 && /GSRM|gone missing/i.test(bodyText)) {
       sheinBlockReported = true;
       if (window.mobileApp && window.mobileApp.postMessage) {
@@ -1397,7 +1405,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   function tick() {
-    checkForSheinSecurityBlock();
     ensureLoadingOverlay();
     blockCartNavigation();
     ensureAddToCartButton();
@@ -1451,6 +1458,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // freshly re-created icon gets caught within ~120ms instead of waiting
   // for the next general tick.
   setInterval(hideKnownHeaderIconsByHint, 120);
+  // Own slower interval, not part of tick() - see checkForSheinSecurityBlock's
+  // comment on why innerText needs to stay off the 300ms timer.
+  setInterval(checkForSheinSecurityBlock, 1000);
   tick();
 })();
 `
