@@ -1,5 +1,5 @@
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
-index 8ae3e61..89dcdc6 100644
+index 8ae3e61..453af5b 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
 +++ b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
 @@ -215,6 +215,20 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
@@ -23,16 +23,47 @@ index 8ae3e61..89dcdc6 100644
      private static final int MAX_MANAGED_DOWNLOAD_REDIRECTS = 10;
      private static final int BLOB_DOWNLOAD_CHUNK_BYTES = 64 * 1024;
      private static final long MAX_LEGACY_BLOB_DOWNLOAD_BYTES = 512L * 1024L;
-@@ -5591,12 +5605,19 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -5586,17 +5600,50 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+         );
+     }
+ 
++    private static final int OTLOBLI_MAX_TRANSIENT_RETRIES = 2;
++
+     private NativeResponseData performNativeRequest(NativeRequestContext requestContext) throws IOException {
+         URL url = new URL(requestContext.url);
          if (!ProxyRequestSupport.supportsNativeHttpRequest(url)) {
              throw new IOException("Unsupported proxy URL: " + requestContext.url);
          }
 -        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
++        // otlobli: a cold app launch right after the device's network changed
++        // (e.g. a VPN just got toggled off) can hit the relay before the
++        // network stack has settled - DNS/route failures that clear up
++        // within a second on their own (confirmed: net::ERR_NAME_NOT_RESOLVED
++        // followed immediately by a clean load on manual retry). Retry
++        // before surfacing the failure to the WebView.
++        IOException lastTransientError = null;
++        for (int attempt = 0; attempt <= OTLOBLI_MAX_TRANSIENT_RETRIES; attempt++) {
++            try {
++                return performNativeRequestOnce(requestContext);
++            } catch (java.net.UnknownHostException | java.net.ConnectException | java.net.SocketTimeoutException e) {
++                lastTransientError = e;
++                if (attempt == OTLOBLI_MAX_TRANSIENT_RETRIES) break;
++                try {
++                    Thread.sleep(400L * (attempt + 1));
++                } catch (InterruptedException interrupted) {
++                    Thread.currentThread().interrupt();
++                    break;
++                }
++            }
++        }
++        throw lastTransientError;
++    }
++
++    private NativeResponseData performNativeRequestOnce(NativeRequestContext requestContext) throws IOException {
 +        // otlobli: open the connection to the relay (see OTLOBLI_RELAY_URL doc
-+        // comment above), not to `url` directly - the real target travels in the
-+        // X-Relay-Url header instead of being the connection's actual URL. `url`
-+        // above is still parsed first so an actually-malformed requestContext.url
-+        // fails the same way it always did.
++        // comment above), not to `requestContext.url` directly - the real
++        // target travels in the X-Relay-Url header instead of being the
++        // connection's actual URL.
 +        HttpURLConnection conn = (HttpURLConnection) new URL(OTLOBLI_RELAY_URL).openConnection();
          try {
              conn.setConnectTimeout(REQUEST_CONNECT_TIMEOUT_MS);
@@ -45,7 +76,7 @@ index 8ae3e61..89dcdc6 100644
              // Strip conditional cache validators on the wire so upstream cannot return 304/3xx,
              // which WebResourceResponse.setStatusCodeAndReasonPhrase rejects (kills the renderer).
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
-index 1c70884..8a43cd2 100644
+index 1c70884..b272f34 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
 @@ -449,6 +449,20 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
@@ -69,7 +100,39 @@ index 1c70884..8a43cd2 100644
      weak var plugin: CapgoInAppBrowserPlugin?
      private var pendingTasks: [String: PendingProxyTask] = [:]
      private var stoppedRequests: [String: UUID] = [:]
-@@ -671,24 +685,31 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
+@@ -614,7 +628,15 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
+         }
+     }
+ 
+-    private func executeNativePipeline(requestId: String) {
++    // otlobli: a cold app launch right after the device's network changed
++    // (e.g. a VPN just got toggled off) can hit the relay before iOS's own
++    // network stack has settled - DNS/route failures that clear up within a
++    // second on their own. Without this, that showed up as a permanently
++    // blank WKWebView (no built-in error page exists for a custom scheme
++    // handler failure, unlike Android's WebView which at least renders one).
++    private static let maxTransientRetries = 2
++
++    private func executeNativePipeline(requestId: String, retryAttempt: Int = 0) {
+         guard let pendingTask = pendingTask(for: requestId) else { return }
+         let request: URLRequest
+         do {
+@@ -646,6 +668,14 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
+                     // So just stop processing and let the owning path complete it.
+                     return
+                 }
++                if retryAttempt < ProxySchemeHandler.maxTransientRetries {
++                    let delaySeconds = 0.4 * Double(retryAttempt + 1)
++                    DispatchQueue.global().asyncAfter(deadline: .now() + delaySeconds) {
++                        guard self.pendingTask(for: requestId) != nil else { return }
++                        self.executeNativePipeline(requestId: requestId, retryAttempt: retryAttempt + 1)
++                    }
++                    return
++                }
+                 self.failSchemeTask(pendingTask, with: error)
+                 return
+             }
+@@ -671,24 +701,31 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
                  return
              }
              let responseHeaders = ProxySchemeRequestSupport.normalizedResponseHeaders(from: httpResponse)
@@ -109,7 +172,7 @@ index 1c70884..8a43cd2 100644
          }
  
          taskLock.lock()
-@@ -819,22 +840,35 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
+@@ -819,22 +856,35 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
              return
          }
  
@@ -151,7 +214,7 @@ index 1c70884..8a43cd2 100644
              self?.executeInboundDecision(requestId: requestId)
          }
      }
-@@ -958,10 +992,13 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
+@@ -958,10 +1008,13 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
      }
  
      private func makeURLRequest(from context: NativeRequestContext) throws -> URLRequest {
@@ -167,7 +230,7 @@ index 1c70884..8a43cd2 100644
          request.httpMethod = context.method
          // URLSession will auto-decompress gzip/br/zstd responses only when
          // Accept-Encoding is NOT present in the request headers (URLSession
-@@ -971,9 +1008,11 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
+@@ -971,9 +1024,11 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
          // caller will handle decompression and passes the raw compressed bytes
          // through, which the WKURLSchemeTask then renders as gibberish in the
          // WebView. Strip it so URLSession's transparent decompression kicks in.

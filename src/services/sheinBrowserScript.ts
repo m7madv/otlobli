@@ -977,10 +977,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // min-height, same 4px top indicator bar on the active tab, and the
     // same 440px max-width/centering (matters on tablets - on a phone-width
     // screen this is identical to full width).
+    // max() floor matches otlobli's real .bottom-nav (see styles.css): on
+    // Android, env(safe-area-inset-bottom) can report 0 even with a 3-button
+    // system nav bar on screen, letting taps near the bottom edge land in
+    // the system's gesture/button strip instead of these nav buttons.
     nav.style.cssText = 'position:fixed;left:50%;bottom:0;transform:translateX(-50%);' +
       'width:min(100%, 440px);z-index:2147483647;display:flex;' +
       'min-height:74px;background:rgba(255,255,255,.97);border-top:1px solid #bccac0;' +
-      'padding-bottom:env(safe-area-inset-bottom, 0px);';
+      'padding-bottom:max(env(safe-area-inset-bottom, 0px), 16px);';
     var items = [
       { label: 'الرئيسية', icon: OTLOBLI_NAV_ICONS.home, type: '' },
       { label: 'طلباتي', icon: OTLOBLI_NAV_ICONS.orders, type: 'openOrders' },

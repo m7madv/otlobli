@@ -531,7 +531,13 @@ a {
   grid-template-columns: repeat(4, 1fr);
   width: min(100%, 440px);
   min-height: 74px;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  /* env(safe-area-inset-bottom) alone isn't enough on Android: it can come
+     back as 0 even with edge-to-edge enforced (targetSdk 35+) and a 3-button
+     nav bar on screen, so taps near the very bottom edge land in the
+     system's gesture/button strip instead of these nav buttons. The max()
+     floor guarantees real breathing room regardless of whether the WebView
+     reports the inset accurately. */
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 16px);
   transform: translateX(50%);
   border-top: 1px solid var(--outline);
   background: rgba(255, 255, 255, 0.97);
