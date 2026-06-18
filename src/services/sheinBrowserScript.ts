@@ -1374,7 +1374,26 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
+  // shein.com's own anti-bot system occasionally serves a branded "GSRM
+  // Security"/"server's gone missing" block page instead of the real page -
+  // observed tied to the session's cookies (clearing them and reloading
+  // fixes it immediately). Detected here and handled by the app, since only
+  // native code can clear HttpOnly cookies. Reset on navigation so a block
+  // on one route doesn't suppress detecting it again on the next.
+  var sheinBlockReported = false;
+  function checkForSheinSecurityBlock() {
+    if (sheinBlockReported) return;
+    var bodyText = document.body && document.body.innerText;
+    if (bodyText && bodyText.length < 2000 && /GSRM|gone missing/i.test(bodyText)) {
+      sheinBlockReported = true;
+      if (window.mobileApp && window.mobileApp.postMessage) {
+        window.mobileApp.postMessage({ detail: { type: 'sheinBlocked' } });
+      }
+    }
+  }
+
   function tick() {
+    checkForSheinSecurityBlock();
     ensureLoadingOverlay();
     blockCartNavigation();
     ensureAddToCartButton();
@@ -1393,6 +1412,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // even briefly" requirement this whole hide/block system exists for.
   var tickScheduled = false;
   function scheduleTick() {
+    sheinBlockReported = false;
     if (tickScheduled) return;
     tickScheduled = true;
     setTimeout(function () {

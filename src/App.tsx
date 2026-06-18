@@ -21,6 +21,8 @@ import { InAppBrowser, ToolBarType } from '@capgo/capacitor-inappbrowser'
 
 const API_BASE = import.meta.env.VITE_WHATSAPP_API_URL || ''
 
+const SHEIN_HOME_URL = 'https://m.shein.com/jo/?ref=jo&rep=dir&ret=mjo&currency=USD'
+
 const usesInboundWhatsappAuth = import.meta.env.VITE_WHATSAPP_AUTH_MODE === 'inbound'
 
 const COUNTRY_CODES = [
@@ -467,7 +469,7 @@ function App() {
   const browseShein = () => {
     sheinOpenedRef.current = true
     void InAppBrowser.openWebView({
-      url: 'https://m.shein.com/jo/?ref=jo&rep=dir&ret=mjo&currency=USD',
+      url: SHEIN_HOME_URL,
       toolbarType: ToolBarType.BLANK,
       preShowScript: SHEIN_CAPTURE_SCRIPT,
       preShowScriptInjectionTime: 'documentStart',
@@ -549,6 +551,18 @@ function App() {
   useEffect(() => {
     const handle = InAppBrowser.addListener('messageFromWebview', (event: { detail?: Record<string, unknown> }) => {
       const detail = event?.detail
+
+      // shein.com's own anti-bot system occasionally 403s a request behind a
+      // branded "GSRM Security" block page tied to the session's cookies -
+      // observed sticking until those cookies are cleared, after which the
+      // exact same page loads fine again. Self-heal instead of leaving the
+      // user stuck looking at it.
+      if (detail?.type === 'sheinBlocked') {
+        void InAppBrowser.clearAllCookies().finally(() => {
+          void InAppBrowser.setUrl({ url: SHEIN_HOME_URL })
+        })
+        return
+      }
 
       if (detail?.type === 'openCart' || detail?.type === 'backToCart') {
         setScreen('cart')
