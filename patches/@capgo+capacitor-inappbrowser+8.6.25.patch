@@ -91,7 +91,7 @@ index 8ae3e61..12fb994 100644
              // Strip conditional cache validators on the wire so upstream cannot return 304/3xx,
              // which WebResourceResponse.setStatusCodeAndReasonPhrase rejects (kills the renderer).
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
-index 1c70884..abf1b9d 100644
+index 1c70884..fecea1d 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
 @@ -449,6 +449,34 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
@@ -129,39 +129,27 @@ index 1c70884..abf1b9d 100644
      weak var plugin: CapgoInAppBrowserPlugin?
      private var pendingTasks: [String: PendingProxyTask] = [:]
      private var stoppedRequests: [String: UUID] = [:]
-@@ -614,7 +642,15 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
-         }
-     }
- 
--    private func executeNativePipeline(requestId: String) {
-+    // otlobli: a cold app launch right after the device's network changed
-+    // (e.g. a VPN just got toggled off) can hit the relay before iOS's own
-+    // network stack has settled - DNS/route failures that clear up within a
-+    // second on their own. Without this, that showed up as a permanently
-+    // blank WKWebView (no built-in error page exists for a custom scheme
-+    // handler failure, unlike Android's WebView which at least renders one).
-+    private static let maxTransientRetries = 2
-+
-+    private func executeNativePipeline(requestId: String, retryAttempt: Int = 0) {
-         guard let pendingTask = pendingTask(for: requestId) else { return }
-         let request: URLRequest
-         do {
-@@ -646,6 +682,14 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
+@@ -646,6 +674,19 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
                      // So just stop processing and let the owning path complete it.
                      return
                  }
-+                if retryAttempt < ProxySchemeHandler.maxTransientRetries {
-+                    let delaySeconds = 0.4 * Double(retryAttempt + 1)
-+                    DispatchQueue.global().asyncAfter(deadline: .now() + delaySeconds) {
-+                        guard self.pendingTask(for: requestId) != nil else { return }
-+                        self.executeNativePipeline(requestId: requestId, retryAttempt: retryAttempt + 1)
-+                    }
-+                    return
-+                }
++                // otlobli: a delayed async retry here (scheduling a future
++                // executeNativePipeline call via asyncAfter) widened the
++                // window for a WKURLSchemeTask to receive a terminal call
++                // after WebKit already considers it done/replaced - exactly
++                // the "uncatchable NSException" hazard documented on
++                // completeSchemeTask below, and the prime suspect for a
++                // crashed WebContent process (reported symptom: the page
++                // freezes into what looks like a static snapshot - pinch-
++                // zoom, a UIKit-level gesture, still works; nothing else
++                // does). Removed - fail immediately instead, same as before
++                // retries were ever added. Android's retry is unaffected:
++                // it's a synchronous loop inside one blocking call, not a
++                // delayed closure that can outlive the task's lifecycle.
                  self.failSchemeTask(pendingTask, with: error)
                  return
              }
-@@ -671,24 +715,31 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
+@@ -671,24 +712,31 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
                  return
              }
              let responseHeaders = ProxySchemeRequestSupport.normalizedResponseHeaders(from: httpResponse)
@@ -201,7 +189,7 @@ index 1c70884..abf1b9d 100644
          }
  
          taskLock.lock()
-@@ -819,22 +870,35 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
+@@ -819,22 +867,35 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
              return
          }
  
@@ -243,7 +231,7 @@ index 1c70884..abf1b9d 100644
              self?.executeInboundDecision(requestId: requestId)
          }
      }
-@@ -958,10 +1022,13 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
+@@ -958,10 +1019,13 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
      }
  
      private func makeURLRequest(from context: NativeRequestContext) throws -> URLRequest {
@@ -259,7 +247,7 @@ index 1c70884..abf1b9d 100644
          request.httpMethod = context.method
          // URLSession will auto-decompress gzip/br/zstd responses only when
          // Accept-Encoding is NOT present in the request headers (URLSession
-@@ -971,9 +1038,11 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
+@@ -971,9 +1035,11 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
          // caller will handle decompression and passes the raw compressed bytes
          // through, which the WKURLSchemeTask then renders as gibberish in the
          // WebView. Strip it so URLSession's transparent decompression kicks in.
