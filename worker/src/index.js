@@ -340,15 +340,40 @@ async function handleRelay(request, env) {
   }
 
   const hasBody = request.method !== 'GET' && request.method !== 'HEAD'
-  const upstreamResponse = await fetch(parsedTarget.toString(), {
-    method: request.method,
-    headers: forwardHeaders,
-    body: hasBody ? request.body : undefined,
-    // Resolve redirects ourselves: the client needs the real absolute
-    // shein.com Location to keep following the chain in its own origin,
-    // not have Cloudflare quietly follow it and hand back unrelated content.
-    redirect: 'manual',
-  })
+  // Buffered (not streamed) only because a retry needs to resend it - bodies
+  // on these calls are small (form posts/JSON), never image/page-sized.
+  const bodyBuffer = hasBody ? await request.arrayBuffer() : undefined
+
+  const fetchUpstream = () =>
+    fetch(parsedTarget.toString(), {
+      method: request.method,
+      headers: forwardHeaders,
+      body: bodyBuffer,
+      // Resolve redirects ourselves: the client needs the real absolute
+      // shein.com Location to keep following the chain in its own origin,
+      // not have Cloudflare quietly follow it and hand back unrelated content.
+      redirect: 'manual',
+    })
+
+  // shein.com's own WAF occasionally 403s a request that would otherwise
+  // succeed (observed in testing: same URL, same headers, succeeds on the
+  // very next attempt) - this is what otlobli's bottom nav rendered over a
+  // "GSRM Security" block page instead of the real homepage. Cloudflare
+  // Workers' egress isn't a single fixed IP, so a fresh attempt plausibly
+  // routes differently. Retry a couple of times before giving up.
+  const MAX_ATTEMPTS = 3
+  let upstreamResponse
+  let consumedBodyText // set only when we had to read the body to decide whether to retry
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    upstreamResponse = await fetchUpstream()
+    if (upstreamResponse.status !== 403) {
+      consumedBodyText = undefined
+      break
+    }
+    consumedBodyText = await upstreamResponse.text()
+    if (!/gsrm|security/i.test(consumedBodyText) || attempt === MAX_ATTEMPTS) break
+    await new Promise((resolve) => setTimeout(resolve, 250 * attempt))
+  }
 
   const responseHeaders = new Headers(upstreamResponse.headers)
   responseHeaders.delete('content-security-policy')
@@ -361,7 +386,11 @@ async function handleRelay(request, env) {
     } catch { /* leave as-is if unparseable */ }
   }
 
-  return new Response(upstreamResponse.body, { status: upstreamResponse.status, headers: responseHeaders })
+  // consumedBodyText is set when the body was already read to decide whether
+  // to retry (the underlying stream is spent at that point) - reuse the text
+  // instead of trying to read upstreamResponse.body again.
+  const responseBody = consumedBodyText !== undefined ? consumedBodyText : upstreamResponse.body
+  return new Response(responseBody, { status: upstreamResponse.status, headers: responseHeaders })
 }
 
 // ──────────────────────────────────────────────
