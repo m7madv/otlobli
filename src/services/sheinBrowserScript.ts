@@ -199,6 +199,17 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // never finds anything). What they DO share is the exact same wrapper
   // *className* string (e.g. every photo's direct parent is independently
   // class="crop-image-container"). Group by that className text instead.
+  // Smallest rendered side of an image, in CSS px. Off-screen carousel clones
+  // still report their full size (they're translated, not collapsed), so they
+  // pass; a not-yet-laid-out lazy image reports 0, which we treat as "unknown"
+  // (don't filter it out on size alone).
+  function renderedMinDim(img) {
+    var r = img.getBoundingClientRect();
+    var w = r.width || img.clientWidth || 0;
+    var h = r.height || img.clientHeight || 0;
+    return Math.min(w, h);
+  }
+
   function getGalleryImage() {
     var imgs = document.querySelectorAll(
       'img[src*="ltwebstatic"], img[src*="img.shein"], img[data-src*="ltwebstatic"], img[data-src*="img.shein"]'
@@ -210,17 +221,34 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (isInPromoWidget(img)) continue;
       var src = realImgSrc(img);
       if (!src) continue;
+      // Drop icon-sized images (rating stars, color swatches, share/wishlist
+      // glyphs). Several of them share a parent class in groups of 3+ (five
+      // rating stars, a swatch row), and the old "biggest group wins" rule
+      // could pick that over the real photo carousel - a confirmed failure
+      // where a cart item showed a gold rating star as its product photo.
+      var dim = renderedMinDim(img);
+      if (dim > 0 && dim < 64) continue;
       var pCls = img.parentElement ? (img.parentElement.className || '').trim() : '';
       if (!pCls) continue;
       if (!byParentClass[pCls]) { byParentClass[pCls] = []; order.push(pCls); }
       byParentClass[pCls].push(img);
     }
+    // Pick the group whose images render LARGEST (the hero photo carousel), not
+    // the one with the most members - a "you may also like" strip can carry
+    // more thumbnails than the gallery has photos, yet each is far smaller.
     var bestKey = null;
+    var bestArea = 0;
     for (var k = 0; k < order.length; k++) {
       var key = order[k];
-      if (byParentClass[key].length >= 3 && (!bestKey || byParentClass[key].length > byParentClass[bestKey].length)) {
-        bestKey = key;
+      if (byParentClass[key].length < 3) continue;
+      var grp0 = byParentClass[key];
+      var maxArea = 0;
+      for (var gi = 0; gi < grp0.length; gi++) {
+        var gr = grp0[gi].getBoundingClientRect();
+        var area = gr.width * gr.height;
+        if (area > maxArea) maxArea = area;
       }
+      if (maxArea > bestArea) { bestArea = maxArea; bestKey = key; }
     }
     if (!bestKey) return '';
     // Picking items[0] (first in DOM order) is unreliable, and so is picking
@@ -256,6 +284,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (isInPromoWidget(imgs[i])) continue;
       var src = realImgSrc(imgs[i]);
       if (!src) continue;
+      // Same icon-sized skip as getGalleryImage - never let a rating star or
+      // swatch win the last-resort "largest image" pick.
+      var rdim = renderedMinDim(imgs[i]);
+      if (rdim > 0 && rdim < 64) continue;
       var w = imgs[i].naturalWidth || imgs[i].clientWidth || parseInt(imgs[i].getAttribute('width') || '0', 10) || 0;
       var h = imgs[i].naturalHeight || imgs[i].clientHeight || parseInt(imgs[i].getAttribute('height') || '0', 10) || 0;
       var area = w * h;
@@ -421,35 +453,132 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // as either a small cropped <img> or a CSS background-image of the actual
   // colorway. The big hero photo can lag a tick behind the swatch click (it
   // fades/lazy-loads in), so prefer the swatch's own image over it.
-  function getSelectedColorSwatchImage(container) {
-    if (!container) return '';
-    var nodes = container.querySelectorAll('*');
-    for (var j = 0; j < nodes.length; j++) {
-      var el = nodes[j];
-      if (!isSelectedSwatchEl(el)) continue;
-      var img = el.tagName === 'IMG' ? el : el.querySelector('img');
-      var fromImg = realImgSrc(img);
-      if (fromImg) return fromImg;
-      var bg = window.getComputedStyle(el).backgroundImage;
-      var match = bg && bg.match(/url\\(["']?(.*?)["']?\\)/);
-      if (match && match[1] && !/blank|placeholder/i.test(match[1])) return match[1];
-      // The swatch sometimes wraps a small <li>/<button> whose own background
-      // is on a CHILD div instead of itself - check one level of children too.
-      var children = el.children;
-      for (var c = 0; c < (children ? children.length : 0); c++) {
-        var childBg = window.getComputedStyle(children[c]).backgroundImage;
-        var childMatch = childBg && childBg.match(/url\\(["']?(.*?)["']?\\)/);
-        if (childMatch && childMatch[1] && !/blank|placeholder/i.test(childMatch[1])) return childMatch[1];
-      }
+  // Pulls the colorway photo out of one swatch element: its own <img>, its
+  // background-image, or a direct child's background-image (SHEIN sometimes
+  // wraps a small <li>/<button> whose image lives on a child div).
+  function swatchImageFrom(el) {
+    var img = el.tagName === 'IMG' ? el : el.querySelector('img');
+    var fromImg = realImgSrc(img);
+    if (fromImg) return fromImg;
+    var bg = window.getComputedStyle(el).backgroundImage;
+    var match = bg && bg.match(/url\\(["']?(.*?)["']?\\)/);
+    if (match && match[1] && !/blank|placeholder/i.test(match[1])) return match[1];
+    var children = el.children;
+    for (var c = 0; c < (children ? children.length : 0); c++) {
+      var childBg = window.getComputedStyle(children[c]).backgroundImage;
+      var childMatch = childBg && childBg.match(/url\\(["']?(.*?)["']?\\)/);
+      if (childMatch && childMatch[1] && !/blank|placeholder/i.test(childMatch[1])) return childMatch[1];
     }
     return '';
   }
 
+  // How strongly an element looks "ringed/highlighted". SHEIN marks the chosen
+  // swatch with a drawn outline (confirmed by the user: the selected swatch is
+  // the one with a black ring around it), which shows up as no aria/class flag
+  // at all - only as a thicker border / an outline / a box-shadow.
+  function ringScore(el) {
+    var cs = window.getComputedStyle(el);
+    var score = 0;
+    var bw = Math.max(parseFloat(cs.borderTopWidth) || 0, parseFloat(cs.borderBottomWidth) || 0,
+      parseFloat(cs.borderLeftWidth) || 0, parseFloat(cs.borderRightWidth) || 0);
+    if (bw >= 2) score += bw;
+    var ow = parseFloat(cs.outlineWidth) || 0;
+    if (ow >= 1 && cs.outlineStyle && cs.outlineStyle !== 'none') score += ow + 1;
+    if (cs.boxShadow && cs.boxShadow !== 'none') score += 2;
+    return score;
+  }
+
+  // The icon-sized swatch elements inside the color container that carry an
+  // image (an <img>, or a background-image).
+  function collectSwatchEls(container) {
+    var nodes = container.querySelectorAll('*');
+    var out = [];
+    for (var n = 0; n < nodes.length; n++) {
+      var el = nodes[n];
+      var r = el.getBoundingClientRect();
+      if (r.width <= 0 || r.width > 80 || r.height <= 0 || r.height > 80) continue;
+      var hasImg = el.tagName === 'IMG' || !!el.querySelector('img') ||
+        /url\\(/.test(window.getComputedStyle(el).backgroundImage || '');
+      if (hasImg) out.push(el);
+    }
+    return out;
+  }
+
+  // The color swatch the user picked is the single most reliable source for a
+  // "this is exactly the color they chose" photo - SHEIN renders each swatch as
+  // either a small cropped <img> or a CSS background-image of the actual
+  // colorway. The big hero photo can lag a tick behind the swatch click (it
+  // fades/lazy-loads in), so prefer the swatch's own image over it.
+  function getSelectedColorSwatchImage(container, selectedName) {
+    if (!container) return '';
+    // 1) Explicit selection signals (aria-selected/checked, a "selected"/
+    //    "active" class, a checked radio).
+    var nodes = container.querySelectorAll('*');
+    for (var j = 0; j < nodes.length; j++) {
+      if (!isSelectedSwatchEl(nodes[j])) continue;
+      var im1 = swatchImageFrom(nodes[j]);
+      if (im1) return im1;
+    }
+    // 2) Match the swatch whose own label (alt/title/aria-label) equals the
+    //    color name we already captured - robust for normal named colors.
+    if (selectedName && !isGenericColorName(selectedName)) {
+      var want = selectedName.trim().toLowerCase();
+      var swA = collectSwatchEls(container);
+      for (var a = 0; a < swA.length; a++) {
+        var lbl = swA[a].getAttribute('aria-label') || swA[a].getAttribute('title') || '';
+        var innerImgA = swA[a].tagName === 'IMG' ? swA[a] : swA[a].querySelector('img');
+        if (!lbl && innerImgA) lbl = innerImgA.getAttribute('alt') || innerImgA.getAttribute('title') || '';
+        if (lbl && lbl.trim().toLowerCase() === want) {
+          var imA = swatchImageFrom(swA[a]);
+          if (imA) return imA;
+        }
+      }
+    }
+    // 3) Drawn-ring fallback: pick the swatch whose outline/border clearly
+    //    stands out (the black ring around the chosen one). Only trust it when
+    //    exactly ONE swatch is ringed - if they all share the same border,
+    //    nothing actually stands out and the signal is meaningless here.
+    var swB = collectSwatchEls(container);
+    var bestEl = null;
+    var bestRing = 0;
+    var ringCount = 0;
+    for (var b = 0; b < swB.length; b++) {
+      var rs = ringScore(swB[b]);
+      if (rs >= 2) ringCount++;
+      if (rs > bestRing) { bestRing = rs; bestEl = swB[b]; }
+    }
+    if (bestEl && bestRing >= 2 && ringCount === 1) {
+      var imB = swatchImageFrom(bestEl);
+      if (imB) return imB;
+    }
+    return '';
+  }
+
+  // SHEIN prints a generic "ألوان متعددة" / "Multicolor" label for products
+  // whose swatches it groups under one name (nail-polish sets, print fabrics,
+  // etc.). Capturing that verbatim is useless - every variant of the product
+  // ends up with the same meaningless color - so treat it as a low-quality
+  // value and prefer a more specific name when one is available.
+  function isGenericColorName(text) {
+    if (!text) return true;
+    var t = text.toLowerCase();
+    return /ألوان متعددة|متعدد الألوان|متعدد الالوان|multi-?colou?r|multi colou?r|assorted/.test(t);
+  }
+
   function getColorState() {
     var container = findOptionContainer('color', ['اللون', 'Color']);
-    var selected = getAttrLabelValue(container, ['اللون', 'Color', 'color']) ||
-      getColorHeadingLabel(container) || getSelectedWithin(container);
-    return { exists: !!container, selected: selected, image: getSelectedColorSwatchImage(container) };
+    // The printed "اللون: X" heading is normally the most reliable source, but
+    // when it only yields the generic multicolor label, fall through to the
+    // actually-selected swatch's own name (aria-label/title/data-name), which
+    // is usually the precise colorway. Only settle for the generic word if
+    // nothing more specific exists anywhere.
+    var labelVal = getAttrLabelValue(container, ['اللون', 'Color', 'color']) || getColorHeadingLabel(container);
+    var swatchVal = getSelectedWithin(container);
+    var selected;
+    if (labelVal && !isGenericColorName(labelVal)) selected = labelVal;
+    else if (swatchVal && !isGenericColorName(swatchVal)) selected = swatchVal;
+    else selected = labelVal || swatchVal;
+    return { exists: !!container, selected: selected, image: getSelectedColorSwatchImage(container, selected) };
   }
 
   // Walks every option inside the size container and splits it into
@@ -1141,12 +1270,46 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
+  // Blocks SHEIN's own menu / settings controls on the very first tap, without
+  // waiting for the periodic hide passes (hideKnownHeaderIconsByHint et al.) to
+  // find and flag them - those depend on probe-grid luck and element sizing, so
+  // a user reported the hamburger staying tappable for minutes on the home page.
+  // The hamburger drawer leads to SHEIN's region/currency/language settings, and
+  // a currency switch there silently breaks our USD-based price capture, so this
+  // is protection, not just decluttering. Only icon-sized header controls match
+  // the "menu" hint (to avoid catching unrelated category-nav class names deeper
+  // in the page); the strong settings words (currency/region/language) are
+  // blocked wherever they appear, since they're never something the user should
+  // reach inside our flow.
+  function isProtectedSheinControl(el) {
+    if (!el || !el.getAttribute) return false;
+    if (el.id && el.id.indexOf('otlobli') === 0) return false;
+    var tag = el.tagName;
+    var interactive = tag === 'BUTTON' || tag === 'A' || el.getAttribute('role') === 'button' ||
+      window.getComputedStyle(el).cursor === 'pointer';
+    if (!interactive) return false;
+    var hint = ((el.className || '') + ' ' + (el.getAttribute('aria-label') || '') + ' ' +
+      (el.getAttribute('title') || '')).toLowerCase();
+    if (/currency|العملة|عملة|\\bregion\\b|country|البلد|الدولة|language|اللغة|\\blang\\b|لغة|\\bsetting/.test(hint)) return true;
+    if (/hamburger|nav-?toggle|side-?menu|drawer|menu-?(btn|icon|toggle|bar)|\\bmenu\\b/.test(hint)) {
+      var rect = el.getBoundingClientRect();
+      if (rect.top >= -10 && rect.top <= 140 && rect.width > 0 && rect.width <= 80 && rect.height > 0 && rect.height <= 80) return true;
+    }
+    return false;
+  }
+
   document.addEventListener('click', function (event) {
     var el = event.target;
     var depth = 0;
     while (el && depth < 6) {
       if (el.id && el.id.indexOf('otlobli') === 0) return;
       if (el.getAttribute && el.getAttribute('data-otlobli-blocked') === '1') {
+        event.preventDefault();
+        event.stopPropagation();
+        showMessage(null, 'هذا الخيار غير متوفر حالياً');
+        return;
+      }
+      if (isProtectedSheinControl(el)) {
         event.preventDefault();
         event.stopPropagation();
         showMessage(null, 'هذا الخيار غير متوفر حالياً');
