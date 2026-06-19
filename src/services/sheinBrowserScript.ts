@@ -1288,12 +1288,22 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var interactive = tag === 'BUTTON' || tag === 'A' || el.getAttribute('role') === 'button' ||
       window.getComputedStyle(el).cursor === 'pointer';
     if (!interactive) return false;
+    var shortText = (el.textContent || '').trim();
     var hint = ((el.className || '') + ' ' + (el.getAttribute('aria-label') || '') + ' ' +
-      (el.getAttribute('title') || '')).toLowerCase();
-    if (/currency|العملة|عملة|\\bregion\\b|country|البلد|الدولة|language|اللغة|\\blang\\b|لغة|\\bsetting/.test(hint)) return true;
+      (el.getAttribute('title') || '') + ' ' + (shortText.length <= 40 ? shortText : '')).toLowerCase();
+    // Currency/language/region are blocked wherever they appear - including by
+    // the visible drawer-item text ("تغيير العملة"/"تغيير اللغة"), so even if
+    // the hamburger drawer does manage to open, every dangerous item inside it
+    // is dead on tap.
+    if (/currency|العملة|عملة|\\bregion\\b|country|البلد|الدولة|language|اللغة|\\blang\\b|لغة|\\bsetting|تغيير العملة|تغيير اللغة/.test(hint)) return true;
     if (/hamburger|nav-?toggle|side-?menu|drawer|menu-?(btn|icon|toggle|bar)|\\bmenu\\b/.test(hint)) {
       var rect = el.getBoundingClientRect();
-      if (rect.top >= -10 && rect.top <= 140 && rect.width > 0 && rect.width <= 80 && rect.height > 0 && rect.height <= 80) return true;
+      // Band widened to top<=220 because SHEIN's home page can push its header
+      // down behind a top promo/app-install banner, putting the hamburger well
+      // below the old top<=140 cutoff - which is exactly why blocking used to
+      // only "wake up" after navigating to a product and back (that banner is
+      // gone on the second visit).
+      if (rect.top >= -10 && rect.top <= 220 && rect.width > 0 && rect.width <= 90 && rect.height > 0 && rect.height <= 90) return true;
     }
     return false;
   }
@@ -1328,9 +1338,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
         return;
       }
       if (isQuickAddSubmitButton(el)) {
+        // Silently swallow - the user asked that tapping a listing-card cart /
+        // quick-add do nothing at all (no message). These buttons are also
+        // actively hidden by hideListingCardAddButtons, so this is just a
+        // belt-and-suspenders fallback for any that slip through.
         event.preventDefault();
         event.stopPropagation();
-        showMessage(null, 'افتح المنتج كاملاً أولاً لإضافته إلى السلة');
         return;
       }
       if (isAddToCartButton(el)) {
@@ -1341,13 +1354,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
         event.preventDefault();
         event.stopPropagation();
         if (!looksLikeProductPage()) {
-          // This is SHEIN's "quick add" button on a listing card, which opens
-          // a stripped-down popup instead of the real product page - that
-          // popup's markup doesn't match what our scraping functions expect
-          // (built around the full product page), so capture from it is
-          // unreliable. Require opening the real product page instead, every
-          // time, so capture always runs against the same known layout.
-          showMessage(null, 'افتح المنتج كاملاً أولاً لإضافته إلى السلة');
+          // Listing-card "quick add" (not the real product page). Capture from
+          // its stripped-down popup is unreliable, so we never run it - and per
+          // the user's request we now do this silently, with no message.
           return;
         }
         var colorState = getColorState();
@@ -1482,6 +1491,95 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
+  // Finds SHEIN's top header bar by markup + geometry instead of a fixed pixel
+  // band. This is the fix for "blocking only works after I open a product and
+  // come back": on the first home load SHEIN floats a promo / app-install
+  // banner above the header, pushing the real header (and its hamburger) down
+  // past the old fixed probe rows, so nothing matched until a second visit when
+  // the banner was gone. Anchoring on the header element itself makes the icon
+  // sweep work no matter how far down the banner shoves it.
+  function findTopHeaderEl() {
+    var vp = viewportSize();
+    var best = null;
+    var bestTop = 99999;
+    var nodes = document.querySelectorAll(
+      'header, [class*="header" i], [class*="navbar" i], [class*="nav-bar" i], ' +
+      '[class*="topbar" i], [class*="top-bar" i], [class*="head-bar" i]'
+    );
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      if (el.id && el.id.indexOf('otlobli') === 0) continue;
+      var st = window.getComputedStyle(el);
+      if (st.position !== 'fixed' && st.position !== 'sticky' && st.position !== 'absolute' && st.position !== 'relative') continue;
+      var r = el.getBoundingClientRect();
+      if (r.width < vp.width * 0.6) continue;
+      if (r.height <= 0 || r.height > 160) continue;
+      if (r.top < -60 || r.top > 240) continue;
+      if (r.top < bestTop) { bestTop = r.top; best = el; }
+    }
+    return best;
+  }
+
+  // Hides every small clickable icon inside SHEIN's header (hamburger, cart,
+  // wishlist, inbox, etc.) EXCEPT the search box, anchored to the header
+  // element so it works regardless of the header's vertical offset. The
+  // hamburger is the real prize here: it opens SHEIN's region/currency/language
+  // drawer, and a currency switch silently breaks our USD price capture.
+  function hideSheinHeaderControls() {
+    var header = findTopHeaderEl();
+    if (!header) return;
+    var els = header.querySelectorAll('button, a, [role="button"], [class*="icon" i], svg');
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      if (el.tagName === 'SVG' || el.tagName === 'svg') {
+        // Promote a bare clickable <svg> icon to its nearest tappable wrapper.
+        var up = el.parentElement;
+        var hops = 0;
+        while (up && up !== header && hops < 3) {
+          var ut = up.tagName;
+          if (ut === 'BUTTON' || ut === 'A' || up.getAttribute('role') === 'button' ||
+            window.getComputedStyle(up).cursor === 'pointer') { el = up; break; }
+          up = up.parentElement; hops++;
+        }
+      }
+      if (el.id && el.id.indexOf('otlobli') === 0) continue;
+      if (el.querySelector && el.querySelector('input')) continue; // search field wrapper
+      var hint = ((el.className || '') + ' ' + (el.getAttribute && el.getAttribute('aria-label') || '') + ' ' + (el.textContent || '')).toLowerCase();
+      if (/search|بحث|camera|كاميرا/.test(hint)) continue;
+      var rect = el.getBoundingClientRect();
+      if (rect.width <= 0 || rect.width > 72 || rect.height <= 0 || rect.height > 72) continue;
+      el.setAttribute('data-otlobli-blocked', '1');
+      el.style.setProperty('visibility', 'hidden', 'important');
+      el.style.setProperty('pointer-events', 'none', 'important');
+    }
+  }
+
+  // Deletes SHEIN's per-listing-card "quick add to cart" controls - both the
+  // little cart icon sitting on each product thumbnail and the quick-add button
+  // under the card - so a tap does nothing (the user explicitly asked for these
+  // to be removed entirely, not redirected). Matched on SHEIN's add-bag / cart
+  // class & aria hints and capped at icon/pill size so it never touches the
+  // full-width add bar on a real product page (which the user reaches through
+  // otlobli's own button instead).
+  function hideListingCardAddButtons() {
+    var nodes = document.querySelectorAll(
+      '[class*="addbag" i], [class*="add-bag" i], [class*="addtobag" i], [class*="add-to-bag" i], ' +
+      '[class*="addcart" i], [class*="add-cart" i], [class*="addtocart" i], [class*="add-to-cart" i], ' +
+      '[class*="quickadd" i], [class*="quick-add" i], [class*="quick-cart" i], ' +
+      '[class*="cart-icon" i], [class*="bag-icon" i], [class*="addboard" i], ' +
+      '[aria-label*="add to" i], [aria-label*="عربة" i], [aria-label*="السلة" i], [aria-label*="أضف" i]'
+    );
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      if (el.id && el.id.indexOf('otlobli') === 0) continue;
+      var rect = el.getBoundingClientRect();
+      if (rect.width <= 0 || rect.width > 96 || rect.height <= 0 || rect.height > 96) continue;
+      el.setAttribute('data-otlobli-blocked', '1');
+      el.style.setProperty('visibility', 'hidden', 'important');
+      el.style.setProperty('pointer-events', 'none', 'important');
+    }
+  }
+
   // Now that the webview is full-screen (see browseShein in App.tsx),
   // SHEIN's own page can render its own persistent bottom tab bar AND its
   // sticky product-page action bar (wishlist + add-to-cart), both of which
@@ -1574,8 +1672,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
     ensureBackButton();
     ensureOtlobliNav();
     hideKnownHeaderIconsByHint();
+    hideSheinHeaderControls();
     hideExtraHeaderIcons();
     hideSheinCartIcons();
+    hideListingCardAddButtons();
     hideForeignBottomNav();
     hideStrayFixedBottomBars();
   }
@@ -1620,7 +1720,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // instantly elsewhere) - run it on its own much tighter interval so any
   // freshly re-created icon gets caught within ~120ms instead of waiting
   // for the next general tick.
-  setInterval(hideKnownHeaderIconsByHint, 120);
+  setInterval(function () {
+    hideKnownHeaderIconsByHint();
+    hideSheinHeaderControls();
+    hideListingCardAddButtons();
+  }, 120);
   // Own slower interval, not part of tick() - see checkForSheinSecurityBlock's
   // comment on why innerText needs to stay off the 300ms timer.
   setInterval(checkForSheinSecurityBlock, 1000);
