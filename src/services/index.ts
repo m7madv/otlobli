@@ -1,15 +1,14 @@
 import { localAppApi } from './localAppApi'
 import { supabaseAppApi } from './supabaseAppApi'
 import { isSupabaseConfigured } from './supabaseClient'
-import { isWhatsappApiAuthEnabled, whatsappAuthApi } from './whatsappAuthApi'
+import { isTelegramAuthEnabled, telegramAuthApi } from './telegramAuthApi'
 import type { TalabiehApi } from './appApi'
 
-// السكرايبر يعمل دائماً بغض النظر عن Supabase
-// Auth: WhatsApp server إذا مفعّل، وإلا mock
-// catalog: supabaseAppApi دائماً (يجرب السكرايبر ثم يرجع للـ mock)
+// Auth: Telegram OTP إذا Supabase مكوّن، وإلا mock
+// catalog: supabaseAppApi دائماً
 // payments/orders: Supabase إذا مكوّن، وإلا mock محلي
 export const appApi: TalabiehApi = {
-  auth: isWhatsappApiAuthEnabled ? whatsappAuthApi : localAppApi.auth,
+  auth: isTelegramAuthEnabled ? telegramAuthApi : localAppApi.auth,
   catalog: supabaseAppApi.catalog,
   payments: isSupabaseConfigured ? supabaseAppApi.payments : localAppApi.payments,
   orders: isSupabaseConfigured ? supabaseAppApi.orders : localAppApi.orders,

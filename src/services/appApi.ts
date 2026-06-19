@@ -10,6 +10,7 @@ export type StartLoginResult = {
   supportPhone?: string
   verificationMessage?: string
   requiresInboundWhatsapp?: boolean
+  telegramOtp?: string
 }
 
 export type VerifyOtpResult = {

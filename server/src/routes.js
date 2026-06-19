@@ -10,6 +10,8 @@ import { createRequire } from 'module'
 import { fileURLToPath } from 'url'
 import { createOtp, verifyOtp } from './otpStore.js'
 import { sendOtpMessage, getConnectionStatus } from './whatsapp.js'
+import { supabase } from './supabase.js'
+import { sendTelegramNotification, isTelegramConfigured } from './telegram.js'
 
 const require = createRequire(import.meta.url)
 const __filename = fileURLToPath(import.meta.url)
@@ -318,6 +320,136 @@ router.get('/exchange-rate', async (req, res) => {
     const rate = _rateCache.rate || fallback
     res.json({ rate, buy: rate, sell: rate, updatedAt: _rateCache.updatedAt || Date.now(), cached: !!_rateCache.rate, source: 'fallback' })
   }
+})
+
+// ============================================================
+// 📬 إشعار الطلب (تليقرام) — يُستدعى من التطبيق بعد تأكيد الدفع
+// ============================================================
+
+router.post('/orders/notify', async (req, res) => {
+  try {
+    const { order } = req.body
+    if (!order || !order.id) {
+      return res.status(400).json({ error: 'missing_order' })
+    }
+
+    if (isTelegramConfigured()) {
+      await sendTelegramNotification(order)
+    }
+
+    res.json({ ok: true })
+  } catch (err) {
+    console.error('Notify error:', err.message)
+    res.status(500).json({ error: 'notify_failed' })
+  }
+})
+
+// ============================================================
+// 🔐 لوحة الإدارة — /api/admin/orders
+// ============================================================
+
+function adminAuth(req, res, next) {
+  const pin = req.headers['x-admin-pin']
+  const expected = process.env.ADMIN_PIN
+  if (!expected) {
+    return res.status(503).json({ error: 'admin_not_configured', message: 'ADMIN_PIN غير مضبوط على السيرفر.' })
+  }
+  if (!pin || pin !== expected) {
+    return res.status(401).json({ error: 'unauthorized', message: 'رمز الإدارة غير صحيح.' })
+  }
+  next()
+}
+
+// GET /api/admin/orders — جلب كل الطلبات
+router.get('/admin/orders', adminAuth, async (req, res) => {
+  if (!supabase) {
+    return res.status(503).json({ error: 'supabase_not_configured', message: 'Supabase غير مضبوط.' })
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(500)
+
+    if (error) throw error
+
+    const orders = (data || []).map((row) => ({
+      id: row.id,
+      customer: row.customer,
+      phone: row.phone,
+      city: row.city,
+      address: row.address,
+      items: row.items || [],
+      total: row.total,
+      paymentStatus: row.payment_status,
+      statusIndex: row.status_index ?? 0,
+      qadmousNumber: row.qadmous_number || '',
+      createdAt: row.created_at,
+      paidAt: row.paid_at,
+    }))
+
+    res.json({ orders })
+  } catch (err) {
+    console.error('Admin fetch orders error:', err.message)
+    res.status(500).json({ error: 'fetch_failed', message: err.message })
+  }
+})
+
+// PATCH /api/admin/orders — تحديث طلب
+router.patch('/admin/orders', adminAuth, async (req, res) => {
+  if (!supabase) {
+    return res.status(503).json({ error: 'supabase_not_configured' })
+  }
+
+  const { orderId, patch } = req.body
+  if (!orderId || !patch) {
+    return res.status(400).json({ error: 'missing_fields' })
+  }
+
+  try {
+    const dbPatch = {}
+    if (patch.paymentStatus !== undefined) dbPatch.payment_status = patch.paymentStatus
+    if (patch.statusIndex !== undefined) dbPatch.status_index = patch.statusIndex
+    if (patch.qadmousNumber !== undefined) dbPatch.qadmous_number = patch.qadmousNumber
+    if (patch.paidAt !== undefined) dbPatch.paid_at = patch.paidAt
+    dbPatch.updated_at = new Date().toISOString()
+
+    const { error } = await supabase.from('orders').update(dbPatch).eq('id', orderId)
+    if (error) throw error
+
+    // إذا تأكد الدفع → أرسل إشعار تليقرام
+    if (patch.paymentStatus === 'مدفوع' && isTelegramConfigured()) {
+      const { data } = await supabase.from('orders').select('*').eq('id', orderId).single()
+      if (data) {
+        await sendTelegramNotification({
+          id: data.id,
+          customer: data.customer,
+          phone: data.phone,
+          city: data.city,
+          address: data.address,
+          items: data.items,
+          total: data.total,
+          paymentStatus: 'مدفوع',
+          paidAt: patch.paidAt || new Date().toISOString(),
+        })
+      }
+    }
+
+    res.json({ ok: true })
+  } catch (err) {
+    console.error('Admin patch order error:', err.message)
+    res.status(500).json({ error: 'update_failed', message: err.message })
+  }
+})
+
+// GET /api/admin/status — حالة السيرفر
+router.get('/admin/status', adminAuth, (req, res) => {
+  res.json({
+    supabase: !!supabase,
+    telegram: isTelegramConfigured(),
+  })
 })
 
 export default router

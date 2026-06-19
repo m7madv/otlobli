@@ -21,6 +21,9 @@ import { InAppBrowser, ToolBarType } from '@capgo/capacitor-inappbrowser'
 import { Capacitor } from '@capacitor/core'
 
 const API_BASE = import.meta.env.VITE_WHATSAPP_API_URL || ''
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+const NOTIFY_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/telegram-notify` : ''
 
 const SHEIN_HOME_URL = 'https://m.shein.com/jo/?ref=jo&rep=dir&ret=mjo&currency=USD'
 
@@ -149,6 +152,7 @@ function App() {
       ? Math.max(1, Math.ceil((initialPendingWhatsappAuth.expiresAt - Date.now()) / 1000))
       : 42,
   )
+  const [telegramOtp, setTelegramOtp] = useState('')
   const [inboundWhatsappUrl, setInboundWhatsappUrl] = useState(initialPendingWhatsappAuth?.whatsappUrl ?? '')
   const [inboundSupportPhone, setInboundSupportPhone] = useState(initialPendingWhatsappAuth?.supportPhone ?? '')
   const [inboundVerificationMessage, setInboundVerificationMessage] = useState(
@@ -246,6 +250,30 @@ function App() {
     return () => window.clearInterval(intervalId)
   }, [inboundWhatsappUrl, phone, screen, setPendingWhatsappAuth, setSessionToken, userProfile])
 
+  // Telegram OTP polling — يتحقق تلقائياً كل 3 ثوانٍ بعد إرسال الرمز للبوت
+  useEffect(() => {
+    if (screen !== 'otp' || !telegramOtp) return undefined
+
+    const check = () => {
+      void appApi.auth
+        .verifyOtp(phone, telegramOtp)
+        .then(() => {
+          setSessionToken(phone)
+          setTelegramOtp('')
+          if (!userProfile) {
+            setScreen('onboarding')
+          } else {
+            setScreen('home')
+          }
+          showNotice('تم تأكيد رقمك بنجاح')
+        })
+        .catch(() => undefined)
+    }
+
+    const intervalId = window.setInterval(check, 3000)
+    return () => window.clearInterval(intervalId)
+  }, [telegramOtp, phone, screen, setSessionToken, userProfile])
+
   // Variant helpers
   const getAvailableSizesForColor = (p: Product, colorName: string): string[] => {
     if (!p.variants || p.variants.length === 0) return p.sizes
@@ -331,6 +359,14 @@ function App() {
     void appApi.auth
       .startWhatsappLogin(phone)
       .then((result) => {
+        if (result.telegramOtp) {
+          setTelegramOtp(result.telegramOtp)
+          setOtpExpiresInSeconds(result.otpExpiresInSeconds)
+          setScreen('otp')
+          showNotice('أرسل الرمز لبوت تيليغرام للتحقق')
+          return
+        }
+
         const pendingAuth = result.whatsappUrl
           ? {
               phone,
@@ -678,6 +714,7 @@ function App() {
     void appApi.payments.checkPaymentStatus(pendingPayment.orderId).then((result) => {
       if (result.status === 'مدفوع') {
         showNotice('تم العثور على تحويل مطابق للمبلغ الدقيق')
+        const paidOrder = orders.find((o) => o.id === pendingPayment.orderId)
         setOrders((list) => list.map((item) => (
           item.id === pendingPayment.orderId
             ? { ...item, paymentStatus: 'مدفوع', statusIndex: 1, paidAt: result.paidAt ?? today() }
@@ -687,6 +724,18 @@ function App() {
         setPendingPayment(null)
         setVerificationState('matched')
         setScreen('success')
+        if (paidOrder && NOTIFY_URL) {
+          void fetch(NOTIFY_URL, {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              'apikey': SUPABASE_ANON_KEY,
+              'authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+              'x-admin-pin': import.meta.env.VITE_ADMIN_PIN || '',
+            },
+            body: JSON.stringify({ order: { ...paidOrder, paymentStatus: 'مدفوع', paidAt: result.paidAt ?? today() } }),
+          }).catch(() => undefined)
+        }
         return
       }
 
@@ -756,10 +805,25 @@ function App() {
     if (screen === 'otp') {
       return (
         <AuthShell
-          title={inboundWhatsappUrl ? 'تأكيد واتساب' : 'تأكيد الرقم'}
-          subtitle={inboundWhatsappUrl ? 'افتح واتساب وأرسل الرسالة الجاهزة فقط' : 'أدخل الرمز المرسل إلى واتساب'}
+          title={telegramOtp ? 'تأكيد عبر تيليغرام' : inboundWhatsappUrl ? 'تأكيد واتساب' : 'تأكيد الرقم'}
+          subtitle={telegramOtp ? 'أرسل الرمز أدناه لبوت تيليغرام' : inboundWhatsappUrl ? 'افتح واتساب وأرسل الرسالة الجاهزة فقط' : 'أدخل الرمز المرسل إلى واتساب'}
         >
-          {inboundWhatsappUrl ? (
+          {telegramOtp ? (
+            <section className="whatsapp-verification">
+              <p>افتح تيليغرام وأرسل هذا الرمز لبوت <strong>@Shein_in_syria_bot</strong>:</p>
+              <code style={{ fontSize: '2rem', letterSpacing: '0.3em', fontWeight: 'bold', display: 'block', textAlign: 'center', padding: '1rem', background: 'var(--surface-2)', borderRadius: '12px' }}>{telegramOtp}</code>
+              <a
+                className="primary-action"
+                href={`https://t.me/Shein_in_syria_bot?start=${telegramOtp}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                فتح بوت تيليغرام
+                <Icon name="open_in_new" />
+              </a>
+              <p className="hint">بانتظار إرسالك للرمز... سيتم الدخول تلقائياً</p>
+            </section>
+          ) : inboundWhatsappUrl ? (
             <section className="whatsapp-verification">
               <p>سيفتح واتساب على رقم otlobli. أرسل الرسالة الجاهزة كما هي من نفس الرقم الذي أدخلته.</p>
               <p className="hint">لن يتم التأكيد إذا أرسلت من رقم واتساب مختلف.</p>
@@ -793,13 +857,13 @@ function App() {
               ))}
             </div>
           )}
-          {!inboundWhatsappUrl && (
+          {!inboundWhatsappUrl && !telegramOtp && (
             <button className="primary-action" disabled={authState === 'verifying'} onClick={verifyOtp}>
               {authState === 'verifying' ? 'جاري الفحص...' : 'تأكيد'}
               <Icon name="verified" />
             </button>
           )}
-          {!inboundWhatsappUrl && <p className="hint">إعادة الإرسال بعد {otpExpiresInSeconds} ثانية</p>}
+          {!inboundWhatsappUrl && !telegramOtp && <p className="hint">إعادة الإرسال بعد {otpExpiresInSeconds} ثانية</p>}
         </AuthShell>
       )
     }
@@ -1081,7 +1145,7 @@ function App() {
     if (screen === 'cart') {
       return (
         <MobileShell active="cart" onNavigate={setScreen}>
-          <Header title="السلة" />
+          <Header title="السلة" back={() => setScreen('home')} />
           <main className="mobile-content">
             {cartItems.length > 0 ? (
               <>
@@ -1261,7 +1325,7 @@ function App() {
     if (screen === 'orders') {
       return (
         <MobileShell active="orders" onNavigate={setScreen}>
-          <Header title="طلباتي" />
+          <Header title="طلباتي" back={() => setScreen('home')} />
           <main className="mobile-content">
             {orders.length === 0 && (
               <EmptyState title="لا توجد طلبات بعد" body="اطلب منتجاً من الصفحة الرئيسية وسيظهر هنا بعد إتمام الدفع." />
@@ -1368,7 +1432,7 @@ function App() {
 
       return (
         <MobileShell active="profile" onNavigate={setScreen}>
-          <Header title="حسابي" />
+          <Header title="حسابي" back={() => setScreen('home')} />
           <main className="mobile-content">
             <section className="profile-card">
               <div className="avatar">{avatarLetter}</div>
@@ -1634,27 +1698,16 @@ function HomeScreen({ userName }: { userName?: string }) {
 }
 
 function MobileShell({
-  active,
   children,
-  onNavigate,
-  hideBottomNav = false,
 }: {
-  active: 'home' | 'orders' | 'cart' | 'profile'
+  active?: 'home' | 'orders' | 'cart' | 'profile'
   children: ReactNode
-  onNavigate: (screen: Screen) => void
+  onNavigate?: (screen: Screen) => void
   hideBottomNav?: boolean
 }) {
   return (
     <div className="mobile-shell">
       {children}
-      {!hideBottomNav && (
-        <nav className="bottom-nav">
-          <NavButton active={active === 'home'} icon="home" label="الرئيسية" onClick={() => onNavigate('home')} />
-          <NavButton active={active === 'orders'} icon="package_2" label="طلباتي" onClick={() => onNavigate('orders')} />
-          <NavButton active={active === 'cart'} icon="shopping_cart" label="السلة" onClick={() => onNavigate('cart')} />
-          <NavButton active={active === 'profile'} icon="person" label="حسابي" onClick={() => onNavigate('profile')} />
-        </nav>
-      )}
     </div>
   )
 }
