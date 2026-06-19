@@ -18,10 +18,20 @@ import { appApi } from './services'
 import { buildWhatsappLink } from './services/whatsappLink'
 import { SHEIN_CAPTURE_SCRIPT } from './services/sheinBrowserScript'
 import { InAppBrowser, ToolBarType } from '@capgo/capacitor-inappbrowser'
+import { Capacitor } from '@capacitor/core'
 
 const API_BASE = import.meta.env.VITE_WHATSAPP_API_URL || ''
 
 const SHEIN_HOME_URL = 'https://m.shein.com/jo/?ref=jo&rep=dir&ret=mjo&currency=USD'
+
+// iOS loads SHEIN directly and leans on the user's own VPN instead of the
+// Cloudflare relay: on iOS the relay funnels every SHEIN resource through a
+// WKURLSchemeHandler that buffers each full response body in memory, which
+// repeatedly overran the WebContent process's memory budget and killed it -
+// the page froze into a pinch-zoomable snapshot, the nav bar vanished, and a
+// relaunch came up blank. Android has no such per-process cap, so it keeps the
+// relay (no VPN needed there). See patches/@capgo+capacitor-inappbrowser+*.patch.
+const isIOS = Capacitor.getPlatform() === 'ios'
 
 const usesInboundWhatsappAuth = import.meta.env.VITE_WHATSAPP_AUTH_MODE === 'inbound'
 
@@ -468,6 +478,10 @@ function App() {
   // script) so there's only ever one surface to get right.
   const browseShein = () => {
     sheinOpenedRef.current = true
+    // On iOS SHEIN is reached directly, so it only loads once the user's VPN is
+    // on. Remind them up front (the webview otherwise just sits hidden behind
+    // our home screen while the geo-blocked request hangs).
+    if (isIOS) showNotice('لفتح متجر SHEIN على الآيفون، فعّل الـ VPN أولاً')
     void InAppBrowser.openWebView({
       url: SHEIN_HOME_URL,
       toolbarType: ToolBarType.BLANK,
@@ -480,13 +494,14 @@ function App() {
       // permanently blank home screen. This keeps back navigation inside the webview.
       activeNativeNavigationForWebview: true,
       disableGoBackOnNativeApplication: true,
-      // SHEIN is geo-blocked for Syrian IPs. This single catch-all rule switches
-      // the plugin's per-request fetch (already native on both platforms - see
-      // the patched ProxySchemeHandler.swift / WebViewDialog.java in
-      // patches/@capgo+capacitor-inappbrowser+*.patch) from connecting to the
-      // target directly to going through the Cloudflare Worker relay instead,
-      // so the device's own IP is never what shein.com sees.
-      outboundProxyRules: [{ urlRegex: '.*', action: 'continue' }],
+      // SHEIN is geo-blocked for Syrian IPs. On Android this single catch-all rule
+      // switches the plugin's native per-request fetch (see the patched
+      // WebViewDialog.java in patches/@capgo+capacitor-inappbrowser+*.patch) from
+      // connecting to the target directly to going through the Cloudflare Worker
+      // relay, so the device's own IP is never what shein.com sees. Omitted on iOS
+      // (see the isIOS note near SHEIN_HOME_URL) - there the relay crashed the
+      // WebContent process, so iOS loads directly and relies on the user's VPN.
+      ...(isIOS ? {} : { outboundProxyRules: [{ urlRegex: '.*', action: 'continue' }] as const }),
     })
       .then(() => {
         setSheinReady(true)
