@@ -10,3 +10,6 @@
 //
 // لتفعيل الدفع لاحقاً: طبّق schema.sql على Supabase ثم غيّر هذا إلى 'shamcash'.
 export const PAYMENT_MODE: 'auto' | 'shamcash' = 'auto'
+
+// رقم النسخة — يظهر في شاشة الدخول لمعرفة أي بناء مثبّت على الجهاز عند التشخيص.
+export const APP_VERSION = '2026.06.20-orders-fix'

@@ -14,8 +14,8 @@ import { buildPriceBreakdown, formatMoney, formatPriceSyp, formatUsd, sumPriceLi
 import type { PaymentCurrency } from './domain/pricing'
 import type { Address, CartItem, Order, Product, ProductColor, ProductVariant, Recipient, Screen, StatusTone, UserProfile } from './domain/types'
 import { readStoredJson, storageKeys, useStoredState } from './infrastructure/localStorage'
-import { appApi } from './services'
-import { PAYMENT_MODE } from './config'
+import { appApi, isSupabaseConfigured } from './services'
+import { PAYMENT_MODE, APP_VERSION } from './config'
 import { buildWhatsappLink } from './services/whatsappLink'
 import { SHEIN_CAPTURE_SCRIPT } from './services/sheinBrowserScript'
 import { InAppBrowser, ToolBarType } from '@capgo/capacitor-inappbrowser'
@@ -840,6 +840,9 @@ function App() {
             <Icon name="arrow_back" />
           </button>
           <p className="hint">يلزم تأكيد رقم واتساب قبل إنشاء أي طلب.</p>
+          <p className="hint" style={{ fontSize: '0.72rem', opacity: 0.55 }}>
+            النسخة {APP_VERSION} · قاعدة البيانات: {isSupabaseConfigured ? 'متصلة ✓' : 'غير متصلة ✗'}
+          </p>
         </AuthShell>
       )
     }

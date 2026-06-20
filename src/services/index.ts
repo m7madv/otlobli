@@ -7,8 +7,11 @@ import type { TalabiehApi } from './appApi'
 export const appApi: TalabiehApi = {
   auth: isWhatsappApiAuthEnabled ? whatsappAuthApi : localAppApi.auth,
   catalog: supabaseAppApi.catalog,
-  payments: isSupabaseConfigured ? supabaseAppApi.payments : localAppApi.payments,
-  orders: isSupabaseConfigured ? supabaseAppApi.orders : localAppApi.orders,
+  // ممنوع الـ fallback الصامت لـ localAppApi: الطلبات والمدفوعات تمرّ دائماً عبر
+  // Supabase. إن لم يكن مُعدّاً (مفاتيح مفقودة في البناء)، يرمي supabaseAppApi
+  // خطأً واضحاً يراه المستخدم بدل أن "يُحفظ" الطلب محلياً ولا يصل أبداً.
+  payments: supabaseAppApi.payments,
+  orders: supabaseAppApi.orders,
 }
 
 export { isSupabaseConfigured }
