@@ -9,7 +9,7 @@ import zlib from 'zlib'
 import { createRequire } from 'module'
 import { fileURLToPath } from 'url'
 import { createOtp, verifyOtp } from './otpStore.js'
-import { sendOtpMessage, getConnectionStatus } from './whatsapp.js'
+import { sendOtpMessage, getConnectionStatus, connectOnDemand } from './whatsapp.js'
 import { supabase } from './supabase.js'
 import { sendTelegramNotification, isTelegramConfigured } from './telegram.js'
 
@@ -78,6 +78,56 @@ router.post('/api/session/upload', (req, res) => {
 router.get('/auth/whatsapp/status', (req, res) => {
   const status = getConnectionStatus()
   res.json(status)
+})
+
+// صفحة ربط WhatsApp — تفتح في المتصفح وتعرض QR
+router.get('/qr', (req, res) => {
+  connectOnDemand().catch(() => {})
+  res.setHeader('Content-Type', 'text/html; charset=utf-8')
+  res.send(`<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ربط WhatsApp — otlobli</title>
+<style>
+  body { font-family: system-ui; background: #0f0f0f; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; gap: 20px; }
+  h1 { font-size: 1.4rem; margin: 0; }
+  #status { color: #aaa; font-size: 0.95rem; }
+  #qr-img { width: 280px; height: 280px; border-radius: 16px; background: #fff; display: none; }
+  .connected { color: #4ade80; font-size: 1.2rem; font-weight: bold; display: none; }
+</style>
+</head>
+<body>
+<h1>🔗 ربط WhatsApp بـ otlobli</h1>
+<p id="status">جاري تشغيل الاتصال...</p>
+<img id="qr-img" alt="QR Code">
+<p class="connected" id="done">✅ تم الربط بنجاح!</p>
+<script>
+async function poll() {
+  try {
+    const r = await fetch('/api/auth/whatsapp/status')
+    const d = await r.json()
+    if (d.connected) {
+      document.getElementById('status').textContent = ''
+      document.getElementById('qr-img').style.display = 'none'
+      document.getElementById('done').style.display = 'block'
+      return
+    }
+    if (d.qrImageUrl) {
+      document.getElementById('qr-img').src = d.qrImageUrl
+      document.getElementById('qr-img').style.display = 'block'
+      document.getElementById('status').textContent = 'افتح WhatsApp ← النقاط الثلاث ← الأجهزة المرتبطة ← ربط جهاز'
+    } else {
+      document.getElementById('status').textContent = 'جاري التحضير...'
+    }
+  } catch(_) {}
+  setTimeout(poll, 2000)
+}
+poll()
+</script>
+</body>
+</html>`)
 })
 
 // بدء تسجيل الدخول - إرسال OTP
