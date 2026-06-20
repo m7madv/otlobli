@@ -47,7 +47,7 @@ const orderStatuses = [
 ]
 
 function formatMoney(value: number) {
-  return `${value.toLocaleString('ar-SY')} ل.س`
+  return `${(value ?? 0).toLocaleString('ar-SY')} ل.س`
 }
 
 function today() {
@@ -396,7 +396,7 @@ function OrderDetail({
       </header>
 
       <div className="detail-items">
-        {order.items.map((item, idx) => (
+        {(order.items ?? []).map((item, idx) => (
           <div className="detail-product" key={idx}>
             {item.image && <img src={item.image} alt={item.title} />}
             <div>
