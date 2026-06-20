@@ -29,7 +29,7 @@ Deno.serve(async (req) => {
   if (req.method === 'GET') {
     const { data, error } = await supabase
       .from('orders')
-      .select('*')
+      .select('*, order_items(*)')
       .order('created_at', { ascending: false })
       .limit(500)
 
@@ -40,14 +40,24 @@ Deno.serve(async (req) => {
       })
     }
 
-    const orders = (data || []).map((row) => ({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const orders = (data || []).map((row: any) => ({
       id: row.id,
-      customer: row.customer,
+      customer: row.customer_name || row.customer || '',
       phone: row.phone,
       city: row.city,
       address: row.address,
-      items: row.items || [],
-      total: row.total,
+      items: (row.order_items || []).map((item: any) => ({
+        id: item.id,
+        title: item.title,
+        image: item.image,
+        color: item.color,
+        size: item.size,
+        quantity: item.quantity,
+        priceSyp: item.price_syp,
+        sourceLink: item.source_link,
+      })),
+      total: row.total_syp ?? row.total ?? 0,
       paymentStatus: row.payment_status,
       statusIndex: row.status_index ?? 0,
       qadmousNumber: row.qadmous_number || '',

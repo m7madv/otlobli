@@ -284,6 +284,23 @@ export const supabaseAppApi: TalabiehApi = {
       }
 
       const result = data as { orderId: string; paymentAmount: number; paymentCurrency: PaymentCurrency; paymentExpiresAt: string }
+
+      // إرسال إشعار Telegram بعد نجاح إنشاء الطلب (fire-and-forget)
+      try {
+        const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
+        if (SUPABASE_URL && anonKey) {
+          void fetch(`${SUPABASE_URL}/functions/v1/telegram-notify`, {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              'apikey': anonKey,
+              'authorization': `Bearer ${anonKey}`,
+            },
+            body: JSON.stringify({ order: { ...toOrderPayload(order), id: result.orderId } }),
+          })
+        }
+      } catch { /* إشعار غير حيوي */ }
+
       return {
         mode: 'external',
         orderId: result.orderId,
