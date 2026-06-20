@@ -1,6 +1,6 @@
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ''
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID || ''
-const ADMIN_URL = process.env.ADMIN_URL || 'https://otlobli-admin.vercel.app'
+const ADMIN_URL = process.env.ADMIN_URL || 'https://talabieh-admin.vercel.app'
 const API = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`
 
 export async function sendTelegramNotification(order) {
