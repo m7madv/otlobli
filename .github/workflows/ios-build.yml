@@ -17,40 +17,51 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: '22'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
+
+      - name: Create env file
+        run: |
+          echo "VITE_WHATSAPP_API_URL=https://otlobli-whatsapp-production.up.railway.app" > .env
+          echo "VITE_WHATSAPP_AUTH_MODE=real" >> .env
 
       - name: Build web app
-        run: npm run build
-
-      - name: Install Capacitor CLI
-        run: npm install -g @capacitor/cli
+        run: npx vite build
+        env:
+          VITE_WHATSAPP_API_URL: https://otlobli-whatsapp-production.up.railway.app
+          VITE_WHATSAPP_AUTH_MODE: real
 
       - name: Sync Capacitor iOS
         run: npx cap sync ios
+
+      - name: Select Xcode version
+        run: sudo xcode-select -s /Applications/Xcode.app
 
       - name: Build iOS (unsigned)
         run: |
           xcodebuild archive \
             -project ios/App/App.xcodeproj \
             -scheme App \
+            -configuration Release \
             -destination "generic/platform=iOS" \
-            -archivePath $RUNNER_TEMP/App.xcarchive \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            | xcpretty || true
+            PROVISIONING_PROFILE="" \
+            2>&1 | tail -50
 
       - name: Package IPA
         run: |
-          mkdir -p $RUNNER_TEMP/Payload
-          cp -r "$RUNNER_TEMP/App.xcarchive/Products/Applications/App.app" \
-                "$RUNNER_TEMP/Payload/"
-          cd $RUNNER_TEMP
+          APP_PATH=$(find "$RUNNER_TEMP/App.xcarchive/Products/Applications" -name "*.app" | head -1)
+          echo "Found app at: $APP_PATH"
+          mkdir -p "$RUNNER_TEMP/Payload"
+          cp -r "$APP_PATH" "$RUNNER_TEMP/Payload/"
+          cd "$RUNNER_TEMP"
           zip -r otlobli.ipa Payload/
+          ls -lh otlobli.ipa
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
@@ -58,17 +69,3 @@ jobs:
           name: otlobli-ios-${{ github.run_number }}
           path: ${{ runner.temp }}/otlobli.ipa
           retention-days: 30
-
-      - name: Create Release (on main branch)
-        if: github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ios-v${{ github.run_number }}
-          name: "طلبية iOS - إصدار ${{ github.run_number }}"
-          body: |
-            ## تثبيت التطبيق على iPhone
-            1. حمّل ملف `otlobli.ipa`
-            2. افتح **AltStore** أو **Sideloadly** على جهازك
-            3. اختر الملف وثبّته
-          files: ${{ runner.temp }}/otlobli.ipa
-          draft: false
