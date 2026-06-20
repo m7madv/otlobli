@@ -112,7 +112,8 @@ function App() {
   const [sessionToken, setSessionToken] = useStoredState<string>(storageKeys.sessionToken, '')
   const [userProfile, setUserProfile] = useStoredState<UserProfile | null>(storageKeys.userProfile, null)
   const [paymentCurrency, setPaymentCurrency] = useStoredState<PaymentCurrency>(storageKeys.paymentCurrency, 'SYP')
-  const [exchangeRate, setExchangeRate] = useStoredState<number>(storageKeys.exchangeRate, DEFAULT_EXCHANGE_RATE)
+  const [storedRate, setExchangeRate] = useStoredState<number>(storageKeys.exchangeRate, DEFAULT_EXCHANGE_RATE)
+  const exchangeRate = (storedRate && !isNaN(storedRate) && storedRate > 1000) ? storedRate : DEFAULT_EXCHANGE_RATE
 
   const [initialNow] = useState(() => Date.now())
   const initialPendingWhatsappAuth =
