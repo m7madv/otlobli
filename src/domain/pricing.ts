@@ -1,11 +1,13 @@
 import type { PriceLine } from './types'
 
 export function formatMoney(value: number) {
-  return `${value.toLocaleString('ar-SY')} ل.س`
+  const safe = Number.isFinite(value) ? value : 0
+  return `${safe.toLocaleString('ar-SY')} ل.س`
 }
 
 export function formatUsd(value: number) {
-  return `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const safe = Number.isFinite(value) ? value : 0
+  return `$${safe.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 export type PaymentCurrency = 'SYP' | 'USD'

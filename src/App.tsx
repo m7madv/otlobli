@@ -635,7 +635,7 @@ function App() {
       const title = typeof product?.title === 'string' ? product.title : ''
       if (!title) return
 
-      const priceUsd = typeof product?.priceUsd === 'number' ? product.priceUsd : 0
+      const priceUsd = (typeof product?.priceUsd === 'number' && Number.isFinite(product.priceUsd)) ? product.priceUsd : 0
       const sizesAvailable = Array.isArray(product?.sizesAvailable)
         ? (product.sizesAvailable as unknown[]).filter((s): s is string => typeof s === 'string')
         : []
