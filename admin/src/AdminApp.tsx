@@ -149,6 +149,20 @@ async function patchOrder(pin: string, orderId: string, patch: Partial<Order>) {
   if (!response.ok) throw new Error('order_update_failed')
 }
 
+async function deleteOrderApi(pin: string, orderId: string) {
+  const response = await fetch(ADMIN_ORDERS_FN, {
+    method: 'DELETE',
+    headers: {
+      'content-type': 'application/json',
+      'x-admin-pin': pin,
+      'apikey': ANON_KEY,
+      'authorization': `Bearer ${ANON_KEY}`,
+    },
+    body: JSON.stringify({ orderId }),
+  })
+  if (!response.ok) throw new Error('order_delete_failed')
+}
+
 // ── Main App ──────────────────────────────────────────────────────────────────
 function AdminApp() {
   const [pinInput, setPinInput] = useState('')
@@ -221,11 +235,47 @@ function AdminApp() {
       .finally(() => setLoading(false))
   }
 
+  // تحديث تلقائي صامت كل 15 ثانية + تنبيه عند وصول طلب جديد
+  useEffect(() => {
+    if (!pin) return
+    const interval = window.setInterval(() => {
+      void fetchOrders(pin)
+        .then((nextOrders) => {
+          setOrders((prev) => {
+            if (nextOrders.length > prev.length) {
+              const diff = nextOrders.length - prev.length
+              showNotice(`🔔 ${diff} طلب جديد وصل`)
+              try {
+                const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
+                const osc = ctx.createOscillator()
+                const gain = ctx.createGain()
+                osc.connect(gain); gain.connect(ctx.destination)
+                osc.frequency.value = 880; gain.gain.value = 0.1
+                osc.start(); osc.stop(ctx.currentTime + 0.18)
+              } catch { /* الصوت غير حيوي */ }
+            }
+            return nextOrders
+          })
+        })
+        .catch(() => undefined)
+    }, 15000)
+    return () => window.clearInterval(interval)
+  }, [pin])
+
   const updateOrder = (orderId: string, patch: Partial<Order>) => {
     setOrders((list) => list.map((o) => (o.id === orderId ? { ...o, ...patch } : o)))
     void patchOrder(pin, orderId, patch)
       .then(() => showNotice('تم تحديث الطلب'))
       .catch(() => { showNotice('فشل تحديث الطلب'); refresh() })
+  }
+
+  const deleteOrder = (orderId: string) => {
+    if (!window.confirm(`حذف الطلب ${orderId} نهائياً؟ لا يمكن التراجع.`)) return
+    setOrders((list) => list.filter((o) => o.id !== orderId))
+    setModalOrderId('')
+    void deleteOrderApi(pin, orderId)
+      .then(() => showNotice('تم حذف الطلب'))
+      .catch(() => { showNotice('فشل حذف الطلب'); refresh() })
   }
 
   const markPaid = (order: Order) => {
@@ -346,6 +396,7 @@ function AdminApp() {
           onMarkPaid={markPaid}
           onAdvance={advanceOrder}
           onUpdate={updateOrder}
+          onDelete={deleteOrder}
         />
       )}
 
@@ -513,7 +564,7 @@ function OrderDetail({
 
 // ── Order Modal (full-screen) ─────────────────────────────────────────────────
 function OrderModal({
-  order, tracked, onToggle, onMarkAll, onClose, onMarkPaid, onAdvance, onUpdate,
+  order, tracked, onToggle, onMarkAll, onClose, onMarkPaid, onAdvance, onUpdate, onDelete,
 }: {
   order: Order
   tracked: Set<string>
@@ -523,6 +574,7 @@ function OrderModal({
   onMarkPaid: (order: Order) => void
   onAdvance: (order: Order) => void
   onUpdate: (orderId: string, patch: Partial<Order>) => void
+  onDelete: (orderId: string) => void
 }) {
   const items = order.items ?? []
   const keys = items.map((_, i) => itemKey(order.id, i))
@@ -634,6 +686,9 @@ function OrderModal({
           <div className="detail-actions">
             <button className="primary-action" onClick={() => onMarkPaid(order)}>تأكيد الدفع</button>
             <button className="ghost-action" onClick={() => onAdvance(order)}>نقل للمرحلة التالية</button>
+            <button className="danger-action" onClick={() => onDelete(order.id)}>
+              <Icon name="delete" /> حذف الطلب
+            </button>
             <button className="ghost-action" onClick={onClose}>إغلاق</button>
           </div>
         </div>

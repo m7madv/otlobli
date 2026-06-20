@@ -7,7 +7,7 @@ const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-admin-pin',
-  'Access-Control-Allow-Methods': 'GET, PATCH, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, PATCH, DELETE, OPTIONS',
 }
 
 Deno.serve(async (req) => {
@@ -84,13 +84,39 @@ Deno.serve(async (req) => {
       })
     }
 
-    const dbPatch: Record<string, unknown> = { updated_at: new Date().toISOString() }
+    // ملاحظة: جدول orders لا يحتوي على عمود updated_at، فلا نضيفه هنا
+    const dbPatch: Record<string, unknown> = {}
     if (patch.paymentStatus !== undefined) dbPatch.payment_status = patch.paymentStatus
     if (patch.statusIndex !== undefined) dbPatch.status_index = patch.statusIndex
     if (patch.qadmousNumber !== undefined) dbPatch.qadmous_number = patch.qadmousNumber
     if (patch.paidAt !== undefined) dbPatch.paid_at = patch.paidAt
 
     const { error } = await supabase.from('orders').update(dbPatch).eq('id', orderId)
+
+    if (error) {
+      return new Response(JSON.stringify({ error: error.message }), {
+        status: 500,
+        headers: { ...corsHeaders, 'content-type': 'application/json' },
+      })
+    }
+
+    return new Response(JSON.stringify({ ok: true }), {
+      headers: { ...corsHeaders, 'content-type': 'application/json' },
+    })
+  }
+
+  // DELETE — حذف طلب (وبنوده عبر ON DELETE CASCADE)
+  if (req.method === 'DELETE') {
+    const { orderId } = await req.json() as { orderId: string }
+
+    if (!orderId) {
+      return new Response(JSON.stringify({ error: 'missing_order_id' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'content-type': 'application/json' },
+      })
+    }
+
+    const { error } = await supabase.from('orders').delete().eq('id', orderId)
 
     if (error) {
       return new Response(JSON.stringify({ error: error.message }), {
