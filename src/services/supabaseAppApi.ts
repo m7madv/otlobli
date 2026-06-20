@@ -1,10 +1,14 @@
 import { product } from '../domain/fixtures'
+import { today } from '../domain/orders'
 import type { PaymentCurrency } from '../domain/pricing'
 import type { Order, PaymentStatus, Product } from '../domain/types'
 import type { ProductFetchResult, TalabiehApi } from './appApi'
 import { localAppApi } from './localAppApi'
 import { supabase } from './supabaseClient'
 import { isWhatsappApiAuthEnabled, whatsappAuthApi } from './whatsappAuthApi'
+import { PAYMENT_MODE } from '../config'
+
+const DISPLAY_USD_RATE = Number(import.meta.env.VITE_USD_TO_SYP_RATE ?? 13000) || 13000
 
 // Cloudflare Worker (fast, edge-based) with Railway as fallback
 const SHEIN_WORKER_URL = import.meta.env.VITE_SHEIN_WORKER_URL || 'https://talabieh-shein.talabieh.workers.dev'
@@ -244,10 +248,14 @@ export const supabaseAppApi: TalabiehApi = {
     },
   },
   payments: {
-    // يستعلم عن حالة الدفع الحقيقية المخزنة بـSupabase - تتحول لـ"مدفوع" فقط
-    // لما webhook شام كاش (المُشغّل من إشعار MacroDroid الحقيقي) يأكّدها، لا
-    // يوجد أي "مطابقة" تُحسب بالواجهة نفسها.
+    // وضع 'auto': الطلب مدفوع منذ إنشائه، فالحالة دائماً "مدفوع".
+    // وضع 'shamcash': يستعلم عن الحالة الحقيقية المخزنة بـSupabase - تتحول
+    // لـ"مدفوع" فقط لما webhook شام كاش يؤكّدها.
     async checkPaymentStatus(orderId) {
+      if (PAYMENT_MODE === 'auto') {
+        return { mode: 'external', status: 'مدفوع', paidAt: today() }
+      }
+
       if (!supabase) {
         return localAppApi.payments.checkPaymentStatus(orderId)
       }
@@ -271,44 +279,78 @@ export const supabaseAppApi: TalabiehApi = {
   orders: {
     async createPendingOrder(order, currency) {
       if (!supabase) {
-        return localAppApi.orders.createPendingOrder(order, currency)
+        throw new Error('قاعدة البيانات غير متصلة. تأكد من إعدادات Supabase.')
       }
 
-      const { data, error } = await supabase.rpc('create_pending_order', {
-        order_payload: toOrderPayload(order),
-        currency,
+      if (PAYMENT_MODE === 'shamcash') {
+        // المسار الكامل: مبلغ دفع فريد + مطابقة تلقائية (يتطلب schema.sql المطبّق)
+        const { data, error } = await supabase.rpc('create_pending_order', {
+          order_payload: toOrderPayload(order),
+          currency,
+        })
+        if (error || !data) {
+          throw new Error(`تعذّر إنشاء الطلب: ${error?.message ?? 'خطأ غير معروف'}`)
+        }
+        const result = data as { orderId: string; paymentAmount: number; paymentCurrency: PaymentCurrency; paymentExpiresAt: string }
+        notifyNewOrder({ ...toOrderPayload(order), id: result.orderId })
+        return {
+          mode: 'external',
+          orderId: result.orderId,
+          paymentAmount: result.paymentAmount,
+          paymentCurrency: result.paymentCurrency,
+          paymentExpiresAt: result.paymentExpiresAt,
+        }
+      }
+
+      // وضع 'auto': الطلب يُحفظ مباشرة بحالة "مدفوع" عبر submit_order العاملة.
+      const paidOrder: Order = {
+        ...order,
+        paymentStatus: 'مدفوع',
+        statusIndex: 1,
+        paidAt: today(),
+      }
+
+      const { data, error } = await supabase.rpc('submit_order', {
+        order_payload: toOrderPayload(paidOrder),
       })
 
       if (error || !data) {
-        return localAppApi.orders.createPendingOrder(order, currency)
+        throw new Error(`تعذّر حفظ الطلب في قاعدة البيانات: ${error?.message ?? 'خطأ غير معروف'}`)
       }
 
-      const result = data as { orderId: string; paymentAmount: number; paymentCurrency: PaymentCurrency; paymentExpiresAt: string }
+      const orderId = data as string
+      notifyNewOrder({ ...toOrderPayload(paidOrder), id: orderId })
 
-      // إرسال إشعار Telegram بعد نجاح إنشاء الطلب (fire-and-forget)
-      try {
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined
-        const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
-        if (supabaseUrl && anonKey) {
-          void fetch(`${supabaseUrl}/functions/v1/telegram-notify`, {
-            method: 'POST',
-            headers: {
-              'content-type': 'application/json',
-              'apikey': anonKey,
-              'authorization': `Bearer ${anonKey}`,
-            },
-            body: JSON.stringify({ order: { ...toOrderPayload(order), id: result.orderId } }),
-          })
-        }
-      } catch { /* إشعار غير حيوي */ }
+      const paymentAmount = currency === 'USD'
+        ? Math.round((order.total / DISPLAY_USD_RATE) * 100) / 100
+        : order.total
 
       return {
         mode: 'external',
-        orderId: result.orderId,
-        paymentAmount: result.paymentAmount,
-        paymentCurrency: result.paymentCurrency,
-        paymentExpiresAt: result.paymentExpiresAt,
+        orderId,
+        paymentAmount,
+        paymentCurrency: currency,
+        paymentExpiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
       }
     },
   },
+}
+
+// إشعار Telegram للمشرف عند وصول طلب جديد (fire-and-forget، غير حيوي)
+function notifyNewOrder(orderPayload: Record<string, unknown>) {
+  try {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined
+    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
+    if (supabaseUrl && anonKey) {
+      void fetch(`${supabaseUrl}/functions/v1/telegram-notify`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'apikey': anonKey,
+          'authorization': `Bearer ${anonKey}`,
+        },
+        body: JSON.stringify({ order: orderPayload }),
+      }).catch(() => undefined)
+    }
+  } catch { /* إشعار غير حيوي */ }
 }

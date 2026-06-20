@@ -15,6 +15,7 @@ import type { PaymentCurrency } from './domain/pricing'
 import type { Address, CartItem, Order, Product, ProductColor, ProductVariant, Recipient, Screen, StatusTone, UserProfile } from './domain/types'
 import { readStoredJson, storageKeys, useStoredState } from './infrastructure/localStorage'
 import { appApi } from './services'
+import { PAYMENT_MODE } from './config'
 import { buildWhatsappLink } from './services/whatsappLink'
 import { SHEIN_CAPTURE_SCRIPT } from './services/sheinBrowserScript'
 import { InAppBrowser, ToolBarType } from '@capgo/capacitor-inappbrowser'
@@ -688,16 +689,16 @@ function App() {
 
   const [isStartingPayment, setIsStartingPayment] = useState(false)
 
-  // ينشئ الطلب بحالة "بانتظار الدفع" مع مبلغ دفع فريد (لو ما فيه طلب معلّق
-  // أصلاً) وينتقل لشاشة الدفع - الطلب ما يصير "مدفوع" إلا لما يوصل تأكيد
-  // حقيقي من webhook شام كاش، لا يوجد أي "مطابقة" تُحسب هون بالواجهة.
-  const goToPaymentScreen = () => {
+  // ينشئ الطلب ويحفظه في قاعدة البيانات. في وضع 'auto' (الدفع معطّل مؤقتاً)
+  // يُسجَّل الطلب مباشرة "مدفوع" وينتقل لشاشة النجاح. في وضع 'shamcash' يُنشأ
+  // بحالة "بانتظار الدفع" مع مبلغ فريد وينتقل لشاشة الدفع.
+  const confirmOrder = () => {
     if (cartItems.length === 0) {
       showNotice('السلة فارغة')
       return
     }
 
-    if (pendingPayment) {
+    if (PAYMENT_MODE === 'shamcash' && pendingPayment) {
       setScreen('payment')
       return
     }
@@ -720,6 +721,21 @@ function App() {
 
     void appApi.orders.createPendingOrder(newOrder, paymentCurrency)
       .then((result) => {
+        if (PAYMENT_MODE === 'auto') {
+          const savedOrder: Order = {
+            ...newOrder,
+            id: result.orderId,
+            paymentStatus: 'مدفوع',
+            statusIndex: 1,
+            paidAt: today(),
+          }
+          setOrders((list) => [savedOrder, ...list])
+          setCurrentOrderId(result.orderId)
+          setCartItems([])
+          setScreen('success')
+          return
+        }
+
         setOrders((list) => [{ ...newOrder, id: result.orderId }, ...list])
         setCurrentOrderId(result.orderId)
         setPendingPayment({
@@ -730,7 +746,7 @@ function App() {
         })
         setScreen('payment')
       })
-      .catch(() => showNotice('تعذر إنشاء الطلب الآن، حاول مرة ثانية'))
+      .catch((error: unknown) => showNotice(getPublicErrorMessage(error)))
       .finally(() => setIsStartingPayment(false))
   }
 
@@ -1290,9 +1306,11 @@ function App() {
             <InfoRow icon="inventory_2" title="طريقة التوصيل" body="التسليم داخل سوريا عبر القدموس عند توفر رقم الشحنة." />
             <CurrencyToggle value={paymentCurrency} onChange={setPaymentCurrency} />
             <PriceBreakdown items={breakdown} total={total} format={formatPrice} />
-            <button className="primary-action" disabled={isStartingPayment} onClick={goToPaymentScreen}>
-              {isStartingPayment ? 'جاري تحضير الطلب...' : 'الدفع الآن عبر شام كاش'}
-              <Icon name="account_balance_wallet" />
+            <button className="primary-action" disabled={isStartingPayment} onClick={confirmOrder}>
+              {isStartingPayment
+                ? 'جاري تأكيد الطلب...'
+                : PAYMENT_MODE === 'auto' ? 'تأكيد الطلب' : 'الدفع الآن عبر شام كاش'}
+              <Icon name={PAYMENT_MODE === 'auto' ? 'check_circle' : 'account_balance_wallet'} />
             </button>
           </main>
         </MobileShell>
@@ -1347,8 +1365,12 @@ function App() {
         <MobileShell active="orders" onNavigate={setScreen} hideBottomNav>
           <main className="success-screen">
             <div className="success-icon"><Icon name="check" /></div>
-            <h1>تم تأكيد الدفع</h1>
-            <p>تمت مطابقة تحويل شام كاش بالمبلغ الدقيق. سنبدأ بشراء الطلب من SHEIN.</p>
+            <h1>{PAYMENT_MODE === 'auto' ? 'تم استلام طلبك' : 'تم تأكيد الدفع'}</h1>
+            <p>
+              {PAYMENT_MODE === 'auto'
+                ? 'استلمنا طلبك وسنبدأ بشرائه من SHEIN. تابع حالة الطلب من صفحة طلباتي.'
+                : 'تمت مطابقة تحويل شام كاش بالمبلغ الدقيق. سنبدأ بشراء الطلب من SHEIN.'}
+            </p>
             <button className="primary-action" onClick={() => setScreen('tracking')}>
               متابعة الطلب
               <Icon name="arrow_back" />
