@@ -16,15 +16,32 @@ jobs:
           node-version: 22
 
       - run: npm install
-        env:
-          OTLOBLI_RELAY_KEY: ${{ secrets.OTLOBLI_RELAY_KEY }}
+
       - run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_WHATSAPP_API_URL: ${{ secrets.VITE_WHATSAPP_API_URL }}
+          VITE_WHATSAPP_AUTH_MODE: ${{ secrets.VITE_WHATSAPP_AUTH_MODE }}
+          VITE_SHEIN_WORKER_URL: ${{ secrets.VITE_SHEIN_WORKER_URL }}
+          VITE_SHEIN_SCRAPER_URL: ${{ secrets.VITE_SHEIN_SCRAPER_URL }}
+          VITE_USD_TO_SYP_RATE: ${{ secrets.VITE_USD_TO_SYP_RATE }}
+
       - run: npx cap sync ios
 
       - name: Build unsigned .app
         working-directory: ios/App
         run: |
           xcodebuild \
+            -project App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build 2>&1 | xcpretty || xcodebuild \
             -project App.xcodeproj \
             -scheme App \
             -configuration Release \
@@ -44,5 +61,6 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: otlobli-ipa
+          name: otlobli-ios
           path: ios/App/otlobli-unsigned.ipa
+          retention-days: 30

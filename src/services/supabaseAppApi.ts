@@ -287,9 +287,10 @@ export const supabaseAppApi: TalabiehApi = {
 
       // إرسال إشعار Telegram بعد نجاح إنشاء الطلب (fire-and-forget)
       try {
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined
         const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
-        if (SUPABASE_URL && anonKey) {
-          void fetch(`${SUPABASE_URL}/functions/v1/telegram-notify`, {
+        if (supabaseUrl && anonKey) {
+          void fetch(`${supabaseUrl}/functions/v1/telegram-notify`, {
             method: 'POST',
             headers: {
               'content-type': 'application/json',
