@@ -315,7 +315,11 @@ export const supabaseAppApi: TalabiehApi = {
       })
 
       if (error || !data) {
-        throw new Error(`تعذّر حفظ الطلب في قاعدة البيانات: ${error?.message ?? 'خطأ غير معروف'}`)
+        const isNetworkError = error?.message?.toLowerCase().includes('type error') || error?.message?.toLowerCase().includes('failed to fetch')
+        const userMsg = isNetworkError
+          ? 'تعذّر الاتصال بقاعدة البيانات. تحقق من اتصالك بالإنترنت وأعد المحاولة.'
+          : `تعذّر حفظ الطلب في قاعدة البيانات: ${error?.message ?? 'خطأ غير معروف'}`
+        throw new Error(userMsg)
       }
 
       const orderId = data as string
