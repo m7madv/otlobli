@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 type AdminTab = 'dashboard' | 'orders' | 'payments' | 'shipping' | 'customers' | 'settings'
 type PaymentStatus = 'بانتظار الدفع' | 'مدفوع' | 'فشل المطابقة'
@@ -62,10 +62,17 @@ function StatusBadge({ children, tone = 'neutral' }: { children: string; tone?: 
   return <span className={`status status--${tone}`}>{children}</span>
 }
 
+// Supabase Edge Function URL — يُضبط عبر VITE_SUPABASE_URL في .env
+const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined) || ''
+const ADMIN_ORDERS_FN = `${SUPABASE_URL}/functions/v1/admin-orders`
+const ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) || ''
+
 async function fetchOrders(pin: string) {
-  const response = await fetch('/api/admin/orders', {
+  const response = await fetch(ADMIN_ORDERS_FN, {
     headers: {
       'x-admin-pin': pin,
+      'apikey': ANON_KEY,
+      'authorization': `Bearer ${ANON_KEY}`,
     },
   })
 
@@ -78,11 +85,13 @@ async function fetchOrders(pin: string) {
 }
 
 async function patchOrder(pin: string, orderId: string, patch: Partial<Order>) {
-  const response = await fetch('/api/admin/orders', {
+  const response = await fetch(ADMIN_ORDERS_FN, {
     method: 'PATCH',
     headers: {
       'content-type': 'application/json',
       'x-admin-pin': pin,
+      'apikey': ANON_KEY,
+      'authorization': `Bearer ${ANON_KEY}`,
     },
     body: JSON.stringify({ orderId, patch }),
   })
@@ -101,6 +110,13 @@ function AdminApp() {
   const [search, setSearch] = useState('')
   const [notice, setNotice] = useState('')
   const [loading, setLoading] = useState(false)
+  const [deepLinkOrderId, setDeepLinkOrderId] = useState('')
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const orderId = params.get('order')
+    if (orderId) setDeepLinkOrderId(orderId)
+  }, [])
 
   const selectedOrder = orders.find((order) => order.id === selectedOrderId) ?? orders[0]
   const filteredOrders = orders.filter((order) => {
@@ -135,7 +151,11 @@ function AdminApp() {
       .then((nextOrders) => {
         setPin(nextPin)
         setOrders(nextOrders)
-        setSelectedOrderId(nextOrders[0]?.id ?? '')
+        const autoSelect = deepLinkOrderId && nextOrders.find((o) => o.id === deepLinkOrderId)
+          ? deepLinkOrderId
+          : nextOrders[0]?.id ?? ''
+        setSelectedOrderId(autoSelect)
+        if (deepLinkOrderId && autoSelect === deepLinkOrderId) setTab('dashboard')
         showNotice('تم فتح لوحة الإدارة')
       })
       .catch(() => showNotice('تعذر فتح لوحة الإدارة. تحقق من الرمز أو إعدادات السيرفر'))
@@ -368,22 +388,40 @@ function OrderDetail({
     )
   }
 
-  const firstItem = order.items[0]
-
   return (
     <section className="panel detail">
       <header>
         <h2>{order.id}</h2>
         <StatusBadge tone={order.paymentStatus === 'مدفوع' ? 'success' : 'pending'}>{order.paymentStatus}</StatusBadge>
       </header>
-      <div className="detail-product">
-        {firstItem && <img src={firstItem.image} alt={firstItem.title} />}
-        <div>
-          <h3>{firstItem?.title ?? 'منتج غير محدد'}</h3>
-          <p>{firstItem?.color} · {firstItem?.size} · الكمية {firstItem?.quantity}</p>
-          {firstItem?.sourceLink && <a href={firstItem.sourceLink} rel="noreferrer" target="_blank">فتح رابط المنتج</a>}
-        </div>
+
+      <div className="detail-items">
+        {order.items.map((item, idx) => (
+          <div className="detail-product" key={idx}>
+            {item.image && <img src={item.image} alt={item.title} />}
+            <div>
+              <h3>{item.title}</h3>
+              <p className="item-meta">
+                {item.color && <span>🎨 {item.color}</span>}
+                {item.size && <span>📐 {item.size}</span>}
+                <span>× {item.quantity}</span>
+                <span>{formatMoney(item.priceSyp * item.quantity)}</span>
+              </p>
+              {item.sourceLink && (
+                <a
+                  className="shein-link"
+                  href={item.sourceLink}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  فتح في SHEIN{item.color ? ` — ${item.color}` : ''}{item.size ? ` / ${item.size}` : ''}
+                </a>
+              )}
+            </div>
+          </div>
+        ))}
       </div>
+
       <InfoRow label="العميل" value={`${order.customer} · ${order.phone}`} />
       <InfoRow label="العنوان" value={`${order.city} · ${order.address}`} />
       <InfoRow label="الحالة" value={orderStatuses[order.statusIndex] ?? 'غير محدد'} />
