@@ -62,7 +62,62 @@ function StatusBadge({ children, tone = 'neutral' }: { children: string; tone?: 
   return <span className={`status status--${tone}`}>{children}</span>
 }
 
-// Supabase Edge Function URL — يُضبط عبر VITE_SUPABASE_URL في .env
+// ── Cart tracking (localStorage) ──────────────────────────────────────────────
+function useCartTracked() {
+  const [tracked, setTracked] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem('admin_cart_tracked')
+      return new Set(raw ? (JSON.parse(raw) as string[]) : [])
+    } catch {
+      return new Set<string>()
+    }
+  })
+
+  const toggle = (key: string) => {
+    setTracked((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      localStorage.setItem('admin_cart_tracked', JSON.stringify([...next]))
+      return next
+    })
+  }
+
+  const markAll = (keys: string[]) => {
+    setTracked((prev) => {
+      const next = new Set(prev)
+      const allDone = keys.every((k) => next.has(k))
+      if (allDone) keys.forEach((k) => next.delete(k))
+      else keys.forEach((k) => next.add(k))
+      localStorage.setItem('admin_cart_tracked', JSON.stringify([...next]))
+      return next
+    })
+  }
+
+  return { tracked, toggle, markAll }
+}
+
+function itemKey(orderId: string, idx: number) {
+  return `${orderId}::${idx}`
+}
+
+// ── Copy to clipboard ─────────────────────────────────────────────────────────
+function CopyBtn({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+  const copy = () => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1800)
+    })
+  }
+  return (
+    <button className="copy-btn" onClick={copy} title="نسخ">
+      <Icon name={copied ? 'check' : 'content_copy'} />
+    </button>
+  )
+}
+
+// ── Supabase ──────────────────────────────────────────────────────────────────
 const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined) || ''
 const ADMIN_ORDERS_FN = `${SUPABASE_URL}/functions/v1/admin-orders`
 const ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) || ''
@@ -75,11 +130,7 @@ async function fetchOrders(pin: string) {
       'authorization': `Bearer ${ANON_KEY}`,
     },
   })
-
-  if (!response.ok) {
-    throw new Error('orders_unavailable')
-  }
-
+  if (!response.ok) throw new Error('orders_unavailable')
   const payload = (await response.json()) as OrdersResponse
   return payload.orders
 }
@@ -95,22 +146,22 @@ async function patchOrder(pin: string, orderId: string, patch: Partial<Order>) {
     },
     body: JSON.stringify({ orderId, patch }),
   })
-
-  if (!response.ok) {
-    throw new Error('order_update_failed')
-  }
+  if (!response.ok) throw new Error('order_update_failed')
 }
 
+// ── Main App ──────────────────────────────────────────────────────────────────
 function AdminApp() {
   const [pinInput, setPinInput] = useState('')
   const [pin, setPin] = useState('')
   const [orders, setOrders] = useState<Order[]>([])
   const [selectedOrderId, setSelectedOrderId] = useState('')
+  const [modalOrderId, setModalOrderId] = useState('')
   const [tab, setTab] = useState<AdminTab>('dashboard')
   const [search, setSearch] = useState('')
   const [notice, setNotice] = useState('')
   const [loading, setLoading] = useState(false)
   const [deepLinkOrderId, setDeepLinkOrderId] = useState('')
+  const { tracked, toggle: toggleCart, markAll: markAllCart } = useCartTracked()
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -118,18 +169,19 @@ function AdminApp() {
     if (orderId) setDeepLinkOrderId(orderId)
   }, [])
 
-  const selectedOrder = orders.find((order) => order.id === selectedOrderId) ?? orders[0]
+  const selectedOrder = orders.find((o) => o.id === selectedOrderId) ?? orders[0]
+  const modalOrder = orders.find((o) => o.id === modalOrderId)
+
   const filteredOrders = orders.filter((order) => {
     const haystack = `${order.id} ${order.customer} ${order.phone} ${order.city} ${order.paymentStatus} ${orderStatuses[order.statusIndex] ?? ''}`
     return haystack.includes(search.trim())
   })
 
   const stats = useMemo(() => {
-    const paidOrders = orders.filter((order) => order.paymentStatus === 'مدفوع')
-    const pendingPayments = orders.filter((order) => order.paymentStatus === 'بانتظار الدفع')
-    const shippingOrders = orders.filter((order) => order.statusIndex >= 6 && order.statusIndex < 9)
-    const sales = paidOrders.reduce((sum, order) => sum + order.total, 0)
-
+    const paidOrders = orders.filter((o) => o.paymentStatus === 'مدفوع')
+    const pendingPayments = orders.filter((o) => o.paymentStatus === 'بانتظار الدفع')
+    const shippingOrders = orders.filter((o) => o.statusIndex >= 6 && o.statusIndex < 9)
+    const sales = paidOrders.reduce((sum, o) => sum + (o.total ?? 0), 0)
     return { paidOrders, pendingPayments, shippingOrders, sales }
   }, [orders])
 
@@ -140,12 +192,7 @@ function AdminApp() {
 
   const unlock = () => {
     const nextPin = pinInput.trim()
-
-    if (!nextPin) {
-      showNotice('أدخل رمز الإدارة')
-      return
-    }
-
+    if (!nextPin) { showNotice('أدخل رمز الإدارة'); return }
     setLoading(true)
     void fetchOrders(nextPin)
       .then((nextOrders) => {
@@ -155,7 +202,10 @@ function AdminApp() {
           ? deepLinkOrderId
           : nextOrders[0]?.id ?? ''
         setSelectedOrderId(autoSelect)
-        if (deepLinkOrderId && autoSelect === deepLinkOrderId) setTab('dashboard')
+        if (deepLinkOrderId && autoSelect === deepLinkOrderId) {
+          setTab('dashboard')
+          setModalOrderId(deepLinkOrderId)
+        }
         showNotice('تم فتح لوحة الإدارة')
       })
       .catch(() => showNotice('تعذر فتح لوحة الإدارة. تحقق من الرمز أو إعدادات السيرفر'))
@@ -163,54 +213,40 @@ function AdminApp() {
   }
 
   const refresh = () => {
-    if (!pin) {
-      return
-    }
-
+    if (!pin) return
     setLoading(true)
     void fetchOrders(pin)
-      .then((nextOrders) => {
-        setOrders(nextOrders)
-        showNotice('تم تحديث الطلبات')
-      })
+      .then((nextOrders) => { setOrders(nextOrders); showNotice('تم تحديث الطلبات') })
       .catch(() => showNotice('تعذر جلب الطلبات'))
       .finally(() => setLoading(false))
   }
 
   const updateOrder = (orderId: string, patch: Partial<Order>) => {
-    setOrders((list) => list.map((order) => (order.id === orderId ? { ...order, ...patch } : order)))
+    setOrders((list) => list.map((o) => (o.id === orderId ? { ...o, ...patch } : o)))
     void patchOrder(pin, orderId, patch)
       .then(() => showNotice('تم تحديث الطلب'))
-      .catch(() => {
-        showNotice('فشل تحديث الطلب')
-        refresh()
-      })
+      .catch(() => { showNotice('فشل تحديث الطلب'); refresh() })
   }
 
   const markPaid = (order: Order) => {
-    updateOrder(order.id, {
-      paymentStatus: 'مدفوع',
-      statusIndex: Math.max(1, order.statusIndex),
-      paidAt: today(),
-    })
+    updateOrder(order.id, { paymentStatus: 'مدفوع', statusIndex: Math.max(1, order.statusIndex), paidAt: today() })
   }
 
   const advanceOrder = (order: Order) => {
     const statusIndex = Math.min(order.statusIndex + 1, orderStatuses.length - 1)
-    updateOrder(order.id, {
-      statusIndex,
-      paymentStatus: statusIndex > 0 ? 'مدفوع' : order.paymentStatus,
-    })
+    updateOrder(order.id, { statusIndex, paymentStatus: statusIndex > 0 ? 'مدفوع' : order.paymentStatus })
+  }
+
+  const openModal = (orderId: string) => {
+    setSelectedOrderId(orderId)
+    setModalOrderId(orderId)
   }
 
   if (!pin) {
     return (
       <main className="login-shell">
         <section className="login-card">
-          <div className="brand">
-            <span>طلبية</span>
-            <small>لوحة الإدارة</small>
-          </div>
+          <div className="brand"><span>طلبية</span><small>لوحة الإدارة</small></div>
           <h1>تسجيل دخول الإدارة</h1>
           <p>أدخل رمز الإدارة للوصول إلى الطلبات والمدفوعات والشحن.</p>
           <label className="field">
@@ -219,12 +255,8 @@ function AdminApp() {
               value={pinInput}
               type="password"
               autoComplete="current-password"
-              onChange={(event) => setPinInput(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  unlock()
-                }
-              }}
+              onChange={(e) => setPinInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') unlock() }}
             />
           </label>
           <button className="primary-action" disabled={loading} onClick={unlock}>
@@ -240,27 +272,28 @@ function AdminApp() {
   return (
     <div className="admin-shell">
       <aside className="sidebar">
-        <div className="brand">
-          <span>طلبية</span>
-          <small>إدارة العمليات</small>
-        </div>
-        {[
+        <div className="brand"><span>طلبية</span><small>إدارة العمليات</small></div>
+        {([
           ['dashboard', 'لوحة التحكم', 'dashboard'],
           ['orders', 'الطلبات', 'receipt_long'],
           ['payments', 'المدفوعات', 'payments'],
           ['shipping', 'الشحن', 'local_shipping'],
           ['customers', 'العملاء', 'group'],
           ['settings', 'الإعدادات', 'settings'],
-        ].map(([key, label, icon]) => (
+        ] as const).map(([key, label, icon]) => (
           <button className={tab === key ? 'is-active' : ''} key={key} onClick={() => setTab(key as AdminTab)}>
             <Icon name={icon} />
             {label}
+            {key === 'payments' && stats.pendingPayments.length > 0 && (
+              <span className="sidebar-badge">{stats.pendingPayments.length}</span>
+            )}
           </button>
         ))}
         <a className="customer-link" href="https://talabieh.vercel.app" rel="noreferrer" target="_blank">
           فتح تطبيق الزبون
         </a>
       </aside>
+
       <main className="main">
         <header className="topbar">
           <div>
@@ -268,10 +301,11 @@ function AdminApp() {
             <p>إدارة الطلبات والمدفوعات والشحن من قاعدة Supabase.</p>
           </div>
           <div className="top-actions">
-            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="بحث عن طلب أو عميل..." />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="بحث عن طلب أو عميل..." />
             <button onClick={refresh} disabled={loading}><Icon name="refresh" /> تحديث</button>
           </div>
         </header>
+
         {tab === 'dashboard' && (
           <>
             <section className="stats">
@@ -281,16 +315,14 @@ function AdminApp() {
               <StatCard icon="monetization_on" label="إجمالي المبيعات" value={formatMoney(stats.sales)} note="طلبات مدفوعة" dark />
             </section>
             <section className="content-grid">
-              <OrdersTable orders={filteredOrders.slice(0, 8)} onSelect={setSelectedOrderId} onMarkPaid={markPaid} />
-              <OrderDetail order={selectedOrder} onMarkPaid={markPaid} onAdvance={advanceOrder} onUpdate={updateOrder} />
+              <OrdersTable orders={filteredOrders.slice(0, 8)} tracked={tracked} onOpen={openModal} onMarkPaid={markPaid} />
+              <OrderDetail order={selectedOrder} onOpen={openModal} onMarkPaid={markPaid} onAdvance={advanceOrder} onUpdate={updateOrder} />
             </section>
           </>
         )}
-        {tab === 'orders' && <OrdersTable orders={filteredOrders} onSelect={setSelectedOrderId} onMarkPaid={markPaid} />}
-        {tab === 'payments' && <OrdersTable orders={filteredOrders.filter((order) => order.paymentStatus !== 'مدفوع')} onSelect={setSelectedOrderId} onMarkPaid={markPaid} />}
-        {tab === 'shipping' && (
-          <ShippingList orders={filteredOrders} onAdvance={advanceOrder} onUpdate={updateOrder} />
-        )}
+        {tab === 'orders' && <OrdersTable orders={filteredOrders} tracked={tracked} onOpen={openModal} onMarkPaid={markPaid} />}
+        {tab === 'payments' && <OrdersTable orders={filteredOrders.filter((o) => o.paymentStatus !== 'مدفوع')} tracked={tracked} onOpen={openModal} onMarkPaid={markPaid} />}
+        {tab === 'shipping' && <ShippingList orders={filteredOrders} onAdvance={advanceOrder} onUpdate={updateOrder} onOpen={openModal} />}
         {tab === 'customers' && <CustomersGrid orders={orders} />}
         {tab === 'settings' && (
           <section className="panel settings">
@@ -302,11 +334,27 @@ function AdminApp() {
           </section>
         )}
       </main>
+
+      {/* ── Order Modal ── */}
+      {modalOrder && (
+        <OrderModal
+          order={modalOrder}
+          tracked={tracked}
+          onToggle={toggleCart}
+          onMarkAll={markAllCart}
+          onClose={() => setModalOrderId('')}
+          onMarkPaid={markPaid}
+          onAdvance={advanceOrder}
+          onUpdate={updateOrder}
+        />
+      )}
+
       {notice && <div className="toast">{notice}</div>}
     </div>
   )
 }
 
+// ── Stat Card ─────────────────────────────────────────────────────────────────
 function StatCard({ icon, label, value, note, dark = false }: { icon: string; label: string; value: string; note: string; dark?: boolean }) {
   return (
     <article className={dark ? 'stat stat--dark' : 'stat'}>
@@ -318,7 +366,15 @@ function StatCard({ icon, label, value, note, dark = false }: { icon: string; la
   )
 }
 
-function OrdersTable({ orders, onSelect, onMarkPaid }: { orders: Order[]; onSelect: (orderId: string) => void; onMarkPaid: (order: Order) => void }) {
+// ── Orders Table ──────────────────────────────────────────────────────────────
+function OrdersTable({
+  orders, tracked, onOpen, onMarkPaid,
+}: {
+  orders: Order[]
+  tracked: Set<string>
+  onOpen: (orderId: string) => void
+  onMarkPaid: (order: Order) => void
+}) {
   return (
     <section className="panel table-panel">
       <header>
@@ -334,31 +390,41 @@ function OrdersTable({ orders, onSelect, onMarkPaid }: { orders: Order[]; onSele
               <th>المبلغ</th>
               <th>الدفع</th>
               <th>الحالة</th>
-              <th>المدينة</th>
+              <th>السلة</th>
               <th>إجراء</th>
             </tr>
           </thead>
           <tbody>
-            {orders.map((order) => (
-              <tr key={order.id}>
-                <td>{order.id}</td>
-                <td>{order.customer}</td>
-                <td>{formatMoney(order.total)}</td>
-                <td><StatusBadge tone={order.paymentStatus === 'مدفوع' ? 'success' : 'pending'}>{order.paymentStatus}</StatusBadge></td>
-                <td><StatusBadge>{orderStatuses[order.statusIndex] ?? 'غير محدد'}</StatusBadge></td>
-                <td>{order.city}</td>
-                <td>
-                  <div className="row-actions">
-                    <button onClick={() => onSelect(order.id)}><Icon name="visibility" /></button>
-                    {order.paymentStatus !== 'مدفوع' && <button onClick={() => onMarkPaid(order)}>تأكيد الدفع</button>}
-                  </div>
-                </td>
-              </tr>
-            ))}
+            {orders.map((order) => {
+              const items = order.items ?? []
+              const addedCount = items.filter((_, i) => tracked.has(itemKey(order.id, i))).length
+              const allAdded = items.length > 0 && addedCount === items.length
+              return (
+                <tr key={order.id} className={allAdded ? 'row-done' : ''}>
+                  <td><b>{order.id}</b></td>
+                  <td>
+                    <span>{order.customer}</span>
+                    <CopyBtn text={order.phone} />
+                  </td>
+                  <td>{formatMoney(order.total)}</td>
+                  <td><StatusBadge tone={order.paymentStatus === 'مدفوع' ? 'success' : 'pending'}>{order.paymentStatus}</StatusBadge></td>
+                  <td><StatusBadge>{orderStatuses[order.statusIndex] ?? 'غير محدد'}</StatusBadge></td>
+                  <td>
+                    <span className={`cart-progress ${allAdded ? 'cart-progress--done' : ''}`}>
+                      {items.length > 0 ? `${addedCount}/${items.length}` : '—'}
+                    </span>
+                  </td>
+                  <td>
+                    <div className="row-actions">
+                      <button onClick={() => onOpen(order.id)} title="فتح تفاصيل الطلب"><Icon name="open_in_full" /></button>
+                      {order.paymentStatus !== 'مدفوع' && <button onClick={() => onMarkPaid(order)}>تأكيد الدفع</button>}
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
             {!orders.length && (
-              <tr>
-                <td colSpan={7}>لا توجد طلبات مطابقة.</td>
-              </tr>
+              <tr><td colSpan={7}>لا توجد طلبات مطابقة.</td></tr>
             )}
           </tbody>
         </table>
@@ -367,13 +433,12 @@ function OrdersTable({ orders, onSelect, onMarkPaid }: { orders: Order[]; onSele
   )
 }
 
+// ── Order Detail (sidebar panel) ──────────────────────────────────────────────
 function OrderDetail({
-  order,
-  onMarkPaid,
-  onAdvance,
-  onUpdate,
+  order, onOpen, onMarkPaid, onAdvance, onUpdate,
 }: {
   order?: Order
+  onOpen: (orderId: string) => void
   onMarkPaid: (order: Order) => void
   onAdvance: (order: Order) => void
   onUpdate: (orderId: string, patch: Partial<Order>) => void
@@ -388,15 +453,23 @@ function OrderDetail({
     )
   }
 
+  const items = order.items ?? []
+
   return (
     <section className="panel detail">
       <header>
-        <h2>{order.id}</h2>
-        <StatusBadge tone={order.paymentStatus === 'مدفوع' ? 'success' : 'pending'}>{order.paymentStatus}</StatusBadge>
+        <div>
+          <h2>{order.id}</h2>
+          <StatusBadge tone={order.paymentStatus === 'مدفوع' ? 'success' : 'pending'}>{order.paymentStatus}</StatusBadge>
+        </div>
+        <button className="open-modal-btn" onClick={() => onOpen(order.id)} title="فتح واجهة كاملة">
+          <Icon name="open_in_full" />
+          <span>واجهة كاملة</span>
+        </button>
       </header>
 
       <div className="detail-items">
-        {(order.items ?? []).map((item, idx) => (
+        {items.map((item, idx) => (
           <div className="detail-product" key={idx}>
             {item.image && <img src={item.image} alt={item.title} />}
             <div>
@@ -405,16 +478,11 @@ function OrderDetail({
                 {item.color && <span>🎨 {item.color}</span>}
                 {item.size && <span>📐 {item.size}</span>}
                 <span>× {item.quantity}</span>
-                <span>{formatMoney(item.priceSyp * item.quantity)}</span>
+                <span>{formatMoney((item.priceSyp ?? 0) * (item.quantity ?? 0))}</span>
               </p>
               {item.sourceLink && (
-                <a
-                  className="shein-link"
-                  href={item.sourceLink}
-                  rel="noreferrer"
-                  target="_blank"
-                >
-                  فتح في SHEIN{item.color ? ` — ${item.color}` : ''}{item.size ? ` / ${item.size}` : ''}
+                <a className="shein-link" href={item.sourceLink} rel="noreferrer" target="_blank">
+                  فتح SHEIN{item.color ? ` — ${item.color}` : ''}{item.size ? ` / ${item.size}` : ''}
                 </a>
               )}
             </div>
@@ -429,8 +497,9 @@ function OrderDetail({
       <label className="field">
         <span>رقم القدموس</span>
         <input
+          key={order.id}
           defaultValue={order.qadmousNumber}
-          onBlur={(event) => onUpdate(order.id, { qadmousNumber: event.target.value, statusIndex: Math.max(7, order.statusIndex) })}
+          onBlur={(e) => onUpdate(order.id, { qadmousNumber: e.target.value, statusIndex: Math.max(7, order.statusIndex) })}
           placeholder="مثال: KD-22091"
         />
       </label>
@@ -442,14 +511,146 @@ function OrderDetail({
   )
 }
 
+// ── Order Modal (full-screen) ─────────────────────────────────────────────────
+function OrderModal({
+  order, tracked, onToggle, onMarkAll, onClose, onMarkPaid, onAdvance, onUpdate,
+}: {
+  order: Order
+  tracked: Set<string>
+  onToggle: (key: string) => void
+  onMarkAll: (keys: string[]) => void
+  onClose: () => void
+  onMarkPaid: (order: Order) => void
+  onAdvance: (order: Order) => void
+  onUpdate: (orderId: string, patch: Partial<Order>) => void
+}) {
+  const items = order.items ?? []
+  const keys = items.map((_, i) => itemKey(order.id, i))
+  const addedCount = keys.filter((k) => tracked.has(k)).length
+  const allAdded = items.length > 0 && addedCount === items.length
+
+  // Close on Escape
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onClose])
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="modal-header">
+          <div className="modal-title">
+            <h2>{order.id}</h2>
+            <StatusBadge tone={order.paymentStatus === 'مدفوع' ? 'success' : 'pending'}>
+              {order.paymentStatus}
+            </StatusBadge>
+            <StatusBadge>{orderStatuses[order.statusIndex] ?? 'غير محدد'}</StatusBadge>
+          </div>
+          <div className="modal-customer">
+            <span><Icon name="person" />{order.customer}</span>
+            <span className="phone-row">
+              <Icon name="phone" />{order.phone}
+              <CopyBtn text={order.phone} />
+            </span>
+            <span><Icon name="location_on" />{order.city} · {order.address}</span>
+          </div>
+          <button className="modal-close" onClick={onClose}><Icon name="close" /></button>
+        </div>
+
+        {/* Progress bar */}
+        <div className="modal-progress">
+          <div className="progress-label">
+            <span>إضافة لسلة SHEIN</span>
+            <b>{addedCount} من {items.length} منتج</b>
+          </div>
+          <div className="progress-bar">
+            <div
+              className="progress-fill"
+              style={{ width: items.length ? `${(addedCount / items.length) * 100}%` : '0%' }}
+            />
+          </div>
+          <button
+            className={allAdded ? 'mark-all-btn done' : 'mark-all-btn'}
+            onClick={() => onMarkAll(keys)}
+          >
+            <Icon name={allAdded ? 'remove_done' : 'done_all'} />
+            {allAdded ? 'إلغاء تأشير الكل' : 'تأشير الكل كمضاف'}
+          </button>
+        </div>
+
+        {/* Items grid */}
+        <div className="modal-items">
+          {items.map((item, idx) => {
+            const key = itemKey(order.id, idx)
+            const done = tracked.has(key)
+            return (
+              <div className={`modal-item ${done ? 'modal-item--done' : ''}`} key={idx}>
+                {item.image && <img src={item.image} alt={item.title} />}
+                <div className="modal-item-body">
+                  <h3>{item.title}</h3>
+                  <div className="item-meta">
+                    {item.color && <span>🎨 {item.color}</span>}
+                    {item.size && <span>📐 {item.size}</span>}
+                    <span>× {item.quantity ?? 1}</span>
+                    <span>{formatMoney((item.priceSyp ?? 0) * (item.quantity ?? 1))}</span>
+                  </div>
+                  <div className="modal-item-actions">
+                    {item.sourceLink && (
+                      <a className="shein-link" href={item.sourceLink} rel="noreferrer" target="_blank">
+                        <Icon name="open_in_new" />
+                        فتح SHEIN{item.color ? ` — ${item.color}` : ''}{item.size ? ` / ${item.size}` : ''}
+                      </a>
+                    )}
+                    <button
+                      className={done ? 'cart-btn cart-btn--done' : 'cart-btn'}
+                      onClick={() => onToggle(key)}
+                    >
+                      <Icon name={done ? 'check_circle' : 'add_shopping_cart'} />
+                      {done ? 'تمت الإضافة' : 'أضفت للسلة؟'}
+                    </button>
+                  </div>
+                </div>
+                {done && <div className="done-ribbon">✓</div>}
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Footer */}
+        <div className="modal-footer">
+          <InfoRow label="الإجمالي" value={formatMoney(order.total)} />
+          <label className="field">
+            <span>رقم القدموس</span>
+            <input
+              key={order.id}
+              defaultValue={order.qadmousNumber}
+              onBlur={(e) => onUpdate(order.id, { qadmousNumber: e.target.value, statusIndex: Math.max(7, order.statusIndex) })}
+              placeholder="مثال: KD-22091"
+            />
+          </label>
+          <div className="detail-actions">
+            <button className="primary-action" onClick={() => onMarkPaid(order)}>تأكيد الدفع</button>
+            <button className="ghost-action" onClick={() => onAdvance(order)}>نقل للمرحلة التالية</button>
+            <button className="ghost-action" onClick={onClose}>إغلاق</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  )
+}
+
+// ── Shipping List ─────────────────────────────────────────────────────────────
 function ShippingList({
-  orders,
-  onAdvance,
-  onUpdate,
+  orders, onAdvance, onUpdate, onOpen,
 }: {
   orders: Order[]
   onAdvance: (order: Order) => void
   onUpdate: (orderId: string, patch: Partial<Order>) => void
+  onOpen: (orderId: string) => void
 }) {
   return (
     <section className="panel shipping-list">
@@ -465,34 +666,37 @@ function ShippingList({
             <small>{orderStatuses[order.statusIndex] ?? 'غير محدد'}</small>
           </div>
           <input
+            key={order.id}
             defaultValue={order.qadmousNumber}
-            onBlur={(event) => onUpdate(order.id, { qadmousNumber: event.target.value, statusIndex: Math.max(7, order.statusIndex) })}
+            onBlur={(e) => onUpdate(order.id, { qadmousNumber: e.target.value, statusIndex: Math.max(7, order.statusIndex) })}
             placeholder="رقم القدموس"
           />
           <button onClick={() => onAdvance(order)}>تحديث المرحلة</button>
+          <button onClick={() => onOpen(order.id)} title="فتح تفاصيل"><Icon name="open_in_full" /></button>
         </article>
       ))}
     </section>
   )
 }
 
+// ── Customers Grid ────────────────────────────────────────────────────────────
 function CustomersGrid({ orders }: { orders: Order[] }) {
-  const customers = Array.from(new Map(orders.map((order) => [order.phone, order])).values())
-
+  const customers = Array.from(new Map(orders.map((o) => [o.phone, o])).values())
   return (
     <section className="customers">
       {customers.map((order) => (
         <article className="panel customer" key={order.phone}>
           <div className="avatar">{order.customer[0] ?? 'ط'}</div>
           <h2>{order.customer}</h2>
-          <p>{order.phone}</p>
-          <span>{order.city}</span>
+          <span className="phone-row">{order.phone}<CopyBtn text={order.phone} /></span>
+          <p>{order.city}</p>
         </article>
       ))}
     </section>
   )
 }
 
+// ── Info Row ──────────────────────────────────────────────────────────────────
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="info-row">
