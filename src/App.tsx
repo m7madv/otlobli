@@ -1699,6 +1699,9 @@ function HomeScreen({ userName }: { userName?: string }) {
 
 function MobileShell({
   children,
+  active,
+  onNavigate,
+  hideBottomNav,
 }: {
   active?: 'home' | 'orders' | 'cart' | 'profile'
   children: ReactNode
@@ -1708,6 +1711,14 @@ function MobileShell({
   return (
     <div className="mobile-shell">
       {children}
+      {!hideBottomNav && onNavigate && (
+        <nav className="bottom-nav">
+          <NavButton active={active === 'home'}    icon="home"        label="الرئيسية" onClick={() => onNavigate('home')} />
+          <NavButton active={active === 'orders'}  icon="package"     label="طلباتي"   onClick={() => onNavigate('orders')} />
+          <NavButton active={active === 'cart'}    icon="shopping_cart" label="السلة"  onClick={() => onNavigate('cart')} />
+          <NavButton active={active === 'profile'} icon="person"      label="حسابي"   onClick={() => onNavigate('profile')} />
+        </nav>
+      )}
     </div>
   )
 }
