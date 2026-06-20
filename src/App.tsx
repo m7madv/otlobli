@@ -450,9 +450,28 @@ function App() {
 
   const updateOtpDigit = (index: number, value: string) => {
     const digit = value.replace(/\D/g, '').slice(-1)
-    setOtpDigits((current) => current.map((item, itemIndex) => (itemIndex === index ? digit : item)))
+    const newDigits = otpDigits.map((item, i) => (i === index ? digit : item))
+    setOtpDigits(newDigits)
     if (digit && index < otpDigits.length - 1) {
       otpRefs.current[index + 1]?.focus()
+    }
+    if (digit && index === otpDigits.length - 1 && newDigits.every(Boolean)) {
+      const code = newDigits.join('')
+      if (authState === 'idle') {
+        setAuthState('verifying')
+        void appApi.auth.verifyOtp(phone, code)
+          .then(() => {
+            setSessionToken(phone)
+            setPendingWhatsappAuth(null)
+            setScreen(!userProfile ? 'onboarding' : 'home')
+          })
+          .catch((error: unknown) => {
+            showNotice(getPublicErrorMessage(error))
+            setOtpDigits(['', '', '', ''])
+            otpRefs.current[0]?.focus()
+          })
+          .finally(() => setAuthState('idle'))
+      }
     }
   }
 
@@ -810,10 +829,20 @@ function App() {
     }
 
     if (screen === 'otp') {
+      const goBackToLogin = () => {
+        setOtpDigits(['', '', '', ''])
+        setPendingWhatsappAuth(null)
+        setInboundWhatsappUrl('')
+        setInboundSupportPhone('')
+        setInboundVerificationMessage('')
+        setAuthState('idle')
+        setScreen('login')
+      }
       return (
         <AuthShell
           title={telegramOtp ? 'تأكيد عبر تيليغرام' : inboundWhatsappUrl ? 'تأكيد واتساب' : 'تأكيد الرقم'}
           subtitle={telegramOtp ? 'أرسل الرمز أدناه لبوت تيليغرام' : inboundWhatsappUrl ? 'افتح واتساب وأرسل الرسالة الجاهزة فقط' : 'أدخل الرمز المرسل إلى واتساب'}
+          onBack={goBackToLogin}
         >
           {telegramOtp ? (
             <section className="whatsapp-verification">
@@ -1642,10 +1671,16 @@ function App() {
   )
 }
 
-function AuthShell({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
+function AuthShell({ title, subtitle, children, onBack }: { title: string; subtitle: string; children: ReactNode; onBack?: () => void }) {
   return (
     <div className="auth-shell">
       <div className="auth-card">
+        {onBack && (
+          <button type="button" className="back-btn" onClick={onBack} aria-label="رجوع">
+            <Icon name="arrow_forward" />
+            <span>تغيير الرقم</span>
+          </button>
+        )}
         <div className="brand-lockup">
           <span>otlobli</span>
           <small>اطلب من الأردن واستلم في سوريا</small>

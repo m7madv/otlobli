@@ -595,6 +595,20 @@ a {
   box-shadow: var(--shadow);
 }
 
+.back-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-size: 0.95rem;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 4px;
+}
+.back-btn .material-symbols-outlined { font-size: 1.1rem; }
+
 .brand-lockup {
   display: grid;
   gap: 4px;

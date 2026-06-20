@@ -1,6 +1,6 @@
 /**
  * Talabieh WhatsApp Server — Baileys
- * v2.4 — QR Mode clean (This is the one that worked)
+ * v3.0 — On-demand connection (connect only when sending OTP, disconnect after 5min idle)
  */
 
 import { makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } from '@whiskeysockets/baileys'
@@ -17,25 +17,18 @@ const AUTH_DIR = VOLUME_PATH
   ? path.join(VOLUME_PATH, 'baileys-auth')
   : path.join(__dirname, '..', 'baileys-auth')
 
+const IDLE_TIMEOUT_MS = 5 * 60 * 1000 // disconnect after 5 min idle
+
 let sock = null
 let isConnected = false
 let qrCode = null
-let cbQueue = []
+let idleTimer = null
+let connectingPromise = null
 
-// Create fresh session dir
 if (!fs.existsSync(AUTH_DIR)) {
   fs.mkdirSync(AUTH_DIR, { recursive: true })
   console.log('📁 Created fresh session at:', AUTH_DIR)
 }
-
-export function onConnection(fn) {
-  if (typeof fn !== 'function') return
-  cbQueue.push(fn)
-  if (isConnected) try { fn({ status: 'connected' }) } catch (_) {}
-}
-
-export function isWhatsappConnected() { return isConnected }
-export function getSocket() { return sock }
 
 export function getConnectionStatus() {
   return {
@@ -47,22 +40,73 @@ export function getConnectionStatus() {
   }
 }
 
-function emit(ev) {
-  for (const fn of cbQueue) try { fn(ev) } catch (_) {}
+export function isWhatsappConnected() { return isConnected }
+export function getSocket() { return sock }
+export function onConnection(fn) { if (isConnected) try { fn({ status: 'connected' }) } catch (_) {} }
+
+function resetIdleTimer() {
+  if (idleTimer) clearTimeout(idleTimer)
+  idleTimer = setTimeout(() => {
+    console.log('💤 WhatsApp: idle timeout — disconnecting')
+    disconnectGracefully()
+  }, IDLE_TIMEOUT_MS)
 }
 
-export async function sendOtpMessage(phone, code) {
-  if (!isConnected || !sock) throw new Error('WhatsApp غير متصل')
-  const jid = phone.replace(/[\s\-\(\)\+]/g, '') + '@s.whatsapp.net'
-  const msg = `*Talabieh*\n\n🔐 *رمز التحقق*\n\n${code}\n\n⏰ صالح 5 دقائق`
-  await sock.sendMessage(jid, { text: msg })
-  console.log(`✅ OTP ${code} to ${phone}`)
+function disconnectGracefully() {
+  idleTimer = null
+  if (sock) {
+    try { sock.end() } catch (_) {}
+    sock = null
+  }
+  isConnected = false
+  qrCode = null
 }
 
-export async function initWhatsapp() {
+function clearSession() {
+  try {
+    const files = fs.readdirSync(AUTH_DIR)
+    for (const f of files) fs.unlinkSync(path.join(AUTH_DIR, f))
+    console.log('🗑️  Cleared WhatsApp session files')
+  } catch (_) {}
+}
+
+// Returns a promise that resolves when connected (or rejects on timeout/failure)
+export function connectOnDemand() {
+  if (isConnected && sock) return Promise.resolve()
+  if (connectingPromise) return connectingPromise
+
+  connectingPromise = new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      connectingPromise = null
+      reject(new Error('انتهت مهلة الاتصال بـ WhatsApp'))
+    }, 40000)
+
+    initWhatsapp()
+      .then((resolveOnOpen) => {
+        resolveOnOpen.then(() => {
+          clearTimeout(timeout)
+          connectingPromise = null
+          resolve()
+        }).catch((err) => {
+          clearTimeout(timeout)
+          connectingPromise = null
+          reject(err)
+        })
+      })
+      .catch((err) => {
+        clearTimeout(timeout)
+        connectingPromise = null
+        reject(err)
+      })
+  })
+
+  return connectingPromise
+}
+
+async function initWhatsapp() {
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR)
   const hasCreds = state.creds?.signedPreKey !== undefined
-  console.log('📱 WhatsApp ' + (hasCreds ? 'جلسة موجودة' : 'جلسة جديدة'))
+  console.log('📱 WhatsApp ' + (hasCreds ? 'جلسة موجودة — جاري الاتصال' : 'جلسة جديدة — انتظر QR'))
 
   let version
   try {
@@ -80,46 +124,62 @@ export async function initWhatsapp() {
     shouldSyncConnectionMessage: false,
     emitOwnEvents: false,
     getMessage: () => undefined,
-    keepAliveIntervalMs: 15000,
-    connectTimeoutMs: 60000,
-    defaultQueryTimeoutMs: 30000,
-    retryRequestDelayMs: 1000,
-    maxRetries: 10,
+    keepAliveIntervalMs: 30000,
+    connectTimeoutMs: 30000,
+    defaultQueryTimeoutMs: 20000,
   })
 
   sock.ev.on('creds.update', saveCreds)
 
-  sock.ev.on('connection.update', (update) => {
-    const { connection, lastDisconnect, qr } = update
+  // Returns a promise that resolves when connection opens
+  const openPromise = new Promise((resolve, reject) => {
+    sock.ev.on('connection.update', (update) => {
+      const { connection, lastDisconnect, qr } = update
 
-    if (qr) {
-      qrCode = qr
-      const url = 'https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=' + encodeURIComponent(qr)
-      console.log('\n📲 QR:\n' + url + '\n')
-      emit({ status: 'qr', qr, qrUrl: url })
-    }
+      if (qr) {
+        qrCode = qr
+        const url = 'https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=' + encodeURIComponent(qr)
+        console.log('\n📲 QR Code (امسح هذا):\n' + url + '\n')
+      }
 
-    if (connection === 'open') {
-      isConnected = true
-      qrCode = null
-      console.log('\n✅✅✅ WhatsApp connected ✅✅✅\n')
-      emit({ status: 'connected' })
-    }
+      if (connection === 'open') {
+        isConnected = true
+        qrCode = null
+        console.log('✅ WhatsApp متصل')
+        resolve()
+      }
 
-    if (connection === 'close') {
-      isConnected = false
-      const code = (lastDisconnect?.error instanceof Boom) ? lastDisconnect.error.output.statusCode : null
-      const reason = lastDisconnect?.error?.message || 'unknown'
-      console.log(`❌ Disco (${code}): ${reason}`)
+      if (connection === 'close') {
+        isConnected = false
+        const code = (lastDisconnect?.error instanceof Boom) ? lastDisconnect.error.output.statusCode : null
+        const reason = lastDisconnect?.error?.message || 'unknown'
+        console.log(`❌ WhatsApp انقطع (${code}): ${reason}`)
 
-      // NEVER clear session on reconnect — always retry
-      const reconnectDelay = code === DisconnectReason.restartRequired ? 0 : 2000
-      console.log('🔄 Reconnecting in ' + reconnectDelay + 'ms...')
-      setTimeout(() => {
-        initWhatsapp().catch(e => console.error('reconnect fail:', e.message))
-      }, reconnectDelay)
-    }
+        if (code === DisconnectReason.loggedOut || code === 403) {
+          console.log('🗑️  الجلسة منتهية — سيُطلب QR جديد في المرة القادمة')
+          clearSession()
+          reject(new Error('انتهت جلسة WhatsApp. أعد ربط الرقم من خلال QR.'))
+        } else if (code === DisconnectReason.restartRequired) {
+          // Baileys طلب restart — reconnect مرة واحدة فقط
+          sock = null
+          initWhatsapp().then((p) => p.then(resolve).catch(reject)).catch(reject)
+        } else {
+          reject(new Error(`WhatsApp انقطع: ${reason}`))
+        }
+      }
+    })
   })
 
-  return sock
+  return openPromise
+}
+
+export async function sendOtpMessage(phone, code) {
+  await connectOnDemand()
+
+  const jid = phone.replace(/[\s\-\(\)\+]/g, '') + '@s.whatsapp.net'
+  const msg = `رمز التحقق من otlobli:\n\n${code}\n\nصالح لمدة 5 دقائق.`
+  await sock.sendMessage(jid, { text: msg })
+  console.log(`✅ OTP ${code} → ${phone}`)
+
+  resetIdleTimer()
 }
