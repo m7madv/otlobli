@@ -305,9 +305,12 @@ function App() {
     return isVariantAvailable(activeProduct, selectedColor?.name ?? null, selectedSize)
   }, [activeProduct, selectedColor, selectedSize])
 
+  const getItemPriceSyp = (item: { priceSyp: number; priceUsd?: number }) =>
+    item.priceSyp > 0 ? item.priceSyp : Math.round((item.priceUsd ?? 0) * exchangeRate)
+
   const breakdown = useMemo(() => {
     if (cartItems.length > 0) {
-      const productsTotal = cartItems.reduce((sum, item) => sum + item.priceSyp * item.quantity, 0)
+      const productsTotal = cartItems.reduce((sum, item) => sum + getItemPriceSyp(item) * item.quantity, 0)
       return [{ label: 'مجموع المنتجات', value: productsTotal }, ...shippingFees]
     }
     return buildPriceBreakdown({
@@ -316,7 +319,8 @@ function App() {
       quantity,
       fees: shippingFees,
     })
-  }, [activeProduct?.priceSyp, cartItems, quantity])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeProduct?.priceSyp, cartItems, quantity, exchangeRate])
 
   const total = useMemo(() => sumPriceLines(breakdown), [breakdown])
   const meetsMinimumOrder = total >= MIN_ORDER_SYP || total / exchangeRate >= MIN_ORDER_USD
@@ -491,7 +495,8 @@ function App() {
       sizesAvailable: availableSizes,
       sizesUnavailable: activeProduct.sizes.filter((s) => !availableSizes.includes(s)),
       quantity,
-      priceSyp: activeProduct.priceSyp,
+      priceUsd: activeProduct.priceUsd,
+      priceSyp: activeProduct.priceSyp || Math.round(activeProduct.priceUsd * exchangeRate),
       sourceLink: link || activeProduct.link,
     }])
     showNotice('تمت إضافة المنتج إلى السلة')
@@ -652,6 +657,7 @@ function App() {
         sizesAvailable,
         sizesUnavailable,
         quantity: 1,
+        priceUsd,
         priceSyp: Math.round(priceUsd * exchangeRate),
         sourceLink: typeof product?.link === 'string' ? product.link : '',
       }])
@@ -1185,7 +1191,7 @@ function App() {
                         {item.color} · {item.size}
                       </p>
                       <div className="cart-item-bottom">
-                        <strong>{formatPrice(item.priceSyp * item.quantity)}</strong>
+                        <strong>{formatPrice(getItemPriceSyp(item) * item.quantity)}</strong>
                         <div className="qty-stepper">
                           <button
                             onClick={() => setCartItems((items) => items.map((i) => i.id === item.id ? { ...i, quantity: Math.max(1, i.quantity - 1) } : i))}

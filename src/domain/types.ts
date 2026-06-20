@@ -104,6 +104,7 @@ export type CartItem = {
   sizesAvailable?: string[]
   sizesUnavailable?: string[]
   quantity: number
+  priceUsd: number
   priceSyp: number
   sourceLink: string
 }
