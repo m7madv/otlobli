@@ -1697,6 +1697,13 @@ function HomeScreen({ userName }: { userName?: string }) {
   )
 }
 
+const NAV_ICONS = {
+  home:    '<path d="M4 11.5 12 4l8 7.5"/><path d="M6 10v9h12v-9"/><path d="M10 19v-5h4v5"/>',
+  orders:  '<rect x="4" y="7" width="16" height="13" rx="1.3"/><path d="M4 7l8-4 8 4"/><path d="M12 11v9"/>',
+  cart:    '<circle cx="9" cy="20" r="1.3"/><circle cx="18" cy="20" r="1.3"/><path d="M3 4h2l2.2 11.5a2 2 0 0 0 2 1.6h8.6a2 2 0 0 0 2-1.6L21 8H6"/>',
+  profile: '<circle cx="12" cy="8" r="3.6"/><path d="M5 20c0-3.8 3.1-6.4 7-6.4s7 2.6 7 6.4"/>',
+}
+
 function MobileShell({
   children,
   active,
@@ -1713,20 +1720,20 @@ function MobileShell({
       {children}
       {!hideBottomNav && onNavigate && (
         <nav className="bottom-nav">
-          <NavButton active={active === 'home'}    icon="home"        label="الرئيسية" onClick={() => onNavigate('home')} />
-          <NavButton active={active === 'orders'}  icon="package"     label="طلباتي"   onClick={() => onNavigate('orders')} />
-          <NavButton active={active === 'cart'}    icon="shopping_cart" label="السلة"  onClick={() => onNavigate('cart')} />
-          <NavButton active={active === 'profile'} icon="person"      label="حسابي"   onClick={() => onNavigate('profile')} />
+          <NavButton active={active === 'home'}    svgPaths={NAV_ICONS.home}    label="الرئيسية" onClick={() => onNavigate('home')} />
+          <NavButton active={active === 'orders'}  svgPaths={NAV_ICONS.orders}  label="طلباتي"   onClick={() => onNavigate('orders')} />
+          <NavButton active={active === 'cart'}    svgPaths={NAV_ICONS.cart}    label="السلة"    onClick={() => onNavigate('cart')} />
+          <NavButton active={active === 'profile'} svgPaths={NAV_ICONS.profile} label="حسابي"   onClick={() => onNavigate('profile')} />
         </nav>
       )}
     </div>
   )
 }
 
-function NavButton({ active, icon, label, onClick }: { active: boolean; icon: string; label: string; onClick: () => void }) {
+function NavButton({ active, svgPaths, label, onClick }: { active: boolean; svgPaths: string; label: string; onClick: () => void }) {
   return (
     <button className={active ? 'is-active' : ''} onClick={onClick}>
-      <Icon name={icon} />
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" dangerouslySetInnerHTML={{ __html: svgPaths }} />
       <span>{label}</span>
     </button>
   )
