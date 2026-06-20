@@ -118,9 +118,12 @@ function CopyBtn({ text }: { text: string }) {
 }
 
 // ── Supabase ──────────────────────────────────────────────────────────────────
-const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined) || ''
+// تنظيف أي حرف BOM (U+FEFF) أو مسافات خفية تتسرّب عند لصق المفاتيح في إعدادات
+// Vercel — وجودها في headers يجعل المتصفح يرفض الطلب بالكامل بصمت (non ISO-8859-1).
+const stripBom = (s: string | undefined) => (s || '').replace(/[​-‍﻿]/g, '').trim()
+const SUPABASE_URL = stripBom(import.meta.env.VITE_SUPABASE_URL as string | undefined)
 const ADMIN_ORDERS_FN = `${SUPABASE_URL}/functions/v1/admin-orders`
-const ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) || ''
+const ANON_KEY = stripBom(import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)
 
 async function fetchOrders(pin: string) {
   const response = await fetch(ADMIN_ORDERS_FN, {
