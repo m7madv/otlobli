@@ -9,7 +9,7 @@ import fs from 'fs'
 import path from 'path'
 import { createRequire } from 'module'
 import { fileURLToPath } from 'url'
-import { initWhatsapp, onConnection, isWhatsappConnected, getConnectionStatus } from './whatsapp.js'
+import { onConnection, isWhatsappConnected, getConnectionStatus } from './whatsapp.js'
 import routes from './routes.js'
 
 const require = createRequire(import.meta.url)
@@ -92,19 +92,8 @@ app.get('/api/qr-url', (req, res) => {
   }
 })
 
-initWhatsapp().then(() => {
-  console.log('🚀 WhatsApp system initialized')
-}).catch(err => {
-  console.error('❌ Failed to start WhatsApp:', err.message)
-})
-
-onConnection(event => {
-  if (event.status === 'connected') {
-    console.log('\n✅ WhatsApp connected! Server ready for OTP')
-  } else if (event.status === 'qr') {
-    console.log('\n📲 Scan the QR code above')
-  }
-})
+console.log('🚀 Server started — WhatsApp connects on-demand when OTP is requested')
+onConnection(() => {})
 
 app.listen(PORT, () => {
   console.log(`\n🚀 Talabieh OTP Server — QR Mode`)
