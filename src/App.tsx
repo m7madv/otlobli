@@ -12,7 +12,7 @@ import {
 import { makeOrderId, today } from './domain/orders'
 import { buildPriceBreakdown, formatMoney, formatPriceSyp, formatUsd, sumPriceLines } from './domain/pricing'
 import type { PaymentCurrency } from './domain/pricing'
-import type { Address, CartItem, Order, Product, ProductColor, ProductVariant, Recipient, Screen, StatusTone, UserProfile } from './domain/types'
+import type { Address, AppNotification, CartItem, Order, Product, ProductColor, ProductVariant, Recipient, Screen, StatusTone, UserProfile } from './domain/types'
 import { readStoredJson, storageKeys, useStoredState } from './infrastructure/localStorage'
 import { appApi, isSupabaseConfigured } from './services'
 import { supabase } from './services/supabaseClient'
@@ -190,6 +190,23 @@ function App() {
   const [editingProfile, setEditingProfile] = useState(false)
   const [editName, setEditName] = useState('')
   const [editGov, setEditGov] = useState('')
+  const [sheinBlockedError, setSheinBlockedError] = useState(false)
+  const [notifications, setNotifications] = useStoredState<AppNotification[]>(storageKeys.notifications, [])
+
+  // ref يبقى متزامناً مع orders لكشف تغيّر الحالة داخل poll بدون stale closure
+  const ordersRef = useRef(orders)
+  useEffect(() => { ordersRef.current = orders }, [orders])
+
+  const unreadCount = notifications.filter((n) => !n.read).length
+
+  const addNotification = (n: Omit<AppNotification, 'id' | 'createdAt' | 'read'>) => {
+    setNotifications((prev) => [{
+      ...n,
+      id: `n-${Date.now()}`,
+      createdAt: today(),
+      read: false,
+    }, ...prev])
+  }
 
   const order = orders.find((item) => item.id === currentOrderId) ?? orders[0] ?? null
 
@@ -630,15 +647,9 @@ function App() {
     const handle = InAppBrowser.addListener('messageFromWebview', (event: { detail?: Record<string, unknown> }) => {
       const detail = event?.detail
 
-      // shein.com's own anti-bot system occasionally 403s a request behind a
-      // branded "GSRM Security" block page tied to the session's cookies -
-      // observed sticking until those cookies are cleared, after which the
-      // exact same page loads fine again. Self-heal instead of leaving the
-      // user stuck looking at it.
       if (detail?.type === 'sheinBlocked') {
-        void InAppBrowser.clearAllCookies().finally(() => {
-          void InAppBrowser.setUrl({ url: SHEIN_HOME_URL })
-        })
+        void InAppBrowser.hide()
+        setSheinBlockedError(true)
         return
       }
 
@@ -689,6 +700,7 @@ function App() {
   }, [exchangeRate])
 
   // تحديث حالة الطلب من Supabase تلقائياً كل 30 ثانية عند فتح شاشة التتبع
+  // يُنشئ إشعاراً تلقائياً إذا تقدّم الطلب لمرحلة جديدة
   useEffect(() => {
     const db = supabase
     if (screen !== 'tracking' || !currentOrderId || !db) return undefined
@@ -699,11 +711,31 @@ function App() {
         .eq('id', currentOrderId)
         .single()
       if (!data) return
+      const newStatusIndex = typeof data.status_index === 'number' ? data.status_index : null
+      // كشف تقدّم الحالة وإنشاء إشعار
+      if (newStatusIndex !== null) {
+        const current = ordersRef.current.find((o) => o.id === currentOrderId)
+        if (current && newStatusIndex > current.statusIndex) {
+          const notifId = `status-${currentOrderId}-${newStatusIndex}`
+          setNotifications((prev) => {
+            if (prev.some((n) => n.id === notifId)) return prev
+            return [{
+              id: notifId,
+              type: 'order_update',
+              title: 'تحديث الطلب',
+              body: `طلبك ${currentOrderId} انتقل إلى: ${orderStatuses[newStatusIndex] ?? ''}`,
+              orderId: currentOrderId,
+              createdAt: today(),
+              read: false,
+            }, ...prev]
+          })
+        }
+      }
       setOrders((list) => list.map((o) => {
         if (o.id !== currentOrderId) return o
         return {
           ...o,
-          statusIndex: typeof data.status_index === 'number' ? data.status_index : o.statusIndex,
+          statusIndex: newStatusIndex ?? o.statusIndex,
           qadmousNumber: data.qadmous_number ?? o.qadmousNumber,
           paidAt: data.paid_at ?? o.paidAt,
           paymentStatus: data.payment_status ?? o.paymentStatus,
@@ -760,6 +792,7 @@ function App() {
           setOrders((list) => [savedOrder, ...list])
           setCurrentOrderId(result.orderId)
           setCartItems([])
+          addNotification({ type: 'payment', title: 'تم استلام طلبك', body: `طلبك ${result.orderId} قيد المعالجة.`, orderId: result.orderId })
           setScreen('success')
           return
         }
@@ -793,6 +826,7 @@ function App() {
         setCartItems([])
         setPendingPayment(null)
         setVerificationState('matched')
+        addNotification({ type: 'payment', title: 'تم تأكيد الدفع', body: `تم مطابقة تحويلك للطلب ${pendingPayment.orderId}.`, orderId: pendingPayment.orderId })
         setScreen('success')
         if (paidOrder && NOTIFY_URL) {
           void fetch(NOTIFY_URL, {
@@ -1420,7 +1454,7 @@ function App() {
     if (screen === 'orders') {
       return (
         <MobileShell active="orders" onNavigate={setScreen}>
-          <Header title="طلباتي" back={() => setScreen('home')} />
+          <Header title="طلباتي" back={() => setScreen('home')} unreadCount={unreadCount} onNotifications={() => setScreen('notifications')} />
           <main className="mobile-content">
             {orders.length === 0 && (
               <EmptyState title="لا توجد طلبات بعد" body="اطلب منتجاً من الصفحة الرئيسية وسيظهر هنا بعد إتمام الدفع." />
@@ -1527,7 +1561,7 @@ function App() {
 
       return (
         <MobileShell active="profile" onNavigate={setScreen}>
-          <Header title="حسابي" back={() => setScreen('home')} />
+          <Header title="حسابي" back={() => setScreen('home')} unreadCount={unreadCount} onNotifications={() => setScreen('notifications')} />
           <main className="mobile-content">
             <section className="profile-card">
               <div className="avatar">{avatarLetter}</div>
@@ -1705,6 +1739,49 @@ function App() {
       )
     }
 
+    if (screen === 'notifications') {
+      return (
+        <MobileShell active="orders" onNavigate={setScreen} hideBottomNav>
+          <Header
+            title="الإشعارات"
+            back={() => setScreen('home')}
+            actions={notifications.length > 0 ? ['done_all'] : []}
+            onAction={() => setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))}
+          />
+          <main className="mobile-content">
+            {notifications.length === 0 ? (
+              <EmptyState title="لا توجد إشعارات" body="ستظهر تحديثات طلباتك هنا تلقائياً." />
+            ) : (
+              notifications.map((notif) => (
+                <article
+                  key={notif.id}
+                  className={`notification-item ${notif.read ? '' : 'notification-item--unread'}`}
+                  onClick={() => {
+                    setNotifications((prev) => prev.map((n) => n.id === notif.id ? { ...n, read: true } : n))
+                    if (notif.orderId) {
+                      setCurrentOrderId(notif.orderId)
+                      setScreen('tracking')
+                    }
+                  }}
+                >
+                  <div className="notif-icon">
+                    <Icon name={notif.type === 'payment' ? 'payments' : notif.type === 'order_update' ? 'local_shipping' : 'info'} />
+                  </div>
+                  <div className="notif-body">
+                    <b>{notif.title}</b>
+                    <p>{notif.body}</p>
+                    <small>{notif.createdAt}</small>
+                  </div>
+                  {!notif.read && <span className="notif-dot" />}
+                </article>
+              ))
+            )}
+          </main>
+          <Toast message={notice} />
+        </MobileShell>
+      )
+    }
+
     return (
       // Keep React's own nav mounted here at all times, even while SHEIN's
       // webview (with its own injected nav - see ensureOtlobliNav) is
@@ -1716,8 +1793,36 @@ function App() {
       // hiding the webview just reveals a nav that was already laid out,
       // not one that still needs to render.
       <MobileShell active="home" onNavigate={setScreen}>
-        {!sheinReady && <Header title="otlobli" />}
-        {!sheinReady && <HomeScreen userName={userProfile?.name} onRetry={() => { sheinOpenedRef.current = false; browseShein() }} />}
+        {(!sheinReady || sheinBlockedError) && (
+          <Header title="otlobli" unreadCount={unreadCount} onNotifications={() => setScreen('notifications')} />
+        )}
+        {sheinBlockedError ? (
+          <main className="mobile-content shein-home">
+            <div className="empty-state">
+              <Icon name="wifi_off" />
+              <h2>تعذّر فتح موقع SHEIN</h2>
+              <p>يبدو أن الموقع محجوب مؤقتاً. جرّب مرة ثانية أو امسح الكوكيز.</p>
+            </div>
+            <button className="primary-action" onClick={() => {
+              setSheinBlockedError(false)
+              void InAppBrowser.setUrl({ url: SHEIN_HOME_URL }).then(() => void InAppBrowser.show())
+            }}>
+              <Icon name="refresh" />
+              إعادة المحاولة
+            </button>
+            <button className="ghost-action" onClick={() => {
+              setSheinBlockedError(false)
+              void InAppBrowser.clearAllCookies().finally(() => {
+                void InAppBrowser.setUrl({ url: SHEIN_HOME_URL }).then(() => void InAppBrowser.show())
+              })
+            }}>
+              <Icon name="delete_sweep" />
+              مسح الكوكيز وإعادة التحميل
+            </button>
+          </main>
+        ) : !sheinReady ? (
+          <HomeScreen userName={userProfile?.name} onRetry={() => { sheinOpenedRef.current = false; browseShein() }} />
+        ) : null}
       </MobileShell>
     )
   }
@@ -1757,11 +1862,15 @@ function Header({
   back,
   actions = [],
   onAction,
+  unreadCount = 0,
+  onNotifications,
 }: {
   title: string
   back?: () => void
   actions?: string[]
   onAction?: (action: string) => void
+  unreadCount?: number
+  onNotifications?: () => void
 }) {
   return (
     <header className="app-header">
@@ -1773,7 +1882,14 @@ function Header({
         {actions.map((action) => (
           <button className="icon-button" key={action} onClick={() => onAction?.(action)}><Icon name={action} /></button>
         ))}
-        {!actions.length && <button className="icon-button"><Icon name="notifications" /></button>}
+        {!actions.length && (
+          <button className="icon-button notif-bell" onClick={onNotifications} aria-label="الإشعارات">
+            <Icon name="notifications" />
+            {unreadCount > 0 && (
+              <span className="notif-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>
+            )}
+          </button>
+        )}
       </div>
     </header>
   )

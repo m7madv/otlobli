@@ -31,6 +31,7 @@ export const storageKeys = {
   exchangeRate: 'talabieh.exchangeRate',
   paymentCurrency: 'talabieh.paymentCurrency',
   pendingPayment: 'talabieh.pendingPayment',
+  notifications: 'talabieh.notifications',
 } as const
 
 export function readStoredJson<T>(key: string, fallback: T) {

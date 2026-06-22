@@ -22,6 +22,17 @@ export type Screen =
   | 'blocked-policy'
   | 'terms'
   | 'support'
+  | 'notifications'
+
+export type AppNotification = {
+  id: string
+  type: 'order_update' | 'payment' | 'system'
+  title: string
+  body: string
+  orderId?: string
+  createdAt: string
+  read: boolean
+}
 
 export type StatusTone = 'success' | 'pending' | 'neutral' | 'danger'
 export type PaymentStatus = 'بانتظار الدفع' | 'مدفوع' | 'فشل المطابقة'
