@@ -16,6 +16,19 @@ export const SHEIN_CAPTURE_SCRIPT = `
   if (window.__otlobliInjected) return;
   window.__otlobliInjected = true;
 
+  // Unregister SHEIN's Service Worker so ALL requests go through the relay.
+  // Without this, the SW intercepts BFF API calls and makes direct requests
+  // to SHEIN backends that bypass shouldInterceptRequest in WebViewDialog.java.
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(function(regs) {
+      regs.forEach(function(r) {
+        r.unregister().then(function(ok) {
+          if (ok) console.log('[otlobli] SW unregistered:', r.scope);
+        });
+      });
+    });
+  }
+
   // Remembers the very first page this webview session landed on (the
   // SHEIN home root), persisted in sessionStorage since this whole script
   // re-runs fresh on every navigation. Used to tell "the user is at the

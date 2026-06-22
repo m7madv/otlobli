@@ -15,6 +15,7 @@ import type { PaymentCurrency } from './domain/pricing'
 import type { Address, CartItem, Order, Product, ProductColor, ProductVariant, Recipient, Screen, StatusTone, UserProfile } from './domain/types'
 import { readStoredJson, storageKeys, useStoredState } from './infrastructure/localStorage'
 import { appApi, isSupabaseConfigured } from './services'
+import { supabase } from './services/supabaseClient'
 import { PAYMENT_MODE, APP_VERSION } from './config'
 import { buildWhatsappLink } from './services/whatsappLink'
 import { SHEIN_CAPTURE_SCRIPT } from './services/sheinBrowserScript'
@@ -687,6 +688,33 @@ function App() {
     return () => { void handle.then((h) => h.remove()) }
   }, [exchangeRate])
 
+  // تحديث حالة الطلب من Supabase تلقائياً كل 30 ثانية عند فتح شاشة التتبع
+  useEffect(() => {
+    const db = supabase
+    if (screen !== 'tracking' || !currentOrderId || !db) return undefined
+    const poll = async () => {
+      const { data } = await db
+        .from('orders')
+        .select('status_index, qadmous_number, paid_at, payment_status')
+        .eq('id', currentOrderId)
+        .single()
+      if (!data) return
+      setOrders((list) => list.map((o) => {
+        if (o.id !== currentOrderId) return o
+        return {
+          ...o,
+          statusIndex: typeof data.status_index === 'number' ? data.status_index : o.statusIndex,
+          qadmousNumber: data.qadmous_number ?? o.qadmousNumber,
+          paidAt: data.paid_at ?? o.paidAt,
+          paymentStatus: data.payment_status ?? o.paymentStatus,
+        }
+      }))
+    }
+    void poll()
+    const interval = window.setInterval(() => { void poll() }, 30_000)
+    return () => window.clearInterval(interval)
+  }, [screen, currentOrderId])
+
   const [isStartingPayment, setIsStartingPayment] = useState(false)
 
   // ينشئ الطلب ويحفظه في قاعدة البيانات. في وضع 'auto' (الدفع معطّل مؤقتاً)
@@ -1201,7 +1229,7 @@ function App() {
       return (
         <MobileShell active="cart" onNavigate={setScreen}>
           <Header title="السلة" back={() => setScreen('home')} />
-          <main className="mobile-content">
+          <main className="mobile-content mobile-content--cart">
             {cartItems.length > 0 ? (
               <>
                 {cartItems.map((item) => (
@@ -1266,11 +1294,13 @@ function App() {
             ) : (
               <EmptyState title="السلة فارغة" body="تصفح SHEIN من الصفحة الرئيسية وأضف منتجات إلى السلة." />
             )}
+          </main>
+          <div className="sticky-pay-bar">
             <button className="primary-action" disabled={cartItems.length === 0 || !meetsMinimumOrder} onClick={() => setScreen('checkout')}>
               المتابعة للدفع
               <Icon name="arrow_back" />
             </button>
-          </main>
+          </div>
         </MobileShell>
       )
     }
@@ -1281,29 +1311,33 @@ function App() {
           <Header title="بيانات الاستلام" back={() => setScreen('cart')} />
           <main className="mobile-content">
             <div className="form-card">
-              {[
-                ['name', 'اسم المستلم'],
-                ['phone', 'رقم واتساب المستلم'],
-                ['governorate', 'المحافظة'],
-                ['city', 'المدينة'],
-                ['details', 'العنوان التفصيلي'],
-              ].map(([key, label]) => (
-                <label className="field" key={key}>
-                  <span>{label}</span>
-                  <input
-                    value={recipient[key as keyof Recipient]}
-                    onChange={(event) => setRecipient({ ...recipient, [key]: event.target.value })}
-                    placeholder={label}
-                  />
-                </label>
-              ))}
               <label className="field">
-                <span>ملاحظات التوصيل</span>
-                <textarea
-                  value={recipient.notes}
-                  onChange={(event) => setRecipient({ ...recipient, notes: event.target.value })}
-                  placeholder="مثال: الاتصال قبل الوصول"
+                <span>اسم المستلم</span>
+                <input
+                  value={recipient.name}
+                  onChange={(e) => setRecipient({ ...recipient, name: e.target.value })}
+                  placeholder="الاسم الكامل"
                 />
+              </label>
+              <label className="field">
+                <span>رقم واتساب المستلم</span>
+                <input
+                  value={recipient.phone}
+                  onChange={(e) => setRecipient({ ...recipient, phone: e.target.value })}
+                  placeholder="مثال: 963912345678"
+                  inputMode="tel"
+                />
+              </label>
+              <label className="field">
+                <span>المحافظة</span>
+                <select
+                  value={recipient.governorate}
+                  onChange={(e) => setRecipient({ ...recipient, governorate: e.target.value })}
+                >
+                  {SYRIA_GOVERNORATES.map((gov) => (
+                    <option key={gov} value={gov}>{gov}</option>
+                  ))}
+                </select>
               </label>
             </div>
             <InfoRow icon="inventory_2" title="طريقة التوصيل" body="التسليم داخل سوريا عبر القدموس عند توفر رقم الشحنة." />
@@ -1436,7 +1470,7 @@ function App() {
               <StatusBadge tone="pending">{orderStatuses[order.statusIndex]}</StatusBadge>
               <p>{order.qadmousNumber ? `رقم القدموس: ${order.qadmousNumber}` : 'رقم القدموس سيظهر بعد تسليم الشحنة.'}</p>
             </section>
-            <Timeline statusIndex={order.statusIndex} />
+            <Timeline statusIndex={order.statusIndex} createdAt={order.createdAt} paidAt={order.paidAt} />
             <button
               className="ghost-action"
               onClick={() => openWhatsappSupport(`مرحبا otlobli، أحتاج مساعدة بخصوص الطلب ${order.id}`)}
@@ -1683,7 +1717,7 @@ function App() {
       // not one that still needs to render.
       <MobileShell active="home" onNavigate={setScreen}>
         {!sheinReady && <Header title="otlobli" />}
-        {!sheinReady && <HomeScreen userName={userProfile?.name} />}
+        {!sheinReady && <HomeScreen userName={userProfile?.name} onRetry={() => { sheinOpenedRef.current = false; browseShein() }} />}
       </MobileShell>
     )
   }
@@ -1752,14 +1786,29 @@ function Toast({ message }: { message: string }) {
   return <div className="toast">{message}</div>
 }
 
-function HomeScreen({ userName }: { userName?: string }) {
+function HomeScreen({ userName, onRetry }: { userName?: string; onRetry?: () => void }) {
+  const [timedOut, setTimedOut] = useState(false)
+  useEffect(() => {
+    const t = window.setTimeout(() => setTimedOut(true), 30_000)
+    return () => window.clearTimeout(t)
+  }, [])
   return (
     <main className="mobile-content shein-home">
       <section className="greeting">
         <h1>{userName ? `أهلاً، ${userName}` : 'أهلاً بك'}</h1>
-        <p>جاري تجهيز متجر SHEIN...</p>
+        {timedOut ? (
+          <p style={{ color: 'var(--danger)' }}>تعذّر فتح موقع SHEIN. تأكد من اتصالك بالإنترنت.</p>
+        ) : (
+          <p>جاري تجهيز متجر SHEIN...</p>
+        )}
       </section>
-      <span className="spinner" />
+      {timedOut ? (
+        <button className="ghost-action" onClick={onRetry}>
+          <Icon name="refresh" /> إعادة المحاولة
+        </button>
+      ) : (
+        <span className="spinner" />
+      )}
     </main>
   )
 }
@@ -1894,7 +1943,13 @@ function EmptyState({ title, body }: { title: string; body: string }) {
   )
 }
 
-function Timeline({ statusIndex }: { statusIndex: number }) {
+function Timeline({ statusIndex, createdAt, paidAt }: { statusIndex: number; createdAt?: string; paidAt?: string }) {
+  const stageDate = (index: number) => {
+    if (index > statusIndex) return 'لاحقاً'
+    if (index === 0) return createdAt ?? today()
+    if (index === 1) return paidAt ?? createdAt ?? today()
+    return today()
+  }
   return (
     <section className="timeline">
       {orderStatuses.map((status, index) => (
@@ -1903,7 +1958,7 @@ function Timeline({ statusIndex }: { statusIndex: number }) {
           <section>
             <h3>{status}</h3>
             <p>{index < statusIndex ? 'تم تحديث هذه المرحلة بنجاح.' : index === statusIndex ? 'هذه المرحلة قيد التنفيذ الآن.' : 'بانتظار الوصول لهذه المرحلة.'}</p>
-            <small>{index <= statusIndex ? today() : 'لاحقاً'}</small>
+            <small>{stageDate(index)}</small>
           </section>
         </div>
       ))}
