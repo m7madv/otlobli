@@ -573,18 +573,27 @@ function App() {
   // category of bug entirely: let the webview take the full screen, and draw
   // otlobli's own nav bar *inside* it (see ensureOtlobliNav in the injected
   // script) so there's only ever one surface to get right.
-  // no-cors HEAD request just to see whether SOME network path to SHEIN
-  // exists right now - it doesn't read the response (opaque under no-cors
-  // anyway), it only cares whether the call resolves or throws/times out.
-  // On Syrian networks without a VPN the connection itself never completes
-  // (SNI-level block), so this rejects; with VPN on it resolves normally.
-  const checkSheinReachable = async () => {
-    try {
-      await fetch(SHEIN_HOME_URL, { method: 'HEAD', mode: 'no-cors', cache: 'no-store', signal: AbortSignal.timeout(5000) })
-      return true
-    } catch {
-      return false
-    }
+  // A no-cors fetch() turned out NOT to prove anything: the Syrian block
+  // doesn't drop the connection, it answers with a real, fully-formed HTML
+  // "System Not Avaliable" page - and an opaque no-cors response counts as
+  // "succeeded" the moment ANY server answers, block page or not, so that
+  // check was reporting "reachable" even while blocked. Loading an actual
+  // SHEIN-hosted image sidesteps that: image decode load/error events fire
+  // based on whether the bytes that came back are a real image, regardless
+  // of CORS - the block page's HTML response fails to decode as one, a real
+  // SHEIN asset succeeds.
+  const checkSheinReachable = () => {
+    return new Promise<boolean>((resolve) => {
+      const img = new Image()
+      const timer = window.setTimeout(() => {
+        img.onload = null
+        img.onerror = null
+        resolve(false)
+      }, 7000)
+      img.onload = () => { window.clearTimeout(timer); resolve(true) }
+      img.onerror = () => { window.clearTimeout(timer); resolve(false) }
+      img.src = `https://m.shein.com/favicon.ico?_=${Date.now()}`
+    })
   }
 
   useEffect(() => {
@@ -680,6 +689,20 @@ function App() {
       void handle.then((h) => h.remove())
       if (sheinOpenedRef.current) void InAppBrowser.close()
     }
+  }, [])
+
+  // Native-level signal that the navigation itself failed (DNS/TLS/connection
+  // refused) - fires even when the in-page block-page text detector can't
+  // (e.g. a genuinely dead connection never runs ANY injected JS at all,
+  // since there's no page to inject into). Second line of defense alongside
+  // the pre-flight image check and the in-page text detector - none of the
+  // three alone reliably covers every way the Syrian block can manifest.
+  useEffect(() => {
+    const handle = InAppBrowser.addListener('pageLoadError', () => {
+      void InAppBrowser.hide()
+      setSheinBlockedError(true)
+    })
+    return () => { void handle.then((h) => h.remove()) }
   }, [])
 
   // Backgrounding the app can drop the native SHEIN webview's visible state
