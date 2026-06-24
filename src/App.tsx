@@ -20,7 +20,6 @@ import { PAYMENT_MODE } from './config'
 import { buildWhatsappLink } from './services/whatsappLink'
 import { SHEIN_CAPTURE_SCRIPT } from './services/sheinBrowserScript'
 import { InAppBrowser, ToolBarType } from '@capgo/capacitor-inappbrowser'
-import { Capacitor } from '@capacitor/core'
 
 const API_BASE = import.meta.env.VITE_WHATSAPP_API_URL || ''
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
@@ -28,15 +27,6 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 const NOTIFY_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/telegram-notify` : ''
 
 const SHEIN_HOME_URL = 'https://m.shein.com/jo/?ref=jo&rep=dir&ret=mjo&currency=USD'
-
-// iOS loads SHEIN directly and leans on the user's own VPN instead of the
-// Cloudflare relay: on iOS the relay funnels every SHEIN resource through a
-// WKURLSchemeHandler that buffers each full response body in memory, which
-// repeatedly overran the WebContent process's memory budget and killed it -
-// the page froze into a pinch-zoomable snapshot, the nav bar vanished, and a
-// relaunch came up blank. Android has no such per-process cap, so it keeps the
-// relay (no VPN needed there). See patches/@capgo+capacitor-inappbrowser+*.patch.
-const isIOS = Capacitor.getPlatform() === 'ios'
 
 const usesInboundWhatsappAuth = import.meta.env.VITE_WHATSAPP_AUTH_MODE === 'inbound'
 
@@ -191,12 +181,16 @@ function App() {
   const [editName, setEditName] = useState('')
   const [editGov, setEditGov] = useState('')
   const [sheinBlockedError, setSheinBlockedError] = useState(false)
-  // iOS reaches SHEIN directly (see isIOS note) and needs the user's own VPN
-  // on - opening the webview immediately just races straight into the
-  // network block every time. Detected automatically (no manual "I turned it
-  // on" button) via checkSheinReachable() below. Android never needs this
-  // (uses the relay).
-  const [iosVpnState, setIosVpnState] = useState<'checking' | 'ok' | 'blocked'>(isIOS ? 'checking' : 'ok')
+  // Both platforms now reach SHEIN directly and need the user's own VPN on -
+  // opening the webview immediately just races straight into the network
+  // block every time. Detected automatically (no manual "I turned it on"
+  // button) via checkSheinReachable() below. Android used to go through a
+  // Cloudflare relay instead (no VPN needed) but that path never became
+  // fully reliable (a Service Worker could intercept some of the page's own
+  // API calls and bypass the relay regardless of fixes), so Android now uses
+  // the exact same direct-connection + VPN-gate flow already proven stable
+  // on iOS, rather than maintaining two different unreliable paths.
+  const [vpnState, setVpnState] = useState<'checking' | 'ok' | 'blocked'>('checking')
   const [notifications, setNotifications] = useStoredState<AppNotification[]>(storageKeys.notifications, [])
 
   // ref يبقى متزامناً مع orders لكشف تغيّر الحالة داخل poll بدون stale closure
@@ -603,19 +597,29 @@ function App() {
   }
 
   useEffect(() => {
-    if (!isIOS || iosVpnState !== 'checking') return undefined
+    if (vpnState !== 'checking') return undefined
     let cancelled = false
     void checkSheinReachable().then((ok) => {
-      if (!cancelled) setIosVpnState(ok ? 'ok' : 'blocked')
+      if (cancelled) return
+      if (!ok) { setVpnState('blocked'); return }
+      // A VPN that just got toggled on can take a moment to actually settle
+      // its routing - this image check can succeed a beat before that's
+      // fully done. Opening the real webview immediately then races into a
+      // transient DNS/connection failure that gets cached for the rest of
+      // that WebView instance's life (confirmed: retrying inside the same
+      // session kept failing; only a fresh instance recovered) - a short
+      // pause here costs nothing on an already-stable connection and avoids
+      // that race when the VPN was just switched on seconds ago.
+      window.setTimeout(() => { if (!cancelled) setVpnState('ok') }, 1500)
     })
     return () => { cancelled = true }
-  }, [iosVpnState])
+  }, [vpnState])
 
   const browseShein = () => {
     sheinOpenedRef.current = true
-    // On iOS SHEIN is reached directly, so it only loads once the user's VPN
-    // is on - the iosVpnState check above already confirmed that before this
-    // function ever runs.
+    // SHEIN is reached directly on both platforms now, so it only loads once
+    // the user's VPN is on - the vpnState check above already confirmed that
+    // before this function ever runs.
     void InAppBrowser.openWebView({
       url: SHEIN_HOME_URL,
       toolbarType: ToolBarType.BLANK,
@@ -628,14 +632,15 @@ function App() {
       // permanently blank home screen. This keeps back navigation inside the webview.
       activeNativeNavigationForWebview: true,
       disableGoBackOnNativeApplication: true,
-      // SHEIN is geo-blocked for Syrian IPs. On Android this single catch-all rule
-      // switches the plugin's native per-request fetch (see the patched
-      // WebViewDialog.java in patches/@capgo+capacitor-inappbrowser+*.patch) from
-      // connecting to the target directly to going through the Cloudflare Worker
-      // relay, so the device's own IP is never what shein.com sees. Omitted on iOS
-      // (see the isIOS note near SHEIN_HOME_URL) - there the relay crashed the
-      // WebContent process, so iOS loads directly and relies on the user's VPN.
-      ...(isIOS ? {} : { outboundProxyRules: [{ urlRegex: '.*', action: 'continue' }] as const }),
+      // Used to route Android traffic through a Cloudflare Worker relay here
+      // (outboundProxyRules) so the device's own geo-blocked IP was never
+      // what shein.com saw, while iOS skipped it (the relay crashed iOS's
+      // WebContent process) and relied on the user's own VPN instead. The
+      // relay path never became fully reliable on Android either - a page
+      // Service Worker could intercept some of the page's own API calls and
+      // answer them with a direct connection that bypassed the relay
+      // regardless of fixes - so both platforms now connect directly and
+      // rely on the user's VPN, same as iOS always did.
     })
       .then(() => {
         setSheinReady(true)
@@ -659,13 +664,13 @@ function App() {
           void InAppBrowser.postMessage({ detail: { type: '__resize' } })
           void InAppBrowser.postMessage({ detail: { type: '__backTarget', target } })
         })
-      } else if (!isIOS || iosVpnState === 'ok') {
+      } else if (vpnState === 'ok') {
         browseShein()
       }
     } else if (sheinOpenedRef.current) {
       void InAppBrowser.hide()
     }
-  }, [screen, iosVpnState])
+  }, [screen, vpnState])
 
   // Navigates the already-open SHEIN webview to a cart item's saved product
   // link and switches back to it, so tapping a product inside the cart shows
@@ -1895,10 +1900,10 @@ function App() {
       // hiding the webview just reveals a nav that was already laid out,
       // not one that still needs to render.
       <MobileShell active="home" onNavigate={setScreen}>
-        {(!sheinReady || sheinBlockedError || (isIOS && iosVpnState !== 'ok')) && (
+        {(!sheinReady || sheinBlockedError || vpnState !== 'ok') && (
           <Header title="otlobli" unreadCount={unreadCount} onNotifications={openNotifications} />
         )}
-        {isIOS && iosVpnState === 'checking' ? (
+        {vpnState === 'checking' ? (
           <main className="mobile-content shein-home">
             <section className="greeting">
               <h1>جاري التحقق من الاتصال...</h1>
@@ -1906,14 +1911,14 @@ function App() {
             </section>
             <span className="spinner" />
           </main>
-        ) : isIOS && iosVpnState === 'blocked' ? (
+        ) : vpnState === 'blocked' ? (
           <main className="mobile-content shein-home">
             <div className="empty-state">
               <Icon name="vpn_key" />
               <h2>فعّل الـ VPN أولاً</h2>
-              <p>متجر SHEIN محجوب في سوريا - شغّل تطبيق VPN على آيفونك، وبعدها اضغط الزر تحت لنتحقق من جديد.</p>
+              <p>متجر SHEIN محجوب في سوريا - شغّل تطبيق VPN على جهازك، وبعدها اضغط الزر تحت لنتحقق من جديد.</p>
             </div>
-            <button className="primary-action" onClick={() => setIosVpnState('checking')}>
+            <button className="primary-action" onClick={() => setVpnState('checking')}>
               <Icon name="refresh" />
               تحقّق من جديد
             </button>
@@ -1927,7 +1932,16 @@ function App() {
             </div>
             <button className="primary-action" onClick={() => {
               setSheinBlockedError(false)
-              void InAppBrowser.setUrl({ url: SHEIN_HOME_URL }).then(() => void InAppBrowser.show())
+              // Closes the webview outright instead of setUrl()+show() on the
+              // SAME instance - a failed connection attempt (e.g. one that
+              // raced a just-toggled VPN still settling) left this exact
+              // session stuck repeating that same failure on every retry;
+              // only a genuinely fresh instance recovered. closeEvent's own
+              // listener re-opens automatically while still on 'home' - only
+              // call browseShein() here if that somehow didn't happen.
+              void InAppBrowser.close().catch(() => undefined).then(() => {
+                if (!sheinOpenedRef.current) browseShein()
+              })
             }}>
               <Icon name="refresh" />
               إعادة المحاولة
@@ -1935,7 +1949,9 @@ function App() {
             <button className="ghost-action" onClick={() => {
               setSheinBlockedError(false)
               void InAppBrowser.clearAllCookies().finally(() => {
-                void InAppBrowser.setUrl({ url: SHEIN_HOME_URL }).then(() => void InAppBrowser.show())
+                void InAppBrowser.close().catch(() => undefined).then(() => {
+                  if (!sheinOpenedRef.current) browseShein()
+                })
               })
             }}>
               <Icon name="delete_sweep" />

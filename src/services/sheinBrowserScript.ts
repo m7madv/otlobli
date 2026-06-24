@@ -1,5 +1,30 @@
 export const SHEIN_CAPTURE_SCRIPT = `
 (function () {
+  // env(safe-area-inset-bottom) only resolves to the device's real inset when
+  // the PAGE's OWN viewport meta tag declares viewport-fit=cover - otherwise
+  // it silently evaluates to 0 everywhere, regardless of device. otlobli's
+  // nav bar/back button/add-to-cart button all fall back to a flat 16px in
+  // that case (see their max(env(...), 16px) CSS), which doesn't match every
+  // phone's actual gesture-bar height - on some it sits too low/cramped.
+  // SHEIN's own page doesn't necessarily declare this (it's not built for a
+  // notch-aware native shell), so force it here rather than depending on
+  // their markup. Re-asserted on every tick (not just once) since SHEIN's own
+  // SPA can rewrite this meta tag's content on certain navigations.
+  function ensureViewportFitCover() {
+    if (!document.head) return;
+    var meta = document.querySelector('meta[name="viewport"]');
+    if (!meta) {
+      meta = document.createElement('meta');
+      meta.setAttribute('name', 'viewport');
+      document.head.appendChild(meta);
+    }
+    var content = meta.getAttribute('content') || 'width=device-width, initial-scale=1';
+    if (!/viewport-fit\\s*=\\s*cover/i.test(content)) {
+      meta.setAttribute('content', content.replace(/,?\\s*viewport-fit=[^,]*/i, '') + ', viewport-fit=cover');
+    }
+  }
+  ensureViewportFitCover();
+
   // SHEIN's Jordan site defaults to English ("language=joen"); "jo" renders Arabic.
   // Force it once via cookie + a single reload, then it sticks for future loads.
   var hasArabic = /(?:^|; )language=jo(?:;|$)/.test(document.cookie);
@@ -1769,6 +1794,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   function tick() {
+    ensureViewportFitCover();
     ensureLoadingOverlay();
     blockCartNavigation();
     ensureAddToCartButton();
