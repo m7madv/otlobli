@@ -194,10 +194,8 @@ function App() {
   // iOS reaches SHEIN directly (see isIOS note) and needs the user's own VPN
   // on - opening the webview immediately just races straight into the
   // network block every time. Detected automatically (no manual "I turned it
-  // on" button): a no-cors HEAD request to SHEIN either succeeds (some
-  // network path exists - VPN is doing its job) or throws/times out (Syrian
-  // ISP-level block, no VPN) - that's enough signal without needing a native
-  // VPN-interface check. Android never needs this (uses the relay).
+  // on" button) via checkSheinReachable() below. Android never needs this
+  // (uses the relay).
   const [iosVpnState, setIosVpnState] = useState<'checking' | 'ok' | 'blocked'>(isIOS ? 'checking' : 'ok')
   const [notifications, setNotifications] = useStoredState<AppNotification[]>(storageKeys.notifications, [])
 
@@ -206,6 +204,14 @@ function App() {
   useEffect(() => { ordersRef.current = orders }, [orders])
 
   const unreadCount = notifications.filter((n) => !n.read).length
+
+  // يتذكر الشاشة اللي كان عليها المستخدم قبل ما يدخل الإشعارات، حتى زر
+  // الرجوع يرجعه لمكانه الأصلي (وليس دايماً للرئيسية)
+  const previousScreenRef = useRef<Screen>('home')
+  const openNotifications = () => {
+    previousScreenRef.current = screen
+    setScreen('notifications')
+  }
 
   const addNotification = (n: Omit<AppNotification, 'id' | 'createdAt' | 'read'>) => {
     setNotifications((prev) => [{
@@ -1550,7 +1556,7 @@ function App() {
     if (screen === 'orders') {
       return (
         <MobileShell active="orders" onNavigate={setScreen}>
-          <Header title="طلباتي" back={() => setScreen('home')} unreadCount={unreadCount} onNotifications={() => setScreen('notifications')} />
+          <Header title="طلباتي" back={() => setScreen('home')} unreadCount={unreadCount} onNotifications={openNotifications} />
           <main className="mobile-content">
             {orders.length === 0 && (
               <EmptyState title="لا توجد طلبات بعد" body="اطلب منتجاً من الصفحة الرئيسية وسيظهر هنا بعد إتمام الدفع." />
@@ -1657,7 +1663,7 @@ function App() {
 
       return (
         <MobileShell active="profile" onNavigate={setScreen}>
-          <Header title="حسابي" back={() => setScreen('home')} unreadCount={unreadCount} onNotifications={() => setScreen('notifications')} />
+          <Header title="حسابي" back={() => setScreen('home')} unreadCount={unreadCount} onNotifications={openNotifications} />
           <main className="mobile-content">
             <section className="profile-card">
               <div className="avatar">{avatarLetter}</div>
@@ -1840,7 +1846,7 @@ function App() {
         <MobileShell active="orders" onNavigate={setScreen} hideBottomNav>
           <Header
             title="الإشعارات"
-            back={() => setScreen('home')}
+            back={() => setScreen(previousScreenRef.current)}
             actions={notifications.length > 0 ? ['done_all'] : []}
             onAction={() => setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))}
           />
@@ -1890,7 +1896,7 @@ function App() {
       // not one that still needs to render.
       <MobileShell active="home" onNavigate={setScreen}>
         {(!sheinReady || sheinBlockedError || (isIOS && iosVpnState !== 'ok')) && (
-          <Header title="otlobli" unreadCount={unreadCount} onNotifications={() => setScreen('notifications')} />
+          <Header title="otlobli" unreadCount={unreadCount} onNotifications={openNotifications} />
         )}
         {isIOS && iosVpnState === 'checking' ? (
           <main className="mobile-content shein-home">

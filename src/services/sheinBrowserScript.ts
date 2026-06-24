@@ -1112,6 +1112,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
         addToCartFlow(colorState, sizeState);
       }, true);
       document.body.appendChild(btn);
+    } else if (btn !== document.body.lastElementChild) {
+      // Same re-claim-the-top reasoning as ensureOtlobliNav.
+      document.body.appendChild(btn);
     }
     btn.style.display = looksLikeProductPage() ? 'flex' : 'none';
   }
@@ -1135,7 +1138,18 @@ export const SHEIN_CAPTURE_SCRIPT = `
   };
 
   function ensureOtlobliNav() {
-    if (document.getElementById('otlobli-nav')) return;
+    var existingNav = document.getElementById('otlobli-nav');
+    if (existingNav) {
+      // Keep re-claiming "last child of body" on every tick. SHEIN's own SPA
+      // keeps inserting new elements (promo banners, popups, app-install
+      // prompts...) - some can land on the SAME max z-index we use, and on a
+      // tie the LATER sibling in DOM order wins paint priority. Without this,
+      // a SHEIN element appended after ours could end up physically covering
+      // (and silently swallowing taps on) our own nav bar - confirmed
+      // symptom: cart tab going unresponsive until switching tabs and back.
+      if (existingNav !== document.body.lastElementChild) document.body.appendChild(existingNav);
+      return;
+    }
     ensureShakeStyle();
     var nav = document.createElement('div');
     nav.id = 'otlobli-nav';
@@ -1241,6 +1255,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
         // page instead of doing nothing).
         if (!looksLikeHomeRoot()) history.back();
       }, true);
+      document.body.appendChild(btn);
+    } else if (btn !== document.body.lastElementChild) {
+      // Same re-claim-the-top reasoning as ensureOtlobliNav.
       document.body.appendChild(btn);
     }
     var shouldShow = __otlobliBackTarget === 'cart' || !looksLikeHomeRoot();
