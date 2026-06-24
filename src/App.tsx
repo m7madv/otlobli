@@ -206,6 +206,15 @@ function App() {
       createdAt: today(),
       read: false,
     }, ...prev])
+    // يصل الإشعار أيضاً على واتساب المستخدم بنفس رقمه المسجَّل دخوله فيه
+    // (fire-and-forget، غير حيوي - لا يقطع تجربة المستخدم لو فشل)
+    if (API_BASE && phone) {
+      void fetch(`${API_BASE}/api/notify/whatsapp`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ phone, text: `otlobli: ${n.title}\n${n.body}` }),
+      }).catch(() => undefined)
+    }
   }
 
   const order = orders.find((item) => item.id === currentOrderId) ?? orders[0] ?? null
@@ -698,6 +707,14 @@ function App() {
     })
     return () => { void handle.then((h) => h.remove()) }
   }, [exchangeRate])
+
+  // يعبّئ رقم واتساب المستلم تلقائياً برقم المستخدم المسجَّل دخوله عند دخول
+  // صفحة الدفع لأول مرة فقط (لا يطغى على قيمة عدّلها المستخدم يدوياً بعدها)
+  useEffect(() => {
+    if (screen === 'checkout' && !recipient.phone && phone) {
+      setRecipient((r) => ({ ...r, phone }))
+    }
+  }, [screen])
 
   // تحديث حالة الطلب من Supabase تلقائياً كل 30 ثانية عند فتح شاشة التتبع
   // يُنشئ إشعاراً تلقائياً إذا تقدّم الطلب لمرحلة جديدة
@@ -1346,27 +1363,30 @@ function App() {
           <main className="mobile-content">
             <div className="form-card">
               <label className="field">
-                <span>اسم المستلم</span>
+                <span>اسم المستلم *</span>
                 <input
                   value={recipient.name}
                   onChange={(e) => setRecipient({ ...recipient, name: e.target.value })}
                   placeholder="الاسم الكامل"
+                  required
                 />
               </label>
               <label className="field">
-                <span>رقم واتساب المستلم</span>
+                <span>رقم واتساب المستلم *</span>
                 <input
                   value={recipient.phone}
                   onChange={(e) => setRecipient({ ...recipient, phone: e.target.value })}
                   placeholder="مثال: 963912345678"
                   inputMode="tel"
+                  required
                 />
               </label>
               <label className="field">
-                <span>المحافظة</span>
+                <span>المحافظة *</span>
                 <select
                   value={recipient.governorate}
                   onChange={(e) => setRecipient({ ...recipient, governorate: e.target.value })}
+                  required
                 >
                   {SYRIA_GOVERNORATES.map((gov) => (
                     <option key={gov} value={gov}>{gov}</option>
@@ -1377,7 +1397,14 @@ function App() {
             <InfoRow icon="inventory_2" title="طريقة التوصيل" body="التسليم داخل سوريا عبر القدموس عند توفر رقم الشحنة." />
             <CurrencyToggle value={paymentCurrency} onChange={setPaymentCurrency} />
             <PriceBreakdown items={breakdown} total={total} format={formatPrice} />
-            <button className="primary-action" disabled={isStartingPayment} onClick={confirmOrder}>
+            {(!recipient.name.trim() || !recipient.phone.trim()) && (
+              <p className="min-order-notice">يرجى تعبئة اسم المستلم ورقم الواتساب قبل تأكيد الطلب</p>
+            )}
+            <button
+              className="primary-action"
+              disabled={isStartingPayment || !recipient.name.trim() || !recipient.phone.trim() || !recipient.governorate}
+              onClick={confirmOrder}
+            >
               {isStartingPayment
                 ? 'جاري تأكيد الطلب...'
                 : PAYMENT_MODE === 'auto' ? 'تأكيد الطلب' : 'الدفع الآن عبر شام كاش'}

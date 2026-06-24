@@ -9,7 +9,7 @@ import zlib from 'zlib'
 import { createRequire } from 'module'
 import { fileURLToPath } from 'url'
 import { createOtp, verifyOtp } from './otpStore.js'
-import { sendOtpMessage, getConnectionStatus, connectOnDemand } from './whatsapp.js'
+import { sendOtpMessage, sendNotificationMessage, getConnectionStatus, connectOnDemand } from './whatsapp.js'
 import { supabase } from './supabase.js'
 import { sendTelegramNotification, isTelegramConfigured } from './telegram.js'
 
@@ -369,6 +369,26 @@ router.get('/exchange-rate', async (req, res) => {
     // Return cached value if available, otherwise env fallback
     const rate = _rateCache.rate || fallback
     res.json({ rate, buy: rate, sell: rate, updatedAt: _rateCache.updatedAt || Date.now(), cached: !!_rateCache.rate, source: 'fallback' })
+  }
+})
+
+// ============================================================
+// 📲 إشعار واتساب للمستخدم — يُستدعى من التطبيق عند إنشاء إشعار تطبيق
+// (تحديث حالة طلب، تأكيد دفع...) ليصل للمستخدم على نفس رقم الواتساب
+// المسجَّل دخوله فيه
+// ============================================================
+
+router.post('/notify/whatsapp', async (req, res) => {
+  try {
+    const { phone, text } = req.body
+    if (!phone || !text) {
+      return res.status(400).json({ error: 'missing_fields' })
+    }
+    await sendNotificationMessage(phone, text)
+    res.json({ ok: true })
+  } catch (err) {
+    console.error('WhatsApp notify error:', err.message)
+    res.status(500).json({ error: 'notify_failed', message: err.message })
   }
 })
 

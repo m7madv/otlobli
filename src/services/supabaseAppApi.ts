@@ -340,19 +340,19 @@ export const supabaseAppApi: TalabiehApi = {
   },
 }
 
-// إشعار Telegram للمشرف عند وصول طلب جديد (fire-and-forget، غير حيوي)
+// إشعار Telegram للمشرف عند وصول طلب جديد (fire-and-forget، غير حيوي).
+// كان يستخدم سابقاً دالة Supabase Edge (telegram-notify) لكنها ترفض كل
+// الطلبات بـ401 لأنها تتطلب x-admin-pin ولم يكن يُرسَل عند إنشاء طلب جديد -
+// هذا هو السبب الحقيقي لعدم وصول إشعارات الطلبات الجديدة. مسار سيرفر
+// Railway الحالي (/api/orders/notify) لا يتطلب أي pin ويستخدم نفس متغيرات
+// TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID المُعدّة مسبقاً هناك.
 function notifyNewOrder(orderPayload: Record<string, unknown>) {
   try {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined
-    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
-    if (supabaseUrl && anonKey) {
-      void fetch(`${supabaseUrl}/functions/v1/telegram-notify`, {
+    const apiBase = import.meta.env.VITE_WHATSAPP_API_URL as string | undefined
+    if (apiBase) {
+      void fetch(`${apiBase}/api/orders/notify`, {
         method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'apikey': anonKey,
-          'authorization': `Bearer ${anonKey}`,
-        },
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ order: orderPayload }),
       }).catch(() => undefined)
     }

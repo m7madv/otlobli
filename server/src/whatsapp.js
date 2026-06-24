@@ -183,3 +183,15 @@ export async function sendOtpMessage(phone, code) {
 
   resetIdleTimer()
 }
+
+// رسالة واتساب عامة لأي إشعار (تحديث طلب، تأكيد دفع...) - تستخدم نفس
+// الاتصال عند الطلب (on-demand) الذي تستخدمه رسائل OTP.
+export async function sendNotificationMessage(phone, text) {
+  await connectOnDemand()
+
+  const jid = phone.replace(/[\s\-\(\)\+]/g, '') + '@s.whatsapp.net'
+  await sock.sendMessage(jid, { text })
+  console.log(`✅ إشعار واتساب → ${phone}`)
+
+  resetIdleTimer()
+}

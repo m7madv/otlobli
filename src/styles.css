@@ -111,14 +111,23 @@ a {
 }
 
 .app-header {
-  position: sticky;
+  /* position:sticky breaks here because .mobile-shell (its ancestor) has
+     overflow:hidden - any ancestor with overflow other than visible disables
+     sticky positioning per spec, and WebKit/iOS enforces this strictly
+     (confirmed: header scrolled away with content instead of staying put).
+     position:fixed + the same right:50%/translateX(50%) centering trick
+     .bottom-nav already uses sidesteps that entirely. */
+  position: fixed;
   top: 0;
-  z-index: 20;
+  right: 50%;
+  z-index: 30;
   display: flex;
   align-items: center;
   justify-content: space-between;
   min-height: 64px;
+  width: min(100%, 440px);
   padding: env(safe-area-inset-top, 0px) 16px 0;
+  transform: translateX(50%);
   border-bottom: 1px solid var(--outline);
   background: rgba(247, 249, 251, 0.88);
   backdrop-filter: blur(14px);
@@ -154,14 +163,21 @@ a {
   background: var(--surface-soft);
 }
 
+/* Top padding clears the now-fixed .app-header (64px + real safe-area-inset-top,
+   which is far bigger than 24px on notched/Dynamic-Island iPhones). Bottom
+   padding clears .bottom-nav using the SAME calc() .bottom-nav itself uses
+   for its height - the old flat 96px assumed a ~16px safe-area-inset-bottom
+   floor, but real iPhones report 34px, so the nav was taller than the
+   padding and list items peeked out from underneath it. */
 .mobile-content {
   display: grid;
   gap: 20px;
-  padding: 24px 16px 96px;
+  padding: calc(64px + env(safe-area-inset-top, 0px) + 20px) 16px
+    calc(74px + max(env(safe-area-inset-bottom, 0px), 16px) + 16px);
 }
 
 .mobile-content--cart {
-  padding-bottom: 180px;
+  padding-bottom: calc(74px + max(env(safe-area-inset-bottom, 0px), 16px) + 78px + 16px);
 }
 
 .sticky-pay-bar {
@@ -699,7 +715,9 @@ a {
 .gallery {
   position: relative;
   overflow: hidden;
-  margin: -24px -16px 0;
+  /* Cancels out .mobile-content's new dynamic top padding (see comment
+     there) so the gallery photo still sits flush against the header. */
+  margin: calc(-1 * (64px + env(safe-area-inset-top, 0px) + 20px)) -16px 0;
   background: var(--surface);
 }
 

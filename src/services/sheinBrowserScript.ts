@@ -1670,7 +1670,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // innerText.
     if (!document.body || document.body.children.length > 8) return;
     var bodyText = document.body.innerText;
-    if (bodyText && bodyText.length < 2000 && /GSRM|gone missing/i.test(bodyText)) {
+    if (bodyText && bodyText.length < 2000 && /GSRM|gone missing|not avaliable|not available|system not/i.test(bodyText)) {
       sheinBlockReported = true;
       if (window.mobileApp && window.mobileApp.postMessage) {
         window.mobileApp.postMessage({ detail: { type: 'sheinBlocked' } });
