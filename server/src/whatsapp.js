@@ -155,7 +155,14 @@ async function initWhatsapp() {
         const reason = lastDisconnect?.error?.message || 'unknown'
         console.log(`❌ WhatsApp انقطع (${code}): ${reason}`)
 
-        if (code === DisconnectReason.loggedOut || code === 403) {
+        if (code === DisconnectReason.loggedOut) {
+          // Baileys's OWN code for "actually logged out" is 401, not 403 -
+          // this used to ALSO wipe the session on a plain 403 ("forbidden"),
+          // but that fired on a routine transient reconnect failure right
+          // after an unrelated stream error, destroying a session that was
+          // still genuinely valid (confirmed: an OTP had just sent
+          // successfully seconds earlier through it). Only a real 401 means
+          // the link itself was actually revoked and needs a fresh QR scan.
           console.log('🗑️  الجلسة منتهية — سيُطلب QR جديد في المرة القادمة')
           clearSession()
           reject(new Error('انتهت جلسة WhatsApp. أعد ربط الرقم من خلال QR.'))
