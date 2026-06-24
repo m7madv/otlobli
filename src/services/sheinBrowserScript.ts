@@ -1147,7 +1147,15 @@ export const SHEIN_CAPTURE_SCRIPT = `
       btn.setAttribute('aria-label', 'إضافة إلى سلة otlobli');
       // Cleared above ensureOtlobliNav's bar (~64px + safe-area) instead of
       // sitting flush with the screen edge, so the two never overlap.
+      // translateZ(0)/will-change forces this onto its own GPU compositing
+      // layer - a documented Android WebView quirk lets plain position:fixed
+      // elements drift with the page during touch-scroll momentum (only
+      // snapping back once scrolling fully stops, or in this case ending up
+      // hidden behind the system nav bar when scrolling back up) instead of
+      // staying pinned to the viewport the whole time; a composited layer
+      // is what actually keeps it visually anchored throughout the gesture.
       btn.style.cssText = 'position:fixed;right:14px;bottom:calc(78px + env(safe-area-inset-bottom, 0px));' +
+        'transform:translateZ(0);will-change:transform;' +
         'min-width:128px;height:48px;z-index:2147483647;' +
         'background:#006948;color:#fff;border:none;border-radius:24px;display:none;align-items:center;' +
         'justify-content:center;gap:6px;font-size:14px;font-weight:800;line-height:1;direction:rtl;' +
@@ -1239,7 +1247,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // Android, env(safe-area-inset-bottom) can report 0 even with a 3-button
     // system nav bar on screen, letting taps near the bottom edge land in
     // the system's gesture/button strip instead of these nav buttons.
-    nav.style.cssText = 'position:fixed;left:50%;bottom:0;transform:translateX(-50%);' +
+    // translateZ(0)/will-change forces this onto its own GPU compositing
+    // layer - confirmed real symptom: a plain position:fixed bar on Android
+    // WebView showed correctly while scrolling down, but disappeared behind
+    // the phone's own system navigation bar when scrolling back up. A
+    // composited layer keeps it visually pinned to the viewport throughout
+    // the scroll gesture instead of drifting with page content/system UI.
+    nav.style.cssText = 'position:fixed;left:50%;bottom:0;transform:translateX(-50%) translateZ(0);will-change:transform;' +
       'width:min(100%, 440px);z-index:2147483647;display:flex;' +
       'min-height:74px;background:rgba(255,255,255,.97);border-top:1px solid #bccac0;' +
       'padding-bottom:max(env(safe-area-inset-bottom, 0px), 16px);';
@@ -1317,7 +1331,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
       btn.setAttribute('aria-label', 'رجوع');
       // Top-right corner, mirroring the cart button's top-left spot, so the
       // two don't crowd into the same corner.
+      // translateZ(0)/will-change forces this onto its own GPU compositing
+      // layer - see the matching comment on the nav bar's cssText. Confirmed
+      // real symptom here too: this button visibly drifted/moved during
+      // scroll instead of staying pinned to the same spot on screen.
       btn.style.cssText = 'position:fixed;right:10px;top:12px;width:42px;height:42px;z-index:2147483647;' +
+        'transform:translateZ(0);will-change:transform;' +
         'background:rgba(20,24,22,.6);color:#fff;border:none;border-radius:11px;display:none;' +
         'align-items:center;justify-content:center;font-size:20px;line-height:1;' +
         'box-shadow:0 4px 12px rgba(0,0,0,.32);animation:otlobli-pop2 .25s ease-out;';
