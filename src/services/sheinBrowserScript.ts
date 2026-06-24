@@ -1179,6 +1179,17 @@ export const SHEIN_CAPTURE_SCRIPT = `
     for (var i = 0; i < items.length; i++) {
       var item = items[i];
       var tab = document.createElement('button');
+      // Without its own id, only the #otlobli-nav CONTAINER was recognized
+      // as "ours" by the document click listener's otlobli-id guard - by the
+      // time the walk reaches that far up, isQuickAddSubmitButton() had
+      // ALREADY matched the cart tab's own text ("السلة" is literally in its
+      // loose cart-keyword regex) and silently swallowed the click before
+      // ever getting there. Confirmed real bug, not a guess: the cart tab's
+      // own label defeats SHEIN's "quick add" button blocker, which exists
+      // to silently eat listing-card mini cart buttons - ours looked like
+      // one of those to it. Each tab needs its own otlobli-prefixed id so
+      // that guard catches it at depth 0, before any of the is*() checks run.
+      tab.id = 'otlobli-nav-tab-' + i;
       var isActiveTab = !item.type;
       tab.style.cssText = 'position:relative;flex:1;border:0;background:transparent;display:flex;' +
         'flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:6px 0;' +

@@ -1117,7 +1117,7 @@ function App() {
     if (screen === 'loading') {
       return (
         <MobileShell active="home" onNavigate={setScreen}>
-          <Header title="جلب المنتج" />
+          <Header title="جلب المنتج" unreadCount={unreadCount} onNotifications={openNotifications} />
           <main className="mobile-content">
             <div className="skeleton-card">
               <div className="skeleton image" />
@@ -1354,7 +1354,7 @@ function App() {
     if (screen === 'cart') {
       return (
         <MobileShell active="cart" onNavigate={setScreen}>
-          <Header title="السلة" back={() => setScreen('home')} />
+          <Header title="السلة" back={() => setScreen('home')} unreadCount={unreadCount} onNotifications={openNotifications} />
           <main className="mobile-content mobile-content--cart">
             {cartItems.length > 0 ? (
               <>
@@ -1434,7 +1434,7 @@ function App() {
     if (screen === 'checkout') {
       return (
         <MobileShell active="cart" onNavigate={setScreen} hideBottomNav>
-          <Header title="بيانات الاستلام" back={() => setScreen('cart')} />
+          <Header title="بيانات الاستلام" back={() => setScreen('cart')} unreadCount={unreadCount} onNotifications={openNotifications} />
           <main className="mobile-content">
             <div className="form-card">
               <label className="field">
@@ -1494,7 +1494,7 @@ function App() {
       if (!pendingPayment) {
         return (
           <MobileShell active="cart" onNavigate={setScreen} hideBottomNav>
-            <Header title="دفع شام كاش" back={() => setScreen('checkout')} />
+            <Header title="دفع شام كاش" back={() => setScreen('checkout')} unreadCount={unreadCount} onNotifications={openNotifications} />
             <main className="mobile-content">
               <EmptyState title="لا يوجد طلب بانتظار الدفع" body="رجّع لسلتك وابدأ الدفع من جديد." />
             </main>
@@ -1510,7 +1510,7 @@ function App() {
 
       return (
         <MobileShell active="cart" onNavigate={setScreen} hideBottomNav>
-          <Header title="دفع شام كاش" back={() => setScreen('checkout')} />
+          <Header title="دفع شام كاش" back={() => setScreen('checkout')} unreadCount={unreadCount} onNotifications={openNotifications} />
           <main className="mobile-content">
             <section className="payment-card">
               <div className="qr-code"><Icon name="qr_code_2" /></div>
@@ -1589,7 +1589,7 @@ function App() {
       if (!order) {
         return (
           <MobileShell active="orders" onNavigate={setScreen}>
-            <Header title="تتبع الطلب" back={() => setScreen('orders')} />
+            <Header title="تتبع الطلب" back={() => setScreen('orders')} unreadCount={unreadCount} onNotifications={openNotifications} />
             <main className="mobile-content">
               <EmptyState title="لا يوجد طلب" body="اختر طلباً من قائمة طلباتك لتتبعه." />
             </main>
@@ -1598,7 +1598,7 @@ function App() {
       }
       return (
         <MobileShell active="orders" onNavigate={setScreen}>
-          <Header title="تتبع الطلب" back={() => setScreen('orders')} />
+          <Header title="تتبع الطلب" back={() => setScreen('orders')} unreadCount={unreadCount} onNotifications={openNotifications} />
           <main className="mobile-content">
             <section className="tracking-head">
               <span>{order.id}</span>
@@ -1625,7 +1625,7 @@ function App() {
       if (editingProfile) {
         return (
           <MobileShell active="profile" onNavigate={setScreen}>
-            <Header title="تعديل الملف الشخصي" back={() => setEditingProfile(false)} />
+            <Header title="تعديل الملف الشخصي" back={() => setEditingProfile(false)} unreadCount={unreadCount} onNotifications={openNotifications} />
             <main className="mobile-content">
               <div className="form-card">
                 <label className="field">
@@ -1704,7 +1704,7 @@ function App() {
     if (screen === 'addresses') {
       return (
         <MobileShell active="profile" onNavigate={setScreen} hideBottomNav>
-          <Header title="العناوين" back={() => setScreen('profile')} />
+          <Header title="العناوين" back={() => setScreen('profile')} unreadCount={unreadCount} onNotifications={openNotifications} />
           <AccountDetailLayout>
             {addresses.map((address) => (
               <section className={`address-card ${address.isDefault ? 'is-default' : ''}`} key={address.id}>
@@ -1737,7 +1737,7 @@ function App() {
     if (screen === 'payment-methods') {
       return (
         <MobileShell active="profile" onNavigate={setScreen} hideBottomNav>
-          <Header title="طرق الدفع" back={() => setScreen('profile')} />
+          <Header title="طرق الدفع" back={() => setScreen('profile')} unreadCount={unreadCount} onNotifications={openNotifications} />
           <AccountDetailLayout>
             <section className="wallet-card">
               <div>
@@ -1763,7 +1763,7 @@ function App() {
     if (screen === 'blocked-policy') {
       return (
         <MobileShell active="profile" onNavigate={setScreen} hideBottomNav>
-          <Header title="سياسة المنتجات" back={() => setScreen('profile')} />
+          <Header title="سياسة المنتجات" back={() => setScreen('profile')} unreadCount={unreadCount} onNotifications={openNotifications} />
           <AccountDetailLayout>
             <section className="policy-card">
               <h2>نقبل حالياً</h2>
@@ -1789,7 +1789,7 @@ function App() {
     if (screen === 'terms') {
       return (
         <MobileShell active="profile" onNavigate={setScreen} hideBottomNav>
-          <Header title="الشروط والأحكام" back={() => setScreen('profile')} />
+          <Header title="الشروط والأحكام" back={() => setScreen('profile')} unreadCount={unreadCount} onNotifications={openNotifications} />
           <AccountDetailLayout>
             <LegalSection title="التسعير">
               السعر النهائي يشمل سعر المنتج والشحن والرسوم التشغيلية المتوقعة. يبقى السعر صالحاً خلال جلسة الدفع فقط.
@@ -1811,7 +1811,7 @@ function App() {
     if (screen === 'support') {
       return (
         <MobileShell active="profile" onNavigate={setScreen} hideBottomNav>
-          <Header title="الدعم" back={() => setScreen('profile')} />
+          <Header title="الدعم" back={() => setScreen('profile')} unreadCount={unreadCount} onNotifications={openNotifications} />
           <AccountDetailLayout>
             <section className="support-card">
               <h2>كيف نساعدك؟</h2>
