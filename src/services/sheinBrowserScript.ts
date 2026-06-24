@@ -1154,7 +1154,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
       // hidden behind the system nav bar when scrolling back up) instead of
       // staying pinned to the viewport the whole time; a composited layer
       // is what actually keeps it visually anchored throughout the gesture.
-      btn.style.cssText = 'position:fixed;right:14px;bottom:calc(78px + max(env(safe-area-inset-bottom, 0px), 56px));' +
+      // The 56px floor this used to need is gone now that the native side
+      // applies its own bottom margin (enabledSafeBottomMargin in App.tsx) -
+      // that's the real fix for the system nav bar overlap; this env()
+      // fallback only needs to cover whatever small gesture-inset remains
+      // after that, same as it did before that bug was ever introduced.
+      btn.style.cssText = 'position:fixed;right:14px;bottom:calc(78px + env(safe-area-inset-bottom, 0px));' +
         'transform:translateZ(0);will-change:transform;' +
         'min-width:128px;height:48px;z-index:2147483647;' +
         'background:#006948;color:#fff;border:none;border-radius:24px;display:none;align-items:center;' +
@@ -1253,22 +1258,17 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // the phone's own system navigation bar when scrolling back up. A
     // composited layer keeps it visually pinned to the viewport throughout
     // the scroll gesture instead of drifting with page content/system UI.
-    // The app targets Android SDK 36, which mandates edge-to-edge display -
-    // content always extends behind the system nav bar, and apps must add
-    // their own inset padding to avoid it being covered. env(safe-area-
-    // inset-bottom) is meant to report that automatically, but inside this
-    // plugin's own separate native Dialog window it was confirmed to still
-    // resolve to 0 - same root issue the floor below already existed for,
-    // just badly underestimated: 16px doesn't come close to covering a real
-    // 3-button nav bar (~48-56px), so it rendered overlapping/behind it.
-    // Bumped the floor to 56px instead of trying to detect the real value
-    // (no reliable way to from page JS) - generous enough to clear it on
-    // every device this was confirmed on, and harmless on devices where
-    // env() DOES resolve correctly (max() just uses whichever is bigger).
+    // The system-nav-bar overlap this used to need a bigger floor for is
+    // really fixed natively now (enabledSafeBottomMargin in App.tsx) - the
+    // WebView's own bounds correctly shrink to avoid the system bar at the
+    // native level, so env(safe-area-inset-bottom) only has whatever small
+    // gesture-inset is left over to report. Back to the original 16px floor
+    // for that, same as before that bug was ever introduced - a bigger one
+    // now would just add needless empty space under the icons.
     nav.style.cssText = 'position:fixed;left:50%;bottom:0;transform:translateX(-50%) translateZ(0);will-change:transform;' +
       'width:min(100%, 440px);z-index:2147483647;display:flex;' +
       'min-height:74px;background:rgba(255,255,255,.97);border-top:1px solid #bccac0;' +
-      'padding-bottom:max(env(safe-area-inset-bottom, 0px), 56px);';
+      'padding-bottom:max(env(safe-area-inset-bottom, 0px), 16px);';
     var items = [
       { label: 'الرئيسية', icon: OTLOBLI_NAV_ICONS.home, type: '' },
       { label: 'طلباتي', icon: OTLOBLI_NAV_ICONS.orders, type: 'openOrders' },

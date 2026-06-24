@@ -632,6 +632,17 @@ function App() {
       // permanently blank home screen. This keeps back navigation inside the webview.
       activeNativeNavigationForWebview: true,
       disableGoBackOnNativeApplication: true,
+      // Defaults to false in the plugin itself - without this, the native
+      // WebView's own bounds extend all the way to the physical bottom edge
+      // (this app targets Android SDK 36, which mandates edge-to-edge
+      // display), and the system's own 3-button nav bar then draws ON TOP of
+      // whatever's there, overlapping otlobli's nav bar rather than sitting
+      // below it. This applies the missing margin at the native WebView
+      // level instead of trying to compensate from CSS inside the page
+      // (env(safe-area-inset-bottom) was confirmed unreliable in this
+      // specific Dialog context, which is a different surface than the
+      // main Activity it normally works on).
+      enabledSafeBottomMargin: true,
       // Used to route Android traffic through a Cloudflare Worker relay here
       // (outboundProxyRules) so the device's own geo-blocked IP was never
       // what shein.com saw, while iOS skipped it (the relay crashed iOS's
