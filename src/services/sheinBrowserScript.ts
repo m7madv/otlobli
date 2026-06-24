@@ -26,13 +26,20 @@ export const SHEIN_CAPTURE_SCRIPT = `
   ensureViewportFitCover();
 
   // SHEIN's Jordan site defaults to English ("language=joen"); "jo" renders Arabic.
-  // Force it once via cookie + a single reload, then it sticks for future loads.
+  // Force it once via cookie + a reload, then it sticks for future loads.
+  // Allows up to 2 reload attempts (was 1) - direct connections (no relay,
+  // since Android dropped that path) can race the cookie write against the
+  // page's own first content request on a slow/just-toggled-VPN connection,
+  // so one attempt occasionally still rendered English; a single retry
+  // counter, reset per real navigation via sessionStorage, costs nothing on
+  // the normal case where the first reload already worked.
   var hasArabic = /(?:^|; )language=jo(?:;|$)/.test(document.cookie);
   var hasEnglish = /(?:^|; )language=joen(?:;|$)/.test(document.cookie);
   if (!hasArabic || hasEnglish) {
     document.cookie = 'language=jo; path=/; max-age=31536000';
-    if (!sessionStorage.getItem('__otlobliArLoaded')) {
-      sessionStorage.setItem('__otlobliArLoaded', '1');
+    var arReloadAttempts = parseInt(sessionStorage.getItem('__otlobliArReloads') || '0', 10);
+    if (arReloadAttempts < 2) {
+      sessionStorage.setItem('__otlobliArReloads', String(arReloadAttempts + 1));
       location.reload();
       return;
     }
