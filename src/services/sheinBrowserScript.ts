@@ -681,8 +681,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var overlay = document.createElement('div');
     overlay.id = 'otlobli-overlay';
     overlay.setAttribute('data-shown-at', String(Date.now()));
+    // One below max (otlobli-nav/back-btn/add-btn all sit at the true max) so
+    // this blocking overlay can never end up painted on top of - and
+    // swallowing taps meant for - otlobli's own nav bar. Confirmed real: a
+    // user could only ever get the cart tab to respond after first bouncing
+    // through another tab, exactly the symptom of an overlay occasionally
+    // winning the stacking tie and eating the tap.
     overlay.style.cssText = 'position:fixed;left:0;top:0;width:' + vp.width + 'px;height:' + vp.height + 'px;' +
-      'background:rgba(10,20,16,.55);z-index:2147483647;display:flex;align-items:center;justify-content:center;';
+      'background:rgba(10,20,16,.55);z-index:2147483646;display:flex;align-items:center;justify-content:center;';
     overlay.addEventListener('touchmove', function (e) { e.preventDefault(); }, { passive: false });
     overlay.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); }, true);
 
@@ -1029,8 +1035,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var vp = viewportSize();
     var overlay = document.createElement('div');
     overlay.id = 'otlobli-loading';
+    // One below max - see the matching comment on #otlobli-overlay above,
+    // same reasoning: never let this win a stacking tie against the nav bar.
     overlay.style.cssText = 'position:fixed;left:0;top:0;width:' + vp.width + 'px;height:' + vp.height + 'px;' +
-      'background:#ffffff;z-index:2147483647;display:flex;align-items:center;justify-content:center;';
+      'background:#ffffff;z-index:2147483646;display:flex;align-items:center;justify-content:center;';
     overlay.addEventListener('touchmove', function (e) { e.preventDefault(); }, { passive: false });
     overlay.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); }, true);
     var spinner = document.createElement('div');

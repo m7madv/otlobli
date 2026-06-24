@@ -192,10 +192,13 @@ function App() {
   const [editGov, setEditGov] = useState('')
   const [sheinBlockedError, setSheinBlockedError] = useState(false)
   // iOS reaches SHEIN directly (see isIOS note) and needs the user's own VPN
-  // on first - opening the webview immediately just races straight into the
-  // network block every time. Gate behind an explicit screen instead of a
-  // toast that's easy to miss; Android never needs this (uses the relay).
-  const [iosVpnAcknowledged, setIosVpnAcknowledged] = useState(!isIOS)
+  // on - opening the webview immediately just races straight into the
+  // network block every time. Detected automatically (no manual "I turned it
+  // on" button): a no-cors HEAD request to SHEIN either succeeds (some
+  // network path exists - VPN is doing its job) or throws/times out (Syrian
+  // ISP-level block, no VPN) - that's enough signal without needing a native
+  // VPN-interface check. Android never needs this (uses the relay).
+  const [iosVpnState, setIosVpnState] = useState<'checking' | 'ok' | 'blocked'>(isIOS ? 'checking' : 'ok')
   const [notifications, setNotifications] = useStoredState<AppNotification[]>(storageKeys.notifications, [])
 
   // ref يبقى متزامناً مع orders لكشف تغيّر الحالة داخل poll بدون stale closure
@@ -570,11 +573,34 @@ function App() {
   // category of bug entirely: let the webview take the full screen, and draw
   // otlobli's own nav bar *inside* it (see ensureOtlobliNav in the injected
   // script) so there's only ever one surface to get right.
+  // no-cors HEAD request just to see whether SOME network path to SHEIN
+  // exists right now - it doesn't read the response (opaque under no-cors
+  // anyway), it only cares whether the call resolves or throws/times out.
+  // On Syrian networks without a VPN the connection itself never completes
+  // (SNI-level block), so this rejects; with VPN on it resolves normally.
+  const checkSheinReachable = async () => {
+    try {
+      await fetch(SHEIN_HOME_URL, { method: 'HEAD', mode: 'no-cors', cache: 'no-store', signal: AbortSignal.timeout(5000) })
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  useEffect(() => {
+    if (!isIOS || iosVpnState !== 'checking') return undefined
+    let cancelled = false
+    void checkSheinReachable().then((ok) => {
+      if (!cancelled) setIosVpnState(ok ? 'ok' : 'blocked')
+    })
+    return () => { cancelled = true }
+  }, [iosVpnState])
+
   const browseShein = () => {
     sheinOpenedRef.current = true
     // On iOS SHEIN is reached directly, so it only loads once the user's VPN
-    // is on - the explicit gate screen (iosVpnAcknowledged) already asked for
-    // that before this function ever runs, so no toast needed here anymore.
+    // is on - the iosVpnState check above already confirmed that before this
+    // function ever runs.
     void InAppBrowser.openWebView({
       url: SHEIN_HOME_URL,
       toolbarType: ToolBarType.BLANK,
@@ -618,13 +644,13 @@ function App() {
           void InAppBrowser.postMessage({ detail: { type: '__resize' } })
           void InAppBrowser.postMessage({ detail: { type: '__backTarget', target } })
         })
-      } else if (!isIOS || iosVpnAcknowledged) {
+      } else if (!isIOS || iosVpnState === 'ok') {
         browseShein()
       }
     } else if (sheinOpenedRef.current) {
       void InAppBrowser.hide()
     }
-  }, [screen, iosVpnAcknowledged])
+  }, [screen, iosVpnState])
 
   // Navigates the already-open SHEIN webview to a cart item's saved product
   // link and switches back to it, so tapping a product inside the cart shows
@@ -1840,19 +1866,27 @@ function App() {
       // hiding the webview just reveals a nav that was already laid out,
       // not one that still needs to render.
       <MobileShell active="home" onNavigate={setScreen}>
-        {(!sheinReady || sheinBlockedError || (isIOS && !iosVpnAcknowledged)) && (
+        {(!sheinReady || sheinBlockedError || (isIOS && iosVpnState !== 'ok')) && (
           <Header title="otlobli" unreadCount={unreadCount} onNotifications={() => setScreen('notifications')} />
         )}
-        {isIOS && !iosVpnAcknowledged ? (
+        {isIOS && iosVpnState === 'checking' ? (
+          <main className="mobile-content shein-home">
+            <section className="greeting">
+              <h1>جاري التحقق من الاتصال...</h1>
+              <p>نتأكد إن في طريق شبكة سليم لمتجر SHEIN</p>
+            </section>
+            <span className="spinner" />
+          </main>
+        ) : isIOS && iosVpnState === 'blocked' ? (
           <main className="mobile-content shein-home">
             <div className="empty-state">
               <Icon name="vpn_key" />
               <h2>فعّل الـ VPN أولاً</h2>
-              <p>متجر SHEIN محجوب في سوريا - شغّل تطبيق VPN على آيفونك، وبعدها اضغط الزر تحت.</p>
+              <p>متجر SHEIN محجوب في سوريا - شغّل تطبيق VPN على آيفونك، وبعدها اضغط الزر تحت لنتحقق من جديد.</p>
             </div>
-            <button className="primary-action" onClick={() => setIosVpnAcknowledged(true)}>
-              <Icon name="check_circle" />
-              فعّلت الـ VPN، فتح المتجر
+            <button className="primary-action" onClick={() => setIosVpnState('checking')}>
+              <Icon name="refresh" />
+              تحقّق من جديد
             </button>
           </main>
         ) : sheinBlockedError ? (

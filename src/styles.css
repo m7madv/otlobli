@@ -584,6 +584,10 @@ a {
   display: grid;
   place-items: center;
   align-content: center;
+  /* Nudges the icon+label block down from dead-center within the button
+     (the bar itself - height, position, padding-bottom safe-area math -
+     is untouched; only where the icon sits inside it moves). */
+  padding-top: 10px;
   gap: 4px;
   border: 0;
   background: transparent;
