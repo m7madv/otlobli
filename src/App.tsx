@@ -14,9 +14,9 @@ import { buildPriceBreakdown, formatMoney, formatPriceSyp, formatUsd, sumPriceLi
 import type { PaymentCurrency } from './domain/pricing'
 import type { Address, AppNotification, CartItem, Order, Product, ProductColor, ProductVariant, Recipient, Screen, StatusTone, UserProfile } from './domain/types'
 import { readStoredJson, storageKeys, useStoredState } from './infrastructure/localStorage'
-import { appApi, isSupabaseConfigured } from './services'
+import { appApi } from './services'
 import { supabase } from './services/supabaseClient'
-import { PAYMENT_MODE, APP_VERSION } from './config'
+import { PAYMENT_MODE } from './config'
 import { buildWhatsappLink } from './services/whatsappLink'
 import { SHEIN_CAPTURE_SCRIPT } from './services/sheinBrowserScript'
 import { InAppBrowser, ToolBarType } from '@capgo/capacitor-inappbrowser'
@@ -191,6 +191,11 @@ function App() {
   const [editName, setEditName] = useState('')
   const [editGov, setEditGov] = useState('')
   const [sheinBlockedError, setSheinBlockedError] = useState(false)
+  // iOS reaches SHEIN directly (see isIOS note) and needs the user's own VPN
+  // on first - opening the webview immediately just races straight into the
+  // network block every time. Gate behind an explicit screen instead of a
+  // toast that's easy to miss; Android never needs this (uses the relay).
+  const [iosVpnAcknowledged, setIosVpnAcknowledged] = useState(!isIOS)
   const [notifications, setNotifications] = useStoredState<AppNotification[]>(storageKeys.notifications, [])
 
   // ref يبقى متزامناً مع orders لكشف تغيّر الحالة داخل poll بدون stale closure
@@ -567,10 +572,9 @@ function App() {
   // script) so there's only ever one surface to get right.
   const browseShein = () => {
     sheinOpenedRef.current = true
-    // On iOS SHEIN is reached directly, so it only loads once the user's VPN is
-    // on. Remind them up front (the webview otherwise just sits hidden behind
-    // our home screen while the geo-blocked request hangs).
-    if (isIOS) showNotice('لفتح متجر SHEIN على الآيفون، فعّل الـ VPN أولاً')
+    // On iOS SHEIN is reached directly, so it only loads once the user's VPN
+    // is on - the explicit gate screen (iosVpnAcknowledged) already asked for
+    // that before this function ever runs, so no toast needed here anymore.
     void InAppBrowser.openWebView({
       url: SHEIN_HOME_URL,
       toolbarType: ToolBarType.BLANK,
@@ -614,13 +618,13 @@ function App() {
           void InAppBrowser.postMessage({ detail: { type: '__resize' } })
           void InAppBrowser.postMessage({ detail: { type: '__backTarget', target } })
         })
-      } else {
+      } else if (!isIOS || iosVpnAcknowledged) {
         browseShein()
       }
     } else if (sheinOpenedRef.current) {
       void InAppBrowser.hide()
     }
-  }, [screen])
+  }, [screen, iosVpnAcknowledged])
 
   // Navigates the already-open SHEIN webview to a cart item's saved product
   // link and switches back to it, so tapping a product inside the cart shows
@@ -650,6 +654,25 @@ function App() {
       void handle.then((h) => h.remove())
       if (sheinOpenedRef.current) void InAppBrowser.close()
     }
+  }, [])
+
+  // Backgrounding the app can drop the native SHEIN webview's visible state
+  // without firing any of our own events - resuming then showed a plain
+  // black screen (React's home fallback only renders while !sheinReady, but
+  // sheinReady was already true from before backgrounding, and the native
+  // layer wasn't actually back on screen). Re-assert it the same way the
+  // [screen] effect above already does whenever the user switches back to
+  // the home tab, just also on resume.
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && screenRef.current === 'home' && sheinOpenedRef.current) {
+        void InAppBrowser.show().then(() => {
+          void InAppBrowser.postMessage({ detail: { type: '__resize' } })
+        })
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
   }, [])
 
   useEffect(() => {
@@ -919,9 +942,6 @@ function App() {
             <Icon name="arrow_back" />
           </button>
           <p className="hint">يلزم تأكيد رقم واتساب قبل إنشاء أي طلب.</p>
-          <p className="hint" style={{ fontSize: '0.72rem', opacity: 0.55 }}>
-            النسخة {APP_VERSION} · قاعدة البيانات: {isSupabaseConfigured ? 'متصلة ✓' : 'غير متصلة ✗'}
-          </p>
         </AuthShell>
       )
     }
@@ -1820,10 +1840,22 @@ function App() {
       // hiding the webview just reveals a nav that was already laid out,
       // not one that still needs to render.
       <MobileShell active="home" onNavigate={setScreen}>
-        {(!sheinReady || sheinBlockedError) && (
+        {(!sheinReady || sheinBlockedError || (isIOS && !iosVpnAcknowledged)) && (
           <Header title="otlobli" unreadCount={unreadCount} onNotifications={() => setScreen('notifications')} />
         )}
-        {sheinBlockedError ? (
+        {isIOS && !iosVpnAcknowledged ? (
+          <main className="mobile-content shein-home">
+            <div className="empty-state">
+              <Icon name="vpn_key" />
+              <h2>فعّل الـ VPN أولاً</h2>
+              <p>متجر SHEIN محجوب في سوريا - شغّل تطبيق VPN على آيفونك، وبعدها اضغط الزر تحت.</p>
+            </div>
+            <button className="primary-action" onClick={() => setIosVpnAcknowledged(true)}>
+              <Icon name="check_circle" />
+              فعّلت الـ VPN، فتح المتجر
+            </button>
+          </main>
+        ) : sheinBlockedError ? (
           <main className="mobile-content shein-home">
             <div className="empty-state">
               <Icon name="wifi_off" />

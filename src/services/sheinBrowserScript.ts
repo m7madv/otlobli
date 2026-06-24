@@ -1038,11 +1038,32 @@ export const SHEIN_CAPTURE_SCRIPT = `
       'border-top-color:#006948;animation:otlobli-spin .8s linear infinite;';
     overlay.appendChild(spinner);
     document.body.appendChild(overlay);
-    window.setTimeout(function () {
+
+    // Used to remove this after a flat 1100ms no matter what - on a slow
+    // connection (the Syrian relay especially) the page is often still
+    // mid-load well past that, so the spinner vanished early and left the
+    // user staring at a half-rendered/blank page with nothing to indicate
+    // it was still working. Now it waits for the real page-load signal
+    // (with a short minimum so it doesn't just flash) and only force-closes
+    // after 8s as a safety net for a page that never fires load at all.
+    var minTimeElapsed = false;
+    var pageReady = document.readyState === 'complete';
+    function tryRemoveLoadingOverlay() {
+      if (__otlobliLoadingDone || !minTimeElapsed || !pageReady) return;
       __otlobliLoadingDone = true;
       var el = document.getElementById('otlobli-loading');
       if (el) el.remove();
-    }, 1100);
+    }
+    window.setTimeout(function () { minTimeElapsed = true; tryRemoveLoadingOverlay(); }, 400);
+    if (!pageReady) {
+      window.addEventListener('load', function () { pageReady = true; tryRemoveLoadingOverlay(); });
+    }
+    window.setTimeout(function () {
+      if (__otlobliLoadingDone) return;
+      __otlobliLoadingDone = true;
+      var el = document.getElementById('otlobli-loading');
+      if (el) el.remove();
+    }, 8000);
   }
 
   // Dedicated "add to cart" action. Used to share a corner with a floating
@@ -1661,14 +1682,18 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var sheinBlockReported = false;
   function checkForSheinSecurityBlock() {
     if (sheinBlockReported) return;
-    // document.body.innerText forces a full layout/reflow over the whole
-    // page - on a real SHEIN page (hundreds of nodes) that's expensive
-    // enough on a 300ms timer to noticeably stall the main thread (tap/
-    // scroll responsiveness), which is worse than the block page itself.
-    // The real block page renders almost nothing, so a cheap childElement
-    // count (no reflow) filters out every normal page before ever touching
-    // innerText.
-    if (!document.body || document.body.children.length > 8) return;
+    if (!document.body) return;
+    // No childElement-count pre-filter here (a previous version skipped this
+    // check entirely whenever body.children.length > 8, meant to dodge the
+    // cost of a full-page reflow on busy SHEIN pages) - confirmed broken: the
+    // generic carrier-level "System Not Avaliable" block page itself has more
+    // than 8 direct body children, so that gate silently skipped the ONE page
+    // this function exists to catch, every time, without ever reaching the
+    // regex below. This whole check already runs on its own slow 1s interval
+    // (not the fast 300ms tick), so one innerText reflow/second is cheap
+    // regardless of page complexity - bodyText.length < 2000 below is the
+    // real, reliable discriminator (block pages are short; real SHEIN pages
+    // never are), not the element count.
     var bodyText = document.body.innerText;
     if (bodyText && bodyText.length < 2000 && /GSRM|gone missing|not avaliable|not available|system not/i.test(bodyText)) {
       sheinBlockReported = true;
