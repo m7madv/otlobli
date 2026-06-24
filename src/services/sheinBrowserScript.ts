@@ -1794,6 +1794,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   function tick() {
+    // Same documentStart race as the MutationObserver fix above - body can
+    // still be null on the very first tick() call (the direct one at the
+    // bottom of this script, before the parser has necessarily reached
+    // <body>). Every function below ultimately needs body to exist, so bail
+    // out cheaply here instead of each of them hitting it separately; the
+    // setInterval(tick, 300) already scheduled will simply call this again
+    // shortly, by which point the parser is essentially always done with it.
+    if (!document.body) return;
     ensureViewportFitCover();
     ensureLoadingOverlay();
     blockCartNavigation();
@@ -1838,8 +1846,24 @@ export const SHEIN_CAPTURE_SCRIPT = `
   };
   window.addEventListener('popstate', scheduleTick);
 
+  // document.body observe(document.body, ...) here used to throw outright
+  // at this documentStart injection timing - the parser hasn't necessarily
+  // reached <body> yet, so it's still null. Confirmed via the actual error
+  // in chromium's console log: "Failed to execute 'observe' on
+  // 'MutationObserver': parameter 1 is not of type 'Node'." With nothing
+  // catching it, that exception HALTED THE ENTIRE SCRIPT right here - every
+  // line after it (both setInterval(tick, ...) calls, the block-detector,
+  // the very first tick()) silently never ran for the rest of that page
+  // load, no matter how long the page lived. This is the real explanation
+  // behind today's whole grab-bag of "sometimes works, sometimes doesn't"
+  // symptoms (cart tab, nav position, block detection) - they're all code
+  // inside tick()/the intervals below, which this exception was randomly
+  // skipping depending only on how fast the page happened to parse relative
+  // to when this line ran. document.documentElement (<html>) - unlike body -
+  // is guaranteed to exist this early, and observing it with subtree:true
+  // covers body and everything under it once they do appear.
   var observer = new MutationObserver(scheduleTick);
-  observer.observe(document.body, { childList: true, subtree: true });
+  observer.observe(document.documentElement, { childList: true, subtree: true });
 
   setInterval(tick, 300);
   // hideKnownHeaderIconsByHint specifically needs to win what looks like an

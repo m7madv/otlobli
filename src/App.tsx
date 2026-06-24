@@ -702,20 +702,6 @@ function App() {
     }
   }, [])
 
-  // Native-level signal that the navigation itself failed (DNS/TLS/connection
-  // refused) - fires even when the in-page block-page text detector can't
-  // (e.g. a genuinely dead connection never runs ANY injected JS at all,
-  // since there's no page to inject into). Second line of defense alongside
-  // the pre-flight image check and the in-page text detector - none of the
-  // three alone reliably covers every way the Syrian block can manifest.
-  useEffect(() => {
-    const handle = InAppBrowser.addListener('pageLoadError', () => {
-      void InAppBrowser.hide()
-      setSheinBlockedError(true)
-    })
-    return () => { void handle.then((h) => h.remove()) }
-  }, [])
-
   // Backgrounding the app can drop the native SHEIN webview's visible state
   // without firing any of our own events - resuming then showed a plain
   // black screen (React's home fallback only renders while !sheinReady, but
