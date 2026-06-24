@@ -1169,10 +1169,15 @@ export const SHEIN_CAPTURE_SCRIPT = `
         addToCartFlow(colorState, sizeState);
       }, true);
       document.body.appendChild(btn);
-    } else if (btn !== document.body.lastElementChild) {
-      // Same re-claim-the-top reasoning as ensureOtlobliNav.
-      document.body.appendChild(btn);
     }
+    // Deliberately NOT re-claiming "last child of body" here on every tick
+    // like ensureOtlobliNav does - this button has a pop-in entrance
+    // animation (otlobli-pop2), and re-appendChild-ing an EXISTING node
+    // retriggers that animation every time, which on a busy SPA page (where
+    // something else is *always* getting added after it) meant this button
+    // visibly flickered/re-popped every ~300ms. The nav bar doesn't have
+    // that animation and visually can't tell the difference, so it was safe
+    // there; this one very much could.
     btn.style.display = looksLikeProductPage() ? 'flex' : 'none';
   }
 
@@ -1194,17 +1199,28 @@ export const SHEIN_CAPTURE_SCRIPT = `
     profile: '<circle cx="12" cy="8" r="3.6"/><path d="M5 20c0-3.8 3.1-6.4 7-6.4s7 2.6 7 6.4"/>',
   };
 
+  var __otlobliNavLastReclaim = 0;
   function ensureOtlobliNav() {
     var existingNav = document.getElementById('otlobli-nav');
     if (existingNav) {
-      // Keep re-claiming "last child of body" on every tick. SHEIN's own SPA
-      // keeps inserting new elements (promo banners, popups, app-install
-      // prompts...) - some can land on the SAME max z-index we use, and on a
-      // tie the LATER sibling in DOM order wins paint priority. Without this,
-      // a SHEIN element appended after ours could end up physically covering
-      // (and silently swallowing taps on) our own nav bar - confirmed
-      // symptom: cart tab going unresponsive until switching tabs and back.
-      if (existingNav !== document.body.lastElementChild) document.body.appendChild(existingNav);
+      // Re-claiming "last child of body" fixes a real bug (SHEIN's own SPA
+      // keeps inserting new elements - promo banners, popups, app-install
+      // prompts - some at the SAME max z-index we use, and on a tie the
+      // LATER sibling in DOM order wins paint priority; without re-claiming,
+      // one of those could end up physically covering, and silently
+      // swallowing taps on, our own nav bar - confirmed symptom: cart tab
+      // going unresponsive until switching tabs and back). But moving an
+      // already-mounted node still costs a reflow even though its position:
+      // fixed coordinates don't change, and doing that every single 300ms
+      // tick (this runs that often) was visibly unsettling the bar/causing a
+      // flicker on a page that's nearly always inserting *something*. Once
+      // every ~2s is still fast enough that a stray SHEIN element can't sit
+      // on top for long, at a fraction of the reflow cost.
+      var now = Date.now();
+      if (existingNav !== document.body.lastElementChild && now - __otlobliNavLastReclaim > 2000) {
+        __otlobliNavLastReclaim = now;
+        document.body.appendChild(existingNav);
+      }
       return;
     }
     ensureShakeStyle();
@@ -1328,10 +1344,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if (!looksLikeHomeRoot()) history.back();
       }, true);
       document.body.appendChild(btn);
-    } else if (btn !== document.body.lastElementChild) {
-      // Same re-claim-the-top reasoning as ensureOtlobliNav.
-      document.body.appendChild(btn);
     }
+    // Deliberately NOT re-claiming "last child of body" here on every tick -
+    // see the matching comment in ensureAddToCartButton. This button has the
+    // same otlobli-pop2 entrance animation, which a repeated appendChild on
+    // an already-mounted node retriggers, causing a visible flicker every
+    // ~300ms on a page that's always inserting something else after it.
     var shouldShow = __otlobliBackTarget === 'cart' || !looksLikeHomeRoot();
     btn.style.display = shouldShow ? 'flex' : 'none';
   }
