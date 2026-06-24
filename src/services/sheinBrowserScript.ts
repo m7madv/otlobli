@@ -1191,7 +1191,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
       // that guard catches it at depth 0, before any of the is*() checks run.
       tab.id = 'otlobli-nav-tab-' + i;
       var isActiveTab = !item.type;
-      tab.style.cssText = 'position:relative;flex:1;border:0;background:transparent;display:flex;' +
+      // height:100% + the icon/label wrap below filling its own full cell
+      // makes the WHOLE tab cell tappable edge-to-edge instead of just a
+      // tight box around the visible icon+label glyphs.
+      tab.style.cssText = 'position:relative;flex:1;height:100%;border:0;background:transparent;display:flex;' +
         'flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:6px 0;' +
         'font-size:0.76rem;font-weight:700;font-family:inherit;color:' + (isActiveTab ? '#006948' : '#3d4a42') + ';';
       if (isActiveTab) {
@@ -1200,7 +1203,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
         tab.appendChild(indicator);
       }
       var iconLabelWrap = document.createElement('span');
-      iconLabelWrap.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:4px;';
+      iconLabelWrap.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;' +
+        'gap:4px;width:100%;height:100%;pointer-events:none;';
       iconLabelWrap.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
         'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + item.icon + '</svg>' +
         '<span>' + item.label + '</span>';
