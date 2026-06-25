@@ -495,10 +495,33 @@ begin
     'paidAt', found_order.paid_at,
     'paymentAmount', found_order.payment_amount,
     'paymentCurrency', found_order.payment_currency,
-    'paymentExpiresAt', found_order.payment_expires_at
+    'paymentExpiresAt', found_order.payment_expires_at,
+    'qadmousNumber', found_order.qadmous_number
   );
 end;
 $$;
 
 revoke all on function public.get_order_payment_status(text) from public;
 grant execute on function public.get_order_payment_status(text) to anon, authenticated;
+
+-- ============================================================================
+-- بوابة السواق — تكليف طلبات لسواق معيّن يستلمها من مندوب شيين بلبنان،
+-- يفرزها ويغلفها لكل زبون، ويشحنها على سوريا عبر القدموس.
+-- ============================================================================
+
+create table if not exists public.drivers (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  phone text not null,
+  login_code text not null unique,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+alter table public.orders add column if not exists assigned_driver_id uuid references public.drivers(id) on delete set null;
+alter table public.orders add column if not exists assigned_at timestamptz;
+
+create index if not exists orders_assigned_driver_id_idx on public.orders (assigned_driver_id);
+
+alter table public.drivers enable row level security;
+-- بدون policies عامة — الوصول فقط عبر Edge Functions بصلاحية service role

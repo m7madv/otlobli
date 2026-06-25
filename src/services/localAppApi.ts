@@ -69,5 +69,10 @@ export const localAppApi: TalabiehApi = {
         paymentExpiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
       }
     },
+
+    // لا قاعدة بيانات حقيقية بالوضع المحلي لتُستعلَم.
+    async pollOrderStatus() {
+      return null
+    },
   },
 }

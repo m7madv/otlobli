@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 
-type AdminTab = 'dashboard' | 'orders' | 'payments' | 'shipping' | 'customers' | 'settings'
+type AdminTab = 'dashboard' | 'orders' | 'payments' | 'shipping' | 'customers' | 'drivers' | 'settings'
 type PaymentStatus = 'بانتظار الدفع' | 'مدفوع' | 'فشل المطابقة'
 
 type CartItem = {
@@ -27,10 +27,24 @@ type Order = {
   qadmousNumber: string
   createdAt: string
   paidAt?: string
+  assignedDriverId: string
+}
+
+type DriverOption = {
+  id: string
+  name: string
+}
+
+type Driver = DriverOption & {
+  phone: string
+  loginCode: string
+  isActive: boolean
+  createdAt: string
 }
 
 type OrdersResponse = {
   orders: Order[]
+  drivers: DriverOption[]
 }
 
 const orderStatuses = [
@@ -123,6 +137,7 @@ function CopyBtn({ text }: { text: string }) {
 const stripBom = (s: string | undefined) => (s || '').replace(/[​-‍﻿]/g, '').trim()
 const SUPABASE_URL = stripBom(import.meta.env.VITE_SUPABASE_URL as string | undefined)
 const ADMIN_ORDERS_FN = `${SUPABASE_URL}/functions/v1/admin-orders`
+const ADMIN_DRIVERS_FN = `${SUPABASE_URL}/functions/v1/admin-drivers`
 const ANON_KEY = stripBom(import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)
 
 async function fetchOrders(pin: string) {
@@ -135,7 +150,50 @@ async function fetchOrders(pin: string) {
   })
   if (!response.ok) throw new Error('orders_unavailable')
   const payload = (await response.json()) as OrdersResponse
-  return payload.orders
+  return { orders: payload.orders, drivers: payload.drivers ?? [] }
+}
+
+async function fetchDrivers(pin: string) {
+  const response = await fetch(ADMIN_DRIVERS_FN, {
+    headers: {
+      'x-admin-pin': pin,
+      'apikey': ANON_KEY,
+      'authorization': `Bearer ${ANON_KEY}`,
+    },
+  })
+  if (!response.ok) throw new Error('drivers_unavailable')
+  const payload = (await response.json()) as { drivers: Driver[] }
+  return payload.drivers
+}
+
+async function createDriver(pin: string, name: string, phone: string, loginCode: string) {
+  const response = await fetch(ADMIN_DRIVERS_FN, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-admin-pin': pin,
+      'apikey': ANON_KEY,
+      'authorization': `Bearer ${ANON_KEY}`,
+    },
+    body: JSON.stringify({ name, phone, loginCode }),
+  })
+  if (!response.ok) throw new Error('driver_create_failed')
+  const payload = (await response.json()) as { driver: Driver }
+  return payload.driver
+}
+
+async function patchDriver(pin: string, driverId: string, patch: Partial<Pick<Driver, 'isActive'>>) {
+  const response = await fetch(ADMIN_DRIVERS_FN, {
+    method: 'PATCH',
+    headers: {
+      'content-type': 'application/json',
+      'x-admin-pin': pin,
+      'apikey': ANON_KEY,
+      'authorization': `Bearer ${ANON_KEY}`,
+    },
+    body: JSON.stringify({ driverId, patch }),
+  })
+  if (!response.ok) throw new Error('driver_update_failed')
 }
 
 async function patchOrder(pin: string, orderId: string, patch: Partial<Order>) {
@@ -171,6 +229,7 @@ function AdminApp() {
   const [pinInput, setPinInput] = useState('')
   const [pin, setPin] = useState('')
   const [orders, setOrders] = useState<Order[]>([])
+  const [driverOptions, setDriverOptions] = useState<DriverOption[]>([])
   const [selectedOrderId, setSelectedOrderId] = useState('')
   const [modalOrderId, setModalOrderId] = useState('')
   const [tab, setTab] = useState<AdminTab>('dashboard')
@@ -212,9 +271,10 @@ function AdminApp() {
     if (!nextPin) { showNotice('أدخل رمز الإدارة'); return }
     setLoading(true)
     void fetchOrders(nextPin)
-      .then((nextOrders) => {
+      .then(({ orders: nextOrders, drivers: nextDrivers }) => {
         setPin(nextPin)
         setOrders(nextOrders)
+        setDriverOptions(nextDrivers)
         const autoSelect = deepLinkOrderId && nextOrders.find((o) => o.id === deepLinkOrderId)
           ? deepLinkOrderId
           : nextOrders[0]?.id ?? ''
@@ -233,7 +293,11 @@ function AdminApp() {
     if (!pin) return
     setLoading(true)
     void fetchOrders(pin)
-      .then((nextOrders) => { setOrders(nextOrders); showNotice('تم تحديث الطلبات') })
+      .then(({ orders: nextOrders, drivers: nextDrivers }) => {
+        setOrders(nextOrders)
+        setDriverOptions(nextDrivers)
+        showNotice('تم تحديث الطلبات')
+      })
       .catch(() => showNotice('تعذر جلب الطلبات'))
       .finally(() => setLoading(false))
   }
@@ -243,7 +307,8 @@ function AdminApp() {
     if (!pin) return
     const interval = window.setInterval(() => {
       void fetchOrders(pin)
-        .then((nextOrders) => {
+        .then(({ orders: nextOrders, drivers: nextDrivers }) => {
+          setDriverOptions(nextDrivers)
           setOrders((prev) => {
             if (nextOrders.length > prev.length) {
               const diff = nextOrders.length - prev.length
@@ -332,6 +397,7 @@ function AdminApp() {
           ['payments', 'المدفوعات', 'payments'],
           ['shipping', 'الشحن', 'local_shipping'],
           ['customers', 'العملاء', 'group'],
+          ['drivers', 'السواقين', 'local_shipping'],
           ['settings', 'الإعدادات', 'settings'],
         ] as const).map(([key, label, icon]) => (
           <button className={tab === key ? 'is-active' : ''} key={key} onClick={() => setTab(key as AdminTab)}>
@@ -369,14 +435,15 @@ function AdminApp() {
             </section>
             <section className="content-grid">
               <OrdersTable orders={filteredOrders.slice(0, 8)} tracked={tracked} onOpen={openModal} onMarkPaid={markPaid} />
-              <OrderDetail order={selectedOrder} onOpen={openModal} onMarkPaid={markPaid} onAdvance={advanceOrder} onUpdate={updateOrder} />
+              <OrderDetail order={selectedOrder} drivers={driverOptions} onOpen={openModal} onMarkPaid={markPaid} onAdvance={advanceOrder} onUpdate={updateOrder} />
             </section>
           </>
         )}
         {tab === 'orders' && <OrdersTable orders={filteredOrders} tracked={tracked} onOpen={openModal} onMarkPaid={markPaid} />}
         {tab === 'payments' && <OrdersTable orders={filteredOrders.filter((o) => o.paymentStatus !== 'مدفوع')} tracked={tracked} onOpen={openModal} onMarkPaid={markPaid} />}
-        {tab === 'shipping' && <ShippingList orders={filteredOrders} onAdvance={advanceOrder} onUpdate={updateOrder} onOpen={openModal} />}
+        {tab === 'shipping' && <ShippingList orders={filteredOrders} drivers={driverOptions} onAdvance={advanceOrder} onUpdate={updateOrder} onOpen={openModal} />}
         {tab === 'customers' && <CustomersGrid orders={orders} />}
+        {tab === 'drivers' && <DriversPanel pin={pin} showNotice={showNotice} />}
         {tab === 'settings' && (
           <section className="panel settings">
             <h2>إعدادات التشغيل</h2>
@@ -392,6 +459,7 @@ function AdminApp() {
       {modalOrder && (
         <OrderModal
           order={modalOrder}
+          drivers={driverOptions}
           tracked={tracked}
           onToggle={toggleCart}
           onMarkAll={markAllCart}
@@ -487,11 +555,39 @@ function OrdersTable({
   )
 }
 
+// ── Driver Assign Field ──────────────────────────────────────────────────────
+function DriverAssignField({
+  order, drivers, onUpdate,
+}: {
+  order: Order
+  drivers: DriverOption[]
+  onUpdate: (orderId: string, patch: Partial<Order>) => void
+}) {
+  const assignedDriver = drivers.find((d) => d.id === order.assignedDriverId)
+  return (
+    <label className="field driver-assign">
+      <span>السواق المكلَّف</span>
+      <select
+        key={order.id}
+        defaultValue={order.assignedDriverId}
+        onChange={(e) => onUpdate(order.id, { assignedDriverId: e.target.value })}
+      >
+        <option value="">— بلا تكليف —</option>
+        {drivers.map((d) => (
+          <option key={d.id} value={d.id}>{d.name}</option>
+        ))}
+      </select>
+      {assignedDriver && <small className="driver-assign-note">📦 مكلَّف لـ {assignedDriver.name} — وصله إشعار واتساب</small>}
+    </label>
+  )
+}
+
 // ── Order Detail (sidebar panel) ──────────────────────────────────────────────
 function OrderDetail({
-  order, onOpen, onMarkPaid, onAdvance, onUpdate,
+  order, drivers, onOpen, onMarkPaid, onAdvance, onUpdate,
 }: {
   order?: Order
+  drivers: DriverOption[]
   onOpen: (orderId: string) => void
   onMarkPaid: (order: Order) => void
   onAdvance: (order: Order) => void
@@ -557,6 +653,7 @@ function OrderDetail({
           placeholder="مثال: KD-22091"
         />
       </label>
+      <DriverAssignField order={order} drivers={drivers} onUpdate={onUpdate} />
       <div className="detail-actions">
         <button className="primary-action" onClick={() => onMarkPaid(order)}>تأكيد الدفع</button>
         <button className="ghost-action" onClick={() => onAdvance(order)}>نقل للمرحلة التالية</button>
@@ -567,9 +664,10 @@ function OrderDetail({
 
 // ── Order Modal (full-screen) ─────────────────────────────────────────────────
 function OrderModal({
-  order, tracked, onToggle, onMarkAll, onClose, onMarkPaid, onAdvance, onUpdate, onDelete,
+  order, drivers, tracked, onToggle, onMarkAll, onClose, onMarkPaid, onAdvance, onUpdate, onDelete,
 }: {
   order: Order
+  drivers: DriverOption[]
   tracked: Set<string>
   onToggle: (key: string) => void
   onMarkAll: (keys: string[]) => void
@@ -686,6 +784,7 @@ function OrderModal({
               placeholder="مثال: KD-22091"
             />
           </label>
+          <DriverAssignField order={order} drivers={drivers} onUpdate={onUpdate} />
           <div className="detail-actions">
             <button className="primary-action" onClick={() => onMarkPaid(order)}>تأكيد الدفع</button>
             <button className="ghost-action" onClick={() => onAdvance(order)}>نقل للمرحلة التالية</button>
@@ -703,9 +802,10 @@ function OrderModal({
 
 // ── Shipping List ─────────────────────────────────────────────────────────────
 function ShippingList({
-  orders, onAdvance, onUpdate, onOpen,
+  orders, drivers, onAdvance, onUpdate, onOpen,
 }: {
   orders: Order[]
+  drivers: DriverOption[]
   onAdvance: (order: Order) => void
   onUpdate: (orderId: string, patch: Partial<Order>) => void
   onOpen: (orderId: string) => void
@@ -716,23 +816,37 @@ function ShippingList({
         <h2>الشحن والقدموس</h2>
         <span>{orders.length} طلب</span>
       </header>
-      {orders.map((order) => (
-        <article key={order.id}>
-          <div>
-            <b>{order.id}</b>
-            <span>{order.customer} · {order.city}</span>
-            <small>{orderStatuses[order.statusIndex] ?? 'غير محدد'}</small>
-          </div>
-          <input
-            key={order.id}
-            defaultValue={order.qadmousNumber}
-            onBlur={(e) => onUpdate(order.id, { qadmousNumber: e.target.value, statusIndex: Math.max(7, order.statusIndex) })}
-            placeholder="رقم القدموس"
-          />
-          <button onClick={() => onAdvance(order)}>تحديث المرحلة</button>
-          <button onClick={() => onOpen(order.id)} title="فتح تفاصيل"><Icon name="open_in_full" /></button>
-        </article>
-      ))}
+      {orders.map((order) => {
+        const assignedDriver = drivers.find((d) => d.id === order.assignedDriverId)
+        return (
+          <article key={order.id}>
+            <div>
+              <b>{order.id}</b>
+              <span>{order.customer} · {order.city}</span>
+              <small>{orderStatuses[order.statusIndex] ?? 'غير محدد'}</small>
+              {assignedDriver && <small>📦 {assignedDriver.name}</small>}
+            </div>
+            <input
+              key={order.id}
+              defaultValue={order.qadmousNumber}
+              onBlur={(e) => onUpdate(order.id, { qadmousNumber: e.target.value, statusIndex: Math.max(7, order.statusIndex) })}
+              placeholder="رقم القدموس"
+            />
+            <select
+              key={`${order.id}-driver`}
+              defaultValue={order.assignedDriverId}
+              onChange={(e) => onUpdate(order.id, { assignedDriverId: e.target.value })}
+            >
+              <option value="">— بلا تكليف —</option>
+              {drivers.map((d) => (
+                <option key={d.id} value={d.id}>{d.name}</option>
+              ))}
+            </select>
+            <button onClick={() => onAdvance(order)}>تحديث المرحلة</button>
+            <button onClick={() => onOpen(order.id)} title="فتح تفاصيل"><Icon name="open_in_full" /></button>
+          </article>
+        )
+      })}
     </section>
   )
 }
@@ -750,6 +864,104 @@ function CustomersGrid({ orders }: { orders: Order[] }) {
           <p>{order.city}</p>
         </article>
       ))}
+    </section>
+  )
+}
+
+// ── Drivers Panel ─────────────────────────────────────────────────────────────
+function DriversPanel({ pin, showNotice }: { pin: string; showNotice: (message: string) => void }) {
+  const [drivers, setDrivers] = useState<Driver[]>([])
+  const [loading, setLoading] = useState(false)
+  const [name, setName] = useState('')
+  const [phone, setPhone] = useState('')
+  const [loginCode, setLoginCode] = useState('')
+
+  const load = () => {
+    setLoading(true)
+    void fetchDrivers(pin)
+      .then(setDrivers)
+      .catch(() => showNotice('تعذر جلب السواقين'))
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const addDriver = () => {
+    const trimmedName = name.trim()
+    const trimmedPhone = phone.trim()
+    const trimmedCode = loginCode.trim()
+    if (!trimmedName) { showNotice('أدخل اسم السواق'); return }
+    setLoading(true)
+    void createDriver(pin, trimmedName, trimmedPhone, trimmedCode)
+      .then(() => {
+        setName(''); setPhone(''); setLoginCode('')
+        showNotice(trimmedPhone ? 'تمت إضافة السواق وإرسال رمز الدخول له على واتساب' : 'تمت إضافة السواق — انسخ رمز الدخول من الجدول وسلّمه له')
+        load()
+      })
+      .catch(() => showNotice('فشل إضافة السواق'))
+      .finally(() => setLoading(false))
+  }
+
+  const toggleActive = (driver: Driver) => {
+    void patchDriver(pin, driver.id, { isActive: !driver.isActive })
+      .then(() => { showNotice('تم تحديث السواق'); load() })
+      .catch(() => showNotice('فشل تحديث السواق'))
+  }
+
+  return (
+    <section className="panel table-panel drivers-panel">
+      <header>
+        <h2>السواقين</h2>
+        <span>{drivers.length} سواق</span>
+      </header>
+
+      <div className="driver-add-form">
+        <label className="field">
+          <span>الاسم</span>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="مثال: أبو محمد" />
+        </label>
+        <label className="field">
+          <span>كلمة السر / رمز الدخول (اختياري — لو فاضي بنولّده تلقائي)</span>
+          <input value={loginCode} onChange={(e) => setLoginCode(e.target.value)} placeholder="مثال: 7741" />
+        </label>
+        <label className="field">
+          <span>الهاتف (اختياري — لإشعار واتساب تلقائي)</span>
+          <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="مثال: 9613xxxxxxx" />
+        </label>
+        <button className="primary-action" disabled={loading} onClick={addDriver}>
+          <Icon name="person_add" /> إضافة سواق
+        </button>
+      </div>
+
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>الاسم</th>
+              <th>الهاتف</th>
+              <th>رمز الدخول</th>
+              <th>الحالة</th>
+              <th>إجراء</th>
+            </tr>
+          </thead>
+          <tbody>
+            {drivers.map((driver) => (
+              <tr key={driver.id}>
+                <td><b>{driver.name}</b></td>
+                <td>{driver.phone ? (<><span>{driver.phone}</span><CopyBtn text={driver.phone} /></>) : <span>—</span>}</td>
+                <td><span>{driver.loginCode}</span><CopyBtn text={driver.loginCode} /></td>
+                <td><StatusBadge tone={driver.isActive ? 'success' : 'neutral'}>{driver.isActive ? 'فعّال' : 'معطّل'}</StatusBadge></td>
+                <td>
+                  <button onClick={() => toggleActive(driver)}>{driver.isActive ? 'تعطيل' : 'تفعيل'}</button>
+                </td>
+              </tr>
+            ))}
+            {!drivers.length && (
+              <tr><td colSpan={5}>لا يوجد سواقين بعد.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </section>
   )
 }

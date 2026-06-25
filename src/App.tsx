@@ -15,7 +15,6 @@ import type { PaymentCurrency } from './domain/pricing'
 import type { Address, AppNotification, CartItem, Order, Product, ProductColor, ProductVariant, Recipient, Screen, StatusTone, UserProfile } from './domain/types'
 import { readStoredJson, storageKeys, useStoredState } from './infrastructure/localStorage'
 import { appApi } from './services'
-import { supabase } from './services/supabaseClient'
 import { PAYMENT_MODE } from './config'
 import { buildWhatsappLink } from './services/whatsappLink'
 import { SHEIN_CAPTURE_SCRIPT } from './services/sheinBrowserScript'
@@ -799,43 +798,36 @@ function App() {
   // تحديث حالة الطلب من Supabase تلقائياً كل 30 ثانية عند فتح شاشة التتبع
   // يُنشئ إشعاراً تلقائياً إذا تقدّم الطلب لمرحلة جديدة
   useEffect(() => {
-    const db = supabase
-    if (screen !== 'tracking' || !currentOrderId || !db) return undefined
+    if (screen !== 'tracking' || !currentOrderId) return undefined
     const poll = async () => {
-      const { data } = await db
-        .from('orders')
-        .select('status_index, qadmous_number, paid_at, payment_status')
-        .eq('id', currentOrderId)
-        .single()
+      const data = await appApi.orders.pollOrderStatus(currentOrderId)
       if (!data) return
-      const newStatusIndex = typeof data.status_index === 'number' ? data.status_index : null
+      const newStatusIndex = data.statusIndex
       // كشف تقدّم الحالة وإنشاء إشعار
-      if (newStatusIndex !== null) {
-        const current = ordersRef.current.find((o) => o.id === currentOrderId)
-        if (current && newStatusIndex > current.statusIndex) {
-          const notifId = `status-${currentOrderId}-${newStatusIndex}`
-          setNotifications((prev) => {
-            if (prev.some((n) => n.id === notifId)) return prev
-            return [{
-              id: notifId,
-              type: 'order_update',
-              title: 'تحديث الطلب',
-              body: `طلبك ${currentOrderId} انتقل إلى: ${orderStatuses[newStatusIndex] ?? ''}`,
-              orderId: currentOrderId,
-              createdAt: today(),
-              read: false,
-            }, ...prev]
-          })
-        }
+      const current = ordersRef.current.find((o) => o.id === currentOrderId)
+      if (current && newStatusIndex > current.statusIndex) {
+        const notifId = `status-${currentOrderId}-${newStatusIndex}`
+        setNotifications((prev) => {
+          if (prev.some((n) => n.id === notifId)) return prev
+          return [{
+            id: notifId,
+            type: 'order_update',
+            title: 'تحديث الطلب',
+            body: `طلبك ${currentOrderId} انتقل إلى: ${orderStatuses[newStatusIndex] ?? ''}`,
+            orderId: currentOrderId,
+            createdAt: today(),
+            read: false,
+          }, ...prev]
+        })
       }
       setOrders((list) => list.map((o) => {
         if (o.id !== currentOrderId) return o
         return {
           ...o,
-          statusIndex: newStatusIndex ?? o.statusIndex,
-          qadmousNumber: data.qadmous_number ?? o.qadmousNumber,
-          paidAt: data.paid_at ?? o.paidAt,
-          paymentStatus: data.payment_status ?? o.paymentStatus,
+          statusIndex: newStatusIndex,
+          qadmousNumber: data.qadmousNumber || o.qadmousNumber,
+          paidAt: data.paidAt ?? o.paidAt,
+          paymentStatus: data.paymentStatus ?? o.paymentStatus,
         }
       }))
     }

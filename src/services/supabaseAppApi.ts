@@ -337,6 +337,35 @@ export const supabaseAppApi: TalabiehApi = {
         paymentExpiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
       }
     },
+
+    // يستعلم دائماً عن قاعدة البيانات الحقيقية (بعكس checkPaymentStatus التي
+    // تتجاوز الاستعلام في وضع 'auto') - شاشة التتبع تحتاج تقدّم المرحلة
+    // الحقيقي (قيد الشراء، الشحن...) بغض النظر عن وضع الدفع. لا يستعلم
+    // الجدول orders مباشرة لأنه محمي بـRLS بدون policy عامة للقراءة؛ يستخدم
+    // نفس RPC الضيقة get_order_payment_status المسموحة لـanon.
+    async pollOrderStatus(orderId) {
+      if (!supabase) return null
+
+      const { data, error } = await supabase.rpc('get_order_payment_status', {
+        target_order_id: orderId,
+      })
+
+      if (error || !data || !(data as { found?: boolean }).found) return null
+
+      const result = data as {
+        statusIndex: number
+        paymentStatus: PaymentStatus
+        paidAt?: string
+        qadmousNumber?: string
+      }
+
+      return {
+        statusIndex: result.statusIndex,
+        paymentStatus: result.paymentStatus,
+        paidAt: result.paidAt,
+        qadmousNumber: result.qadmousNumber ?? '',
+      }
+    },
   },
 }
 

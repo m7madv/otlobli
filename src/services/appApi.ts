@@ -38,6 +38,13 @@ export type PaymentStatusResult = {
   paidAt?: string
 }
 
+export type OrderStatusResult = {
+  statusIndex: number
+  paymentStatus: PaymentStatus
+  paidAt?: string
+  qadmousNumber: string
+}
+
 export type TalabiehApi = {
   auth: {
     startWhatsappLogin: (phone: string) => Promise<StartLoginResult>
@@ -53,5 +60,8 @@ export type TalabiehApi = {
     // ينشئ الطلب بحالة "بانتظار الدفع" مع مبلغ دفع فريد، قبل عرض شاشة الدفع -
     // الطلب لا يصبح "مدفوع" إلا لما يوصل تأكيد حقيقي من webhook شام كاش.
     createPendingOrder: (order: Order, currency: PaymentCurrency) => Promise<PendingOrderResult>
+    // يستعلم عن حالة الطلب الحالية (المرحلة، رقم القدموس...) لتحديث شاشة
+    // التتبع - يرجع null إذا الطلب غير موجود أو القاعدة غير متاحة.
+    pollOrderStatus: (orderId: string) => Promise<OrderStatusResult | null>
   }
 }

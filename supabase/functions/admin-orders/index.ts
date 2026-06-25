@@ -3,11 +3,40 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 const ADMIN_PIN = Deno.env.get('ADMIN_PIN') ?? ''
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+const WHATSAPP_SERVER_URL = Deno.env.get('WHATSAPP_SERVER_URL') ?? ''
+const DRIVER_URL = Deno.env.get('DRIVER_URL') ?? ''
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-admin-pin',
   'Access-Control-Allow-Methods': 'GET, PATCH, DELETE, OPTIONS',
+}
+
+async function notifyDriverAssignment(
+  driverPhone: string,
+  driverName: string,
+  order: { id: string; customer: string; phone: string; city: string; address: string; itemCount: number },
+) {
+  if (!WHATSAPP_SERVER_URL) return
+  const text = [
+    `📦 *طلب جديد مكلَّف لك — ${order.id}*`,
+    `👤 ${order.customer}  |  📞 ${order.phone}`,
+    `📍 ${order.city} — ${order.address}`,
+    `🧾 عدد القطع: ${order.itemCount}`,
+    '',
+    DRIVER_URL ? `افتح بوابة السواق: ${DRIVER_URL}/?order=${order.id}` : '',
+  ].filter(Boolean).join('\n')
+
+  try {
+    await fetch(`${WHATSAPP_SERVER_URL}/api/notify/whatsapp`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ phone: driverPhone, text }),
+      signal: AbortSignal.timeout(8000),
+    })
+  } catch (err) {
+    console.error('driver assignment whatsapp failed:', (err as Error).message, driverName)
+  }
 }
 
 Deno.serve(async (req) => {
@@ -25,13 +54,20 @@ Deno.serve(async (req) => {
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY)
 
-  // GET — جلب الطلبات
+  // GET — جلب الطلبات + قائمة السواقين الفعّالين
   if (req.method === 'GET') {
-    const { data, error } = await supabase
-      .from('orders')
-      .select('*, order_items(*)')
-      .order('created_at', { ascending: false })
-      .limit(500)
+    const [{ data, error }, { data: driverRows, error: driverError }] = await Promise.all([
+      supabase
+        .from('orders')
+        .select('*, order_items(*)')
+        .order('created_at', { ascending: false })
+        .limit(500),
+      supabase
+        .from('drivers')
+        .select('id, name')
+        .eq('is_active', true)
+        .order('name', { ascending: true }),
+    ])
 
     if (error) {
       return new Response(JSON.stringify({ error: error.message }), {
@@ -63,9 +99,13 @@ Deno.serve(async (req) => {
       qadmousNumber: row.qadmous_number || '',
       createdAt: row.created_at,
       paidAt: row.paid_at,
+      assignedDriverId: row.assigned_driver_id || '',
     }))
 
-    return new Response(JSON.stringify({ orders }), {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const drivers = driverError ? [] : (driverRows || []).map((row: any) => ({ id: row.id, name: row.name }))
+
+    return new Response(JSON.stringify({ orders, drivers }), {
       headers: { ...corsHeaders, 'content-type': 'application/json' },
     })
   }
@@ -91,6 +131,12 @@ Deno.serve(async (req) => {
     if (patch.qadmousNumber !== undefined) dbPatch.qadmous_number = patch.qadmousNumber
     if (patch.paidAt !== undefined) dbPatch.paid_at = patch.paidAt
 
+    const assigningDriverId = patch.assignedDriverId !== undefined ? String(patch.assignedDriverId || '') : null
+    if (assigningDriverId !== null) {
+      dbPatch.assigned_driver_id = assigningDriverId || null
+      dbPatch.assigned_at = assigningDriverId ? new Date().toISOString() : null
+    }
+
     const { error } = await supabase.from('orders').update(dbPatch).eq('id', orderId)
 
     if (error) {
@@ -98,6 +144,32 @@ Deno.serve(async (req) => {
         status: 500,
         headers: { ...corsHeaders, 'content-type': 'application/json' },
       })
+    }
+
+    if (assigningDriverId) {
+      const [{ data: driver }, { data: order }, { data: items }] = await Promise.all([
+        supabase.from('drivers').select('name, phone').eq('id', assigningDriverId).single(),
+        supabase.from('orders').select('customer_name, phone, city, address, status_index').eq('id', orderId).single(),
+        supabase.from('order_items').select('id').eq('order_id', orderId),
+      ])
+
+      if (driver && order) {
+        await supabase.from('order_events').insert({
+          order_id: orderId,
+          status_index: order.status_index ?? 0,
+          title: `تم تكليف السواق ${driver.name}`,
+          note: '',
+        })
+
+        await notifyDriverAssignment(driver.phone, driver.name, {
+          id: orderId,
+          customer: order.customer_name,
+          phone: order.phone,
+          city: order.city,
+          address: order.address,
+          itemCount: (items || []).length,
+        })
+      }
     }
 
     return new Response(JSON.stringify({ ok: true }), {

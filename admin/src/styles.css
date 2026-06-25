@@ -879,7 +879,7 @@ tr.row-done td { opacity: 0.65; }
 
 /* Shipping list – add open button column */
 .shipping-list article {
-  grid-template-columns: minmax(200px, 1fr) minmax(160px, 0.7fr) auto auto;
+  grid-template-columns: minmax(200px, 1fr) minmax(140px, 0.6fr) minmax(140px, 0.6fr) auto auto;
 }
 @media (max-width: 1040px) {
   .shipping-list article { grid-template-columns: 1fr; }
@@ -887,4 +887,40 @@ tr.row-done td { opacity: 0.65; }
   .modal-customer { display: none; }
   .modal-items { grid-template-columns: 1fr; }
   .modal-progress { flex-wrap: wrap; }
+}
+
+/* ── Select fields (driver assignment, etc.) ─────────────────────────────── */
+.field select,
+.shipping-list select {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--outline);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+  color: var(--text);
+  outline: none;
+  padding: 0 12px;
+}
+
+.driver-assign-note {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+/* ── Drivers panel ────────────────────────────────────────────────────────── */
+.driver-add-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 12px;
+  align-items: end;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--outline);
+}
+
+.driver-add-form .field:first-child {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 1040px) {
+  .driver-add-form { grid-template-columns: 1fr; }
 }
