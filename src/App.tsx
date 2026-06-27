@@ -62,9 +62,6 @@ const DEFAULT_EXCHANGE_RATE = (() => {
 const MIN_ORDER_SYP = 500000
 const MIN_ORDER_USD = 40
 
-const FIRST_ORDER_DISCOUNT_PERCENT = 10
-const REFERRAL_DISCOUNT_PERCENT = 15
-
 type PendingWhatsappAuth = {
   phone: string
   whatsappUrl: string
@@ -382,11 +379,6 @@ function App() {
   const getItemPriceSyp = (item: { priceSyp: number; priceUsd?: number }) =>
     item.priceSyp > 0 ? item.priceSyp : Math.round((item.priceUsd ?? 0) * exchangeRate)
 
-  const isFirstOrder = orders.length === 0
-  const [referralCode, setReferralCode] = useState('')
-  const [referralApplied, setReferralApplied] = useState(false)
-  const [isCheckingReferral, setIsCheckingReferral] = useState(false)
-
   const subtotalBreakdown = useMemo(() => {
     if (cartItems.length > 0) {
       const productsTotal = cartItems.reduce((sum, item) => sum + getItemPriceSyp(item) * item.quantity, 0)
@@ -403,42 +395,10 @@ function App() {
 
   const subtotal = useMemo(() => sumPriceLines(subtotalBreakdown), [subtotalBreakdown])
 
-  const discountPercent = isFirstOrder ? (referralApplied ? REFERRAL_DISCOUNT_PERCENT : FIRST_ORDER_DISCOUNT_PERCENT) : 0
-
-  const breakdown = useMemo(() => {
-    if (discountPercent <= 0) return subtotalBreakdown
-    const discountValue = -Math.round(subtotal * (discountPercent / 100))
-    return [...subtotalBreakdown, {
-      label: referralApplied ? `خصم الإحالة 🎉 (${REFERRAL_DISCOUNT_PERCENT}%)` : `خصم أول طلب 🎉 (${FIRST_ORDER_DISCOUNT_PERCENT}%)`,
-      value: discountValue,
-    }]
-  }, [subtotalBreakdown, subtotal, discountPercent, referralApplied])
-
-  const total = useMemo(() => sumPriceLines(breakdown), [breakdown])
+  const breakdown = subtotalBreakdown
+  const total = subtotal
   const meetsMinimumOrder = subtotal >= MIN_ORDER_SYP || subtotal / exchangeRate >= MIN_ORDER_USD
   const formatPrice = (syp: number) => formatPriceSyp(syp, paymentCurrency, exchangeRate)
-
-  const applyReferralCode = () => {
-    const code = referralCode.trim()
-    if (!code) return
-    const ownPhone = (recipient.phone || phone || '').trim()
-    if (ownPhone && code === ownPhone) {
-      showNotice('لا يمكنك استخدام رقمك الخاص ككود إحالة')
-      return
-    }
-    setIsCheckingReferral(true)
-    void appApi.orders.validateReferralCode(code)
-      .then((valid) => {
-        if (valid) {
-          setReferralApplied(true)
-          showNotice('تم تطبيق كود الإحالة 🎉')
-        } else {
-          showNotice('كود الإحالة غير صحيح')
-        }
-      })
-      .catch(() => showNotice('تعذر التحقق من الكود الآن'))
-      .finally(() => setIsCheckingReferral(false))
-  }
 
   const [ratingStars, setRatingStars] = useState(0)
   const [ratingNote, setRatingNote] = useState('')
@@ -1508,25 +1468,6 @@ function App() {
                     </div>
                   </article>
                 ))}
-                {isFirstOrder && (
-                  <section className="coupon-box">
-                    <p>🎉 خصم {FIRST_ORDER_DISCOUNT_PERCENT}% على طلبك الأول، أو {REFERRAL_DISCOUNT_PERCENT}% إذا عندك كود إحالة صديق</p>
-                    {!referralApplied ? (
-                      <div className="coupon-input">
-                        <input
-                          value={referralCode}
-                          onChange={(e) => setReferralCode(e.target.value)}
-                          placeholder="كود الإحالة (رقم هاتف صديقك) - اختياري"
-                        />
-                        <button onClick={applyReferralCode} disabled={!referralCode.trim() || isCheckingReferral}>
-                          {isCheckingReferral ? '...' : 'تطبيق'}
-                        </button>
-                      </div>
-                    ) : (
-                      <p className="coupon-success">✅ تم تطبيق كود الإحالة</p>
-                    )}
-                  </section>
-                )}
                 <CurrencyToggle value={paymentCurrency} onChange={setPaymentCurrency} />
                 <PriceBreakdown items={breakdown} total={total} format={formatPrice} />
                 {!meetsMinimumOrder && (

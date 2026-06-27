@@ -12,4 +12,4 @@
 export const PAYMENT_MODE: 'auto' | 'shamcash' = 'auto'
 
 // رقم النسخة — يظهر في شاشة الدخول لمعرفة أي بناء مثبّت على الجهاز عند التشخيص.
-export const APP_VERSION = '2026.06.28-rating-notif-nozoom'
+export const APP_VERSION = '2026.06.28-safe-cairo-nodisc'
