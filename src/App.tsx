@@ -51,7 +51,13 @@ const SYRIA_GOVERNORATES = [
   'درعا', 'السويداء', 'القنيطرة', 'دير الزور', 'الرقة', 'الحسكة', 'إدلب',
 ]
 
-const DEFAULT_EXCHANGE_RATE = parseInt(import.meta.env.VITE_USD_TO_SYP_RATE ?? '13000')
+// مهم: نستخدم || وليس ?? لأن secret البناء قد يصل نصاً فارغاً ('') وليس
+// undefined، و?? لا تمسك النص الفارغ فيصير parseInt('')=NaN ويصفّر كل
+// الأسعار. وفوقها fallback نهائي لو طلعت القيمة غير صالحة لأي سبب.
+const DEFAULT_EXCHANGE_RATE = (() => {
+  const parsed = parseInt(import.meta.env.VITE_USD_TO_SYP_RATE || '13000', 10)
+  return Number.isFinite(parsed) && parsed > 1000 ? parsed : 13000
+})()
 
 const MIN_ORDER_SYP = 500000
 const MIN_ORDER_USD = 40
