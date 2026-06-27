@@ -54,8 +54,8 @@ const orderStatuses = [
   'تم الدفع',
   'قيد الشراء',
   'تم الشراء',
-  'في الطريق إلى الأردن',
-  'وصل الأردن',
+  'في الطريق إلى مركز التجميع',
+  'وصل مركز التجميع',
   'قيد الشحن إلى سوريا',
   'مع القدموس',
   'جاهز للاستلام',
@@ -432,7 +432,7 @@ function AdminApp() {
             <section className="stats">
               <StatCard icon="today" label="إجمالي الطلبات" value={orders.length.toString()} note="من قاعدة البيانات" />
               <StatCard icon="pending_actions" label="بانتظار الدفع" value={stats.pendingPayments.length.toString()} note="تحتاج متابعة" />
-              <StatCard icon="local_shipping" label="قيد الشحن" value={stats.shippingOrders.length.toString()} note="الأردن إلى سوريا" />
+              <StatCard icon="local_shipping" label="قيد الشحن" value={stats.shippingOrders.length.toString()} note="مركز التجميع إلى سوريا" />
               <StatCard icon="monetization_on" label="إجمالي المبيعات" value={formatMoney(stats.sales)} note="طلبات مدفوعة" dark />
             </section>
             <section className="content-grid">

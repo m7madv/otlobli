@@ -25,18 +25,22 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
   ensureViewportFitCover();
 
-  // SHEIN's Jordan site defaults to English ("language=joen"); "jo" renders Arabic.
-  // Force it once via cookie + a reload, then it sticks for future loads.
-  // Allows up to 2 reload attempts (was 1) - direct connections (no relay,
-  // since Android dropped that path) can race the cookie write against the
-  // page's own first content request on a slow/just-toggled-VPN connection,
-  // so one attempt occasionally still rendered English; a single retry
-  // counter, reset per real navigation via sessionStorage, costs nothing on
-  // the normal case where the first reload already worked.
-  var hasArabic = /(?:^|; )language=jo(?:;|$)/.test(document.cookie);
-  var hasEnglish = /(?:^|; )language=joen(?:;|$)/.test(document.cookie);
+  // SHEIN's regional sites default to English (e.g. "joen"/"lben"); the bare
+  // region code ("jo"/"lb") renders Arabic. We read the region from the URL
+  // path (/jo/ or /lb/) so this stays correct whichever source country the
+  // app is configured for, then force Arabic once via cookie + a reload so it
+  // sticks for future loads. Allows up to 2 reload attempts - direct
+  // connections can race the cookie write against the page's own first content
+  // request on a slow/just-toggled-VPN connection, so one attempt occasionally
+  // still rendered English; the retry counter resets per real navigation.
+  var regionMatch = location.pathname.match(/^\\/([a-z]{2})(?:\\/|$)/i);
+  var siteRegion = (regionMatch ? regionMatch[1] : 'jo').toLowerCase();
+  var arCookie = siteRegion;            // مثلاً 'lb' أو 'jo' (يعرض العربية)
+  var enCookie = siteRegion + 'en';     // مثلاً 'lben' أو 'joen' (الإنجليزية)
+  var hasArabic = new RegExp('(?:^|; )language=' + arCookie + '(?:;|$)').test(document.cookie);
+  var hasEnglish = new RegExp('(?:^|; )language=' + enCookie + '(?:;|$)').test(document.cookie);
   if (!hasArabic || hasEnglish) {
-    document.cookie = 'language=jo; path=/; max-age=31536000';
+    document.cookie = 'language=' + arCookie + '; path=/; max-age=31536000';
     var arReloadAttempts = parseInt(sessionStorage.getItem('__otlobliArReloads') || '0', 10);
     if (arReloadAttempts < 2) {
       sessionStorage.setItem('__otlobliArReloads', String(arReloadAttempts + 1));

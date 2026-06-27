@@ -15,7 +15,7 @@ import type { PaymentCurrency } from './domain/pricing'
 import type { Address, AppNotification, CartItem, NotificationPrefs, Order, Product, ProductColor, ProductVariant, Recipient, Screen, StatusTone, UserProfile } from './domain/types'
 import { readStoredJson, storageKeys, useStoredState } from './infrastructure/localStorage'
 import { appApi } from './services'
-import { PAYMENT_MODE } from './config'
+import { PAYMENT_MODE, SOURCE_COUNTRY } from './config'
 import { buildWhatsappLink } from './services/whatsappLink'
 import { SHEIN_CAPTURE_SCRIPT } from './services/sheinBrowserScript'
 import { InAppBrowser, ToolBarType } from '@capgo/capacitor-inappbrowser'
@@ -25,7 +25,10 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 const NOTIFY_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/telegram-notify` : ''
 
-const SHEIN_HOME_URL = 'https://m.shein.com/jo/?ref=jo&rep=dir&ret=mjo&currency=USD'
+// منطقة موقع SHEIN تُشتق من بلد المصدر (lb=لبنان، jo=الأردن). السكربت
+// المحقون يقرأ المنطقة من الرابط نفسه فيضبط لغة الموقع تلقائياً.
+const SHEIN_REGION = SOURCE_COUNTRY === 'LB' ? 'lb' : 'jo'
+const SHEIN_HOME_URL = `https://m.shein.com/${SHEIN_REGION}/?ref=${SHEIN_REGION}&rep=dir&ret=m${SHEIN_REGION}&currency=USD`
 
 const usesInboundWhatsappAuth = import.meta.env.VITE_WHATSAPP_AUTH_MODE === 'inbound'
 
@@ -1907,7 +1910,7 @@ function App() {
               يجب دفع نفس المبلغ بالضبط إلى حسابنا التجاري. المطابقة لا تعتمد على رقم الطلب أو حساب المرسل.
             </LegalSection>
             <LegalSection title="الشحن">
-              مدة الشحن تقديرية وتعتمد على وصول الطلب إلى الأردن ثم نقله إلى سوريا وتسليمه للقدموس.
+              مدة الشحن تقديرية وتعتمد على وصول الطلب إلى مركز التجميع ثم نقله إلى سوريا وتسليمه للقدموس.
             </LegalSection>
             <LegalSection title="الإلغاء">
               يمكن إلغاء الطلب قبل الشراء من المصدر. بعد الشراء يخضع الإلغاء لحالة الشحنة وسياسة المصدر.
@@ -2126,7 +2129,7 @@ function AuthShell({ title, subtitle, children, onBack }: { title: string; subti
         )}
         <div className="brand-lockup">
           <span>otlobli</span>
-          <small>اطلب من الأردن واستلم في سوريا</small>
+          <small>اطلب من SHEIN واستلم في سوريا</small>
         </div>
         <h1>{title}</h1>
         <p>{subtitle}</p>

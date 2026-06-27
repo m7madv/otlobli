@@ -11,5 +11,12 @@
 // لتفعيل الدفع لاحقاً: طبّق schema.sql على Supabase ثم غيّر هذا إلى 'shamcash'.
 export const PAYMENT_MODE: 'auto' | 'shamcash' = 'auto'
 
+// بلد المصدر الذي تُجلب منه المنتجات من SHEIN ويُجمَّع فيه الشحن قبل سوريا.
+//  - 'LB' : لبنان (الحالي)
+//  - 'JO' : الأردن
+// يحدّد منطقة موقع SHEIN التي يفتحها التطبيق. لا يظهر اسمه للزبون إطلاقاً
+// (يُعرض دائماً كـ"مركز التجميع"). لاحقاً يُضبط من لوحة الإدارة.
+export const SOURCE_COUNTRY: 'JO' | 'LB' = 'LB'
+
 // رقم النسخة — يظهر في شاشة الدخول لمعرفة أي بناء مثبّت على الجهاز عند التشخيص.
-export const APP_VERSION = '2026.06.28-safe-cairo-nodisc'
+export const APP_VERSION = '2026.06.28-lebanon-switch'
