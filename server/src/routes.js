@@ -336,10 +336,14 @@ async function fetchLiveRate() {
   if (!res.ok) throw new Error(`sp-today returned ${res.status}`)
   const html = await res.text()
 
-  // Look for USD row: find "USD" then grab the two nearest 5-digit numbers (buy / sell)
-  const usdBlock = html.match(/USD[\s\S]{0,600}/i)?.[0] ?? ''
-  const nums = [...usdBlock.matchAll(/(\d{1,2}[,.]?\d{3})/g)]
-    .map(m => parseInt(m[1].replace(/[,.]/g, ''), 10))
+  // أول ظهور لكلمة "USD" بالصفحة هو بوسم meta SEO (keywords) قبل بطاقة السعر
+  // الفعلية بكثير، فلازم نرتكز على رابط بطاقة الدولار نفسها لا أول ظهور للكلمة
+  const anchorIndex = html.indexOf('/currency/us-dollar')
+  const usdBlock = anchorIndex === -1 ? '' : html.slice(anchorIndex, anchorIndex + 3000)
+  // الفاصلة إلزامية بالنمط هون لتجنب التقاط أكواد ألوان hex داخل أيقونة SVG
+  // (مثل D80027) يلي بتشبه رقم 5 خانات بس بدون فاصلة آلاف
+  const nums = [...usdBlock.matchAll(/\d{1,3},\d{3}/g)]
+    .map(m => parseInt(m[0].replace(/,/g, ''), 10))
     .filter(n => n >= 10000 && n <= 100000)
 
   if (nums.length >= 2) {

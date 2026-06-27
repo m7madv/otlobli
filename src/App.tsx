@@ -237,15 +237,19 @@ function App() {
   }
 
   useEffect(() => {
-    const url = `${API_BASE}/api/exchange-rate`
-    fetch(url)
-      .then((r) => r.json())
-      .then((data: { rate?: number }) => {
-        if (data.rate && data.rate > 1000) {
-          setExchangeRate(data.rate)
-        }
-      })
-      .catch(() => undefined)
+    const fetchRate = () => {
+      fetch(`${API_BASE}/api/exchange-rate`)
+        .then((r) => r.json())
+        .then((data: { rate?: number }) => {
+          if (data.rate && data.rate > 1000) {
+            setExchangeRate(data.rate)
+          }
+        })
+        .catch(() => undefined)
+    }
+    fetchRate()
+    const intervalId = window.setInterval(fetchRate, 60 * 60 * 1000)
+    return () => window.clearInterval(intervalId)
   }, [setExchangeRate])
 
   useEffect(() => {
