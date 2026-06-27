@@ -798,6 +798,10 @@ a {
 .rating-stars .star { border: none; background: transparent; padding: 4px; color: var(--outline); font-size: 1.6rem; line-height: 1; cursor: pointer; }
 .rating-stars .star.is-filled { color: #f5a623; }
 .rating-box textarea { width: 100%; border: 1px solid var(--outline); border-radius: 10px; padding: 10px 12px; font-size: 0.85rem; background: var(--background); resize: none; margin-bottom: 10px; font-family: inherit; }
+.cart-price-missing { display: inline-flex; align-items: center; gap: 6px; }
+.cart-price-missing > span:first-child { font-size: 0.72rem; color: var(--danger, #c0392b); font-weight: 700; }
+.cart-price-missing input { width: 64px; border: 1px solid var(--danger, #c0392b); border-radius: 8px; padding: 5px 8px; font-size: 0.85rem; background: var(--surface); text-align: center; }
+.cart-price-missing > span:last-child { font-size: 0.8rem; font-weight: 700; color: var(--muted, #6b7c72); }
 .settings-hint { margin: 0 0 12px; font-size: 0.85rem; color: var(--muted, #6b7c72); }
 .notif-setting-row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: right; background: var(--surface); border: 1px solid var(--outline); border-radius: var(--radius); padding: 14px; margin-bottom: 10px; cursor: pointer; }
 .notif-setting-icon { display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; flex-shrink: 0; border-radius: 12px; background: var(--primary-soft); color: var(--primary); }
