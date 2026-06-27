@@ -12,7 +12,7 @@ import {
 import { makeOrderId, today } from './domain/orders'
 import { buildPriceBreakdown, formatMoney, formatPriceSyp, formatUsd, sumPriceLines } from './domain/pricing'
 import type { PaymentCurrency } from './domain/pricing'
-import type { Address, AppNotification, CartItem, Order, Product, ProductColor, ProductVariant, Recipient, Screen, StatusTone, UserProfile } from './domain/types'
+import type { Address, AppNotification, CartItem, NotificationPrefs, Order, Product, ProductColor, ProductVariant, Recipient, Screen, StatusTone, UserProfile } from './domain/types'
 import { readStoredJson, storageKeys, useStoredState } from './infrastructure/localStorage'
 import { appApi } from './services'
 import { PAYMENT_MODE } from './config'
@@ -55,6 +55,9 @@ const DEFAULT_EXCHANGE_RATE = parseInt(import.meta.env.VITE_USD_TO_SYP_RATE ?? '
 
 const MIN_ORDER_SYP = 500000
 const MIN_ORDER_USD = 40
+
+const FIRST_ORDER_DISCOUNT_PERCENT = 10
+const REFERRAL_DISCOUNT_PERCENT = 15
 
 type PendingWhatsappAuth = {
   phone: string
@@ -191,6 +194,20 @@ function App() {
   // on iOS, rather than maintaining two different unreliable paths.
   const [vpnState, setVpnState] = useState<'checking' | 'ok' | 'blocked'>('checking')
   const [notifications, setNotifications] = useStoredState<AppNotification[]>(storageKeys.notifications, [])
+  const [notificationPrefs, setNotificationPrefs] = useStoredState<NotificationPrefs>(storageKeys.notificationPrefs, {
+    orderUpdates: true,
+    payment: true,
+    system: true,
+    whatsapp: true,
+  })
+  // يربط نوع الإشعار بمفتاح تفضيله؛ إذا المستخدم طفّى الفئة لا يُنشأ إشعار داخل التطبيق
+  const isNotifTypeEnabled = (type: AppNotification['type']) =>
+    type === 'order_update' ? notificationPrefs.orderUpdates
+      : type === 'payment' ? notificationPrefs.payment
+      : notificationPrefs.system
+  // ref يبقى متزامناً مع التفضيلات لاستخدامها داخل poll بدون stale closure
+  const notificationPrefsRef = useRef(notificationPrefs)
+  useEffect(() => { notificationPrefsRef.current = notificationPrefs }, [notificationPrefs])
 
   // ref يبقى متزامناً مع orders لكشف تغيّر الحالة داخل poll بدون stale closure
   const ordersRef = useRef(orders)
@@ -207,6 +224,8 @@ function App() {
   }
 
   const addNotification = (n: Omit<AppNotification, 'id' | 'createdAt' | 'read'>) => {
+    // يحترم تفضيلات المستخدم: إذا طفّى هالفئة لا يظهر الإشعار داخل التطبيق
+    if (!isNotifTypeEnabled(n.type)) return
     setNotifications((prev) => [{
       ...n,
       id: `n-${Date.now()}`,
@@ -215,7 +234,7 @@ function App() {
     }, ...prev])
     // يصل الإشعار أيضاً على واتساب المستخدم بنفس رقمه المسجَّل دخوله فيه
     // (fire-and-forget، غير حيوي - لا يقطع تجربة المستخدم لو فشل)
-    if (API_BASE && phone) {
+    if (API_BASE && phone && notificationPrefs.whatsapp) {
       void fetch(`${API_BASE}/api/notify/whatsapp`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -229,6 +248,16 @@ function App() {
   const showNotice = (message: string) => {
     setNotice(message)
     window.setTimeout(() => setNotice(''), 1900)
+  }
+
+  const reorderItems = (pastOrder: Order) => {
+    const reordered: CartItem[] = pastOrder.items.map((item, index) => ({
+      ...item,
+      id: `${item.id}-reorder-${Date.now()}-${index}`,
+    }))
+    setCartItems((items) => [...items, ...reordered])
+    showNotice('تمت إضافة منتجات الطلب إلى السلة')
+    setScreen('cart')
   }
 
   const logout = () => {
@@ -347,7 +376,12 @@ function App() {
   const getItemPriceSyp = (item: { priceSyp: number; priceUsd?: number }) =>
     item.priceSyp > 0 ? item.priceSyp : Math.round((item.priceUsd ?? 0) * exchangeRate)
 
-  const breakdown = useMemo(() => {
+  const isFirstOrder = orders.length === 0
+  const [referralCode, setReferralCode] = useState('')
+  const [referralApplied, setReferralApplied] = useState(false)
+  const [isCheckingReferral, setIsCheckingReferral] = useState(false)
+
+  const subtotalBreakdown = useMemo(() => {
     if (cartItems.length > 0) {
       const productsTotal = cartItems.reduce((sum, item) => sum + getItemPriceSyp(item) * item.quantity, 0)
       return [{ label: 'مجموع المنتجات', value: productsTotal }, ...shippingFees]
@@ -361,9 +395,66 @@ function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeProduct?.priceSyp, cartItems, quantity, exchangeRate])
 
+  const subtotal = useMemo(() => sumPriceLines(subtotalBreakdown), [subtotalBreakdown])
+
+  const discountPercent = isFirstOrder ? (referralApplied ? REFERRAL_DISCOUNT_PERCENT : FIRST_ORDER_DISCOUNT_PERCENT) : 0
+
+  const breakdown = useMemo(() => {
+    if (discountPercent <= 0) return subtotalBreakdown
+    const discountValue = -Math.round(subtotal * (discountPercent / 100))
+    return [...subtotalBreakdown, {
+      label: referralApplied ? `خصم الإحالة 🎉 (${REFERRAL_DISCOUNT_PERCENT}%)` : `خصم أول طلب 🎉 (${FIRST_ORDER_DISCOUNT_PERCENT}%)`,
+      value: discountValue,
+    }]
+  }, [subtotalBreakdown, subtotal, discountPercent, referralApplied])
+
   const total = useMemo(() => sumPriceLines(breakdown), [breakdown])
-  const meetsMinimumOrder = total >= MIN_ORDER_SYP || total / exchangeRate >= MIN_ORDER_USD
+  const meetsMinimumOrder = subtotal >= MIN_ORDER_SYP || subtotal / exchangeRate >= MIN_ORDER_USD
   const formatPrice = (syp: number) => formatPriceSyp(syp, paymentCurrency, exchangeRate)
+
+  const applyReferralCode = () => {
+    const code = referralCode.trim()
+    if (!code) return
+    const ownPhone = (recipient.phone || phone || '').trim()
+    if (ownPhone && code === ownPhone) {
+      showNotice('لا يمكنك استخدام رقمك الخاص ككود إحالة')
+      return
+    }
+    setIsCheckingReferral(true)
+    void appApi.orders.validateReferralCode(code)
+      .then((valid) => {
+        if (valid) {
+          setReferralApplied(true)
+          showNotice('تم تطبيق كود الإحالة 🎉')
+        } else {
+          showNotice('كود الإحالة غير صحيح')
+        }
+      })
+      .catch(() => showNotice('تعذر التحقق من الكود الآن'))
+      .finally(() => setIsCheckingReferral(false))
+  }
+
+  const [ratingStars, setRatingStars] = useState(0)
+  const [ratingNote, setRatingNote] = useState('')
+  const [isSubmittingRating, setIsSubmittingRating] = useState(false)
+
+  const submitRating = (targetOrderId: string) => {
+    if (ratingStars < 1) return
+    setIsSubmittingRating(true)
+    void appApi.orders.submitOrderRating(targetOrderId, ratingStars, ratingNote.trim())
+      .then((ok) => {
+        if (ok) {
+          setOrders((list) => list.map((item) => (
+            item.id === targetOrderId ? { ...item, rating: ratingStars, ratingNote: ratingNote.trim() } : item
+          )))
+          showNotice('شكراً لتقييمك! 🌟')
+        } else {
+          showNotice('تعذر حفظ التقييم الآن')
+        }
+      })
+      .catch(() => showNotice('تعذر حفظ التقييم الآن'))
+      .finally(() => setIsSubmittingRating(false))
+  }
 
   const fetchProduct = () => {
     if (!link.trim()) {
@@ -809,7 +900,7 @@ function App() {
       const newStatusIndex = data.statusIndex
       // كشف تقدّم الحالة وإنشاء إشعار
       const current = ordersRef.current.find((o) => o.id === currentOrderId)
-      if (current && newStatusIndex > current.statusIndex) {
+      if (current && newStatusIndex > current.statusIndex && notificationPrefsRef.current.orderUpdates) {
         const notifId = `status-${currentOrderId}-${newStatusIndex}`
         setNotifications((prev) => {
           if (prev.some((n) => n.id === notifId)) return prev
@@ -1407,6 +1498,25 @@ function App() {
                     </div>
                   </article>
                 ))}
+                {isFirstOrder && (
+                  <section className="coupon-box">
+                    <p>🎉 خصم {FIRST_ORDER_DISCOUNT_PERCENT}% على طلبك الأول، أو {REFERRAL_DISCOUNT_PERCENT}% إذا عندك كود إحالة صديق</p>
+                    {!referralApplied ? (
+                      <div className="coupon-input">
+                        <input
+                          value={referralCode}
+                          onChange={(e) => setReferralCode(e.target.value)}
+                          placeholder="كود الإحالة (رقم هاتف صديقك) - اختياري"
+                        />
+                        <button onClick={applyReferralCode} disabled={!referralCode.trim() || isCheckingReferral}>
+                          {isCheckingReferral ? '...' : 'تطبيق'}
+                        </button>
+                      </div>
+                    ) : (
+                      <p className="coupon-success">✅ تم تطبيق كود الإحالة</p>
+                    )}
+                  </section>
+                )}
                 <CurrencyToggle value={paymentCurrency} onChange={setPaymentCurrency} />
                 <PriceBreakdown items={breakdown} total={total} format={formatPrice} />
                 {!meetsMinimumOrder && (
@@ -1562,20 +1672,33 @@ function App() {
             {orders.map((item) => (
               <article className="order-card" key={item.id} onClick={() => {
                 setCurrentOrderId(item.id)
+                setRatingStars(0)
+                setRatingNote('')
                 setScreen('tracking')
               }}>
-                <div>
-                  <strong>{item.id}</strong>
-                  <span>{orderStatuses[item.statusIndex]}</span>
-                  <small>{item.items.length} منتج · {formatMoney(item.total)}</small>
+                <div className="order-card-row">
+                  <div>
+                    <strong>{item.id}</strong>
+                    <span>{orderStatuses[item.statusIndex]}</span>
+                    <small>{item.items.length} منتج · {formatMoney(item.total)}</small>
+                  </div>
+                  <div className="thumb-stack">
+                    <img
+                      src={item.items[0]?.image || 'https://placehold.co/60x60/f5f5f5/aaa?text=صورة'}
+                      alt=""
+                      onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/60x60/f5f5f5/aaa?text=صورة' }}
+                    />
+                  </div>
                 </div>
-                <div className="thumb-stack">
-                  <img
-                    src={item.items[0]?.image || 'https://placehold.co/60x60/f5f5f5/aaa?text=صورة'}
-                    alt=""
-                    onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/60x60/f5f5f5/aaa?text=صورة' }}
-                  />
-                </div>
+                <button
+                  className="reorder-btn"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    reorderItems(item)
+                  }}
+                >
+                  <Icon name="refresh" /> إعادة الطلب
+                </button>
               </article>
             ))}
           </main>
@@ -1605,6 +1728,42 @@ function App() {
               <p>{order.qadmousNumber ? `رقم القدموس: ${order.qadmousNumber}` : 'رقم القدموس سيظهر بعد تسليم الشحنة.'}</p>
             </section>
             <Timeline statusIndex={order.statusIndex} createdAt={order.createdAt} paidAt={order.paidAt} />
+            {order.statusIndex === orderStatuses.length - 1 && (
+              order.rating ? (
+                <section className="rating-box">
+                  <p>شكراً لتقييمك! {'⭐'.repeat(order.rating)}</p>
+                </section>
+              ) : (
+                <section className="rating-box">
+                  <p>كيف كانت تجربتك مع هذا الطلب؟</p>
+                  <div className="rating-stars">
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <button
+                        key={n}
+                        className={n <= ratingStars ? 'star is-filled' : 'star'}
+                        onClick={() => setRatingStars(n)}
+                        aria-label={`${n} نجوم`}
+                      >
+                        <Icon name="star" />
+                      </button>
+                    ))}
+                  </div>
+                  <textarea
+                    value={ratingNote}
+                    onChange={(e) => setRatingNote(e.target.value)}
+                    placeholder="ملاحظة (اختياري)"
+                    rows={2}
+                  />
+                  <button
+                    className="primary-action"
+                    disabled={ratingStars < 1 || isSubmittingRating}
+                    onClick={() => submitRating(order.id)}
+                  >
+                    {isSubmittingRating ? '...' : 'إرسال التقييم'}
+                  </button>
+                </section>
+              )
+            )}
             <button
               className="ghost-action"
               onClick={() => openWhatsappSupport(`مرحبا otlobli، أحتاج مساعدة بخصوص الطلب ${order.id}`)}
@@ -1687,6 +1846,7 @@ function App() {
               label={`عملة الدفع: ${paymentCurrency === 'USD' ? 'دولار أمريكي' : 'ليرة سورية'}`}
               onClick={() => setPaymentCurrency(paymentCurrency === 'USD' ? 'SYP' : 'USD')}
             />
+            <ProfileRow icon="notifications" label="إعدادات الإشعارات" onClick={() => setScreen('notification-settings')} />
             <ProfileRow icon="gpp_maybe" label="سياسة المنتجات الممنوعة" onClick={() => setScreen('blocked-policy')} />
             <ProfileRow icon="contract" label="الشروط والأحكام" onClick={() => setScreen('terms')} />
             <ProfileRow icon="support_agent" label="الدعم" onClick={() => setScreen('support')} />
@@ -1839,6 +1999,41 @@ function App() {
       )
     }
 
+    if (screen === 'notification-settings') {
+      const prefRows: Array<{ key: keyof NotificationPrefs; icon: string; title: string; body: string }> = [
+        { key: 'orderUpdates', icon: 'local_shipping', title: 'تحديثات الطلب', body: 'إشعار عند انتقال طلبك لكل مرحلة جديدة (قيد الشراء، في الطريق، تم التسليم...).' },
+        { key: 'payment', icon: 'payments', title: 'الدفع', body: 'إشعار عند استلام طلبك وتأكيد الدفع.' },
+        { key: 'system', icon: 'campaign', title: 'العروض والتنبيهات', body: 'أخبار otlobli والعروض والتنبيهات العامة.' },
+        { key: 'whatsapp', icon: 'chat', title: 'إشعارات واتساب', body: 'وصول نسخة من إشعاراتك على رقم الواتساب المسجَّل، إضافةً لداخل التطبيق.' },
+      ]
+      return (
+        <MobileShell active="profile" onNavigate={setScreen} hideBottomNav>
+          <Header title="إعدادات الإشعارات" back={() => setScreen('profile')} unreadCount={unreadCount} onNotifications={openNotifications} />
+          <AccountDetailLayout>
+            <p className="settings-hint">تحكّم بأنواع الإشعارات التي تصلك. يمكنك إيقاف أي نوع لا يهمّك.</p>
+            {prefRows.map((row) => (
+              <button
+                key={row.key}
+                className="notif-setting-row"
+                onClick={() => setNotificationPrefs((prev) => ({ ...prev, [row.key]: !prev[row.key] }))}
+                aria-pressed={notificationPrefs[row.key]}
+              >
+                <span className="notif-setting-icon"><Icon name={row.icon} /></span>
+                <span className="notif-setting-text">
+                  <b>{row.title}</b>
+                  <small>{row.body}</small>
+                </span>
+                <span className={`switch ${notificationPrefs[row.key] ? 'switch--on' : ''}`}>
+                  <span className="switch-knob" />
+                </span>
+              </button>
+            ))}
+          </AccountDetailLayout>
+          <Toast message={notice} />
+        </MobileShell>
+      )
+    }
+
     if (screen === 'notifications') {
       return (
         <MobileShell active="orders" onNavigate={setScreen} hideBottomNav>
@@ -1860,6 +2055,8 @@ function App() {
                     setNotifications((prev) => prev.map((n) => n.id === notif.id ? { ...n, read: true } : n))
                     if (notif.orderId) {
                       setCurrentOrderId(notif.orderId)
+                      setRatingStars(0)
+                      setRatingNote('')
                       setScreen('tracking')
                     }
                   }}

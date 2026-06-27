@@ -74,5 +74,17 @@ export const localAppApi: TalabiehApi = {
     async pollOrderStatus() {
       return null
     },
+
+    // بالوضع المحلي نقبل أي كود غير فارغ كمحاكاة لتجربة الخصم.
+    async validateReferralCode(code) {
+      await wait(220)
+      return code.trim().length > 0
+    },
+
+    // لا قاعدة بيانات حقيقية بالوضع المحلي لتُخزَّن فيها.
+    async submitOrderRating() {
+      await wait(220)
+      return true
+    },
   },
 }

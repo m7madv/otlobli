@@ -366,6 +366,28 @@ export const supabaseAppApi: TalabiehApi = {
         qadmousNumber: result.qadmousNumber ?? '',
       }
     },
+
+    // يتحقق من قاعدة البيانات أن كود الإحالة هو رقم هاتف عميل سابق فعلاً، لا
+    // أي نص عشوائي - الجدول orders محمي بـRLS فيستخدم RPC ضيقة مخصصة لهذا.
+    async validateReferralCode(code) {
+      if (!supabase) return false
+      const { data, error } = await supabase.rpc('check_referral_code', { ref_phone: code.trim() })
+      if (error) return false
+      return Boolean(data)
+    },
+
+    // يحفظ التقييم عبر RPC ضيقة تتحقق إنه الطلب مُسلَّم وغير مُقيَّم سابقاً
+    // قبل الكتابة - بلا ذلك ما في طريقة عامة لتعديل صفوف orders من العميل.
+    async submitOrderRating(orderId, stars, note) {
+      if (!supabase) return false
+      const { data, error } = await supabase.rpc('submit_order_rating', {
+        target_order_id: orderId,
+        p_stars: stars,
+        p_note: note.trim(),
+      })
+      if (error) return false
+      return Boolean(data)
+    },
   },
 }
 

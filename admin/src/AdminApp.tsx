@@ -28,6 +28,8 @@ type Order = {
   createdAt: string
   paidAt?: string
   assignedDriverId: string
+  rating?: number
+  ratingNote?: string
 }
 
 type DriverOption = {
@@ -644,6 +646,9 @@ function OrderDetail({
       <InfoRow label="العنوان" value={`${order.city} · ${order.address}`} />
       <InfoRow label="الحالة" value={orderStatuses[order.statusIndex] ?? 'غير محدد'} />
       <InfoRow label="الإجمالي" value={formatMoney(order.total)} />
+      {order.rating && (
+        <InfoRow label="تقييم العميل" value={`${'⭐'.repeat(order.rating)}${order.ratingNote ? ' — ' + order.ratingNote : ''}`} />
+      )}
       <label className="field">
         <span>رقم القدموس</span>
         <input
@@ -775,6 +780,9 @@ function OrderModal({
         {/* Footer */}
         <div className="modal-footer">
           <InfoRow label="الإجمالي" value={formatMoney(order.total)} />
+          {order.rating && (
+            <InfoRow label="تقييم العميل" value={`${'⭐'.repeat(order.rating)}${order.ratingNote ? ' — ' + order.ratingNote : ''}`} />
+          )}
           <label className="field">
             <span>رقم القدموس</span>
             <input

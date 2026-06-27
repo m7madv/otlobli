@@ -63,5 +63,9 @@ export type TalabiehApi = {
     // يستعلم عن حالة الطلب الحالية (المرحلة، رقم القدموس...) لتحديث شاشة
     // التتبع - يرجع null إذا الطلب غير موجود أو القاعدة غير متاحة.
     pollOrderStatus: (orderId: string) => Promise<OrderStatusResult | null>
+    // يتحقق أن كود الإحالة (رقم هاتف عميل سابق) حقيقي قبل تطبيق خصم الإحالة.
+    validateReferralCode: (code: string) => Promise<boolean>
+    // يحفظ تقييم العميل (نجوم + ملاحظة اختيارية) بعد تسليم الطلب - مرة واحدة فقط لكل طلب.
+    submitOrderRating: (orderId: string, stars: number, note: string) => Promise<boolean>
   }
 }

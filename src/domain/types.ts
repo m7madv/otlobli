@@ -23,6 +23,18 @@ export type Screen =
   | 'terms'
   | 'support'
   | 'notifications'
+  | 'notification-settings'
+
+export type NotificationPrefs = {
+  // إشعارات تقدّم مراحل الطلب (تم الشراء، في الطريق، تم التسليم...)
+  orderUpdates: boolean
+  // إشعارات الدفع وتأكيده
+  payment: boolean
+  // إشعارات النظام والعروض والتنبيهات العامة
+  system: boolean
+  // قناة واتساب: وصول نسخة من الإشعار على رقم الواتساب المسجَّل
+  whatsapp: boolean
+}
 
 export type AppNotification = {
   id: string
@@ -147,6 +159,8 @@ export type Order = {
   qadmousNumber: string
   createdAt: string
   paidAt?: string
+  rating?: number
+  ratingNote?: string
 }
 
 export type PriceLine = {

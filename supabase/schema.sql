@@ -525,3 +525,58 @@ create index if not exists orders_assigned_driver_id_idx on public.orders (assig
 
 alter table public.drivers enable row level security;
 -- بدون policies عامة — الوصول فقط عبر Edge Functions بصلاحية service role
+
+-- ============================================================================
+-- خصم الإحالة — كود الإحالة هو رقم هاتف عميل سابق نفسه (بلا جدول/توليد
+-- إضافي)؛ هاي الدالة فقط تتحقق إنه رقم حقيقي لعميل عنده طلب سابق قبل ما
+-- التطبيق يطبّق خصم الإحالة على طلب العميل الجديد.
+-- ============================================================================
+
+create or replace function public.check_referral_code(ref_phone text)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists(select 1 from public.orders where phone = ref_phone);
+$$;
+
+revoke all on function public.check_referral_code(text) from public;
+grant execute on function public.check_referral_code(text) to anon, authenticated;
+
+-- ============================================================================
+-- تقييم ما بعد التسليم — نجوم (1-5) + ملاحظة اختيارية، مرة واحدة لكل طلب.
+-- ============================================================================
+
+alter table public.orders add column if not exists rating integer check (rating between 1 and 5);
+alter table public.orders add column if not exists rating_note text not null default '';
+alter table public.orders add column if not exists rated_at timestamptz;
+
+create or replace function public.submit_order_rating(target_order_id text, p_stars integer, p_note text)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  updated_count integer;
+begin
+  if p_stars < 1 or p_stars > 5 then
+    return false;
+  end if;
+
+  update public.orders
+  set rating = p_stars,
+      rating_note = coalesce(p_note, ''),
+      rated_at = now()
+  where id = target_order_id
+    and rating is null;
+
+  get diagnostics updated_count = row_count;
+  return updated_count > 0;
+end;
+$$;
+
+revoke all on function public.submit_order_rating(text, integer, text) from public;
+grant execute on function public.submit_order_rating(text, integer, text) to anon, authenticated;

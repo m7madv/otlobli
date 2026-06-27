@@ -12,6 +12,44 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'GET, PATCH, DELETE, OPTIONS',
 }
 
+const ORDER_STATUS_LABELS = [
+  'بانتظار الدفع',
+  'تم الدفع',
+  'قيد الشراء',
+  'تم الشراء',
+  'في الطريق إلى الأردن',
+  'وصل الأردن',
+  'قيد الشحن إلى سوريا',
+  'مع القدموس',
+  'جاهز للاستلام',
+  'تم التسليم',
+]
+
+async function notifyCustomerStatusChange(
+  phone: string,
+  order: { id: string; statusIndex: number; qadmousNumber?: string },
+) {
+  if (!WHATSAPP_SERVER_URL || !phone) return
+  const label = ORDER_STATUS_LABELS[order.statusIndex] ?? ''
+  const lines = [`📦 *تحديث على طلبك ${order.id}*`, `الحالة الجديدة: ${label}`]
+  if (order.statusIndex === ORDER_STATUS_LABELS.length - 1) {
+    lines.push('', 'بانتظارك لاستلام طلبك 🎉')
+  } else if (order.qadmousNumber) {
+    lines.push(`رقم القدموس: ${order.qadmousNumber}`)
+  }
+
+  try {
+    await fetch(`${WHATSAPP_SERVER_URL}/api/notify/whatsapp`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ phone, text: lines.join('\n') }),
+      signal: AbortSignal.timeout(8000),
+    })
+  } catch (err) {
+    console.error('status change whatsapp failed:', (err as Error).message, order.id)
+  }
+}
+
 async function notifyDriverAssignment(
   driverPhone: string,
   driverName: string,
@@ -100,6 +138,8 @@ Deno.serve(async (req) => {
       createdAt: row.created_at,
       paidAt: row.paid_at,
       assignedDriverId: row.assigned_driver_id || '',
+      rating: row.rating || undefined,
+      ratingNote: row.rating_note || '',
     }))
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -137,12 +177,34 @@ Deno.serve(async (req) => {
       dbPatch.assigned_at = assigningDriverId ? new Date().toISOString() : null
     }
 
+    const newStatusIndex = typeof patch.statusIndex === 'number' ? patch.statusIndex : null
+    let previousOrder: { phone: string; status_index: number } | null = null
+    if (newStatusIndex !== null) {
+      const { data } = await supabase.from('orders').select('phone, status_index').eq('id', orderId).single()
+      previousOrder = data
+    }
+
     const { error } = await supabase.from('orders').update(dbPatch).eq('id', orderId)
 
     if (error) {
       return new Response(JSON.stringify({ error: error.message }), {
         status: 500,
         headers: { ...corsHeaders, 'content-type': 'application/json' },
+      })
+    }
+
+    if (newStatusIndex !== null && previousOrder && previousOrder.status_index !== newStatusIndex) {
+      await supabase.from('order_events').insert({
+        order_id: orderId,
+        status_index: newStatusIndex,
+        title: ORDER_STATUS_LABELS[newStatusIndex] ?? '',
+        note: '',
+      })
+
+      await notifyCustomerStatusChange(previousOrder.phone, {
+        id: orderId,
+        statusIndex: newStatusIndex,
+        qadmousNumber: typeof patch.qadmousNumber === 'string' ? patch.qadmousNumber : undefined,
       })
     }
 
