@@ -348,7 +348,9 @@ async function fetchLiveRate() {
 
   if (nums.length >= 2) {
     const [buy, sell] = nums
-    return { buy, sell, rate: Math.round((buy + sell) / 2) }
+    // نستخدم سعر المبيع (الأعلى) كسعر الصرف المعتمد بالتطبيق لا متوسط
+    // البيع والشراء، لأنه هو السعر الحقيقي لتحويل الدولار إلى ليرة بالسوق
+    return { buy, sell, rate: sell }
   }
   if (nums.length === 1) {
     return { buy: nums[0], sell: nums[0], rate: nums[0] }
