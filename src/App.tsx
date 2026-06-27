@@ -410,9 +410,6 @@ function App() {
 
   const total = useMemo(() => sumPriceLines(breakdown), [breakdown])
   const meetsMinimumOrder = subtotal >= MIN_ORDER_SYP || subtotal / exchangeRate >= MIN_ORDER_USD
-  // يمنع المتابعة للدفع طالما في منتج بالسلة سعره غير مقروء (=صفر)؛ المستخدم
-  // لازم يدخل سعره يدوياً أول - حتى ما يصير طلب بمجموع ناقص
-  const hasMissingPrice = cartItems.some((item) => getItemPriceSyp(item) <= 0)
   const formatPrice = (syp: number) => formatPriceSyp(syp, paymentCurrency, exchangeRate)
 
   const applyReferralCode = () => {
@@ -858,7 +855,11 @@ function App() {
       const title = typeof product?.title === 'string' ? product.title : ''
       if (!title) return
 
-      const priceUsd = (typeof product?.priceUsd === 'number' && Number.isFinite(product.priceUsd)) ? product.priceUsd : 0
+      // السعر قد يصل رقماً أو نصاً ("12.99") حسب طريقة تمرير جسر iOS للرسالة؛
+      // نحوّله بأمان لرقم حتى لا يصير صفر بالفاتورة رغم أنه قُرئ فعلاً من SHEIN.
+      const rawPrice = product?.priceUsd
+      const parsedPrice = typeof rawPrice === 'number' ? rawPrice : parseFloat(String(rawPrice ?? ''))
+      const priceUsd = Number.isFinite(parsedPrice) && parsedPrice > 0 ? parsedPrice : 0
       const sizesAvailable = Array.isArray(product?.sizesAvailable)
         ? (product.sizesAvailable as unknown[]).filter((s): s is string => typeof s === 'string')
         : []
@@ -942,13 +943,6 @@ function App() {
   const confirmOrder = () => {
     if (cartItems.length === 0) {
       showNotice('السلة فارغة')
-      return
-    }
-
-    // حزام أمان: لا يُنشأ طلب فيه منتج بسعر صفر (قراءة سعر فاشلة لم تُصحَّح)
-    if (hasMissingPrice) {
-      showNotice('أدخل سعر كل منتج بالسلة أولاً')
-      setScreen('cart')
       return
     }
 
@@ -1492,29 +1486,7 @@ function App() {
                         {item.color} · {item.size}
                       </p>
                       <div className="cart-item-bottom">
-                        {getItemPriceSyp(item) > 0 ? (
-                          <strong>{formatPrice(getItemPriceSyp(item) * item.quantity)}</strong>
-                        ) : (
-                          <label className="cart-price-missing">
-                            <span>أدخل السعر</span>
-                            <input
-                              type="number"
-                              inputMode="decimal"
-                              placeholder="0.00"
-                              dir="ltr"
-                              defaultValue={item.priceUsd ? String(item.priceUsd) : ''}
-                              onChange={(e) => {
-                                const usd = parseFloat(e.target.value)
-                                if (!isNaN(usd) && usd > 0) {
-                                  setCartItems((items) => items.map((i) => i.id === item.id
-                                    ? { ...i, priceUsd: usd, priceSyp: Math.round(usd * exchangeRate) }
-                                    : i))
-                                }
-                              }}
-                            />
-                            <span>$</span>
-                          </label>
-                        )}
+                        <strong>{formatPrice(getItemPriceSyp(item) * item.quantity)}</strong>
                         <div className="qty-stepper">
                           <button
                             onClick={() => setCartItems((items) => items.map((i) => i.id === item.id ? { ...i, quantity: Math.max(1, i.quantity - 1) } : i))}
@@ -1551,12 +1523,7 @@ function App() {
                 )}
                 <CurrencyToggle value={paymentCurrency} onChange={setPaymentCurrency} />
                 <PriceBreakdown items={breakdown} total={total} format={formatPrice} />
-                {hasMissingPrice && (
-                  <p className="min-order-notice">
-                    في منتج سعره غير مقروء — أدخل سعره بالدولار فوق ليُحسب المجموع وتقدر تتابع.
-                  </p>
-                )}
-                {!hasMissingPrice && !meetsMinimumOrder && (
+                {!meetsMinimumOrder && (
                   <p className="min-order-notice">
                     الحد الأدنى للطلب {formatMoney(MIN_ORDER_SYP)} (أو {MIN_ORDER_USD}$) — أضف منتجات أكثر للمتابعة
                   </p>
@@ -1567,7 +1534,7 @@ function App() {
             )}
           </main>
           <div className="sticky-pay-bar">
-            <button className="primary-action" disabled={cartItems.length === 0 || hasMissingPrice || !meetsMinimumOrder} onClick={() => setScreen('checkout')}>
+            <button className="primary-action" disabled={cartItems.length === 0 || !meetsMinimumOrder} onClick={() => setScreen('checkout')}>
               المتابعة للدفع
               <Icon name="arrow_back" />
             </button>
