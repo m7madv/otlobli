@@ -1894,6 +1894,41 @@ export const SHEIN_CAPTURE_SCRIPT = `
     hideStrayFixedBottomBars();
   }
 
+  // تشخيص مؤقت: يسرد كل العناصر الأيقونية في منطقة أعلى-يسار الشاشة (مكان
+  // زر الكاميرا/البحث بالصورة) مع نوعها وصنفها واسمها وهل هي محجوبة، في صندوق
+  // ظاهر فوق الصفحة ليصوّره المستخدم. يُزال بعد تحديد العنصر.
+  function otlobliDiag() {
+    try {
+      var box = document.getElementById('otlobli-diag-box');
+      if (!box) {
+        box = document.createElement('div');
+        box.id = 'otlobli-diag-box';
+        box.style.cssText = 'position:fixed;left:4px;right:4px;top:120px;z-index:2147483647;' +
+          'background:#000;color:#0f0;font-size:10px;line-height:1.35;padding:6px;max-height:46vh;' +
+          'overflow:auto;direction:ltr;white-space:pre-wrap;font-family:monospace;border:1px solid #0f0;';
+        document.documentElement.appendChild(box);
+      }
+      var all = document.querySelectorAll('button,a,[role="button"],svg,img');
+      var out = [];
+      var count = 0;
+      for (var i = 0; i < all.length && count < 30; i++) {
+        var el = all[i];
+        var r = el.getBoundingClientRect();
+        if (r.top < 40 || r.top > 210) continue;
+        if (r.left > 200) continue;
+        if (r.width <= 0 || r.width > 80 || r.height <= 0 || r.height > 80) continue;
+        var cls = (el.className && el.className.baseVal !== undefined) ? el.className.baseVal : (el.className || '');
+        var al = (el.getAttribute && el.getAttribute('aria-label')) || '';
+        var blk = (el.getAttribute && el.getAttribute('data-otlobli-blocked')) || '0';
+        out.push(count + ': ' + el.tagName + ' [' + Math.round(r.left) + ',' + Math.round(r.top) + ' ' +
+          Math.round(r.width) + 'x' + Math.round(r.height) + '] blk=' + blk +
+          ' cls=' + String(cls).slice(0, 55) + ' al=' + al);
+        count++;
+      }
+      box.textContent = out.length ? out.join('\\n') : 'no top-left icons found';
+    } catch (e) {}
+  }
+
   // Kept tight on purpose - every visible millisecond here is a window where
   // a SHEIN button/icon that's supposed to be hidden or blocked is instead
   // tappable, which is exactly the "nothing should ever be reachable, not
@@ -1958,6 +1993,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // Own slower interval, not part of tick() - see checkForSheinSecurityBlock's
   // comment on why innerText needs to stay off the 300ms timer.
   setInterval(checkForSheinSecurityBlock, 1000);
+  setInterval(otlobliDiag, 1500); // تشخيص مؤقت لزر الكاميرا - يُزال بعد التحديد
   tick();
 })();
 `
