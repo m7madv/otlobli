@@ -959,34 +959,43 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // بلا صورة، بحدّ غامق وخلفية فاتحة، **ظاهر بالشاشة**، وليس سعراً/خصماً/كمية.
   // القابلية للنقر هي ما يميّز زر الخيار عن شارة السعر (غير قابلة للنقر) -
   // وهذا أصلح خطأ التقاط السعر مكان المقاس.
-  function temuSelectedOptionPill() {
-    var vph = viewportSize().height;
-    // نشمل div/span أيضاً لأن أزرار المقاس في تيمو أحياناً div قابلة للنقر،
-    // ونعتمد على (قابلية النقر + الحدّ الغامق + الاستبعادات) للتمييز عن السعر.
-    var els = document.querySelectorAll('button, a, [role="button"], div, span, label');
-    for (var i = 0; i < els.length; i++) {
-      var el = els[i];
-      if (el.id && el.id.indexOf('otlobli') === 0) continue;
-      var t = (el.textContent || '').trim();
-      if (t.length < 1 || t.length > 24) continue;
-      if (t.indexOf(':') >= 0) continue;
-      if (/[$£€%]/.test(t) || /\\boff\\b/i.test(t) || /ca\\$|usd|jod|sar|aed/i.test(t)) continue; // سعر/خصم
-      if (/^[+\\-]?\\d+(\\.\\d+)?$/.test(t)) continue;        // رقم فقط (سعر/كمية)
-      if (t === '+' || t === '-' || t === '×' || t === '✕') continue;
-      if (el.querySelector && el.querySelector('img')) continue; // ليس كرت لون
-      var cs = window.getComputedStyle(el);
-      var clickable = el.tagName === 'BUTTON' || el.tagName === 'A' || el.getAttribute('role') === 'button' || cs.cursor === 'pointer';
-      if (!clickable) continue;
-      var r = el.getBoundingClientRect();
-      if (r.width < 18 || r.width > 260 || r.height < 16 || r.height > 80) continue;
-      if (r.bottom < 0 || r.top > vph) continue;             // داخل الشاشة فقط
-      if (cs.visibility === 'hidden' || parseFloat(cs.opacity || '1') < 0.3) continue;
-      if (!temuHasDarkBorder(el) || !temuLightBackground(el)) continue;
-      return t;
+  // عنوان قسم المقاس ("Size"/"المقاس").
+  function temuSizeHeadEl() {
+    var heads = document.querySelectorAll('div, span, h2, h3, strong, label, p');
+    for (var h = 0; h < heads.length; h++) {
+      var ht = (heads[h].textContent || '').trim();
+      if (ht === 'Size' || ht === 'المقاس' || ht === 'Size:' || ht === 'المقاس:' ||
+          (ht.indexOf('Size') === 0 && ht.length <= 12)) return heads[h];
+    }
+    return null;
+  }
+  // المقاس المختار = الزر صاحب الحدّ الغامق **داخل قسم Size فقط** (نصعد من
+  // العنوان لحاوية تضم الأزرار) - هذا يمنع التقاط نصوص بعيدة مثل "Free in Temu
+  // App" أو شارات السعر.
+  function temuSelectedSize() {
+    var head = temuSizeHeadEl();
+    if (!head) return '';
+    var container = head.parentElement;
+    var hops = 0;
+    while (container && hops < 5) {
+      var pills = container.querySelectorAll('button, a, [role="button"], div, span, label');
+      for (var i = 0; i < pills.length; i++) {
+        var el = pills[i];
+        if (el.id && el.id.indexOf('otlobli') === 0) continue;
+        var t = (el.textContent || '').trim();
+        if (t.length < 1 || t.length > 24) continue;
+        if (t.indexOf(':') >= 0) continue;
+        if (/[$£€%]/.test(t)) continue;
+        if (/\\bfree\\b|\\bapp\\b|guide|standard|^us$|^ca$|^eu$|^uk$|qty|size/i.test(t)) continue;
+        if (el.querySelector && el.querySelector('img')) continue;
+        if (!temuHasDarkBorder(el) || !temuLightBackground(el)) continue;
+        return t;
+      }
+      container = container.parentElement;
+      hops++;
     }
     return '';
   }
-  function temuSelectedSize() { return temuSelectedOptionPill(); }
 
   // منتج تخصيص (نقش اسم): يلتقط النص الذي كتبه الزبون من حقل الإدخال.
   function temuPersonalization() {
@@ -1005,14 +1014,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return { has: true, text: '' };
   }
   // هل توجد قائمة مقاسات؟ (عنوان "Size"/"المقاس")
-  function temuHasSizeSection() {
-    var els = document.querySelectorAll('div, span, h2, h3, strong, label, p');
-    for (var i = 0; i < els.length; i++) {
-      var t = (els[i].textContent || '').trim();
-      if (t === 'Size' || t === 'المقاس' || t === 'Size:' || t === 'المقاس:') return true;
-    }
-    return false;
-  }
+  function temuHasSizeSection() { return !!temuSizeHeadEl(); }
   // صفحة المنتج المغلقة تعرض ملخّصاً مثل "7 Color, 3 Size" قبل اكتمال الاختيار.
   function temuVariantSummaryEl() {
     var els = document.querySelectorAll('div, button, a, span');
