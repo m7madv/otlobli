@@ -33,9 +33,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // connections can race the cookie write against the page's own first content
   // request on a slow/just-toggled-VPN connection, so one attempt occasionally
   // still rendered English; the retry counter resets per real navigation.
+  // هل نحن داخل أحد مواقع شي إن؟ منطق الالتقاط/الحجب الخاص بشي إن يعمل فقط
+  // عندها؛ على المتاجر الأخرى (تيمو/ترينديول) نكتفي بتنظيف العروض المنبثقة.
+  var IS_SHEIN = /shein/i.test(location.hostname);
+
   // منطق فرض اللغة العربية خاص بمواقع شي إن فقط - على المتاجر الأخرى (تيمو/
   // ترينديول) قد يضبط كوكي لغة خاطئة ويسبب إعادة تحميل بلا داعٍ، فنحصره بشي إن.
-  if (/shein/i.test(location.hostname)) {
+  if (IS_SHEIN) {
     var regionMatch = location.pathname.match(/^\\/([a-z]{2})(?:\\/|$)/i);
     var siteRegion = (regionMatch ? regionMatch[1] : 'jo').toLowerCase();
     var arCookie = siteRegion;            // مثلاً 'lb' أو 'jo' (يعرض العربية)
@@ -1888,11 +1892,17 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // shortly, by which point the parser is essentially always done with it.
     if (!document.body) return;
     ensureViewportFitCover();
+    ensureBackButton();
+    ensureOtlobliNav();
+    // المتاجر غير شي إن (تيمو/ترينديول): تصفّح فقط - ننظّف العروض المنبثقة
+    // المزعجة ولا نشغّل منطق الالتقاط/الحجب الخاص بشي إن (الذي قد يخرّب صفحاتهم).
+    if (!IS_SHEIN) {
+      killStorePopups();
+      return;
+    }
     ensureLoadingOverlay();
     blockCartNavigation();
     ensureAddToCartButton();
-    ensureBackButton();
-    ensureOtlobliNav();
     hideKnownHeaderIconsByHint();
     hideSheinHeaderControls();
     hideExtraHeaderIcons();
@@ -1900,6 +1910,35 @@ export const SHEIN_CAPTURE_SCRIPT = `
     hideListingCardAddButtons();
     hideForeignBottomNav();
     hideStrayFixedBottomBars();
+  }
+
+  // يزيل النوافذ المنبثقة الترويجية المزعجة على المتاجر غير شي إن (عجلة الحظ،
+  // نوافذ الخصومات، طبقات تغطّي الشاشة): أي عنصر ثابت/مطلق بطبقة عالية يغطّي
+  // جزءاً كبيراً من الشاشة = نافذة منبثقة، فنخفيه ونعيد تمكين التمرير.
+  function killStorePopups() {
+    if (IS_SHEIN) return;
+    var vp = viewportSize();
+    var els = document.querySelectorAll('div, section, aside');
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      if (el.id && el.id.indexOf('otlobli') === 0) continue;
+      var cs = window.getComputedStyle(el);
+      if (cs.position !== 'fixed' && cs.position !== 'absolute') continue;
+      var z = parseInt(cs.zIndex, 10) || 0;
+      if (z < 100) continue;
+      var r = el.getBoundingClientRect();
+      // نافذة منبثقة = تغطّي عرضاً كبيراً وارتفاعاً كبيراً معاً (لا شريط علوي رفيع)
+      if (r.width >= vp.width * 0.6 && r.height >= vp.height * 0.4) {
+        el.setAttribute('data-otlobli-blocked', '1');
+        el.style.setProperty('display', 'none', 'important');
+      }
+    }
+    // العروض المنبثقة تقفل تمرير الصفحة عادةً - نعيد تمكينه
+    if (document.body) document.body.style.overflow = '';
+    if (document.documentElement) document.documentElement.style.overflow = '';
+    // بانر تثبيت التطبيق الأصلي (Smart App Banner) إن وُجد
+    var appMeta = document.querySelector('meta[name="apple-itunes-app"]');
+    if (appMeta && appMeta.parentNode) appMeta.parentNode.removeChild(appMeta);
   }
 
 
@@ -1960,13 +1999,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // freshly re-created icon gets caught within ~120ms instead of waiting
   // for the next general tick.
   setInterval(function () {
+    if (!IS_SHEIN) { killStorePopups(); return; }
     hideKnownHeaderIconsByHint();
     hideSheinHeaderControls();
     hideListingCardAddButtons();
   }, 120);
   // Own slower interval, not part of tick() - see checkForSheinSecurityBlock's
-  // comment on why innerText needs to stay off the 300ms timer.
-  setInterval(checkForSheinSecurityBlock, 1000);
+  // comment on why innerText needs to stay off the 300ms timer. خاص بشي إن فقط.
+  setInterval(function () { if (IS_SHEIN) checkForSheinSecurityBlock(); }, 1000);
   tick();
 })();
 `
