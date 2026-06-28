@@ -1596,8 +1596,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function otlobliNearSearchInput(node) {
     var up = node;
     var hops = 0;
-    while (up && hops < 3) {
-      if (up.querySelector && up.querySelector('input')) return true;
+    while (up && hops < 4) {
+      // حقل بحث حقيقي قريب (قد لا يكون input عادياً في صفحة البحث)
+      if (up.querySelector && up.querySelector('input, textarea, [contenteditable="true"]')) return true;
+      // أو حاوية صنفها يدل على شريط البحث - الكاميرا تجلس داخلها
+      var c = (up.className && up.className.baseVal !== undefined) ? up.className.baseVal : (up.className || '');
+      if (typeof c === 'string' && /search|بحث/i.test(c)) return true;
       up = up.parentElement;
       hops++;
     }
@@ -1894,47 +1898,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     hideStrayFixedBottomBars();
   }
 
-  // تشخيص مؤقت: يسرد كل العناصر الأيقونية في منطقة أعلى-يسار الشاشة (مكان
-  // زر الكاميرا/البحث بالصورة) مع نوعها وصنفها واسمها وهل هي محجوبة، في صندوق
-  // ظاهر فوق الصفحة ليصوّره المستخدم. يُزال بعد تحديد العنصر.
-  function otlobliDiag() {
-    try {
-      var box = document.getElementById('otlobli-diag-box');
-      if (!box) {
-        box = document.createElement('div');
-        box.id = 'otlobli-diag-box';
-        box.style.cssText = 'position:fixed;left:4px;right:4px;top:120px;z-index:2147483647;' +
-          'background:#000;color:#0f0;font-size:10px;line-height:1.35;padding:6px;max-height:46vh;' +
-          'overflow:auto;direction:ltr;white-space:pre-wrap;font-family:monospace;border:1px solid #0f0;';
-        document.documentElement.appendChild(box);
-      }
-      var all = document.querySelectorAll('button,a,[role="button"],svg,img,div,span,i');
-      var out = [];
-      var count = 0;
-      for (var i = 0; i < all.length && count < 40; i++) {
-        var el = all[i];
-        var r = el.getBoundingClientRect();
-        if (r.top < 25 || r.top > 230) continue;
-        if (r.left > 240) continue;
-        if (r.width < 12 || r.width > 130 || r.height < 12 || r.height > 130) continue;
-        var cs = window.getComputedStyle(el);
-        var bg = cs.backgroundColor || '';
-        var hasImg = !!(el.querySelector && el.querySelector('img,svg'));
-        var bgImg = cs.backgroundImage && cs.backgroundImage !== 'none' ? 'Y' : 'N';
-        // نركّز على العناصر الداكنة أو اللي فيها أيقونة/خلفية صورة (مرشح الكاميرا)
-        var isDark = /rgb\\(\\s*(?:[0-9]|[0-4][0-9])\\s*,/.test(bg);
-        if (!isDark && !hasImg && bgImg === 'N') continue;
-        var cls = (el.className && el.className.baseVal !== undefined) ? el.className.baseVal : (el.className || '');
-        var al = (el.getAttribute && el.getAttribute('aria-label')) || '';
-        var blk = (el.getAttribute && el.getAttribute('data-otlobli-blocked')) || '0';
-        out.push(count + ': ' + el.tagName + ' [' + Math.round(r.left) + ',' + Math.round(r.top) + ' ' +
-          Math.round(r.width) + 'x' + Math.round(r.height) + '] blk=' + blk + ' bg=' + bg + ' bgImg=' + bgImg +
-          ' cls=' + String(cls).slice(0, 45) + ' al=' + al);
-        count++;
-      }
-      box.textContent = out.length ? out.join('\\n') : 'no dark/icon elements found top-left';
-    } catch (e) {}
-  }
 
   // Kept tight on purpose - every visible millisecond here is a window where
   // a SHEIN button/icon that's supposed to be hidden or blocked is instead
@@ -2000,7 +1963,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // Own slower interval, not part of tick() - see checkForSheinSecurityBlock's
   // comment on why innerText needs to stay off the 300ms timer.
   setInterval(checkForSheinSecurityBlock, 1000);
-  setInterval(otlobliDiag, 1500); // تشخيص مؤقت لزر الكاميرا - يُزال بعد التحديد
   tick();
 })();
 `
