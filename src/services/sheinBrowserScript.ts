@@ -919,16 +919,19 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return '';
   }
   function temuImage() {
-    var og = getMeta('og:image');
-    if (og) return og;
-    var imgs = document.querySelectorAll('img[src*="kwcdn.com"], img[src*="temu"]');
+    // الصورة الرئيسية = أكبر صورة kwcdn في أعلى الصفحة (المعرض الرئيسي)، لا
+    // الصور الثانوية/التفصيلية الأسفل. fallback: og:image.
+    var imgs = document.querySelectorAll('img');
     var best = '', bestA = 0;
     for (var i = 0; i < imgs.length; i++) {
+      var src = imgs[i].currentSrc || imgs[i].src || '';
+      if (!/kwcdn|temu/i.test(src)) continue;
       var r = imgs[i].getBoundingClientRect();
+      if (r.top > 720 || r.width < 120) continue;          // منطقة المعرض العلوية
       var a = r.width * r.height;
-      if (a > bestA && imgs[i].src) { bestA = a; best = imgs[i].src; }
+      if (a > bestA) { bestA = a; best = src; }
     }
-    return best;
+    return best || getMeta('og:image') || '';
   }
 
   // هل العنصر له حدّ غامق (أسود/قريب منه)؟ = الخيار المختار في تيمو (مؤكّد من
@@ -958,7 +961,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // وهذا أصلح خطأ التقاط السعر مكان المقاس.
   function temuSelectedOptionPill() {
     var vph = viewportSize().height;
-    var els = document.querySelectorAll('button, a, [role="button"]');
+    // نشمل div/span أيضاً لأن أزرار المقاس في تيمو أحياناً div قابلة للنقر،
+    // ونعتمد على (قابلية النقر + الحدّ الغامق + الاستبعادات) للتمييز عن السعر.
+    var els = document.querySelectorAll('button, a, [role="button"], div, span, label');
     for (var i = 0; i < els.length; i++) {
       var el = els[i];
       if (el.id && el.id.indexOf('otlobli') === 0) continue;
@@ -967,8 +972,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (t.indexOf(':') >= 0) continue;
       if (/[$£€%]/.test(t) || /\\boff\\b/i.test(t) || /ca\\$|usd|jod|sar|aed/i.test(t)) continue; // سعر/خصم
       if (/^[+\\-]?\\d+(\\.\\d+)?$/.test(t)) continue;        // رقم فقط (سعر/كمية)
+      if (t === '+' || t === '-' || t === '×' || t === '✕') continue;
       if (el.querySelector && el.querySelector('img')) continue; // ليس كرت لون
       var cs = window.getComputedStyle(el);
+      var clickable = el.tagName === 'BUTTON' || el.tagName === 'A' || el.getAttribute('role') === 'button' || cs.cursor === 'pointer';
+      if (!clickable) continue;
       var r = el.getBoundingClientRect();
       if (r.width < 18 || r.width > 260 || r.height < 16 || r.height > 80) continue;
       if (r.bottom < 0 || r.top > vph) continue;             // داخل الشاشة فقط
