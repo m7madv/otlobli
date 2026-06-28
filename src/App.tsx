@@ -15,7 +15,7 @@ import type { PaymentCurrency } from './domain/pricing'
 import type { Address, AppNotification, CartItem, NotificationPrefs, Order, Product, ProductColor, ProductVariant, Recipient, Screen, StatusTone, UserProfile } from './domain/types'
 import { readStoredJson, storageKeys, useStoredState } from './infrastructure/localStorage'
 import { appApi } from './services'
-import { PAYMENT_MODE, SOURCE_COUNTRY } from './config'
+import { PAYMENT_MODE } from './config'
 import { buildWhatsappLink } from './services/whatsappLink'
 import { SHEIN_CAPTURE_SCRIPT } from './services/sheinBrowserScript'
 import { InAppBrowser, ToolBarType } from '@capgo/capacitor-inappbrowser'
@@ -25,9 +25,12 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 const NOTIFY_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/telegram-notify` : ''
 
-// منطقة موقع SHEIN تُشتق من بلد المصدر (lb=لبنان، jo=الأردن). السكربت
-// المحقون يقرأ المنطقة من الرابط نفسه فيضبط لغة الموقع تلقائياً.
-const SHEIN_REGION = SOURCE_COUNTRY === 'LB' ? 'lb' : 'jo'
+// موقع SHEIN الذي يتصفّحه الزبون. نستخدم نسخة الأردن لأنها تعرض العربية
+// بثبات (نسخة لبنان m.shein.com/lb تعرض الإنجليزية ولا تقبل العربية).
+// بلد المصدر الفعلي (لبنان) شأن تشغيلي داخلي لا يؤثر على ما يراه الزبون:
+// الأسعار بالدولار نفسها، والزبون لا يرى اسم أي بلد (يُعرض "مركز التجميع").
+// السكربت المحقون يقرأ المنطقة من الرابط فيضبط لغة الموقع تلقائياً.
+const SHEIN_REGION = 'jo'
 const SHEIN_HOME_URL = `https://m.shein.com/${SHEIN_REGION}/?ref=${SHEIN_REGION}&rep=dir&ret=m${SHEIN_REGION}&currency=USD`
 
 const usesInboundWhatsappAuth = import.meta.env.VITE_WHATSAPP_AUTH_MODE === 'inbound'
