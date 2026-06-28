@@ -1620,7 +1620,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
           if (isClickable) {
             var hasInput = !!el.querySelector('input');
             var hint = ((el.className || '') + ' ' + (el.getAttribute('aria-label') || '') + ' ' + (el.textContent || '')).toLowerCase();
-            var isSearchish = hasInput || /search|بحث|camera|كاميرا/.test(hint);
+            var isSearchish = hasInput || /search|بحث|camera|كاميرا|image|صورة|بالصورة|visual|photo|عدسة|lens/.test(hint);
             if (elIconSized && !isSearchish) {
               el.setAttribute('data-otlobli-blocked', '1');
               el.style.setProperty('visibility', 'hidden', 'important');
@@ -1729,7 +1729,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (el.id && el.id.indexOf('otlobli') === 0) continue;
       if (el.querySelector && el.querySelector('input')) continue; // search field wrapper
       var hint = ((el.className || '') + ' ' + (el.getAttribute && el.getAttribute('aria-label') || '') + ' ' + (el.textContent || '')).toLowerCase();
-      if (/search|بحث|camera|كاميرا/.test(hint)) continue;
+      if (/search|بحث|camera|كاميرا|image|صورة|بالصورة|visual|photo|عدسة|lens/.test(hint)) continue;
       var rect = el.getBoundingClientRect();
       if (rect.width <= 0 || rect.width > 72 || rect.height <= 0 || rect.height > 72) continue;
       el.setAttribute('data-otlobli-blocked', '1');
