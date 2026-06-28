@@ -918,6 +918,15 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
     return '';
   }
+  // هل للمنتج خيارات ألوان؟ (وجود عنوان "Color:"/"اللون:").
+  function temuHasColorSection() {
+    var nodes = document.querySelectorAll('div, span, h2, h3, p, strong');
+    for (var i = 0; i < nodes.length; i++) {
+      var t = (nodes[i].textContent || '').trim();
+      if (t.length < 40 && /^(?:Color|colour|اللون)\\s*[:：]/i.test(t)) return true;
+    }
+    return false;
+  }
   function temuImage() {
     // الصورة الرئيسية = أكبر صورة kwcdn في أعلى الصفحة (المعرض الرئيسي)، لا
     // الصور الثانوية/التفصيلية الأسفل. fallback: og:image.
@@ -969,31 +978,59 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
     return null;
   }
-  // المقاس المختار = الزر صاحب الحدّ الغامق **داخل قسم Size فقط** (نصعد من
-  // العنوان لحاوية تضم الأزرار) - هذا يمنع التقاط نصوص بعيدة مثل "Free in Temu
-  // App" أو شارات السعر.
-  function temuSelectedSize() {
+  // قتامة حدّ العنصر (مجموع RGB، أقل=أغمق؛ 999 لو شفاف/غير موجود).
+  function temuBorderDarkness(el) {
+    var bc = window.getComputedStyle(el).borderTopColor || '';
+    var m = bc.match(/rgba?\\((\\d+),\\s*(\\d+),\\s*(\\d+)(?:,\\s*([\\d.]+))?/i);
+    if (!m) return 999;
+    var a = m[4] !== undefined ? parseFloat(m[4]) : 1;
+    if (a < 0.3) return 999;
+    return (+m[1] + +m[2] + +m[3]);
+  }
+  // أزرار المقاس ضمن قسم "Size" فقط.
+  function temuSizePills() {
     var head = temuSizeHeadEl();
-    if (!head) return '';
-    var container = head.parentElement;
-    var hops = 0;
-    while (container && hops < 5) {
-      var pills = container.querySelectorAll('button, a, [role="button"], div, span, label');
-      for (var i = 0; i < pills.length; i++) {
-        var el = pills[i];
+    if (!head) return [];
+    var container = head.parentElement, hops = 0, best = [];
+    while (container && hops < 6) {
+      var cand = container.querySelectorAll('button, a, [role="button"], div, span, label');
+      var pills = [];
+      for (var i = 0; i < cand.length; i++) {
+        var el = cand[i];
         if (el.id && el.id.indexOf('otlobli') === 0) continue;
         var t = (el.textContent || '').trim();
         if (t.length < 1 || t.length > 24) continue;
         if (t.indexOf(':') >= 0) continue;
         if (/[$£€%]/.test(t)) continue;
-        if (/\\bfree\\b|\\bapp\\b|guide|standard|^us$|^ca$|^eu$|^uk$|qty|size/i.test(t)) continue;
+        if (/\\bfree\\b|\\bapp\\b|guide|standard|^us$|^ca$|^eu$|^uk$|qty|^size$/i.test(t)) continue;
         if (el.querySelector && el.querySelector('img')) continue;
-        if (!temuHasDarkBorder(el) || !temuLightBackground(el)) continue;
-        return t;
+        var r = el.getBoundingClientRect();
+        if (r.width < 18 || r.width > 260 || r.height < 16 || r.height > 80) continue;
+        pills.push(el);
       }
-      container = container.parentElement;
-      hops++;
+      if (pills.length > best.length) best = pills;
+      if (best.length >= 2) break;
+      container = container.parentElement; hops++;
     }
+    return best;
+  }
+  // المقاس المختار = الزر الأغمق حدّاً **بوضوح** عن البقية (مقارنة نسبية، لا
+  // عتبة ثابتة). لو ما في وحدة أغمق بوضوح = لم يُختر مقاس → نُرجع فارغاً (ليمنع
+  // النظام الإضافة ويطلب الاختيار).
+  function temuSelectedSize() {
+    var pills = temuSizePills();
+    if (pills.length < 1) return '';
+    if (pills.length === 1) {
+      // مقاس واحد فقط: مختار لو حدّه غامق فعلاً.
+      return temuBorderDarkness(pills[0]) < 280 ? (pills[0].textContent || '').trim() : '';
+    }
+    var darkEl = null, d1 = 999, d2 = 999;
+    for (var i = 0; i < pills.length; i++) {
+      var v = temuBorderDarkness(pills[i]);
+      if (v < d1) { d2 = d1; d1 = v; darkEl = pills[i]; }
+      else if (v < d2) { d2 = v; }
+    }
+    if (darkEl && d1 < 300 && (d2 - d1) > 120) return (darkEl.textContent || '').trim();
     return '';
   }
 
@@ -1155,9 +1192,17 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
 
     function finalize(p) {
+      // فاشل-بأمان لتيمو: لا نُرسل بيانات ناقصة أبداً (سعر صفر/بلا عنوان/بلا
+      // صورة) - بدل ذلك نلغي ونطلب إعادة المحاولة، فلا تدخل خربطة للسلة.
+      if (IS_TEMU && (!p.title || !p.image || !(p.priceUsd > 0))) {
+        removeOverlay(0);
+        var ab = document.getElementById('otlobli-add-btn');
+        if (ab) showMessage(ab, 'تعذّر قراءة بيانات المنتج — حاول مرة ثانية');
+        return;
+      }
       updateOverlayContent(p, 'جاري إضافة المنتج لسلة otlobli...');
       preloadImage(p.image, 2500).then(function (ok) {
-        if (!ok) p.image = getMainImage() || p.image;
+        if (!ok) p.image = (IS_TEMU ? temuImage() : getMainImage()) || p.image;
         try {
           if (window.mobileApp && window.mobileApp.postMessage) {
             window.mobileApp.postMessage({ detail: { type: 'addToCart', product: p } });
@@ -1353,25 +1398,39 @@ export const SHEIN_CAPTURE_SCRIPT = `
         event.preventDefault();
         event.stopPropagation();
         if (IS_TEMU) {
-          // 1) المنتج المغلق يعرض "7 Color, 3 Size" = لم يُختر بعد - نفتح اللوحة.
+          // شجرة قرار كاملة فاشلة-بأمان: لا نضيف أبداً قبل التأكد من كل قيمة
+          // مطلوبة؛ أي شكّ → نمنع ونطلب الاختيار (خربطة = صفر).
+          // أ) لوحة الخيارات مغلقة وفيها خيارات ("X Color, Y Size") → نفتحها.
           var summaryEl = temuVariantSummaryEl();
           if (summaryEl) {
-            showMessage(btn, 'حدد اللون والمقاس أولاً');
+            showMessage(btn, 'حدد الخيارات أولاً');
             try { summaryEl.click(); } catch (e) {}
             return;
           }
-          // 2) منتج تخصيص (نقش اسم) بدون نص مكتوب → نطلب كتابة النص.
+          // ب) منتج تخصيص (نقش اسم) بدون نص → نطلب الكتابة.
           var persoChk = temuPersonalization();
           if (persoChk.has && !persoChk.text) {
             showMessage(btn, 'اكتب النص/الاسم المطلوب أولاً');
             return;
           }
-          // 3) اللوحة مفتوحة وفيها قسم مقاسات لكن لم يُختر مقاس (لا خيار محدّد).
-          if (!persoChk.has && temuHasSizeSection() && !temuSelectedSize()) {
-            showMessage(btn, 'حدد المقاس أولاً');
+          if (!persoChk.has) {
+            // ج) فيه ألوان لكن لم يُحدّد لون.
+            if (temuHasColorSection() && !temuColor()) {
+              showMessage(btn, 'حدد اللون أولاً');
+              return;
+            }
+            // د) فيه مقاسات لكن لم يُحدّد مقاس بوضوح (إطار أسود واضح).
+            if (temuHasSizeSection() && !temuSelectedSize()) {
+              showMessage(btn, 'حدد المقاس أولاً');
+              return;
+            }
+          }
+          // هـ) السعر: لا نضيف بصفر/غير مقروء.
+          if (!(temuPriceUsd() > 0)) {
+            showMessage(btn, 'تعذّر قراءة السعر — انتظر ثانية وحاول');
             return;
           }
-          // 3) لا خيارات (أو اكتملت): نضيف.
+          // و) كل شيء مؤكّد → نضيف.
           addToCartFlow({ exists: false }, { exists: false });
           return;
         }
