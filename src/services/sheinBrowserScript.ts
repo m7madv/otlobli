@@ -1277,8 +1277,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // gesture-inset is left over to report. Back to the original 16px floor
     // for that, same as before that bug was ever introduced - a bigger one
     // now would just add needless empty space under the icons.
+    // direction:rtl ثابت حتى يكون ترتيب الأزرار (الرئيسية يمين ← حسابي يسار)
+    // نفسه على كل المتاجر؛ بدونه ينقلب على المتاجر LTR مثل تيمو.
     nav.style.cssText = 'position:fixed;left:50%;bottom:0;transform:translateX(-50%) translateZ(0);will-change:transform;' +
-      'width:min(100%, 440px);z-index:2147483647;display:flex;' +
+      'width:min(100%, 440px);z-index:2147483647;display:flex;direction:rtl;' +
       'min-height:74px;background:rgba(255,255,255,.97);border-top:1px solid #bccac0;' +
       'padding-bottom:max(env(safe-area-inset-bottom, 0px), 16px);';
     var items = [
@@ -1921,20 +1923,26 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function killStorePopups() {
     if (IS_SHEIN) return;
     var vp = viewportSize();
+    // نحجب فقط ما يبدو فعلاً عرضاً ترويجياً (كلمات مميّزة) - لا نحجب أي طبقة
+    // كبيرة عمياءً، فلا نخفي محتوى المتجر ولا صفحة "تحقق أنك إنسان" (الكابتشا)
+    // فتصير الشاشة بيضاء. النص المحدود يستبعد شبكات المنتجات.
+    var PROMO = /spin|claim|reward|coupon|billionaire|incredible deals|free gift|lucky draw|congratulations|% ?off|تهانينا|عجلة الحظ|اربح|جائزة|خصم \\d/i;
     var els = document.querySelectorAll('div, section, aside');
     for (var i = 0; i < els.length; i++) {
       var el = els[i];
       if (el.id && el.id.indexOf('otlobli') === 0) continue;
+      if (el.getAttribute && el.getAttribute('data-otlobli-blocked')) continue;
       var cs = window.getComputedStyle(el);
       if (cs.position !== 'fixed' && cs.position !== 'absolute') continue;
       var z = parseInt(cs.zIndex, 10) || 0;
-      if (z < 100) continue;
+      if (z < 200) continue;
       var r = el.getBoundingClientRect();
-      // نافذة منبثقة = تغطّي عرضاً كبيراً وارتفاعاً كبيراً معاً (لا شريط علوي رفيع)
-      if (r.width >= vp.width * 0.6 && r.height >= vp.height * 0.4) {
-        el.setAttribute('data-otlobli-blocked', '1');
-        el.style.setProperty('display', 'none', 'important');
-      }
+      if (r.width < vp.width * 0.5 || r.height < vp.height * 0.3) continue;
+      var txt = (el.textContent || '');
+      if (txt.length > 400) continue;       // شبكات المحتوى نصّها طويل - نتجاهلها
+      if (!PROMO.test(txt)) continue;        // لا بد أن يقرأ كعرض ترويجي
+      el.setAttribute('data-otlobli-blocked', '1');
+      el.style.setProperty('display', 'none', 'important');
     }
     // العروض المنبثقة تقفل تمرير الصفحة عادةً - نعيد تمكينه
     if (document.body) document.body.style.overflow = '';
