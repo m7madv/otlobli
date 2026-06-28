@@ -38,9 +38,9 @@ const SHEIN_HOME_URL = `https://m.shein.com/${SHEIN_REGION}/?ref=${SHEIN_REGION}
 type StoreId = 'shein' | 'temu'
 const STORES: { id: StoreId; name: string; url: string }[] = [
   { id: 'shein', name: 'شي إن', url: SHEIN_HOME_URL },
-  // locale_override=<region>~<lang>~<currency> يفرض اللغة والعملة على تيمو
-  // بغضّ النظر عن منطقة الـVPN (مستنبط من رابط مشاركة حقيقي): عربي + دينار أردني.
-  { id: 'temu', name: 'تيمو', url: 'https://www.temu.com/qa/?locale_override=101~ar~JOD&_oak_region=101' },
+  // ملاحظة: تيمو يحدّد اللغة/العملة/المنطقة من IP الـVPN (ثبت أن locale_override
+  // بالرابط يُرفض ويُعاد لكندا)، فالعربية/الأردن/الدولار تتطلب VPN ببلد عربي.
+  { id: 'temu', name: 'تيمو', url: 'https://www.temu.com' },
 ]
 const storeUrl = (id: string) => (STORES.find((s) => s.id === id)?.url) ?? SHEIN_HOME_URL
 

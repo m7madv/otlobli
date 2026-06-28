@@ -36,6 +36,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // هل نحن داخل أحد مواقع شي إن؟ منطق الالتقاط/الحجب الخاص بشي إن يعمل فقط
   // عندها؛ على المتاجر الأخرى (تيمو/ترينديول) نكتفي بتنظيف العروض المنبثقة.
   var IS_SHEIN = /shein/i.test(location.hostname);
+  var IS_TEMU = /temu/i.test(location.hostname);
 
   // منطق فرض اللغة العربية خاص بمواقع شي إن فقط - على المتاجر الأخرى (تيمو/
   // ترينديول) قد يضبط كوكي لغة خاطئة ويسبب إعادة تحميل بلا داعٍ، فنحصره بشي إن.
@@ -710,6 +711,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // dead end with no error. Now we only gate on the URL, and let
     // addToCartFlow run regardless; its diagnostics chips show exactly
     // which field(s) failed instead of hiding the failure entirely.
+    // تيمو: صفحة المنتج هي goods.html (مؤكّد من التشخيص).
+    if (IS_TEMU) return /goods/i.test(location.pathname);
     return /-p-\\d+/i.test(location.pathname);
   }
 
@@ -874,7 +877,59 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }, delay || 0);
   }
 
+  // ── جذب تيمو ────────────────────────────────────────────────────────────
+  // العنوان من og:title (نشيل لاحقة " - Temu Canada")، السعر من عنصر صنفه
+  // curPrice- (مؤكّد من التشخيص)، الصورة من og:image أو أكبر صورة kwcdn.
+  // السعر يُحوَّل للدولار حسب العملة الظاهرة (الدينار مثبّت، الكندي تقريبي).
+  function temuTitle() {
+    var og = getMeta('og:title') || '';
+    return og.replace(/\\s*[-|–—]\\s*Temu\\b.*$/i, '').replace(/\\s+/g, ' ').trim();
+  }
+  function temuPriceUsd() {
+    var best = '';
+    var els = document.querySelectorAll('[class*="curPrice" i]');
+    for (var i = 0; i < els.length; i++) {
+      var t = (els[i].textContent || '').trim();
+      if (t.length <= 25 && /[0-9]/.test(t) && /[$£€]|JOD|USD|د\\.أ/.test(t)) { best = t; break; }
+    }
+    if (!best) return 0;
+    var num = parseFloat(best.replace(/[^0-9.]/g, ''));
+    if (!(num > 0) || !isFinite(num)) return 0;
+    var rate = 1;                                   // الافتراضي دولار
+    if (/CA\\$|CAD/i.test(best)) rate = 0.73;       // كندي ← دولار (تقريبي)
+    else if (/JOD|د\\.أ/i.test(best)) rate = 1.41;  // دينار أردني ← دولار (مثبّت)
+    else if (/AED|د\\.إ/i.test(best)) rate = 0.27;
+    else if (/SAR|ر\\.س/i.test(best)) rate = 0.27;
+    return Math.round(num * rate * 100) / 100;
+  }
+  function temuImage() {
+    var og = getMeta('og:image');
+    if (og) return og;
+    var imgs = document.querySelectorAll('img[src*="kwcdn.com"], img[src*="temu"]');
+    var best = '', bestA = 0;
+    for (var i = 0; i < imgs.length; i++) {
+      var r = imgs[i].getBoundingClientRect();
+      var a = r.width * r.height;
+      if (a > bestA && imgs[i].src) { bestA = a; best = imgs[i].src; }
+    }
+    return best;
+  }
+
   function captureProductPayload(colorState, sizeState, allowGenericTitle) {
+    if (IS_TEMU) {
+      return {
+        title: temuTitle(),
+        priceUsd: temuPriceUsd(),
+        image: temuImage(),
+        colorImage: '',
+        colorImageFound: false,
+        color: '',
+        size: '',
+        sizesAvailable: [],
+        sizesUnavailable: [],
+        link: location.href,
+      };
+    }
     return {
       title: getTitle(allowGenericTitle),
       priceUsd: getPrice(),
@@ -971,7 +1026,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // live so the user can see it's actively working, not stuck.
   function addToCartFlow(colorState, sizeState) {
     if (document.getElementById('otlobli-overlay')) return;
-    debugSnapshot(colorState, sizeState);
+    if (IS_SHEIN) debugSnapshot(colorState, sizeState);
     var payload = captureProductPayload(colorState, sizeState);
     showAddingOverlay(payload);
 
@@ -980,6 +1035,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var intervalMs = 500;
 
     function isComplete(p, cs) {
+      // تيمو: ننتظر السعر أيضاً (قد يتأخر رسمه) حتى لا يدخل بسعر صفر.
+      if (IS_TEMU) return !!p.title && !!p.image && p.priceUsd > 0;
       return !!p.title && !!p.image && (!cs.exists || !!p.color);
     }
 
@@ -1181,6 +1238,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
       btn.addEventListener('click', function (event) {
         event.preventDefault();
         event.stopPropagation();
+        // على تيمو لا نلتقط اللون/المقاس بعد (مؤجّل) - نضيف مباشرةً.
+        if (!IS_SHEIN) {
+          addToCartFlow({ exists: false }, { exists: false });
+          return;
+        }
         var colorState = getColorState();
         var sizeState = getSizeState();
         if (sizeState.exists && !sizeState.selected) {
@@ -1903,7 +1965,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // المزعجة ولا نشغّل منطق الالتقاط/الحجب الخاص بشي إن (الذي قد يخرّب صفحاتهم).
     if (!IS_SHEIN) {
       killStorePopups();
-      temuDiag();
+      if (IS_TEMU) ensureAddToCartButton();
       return;
     }
     ensureLoadingOverlay();
@@ -2002,50 +2064,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
       target.setAttribute('data-otlobli-blocked', '1');
       target.style.setProperty('display', 'none', 'important');
     }
-  }
-
-  // تشخيص مؤقت لتيمو فقط: يكشف الكوكيز (لإجبار المنطقة/اللغة) وبنية صفحة
-  // المنتج (السعر/العنوان/الصورة/الخيارات) ليُبنى الجذب على أساس حقيقي.
-  function temuDiag() {
-    if (!/temu/i.test(location.hostname)) return;
-    try {
-      var box = document.getElementById('otlobli-diag-box');
-      if (!box) {
-        box = document.createElement('div');
-        box.id = 'otlobli-diag-box';
-        box.style.cssText = 'position:fixed;left:4px;right:4px;top:90px;z-index:2147483647;' +
-          'background:#000;color:#0f0;font-size:9px;line-height:1.35;padding:6px;max-height:60vh;' +
-          'overflow:auto;direction:ltr;white-space:pre-wrap;font-family:monospace;border:1px solid #0f0;';
-        document.documentElement.appendChild(box);
-      }
-      var out = [];
-      out.push('PATH: ' + location.pathname + location.search.slice(0, 80));
-      out.push('COOKIE: ' + (document.cookie || '(none)').slice(0, 260));
-      var pick = function (sel, attr) {
-        var e = document.querySelector(sel);
-        return e ? (attr ? (e.getAttribute(attr) || '') : (e.textContent || '')).slice(0, 80) : '-';
-      };
-      out.push('og:title=' + pick('meta[property="og:title"]', 'content'));
-      out.push('og:price=' + pick('meta[property="og:price:amount"],meta[property="product:price:amount"]', 'content'));
-      out.push('og:cur=' + pick('meta[property="product:price:currency"],meta[property="og:price:currency"]', 'content'));
-      var ld = document.querySelector('script[type="application/ld+json"]');
-      out.push('jsonld=' + (ld ? (ld.textContent || '').replace(/\\s+/g, ' ').slice(0, 140) : 'NONE'));
-      // عناصر يبدو نصّها سعراً (عملة + أرقام) مع صنفها - لتحديد عنصر السعر
-      if (location.pathname.indexOf('goods') >= 0) {
-        var all = document.querySelectorAll('span, div, p');
-        var found = 0;
-        for (var i = 0; i < all.length && found < 6; i++) {
-          var t = (all[i].textContent || '').trim();
-          if (t.length > 25) continue;
-          if (!/[\\$£€]|JOD|USD|\\bد\\.أ/.test(t)) continue;
-          if (!/[0-9]/.test(t)) continue;
-          var c = (all[i].className && all[i].className.baseVal !== undefined) ? all[i].className.baseVal : (all[i].className || '');
-          out.push('PRICE? "' + t + '" cls=' + String(c).slice(0, 40));
-          found++;
-        }
-      }
-      box.textContent = out.join('\\n');
-    } catch (e) {}
   }
 
 
