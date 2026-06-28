@@ -906,6 +906,18 @@ export const SHEIN_CAPTURE_SCRIPT = `
     else if (/SAR|ر\\.س/i.test(best)) rate = 0.27;
     return Math.round(num * rate * 100) / 100;
   }
+  // اللون المختار: تيمو يعرض عنواناً نصّياً "Color: X" (أو "اللون: X") يتحدّث
+  // حسب اختيار المستخدم - نلتقط القيمة منه (دليل من صفحات حقيقية).
+  function temuColor() {
+    var nodes = document.querySelectorAll('div, span, h2, h3, p, strong');
+    for (var i = 0; i < nodes.length; i++) {
+      var t = (nodes[i].textContent || '').trim();
+      if (t.length > 40) continue;
+      var m = t.match(/^(?:Color|colour|اللون)\\s*[:：]\\s*(.+)$/i);
+      if (m && m[1]) return m[1].trim();
+    }
+    return '';
+  }
   function temuImage() {
     var og = getMeta('og:image');
     if (og) return og;
@@ -927,7 +939,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         image: temuImage(),
         colorImage: '',
         colorImageFound: false,
-        color: '',
+        color: temuColor(),
         size: '',
         sizesAvailable: [],
         sizesUnavailable: [],
