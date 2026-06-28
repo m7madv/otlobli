@@ -1588,6 +1588,22 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
+  // زر "البحث بالصورة" (الكاميرا) يجلس داخل شريط البحث بجانب حقل الإدخال،
+  // وليس له اسم/تصنيف يحوي كلمات البحث، فكان يُحجب ويظهر كمربع أسود فارغ.
+  // نعتبر أي أيقونة يحتوي أحد آبائها القريبين (حتى 3 مستويات) حقلَ إدخال
+  // جزءاً من شريط البحث فلا نحجبها - هكذا تبقى الكاميرا ظاهرة دون الاعتماد
+  // على اسمها، وتبقى بقية الأيقونات (خارج شريط البحث) محجوبة كما هي.
+  function otlobliNearSearchInput(node) {
+    var up = node;
+    var hops = 0;
+    while (up && hops < 3) {
+      if (up.querySelector && up.querySelector('input')) return true;
+      up = up.parentElement;
+      hops++;
+    }
+    return false;
+  }
+
   function hideExtraHeaderIcons() {
     var vp = viewportSize();
     // Wider probe band than just the first ~50px - SHEIN's header height
@@ -1618,7 +1634,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
             window.getComputedStyle(el).cursor === 'pointer' ||
             (elIconSized && (el.querySelector('svg') || el.querySelector('img')));
           if (isClickable) {
-            var hasInput = !!el.querySelector('input');
+            var hasInput = !!el.querySelector('input') || otlobliNearSearchInput(el);
             var hint = ((el.className || '') + ' ' + (el.getAttribute('aria-label') || '') + ' ' + (el.textContent || '')).toLowerCase();
             var isSearchish = hasInput || /search|بحث|camera|كاميرا|image|صورة|بالصورة|visual|photo|عدسة|lens/.test(hint);
             if (elIconSized && !isSearchish) {
@@ -1728,6 +1744,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       }
       if (el.id && el.id.indexOf('otlobli') === 0) continue;
       if (el.querySelector && el.querySelector('input')) continue; // search field wrapper
+      if (otlobliNearSearchInput(el)) continue; // أيقونة داخل شريط البحث (الكاميرا)
       var hint = ((el.className || '') + ' ' + (el.getAttribute && el.getAttribute('aria-label') || '') + ' ' + (el.textContent || '')).toLowerCase();
       if (/search|بحث|camera|كاميرا|image|صورة|بالصورة|visual|photo|عدسة|lens/.test(hint)) continue;
       var rect = el.getBoundingClientRect();
