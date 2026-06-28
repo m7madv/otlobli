@@ -711,8 +711,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // dead end with no error. Now we only gate on the URL, and let
     // addToCartFlow run regardless; its diagnostics chips show exactly
     // which field(s) failed instead of hiding the failure entirely.
-    // تيمو: صفحة المنتج هي goods.html (مؤكّد من التشخيص).
-    if (IS_TEMU) return /goods/i.test(location.pathname);
+    // تيمو: صفحة المنتج = goods بالمسار، أو (احتياط أمتن) وجود عنصر السعر
+    // curPrice الذي يظهر فقط بصفحة المنتج - حتى لو لم يتطابق المسار.
+    if (IS_TEMU) {
+      if (/goods/i.test(location.pathname)) return true;
+      try { return !!document.querySelector('[class*="curPrice" i]'); } catch (e) { return false; }
+    }
     return /-p-\\d+/i.test(location.pathname);
   }
 
@@ -1964,8 +1968,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // المتاجر غير شي إن (تيمو/ترينديول): تصفّح فقط - ننظّف العروض المنبثقة
     // المزعجة ولا نشغّل منطق الالتقاط/الحجب الخاص بشي إن (الذي قد يخرّب صفحاتهم).
     if (!IS_SHEIN) {
-      killStorePopups();
-      if (IS_TEMU) ensureAddToCartButton();
+      // زر الإضافة أولاً وبحماية، حتى لو رمى التنظيف خطأ يبقى الزر يظهر.
+      if (IS_TEMU) { try { ensureAddToCartButton(); } catch (e) {} }
+      try { killStorePopups(); } catch (e) {}
       return;
     }
     ensureLoadingOverlay();
