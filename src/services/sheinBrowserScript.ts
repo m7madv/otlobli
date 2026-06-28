@@ -1305,9 +1305,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
       // height:100% + the icon/label wrap below filling its own full cell
       // makes the WHOLE tab cell tappable edge-to-edge instead of just a
       // tight box around the visible icon+label glyphs.
+      // px ثابت (وليس rem) وخط محدّد صراحةً: بعض المتاجر (تيمو) تضبط خط جذر
+      // ضخم فتصير وحدات rem والخط الموروث هائلة فيتشوّه الشريط - التثبيت بالـpx
+      // يجعله بنفس مقاس وتصميم شي إن على كل المتاجر.
       tab.style.cssText = 'position:relative;flex:1;height:100%;border:0;background:transparent;display:flex;' +
         'flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:6px 0;' +
-        'font-size:0.76rem;font-weight:700;font-family:inherit;color:' + (isActiveTab ? '#006948' : '#3d4a42') + ';';
+        'font-size:11px;font-weight:700;font-family:Cairo,system-ui,-apple-system,sans-serif;color:' + (isActiveTab ? '#006948' : '#3d4a42') + ';';
       if (isActiveTab) {
         var indicator = document.createElement('span');
         indicator.style.cssText = 'position:absolute;top:0;width:32px;height:4px;border-radius:999px;background:#006948;';
@@ -1939,6 +1942,57 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // بانر تثبيت التطبيق الأصلي (Smart App Banner) إن وُجد
     var appMeta = document.querySelector('meta[name="apple-itunes-app"]');
     if (appMeta && appMeta.parentNode) appMeta.parentNode.removeChild(appMeta);
+
+    // بانرات نصّية مزعجة (تثبيت التطبيق "Shop Like a Billionaire" / "تسجيل
+    // الدخول للحصول على أفضل تجربة") - نطابق نصاً قصيراً مميّزاً ونخفي حاويته.
+    hideStoreBannerByText([
+      'billionaire', 'incredible deals', 'shop like', 'open in the app',
+      'sign in for the best', 'get the app', 'download the app',
+    ], 90);
+
+    // أيقونات الحساب/السلة أعلى-يمين الشاشة - نخفيها ليبقى للزبون البحث
+    // والمنتجات فقط (نُبقي شريط البحث لأنه واسع وليس أيقونة صغيرة).
+    var clickables = document.querySelectorAll('a, button, [role="button"], svg, [class*="icon" i]');
+    for (var k = 0; k < clickables.length; k++) {
+      var ic = clickables[k];
+      if (ic.id && ic.id.indexOf('otlobli') === 0) continue;
+      if (ic.querySelector && ic.querySelector('input')) continue;
+      var ir = ic.getBoundingClientRect();
+      if (ir.top < 0 || ir.top > 90) continue;
+      if (ir.left < vp.width * 0.55) continue; // اليمين فقط
+      if (ir.width <= 0 || ir.width > 60 || ir.height <= 0 || ir.height > 60) continue;
+      ic.setAttribute('data-otlobli-blocked', '1');
+      ic.style.setProperty('visibility', 'hidden', 'important');
+      ic.style.setProperty('pointer-events', 'none', 'important');
+    }
+  }
+
+  // يخفي حاوية بانر نصّي على المتاجر غير شي إن بمطابقة عبارة قصيرة مميّزة،
+  // ثم يصعد لأقرب حاوية عريضة (لكن ليست الصفحة كلها) ويخفيها.
+  function hideStoreBannerByText(phrases, maxLen) {
+    var vp = viewportSize();
+    var nodes = document.querySelectorAll('div, section, aside, a, p, span');
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      if (el.id && el.id.indexOf('otlobli') === 0) continue;
+      if (el.getAttribute && el.getAttribute('data-otlobli-blocked')) continue;
+      var txt = (el.textContent || '');
+      if (!txt || txt.length > maxLen) continue;
+      var low = txt.toLowerCase();
+      var hit = false;
+      for (var p = 0; p < phrases.length; p++) { if (low.indexOf(phrases[p]) >= 0) { hit = true; break; } }
+      if (!hit) continue;
+      var target = el;
+      var up = el.parentElement;
+      var hops = 0;
+      while (up && hops < 3) {
+        var ur = up.getBoundingClientRect();
+        if (ur.width >= vp.width * 0.5 && ur.height < vp.height * 0.35) target = up;
+        up = up.parentElement; hops++;
+      }
+      target.setAttribute('data-otlobli-blocked', '1');
+      target.style.setProperty('display', 'none', 'important');
+    }
   }
 
 

@@ -35,11 +35,10 @@ const SHEIN_HOME_URL = `https://m.shein.com/${SHEIN_REGION}/?ref=${SHEIN_REGION}
 
 // المتاجر المتاحة للتصفّح. الالتقاط التلقائي (سعر/إضافة للسلة) يعمل على شي إن
 // فقط حالياً؛ باقي المتاجر تُفتح للتصفّح. لكل متجر سلة منفصلة.
-type StoreId = 'shein' | 'temu' | 'trendyol'
+type StoreId = 'shein' | 'temu'
 const STORES: { id: StoreId; name: string; url: string }[] = [
   { id: 'shein', name: 'شي إن', url: SHEIN_HOME_URL },
-  { id: 'temu', name: 'تيمو', url: 'https://www.temu.com' },
-  { id: 'trendyol', name: 'ترينديول', url: 'https://www.trendyol.com' },
+  { id: 'temu', name: 'تيمو', url: 'https://www.temu.com/?language=ar' },
 ]
 const storeUrl = (id: string) => (STORES.find((s) => s.id === id)?.url) ?? SHEIN_HOME_URL
 
@@ -2110,6 +2109,7 @@ function App() {
       )
     }
 
+    const currentStoreName = STORES.find((s) => s.id === selectedStore)?.name ?? 'المتجر'
     return (
       // Keep React's own nav mounted here at all times, even while SHEIN's
       // webview (with its own injected nav - see ensureOtlobliNav) is
@@ -2128,7 +2128,7 @@ function App() {
           <main className="mobile-content shein-home">
             <section className="greeting">
               <h1>جاري التحقق من الاتصال...</h1>
-              <p>نتأكد إن في طريق شبكة سليم لمتجر SHEIN</p>
+              <p>نتأكد إن في طريق شبكة سليم لمتجر {currentStoreName}</p>
             </section>
             <span className="spinner" />
           </main>
@@ -2137,7 +2137,7 @@ function App() {
             <div className="empty-state">
               <Icon name="vpn_key" />
               <h2>فعّل الـ VPN أولاً</h2>
-              <p>متجر SHEIN محجوب في سوريا - شغّل تطبيق VPN على جهازك، وبعدها اضغط الزر تحت لنتحقق من جديد.</p>
+              <p>متجر {currentStoreName} محجوب في سوريا - شغّل تطبيق VPN على جهازك، وبعدها اضغط الزر تحت لنتحقق من جديد.</p>
             </div>
             <button className="primary-action" onClick={() => setVpnState('checking')}>
               <Icon name="refresh" />
@@ -2148,7 +2148,7 @@ function App() {
           <main className="mobile-content shein-home">
             <div className="empty-state">
               <Icon name="wifi_off" />
-              <h2>تعذّر فتح موقع SHEIN</h2>
+              <h2>تعذّر فتح موقع {currentStoreName}</h2>
               <p>يبدو أن الموقع محجوب مؤقتاً. جرّب مرة ثانية أو امسح الكوكيز.</p>
             </div>
             <button className="primary-action" onClick={() => {
@@ -2180,7 +2180,7 @@ function App() {
             </button>
           </main>
         ) : !sheinReady ? (
-          <HomeScreen userName={userProfile?.name} onRetry={() => { sheinOpenedRef.current = false; browseShein() }} />
+          <HomeScreen userName={userProfile?.name} storeName={currentStoreName} onRetry={() => { sheinOpenedRef.current = false; browseShein() }} />
         ) : null}
       </MobileShell>
     )
@@ -2261,7 +2261,7 @@ function Toast({ message }: { message: string }) {
   return <div className="toast">{message}</div>
 }
 
-function HomeScreen({ userName, onRetry }: { userName?: string; onRetry?: () => void }) {
+function HomeScreen({ userName, onRetry, storeName = 'المتجر' }: { userName?: string; onRetry?: () => void; storeName?: string }) {
   const [timedOut, setTimedOut] = useState(false)
   useEffect(() => {
     const t = window.setTimeout(() => setTimedOut(true), 30_000)
@@ -2272,9 +2272,9 @@ function HomeScreen({ userName, onRetry }: { userName?: string; onRetry?: () => 
       <section className="greeting">
         <h1>{userName ? `أهلاً، ${userName}` : 'أهلاً بك'}</h1>
         {timedOut ? (
-          <p style={{ color: 'var(--danger)' }}>تعذّر فتح موقع SHEIN. تأكد من اتصالك بالإنترنت.</p>
+          <p style={{ color: 'var(--danger)' }}>تعذّر فتح موقع {storeName}. تأكد من اتصالك بالإنترنت.</p>
         ) : (
-          <p>جاري تجهيز متجر SHEIN...</p>
+          <p>جاري تجهيز متجر {storeName}...</p>
         )}
       </section>
       {timedOut ? (
