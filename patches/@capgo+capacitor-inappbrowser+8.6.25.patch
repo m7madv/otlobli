@@ -1,3 +1,18 @@
+diff --git a/node_modules/@capgo/capacitor-inappbrowser/android/build.gradle b/node_modules/@capgo/capacitor-inappbrowser/android/build.gradle
+index 9979670..fcfd30a 100644
+--- a/node_modules/@capgo/capacitor-inappbrowser/android/build.gradle
++++ b/node_modules/@capgo/capacitor-inappbrowser/android/build.gradle
+@@ -38,8 +38,8 @@ android {
+         abortOnError = false
+     }
+     compileOptions {
+-        sourceCompatibility JavaVersion.VERSION_21
+-        targetCompatibility JavaVersion.VERSION_21
++        sourceCompatibility JavaVersion.VERSION_17
++        targetCompatibility JavaVersion.VERSION_17
+     }
+ }
+ 
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
 index 8ae3e61..12fb994 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
@@ -270,3 +285,22 @@ index 1c70884..be2b8ac 100644
          request.allHTTPHeaderFields = filteredHeaders
          if
              ProxySchemeRequestSupport.supportsRequestBody(method: context.method),
+diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
+index 97a2fc1..0aa1902 100644
+--- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
++++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
+@@ -2756,6 +2756,14 @@ extension WKWebViewController: WKNavigationDelegate {
+         emit("pageLoadError")
+     }
+ 
++    // otlobli: when iOS kills the WebContent process under memory pressure
++    // (heavy SHEIN pages), the in-app browser goes black and stays black,
++    // forcing the user to quit and relaunch the whole app. Reload the webview
++    // automatically so it recovers itself instead.
++    public func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
++        webView.reload()
++    }
++
+     public func webView(_ webView: WKWebView, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+         if let credentials = credentials,
+            challenge.protectionSpace.receivesCredentialSecurely,
