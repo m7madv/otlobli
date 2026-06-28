@@ -932,35 +932,54 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   // هل العنصر له حدّ غامق (أسود/قريب منه)؟ = الخيار المختار في تيمو (مؤكّد من
-  // الصور: الكرت المختار حدّه غامق وباقي الكروت حدّها رمادي فاتح).
+  // الصور: الخيار المختار - لون أو مقاس - حدّه أسود وباقي الخيارات حدّها فاتح).
   function temuHasDarkBorder(el) {
     var cs = window.getComputedStyle(el);
     var bc = cs.borderTopColor || cs.borderColor || '';
-    var m = bc.match(/rgba?\\((\\d+),\\s*(\\d+),\\s*(\\d+)/i);
+    var m = bc.match(/rgba?\\((\\d+),\\s*(\\d+),\\s*(\\d+)(?:,\\s*([\\d.]+))?/i);
     if (!m) return false;
+    var alpha = m[4] !== undefined ? parseFloat(m[4]) : 1;
+    if (alpha < 0.4) return false;
     return (+m[1] < 95 && +m[2] < 95 && +m[3] < 95);
   }
-  // نص يشبه مقاساً: رقم + وحدة (inch/ft/cm/mm) - أزرار المقاس في تيمو.
-  function temuLooksLikeSize(t) {
-    return t.length >= 2 && t.length <= 40 && /\\d/.test(t) && /(inch|ft|\\bcm\\b|\\bmm\\b)/i.test(t);
+  // خلفية فاتحة (أو شفافة)؟ لتمييز أزرار المقاس المحدّدة (حدّ غامق + خلفية
+  // فاتحة) عن الأزرار المعبّأة الغامقة مثل مبدّل نظام المقاس "Standard".
+  function temuLightBackground(el) {
+    var bg = window.getComputedStyle(el).backgroundColor || '';
+    var m = bg.match(/rgba?\\((\\d+),\\s*(\\d+),\\s*(\\d+)(?:,\\s*([\\d.]+))?/i);
+    if (!m) return true;
+    var alpha = m[4] !== undefined ? parseFloat(m[4]) : 1;
+    if (alpha < 0.1) return true;            // شفاف = فاتح
+    return (+m[1] > 140 || +m[2] > 140 || +m[3] > 140);
   }
-  // هل للمنتج مقاسات؟ (وجود أزرار مقاس بالصفحة/اللوحة)
-  function temuHasSizeOptions() {
+  // ذكي: الخيار المختار (مقاس/لون نصّي) = عنصر قصير النص، بلا صورة، بحدّ غامق
+  // وخلفية فاتحة - يتعامل مع أي صيغة (XS/S/M، أو 1m/3.3ft، أو مقاس واحد).
+  function temuSelectedOptionPill() {
     var els = document.querySelectorAll('button, div, span, a, label');
     for (var i = 0; i < els.length; i++) {
-      if (temuLooksLikeSize((els[i].textContent || '').trim())) return true;
-    }
-    return false;
-  }
-  // المقاس المختار = زر المقاس صاحب الحدّ الغامق.
-  function temuSelectedSize() {
-    var els = document.querySelectorAll('button, div, span, a, label');
-    for (var i = 0; i < els.length; i++) {
-      var t = (els[i].textContent || '').trim();
-      if (!temuLooksLikeSize(t)) continue;
-      if (temuHasDarkBorder(els[i])) return t;
+      var el = els[i];
+      if (el.id && el.id.indexOf('otlobli') === 0) continue;
+      var t = (el.textContent || '').trim();
+      if (t.length < 1 || t.length > 24) continue;
+      if (t.indexOf(':') >= 0) continue;                     // ليس عنواناً
+      if (el.querySelector && el.querySelector('img')) continue; // ليس كرت لون
+      var r = el.getBoundingClientRect();
+      if (r.width < 18 || r.width > 260 || r.height < 16 || r.height > 80) continue;
+      if (!temuHasDarkBorder(el)) continue;
+      if (!temuLightBackground(el)) continue;                // يستبعد "Standard" المعبّأ
+      return t;
     }
     return '';
+  }
+  function temuSelectedSize() { return temuSelectedOptionPill(); }
+  // هل توجد قائمة مقاسات؟ (عنوان "Size"/"المقاس")
+  function temuHasSizeSection() {
+    var els = document.querySelectorAll('div, span, h2, h3, strong, label, p');
+    for (var i = 0; i < els.length; i++) {
+      var t = (els[i].textContent || '').trim();
+      if (t === 'Size' || t === 'المقاس' || t === 'Size:' || t === 'المقاس:') return true;
+    }
+    return false;
   }
   // صفحة المنتج المغلقة تعرض ملخّصاً مثل "7 Color, 3 Size" قبل اكتمال الاختيار.
   function temuVariantSummaryEl() {
@@ -1304,8 +1323,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
             try { summaryEl.click(); } catch (e) {}
             return;
           }
-          // 2) اللوحة مفتوحة وفيها مقاسات لكن لم يُختر مقاس (لا حدّ غامق).
-          if (temuHasSizeOptions() && !temuSelectedSize()) {
+          // 2) اللوحة مفتوحة وفيها قسم مقاسات لكن لم يُختر مقاس (لا خيار محدّد).
+          if (temuHasSizeSection() && !temuSelectedSize()) {
             showMessage(btn, 'حدد المقاس أولاً');
             return;
           }
