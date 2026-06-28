@@ -952,26 +952,50 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (alpha < 0.1) return true;            // شفاف = فاتح
     return (+m[1] > 140 || +m[2] > 140 || +m[3] > 140);
   }
-  // ذكي: الخيار المختار (مقاس/لون نصّي) = عنصر قصير النص، بلا صورة، بحدّ غامق
-  // وخلفية فاتحة - يتعامل مع أي صيغة (XS/S/M، أو 1m/3.3ft، أو مقاس واحد).
+  // ذكي وآمن: الخيار المختار (مقاس/متغيّر نصّي) = زر **قابل للنقر**، قصير النص،
+  // بلا صورة، بحدّ غامق وخلفية فاتحة، **ظاهر بالشاشة**، وليس سعراً/خصماً/كمية.
+  // القابلية للنقر هي ما يميّز زر الخيار عن شارة السعر (غير قابلة للنقر) -
+  // وهذا أصلح خطأ التقاط السعر مكان المقاس.
   function temuSelectedOptionPill() {
-    var els = document.querySelectorAll('button, div, span, a, label');
+    var vph = viewportSize().height;
+    var els = document.querySelectorAll('button, a, [role="button"]');
     for (var i = 0; i < els.length; i++) {
       var el = els[i];
       if (el.id && el.id.indexOf('otlobli') === 0) continue;
       var t = (el.textContent || '').trim();
       if (t.length < 1 || t.length > 24) continue;
-      if (t.indexOf(':') >= 0) continue;                     // ليس عنواناً
+      if (t.indexOf(':') >= 0) continue;
+      if (/[$£€%]/.test(t) || /\\boff\\b/i.test(t) || /ca\\$|usd|jod|sar|aed/i.test(t)) continue; // سعر/خصم
+      if (/^[+\\-]?\\d+(\\.\\d+)?$/.test(t)) continue;        // رقم فقط (سعر/كمية)
       if (el.querySelector && el.querySelector('img')) continue; // ليس كرت لون
+      var cs = window.getComputedStyle(el);
       var r = el.getBoundingClientRect();
       if (r.width < 18 || r.width > 260 || r.height < 16 || r.height > 80) continue;
-      if (!temuHasDarkBorder(el)) continue;
-      if (!temuLightBackground(el)) continue;                // يستبعد "Standard" المعبّأ
+      if (r.bottom < 0 || r.top > vph) continue;             // داخل الشاشة فقط
+      if (cs.visibility === 'hidden' || parseFloat(cs.opacity || '1') < 0.3) continue;
+      if (!temuHasDarkBorder(el) || !temuLightBackground(el)) continue;
       return t;
     }
     return '';
   }
   function temuSelectedSize() { return temuSelectedOptionPill(); }
+
+  // منتج تخصيص (نقش اسم): يلتقط النص الذي كتبه الزبون من حقل الإدخال.
+  function temuPersonalization() {
+    var hasPerso = false;
+    var labels = document.querySelectorAll('div, span, p, strong, h2, h3');
+    for (var i = 0; i < labels.length; i++) {
+      var lt = (labels[i].textContent || '');
+      if (lt.length < 60 && /personaliz|تخصيص|نقش|engrav/i.test(lt)) { hasPerso = true; break; }
+    }
+    if (!hasPerso) return { has: false, text: '' };
+    var inputs = document.querySelectorAll('input, textarea');
+    for (var j = 0; j < inputs.length; j++) {
+      var v = (inputs[j].value || '').trim();
+      if (v && v.length <= 40) return { has: true, text: v };
+    }
+    return { has: true, text: '' };
+  }
   // هل توجد قائمة مقاسات؟ (عنوان "Size"/"المقاس")
   function temuHasSizeSection() {
     var els = document.querySelectorAll('div, span, h2, h3, strong, label, p');
@@ -994,6 +1018,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function captureProductPayload(colorState, sizeState, allowGenericTitle) {
     if (IS_TEMU) {
+      var perso = temuPersonalization();
+      // منتج التخصيص: نضع النص المطلوب مكان المقاس ليصل للمالك بوضوح.
+      var temuSizeVal = perso.has ? ('نقش: ' + perso.text) : temuSelectedSize();
       return {
         title: temuTitle(),
         priceUsd: temuPriceUsd(),
@@ -1001,7 +1028,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         colorImage: '',
         colorImageFound: false,
         color: temuColor(),
-        size: temuSelectedSize(),
+        size: temuSizeVal,
         sizesAvailable: [],
         sizesUnavailable: [],
         link: location.href,
@@ -1323,8 +1350,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
             try { summaryEl.click(); } catch (e) {}
             return;
           }
-          // 2) اللوحة مفتوحة وفيها قسم مقاسات لكن لم يُختر مقاس (لا خيار محدّد).
-          if (temuHasSizeSection() && !temuSelectedSize()) {
+          // 2) منتج تخصيص (نقش اسم) بدون نص مكتوب → نطلب كتابة النص.
+          var persoChk = temuPersonalization();
+          if (persoChk.has && !persoChk.text) {
+            showMessage(btn, 'اكتب النص/الاسم المطلوب أولاً');
+            return;
+          }
+          // 3) اللوحة مفتوحة وفيها قسم مقاسات لكن لم يُختر مقاس (لا خيار محدّد).
+          if (!persoChk.has && temuHasSizeSection() && !temuSelectedSize()) {
             showMessage(btn, 'حدد المقاس أولاً');
             return;
           }
