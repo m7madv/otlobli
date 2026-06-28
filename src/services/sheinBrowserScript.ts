@@ -931,6 +931,48 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return best;
   }
 
+  // هل العنصر له حدّ غامق (أسود/قريب منه)؟ = الخيار المختار في تيمو (مؤكّد من
+  // الصور: الكرت المختار حدّه غامق وباقي الكروت حدّها رمادي فاتح).
+  function temuHasDarkBorder(el) {
+    var cs = window.getComputedStyle(el);
+    var bc = cs.borderTopColor || cs.borderColor || '';
+    var m = bc.match(/rgba?\\((\\d+),\\s*(\\d+),\\s*(\\d+)/i);
+    if (!m) return false;
+    return (+m[1] < 95 && +m[2] < 95 && +m[3] < 95);
+  }
+  // نص يشبه مقاساً: رقم + وحدة (inch/ft/cm/mm) - أزرار المقاس في تيمو.
+  function temuLooksLikeSize(t) {
+    return t.length >= 2 && t.length <= 40 && /\\d/.test(t) && /(inch|ft|\\bcm\\b|\\bmm\\b)/i.test(t);
+  }
+  // هل للمنتج مقاسات؟ (وجود أزرار مقاس بالصفحة/اللوحة)
+  function temuHasSizeOptions() {
+    var els = document.querySelectorAll('button, div, span, a, label');
+    for (var i = 0; i < els.length; i++) {
+      if (temuLooksLikeSize((els[i].textContent || '').trim())) return true;
+    }
+    return false;
+  }
+  // المقاس المختار = زر المقاس صاحب الحدّ الغامق.
+  function temuSelectedSize() {
+    var els = document.querySelectorAll('button, div, span, a, label');
+    for (var i = 0; i < els.length; i++) {
+      var t = (els[i].textContent || '').trim();
+      if (!temuLooksLikeSize(t)) continue;
+      if (temuHasDarkBorder(els[i])) return t;
+    }
+    return '';
+  }
+  // صفحة المنتج المغلقة تعرض ملخّصاً مثل "7 Color, 3 Size" قبل اكتمال الاختيار.
+  function temuVariantSummaryEl() {
+    var els = document.querySelectorAll('div, button, a, span');
+    for (var i = 0; i < els.length; i++) {
+      var t = (els[i].textContent || '').trim();
+      if (t.length > 45) continue;
+      if (/\\d+\\s*colou?rs?/i.test(t) && /\\d+\\s*sizes?/i.test(t)) return els[i];
+    }
+    return null;
+  }
+
   function captureProductPayload(colorState, sizeState, allowGenericTitle) {
     if (IS_TEMU) {
       return {
@@ -940,7 +982,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         colorImage: '',
         colorImageFound: false,
         color: temuColor(),
-        size: '',
+        size: temuSelectedSize(),
         sizesAvailable: [],
         sizesUnavailable: [],
         link: location.href,
@@ -1254,7 +1296,23 @@ export const SHEIN_CAPTURE_SCRIPT = `
       btn.addEventListener('click', function (event) {
         event.preventDefault();
         event.stopPropagation();
-        // على تيمو لا نلتقط اللون/المقاس بعد (مؤجّل) - نضيف مباشرةً.
+        if (IS_TEMU) {
+          // 1) المنتج المغلق يعرض "7 Color, 3 Size" = لم يُختر بعد - نفتح اللوحة.
+          var summaryEl = temuVariantSummaryEl();
+          if (summaryEl) {
+            showMessage(btn, 'حدد اللون والمقاس أولاً');
+            try { summaryEl.click(); } catch (e) {}
+            return;
+          }
+          // 2) اللوحة مفتوحة وفيها مقاسات لكن لم يُختر مقاس (لا حدّ غامق).
+          if (temuHasSizeOptions() && !temuSelectedSize()) {
+            showMessage(btn, 'حدد المقاس أولاً');
+            return;
+          }
+          // 3) لا خيارات (أو اكتملت): نضيف.
+          addToCartFlow({ exists: false }, { exists: false });
+          return;
+        }
         if (!IS_SHEIN) {
           addToCartFlow({ exists: false }, { exists: false });
           return;
