@@ -33,19 +33,23 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // connections can race the cookie write against the page's own first content
   // request on a slow/just-toggled-VPN connection, so one attempt occasionally
   // still rendered English; the retry counter resets per real navigation.
-  var regionMatch = location.pathname.match(/^\\/([a-z]{2})(?:\\/|$)/i);
-  var siteRegion = (regionMatch ? regionMatch[1] : 'jo').toLowerCase();
-  var arCookie = siteRegion;            // مثلاً 'lb' أو 'jo' (يعرض العربية)
-  var enCookie = siteRegion + 'en';     // مثلاً 'lben' أو 'joen' (الإنجليزية)
-  var hasArabic = new RegExp('(?:^|; )language=' + arCookie + '(?:;|$)').test(document.cookie);
-  var hasEnglish = new RegExp('(?:^|; )language=' + enCookie + '(?:;|$)').test(document.cookie);
-  if (!hasArabic || hasEnglish) {
-    document.cookie = 'language=' + arCookie + '; path=/; max-age=31536000';
-    var arReloadAttempts = parseInt(sessionStorage.getItem('__otlobliArReloads') || '0', 10);
-    if (arReloadAttempts < 2) {
-      sessionStorage.setItem('__otlobliArReloads', String(arReloadAttempts + 1));
-      location.reload();
-      return;
+  // منطق فرض اللغة العربية خاص بمواقع شي إن فقط - على المتاجر الأخرى (تيمو/
+  // ترينديول) قد يضبط كوكي لغة خاطئة ويسبب إعادة تحميل بلا داعٍ، فنحصره بشي إن.
+  if (/shein/i.test(location.hostname)) {
+    var regionMatch = location.pathname.match(/^\\/([a-z]{2})(?:\\/|$)/i);
+    var siteRegion = (regionMatch ? regionMatch[1] : 'jo').toLowerCase();
+    var arCookie = siteRegion;            // مثلاً 'lb' أو 'jo' (يعرض العربية)
+    var enCookie = siteRegion + 'en';     // مثلاً 'lben' أو 'joen' (الإنجليزية)
+    var hasArabic = new RegExp('(?:^|; )language=' + arCookie + '(?:;|$)').test(document.cookie);
+    var hasEnglish = new RegExp('(?:^|; )language=' + enCookie + '(?:;|$)').test(document.cookie);
+    if (!hasArabic || hasEnglish) {
+      document.cookie = 'language=' + arCookie + '; path=/; max-age=31536000';
+      var arReloadAttempts = parseInt(sessionStorage.getItem('__otlobliArReloads') || '0', 10);
+      if (arReloadAttempts < 2) {
+        sessionStorage.setItem('__otlobliArReloads', String(arReloadAttempts + 1));
+        location.reload();
+        return;
+      }
     }
   }
 

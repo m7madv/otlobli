@@ -873,11 +873,18 @@ a {
 
 .size-grid {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 10px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
+  scrollbar-width: none;
 }
 
+.size-grid::-webkit-scrollbar { display: none; }
+
 .size-grid button {
+  flex: 0 0 auto;
   min-width: 58px;
   min-height: 40px;
   border: 1px solid var(--outline);

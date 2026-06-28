@@ -24,6 +24,7 @@ export type Screen =
   | 'support'
   | 'notifications'
   | 'notification-settings'
+  | 'store-select'
 
 export type NotificationPrefs = {
   // إشعارات تقدّم مراحل الطلب (تم الشراء، في الطريق، تم التسليم...)

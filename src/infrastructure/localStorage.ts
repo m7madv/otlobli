@@ -33,6 +33,8 @@ export const storageKeys = {
   pendingPayment: 'talabieh.pendingPayment',
   notifications: 'talabieh.notifications',
   notificationPrefs: 'talabieh.notificationPrefs',
+  selectedStore: 'talabieh.selectedStore',
+  cartsByStore: 'talabieh.cartsByStore',
 } as const
 
 export function readStoredJson<T>(key: string, fallback: T) {

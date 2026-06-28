@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   allowedProducts,
@@ -32,6 +32,16 @@ const NOTIFY_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/telegram-notify`
 // السكربت المحقون يقرأ المنطقة من الرابط فيضبط لغة الموقع تلقائياً.
 const SHEIN_REGION = 'jo'
 const SHEIN_HOME_URL = `https://m.shein.com/${SHEIN_REGION}/?ref=${SHEIN_REGION}&rep=dir&ret=m${SHEIN_REGION}&currency=USD`
+
+// المتاجر المتاحة للتصفّح. الالتقاط التلقائي (سعر/إضافة للسلة) يعمل على شي إن
+// فقط حالياً؛ باقي المتاجر تُفتح للتصفّح. لكل متجر سلة منفصلة.
+type StoreId = 'shein' | 'temu' | 'trendyol'
+const STORES: { id: StoreId; name: string; url: string }[] = [
+  { id: 'shein', name: 'شي إن', url: SHEIN_HOME_URL },
+  { id: 'temu', name: 'تيمو', url: 'https://www.temu.com' },
+  { id: 'trendyol', name: 'ترينديول', url: 'https://www.trendyol.com' },
+]
+const storeUrl = (id: string) => (STORES.find((s) => s.id === id)?.url) ?? SHEIN_HOME_URL
 
 const usesInboundWhatsappAuth = import.meta.env.VITE_WHATSAPP_AUTH_MODE === 'inbound'
 
@@ -169,7 +179,31 @@ function App() {
   const [activeImage, setActiveImage] = useState(0)
   const [notice, setNotice] = useState('')
   const [savedProduct, setSavedProduct] = useStoredState(storageKeys.savedProduct, false)
-  const [cartItems, setCartItems] = useStoredState<CartItem[]>(storageKeys.cartItems, [])
+  const [selectedStore, setSelectedStore] = useStoredState<StoreId>(storageKeys.selectedStore, 'shein')
+  const selectedStoreRef = useRef(selectedStore)
+  useEffect(() => { selectedStoreRef.current = selectedStore }, [selectedStore])
+
+  // سلة منفصلة لكل متجر، محفوظة كخريطة { storeId: items[] }. السلة القديمة
+  // المفردة تُرحَّل مرة واحدة إلى سلة شي إن حتى لا تضيع طلبات الزبون الحالية.
+  const [cartsByStore, setCartsByStore] = useStoredState<Record<string, CartItem[]>>(
+    storageKeys.cartsByStore,
+    (() => {
+      const legacy = readStoredJson<CartItem[]>(storageKeys.cartItems, [])
+      const init: Record<string, CartItem[]> = {}
+      if (legacy.length) init.shein = legacy
+      return init
+    })(),
+  )
+  const cartItems = cartsByStore[selectedStore] ?? []
+  const setCartItems = useCallback((updater: CartItem[] | ((prev: CartItem[]) => CartItem[])) => {
+    setCartsByStore((all) => {
+      const current = all[selectedStoreRef.current] ?? []
+      const next = typeof updater === 'function'
+        ? (updater as (p: CartItem[]) => CartItem[])(current)
+        : updater
+      return { ...all, [selectedStoreRef.current]: next }
+    })
+  }, [setCartsByStore])
   const [orders, setOrders] = useStoredState<Order[]>(storageKeys.orders, initialOrders)
   const [addresses, setAddresses] = useStoredState<Address[]>(storageKeys.addresses, initialAddresses)
   const [currentOrderId, setCurrentOrderId] = useStoredState<string>(storageKeys.currentOrderId, '')
@@ -687,7 +721,7 @@ function App() {
     // the user's VPN is on - the vpnState check above already confirmed that
     // before this function ever runs.
     void InAppBrowser.openWebView({
-      url: SHEIN_HOME_URL,
+      url: storeUrl(selectedStoreRef.current),
       toolbarType: ToolBarType.BLANK,
       preShowScript: SHEIN_CAPTURE_SCRIPT,
       preShowScriptInjectionTime: 'documentStart',
@@ -1803,8 +1837,8 @@ function App() {
               label={`عملة الدفع: ${paymentCurrency === 'USD' ? 'دولار أمريكي' : 'ليرة سورية'}`}
               onClick={() => setPaymentCurrency(paymentCurrency === 'USD' ? 'SYP' : 'USD')}
             />
+            <ProfileRow icon="storefront" label={`المتجر: ${STORES.find((s) => s.id === selectedStore)?.name ?? ''}`} onClick={() => setScreen('store-select')} />
             <ProfileRow icon="notifications" label="إعدادات الإشعارات" onClick={() => setScreen('notification-settings')} />
-            <ProfileRow icon="gpp_maybe" label="سياسة المنتجات الممنوعة" onClick={() => setScreen('blocked-policy')} />
             <ProfileRow icon="contract" label="الشروط والأحكام" onClick={() => setScreen('terms')} />
             <ProfileRow icon="support_agent" label="الدعم" onClick={() => setScreen('support')} />
             <button className="profile-row profile-row--danger" onClick={logout}>
@@ -1953,6 +1987,45 @@ function App() {
               ))}
             </section>
           </AccountDetailLayout>
+        </MobileShell>
+      )
+    }
+
+    if (screen === 'store-select') {
+      const switchStore = (id: StoreId) => {
+        if (id !== selectedStore) {
+          setSelectedStore(id)
+          selectedStoreRef.current = id
+          // إغلاق متصفّح المتجر الحالي ثم إعادة فتحه على المتجر الجديد (تُحقن
+          // سكربتات otlobli من جديد) عبر شاشة الرئيسية.
+          void InAppBrowser.close().catch(() => undefined)
+          sheinOpenedRef.current = false
+          setSheinReady(false)
+        }
+        setScreen('home')
+      }
+      return (
+        <MobileShell active="profile" onNavigate={setScreen} hideBottomNav>
+          <Header title="اختيار المتجر" back={() => setScreen('profile')} unreadCount={unreadCount} onNotifications={openNotifications} />
+          <AccountDetailLayout>
+            <p className="settings-hint">اختر المتجر الذي تريد التصفّح والطلب منه. لكل متجر سلة منفصلة.</p>
+            {STORES.map((store) => (
+              <button
+                key={store.id}
+                className="notif-setting-row"
+                onClick={() => switchStore(store.id)}
+                aria-pressed={selectedStore === store.id}
+              >
+                <span className="notif-setting-icon"><Icon name="storefront" /></span>
+                <span className="notif-setting-text">
+                  <b>{store.name}</b>
+                  <small>{store.id === 'shein' ? 'متاح بالكامل' : 'تصفّح فقط حالياً'}</small>
+                </span>
+                {selectedStore === store.id && <Icon name="check_circle" />}
+              </button>
+            ))}
+          </AccountDetailLayout>
+          <Toast message={notice} />
         </MobileShell>
       )
     }
