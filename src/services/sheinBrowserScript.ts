@@ -1903,6 +1903,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // المزعجة ولا نشغّل منطق الالتقاط/الحجب الخاص بشي إن (الذي قد يخرّب صفحاتهم).
     if (!IS_SHEIN) {
       killStorePopups();
+      temuDiag();
       return;
     }
     ensureLoadingOverlay();
@@ -2001,6 +2002,50 @@ export const SHEIN_CAPTURE_SCRIPT = `
       target.setAttribute('data-otlobli-blocked', '1');
       target.style.setProperty('display', 'none', 'important');
     }
+  }
+
+  // تشخيص مؤقت لتيمو فقط: يكشف الكوكيز (لإجبار المنطقة/اللغة) وبنية صفحة
+  // المنتج (السعر/العنوان/الصورة/الخيارات) ليُبنى الجذب على أساس حقيقي.
+  function temuDiag() {
+    if (!/temu/i.test(location.hostname)) return;
+    try {
+      var box = document.getElementById('otlobli-diag-box');
+      if (!box) {
+        box = document.createElement('div');
+        box.id = 'otlobli-diag-box';
+        box.style.cssText = 'position:fixed;left:4px;right:4px;top:90px;z-index:2147483647;' +
+          'background:#000;color:#0f0;font-size:9px;line-height:1.35;padding:6px;max-height:60vh;' +
+          'overflow:auto;direction:ltr;white-space:pre-wrap;font-family:monospace;border:1px solid #0f0;';
+        document.documentElement.appendChild(box);
+      }
+      var out = [];
+      out.push('PATH: ' + location.pathname + location.search.slice(0, 80));
+      out.push('COOKIE: ' + (document.cookie || '(none)').slice(0, 260));
+      var pick = function (sel, attr) {
+        var e = document.querySelector(sel);
+        return e ? (attr ? (e.getAttribute(attr) || '') : (e.textContent || '')).slice(0, 80) : '-';
+      };
+      out.push('og:title=' + pick('meta[property="og:title"]', 'content'));
+      out.push('og:price=' + pick('meta[property="og:price:amount"],meta[property="product:price:amount"]', 'content'));
+      out.push('og:cur=' + pick('meta[property="product:price:currency"],meta[property="og:price:currency"]', 'content'));
+      var ld = document.querySelector('script[type="application/ld+json"]');
+      out.push('jsonld=' + (ld ? (ld.textContent || '').replace(/\\s+/g, ' ').slice(0, 140) : 'NONE'));
+      // عناصر يبدو نصّها سعراً (عملة + أرقام) مع صنفها - لتحديد عنصر السعر
+      if (location.pathname.indexOf('goods') >= 0) {
+        var all = document.querySelectorAll('span, div, p');
+        var found = 0;
+        for (var i = 0; i < all.length && found < 6; i++) {
+          var t = (all[i].textContent || '').trim();
+          if (t.length > 25) continue;
+          if (!/[\\$£€]|JOD|USD|\\bد\\.أ/.test(t)) continue;
+          if (!/[0-9]/.test(t)) continue;
+          var c = (all[i].className && all[i].className.baseVal !== undefined) ? all[i].className.baseVal : (all[i].className || '');
+          out.push('PRICE? "' + t + '" cls=' + String(c).slice(0, 40));
+          found++;
+        }
+      }
+      box.textContent = out.join('\\n');
+    } catch (e) {}
   }
 
 
