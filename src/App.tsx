@@ -15,7 +15,7 @@ import type { PaymentCurrency } from './domain/pricing'
 import type { Address, AppNotification, CartItem, NotificationPrefs, Order, Product, ProductColor, ProductVariant, Recipient, Screen, StatusTone, UserProfile } from './domain/types'
 import { readStoredJson, storageKeys, useStoredState } from './infrastructure/localStorage'
 import { appApi } from './services'
-import { PAYMENT_MODE } from './config'
+import { PAYMENT_MODE, APP_VERSION } from './config'
 import { buildWhatsappLink } from './services/whatsappLink'
 import { SHEIN_CAPTURE_SCRIPT } from './services/sheinBrowserScript'
 import { InAppBrowser, ToolBarType } from '@capgo/capacitor-inappbrowser'
@@ -1811,6 +1811,7 @@ function App() {
               <span><Icon name="logout" /> تسجيل الخروج</span>
               <Icon name="chevron_left" />
             </button>
+            <p className="app-version-tag">نسخة التطبيق: {APP_VERSION}</p>
           </main>
         </MobileShell>
       )
