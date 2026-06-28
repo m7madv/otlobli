@@ -1908,24 +1908,31 @@ export const SHEIN_CAPTURE_SCRIPT = `
           'overflow:auto;direction:ltr;white-space:pre-wrap;font-family:monospace;border:1px solid #0f0;';
         document.documentElement.appendChild(box);
       }
-      var all = document.querySelectorAll('button,a,[role="button"],svg,img');
+      var all = document.querySelectorAll('button,a,[role="button"],svg,img,div,span,i');
       var out = [];
       var count = 0;
-      for (var i = 0; i < all.length && count < 30; i++) {
+      for (var i = 0; i < all.length && count < 40; i++) {
         var el = all[i];
         var r = el.getBoundingClientRect();
-        if (r.top < 40 || r.top > 210) continue;
-        if (r.left > 200) continue;
-        if (r.width <= 0 || r.width > 80 || r.height <= 0 || r.height > 80) continue;
+        if (r.top < 25 || r.top > 230) continue;
+        if (r.left > 240) continue;
+        if (r.width < 12 || r.width > 130 || r.height < 12 || r.height > 130) continue;
+        var cs = window.getComputedStyle(el);
+        var bg = cs.backgroundColor || '';
+        var hasImg = !!(el.querySelector && el.querySelector('img,svg'));
+        var bgImg = cs.backgroundImage && cs.backgroundImage !== 'none' ? 'Y' : 'N';
+        // نركّز على العناصر الداكنة أو اللي فيها أيقونة/خلفية صورة (مرشح الكاميرا)
+        var isDark = /rgb\\(\\s*(?:[0-9]|[0-4][0-9])\\s*,/.test(bg);
+        if (!isDark && !hasImg && bgImg === 'N') continue;
         var cls = (el.className && el.className.baseVal !== undefined) ? el.className.baseVal : (el.className || '');
         var al = (el.getAttribute && el.getAttribute('aria-label')) || '';
         var blk = (el.getAttribute && el.getAttribute('data-otlobli-blocked')) || '0';
         out.push(count + ': ' + el.tagName + ' [' + Math.round(r.left) + ',' + Math.round(r.top) + ' ' +
-          Math.round(r.width) + 'x' + Math.round(r.height) + '] blk=' + blk +
-          ' cls=' + String(cls).slice(0, 55) + ' al=' + al);
+          Math.round(r.width) + 'x' + Math.round(r.height) + '] blk=' + blk + ' bg=' + bg + ' bgImg=' + bgImg +
+          ' cls=' + String(cls).slice(0, 45) + ' al=' + al);
         count++;
       }
-      box.textContent = out.length ? out.join('\\n') : 'no top-left icons found';
+      box.textContent = out.length ? out.join('\\n') : 'no dark/icon elements found top-left';
     } catch (e) {}
   }
 
