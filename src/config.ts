@@ -19,4 +19,4 @@ export const PAYMENT_MODE: 'auto' | 'shamcash' = 'auto'
 export const SOURCE_COUNTRY: 'JO' | 'LB' = 'LB'
 
 // رقم النسخة — يظهر في شاشة الدخول لمعرفة أي بناء مثبّت على الجهاز عند التشخيص.
-export const APP_VERSION = '2026.06.29-temu-tapsize'
+export const APP_VERSION = '2026.06.29-temu-tapcolor'

@@ -909,6 +909,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // اللون المختار: تيمو يعرض عنواناً نصّياً "Color: X" (أو "اللون: X") يتحدّث
   // حسب اختيار المستخدم - نلتقط القيمة منه (دليل من صفحات حقيقية).
   function temuColor() {
+    // 1) نقرة الزبون على كرت اللون (الأوثق - يحلّ مشكلة بقاء اللون الافتراضي).
+    if (window.__otlobliTemuColor && window.__otlobliTemuColorGid === temuGoodsId()) {
+      return window.__otlobliTemuColor;
+    }
+    // 2) عنوان "Color: X" (اللون الافتراضي قبل أي تغيير).
     var nodes = document.querySelectorAll('div, span, h2, h3, p, strong');
     for (var i = 0; i < nodes.length; i++) {
       var t = (nodes[i].textContent || '').trim();
@@ -1049,10 +1054,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
     window.__otlobliTemuClickBound = true;
     document.addEventListener('click', function (e) {
       try {
+        // (أ) نقرة على زر مقاس.
         var pills = temuSizePills();
-        if (!pills.length) return;
         var node = e.target, hops = 0;
-        while (node && hops < 4) {
+        while (node && hops < 4 && pills.length) {
+          var matched = false;
           for (var i = 0; i < pills.length; i++) {
             if (pills[i] === node) {
               var t = (node.textContent || '').trim();
@@ -1060,10 +1066,28 @@ export const SHEIN_CAPTURE_SCRIPT = `
                 window.__otlobliTemuSize = t;
                 window.__otlobliTemuSizeGid = temuGoodsId();
               }
-              return;
+              matched = true; break;
             }
           }
+          if (matched) return;
           node = node.parentElement; hops++;
+        }
+        // (ب) نقرة على كرت لون (كرت يحوي صورة + اسم لون قصير) - يحلّ بقاء
+        // اللون الافتراضي عند تغيير اللون.
+        if (temuHasColorSection()) {
+          var cnode = e.target, ch = 0;
+          while (cnode && ch < 4) {
+            if (cnode.querySelector && cnode.querySelector('img')) {
+              var raw = (cnode.textContent || '');
+              var name = raw.replace(/[^A-Za-z\\u0600-\\u06FF ]+/g, ' ').replace(/\\s+/g, ' ').trim();
+              if (name && name.length >= 2 && name.length <= 24 && !/^color$/i.test(name)) {
+                window.__otlobliTemuColor = name;
+                window.__otlobliTemuColorGid = temuGoodsId();
+              }
+              return;
+            }
+            cnode = cnode.parentElement; ch++;
+          }
         }
       } catch (err) {}
     }, true);
