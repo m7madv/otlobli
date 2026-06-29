@@ -889,21 +889,44 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var og = getMeta('og:title') || '';
     return og.replace(/\\s*[-|–—]\\s*Temu\\b.*$/i, '').replace(/\\s+/g, ' ').trim();
   }
+  // تحويل شامل لأي عملة قد تظهر حسب دولة الـVPN العشوائية → دولار. عملات
+  // الخليج/الأردن مثبّتة (تحويل دقيق)؛ الباقي تقريبي. **العملة المجهولة تُرجع 0
+  // فيمنع النظام الإضافة** (لا يدخل سعر خاطئ أبداً = خربطة صفر).
   function temuPriceUsd() {
     var best = '';
     var els = document.querySelectorAll('[class*="curPrice" i]');
     for (var i = 0; i < els.length; i++) {
       var t = (els[i].textContent || '').trim();
-      if (t.length <= 25 && /[0-9]/.test(t) && /[$£€]|JOD|USD|د\\.أ/.test(t)) { best = t; break; }
+      if (t.length <= 28 && /[0-9]/.test(t)) { best = t; break; }
     }
     if (!best) return 0;
     var num = parseFloat(best.replace(/[^0-9.]/g, ''));
     if (!(num > 0) || !isFinite(num)) return 0;
-    var rate = 1;                                   // الافتراضي دولار
-    if (/CA\\$|CAD/i.test(best)) rate = 0.73;       // كندي ← دولار (تقريبي)
-    else if (/JOD|د\\.أ/i.test(best)) rate = 1.41;  // دينار أردني ← دولار (مثبّت)
-    else if (/AED|د\\.إ/i.test(best)) rate = 0.27;
-    else if (/SAR|ر\\.س/i.test(best)) rate = 0.27;
+    var s = best;
+    var rate = 0;                                   // 0 = عملة مجهولة → يمنع
+    // رموز/رموز عملات مميّزة أولاً (CA$ قبل $ المجرّد).
+    if (/CA\\$|CAD/i.test(s)) rate = 0.73;
+    else if (/A\\$|AUD/i.test(s)) rate = 0.66;
+    else if (/NZ\\$|NZD/i.test(s)) rate = 0.61;
+    else if (/HK\\$|HKD/i.test(s)) rate = 0.128;
+    else if (/SG\\$|SGD/i.test(s)) rate = 0.74;
+    else if (/MX\\$|MXN/i.test(s)) rate = 0.058;
+    else if (/R\\$|BRL/i.test(s)) rate = 0.18;
+    else if (/€|EUR/i.test(s)) rate = 1.08;
+    else if (/£|GBP/i.test(s)) rate = 1.27;
+    else if (/₹|INR/i.test(s)) rate = 0.012;
+    else if (/₺|TRY/i.test(s)) rate = 0.031;
+    else if (/JOD|د\\.أ/i.test(s)) rate = 1.41;     // مثبّت
+    else if (/AED|د\\.إ/i.test(s)) rate = 0.272;    // مثبّت
+    else if (/SAR|ر\\.س/i.test(s)) rate = 0.267;    // مثبّت
+    else if (/QAR|ر\\.ق/i.test(s)) rate = 0.275;    // مثبّت
+    else if (/KWD|د\\.ك/i.test(s)) rate = 3.25;     // مثبّت
+    else if (/BHD/i.test(s)) rate = 2.65;           // مثبّت
+    else if (/OMR/i.test(s)) rate = 2.60;           // مثبّت
+    else if (/EGP|ج\\.م/i.test(s)) rate = 0.020;
+    else if (/US\\$|USD/i.test(s)) rate = 1;        // دولار صريح
+    else if (/\\$/.test(s)) rate = 1;               // $ مجرّد = دولار أمريكي
+    if (rate <= 0) return 0;                         // عملة مجهولة → يمنع الإضافة
     return Math.round(num * rate * 100) / 100;
   }
   // اللون المختار: تيمو يعرض عنواناً نصّياً "Color: X" (أو "اللون: X") يتحدّث
