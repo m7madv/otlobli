@@ -956,7 +956,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return false;
   }
   function temuImage() {
-    // الصورة الرئيسية = أكبر صورة kwcdn في أعلى الصفحة (المعرض الرئيسي)، لا
+    // 1) إن نقر الزبون لوناً: نستخدم صورة كرت ذلك اللون (تطابق مضمون للصورة
+    //    مع اللون المختار - تحلّ مشكلة بقاء صورة اللون الأول).
+    if (window.__otlobliTemuColorImg && window.__otlobliTemuColorGid === temuGoodsId()) {
+      return window.__otlobliTemuColorImg;
+    }
+    // 2) الصورة الرئيسية = أكبر صورة kwcdn في أعلى الصفحة (المعرض الرئيسي)، لا
     // الصور الثانوية/التفصيلية الأسفل. fallback: og:image.
     var imgs = document.querySelectorAll('img');
     var best = '', bestA = 0;
@@ -1100,12 +1105,16 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if (temuHasColorSection()) {
           var cnode = e.target, ch = 0;
           while (cnode && ch < 4) {
-            if (cnode.querySelector && cnode.querySelector('img')) {
+            var cardImg = cnode.querySelector && cnode.querySelector('img');
+            if (cardImg) {
               var raw = (cnode.textContent || '');
               var name = raw.replace(/[^A-Za-z\\u0600-\\u06FF ]+/g, ' ').replace(/\\s+/g, ' ').trim();
               if (name && name.length >= 2 && name.length <= 24 && !/^color$/i.test(name)) {
                 window.__otlobliTemuColor = name;
                 window.__otlobliTemuColorGid = temuGoodsId();
+                // صورة نفس كرت اللون المنقور = تطابق الصورة للون المختار دائماً.
+                var cs2 = cardImg.currentSrc || cardImg.src || '';
+                window.__otlobliTemuColorImg = /kwcdn|temu/i.test(cs2) ? cs2 : '';
               }
               return;
             }
