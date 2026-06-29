@@ -1064,10 +1064,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if ((pills[k].textContent || '').trim() === window.__otlobliTemuSize) return window.__otlobliTemuSize;
       }
     }
-    // 2) احتياط بصري: الأغمق حدّاً بوضوح عن البقية.
+    // 2) مقاس وحيد = اختيار تلقائي (لا داعي لنقر الزبون عليه).
     if (pills.length === 1) {
-      return temuBorderDarkness(pills[0]) < 280 ? (pills[0].textContent || '').trim() : '';
+      return (pills[0].textContent || '').trim();
     }
+    // 3) احتياط بصري: الأغمق حدّاً بوضوح عن البقية (للمنتجات بأكثر من مقاس).
     var darkEl = null, d1 = 999, d2 = 999;
     for (var i = 0; i < pills.length; i++) {
       var v = temuBorderDarkness(pills[i]);
@@ -1107,9 +1108,19 @@ export const SHEIN_CAPTURE_SCRIPT = `
           while (cnode && ch < 4) {
             var cardImg = cnode.querySelector && cnode.querySelector('img');
             if (cardImg) {
-              var raw = (cnode.textContent || '');
-              var name = raw.replace(/[^A-Za-z\\u0600-\\u06FF ]+/g, ' ').replace(/\\s+/g, ' ').trim();
-              if (name && name.length >= 2 && name.length <= 24 && !/^color$/i.test(name)) {
+              // أفضل مصدر لاسم اللون: alt الصورة (عادةً اسم المتغيّر بتيمو).
+              var altName = (cardImg.getAttribute('alt') || cardImg.getAttribute('title') || '').trim();
+              // احتياط: آخر سطر نصي في الكرت (العنوان الظاهر أسفل الصورة).
+              var rawLines = (cnode.textContent || '').split(/\\n|\\r/).map(function(l){ return l.trim(); });
+              var lastLine = '';
+              for (var ll = rawLines.length - 1; ll >= 0; ll--) {
+                var lv = rawLines[ll];
+                if (lv.length >= 2 && lv.length <= 50 && !/^color$/i.test(lv)) { lastLine = lv; break; }
+              }
+              var name = (altName && altName.length >= 2 && altName.length <= 50 && !/^color$/i.test(altName))
+                ? altName
+                : lastLine;
+              if (name && name.length >= 2) {
                 window.__otlobliTemuColor = name;
                 window.__otlobliTemuColorGid = temuGoodsId();
                 // صورة نفس كرت اللون المنقور = تطابق الصورة للون المختار دائماً.
@@ -1492,11 +1503,29 @@ export const SHEIN_CAPTURE_SCRIPT = `
           // شجرة قرار كاملة فاشلة-بأمان: لا نضيف أبداً قبل التأكد من كل قيمة
           // مطلوبة؛ أي شكّ → نمنع ونطلب الاختيار (خربطة = صفر).
           // أ) لوحة الخيارات مغلقة وفيها خيارات ("X Color, Y Size") → نفتحها.
+          // مهم: نتحقق أن اللوحة مغلقة فعلاً قبل الحجب — النص "4 Color, 1 Size"
+          // يبقى بالـDOM حتى بعد فتح اللوحة (خلف الشيت)، فنفرّق بين الحالتين:
+          // اللوحة مفتوحة = أزرار المقاس ظاهرة بالشاشة، أو الزبون سبق نقر لون.
           var summaryEl = temuVariantSummaryEl();
           if (summaryEl) {
-            showMessage(btn, 'حدد الخيارات أولاً');
-            try { summaryEl.click(); } catch (e) {}
-            return;
+            var vp2 = viewportSize();
+            var sheetAlreadyOpen = false;
+            var sizePillsChk = temuSizePills();
+            for (var spx = 0; spx < sizePillsChk.length && !sheetAlreadyOpen; spx++) {
+              var rspx = sizePillsChk[spx].getBoundingClientRect();
+              if (rspx.width > 0 && rspx.height > 0 && rspx.top >= 0 && rspx.top < vp2.height) {
+                sheetAlreadyOpen = true;
+              }
+            }
+            if (!sheetAlreadyOpen &&
+                window.__otlobliTemuColor && window.__otlobliTemuColorGid === temuGoodsId()) {
+              sheetAlreadyOpen = true;
+            }
+            if (!sheetAlreadyOpen) {
+              showMessage(btn, 'حدد الخيارات أولاً');
+              try { summaryEl.click(); } catch (e) {}
+              return;
+            }
           }
           // ب) منتج تخصيص (نقش اسم) بدون نص → نطلب الكتابة.
           var persoChk = temuPersonalization();
