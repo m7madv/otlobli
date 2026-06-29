@@ -46,7 +46,10 @@ create table if not exists public.orders (
   status_index integer not null default 0 check (status_index >= 0),
   qadmous_number text not null default '',
   created_at date not null default current_date,
-  paid_at date
+  paid_at date,
+  payment_issue boolean not null default false,
+  payment_issue_note text not null default '',
+  extra_amount_usd numeric(14,2) not null default 0
 );
 
 create table if not exists public.order_items (
@@ -496,7 +499,10 @@ begin
     'paymentAmount', found_order.payment_amount,
     'paymentCurrency', found_order.payment_currency,
     'paymentExpiresAt', found_order.payment_expires_at,
-    'qadmousNumber', found_order.qadmous_number
+    'qadmousNumber', found_order.qadmous_number,
+    'paymentIssue', found_order.payment_issue,
+    'paymentIssueNote', found_order.payment_issue_note,
+    'extraAmountUsd', found_order.extra_amount_usd
   );
 end;
 $$;

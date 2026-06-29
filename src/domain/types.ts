@@ -39,7 +39,7 @@ export type NotificationPrefs = {
 
 export type AppNotification = {
   id: string
-  type: 'order_update' | 'payment' | 'system'
+  type: 'order_update' | 'payment' | 'payment_issue' | 'system'
   title: string
   body: string
   orderId?: string
@@ -162,6 +162,9 @@ export type Order = {
   paidAt?: string
   rating?: number
   ratingNote?: string
+  paymentIssue?: boolean
+  paymentIssueNote?: string
+  extraAmountUsd?: number
 }
 
 export type PriceLine = {

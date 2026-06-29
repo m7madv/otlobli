@@ -926,6 +926,21 @@ function App() {
           }, ...prev]
         })
       }
+      if (data.paymentIssue && !current?.paymentIssue) {
+        const notifId = `payment-issue-${currentOrderId}`
+        setNotifications((prev) => {
+          if (prev.some((n) => n.id === notifId)) return prev
+          return [{
+            id: notifId,
+            type: 'payment_issue',
+            title: 'مشكلة بالدفع',
+            body: `يوجد مشكلة بطلبك ${currentOrderId}${data.extraAmountUsd > 0 ? ` — متبقي $${data.extraAmountUsd.toFixed(2)}` : ''}`,
+            orderId: currentOrderId,
+            createdAt: today(),
+            read: false,
+          }, ...prev]
+        })
+      }
       setOrders((list) => list.map((o) => {
         if (o.id !== currentOrderId) return o
         return {
@@ -934,6 +949,9 @@ function App() {
           qadmousNumber: data.qadmousNumber || o.qadmousNumber,
           paidAt: data.paidAt ?? o.paidAt,
           paymentStatus: data.paymentStatus ?? o.paymentStatus,
+          paymentIssue: data.paymentIssue,
+          paymentIssueNote: data.paymentIssueNote,
+          extraAmountUsd: data.extraAmountUsd,
         }
       }))
     }
@@ -1682,6 +1700,25 @@ function App() {
                     />
                   </div>
                 </div>
+                {item.paymentIssue && (
+                  <div className="payment-issue-banner" onClick={(e) => e.stopPropagation()}>
+                    <p>
+                      <Icon name="error" /> يوجد مشكلة بالدفع على هذا الطلب
+                      {item.paymentIssueNote ? `: ${item.paymentIssueNote}` : ''}
+                    </p>
+                    {!!item.extraAmountUsd && item.extraAmountUsd > 0 && (
+                      <p className="payment-issue-amount">المتبقي: ${item.extraAmountUsd.toFixed(2)}</p>
+                    )}
+                    <button
+                      className="primary-action"
+                      onClick={() => openWhatsappSupport(
+                        `مرحبا otlobli، أحتاج دفع المبلغ المتبقي على طلبي ${item.id}${item.extraAmountUsd ? ` ($${item.extraAmountUsd.toFixed(2)})` : ''}`,
+                      )}
+                    >
+                      <Icon name="payments" /> دفع المتبقي عبر واتساب
+                    </button>
+                  </div>
+                )}
                 <button
                   className="reorder-btn"
                   onClick={(e) => {
@@ -2087,14 +2124,18 @@ function App() {
                     setNotifications((prev) => prev.map((n) => n.id === notif.id ? { ...n, read: true } : n))
                     if (notif.orderId) {
                       setCurrentOrderId(notif.orderId)
-                      setRatingStars(0)
-                      setRatingNote('')
-                      setScreen('tracking')
+                      if (notif.type === 'payment_issue') {
+                        setScreen('orders')
+                      } else {
+                        setRatingStars(0)
+                        setRatingNote('')
+                        setScreen('tracking')
+                      }
                     }
                   }}
                 >
                   <div className="notif-icon">
-                    <Icon name={notif.type === 'payment' ? 'payments' : notif.type === 'order_update' ? 'local_shipping' : 'info'} />
+                    <Icon name={notif.type === 'payment_issue' ? 'error' : notif.type === 'payment' ? 'payments' : notif.type === 'order_update' ? 'local_shipping' : 'info'} />
                   </div>
                   <div className="notif-body">
                     <b>{notif.title}</b>

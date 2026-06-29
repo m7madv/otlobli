@@ -142,6 +142,48 @@ img {
   padding: 0 12px;
 }
 
+.payment-issue-field {
+  border: 1px solid var(--outline);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  background: var(--surface-soft);
+}
+
+.payment-issue-field.active {
+  border-color: #e0544c;
+  background: rgba(224, 84, 76, 0.08);
+}
+
+.payment-issue-field .checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.payment-issue-field textarea {
+  width: 100%;
+  margin-top: 10px;
+  min-height: 70px;
+  border: 1px solid var(--outline);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  outline: none;
+  padding: 8px 12px;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.payment-issue-field input {
+  margin-top: 8px;
+}
+
+.payment-issue-field button {
+  margin-top: 8px;
+}
+
 .primary-action,
 .ghost-action,
 .top-actions button,

@@ -50,6 +50,32 @@ async function notifyCustomerStatusChange(
   }
 }
 
+async function notifyCustomerPaymentIssue(
+  phone: string,
+  order: { id: string; note: string; extraAmountUsd: number },
+) {
+  if (!WHATSAPP_SERVER_URL || !phone) return
+  const lines = [
+    `⚠️ *مشكلة بالدفع على طلبك ${order.id}*`,
+    order.note || 'يوجد فرق بسعر إحدى القطع.',
+  ]
+  if (order.extraAmountUsd > 0) {
+    lines.push(`المبلغ المتبقي: $${order.extraAmountUsd.toFixed(2)}`)
+  }
+  lines.push('', 'افتح التطبيق وتابع التفاصيل من صفحة طلباتي.')
+
+  try {
+    await fetch(`${WHATSAPP_SERVER_URL}/api/notify/whatsapp`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ phone, text: lines.join('\n') }),
+      signal: AbortSignal.timeout(8000),
+    })
+  } catch (err) {
+    console.error('payment issue whatsapp failed:', (err as Error).message, order.id)
+  }
+}
+
 async function notifyDriverAssignment(
   driverPhone: string,
   driverName: string,
@@ -140,6 +166,9 @@ Deno.serve(async (req) => {
       assignedDriverId: row.assigned_driver_id || '',
       rating: row.rating || undefined,
       ratingNote: row.rating_note || '',
+      paymentIssue: row.payment_issue || false,
+      paymentIssueNote: row.payment_issue_note || '',
+      extraAmountUsd: row.extra_amount_usd || 0,
     }))
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -170,6 +199,15 @@ Deno.serve(async (req) => {
     if (patch.statusIndex !== undefined) dbPatch.status_index = patch.statusIndex
     if (patch.qadmousNumber !== undefined) dbPatch.qadmous_number = patch.qadmousNumber
     if (patch.paidAt !== undefined) dbPatch.paid_at = patch.paidAt
+    if (patch.paymentIssue !== undefined) dbPatch.payment_issue = Boolean(patch.paymentIssue)
+    if (patch.paymentIssueNote !== undefined) dbPatch.payment_issue_note = String(patch.paymentIssueNote || '')
+    if (patch.extraAmountUsd !== undefined) dbPatch.extra_amount_usd = Number(patch.extraAmountUsd) || 0
+
+    let previousPaymentIssue: boolean | null = null
+    if (patch.paymentIssue !== undefined) {
+      const { data } = await supabase.from('orders').select('payment_issue').eq('id', orderId).single()
+      previousPaymentIssue = data?.payment_issue ?? false
+    }
 
     const assigningDriverId = patch.assignedDriverId !== undefined ? String(patch.assignedDriverId || '') : null
     if (assigningDriverId !== null) {
@@ -206,6 +244,17 @@ Deno.serve(async (req) => {
         statusIndex: newStatusIndex,
         qadmousNumber: typeof patch.qadmousNumber === 'string' ? patch.qadmousNumber : undefined,
       })
+    }
+
+    if (patch.paymentIssue === true && previousPaymentIssue === false) {
+      const { data: order } = await supabase.from('orders').select('phone').eq('id', orderId).single()
+      if (order?.phone) {
+        await notifyCustomerPaymentIssue(order.phone, {
+          id: orderId,
+          note: typeof patch.paymentIssueNote === 'string' ? patch.paymentIssueNote : '',
+          extraAmountUsd: Number(patch.extraAmountUsd) || 0,
+        })
+      }
     }
 
     if (assigningDriverId) {

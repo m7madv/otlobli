@@ -30,6 +30,9 @@ type Order = {
   assignedDriverId: string
   rating?: number
   ratingNote?: string
+  paymentIssue: boolean
+  paymentIssueNote: string
+  extraAmountUsd: number
 }
 
 type DriverOption = {
@@ -659,11 +662,67 @@ function OrderDetail({
         />
       </label>
       <DriverAssignField order={order} drivers={drivers} onUpdate={onUpdate} />
+      <PaymentIssueField order={order} onUpdate={onUpdate} />
       <div className="detail-actions">
         <button className="primary-action" onClick={() => onMarkPaid(order)}>تأكيد الدفع</button>
         <button className="ghost-action" onClick={() => onAdvance(order)}>نقل للمرحلة التالية</button>
       </div>
     </section>
+  )
+}
+
+// ── Payment Issue Field (admin marks a price/payment mismatch) ───────────────
+function PaymentIssueField({ order, onUpdate }: { order: Order; onUpdate: (orderId: string, patch: Partial<Order>) => void }) {
+  const [open, setOpen] = useState(order.paymentIssue)
+  const [note, setNote] = useState(order.paymentIssueNote)
+  const [amount, setAmount] = useState(String(order.extraAmountUsd || ''))
+
+  useEffect(() => {
+    setOpen(order.paymentIssue)
+    setNote(order.paymentIssueNote)
+    setAmount(String(order.extraAmountUsd || ''))
+  }, [order.id, order.paymentIssue, order.paymentIssueNote, order.extraAmountUsd])
+
+  const save = (issue: boolean) => {
+    onUpdate(order.id, {
+      paymentIssue: issue,
+      paymentIssueNote: note,
+      extraAmountUsd: Number(amount) || 0,
+    })
+  }
+
+  return (
+    <div className={`field payment-issue-field ${order.paymentIssue ? 'active' : ''}`}>
+      <label className="checkbox-row">
+        <input
+          type="checkbox"
+          checked={open}
+          onChange={(e) => {
+            setOpen(e.target.checked)
+            if (!e.target.checked) save(false)
+          }}
+        />
+        <span>مشكلة دفع / سعر خاطئ</span>
+      </label>
+      {open && (
+        <>
+          <textarea
+            placeholder="ملاحظة: أي منتج وليش الفرق بالسعر"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="المبلغ المتبقي بالدولار"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+          />
+          <button className="ghost-action" onClick={() => save(true)}>حفظ وإشعار الزبون</button>
+        </>
+      )}
+    </div>
   )
 }
 
@@ -793,6 +852,7 @@ function OrderModal({
             />
           </label>
           <DriverAssignField order={order} drivers={drivers} onUpdate={onUpdate} />
+          <PaymentIssueField order={order} onUpdate={onUpdate} />
           <div className="detail-actions">
             <button className="primary-action" onClick={() => onMarkPaid(order)}>تأكيد الدفع</button>
             <button className="ghost-action" onClick={() => onAdvance(order)}>نقل للمرحلة التالية</button>

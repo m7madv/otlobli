@@ -357,6 +357,9 @@ export const supabaseAppApi: TalabiehApi = {
         paymentStatus: PaymentStatus
         paidAt?: string
         qadmousNumber?: string
+        paymentIssue?: boolean
+        paymentIssueNote?: string
+        extraAmountUsd?: number
       }
 
       return {
@@ -364,6 +367,9 @@ export const supabaseAppApi: TalabiehApi = {
         paymentStatus: result.paymentStatus,
         paidAt: result.paidAt,
         qadmousNumber: result.qadmousNumber ?? '',
+        paymentIssue: result.paymentIssue ?? false,
+        paymentIssueNote: result.paymentIssueNote ?? '',
+        extraAmountUsd: result.extraAmountUsd ?? 0,
       }
     },
 

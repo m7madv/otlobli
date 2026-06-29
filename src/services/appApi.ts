@@ -43,6 +43,9 @@ export type OrderStatusResult = {
   paymentStatus: PaymentStatus
   paidAt?: string
   qadmousNumber: string
+  paymentIssue: boolean
+  paymentIssueNote: string
+  extraAmountUsd: number
 }
 
 export type TalabiehApi = {
