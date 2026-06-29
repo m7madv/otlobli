@@ -1014,14 +1014,25 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
     return best;
   }
-  // المقاس المختار = الزر الأغمق حدّاً **بوضوح** عن البقية (مقارنة نسبية، لا
-  // عتبة ثابتة). لو ما في وحدة أغمق بوضوح = لم يُختر مقاس → نُرجع فارغاً (ليمنع
-  // النظام الإضافة ويطلب الاختيار).
+  // معرّف المنتج (ثابت رغم تغيّر المقاس/اللون) - لربط النقرة بالمنتج الصحيح.
+  function temuGoodsId() {
+    var m = location.href.match(/goods_id=(\\d+)/);
+    return m ? m[1] : location.pathname;
+  }
+  // المقاس المختار. المصدر الأدقّ: آخر زر مقاس **نقره الزبون فعلاً** (نسجّله
+  // عبر مستمع نقر) - أوثق بكثير من تخمين العنصر "المحدّد" بصرياً. واحتياطاً:
+  // الزر الأغمق حدّاً بوضوح (للمقاس المُختار افتراضياً بلا نقر). أي شكّ=فارغ.
   function temuSelectedSize() {
     var pills = temuSizePills();
     if (pills.length < 1) return '';
+    // 1) نقرة الزبون المسجّلة (لنفس المنتج، وما زالت ضمن مقاساته الحالية).
+    if (window.__otlobliTemuSize && window.__otlobliTemuSizeGid === temuGoodsId()) {
+      for (var k = 0; k < pills.length; k++) {
+        if ((pills[k].textContent || '').trim() === window.__otlobliTemuSize) return window.__otlobliTemuSize;
+      }
+    }
+    // 2) احتياط بصري: الأغمق حدّاً بوضوح عن البقية.
     if (pills.length === 1) {
-      // مقاس واحد فقط: مختار لو حدّه غامق فعلاً.
       return temuBorderDarkness(pills[0]) < 280 ? (pills[0].textContent || '').trim() : '';
     }
     var darkEl = null, d1 = 999, d2 = 999;
@@ -1032,6 +1043,30 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
     if (darkEl && d1 < 300 && (d2 - d1) > 120) return (darkEl.textContent || '').trim();
     return '';
+  }
+  // مستمع نقر يسجّل آخر زر مقاس ضغطه الزبون فعلاً (المصدر الأوثق للمقاس).
+  if (IS_TEMU && !window.__otlobliTemuClickBound) {
+    window.__otlobliTemuClickBound = true;
+    document.addEventListener('click', function (e) {
+      try {
+        var pills = temuSizePills();
+        if (!pills.length) return;
+        var node = e.target, hops = 0;
+        while (node && hops < 4) {
+          for (var i = 0; i < pills.length; i++) {
+            if (pills[i] === node) {
+              var t = (node.textContent || '').trim();
+              if (t && t.length <= 24) {
+                window.__otlobliTemuSize = t;
+                window.__otlobliTemuSizeGid = temuGoodsId();
+              }
+              return;
+            }
+          }
+          node = node.parentElement; hops++;
+        }
+      } catch (err) {}
+    }, true);
   }
 
   // منتج تخصيص (نقش اسم): يلتقط النص الذي كتبه الزبون من حقل الإدخال.
