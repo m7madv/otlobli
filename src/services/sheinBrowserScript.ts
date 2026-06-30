@@ -934,7 +934,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function temuColor() {
     // 1) نقرة الزبون على كرت اللون (الأوثق - يحلّ مشكلة بقاء اللون الافتراضي).
     if (window.__otlobliTemuColor && window.__otlobliTemuColorGid === temuGoodsId()) {
-      return window.__otlobliTemuColor;
+      // حماية: رفض قيمة التقطت كود JS (مثل: } for(var ns in extraI18nStore[lang])).
+      if (/[{};]|\\bvar\\b|\\bfor\\b|\\bfunction\\b/.test(window.__otlobliTemuColor)) {
+        window.__otlobliTemuColor = '';
+      } else {
+        return window.__otlobliTemuColor;
+      }
     }
     // 2) عنوان "Color: X" (اللون الافتراضي قبل أي تغيير).
     var nodes = document.querySelectorAll('div, span, h2, h3, p, strong');
@@ -1101,33 +1106,51 @@ export const SHEIN_CAPTURE_SCRIPT = `
           if (matched) return;
           node = node.parentElement; hops++;
         }
-        // (ب) نقرة على كرت لون (كرت يحوي صورة + اسم لون قصير) - يحلّ بقاء
-        // اللون الافتراضي عند تغيير اللون.
+        // (ب) نقرة على كرت لون.
+        // المنطق: نتحقق من حجم العنصر (كرت فردي ≠ شبكة كاملة)، وندّعم
+        // فقط الحالات التي يحوي فيها العنصر 1-4 صور. نأخذ اسم اللون من
+        // alt الصورة أولاً، ثم آخر عنصر نصي ظاهر (نتجنب script/style/img).
+        // نرفض أي قيمة تبدأ برقم أو تحتوي كود JS (يحلّ مشكلة script tag).
         if (temuHasColorSection()) {
+          var isOkColorName = function(s) {
+            return s.length >= 2 && s.length <= 50
+              && /^[a-zA-Z\\u0600-\\u06FF]/.test(s)
+              && !/^(color|image|select|add|qty|free|shipping|size)$/i.test(s)
+              && !/[{};]|\\bvar\\b|\\bfor\\b|\\bfunction\\b/.test(s);
+          };
           var cnode = e.target, ch = 0;
-          while (cnode && ch < 4) {
-            var cardImg = cnode.querySelector && cnode.querySelector('img');
-            if (cardImg) {
-              // أفضل مصدر لاسم اللون: alt الصورة (عادةً اسم المتغيّر بتيمو).
-              var altName = (cardImg.getAttribute('alt') || cardImg.getAttribute('title') || '').trim();
-              // احتياط: آخر سطر نصي في الكرت (العنوان الظاهر أسفل الصورة).
-              var rawLines = (cnode.textContent || '').split(/\\n|\\r/).map(function(l){ return l.trim(); });
-              var lastLine = '';
-              for (var ll = rawLines.length - 1; ll >= 0; ll--) {
-                var lv = rawLines[ll];
-                if (lv.length >= 2 && lv.length <= 50 && !/^color$/i.test(lv)) { lastLine = lv; break; }
+          while (cnode && ch < 6) {
+            var cr3 = cnode.getBoundingClientRect ? cnode.getBoundingClientRect() : null;
+            // حجم معقول لكرت لون فردي (يستبعد الشبكة الكاملة)
+            if (cr3 && cr3.width > 20 && cr3.width < 300 && cr3.height > 20 && cr3.height < 420) {
+              var cImgs = cnode.querySelectorAll ? cnode.querySelectorAll('img') : [];
+              if (cImgs.length >= 1 && cImgs.length <= 4) {
+                var cardImg2 = cImgs[0];
+                // مصدر 1: alt الصورة
+                var altN2 = (cardImg2.getAttribute('alt') || cardImg2.getAttribute('title') || '').trim();
+                var colorName2 = isOkColorName(altN2) ? altN2 : '';
+                if (!colorName2) {
+                  // مصدر 2: آخر عنصر ابن مرئي (من الآخر للأول — العنوان عادةً آخر ابن)
+                  var cKids = cnode.children ? cnode.children : [];
+                  for (var ck = cKids.length - 1; ck >= 0 && !colorName2; ck--) {
+                    var ckTag = (cKids[ck].tagName || '').toLowerCase();
+                    if (ckTag === 'img' || ckTag === 'script' || ckTag === 'style'
+                        || ckTag === 'picture' || ckTag === 'source'
+                        || ckTag === 'canvas' || ckTag === 'svg') continue;
+                    var ckTxt = (cKids[ck].textContent || '')
+                      .replace(/[^\\w\\u0600-\\u06FF\\s().\\-]/g, ' ')
+                      .replace(/\\s+/g, ' ').trim();
+                    if (isOkColorName(ckTxt)) colorName2 = ckTxt;
+                  }
+                }
+                if (colorName2) {
+                  window.__otlobliTemuColor = colorName2;
+                  window.__otlobliTemuColorGid = temuGoodsId();
+                  var cSrc = cardImg2.currentSrc || cardImg2.src || '';
+                  window.__otlobliTemuColorImg = /kwcdn|temu/i.test(cSrc) ? cSrc : '';
+                  return;
+                }
               }
-              var name = (altName && altName.length >= 2 && altName.length <= 50 && !/^color$/i.test(altName))
-                ? altName
-                : lastLine;
-              if (name && name.length >= 2) {
-                window.__otlobliTemuColor = name;
-                window.__otlobliTemuColorGid = temuGoodsId();
-                // صورة نفس كرت اللون المنقور = تطابق الصورة للون المختار دائماً.
-                var cs2 = cardImg.currentSrc || cardImg.src || '';
-                window.__otlobliTemuColorImg = /kwcdn|temu/i.test(cs2) ? cs2 : '';
-              }
-              return;
             }
             cnode = cnode.parentElement; ch++;
           }
