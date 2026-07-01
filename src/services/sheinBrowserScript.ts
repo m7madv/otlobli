@@ -1012,7 +1012,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     for (var h = 0; h < heads.length; h++) {
       var ht = (heads[h].textContent || '').trim();
       if (ht === 'Size' || ht === 'المقاس' || ht === 'Size:' || ht === 'المقاس:' ||
-          (ht.indexOf('Size') === 0 && ht.length <= 12)) return heads[h];
+          (ht.indexOf('Size') === 0 && ht.length <= 12 && !/guide|chart|info/i.test(ht))) return heads[h];
     }
     return null;
   }
@@ -1038,6 +1038,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if (el.id && el.id.indexOf('otlobli') === 0) continue;
         var t = (el.textContent || '').trim();
         if (t.length < 1 || t.length > 24) continue;
+        // أزرار كمية "−" "+" حرف واحد غير حرفي/رقمي — نتجاهلها.
+        if (t.length === 1 && !/[a-zA-Z0-9]/.test(t)) continue;
         if (t.indexOf(':') >= 0) continue;
         if (/[$£€%]/.test(t)) continue;
         if (/\\bfree\\b|\\bapp\\b|guide|standard|^us$|^ca$|^eu$|^uk$|qty|^size$/i.test(t)) continue;
@@ -1060,9 +1062,24 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // المقاس المختار. المصدر الأدقّ: آخر زر مقاس **نقره الزبون فعلاً** (نسجّله
   // عبر مستمع نقر) - أوثق بكثير من تخمين العنصر "المحدّد" بصرياً. واحتياطاً:
   // الزر الأغمق حدّاً بوضوح (للمقاس المُختار افتراضياً بلا نقر). أي شكّ=فارغ.
+  function temuSelectedSizeFromLabel() {
+    // قراءة المقاس من نص وصفي "Size: One-size" أو "Color: X, Size: Y" (منتجات محدد مقاسها مسبقاً).
+    var els = document.querySelectorAll('div, span, p, strong, h3, h2');
+    for (var si = 0; si < els.length; si++) {
+      var st = (els[si].textContent || '').trim();
+      if (st.length < 4 || st.length > 80) continue;
+      var sm = st.match(/Size\\s*:\\s*([^,;|\\n\\r]{1,30})/i);
+      if (sm && sm[1]) {
+        var sv = sm[1].trim();
+        if (sv.length >= 2 && sv.length <= 30 && !/guide|chart|info/i.test(sv)) return sv;
+      }
+    }
+    return '';
+  }
   function temuSelectedSize() {
     var pills = temuSizePills();
-    if (pills.length < 1) return '';
+    // لا توجد أزرار مقاس — قد يكون المقاس محدداً مسبقاً (مثل "One-size" على الصفحة مباشرة).
+    if (pills.length < 1) return temuSelectedSizeFromLabel();
     // 1) نقرة الزبون المسجّلة (لنفس المنتج، وما زالت ضمن مقاساته الحالية).
     if (window.__otlobliTemuSize && window.__otlobliTemuSizeGid === temuGoodsId()) {
       for (var k = 0; k < pills.length; k++) {
@@ -1161,16 +1178,24 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   // منتج تخصيص (نقش اسم): يلتقط النص الذي كتبه الزبون من حقل الإدخال.
   function temuPersonalization() {
-    var hasPerso = false;
+    var hasPersoLabel = false;
     var labels = document.querySelectorAll('div, span, p, strong, h2, h3');
     for (var i = 0; i < labels.length; i++) {
       var lt = (labels[i].textContent || '');
-      if (lt.length < 60 && /personaliz|تخصيص|نقش|engrav/i.test(lt)) { hasPerso = true; break; }
+      if (lt.length < 60 && /personaliz|تخصيص|نقش|engrav/i.test(lt)) { hasPersoLabel = true; break; }
     }
-    if (!hasPerso) return { has: false, text: '' };
-    var inputs = document.querySelectorAll('input, textarea');
+    if (!hasPersoLabel) return { has: false, text: '' };
+    // تأكيد: لا بد من وجود حقل إدخال نصي مرئي (يستبعد حقول hidden/checkbox/radio/submit).
+    var inputs = document.querySelectorAll('input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]), textarea');
+    var hasVisibleInput = false;
     for (var j = 0; j < inputs.length; j++) {
-      var v = (inputs[j].value || '').trim();
+      var rp = inputs[j].getBoundingClientRect();
+      if (rp.width > 20 && rp.height > 10) { hasVisibleInput = true; break; }
+    }
+    if (!hasVisibleInput) return { has: false, text: '' };
+    // الحقل موجود ومرئي — نرجع القيمة المكتوبة.
+    for (var k = 0; k < inputs.length; k++) {
+      var v = (inputs[k].value || '').trim();
       if (v && v.length <= 40) return { has: true, text: v };
     }
     return { has: true, text: '' };
