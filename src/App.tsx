@@ -350,17 +350,22 @@ function App() {
   }
 
   const reorderItems = (pastOrder: Order) => {
+    // اكتشف المتجر الذي جاء منه الطلب من رابط المنتج الأول
+    const firstLink = pastOrder.items[0]?.sourceLink ?? ''
+    const orderStore: StoreId = /temu\.com/i.test(firstLink) ? 'temu' : 'shein'
+
+    // ممنوع التبديل الصامت: كل طلب مرتبط بالمتجر الذي طُلب منه فعلاً، فإذا
+    // كان المستخدم حالياً على متجر مختلف، نطلب منه التبديل يدوياً أولاً.
+    if (selectedStoreRef.current !== orderStore) {
+      const orderStoreName = STORES.find((s) => s.id === orderStore)?.name ?? orderStore
+      showNotice(`هذا الطلب من ${orderStoreName} — بدّل إلى ${orderStoreName} أولاً لتقدر تعمل إعادة الطلب`)
+      return
+    }
+
     const reordered: CartItem[] = pastOrder.items.map((item, index) => ({
       ...item,
       id: `${item.id}-reorder-${Date.now()}-${index}`,
     }))
-    // اكتشف المتجر من رابط المنتج الأول وأضف للسلة الصحيحة
-    const firstLink = pastOrder.items[0]?.sourceLink ?? ''
-    const orderStore: StoreId = /temu\.com/i.test(firstLink) ? 'temu' : 'shein'
-    if (selectedStoreRef.current !== orderStore) {
-      selectedStoreRef.current = orderStore
-      setSelectedStore(orderStore)
-    }
     setCartsByStore((all) => ({
       ...all,
       [orderStore]: [...(all[orderStore] ?? []), ...reordered],

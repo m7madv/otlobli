@@ -1189,10 +1189,21 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (pills.length === 1) {
       return (pills[0].textContent || '').trim();
     }
-    // 3) [حُذف] تخمين "الحدّ الأغمق" بصرياً — كان يلتقط مقاساً عشوائياً
-    // (المحدد افتراضياً من تيمو أو زراً خاطئاً) فيمرّ منتج بمقاس لم يختره
-    // الزبون. القاعدة الآن حتمية: نقرة صريحة أو مقاس وحيد — وإلا فارغ
-    // فيُطلب من الزبون التحديد ("حدد المقاس أولاً"). خربطة = صفر.
+    // 3) لا نقرة صريحة. سابقاً كان هذا يُرجع فارغاً دائماً (خشية "خربطة" من
+    // تخمين واسع كان يفحص كل الصفحة ويتطلب حدّاً غامقاً + خلفية فاتحة معاً —
+    // شرط لا يطابق أزرار تيمو المختارة الشائعة، الممتلئة أسود بلا خلفية فاتحة).
+    // البديل الآمن هنا أضيق بكثير: نفحص فقط ضمن صفّ الأزرار المُتحقَّق منه
+    // مسبقاً (نفس pills أعلاه، مُصفّاة بشكل الحدث لا كلماته)، ونعتمد الحدّ
+    // الغامق وحده (بلا شرط الخلفية الفاتحة) لأنه يطابق الأزرار الممتلئة أيضاً.
+    // تطابق واحد بالضبط وإلا نتجاهل تماماً (الغموض = فارغ، كما كان).
+    var defaultPick = null, defaultMatches = 0;
+    for (var dp = 0; dp < pills.length; dp++) {
+      if (temuHasDarkBorder(pills[dp])) { defaultPick = pills[dp]; defaultMatches++; }
+    }
+    if (defaultMatches === 1) {
+      var dt = (defaultPick.textContent || '').trim();
+      if (dt && dt.length <= 24) return dt;
+    }
     return '';
   }
   // مقاس وحيد → نحدّده تلقائياً من دون نقر الزبون (يُستدعى في معالج الزر).
@@ -1287,6 +1298,46 @@ export const SHEIN_CAPTURE_SCRIPT = `
       container = container.parentElement; hops++;
     }
     return '';
+  }
+  // كرت اللون المختار افتراضياً (بلا نقرة الزبون ولا اسم نصي مطابق) — شبكة
+  // أمان أخيرة لمنتجات كروت الصور المجرّدة (حقائب/ملابس بلا "اللون: X" ولا
+  // alt نصي). الكرت المختار مُعلَّم بحدّ غامق فقط (نفحص الصورة وحاضنَيها
+  // المباشرَين لاختلاف هيكلية القوالب). تطابق واحد بالضبط وإلا فارغ.
+  function temuDefaultSelectedColorCard() {
+    var nodes = document.querySelectorAll('div, span, h2, h3, p, strong');
+    var colorHead = null;
+    for (var i = 0; i < nodes.length; i++) {
+      if (temuIsColorHeadText((nodes[i].textContent || '').trim())) { colorHead = nodes[i]; break; }
+    }
+    if (!colorHead) return null;
+    var container = colorHead.parentElement, hops = 0;
+    while (container && hops < 5) {
+      var imgs = container.querySelectorAll('img');
+      var cards = [];
+      for (var j = 0; j < imgs.length; j++) {
+        var src = imgs[j].currentSrc || imgs[j].src || '';
+        if (!src || src.indexOf('http') !== 0) continue;
+        var r = imgs[j].getBoundingClientRect();
+        if (r.width < 28 || r.width > 220 || r.height < 28 || r.height > 220) continue;
+        var parentEl = imgs[j].parentElement || imgs[j];
+        var grandEl = parentEl.parentElement || parentEl;
+        var bordered = temuHasDarkBorder(imgs[j]) || temuHasDarkBorder(parentEl) || temuHasDarkBorder(grandEl);
+        cards.push({ img: imgs[j], src: src, bordered: bordered });
+      }
+      if (cards.length >= 1) {
+        var picked = null, matches = 0;
+        for (var c = 0; c < cards.length; c++) {
+          if (cards[c].bordered) { picked = cards[c]; matches++; }
+        }
+        if (matches === 1) {
+          var altName = (picked.img.getAttribute('alt') || picked.img.getAttribute('title') || '').trim();
+          return { name: altName, image: picked.src };
+        }
+        return null; // صفّ موجود لكن لا تطابق واحد واضح — لا تخمين
+      }
+      container = container.parentElement; hops++;
+    }
+    return null;
   }
   // جدولة التقاط هيرو اللون (بعد إغلاق الشيت) — مشتركة بين فرعَي الالتقاط.
   function temuScheduleHeroCapture(gid) {
@@ -1610,6 +1661,16 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var temuColorVal = temuColor();
       if (!temuColorSwatch && temuColorVal) {
         temuColorSwatch = temuSelectedColorCardImg(temuColorVal) || '';
+      }
+      // شبكة أمان أخيرة: ما زالت الصورة مفقودة (كروت بلا اسم/alt نصي، أو
+      // بلا عنوان "اللون: X" أصلاً - شائع بالحقائب/الملابس) → الكرت الوحيد
+      // بحدّ غامق ضمن صفّ الألوان = المختار افتراضياً بصرياً.
+      if (!temuColorSwatch) {
+        var defCard = temuDefaultSelectedColorCard();
+        if (defCard) {
+          temuColorSwatch = defCard.image;
+          if (!temuColorVal && defCard.name) temuColorVal = defCard.name;
+        }
       }
       // اختيار بكرت صورة بلا اسم (أحذية/أجهزة): الصورة هي المرجع للمالك.
       if (!temuColorVal && temuColorSwatch) temuColorVal = 'حسب الصورة المرفقة';
