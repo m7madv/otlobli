@@ -1911,7 +1911,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   });
 
-  function showMessage(btn, text) {
+  function showMessage(btn, text, durationMs) {
     var msg = document.getElementById('otlobli-msg');
     if (!msg) {
       var vp = viewportSize();
@@ -1925,7 +1925,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
     msg.textContent = text;
     msg.style.display = 'block';
     clearTimeout(window.__otlobliMsgTimer);
-    window.__otlobliMsgTimer = setTimeout(function () { msg.style.display = 'none'; }, 2500);
+    // رسائل التشخيص (تحوي "[" — قوس السبب) تبقى أطول لإتاحة وقت للتصوير.
+    var showFor = durationMs || (text.indexOf('[') >= 0 ? 6000 : 2500);
+    window.__otlobliMsgTimer = setTimeout(function () { msg.style.display = 'none'; }, showFor);
 
     if (btn) {
       btn.style.animation = 'none';
@@ -2100,8 +2102,16 @@ export const SHEIN_CAPTURE_SCRIPT = `
           // نقرة كرت صورة بلا اسم (أحذية/أجهزة) تُحتسب اختياراً عبر الـswatch.
           var swatchChosen = !!(window.__otlobliTemuColorSwatch && window.__otlobliTemuColorGid === temuGoodsId());
           if (temuHasColorSection() && !temuColor() && !swatchChosen && !knownOneColor && !temuHasSingleColor()) {
-            showMessage(btn, 'حدد اللون أولاً');
-            return;
+            // قبل الحجب: هل الكرت الوحيد بحدّ غامق يحلّها بلا نقرة الزبون؟
+            // (نفس الشبكة المستخدمة وقت الجذب — كانت مفعّلة هناك فقط، فالحارس
+            // هنا كان يحجب الزر قبل وصوله لتلك الشبكة إطلاقاً.)
+            var gateDefColor = temuDefaultSelectedColorCard();
+            if (!gateDefColor) {
+              var colorMsg = 'حدد اللون أولاً';
+              if (window.__otlobliTemuColorDiag) colorMsg += ' [' + window.__otlobliTemuColorDiag + ']';
+              showMessage(btn, colorMsg);
+              return;
+            }
           }
           if (!persoChk.has) {
             // ذكاء: مقاس وحيد → نحدّده تلقائياً قبل التحقق (يحلّ مشكلة ONE SIZE).
@@ -2111,8 +2121,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
             if (temuHasSizeSection() && !temuSelectedSize() && !knownOneSize) {
               var sHead = temuSizeHeadEl();
               var sLabel = sHead ? (sHead.textContent || '').trim() : 'المقاس';
-              if (/موديل/i.test(sLabel)) showMessage(btn, 'حدد موديل جوالك أولاً');
-              else showMessage(btn, 'حدد المقاس أولاً');
+              var sizeMsg = /موديل/i.test(sLabel) ? 'حدد موديل جوالك أولاً' : 'حدد المقاس أولاً';
+              if (window.__otlobliTemuSizeDiag) sizeMsg += ' [' + window.__otlobliTemuSizeDiag + ']';
+              showMessage(btn, sizeMsg);
               return;
             }
           }
