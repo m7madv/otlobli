@@ -1,7 +1,8 @@
 import type { StartLoginResult, VerifyOtpResult, TalabiehApi } from './appApi'
+import { cleanEnvValue } from '../config'
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
-const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+const SUPABASE_URL = cleanEnvValue(import.meta.env.VITE_SUPABASE_URL)
+const ANON_KEY = cleanEnvValue(import.meta.env.VITE_SUPABASE_ANON_KEY)
 const FN_URL = `${SUPABASE_URL}/functions/v1/telegram-auth`
 
 const headers = {

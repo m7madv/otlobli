@@ -8,11 +8,11 @@ import { supabase } from './supabaseClient'
 import { isWhatsappApiAuthEnabled, whatsappAuthApi } from './whatsappAuthApi'
 import { PAYMENT_MODE, cleanEnvValue } from '../config'
 
-const DISPLAY_USD_RATE = Number(import.meta.env.VITE_USD_TO_SYP_RATE ?? 13000) || 13000
+const DISPLAY_USD_RATE = Number(cleanEnvValue(import.meta.env.VITE_USD_TO_SYP_RATE)) || 13000
 
 // Cloudflare Worker (fast, edge-based) with Railway as fallback
-const SHEIN_WORKER_URL = import.meta.env.VITE_SHEIN_WORKER_URL || 'https://talabieh-shein.talabieh.workers.dev'
-const SHEIN_SCRAPER_URL = import.meta.env.VITE_SHEIN_SCRAPER_URL || 'https://shein-scraper-production.up.railway.app'
+const SHEIN_WORKER_URL = cleanEnvValue(import.meta.env.VITE_SHEIN_WORKER_URL) || 'https://talabieh-shein.talabieh.workers.dev'
+const SHEIN_SCRAPER_URL = cleanEnvValue(import.meta.env.VITE_SHEIN_SCRAPER_URL) || 'https://shein-scraper-production.up.railway.app'
 
 type CatalogProductRow = {
   payload: unknown

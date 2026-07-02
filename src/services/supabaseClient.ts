@@ -1,11 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
+import { cleanEnvValue } from '../config'
 
-function stripBom(s: string | undefined): string | undefined {
-  return s?.replace(/^﻿/, '').trim()
-}
-
-const supabaseUrl = stripBom(import.meta.env.VITE_SUPABASE_URL)
-const supabaseAnonKey = stripBom(import.meta.env.VITE_SUPABASE_ANON_KEY)
+const supabaseUrl = cleanEnvValue(import.meta.env.VITE_SUPABASE_URL)
+const supabaseAnonKey = cleanEnvValue(import.meta.env.VITE_SUPABASE_ANON_KEY)
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey)
 

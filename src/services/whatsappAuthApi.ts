@@ -18,7 +18,7 @@ const errorMessages: Record<string, string> = {
   whatsapp_send_error: 'تعذر إرسال رسالة واتساب من Meta حالياً.',
 }
 
-export const whatsappAuthMode = import.meta.env.VITE_WHATSAPP_AUTH_MODE
+export const whatsappAuthMode = cleanEnvValue(import.meta.env.VITE_WHATSAPP_AUTH_MODE)
 export const isWhatsappApiAuthEnabled = whatsappAuthMode === 'real' || whatsappAuthMode === 'inbound'
 
 // API Base URL — يستخدم Vercel proxy محلي أو السيرفر المباشر Railway في الإنتاج

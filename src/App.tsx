@@ -21,8 +21,8 @@ import { SHEIN_CAPTURE_SCRIPT } from './services/sheinBrowserScript'
 import { InAppBrowser, ToolBarType } from '@capgo/capacitor-inappbrowser'
 
 const API_BASE = cleanEnvValue(import.meta.env.VITE_WHATSAPP_API_URL)
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+const SUPABASE_URL = cleanEnvValue(import.meta.env.VITE_SUPABASE_URL)
+const SUPABASE_ANON_KEY = cleanEnvValue(import.meta.env.VITE_SUPABASE_ANON_KEY)
 const NOTIFY_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/telegram-notify` : ''
 const APP_SETTINGS_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/app-settings` : ''
 const CUSTOMER_PROFILE_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/customer-profile` : ''
@@ -48,7 +48,7 @@ const STORES: { id: StoreId; name: string; url: string }[] = [
 ]
 const storeUrl = (id: string) => (STORES.find((s) => s.id === id)?.url) ?? SHEIN_HOME_URL
 
-const usesInboundWhatsappAuth = import.meta.env.VITE_WHATSAPP_AUTH_MODE === 'inbound'
+const usesInboundWhatsappAuth = cleanEnvValue(import.meta.env.VITE_WHATSAPP_AUTH_MODE) === 'inbound'
 
 const COUNTRY_CODES = [
   { code: '963', name: 'سوريا', flag: '🇸🇾' },
@@ -123,7 +123,7 @@ const QADMOUS_BRANCHES: Record<string, string[]> = {
 // undefined، و?? لا تمسك النص الفارغ فيصير parseInt('')=NaN ويصفّر كل
 // الأسعار. وفوقها fallback نهائي لو طلعت القيمة غير صالحة لأي سبب.
 const DEFAULT_EXCHANGE_RATE = (() => {
-  const parsed = parseInt(import.meta.env.VITE_USD_TO_SYP_RATE || '13000', 10)
+  const parsed = parseInt(cleanEnvValue(import.meta.env.VITE_USD_TO_SYP_RATE) || '13000', 10)
   return Number.isFinite(parsed) && parsed > 1000 ? parsed : 13000
 })()
 
@@ -1233,7 +1233,7 @@ function App() {
               'content-type': 'application/json',
               'apikey': SUPABASE_ANON_KEY,
               'authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-              'x-admin-pin': import.meta.env.VITE_ADMIN_PIN || '',
+              'x-admin-pin': cleanEnvValue(import.meta.env.VITE_ADMIN_PIN),
             },
             body: JSON.stringify({ order: { ...paidOrder, paymentStatus: 'مدفوع', paidAt: result.paidAt ?? today() } }),
           }).catch(() => undefined)
