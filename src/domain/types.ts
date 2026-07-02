@@ -131,6 +131,11 @@ export type CartItem = {
   priceUsd: number
   priceSyp: number
   sourceLink: string
+  needsCustomPhoto?: boolean
+  customPhotoNote?: string
+  customPhotoDataUrl?: string
+  needsCustomText?: boolean
+  customText?: string
 }
 
 export type Address = {

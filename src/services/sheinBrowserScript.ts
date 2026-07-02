@@ -982,11 +982,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return false;
   }
   function temuImage() {
-    // 1) إن نقر الزبون لوناً: نستخدم صورة الهيرو التي التقطها الـtimeout (250ms
-    //    بعد النقر) — تعكس اللون المختار فعلاً لأن تيمو يحدّث صورة الهيرو
-    //    فور تغيير اللون. أشمل من صورة الكرت الصغيرة ومطابقة للمرئي.
-    if (window.__otlobliTemuColorImg && window.__otlobliTemuColorGid === temuGoodsId()) {
-      return window.__otlobliTemuColorImg;
+    // 1) إن نقر الزبون لوناً: نفضّل الهيرو المُلتقط بعد النقر (أكبر + صحيح).
+    //    إن لم يُلتقط الهيرو بعد (ما زال الشيت مفتوحاً أثناء الالتقاط)،
+    //    نستخدم صورة الكرت الصغيرة (swatch) بوصفها مؤكّدة الصحة أكثر من الهيرو
+    //    العائد بالـfallback الذي قد يكون للون الافتراضي لا المختار.
+    if (window.__otlobliTemuColorGid === temuGoodsId()) {
+      if (window.__otlobliTemuColorImg) return window.__otlobliTemuColorImg;
+      if (window.__otlobliTemuColorSwatch) return window.__otlobliTemuColorSwatch;
     }
     // 2) الصورة الرئيسية = أكبر صورة kwcdn في أعلى الصفحة (المعرض الرئيسي)، لا
     // الصور الثانوية أو صور كروت الألوان (عرضها < 200px عادةً). fallback: og:image.
@@ -1288,8 +1290,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
                       }
                       if (hbest) window.__otlobliTemuColorImg = hbest;
                     }
-                    setTimeout(captureHero, 300);
-                    setTimeout(captureHero, 600);
+                    // نُطيل الانتظار: الشيت قد يبقى مفتوحاً 400-700ms فيلتقط الـtimeout
+                  // صورة لون قديمة من داخله بدل الهيرو الصحيح بعد إغلاقه.
+                  setTimeout(captureHero, 700);
+                  setTimeout(captureHero, 1600);
                   })(gidNow);
                   return;
                 }
@@ -1339,15 +1343,34 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
     return false;
   }
+  // أبعاد/وصف الصورة المخصصة المطلوبة — يبحث عن نصوص تذكر قياسات الصورة
+  // مثل "800×800 بكسل" أو "photo size: 3:4 ratio" في صفحة المنتج.
+  function temuCustomPhotoNote() {
+    var els = document.querySelectorAll('div, span, p, li, strong, td, th');
+    for (var i = 0; i < els.length; i++) {
+      var t = (els[i].textContent || '').trim();
+      if (!t || t.length < 4 || t.length > 120) continue;
+      if (/\\d+\\s*[*x×]\\s*\\d+\\s*(?:px|pixel|بكسل)?/i.test(t)
+       || /photo.*size|size.*photo|صورة.*حجم|حجم.*صورة|image.*size|size.*image/i.test(t)
+       || /ratio|aspect|نسبة.*صورة|صورة.*نسبة/i.test(t)) {
+        return t.slice(0, 100);
+      }
+    }
+    return '';
+  }
+
   // هل توجد قائمة مقاسات؟ (عنوان "Size"/"المقاس"/"موديل متوافق")
   function temuHasSizeSection() { return !!temuSizeHeadEl(); }
-  // صفحة المنتج المغلقة تعرض ملخّصاً مثل "7 Color, 3 Size" قبل اكتمال الاختيار.
+  // صفحة المنتج المغلقة تعرض ملخّصاً مثل "7 Color, 3 Size" أو "5 اللون, 20 موديل"
+  // قبل اكتمال الاختيار — هذا الزر يفتح لوحة الخيارات عند النقر عليه.
   function temuVariantSummaryEl() {
     var els = document.querySelectorAll('div, button, a, span');
     for (var i = 0; i < els.length; i++) {
       var t = (els[i].textContent || '').trim();
-      if (t.length > 45) continue;
-      if (/\\d+\\s*colou?rs?/i.test(t) && /\\d+\\s*sizes?/i.test(t)) return els[i];
+      if (t.length > 65) continue;
+      var hasClr = /\\d+\\s*(?:colou?rs?|ألوان|اللون|لون)/i.test(t);
+      var hasSz  = /\\d+\\s*(?:sizes?|مقاس|مقاسات|موديل|model)/i.test(t);
+      if (hasClr && hasSz) return els[i];
     }
     return null;
   }
@@ -1370,6 +1393,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
         sizesAvailable: [],
         sizesUnavailable: [],
         link: location.href,
+        needsCustomPhoto: temuNeedsCustomPhoto(),
+        customPhotoNote: temuCustomPhotoNote(),
+        needsCustomText: perso.has,
+        customText: perso.text,
       };
     }
     return {
@@ -1721,10 +1748,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
               return;
             }
           }
-          // ب) منتج يحتاج صورة مخصصة (Custom Photo) → نُعلم الزبون.
+          // ب) منتج يحتاج صورة مخصصة → نُنبّه ونكمل الإضافة (الصورة تُرفق في السلة).
           if (temuNeedsCustomPhoto()) {
-            showMessage(btn, 'أرسل صورتك المطلوبة عبر واتساب مع رقم الطلب');
-            // نكمل الإضافة بدون وقف — المالك سيتابع الصورة على واتساب
+            showMessage(btn, 'أضف صورتك في السلة قبل إتمام الطلب');
           }
           // ج) منتج تخصيص نصّي (نقش اسم) بدون نص → نطلب الكتابة.
           var persoChk = temuPersonalization();

@@ -541,6 +541,10 @@ function App() {
   const breakdown = subtotalBreakdown
   const total = subtotal
   const meetsMinimumOrder = subtotal >= MIN_ORDER_SYP || subtotal / exchangeRate >= MIN_ORDER_USD
+  const hasIncompleteCustom = cartItems.some(
+    (item) => (item.needsCustomText && !item.customText?.trim()) ||
+              (item.needsCustomPhoto && !item.customPhotoDataUrl)
+  )
   const formatPrice = (syp: number) => formatPriceSyp(syp, paymentCurrency, exchangeRate)
 
   const [ratingStars, setRatingStars] = useState(0)
@@ -1012,6 +1016,10 @@ function App() {
         priceUsd,
         priceSyp: Math.round(priceUsd * exchangeRate),
         sourceLink: typeof product?.link === 'string' ? product.link : '',
+        needsCustomPhoto: typeof product?.needsCustomPhoto === 'boolean' ? product.needsCustomPhoto : false,
+        customPhotoNote: typeof product?.customPhotoNote === 'string' ? product.customPhotoNote : '',
+        needsCustomText: typeof product?.needsCustomText === 'boolean' ? product.needsCustomText : false,
+        customText: typeof product?.customText === 'string' ? product.customText : '',
       }])
       void InAppBrowser.postMessage({ detail: { type: 'addToCartAck' } })
       showNotice('تمت إضافة المنتج إلى السلة')
@@ -1110,6 +1118,15 @@ function App() {
     }
     if (QADMOUS_BRANCHES[recipient.governorate] && !recipient.qadmousBranch) {
       showNotice('يرجى اختيار فرع القدموس للتسليم')
+      return
+    }
+    const incompleteCustom = cartItems.find(
+      (item) => (item.needsCustomText && !item.customText?.trim()) ||
+                (item.needsCustomPhoto && !item.customPhotoDataUrl)
+    )
+    if (incompleteCustom) {
+      showNotice('يرجى إكمال بيانات المنتجات المخصصة في السلة')
+      setScreen('cart')
       return
     }
 
@@ -1667,6 +1684,65 @@ function App() {
                         {item.colorImage && <img className="cart-item-color-swatch" src={item.colorImage} alt={item.color} />}
                         {item.color} · {item.size}
                       </p>
+                      {item.needsCustomText && (
+                        <div className="cart-custom-field">
+                          <label className="cart-custom-label">
+                            النص/الاسم المراد نقشه:
+                          </label>
+                          <input
+                            className="cart-custom-input"
+                            type="text"
+                            placeholder="مثال: محمد"
+                            value={item.customText || ''}
+                            onChange={(e) => setCartItems((items) => items.map((i) =>
+                              i.id === item.id ? { ...i, customText: e.target.value } : i
+                            ))}
+                          />
+                        </div>
+                      )}
+                      {item.needsCustomPhoto && (
+                        <div className="cart-custom-field">
+                          <label className="cart-custom-label">
+                            {item.customPhotoNote
+                              ? `صورة مخصصة (${item.customPhotoNote})`
+                              : 'صورة مخصصة مطلوبة'}
+                          </label>
+                          {item.customPhotoDataUrl ? (
+                            <div className="cart-custom-photo-preview">
+                              <img src={item.customPhotoDataUrl} alt="صورتك" />
+                              <button
+                                className="cart-custom-photo-change"
+                                onClick={() => setCartItems((items) => items.map((i) =>
+                                  i.id === item.id ? { ...i, customPhotoDataUrl: '' } : i
+                                ))}
+                              >
+                                تغيير
+                              </button>
+                            </div>
+                          ) : (
+                            <label className="cart-custom-photo-btn">
+                              📷 إرفاق صورة
+                              <input
+                                type="file"
+                                accept="image/*"
+                                style={{ display: 'none' }}
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0]
+                                  if (!file) return
+                                  const reader = new FileReader()
+                                  reader.onload = (ev) => {
+                                    const dataUrl = ev.target?.result as string
+                                    setCartItems((items) => items.map((i) =>
+                                      i.id === item.id ? { ...i, customPhotoDataUrl: dataUrl } : i
+                                    ))
+                                  }
+                                  reader.readAsDataURL(file)
+                                }}
+                              />
+                            </label>
+                          )}
+                        </div>
+                      )}
                       <div className="cart-item-bottom">
                         <strong>{formatPrice(getItemPriceSyp(item) * item.quantity)}</strong>
                         <div className="qty-stepper">
@@ -1691,13 +1767,18 @@ function App() {
                     الحد الأدنى للطلب {formatMoney(MIN_ORDER_SYP)} (أو {MIN_ORDER_USD}$) — أضف منتجات أكثر للمتابعة
                   </p>
                 )}
+                {hasIncompleteCustom && (
+                  <p className="min-order-notice min-order-notice--warn">
+                    ⚠️ أكمل بيانات المنتجات المخصصة (الاسم/الصورة) للمتابعة
+                  </p>
+                )}
               </>
             ) : (
               <EmptyState title="السلة فارغة" body="تصفح SHEIN من الصفحة الرئيسية وأضف منتجات إلى السلة." />
             )}
           </main>
           <div className="sticky-pay-bar">
-            <button className="primary-action" disabled={cartItems.length === 0 || !meetsMinimumOrder} onClick={() => setScreen('checkout')}>
+            <button className="primary-action" disabled={cartItems.length === 0 || !meetsMinimumOrder || hasIncompleteCustom} onClick={() => setScreen('checkout')}>
               المتابعة للدفع
               <Icon name="arrow_back" />
             </button>
