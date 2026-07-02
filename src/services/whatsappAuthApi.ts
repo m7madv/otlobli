@@ -1,4 +1,5 @@
 import type { StartLoginResult, VerifyOtpResult, TalabiehApi } from './appApi'
+import { cleanEnvValue } from '../config'
 
 type ErrorBody = {
   error?: string
@@ -21,7 +22,7 @@ export const whatsappAuthMode = import.meta.env.VITE_WHATSAPP_AUTH_MODE
 export const isWhatsappApiAuthEnabled = whatsappAuthMode === 'real' || whatsappAuthMode === 'inbound'
 
 // API Base URL — يستخدم Vercel proxy محلي أو السيرفر المباشر Railway في الإنتاج
-const API_BASE = import.meta.env.VITE_WHATSAPP_API_URL || ''
+const API_BASE = cleanEnvValue(import.meta.env.VITE_WHATSAPP_API_URL)
 
 function getErrorBody(value: unknown): ErrorBody {
   if (!value || typeof value !== 'object') {

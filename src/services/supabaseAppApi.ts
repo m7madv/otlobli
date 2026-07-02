@@ -6,7 +6,7 @@ import type { ProductFetchResult, TalabiehApi } from './appApi'
 import { localAppApi } from './localAppApi'
 import { supabase } from './supabaseClient'
 import { isWhatsappApiAuthEnabled, whatsappAuthApi } from './whatsappAuthApi'
-import { PAYMENT_MODE } from '../config'
+import { PAYMENT_MODE, cleanEnvValue } from '../config'
 
 const DISPLAY_USD_RATE = Number(import.meta.env.VITE_USD_TO_SYP_RATE ?? 13000) || 13000
 
@@ -405,7 +405,7 @@ export const supabaseAppApi: TalabiehApi = {
 // TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID المُعدّة مسبقاً هناك.
 function notifyNewOrder(orderPayload: Record<string, unknown>) {
   try {
-    const apiBase = import.meta.env.VITE_WHATSAPP_API_URL as string | undefined
+    const apiBase = cleanEnvValue(import.meta.env.VITE_WHATSAPP_API_URL)
     if (apiBase) {
       void fetch(`${apiBase}/api/orders/notify`, {
         method: 'POST',

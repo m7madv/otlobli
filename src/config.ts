@@ -19,4 +19,10 @@ export const PAYMENT_MODE: 'auto' | 'shamcash' = 'auto'
 export const SOURCE_COUNTRY: 'JO' | 'LB' = 'LB'
 
 // رقم النسخة — يظهر في شاشة الدخول لمعرفة أي بناء مثبّت على الجهاز عند التشخيص.
-export const APP_VERSION = '2026.07.03-otp-autofill-v13'
+export const APP_VERSION = '2026.07.03-bom-fix-v14'
+
+// يزيل BOM (U+FEFF) و zero-width space (U+200B) والمسافات من قيم متغيرات البيئة.
+// أسرار GitHub تُلوَّث أحياناً بحرف BOM في البداية، فيصبح الرابط "https://..."
+// ولا يعتبره fetch رابطاً مطلقاً، فيعامله كمسار نسبي ويفشل الاتصال بالخادم بصمت.
+export const cleanEnvValue = (value: string | undefined | null): string =>
+  (value ?? '').replace(/[\uFEFF\u200B]/g, '').trim()
