@@ -1750,19 +1750,21 @@ export const SHEIN_CAPTURE_SCRIPT = `
             // الحقل داخل الشيت أو مخفي → نُضيف للسلة مع hint (الاسم يُكتب في السلة)
             showMessage(btn, 'أضف الاسم/النص المطلوب في السلة قبل الدفع');
           }
+          // نقرأ عدد الألوان والمقاسات من ملخّص المتغيّرات (أدق من عدّ الـpills).
+          var vCounts = temuVariantCounts();
+          var knownOneColor = vCounts.colors === 1;  // "1 اللون"
+          var knownOneSize  = vCounts.sizes  === 1;  // "1 موديل" أو "1 مقاس"
+          // د) فيه ألوان متعددة لكن لم يُحدّد لون — لون وحيد يمرّ مباشرة.
+          // يسري على منتجات التخصيص أيضاً (سوارة النقش لها ألوان يجب جذبها).
+          if (temuHasColorSection() && !temuColor() && !knownOneColor && !temuHasSingleColor()) {
+            showMessage(btn, 'حدد اللون أولاً');
+            return;
+          }
           if (!persoChk.has) {
-            // نقرأ عدد الألوان والمقاسات من ملخّص المتغيّرات (أدق من عدّ الـpills).
-            var vCounts = temuVariantCounts();
-            var knownOneColor = vCounts.colors === 1;  // "1 اللون"
-            var knownOneSize  = vCounts.sizes  === 1;  // "1 موديل" أو "1 مقاس"
             // ذكاء: مقاس وحيد → نحدّده تلقائياً قبل التحقق (يحلّ مشكلة ONE SIZE).
             if (knownOneSize || temuHasSizeSection()) temuForceSingleSize();
-            // د) فيه ألوان متعددة لكن لم يُحدّد لون — لون وحيد يمرّ مباشرة.
-            if (temuHasColorSection() && !temuColor() && !knownOneColor && !temuHasSingleColor()) {
-              showMessage(btn, 'حدد اللون أولاً');
-              return;
-            }
             // هـ) فيه مقاسات/موديلات متعددة لكن لم يُحدّد شيء.
+            // (لمنتجات التخصيص لا نفحص المقاس — خانته تحمل نص النقش.)
             if (temuHasSizeSection() && !temuSelectedSize() && !knownOneSize) {
               var sHead = temuSizeHeadEl();
               var sLabel = sHead ? (sHead.textContent || '').trim() : 'المقاس';
@@ -2609,6 +2611,36 @@ export const SHEIN_CAPTURE_SCRIPT = `
     setTimeout(function() { if (banner.parentNode) banner.remove(); }, 8000);
   }
 
+  // منع الزوم في تيمو: viewport بلا تكبير + إلغاء إيماءة القرصة + إلغاء
+  // تكبير النقر المزدوج (touch-action). تُستدعى دورياً لأن تيمو SPA قد
+  // تستبدل وسم الـviewport عند التنقل بين الصفحات.
+  var __otlobliNoZoomListeners = false;
+  function ensureTemuNoZoom() {
+    try {
+      var NO_ZOOM = 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no';
+      var vpMeta = document.querySelector('meta[name="viewport"]');
+      if (!vpMeta && document.head) {
+        vpMeta = document.createElement('meta');
+        vpMeta.setAttribute('name', 'viewport');
+        document.head.appendChild(vpMeta);
+      }
+      if (vpMeta && vpMeta.getAttribute('content') !== NO_ZOOM) {
+        vpMeta.setAttribute('content', NO_ZOOM);
+      }
+      if (document.documentElement && document.documentElement.style.touchAction !== 'pan-x pan-y') {
+        document.documentElement.style.touchAction = 'pan-x pan-y';
+      }
+      if (!__otlobliNoZoomListeners) {
+        __otlobliNoZoomListeners = true;
+        // إيماءة القرصة على iOS WKWebView — touch-action أعلاه يمنع تكبير
+        // النقر المزدوج، وهذان يمنعان القرصة. لا نلمس touchend حتى لا نكسر
+        // النقرات السريعة المتتالية (زر الكمية مثلاً).
+        document.addEventListener('gesturestart', function (e) { e.preventDefault(); }, { passive: false });
+        document.addEventListener('gesturechange', function (e) { e.preventDefault(); }, { passive: false });
+      }
+    } catch (e) {}
+  }
+
   // يزيل النوافذ المنبثقة الترويجية المزعجة على المتاجر غير شي إن (عجلة الحظ،
   // نوافذ الخصومات، طبقات تغطّي الشاشة): أي عنصر ثابت/مطلق بطبقة عالية يغطّي
   // جزءاً كبيراً من الشاشة = نافذة منبثقة، فنخفيه ونعيد تمكين التمرير.
@@ -2651,6 +2683,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
     ], 110);
 
     if (IS_TEMU) {
+      // منع الزوم نهائياً (قرصة الأصابع + النقر المزدوج) — تجربة تطبيق أصلي.
+      ensureTemuNoZoom();
       // شريط التنقل السفلي الخاص بتيمو (حسابي/السلة/طلباتي/الرئيسية) — نخفيه
       // ليبقى شريط otlobli هو الوحيد الظاهر في الأسفل.
       var allEls = document.querySelectorAll('div, nav, footer, ul');
@@ -2710,6 +2744,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // ثم يصعد لأقرب حاوية عريضة (لكن ليست الصفحة كلها) ويخفيها.
   function hideStoreBannerByText(phrases, maxLen) {
     var vp = viewportSize();
+    // حاوية تضم شريط البحث؟ لا يجوز إخفاؤها أبداً — كان التسلّق يبتلع هيدر
+    // تيمو كاملاً (البانر والبحث بنفس الحاوية) فيختفي البحث عن الزبون.
+    function containsSearch(n) {
+      if (!n || !n.querySelector) return false;
+      return !!(n.querySelector('input:not([type="hidden"])')
+        || n.querySelector('[class*="search" i]')
+        || n.querySelector('[aria-label*="بحث"], [aria-label*="search" i]'));
+    }
     var nodes = document.querySelectorAll('div, section, aside, a, p, span');
     for (var i = 0; i < nodes.length; i++) {
       var el = nodes[i];
@@ -2725,10 +2767,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var up = el.parentElement;
       var hops = 0;
       while (up && hops < 3) {
+        if (containsSearch(up)) break; // توقّف قبل ابتلاع حاوية البحث
         var ur = up.getBoundingClientRect();
         if (ur.width >= vp.width * 0.5 && ur.height < vp.height * 0.35) target = up;
         up = up.parentElement; hops++;
       }
+      if (containsSearch(target)) target = el; // أمان إضافي: نخفي البانر نفسه فقط
       target.setAttribute('data-otlobli-blocked', '1');
       target.style.setProperty('display', 'none', 'important');
     }

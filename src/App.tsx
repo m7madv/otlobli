@@ -922,7 +922,9 @@ function App() {
   // عربية (بسبب IP الـVPN)، نُعيد التوجيه فوراً لـ /jo/ العربية قبل أن تُعرض.
   // هذا يعمل على مستوى WKWebView مباشرةً، أسرع وأقوى من JS داخل الصفحة.
   useEffect(() => {
-    const ARABIC_TEMU_RE = /\/(?:sa|ae|kw|jo|bh|qa|eg|iq|om)\//i
+    // مقطع الدولة يُفحص بعد الدومين مباشرةً فقط (لا في أي موضع عشوائي بالرابط)
+    const ARABIC_TEMU_RE = /temu\.com\/(?:sa|ae|kw|jo|bh|qa|eg|iq|om)(?:\/|\?|#|$)/i
+    const LOCALE_SEG_RE = /temu\.com\/[a-z]{2}(?:\/|\?|#|$)/i
     const handle = InAppBrowser.addListener('urlChangeEvent', ({ url }: { url: string }) => {
       if (!/temu\.com/i.test(url)) return
       if (ARABIC_TEMU_RE.test(url)) {
@@ -930,6 +932,10 @@ function App() {
         temuArabicRedirectRef.current = 0
         return
       }
+      // روابط بلا مقطع دولة إطلاقاً (منتجات قسم "الكل" مثلاً: temu.com/goods...)
+      // نتركها كما هي — إعادة توجيهها كانت ترمي الزبون للصفحة الرئيسية
+      // بدل فتح المنتج (شاشة بيضاء/عودة لنفس القائمة).
+      if (!LOCALE_SEG_RE.test(url)) return
       // نسخة غير عربية (us/de/uk/...) — نُحوّل لـ /jo/
       const now = Date.now()
       // حماية الحلقة: 3 محاولات كحد أقصى خلال 15 ثانية
@@ -937,9 +943,9 @@ function App() {
       if (now - temuArabicRedirectTsRef.current > 15000) temuArabicRedirectRef.current = 0
       temuArabicRedirectRef.current++
       temuArabicRedirectTsRef.current = now
-      // نحاول الحفاظ على مسار المنتج (مثلاً /us/prod.html → /jo/prod.html)
-      const arabicUrl = url.replace(/temu\.com\/[a-z]{2}\//i, 'temu.com/jo/')
-      void InAppBrowser.setUrl({ url: arabicUrl === url ? 'https://www.temu.com/jo/' : arabicUrl })
+      // نحافظ على مسار المنتج (مثلاً /us/prod.html → /jo/prod.html)
+      const arabicUrl = url.replace(/temu\.com\/[a-z]{2}(\/|\?|#|$)/i, 'temu.com/jo$1')
+      if (arabicUrl !== url) void InAppBrowser.setUrl({ url: arabicUrl })
     })
     return () => { void handle.then((h) => h.remove()) }
   }, [])
