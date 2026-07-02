@@ -42,7 +42,9 @@ const STORES: { id: StoreId; name: string; url: string }[] = [
   { id: 'shein', name: 'شي إن', url: SHEIN_HOME_URL },
   // ملاحظة: تيمو يحدّد اللغة/العملة/المنطقة من IP الـVPN (ثبت أن locale_override
   // بالرابط يُرفض ويُعاد لكندا)، فالعربية/الأردن/الدولار تتطلب VPN ببلد عربي.
-  { id: 'temu', name: 'تيمو', url: 'https://www.temu.com' },
+  // /jo/ = الأردن: عربي + دينار أردني (ثابت ≈ 1.41$). يشغّل الزبون VPN أي دولة
+  // لكن السكريبت يُحوّل تلقائياً لهذا المسار لضمان العربية بصرف النظر عن الـIP.
+  { id: 'temu', name: 'تيمو', url: 'https://www.temu.com/jo/' },
 ]
 const storeUrl = (id: string) => (STORES.find((s) => s.id === id)?.url) ?? SHEIN_HOME_URL
 

@@ -58,6 +58,27 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
+  // تيمو: فرض نسخة الأردن العربية بصرف النظر عن VPN المستخدم.
+  // الخادم يُحوّل www.temu.com حسب IP → نسخة إنجليزية/أوروبية بالعملة المحلية.
+  // الحل: نُحوّل فوراً لـ temu.com/jo/ (عربي + دينار أردني ثابت ≈ 1.41$).
+  // الدينار الأردني محوّل تلقائياً لدولار في temuPriceUsd() فلا يحتاج تعديل.
+  // حماية الحلقة: مؤقت 8 ثوانٍ في sessionStorage — لو حوّلنا مرتين متتاليتين
+  // ووجدنا أنفسنا ثانية على مسار غير عربي، نتوقف ونقبل الوضع تجنّباً للجمود.
+  if (IS_TEMU) {
+    var arabicTemuRe = /\\/(sa|ae|kw|jo|bh|qa|eg|iq|om)\\//i;
+    if (!arabicTemuRe.test(location.pathname)) {
+      var temuRedTs = parseInt(sessionStorage.getItem('__otlobliTemuLocale') || '0', 10);
+      if (Date.now() - temuRedTs > 8000) {
+        sessionStorage.setItem('__otlobliTemuLocale', String(Date.now()));
+        // نحاول الحفاظ على مسار المنتج (مثلاً /us/product → /jo/product)
+        var targetHref = location.href.replace(/temu\\.com\\/[a-z]{2}\\//i, 'temu.com/jo/');
+        if (targetHref === location.href) targetHref = 'https://www.temu.com/jo/';
+        location.replace(targetHref);
+        return;
+      }
+    }
+  }
+
   // Block Service Worker registration outright, BEFORE SHEIN's own scripts
   // ever run (this fires at documentStart). A SW that controls the page
   // intercepts its own fetch()/XHR calls and can answer them with a direct
