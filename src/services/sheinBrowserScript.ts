@@ -2101,12 +2101,21 @@ export const SHEIN_CAPTURE_SCRIPT = `
           // يسري على منتجات التخصيص أيضاً (سوارة النقش لها ألوان يجب جذبها).
           // نقرة كرت صورة بلا اسم (أحذية/أجهزة) تُحتسب اختياراً عبر الـswatch.
           var swatchChosen = !!(window.__otlobliTemuColorSwatch && window.__otlobliTemuColorGid === temuGoodsId());
-          if (temuHasColorSection() && !temuColor() && !swatchChosen && !knownOneColor && !temuHasSingleColor()) {
-            // قبل الحجب: هل الكرت الوحيد بحدّ غامق يحلّها بلا نقرة الزبون؟
-            // (نفس الشبكة المستخدمة وقت الجذب — كانت مفعّلة هناك فقط، فالحارس
-            // هنا كان يحجب الزر قبل وصوله لتلك الشبكة إطلاقاً.)
-            var gateDefColor = temuDefaultSelectedColorCard();
-            if (!gateDefColor) {
+          if (temuHasColorSection() && !knownOneColor && !temuHasSingleColor()) {
+            // حارس صارم: لا يكفي اسم اللون النصي — نتحقق أن **صورة** الكرت
+            // نفسها ستُلتقط فعلاً، بنفس سلسلة captureProductPayload بالضبط
+            // (نقرة → مطابقة بالاسم → الكرت الوحيد بحدّ غامق). أي فشل في
+            // الصورة = حجب، حتى لو اسم اللون معروفاً (يمنع دخول صورة خاطئة).
+            var gateColorSwatch = swatchChosen ? window.__otlobliTemuColorSwatch : '';
+            var gateColorVal = temuColor();
+            if (!gateColorSwatch && gateColorVal) {
+              gateColorSwatch = temuSelectedColorCardImg(gateColorVal) || '';
+            }
+            if (!gateColorSwatch) {
+              var gateDefColor = temuDefaultSelectedColorCard();
+              if (gateDefColor) gateColorSwatch = gateDefColor.image;
+            }
+            if (!gateColorSwatch) {
               var colorMsg = 'حدد اللون أولاً';
               if (window.__otlobliTemuColorDiag) colorMsg += ' [' + window.__otlobliTemuColorDiag + ']';
               showMessage(btn, colorMsg);
