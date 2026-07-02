@@ -949,7 +949,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     for (var i = 0; i < nodes.length; i++) {
       var t = (nodes[i].textContent || '').trim();
       if (t.length > 40) continue;
-      var m = t.match(/^(?:Color|colour|اللون)\\s*[:：]\\s*(.+)$/i);
+      var m = t.match(/^(?:Color|colour|اللون|لون(?:\\s+[\\u0600-\\u06FF]{2,14})?)\\s*[:：]\\s*(.+)$/i);
       if (m && m[1]) return m[1].trim();
     }
     return '';
@@ -959,7 +959,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var nodes = document.querySelectorAll('div, span, h2, h3, p, strong');
     for (var i = 0; i < nodes.length; i++) {
       var t = (nodes[i].textContent || '').trim();
-      if (t.length < 40 && /^(?:Color|colour|اللون)\\s*[:：]/i.test(t)) return true;
+      if (t.length < 40 && /^(?:Color|colour|اللون|لون(?:\\s+[\\u0600-\\u06FF]{2,14})?)\\s*[:：]/i.test(t)) return true;
     }
     return false;
   }
@@ -1018,10 +1018,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
     for (var h = 0; h < heads.length; h++) {
       var ht = (heads[h].textContent || '').trim();
       if (ht === 'Size' || ht === 'المقاس' || ht === 'Size:' || ht === 'المقاس:'
+        || ht === 'مقاس' || ht === 'مقاس:' || ht === 'القياس' || ht === 'القياس:'
+        || ht === 'الحجم' || ht === 'الحجم:' || ht === 'حجم'
         || ht === 'موديل متوافق' || ht === 'Compatible Model' || ht === 'Compatible model'
         || ht === 'الموديل' || ht === 'موديل'
         || ht === 'أسلوب' || ht === 'Style' || ht === 'Style:' || ht === 'النمط' || ht === 'نوع'
         || (ht.indexOf('Size') === 0 && ht.length <= 12 && !/guide|chart|info/i.test(ht))
+        || (ht.indexOf('مقاس') === 0 && ht.length <= 12 && ht.indexOf('مقاسات') < 0)
         || (ht.indexOf('موديل') === 0 && ht.length <= 22)
         || (ht.indexOf('أسلوب') === 0 && ht.length <= 10)
         || (ht.indexOf('Style') === 0 && ht.length <= 10)) return heads[h];
@@ -1066,7 +1069,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if (t.length === 1 && !/[a-zA-Z0-9]/.test(t)) continue;
         if (t.indexOf(':') >= 0) continue;
         if (/[$£€%]/.test(t)) continue;
-        if (/\\bfree\\b|\\bapp\\b|guide|standard|^us$|^ca$|^eu$|^uk$|qty|^size$/i.test(t)) continue;
+        if (/\\bfree\\b|\\bapp\\b|guide|standard|qty|^size$/i.test(t)) continue;
+        // مفاتيح تبديل نظام المقاسات (قياسي/JO/EU...) ليست مقاسات — كانت
+        // تُلتقط كأزرار فتُسجّل "JO" مقاساً للساعات والملابس. نستبعدها مع
+        // زر "دليل المقاسات" وحقل الكمية.
+        if (/^(?:us|ca|eu|uk|au|jo|sa|ae|kw|qa|bh|om|asia|intl)$/i.test(t)) continue;
+        if (t === 'قياسي' || t === 'عادي' || /دليل|كمية|كميه/.test(t)) continue;
         if (el.querySelector && el.querySelector('img')) continue;
         var r = el.getBoundingClientRect();
         if (r.width < 18 || r.width > 260 || r.height < 16 || r.height > 80) continue;
@@ -1114,9 +1122,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var st = (els[si].textContent || '').trim();
       if (st.length < 4 || st.length > 80) continue;
       var sm = st.match(/Size\\s*:\\s*([^,;|\\n\\r]{1,30})/i);
+      if (!sm) sm = st.match(/^(?:المقاس|مقاس|الحجم)\\s*[:：]\\s*([^,;|\\n\\r]{1,30})/);
       if (sm && sm[1]) {
         var sv = sm[1].trim();
-        if (sv.length >= 2 && sv.length <= 30 && !/guide|chart|info/i.test(sv)) return sv;
+        if (sv.length >= 2 && sv.length <= 30 && !/guide|chart|info|دليل/i.test(sv)) return sv;
       }
     }
     return '';
@@ -1159,8 +1168,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
     } else if (fpills.length === 0) {
       // ملخّص "1 Size" في لوحة المتغيّرات → مقاس وحيد غير قابل للنقر
       var fsum = temuVariantSummaryEl();
-      if (fsum && /\\b1\\s*size/i.test(fsum.textContent || '')) {
-        window.__otlobliTemuSize = 'One Size';
+      if (fsum && /\\b1\\s*(?:size|مقاس|موديل|أسلوب)|مقاس\\s*واحد/i.test(fsum.textContent || '')) {
+        window.__otlobliTemuSize = 'ONE SIZE';
         window.__otlobliTemuSizeGid = temuGoodsId();
       }
     }
@@ -1171,7 +1180,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var colorHead = null;
     for (var i = 0; i < nodes.length; i++) {
       var nt = (nodes[i].textContent || '').trim();
-      if (nt.length < 40 && /^(?:Color|colour|اللون)\\s*[:：]/i.test(nt)) { colorHead = nodes[i]; break; }
+      if (nt.length < 40 && /^(?:Color|colour|اللون|لون(?:\\s+[\\u0600-\\u06FF]{2,14})?)\\s*[:：]/i.test(nt)) { colorHead = nodes[i]; break; }
     }
     if (!colorHead) return false;
     var container = colorHead.parentElement, hops = 0;
@@ -1189,10 +1198,105 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
     return false;
   }
+  // يقرأ اللون الحالي من عنوان "اللون: X" فقط (بلا مصادر النقر) — يُستخدم
+  // للالتقاط الاحتياطي بعد أي نقرة: كروت الألوان النصية (ساعات) بلا صور
+  // لا يلتقطها فرع كرت اللون، لكن تيمو تُحدّث العنوان بعد الاختيار دائماً.
+  function temuColorFromHeading() {
+    var nodes = document.querySelectorAll('div, span, h2, h3, p, strong');
+    for (var i = 0; i < nodes.length; i++) {
+      var t = (nodes[i].textContent || '').trim();
+      if (t.length > 40) continue;
+      var m = t.match(/^(?:Color|colour|اللون|لون(?:\\s+[\\u0600-\\u06FF]{2,14})?)\\s*[:：]\\s*(.+)$/i);
+      if (m && m[1]) {
+        var cv = m[1].trim();
+        if (cv.length >= 2 && cv.length <= 40 && !/[{};]/.test(cv)) return cv;
+      }
+    }
+    return '';
+  }
+  // جدولة التقاط هيرو اللون (بعد إغلاق الشيت) — مشتركة بين فرعَي الالتقاط.
+  function temuScheduleHeroCapture(gid) {
+    function captureHero2() {
+      if (window.__otlobliTemuColorGid !== gid) return;
+      var himgs = document.querySelectorAll('img');
+      var hbest = '', hbestA = 0;
+      for (var hi = 0; hi < himgs.length; hi++) {
+        var hsrc = himgs[hi].currentSrc || himgs[hi].src || '';
+        if (!/kwcdn|temu/i.test(hsrc)) continue;
+        var hr = himgs[hi].getBoundingClientRect();
+        if (hr.width < 200 || hr.height < 200) continue;
+        var ha = hr.width * hr.height;
+        if (ha > hbestA) { hbestA = ha; hbest = hsrc; }
+      }
+      if (hbest) window.__otlobliTemuColorImg = hbest;
+    }
+    setTimeout(captureHero2, 700);
+    setTimeout(captureHero2, 1600);
+  }
   // مستمع نقر يسجّل آخر زر مقاس ضغطه الزبون فعلاً (المصدر الأوثق للمقاس).
   if (IS_TEMU && !window.__otlobliTemuClickBound) {
     window.__otlobliTemuClickBound = true;
     document.addEventListener('click', function (e) {
+      // توجيه نقرات شريط otlobli السفلي: تيمو تضيف طبقات بنفس z-index الأقصى
+      // بعد شريطنا في DOM فتبتلع نقراته حتى يُعاد ترتيبه (كل ثانيتين). نحن
+      // مسجّلون أول مستمع capture على document (السكريبت يعمل documentStart)
+      // فنستقبل النقرة قبل أي طبقة دخيلة ونوجّهها للتبويب الصحيح يدوياً.
+      try {
+        var navEl2 = document.getElementById('otlobli-nav');
+        if (navEl2 && typeof e.clientY === 'number') {
+          var nr2 = navEl2.getBoundingClientRect();
+          if (nr2.height > 0 && e.clientY >= nr2.top && e.clientY <= nr2.bottom
+              && e.clientX >= nr2.left && e.clientX <= nr2.right) {
+            var inNav2 = false, tn2 = e.target, th2 = 0;
+            while (tn2 && th2 < 8) {
+              if (tn2.id && String(tn2.id).indexOf('otlobli') === 0) { inNav2 = true; break; }
+              tn2 = tn2.parentElement; th2++;
+            }
+            if (!inNav2) {
+              e.preventDefault();
+              e.stopPropagation();
+              // direction:rtl → التبويب الأول (الرئيسية) في أقصى اليمين
+              var relX2 = (e.clientX - nr2.left) / Math.max(1, nr2.width);
+              var idx2 = Math.floor((1 - relX2) * 4);
+              if (idx2 < 0) idx2 = 0; if (idx2 > 3) idx2 = 3;
+              var types2 = ['', 'openOrders', 'openCart', 'openProfile'];
+              if (types2[idx2] && window.mobileApp && window.mobileApp.postMessage) {
+                window.mobileApp.postMessage({ detail: { type: types2[idx2] } });
+              }
+              // نعيد شريطنا لآخر الـDOM فوراً ليستعيد أولوية الرسم
+              try { document.body.appendChild(navEl2); } catch (err2) {}
+              return;
+            }
+          }
+        }
+      } catch (errNav) {}
+      try {
+        // التقاط احتياطي للّون بعد أي نقرة: تيمو تُحدّث عنوان "اللون: X" بعد
+        // الاختيار — يغطي كروت الألوان النصية (ساعات/إكسسوارات) التي لا
+        // يلتقطها فرع (ب) لأنها بلا صور.
+        if (!window.__otlobliTemuHeadingTimer) {
+          window.__otlobliTemuHeadingTimer = setTimeout(function () {
+            window.__otlobliTemuHeadingTimer = null;
+            try {
+              var hc = temuColorFromHeading();
+              var gidH = temuGoodsId();
+              // نقرة كرت لون حديثة (<1.2ث) على نفس المنتج = مصدر أوثق من
+              // العنوان الذي قد لا يكون تحدّث بعد — لا نستبدلها.
+              var recentCardClick = window.__otlobliTemuColorGid === gidH
+                && window.__otlobliTemuColorTs && (Date.now() - window.__otlobliTemuColorTs) < 1200;
+              if (hc && !recentCardClick && (window.__otlobliTemuColorGid !== gidH || window.__otlobliTemuColor !== hc)) {
+                // منتج مختلف → الـswatch القديم لا يخصّه؛ نفس المنتج → نُبقيه
+                // (نقرة كرت الصورة التقطته للتو وقد يسمّي العنوان اللون باسم آخر).
+                if (window.__otlobliTemuColorGid !== gidH) window.__otlobliTemuColorSwatch = '';
+                window.__otlobliTemuColor = hc;
+                window.__otlobliTemuColorGid = gidH;
+                window.__otlobliTemuColorImg = '';
+                temuScheduleHeroCapture(gidH);
+              }
+            } catch (errH) {}
+          }, 450);
+        }
+      } catch (errH2) {}
       try {
         // (أ) نقرة على زر مقاس.
         var pills = temuSizePills();
@@ -1253,6 +1357,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
                   var gidNow = temuGoodsId();
                   window.__otlobliTemuColor = colorName2;
                   window.__otlobliTemuColorGid = gidNow;
+                  // طابع زمني: يمنع مؤقّت قراءة العنوان (450ms) من استبدال
+                  // هذا اللون بقيمة عنوان لم تتحدّث بعد (سباق زمني).
+                  window.__otlobliTemuColorTs = Date.now();
                   // الكرت الصغير = صورة اللون للعرض في السلة (colorImage).
                   // نقبل أي URL مطلق (http/https) لأن Temu قد تعتمد CDN مختلفة.
                   var cSrc = cardImg2.currentSrc || cardImg2.src || '';
@@ -1292,29 +1399,50 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }, true);
   }
 
-  // منتج تخصيص (نقش اسم): يكشف وجود التخصيص الشخصي (نقش اسم، حفر نص).
-  // تمييز دقيق: "نقش" وحدها تعني نمط/طباعة (جوارب، قمصان)؛ "نقش اسم" / "محفور"
-  // / "engrav" / "personaliz" تعني تخصيصاً شخصياً حقيقياً يحتاج إدخال نص.
+  // منتج تخصيص (نقش اسم): نظام إشارات صارم بطبقتين — خربطة صفر.
+  // الطبقة 1: عنوان المنتج نفسه يذكر تخصيصاً صريحاً (نقش اسم/محفور/engrav).
+  //   لا نمسح كروت "منتجات مقترحة" (كانت تُفعّل جوارب بسبب سوارة مقترحة).
+  // الطبقة 2: حقل إدخال هو فعلاً حقل تخصيص — نفحص سياقه (placeholder/label)
+  //   لا مجرد وجوده: حقل الكمية "1" وحقل البحث كانا يُفعّلان كل المنتجات!
+  var TEMU_PERSO_STRONG = /personaliz|engrav|محفور|محفورة|حفر\\s*اسم|نقش\\s*اسم|نقش\\s*الاسم|نقش\\s*نص|custom\\s*text|custom\\s*name|customiz|اكتب\\s*اسم|اسم\\s*مخصص|نص\\s*مخصص|اكتب\\s*نص|باسمك|بأسمك/i;
+  // كلمات تدل أن الحقل حقل تخصيص (في placeholder/aria-label/name/id أو التسمية المجاورة)
+  var TEMU_PERSO_INPUT = /نقش|اسم|نص\\s*مخصص|[أإا]دخ[اآ]?ل\\s*(?:النص|الاسم)|اكتب\\s*(?:النص|الاسم)|personaliz|engrav|custom|your\\s*(?:name|text)|enter\\s*(?:name|text)/i;
+  // كلمات تنفي أن الحقل حقل تخصيص (كمية/بحث/كوبون/هاتف/بريد/عنوان)
+  var TEMU_PERSO_ANTI = /كمية|كميه|qty|quantit|بحث|search|coupon|promo|كوبون|رمز|code|zip|postal|هاتف|phone|جوال|بريد|email|عنوان|address|password|كلمة/i;
+  function temuPersoInputHint(inp) {
+    var hint = (inp.getAttribute('placeholder') || '') + ' ' +
+      (inp.getAttribute('aria-label') || '') + ' ' +
+      (inp.getAttribute('name') || '') + ' ' + (inp.id || '');
+    // التسمية المجاورة: نص الأب المباشر (قصير فقط — حتى لا نجرّ نص الصفحة كله)
+    var par = inp.parentElement;
+    for (var h = 0; par && h < 2; h++) {
+      var pt = (par.textContent || '').trim();
+      if (pt.length <= 90) hint += ' ' + pt;
+      par = par.parentElement;
+    }
+    return hint;
+  }
   function temuPersonalization() {
-    // مؤشرات قوية: نقش اسم حقيقي لا شكّ فيه
-    var STRONG = /personaliz|engrav|محفور|محفورة|حفر\\s*اسم|نقش\\s*اسم|نقش\\s*نص|custom\\s*text|custom\\s*name|اكتب\\s*اسم|اسم\\s*مخصص|نص\\s*مخصص|اكتب\\s*نص/i;
-    var hasStrong = false;
-    var labels = document.querySelectorAll('h1, h2, h3, title, strong, .goods-title, [class*="title" i], [class*="name" i]');
-    for (var i = 0; i < labels.length; i++) {
-      if (STRONG.test(labels[i].textContent || '')) { hasStrong = true; break; }
-    }
-    // حقل إدخال نصي مرئي = مؤكّد التخصيص (حتى بدون مؤشر قوي)
-    var inputs = document.querySelectorAll('input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]), textarea');
+    // الطبقة 1: عنوان المنتج (المصدر الحاسم — لا يتأثر بالمنتجات المقترحة)
+    var titleTxt = (temuTitle() || '') + ' ' + (document.title || '');
+    var hasStrong = TEMU_PERSO_STRONG.test(titleTxt);
+    // الطبقة 2: حقل تخصيص حقيقي مرئي (سياقه يؤكد أنه لإدخال اسم/نص)
+    var inputs = document.querySelectorAll('input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]):not([type="number"]):not([type="tel"]):not([type="email"]):not([type="search"]):not([type="file"]), textarea');
     for (var k = 0; k < inputs.length; k++) {
-      var rp = inputs[k].getBoundingClientRect();
-      if (rp.width > 20 && rp.height > 10) {
-        var v = (inputs[k].value || '').trim();
-        return { has: true, text: v, inputVisible: true };
-      }
+      var inp = inputs[k];
+      var im = (inp.getAttribute('inputmode') || '').toLowerCase();
+      if (im === 'numeric' || im === 'decimal' || im === 'search' || im === 'tel' || im === 'email') continue;
+      var rp = inp.getBoundingClientRect();
+      if (rp.width <= 20 || rp.height <= 10) continue;
+      var hint = temuPersoInputHint(inp);
+      if (TEMU_PERSO_ANTI.test(hint)) continue;           // كمية/بحث/كوبون → ليس تخصيصاً
+      if (!TEMU_PERSO_INPUT.test(hint)) continue;          // لا دليل أنه حقل تخصيص → نتجاهله
+      var v = (inp.value || '').trim();
+      if (/^\\d+$/.test(v)) v = '';                        // قيمة رقمية بحتة = ليست نص نقش
+      return { has: true, text: v, inputVisible: true };
     }
-    // مؤشر قوي بدون حقل مرئي → التخصيص داخل الشيت، نُحيل للسلة
+    // مؤشر قوي بالعنوان بدون حقل مرئي → التخصيص داخل الشيت، الاسم يُكتب في السلة
     if (hasStrong) return { has: true, text: '', inputVisible: false };
-    // لا مؤشر قوي ولا حقل → نقش عادي (نمط/طباعة) لا تخصيص شخصي
     return { has: false, text: '' };
   }
   // هل يتطلب المنتج رفع صورة مخصصة؟ (مثل أساور "Custom Photo").
@@ -1366,7 +1494,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (IS_TEMU) {
       var perso = temuPersonalization();
       // منتج التخصيص: نضع النص المطلوب مكان المقاس ليصل للمالك بوضوح.
-      var temuSizeVal = (perso.has && perso.text) ? ('نقش: ' + perso.text) : temuSelectedSize();
+      // حارس مزدوج: قيمة رقمية بحتة (حقل كمية التقط خطأً) لا تكون نص نقش أبداً.
+      var persoTxt = (perso.text && !/^\\d+$/.test(perso.text)) ? perso.text : '';
+      var temuSizeVal = (perso.has && persoTxt) ? ('نقش: ' + persoTxt) : temuSelectedSize();
       var temuColorSwatch = (window.__otlobliTemuColorSwatch && window.__otlobliTemuColorGid === temuGoodsId())
         ? window.__otlobliTemuColorSwatch : '';
       return {
@@ -1383,7 +1513,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         needsCustomPhoto: temuNeedsCustomPhoto(),
         customPhotoNote: temuCustomPhotoNote(),
         needsCustomText: perso.has,
-        customText: perso.text,
+        customText: persoTxt,
       };
     }
     return {
@@ -1728,6 +1858,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
             if (!sheetAlreadyOpen &&
                 window.__otlobliTemuColor && window.__otlobliTemuColorGid === temuGoodsId()) {
               sheetAlreadyOpen = true;
+            }
+            // منتج بلا خيارات فعلية ("1 اللون, 1 مقاس") — لا داعي لفتح اللوحة،
+            // الجذب الذكي يحدد اللون والمقاس الوحيدين تلقائياً.
+            if (!sheetAlreadyOpen) {
+              var vcPre = temuVariantCounts();
+              if (vcPre.colors === 1 && vcPre.sizes === 1) sheetAlreadyOpen = true;
             }
             if (!sheetAlreadyOpen) {
               showMessage(btn, 'حدد الخيارات أولاً');
