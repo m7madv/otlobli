@@ -1064,12 +1064,32 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // عبر مستمع نقر) - أوثق بكثير من تخمين العنصر "المحدّد" بصرياً. واحتياطاً:
   // الزر الأغمق حدّاً بوضوح (للمقاس المُختار افتراضياً بلا نقر). أي شكّ=فارغ.
   function temuSelectedSizeFromLabel() {
-    // قراءة المقاس من نص وصفي "Size: One-size" أو "Color: X, Size: Y" (منتجات محدد مقاسها مسبقاً).
+    // 1) نفحص أولاً عنوان قسم المقاس نفسه — قد يحتوي القيمة ("Size: One-size")
+    var head = temuSizeHeadEl();
+    if (head) {
+      var headText = (head.textContent || '').trim();
+      var hm = headText.match(/Size\s*[:\-]?\s*(one.?si(?:ze?)?|free.?size|[\w\s]{2,20})/i);
+      if (hm && hm[1]) {
+        var hv = hm[1].trim();
+        if (!/^size$/i.test(hv) && hv.length >= 2) return hv;
+      }
+      // 2) نفحص العناصر المجاورة مباشرة للعنوان (قد تكون النص/التاغ المنفصل)
+      var parent = head.parentElement;
+      if (parent) {
+        var kids = parent.children;
+        for (var k = 0; k < kids.length; k++) {
+          if (kids[k] === head) continue;
+          var kt = (kids[k].textContent || '').replace(/\s+/g, ' ').trim();
+          if (kt.length >= 2 && kt.length <= 30 && /one.?size|free.?size/i.test(kt)) return kt;
+        }
+      }
+    }
+    // 3) مسح عام: البحث عن نمط "Size: ONE SIZE" في أي عنصر نصي
     var els = document.querySelectorAll('div, span, p, strong, h3, h2');
     for (var si = 0; si < els.length; si++) {
       var st = (els[si].textContent || '').trim();
       if (st.length < 4 || st.length > 80) continue;
-      var sm = st.match(/Size\\s*:\\s*([^,;|\\n\\r]{1,30})/i);
+      var sm = st.match(/Size\s*:\s*([^,;|\n\r]{1,30})/i);
       if (sm && sm[1]) {
         var sv = sm[1].trim();
         if (sv.length >= 2 && sv.length <= 30 && !/guide|chart|info/i.test(sv)) return sv;
@@ -1170,9 +1190,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
                   window.__otlobliTemuColorSwatch = /kwcdn|temu/i.test(cSrc) ? cSrc : '';
                   // امسح الهيرو القديم — سيُحدَّث بعد 250ms حين تُحدّث تيمو صورة الهيرو
                   window.__otlobliTemuColorImg = '';
-                  // 250ms بعد النقر: التقط صورة الهيرو الكبيرة (تعكس اللون المختار)
+                  // نحاول التقاط صورة الهيرو مرتين: 300ms و 600ms بعد النقر
+                  // (تيمو قد تتأخر في تحديث الهيرو، والمحاولة الثانية هي الأدق)
                   ;(function(gid) {
-                    setTimeout(function() {
+                    function captureHero() {
                       if (window.__otlobliTemuColorGid !== gid) return;
                       var himgs = document.querySelectorAll('img');
                       var hbest = '', hbestA = 0;
@@ -1185,7 +1206,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
                         if (ha > hbestA) { hbestA = ha; hbest = hsrc; }
                       }
                       if (hbest) window.__otlobliTemuColorImg = hbest;
-                    }, 250);
+                    }
+                    setTimeout(captureHero, 300);
+                    setTimeout(captureHero, 600);
                   })(gidNow);
                   return;
                 }
@@ -1360,8 +1383,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var intervalMs = 500;
 
     function isComplete(p, cs) {
-      // تيمو: ننتظر السعر أيضاً (قد يتأخر رسمه) حتى لا يدخل بسعر صفر.
-      if (IS_TEMU) return !!p.title && !!p.image && p.priceUsd > 0;
+      if (IS_TEMU) {
+        // إذا اختار الزبون لوناً ننتظر حتى يُلتقط هيرو اللون (300ms بعد النقر)
+        // حتى لا تدخل صورة اللون الافتراضي (الأسود) بدل اللون المختار (الأحمر مثلاً).
+        var colorPicked = !!(window.__otlobliTemuColor && window.__otlobliTemuColorGid === temuGoodsId());
+        var colorImgReady = !colorPicked || !!window.__otlobliTemuColorImg;
+        return !!p.title && !!p.image && p.priceUsd > 0 && colorImgReady;
+      }
       return !!p.title && !!p.image && (!cs.exists || !!p.color);
     }
 
@@ -1652,7 +1680,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // visibly flickered/re-popped every ~300ms. The nav bar doesn't have
     // that animation and visually can't tell the difference, so it was safe
     // there; this one very much could.
-    btn.style.display = looksLikeProductPage() ? 'flex' : 'none';
+    // نخفي الزر عندما يكون عارض الصور بملء الشاشة مفتوحاً (تمنع ظهور الزر فوق الإكس)
+    var showAddBtn = looksLikeProductPage() && !(IS_TEMU && temuImageViewerOpen());
+    btn.style.display = showAddBtn ? 'flex' : 'none';
   }
 
   // otlobli's own bottom navigation bar, drawn as part of this page instead
@@ -2336,6 +2366,46 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
+  // كشف عارض الصور بملء الشاشة في تيمو (Swipe Gallery Viewer).
+  // عندما يكون مفتوحاً يخفي زرنا لأنه يغطي نفس المنطقة ويسبب نقرات خاطئة.
+  function temuImageViewerOpen() {
+    var vp = viewportSize();
+    var minArea = vp.width * vp.height * 0.80;
+    var candidates = document.querySelectorAll('body > div, body > section');
+    for (var i = 0; i < candidates.length; i++) {
+      var el = candidates[i];
+      if ((el.id || '').indexOf('otlobli') === 0) continue;
+      var cs = window.getComputedStyle(el);
+      if (cs.position !== 'fixed') continue;
+      if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+      var r = el.getBoundingClientRect();
+      if (r.width * r.height < minArea) continue;
+      if (el.querySelector && el.querySelector('img')) return true;
+    }
+    return false;
+  }
+
+  // نقرة تلقائية على المقاس الوحيد لما تكون لوحة الخيارات مفتوحة.
+  // يحلّ مشكلة منتجات "ONE SIZE" — تيمو تتطلب نقرة الزبون حتى لو خيار واحد.
+  var __otlobliAutoSizeTs = 0;
+  function temuAutoSelectSingleSize() {
+    if (!looksLikeProductPage()) return;
+    var now = Date.now();
+    if (now - __otlobliAutoSizeTs < 1500) return;
+    var pills = temuSizePills();
+    if (pills.length !== 1) return;
+    var pill = pills[0];
+    var vp = viewportSize();
+    var r = pill.getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0 || r.top < 0 || r.top >= vp.height) return;
+    var t = (pill.textContent || '').trim();
+    if (!t || window.__otlobliTemuSize === t) return;
+    try { pill.click(); } catch (e) {}
+    window.__otlobliTemuSize = t;
+    window.__otlobliTemuSizeGid = temuGoodsId();
+    __otlobliAutoSizeTs = now;
+  }
+
   function tick() {
     // Same documentStart race as the MutationObserver fix above - body can
     // still be null on the very first tick() call (the direct one at the
@@ -2351,9 +2421,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // المتاجر غير شي إن (تيمو/ترينديول): تصفّح فقط - ننظّف العروض المنبثقة
     // المزعجة ولا نشغّل منطق الالتقاط/الحجب الخاص بشي إن (الذي قد يخرّب صفحاتهم).
     if (!IS_SHEIN) {
-      // زر الإضافة أولاً وبحماية، حتى لو رمى التنظيف خطأ يبقى الزر يظهر.
       if (IS_TEMU) {
         try { ensureAddToCartButton(); } catch (e) {}
+        try { temuAutoSelectSingleSize(); } catch (e) {}
         try { detectEmptyTemuSearch(); } catch (e) {}
       }
       try { killStorePopups(); } catch (e) {}
