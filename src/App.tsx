@@ -273,7 +273,9 @@ function App() {
   const [manualColorName, setManualColorName] = useState('')
 
   const [onboardingName, setOnboardingName] = useState(userProfile?.name ?? '')
-  const [onboardingGov, setOnboardingGov] = useState(userProfile?.governorate ?? 'دمشق')
+  const QADMOUS_GOVS = Object.keys(QADMOUS_BRANCHES)
+  const validProfileGov = userProfile?.governorate && QADMOUS_BRANCHES[userProfile.governorate] ? userProfile.governorate : 'دمشق'
+  const [onboardingGov, setOnboardingGov] = useState(validProfileGov)
   const [editingProfile, setEditingProfile] = useState(false)
   const [editName, setEditName] = useState('')
   const [editGov, setEditGov] = useState('')
@@ -1063,6 +1065,22 @@ function App() {
       showNotice('السلة فارغة')
       return
     }
+    if (!recipient.name.trim()) {
+      showNotice('يرجى إدخال اسم المستلم')
+      return
+    }
+    if (!recipient.phone.trim()) {
+      showNotice('يرجى إدخال رقم الواتساب')
+      return
+    }
+    if (!recipient.governorate) {
+      showNotice('يرجى اختيار المحافظة')
+      return
+    }
+    if (QADMOUS_BRANCHES[recipient.governorate] && !recipient.qadmousBranch) {
+      showNotice('يرجى اختيار فرع القدموس للتسليم')
+      return
+    }
 
     if (PAYMENT_MODE === 'shamcash' && pendingPayment) {
       setScreen('payment')
@@ -1305,7 +1323,7 @@ function App() {
           <label className="field">
             <span>المحافظة</span>
             <select value={onboardingGov} onChange={(event) => setOnboardingGov(event.target.value)}>
-              {SYRIA_GOVERNORATES.map((gov) => (
+              {QADMOUS_GOVS.map((gov) => (
                 <option key={gov} value={gov}>{gov}</option>
               ))}
             </select>
@@ -1689,14 +1707,14 @@ function App() {
                   onChange={(e) => setRecipient({ ...recipient, governorate: e.target.value, qadmousBranch: '' })}
                   required
                 >
-                  {SYRIA_GOVERNORATES.map((gov) => (
+                  {QADMOUS_GOVS.map((gov) => (
                     <option key={gov} value={gov}>{gov}</option>
                   ))}
                 </select>
               </label>
               {QADMOUS_BRANCHES[recipient.governorate] && (
                 <label className="field">
-                  <span>فرع القدموس للاستلام</span>
+                  <span>فرع القدموس للاستلام *</span>
                   <select
                     value={recipient.qadmousBranch ?? ''}
                     onChange={(e) => setRecipient({ ...recipient, qadmousBranch: e.target.value })}
@@ -1712,12 +1730,16 @@ function App() {
             <InfoRow icon="inventory_2" title="طريقة التوصيل" body="التسليم داخل سوريا عبر القدموس عند توفر رقم الشحنة." />
             <CurrencyToggle value={paymentCurrency} onChange={setPaymentCurrency} />
             <PriceBreakdown items={breakdown} total={total} format={formatPrice} />
-            {(!recipient.name.trim() || !recipient.phone.trim()) && (
-              <p className="min-order-notice">يرجى تعبئة اسم المستلم ورقم الواتساب قبل تأكيد الطلب</p>
-            )}
+            {(() => {
+              const missingBranch = !!(QADMOUS_BRANCHES[recipient.governorate] && !recipient.qadmousBranch)
+              const missingBasic = !recipient.name.trim() || !recipient.phone.trim()
+              if (missingBasic) return <p className="min-order-notice">يرجى تعبئة اسم المستلم ورقم الواتساب قبل تأكيد الطلب</p>
+              if (missingBranch) return <p className="min-order-notice">يرجى اختيار فرع القدموس للتسليم</p>
+              return null
+            })()}
             <button
               className="primary-action"
-              disabled={isStartingPayment || !recipient.name.trim() || !recipient.phone.trim() || !recipient.governorate}
+              disabled={isStartingPayment || !recipient.name.trim() || !recipient.phone.trim() || !recipient.governorate || !!(QADMOUS_BRANCHES[recipient.governorate] && !recipient.qadmousBranch)}
               onClick={confirmOrder}
             >
               {isStartingPayment
@@ -1943,7 +1965,7 @@ function App() {
                 <label className="field">
                   <span>المحافظة</span>
                   <select value={editGov} onChange={(e) => setEditGov(e.target.value)}>
-                    {SYRIA_GOVERNORATES.map((gov) => (
+                    {QADMOUS_GOVS.map((gov) => (
                       <option key={gov} value={gov}>{gov}</option>
                     ))}
                   </select>

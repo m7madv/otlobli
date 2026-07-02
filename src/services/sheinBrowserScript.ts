@@ -1050,7 +1050,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
         pills.push(el);
       }
       if (pills.length > best.length) best = pills;
-      if (best.length >= 2) break;
+      // نتوقف فور أول إيجاد — الصعود أكثر يلتقط عناصر غير مرتبطة ويُفسد النتيجة.
+      if (best.length >= 1) break;
       container = container.parentElement; hops++;
     }
     return best;
@@ -1120,6 +1121,50 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
     if (darkEl && d1 < 300 && (d2 - d1) > 120) return (darkEl.textContent || '').trim();
     return '';
+  }
+  // مقاس وحيد → نحدّده تلقائياً من دون نقر الزبون (يُستدعى في معالج الزر).
+  function temuForceSingleSize() {
+    if (!temuHasSizeSection() || temuSelectedSize()) return;
+    var fpills = temuSizePills();
+    if (fpills.length === 1) {
+      var ft = (fpills[0].textContent || '').trim();
+      if (ft && ft.length <= 24) {
+        try { fpills[0].click(); } catch (e) {}
+        window.__otlobliTemuSize = ft;
+        window.__otlobliTemuSizeGid = temuGoodsId();
+      }
+    } else if (fpills.length === 0) {
+      // ملخّص "1 Size" في لوحة المتغيّرات → مقاس وحيد غير قابل للنقر
+      var fsum = temuVariantSummaryEl();
+      if (fsum && /\\b1\\s*size/i.test(fsum.textContent || '')) {
+        window.__otlobliTemuSize = 'One Size';
+        window.__otlobliTemuSizeGid = temuGoodsId();
+      }
+    }
+  }
+  // هل للمنتج لون وحيد؟ يُقلّص الصور الملوّنة القريبة من عنوان "Color:".
+  function temuHasSingleColor() {
+    var nodes = document.querySelectorAll('div, span, h2, h3, p, strong');
+    var colorHead = null;
+    for (var i = 0; i < nodes.length; i++) {
+      var nt = (nodes[i].textContent || '').trim();
+      if (nt.length < 40 && /^(?:Color|colour|اللون)\\s*[:：]/i.test(nt)) { colorHead = nodes[i]; break; }
+    }
+    if (!colorHead) return false;
+    var container = colorHead.parentElement, hops = 0;
+    while (container && hops < 5) {
+      var imgs = container.querySelectorAll('img');
+      var count = 0;
+      for (var j = 0; j < imgs.length; j++) {
+        var src = imgs[j].currentSrc || imgs[j].src || '';
+        if (!/kwcdn|temu/i.test(src)) continue;
+        var r = imgs[j].getBoundingClientRect();
+        if (r.width >= 28 && r.width < 200 && r.height >= 28 && r.height < 200) count++;
+      }
+      if (count >= 1) return count === 1;
+      container = container.parentElement; hops++;
+    }
+    return false;
   }
   // مستمع نقر يسجّل آخر زر مقاس ضغطه الزبون فعلاً (المصدر الأوثق للمقاس).
   if (IS_TEMU && !window.__otlobliTemuClickBound) {
@@ -1634,12 +1679,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
             return;
           }
           if (!persoChk.has) {
-            // ج) فيه ألوان لكن لم يُحدّد لون.
-            if (temuHasColorSection() && !temuColor()) {
+            // ذكاء: مقاس وحيد → نحدّده تلقائياً قبل التحقق (يحلّ مشكلة ONE SIZE).
+            temuForceSingleSize();
+            // ج) فيه ألوان لكن لم يُحدّد لون — استثناء: لون وحيد لا يحتاج اختياراً.
+            if (temuHasColorSection() && !temuColor() && !temuHasSingleColor()) {
               showMessage(btn, 'حدد اللون أولاً');
               return;
             }
-            // د) فيه مقاسات لكن لم يُحدّد مقاس بوضوح (إطار أسود واضح).
+            // د) فيه مقاسات لكن لم يُحدّد مقاس.
             if (temuHasSizeSection() && !temuSelectedSize()) {
               showMessage(btn, 'حدد المقاس أولاً');
               return;
