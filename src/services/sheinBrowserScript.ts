@@ -898,6 +898,18 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   // ── جذب تيمو ────────────────────────────────────────────────────────────
+  // ينظّف نصاً من رموز التحكم بالاتجاه غير المرئية (RLM/LRM/ALM وعلامات
+  // العزل الاتجاهي Unicode Bidi Isolates) التي تُدرجها تيمو أحياناً حول
+  // النصوص العربية لضبط اتجاه العرض — تجعل المقارنة الحرفية (===) والـregex
+  // تفشل صامتة رغم تطابق الشكل المرئي 100%. ثبت من جهاز حقيقي: عنواني
+  // "اللون"/"مقاس" ظاهران بوضوح على الصفحة لكن كشف الرأس كان يُرجع "لا
+  // رأس قسم لون/مقاس" — بلا هذا التنظيف نفس فئة خلل BOM بالأسرار بالضبط.
+  function temuCleanText(s) {
+    return (s || '')
+      .replace(/[\\u200e\\u200f\\u061c\\u2066\\u2067\\u2068\\u2069\\ufeff\\u200b]/g, '')
+      .replace(/\\s+/g, ' ')
+      .trim();
+  }
   // العنوان من og:title (نشيل لاحقة " - Temu Canada")، السعر من عنصر صنفه
   // curPrice- (مؤكّد من التشخيص)، الصورة من og:image أو أكبر صورة kwcdn.
   // السعر يُحوَّل للدولار حسب العملة الظاهرة (الدينار مثبّت، الكندي تقريبي).
@@ -960,7 +972,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // 2) عنوان "Color: X" (اللون الافتراضي قبل أي تغيير).
     var nodes = document.querySelectorAll('div, span, h2, h3, p, strong');
     for (var i = 0; i < nodes.length; i++) {
-      var t = (nodes[i].textContent || '').trim();
+      var t = temuCleanText(nodes[i].textContent);
       if (t.length > 40) continue;
       var m = t.match(/^(?:Color|colour|اللون|لون(?:\\s+[\\u0600-\\u06FF]{2,14})?)\\s*[:：]\\s*(.+)$/i);
       if (m && m[1]) return m[1].trim();
@@ -969,7 +981,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
   // هل هذا النص رأس قسم لون؟ يشمل "اللون: أبيض" و"اللون" المجردة (بلا
   // نقطتين — الأحذية والساعات والأجهزة) و"لون السوار:" المركّبة.
+  // ننظّف الداخل هنا أيضاً (لا فقط عند المستدعي) حتى تستفيد كل نقاط النداء
+  // تلقائياً بلا حاجة لتعديلها كلها؛ التنظيف المزدوج بلا ضرر.
   function temuIsColorHeadText(t) {
+    t = temuCleanText(t);
     if (!t || t.length > 40) return false;
     if (t === 'اللون' || t === 'Color' || t === 'Colour' || t === 'color' || t === 'colour') return true;
     return /^(?:Color|colour|اللون|لون(?:\\s+[\\u0600-\\u06FF]{2,14})?)\\s*[:：]/i.test(t);
@@ -1038,7 +1053,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function temuSizeHeadEl() {
     var heads = document.querySelectorAll('div, span, h2, h3, strong, label, p');
     for (var h = 0; h < heads.length; h++) {
-      var ht = (heads[h].textContent || '').trim();
+      var ht = temuCleanText(heads[h].textContent);
       if (ht === 'Size' || ht === 'المقاس' || ht === 'Size:' || ht === 'المقاس:'
         || ht === 'مقاس' || ht === 'مقاس:' || ht === 'القياس' || ht === 'القياس:'
         || ht === 'الحجم' || ht === 'الحجم:' || ht === 'حجم'
@@ -1057,7 +1072,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // لأن عدّ الـpills على الصفحة غير موثوق (قد يكون الملخّص قبل فتح اللوحة).
   function temuVariantCounts() {
     var el = temuVariantSummaryEl();
-    var txt = el ? (el.textContent || '') : '';
+    var txt = el ? temuCleanText(el.textContent) : '';
     var cMatch = txt.match(/(\\d+)\\s*(?:colou?rs?|ألوان|اللون|لون)/i);
     var sMatch = txt.match(/(\\d+)\\s*(?:sizes?|مقاس|مقاسات|موديل|model|أسلوب|style|نوع)/i);
     return {
@@ -1096,7 +1111,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       for (var i = 0; i < cand.length; i++) {
         var el = cand[i];
         if (el.id && el.id.indexOf('otlobli') === 0) continue;
-        var t = (el.textContent || '').trim();
+        var t = temuCleanText(el.textContent);
         if (t.length < 1 || t.length > 24) continue;
         // أزرار كمية "−" "+" حرف واحد غير حرفي/رقمي — نتجاهلها.
         if (t.length === 1 && !/[a-zA-Z0-9]/.test(t)) continue;
@@ -1125,7 +1140,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
           var grp = byCls[order[g]];
           var likes = 0;
           for (var q = 0; q < grp.length; q++) {
-            if (temuSizeLike((grp[q].textContent || '').trim())) likes++;
+            if (temuSizeLike(temuCleanText(grp[q].textContent))) likes++;
           }
           // مجموعة "قوية": نصف أعضائها على الأقل يشبه مقاساً حقيقياً
           if (likes >= 1 && likes * 2 >= grp.length) {
@@ -1157,7 +1172,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // 1) نفحص أولاً عنوان قسم المقاس نفسه — قد يحتوي القيمة ("Size: One-size")
     var head = temuSizeHeadEl();
     if (head) {
-      var headText = (head.textContent || '').trim();
+      var headText = temuCleanText(head.textContent);
       var hm = headText.match(/Size[\\s\\-]*[:\\-]?[\\s\\-]*(one.?size|free.?size|[\\w ]{2,20})/i);
       if (hm && hm[1]) {
         var hv = hm[1].trim();
@@ -1169,7 +1184,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var kids = parent.children;
         for (var k = 0; k < kids.length; k++) {
           if (kids[k] === head) continue;
-          var kt = (kids[k].textContent || '').replace(/[\\s]+/g, ' ').trim();
+          var kt = temuCleanText(kids[k].textContent);
           if (kt.length >= 2 && kt.length <= 30 && /one.?size|free.?size/i.test(kt)) return kt;
         }
       }
@@ -1177,7 +1192,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // 3) مسح عام: البحث عن نمط "Size: ONE SIZE" في أي عنصر نصي
     var els = document.querySelectorAll('div, span, p, strong, h3, h2');
     for (var si = 0; si < els.length; si++) {
-      var st = (els[si].textContent || '').trim();
+      var st = temuCleanText(els[si].textContent);
       if (st.length < 4 || st.length > 80) continue;
       var sm = st.match(/Size\\s*:\\s*([^,;|\\n\\r]{1,30})/i);
       if (!sm) sm = st.match(/^(?:المقاس|مقاس|الحجم)\\s*[:：]\\s*([^,;|\\n\\r]{1,30})/);
@@ -1274,7 +1289,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function temuColorFromHeading() {
     var nodes = document.querySelectorAll('div, span, h2, h3, p, strong');
     for (var i = 0; i < nodes.length; i++) {
-      var t = (nodes[i].textContent || '').trim();
+      var t = temuCleanText(nodes[i].textContent);
       if (t.length > 40) continue;
       var m = t.match(/^(?:Color|colour|اللون|لون(?:\\s+[\\u0600-\\u06FF]{2,14})?)\\s*[:：]\\s*(.+)$/i);
       if (m && m[1]) {
@@ -1306,8 +1321,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var r = imgs[j].getBoundingClientRect();
         if (r.width < 28 || r.width > 220 || r.height < 28 || r.height > 220) continue;
         swCount++;
-        var alt = ((imgs[j].getAttribute('alt') || imgs[j].getAttribute('title') || '') + '').trim().toLowerCase();
-        var ptxt = imgs[j].parentElement ? ((imgs[j].parentElement.textContent || '').trim().toLowerCase()) : '';
+        var alt = temuCleanText(imgs[j].getAttribute('alt') || imgs[j].getAttribute('title') || '').toLowerCase();
+        var ptxt = imgs[j].parentElement ? temuCleanText(imgs[j].parentElement.textContent).toLowerCase() : '';
         if ((alt && alt.length >= 2 && (alt === lowName || alt.indexOf(lowName) >= 0 || lowName.indexOf(alt) >= 0))
           || (ptxt && ptxt.length <= 50 && ptxt.indexOf(lowName) >= 0)) { match = src; }
       }
@@ -1349,7 +1364,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         }
         if (matches === 1) {
           window.__otlobliTemuColorDiag = 'كروت=' + cards.length + ' نجاح';
-          var altName = (picked.img.getAttribute('alt') || picked.img.getAttribute('title') || '').trim();
+          var altName = temuCleanText(picked.img.getAttribute('alt') || picked.img.getAttribute('title') || '');
           return { name: altName, image: picked.src };
         }
         window.__otlobliTemuColorDiag = 'كروت=' + cards.length + ' حدّغامق=' + matches;
@@ -1454,7 +1469,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
           var matched = false;
           for (var i = 0; i < pills.length; i++) {
             if (pills[i] === node) {
-              var t = (node.textContent || '').trim();
+              var t = temuCleanText(node.textContent);
               if (t && t.length <= 24) {
                 window.__otlobliTemuSize = t;
                 window.__otlobliTemuSizeGid = temuGoodsId();
@@ -1486,7 +1501,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
               if (cImgs.length >= 1 && cImgs.length <= 4) {
                 var cardImg2 = cImgs[0];
                 // مصدر 1: alt الصورة
-                var altN2 = (cardImg2.getAttribute('alt') || cardImg2.getAttribute('title') || '').trim();
+                var altN2 = temuCleanText(cardImg2.getAttribute('alt') || cardImg2.getAttribute('title') || '');
                 var colorName2 = isOkColorName(altN2) ? altN2 : '';
                 if (!colorName2) {
                   // مصدر 2: آخر عنصر ابن مرئي (من الآخر للأول — العنوان عادةً آخر ابن)
@@ -1659,7 +1674,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function temuVariantSummaryEl() {
     var els = document.querySelectorAll('div, button, a, span');
     for (var i = 0; i < els.length; i++) {
-      var t = (els[i].textContent || '').trim();
+      var t = temuCleanText(els[i].textContent);
       if (t.length > 65) continue;
       var hasClr = /\\d+\\s*(?:colou?rs?|ألوان|اللون|لون)/i.test(t);
       var hasSz  = /\\d+\\s*(?:sizes?|مقاس|مقاسات|موديل|model)/i.test(t);
