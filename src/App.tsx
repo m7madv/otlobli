@@ -762,6 +762,9 @@ function App() {
   // should return to: 'cart' right after the user taps a cart item (so back
   // re-opens otlobli's cart), 'home' for ordinary browsing from the home tab.
   const pendingBackTargetRef = useRef<'home' | 'cart'>('home')
+  // عدّاد تحويل تيمو للعربية — يمنع الحلقة اللانهائية إذا تيمو يتجاوز التحويل
+  const temuArabicRedirectRef = useRef(0)
+  const temuArabicRedirectTsRef = useRef(0)
 
   // The SHEIN webview is a separate native layer floating on top of our own
   // React UI, not part of its DOM - trying to size it precisely to "leave a
@@ -909,6 +912,32 @@ function App() {
       void handle.then((h) => h.remove())
       if (sheinOpenedRef.current) void InAppBrowser.close()
     }
+  }, [])
+
+  // اعتراض تحويلات تيمو على مستوى Native: إذا غيّر الخادم الرابط لنسخة غير
+  // عربية (بسبب IP الـVPN)، نُعيد التوجيه فوراً لـ /jo/ العربية قبل أن تُعرض.
+  // هذا يعمل على مستوى WKWebView مباشرةً، أسرع وأقوى من JS داخل الصفحة.
+  useEffect(() => {
+    const ARABIC_TEMU_RE = /\/(?:sa|ae|kw|jo|bh|qa|eg|iq|om)\//i
+    const handle = InAppBrowser.addListener('urlChangeEvent', ({ url }: { url: string }) => {
+      if (!/temu\.com/i.test(url)) return
+      if (ARABIC_TEMU_RE.test(url)) {
+        // وصلنا لنسخة عربية — نُصفّر العدّاد
+        temuArabicRedirectRef.current = 0
+        return
+      }
+      // نسخة غير عربية (us/de/uk/...) — نُحوّل لـ /jo/
+      const now = Date.now()
+      // حماية الحلقة: 3 محاولات كحد أقصى خلال 15 ثانية
+      if (temuArabicRedirectRef.current >= 3 && now - temuArabicRedirectTsRef.current < 15000) return
+      if (now - temuArabicRedirectTsRef.current > 15000) temuArabicRedirectRef.current = 0
+      temuArabicRedirectRef.current++
+      temuArabicRedirectTsRef.current = now
+      // نحاول الحفاظ على مسار المنتج (مثلاً /us/prod.html → /jo/prod.html)
+      const arabicUrl = url.replace(/temu\.com\/[a-z]{2}\//i, 'temu.com/jo/')
+      void InAppBrowser.setUrl({ url: arabicUrl === url ? 'https://www.temu.com/jo/' : arabicUrl })
+    })
+    return () => { void handle.then((h) => h.remove()) }
   }, [])
 
   // Backgrounding the app can drop the native SHEIN webview's visible state
