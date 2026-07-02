@@ -1055,11 +1055,22 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (a < 0.3) return 999;
     return (+m[1] + +m[2] + +m[3]);
   }
-  // أزرار المقاس ضمن قسم "Size" فقط.
+  // هل النص يشبه قيمة مقاس حقيقية؟ أرقام (74-80، 38، 9-12 شهر) أو حروف
+  // المقاسات القياسية (M/L/XL/One Size). يميّز صف المقاسات الحقيقي عن مفاتيح
+  // التبديل النصية المجاورة للرأس (الطول/العمر/قياسي/JO...) التي تخترع تيمو
+  // جديداً منها لكل صنف — فلا نعتمد على حفظ الكلمات بل على شكل القيمة.
+  function temuSizeLike(t) {
+    if (/\\d/.test(t)) return true;
+    return /^(?:x{0,3}[sml]|xs|xxs|one.?size|free.?size)$/i.test(t);
+  }
+  // أزرار المقاس ضمن قسم "Size" فقط — بتجميع حسب الـclass: أزرار الصف
+  // الحقيقي تتشارك الصنف نفسه، فأكبر مجموعة "تشبه مقاسات" تفوز، ومفاتيح
+  // التبديل (مجموعة صنف آخر بلا أرقام) تخسر تلقائياً مهما كانت كلماتها.
   function temuSizePills() {
     var head = temuSizeHeadEl();
     if (!head) return [];
-    var container = head.parentElement, hops = 0, best = [];
+    var container = head.parentElement, hops = 0;
+    var weakBest = [];
     while (container && hops < 6) {
       var cand = container.querySelectorAll('button, a, [role="button"], div, span, label');
       var pills = [];
@@ -1073,22 +1084,47 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if (t.indexOf(':') >= 0) continue;
         if (/[$£€%]/.test(t)) continue;
         if (/\\bfree\\b|\\bapp\\b|guide|standard|qty|^size$/i.test(t)) continue;
-        // مفاتيح تبديل نظام المقاسات (قياسي/JO/EU...) ليست مقاسات — كانت
-        // تُلتقط كأزرار فتُسجّل "JO" مقاساً للساعات والملابس. نستبعدها مع
-        // زر "دليل المقاسات" وحقل الكمية.
+        // مفاتيح تبديل معروفة + دليل المقاسات + الكمية (حزام أمان صريح).
         if (/^(?:us|ca|eu|uk|au|jo|sa|ae|kw|qa|bh|om|asia|intl)$/i.test(t)) continue;
-        if (t === 'قياسي' || t === 'عادي' || /دليل|كمية|كميه/.test(t)) continue;
+        if (t === 'قياسي' || t === 'عادي' || t === 'الطول' || t === 'العمر' || t === 'الوزن'
+          || /دليل|كمية|كميه/.test(t)) continue;
         if (el.querySelector && el.querySelector('img')) continue;
         var r = el.getBoundingClientRect();
         if (r.width < 18 || r.width > 260 || r.height < 16 || r.height > 80) continue;
         pills.push(el);
       }
-      if (pills.length > best.length) best = pills;
-      // نتوقف فور أول إيجاد — الصعود أكثر يلتقط عناصر غير مرتبطة ويُفسد النتيجة.
-      if (best.length >= 1) break;
+      if (pills.length) {
+        // تجميع حسب (class + tag)
+        var byCls = {}, order = [];
+        for (var p2 = 0; p2 < pills.length; p2++) {
+          var ck = ((pills[p2].className || '') + '|' + pills[p2].tagName);
+          if (!byCls[ck]) { byCls[ck] = []; order.push(ck); }
+          byCls[ck].push(pills[p2]);
+        }
+        var strong = null, weak = null;
+        for (var g = 0; g < order.length; g++) {
+          var grp = byCls[order[g]];
+          var likes = 0;
+          for (var q = 0; q < grp.length; q++) {
+            if (temuSizeLike((grp[q].textContent || '').trim())) likes++;
+          }
+          // مجموعة "قوية": نصف أعضائها على الأقل يشبه مقاساً حقيقياً
+          if (likes >= 1 && likes * 2 >= grp.length) {
+            if (!strong || grp.length > strong.length) strong = grp;
+          } else if (!weak || grp.length > weak.length) {
+            weak = grp;
+          }
+        }
+        if (strong) return strong;
+        // مجموعة كلمات بلا أرقام (أسلوب/نمط): نحفظ أفضلها كاحتياط — بسقف
+        // حجم يمنع التقاط شبكة تصنيفات كاملة من مستويات عالية.
+        if (weak && weak.length <= 10 && hops <= 3 && weak.length > weakBest.length) {
+          weakBest = weak;
+        }
+      }
       container = container.parentElement; hops++;
     }
-    return best;
+    return weakBest;
   }
   // معرّف المنتج (ثابت رغم تغيّر المقاس/اللون) - لربط النقرة بالمنتج الصحيح.
   function temuGoodsId() {
@@ -1430,6 +1466,32 @@ export const SHEIN_CAPTURE_SCRIPT = `
                   setTimeout(captureHero, 1600);
                   })(gidNow);
                   return;
+                }
+                // كرت لون بلا اسم (صورة فقط، بلا alt ولا نص — شائع بالفساتين):
+                // نسجّل صورته على الأقل، والاسم سيأتي من عنوان "اللون: X" عبر
+                // مؤقّت القراءة بعد النقرة. شرط أمان: الكرت قريب عمودياً من
+                // رأس قسم اللون (يستبعد كروت المنتجات المقترحة أسفل الصفحة).
+                var headNode3 = null;
+                var hnScan = document.querySelectorAll('div, span, h2, h3, p, strong');
+                for (var hn = 0; hn < hnScan.length; hn++) {
+                  var hnT = (hnScan[hn].textContent || '').trim();
+                  if (hnT.length < 40 && /^(?:Color|colour|اللون|لون(?:\\s+[\\u0600-\\u06FF]{2,14})?)\\s*[:：]/i.test(hnT)) { headNode3 = hnScan[hn]; break; }
+                }
+                if (headNode3) {
+                  var hr3 = headNode3.getBoundingClientRect();
+                  var cr4 = cnode.getBoundingClientRect();
+                  if (hr3.height > 0 && cr4.top >= hr3.top - 60 && cr4.top - hr3.top < 300) {
+                    var cSrc2 = cardImg2.currentSrc || cardImg2.src || '';
+                    if (cSrc2 && cSrc2.indexOf('http') === 0) {
+                      var gidNow2 = temuGoodsId();
+                      if (window.__otlobliTemuColorGid !== gidNow2) window.__otlobliTemuColor = '';
+                      window.__otlobliTemuColorGid = gidNow2;
+                      window.__otlobliTemuColorSwatch = cSrc2;
+                      window.__otlobliTemuColorImg = '';
+                      temuScheduleHeroCapture(gidNow2);
+                      return;
+                    }
+                  }
                 }
               }
             }
