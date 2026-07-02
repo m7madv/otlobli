@@ -607,6 +607,10 @@ function App() {
     void appApi.auth
       .startWhatsappLogin(phone)
       .then((result) => {
+        if (!result || typeof result !== 'object') {
+          showNotice('تعذّر الاتصال بخادم واتساب. حدّث التطبيق لأحدث نسخة وحاول مجدداً.')
+          return
+        }
         if (result.telegramOtp) {
           setTelegramOtp(result.telegramOtp)
           setOtpExpiresInSeconds(result.otpExpiresInSeconds)
