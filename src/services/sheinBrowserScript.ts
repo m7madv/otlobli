@@ -1068,7 +1068,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var head = temuSizeHeadEl();
     if (head) {
       var headText = (head.textContent || '').trim();
-      var hm = headText.match(/Size\s*[:\-]?\s*(one.?si(?:ze?)?|free.?size|[\w\s]{2,20})/i);
+      var hm = headText.match(/Size[\\s\\-]*[:\\-]?[\\s\\-]*(one.?size|free.?size|[\\w ]{2,20})/i);
       if (hm && hm[1]) {
         var hv = hm[1].trim();
         if (!/^size$/i.test(hv) && hv.length >= 2) return hv;
@@ -1079,7 +1079,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var kids = parent.children;
         for (var k = 0; k < kids.length; k++) {
           if (kids[k] === head) continue;
-          var kt = (kids[k].textContent || '').replace(/\s+/g, ' ').trim();
+          var kt = (kids[k].textContent || '').replace(/[\\s]+/g, ' ').trim();
           if (kt.length >= 2 && kt.length <= 30 && /one.?size|free.?size/i.test(kt)) return kt;
         }
       }
@@ -1089,7 +1089,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     for (var si = 0; si < els.length; si++) {
       var st = (els[si].textContent || '').trim();
       if (st.length < 4 || st.length > 80) continue;
-      var sm = st.match(/Size\s*:\s*([^,;|\n\r]{1,30})/i);
+      var sm = st.match(/Size\\s*:\\s*([^,;|\\n\\r]{1,30})/i);
       if (sm && sm[1]) {
         var sv = sm[1].trim();
         if (sv.length >= 2 && sv.length <= 30 && !/guide|chart|info/i.test(sv)) return sv;
