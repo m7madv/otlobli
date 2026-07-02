@@ -1089,6 +1089,55 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (a < 0.3) return 999;
     return (+m[1] + +m[2] + +m[3]);
   }
+  // سماكة الحدّ العلوي بالبكسل (0 إن لا حدّ).
+  function temuBorderWidth(el) {
+    var bw = parseFloat(window.getComputedStyle(el).borderTopWidth || '0');
+    return isNaN(bw) ? 0 : bw;
+  }
+  // كاشف "المُختار" متعدد الإشارات ضمن مجموعة أزرار/كروت متجانسة (مقاس أو
+  // لون). تيمو تستخدم قوالب مختلفة للتمييز البصري: أحياناً خلفية ممتلئة
+  // داكنة، وأحياناً حدّ أسمك فقط بلا تعبئة، ونادراً لون حدّ مختلف فقط.
+  // لون الحدّ وحده غير كافٍ — ثبت من تشخيص حقيقي: 4 أزرار مقاس، جميعها
+  // سُجِّلت "حدّ غامق" رغم اختيار واحد فقط ظاهرياً (نفس لون الحدّ الافتراضي
+  // للكل). نجرّب إشارات بترتيب الأقوى فالأضعف؛ أول إشارة تُرجع تطابقاً
+  // واحداً بلا غموض تفوز — أي غموض (صفر أو أكثر من واحد) ننتقل للإشارة
+  // التالية، وفشل الكل = فارغ (لا تخمين).
+  function temuPickSingleSelected(els) {
+    if (!els || els.length < 2) return null;
+    // إشارة 1: خلفية ممتلئة داكنة غير شفافة (الأقوى والأوضح بصرياً).
+    var filled = [];
+    for (var i = 0; i < els.length; i++) {
+      var bg = window.getComputedStyle(els[i]).backgroundColor || '';
+      var bm = bg.match(/rgba?\\((\\d+),\\s*(\\d+),\\s*(\\d+)(?:,\\s*([\\d.]+))?/i);
+      if (!bm) continue;
+      var ba = bm[4] !== undefined ? parseFloat(bm[4]) : 1;
+      if (ba < 0.5) continue;
+      if ((+bm[1] + +bm[2] + +bm[3]) < 240) filled.push(els[i]);
+    }
+    if (filled.length === 1) return filled[0];
+    // إشارة 2: سماكة حدّ أكبر بوضوح من كل الباقي (تفوق حقيقي لا تقريبي).
+    var widths = [];
+    for (var j = 0; j < els.length; j++) widths.push(temuBorderWidth(els[j]));
+    var maxW = Math.max.apply(null, widths);
+    if (maxW > 0) {
+      var wMatches = [], secondMax = 0;
+      for (var k = 0; k < widths.length; k++) {
+        if (widths[k] === maxW) wMatches.push(els[k]);
+        else if (widths[k] > secondMax) secondMax = widths[k];
+      }
+      if (wMatches.length === 1 && maxW > secondMax && (secondMax === 0 || maxW >= secondMax * 1.3)) {
+        return wMatches[0];
+      }
+    }
+    // إشارة 3 (احتياط أخير): حدّ غامق وحيد (القوالب التي فعلاً تلوّن حدّ
+    // المختار فقط بلا البقية — الحالة الأصلية قبل هذا التوسيع).
+    var borderMatches = [];
+    for (var b = 0; b < els.length; b++) {
+      if (temuHasDarkBorder(els[b])) borderMatches.push(els[b]);
+    }
+    if (borderMatches.length === 1) return borderMatches[0];
+    return null;
+  }
   // هل النص يشبه قيمة مقاس حقيقية؟ أرقام (74-80، 38، 9-12 شهر) أو حروف
   // المقاسات القياسية (M/L/XL/One Size). يميّز صف المقاسات الحقيقي عن مفاتيح
   // التبديل النصية المجاورة للرأس (الطول/العمر/قياسي/JO...) التي تخترع تيمو
@@ -1221,19 +1270,19 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (pills.length === 1) {
       return (pills[0].textContent || '').trim();
     }
-    // 3) لا نقرة صريحة. سابقاً كان هذا يُرجع فارغاً دائماً (خشية "خربطة" من
-    // تخمين واسع كان يفحص كل الصفحة ويتطلب حدّاً غامقاً + خلفية فاتحة معاً —
-    // شرط لا يطابق أزرار تيمو المختارة الشائعة، الممتلئة أسود بلا خلفية فاتحة).
-    // البديل الآمن هنا أضيق بكثير: نفحص فقط ضمن صفّ الأزرار المُتحقَّق منه
-    // مسبقاً (نفس pills أعلاه، مُصفّاة بشكل الحدث لا كلماته)، ونعتمد الحدّ
-    // الغامق وحده (بلا شرط الخلفية الفاتحة) لأنه يطابق الأزرار الممتلئة أيضاً.
-    // تطابق واحد بالضبط وإلا نتجاهل تماماً (الغموض = فارغ، كما كان).
-    var defaultPick = null, defaultMatches = 0;
+    // 3) لا نقرة صريحة. ثبت من تشخيص حقيقي على جهاز فعلي: بعض قوالب تيمو
+    // تجعل حدّ **كل** الأزرار غامقاً افتراضياً (مطابقة اللون وحدها عديمة
+    // الفائدة هناك)، بينما قوالب أخرى تميّز المختار بخلفية ممتلئة أو حدّ
+    // أسمك. نستخدم كاشفاً متعدد الإشارات (خلفية → سماكة حدّ → لون حدّ) يجرّب
+    // كل إشارة حتى يجد تطابقاً واحداً واضحاً؛ أي غموض = فارغ (لا تخمين).
+    var defaultPick = temuPickSingleSelected(pills);
+    var dbgW = [], dbgF = 0;
     for (var dp = 0; dp < pills.length; dp++) {
-      if (temuHasDarkBorder(pills[dp])) { defaultPick = pills[dp]; defaultMatches++; }
+      dbgW.push(temuBorderWidth(pills[dp]));
+      if (temuHasDarkBorder(pills[dp])) dbgF++;
     }
-    window.__otlobliTemuSizeDiag = 'أزرار=' + pills.length + ' حدّغامق=' + defaultMatches;
-    if (defaultMatches === 1) {
+    window.__otlobliTemuSizeDiag = 'أزرار=' + pills.length + ' حدّغامق=' + dbgF + ' سماكات=[' + dbgW.join(',') + ']';
+    if (defaultPick) {
       var dt = (defaultPick.textContent || '').trim();
       if (dt && dt.length <= 24) { window.__otlobliTemuSizeDiag += ' نجاح[' + dt + ']'; return dt; }
     }
@@ -1346,7 +1395,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var container = colorHead.parentElement, hops = 0;
     while (container && hops < 5) {
       var imgs = container.querySelectorAll('img');
-      var cards = [];
+      var cards = [], parentEls = [], grandEls = [];
       for (var j = 0; j < imgs.length; j++) {
         var src = imgs[j].currentSrc || imgs[j].src || '';
         if (!src || src.indexOf('http') !== 0) continue;
@@ -1354,20 +1403,28 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if (r.width < 28 || r.width > 220 || r.height < 28 || r.height > 220) continue;
         var parentEl = imgs[j].parentElement || imgs[j];
         var grandEl = parentEl.parentElement || parentEl;
-        var bordered = temuHasDarkBorder(imgs[j]) || temuHasDarkBorder(parentEl) || temuHasDarkBorder(grandEl);
-        cards.push({ img: imgs[j], src: src, bordered: bordered });
+        cards.push({ img: imgs[j], src: src, parentEl: parentEl, grandEl: grandEl });
+        parentEls.push(parentEl);
+        grandEls.push(grandEl);
       }
       if (cards.length >= 1) {
-        var picked = null, matches = 0;
-        for (var c = 0; c < cards.length; c++) {
-          if (cards[c].bordered) { picked = cards[c]; matches++; }
+        // نجرّب الكاشف متعدد الإشارات على مستوى الحاضن المباشر أولاً، ثم
+        // الجدّ إن فشل (اختلاف هيكلية القوالب أين تُوضع علامة "المختار").
+        var pickedEl = temuPickSingleSelected(parentEls) || temuPickSingleSelected(grandEls);
+        if (pickedEl) {
+          var pickedCard = null;
+          for (var c = 0; c < cards.length; c++) {
+            if (cards[c].parentEl === pickedEl || cards[c].grandEl === pickedEl) { pickedCard = cards[c]; break; }
+          }
+          if (pickedCard) {
+            window.__otlobliTemuColorDiag = 'كروت=' + cards.length + ' نجاح';
+            var altName = temuCleanText(pickedCard.img.getAttribute('alt') || pickedCard.img.getAttribute('title') || '');
+            return { name: altName, image: pickedCard.src };
+          }
         }
-        if (matches === 1) {
-          window.__otlobliTemuColorDiag = 'كروت=' + cards.length + ' نجاح';
-          var altName = temuCleanText(picked.img.getAttribute('alt') || picked.img.getAttribute('title') || '');
-          return { name: altName, image: picked.src };
-        }
-        window.__otlobliTemuColorDiag = 'كروت=' + cards.length + ' حدّغامق=' + matches;
+        var dbgBordered = 0;
+        for (var db = 0; db < parentEls.length; db++) { if (temuHasDarkBorder(parentEls[db])) dbgBordered++; }
+        window.__otlobliTemuColorDiag = 'كروت=' + cards.length + ' حدّغامق=' + dbgBordered;
         return null; // صفّ موجود لكن لا تطابق واحد واضح — لا تخمين
       }
       container = container.parentElement; hops++;
