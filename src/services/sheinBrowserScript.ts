@@ -969,8 +969,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
     //    نستخدم صورة الكرت الصغيرة (swatch) بوصفها مؤكّدة الصحة أكثر من الهيرو
     //    العائد بالـfallback الذي قد يكون للون الافتراضي لا المختار.
     if (window.__otlobliTemuColorGid === temuGoodsId()) {
-      if (window.__otlobliTemuColorImg) return window.__otlobliTemuColorImg;
+      // الـswatch أولاً: صورة كرت اللون المختار نفسه = مضمونة اللون 100%.
+      // الهيرو المُلتقط قد يكون التقط قبل أن تُحدّث تيمو الصورة (شيت مفتوح)
+      // فيدخل لون خاطئ — ثبت من شكوى "اخترت أزرق فانجذب أسود".
       if (window.__otlobliTemuColorSwatch) return window.__otlobliTemuColorSwatch;
+      if (window.__otlobliTemuColorImg) return window.__otlobliTemuColorImg;
     }
     // 2) الصورة الرئيسية = أكبر صورة kwcdn في أعلى الصفحة (المعرض الرئيسي)، لا
     // الصور الثانوية أو صور كروت الألوان (عرضها < 200px عادةً). fallback: og:image.
@@ -1144,14 +1147,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (pills.length === 1) {
       return (pills[0].textContent || '').trim();
     }
-    // 3) احتياط بصري: الأغمق حدّاً بوضوح عن البقية (للمنتجات بأكثر من مقاس).
-    var darkEl = null, d1 = 999, d2 = 999;
-    for (var i = 0; i < pills.length; i++) {
-      var v = temuBorderDarkness(pills[i]);
-      if (v < d1) { d2 = d1; d1 = v; darkEl = pills[i]; }
-      else if (v < d2) { d2 = v; }
-    }
-    if (darkEl && d1 < 300 && (d2 - d1) > 120) return (darkEl.textContent || '').trim();
+    // 3) [حُذف] تخمين "الحدّ الأغمق" بصرياً — كان يلتقط مقاساً عشوائياً
+    // (المحدد افتراضياً من تيمو أو زراً خاطئاً) فيمرّ منتج بمقاس لم يختره
+    // الزبون. القاعدة الآن حتمية: نقرة صريحة أو مقاس وحيد — وإلا فارغ
+    // فيُطلب من الزبون التحديد ("حدد المقاس أولاً"). خربطة = صفر.
     return '';
   }
   // مقاس وحيد → نحدّده تلقائياً من دون نقر الزبون (يُستدعى في معالج الزر).
@@ -1161,7 +1160,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (fpills.length === 1) {
       var ft = (fpills[0].textContent || '').trim();
       if (ft && ft.length <= 24) {
-        try { fpills[0].click(); } catch (e) {}
+        // تسجيل فقط بلا .click() — نفس علة temuAutoSelectSingleSize: نقر عنصر
+        // مُصنَّف خطأً يُبحر بالصفحة. التسجيل يكفي لالتقاط البيانات.
         window.__otlobliTemuSize = ft;
         window.__otlobliTemuSizeGid = temuGoodsId();
       }
@@ -1214,17 +1214,54 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
     return '';
   }
+  // يبحث وقت الجذب عن كرت اللون الذي اسمه يطابق اللون المختار ويعيد صورته —
+  // شبكة أمان لالتقاط صورة اللون حين لم يلتقطها مستمع النقر (اختيار داخل
+  // الشيت، لون افتراضي محدد مسبقاً، كروت بهيكلية غير متوقعة).
+  function temuSelectedColorCardImg(colorName) {
+    if (!colorName || colorName.length < 2) return '';
+    var lowName = colorName.toLowerCase();
+    var nodes = document.querySelectorAll('div, span, h2, h3, p, strong');
+    var colorHead = null;
+    for (var i = 0; i < nodes.length; i++) {
+      var nt = (nodes[i].textContent || '').trim();
+      if (nt.length < 40 && /^(?:Color|colour|اللون|لون(?:\\s+[\\u0600-\\u06FF]{2,14})?)\\s*[:：]/i.test(nt)) { colorHead = nodes[i]; break; }
+    }
+    if (!colorHead) return '';
+    var container = colorHead.parentElement, hops = 0;
+    while (container && hops < 5) {
+      var imgs = container.querySelectorAll('img');
+      var swCount = 0, match = '';
+      for (var j = 0; j < imgs.length; j++) {
+        var src = imgs[j].currentSrc || imgs[j].src || '';
+        if (!src || src.indexOf('http') !== 0) continue;
+        var r = imgs[j].getBoundingClientRect();
+        if (r.width < 28 || r.width > 220 || r.height < 28 || r.height > 220) continue;
+        swCount++;
+        var alt = ((imgs[j].getAttribute('alt') || imgs[j].getAttribute('title') || '') + '').trim().toLowerCase();
+        var ptxt = imgs[j].parentElement ? ((imgs[j].parentElement.textContent || '').trim().toLowerCase()) : '';
+        if ((alt && alt.length >= 2 && (alt === lowName || alt.indexOf(lowName) >= 0 || lowName.indexOf(alt) >= 0))
+          || (ptxt && ptxt.length <= 50 && ptxt.indexOf(lowName) >= 0)) { match = src; }
+      }
+      // وجدنا صفّ كروت الألوان: نُرجع المطابق فقط — لا تخمين إن لم يطابق.
+      if (swCount >= 1) return match;
+      container = container.parentElement; hops++;
+    }
+    return '';
+  }
   // جدولة التقاط هيرو اللون (بعد إغلاق الشيت) — مشتركة بين فرعَي الالتقاط.
   function temuScheduleHeroCapture(gid) {
     function captureHero2() {
       if (window.__otlobliTemuColorGid !== gid) return;
       var himgs = document.querySelectorAll('img');
       var hbest = '', hbestA = 0;
+      var vpH2 = viewportSize().height;
       for (var hi = 0; hi < himgs.length; hi++) {
         var hsrc = himgs[hi].currentSrc || himgs[hi].src || '';
         if (!/kwcdn|temu/i.test(hsrc)) continue;
         var hr = himgs[hi].getBoundingClientRect();
         if (hr.width < 200 || hr.height < 200) continue;
+        // المعرض الرئيسي أعلى الصفحة فقط — لا صور الشيت المفتوح.
+        if (hr.top > vpH2 * 0.5) continue;
         var ha = hr.width * hr.height;
         if (ha > hbestA) { hbestA = ha; hbest = hsrc; }
       }
@@ -1373,11 +1410,15 @@ export const SHEIN_CAPTURE_SCRIPT = `
                       if (window.__otlobliTemuColorGid !== gid) return;
                       var himgs = document.querySelectorAll('img');
                       var hbest = '', hbestA = 0;
+                      var vpH0 = viewportSize().height;
                       for (var hi = 0; hi < himgs.length; hi++) {
                         var hsrc = himgs[hi].currentSrc || himgs[hi].src || '';
                         if (!/kwcdn|temu/i.test(hsrc)) continue;
                         var hr = himgs[hi].getBoundingClientRect();
                         if (hr.width < 200 || hr.height < 200) continue;
+                        // المعرض الرئيسي أعلى الصفحة فقط — صور الشيت المفتوح
+                        // (النصف السفلي) قد تكون للون قديم.
+                        if (hr.top > vpH0 * 0.5) continue;
                         var ha = hr.width * hr.height;
                         if (ha > hbestA) { hbestA = ha; hbest = hsrc; }
                       }
@@ -1499,13 +1540,21 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var temuSizeVal = (perso.has && persoTxt) ? ('نقش: ' + persoTxt) : temuSelectedSize();
       var temuColorSwatch = (window.__otlobliTemuColorSwatch && window.__otlobliTemuColorGid === temuGoodsId())
         ? window.__otlobliTemuColorSwatch : '';
+      // شبكة أمان: لا swatch مخزّن (اختيار داخل الشيت/لون افتراضي) → نبحث
+      // وقت الجذب عن كرت اللون المطابق للاسم المختار ونأخذ صورته.
+      var temuColorVal = temuColor();
+      if (!temuColorSwatch && temuColorVal) {
+        temuColorSwatch = temuSelectedColorCardImg(temuColorVal) || '';
+      }
+      // صورة المنتج بالسلة: عند اختيار لون، صورة كرت اللون مضمونة 100%؛
+      // temuImage() احتياط (وهو نفسه يفضّل الـswatch الآن).
       return {
         title: temuTitle(),
         priceUsd: temuPriceUsd(),
-        image: temuImage(),
+        image: temuColorSwatch || temuImage(),
         colorImage: temuColorSwatch,
         colorImageFound: !!temuColorSwatch,
-        color: temuColor(),
+        color: temuColorVal,
         size: temuSizeVal,
         sizesAvailable: [],
         sizesUnavailable: [],
@@ -1625,7 +1674,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
         // إذا اختار الزبون لوناً ننتظر حتى يُلتقط هيرو اللون (300ms بعد النقر)
         // حتى لا تدخل صورة اللون الافتراضي (الأسود) بدل اللون المختار (الأحمر مثلاً).
         var colorPicked = !!(window.__otlobliTemuColor && window.__otlobliTemuColorGid === temuGoodsId());
-        var colorImgReady = !colorPicked || !!window.__otlobliTemuColorImg;
+        // الـswatch يكفي (هو المصدر المضمون) — لا ننتظر الهيرو إن وُجد.
+        var colorImgReady = !colorPicked || !!window.__otlobliTemuColorSwatch || !!window.__otlobliTemuColorImg;
         return !!p.title && !!p.image && p.priceUsd > 0 && colorImgReady;
       }
       return !!p.title && !!p.image && (!cs.exists || !!p.color);
@@ -2132,7 +2182,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
         // both add entries that were never real user navigation, so a back()
         // from the root could land back on a half-finished verification
         // page instead of doing nothing).
-        if (!looksLikeHomeRoot()) history.back();
+        // تيمو: منتج مفتوح على مسار الرئيسية (query string) — الرجوع مسموح.
+        if (!looksLikeHomeRoot() || (IS_TEMU && looksLikeProductPage())) history.back();
       }, true);
       document.body.appendChild(btn);
     }
@@ -2141,7 +2192,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // same otlobli-pop2 entrance animation, which a repeated appendChild on
     // an already-mounted node retriggers, causing a visible flicker every
     // ~300ms on a page that's always inserting something else after it.
-    var shouldShow = __otlobliBackTarget === 'cart' || !looksLikeHomeRoot();
+    // تيمو SPA قد تفتح المنتج على نفس مسار الرئيسية (query string فقط)
+    // فكان looksLikeHomeRoot يخفي زر الرجوع داخل المنتج ويحبس الزبون.
+    var shouldShow = __otlobliBackTarget === 'cart' || !looksLikeHomeRoot()
+      || (IS_TEMU && looksLikeProductPage());
     btn.style.display = shouldShow ? 'flex' : 'none';
   }
 
@@ -2664,7 +2718,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (r.width <= 0 || r.height <= 0 || r.top < 0 || r.top >= vp.height) return;
     var t = (pill.textContent || '').trim();
     if (!t || window.__otlobliTemuSize === t) return;
-    try { pill.click(); } catch (e) {}
+    // تسجيل فقط — ممنوع .click() هنا نهائياً: النقر التلقائي كان يصيب أحياناً
+    // رابطاً صُنّف خطأً كزر مقاس وحيد فيُبحر بالصفحة → شاشة بيضاء بعد دخول
+    // المنتج مباشرة (وتعمل عند إعادة الدخول لأن هذا الحارس أعلاه يمنع التكرار).
+    // نحن نلتقط البيانات فقط ولا نستخدم سلة تيمو، فلا حاجة لتحديث واجهتها.
     window.__otlobliTemuSize = t;
     window.__otlobliTemuSizeGid = temuGoodsId();
     __otlobliAutoSizeTs = now;
@@ -2783,6 +2840,22 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function killStorePopups() {
     if (IS_SHEIN) return;
     var vp = viewportSize();
+    // مراجعة ذاتية أولاً: أي طبقة أخفيناها ثم كبر محتواها لاحقاً = صفحة منتج
+    // أُخفيت خطأً أثناء الرندر (طبقة انتقال SPA نصّها المبكر "خصم 77%" فقط
+    // فطابقت ملف العرض الترويجي) → نُعيدها فوراً ونُدرجها بقائمة بيضاء دائمة.
+    // هذا كان سبب الشاشة البيضاء عند دخول المنتجات.
+    var hiddenEls = document.querySelectorAll('[data-otlobli-blocked="1"]');
+    for (var rv = 0; rv < hiddenEls.length; rv++) {
+      var hv = hiddenEls[rv];
+      if (hv.style.display !== 'none') continue;
+      var hvTxt = (hv.textContent || '').length;
+      var hvImgs = hv.querySelectorAll ? hv.querySelectorAll('img').length : 0;
+      var hvPrice = hv.querySelector ? !!hv.querySelector('[class*="curPrice" i]') : false;
+      if (hvTxt > 600 || hvImgs >= 4 || hvPrice) {
+        hv.style.removeProperty('display');
+        hv.setAttribute('data-otlobli-blocked', '0'); // قائمة بيضاء — لن يُحجب ثانية
+      }
+    }
     // نحجب فقط ما يبدو فعلاً عرضاً ترويجياً (كلمات مميّزة) - لا نحجب أي طبقة
     // كبيرة عمياءً، فلا نخفي محتوى المتجر ولا صفحة "تحقق أنك إنسان" (الكابتشا)
     // فتصير الشاشة بيضاء. النص المحدود يستبعد شبكات المنتجات.
@@ -2801,6 +2874,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var txt = (el.textContent || '');
       if (txt.length > 400) continue;       // شبكات المحتوى نصّها طويل - نتجاهلها
       if (!PROMO.test(txt)) continue;        // لا بد أن يقرأ كعرض ترويجي
+      // حرّاس محتوى المنتج: طبقة فيها سعر أو حقل إدخال أو ≥3 صور منتجات
+      // ليست عرضاً ترويجياً بل صفحة/شيت حقيقي — ممنوع حجبها.
+      if (el.querySelector && el.querySelector('[class*="curPrice" i], input, textarea')) continue;
+      var kwc = 0, kimgs = el.querySelectorAll ? el.querySelectorAll('img') : [];
+      for (var ki = 0; ki < kimgs.length && kwc < 3; ki++) {
+        if (/kwcdn/i.test(kimgs[ki].currentSrc || kimgs[ki].src || '')) kwc++;
+      }
+      if (kwc >= 3) continue;
       el.setAttribute('data-otlobli-blocked', '1');
       el.style.setProperty('display', 'none', 'important');
     }
@@ -2880,13 +2961,20 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // ثم يصعد لأقرب حاوية عريضة (لكن ليست الصفحة كلها) ويخفيها.
   function hideStoreBannerByText(phrases, maxLen) {
     var vp = viewportSize();
-    // حاوية تضم شريط البحث؟ لا يجوز إخفاؤها أبداً — كان التسلّق يبتلع هيدر
-    // تيمو كاملاً (البانر والبحث بنفس الحاوية) فيختفي البحث عن الزبون.
+    // حاوية تضم شريط البحث أو محتوى منتجات حقيقياً؟ لا يجوز إخفاؤها أبداً —
+    // التسلّق كان يبتلع هيدر تيمو (البانر والبحث معاً) فيختفي البحث، وقد
+    // يبتلع حاوية صفحة كاملة أثناء الرندر فتصير الشاشة بيضاء.
     function containsSearch(n) {
       if (!n || !n.querySelector) return false;
-      return !!(n.querySelector('input:not([type="hidden"])')
+      if (n.querySelector('input:not([type="hidden"])')
         || n.querySelector('[class*="search" i]')
-        || n.querySelector('[aria-label*="بحث"], [aria-label*="search" i]'));
+        || n.querySelector('[aria-label*="بحث"], [aria-label*="search" i]')
+        || n.querySelector('[class*="curPrice" i]')) return true;
+      var pImgs = n.querySelectorAll('img'), pk = 0;
+      for (var pi = 0; pi < pImgs.length && pk < 3; pi++) {
+        if (/kwcdn/i.test(pImgs[pi].currentSrc || pImgs[pi].src || '')) pk++;
+      }
+      return pk >= 3;
     }
     var nodes = document.querySelectorAll('div, section, aside, a, p, span');
     for (var i = 0; i < nodes.length; i++) {
