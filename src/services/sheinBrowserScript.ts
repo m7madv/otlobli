@@ -1033,10 +1033,25 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var heads = document.querySelectorAll('div, span, h2, h3, strong, label, p');
     for (var h = 0; h < heads.length; h++) {
       var ht = (heads[h].textContent || '').trim();
-      if (ht === 'Size' || ht === 'المقاس' || ht === 'Size:' || ht === 'المقاس:' ||
-          (ht.indexOf('Size') === 0 && ht.length <= 12 && !/guide|chart|info/i.test(ht))) return heads[h];
+      if (ht === 'Size' || ht === 'المقاس' || ht === 'Size:' || ht === 'المقاس:'
+        || ht === 'موديل متوافق' || ht === 'Compatible Model' || ht === 'Compatible model'
+        || ht === 'الموديل' || ht === 'موديل'
+        || (ht.indexOf('Size') === 0 && ht.length <= 12 && !/guide|chart|info/i.test(ht))
+        || (ht.indexOf('موديل') === 0 && ht.length <= 22)) return heads[h];
     }
     return null;
+  }
+  // يحلّل ملخّص المتغيّرات ("1 اللون, 25 موديل متوافق") لمعرفة العدد الفعلي
+  // لأن عدّ الـpills على الصفحة غير موثوق (قد يكون الملخّص قبل فتح اللوحة).
+  function temuVariantCounts() {
+    var el = temuVariantSummaryEl();
+    var txt = el ? (el.textContent || '') : '';
+    var cMatch = txt.match(/(\\d+)\\s*(?:colou?rs?|ألوان|اللون|لون)/i);
+    var sMatch = txt.match(/(\\d+)\\s*(?:sizes?|مقاس|مقاسات|موديل|model)/i);
+    return {
+      colors: cMatch ? parseInt(cMatch[1], 10) : -1,  // -1 = غير معروف
+      sizes:  sMatch ? parseInt(sMatch[1], 10) : -1,
+    };
   }
   // قتامة حدّ العنصر (مجموع RGB، أقل=أغمق؛ 999 لو شفاف/غير موجود).
   function temuBorderDarkness(el) {
@@ -1311,7 +1326,20 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
     return { has: true, text: '' };
   }
-  // هل توجد قائمة مقاسات؟ (عنوان "Size"/"المقاس")
+  // هل يتطلب المنتج رفع صورة مخصصة؟ (مثل أساور "Custom Photo").
+  // نبحث عن كلمات دالّة أو حقل رفع ملف (file input).
+  function temuNeedsCustomPhoto() {
+    var fileInputs = document.querySelectorAll('input[type="file"], input[accept*="image"]');
+    if (fileInputs.length > 0) return true;
+    var els = document.querySelectorAll('div, span, p, strong, h2, h3, a, button, label');
+    for (var i = 0; i < els.length; i++) {
+      var t = (els[i].textContent || '').trim();
+      if (t.length < 3 || t.length > 80) continue;
+      if (/custom.?photo|upload.?photo|صورة.?مخصصة|رفع.?صورة|photo.?upload|upload.?image|custom.?image|add.?photo/i.test(t)) return true;
+    }
+    return false;
+  }
+  // هل توجد قائمة مقاسات؟ (عنوان "Size"/"المقاس"/"موديل متوافق")
   function temuHasSizeSection() { return !!temuSizeHeadEl(); }
   // صفحة المنتج المغلقة تعرض ملخّصاً مثل "7 Color, 3 Size" قبل اكتمال الاختيار.
   function temuVariantSummaryEl() {
@@ -1693,27 +1721,39 @@ export const SHEIN_CAPTURE_SCRIPT = `
               return;
             }
           }
-          // ب) منتج تخصيص (نقش اسم) بدون نص → نطلب الكتابة.
+          // ب) منتج يحتاج صورة مخصصة (Custom Photo) → نُعلم الزبون.
+          if (temuNeedsCustomPhoto()) {
+            showMessage(btn, 'أرسل صورتك المطلوبة عبر واتساب مع رقم الطلب');
+            // نكمل الإضافة بدون وقف — المالك سيتابع الصورة على واتساب
+          }
+          // ج) منتج تخصيص نصّي (نقش اسم) بدون نص → نطلب الكتابة.
           var persoChk = temuPersonalization();
           if (persoChk.has && !persoChk.text) {
             showMessage(btn, 'اكتب النص/الاسم المطلوب أولاً');
             return;
           }
           if (!persoChk.has) {
+            // نقرأ عدد الألوان والمقاسات من ملخّص المتغيّرات (أدق من عدّ الـpills).
+            var vCounts = temuVariantCounts();
+            var knownOneColor = vCounts.colors === 1;  // "1 اللون"
+            var knownOneSize  = vCounts.sizes  === 1;  // "1 موديل" أو "1 مقاس"
             // ذكاء: مقاس وحيد → نحدّده تلقائياً قبل التحقق (يحلّ مشكلة ONE SIZE).
-            temuForceSingleSize();
-            // ج) فيه ألوان لكن لم يُحدّد لون — استثناء: لون وحيد لا يحتاج اختياراً.
-            if (temuHasColorSection() && !temuColor() && !temuHasSingleColor()) {
+            if (knownOneSize || temuHasSizeSection()) temuForceSingleSize();
+            // د) فيه ألوان متعددة لكن لم يُحدّد لون — لون وحيد يمرّ مباشرة.
+            if (temuHasColorSection() && !temuColor() && !knownOneColor && !temuHasSingleColor()) {
               showMessage(btn, 'حدد اللون أولاً');
               return;
             }
-            // د) فيه مقاسات لكن لم يُحدّد مقاس.
-            if (temuHasSizeSection() && !temuSelectedSize()) {
-              showMessage(btn, 'حدد المقاس أولاً');
+            // هـ) فيه مقاسات/موديلات متعددة لكن لم يُحدّد شيء.
+            if (temuHasSizeSection() && !temuSelectedSize() && !knownOneSize) {
+              var sHead = temuSizeHeadEl();
+              var sLabel = sHead ? (sHead.textContent || '').trim() : 'المقاس';
+              if (/موديل/i.test(sLabel)) showMessage(btn, 'حدد موديل جوالك أولاً');
+              else showMessage(btn, 'حدد المقاس أولاً');
               return;
             }
           }
-          // هـ) السعر: لا نضيف بصفر/غير مقروء.
+          // ز) السعر: لا نضيف بصفر/غير مقروء.
           if (!(temuPriceUsd() > 0)) {
             showMessage(btn, 'تعذّر قراءة السعر — انتظر ثانية وحاول');
             return;
@@ -2560,7 +2600,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // نحجب فقط ما يبدو فعلاً عرضاً ترويجياً (كلمات مميّزة) - لا نحجب أي طبقة
     // كبيرة عمياءً، فلا نخفي محتوى المتجر ولا صفحة "تحقق أنك إنسان" (الكابتشا)
     // فتصير الشاشة بيضاء. النص المحدود يستبعد شبكات المنتجات.
-    var PROMO = /spin|claim|reward|coupon|billionaire|incredible deals|free gift|lucky draw|congratulations|% ?off|تهانينا|عجلة الحظ|اربح|جائزة|خصم \\d/i;
+    var PROMO = /spin|claim|reward|coupon|billionaire|incredible deals|free gift|lucky draw|congratulations|% ?off|تهانينا|عجلة الحظ|اربح|جائزة|خصم \\d|الملياردير|مجاناً.*احصل|احصل.*مجاناً/i;
     var els = document.querySelectorAll('div, section, aside');
     for (var i = 0; i < els.length; i++) {
       var el = els[i];
@@ -2585,27 +2625,58 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var appMeta = document.querySelector('meta[name="apple-itunes-app"]');
     if (appMeta && appMeta.parentNode) appMeta.parentNode.removeChild(appMeta);
 
-    // بانرات نصّية مزعجة (تثبيت التطبيق "Shop Like a Billionaire" / "تسجيل
-    // الدخول للحصول على أفضل تجربة") - نطابق نصاً قصيراً مميّزاً ونخفي حاويته.
+    // بانرات نصّية مزعجة — عربي وإنجليزي معاً
     hideStoreBannerByText([
       'billionaire', 'incredible deals', 'shop like', 'open in the app',
       'sign in for the best', 'get the app', 'download the app',
-    ], 90);
+      'الملياردير', 'تسوق مثل', 'احصل على التطبيق', 'تنزيل التطبيق',
+    ], 110);
 
-    // أيقونات الحساب/السلة أعلى-يمين الشاشة - نخفيها ليبقى للزبون البحث
-    // والمنتجات فقط (نُبقي شريط البحث لأنه واسع وليس أيقونة صغيرة).
-    var clickables = document.querySelectorAll('a, button, [role="button"], svg, [class*="icon" i]');
-    for (var k = 0; k < clickables.length; k++) {
-      var ic = clickables[k];
-      if (ic.id && ic.id.indexOf('otlobli') === 0) continue;
-      if (ic.querySelector && ic.querySelector('input')) continue;
-      var ir = ic.getBoundingClientRect();
-      if (ir.top < 0 || ir.top > 90) continue;
-      if (ir.left < vp.width * 0.55) continue; // اليمين فقط
-      if (ir.width <= 0 || ir.width > 60 || ir.height <= 0 || ir.height > 60) continue;
-      ic.setAttribute('data-otlobli-blocked', '1');
-      ic.style.setProperty('visibility', 'hidden', 'important');
-      ic.style.setProperty('pointer-events', 'none', 'important');
+    if (IS_TEMU) {
+      // شريط التنقل السفلي الخاص بتيمو (حسابي/السلة/طلباتي/الرئيسية) — نخفيه
+      // ليبقى شريط otlobli هو الوحيد الظاهر في الأسفل.
+      var allEls = document.querySelectorAll('div, nav, footer, ul');
+      for (var nb = 0; nb < allEls.length; nb++) {
+        var nv = allEls[nb];
+        if (nv.id && nv.id.indexOf('otlobli') === 0) continue;
+        if (nv.getAttribute && nv.getAttribute('data-otlobli-blocked')) continue;
+        var nvTxt = (nv.textContent || '');
+        // نفحص أن يحتوي كلمات التنقل السفلي لتيمو ويكون نصّه قصيراً
+        if (!/حسابي|طلباتي|الرئيسية/.test(nvTxt) || nvTxt.length > 60) continue;
+        var nvCs = window.getComputedStyle(nv);
+        if (nvCs.position !== 'fixed') continue;
+        var nvR = nv.getBoundingClientRect();
+        if (nvR.top < vp.height * 0.7) continue; // لا بد أن يكون في أسفل الشاشة
+        nv.setAttribute('data-otlobli-blocked', '1');
+        nv.style.setProperty('display', 'none', 'important');
+      }
+      // شارة "عربة التسوق / شحن مجاني" الخضراء العائمة
+      hideStoreBannerByText(['عربة النسوق', 'شحن مجاني', 'عربة التسوق'], 25);
+      var floatingCarts = document.querySelectorAll('[class*="float" i], [class*="cart-btn" i], [class*="shopping-cart" i]');
+      for (var fc = 0; fc < floatingCarts.length; fc++) {
+        var fcEl = floatingCarts[fc];
+        if (fcEl.id && fcEl.id.indexOf('otlobli') === 0) continue;
+        var fcR = fcEl.getBoundingClientRect();
+        if (fcR.width < 40 || fcR.width > 120 || fcR.height < 40 || fcR.height > 120) continue;
+        var fcCs = window.getComputedStyle(fcEl);
+        if (fcCs.position !== 'fixed' && fcCs.position !== 'absolute') continue;
+        fcEl.style.setProperty('display', 'none', 'important');
+      }
+      // أيقونات الحساب/السلة في رأس الصفحة (أعلى الشاشة) — نخفيها
+      var headerIcons = document.querySelectorAll('a, button, [role="button"]');
+      for (var k = 0; k < headerIcons.length; k++) {
+        var ic = headerIcons[k];
+        if (ic.id && ic.id.indexOf('otlobli') === 0) continue;
+        if (ic.getAttribute && ic.getAttribute('data-otlobli-blocked')) continue;
+        if (ic.querySelector && ic.querySelector('input')) continue;
+        var ir = ic.getBoundingClientRect();
+        if (ir.top < 0 || ir.top > 90) continue;
+        if (ir.left < vp.width * 0.55) continue;
+        if (ir.width <= 0 || ir.width > 60 || ir.height <= 0 || ir.height > 60) continue;
+        ic.setAttribute('data-otlobli-blocked', '1');
+        ic.style.setProperty('visibility', 'hidden', 'important');
+        ic.style.setProperty('pointer-events', 'none', 'important');
+      }
     }
   }
 
