@@ -649,7 +649,6 @@ function App() {
         setPendingWhatsappAuth(null)
         const target = await fetchProfileAfterLogin(phone)
         setScreen(target)
-        }
         showNotice('تم تأكيد رقم واتساب')
       })
       .catch((error: unknown) => showNotice(getPublicErrorMessage(error)))
