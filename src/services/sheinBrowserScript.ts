@@ -961,20 +961,21 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return false;
   }
   function temuImage() {
-    // 1) إن نقر الزبون لوناً: نستخدم صورة كرت ذلك اللون (تطابق مضمون للصورة
-    //    مع اللون المختار - تحلّ مشكلة بقاء صورة اللون الأول).
+    // 1) إن نقر الزبون لوناً: نستخدم صورة الهيرو التي التقطها الـtimeout (250ms
+    //    بعد النقر) — تعكس اللون المختار فعلاً لأن تيمو يحدّث صورة الهيرو
+    //    فور تغيير اللون. أشمل من صورة الكرت الصغيرة ومطابقة للمرئي.
     if (window.__otlobliTemuColorImg && window.__otlobliTemuColorGid === temuGoodsId()) {
       return window.__otlobliTemuColorImg;
     }
     // 2) الصورة الرئيسية = أكبر صورة kwcdn في أعلى الصفحة (المعرض الرئيسي)، لا
-    // الصور الثانوية/التفصيلية الأسفل. fallback: og:image.
+    // الصور الثانوية أو صور كروت الألوان (عرضها < 200px عادةً). fallback: og:image.
     var imgs = document.querySelectorAll('img');
     var best = '', bestA = 0;
     for (var i = 0; i < imgs.length; i++) {
       var src = imgs[i].currentSrc || imgs[i].src || '';
       if (!/kwcdn|temu/i.test(src)) continue;
       var r = imgs[i].getBoundingClientRect();
-      if (r.top > 720 || r.width < 120) continue;          // منطقة المعرض العلوية
+      if (r.top > 720 || r.width < 200) continue;          // كروت الألوان < 200px نتجاهلها
       var a = r.width * r.height;
       if (a > bestA) { bestA = a; best = src; }
     }
@@ -1161,10 +1162,31 @@ export const SHEIN_CAPTURE_SCRIPT = `
                   }
                 }
                 if (colorName2) {
+                  var gidNow = temuGoodsId();
                   window.__otlobliTemuColor = colorName2;
-                  window.__otlobliTemuColorGid = temuGoodsId();
+                  window.__otlobliTemuColorGid = gidNow;
+                  // الكرت الصغير = صورة اللون للعرض في السلة (colorImage)
                   var cSrc = cardImg2.currentSrc || cardImg2.src || '';
-                  window.__otlobliTemuColorImg = /kwcdn|temu/i.test(cSrc) ? cSrc : '';
+                  window.__otlobliTemuColorSwatch = /kwcdn|temu/i.test(cSrc) ? cSrc : '';
+                  // امسح الهيرو القديم — سيُحدَّث بعد 250ms حين تُحدّث تيمو صورة الهيرو
+                  window.__otlobliTemuColorImg = '';
+                  // 250ms بعد النقر: التقط صورة الهيرو الكبيرة (تعكس اللون المختار)
+                  ;(function(gid) {
+                    setTimeout(function() {
+                      if (window.__otlobliTemuColorGid !== gid) return;
+                      var himgs = document.querySelectorAll('img');
+                      var hbest = '', hbestA = 0;
+                      for (var hi = 0; hi < himgs.length; hi++) {
+                        var hsrc = himgs[hi].currentSrc || himgs[hi].src || '';
+                        if (!/kwcdn|temu/i.test(hsrc)) continue;
+                        var hr = himgs[hi].getBoundingClientRect();
+                        if (hr.width < 200 || hr.height < 200) continue;
+                        var ha = hr.width * hr.height;
+                        if (ha > hbestA) { hbestA = ha; hbest = hsrc; }
+                      }
+                      if (hbest) window.__otlobliTemuColorImg = hbest;
+                    }, 250);
+                  })(gidNow);
                   return;
                 }
               }
@@ -1218,12 +1240,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var perso = temuPersonalization();
       // منتج التخصيص: نضع النص المطلوب مكان المقاس ليصل للمالك بوضوح.
       var temuSizeVal = perso.has ? ('نقش: ' + perso.text) : temuSelectedSize();
+      var temuColorSwatch = (window.__otlobliTemuColorSwatch && window.__otlobliTemuColorGid === temuGoodsId())
+        ? window.__otlobliTemuColorSwatch : '';
       return {
         title: temuTitle(),
         priceUsd: temuPriceUsd(),
         image: temuImage(),
-        colorImage: '',
-        colorImageFound: false,
+        colorImage: temuColorSwatch,
+        colorImageFound: !!temuColorSwatch,
         color: temuColor(),
         size: temuSizeVal,
         sizesAvailable: [],
@@ -2328,7 +2352,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // المزعجة ولا نشغّل منطق الالتقاط/الحجب الخاص بشي إن (الذي قد يخرّب صفحاتهم).
     if (!IS_SHEIN) {
       // زر الإضافة أولاً وبحماية، حتى لو رمى التنظيف خطأ يبقى الزر يظهر.
-      if (IS_TEMU) { try { ensureAddToCartButton(); } catch (e) {} }
+      if (IS_TEMU) {
+        try { ensureAddToCartButton(); } catch (e) {}
+        try { detectEmptyTemuSearch(); } catch (e) {}
+      }
       try { killStorePopups(); } catch (e) {}
       return;
     }
@@ -2342,6 +2369,48 @@ export const SHEIN_CAPTURE_SCRIPT = `
     hideListingCardAddButtons();
     hideForeignBottomNav();
     hideStrayFixedBottomBars();
+  }
+
+  // يكشف صفحة بحث تيمو الفارغة (الناتجة عن حجب الإعلانات الذي يمنع تحميل
+  // نتائج البحث) ويعرض رسالة توضيحية للمستخدم — يعمل مرة واحدة فقط لكل رحلة.
+  var __otlobliSearchMsgShown = false;
+  function detectEmptyTemuSearch() {
+    if (__otlobliSearchMsgShown) return;
+    // صفحة نتائج البحث فقط
+    if (!/search/i.test(location.href) && !/search/i.test(location.pathname)) return;
+    if (looksLikeProductPage()) return;
+    // نتحقق بعد اكتمال التحميل
+    if (document.readyState !== 'complete') return;
+    // إذا وُجدت صور منتجات مرئية — الصفحة ليست فارغة
+    var imgs = document.querySelectorAll('img');
+    var hasProducts = false;
+    for (var i = 0; i < imgs.length; i++) {
+      var src = imgs[i].currentSrc || imgs[i].src || '';
+      if (!/kwcdn|temu/i.test(src)) continue;
+      var r = imgs[i].getBoundingClientRect();
+      if (r.width > 80 && r.height > 80) { hasProducts = true; break; }
+    }
+    if (hasProducts) return;
+    __otlobliSearchMsgShown = true;
+    var banner = document.getElementById('otlobli-search-warn');
+    if (banner) return;
+    banner = document.createElement('div');
+    banner.id = 'otlobli-search-warn';
+    banner.style.cssText = 'position:fixed;top:60px;left:12px;right:12px;z-index:2147483640;' +
+      'background:#fff3cd;color:#7a5b00;border:1px solid #ffe28a;border-radius:12px;' +
+      'padding:14px 16px;font-size:14px;text-align:center;direction:rtl;' +
+      'box-shadow:0 4px 12px rgba(0,0,0,.18);font-family:Cairo,system-ui,sans-serif;line-height:1.5;';
+    banner.innerHTML = '<strong>نتائج البحث لا تظهر</strong><br>' +
+      'يبدو أن حجب الإعلانات يمنع تحميل المنتجات.<br>' +
+      '<small>أوقف الحجب مؤقتاً لـ temu.com وأعد تحميل الصفحة.</small>';
+    var closeBtn = document.createElement('button');
+    closeBtn.textContent = '✕';
+    closeBtn.style.cssText = 'position:absolute;top:8px;left:10px;background:none;border:none;' +
+      'font-size:16px;cursor:pointer;color:#7a5b00;padding:0;';
+    closeBtn.onclick = function() { banner.remove(); };
+    banner.appendChild(closeBtn);
+    document.body.appendChild(banner);
+    setTimeout(function() { if (banner.parentNode) banner.remove(); }, 8000);
   }
 
   // يزيل النوافذ المنبثقة الترويجية المزعجة على المتاجر غير شي إن (عجلة الحظ،

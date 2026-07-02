@@ -141,8 +141,9 @@ function CopyBtn({ text }: { text: string }) {
 // Vercel — وجودها في headers يجعل المتصفح يرفض الطلب بالكامل بصمت (non ISO-8859-1).
 const stripBom = (s: string | undefined) => (s || '').replace(/[​-‍﻿]/g, '').trim()
 const SUPABASE_URL = stripBom(import.meta.env.VITE_SUPABASE_URL as string | undefined)
-const ADMIN_ORDERS_FN = `${SUPABASE_URL}/functions/v1/admin-orders`
-const ADMIN_DRIVERS_FN = `${SUPABASE_URL}/functions/v1/admin-drivers`
+const ADMIN_ORDERS_FN   = `${SUPABASE_URL}/functions/v1/admin-orders`
+const ADMIN_DRIVERS_FN  = `${SUPABASE_URL}/functions/v1/admin-drivers`
+const APP_SETTINGS_FN   = `${SUPABASE_URL}/functions/v1/app-settings`
 const ANON_KEY = stripBom(import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)
 
 async function fetchOrders(pin: string) {
@@ -449,15 +450,7 @@ function AdminApp() {
         {tab === 'shipping' && <ShippingList orders={filteredOrders} drivers={driverOptions} onAdvance={advanceOrder} onUpdate={updateOrder} onOpen={openModal} />}
         {tab === 'customers' && <CustomersGrid orders={orders} />}
         {tab === 'drivers' && <DriversPanel pin={pin} showNotice={showNotice} />}
-        {tab === 'settings' && (
-          <section className="panel settings">
-            <h2>إعدادات التشغيل</h2>
-            <p>تعديل إعدادات الدفع والشحن الدائم سيتم عبر لوحة إعدادات مخصصة لاحقاً.</p>
-            <InfoRow label="المطابقة" value="شام كاش B2B بالمبلغ الدقيق فقط" />
-            <InfoRow label="الشحن الداخلي" value="القدموس" />
-            <InfoRow label="مصدر الطلبات" value="Supabase + Vercel API" />
-          </section>
-        )}
+        {tab === 'settings' && <SettingsPanel pin={pin} showNotice={showNotice} />}
       </main>
 
       {/* ── Order Modal ── */}
@@ -1030,6 +1023,128 @@ function DriversPanel({ pin, showNotice }: { pin: string; showNotice: (message: 
           </tbody>
         </table>
       </div>
+    </section>
+  )
+}
+
+// ── Settings Panel ────────────────────────────────────────────────────────────
+function SettingsPanel({ pin, showNotice }: { pin: string; showNotice: (msg: string) => void }) {
+  const [sheinCost,  setSheinCost]  = useState('')
+  const [temuCost,   setTemuCost]   = useState('')
+  const [usdRate,    setUsdRate]    = useState('')
+  const [saving,     setSaving]     = useState(false)
+  const [loaded,     setLoaded]     = useState(false)
+
+  useEffect(() => {
+    void fetch(APP_SETTINGS_FN, {
+      headers: { apikey: ANON_KEY, authorization: `Bearer ${ANON_KEY}` },
+    })
+      .then((r) => r.json() as Promise<Record<string, string>>)
+      .then((data) => {
+        setSheinCost(data.shipping_cost_shein_syp ?? '90000')
+        setTemuCost(data.shipping_cost_temu_syp ?? '90000')
+        setUsdRate(data.usd_to_syp_rate ?? '13000')
+        setLoaded(true)
+      })
+      .catch(() => showNotice('تعذر جلب الإعدادات'))
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const saveSetting = (key: string, value: string) => {
+    setSaving(true)
+    return fetch(APP_SETTINGS_FN, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-admin-pin': pin,
+        apikey: ANON_KEY,
+        authorization: `Bearer ${ANON_KEY}`,
+      },
+      body: JSON.stringify({ key, value }),
+    })
+      .then((r) => { if (!r.ok) throw new Error(); showNotice('تم حفظ الإعداد') })
+      .catch(() => showNotice('فشل حفظ الإعداد'))
+      .finally(() => setSaving(false))
+  }
+
+  if (!loaded) return <section className="panel settings"><p>جار تحميل الإعدادات...</p></section>
+
+  return (
+    <section className="panel settings">
+      <h2>إعدادات التشغيل</h2>
+
+      <fieldset className="settings-group">
+        <legend>تكلفة الشحن (بالليرة السورية)</legend>
+
+        <label className="field">
+          <span>شحن SHEIN</span>
+          <div className="settings-row">
+            <input
+              type="number"
+              min="0"
+              step="500"
+              value={sheinCost}
+              onChange={(e) => setSheinCost(e.target.value)}
+            />
+            <button
+              className="ghost-action"
+              disabled={saving}
+              onClick={() => void saveSetting('shipping_cost_shein_syp', sheinCost)}
+            >
+              حفظ
+            </button>
+          </div>
+        </label>
+
+        <label className="field">
+          <span>شحن Temu</span>
+          <div className="settings-row">
+            <input
+              type="number"
+              min="0"
+              step="500"
+              value={temuCost}
+              onChange={(e) => setTemuCost(e.target.value)}
+            />
+            <button
+              className="ghost-action"
+              disabled={saving}
+              onClick={() => void saveSetting('shipping_cost_temu_syp', temuCost)}
+            >
+              حفظ
+            </button>
+          </div>
+        </label>
+      </fieldset>
+
+      <fieldset className="settings-group">
+        <legend>سعر الصرف</legend>
+        <label className="field">
+          <span>دولار → ليرة سورية</span>
+          <div className="settings-row">
+            <input
+              type="number"
+              min="0"
+              step="100"
+              value={usdRate}
+              onChange={(e) => setUsdRate(e.target.value)}
+            />
+            <button
+              className="ghost-action"
+              disabled={saving}
+              onClick={() => void saveSetting('usd_to_syp_rate', usdRate)}
+            >
+              حفظ
+            </button>
+          </div>
+        </label>
+      </fieldset>
+
+      <fieldset className="settings-group">
+        <legend>معلومات ثابتة</legend>
+        <InfoRow label="المطابقة"      value="شام كاش B2B بالمبلغ الدقيق فقط" />
+        <InfoRow label="الشحن الداخلي" value="القدموس" />
+        <InfoRow label="مصدر الطلبات"  value="Supabase + Vercel API" />
+      </fieldset>
     </section>
   )
 }

@@ -139,6 +139,7 @@ export type Address = {
   name: string
   phone: string
   governorate: string
+  qadmousBranch?: string
   city: string
   details: string
   notes: string

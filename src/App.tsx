@@ -3,11 +3,11 @@ import type { ReactNode } from 'react'
 import {
   allowedProducts,
   blockedProducts,
+  FIXED_SHIPPING_SYP,
   initialAddresses,
   initialOrders,
   orderStatuses,
   paymentSettings,
-  shippingFees,
 } from './domain/fixtures'
 import { makeOrderId, today } from './domain/orders'
 import { buildPriceBreakdown, formatMoney, formatPriceSyp, formatUsd, sumPriceLines } from './domain/pricing'
@@ -24,6 +24,8 @@ const API_BASE = import.meta.env.VITE_WHATSAPP_API_URL || ''
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 const NOTIFY_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/telegram-notify` : ''
+const APP_SETTINGS_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/app-settings` : ''
+const CUSTOMER_PROFILE_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/customer-profile` : ''
 
 // موقع SHEIN الذي يتصفّحه الزبون. نستخدم نسخة الأردن لأنها تعرض العربية
 // بثبات (نسخة لبنان m.shein.com/lb تعرض الإنجليزية ولا تقبل العربية).
@@ -67,6 +69,31 @@ const SYRIA_GOVERNORATES = [
   'دمشق', 'ريف دمشق', 'حلب', 'حمص', 'حماة', 'اللاذقية', 'طرطوس',
   'درعا', 'السويداء', 'القنيطرة', 'دير الزور', 'الرقة', 'الحسكة', 'إدلب',
 ]
+
+// فروع شركة القدموس للشحن والتوصيل في سوريا، مرتّبة حسب المحافظة.
+// القائمة قابلة للتحديث بحسب فروع القدموس الفعلية.
+const QADMOUS_BRANCHES: Record<string, string[]> = {
+  'دمشق': [
+    'المزة', 'كفرسوسة', 'المالكي', 'الشعلان', 'القصاع', 'باب توما',
+    'الميدان', 'التضامن', 'برزة', 'دمر', 'القابون', 'حي الأمين',
+  ],
+  'ريف دمشق': [
+    'جرمانا', 'صحنايا', 'داريا', 'قدسيا', 'معضمية الشام',
+    'دوما', 'الكسوة', 'الزبداني', 'يلدا',
+  ],
+  'حلب': ['الفرع المركزي', 'السليمانية', 'العزيزية', 'الشيخ مقصود'],
+  'حمص': ['الفرع المركزي', 'الوعر', 'العدوية', 'الزهراء'],
+  'حماة': ['الفرع المركزي'],
+  'اللاذقية': ['الفرع المركزي', 'الزراعة', 'الصليبة', 'القرداحة'],
+  'طرطوس': ['الفرع المركزي', 'بانياس', 'صافيتا', 'جبلة'],
+  'درعا': ['الفرع المركزي', 'إزرع'],
+  'السويداء': ['الفرع المركزي', 'شهبا', 'صلخد'],
+  'القنيطرة': ['الفرع المركزي'],
+  'دير الزور': ['الفرع المركزي'],
+  'الرقة': ['الفرع المركزي'],
+  'الحسكة': ['الفرع المركزي', 'القامشلي'],
+  'إدلب': ['الفرع المركزي'],
+}
 
 // مهم: نستخدم || وليس ?? لأن secret البناء قد يصل نصاً فارغاً ('') وليس
 // undefined، و?? لا تمسك النص الفارغ فيصير parseInt('')=NaN ويصفّر كل
@@ -128,6 +155,8 @@ function App() {
   const [paymentCurrency, setPaymentCurrency] = useStoredState<PaymentCurrency>(storageKeys.paymentCurrency, 'SYP')
   const [storedRate, setExchangeRate] = useStoredState<number>(storageKeys.exchangeRate, DEFAULT_EXCHANGE_RATE)
   const exchangeRate = (storedRate && !isNaN(storedRate) && storedRate > 1000) ? storedRate : DEFAULT_EXCHANGE_RATE
+  const [shippingCostShein, setShippingCostShein] = useState(FIXED_SHIPPING_SYP)
+  const [shippingCostTemu, setShippingCostTemu] = useState(FIXED_SHIPPING_SYP)
 
   const [initialNow] = useState(() => Date.now())
   const initialPendingWhatsappAuth =
@@ -299,7 +328,17 @@ function App() {
       ...item,
       id: `${item.id}-reorder-${Date.now()}-${index}`,
     }))
-    setCartItems((items) => [...items, ...reordered])
+    // اكتشف المتجر من رابط المنتج الأول وأضف للسلة الصحيحة
+    const firstLink = pastOrder.items[0]?.sourceLink ?? ''
+    const orderStore: StoreId = /temu\.com/i.test(firstLink) ? 'temu' : 'shein'
+    if (selectedStoreRef.current !== orderStore) {
+      selectedStoreRef.current = orderStore
+      setSelectedStore(orderStore)
+    }
+    setCartsByStore((all) => ({
+      ...all,
+      [orderStore]: [...(all[orderStore] ?? []), ...reordered],
+    }))
     showNotice('تمت إضافة منتجات الطلب إلى السلة')
     setScreen('cart')
   }
@@ -307,6 +346,28 @@ function App() {
   const logout = () => {
     setSessionToken('')
     setScreen('login')
+  }
+
+  // تجلب ملف الزبون من الخادم بعد نجاح OTP. إذا وُجد الملف → home مباشرة.
+  // إذا لم يوجد → onboarding (سيُحفظ الاسم/المحافظة إلى الخادم بعد الإدخال).
+  const fetchProfileAfterLogin = async (loginPhone: string): Promise<'home' | 'onboarding'> => {
+    if (!CUSTOMER_PROFILE_URL) return userProfile ? 'home' : 'onboarding'
+    try {
+      const data = await fetch(CUSTOMER_PROFILE_URL, {
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'x-customer-phone': loginPhone,
+        },
+      }).then((r) => r.json()) as { name?: string; governorate?: string }
+      if (data?.name) {
+        const profile: UserProfile = { name: data.name, governorate: data.governorate || 'دمشق' }
+        setUserProfile(profile)
+        setRecipient((r) => ({ ...r, name: profile.name, governorate: profile.governorate }))
+        return 'home'
+      }
+    } catch { /* fallback below */ }
+    return userProfile ? 'home' : 'onboarding'
   }
 
   useEffect(() => {
@@ -325,6 +386,22 @@ function App() {
     return () => window.clearInterval(intervalId)
   }, [setExchangeRate])
 
+  // جلب تكلفة الشحن الديناميكية من لوحة الإدارة عند التشغيل
+  useEffect(() => {
+    if (!APP_SETTINGS_URL) return
+    void fetch(APP_SETTINGS_URL, {
+      headers: { 'apikey': SUPABASE_ANON_KEY, 'authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+    })
+      .then((r) => r.json())
+      .then((data: Record<string, string>) => {
+        const shein = parseInt(data.shipping_cost_shein_syp ?? '0', 10)
+        const temu = parseInt(data.shipping_cost_temu_syp ?? '0', 10)
+        if (shein > 0) setShippingCostShein(shein)
+        if (temu > 0) setShippingCostTemu(temu)
+      })
+      .catch(() => undefined)
+  }, [])
+
   useEffect(() => {
     if (screen !== 'otp' || otpExpiresInSeconds <= 0) return undefined
     const timer = window.setInterval(() => {
@@ -341,17 +418,14 @@ function App() {
     const checkInboundMessage = () => {
       void appApi.auth
         .verifyOtp(phone, '')
-        .then(() => {
+        .then(async () => {
           setSessionToken(phone)
           setPendingWhatsappAuth(null)
           setInboundWhatsappUrl('')
           setInboundSupportPhone('')
           setInboundVerificationMessage('')
-          if (!userProfile) {
-            setScreen('onboarding')
-          } else {
-            setScreen('home')
-          }
+          const target = await fetchProfileAfterLogin(phone)
+          setScreen(target)
           showNotice('تم تأكيد رقم واتساب من الرسالة')
         })
         .catch(() => undefined)
@@ -370,14 +444,11 @@ function App() {
     const check = () => {
       void appApi.auth
         .verifyOtp(phone, telegramOtp)
-        .then(() => {
+        .then(async () => {
           setSessionToken(phone)
           setTelegramOtp('')
-          if (!userProfile) {
-            setScreen('onboarding')
-          } else {
-            setScreen('home')
-          }
+          const target = await fetchProfileAfterLogin(phone)
+          setScreen(target)
           showNotice('تم تأكيد رقمك بنجاح')
         })
         .catch(() => undefined)
@@ -420,19 +491,24 @@ function App() {
   const getItemPriceSyp = (item: { priceSyp: number; priceUsd?: number }) =>
     item.priceSyp > 0 ? item.priceSyp : Math.round((item.priceUsd ?? 0) * exchangeRate)
 
+  // تكلفة الشحن تُحسب بحسب المتجر الحالي وتُحدَّث من الإدارة
+  const currentShippingFees = useMemo(() => [
+    { label: 'تكلفة الشحن', value: selectedStore === 'temu' ? shippingCostTemu : shippingCostShein },
+  ], [selectedStore, shippingCostShein, shippingCostTemu])
+
   const subtotalBreakdown = useMemo(() => {
     if (cartItems.length > 0) {
       const productsTotal = cartItems.reduce((sum, item) => sum + getItemPriceSyp(item) * item.quantity, 0)
-      return [{ label: 'مجموع المنتجات', value: productsTotal }, ...shippingFees]
+      return [{ label: 'مجموع المنتجات', value: productsTotal }, ...currentShippingFees]
     }
     return buildPriceBreakdown({
       label: 'سعر المنتج',
       productPriceSyp: activeProduct?.priceSyp ?? 0,
       quantity,
-      fees: shippingFees,
+      fees: currentShippingFees,
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeProduct?.priceSyp, cartItems, quantity, exchangeRate])
+  }, [activeProduct?.priceSyp, cartItems, quantity, exchangeRate, currentShippingFees])
 
   const subtotal = useMemo(() => sumPriceLines(subtotalBreakdown), [subtotalBreakdown])
 
@@ -543,17 +619,14 @@ function App() {
       setAuthState('verifying')
       void appApi.auth
         .verifyOtp(phone, '')
-        .then(() => {
+        .then(async () => {
           setSessionToken(phone)
           setPendingWhatsappAuth(null)
           setInboundWhatsappUrl('')
           setInboundSupportPhone('')
           setInboundVerificationMessage('')
-          if (!userProfile) {
-            setScreen('onboarding')
-          } else {
-            setScreen('home')
-          }
+          const target = await fetchProfileAfterLogin(phone)
+          setScreen(target)
           showNotice('تم تأكيد رقم واتساب من الرسالة')
         })
         .catch((error: unknown) => showNotice(getPublicErrorMessage(error)))
@@ -571,13 +644,11 @@ function App() {
     setAuthState('verifying')
     void appApi.auth
       .verifyOtp(phone, code)
-      .then(() => {
+      .then(async () => {
         setSessionToken(phone)
         setPendingWhatsappAuth(null)
-        if (!userProfile) {
-          setScreen('onboarding')
-        } else {
-          setScreen('home')
+        const target = await fetchProfileAfterLogin(phone)
+        setScreen(target)
         }
         showNotice('تم تأكيد رقم واتساب')
       })
@@ -597,10 +668,11 @@ function App() {
       if (authState === 'idle') {
         setAuthState('verifying')
         void appApi.auth.verifyOtp(phone, code)
-          .then(() => {
+          .then(async () => {
             setSessionToken(phone)
             setPendingWhatsappAuth(null)
-            setScreen(!userProfile ? 'onboarding' : 'home')
+            const target = await fetchProfileAfterLogin(phone)
+            setScreen(target)
           })
           .catch((error: unknown) => {
             showNotice(getPublicErrorMessage(error))
@@ -982,8 +1054,10 @@ function App() {
       id: orderId,
       customer: recipient.name || userProfile?.name || 'عميل otlobli',
       phone: recipient.phone || phone,
-      city: recipient.city || recipient.governorate || 'غير محدد',
-      address: recipient.details || 'عنوان غير مكتمل',
+      city: recipient.governorate || 'غير محدد',
+      address: recipient.qadmousBranch
+        ? `فرع القدموس: ${recipient.qadmousBranch}${recipient.details ? ' - ' + recipient.details : ''}`
+        : recipient.details || 'فرع القدموس (لم يُحدَّد)',
       items: cartItems,
       total,
       paymentStatus: 'بانتظار الدفع',
@@ -1222,6 +1296,19 @@ function App() {
               const profile: UserProfile = { name: onboardingName.trim(), governorate: onboardingGov }
               setUserProfile(profile)
               setRecipient({ ...recipient, name: profile.name, governorate: profile.governorate })
+              // حفظ الملف في الخادم حتى لا يحتاج الزبون إعادة الإدخال عند تسجيل دخول لاحق
+              if (CUSTOMER_PROFILE_URL && phone) {
+                void fetch(CUSTOMER_PROFILE_URL, {
+                  method: 'POST',
+                  headers: {
+                    'content-type': 'application/json',
+                    'apikey': SUPABASE_ANON_KEY,
+                    'authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                    'x-customer-phone': phone,
+                  },
+                  body: JSON.stringify({ name: profile.name, governorate: profile.governorate }),
+                }).catch(() => undefined)
+              }
               setScreen('home')
             }}
           >
@@ -1578,7 +1665,7 @@ function App() {
                 <span>المحافظة *</span>
                 <select
                   value={recipient.governorate}
-                  onChange={(e) => setRecipient({ ...recipient, governorate: e.target.value })}
+                  onChange={(e) => setRecipient({ ...recipient, governorate: e.target.value, qadmousBranch: '' })}
                   required
                 >
                   {SYRIA_GOVERNORATES.map((gov) => (
@@ -1586,6 +1673,20 @@ function App() {
                   ))}
                 </select>
               </label>
+              {QADMOUS_BRANCHES[recipient.governorate] && (
+                <label className="field">
+                  <span>فرع القدموس للاستلام</span>
+                  <select
+                    value={recipient.qadmousBranch ?? ''}
+                    onChange={(e) => setRecipient({ ...recipient, qadmousBranch: e.target.value })}
+                  >
+                    <option value="">— اختر أقرب فرع —</option>
+                    {QADMOUS_BRANCHES[recipient.governorate].map((branch) => (
+                      <option key={branch} value={branch}>{branch}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
             </div>
             <InfoRow icon="inventory_2" title="طريقة التوصيل" body="التسليم داخل سوريا عبر القدموس عند توفر رقم الشحنة." />
             <CurrencyToggle value={paymentCurrency} onChange={setPaymentCurrency} />
