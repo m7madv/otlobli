@@ -58,26 +58,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
-  // تيمو: فرض نسخة الأردن العربية بصرف النظر عن VPN المستخدم.
-  // الخادم يُحوّل www.temu.com حسب IP → نسخة إنجليزية/أوروبية بالعملة المحلية.
-  // الحل: نُحوّل فوراً لـ temu.com/jo/ (عربي + دينار أردني ثابت ≈ 1.41$).
-  // الدينار الأردني محوّل تلقائياً لدولار في temuPriceUsd() فلا يحتاج تعديل.
-  // حماية الحلقة: مؤقت 8 ثوانٍ في sessionStorage — لو حوّلنا مرتين متتاليتين
-  // ووجدنا أنفسنا ثانية على مسار غير عربي، نتوقف ونقبل الوضع تجنّباً للجمود.
-  if (IS_TEMU) {
-    var arabicTemuRe = /\\/(sa|ae|kw|jo|bh|qa|eg|iq|om)\\//i;
-    if (!arabicTemuRe.test(location.pathname)) {
-      var temuRedTs = parseInt(sessionStorage.getItem('__otlobliTemuLocale') || '0', 10);
-      if (Date.now() - temuRedTs > 8000) {
-        sessionStorage.setItem('__otlobliTemuLocale', String(Date.now()));
-        // نحاول الحفاظ على مسار المنتج (مثلاً /us/product → /jo/product)
-        var targetHref = location.href.replace(/temu\\.com\\/[a-z]{2}\\//i, 'temu.com/jo/');
-        if (targetHref === location.href) targetHref = 'https://www.temu.com/jo/';
-        location.replace(targetHref);
-        return;
-      }
-    }
-  }
+  // التحويل لـ temu.com/jo/ يتم على المستوى الأصلي (urlChangeEvent في App.tsx) قبل
+  // تحميل الصفحة؛ التحويل JS كان يتعارض معه ويسبب شاشة بيضاء على بعض المنتجات.
 
   // Block Service Worker registration outright, BEFORE SHEIN's own scripts
   // ever run (this fires at documentStart). A SW that controls the page
@@ -1310,18 +1292,18 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }, true);
   }
 
-  // منتج تخصيص (نقش اسم): يكشف وجود التخصيص ويلتقط النص إن كتبه الزبون.
-  // ملاحظة: حقل الإدخال قد يكون داخل شيت الخيارات (غير مرئي على الصفحة الرئيسية)
-  // → نكتفي بوجود شارة "التخصيص" ونُحيل إدخال النص للسلة لاحقاً.
+  // منتج تخصيص (نقش اسم): يكشف وجود التخصيص الشخصي (نقش اسم، حفر نص).
+  // تمييز دقيق: "نقش" وحدها تعني نمط/طباعة (جوارب، قمصان)؛ "نقش اسم" / "محفور"
+  // / "engrav" / "personaliz" تعني تخصيصاً شخصياً حقيقياً يحتاج إدخال نص.
   function temuPersonalization() {
-    var hasPersoLabel = false;
-    var labels = document.querySelectorAll('div, span, p, strong, h2, h3, a, button');
+    // مؤشرات قوية: نقش اسم حقيقي لا شكّ فيه
+    var STRONG = /personaliz|engrav|محفور|محفورة|حفر\\s*اسم|نقش\\s*اسم|نقش\\s*نص|custom\\s*text|custom\\s*name|اكتب\\s*اسم|اسم\\s*مخصص|نص\\s*مخصص|اكتب\\s*نص/i;
+    var hasStrong = false;
+    var labels = document.querySelectorAll('h1, h2, h3, title, strong, .goods-title, [class*="title" i], [class*="name" i]');
     for (var i = 0; i < labels.length; i++) {
-      var lt = (labels[i].textContent || '');
-      if (lt.length < 60 && /personaliz|تخصيص|نقش|engrav/i.test(lt)) { hasPersoLabel = true; break; }
+      if (STRONG.test(labels[i].textContent || '')) { hasStrong = true; break; }
     }
-    if (!hasPersoLabel) return { has: false, text: '' };
-    // نقرأ القيمة من أي حقل نصي مرئي (قد يكون موجوداً في الشيت المفتوح).
+    // حقل إدخال نصي مرئي = مؤكّد التخصيص (حتى بدون مؤشر قوي)
     var inputs = document.querySelectorAll('input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]), textarea');
     for (var k = 0; k < inputs.length; k++) {
       var rp = inputs[k].getBoundingClientRect();
@@ -1330,8 +1312,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
         return { has: true, text: v, inputVisible: true };
       }
     }
-    // لا حقل مرئي → التخصيص داخل الشيت أو يُدخَل في السلة.
-    return { has: true, text: '', inputVisible: false };
+    // مؤشر قوي بدون حقل مرئي → التخصيص داخل الشيت، نُحيل للسلة
+    if (hasStrong) return { has: true, text: '', inputVisible: false };
+    // لا مؤشر قوي ولا حقل → نقش عادي (نمط/طباعة) لا تخصيص شخصي
+    return { has: false, text: '' };
   }
   // هل يتطلب المنتج رفع صورة مخصصة؟ (مثل أساور "Custom Photo").
   // نبحث عن كلمات دالّة أو حقل رفع ملف (file input).
@@ -1382,7 +1366,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (IS_TEMU) {
       var perso = temuPersonalization();
       // منتج التخصيص: نضع النص المطلوب مكان المقاس ليصل للمالك بوضوح.
-      var temuSizeVal = perso.has ? ('نقش: ' + perso.text) : temuSelectedSize();
+      var temuSizeVal = (perso.has && perso.text) ? ('نقش: ' + perso.text) : temuSelectedSize();
       var temuColorSwatch = (window.__otlobliTemuColorSwatch && window.__otlobliTemuColorGid === temuGoodsId())
         ? window.__otlobliTemuColorSwatch : '';
       return {
@@ -2696,13 +2680,21 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if (fcCs.position !== 'fixed' && fcCs.position !== 'absolute') continue;
         fcEl.style.setProperty('display', 'none', 'important');
       }
-      // أيقونات الحساب/السلة في رأس الصفحة (أعلى الشاشة) — نخفيها
+      // أيقونات الحساب/السلة في رأس الصفحة (أعلى الشاشة) — نخفيها.
+      // استثناء: عناصر البحث تبقى ظاهرة للزبون دائماً.
       var headerIcons = document.querySelectorAll('a, button, [role="button"]');
       for (var k = 0; k < headerIcons.length; k++) {
         var ic = headerIcons[k];
         if (ic.id && ic.id.indexOf('otlobli') === 0) continue;
         if (ic.getAttribute && ic.getAttribute('data-otlobli-blocked')) continue;
         if (ic.querySelector && ic.querySelector('input')) continue;
+        // البحث يبقى ظاهراً — نفحص النص والـattributes
+        var icAria = ((ic.getAttribute && ic.getAttribute('aria-label')) || '').toLowerCase();
+        var icRole = ((ic.getAttribute && ic.getAttribute('role')) || '').toLowerCase();
+        if (/search|بحث/i.test(icAria) || icRole === 'search') continue;
+        // مربع البحث الكبير (input بالداخل أو class يحتوي search)
+        var icClass = ((ic.getAttribute && ic.getAttribute('class')) || '').toLowerCase();
+        if (/search/i.test(icClass)) continue;
         var ir = ic.getBoundingClientRect();
         if (ir.top < 0 || ir.top > 90) continue;
         if (ir.left < vp.width * 0.55) continue;
