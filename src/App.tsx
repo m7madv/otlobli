@@ -689,31 +689,39 @@ function App() {
       .finally(() => setAuthState('idle'))
   }
 
+  const submitOtp = (code: string) => {
+    if (authState !== 'idle') return
+    setAuthState('verifying')
+    void appApi.auth.verifyOtp(phone, code)
+      .then(async () => {
+        setSessionToken(phone)
+        setPendingWhatsappAuth(null)
+        const target = await fetchProfileAfterLogin(phone)
+        setScreen(target)
+      })
+      .catch((error: unknown) => {
+        showNotice(getPublicErrorMessage(error))
+        setOtpDigits(['', '', '', ''])
+        otpRefs.current[0]?.focus()
+      })
+      .finally(() => setAuthState('idle'))
+  }
+
   const updateOtpDigit = (index: number, value: string) => {
-    const digit = value.replace(/\D/g, '').slice(-1)
+    const cleaned = value.replace(/\D/g, '')
+    // ملء تلقائي من iOS أو لصق: الرمز كامل يصل داخل خانة واحدة → وزّعه على كل الخانات
+    if (cleaned.length > 1) {
+      pasteOtpDigits(cleaned)
+      return
+    }
+    const digit = cleaned.slice(-1)
     const newDigits = otpDigits.map((item, i) => (i === index ? digit : item))
     setOtpDigits(newDigits)
     if (digit && index < otpDigits.length - 1) {
       otpRefs.current[index + 1]?.focus()
     }
-    if (digit && index === otpDigits.length - 1 && newDigits.every(Boolean)) {
-      const code = newDigits.join('')
-      if (authState === 'idle') {
-        setAuthState('verifying')
-        void appApi.auth.verifyOtp(phone, code)
-          .then(async () => {
-            setSessionToken(phone)
-            setPendingWhatsappAuth(null)
-            const target = await fetchProfileAfterLogin(phone)
-            setScreen(target)
-          })
-          .catch((error: unknown) => {
-            showNotice(getPublicErrorMessage(error))
-            setOtpDigits(['', '', '', ''])
-            otpRefs.current[0]?.focus()
-          })
-          .finally(() => setAuthState('idle'))
-      }
+    if (digit && newDigits.every(Boolean)) {
+      submitOtp(newDigits.join(''))
     }
   }
 
@@ -725,10 +733,16 @@ function App() {
 
   const pasteOtpDigits = (value: string) => {
     const digits = value.replace(/\D/g, '').slice(0, otpDigits.length).split('')
-    setOtpDigits((current) => current.map((item, index) => digits[index] ?? item))
+    if (!digits.length) return
+    const newDigits = otpDigits.map((item, index) => digits[index] ?? item)
+    setOtpDigits(newDigits)
     const lastFilled = Math.min(digits.length, otpDigits.length) - 1
     if (lastFilled >= 0) {
       otpRefs.current[lastFilled]?.focus()
+    }
+    // الرمز اكتمل عبر لصق/ملء تلقائي → تحقّق فوراً دون انتظار ضغط زر
+    if (newDigits.every(Boolean)) {
+      submitOtp(newDigits.join(''))
     }
   }
 
