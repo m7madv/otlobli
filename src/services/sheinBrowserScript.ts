@@ -860,6 +860,19 @@ export const SHEIN_CAPTURE_SCRIPT = `
           (ok ? 'background:#e7f7ef;color:#006948;' : 'background:#ffdad6;color:#ba1a1a;');
         diag.appendChild(chip);
       }
+      // سبب فشل اللون/المقاس (تيمو فقط) — يشرح أين انكسر الالتقاط بدل
+      // الاكتفاء بعلامة ✗ المجرّدة، حتى يمكن تصوير الشاشة وتشخيصه فوراً.
+      if (IS_TEMU) {
+        var reasonBits = [];
+        if (!payload.color && window.__otlobliTemuColorDiag) reasonBits.push('لون: ' + window.__otlobliTemuColorDiag);
+        if (!payload.size && window.__otlobliTemuSizeDiag) reasonBits.push('مقاس: ' + window.__otlobliTemuSizeDiag);
+        if (reasonBits.length) {
+          var reasonEl = document.createElement('div');
+          reasonEl.style.cssText = 'width:100%;font-size:10px;color:#7a5b00;direction:rtl;text-align:center;margin-top:3px;';
+          reasonEl.textContent = reasonBits.join(' | ');
+          diag.appendChild(reasonEl);
+        }
+      }
     }
   }
 
@@ -1178,7 +1191,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function temuSelectedSize() {
     var pills = temuSizePills();
     // لا توجد أزرار مقاس — قد يكون المقاس محدداً مسبقاً (مثل "One-size" على الصفحة مباشرة).
-    if (pills.length < 1) return temuSelectedSizeFromLabel();
+    if (pills.length < 1) {
+      var headFound = !!temuSizeHeadEl();
+      window.__otlobliTemuSizeDiag = headFound ? 'رأس موجود، صفر أزرار مطابقة' : 'لا رأس قسم مقاس';
+      return temuSelectedSizeFromLabel();
+    }
     // 1) نقرة الزبون المسجّلة (لنفس المنتج، وما زالت ضمن مقاساته الحالية).
     if (window.__otlobliTemuSize && window.__otlobliTemuSizeGid === temuGoodsId()) {
       for (var k = 0; k < pills.length; k++) {
@@ -1200,9 +1217,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
     for (var dp = 0; dp < pills.length; dp++) {
       if (temuHasDarkBorder(pills[dp])) { defaultPick = pills[dp]; defaultMatches++; }
     }
+    window.__otlobliTemuSizeDiag = 'أزرار=' + pills.length + ' حدّغامق=' + defaultMatches;
     if (defaultMatches === 1) {
       var dt = (defaultPick.textContent || '').trim();
-      if (dt && dt.length <= 24) return dt;
+      if (dt && dt.length <= 24) { window.__otlobliTemuSizeDiag += ' نجاح[' + dt + ']'; return dt; }
     }
     return '';
   }
@@ -1309,7 +1327,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     for (var i = 0; i < nodes.length; i++) {
       if (temuIsColorHeadText((nodes[i].textContent || '').trim())) { colorHead = nodes[i]; break; }
     }
-    if (!colorHead) return null;
+    if (!colorHead) { window.__otlobliTemuColorDiag = 'لا رأس قسم لون'; return null; }
     var container = colorHead.parentElement, hops = 0;
     while (container && hops < 5) {
       var imgs = container.querySelectorAll('img');
@@ -1330,13 +1348,16 @@ export const SHEIN_CAPTURE_SCRIPT = `
           if (cards[c].bordered) { picked = cards[c]; matches++; }
         }
         if (matches === 1) {
+          window.__otlobliTemuColorDiag = 'كروت=' + cards.length + ' نجاح';
           var altName = (picked.img.getAttribute('alt') || picked.img.getAttribute('title') || '').trim();
           return { name: altName, image: picked.src };
         }
+        window.__otlobliTemuColorDiag = 'كروت=' + cards.length + ' حدّغامق=' + matches;
         return null; // صفّ موجود لكن لا تطابق واحد واضح — لا تخمين
       }
       container = container.parentElement; hops++;
     }
+    window.__otlobliTemuColorDiag = 'رأس موجود، صفر كروت صور (h' + hops + ')';
     return null;
   }
   // جدولة التقاط هيرو اللون (بعد إغلاق الشيت) — مشتركة بين فرعَي الالتقاط.
@@ -1879,7 +1900,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var wait = Math.max(0, 550 - elapsed);
         setTimeout(function () {
           markOverlaySuccess();
-          removeOverlay(700);
+          // إن ظهر سبب فشل لون/مقاس (تيمو)، نُطيل بقاء الطبقة كثيراً ليتسنى
+          // للزبون قراءتها وتصويرها قبل اختفائها — بدل 1.25ث الافتراضية.
+          var diagEl = document.getElementById('otlobli-overlay-diag');
+          var diagTxt = (diagEl && diagEl.textContent) || '';
+          var hasReason = (diagTxt.indexOf('لون:') >= 0) || (diagTxt.indexOf('مقاس:') >= 0);
+          removeOverlay(hasReason ? 6000 : 700);
         }, wait);
       }
     }
