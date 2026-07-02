@@ -954,12 +954,18 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
     return '';
   }
-  // هل للمنتج خيارات ألوان؟ (وجود عنوان "Color:"/"اللون:").
+  // هل هذا النص رأس قسم لون؟ يشمل "اللون: أبيض" و"اللون" المجردة (بلا
+  // نقطتين — الأحذية والساعات والأجهزة) و"لون السوار:" المركّبة.
+  function temuIsColorHeadText(t) {
+    if (!t || t.length > 40) return false;
+    if (t === 'اللون' || t === 'Color' || t === 'Colour' || t === 'color' || t === 'colour') return true;
+    return /^(?:Color|colour|اللون|لون(?:\\s+[\\u0600-\\u06FF]{2,14})?)\\s*[:：]/i.test(t);
+  }
+  // هل للمنتج خيارات ألوان؟ (وجود عنوان "Color:"/"اللون:"/"اللون").
   function temuHasColorSection() {
     var nodes = document.querySelectorAll('div, span, h2, h3, p, strong');
     for (var i = 0; i < nodes.length; i++) {
-      var t = (nodes[i].textContent || '').trim();
-      if (t.length < 40 && /^(?:Color|colour|اللون|لون(?:\\s+[\\u0600-\\u06FF]{2,14})?)\\s*[:：]/i.test(t)) return true;
+      if (temuIsColorHeadText((nodes[i].textContent || '').trim())) return true;
     }
     return false;
   }
@@ -1215,8 +1221,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var nodes = document.querySelectorAll('div, span, h2, h3, p, strong');
     var colorHead = null;
     for (var i = 0; i < nodes.length; i++) {
-      var nt = (nodes[i].textContent || '').trim();
-      if (nt.length < 40 && /^(?:Color|colour|اللون|لون(?:\\s+[\\u0600-\\u06FF]{2,14})?)\\s*[:：]/i.test(nt)) { colorHead = nodes[i]; break; }
+      if (temuIsColorHeadText((nodes[i].textContent || '').trim())) { colorHead = nodes[i]; break; }
     }
     if (!colorHead) return false;
     var container = colorHead.parentElement, hops = 0;
@@ -1259,8 +1264,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var nodes = document.querySelectorAll('div, span, h2, h3, p, strong');
     var colorHead = null;
     for (var i = 0; i < nodes.length; i++) {
-      var nt = (nodes[i].textContent || '').trim();
-      if (nt.length < 40 && /^(?:Color|colour|اللون|لون(?:\\s+[\\u0600-\\u06FF]{2,14})?)\\s*[:：]/i.test(nt)) { colorHead = nodes[i]; break; }
+      if (temuIsColorHeadText((nodes[i].textContent || '').trim())) { colorHead = nodes[i]; break; }
     }
     if (!colorHead) return '';
     var container = colorHead.parentElement, hops = 0;
@@ -1474,8 +1478,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
                 var headNode3 = null;
                 var hnScan = document.querySelectorAll('div, span, h2, h3, p, strong');
                 for (var hn = 0; hn < hnScan.length; hn++) {
-                  var hnT = (hnScan[hn].textContent || '').trim();
-                  if (hnT.length < 40 && /^(?:Color|colour|اللون|لون(?:\\s+[\\u0600-\\u06FF]{2,14})?)\\s*[:：]/i.test(hnT)) { headNode3 = hnScan[hn]; break; }
+                  if (temuIsColorHeadText((hnScan[hn].textContent || '').trim())) { headNode3 = hnScan[hn]; break; }
                 }
                 if (headNode3) {
                   var hr3 = headNode3.getBoundingClientRect();
@@ -1608,6 +1611,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (!temuColorSwatch && temuColorVal) {
         temuColorSwatch = temuSelectedColorCardImg(temuColorVal) || '';
       }
+      // اختيار بكرت صورة بلا اسم (أحذية/أجهزة): الصورة هي المرجع للمالك.
+      if (!temuColorVal && temuColorSwatch) temuColorVal = 'حسب الصورة المرفقة';
       // صورة المنتج بالسلة: عند اختيار لون، صورة كرت اللون مضمونة 100%؛
       // temuImage() احتياط (وهو نفسه يفضّل الـswatch الآن).
       return {
@@ -1968,7 +1973,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
               }
             }
             if (!sheetAlreadyOpen &&
-                window.__otlobliTemuColor && window.__otlobliTemuColorGid === temuGoodsId()) {
+                (window.__otlobliTemuColor || window.__otlobliTemuColorSwatch) &&
+                window.__otlobliTemuColorGid === temuGoodsId()) {
               sheetAlreadyOpen = true;
             }
             // منتج بلا خيارات فعلية ("1 اللون, 1 مقاس") — لا داعي لفتح اللوحة،
@@ -2004,7 +2010,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
           var knownOneSize  = vCounts.sizes  === 1;  // "1 موديل" أو "1 مقاس"
           // د) فيه ألوان متعددة لكن لم يُحدّد لون — لون وحيد يمرّ مباشرة.
           // يسري على منتجات التخصيص أيضاً (سوارة النقش لها ألوان يجب جذبها).
-          if (temuHasColorSection() && !temuColor() && !knownOneColor && !temuHasSingleColor()) {
+          // نقرة كرت صورة بلا اسم (أحذية/أجهزة) تُحتسب اختياراً عبر الـswatch.
+          var swatchChosen = !!(window.__otlobliTemuColorSwatch && window.__otlobliTemuColorGid === temuGoodsId());
+          if (temuHasColorSection() && !temuColor() && !swatchChosen && !knownOneColor && !temuHasSingleColor()) {
             showMessage(btn, 'حدد اللون أولاً');
             return;
           }
@@ -2936,6 +2944,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var txt = (el.textContent || '');
       if (txt.length > 400) continue;       // شبكات المحتوى نصّها طويل - نتجاهلها
       if (!PROMO.test(txt)) continue;        // لا بد أن يقرأ كعرض ترويجي
+      // شيت خيارات المنتج (موديل/مقاس/لون/كمية/أضف): نصّه يحوي "خصم 65%"
+      // فيطابق ملف الإعلانات ويُحجب تاركاً الخلفية المعتمة فقط — "شاشة عتمة"
+      // عند فتح "حدد الموديل". كلمات الشيت المميزة تحصّنه نهائياً.
+      if (/الكمية|موديل|المقاس|مقاس|اللون|أضف|السلة|حدد/.test(txt)) continue;
       // حرّاس محتوى المنتج: طبقة فيها سعر أو حقل إدخال أو ≥3 صور منتجات
       // ليست عرضاً ترويجياً بل صفحة/شيت حقيقي — ممنوع حجبها.
       if (el.querySelector && el.querySelector('[class*="curPrice" i], input, textarea')) continue;
@@ -3008,9 +3020,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
         // مربع البحث الكبير (input بالداخل أو class يحتوي search)
         var icClass = ((ic.getAttribute && ic.getAttribute('class')) || '').toLowerCase();
         if (/search/i.test(icClass)) continue;
+        // أيقونة داخل شريط البحث (عدسة/كاميرا) — تبقى ظاهرة
+        if (otlobliNearSearchInput(ic)) continue;
         var ir = ic.getBoundingClientRect();
         if (ir.top < 0 || ir.top > 90) continue;
-        if (ir.left < vp.width * 0.55) continue;
+        // كانت تُحجب الجهة اليمنى فقط — أيقونات تيمو العربية (سلة/حساب/قائمة)
+        // تسكن أعلى اليسار فبقيت ظاهرة. الآن كامل عرض الهيدر يُحجب عدا البحث.
         if (ir.width <= 0 || ir.width > 60 || ir.height <= 0 || ir.height > 60) continue;
         ic.setAttribute('data-otlobli-blocked', '1');
         ic.style.setProperty('visibility', 'hidden', 'important');

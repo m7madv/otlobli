@@ -75,6 +75,36 @@ router.post('/api/session/upload', (req, res) => {
   }
 })
 
+// تصفير جلسة واتساب العالقة (محمي بالـ ADMIN_PIN) — يمسح ملفات الجلسة
+// التالفة فيولّد الاتصال التالي رمز QR جديداً للمسح من /api/qr.
+// يحلّ الانسداد: جلسة تالفة تفشل بالاتصال بغير 401 فلا تُمسح تلقائياً أبداً.
+router.post('/session/reset', (req, res) => {
+  const pin = req.headers['x-admin-pin'] || (req.body && req.body.pin)
+  if (!process.env.ADMIN_PIN || pin !== process.env.ADMIN_PIN) {
+    return res.status(403).json({ error: 'forbidden', message: 'رمز الإدارة غير صحيح.' })
+  }
+  try {
+    const VOLUME_PATH = process.env.RAILWAY_VOLUME_MOUNT_PATH || process.env.RAILWAY_VOLUME_MOUNT || ''
+    const authDir = VOLUME_PATH
+      ? path.join(VOLUME_PATH, 'baileys-auth')
+      : path.join(__dirname, '..', 'baileys-auth')
+    let removed = 0
+    if (fs.existsSync(authDir)) {
+      for (const f of fs.readdirSync(authDir)) {
+        fs.rmSync(path.join(authDir, f), { recursive: true, force: true })
+        removed++
+      }
+    }
+    // نسخة الجلسة المضغوطة القديمة أيضاً حتى لا تُستعاد عند الإقلاع
+    if (VOLUME_PATH) fs.rmSync(path.join(VOLUME_PATH, 'session.tar.gz'), { force: true })
+    console.log('🗑️ Session reset via API (' + removed + ' files removed)')
+    res.json({ success: true, removed })
+  } catch (e) {
+    console.error('❌ Session reset error:', e.message)
+    res.status(500).json({ error: 'reset_failed', message: e.message })
+  }
+})
+
 router.get('/auth/whatsapp/status', (req, res) => {
   const status = getConnectionStatus()
   res.json(status)
