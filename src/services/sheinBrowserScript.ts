@@ -3342,31 +3342,48 @@ export const SHEIN_CAPTURE_SCRIPT = `
         fcEl.style.setProperty('display', 'none', 'important');
       }
       // أيقونات الحساب/السلة في رأس الصفحة (أعلى الشاشة) — نخفيها.
-      // حجب **إيجابي**: لا نخفي أي أيقونة إلا لو أثبتت أنها سلة/حساب/قائمة/
-      // مفضلة/رسائل صراحة. سابقاً كان المنطق عكسياً (نخفي كل شيء إلا ما
-      // أثبت أنه بحث) - لكن أيقونة البحث بلا أي تسمية غالباً (SVG مجرّد)
-      // فكانت تُحجب خطأً رغم النية الصريحة بإبقائها ظاهرة. الافتراضي الآمن
-      // الآن: أي أيقونة مجهولة الهوية (كالبحث بلا تسمية) تبقى ظاهرة.
+      // ثبت من تشخيص جهاز حقيقي: أيقونات تيمو غير دلالية إطلاقاً (أصناف
+      // CSS معمّاة بلا معنى مثل "skeletonicon-39bt4" - بناء React بأصناف
+      // مُولَّدة). أي مطابقة نصية/دلالية (aria-label/class/aria-selected)
+      // عديمة الفائدة هنا بالكامل. الحل الوحيد الموثوق: **الموقع البصري**،
+      // ثابت عبر كل الصفحات التي فحصناها: سلة/حساب/قائمة تتجمّع دائماً أقصى
+      // يسار الهيدر (أول ~180px)، بينما شريط البحث أعرض بكثير ويبدأ لاحقاً.
       var hiddenIconDiag = [], visibleTopIconDiag = [];
-      var headerIcons = document.querySelectorAll('a, button, [role="button"]');
-      for (var k = 0; k < headerIcons.length; k++) {
-        var ic = headerIcons[k];
-        if (ic.id && ic.id.indexOf('otlobli') === 0) continue;
-        if (ic.getAttribute && ic.getAttribute('data-otlobli-blocked')) continue;
-        if (ic.querySelector && ic.querySelector('input')) continue;
-        var irAll = ic.getBoundingClientRect();
-        var inTopBand = irAll.top >= 0 && irAll.top <= 90 && irAll.width > 0 && irAll.width <= 60 && irAll.height > 0 && irAll.height <= 60;
-        if (otlobliNearSearchInput(ic)) continue;
-        if (otlobliLooksLikeSearchTrigger(ic)) continue;
-        if (!otlobliLooksLikeKnownDistraction(ic)) {
-          if (inTopBand) visibleTopIconDiag.push('[' + otlobliCollectIdentityHints(ic).trim().slice(0, 40) + ' @' + Math.round(irAll.left) + ',' + Math.round(irAll.top) + ']');
-          continue;
+      var LEFT_CLUSTER_MAX = 180;
+      // حارس أداء: مسح كل div بالصفحة كل 120ms مكلف على صفحات تيمو الثقيلة
+      // (شبكات منتجات ضخمة). نحدّه بـ~5 ثوانٍ بعد كل تنقّل صفحة فقط - كافٍ
+      // لالتقاط الأيقونات حتى لو تأخر رندرها، بلا استمرار المسح للأبد.
+      if (window.__otlobliIconScanUrl !== location.href) {
+        window.__otlobliIconScanUrl = location.href;
+        window.__otlobliIconScanAttempts = 0;
+      }
+      window.__otlobliIconScanAttempts = (window.__otlobliIconScanAttempts || 0) + 1;
+      if (window.__otlobliIconScanAttempts <= 40) {
+        var headerIcons = document.querySelectorAll('a, button, [role="button"], div');
+        for (var k = 0; k < headerIcons.length; k++) {
+          var ic = headerIcons[k];
+          if (ic.id && ic.id.indexOf('otlobli') === 0) continue;
+          if (ic.getAttribute && ic.getAttribute('data-otlobli-blocked')) continue;
+          if (ic.querySelector && ic.querySelector('input')) continue;
+          var irAll = ic.getBoundingClientRect();
+          var inTopBand = irAll.top >= 0 && irAll.top <= 90 && irAll.width > 0 && irAll.width <= 60 && irAll.height > 0 && irAll.height <= 60;
+          if (!inTopBand) continue;
+          // فقط عناصر تحوي فعلاً أيقونة (svg/img) - يستبعد نصوصاً/حشوة صدفةً
+          // بنفس القياس، ويتفادى مطابقة حاوية غلاف بلا محتوى مرئي داخلها.
+          var hasIconContent = ic.querySelector && ic.querySelector('svg, img');
+          if (!hasIconContent) continue;
+          if (otlobliNearSearchInput(ic)) continue;
+          if (otlobliLooksLikeSearchTrigger(ic)) continue;
+          var inLeftCluster = irAll.left >= 0 && irAll.left <= LEFT_CLUSTER_MAX;
+          if (!inLeftCluster && !otlobliLooksLikeKnownDistraction(ic)) {
+            visibleTopIconDiag.push('[' + otlobliCollectIdentityHints(ic).trim().slice(0, 30) + ' @' + Math.round(irAll.left) + ',' + Math.round(irAll.top) + ']');
+            continue;
+          }
+          ic.setAttribute('data-otlobli-blocked', '1');
+          ic.style.setProperty('visibility', 'hidden', 'important');
+          ic.style.setProperty('pointer-events', 'none', 'important');
+          hiddenIconDiag.push('[' + otlobliCollectIdentityHints(ic).trim().slice(0, 30) + ' @' + Math.round(irAll.left) + ']');
         }
-        if (!inTopBand) continue;
-        ic.setAttribute('data-otlobli-blocked', '1');
-        ic.style.setProperty('visibility', 'hidden', 'important');
-        ic.style.setProperty('pointer-events', 'none', 'important');
-        hiddenIconDiag.push('[' + otlobliCollectIdentityHints(ic).trim().slice(0, 40) + ']');
       }
       if (!window.__otlobliHideDiagShown) {
         window.__otlobliHideDiagShown = true;
