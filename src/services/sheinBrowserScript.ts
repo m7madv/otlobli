@@ -2077,6 +2077,33 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
+  // مؤشر تحميل خفيف يظهر فوراً عند الضغط على "أضف للسلة" في تيمو، طوال
+  // مهلة التحقق (حتى 5 ثوانٍ) - قبل ظهور الطبقة الكاملة أو رسالة الحجب.
+  // بلا هذا، الفاصل الصامت كان يبدو كأن التطبيق تجمّد (شكوى مستخدم حقيقية).
+  function otlobliShowGateSpinner() {
+    ensureOverlayStyle();
+    if (document.getElementById('otlobli-gate-spinner')) return;
+    var vp = viewportSize();
+    var wrap = document.createElement('div');
+    wrap.id = 'otlobli-gate-spinner';
+    wrap.style.cssText = 'position:fixed;left:16px;top:' + (vp.height - 122) + 'px;width:' + (vp.width - 32) + 'px;z-index:2147483647;' +
+      'background:#fff3cd;color:#7a5b00;border:1px solid #ffe28a;border-radius:10px;' +
+      'padding:10px 14px;font-size:14px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.2);' +
+      'display:flex;align-items:center;justify-content:center;gap:8px;direction:rtl;';
+    var spin = document.createElement('span');
+    spin.style.cssText = 'width:16px;height:16px;border-radius:50%;border:2px solid rgba(122,91,0,.25);' +
+      'border-top-color:#7a5b00;animation:otlobli-spin .8s linear infinite;flex-shrink:0;';
+    wrap.appendChild(spin);
+    var label = document.createElement('span');
+    label.textContent = 'جاري التحقق من المنتج...';
+    wrap.appendChild(label);
+    document.body.appendChild(wrap);
+  }
+  function otlobliRemoveGateSpinner() {
+    var el = document.getElementById('otlobli-gate-spinner');
+    if (el) el.remove();
+  }
+
   function ensureShakeStyle() {
     if (document.getElementById('otlobli-style')) return;
     var style = document.createElement('style');
@@ -2274,18 +2301,27 @@ export const SHEIN_CAPTURE_SCRIPT = `
           }
           if (blockMsg) {
             if (attemptsLeft > 0) { setTimeout(function () { temuFinalizeAdd(attemptsLeft - 1); }, 500); return; }
+            otlobliRemoveGateSpinner();
             showMessage(btn, blockMsg);
             return;
           }
           // ز) السعر: لا نضيف بصفر/غير مقروء.
           if (!(temuPriceUsd() > 0)) {
             if (attemptsLeft > 0) { setTimeout(function () { temuFinalizeAdd(attemptsLeft - 1); }, 500); return; }
+            otlobliRemoveGateSpinner();
             showMessage(btn, 'تعذّر قراءة السعر — انتظر ثانية وحاول');
             return;
           }
-          // و) كل شيء مؤكّد → نضيف.
+          // و) كل شيء مؤكّد → نضيف. الطبقة الكاملة (showAddingOverlay) تتولى
+          // من هنا فوراً - نزيل مؤشر التحقق المؤقت أولاً حتى لا يتعارضا.
+          otlobliRemoveGateSpinner();
           addToCartFlow({ exists: false }, { exists: false });
           }
+          // مؤشر تحميل فوري: التحقق قد يستغرق حتى 5 ثوانٍ (10 محاولات) قبل
+          // إظهار طبقة الإضافة الكاملة أو رسالة الحجب - بلا هذا المؤشر يبدو
+          // التطبيق متجمداً في تلك الأثناء (شكوى مستخدم حقيقية). لا نغيّر
+          // منطق الجذب/التحقق نفسه إطلاقاً - مجرّد تغذية بصرية فورية.
+          otlobliShowGateSpinner();
           temuFinalizeAdd(10);
           return;
         }
@@ -2624,6 +2660,17 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   document.addEventListener('click', function (event) {
+    // ⚠️ تحذير دائم — ممنوع حذف هذا الحارس أو تغييره لأي سبب (خلل حقيقي أضاف
+    // منتجات لسلة المستخدم بلا علمه، مؤكَّد 2026-07-03):
+    // كل الفحوص أدناه (isProtectedSheinControl/isCartLink/isWishlistButton/
+    // isQuickAddSubmitButton/isAddToCartButton) مصمّمة حصراً لاعتراض أزرار
+    // شي إن الأصلية - وaddToCartFlow() هنا تُستدعى مباشرة بلا المرور بحارس
+    // تيمو الصارم (temuFinalizeAdd، انتظار 5 ثوانٍ، تحقق اللون/المقاس). بلا
+    // "if (!IS_SHEIN) return;" أدناه، أي نقرة على تيمو تُصادف نصاً يطابق
+    // "أضف...السلة" (حتى خلف طبقة معاينة صورة كاملة الشاشة) كانت تُضيف
+    // المنتج تلقائياً بلا أي تحقق. إن احتجت تعديل هذا المعالج مستقبلاً، أبقِ
+    // هذا الحارس أول سطر بالضبط - لا تُدمِج منطق شي إن وتيمو هنا مطلقاً.
+    if (!IS_SHEIN) return;
     var el = event.target;
     var depth = 0;
     while (el && depth < 6) {
@@ -3325,6 +3372,35 @@ export const SHEIN_CAPTURE_SCRIPT = `
         window.__otlobliHideDiagShown = true;
         otlobliShowHideDiagnostics(hiddenBarDiag, hiddenIconDiag, visibleTopIconDiag);
       }
+      // قسم "معلومات عن Temu / خدمة العملاء / مركز الدعم / حماية الشراء" أسفل
+      // صفحة المنتج (أزرار أكورديون + أيقونات تواصل اجتماعي + حقوق نشر) —
+      // بطلب صريح من المستخدم: يُحجب بالكامل، لا نُبقي أي خيار منه ظاهراً.
+      hideTemuFooterSection();
+    }
+  }
+  // يحجب كتلة تذييل تيمو (معلومات المتجر/الدعم/الشروط) بإيجاد أضيق حاوية
+  // تحوي 3 كلمات دالة على الأقل — أضيق تطابق (لا أول عنصر بترتيب DOM، الذي
+  // قد يكون سلفاً واسعاً يبتلع الصفحة كلها لأن textContent تراكمي للأعلى).
+  function hideTemuFooterSection() {
+    var markers = ['whaleco', 'معلومات عن temu', 'مركز الدعم', 'خدمة العملاء', 'حماية الشراء'];
+    var nodes = document.querySelectorAll('div, section, footer');
+    var best = null, bestLen = Infinity;
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      if (el.id && el.id.indexOf('otlobli') === 0) continue;
+      if (el.getAttribute && el.getAttribute('data-otlobli-blocked')) continue;
+      var txt = (el.textContent || '').toLowerCase();
+      if (txt.length < 80) continue;
+      var matches = 0;
+      for (var m = 0; m < markers.length; m++) { if (txt.indexOf(markers[m]) >= 0) matches++; }
+      if (matches < 3) continue;
+      // حرّاس أمان: لا نحجب حاوية فيها بحث فعلي أو سعر منتج حقيقي.
+      if (el.querySelector && (el.querySelector('input:not([type="hidden"])') || el.querySelector('[class*="curPrice" i]'))) continue;
+      if (txt.length < bestLen) { best = el; bestLen = txt.length; }
+    }
+    if (best) {
+      best.setAttribute('data-otlobli-blocked', '1');
+      best.style.setProperty('display', 'none', 'important');
     }
   }
   // لوحة تشخيص مرئية (مرة واحدة لكل صفحة) تُظهر بالضبط ماذا أُخفي وماذا

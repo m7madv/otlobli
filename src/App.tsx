@@ -2092,6 +2092,7 @@ function App() {
             )}
             <button
               className="ghost-action"
+              style={{ marginTop: 8, marginBottom: 16 }}
               onClick={() => openWhatsappSupport(`مرحبا otlobli، أحتاج مساعدة بخصوص الطلب ${order.id}`)}
             >
               <Icon name="support_agent" /> تواصل معنا عبر واتساب
@@ -2331,6 +2332,7 @@ function App() {
         if (id !== selectedStore) {
           setSelectedStore(id)
           selectedStoreRef.current = id
+          // ⚠️ لا تُبسّط هذا التسلسل (خلل شاشة بيضاء مؤكَّد 2026-07-03):
           // إغلاق متصفّح المتجر الحالي ثم إعادة فتحه على المتجر الجديد (تُحقن
           // سكربتات otlobli من جديد). ننتظر اكتمال الإغلاق فعلياً قبل التنقل
           // للرئيسية (بدل إطلاق الإغلاق والتنقل معاً في نفس اللحظة) — إغلاق
