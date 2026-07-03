@@ -3358,6 +3358,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         window.__otlobliIconScanAttempts = 0;
       }
       window.__otlobliIconScanAttempts = (window.__otlobliIconScanAttempts || 0) + 1;
+      var rawTopBandCount = 0, noIconContentCount = 0;
       if (window.__otlobliIconScanAttempts <= 40) {
         var headerIcons = document.querySelectorAll('a, button, [role="button"], div');
         for (var k = 0; k < headerIcons.length; k++) {
@@ -3368,10 +3369,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
           var irAll = ic.getBoundingClientRect();
           var inTopBand = irAll.top >= 0 && irAll.top <= 90 && irAll.width > 0 && irAll.width <= 60 && irAll.height > 0 && irAll.height <= 60;
           if (!inTopBand) continue;
+          rawTopBandCount++;
           // فقط عناصر تحوي فعلاً أيقونة (svg/img) - يستبعد نصوصاً/حشوة صدفةً
           // بنفس القياس، ويتفادى مطابقة حاوية غلاف بلا محتوى مرئي داخلها.
           var hasIconContent = ic.querySelector && ic.querySelector('svg, img');
-          if (!hasIconContent) continue;
+          if (!hasIconContent) { noIconContentCount++; continue; }
           if (otlobliNearSearchInput(ic)) continue;
           if (otlobliLooksLikeSearchTrigger(ic)) continue;
           var inLeftCluster = irAll.left >= 0 && irAll.left <= LEFT_CLUSTER_MAX;
@@ -3385,9 +3387,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
           hiddenIconDiag.push('[' + otlobliCollectIdentityHints(ic).trim().slice(0, 30) + ' @' + Math.round(irAll.left) + ']');
         }
       }
-      if (!window.__otlobliHideDiagShown) {
-        window.__otlobliHideDiagShown = true;
-        otlobliShowHideDiagnostics(hiddenBarDiag, hiddenIconDiag, visibleTopIconDiag);
+      var rawStatsLine = 'مرشحون بالنطاق العلوي=' + rawTopBandCount + ' (بلا svg/img=' + noIconContentCount + ')';
+      // تيمو تطبيق صفحة واحدة (SPA) - التنقل بين المنتجات لا يعيد تحميل
+      // الجافاسكربت، فعلم "ظهرت مرة" وحده كان يمنع اللوحة من الظهور ثانية
+      // عند دخول منتج جديد، فيرى المستخدم بيانات صفحة قديمة ويظنّها الحالية.
+      // نربط العلم بالرابط الحالي بدل تعليقه للأبد.
+      if (window.__otlobliHideDiagUrl !== location.href) {
+        window.__otlobliHideDiagUrl = location.href;
+        otlobliShowHideDiagnostics(hiddenBarDiag, hiddenIconDiag, visibleTopIconDiag, rawStatsLine);
       }
       // قسم "معلومات عن Temu / خدمة العملاء / مركز الدعم / حماية الشراء" أسفل
       // صفحة المنتج (أزرار أكورديون + أيقونات تواصل اجتماعي + حقوق نشر) —
@@ -3422,8 +3429,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
   // لوحة تشخيص مرئية (مرة واحدة لكل صفحة) تُظهر بالضبط ماذا أُخفي وماذا
   // بقي ظاهراً في نطاق الهيدر — بدل التخمين الأعمى لمكان زر البحث.
-  function otlobliShowHideDiagnostics(bars, hiddenIcons, visibleIcons) {
-    if (!bars.length && !hiddenIcons.length && !visibleIcons.length) return;
+  function otlobliShowHideDiagnostics(bars, hiddenIcons, visibleIcons, rawStats) {
     if (document.getElementById('otlobli-hide-diag')) return;
     var panel = document.createElement('div');
     panel.id = 'otlobli-hide-diag';
@@ -3431,6 +3437,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       'background:#fff3cd;color:#7a5b00;border:1px solid #ffe28a;border-radius:10px;padding:8px 10px;' +
       'font-size:10px;direction:rtl;text-align:right;max-height:220px;overflow:auto;white-space:pre-wrap;';
     var lines = [];
+    if (rawStats) lines.push(rawStats);
     lines.push('أشرطة سفلية مخفية (' + bars.length + '):');
     for (var i = 0; i < bars.length && i < 3; i++) lines.push(bars[i]);
     lines.push('أيقونات هيدر مخفية (' + hiddenIcons.length + '):');
