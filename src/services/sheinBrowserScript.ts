@@ -3479,8 +3479,17 @@ export const SHEIN_CAPTURE_SCRIPT = `
           if (ic.getAttribute && ic.getAttribute('data-otlobli-blocked')) continue;
           if (ic.querySelector && ic.querySelector('input')) continue;
           var irAll = ic.getBoundingClientRect();
-          var inTopBand = irAll.top >= 0 && irAll.top <= 90 && irAll.width > 0 && irAll.width <= 60 && irAll.height > 0 && irAll.height <= 60;
+          // ثبت من تشخيص جهاز حقيقي: صفحات المنتج تلتقط الأيقونات صح ضمن
+          // 90px الأولى (3 مخفية + 2 محمية بمواقع صحيحة)، لكن الصفحة
+          // الرئيسية صفر أيقونات - هيدرها على الأرجح أسفل قليلاً بسبب شريط
+          // ترويجي أطول. نطاق أوسع (0-140) يغطي الحالتين بأمان (لا يزال
+          // يستبعد بطاقات المنتجات الكبيرة عبر شرط الحجم 24-60px).
+          var inTopBand = irAll.top >= 0 && irAll.top <= 140 && irAll.width > 0 && irAll.width <= 60 && irAll.height > 0 && irAll.height <= 60;
           if (!inTopBand) continue;
+          // أيقونات الهيدر بلا نص مقروء (صورة/رمز فقط) - يستبعد شارات نصية
+          // صغيرة صدفةً بنفس القياس (ثبت من تشخيص حقيقي: عناصر "subtitle/
+          // splitline" داخل بطاقات العروض الترويجية بالصفحة الرئيسية).
+          if (temuCleanText(ic.textContent).length > 0) continue;
           rawTopBandCount++;
           // ثبت من تشخيص جهاز حقيقي (ثابت عبر 4 منتجات مختلفة): 5 من كل 6
           // مرشّح كانوا يُرفضون سابقاً لاشتراط svg/img — أغلب أيقونات تيمو

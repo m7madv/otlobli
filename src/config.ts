@@ -19,7 +19,7 @@ export const PAYMENT_MODE: 'auto' | 'shamcash' = 'auto'
 export const SOURCE_COUNTRY: 'JO' | 'LB' = 'LB'
 
 // رقم النسخة — يظهر في شاشة الدخول لمعرفة أي بناء مثبّت على الجهاز عند التشخيص.
-export const APP_VERSION = '2026.07.03-icons-relaxed-autoreselect-v31'
+export const APP_VERSION = '2026.07.04-home-header-band-v32'
 
 // يزيل BOM (U+FEFF) و zero-width space (U+200B) والمسافات من قيم متغيرات البيئة.
 // أسرار GitHub تُلوَّث أحياناً بحرف BOM في البداية، فيصبح الرابط "https://..."
