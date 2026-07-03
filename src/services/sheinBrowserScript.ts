@@ -1043,13 +1043,46 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // هل للعنصر outline أو box-shadow ظاهر (غير "none")؟ حلقات الاختيار
   // الدائرية شائعة برسمها عبر هاتين الخاصيتين بدل الحدّ العادي (border) —
   // ثبت من تشخيص حقيقي: حلقة سوداء واضحة حول زر "L" لكن سماكة حدّه 0 تماماً.
-  function temuHasRingHighlight(el) {
-    var cs = window.getComputedStyle(el);
+  function temuRingStyleMatch(cs) {
+    if (!cs) return false;
     var outlineStyle = cs.outlineStyle || 'none';
     var outlineW = parseFloat(cs.outlineWidth || '0');
     if (outlineStyle !== 'none' && outlineW > 0) return true;
     var shadow = cs.boxShadow || 'none';
     return !!shadow && shadow !== 'none';
+  }
+  // حلقة/ظلّ اختيار — نفحص العنصر نفسه، وكذلك ::before/::after (حلقات
+  // الاختيار الدائرية شائع جداً رسمها بعنصر زائف منفصل تماماً عن الأنماط
+  // المحسوبة للعنصر الأصلي؛ getComputedStyle(el) وحدها لا تراه إطلاقاً).
+  function temuHasRingHighlight(el) {
+    if (temuRingStyleMatch(window.getComputedStyle(el))) return true;
+    try {
+      var before = window.getComputedStyle(el, '::before');
+      if (before && before.content && before.content !== 'none' && temuRingStyleMatch(before)) return true;
+    } catch (e) {}
+    try {
+      var after = window.getComputedStyle(el, '::after');
+      if (after && after.content && after.content !== 'none' && temuRingStyleMatch(after)) return true;
+    } catch (e) {}
+    return false;
+  }
+  // إشارة "مُختار" دلالية (aria/data/اسم صنف) — أوثق بكثير من تخمين مظهر
+  // CSS لأنها لا تعتمد على تقنية الرسم البصري (حدّ/outline/shadow/عنصر
+  // زائف) إطلاقاً، بل على الحالة الفعلية التي يُعلنها العنصر نفسه. نفحص
+  // العنصر ووالده المباشر (الحالة أحياناً على الحاضن لا الزرّ الداخلي).
+  function temuHasSemanticSelectedMarker(el) {
+    function check(node) {
+      if (!node || !node.getAttribute) return false;
+      var ariaSel = node.getAttribute('aria-selected');
+      var ariaChecked = node.getAttribute('aria-checked');
+      var ariaPressed = node.getAttribute('aria-pressed');
+      if (ariaSel === 'true' || ariaChecked === 'true' || ariaPressed === 'true') return true;
+      var dataSel = node.getAttribute('data-selected') || node.getAttribute('data-active') || node.getAttribute('data-checked');
+      if (dataSel === 'true' || dataSel === '1') return true;
+      var cls = ((node.className || '') + '').toLowerCase();
+      return /(^|[\s_-])(selected|is-selected|active|is-active|checked|is-checked|current|chosen)([\s_-]|$)/.test(cls);
+    }
+    return check(el) || check(el.parentElement);
   }
   // خلفية فاتحة (أو شفافة)؟ لتمييز أزرار المقاس المحدّدة (حدّ غامق + خلفية
   // فاتحة) عن الأزرار المعبّأة الغامقة مثل مبدّل نظام المقاس "Standard".
@@ -1120,6 +1153,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // التالية، وفشل الكل = فارغ (لا تخمين).
   function temuPickSingleSelected(els) {
     if (!els || els.length < 2) return null;
+    // إشارة 0 (الأوثق دائماً): علامة دلالية صريحة (aria/data/اسم صنف) لا
+    // تعتمد على تقنية الرسم البصري إطلاقاً — إن وُجدت نثق بها فوراً.
+    var semantic = [];
+    for (var s = 0; s < els.length; s++) {
+      if (temuHasSemanticSelectedMarker(els[s])) semantic.push(els[s]);
+    }
+    if (semantic.length === 1) return semantic[0];
     // إشارة 1: خلفية ممتلئة داكنة غير شفافة (الأقوى والأوضح بصرياً).
     var filled = [];
     for (var i = 0; i < els.length; i++) {
@@ -1207,21 +1247,38 @@ export const SHEIN_CAPTURE_SCRIPT = `
           if (!byCls[ck]) { byCls[ck] = []; order.push(ck); }
           byCls[ck].push(pills[p2]);
         }
-        var strong = null, weak = null;
+        // نجمّع كل المجموعات "القوية" (تشبه مقاسات) بهذا المستوى معاً، لا نكتفي
+        // بأكبر واحدة فقط. السبب: الزر المختار غالباً يحمل صنفاً CSS إضافياً
+        // ("active"/"selected"...) فيُفرد بمجموعة صنف منفصلة قد تكون بحجم 1 —
+        // وكانت تخسر تلقائياً أمام مجموعة البقية الأكبر فتختفي من النتيجة
+        // تماماً (ثبت من تشخيص جهاز حقيقي: كل الإشارات صفر رغم زر مُختار
+        // ظاهر بوضوح — لأنه لم يكن ضمن الأزرار المفحوصة أصلاً). حارس أمان:
+        // نضمّ فقط المجموعات القريبة عمودياً من أكبر مجموعة (نفس الصفّ)، لا
+        // أي مجموعة "قوية" بمستوى الصفحة كله.
+        var groups = [];
         for (var g = 0; g < order.length; g++) {
           var grp = byCls[order[g]];
           var likes = 0;
           for (var q = 0; q < grp.length; q++) {
             if (temuSizeLike(temuCleanText(grp[q].textContent))) likes++;
           }
-          // مجموعة "قوية": نصف أعضائها على الأقل يشبه مقاساً حقيقياً
-          if (likes >= 1 && likes * 2 >= grp.length) {
-            if (!strong || grp.length > strong.length) strong = grp;
-          } else if (!weak || grp.length > weak.length) {
-            weak = grp;
-          }
+          if (likes >= 1 && likes * 2 >= grp.length) groups.push(grp);
         }
-        if (strong) return strong;
+        if (groups.length) {
+          groups.sort(function (a, b) { return b.length - a.length; });
+          var baseTop = groups[0][0].getBoundingClientRect().top;
+          var merged = groups[0].slice();
+          for (var gi = 1; gi < groups.length; gi++) {
+            var gTop = groups[gi][0].getBoundingClientRect().top;
+            if (Math.abs(gTop - baseTop) <= 60) merged = merged.concat(groups[gi]);
+          }
+          return merged;
+        }
+        var weak = null;
+        for (var g2 = 0; g2 < order.length; g2++) {
+          var grp2 = byCls[order[g2]];
+          if (!weak || grp2.length > weak.length) weak = grp2;
+        }
         // مجموعة كلمات بلا أرقام (أسلوب/نمط): نحفظ أفضلها كاحتياط — بسقف
         // حجم يمنع التقاط شبكة تصنيفات كاملة من مستويات عالية.
         if (weak && weak.length <= 10 && hops <= 3 && weak.length > weakBest.length) {
@@ -2195,9 +2252,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
             showMessage(btn, 'أضف الاسم/النص المطلوب في السلة قبل الدفع');
           }
           // نقرأ عدد الألوان والمقاسات من ملخّص المتغيّرات (أدق من عدّ الـpills).
+          function temuFinalizeAdd(attemptsLeft) {
           var vCounts = temuVariantCounts();
           var knownOneColor = vCounts.colors === 1;  // "1 اللون"
           var knownOneSize  = vCounts.sizes  === 1;  // "1 موديل" أو "1 مقاس"
+          var blockMsg = '';
           // د) فيه ألوان متعددة لكن لم يُحدّد لون — لون وحيد يمرّ مباشرة.
           // يسري على منتجات التخصيص أيضاً (سوارة النقش لها ألوان يجب جذبها).
           // نقرة كرت صورة بلا اسم (أحذية/أجهزة) تُحتسب اختياراً عبر الـswatch.
@@ -2217,13 +2276,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
               if (gateDefColor) gateColorSwatch = gateDefColor.image;
             }
             if (!gateColorSwatch) {
-              var colorMsg = 'حدد اللون أولاً';
-              if (window.__otlobliTemuColorDiag) colorMsg += ' [' + window.__otlobliTemuColorDiag + ']';
-              showMessage(btn, colorMsg);
-              return;
+              blockMsg = 'حدد اللون أولاً';
+              if (window.__otlobliTemuColorDiag) blockMsg += ' [' + window.__otlobliTemuColorDiag + ']';
             }
           }
-          if (!persoChk.has) {
+          if (!blockMsg && !persoChk.has) {
             // ذكاء: مقاس وحيد → نحدّده تلقائياً قبل التحقق (يحلّ مشكلة ONE SIZE).
             if (knownOneSize || temuHasSizeSection()) temuForceSingleSize();
             // هـ) فيه مقاسات/موديلات متعددة لكن لم يُحدّد شيء.
@@ -2231,19 +2288,25 @@ export const SHEIN_CAPTURE_SCRIPT = `
             if (temuHasSizeSection() && !temuSelectedSize() && !knownOneSize) {
               var sHead = temuSizeHeadEl();
               var sLabel = sHead ? (sHead.textContent || '').trim() : 'المقاس';
-              var sizeMsg = /موديل/i.test(sLabel) ? 'حدد موديل جوالك أولاً' : 'حدد المقاس أولاً';
-              if (window.__otlobliTemuSizeDiag) sizeMsg += ' [' + window.__otlobliTemuSizeDiag + ']';
-              showMessage(btn, sizeMsg);
-              return;
+              blockMsg = /موديل/i.test(sLabel) ? 'حدد موديل جوالك أولاً' : 'حدد المقاس أولاً';
+              if (window.__otlobliTemuSizeDiag) blockMsg += ' [' + window.__otlobliTemuSizeDiag + ']';
             }
+          }
+          if (blockMsg) {
+            if (attemptsLeft > 0) { setTimeout(function () { temuFinalizeAdd(attemptsLeft - 1); }, 500); return; }
+            showMessage(btn, blockMsg);
+            return;
           }
           // ز) السعر: لا نضيف بصفر/غير مقروء.
           if (!(temuPriceUsd() > 0)) {
+            if (attemptsLeft > 0) { setTimeout(function () { temuFinalizeAdd(attemptsLeft - 1); }, 500); return; }
             showMessage(btn, 'تعذّر قراءة السعر — انتظر ثانية وحاول');
             return;
           }
           // و) كل شيء مؤكّد → نضيف.
           addToCartFlow({ exists: false }, { exists: false });
+          }
+          temuFinalizeAdd(10);
           return;
         }
         if (!IS_SHEIN) {
