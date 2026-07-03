@@ -784,6 +784,14 @@ function App() {
   }
 
   const sheinOpenedRef = useRef(false)
+  // عند تبديل المتجر: نُغلق البراوزر الحالي عمداً قبل فتحه على الجديد.
+  // مستمع closeEvent (أدناه) يُعيد الفتح تلقائياً أيضاً لأي إغلاق (حتى لو
+  // كان الإغلاق نفسه سبّبه استدعاؤنا) — فبلا هذا العلم، تبديل المتجر يُطلق
+  // استدعاءين متسابقين لفتح البراوزر (من useEffect الشاشة + من closeEvent)
+  // فيدخل المكوّن الأصلي بحالة عالقة (شاشة بيضاء لا تُصلَح إلا بإغلاق
+  // التطبيق كلياً من الخلفية). العلم يمنع إعادة الفتح المزدوجة من closeEvent
+  // تحديداً حين يكون الإغلاق مقصوداً من تبديل المتجر.
+  const suppressAutoReopenRef = useRef(false)
   const [sheinReady, setSheinReady] = useState(false)
   // Tracks which screen the in-page back button inside the SHEIN webview
   // should return to: 'cart' right after the user taps a cart item (so back
@@ -933,6 +941,10 @@ function App() {
     const handle = InAppBrowser.addListener('closeEvent', () => {
       sheinOpenedRef.current = false
       setSheinReady(false)
+      if (suppressAutoReopenRef.current) {
+        suppressAutoReopenRef.current = false
+        return
+      }
       if (screenRef.current === 'home') browseShein()
     })
     return () => {
@@ -2320,10 +2332,19 @@ function App() {
           setSelectedStore(id)
           selectedStoreRef.current = id
           // إغلاق متصفّح المتجر الحالي ثم إعادة فتحه على المتجر الجديد (تُحقن
-          // سكربتات otlobli من جديد) عبر شاشة الرئيسية.
-          void InAppBrowser.close().catch(() => undefined)
+          // سكربتات otlobli من جديد). ننتظر اكتمال الإغلاق فعلياً قبل التنقل
+          // للرئيسية (بدل إطلاق الإغلاق والتنقل معاً في نفس اللحظة) — إغلاق
+          // وفتح متزامنين كانا يُدخلان البراوزر الأصلي بحالة عالقة (شاشة
+          // بيضاء لا تُصلَح إلا بإغلاق التطبيق كلياً من الخلفية). العلم يمنع
+          // مستمع closeEvent من إعادة فتح مكرّرة لهذا الإغلاق المقصود.
+          suppressAutoReopenRef.current = true
           sheinOpenedRef.current = false
           setSheinReady(false)
+          void InAppBrowser.close().catch(() => undefined).then(() => {
+            suppressAutoReopenRef.current = false
+            setScreen('home')
+          })
+          return
         }
         setScreen('home')
       }

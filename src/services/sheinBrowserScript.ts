@@ -2738,29 +2738,41 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
     return false;
   }
-  // زر "فتح صفحة البحث" المستقل (بلا حقل إدخال مجاور - يظهر على الرئيسية/
-  // التصنيفات، لا صفحة البحث نفسها) عادة أيقونة SVG بلا aria-label/class
-  // على الزر الخارجي نفسه؛ التسمية الدالة تكون على عنصر داخلي (svg/use/
-  // title) أو رابط href. نفحص الزر وكل أبنائه (حتى 15 عنصراً) بدل الزر
-  // وحده فقط - هذا ما كان يفوّت زر البحث فيُحجب رغم النية الصريحة بإبقائه.
-  function otlobliLooksLikeSearchTrigger(el) {
+  // يجمع كل النصوص/سمات التعريف الدالة من عنصر وكل أبنائه (حتى 15 عنصراً):
+  // aria-label، class، href/xlink:href، data-testid/id، ونص عنصر <title>
+  // داخل svg. أيقونات تيمو غالباً SVG بلا أي تسمية على الزر الخارجي نفسه —
+  // فالفحص السطحي (الزر وحده) يفوّت التسمية الحقيقية المدفونة في عنصر ابن.
+  function otlobliCollectIdentityHints(el) {
     var scan = [el];
     if (el.querySelectorAll) {
       var kids = el.querySelectorAll('*');
       for (var i = 0; i < kids.length && i < 15; i++) scan.push(kids[i]);
     }
+    var hints = [];
     for (var s = 0; s < scan.length; s++) {
       var node = scan[s];
-      if (!node.getAttribute) continue;
-      var aria = (node.getAttribute('aria-label') || '').toLowerCase();
-      var cls = (node.getAttribute('class') || '').toLowerCase();
-      var href = (node.getAttribute('href') || node.getAttribute('xlink:href') || '').toLowerCase();
-      var testId = (node.getAttribute('data-testid') || node.getAttribute('id') || '').toLowerCase();
-      if (/search|بحث/i.test(aria) || /search/i.test(cls) || /search/i.test(href) || /search/i.test(testId)) return true;
+      if (node.getAttribute) {
+        hints.push((node.getAttribute('aria-label') || '').toLowerCase());
+        hints.push((node.getAttribute('class') || '').toLowerCase());
+        hints.push((node.getAttribute('href') || node.getAttribute('xlink:href') || '').toLowerCase());
+        hints.push((node.getAttribute('data-testid') || node.getAttribute('id') || '').toLowerCase());
+      }
       var tag = (node.tagName || '').toLowerCase();
-      if (tag === 'title' && /search|بحث/i.test(node.textContent || '')) return true;
+      if (tag === 'title') hints.push((node.textContent || '').toLowerCase());
     }
-    return false;
+    return hints.join(' ');
+  }
+  // زر "فتح صفحة البحث" المستقل — نفحص الزر وكل أبنائه (لا الزر وحده).
+  function otlobliLooksLikeSearchTrigger(el) {
+    return /search|بحث/i.test(otlobliCollectIdentityHints(el));
+  }
+  // أيقونات معروفة نريد حجبها فعلاً (سلة/حساب/قائمة/مفضلة/رسائل) — نفس
+  // أسلوب فحص الأبناء المستخدم للبحث. الحجب الآن **إيجابي**: لا نحجب أي
+  // أيقونة إلا لو تطابقت صراحة مع إحدى هذه الكلمات، بدل حجب كل شيء
+  // والاستثناء بالتخمين (كان يُفوّت البحث لأنه أيضاً بلا تسمية أحياناً).
+  var OTLOBLI_KNOWN_DISTRACTION = /cart|bag|basket|shopping|account|profile\b|\buser\b|\bme\b|menu|hamburger|categor|\bnav\b|wishlist|favorite|favourite|\bheart\b|message|inbox|notification|\bchat\b|سلة|السلة|عربة|حساب|حسابي|بروفايل|قائمة|التصنيفات|الأقسام|المفضلة|مفضلة|رسائل|الرسائل|إشعارات|اشعارات/i;
+  function otlobliLooksLikeKnownDistraction(el) {
+    return OTLOBLI_KNOWN_DISTRACTION.test(otlobliCollectIdentityHints(el));
   }
 
   function hideExtraHeaderIcons() {
@@ -3281,25 +3293,20 @@ export const SHEIN_CAPTURE_SCRIPT = `
         fcEl.style.setProperty('display', 'none', 'important');
       }
       // أيقونات الحساب/السلة في رأس الصفحة (أعلى الشاشة) — نخفيها.
-      // استثناء: عناصر البحث تبقى ظاهرة للزبون دائماً.
+      // حجب **إيجابي**: لا نخفي أي أيقونة إلا لو أثبتت أنها سلة/حساب/قائمة/
+      // مفضلة/رسائل صراحة. سابقاً كان المنطق عكسياً (نخفي كل شيء إلا ما
+      // أثبت أنه بحث) - لكن أيقونة البحث بلا أي تسمية غالباً (SVG مجرّد)
+      // فكانت تُحجب خطأً رغم النية الصريحة بإبقائها ظاهرة. الافتراضي الآمن
+      // الآن: أي أيقونة مجهولة الهوية (كالبحث بلا تسمية) تبقى ظاهرة.
       var headerIcons = document.querySelectorAll('a, button, [role="button"]');
       for (var k = 0; k < headerIcons.length; k++) {
         var ic = headerIcons[k];
         if (ic.id && ic.id.indexOf('otlobli') === 0) continue;
         if (ic.getAttribute && ic.getAttribute('data-otlobli-blocked')) continue;
         if (ic.querySelector && ic.querySelector('input')) continue;
-        // البحث يبقى ظاهراً — نفحص النص والـattributes
-        var icAria = ((ic.getAttribute && ic.getAttribute('aria-label')) || '').toLowerCase();
-        var icRole = ((ic.getAttribute && ic.getAttribute('role')) || '').toLowerCase();
-        if (/search|بحث/i.test(icAria) || icRole === 'search') continue;
-        // مربع البحث الكبير (input بالداخل أو class يحتوي search)
-        var icClass = ((ic.getAttribute && ic.getAttribute('class')) || '').toLowerCase();
-        if (/search/i.test(icClass)) continue;
-        // أيقونة داخل شريط البحث (عدسة/كاميرا) — تبقى ظاهرة
         if (otlobliNearSearchInput(ic)) continue;
-        // زر فتح صفحة البحث المستقل (بلا حقل إدخال مجاور) — نفحص الزر
-        // وكل أبنائه الداخليين (svg/use/title/href) لا الزر وحده فقط.
         if (otlobliLooksLikeSearchTrigger(ic)) continue;
+        if (!otlobliLooksLikeKnownDistraction(ic)) continue;
         var ir = ic.getBoundingClientRect();
         if (ir.top < 0 || ir.top > 90) continue;
         // كانت تُحجب الجهة اليمنى فقط — أيقونات تيمو العربية (سلة/حساب/قائمة)
