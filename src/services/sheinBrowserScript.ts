@@ -860,19 +860,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
           (ok ? 'background:#e7f7ef;color:#006948;' : 'background:#ffdad6;color:#ba1a1a;');
         diag.appendChild(chip);
       }
-      // سبب فشل اللون/المقاس (تيمو فقط) — يشرح أين انكسر الالتقاط بدل
-      // الاكتفاء بعلامة ✗ المجرّدة، حتى يمكن تصوير الشاشة وتشخيصه فوراً.
-      if (IS_TEMU) {
-        var reasonBits = [];
-        if (!payload.color && window.__otlobliTemuColorDiag) reasonBits.push('لون: ' + window.__otlobliTemuColorDiag);
-        if (!payload.size && window.__otlobliTemuSizeDiag) reasonBits.push('مقاس: ' + window.__otlobliTemuSizeDiag);
-        if (reasonBits.length) {
-          var reasonEl = document.createElement('div');
-          reasonEl.style.cssText = 'width:100%;font-size:10px;color:#7a5b00;direction:rtl;text-align:center;margin-top:3px;';
-          reasonEl.textContent = reasonBits.join(' | ');
-          diag.appendChild(reasonEl);
-        }
-      }
     }
   }
 
@@ -2058,12 +2045,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var wait = Math.max(0, 550 - elapsed);
         setTimeout(function () {
           markOverlaySuccess();
-          // إن ظهر سبب فشل لون/مقاس (تيمو)، نُطيل بقاء الطبقة كثيراً ليتسنى
-          // للزبون قراءتها وتصويرها قبل اختفائها — بدل 1.25ث الافتراضية.
-          var diagEl = document.getElementById('otlobli-overlay-diag');
-          var diagTxt = (diagEl && diagEl.textContent) || '';
-          var hasReason = (diagTxt.indexOf('لون:') >= 0) || (diagTxt.indexOf('مقاس:') >= 0);
-          removeOverlay(hasReason ? 6000 : 700);
+          removeOverlay(700);
         }, wait);
       }
     }
@@ -2277,7 +2259,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
             }
             if (!gateColorSwatch) {
               blockMsg = 'حدد اللون أولاً';
-              if (window.__otlobliTemuColorDiag) blockMsg += ' [' + window.__otlobliTemuColorDiag + ']';
             }
           }
           if (!blockMsg && !persoChk.has) {
@@ -2289,7 +2270,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
               var sHead = temuSizeHeadEl();
               var sLabel = sHead ? (sHead.textContent || '').trim() : 'المقاس';
               blockMsg = /موديل/i.test(sLabel) ? 'حدد موديل جوالك أولاً' : 'حدد المقاس أولاً';
-              if (window.__otlobliTemuSizeDiag) blockMsg += ' [' + window.__otlobliTemuSizeDiag + ']';
             }
           }
           if (blockMsg) {
@@ -2755,6 +2735,30 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (typeof c === 'string' && /search|بحث/i.test(c)) return true;
       up = up.parentElement;
       hops++;
+    }
+    return false;
+  }
+  // زر "فتح صفحة البحث" المستقل (بلا حقل إدخال مجاور - يظهر على الرئيسية/
+  // التصنيفات، لا صفحة البحث نفسها) عادة أيقونة SVG بلا aria-label/class
+  // على الزر الخارجي نفسه؛ التسمية الدالة تكون على عنصر داخلي (svg/use/
+  // title) أو رابط href. نفحص الزر وكل أبنائه (حتى 15 عنصراً) بدل الزر
+  // وحده فقط - هذا ما كان يفوّت زر البحث فيُحجب رغم النية الصريحة بإبقائه.
+  function otlobliLooksLikeSearchTrigger(el) {
+    var scan = [el];
+    if (el.querySelectorAll) {
+      var kids = el.querySelectorAll('*');
+      for (var i = 0; i < kids.length && i < 15; i++) scan.push(kids[i]);
+    }
+    for (var s = 0; s < scan.length; s++) {
+      var node = scan[s];
+      if (!node.getAttribute) continue;
+      var aria = (node.getAttribute('aria-label') || '').toLowerCase();
+      var cls = (node.getAttribute('class') || '').toLowerCase();
+      var href = (node.getAttribute('href') || node.getAttribute('xlink:href') || '').toLowerCase();
+      var testId = (node.getAttribute('data-testid') || node.getAttribute('id') || '').toLowerCase();
+      if (/search|بحث/i.test(aria) || /search/i.test(cls) || /search/i.test(href) || /search/i.test(testId)) return true;
+      var tag = (node.tagName || '').toLowerCase();
+      if (tag === 'title' && /search|بحث/i.test(node.textContent || '')) return true;
     }
     return false;
   }
@@ -3293,6 +3297,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if (/search/i.test(icClass)) continue;
         // أيقونة داخل شريط البحث (عدسة/كاميرا) — تبقى ظاهرة
         if (otlobliNearSearchInput(ic)) continue;
+        // زر فتح صفحة البحث المستقل (بلا حقل إدخال مجاور) — نفحص الزر
+        // وكل أبنائه الداخليين (svg/use/title/href) لا الزر وحده فقط.
+        if (otlobliLooksLikeSearchTrigger(ic)) continue;
         var ir = ic.getBoundingClientRect();
         if (ir.top < 0 || ir.top > 90) continue;
         // كانت تُحجب الجهة اليمنى فقط — أيقونات تيمو العربية (سلة/حساب/قائمة)
