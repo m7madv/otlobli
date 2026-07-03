@@ -1028,12 +1028,28 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // الصور: الخيار المختار - لون أو مقاس - حدّه أسود وباقي الخيارات حدّها فاتح).
   function temuHasDarkBorder(el) {
     var cs = window.getComputedStyle(el);
+    // لون الحدّ يُحسب دائماً حتى لو سماكته صفر (المتصفح يُرجع قيمة افتراضية
+    // بلا معنى بصري) — ثبت من تشخيص حقيقي: 3 أزرار سماكتها 0 كلها "بحدّ
+    // غامق". حدّ بلا سماكة = لا حدّ فعلياً، فنستبعده أولاً.
+    var bw = parseFloat(cs.borderTopWidth || '0');
+    if (!(bw > 0)) return false;
     var bc = cs.borderTopColor || cs.borderColor || '';
     var m = bc.match(/rgba?\\((\\d+),\\s*(\\d+),\\s*(\\d+)(?:,\\s*([\\d.]+))?/i);
     if (!m) return false;
     var alpha = m[4] !== undefined ? parseFloat(m[4]) : 1;
     if (alpha < 0.4) return false;
     return (+m[1] < 95 && +m[2] < 95 && +m[3] < 95);
+  }
+  // هل للعنصر outline أو box-shadow ظاهر (غير "none")؟ حلقات الاختيار
+  // الدائرية شائعة برسمها عبر هاتين الخاصيتين بدل الحدّ العادي (border) —
+  // ثبت من تشخيص حقيقي: حلقة سوداء واضحة حول زر "L" لكن سماكة حدّه 0 تماماً.
+  function temuHasRingHighlight(el) {
+    var cs = window.getComputedStyle(el);
+    var outlineStyle = cs.outlineStyle || 'none';
+    var outlineW = parseFloat(cs.outlineWidth || '0');
+    if (outlineStyle !== 'none' && outlineW > 0) return true;
+    var shadow = cs.boxShadow || 'none';
+    return !!shadow && shadow !== 'none';
   }
   // خلفية فاتحة (أو شفافة)؟ لتمييز أزرار المقاس المحدّدة (حدّ غامق + خلفية
   // فاتحة) عن الأزرار المعبّأة الغامقة مثل مبدّل نظام المقاس "Standard".
@@ -1115,7 +1131,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if ((+bm[1] + +bm[2] + +bm[3]) < 240) filled.push(els[i]);
     }
     if (filled.length === 1) return filled[0];
-    // إشارة 2: سماكة حدّ أكبر بوضوح من كل الباقي (تفوق حقيقي لا تقريبي).
+    // إشارة 2: حلقة outline/box-shadow ظاهرة (حلقات الاختيار الدائرية —
+    // ثبت من تشخيص حقيقي: حدّ سماكته 0 لكن حلقة سوداء واضحة حول الزر).
+    var ringed = [];
+    for (var r = 0; r < els.length; r++) {
+      if (temuHasRingHighlight(els[r])) ringed.push(els[r]);
+    }
+    if (ringed.length === 1) return ringed[0];
+    // إشارة 3: سماكة حدّ أكبر بوضوح من كل الباقي (تفوق حقيقي لا تقريبي).
     var widths = [];
     for (var j = 0; j < els.length; j++) widths.push(temuBorderWidth(els[j]));
     var maxW = Math.max.apply(null, widths);
@@ -1129,8 +1152,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
         return wMatches[0];
       }
     }
-    // إشارة 3 (احتياط أخير): حدّ غامق وحيد (القوالب التي فعلاً تلوّن حدّ
-    // المختار فقط بلا البقية — الحالة الأصلية قبل هذا التوسيع).
+    // إشارة 4 (احتياط أخير): حدّ غامق وحيد فعلي السماكة (القوالب التي فعلاً
+    // تلوّن حدّ المختار فقط بلا البقية — الحالة الأصلية قبل هذا التوسيع).
     var borderMatches = [];
     for (var b = 0; b < els.length; b++) {
       if (temuHasDarkBorder(els[b])) borderMatches.push(els[b]);
@@ -1281,12 +1304,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // أسمك. نستخدم كاشفاً متعدد الإشارات (خلفية → سماكة حدّ → لون حدّ) يجرّب
     // كل إشارة حتى يجد تطابقاً واحداً واضحاً؛ أي غموض = فارغ (لا تخمين).
     var defaultPick = temuPickSingleSelected(pills);
-    var dbgW = [], dbgF = 0;
+    var dbgW = [], dbgF = 0, dbgR = 0;
     for (var dp = 0; dp < pills.length; dp++) {
       dbgW.push(temuBorderWidth(pills[dp]));
       if (temuHasDarkBorder(pills[dp])) dbgF++;
+      if (temuHasRingHighlight(pills[dp])) dbgR++;
     }
-    window.__otlobliTemuSizeDiag = 'أزرار=' + pills.length + ' حدّغامق=' + dbgF + ' سماكات=[' + dbgW.join(',') + ']';
+    window.__otlobliTemuSizeDiag = 'أزرار=' + pills.length + ' حدّغامق=' + dbgF + ' حلقة=' + dbgR + ' سماكات=' + dbgW.join(',');
     if (defaultPick) {
       var dt = temuCleanText(defaultPick.textContent);
       if (dt && dt.length <= 24) { window.__otlobliTemuSizeDiag += ' نجاح[' + dt + ']'; return dt; }
