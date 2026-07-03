@@ -897,6 +897,22 @@ export const SHEIN_CAPTURE_SCRIPT = `
       .replace(/\\s+/g, ' ')
       .trim();
   }
+  // يُرفق اللون/المقاس المختارين برابط المنتج كمعاملات otlobli_* (تُتجاهَل
+  // من تيمو تماماً - معاملات مجهولة بلا أي تأثير على تحميل الصفحة)، لتُقرأ
+  // لاحقاً عند إعادة فتح نفس الرابط (temuAutoReselectFromLink) فيُعاد اختيار
+  // نفس اللون/المقاس تلقائياً بدل صفحة افتراضية بلا اختيار.
+  function otlobliBuildDeepLink(href, color, size) {
+    try {
+      var sep = href.indexOf('?') >= 0 ? '&' : '?';
+      var parts = [];
+      if (color) parts.push('otlobli_color=' + encodeURIComponent(color));
+      if (size) parts.push('otlobli_size=' + encodeURIComponent(size));
+      if (!parts.length) return href;
+      return href + sep + parts.join('&');
+    } catch (e) {
+      return href;
+    }
+  }
   // العنوان من og:title (نشيل لاحقة " - Temu Canada")، السعر من عنصر صنفه
   // curPrice- (مؤكّد من التشخيص)، الصورة من og:image أو أكبر صورة kwcdn.
   // السعر يُحوَّل للدولار حسب العملة الظاهرة (الدينار مثبّت، الكندي تقريبي).
@@ -1454,6 +1470,38 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
     return '';
   }
+  // نفس منطق temuSelectedColorCardImg بالضبط لكن تُرجع الكرت (العنصر
+  // القابل للنقر) لا صورته - يُستخدم لإعادة الاختيار التلقائي عبر النقر
+  // الفعلي (temuAutoReselectFromLink)، لا مجرد قراءة الصورة.
+  function temuFindColorCardEl(colorName) {
+    if (!colorName || colorName.length < 2) return null;
+    var lowName = colorName.toLowerCase();
+    var nodes = document.querySelectorAll('div, span, h2, h3, p, strong');
+    var colorHead = null;
+    for (var i = 0; i < nodes.length; i++) {
+      if (temuIsColorHeadText((nodes[i].textContent || '').trim())) { colorHead = nodes[i]; break; }
+    }
+    if (!colorHead) return null;
+    var container = colorHead.parentElement, hops = 0;
+    while (container && hops < 5) {
+      var imgs = container.querySelectorAll('img');
+      var matches = [];
+      for (var j = 0; j < imgs.length; j++) {
+        var src = imgs[j].currentSrc || imgs[j].src || '';
+        if (!src || src.indexOf('http') !== 0) continue;
+        var r = imgs[j].getBoundingClientRect();
+        if (r.width < 28 || r.width > 220 || r.height < 28 || r.height > 220) continue;
+        var alt = temuCleanText(imgs[j].getAttribute('alt') || imgs[j].getAttribute('title') || '').toLowerCase();
+        var parentEl = imgs[j].parentElement || imgs[j];
+        var ptxt = temuCleanText(parentEl.textContent).toLowerCase();
+        if ((alt && alt.length >= 2 && (alt === lowName || alt.indexOf(lowName) >= 0 || lowName.indexOf(alt) >= 0))
+          || (ptxt && ptxt.length <= 50 && ptxt.indexOf(lowName) >= 0)) { matches.push(parentEl); }
+      }
+      if (imgs.length >= 1) return matches.length === 1 ? matches[0] : null;
+      container = container.parentElement; hops++;
+    }
+    return null;
+  }
   // كرت اللون المختار افتراضياً (بلا نقرة الزبون ولا اسم نصي مطابق) — شبكة
   // أمان أخيرة لمنتجات كروت الصور المجرّدة (حقائب/ملابس بلا "اللون: X" ولا
   // alt نصي). الكرت المختار مُعلَّم بحدّ غامق فقط (نفحص الصورة وحاضنَيها
@@ -1852,7 +1900,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
         size: temuSizeVal,
         sizesAvailable: [],
         sizesUnavailable: [],
-        link: location.href,
+        // نُرفق اللون/المقاس المختارين كمعاملات otlobli_* بالرابط المحفوظ -
+        // تيمو تتجاهلها (معاملات مجهولة بلا تأثير) لكن هذا التطبيق يقرأها
+        // عند إعادة فتح الرابط لاحقاً (من السلة/الطلبات) ليُعيد اختيار نفس
+        // اللون والمقاس تلقائياً بدل صفحة افتراضية بلا اختيار.
+        link: otlobliBuildDeepLink(location.href, temuColorVal, temuSizeVal),
         needsCustomPhoto: temuNeedsCustomPhoto(),
         customPhotoNote: temuCustomPhotoNote(),
         needsCustomText: perso.has,
@@ -3131,6 +3183,65 @@ export const SHEIN_CAPTURE_SCRIPT = `
     __otlobliAutoSizeTs = now;
   }
 
+  // يمنع النقر على أي <a href> حقيقي - هذا بالضبط سبّب شاشة بيضاء بعلة
+  // سابقة موثّقة (temuAutoSelectSingleSize): عنصر صُنّف خطأً كزر اختيار
+  // فكان في الحقيقة رابطاً، والنقر عليه أبحر بالصفحة كلياً. نفحص العنصر
+  // وحتى 3 آباء (الحاضن قد يكون هو الرابط الفعلي لا الصورة/النص الداخلي).
+  function otlobliSafeToClick(el) {
+    var node = el, hops = 0;
+    while (node && hops < 3) {
+      if (node.tagName === 'A') {
+        var href = node.getAttribute('href') || '';
+        if (href && href !== '#' && href.indexOf('javascript:') !== 0) return false;
+      }
+      node = node.parentElement; hops++;
+    }
+    return true;
+  }
+  // إعادة اختيار اللون/المقاس تلقائياً عند فتح رابط محفوظ من السلة/الطلبات
+  // (يحمل معاملات otlobli_color/otlobli_size - انظر otlobliBuildDeepLink).
+  // ننقر فعلياً (لا مجرد تسجيل) لأن الهدف إظهار اختيار تيمو المرئي نفسه
+  // (الحدّ/الصورة الرئيسية) لا فقط بيانات otlobli الداخلية. حارس أمان
+  // صارم (otlobliSafeToClick) يمنع تكرار علة الشاشة البيضاء الموثّقة.
+  function temuAutoReselectFromLink() {
+    if (!looksLikeProductPage()) return;
+    var gid = temuGoodsId();
+    if (window.__otlobliAutoReselectDone === gid) return;
+    var params;
+    try { params = new URLSearchParams(location.search); } catch (e) { window.__otlobliAutoReselectDone = gid; return; }
+    var wantColor = params.get('otlobli_color') || '';
+    var wantSize = params.get('otlobli_size') || '';
+    if (!wantColor && !wantSize) { window.__otlobliAutoReselectDone = gid; return; }
+    var attempts = window.__otlobliAutoReselectAttempts || 0;
+    if (attempts > 20) { window.__otlobliAutoReselectDone = gid; return; } // ~6 ثوانٍ (tick كل 300ms)
+    window.__otlobliAutoReselectAttempts = attempts + 1;
+    var colorDone = !wantColor, sizeDone = !wantSize;
+    if (wantColor && !(window.__otlobliTemuColor && window.__otlobliTemuColorGid === gid)) {
+      var card = temuFindColorCardEl(wantColor);
+      if (card && otlobliSafeToClick(card)) {
+        try { card.click(); colorDone = true; } catch (e) {}
+      }
+    } else if (wantColor) {
+      colorDone = true;
+    }
+    if (wantSize && !(window.__otlobliTemuSize && window.__otlobliTemuSizeGid === gid)) {
+      var pills = temuSizePills();
+      for (var i = 0; i < pills.length; i++) {
+        if (temuCleanText(pills[i].textContent) === wantSize) {
+          if (otlobliSafeToClick(pills[i])) {
+            try { pills[i].click(); sizeDone = true; } catch (e) {}
+          }
+          break;
+        }
+      }
+    } else if (wantSize) {
+      sizeDone = true;
+    }
+    if (colorDone && sizeDone) window.__otlobliAutoReselectDone = gid;
+    // لا جدولة داخلية - tick() الرئيسي (كل 300ms) يستدعي هذه الدالة أصلاً
+    // ويعيد المحاولة تلقائياً حتى انتهاء المحاولات أو النجاح (لا ازدواج).
+  }
+
   function tick() {
     // Same documentStart race as the MutationObserver fix above - body can
     // still be null on the very first tick() call (the direct one at the
@@ -3149,6 +3260,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (IS_TEMU) {
         try { ensureAddToCartButton(); } catch (e) {}
         try { temuAutoSelectSingleSize(); } catch (e) {}
+        try { temuAutoReselectFromLink(); } catch (e) {}
         try { detectEmptyTemuSearch(); } catch (e) {}
       }
       try { killStorePopups(); } catch (e) {}
@@ -3358,7 +3470,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         window.__otlobliIconScanAttempts = 0;
       }
       window.__otlobliIconScanAttempts = (window.__otlobliIconScanAttempts || 0) + 1;
-      var rawTopBandCount = 0, noIconContentCount = 0;
+      var rawTopBandCount = 0;
       if (window.__otlobliIconScanAttempts <= 40) {
         var headerIcons = document.querySelectorAll('a, button, [role="button"], div');
         for (var k = 0; k < headerIcons.length; k++) {
@@ -3370,10 +3482,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
           var inTopBand = irAll.top >= 0 && irAll.top <= 90 && irAll.width > 0 && irAll.width <= 60 && irAll.height > 0 && irAll.height <= 60;
           if (!inTopBand) continue;
           rawTopBandCount++;
-          // فقط عناصر تحوي فعلاً أيقونة (svg/img) - يستبعد نصوصاً/حشوة صدفةً
-          // بنفس القياس، ويتفادى مطابقة حاوية غلاف بلا محتوى مرئي داخلها.
-          var hasIconContent = ic.querySelector && ic.querySelector('svg, img');
-          if (!hasIconContent) { noIconContentCount++; continue; }
+          // ثبت من تشخيص جهاز حقيقي (ثابت عبر 4 منتجات مختلفة): 5 من كل 6
+          // مرشّح كانوا يُرفضون سابقاً لاشتراط svg/img — أغلب أيقونات تيمو
+          // تُرسم بصورة خلفية CSS (background-image) لا بعنصر svg/img فعلي.
+          // لا نشترط محتوى بصري إطلاقاً الآن — الحجم والموقع (مربّع 24-60px
+          // بأعلى الشاشة) كافيان للتمييز بمفردهما.
           if (otlobliNearSearchInput(ic)) continue;
           if (otlobliLooksLikeSearchTrigger(ic)) continue;
           var inLeftCluster = irAll.left >= 0 && irAll.left <= LEFT_CLUSTER_MAX;
@@ -3387,7 +3500,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
           hiddenIconDiag.push('[' + otlobliCollectIdentityHints(ic).trim().slice(0, 30) + ' @' + Math.round(irAll.left) + ']');
         }
       }
-      var rawStatsLine = 'مرشحون بالنطاق العلوي=' + rawTopBandCount + ' (بلا svg/img=' + noIconContentCount + ')';
+      var rawStatsLine = 'مرشحون بالنطاق العلوي=' + rawTopBandCount;
       // تيمو تطبيق صفحة واحدة (SPA) - التنقل بين المنتجات لا يعيد تحميل
       // الجافاسكربت، فعلم "ظهرت مرة" وحده كان يمنع اللوحة من الظهور ثانية
       // عند دخول منتج جديد، فيرى المستخدم بيانات صفحة قديمة ويظنّها الحالية.
