@@ -1261,14 +1261,19 @@ export const SHEIN_CAPTURE_SCRIPT = `
       return temuSelectedSizeFromLabel();
     }
     // 1) نقرة الزبون المسجّلة (لنفس المنتج، وما زالت ضمن مقاساته الحالية).
+    // مهم: ننظّف نص الزر هنا بنفس دالة معالج النقر (temuCleanText) بالضبط —
+    // ثبت من تشخيص جهاز حقيقي: تيمو تضيف أحياناً رموز اتجاه غير مرئية حول
+    // نص الزر فقط أثناء حالة "مُختار" (الحدّ الأسود ظاهر)، فتصير المقارنة
+    // الخام هنا (نص حالي ملوّث) ضد القيمة المسجّلة وقت النقر (نظيفة) فاشلة
+    // تحديداً في اللحظة التي الزر ظاهر فيها كمُختار — عكس المطلوب تماماً.
     if (window.__otlobliTemuSize && window.__otlobliTemuSizeGid === temuGoodsId()) {
       for (var k = 0; k < pills.length; k++) {
-        if ((pills[k].textContent || '').trim() === window.__otlobliTemuSize) return window.__otlobliTemuSize;
+        if (temuCleanText(pills[k].textContent) === window.__otlobliTemuSize) return window.__otlobliTemuSize;
       }
     }
     // 2) مقاس وحيد = اختيار تلقائي (لا داعي لنقر الزبون عليه).
     if (pills.length === 1) {
-      return (pills[0].textContent || '').trim();
+      return temuCleanText(pills[0].textContent);
     }
     // 3) لا نقرة صريحة. ثبت من تشخيص حقيقي على جهاز فعلي: بعض قوالب تيمو
     // تجعل حدّ **كل** الأزرار غامقاً افتراضياً (مطابقة اللون وحدها عديمة
@@ -1283,7 +1288,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
     window.__otlobliTemuSizeDiag = 'أزرار=' + pills.length + ' حدّغامق=' + dbgF + ' سماكات=[' + dbgW.join(',') + ']';
     if (defaultPick) {
-      var dt = (defaultPick.textContent || '').trim();
+      var dt = temuCleanText(defaultPick.textContent);
       if (dt && dt.length <= 24) { window.__otlobliTemuSizeDiag += ' نجاح[' + dt + ']'; return dt; }
     }
     return '';
@@ -1293,7 +1298,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (!temuHasSizeSection() || temuSelectedSize()) return;
     var fpills = temuSizePills();
     if (fpills.length === 1) {
-      var ft = (fpills[0].textContent || '').trim();
+      var ft = temuCleanText(fpills[0].textContent);
       if (ft && ft.length <= 24) {
         // تسجيل فقط بلا .click() — نفس علة temuAutoSelectSingleSize: نقر عنصر
         // مُصنَّف خطأً يُبحر بالصفحة. التسجيل يكفي لالتقاط البيانات.
@@ -2965,7 +2970,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var vp = viewportSize();
     var r = pill.getBoundingClientRect();
     if (r.width <= 0 || r.height <= 0 || r.top < 0 || r.top >= vp.height) return;
-    var t = (pill.textContent || '').trim();
+    var t = temuCleanText(pill.textContent);
     if (!t || window.__otlobliTemuSize === t) return;
     // تسجيل فقط — ممنوع .click() هنا نهائياً: النقر التلقائي كان يصيب أحياناً
     // رابطاً صُنّف خطأً كزر مقاس وحيد فيُبحر بالصفحة → شاشة بيضاء بعد دخول
