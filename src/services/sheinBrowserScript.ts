@@ -3265,6 +3265,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       ensureTemuNoZoom();
       // شريط التنقل السفلي الخاص بتيمو (حسابي/السلة/طلباتي/الرئيسية) — نخفيه
       // ليبقى شريط otlobli هو الوحيد الظاهر في الأسفل.
+      var hiddenBarDiag = [];
       var allEls = document.querySelectorAll('div, nav, footer, ul');
       for (var nb = 0; nb < allEls.length; nb++) {
         var nv = allEls[nb];
@@ -3279,6 +3280,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if (nvR.top < vp.height * 0.7) continue; // لا بد أن يكون في أسفل الشاشة
         nv.setAttribute('data-otlobli-blocked', '1');
         nv.style.setProperty('display', 'none', 'important');
+        hiddenBarDiag.push('[' + nvTxt.replace(/\\s+/g, ' ').slice(0, 70) + ']');
       }
       // شارة "عربة التسوق / شحن مجاني" الخضراء العائمة
       hideStoreBannerByText(['عربة النسوق', 'شحن مجاني', 'عربة التسوق'], 25);
@@ -3298,25 +3300,53 @@ export const SHEIN_CAPTURE_SCRIPT = `
       // أثبت أنه بحث) - لكن أيقونة البحث بلا أي تسمية غالباً (SVG مجرّد)
       // فكانت تُحجب خطأً رغم النية الصريحة بإبقائها ظاهرة. الافتراضي الآمن
       // الآن: أي أيقونة مجهولة الهوية (كالبحث بلا تسمية) تبقى ظاهرة.
+      var hiddenIconDiag = [], visibleTopIconDiag = [];
       var headerIcons = document.querySelectorAll('a, button, [role="button"]');
       for (var k = 0; k < headerIcons.length; k++) {
         var ic = headerIcons[k];
         if (ic.id && ic.id.indexOf('otlobli') === 0) continue;
         if (ic.getAttribute && ic.getAttribute('data-otlobli-blocked')) continue;
         if (ic.querySelector && ic.querySelector('input')) continue;
+        var irAll = ic.getBoundingClientRect();
+        var inTopBand = irAll.top >= 0 && irAll.top <= 90 && irAll.width > 0 && irAll.width <= 60 && irAll.height > 0 && irAll.height <= 60;
         if (otlobliNearSearchInput(ic)) continue;
         if (otlobliLooksLikeSearchTrigger(ic)) continue;
-        if (!otlobliLooksLikeKnownDistraction(ic)) continue;
-        var ir = ic.getBoundingClientRect();
-        if (ir.top < 0 || ir.top > 90) continue;
-        // كانت تُحجب الجهة اليمنى فقط — أيقونات تيمو العربية (سلة/حساب/قائمة)
-        // تسكن أعلى اليسار فبقيت ظاهرة. الآن كامل عرض الهيدر يُحجب عدا البحث.
-        if (ir.width <= 0 || ir.width > 60 || ir.height <= 0 || ir.height > 60) continue;
+        if (!otlobliLooksLikeKnownDistraction(ic)) {
+          if (inTopBand) visibleTopIconDiag.push('[' + otlobliCollectIdentityHints(ic).trim().slice(0, 40) + ' @' + Math.round(irAll.left) + ',' + Math.round(irAll.top) + ']');
+          continue;
+        }
+        if (!inTopBand) continue;
         ic.setAttribute('data-otlobli-blocked', '1');
         ic.style.setProperty('visibility', 'hidden', 'important');
         ic.style.setProperty('pointer-events', 'none', 'important');
+        hiddenIconDiag.push('[' + otlobliCollectIdentityHints(ic).trim().slice(0, 40) + ']');
+      }
+      if (!window.__otlobliHideDiagShown) {
+        window.__otlobliHideDiagShown = true;
+        otlobliShowHideDiagnostics(hiddenBarDiag, hiddenIconDiag, visibleTopIconDiag);
       }
     }
+  }
+  // لوحة تشخيص مرئية (مرة واحدة لكل صفحة) تُظهر بالضبط ماذا أُخفي وماذا
+  // بقي ظاهراً في نطاق الهيدر — بدل التخمين الأعمى لمكان زر البحث.
+  function otlobliShowHideDiagnostics(bars, hiddenIcons, visibleIcons) {
+    if (!bars.length && !hiddenIcons.length && !visibleIcons.length) return;
+    if (document.getElementById('otlobli-hide-diag')) return;
+    var panel = document.createElement('div');
+    panel.id = 'otlobli-hide-diag';
+    panel.style.cssText = 'position:fixed;left:8px;right:8px;bottom:140px;z-index:2147483647;' +
+      'background:#fff3cd;color:#7a5b00;border:1px solid #ffe28a;border-radius:10px;padding:8px 10px;' +
+      'font-size:10px;direction:rtl;text-align:right;max-height:220px;overflow:auto;white-space:pre-wrap;';
+    var lines = [];
+    lines.push('أشرطة سفلية مخفية (' + bars.length + '):');
+    for (var i = 0; i < bars.length && i < 3; i++) lines.push(bars[i]);
+    lines.push('أيقونات هيدر مخفية (' + hiddenIcons.length + '):');
+    for (var j = 0; j < hiddenIcons.length && j < 6; j++) lines.push(hiddenIcons[j]);
+    lines.push('أيقونات هيدر ظاهرة (' + visibleIcons.length + '):');
+    for (var m = 0; m < visibleIcons.length && m < 6; m++) lines.push(visibleIcons[m]);
+    panel.textContent = lines.join('\\n');
+    document.body.appendChild(panel);
+    setTimeout(function () { var p = document.getElementById('otlobli-hide-diag'); if (p) p.remove(); }, 20000);
   }
 
   // يخفي حاوية بانر نصّي على المتاجر غير شي إن بمطابقة عبارة قصيرة مميّزة،
