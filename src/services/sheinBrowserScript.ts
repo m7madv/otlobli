@@ -3387,6 +3387,35 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return false;
   }
 
+  // يثبّت هيدر البحث بأعلى الشاشة (sticky) كي لا يتحرّك مع التمرير. آمن: sticky
+  // يُبقي العنصر ضمن التدفّق (بعكس fixed)، فأسوأ حالة "لا يثبت" دون كسر التخطيط.
+  // حرّاس: لا نلمس حاوية موضعها أصلاً fixed/absolute/sticky (مثبّتة سلفاً)، ولا
+  // نُعيد التطبيق (data-otlobli-sticky). نختار أوسع حاوية هيدر مطابقة (عريضة،
+  // بأعلى الصفحة، قصيرة) — عادةً صفّ الهيدر الجامع للبحث.
+  function otlobliStickyHeader() {
+    if (IS_SHEIN) return;
+    try {
+      var s = document.querySelector('input[type="search"], input[placeholder*="بحث"], [placeholder*="بحث"], [aria-placeholder*="بحث"], [aria-label*="بحث"], [class*="search" i]');
+      if (!s) return;
+      var vp = viewportSize();
+      var up = s, best = null, hops = 0;
+      while (up && up !== document.body && up !== document.documentElement && hops < 8) {
+        var r = up.getBoundingClientRect();
+        if (r.width >= vp.width * 0.6 && r.top >= 0 && r.top <= 60 && r.height > 0 && r.height <= 160) best = up;
+        up = up.parentElement; hops++;
+      }
+      if (!best) return;
+      if (best.getAttribute('data-otlobli-sticky')) return;
+      var curPos = window.getComputedStyle(best).position;
+      if (curPos === 'fixed' || curPos === 'absolute' || curPos === 'sticky') { best.setAttribute('data-otlobli-sticky', 'skip'); return; }
+      best.setAttribute('data-otlobli-sticky', '1');
+      best.style.setProperty('position', 'sticky', 'important');
+      best.style.setProperty('top', '0px', 'important');
+      best.style.setProperty('z-index', '2000', 'important');
+      best.style.setProperty('background', '#ffffff', 'important');
+    } catch (e) {}
+  }
+
   function killStorePopups() {
     if (IS_SHEIN) return;
     var vp = viewportSize();
@@ -3461,6 +3490,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (IS_TEMU) {
       // منع الزوم نهائياً (قرصة الأصابع + النقر المزدوج) — تجربة تطبيق أصلي.
       ensureTemuNoZoom();
+      // تثبيت هيدر البحث بأعلى الشاشة كي لا يتحرّك مع التمرير (بطلب المالك).
+      otlobliStickyHeader();
       // شريط التنقل السفلي الخاص بتيمو (حسابي/السلة/طلباتي/الرئيسية) — نخفيه
       // ليبقى شريط otlobli هو الوحيد الظاهر في الأسفل.
       var hiddenBarDiag = [];
