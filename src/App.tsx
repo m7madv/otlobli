@@ -375,6 +375,14 @@ function App() {
   }
 
   const logout = () => {
+    // تنبيه المالك المطلوب: تسجيل الخروج يُفرّغ السلة الحالية (كل المتاجر)،
+    // بينما "طلباتي" محفوظة ولا تتأثر. نؤكّد قبل التنفيذ حتى لا تضيع سلة بالخطأ.
+    const hasCartItems = Object.values(cartsByStore).some((items) => items.length > 0)
+    const message = hasCartItems
+      ? 'تسجيل الخروج سيُفرّغ سلتك الحالية وتضيع أغراضها. طلباتك محفوظة في «طلباتي» ولن تتأثر.\n\nهل تريد المتابعة؟'
+      : 'هل تريد تسجيل الخروج؟ طلباتك تبقى محفوظة في «طلباتي».'
+    if (!window.confirm(message)) return
+    setCartsByStore({})
     setSessionToken('')
     setScreen('login')
   }
@@ -555,6 +563,8 @@ function App() {
   const [ratingStars, setRatingStars] = useState(0)
   const [ratingNote, setRatingNote] = useState('')
   const [isSubmittingRating, setIsSubmittingRating] = useState(false)
+  // إظهار/إخفاء قائمة منتجات الطلب داخل شاشة تتبّع الطلب.
+  const [showTrackingItems, setShowTrackingItems] = useState(false)
 
   const submitRating = (targetOrderId: string) => {
     if (ratingStars < 1) return
@@ -2054,6 +2064,36 @@ function App() {
               <p>{order.qadmousNumber ? `رقم القدموس: ${order.qadmousNumber}` : 'رقم القدموس سيظهر بعد تسليم الشحنة.'}</p>
             </section>
             <Timeline statusIndex={order.statusIndex} createdAt={order.createdAt} paidAt={order.paidAt} />
+            {order.items.length > 0 && (
+              <section className="tracking-items">
+                <button
+                  className="tracking-items-toggle"
+                  onClick={() => setShowTrackingItems((v) => !v)}
+                >
+                  <span><Icon name="shopping_bag" /> {showTrackingItems ? 'إخفاء المنتجات' : `عرض المنتجات (${order.items.length})`}</span>
+                </button>
+                {showTrackingItems && (
+                  <ul className="tracking-items-list">
+                    {order.items.map((it) => (
+                      <li className="tracking-item" key={it.id}>
+                        <img
+                          src={it.colorImage || it.image || 'https://placehold.co/56x56/f5f5f5/aaa?text=صورة'}
+                          alt=""
+                          onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/56x56/f5f5f5/aaa?text=صورة' }}
+                        />
+                        <div className="tracking-item-info">
+                          <strong>{it.title}</strong>
+                          <small>
+                            {[it.color, it.size].filter(Boolean).join(' · ')}
+                            {it.quantity > 1 ? ` · ×${it.quantity}` : ''}
+                          </small>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            )}
             {order.statusIndex === orderStatuses.length - 1 && (
               order.rating ? (
                 <section className="rating-box">
