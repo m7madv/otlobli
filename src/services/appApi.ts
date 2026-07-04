@@ -48,6 +48,23 @@ export type OrderStatusResult = {
   extraAmountUsd: number
 }
 
+export type RedeemCouponInput = {
+  code: string
+  phone: string
+  deviceId: string
+  store: string
+  subtotalSyp: number
+}
+
+export type RedeemCouponResult = {
+  valid: boolean
+  discountSyp: number
+  code?: string
+  // سبب الرفض: not_found/inactive/expired/not_started/wrong_store/below_min/
+  // exhausted/already_used/no_phone/offline/error
+  reason?: string
+}
+
 export type TalabiehApi = {
   auth: {
     startWhatsappLogin: (phone: string) => Promise<StartLoginResult>
@@ -68,6 +85,9 @@ export type TalabiehApi = {
     pollOrderStatus: (orderId: string) => Promise<OrderStatusResult | null>
     // يتحقق أن كود الإحالة (رقم هاتف عميل سابق) حقيقي قبل تطبيق خصم الإحالة.
     validateReferralCode: (code: string) => Promise<boolean>
+    // يتحقق من كود الخصم ويحسبه ويستهلكه ذرّياً (مرة واحدة لكل هاتف/جهاز).
+    // يتدهور بأمان: يُعيد valid=false بلا كسر إن كانت الخلفية غير متاحة.
+    redeemCoupon: (input: RedeemCouponInput) => Promise<RedeemCouponResult>
     // يحفظ تقييم العميل (نجوم + ملاحظة اختيارية) بعد تسليم الطلب - مرة واحدة فقط لكل طلب.
     submitOrderRating: (orderId: string, stars: number, note: string) => Promise<boolean>
   }

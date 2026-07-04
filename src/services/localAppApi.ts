@@ -81,6 +81,12 @@ export const localAppApi: TalabiehApi = {
       return code.trim().length > 0
     },
 
+    // بالوضع المحلي لا خلفية لأكواد الخصم — نُعيد رفضاً آمناً بلا خصم.
+    async redeemCoupon() {
+      await wait(200)
+      return { valid: false, discountSyp: 0, reason: 'local' }
+    },
+
     // لا قاعدة بيانات حقيقية بالوضع المحلي لتُخزَّن فيها.
     async submitOrderRating() {
       await wait(220)

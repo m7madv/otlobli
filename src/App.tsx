@@ -13,7 +13,7 @@ import { makeOrderId, today } from './domain/orders'
 import { buildPriceBreakdown, formatMoney, formatPriceSyp, formatUsd, sumPriceLines } from './domain/pricing'
 import type { PaymentCurrency } from './domain/pricing'
 import type { Address, AppNotification, CartItem, NotificationPrefs, Order, Product, ProductColor, ProductVariant, Recipient, Screen, StatusTone, UserProfile } from './domain/types'
-import { readStoredJson, storageKeys, useStoredState } from './infrastructure/localStorage'
+import { getDeviceId, readStoredJson, storageKeys, useStoredState } from './infrastructure/localStorage'
 import { appApi } from './services'
 import { PAYMENT_MODE, APP_VERSION, cleanEnvValue } from './config'
 import { buildWhatsappLink } from './services/whatsappLink'
@@ -551,9 +551,69 @@ function App() {
 
   const subtotal = useMemo(() => sumPriceLines(subtotalBreakdown), [subtotalBreakdown])
 
-  const breakdown = subtotalBreakdown
-  const total = subtotal
+  // كود الخصم: يُطبَّق فقط بعد تأكيد الخلفية (RPC ذرّية تستهلكه مرة/هاتف/جهاز).
+  // appliedCoupon يحمل المبلغ المؤكَّد بالليرة؛ نقصّه على subtotal حتى لا يصير
+  // الإجمالي سالباً أبداً. إن لم تُنشَر الخلفية يبقى null فلا يتأثر أي مبلغ.
+  const [couponInput, setCouponInput] = useState('')
+  const [appliedCoupon, setAppliedCoupon] = useStoredState<{ code: string; discountSyp: number } | null>(
+    'talabieh.appliedCoupon',
+    null,
+  )
+  const [couponMsg, setCouponMsg] = useState('')
+  const [couponChecking, setCouponChecking] = useState(false)
+
+  const couponDiscountSyp = appliedCoupon ? Math.min(Math.max(0, appliedCoupon.discountSyp), subtotal) : 0
+  const breakdown = couponDiscountSyp > 0
+    ? [...subtotalBreakdown, { label: `خصم (${appliedCoupon!.code})`, value: -couponDiscountSyp }]
+    : subtotalBreakdown
+  const total = Math.max(0, subtotal - couponDiscountSyp)
   const meetsMinimumOrder = subtotal >= MIN_ORDER_SYP || subtotal / exchangeRate >= MIN_ORDER_USD
+
+  const couponReasonMessage = (reason?: string) => {
+    switch (reason) {
+      case 'no_phone': return 'أدخل رقم واتساب المستلم أولاً'
+      case 'not_found': return 'كود الخصم غير صحيح'
+      case 'inactive':
+      case 'not_started': return 'كود الخصم غير مفعّل حالياً'
+      case 'expired': return 'انتهت صلاحية كود الخصم'
+      case 'wrong_store': return 'هذا الكود لا ينطبق على هذا المتجر'
+      case 'below_min': return 'قيمة الطلب أقل من الحد المطلوب لهذا الكود'
+      case 'exhausted': return 'انتهت الكمية المتاحة لهذا الكود'
+      case 'already_used': return 'لقد استخدمت هذا الكود من قبل'
+      case 'offline':
+      case 'local': return 'خدمة أكواد الخصم غير متاحة حالياً'
+      default: return 'تعذّر تطبيق الكود، حاول لاحقاً'
+    }
+  }
+
+  const applyCoupon = async () => {
+    const code = couponInput.trim()
+    if (!code || couponChecking) return
+    const custPhone = recipient.phone.trim() || phone
+    if (!custPhone) { setCouponMsg('أدخل رقم واتساب المستلم أولاً'); return }
+    setCouponChecking(true)
+    setCouponMsg('')
+    try {
+      const res = await appApi.orders.redeemCoupon({
+        code,
+        phone: custPhone,
+        deviceId: getDeviceId(),
+        store: selectedStore,
+        subtotalSyp: subtotal,
+      })
+      if (res.valid && res.discountSyp > 0) {
+        setAppliedCoupon({ code: res.code || code, discountSyp: res.discountSyp })
+        setCouponInput('')
+        setCouponMsg('')
+      } else {
+        setCouponMsg(couponReasonMessage(res.reason))
+      }
+    } catch {
+      setCouponMsg('تعذّر تطبيق الكود، حاول لاحقاً')
+    } finally {
+      setCouponChecking(false)
+    }
+  }
   const hasIncompleteCustom = cartItems.some(
     (item) => (item.needsCustomText && !item.customText?.trim()) ||
               (item.needsCustomPhoto && !item.customPhotoDataUrl)
@@ -1217,6 +1277,8 @@ function App() {
           setOrders((list) => [savedOrder, ...list])
           setCurrentOrderId(result.orderId)
           setCartItems([])
+          setAppliedCoupon(null)
+          setCouponInput('')
           addNotification({ type: 'payment', title: 'تم استلام طلبك', body: `طلبك ${result.orderId} قيد المعالجة.`, orderId: result.orderId })
           setScreen('success')
           return
@@ -1224,6 +1286,8 @@ function App() {
 
         setOrders((list) => [{ ...newOrder, id: result.orderId }, ...list])
         setCurrentOrderId(result.orderId)
+        setAppliedCoupon(null)
+        setCouponInput('')
         setPendingPayment({
           orderId: result.orderId,
           amount: result.paymentAmount,
@@ -1892,6 +1956,31 @@ function App() {
             </div>
             <InfoRow icon="inventory_2" title="طريقة التوصيل" body="التسليم داخل سوريا عبر القدموس عند توفر رقم الشحنة." />
             <CurrencyToggle value={paymentCurrency} onChange={setPaymentCurrency} />
+            <div className="coupon-card">
+              {appliedCoupon ? (
+                <div className="coupon-applied">
+                  <span><Icon name="verified" /> كود «{appliedCoupon.code}» مُطبَّق — خصم {formatPrice(Math.min(appliedCoupon.discountSyp, subtotal))}</span>
+                </div>
+              ) : (
+                <div className="coupon-row">
+                  <input
+                    className="coupon-input"
+                    value={couponInput}
+                    onChange={(e) => setCouponInput(e.target.value)}
+                    placeholder="كود الخصم (اختياري)"
+                    autoCapitalize="characters"
+                  />
+                  <button
+                    className="coupon-apply"
+                    disabled={couponChecking || !couponInput.trim()}
+                    onClick={applyCoupon}
+                  >
+                    {couponChecking ? '...' : 'تطبيق'}
+                  </button>
+                </div>
+              )}
+              {couponMsg && <p className="coupon-msg">{couponMsg}</p>}
+            </div>
             <PriceBreakdown items={breakdown} total={total} format={formatPrice} />
             {(() => {
               const missingBranch = !!(QADMOUS_BRANCHES[recipient.governorate] && !recipient.qadmousBranch)

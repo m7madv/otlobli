@@ -37,6 +37,27 @@ export const storageKeys = {
   cartsByStore: 'talabieh.cartsByStore',
 } as const
 
+// معرّف جهاز ثابت (best-effort) لمنع إعادة استخدام كود الخصم على نفس الجهاز
+// حتى لو غيّر المستخدم الحساب. يُحفظ في localStorage ويبقى ما لم تُحذف بيانات
+// التطبيق. القيد الأقوى (منع إعادة الاستخدام) يبقى على رقم الهاتف في الخلفية؛
+// هذا المعرّف طبقة إضافية. (ربط أقوى عبر إضافة @capacitor/device لاحقاً.)
+export function getDeviceId(): string {
+  if (typeof window === 'undefined') return ''
+  try {
+    const KEY = 'talabieh.deviceId'
+    let id = window.localStorage.getItem(KEY) || ''
+    if (!id) {
+      id = (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
+        ? crypto.randomUUID()
+        : 'dev-' + Math.random().toString(36).slice(2) + Date.now().toString(36)
+      window.localStorage.setItem(KEY, id)
+    }
+    return id
+  } catch {
+    return ''
+  }
+}
+
 export function readStoredJson<T>(key: string, fallback: T) {
   if (typeof window === 'undefined') {
     return fallback

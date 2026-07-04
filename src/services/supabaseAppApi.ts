@@ -382,6 +382,28 @@ export const supabaseAppApi: TalabiehApi = {
       return Boolean(data)
     },
 
+    // كود الخصم: RPC ذرّية تتحقق + تحسب + تستهلك مرة واحدة لكل هاتف/جهاز.
+    // تدهور آمن: أي غياب/خطأ يُعيد valid=false فلا يتأثر الإجمالي إطلاقاً.
+    async redeemCoupon(input) {
+      if (!supabase) return { valid: false, discountSyp: 0, reason: 'offline' }
+      const { data, error } = await supabase.rpc('redeem_coupon', {
+        p_code: input.code.trim(),
+        p_phone: input.phone.trim(),
+        p_device_id: input.deviceId || '',
+        p_store: input.store || 'all',
+        p_subtotal_syp: Math.max(0, Math.round(input.subtotalSyp)),
+        p_usd_rate: DISPLAY_USD_RATE,
+      })
+      if (error || !data) return { valid: false, discountSyp: 0, reason: 'error' }
+      const d = data as { valid?: boolean; discountSyp?: number; code?: string; reason?: string }
+      return {
+        valid: Boolean(d.valid),
+        discountSyp: Math.max(0, Number(d.discountSyp) || 0),
+        code: d.code,
+        reason: d.reason,
+      }
+    },
+
     // يحفظ التقييم عبر RPC ضيقة تتحقق إنه الطلب مُسلَّم وغير مُقيَّم سابقاً
     // قبل الكتابة - بلا ذلك ما في طريقة عامة لتعديل صفوف orders من العميل.
     async submitOrderRating(orderId, stars, note) {

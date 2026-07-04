@@ -2413,3 +2413,66 @@ a {
   font-size: 0.8rem;
   color: #888;
 }
+
+/* كود الخصم في شاشة الدفع */
+.coupon-card {
+  margin: 10px 0;
+}
+
+.coupon-row {
+  display: flex;
+  gap: 8px;
+}
+
+.coupon-input {
+  flex: 1;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid #e3e3e3;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 0.95rem;
+  background: #fff;
+}
+
+.coupon-apply {
+  padding: 0 18px;
+  border: none;
+  border-radius: 12px;
+  background: #1f6f4a;
+  color: #fff;
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.coupon-apply:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.coupon-applied {
+  display: flex;
+  align-items: center;
+  padding: 12px 14px;
+  border: 1px solid #b7e4c7;
+  border-radius: 12px;
+  background: #eafaf0;
+  color: #1f6f4a;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.coupon-applied span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.coupon-msg {
+  margin: 6px 2px 0;
+  font-size: 0.82rem;
+  color: #c0392b;
+}
