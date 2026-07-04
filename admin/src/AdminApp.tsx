@@ -468,9 +468,6 @@ function AdminApp() {
             )}
           </button>
         ))}
-        <a className="customer-link" href="https://talabieh.vercel.app" rel="noreferrer" target="_blank">
-          فتح تطبيق الزبون
-        </a>
       </aside>
 
       <main className="main">
