@@ -3556,6 +3556,36 @@ export const SHEIN_CAPTURE_SCRIPT = `
       best.style.setProperty('display', 'none', 'important');
     }
   }
+  // يُشخّص حالة زر البحث نفسه: موجود/ظاهر؟ وإن كان مخفياً، أي سلف أخفاه —
+  // نحن (يحمل data-otlobli-blocked) أم تيمو؟ ونصّ/هوية ذلك السلف. هذا يحسم
+  // مصدر اختفاء البحث بدل التخمين. محاط بـtry حتى لا يكسر اللوحة إن فشل.
+  function otlobliSearchStatusLine() {
+    try {
+      var el = document.querySelector('input[type="search"], input[placeholder*="بحث"], input[placeholder*="search" i], [class*="search" i], [aria-label*="بحث"], [aria-label*="search" i], [placeholder*="بحث"], [aria-placeholder*="بحث"]');
+      if (!el) {
+        var all = document.querySelectorAll('div, span, a, button, input');
+        for (var i = 0; i < all.length && i < 1500; i++) {
+          var tc = temuCleanText(all[i].textContent || '');
+          if (tc.length > 0 && tc.length <= 30 && /بحث/.test(tc)) { el = all[i]; break; }
+        }
+      }
+      if (!el) return 'بحث: غير موجود بالـDOM';
+      var r = el.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) return 'بحث: ظاهر ✓ @' + Math.round(r.left) + ',' + Math.round(r.top);
+      var up = el, hops = 0;
+      while (up && up !== document.body && hops < 12) {
+        var cs = window.getComputedStyle(up);
+        if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') {
+          var mark = up.getAttribute && up.getAttribute('data-otlobli-blocked');
+          var who = mark ? ('نحن(' + mark + ')') : 'تيمو';
+          var utxt = temuCleanText(up.textContent || '').slice(0, 24);
+          return 'بحث مخفي — ' + who + ' [' + otlobliCollectIdentityHints(up).trim().slice(0, 26) + '] نص:"' + utxt + '"';
+        }
+        up = up.parentElement; hops++;
+      }
+      return 'بحث مخفي (قياس صفري بلا سلف display:none)';
+    } catch (e) { return 'بحث: تعذّر التشخيص'; }
+  }
   // لوحة تشخيص مرئية (مرة واحدة لكل صفحة) تُظهر بالضبط ماذا أُخفي وماذا
   // بقي ظاهراً في نطاق الهيدر — بدل التخمين الأعمى لمكان زر البحث.
   function otlobliShowHideDiagnostics(bars, hiddenIcons, visibleIcons, rawStats) {
@@ -3566,6 +3596,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       'background:#fff3cd;color:#7a5b00;border:1px solid #ffe28a;border-radius:10px;padding:8px 10px;' +
       'font-size:10px;direction:rtl;text-align:right;max-height:220px;overflow:auto;white-space:pre-wrap;';
     var lines = [];
+    lines.push(otlobliSearchStatusLine());
     if (rawStats) lines.push(rawStats);
     lines.push('أشرطة سفلية مخفية (' + bars.length + '):');
     for (var i = 0; i < bars.length && i < 3; i++) lines.push(bars[i]);
@@ -3590,7 +3621,18 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (n.querySelector('input:not([type="hidden"])')
         || n.querySelector('[class*="search" i]')
         || n.querySelector('[aria-label*="بحث"], [aria-label*="search" i]')
+        || n.querySelector('[placeholder*="بحث"], [placeholder*="search" i], [aria-placeholder*="بحث"], [aria-placeholder*="search" i]')
         || n.querySelector('[class*="curPrice" i]')) return true;
+      // مدخل بحث تيمو غير المُسمّى: عنصر نصّه القصير "البحث في…" بلا input ولا
+      // صنف/aria/placeholder دلالي. كان يفوت كل الحرّاس أعلاه، فتتسلّق
+      // hideStoreBannerByText من بانر "احصل على التطبيق" المجاور إلى صف الهيدر
+      // العريض وتحجبه — ومعه البحث — فيختفي زر البحث بالصفحة الرئيسية. نتعرّف
+      // عليه هنا بنصّه القصير الحاوي "بحث" فنمنع ابتلاع صفّه.
+      var tcand = n.querySelectorAll('div, span, a, button');
+      for (var ti = 0; ti < tcand.length && ti < 400; ti++) {
+        var tt = temuCleanText(tcand[ti].textContent || '');
+        if (tt.length > 0 && tt.length <= 30 && /بحث/.test(tt)) return true;
+      }
       var pImgs = n.querySelectorAll('img'), pk = 0;
       for (var pi = 0; pi < pImgs.length && pk < 3; pi++) {
         if (/kwcdn/i.test(pImgs[pi].currentSrc || pImgs[pi].src || '')) pk++;
