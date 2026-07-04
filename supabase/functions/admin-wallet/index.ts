@@ -48,12 +48,17 @@ Deno.serve(async (req) => {
     if (cur.error) return json({ error: cur.error.message }, 500)
     const currentBal = Number(cur.data?.balance_usd ?? 0)
     const newBal = Math.max(0, Math.round((currentBal + amount) * 100) / 100)
+    // التغيير الفعلي بعد القصّ إلى ≥0 — نسجّله في المعاملة كي يطابق السجلُّ الرصيدَ
+    // (خصم 10$ من رصيد 5$ يسجّل -5$ لا -10$).
+    const actualChange = Math.round((newBal - currentBal) * 100) / 100
 
     const up = await supabase.from('wallets').upsert({ phone, balance_usd: newBal, updated_at: new Date().toISOString() }, { onConflict: 'phone' })
     if (up.error) return json({ error: up.error.message }, 500)
-    await supabase.from('wallet_transactions').insert({
-      phone, amount_usd: amount, kind: amount > 0 ? 'topup' : 'adjust', note: (body.note ?? '').trim(),
-    })
+    if (actualChange !== 0) {
+      await supabase.from('wallet_transactions').insert({
+        phone, amount_usd: actualChange, kind: actualChange > 0 ? 'topup' : 'adjust', note: (body.note ?? '').trim(),
+      })
+    }
     return json({ ok: true, balanceUsd: newBal })
   }
 

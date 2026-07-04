@@ -399,7 +399,7 @@ function App() {
     let cancelled = false
     void appApi.users
       .heartbeat(phone, getDeviceId(), userProfile?.name ?? recipient.name ?? '', userProfile?.governorate ?? recipient.governorate ?? '')
-      .then((res) => { if (!cancelled && res.blocked) setScreen('blocked-policy') })
+      .then((res) => { if (!cancelled) setAccountBlocked(res.blocked) })
       .catch(() => undefined)
     void appApi.wallet.getBalance(phone)
       .then((bal) => { if (!cancelled) setWalletBalanceUsd(bal) })
@@ -592,6 +592,8 @@ function App() {
   // المحفظة: الرصيد بالدولار (يُجلب عند الدخول) + خيار استخدامه بالدفع.
   const [walletBalanceUsd, setWalletBalanceUsd] = useState(0)
   const [useWallet, setUseWallet] = useState(false)
+  // حظر الحساب: تُضبط من نبضة الدخول، وتعرض طبقة حجب صلبة لا يمكن تجاوزها.
+  const [accountBlocked, setAccountBlocked] = useState(false)
 
   const couponDiscountSyp = appliedCoupon ? Math.min(Math.max(0, appliedCoupon.discountSyp), subtotal) : 0
   const afterCoupon = Math.max(0, subtotal - couponDiscountSyp)
@@ -1247,7 +1249,7 @@ function App() {
   // ينشئ الطلب ويحفظه في قاعدة البيانات. في وضع 'auto' (الدفع معطّل مؤقتاً)
   // يُسجَّل الطلب مباشرة "مدفوع" وينتقل لشاشة النجاح. في وضع 'shamcash' يُنشأ
   // بحالة "بانتظار الدفع" مع مبلغ فريد وينتقل لشاشة الدفع.
-  const confirmOrder = () => {
+  const confirmOrder = async () => {
     if (cartItems.length === 0) {
       showNotice('السلة فارغة')
       return
@@ -1285,6 +1287,22 @@ function App() {
 
     setIsStartingPayment(true)
     const orderId = makeOrderId(orders)
+
+    // نخصم رصيد المحفظة أولاً وبانتظار (ذرّي بالخلفية) ونحسب الإجمالي من
+    // المخصوم الفعلي — فيتطابق الإجمالي المدفوع مع ما خُصم فعلاً من المحفظة.
+    // إن فشل الخصم أو تغيّر الرصيد، لا نطبّق خصم محفظة (لا خسارة مال).
+    let walletSpentSyp = 0
+    if (walletDiscountSyp > 0 && phone) {
+      try {
+        const r = await appApi.wallet.spend(phone, walletUsableUsd, orderId)
+        if (r.ok && r.spentUsd > 0) {
+          walletSpentSyp = Math.min(afterCoupon, Math.round(r.spentUsd * exchangeRate))
+          setWalletBalanceUsd(r.balanceUsd)
+        }
+      } catch { /* فشل الخصم → بلا خصم محفظة */ }
+    }
+    const finalTotal = Math.max(0, afterCoupon - walletSpentSyp)
+
     const newOrder: Order = {
       id: orderId,
       customer: recipient.name || userProfile?.name || 'عميل otlobli',
@@ -1294,7 +1312,7 @@ function App() {
         ? `فرع القدموس: ${recipient.qadmousBranch}${recipient.details ? ' - ' + recipient.details : ''}`
         : recipient.details || 'فرع القدموس (لم يُحدَّد)',
       items: cartItems,
-      total,
+      total: finalTotal,
       paymentStatus: 'بانتظار الدفع',
       statusIndex: 0,
       qadmousNumber: '',
@@ -1303,12 +1321,6 @@ function App() {
 
     void appApi.orders.createPendingOrder(newOrder, paymentCurrency)
       .then((result) => {
-        // خصم رصيد المحفظة (ذرّي بالخلفية) إن اختار المستخدم استخدامه.
-        if (walletDiscountSyp > 0 && phone) {
-          void appApi.wallet.spend(phone, walletUsableUsd, result.orderId)
-            .then((r) => setWalletBalanceUsd(r.balanceUsd))
-            .catch(() => undefined)
-        }
         if (PAYMENT_MODE === 'auto') {
           const savedOrder: Order = {
             ...newOrder,
@@ -1400,6 +1412,29 @@ function App() {
   }
 
   const renderScreen = () => {
+    // حجب صلب للحساب المحظور: لا شريط سفلي ولا زر رجوع — لا يمكن تجاوزه.
+    if (accountBlocked) {
+      return (
+        <MobileShell active="home" onNavigate={() => undefined} hideBottomNav>
+          <main className="mobile-content">
+            <section className="empty-state" style={{ textAlign: 'center', marginTop: 40 }}>
+              <div className="shipping-watermark"><Icon name="block" /></div>
+              <h2 style={{ marginTop: 12 }}>تم إيقاف هذا الحساب</h2>
+              <p style={{ marginTop: 8 }}>
+                عذراً، تم إيقاف حسابك عن استخدام التطبيق. للاستفسار تواصل معنا عبر واتساب.
+              </p>
+              <button
+                className="primary-action"
+                style={{ marginTop: 16 }}
+                onClick={() => openWhatsappSupport('مرحبا otlobli، حسابي موقوف وأريد الاستفسار')}
+              >
+                <Icon name="support_agent" /> تواصل عبر واتساب
+              </button>
+            </section>
+          </main>
+        </MobileShell>
+      )
+    }
     if (screen === 'login') {
       return (
         <AuthShell title="تسجيل الدخول" subtitle="ادخل رقم واتساب لتفعيل حسابك ومتابعة الطلبات">
