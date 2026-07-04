@@ -1,5 +1,15 @@
 export const SHEIN_CAPTURE_SCRIPT = `
 (function () {
+  // ==========================================================================
+  // توجيه دائم للذكاء الاصطناعي (بطلب صريح من المالك — ممنوع حذفه):
+  // 1) المقاسات/الأبعاد (overlays، الأزرار، الشريط، البحث) يجب أن تبقى
+  //    "متجاوبة" (responsive) تعمل على كل الهواتف والأجهزة اللوحية. استعمل
+  //    دائماً viewportSize() و max(env(safe-area-inset-*), fallback) والنِسب
+  //    المئوية — لا تُثبّت أبعاداً بالبكسل مبنية على جهاز واحد.
+  // 2) عند أي تعديل: لا تكسر شيئاً مستقراً. غيّر أضيق نطاق ممكن، وتحقّق بعده
+  //    بأمر node --check + new Function (قاعدة مضاعفة كل backslash في regex).
+  // 3) هذا "آخر إصلاح للمقاسات" المطلوب — أبقِها متناسبة لكل الأجهزة.
+  // ==========================================================================
   // env(safe-area-inset-bottom) only resolves to the device's real inset when
   // the PAGE's OWN viewport meta tag declares viewport-fit=cover - otherwise
   // it silently evaluates to 0 everywhere, regardless of device. otlobli's
@@ -3625,9 +3635,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
       return 'بحث مخفي (قياس صفري بلا سلف display:none)';
     } catch (e) { return 'بحث: تعذّر التشخيص'; }
   }
+  // مفتاح لوحة التشخيص المرئية. أُطفئ بعد تأكيد ظهور البحث (v37). أبقِ الدالة
+  // كما هي (لا تحذفها) — تشغيلها مجدداً عند أي تحقيق مستقبلي = قلب هذا لـtrue فقط.
+  var OTLOBLI_DIAG = false;
   // لوحة تشخيص مرئية (مرة واحدة لكل صفحة) تُظهر بالضبط ماذا أُخفي وماذا
   // بقي ظاهراً في نطاق الهيدر — بدل التخمين الأعمى لمكان زر البحث.
   function otlobliShowHideDiagnostics(bars, hiddenIcons, visibleIcons, rawStats) {
+    if (!OTLOBLI_DIAG) return;
     if (document.getElementById('otlobli-hide-diag')) return;
     var panel = document.createElement('div');
     panel.id = 'otlobli-hide-diag';
