@@ -3353,6 +3353,27 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // يزيل النوافذ المنبثقة الترويجية المزعجة على المتاجر غير شي إن (عجلة الحظ،
   // نوافذ الخصومات، طبقات تغطّي الشاشة): أي عنصر ثابت/مطلق بطبقة عالية يغطّي
   // جزءاً كبيراً من الشاشة = نافذة منبثقة، فنخفيه ونعيد تمكين التمرير.
+  // هل يحوي العنصر شريط بحث تيمو؟ كشف مقصور على البحث فقط (لا محتوى منتج).
+  // ثبت من تشخيص جهاز حقيقي أن البحث يسكن داخل نفس غلاف بانر "حمّل التطبيق"
+  // (downloadswrapper)، فحين تحجب hideStoreBannerByText الغلاف لعبارة "تسوق
+  // مثل" تحجب البحث معه. نستعمل هذه الدالة لصونه.
+  function otlobliElContainsSearch(n) {
+    if (!n || !n.querySelector) return false;
+    try {
+      if (n.querySelector('input:not([type="hidden"])')
+        || n.querySelector('[class*="search" i]')
+        || n.querySelector('[aria-label*="بحث"], [aria-label*="search" i]')
+        || n.querySelector('[placeholder*="بحث"], [placeholder*="search" i], [aria-placeholder*="بحث"], [aria-placeholder*="search" i]')) return true;
+      // بحث تيمو غير المُسمّى: عنصر نصّه القصير يحوي "بحث" (كـ"البحث في Temu").
+      var tcand = n.querySelectorAll('div, span, a, button');
+      for (var ti = 0; ti < tcand.length && ti < 400; ti++) {
+        var tt = temuCleanText(tcand[ti].textContent || '');
+        if (tt.length > 0 && tt.length <= 30 && /بحث/.test(tt)) return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+
   function killStorePopups() {
     if (IS_SHEIN) return;
     var vp = viewportSize();
@@ -3367,7 +3388,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var hvTxt = (hv.textContent || '').length;
       var hvImgs = hv.querySelectorAll ? hv.querySelectorAll('img').length : 0;
       var hvPrice = hv.querySelector ? !!hv.querySelector('[class*="curPrice" i]') : false;
-      if (hvTxt > 600 || hvImgs >= 4 || hvPrice) {
+      // صون البحث: عنصر حجبناه مبكراً (نصّه "تسوق مثل") ثم رُسِم البحث بداخله
+      // لاحقاً — نُعيده فوراً ونُدرجه بقائمة بيضاء. السبب الجذري لاختفاء البحث
+      // بالرئيسية: غلاف "downloadswrapper" يجمع بانر التطبيق مع شريط البحث،
+      // وكان يُحجب قبل رندر البحث فيتخطّاه التقييم اللاحق للأبد.
+      var hvSearch = otlobliElContainsSearch(hv);
+      if (hvTxt > 600 || hvImgs >= 4 || hvPrice || hvSearch) {
         hv.style.removeProperty('display');
         hv.setAttribute('data-otlobli-blocked', '0'); // قائمة بيضاء — لن يُحجب ثانية
       }
