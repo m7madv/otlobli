@@ -3462,6 +3462,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
       // يسار الهيدر (أول ~180px)، بينما شريط البحث أعرض بكثير ويبدأ لاحقاً.
       var hiddenIconDiag = [], visibleTopIconDiag = [];
       var LEFT_CLUSTER_MAX = 180;
+      // الحجب الموقعي (العنصر بأول 180px يُحجب حتى بلا تسمية) مقصور على
+      // صفحات المنتج فقط — حيث ثبت من تشخيص حقيقي أنه صحيح (3 مخفية + 2
+      // محمية). على الصفحة الرئيسية/التصفح كان يبتلع مدخل البحث غير المُسمّى
+      // (div بلا aria/class دلالي ولا input) فيختفي زر البحث. هناك نعود
+      // للحجب النصّي الإيجابي فقط (سلوك v26 الآمن): لا نحجب إلا ما أثبت أنه
+      // مشتّت معروف (سلة/حساب/قائمة). نحسب العلم مرة لا لكل أيقونة.
+      var otlobliPositionalOk = looksLikeProductPage();
       // حارس أداء: مسح كل div بالصفحة كل 120ms مكلف على صفحات تيمو الثقيلة
       // (شبكات منتجات ضخمة). نحدّه بـ~5 ثوانٍ بعد كل تنقّل صفحة فقط - كافٍ
       // لالتقاط الأيقونات حتى لو تأخر رندرها، بلا استمرار المسح للأبد.
@@ -3498,7 +3505,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
           // بأعلى الشاشة) كافيان للتمييز بمفردهما.
           if (otlobliNearSearchInput(ic)) continue;
           if (otlobliLooksLikeSearchTrigger(ic)) continue;
-          var inLeftCluster = irAll.left >= 0 && irAll.left <= LEFT_CLUSTER_MAX;
+          var inLeftCluster = otlobliPositionalOk && irAll.left >= 0 && irAll.left <= LEFT_CLUSTER_MAX;
           if (!inLeftCluster && !otlobliLooksLikeKnownDistraction(ic)) {
             visibleTopIconDiag.push('[' + otlobliCollectIdentityHints(ic).trim().slice(0, 30) + ' @' + Math.round(irAll.left) + ',' + Math.round(irAll.top) + ']');
             continue;
