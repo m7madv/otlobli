@@ -1805,8 +1805,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
   function temuPersonalization() {
     // الطبقة 1: عنوان المنتج (المصدر الحاسم — لا يتأثر بالمنتجات المقترحة)
+    // + شارة "التخصيص" بالمنطقة العليا (أوثق إشارة بطلب المالك). كلاهما إشارة
+    //   قوية تكفي وحدها لاعتبار المنتج مخصّصاً.
     var titleTxt = (temuTitle() || '') + ' ' + (document.title || '');
-    var hasStrong = TEMU_PERSO_STRONG.test(titleTxt);
+    var hasStrong = TEMU_PERSO_STRONG.test(titleTxt) || temuCustomMarker().found;
     // الطبقة 2: حقل تخصيص حقيقي مرئي (سياقه يؤكد أنه لإدخال اسم/نص)
     var inputs = document.querySelectorAll('input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]):not([type="number"]):not([type="tel"]):not([type="email"]):not([type="search"]):not([type="file"]), textarea');
     for (var k = 0; k < inputs.length; k++) {
@@ -1855,6 +1857,62 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return '';
   }
 
+  // شارة "التخصيص"/"مخصّص" — أوثق إشارة على منتج قابل للتخصيص (بطلب المالك:
+  // كل منتج مخصّص بتيمو يحمل هذه الشارة نصّاً). نقيّدها بالمنطقة العليا من
+  // الصفحة (منطقة المنتج الرئيسي) لتجنّب شارات كروت "المقترحة" أسفل الصفحة
+  // التي قد تُفعّل منتجاً عادياً خطأً. نُعيد عدّ الشارات بالمنطقة العليا مقابل
+  // الكل — للتشخيص والمعايرة.
+  var TEMU_CUSTOM_BADGE = /التخصيص|تخصيص|مخصص|مخصّص|personaliz|customiz/i;
+  function temuCustomMarker() {
+    var vp = viewportSize();
+    var els = document.querySelectorAll('div, span, p, strong, h2, h3, a, button, label, li');
+    var count = 0, countMain = 0, first = '';
+    for (var i = 0; i < els.length; i++) {
+      var t = temuCleanText(els[i].textContent || '');
+      if (!t || t.length < 2 || t.length > 16) continue;
+      if (!TEMU_CUSTOM_BADGE.test(t)) continue;
+      count++;
+      var r = els[i].getBoundingClientRect();
+      if (r.top >= -80 && r.top < vp.height * 1.8 && r.width > 0) { countMain++; if (!first) first = t; }
+    }
+    return { found: countMain > 0, text: first, count: count, countMain: countMain };
+  }
+
+  // لوحة تشخيص كشف التخصيص (مرة لكل منتج) — تؤكّد على الجهاز الحقيقي ماذا
+  // اكتُشف: شارة/عنوان/حقل رفع/يحتاج صورة أم نص/مقاس الصورة. تُعاير الكشف
+  // ليصبح مضموناً 100% بلا تفعيل منتج عادي خطأً. أُطفئ لاحقاً (قلب العلم).
+  var OTLOBLI_CUSTOM_DIAG = true;
+  function temuShowCustomDiag() {
+    if (!OTLOBLI_CUSTOM_DIAG || IS_SHEIN) return;
+    try {
+      if (!looksLikeProductPage()) return;
+      if (window.__otlobliCustomDiagUrl === location.href) return;
+      window.__otlobliCustomDiagUrl = location.href;
+      if (document.getElementById('otlobli-custom-diag')) return;
+      var mark = temuCustomMarker();
+      var titleStrong = TEMU_PERSO_STRONG.test((temuTitle() || '') + ' ' + (document.title || ''));
+      var fileIn = document.querySelectorAll('input[type="file"], input[accept*="image"]').length;
+      var photo = temuNeedsCustomPhoto();
+      var note = temuCustomPhotoNote();
+      var perso = temuPersonalization();
+      var lines = [
+        'تشخيص التخصيص:',
+        'شارة تخصيص: ' + (mark.found ? ('نعم (' + mark.countMain + '/' + mark.count + ') "' + mark.text + '"') : 'لا'),
+        'عنوان تخصيص: ' + (titleStrong ? 'نعم' : 'لا'),
+        'حقل رفع ملف: ' + fileIn,
+        'يحتاج صورة: ' + (photo ? 'نعم' : 'لا'),
+        'مقاس الصورة: ' + (note || '—'),
+        'يحتاج نص: ' + (perso.has ? 'نعم' : 'لا'),
+      ];
+      var p = document.createElement('div');
+      p.id = 'otlobli-custom-diag';
+      p.style.cssText = 'position:fixed;left:8px;right:8px;bottom:150px;z-index:2147483647;background:#e7f5ff;color:#0b4a6f;border:1px solid #a5d8ff;border-radius:10px;padding:8px 10px;font-size:11px;direction:rtl;text-align:right;white-space:pre-wrap;';
+      p.textContent = lines.join('\\n');
+      if (document.body) document.body.appendChild(p);
+      setTimeout(function () { var e = document.getElementById('otlobli-custom-diag'); if (e) e.remove(); }, 20000);
+    } catch (e) {}
+  }
+
   // هل توجد قائمة مقاسات؟ (عنوان "Size"/"المقاس"/"موديل متوافق")
   function temuHasSizeSection() { return !!temuSizeHeadEl(); }
   // صفحة المنتج المغلقة تعرض ملخّصاً مثل "7 Color, 3 Size" أو "5 اللون, 20 موديل"
@@ -1874,6 +1932,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function captureProductPayload(colorState, sizeState, allowGenericTitle) {
     if (IS_TEMU) {
       var perso = temuPersonalization();
+      var needsCustomPhotoVal = temuNeedsCustomPhoto();
       // منتج التخصيص: نضع النص المطلوب مكان المقاس ليصل للمالك بوضوح.
       // حارس مزدوج: قيمة رقمية بحتة (حقل كمية التقط خطأً) لا تكون نص نقش أبداً.
       var persoTxt = (perso.text && !/^\\d+$/.test(perso.text)) ? perso.text : '';
@@ -1915,9 +1974,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
         // عند إعادة فتح الرابط لاحقاً (من السلة/الطلبات) ليُعيد اختيار نفس
         // اللون والمقاس تلقائياً بدل صفحة افتراضية بلا اختيار.
         link: otlobliBuildDeepLink(location.href, temuColorVal, temuSizeVal),
-        needsCustomPhoto: temuNeedsCustomPhoto(),
+        // تمييز نظيف صورة/نص: إن كان المنتج يتطلّب صورة فالتخصيص هو الصورة لا
+        // النص (إلا لو ظهر حقل نقش نصّي صريح) — فلا نُلزم المستخدم بنصّ لا لزوم له.
+        needsCustomPhoto: needsCustomPhotoVal,
         customPhotoNote: temuCustomPhotoNote(),
-        needsCustomText: perso.has,
+        needsCustomText: perso.has && (!needsCustomPhotoVal || perso.inputVisible),
         customText: persoTxt,
       };
     }
@@ -3492,6 +3553,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
       ensureTemuNoZoom();
       // تثبيت هيدر البحث بأعلى الشاشة كي لا يتحرّك مع التمرير (بطلب المالك).
       otlobliStickyHeader();
+      // لوحة تشخيص كشف التخصيص (مؤقتة للمعايرة) — تظهر مرة لكل منتج.
+      temuShowCustomDiag();
       // شريط التنقل السفلي الخاص بتيمو (حسابي/السلة/طلباتي/الرئيسية) — نخفيه
       // ليبقى شريط otlobli هو الوحيد الظاهر في الأسفل.
       var hiddenBarDiag = [];
