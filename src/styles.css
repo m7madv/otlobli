@@ -2501,3 +2501,25 @@ a {
 }
 .pay-copy-row span, .pay-copy-row strong { direction: ltr; }
 .pay-amount strong { font-size: 1.2rem; color: #1f6f4a; }
+
+/* مفتاح استخدام رصيد المحفظة بشاشة الدفع */
+.wallet-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--outline);
+  border-radius: var(--radius);
+  background: var(--surface);
+  margin: 4px 0;
+}
+.wallet-toggle > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  color: var(--text);
+}
+.wallet-toggle small { color: var(--muted); font-weight: 600; margin-inline-start: 6px; }
+.wallet-toggle input { width: 22px; height: 22px; }

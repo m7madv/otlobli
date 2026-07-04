@@ -1202,3 +1202,16 @@ tr.row-done td { opacity: 0.65; }
 .customer-row.is-blocked { border-color: #f3c6c7; background: #fff7f7; }
 .mini-btn.danger { color: #c0392b; border-color: #f3c6c7; }
 .barcode-preview { margin-top: 10px; max-width: 220px; border: 1px solid var(--outline, #ddd); border-radius: 8px; background: #fff; padding: 6px; }
+
+/* ── المحفظة (بتفصيل العميل) ─────────────────────────────────────────────── */
+.wallet-box { margin: 10px 0; padding: 10px; border: 1px solid var(--outline, #e6e6e6); border-radius: 10px; background: #fff; }
+.wallet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.wallet-head span { display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--muted, #555); }
+.wallet-head b { font-size: 1.05rem; color: var(--primary, #006948); }
+.wallet-add { display: flex; gap: 6px; }
+.wallet-add input { flex: 1; min-width: 0; min-height: 36px; padding: 0 10px; border: 1px solid var(--outline, #ddd); border-radius: 8px; }
+.wallet-tx { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+.wallet-tx-row { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; padding: 4px 8px; background: var(--surface-soft, #f6f6f6); border-radius: 6px; }
+.wallet-tx-row .pos { color: #1f6f4a; font-weight: 800; }
+.wallet-tx-row .neg { color: #c0392b; font-weight: 800; }
+.wallet-tx-row small.muted { margin-inline-start: auto; }

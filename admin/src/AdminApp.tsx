@@ -316,6 +316,19 @@ async function unblockUserApi(pin: string, target: { id?: string; phone?: string
   if (!r.ok) throw new Error('unblock_failed')
 }
 
+const ADMIN_WALLET_FN = `${SUPABASE_URL}/functions/v1/admin-wallet`
+type WalletTx = { id: string; amountUsd: number; kind: string; note: string; orderId: string | null; createdAt: string }
+async function fetchWallet(pin: string, phone: string): Promise<{ balanceUsd: number; transactions: WalletTx[] }> {
+  const r = await fetch(`${ADMIN_WALLET_FN}?phone=${encodeURIComponent(phone)}`, { headers: couponHeaders(pin) })
+  if (!r.ok) throw new Error('wallet_unavailable')
+  return (await r.json()) as { balanceUsd: number; transactions: WalletTx[] }
+}
+async function walletTopup(pin: string, phone: string, amountUsd: number, note: string): Promise<number> {
+  const r = await fetch(ADMIN_WALLET_FN, { method: 'POST', headers: couponHeaders(pin), body: JSON.stringify({ phone, amountUsd, note }) })
+  if (!r.ok) throw new Error('topup_failed')
+  return ((await r.json()) as { balanceUsd: number }).balanceUsd
+}
+
 function timeAgo(iso: string): string {
   if (!iso) return '—'
   const then = new Date(iso).getTime()
@@ -1050,6 +1063,22 @@ function CustomersPanel({ orders, pin, showNotice }: { orders: Order[]; pin: str
   const [openPhone, setOpenPhone] = useState('')
   const [activity, setActivity] = useState<Record<string, ActivityRow>>({})
   const [blocked, setBlocked] = useState<BlockedRow[]>([])
+  const [wallet, setWallet] = useState<{ balanceUsd: number; transactions: WalletTx[] } | null>(null)
+  const [walletAmt, setWalletAmt] = useState('')
+
+  useEffect(() => {
+    if (!openPhone) { setWallet(null); return }
+    setWallet(null); setWalletAmt('')
+    void fetchWallet(pin, openPhone).then(setWallet).catch(() => setWallet({ balanceUsd: 0, transactions: [] }))
+  }, [openPhone, pin])
+
+  const addFunds = (phone: string, sign: 1 | -1) => {
+    const amt = parseFloat(walletAmt)
+    if (!(amt > 0)) { showNotice('أدخل مبلغاً صحيحاً'); return }
+    void walletTopup(pin, phone, sign * amt, sign > 0 ? 'شحن من الإدارة' : 'خصم من الإدارة')
+      .then((bal) => { setWalletAmt(''); showNotice(`تم — الرصيد ${bal.toFixed(2)}$`); void fetchWallet(pin, phone).then(setWallet) })
+      .catch(() => showNotice('فشل تعديل الرصيد'))
+  }
 
   const loadUsers = () => {
     void fetchUsers(pin)
@@ -1143,6 +1172,28 @@ function CustomersPanel({ orders, pin, showNotice }: { orders: Order[]; pin: str
                         <button className="mini-btn danger" onClick={() => blockCustomer(c.phone, activity[c.phone]?.deviceId ?? '')}><Icon name="block" /> حظر</button>
                       )}
                       <span className="muted">آخر طلب: {c.last}</span>
+                    </div>
+                    <div className="wallet-box">
+                      <div className="wallet-head">
+                        <span><Icon name="account_balance_wallet" /> المحفظة</span>
+                        <b>{wallet ? `${wallet.balanceUsd.toFixed(2)}$` : '...'}</b>
+                      </div>
+                      <div className="wallet-add">
+                        <input type="number" min="0" step="0.5" value={walletAmt} onChange={(e) => setWalletAmt(e.target.value)} placeholder="مبلغ بالدولار" />
+                        <button className="mini-btn" onClick={() => addFunds(c.phone, 1)}><Icon name="add" /> شحن</button>
+                        <button className="mini-btn danger" onClick={() => addFunds(c.phone, -1)}><Icon name="remove" /> خصم</button>
+                      </div>
+                      {wallet && wallet.transactions.length > 0 && (
+                        <div className="wallet-tx">
+                          {wallet.transactions.slice(0, 6).map((t) => (
+                            <div className="wallet-tx-row" key={t.id}>
+                              <span className={t.amountUsd >= 0 ? 'pos' : 'neg'}>{t.amountUsd >= 0 ? '+' : ''}{t.amountUsd.toFixed(2)}$</span>
+                              <small>{t.note || t.kind}</small>
+                              <small className="muted">{new Date(t.createdAt).toLocaleDateString('ar-SY')}</small>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <div className="customer-orders">
                       {c.orders.map((o) => (

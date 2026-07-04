@@ -755,3 +755,49 @@ grant execute on function public.customer_heartbeat(text,text,text,text) to anon
 
 insert into public.app_settings (key, value) values ('shamcash_code','') on conflict (key) do nothing;
 insert into public.app_settings (key, value) values ('shamcash_barcode','') on conflict (key) do nothing;
+
+-- ============================================================================
+-- المحفظة — رصيد بالدولار لكل رقم هاتف + سجل معاملات. آمنة (RPC ذرّية).
+-- ============================================================================
+create table if not exists public.wallets (
+  phone text primary key,
+  balance_usd numeric(14,2) not null default 0 check (balance_usd >= 0),
+  updated_at timestamptz not null default now()
+);
+create table if not exists public.wallet_transactions (
+  id uuid primary key default gen_random_uuid(),
+  phone text not null,
+  amount_usd numeric(14,2) not null,
+  kind text not null check (kind in ('topup','spend','adjust','refund')),
+  note text not null default '',
+  order_id text,
+  created_at timestamptz not null default now()
+);
+create index if not exists wallet_tx_phone_idx on public.wallet_transactions (phone, created_at desc);
+alter table public.wallets enable row level security;
+alter table public.wallet_transactions enable row level security;
+
+create or replace function public.get_wallet(p_phone text)
+returns jsonb language sql security definer set search_path=public stable as $$
+  select jsonb_build_object('balanceUsd', coalesce((select balance_usd from public.wallets where phone = trim(p_phone)),0));
+$$;
+revoke all on function public.get_wallet(text) from public;
+grant execute on function public.get_wallet(text) to anon, authenticated;
+
+-- خصم من المحفظة على طلب (ذرّي، لا رصيد سالب أبداً)
+create or replace function public.wallet_spend(p_phone text, p_amount_usd numeric, p_order_id text)
+returns jsonb language plpgsql security definer set search_path=public as $$
+declare bal numeric; spend numeric;
+begin
+  if coalesce(p_amount_usd,0) <= 0 then return jsonb_build_object('ok',false,'reason','invalid'); end if;
+  select balance_usd into bal from public.wallets where phone=trim(p_phone) for update;
+  bal := coalesce(bal,0);
+  spend := least(p_amount_usd, bal);
+  if spend <= 0 then return jsonb_build_object('ok',false,'reason','insufficient','balanceUsd',bal); end if;
+  update public.wallets set balance_usd = balance_usd - spend, updated_at=now() where phone=trim(p_phone);
+  insert into public.wallet_transactions (phone, amount_usd, kind, note, order_id)
+  values (trim(p_phone), -spend, 'spend', 'خصم على طلب', p_order_id);
+  return jsonb_build_object('ok',true,'spentUsd',spend,'balanceUsd',bal-spend);
+end; $$;
+revoke all on function public.wallet_spend(text,numeric,text) from public;
+grant execute on function public.wallet_spend(text,numeric,text) to anon, authenticated;

@@ -401,6 +401,9 @@ function App() {
       .heartbeat(phone, getDeviceId(), userProfile?.name ?? recipient.name ?? '', userProfile?.governorate ?? recipient.governorate ?? '')
       .then((res) => { if (!cancelled && res.blocked) setScreen('blocked-policy') })
       .catch(() => undefined)
+    void appApi.wallet.getBalance(phone)
+      .then((bal) => { if (!cancelled) setWalletBalanceUsd(bal) })
+      .catch(() => undefined)
     return () => { cancelled = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionToken, phone])
@@ -586,12 +589,21 @@ function App() {
   )
   const [couponMsg, setCouponMsg] = useState('')
   const [couponChecking, setCouponChecking] = useState(false)
+  // المحفظة: الرصيد بالدولار (يُجلب عند الدخول) + خيار استخدامه بالدفع.
+  const [walletBalanceUsd, setWalletBalanceUsd] = useState(0)
+  const [useWallet, setUseWallet] = useState(false)
 
   const couponDiscountSyp = appliedCoupon ? Math.min(Math.max(0, appliedCoupon.discountSyp), subtotal) : 0
-  const breakdown = couponDiscountSyp > 0
-    ? [...subtotalBreakdown, { label: `خصم (${appliedCoupon!.code})`, value: -couponDiscountSyp }]
-    : subtotalBreakdown
-  const total = Math.max(0, subtotal - couponDiscountSyp)
+  const afterCoupon = Math.max(0, subtotal - couponDiscountSyp)
+  // المحفظة: نخصم بالدولار ما يعادل المتبقّي (بعد الكوبون)، محدوداً بالرصيد.
+  const walletUsableUsd = useWallet ? Math.min(walletBalanceUsd, afterCoupon / exchangeRate) : 0
+  const walletDiscountSyp = Math.min(afterCoupon, Math.round(walletUsableUsd * exchangeRate))
+  const breakdown = [
+    ...subtotalBreakdown,
+    ...(couponDiscountSyp > 0 ? [{ label: `خصم (${appliedCoupon!.code})`, value: -couponDiscountSyp }] : []),
+    ...(walletDiscountSyp > 0 ? [{ label: 'رصيد المحفظة', value: -walletDiscountSyp }] : []),
+  ]
+  const total = Math.max(0, afterCoupon - walletDiscountSyp)
   const meetsMinimumOrder = subtotal >= MIN_ORDER_SYP || subtotal / exchangeRate >= MIN_ORDER_USD
 
   const couponReasonMessage = (reason?: string) => {
@@ -1291,6 +1303,12 @@ function App() {
 
     void appApi.orders.createPendingOrder(newOrder, paymentCurrency)
       .then((result) => {
+        // خصم رصيد المحفظة (ذرّي بالخلفية) إن اختار المستخدم استخدامه.
+        if (walletDiscountSyp > 0 && phone) {
+          void appApi.wallet.spend(phone, walletUsableUsd, result.orderId)
+            .then((r) => setWalletBalanceUsd(r.balanceUsd))
+            .catch(() => undefined)
+        }
         if (PAYMENT_MODE === 'auto') {
           const savedOrder: Order = {
             ...newOrder,
@@ -1304,6 +1322,7 @@ function App() {
           setCartItems([])
           setAppliedCoupon(null)
           setCouponInput('')
+          setUseWallet(false)
           addNotification({ type: 'payment', title: 'تم استلام طلبك', body: `طلبك ${result.orderId} قيد المعالجة.`, orderId: result.orderId })
           setScreen('success')
           return
@@ -1313,6 +1332,7 @@ function App() {
         setCurrentOrderId(result.orderId)
         setAppliedCoupon(null)
         setCouponInput('')
+        setUseWallet(false)
         setPendingPayment({
           orderId: result.orderId,
           amount: result.paymentAmount,
@@ -2006,6 +2026,15 @@ function App() {
               )}
               {couponMsg && <p className="coupon-msg">{couponMsg}</p>}
             </div>
+            {walletBalanceUsd > 0 && (
+              <label className="wallet-toggle">
+                <span>
+                  <Icon name="account_balance_wallet" /> استخدام رصيد المحفظة
+                  <small>الرصيد: {formatUsd(walletBalanceUsd)}</small>
+                </span>
+                <input type="checkbox" checked={useWallet} onChange={(e) => setUseWallet(e.target.checked)} />
+              </label>
+            )}
             <PriceBreakdown items={breakdown} total={total} format={formatPrice} />
             {(() => {
               const missingBranch = !!(QADMOUS_BRANCHES[recipient.governorate] && !recipient.qadmousBranch)

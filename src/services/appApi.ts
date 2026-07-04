@@ -79,6 +79,12 @@ export type TalabiehApi = {
     // تدهور آمن: أي خطأ يُعيد blocked=false فلا يُحجب مستخدم شرعي بالخطأ.
     heartbeat: (phone: string, deviceId: string, name: string, city: string) => Promise<HeartbeatResult>
   }
+  wallet: {
+    // رصيد المحفظة بالدولار (تدهور آمن: 0 عند أي خطأ).
+    getBalance: (phone: string) => Promise<number>
+    // خصم ذرّي من المحفظة على طلب — لا يسمح برصيد سالب. يُعيد المصروف الفعلي.
+    spend: (phone: string, amountUsd: number, orderId: string) => Promise<{ ok: boolean; spentUsd: number; balanceUsd: number }>
+  }
   catalog: {
     fetchSheinProduct: (link: string, fallbackTitle?: string) => Promise<ProductFetchResult>
   }

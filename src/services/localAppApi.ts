@@ -35,6 +35,10 @@ export const localAppApi: TalabiehApi = {
       return { blocked: false }
     },
   },
+  wallet: {
+    async getBalance() { return 0 },
+    async spend() { return { ok: false, spentUsd: 0, balanceUsd: 0 } },
+  },
   catalog: {
     async fetchSheinProduct(link) {
       await wait(850)

@@ -111,6 +111,23 @@ export const supabaseAppApi: TalabiehApi = {
       return { blocked: Boolean((data as { blocked?: boolean }).blocked) }
     },
   },
+  wallet: {
+    async getBalance(phone) {
+      if (!supabase) return 0
+      const { data, error } = await supabase.rpc('get_wallet', { p_phone: phone.trim() })
+      if (error || !data) return 0
+      return Math.max(0, Number((data as { balanceUsd?: number }).balanceUsd) || 0)
+    },
+    async spend(phone, amountUsd, orderId) {
+      if (!supabase) return { ok: false, spentUsd: 0, balanceUsd: 0 }
+      const { data, error } = await supabase.rpc('wallet_spend', {
+        p_phone: phone.trim(), p_amount_usd: amountUsd, p_order_id: orderId,
+      })
+      if (error || !data) return { ok: false, spentUsd: 0, balanceUsd: 0 }
+      const d = data as { ok?: boolean; spentUsd?: number; balanceUsd?: number }
+      return { ok: Boolean(d.ok), spentUsd: Number(d.spentUsd) || 0, balanceUsd: Number(d.balanceUsd) || 0 }
+    },
+  },
   catalog: {
     async fetchSheinProduct(link, fallbackTitle) {
       // 1. نحاول من Supabase أولاً
