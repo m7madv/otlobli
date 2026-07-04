@@ -502,7 +502,7 @@ function AdminApp() {
         {tab === 'orders' && <OrdersTable orders={filteredOrders} tracked={tracked} onOpen={openModal} onMarkPaid={markPaid} />}
         {tab === 'payments' && <OrdersTable orders={filteredOrders.filter((o) => o.paymentStatus !== 'مدفوع')} tracked={tracked} onOpen={openModal} onMarkPaid={markPaid} />}
         {tab === 'shipping' && <ShippingList orders={filteredOrders} drivers={driverOptions} onAdvance={advanceOrder} onUpdate={updateOrder} onOpen={openModal} />}
-        {tab === 'customers' && <CustomersGrid orders={orders} />}
+        {tab === 'customers' && <CustomersPanel orders={orders} />}
         {tab === 'drivers' && <DriversPanel pin={pin} showNotice={showNotice} />}
         {tab === 'coupons' && <CouponsPanel pin={pin} showNotice={showNotice} />}
         {tab === 'settings' && <SettingsPanel pin={pin} showNotice={showNotice} />}
@@ -968,18 +968,90 @@ function ShippingList({
 }
 
 // ── Customers Grid ────────────────────────────────────────────────────────────
-function CustomersGrid({ orders }: { orders: Order[] }) {
-  const customers = Array.from(new Map(orders.map((o) => [o.phone, o])).values())
+function CustomersPanel({ orders }: { orders: Order[] }) {
+  const [q, setQ] = useState('')
+  const [openPhone, setOpenPhone] = useState('')
+
+  // تجميع الطلبات حسب رقم الهاتف مع إحصاءات لكل عميل (عدد الطلبات، إجمالي
+  // ما دفعه، آخر طلب) — لوحة عملاء حقيقية لا مجرد بطاقات.
+  const customers = useMemo(() => {
+    const map = new Map<string, { name: string; phone: string; city: string; orders: Order[]; spent: number; last: string }>()
+    for (const o of orders) {
+      const c = map.get(o.phone) ?? { name: o.customer, phone: o.phone, city: o.city, orders: [], spent: 0, last: o.createdAt }
+      c.orders.push(o)
+      if (o.paymentStatus === 'مدفوع') c.spent += o.total ?? 0
+      if (o.createdAt > c.last) c.last = o.createdAt
+      if (!c.name && o.customer) c.name = o.customer
+      map.set(o.phone, c)
+    }
+    return Array.from(map.values()).sort((a, b) => (a.last > b.last ? -1 : 1))
+  }, [orders])
+
+  const term = q.trim()
+  const filtered = term ? customers.filter((c) => `${c.name} ${c.phone} ${c.city}`.includes(term)) : customers
+
   return (
-    <section className="customers">
-      {customers.map((order) => (
-        <article className="panel customer" key={order.phone}>
-          <div className="avatar">{order.customer[0] ?? 'ط'}</div>
-          <h2>{order.customer}</h2>
-          <span className="phone-row">{order.phone}<CopyBtn text={order.phone} /></span>
-          <p>{order.city}</p>
-        </article>
-      ))}
+    <section className="panel customers-panel">
+      <header className="customers-head">
+        <h2>العملاء ({customers.length})</h2>
+        <input
+          className="customer-search"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="بحث بالاسم أو الرقم..."
+        />
+      </header>
+
+      {filtered.length === 0 ? (
+        <p className="muted">لا يوجد عملاء مطابقون.</p>
+      ) : (
+        <ul className="customer-rows">
+          {filtered.map((c) => {
+            const open = openPhone === c.phone
+            const waPhone = c.phone.replace(/[^0-9]/g, '')
+            return (
+              <li className={`customer-row${open ? ' is-open' : ''}`} key={c.phone}>
+                <button className="customer-row-main" onClick={() => setOpenPhone(open ? '' : c.phone)}>
+                  <span className="cr-avatar">{c.name?.[0] ?? 'ط'}</span>
+                  <span className="cr-info">
+                    <strong>{c.name || 'عميل'}</strong>
+                    <small>{c.phone} · {c.city}</small>
+                  </span>
+                  <span className="cr-stats">
+                    <b>{c.orders.length}</b>
+                    <em>{formatMoney(c.spent)}</em>
+                  </span>
+                  <Icon name={open ? 'expand_less' : 'expand_more'} />
+                </button>
+
+                {open && (
+                  <div className="customer-detail">
+                    <div className="customer-detail-actions">
+                      <a className="mini-btn" href={`https://wa.me/${waPhone}`} target="_blank" rel="noreferrer">
+                        <Icon name="chat" /> واتساب
+                      </a>
+                      <CopyBtn text={c.phone} />
+                      <span className="muted">آخر طلب: {c.last}</span>
+                    </div>
+                    <div className="customer-orders">
+                      {c.orders.map((o) => (
+                        <div className="customer-order" key={o.id}>
+                          <strong>{o.id}</strong>
+                          <StatusBadge tone={o.paymentStatus === 'مدفوع' ? 'success' : 'pending'}>
+                            {orderStatuses[o.statusIndex] ?? o.paymentStatus}
+                          </StatusBadge>
+                          <span>{formatMoney(o.total)}</span>
+                          <small>{o.createdAt}</small>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      )}
     </section>
   )
 }

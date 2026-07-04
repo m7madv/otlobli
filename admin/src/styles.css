@@ -1110,3 +1110,69 @@ tr.row-done td { opacity: 0.65; }
 }
 .icon-btn.danger { color: #e5484d; border-color: #f3c6c7; }
 .icon-btn:hover { background: #f6f6f6; }
+
+/* ── لوحة العملاء (مضغوطة + بحث + طلبات العميل) ──────────────────────────── */
+.customers-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.customers-head h2 { margin: 0; font-size: 1.1rem; }
+.customer-search {
+  flex: 1;
+  min-width: 180px;
+  max-width: 340px;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--outline, #ccc);
+  border-radius: 10px;
+  background: var(--surface-soft, #f2f4f6);
+}
+
+.customer-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.customer-row { border: 1px solid var(--outline, #e6e6e6); border-radius: 10px; background: #fff; overflow: hidden; }
+.customer-row.is-open { border-color: var(--primary, #006948); }
+
+.customer-row-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: 0;
+  text-align: right;
+  cursor: pointer;
+}
+.cr-avatar {
+  display: inline-grid; place-items: center;
+  width: 32px; height: 32px; flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--primary-soft, #e7f7ef); color: var(--primary, #006948);
+  font-weight: 800; font-size: 0.9rem;
+}
+.cr-info { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+.cr-info strong { font-size: 0.9rem; }
+.cr-info small { font-size: 0.76rem; color: var(--muted, #777); }
+.cr-stats { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; flex-shrink: 0; }
+.cr-stats b { font-size: 0.9rem; color: var(--primary, #006948); }
+.cr-stats em { font-size: 0.72rem; color: var(--muted, #999); font-style: normal; }
+
+.customer-detail { padding: 8px 12px 12px; border-top: 1px solid var(--surface-soft, #eee); background: var(--surface-soft, #fafafa); }
+.customer-detail-actions { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+.mini-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 10px; border: 1px solid var(--outline, #ddd); border-radius: 8px;
+  background: #fff; color: var(--primary, #006948); font-size: 0.8rem; text-decoration: none;
+}
+.customer-orders { display: flex; flex-direction: column; gap: 5px; }
+.customer-order {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 6px 10px; border-radius: 8px; background: #fff; border: 1px solid var(--outline, #eee);
+  font-size: 0.8rem;
+}
+.customer-order strong { color: var(--primary, #006948); }
+.customer-order small { color: var(--muted, #999); margin-inline-start: auto; }
