@@ -181,6 +181,10 @@ function App() {
   const exchangeRate = (storedRate && !isNaN(storedRate) && storedRate > 1000) ? storedRate : DEFAULT_EXCHANGE_RATE
   const [shippingCostShein, setShippingCostShein] = useState(FIXED_SHIPPING_SYP)
   const [shippingCostTemu, setShippingCostTemu] = useState(FIXED_SHIPPING_SYP)
+  // إعدادات من لوحة الإدارة: نسبة الربح (تُضاف على سعر المنتج) + شام كاش.
+  const [profitMarginPercent, setProfitMarginPercent] = useState(0)
+  const [shamCashCode, setShamCashCode] = useState('')
+  const [shamCashBarcode, setShamCashBarcode] = useState('')
 
   const [initialNow] = useState(() => Date.now())
   const initialPendingWhatsappAuth =
@@ -387,6 +391,20 @@ function App() {
     setScreen('login')
   }
 
+  // نبضة الزبون: عند تسجيل الدخول (وكل فتح للتطبيق وهو مسجَّل) نسجّل "آخر ظهور"
+  // ونفحص إن كان محظوراً (بالرقم أو معرّف الجهاز) — فنوجّهه لشاشة الحظر. تدهور
+  // آمن: أي خطأ يُبقيه يعمل عادياً (لا يُحجب مستخدم شرعي بالخطأ).
+  useEffect(() => {
+    if (!sessionToken || !phone) return
+    let cancelled = false
+    void appApi.users
+      .heartbeat(phone, getDeviceId(), userProfile?.name ?? recipient.name ?? '', userProfile?.governorate ?? recipient.governorate ?? '')
+      .then((res) => { if (!cancelled && res.blocked) setScreen('blocked-policy') })
+      .catch(() => undefined)
+    return () => { cancelled = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionToken, phone])
+
   // تجلب ملف الزبون من الخادم بعد نجاح OTP. إذا وُجد الملف → home مباشرة.
   // إذا لم يوجد → onboarding (سيُحفظ الاسم/المحافظة إلى الخادم بعد الإدخال).
   const fetchProfileAfterLogin = async (loginPhone: string): Promise<'home' | 'onboarding'> => {
@@ -437,6 +455,10 @@ function App() {
         const temu = parseInt(data.shipping_cost_temu_syp ?? '0', 10)
         if (shein > 0) setShippingCostShein(shein)
         if (temu > 0) setShippingCostTemu(temu)
+        const margin = parseFloat(data.profit_margin_percent ?? '0')
+        if (!isNaN(margin) && margin >= 0) setProfitMarginPercent(margin)
+        if (data.shamcash_code) setShamCashCode(data.shamcash_code)
+        if (data.shamcash_barcode) setShamCashBarcode(data.shamcash_barcode)
       })
       .catch(() => undefined)
   }, [])
@@ -527,8 +549,11 @@ function App() {
     return isVariantAvailable(activeProduct, selectedColor?.name ?? null, selectedSize)
   }, [activeProduct, selectedColor, selectedSize])
 
+  // نسبة الربح من لوحة الإدارة تُضاف على سعر المنتج (0% = بلا تغيير). تُطبَّق
+  // في نقطة واحدة كي يتطابق العرض بصفحة المنتج والسلة والإجمالي المدفوع.
+  const applyMargin = (syp: number) => Math.round(syp * (1 + (profitMarginPercent > 0 ? profitMarginPercent : 0) / 100))
   const getItemPriceSyp = (item: { priceSyp: number; priceUsd?: number }) =>
-    item.priceSyp > 0 ? item.priceSyp : Math.round((item.priceUsd ?? 0) * exchangeRate)
+    applyMargin(item.priceSyp > 0 ? item.priceSyp : Math.round((item.priceUsd ?? 0) * exchangeRate))
 
   // تكلفة الشحن تُحسب بحسب المتجر الحالي وتُحدَّث من الإدارة
   const currentShippingFees = useMemo(() => [
@@ -542,7 +567,7 @@ function App() {
     }
     return buildPriceBreakdown({
       label: 'سعر المنتج',
-      productPriceSyp: activeProduct?.priceSyp ?? 0,
+      productPriceSyp: applyMargin(activeProduct?.priceSyp ?? 0),
       quantity,
       fees: currentShippingFees,
     })
@@ -1627,8 +1652,8 @@ function App() {
                 </div>
               ) : (
                 <div className="price-row">
-                  <strong>{formatMoney(activeProduct.priceSyp)}</strong>
-                  <span>${activeProduct.priceUsd.toFixed(2)}</span>
+                  <strong>{formatMoney(applyMargin(activeProduct.priceSyp))}</strong>
+                  <span>${(activeProduct.priceUsd * (1 + (profitMarginPercent > 0 ? profitMarginPercent : 0) / 100)).toFixed(2)}</span>
                   <button
                     type="button"
                     className="text-button"
@@ -2027,16 +2052,34 @@ function App() {
           <Header title="دفع شام كاش" back={() => setScreen('checkout')} unreadCount={unreadCount} onNotifications={openNotifications} />
           <main className="mobile-content">
             <section className="payment-card">
-              <div className="qr-code"><Icon name="qr_code_2" /></div>
-              <p>ادفع إلى حسابنا التجاري</p>
+              {shamCashBarcode
+                ? <img className="payment-barcode" src={shamCashBarcode} alt="باركود شام كاش" />
+                : <div className="qr-code"><Icon name="qr_code_2" /></div>}
+              <p>ادفع عبر شام كاش إلى</p>
               <b>{paymentSettings.receiverName}</b>
-              <span>{paymentSettings.receiverAccount}</span>
-              <strong>{amountLabel}</strong>
+              <div className="pay-copy-row">
+                <span>{shamCashCode || paymentSettings.receiverAccount}</span>
+                <button
+                  className="text-button"
+                  onClick={() => { void navigator.clipboard?.writeText(shamCashCode || paymentSettings.receiverAccount); showNotice('تم نسخ كود شام كاش') }}
+                >
+                  نسخ الكود
+                </button>
+              </div>
+              <div className="pay-copy-row pay-amount">
+                <strong>{amountLabel}</strong>
+                <button
+                  className="text-button"
+                  onClick={() => { void navigator.clipboard?.writeText(String(pendingPayment.amount)); showNotice('تم نسخ المبلغ') }}
+                >
+                  نسخ المبلغ
+                </button>
+              </div>
             </section>
             <div className="instruction-list">
+              <p>انسخ الكود والمبلغ، افتح شام كاش، وحوّل <b>نفس المبلغ بالضبط</b>.</p>
               <p>ادفع بـ{pendingPayment.currency === 'USD' ? 'الدولار الأمريكي' : 'الليرة السورية'} فقط لهذا الطلب.</p>
-              <p>لا تحتاج كتابة رقم الطلب في الملاحظة.</p>
-              <p>المهم جداً: ادفع نفس المبلغ أعلاه بالضبط حتى تتم المطابقة تلقائياً.</p>
+              <p>لا تحتاج كتابة رقم الطلب — المطابقة تتم تلقائياً بالمبلغ الفريد.</p>
             </div>
             <button className="primary-action" disabled={verificationState === 'checking'} onClick={verifyB2BPayment}>
               {verificationState === 'checking' ? 'جاري فحص التحويلات...' : 'فحص الدفع الآن'}

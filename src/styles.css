@@ -2476,3 +2476,28 @@ a {
   font-size: 0.82rem;
   color: #c0392b;
 }
+
+/* باركود + نسخ الكود/المبلغ بشاشة دفع شام كاش */
+.payment-barcode {
+  width: 190px;
+  height: 190px;
+  object-fit: contain;
+  border-radius: 12px;
+  background: #fff;
+  padding: 8px;
+  margin: 0 auto;
+}
+.pay-copy-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px 12px;
+  border: 1px solid #eee;
+  border-radius: 10px;
+  background: #fafafa;
+}
+.pay-copy-row span, .pay-copy-row strong { direction: ltr; }
+.pay-amount strong { font-size: 1.2rem; color: #1f6f4a; }

@@ -704,3 +704,54 @@ $$;
 
 revoke all on function public.redeem_coupon(text, text, text, text, integer, numeric) from public;
 grant execute on function public.redeem_coupon(text, text, text, text, integer, numeric) to anon, authenticated;
+
+-- ============================================================================
+-- حظر المستخدمين + آخر ظهور + إعدادات شام كاش (باركود/كود)
+-- ============================================================================
+create table if not exists public.blocked_users (
+  id uuid primary key default gen_random_uuid(),
+  phone text,
+  device_id text,
+  reason text not null default '',
+  created_at timestamptz not null default now()
+);
+create unique index if not exists blocked_users_phone_uidx on public.blocked_users (phone) where phone is not null and phone <> '';
+create unique index if not exists blocked_users_device_uidx on public.blocked_users (device_id) where device_id is not null and device_id <> '';
+alter table public.blocked_users enable row level security;
+
+create table if not exists public.customer_activity (
+  phone text primary key,
+  device_id text not null default '',
+  name text not null default '',
+  city text not null default '',
+  last_seen timestamptz not null default now(),
+  first_seen timestamptz not null default now()
+);
+alter table public.customer_activity enable row level security;
+
+-- نبضة الزبون: تسجّل آخر ظهور وتُعيد هل هو محظور (بالرقم أو الجهاز). anon.
+create or replace function public.customer_heartbeat(p_phone text, p_device_id text, p_name text default '', p_city text default '')
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare is_blocked boolean;
+begin
+  if coalesce(nullif(trim(p_phone),''),'') <> '' then
+    insert into public.customer_activity (phone, device_id, name, city, last_seen)
+    values (trim(p_phone), coalesce(p_device_id,''), coalesce(p_name,''), coalesce(p_city,''), now())
+    on conflict (phone) do update set
+      device_id = excluded.device_id,
+      name = case when excluded.name <> '' then excluded.name else public.customer_activity.name end,
+      city = case when excluded.city <> '' then excluded.city else public.customer_activity.city end,
+      last_seen = now();
+  end if;
+  select exists(
+    select 1 from public.blocked_users
+    where (phone is not null and phone <> '' and phone = trim(p_phone))
+       or (device_id is not null and device_id <> '' and device_id = trim(p_device_id))
+  ) into is_blocked;
+  return jsonb_build_object('blocked', is_blocked);
+end; $$;
+revoke all on function public.customer_heartbeat(text,text,text,text) from public;
+grant execute on function public.customer_heartbeat(text,text,text,text) to anon, authenticated;
+
+insert into public.app_settings (key, value) values ('shamcash_code','') on conflict (key) do nothing;
+insert into public.app_settings (key, value) values ('shamcash_barcode','') on conflict (key) do nothing;

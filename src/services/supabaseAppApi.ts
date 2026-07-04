@@ -98,6 +98,19 @@ async function fetchProductFromSupabase(link: string): Promise<ProductFetchResul
 
 export const supabaseAppApi: TalabiehApi = {
   auth: isWhatsappApiAuthEnabled ? whatsappAuthApi : localAppApi.auth,
+  users: {
+    async heartbeat(phone, deviceId, name, city) {
+      if (!supabase) return { blocked: false }
+      const { data, error } = await supabase.rpc('customer_heartbeat', {
+        p_phone: phone.trim(),
+        p_device_id: deviceId || '',
+        p_name: name || '',
+        p_city: city || '',
+      })
+      if (error || !data) return { blocked: false }
+      return { blocked: Boolean((data as { blocked?: boolean }).blocked) }
+    },
+  },
   catalog: {
     async fetchSheinProduct(link, fallbackTitle) {
       // 1. نحاول من Supabase أولاً

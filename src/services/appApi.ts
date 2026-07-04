@@ -65,10 +65,19 @@ export type RedeemCouponResult = {
   reason?: string
 }
 
+export type HeartbeatResult = {
+  blocked: boolean
+}
+
 export type TalabiehApi = {
   auth: {
     startWhatsappLogin: (phone: string) => Promise<StartLoginResult>
     verifyOtp: (phone: string, code: string) => Promise<VerifyOtpResult>
+  }
+  users: {
+    // يسجّل آخر ظهور للمستخدم ويُعيد هل هو محظور (بالرقم أو معرّف الجهاز).
+    // تدهور آمن: أي خطأ يُعيد blocked=false فلا يُحجب مستخدم شرعي بالخطأ.
+    heartbeat: (phone: string, deviceId: string, name: string, city: string) => Promise<HeartbeatResult>
   }
   catalog: {
     fetchSheinProduct: (link: string, fallbackTitle?: string) => Promise<ProductFetchResult>

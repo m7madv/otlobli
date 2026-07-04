@@ -30,6 +30,11 @@ export const localAppApi: TalabiehApi = {
       }
     },
   },
+  users: {
+    async heartbeat() {
+      return { blocked: false }
+    },
+  },
   catalog: {
     async fetchSheinProduct(link) {
       await wait(850)

@@ -1193,3 +1193,12 @@ tr.row-done td { opacity: 0.65; }
 .store-tag--temu  { background: #fff1e6; color: #c2410c; }
 .store-tag--mixed { background: #f3f0ff; color: #6d28d9; }
 .store-tag--none  { background: #f2f2f2; color: #999; }
+
+/* ── الحظر + الباركود ────────────────────────────────────────────────────── */
+.blocked-tag {
+  display: inline-block; margin-inline-start: 6px; padding: 1px 7px;
+  border-radius: 6px; background: #fde8e8; color: #c0392b; font-size: 0.68rem; font-weight: 800;
+}
+.customer-row.is-blocked { border-color: #f3c6c7; background: #fff7f7; }
+.mini-btn.danger { color: #c0392b; border-color: #f3c6c7; }
+.barcode-preview { margin-top: 10px; max-width: 220px; border: 1px solid var(--outline, #ddd); border-radius: 8px; background: #fff; padding: 6px; }

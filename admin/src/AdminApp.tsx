@@ -297,6 +297,38 @@ async function deleteCouponApi(pin: string, couponId: string) {
   if (!r.ok) throw new Error('coupon_delete_failed')
 }
 
+const ADMIN_USERS_FN = `${SUPABASE_URL}/functions/v1/admin-users`
+
+type ActivityRow = { phone: string; name: string; city: string; deviceId: string; lastSeen: string; firstSeen: string }
+type BlockedRow = { id: string; phone: string | null; deviceId: string | null; reason: string; createdAt: string }
+
+async function fetchUsers(pin: string): Promise<{ activity: ActivityRow[]; blocked: BlockedRow[] }> {
+  const r = await fetch(ADMIN_USERS_FN, { headers: couponHeaders(pin) })
+  if (!r.ok) throw new Error('users_unavailable')
+  return (await r.json()) as { activity: ActivityRow[]; blocked: BlockedRow[] }
+}
+async function blockUserApi(pin: string, target: { phone?: string; deviceId?: string; reason?: string }) {
+  const r = await fetch(ADMIN_USERS_FN, { method: 'POST', headers: couponHeaders(pin), body: JSON.stringify(target) })
+  if (!r.ok) { const e = (await r.json().catch(() => ({}))) as { error?: string }; throw new Error(e.error || 'block_failed') }
+}
+async function unblockUserApi(pin: string, target: { id?: string; phone?: string; deviceId?: string }) {
+  const r = await fetch(ADMIN_USERS_FN, { method: 'DELETE', headers: couponHeaders(pin), body: JSON.stringify(target) })
+  if (!r.ok) throw new Error('unblock_failed')
+}
+
+function timeAgo(iso: string): string {
+  if (!iso) return '—'
+  const then = new Date(iso).getTime()
+  if (Number.isNaN(then)) return '—'
+  const mins = Math.floor((Date.now() - then) / 60000)
+  if (mins < 1) return 'الآن'
+  if (mins < 60) return `قبل ${mins} د`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `قبل ${hrs} س`
+  const days = Math.floor(hrs / 24)
+  return `قبل ${days} يوم`
+}
+
 // ── Main App ──────────────────────────────────────────────────────────────────
 function AdminApp() {
   const [pinInput, setPinInput] = useState('')
@@ -513,7 +545,7 @@ function AdminApp() {
         {tab === 'orders' && <OrdersTable orders={filteredOrders} tracked={tracked} onOpen={openModal} onMarkPaid={markPaid} withFilter />}
         {tab === 'payments' && <OrdersTable orders={filteredOrders.filter((o) => o.paymentStatus !== 'مدفوع')} tracked={tracked} onOpen={openModal} onMarkPaid={markPaid} />}
         {tab === 'shipping' && <ShippingList orders={filteredOrders} drivers={driverOptions} onAdvance={advanceOrder} onUpdate={updateOrder} onOpen={openModal} />}
-        {tab === 'customers' && <CustomersPanel orders={orders} />}
+        {tab === 'customers' && <CustomersPanel orders={orders} pin={pin} showNotice={showNotice} />}
         {tab === 'drivers' && <DriversPanel pin={pin} showNotice={showNotice} />}
         {tab === 'coupons' && <CouponsPanel pin={pin} showNotice={showNotice} />}
         {tab === 'settings' && <SettingsPanel pin={pin} showNotice={showNotice} />}
@@ -1013,9 +1045,38 @@ function ShippingList({
 }
 
 // ── Customers Grid ────────────────────────────────────────────────────────────
-function CustomersPanel({ orders }: { orders: Order[] }) {
+function CustomersPanel({ orders, pin, showNotice }: { orders: Order[]; pin: string; showNotice: (m: string) => void }) {
   const [q, setQ] = useState('')
   const [openPhone, setOpenPhone] = useState('')
+  const [activity, setActivity] = useState<Record<string, ActivityRow>>({})
+  const [blocked, setBlocked] = useState<BlockedRow[]>([])
+
+  const loadUsers = () => {
+    void fetchUsers(pin)
+      .then((u) => {
+        const act: Record<string, ActivityRow> = {}
+        for (const a of u.activity) act[a.phone] = a
+        setActivity(act)
+        setBlocked(u.blocked)
+      })
+      .catch(() => undefined)
+  }
+  useEffect(loadUsers, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const blockedPhones = new Set(blocked.map((b) => b.phone).filter(Boolean) as string[])
+  const isBlocked = (phone: string) => blockedPhones.has(phone)
+
+  const blockCustomer = (phone: string, deviceId: string) => {
+    if (!window.confirm(`حظر هذا المستخدم؟ سيُحظر برقمه${deviceId ? ' وبجهازه' : ''} ولن يستطيع استخدام التطبيق.`)) return
+    void blockUserApi(pin, { phone, deviceId: deviceId || undefined, reason: 'حظر من لوحة الإدارة' })
+      .then(() => { showNotice('تم حظر المستخدم'); loadUsers() })
+      .catch((e: Error) => showNotice(e.message === 'already_blocked' ? 'محظور مسبقاً' : 'فشل الحظر'))
+  }
+  const unblockCustomer = (phone: string) => {
+    void unblockUserApi(pin, { phone })
+      .then(() => { showNotice('تم فك الحظر'); loadUsers() })
+      .catch(() => showNotice('فشل فك الحظر'))
+  }
 
   // تجميع الطلبات حسب رقم الهاتف مع إحصاءات لكل عميل (عدد الطلبات، إجمالي
   // ما دفعه، آخر طلب) — لوحة عملاء حقيقية لا مجرد بطاقات.
@@ -1055,12 +1116,12 @@ function CustomersPanel({ orders }: { orders: Order[] }) {
             const open = openPhone === c.phone
             const waPhone = c.phone.replace(/[^0-9]/g, '')
             return (
-              <li className={`customer-row${open ? ' is-open' : ''}`} key={c.phone}>
+              <li className={`customer-row${open ? ' is-open' : ''}${isBlocked(c.phone) ? ' is-blocked' : ''}`} key={c.phone}>
                 <button className="customer-row-main" onClick={() => setOpenPhone(open ? '' : c.phone)}>
                   <span className="cr-avatar">{c.name?.[0] ?? 'ط'}</span>
                   <span className="cr-info">
-                    <strong>{c.name || 'عميل'}</strong>
-                    <small>{c.phone} · {c.city}</small>
+                    <strong>{c.name || 'عميل'}{isBlocked(c.phone) && <span className="blocked-tag">محظور</span>}</strong>
+                    <small>{c.phone} · {c.city} · آخر ظهور: {timeAgo(activity[c.phone]?.lastSeen ?? '')}</small>
                   </span>
                   <span className="cr-stats">
                     <b>{c.orders.length}</b>
@@ -1076,6 +1137,11 @@ function CustomersPanel({ orders }: { orders: Order[] }) {
                         <Icon name="chat" /> واتساب
                       </a>
                       <CopyBtn text={c.phone} />
+                      {isBlocked(c.phone) ? (
+                        <button className="mini-btn" onClick={() => unblockCustomer(c.phone)}><Icon name="lock_open" /> فك الحظر</button>
+                      ) : (
+                        <button className="mini-btn danger" onClick={() => blockCustomer(c.phone, activity[c.phone]?.deviceId ?? '')}><Icon name="block" /> حظر</button>
+                      )}
                       <span className="muted">آخر طلب: {c.last}</span>
                     </div>
                     <div className="customer-orders">
@@ -1363,6 +1429,8 @@ function SettingsPanel({ pin, showNotice }: { pin: string; showNotice: (msg: str
   const [temuCost,   setTemuCost]   = useState('')
   const [usdRate,    setUsdRate]    = useState('')
   const [profit,     setProfit]     = useState('')
+  const [shamCode,   setShamCode]   = useState('')
+  const [shamBarcode, setShamBarcode] = useState('')
   const [saving,     setSaving]     = useState(false)
   const [loaded,     setLoaded]     = useState(false)
 
@@ -1376,6 +1444,8 @@ function SettingsPanel({ pin, showNotice }: { pin: string; showNotice: (msg: str
         setTemuCost(data.shipping_cost_temu_syp ?? '90000')
         setUsdRate(data.usd_to_syp_rate ?? '13000')
         setProfit(data.profit_margin_percent ?? '0')
+        setShamCode(data.shamcash_code ?? '')
+        setShamBarcode(data.shamcash_barcode ?? '')
         setLoaded(true)
       })
       .catch(() => showNotice('تعذر جلب الإعدادات'))
@@ -1492,6 +1562,25 @@ function SettingsPanel({ pin, showNotice }: { pin: string; showNotice: (msg: str
             </button>
           </div>
         </label>
+      </fieldset>
+
+      <fieldset className="settings-group">
+        <legend>الدفع — شام كاش (باركود + كود)</legend>
+        <label className="field">
+          <span>كود شام كاش (رقم الحساب/الكود الذي يحوّل إليه الزبون)</span>
+          <div className="settings-row">
+            <input value={shamCode} onChange={(e) => setShamCode(e.target.value)} placeholder="مثال: 0900000000" />
+            <button className="ghost-action" disabled={saving} onClick={() => void saveSetting('shamcash_code', shamCode)}>حفظ</button>
+          </div>
+        </label>
+        <label className="field">
+          <span>رابط صورة الباركود (اختياري — يظهر للزبون في شاشة الدفع)</span>
+          <div className="settings-row">
+            <input value={shamBarcode} onChange={(e) => setShamBarcode(e.target.value)} placeholder="https://.../barcode.png" />
+            <button className="ghost-action" disabled={saving} onClick={() => void saveSetting('shamcash_barcode', shamBarcode)}>حفظ</button>
+          </div>
+        </label>
+        {shamBarcode && <img className="barcode-preview" src={shamBarcode} alt="باركود شام كاش" />}
       </fieldset>
 
       <fieldset className="settings-group">
