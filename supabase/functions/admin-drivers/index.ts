@@ -9,7 +9,7 @@ const DRIVER_URL = Deno.env.get('DRIVER_URL') ?? ''
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-admin-pin',
-  'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
 }
 
 function generateLoginCode(): string {
@@ -146,6 +146,27 @@ Deno.serve(async (req) => {
       })
     }
 
+    return new Response(JSON.stringify({ ok: true }), {
+      headers: { ...corsHeaders, 'content-type': 'application/json' },
+    })
+  }
+
+  // DELETE — حذف سواق نهائياً (طلباته المكلَّفة تُصبح بلا تكليف عبر ON DELETE SET NULL)
+  if (req.method === 'DELETE') {
+    const { driverId } = await req.json() as { driverId?: string }
+    if (!driverId) {
+      return new Response(JSON.stringify({ error: 'missing_fields' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'content-type': 'application/json' },
+      })
+    }
+    const { error } = await supabase.from('drivers').delete().eq('id', driverId)
+    if (error) {
+      return new Response(JSON.stringify({ error: error.message }), {
+        status: 500,
+        headers: { ...corsHeaders, 'content-type': 'application/json' },
+      })
+    }
     return new Response(JSON.stringify({ ok: true }), {
       headers: { ...corsHeaders, 'content-type': 'application/json' },
     })

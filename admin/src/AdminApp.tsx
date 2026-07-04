@@ -217,6 +217,20 @@ async function patchDriver(pin: string, driverId: string, patch: Partial<Pick<Dr
   if (!response.ok) throw new Error('driver_update_failed')
 }
 
+async function deleteDriver(pin: string, driverId: string) {
+  const response = await fetch(ADMIN_DRIVERS_FN, {
+    method: 'DELETE',
+    headers: {
+      'content-type': 'application/json',
+      'x-admin-pin': pin,
+      'apikey': ANON_KEY,
+      'authorization': `Bearer ${ANON_KEY}`,
+    },
+    body: JSON.stringify({ driverId }),
+  })
+  if (!response.ok) throw new Error('driver_delete_failed')
+}
+
 async function patchOrder(pin: string, orderId: string, patch: Partial<Order>) {
   const response = await fetch(ADMIN_ORDERS_FN, {
     method: 'PATCH',
@@ -496,7 +510,7 @@ function AdminApp() {
             </section>
           </>
         )}
-        {tab === 'orders' && <OrdersTable orders={filteredOrders} tracked={tracked} onOpen={openModal} onMarkPaid={markPaid} />}
+        {tab === 'orders' && <OrdersTable orders={filteredOrders} tracked={tracked} onOpen={openModal} onMarkPaid={markPaid} withFilter />}
         {tab === 'payments' && <OrdersTable orders={filteredOrders.filter((o) => o.paymentStatus !== 'مدفوع')} tracked={tracked} onOpen={openModal} onMarkPaid={markPaid} />}
         {tab === 'shipping' && <ShippingList orders={filteredOrders} drivers={driverOptions} onAdvance={advanceOrder} onUpdate={updateOrder} onOpen={openModal} />}
         {tab === 'customers' && <CustomersPanel orders={orders} />}
@@ -538,26 +552,59 @@ function StatCard({ icon, label, value, note, dark = false }: { icon: string; la
   )
 }
 
+// يستنتج التطبيق (المتجر) الذي طُلب منه من روابط عناصر الطلب.
+function orderStore(order: Order): 'shein' | 'temu' | 'mixed' | '' {
+  const links = (order.items ?? []).map((i) => (i.sourceLink || '').toLowerCase())
+  const hasShein = links.some((l) => l.includes('shein'))
+  const hasTemu = links.some((l) => l.includes('temu'))
+  if (hasShein && hasTemu) return 'mixed'
+  if (hasTemu) return 'temu'
+  if (hasShein) return 'shein'
+  return ''
+}
+function storeLabel(s: string) {
+  return s === 'temu' ? 'Temu' : s === 'shein' ? 'SHEIN' : s === 'mixed' ? 'مختلط' : '—'
+}
+
 // ── Orders Table ──────────────────────────────────────────────────────────────
 function OrdersTable({
-  orders, tracked, onOpen, onMarkPaid,
+  orders, tracked, onOpen, onMarkPaid, withFilter = false,
 }: {
   orders: Order[]
   tracked: Set<string>
   onOpen: (orderId: string) => void
   onMarkPaid: (order: Order) => void
+  withFilter?: boolean
 }) {
+  const [storeFilter, setStoreFilter] = useState<'all' | 'shein' | 'temu'>('all')
+  const shown = withFilter && storeFilter !== 'all'
+    ? orders.filter((o) => { const s = orderStore(o); return s === storeFilter || s === 'mixed' })
+    : orders
   return (
     <section className="panel table-panel">
       <header>
         <h2>الطلبات</h2>
-        <span>{orders.length} طلب</span>
+        <span>{shown.length} طلب</span>
       </header>
+      {withFilter && (
+        <div className="orders-filter">
+          {([['all', 'الكل'], ['shein', 'SHEIN'], ['temu', 'Temu']] as const).map(([key, label]) => (
+            <button
+              key={key}
+              className={`filter-chip${storeFilter === key ? ' is-active' : ''}`}
+              onClick={() => setStoreFilter(key)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="table-scroll">
         <table>
           <thead>
             <tr>
               <th>رقم الطلب</th>
+              <th>التطبيق</th>
               <th>العميل</th>
               <th>المبلغ</th>
               <th>الدفع</th>
@@ -567,13 +614,14 @@ function OrdersTable({
             </tr>
           </thead>
           <tbody>
-            {orders.map((order) => {
+            {shown.map((order) => {
               const items = order.items ?? []
               const addedCount = items.filter((_, i) => tracked.has(itemKey(order.id, i))).length
               const allAdded = items.length > 0 && addedCount === items.length
               return (
                 <tr key={order.id} className={allAdded ? 'row-done' : ''}>
                   <td><b>{order.id}</b></td>
+                  <td><span className={`store-tag store-tag--${orderStore(order) || 'none'}`}>{storeLabel(orderStore(order))}</span></td>
                   <td>
                     <span>{order.customer}</span>
                     <CopyBtn text={order.phone} />
@@ -595,8 +643,8 @@ function OrdersTable({
                 </tr>
               )
             })}
-            {!orders.length && (
-              <tr><td colSpan={7}>لا توجد طلبات مطابقة.</td></tr>
+            {!shown.length && (
+              <tr><td colSpan={8}>لا توجد طلبات مطابقة.</td></tr>
             )}
           </tbody>
         </table>
@@ -1093,6 +1141,14 @@ function DriversPanel({ pin, showNotice }: { pin: string; showNotice: (message: 
       .catch(() => showNotice('فشل تحديث السواق'))
   }
 
+  const removeDriver = (driver: Driver) => {
+    if (!window.confirm(`حذف السواق «${driver.name}» نهائياً؟ طلباته المكلَّفة تصبح بلا تكليف.`)) return
+    setDrivers((list) => list.filter((d) => d.id !== driver.id))
+    void deleteDriver(pin, driver.id)
+      .then(() => showNotice('تم حذف السواق'))
+      .catch(() => { showNotice('فشل حذف السواق'); load() })
+  }
+
   return (
     <section className="panel table-panel drivers-panel">
       <header>
@@ -1137,7 +1193,10 @@ function DriversPanel({ pin, showNotice }: { pin: string; showNotice: (message: 
                 <td><span>{driver.loginCode}</span><CopyBtn text={driver.loginCode} /></td>
                 <td><StatusBadge tone={driver.isActive ? 'success' : 'neutral'}>{driver.isActive ? 'فعّال' : 'معطّل'}</StatusBadge></td>
                 <td>
-                  <button onClick={() => toggleActive(driver)}>{driver.isActive ? 'تعطيل' : 'تفعيل'}</button>
+                  <div className="row-actions">
+                    <button onClick={() => toggleActive(driver)}>{driver.isActive ? 'تعطيل' : 'تفعيل'}</button>
+                    <button className="icon-btn danger" onClick={() => removeDriver(driver)} title="حذف السواق"><Icon name="delete" /></button>
+                  </div>
                 </td>
               </tr>
             ))}
