@@ -2869,7 +2869,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // أسلوب فحص الأبناء المستخدم للبحث. الحجب الآن **إيجابي**: لا نحجب أي
   // أيقونة إلا لو تطابقت صراحة مع إحدى هذه الكلمات، بدل حجب كل شيء
   // والاستثناء بالتخمين (كان يُفوّت البحث لأنه أيضاً بلا تسمية أحياناً).
-  var OTLOBLI_KNOWN_DISTRACTION = /cart|bag|basket|shopping|account|profile\b|\buser\b|\bme\b|menu|hamburger|categor|\bnav\b|wishlist|favorite|favourite|\bheart\b|message|inbox|notification|\bchat\b|سلة|السلة|عربة|حساب|حسابي|بروفايل|قائمة|التصنيفات|الأقسام|المفضلة|مفضلة|رسائل|الرسائل|إشعارات|اشعارات/i;
+  // topme/topcart/topaccount: أصناف أيقونات هيدر تيمو المعمّاة (topme_auji01 =
+  // الحساب) - ثبت من تشخيص جهاز حقيقي. نضيفها صراحةً لأنها لا تطابق كلمات
+  // account/me الإنجليزية (لا حدّ كلمة قبل "me" في "topme").
+  var OTLOBLI_KNOWN_DISTRACTION = /cart|bag|basket|shopping|account|profile\b|\buser\b|\bme\b|topme|topcart|topaccount|topuser|menu|hamburger|categor|\bnav\b|wishlist|favorite|favourite|\bheart\b|message|inbox|notification|\bchat\b|سلة|السلة|عربة|حساب|حسابي|بروفايل|قائمة|التصنيفات|الأقسام|المفضلة|مفضلة|رسائل|الرسائل|إشعارات|اشعارات/i;
   function otlobliLooksLikeKnownDistraction(el) {
     return OTLOBLI_KNOWN_DISTRACTION.test(otlobliCollectIdentityHints(el));
   }
@@ -3494,7 +3497,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
       // (div بلا aria/class دلالي ولا input) فيختفي زر البحث. هناك نعود
       // للحجب النصّي الإيجابي فقط (سلوك v26 الآمن): لا نحجب إلا ما أثبت أنه
       // مشتّت معروف (سلة/حساب/قائمة). نحسب العلم مرة لا لكل أيقونة.
-      var otlobliPositionalOk = looksLikeProductPage();
+      // كان مقصوراً على صفحات المنتج (v33) ظنّاً أن الحجب الموقعي يُخفي البحث
+      // بالرئيسية — لكن ثبت لاحقاً (v35) أن الجاني كان hideStoreBannerByText لا
+      // حلقة الأيقونات (شريط البحث أعرض من 60px فلا يُلتقط كأيقونة أصلاً). فأُعيد
+      // التفعيل بالرئيسية أيضاً لإخفاء الحساب/القائمة بجانب البحث بأمان.
+      var otlobliPositionalOk = true;
       // حارس أداء: مسح كل div بالصفحة كل 120ms مكلف على صفحات تيمو الثقيلة
       // (شبكات منتجات ضخمة). نحدّه بـ~5 ثوانٍ بعد كل تنقّل صفحة فقط - كافٍ
       // لالتقاط الأيقونات حتى لو تأخر رندرها، بلا استمرار المسح للأبد.
@@ -3529,10 +3536,16 @@ export const SHEIN_CAPTURE_SCRIPT = `
           // تُرسم بصورة خلفية CSS (background-image) لا بعنصر svg/img فعلي.
           // لا نشترط محتوى بصري إطلاقاً الآن — الحجم والموقع (مربّع 24-60px
           // بأعلى الشاشة) كافيان للتمييز بمفردهما.
-          if (otlobliNearSearchInput(ic)) continue;
-          if (otlobliLooksLikeSearchTrigger(ic)) continue;
+          // مشتّت معروف صراحة (حساب/سلة/قائمة)؟ يُحجب فوراً بلا حارس قرب البحث —
+          // ثبت من تشخيص حقيقي أن الحساب والقائمة يجاوران البحث بنفس الهيدر، فحارس
+          // "قرب البحث" كان يعفيهما خطأً. المشتّت المعروف قطعاً ليس البحث.
+          var isKnownDistraction = otlobliLooksLikeKnownDistraction(ic);
+          if (!isKnownDistraction) {
+            if (otlobliNearSearchInput(ic)) continue;
+            if (otlobliLooksLikeSearchTrigger(ic)) continue;
+          }
           var inLeftCluster = otlobliPositionalOk && irAll.left >= 0 && irAll.left <= LEFT_CLUSTER_MAX;
-          if (!inLeftCluster && !otlobliLooksLikeKnownDistraction(ic)) {
+          if (!inLeftCluster && !isKnownDistraction) {
             visibleTopIconDiag.push('[' + otlobliCollectIdentityHints(ic).trim().slice(0, 30) + ' @' + Math.round(irAll.left) + ',' + Math.round(irAll.top) + ']');
             continue;
           }
