@@ -2579,8 +2579,14 @@ function App() {
           sheinOpenedRef.current = false
           setSheinReady(false)
           void InAppBrowser.close().catch(() => undefined).then(() => {
-            suppressAutoReopenRef.current = false
-            setScreen('home')
+            // مهلة تسوية قصيرة قبل إعادة الفتح: الطبقة الأصلية للبراوزر تحتاج
+            // وقتاً لإكمال الهدم فعلياً بعد close()؛ إعادة الفتح فوراً تُقدّم متجراً
+            // جديداً فوق طبقة قيد الهدم = شاشة سوداء عالقة لا تُصلَح إلا بإعادة
+            // تشغيل التطبيق (نفس صنف سباق تبديل المتجر). التأخير يتفادى ذلك.
+            window.setTimeout(() => {
+              suppressAutoReopenRef.current = false
+              setScreen('home')
+            }, 450)
           })
           return
         }
