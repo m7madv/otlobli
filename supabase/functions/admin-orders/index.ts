@@ -25,6 +25,64 @@ const ORDER_STATUS_LABELS = [
   'تم التسليم',
 ]
 
+type OrderItemRow = {
+  id: string
+  title: string
+  image: string
+  color: string
+  size: string
+  quantity: number
+  price_syp: number
+  source_link: string
+}
+
+type OrderRow = {
+  id: string
+  customer_name?: string
+  customer?: string
+  phone: string
+  city: string
+  address: string
+  order_items?: OrderItemRow[]
+  total_syp?: number
+  total?: number
+  payment_status: string
+  status_index?: number
+  qadmous_number?: string
+  created_at: string
+  paid_at?: string
+  assigned_driver_id?: string
+  rating?: number
+  rating_note?: string
+  payment_issue?: boolean
+  payment_issue_note?: string
+  extra_amount_usd?: number
+  group_id?: string
+  group_code?: string
+}
+
+type DriverRow = {
+  id: string
+  name: string
+}
+
+type WalletRow = {
+  customer_id: string
+  amount_syp: number
+}
+
+type CustomerRow = {
+  id: string
+  phone: string
+  name?: string
+  governorate?: string
+  city?: string
+  qadmous_branch?: string
+  details?: string
+  created_at?: string
+  updated_at?: string
+}
+
 async function notifyCustomerStatusChange(
   phone: string,
   order: { id: string; statusIndex: number; qadmousNumber?: string },
@@ -153,14 +211,13 @@ Deno.serve(async (req) => {
       })
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const orders = (data || []).map((row: any) => ({
+    const orders = ((data || []) as OrderRow[]).map((row) => ({
       id: row.id,
       customer: row.customer_name || row.customer || '',
       phone: row.phone,
       city: row.city,
       address: row.address,
-      items: (row.order_items || []).map((item: any) => ({
+      items: (row.order_items || []).map((item) => ({
         id: item.id,
         title: item.title,
         image: item.image,
@@ -186,11 +243,10 @@ Deno.serve(async (req) => {
       groupCode: row.group_code || '',
     }))
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const drivers = driverError ? [] : (driverRows || []).map((row: any) => ({ id: row.id, name: row.name }))
+    const drivers = driverError ? [] : ((driverRows || []) as DriverRow[]).map((row) => ({ id: row.id, name: row.name }))
 
     const walletByCustomer = new Map<string, number>()
-    ;(walletRows || []).forEach((row: any) => {
+    ;((walletRows || []) as WalletRow[]).forEach((row) => {
       const key = String(row.customer_id || '')
       walletByCustomer.set(key, (walletByCustomer.get(key) || 0) + (Number(row.amount_syp) || 0))
     })
@@ -204,7 +260,7 @@ Deno.serve(async (req) => {
       statsByPhone.set(order.phone, prev)
     })
 
-    const customers = customerError ? [] : (customerRows || []).map((row: any) => {
+    const customers = customerError ? [] : ((customerRows || []) as CustomerRow[]).map((row) => {
       const stats = statsByPhone.get(row.phone) || { orderCount: 0, totalSpentSyp: 0, lastOrderAt: '' }
       return {
         id: row.id,

@@ -13,7 +13,9 @@ if (typeof window !== 'undefined' && window.localStorage.getItem('talabieh.clean
     }
     window.localStorage.removeItem('talabieh.addresses')
     window.localStorage.removeItem('talabieh.currentOrderId')
-  } catch {}
+  } catch {
+    // Ignore corrupted legacy demo data; the next write stores the clean state.
+  }
   window.localStorage.setItem('talabieh.cleanVersion', CLEAN_VERSION)
 }
 

@@ -54,7 +54,7 @@ function Icon({ name }: { name: string }) {
   return <span className="material-symbols-outlined" aria-hidden="true">{name}</span>
 }
 
-const stripBom = (s: string | undefined) => (s || '').replace(/[​-‍﻿]/g, '').trim()
+const stripBom = (s: string | undefined) => (s || '').replace(/[\uFEFF\u200B\u200C\u200D]/g, '').trim()
 const SUPABASE_URL = stripBom(import.meta.env.VITE_SUPABASE_URL as string | undefined)
 const DRIVER_ORDERS_FN = `${SUPABASE_URL}/functions/v1/driver-orders`
 const ANON_KEY = stripBom(import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)
@@ -112,16 +112,9 @@ function DriverApp() {
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(false)
   const [notice, setNotice] = useState('')
-  const [lastSeenAt, setLastSeenAt] = useState('')
+  const [lastSeenAt, setLastSeenAt] = useState(() => localStorage.getItem(STORAGE_LAST_SEEN) || '')
   const [view, setView] = useState<View>('list')
   const [printOrderId, setPrintOrderId] = useState('')
-
-  useEffect(() => {
-    const savedCode = localStorage.getItem(STORAGE_CODE) || ''
-    const savedSeen = localStorage.getItem(STORAGE_LAST_SEEN) || ''
-    setLastSeenAt(savedSeen)
-    if (savedCode) login(savedCode)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const showNotice = (message: string) => {
     setNotice(message)
@@ -143,6 +136,13 @@ function DriverApp() {
       .catch(() => showNotice('رمز الدخول غير صحيح'))
       .finally(() => setLoading(false))
   }
+
+  useEffect(() => {
+    const savedCode = localStorage.getItem(STORAGE_CODE) || ''
+    if (!savedCode) return undefined
+    const timer = window.setTimeout(() => login(savedCode), 0)
+    return () => window.clearTimeout(timer)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const logout = () => {
     localStorage.removeItem(STORAGE_CODE)

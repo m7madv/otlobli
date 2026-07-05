@@ -5,7 +5,17 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
-  { ignores: ['dist', 'admin/dist'] },
+  {
+    ignores: [
+      '.claude/**',
+      'android/app/build/**',
+      'dist/**',
+      'admin/dist/**',
+      'driver/dist/**',
+      'ios/App/App/public/**',
+      'node_modules/**',
+    ],
+  },
   {
     files: ['api/**/*.{ts,tsx}', 'vite.config.ts'],
     languageOptions: {

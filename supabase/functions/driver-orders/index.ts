@@ -23,6 +23,34 @@ const ORDER_STATUS_LABELS = [
   'تم التسليم',
 ]
 
+type OrderItemRow = {
+  id: string
+  title: string
+  image: string
+  color: string
+  size: string
+  quantity: number
+  price_syp: number
+  source_link: string
+}
+
+type OrderRow = {
+  id: string
+  customer_name?: string
+  customer?: string
+  phone: string
+  city: string
+  address: string
+  order_items?: OrderItemRow[]
+  total_syp?: number
+  total?: number
+  payment_status: string
+  status_index?: number
+  qadmous_number?: string
+  created_at: string
+  assigned_at?: string
+}
+
 async function notifyCustomerStatusChange(
   phone: string,
   order: { id: string; statusIndex: number; qadmousNumber?: string },
@@ -92,14 +120,13 @@ Deno.serve(async (req) => {
       })
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const orders = (data || []).map((row: any) => ({
+    const orders = ((data || []) as OrderRow[]).map((row) => ({
       id: row.id,
       customer: row.customer_name || row.customer || '',
       phone: row.phone,
       city: row.city,
       address: row.address,
-      items: (row.order_items || []).map((item: any) => ({
+      items: (row.order_items || []).map((item) => ({
         id: item.id,
         title: item.title,
         image: item.image,
