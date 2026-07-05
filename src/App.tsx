@@ -1026,8 +1026,7 @@ function App() {
   useEffect(() => {
     if (screen === 'home') {
       // نُظهر البراوزر فقط إن كان مفتوحاً وجاهزاً فعلاً؛ إن كان لا يزال يُحمّل
-      // (نت ضعيف) نتركه لـbrowseShein().then الذي يُقدّمه عند اكتماله ونحن على
-      // الرئيسية — إظهاره قبل الجاهزية كان يعطي شاشة سوداء.
+      // (نت ضعيف) نتركه حتى يجهز — إظهاره قبل الجاهزية كان يعطي شاشة سوداء.
       if (sheinOpenedRef.current && sheinReadyRef.current) {
         const target = pendingBackTargetRef.current
         pendingBackTargetRef.current = 'home'
@@ -1042,6 +1041,16 @@ function App() {
       void InAppBrowser.hide()
     }
   }, [screen, vpnState])
+
+  // مستمع مستقل لتوفيق ظهور البراوزر لحظة جاهزيته فقط (لحظة التقديم التلقائي عبر
+  // isPresentAfterPageLoad): إن اكتمل التحميل ونحن على غير الرئيسية (نت بطيء +
+  // انتقال للسلة أثناء التحميل) نُخفيه فوراً بدل تركه أسود فوقها. لا يحوي أي
+  // منطق إعادة فتح كي لا يتعارض مع closeEvent.
+  useEffect(() => {
+    if (sheinReady && sheinOpenedRef.current && screenRef.current !== 'home') {
+      void InAppBrowser.hide()
+    }
+  }, [sheinReady])
 
   // Navigates the already-open SHEIN webview to a cart item's saved product
   // link and switches back to it, so tapping a product inside the cart shows
