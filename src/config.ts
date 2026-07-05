@@ -16,10 +16,10 @@ export const PAYMENT_MODE: 'auto' | 'shamcash' = 'auto'
 //  - 'JO' : الأردن
 // يحدّد منطقة موقع SHEIN التي يفتحها التطبيق. لا يظهر اسمه للزبون إطلاقاً
 // (يُعرض دائماً كـ"مركز التجميع"). لاحقاً يُضبط من لوحة الإدارة.
-export const SOURCE_COUNTRY: 'JO' | 'LB' = 'LB'
+export const SOURCE_COUNTRY: 'JO' | 'LB' | 'SA' = 'SA'
 
 // رقم النسخة — يظهر في شاشة الدخول لمعرفة أي بناء مثبّت على الجهاز عند التشخيص.
-export const APP_VERSION = '2026.07.05-webview-ready-race-v33'
+export const APP_VERSION = '2026.07.05-customer-wallet-group-v34'
 
 // يزيل BOM (U+FEFF) و zero-width space (U+200B) والمسافات من قيم متغيرات البيئة.
 // أسرار GitHub تُلوَّث أحياناً بحرف BOM في البداية، فيصبح الرابط "https://..."

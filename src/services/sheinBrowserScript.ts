@@ -693,9 +693,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function getSizeState() {
     var container = findOptionContainer('size', ['المقاس', 'Size']);
     var opts = getSizeOptions(container);
+    var selected = getSelectedWithin(container);
+    if (!selected && opts.available.length === 1 && opts.unavailable.length === 0) selected = opts.available[0];
     return {
       exists: !!container,
-      selected: getSelectedWithin(container),
+      selected: selected,
       available: opts.available,
       unavailable: opts.unavailable,
     };
@@ -1083,7 +1085,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var dataSel = node.getAttribute('data-selected') || node.getAttribute('data-active') || node.getAttribute('data-checked');
       if (dataSel === 'true' || dataSel === '1') return true;
       var cls = ((node.className || '') + '').toLowerCase();
-      return /(^|[\s_-])(selected|is-selected|active|is-active|checked|is-checked|current|chosen)([\s_-]|$)/.test(cls);
+      var tokens = cls.replace(/_/g, ' ').replace(/-/g, ' ').split(' ');
+      return tokens.indexOf('selected') >= 0 || tokens.indexOf('active') >= 0 ||
+        tokens.indexOf('checked') >= 0 || tokens.indexOf('current') >= 0 ||
+        tokens.indexOf('chosen') >= 0;
     }
     return check(el) || check(el.parentElement);
   }
@@ -2007,6 +2012,17 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // live so the user can see it's actively working, not stuck.
   function addToCartFlow(colorState, sizeState) {
     if (document.getElementById('otlobli-overlay')) return;
+    if (IS_SHEIN) {
+      var addBtn = document.getElementById('otlobli-add-btn');
+      if (colorState && colorState.exists && !colorState.selected) {
+        showMessage(addBtn, 'حدد اللون أولاً');
+        return;
+      }
+      if (sizeState && sizeState.exists && !sizeState.selected) {
+        showMessage(addBtn, 'حدد المقاس أولاً');
+        return;
+      }
+    }
     if (IS_SHEIN) debugSnapshot(colorState, sizeState);
     var payload = captureProductPayload(colorState, sizeState);
     showAddingOverlay(payload);

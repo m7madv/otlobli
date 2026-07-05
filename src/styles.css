@@ -1127,6 +1127,73 @@ a {
 
 .qty-stepper span { min-width: 16px; text-align: center; font-size: 0.85rem; font-weight: 700; }
 
+.group-order-card {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--outline);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 12px;
+}
+
+.group-order-card h2,
+.group-order-card p {
+  margin: 0;
+}
+
+.group-order-card h2 {
+  font-size: 1rem;
+}
+
+.group-order-card p {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.group-code-row,
+.group-join-row,
+.group-members {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.group-code-row span,
+.group-members span {
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-weight: 800;
+  padding: 6px 10px;
+}
+
+.group-code-row button,
+.group-join-row button {
+  min-height: 36px;
+  border: 1px solid var(--outline);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+  color: var(--primary);
+  font-weight: 800;
+  padding: 0 10px;
+}
+
+.group-join-row input {
+  flex: 1 1 120px;
+  min-width: 0;
+  min-height: 38px;
+  border: 1px solid var(--outline);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+  padding: 0 10px;
+}
+
+.group-total-ok {
+  color: var(--primary) !important;
+  font-weight: 800;
+}
+
 .edit-link {
   align-self: flex-start;
   border: 0;

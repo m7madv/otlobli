@@ -111,6 +111,70 @@ create index if not exists order_events_order_id_idx on public.order_events (ord
 create index if not exists otp_challenges_phone_created_at_idx on public.otp_challenges (phone, created_at desc);
 create index if not exists otp_challenges_expires_at_idx on public.otp_challenges (expires_at);
 
+alter table public.customers add column if not exists governorate text not null default 'دمشق';
+alter table public.customers add column if not exists city text not null default '';
+alter table public.customers add column if not exists qadmous_branch text not null default '';
+alter table public.customers add column if not exists details text not null default '';
+
+create table if not exists public.wallet_transactions (
+  id uuid primary key default gen_random_uuid(),
+  customer_id uuid not null references public.customers(id) on delete cascade,
+  phone text not null,
+  order_id text references public.orders(id) on delete set null,
+  amount_syp integer not null check (amount_syp <> 0),
+  kind text not null default 'manual_adjustment' check (kind in ('manual_adjustment', 'order_refund', 'order_payment', 'bonus', 'correction')),
+  note text not null default '',
+  created_by text not null default 'system',
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.cart_groups (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique,
+  host_customer_id uuid not null references public.customers(id) on delete cascade,
+  payer_customer_id uuid references public.customers(id) on delete set null,
+  status text not null default 'open' check (status in ('open', 'locked', 'ordered', 'cancelled')),
+  source_store text not null default 'shein',
+  min_total_usd numeric(14, 2) not null default 40,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null default now() + interval '48 hours'
+);
+
+create table if not exists public.cart_group_members (
+  group_id uuid not null references public.cart_groups(id) on delete cascade,
+  customer_id uuid not null references public.customers(id) on delete cascade,
+  phone text not null,
+  display_name text not null default '',
+  role text not null default 'member' check (role in ('host', 'member')),
+  joined_at timestamptz not null default now(),
+  primary key (group_id, customer_id)
+);
+
+create table if not exists public.cart_group_items (
+  id uuid primary key default gen_random_uuid(),
+  group_id uuid not null references public.cart_groups(id) on delete cascade,
+  customer_id uuid not null references public.customers(id) on delete cascade,
+  local_item_id text not null,
+  payload jsonb not null,
+  price_usd numeric(14, 2) not null default 0,
+  price_syp integer not null default 0,
+  quantity integer not null default 1 check (quantity > 0),
+  updated_at timestamptz not null default now(),
+  unique (group_id, customer_id, local_item_id)
+);
+
+alter table public.orders add column if not exists group_id uuid references public.cart_groups(id) on delete set null;
+alter table public.orders add column if not exists group_code text not null default '';
+
+create index if not exists customers_phone_idx on public.customers (phone);
+create index if not exists orders_customer_id_idx on public.orders (customer_id);
+create index if not exists orders_group_id_idx on public.orders (group_id);
+create index if not exists wallet_transactions_customer_id_idx on public.wallet_transactions (customer_id, created_at desc);
+create index if not exists wallet_transactions_phone_idx on public.wallet_transactions (phone);
+create index if not exists cart_groups_code_idx on public.cart_groups (code);
+create index if not exists cart_group_items_group_id_idx on public.cart_group_items (group_id);
+
 alter table public.customers enable row level security;
 alter table public.addresses enable row level security;
 alter table public.catalog_products enable row level security;
@@ -119,6 +183,10 @@ alter table public.order_items enable row level security;
 alter table public.payment_verifications enable row level security;
 alter table public.otp_challenges enable row level security;
 alter table public.order_events enable row level security;
+alter table public.wallet_transactions enable row level security;
+alter table public.cart_groups enable row level security;
+alter table public.cart_group_members enable row level security;
+alter table public.cart_group_items enable row level security;
 
 drop policy if exists "Public can read active catalog products" on public.catalog_products;
 create policy "Public can read active catalog products"
@@ -132,6 +200,73 @@ on public.payment_verifications
 for insert
 with check (true);
 
+create or replace function public.ensure_customer(
+  p_phone text,
+  p_name text default '',
+  p_governorate text default 'دمشق',
+  p_qadmous_branch text default '',
+  p_city text default '',
+  p_details text default ''
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  cleaned_phone text := regexp_replace(coalesce(p_phone, ''), '\s+', '', 'g');
+  target_id uuid;
+begin
+  if cleaned_phone = '' then
+    raise exception 'phone is required';
+  end if;
+
+  insert into public.customers (phone, name, governorate, qadmous_branch, city, details)
+  values (
+    cleaned_phone,
+    nullif(trim(coalesce(p_name, '')), ''),
+    coalesce(nullif(trim(coalesce(p_governorate, '')), ''), 'دمشق'),
+    trim(coalesce(p_qadmous_branch, '')),
+    trim(coalesce(p_city, '')),
+    trim(coalesce(p_details, ''))
+  )
+  on conflict (phone) do update set
+    name = coalesce(nullif(excluded.name, ''), public.customers.name),
+    governorate = coalesce(nullif(excluded.governorate, ''), public.customers.governorate, 'دمشق'),
+    qadmous_branch = coalesce(nullif(excluded.qadmous_branch, ''), public.customers.qadmous_branch, ''),
+    city = coalesce(nullif(excluded.city, ''), public.customers.city, ''),
+    details = coalesce(nullif(excluded.details, ''), public.customers.details, ''),
+    updated_at = now()
+  returning id into target_id;
+
+  return target_id;
+end;
+$$;
+
+revoke all on function public.ensure_customer(text, text, text, text, text, text) from public;
+grant execute on function public.ensure_customer(text, text, text, text, text, text) to anon, authenticated, service_role;
+
+create or replace function public.upsert_customer_from_order(order_payload jsonb)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  return public.ensure_customer(
+    coalesce(nullif(order_payload->>'phone', ''), 'غير محدد'),
+    coalesce(nullif(order_payload->>'customer', ''), 'عميل otlobli'),
+    coalesce(nullif(order_payload->>'governorate', ''), nullif(order_payload->>'city', ''), 'دمشق'),
+    coalesce(order_payload->>'qadmousBranch', ''),
+    coalesce(order_payload->>'city', ''),
+    coalesce(order_payload->>'address', '')
+  );
+end;
+$$;
+
+revoke all on function public.upsert_customer_from_order(jsonb) from public;
+grant execute on function public.upsert_customer_from_order(jsonb) to anon, authenticated, service_role;
+
 create or replace function public.submit_order(order_payload jsonb)
 returns text
 language plpgsql
@@ -143,6 +278,8 @@ declare
   item_count integer := coalesce(jsonb_array_length(order_payload->'items'), 0);
   target_status_index integer := coalesce(nullif(order_payload->>'statusIndex', '')::integer, 0);
   target_paid_at date := null;
+  target_customer_id uuid;
+  target_group_id uuid := nullif(order_payload->>'groupId', '')::uuid;
 begin
   if target_order_id is null then
     raise exception 'order id is required';
@@ -156,8 +293,11 @@ begin
     target_paid_at := (order_payload->>'paidAt')::date;
   end if;
 
+  target_customer_id := public.upsert_customer_from_order(order_payload);
+
   insert into public.orders (
     id,
+    customer_id,
     customer_name,
     phone,
     city,
@@ -167,10 +307,13 @@ begin
     status_index,
     qadmous_number,
     created_at,
-    paid_at
+    paid_at,
+    group_id,
+    group_code
   )
   values (
     target_order_id,
+    target_customer_id,
     coalesce(nullif(order_payload->>'customer', ''), 'عميل طلبية'),
     coalesce(nullif(order_payload->>'phone', ''), 'غير محدد'),
     coalesce(nullif(order_payload->>'city', ''), 'غير محدد'),
@@ -180,7 +323,9 @@ begin
     target_status_index,
     coalesce(order_payload->>'qadmousNumber', ''),
     coalesce(nullif(order_payload->>'createdAt', '')::date, current_date),
-    target_paid_at
+    target_paid_at,
+    target_group_id,
+    coalesce(order_payload->>'groupCode', '')
   );
 
   insert into public.order_items (
@@ -222,6 +367,13 @@ begin
     'تم إنشاء الطلب',
     'تم إنشاء الطلب من تطبيق طلبية'
   );
+
+  if target_group_id is not null then
+    update public.cart_groups
+    set status = 'ordered',
+        payer_customer_id = target_customer_id
+    where id = target_group_id;
+  end if;
 
   return target_order_id;
 end;
@@ -329,6 +481,8 @@ declare
   expires timestamptz := now() + interval '2 hours';
   attempt integer;
   max_attempts integer := 40;
+  target_customer_id uuid;
+  target_group_id uuid := nullif(order_payload->>'groupId', '')::uuid;
 begin
   if currency not in ('SYP', 'USD') then
     raise exception 'invalid currency';
@@ -352,6 +506,8 @@ begin
     unit_step := 1;
   end if;
 
+  target_customer_id := public.upsert_customer_from_order(order_payload);
+
   for attempt in 0..max_attempts loop
     candidate_amount := nominal_amount - (attempt * unit_step);
     if candidate_amount <= 0 then
@@ -360,12 +516,14 @@ begin
 
     begin
       insert into public.orders (
-        id, customer_name, phone, city, address, total_syp,
+        id, customer_id, customer_name, phone, city, address, total_syp,
         payment_status, status_index, qadmous_number, created_at,
-        payment_amount, payment_currency, payment_expires_at
+        payment_amount, payment_currency, payment_expires_at,
+        group_id, group_code
       )
       values (
         target_order_id,
+        target_customer_id,
         coalesce(nullif(order_payload->>'customer', ''), 'عميل طلبية'),
         coalesce(nullif(order_payload->>'phone', ''), 'غير محدد'),
         coalesce(nullif(order_payload->>'city', ''), 'غير محدد'),
@@ -377,7 +535,9 @@ begin
         current_date,
         candidate_amount,
         currency,
-        expires
+        expires,
+        target_group_id,
+        coalesce(order_payload->>'groupCode', '')
       );
 
       insert into public.order_items (
@@ -393,6 +553,13 @@ begin
 
       insert into public.order_events (order_id, status_index, title, note)
       values (target_order_id, 0, 'بانتظار الدفع', 'تم إنشاء الطلب وبانتظار تحويل شام كاش');
+
+      if target_group_id is not null then
+        update public.cart_groups
+        set status = 'ordered',
+            payer_customer_id = target_customer_id
+        where id = target_group_id;
+      end if;
 
       return jsonb_build_object(
         'orderId', target_order_id,
@@ -586,3 +753,357 @@ $$;
 
 revoke all on function public.submit_order_rating(text, integer, text) from public;
 grant execute on function public.submit_order_rating(text, integer, text) to anon, authenticated;
+
+create or replace function public.customer_orders_json(target_customer_id uuid, target_phone text)
+returns jsonb
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select coalesce(jsonb_agg(
+    jsonb_build_object(
+      'id', o.id,
+      'customer', o.customer_name,
+      'phone', o.phone,
+      'city', o.city,
+      'address', o.address,
+      'items', (
+        select coalesce(jsonb_agg(jsonb_build_object(
+          'id', oi.product_id,
+          'title', oi.title,
+          'image', oi.image,
+          'color', oi.color,
+          'size', oi.size,
+          'quantity', oi.quantity,
+          'priceSyp', oi.price_syp,
+          'sourceLink', oi.source_link
+        ) order by oi.created_at), '[]'::jsonb)
+        from public.order_items oi
+        where oi.order_id = o.id
+      ),
+      'total', o.total_syp,
+      'paymentStatus', o.payment_status,
+      'statusIndex', o.status_index,
+      'qadmousNumber', o.qadmous_number,
+      'createdAt', o.created_at,
+      'paidAt', o.paid_at,
+      'rating', o.rating,
+      'ratingNote', o.rating_note,
+      'paymentIssue', o.payment_issue,
+      'paymentIssueNote', o.payment_issue_note,
+      'extraAmountUsd', o.extra_amount_usd,
+      'groupId', o.group_id,
+      'groupCode', o.group_code
+    ) order by o.created_at desc), '[]'::jsonb)
+  from public.orders o
+  where (target_customer_id is not null and o.customer_id = target_customer_id)
+     or (target_phone <> '' and o.phone = target_phone);
+$$;
+
+revoke all on function public.customer_orders_json(uuid, text) from public;
+grant execute on function public.customer_orders_json(uuid, text) to anon, authenticated, service_role;
+
+create or replace function public.get_customer_account(p_phone text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  cleaned_phone text := regexp_replace(coalesce(p_phone, ''), '\s+', '', 'g');
+  found_customer public.customers%rowtype;
+  latest_order public.orders%rowtype;
+  created_customer_id uuid;
+  wallet_balance integer := 0;
+  order_list jsonb := '[]'::jsonb;
+  tx_list jsonb := '[]'::jsonb;
+begin
+  if cleaned_phone = '' then
+    return jsonb_build_object(
+      'profile', null,
+      'orders', '[]'::jsonb,
+      'walletBalanceSyp', 0,
+      'walletTransactions', '[]'::jsonb
+    );
+  end if;
+
+  select * into found_customer
+  from public.customers
+  where phone = cleaned_phone
+  limit 1;
+
+  if not found then
+    select * into latest_order
+    from public.orders
+    where phone = cleaned_phone
+    order by created_at desc
+    limit 1;
+
+    if found then
+      created_customer_id := public.ensure_customer(
+        cleaned_phone,
+        latest_order.customer_name,
+        coalesce(nullif(latest_order.city, ''), 'دمشق'),
+        '',
+        coalesce(latest_order.city, ''),
+        coalesce(latest_order.address, '')
+      );
+
+      update public.orders
+      set customer_id = created_customer_id
+      where phone = cleaned_phone and customer_id is null;
+
+      return public.get_customer_account(cleaned_phone);
+    end if;
+
+    select public.customer_orders_json(null, cleaned_phone) into order_list;
+    return jsonb_build_object(
+      'profile', null,
+      'orders', order_list,
+      'walletBalanceSyp', 0,
+      'walletTransactions', '[]'::jsonb
+    );
+  end if;
+
+  select public.customer_orders_json(found_customer.id, cleaned_phone) into order_list;
+  select coalesce(sum(amount_syp), 0)::integer into wallet_balance
+  from public.wallet_transactions
+  where customer_id = found_customer.id;
+
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', wt.id,
+    'amountSyp', wt.amount_syp,
+    'kind', wt.kind,
+    'note', wt.note,
+    'orderId', wt.order_id,
+    'createdAt', wt.created_at
+  ) order by wt.created_at desc), '[]'::jsonb) into tx_list
+  from public.wallet_transactions wt
+  where wt.customer_id = found_customer.id
+  limit 30;
+
+  return jsonb_build_object(
+    'profile', jsonb_build_object(
+      'name', coalesce(found_customer.name, ''),
+      'phone', found_customer.phone,
+      'governorate', coalesce(found_customer.governorate, 'دمشق'),
+      'city', coalesce(found_customer.city, ''),
+      'qadmousBranch', coalesce(found_customer.qadmous_branch, ''),
+      'details', coalesce(found_customer.details, ''),
+      'walletBalanceSyp', wallet_balance
+    ),
+    'orders', order_list,
+    'walletBalanceSyp', wallet_balance,
+    'walletTransactions', tx_list
+  );
+end;
+$$;
+
+revoke all on function public.get_customer_account(text) from public;
+grant execute on function public.get_customer_account(text) to anon, authenticated;
+
+create or replace function public.upsert_customer_profile(
+  p_phone text,
+  p_name text,
+  p_governorate text,
+  p_qadmous_branch text default '',
+  p_city text default '',
+  p_details text default ''
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  customer_id uuid;
+begin
+  customer_id := public.ensure_customer(p_phone, p_name, p_governorate, p_qadmous_branch, p_city, p_details);
+  return public.get_customer_account((select phone from public.customers where id = customer_id));
+end;
+$$;
+
+revoke all on function public.upsert_customer_profile(text, text, text, text, text, text) from public;
+grant execute on function public.upsert_customer_profile(text, text, text, text, text, text) to anon, authenticated;
+
+create or replace function public.replace_cart_group_items(p_group_id uuid, p_customer_id uuid, p_items jsonb)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if coalesce(jsonb_typeof(p_items), '') <> 'array' then
+    p_items := '[]'::jsonb;
+  end if;
+
+  delete from public.cart_group_items
+  where group_id = p_group_id and customer_id = p_customer_id;
+
+  insert into public.cart_group_items (
+    group_id, customer_id, local_item_id, payload, price_usd, price_syp, quantity
+  )
+  select
+    p_group_id,
+    p_customer_id,
+    coalesce(nullif(item->>'id', ''), gen_random_uuid()::text),
+    item,
+    greatest(coalesce(nullif(item->>'priceUsd', '')::numeric, 0), 0),
+    greatest(coalesce(nullif(item->>'priceSyp', '')::integer, 0), 0),
+    greatest(coalesce(nullif(item->>'quantity', '')::integer, 1), 1)
+  from jsonb_array_elements(p_items) as item;
+end;
+$$;
+
+revoke all on function public.replace_cart_group_items(uuid, uuid, jsonb) from public;
+grant execute on function public.replace_cart_group_items(uuid, uuid, jsonb) to anon, authenticated, service_role;
+
+create or replace function public.cart_group_snapshot(p_group_id uuid)
+returns jsonb
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select jsonb_build_object(
+    'id', g.id,
+    'code', g.code,
+    'status', g.status,
+    'minTotalUsd', g.min_total_usd,
+    'totalUsd', coalesce((select sum(cgi.price_usd * cgi.quantity) from public.cart_group_items cgi where cgi.group_id = g.id), 0),
+    'members', (
+      select coalesce(jsonb_agg(jsonb_build_object(
+        'phone', cgm.phone,
+        'name', cgm.display_name,
+        'role', cgm.role
+      ) order by cgm.joined_at), '[]'::jsonb)
+      from public.cart_group_members cgm
+      where cgm.group_id = g.id
+    ),
+    'items', (
+      select coalesce(jsonb_agg(jsonb_build_object(
+        'ownerPhone', cgm.phone,
+        'ownerName', cgm.display_name,
+        'item', cgi.payload
+      ) order by cgi.updated_at), '[]'::jsonb)
+      from public.cart_group_items cgi
+      join public.cart_group_members cgm
+        on cgm.group_id = cgi.group_id and cgm.customer_id = cgi.customer_id
+      where cgi.group_id = g.id
+    )
+  )
+  from public.cart_groups g
+  where g.id = p_group_id;
+$$;
+
+revoke all on function public.cart_group_snapshot(uuid) from public;
+grant execute on function public.cart_group_snapshot(uuid) to anon, authenticated, service_role;
+
+create or replace function public.create_cart_group(p_phone text, p_name text, p_store text, p_items jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  customer_id uuid;
+  group_id uuid;
+  generated_code text;
+  attempt integer;
+begin
+  customer_id := public.ensure_customer(p_phone, p_name, 'دمشق', '', '', '');
+
+  for attempt in 1..12 loop
+    generated_code := upper(substr(encode(gen_random_bytes(4), 'hex'), 1, 6));
+    begin
+      insert into public.cart_groups (code, host_customer_id, source_store)
+      values (generated_code, customer_id, coalesce(nullif(p_store, ''), 'shein'))
+      returning id into group_id;
+      exit;
+    exception when unique_violation then
+      continue;
+    end;
+  end loop;
+
+  if group_id is null then
+    raise exception 'could not generate group code';
+  end if;
+
+  insert into public.cart_group_members (group_id, customer_id, phone, display_name, role)
+  values (group_id, customer_id, regexp_replace(coalesce(p_phone, ''), '\s+', '', 'g'), coalesce(nullif(trim(p_name), ''), 'صاحب الطلب'), 'host')
+  on conflict (group_id, customer_id) do update set
+    display_name = excluded.display_name,
+    role = 'host';
+
+  perform public.replace_cart_group_items(group_id, customer_id, p_items);
+  return public.cart_group_snapshot(group_id);
+end;
+$$;
+
+revoke all on function public.create_cart_group(text, text, text, jsonb) from public;
+grant execute on function public.create_cart_group(text, text, text, jsonb) to anon, authenticated;
+
+create or replace function public.join_cart_group(p_phone text, p_name text, p_code text, p_items jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  customer_id uuid;
+  found_group public.cart_groups%rowtype;
+begin
+  select * into found_group
+  from public.cart_groups
+  where code = upper(trim(p_code))
+    and status = 'open'
+    and expires_at > now()
+  limit 1;
+
+  if not found then
+    raise exception 'group not found';
+  end if;
+
+  customer_id := public.ensure_customer(p_phone, p_name, 'دمشق', '', '', '');
+
+  insert into public.cart_group_members (group_id, customer_id, phone, display_name, role)
+  values (found_group.id, customer_id, regexp_replace(coalesce(p_phone, ''), '\s+', '', 'g'), coalesce(nullif(trim(p_name), ''), 'عضو'), 'member')
+  on conflict (group_id, customer_id) do update set
+    display_name = excluded.display_name;
+
+  perform public.replace_cart_group_items(found_group.id, customer_id, p_items);
+  return public.cart_group_snapshot(found_group.id);
+end;
+$$;
+
+revoke all on function public.join_cart_group(text, text, text, jsonb) from public;
+grant execute on function public.join_cart_group(text, text, text, jsonb) to anon, authenticated;
+
+create or replace function public.sync_cart_group_items(p_phone text, p_group_id uuid, p_items jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  customer_id uuid;
+begin
+  select c.id into customer_id
+  from public.customers c
+  join public.cart_group_members m on m.customer_id = c.id
+  where c.phone = regexp_replace(coalesce(p_phone, ''), '\s+', '', 'g')
+    and m.group_id = p_group_id
+  limit 1;
+
+  if customer_id is null then
+    raise exception 'not a group member';
+  end if;
+
+  perform public.replace_cart_group_items(p_group_id, customer_id, p_items);
+  return public.cart_group_snapshot(p_group_id);
+end;
+$$;
+
+revoke all on function public.sync_cart_group_items(text, uuid, jsonb) from public;
+grant execute on function public.sync_cart_group_items(text, uuid, jsonb) to anon, authenticated;

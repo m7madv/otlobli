@@ -33,6 +33,24 @@ type Order = {
   paymentIssue: boolean
   paymentIssueNote: string
   extraAmountUsd: number
+  groupId?: string
+  groupCode?: string
+}
+
+type Customer = {
+  id: string
+  phone: string
+  name: string
+  governorate: string
+  city: string
+  qadmousBranch: string
+  details: string
+  walletBalanceSyp: number
+  orderCount: number
+  totalSpentSyp: number
+  lastOrderAt: string
+  createdAt: string
+  updatedAt: string
 }
 
 type DriverOption = {
@@ -50,6 +68,7 @@ type Driver = DriverOption & {
 type OrdersResponse = {
   orders: Order[]
   drivers: DriverOption[]
+  customers?: Customer[]
 }
 
 const orderStatuses = [
@@ -139,7 +158,7 @@ function CopyBtn({ text }: { text: string }) {
 // ── Supabase ──────────────────────────────────────────────────────────────────
 // تنظيف أي حرف BOM (U+FEFF) أو مسافات خفية تتسرّب عند لصق المفاتيح في إعدادات
 // Vercel — وجودها في headers يجعل المتصفح يرفض الطلب بالكامل بصمت (non ISO-8859-1).
-const stripBom = (s: string | undefined) => (s || '').replace(/[​-‍﻿]/g, '').trim()
+const stripBom = (s: string | undefined) => (s || '').replace(/[\uFEFF\u200B\u200C\u200D]/g, '').trim()
 const SUPABASE_URL = stripBom(import.meta.env.VITE_SUPABASE_URL as string | undefined)
 const ADMIN_ORDERS_FN   = `${SUPABASE_URL}/functions/v1/admin-orders`
 const ADMIN_DRIVERS_FN  = `${SUPABASE_URL}/functions/v1/admin-drivers`
@@ -156,7 +175,28 @@ async function fetchOrders(pin: string) {
   })
   if (!response.ok) throw new Error('orders_unavailable')
   const payload = (await response.json()) as OrdersResponse
-  return { orders: payload.orders, drivers: payload.drivers ?? [] }
+  return { orders: payload.orders, drivers: payload.drivers ?? [], customers: payload.customers ?? [] }
+}
+
+async function addWalletTransaction(pin: string, customer: Pick<Customer, 'phone' | 'name'>, amountSyp: number, note: string) {
+  const response = await fetch(ADMIN_ORDERS_FN, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-admin-pin': pin,
+      'apikey': ANON_KEY,
+      'authorization': `Bearer ${ANON_KEY}`,
+    },
+    body: JSON.stringify({
+      action: 'wallet_transaction',
+      phone: customer.phone,
+      name: customer.name,
+      amountSyp,
+      note,
+      kind: 'manual_adjustment',
+    }),
+  })
+  if (!response.ok) throw new Error('wallet_transaction_failed')
 }
 
 async function fetchDrivers(pin: string) {
@@ -235,6 +275,7 @@ function AdminApp() {
   const [pinInput, setPinInput] = useState('')
   const [pin, setPin] = useState('')
   const [orders, setOrders] = useState<Order[]>([])
+  const [customers, setCustomers] = useState<Customer[]>([])
   const [driverOptions, setDriverOptions] = useState<DriverOption[]>([])
   const [selectedOrderId, setSelectedOrderId] = useState('')
   const [modalOrderId, setModalOrderId] = useState('')
@@ -242,14 +283,8 @@ function AdminApp() {
   const [search, setSearch] = useState('')
   const [notice, setNotice] = useState('')
   const [loading, setLoading] = useState(false)
-  const [deepLinkOrderId, setDeepLinkOrderId] = useState('')
+  const [deepLinkOrderId] = useState(() => new URLSearchParams(window.location.search).get('order') ?? '')
   const { tracked, toggle: toggleCart, markAll: markAllCart } = useCartTracked()
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const orderId = params.get('order')
-    if (orderId) setDeepLinkOrderId(orderId)
-  }, [])
 
   const selectedOrder = orders.find((o) => o.id === selectedOrderId) ?? orders[0]
   const modalOrder = orders.find((o) => o.id === modalOrderId)
@@ -277,9 +312,10 @@ function AdminApp() {
     if (!nextPin) { showNotice('أدخل رمز الإدارة'); return }
     setLoading(true)
     void fetchOrders(nextPin)
-      .then(({ orders: nextOrders, drivers: nextDrivers }) => {
+      .then(({ orders: nextOrders, drivers: nextDrivers, customers: nextCustomers }) => {
         setPin(nextPin)
         setOrders(nextOrders)
+        setCustomers(nextCustomers)
         setDriverOptions(nextDrivers)
         const autoSelect = deepLinkOrderId && nextOrders.find((o) => o.id === deepLinkOrderId)
           ? deepLinkOrderId
@@ -299,8 +335,9 @@ function AdminApp() {
     if (!pin) return
     setLoading(true)
     void fetchOrders(pin)
-      .then(({ orders: nextOrders, drivers: nextDrivers }) => {
+      .then(({ orders: nextOrders, drivers: nextDrivers, customers: nextCustomers }) => {
         setOrders(nextOrders)
+        setCustomers(nextCustomers)
         setDriverOptions(nextDrivers)
         showNotice('تم تحديث الطلبات')
       })
@@ -313,8 +350,9 @@ function AdminApp() {
     if (!pin) return
     const interval = window.setInterval(() => {
       void fetchOrders(pin)
-        .then(({ orders: nextOrders, drivers: nextDrivers }) => {
+        .then(({ orders: nextOrders, drivers: nextDrivers, customers: nextCustomers }) => {
           setDriverOptions(nextDrivers)
+          setCustomers(nextCustomers)
           setOrders((prev) => {
             if (nextOrders.length > prev.length) {
               const diff = nextOrders.length - prev.length
@@ -448,7 +486,15 @@ function AdminApp() {
         {tab === 'orders' && <OrdersTable orders={filteredOrders} tracked={tracked} onOpen={openModal} onMarkPaid={markPaid} />}
         {tab === 'payments' && <OrdersTable orders={filteredOrders.filter((o) => o.paymentStatus !== 'مدفوع')} tracked={tracked} onOpen={openModal} onMarkPaid={markPaid} />}
         {tab === 'shipping' && <ShippingList orders={filteredOrders} drivers={driverOptions} onAdvance={advanceOrder} onUpdate={updateOrder} onOpen={openModal} />}
-        {tab === 'customers' && <CustomersGrid orders={orders} />}
+        {tab === 'customers' && (
+          <CustomersGrid
+            pin={pin}
+            customers={customers}
+            orders={orders}
+            onRefresh={refresh}
+            showNotice={showNotice}
+          />
+        )}
         {tab === 'drivers' && <DriversPanel pin={pin} showNotice={showNotice} />}
         {tab === 'settings' && <SettingsPanel pin={pin} showNotice={showNotice} />}
       </main>
@@ -655,7 +701,11 @@ function OrderDetail({
         />
       </label>
       <DriverAssignField order={order} drivers={drivers} onUpdate={onUpdate} />
-      <PaymentIssueField order={order} onUpdate={onUpdate} />
+      <PaymentIssueField
+        key={`${order.id}-${order.paymentIssue}-${order.paymentIssueNote}-${order.extraAmountUsd}`}
+        order={order}
+        onUpdate={onUpdate}
+      />
       <div className="detail-actions">
         <button className="primary-action" onClick={() => onMarkPaid(order)}>تأكيد الدفع</button>
         <button className="ghost-action" onClick={() => onAdvance(order)}>نقل للمرحلة التالية</button>
@@ -669,12 +719,6 @@ function PaymentIssueField({ order, onUpdate }: { order: Order; onUpdate: (order
   const [open, setOpen] = useState(order.paymentIssue)
   const [note, setNote] = useState(order.paymentIssueNote)
   const [amount, setAmount] = useState(String(order.extraAmountUsd || ''))
-
-  useEffect(() => {
-    setOpen(order.paymentIssue)
-    setNote(order.paymentIssueNote)
-    setAmount(String(order.extraAmountUsd || ''))
-  }, [order.id, order.paymentIssue, order.paymentIssueNote, order.extraAmountUsd])
 
   const save = (issue: boolean) => {
     onUpdate(order.id, {
@@ -913,16 +957,79 @@ function ShippingList({
 }
 
 // ── Customers Grid ────────────────────────────────────────────────────────────
-function CustomersGrid({ orders }: { orders: Order[] }) {
-  const customers = Array.from(new Map(orders.map((o) => [o.phone, o])).values())
+function CustomersGrid({
+  pin, customers, orders, onRefresh, showNotice,
+}: {
+  pin: string
+  customers: Customer[]
+  orders: Order[]
+  onRefresh: () => void
+  showNotice: (message: string) => void
+}) {
+  const fallbackCustomers: Customer[] = Array.from(new Map(orders.map((o) => [o.phone, o])).values()).map((order) => ({
+    id: order.phone,
+    phone: order.phone,
+    name: order.customer,
+    governorate: order.city,
+    city: order.city,
+    qadmousBranch: '',
+    details: order.address,
+    walletBalanceSyp: 0,
+    orderCount: orders.filter((o) => o.phone === order.phone).length,
+    totalSpentSyp: orders.filter((o) => o.phone === order.phone).reduce((sum, o) => sum + o.total, 0),
+    lastOrderAt: order.createdAt,
+    createdAt: order.createdAt,
+    updatedAt: order.createdAt,
+  }))
+  const visibleCustomers = customers.length ? customers : fallbackCustomers
+  const [amounts, setAmounts] = useState<Record<string, string>>({})
+  const [notes, setNotes] = useState<Record<string, string>>({})
+
+  const submitWallet = (customer: Customer) => {
+    const amount = Math.trunc(Number(amounts[customer.phone] || 0))
+    if (!amount) { showNotice('أدخل مبلغ المحفظة'); return }
+    void addWalletTransaction(pin, customer, amount, notes[customer.phone] || '')
+      .then(() => {
+        setAmounts((prev) => ({ ...prev, [customer.phone]: '' }))
+        setNotes((prev) => ({ ...prev, [customer.phone]: '' }))
+        showNotice('تم تسجيل حركة المحفظة')
+        onRefresh()
+      })
+      .catch(() => showNotice('فشل تسجيل حركة المحفظة'))
+  }
   return (
     <section className="customers">
-      {customers.map((order) => (
-        <article className="panel customer" key={order.phone}>
-          <div className="avatar">{order.customer[0] ?? 'ط'}</div>
-          <h2>{order.customer}</h2>
-          <span className="phone-row">{order.phone}<CopyBtn text={order.phone} /></span>
-          <p>{order.city}</p>
+      {visibleCustomers.map((customer) => (
+        <article className="panel customer" key={customer.phone}>
+          <div className="avatar">{customer.name[0] ?? 'ط'}</div>
+          <h2>{customer.name || 'عميل بدون اسم'}</h2>
+          <span className="phone-row">{customer.phone}<CopyBtn text={customer.phone} /></span>
+          <p>{customer.governorate || customer.city || 'محافظة غير محددة'}</p>
+          {customer.qadmousBranch && <p>{customer.qadmousBranch}</p>}
+          <div className="customer-metrics">
+            <b>{customer.orderCount} طلب</b>
+            <b>{formatMoney(customer.totalSpentSyp)}</b>
+            <b className={customer.walletBalanceSyp >= 0 ? 'wallet-positive' : 'wallet-negative'}>
+              {formatMoney(customer.walletBalanceSyp)}
+            </b>
+          </div>
+          <div className="wallet-adjust">
+            <input
+              value={amounts[customer.phone] || ''}
+              onChange={(e) => setAmounts((prev) => ({ ...prev, [customer.phone]: e.target.value }))}
+              inputMode="numeric"
+              placeholder="+5000 أو -5000"
+              dir="ltr"
+            />
+            <input
+              value={notes[customer.phone] || ''}
+              onChange={(e) => setNotes((prev) => ({ ...prev, [customer.phone]: e.target.value }))}
+              placeholder="ملاحظة الحركة"
+            />
+            <button onClick={() => submitWallet(customer)}>
+              <Icon name="account_balance_wallet" /> تسجيل
+            </button>
+          </div>
         </article>
       ))}
     </section>
@@ -945,7 +1052,10 @@ function DriversPanel({ pin, showNotice }: { pin: string; showNotice: (message: 
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const timer = window.setTimeout(load, 0)
+    return () => window.clearTimeout(timer)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const addDriver = () => {
     const trimmedName = name.trim()

@@ -54,6 +54,70 @@ export const localAppApi: TalabiehApi = {
       }
     },
   },
+  customers: {
+    async getAccount(_phone) {
+      void _phone
+      await wait(120)
+      return {
+        mode: 'local-mock',
+        profile: null,
+        orders: [],
+        walletBalanceSyp: 0,
+        walletTransactions: [],
+      }
+    },
+
+    async saveProfile(phone, profile) {
+      await wait(120)
+      return {
+        mode: 'local-mock',
+        profile: { ...profile, phone },
+        orders: [],
+        walletBalanceSyp: 0,
+        walletTransactions: [],
+      }
+    },
+  },
+  cartGroups: {
+    async create(phone, name, _store, items) {
+      await wait(120)
+      return {
+        id: `local-${Date.now()}`,
+        code: Math.random().toString(36).slice(2, 8).toUpperCase(),
+        status: 'open',
+        minTotalUsd: 40,
+        totalUsd: items.reduce((sum, item) => sum + item.priceUsd * item.quantity, 0),
+        members: [{ phone, name, role: 'host' }],
+        items: items.map((item) => ({ ownerPhone: phone, ownerName: name, item })),
+      }
+    },
+
+    async join(phone, name, code, items) {
+      await wait(120)
+      return {
+        id: `local-${code}`,
+        code: code.trim().toUpperCase(),
+        status: 'open',
+        minTotalUsd: 40,
+        totalUsd: items.reduce((sum, item) => sum + item.priceUsd * item.quantity, 0),
+        members: [{ phone, name, role: 'member' }],
+        items: items.map((item) => ({ ownerPhone: phone, ownerName: name, item })),
+      }
+    },
+
+    async syncItems(phone, groupId, items) {
+      await wait(120)
+      return {
+        id: groupId,
+        code: groupId.replace(/^local-/, '').slice(0, 8).toUpperCase(),
+        status: 'open',
+        minTotalUsd: 40,
+        totalUsd: items.reduce((sum, item) => sum + item.priceUsd * item.quantity, 0),
+        members: [{ phone, name: 'local', role: 'host' }],
+        items: items.map((item) => ({ ownerPhone: phone, ownerName: 'local', item })),
+      }
+    },
+  },
   orders: {
     async createPendingOrder(order, currency) {
       await wait(180)

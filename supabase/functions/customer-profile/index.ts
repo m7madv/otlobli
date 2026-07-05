@@ -9,82 +9,59 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 }
 
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'content-type': 'application/json' },
+  })
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders })
 
-  const phone = (req.headers.get('x-customer-phone') ?? '').trim()
-  if (!phone) {
-    return new Response(JSON.stringify({ error: 'missing phone' }), {
-      status: 400,
-      headers: { ...corsHeaders, 'content-type': 'application/json' },
-    })
-  }
+  const headerPhone = (req.headers.get('x-customer-phone') ?? '').trim()
+  if (!headerPhone) return json({ error: 'missing phone' }, 400)
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY)
 
-  // GET: جلب ملف الزبون (يحاول customer_profiles أولاً ثم orders كـfallback)
   if (req.method === 'GET') {
-    // 1) جدول customer_profiles (إذا وُجد)
-    const { data: profileData, error: profileError } = await supabase
-      .from('customer_profiles')
-      .select('name, governorate')
-      .eq('phone', phone)
-      .maybeSingle()
+    const { data, error } = await supabase.rpc('get_customer_account', { p_phone: headerPhone })
+    if (error) return json({ name: '', governorate: 'دمشق', orders: [], warning: error.message })
 
-    if (!profileError && profileData?.name) {
-      return new Response(
-        JSON.stringify({ name: profileData.name, governorate: profileData.governorate ?? '' }),
-        { headers: { ...corsHeaders, 'content-type': 'application/json' } },
-      )
-    }
-
-    // 2) fallback: أحدث طلب للرقم (يستخرج الاسم/المدينة من جدول orders)
-    const { data: orderData } = await supabase
-      .from('orders')
-      .select('customer_name, city')
-      .eq('phone', phone)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    if (orderData?.customer_name) {
-      return new Response(
-        JSON.stringify({ name: orderData.customer_name as string, governorate: (orderData.city as string) ?? '' }),
-        { headers: { ...corsHeaders, 'content-type': 'application/json' } },
-      )
-    }
-
-    return new Response(JSON.stringify({ name: '', governorate: '' }), {
-      headers: { ...corsHeaders, 'content-type': 'application/json' },
+    const profile = (data as { profile?: Record<string, unknown> } | null)?.profile ?? null
+    return json({
+      ...(data as Record<string, unknown>),
+      name: typeof profile?.name === 'string' ? profile.name : '',
+      governorate: typeof profile?.governorate === 'string' ? profile.governorate : 'دمشق',
+      qadmousBranch: typeof profile?.qadmousBranch === 'string' ? profile.qadmousBranch : '',
+      city: typeof profile?.city === 'string' ? profile.city : '',
+      details: typeof profile?.details === 'string' ? profile.details : '',
     })
   }
 
-  // POST: حفظ/تحديث ملف الزبون في customer_profiles
   if (req.method === 'POST') {
-    const body = (await req.json()) as { name?: string; governorate?: string }
-    if (!body.name?.trim()) {
-      return new Response(JSON.stringify({ error: 'missing name' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'content-type': 'application/json' },
-      })
+    const body = (await req.json()) as {
+      phone?: string
+      name?: string
+      governorate?: string
+      qadmousBranch?: string
+      city?: string
+      details?: string
     }
 
-    const { error } = await supabase
-      .from('customer_profiles')
-      .upsert(
-        {
-          phone,
-          name: body.name.trim(),
-          governorate: (body.governorate ?? '').trim(),
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'phone' },
-      )
+    if (!body.name?.trim()) return json({ error: 'missing name' }, 400)
 
-    // إذا كان الجدول غير موجود بعد (قبل تطبيق migration-v2) → أُرجع ok بدون خطأ
-    return new Response(JSON.stringify({ ok: true, warning: error?.message }), {
-      headers: { ...corsHeaders, 'content-type': 'application/json' },
+    const { data, error } = await supabase.rpc('upsert_customer_profile', {
+      p_phone: (body.phone || headerPhone).trim(),
+      p_name: body.name.trim(),
+      p_governorate: (body.governorate || 'دمشق').trim(),
+      p_qadmous_branch: (body.qadmousBranch ?? '').trim(),
+      p_city: (body.city ?? '').trim(),
+      p_details: (body.details ?? '').trim(),
     })
+
+    if (error) return json({ ok: false, error: error.message }, 500)
+    return json({ ok: true, ...(data as Record<string, unknown>) })
   }
 
   return new Response('Method not allowed', { status: 405, headers: corsHeaders })

@@ -11,6 +11,8 @@ export const appApi: TalabiehApi = {
   // Supabase. إن لم يكن مُعدّاً (مفاتيح مفقودة في البناء)، يرمي supabaseAppApi
   // خطأً واضحاً يراه المستخدم بدل أن "يُحفظ" الطلب محلياً ولا يصل أبداً.
   payments: supabaseAppApi.payments,
+  customers: supabaseAppApi.customers,
+  cartGroups: supabaseAppApi.cartGroups,
   orders: supabaseAppApi.orders,
 }
 

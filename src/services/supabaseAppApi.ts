@@ -1,7 +1,7 @@
 import { product } from '../domain/fixtures'
 import { today } from '../domain/orders'
 import type { PaymentCurrency } from '../domain/pricing'
-import type { Order, PaymentStatus, Product } from '../domain/types'
+import type { CartGroupSnapshot, CartItem, Order, PaymentStatus, Product, UserProfile, WalletTransaction } from '../domain/types'
 import type { ProductFetchResult, TalabiehApi } from './appApi'
 import { localAppApi } from './localAppApi'
 import { supabase } from './supabaseClient'
@@ -68,6 +68,87 @@ function toOrderPayload(order: Order) {
     qadmousNumber: order.qadmousNumber,
     createdAt: order.createdAt,
     paidAt: order.paidAt ?? null,
+    groupId: order.groupId ?? null,
+    groupCode: order.groupCode ?? null,
+  }
+}
+
+function normalizeOrder(value: unknown): Order | null {
+  if (!value || typeof value !== 'object') return null
+  const row = value as Record<string, unknown>
+  const items = Array.isArray(row.items) ? row.items.filter((item): item is CartItem => !!item && typeof item === 'object') : []
+  if (typeof row.id !== 'string') return null
+  return {
+    id: row.id,
+    customer: typeof row.customer === 'string' ? row.customer : '',
+    phone: typeof row.phone === 'string' ? row.phone : '',
+    city: typeof row.city === 'string' ? row.city : '',
+    address: typeof row.address === 'string' ? row.address : '',
+    items,
+    total: typeof row.total === 'number' ? row.total : Number(row.total ?? 0),
+    paymentStatus: row.paymentStatus as PaymentStatus,
+    statusIndex: typeof row.statusIndex === 'number' ? row.statusIndex : Number(row.statusIndex ?? 0),
+    qadmousNumber: typeof row.qadmousNumber === 'string' ? row.qadmousNumber : '',
+    createdAt: typeof row.createdAt === 'string' ? row.createdAt : today(),
+    paidAt: typeof row.paidAt === 'string' ? row.paidAt : undefined,
+    rating: typeof row.rating === 'number' ? row.rating : undefined,
+    ratingNote: typeof row.ratingNote === 'string' ? row.ratingNote : undefined,
+    paymentIssue: Boolean(row.paymentIssue),
+    paymentIssueNote: typeof row.paymentIssueNote === 'string' ? row.paymentIssueNote : '',
+    extraAmountUsd: typeof row.extraAmountUsd === 'number' ? row.extraAmountUsd : Number(row.extraAmountUsd ?? 0),
+    groupId: typeof row.groupId === 'string' ? row.groupId : undefined,
+    groupCode: typeof row.groupCode === 'string' ? row.groupCode : undefined,
+  }
+}
+
+function normalizeCustomerAccount(data: unknown) {
+  const row = (data && typeof data === 'object' ? data : {}) as Record<string, unknown>
+  const profile = row.profile && typeof row.profile === 'object'
+    ? row.profile as UserProfile
+    : null
+  const orders = Array.isArray(row.orders)
+    ? row.orders.map(normalizeOrder).filter((order): order is Order => !!order)
+    : []
+  const walletTransactions = Array.isArray(row.walletTransactions)
+    ? row.walletTransactions.filter((item): item is WalletTransaction => !!item && typeof item === 'object')
+    : []
+  return {
+    mode: 'external' as const,
+    profile,
+    orders,
+    walletBalanceSyp: typeof row.walletBalanceSyp === 'number' ? row.walletBalanceSyp : Number(row.walletBalanceSyp ?? 0),
+    walletTransactions,
+  }
+}
+
+function normalizeCartGroup(data: unknown): CartGroupSnapshot {
+  const row = (data && typeof data === 'object' ? data : {}) as Record<string, unknown>
+  return {
+    id: String(row.id ?? ''),
+    code: String(row.code ?? ''),
+    status: String(row.status ?? 'open'),
+    minTotalUsd: Number(row.minTotalUsd ?? 40),
+    totalUsd: Number(row.totalUsd ?? 0),
+    members: Array.isArray(row.members)
+      ? row.members.map((member) => {
+        const m = (member && typeof member === 'object' ? member : {}) as Record<string, unknown>
+        return {
+          phone: String(m.phone ?? ''),
+          name: String(m.name ?? ''),
+          role: m.role === 'host' ? 'host' : 'member',
+        }
+      })
+      : [],
+    items: Array.isArray(row.items)
+      ? row.items.map((entry) => {
+        const line = (entry && typeof entry === 'object' ? entry : {}) as Record<string, unknown>
+        return {
+          ownerPhone: String(line.ownerPhone ?? ''),
+          ownerName: String(line.ownerName ?? ''),
+          item: line.item as CartItem,
+        }
+      }).filter((entry) => !!entry.item)
+      : [],
   }
 }
 
@@ -274,6 +355,89 @@ export const supabaseAppApi: TalabiehApi = {
         status: result.paymentStatus,
         paidAt: result.paidAt,
       }
+    },
+  },
+  customers: {
+    async getAccount(phone) {
+      if (!supabase) {
+        return localAppApi.customers.getAccount(phone)
+      }
+
+      const { data, error } = await supabase.rpc('get_customer_account', {
+        p_phone: phone.trim(),
+      })
+
+      if (error) {
+        return {
+          mode: 'external',
+          profile: null,
+          orders: [],
+          walletBalanceSyp: 0,
+          walletTransactions: [],
+        }
+      }
+
+      return normalizeCustomerAccount(data)
+    },
+
+    async saveProfile(phone, profile) {
+      if (!supabase) {
+        return localAppApi.customers.saveProfile(phone, profile)
+      }
+
+      const { data, error } = await supabase.rpc('upsert_customer_profile', {
+        p_phone: (profile.phone || phone).trim(),
+        p_name: profile.name.trim(),
+        p_governorate: profile.governorate || 'دمشق',
+        p_qadmous_branch: profile.qadmousBranch ?? '',
+        p_city: profile.city ?? '',
+        p_details: profile.details ?? '',
+      })
+
+      if (error) {
+        throw new Error(`تعذّر حفظ بيانات المستخدم: ${error.message}`)
+      }
+
+      return normalizeCustomerAccount(data)
+    },
+  },
+  cartGroups: {
+    async create(phone, name, store, items) {
+      if (!supabase) return localAppApi.cartGroups.create(phone, name, store, items)
+
+      const { data, error } = await supabase.rpc('create_cart_group', {
+        p_phone: phone.trim(),
+        p_name: name.trim(),
+        p_store: store,
+        p_items: items,
+      })
+      if (error || !data) throw new Error(`تعذّر إنشاء الطلب المشترك: ${error?.message ?? 'خطأ غير معروف'}`)
+      return normalizeCartGroup(data)
+    },
+
+    async join(phone, name, code, items) {
+      if (!supabase) return localAppApi.cartGroups.join(phone, name, code, items)
+
+      const { data, error } = await supabase.rpc('join_cart_group', {
+        p_phone: phone.trim(),
+        p_name: name.trim(),
+        p_code: code.trim().toUpperCase(),
+        p_items: items,
+      })
+      if (error || !data) throw new Error(`تعذّر الانضمام للطلب المشترك: ${error?.message ?? 'خطأ غير معروف'}`)
+      return normalizeCartGroup(data)
+    },
+
+    async syncItems(phone, groupId, items) {
+      if (!supabase) return localAppApi.cartGroups.syncItems(phone, groupId, items)
+
+      const { data, error } = await supabase.rpc('sync_cart_group_items', {
+        p_phone: phone.trim(),
+        p_group_id: groupId,
+        p_items: items,
+      })
+      if (error || !data) throw new Error(`تعذّر تحديث سلة الطلب المشترك: ${error?.message ?? 'خطأ غير معروف'}`)
+      return normalizeCartGroup(data)
     },
   },
   orders: {

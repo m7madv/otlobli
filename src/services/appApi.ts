@@ -1,4 +1,4 @@
-import type { Order, PaymentStatus, Product } from '../domain/types'
+import type { CartGroupSnapshot, CartItem, Order, PaymentStatus, Product, UserProfile, WalletTransaction } from '../domain/types'
 import type { PaymentCurrency } from '../domain/pricing'
 
 export type ApiMode = 'local-mock' | 'external'
@@ -48,6 +48,14 @@ export type OrderStatusResult = {
   extraAmountUsd: number
 }
 
+export type CustomerAccountResult = {
+  mode: ApiMode
+  profile: UserProfile | null
+  orders: Order[]
+  walletBalanceSyp: number
+  walletTransactions: WalletTransaction[]
+}
+
 export type TalabiehApi = {
   auth: {
     startWhatsappLogin: (phone: string) => Promise<StartLoginResult>
@@ -58,6 +66,15 @@ export type TalabiehApi = {
   }
   payments: {
     checkPaymentStatus: (orderId: string) => Promise<PaymentStatusResult>
+  }
+  customers: {
+    getAccount: (phone: string) => Promise<CustomerAccountResult>
+    saveProfile: (phone: string, profile: UserProfile) => Promise<CustomerAccountResult>
+  }
+  cartGroups: {
+    create: (phone: string, name: string, store: string, items: CartItem[]) => Promise<CartGroupSnapshot>
+    join: (phone: string, name: string, code: string, items: CartItem[]) => Promise<CartGroupSnapshot>
+    syncItems: (phone: string, groupId: string, items: CartItem[]) => Promise<CartGroupSnapshot>
   }
   orders: {
     // ينشئ الطلب بحالة "بانتظار الدفع" مع مبلغ دفع فريد، قبل عرض شاشة الدفع -

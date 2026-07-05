@@ -673,6 +673,57 @@ td:first-child {
   gap: 4px;
 }
 
+.customer-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.customer-metrics b {
+  min-width: 0;
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+  color: var(--text);
+  font-size: 0.78rem;
+  padding: 8px;
+  text-align: center;
+}
+
+.wallet-positive { color: var(--primary) !important; }
+.wallet-negative { color: #ba1a1a !important; }
+
+.wallet-adjust {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr auto;
+  gap: 8px;
+  width: 100%;
+  margin-top: 10px;
+}
+
+.wallet-adjust input {
+  min-width: 0;
+  min-height: 38px;
+  border: 1px solid var(--outline);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+  padding: 0 10px;
+}
+
+.wallet-adjust button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 38px;
+  border: 1px solid var(--outline);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--primary);
+  font-weight: 900;
+}
+
 /* ── Sidebar badge ───────────────────────────────────────────────────────── */
 .sidebar-badge {
   margin-right: auto;

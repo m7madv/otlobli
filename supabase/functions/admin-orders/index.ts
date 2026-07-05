@@ -120,7 +120,12 @@ Deno.serve(async (req) => {
 
   // GET — جلب الطلبات + قائمة السواقين الفعّالين
   if (req.method === 'GET') {
-    const [{ data, error }, { data: driverRows, error: driverError }] = await Promise.all([
+    const [
+      { data, error },
+      { data: driverRows, error: driverError },
+      { data: customerRows, error: customerError },
+      { data: walletRows },
+    ] = await Promise.all([
       supabase
         .from('orders')
         .select('*, order_items(*)')
@@ -131,6 +136,14 @@ Deno.serve(async (req) => {
         .select('id, name')
         .eq('is_active', true)
         .order('name', { ascending: true }),
+      supabase
+        .from('customers')
+        .select('id, phone, name, governorate, city, qadmous_branch, details, created_at, updated_at')
+        .order('updated_at', { ascending: false })
+        .limit(500),
+      supabase
+        .from('wallet_transactions')
+        .select('customer_id, amount_syp'),
     ])
 
     if (error) {
@@ -169,17 +182,118 @@ Deno.serve(async (req) => {
       paymentIssue: row.payment_issue || false,
       paymentIssueNote: row.payment_issue_note || '',
       extraAmountUsd: row.extra_amount_usd || 0,
+      groupId: row.group_id || '',
+      groupCode: row.group_code || '',
     }))
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const drivers = driverError ? [] : (driverRows || []).map((row: any) => ({ id: row.id, name: row.name }))
 
-    return new Response(JSON.stringify({ orders, drivers }), {
+    const walletByCustomer = new Map<string, number>()
+    ;(walletRows || []).forEach((row: any) => {
+      const key = String(row.customer_id || '')
+      walletByCustomer.set(key, (walletByCustomer.get(key) || 0) + (Number(row.amount_syp) || 0))
+    })
+
+    const statsByPhone = new Map<string, { orderCount: number; totalSpentSyp: number; lastOrderAt: string }>()
+    orders.forEach((order) => {
+      const prev = statsByPhone.get(order.phone) || { orderCount: 0, totalSpentSyp: 0, lastOrderAt: '' }
+      prev.orderCount += 1
+      prev.totalSpentSyp += Number(order.total) || 0
+      prev.lastOrderAt = prev.lastOrderAt && prev.lastOrderAt > order.createdAt ? prev.lastOrderAt : order.createdAt
+      statsByPhone.set(order.phone, prev)
+    })
+
+    const customers = customerError ? [] : (customerRows || []).map((row: any) => {
+      const stats = statsByPhone.get(row.phone) || { orderCount: 0, totalSpentSyp: 0, lastOrderAt: '' }
+      return {
+        id: row.id,
+        phone: row.phone,
+        name: row.name || '',
+        governorate: row.governorate || '',
+        city: row.city || '',
+        qadmousBranch: row.qadmous_branch || '',
+        details: row.details || '',
+        walletBalanceSyp: walletByCustomer.get(row.id) || 0,
+        orderCount: stats.orderCount,
+        totalSpentSyp: stats.totalSpentSyp,
+        lastOrderAt: stats.lastOrderAt,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      }
+    })
+
+    return new Response(JSON.stringify({ orders, drivers, customers }), {
       headers: { ...corsHeaders, 'content-type': 'application/json' },
     })
   }
 
   // PATCH — تحديث طلب
+  if (req.method === 'POST') {
+    const body = await req.json() as {
+      action?: string
+      phone?: string
+      name?: string
+      amountSyp?: number
+      kind?: string
+      note?: string
+      orderId?: string
+    }
+
+    if (body.action !== 'wallet_transaction') {
+      return new Response(JSON.stringify({ error: 'unknown_action' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'content-type': 'application/json' },
+      })
+    }
+
+    const phone = String(body.phone || '').replace(/\s+/g, '')
+    const amountSyp = Math.trunc(Number(body.amountSyp) || 0)
+    if (!phone || amountSyp === 0) {
+      return new Response(JSON.stringify({ error: 'missing_wallet_fields' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'content-type': 'application/json' },
+      })
+    }
+
+    const { data: customerId, error: customerError } = await supabase.rpc('ensure_customer', {
+      p_phone: phone,
+      p_name: String(body.name || ''),
+      p_governorate: 'دمشق',
+      p_qadmous_branch: '',
+      p_city: '',
+      p_details: '',
+    })
+
+    if (customerError || !customerId) {
+      return new Response(JSON.stringify({ error: customerError?.message || 'customer_error' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'content-type': 'application/json' },
+      })
+    }
+
+    const { error: txError } = await supabase.from('wallet_transactions').insert({
+      customer_id: customerId,
+      phone,
+      order_id: body.orderId || null,
+      amount_syp: amountSyp,
+      kind: body.kind || 'manual_adjustment',
+      note: String(body.note || ''),
+      created_by: 'admin',
+    })
+
+    if (txError) {
+      return new Response(JSON.stringify({ error: txError.message }), {
+        status: 500,
+        headers: { ...corsHeaders, 'content-type': 'application/json' },
+      })
+    }
+
+    return new Response(JSON.stringify({ ok: true }), {
+      headers: { ...corsHeaders, 'content-type': 'application/json' },
+    })
+  }
+
   if (req.method === 'PATCH') {
     const { orderId, patch } = await req.json() as {
       orderId: string

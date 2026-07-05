@@ -35,6 +35,7 @@ export const storageKeys = {
   notificationPrefs: 'talabieh.notificationPrefs',
   selectedStore: 'talabieh.selectedStore',
   cartsByStore: 'talabieh.cartsByStore',
+  cartGroup: 'talabieh.cartGroup',
 } as const
 
 export function readStoredJson<T>(key: string, fallback: T) {

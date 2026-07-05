@@ -1,6 +1,11 @@
 export type UserProfile = {
   name: string
   governorate: string
+  phone?: string
+  city?: string
+  qadmousBranch?: string
+  details?: string
+  walletBalanceSyp?: number
 }
 
 export type Screen =
@@ -138,6 +143,37 @@ export type CartItem = {
   customText?: string
 }
 
+export type WalletTransaction = {
+  id: string
+  amountSyp: number
+  kind: string
+  note: string
+  orderId?: string
+  createdAt: string
+}
+
+export type CartGroupMember = {
+  phone: string
+  name: string
+  role: 'host' | 'member'
+}
+
+export type CartGroupLine = {
+  ownerPhone: string
+  ownerName: string
+  item: CartItem
+}
+
+export type CartGroupSnapshot = {
+  id: string
+  code: string
+  status: 'open' | 'locked' | 'ordered' | 'cancelled' | string
+  minTotalUsd: number
+  totalUsd: number
+  members: CartGroupMember[]
+  items: CartGroupLine[]
+}
+
 export type Address = {
   id: string
   label: string
@@ -171,6 +207,8 @@ export type Order = {
   paymentIssue?: boolean
   paymentIssueNote?: string
   extraAmountUsd?: number
+  groupId?: string
+  groupCode?: string
 }
 
 export type PriceLine = {
