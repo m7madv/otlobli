@@ -12,12 +12,13 @@ import {
 import { makeOrderId, today } from './domain/orders'
 import { buildPriceBreakdown, formatMoney, formatPriceSyp, formatUsd, sumPriceLines } from './domain/pricing'
 import type { PaymentCurrency } from './domain/pricing'
-import type { Address, AppNotification, CartItem, NotificationPrefs, Order, Product, ProductColor, ProductVariant, Recipient, Screen, StatusTone, UserProfile } from './domain/types'
+import type { Address, AppNotification, CartItem, NotificationPrefs, Order, Product, ProductColor, Recipient, Screen, StatusTone, UserProfile } from './domain/types'
 import { readStoredJson, storageKeys, useStoredState } from './infrastructure/localStorage'
 import { appApi } from './services'
 import { PAYMENT_MODE, APP_VERSION, cleanEnvValue } from './config'
 import { buildWhatsappLink } from './services/whatsappLink'
 import { SHEIN_CAPTURE_SCRIPT } from './services/sheinBrowserScript'
+import { Capacitor } from '@capacitor/core'
 import { InAppBrowser, ToolBarType } from '@capgo/capacitor-inappbrowser'
 
 const API_BASE = cleanEnvValue(import.meta.env.VITE_WHATSAPP_API_URL)
@@ -67,6 +68,7 @@ const COUNTRY_CODES = [
   { code: '1', name: 'أمريكا', flag: '🇺🇸' },
 ]
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const SYRIA_GOVERNORATES = [
   'دمشق', 'ريف دمشق', 'حلب', 'حمص', 'حماة', 'اللاذقية', 'طرطوس',
   'درعا', 'السويداء', 'القنيطرة', 'دير الزور', 'الرقة', 'الحسكة', 'إدلب',
@@ -174,7 +176,7 @@ function App() {
     storageKeys.pendingWhatsappAuth,
     null,
   )
-  const [sessionToken, setSessionToken] = useStoredState<string>(storageKeys.sessionToken, '')
+  const [, setSessionToken] = useStoredState<string>(storageKeys.sessionToken, '')
   const [userProfile, setUserProfile] = useStoredState<UserProfile | null>(storageKeys.userProfile, null)
   const [paymentCurrency, setPaymentCurrency] = useStoredState<PaymentCurrency>(storageKeys.paymentCurrency, 'SYP')
   const [storedRate, setExchangeRate] = useStoredState<number>(storageKeys.exchangeRate, DEFAULT_EXCHANGE_RATE)
@@ -200,7 +202,7 @@ function App() {
   })
 
   const [link, setLink] = useState('')
-  const [sharedText, setSharedText] = useState('')
+  const [sharedText] = useState('')
   const [activeProduct, setActiveProduct] = useState<Product | null>(null)
 
   const [countryCode, setCountryCode] = useState(() => {
@@ -574,6 +576,7 @@ function App() {
       .finally(() => setIsSubmittingRating(false))
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const fetchProduct = () => {
     if (!link.trim()) {
       showNotice('الصق رابط منتج SHEIN أولاً')
@@ -792,6 +795,9 @@ function App() {
   // التطبيق كلياً من الخلفية). العلم يمنع إعادة الفتح المزدوجة من closeEvent
   // تحديداً حين يكون الإغلاق مقصوداً من تبديل المتجر.
   const suppressAutoReopenRef = useRef(false)
+  const webviewSessionRef = useRef(0)
+  const webviewOpeningRef = useRef(false)
+  const webviewIdRef = useRef('')
   const [sheinReady, setSheinReady] = useState(false)
   // Tracks which screen the in-page back button inside the SHEIN webview
   // should return to: 'cart' right after the user taps a cart item (so back
@@ -800,6 +806,10 @@ function App() {
   // عدّاد تحويل تيمو للعربية — يمنع الحلقة اللانهائية إذا تيمو يتجاوز التحويل
   const temuArabicRedirectRef = useRef(0)
   const temuArabicRedirectTsRef = useRef(0)
+  const screenRef = useRef(screen)
+  const browseSheinRef = useRef<() => void>(() => undefined)
+  const markStoreWebviewReadyRef = useRef<(sessionId: number) => void>(() => undefined)
+  useEffect(() => { screenRef.current = screen }, [screen])
 
   // The SHEIN webview is a separate native layer floating on top of our own
   // React UI, not part of its DOM - trying to size it precisely to "leave a
@@ -851,8 +861,50 @@ function App() {
     return () => { cancelled = true }
   }, [vpnState])
 
+  const postWebviewChromeState = (target: 'home' | 'cart') => {
+    void InAppBrowser.postMessage({ detail: { type: '__resize' } })
+    void InAppBrowser.postMessage({ detail: { type: '__backTarget', target } })
+  }
+
+  const markStoreWebviewReady = (sessionId: number) => {
+    if (sessionId !== webviewSessionRef.current || !sheinOpenedRef.current) return
+
+    const wasOpening = webviewOpeningRef.current
+    webviewOpeningRef.current = false
+
+    if (screenRef.current !== 'home') {
+      if (wasOpening) {
+        webviewSessionRef.current += 1
+        webviewIdRef.current = ''
+        sheinOpenedRef.current = false
+        setSheinReady(false)
+        void InAppBrowser.close().catch(() => undefined)
+      }
+      return
+    }
+
+    setSheinReady(true)
+    const target = pendingBackTargetRef.current
+    pendingBackTargetRef.current = 'home'
+    postWebviewChromeState(target)
+  }
+
+  const closeOpeningStoreWebview = () => {
+    webviewSessionRef.current += 1
+    webviewOpeningRef.current = false
+    webviewIdRef.current = ''
+    sheinOpenedRef.current = false
+    setSheinReady(false)
+    void InAppBrowser.close().catch(() => undefined)
+  }
+
   const browseShein = () => {
+    const sessionId = webviewSessionRef.current + 1
+    webviewSessionRef.current = sessionId
+    webviewOpeningRef.current = true
+    webviewIdRef.current = ''
     sheinOpenedRef.current = true
+    setSheinReady(false)
     // SHEIN is reached directly on both platforms now, so it only loads once
     // the user's VPN is on - the vpnState check above already confirmed that
     // before this function ever runs.
@@ -889,35 +941,52 @@ function App() {
       // regardless of fixes - so both platforms now connect directly and
       // rely on the user's VPN, same as iOS always did.
     })
-      .then(() => {
-        setSheinReady(true)
-        const target = pendingBackTargetRef.current
-        pendingBackTargetRef.current = 'home'
-        void InAppBrowser.postMessage({ detail: { type: '__resize' } })
-        void InAppBrowser.postMessage({ detail: { type: '__backTarget', target } })
+      .then((result) => {
+        if (sessionId !== webviewSessionRef.current) return
+        webviewIdRef.current = result?.id ?? webviewIdRef.current
+        // iOS resolves here when WKWebView is created, before deferred
+        // presentation. Wait for browserPageLoaded there so the loading UI
+        // stays alive and quick tab taps can cancel cleanly.
+        if (Capacitor.getPlatform() !== 'ios') markStoreWebviewReady(sessionId)
       })
-      .catch(() => { sheinOpenedRef.current = false })
+      .catch(() => {
+        if (sessionId !== webviewSessionRef.current) return
+        webviewOpeningRef.current = false
+        webviewIdRef.current = ''
+        sheinOpenedRef.current = false
+        setSheinReady(false)
+      })
   }
 
-  const screenRef = useRef(screen)
-  useEffect(() => { screenRef.current = screen }, [screen])
+  useEffect(() => {
+    browseSheinRef.current = browseShein
+    markStoreWebviewReadyRef.current = markStoreWebviewReady
+  })
 
   useEffect(() => {
+    let openTimer: number | undefined
     if (screen === 'home') {
       if (sheinOpenedRef.current) {
+        if (webviewOpeningRef.current || !sheinReady) return
         const target = pendingBackTargetRef.current
         pendingBackTargetRef.current = 'home'
         void InAppBrowser.show().then(() => {
-          void InAppBrowser.postMessage({ detail: { type: '__resize' } })
-          void InAppBrowser.postMessage({ detail: { type: '__backTarget', target } })
+          postWebviewChromeState(target)
         })
       } else if (vpnState === 'ok') {
-        browseShein()
+        openTimer = window.setTimeout(() => browseSheinRef.current(), 0)
       }
     } else if (sheinOpenedRef.current) {
-      void InAppBrowser.hide()
+      if (webviewOpeningRef.current || !sheinReady) {
+        closeOpeningStoreWebview()
+      } else {
+        void InAppBrowser.hide()
+      }
     }
-  }, [screen, vpnState])
+    return () => {
+      if (openTimer !== undefined) window.clearTimeout(openTimer)
+    }
+  }, [screen, vpnState, sheinReady])
 
   // Navigates the already-open SHEIN webview to a cart item's saved product
   // link and switches back to it, so tapping a product inside the cart shows
@@ -939,17 +1008,36 @@ function App() {
 
   useEffect(() => {
     const handle = InAppBrowser.addListener('closeEvent', () => {
+      webviewSessionRef.current += 1
+      webviewOpeningRef.current = false
+      webviewIdRef.current = ''
       sheinOpenedRef.current = false
       setSheinReady(false)
       if (suppressAutoReopenRef.current) {
         suppressAutoReopenRef.current = false
         return
       }
-      if (screenRef.current === 'home') browseShein()
+      if (screenRef.current === 'home') browseSheinRef.current()
     })
     return () => {
       void handle.then((h) => h.remove())
       if (sheinOpenedRef.current) void InAppBrowser.close()
+    }
+  }, [])
+
+  useEffect(() => {
+    const loadedHandle = InAppBrowser.addListener('browserPageLoaded', (event: { id?: string }) => {
+      if (event?.id && event.id !== webviewIdRef.current) return
+      markStoreWebviewReadyRef.current(webviewSessionRef.current)
+    })
+    const errorHandle = InAppBrowser.addListener('pageLoadError', () => {
+      if (!webviewOpeningRef.current) return
+      webviewOpeningRef.current = false
+      if (screenRef.current === 'home') setSheinBlockedError(true)
+    })
+    return () => {
+      void loadedHandle.then((h) => h.remove())
+      void errorHandle.then((h) => h.remove())
     }
   }, [])
 
@@ -2340,6 +2428,9 @@ function App() {
           // بيضاء لا تُصلَح إلا بإغلاق التطبيق كلياً من الخلفية). العلم يمنع
           // مستمع closeEvent من إعادة فتح مكرّرة لهذا الإغلاق المقصود.
           suppressAutoReopenRef.current = true
+          webviewSessionRef.current += 1
+          webviewOpeningRef.current = false
+          webviewIdRef.current = ''
           sheinOpenedRef.current = false
           setSheinReady(false)
           void InAppBrowser.close().catch(() => undefined).then(() => {
@@ -2702,6 +2793,7 @@ function InfoRow({ icon, title, body, compact = false }: { icon: string; title: 
   )
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function ChipSection({ title, icon, chips, warning = false }: { title: string; icon: string; chips: string[]; warning?: boolean }) {
   return (
     <section className={`chip-section ${warning ? 'chip-section--warning' : ''}`}>
