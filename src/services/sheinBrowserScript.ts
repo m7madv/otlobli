@@ -38,23 +38,46 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var IS_SHEIN = /shein/i.test(location.hostname);
   var IS_TEMU = /temu/i.test(location.hostname);
 
+  function otlobliNormalizeSheinUrl(href) {
+    try {
+      var u = new URL(href, location.href);
+      if (!/shein/i.test(u.hostname)) return href;
+      var cleanPath = u.pathname.replace(/^\\/(?:[a-z]{2}(?:en)?|ar-en)(?=\\/|$)/i, '') || '/';
+      u.protocol = 'https:';
+      u.hostname = 'ar.shein.com';
+      u.pathname = cleanPath;
+      u.searchParams.set('currency', 'USD');
+      u.searchParams.set('country', 'SA');
+      u.searchParams.set('lang', 'ar');
+      return u.toString();
+    } catch (e) {
+      return href;
+    }
+  }
+
   // منطق فرض اللغة العربية خاص بمواقع شي إن فقط - على المتاجر الأخرى (تيمو/
   // ترينديول) قد يضبط كوكي لغة خاطئة ويسبب إعادة تحميل بلا داعٍ، فنحصره بشي إن.
   if (IS_SHEIN) {
-    var regionMatch = location.pathname.match(/^\\/([a-z]{2})(?:\\/|$)/i);
-    var siteRegion = (regionMatch ? regionMatch[1] : 'jo').toLowerCase();
-    var arCookie = siteRegion;            // مثلاً 'lb' أو 'jo' (يعرض العربية)
-    var enCookie = siteRegion + 'en';     // مثلاً 'lben' أو 'joen' (الإنجليزية)
-    var hasArabic = new RegExp('(?:^|; )language=' + arCookie + '(?:;|$)').test(document.cookie);
-    var hasEnglish = new RegExp('(?:^|; )language=' + enCookie + '(?:;|$)').test(document.cookie);
-    if (!hasArabic || hasEnglish) {
-      document.cookie = 'language=' + arCookie + '; path=/; max-age=31536000';
-      var arReloadAttempts = parseInt(sessionStorage.getItem('__otlobliArReloads') || '0', 10);
-      if (arReloadAttempts < 2) {
-        sessionStorage.setItem('__otlobliArReloads', String(arReloadAttempts + 1));
-        location.reload();
+    var normalizedArabicUrl = otlobliNormalizeSheinUrl(location.href);
+    if (normalizedArabicUrl !== location.href) {
+      var arRedirectAttempts = parseInt(sessionStorage.getItem('__otlobliArRedirects') || '0', 10);
+      if (arRedirectAttempts < 2) {
+        sessionStorage.setItem('__otlobliArRedirects', String(arRedirectAttempts + 1));
+        location.replace(normalizedArabicUrl);
         return;
       }
+    }
+    document.cookie = 'language=ar; path=/; max-age=31536000';
+    document.cookie = 'language=ar; domain=.shein.com; path=/; max-age=31536000';
+    document.cookie = 'site_uid=ar; path=/; max-age=31536000';
+    document.cookie = 'site_uid=ar; domain=.shein.com; path=/; max-age=31536000';
+    document.cookie = 'currency=USD; path=/; max-age=31536000';
+    document.cookie = 'currency=USD; domain=.shein.com; path=/; max-age=31536000';
+    document.cookie = 'country=SA; path=/; max-age=31536000';
+    document.cookie = 'country=SA; domain=.shein.com; path=/; max-age=31536000';
+    if (document.documentElement) {
+      document.documentElement.setAttribute('lang', 'ar');
+      document.documentElement.setAttribute('dir', 'rtl');
     }
   }
 
@@ -458,6 +481,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // below, so the cart ended up showing a time instead of S/M/L/XL.
   function looksLikeJunkValue(text) {
     if (!text) return true;
+    if (/^(hot|new|sale|best|bestseller|#\\s*\\d+|\\-?\\d+%?)$/i.test(text.trim())) return true;
     return /^\\d{1,2}:\\d{2}(:\\d{2})?$/.test(text);
   }
 
@@ -542,18 +566,36 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // Pulls the colorway photo out of one swatch element: its own <img>, its
   // background-image, or a direct child's background-image (SHEIN sometimes
   // wraps a small <li>/<button> whose image lives on a child div).
+  function isColorBadgeEl(el) {
+    if (!el || !el.getBoundingClientRect) return false;
+    var text = ((el.textContent || '') + '').replace(/\\s+/g, ' ').trim();
+    var cls = ' ' + ((el.className || '') + '').toLowerCase() + ' ';
+    var r = el.getBoundingClientRect();
+    var compact = r.width > 0 && r.width <= 96 && r.height > 0 && r.height <= 48;
+    if (compact && /^(hot|new|sale|best|bestseller|\\-?\\d+%?)$/i.test(text)) return true;
+    return compact && /(?:^|[\\s_-])(hot|badge|tag|label|discount|promo|best|bestseller)(?:$|[\\s_-])/i.test(cls);
+  }
+
+  function isLikelyBadgeImageUrl(src) {
+    if (!src) return false;
+    return /(?:hot|badge|tag|label|discount|sprite|icon|promo|rank|best)/i.test(src) &&
+      !/ltwebstatic|img\\.shein/i.test(src);
+  }
+
   function swatchImageFrom(el) {
-    var img = el.tagName === 'IMG' ? el : el.querySelector('img');
+    var scope = isColorBadgeEl(el) && el.parentElement ? el.parentElement : el;
+    var img = scope.tagName === 'IMG' ? scope : scope.querySelector('img');
     var fromImg = realImgSrc(img);
-    if (fromImg) return fromImg;
-    var bg = window.getComputedStyle(el).backgroundImage;
+    if (fromImg && !isColorBadgeEl(img) && !isLikelyBadgeImageUrl(fromImg)) return fromImg;
+    var bg = isColorBadgeEl(scope) ? '' : window.getComputedStyle(scope).backgroundImage;
     var match = bg && bg.match(/url\\(["']?(.*?)["']?\\)/);
-    if (match && match[1] && !/blank|placeholder/i.test(match[1])) return match[1];
-    var children = el.children;
+    if (match && match[1] && !/blank|placeholder/i.test(match[1]) && !isLikelyBadgeImageUrl(match[1])) return match[1];
+    var children = scope.children;
     for (var c = 0; c < (children ? children.length : 0); c++) {
+      if (isColorBadgeEl(children[c])) continue;
       var childBg = window.getComputedStyle(children[c]).backgroundImage;
       var childMatch = childBg && childBg.match(/url\\(["']?(.*?)["']?\\)/);
-      if (childMatch && childMatch[1] && !/blank|placeholder/i.test(childMatch[1])) return childMatch[1];
+      if (childMatch && childMatch[1] && !/blank|placeholder/i.test(childMatch[1]) && !isLikelyBadgeImageUrl(childMatch[1])) return childMatch[1];
     }
     return '';
   }
@@ -583,9 +625,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var el = nodes[n];
       var r = el.getBoundingClientRect();
       if (r.width <= 0 || r.width > 80 || r.height <= 0 || r.height > 80) continue;
+      if (isColorBadgeEl(el) && !swatchImageFrom(el)) continue;
       var hasImg = el.tagName === 'IMG' || !!el.querySelector('img') ||
         /url\\(/.test(window.getComputedStyle(el).backgroundImage || '');
-      if (hasImg) out.push(el);
+      if (hasImg && swatchImageFrom(el)) out.push(el);
     }
     return out;
   }
@@ -1929,7 +1972,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       size: sizeState.selected,
       sizesAvailable: sizeState.available || [],
       sizesUnavailable: sizeState.unavailable || [],
-      link: location.href,
+      link: otlobliNormalizeSheinUrl(location.href),
     };
   }
 

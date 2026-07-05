@@ -9,7 +9,7 @@ const DRIVER_URL = Deno.env.get('DRIVER_URL') ?? ''
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-admin-pin',
-  'Access-Control-Allow-Methods': 'GET, PATCH, DELETE, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
 }
 
 const ORDER_STATUS_LABELS = [

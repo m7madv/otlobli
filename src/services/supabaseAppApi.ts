@@ -20,7 +20,22 @@ type CatalogProductRow = {
 }
 
 function normalizeSheinLink(link: string) {
-  return link.trim() || product.link
+  const value = link.trim() || product.link
+  try {
+    const url = new URL(value)
+    if (!/shein/i.test(url.hostname)) return value
+    const path = url.pathname
+      .replace(/^\/(?:[a-z]{2}(?:en)?|ar-en)(?=\/|$)/i, '') || '/'
+    url.protocol = 'https:'
+    url.hostname = 'ar.shein.com'
+    url.pathname = path
+    url.searchParams.set('currency', 'USD')
+    url.searchParams.set('country', 'SA')
+    url.searchParams.set('lang', 'ar')
+    return url.toString()
+  } catch {
+    return value
+  }
 }
 
 // السكرايبر قد يرجّع وصف SHEIN.com العام (صفحة محجوبة) بدل عنوان المنتج الحقيقي — نرفضه دوماً
@@ -150,6 +165,14 @@ function normalizeCartGroup(data: unknown): CartGroupSnapshot {
       }).filter((entry) => !!entry.item)
       : [],
   }
+}
+
+function getPublicDbError(prefix: string, message?: string) {
+  const raw = message || 'خطأ غير معروف'
+  if (/schema cache|Could not find the function|PGRST202|function public\\./i.test(raw)) {
+    return `${prefix}: تحديث قاعدة البيانات لم يصل بعد. أعد فتح التطبيق بعد دقيقة أو تواصل مع الإدارة إذا استمر الخطأ.`
+  }
+  return `${prefix}: ${raw}`
 }
 
 async function fetchProductFromSupabase(link: string): Promise<ProductFetchResult | null> {
@@ -394,9 +417,7 @@ export const supabaseAppApi: TalabiehApi = {
         p_details: profile.details ?? '',
       })
 
-      if (error) {
-        throw new Error(`تعذّر حفظ بيانات المستخدم: ${error.message}`)
-      }
+      if (error) throw new Error(getPublicDbError('تعذّر حفظ بيانات المستخدم', error.message))
 
       return normalizeCustomerAccount(data)
     },
@@ -411,7 +432,7 @@ export const supabaseAppApi: TalabiehApi = {
         p_store: store,
         p_items: items,
       })
-      if (error || !data) throw new Error(`تعذّر إنشاء الطلب المشترك: ${error?.message ?? 'خطأ غير معروف'}`)
+      if (error || !data) throw new Error(getPublicDbError('تعذّر إنشاء الطلب المشترك', error?.message))
       return normalizeCartGroup(data)
     },
 
@@ -424,7 +445,7 @@ export const supabaseAppApi: TalabiehApi = {
         p_code: code.trim().toUpperCase(),
         p_items: items,
       })
-      if (error || !data) throw new Error(`تعذّر الانضمام للطلب المشترك: ${error?.message ?? 'خطأ غير معروف'}`)
+      if (error || !data) throw new Error(getPublicDbError('تعذّر الانضمام للطلب المشترك', error?.message))
       return normalizeCartGroup(data)
     },
 
@@ -436,7 +457,7 @@ export const supabaseAppApi: TalabiehApi = {
         p_group_id: groupId,
         p_items: items,
       })
-      if (error || !data) throw new Error(`تعذّر تحديث سلة الطلب المشترك: ${error?.message ?? 'خطأ غير معروف'}`)
+      if (error || !data) throw new Error(getPublicDbError('تعذّر تحديث سلة الطلب المشترك', error?.message))
       return normalizeCartGroup(data)
     },
   },
@@ -453,7 +474,7 @@ export const supabaseAppApi: TalabiehApi = {
           currency,
         })
         if (error || !data) {
-          throw new Error(`تعذّر إنشاء الطلب: ${error?.message ?? 'خطأ غير معروف'}`)
+          throw new Error(getPublicDbError('تعذّر إنشاء الطلب', error?.message))
         }
         const result = data as { orderId: string; paymentAmount: number; paymentCurrency: PaymentCurrency; paymentExpiresAt: string }
         notifyNewOrder({ ...toOrderPayload(order), id: result.orderId })

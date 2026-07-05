@@ -32,8 +32,28 @@ const APP_SETTINGS_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/app-settin
 // بلد المصدر الفعلي (لبنان) شأن تشغيلي داخلي لا يؤثر على ما يراه الزبون:
 // الأسعار بالدولار نفسها، والزبون لا يرى اسم أي بلد (يُعرض "مركز التجميع").
 // السكربت المحقون يقرأ المنطقة من الرابط فيضبط لغة الموقع تلقائياً.
-const SHEIN_REGION = 'sa'
-const SHEIN_HOME_URL = `https://m.shein.com/${SHEIN_REGION}/?ref=${SHEIN_REGION}&rep=dir&ret=m${SHEIN_REGION}&currency=USD`
+const SHEIN_HOME_URL = 'https://ar.shein.com/?currency=USD&country=SA&lang=ar'
+
+const normalizeSheinBrowserUrl = (rawUrl: string) => {
+  if (!rawUrl) return SHEIN_HOME_URL
+  try {
+    const url = new URL(rawUrl)
+    if (!/shein/i.test(url.hostname)) return rawUrl
+
+    const path = url.pathname
+      .replace(/^\/(?:[a-z]{2}(?:en)?|ar-en)(?=\/|$)/i, '') || '/'
+
+    url.protocol = 'https:'
+    url.hostname = 'ar.shein.com'
+    url.pathname = path
+    url.searchParams.set('currency', 'USD')
+    url.searchParams.set('country', 'SA')
+    url.searchParams.set('lang', 'ar')
+    return url.toString()
+  } catch {
+    return rawUrl
+  }
+}
 
 // المتاجر المتاحة للتصفّح. الالتقاط التلقائي (سعر/إضافة للسلة) يعمل على شي إن
 // فقط حالياً؛ باقي المتاجر تُفتح للتصفّح. لكل متجر سلة منفصلة.
@@ -429,12 +449,19 @@ function App() {
   }
 
   const logout = () => {
+    const cartCount = Object.values(cartsByStore).reduce((sum, items) => sum + items.length, 0)
+    if (cartCount > 0) {
+      const confirmed = window.confirm('تسجيل الخروج سيحذف كل المنتجات الموجودة في السلة. هل تريد المتابعة؟')
+      if (!confirmed) return
+    }
     setSessionToken('')
     setUserProfile(null)
     setOrders([])
     setWalletBalanceSyp(0)
     setWalletTransactions([])
+    setCartsByStore({ shein: [], temu: [] })
     setCartGroup(null)
+    setPendingPayment(null)
     setScreen('login')
   }
 
@@ -888,7 +915,7 @@ function App() {
       quantity,
       priceUsd: activeProduct.priceUsd,
       priceSyp: activeProduct.priceSyp || Math.round(activeProduct.priceUsd * exchangeRate),
-      sourceLink: link || activeProduct.link,
+      sourceLink: normalizeSheinBrowserUrl(link || activeProduct.link),
     }])
     showNotice('تمت إضافة المنتج إلى السلة')
     setScreen('cart')
@@ -906,6 +933,7 @@ function App() {
   const webviewSessionRef = useRef(0)
   const webviewOpeningRef = useRef(false)
   const webviewIdRef = useRef('')
+  const pendingProductUrlRef = useRef('')
   const [sheinReady, setSheinReady] = useState(false)
   // Tracks which screen the in-page back button inside the SHEIN webview
   // should return to: 'cart' right after the user taps a cart item (so back
@@ -992,6 +1020,11 @@ function App() {
     }
 
     setSheinReady(true)
+    const pendingProductUrl = pendingProductUrlRef.current
+    if (pendingProductUrl) {
+      pendingProductUrlRef.current = ''
+      void InAppBrowser.setUrl({ url: pendingProductUrl }).catch(() => undefined)
+    }
     const target = pendingBackTargetRef.current
     pendingBackTargetRef.current = 'home'
     postWebviewChromeState(target)
@@ -1008,6 +1041,7 @@ function App() {
 
   const browseShein = () => {
     const sessionId = webviewSessionRef.current + 1
+    const initialPendingUrl = pendingProductUrlRef.current
     webviewSessionRef.current = sessionId
     webviewOpeningRef.current = true
     webviewIdRef.current = ''
@@ -1017,7 +1051,7 @@ function App() {
     // the user's VPN is on - the vpnState check above already confirmed that
     // before this function ever runs.
     void InAppBrowser.openWebView({
-      url: storeUrl(selectedStoreRef.current),
+      url: initialPendingUrl || storeUrl(selectedStoreRef.current),
       toolbarType: ToolBarType.BLANK,
       preShowScript: SHEIN_CAPTURE_SCRIPT,
       preShowScriptInjectionTime: 'documentStart',
@@ -1055,6 +1089,7 @@ function App() {
         // iOS resolves here when WKWebView is created, before deferred
         // presentation. Wait for browserPageLoaded there so the loading UI
         // stays alive and quick tab taps can cancel cleanly.
+        if (initialPendingUrl && pendingProductUrlRef.current === initialPendingUrl) pendingProductUrlRef.current = ''
         if (Capacitor.getPlatform() !== 'ios') markStoreWebviewReady(sessionId)
       })
       .catch(() => {
@@ -1104,12 +1139,15 @@ function App() {
       showNotice('رابط المنتج غير متوفر على SHEIN')
       return
     }
-    if (!sheinOpenedRef.current) {
-      showNotice('الرجاء الانتظار حتى يتم تجهيز المتجر')
+    const targetUrl = normalizeSheinBrowserUrl(sourceLink)
+    if (!sheinOpenedRef.current || webviewOpeningRef.current || !sheinReady) {
+      pendingProductUrlRef.current = targetUrl
+      pendingBackTargetRef.current = 'cart'
+      setScreen('home')
       return
     }
     pendingBackTargetRef.current = 'cart'
-    void InAppBrowser.setUrl({ url: sourceLink })
+    void InAppBrowser.setUrl({ url: targetUrl })
       .catch(() => undefined)
       .then(() => setScreen('home'))
   }
@@ -1252,7 +1290,7 @@ function App() {
         quantity: 1,
         priceUsd,
         priceSyp: Math.round(priceUsd * exchangeRate),
-        sourceLink: typeof product?.link === 'string' ? product.link : '',
+        sourceLink: typeof product?.link === 'string' ? normalizeSheinBrowserUrl(product.link) : '',
         needsCustomPhoto: typeof product?.needsCustomPhoto === 'boolean' ? product.needsCustomPhoto : false,
         customPhotoNote: typeof product?.customPhotoNote === 'string' ? product.customPhotoNote : '',
         needsCustomText: typeof product?.needsCustomText === 'boolean' ? product.needsCustomText : false,

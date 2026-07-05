@@ -129,6 +129,16 @@ create table if not exists public.wallet_transactions (
   created_at timestamptz not null default now()
 );
 
+alter table public.wallet_transactions add column if not exists customer_id uuid references public.customers(id) on delete cascade;
+alter table public.wallet_transactions add column if not exists phone text not null default '';
+alter table public.wallet_transactions add column if not exists order_id text references public.orders(id) on delete set null;
+alter table public.wallet_transactions add column if not exists amount_syp integer not null default 0;
+alter table public.wallet_transactions add column if not exists kind text not null default 'manual_adjustment';
+alter table public.wallet_transactions add column if not exists note text not null default '';
+alter table public.wallet_transactions add column if not exists created_by text not null default 'system';
+alter table public.wallet_transactions add column if not exists metadata jsonb not null default '{}'::jsonb;
+alter table public.wallet_transactions add column if not exists created_at timestamptz not null default now();
+
 create table if not exists public.cart_groups (
   id uuid primary key default gen_random_uuid(),
   code text not null unique,
