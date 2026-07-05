@@ -902,6 +902,10 @@ function App() {
   // تحديداً حين يكون الإغلاق مقصوداً من تبديل المتجر.
   const suppressAutoReopenRef = useRef(false)
   const [sheinReady, setSheinReady] = useState(false)
+  // مرآة لحالة الجاهزية لاستعمالها في مستمع الشاشة دون إعادة تشغيله: لا نُظهر
+  // البراوزر قبل اكتمال تحميله (نت ضعيف) وإلا ظهر أسود.
+  const sheinReadyRef = useRef(false)
+  useEffect(() => { sheinReadyRef.current = sheinReady }, [sheinReady])
   // Tracks which screen the in-page back button inside the SHEIN webview
   // should return to: 'cart' right after the user taps a cart item (so back
   // re-opens otlobli's cart), 'home' for ordinary browsing from the home tab.
@@ -1000,6 +1004,14 @@ function App() {
     })
       .then(() => {
         setSheinReady(true)
+        // على النت الضعيف يتأخّر تحميل المتجر؛ لو غادر المستخدم الرئيسية أثناء
+        // التحميل (مثلاً فتح السلة)، فإن isPresentAfterPageLoad يُقدّم البراوزر
+        // تلقائياً فوق الشاشة الحالية = شاشة سوداء عالقة. نُخفيه فوراً إن لم نعد
+        // على الرئيسية؛ ومستمع الشاشة يُظهره لاحقاً عند العودة إليها.
+        if (screenRef.current !== 'home') {
+          void InAppBrowser.hide()
+          return
+        }
         const target = pendingBackTargetRef.current
         pendingBackTargetRef.current = 'home'
         void InAppBrowser.postMessage({ detail: { type: '__resize' } })
@@ -1013,14 +1025,17 @@ function App() {
 
   useEffect(() => {
     if (screen === 'home') {
-      if (sheinOpenedRef.current) {
+      // نُظهر البراوزر فقط إن كان مفتوحاً وجاهزاً فعلاً؛ إن كان لا يزال يُحمّل
+      // (نت ضعيف) نتركه لـbrowseShein().then الذي يُقدّمه عند اكتماله ونحن على
+      // الرئيسية — إظهاره قبل الجاهزية كان يعطي شاشة سوداء.
+      if (sheinOpenedRef.current && sheinReadyRef.current) {
         const target = pendingBackTargetRef.current
         pendingBackTargetRef.current = 'home'
         void InAppBrowser.show().then(() => {
           void InAppBrowser.postMessage({ detail: { type: '__resize' } })
           void InAppBrowser.postMessage({ detail: { type: '__backTarget', target } })
         })
-      } else if (vpnState === 'ok') {
+      } else if (!sheinOpenedRef.current && vpnState === 'ok') {
         browseShein()
       }
     } else if (sheinOpenedRef.current) {
