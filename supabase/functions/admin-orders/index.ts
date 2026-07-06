@@ -333,6 +333,7 @@ Deno.serve(async (req) => {
       phone,
       order_id: body.orderId || null,
       amount_syp: amountSyp,
+      amount_usd: 0,
       kind: body.kind || 'manual_adjustment',
       note: String(body.note || ''),
       created_by: 'admin',

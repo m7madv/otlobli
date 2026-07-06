@@ -115,6 +115,8 @@ alter table public.customers add column if not exists governorate text not null 
 alter table public.customers add column if not exists city text not null default '';
 alter table public.customers add column if not exists qadmous_branch text not null default '';
 alter table public.customers add column if not exists details text not null default '';
+alter table public.customers add column if not exists pickup_label text not null default '';
+alter table public.customers add column if not exists notification_prefs jsonb not null default '{}'::jsonb;
 
 create table if not exists public.wallet_transactions (
   id uuid primary key default gen_random_uuid(),
@@ -122,7 +124,8 @@ create table if not exists public.wallet_transactions (
   phone text not null,
   order_id text references public.orders(id) on delete set null,
   amount_syp integer not null check (amount_syp <> 0),
-  kind text not null default 'manual_adjustment' check (kind in ('manual_adjustment', 'order_refund', 'order_payment', 'bonus', 'correction')),
+  amount_usd numeric(14, 2) not null default 0,
+  kind text not null default 'manual_adjustment' check (kind in ('manual_adjustment', 'order_refund', 'order_payment', 'bonus', 'correction', 'wallet_topup')),
   note text not null default '',
   created_by text not null default 'system',
   metadata jsonb not null default '{}'::jsonb,
@@ -133,11 +136,31 @@ alter table public.wallet_transactions add column if not exists customer_id uuid
 alter table public.wallet_transactions add column if not exists phone text not null default '';
 alter table public.wallet_transactions add column if not exists order_id text references public.orders(id) on delete set null;
 alter table public.wallet_transactions add column if not exists amount_syp integer not null default 0;
+alter table public.wallet_transactions add column if not exists amount_usd numeric(14, 2) not null default 0;
 alter table public.wallet_transactions add column if not exists kind text not null default 'manual_adjustment';
 alter table public.wallet_transactions add column if not exists note text not null default '';
 alter table public.wallet_transactions add column if not exists created_by text not null default 'system';
 alter table public.wallet_transactions add column if not exists metadata jsonb not null default '{}'::jsonb;
 alter table public.wallet_transactions add column if not exists created_at timestamptz not null default now();
+update public.wallet_transactions set amount_usd = 0 where amount_usd is null;
+alter table public.wallet_transactions alter column amount_usd set default 0;
+alter table public.wallet_transactions alter column amount_usd set not null;
+
+do $$
+begin
+  if exists (
+    select 1
+    from pg_constraint
+    where conrelid = 'public.wallet_transactions'::regclass
+      and conname = 'wallet_transactions_kind_check'
+  ) then
+    alter table public.wallet_transactions drop constraint wallet_transactions_kind_check;
+  end if;
+end $$;
+
+alter table public.wallet_transactions
+  add constraint wallet_transactions_kind_check
+  check (kind in ('manual_adjustment', 'order_refund', 'order_payment', 'bonus', 'correction', 'wallet_topup'));
 
 create table if not exists public.cart_groups (
   id uuid primary key default gen_random_uuid(),
@@ -210,6 +233,34 @@ on public.payment_verifications
 for insert
 with check (true);
 
+create or replace function public.validate_customer_full_name(p_name text)
+returns text
+language plpgsql
+immutable
+as $$
+declare
+  normalized text := regexp_replace(trim(coalesce(p_name, '')), '\s+', ' ', 'g');
+begin
+  if normalized = '' then
+    raise exception 'يرجى إدخال الاسم الكامل باستخدام كلمتين على الأقل.';
+  end if;
+
+  if array_length(regexp_split_to_array(normalized, '\s+'), 1) < 2 then
+    raise exception 'يرجى إدخال الاسم الكامل باستخدام كلمتين على الأقل.';
+  end if;
+
+  if normalized ~ '[0-9٠-٩۰-۹]' then
+    raise exception 'يرجى إدخال الاسم الكامل باستخدام كلمتين على الأقل.';
+  end if;
+
+  if normalized !~ ('^[A-Za-zء-يآأإؤئ' || chr(39) || '\- ]+$') then
+    raise exception 'يرجى إدخال الاسم الكامل باستخدام كلمتين على الأقل.';
+  end if;
+
+  return normalized;
+end;
+$$;
+
 create or replace function public.ensure_customer(
   p_phone text,
   p_name text default '',
@@ -225,16 +276,21 @@ set search_path = public
 as $$
 declare
   cleaned_phone text := regexp_replace(coalesce(p_phone, ''), '\s+', '', 'g');
+  validated_name text := '';
   target_id uuid;
 begin
   if cleaned_phone = '' then
     raise exception 'phone is required';
   end if;
 
+  if trim(coalesce(p_name, '')) <> '' then
+    validated_name := public.validate_customer_full_name(p_name);
+  end if;
+
   insert into public.customers (phone, name, governorate, qadmous_branch, city, details)
   values (
     cleaned_phone,
-    nullif(trim(coalesce(p_name, '')), ''),
+    nullif(validated_name, ''),
     coalesce(nullif(trim(coalesce(p_governorate, '')), ''), 'دمشق'),
     trim(coalesce(p_qadmous_branch, '')),
     trim(coalesce(p_city, '')),
@@ -456,10 +512,57 @@ insert into public.app_settings (key, value)
 values ('usd_to_syp_rate', '13000')
 on conflict (key) do nothing;
 
+insert into public.app_settings (key, value)
+values
+  ('shipping_cost_shein_syp', '90000'),
+  ('shipping_cost_temu_syp', '90000'),
+  ('shamcash_qr_shein_data_url', ''),
+  ('shamcash_qr_temu_data_url', '')
+on conflict (key) do nothing;
+
 alter table public.orders add column if not exists payment_amount numeric(14, 2);
 alter table public.orders add column if not exists payment_currency text not null default 'SYP' check (payment_currency in ('SYP', 'USD'));
 alter table public.orders add column if not exists payment_expires_at timestamptz;
 alter table public.orders add column if not exists payment_matched_by text not null default '';
+
+create table if not exists public.wallet_topups (
+  id uuid primary key default gen_random_uuid(),
+  customer_id uuid not null references public.customers(id) on delete cascade,
+  phone text not null,
+  requested_amount_syp integer not null check (requested_amount_syp > 0),
+  payment_amount numeric(14, 2) not null check (payment_amount > 0),
+  payment_currency text not null default 'SYP' check (payment_currency in ('SYP', 'USD')),
+  status text not null default 'بانتظار الدفع' check (status in ('بانتظار الدفع', 'مدفوع', 'منتهي', 'فشل المطابقة')),
+  provider text not null default 'Sham Cash B2B',
+  notification_text text not null default '',
+  paid_at timestamptz,
+  expires_at timestamptz not null default now() + interval '2 hours',
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+alter table public.wallet_topups add column if not exists customer_id uuid references public.customers(id) on delete cascade;
+alter table public.wallet_topups add column if not exists phone text not null default '';
+alter table public.wallet_topups add column if not exists requested_amount_syp integer not null default 0;
+alter table public.wallet_topups add column if not exists payment_amount numeric(14, 2) not null default 0;
+alter table public.wallet_topups add column if not exists payment_currency text not null default 'SYP';
+alter table public.wallet_topups add column if not exists status text not null default 'بانتظار الدفع';
+alter table public.wallet_topups add column if not exists provider text not null default 'Sham Cash B2B';
+alter table public.wallet_topups add column if not exists notification_text text not null default '';
+alter table public.wallet_topups add column if not exists paid_at timestamptz;
+alter table public.wallet_topups add column if not exists expires_at timestamptz not null default now() + interval '2 hours';
+alter table public.wallet_topups add column if not exists metadata jsonb not null default '{}'::jsonb;
+alter table public.wallet_topups add column if not exists created_at timestamptz not null default now();
+
+create unique index if not exists wallet_topups_pending_payment_amount_uidx
+  on public.wallet_topups (payment_currency, payment_amount)
+  where status = 'بانتظار الدفع';
+
+create index if not exists wallet_topups_customer_id_idx on public.wallet_topups (customer_id, created_at desc);
+create index if not exists wallet_topups_phone_idx on public.wallet_topups (phone, created_at desc);
+create index if not exists wallet_topups_status_idx on public.wallet_topups (status, expires_at);
+
+alter table public.wallet_topups enable row level security;
 
 -- Guarantees no two currently-pending orders can ever be assigned the same
 -- (currency, amount) pair, even under concurrent checkout requests.
@@ -518,10 +621,26 @@ begin
 
   target_customer_id := public.upsert_customer_from_order(order_payload);
 
+  update public.wallet_topups
+  set status = 'منتهي'
+  where status = 'بانتظار الدفع'
+    and expires_at <= now();
+
   for attempt in 0..max_attempts loop
     candidate_amount := nominal_amount - (attempt * unit_step);
     if candidate_amount <= 0 then
       exit;
+    end if;
+
+    if exists (
+      select 1
+      from public.wallet_topups
+      where status = 'بانتظار الدفع'
+        and payment_currency = currency
+        and payment_amount = candidate_amount
+        and expires_at > now()
+    ) then
+      continue;
     end if;
 
     begin
@@ -589,6 +708,95 @@ $$;
 revoke all on function public.create_pending_order(jsonb, text) from public;
 grant execute on function public.create_pending_order(jsonb, text) to anon, authenticated;
 
+create or replace function public.create_wallet_topup(
+  p_phone text,
+  p_name text default '',
+  p_amount_syp integer default 0
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  cleaned_phone text := regexp_replace(coalesce(p_phone, ''), '\s+', '', 'g');
+  requested_amount integer := greatest(coalesce(p_amount_syp, 0), 0);
+  target_customer_id uuid;
+  candidate_amount numeric;
+  expires timestamptz := now() + interval '2 hours';
+  attempt integer;
+  max_attempts integer := 40;
+  inserted_topup_id uuid;
+begin
+  if cleaned_phone = '' then
+    raise exception 'phone is required';
+  end if;
+
+  if requested_amount <= 0 then
+    raise exception 'amount is required';
+  end if;
+
+  target_customer_id := public.ensure_customer(
+    cleaned_phone,
+    coalesce(nullif(trim(coalesce(p_name, '')), ''), 'عميل طلبية'),
+    'دمشق',
+    '',
+    '',
+    ''
+  );
+
+  update public.wallet_topups
+  set status = 'منتهي'
+  where status = 'بانتظار الدفع'
+    and expires_at <= now();
+
+  for attempt in 0..max_attempts loop
+    candidate_amount := requested_amount - attempt;
+    if candidate_amount <= 0 then
+      exit;
+    end if;
+
+    if exists (
+      select 1
+      from public.orders
+      where payment_status = 'بانتظار الدفع'
+        and payment_currency = 'SYP'
+        and payment_amount = candidate_amount
+        and (payment_expires_at is null or payment_expires_at > now())
+    ) then
+      continue;
+    end if;
+
+    begin
+      insert into public.wallet_topups (
+        customer_id, phone, requested_amount_syp, payment_amount,
+        payment_currency, status, expires_at
+      )
+      values (
+        target_customer_id, cleaned_phone, requested_amount, candidate_amount,
+        'SYP', 'بانتظار الدفع', expires
+      )
+      returning id into inserted_topup_id;
+
+      return jsonb_build_object(
+        'topUpId', inserted_topup_id,
+        'paymentAmount', candidate_amount,
+        'paymentCurrency', 'SYP',
+        'paymentExpiresAt', expires,
+        'creditAmountSyp', candidate_amount::integer
+      );
+    exception when unique_violation then
+      continue;
+    end;
+  end loop;
+
+  raise exception 'تعذر إيجاد مبلغ شحن فريد حالياً، حاول بعد دقيقة';
+end;
+$$;
+
+revoke all on function public.create_wallet_topup(text, text, integer) from public;
+grant execute on function public.create_wallet_topup(text, text, integer) to anon, authenticated;
+
 -- Called only by the payment-webhook Edge Function (service role), never
 -- exposed to the app directly - that's what makes "confirmed automatically
 -- by a real transfer" trustworthy instead of just another client claim.
@@ -651,6 +859,196 @@ $$;
 
 revoke all on function public.confirm_payment_by_amount(numeric, text, text) from public;
 grant execute on function public.confirm_payment_by_amount(numeric, text, text) to service_role;
+
+create or replace function public.confirm_wallet_topup_by_amount(
+  match_amount numeric,
+  match_currency text,
+  raw_notification_text text default ''
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  matched_topup public.wallet_topups%rowtype;
+  match_count integer;
+  credit_amount integer;
+  wallet_balance integer := 0;
+begin
+  update public.wallet_topups
+  set status = 'منتهي'
+  where status = 'بانتظار الدفع'
+    and expires_at <= now();
+
+  select count(*) into match_count
+  from public.wallet_topups
+  where status = 'بانتظار الدفع'
+    and payment_currency = match_currency
+    and payment_amount = match_amount
+    and expires_at > now();
+
+  if match_count = 0 then
+    return jsonb_build_object('matched', false, 'reason', 'not_found');
+  end if;
+
+  if match_count > 1 then
+    return jsonb_build_object('matched', false, 'reason', 'ambiguous');
+  end if;
+
+  select * into matched_topup
+  from public.wallet_topups
+  where status = 'بانتظار الدفع'
+    and payment_currency = match_currency
+    and payment_amount = match_amount
+    and expires_at > now()
+  limit 1
+  for update;
+
+  credit_amount := greatest(round(matched_topup.payment_amount)::integer, 0);
+
+  update public.wallet_topups
+  set status = 'مدفوع',
+      paid_at = now(),
+      notification_text = left(coalesce(raw_notification_text, ''), 1200)
+  where id = matched_topup.id;
+
+  insert into public.wallet_transactions (
+    customer_id, phone, amount_syp, amount_usd, kind, note, created_by, metadata
+  )
+  values (
+    matched_topup.customer_id,
+    matched_topup.phone,
+    credit_amount,
+    0,
+    'wallet_topup',
+    'شحن محفظة عبر شام كاش',
+    'sham-cash-webhook',
+    jsonb_build_object(
+      'topUpId', matched_topup.id,
+      'paymentAmount', matched_topup.payment_amount,
+      'paymentCurrency', matched_topup.payment_currency,
+      'notificationText', left(coalesce(raw_notification_text, ''), 1200)
+    )
+  );
+
+  select coalesce(sum(amount_syp), 0)::integer into wallet_balance
+  from public.wallet_transactions
+  where customer_id = matched_topup.customer_id;
+
+  return jsonb_build_object(
+    'matched', true,
+    'type', 'wallet_topup',
+    'topUpId', matched_topup.id,
+    'phone', matched_topup.phone,
+    'creditAmountSyp', credit_amount,
+    'walletBalanceSyp', wallet_balance
+  );
+end;
+$$;
+
+revoke all on function public.confirm_wallet_topup_by_amount(numeric, text, text) from public;
+grant execute on function public.confirm_wallet_topup_by_amount(numeric, text, text) to service_role;
+
+create or replace function public.confirm_shamcash_payment_by_amount(
+  match_amount numeric,
+  match_currency text,
+  notification_text text default ''
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  order_count integer;
+  topup_count integer;
+begin
+  update public.wallet_topups
+  set status = 'منتهي'
+  where status = 'بانتظار الدفع'
+    and expires_at <= now();
+
+  select count(*) into order_count
+  from public.orders
+  where payment_status = 'بانتظار الدفع'
+    and payment_currency = match_currency
+    and payment_amount = match_amount
+    and (payment_expires_at is null or payment_expires_at > now());
+
+  select count(*) into topup_count
+  from public.wallet_topups
+  where status = 'بانتظار الدفع'
+    and payment_currency = match_currency
+    and payment_amount = match_amount
+    and expires_at > now();
+
+  if order_count + topup_count = 0 then
+    return jsonb_build_object('matched', false, 'reason', 'not_found');
+  end if;
+
+  if order_count + topup_count > 1 then
+    return jsonb_build_object('matched', false, 'reason', 'ambiguous');
+  end if;
+
+  if topup_count = 1 then
+    return public.confirm_wallet_topup_by_amount(match_amount, match_currency, notification_text);
+  end if;
+
+  return public.confirm_payment_by_amount(match_amount, match_currency, notification_text)
+    || jsonb_build_object('type', 'order_payment');
+end;
+$$;
+
+revoke all on function public.confirm_shamcash_payment_by_amount(numeric, text, text) from public;
+grant execute on function public.confirm_shamcash_payment_by_amount(numeric, text, text) to service_role;
+
+create or replace function public.get_wallet_topup_status(target_topup_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  found_topup public.wallet_topups%rowtype;
+  wallet_balance integer := 0;
+  credit_amount integer := 0;
+begin
+  update public.wallet_topups
+  set status = 'منتهي'
+  where id = nullif(target_topup_id, '')::uuid
+    and status = 'بانتظار الدفع'
+    and expires_at <= now();
+
+  select * into found_topup
+  from public.wallet_topups
+  where id = nullif(target_topup_id, '')::uuid;
+
+  if not found then
+    return jsonb_build_object('found', false);
+  end if;
+
+  credit_amount := greatest(round(found_topup.payment_amount)::integer, 0);
+
+  select coalesce(sum(amount_syp), 0)::integer into wallet_balance
+  from public.wallet_transactions
+  where customer_id = found_topup.customer_id;
+
+  return jsonb_build_object(
+    'found', true,
+    'status', found_topup.status,
+    'paidAt', found_topup.paid_at,
+    'paymentAmount', found_topup.payment_amount,
+    'paymentCurrency', found_topup.payment_currency,
+    'paymentExpiresAt', found_topup.expires_at,
+    'creditAmountSyp', credit_amount,
+    'walletBalanceSyp', wallet_balance
+  );
+end;
+$$;
+
+revoke all on function public.get_wallet_topup_status(text) from public;
+grant execute on function public.get_wallet_topup_status(text) to anon, authenticated;
 
 -- Narrow, anon-callable status lookup so the app can poll "did the transfer
 -- arrive yet?" without needing a general SELECT policy on public.orders.
@@ -900,7 +1298,9 @@ begin
       'governorate', coalesce(found_customer.governorate, 'دمشق'),
       'city', coalesce(found_customer.city, ''),
       'qadmousBranch', coalesce(found_customer.qadmous_branch, ''),
+      'pickupLabel', coalesce(found_customer.pickup_label, ''),
       'details', coalesce(found_customer.details, ''),
+      'notificationPrefs', coalesce(found_customer.notification_prefs, '{}'::jsonb),
       'walletBalanceSyp', wallet_balance
     ),
     'orders', order_list,
@@ -912,6 +1312,45 @@ $$;
 
 revoke all on function public.get_customer_account(text) from public;
 grant execute on function public.get_customer_account(text) to anon, authenticated;
+
+create or replace function public.update_customer_preferences(
+  p_phone text,
+  p_pickup_label text default '',
+  p_notification_prefs jsonb default '{}'::jsonb
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  cleaned_phone text := regexp_replace(coalesce(p_phone, ''), '\s+', '', 'g');
+  normalized_prefs jsonb := case
+    when jsonb_typeof(coalesce(p_notification_prefs, '{}'::jsonb)) = 'object' then coalesce(p_notification_prefs, '{}'::jsonb)
+    else '{}'::jsonb
+  end;
+begin
+  if cleaned_phone = '' then
+    raise exception 'phone is required';
+  end if;
+
+  insert into public.customers (phone)
+  values (cleaned_phone)
+  on conflict (phone) do nothing;
+
+  update public.customers
+  set
+    pickup_label = trim(coalesce(p_pickup_label, '')),
+    notification_prefs = normalized_prefs,
+    updated_at = now()
+  where phone = cleaned_phone;
+
+  return public.get_customer_account(cleaned_phone);
+end;
+$$;
+
+revoke all on function public.update_customer_preferences(text, text, jsonb) from public;
+grant execute on function public.update_customer_preferences(text, text, jsonb) to anon, authenticated;
 
 create or replace function public.upsert_customer_profile(
   p_phone text,

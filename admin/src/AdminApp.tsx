@@ -1142,6 +1142,8 @@ function SettingsPanel({ pin, showNotice }: { pin: string; showNotice: (msg: str
   const [sheinCost,  setSheinCost]  = useState('')
   const [temuCost,   setTemuCost]   = useState('')
   const [usdRate,    setUsdRate]    = useState('')
+  const [sheinQr,     setSheinQr]    = useState('')
+  const [temuQr,      setTemuQr]     = useState('')
   const [saving,     setSaving]     = useState(false)
   const [loaded,     setLoaded]     = useState(false)
 
@@ -1154,6 +1156,8 @@ function SettingsPanel({ pin, showNotice }: { pin: string; showNotice: (msg: str
         setSheinCost(data.shipping_cost_shein_syp ?? '90000')
         setTemuCost(data.shipping_cost_temu_syp ?? '90000')
         setUsdRate(data.usd_to_syp_rate ?? '13000')
+        setSheinQr(data.shamcash_qr_shein_data_url ?? '')
+        setTemuQr(data.shamcash_qr_temu_data_url ?? '')
         setLoaded(true)
       })
       .catch(() => showNotice('تعذر جلب الإعدادات'))
@@ -1176,11 +1180,50 @@ function SettingsPanel({ pin, showNotice }: { pin: string; showNotice: (msg: str
       .finally(() => setSaving(false))
   }
 
+  const readQrFile = (file: File, onReady: (value: string) => void) => {
+    if (!file.type.startsWith('image/')) {
+      showNotice('اختر صورة للباركود')
+      return
+    }
+    if (file.size > 900 * 1024) {
+      showNotice('حجم صورة الباركود كبير، استخدم صورة أصغر')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => onReady(String(reader.result || ''))
+    reader.onerror = () => showNotice('تعذر قراءة صورة الباركود')
+    reader.readAsDataURL(file)
+  }
+
   if (!loaded) return <section className="panel settings"><p>جار تحميل الإعدادات...</p></section>
 
   return (
     <section className="panel settings">
       <h2>إعدادات التشغيل</h2>
+      <p className="settings-intro">هذه القيم تظهر مباشرة داخل التطبيق وتؤثر على تكلفة الطلب والدفع لكل من SHEIN وTemu.</p>
+
+      <div className="settings-overview">
+        <article>
+          <span>سعر الصرف الحالي</span>
+          <b>{usdRate || '13000'} ل.س</b>
+          <small>لكل 1 USD</small>
+        </article>
+        <article>
+          <span>شحن SHEIN</span>
+          <b>{sheinCost || '0'} ل.س</b>
+          <small>مفعل داخل التطبيق</small>
+        </article>
+        <article>
+          <span>شحن Temu</span>
+          <b>{temuCost || '0'} ل.س</b>
+          <small>مفعل داخل التطبيق</small>
+        </article>
+        <article>
+          <span>باركودات شام كاش</span>
+          <b>{[sheinQr, temuQr].filter(Boolean).length}/2</b>
+          <small>{[sheinQr, temuQr].every(Boolean) ? 'جاهزة للتطبيقين' : 'يلزم استكمال الرفع'}</small>
+        </article>
+      </div>
 
       <fieldset className="settings-group">
         <legend>تكلفة الشحن (بالليرة السورية)</legend>
@@ -1247,6 +1290,74 @@ function SettingsPanel({ pin, showNotice }: { pin: string; showNotice: (msg: str
             </button>
           </div>
         </label>
+      </fieldset>
+
+      <fieldset className="settings-group">
+        <legend>باركود شام كاش</legend>
+
+        <div className="settings-qr-grid">
+          <label className="field">
+            <span>باركود SHEIN</span>
+            <div className="settings-qr-preview">
+              {sheinQr ? <img src={sheinQr} alt="باركود شام كاش لشي إن" /> : <Icon name="qr_code_2" />}
+            </div>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) readQrFile(file, setSheinQr)
+              }}
+            />
+            <div className="settings-row">
+              <button
+                className="ghost-action"
+                disabled={saving}
+                onClick={() => void saveSetting('shamcash_qr_shein_data_url', sheinQr)}
+              >
+                حفظ
+              </button>
+              <button
+                className="ghost-action"
+                disabled={saving}
+                onClick={() => { setSheinQr(''); void saveSetting('shamcash_qr_shein_data_url', '') }}
+              >
+                مسح
+              </button>
+            </div>
+          </label>
+
+          <label className="field">
+            <span>باركود Temu</span>
+            <div className="settings-qr-preview">
+              {temuQr ? <img src={temuQr} alt="باركود شام كاش لتيمو" /> : <Icon name="qr_code_2" />}
+            </div>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) readQrFile(file, setTemuQr)
+              }}
+            />
+            <div className="settings-row">
+              <button
+                className="ghost-action"
+                disabled={saving}
+                onClick={() => void saveSetting('shamcash_qr_temu_data_url', temuQr)}
+              >
+                حفظ
+              </button>
+              <button
+                className="ghost-action"
+                disabled={saving}
+                onClick={() => { setTemuQr(''); void saveSetting('shamcash_qr_temu_data_url', '') }}
+              >
+                مسح
+              </button>
+            </div>
+          </label>
+        </div>
       </fieldset>
 
       <fieldset className="settings-group">

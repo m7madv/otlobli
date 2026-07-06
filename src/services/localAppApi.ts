@@ -1,4 +1,5 @@
 import { product } from '../domain/fixtures'
+import { FULL_NAME_ERROR_MESSAGE, getFullNameValidationError, normalizeFullName } from '../domain/profile'
 import { today } from '../domain/orders'
 import type { TalabiehApi } from './appApi'
 
@@ -54,6 +55,34 @@ export const localAppApi: TalabiehApi = {
       }
     },
   },
+  wallet: {
+    async createTopUp(_phone, _name, amountSyp) {
+      void _phone
+      void _name
+      await wait(180)
+      const amount = Math.max(Math.trunc(amountSyp), 1)
+      return {
+        mode: 'local-mock',
+        topUpId: `local-topup-${Date.now()}`,
+        paymentAmount: amount,
+        paymentCurrency: 'SYP',
+        paymentExpiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+        creditAmountSyp: amount,
+      }
+    },
+
+    async checkTopUpStatus(_topUpId) {
+      void _topUpId
+      await wait(900)
+      return {
+        mode: 'local-mock',
+        status: 'مدفوع',
+        paidAt: today(),
+        creditAmountSyp: 0,
+        walletBalanceSyp: 0,
+      }
+    },
+  },
   customers: {
     async getAccount(_phone) {
       void _phone
@@ -69,9 +98,13 @@ export const localAppApi: TalabiehApi = {
 
     async saveProfile(phone, profile) {
       await wait(120)
+      const name = normalizeFullName(profile.name)
+      if (getFullNameValidationError(name)) {
+        throw new Error(FULL_NAME_ERROR_MESSAGE)
+      }
       return {
         mode: 'local-mock',
-        profile: { ...profile, phone },
+        profile: { ...profile, name, phone },
         orders: [],
         walletBalanceSyp: 0,
         walletTransactions: [],

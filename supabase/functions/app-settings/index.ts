@@ -15,6 +15,8 @@ const DEFAULTS: Record<string, string> = {
   shipping_cost_shein_syp: '90000',
   shipping_cost_temu_syp: '90000',
   usd_to_syp_rate: '13000',
+  shamcash_qr_shein_data_url: '',
+  shamcash_qr_temu_data_url: '',
 }
 
 Deno.serve(async (req) => {

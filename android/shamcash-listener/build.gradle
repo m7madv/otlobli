@@ -1,0 +1,14 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace = "com.otlobli.shamcashlistener"
+    compileSdk = rootProject.ext.compileSdkVersion
+
+    defaultConfig {
+        applicationId "com.otlobli.shamcashlistener"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 1
+        versionName "1.0"
+    }
+}

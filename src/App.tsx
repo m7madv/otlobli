@@ -10,6 +10,7 @@ import {
   paymentSettings,
 } from './domain/fixtures'
 import { makeOrderId, today } from './domain/orders'
+import { FULL_NAME_ERROR_MESSAGE, getFullNameValidationError, normalizeFullName } from './domain/profile'
 import { buildPriceBreakdown, formatMoney, formatPriceSyp, formatUsd, sumPriceLines } from './domain/pricing'
 import type { PaymentCurrency } from './domain/pricing'
 import type { Address, AppNotification, CartGroupSnapshot, CartItem, NotificationPrefs, Order, Product, ProductColor, Recipient, Screen, StatusTone, UserProfile, WalletTransaction } from './domain/types'
@@ -176,11 +177,60 @@ function StatusBadge({ children, tone = 'neutral' }: { children: string; tone?: 
   return <span className={`status status--${tone}`}>{children}</span>
 }
 
+function PaymentQr({ src }: { src: string }) {
+  return (
+    <div className={`qr-code ${src ? 'qr-code--image' : ''}`}>
+      {src ? <img src={src} alt="باركود شام كاش" /> : <Icon name="qr_code_2" />}
+    </div>
+  )
+}
+
 function getPublicErrorMessage(error: unknown) {
   if (error instanceof Error) {
     return error.message
   }
   return 'حدث خطأ غير متوقع. حاول مرة ثانية.'
+}
+
+function toAsciiDigits(value: string) {
+  const arabicZero = '\u0660'.charCodeAt(0)
+  const persianZero = '\u06F0'.charCodeAt(0)
+  return value.replace(/[\u0660-\u0669\u06F0-\u06F9]/g, (digit) => {
+    const code = digit.charCodeAt(0)
+    if (code >= arabicZero && code <= arabicZero + 9) return String(code - arabicZero)
+    if (code >= persianZero && code <= persianZero + 9) return String(code - persianZero)
+    return digit
+  })
+}
+
+function parseSypInput(value: string) {
+  const cleaned = toAsciiDigits(value).replace(/[^\d]/g, '')
+  const amount = Number(cleaned)
+  return Number.isFinite(amount) ? Math.trunc(amount) : 0
+}
+
+const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
+  orderUpdates: true,
+  paymentUpdates: true,
+  productIssues: true,
+  walletUpdates: true,
+  groupOrderUpdates: true,
+  promotions: true,
+  whatsapp: true,
+}
+
+function normalizePhoneForCompare(value: string) {
+  return toAsciiDigits(value).replace(/\D+/g, '')
+}
+
+function formatRelativeRateTime(timestamp: number) {
+  const elapsedMinutes = Math.max(0, Math.round((Date.now() - timestamp) / 60000))
+  if (elapsedMinutes < 1) return 'تم التحديث الآن'
+  if (elapsedMinutes === 1) return 'آخر تحديث منذ دقيقة'
+  if (elapsedMinutes < 60) return `آخر تحديث منذ ${elapsedMinutes} دقيقة`
+  const elapsedHours = Math.round(elapsedMinutes / 60)
+  if (elapsedHours === 1) return 'آخر تحديث منذ ساعة'
+  return `آخر تحديث منذ ${elapsedHours} ساعات`
 }
 
 // نص مشاركة تطبيق SHEIN يحتوي عنوان المنتج بالعربي بجانب الرابط — نستخرجه مجاناً وبدون أي طلب شبكة
@@ -200,8 +250,10 @@ function App() {
   const [paymentCurrency, setPaymentCurrency] = useStoredState<PaymentCurrency>(storageKeys.paymentCurrency, 'SYP')
   const [storedRate, setExchangeRate] = useStoredState<number>(storageKeys.exchangeRate, DEFAULT_EXCHANGE_RATE)
   const exchangeRate = (storedRate && !isNaN(storedRate) && storedRate > 1000) ? storedRate : DEFAULT_EXCHANGE_RATE
+  const [exchangeRateFetchedAt, setExchangeRateFetchedAt] = useState(() => Date.now())
   const [shippingCostShein, setShippingCostShein] = useState(FIXED_SHIPPING_SYP)
   const [shippingCostTemu, setShippingCostTemu] = useState(FIXED_SHIPPING_SYP)
+  const [shamcashQrByStore, setShamcashQrByStore] = useState<Record<StoreId, string>>({ shein: '', temu: '' })
 
   const [initialNow] = useState(() => Date.now())
   const initialPendingWhatsappAuth =
@@ -296,9 +348,23 @@ function App() {
     amount: number
     currency: PaymentCurrency
     expiresAt: string
+    store?: StoreId
   } | null>(storageKeys.pendingPayment, null)
+  const [pendingWalletTopUp, setPendingWalletTopUp] = useStoredState<{
+    topUpId: string
+    amount: number
+    currency: PaymentCurrency
+    creditAmountSyp: number
+    expiresAt: string
+  } | null>(storageKeys.pendingWalletTopUp, null)
+  const [walletTopUpAmount, setWalletTopUpAmount] = useState('')
+  const [walletTopUpState, setWalletTopUpState] = useState<'idle' | 'starting' | 'checking' | 'matched'>('idle')
   const [manualPriceUsd, setManualPriceUsd] = useState('')
   const [manualColorName, setManualColorName] = useState('')
+  const [deviceNotificationStatus, setDeviceNotificationStatus] = useState<'granted' | 'denied' | 'default' | 'unsupported'>(() => {
+    if (typeof window === 'undefined' || typeof window.Notification === 'undefined') return 'unsupported'
+    return window.Notification.permission
+  })
 
   const [onboardingName, setOnboardingName] = useState(userProfile?.name ?? '')
   const QADMOUS_GOVS = Object.keys(QADMOUS_BRANCHES)
@@ -307,10 +373,16 @@ function App() {
   const [onboardingPhone, setOnboardingPhone] = useState(userProfile?.phone ?? phone)
   const [onboardingBranch, setOnboardingBranch] = useState(userProfile?.qadmousBranch ?? '')
   const [editingProfile, setEditingProfile] = useState(false)
+  const [editingCheckoutPickup, setEditingCheckoutPickup] = useState(false)
   const [editName, setEditName] = useState('')
+  const [editPhone, setEditPhone] = useState('')
   const [editGov, setEditGov] = useState('')
   const [editBranch, setEditBranch] = useState('')
+  const [editPickupLabel, setEditPickupLabel] = useState('')
   const [sheinBlockedError, setSheinBlockedError] = useState(false)
+  const onboardingNameError = onboardingName ? getFullNameValidationError(onboardingName) : ''
+  const editNameError = editName ? getFullNameValidationError(editName) : ''
+  const recipientNameError = recipient.name ? getFullNameValidationError(recipient.name) : ''
   // Both platforms now reach SHEIN directly and need the user's own VPN on -
   // opening the webview immediately just races straight into the network
   // block every time. Detected automatically (no manual "I turned it on"
@@ -322,20 +394,31 @@ function App() {
   // on iOS, rather than maintaining two different unreliable paths.
   const [vpnState, setVpnState] = useState<'checking' | 'ok' | 'blocked'>('checking')
   const [notifications, setNotifications] = useStoredState<AppNotification[]>(storageKeys.notifications, [])
-  const [notificationPrefs, setNotificationPrefs] = useStoredState<NotificationPrefs>(storageKeys.notificationPrefs, {
-    orderUpdates: true,
-    payment: true,
-    system: true,
-    whatsapp: true,
-  })
+  const [notificationPrefs, setNotificationPrefs] = useStoredState<NotificationPrefs>(storageKeys.notificationPrefs, DEFAULT_NOTIFICATION_PREFS)
   // يربط نوع الإشعار بمفتاح تفضيله؛ إذا المستخدم طفّى الفئة لا يُنشأ إشعار داخل التطبيق
   const isNotifTypeEnabled = (type: AppNotification['type']) =>
     type === 'order_update' ? notificationPrefs.orderUpdates
-      : type === 'payment' ? notificationPrefs.payment
-      : notificationPrefs.system
+      : type === 'payment' ? notificationPrefs.paymentUpdates
+        : type === 'payment_issue' ? notificationPrefs.productIssues
+          : type === 'wallet' ? notificationPrefs.walletUpdates
+            : type === 'group_order' ? notificationPrefs.groupOrderUpdates
+              : notificationPrefs.promotions
   // ref يبقى متزامناً مع التفضيلات لاستخدامها داخل poll بدون stale closure
   const notificationPrefsRef = useRef(notificationPrefs)
   useEffect(() => { notificationPrefsRef.current = notificationPrefs }, [notificationPrefs])
+
+  useEffect(() => {
+    setNotificationPrefs((prev) => {
+      const legacy = prev as NotificationPrefs & { payment?: boolean; system?: boolean }
+      const next: NotificationPrefs = {
+        ...DEFAULT_NOTIFICATION_PREFS,
+        ...prev,
+        paymentUpdates: legacy.paymentUpdates ?? legacy.payment ?? true,
+        promotions: legacy.promotions ?? legacy.system ?? true,
+      }
+      return JSON.stringify(prev) === JSON.stringify(next) ? prev : next
+    })
+  }, [setNotificationPrefs])
 
   // ref يبقى متزامناً مع orders لكشف تغيّر الحالة داخل poll بدون stale closure
   const ordersRef = useRef(orders)
@@ -378,6 +461,27 @@ function App() {
     window.setTimeout(() => setNotice(''), 1900)
   }
 
+  const requestDeviceNotifications = () => {
+    if (typeof window === 'undefined' || typeof window.Notification === 'undefined') {
+      showNotice('إشعارات الجهاز غير مدعومة على هذا الجهاز')
+      return
+    }
+    if (window.Notification.permission === 'granted') {
+      setDeviceNotificationStatus('granted')
+      showNotice('إشعارات الجهاز مفعلة بالفعل')
+      return
+    }
+    if (window.Notification.permission === 'denied') {
+      setDeviceNotificationStatus('denied')
+      showNotice('فعّل إشعارات التطبيق من إعدادات الهاتف أو المتصفح')
+      return
+    }
+    void window.Notification.requestPermission().then((permission) => {
+      setDeviceNotificationStatus(permission)
+      showNotice(permission === 'granted' ? 'تم تفعيل إشعارات الجهاز' : 'لم يتم تفعيل إشعارات الجهاز بعد')
+    })
+  }
+
   const mergeOrdersForPhone = useCallback((remoteOrders: Order[], loginPhone: string) => {
     const cleanedPhone = loginPhone.replace(/\s+/g, '')
     setOrders((localOrders) => {
@@ -411,8 +515,16 @@ function App() {
         governorate: profile.governorate || r.governorate || 'دمشق',
         city: profile.city || r.city,
         qadmousBranch: profile.qadmousBranch || r.qadmousBranch,
+        pickupLabel: profile.pickupLabel ?? r.pickupLabel ?? '',
         details: profile.details || r.details,
       }))
+      if (profile.notificationPrefs) {
+        setNotificationPrefs((prev) => ({
+          ...DEFAULT_NOTIFICATION_PREFS,
+          ...prev,
+          ...profile.notificationPrefs,
+        }))
+      }
       setOnboardingName(profile.name)
       setOnboardingGov(profile.governorate || 'دمشق')
       setOnboardingPhone(profile.phone || loginPhone)
@@ -421,7 +533,43 @@ function App() {
     mergeOrdersForPhone(account.orders, loginPhone)
     setWalletBalanceSyp(account.walletBalanceSyp || account.profile?.walletBalanceSyp || 0)
     setWalletTransactions(account.walletTransactions || [])
-  }, [mergeOrdersForPhone, setRecipient, setUserProfile])
+  }, [mergeOrdersForPhone, setNotificationPrefs, setRecipient, setUserProfile])
+
+  const buildPersistedProfile = useCallback((
+    overrides: Partial<UserProfile> = {},
+    nextPrefs: NotificationPrefs = notificationPrefs,
+  ): UserProfile | null => {
+    const normalizedName = normalizeFullName(overrides.name ?? userProfile?.name ?? recipient.name ?? '')
+    if (getFullNameValidationError(normalizedName)) return null
+
+    const resolvedPhone = (overrides.phone ?? recipient.phone ?? userProfile?.phone ?? phone).trim()
+    if (!resolvedPhone) return null
+
+    return {
+      ...(userProfile ?? {}),
+      ...overrides,
+      name: normalizedName,
+      phone: resolvedPhone,
+      governorate: overrides.governorate ?? recipient.governorate ?? userProfile?.governorate ?? 'دمشق',
+      qadmousBranch: overrides.qadmousBranch ?? recipient.qadmousBranch ?? userProfile?.qadmousBranch ?? '',
+      pickupLabel: overrides.pickupLabel ?? recipient.pickupLabel ?? userProfile?.pickupLabel ?? '',
+      city: overrides.city ?? recipient.city ?? userProfile?.city ?? '',
+      details: overrides.details ?? recipient.details ?? userProfile?.details ?? '',
+      notificationPrefs: nextPrefs,
+    }
+  }, [notificationPrefs, phone, recipient, userProfile])
+
+  const persistCustomerProfile = useCallback((
+    overrides: Partial<UserProfile> = {},
+    nextPrefs: NotificationPrefs = notificationPrefs,
+  ) => {
+    const profile = buildPersistedProfile(overrides, nextPrefs)
+    if (!profile) return
+
+    void appApi.customers.saveProfile(phone, profile)
+      .then((account) => applyCustomerAccount(account, profile.phone || phone))
+      .catch(() => undefined)
+  }, [applyCustomerAccount, buildPersistedProfile, notificationPrefs, phone])
 
   const reorderItems = (pastOrder: Order) => {
     // اكتشف المتجر الذي جاء منه الطلب من رابط المنتج الأول
@@ -451,17 +599,15 @@ function App() {
   const logout = () => {
     const cartCount = Object.values(cartsByStore).reduce((sum, items) => sum + items.length, 0)
     if (cartCount > 0) {
-      const confirmed = window.confirm('تسجيل الخروج سيحذف كل المنتجات الموجودة في السلة. هل تريد المتابعة؟')
+      const confirmed = window.confirm('تسجيل الخروج سيحذف السلات الحالية من هذا الجهاز فقط. طلباتك المكتملة ومحفظتك وبيانات الاستلام ستبقى محفوظة. هل تريد المتابعة؟')
       if (!confirmed) return
     }
     setSessionToken('')
-    setUserProfile(null)
-    setOrders([])
-    setWalletBalanceSyp(0)
-    setWalletTransactions([])
     setCartsByStore({ shein: [], temu: [] })
     setCartGroup(null)
     setPendingPayment(null)
+    setPendingWalletTopUp(null)
+    setCurrentOrderId('')
     setScreen('login')
   }
 
@@ -475,7 +621,10 @@ function App() {
         return 'home'
       }
     } catch { /* fallback below */ }
-    return userProfile ? 'home' : 'onboarding'
+    const normalizedLoginPhone = normalizePhoneForCompare(loginPhone)
+    const hasLocalProfile = normalizePhoneForCompare(userProfile?.phone ?? '') === normalizedLoginPhone && !!userProfile?.name
+    const hasLocalOrders = orders.some((order) => normalizePhoneForCompare(order.phone) === normalizedLoginPhone)
+    return hasLocalProfile || hasLocalOrders ? 'home' : 'onboarding'
   }
 
   useEffect(() => {
@@ -485,6 +634,7 @@ function App() {
         .then((data: { rate?: number }) => {
           if (data.rate && data.rate > 1000) {
             setExchangeRate(data.rate)
+            setExchangeRateFetchedAt(Date.now())
           }
         })
         .catch(() => undefined)
@@ -506,6 +656,10 @@ function App() {
         const temu = parseInt(data.shipping_cost_temu_syp ?? '0', 10)
         if (shein > 0) setShippingCostShein(shein)
         if (temu > 0) setShippingCostTemu(temu)
+        setShamcashQrByStore({
+          shein: data.shamcash_qr_shein_data_url ?? '',
+          temu: data.shamcash_qr_temu_data_url ?? '',
+        })
       })
       .catch(() => undefined)
   }, [])
@@ -1335,7 +1489,7 @@ function App() {
           }, ...prev]
         })
       }
-      if (data.paymentIssue && !current?.paymentIssue) {
+      if (data.paymentIssue && !current?.paymentIssue && notificationPrefsRef.current.productIssues) {
         const notifId = `payment-issue-${currentOrderId}`
         setNotifications((prev) => {
           if (prev.some((n) => n.id === notifId)) return prev
@@ -1375,12 +1529,13 @@ function App() {
   // يُسجَّل الطلب مباشرة "مدفوع" وينتقل لشاشة النجاح. في وضع 'shamcash' يُنشأ
   // بحالة "بانتظار الدفع" مع مبلغ فريد وينتقل لشاشة الدفع.
   const confirmOrder = () => {
+    const normalizedRecipientName = normalizeFullName(recipient.name)
     if (activeCheckoutItems.length === 0) {
       showNotice('السلة فارغة')
       return
     }
-    if (!recipient.name.trim()) {
-      showNotice('يرجى إدخال اسم المستلم')
+    if (getFullNameValidationError(normalizedRecipientName)) {
+      showNotice(FULL_NAME_ERROR_MESSAGE)
       return
     }
     if (!recipient.phone.trim()) {
@@ -1408,19 +1563,22 @@ function App() {
 
     setIsStartingPayment(true)
     const profileForOrder: UserProfile = {
-      ...(userProfile ?? { name: recipient.name, governorate: recipient.governorate || 'دمشق' }),
-      name: recipient.name || userProfile?.name || 'عميل otlobli',
+      ...(userProfile ?? { name: normalizedRecipientName, governorate: recipient.governorate || 'دمشق' }),
+      name: normalizedRecipientName || userProfile?.name || 'عميل otlobli',
       phone: recipient.phone || phone,
       governorate: recipient.governorate || userProfile?.governorate || 'دمشق',
       qadmousBranch: recipient.qadmousBranch,
+      pickupLabel: recipient.pickupLabel ?? userProfile?.pickupLabel ?? '',
       city: recipient.city,
       details: recipient.details,
+      notificationPrefs,
     }
+    setRecipient((current) => ({ ...current, name: normalizedRecipientName, pickupLabel: current.pickupLabel ?? '' }))
     void appApi.customers.saveProfile(phone, profileForOrder).catch(() => undefined)
     const orderId = makeOrderId(orders)
     const newOrder: Order = {
       id: orderId,
-      customer: recipient.name || userProfile?.name || 'عميل otlobli',
+      customer: normalizedRecipientName || userProfile?.name || 'عميل otlobli',
       phone: recipient.phone || phone,
       city: recipient.governorate || 'غير محدد',
       address: recipient.qadmousBranch
@@ -1462,6 +1620,7 @@ function App() {
           amount: result.paymentAmount,
           currency: result.paymentCurrency,
           expiresAt: result.paymentExpiresAt,
+          store: selectedStore,
         })
         setScreen('payment')
       })
@@ -1505,6 +1664,78 @@ function App() {
       showNotice('لم يتم العثور على تحويل مطابق بعد')
       setVerificationState('idle')
     })
+  }
+
+  const startWalletTopUp = () => {
+    const amountSyp = parseSypInput(walletTopUpAmount)
+    const topUpPhone = (userProfile?.phone || phone).replace(/\s+/g, '')
+    const topUpName = userProfile?.name || recipient.name || 'عميل otlobli'
+
+    if (!topUpPhone) {
+      showNotice('سجّل الدخول أولاً لشحن المحفظة')
+      return
+    }
+    if (amountSyp <= 0) {
+      showNotice('أدخل مبلغ الشحن بالليرة السورية')
+      return
+    }
+    if (pendingWalletTopUp) {
+      showNotice('لديك عملية شحن بانتظار الدفع')
+      return
+    }
+
+    setWalletTopUpState('starting')
+    void appApi.wallet.createTopUp(topUpPhone, topUpName, amountSyp)
+      .then((result) => {
+        setPendingWalletTopUp({
+          topUpId: result.topUpId,
+          amount: result.paymentAmount,
+          currency: result.paymentCurrency,
+          creditAmountSyp: result.creditAmountSyp,
+          expiresAt: result.paymentExpiresAt,
+        })
+        setWalletTopUpAmount('')
+        showNotice('تم إنشاء شحن المحفظة')
+      })
+      .catch((error: unknown) => showNotice(getPublicErrorMessage(error)))
+      .finally(() => setWalletTopUpState('idle'))
+  }
+
+  const verifyWalletTopUp = () => {
+    if (!pendingWalletTopUp) return
+    const topUpPhone = (userProfile?.phone || phone).replace(/\s+/g, '')
+    setWalletTopUpState('checking')
+    void appApi.wallet.checkTopUpStatus(pendingWalletTopUp.topUpId)
+      .then((result) => {
+        if (result.status === 'مدفوع') {
+          const credited = result.creditAmountSyp || pendingWalletTopUp.creditAmountSyp
+          setPendingWalletTopUp(null)
+          setWalletTopUpState('matched')
+          setWalletBalanceSyp(result.walletBalanceSyp || walletBalanceSyp + credited)
+          addNotification({
+            type: 'wallet',
+            title: 'تم شحن المحفظة',
+            body: `تمت إضافة ${formatMoney(credited)} إلى محفظتك.`,
+          })
+          showNotice('تم شحن المحفظة')
+          if (topUpPhone) {
+            void appApi.customers.getAccount(topUpPhone)
+              .then((account) => applyCustomerAccount(account, topUpPhone))
+              .catch(() => undefined)
+          }
+          return
+        }
+
+        if (result.status === 'منتهي') {
+          setPendingWalletTopUp(null)
+          showNotice('انتهت صلاحية عملية الشحن، أنشئ عملية جديدة')
+          return
+        }
+
+        showNotice('لم يتم العثور على تحويل مطابق بعد')
+      })
+      .catch((error: unknown) => showNotice(getPublicErrorMessage(error)))
+      .finally(() => setWalletTopUpState('idle'))
   }
 
   const addAddress = () => {
@@ -1648,10 +1879,11 @@ function App() {
             <span>الاسم الكامل</span>
             <input
               value={onboardingName}
-              onChange={(event) => setOnboardingName(event.target.value)}
+              onChange={(event) => setOnboardingName(normalizeFullName(event.target.value))}
               placeholder="مثال: محمد أحمد"
               autoFocus
             />
+            {onboardingNameError && <small className="field-error">{onboardingNameError}</small>}
           </label>
           <label className="field">
             <span>رقم واتساب الاستلام</span>
@@ -1683,16 +1915,18 @@ function App() {
           )}
           <button
             className="primary-action"
-            disabled={!onboardingName.trim() || !(onboardingPhone || phone).trim() || !!(QADMOUS_BRANCHES[onboardingGov] && !onboardingBranch)}
+            disabled={!!onboardingNameError || !onboardingName.trim() || !(onboardingPhone || phone).trim() || !!(QADMOUS_BRANCHES[onboardingGov] && !onboardingBranch)}
             onClick={() => {
               const profile: UserProfile = {
-                name: onboardingName.trim(),
+                name: normalizeFullName(onboardingName),
                 phone: (onboardingPhone || phone).trim(),
                 governorate: onboardingGov,
                 qadmousBranch: onboardingBranch,
+                pickupLabel: recipient.pickupLabel ?? userProfile?.pickupLabel ?? '',
+                notificationPrefs,
               }
               setUserProfile(profile)
-              setRecipient({ ...recipient, name: profile.name, phone: profile.phone ?? phone, governorate: profile.governorate, qadmousBranch: profile.qadmousBranch })
+              setRecipient({ ...recipient, name: profile.name, phone: profile.phone ?? phone, governorate: profile.governorate, qadmousBranch: profile.qadmousBranch, pickupLabel: profile.pickupLabel })
               void appApi.customers.saveProfile(phone, profile)
                 .then((account) => applyCustomerAccount(account, profile.phone || phone))
                 .catch(() => showNotice('تم الحفظ على الجهاز، وتعذّر الحفظ على الخادم مؤقتاً'))
@@ -1982,7 +2216,7 @@ function App() {
                       </div>
                       <p className="cart-item-variant">
                         {item.colorImage && <img className="cart-item-color-swatch" src={item.colorImage} alt={item.color} />}
-                        {item.color} · {item.size}
+                        {item.color} آ· {item.size}
                       </p>
                       {item.needsCustomText && (
                         <div className="cart-custom-field">
@@ -2049,7 +2283,7 @@ function App() {
                           <button
                             onClick={() => setCartItems((items) => items.map((i) => i.id === item.id ? { ...i, quantity: Math.max(1, i.quantity - 1) } : i))}
                             aria-label="تقليل"
-                          >−</button>
+                          >âˆ’</button>
                           <span>{item.quantity}</span>
                           <button
                             onClick={() => setCartItems((items) => items.map((i) => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i))}
@@ -2116,7 +2350,7 @@ function App() {
                 )}
                 {hasIncompleteCustom && (
                   <p className="min-order-notice min-order-notice--warn">
-                    ⚠️ أكمل بيانات المنتجات المخصصة (الاسم/الصورة) للمتابعة
+                    أكمل بيانات المنتجات المخصصة (الاسم/الصورة) للمتابعة
                   </p>
                 )}
               </>
@@ -2135,19 +2369,45 @@ function App() {
     }
 
     if (screen === 'checkout') {
+      const missingBranch = !!(QADMOUS_BRANCHES[recipient.governorate] && !recipient.qadmousBranch)
+      const missingBasic = !recipient.name.trim() || !recipient.phone.trim() || !!recipientNameError
+      const hasSavedPickupInfo = !missingBasic && !missingBranch && !!recipient.governorate
+      const showCheckoutPickupForm = editingCheckoutPickup || !hasSavedPickupInfo
       return (
         <MobileShell active="cart" onNavigate={setScreen} hideBottomNav>
           <Header title="بيانات الاستلام" back={() => setScreen('cart')} unreadCount={unreadCount} onNotifications={openNotifications} />
           <main className="mobile-content">
-            <div className="form-card">
+            {!showCheckoutPickupForm && (
+              <section className="profile-summary-card">
+                <div className="profile-summary-card__head">
+                  <div>
+                    <h3>معلومات الاستلام</h3>
+                    <p>سيتم استخدامها تلقائياً لهذا الطلب.</p>
+                  </div>
+                  <button className="ghost-action ghost-action--small" onClick={() => setEditingCheckoutPickup(true)}>
+                    تعديل
+                  </button>
+                </div>
+                <div className="profile-summary-grid">
+                  <div><span>المستلم</span><b>{recipient.name}</b></div>
+                  <div><span>واتساب</span><b dir="ltr">{recipient.phone ? `+${recipient.phone}` : 'غير محدد'}</b></div>
+                  <div><span>المحافظة</span><b>{recipient.governorate}</b></div>
+                  <div><span>مكتب الاستلام</span><b>{recipient.qadmousBranch || 'غير محدد'}</b></div>
+                  {!!recipient.pickupLabel && <div><span>وسم الاستلام</span><b>{recipient.pickupLabel}</b></div>}
+                </div>
+              </section>
+            )}
+            {showCheckoutPickupForm && (
+              <div className="form-card">
               <label className="field">
                 <span>اسم المستلم *</span>
                 <input
                   value={recipient.name}
-                  onChange={(e) => setRecipient({ ...recipient, name: e.target.value })}
+                  onChange={(e) => setRecipient({ ...recipient, name: normalizeFullName(e.target.value) })}
                   placeholder="الاسم الكامل"
                   required
                 />
+                {recipientNameError && <small className="field-error">{recipientNameError}</small>}
               </label>
               <label className="field">
                 <span>رقم واتساب المستلم *</span>
@@ -2157,6 +2417,14 @@ function App() {
                   placeholder="مثال: 963912345678"
                   inputMode="tel"
                   required
+                />
+              </label>
+              <label className="field">
+                <span>وسم نقطة الاستلام</span>
+                <input
+                  value={recipient.pickupLabel ?? ''}
+                  onChange={(e) => setRecipient({ ...recipient, pickupLabel: e.target.value })}
+                  placeholder="مثال: استلام شخصي"
                 />
               </label>
               <label className="field">
@@ -2185,20 +2453,26 @@ function App() {
                   </select>
                 </label>
               )}
+              {hasSavedPickupInfo && (
+                <button className="ghost-action ghost-action--small" onClick={() => setEditingCheckoutPickup(false)}>
+                  حفظ معلومات الاستلام
+                </button>
+              )}
             </div>
+            )}
             <InfoRow icon="inventory_2" title="طريقة التوصيل" body="التسليم داخل سوريا عبر القدموس عند توفر رقم الشحنة." />
             <CurrencyToggle value={paymentCurrency} onChange={setPaymentCurrency} />
             <PriceBreakdown items={checkoutBreakdown} total={checkoutTotal} format={formatPrice} />
             {(() => {
               const missingBranch = !!(QADMOUS_BRANCHES[recipient.governorate] && !recipient.qadmousBranch)
-              const missingBasic = !recipient.name.trim() || !recipient.phone.trim()
-              if (missingBasic) return <p className="min-order-notice">يرجى تعبئة اسم المستلم ورقم الواتساب قبل تأكيد الطلب</p>
+              const missingBasic = !recipient.name.trim() || !recipient.phone.trim() || !!recipientNameError
+              if (missingBasic) return <p className="min-order-notice">{recipientNameError || 'يرجى تعبئة اسم المستلم ورقم الواتساب قبل تأكيد الطلب'}</p>
               if (missingBranch) return <p className="min-order-notice">يرجى اختيار فرع القدموس للتسليم</p>
               return null
             })()}
             <button
               className="primary-action"
-              disabled={isStartingPayment || !recipient.name.trim() || !recipient.phone.trim() || !recipient.governorate || !!(QADMOUS_BRANCHES[recipient.governorate] && !recipient.qadmousBranch)}
+              disabled={isStartingPayment || !!recipientNameError || !recipient.name.trim() || !recipient.phone.trim() || !recipient.governorate || !!(QADMOUS_BRANCHES[recipient.governorate] && !recipient.qadmousBranch)}
               onClick={confirmOrder}
             >
               {isStartingPayment
@@ -2228,13 +2502,14 @@ function App() {
       const amountLabel = pendingPayment.currency === 'USD'
         ? formatUsd(pendingPayment.amount)
         : formatMoney(pendingPayment.amount)
+      const paymentQr = shamcashQrByStore[pendingPayment.store ?? selectedStore] || ''
 
       return (
         <MobileShell active="cart" onNavigate={setScreen} hideBottomNav>
           <Header title="دفع شام كاش" back={() => setScreen('checkout')} unreadCount={unreadCount} onNotifications={openNotifications} />
           <main className="mobile-content">
             <section className="payment-card">
-              <div className="qr-code"><Icon name="qr_code_2" /></div>
+              <PaymentQr src={paymentQr} />
               <p>ادفع إلى حسابنا التجاري</p>
               <b>{paymentSettings.receiverName}</b>
               <span>{paymentSettings.receiverAccount}</span>
@@ -2363,7 +2638,7 @@ function App() {
             {order.statusIndex === orderStatuses.length - 1 && (
               order.rating ? (
                 <section className="rating-box">
-                  <p>شكراً لتقييمك! {'⭐'.repeat(order.rating)}</p>
+                  <p>{`شكراً لتقييمك! ${'*'.repeat(order.rating)}`}</p>
                 </section>
               ) : (
                 <section className="rating-box">
@@ -2411,6 +2686,10 @@ function App() {
     if (screen === 'profile') {
       const avatarLetter = (userProfile?.name ?? recipient.name ?? 'م')[0] ?? 'م'
       const displayName = userProfile?.name ?? recipient.name ?? 'مستخدم otlobli'
+      const savedPickupName = recipient.name || displayName
+      const savedPickupPhone = recipient.phone || userProfile?.phone || phone
+      const savedPickupGovernorate = userProfile?.governorate || recipient.governorate || 'دمشق'
+      const savedPickupOffice = userProfile?.qadmousBranch || recipient.qadmousBranch || 'غير محدد'
 
       if (editingProfile) {
         return (
@@ -2420,7 +2699,16 @@ function App() {
               <div className="form-card">
                 <label className="field">
                   <span>الاسم الكامل</span>
-                  <input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="الاسم" />
+                  <input value={editName} onChange={(e) => setEditName(normalizeFullName(e.target.value))} placeholder="الاسم" />
+                  {editNameError && <small className="field-error">{editNameError}</small>}
+                </label>
+                <label className="field">
+                  <span>رقم واتساب الاستلام</span>
+                  <input value={editPhone} onChange={(e) => setEditPhone(e.target.value)} placeholder="مثال: 963912345678" inputMode="tel" />
+                </label>
+                <label className="field">
+                  <span>وسم نقطة الاستلام</span>
+                  <input value={editPickupLabel} onChange={(e) => setEditPickupLabel(e.target.value)} placeholder="مثال: استلام شخصي" />
                 </label>
                 <label className="field">
                   <span>المحافظة</span>
@@ -2444,13 +2732,28 @@ function App() {
               </div>
               <button
                 className="primary-action"
-                disabled={!editName.trim() || !!(QADMOUS_BRANCHES[editGov] && !editBranch)}
+                disabled={!!editNameError || !editName.trim() || !editPhone.trim() || !!(QADMOUS_BRANCHES[editGov] && !editBranch)}
                 onClick={() => {
-                  const updated: UserProfile = { ...userProfile, name: editName.trim(), governorate: editGov, qadmousBranch: editBranch, phone }
+                  const updated: UserProfile = {
+                    ...userProfile,
+                    name: normalizeFullName(editName),
+                    governorate: editGov,
+                    qadmousBranch: editBranch,
+                    phone: editPhone.trim(),
+                    pickupLabel: editPickupLabel.trim(),
+                    notificationPrefs,
+                  }
                   setUserProfile(updated)
-                  setRecipient({ ...recipient, name: updated.name, governorate: updated.governorate, qadmousBranch: updated.qadmousBranch })
-                  void appApi.customers.saveProfile(phone, updated)
-                    .then((account) => applyCustomerAccount(account, phone))
+                  setRecipient({
+                    ...recipient,
+                    name: updated.name,
+                    phone: updated.phone ?? recipient.phone,
+                    governorate: updated.governorate,
+                    qadmousBranch: updated.qadmousBranch,
+                    pickupLabel: updated.pickupLabel,
+                  })
+                  void appApi.customers.saveProfile(updated.phone || phone, updated)
+                    .then((account) => applyCustomerAccount(account, updated.phone || phone))
                     .catch(() => undefined)
                   setEditingProfile(false)
                   showNotice('تم تحديث الملف الشخصي')
@@ -2481,8 +2784,10 @@ function App() {
                 className="icon-button"
                 onClick={() => {
                   setEditName(userProfile?.name ?? '')
+                  setEditPhone(recipient.phone || userProfile?.phone || phone)
                   setEditGov(userProfile?.governorate ?? 'دمشق')
                   setEditBranch(userProfile?.qadmousBranch ?? '')
+                  setEditPickupLabel(recipient.pickupLabel || userProfile?.pickupLabel || '')
                   setEditingProfile(true)
                 }}
                 aria-label="تعديل"
@@ -2490,16 +2795,55 @@ function App() {
                 <Icon name="edit" />
               </button>
             </section>
+            <section className="profile-summary-card">
+              <div className="profile-summary-card__head">
+                <div>
+                  <h3>معلومات الاستلام</h3>
+                  <p>تُستخدم تلقائيًا في الطلبات الجديدة.</p>
+                </div>
+                <button
+                  className="ghost-action ghost-action--small"
+                  onClick={() => {
+                    setEditName(userProfile?.name ?? recipient.name ?? '')
+                    setEditPhone(savedPickupPhone)
+                    setEditGov(savedPickupGovernorate)
+                    setEditBranch(userProfile?.qadmousBranch ?? recipient.qadmousBranch ?? '')
+                    setEditPickupLabel(recipient.pickupLabel || userProfile?.pickupLabel || '')
+                    setEditingProfile(true)
+                  }}
+                >
+                  تعديل
+                </button>
+              </div>
+              <div className="profile-summary-grid">
+                <div><span>المستلم</span><b>{savedPickupName}</b></div>
+                <div><span>واتساب</span><b dir="ltr">{savedPickupPhone ? `+${savedPickupPhone}` : 'غير محدد'}</b></div>
+                <div><span>المحافظة</span><b>{savedPickupGovernorate}</b></div>
+                <div><span>مكتب الاستلام</span><b>{savedPickupOffice}</b></div>
+                {!!(recipient.pickupLabel || userProfile?.pickupLabel) && <div><span>وسم الاستلام</span><b>{recipient.pickupLabel || userProfile?.pickupLabel}</b></div>}
+              </div>
+            </section>
+            <section className="profile-summary-card">
+              <div className="profile-summary-card__head">
+                <div>
+                  <h3>سعر الصرف الحالي</h3>
+                  <p>السعر النهائي يثبت عند بدء الدفع فقط.</p>
+                </div>
+                <StatusBadge tone="neutral">{`1 USD = ${exchangeRate.toLocaleString('en-US')} SYP`}</StatusBadge>
+              </div>
+              <p className="profile-summary-meta">{formatRelativeRateTime(exchangeRateFetchedAt)}</p>
+            </section>
+            <ProfileRow icon="receipt_long" label={`طلباتي (${orders.length})`} onClick={() => setScreen('orders')} />
             <ProfileRow
               icon="currency_exchange"
-              label={`عملة الدفع: ${paymentCurrency === 'USD' ? 'دولار أمريكي' : 'ليرة سورية'}`}
+              label={`عملة الدفع المفضلة: ${paymentCurrency === 'USD' ? 'دولار أمريكي' : 'ليرة سورية'}`}
               onClick={() => setPaymentCurrency(paymentCurrency === 'USD' ? 'SYP' : 'USD')}
             />
             <ProfileRow icon="account_balance_wallet" label={`المحفظة: ${formatMoney(walletBalanceSyp)}`} onClick={() => setScreen('payment-methods')} />
-            <ProfileRow icon="storefront" label={`المتجر: ${STORES.find((s) => s.id === selectedStore)?.name ?? ''}`} onClick={() => setScreen('store-select')} />
+            <ProfileRow icon="storefront" label={`المتجر الحالي: ${STORES.find((s) => s.id === selectedStore)?.name ?? ''}`} onClick={() => setScreen('store-select')} />
             <ProfileRow icon="notifications" label="إعدادات الإشعارات" onClick={() => setScreen('notification-settings')} />
             <ProfileRow icon="contract" label="الشروط والأحكام" onClick={() => setScreen('terms')} />
-            <ProfileRow icon="support_agent" label="الدعم" onClick={() => setScreen('support')} />
+            <ProfileRow icon="support_agent" label="الدعم والمساعدة" onClick={() => setScreen('support')} />
             <button className="profile-row profile-row--danger" onClick={logout}>
               <span><Icon name="logout" /> تسجيل الخروج</span>
               <Icon name="chevron_left" />
@@ -2522,7 +2866,7 @@ function App() {
                   {address.isDefault && <StatusBadge tone="success">افتراضي</StatusBadge>}
                 </div>
                 <p>{address.governorate}، {address.city}، {address.details}</p>
-                <small>{address.name} · {address.phone}</small>
+                <small>{address.name} آ· {address.phone}</small>
                 <button className="ghost-action" onClick={() => {
                   setAddresses((list) => list.map((item) => ({ ...item, isDefault: item.id === address.id })))
                   setRecipient(address)
@@ -2544,6 +2888,11 @@ function App() {
     }
 
     if (screen === 'payment-methods') {
+      const pendingWalletAmountLabel = pendingWalletTopUp?.currency === 'USD'
+        ? formatUsd(pendingWalletTopUp.amount)
+        : formatMoney(pendingWalletTopUp?.amount ?? 0)
+      const walletTopUpQr = shamcashQrByStore[selectedStore] || ''
+
       return (
         <MobileShell active="profile" onNavigate={setScreen} hideBottomNav>
           <Header title="طرق الدفع" back={() => setScreen('profile')} unreadCount={unreadCount} onNotifications={openNotifications} />
@@ -2558,13 +2907,50 @@ function App() {
               </div>
               <StatusBadge tone={walletBalanceSyp >= 0 ? 'success' : 'pending'}>{walletBalanceSyp >= 0 ? 'رصيد متاح' : 'رصيد مستحق'}</StatusBadge>
             </section>
+            {pendingWalletTopUp ? (
+              <>
+                <section className="payment-card">
+                  <PaymentQr src={walletTopUpQr} />
+                  <p>اشحن المحفظة بتحويل شام كاش إلى حسابنا التجاري</p>
+                  <b>{paymentSettings.receiverName}</b>
+                  <span>{paymentSettings.receiverAccount}</span>
+                  <strong>{pendingWalletAmountLabel}</strong>
+                  <small>سيضاف إلى محفظتك: {formatMoney(pendingWalletTopUp.creditAmountSyp)}</small>
+                </section>
+                <div className="instruction-list">
+                  <p>ادفع هذا المبلغ بالضبط حتى تتم المطابقة تلقائياً.</p>
+                  <p>لا تحتاج كتابة رقم أو ملاحظة داخل التحويل.</p>
+                </div>
+                <button className="primary-action" disabled={walletTopUpState === 'checking'} onClick={verifyWalletTopUp}>
+                  {walletTopUpState === 'checking' ? 'جاري فحص الشحن...' : 'فحص الشحن الآن'}
+                  <Icon name="sync" />
+                </button>
+              </>
+            ) : (
+              <section className="payment-rules">
+                <h2>شحن المحفظة</h2>
+                <label className="field">
+                  <span>المبلغ بالليرة السورية</span>
+                  <input
+                    value={walletTopUpAmount}
+                    onChange={(event) => setWalletTopUpAmount(toAsciiDigits(event.target.value).replace(/[^\d]/g, ''))}
+                    inputMode="numeric"
+                    placeholder="50000"
+                  />
+                </label>
+                <button className="primary-action" disabled={walletTopUpState === 'starting'} onClick={startWalletTopUp}>
+                  {walletTopUpState === 'starting' ? 'جاري إنشاء الشحن...' : 'شحن عبر شام كاش'}
+                  <Icon name="payments" />
+                </button>
+              </section>
+            )}
             {walletTransactions.length > 0 && (
               <section className="payment-rules">
                 <h2>آخر حركات المحفظة</h2>
                 {walletTransactions.slice(0, 5).map((tx) => (
                   <p key={tx.id}>
                     <b dir="ltr">{tx.amountSyp > 0 ? '+' : ''}{formatMoney(tx.amountSyp)}</b>
-                    {tx.note ? ` — ${tx.note}` : ''}
+                    {tx.note ? ` â€” ${tx.note}` : ''}
                   </p>
                 ))}
               </section>
@@ -2666,7 +3052,7 @@ function App() {
         if (id !== selectedStore) {
           setSelectedStore(id)
           selectedStoreRef.current = id
-          // ⚠️ لا تُبسّط هذا التسلسل (خلل شاشة بيضاء مؤكَّد 2026-07-03):
+          // لا تبسّط هذا التسلسل: تم تأكيد خلل شاشة بيضاء بتاريخ 2026-07-03.
           // إغلاق متصفّح المتجر الحالي ثم إعادة فتحه على المتجر الجديد (تُحقن
           // سكربتات otlobli من جديد). ننتظر اكتمال الإغلاق فعلياً قبل التنقل
           // للرئيسية (بدل إطلاق الإغلاق والتنقل معاً في نفس اللحظة) — إغلاق
@@ -2714,22 +3100,50 @@ function App() {
     }
 
     if (screen === 'notification-settings') {
+      const deviceNotificationsLabel =
+        deviceNotificationStatus === 'granted' ? 'مفعلة على هذا الجهاز'
+          : deviceNotificationStatus === 'denied' ? 'معطلة من إعدادات الجهاز'
+            : deviceNotificationStatus === 'default' ? 'تحتاج إذن من الجهاز'
+              : 'غير مدعومة على هذا الجهاز'
       const prefRows: Array<{ key: keyof NotificationPrefs; icon: string; title: string; body: string }> = [
-        { key: 'orderUpdates', icon: 'local_shipping', title: 'تحديثات الطلب', body: 'إشعار عند انتقال طلبك لكل مرحلة جديدة (قيد الشراء، في الطريق، تم التسليم...).' },
-        { key: 'payment', icon: 'payments', title: 'الدفع', body: 'إشعار عند استلام طلبك وتأكيد الدفع.' },
-        { key: 'system', icon: 'campaign', title: 'العروض والتنبيهات', body: 'أخبار otlobli والعروض والتنبيهات العامة.' },
-        { key: 'whatsapp', icon: 'chat', title: 'إشعارات واتساب', body: 'وصول نسخة من إشعاراتك على رقم الواتساب المسجَّل، إضافةً لداخل التطبيق.' },
+        { key: 'orderUpdates', icon: 'local_shipping', title: 'تحديثات الطلب', body: 'إشعار عند انتقال طلبك إلى مرحلة جديدة.' },
+        { key: 'paymentUpdates', icon: 'payments', title: 'تحديثات الدفع', body: 'تأكيدات الدفع واستلام الطلب بعد المطابقة.' },
+        { key: 'productIssues', icon: 'error', title: 'مشكلات المنتجات', body: 'أي نقص أو مشكلة تتطلب قرارًا منك على الطلب.' },
+        { key: 'walletUpdates', icon: 'account_balance_wallet', title: 'تحديثات المحفظة', body: 'إشعارات شحن المحفظة والحركات المهمة.' },
+        { key: 'groupOrderUpdates', icon: 'groups', title: 'الطلبات المشتركة', body: 'تحديثات كود المجموعة والمزامنة مع الأصدقاء.' },
+        { key: 'promotions', icon: 'campaign', title: 'العروض والتنبيهات', body: 'أخبار otlobli والعروض والتنبيهات العامة.' },
+        { key: 'whatsapp', icon: 'chat', title: 'إشعارات واتساب', body: 'وصول نسخة من إشعاراتك على رقم الواتساب المسجَّل، إضافةً لداخل التطبيق.' },
       ]
       return (
         <MobileShell active="profile" onNavigate={setScreen} hideBottomNav>
           <Header title="إعدادات الإشعارات" back={() => setScreen('profile')} unreadCount={unreadCount} onNotifications={openNotifications} />
           <AccountDetailLayout>
             <p className="settings-hint">تحكّم بأنواع الإشعارات التي تصلك. يمكنك إيقاف أي نوع لا يهمّك.</p>
+            <section className="profile-summary-card">
+              <div className="profile-summary-card__head">
+                <div>
+                  <h3>إشعارات الجهاز</h3>
+                  <p>الإشعارات المهمة تظهر هنا حتى لو كان الهاتف يمنع الإشعارات الخارجية.</p>
+                </div>
+                <StatusBadge tone={deviceNotificationStatus === 'granted' ? 'success' : deviceNotificationStatus === 'unsupported' ? 'neutral' : 'pending'}>
+                  {deviceNotificationsLabel}
+                </StatusBadge>
+              </div>
+              {deviceNotificationStatus !== 'unsupported' && (
+                <button className="ghost-action ghost-action--small" onClick={requestDeviceNotifications}>
+                  {deviceNotificationStatus === 'granted' ? 'فحص الإذن' : 'تفعيل الإشعارات'}
+                </button>
+              )}
+            </section>
             {prefRows.map((row) => (
               <button
                 key={row.key}
                 className="notif-setting-row"
-                onClick={() => setNotificationPrefs((prev) => ({ ...prev, [row.key]: !prev[row.key] }))}
+                onClick={() => {
+                  const nextPrefs = { ...notificationPrefs, [row.key]: !notificationPrefs[row.key] }
+                  setNotificationPrefs(nextPrefs)
+                  persistCustomerProfile({}, nextPrefs)
+                }}
                 aria-pressed={notificationPrefs[row.key]}
               >
                 <span className="notif-setting-icon"><Icon name={row.icon} /></span>
@@ -2780,7 +3194,16 @@ function App() {
                   }}
                 >
                   <div className="notif-icon">
-                    <Icon name={notif.type === 'payment_issue' ? 'error' : notif.type === 'payment' ? 'payments' : notif.type === 'order_update' ? 'local_shipping' : 'info'} />
+                    <Icon
+                      name={
+                        notif.type === 'payment_issue' ? 'error'
+                          : notif.type === 'payment' ? 'payments'
+                            : notif.type === 'wallet' ? 'account_balance_wallet'
+                              : notif.type === 'group_order' ? 'groups'
+                                : notif.type === 'order_update' ? 'local_shipping'
+                                  : 'info'
+                      }
+                    />
                   </div>
                   <div className="notif-body">
                     <b>{notif.title}</b>

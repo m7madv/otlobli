@@ -33,6 +33,7 @@ export const storageKeys = {
   exchangeRate: 'talabieh.exchangeRate',
   paymentCurrency: 'talabieh.paymentCurrency',
   pendingPayment: 'talabieh.pendingPayment',
+  pendingWalletTopUp: 'talabieh.pendingWalletTopUp',
   notifications: 'talabieh.notifications',
   notificationPrefs: 'talabieh.notificationPrefs',
   selectedStore: 'talabieh.selectedStore',

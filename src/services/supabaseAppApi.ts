@@ -1,5 +1,6 @@
 import { product } from '../domain/fixtures'
 import { today } from '../domain/orders'
+import { FULL_NAME_ERROR_MESSAGE, getFullNameValidationError, normalizeFullName } from '../domain/profile'
 import type { PaymentCurrency } from '../domain/pricing'
 import type { CartGroupSnapshot, CartItem, Order, PaymentStatus, Product, UserProfile, WalletTransaction } from '../domain/types'
 import type { ProductFetchResult, TalabiehApi } from './appApi'
@@ -380,6 +381,74 @@ export const supabaseAppApi: TalabiehApi = {
       }
     },
   },
+  wallet: {
+    async createTopUp(phone, name, amountSyp) {
+      if (!supabase) {
+        return localAppApi.wallet.createTopUp(phone, name, amountSyp)
+      }
+
+      const { data, error } = await supabase.rpc('create_wallet_topup', {
+        p_phone: phone.trim(),
+        p_name: name.trim(),
+        p_amount_syp: Math.trunc(amountSyp),
+      })
+
+      if (error || !data) {
+        throw new Error(getPublicDbError('تعذّر إنشاء شحن المحفظة', error?.message))
+      }
+
+      const result = data as {
+        topUpId: string
+        paymentAmount: number
+        paymentCurrency: PaymentCurrency
+        paymentExpiresAt: string
+        creditAmountSyp?: number
+      }
+
+      return {
+        mode: 'external',
+        topUpId: result.topUpId,
+        paymentAmount: Number(result.paymentAmount),
+        paymentCurrency: result.paymentCurrency,
+        paymentExpiresAt: result.paymentExpiresAt,
+        creditAmountSyp: Number(result.creditAmountSyp ?? result.paymentAmount),
+      }
+    },
+
+    async checkTopUpStatus(topUpId) {
+      if (!supabase) {
+        return localAppApi.wallet.checkTopUpStatus(topUpId)
+      }
+
+      const { data, error } = await supabase.rpc('get_wallet_topup_status', {
+        target_topup_id: topUpId,
+      })
+
+      if (error || !data || !(data as { found?: boolean }).found) {
+        return {
+          mode: 'external',
+          status: 'بانتظار الدفع',
+          creditAmountSyp: 0,
+          walletBalanceSyp: 0,
+        }
+      }
+
+      const result = data as {
+        status: 'بانتظار الدفع' | 'مدفوع' | 'منتهي' | 'فشل المطابقة'
+        paidAt?: string
+        creditAmountSyp?: number
+        walletBalanceSyp?: number
+      }
+
+      return {
+        mode: 'external',
+        status: result.status,
+        paidAt: result.paidAt,
+        creditAmountSyp: Number(result.creditAmountSyp ?? 0),
+        walletBalanceSyp: Number(result.walletBalanceSyp ?? 0),
+      }
+    },
+  },
   customers: {
     async getAccount(phone) {
       if (!supabase) {
@@ -408,18 +477,43 @@ export const supabaseAppApi: TalabiehApi = {
         return localAppApi.customers.saveProfile(phone, profile)
       }
 
+      const name = normalizeFullName(profile.name)
+      if (getFullNameValidationError(name)) {
+        throw new Error(FULL_NAME_ERROR_MESSAGE)
+      }
+
       const { data, error } = await supabase.rpc('upsert_customer_profile', {
         p_phone: (profile.phone || phone).trim(),
-        p_name: profile.name.trim(),
-        p_governorate: profile.governorate || 'دمشق',
+        p_name: name,
+        p_governorate: profile.governorate || '\u062F\u0645\u0634\u0642',
         p_qadmous_branch: profile.qadmousBranch ?? '',
         p_city: profile.city ?? '',
         p_details: profile.details ?? '',
       })
 
-      if (error) throw new Error(getPublicDbError('تعذّر حفظ بيانات المستخدم', error.message))
+      if (error) throw new Error(getPublicDbError('\u062A\u0639\u0630\u0631 \u062D\u0641\u0638 \u0628\u064A\u0627\u0646\u0627\u062A \u0627\u0644\u0645\u0633\u062A\u062E\u062F\u0645', error.message))
 
-      return normalizeCustomerAccount(data)
+      const baseAccount = normalizeCustomerAccount(data)
+      const nextPickupLabel =
+        typeof profile.pickupLabel === 'string'
+          ? profile.pickupLabel
+          : (baseAccount.profile?.pickupLabel ?? '')
+      const nextNotificationPrefs =
+        profile.notificationPrefs && typeof profile.notificationPrefs === 'object'
+          ? profile.notificationPrefs
+          : (baseAccount.profile?.notificationPrefs ?? {})
+
+      const { data: prefsData, error: prefsError } = await supabase.rpc('update_customer_preferences', {
+        p_phone: (profile.phone || phone).trim(),
+        p_pickup_label: nextPickupLabel,
+        p_notification_prefs: nextNotificationPrefs,
+      })
+
+      if (prefsError) {
+        throw new Error(getPublicDbError('\u062A\u0639\u0630\u0631 \u062D\u0641\u0638 \u062A\u0641\u0636\u064A\u0644\u0627\u062A \u0627\u0644\u0639\u0645\u064A\u0644', prefsError.message))
+      }
+
+      return normalizeCustomerAccount(prefsData ?? data)
     },
   },
   cartGroups: {
@@ -600,3 +694,4 @@ function notifyNewOrder(orderPayload: Record<string, unknown>) {
     }
   } catch { /* إشعار غير حيوي */ }
 }
+

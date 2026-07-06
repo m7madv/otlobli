@@ -4,7 +4,9 @@ export type UserProfile = {
   phone?: string
   city?: string
   qadmousBranch?: string
+  pickupLabel?: string
   details?: string
+  notificationPrefs?: NotificationPrefs
   walletBalanceSyp?: number
 }
 
@@ -32,19 +34,18 @@ export type Screen =
   | 'store-select'
 
 export type NotificationPrefs = {
-  // إشعارات تقدّم مراحل الطلب (تم الشراء، في الطريق، تم التسليم...)
   orderUpdates: boolean
-  // إشعارات الدفع وتأكيده
-  payment: boolean
-  // إشعارات النظام والعروض والتنبيهات العامة
-  system: boolean
-  // قناة واتساب: وصول نسخة من الإشعار على رقم الواتساب المسجَّل
+  paymentUpdates: boolean
+  productIssues: boolean
+  walletUpdates: boolean
+  groupOrderUpdates: boolean
+  promotions: boolean
   whatsapp: boolean
 }
 
 export type AppNotification = {
   id: string
-  type: 'order_update' | 'payment' | 'payment_issue' | 'system'
+  type: 'order_update' | 'payment' | 'payment_issue' | 'wallet' | 'group_order' | 'system'
   title: string
   body: string
   orderId?: string
@@ -53,7 +54,13 @@ export type AppNotification = {
 }
 
 export type StatusTone = 'success' | 'pending' | 'neutral' | 'danger'
-export type PaymentStatus = 'بانتظار الدفع' | 'مدفوع' | 'فشل المطابقة'
+export type PaymentStatus =
+  | 'بانتظار الدفع'
+  | 'مدفوع'
+  | 'فشل المطابقة'
+  | 'ط¨ط§ظ†طھط¸ط§ط± ط§ظ„ط¯ظپط¹'
+  | 'ظ…ط¯ظپظˆط¹'
+  | 'ظپط´ظ„ ط§ظ„ظ…ط·ط§ط¨ظ‚ط©'
 
 export type ProductColor = {
   id?: string
@@ -93,7 +100,6 @@ export type Product = {
   images: string[]
   colors: ProductColor[]
   sizes: string[]
-  // enriched variant data (optional, from Shein import)
   sizeObjects?: ProductSize[]
   variants?: ProductVariant[]
   availability?: 'in_stock' | 'out_of_stock' | 'partial' | 'unknown'
@@ -187,7 +193,9 @@ export type Address = {
   isDefault: boolean
 }
 
-export type Recipient = Omit<Address, 'id' | 'label' | 'isDefault'>
+export type Recipient = Omit<Address, 'id' | 'label' | 'isDefault'> & {
+  pickupLabel?: string
+}
 
 export type Order = {
   id: string

@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
   }
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY)
-  const { data, error } = await supabase.rpc('confirm_payment_by_amount', {
+  const { data, error } = await supabase.rpc('confirm_shamcash_payment_by_amount', {
     match_amount: amount,
     match_currency: currency,
     notification_text: notificationText,

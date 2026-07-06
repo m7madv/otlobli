@@ -34,8 +34,10 @@ Deno.serve(async (req) => {
       name: typeof profile?.name === 'string' ? profile.name : '',
       governorate: typeof profile?.governorate === 'string' ? profile.governorate : 'دمشق',
       qadmousBranch: typeof profile?.qadmousBranch === 'string' ? profile.qadmousBranch : '',
+      pickupLabel: typeof profile?.pickupLabel === 'string' ? profile.pickupLabel : '',
       city: typeof profile?.city === 'string' ? profile.city : '',
       details: typeof profile?.details === 'string' ? profile.details : '',
+      notificationPrefs: profile?.notificationPrefs && typeof profile.notificationPrefs === 'object' ? profile.notificationPrefs : {},
     })
   }
 
@@ -45,8 +47,10 @@ Deno.serve(async (req) => {
       name?: string
       governorate?: string
       qadmousBranch?: string
+      pickupLabel?: string
       city?: string
       details?: string
+      notificationPrefs?: Record<string, unknown>
     }
 
     if (!body.name?.trim()) return json({ error: 'missing name' }, 400)
@@ -61,7 +65,15 @@ Deno.serve(async (req) => {
     })
 
     if (error) return json({ ok: false, error: error.message }, 500)
-    return json({ ok: true, ...(data as Record<string, unknown>) })
+
+    const { data: prefsData, error: prefsError } = await supabase.rpc('update_customer_preferences', {
+      p_phone: (body.phone || headerPhone).trim(),
+      p_pickup_label: (body.pickupLabel ?? '').trim(),
+      p_notification_prefs: body.notificationPrefs && typeof body.notificationPrefs === 'object' ? body.notificationPrefs : {},
+    })
+
+    if (prefsError) return json({ ok: false, error: prefsError.message }, 500)
+    return json({ ok: true, ...((prefsData ?? data) as Record<string, unknown>) })
   }
 
   return new Response('Method not allowed', { status: 405, headers: corsHeaders })
