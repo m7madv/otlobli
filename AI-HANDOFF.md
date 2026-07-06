@@ -1,5 +1,8 @@
 # Otlobli System Handoff
 
+Read `CURRENT_STATE.md` first.
+If this file conflicts with older context files, prefer `CURRENT_STATE.md` and the active branch code.
+
 ## Current working branch
 
 - Branch: `codex/customer-wallet-group-orders`
@@ -133,6 +136,9 @@ Treat this branch as the active source of truth, with these caveats:
 - admin dashboard on this branch after this cleanup:
   - `admin/src/AdminApp.tsx`
   - `admin/src/styles.css`
+- first-read docs:
+  - `CURRENT_STATE.md`
+  - `AI-HANDOFF.md`
 - remote admin deployment:
   - `https://talabieh-admin.vercel.app`
 - remote data/backend:
