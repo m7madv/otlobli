@@ -10,7 +10,7 @@ import {
   paymentSettings,
 } from './domain/fixtures'
 import { makeOrderId, today } from './domain/orders'
-import { FULL_NAME_ERROR_MESSAGE, getFullNameValidationError, normalizeFullName } from './domain/profile'
+import { FULL_NAME_ERROR_MESSAGE, getFullNameValidationError, normalizeFullName, sanitizeFullNameInput } from './domain/profile'
 import { buildPriceBreakdown, formatMoney, formatPriceSyp, formatUsd, sumPriceLines } from './domain/pricing'
 import type { PaymentCurrency } from './domain/pricing'
 import type { Address, AppNotification, CartGroupSnapshot, CartItem, NotificationPrefs, Order, Product, ProductColor, Recipient, Screen, StatusTone, UserProfile, WalletTransaction } from './domain/types'
@@ -25,7 +25,6 @@ import { InAppBrowser, ToolBarType } from '@capgo/capacitor-inappbrowser'
 const API_BASE = cleanEnvValue(import.meta.env.VITE_WHATSAPP_API_URL)
 const SUPABASE_URL = cleanEnvValue(import.meta.env.VITE_SUPABASE_URL)
 const SUPABASE_ANON_KEY = cleanEnvValue(import.meta.env.VITE_SUPABASE_ANON_KEY)
-const NOTIFY_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/telegram-notify` : ''
 const APP_SETTINGS_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/app-settings` : ''
 
 // موقع SHEIN الذي يتصفّحه الزبون. نستخدم نسخة الأردن لأنها تعرض العربية
@@ -233,6 +232,18 @@ function formatRelativeRateTime(timestamp: number) {
   return `آخر تحديث منذ ${elapsedHours} ساعات`
 }
 
+function formatExpiryCountdown(expiresAt?: string) {
+  if (!expiresAt) return 'غير محدد'
+  const remainingMs = new Date(expiresAt).getTime() - Date.now()
+  if (!Number.isFinite(remainingMs) || remainingMs <= 0) return 'انتهت المهلة'
+  const totalMinutes = Math.ceil(remainingMs / 60000)
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  if (hours <= 0) return `${Math.max(minutes, 1)} دقيقة`
+  if (minutes === 0) return `${hours} ساعة`
+  return `${hours} ساعة و${minutes} دقيقة`
+}
+
 // نص مشاركة تطبيق SHEIN يحتوي عنوان المنتج بالعربي بجانب الرابط — نستخرجه مجاناً وبدون أي طلب شبكة
 function extractFallbackTitle(rawText: string, urlPart: string) {
   const withoutUrls = rawText.replace(urlPart, '').replace(/https?:\/\/\S+/g, '').trim()
@@ -254,6 +265,8 @@ function App() {
   const [shippingCostShein, setShippingCostShein] = useState(FIXED_SHIPPING_SYP)
   const [shippingCostTemu, setShippingCostTemu] = useState(FIXED_SHIPPING_SYP)
   const [shamcashQrByStore, setShamcashQrByStore] = useState<Record<StoreId, string>>({ shein: '', temu: '' })
+  const [shamcashCodeByStore, setShamcashCodeByStore] = useState<Record<StoreId, string>>({ shein: '', temu: '' })
+  const [referralDiscountSyp, setReferralDiscountSyp] = useState(0)
 
   const [initialNow] = useState(() => Date.now())
   const initialPendingWhatsappAuth =
@@ -359,6 +372,9 @@ function App() {
   } | null>(storageKeys.pendingWalletTopUp, null)
   const [walletTopUpAmount, setWalletTopUpAmount] = useState('')
   const [walletTopUpState, setWalletTopUpState] = useState<'idle' | 'starting' | 'checking' | 'matched'>('idle')
+  const [referralCodeInput, setReferralCodeInput] = useState('')
+  const [appliedReferralCode, setAppliedReferralCode] = useState('')
+  const [isValidatingReferralCode, setIsValidatingReferralCode] = useState(false)
   const [manualPriceUsd, setManualPriceUsd] = useState('')
   const [manualColorName, setManualColorName] = useState('')
   const [deviceNotificationStatus, setDeviceNotificationStatus] = useState<'granted' | 'denied' | 'default' | 'unsupported'>(() => {
@@ -459,6 +475,95 @@ function App() {
   const showNotice = (message: string) => {
     setNotice(message)
     window.setTimeout(() => setNotice(''), 1900)
+  }
+
+  const copyText = (value: string, successMessage: string) => {
+    const text = value.trim()
+    if (!text) {
+      showNotice('لا يوجد نص جاهز للنسخ')
+      return
+    }
+
+    const fallbackCopy = () => {
+      const textarea = document.createElement('textarea')
+      textarea.value = text
+      textarea.setAttribute('readonly', 'true')
+      textarea.style.position = 'fixed'
+      textarea.style.opacity = '0'
+      document.body.appendChild(textarea)
+      textarea.select()
+      try {
+        document.execCommand('copy')
+        showNotice(successMessage)
+      } catch {
+        showNotice('تعذر النسخ على هذا الجهاز')
+      } finally {
+        document.body.removeChild(textarea)
+      }
+    }
+
+    if (navigator.clipboard?.writeText) {
+      void navigator.clipboard.writeText(text)
+        .then(() => showNotice(successMessage))
+        .catch(fallbackCopy)
+      return
+    }
+
+    fallbackCopy()
+  }
+
+  const saveQrImage = (src: string, filename: string) => {
+    if (!src) {
+      showNotice('لا توجد صورة باركود للحفظ')
+      return
+    }
+
+    try {
+      const link = document.createElement('a')
+      link.href = src
+      link.download = filename
+      link.target = '_blank'
+      link.rel = 'noreferrer'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      showNotice('تم تجهيز صورة الباركود للحفظ')
+    } catch {
+      window.open(src, '_blank', 'noreferrer')
+      showNotice('تم فتح صورة الباركود')
+    }
+  }
+
+  const applyReferralDiscount = () => {
+    const normalizedCode = normalizePhoneForCompare(referralCodeInput)
+    const currentCustomerPhone = normalizePhoneForCompare(userProfile?.phone || phone || recipient.phone || '')
+
+    if (referralDiscountSyp <= 0) {
+      showNotice('كود الخصم غير مفعل حالياً')
+      return
+    }
+    if (!normalizedCode) {
+      showNotice('أدخل كود الخصم أولاً')
+      return
+    }
+    if (normalizedCode === currentCustomerPhone) {
+      showNotice('لا يمكنك استخدام رقمك ككود خصم')
+      return
+    }
+
+    setIsValidatingReferralCode(true)
+    void appApi.orders.validateReferralCode(normalizedCode)
+      .then((isValid) => {
+        if (!isValid) {
+          showNotice('كود الخصم غير صالح')
+          return
+        }
+        setAppliedReferralCode(normalizedCode)
+        setReferralCodeInput(normalizedCode)
+        showNotice(`تم تطبيق خصم ${formatMoney(referralDiscountSyp)}`)
+      })
+      .catch(() => showNotice('تعذر التحقق من كود الخصم'))
+      .finally(() => setIsValidatingReferralCode(false))
   }
 
   const requestDeviceNotifications = () => {
@@ -607,6 +712,8 @@ function App() {
     setCartGroup(null)
     setPendingPayment(null)
     setPendingWalletTopUp(null)
+    setAppliedReferralCode('')
+    setReferralCodeInput('')
     setCurrentOrderId('')
     setScreen('login')
   }
@@ -654,12 +761,18 @@ function App() {
       .then((data: Record<string, string>) => {
         const shein = parseInt(data.shipping_cost_shein_syp ?? '0', 10)
         const temu = parseInt(data.shipping_cost_temu_syp ?? '0', 10)
+        const referralDiscount = parseInt(data.referral_discount_syp ?? '0', 10)
         if (shein > 0) setShippingCostShein(shein)
         if (temu > 0) setShippingCostTemu(temu)
         setShamcashQrByStore({
           shein: data.shamcash_qr_shein_data_url ?? '',
           temu: data.shamcash_qr_temu_data_url ?? '',
         })
+        setShamcashCodeByStore({
+          shein: data.shamcash_code_shein ?? '',
+          temu: data.shamcash_code_temu ?? '',
+        })
+        setReferralDiscountSyp(referralDiscount > 0 ? referralDiscount : 0)
       })
       .catch(() => undefined)
   }, [])
@@ -779,11 +892,20 @@ function App() {
   const groupCheckoutItems = cartGroup?.items.map((line) => line.item) ?? []
   const groupTotalUsd = cartGroup?.totalUsd ?? 0
   const activeCheckoutItems = cartGroup && groupCheckoutItems.length > 0 ? groupCheckoutItems : cartItems
-  const activeCheckoutTotal = activeCheckoutItems.reduce((sum, item) => sum + getItemPriceSyp(item) * item.quantity, 0) + currentShippingFees.reduce((sum, line) => sum + line.value, 0)
-  const checkoutBreakdown = cartGroup && groupCheckoutItems.length > 0
-    ? [{ label: 'مجموع منتجات الطلب المشترك', value: activeCheckoutTotal - currentShippingFees.reduce((sum, line) => sum + line.value, 0) }, ...currentShippingFees]
+  const activeCheckoutProductsTotal = activeCheckoutItems.reduce((sum, item) => sum + getItemPriceSyp(item) * item.quantity, 0)
+  const shippingTotalSyp = currentShippingFees.reduce((sum, line) => sum + line.value, 0)
+  const activeCheckoutTotal = activeCheckoutProductsTotal + shippingTotalSyp
+  const baseCheckoutBreakdown = cartGroup && groupCheckoutItems.length > 0
+    ? [{ label: 'مجموع منتجات الطلب المشترك', value: activeCheckoutProductsTotal }, ...currentShippingFees]
     : breakdown
-  const checkoutTotal = cartGroup && groupCheckoutItems.length > 0 ? activeCheckoutTotal : total
+  const baseCheckoutTotal = cartGroup && groupCheckoutItems.length > 0 ? activeCheckoutTotal : total
+  const appliedReferralDiscountSyp = appliedReferralCode && referralDiscountSyp > 0
+    ? Math.min(referralDiscountSyp, baseCheckoutTotal)
+    : 0
+  const checkoutBreakdown = appliedReferralDiscountSyp > 0
+    ? [...baseCheckoutBreakdown, { label: 'خصم الإحالة', value: -appliedReferralDiscountSyp }]
+    : baseCheckoutBreakdown
+  const checkoutTotal = Math.max(0, baseCheckoutTotal - appliedReferralDiscountSyp)
   const meetsMinimumOrder = subtotal >= MIN_ORDER_SYP || subtotal / exchangeRate >= MIN_ORDER_USD || groupTotalUsd >= MIN_ORDER_USD
   const hasIncompleteCustom = cartItems.some(
     (item) => (item.needsCustomText && !item.customText?.trim()) ||
@@ -1608,6 +1730,8 @@ function App() {
           setCurrentOrderId(result.orderId)
           setCartItems([])
           setCartGroup(null)
+          setAppliedReferralCode('')
+          setReferralCodeInput('')
           addNotification({ type: 'payment', title: 'تم استلام طلبك', body: `طلبك ${result.orderId} قيد المعالجة.`, orderId: result.orderId })
           setScreen('success')
           return
@@ -1622,6 +1746,8 @@ function App() {
           expiresAt: result.paymentExpiresAt,
           store: selectedStore,
         })
+        setAppliedReferralCode('')
+        setReferralCodeInput('')
         setScreen('payment')
       })
       .catch((error: unknown) => showNotice(getPublicErrorMessage(error)))
@@ -1634,7 +1760,6 @@ function App() {
     void appApi.payments.checkPaymentStatus(pendingPayment.orderId).then((result) => {
       if (result.status === 'مدفوع') {
         showNotice('تم العثور على تحويل مطابق للمبلغ الدقيق')
-        const paidOrder = orders.find((o) => o.id === pendingPayment.orderId)
         setOrders((list) => list.map((item) => (
           item.id === pendingPayment.orderId
             ? { ...item, paymentStatus: 'مدفوع', statusIndex: 1, paidAt: result.paidAt ?? today() }
@@ -1646,18 +1771,6 @@ function App() {
         setVerificationState('matched')
         addNotification({ type: 'payment', title: 'تم تأكيد الدفع', body: `تم مطابقة تحويلك للطلب ${pendingPayment.orderId}.`, orderId: pendingPayment.orderId })
         setScreen('success')
-        if (paidOrder && NOTIFY_URL) {
-          void fetch(NOTIFY_URL, {
-            method: 'POST',
-            headers: {
-              'content-type': 'application/json',
-              'apikey': SUPABASE_ANON_KEY,
-              'authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-              'x-admin-pin': cleanEnvValue(import.meta.env.VITE_ADMIN_PIN),
-            },
-            body: JSON.stringify({ order: { ...paidOrder, paymentStatus: 'مدفوع', paidAt: result.paidAt ?? today() } }),
-          }).catch(() => undefined)
-        }
         return
       }
 
@@ -1879,7 +1992,7 @@ function App() {
             <span>الاسم الكامل</span>
             <input
               value={onboardingName}
-              onChange={(event) => setOnboardingName(normalizeFullName(event.target.value))}
+                  onChange={(event) => setOnboardingName(sanitizeFullNameInput(event.target.value))}
               placeholder="مثال: محمد أحمد"
               autoFocus
             />
@@ -2403,7 +2516,7 @@ function App() {
                 <span>اسم المستلم *</span>
                 <input
                   value={recipient.name}
-                  onChange={(e) => setRecipient({ ...recipient, name: normalizeFullName(e.target.value) })}
+                  onChange={(e) => setRecipient({ ...recipient, name: sanitizeFullNameInput(e.target.value) })}
                   placeholder="الاسم الكامل"
                   required
                 />
@@ -2462,6 +2575,45 @@ function App() {
             )}
             <InfoRow icon="inventory_2" title="طريقة التوصيل" body="التسليم داخل سوريا عبر القدموس عند توفر رقم الشحنة." />
             <CurrencyToggle value={paymentCurrency} onChange={setPaymentCurrency} />
+            {referralDiscountSyp > 0 && (
+              <section className="coupon-box">
+                <p>كود الخصم</p>
+                <div className="coupon-input">
+                  <input
+                    value={referralCodeInput}
+                    onChange={(event) => {
+                      const nextValue = normalizePhoneForCompare(event.target.value)
+                      setReferralCodeInput(nextValue)
+                      if (appliedReferralCode && nextValue !== appliedReferralCode) {
+                        setAppliedReferralCode('')
+                      }
+                    }}
+                    inputMode="tel"
+                    placeholder="أدخل رقم الإحالة أو كود الخصم"
+                    dir="ltr"
+                  />
+                  <button disabled={isValidatingReferralCode} onClick={applyReferralDiscount}>
+                    {isValidatingReferralCode ? '...' : 'تطبيق'}
+                  </button>
+                </div>
+                {appliedReferralCode && (
+                  <div className="coupon-success">
+                    تم تطبيق خصم {formatMoney(appliedReferralDiscountSyp)}
+                    {' '}
+                    <button
+                      type="button"
+                      className="text-button"
+                      onClick={() => {
+                        setAppliedReferralCode('')
+                        setReferralCodeInput('')
+                      }}
+                    >
+                      إزالة
+                    </button>
+                  </div>
+                )}
+              </section>
+            )}
             <PriceBreakdown items={checkoutBreakdown} total={checkoutTotal} format={formatPrice} />
             {(() => {
               const missingBranch = !!(QADMOUS_BRANCHES[recipient.governorate] && !recipient.qadmousBranch)
@@ -2503,6 +2655,9 @@ function App() {
         ? formatUsd(pendingPayment.amount)
         : formatMoney(pendingPayment.amount)
       const paymentQr = shamcashQrByStore[pendingPayment.store ?? selectedStore] || ''
+      const paymentCode = shamcashCodeByStore[pendingPayment.store ?? selectedStore] || paymentSettings.receiverAccount
+      const paymentExpiresIn = formatExpiryCountdown(pendingPayment.expiresAt)
+      const paymentStoreName = STORES.find((store) => store.id === (pendingPayment.store ?? selectedStore))?.name ?? 'المتجر'
 
       return (
         <MobileShell active="cart" onNavigate={setScreen} hideBottomNav>
@@ -2510,20 +2665,41 @@ function App() {
           <main className="mobile-content">
             <section className="payment-card">
               <PaymentQr src={paymentQr} />
-              <p>ادفع إلى حسابنا التجاري</p>
+              <p>{`ادفع إلى حسابنا التجاري لـ${paymentStoreName}`}</p>
               <b>{paymentSettings.receiverName}</b>
-              <span>{paymentSettings.receiverAccount}</span>
+              <span dir="ltr">{paymentCode}</span>
               <strong>{amountLabel}</strong>
+              <small className="payment-expiry">مهلة الدفع: {paymentExpiresIn}</small>
+              <small className="payment-expiry">رقم الطلب: {pendingPayment.orderId}</small>
             </section>
+            <div className="payment-action-grid">
+              <button className="ghost-action" onClick={() => copyText(paymentCode, 'تم نسخ كود شام كاش')}>
+                <Icon name="content_copy" />
+                نسخ الكود
+              </button>
+              <button className="ghost-action" onClick={() => copyText(String(pendingPayment.amount), 'تم نسخ المبلغ')}>
+                <Icon name="payments" />
+                نسخ المبلغ
+              </button>
+              <button className="ghost-action" onClick={() => saveQrImage(paymentQr, `otlobli-shamcash-${pendingPayment.orderId}.png`)}>
+                <Icon name="download" />
+                حفظ الصورة
+              </button>
+              <button className="ghost-action" onClick={() => openWhatsappSupport(`مرحباً otlobli، أحتاج مساعدة بخصوص دفع الطلب ${pendingPayment.orderId}.`)}>
+                <Icon name="support_agent" />
+                تواصل معنا
+              </button>
+            </div>
             <div className="instruction-list">
               <p>ادفع بـ{pendingPayment.currency === 'USD' ? 'الدولار الأمريكي' : 'الليرة السورية'} فقط لهذا الطلب.</p>
               <p>لا تحتاج كتابة رقم الطلب في الملاحظة.</p>
               <p>المهم جداً: ادفع نفس المبلغ أعلاه بالضبط حتى تتم المطابقة تلقائياً.</p>
             </div>
             <button className="primary-action" disabled={verificationState === 'checking'} onClick={verifyB2BPayment}>
-              {verificationState === 'checking' ? 'جاري فحص التحويلات...' : 'فحص الدفع الآن'}
+              {verificationState === 'checking' ? 'جاري التحقق من الدفع...' : 'لقد دفعت'}
               <Icon name="sync" />
             </button>
+            <p className="hint">بعد الضغط سنراجع التحويل المرسل. لا تحوّل مرة ثانية إلا إذا طلبنا منك ذلك.</p>
           </main>
         </MobileShell>
       )
@@ -2699,7 +2875,7 @@ function App() {
               <div className="form-card">
                 <label className="field">
                   <span>الاسم الكامل</span>
-                  <input value={editName} onChange={(e) => setEditName(normalizeFullName(e.target.value))} placeholder="الاسم" />
+                  <input value={editName} onChange={(e) => setEditName(sanitizeFullNameInput(e.target.value))} placeholder="الاسم" />
                   {editNameError && <small className="field-error">{editNameError}</small>}
                 </label>
                 <label className="field">
@@ -2795,11 +2971,20 @@ function App() {
                 <Icon name="edit" />
               </button>
             </section>
-            <section className="profile-summary-card">
+            <section className="profile-summary-card profile-summary-card--compact">
+              <div className="profile-summary-card__head">
+                <div>
+                  <h3>سعر الصرف الحالي</h3>
+                  <p>{formatRelativeRateTime(exchangeRateFetchedAt)}</p>
+                </div>
+                <StatusBadge tone="neutral">{`1 USD = ${exchangeRate.toLocaleString('en-US')} SYP`}</StatusBadge>
+              </div>
+            </section>
+            <section className="profile-summary-card profile-summary-card--compact">
               <div className="profile-summary-card__head">
                 <div>
                   <h3>معلومات الاستلام</h3>
-                  <p>تُستخدم تلقائيًا في الطلبات الجديدة.</p>
+                  <p>{savedPickupOffice}</p>
                 </div>
                 <button
                   className="ghost-action ghost-action--small"
@@ -2815,23 +3000,12 @@ function App() {
                   تعديل
                 </button>
               </div>
-              <div className="profile-summary-grid">
+              <div className="profile-summary-grid profile-summary-grid--compact">
                 <div><span>المستلم</span><b>{savedPickupName}</b></div>
                 <div><span>واتساب</span><b dir="ltr">{savedPickupPhone ? `+${savedPickupPhone}` : 'غير محدد'}</b></div>
                 <div><span>المحافظة</span><b>{savedPickupGovernorate}</b></div>
-                <div><span>مكتب الاستلام</span><b>{savedPickupOffice}</b></div>
                 {!!(recipient.pickupLabel || userProfile?.pickupLabel) && <div><span>وسم الاستلام</span><b>{recipient.pickupLabel || userProfile?.pickupLabel}</b></div>}
               </div>
-            </section>
-            <section className="profile-summary-card">
-              <div className="profile-summary-card__head">
-                <div>
-                  <h3>سعر الصرف الحالي</h3>
-                  <p>السعر النهائي يثبت عند بدء الدفع فقط.</p>
-                </div>
-                <StatusBadge tone="neutral">{`1 USD = ${exchangeRate.toLocaleString('en-US')} SYP`}</StatusBadge>
-              </div>
-              <p className="profile-summary-meta">{formatRelativeRateTime(exchangeRateFetchedAt)}</p>
             </section>
             <ProfileRow icon="receipt_long" label={`طلباتي (${orders.length})`} onClick={() => setScreen('orders')} />
             <ProfileRow
@@ -2892,6 +3066,8 @@ function App() {
         ? formatUsd(pendingWalletTopUp.amount)
         : formatMoney(pendingWalletTopUp?.amount ?? 0)
       const walletTopUpQr = shamcashQrByStore[selectedStore] || ''
+      const walletTopUpCode = shamcashCodeByStore[selectedStore] || paymentSettings.receiverAccount
+      const walletTopUpExpiresIn = formatExpiryCountdown(pendingWalletTopUp?.expiresAt)
 
       return (
         <MobileShell active="profile" onNavigate={setScreen} hideBottomNav>
@@ -2913,10 +3089,29 @@ function App() {
                   <PaymentQr src={walletTopUpQr} />
                   <p>اشحن المحفظة بتحويل شام كاش إلى حسابنا التجاري</p>
                   <b>{paymentSettings.receiverName}</b>
-                  <span>{paymentSettings.receiverAccount}</span>
+                  <span dir="ltr">{walletTopUpCode}</span>
                   <strong>{pendingWalletAmountLabel}</strong>
+                  <small className="payment-expiry">مهلة الدفع: {walletTopUpExpiresIn}</small>
                   <small>سيضاف إلى محفظتك: {formatMoney(pendingWalletTopUp.creditAmountSyp)}</small>
                 </section>
+                <div className="payment-action-grid">
+                  <button className="ghost-action" onClick={() => copyText(walletTopUpCode, 'تم نسخ كود شام كاش')}>
+                    <Icon name="content_copy" />
+                    نسخ الكود
+                  </button>
+                  <button className="ghost-action" onClick={() => copyText(String(pendingWalletTopUp.amount), 'تم نسخ المبلغ')}>
+                    <Icon name="payments" />
+                    نسخ المبلغ
+                  </button>
+                  <button className="ghost-action" onClick={() => saveQrImage(walletTopUpQr, 'otlobli-wallet-topup-shamcash.png')}>
+                    <Icon name="download" />
+                    حفظ الصورة
+                  </button>
+                  <button className="ghost-action" onClick={() => openWhatsappSupport('مرحباً otlobli، أحتاج مساعدة بخصوص شحن المحفظة عبر شام كاش.')}>
+                    <Icon name="support_agent" />
+                    تواصل معنا
+                  </button>
+                </div>
                 <div className="instruction-list">
                   <p>ادفع هذا المبلغ بالضبط حتى تتم المطابقة تلقائياً.</p>
                   <p>لا تحتاج كتابة رقم أو ملاحظة داخل التحويل.</p>

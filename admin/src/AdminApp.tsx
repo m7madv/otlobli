@@ -164,6 +164,44 @@ const ADMIN_ORDERS_FN   = `${SUPABASE_URL}/functions/v1/admin-orders`
 const ADMIN_DRIVERS_FN  = `${SUPABASE_URL}/functions/v1/admin-drivers`
 const APP_SETTINGS_FN   = `${SUPABASE_URL}/functions/v1/app-settings`
 const ANON_KEY = stripBom(import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)
+const ADMIN_SESSION_STORAGE_KEY = 'talabieh_admin_session'
+
+type AdminSession = {
+  pin: string
+  version: string
+}
+
+function readAdminSession(): AdminSession | null {
+  try {
+    const raw = localStorage.getItem(ADMIN_SESSION_STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Partial<AdminSession>
+    if (!parsed.pin || !parsed.version) return null
+    return { pin: parsed.pin, version: parsed.version }
+  } catch {
+    return null
+  }
+}
+
+function writeAdminSession(session: AdminSession | null) {
+  try {
+    if (!session) {
+      localStorage.removeItem(ADMIN_SESSION_STORAGE_KEY)
+      return
+    }
+    localStorage.setItem(ADMIN_SESSION_STORAGE_KEY, JSON.stringify(session))
+  } catch {
+    // ignore storage issues
+  }
+}
+
+async function fetchPublicSettings() {
+  const response = await fetch(APP_SETTINGS_FN, {
+    headers: { apikey: ANON_KEY, authorization: `Bearer ${ANON_KEY}` },
+  })
+  if (!response.ok) throw new Error('settings_unavailable')
+  return response.json() as Promise<Record<string, string>>
+}
 
 async function fetchOrders(pin: string) {
   const response = await fetch(ADMIN_ORDERS_FN, {
@@ -272,8 +310,10 @@ async function deleteOrderApi(pin: string, orderId: string) {
 
 // ── Main App ──────────────────────────────────────────────────────────────────
 function AdminApp() {
-  const [pinInput, setPinInput] = useState('')
+  const [pinInput, setPinInput] = useState(() => readAdminSession()?.pin ?? '')
   const [pin, setPin] = useState('')
+  const [bootingSession, setBootingSession] = useState(() => Boolean(readAdminSession()))
+  const [sessionVersion, setSessionVersion] = useState('1')
   const [orders, setOrders] = useState<Order[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
   const [driverOptions, setDriverOptions] = useState<DriverOption[]>([])
@@ -307,35 +347,69 @@ function AdminApp() {
     window.setTimeout(() => setNotice(''), 2200)
   }
 
-  const unlock = () => {
-    const nextPin = pinInput.trim()
-    if (!nextPin) { showNotice('أدخل رمز الإدارة'); return }
+  const closeSession = (message?: string, clearInput = false) => {
+    setPin('')
+    setOrders([])
+    setCustomers([])
+    setDriverOptions([])
+    setSelectedOrderId('')
+    setModalOrderId('')
+    setBootingSession(false)
+    writeAdminSession(null)
+    if (clearInput) setPinInput('')
+    if (message) showNotice(message)
+  }
+
+  const unlock = async (forcedPin?: string, silent = false) => {
+    const nextPin = (forcedPin ?? pinInput).trim()
+    if (!nextPin) {
+      if (!silent) showNotice('أدخل رمز الإدارة')
+      setBootingSession(false)
+      return
+    }
     setLoading(true)
-    void fetchOrders(nextPin)
-      .then(({ orders: nextOrders, drivers: nextDrivers, customers: nextCustomers }) => {
-        setPin(nextPin)
-        setOrders(nextOrders)
-        setCustomers(nextCustomers)
-        setDriverOptions(nextDrivers)
-        const autoSelect = deepLinkOrderId && nextOrders.find((o) => o.id === deepLinkOrderId)
-          ? deepLinkOrderId
-          : nextOrders[0]?.id ?? ''
-        setSelectedOrderId(autoSelect)
-        if (deepLinkOrderId && autoSelect === deepLinkOrderId) {
-          setTab('dashboard')
-          setModalOrderId(deepLinkOrderId)
-        }
-        showNotice('تم فتح لوحة الإدارة')
-      })
-      .catch(() => showNotice('تعذر فتح لوحة الإدارة. تحقق من الرمز أو إعدادات السيرفر'))
-      .finally(() => setLoading(false))
+    try {
+      const settings = await fetchPublicSettings()
+      const nextVersion = settings.admin_session_version ?? '1'
+      const { orders: nextOrders, drivers: nextDrivers, customers: nextCustomers } = await fetchOrders(nextPin)
+      setSessionVersion(nextVersion)
+      setPin(nextPin)
+      setPinInput(nextPin)
+      setOrders(nextOrders)
+      setCustomers(nextCustomers)
+      setDriverOptions(nextDrivers)
+      writeAdminSession({ pin: nextPin, version: nextVersion })
+      const autoSelect = deepLinkOrderId && nextOrders.find((o) => o.id === deepLinkOrderId)
+        ? deepLinkOrderId
+        : nextOrders[0]?.id ?? ''
+      setSelectedOrderId(autoSelect)
+      if (deepLinkOrderId && autoSelect === deepLinkOrderId) {
+        setTab('dashboard')
+        setModalOrderId(deepLinkOrderId)
+      }
+      if (!silent) showNotice('تم فتح لوحة الإدارة')
+    } catch {
+      if (silent) {
+        closeSession()
+      } else {
+        showNotice('تعذر فتح لوحة الإدارة. تحقق من الرمز أو إعدادات السيرفر')
+      }
+    } finally {
+      setLoading(false)
+      setBootingSession(false)
+    }
   }
 
   const refresh = () => {
     if (!pin) return
     setLoading(true)
-    void fetchOrders(pin)
-      .then(({ orders: nextOrders, drivers: nextDrivers, customers: nextCustomers }) => {
+    void Promise.all([fetchPublicSettings(), fetchOrders(pin)])
+      .then(([settings, { orders: nextOrders, drivers: nextDrivers, customers: nextCustomers }]) => {
+        const nextVersion = settings.admin_session_version ?? '1'
+        if (nextVersion !== sessionVersion) {
+          closeSession('تم تسجيل الخروج من هذه الجلسة', true)
+          return
+        }
         setOrders(nextOrders)
         setCustomers(nextCustomers)
         setDriverOptions(nextDrivers)
@@ -345,12 +419,34 @@ function AdminApp() {
       .finally(() => setLoading(false))
   }
 
+  useEffect(() => {
+    const storedSession = readAdminSession()
+    if (!storedSession) return
+    void fetchPublicSettings()
+      .then((settings) => {
+        const nextVersion = settings.admin_session_version ?? '1'
+        setSessionVersion(nextVersion)
+        if (storedSession.version !== nextVersion) {
+          closeSession()
+          return
+        }
+        void unlock(storedSession.pin, true)
+      })
+      .catch(() => setBootingSession(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // تحديث تلقائي صامت كل 15 ثانية + تنبيه عند وصول طلب جديد
   useEffect(() => {
     if (!pin) return
     const interval = window.setInterval(() => {
-      void fetchOrders(pin)
-        .then(({ orders: nextOrders, drivers: nextDrivers, customers: nextCustomers }) => {
+      void Promise.all([fetchPublicSettings(), fetchOrders(pin)])
+        .then(([settings, { orders: nextOrders, drivers: nextDrivers, customers: nextCustomers }]) => {
+          const nextVersion = settings.admin_session_version ?? '1'
+          if (nextVersion !== sessionVersion) {
+            closeSession('تم تسجيل الخروج من هذه الجلسة', true)
+            return
+          }
           setDriverOptions(nextDrivers)
           setCustomers(nextCustomers)
           setOrders((prev) => {
@@ -372,7 +468,7 @@ function AdminApp() {
         .catch(() => undefined)
     }, 15000)
     return () => window.clearInterval(interval)
-  }, [pin])
+  }, [pin, sessionVersion])
 
   const updateOrder = (orderId: string, patch: Partial<Order>) => {
     setOrders((list) => list.map((o) => (o.id === orderId ? { ...o, ...patch } : o)))
@@ -410,7 +506,7 @@ function AdminApp() {
         <section className="login-card">
           <div className="brand"><span>طلبية</span><small>لوحة الإدارة</small></div>
           <h1>تسجيل دخول الإدارة</h1>
-          <p>أدخل رمز الإدارة للوصول إلى الطلبات والمدفوعات والشحن.</p>
+          <p>{bootingSession ? 'جار التحقق من جلستك المحفوظة...' : 'أدخل رمز الإدارة للوصول إلى الطلبات والمدفوعات والشحن.'}</p>
           <label className="field">
             <span>رمز الإدارة</span>
             <input
@@ -418,11 +514,11 @@ function AdminApp() {
               type="password"
               autoComplete="current-password"
               onChange={(e) => setPinInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') unlock() }}
+              onKeyDown={(e) => { if (e.key === 'Enter') void unlock() }}
             />
           </label>
-          <button className="primary-action" disabled={loading} onClick={unlock}>
-            {loading ? 'جار التحقق...' : 'فتح لوحة الإدارة'}
+          <button className="primary-action" disabled={loading || bootingSession} onClick={() => void unlock()}>
+            {loading || bootingSession ? 'جار التحقق...' : 'فتح لوحة الإدارة'}
             <Icon name="lock_open" />
           </button>
           {notice && <p className="notice">{notice}</p>}
@@ -466,6 +562,7 @@ function AdminApp() {
           <div className="top-actions">
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="بحث عن طلب أو عميل..." />
             <button onClick={refresh} disabled={loading}><Icon name="refresh" /> تحديث</button>
+            <button onClick={() => closeSession('تم تسجيل الخروج من هذا الجهاز', true)}><Icon name="logout" /> خروج</button>
           </div>
         </header>
 
@@ -496,7 +593,13 @@ function AdminApp() {
           />
         )}
         {tab === 'drivers' && <DriversPanel pin={pin} showNotice={showNotice} />}
-        {tab === 'settings' && <SettingsPanel pin={pin} showNotice={showNotice} />}
+        {tab === 'settings' && (
+          <SettingsPanel
+            pin={pin}
+            showNotice={showNotice}
+            onLogoutEverywhere={() => closeSession('تم تسجيل الخروج من جميع الأجهزة', true)}
+          />
+        )}
       </main>
 
       {/* ── Order Modal ── */}
@@ -1138,26 +1241,37 @@ function DriversPanel({ pin, showNotice }: { pin: string; showNotice: (message: 
 }
 
 // ── Settings Panel ────────────────────────────────────────────────────────────
-function SettingsPanel({ pin, showNotice }: { pin: string; showNotice: (msg: string) => void }) {
+function SettingsPanel({
+  pin,
+  showNotice,
+  onLogoutEverywhere,
+}: {
+  pin: string
+  showNotice: (msg: string) => void
+  onLogoutEverywhere: () => void
+}) {
   const [sheinCost,  setSheinCost]  = useState('')
   const [temuCost,   setTemuCost]   = useState('')
   const [usdRate,    setUsdRate]    = useState('')
   const [sheinQr,     setSheinQr]    = useState('')
   const [temuQr,      setTemuQr]     = useState('')
+  const [sheinCode,   setSheinCode]  = useState('')
+  const [temuCode,    setTemuCode]   = useState('')
+  const [referralDiscount, setReferralDiscount] = useState('0')
   const [saving,     setSaving]     = useState(false)
   const [loaded,     setLoaded]     = useState(false)
 
   useEffect(() => {
-    void fetch(APP_SETTINGS_FN, {
-      headers: { apikey: ANON_KEY, authorization: `Bearer ${ANON_KEY}` },
-    })
-      .then((r) => r.json() as Promise<Record<string, string>>)
+    void fetchPublicSettings()
       .then((data) => {
         setSheinCost(data.shipping_cost_shein_syp ?? '90000')
         setTemuCost(data.shipping_cost_temu_syp ?? '90000')
         setUsdRate(data.usd_to_syp_rate ?? '13000')
         setSheinQr(data.shamcash_qr_shein_data_url ?? '')
         setTemuQr(data.shamcash_qr_temu_data_url ?? '')
+        setSheinCode(data.shamcash_code_shein ?? '')
+        setTemuCode(data.shamcash_code_temu ?? '')
+        setReferralDiscount(data.referral_discount_syp ?? '0')
         setLoaded(true)
       })
       .catch(() => showNotice('تعذر جلب الإعدادات'))
@@ -1177,6 +1291,26 @@ function SettingsPanel({ pin, showNotice }: { pin: string; showNotice: (msg: str
     })
       .then((r) => { if (!r.ok) throw new Error(); showNotice('تم حفظ الإعداد') })
       .catch(() => showNotice('فشل حفظ الإعداد'))
+      .finally(() => setSaving(false))
+  }
+
+  const logoutAllDevices = () => {
+    setSaving(true)
+    void fetch(APP_SETTINGS_FN, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-admin-pin': pin,
+        apikey: ANON_KEY,
+        authorization: `Bearer ${ANON_KEY}`,
+      },
+      body: JSON.stringify({ key: 'admin_session_version', value: String(Date.now()) }),
+    })
+      .then((r) => {
+        if (!r.ok) throw new Error()
+        onLogoutEverywhere()
+      })
+      .catch(() => showNotice('فشل تسجيل الخروج من جميع الأجهزة'))
       .finally(() => setSaving(false))
   }
 
@@ -1219,9 +1353,9 @@ function SettingsPanel({ pin, showNotice }: { pin: string; showNotice: (msg: str
           <small>مفعل داخل التطبيق</small>
         </article>
         <article>
-          <span>باركودات شام كاش</span>
+          <span>شام كاش</span>
           <b>{[sheinQr, temuQr].filter(Boolean).length}/2</b>
-          <small>{[sheinQr, temuQr].every(Boolean) ? 'جاهزة للتطبيقين' : 'يلزم استكمال الرفع'}</small>
+          <small>{[sheinQr, temuQr, sheinCode, temuCode].every(Boolean) ? 'الكود والباركود جاهزان' : 'يلزم استكمال الكود أو الباركود'}</small>
         </article>
       </div>
 
@@ -1310,6 +1444,21 @@ function SettingsPanel({ pin, showNotice }: { pin: string; showNotice: (msg: str
               }}
             />
             <div className="settings-row">
+              <input
+                value={sheinCode}
+                onChange={(e) => setSheinCode(e.target.value)}
+                placeholder="كود شام كاش لشي إن"
+                dir="ltr"
+              />
+              <button
+                className="ghost-action"
+                disabled={saving}
+                onClick={() => void saveSetting('shamcash_code_shein', sheinCode)}
+              >
+                حفظ الكود
+              </button>
+            </div>
+            <div className="settings-row">
               <button
                 className="ghost-action"
                 disabled={saving}
@@ -1341,6 +1490,21 @@ function SettingsPanel({ pin, showNotice }: { pin: string; showNotice: (msg: str
               }}
             />
             <div className="settings-row">
+              <input
+                value={temuCode}
+                onChange={(e) => setTemuCode(e.target.value)}
+                placeholder="كود شام كاش لتيمو"
+                dir="ltr"
+              />
+              <button
+                className="ghost-action"
+                disabled={saving}
+                onClick={() => void saveSetting('shamcash_code_temu', temuCode)}
+              >
+                حفظ الكود
+              </button>
+            </div>
+            <div className="settings-row">
               <button
                 className="ghost-action"
                 disabled={saving}
@@ -1358,6 +1522,37 @@ function SettingsPanel({ pin, showNotice }: { pin: string; showNotice: (msg: str
             </div>
           </label>
         </div>
+      </fieldset>
+
+      <fieldset className="settings-group">
+        <legend>كود الخصم</legend>
+        <label className="field">
+          <span>قيمة خصم الإحالة بالليرة السورية</span>
+          <div className="settings-row">
+            <input
+              type="number"
+              min="0"
+              step="1000"
+              value={referralDiscount}
+              onChange={(e) => setReferralDiscount(e.target.value)}
+            />
+            <button
+              className="ghost-action"
+              disabled={saving}
+              onClick={() => void saveSetting('referral_discount_syp', referralDiscount)}
+            >
+              حفظ
+            </button>
+          </div>
+        </label>
+      </fieldset>
+
+      <fieldset className="settings-group">
+        <legend>جلسة الإدارة</legend>
+        <p className="settings-intro">سيبقى تسجيل الدخول محفوظًا على هذا الجهاز حتى تختار تسجيل الخروج من جميع الأجهزة.</p>
+        <button className="danger-action" disabled={saving} onClick={logoutAllDevices}>
+          <Icon name="logout" /> تسجيل الخروج من جميع الأجهزة
+        </button>
       </fieldset>
 
       <fieldset className="settings-group">

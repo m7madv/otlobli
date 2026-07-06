@@ -1,28 +1,18 @@
 // إعدادات تشغيل التطبيق المركزية
 
-// وضع الدفع:
-//  - 'auto'     : الطلب يُسجَّل "مدفوع" فوراً عند تأكيده (شام كاش معطّل مؤقتاً
-//                 حتى يكتمل المشروع). الطلبات تصل للوحة الإدارة مباشرة.
-//  - 'shamcash' : نظام شام كاش الكامل بالمبلغ الفريد + مطابقة تلقائية.
-//                 يتطلب تطبيق supabase/schema.sql الكامل أولاً (الدوال
-//                 create_pending_order / confirm_payment_by_amount /
-//                 get_order_payment_status وجدول app_settings والأعمدة الجديدة).
-//
-// لتفعيل الدفع لاحقاً: طبّق schema.sql على Supabase ثم غيّر هذا إلى 'shamcash'.
-export const PAYMENT_MODE: 'auto' | 'shamcash' = 'auto'
-
-// بلد المصدر الذي تُجلب منه المنتجات من SHEIN ويُجمَّع فيه الشحن قبل سوريا.
-//  - 'LB' : لبنان (الحالي)
-//  - 'JO' : الأردن
-// يحدّد منطقة موقع SHEIN التي يفتحها التطبيق. لا يظهر اسمه للزبون إطلاقاً
-// (يُعرض دائماً كـ"مركز التجميع"). لاحقاً يُضبط من لوحة الإدارة.
-export const SOURCE_COUNTRY: 'JO' | 'LB' | 'SA' = 'SA'
-
-// رقم النسخة — يظهر في شاشة الدخول لمعرفة أي بناء مثبّت على الجهاز عند التشخيص.
-export const APP_VERSION = '2026.07.05-arabic-shein-group-live-v35'
-
 // يزيل BOM (U+FEFF) و zero-width space (U+200B) والمسافات من قيم متغيرات البيئة.
-// أسرار GitHub تُلوَّث أحياناً بحرف BOM في البداية، فيصبح الرابط "https://..."
-// ولا يعتبره fetch رابطاً مطلقاً، فيعامله كمسار نسبي ويفشل الاتصال بالخادم بصمت.
 export const cleanEnvValue = (value: string | undefined | null): string =>
   (value ?? '').replace(/[\uFEFF\u200B]/g, '').trim()
+
+// وضع الدفع:
+//  - 'auto'     : وضع مؤقت يعلّم الطلب كمدفوع مباشرة.
+//  - 'shamcash' : نظام شام كاش الحقيقي بالمبلغ الفريد والمطابقة الفعلية.
+// الافتراضي الآن هو شام كاش. يمكن إرجاع auto فقط عبر VITE_PAYMENT_MODE=auto.
+const envPaymentMode = cleanEnvValue(import.meta.env.VITE_PAYMENT_MODE)
+export const PAYMENT_MODE: 'auto' | 'shamcash' = envPaymentMode === 'auto' ? 'auto' : 'shamcash'
+
+// بلد المصدر الذي تُجلب منه المنتجات من SHEIN ويُجمع فيه الشحن قبل سوريا.
+export const SOURCE_COUNTRY: 'JO' | 'LB' | 'SA' = 'SA'
+
+// رقم النسخة الظاهر داخل التطبيق.
+export const APP_VERSION = '2026.07.06-shamcash-admin-session-v36'

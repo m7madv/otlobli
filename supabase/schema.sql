@@ -517,7 +517,11 @@ values
   ('shipping_cost_shein_syp', '90000'),
   ('shipping_cost_temu_syp', '90000'),
   ('shamcash_qr_shein_data_url', ''),
-  ('shamcash_qr_temu_data_url', '')
+  ('shamcash_qr_temu_data_url', ''),
+  ('shamcash_code_shein', ''),
+  ('shamcash_code_temu', ''),
+  ('referral_discount_syp', '0'),
+  ('admin_session_version', '1')
 on conflict (key) do nothing;
 
 alter table public.orders add column if not exists payment_amount numeric(14, 2);

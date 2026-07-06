@@ -10,6 +10,9 @@ import { isWhatsappApiAuthEnabled, whatsappAuthApi } from './whatsappAuthApi'
 import { PAYMENT_MODE, cleanEnvValue } from '../config'
 
 const DISPLAY_USD_RATE = Number(cleanEnvValue(import.meta.env.VITE_USD_TO_SYP_RATE)) || 13000
+const SUPABASE_URL = cleanEnvValue(import.meta.env.VITE_SUPABASE_URL)
+const SUPABASE_ANON_KEY = cleanEnvValue(import.meta.env.VITE_SUPABASE_ANON_KEY)
+const TELEGRAM_NOTIFY_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/telegram-notify` : ''
 
 // Cloudflare Worker (fast, edge-based) with Railway as fallback
 const SHEIN_WORKER_URL = cleanEnvValue(import.meta.env.VITE_SHEIN_WORKER_URL) || 'https://talabieh-shein.talabieh.workers.dev'
@@ -571,7 +574,13 @@ export const supabaseAppApi: TalabiehApi = {
           throw new Error(getPublicDbError('تعذّر إنشاء الطلب', error?.message))
         }
         const result = data as { orderId: string; paymentAmount: number; paymentCurrency: PaymentCurrency; paymentExpiresAt: string }
-        notifyNewOrder({ ...toOrderPayload(order), id: result.orderId })
+        notifyNewOrder({
+          ...toOrderPayload(order),
+          id: result.orderId,
+          paymentAmount: result.paymentAmount,
+          paymentCurrency: result.paymentCurrency,
+          paymentExpiresAt: result.paymentExpiresAt,
+        })
         return {
           mode: 'external',
           orderId: result.orderId,
@@ -684,6 +693,19 @@ export const supabaseAppApi: TalabiehApi = {
 // TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID المُعدّة مسبقاً هناك.
 function notifyNewOrder(orderPayload: Record<string, unknown>) {
   try {
+    if (TELEGRAM_NOTIFY_URL && SUPABASE_ANON_KEY) {
+      void fetch(TELEGRAM_NOTIFY_URL, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({ order: orderPayload }),
+      }).catch(() => undefined)
+      return
+    }
+
     const apiBase = cleanEnvValue(import.meta.env.VITE_WHATSAPP_API_URL)
     if (apiBase) {
       void fetch(`${apiBase}/api/orders/notify`, {

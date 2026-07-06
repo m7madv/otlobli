@@ -17,6 +17,10 @@ const DEFAULTS: Record<string, string> = {
   usd_to_syp_rate: '13000',
   shamcash_qr_shein_data_url: '',
   shamcash_qr_temu_data_url: '',
+  shamcash_code_shein: '',
+  shamcash_code_temu: '',
+  referral_discount_syp: '0',
+  admin_session_version: '1',
 }
 
 Deno.serve(async (req) => {
