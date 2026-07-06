@@ -670,6 +670,27 @@ export const supabaseAppApi: TalabiehApi = {
       return Boolean(data)
     },
 
+    async redeemCoupon(input) {
+      if (!supabase) return { valid: false, discountSyp: 0, reason: 'offline' as const }
+      const { data, error } = await supabase.rpc('redeem_coupon', {
+        p_code: input.code.trim(),
+        p_phone: input.phone.trim(),
+        p_device_id: input.deviceId || '',
+        p_store: input.store || 'all',
+        p_subtotal_syp: Math.max(0, Math.round(input.subtotalSyp)),
+        p_usd_rate: DISPLAY_USD_RATE,
+      })
+      if (error || !data) return { valid: false, discountSyp: 0, reason: 'error' as const }
+
+      const row = data as { valid?: boolean; discountSyp?: number; code?: string; reason?: string }
+      return {
+        valid: Boolean(row.valid),
+        discountSyp: Math.max(0, Number(row.discountSyp) || 0),
+        code: row.code,
+        reason: row.reason,
+      }
+    },
+
     // يحفظ التقييم عبر RPC ضيقة تتحقق إنه الطلب مُسلَّم وغير مُقيَّم سابقاً
     // قبل الكتابة - بلا ذلك ما في طريقة عامة لتعديل صفوف orders من العميل.
     async submitOrderRating(orderId, stars, note) {

@@ -178,6 +178,11 @@ export const localAppApi: TalabiehApi = {
       return code.trim().length > 0
     },
 
+    async redeemCoupon() {
+      await wait(200)
+      return { valid: false, discountSyp: 0, reason: 'local' as const }
+    },
+
     // لا قاعدة بيانات حقيقية بالوضع المحلي لتُخزَّن فيها.
     async submitOrderRating() {
       await wait(220)

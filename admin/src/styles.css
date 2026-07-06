@@ -189,8 +189,7 @@ img {
 .top-actions button,
 .shipping-list button,
 .row-actions button,
-.sidebar button,
-.customer-link {
+.sidebar button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -209,8 +208,7 @@ img {
 .ghost-action,
 .top-actions button,
 .shipping-list button,
-.row-actions button,
-.customer-link {
+.row-actions button {
   border: 1px solid var(--outline);
   background: var(--surface);
   color: var(--primary);
@@ -258,13 +256,11 @@ img {
   color: #c2c9c6;
 }
 
-.sidebar button,
-.customer-link {
+.sidebar button {
   justify-content: flex-start;
   border: 0;
   background: transparent;
   color: #d8dfdb;
-  text-decoration: none;
   padding: 0 12px;
 }
 
@@ -272,12 +268,6 @@ img {
   background: var(--primary);
   color: white;
 }
-
-.customer-link {
-  margin-top: auto;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-}
-
 .main {
   min-width: 0;
   padding: 24px;
@@ -693,16 +683,60 @@ td:first-child {
   .sidebar {
     position: static;
     height: auto;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    overflow-x: auto;
+    padding: 10px 10px 8px;
+    white-space: nowrap;
   }
 
-  .topbar,
-  .top-actions {
+  .sidebar .brand {
+    flex: 0 0 auto;
+    min-width: fit-content;
+    margin-left: 4px;
+  }
+
+  .sidebar .brand span {
+    font-size: 1.1rem;
+  }
+
+  .sidebar .brand small {
+    font-size: 0.72rem;
+  }
+
+  .sidebar button {
+    flex: 0 0 auto;
+    min-height: 38px;
+    padding: 0 10px;
+    font-size: 0.82rem;
+    font-weight: 800;
+  }
+
+  .topbar {
     align-items: stretch;
     flex-direction: column;
+    gap: 10px;
   }
 
-  .top-actions input {
-    width: 100%;
+  .topbar h1 {
+    font-size: 1.1rem;
+  }
+
+  .topbar p {
+    font-size: 0.82rem;
+  }
+
+  .top-actions {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 8px;
+  }
+
+  .top-actions input,
+  .top-actions button {
+    min-height: 38px;
+    font-size: 0.82rem;
   }
 
   .shipping-list article {
@@ -715,6 +749,49 @@ td:first-child {
 
   .settings-qr-grid {
     grid-template-columns: 1fr;
+  }
+
+  .main {
+    padding: 12px;
+  }
+
+  .stats {
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .stat {
+    min-height: 98px;
+    padding: 12px;
+  }
+
+  .stat strong {
+    font-size: 1rem;
+  }
+
+  .panel,
+  .login-card {
+    border-radius: 6px;
+  }
+
+  .table-panel header,
+  .customers-head,
+  .panel header {
+    gap: 6px;
+  }
+
+  .table-scroll table {
+    font-size: 0.8rem;
+  }
+
+  .row-actions button,
+  .ghost-action,
+  .primary-action,
+  .top-actions button,
+  .shipping-list button {
+    min-height: 38px;
+    padding: 0 10px;
+    font-size: 0.8rem;
   }
 }
 
@@ -915,6 +992,167 @@ tr.row-done td { opacity: 0.65; }
   min-width: 130px;
 }
 .progress-label span { font-size: 0.78rem; color: var(--muted); }
+
+.coupons-panel h2 {
+  margin: 0 0 14px;
+}
+
+.card-box {
+  border: 1px solid var(--outline);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.card-box h3 {
+  margin: 0 0 12px;
+  font-size: 1rem;
+}
+
+.coupon-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.coupon-form-grid input,
+.coupon-form-grid select {
+  width: 100%;
+}
+
+.primary-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--primary);
+  color: #fff;
+  font-weight: 800;
+}
+
+.coupon-hint,
+.muted {
+  color: var(--muted);
+}
+
+.coupon-hint {
+  margin: 10px 0 0;
+  font-size: 0.82rem;
+}
+
+.coupon-list {
+  display: grid;
+  gap: 10px;
+}
+
+.coupon-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--outline);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 14px;
+}
+
+.coupon-item.is-off {
+  opacity: 0.62;
+}
+
+.coupon-item-main {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.coupon-code {
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.coupon-desc {
+  font-size: 0.9rem;
+}
+
+.coupon-meta {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.coupon-item-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--outline);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--primary);
+}
+
+.icon-btn.danger {
+  color: #c62828;
+  border-color: #efc1c1;
+  background: #fff6f6;
+}
+
+@media (max-width: 720px) {
+  .top-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .top-actions input {
+    grid-column: 1 / -1;
+  }
+
+  .sidebar {
+    padding: 8px;
+    gap: 4px;
+  }
+
+  .sidebar button {
+    min-height: 34px;
+    padding: 0 8px;
+    font-size: 0.76rem;
+  }
+
+  .coupon-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .coupon-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .coupon-item-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .stats {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .wallet-adjust {
+    grid-template-columns: 1fr;
+  }
+}
 .progress-label b { font-size: 0.9rem; color: var(--text); }
 .progress-bar {
   flex: 1;

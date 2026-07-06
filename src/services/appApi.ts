@@ -75,6 +75,21 @@ export type CustomerAccountResult = {
   walletTransactions: WalletTransaction[]
 }
 
+export type RedeemCouponInput = {
+  code: string
+  phone: string
+  deviceId: string
+  store: string
+  subtotalSyp: number
+}
+
+export type RedeemCouponResult = {
+  valid: boolean
+  discountSyp: number
+  code?: string
+  reason?: string
+}
+
 export type TalabiehApi = {
   auth: {
     startWhatsappLogin: (phone: string) => Promise<StartLoginResult>
@@ -108,6 +123,7 @@ export type TalabiehApi = {
     pollOrderStatus: (orderId: string) => Promise<OrderStatusResult | null>
     // ظٹطھط­ظ‚ظ‚ ط£ظ† ظƒظˆط¯ ط§ظ„ط¥ط­ط§ظ„ط© (ط±ظ‚ظ… ظ‡ط§طھظپ ط¹ظ…ظٹظ„ ط³ط§ط¨ظ‚) ط­ظ‚ظٹظ‚ظٹ ظ‚ط¨ظ„ طھط·ط¨ظٹظ‚ ط®طµظ… ط§ظ„ط¥ط­ط§ظ„ط©.
     validateReferralCode: (code: string) => Promise<boolean>
+    redeemCoupon: (input: RedeemCouponInput) => Promise<RedeemCouponResult>
     // ظٹط­ظپط¸ طھظ‚ظٹظٹظ… ط§ظ„ط¹ظ…ظٹظ„ (ظ†ط¬ظˆظ… + ظ…ظ„ط§ط­ط¸ط© ط§ط®طھظٹط§ط±ظٹط©) ط¨ط¹ط¯ طھط³ظ„ظٹظ… ط§ظ„ط·ظ„ط¨ - ظ…ط±ط© ظˆط§ط­ط¯ط© ظپظ‚ط· ظ„ظƒظ„ ط·ظ„ط¨.
     submitOrderRating: (orderId: string, stars: number, note: string) => Promise<boolean>
   }

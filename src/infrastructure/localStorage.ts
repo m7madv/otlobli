@@ -41,6 +41,26 @@ export const storageKeys = {
   cartGroup: 'talabieh.cartGroup',
 } as const
 
+export function getDeviceId(): string {
+  if (typeof window === 'undefined') {
+    return ''
+  }
+
+  try {
+    const key = 'talabieh.deviceId'
+    let value = window.localStorage.getItem(key) || ''
+    if (!value) {
+      value = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `dev-${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`
+      window.localStorage.setItem(key, value)
+    }
+    return value
+  } catch {
+    return ''
+  }
+}
+
 export function readStoredJson<T>(key: string, fallback: T) {
   if (typeof window === 'undefined') {
     return fallback

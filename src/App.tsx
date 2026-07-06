@@ -14,7 +14,7 @@ import { FULL_NAME_ERROR_MESSAGE, getFullNameValidationError, normalizeFullName,
 import { buildPriceBreakdown, formatMoney, formatPriceSyp, formatUsd, sumPriceLines } from './domain/pricing'
 import type { PaymentCurrency } from './domain/pricing'
 import type { Address, AppNotification, CartGroupSnapshot, CartItem, NotificationPrefs, Order, Product, ProductColor, Recipient, Screen, StatusTone, UserProfile, WalletTransaction } from './domain/types'
-import { readStoredJson, storageKeys, useStoredState } from './infrastructure/localStorage'
+import { getDeviceId, readStoredJson, storageKeys, useStoredState } from './infrastructure/localStorage'
 import { appApi } from './services'
 import { PAYMENT_MODE, APP_VERSION, cleanEnvValue } from './config'
 import { buildWhatsappLink } from './services/whatsappLink'
@@ -267,6 +267,13 @@ function App() {
   const [shamcashQrByStore, setShamcashQrByStore] = useState<Record<StoreId, string>>({ shein: '', temu: '' })
   const [shamcashCodeByStore, setShamcashCodeByStore] = useState<Record<StoreId, string>>({ shein: '', temu: '' })
   const [referralDiscountSyp, setReferralDiscountSyp] = useState(0)
+  const [couponInput, setCouponInput] = useState('')
+  const [appliedCoupon, setAppliedCoupon] = useStoredState<{ code: string; discountSyp: number } | null>(
+    'talabieh.appliedCoupon',
+    null,
+  )
+  const [couponMsg, setCouponMsg] = useState('')
+  const [couponChecking, setCouponChecking] = useState(false)
 
   const [initialNow] = useState(() => Date.now())
   const initialPendingWhatsappAuth =
@@ -539,15 +546,15 @@ function App() {
     const currentCustomerPhone = normalizePhoneForCompare(userProfile?.phone || phone || recipient.phone || '')
 
     if (referralDiscountSyp <= 0) {
-      showNotice('كود الخصم غير مفعل حالياً')
+      showNotice('كود الإحالة غير مفعل حالياً')
       return
     }
     if (!normalizedCode) {
-      showNotice('أدخل كود الخصم أولاً')
+      showNotice('أدخل كود الإحالة أولاً')
       return
     }
     if (normalizedCode === currentCustomerPhone) {
-      showNotice('لا يمكنك استخدام رقمك ككود خصم')
+      showNotice('لا يمكنك استخدام رقمك ككود إحالة')
       return
     }
 
@@ -555,15 +562,79 @@ function App() {
     void appApi.orders.validateReferralCode(normalizedCode)
       .then((isValid) => {
         if (!isValid) {
-          showNotice('كود الخصم غير صالح')
+          showNotice('كود الإحالة غير صالح')
           return
         }
         setAppliedReferralCode(normalizedCode)
         setReferralCodeInput(normalizedCode)
-        showNotice(`تم تطبيق خصم ${formatMoney(referralDiscountSyp)}`)
+        showNotice(`تم تطبيق خصم الإحالة ${formatMoney(referralDiscountSyp)}`)
       })
-      .catch(() => showNotice('تعذر التحقق من كود الخصم'))
+      .catch(() => showNotice('تعذر التحقق من كود الإحالة'))
       .finally(() => setIsValidatingReferralCode(false))
+  }
+
+  const couponReasonMessage = (reason?: string) => {
+    switch (reason) {
+      case 'no_phone':
+        return 'أدخل رقم واتساب المستلم أولاً'
+      case 'not_found':
+        return 'كود الخصم غير صحيح'
+      case 'inactive':
+      case 'not_started':
+        return 'كود الخصم غير مفعل حالياً'
+      case 'expired':
+        return 'انتهت صلاحية كود الخصم'
+      case 'wrong_store':
+        return 'هذا الكود لا ينطبق على هذا المتجر'
+      case 'below_min':
+        return 'قيمة الطلب أقل من الحد المطلوب لهذا الكود'
+      case 'exhausted':
+        return 'انتهت الكمية المتاحة لهذا الكود'
+      case 'already_used':
+        return 'لقد استخدمت هذا الكود من قبل'
+      case 'offline':
+      case 'local':
+        return 'خدمة أكواد الخصم غير متاحة حالياً'
+      default:
+        return 'تعذر تطبيق الكود، حاول لاحقاً'
+    }
+  }
+
+  const applyCoupon = async () => {
+    const code = couponInput.trim()
+    if (!code || couponChecking) {
+      return
+    }
+
+    const customerPhone = recipient.phone.trim() || phone
+    if (!customerPhone) {
+      setCouponMsg('أدخل رقم واتساب المستلم أولاً')
+      return
+    }
+
+    setCouponChecking(true)
+    setCouponMsg('')
+    try {
+      const result = await appApi.orders.redeemCoupon({
+        code,
+        phone: customerPhone,
+        deviceId: getDeviceId(),
+        store: selectedStore,
+        subtotalSyp: baseCheckoutTotal,
+      })
+      if (result.valid && result.discountSyp > 0) {
+        setAppliedCoupon({ code: result.code || code.toUpperCase(), discountSyp: result.discountSyp })
+        setCouponInput('')
+        setCouponMsg('')
+        showNotice(`تم تطبيق كود الخصم ${result.code || code.toUpperCase()}`)
+      } else {
+        setCouponMsg(couponReasonMessage(result.reason))
+      }
+    } catch {
+      setCouponMsg('تعذر تطبيق الكود، حاول لاحقاً')
+    } finally {
+      setCouponChecking(false)
+    }
   }
 
   const requestDeviceNotifications = () => {
@@ -712,6 +783,9 @@ function App() {
     setCartGroup(null)
     setPendingPayment(null)
     setPendingWalletTopUp(null)
+    setAppliedCoupon(null)
+    setCouponInput('')
+    setCouponMsg('')
     setAppliedReferralCode('')
     setReferralCodeInput('')
     setCurrentOrderId('')
@@ -899,13 +973,19 @@ function App() {
     ? [{ label: 'مجموع منتجات الطلب المشترك', value: activeCheckoutProductsTotal }, ...currentShippingFees]
     : breakdown
   const baseCheckoutTotal = cartGroup && groupCheckoutItems.length > 0 ? activeCheckoutTotal : total
-  const appliedReferralDiscountSyp = appliedReferralCode && referralDiscountSyp > 0
-    ? Math.min(referralDiscountSyp, baseCheckoutTotal)
+  const couponDiscountSyp = appliedCoupon
+    ? Math.min(Math.max(0, appliedCoupon.discountSyp), baseCheckoutTotal)
     : 0
-  const checkoutBreakdown = appliedReferralDiscountSyp > 0
-    ? [...baseCheckoutBreakdown, { label: 'خصم الإحالة', value: -appliedReferralDiscountSyp }]
-    : baseCheckoutBreakdown
-  const checkoutTotal = Math.max(0, baseCheckoutTotal - appliedReferralDiscountSyp)
+  const afterCouponTotal = Math.max(0, baseCheckoutTotal - couponDiscountSyp)
+  const appliedReferralDiscountSyp = appliedReferralCode && referralDiscountSyp > 0
+    ? Math.min(referralDiscountSyp, afterCouponTotal)
+    : 0
+  const checkoutBreakdown = [
+    ...baseCheckoutBreakdown,
+    ...(couponDiscountSyp > 0 ? [{ label: `خصم (${appliedCoupon!.code})`, value: -couponDiscountSyp }] : []),
+    ...(appliedReferralDiscountSyp > 0 ? [{ label: 'خصم الإحالة', value: -appliedReferralDiscountSyp }] : []),
+  ]
+  const checkoutTotal = Math.max(0, afterCouponTotal - appliedReferralDiscountSyp)
   const meetsMinimumOrder = subtotal >= MIN_ORDER_SYP || subtotal / exchangeRate >= MIN_ORDER_USD || groupTotalUsd >= MIN_ORDER_USD
   const hasIncompleteCustom = cartItems.some(
     (item) => (item.needsCustomText && !item.customText?.trim()) ||
@@ -1730,6 +1810,9 @@ function App() {
           setCurrentOrderId(result.orderId)
           setCartItems([])
           setCartGroup(null)
+          setAppliedCoupon(null)
+          setCouponInput('')
+          setCouponMsg('')
           setAppliedReferralCode('')
           setReferralCodeInput('')
           addNotification({ type: 'payment', title: 'تم استلام طلبك', body: `طلبك ${result.orderId} قيد المعالجة.`, orderId: result.orderId })
@@ -1746,6 +1829,9 @@ function App() {
           expiresAt: result.paymentExpiresAt,
           store: selectedStore,
         })
+        setAppliedCoupon(null)
+        setCouponInput('')
+        setCouponMsg('')
         setAppliedReferralCode('')
         setReferralCodeInput('')
         setScreen('payment')
@@ -2575,9 +2661,44 @@ function App() {
             )}
             <InfoRow icon="inventory_2" title="طريقة التوصيل" body="التسليم داخل سوريا عبر القدموس عند توفر رقم الشحنة." />
             <CurrencyToggle value={paymentCurrency} onChange={setPaymentCurrency} />
+            <section className="coupon-box">
+              <p>كود الخصم</p>
+              {appliedCoupon ? (
+                <div className="coupon-success">
+                  تم تطبيق خصم {formatMoney(couponDiscountSyp)}
+                  {' '}
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={() => {
+                      setAppliedCoupon(null)
+                      setCouponInput('')
+                      setCouponMsg('')
+                    }}
+                  >
+                    إزالة
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="coupon-input">
+                    <input
+                      value={couponInput}
+                      onChange={(event) => setCouponInput(event.target.value.toUpperCase())}
+                      placeholder="أدخل كود الخصم"
+                      dir="ltr"
+                    />
+                    <button disabled={couponChecking || !couponInput.trim()} onClick={() => void applyCoupon()}>
+                      {couponChecking ? '...' : 'تطبيق'}
+                    </button>
+                  </div>
+                  {couponMsg && <div className="coupon-note">{couponMsg}</div>}
+                </>
+              )}
+            </section>
             {referralDiscountSyp > 0 && (
               <section className="coupon-box">
-                <p>كود الخصم</p>
+                <p>كود الإحالة</p>
                 <div className="coupon-input">
                   <input
                     value={referralCodeInput}
@@ -2589,7 +2710,7 @@ function App() {
                       }
                     }}
                     inputMode="tel"
-                    placeholder="أدخل رقم الإحالة أو كود الخصم"
+                    placeholder="أدخل رقم الإحالة"
                     dir="ltr"
                   />
                   <button disabled={isValidatingReferralCode} onClick={applyReferralDiscount}>
@@ -2598,7 +2719,7 @@ function App() {
                 </div>
                 {appliedReferralCode && (
                   <div className="coupon-success">
-                    تم تطبيق خصم {formatMoney(appliedReferralDiscountSyp)}
+                    تم تطبيق خصم الإحالة {formatMoney(appliedReferralDiscountSyp)}
                     {' '}
                     <button
                       type="button"

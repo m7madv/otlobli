@@ -1,7 +1,22 @@
 import { useEffect, useMemo, useState } from 'react'
 
-type AdminTab = 'dashboard' | 'orders' | 'payments' | 'shipping' | 'customers' | 'drivers' | 'settings'
+type AdminTab = 'dashboard' | 'orders' | 'payments' | 'shipping' | 'customers' | 'drivers' | 'coupons' | 'settings'
 type PaymentStatus = 'بانتظار الدفع' | 'مدفوع' | 'فشل المطابقة'
+
+type Coupon = {
+  id: string
+  code: string
+  kind: 'percent' | 'fixed'
+  value: number
+  appliesTo: 'all' | 'shein' | 'temu'
+  active: boolean
+  maxUses: number | null
+  usedCount: number
+  minSubtotalSyp: number
+  startsAt: string | null
+  expiresAt: string | null
+  createdAt: string
+}
 
 type CartItem = {
   id: string
@@ -162,6 +177,7 @@ const stripBom = (s: string | undefined) => (s || '').replace(/[\uFEFF\u200B\u20
 const SUPABASE_URL = stripBom(import.meta.env.VITE_SUPABASE_URL as string | undefined)
 const ADMIN_ORDERS_FN   = `${SUPABASE_URL}/functions/v1/admin-orders`
 const ADMIN_DRIVERS_FN  = `${SUPABASE_URL}/functions/v1/admin-drivers`
+const ADMIN_COUPONS_FN  = `${SUPABASE_URL}/functions/v1/admin-coupons`
 const APP_SETTINGS_FN   = `${SUPABASE_URL}/functions/v1/app-settings`
 const ANON_KEY = stripBom(import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)
 const ADMIN_SESSION_STORAGE_KEY = 'talabieh_admin_session'
@@ -280,6 +296,20 @@ async function patchDriver(pin: string, driverId: string, patch: Partial<Pick<Dr
   if (!response.ok) throw new Error('driver_update_failed')
 }
 
+async function deleteDriver(pin: string, driverId: string) {
+  const response = await fetch(ADMIN_DRIVERS_FN, {
+    method: 'DELETE',
+    headers: {
+      'content-type': 'application/json',
+      'x-admin-pin': pin,
+      'apikey': ANON_KEY,
+      'authorization': `Bearer ${ANON_KEY}`,
+    },
+    body: JSON.stringify({ driverId }),
+  })
+  if (!response.ok) throw new Error('driver_delete_failed')
+}
+
 async function patchOrder(pin: string, orderId: string, patch: Partial<Order>) {
   const response = await fetch(ADMIN_ORDERS_FN, {
     method: 'PATCH',
@@ -306,6 +336,64 @@ async function deleteOrderApi(pin: string, orderId: string) {
     body: JSON.stringify({ orderId }),
   })
   if (!response.ok) throw new Error('order_delete_failed')
+}
+
+function couponHeaders(pin: string) {
+  return {
+    'content-type': 'application/json',
+    'x-admin-pin': pin,
+    apikey: ANON_KEY,
+    authorization: `Bearer ${ANON_KEY}`,
+  }
+}
+
+async function fetchCoupons(pin: string) {
+  const response = await fetch(ADMIN_COUPONS_FN, {
+    headers: couponHeaders(pin),
+  })
+  if (!response.ok) throw new Error('coupons_unavailable')
+  const payload = (await response.json()) as { coupons: Coupon[] }
+  return payload.coupons ?? []
+}
+
+async function createCouponApi(pin: string, input: {
+  code: string
+  kind: 'percent' | 'fixed'
+  value: number
+  appliesTo: 'all' | 'shein' | 'temu'
+  maxUses: number | null
+  minSubtotalSyp: number
+  expiresAt: string | null
+}) {
+  const response = await fetch(ADMIN_COUPONS_FN, {
+    method: 'POST',
+    headers: couponHeaders(pin),
+    body: JSON.stringify(input),
+  })
+  if (!response.ok) {
+    const errorBody = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(errorBody.error || 'coupon_create_failed')
+  }
+  const payload = (await response.json()) as { coupon: Coupon }
+  return payload.coupon
+}
+
+async function patchCouponApi(pin: string, couponId: string, patch: { active?: boolean }) {
+  const response = await fetch(ADMIN_COUPONS_FN, {
+    method: 'PATCH',
+    headers: couponHeaders(pin),
+    body: JSON.stringify({ couponId, patch }),
+  })
+  if (!response.ok) throw new Error('coupon_update_failed')
+}
+
+async function deleteCouponApi(pin: string, couponId: string) {
+  const response = await fetch(ADMIN_COUPONS_FN, {
+    method: 'DELETE',
+    headers: couponHeaders(pin),
+    body: JSON.stringify({ couponId }),
+  })
+  if (!response.ok) throw new Error('coupon_delete_failed')
 }
 
 // ── Main App ──────────────────────────────────────────────────────────────────
@@ -538,6 +626,7 @@ function AdminApp() {
           ['shipping', 'الشحن', 'local_shipping'],
           ['customers', 'العملاء', 'group'],
           ['drivers', 'السواقين', 'local_shipping'],
+          ['coupons', 'أكواد الخصم', 'sell'],
           ['settings', 'الإعدادات', 'settings'],
         ] as const).map(([key, label, icon]) => (
           <button className={tab === key ? 'is-active' : ''} key={key} onClick={() => setTab(key as AdminTab)}>
@@ -548,9 +637,6 @@ function AdminApp() {
             )}
           </button>
         ))}
-        <a className="customer-link" href="https://talabieh.vercel.app" rel="noreferrer" target="_blank">
-          فتح تطبيق الزبون
-        </a>
       </aside>
 
       <main className="main">
@@ -593,6 +679,7 @@ function AdminApp() {
           />
         )}
         {tab === 'drivers' && <DriversPanel pin={pin} showNotice={showNotice} />}
+        {tab === 'coupons' && <CouponsPanel pin={pin} showNotice={showNotice} />}
         {tab === 'settings' && (
           <SettingsPanel
             pin={pin}
@@ -1182,6 +1269,17 @@ function DriversPanel({ pin, showNotice }: { pin: string; showNotice: (message: 
       .catch(() => showNotice('فشل تحديث السواق'))
   }
 
+  const removeDriver = (driver: Driver) => {
+    if (!window.confirm(`حذف السواق «${driver.name}» نهائياً؟`)) return
+    setDrivers((list) => list.filter((entry) => entry.id !== driver.id))
+    void deleteDriver(pin, driver.id)
+      .then(() => showNotice('تم حذف السواق'))
+      .catch(() => {
+        showNotice('فشل حذف السواق')
+        load()
+      })
+  }
+
   return (
     <section className="panel table-panel drivers-panel">
       <header>
@@ -1226,7 +1324,12 @@ function DriversPanel({ pin, showNotice }: { pin: string; showNotice: (message: 
                 <td><span>{driver.loginCode}</span><CopyBtn text={driver.loginCode} /></td>
                 <td><StatusBadge tone={driver.isActive ? 'success' : 'neutral'}>{driver.isActive ? 'فعّال' : 'معطّل'}</StatusBadge></td>
                 <td>
-                  <button onClick={() => toggleActive(driver)}>{driver.isActive ? 'تعطيل' : 'تفعيل'}</button>
+                  <div className="row-actions">
+                    <button onClick={() => toggleActive(driver)}>{driver.isActive ? 'تعطيل' : 'تفعيل'}</button>
+                    <button className="icon-btn danger" onClick={() => removeDriver(driver)} title="حذف السواق">
+                      <Icon name="delete" />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -1236,6 +1339,189 @@ function DriversPanel({ pin, showNotice }: { pin: string; showNotice: (message: 
           </tbody>
         </table>
       </div>
+    </section>
+  )
+}
+
+function CouponsPanel({ pin, showNotice }: { pin: string; showNotice: (message: string) => void }) {
+  const [coupons, setCoupons] = useState<Coupon[]>([])
+  const [loaded, setLoaded] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [code, setCode] = useState('')
+  const [kind, setKind] = useState<'percent' | 'fixed'>('percent')
+  const [value, setValue] = useState('')
+  const [appliesTo, setAppliesTo] = useState<'all' | 'shein' | 'temu'>('all')
+  const [minSubtotal, setMinSubtotal] = useState('')
+  const [maxUses, setMaxUses] = useState('')
+  const [expiresAt, setExpiresAt] = useState('')
+
+  const reload = () => {
+    void fetchCoupons(pin)
+      .then((list) => {
+        setCoupons(list)
+        setLoaded(true)
+      })
+      .catch(() => {
+        setLoaded(true)
+        showNotice('تعذر جلب أكواد الخصم')
+      })
+  }
+
+  useEffect(reload, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const createCoupon = () => {
+    const normalizedCode = code.trim().toUpperCase()
+    const numericValue = Number(value)
+    if (!normalizedCode || !(numericValue > 0)) {
+      showNotice('أدخل رمزاً وقيمة صحيحة')
+      return
+    }
+    if (kind === 'percent' && numericValue > 100) {
+      showNotice('النسبة يجب أن تكون 100 أو أقل')
+      return
+    }
+
+    setBusy(true)
+    void createCouponApi(pin, {
+      code: normalizedCode,
+      kind,
+      value: numericValue,
+      appliesTo,
+      maxUses: maxUses.trim() ? Math.max(1, Math.round(Number(maxUses))) : null,
+      minSubtotalSyp: Math.max(0, Math.round(Number(minSubtotal) || 0)),
+      expiresAt: expiresAt.trim() ? new Date(expiresAt).toISOString() : null,
+    })
+      .then((coupon) => {
+        setCoupons((list) => [coupon, ...list])
+        setCode('')
+        setValue('')
+        setMinSubtotal('')
+        setMaxUses('')
+        setExpiresAt('')
+        showNotice('تم إنشاء كود الخصم')
+      })
+      .catch((error: Error) => {
+        showNotice(error.message === 'code_exists' ? 'الكود موجود مسبقاً' : 'فشل إنشاء الكود')
+      })
+      .finally(() => setBusy(false))
+  }
+
+  const toggleCoupon = (coupon: Coupon) => {
+    setCoupons((list) => list.map((entry) => (
+      entry.id === coupon.id ? { ...entry, active: !entry.active } : entry
+    )))
+    void patchCouponApi(pin, coupon.id, { active: !coupon.active })
+      .then(() => showNotice(coupon.active ? 'تم تعطيل الكود' : 'تم تفعيل الكود'))
+      .catch(() => {
+        showNotice('فشل تحديث الكود')
+        reload()
+      })
+  }
+
+  const removeCoupon = (coupon: Coupon) => {
+    if (!window.confirm(`حذف الكود «${coupon.code}» نهائياً؟`)) {
+      return
+    }
+    setCoupons((list) => list.filter((entry) => entry.id !== coupon.id))
+    void deleteCouponApi(pin, coupon.id)
+      .then(() => showNotice('تم حذف الكود'))
+      .catch(() => {
+        showNotice('فشل حذف الكود')
+        reload()
+      })
+  }
+
+  const describeCoupon = (coupon: Coupon) => {
+    const amount = coupon.kind === 'percent' ? `${coupon.value}%` : `${coupon.value}$`
+    const storeLabel = coupon.appliesTo === 'all'
+      ? 'كل المتاجر'
+      : coupon.appliesTo === 'temu'
+        ? 'Temu'
+        : 'SHEIN'
+    return `خصم ${amount} · ${storeLabel}`
+  }
+
+  return (
+    <section className="panel coupons-panel">
+      <h2>أكواد الخصم</h2>
+
+      <div className="card-box">
+        <h3>إنشاء كود جديد</h3>
+        <div className="coupon-form-grid">
+          <label className="field">
+            <span>الرمز</span>
+            <input value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} placeholder="WELCOME10" />
+          </label>
+          <label className="field">
+            <span>النوع</span>
+            <select value={kind} onChange={(event) => setKind(event.target.value as 'percent' | 'fixed')}>
+              <option value="percent">نسبة مئوية</option>
+              <option value="fixed">مبلغ ثابت بالدولار</option>
+            </select>
+          </label>
+          <label className="field">
+            <span>القيمة</span>
+            <input type="number" min="0" step="1" value={value} onChange={(event) => setValue(event.target.value)} />
+          </label>
+          <label className="field">
+            <span>المتجر</span>
+            <select value={appliesTo} onChange={(event) => setAppliesTo(event.target.value as 'all' | 'shein' | 'temu')}>
+              <option value="all">كل المتاجر</option>
+              <option value="shein">SHEIN</option>
+              <option value="temu">Temu</option>
+            </select>
+          </label>
+          <label className="field">
+            <span>الحد الأدنى (ل.س)</span>
+            <input type="number" min="0" step="1000" value={minSubtotal} onChange={(event) => setMinSubtotal(event.target.value)} />
+          </label>
+          <label className="field">
+            <span>عدد الاستخدامات</span>
+            <input type="number" min="1" step="1" value={maxUses} onChange={(event) => setMaxUses(event.target.value)} placeholder="اختياري" />
+          </label>
+          <label className="field">
+            <span>تاريخ الانتهاء</span>
+            <input type="date" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} />
+          </label>
+        </div>
+        <button className="primary-btn" disabled={busy} onClick={createCoupon}>
+          <Icon name="add" /> إنشاء الكود
+        </button>
+        <p className="coupon-hint">الاستخدام مرة واحدة لكل رقم هاتف ولكل جهاز.</p>
+      </div>
+
+      {!loaded ? (
+        <p className="muted">جار تحميل الأكواد...</p>
+      ) : coupons.length === 0 ? (
+        <p className="muted">لا توجد أكواد بعد.</p>
+      ) : (
+        <div className="coupon-list">
+          {coupons.map((coupon) => (
+            <div className={`coupon-item${coupon.active ? '' : ' is-off'}`} key={coupon.id}>
+              <div className="coupon-item-main">
+                <strong className="coupon-code">{coupon.code}</strong>
+                <span className="coupon-desc">{describeCoupon(coupon)}</span>
+                <small className="coupon-meta">
+                  استُخدم {coupon.usedCount}{coupon.maxUses ? ` / ${coupon.maxUses}` : ''}
+                  {coupon.expiresAt ? ` · ينتهي ${new Date(coupon.expiresAt).toLocaleDateString('ar-SY')}` : ''}
+                  {coupon.minSubtotalSyp ? ` · حد أدنى ${formatMoney(coupon.minSubtotalSyp)}` : ''}
+                </small>
+              </div>
+              <div className="coupon-item-actions">
+                <StatusBadge tone={coupon.active ? 'success' : 'neutral'}>
+                  {coupon.active ? 'مفعل' : 'معطل'}
+                </StatusBadge>
+                <button className="icon-btn" onClick={() => toggleCoupon(coupon)} title={coupon.active ? 'تعطيل' : 'تفعيل'}>
+                  <Icon name={coupon.active ? 'toggle_on' : 'toggle_off'} />
+                </button>
+                <button className="icon-btn danger" onClick={() => removeCoupon(coupon)} title="حذف">
+                  <Icon name="delete" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </section>
   )
 }
@@ -1525,7 +1811,7 @@ function SettingsPanel({
       </fieldset>
 
       <fieldset className="settings-group">
-        <legend>كود الخصم</legend>
+        <legend>خصم الإحالة</legend>
         <label className="field">
           <span>قيمة خصم الإحالة بالليرة السورية</span>
           <div className="settings-row">
