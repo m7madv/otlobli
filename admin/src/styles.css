@@ -1345,3 +1345,52 @@ tr.row-done td { opacity: 0.65; }
 @media (max-width: 1040px) {
   .driver-add-form { grid-template-columns: 1fr; }
 }
+
+.table-panel header > div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.panel-head-actions,
+.selection-actions,
+.compact-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.selection-actions {
+  justify-content: flex-end;
+}
+
+tr.row-selected td {
+  background: var(--primary-soft);
+  opacity: 1;
+}
+
+.issue-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+  margin-top: 10px;
+}
+
+@media (max-width: 720px) {
+  .issue-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .selection-actions,
+  .panel-head-actions,
+  .compact-panel-head {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .selection-actions button,
+  .panel-head-actions button,
+  .compact-panel-head button {
+    flex: 1;
+  }
+}

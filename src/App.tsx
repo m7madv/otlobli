@@ -68,6 +68,16 @@ const STORES: { id: StoreId; name: string; url: string }[] = [
 ]
 const storeUrl = (id: string) => (STORES.find((s) => s.id === id)?.url) ?? SHEIN_HOME_URL
 
+function getOrderStore(order: Pick<Order, 'items'>): StoreId {
+  const firstLink = order.items[0]?.sourceLink ?? ''
+  return /temu\.com/i.test(firstLink) ? 'temu' : 'shein'
+}
+
+function StoreBadge({ store }: { store: StoreId }) {
+  const label = store === 'temu' ? 'Temu' : 'SHEIN'
+  return <span className={`store-badge store-badge--${store}`}>{label}</span>
+}
+
 const usesInboundWhatsappAuth = cleanEnvValue(import.meta.env.VITE_WHATSAPP_AUTH_MODE) === 'inbound'
 
 const COUNTRY_CODES = [
@@ -267,6 +277,7 @@ function App() {
   const [shamcashQrByStore, setShamcashQrByStore] = useState<Record<StoreId, string>>({ shein: '', temu: '' })
   const [shamcashCodeByStore, setShamcashCodeByStore] = useState<Record<StoreId, string>>({ shein: '', temu: '' })
   const [referralDiscountSyp, setReferralDiscountSyp] = useState(0)
+  const [productProfitPercent, setProductProfitPercent] = useState(0)
   const [couponInput, setCouponInput] = useState('')
   const [appliedCoupon, setAppliedCoupon] = useStoredState<{ code: string; discountSyp: number } | null>(
     'talabieh.appliedCoupon',
@@ -836,6 +847,7 @@ function App() {
         const shein = parseInt(data.shipping_cost_shein_syp ?? '0', 10)
         const temu = parseInt(data.shipping_cost_temu_syp ?? '0', 10)
         const referralDiscount = parseInt(data.referral_discount_syp ?? '0', 10)
+        const profitPercent = Number(data.product_profit_percent ?? '0')
         if (shein > 0) setShippingCostShein(shein)
         if (temu > 0) setShippingCostTemu(temu)
         setShamcashQrByStore({
@@ -847,6 +859,7 @@ function App() {
           temu: data.shamcash_code_temu ?? '',
         })
         setReferralDiscountSyp(referralDiscount > 0 ? referralDiscount : 0)
+        setProductProfitPercent(Number.isFinite(profitPercent) && profitPercent > 0 ? profitPercent : 0)
       })
       .catch(() => undefined)
   }, [])
@@ -937,8 +950,14 @@ function App() {
     return isVariantAvailable(activeProduct, selectedColor?.name ?? null, selectedSize)
   }, [activeProduct, selectedColor, selectedSize])
 
+  const applyProductProfit = (priceSyp: number) => {
+    const base = Math.max(0, Math.round(priceSyp || 0))
+    if (productProfitPercent <= 0) return base
+    return Math.round(base * (1 + productProfitPercent / 100))
+  }
+
   const getItemPriceSyp = (item: { priceSyp: number; priceUsd?: number }) =>
-    item.priceSyp > 0 ? item.priceSyp : Math.round((item.priceUsd ?? 0) * exchangeRate)
+    applyProductProfit(item.priceSyp > 0 ? item.priceSyp : Math.round((item.priceUsd ?? 0) * exchangeRate))
 
   // تكلفة الشحن تُحسب بحسب المتجر الحالي وتُحدَّث من الإدارة
   const currentShippingFees = useMemo(() => [
@@ -952,12 +971,12 @@ function App() {
     }
     return buildPriceBreakdown({
       label: 'سعر المنتج',
-      productPriceSyp: activeProduct?.priceSyp ?? 0,
+      productPriceSyp: applyProductProfit(activeProduct?.priceSyp ?? 0),
       quantity,
       fees: currentShippingFees,
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeProduct?.priceSyp, cartItems, quantity, exchangeRate, currentShippingFees])
+  }, [activeProduct?.priceSyp, cartItems, quantity, exchangeRate, currentShippingFees, productProfitPercent])
 
   const subtotal = useMemo(() => sumPriceLines(subtotalBreakdown), [subtotalBreakdown])
 
@@ -1786,7 +1805,10 @@ function App() {
       address: recipient.qadmousBranch
         ? `فرع القدموس: ${recipient.qadmousBranch}${recipient.details ? ' - ' + recipient.details : ''}`
         : recipient.details || 'فرع القدموس (لم يُحدَّد)',
-      items: activeCheckoutItems,
+      items: activeCheckoutItems.map((item) => ({
+        ...item,
+        priceSyp: getItemPriceSyp(item),
+      })),
       total: checkoutTotal,
       paymentStatus: 'بانتظار الدفع',
       statusIndex: 0,
@@ -2245,7 +2267,7 @@ function App() {
                 </div>
               ) : (
                 <div className="price-row">
-                  <strong>{formatMoney(activeProduct.priceSyp)}</strong>
+                  <strong>{formatMoney(getItemPriceSyp(activeProduct))}</strong>
                   <span>${activeProduct.priceUsd.toFixed(2)}</span>
                   <button
                     type="button"
@@ -2864,6 +2886,7 @@ function App() {
                 <div className="order-card-row">
                   <div>
                     <strong>{item.id}</strong>
+                    <StoreBadge store={getOrderStore(item)} />
                     <span>{orderStatuses[item.statusIndex]}</span>
                     <small>{item.items.length} منتج · {formatMoney(item.total)}</small>
                   </div>
@@ -2927,9 +2950,28 @@ function App() {
           <main className="mobile-content">
             <section className="tracking-head">
               <span>{order.id}</span>
+              <StoreBadge store={getOrderStore(order)} />
               <StatusBadge tone={order.paymentStatus === 'مدفوع' ? 'success' : 'pending'}>{order.paymentStatus}</StatusBadge>
               <StatusBadge tone="pending">{orderStatuses[order.statusIndex]}</StatusBadge>
               <p>{order.qadmousNumber ? `رقم القدموس: ${order.qadmousNumber}` : 'رقم القدموس سيظهر بعد تسليم الشحنة.'}</p>
+            </section>
+            <section className="tracking-products">
+              {order.items.map((item, index) => (
+                <article key={`${item.id || item.title}-${index}`}>
+                  <img
+                    src={item.image || 'https://placehold.co/54x54/f5f5f5/aaa?text=+'}
+                    alt=""
+                    onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/54x54/f5f5f5/aaa?text=+' }}
+                  />
+                  <div>
+                    <b>{item.title}</b>
+                    <small>
+                      {[item.color, item.size, `×${item.quantity ?? 1}`].filter(Boolean).join(' · ')}
+                    </small>
+                  </div>
+                  <strong>{formatMoney((item.priceSyp ?? 0) * (item.quantity ?? 1))}</strong>
+                </article>
+              ))}
             </section>
             <Timeline statusIndex={order.statusIndex} createdAt={order.createdAt} paidAt={order.paidAt} />
             {order.statusIndex === orderStatuses.length - 1 && (

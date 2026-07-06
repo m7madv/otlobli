@@ -714,6 +714,16 @@ export const supabaseAppApi: TalabiehApi = {
 // TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID المُعدّة مسبقاً هناك.
 function notifyNewOrder(orderPayload: Record<string, unknown>) {
   try {
+    const apiBase = cleanEnvValue(import.meta.env.VITE_WHATSAPP_API_URL)
+    if (apiBase) {
+      void fetch(`${apiBase}/api/orders/notify`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ order: orderPayload }),
+      }).catch(() => undefined)
+      return
+    }
+
     if (TELEGRAM_NOTIFY_URL && SUPABASE_ANON_KEY) {
       void fetch(TELEGRAM_NOTIFY_URL, {
         method: 'POST',
@@ -725,15 +735,6 @@ function notifyNewOrder(orderPayload: Record<string, unknown>) {
         body: JSON.stringify({ order: orderPayload }),
       }).catch(() => undefined)
       return
-    }
-
-    const apiBase = cleanEnvValue(import.meta.env.VITE_WHATSAPP_API_URL)
-    if (apiBase) {
-      void fetch(`${apiBase}/api/orders/notify`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ order: orderPayload }),
-      }).catch(() => undefined)
     }
   } catch { /* إشعار غير حيوي */ }
 }

@@ -10,7 +10,7 @@ Do not trust older context files before checking these two files.
 ## Active source of truth
 
 - Branch: `codex/customer-wallet-group-orders`
-- Latest commit at handoff time: `a16e09c`
+- Latest published commit at handoff time: this document's commit on `codex/customer-wallet-group-orders`
 - Customer app source:
   - `src/App.tsx`
   - `src/services/supabaseAppApi.ts`
@@ -24,6 +24,36 @@ Do not trust older context files before checking these two files.
   - `supabase/functions/admin-drivers/index.ts`
   - `supabase/functions/admin-coupons/index.ts`
   - `supabase/functions/app-settings/index.ts`
+
+## Latest production update in this handoff
+
+This handoff includes the admin/product-issue/mobile-operations update. Treat the files in this commit as newer than all older summaries and older branches.
+
+- Admin order issue handling:
+  - admin can select a specific product inside an order
+  - issue types cover price, size, color, custom photo, custom text, unavailable item, quantity, bad link, and other
+  - customer WhatsApp copy now says the order needs an action, not only a payment issue
+- Admin order list behavior:
+  - no order opens automatically unless opened from a deep link
+  - tapping an order opens it
+  - long press / context selection supports bulk delete
+- Admin mobile operations cleanup:
+  - driver creation form is collapsed behind "add driver"
+  - coupon creation form is collapsed behind "create coupon"
+- Product profit setting:
+  - `product_profit_percent` is stored in `app_settings`
+  - app applies it to product prices only
+  - it is not shown as a separate line to customers
+- Customer app updates:
+  - order cards show a small store badge for SHEIN/Temu
+  - tracking shows compact product rows
+  - tracking timeline is smaller
+- Notifications/deployment behavior:
+  - new-order Telegram notification now tries the Railway/WhatsApp server `/api/orders/notify` first
+  - Supabase `telegram-notify` remains only a fallback
+- Android:
+  - default Capacitor splash image was removed from the launch theme
+  - Android launch background now uses app colors
 
 ## What is restored and working
 
@@ -74,11 +104,17 @@ If someone reads only one old context file or assumes `main` is newest, old UI/f
 4. Before saying a feature was "deleted", search current branch and branch history.
 5. Before changing admin UI, inspect `admin/src/AdminApp.tsx` on the active branch.
 6. Do not use old context files as source of truth if they conflict with this file.
+7. Before deploying or building, confirm the active branch is `codex/customer-wallet-group-orders` and that these latest admin/product-issue/profit changes are present.
+8. Do not restore admin UI from older branches unless manually cherry-picking only reviewed changes.
 
 ## Deployment state
 
 - Admin production URL:
   - `https://talabieh-admin.vercel.app`
+- Customer production project:
+  - Vercel project `talabieh`
+- Admin production project:
+  - Vercel project `talabieh-admin`
 - Supabase project ref:
   - `dcicqdprtyhwmhegabay`
 - Latest successful iPhone unsigned build run:
@@ -92,3 +128,9 @@ If someone reads only one old context file or assumes `main` is newest, old UI/f
 - redeployed admin dashboard
 - pushed branch updates to GitHub
 - documented why old admin state had returned
+- added admin product/order issue workflow with WhatsApp action messages
+- added bulk order selection/delete and stopped automatic order opening
+- collapsed driver/coupon creation forms for phone-friendly admin work
+- added hidden product-profit setting
+- added store badges and compact tracking products in customer app
+- fixed Telegram notify path preference and Android launch splash background

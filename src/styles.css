@@ -1894,6 +1894,101 @@ a {
   border-right: 4px solid var(--primary);
 }
 
+.store-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 22px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.store-badge--shein {
+  background: #111;
+  color: #fff;
+}
+
+.store-badge--temu {
+  background: #ff6a00;
+  color: #fff;
+}
+
+.tracking-products {
+  display: grid;
+  gap: 8px;
+}
+
+.tracking-products article {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border: 1px solid var(--outline);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.tracking-products img {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.tracking-products b,
+.tracking-products small {
+  display: block;
+}
+
+.tracking-products b {
+  overflow: hidden;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tracking-products small {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.tracking-products strong {
+  color: var(--primary);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.timeline > div {
+  grid-template-columns: 32px 1fr;
+  gap: 8px;
+  padding-bottom: 12px;
+}
+
+.timeline > div::before {
+  top: 30px;
+  right: 14px;
+}
+
+.timeline > div > span {
+  width: 28px;
+  height: 28px;
+}
+
+.timeline h3 {
+  font-size: 0.84rem;
+}
+
+.timeline p,
+.timeline small {
+  font-size: 0.74rem;
+  line-height: 1.5;
+}
+
 .toast {
   position: fixed;
   right: 50%;

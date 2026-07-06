@@ -114,13 +114,13 @@ async function notifyCustomerPaymentIssue(
 ) {
   if (!WHATSAPP_SERVER_URL || !phone) return
   const lines = [
-    `⚠️ *مشكلة بالدفع على طلبك ${order.id}*`,
-    order.note || 'يوجد فرق بسعر إحدى القطع.',
+    `⚠️ *طلبك ${order.id} يحتاج إجراء منك*`,
+    order.note || 'يوجد تفصيل يحتاج مراجعتك قبل متابعة الطلب.',
   ]
   if (order.extraAmountUsd > 0) {
-    lines.push(`المبلغ المتبقي: $${order.extraAmountUsd.toFixed(2)}`)
+    lines.push(`المبلغ المطلوب إضافياً: $${order.extraAmountUsd.toFixed(2)}`)
   }
-  lines.push('', 'افتح التطبيق وتابع التفاصيل من صفحة طلباتي.')
+  lines.push('', 'افتح التطبيق من صفحة طلباتي لمراجعة التفاصيل وإكمال المطلوب.')
 
   try {
     await fetch(`${WHATSAPP_SERVER_URL}/api/notify/whatsapp`, {

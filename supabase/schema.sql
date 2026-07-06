@@ -521,6 +521,7 @@ values
   ('shamcash_code_shein', ''),
   ('shamcash_code_temu', ''),
   ('referral_discount_syp', '0'),
+  ('product_profit_percent', '0'),
   ('admin_session_version', '1')
 on conflict (key) do nothing;
 

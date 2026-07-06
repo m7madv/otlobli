@@ -406,6 +406,7 @@ function AdminApp() {
   const [customers, setCustomers] = useState<Customer[]>([])
   const [driverOptions, setDriverOptions] = useState<DriverOption[]>([])
   const [selectedOrderId, setSelectedOrderId] = useState('')
+  const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(() => new Set())
   const [modalOrderId, setModalOrderId] = useState('')
   const [tab, setTab] = useState<AdminTab>('dashboard')
   const [search, setSearch] = useState('')
@@ -414,7 +415,7 @@ function AdminApp() {
   const [deepLinkOrderId] = useState(() => new URLSearchParams(window.location.search).get('order') ?? '')
   const { tracked, toggle: toggleCart, markAll: markAllCart } = useCartTracked()
 
-  const selectedOrder = orders.find((o) => o.id === selectedOrderId) ?? orders[0]
+  const selectedOrder = orders.find((o) => o.id === selectedOrderId)
   const modalOrder = orders.find((o) => o.id === modalOrderId)
 
   const filteredOrders = orders.filter((order) => {
@@ -469,7 +470,7 @@ function AdminApp() {
       writeAdminSession({ pin: nextPin, version: nextVersion })
       const autoSelect = deepLinkOrderId && nextOrders.find((o) => o.id === deepLinkOrderId)
         ? deepLinkOrderId
-        : nextOrders[0]?.id ?? ''
+        : ''
       setSelectedOrderId(autoSelect)
       if (deepLinkOrderId && autoSelect === deepLinkOrderId) {
         setTab('dashboard')
@@ -568,10 +569,40 @@ function AdminApp() {
   const deleteOrder = (orderId: string) => {
     if (!window.confirm(`حذف الطلب ${orderId} نهائياً؟ لا يمكن التراجع.`)) return
     setOrders((list) => list.filter((o) => o.id !== orderId))
+    setSelectedOrderIds((prev) => {
+      const next = new Set(prev)
+      next.delete(orderId)
+      return next
+    })
+    setSelectedOrderId((current) => current === orderId ? '' : current)
     setModalOrderId('')
     void deleteOrderApi(pin, orderId)
       .then(() => showNotice('تم حذف الطلب'))
       .catch(() => { showNotice('فشل حذف الطلب'); refresh() })
+  }
+
+  const toggleSelectedOrder = (orderId: string) => {
+    setSelectedOrderIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(orderId)) next.delete(orderId)
+      else next.add(orderId)
+      return next
+    })
+  }
+
+  const clearSelectedOrders = () => setSelectedOrderIds(new Set())
+
+  const deleteSelectedOrders = () => {
+    const ids = [...selectedOrderIds]
+    if (!ids.length) return
+    if (!window.confirm(`حذف ${ids.length} طلب نهائياً؟ لا يمكن التراجع.`)) return
+    setOrders((list) => list.filter((o) => !selectedOrderIds.has(o.id)))
+    setSelectedOrderIds(new Set())
+    setSelectedOrderId((current) => selectedOrderIds.has(current) ? '' : current)
+    setModalOrderId((current) => selectedOrderIds.has(current) ? '' : current)
+    void Promise.all(ids.map((id) => deleteOrderApi(pin, id)))
+      .then(() => showNotice('تم حذف الطلبات المحددة'))
+      .catch(() => { showNotice('فشل حذف بعض الطلبات'); refresh() })
   }
 
   const markPaid = (order: Order) => {
@@ -584,6 +615,10 @@ function AdminApp() {
   }
 
   const openModal = (orderId: string) => {
+    if (selectedOrderIds.size > 0) {
+      toggleSelectedOrder(orderId)
+      return
+    }
     setSelectedOrderId(orderId)
     setModalOrderId(orderId)
   }
@@ -661,13 +696,44 @@ function AdminApp() {
               <StatCard icon="monetization_on" label="إجمالي المبيعات" value={formatMoney(stats.sales)} note="طلبات مدفوعة" dark />
             </section>
             <section className="content-grid">
-              <OrdersTable orders={filteredOrders.slice(0, 8)} tracked={tracked} onOpen={openModal} onMarkPaid={markPaid} />
+              <OrdersTable
+                orders={filteredOrders.slice(0, 8)}
+                tracked={tracked}
+                selectedIds={selectedOrderIds}
+                onOpen={openModal}
+                onToggleSelect={toggleSelectedOrder}
+                onClearSelection={clearSelectedOrders}
+                onDeleteSelected={deleteSelectedOrders}
+                onMarkPaid={markPaid}
+              />
               <OrderDetail order={selectedOrder} drivers={driverOptions} onOpen={openModal} onMarkPaid={markPaid} onAdvance={advanceOrder} onUpdate={updateOrder} />
             </section>
           </>
         )}
-        {tab === 'orders' && <OrdersTable orders={filteredOrders} tracked={tracked} onOpen={openModal} onMarkPaid={markPaid} />}
-        {tab === 'payments' && <OrdersTable orders={filteredOrders.filter((o) => o.paymentStatus !== 'مدفوع')} tracked={tracked} onOpen={openModal} onMarkPaid={markPaid} />}
+        {tab === 'orders' && (
+          <OrdersTable
+            orders={filteredOrders}
+            tracked={tracked}
+            selectedIds={selectedOrderIds}
+            onOpen={openModal}
+            onToggleSelect={toggleSelectedOrder}
+            onClearSelection={clearSelectedOrders}
+            onDeleteSelected={deleteSelectedOrders}
+            onMarkPaid={markPaid}
+          />
+        )}
+        {tab === 'payments' && (
+          <OrdersTable
+            orders={filteredOrders.filter((o) => o.paymentStatus !== 'مدفوع')}
+            tracked={tracked}
+            selectedIds={selectedOrderIds}
+            onOpen={openModal}
+            onToggleSelect={toggleSelectedOrder}
+            onClearSelection={clearSelectedOrders}
+            onDeleteSelected={deleteSelectedOrders}
+            onMarkPaid={markPaid}
+          />
+        )}
         {tab === 'shipping' && <ShippingList orders={filteredOrders} drivers={driverOptions} onAdvance={advanceOrder} onUpdate={updateOrder} onOpen={openModal} />}
         {tab === 'customers' && (
           <CustomersGrid
@@ -724,18 +790,34 @@ function StatCard({ icon, label, value, note, dark = false }: { icon: string; la
 
 // ── Orders Table ──────────────────────────────────────────────────────────────
 function OrdersTable({
-  orders, tracked, onOpen, onMarkPaid,
+  orders, tracked, selectedIds, onOpen, onToggleSelect, onClearSelection, onDeleteSelected, onMarkPaid,
 }: {
   orders: Order[]
   tracked: Set<string>
+  selectedIds: Set<string>
   onOpen: (orderId: string) => void
+  onToggleSelect: (orderId: string) => void
+  onClearSelection: () => void
+  onDeleteSelected: () => void
   onMarkPaid: (order: Order) => void
 }) {
+  const selectionActive = selectedIds.size > 0
+
   return (
     <section className="panel table-panel">
       <header>
-        <h2>الطلبات</h2>
-        <span>{orders.length} طلب</span>
+        <div>
+          <h2>الطلبات</h2>
+          <span>{selectionActive ? `${selectedIds.size} محدد` : `${orders.length} طلب`}</span>
+        </div>
+        {selectionActive && (
+          <div className="selection-actions">
+            <button className="ghost-action" onClick={onClearSelection}>إلغاء التحديد</button>
+            <button className="danger-action" onClick={onDeleteSelected}>
+              <Icon name="delete" /> حذف المحدد
+            </button>
+          </div>
+        )}
       </header>
       <div className="table-scroll">
         <table>
@@ -755,8 +837,18 @@ function OrdersTable({
               const items = order.items ?? []
               const addedCount = items.filter((_, i) => tracked.has(itemKey(order.id, i))).length
               const allAdded = items.length > 0 && addedCount === items.length
+              const selected = selectedIds.has(order.id)
               return (
-                <tr key={order.id} className={allAdded ? 'row-done' : ''}>
+                <tr
+                  key={order.id}
+                  className={`${allAdded ? 'row-done' : ''} ${selected ? 'row-selected' : ''}`}
+                  onClick={() => selectionActive ? onToggleSelect(order.id) : onOpen(order.id)}
+                  onDoubleClick={() => onOpen(order.id)}
+                  onContextMenu={(event) => {
+                    event.preventDefault()
+                    onToggleSelect(order.id)
+                  }}
+                >
                   <td><b>{order.id}</b></td>
                   <td>
                     <span>{order.customer}</span>
@@ -772,8 +864,32 @@ function OrdersTable({
                   </td>
                   <td>
                     <div className="row-actions">
-                      <button onClick={() => onOpen(order.id)} title="فتح تفاصيل الطلب"><Icon name="open_in_full" /></button>
-                      {order.paymentStatus !== 'مدفوع' && <button onClick={() => onMarkPaid(order)}>تأكيد الدفع</button>}
+                      <button
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          if (selectionActive) onToggleSelect(order.id)
+                          else onOpen(order.id)
+                        }}
+                        onPointerDown={(event) => {
+                          const timer = window.setTimeout(() => onToggleSelect(order.id), 520)
+                          const clear = () => window.clearTimeout(timer)
+                          event.currentTarget.addEventListener('pointerup', clear, { once: true })
+                          event.currentTarget.addEventListener('pointerleave', clear, { once: true })
+                        }}
+                        title={selectionActive ? 'تحديد الطلب' : 'فتح تفاصيل الطلب'}
+                      >
+                        <Icon name={selected ? 'check_circle' : 'open_in_full'} />
+                      </button>
+                      {order.paymentStatus !== 'مدفوع' && (
+                        <button
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            onMarkPaid(order)
+                          }}
+                        >
+                          تأكيد الدفع
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -904,16 +1020,42 @@ function OrderDetail({
   )
 }
 
-// ── Payment Issue Field (admin marks a price/payment mismatch) ───────────────
+const issueTypes = [
+  { value: 'price', label: 'فرق سعر / مبلغ إضافي', action: 'ادفع المبلغ المطلوب من التطبيق أو تواصل معنا لتأكيد الدفع.' },
+  { value: 'size', label: 'المقاس غير واضح أو غير متوفر', action: 'افتح التطبيق واختر المقاس الصحيح أو اكتب البديل المناسب.' },
+  { value: 'color', label: 'اللون غير واضح أو غير متوفر', action: 'افتح التطبيق وحدد اللون الصحيح أو البديل المناسب.' },
+  { value: 'custom_photo', label: 'منتج مخصص يحتاج صورة', action: 'افتح التطبيق وأرسل الصورة المطلوبة للمنتج.' },
+  { value: 'custom_text', label: 'منتج مخصص يحتاج نص أو اسم', action: 'افتح التطبيق واكتب النص المطلوب للمنتج.' },
+  { value: 'unavailable', label: 'المنتج غير متوفر', action: 'افتح التطبيق لاختيار بديل أو حذف المنتج من الطلب.' },
+  { value: 'quantity', label: 'مشكلة بالكمية', action: 'افتح التطبيق وأكد الكمية المطلوبة.' },
+  { value: 'link', label: 'رابط المنتج غير صالح', action: 'افتح التطبيق وأرسل رابط المنتج الصحيح.' },
+  { value: 'other', label: 'مشكلة أخرى', action: 'افتح التطبيق لمراجعة تفاصيل المشكلة.' },
+]
+
+function buildIssueNote(issueType: string, itemLabel: string, customNote: string) {
+  const type = issueTypes.find((entry) => entry.value === issueType) ?? issueTypes[0]
+  return [
+    `نوع المشكلة: ${type.label}`,
+    itemLabel ? `المنتج: ${itemLabel}` : '',
+    customNote.trim() ? `ملاحظة الإدارة: ${customNote.trim()}` : '',
+    `المطلوب من الزبون: ${type.action}`,
+  ].filter(Boolean).join('\n')
+}
+
+// ── Product / order issue field ──────────────────────────────────────────────
 function PaymentIssueField({ order, onUpdate }: { order: Order; onUpdate: (orderId: string, patch: Partial<Order>) => void }) {
   const [open, setOpen] = useState(order.paymentIssue)
-  const [note, setNote] = useState(order.paymentIssueNote)
+  const [issueType, setIssueType] = useState('price')
+  const [itemIndex, setItemIndex] = useState('')
+  const [customNote, setCustomNote] = useState(order.paymentIssueNote)
   const [amount, setAmount] = useState(String(order.extraAmountUsd || ''))
 
   const save = (issue: boolean) => {
+    const item = itemIndex === '' ? null : order.items[Number(itemIndex)]
+    const itemLabel = item ? `${Number(itemIndex) + 1}. ${item.title}` : ''
     onUpdate(order.id, {
       paymentIssue: issue,
-      paymentIssueNote: note,
+      paymentIssueNote: issue ? buildIssueNote(issueType, itemLabel, customNote) : '',
       extraAmountUsd: Number(amount) || 0,
     })
   }
@@ -929,20 +1071,41 @@ function PaymentIssueField({ order, onUpdate }: { order: Order; onUpdate: (order
             if (!e.target.checked) save(false)
           }}
         />
-        <span>مشكلة دفع / سعر خاطئ</span>
+        <span>مشكلة تحتاج إشعار الزبون</span>
       </label>
       {open && (
         <>
+          <div className="issue-grid">
+            <label className="field">
+              <span>المنتج</span>
+              <select value={itemIndex} onChange={(e) => setItemIndex(e.target.value)}>
+                <option value="">الطلب كامل / غير محدد</option>
+                {order.items.map((item, index) => (
+                  <option key={`${item.id || item.title}-${index}`} value={index}>
+                    {index + 1}. {item.title.slice(0, 70)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>نوع المشكلة</span>
+              <select value={issueType} onChange={(e) => setIssueType(e.target.value)}>
+                {issueTypes.map((entry) => (
+                  <option key={entry.value} value={entry.value}>{entry.label}</option>
+                ))}
+              </select>
+            </label>
+          </div>
           <textarea
-            placeholder="ملاحظة: أي منتج وليش الفرق بالسعر"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
+            placeholder="ملاحظة إضافية للزبون: مثال اللون المطلوب غير متوفر، أرسل صورة أو اختر بديل..."
+            value={customNote}
+            onChange={(e) => setCustomNote(e.target.value)}
           />
           <input
             type="number"
             min="0"
             step="0.01"
-            placeholder="المبلغ المتبقي بالدولار"
+            placeholder="المبلغ الإضافي بالدولار إن وجد"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
           />
@@ -1230,6 +1393,7 @@ function CustomersGrid({
 function DriversPanel({ pin, showNotice }: { pin: string; showNotice: (message: string) => void }) {
   const [drivers, setDrivers] = useState<Driver[]>([])
   const [loading, setLoading] = useState(false)
+  const [showForm, setShowForm] = useState(false)
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [loginCode, setLoginCode] = useState('')
@@ -1256,6 +1420,7 @@ function DriversPanel({ pin, showNotice }: { pin: string; showNotice: (message: 
     void createDriver(pin, trimmedName, trimmedPhone, trimmedCode)
       .then(() => {
         setName(''); setPhone(''); setLoginCode('')
+        setShowForm(false)
         showNotice(trimmedPhone ? 'تمت إضافة السواق وإرسال رمز الدخول له على واتساب' : 'تمت إضافة السواق — انسخ رمز الدخول من الجدول وسلّمه له')
         load()
       })
@@ -1284,26 +1449,34 @@ function DriversPanel({ pin, showNotice }: { pin: string; showNotice: (message: 
     <section className="panel table-panel drivers-panel">
       <header>
         <h2>السواقين</h2>
-        <span>{drivers.length} سواق</span>
+        <div className="panel-head-actions">
+          <span>{drivers.length} سواق</span>
+          <button className="ghost-action" onClick={() => setShowForm((value) => !value)}>
+            <Icon name={showForm ? 'close' : 'person_add'} />
+            {showForm ? 'إغلاق' : 'إضافة سائق'}
+          </button>
+        </div>
       </header>
 
-      <div className="driver-add-form">
-        <label className="field">
-          <span>الاسم</span>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="مثال: أبو محمد" />
-        </label>
-        <label className="field">
-          <span>كلمة السر / رمز الدخول (اختياري — لو فاضي بنولّده تلقائي)</span>
-          <input value={loginCode} onChange={(e) => setLoginCode(e.target.value)} placeholder="مثال: 7741" />
-        </label>
-        <label className="field">
-          <span>الهاتف (اختياري — لإشعار واتساب تلقائي)</span>
-          <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="مثال: 9613xxxxxxx" />
-        </label>
-        <button className="primary-action" disabled={loading} onClick={addDriver}>
-          <Icon name="person_add" /> إضافة سواق
-        </button>
-      </div>
+      {showForm && (
+        <div className="driver-add-form">
+          <label className="field">
+            <span>الاسم</span>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="مثال: أبو محمد" />
+          </label>
+          <label className="field">
+            <span>كلمة السر / رمز الدخول (اختياري — لو فاضي بنولّده تلقائي)</span>
+            <input value={loginCode} onChange={(e) => setLoginCode(e.target.value)} placeholder="مثال: 7741" />
+          </label>
+          <label className="field">
+            <span>الهاتف (اختياري — لإشعار واتساب تلقائي)</span>
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="مثال: 9613xxxxxxx" />
+          </label>
+          <button className="primary-action" disabled={loading} onClick={addDriver}>
+            <Icon name="person_add" /> إضافة سواق
+          </button>
+        </div>
+      )}
 
       <div className="table-scroll">
         <table>
@@ -1347,6 +1520,7 @@ function CouponsPanel({ pin, showNotice }: { pin: string; showNotice: (message: 
   const [coupons, setCoupons] = useState<Coupon[]>([])
   const [loaded, setLoaded] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [showForm, setShowForm] = useState(false)
   const [code, setCode] = useState('')
   const [kind, setKind] = useState<'percent' | 'fixed'>('percent')
   const [value, setValue] = useState('')
@@ -1398,6 +1572,7 @@ function CouponsPanel({ pin, showNotice }: { pin: string; showNotice: (message: 
         setMinSubtotal('')
         setMaxUses('')
         setExpiresAt('')
+        setShowForm(false)
         showNotice('تم إنشاء كود الخصم')
       })
       .catch((error: Error) => {
@@ -1443,52 +1618,60 @@ function CouponsPanel({ pin, showNotice }: { pin: string; showNotice: (message: 
 
   return (
     <section className="panel coupons-panel">
-      <h2>أكواد الخصم</h2>
-
-      <div className="card-box">
-        <h3>إنشاء كود جديد</h3>
-        <div className="coupon-form-grid">
-          <label className="field">
-            <span>الرمز</span>
-            <input value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} placeholder="WELCOME10" />
-          </label>
-          <label className="field">
-            <span>النوع</span>
-            <select value={kind} onChange={(event) => setKind(event.target.value as 'percent' | 'fixed')}>
-              <option value="percent">نسبة مئوية</option>
-              <option value="fixed">مبلغ ثابت بالدولار</option>
-            </select>
-          </label>
-          <label className="field">
-            <span>القيمة</span>
-            <input type="number" min="0" step="1" value={value} onChange={(event) => setValue(event.target.value)} />
-          </label>
-          <label className="field">
-            <span>المتجر</span>
-            <select value={appliesTo} onChange={(event) => setAppliesTo(event.target.value as 'all' | 'shein' | 'temu')}>
-              <option value="all">كل المتاجر</option>
-              <option value="shein">SHEIN</option>
-              <option value="temu">Temu</option>
-            </select>
-          </label>
-          <label className="field">
-            <span>الحد الأدنى (ل.س)</span>
-            <input type="number" min="0" step="1000" value={minSubtotal} onChange={(event) => setMinSubtotal(event.target.value)} />
-          </label>
-          <label className="field">
-            <span>عدد الاستخدامات</span>
-            <input type="number" min="1" step="1" value={maxUses} onChange={(event) => setMaxUses(event.target.value)} placeholder="اختياري" />
-          </label>
-          <label className="field">
-            <span>تاريخ الانتهاء</span>
-            <input type="date" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} />
-          </label>
-        </div>
-        <button className="primary-btn" disabled={busy} onClick={createCoupon}>
-          <Icon name="add" /> إنشاء الكود
+      <header className="compact-panel-head">
+        <h2>أكواد الخصم</h2>
+        <button className="ghost-action" onClick={() => setShowForm((value) => !value)}>
+          <Icon name={showForm ? 'close' : 'add'} />
+          {showForm ? 'إغلاق' : 'إنشاء كود خصم'}
         </button>
-        <p className="coupon-hint">الاستخدام مرة واحدة لكل رقم هاتف ولكل جهاز.</p>
-      </div>
+      </header>
+
+      {showForm && (
+        <div className="card-box">
+          <h3>إنشاء كود جديد</h3>
+          <div className="coupon-form-grid">
+            <label className="field">
+              <span>الرمز</span>
+              <input value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} placeholder="WELCOME10" />
+            </label>
+            <label className="field">
+              <span>النوع</span>
+              <select value={kind} onChange={(event) => setKind(event.target.value as 'percent' | 'fixed')}>
+                <option value="percent">نسبة مئوية</option>
+                <option value="fixed">مبلغ ثابت بالدولار</option>
+              </select>
+            </label>
+            <label className="field">
+              <span>القيمة</span>
+              <input type="number" min="0" step="1" value={value} onChange={(event) => setValue(event.target.value)} />
+            </label>
+            <label className="field">
+              <span>المتجر</span>
+              <select value={appliesTo} onChange={(event) => setAppliesTo(event.target.value as 'all' | 'shein' | 'temu')}>
+                <option value="all">كل المتاجر</option>
+                <option value="shein">SHEIN</option>
+                <option value="temu">Temu</option>
+              </select>
+            </label>
+            <label className="field">
+              <span>الحد الأدنى (ل.س)</span>
+              <input type="number" min="0" step="1000" value={minSubtotal} onChange={(event) => setMinSubtotal(event.target.value)} />
+            </label>
+            <label className="field">
+              <span>عدد الاستخدامات</span>
+              <input type="number" min="1" step="1" value={maxUses} onChange={(event) => setMaxUses(event.target.value)} placeholder="اختياري" />
+            </label>
+            <label className="field">
+              <span>تاريخ الانتهاء</span>
+              <input type="date" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} />
+            </label>
+          </div>
+          <button className="primary-btn" disabled={busy} onClick={createCoupon}>
+            <Icon name="add" /> إنشاء الكود
+          </button>
+          <p className="coupon-hint">الاستخدام مرة واحدة لكل رقم هاتف ولكل جهاز.</p>
+        </div>
+      )}
 
       {!loaded ? (
         <p className="muted">جار تحميل الأكواد...</p>
@@ -1544,6 +1727,7 @@ function SettingsPanel({
   const [sheinCode,   setSheinCode]  = useState('')
   const [temuCode,    setTemuCode]   = useState('')
   const [referralDiscount, setReferralDiscount] = useState('0')
+  const [productProfitPercent, setProductProfitPercent] = useState('0')
   const [saving,     setSaving]     = useState(false)
   const [loaded,     setLoaded]     = useState(false)
 
@@ -1558,6 +1742,7 @@ function SettingsPanel({
         setSheinCode(data.shamcash_code_shein ?? '')
         setTemuCode(data.shamcash_code_temu ?? '')
         setReferralDiscount(data.referral_discount_syp ?? '0')
+        setProductProfitPercent(data.product_profit_percent ?? '0')
         setLoaded(true)
       })
       .catch(() => showNotice('تعذر جلب الإعدادات'))
@@ -1808,6 +1993,31 @@ function SettingsPanel({
             </div>
           </label>
         </div>
+      </fieldset>
+
+      <fieldset className="settings-group">
+        <legend>ربح المنتجات</legend>
+        <label className="field">
+          <span>نسبة الربح المخفية على سعر المنتج</span>
+          <div className="settings-row">
+            <input
+              type="number"
+              min="0"
+              step="0.1"
+              value={productProfitPercent}
+              onChange={(e) => setProductProfitPercent(e.target.value)}
+              placeholder="مثال: 1"
+            />
+            <button
+              className="ghost-action"
+              disabled={saving}
+              onClick={() => void saveSetting('product_profit_percent', productProfitPercent)}
+            >
+              حفظ
+            </button>
+          </div>
+        </label>
+        <p className="settings-intro">تُضاف هذه النسبة إلى سعر المنتج فقط، بدون إظهارها كسطر منفصل للزبون.</p>
       </fieldset>
 
       <fieldset className="settings-group">

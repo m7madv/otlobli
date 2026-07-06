@@ -6,6 +6,7 @@ If this file conflicts with older context files, prefer `CURRENT_STATE.md` and t
 ## Current working branch
 
 - Branch: `codex/customer-wallet-group-orders`
+- Important: this branch contains the latest admin/product-issue/profit/mobile-admin update. Do not replace it with older admin code from `main` or `claude/brave-gould-c49b60`.
 - Base divergence point from older mainline: `df394fb`
 - Recent branch-only commits:
   - `c5d0831` customer wallet/group ordering foundation
@@ -72,6 +73,13 @@ Also clarified naming:
 
 - Main app: `admin/src/AdminApp.tsx`
 - Styles: `admin/src/styles.css`
+- Latest admin behavior:
+  - orders do not auto-open by default
+  - tapping an order opens it
+  - long press/context selection supports bulk delete
+  - product/order issue form can target a specific item and issue type
+  - driver and coupon creation forms are collapsed behind explicit action buttons
+  - settings include hidden `product_profit_percent`
 - Runtime wiring:
   - `VITE_SUPABASE_URL` -> builds the function endpoints
   - `x-admin-pin` -> authenticates admin requests
@@ -91,6 +99,10 @@ Also clarified naming:
 - Admin coupons edge function: `supabase/functions/admin-coupons/index.ts`
 - App settings edge function: `supabase/functions/app-settings/index.ts`
 - Telegram notifications: `supabase/functions/telegram-notify/index.ts`
+- Latest backend notes:
+  - `admin-orders` sends a generic customer action-needed WhatsApp message for product/order issues
+  - `app-settings` default includes `product_profit_percent`
+  - `schema.sql` inserts `product_profit_percent` into `app_settings`
 
 ## Important behavioral notes
 
@@ -98,20 +110,30 @@ Also clarified naming:
 - Referral discount is separate from coupons and still uses `check_referral_code(...)`.
 - Group ordering stays on the current branch implementation and was intentionally not replaced by the other branch.
 - The current customer wallet/top-up path remains the current-branch one. I did **not** switch the app onto the older USD-wallet branch to avoid breaking the newer wallet/top-up flow.
+- New-order Telegram notification should go through the Railway/WhatsApp server `/api/orders/notify` first. The Supabase `telegram-notify` function is fallback only.
+- Product profit is intentionally hidden from customers and applied into product price calculations, not as a visible checkout line.
+- Android launch theme must not use the default Capacitor `@drawable/splash` image.
 
 ## Deployment checklist after this cleanup
 
 1. Apply `supabase/schema.sql`
 2. Deploy edge function:
    - `supabase/functions/admin-coupons`
+   - `supabase/functions/admin-orders`
+   - `supabase/functions/app-settings`
 3. Build and verify:
    - root app
    - admin dashboard
-4. Test manually:
+4. Deploy Vercel projects:
+   - root app -> `talabieh`
+   - admin -> `talabieh-admin`
+5. Test manually:
    - create coupon from admin
    - apply coupon in checkout
    - verify referral discount still works
    - verify group order checkout still works
+   - mark product/order issue and confirm WhatsApp/action banner behavior
+   - confirm admin order list does not auto-open the first order
 
 ## If another AI continues from here
 
@@ -141,5 +163,7 @@ Treat this branch as the active source of truth, with these caveats:
   - `AI-HANDOFF.md`
 - remote admin deployment:
   - `https://talabieh-admin.vercel.app`
+- remote app deployment:
+  - Vercel project `talabieh`
 - remote data/backend:
   - Supabase project `dcicqdprtyhwmhegabay`
