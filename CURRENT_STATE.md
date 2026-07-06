@@ -10,7 +10,7 @@ Do not trust older context files before checking these two files.
 ## Active source of truth
 
 - Branch: `codex/customer-wallet-group-orders`
-- Latest published commit at handoff time: this document's commit on `codex/customer-wallet-group-orders`
+- Latest feature deployment commit: `6d5988d`
 - Customer app source:
   - `src/App.tsx`
   - `src/services/supabaseAppApi.ts`
@@ -109,6 +109,10 @@ If someone reads only one old context file or assumes `main` is newest, old UI/f
 
 ## Deployment state
 
+- Latest deployed feature commit:
+  - `6d5988d` (`Add admin issue workflow and mobile polish`)
+- Customer production URL:
+  - `https://talabieh.vercel.app`
 - Admin production URL:
   - `https://talabieh-admin.vercel.app`
 - Customer production project:
@@ -117,7 +121,16 @@ If someone reads only one old context file or assumes `main` is newest, old UI/f
   - Vercel project `talabieh-admin`
 - Supabase project ref:
   - `dcicqdprtyhwmhegabay`
-- Latest successful iPhone unsigned build run:
+- Supabase functions deployed in latest update:
+  - `admin-orders`
+  - `app-settings`
+- Supabase setting applied:
+  - `product_profit_percent = 0`
+- Latest successful GitHub iOS unsigned build:
+  - Run: `https://github.com/m7madv/otlobli/actions/runs/28813650154`
+  - Head SHA: `6d5988d9f15592fcb3a3eec049da66ae32a79eb2`
+  - Artifact: `otlobli-ios`
+- Previous successful iPhone unsigned build run:
   - `https://github.com/m7madv/otlobli/actions/runs/28792148789`
 
 ## Short chat summary

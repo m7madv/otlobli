@@ -164,6 +164,12 @@ Treat this branch as the active source of truth, with these caveats:
 - remote admin deployment:
   - `https://talabieh-admin.vercel.app`
 - remote app deployment:
+  - `https://talabieh.vercel.app`
   - Vercel project `talabieh`
 - remote data/backend:
   - Supabase project `dcicqdprtyhwmhegabay`
+- latest deployed feature commit:
+  - `6d5988d`
+- latest iOS unsigned GitHub build:
+  - `https://github.com/m7madv/otlobli/actions/runs/28813650154`
+  - artifact: `otlobli-ios`
