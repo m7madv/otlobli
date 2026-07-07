@@ -112,11 +112,12 @@ export const localAppApi: TalabiehApi = {
     },
   },
   cartGroups: {
-    async create(phone, name, _store, items) {
+    async create(phone, name, store, items) {
       await wait(120)
       return {
         id: `local-${Date.now()}`,
         code: Math.random().toString(36).slice(2, 8).toUpperCase(),
+        sourceStore: store,
         status: 'open',
         minTotalUsd: 40,
         totalUsd: items.reduce((sum, item) => sum + item.priceUsd * item.quantity, 0),
@@ -130,6 +131,7 @@ export const localAppApi: TalabiehApi = {
       return {
         id: `local-${code}`,
         code: code.trim().toUpperCase(),
+        sourceStore: undefined,
         status: 'open',
         minTotalUsd: 40,
         totalUsd: items.reduce((sum, item) => sum + item.priceUsd * item.quantity, 0),
@@ -143,6 +145,7 @@ export const localAppApi: TalabiehApi = {
       return {
         id: groupId,
         code: groupId.replace(/^local-/, '').slice(0, 8).toUpperCase(),
+        sourceStore: undefined,
         status: 'open',
         minTotalUsd: 40,
         totalUsd: items.reduce((sum, item) => sum + item.priceUsd * item.quantity, 0),

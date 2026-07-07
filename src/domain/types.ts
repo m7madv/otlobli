@@ -176,6 +176,7 @@ export type CartGroupLine = {
 export type CartGroupSnapshot = {
   id: string
   code: string
+  sourceStore?: string
   status: 'open' | 'locked' | 'ordered' | 'cancelled' | string
   minTotalUsd: number
   totalUsd: number

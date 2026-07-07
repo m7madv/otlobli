@@ -146,6 +146,7 @@ function normalizeCartGroup(data: unknown): CartGroupSnapshot {
   return {
     id: String(row.id ?? ''),
     code: String(row.code ?? ''),
+    sourceStore: typeof row.sourceStore === 'string' ? row.sourceStore : undefined,
     status: String(row.status ?? 'open'),
     minTotalUsd: Number(row.minTotalUsd ?? 40),
     totalUsd: Number(row.totalUsd ?? 0),

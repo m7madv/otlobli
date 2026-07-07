@@ -1274,6 +1274,47 @@ a {
   padding: 0 10px;
 }
 
+.group-invite-card {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(0, 121, 83, 0.22);
+  border-radius: var(--radius);
+  background: var(--primary-soft);
+}
+
+.group-invite-card strong {
+  color: var(--primary);
+  font-size: 0.92rem;
+}
+
+.group-invite-card span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.group-invite-actions {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
+.group-invite-actions button {
+  min-height: 38px;
+  border: 1px solid var(--outline);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--primary);
+  font-weight: 800;
+  padding: 0 10px;
+}
+
+.group-invite-actions button:first-child {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
 .group-total-ok {
   color: var(--primary) !important;
   font-weight: 800;

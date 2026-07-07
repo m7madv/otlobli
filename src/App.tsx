@@ -19,6 +19,7 @@ import { appApi } from './services'
 import { PAYMENT_MODE, APP_VERSION, cleanEnvValue } from './config'
 import { buildWhatsappLink } from './services/whatsappLink'
 import { SHEIN_CAPTURE_SCRIPT } from './services/sheinBrowserScript'
+import { App as CapacitorApp } from '@capacitor/app'
 import { Capacitor } from '@capacitor/core'
 import { BackgroundColor, InAppBrowser, ToolBarType } from '@capgo/capacitor-inappbrowser'
 
@@ -80,6 +81,44 @@ const STORES: { id: StoreId; name: string; url: string }[] = [
   { id: 'temu', name: 'تيمو', url: 'https://www.temu.com/jo/' },
 ]
 const storeUrl = (id: string) => (STORES.find((s) => s.id === id)?.url) ?? SHEIN_HOME_URL
+const storeName = (id?: string) => STORES.find((store) => store.id === id)?.name ?? 'المتجر'
+const GROUP_INVITE_WEB_ORIGIN = 'https://otlobli.app'
+const GROUP_INVITE_SCHEME = 'otlobli://group'
+
+type PendingGroupInvite = {
+  code: string
+  store?: StoreId
+  host?: string
+}
+
+function normalizeInviteStore(value?: string | null): StoreId | undefined {
+  return value === 'temu' || value === 'shein' ? value : undefined
+}
+
+function parseGroupInvite(value: string): PendingGroupInvite | null {
+  const raw = value.trim()
+  if (!raw) return null
+  try {
+    const url = new URL(raw)
+    const code = extractGroupInviteCode(url.searchParams.get('group') || url.searchParams.get('code') || '')
+    if (!code) return null
+    return {
+      code,
+      store: normalizeInviteStore(url.searchParams.get('store')),
+      host: (url.searchParams.get('host') || '').trim() || undefined,
+    }
+  } catch {
+    const code = extractGroupInviteCode(raw)
+    return code ? { code } : null
+  }
+}
+
+function buildGroupInviteLink(code: string, store: StoreId, host: string, scheme = false) {
+  const params = new URLSearchParams({ code, group: code, store, host })
+  return scheme
+    ? `${GROUP_INVITE_SCHEME}?${params.toString()}`
+    : `${GROUP_INVITE_WEB_ORIGIN}/group?${params.toString()}`
+}
 
 function getOrderStore(order: Pick<Order, 'items'>): StoreId {
   const firstLink = order.items[0]?.sourceLink ?? ''
@@ -385,6 +424,7 @@ function App() {
   const [walletTransactions, setWalletTransactions] = useState<WalletTransaction[]>([])
   const [cartGroup, setCartGroup] = useStoredState<CartGroupSnapshot | null>(storageKeys.cartGroup, null)
   const [groupJoinCode, setGroupJoinCode] = useState('')
+  const [pendingGroupInvite, setPendingGroupInvite] = useState<PendingGroupInvite | null>(null)
   const [isSyncingGroup, setIsSyncingGroup] = useState(false)
   const [verificationState, setVerificationState] = useState<'idle' | 'checking' | 'matched'>('idle')
   const [pendingPayment, setPendingPayment] = useStoredState<{
@@ -514,18 +554,37 @@ function App() {
     window.setTimeout(() => setNotice(''), 1900)
   }
 
-  useEffect(() => {
-    try {
-      const params = new URLSearchParams(window.location.search)
-      const code = params.get('group') || params.get('code')
-      if (code) {
-        setGroupJoinCode(extractGroupInviteCode(code))
-        setScreen('cart')
-      }
-    } catch {
-      // Ignore malformed launch URLs.
-    }
+  const handleGroupInviteUrl = useCallback((url: string) => {
+    const invite = parseGroupInvite(url)
+    if (!invite) return false
+    setPendingGroupInvite(invite)
+    setGroupJoinCode(invite.code)
+    setScreen('cart')
+    return true
   }, [])
+
+  useEffect(() => {
+    handleGroupInviteUrl(window.location.href)
+
+    if (!Capacitor.isNativePlatform()) return
+
+    let active = true
+    void CapacitorApp.getLaunchUrl()
+      .then((launch) => {
+        if (active && launch?.url) handleGroupInviteUrl(launch.url)
+      })
+      .catch(() => undefined)
+
+    let listener: { remove: () => Promise<void> } | undefined
+    void CapacitorApp.addListener('appUrlOpen', (event) => {
+      handleGroupInviteUrl(event.url)
+    }).then((sub) => { listener = sub })
+
+    return () => {
+      active = false
+      void listener?.remove()
+    }
+  }, [handleGroupInviteUrl])
 
   const copyText = (value: string, successMessage: string) => {
     const text = value.trim()
@@ -1030,9 +1089,10 @@ function App() {
   const total = subtotal
   const groupCheckoutItems = cartGroup?.items.map((line) => line.item) ?? []
   const groupTotalUsd = cartGroup?.totalUsd ?? 0
-  const groupInviteLink = cartGroup
-    ? `${window.location.origin}${window.location.pathname}?group=${encodeURIComponent(cartGroup.code)}`
-    : ''
+  const groupInviteStore = normalizeInviteStore(cartGroup?.sourceStore) ?? selectedStore
+  const groupInviteHost = userProfile?.name || recipient.name || 'صاحب السلة'
+  const groupInviteLink = cartGroup ? buildGroupInviteLink(cartGroup.code, groupInviteStore, groupInviteHost) : ''
+  const groupInviteAppLink = cartGroup ? buildGroupInviteLink(cartGroup.code, groupInviteStore, groupInviteHost, true) : ''
   const activeCheckoutItems = cartGroup && groupCheckoutItems.length > 0 ? groupCheckoutItems : cartItems
   const activeCheckoutProductsTotal = activeCheckoutItems.reduce((sum, item) => sum + getItemPriceSyp(item) * item.quantity, 0)
   const shippingTotalSyp = currentShippingFees.reduce((sum, line) => sum + line.value, 0)
@@ -1109,6 +1169,49 @@ function App() {
       })
       .catch((error: unknown) => showNotice(getPublicErrorMessage(error)))
       .finally(() => setIsSyncingGroup(false))
+  }
+
+  const shareCartGroupInvite = () => {
+    if (!cartGroup || !groupInviteLink) return
+    const message = [
+      `انضم لسلة otlobli المشتركة مع ${groupInviteHost}`,
+      `المتجر: ${storeName(groupInviteStore)}`,
+      `الكود: ${cartGroup.code}`,
+      `الرابط: ${groupInviteLink}`,
+      `إذا لم يفتح التطبيق مباشرة: ${groupInviteAppLink}`,
+    ].join('\n')
+    if (navigator.share) {
+      void navigator.share({ title: 'otlobli', text: message, url: groupInviteLink }).catch(() => undefined)
+      return
+    }
+    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank', 'noreferrer')
+  }
+
+  const joinCartGroupFromValue = (inputCode?: string) => {
+    const code = extractGroupInviteCode(inputCode ?? groupJoinCode)
+    if (!phone) { showNotice('سجل دخولك أولاً'); return }
+    if (!code) { showNotice('أدخل كود أو رابط السلة المشتركة'); return }
+    setIsSyncingGroup(true)
+    void appApi.cartGroups.join(phone, userProfile?.name || recipient.name || 'عضو', code, cartItems)
+      .then((snapshot) => {
+        setCartGroup(snapshot)
+        setGroupJoinCode('')
+        setPendingGroupInvite(null)
+        showNotice('تم ربط السلة مع صديقك')
+      })
+      .catch((error: unknown) => showNotice(getPublicErrorMessage(error)))
+      .finally(() => setIsSyncingGroup(false))
+  }
+
+  const acceptPendingGroupInvite = () => {
+    if (!pendingGroupInvite) return
+    joinCartGroupFromValue(pendingGroupInvite.code)
+  }
+
+  const cancelPendingGroupInvite = () => {
+    setPendingGroupInvite(null)
+    setGroupJoinCode('')
+    showNotice('تم إلغاء ربط السلة')
   }
 
   const syncCartGroup = () => {
@@ -2671,6 +2774,17 @@ function App() {
                     <h2>اطلب مع صديق</h2>
                     <p>اجمعوا السلات على كود واحد لتجاوز حد {MIN_ORDER_USD}$، وشخص واحد يقدر يدفع الطلب كامل.</p>
                   </div>
+                  {pendingGroupInvite && !cartGroup && (
+                    <div className="group-invite-card">
+                      <strong>ربط سلة مشتركة</strong>
+                      <p>هل تريد شبك سلتك مع {pendingGroupInvite.host || 'صديقك'}؟</p>
+                      <span>{pendingGroupInvite.store ? `هذا الرابط لمتجر ${storeName(pendingGroupInvite.store)}` : 'سيتم ربط السلة بالكود المرسل'}</span>
+                      <div className="group-invite-actions">
+                        <button disabled={isSyncingGroup} onClick={acceptPendingGroupInvite}>موافق وربط السلة</button>
+                        <button type="button" onClick={cancelPendingGroupInvite}>إلغاء</button>
+                      </div>
+                    </div>
+                  )}
                   {cartGroup ? (
                     <>
                       <div className="group-code-row">
@@ -2681,7 +2795,7 @@ function App() {
                         <button onClick={() => copyText(groupInviteLink, 'تم نسخ رابط الصديق')}>
                           <Icon name="link" /> رابط
                         </button>
-                        <button onClick={shareCartGroup}>
+                        <button onClick={shareCartGroupInvite}>
                           <Icon name="ios_share" /> واتساب
                         </button>
                         <button disabled={isSyncingGroup} onClick={syncCartGroup}>
@@ -2712,7 +2826,7 @@ function App() {
                           placeholder="كود الصديق"
                           dir="ltr"
                         />
-                        <button disabled={isSyncingGroup} onClick={joinCartGroup}>
+                        <button disabled={isSyncingGroup} onClick={() => joinCartGroupFromValue()}>
                           انضمام
                         </button>
                       </div>

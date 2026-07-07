@@ -187,7 +187,7 @@ Deno.serve(async (req) => {
 
     const { data: group, error: groupError } = await supabase
       .from('cart_groups')
-      .select('id, code, status')
+      .select('id, code, status, source_store')
       .eq('id', groupId)
       .single()
     if (groupError || !group) return json({ error: 'snapshot_failed' }, 500)
@@ -216,6 +216,7 @@ Deno.serve(async (req) => {
     return json({
       id: group.id,
       code: group.code,
+      sourceStore: group.source_store,
       status: group.status,
       minTotalUsd: MIN_TOTAL_USD,
       totalUsd: (groupItems ?? []).reduce((sum, entry) => {
