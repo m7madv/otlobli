@@ -641,6 +641,35 @@ export const supabaseAppApi: TalabiehApi = {
     // الحقيقي (قيد الشراء، الشحن...) بغض النظر عن وضع الدفع. لا يستعلم
     // الجدول orders مباشرة لأنه محمي بـRLS بدون policy عامة للقراءة؛ يستخدم
     // نفس RPC الضيقة get_order_payment_status المسموحة لـanon.
+    async createIssuePayment(orderId, amountUsd, currency) {
+      if (!supabase) {
+        throw new Error('قاعدة البيانات غير متصلة. تأكد من إعدادات Supabase.')
+      }
+      const { data, error } = await supabase.rpc('create_order_issue_payment', {
+        p_order_id: orderId,
+        p_amount_usd: amountUsd,
+        p_currency: currency,
+      })
+      if (error || !data) {
+        throw new Error(getPublicDbError('تعذر إنشاء طلب الدفع', error?.message))
+      }
+      const result = data as {
+        issuePaymentId: string
+        orderId: string
+        paymentAmount: number
+        paymentCurrency: PaymentCurrency
+        paymentExpiresAt: string
+      }
+      return {
+        mode: 'external',
+        issuePaymentId: result.issuePaymentId,
+        orderId: result.orderId,
+        paymentAmount: result.paymentAmount,
+        paymentCurrency: result.paymentCurrency,
+        paymentExpiresAt: result.paymentExpiresAt,
+      }
+    },
+
     async pollOrderStatus(orderId) {
       if (!supabase) return null
 

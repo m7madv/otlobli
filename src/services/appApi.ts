@@ -67,6 +67,15 @@ export type OrderStatusResult = {
   extraAmountUsd: number
 }
 
+export type OrderIssuePaymentResult = {
+  mode: ApiMode
+  issuePaymentId: string
+  orderId: string
+  paymentAmount: number
+  paymentCurrency: PaymentCurrency
+  paymentExpiresAt: string
+}
+
 export type CustomerAccountResult = {
   mode: ApiMode
   profile: UserProfile | null
@@ -118,6 +127,7 @@ export type TalabiehApi = {
     // ظٹظ†ط´ط¦ ط§ظ„ط·ظ„ط¨ ط¨ط­ط§ظ„ط© "ط¨ط§ظ†طھط¸ط§ط± ط§ظ„ط¯ظپط¹" ظ…ط¹ ظ…ط¨ظ„ط؛ ط¯ظپط¹ ظپط±ظٹط¯طŒ ظ‚ط¨ظ„ ط¹ط±ط¶ ط´ط§ط´ط© ط§ظ„ط¯ظپط¹ -
     // ط§ظ„ط·ظ„ط¨ ظ„ط§ ظٹطµط¨ط­ "ظ…ط¯ظپظˆط¹" ط¥ظ„ط§ ظ„ظ…ط§ ظٹظˆطµظ„ طھط£ظƒظٹط¯ ط­ظ‚ظٹظ‚ظٹ ظ…ظ† webhook ط´ط§ظ… ظƒط§ط´.
     createPendingOrder: (order: Order, currency: PaymentCurrency) => Promise<PendingOrderResult>
+    createIssuePayment: (orderId: string, amountUsd: number, currency: PaymentCurrency) => Promise<OrderIssuePaymentResult>
     // ظٹط³طھط¹ظ„ظ… ط¹ظ† ط­ط§ظ„ط© ط§ظ„ط·ظ„ط¨ ط§ظ„ط­ط§ظ„ظٹط© (ط§ظ„ظ…ط±ط­ظ„ط©طŒ ط±ظ‚ظ… ط§ظ„ظ‚ط¯ظ…ظˆط³...) ظ„طھط­ط¯ظٹط« ط´ط§ط´ط©
     // ط§ظ„طھطھط¨ط¹ - ظٹط±ط¬ط¹ null ط¥ط°ط§ ط§ظ„ط·ظ„ط¨ ط؛ظٹط± ظ…ظˆط¬ظˆط¯ ط£ظˆ ط§ظ„ظ‚ط§ط¹ط¯ط© ط؛ظٹط± ظ…طھط§ط­ط©.
     pollOrderStatus: (orderId: string) => Promise<OrderStatusResult | null>

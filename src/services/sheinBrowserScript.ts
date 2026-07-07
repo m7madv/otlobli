@@ -1897,6 +1897,75 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return '';
   }
 
+  function otlobliCustomTextSignal(text) {
+    return /custom\s*(?:text|name)|personaliz|engrave|engraving|monogram|name\s*plate|your\s*(?:name|text)|enter\s*(?:name|text)|اسم|نص|كتابة|اكتب|محفور|نقش|حفر/i.test(text || '');
+  }
+
+  function otlobliCustomPhotoSignal(text) {
+    return /custom\s*(?:photo|image|picture)|upload\s*(?:photo|image|picture)|photo\s*upload|image\s*upload|with\s*(?:photo|picture)|صورة|ارفق|رفع|تحميل\s*صورة|بالصور|عين|وجه/i.test(text || '');
+  }
+
+  function otlobliCustomGenericSignal(text) {
+    return /customiz|personaliz|personalised|personalized|مخصص|مخصصة|التخصيص|تخصيص/i.test(text || '');
+  }
+
+  function otlobliVisibleCustomText() {
+    var out = [];
+    var nodes = document.querySelectorAll('h1, h2, h3, p, span, div, button, label, li');
+    for (var i = 0; i < nodes.length && out.join(' ').length < 5000; i++) {
+      var el = nodes[i];
+      var r = el.getBoundingClientRect();
+      if (r.width <= 0 || r.height <= 0) continue;
+      var t = (el.textContent || '').replace(/\s+/g, ' ').trim();
+      if (!t || t.length > 180) continue;
+      if (otlobliCustomGenericSignal(t) || otlobliCustomTextSignal(t) || otlobliCustomPhotoSignal(t) || /\d+\s*[*x×]\s*\d+/.test(t)) {
+        out.push(t);
+      }
+    }
+    return out.join(' ');
+  }
+
+  function otlobliCustomPhotoNoteFallback() {
+    var pageText = otlobliVisibleCustomText();
+    var sizeMatch = pageText.match(/\d+\s*[*x×]\s*\d+\s*(?:px|pixel|بكسل)?/i);
+    if (sizeMatch) return sizeMatch[0];
+    if (otlobliCustomPhotoSignal(pageText)) return 'يرجى إرفاق الصورة المطلوبة لهذا المنتج المخصص';
+    return '';
+  }
+
+  function temuCustomRequirements(perso) {
+    var text = [
+      temuTitle(),
+      document.title,
+      otlobliVisibleCustomText(),
+    ].join(' ');
+    var needsText = !!(perso && perso.has) || otlobliCustomTextSignal(text);
+    var needsPhoto = temuNeedsCustomPhoto() || otlobliCustomPhotoSignal(text);
+    if (otlobliCustomGenericSignal(text) && !needsText && !needsPhoto) needsText = true;
+    return {
+      needsText: needsText,
+      needsPhoto: needsPhoto,
+      photoNote: temuCustomPhotoNote() || otlobliCustomPhotoNoteFallback(),
+    };
+  }
+
+  function sheinCustomRequirements() {
+    var text = [
+      getTitle(false),
+      document.title,
+      otlobliVisibleCustomText(),
+    ].join(' ');
+    var hasFile = !!document.querySelector('input[type="file"], input[accept*="image"]');
+    var needsText = otlobliCustomTextSignal(text);
+    var needsPhoto = hasFile || otlobliCustomPhotoSignal(text);
+    if (otlobliCustomGenericSignal(text) && !needsText && !needsPhoto) needsText = true;
+    return {
+      needsText: needsText,
+      needsPhoto: needsPhoto,
+      photoNote: otlobliCustomPhotoNoteFallback(),
+    };
+  }
+
   // هل توجد قائمة مقاسات؟ (عنوان "Size"/"المقاس"/"موديل متوافق")
   function temuHasSizeSection() { return !!temuSizeHeadEl(); }
   // صفحة المنتج المغلقة تعرض ملخّصاً مثل "7 Color, 3 Size" أو "5 اللون, 20 موديل"
@@ -1916,6 +1985,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function captureProductPayload(colorState, sizeState, allowGenericTitle) {
     if (IS_TEMU) {
       var perso = temuPersonalization();
+      var customReq = temuCustomRequirements(perso);
       // منتج التخصيص: نضع النص المطلوب مكان المقاس ليصل للمالك بوضوح.
       // حارس مزدوج: قيمة رقمية بحتة (حقل كمية التقط خطأً) لا تكون نص نقش أبداً.
       var persoTxt = (perso.text && !/^\\d+$/.test(perso.text)) ? perso.text : '';
@@ -1957,12 +2027,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
         // عند إعادة فتح الرابط لاحقاً (من السلة/الطلبات) ليُعيد اختيار نفس
         // اللون والمقاس تلقائياً بدل صفحة افتراضية بلا اختيار.
         link: otlobliBuildDeepLink(location.href, temuColorVal, temuSizeVal),
-        needsCustomPhoto: temuNeedsCustomPhoto(),
-        customPhotoNote: temuCustomPhotoNote(),
-        needsCustomText: perso.has,
+        needsCustomPhoto: customReq.needsPhoto,
+        customPhotoNote: customReq.photoNote,
+        needsCustomText: customReq.needsText,
         customText: persoTxt,
       };
     }
+    var sheinCustomReq = sheinCustomRequirements();
     return {
       title: getTitle(allowGenericTitle),
       priceUsd: getPrice(),
@@ -1977,6 +2048,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
       sizesAvailable: sizeState.available || [],
       sizesUnavailable: sizeState.unavailable || [],
       link: otlobliNormalizeSheinUrl(location.href),
+      needsCustomPhoto: sheinCustomReq.needsPhoto,
+      customPhotoNote: sheinCustomReq.photoNote,
+      needsCustomText: sheinCustomReq.needsText,
+      customText: '',
     };
   }
 
@@ -3322,6 +3397,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (!IS_SHEIN) {
       if (IS_TEMU) {
         try { ensureTemuNoZoom(); } catch (e) {}
+        try { hideTemuCustomerAccountAndCart(); } catch (e) {}
         try { ensureAddToCartButton(); } catch (e) {}
         try { detectEmptyTemuSearch(); } catch (e) {}
         return;
@@ -3384,6 +3460,28 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (document.documentElement && document.documentElement.style.touchAction !== 'pan-x pan-y') {
         document.documentElement.style.touchAction = 'pan-x pan-y';
       }
+      if (document.documentElement) {
+        document.documentElement.style.setProperty('-webkit-text-size-adjust', '100%', 'important');
+        document.documentElement.style.setProperty('text-size-adjust', '100%', 'important');
+        document.documentElement.style.setProperty('max-width', '100vw', 'important');
+        document.documentElement.style.setProperty('overflow-x', 'hidden', 'important');
+      }
+      if (document.body) {
+        document.body.style.setProperty('-webkit-text-size-adjust', '100%', 'important');
+        document.body.style.setProperty('text-size-adjust', '100%', 'important');
+        document.body.style.setProperty('max-width', '100vw', 'important');
+        document.body.style.setProperty('overflow-x', 'hidden', 'important');
+      }
+      if (document.head && !document.getElementById('otlobli-temu-stability-style')) {
+        var style = document.createElement('style');
+        style.id = 'otlobli-temu-stability-style';
+        style.textContent = [
+          'html,body{min-width:0!important;width:100%!important;max-width:100vw!important;overflow-x:hidden!important;-webkit-text-size-adjust:100%!important;text-size-adjust:100%!important;}',
+          'input,textarea,select,button{font-size:16px!important;}',
+          '#otlobli-nav,#otlobli-add-btn,#otlobli-back-btn{transform:translateZ(0)!important;will-change:transform!important;}',
+        ].join('\n');
+        document.head.appendChild(style);
+      }
       if (!__otlobliNoZoomListeners) {
         __otlobliNoZoomListeners = true;
         // إيماءة القرصة على iOS WKWebView — touch-action أعلاه يمنع تكبير
@@ -3398,6 +3496,69 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // يزيل النوافذ المنبثقة الترويجية المزعجة على المتاجر غير شي إن (عجلة الحظ،
   // نوافذ الخصومات، طبقات تغطّي الشاشة): أي عنصر ثابت/مطلق بطبقة عالية يغطّي
   // جزءاً كبيراً من الشاشة = نافذة منبثقة، فنخفيه ونعيد تمكين التمرير.
+  function hideTemuCustomerAccountAndCart() {
+    if (!IS_TEMU || !document.body) return;
+    try {
+      var search = document.querySelector('input[type="search"], input[placeholder*="Search" i], input[placeholder*="بحث"], [role="searchbox"]');
+      var searchLeft = 230;
+      if (search) {
+        var sr = search.getBoundingClientRect();
+        if (sr.width > 40) searchLeft = Math.max(120, sr.left);
+      }
+      var candidates = [];
+      var nodes = document.querySelectorAll('a, button, [role="button"], div, span');
+      for (var i = 0; i < nodes.length; i++) {
+        var el = nodes[i];
+        if (el.id && el.id.indexOf('otlobli') === 0) continue;
+        if (el.getAttribute && el.getAttribute('data-otlobli-temu-hidden') === '1') continue;
+        if (el.querySelector && el.querySelector('input, textarea, select')) continue;
+        var txt = temuCleanText(el.textContent);
+        if (txt.length > 10) continue;
+        var r = el.getBoundingClientRect();
+        if (r.width < 22 || r.height < 22 || r.width > 72 || r.height > 72) continue;
+        if (r.top < 0 || r.top > 150) continue;
+        if (otlobliNearSearchInput(el) || otlobliLooksLikeSearchTrigger(el)) continue;
+        var beforeSearch = r.left < searchLeft - 12;
+        var leftHeaderIcon = r.left >= 0 && r.left <= 145;
+        if (!beforeSearch && !leftHeaderIcon) continue;
+        candidates.push({ el: el, left: r.left, top: r.top });
+      }
+      candidates.sort(function (a, b) {
+        if (Math.abs(a.top - b.top) > 16) return a.top - b.top;
+        return a.left - b.left;
+      });
+      var hidden = 0;
+      var hiddenBuckets = [];
+      for (var c = 0; c < candidates.length; c++) {
+        if (hidden >= 2) break;
+        var duplicateBucket = false;
+        for (var hb = 0; hb < hiddenBuckets.length; hb++) {
+          if (Math.abs(hiddenBuckets[hb] - candidates[c].left) < 18) duplicateBucket = true;
+        }
+        if (duplicateBucket) continue;
+        candidates[c].el.setAttribute('data-otlobli-temu-hidden', '1');
+        candidates[c].el.style.setProperty('visibility', 'hidden', 'important');
+        candidates[c].el.style.setProperty('pointer-events', 'none', 'important');
+        hiddenBuckets.push(candidates[c].left);
+        hidden++;
+      }
+
+      var floating = document.querySelectorAll('[class*="float" i], [class*="cart" i], [aria-label*="cart" i], [aria-label*="سلة"]');
+      for (var f = 0; f < floating.length; f++) {
+        var fcEl = floating[f];
+        if (fcEl.id && fcEl.id.indexOf('otlobli') === 0) continue;
+        var fr = fcEl.getBoundingClientRect();
+        var fcs = window.getComputedStyle(fcEl);
+        if (fr.width < 34 || fr.width > 130 || fr.height < 34 || fr.height > 130) continue;
+        if (fcs.position !== 'fixed' && fcs.position !== 'absolute') continue;
+        if (fr.top > 180 && fr.bottom < viewportSize().height - 120) continue;
+        fcEl.setAttribute('data-otlobli-temu-hidden', '1');
+        fcEl.style.setProperty('visibility', 'hidden', 'important');
+        fcEl.style.setProperty('pointer-events', 'none', 'important');
+      }
+    } catch (e) {}
+  }
+
   function killStorePopups() {
     if (IS_SHEIN) return;
     var vp = viewportSize();

@@ -168,6 +168,22 @@ export const localAppApi: TalabiehApi = {
     },
 
     // لا قاعدة بيانات حقيقية بالوضع المحلي لتُستعلَم.
+    async createIssuePayment(orderId, amountUsd, currency) {
+      await wait(180)
+      const paymentAmount = currency === 'USD'
+        ? Math.max(Math.round(amountUsd * 100) / 100, 0.01)
+        : Math.max(Math.round(amountUsd * LOCAL_USD_TO_SYP_RATE), 1)
+
+      return {
+        mode: 'local-mock',
+        issuePaymentId: `local-issue-${Date.now()}`,
+        orderId,
+        paymentAmount,
+        paymentCurrency: currency,
+        paymentExpiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+      }
+    },
+
     async pollOrderStatus() {
       return null
     },

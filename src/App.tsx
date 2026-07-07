@@ -380,6 +380,8 @@ function App() {
     currency: PaymentCurrency
     expiresAt: string
     store?: StoreId
+    purpose?: 'order' | 'issue'
+    issuePaymentId?: string
   } | null>(storageKeys.pendingPayment, null)
   const [pendingWalletTopUp, setPendingWalletTopUp] = useStoredState<{
     topUpId: string
@@ -1785,6 +1787,7 @@ function App() {
   }, [screen, currentOrderId])
 
   const [isStartingPayment, setIsStartingPayment] = useState(false)
+  const [isStartingIssuePayment, setIsStartingIssuePayment] = useState(false)
 
   // ينشئ الطلب ويحفظه في قاعدة البيانات. في وضع 'auto' (الدفع معطّل مؤقتاً)
   // يُسجَّل الطلب مباشرة "مدفوع" وينتقل لشاشة النجاح. في وضع 'shamcash' يُنشأ
@@ -1890,6 +1893,7 @@ function App() {
           currency: result.paymentCurrency,
           expiresAt: result.paymentExpiresAt,
           store: selectedStore,
+          purpose: 'order',
         })
         setAppliedCoupon(null)
         setCouponInput('')
@@ -1905,6 +1909,28 @@ function App() {
   const verifyB2BPayment = () => {
     if (!pendingPayment) return
     setVerificationState('checking')
+    if (pendingPayment.purpose === 'issue') {
+      void appApi.orders.pollOrderStatus(pendingPayment.orderId).then((result) => {
+        if (result && !result.paymentIssue) {
+          showNotice('تم تأكيد دفعة حل المشكلة')
+          setOrders((list) => list.map((item) => (
+            item.id === pendingPayment.orderId
+              ? { ...item, paymentIssue: false, paymentIssueNote: '', extraAmountUsd: 0 }
+              : item
+          )))
+          setPendingPayment(null)
+          setVerificationState('matched')
+          setScreen('tracking')
+          return
+        }
+        showNotice('لم يتم العثور على دفعة مطابقة بعد')
+        setVerificationState('idle')
+      }).catch((error: unknown) => {
+        showNotice(getPublicErrorMessage(error))
+        setVerificationState('idle')
+      })
+      return
+    }
     void appApi.payments.checkPaymentStatus(pendingPayment.orderId).then((result) => {
       if (result.status === 'مدفوع') {
         showNotice('تم العثور على تحويل مطابق للمبلغ الدقيق')
@@ -1925,6 +1951,27 @@ function App() {
       showNotice('لم يتم العثور على تحويل مطابق بعد')
       setVerificationState('idle')
     })
+  }
+
+  const startIssuePayment = (targetOrder: Order) => {
+    const amountUsd = Number(targetOrder.extraAmountUsd || 0)
+    if (!targetOrder.paymentIssue || amountUsd <= 0 || isStartingIssuePayment) return
+    setIsStartingIssuePayment(true)
+    void appApi.orders.createIssuePayment(targetOrder.id, amountUsd, paymentCurrency)
+      .then((result) => {
+        setPendingPayment({
+          orderId: result.orderId,
+          amount: result.paymentAmount,
+          currency: result.paymentCurrency,
+          expiresAt: result.paymentExpiresAt,
+          store: getOrderStore(targetOrder),
+          purpose: 'issue',
+          issuePaymentId: result.issuePaymentId,
+        })
+        setScreen('payment')
+      })
+      .catch((error: unknown) => showNotice(getPublicErrorMessage(error)))
+      .finally(() => setIsStartingIssuePayment(false))
   }
 
   const startWalletTopUp = () => {
@@ -2859,6 +2906,7 @@ function App() {
       const paymentQr = shamcashQrByStore[pendingPayment.store ?? selectedStore] || ''
       const paymentCode = shamcashCodeByStore[pendingPayment.store ?? selectedStore] || paymentSettings.receiverAccount
       const paymentExpiresIn = formatExpiryCountdown(pendingPayment.expiresAt)
+      const isIssuePayment = pendingPayment.purpose === 'issue'
       const paymentStoreName = STORES.find((store) => store.id === (pendingPayment.store ?? selectedStore))?.name ?? 'المتجر'
 
       return (
@@ -3032,6 +3080,34 @@ function App() {
                 </article>
               ))}
             </section>
+            {order.paymentIssue && (
+              <section className="payment-issue-banner payment-issue-banner--detail">
+                <p>
+                  <Icon name="error" /> يوجد إجراء مطلوب على هذا الطلب
+                </p>
+                {order.paymentIssueNote && (
+                  <p className="payment-issue-note">{order.paymentIssueNote}</p>
+                )}
+                {!!order.extraAmountUsd && order.extraAmountUsd > 0 && (
+                  <p className="payment-issue-amount">المتبقي: ${order.extraAmountUsd.toFixed(2)}</p>
+                )}
+                <button
+                  className="primary-action"
+                  disabled={isStartingIssuePayment || !(order.extraAmountUsd && order.extraAmountUsd > 0)}
+                  onClick={() => startIssuePayment(order)}
+                >
+                  <Icon name="payments" /> {isStartingIssuePayment ? 'جاري إنشاء طلب الدفع...' : 'إنشاء طلب دفع'}
+                </button>
+                <button
+                  className="primary-action payment-issue-whatsapp-legacy"
+                  onClick={() => openWhatsappSupport(
+                    `مرحبا otlobli، أحتاج حل الإجراء المطلوب على طلبي ${order.id}${order.extraAmountUsd ? ` ($${order.extraAmountUsd.toFixed(2)})` : ''}`,
+                  )}
+                >
+                  <Icon name="payments" /> حل الإجراء عبر واتساب
+                </button>
+              </section>
+            )}
             <Timeline statusIndex={order.statusIndex} createdAt={order.createdAt} paidAt={order.paidAt} />
             {order.statusIndex === orderStatuses.length - 1 && (
               order.rating ? (
