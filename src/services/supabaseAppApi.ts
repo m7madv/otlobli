@@ -13,6 +13,7 @@ const DISPLAY_USD_RATE = Number(cleanEnvValue(import.meta.env.VITE_USD_TO_SYP_RA
 const SUPABASE_URL = cleanEnvValue(import.meta.env.VITE_SUPABASE_URL)
 const SUPABASE_ANON_KEY = cleanEnvValue(import.meta.env.VITE_SUPABASE_ANON_KEY)
 const TELEGRAM_NOTIFY_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/telegram-notify` : ''
+const CART_GROUPS_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/cart-groups` : ''
 
 // Cloudflare Worker (fast, edge-based) with Railway as fallback
 const SHEIN_WORKER_URL = cleanEnvValue(import.meta.env.VITE_SHEIN_WORKER_URL) || 'https://talabieh-shein.talabieh.workers.dev'
@@ -521,15 +522,24 @@ export const supabaseAppApi: TalabiehApi = {
   },
   cartGroups: {
     async create(phone, name, store, items) {
-      if (!supabase) return localAppApi.cartGroups.create(phone, name, store, items)
+      if (!supabase || !CART_GROUPS_URL) return localAppApi.cartGroups.create(phone, name, store, items)
 
-      const { data, error } = await supabase.rpc('create_cart_group', {
-        p_phone: phone.trim(),
-        p_name: name.trim(),
-        p_store: store,
-        p_items: items,
+      const response = await fetch(CART_GROUPS_URL, {
+        method: 'POST',
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          phone: phone.trim(),
+          name: name.trim(),
+          store,
+          items,
+        }),
       })
-      if (error || !data) throw new Error(getPublicDbError('تعذّر إنشاء الطلب المشترك', error?.message))
+      const data = await response.json().catch(() => null)
+      if (!response.ok || !data) throw new Error('???? ????? ??? ??????. ???? ??? ????.')
       return normalizeCartGroup(data)
     },
 

@@ -1604,7 +1604,7 @@ begin
   customer_id := public.ensure_customer(p_phone, p_name, 'دمشق', '', '', '');
 
   for attempt in 1..12 loop
-    generated_code := upper(substr(encode(gen_random_bytes(4), 'hex'), 1, 6));
+    generated_code := upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 7));
     begin
       insert into public.cart_groups (code, host_customer_id, source_store)
       values (generated_code, customer_id, coalesce(nullif(p_store, ''), 'shein'))

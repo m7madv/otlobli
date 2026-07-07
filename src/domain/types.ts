@@ -24,6 +24,7 @@ export type Screen =
   | 'orders'
   | 'tracking'
   | 'profile'
+  | 'pickup-info'
   | 'addresses'
   | 'payment-methods'
   | 'blocked-policy'
@@ -138,6 +139,8 @@ export type CartItem = {
   size: string
   sizesAvailable?: string[]
   sizesUnavailable?: string[]
+  availableStock?: number
+  availabilityIssue?: 'quantity' | 'variant' | 'size' | 'color' | 'product' | 'review'
   quantity: number
   priceUsd: number
   priceSyp: number

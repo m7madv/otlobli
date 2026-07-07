@@ -258,16 +258,26 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function realImgSrc(img) {
     if (!img) return '';
+    var fromSrcset = function (srcset) {
+      if (!srcset) return '';
+      var parts = String(srcset).split(',').map(function (part) { return part.trim(); }).filter(Boolean);
+      if (!parts.length) return '';
+      return parts[parts.length - 1].split(/\s+/)[0] || '';
+    };
     var candidates = [
       img.getAttribute && img.getAttribute('data-src'),
       img.getAttribute && img.getAttribute('data-original'),
       img.getAttribute && img.getAttribute('data-lazy-src'),
+      img.getAttribute && img.getAttribute('data-lazy'),
+      img.getAttribute && img.getAttribute('data-original-src'),
+      fromSrcset(img.getAttribute && img.getAttribute('srcset')),
+      img.parentElement && img.parentElement.tagName === 'PICTURE' && fromSrcset((img.parentElement.querySelector('source[srcset]') || {}).srcset),
       img.currentSrc,
       img.src,
     ];
     for (var i = 0; i < candidates.length; i++) {
       var v = candidates[i];
-      if (v && !/^data:image\\/gif/i.test(v) && !/blank\\.gif|placeholder/i.test(v)) return normalizeImageUrl(v);
+      if (v && !/^data:image\\/(?:gif|svg)/i.test(v) && !/blank\\.gif|placeholder|skeleton|transparent/i.test(v)) return normalizeImageUrl(v);
     }
     return '';
   }
@@ -851,13 +861,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     status.style.cssText = 'font-size:12px;color:#006948;font-weight:700;text-align:center;direction:rtl;margin-top:4px;';
     card.appendChild(status);
 
-    // Temporary visible diagnostics: shows exactly which fields were actually
-    // found vs missing, so failures can be screenshotted and fixed from real
-    // data instead of guessing blind at SHEIN's markup.
-    var diag = document.createElement('div');
-    diag.id = 'otlobli-overlay-diag';
-    diag.style.cssText = 'display:flex;flex-wrap:wrap;gap:5px;justify-content:center;margin-top:2px;';
-    card.appendChild(diag);
+
 
     overlay.appendChild(card);
     document.body.appendChild(overlay);
@@ -886,7 +890,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var status = document.getElementById('otlobli-overlay-status');
     if (status && statusText) status.textContent = statusText;
 
-    var diag = document.getElementById('otlobli-overlay-diag');
+    var diag = document.getElementById('otlobli-overlay-internal-diag-disabled');
     if (diag) {
       diag.innerHTML = '';
       var diagFields = [
@@ -3358,25 +3362,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
     if (hasProducts) return;
     __otlobliSearchMsgShown = true;
-    var banner = document.getElementById('otlobli-search-warn');
-    if (banner) return;
-    banner = document.createElement('div');
-    banner.id = 'otlobli-search-warn';
-    banner.style.cssText = 'position:fixed;top:60px;left:12px;right:12px;z-index:2147483640;' +
-      'background:#fff3cd;color:#7a5b00;border:1px solid #ffe28a;border-radius:12px;' +
-      'padding:14px 16px;font-size:14px;text-align:center;direction:rtl;' +
-      'box-shadow:0 4px 12px rgba(0,0,0,.18);font-family:Cairo,system-ui,sans-serif;line-height:1.5;';
-    banner.innerHTML = '<strong>نتائج البحث لا تظهر</strong><br>' +
-      'يبدو أن حجب الإعلانات يمنع تحميل المنتجات.<br>' +
-      '<small>أوقف الحجب مؤقتاً لـ temu.com وأعد تحميل الصفحة.</small>';
-    var closeBtn = document.createElement('button');
-    closeBtn.textContent = '✕';
-    closeBtn.style.cssText = 'position:absolute;top:8px;left:10px;background:none;border:none;' +
-      'font-size:16px;cursor:pointer;color:#7a5b00;padding:0;';
-    closeBtn.onclick = function() { banner.remove(); };
-    banner.appendChild(closeBtn);
-    document.body.appendChild(banner);
-    setTimeout(function() { if (banner.parentNode) banner.remove(); }, 8000);
+    console.info('otlobli: temu search appears empty; kept internal only');
   }
 
   // منع الزوم في تيمو: viewport بلا تكبير + إلغاء إيماءة القرصة + إلغاء

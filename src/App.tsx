@@ -939,6 +939,14 @@ function App() {
     return variant ? variant.available : true
   }
 
+  const getMatchingVariant = (p: Product, colorName: string | null, sizeName: string) => {
+    if (!p.variants || p.variants.length === 0) return null
+    return p.variants.find(v =>
+      (!v.colorName || v.colorName === colorName) &&
+      (!v.sizeName || v.sizeName === sizeName)
+    ) ?? null
+  }
+
   const availableSizes = useMemo(() => {
     if (!activeProduct) return []
     if (!selectedColor) return activeProduct.sizes
@@ -948,6 +956,12 @@ function App() {
   const currentVariantAvailable = useMemo(() => {
     if (!activeProduct || !selectedSize) return true
     return isVariantAvailable(activeProduct, selectedColor?.name ?? null, selectedSize)
+  }, [activeProduct, selectedColor, selectedSize])
+
+  const currentAvailableStock = useMemo(() => {
+    if (!activeProduct) return undefined
+    const variant = getMatchingVariant(activeProduct, selectedColor?.name ?? null, selectedSize)
+    return variant?.stock === undefined ? undefined : Math.max(0, variant.stock)
   }, [activeProduct, selectedColor, selectedSize])
 
   const applyProductProfit = (priceSyp: number) => {
@@ -1014,9 +1028,17 @@ function App() {
     (item) => (item.needsCustomText && !item.customText?.trim()) ||
               (item.needsCustomPhoto && !item.customPhotoDataUrl)
   )
+  const getAvailabilityIssue = (item: CartItem) => {
+    if (item.availabilityIssue) return item.availabilityIssue
+    if (typeof item.availableStock === 'number' && item.quantity > item.availableStock) return 'quantity'
+    if (item.sizesUnavailable?.includes(item.size)) return 'size'
+    return null
+  }
+  const hasAvailabilityIssues = activeCheckoutItems.some((item) => !!getAvailabilityIssue(item))
   const formatPrice = (syp: number) => formatPriceSyp(syp, paymentCurrency, exchangeRate)
 
   const createCartGroup = () => {
+    if (isSyncingGroup) return
     if (!phone) { showNotice('سجل دخولك أولاً'); return }
     if (cartItems.length === 0) { showNotice('أضف منتجات للسلة أولاً'); return }
     setIsSyncingGroup(true)
@@ -1276,6 +1298,10 @@ function App() {
     }
     if (!currentVariantAvailable) {
       showNotice('هذا الخيار غير متوفر حالياً')
+      return
+    }
+    if (typeof currentAvailableStock === 'number' && quantity > currentAvailableStock) {
+      showNotice('?????? ???????? ??? ?????? ??????')
       return
     }
     setCartItems((items) => [...items, {
@@ -2401,11 +2427,14 @@ function App() {
     if (screen === 'cart') {
       return (
         <MobileShell active="cart" onNavigate={setScreen}>
-          <Header title="السلة" back={() => setScreen('home')} unreadCount={unreadCount} onNotifications={openNotifications} />
+          <Header title="السلة" unreadCount={unreadCount} onNotifications={openNotifications} />
           <main className="mobile-content mobile-content--cart">
             {cartItems.length > 0 ? (
               <>
-                {cartItems.map((item) => (
+                {cartItems.map((item) => {
+                  const issue = getAvailabilityIssue(item)
+                  const maxQty = typeof item.availableStock === 'number' ? Math.max(0, item.availableStock) : undefined
+                  return (
                   <article className="cart-item" key={item.id}>
                     <button
                       type="button"
@@ -2503,18 +2532,34 @@ function App() {
                         <div className="qty-stepper">
                           <button
                             onClick={() => setCartItems((items) => items.map((i) => i.id === item.id ? { ...i, quantity: Math.max(1, i.quantity - 1) } : i))}
-                            aria-label="تقليل"
-                          >âˆ’</button>
+                            aria-label="?????"
+                          ><Icon name="remove" /></button>
                           <span>{item.quantity}</span>
                           <button
-                            onClick={() => setCartItems((items) => items.map((i) => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i))}
-                            aria-label="زيادة"
-                          >+</button>
+                            disabled={typeof maxQty === 'number' && item.quantity >= maxQty}
+                            onClick={() => setCartItems((items) => items.map((i) => {
+                              if (i.id !== item.id) return i
+                              const next = i.quantity + 1
+                              return { ...i, quantity: typeof maxQty === 'number' ? Math.min(maxQty, next) : next }
+                            }))}
+                            aria-label="?????"
+                          ><Icon name="add" /></button>
                         </div>
                       </div>
+                      {issue && (
+                        <AvailabilityActionRequest
+                          item={item}
+                          onChangeQuantity={typeof maxQty === 'number' && maxQty > 0 ? () => setCartItems((items) => items.map((i) => i.id === item.id ? { ...i, quantity: maxQty, availabilityIssue: undefined } : i)) : undefined}
+                          onSelectAlternative={() => openSheinProductFromCart(item.sourceLink)}
+                          onRemoveUnavailable={typeof maxQty === 'number' && maxQty > 0 ? () => setCartItems((items) => items.map((i) => i.id === item.id ? { ...i, quantity: maxQty, availabilityIssue: undefined } : i)) : undefined}
+                          onRemoveProduct={() => setCartItems((items) => items.filter((i) => i.id !== item.id))}
+                          onReplace={() => openSheinProductFromCart(item.sourceLink)}
+                          onSupport={() => openWhatsappSupport(`?????? otlobli? ????? ?????? ????? ???? ??????: ${item.title}`)}
+                        />
+                      )}
                     </div>
                   </article>
-                ))}
+                )})}
                 <CurrencyToggle value={paymentCurrency} onChange={setPaymentCurrency} />
                 <PriceBreakdown items={breakdown} total={total} format={formatPrice} />
                 <section className="group-order-card">
@@ -2580,7 +2625,7 @@ function App() {
             )}
           </main>
           <div className="sticky-pay-bar">
-            <button className="primary-action" disabled={activeCheckoutItems.length === 0 || !meetsMinimumOrder || hasIncompleteCheckoutCustom} onClick={() => setScreen('checkout')}>
+            <button className="primary-action" disabled={activeCheckoutItems.length === 0 || !meetsMinimumOrder || hasIncompleteCheckoutCustom || hasAvailabilityIssues} onClick={() => setScreen('checkout')}>
               المتابعة للدفع
               <Icon name="arrow_back" />
             </button>
@@ -2871,7 +2916,7 @@ function App() {
     if (screen === 'orders') {
       return (
         <MobileShell active="orders" onNavigate={setScreen}>
-          <Header title="طلباتي" back={() => setScreen('home')} unreadCount={unreadCount} onNotifications={openNotifications} />
+          <Header title="طلباتي" unreadCount={unreadCount} onNotifications={openNotifications} />
           <main className="mobile-content">
             {orders.length === 0 && (
               <EmptyState title="لا توجد طلبات بعد" body="اطلب منتجاً من الصفحة الرئيسية وسيظهر هنا بعد إتمام الدفع." />
@@ -3109,7 +3154,7 @@ function App() {
 
       return (
         <MobileShell active="profile" onNavigate={setScreen}>
-          <Header title="حسابي" back={() => setScreen('home')} unreadCount={unreadCount} onNotifications={openNotifications} />
+          <Header title="حسابي" unreadCount={unreadCount} onNotifications={openNotifications} />
           <main className="mobile-content">
             <section className="profile-card">
               <div className="avatar">{avatarLetter}</div>
@@ -3171,9 +3216,8 @@ function App() {
               </div>
             </section>
             <ProfileRow icon="receipt_long" label={`طلباتي (${orders.length})`} onClick={() => setScreen('orders')} />
-            <ProfileRow
-              icon="currency_exchange"
-              label={`عملة الدفع المفضلة: ${paymentCurrency === 'USD' ? 'دولار أمريكي' : 'ليرة سورية'}`}
+            <PaymentCurrencyRow
+              value={paymentCurrency}
               onClick={() => setPaymentCurrency(paymentCurrency === 'USD' ? 'SYP' : 'USD')}
             />
             <ProfileRow icon="account_balance_wallet" label={`المحفظة: ${formatMoney(walletBalanceSyp)}`} onClick={() => setScreen('payment-methods')} />
@@ -3808,6 +3852,20 @@ function ProfileRow({ icon, label, onClick }: { icon: string; label: string; onC
   )
 }
 
+function PaymentCurrencyRow({ value, onClick }: { value: PaymentCurrency; onClick: () => void }) {
+  const selected = value === 'USD' ? 'دولار أمريكي' : 'ليرة سورية'
+  return (
+    <button className="profile-row profile-row--currency" onClick={onClick}>
+      <span className="profile-row-icon"><Icon name="attach_money" /></span>
+      <span className="profile-row-text">
+        <b>Preferred Payment Currency</b>
+        <small>{selected}</small>
+      </span>
+      <Icon name="chevron_left" />
+    </button>
+  )
+}
+
 function InfoRow({ icon, title, body, compact = false }: { icon: string; title: string; body: string; compact?: boolean }) {
   return (
     <div className={`info-row ${compact ? 'info-row--compact' : ''}`}>
@@ -3817,6 +3875,45 @@ function InfoRow({ icon, title, body, compact = false }: { icon: string; title: 
         {body && <p>{body}</p>}
       </section>
     </div>
+  )
+}
+
+function AvailabilityActionRequest({
+  item,
+  onChangeQuantity,
+  onSelectAlternative,
+  onRemoveUnavailable,
+  onRemoveProduct,
+  onReplace,
+  onSupport,
+}: {
+  item: Partial<CartItem> & Pick<CartItem, 'title' | 'image' | 'color' | 'size' | 'quantity'>
+  onChangeQuantity?: () => void
+  onSelectAlternative: () => void
+  onRemoveUnavailable?: () => void
+  onRemoveProduct: () => void
+  onReplace: () => void
+  onSupport: () => void
+}) {
+  const availableText = typeof item.availableStock === 'number' ? `${item.availableStock} متاح` : 'يحتاج تأكيد'
+  return (
+    <section className="availability-request">
+      <div className="availability-request__head">
+        <img src={item.image || 'https://placehold.co/64x80/f5f5f5/aaa?text=IMG'} alt={item.title} />
+        <div>
+          <h3>{item.title}</h3>
+          <p>{[item.color, item.size].filter(Boolean).join(' · ') || 'الخيار المحدد'} · الكمية {item.quantity} · {availableText}</p>
+        </div>
+      </div>
+      <div className="availability-request__actions">
+        <button type="button" disabled={!onChangeQuantity} onClick={onChangeQuantity}>Change to available quantity</button>
+        <button type="button" onClick={onSelectAlternative}>Select another size or color</button>
+        <button type="button" disabled={!onRemoveUnavailable} onClick={onRemoveUnavailable}>Remove unavailable quantity and refund its value</button>
+        <button type="button" onClick={onRemoveProduct}>Remove the full product and refund it</button>
+        <button type="button" onClick={onReplace}>Replace the product</button>
+        <button type="button" onClick={onSupport}>Contact support</button>
+      </div>
+    </section>
   )
 }
 
