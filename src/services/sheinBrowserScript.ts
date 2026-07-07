@@ -1946,6 +1946,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
     ].join(' ');
     var needsText = !!(perso && perso.has) || otlobliCustomTextSignal(text);
     var needsPhoto = temuNeedsCustomPhoto() || otlobliCustomPhotoSignal(text);
+    if (/image\\s*\\d+|photo\\s*\\d+|picture\\s*\\d+/i.test(text)) needsPhoto = true;
+    var customPhotoCase = otlobliCustomGenericSignal(text)
+      && /(phone|case|cover|جراب|كفر|حافظة|هاتف|موبايل|جوال)/i.test(text)
+      && !/(engrav|engrave|engraving|name|text|monogram|نقش|اسم|نص|محفور|حفر)/i.test(text);
+    if (customPhotoCase) {
+      needsPhoto = true;
+      if (!otlobliCustomTextSignal(text) && !(perso && perso.inputVisible)) needsText = false;
+    }
     if (otlobliCustomGenericSignal(text) && !needsText && !needsPhoto) needsText = true;
     return {
       needsText: needsText,
@@ -2571,8 +2579,17 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   var __otlobliNavLastReclaim = 0;
   function ensureOtlobliNav() {
+    var navCss = 'position:fixed!important;left:50%!important;right:auto!important;bottom:-10px!important;top:auto!important;' +
+      'transform:translate3d(-50%,0,0)!important;will-change:transform!important;' +
+      'width:min(100vw, 440px)!important;height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;' +
+      'max-height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;z-index:2147483647!important;' +
+      'display:flex!important;direction:rtl!important;overflow:hidden!important;box-sizing:border-box!important;' +
+      'background:rgba(255,255,255,.98)!important;border-top:1px solid #bccac0!important;' +
+      'padding:0 0 max(env(safe-area-inset-bottom, 0px), 16px) 0!important;margin:0!important;' +
+      'font-size:11px!important;line-height:1.15!important;opacity:1!important;visibility:visible!important;pointer-events:auto!important;';
     var existingNav = document.getElementById('otlobli-nav');
     if (existingNav) {
+      existingNav.style.cssText = navCss;
       // Re-claiming "last child of body" fixes a real bug (SHEIN's own SPA
       // keeps inserting new elements - promo banners, popups, app-install
       // prompts - some at the SAME max z-index we use, and on a tie the
@@ -2624,14 +2641,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // now would just add needless empty space under the icons.
     // direction:rtl ثابت حتى يكون ترتيب الأزرار (الرئيسية يمين ← حسابي يسار)
     // نفسه على كل المتاجر؛ بدونه ينقلب على المتاجر LTR مثل تيمو.
-    nav.style.cssText = 'position:fixed!important;left:50%!important;right:auto!important;bottom:0!important;top:auto!important;' +
-      'transform:translate3d(-50%,0,0)!important;will-change:transform!important;' +
-      'width:min(100vw, 440px)!important;height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;' +
-      'max-height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;z-index:2147483647!important;' +
-      'display:flex!important;direction:rtl!important;overflow:hidden!important;box-sizing:border-box!important;' +
-      'background:rgba(255,255,255,.98)!important;border-top:1px solid #bccac0!important;' +
-      'padding:0 0 max(env(safe-area-inset-bottom, 0px), 16px) 0!important;margin:0!important;' +
-      'font-size:11px!important;line-height:1.15!important;';
+    nav.style.cssText = navCss;
     var items = [
       { label: 'الرئيسية', icon: OTLOBLI_NAV_ICONS.home, type: '' },
       { label: 'طلباتي', icon: OTLOBLI_NAV_ICONS.orders, type: 'openOrders' },
@@ -3411,6 +3421,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         try { ensureTemuNoZoom(); } catch (e) {}
         try { hideTemuCustomerAccountAndCart(); } catch (e) {}
         try { hideTemuCustomerChrome(); } catch (e) {}
+        try { restoreTemuSearchChrome(); } catch (e) {}
         try { ensureAddToCartButton(); } catch (e) {}
         try { detectEmptyTemuSearch(); } catch (e) {}
         return;
@@ -3599,6 +3610,31 @@ export const SHEIN_CAPTURE_SCRIPT = `
           el.setAttribute('data-otlobli-temu-hidden', '1');
           el.style.setProperty('display', 'none', 'important');
           el.style.setProperty('pointer-events', 'none', 'important');
+        }
+      }
+    } catch (e) {}
+  }
+
+  function restoreTemuSearchChrome() {
+    if (!IS_TEMU || !document.body) return;
+    try {
+      var nodes = document.querySelectorAll('input[type="search"], input[placeholder*="Search" i], input[placeholder*="بحث"], [role="searchbox"], a, button, div, span');
+      for (var i = 0; i < nodes.length; i++) {
+        var el = nodes[i];
+        if (el.id && el.id.indexOf('otlobli') === 0) continue;
+        var r = el.getBoundingClientRect();
+        if (r.top < -20 || r.top > 170 || r.width < 70 || r.height < 20) continue;
+        if (!otlobliNearSearchInput(el) && !otlobliLooksLikeSearchTrigger(el)) continue;
+        var cur = el;
+        for (var depth = 0; cur && depth < 3; depth++) {
+          if (cur.id && cur.id.indexOf('otlobli') === 0) break;
+          cur.removeAttribute('data-otlobli-temu-hidden');
+          cur.removeAttribute('data-otlobli-blocked');
+          cur.style.removeProperty('display');
+          cur.style.setProperty('visibility', 'visible', 'important');
+          cur.style.setProperty('opacity', '1', 'important');
+          cur.style.setProperty('pointer-events', 'auto', 'important');
+          cur = cur.parentElement;
         }
       }
     } catch (e) {}
@@ -3928,6 +3964,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
     hideKnownHeaderIconsByHint();
     hideSheinHeaderControls();
     hideListingCardAddButtons();
+  }, 120);
+  setInterval(function () {
+    ensureOtlobliNav();
+    if (IS_TEMU) restoreTemuSearchChrome();
   }, 120);
   // Own slower interval, not part of tick() - see checkForSheinSecurityBlock's
   // comment on why innerText needs to stay off the 300ms timer. خاص بشي إن فقط.

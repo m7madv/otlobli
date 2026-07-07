@@ -34,6 +34,19 @@ const APP_SETTINGS_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/app-settin
 // السكربت المحقون يقرأ المنطقة من الرابط فيضبط لغة الموقع تلقائياً.
 const SHEIN_HOME_URL = 'https://ar.shein.com/?currency=USD&country=SA&lang=ar'
 
+const extractGroupInviteCode = (value: string) => {
+  const raw = value.trim()
+  try {
+    const url = new URL(raw)
+    return (url.searchParams.get('group') || url.searchParams.get('code') || raw)
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '')
+  } catch {
+    return raw.toUpperCase().replace(/[^A-Z0-9]/g, '')
+  }
+}
+
 const normalizeSheinBrowserUrl = (rawUrl: string) => {
   if (!rawUrl) return SHEIN_HOME_URL
   try {
@@ -496,6 +509,19 @@ function App() {
     setNotice(message)
     window.setTimeout(() => setNotice(''), 1900)
   }
+
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search)
+      const code = params.get('group') || params.get('code')
+      if (code) {
+        setGroupJoinCode(extractGroupInviteCode(code))
+        setScreen('cart')
+      }
+    } catch {
+      // Ignore malformed launch URLs.
+    }
+  }, [])
 
   const copyText = (value: string, successMessage: string) => {
     const text = value.trim()
@@ -1000,6 +1026,9 @@ function App() {
   const total = subtotal
   const groupCheckoutItems = cartGroup?.items.map((line) => line.item) ?? []
   const groupTotalUsd = cartGroup?.totalUsd ?? 0
+  const groupInviteLink = cartGroup
+    ? `${window.location.origin}${window.location.pathname}?group=${encodeURIComponent(cartGroup.code)}`
+    : ''
   const activeCheckoutItems = cartGroup && groupCheckoutItems.length > 0 ? groupCheckoutItems : cartItems
   const activeCheckoutProductsTotal = activeCheckoutItems.reduce((sum, item) => sum + getItemPriceSyp(item) * item.quantity, 0)
   const shippingTotalSyp = currentShippingFees.reduce((sum, line) => sum + line.value, 0)
@@ -1053,8 +1082,18 @@ function App() {
       .finally(() => setIsSyncingGroup(false))
   }
 
+  const shareCartGroup = () => {
+    if (!cartGroup || !groupInviteLink) return
+    const message = `انضم لسلة otlobli المشتركة\nالكود: ${cartGroup.code}\nالرابط: ${groupInviteLink}`
+    if (navigator.share) {
+      void navigator.share({ title: 'otlobli', text: message, url: groupInviteLink }).catch(() => undefined)
+      return
+    }
+    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank', 'noreferrer')
+  }
+
   const joinCartGroup = () => {
-    const code = groupJoinCode.trim().toUpperCase()
+    const code = extractGroupInviteCode(groupJoinCode)
     if (!phone) { showNotice('سجل دخولك أولاً'); return }
     if (!code) { showNotice('أدخل كود الطلب المشترك'); return }
     setIsSyncingGroup(true)
@@ -2632,8 +2671,14 @@ function App() {
                     <>
                       <div className="group-code-row">
                         <span dir="ltr">{cartGroup.code}</span>
-                        <button onClick={() => void navigator.clipboard?.writeText(cartGroup.code)}>
+                        <button onClick={() => copyText(cartGroup.code, 'تم نسخ كود الصديق')}>
                           <Icon name="content_copy" /> نسخ
+                        </button>
+                        <button onClick={() => copyText(groupInviteLink, 'تم نسخ رابط الصديق')}>
+                          <Icon name="link" /> رابط
+                        </button>
+                        <button onClick={shareCartGroup}>
+                          <Icon name="ios_share" /> واتساب
                         </button>
                         <button disabled={isSyncingGroup} onClick={syncCartGroup}>
                           <Icon name="sync" /> تحديث
@@ -2659,7 +2704,7 @@ function App() {
                       <div className="group-join-row">
                         <input
                           value={groupJoinCode}
-                          onChange={(e) => setGroupJoinCode(e.target.value.toUpperCase())}
+                          onChange={(e) => setGroupJoinCode(e.target.value)}
                           placeholder="كود الصديق"
                           dir="ltr"
                         />

@@ -4,6 +4,7 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 const CODE_LENGTH = 7
+const MIN_TOTAL_USD = 40
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -26,46 +27,122 @@ function makeInviteCode() {
   return code
 }
 
+function cleanCode(value: string) {
+  try {
+    const url = new URL(value)
+    return (url.searchParams.get('group') || url.searchParams.get('code') || value)
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '')
+  } catch {
+    return value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+  }
+}
+
+function getItemNumber(item: unknown, key: string, fallback = 0) {
+  if (!item || typeof item !== 'object') return fallback
+  const value = (item as Record<string, unknown>)[key]
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
+function getItemId(item: unknown, index: number, customerId: string) {
+  if (item && typeof item === 'object') {
+    const row = item as Record<string, unknown>
+    const value = row.id ?? row.localItemId
+    if (value) return String(value)
+  }
+  return `${customerId}-${index}`
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders })
   if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405)
 
   try {
     const body = await req.json() as {
+      action?: string
       phone?: string
       name?: string
       store?: string
+      code?: string
+      groupId?: string
       items?: unknown[]
     }
+    const action = (body.action ?? 'create').trim().toLowerCase()
     const phone = (body.phone ?? '').replace(/\s+/g, '')
-    const name = (body.name ?? '').trim() || 'صاحب الطلب'
+    const name = (body.name ?? '').trim() || 'Customer'
     const store = (body.store ?? 'shein').trim() || 'shein'
     const items = Array.isArray(body.items) ? body.items : []
 
+    if (!SUPABASE_URL || !SERVICE_ROLE_KEY) return json({ error: 'not_configured' }, 500)
     if (!phone) return json({ error: 'missing_phone' }, 400)
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY)
     const { data: customerId, error: customerError } = await supabase.rpc('ensure_customer', {
       p_phone: phone,
       p_name: name,
-      p_governorate: 'دمشق',
+      p_governorate: 'Damascus',
       p_city: '',
       p_details: '',
       p_qadmous_branch: '',
     })
-    if (customerError || !customerId) return json({ error: 'create_failed' }, 500)
+    if (customerError || !customerId) return json({ error: 'customer_failed' }, 500)
 
     let groupId = ''
-    for (let attempt = 0; attempt < 16 && !groupId; attempt += 1) {
-      const code = makeInviteCode()
-      const { data, error } = await supabase
-        .from('cart_groups')
-        .insert({ code, host_customer_id: customerId, source_store: store })
-        .select('id')
-        .single()
+    let role = 'member'
 
-      if (!error && data?.id) groupId = data.id
-      else if (error && error.code !== '23505') return json({ error: 'create_failed' }, 500)
+    if (action === 'create') {
+      role = 'host'
+      const { data: existing } = await supabase
+        .from('cart_groups')
+        .select('id')
+        .eq('host_customer_id', customerId)
+        .eq('source_store', store)
+        .eq('status', 'open')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (existing?.id) groupId = existing.id
+
+      for (let attempt = 0; attempt < 16 && !groupId; attempt += 1) {
+        const code = makeInviteCode()
+        const { data, error } = await supabase
+          .from('cart_groups')
+          .insert({ code, host_customer_id: customerId, source_store: store })
+          .select('id')
+          .single()
+
+        if (!error && data?.id) groupId = data.id
+        else if (error && error.code !== '23505') return json({ error: 'create_failed' }, 500)
+      }
+    } else if (action === 'join') {
+      const code = cleanCode(body.code ?? '')
+      if (!code) return json({ error: 'missing_code' }, 400)
+
+      const { data: foundGroup, error: findError } = await supabase
+        .from('cart_groups')
+        .select('id')
+        .eq('code', code)
+        .eq('status', 'open')
+        .maybeSingle()
+      if (findError || !foundGroup?.id) return json({ error: 'group_not_found' }, 404)
+      groupId = foundGroup.id
+    } else if (action === 'sync') {
+      groupId = (body.groupId ?? '').trim()
+      if (!groupId) return json({ error: 'missing_group' }, 400)
+
+      const { data: membership } = await supabase
+        .from('cart_group_members')
+        .select('group_id, role')
+        .eq('group_id', groupId)
+        .eq('customer_id', customerId)
+        .maybeSingle()
+      if (!membership?.group_id) return json({ error: 'not_member' }, 403)
+      role = membership.role || 'member'
+    } else {
+      return json({ error: 'bad_action' }, 400)
     }
 
     if (!groupId) return json({ error: 'create_failed' }, 500)
@@ -77,23 +154,87 @@ Deno.serve(async (req) => {
         customer_id: customerId,
         phone,
         display_name: name,
-        role: 'host',
+        role,
       }, { onConflict: 'group_id,customer_id' })
-    if (memberError) return json({ error: 'create_failed' }, 500)
+    if (memberError) return json({ error: 'member_failed' }, 500)
 
-    const { error: replaceError } = await supabase.rpc('replace_cart_group_items', {
-      p_group_id: groupId,
-      p_customer_id: customerId,
-      p_items: items,
+    const { error: deleteError } = await supabase
+      .from('cart_group_items')
+      .delete()
+      .eq('group_id', groupId)
+      .eq('customer_id', customerId)
+    if (deleteError) return json({ error: 'items_failed' }, 500)
+
+    const rows = items.map((item, index) => {
+      const quantity = Math.max(1, getItemNumber(item, 'quantity', 1))
+      return {
+        group_id: groupId,
+        customer_id: customerId,
+        local_item_id: getItemId(item, index, customerId),
+        payload: item,
+        price_usd: getItemNumber(item, 'priceUsd'),
+        price_syp: getItemNumber(item, 'priceSyp'),
+        quantity,
+      }
     })
-    if (replaceError) return json({ error: 'create_failed' }, 500)
 
-    const { data: snapshot, error: snapshotError } = await supabase.rpc('cart_group_snapshot', {
-      p_group_id: groupId,
+    if (rows.length) {
+      const { error: insertError } = await supabase
+        .from('cart_group_items')
+        .insert(rows)
+      if (insertError) return json({ error: 'items_failed' }, 500)
+    }
+
+    const { data: group, error: groupError } = await supabase
+      .from('cart_groups')
+      .select('id, code, status')
+      .eq('id', groupId)
+      .single()
+    if (groupError || !group) return json({ error: 'snapshot_failed' }, 500)
+
+    const { data: members, error: membersError } = await supabase
+      .from('cart_group_members')
+      .select('customer_id, phone, display_name, role')
+      .eq('group_id', groupId)
+      .order('joined_at', { ascending: true })
+    if (membersError) return json({ error: 'snapshot_failed' }, 500)
+
+    const { data: groupItems, error: itemsError } = await supabase
+      .from('cart_group_items')
+      .select('payload, price_usd, quantity, customer_id')
+      .eq('group_id', groupId)
+    if (itemsError) return json({ error: 'snapshot_failed' }, 500)
+
+    const memberByCustomer = new Map<string, { phone: string; name: string }>()
+    for (const member of members ?? []) {
+      memberByCustomer.set(String(member.customer_id), {
+        phone: String(member.phone ?? ''),
+        name: String(member.display_name ?? ''),
+      })
+    }
+
+    return json({
+      id: group.id,
+      code: group.code,
+      status: group.status,
+      minTotalUsd: MIN_TOTAL_USD,
+      totalUsd: (groupItems ?? []).reduce((sum, entry) => {
+        return sum + Number(entry.price_usd ?? 0) * Math.max(1, Number(entry.quantity ?? 1) || 1)
+      }, 0),
+      members: (members ?? []).map((member) => ({
+        phone: member.phone ?? '',
+        name: member.display_name ?? '',
+        role: member.role === 'host' ? 'host' : 'member',
+      })),
+      items: (groupItems ?? []).map((entry) => {
+        const owner = memberByCustomer.get(String(entry.customer_id))
+        return {
+          ownerPhone: owner?.phone ?? '',
+          ownerName: owner?.name ?? '',
+          item: entry.payload,
+        }
+      }),
     })
-    if (snapshotError || !snapshot) return json({ error: 'create_failed' }, 500)
-
-    return json(snapshot)
   } catch {
     return json({ error: 'create_failed' }, 500)
   }

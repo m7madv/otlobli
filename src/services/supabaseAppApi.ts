@@ -172,6 +172,41 @@ function normalizeCartGroup(data: unknown): CartGroupSnapshot {
   }
 }
 
+function extractCartGroupCode(value: string) {
+  const raw = value.trim()
+  try {
+    const url = new URL(raw)
+    return (url.searchParams.get('group') || url.searchParams.get('code') || raw)
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '')
+  } catch {
+    return raw.toUpperCase().replace(/[^A-Z0-9]/g, '')
+  }
+}
+
+async function postCartGroup(body: Record<string, unknown>) {
+  if (!CART_GROUPS_URL) throw new Error('تعذر الوصول إلى خدمة الطلب المشترك حالياً. حاول مرة أخرى.')
+
+  const response = await fetch(CART_GROUPS_URL, {
+    method: 'POST',
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  })
+  const data = await response.json().catch(() => null)
+  if (!response.ok || !data) {
+    const error = (data && typeof data === 'object' ? (data as { error?: string }).error : '') || ''
+    if (error === 'group_not_found') throw new Error('كود الصديق غير صحيح أو انتهت صلاحيته.')
+    if (error === 'missing_code') throw new Error('أدخل كود أو رابط الصديق أولاً.')
+    throw new Error('تعذر تحديث الطلب المشترك حالياً. حاول مرة أخرى.')
+  }
+  return normalizeCartGroup(data)
+}
+
 function getPublicDbError(prefix: string, message?: string) {
   const raw = message || 'خطأ غير معروف'
   if (/schema cache|Could not find the function|PGRST202|function public\\./i.test(raw)) {
@@ -524,48 +559,35 @@ export const supabaseAppApi: TalabiehApi = {
     async create(phone, name, store, items) {
       if (!supabase || !CART_GROUPS_URL) return localAppApi.cartGroups.create(phone, name, store, items)
 
-      const response = await fetch(CART_GROUPS_URL, {
-        method: 'POST',
-        headers: {
-          apikey: SUPABASE_ANON_KEY,
-          authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          phone: phone.trim(),
-          name: name.trim(),
-          store,
-          items,
-        }),
+      return postCartGroup({
+        action: 'create',
+        phone: phone.trim(),
+        name: name.trim(),
+        store,
+        items,
       })
-      const data = await response.json().catch(() => null)
-      if (!response.ok || !data) throw new Error('???? ????? ??? ??????. ???? ??? ????.')
-      return normalizeCartGroup(data)
     },
 
     async join(phone, name, code, items) {
-      if (!supabase) return localAppApi.cartGroups.join(phone, name, code, items)
-
-      const { data, error } = await supabase.rpc('join_cart_group', {
-        p_phone: phone.trim(),
-        p_name: name.trim(),
-        p_code: code.trim().toUpperCase(),
-        p_items: items,
+      const inviteCode = extractCartGroupCode(code)
+      if (!supabase || !CART_GROUPS_URL) return localAppApi.cartGroups.join(phone, name, inviteCode, items)
+      return postCartGroup({
+        action: 'join',
+        phone: phone.trim(),
+        name: name.trim(),
+        code: inviteCode,
+        items,
       })
-      if (error || !data) throw new Error(getPublicDbError('تعذّر الانضمام للطلب المشترك', error?.message))
-      return normalizeCartGroup(data)
     },
 
     async syncItems(phone, groupId, items) {
-      if (!supabase) return localAppApi.cartGroups.syncItems(phone, groupId, items)
-
-      const { data, error } = await supabase.rpc('sync_cart_group_items', {
-        p_phone: phone.trim(),
-        p_group_id: groupId,
-        p_items: items,
+      if (!supabase || !CART_GROUPS_URL) return localAppApi.cartGroups.syncItems(phone, groupId, items)
+      return postCartGroup({
+        action: 'sync',
+        phone: phone.trim(),
+        groupId,
+        items,
       })
-      if (error || !data) throw new Error(getPublicDbError('تعذّر تحديث سلة الطلب المشترك', error?.message))
-      return normalizeCartGroup(data)
     },
   },
   orders: {
