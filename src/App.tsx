@@ -2979,7 +2979,7 @@ function App() {
       return (
         <MobileShell active="orders" onNavigate={setScreen}>
           <Header title="طلباتي" unreadCount={unreadCount} onNotifications={openNotifications} />
-          <main className="mobile-content">
+          <main className="mobile-content mobile-content--orders">
             {orders.length === 0 && (
               <EmptyState title="لا توجد طلبات بعد" body="اطلب منتجاً من الصفحة الرئيسية وسيظهر هنا بعد إتمام الدفع." />
             )}

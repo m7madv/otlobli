@@ -19,8 +19,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
       document.head.appendChild(meta);
     }
     var content = meta.getAttribute('content') || 'width=device-width, initial-scale=1';
-    if (!/viewport-fit\\s*=\\s*cover/i.test(content)) {
-      meta.setAttribute('content', content.replace(/,?\\s*viewport-fit=[^,]*/i, '') + ', viewport-fit=cover');
+    var nextContent = content
+      .replace(/,?\\s*viewport-fit=[^,]*/ig, '')
+      .replace(/,?\\s*maximum-scale=[^,]*/ig, '')
+      .replace(/,?\\s*user-scalable=[^,]*/ig, '');
+    nextContent += ', viewport-fit=cover, maximum-scale=1, user-scalable=no';
+    if (content !== nextContent) {
+      meta.setAttribute('content', nextContent);
     }
   }
   ensureViewportFitCover();
@@ -2619,10 +2624,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // now would just add needless empty space under the icons.
     // direction:rtl ثابت حتى يكون ترتيب الأزرار (الرئيسية يمين ← حسابي يسار)
     // نفسه على كل المتاجر؛ بدونه ينقلب على المتاجر LTR مثل تيمو.
-    nav.style.cssText = 'position:fixed;left:50%;bottom:0;transform:translateX(-50%) translateZ(0);will-change:transform;' +
-      'width:min(100%, 440px);z-index:2147483647;display:flex;direction:rtl;' +
-      'min-height:74px;background:rgba(255,255,255,.97);border-top:1px solid #bccac0;' +
-      'padding-bottom:max(env(safe-area-inset-bottom, 0px), 16px);';
+    nav.style.cssText = 'position:fixed!important;left:50%!important;right:auto!important;bottom:0!important;top:auto!important;' +
+      'transform:translate3d(-50%,0,0)!important;will-change:transform!important;' +
+      'width:min(100vw, 440px)!important;height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;' +
+      'max-height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;z-index:2147483647!important;' +
+      'display:flex!important;direction:rtl!important;overflow:hidden!important;box-sizing:border-box!important;' +
+      'background:rgba(255,255,255,.98)!important;border-top:1px solid #bccac0!important;' +
+      'padding:0 0 max(env(safe-area-inset-bottom, 0px), 16px) 0!important;margin:0!important;' +
+      'font-size:11px!important;line-height:1.15!important;';
     var items = [
       { label: 'الرئيسية', icon: OTLOBLI_NAV_ICONS.home, type: '' },
       { label: 'طلباتي', icon: OTLOBLI_NAV_ICONS.orders, type: 'openOrders' },
@@ -2650,18 +2659,21 @@ export const SHEIN_CAPTURE_SCRIPT = `
       // px ثابت (وليس rem) وخط محدّد صراحةً: بعض المتاجر (تيمو) تضبط خط جذر
       // ضخم فتصير وحدات rem والخط الموروث هائلة فيتشوّه الشريط - التثبيت بالـpx
       // يجعله بنفس مقاس وتصميم شي إن على كل المتاجر.
-      tab.style.cssText = 'position:relative;flex:1;height:100%;border:0;background:transparent;display:flex;' +
-        'flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:6px 0;' +
-        'font-size:11px;font-weight:700;font-family:Cairo,system-ui,-apple-system,sans-serif;color:' + (isActiveTab ? '#006948' : '#3d4a42') + ';';
+      tab.style.cssText = 'position:relative!important;flex:1 1 0!important;height:74px!important;min-height:74px!important;max-height:74px!important;' +
+        'border:0!important;background:transparent!important;display:flex!important;flex-direction:column!important;' +
+        'align-items:center!important;justify-content:center!important;gap:4px!important;padding:6px 0!important;margin:0!important;' +
+        'box-sizing:border-box!important;font-size:11px!important;line-height:1.15!important;font-weight:700!important;' +
+        'font-family:Cairo,system-ui,-apple-system,sans-serif!important;color:' + (isActiveTab ? '#006948' : '#3d4a42') + '!important;';
       if (isActiveTab) {
         var indicator = document.createElement('span');
-        indicator.style.cssText = 'position:absolute;top:0;width:32px;height:4px;border-radius:999px;background:#006948;';
+        indicator.style.cssText = 'position:absolute!important;top:0!important;width:32px!important;height:4px!important;border-radius:999px!important;background:#006948!important;';
         tab.appendChild(indicator);
       }
       var iconLabelWrap = document.createElement('span');
-      iconLabelWrap.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;' +
-        'gap:4px;width:100%;height:100%;pointer-events:none;';
-      iconLabelWrap.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+      iconLabelWrap.style.cssText = 'display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;' +
+        'gap:4px!important;width:100%!important;height:62px!important;min-height:0!important;pointer-events:none!important;' +
+        'font-size:11px!important;line-height:1.15!important;box-sizing:border-box!important;';
+      iconLabelWrap.innerHTML = '<svg width="22" height="22" style="width:22px!important;height:22px!important;flex:0 0 22px!important;display:block!important" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
         'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + item.icon + '</svg>' +
         '<span>' + item.label + '</span>';
       tab.appendChild(iconLabelWrap);
@@ -3477,9 +3489,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var style = document.createElement('style');
         style.id = 'otlobli-temu-stability-style';
         style.textContent = [
-          'html,body{min-width:0!important;width:100%!important;max-width:100vw!important;overflow-x:hidden!important;-webkit-text-size-adjust:100%!important;text-size-adjust:100%!important;}',
-          'input,textarea,select,button{font-size:16px!important;}',
-          '#otlobli-nav,#otlobli-add-btn,#otlobli-back-btn{transform:translateZ(0)!important;will-change:transform!important;}',
+          'html,body{min-width:0!important;width:100%!important;max-width:100vw!important;overflow-x:hidden!important;-webkit-text-size-adjust:100%!important;text-size-adjust:100%!important;scroll-padding-bottom:128px!important;}',
+          'input,textarea,select{font-size:16px!important;}',
+          '#otlobli-nav{transform:translate3d(-50%,0,0)!important;will-change:transform!important;}',
+          '#otlobli-add-btn,#otlobli-back-btn{will-change:transform!important;}',
         ].join('');
         document.head.appendChild(style);
       }
@@ -3550,10 +3563,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if (fcEl.id && fcEl.id.indexOf('otlobli') === 0) continue;
         var fr = fcEl.getBoundingClientRect();
         var fcs = window.getComputedStyle(fcEl);
-        if (fr.width < 34 || fr.width > 130 || fr.height < 34 || fr.height > 130) continue;
+        if (fr.width < 34 || fr.width > 140 || fr.height < 34 || fr.height > 140) continue;
         if (fcs.position !== 'fixed' && fcs.position !== 'absolute') continue;
-        if (fr.top > 180 && fr.bottom < viewportSize().height - 120) continue;
+        var fcHints = otlobliCollectIdentityHints(fcEl) + ' ' + temuCleanText(fcEl.textContent);
+        var looksCart = /(cart|shopping|basket|bag|عربة|سلة|التسوق)/i.test(fcHints);
+        var leftFloatingCart = fr.left <= 130 && fr.top >= 70 && fr.top <= viewportSize().height * 0.7 && (looksCart || !!(fcEl.querySelector && fcEl.querySelector('svg,img')));
+        if (!leftFloatingCart && fr.top > 180 && fr.bottom < viewportSize().height - 120) continue;
         fcEl.setAttribute('data-otlobli-temu-hidden', '1');
+        fcEl.style.setProperty('display', 'none', 'important');
         fcEl.style.setProperty('visibility', 'hidden', 'important');
         fcEl.style.setProperty('pointer-events', 'none', 'important');
       }
@@ -3576,8 +3593,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var fixedish = cs.position === 'fixed' || cs.position === 'sticky' || cs.position === 'absolute';
         var topAppBanner = r.top >= 0 && r.top < 170 && /temu/i.test(txt) && /(حصل|تنزيل|تطبيق|get|download|app)/i.test(txt);
         var bottomLogin = r.bottom > vp.height - 170 && /(سجل الدخول|تسجيل الدخول|sign in|login|أفضل تجربة|best experience)/i.test(txt);
+        var bottomStoreAction = r.bottom > vp.height - 190 && (/(cart|bag|deal|offer|add to|login|sign in)/i.test(txt) || /rgb\\(255,\\s*(?:102|118|128|136|145|153|165),\\s*0\\)/i.test(cs.backgroundColor || ''));
         if (!fixedish && !topAppBanner) continue;
-        if (topAppBanner || bottomLogin) {
+        if (topAppBanner || bottomLogin || bottomStoreAction) {
           el.setAttribute('data-otlobli-temu-hidden', '1');
           el.style.setProperty('display', 'none', 'important');
           el.style.setProperty('pointer-events', 'none', 'important');
