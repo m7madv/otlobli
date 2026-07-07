@@ -1898,11 +1898,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   function otlobliCustomTextSignal(text) {
-    return /custom\s*(?:text|name)|personaliz|engrave|engraving|monogram|name\s*plate|your\s*(?:name|text)|enter\s*(?:name|text)|اسم|نص|كتابة|اكتب|محفور|نقش|حفر/i.test(text || '');
+    return /custom\\s*(?:text|name)|personaliz|engrave|engraving|monogram|name\\s*plate|your\\s*(?:name|text)|enter\\s*(?:name|text)|اسم|نص|كتابة|اكتب|محفور|نقش|حفر/i.test(text || '');
   }
 
   function otlobliCustomPhotoSignal(text) {
-    return /custom\s*(?:photo|image|picture)|upload\s*(?:photo|image|picture)|photo\s*upload|image\s*upload|with\s*(?:photo|picture)|صورة|ارفق|رفع|تحميل\s*صورة|بالصور|عين|وجه/i.test(text || '');
+    return /custom\\s*(?:photo|image|picture)|upload\\s*(?:photo|image|picture)|photo\\s*upload|image\\s*upload|with\\s*(?:photo|picture)|صورة|ارفق|رفع|تحميل\\s*صورة|بالصور|عين|وجه/i.test(text || '');
   }
 
   function otlobliCustomGenericSignal(text) {
@@ -1916,9 +1916,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var el = nodes[i];
       var r = el.getBoundingClientRect();
       if (r.width <= 0 || r.height <= 0) continue;
-      var t = (el.textContent || '').replace(/\s+/g, ' ').trim();
+      var t = (el.textContent || '').replace(/\\s+/g, ' ').trim();
       if (!t || t.length > 180) continue;
-      if (otlobliCustomGenericSignal(t) || otlobliCustomTextSignal(t) || otlobliCustomPhotoSignal(t) || /\d+\s*[*x×]\s*\d+/.test(t)) {
+      if (otlobliCustomGenericSignal(t) || otlobliCustomTextSignal(t) || otlobliCustomPhotoSignal(t) || /\\d+\\s*[*x×]\\s*\\d+/.test(t)) {
         out.push(t);
       }
     }
@@ -1927,7 +1927,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function otlobliCustomPhotoNoteFallback() {
     var pageText = otlobliVisibleCustomText();
-    var sizeMatch = pageText.match(/\d+\s*[*x×]\s*\d+\s*(?:px|pixel|بكسل)?/i);
+    var sizeMatch = pageText.match(/\\d+\\s*[*x×]\\s*\\d+\\s*(?:px|pixel|بكسل)?/i);
     if (sizeMatch) return sizeMatch[0];
     if (otlobliCustomPhotoSignal(pageText)) return 'يرجى إرفاق الصورة المطلوبة لهذا المنتج المخصص';
     return '';
@@ -3398,6 +3398,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (IS_TEMU) {
         try { ensureTemuNoZoom(); } catch (e) {}
         try { hideTemuCustomerAccountAndCart(); } catch (e) {}
+        try { hideTemuCustomerChrome(); } catch (e) {}
         try { ensureAddToCartButton(); } catch (e) {}
         try { detectEmptyTemuSearch(); } catch (e) {}
         return;
@@ -3479,7 +3480,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
           'html,body{min-width:0!important;width:100%!important;max-width:100vw!important;overflow-x:hidden!important;-webkit-text-size-adjust:100%!important;text-size-adjust:100%!important;}',
           'input,textarea,select,button{font-size:16px!important;}',
           '#otlobli-nav,#otlobli-add-btn,#otlobli-back-btn{transform:translateZ(0)!important;will-change:transform!important;}',
-        ].join('\n');
+        ].join('');
         document.head.appendChild(style);
       }
       if (!__otlobliNoZoomListeners) {
@@ -3555,6 +3556,32 @@ export const SHEIN_CAPTURE_SCRIPT = `
         fcEl.setAttribute('data-otlobli-temu-hidden', '1');
         fcEl.style.setProperty('visibility', 'hidden', 'important');
         fcEl.style.setProperty('pointer-events', 'none', 'important');
+      }
+    } catch (e) {}
+  }
+
+  function hideTemuCustomerChrome() {
+    if (!IS_TEMU || !document.body) return;
+    try {
+      var vp = viewportSize();
+      var nodes = document.querySelectorAll('div, section, aside, nav, footer');
+      for (var i = 0; i < nodes.length; i++) {
+        var el = nodes[i];
+        if (el.id && el.id.indexOf('otlobli') === 0) continue;
+        var txt = temuCleanText(el.textContent);
+        if (!txt || txt.length > 160) continue;
+        var r = el.getBoundingClientRect();
+        if (r.width < vp.width * 0.45 || r.height <= 0 || r.height > 150) continue;
+        var cs = window.getComputedStyle(el);
+        var fixedish = cs.position === 'fixed' || cs.position === 'sticky' || cs.position === 'absolute';
+        var topAppBanner = r.top >= 0 && r.top < 170 && /temu/i.test(txt) && /(حصل|تنزيل|تطبيق|get|download|app)/i.test(txt);
+        var bottomLogin = r.bottom > vp.height - 170 && /(سجل الدخول|تسجيل الدخول|sign in|login|أفضل تجربة|best experience)/i.test(txt);
+        if (!fixedish && !topAppBanner) continue;
+        if (topAppBanner || bottomLogin) {
+          el.setAttribute('data-otlobli-temu-hidden', '1');
+          el.style.setProperty('display', 'none', 'important');
+          el.style.setProperty('pointer-events', 'none', 'important');
+        }
       }
     } catch (e) {}
   }
