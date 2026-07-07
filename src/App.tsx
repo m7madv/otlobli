@@ -279,7 +279,7 @@ function App() {
     storageKeys.pendingWhatsappAuth,
     null,
   )
-  const [, setSessionToken] = useStoredState<string>(storageKeys.sessionToken, '')
+  const [sessionToken, setSessionToken] = useStoredState<string>(storageKeys.sessionToken, '')
   const [userProfile, setUserProfile] = useStoredState<UserProfile | null>(storageKeys.userProfile, null)
   const [paymentCurrency, setPaymentCurrency] = useStoredState<PaymentCurrency>(storageKeys.paymentCurrency, 'SYP')
   const [storedRate, setExchangeRate] = useStoredState<number>(storageKeys.exchangeRate, DEFAULT_EXCHANGE_RATE)
@@ -503,7 +503,11 @@ function App() {
     }
   }
 
-  const order = orders.find((item) => item.id === currentOrderId) ?? orders[0] ?? null
+  const activeAccountPhone = normalizePhoneForCompare(userProfile?.phone || sessionToken || '')
+  const visibleOrders = activeAccountPhone
+    ? orders.filter((item) => normalizePhoneForCompare(item.phone) === activeAccountPhone)
+    : []
+  const order = visibleOrders.find((item) => item.id === currentOrderId) ?? visibleOrders[0] ?? null
 
   const showNotice = (message: string) => {
     setNotice(message)
@@ -699,17 +703,15 @@ function App() {
 
   const mergeOrdersForPhone = useCallback((remoteOrders: Order[], loginPhone: string) => {
     const cleanedPhone = loginPhone.replace(/\s+/g, '')
-    setOrders((localOrders) => {
-      const byId = new Map<string, Order>()
-      remoteOrders.forEach((remoteOrder) => byId.set(remoteOrder.id, remoteOrder))
-      localOrders
-        .filter((localOrder) => localOrder.phone.replace(/\s+/g, '') === cleanedPhone)
-        .forEach((localOrder) => {
-          if (!byId.has(localOrder.id)) byId.set(localOrder.id, localOrder)
-        })
-      return Array.from(byId.values()).sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-    })
-  }, [setOrders])
+    setOrders(remoteOrders
+      .filter((remoteOrder) => remoteOrder.phone.replace(/\s+/g, '') === cleanedPhone)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt)))
+    setCurrentOrderId((current) => (
+      remoteOrders.some((remoteOrder) => remoteOrder.id === current && remoteOrder.phone.replace(/\s+/g, '') === cleanedPhone)
+        ? current
+        : ''
+    ))
+  }, [setCurrentOrderId, setOrders])
 
   const applyCustomerAccount = useCallback((
     account: {
@@ -818,6 +820,8 @@ function App() {
       if (!confirmed) return
     }
     setSessionToken('')
+    setUserProfile(null)
+    setOrders([])
     setCartsByStore({ shein: [], temu: [] })
     setCartGroup(null)
     setPendingPayment(null)
@@ -843,7 +847,7 @@ function App() {
     } catch { /* fallback below */ }
     const normalizedLoginPhone = normalizePhoneForCompare(loginPhone)
     const hasLocalProfile = normalizePhoneForCompare(userProfile?.phone ?? '') === normalizedLoginPhone && !!userProfile?.name
-    const hasLocalOrders = orders.some((order) => normalizePhoneForCompare(order.phone) === normalizedLoginPhone)
+    const hasLocalOrders = false
     return hasLocalProfile || hasLocalOrders ? 'home' : 'onboarding'
   }
 
@@ -1878,7 +1882,7 @@ function App() {
     }
     setRecipient((current) => ({ ...current, name: normalizedRecipientName, pickupLabel: current.pickupLabel ?? '' }))
     void appApi.customers.saveProfile(phone, profileForOrder).catch(() => undefined)
-    const orderId = makeOrderId(orders)
+    const orderId = makeOrderId(visibleOrders)
     const newOrder: Order = {
       id: orderId,
       customer: normalizedRecipientName || userProfile?.name || 'عميل otlobli',
@@ -3025,10 +3029,10 @@ function App() {
         <MobileShell active="orders" onNavigate={setScreen}>
           <Header title="طلباتي" unreadCount={unreadCount} onNotifications={openNotifications} />
           <main className="mobile-content mobile-content--orders">
-            {orders.length === 0 && (
+            {visibleOrders.length === 0 && (
               <EmptyState title="لا توجد طلبات بعد" body="اطلب منتجاً من الصفحة الرئيسية وسيظهر هنا بعد إتمام الدفع." />
             )}
-            {orders.map((item) => (
+            {visibleOrders.map((item) => (
               <article className="order-card" key={item.id} onClick={() => {
                 setCurrentOrderId(item.id)
                 setRatingStars(0)
@@ -3350,7 +3354,7 @@ function App() {
                 {!!(recipient.pickupLabel || userProfile?.pickupLabel) && <div><span>وسم الاستلام</span><b>{recipient.pickupLabel || userProfile?.pickupLabel}</b></div>}
               </div>
             </section>
-            <ProfileRow icon="receipt_long" label={`طلباتي (${orders.length})`} onClick={() => setScreen('orders')} />
+            <ProfileRow icon="receipt_long" label={`طلباتي (${visibleOrders.length})`} onClick={() => setScreen('orders')} />
             <PaymentCurrencyRow
               value={paymentCurrency}
               onClick={() => setPaymentCurrency(paymentCurrency === 'USD' ? 'SYP' : 'USD')}
