@@ -1,6 +1,6 @@
 # Otlobli Current State
 
-Last updated: 2026-07-06
+Last updated: 2026-07-07
 
 ## Use this file first
 
@@ -10,7 +10,7 @@ Do not trust older context files before checking these two files.
 ## Active source of truth
 
 - Branch: `codex/customer-wallet-group-orders`
-- Latest feature deployment commit: `6d5988d`
+- Latest feature deployment commit: `83a43f0`
 - Customer app source:
   - `src/App.tsx`
   - `src/services/supabaseAppApi.ts`
@@ -28,6 +28,19 @@ Do not trust older context files before checking these two files.
 ## Latest production update in this handoff
 
 This handoff includes the admin/product-issue/mobile-operations update. Treat the files in this commit as newer than all older summaries and older branches.
+
+Latest customer app fix after that handoff:
+
+- Group cart / "Order with a friend":
+  - invite codes are still generated securely by the `cart-groups` Edge Function
+  - WhatsApp sharing now sends real app links with store and host metadata
+  - Android handles `otlobli://...` and `https://otlobli.app/group?...`
+  - iOS registers the `otlobli://` URL scheme
+  - recipient sees a confirmation card before linking their cart
+- SHEIN browsing:
+  - customer SHEIN URLs are normalized to `https://ar.shein.com/?currency=USD&country=SA&lang=ar`
+  - injected browser script continually reasserts Saudi Arabia + USD + Arabic state
+  - add-to-cart fails closed and re-normalizes the page if SHEIN is not on Saudi/USD
 
 - Admin order issue handling:
   - admin can select a specific product inside an order
@@ -122,6 +135,7 @@ If someone reads only one old context file or assumes `main` is newest, old UI/f
 - Supabase project ref:
   - `dcicqdprtyhwmhegabay`
 - Supabase functions deployed in latest update:
+  - `cart-groups`
   - `admin-orders`
   - `app-settings`
 - Supabase setting applied:
@@ -147,3 +161,5 @@ If someone reads only one old context file or assumes `main` is newest, old UI/f
 - added hidden product-profit setting
 - added store badges and compact tracking products in customer app
 - fixed Telegram notify path preference and Android launch splash background
+- fixed group cart deep links for WhatsApp/app opening
+- locked SHEIN customer browsing to Saudi Arabia + USD before product capture/add-to-cart
