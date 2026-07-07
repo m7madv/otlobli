@@ -1770,10 +1770,10 @@ a {
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  min-height: 56px;
-  padding: 0 14px;
+  min-height: 50px;
+  padding: 0 12px;
   border: 1px solid var(--outline);
-  border-radius: 14px;
+  border-radius: 12px;
   background: var(--surface);
   color: var(--text);
   font-weight: 700;
@@ -1786,18 +1786,32 @@ a {
   background: var(--primary-soft);
 }
 
+.profile-row-main,
 .profile-row span {
   display: inline-flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   flex: 1;
   min-width: 0;
   line-height: 1.5;
 }
 
+.profile-row-main b {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.94rem;
+}
+
+.profile-row-main .material-symbols-outlined,
+.profile-row-main [class*="icon"],
 .profile-row span .material-symbols-outlined,
 .profile-row span [class*="icon"] {
   color: var(--primary);
+  flex: 0 0 auto;
+  font-size: 1.25rem;
 }
 
 .profile-row > .material-symbols-outlined:last-child,
@@ -1986,10 +2000,10 @@ a {
 .profile-row-icon {
   display: grid !important;
   place-items: center;
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   flex: none !important;
-  border-radius: 12px;
+  border-radius: 10px;
   background: var(--primary-soft);
   color: var(--primary);
 }
@@ -2007,6 +2021,10 @@ a {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.profile-row-text b {
+  font-size: 0.94rem;
 }
 
 .profile-row-text small {

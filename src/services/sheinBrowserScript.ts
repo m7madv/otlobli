@@ -3321,10 +3321,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // المزعجة ولا نشغّل منطق الالتقاط/الحجب الخاص بشي إن (الذي قد يخرّب صفحاتهم).
     if (!IS_SHEIN) {
       if (IS_TEMU) {
+        try { ensureTemuNoZoom(); } catch (e) {}
         try { ensureAddToCartButton(); } catch (e) {}
-        try { temuAutoSelectSingleSize(); } catch (e) {}
-        try { temuAutoReselectFromLink(); } catch (e) {}
         try { detectEmptyTemuSearch(); } catch (e) {}
+        return;
       }
       try { killStorePopups(); } catch (e) {}
       return;
@@ -3561,7 +3561,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
       // نربط العلم بالرابط الحالي بدل تعليقه للأبد.
       if (window.__otlobliHideDiagUrl !== location.href) {
         window.__otlobliHideDiagUrl = location.href;
-        otlobliShowHideDiagnostics(hiddenBarDiag, hiddenIconDiag, visibleTopIconDiag, rawStatsLine);
       }
       // قسم "معلومات عن Temu / خدمة العملاء / مركز الدعم / حماية الشراء" أسفل
       // صفحة المنتج (أزرار أكورديون + أيقونات تواصل اجتماعي + حقوق نشر) —
@@ -3719,7 +3718,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // freshly re-created icon gets caught within ~120ms instead of waiting
   // for the next general tick.
   setInterval(function () {
-    if (!IS_SHEIN) { killStorePopups(); return; }
+    if (!IS_SHEIN) return;
     hideKnownHeaderIconsByHint();
     hideSheinHeaderControls();
     hideListingCardAddButtons();

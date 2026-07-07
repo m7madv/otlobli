@@ -20,7 +20,7 @@ import { PAYMENT_MODE, APP_VERSION, cleanEnvValue } from './config'
 import { buildWhatsappLink } from './services/whatsappLink'
 import { SHEIN_CAPTURE_SCRIPT } from './services/sheinBrowserScript'
 import { Capacitor } from '@capacitor/core'
-import { InAppBrowser, ToolBarType } from '@capgo/capacitor-inappbrowser'
+import { BackgroundColor, InAppBrowser, ToolBarType } from '@capgo/capacitor-inappbrowser'
 
 const API_BASE = cleanEnvValue(import.meta.env.VITE_WHATSAPP_API_URL)
 const SUPABASE_URL = cleanEnvValue(import.meta.env.VITE_SUPABASE_URL)
@@ -1334,6 +1334,7 @@ function App() {
   const webviewSessionRef = useRef(0)
   const webviewOpeningRef = useRef(false)
   const webviewIdRef = useRef('')
+  const webviewErrorTimerRef = useRef<number | undefined>(undefined)
   const pendingProductUrlRef = useRef('')
   const [sheinReady, setSheinReady] = useState(false)
   // Tracks which screen the in-page back button inside the SHEIN webview
@@ -1405,6 +1406,11 @@ function App() {
 
   const markStoreWebviewReady = (sessionId: number) => {
     if (sessionId !== webviewSessionRef.current || !sheinOpenedRef.current) return
+    if (webviewErrorTimerRef.current !== undefined) {
+      window.clearTimeout(webviewErrorTimerRef.current)
+      webviewErrorTimerRef.current = undefined
+    }
+    setSheinBlockedError(false)
 
     const wasOpening = webviewOpeningRef.current
     webviewOpeningRef.current = false
@@ -1454,6 +1460,8 @@ function App() {
     void InAppBrowser.openWebView({
       url: initialPendingUrl || storeUrl(selectedStoreRef.current),
       toolbarType: ToolBarType.BLANK,
+      backgroundColor: BackgroundColor.WHITE,
+      toolbarColor: '#f7f9fb',
       preShowScript: SHEIN_CAPTURE_SCRIPT,
       preShowScriptInjectionTime: 'documentStart',
       isPresentAfterPageLoad: true,
@@ -1579,10 +1587,16 @@ function App() {
     })
     const errorHandle = InAppBrowser.addListener('pageLoadError', () => {
       if (!webviewOpeningRef.current) return
-      webviewOpeningRef.current = false
-      if (screenRef.current === 'home') setSheinBlockedError(true)
+      if (webviewErrorTimerRef.current !== undefined) window.clearTimeout(webviewErrorTimerRef.current)
+      webviewErrorTimerRef.current = window.setTimeout(() => {
+        webviewErrorTimerRef.current = undefined
+        if (!webviewOpeningRef.current) return
+        webviewOpeningRef.current = false
+        if (screenRef.current === 'home') setSheinBlockedError(true)
+      }, 1800)
     })
     return () => {
+      if (webviewErrorTimerRef.current !== undefined) window.clearTimeout(webviewErrorTimerRef.current)
       void loadedHandle.then((h) => h.remove())
       void errorHandle.then((h) => h.remove())
     }
@@ -3846,7 +3860,7 @@ function NavButton({ active, svgPaths, label, onClick }: { active: boolean; svgP
 function ProfileRow({ icon, label, onClick }: { icon: string; label: string; onClick: () => void }) {
   return (
     <button className="profile-row" onClick={onClick}>
-      <span><Icon name={icon} /> {label}</span>
+      <span className="profile-row-main"><Icon name={icon} /> <b>{label}</b></span>
       <Icon name="chevron_left" />
     </button>
   )
@@ -3858,7 +3872,7 @@ function PaymentCurrencyRow({ value, onClick }: { value: PaymentCurrency; onClic
     <button className="profile-row profile-row--currency" onClick={onClick}>
       <span className="profile-row-icon"><Icon name="attach_money" /></span>
       <span className="profile-row-text">
-        <b>Preferred Payment Currency</b>
+        <b>عملة الدفع المفضلة</b>
         <small>{selected}</small>
       </span>
       <Icon name="chevron_left" />
