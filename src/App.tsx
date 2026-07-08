@@ -146,7 +146,7 @@ const shouldRedirectSheinToSaudi = (rawUrl: string) => {
 
 function buildGroupInviteLink(code: string, store: StoreId, host: string) {
   const params = new URLSearchParams({ code, group: code, store, host })
-  return `${GROUP_INVITE_SCHEME}?${params.toString()}`
+  return `${GROUP_INVITE_WEB_ORIGIN}/group/?${params.toString()}`
 }
 
 function getOrderStore(order: Pick<Order, 'items'>): StoreId {

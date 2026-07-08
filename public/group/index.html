@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>otlobli — دعوة طلب مشترك</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0f172a; color: #e2e8f0;
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh; padding: 24px; text-align: center;
+  }
+  .card {
+    background: #1e293b; border-radius: 16px; padding: 32px 24px;
+    max-width: 360px; width: 100%;
+  }
+  .icon { font-size: 48px; margin-bottom: 16px; }
+  h1 { font-size: 20px; margin-bottom: 8px; color: #fff; }
+  p { font-size: 15px; color: #94a3b8; margin-bottom: 20px; line-height: 1.6; }
+  .btn {
+    display: inline-block; background: #6366f1; color: #fff;
+    padding: 12px 32px; border-radius: 12px; font-size: 16px;
+    text-decoration: none; font-weight: 600;
+  }
+  .hint { font-size: 13px; color: #64748b; margin-top: 16px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="icon">🛒</div>
+  <h1>دعوة طلب مشترك</h1>
+  <p id="msg">جاري فتح التطبيق...</p>
+  <a id="openBtn" class="btn" style="display:none">فتح التطبيق</a>
+  <p class="hint" id="hint" style="display:none">إذا لم يفتح التطبيق تلقائياً، اضغط الزر أعلاه</p>
+</div>
+<script>
+(function() {
+  var params = new URLSearchParams(window.location.search);
+  var code = params.get('code') || params.get('group') || '';
+  var store = params.get('store') || '';
+  var host = params.get('host') || '';
+
+  if (!code) {
+    document.getElementById('msg').textContent = 'رابط غير صالح';
+    return;
+  }
+
+  var appUrl = 'otlobli://group?' + new URLSearchParams({
+    code: code, group: code, store: store, host: host
+  }).toString();
+
+  var btn = document.getElementById('openBtn');
+  btn.href = appUrl;
+
+  // Try opening the app immediately
+  window.location.href = appUrl;
+
+  // After a short delay, show the manual button in case auto-redirect didn't work
+  setTimeout(function() {
+    document.getElementById('msg').textContent = 'اضغط الزر لفتح التطبيق';
+    btn.style.display = 'inline-block';
+    document.getElementById('hint').style.display = 'block';
+  }, 1500);
+})();
+</script>
+</body>
+</html>
