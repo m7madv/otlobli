@@ -1880,6 +1880,10 @@ begin
 
   customer_id := public.ensure_customer(p_phone, p_name, 'دمشق', '', '', '');
 
+  if found_group.host_customer_id = customer_id then
+    raise exception 'same customer cannot join own group';
+  end if;
+
   insert into public.cart_group_members (group_id, customer_id, phone, display_name, role)
   values (found_group.id, customer_id, regexp_replace(coalesce(p_phone, ''), '\s+', '', 'g'), coalesce(nullif(trim(p_name), ''), 'عضو'), 'member')
   on conflict (group_id, customer_id) do update set

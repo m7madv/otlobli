@@ -203,6 +203,8 @@ async function postCartGroup(body: Record<string, unknown>) {
     const error = (data && typeof data === 'object' ? (data as { error?: string }).error : '') || ''
     if (error === 'group_not_found') throw new Error('كود الصديق غير صحيح أو انتهت صلاحيته.')
     if (error === 'missing_code') throw new Error('أدخل كود أو رابط الصديق أولاً.')
+    if (error === 'same_customer') throw new Error('لا يمكن الانضمام لنفس السلة بنفس رقم واتساب. افتح الرابط من حساب صديقك أو سجّل دخول برقم مختلف.')
+    if (error === 'group_full') throw new Error('هذه السلة مرتبطة بشخصين بالفعل.')
     throw new Error('تعذر تحديث الطلب المشترك حالياً. حاول مرة أخرى.')
   }
   return normalizeCartGroup(data)

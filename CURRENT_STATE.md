@@ -53,6 +53,7 @@ Latest customer app fix after that handoff:
   - iOS registers the `otlobli://` URL scheme
   - recipient sees a confirmation card before linking their cart
   - opening an invite now clears only a different locally-saved cart group so stale "waiting for friend" state cannot hide the incoming invite
+  - `cart-groups` now rejects joining your own invite with the same WhatsApp/customer account using `same_customer`; joining with a different phone was verified to return two members
 - SHEIN browsing:
   - customer SHEIN URLs are normalized to `https://m.shein.com/ar/?currency=USD&country=SA&countryCode=SA&lang=ar&language=ar&ship_to=SA&shipToCountry=SA&shippingCountry=SA`
   - the in-app browser passes `Accept-Language: ar-SA` but does not spoof a custom User-Agent; spoofing made the WebView look less natural and can increase SHEIN human verification
@@ -191,4 +192,5 @@ If someone reads only one old context file or assumes `main` is newest, old UI/f
 - fixed Telegram notify path preference and Android launch splash background
 - fixed group cart deep links for WhatsApp/app opening
 - fixed incoming group-cart invites being hidden by a stale local cart group on the recipient device
+- fixed same-account group invite joins returning a misleading one-member "waiting for friend" state
 - locked SHEIN customer browsing to Saudi Arabia + USD before product capture/add-to-cart

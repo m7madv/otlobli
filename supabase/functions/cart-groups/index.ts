@@ -124,11 +124,14 @@ Deno.serve(async (req) => {
 
       const { data: foundGroup, error: findError } = await supabase
         .from('cart_groups')
-        .select('id')
+        .select('id, host_customer_id')
         .eq('code', code)
         .eq('status', 'open')
         .maybeSingle()
       if (findError || !foundGroup?.id) return json({ error: 'group_not_found' }, 404)
+      if (foundGroup.host_customer_id === customerId) {
+        return json({ error: 'same_customer', message: 'افتح الرابط من حساب واتساب آخر حتى ينضم صديقك للسلة' }, 400)
+      }
       groupId = foundGroup.id
 
       const { count: memberCount } = await supabase

@@ -18,6 +18,7 @@ codex/customer-wallet-group-orders
 
 Before editing, read:
 
+0. `AI_QUICK_HANDOFF.md`
 1. `AGENTS.md`
 2. `CURRENT_STATE.md`
 3. `AI-HANDOFF.md`
@@ -65,6 +66,14 @@ Existing staged/untracked files may be work from another AI or the user. Do not 
 
 ## Last confirmed Codex state
 
+- 2026-07-09 group-cart invite fix:
+  - `src/App.tsx` now clears a different stale local `cartGroup` when a WhatsApp invite opens, so the recipient sees the confirmation card and can join the host group instead of seeing their old "waiting for friend" state.
+  - `android/app/src/main/AndroidManifest.xml` now handles `https://talabieh.vercel.app/group` links in addition to the existing app/deep links.
+  - `npm run build` passed after the fix.
+- 2026-07-09 group-cart same-account fix:
+  - `supabase/functions/cart-groups/index.ts` now returns `same_customer` when the host opens their own invite with the same WhatsApp account.
+  - `src/services/supabaseAppApi.ts` shows a clear Arabic message for `same_customer`.
+  - Production Supabase `cart-groups` was deployed and verified: same phone returns 400 `same_customer`; different phone joins with `members=2`.
 - Android APK was built and installed on emulator.
 - SHEIN home opened Arabic/Saudi/USD.
 - SHEIN product page opened successfully after fixing the Saudi guard.
