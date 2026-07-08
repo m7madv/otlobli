@@ -62,7 +62,12 @@ const normalizeSheinBrowserUrl = (rawUrl: string) => {
     url.pathname = path
     url.searchParams.set('currency', 'USD')
     url.searchParams.set('country', 'SA')
+    url.searchParams.set('countryCode', 'SA')
     url.searchParams.set('lang', 'ar')
+    url.searchParams.set('language', 'ar')
+    url.searchParams.set('ship_to', 'SA')
+    url.searchParams.set('shipToCountry', 'SA')
+    url.searchParams.set('shippingCountry', 'SA')
     return url.toString()
   } catch {
     return rawUrl

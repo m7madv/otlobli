@@ -56,7 +56,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
       u.pathname = cleanPath;
       u.searchParams.set('currency', SHEIN_REQUIRED_CURRENCY);
       u.searchParams.set('country', SHEIN_REQUIRED_COUNTRY);
+      u.searchParams.set('countryCode', SHEIN_REQUIRED_COUNTRY);
       u.searchParams.set('lang', SHEIN_REQUIRED_LANGUAGE);
+      u.searchParams.set('language', SHEIN_REQUIRED_LANGUAGE);
+      u.searchParams.set('ship_to', SHEIN_REQUIRED_COUNTRY);
+      u.searchParams.set('shipToCountry', SHEIN_REQUIRED_COUNTRY);
+      u.searchParams.set('shippingCountry', SHEIN_REQUIRED_COUNTRY);
       return u.toString();
     } catch (e) {
       return href;
@@ -73,17 +78,33 @@ export const SHEIN_CAPTURE_SCRIPT = `
       document.cookie = 'currency=' + SHEIN_REQUIRED_CURRENCY + '; domain=.shein.com; path=/; max-age=31536000';
       document.cookie = 'country=' + SHEIN_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
       document.cookie = 'country=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
+      document.cookie = 'countryCode=' + SHEIN_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
+      document.cookie = 'countryCode=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
+      document.cookie = 'ship_to=' + SHEIN_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
+      document.cookie = 'ship_to=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
+      document.cookie = 'shipToCountry=' + SHEIN_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
+      document.cookie = 'shipToCountry=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
+      document.cookie = 'shippingCountry=' + SHEIN_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
+      document.cookie = 'shippingCountry=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
       try {
         localStorage.setItem('language', SHEIN_REQUIRED_LANGUAGE);
         localStorage.setItem('site_uid', SHEIN_REQUIRED_LANGUAGE);
         localStorage.setItem('currency', SHEIN_REQUIRED_CURRENCY);
         localStorage.setItem('country', SHEIN_REQUIRED_COUNTRY);
+        localStorage.setItem('countryCode', SHEIN_REQUIRED_COUNTRY);
+        localStorage.setItem('ship_to', SHEIN_REQUIRED_COUNTRY);
+        localStorage.setItem('shipToCountry', SHEIN_REQUIRED_COUNTRY);
+        localStorage.setItem('shippingCountry', SHEIN_REQUIRED_COUNTRY);
         localStorage.setItem('otlobli_shein_country', SHEIN_REQUIRED_COUNTRY);
         localStorage.setItem('otlobli_shein_currency', SHEIN_REQUIRED_CURRENCY);
         sessionStorage.setItem('language', SHEIN_REQUIRED_LANGUAGE);
         sessionStorage.setItem('site_uid', SHEIN_REQUIRED_LANGUAGE);
         sessionStorage.setItem('currency', SHEIN_REQUIRED_CURRENCY);
         sessionStorage.setItem('country', SHEIN_REQUIRED_COUNTRY);
+        sessionStorage.setItem('countryCode', SHEIN_REQUIRED_COUNTRY);
+        sessionStorage.setItem('ship_to', SHEIN_REQUIRED_COUNTRY);
+        sessionStorage.setItem('shipToCountry', SHEIN_REQUIRED_COUNTRY);
+        sessionStorage.setItem('shippingCountry', SHEIN_REQUIRED_COUNTRY);
       } catch (e) {}
     } catch (e) {}
   }
@@ -91,7 +112,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function coerceSheinSaudiStorageValue(key, value) {
     var k = String(key || '').toLowerCase();
     if (/currency|currencycode|currency_code|currencytype|currency_type/.test(k)) return SHEIN_REQUIRED_CURRENCY;
-    if (/country|countrycode|country_code|region|regioncode|region_code|shipto|ship_to/.test(k)) return SHEIN_REQUIRED_COUNTRY;
+    if (/country|countrycode|country_code|region|regioncode|region_code|shipto|ship_to|shippingcountry|shipping_country|localcountry/.test(k)) return SHEIN_REQUIRED_COUNTRY;
     if (/language|\\blang\\b|locale|site_uid/.test(k)) return SHEIN_REQUIRED_LANGUAGE;
     return value;
   }
@@ -126,7 +147,37 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (sessionStorage.getItem('country') && sessionStorage.getItem('country') !== SHEIN_REQUIRED_COUNTRY) return false;
       if (sessionStorage.getItem('currency') && sessionStorage.getItem('currency') !== SHEIN_REQUIRED_CURRENCY) return false;
     } catch (e) {}
+    if (sheinVisibleForeignRegion()) return false;
     return true;
+  }
+
+  function sheinVisibleForeignRegion() {
+    if (!IS_SHEIN || !document.body) return false;
+    var text = '';
+    try {
+      text = (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 25000);
+    } catch (e) {
+      return false;
+    }
+    if (/السعودية|Saudi Arabia|Shipping to Saudi|Ship to Saudi/i.test(text)) return false;
+    return /Shipping to\s+(?!Saudi Arabia\b)[A-Za-z][A-Za-z ]{2,40}|Ship to\s+(?!Saudi Arabia\b)[A-Za-z][A-Za-z ]{2,40}|Bahrain|United Kingdom|United States|UAE|Kuwait|Qatar|Oman|Jordan|البحرين|الإمارات|الكويت|قطر|عمان|الأردن/i.test(text);
+  }
+
+  function clearSheinForeignRegionState() {
+    try {
+      var patterns = /country|currency|region|ship|locale|language|lang|site_uid/i;
+      [localStorage, sessionStorage].forEach(function (store) {
+        try {
+          var keys = [];
+          for (var i = 0; i < store.length; i += 1) {
+            var key = store.key(i);
+            if (key && patterns.test(key)) keys.push(key);
+          }
+          keys.forEach(function (key) { try { store.removeItem(key); } catch (e) {} });
+        } catch (e) {}
+      });
+    } catch (e) {}
+    writeSheinSaudiState();
   }
 
   function shouldReloadSheinForSaudi() {
@@ -150,12 +201,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
     writeSheinSaudiState();
     var normalized = otlobliNormalizeSheinUrl(location.href);
     var signalsOk = sheinSaudiSignalsOk();
-    var needsReload = shouldReloadSheinForSaudi();
+    var visibleForeignRegion = sheinVisibleForeignRegion();
+    var needsReload = shouldReloadSheinForSaudi() || visibleForeignRegion;
     if (needsReload || !signalsOk) {
       if (options && options.navigate) {
         var guardKey = '__otlobliSaudiRedirects:' + normalized + ':' + Math.floor(Date.now() / 30000);
         var attempts = parseInt(sessionStorage.getItem(guardKey) || '0', 10);
         if (attempts < 2) {
+          if (visibleForeignRegion) clearSheinForeignRegionState();
           sessionStorage.setItem(guardKey, String(attempts + 1));
           location.replace(normalized);
           return false;
