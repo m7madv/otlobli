@@ -1245,17 +1245,23 @@ function App() {
     showNotice('تم إلغاء ربط السلة')
   }
 
-  const syncCartGroup = () => {
+  const syncCartGroup = (silent = false) => {
     if (!cartGroup) return
-    setIsSyncingGroup(true)
+    if (!silent) setIsSyncingGroup(true)
     void appApi.cartGroups.syncItems(phone, cartGroup.id, cartItems)
       .then((snapshot) => {
         setCartGroup(snapshot)
-        showNotice('تم تحديث سلة الطلب المشترك')
+        if (!silent) showNotice('تم تحديث سلة الطلب المشترك')
       })
-      .catch((error: unknown) => showNotice(getPublicErrorMessage(error)))
-      .finally(() => setIsSyncingGroup(false))
+      .catch((error: unknown) => { if (!silent) showNotice(getPublicErrorMessage(error)) })
+      .finally(() => { if (!silent) setIsSyncingGroup(false) })
   }
+
+  useEffect(() => {
+    if (!cartGroup || cartGroup.status !== 'open' || screen !== 'cart') return
+    const timer = setInterval(() => syncCartGroup(true), 15_000)
+    return () => clearInterval(timer)
+  }, [cartGroup?.id, cartGroup?.status, screen])
 
   const [ratingStars, setRatingStars] = useState(0)
   const [ratingNote, setRatingNote] = useState('')
@@ -2850,7 +2856,7 @@ function App() {
                         <button onClick={shareCartGroupInvite}>
                           <Icon name="ios_share" /> مشاركة
                         </button>
-                        <button disabled={isSyncingGroup} onClick={syncCartGroup}>
+                        <button disabled={isSyncingGroup} onClick={() => syncCartGroup()}>
                           <Icon name="sync" />
                         </button>
                       </div>
