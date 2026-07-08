@@ -6,6 +6,16 @@ Last updated: 2026-07-08
 
 If any AI continues work on this repo, use this file and `AI-HANDOFF.md` first.
 Do not trust older context files before checking these two files.
+Also read `AGENTS.md` and, when using Claude Code, `CLAUDE.md`.
+
+## AI handoff discipline
+
+- This project is shared between Codex, Claude Code, and possibly other AI sessions.
+- Every AI must run `git status --short`, `git rev-parse --abbrev-ref HEAD`, and `git log -5 --oneline` before changing code.
+- Existing modified/staged/untracked files are not automatically wrong; they may be user or other-agent work.
+- Do not commit/push staged changes you did not create unless the user explicitly asks.
+- After every stable change, update `CURRENT_STATE.md`, `AI-HANDOFF.md`, and `SESSION_SUMMARY.md`.
+- AI usually cannot know the user's real billing limit. If the session is long or the user mentions billing/context, produce a chat summary early instead of waiting.
 
 ## Active source of truth
 

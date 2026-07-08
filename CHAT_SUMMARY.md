@@ -4,8 +4,10 @@ Deprecated long-form summary.
 
 For the current project state, use:
 
-1. `CURRENT_STATE.md`
-2. `AI-HANDOFF.md`
+1. `AGENTS.md`
+2. `CURRENT_STATE.md`
+3. `AI-HANDOFF.md`
+4. `SESSION_SUMMARY.md`
 
 Why this file is deprecated:
 

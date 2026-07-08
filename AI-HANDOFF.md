@@ -3,6 +3,27 @@
 Read `CURRENT_STATE.md` first.
 If this file conflicts with older context files, prefer `CURRENT_STATE.md` and the active branch code.
 
+## AI continuity protocol
+
+This repo is shared between Codex, Claude Code, and possibly other agents. Before changing code, every agent must:
+
+1. Read `AGENTS.md`.
+2. Read `CURRENT_STATE.md`.
+3. Read this file.
+4. Run `git status --short`, `git rev-parse --abbrev-ref HEAD`, and `git log -5 --oneline`.
+5. Treat existing modified/staged/untracked files as user or other-agent work. Do not revert or overwrite them.
+
+If the session gets long, or the user mentions billing/context limits, update `SESSION_SUMMARY.md` and include a copyable chat summary in the final response. Agents usually cannot know the user's real billing limit, so do not claim certainty about it.
+
+Current known Claude/Codex failure mode:
+
+- reading old docs or old branches
+- assuming `main` is current
+- replacing current admin/customer files with older copies
+- reintroducing old SHEIN WebView assumptions such as broad storage overwrites, custom User-Agent spoofing, or country-name scanning inside product titles
+
+Prevent this by updating `CURRENT_STATE.md`, `AI-HANDOFF.md`, and `SESSION_SUMMARY.md` after every stable change.
+
 ## Current working branch
 
 - Branch: `codex/customer-wallet-group-orders`

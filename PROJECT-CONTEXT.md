@@ -7,8 +7,10 @@ It should not be used as the first reference anymore.
 
 Use these files instead:
 
-1. `CURRENT_STATE.md`
-2. `AI-HANDOFF.md`
+1. `AGENTS.md`
+2. `CURRENT_STATE.md`
+3. `AI-HANDOFF.md`
+4. `SESSION_SUMMARY.md`
 
 Active branch:
 
