@@ -5,6 +5,7 @@ const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 const CODE_LENGTH = 7
 const MIN_TOTAL_USD = 40
+const MAX_MEMBERS = 2
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -129,6 +130,20 @@ Deno.serve(async (req) => {
         .maybeSingle()
       if (findError || !foundGroup?.id) return json({ error: 'group_not_found' }, 404)
       groupId = foundGroup.id
+
+      const { count: memberCount } = await supabase
+        .from('cart_group_members')
+        .select('*', { count: 'exact', head: true })
+        .eq('group_id', groupId)
+      const { data: alreadyMember } = await supabase
+        .from('cart_group_members')
+        .select('customer_id')
+        .eq('group_id', groupId)
+        .eq('customer_id', customerId)
+        .maybeSingle()
+      if (!alreadyMember && (memberCount ?? 0) >= MAX_MEMBERS) {
+        return json({ error: 'group_full', message: 'المجموعة ممتلئة — شخصين فقط' }, 400)
+      }
     } else if (action === 'sync') {
       groupId = (body.groupId ?? '').trim()
       if (!groupId) return json({ error: 'missing_group' }, 400)

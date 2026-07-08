@@ -90,7 +90,7 @@ const STORES: { id: StoreId; name: string; url: string }[] = [
 ]
 const storeUrl = (id: string) => (STORES.find((s) => s.id === id)?.url) ?? SHEIN_HOME_URL
 const storeName = (id?: string) => STORES.find((store) => store.id === id)?.name ?? 'المتجر'
-const GROUP_INVITE_WEB_ORIGIN = 'https://otlobli.app'
+const GROUP_INVITE_WEB_ORIGIN = 'https://talabieh.vercel.app'
 const GROUP_INVITE_SCHEME = 'otlobli://group'
 
 type PendingGroupInvite = {
@@ -148,7 +148,7 @@ function buildGroupInviteLink(code: string, store: StoreId, host: string, scheme
   const params = new URLSearchParams({ code, group: code, store, host })
   return scheme
     ? `${GROUP_INVITE_SCHEME}?${params.toString()}`
-    : `${GROUP_INVITE_WEB_ORIGIN}/group?${params.toString()}`
+    : `${GROUP_INVITE_WEB_ORIGIN}/?${params.toString()}`
 }
 
 function getOrderStore(order: Pick<Order, 'items'>): StoreId {
@@ -1123,11 +1123,22 @@ function App() {
   const groupInviteStore = normalizeInviteStore(cartGroup?.sourceStore) ?? selectedStore
   const groupInviteHost = userProfile?.name || recipient.name || 'صاحب السلة'
   const groupInviteLink = cartGroup ? buildGroupInviteLink(cartGroup.code, groupInviteStore, groupInviteHost) : ''
-  const groupInviteAppLink = cartGroup ? buildGroupInviteLink(cartGroup.code, groupInviteStore, groupInviteHost, true) : ''
   const activeCheckoutItems = cartGroup && groupCheckoutItems.length > 0 ? groupCheckoutItems : cartItems
   const activeCheckoutProductsTotal = activeCheckoutItems.reduce((sum, item) => sum + getItemPriceSyp(item) * item.quantity, 0)
   const shippingTotalSyp = currentShippingFees.reduce((sum, line) => sum + line.value, 0)
   const activeCheckoutTotal = activeCheckoutProductsTotal + shippingTotalSyp
+
+  const myPhone = normalizePhoneForCompare(phone)
+  const myGroupItems = cartGroup?.items.filter((line) => normalizePhoneForCompare(line.ownerPhone) === myPhone) ?? []
+  const friendGroupItems = cartGroup?.items.filter((line) => normalizePhoneForCompare(line.ownerPhone) !== myPhone) ?? []
+  const friendName = friendGroupItems[0]?.ownerName || cartGroup?.members.find((m) => normalizePhoneForCompare(m.phone) !== myPhone)?.name || 'الصديق'
+  const myItemsTotalSyp = myGroupItems.reduce((sum, line) => sum + getItemPriceSyp(line.item) * line.item.quantity, 0)
+  const friendItemsTotalSyp = friendGroupItems.reduce((sum, line) => sum + getItemPriceSyp(line.item) * line.item.quantity, 0)
+  const halfShippingSyp = Math.ceil(shippingTotalSyp / 2)
+  const myShareSyp = myItemsTotalSyp + halfShippingSyp
+  const friendShareSyp = friendItemsTotalSyp + halfShippingSyp
+  const groupHasFriend = cartGroup && cartGroup.members.length >= 2
+
   const baseCheckoutBreakdown = cartGroup && groupCheckoutItems.length > 0
     ? [{ label: 'مجموع منتجات الطلب المشترك', value: activeCheckoutProductsTotal }, ...currentShippingFees]
     : breakdown
@@ -1177,15 +1188,6 @@ function App() {
       .finally(() => setIsSyncingGroup(false))
   }
 
-  const shareCartGroup = () => {
-    if (!cartGroup || !groupInviteLink) return
-    const message = `انضم لسلة otlobli المشتركة\nالكود: ${cartGroup.code}\nالرابط: ${groupInviteLink}`
-    if (navigator.share) {
-      void navigator.share({ title: 'otlobli', text: message, url: groupInviteLink }).catch(() => undefined)
-      return
-    }
-    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank', 'noreferrer')
-  }
 
   const joinCartGroup = () => {
     const code = extractGroupInviteCode(groupJoinCode)
@@ -1205,14 +1207,14 @@ function App() {
   const shareCartGroupInvite = () => {
     if (!cartGroup || !groupInviteLink) return
     const message = [
-      `انضم لسلة otlobli المشتركة مع ${groupInviteHost}`,
+      `${groupInviteHost} يدعوك لطلب مشترك على otlobli`,
       `المتجر: ${storeName(groupInviteStore)}`,
-      `الكود: ${cartGroup.code}`,
-      `الرابط: ${groupInviteLink}`,
-      `إذا لم يفتح التطبيق مباشرة: ${groupInviteAppLink}`,
+      ``,
+      `اضغط الرابط للانضمام:`,
+      groupInviteLink,
     ].join('\n')
     if (navigator.share) {
-      void navigator.share({ title: 'otlobli', text: message, url: groupInviteLink }).catch(() => undefined)
+      void navigator.share({ title: 'otlobli — طلب مشترك', text: message, url: groupInviteLink }).catch(() => undefined)
       return
     }
     window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank', 'noreferrer')
@@ -2844,27 +2846,54 @@ function App() {
                     <>
                       <div className="group-code-row">
                         <span dir="ltr">{cartGroup.code}</span>
-                        <button onClick={() => copyText(cartGroup.code, 'تم نسخ كود الصديق')}>
-                          <Icon name="content_copy" /> نسخ
-                        </button>
-                        <button onClick={() => copyText(groupInviteLink, 'تم نسخ رابط الصديق')}>
-                          <Icon name="link" /> رابط
+                        <button onClick={() => copyText(groupInviteLink, 'تم نسخ رابط الدعوة')}>
+                          <Icon name="link" /> نسخ الرابط
                         </button>
                         <button onClick={shareCartGroupInvite}>
-                          <Icon name="ios_share" /> واتساب
+                          <Icon name="ios_share" /> مشاركة
                         </button>
                         <button disabled={isSyncingGroup} onClick={syncCartGroup}>
-                          <Icon name="sync" /> تحديث
+                          <Icon name="sync" />
                         </button>
                       </div>
+                      {!groupHasFriend && (
+                        <p className="min-order-notice">بانتظار انضمام صديقك — شارك الرابط عبر واتساب</p>
+                      )}
+                      {groupHasFriend && (
+                        <div className="group-split-summary">
+                          <div className="group-split-row">
+                            <span className="group-split-name">أنت</span>
+                            <span className="group-split-detail">{myGroupItems.length} منتج</span>
+                            <span className="group-split-amount">{formatPrice(myShareSyp)}</span>
+                          </div>
+                          <div className="group-split-row">
+                            <span className="group-split-name">{friendName}</span>
+                            <span className="group-split-detail">{friendGroupItems.length} منتج</span>
+                            <span className="group-split-amount">{formatPrice(friendShareSyp)}</span>
+                          </div>
+                          <div className="group-split-row group-split-shipping">
+                            <span>الشحن مقسوم بالتساوي</span>
+                            <span>{formatPrice(halfShippingSyp)} لكل شخص</span>
+                          </div>
+                          {friendGroupItems.length > 0 && (
+                            <details className="group-friend-items">
+                              <summary>منتجات {friendName} ({friendGroupItems.length})</summary>
+                              <ul>
+                                {friendGroupItems.map((line, i) => (
+                                  <li key={`friend-${i}`}>
+                                    <span className="group-item-name">{line.item.name || 'منتج'}</span>
+                                    <span className="group-item-qty">×{line.item.quantity}</span>
+                                    <span className="group-item-price">{formatPrice(getItemPriceSyp(line.item) * line.item.quantity)}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </details>
+                          )}
+                        </div>
+                      )}
                       <p className={groupTotalUsd >= MIN_ORDER_USD ? 'group-total-ok' : 'min-order-notice'}>
                         مجموع المجموعة: ${groupTotalUsd.toFixed(2)} / {MIN_ORDER_USD}$
                       </p>
-                      <div className="group-members">
-                        {cartGroup.members.map((member) => (
-                          <span key={`${member.phone}-${member.role}`}>{member.name || member.phone}</span>
-                        ))}
-                      </div>
                       <button className="ghost-action" onClick={() => setCartGroup(null)}>
                         إلغاء ربط السلة
                       </button>
@@ -2878,7 +2907,7 @@ function App() {
                         <input
                           value={groupJoinCode}
                           onChange={(e) => setGroupJoinCode(e.target.value)}
-                          placeholder="كود الصديق"
+                          placeholder="كود أو رابط الصديق"
                           dir="ltr"
                         />
                         <button disabled={isSyncingGroup} onClick={() => joinCartGroupFromValue()}>

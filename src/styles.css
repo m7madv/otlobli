@@ -1320,6 +1320,91 @@ a {
   font-weight: 800;
 }
 
+.group-split-summary {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border-radius: var(--radius);
+  background: var(--primary-soft);
+  font-size: 0.82rem;
+}
+
+.group-split-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.group-split-name {
+  font-weight: 700;
+  min-width: 60px;
+}
+
+.group-split-detail {
+  color: var(--muted);
+  flex: 1;
+}
+
+.group-split-amount {
+  font-weight: 800;
+  color: var(--primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.group-split-shipping {
+  border-top: 1px solid var(--outline);
+  padding-top: 6px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  justify-content: space-between;
+}
+
+.group-friend-items {
+  font-size: 0.78rem;
+}
+
+.group-friend-items summary {
+  cursor: pointer;
+  color: var(--primary);
+  font-weight: 600;
+  padding: 4px 0;
+}
+
+.group-friend-items ul {
+  list-style: none;
+  padding: 0;
+  margin: 4px 0 0;
+  display: grid;
+  gap: 4px;
+}
+
+.group-friend-items li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.group-item-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-item-qty {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.group-item-price {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .edit-link {
   align-self: flex-start;
   border: 0;
