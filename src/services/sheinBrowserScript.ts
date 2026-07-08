@@ -316,46 +316,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // التحويل لـ temu.com/jo/ يتم على المستوى الأصلي (urlChangeEvent في App.tsx) قبل
   // تحميل الصفحة؛ التحويل JS كان يتعارض معه ويسبب شاشة بيضاء على بعض المنتجات.
 
-  // Block Service Worker registration outright, BEFORE SHEIN's own scripts
-  // ever run (this fires at documentStart). A SW that controls the page
-  // intercepts its own fetch()/XHR calls and can answer them with a direct
-  // connection that bypasses shouldInterceptRequest in WebViewDialog.java -
-  // the same relay every other request goes through to dodge Syria's
-  // geo-block - so any data a SW-served API call needs ends up requiring the
-  // device's own (blocked) IP after all. Confirmed real: a user reported
-  // product pages hanging on load specifically WITHOUT a VPN also running,
-  // despite the relay otherwise working fine for everything else - product
-  // pages fire more of their own BFF API calls than listing pages do, so a
-  // live SW had more chances to grab one.
-  // This alone doesn't retroactively stop an ALREADY-active SW from a prior
-  // page load from continuing to control THIS document for its remaining
-  // lifetime (the spec keeps existing control until the next navigation) -
-  // unregistering one if it slipped through earlier is still worth doing as
-  // a second layer, kept below.
-  if ('serviceWorker' in navigator) {
-    try {
-      Object.defineProperty(navigator.serviceWorker, 'register', {
-        configurable: true,
-        value: function () { return Promise.reject(new Error('otlobli: SW registration blocked')); },
-      });
-    } catch (e) {}
-  }
-
   if (window.__otlobliInjected) return;
   window.__otlobliInjected = true;
-
-  // Unregister any Service Worker that slipped through before the block
-  // above was in place (e.g. one already active from a previous real page
-  // load in this same webview session).
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistrations().then(function(regs) {
-      regs.forEach(function(r) {
-        r.unregister().then(function(ok) {
-          if (ok) console.log('[otlobli] SW unregistered:', r.scope);
-        });
-      });
-    });
-  }
 
   // Remembers the very first page this webview session landed on (the
   // SHEIN home root), persisted in sessionStorage since this whole script
