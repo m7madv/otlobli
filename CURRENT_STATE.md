@@ -139,6 +139,15 @@ If someone reads only one old context file or assumes `main` is newest, old UI/f
 
 ## Deployment state
 
+- Latest AI guardrail / cleanup commit:
+  - `5ce98a0` (`Add AI handoff guardrails`)
+- Latest successful GitHub iOS unsigned build after guardrails:
+  - Run: `https://github.com/m7madv/otlobli/actions/runs/28971384749`
+  - Head SHA: `5ce98a0878d3dab12eeec24170505f08901e432b`
+- Customer-data reset helper:
+  - `supabase/RESET_CUSTOMER_DATA.sql`
+  - This file clears customer/order/wallet/group-cart runtime data while keeping settings, coupons, catalog, and drivers.
+  - It was not executed automatically because local env files do not contain a usable Supabase service role/database password.
 - Latest deployed feature commit:
   - `6d5988d` (`Add admin issue workflow and mobile polish`)
 - Customer production URL:

@@ -24,6 +24,14 @@ Current known Claude/Codex failure mode:
 
 Prevent this by updating `CURRENT_STATE.md`, `AI-HANDOFF.md`, and `SESSION_SUMMARY.md` after every stable change.
 
+## Latest cleanup note
+
+- Commit `5ce98a0` adds guardrail docs for future AI sessions.
+- The active branch `codex/customer-wallet-group-orders` was pushed back to GitHub and should be used for iOS builds.
+- iOS unsigned build succeeded at `https://github.com/m7madv/otlobli/actions/runs/28971384749`.
+- A dangerous uncommitted WIP was found and backed up locally before removal. It reverted SHEIN to older `/jo` assumptions and removed group/wallet schema from `supabase/schema.sql`.
+- Supabase customer data was not deleted automatically because no usable service role/database password was present locally. Use `supabase/RESET_CUSTOMER_DATA.sql` from Supabase SQL Editor after backup.
+
 ## Current working branch
 
 - Branch: `codex/customer-wallet-group-orders`

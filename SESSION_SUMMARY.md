@@ -68,8 +68,16 @@ Existing staged/untracked files may be work from another AI or the user. Do not 
 - Android APK was built and installed on emulator.
 - SHEIN home opened Arabic/Saudi/USD.
 - SHEIN product page opened successfully after fixing the Saudi guard.
-- iOS unsigned GitHub workflow succeeded:
+- AI guardrail files were added so Claude/Codex/other models read current state before editing.
+- Dangerous uncommitted Claude WIP that reverted SHEIN to older `/jo` behavior and removed group/wallet schema was backed up to Temp and removed from the working tree.
+- Customer/admin builds passed after cleanup.
+- Latest iOS unsigned GitHub workflow succeeded:
+  - `https://github.com/m7madv/otlobli/actions/runs/28971384749`
+- Previous iOS unsigned workflow succeeded:
   - `https://github.com/m7madv/otlobli/actions/runs/28935943927`
+- Supabase customer reset helper exists:
+  - `supabase/RESET_CUSTOMER_DATA.sql`
+  - Not executed automatically because local env files do not contain a usable Supabase service role/database password.
 
 ## Handoff habit
 
@@ -85,4 +93,3 @@ Then give the user a short Arabic summary with:
 - what was tested
 - what was pushed/built
 - what the next AI must read first
-
