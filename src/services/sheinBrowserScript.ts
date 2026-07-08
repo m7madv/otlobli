@@ -50,10 +50,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
     try {
       var u = new URL(href, location.href);
       if (!/shein/i.test(u.hostname)) return href;
-      var cleanPath = u.pathname.replace(/^\\/(?:[a-z]{2}(?:en)?|ar-en)(?=\\/|$)/i, '') || '/';
+      var cleanPath = u.pathname.replace(/^\\/(?:[a-z]{2}(?:en)?|ar-en|ar)(?=\\/|$)/i, '') || '/';
       u.protocol = 'https:';
-      u.hostname = 'ar.shein.com';
-      u.pathname = cleanPath;
+      u.hostname = 'm.shein.com';
+      u.pathname = '/ar' + (cleanPath === '/' ? '/' : cleanPath);
       u.searchParams.set('currency', SHEIN_REQUIRED_CURRENCY);
       u.searchParams.set('country', SHEIN_REQUIRED_COUNTRY);
       u.searchParams.set('countryCode', SHEIN_REQUIRED_COUNTRY);
@@ -131,7 +131,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function sheinSaudiSignalsOk() {
     try {
       var u = new URL(location.href);
-      if (!/(^|\\.)ar\\.shein\\.com$/i.test(u.hostname)) return false;
+      if (!/(^|\\.)m\\.shein\\.com$/i.test(u.hostname)) return false;
+      if (!/^\\/ar(?:\\/|$)/i.test(u.pathname)) return false;
       var country = u.searchParams.get('country');
       var currency = u.searchParams.get('currency');
       var lang = u.searchParams.get('lang');
@@ -225,7 +226,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function shouldReloadSheinForSaudi() {
     try {
       var u = new URL(location.href);
-      if (!/(^|\\.)ar\\.shein\\.com$/i.test(u.hostname)) return true;
+      if (!/(^|\\.)m\\.shein\\.com$/i.test(u.hostname)) return true;
+      if (!/^\\/ar(?:\\/|$)/i.test(u.pathname)) return true;
       var country = u.searchParams.get('country');
       var currency = u.searchParams.get('currency');
       var lang = u.searchParams.get('lang');

@@ -33,7 +33,13 @@ const APP_SETTINGS_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/app-settin
 // بلد المصدر الفعلي (لبنان) شأن تشغيلي داخلي لا يؤثر على ما يراه الزبون:
 // الأسعار بالدولار نفسها، والزبون لا يرى اسم أي بلد (يُعرض "مركز التجميع").
 // السكربت المحقون يقرأ المنطقة من الرابط فيضبط لغة الموقع تلقائياً.
-const SHEIN_HOME_URL = 'https://ar.shein.com/?currency=USD&country=SA&lang=ar'
+const SHEIN_HOME_URL = 'https://m.shein.com/ar/?currency=USD&country=SA&countryCode=SA&lang=ar&language=ar&ship_to=SA&shipToCountry=SA&shippingCountry=SA'
+const SHEIN_MOBILE_USER_AGENT =
+  'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36'
+const SHEIN_BROWSER_HEADERS = {
+  'User-Agent': SHEIN_MOBILE_USER_AGENT,
+  'Accept-Language': 'ar-SA,ar;q=0.9,en;q=0.8',
+}
 
 const extractGroupInviteCode = (value: string) => {
   const raw = value.trim()
@@ -55,11 +61,11 @@ const normalizeSheinBrowserUrl = (rawUrl: string) => {
     if (!/shein/i.test(url.hostname)) return rawUrl
 
     const path = url.pathname
-      .replace(/^\/(?:[a-z]{2}(?:en)?|ar-en)(?=\/|$)/i, '') || '/'
+      .replace(/^\/(?:[a-z]{2}(?:en)?|ar-en|ar)(?=\/|$)/i, '') || '/'
 
     url.protocol = 'https:'
-    url.hostname = 'ar.shein.com'
-    url.pathname = path
+    url.hostname = 'm.shein.com'
+    url.pathname = `/ar${path === '/' ? '/' : path}`
     url.searchParams.set('currency', 'USD')
     url.searchParams.set('country', 'SA')
     url.searchParams.set('countryCode', 'SA')
@@ -122,13 +128,20 @@ const shouldRedirectSheinToSaudi = (rawUrl: string) => {
   try {
     const url = new URL(rawUrl)
     if (!/shein/i.test(url.hostname)) return false
-    if (!/(^|\.)ar\.shein\.com$/i.test(url.hostname)) return true
+    if (!/(^|\.)m\.shein\.com$/i.test(url.hostname)) return true
+    if (!/^\/ar(?:\/|$)/i.test(url.pathname)) return true
     const country = url.searchParams.get('country')
+    const countryCode = url.searchParams.get('countryCode')
     const currency = url.searchParams.get('currency')
     const lang = url.searchParams.get('lang')
+    const language = url.searchParams.get('language')
+    const shipTo = url.searchParams.get('ship_to') || url.searchParams.get('shipToCountry') || url.searchParams.get('shippingCountry')
     return (!!country && country !== 'SA') ||
+      (!!countryCode && countryCode !== 'SA') ||
       (!!currency && currency !== 'USD') ||
-      (!!lang && lang !== 'ar')
+      (!!lang && lang !== 'ar') ||
+      (!!language && language !== 'ar') ||
+      (!!shipTo && shipTo !== 'SA')
   } catch {
     return false
   }
@@ -1628,8 +1641,12 @@ function App() {
     // SHEIN is reached directly on both platforms now, so it only loads once
     // the user's VPN is on - the vpnState check above already confirmed that
     // before this function ever runs.
+    const activeStore = selectedStoreRef.current
+    const rawTargetUrl = initialPendingUrl || storeUrl(activeStore)
+    const targetUrl = activeStore === 'shein' ? normalizeSheinBrowserUrl(rawTargetUrl) : rawTargetUrl
     void InAppBrowser.openWebView({
-      url: initialPendingUrl || storeUrl(selectedStoreRef.current),
+      url: targetUrl,
+      ...(activeStore === 'shein' ? { headers: SHEIN_BROWSER_HEADERS } : {}),
       toolbarType: ToolBarType.BLANK,
       backgroundColor: BackgroundColor.WHITE,
       toolbarColor: '#f7f9fb',
