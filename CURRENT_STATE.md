@@ -1,6 +1,6 @@
 # Otlobli Current State
 
-Last updated: 2026-07-07
+Last updated: 2026-07-08
 
 ## Use this file first
 
@@ -38,8 +38,9 @@ Latest customer app fix after that handoff:
   - iOS registers the `otlobli://` URL scheme
   - recipient sees a confirmation card before linking their cart
 - SHEIN browsing:
-  - customer SHEIN URLs are normalized to `https://ar.shein.com/?currency=USD&country=SA&lang=ar`
-  - injected browser script continually reasserts Saudi Arabia + USD + Arabic state
+  - customer SHEIN URLs are normalized to `https://m.shein.com/ar/?currency=USD&country=SA&countryCode=SA&lang=ar&language=ar&ship_to=SA&shipToCountry=SA&shippingCountry=SA`
+  - the in-app browser passes a mobile User-Agent plus `Accept-Language: ar-SA` so SHEIN stays on the Arabic mobile storefront instead of redirecting to `m.shein.com/ar-en`
+  - injected browser script continually reasserts Saudi Arabia + USD + Arabic state and blocks foreign paths/countries
   - add-to-cart fails closed and re-normalizes the page if SHEIN is not on Saudi/USD
 
 - Admin order issue handling:
@@ -70,7 +71,7 @@ Latest customer app fix after that handoff:
 
 ## What is restored and working
 
-- SHEIN opens in Arabic through `ar.shein.com`
+- SHEIN opens in Arabic through `m.shein.com/ar` with Saudi Arabia + USD forced in the URL, cookies, storage, and navigation guard
 - customer profile is tied to phone number
 - previous orders return after login with same number
 - wallet flow exists in current branch
