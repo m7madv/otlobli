@@ -138,6 +138,8 @@ Also clarified naming:
 - Coupon redemption is consumed at apply time by `redeem_coupon(...)`, matching the historical coupon implementation that existed on the other branch.
 - Referral discount is separate from coupons and still uses `check_referral_code(...)`.
 - Group ordering stays on the current branch implementation and was intentionally not replaced by the other branch.
+- Latest group invite fix: when an invite URL is opened, `src/App.tsx` clears only a different locally-saved `cartGroup` before showing the recipient confirmation card. This prevents a stale one-person group from hiding the incoming WhatsApp invite and showing "waiting for friend" instead.
+- Android now registers `https://talabieh.vercel.app/group` in addition to `otlobli://` and `https://otlobli.app/group`, matching the current invite link origin from `buildGroupInviteLink`.
 - The current customer wallet/top-up path remains the current-branch one. I did **not** switch the app onto the older USD-wallet branch to avoid breaking the newer wallet/top-up flow.
 - New-order Telegram notification should go through the Railway/WhatsApp server `/api/orders/notify` first. The Supabase `telegram-notify` function is fallback only.
 - Product profit is intentionally hidden from customers and applied into product price calculations, not as a visible checkout line.

@@ -1,6 +1,6 @@
 # Otlobli Current State
 
-Last updated: 2026-07-08
+Last updated: 2026-07-09
 
 ## Use this file first
 
@@ -49,8 +49,10 @@ Latest customer app fix after that handoff:
   - invite codes are still generated securely by the `cart-groups` Edge Function
   - WhatsApp sharing now sends real app links with store and host metadata
   - Android handles `otlobli://...` and `https://otlobli.app/group?...`
+  - Android also handles `https://talabieh.vercel.app/group?...`, matching the current production invite link origin
   - iOS registers the `otlobli://` URL scheme
   - recipient sees a confirmation card before linking their cart
+  - opening an invite now clears only a different locally-saved cart group so stale "waiting for friend" state cannot hide the incoming invite
 - SHEIN browsing:
   - customer SHEIN URLs are normalized to `https://m.shein.com/ar/?currency=USD&country=SA&countryCode=SA&lang=ar&language=ar&ship_to=SA&shipToCountry=SA&shippingCountry=SA`
   - the in-app browser passes `Accept-Language: ar-SA` but does not spoof a custom User-Agent; spoofing made the WebView look less natural and can increase SHEIN human verification
@@ -188,4 +190,5 @@ If someone reads only one old context file or assumes `main` is newest, old UI/f
 - added store badges and compact tracking products in customer app
 - fixed Telegram notify path preference and Android launch splash background
 - fixed group cart deep links for WhatsApp/app opening
+- fixed incoming group-cart invites being hidden by a stale local cart group on the recipient device
 - locked SHEIN customer browsing to Saudi Arabia + USD before product capture/add-to-cart

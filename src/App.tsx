@@ -586,11 +586,12 @@ function App() {
   const handleGroupInviteUrl = useCallback((url: string) => {
     const invite = parseGroupInvite(url)
     if (!invite) return false
+    setCartGroup((current) => (current?.code === invite.code ? current : null))
     setPendingGroupInvite(invite)
     setGroupJoinCode(invite.code)
     setScreen('cart')
     return true
-  }, [])
+  }, [setCartGroup])
 
   useEffect(() => {
     handleGroupInviteUrl(window.location.href)
