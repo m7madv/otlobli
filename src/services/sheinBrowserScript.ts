@@ -111,9 +111,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
     try {
       var u = new URL(location.href);
       if (!/(^|\\.)ar\\.shein\\.com$/i.test(u.hostname)) return false;
-      if (u.searchParams.get('country') !== SHEIN_REQUIRED_COUNTRY) return false;
-      if (u.searchParams.get('currency') !== SHEIN_REQUIRED_CURRENCY) return false;
-      if (u.searchParams.get('lang') !== SHEIN_REQUIRED_LANGUAGE) return false;
+      var country = u.searchParams.get('country');
+      var currency = u.searchParams.get('currency');
+      var lang = u.searchParams.get('lang');
+      if (country && country !== SHEIN_REQUIRED_COUNTRY) return false;
+      if (currency && currency !== SHEIN_REQUIRED_CURRENCY) return false;
+      if (lang && lang !== SHEIN_REQUIRED_LANGUAGE) return false;
     } catch (e) {
       return false;
     }
@@ -126,13 +129,29 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return true;
   }
 
+  function shouldReloadSheinForSaudi() {
+    try {
+      var u = new URL(location.href);
+      if (!/(^|\\.)ar\\.shein\\.com$/i.test(u.hostname)) return true;
+      var country = u.searchParams.get('country');
+      var currency = u.searchParams.get('currency');
+      var lang = u.searchParams.get('lang');
+      return (!!country && country !== SHEIN_REQUIRED_COUNTRY) ||
+        (!!currency && currency !== SHEIN_REQUIRED_CURRENCY) ||
+        (!!lang && lang !== SHEIN_REQUIRED_LANGUAGE);
+    } catch (e) {
+      return false;
+    }
+  }
+
   function ensureSheinSaudiStore(options) {
     if (!IS_SHEIN) return true;
     installSheinSaudiStorageGuard();
     writeSheinSaudiState();
     var normalized = otlobliNormalizeSheinUrl(location.href);
     var signalsOk = sheinSaudiSignalsOk();
-    if (normalized !== location.href || !signalsOk) {
+    var needsReload = shouldReloadSheinForSaudi();
+    if (needsReload || !signalsOk) {
       if (options && options.navigate) {
         var guardKey = '__otlobliSaudiRedirects:' + normalized + ':' + Math.floor(Date.now() / 30000);
         var attempts = parseInt(sessionStorage.getItem(guardKey) || '0', 10);
@@ -142,6 +161,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
           return false;
         }
       }
+      try {
+        history.replaceState(history.state, '', normalized);
+      } catch (e) {}
+    } else if (normalized !== location.href) {
       try {
         history.replaceState(history.state, '', normalized);
       } catch (e) {}
@@ -158,13 +181,17 @@ export const SHEIN_CAPTURE_SCRIPT = `
   if (IS_SHEIN) {
     installSheinSaudiStorageGuard();
     var normalizedArabicUrl = otlobliNormalizeSheinUrl(location.href);
-    if (normalizedArabicUrl !== location.href) {
+    if (shouldReloadSheinForSaudi()) {
       var arRedirectAttempts = parseInt(sessionStorage.getItem('__otlobliArRedirects') || '0', 10);
       if (arRedirectAttempts < 2) {
         sessionStorage.setItem('__otlobliArRedirects', String(arRedirectAttempts + 1));
         location.replace(normalizedArabicUrl);
         return;
       }
+    } else if (normalizedArabicUrl !== location.href) {
+      try {
+        history.replaceState(history.state, '', normalizedArabicUrl);
+      } catch (e) {}
     }
     writeSheinSaudiState();
     if (document.documentElement) {
@@ -3503,7 +3530,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // shortly, by which point the parser is essentially always done with it.
     if (!document.body) return;
     ensureViewportFitCover();
-    if (IS_SHEIN) ensureSheinSaudiStore({ navigate: true });
+    if (IS_SHEIN) ensureSheinSaudiStore({ navigate: false });
     ensureBackButton();
     ensureOtlobliNav();
     // المتاجر غير شي إن (تيمو/ترينديول): تصفّح فقط - ننظّف العروض المنبثقة

@@ -113,6 +113,22 @@ function parseGroupInvite(value: string): PendingGroupInvite | null {
   }
 }
 
+const shouldRedirectSheinToSaudi = (rawUrl: string) => {
+  try {
+    const url = new URL(rawUrl)
+    if (!/shein/i.test(url.hostname)) return false
+    if (!/(^|\.)ar\.shein\.com$/i.test(url.hostname)) return true
+    const country = url.searchParams.get('country')
+    const currency = url.searchParams.get('currency')
+    const lang = url.searchParams.get('lang')
+    return (!!country && country !== 'SA') ||
+      (!!currency && currency !== 'USD') ||
+      (!!lang && lang !== 'ar')
+  } catch {
+    return false
+  }
+}
+
 function buildGroupInviteLink(code: string, store: StoreId, host: string, scheme = false) {
   const params = new URLSearchParams({ code, group: code, store, host })
   return scheme
@@ -1761,6 +1777,10 @@ function App() {
     const LOCALE_SEG_RE = /temu\.com\/[a-z]{2}(?:\/|\?|#|$)/i
     const handle = InAppBrowser.addListener('urlChangeEvent', ({ url }: { url: string }) => {
       if (/shein/i.test(url)) {
+        if (!shouldRedirectSheinToSaudi(url)) {
+          sheinSaudiRedirectRef.current = 0
+          return
+        }
         const saUrl = normalizeSheinBrowserUrl(url)
         if (saUrl === url) {
           sheinSaudiRedirectRef.current = 0
