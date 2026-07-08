@@ -42,6 +42,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // عندها؛ على المتاجر الأخرى (تيمو/ترينديول) نكتفي بتنظيف العروض المنبثقة.
   var IS_SHEIN = /shein/i.test(location.hostname);
   var IS_TEMU = /temu/i.test(location.hostname);
+  var SHEIN_REQUIRED_COUNTRY = 'SA';
+  var SHEIN_REQUIRED_CURRENCY = 'USD';
+  var SHEIN_REQUIRED_LANGUAGE = 'ar';
 
   function otlobliNormalizeSheinUrl(href) {
     try {
@@ -51,9 +54,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
       u.protocol = 'https:';
       u.hostname = 'ar.shein.com';
       u.pathname = cleanPath;
-      u.searchParams.set('currency', 'USD');
-      u.searchParams.set('country', 'SA');
-      u.searchParams.set('lang', 'ar');
+      u.searchParams.set('currency', SHEIN_REQUIRED_CURRENCY);
+      u.searchParams.set('country', SHEIN_REQUIRED_COUNTRY);
+      u.searchParams.set('lang', SHEIN_REQUIRED_LANGUAGE);
       return u.toString();
     } catch (e) {
       return href;
@@ -62,38 +65,78 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function writeSheinSaudiState() {
     try {
-      document.cookie = 'language=ar; path=/; max-age=31536000';
-      document.cookie = 'language=ar; domain=.shein.com; path=/; max-age=31536000';
-      document.cookie = 'site_uid=ar; path=/; max-age=31536000';
-      document.cookie = 'site_uid=ar; domain=.shein.com; path=/; max-age=31536000';
-      document.cookie = 'currency=USD; path=/; max-age=31536000';
-      document.cookie = 'currency=USD; domain=.shein.com; path=/; max-age=31536000';
-      document.cookie = 'country=SA; path=/; max-age=31536000';
-      document.cookie = 'country=SA; domain=.shein.com; path=/; max-age=31536000';
+      document.cookie = 'language=' + SHEIN_REQUIRED_LANGUAGE + '; path=/; max-age=31536000';
+      document.cookie = 'language=' + SHEIN_REQUIRED_LANGUAGE + '; domain=.shein.com; path=/; max-age=31536000';
+      document.cookie = 'site_uid=' + SHEIN_REQUIRED_LANGUAGE + '; path=/; max-age=31536000';
+      document.cookie = 'site_uid=' + SHEIN_REQUIRED_LANGUAGE + '; domain=.shein.com; path=/; max-age=31536000';
+      document.cookie = 'currency=' + SHEIN_REQUIRED_CURRENCY + '; path=/; max-age=31536000';
+      document.cookie = 'currency=' + SHEIN_REQUIRED_CURRENCY + '; domain=.shein.com; path=/; max-age=31536000';
+      document.cookie = 'country=' + SHEIN_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
+      document.cookie = 'country=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
       try {
-        localStorage.setItem('language', 'ar');
-        localStorage.setItem('site_uid', 'ar');
-        localStorage.setItem('currency', 'USD');
-        localStorage.setItem('country', 'SA');
-        localStorage.setItem('otlobli_shein_country', 'SA');
-        localStorage.setItem('otlobli_shein_currency', 'USD');
-        sessionStorage.setItem('language', 'ar');
-        sessionStorage.setItem('site_uid', 'ar');
-        sessionStorage.setItem('currency', 'USD');
-        sessionStorage.setItem('country', 'SA');
+        localStorage.setItem('language', SHEIN_REQUIRED_LANGUAGE);
+        localStorage.setItem('site_uid', SHEIN_REQUIRED_LANGUAGE);
+        localStorage.setItem('currency', SHEIN_REQUIRED_CURRENCY);
+        localStorage.setItem('country', SHEIN_REQUIRED_COUNTRY);
+        localStorage.setItem('otlobli_shein_country', SHEIN_REQUIRED_COUNTRY);
+        localStorage.setItem('otlobli_shein_currency', SHEIN_REQUIRED_CURRENCY);
+        sessionStorage.setItem('language', SHEIN_REQUIRED_LANGUAGE);
+        sessionStorage.setItem('site_uid', SHEIN_REQUIRED_LANGUAGE);
+        sessionStorage.setItem('currency', SHEIN_REQUIRED_CURRENCY);
+        sessionStorage.setItem('country', SHEIN_REQUIRED_COUNTRY);
       } catch (e) {}
     } catch (e) {}
   }
 
+  function coerceSheinSaudiStorageValue(key, value) {
+    var k = String(key || '').toLowerCase();
+    if (/currency|currencycode|currency_code|currencytype|currency_type/.test(k)) return SHEIN_REQUIRED_CURRENCY;
+    if (/country|countrycode|country_code|region|regioncode|region_code|shipto|ship_to/.test(k)) return SHEIN_REQUIRED_COUNTRY;
+    if (/language|\\blang\\b|locale|site_uid/.test(k)) return SHEIN_REQUIRED_LANGUAGE;
+    return value;
+  }
+
+  function installSheinSaudiStorageGuard() {
+    if (!IS_SHEIN || window.__otlobliSheinSaudiStorageGuard) return;
+    window.__otlobliSheinSaudiStorageGuard = true;
+    try {
+      var originalSetItem = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (key, value) {
+        return originalSetItem.call(this, key, coerceSheinSaudiStorageValue(key, value));
+      };
+    } catch (e) {}
+  }
+
+  function sheinSaudiSignalsOk() {
+    try {
+      var u = new URL(location.href);
+      if (!/(^|\\.)ar\\.shein\\.com$/i.test(u.hostname)) return false;
+      if (u.searchParams.get('country') !== SHEIN_REQUIRED_COUNTRY) return false;
+      if (u.searchParams.get('currency') !== SHEIN_REQUIRED_CURRENCY) return false;
+      if (u.searchParams.get('lang') !== SHEIN_REQUIRED_LANGUAGE) return false;
+    } catch (e) {
+      return false;
+    }
+    try {
+      if (localStorage.getItem('country') && localStorage.getItem('country') !== SHEIN_REQUIRED_COUNTRY) return false;
+      if (localStorage.getItem('currency') && localStorage.getItem('currency') !== SHEIN_REQUIRED_CURRENCY) return false;
+      if (sessionStorage.getItem('country') && sessionStorage.getItem('country') !== SHEIN_REQUIRED_COUNTRY) return false;
+      if (sessionStorage.getItem('currency') && sessionStorage.getItem('currency') !== SHEIN_REQUIRED_CURRENCY) return false;
+    } catch (e) {}
+    return true;
+  }
+
   function ensureSheinSaudiStore(options) {
     if (!IS_SHEIN) return true;
+    installSheinSaudiStorageGuard();
     writeSheinSaudiState();
     var normalized = otlobliNormalizeSheinUrl(location.href);
-    if (normalized !== location.href) {
+    var signalsOk = sheinSaudiSignalsOk();
+    if (normalized !== location.href || !signalsOk) {
       if (options && options.navigate) {
-        var guardKey = '__otlobliSaudiRedirects:' + normalized;
+        var guardKey = '__otlobliSaudiRedirects:' + normalized + ':' + Math.floor(Date.now() / 30000);
         var attempts = parseInt(sessionStorage.getItem(guardKey) || '0', 10);
-        if (attempts < 3) {
+        if (attempts < 2) {
           sessionStorage.setItem(guardKey, String(attempts + 1));
           location.replace(normalized);
           return false;
@@ -104,11 +147,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       } catch (e) {}
     }
     try {
-      var u = new URL(location.href);
-      return /(^|\\.)ar\\.shein\\.com$/i.test(u.hostname) &&
-        u.searchParams.get('country') === 'SA' &&
-        u.searchParams.get('currency') === 'USD' &&
-        u.searchParams.get('lang') === 'ar';
+      return sheinSaudiSignalsOk();
     } catch (e) {
       return false;
     }
@@ -117,6 +156,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // منطق فرض اللغة العربية خاص بمواقع شي إن فقط - على المتاجر الأخرى (تيمو/
   // ترينديول) قد يضبط كوكي لغة خاطئة ويسبب إعادة تحميل بلا داعٍ، فنحصره بشي إن.
   if (IS_SHEIN) {
+    installSheinSaudiStorageGuard();
     var normalizedArabicUrl = otlobliNormalizeSheinUrl(location.href);
     if (normalizedArabicUrl !== location.href) {
       var arRedirectAttempts = parseInt(sessionStorage.getItem('__otlobliArRedirects') || '0', 10);
@@ -126,14 +166,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         return;
       }
     }
-    document.cookie = 'language=ar; path=/; max-age=31536000';
-    document.cookie = 'language=ar; domain=.shein.com; path=/; max-age=31536000';
-    document.cookie = 'site_uid=ar; path=/; max-age=31536000';
-    document.cookie = 'site_uid=ar; domain=.shein.com; path=/; max-age=31536000';
-    document.cookie = 'currency=USD; path=/; max-age=31536000';
-    document.cookie = 'currency=USD; domain=.shein.com; path=/; max-age=31536000';
-    document.cookie = 'country=SA; path=/; max-age=31536000';
-    document.cookie = 'country=SA; domain=.shein.com; path=/; max-age=31536000';
+    writeSheinSaudiState();
     if (document.documentElement) {
       document.documentElement.setAttribute('lang', 'ar');
       document.documentElement.setAttribute('dir', 'rtl');
@@ -3470,7 +3503,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // shortly, by which point the parser is essentially always done with it.
     if (!document.body) return;
     ensureViewportFitCover();
-    if (IS_SHEIN) ensureSheinSaudiStore({ navigate: false });
+    if (IS_SHEIN) ensureSheinSaudiStore({ navigate: true });
     ensureBackButton();
     ensureOtlobliNav();
     // المتاجر غير شي إن (تيمو/ترينديول): تصفّح فقط - ننظّف العروض المنبثقة

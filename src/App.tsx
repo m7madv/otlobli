@@ -1492,6 +1492,8 @@ function App() {
   // عدّاد تحويل تيمو للعربية — يمنع الحلقة اللانهائية إذا تيمو يتجاوز التحويل
   const temuArabicRedirectRef = useRef(0)
   const temuArabicRedirectTsRef = useRef(0)
+  const sheinSaudiRedirectRef = useRef(0)
+  const sheinSaudiRedirectTsRef = useRef(0)
   const screenRef = useRef(screen)
   const browseSheinRef = useRef<() => void>(() => undefined)
   const markStoreWebviewReadyRef = useRef<(sessionId: number) => void>(() => undefined)
@@ -1758,6 +1760,20 @@ function App() {
     const ARABIC_TEMU_RE = /temu\.com\/(?:sa|ae|kw|jo|bh|qa|eg|iq|om)(?:\/|\?|#|$)/i
     const LOCALE_SEG_RE = /temu\.com\/[a-z]{2}(?:\/|\?|#|$)/i
     const handle = InAppBrowser.addListener('urlChangeEvent', ({ url }: { url: string }) => {
+      if (/shein/i.test(url)) {
+        const saUrl = normalizeSheinBrowserUrl(url)
+        if (saUrl === url) {
+          sheinSaudiRedirectRef.current = 0
+          return
+        }
+        const now = Date.now()
+        if (sheinSaudiRedirectRef.current >= 4 && now - sheinSaudiRedirectTsRef.current < 15000) return
+        if (now - sheinSaudiRedirectTsRef.current > 15000) sheinSaudiRedirectRef.current = 0
+        sheinSaudiRedirectRef.current++
+        sheinSaudiRedirectTsRef.current = now
+        void InAppBrowser.setUrl({ url: saUrl })
+        return
+      }
       if (!/temu\.com/i.test(url)) return
       if (ARABIC_TEMU_RE.test(url)) {
         // وصلنا لنسخة عربية — نُصفّر العدّاد
