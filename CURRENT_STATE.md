@@ -31,6 +31,10 @@ This handoff includes the admin/product-issue/mobile-operations update. Treat th
 
 Latest customer app fix after that handoff:
 
+- Latest SHEIN product-page fix commit:
+  - `acbbed7` (`Fix SHEIN product page country guard`)
+  - Removes the custom SHEIN User-Agent spoofing and keeps only `Accept-Language: ar-SA`
+  - Restricts the Saudi guard to shipping/delivery country text, not arbitrary country names inside product titles/descriptions
 - Group cart / "Order with a friend":
   - invite codes are still generated securely by the `cart-groups` Edge Function
   - WhatsApp sharing now sends real app links with store and host metadata
@@ -144,8 +148,8 @@ If someone reads only one old context file or assumes `main` is newest, old UI/f
 - Supabase setting applied:
   - `product_profit_percent = 0`
 - Latest successful GitHub iOS unsigned build:
-  - Run: `https://github.com/m7madv/otlobli/actions/runs/28813650154`
-  - Head SHA: `6d5988d9f15592fcb3a3eec049da66ae32a79eb2`
+  - Run: `https://github.com/m7madv/otlobli/actions/runs/28935943927`
+  - Head SHA: `acbbed7998e0fce339c5ab7281872240a58854dd`
   - Artifact: `otlobli-ios`
 - Previous successful iPhone unsigned build run:
   - `https://github.com/m7madv/otlobli/actions/runs/28792148789`
