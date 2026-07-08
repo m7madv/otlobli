@@ -1,8 +1,7 @@
 {
-  "buildCommand": "npm run build",
+  "buildCommand": "npm run build && cp dist/landing.html dist/index.html",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/group/(.*)", "destination": "/group/index.html" },
-    { "source": "/(.*)", "destination": "/landing.html" }
+    { "source": "/group/(.*)", "destination": "/group/index.html" }
   ]
 }
