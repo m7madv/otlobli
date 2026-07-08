@@ -163,6 +163,16 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return /Shipping to\s+(?!Saudi Arabia\b)[A-Za-z][A-Za-z ]{2,40}|Ship to\s+(?!Saudi Arabia\b)[A-Za-z][A-Za-z ]{2,40}|Bahrain|United Kingdom|United States|UAE|Kuwait|Qatar|Oman|Jordan|البحرين|الإمارات|الكويت|قطر|عمان|الأردن/i.test(text);
   }
 
+  function sheinVisibleSaudiRegion() {
+    if (!IS_SHEIN || !document.body) return false;
+    try {
+      var text = (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 25000);
+      return /السعودية|Saudi Arabia|Shipping to Saudi|Ship to Saudi/i.test(text);
+    } catch (e) {
+      return false;
+    }
+  }
+
   function setSheinSaudiGuardOverlay(visible) {
     if (!IS_SHEIN) return;
     var id = 'otlobli-shein-saudi-guard';
@@ -187,6 +197,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
     overlay.innerHTML = '<div class="box"><strong>نثبت متجر شي إن على السعودية</strong><p>تم اكتشاف أن شي إن فتح على دولة غير السعودية. لن يتم السماح بإضافة أي منتج حتى يرجع المتجر للسعودية.</p><button type="button">إعادة المحاولة</button></div>';
     overlay.appendChild(style);
     overlay.querySelector('button').addEventListener('click', function () {
+      window.__otlobliSheinSaudiLocked = false;
+      try { sessionStorage.removeItem('__otlobliSheinSaudiLocked'); } catch (e) {}
       try { clearSheinForeignRegionState(); } catch (e) {}
       try { location.replace(otlobliNormalizeSheinUrl(location.href)); } catch (e) {}
     });
@@ -230,16 +242,24 @@ export const SHEIN_CAPTURE_SCRIPT = `
     installSheinSaudiStorageGuard();
     writeSheinSaudiState();
     var normalized = otlobliNormalizeSheinUrl(location.href);
-    var signalsOk = sheinSaudiSignalsOk();
     var visibleForeignRegion = sheinVisibleForeignRegion();
-    var needsReload = shouldReloadSheinForSaudi() || visibleForeignRegion;
-    setSheinSaudiGuardOverlay(visibleForeignRegion);
+    if (visibleForeignRegion) {
+      window.__otlobliSheinSaudiLocked = true;
+      try { sessionStorage.setItem('__otlobliSheinSaudiLocked', '1'); } catch (e) {}
+    } else if (sheinVisibleSaudiRegion()) {
+      window.__otlobliSheinSaudiLocked = false;
+      try { sessionStorage.removeItem('__otlobliSheinSaudiLocked'); } catch (e) {}
+    }
+    var locked = !!window.__otlobliSheinSaudiLocked;
+    try { locked = locked || sessionStorage.getItem('__otlobliSheinSaudiLocked') === '1'; } catch (e) {}
+    var signalsOk = sheinSaudiSignalsOk();
+    var needsReload = shouldReloadSheinForSaudi();
+    setSheinSaudiGuardOverlay(locked || visibleForeignRegion);
     if (needsReload || !signalsOk) {
       if (options && options.navigate) {
         var guardKey = '__otlobliSaudiRedirects:' + normalized + ':' + Math.floor(Date.now() / 30000);
         var attempts = parseInt(sessionStorage.getItem(guardKey) || '0', 10);
-        if (attempts < 2) {
-          if (visibleForeignRegion) clearSheinForeignRegionState();
+        if (!locked && attempts < 2) {
           sessionStorage.setItem(guardKey, String(attempts + 1));
           location.replace(normalized);
           return false;
@@ -248,7 +268,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       try {
         history.replaceState(history.state, '', normalized);
       } catch (e) {}
-      if (visibleForeignRegion) return false;
+      if (locked || visibleForeignRegion) return false;
     } else if (normalized !== location.href) {
       try {
         history.replaceState(history.state, '', normalized);
@@ -256,7 +276,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
     try {
       var ok = sheinSaudiSignalsOk();
-      if (ok) setSheinSaudiGuardOverlay(false);
+      if (ok && sheinVisibleSaudiRegion()) {
+        window.__otlobliSheinSaudiLocked = false;
+        try { sessionStorage.removeItem('__otlobliSheinSaudiLocked'); } catch (e) {}
+        setSheinSaudiGuardOverlay(false);
+      }
       return ok;
     } catch (e) {
       return false;
