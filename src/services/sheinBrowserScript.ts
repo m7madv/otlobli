@@ -163,6 +163,36 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return /Shipping to\s+(?!Saudi Arabia\b)[A-Za-z][A-Za-z ]{2,40}|Ship to\s+(?!Saudi Arabia\b)[A-Za-z][A-Za-z ]{2,40}|Bahrain|United Kingdom|United States|UAE|Kuwait|Qatar|Oman|Jordan|البحرين|الإمارات|الكويت|قطر|عمان|الأردن/i.test(text);
   }
 
+  function setSheinSaudiGuardOverlay(visible) {
+    if (!IS_SHEIN) return;
+    var id = 'otlobli-shein-saudi-guard';
+    var old = document.getElementById(id);
+    if (!visible) {
+      if (old) old.remove();
+      if (document.documentElement) document.documentElement.classList.remove('otlobli-shein-saudi-locked');
+      return;
+    }
+    if (document.documentElement) document.documentElement.classList.add('otlobli-shein-saudi-locked');
+    if (old) return;
+    var style = document.createElement('style');
+    style.textContent =
+      '.otlobli-shein-saudi-locked body > *:not(#' + id + '){filter:blur(2px)!important;pointer-events:none!important;}' +
+      '#' + id + '{position:fixed;inset:0;z-index:2147483647;background:rgba(255,255,255,.96);display:flex;align-items:center;justify-content:center;padding:22px;direction:rtl;font-family:Arial,sans-serif;}' +
+      '#' + id + ' .box{max-width:360px;border:1px solid #c8d8d1;border-radius:16px;background:#fff;box-shadow:0 18px 45px rgba(0,0,0,.14);padding:18px;text-align:center;color:#123;}' +
+      '#' + id + ' strong{display:block;color:#007953;font-size:18px;margin-bottom:8px;}' +
+      '#' + id + ' p{margin:0;color:#4b5563;font-size:14px;line-height:1.7;}' +
+      '#' + id + ' button{margin-top:14px;border:0;border-radius:12px;background:#007953;color:#fff;font-weight:800;padding:11px 16px;width:100%;font-size:15px;}';
+    var overlay = document.createElement('div');
+    overlay.id = id;
+    overlay.innerHTML = '<div class="box"><strong>نثبت متجر شي إن على السعودية</strong><p>تم اكتشاف أن شي إن فتح على دولة غير السعودية. لن يتم السماح بإضافة أي منتج حتى يرجع المتجر للسعودية.</p><button type="button">إعادة المحاولة</button></div>';
+    overlay.appendChild(style);
+    overlay.querySelector('button').addEventListener('click', function () {
+      try { clearSheinForeignRegionState(); } catch (e) {}
+      try { location.replace(otlobliNormalizeSheinUrl(location.href)); } catch (e) {}
+    });
+    (document.body || document.documentElement).appendChild(overlay);
+  }
+
   function clearSheinForeignRegionState() {
     try {
       var patterns = /country|currency|region|ship|locale|language|lang|site_uid/i;
@@ -203,6 +233,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var signalsOk = sheinSaudiSignalsOk();
     var visibleForeignRegion = sheinVisibleForeignRegion();
     var needsReload = shouldReloadSheinForSaudi() || visibleForeignRegion;
+    setSheinSaudiGuardOverlay(visibleForeignRegion);
     if (needsReload || !signalsOk) {
       if (options && options.navigate) {
         var guardKey = '__otlobliSaudiRedirects:' + normalized + ':' + Math.floor(Date.now() / 30000);
@@ -217,13 +248,16 @@ export const SHEIN_CAPTURE_SCRIPT = `
       try {
         history.replaceState(history.state, '', normalized);
       } catch (e) {}
+      if (visibleForeignRegion) return false;
     } else if (normalized !== location.href) {
       try {
         history.replaceState(history.state, '', normalized);
       } catch (e) {}
     }
     try {
-      return sheinSaudiSignalsOk();
+      var ok = sheinSaudiSignalsOk();
+      if (ok) setSheinSaudiGuardOverlay(false);
+      return ok;
     } catch (e) {
       return false;
     }
