@@ -2881,7 +2881,7 @@ function App() {
                               <ul>
                                 {friendGroupItems.map((line, i) => (
                                   <li key={`friend-${i}`}>
-                                    <span className="group-item-name">{line.item.name || 'منتج'}</span>
+                                    <span className="group-item-name">{line.item.title || 'منتج'}</span>
                                     <span className="group-item-qty">×{line.item.quantity}</span>
                                     <span className="group-item-price">{formatPrice(getItemPriceSyp(line.item) * line.item.quantity)}</span>
                                   </li>
