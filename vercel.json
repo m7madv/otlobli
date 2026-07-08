@@ -1,9 +1,8 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "framework": "vite",
   "rewrites": [
-    { "source": "/group/:path*", "destination": "/group/index.html" },
+    { "source": "/group/(.*)", "destination": "/group/index.html" },
     { "source": "/(.*)", "destination": "/landing.html" }
   ]
 }
