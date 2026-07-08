@@ -197,8 +197,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
     } catch (e) {
       return false;
     }
-    if (/السعودية|Saudi Arabia|Shipping to Saudi|Ship to Saudi/i.test(text)) return false;
-    return /Shipping to\s+(?!Saudi Arabia\b)[A-Za-z][A-Za-z ]{2,40}|Ship to\s+(?!Saudi Arabia\b)[A-Za-z][A-Za-z ]{2,40}|Bahrain|United Kingdom|United States|UAE|Kuwait|Qatar|Oman|Jordan|البحرين|الإمارات|الكويت|قطر|عمان|الأردن/i.test(text);
+    if (/السعودية|Saudi Arabia|Shipping to Saudi|Ship to Saudi|الشحن\s*(?:إلى|ل)\s*السعودية|التوصيل\s*(?:إلى|ل)\s*السعودية/i.test(text)) return false;
+    return /(?:Shipping|Ship|Ships|Delivery|Deliver|Delivering|الشحن|التوصيل)\s*(?:to|إلى|ل)?\s*(?!Saudi Arabia\b|السعودية\b)(?:Bahrain|United Kingdom|United States|UAE|Kuwait|Qatar|Oman|Jordan|البحرين|الإمارات|الكويت|قطر|عمان|الأردن)\b/i.test(text);
   }
 
   function sheinVisibleSaudiRegion() {

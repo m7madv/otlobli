@@ -34,10 +34,7 @@ const APP_SETTINGS_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/app-settin
 // الأسعار بالدولار نفسها، والزبون لا يرى اسم أي بلد (يُعرض "مركز التجميع").
 // السكربت المحقون يقرأ المنطقة من الرابط فيضبط لغة الموقع تلقائياً.
 const SHEIN_HOME_URL = 'https://m.shein.com/ar/?currency=USD&country=SA&countryCode=SA&lang=ar&language=ar&ship_to=SA&shipToCountry=SA&shippingCountry=SA'
-const SHEIN_MOBILE_USER_AGENT =
-  'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36'
 const SHEIN_BROWSER_HEADERS = {
-  'User-Agent': SHEIN_MOBILE_USER_AGENT,
   'Accept-Language': 'ar-SA,ar;q=0.9,en;q=0.8',
 }
 
