@@ -41,6 +41,7 @@ Latest customer app fix after that handoff:
   - customer SHEIN URLs are normalized to `https://m.shein.com/ar/?currency=USD&country=SA&countryCode=SA&lang=ar&language=ar&ship_to=SA&shipToCountry=SA&shippingCountry=SA`
   - the in-app browser passes a mobile User-Agent plus `Accept-Language: ar-SA` so SHEIN stays on the Arabic mobile storefront instead of redirecting to `m.shein.com/ar-en`
   - injected browser script continually reasserts Saudi Arabia + USD + Arabic state and blocks foreign paths/countries
+  - `site_uid` must stay `pwar` on mobile SHEIN; do not broadly overwrite SHEIN storage keys, because that leaves product/list pages stuck on skeleton loading
   - add-to-cart fails closed and re-normalizes the page if SHEIN is not on Saudi/USD
 
 - Admin order issue handling:
