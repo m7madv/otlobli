@@ -1609,15 +1609,21 @@ function App() {
     const probeImage = (url: string): Promise<boolean> =>
       new Promise((resolve) => {
         const img = new Image()
-        const timer = window.setTimeout(() => { img.onload = null; img.onerror = null; resolve(false) }, 6000)
+        const timer = window.setTimeout(() => { img.onload = null; img.onerror = null; resolve(false) }, 12000)
         img.onload = () => { window.clearTimeout(timer); resolve(true) }
         img.onerror = () => { window.clearTimeout(timer); resolve(false) }
         img.src = `${url}?_=${Date.now()}`
       })
+    const probeFetch = (url: string): Promise<boolean> =>
+      fetch(url, { mode: 'no-cors', cache: 'no-store', signal: AbortSignal.timeout(10000) })
+        .then(() => true)
+        .catch(() => false)
     return Promise.any([
       probeImage('https://m.shein.com/favicon.ico'),
       probeImage('https://img.ltwebstatic.com/images3_spmp/2024/06/20/17/1718854498b4a8f5ebce05ea476acae42de72b810a_thumbnail_80x80.webp'),
       probeImage('https://www.temu.com/favicon.ico'),
+      probeFetch('https://m.shein.com/favicon.ico'),
+      probeFetch('https://www.temu.com/favicon.ico'),
     ]).catch(() => false)
   }
 
@@ -4111,6 +4117,10 @@ function App() {
             <button className="primary-action" onClick={() => setVpnState('checking')}>
               <Icon name="refresh" />
               تحقّق من جديد
+            </button>
+            <button className="ghost-action" onClick={() => setVpnState('ok')} style={{ marginTop: 8 }}>
+              <Icon name="open_in_browser" />
+              فتح المتجر على أي حال
             </button>
           </main>
         ) : sheinBlockedError ? (
