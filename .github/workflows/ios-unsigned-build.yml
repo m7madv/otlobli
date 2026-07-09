@@ -3,7 +3,7 @@ name: iOS Unsigned Build
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, codex/customer-wallet-group-orders]
 
 jobs:
   build-ios:

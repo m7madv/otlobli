@@ -1180,6 +1180,8 @@ function App() {
   const hasAvailabilityIssues = activeCheckoutItems.some((item) => !!getAvailabilityIssue(item))
   const formatPrice = (syp: number) => formatPriceSyp(syp, paymentCurrency, exchangeRate)
 
+  const isSyncingRef = useRef(false)
+
   const createCartGroup = () => {
     if (isSyncingGroup) return
     if (!phone) { showNotice('سجل دخولك أولاً'); return }
@@ -1194,16 +1196,17 @@ function App() {
       .finally(() => setIsSyncingGroup(false))
   }
 
-
-  const joinCartGroup = () => {
-    const code = extractGroupInviteCode(groupJoinCode)
+  const joinCartGroupFromValue = (inputCode?: string) => {
+    const code = extractGroupInviteCode(inputCode ?? groupJoinCode)
     if (!phone) { showNotice('سجل دخولك أولاً'); return }
-    if (!code) { showNotice('أدخل كود الطلب المشترك'); return }
+    if (!code) { showNotice('أدخل كود أو رابط السلة المشتركة'); return }
+    if (cartGroup?.code === code) { showNotice('أنت مرتبط بهذه المجموعة بالفعل'); return }
     setIsSyncingGroup(true)
     void appApi.cartGroups.join(phone, userProfile?.name || recipient.name || 'عضو', code, cartItems, groupMemberKey)
       .then((snapshot) => {
         setCartGroup(snapshot)
         setGroupJoinCode('')
+        setPendingGroupInvite(null)
         showNotice('تم ربط السلة مع صديقك')
       })
       .catch((error: unknown) => showNotice(getPublicErrorMessage(error)))
@@ -1226,22 +1229,6 @@ function App() {
     window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank', 'noreferrer')
   }
 
-  const joinCartGroupFromValue = (inputCode?: string) => {
-    const code = extractGroupInviteCode(inputCode ?? groupJoinCode)
-    if (!phone) { showNotice('سجل دخولك أولاً'); return }
-    if (!code) { showNotice('أدخل كود أو رابط السلة المشتركة'); return }
-    setIsSyncingGroup(true)
-    void appApi.cartGroups.join(phone, userProfile?.name || recipient.name || 'عضو', code, cartItems, groupMemberKey)
-      .then((snapshot) => {
-        setCartGroup(snapshot)
-        setGroupJoinCode('')
-        setPendingGroupInvite(null)
-        showNotice('تم ربط السلة مع صديقك')
-      })
-      .catch((error: unknown) => showNotice(getPublicErrorMessage(error)))
-      .finally(() => setIsSyncingGroup(false))
-  }
-
   const acceptPendingGroupInvite = () => {
     if (!pendingGroupInvite) return
     joinCartGroupFromValue(pendingGroupInvite.code)
@@ -1253,27 +1240,49 @@ function App() {
     showNotice('تم إلغاء ربط السلة')
   }
 
+  const cancelCartGroupOnServer = () => {
+    if (!cartGroup) { setCartGroup(null); return }
+    setIsSyncingGroup(true)
+    void appApi.cartGroups.cancel(phone, cartGroup.id)
+      .then(() => {
+        setCartGroup(null)
+        showNotice('تم إلغاء المجموعة')
+      })
+      .catch(() => {
+        setCartGroup(null)
+        showNotice('تم إلغاء المجموعة محلياً')
+      })
+      .finally(() => setIsSyncingGroup(false))
+  }
+
   const syncCartGroup = (silent = false) => {
     if (!cartGroup) return
+    if (isSyncingRef.current) return
+    isSyncingRef.current = true
     if (!silent) setIsSyncingGroup(true)
     void appApi.cartGroups.syncItems(phone, cartGroup.id, cartItems, groupMemberKey)
       .then((snapshot) => {
+        if (snapshot.status !== 'open') {
+          setCartGroup(null)
+          showNotice('تم إغلاق المجموعة')
+          return
+        }
         setCartGroup(snapshot)
         if (!silent) showNotice('تم تحديث سلة الطلب المشترك')
       })
       .catch((error: unknown) => { if (!silent) showNotice(getPublicErrorMessage(error)) })
-      .finally(() => { if (!silent) setIsSyncingGroup(false) })
+      .finally(() => { isSyncingRef.current = false; if (!silent) setIsSyncingGroup(false) })
   }
 
   useEffect(() => {
     if (!cartGroup || cartGroup.status !== 'open' || screen !== 'cart') return
-    const timer = setInterval(() => syncCartGroup(true), 15_000)
+    const timer = setInterval(() => syncCartGroup(true), 10_000)
     return () => clearInterval(timer)
   }, [cartGroup?.id, cartGroup?.status, screen])
 
   useEffect(() => {
     if (!cartGroup || cartGroup.status !== 'open') return
-    const timer = window.setTimeout(() => syncCartGroup(true), 900)
+    const timer = window.setTimeout(() => syncCartGroup(true), 600)
     return () => window.clearTimeout(timer)
   }, [cartGroup?.id, cartGroup?.status, cartItems])
 
@@ -2196,7 +2205,7 @@ function App() {
   }
 
   const startWalletTopUp = () => {
-    const amountSyp = parseSypInput(walletTopUpAmount)
+    const amountUsd = parseFloat(walletTopUpAmount.replace(/[^\d.]/g, ''))
     const topUpPhone = (userProfile?.phone || phone).replace(/\s+/g, '')
     const topUpName = userProfile?.name || recipient.name || 'عميل otlobli'
 
@@ -2204,8 +2213,8 @@ function App() {
       showNotice('سجّل الدخول أولاً لشحن المحفظة')
       return
     }
-    if (amountSyp <= 0) {
-      showNotice('أدخل مبلغ الشحن بالليرة السورية')
+    if (!Number.isFinite(amountUsd) || amountUsd < 1) {
+      showNotice('أقل مبلغ للإيداع 1$')
       return
     }
     if (pendingWalletTopUp) {
@@ -2214,17 +2223,18 @@ function App() {
     }
 
     setWalletTopUpState('starting')
-    void appApi.wallet.createTopUp(topUpPhone, topUpName, amountSyp)
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString()
+    void appApi.wallet.createTopUp(topUpPhone, topUpName, amountUsd)
       .then((result) => {
         setPendingWalletTopUp({
           topUpId: result.topUpId,
           amount: result.paymentAmount,
           currency: result.paymentCurrency,
           creditAmountSyp: result.creditAmountSyp,
-          expiresAt: result.paymentExpiresAt,
+          expiresAt,
         })
         setWalletTopUpAmount('')
-        showNotice('تم إنشاء شحن المحفظة')
+        showNotice('تم إنشاء شحن المحفظة — لديك 5 دقائق لإتمام الدفع')
       })
       .catch((error: unknown) => showNotice(getPublicErrorMessage(error)))
       .finally(() => setWalletTopUpState('idle'))
@@ -2266,6 +2276,21 @@ function App() {
       .catch((error: unknown) => showNotice(getPublicErrorMessage(error)))
       .finally(() => setWalletTopUpState('idle'))
   }
+
+  useEffect(() => {
+    if (!pendingWalletTopUp?.expiresAt) return
+    const remaining = new Date(pendingWalletTopUp.expiresAt).getTime() - Date.now()
+    if (remaining <= 0) {
+      setPendingWalletTopUp(null)
+      showNotice('انتهت مهلة الدفع — أنشئ طلب شحن جديد')
+      return
+    }
+    const timer = window.setTimeout(() => {
+      setPendingWalletTopUp(null)
+      showNotice('انتهت مهلة الدفع — أنشئ طلب شحن جديد')
+    }, remaining)
+    return () => window.clearTimeout(timer)
+  }, [pendingWalletTopUp?.expiresAt, pendingWalletTopUp?.topUpId])
 
   const addAddress = () => {
     const id = `ADDR-${addresses.length + 1}`
@@ -2912,7 +2937,7 @@ function App() {
                       <p className={groupTotalSyp >= groupMinimumSyp ? 'group-total-ok' : 'min-order-notice'}>
                         مجموع المجموعة: {formatPrice(groupTotalSyp)} / {formatPrice(groupMinimumSyp)}
                       </p>
-                      <button className="ghost-action" onClick={() => setCartGroup(null)}>
+                      <button className="ghost-action" disabled={isSyncingGroup} onClick={cancelCartGroupOnServer}>
                         إلغاء ربط السلة
                       </button>
                     </>
@@ -3687,16 +3712,18 @@ function App() {
               <section className="payment-rules">
                 <h2>شحن المحفظة</h2>
                 <label className="field">
-                  <span>المبلغ بالليرة السورية</span>
+                  <span>المبلغ بالدولار (أقل مبلغ 1$)</span>
                   <input
                     value={walletTopUpAmount}
-                    onChange={(event) => setWalletTopUpAmount(toAsciiDigits(event.target.value).replace(/[^\d]/g, ''))}
-                    inputMode="numeric"
-                    placeholder="50000"
+                    onChange={(event) => setWalletTopUpAmount(toAsciiDigits(event.target.value).replace(/[^\d.]/g, ''))}
+                    inputMode="decimal"
+                    placeholder="5"
+                    dir="ltr"
                   />
                 </label>
-                <button className="primary-action" disabled={walletTopUpState === 'starting'} onClick={startWalletTopUp}>
-                  {walletTopUpState === 'starting' ? 'جاري إنشاء الشحن...' : 'شحن عبر شام كاش'}
+                <p className="hint">مهلة الدفع 5 دقائق فقط — بعدها ينتهي الطلب تلقائياً.</p>
+                <button className="primary-action" disabled={walletTopUpState === 'starting' || !(parseFloat(walletTopUpAmount) >= 1)} onClick={startWalletTopUp}>
+                  {walletTopUpState === 'starting' ? 'جاري إنشاء الشحن...' : 'شحن المحفظة'}
                   <Icon name="payments" />
                 </button>
               </section>

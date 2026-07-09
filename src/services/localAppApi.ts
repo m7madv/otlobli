@@ -56,18 +56,18 @@ export const localAppApi: TalabiehApi = {
     },
   },
   wallet: {
-    async createTopUp(_phone, _name, amountSyp) {
+    async createTopUp(_phone, _name, amountUsd) {
       void _phone
       void _name
       await wait(180)
-      const amount = Math.max(Math.trunc(amountSyp), 1)
+      const amount = Math.max(Math.round(amountUsd * 100) / 100, 0.01)
       return {
         mode: 'local-mock',
         topUpId: `local-topup-${Date.now()}`,
         paymentAmount: amount,
-        paymentCurrency: 'SYP',
-        paymentExpiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
-        creditAmountSyp: amount,
+        paymentCurrency: 'USD',
+        paymentExpiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+        creditAmountSyp: Math.round(amount * 13000),
       }
     },
 
@@ -152,6 +152,9 @@ export const localAppApi: TalabiehApi = {
         members: [{ memberKey, phone, name: 'local', role: 'host' }],
         items: items.map((item) => ({ ownerMemberKey: memberKey, ownerPhone: phone, ownerName: 'local', item })),
       }
+    },
+    async cancel() {
+      await wait(120)
     },
   },
   orders: {

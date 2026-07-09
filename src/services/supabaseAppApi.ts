@@ -426,15 +426,15 @@ export const supabaseAppApi: TalabiehApi = {
     },
   },
   wallet: {
-    async createTopUp(phone, name, amountSyp) {
+    async createTopUp(phone, name, amountUsd) {
       if (!supabase) {
-        return localAppApi.wallet.createTopUp(phone, name, amountSyp)
+        return localAppApi.wallet.createTopUp(phone, name, amountUsd)
       }
 
       const { data, error } = await supabase.rpc('create_wallet_topup', {
         p_phone: phone.trim(),
         p_name: name.trim(),
-        p_amount_syp: Math.trunc(amountSyp),
+        p_amount_usd: Math.round(amountUsd * 100) / 100,
       })
 
       if (error || !data) {
@@ -596,6 +596,20 @@ export const supabaseAppApi: TalabiehApi = {
         groupId,
         items,
       })
+    },
+
+    async cancel(_phone, groupId) {
+      if (!supabase || !CART_GROUPS_URL) { await localAppApi.cartGroups.cancel(_phone, groupId); return }
+      const response = await fetch(CART_GROUPS_URL, {
+        method: 'POST',
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ action: 'cancel', groupId }),
+      })
+      if (!response.ok) throw new Error('تعذر إلغاء المجموعة')
     },
   },
   orders: {
