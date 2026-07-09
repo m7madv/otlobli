@@ -9,7 +9,7 @@ import fs from 'fs'
 import path from 'path'
 import { createRequire } from 'module'
 import { fileURLToPath } from 'url'
-import { onConnection, isWhatsappConnected, getConnectionStatus } from './whatsapp.js'
+import { onConnection, isWhatsappConnected, getConnectionStatus, getAllSessions } from './whatsapp.js'
 import routes from './routes.js'
 
 const require = createRequire(import.meta.url)

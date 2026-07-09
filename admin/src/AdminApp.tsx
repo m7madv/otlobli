@@ -179,6 +179,7 @@ const ADMIN_ORDERS_FN   = `${SUPABASE_URL}/functions/v1/admin-orders`
 const ADMIN_DRIVERS_FN  = `${SUPABASE_URL}/functions/v1/admin-drivers`
 const ADMIN_COUPONS_FN  = `${SUPABASE_URL}/functions/v1/admin-coupons`
 const APP_SETTINGS_FN   = `${SUPABASE_URL}/functions/v1/app-settings`
+const WA_API_BASE = stripBom(import.meta.env.VITE_WHATSAPP_API_URL as string | undefined) || ''
 const ANON_KEY = stripBom(import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)
 const ADMIN_SESSION_STORAGE_KEY = 'talabieh_admin_session'
 
@@ -1731,8 +1732,6 @@ function SettingsPanel({
   const [featureGroupOrders, setFeatureGroupOrders] = useState(true)
   const [featureWallet, setFeatureWallet] = useState(true)
   const [featureCoupons, setFeatureCoupons] = useState(true)
-  const [whatsappNumbers, setWhatsappNumbers] = useState<string[]>([])
-  const [newWhatsappNumber, setNewWhatsappNumber] = useState('')
   const [saving,     setSaving]     = useState(false)
   const [loaded,     setLoaded]     = useState(false)
 
@@ -1751,7 +1750,6 @@ function SettingsPanel({
         setFeatureGroupOrders(data.feature_group_orders !== 'false')
         setFeatureWallet(data.feature_wallet !== 'false')
         setFeatureCoupons(data.feature_coupons !== 'false')
-        try { setWhatsappNumbers(JSON.parse(data.whatsapp_otp_numbers || '[]')) } catch { setWhatsappNumbers([]) }
         setLoaded(true)
       })
       .catch(() => showNotice('تعذر جلب الإعدادات'))
@@ -2076,64 +2074,7 @@ function SettingsPanel({
         ))}
       </fieldset>
 
-      <fieldset className="settings-group">
-        <legend>أرقام واتساب لإرسال OTP</legend>
-        <p className="settings-intro">أضف أرقام واتساب لإرسال رمز التحقق. يتم تجربة الأرقام بالترتيب — إذا فشل الأول يُستخدم الثاني تلقائياً.</p>
-        {whatsappNumbers.map((num, i) => (
-          <div className="settings-row" key={i}>
-            <input value={num} readOnly dir="ltr" style={{ flex: 1 }} />
-            <button
-              className="ghost-action"
-              disabled={saving}
-              onClick={() => {
-                const next = whatsappNumbers.filter((_, j) => j !== i)
-                setWhatsappNumbers(next)
-                void saveSetting('whatsapp_otp_numbers', JSON.stringify(next))
-              }}
-            >
-              حذف
-            </button>
-            {i > 0 && (
-              <button
-                className="ghost-action"
-                disabled={saving}
-                onClick={() => {
-                  const next = [...whatsappNumbers]
-                  ;[next[i - 1], next[i]] = [next[i], next[i - 1]]
-                  setWhatsappNumbers(next)
-                  void saveSetting('whatsapp_otp_numbers', JSON.stringify(next))
-                }}
-              >
-                ▲
-              </button>
-            )}
-          </div>
-        ))}
-        <div className="settings-row">
-          <input
-            value={newWhatsappNumber}
-            onChange={(e) => setNewWhatsappNumber(e.target.value)}
-            placeholder="رقم واتساب مع رمز الدولة مثل 963..."
-            dir="ltr"
-            style={{ flex: 1 }}
-          />
-          <button
-            className="ghost-action"
-            disabled={saving || !newWhatsappNumber.trim()}
-            onClick={() => {
-              const trimmed = newWhatsappNumber.trim().replace(/\s+/g, '')
-              if (!trimmed) return
-              if (whatsappNumbers.includes(trimmed)) { showNotice('الرقم موجود مسبقاً'); return }
-              const next = [...whatsappNumbers, trimmed]
-              setWhatsappNumbers(next)
-              setNewWhatsappNumber('')
-              void saveSetting('whatsapp_otp_numbers', JSON.stringify(next))
-            }}
-          >
-            إضافة
-          </button>
-        </div>
-      </fieldset>
+      <WhatsAppSessionsPanel pin={pin} showNotice={showNotice} />
 
       <fieldset className="settings-group">
         <legend>جلسة الإدارة</legend>
@@ -2160,6 +2101,171 @@ function InfoRow({ label, value }: { label: string; value: string }) {
       <span>{label}</span>
       <b>{value}</b>
     </div>
+  )
+}
+
+// ── WhatsApp Sessions Panel ─────────────────────────────────────────────────
+
+type WaSession = {
+  id: string
+  connected: boolean
+  status: string
+  phoneNumber: string | null
+  label: string
+  qrCode: string | null
+  qrImageUrl: string | null
+}
+
+function WhatsAppSessionsPanel({ pin, showNotice }: { pin: string; showNotice: (msg: string) => void }) {
+  const [sessions, setSessions] = useState<WaSession[]>([])
+  const [loading, setLoading] = useState(true)
+  const [adding, setAdding] = useState(false)
+
+  const waFetch = (path: string, opts?: RequestInit) =>
+    fetch(`${WA_API_BASE}/api${path}`, {
+      ...opts,
+      headers: {
+        'content-type': 'application/json',
+        'x-admin-pin': pin,
+        ...(opts?.headers || {}),
+      },
+    })
+
+  const loadSessions = () => {
+    waFetch('/whatsapp/sessions')
+      .then(r => r.json())
+      .then(d => setSessions(d.sessions || []))
+      .catch(() => showNotice('تعذر جلب جلسات واتساب'))
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => { loadSessions() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // تحديث حالة QR كل 3 ثوانٍ إذا في جلسة بحالة qr أو connecting
+  useEffect(() => {
+    const hasActiveQr = sessions.some(s => s.status === 'qr' || s.status === 'connecting')
+    if (!hasActiveQr) return
+    const timer = setInterval(loadSessions, 3000)
+    return () => clearInterval(timer)
+  }, [sessions]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const addSession = () => {
+    setAdding(true)
+    waFetch('/whatsapp/sessions', { method: 'POST', body: JSON.stringify({}) })
+      .then(r => {
+        if (!r.ok) throw new Error()
+        showNotice('تم إنشاء جلسة جديدة — امسح QR لربط الرقم')
+        loadSessions()
+      })
+      .catch(() => showNotice('فشل إنشاء جلسة واتساب'))
+      .finally(() => setAdding(false))
+  }
+
+  const removeSessionById = (id: string) => {
+    waFetch(`/whatsapp/sessions/${id}`, { method: 'DELETE' })
+      .then(r => {
+        if (!r.ok) throw new Error()
+        setSessions(prev => prev.filter(s => s.id !== id))
+        showNotice('تم حذف الرقم')
+      })
+      .catch(() => showNotice('فشل حذف الجلسة'))
+  }
+
+  const reconnectSession = (id: string) => {
+    waFetch(`/whatsapp/sessions/${id}/reconnect`, { method: 'POST' })
+      .then(() => { showNotice('جاري إعادة الاتصال...'); loadSessions() })
+      .catch(() => showNotice('فشل إعادة الاتصال'))
+  }
+
+  if (!WA_API_BASE) {
+    return (
+      <fieldset className="settings-group">
+        <legend>أرقام واتساب</legend>
+        <p className="settings-intro">خدمة واتساب غير مربوطة. أضف VITE_WHATSAPP_API_URL في إعدادات المشروع.</p>
+      </fieldset>
+    )
+  }
+
+  return (
+    <fieldset className="settings-group">
+      <legend>أرقام واتساب (OTP + إشعارات)</legend>
+      <p className="settings-intro">
+        أضف أرقام واتساب لإرسال رموز التحقق وإشعارات الطلبات. لو فشل الأول يُستخدم الثاني تلقائياً.
+      </p>
+
+      {loading ? (
+        <p>جاري التحميل...</p>
+      ) : sessions.length === 0 ? (
+        <p style={{ color: '#ef4444', fontSize: 14 }}>لا توجد أرقام مربوطة. أضف رقماً جديداً.</p>
+      ) : (
+        <div style={{ display: 'grid', gap: 12 }}>
+          {sessions.map((s, i) => (
+            <div key={s.id} style={{
+              border: '1px solid #e5e7eb',
+              borderRadius: 12,
+              padding: 14,
+              background: s.connected ? '#f0fdf4' : s.status === 'qr' ? '#fffbeb' : '#fef2f2',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span style={{
+                  width: 10, height: 10, borderRadius: '50%',
+                  background: s.connected ? '#22c55e' : s.status === 'qr' ? '#eab308' : '#ef4444',
+                  flexShrink: 0,
+                }} />
+                <b style={{ flex: 1 }}>
+                  {s.phoneNumber ? `+${s.phoneNumber}` : `رقم ${i + 1}`}
+                  {s.connected && <span style={{ color: '#22c55e', fontWeight: 400, marginRight: 8 }}> — متصل</span>}
+                  {s.status === 'qr' && <span style={{ color: '#eab308', fontWeight: 400, marginRight: 8 }}> — بانتظار مسح QR</span>}
+                  {s.status === 'error' && <span style={{ color: '#ef4444', fontWeight: 400, marginRight: 8 }}> — غير متصل</span>}
+                </b>
+                <span style={{ color: '#9ca3af', fontSize: 12 }}>#{i + 1}</span>
+              </div>
+
+              {s.status === 'qr' && s.qrImageUrl && (
+                <div style={{ textAlign: 'center', margin: '12px 0' }}>
+                  <p style={{ fontSize: 13, color: '#92400e', marginBottom: 8 }}>
+                    افتح واتساب ← النقاط الثلاث ← الأجهزة المرتبطة ← ربط جهاز ← امسح هذا الباركود
+                  </p>
+                  <img
+                    src={s.qrImageUrl}
+                    alt="QR Code"
+                    style={{ width: 220, height: 220, borderRadius: 12, background: '#fff', border: '1px solid #e5e7eb' }}
+                  />
+                </div>
+              )}
+
+              {s.status === 'connecting' && (
+                <p style={{ fontSize: 13, color: '#6b7280', textAlign: 'center' }}>جاري الاتصال...</p>
+              )}
+
+              <div className="settings-row" style={{ marginTop: 8 }}>
+                {!s.connected && s.status !== 'qr' && s.status !== 'connecting' && (
+                  <button className="ghost-action" onClick={() => reconnectSession(s.id)}>
+                    إعادة اتصال
+                  </button>
+                )}
+                <button
+                  className="ghost-action"
+                  style={{ color: '#ef4444' }}
+                  onClick={() => { if (confirm('هل تريد حذف هذا الرقم؟')) removeSessionById(s.id) }}
+                >
+                  حذف
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <button
+        className="ghost-action"
+        disabled={adding}
+        onClick={addSession}
+        style={{ marginTop: 12, width: '100%', justifyContent: 'center' }}
+      >
+        + إضافة رقم واتساب جديد
+      </button>
+    </fieldset>
   )
 }
 

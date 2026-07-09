@@ -9,7 +9,7 @@ import zlib from 'zlib'
 import { createRequire } from 'module'
 import { fileURLToPath } from 'url'
 import { createOtp, verifyOtp } from './otpStore.js'
-import { sendOtpMessage, sendNotificationMessage, getConnectionStatus, connectOnDemand } from './whatsapp.js'
+import { sendOtpMessage, sendNotificationMessage, getConnectionStatus, connectOnDemand, getAllSessions, getSession, createSession, removeSession, connectSession } from './whatsapp.js'
 import { supabase } from './supabase.js'
 import { sendTelegramNotification, isTelegramConfigured } from './telegram.js'
 
@@ -108,6 +108,36 @@ router.post('/session/reset', (req, res) => {
 router.get('/auth/whatsapp/status', (req, res) => {
   const status = getConnectionStatus()
   res.json(status)
+})
+
+// ── إدارة جلسات واتساب (متعددة) ──────────────────────────
+
+router.get('/whatsapp/sessions', adminAuth, (req, res) => {
+  res.json({ sessions: getAllSessions() })
+})
+
+router.get('/whatsapp/sessions/:id', adminAuth, (req, res) => {
+  const session = getSession(req.params.id)
+  if (!session) return res.status(404).json({ error: 'not_found' })
+  res.json(session)
+})
+
+router.post('/whatsapp/sessions', adminAuth, (req, res) => {
+  const { label } = req.body || {}
+  const result = createSession(label)
+  res.json(result)
+})
+
+router.delete('/whatsapp/sessions/:id', adminAuth, (req, res) => {
+  const removed = removeSession(req.params.id)
+  if (!removed) return res.status(404).json({ error: 'not_found' })
+  res.json({ ok: true })
+})
+
+router.post('/whatsapp/sessions/:id/reconnect', adminAuth, (req, res) => {
+  connectSession(req.params.id)
+    .then(() => res.json({ ok: true, session: getSession(req.params.id) }))
+    .catch((err) => res.status(500).json({ error: err.message }))
 })
 
 // صفحة ربط WhatsApp — تفتح في المتصفح وتعرض QR
