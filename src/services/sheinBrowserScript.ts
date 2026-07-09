@@ -3655,6 +3655,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
         try { hideTemuCustomerAccountAndCart(); } catch (e) {}
         try { hideTemuCustomerChrome(); } catch (e) {}
         try { restoreTemuSearchChrome(); } catch (e) {}
+        try { restoreTemuLogo(); } catch (e) {}
+        try { hideTemuFooterSection(); } catch (e) {}
         try { ensureAddToCartButton(); } catch (e) {}
         try { detectEmptyTemuSearch(); } catch (e) {}
         return;
@@ -3776,6 +3778,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if (r.width < 22 || r.height < 22 || r.width > 72 || r.height > 72) continue;
         if (r.top < 0 || r.top > 150) continue;
         if (otlobliNearSearchInput(el) || otlobliLooksLikeSearchTrigger(el)) continue;
+        var elHints = otlobliCollectIdentityHints(el);
+        if (/temu|logo|brand/i.test(elHints)) continue;
+        if (el.tagName === 'A' && /^\\/(?:jo\\/)?$/.test(el.getAttribute('href') || '')) continue;
+        if (el.querySelector && el.querySelector('img[alt*="Temu" i], img[alt*="تيمو"], img[src*="temu" i]')) continue;
         var beforeSearch = r.left < searchLeft - 12;
         var leftHeaderIcon = r.left >= 0 && r.left <= 145;
         if (!beforeSearch && !leftHeaderIcon) continue;
@@ -3848,6 +3854,16 @@ export const SHEIN_CAPTURE_SCRIPT = `
     } catch (e) {}
   }
 
+  function otlobliUnhideEl(el) {
+    if (!el || (el.id && el.id.indexOf('otlobli') === 0)) return;
+    el.removeAttribute('data-otlobli-temu-hidden');
+    el.removeAttribute('data-otlobli-blocked');
+    el.style.removeProperty('display');
+    el.style.setProperty('visibility', 'visible', 'important');
+    el.style.setProperty('opacity', '1', 'important');
+    el.style.setProperty('pointer-events', 'auto', 'important');
+  }
+
   function restoreTemuSearchChrome() {
     if (!IS_TEMU || !document.body) return;
     try {
@@ -3856,17 +3872,36 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var el = nodes[i];
         if (el.id && el.id.indexOf('otlobli') === 0) continue;
         var r = el.getBoundingClientRect();
-        if (r.top < -20 || r.top > 170 || r.width < 70 || r.height < 20) continue;
+        if (r.top < -20 || r.top > 170 || r.width < 40 || r.height < 16) continue;
         if (!otlobliNearSearchInput(el) && !otlobliLooksLikeSearchTrigger(el)) continue;
         var cur = el;
-        for (var depth = 0; cur && depth < 3; depth++) {
-          if (cur.id && cur.id.indexOf('otlobli') === 0) break;
-          cur.removeAttribute('data-otlobli-temu-hidden');
-          cur.removeAttribute('data-otlobli-blocked');
-          cur.style.removeProperty('display');
-          cur.style.setProperty('visibility', 'visible', 'important');
-          cur.style.setProperty('opacity', '1', 'important');
-          cur.style.setProperty('pointer-events', 'auto', 'important');
+        for (var depth = 0; cur && depth < 5; depth++) {
+          otlobliUnhideEl(cur);
+          cur = cur.parentElement;
+        }
+        var children = el.querySelectorAll ? el.querySelectorAll('*') : [];
+        for (var ci = 0; ci < children.length; ci++) otlobliUnhideEl(children[ci]);
+      }
+    } catch (e) {}
+  }
+
+  function restoreTemuLogo() {
+    if (!IS_TEMU || !document.body) return;
+    try {
+      var logos = document.querySelectorAll('img[alt*="Temu" i], img[alt*="تيمو"], img[src*="temu" i], a[href="/"], a[href="/jo/"], svg');
+      for (var i = 0; i < logos.length; i++) {
+        var el = logos[i];
+        if (el.id && el.id.indexOf('otlobli') === 0) continue;
+        var r = el.getBoundingClientRect();
+        if (r.top < -20 || r.top > 140) continue;
+        if (r.width < 20 || r.width > 200 || r.height < 12 || r.height > 80) continue;
+        var hints = otlobliCollectIdentityHints(el);
+        var looksLogo = /temu|logo|brand|home/i.test(hints) || (el.tagName === 'A' && (el.getAttribute('href') === '/' || el.getAttribute('href') === '/jo/'));
+        if (!looksLogo) continue;
+        if (otlobliLooksLikeKnownDistraction(el)) continue;
+        var cur = el;
+        for (var depth = 0; cur && depth < 4; depth++) {
+          otlobliUnhideEl(cur);
           cur = cur.parentElement;
         }
       }
@@ -4018,6 +4053,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
           // بأعلى الشاشة) كافيان للتمييز بمفردهما.
           if (otlobliNearSearchInput(ic)) continue;
           if (otlobliLooksLikeSearchTrigger(ic)) continue;
+          var icHints = otlobliCollectIdentityHints(ic);
+          if (/temu|logo|brand/i.test(icHints)) continue;
+          if (ic.querySelector && ic.querySelector('img[alt*="Temu" i], img[alt*="تيمو"], img[src*="temu" i]')) continue;
           var inLeftCluster = irAll.left >= 0 && irAll.left <= LEFT_CLUSTER_MAX;
           if (!inLeftCluster && !otlobliLooksLikeKnownDistraction(ic)) {
             visibleTopIconDiag.push('[' + otlobliCollectIdentityHints(ic).trim().slice(0, 30) + ' @' + Math.round(irAll.left) + ',' + Math.round(irAll.top) + ']');
@@ -4200,7 +4238,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }, 120);
   setInterval(function () {
     ensureOtlobliNav();
-    if (IS_TEMU) restoreTemuSearchChrome();
+    if (IS_TEMU) {
+      restoreTemuSearchChrome();
+      restoreTemuLogo();
+    }
   }, 120);
   // Own slower interval, not part of tick() - see checkForSheinSecurityBlock's
   // comment on why innerText needs to stay off the 300ms timer. خاص بشي إن فقط.
