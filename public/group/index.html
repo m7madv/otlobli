@@ -41,6 +41,7 @@
   var code = params.get('code') || params.get('group') || '';
   var store = params.get('store') || '';
   var host = params.get('host') || '';
+  var from = params.get('from') || '';
 
   if (!code) {
     document.getElementById('msg').textContent = 'رابط غير صالح';
@@ -48,7 +49,7 @@
   }
 
   var appUrl = 'otlobli://group?' + new URLSearchParams({
-    code: code, group: code, store: store, host: host
+    code: code, group: code, store: store, host: host, from: from
   }).toString();
 
   var btn = document.getElementById('openBtn');

@@ -177,25 +177,75 @@ create table if not exists public.cart_groups (
 create table if not exists public.cart_group_members (
   group_id uuid not null references public.cart_groups(id) on delete cascade,
   customer_id uuid not null references public.customers(id) on delete cascade,
+  member_key text not null default '',
   phone text not null,
   display_name text not null default '',
   role text not null default 'member' check (role in ('host', 'member')),
   joined_at timestamptz not null default now(),
-  primary key (group_id, customer_id)
+  primary key (group_id, member_key)
 );
 
 create table if not exists public.cart_group_items (
   id uuid primary key default gen_random_uuid(),
   group_id uuid not null references public.cart_groups(id) on delete cascade,
   customer_id uuid not null references public.customers(id) on delete cascade,
+  member_key text not null default '',
   local_item_id text not null,
   payload jsonb not null,
   price_usd numeric(14, 2) not null default 0,
   price_syp integer not null default 0,
   quantity integer not null default 1 check (quantity > 0),
   updated_at timestamptz not null default now(),
-  unique (group_id, customer_id, local_item_id)
+  unique (group_id, member_key, local_item_id)
 );
+
+alter table public.cart_group_members add column if not exists member_key text not null default '';
+alter table public.cart_group_items add column if not exists member_key text not null default '';
+
+update public.cart_group_members
+set member_key = coalesce(nullif(member_key, ''), customer_id::text)
+where member_key = '';
+
+update public.cart_group_items
+set member_key = coalesce(nullif(member_key, ''), customer_id::text)
+where member_key = '';
+
+do $$
+begin
+  if exists (
+    select 1 from pg_constraint
+    where conname = 'cart_group_members_pkey'
+      and conrelid = 'public.cart_group_members'::regclass
+  ) then
+    alter table public.cart_group_members drop constraint cart_group_members_pkey;
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'cart_group_members_group_id_member_key_key'
+      and conrelid = 'public.cart_group_members'::regclass
+  ) then
+    alter table public.cart_group_members
+      add constraint cart_group_members_group_id_member_key_key unique (group_id, member_key);
+  end if;
+
+  if exists (
+    select 1 from pg_constraint
+    where conname = 'cart_group_items_group_id_customer_id_local_item_id_key'
+      and conrelid = 'public.cart_group_items'::regclass
+  ) then
+    alter table public.cart_group_items drop constraint cart_group_items_group_id_customer_id_local_item_id_key;
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'cart_group_items_group_id_member_key_local_item_id_key'
+      and conrelid = 'public.cart_group_items'::regclass
+  ) then
+    alter table public.cart_group_items
+      add constraint cart_group_items_group_id_member_key_local_item_id_key unique (group_id, member_key, local_item_id);
+  end if;
+end $$;
 
 alter table public.orders add column if not exists group_id uuid references public.cart_groups(id) on delete set null;
 alter table public.orders add column if not exists group_code text not null default '';
@@ -318,6 +368,8 @@ language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  target_member_key text := p_customer_id::text;
 begin
   return public.ensure_customer(
     coalesce(nullif(order_payload->>'phone', ''), 'غير محدد'),
@@ -1752,14 +1804,15 @@ begin
   end if;
 
   delete from public.cart_group_items
-  where group_id = p_group_id and customer_id = p_customer_id;
+  where group_id = p_group_id and member_key = target_member_key;
 
   insert into public.cart_group_items (
-    group_id, customer_id, local_item_id, payload, price_usd, price_syp, quantity
+    group_id, customer_id, member_key, local_item_id, payload, price_usd, price_syp, quantity
   )
   select
     p_group_id,
     p_customer_id,
+    target_member_key,
     coalesce(nullif(item->>'id', ''), gen_random_uuid()::text),
     item,
     greatest(coalesce(nullif(item->>'priceUsd', '')::numeric, 0), 0),
@@ -1787,6 +1840,7 @@ as $$
     'totalUsd', coalesce((select sum(cgi.price_usd * cgi.quantity) from public.cart_group_items cgi where cgi.group_id = g.id), 0),
     'members', (
       select coalesce(jsonb_agg(jsonb_build_object(
+        'memberKey', cgm.member_key,
         'phone', cgm.phone,
         'name', cgm.display_name,
         'role', cgm.role
@@ -1796,13 +1850,14 @@ as $$
     ),
     'items', (
       select coalesce(jsonb_agg(jsonb_build_object(
+        'ownerMemberKey', cgm.member_key,
         'ownerPhone', cgm.phone,
         'ownerName', cgm.display_name,
         'item', cgi.payload
       ) order by cgi.updated_at), '[]'::jsonb)
       from public.cart_group_items cgi
       join public.cart_group_members cgm
-        on cgm.group_id = cgi.group_id and cgm.customer_id = cgi.customer_id
+        on cgm.group_id = cgi.group_id and cgm.member_key = cgi.member_key
       where cgi.group_id = g.id
     )
   )
@@ -1843,9 +1898,9 @@ begin
     raise exception 'could not generate group code';
   end if;
 
-  insert into public.cart_group_members (group_id, customer_id, phone, display_name, role)
-  values (group_id, customer_id, regexp_replace(coalesce(p_phone, ''), '\s+', '', 'g'), coalesce(nullif(trim(p_name), ''), 'صاحب الطلب'), 'host')
-  on conflict (group_id, customer_id) do update set
+  insert into public.cart_group_members (group_id, customer_id, member_key, phone, display_name, role)
+  values (group_id, customer_id, customer_id::text, regexp_replace(coalesce(p_phone, ''), '\s+', '', 'g'), coalesce(nullif(trim(p_name), ''), 'صاحب الطلب'), 'host')
+  on conflict (group_id, member_key) do update set
     display_name = excluded.display_name,
     role = 'host';
 
@@ -1880,13 +1935,9 @@ begin
 
   customer_id := public.ensure_customer(p_phone, p_name, 'دمشق', '', '', '');
 
-  if found_group.host_customer_id = customer_id then
-    raise exception 'same customer cannot join own group';
-  end if;
-
-  insert into public.cart_group_members (group_id, customer_id, phone, display_name, role)
-  values (found_group.id, customer_id, regexp_replace(coalesce(p_phone, ''), '\s+', '', 'g'), coalesce(nullif(trim(p_name), ''), 'عضو'), 'member')
-  on conflict (group_id, customer_id) do update set
+  insert into public.cart_group_members (group_id, customer_id, member_key, phone, display_name, role)
+  values (found_group.id, customer_id, customer_id::text, regexp_replace(coalesce(p_phone, ''), '\s+', '', 'g'), coalesce(nullif(trim(p_name), ''), 'عضو'), 'member')
+  on conflict (group_id, member_key) do update set
     display_name = excluded.display_name;
 
   perform public.replace_cart_group_items(found_group.id, customer_id, p_items);

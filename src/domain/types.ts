@@ -162,12 +162,14 @@ export type WalletTransaction = {
 }
 
 export type CartGroupMember = {
+  memberKey?: string
   phone: string
   name: string
   role: 'host' | 'member'
 }
 
 export type CartGroupLine = {
+  ownerMemberKey?: string
   ownerPhone: string
   ownerName: string
   item: CartItem

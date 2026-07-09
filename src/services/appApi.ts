@@ -119,9 +119,9 @@ export type TalabiehApi = {
     saveProfile: (phone: string, profile: UserProfile) => Promise<CustomerAccountResult>
   }
   cartGroups: {
-    create: (phone: string, name: string, store: string, items: CartItem[]) => Promise<CartGroupSnapshot>
-    join: (phone: string, name: string, code: string, items: CartItem[]) => Promise<CartGroupSnapshot>
-    syncItems: (phone: string, groupId: string, items: CartItem[]) => Promise<CartGroupSnapshot>
+    create: (phone: string, name: string, store: string, items: CartItem[], memberKey?: string) => Promise<CartGroupSnapshot>
+    join: (phone: string, name: string, code: string, items: CartItem[], memberKey?: string) => Promise<CartGroupSnapshot>
+    syncItems: (phone: string, groupId: string, items: CartItem[], memberKey?: string) => Promise<CartGroupSnapshot>
   }
   orders: {
     // ظٹظ†ط´ط¦ ط§ظ„ط·ظ„ط¨ ط¨ط­ط§ظ„ط© "ط¨ط§ظ†طھط¸ط§ط± ط§ظ„ط¯ظپط¹" ظ…ط¹ ظ…ط¨ظ„ط؛ ط¯ظپط¹ ظپط±ظٹط¯طŒ ظ‚ط¨ظ„ ط¹ط±ط¶ ط´ط§ط´ط© ط§ظ„ط¯ظپط¹ -

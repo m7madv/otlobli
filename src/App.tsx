@@ -144,8 +144,8 @@ const shouldRedirectSheinToSaudi = (rawUrl: string) => {
   }
 }
 
-function buildGroupInviteLink(code: string, store: StoreId, host: string) {
-  const params = new URLSearchParams({ code, group: code, store, host })
+function buildGroupInviteLink(code: string, store: StoreId, host: string, inviterKey: string) {
+  const params = new URLSearchParams({ code, group: code, store, host, from: inviterKey })
   return `${GROUP_INVITE_WEB_ORIGIN}/group/?${params.toString()}`
 }
 
@@ -1118,25 +1118,32 @@ function App() {
   const breakdown = subtotalBreakdown
   const total = subtotal
   const groupCheckoutItems = cartGroup?.items.map((line) => line.item) ?? []
-  const groupTotalUsd = cartGroup?.totalUsd ?? 0
   const groupInviteStore = normalizeInviteStore(cartGroup?.sourceStore) ?? selectedStore
   const groupInviteHost = userProfile?.name || recipient.name || 'صاحب السلة'
-  const groupInviteLink = cartGroup ? buildGroupInviteLink(cartGroup.code, groupInviteStore, groupInviteHost) : ''
+  const groupMemberKey = getDeviceId()
+  const groupInviteLink = cartGroup ? buildGroupInviteLink(cartGroup.code, groupInviteStore, groupInviteHost, groupMemberKey) : ''
   const activeCheckoutItems = cartGroup && groupCheckoutItems.length > 0 ? groupCheckoutItems : cartItems
   const activeCheckoutProductsTotal = activeCheckoutItems.reduce((sum, item) => sum + getItemPriceSyp(item) * item.quantity, 0)
   const shippingTotalSyp = currentShippingFees.reduce((sum, line) => sum + line.value, 0)
   const activeCheckoutTotal = activeCheckoutProductsTotal + shippingTotalSyp
 
   const myPhone = normalizePhoneForCompare(phone)
-  const myGroupItems = cartGroup?.items.filter((line) => normalizePhoneForCompare(line.ownerPhone) === myPhone) ?? []
-  const friendGroupItems = cartGroup?.items.filter((line) => normalizePhoneForCompare(line.ownerPhone) !== myPhone) ?? []
-  const friendName = friendGroupItems[0]?.ownerName || cartGroup?.members.find((m) => normalizePhoneForCompare(m.phone) !== myPhone)?.name || 'الصديق'
+  const isMyGroupLine = (line: { ownerMemberKey?: string; ownerPhone: string }) =>
+    line.ownerMemberKey ? line.ownerMemberKey === groupMemberKey : normalizePhoneForCompare(line.ownerPhone) === myPhone
+  const isMyGroupMember = (member: { memberKey?: string; phone: string }) =>
+    member.memberKey ? member.memberKey === groupMemberKey : normalizePhoneForCompare(member.phone) === myPhone
+  const myGroupItems = cartGroup?.items.filter(isMyGroupLine) ?? []
+  const friendGroupItems = cartGroup?.items.filter((line) => !isMyGroupLine(line)) ?? []
+  const friendName = friendGroupItems[0]?.ownerName || cartGroup?.members.find((m) => !isMyGroupMember(m))?.name || 'الصديق'
   const myItemsTotalSyp = myGroupItems.reduce((sum, line) => sum + getItemPriceSyp(line.item) * line.item.quantity, 0)
   const friendItemsTotalSyp = friendGroupItems.reduce((sum, line) => sum + getItemPriceSyp(line.item) * line.item.quantity, 0)
   const halfShippingSyp = Math.ceil(shippingTotalSyp / 2)
   const myShareSyp = myItemsTotalSyp + halfShippingSyp
   const friendShareSyp = friendItemsTotalSyp + halfShippingSyp
   const groupHasFriend = cartGroup && cartGroup.members.length >= 2
+  const groupProductsTotalSyp = (cartGroup?.items ?? []).reduce((sum, line) => sum + getItemPriceSyp(line.item) * line.item.quantity, 0)
+  const groupTotalSyp = groupProductsTotalSyp + shippingTotalSyp
+  const groupMinimumSyp = Math.ceil(MIN_ORDER_USD * exchangeRate)
 
   const baseCheckoutBreakdown = cartGroup && groupCheckoutItems.length > 0
     ? [{ label: 'مجموع منتجات الطلب المشترك', value: activeCheckoutProductsTotal }, ...currentShippingFees]
@@ -1155,7 +1162,7 @@ function App() {
     ...(appliedReferralDiscountSyp > 0 ? [{ label: 'خصم الإحالة', value: -appliedReferralDiscountSyp }] : []),
   ]
   const checkoutTotal = Math.max(0, afterCouponTotal - appliedReferralDiscountSyp)
-  const meetsMinimumOrder = subtotal >= MIN_ORDER_SYP || subtotal / exchangeRate >= MIN_ORDER_USD || groupTotalUsd >= MIN_ORDER_USD
+  const meetsMinimumOrder = subtotal >= MIN_ORDER_SYP || subtotal / exchangeRate >= MIN_ORDER_USD || groupTotalSyp >= groupMinimumSyp
   const hasIncompleteCustom = cartItems.some(
     (item) => (item.needsCustomText && !item.customText?.trim()) ||
               (item.needsCustomPhoto && !item.customPhotoDataUrl)
@@ -1178,7 +1185,7 @@ function App() {
     if (!phone) { showNotice('سجل دخولك أولاً'); return }
     if (cartItems.length === 0) { showNotice('أضف منتجات للسلة أولاً'); return }
     setIsSyncingGroup(true)
-    void appApi.cartGroups.create(phone, userProfile?.name || recipient.name || 'صاحب الطلب', selectedStore, cartItems)
+    void appApi.cartGroups.create(phone, userProfile?.name || recipient.name || 'صاحب الطلب', selectedStore, cartItems, groupMemberKey)
       .then((snapshot) => {
         setCartGroup(snapshot)
         showNotice(`كود الطلب المشترك: ${snapshot.code}`)
@@ -1193,7 +1200,7 @@ function App() {
     if (!phone) { showNotice('سجل دخولك أولاً'); return }
     if (!code) { showNotice('أدخل كود الطلب المشترك'); return }
     setIsSyncingGroup(true)
-    void appApi.cartGroups.join(phone, userProfile?.name || recipient.name || 'عضو', code, cartItems)
+    void appApi.cartGroups.join(phone, userProfile?.name || recipient.name || 'عضو', code, cartItems, groupMemberKey)
       .then((snapshot) => {
         setCartGroup(snapshot)
         setGroupJoinCode('')
@@ -1224,7 +1231,7 @@ function App() {
     if (!phone) { showNotice('سجل دخولك أولاً'); return }
     if (!code) { showNotice('أدخل كود أو رابط السلة المشتركة'); return }
     setIsSyncingGroup(true)
-    void appApi.cartGroups.join(phone, userProfile?.name || recipient.name || 'عضو', code, cartItems)
+    void appApi.cartGroups.join(phone, userProfile?.name || recipient.name || 'عضو', code, cartItems, groupMemberKey)
       .then((snapshot) => {
         setCartGroup(snapshot)
         setGroupJoinCode('')
@@ -1249,7 +1256,7 @@ function App() {
   const syncCartGroup = (silent = false) => {
     if (!cartGroup) return
     if (!silent) setIsSyncingGroup(true)
-    void appApi.cartGroups.syncItems(phone, cartGroup.id, cartItems)
+    void appApi.cartGroups.syncItems(phone, cartGroup.id, cartItems, groupMemberKey)
       .then((snapshot) => {
         setCartGroup(snapshot)
         if (!silent) showNotice('تم تحديث سلة الطلب المشترك')
@@ -1263,6 +1270,12 @@ function App() {
     const timer = setInterval(() => syncCartGroup(true), 15_000)
     return () => clearInterval(timer)
   }, [cartGroup?.id, cartGroup?.status, screen])
+
+  useEffect(() => {
+    if (!cartGroup || cartGroup.status !== 'open') return
+    const timer = window.setTimeout(() => syncCartGroup(true), 900)
+    return () => window.clearTimeout(timer)
+  }, [cartGroup?.id, cartGroup?.status, cartItems])
 
   const [ratingStars, setRatingStars] = useState(0)
   const [ratingNote, setRatingNote] = useState('')
@@ -2834,7 +2847,7 @@ function App() {
                 <section className="group-order-card">
                   <div>
                     <h2>اطلب مع صديق</h2>
-                    <p>اجمعوا السلات على كود واحد لتجاوز حد {MIN_ORDER_USD}$، وشخص واحد يقدر يدفع الطلب كامل.</p>
+                    <p>اجمعوا السلات على كود واحد لتجاوز حد {formatPrice(groupMinimumSyp)}، وشخص واحد يقدر يدفع الطلب كامل.</p>
                   </div>
                   {pendingGroupInvite && !cartGroup && (
                     <div className="group-invite-card">
@@ -2896,8 +2909,8 @@ function App() {
                           )}
                         </div>
                       )}
-                      <p className={groupTotalUsd >= MIN_ORDER_USD ? 'group-total-ok' : 'min-order-notice'}>
-                        مجموع المجموعة: ${groupTotalUsd.toFixed(2)} / {MIN_ORDER_USD}$
+                      <p className={groupTotalSyp >= groupMinimumSyp ? 'group-total-ok' : 'min-order-notice'}>
+                        مجموع المجموعة: {formatPrice(groupTotalSyp)} / {formatPrice(groupMinimumSyp)}
                       </p>
                       <button className="ghost-action" onClick={() => setCartGroup(null)}>
                         إلغاء ربط السلة
@@ -2924,7 +2937,7 @@ function App() {
                 </section>
                 {!meetsMinimumOrder && (
                   <p className="min-order-notice">
-                    الحد الأدنى للطلب {formatMoney(MIN_ORDER_SYP)} (أو {MIN_ORDER_USD}$) — أضف منتجات أكثر للمتابعة
+                    الحد الأدنى للطلب {formatMoney(MIN_ORDER_SYP)} — أضف منتجات أكثر للمتابعة
                   </p>
                 )}
                 {hasIncompleteCustom && (

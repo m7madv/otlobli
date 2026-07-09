@@ -112,7 +112,7 @@ export const localAppApi: TalabiehApi = {
     },
   },
   cartGroups: {
-    async create(phone, name, store, items) {
+    async create(phone, name, store, items, memberKey = phone) {
       await wait(120)
       return {
         id: `local-${Date.now()}`,
@@ -121,12 +121,12 @@ export const localAppApi: TalabiehApi = {
         status: 'open',
         minTotalUsd: 40,
         totalUsd: items.reduce((sum, item) => sum + item.priceUsd * item.quantity, 0),
-        members: [{ phone, name, role: 'host' }],
-        items: items.map((item) => ({ ownerPhone: phone, ownerName: name, item })),
+        members: [{ memberKey, phone, name, role: 'host' }],
+        items: items.map((item) => ({ ownerMemberKey: memberKey, ownerPhone: phone, ownerName: name, item })),
       }
     },
 
-    async join(phone, name, code, items) {
+    async join(phone, name, code, items, memberKey = phone) {
       await wait(120)
       return {
         id: `local-${code}`,
@@ -135,12 +135,12 @@ export const localAppApi: TalabiehApi = {
         status: 'open',
         minTotalUsd: 40,
         totalUsd: items.reduce((sum, item) => sum + item.priceUsd * item.quantity, 0),
-        members: [{ phone, name, role: 'member' }],
-        items: items.map((item) => ({ ownerPhone: phone, ownerName: name, item })),
+        members: [{ memberKey, phone, name, role: 'member' }],
+        items: items.map((item) => ({ ownerMemberKey: memberKey, ownerPhone: phone, ownerName: name, item })),
       }
     },
 
-    async syncItems(phone, groupId, items) {
+    async syncItems(phone, groupId, items, memberKey = phone) {
       await wait(120)
       return {
         id: groupId,
@@ -149,8 +149,8 @@ export const localAppApi: TalabiehApi = {
         status: 'open',
         minTotalUsd: 40,
         totalUsd: items.reduce((sum, item) => sum + item.priceUsd * item.quantity, 0),
-        members: [{ phone, name: 'local', role: 'host' }],
-        items: items.map((item) => ({ ownerPhone: phone, ownerName: 'local', item })),
+        members: [{ memberKey, phone, name: 'local', role: 'host' }],
+        items: items.map((item) => ({ ownerMemberKey: memberKey, ownerPhone: phone, ownerName: 'local', item })),
       }
     },
   },

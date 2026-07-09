@@ -154,6 +154,7 @@ function normalizeCartGroup(data: unknown): CartGroupSnapshot {
       ? row.members.map((member) => {
         const m = (member && typeof member === 'object' ? member : {}) as Record<string, unknown>
         return {
+          memberKey: typeof m.memberKey === 'string' ? m.memberKey : undefined,
           phone: String(m.phone ?? ''),
           name: String(m.name ?? ''),
           role: m.role === 'host' ? 'host' : 'member',
@@ -164,6 +165,7 @@ function normalizeCartGroup(data: unknown): CartGroupSnapshot {
       ? row.items.map((entry) => {
         const line = (entry && typeof entry === 'object' ? entry : {}) as Record<string, unknown>
         return {
+          ownerMemberKey: typeof line.ownerMemberKey === 'string' ? line.ownerMemberKey : undefined,
           ownerPhone: String(line.ownerPhone ?? ''),
           ownerName: String(line.ownerName ?? ''),
           item: line.item as CartItem,
@@ -559,35 +561,38 @@ export const supabaseAppApi: TalabiehApi = {
     },
   },
   cartGroups: {
-    async create(phone, name, store, items) {
+    async create(phone, name, store, items, memberKey) {
       if (!supabase || !CART_GROUPS_URL) return localAppApi.cartGroups.create(phone, name, store, items)
 
       return postCartGroup({
         action: 'create',
         phone: phone.trim(),
         name: name.trim(),
+        memberKey,
         store,
         items,
       })
     },
 
-    async join(phone, name, code, items) {
+    async join(phone, name, code, items, memberKey) {
       const inviteCode = extractCartGroupCode(code)
       if (!supabase || !CART_GROUPS_URL) return localAppApi.cartGroups.join(phone, name, inviteCode, items)
       return postCartGroup({
         action: 'join',
         phone: phone.trim(),
         name: name.trim(),
+        memberKey,
         code: inviteCode,
         items,
       })
     },
 
-    async syncItems(phone, groupId, items) {
+    async syncItems(phone, groupId, items, memberKey) {
       if (!supabase || !CART_GROUPS_URL) return localAppApi.cartGroups.syncItems(phone, groupId, items)
       return postCartGroup({
         action: 'sync',
         phone: phone.trim(),
+        memberKey,
         groupId,
         items,
       })

@@ -40,6 +40,10 @@ function cleanCode(value: string) {
   }
 }
 
+function cleanMemberKey(value: string) {
+  return value.trim().replace(/[^a-zA-Z0-9:_-]/g, '').slice(0, 80)
+}
+
 function getItemNumber(item: unknown, key: string, fallback = 0) {
   if (!item || typeof item !== 'object') return fallback
   const value = (item as Record<string, unknown>)[key]
@@ -68,6 +72,7 @@ Deno.serve(async (req) => {
       store?: string
       code?: string
       groupId?: string
+      memberKey?: string
       items?: unknown[]
     }
     const action = (body.action ?? 'create').trim().toLowerCase()
@@ -89,24 +94,13 @@ Deno.serve(async (req) => {
       p_qadmous_branch: '',
     })
     if (customerError || !customerId) return json({ error: 'customer_failed' }, 500)
+    const memberKey = cleanMemberKey(body.memberKey ?? '') || `phone:${phone}`
 
     let groupId = ''
     let role = 'member'
 
     if (action === 'create') {
       role = 'host'
-      const { data: existing } = await supabase
-        .from('cart_groups')
-        .select('id')
-        .eq('host_customer_id', customerId)
-        .eq('source_store', store)
-        .eq('status', 'open')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-
-      if (existing?.id) groupId = existing.id
-
       for (let attempt = 0; attempt < 16 && !groupId; attempt += 1) {
         const code = makeInviteCode()
         const { data, error } = await supabase
@@ -129,9 +123,6 @@ Deno.serve(async (req) => {
         .eq('status', 'open')
         .maybeSingle()
       if (findError || !foundGroup?.id) return json({ error: 'group_not_found' }, 404)
-      if (foundGroup.host_customer_id === customerId) {
-        return json({ error: 'same_customer', message: 'افتح الرابط من حساب واتساب آخر حتى ينضم صديقك للسلة' }, 400)
-      }
       groupId = foundGroup.id
 
       const { count: memberCount } = await supabase
@@ -140,13 +131,14 @@ Deno.serve(async (req) => {
         .eq('group_id', groupId)
       const { data: alreadyMember } = await supabase
         .from('cart_group_members')
-        .select('customer_id')
+        .select('member_key, role')
         .eq('group_id', groupId)
-        .eq('customer_id', customerId)
+        .eq('member_key', memberKey)
         .maybeSingle()
       if (!alreadyMember && (memberCount ?? 0) >= MAX_MEMBERS) {
         return json({ error: 'group_full', message: 'المجموعة ممتلئة — شخصين فقط' }, 400)
       }
+      role = alreadyMember?.role || 'member'
     } else if (action === 'sync') {
       groupId = (body.groupId ?? '').trim()
       if (!groupId) return json({ error: 'missing_group' }, 400)
@@ -155,7 +147,7 @@ Deno.serve(async (req) => {
         .from('cart_group_members')
         .select('group_id, role')
         .eq('group_id', groupId)
-        .eq('customer_id', customerId)
+        .eq('member_key', memberKey)
         .maybeSingle()
       if (!membership?.group_id) return json({ error: 'not_member' }, 403)
       role = membership.role || 'member'
@@ -170,17 +162,18 @@ Deno.serve(async (req) => {
       .upsert({
         group_id: groupId,
         customer_id: customerId,
+        member_key: memberKey,
         phone,
         display_name: name,
         role,
-      }, { onConflict: 'group_id,customer_id' })
+      }, { onConflict: 'group_id,member_key' })
     if (memberError) return json({ error: 'member_failed' }, 500)
 
     const { error: deleteError } = await supabase
       .from('cart_group_items')
       .delete()
       .eq('group_id', groupId)
-      .eq('customer_id', customerId)
+      .eq('member_key', memberKey)
     if (deleteError) return json({ error: 'items_failed' }, 500)
 
     const rows = items.map((item, index) => {
@@ -188,6 +181,7 @@ Deno.serve(async (req) => {
       return {
         group_id: groupId,
         customer_id: customerId,
+        member_key: memberKey,
         local_item_id: getItemId(item, index, customerId),
         payload: item,
         price_usd: getItemNumber(item, 'priceUsd'),
@@ -212,20 +206,20 @@ Deno.serve(async (req) => {
 
     const { data: members, error: membersError } = await supabase
       .from('cart_group_members')
-      .select('customer_id, phone, display_name, role')
+      .select('customer_id, member_key, phone, display_name, role')
       .eq('group_id', groupId)
       .order('joined_at', { ascending: true })
     if (membersError) return json({ error: 'snapshot_failed' }, 500)
 
     const { data: groupItems, error: itemsError } = await supabase
       .from('cart_group_items')
-      .select('payload, price_usd, quantity, customer_id')
+      .select('payload, price_usd, quantity, customer_id, member_key')
       .eq('group_id', groupId)
     if (itemsError) return json({ error: 'snapshot_failed' }, 500)
 
     const memberByCustomer = new Map<string, { phone: string; name: string }>()
     for (const member of members ?? []) {
-      memberByCustomer.set(String(member.customer_id), {
+      memberByCustomer.set(String(member.member_key || member.customer_id), {
         phone: String(member.phone ?? ''),
         name: String(member.display_name ?? ''),
       })
@@ -241,13 +235,16 @@ Deno.serve(async (req) => {
         return sum + Number(entry.price_usd ?? 0) * Math.max(1, Number(entry.quantity ?? 1) || 1)
       }, 0),
       members: (members ?? []).map((member) => ({
+        memberKey: member.member_key ?? '',
         phone: member.phone ?? '',
         name: member.display_name ?? '',
         role: member.role === 'host' ? 'host' : 'member',
       })),
       items: (groupItems ?? []).map((entry) => {
-        const owner = memberByCustomer.get(String(entry.customer_id))
+        const ownerKey = String(entry.member_key || entry.customer_id)
+        const owner = memberByCustomer.get(ownerKey)
         return {
+          ownerMemberKey: ownerKey,
           ownerPhone: owner?.phone ?? '',
           ownerName: owner?.name ?? '',
           item: entry.payload,
