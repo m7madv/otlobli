@@ -1030,6 +1030,93 @@ $$;
 revoke all on function public.create_wallet_topup(text, text, integer) from public;
 grant execute on function public.create_wallet_topup(text, text, integer) to anon, authenticated;
 
+-- نسخة بالدولار — التطبيق يرسل p_amount_usd بدلاً من p_amount_syp
+create or replace function public.create_wallet_topup(
+  p_phone text,
+  p_name text,
+  p_amount_usd numeric
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  cleaned_phone text := regexp_replace(coalesce(p_phone, ''), '\s+', '', 'g');
+  usd_rate numeric;
+  requested_usd numeric := greatest(round(coalesce(p_amount_usd, 0), 2), 0.01);
+  target_customer_id uuid;
+  candidate_amount numeric;
+  credit_syp integer;
+  expires timestamptz := now() + interval '5 minutes';
+  attempt integer;
+  max_attempts integer := 40;
+  inserted_topup_id uuid;
+begin
+  if cleaned_phone = '' then raise exception 'phone is required'; end if;
+
+  select value::numeric into usd_rate from public.app_settings where key = 'usd_to_syp_rate';
+  usd_rate := coalesce(usd_rate, 13000);
+  credit_syp := round(requested_usd * usd_rate)::integer;
+
+  target_customer_id := public.ensure_customer(
+    cleaned_phone,
+    coalesce(nullif(trim(coalesce(p_name, '')), ''), 'عميل طلبية'),
+    'دمشق', '', '', ''
+  );
+
+  update public.wallet_topups
+  set status = 'منتهي'
+  where status = 'بانتظار الدفع' and expires_at <= now();
+
+  for attempt in 0..max_attempts loop
+    candidate_amount := requested_usd - (attempt * 0.01);
+    if candidate_amount <= 0 then exit; end if;
+
+    if exists (
+      select 1 from public.orders
+      where payment_status = 'بانتظار الدفع'
+        and payment_currency = 'USD' and payment_amount = candidate_amount
+        and (payment_expires_at is null or payment_expires_at > now())
+    ) then continue; end if;
+
+    if exists (
+      select 1 from public.order_issue_payments
+      where status = 'بانتظار الدفع'
+        and payment_currency = 'USD' and payment_amount = candidate_amount
+        and expires_at > now()
+    ) then continue; end if;
+
+    begin
+      insert into public.wallet_topups (
+        customer_id, phone, requested_amount_syp, payment_amount,
+        payment_currency, status, expires_at
+      )
+      values (
+        target_customer_id, cleaned_phone, credit_syp, candidate_amount,
+        'USD', 'بانتظار الدفع', expires
+      )
+      returning id into inserted_topup_id;
+
+      return jsonb_build_object(
+        'topUpId', inserted_topup_id,
+        'paymentAmount', candidate_amount,
+        'paymentCurrency', 'USD',
+        'paymentExpiresAt', expires,
+        'creditAmountSyp', credit_syp
+      );
+    exception when unique_violation then
+      continue;
+    end;
+  end loop;
+
+  raise exception 'تعذر إيجاد مبلغ شحن فريد حالياً، حاول بعد دقيقة';
+end;
+$$;
+
+revoke all on function public.create_wallet_topup(text, text, numeric) from public;
+grant execute on function public.create_wallet_topup(text, text, numeric) to anon, authenticated;
+
 -- Called only by the payment-webhook Edge Function (service role), never
 -- exposed to the app directly - that's what makes "confirmed automatically
 -- by a real transfer" trustworthy instead of just another client claim.
@@ -1975,3 +2062,97 @@ $$;
 
 revoke all on function public.sync_cart_group_items(text, uuid, jsonb) from public;
 grant execute on function public.sync_cart_group_items(text, uuid, jsonb) to anon, authenticated;
+
+-- ============================================================================
+-- رصيد المحفظة بالدولار — يحوّل رصيد الليرة حسب سعر الصرف الحالي
+-- ============================================================================
+
+create or replace function public.get_wallet_balance_usd(p_phone text)
+returns numeric
+language plpgsql
+security definer
+set search_path = public
+stable
+as $$
+declare
+  cleaned_phone text := regexp_replace(coalesce(p_phone, ''), '\s+', '', 'g');
+  balance_syp integer := 0;
+  usd_rate numeric;
+begin
+  if cleaned_phone = '' then return 0; end if;
+
+  select coalesce(sum(wt.amount_syp), 0)::integer into balance_syp
+  from public.wallet_transactions wt
+  join public.customers c on c.id = wt.customer_id
+  where c.phone = cleaned_phone;
+
+  if balance_syp <= 0 then return 0; end if;
+
+  select value::numeric into usd_rate from public.app_settings where key = 'usd_to_syp_rate';
+  usd_rate := coalesce(usd_rate, 13000);
+
+  return round(balance_syp / usd_rate, 2);
+end;
+$$;
+
+revoke all on function public.get_wallet_balance_usd(text) from public;
+grant execute on function public.get_wallet_balance_usd(text) to anon, authenticated;
+
+-- ============================================================================
+-- خصم من المحفظة عند تأكيد طلب
+-- ============================================================================
+
+create or replace function public.wallet_spend(p_phone text, p_amount_usd numeric, p_order_id text)
+returns numeric
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  cleaned_phone text := regexp_replace(coalesce(p_phone, ''), '\s+', '', 'g');
+  found_customer_id uuid;
+  balance_syp integer := 0;
+  usd_rate numeric;
+  spend_syp integer;
+  new_balance_syp integer;
+begin
+  if cleaned_phone = '' then raise exception 'phone is required'; end if;
+  if coalesce(p_amount_usd, 0) <= 0 then raise exception 'amount must be positive'; end if;
+
+  select id into found_customer_id from public.customers where phone = cleaned_phone;
+  if found_customer_id is null then raise exception 'customer not found'; end if;
+
+  select coalesce(sum(amount_syp), 0)::integer into balance_syp
+  from public.wallet_transactions
+  where customer_id = found_customer_id;
+
+  select value::numeric into usd_rate from public.app_settings where key = 'usd_to_syp_rate';
+  usd_rate := coalesce(usd_rate, 13000);
+
+  spend_syp := least(round(p_amount_usd * usd_rate)::integer, balance_syp);
+  if spend_syp <= 0 then raise exception 'insufficient balance'; end if;
+
+  insert into public.wallet_transactions (
+    customer_id, phone, amount_syp, amount_usd, kind, note, created_by, metadata
+  )
+  values (
+    found_customer_id,
+    cleaned_phone,
+    -spend_syp,
+    -round(p_amount_usd, 2),
+    'order_payment',
+    'خصم من المحفظة للطلب ' || coalesce(p_order_id, ''),
+    'app',
+    jsonb_build_object('orderId', coalesce(p_order_id, ''), 'amountUsd', p_amount_usd)
+  );
+
+  select coalesce(sum(amount_syp), 0)::integer into new_balance_syp
+  from public.wallet_transactions
+  where customer_id = found_customer_id;
+
+  return round(greatest(new_balance_syp, 0) / usd_rate, 2);
+end;
+$$;
+
+revoke all on function public.wallet_spend(text, numeric, text) from public;
+grant execute on function public.wallet_spend(text, numeric, text) to anon, authenticated;

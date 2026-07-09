@@ -492,6 +492,24 @@ export const supabaseAppApi: TalabiehApi = {
         walletBalanceSyp: Number(result.walletBalanceSyp ?? 0),
       }
     },
+
+    async getBalance(phone) {
+      if (!supabase) return localAppApi.wallet.getBalance(phone)
+      const { data, error } = await supabase.rpc('get_wallet_balance_usd', { p_phone: phone.trim() })
+      if (error) return 0
+      return Number(data ?? 0)
+    },
+
+    async spend(phone, amountUsd, orderId) {
+      if (!supabase) return localAppApi.wallet.spend(phone, amountUsd, orderId)
+      const { data, error } = await supabase.rpc('wallet_spend', {
+        p_phone: phone.trim(),
+        p_amount_usd: amountUsd,
+        p_order_id: orderId,
+      })
+      if (error) throw new Error(error.message)
+      return Number(data ?? 0)
+    },
   },
   customers: {
     async getAccount(phone) {

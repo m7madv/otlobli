@@ -22,6 +22,9 @@ const DEFAULTS: Record<string, string> = {
   referral_discount_syp: '0',
   product_profit_percent: '0',
   admin_session_version: '1',
+  feature_group_orders: 'true',
+  feature_wallet: 'true',
+  feature_coupons: 'true',
 }
 
 Deno.serve(async (req) => {

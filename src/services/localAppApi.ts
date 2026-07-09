@@ -82,6 +82,19 @@ export const localAppApi: TalabiehApi = {
         walletBalanceSyp: 0,
       }
     },
+
+    async getBalance(_phone) {
+      void _phone
+      await wait(100)
+      return 0
+    },
+
+    async spend(_phone, amountUsd, _orderId) {
+      void _phone
+      void _orderId
+      await wait(100)
+      return Math.max(0 - amountUsd, 0)
+    },
   },
   customers: {
     async getAccount(_phone) {

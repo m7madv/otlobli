@@ -113,6 +113,8 @@ export type TalabiehApi = {
   wallet: {
     createTopUp: (phone: string, name: string, amountUsd: number) => Promise<WalletTopUpResult>
     checkTopUpStatus: (topUpId: string) => Promise<WalletTopUpStatusResult>
+    getBalance: (phone: string) => Promise<number>
+    spend: (phone: string, amountUsd: number, orderId: string) => Promise<number>
   }
   customers: {
     getAccount: (phone: string) => Promise<CustomerAccountResult>

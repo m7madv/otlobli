@@ -450,6 +450,12 @@ function App() {
     name: '', phone: '', governorate: 'دمشق', city: '', details: '', notes: '',
   })
   const [walletBalanceSyp, setWalletBalanceSyp] = useState(0)
+  const [walletBalanceUsd, setWalletBalanceUsd] = useState(0)
+  const [useWallet, setUseWallet] = useState(false)
+  const [walletSpendInput, setWalletSpendInput] = useState('')
+  const [featureGroupOrders, setFeatureGroupOrders] = useState(true)
+  const [featureWallet, setFeatureWallet] = useState(true)
+  const [featureCoupons, setFeatureCoupons] = useState(true)
   const [walletTransactions, setWalletTransactions] = useState<WalletTransaction[]>([])
   const [cartGroup, setCartGroup] = useStoredState<CartGroupSnapshot | null>(storageKeys.cartGroup, null)
   const [groupJoinCode, setGroupJoinCode] = useState('')
@@ -927,6 +933,9 @@ function App() {
   // تجلب ملف الزبون من الخادم بعد نجاح OTP. إذا وُجد الملف → home مباشرة.
   // إذا لم يوجد → onboarding (سيُحفظ الاسم/المحافظة إلى الخادم بعد الإدخال).
   const fetchProfileAfterLogin = async (loginPhone: string): Promise<'home' | 'onboarding'> => {
+    void appApi.wallet.getBalance(loginPhone)
+      .then((bal) => setWalletBalanceUsd(bal))
+      .catch(() => undefined)
     try {
       const account = await appApi.customers.getAccount(loginPhone)
       applyCustomerAccount(account, loginPhone)
@@ -981,6 +990,9 @@ function App() {
         })
         setReferralDiscountSyp(referralDiscount > 0 ? referralDiscount : 0)
         setProductProfitPercent(Number.isFinite(profitPercent) && profitPercent > 0 ? profitPercent : 0)
+        if (data.feature_group_orders !== undefined) setFeatureGroupOrders(data.feature_group_orders !== 'false')
+        if (data.feature_wallet !== undefined) setFeatureWallet(data.feature_wallet !== 'false')
+        if (data.feature_coupons !== undefined) setFeatureCoupons(data.feature_coupons !== 'false')
       })
       .catch(() => undefined)
   }, [])
@@ -1161,7 +1173,15 @@ function App() {
     ...(couponDiscountSyp > 0 ? [{ label: `خصم (${appliedCoupon!.code})`, value: -couponDiscountSyp }] : []),
     ...(appliedReferralDiscountSyp > 0 ? [{ label: 'خصم الإحالة', value: -appliedReferralDiscountSyp }] : []),
   ]
-  const checkoutTotal = Math.max(0, afterCouponTotal - appliedReferralDiscountSyp)
+  const preWalletTotal = Math.max(0, afterCouponTotal - appliedReferralDiscountSyp)
+  const walletSpendUsd = useWallet
+    ? Math.min(Math.max(0, Number(walletSpendInput) || walletBalanceUsd), walletBalanceUsd, preWalletTotal / exchangeRate)
+    : 0
+  const walletDiscountSyp = Math.round(walletSpendUsd * exchangeRate)
+  const checkoutBreakdownWithWallet = walletDiscountSyp > 0
+    ? [...checkoutBreakdown, { label: `خصم المحفظة (${formatUsd(walletSpendUsd)})`, value: -walletDiscountSyp }]
+    : checkoutBreakdown
+  const checkoutTotal = Math.max(0, preWalletTotal - walletDiscountSyp)
   const meetsMinimumOrder = subtotal >= MIN_ORDER_SYP || subtotal / exchangeRate >= MIN_ORDER_USD || groupTotalSyp >= groupMinimumSyp
   const hasIncompleteCustom = cartItems.some(
     (item) => (item.needsCustomText && !item.customText?.trim()) ||
@@ -1196,13 +1216,19 @@ function App() {
       .finally(() => setIsSyncingGroup(false))
   }
 
-  const joinCartGroupFromValue = (inputCode?: string) => {
+  const joinCartGroupFromValue = (inputCode?: string, inviteStore?: StoreId) => {
     const code = extractGroupInviteCode(inputCode ?? groupJoinCode)
     if (!phone) { showNotice('سجل دخولك أولاً'); return }
     if (!code) { showNotice('أدخل كود أو رابط السلة المشتركة'); return }
     if (cartGroup?.code === code) { showNotice('أنت مرتبط بهذه المجموعة بالفعل'); return }
+    if (inviteStore && inviteStore !== selectedStore) {
+      setSelectedStore(inviteStore)
+      showNotice(`تم التبديل لمتجر ${storeName(inviteStore)} — الطلب المشترك مخصص لهذا المتجر`)
+    }
     setIsSyncingGroup(true)
-    void appApi.cartGroups.join(phone, userProfile?.name || recipient.name || 'عضو', code, cartItems, groupMemberKey)
+    const joinStore = inviteStore || selectedStore
+    const storeCart = cartsByStore[joinStore] ?? []
+    void appApi.cartGroups.join(phone, userProfile?.name || recipient.name || 'عضو', code, storeCart, groupMemberKey)
       .then((snapshot) => {
         setCartGroup(snapshot)
         setGroupJoinCode('')
@@ -1231,7 +1257,7 @@ function App() {
 
   const acceptPendingGroupInvite = () => {
     if (!pendingGroupInvite) return
-    joinCartGroupFromValue(pendingGroupInvite.code)
+    joinCartGroupFromValue(pendingGroupInvite.code, pendingGroupInvite.store)
   }
 
   const cancelPendingGroupInvite = () => {
@@ -1577,17 +1603,19 @@ function App() {
   // of CORS - the block page's HTML response fails to decode as one, a real
   // SHEIN asset succeeds.
   const checkSheinReachable = () => {
-    return new Promise<boolean>((resolve) => {
-      const img = new Image()
-      const timer = window.setTimeout(() => {
-        img.onload = null
-        img.onerror = null
-        resolve(false)
-      }, 7000)
-      img.onload = () => { window.clearTimeout(timer); resolve(true) }
-      img.onerror = () => { window.clearTimeout(timer); resolve(false) }
-      img.src = `https://m.shein.com/favicon.ico?_=${Date.now()}`
-    })
+    const probeImage = (url: string): Promise<boolean> =>
+      new Promise((resolve) => {
+        const img = new Image()
+        const timer = window.setTimeout(() => { img.onload = null; img.onerror = null; resolve(false) }, 6000)
+        img.onload = () => { window.clearTimeout(timer); resolve(true) }
+        img.onerror = () => { window.clearTimeout(timer); resolve(false) }
+        img.src = `${url}?_=${Date.now()}`
+      })
+    return Promise.any([
+      probeImage('https://m.shein.com/favicon.ico'),
+      probeImage('https://img.ltwebstatic.com/images3_spmp/2024/06/20/17/1718854498b4a8f5ebce05ea476acae42de72b810a_thumbnail_80x80.webp'),
+      probeImage('https://www.temu.com/favicon.ico'),
+    ]).catch(() => false)
   }
 
   useEffect(() => {
@@ -2091,7 +2119,15 @@ function App() {
       groupCode: cartGroup?.code,
     }
 
-    void appApi.orders.createPendingOrder(newOrder, paymentCurrency)
+    const walletDeduction = walletSpendUsd > 0
+      ? appApi.wallet.spend(phone, walletSpendUsd, orderId).then((newBal) => {
+          setWalletBalanceUsd(newBal)
+          setUseWallet(false)
+          setWalletSpendInput('')
+        }).catch(() => undefined)
+      : Promise.resolve()
+
+    void walletDeduction.then(() => appApi.orders.createPendingOrder(newOrder, paymentCurrency))
       .then((result) => {
         if (PAYMENT_MODE === 'auto') {
           const savedOrder: Order = {
@@ -2869,7 +2905,7 @@ function App() {
                 )})}
                 <CurrencyToggle value={paymentCurrency} onChange={setPaymentCurrency} />
                 <PriceBreakdown items={breakdown} total={total} format={formatPrice} />
-                <section className="group-order-card">
+                {featureGroupOrders && <section className="group-order-card">
                   <div>
                     <h2>اطلب مع صديق</h2>
                     <p>اجمعوا السلات على كود واحد لتجاوز حد {formatPrice(groupMinimumSyp)}، وشخص واحد يقدر يدفع الطلب كامل.</p>
@@ -2959,23 +2995,23 @@ function App() {
                       </div>
                     </>
                   )}
-                </section>
-                {!meetsMinimumOrder && (
-                  <p className="min-order-notice">
-                    الحد الأدنى للطلب {formatMoney(MIN_ORDER_SYP)} — أضف منتجات أكثر للمتابعة
-                  </p>
-                )}
-                {hasIncompleteCustom && (
-                  <p className="min-order-notice min-order-notice--warn">
-                    أكمل بيانات المنتجات المخصصة (الاسم/الصورة) للمتابعة
-                  </p>
-                )}
+                </section>}
               </>
             ) : (
               <EmptyState title="السلة فارغة" body="تصفح SHEIN من الصفحة الرئيسية وأضف منتجات إلى السلة." />
             )}
           </main>
           <div className="sticky-pay-bar">
+            {!meetsMinimumOrder && (
+              <p className="min-order-notice">
+                الحد الأدنى للطلب {formatMoney(MIN_ORDER_SYP)} — أضف منتجات أكثر للمتابعة
+              </p>
+            )}
+            {hasIncompleteCustom && (
+              <p className="min-order-notice min-order-notice--warn">
+                أكمل بيانات المنتجات المخصصة (الاسم/الصورة) للمتابعة
+              </p>
+            )}
             <button className="primary-action" disabled={activeCheckoutItems.length === 0 || !meetsMinimumOrder || hasIncompleteCheckoutCustom || hasAvailabilityIssues} onClick={() => setScreen('checkout')}>
               المتابعة للدفع
               <Icon name="arrow_back" />
@@ -3079,7 +3115,7 @@ function App() {
             )}
             <InfoRow icon="inventory_2" title="طريقة التوصيل" body="التسليم داخل سوريا عبر القدموس عند توفر رقم الشحنة." />
             <CurrencyToggle value={paymentCurrency} onChange={setPaymentCurrency} />
-            <section className="coupon-box">
+            {featureCoupons && <section className="coupon-box">
               <p>كود الخصم</p>
               {appliedCoupon ? (
                 <div className="coupon-success">
@@ -3113,7 +3149,7 @@ function App() {
                   {couponMsg && <div className="coupon-note">{couponMsg}</div>}
                 </>
               )}
-            </section>
+            </section>}
             {referralDiscountSyp > 0 && (
               <section className="coupon-box">
                 <p>كود الإحالة</p>
@@ -3153,7 +3189,28 @@ function App() {
                 )}
               </section>
             )}
-            <PriceBreakdown items={checkoutBreakdown} total={checkoutTotal} format={formatPrice} />
+            {featureWallet && walletBalanceUsd > 0 && (
+              <section className="coupon-box">
+                <p>خصم من المحفظة ({formatUsd(walletBalanceUsd)} متاح)</p>
+                <label className="wallet-spend-toggle">
+                  <input type="checkbox" checked={useWallet} onChange={(e) => { setUseWallet(e.target.checked); if (!e.target.checked) setWalletSpendInput('') }} />
+                  <span>استخدام رصيد المحفظة</span>
+                </label>
+                {useWallet && (
+                  <div className="coupon-input">
+                    <input
+                      value={walletSpendInput}
+                      onChange={(e) => setWalletSpendInput(toAsciiDigits(e.target.value).replace(/[^\d.]/g, ''))}
+                      inputMode="decimal"
+                      placeholder={`أقصى ${formatUsd(walletBalanceUsd)}`}
+                      dir="ltr"
+                    />
+                    <span>$</span>
+                  </div>
+                )}
+              </section>
+            )}
+            <PriceBreakdown items={checkoutBreakdownWithWallet} total={checkoutTotal} format={formatPrice} />
             {(() => {
               const missingBranch = !!(QADMOUS_BRANCHES[recipient.governorate] && !recipient.qadmousBranch)
               const missingBasic = !recipient.name.trim() || !recipient.phone.trim() || !!recipientNameError
@@ -3536,29 +3593,6 @@ function App() {
         <MobileShell active="profile" onNavigate={setScreen}>
           <Header title="حسابي" unreadCount={unreadCount} onNotifications={openNotifications} />
           <main className="mobile-content">
-            <section className="profile-card">
-              <div className="avatar">{avatarLetter}</div>
-              <div>
-                <h2>{displayName}</h2>
-                <p>{phone ? `+${phone}` : '+963 9xx xxx xxx'}</p>
-                {userProfile?.governorate && <small>{userProfile.governorate}</small>}
-                {userProfile?.qadmousBranch && <small>{userProfile.qadmousBranch}</small>}
-              </div>
-              <button
-                className="icon-button"
-                onClick={() => {
-                  setEditName(userProfile?.name ?? '')
-                  setEditPhone(recipient.phone || userProfile?.phone || phone)
-                  setEditGov(userProfile?.governorate ?? 'دمشق')
-                  setEditBranch(userProfile?.qadmousBranch ?? '')
-                  setEditPickupLabel(recipient.pickupLabel || userProfile?.pickupLabel || '')
-                  setEditingProfile(true)
-                }}
-                aria-label="تعديل"
-              >
-                <Icon name="edit" />
-              </button>
-            </section>
             <section className="profile-summary-card profile-summary-card--compact">
               <div className="profile-summary-card__head">
                 <div>
@@ -3568,39 +3602,17 @@ function App() {
                 <StatusBadge tone="neutral">{`1 USD = ${exchangeRate.toLocaleString('en-US')} SYP`}</StatusBadge>
               </div>
             </section>
-            <section className="profile-summary-card profile-summary-card--compact">
-              <div className="profile-summary-card__head">
-                <div>
-                  <h3>معلومات الاستلام</h3>
-                  <p>{savedPickupOffice}</p>
-                </div>
-                <button
-                  className="ghost-action ghost-action--small"
-                  onClick={() => {
-                    setEditName(userProfile?.name ?? recipient.name ?? '')
-                    setEditPhone(savedPickupPhone)
-                    setEditGov(savedPickupGovernorate)
-                    setEditBranch(userProfile?.qadmousBranch ?? recipient.qadmousBranch ?? '')
-                    setEditPickupLabel(recipient.pickupLabel || userProfile?.pickupLabel || '')
-                    setEditingProfile(true)
-                  }}
-                >
-                  تعديل
-                </button>
-              </div>
-              <div className="profile-summary-grid profile-summary-grid--compact">
-                <div><span>المستلم</span><b>{savedPickupName}</b></div>
-                <div><span>واتساب</span><b dir="ltr">{savedPickupPhone ? `+${savedPickupPhone}` : 'غير محدد'}</b></div>
-                <div><span>المحافظة</span><b>{savedPickupGovernorate}</b></div>
-                {!!(recipient.pickupLabel || userProfile?.pickupLabel) && <div><span>وسم الاستلام</span><b>{recipient.pickupLabel || userProfile?.pickupLabel}</b></div>}
-              </div>
-            </section>
+            <ProfileRow
+              icon="local_shipping"
+              label={`معلومات الاستلام — ${savedPickupName || 'غير محدد'}`}
+              onClick={() => setScreen('recipient-detail')}
+            />
             <ProfileRow icon="receipt_long" label={`طلباتي (${visibleOrders.length})`} onClick={() => setScreen('orders')} />
             <PaymentCurrencyRow
               value={paymentCurrency}
               onClick={() => setPaymentCurrency(paymentCurrency === 'USD' ? 'SYP' : 'USD')}
             />
-            <ProfileRow icon="account_balance_wallet" label={`المحفظة: ${formatMoney(walletBalanceSyp)}`} onClick={() => setScreen('payment-methods')} />
+            {featureWallet && <ProfileRow icon="account_balance_wallet" label={`المحفظة: ${formatUsd(walletBalanceUsd)}`} onClick={() => setScreen('payment-methods')} />}
             <ProfileRow icon="storefront" label={`المتجر الحالي: ${STORES.find((s) => s.id === selectedStore)?.name ?? ''}`} onClick={() => setScreen('store-select')} />
             <ProfileRow icon="notifications" label="إعدادات الإشعارات" onClick={() => setScreen('notification-settings')} />
             <ProfileRow icon="contract" label="الشروط والأحكام" onClick={() => setScreen('terms')} />
@@ -3611,6 +3623,41 @@ function App() {
             </button>
             <p className="app-version-tag">نسخة التطبيق: {APP_VERSION}</p>
           </main>
+        </MobileShell>
+      )
+    }
+
+    if (screen === 'recipient-detail') {
+      return (
+        <MobileShell active="profile" onNavigate={setScreen} hideBottomNav>
+          <Header title="معلومات الاستلام" back={() => setScreen('profile')} unreadCount={unreadCount} onNotifications={openNotifications} />
+          <main className="mobile-content">
+            <section className="profile-summary-card">
+              <div className="profile-summary-grid">
+                <div><span>الاسم الكامل</span><b>{savedPickupName || 'غير محدد'}</b></div>
+                <div><span>رقم واتساب</span><b dir="ltr">{savedPickupPhone ? `+${savedPickupPhone}` : 'غير محدد'}</b></div>
+                <div><span>المحافظة</span><b>{savedPickupGovernorate}</b></div>
+                <div><span>فرع القدموس</span><b>{userProfile?.qadmousBranch || recipient.qadmousBranch || 'غير محدد'}</b></div>
+                {!!(recipient.pickupLabel || userProfile?.pickupLabel) && <div><span>وسم الاستلام</span><b>{recipient.pickupLabel || userProfile?.pickupLabel}</b></div>}
+                <div><span>مكتب الاستلام</span><b>{savedPickupOffice}</b></div>
+              </div>
+            </section>
+            <button
+              className="primary-action"
+              style={{ marginTop: 12 }}
+              onClick={() => {
+                setEditName(userProfile?.name ?? recipient.name ?? '')
+                setEditPhone(savedPickupPhone)
+                setEditGov(savedPickupGovernorate)
+                setEditBranch(userProfile?.qadmousBranch ?? recipient.qadmousBranch ?? '')
+                setEditPickupLabel(recipient.pickupLabel || userProfile?.pickupLabel || '')
+                setEditingProfile(true)
+              }}
+            >
+              <Icon name="edit" /> تعديل معلومات الاستلام
+            </button>
+          </main>
+          <Toast message={notice} />
         </MobileShell>
       )
     }
@@ -3664,11 +3711,11 @@ function App() {
               <div>
                 <Icon name="account_balance_wallet" />
                 <section>
-                  <h2>{formatMoney(walletBalanceSyp)}</h2>
-                  <p>رصيد المحفظة محفوظ كسجل حركات آمن من الإدارة.</p>
+                  <h2>{formatUsd(walletBalanceUsd)}</h2>
+                  <p>رصيد المحفظة بالدولار — يُخصم تلقائياً عند الدفع.</p>
                 </section>
               </div>
-              <StatusBadge tone={walletBalanceSyp >= 0 ? 'success' : 'pending'}>{walletBalanceSyp >= 0 ? 'رصيد متاح' : 'رصيد مستحق'}</StatusBadge>
+              <StatusBadge tone={walletBalanceUsd > 0 ? 'success' : 'neutral'}>{walletBalanceUsd > 0 ? 'رصيد متاح' : 'لا يوجد رصيد'}</StatusBadge>
             </section>
             {pendingWalletTopUp ? (
               <>
@@ -3706,6 +3753,9 @@ function App() {
                 <button className="primary-action" disabled={walletTopUpState === 'checking'} onClick={verifyWalletTopUp}>
                   {walletTopUpState === 'checking' ? 'جاري فحص الشحن...' : 'فحص الشحن الآن'}
                   <Icon name="sync" />
+                </button>
+                <button className="ghost-action" onClick={() => { setPendingWalletTopUp(null); showNotice('تم إلغاء طلب الشحن') }}>
+                  إلغاء طلب الشحن
                 </button>
               </>
             ) : (

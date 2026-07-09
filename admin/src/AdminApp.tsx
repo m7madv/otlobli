@@ -1728,6 +1728,9 @@ function SettingsPanel({
   const [temuCode,    setTemuCode]   = useState('')
   const [referralDiscount, setReferralDiscount] = useState('0')
   const [productProfitPercent, setProductProfitPercent] = useState('0')
+  const [featureGroupOrders, setFeatureGroupOrders] = useState(true)
+  const [featureWallet, setFeatureWallet] = useState(true)
+  const [featureCoupons, setFeatureCoupons] = useState(true)
   const [saving,     setSaving]     = useState(false)
   const [loaded,     setLoaded]     = useState(false)
 
@@ -1743,6 +1746,9 @@ function SettingsPanel({
         setTemuCode(data.shamcash_code_temu ?? '')
         setReferralDiscount(data.referral_discount_syp ?? '0')
         setProductProfitPercent(data.product_profit_percent ?? '0')
+        setFeatureGroupOrders(data.feature_group_orders !== 'false')
+        setFeatureWallet(data.feature_wallet !== 'false')
+        setFeatureCoupons(data.feature_coupons !== 'false')
         setLoaded(true)
       })
       .catch(() => showNotice('تعذر جلب الإعدادات'))
@@ -2041,6 +2047,30 @@ function SettingsPanel({
             </button>
           </div>
         </label>
+      </fieldset>
+
+      <fieldset className="settings-group">
+        <legend>تفعيل وتعطيل الميزات</legend>
+        <p className="settings-intro">أوقف أو فعّل ميزات التطبيق. التغيير يظهر فوراً عند فتح التطبيق.</p>
+        {([
+          ['feature_group_orders', 'الطلب المشترك', featureGroupOrders, setFeatureGroupOrders] as const,
+          ['feature_wallet', 'المحفظة', featureWallet, setFeatureWallet] as const,
+          ['feature_coupons', 'الكوبونات', featureCoupons, setFeatureCoupons] as const,
+        ]).map(([key, label, value, setter]) => (
+          <label className="field" key={key} style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={value}
+              onChange={(e) => {
+                const next = e.target.checked
+                setter(next)
+                void saveSetting(key, String(next))
+              }}
+              style={{ width: 20, height: 20, accentColor: '#6366f1' }}
+            />
+            <span style={{ fontSize: 15 }}>{label}</span>
+          </label>
+        ))}
       </fieldset>
 
       <fieldset className="settings-group">
