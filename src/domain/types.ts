@@ -33,6 +33,7 @@ export type Screen =
   | 'notifications'
   | 'notification-settings'
   | 'store-select'
+  | 'recipient-detail'
 
 export type NotificationPrefs = {
   orderUpdates: boolean

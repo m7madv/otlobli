@@ -3628,6 +3628,10 @@ function App() {
     }
 
     if (screen === 'recipient-detail') {
+      const savedPickupName = recipient.name || userProfile?.name || 'مستخدم otlobli'
+      const savedPickupPhone = recipient.phone || userProfile?.phone || phone
+      const savedPickupGovernorate = userProfile?.governorate || recipient.governorate || 'دمشق'
+      const savedPickupOffice = userProfile?.qadmousBranch || recipient.qadmousBranch || 'غير محدد'
       return (
         <MobileShell active="profile" onNavigate={setScreen} hideBottomNav>
           <Header title="معلومات الاستلام" back={() => setScreen('profile')} unreadCount={unreadCount} onNotifications={openNotifications} />
