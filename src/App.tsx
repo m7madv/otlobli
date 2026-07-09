@@ -1201,6 +1201,8 @@ function App() {
   const formatPrice = (syp: number) => formatPriceSyp(syp, paymentCurrency, exchangeRate)
 
   const isSyncingRef = useRef(false)
+  const cartItemsRef = useRef(cartItems)
+  cartItemsRef.current = cartItems
 
   const createCartGroup = () => {
     if (isSyncingGroup) return
@@ -1286,7 +1288,7 @@ function App() {
     if (isSyncingRef.current) return
     isSyncingRef.current = true
     if (!silent) setIsSyncingGroup(true)
-    void appApi.cartGroups.syncItems(phone, cartGroup.id, cartItems, groupMemberKey)
+    void appApi.cartGroups.syncItems(phone, cartGroup.id, cartItemsRef.current, groupMemberKey)
       .then((snapshot) => {
         if (snapshot.status !== 'open') {
           setCartGroup(null)
@@ -1370,8 +1372,9 @@ function App() {
     }
 
     setAuthState('sending')
-    void appApi.auth
-      .startWhatsappLogin(phone)
+    const tryLogin = () => appApi.auth.startWhatsappLogin(phone)
+    void tryLogin()
+      .catch(() => new Promise<Awaited<ReturnType<typeof tryLogin>>>((resolve, reject) => setTimeout(() => tryLogin().then(resolve, reject), 2000)))
       .then((result) => {
         if (!result || typeof result !== 'object') {
           showNotice('تعذّر الاتصال بخادم واتساب. حدّث التطبيق لأحدث نسخة وحاول مجدداً.')
@@ -1737,11 +1740,17 @@ function App() {
       .then((result) => {
         if (sessionId !== webviewSessionRef.current) return
         webviewIdRef.current = result?.id ?? webviewIdRef.current
-        // iOS resolves here when WKWebView is created, before deferred
-        // presentation. Wait for browserPageLoaded there so the loading UI
-        // stays alive and quick tab taps can cancel cleanly.
         if (initialPendingUrl && pendingProductUrlRef.current === initialPendingUrl) pendingProductUrlRef.current = ''
-        if (Capacitor.getPlatform() !== 'ios') markStoreWebviewReady(sessionId)
+        const absoluteTimeout = window.setTimeout(() => {
+          if (sessionId !== webviewSessionRef.current) return
+          if (!webviewOpeningRef.current) return
+          webviewOpeningRef.current = false
+          if (screenRef.current === 'home') setSheinBlockedError(true)
+        }, 20000)
+        const checkLoaded = InAppBrowser.addListener('browserPageLoaded', () => {
+          window.clearTimeout(absoluteTimeout)
+          void checkLoaded.then((h) => h.remove())
+        })
       })
       .catch(() => {
         if (sessionId !== webviewSessionRef.current) return
@@ -1837,10 +1846,22 @@ function App() {
         if (screenRef.current === 'home') setSheinBlockedError(true)
       }, 1800)
     })
+    let fallbackTimer: number | undefined
+    const startFallback = InAppBrowser.addListener('urlChangeEvent', () => {
+      if (fallbackTimer !== undefined || !webviewOpeningRef.current) return
+      fallbackTimer = window.setTimeout(() => {
+        fallbackTimer = undefined
+        if (!webviewOpeningRef.current) return
+        markStoreWebviewReadyRef.current(webviewSessionRef.current)
+        void InAppBrowser.show().catch(() => undefined)
+      }, 12000)
+    })
     return () => {
       if (webviewErrorTimerRef.current !== undefined) window.clearTimeout(webviewErrorTimerRef.current)
+      if (fallbackTimer !== undefined) window.clearTimeout(fallbackTimer)
       void loadedHandle.then((h) => h.remove())
       void errorHandle.then((h) => h.remove())
+      void startFallback.then((h) => h.remove())
     }
   }, [])
 
@@ -3604,7 +3625,7 @@ function App() {
             </section>
             <ProfileRow
               icon="local_shipping"
-              label={`معلومات الاستلام — ${savedPickupName || 'غير محدد'}`}
+              label="معلومات الاستلام"
               onClick={() => setScreen('recipient-detail')}
             />
             <ProfileRow icon="receipt_long" label={`طلباتي (${visibleOrders.length})`} onClick={() => setScreen('orders')} />
@@ -3730,7 +3751,6 @@ function App() {
                   <span dir="ltr">{walletTopUpCode}</span>
                   <strong>{pendingWalletAmountLabel}</strong>
                   <small className="payment-expiry">مهلة الدفع: {walletTopUpExpiresIn}</small>
-                  <small>سيضاف إلى محفظتك: {formatMoney(pendingWalletTopUp.creditAmountSyp)}</small>
                 </section>
                 <div className="payment-action-grid">
                   <button className="ghost-action" onClick={() => copyText(walletTopUpCode, 'تم نسخ كود شام كاش')}>
@@ -4291,12 +4311,8 @@ function ProfileRow({ icon, label, onClick }: { icon: string; label: string; onC
 function PaymentCurrencyRow({ value, onClick }: { value: PaymentCurrency; onClick: () => void }) {
   const selected = value === 'USD' ? 'دولار أمريكي' : 'ليرة سورية'
   return (
-    <button className="profile-row profile-row--currency" onClick={onClick}>
-      <span className="profile-row-icon"><Icon name="attach_money" /></span>
-      <span className="profile-row-text">
-        <b>عملة الدفع المفضلة</b>
-        <small>{selected}</small>
-      </span>
+    <button className="profile-row" onClick={onClick}>
+      <span className="profile-row-main"><Icon name="attach_money" /> <b>عملة الدفع: {selected}</b></span>
       <Icon name="chevron_left" />
     </button>
   )

@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
     }
     const action = (body.action ?? 'create').trim().toLowerCase()
     const phone = (body.phone ?? '').replace(/\s+/g, '')
-    const name = (body.name ?? '').trim() || 'Customer'
+    const name = (body.name ?? '').trim() || 'عضو'
     const store = (body.store ?? 'shein').trim() || 'shein'
     const items = Array.isArray(body.items) ? body.items : []
 
@@ -88,7 +88,7 @@ Deno.serve(async (req) => {
     const { data: customerId, error: customerError } = await supabase.rpc('ensure_customer', {
       p_phone: phone,
       p_name: name,
-      p_governorate: 'Damascus',
+      p_governorate: 'دمشق',
       p_city: '',
       p_details: '',
       p_qadmous_branch: '',

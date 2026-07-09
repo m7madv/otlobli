@@ -1731,6 +1731,8 @@ function SettingsPanel({
   const [featureGroupOrders, setFeatureGroupOrders] = useState(true)
   const [featureWallet, setFeatureWallet] = useState(true)
   const [featureCoupons, setFeatureCoupons] = useState(true)
+  const [whatsappNumbers, setWhatsappNumbers] = useState<string[]>([])
+  const [newWhatsappNumber, setNewWhatsappNumber] = useState('')
   const [saving,     setSaving]     = useState(false)
   const [loaded,     setLoaded]     = useState(false)
 
@@ -1749,6 +1751,7 @@ function SettingsPanel({
         setFeatureGroupOrders(data.feature_group_orders !== 'false')
         setFeatureWallet(data.feature_wallet !== 'false')
         setFeatureCoupons(data.feature_coupons !== 'false')
+        try { setWhatsappNumbers(JSON.parse(data.whatsapp_otp_numbers || '[]')) } catch { setWhatsappNumbers([]) }
         setLoaded(true)
       })
       .catch(() => showNotice('تعذر جلب الإعدادات'))
@@ -2071,6 +2074,65 @@ function SettingsPanel({
             <span style={{ fontSize: 15 }}>{label}</span>
           </label>
         ))}
+      </fieldset>
+
+      <fieldset className="settings-group">
+        <legend>أرقام واتساب لإرسال OTP</legend>
+        <p className="settings-intro">أضف أرقام واتساب لإرسال رمز التحقق. يتم تجربة الأرقام بالترتيب — إذا فشل الأول يُستخدم الثاني تلقائياً.</p>
+        {whatsappNumbers.map((num, i) => (
+          <div className="settings-row" key={i}>
+            <input value={num} readOnly dir="ltr" style={{ flex: 1 }} />
+            <button
+              className="ghost-action"
+              disabled={saving}
+              onClick={() => {
+                const next = whatsappNumbers.filter((_, j) => j !== i)
+                setWhatsappNumbers(next)
+                void saveSetting('whatsapp_otp_numbers', JSON.stringify(next))
+              }}
+            >
+              حذف
+            </button>
+            {i > 0 && (
+              <button
+                className="ghost-action"
+                disabled={saving}
+                onClick={() => {
+                  const next = [...whatsappNumbers]
+                  ;[next[i - 1], next[i]] = [next[i], next[i - 1]]
+                  setWhatsappNumbers(next)
+                  void saveSetting('whatsapp_otp_numbers', JSON.stringify(next))
+                }}
+              >
+                ▲
+              </button>
+            )}
+          </div>
+        ))}
+        <div className="settings-row">
+          <input
+            value={newWhatsappNumber}
+            onChange={(e) => setNewWhatsappNumber(e.target.value)}
+            placeholder="رقم واتساب مع رمز الدولة مثل 963..."
+            dir="ltr"
+            style={{ flex: 1 }}
+          />
+          <button
+            className="ghost-action"
+            disabled={saving || !newWhatsappNumber.trim()}
+            onClick={() => {
+              const trimmed = newWhatsappNumber.trim().replace(/\s+/g, '')
+              if (!trimmed) return
+              if (whatsappNumbers.includes(trimmed)) { showNotice('الرقم موجود مسبقاً'); return }
+              const next = [...whatsappNumbers, trimmed]
+              setWhatsappNumbers(next)
+              setNewWhatsappNumber('')
+              void saveSetting('whatsapp_otp_numbers', JSON.stringify(next))
+            }}
+          >
+            إضافة
+          </button>
+        </div>
       </fieldset>
 
       <fieldset className="settings-group">
