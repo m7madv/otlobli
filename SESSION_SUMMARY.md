@@ -32,6 +32,40 @@ git rev-parse --abbrev-ref HEAD
 git log -5 --oneline
 ```
 
+## آخر عمل (Claude — إخفاء أزرار هيدر تيمو + منع صفحة تسجيل الدخول)
+
+تاريخ: 2026-07-09. اختُبر على محاكي أندرويد `emulator-5554` (`com.otlobli.app`) بصرياً + بالسجلات.
+
+المشكلة والحل الجذري:
+- أزرار هيدر تيمو (عربة التسوق / الحساب / الفئات) كلها من نوع `DIV.tab-d3nPD`،
+  والبحث `DIV.searchBar-3m_IK`، وكلها كانت داخل حاوية أب `display:none` فأبعادها
+  `0x0` — لهذا فشلت كل محاولات الحجب المعتمدة على الموقع/الأبعاد سابقاً، وكانت
+  أسماؤها في `aria-label` (أيقونات SVG بلا نص) فتخطّتها الفحوصات النصية أيضاً.
+- الحل النهائي (الأسهل والأضمن): حقن CSS في `injectTemuHeaderHideCSS()` داخل
+  `src/services/sheinBrowserScript.ts` يستهدف `[class*="tab-d3nPD"]` + aria الدقيق
+  (عربة التسوق/الحساب/الفئات) بـ `display:none`. النتيجة: الأزرار الثلاثة تختفي،
+  ويبقى البحث والشعار.
+- بانر "تسوّق مثل الملياردير" (بانر تنزيل تطبيق تيمو): حاويته الجذر
+  `DIV.downloadsWrapper` وتحتها `downloadUI`. أُضيف للـ CSS نفسه
+  `[class*="downloadsWrapper"], [class*="downloadUI"]` فاختفى البانر نهائياً.
+- إصلاح الوميض (FOUC): كان الإخفاء يُحقن متأخراً عبر tick فتظهر العناصر لحظة عند
+  أول دخول أو عند الرجوع من منتج. الحل: `OTLOBLI_TEMU_HIDE_CSS` صار ثابتاً،
+  و`injectTemuHeaderHideCSS()` تُحقن **فوراً عند تحميل السكربت** (documentStart،
+  في `document.head || document.documentElement`)، ولم تعد تعتمد على flag لمرة
+  واحدة بل تفحص وجود `#otlobli-temu-header-hide` فتعيد الحقن لو أزالته تيمو،
+  وأُضيفت لدورة الـ 120ms السريعة. تأكّد بتسجيل فيديو + استخراج 42 إطاراً حول
+  لحظة الرجوع: كل الإطارات نظيفة، صفر وميض.
+- منع صفحة تسجيل الدخول: في `src/App.tsx` داخل معالج `urlChangeEvent`، أُضيف
+  `TEMU_LOGIN_RE` — أي انتقال لـ `login.html`/`/login`/`signin`/`login.temu.com`
+  يُعاد فوراً إلى `https://www.temu.com/jo/` (مع throttle 3 محاولات/15ث عبر
+  `temuLoginBlockRef`). تأكّد بالسجل: النقر على "تسجيل الدخول" أطلق `login.html`
+  فاعتُرض وأُعيد للرئيسية دون ظهور صفحة login.
+
+ملاحظات:
+- تنظيف: أُزيل كل كود التشخيص المؤقت وحقن force-open shadow DOM (لم يكن هناك shadow).
+- الملفان المعدّلان: `src/services/sheinBrowserScript.ts` و `src/App.tsx`.
+- اختُبر كامل على محاكي أندرويد؛ نسخة iOS تُبنى عبر workflow `ios-unsigned-build.yml`.
+
 ## Critical rule
 
 Do not assume `main` is latest. Do not restore old code from another branch unless manually comparing and cherry-picking only the needed pieces.

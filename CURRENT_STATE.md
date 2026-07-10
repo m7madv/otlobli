@@ -2,6 +2,21 @@
 
 Last updated: 2026-07-09
 
+## أحدث تعديل (Claude — تيمو: إخفاء أزرار الهيدر + منع صفحة الدخول)
+
+غير ملتزم بعد. الملفان: `src/services/sheinBrowserScript.ts` و `src/App.tsx`.
+
+- إخفاء أزرار هيدر تيمو (عربة التسوق/الحساب/الفئات) + بانر "تسوّق مثل الملياردير"
+  مع إبقاء البحث والشعار: عبر `injectTemuHeaderHideCSS()` الذي يحقن CSS يستهدف
+  `[class*="tab-d3nPD"]` و`[class*="downloadsWrapper"]`/`[class*="downloadUI"]`
+  و aria الدقيق. السبب المكتشف: العناصر داخل حاوية `display:none` فأبعادها `0x0`
+  وأسماؤها في `aria-label` فقط، لهذا فشلت الطرق السابقة المعتمدة على الموقع/النص.
+- إصلاح الوميض (FOUC): الـ CSS يُحقن الآن فوراً عند `documentStart` (قبل الرسم)
+  ويُعاد حقنه لو أُزيل — فلا تظهر العناصر المخفية أبداً حتى عند الدخول/الرجوع.
+- منع صفحة `login.html` في تيمو نهائياً عبر `urlChangeEvent` في `App.tsx`
+  (`TEMU_LOGIN_RE` → إعادة التوجيه إلى `temu.com/jo/`). مُختبَر بصرياً + بالسجل.
+- التفاصيل الكاملة في `SESSION_SUMMARY.md`.
+
 ## Use this file first
 
 If any AI continues work on this repo, use this file and `AI-HANDOFF.md` first.

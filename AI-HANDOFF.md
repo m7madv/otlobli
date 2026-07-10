@@ -24,6 +24,17 @@ Current known Claude/Codex failure mode:
 
 Prevent this by updating `CURRENT_STATE.md`, `AI-HANDOFF.md`, and `SESSION_SUMMARY.md` after every stable change.
 
+## أحدث تعديل (Claude — تيمو: إخفاء أزرار الهيدر + منع صفحة الدخول)
+
+غير ملتزم بعد (2026-07-09). التفاصيل الكاملة في `SESSION_SUMMARY.md`.
+
+- أزرار هيدر تيمو (عربة/حساب/فئات) = `DIV.tab-d3nPD` داخل حاوية `display:none`
+  (أبعاد `0x0`، أسماء في `aria-label` فقط). حُجبت عبر CSS محقون في
+  `injectTemuHeaderHideCSS()` بـ `[class*="tab-d3nPD"]` — يبقى البحث والشعار فقط.
+- صفحة `login.html` في تيمو تُمنع عبر `urlChangeEvent` في `App.tsx` وتُعاد للرئيسية.
+- لا تُعِد المنطق القديم المعتمد على موقع/أبعاد/نص لأزرار تيمو — كان يفشل لأن
+  الأزرار `0x0` وبلا نص. استعمل الـ class/`aria-label`.
+
 ## Latest cleanup note
 
 - Commit `5ce98a0` adds guardrail docs for future AI sessions.

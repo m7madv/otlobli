@@ -3651,12 +3651,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // المزعجة ولا نشغّل منطق الالتقاط/الحجب الخاص بشي إن (الذي قد يخرّب صفحاتهم).
     if (!IS_SHEIN) {
       if (IS_TEMU) {
+        try { injectTemuHeaderHideCSS(); } catch (e) {}
         try { ensureTemuNoZoom(); } catch (e) {}
+        try { killStorePopups(); } catch (e) {}
+        try { hideTemuHeaderIconsByProbe(); } catch (e) {}
         try { hideTemuCustomerAccountAndCart(); } catch (e) {}
         try { hideTemuCustomerChrome(); } catch (e) {}
         try { restoreTemuSearchChrome(); } catch (e) {}
         try { restoreTemuLogo(); } catch (e) {}
-        try { hideTemuFooterSection(); } catch (e) {}
         try { ensureAddToCartButton(); } catch (e) {}
         try { detectEmptyTemuSearch(); } catch (e) {}
         return;
@@ -3753,9 +3755,65 @@ export const SHEIN_CAPTURE_SCRIPT = `
     } catch (e) {}
   }
 
-  // يزيل النوافذ المنبثقة الترويجية المزعجة على المتاجر غير شي إن (عجلة الحظ،
-  // نوافذ الخصومات، طبقات تغطّي الشاشة): أي عنصر ثابت/مطلق بطبقة عالية يغطّي
-  // جزءاً كبيراً من الشاشة = نافذة منبثقة، فنخفيه ونعيد تمكين التمرير.
+  // نص قاعدة CSS التي تُخفي أزرار هيدر تيمو + بانر "تسوّق مثل الملياردير".
+  // الأزرار الثلاثة (عربة التسوق/الحساب/الفئات) كلها من نوع .tab-d3nPD داخل
+  // حاوية الهيدر topTabContainer، بينما البحث .searchBar-3m_IK والشعار منفصلان
+  // فيبقيان. نستهدف أيضاً aria-label الدقيق كطبقة احتياطية لو تغيّرت أسماء
+  // الأصناف المُولّدة. بانر التنزيل حاويته الجذر .downloadsWrapper وتحتها
+  // .downloadUI. اللاحقة العشوائية للأصناف (مثل -RLshn) قد تتغيّر بين الإصدارات
+  // لذا نطابق بالبادئة عبر [class*=].
+  var OTLOBLI_TEMU_HIDE_CSS =
+    '[class*="tab-d3nPD"],' +
+    '[aria-label="عربة التسوق"], [aria-label="الحساب"], [aria-label="الفئات"],' +
+    '[class*="downloadsWrapper"], [class*="downloadUI"]' +
+    '{ display: none !important; visibility: hidden !important; pointer-events: none !important; }';
+  // نحقن القاعدة في أبكر لحظة ممكنة (documentStart، قبل رسم أي شيء) لمنع أي
+  // وميض للعناصر المخفية. لا نعتمد على flag لمرة واحدة، بل نفحص وجود <style>
+  // فعلياً في كل استدعاء: لو أزالت تيمو عنصرنا أثناء إعادة بناء الصفحة (عند
+  // فتح منتج والرجوع مثلاً) نعيد حقنه فوراً فلا يظهر المخفي أبداً. نستخدم
+  // document.head إن وُجد وإلا document.documentElement (المتوفّر دائماً هذا
+  // الوقت المبكر) فتُطبَّق القاعدة حتى قبل إنشاء <head>.
+  function injectTemuHeaderHideCSS() {
+    if (!IS_TEMU) return;
+    if (document.getElementById('otlobli-temu-header-hide')) return;
+    var parent = document.head || document.documentElement;
+    if (!parent) return;
+    var style = document.createElement('style');
+    style.id = 'otlobli-temu-header-hide';
+    style.textContent = OTLOBLI_TEMU_HIDE_CSS;
+    parent.appendChild(style);
+  }
+  // حقن فوري لحظة تحميل السكربت (preShowScript يعمل عند documentStart) — هذا
+  // هو ما يمنع ظهور الأزرار/البانر ولو لجزء من الثانية عند أول دخول للمتجر.
+  try { injectTemuHeaderHideCSS(); } catch (e) {}
+
+  function hideTemuHeaderIconsByProbe() {
+    if (!IS_TEMU || !document.body) return;
+    try {
+      var all = document.querySelectorAll('a, button, div, span, i, [role="button"]');
+      for (var i = 0; i < all.length; i++) {
+        var el = all[i];
+        if (el.id && el.id.indexOf('otlobli') === 0) continue;
+        if (el.getAttribute && el.getAttribute('data-otlobli-temu-hidden') === '1') continue;
+        var r = el.getBoundingClientRect();
+        if (r.width === 0 || r.height === 0) continue;
+        if (r.top < 0 || r.top > 160) continue;
+        if (r.width > 64 || r.height > 64) continue;
+        if (r.width < 14 || r.height < 14) continue;
+        var txt = (el.textContent || '').trim();
+        var isKnownDistraction = OTLOBLI_KNOWN_DISTRACTION.test(txt) || OTLOBLI_KNOWN_DISTRACTION.test(otlobliCollectIdentityHints(el));
+        if (txt.length > 20 && !isKnownDistraction) continue;
+        if (otlobliLooksLikeTemuLogo(el)) continue;
+        var hints = otlobliCollectIdentityHints(el);
+        if (/search|بحث|magnif/i.test(hints)) continue;
+        if (el.querySelector && el.querySelector('input, textarea')) continue;
+        el.setAttribute('data-otlobli-temu-hidden', '1');
+        el.style.setProperty('visibility', 'hidden', 'important');
+        el.style.setProperty('pointer-events', 'none', 'important');
+      }
+    } catch (e) {}
+  }
+
   function hideTemuCustomerAccountAndCart() {
     if (!IS_TEMU || !document.body) return;
     try {
@@ -3765,6 +3823,18 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var sr = search.getBoundingClientRect();
         if (sr.width > 40) searchLeft = Math.max(120, sr.left);
       }
+      if (searchLeft === 230) {
+        var probes = document.querySelectorAll('a, div, span, button');
+        for (var pi = 0; pi < probes.length; pi++) {
+          var pe = probes[pi];
+          var pr = pe.getBoundingClientRect();
+          if (pr.top < 0 || pr.top > 180 || pr.width < 100 || pr.height < 20 || pr.height > 60) continue;
+          if (otlobliLooksLikeSearchTrigger(pe) || (pe.querySelector && pe.querySelector('input'))) {
+            searchLeft = Math.max(120, pr.left);
+            break;
+          }
+        }
+      }
       var candidates = [];
       var nodes = document.querySelectorAll('a, button, [role="button"], div, span');
       for (var i = 0; i < nodes.length; i++) {
@@ -3773,15 +3843,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if (el.getAttribute && el.getAttribute('data-otlobli-temu-hidden') === '1') continue;
         if (el.querySelector && el.querySelector('input, textarea, select')) continue;
         var txt = temuCleanText(el.textContent);
-        if (txt.length > 10) continue;
+        var isDistraction = OTLOBLI_KNOWN_DISTRACTION.test(txt) || otlobliLooksLikeKnownDistraction(el);
+        if (txt.length > 25 && !isDistraction) continue;
         var r = el.getBoundingClientRect();
         if (r.width < 22 || r.height < 22 || r.width > 72 || r.height > 72) continue;
         if (r.top < 0 || r.top > 150) continue;
-        if (otlobliNearSearchInput(el) || otlobliLooksLikeSearchTrigger(el)) continue;
-        var elHints = otlobliCollectIdentityHints(el);
-        if (/temu|logo|brand/i.test(elHints)) continue;
-        if (el.tagName === 'A' && /^\\/(?:jo\\/)?$/.test(el.getAttribute('href') || '')) continue;
-        if (el.querySelector && el.querySelector('img[alt*="Temu" i], img[alt*="تيمو"], img[src*="temu" i]')) continue;
+        var isSearch = el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || (el.querySelector && el.querySelector('input, textarea, [role="searchbox"]'));
+        if (isSearch || otlobliLooksLikeSearchTrigger(el)) continue;
+        if (otlobliLooksLikeTemuLogo(el)) continue;
         var beforeSearch = r.left < searchLeft - 12;
         var leftHeaderIcon = r.left >= 0 && r.left <= 145;
         if (!beforeSearch && !leftHeaderIcon) continue;
@@ -3794,7 +3863,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var hidden = 0;
       var hiddenBuckets = [];
       for (var c = 0; c < candidates.length; c++) {
-        if (hidden >= 2) break;
+        if (hidden >= 5) break;
         var duplicateBucket = false;
         for (var hb = 0; hb < hiddenBuckets.length; hb++) {
           if (Math.abs(hiddenBuckets[hb] - candidates[c].left) < 18) duplicateBucket = true;
@@ -3856,12 +3925,33 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function otlobliUnhideEl(el) {
     if (!el || (el.id && el.id.indexOf('otlobli') === 0)) return;
-    el.removeAttribute('data-otlobli-temu-hidden');
+    if (el.getAttribute && el.getAttribute('data-otlobli-temu-hidden') === '1') return;
     el.removeAttribute('data-otlobli-blocked');
     el.style.removeProperty('display');
     el.style.setProperty('visibility', 'visible', 'important');
     el.style.setProperty('opacity', '1', 'important');
     el.style.setProperty('pointer-events', 'auto', 'important');
+  }
+
+  function otlobliLooksLikeTemuLogo(el) {
+    if (!el) return false;
+    var txt = (el.textContent || '').trim();
+    if (/^TEMU$/i.test(txt)) return true;
+    if (el.tagName === 'A') {
+      var href = el.getAttribute('href') || '';
+      if (/^\\/(?:jo\\/?)?\\.?$/.test(href) || href === '/') {
+        var r = el.getBoundingClientRect();
+        if (r.width > 60 && r.height > 20 && r.height < 60) return true;
+      }
+    }
+    var logoImg = el.tagName === 'IMG' ? el : (el.querySelector ? el.querySelector('img') : null);
+    if (logoImg) {
+      var alt = (logoImg.getAttribute('alt') || '').trim();
+      if (/^temu$/i.test(alt)) return true;
+      var src = logoImg.getAttribute('src') || '';
+      if (/logo/i.test(src) && /temu/i.test(src)) return true;
+    }
+    return false;
   }
 
   function restoreTemuSearchChrome() {
@@ -3888,17 +3978,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function restoreTemuLogo() {
     if (!IS_TEMU || !document.body) return;
     try {
-      var logos = document.querySelectorAll('img[alt*="Temu" i], img[alt*="تيمو"], img[src*="temu" i], a[href="/"], a[href="/jo/"], svg');
-      for (var i = 0; i < logos.length; i++) {
-        var el = logos[i];
+      var all = document.querySelectorAll('a, div, span, img');
+      for (var i = 0; i < all.length; i++) {
+        var el = all[i];
         if (el.id && el.id.indexOf('otlobli') === 0) continue;
         var r = el.getBoundingClientRect();
-        if (r.top < -20 || r.top > 140) continue;
-        if (r.width < 20 || r.width > 200 || r.height < 12 || r.height > 80) continue;
-        var hints = otlobliCollectIdentityHints(el);
-        var looksLogo = /temu|logo|brand|home/i.test(hints) || (el.tagName === 'A' && (el.getAttribute('href') === '/' || el.getAttribute('href') === '/jo/'));
-        if (!looksLogo) continue;
-        if (otlobliLooksLikeKnownDistraction(el)) continue;
+        if (r.top < -20 || r.top > 140 || r.width < 40 || r.height < 16) continue;
+        if (!otlobliLooksLikeTemuLogo(el)) continue;
         var cur = el;
         for (var depth = 0; cur && depth < 4; depth++) {
           otlobliUnhideEl(cur);
@@ -4053,9 +4139,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
           // بأعلى الشاشة) كافيان للتمييز بمفردهما.
           if (otlobliNearSearchInput(ic)) continue;
           if (otlobliLooksLikeSearchTrigger(ic)) continue;
-          var icHints = otlobliCollectIdentityHints(ic);
-          if (/temu|logo|brand/i.test(icHints)) continue;
-          if (ic.querySelector && ic.querySelector('img[alt*="Temu" i], img[alt*="تيمو"], img[src*="temu" i]')) continue;
+          if (otlobliLooksLikeTemuLogo(ic)) continue;
           var inLeftCluster = irAll.left >= 0 && irAll.left <= LEFT_CLUSTER_MAX;
           if (!inLeftCluster && !otlobliLooksLikeKnownDistraction(ic)) {
             visibleTopIconDiag.push('[' + otlobliCollectIdentityHints(ic).trim().slice(0, 30) + ' @' + Math.round(irAll.left) + ',' + Math.round(irAll.top) + ']');
@@ -4239,6 +4323,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   setInterval(function () {
     ensureOtlobliNav();
     if (IS_TEMU) {
+      injectTemuHeaderHideCSS();
       restoreTemuSearchChrome();
       restoreTemuLogo();
     }
