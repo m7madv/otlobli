@@ -3653,10 +3653,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (IS_TEMU) {
         try { injectTemuHeaderHideCSS(); } catch (e) {}
         try { ensureTemuNoZoom(); } catch (e) {}
-        // killStorePopups معطّل لتيمو مؤقتاً: مشتبه رئيسي في الوميض كل نصف ثانية
-        // (يعمل كل 300ms، يحجب عنصراً كبيراً يطابق PROMO ثم تعيده المراجعة الذاتية
-        // → حجب/إظهار دوري). إن توقّف الوميض بتعطيله تأكّد أنه السبب ونُعيده مُلطّفاً.
-        // try { killStorePopups(); } catch (e) {}
+        // killStorePopups معطّلة لتيمو نهائياً (v57): أكّد اختبار المستخدم
+        // (2026-07-10) أنها سبب وميض الشاشة الأبيض كل نصف ثانية — كانت تحجب
+        // طبقة كبيرة تطابق PROMO ثم تعيدها المراجعة الذاتية، كل 300ms.
+        // لا تُعِد تفعيلها لتيمو. بانر التنزيل يُحجب عبر OTLOBLI_TEMU_HIDE_CSS
+        // الثابت (downloadUI فقط، وليس الغلاف downloadsWrapper الحاوي للبحث).
         try { hideTemuHeaderIconsByProbe(); } catch (e) {}
         try { hideTemuCustomerAccountAndCart(); } catch (e) {}
         try { hideTemuCustomerChrome(); } catch (e) {}
@@ -3760,15 +3761,19 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   // نص قاعدة CSS التي تُخفي أزرار هيدر تيمو + بانر "تسوّق مثل الملياردير".
   // الأزرار الثلاثة (عربة التسوق/الحساب/الفئات) كلها من نوع .tab-d3nPD داخل
-  // حاوية الهيدر topTabContainer، بينما البحث .searchBar-3m_IK والشعار منفصلان
-  // فيبقيان. نستهدف أيضاً aria-label الدقيق كطبقة احتياطية لو تغيّرت أسماء
-  // الأصناف المُولّدة. بانر التنزيل حاويته الجذر .downloadsWrapper وتحتها
-  // .downloadUI. اللاحقة العشوائية للأصناف (مثل -RLshn) قد تتغيّر بين الإصدارات
-  // لذا نطابق بالبادئة عبر [class*=].
+  // حاوية الهيدر topTabContainer. نستهدف أيضاً aria-label الدقيق كطبقة احتياطية
+  // لو تغيّرت أسماء الأصناف المُولّدة. اللاحقة العشوائية للأصناف (مثل -RLshn)
+  // قد تتغيّر بين الإصدارات لذا نطابق بالبادئة عبر [class*=].
+  //
+  // تحذير (v57): ممنوع إخفاء .downloadsWrapper كاملاً — على الأجهزة الفعلية
+  // شريط البحث بالرئيسية يسكن داخل هذا الغلاف نفسه (درس v35 المكرر في v53)،
+  // فإخفاؤه يُخفي البحث معه. كانت المراجعة الذاتية في killStorePopups تنقذه،
+  // وبعد تعطيلها لتيمو (سبب الوميض) لا منقذ. نخفي .downloadUI فقط (واجهة
+  // بانر التنزيل الفعلية داخل الغلاف) ويبقى الغلاف والبحث ظاهرين.
   var OTLOBLI_TEMU_HIDE_CSS =
     '[class*="tab-d3nPD"],' +
     '[aria-label="عربة التسوق"], [aria-label="الحساب"], [aria-label="الفئات"],' +
-    '[class*="downloadsWrapper"], [class*="downloadUI"]' +
+    '[class*="downloadUI" i]' +
     '{ display: none !important; visibility: hidden !important; pointer-events: none !important; }';
   // نحقن القاعدة في أبكر لحظة ممكنة (documentStart، قبل رسم أي شيء) لمنع أي
   // وميض للعناصر المخفية. لا نعتمد على flag لمرة واحدة، بل نفحص وجود <style>
@@ -3918,6 +3923,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var bottomStoreAction = r.bottom > vp.height - 190 && (/(cart|bag|deal|offer|add to|login|sign in)/i.test(txt) || /rgb\\(255,\\s*(?:102|118|128|136|145|153|165),\\s*0\\)/i.test(cs.backgroundColor || ''));
         if (!fixedish && !topAppBanner) continue;
         if (topAppBanner || bottomLogin || bottomStoreAction) {
+          // حارس البحث (v57): ممنوع حجب أي حاوية تضم شريط/حقل البحث — العلامة
+          // data-otlobli-temu-hidden تمنع الاستعادة نهائياً (otlobliUnhideEl
+          // يرفضها)، فحجب حاوية البحث هنا يعني اختفاءه بلا رجعة.
+          if (el.querySelector && el.querySelector('input[type="search"], input[placeholder*="Search" i], input[placeholder*="بحث"], [role="searchbox"], [class*="searchBar" i]')) continue;
           el.setAttribute('data-otlobli-temu-hidden', '1');
           el.style.setProperty('display', 'none', 'important');
           el.style.setProperty('pointer-events', 'none', 'important');
@@ -3962,8 +3971,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // /إنشاء حساب) تعيش داخل نفس حاوية الهيدر (شقيقة/طفلة للبحث) وهي مخفية بـ
   // opacity:0. فكان توسيع الاستعادة للآباء/الأطفال يفرض عليها opacity:1 قسراً
   // فتظهر تلقائياً عند النزول وتقفز الصفحة لأعلى. الآن نستعيد العنصر نفسه فقط
-  // (لا آباء ولا أطفال)، فلا نلمس اللوحة إطلاقاً. هذا يكفي لأن الإخفاء في v53
-  // يستهدف أصنافاً محددة (.tab-d3nPD/.downloadsWrapper) ولا يخفي حاوية البحث.
+  // (لا آباء ولا أطفال)، فلا نلمس اللوحة إطلاقاً. هذا يكفي لأن الإخفاء الثابت
+  // (منذ v57) يستهدف .tab-d3nPD/.downloadUI فقط ولا يخفي حاوية البحث —
+  // ملاحظة: استعادة العنصر نفسه لا تنفع أصلاً إن حُجب أحد آبائه بـ display:none.
   function restoreTemuSearchChrome() {
     if (!IS_TEMU || !document.body) return;
     try {
