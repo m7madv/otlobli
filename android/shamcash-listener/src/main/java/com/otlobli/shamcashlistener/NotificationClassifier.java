@@ -4,21 +4,20 @@ import java.util.Locale;
 import java.util.regex.Pattern;
 
 final class NotificationClassifier {
-    private static final Pattern AMOUNT_PATTERN = Pattern.compile("[0-9][0-9.,٬،\\s]{1,}");
-    private static final Pattern CURRENCY_PATTERN = Pattern.compile("(?:\\$|usd|syp|syr|دولار|ل\\.?\\s*س|ليرة(?:\\s+سورية)?)", Pattern.CASE_INSENSITIVE);
+    private static final Pattern AMOUNT_PATTERN = Pattern.compile("(?:^|\\D)[0-9](?:[0-9.,٬،\\s]*[0-9])?(?:\\D|$)");
     private static final Pattern INCOMING_PATTERN = Pattern.compile(
-        "(?:تم\\s*استلام|استلام\\s*حوالة|حوالة\\s*واردة|تحويل\\s*وارد|حوالة|تحويل|حول\\s*إليك|استلمت|وارد|ايداع|إيداع|incoming|received|deposit|transfer)",
+        "(?:(?:تم|تمت)\\s*(?:استلام|ايداع|إيداع|إضافة)|استلام|استلمت|أضيف|اضيف|"
+            + "(?:حوالة|تحويل)\\s*(?:واردة|وارد)|(?:حوالة|تحويل)\\s+من\\s+(?!(?:حسابك|محفظتك))|"
+            + "(?:وصلت|وصلتك)\\s*(?:حوالة|دفعة)?|حول\\s*(?:إليك|اليك)|إلى\\s*(?:حسابك|محفظتك)|"
+            + "وارد|ايداع|إيداع|incoming|received|credit(?:ed)?|deposit)",
         Pattern.CASE_INSENSITIVE
     );
     private static final Pattern OUTGOING_PATTERN = Pattern.compile(
-        "(?:أرسلت|ارسلت|تحويل\\s*إلى|تحويل\\s*الى|دفعت|خصم|سحب|شراء|sent\\s*payment|outgoing|debited)",
+        "(?:تم\\s*(?:إرسال|ارسال|خصم|سحب|دفع|شراء)|حوالة\\s*صادرة|تحويل\\s*صادر|"
+            + "أرسلت|ارسلت|حوّلت|حولت|دفعت|خصم|سحب|شراء|"
+            + "sent(?:\\s*payment)?|outgoing|debited|withdrawal|purchase)",
         Pattern.CASE_INSENSITIVE
     );
-    private static final Pattern BALANCE_ONLY_PATTERN = Pattern.compile(
-        "(?:رصيدك|الرصيد\\s*الحالي|available\\s*balance|current\\s*balance|كشف\\s*حساب|statement|otp|رمز)",
-        Pattern.CASE_INSENSITIVE
-    );
-
     private NotificationClassifier() {}
 
     static boolean looksLikeIncomingPayment(String title, String text, String bigText) {
@@ -26,16 +25,13 @@ final class NotificationClassifier {
         if (normalized.isEmpty()) return false;
 
         boolean hasAmount = AMOUNT_PATTERN.matcher(normalized).find();
-        boolean hasCurrency = CURRENCY_PATTERN.matcher(normalized).find();
         boolean hasIncoming = INCOMING_PATTERN.matcher(normalized).find();
         boolean hasOutgoing = OUTGOING_PATTERN.matcher(normalized).find();
-        boolean balanceOnly = BALANCE_ONLY_PATTERN.matcher(normalized).find();
 
         if (!hasAmount) return false;
-        if (!hasCurrency && !hasIncoming) return false;
-        if (hasOutgoing && !hasIncoming) return false;
-        if (balanceOnly && !hasIncoming) return false;
-        return hasIncoming;
+        if (!hasIncoming) return false;
+        if (hasOutgoing) return false;
+        return true;
     }
 
     private static String join(String title, String text, String bigText) {
@@ -68,6 +64,7 @@ final class NotificationClassifier {
             .replace('۷', '7')
             .replace('۸', '8')
             .replace('۹', '9')
+            .replaceAll("[\\u0640\\u064B-\\u065F\\u0670]", "")
             .toLowerCase(Locale.ROOT)
             .trim();
     }

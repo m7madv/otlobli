@@ -3,6 +3,7 @@
  */
 
 import { Router } from 'express'
+import crypto from 'node:crypto'
 import fs from 'fs'
 import path from 'path'
 import zlib from 'zlib'
@@ -18,6 +19,50 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 const router = Router()
+const CUSTOMER_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000
+
+async function createCustomerSession(phone) {
+  if (!supabase) {
+    throw new Error('Supabase is not configured for customer sessions')
+  }
+
+  const sessionToken = crypto.randomBytes(32).toString('base64url')
+  const tokenHash = crypto.createHash('sha256').update(sessionToken).digest('hex')
+  const expiresAt = new Date(Date.now() + CUSTOMER_SESSION_TTL_MS).toISOString()
+  const { error } = await supabase.rpc('create_customer_session', {
+    p_phone: phone,
+    p_token_hash: tokenHash,
+    p_expires_at: expiresAt,
+  })
+
+  if (error) {
+    throw new Error(`Failed to persist customer session: ${error.message}`)
+  }
+
+  return sessionToken
+}
+
+function hasValidServiceSecret(req) {
+  const expected = process.env.ORDER_NOTIFY_SECRET || ''
+  const supplied = String(req.headers['x-service-secret'] || '')
+  if (!expected || !supplied) return false
+  const expectedBytes = Buffer.from(expected)
+  const suppliedBytes = Buffer.from(supplied)
+  return expectedBytes.length === suppliedBytes.length
+    && crypto.timingSafeEqual(expectedBytes, suppliedBytes)
+}
+
+async function hasValidCustomerSession(req, phone) {
+  if (!supabase) return false
+  const authorization = String(req.headers.authorization || '')
+  const token = authorization.startsWith('Bearer ') ? authorization.slice(7).trim() : ''
+  if (!token) return false
+  const { error } = await supabase.rpc('require_customer_session', {
+    p_session_token: token,
+    p_phone: phone,
+  })
+  return !error
+}
 
 // الحصول على حالة اتصال واتساب
 
@@ -265,8 +310,7 @@ router.post('/auth/whatsapp/verify', async (req, res) => {
       })
     }
 
-    // إنشاء session token (بسيط حالياً)
-    const sessionToken = `talabieh-${cleanPhone}-${Date.now()}`
+    const sessionToken = await createCustomerSession(cleanPhone)
 
     res.json({
       mode: 'external',
@@ -325,9 +369,11 @@ router.post('/auth/whatsapp/inbound/status', async (req, res) => {
       })
     }
 
+    const sessionToken = await createCustomerSession(cleanPhone)
+
     res.json({
       mode: 'external',
-      sessionToken: `talabieh-${cleanPhone}-${Date.now()}`,
+      sessionToken,
     })
   } catch (error) {
     res.status(500).json({ error: 'server_error', message: 'خطأ في الخادم.' })
@@ -450,6 +496,9 @@ router.post('/notify/whatsapp', async (req, res) => {
     if (!phone || !text) {
       return res.status(400).json({ error: 'missing_fields' })
     }
+    if (!hasValidServiceSecret(req) && !(await hasValidCustomerSession(req, phone))) {
+      return res.status(401).json({ error: 'unauthorized' })
+    }
     await sendNotificationMessage(phone, text)
     res.json({ ok: true })
   } catch (err) {
@@ -464,6 +513,9 @@ router.post('/notify/whatsapp', async (req, res) => {
 
 router.post('/orders/notify', async (req, res) => {
   try {
+    if (!hasValidServiceSecret(req)) {
+      return res.status(401).json({ error: 'unauthorized' })
+    }
     const { order } = req.body
     if (!order || !order.id) {
       return res.status(400).json({ error: 'missing_order' })

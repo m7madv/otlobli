@@ -223,8 +223,15 @@ export type Order = {
   paymentIssue?: boolean
   paymentIssueNote?: string
   extraAmountUsd?: number
+  // فاتورة الرسوم من لوحة الإدارة (شحن/رسوم منصة...) — تُعرض في تفاصيل الطلب
+  invoice?: OrderInvoiceLine[]
   groupId?: string
   groupCode?: string
+}
+
+export type OrderInvoiceLine = {
+  label: string
+  amountUsd: number
 }
 
 export type PriceLine = {

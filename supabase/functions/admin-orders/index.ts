@@ -4,6 +4,7 @@ const ADMIN_PIN = Deno.env.get('ADMIN_PIN') ?? ''
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 const WHATSAPP_SERVER_URL = Deno.env.get('WHATSAPP_SERVER_URL') ?? ''
+const ORDER_NOTIFY_SECRET = Deno.env.get('ORDER_NOTIFY_SECRET') ?? ''
 const DRIVER_URL = Deno.env.get('DRIVER_URL') ?? ''
 
 const corsHeaders = {
@@ -60,6 +61,7 @@ type OrderRow = {
   payment_issue?: boolean
   payment_issue_note?: string
   extra_amount_usd?: number
+  invoice?: { label: string; amountUsd: number }[]
   group_id?: string
   group_code?: string
 }
@@ -90,7 +92,7 @@ async function notifyCustomerStatusChange(
   phone: string,
   order: { id: string; statusIndex: number; qadmousNumber?: string },
 ) {
-  if (!WHATSAPP_SERVER_URL || !phone) return
+  if (!WHATSAPP_SERVER_URL || !ORDER_NOTIFY_SECRET || !phone) return
   const label = ORDER_STATUS_LABELS[order.statusIndex] ?? ''
   const lines = [`📦 *تحديث على طلبك ${order.id}*`, `الحالة الجديدة: ${label}`]
   if (order.statusIndex === ORDER_STATUS_LABELS.length - 1) {
@@ -102,7 +104,7 @@ async function notifyCustomerStatusChange(
   try {
     await fetch(`${WHATSAPP_SERVER_URL}/api/notify/whatsapp`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', 'x-service-secret': ORDER_NOTIFY_SECRET },
       body: JSON.stringify({ phone, text: lines.join('\n') }),
       signal: AbortSignal.timeout(8000),
     })
@@ -115,7 +117,7 @@ async function notifyCustomerPaymentIssue(
   phone: string,
   order: { id: string; note: string; extraAmountUsd: number },
 ) {
-  if (!WHATSAPP_SERVER_URL || !phone) return
+  if (!WHATSAPP_SERVER_URL || !ORDER_NOTIFY_SECRET || !phone) return
   const lines = [
     `⚠️ *طلبك ${order.id} يحتاج إجراء منك*`,
     order.note || 'يوجد تفصيل يحتاج مراجعتك قبل متابعة الطلب.',
@@ -128,7 +130,7 @@ async function notifyCustomerPaymentIssue(
   try {
     await fetch(`${WHATSAPP_SERVER_URL}/api/notify/whatsapp`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', 'x-service-secret': ORDER_NOTIFY_SECRET },
       body: JSON.stringify({ phone, text: lines.join('\n') }),
       signal: AbortSignal.timeout(8000),
     })
@@ -142,7 +144,7 @@ async function notifyDriverAssignment(
   driverName: string,
   order: { id: string; customer: string; phone: string; city: string; address: string; itemCount: number },
 ) {
-  if (!WHATSAPP_SERVER_URL) return
+  if (!WHATSAPP_SERVER_URL || !ORDER_NOTIFY_SECRET) return
   const text = [
     `📦 *طلب جديد مكلَّف لك — ${order.id}*`,
     `👤 ${order.customer}  |  📞 ${order.phone}`,
@@ -155,7 +157,7 @@ async function notifyDriverAssignment(
   try {
     await fetch(`${WHATSAPP_SERVER_URL}/api/notify/whatsapp`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', 'x-service-secret': ORDER_NOTIFY_SECRET },
       body: JSON.stringify({ phone: driverPhone, text }),
       signal: AbortSignal.timeout(8000),
     })
@@ -245,6 +247,7 @@ Deno.serve(async (req) => {
       paymentIssue: row.payment_issue || false,
       paymentIssueNote: row.payment_issue_note || '',
       extraAmountUsd: row.extra_amount_usd || 0,
+      invoice: Array.isArray(row.invoice) ? row.invoice : [],
       groupId: row.group_id || '',
       groupCode: row.group_code || '',
     }))
@@ -372,13 +375,41 @@ Deno.serve(async (req) => {
 
     // ملاحظة: جدول orders لا يحتوي على عمود updated_at، فلا نضيفه هنا
     const dbPatch: Record<string, unknown> = {}
-    if (patch.paymentStatus !== undefined) dbPatch.payment_status = patch.paymentStatus
+    if (patch.paymentStatus !== undefined) {
+      const paymentStatus = String(patch.paymentStatus)
+      const paidAt = typeof patch.paidAt === 'string' && patch.paidAt ? patch.paidAt : null
+      const { error: paymentError } = await supabase.rpc('admin_set_order_payment_status', {
+        p_order_id: orderId,
+        p_payment_status: paymentStatus,
+        p_paid_at: paidAt,
+      })
+      if (paymentError) {
+        return new Response(JSON.stringify({ error: paymentError.message }), {
+          status: 400,
+          headers: { ...corsHeaders, 'content-type': 'application/json' },
+        })
+      }
+    }
     if (patch.statusIndex !== undefined) dbPatch.status_index = patch.statusIndex
     if (patch.qadmousNumber !== undefined) dbPatch.qadmous_number = patch.qadmousNumber
-    if (patch.paidAt !== undefined) dbPatch.paid_at = patch.paidAt
+    if (patch.paidAt !== undefined && patch.paymentStatus === undefined) dbPatch.paid_at = patch.paidAt
     if (patch.paymentIssue !== undefined) dbPatch.payment_issue = Boolean(patch.paymentIssue)
     if (patch.paymentIssueNote !== undefined) dbPatch.payment_issue_note = String(patch.paymentIssueNote || '')
     if (patch.extraAmountUsd !== undefined) dbPatch.extra_amount_usd = Number(patch.extraAmountUsd) || 0
+    // فاتورة الطلب: بنود {label, amountUsd} فقط — ننقّي الشكل قبل الحفظ.
+    if (patch.invoice !== undefined) {
+      dbPatch.invoice = Array.isArray(patch.invoice)
+        ? patch.invoice
+          .map((line) => {
+            const rec = (line && typeof line === 'object' ? line : {}) as Record<string, unknown>
+            return {
+              label: String(rec.label ?? '').slice(0, 120),
+              amountUsd: Math.round((Number(rec.amountUsd) || 0) * 100) / 100,
+            }
+          })
+          .filter((line) => line.label.trim() !== '')
+        : []
+    }
 
     let previousPaymentIssue: boolean | null = null
     if (patch.paymentIssue !== undefined) {
@@ -399,7 +430,9 @@ Deno.serve(async (req) => {
       previousOrder = data
     }
 
-    const { error } = await supabase.from('orders').update(dbPatch).eq('id', orderId)
+    const { error } = Object.keys(dbPatch).length > 0
+      ? await supabase.from('orders').update(dbPatch).eq('id', orderId)
+      : { error: null }
 
     if (error) {
       return new Response(JSON.stringify({ error: error.message }), {

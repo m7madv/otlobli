@@ -30,6 +30,8 @@ export type PendingOrderResult = {
   paymentAmount: number
   paymentCurrency: PaymentCurrency
   paymentExpiresAt: string
+  paymentStatus?: PaymentStatus
+  walletBalanceUsd?: number
 }
 
 export type PaymentStatusResult = {
@@ -129,7 +131,12 @@ export type TalabiehApi = {
   orders: {
     // ظٹظ†ط´ط¦ ط§ظ„ط·ظ„ط¨ ط¨ط­ط§ظ„ط© "ط¨ط§ظ†طھط¸ط§ط± ط§ظ„ط¯ظپط¹" ظ…ط¹ ظ…ط¨ظ„ط؛ ط¯ظپط¹ ظپط±ظٹط¯طŒ ظ‚ط¨ظ„ ط¹ط±ط¶ ط´ط§ط´ط© ط§ظ„ط¯ظپط¹ -
     // ط§ظ„ط·ظ„ط¨ ظ„ط§ ظٹطµط¨ط­ "ظ…ط¯ظپظˆط¹" ط¥ظ„ط§ ظ„ظ…ط§ ظٹظˆطµظ„ طھط£ظƒظٹط¯ ط­ظ‚ظٹظ‚ظٹ ظ…ظ† webhook ط´ط§ظ… ظƒط§ط´.
-    createPendingOrder: (order: Order, currency: PaymentCurrency) => Promise<PendingOrderResult>
+    createPendingOrder: (
+      order: Order,
+      currency: PaymentCurrency,
+      walletSpendUsd?: number,
+      store?: string,
+    ) => Promise<PendingOrderResult>
     createIssuePayment: (orderId: string, amountUsd: number, currency: PaymentCurrency) => Promise<OrderIssuePaymentResult>
     // ظٹط³طھط¹ظ„ظ… ط¹ظ† ط­ط§ظ„ط© ط§ظ„ط·ظ„ط¨ ط§ظ„ط­ط§ظ„ظٹط© (ط§ظ„ظ…ط±ط­ظ„ط©طŒ ط±ظ‚ظ… ط§ظ„ظ‚ط¯ظ…ظˆط³...) ظ„طھط­ط¯ظٹط« ط´ط§ط´ط©
     // ط§ظ„طھطھط¨ط¹ - ظٹط±ط¬ط¹ null ط¥ط°ط§ ط§ظ„ط·ظ„ط¨ ط؛ظٹط± ظ…ظˆط¬ظˆط¯ ط£ظˆ ط§ظ„ظ‚ط§ط¹ط¯ط© ط؛ظٹط± ظ…طھط§ط­ط©.
@@ -142,5 +149,8 @@ export type TalabiehApi = {
     // يرسل تصحيح تخصيص (صورة مقصوصة/نص) لعنصر في طلب قائم — تدفق
     // "مشكلة قياس الصورة" الذي يفتحه المشرف من لوحة الإدارة.
     submitCustomFix: (orderId: string, productId: string, photoDataUrl: string, customText: string) => Promise<boolean>
+    // يحدّث خيار عنصر طلب (مقاس/لون) باختيار الزبون من «الخيارات المتاحة»
+    // التي عرضها المشرف في ملاحظة المشكلة — حل ذاتي دون مراسلة.
+    submitOptionFix: (orderId: string, productId: string, field: 'size' | 'color', value: string) => Promise<boolean>
   }
 }

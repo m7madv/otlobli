@@ -2,96 +2,101 @@ package com.otlobli.shamcashlistener;
 
 import android.content.Context;
 
-import org.json.JSONObject;
+import androidx.work.BackoffPolicy;
+import androidx.work.Constraints;
+import androidx.work.Data;
+import androidx.work.ExistingWorkPolicy;
+import androidx.work.NetworkType;
+import androidx.work.OneTimeWorkRequest;
+import androidx.work.WorkManager;
 
-import java.io.BufferedReader;
-import java.io.OutputStream;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
+import java.util.concurrent.TimeUnit;
 
 final class WebhookForwarder {
+    static final String KEY_EVENT_ID = "event_id";
+    static final String KEY_POSTED_AT = "posted_at";
+    static final String KEY_PACKAGE_NAME = "package_name";
+    static final String KEY_TITLE = "title";
+    static final String KEY_TEXT = "text";
+    static final String KEY_BIG_TEXT = "big_text";
+
+    private static final String UNIQUE_WORK_PREFIX = "shamcash-delivery-";
+    private static final String WORK_TAG = "shamcash-payment-delivery";
+
     private WebhookForwarder() {}
 
-    static void forward(Context context, String packageName, String title, String text, String bigText) {
-        String combinedText = join(title, text, bigText).trim();
-        if (combinedText.isEmpty()) return;
-
-        String hash = packageName + "|" + combinedText.hashCode();
-        if (!ListenerConfig.rememberHash(context, hash)) return;
-
-        new Thread(() -> send(context.getApplicationContext(), packageName, title, text, bigText, combinedText)).start();
-    }
-
-    private static String join(String title, String text, String bigText) {
-        StringBuilder builder = new StringBuilder();
-        if (title != null && !title.trim().isEmpty()) builder.append(title.trim()).append('\n');
-        if (text != null && !text.trim().isEmpty()) builder.append(text.trim()).append('\n');
-        if (bigText != null && !bigText.trim().isEmpty() && !bigText.equals(text)) builder.append(bigText.trim());
-        return builder.toString();
-    }
-
-    private static void send(
+    static boolean enqueue(
         Context context,
+        String eventId,
+        long postedAt,
         String packageName,
         String title,
         String text,
-        String bigText,
-        String combinedText
+        String bigText
     ) {
-        String webhookUrl = ListenerConfig.webhookUrl(context);
-        String secret = ListenerConfig.secret(context);
-        if (webhookUrl.isEmpty() || secret.isEmpty()) {
-            ListenerConfig.saveLastResult(context, "missing_config");
-            return;
-        }
+        Context appContext = context.getApplicationContext();
+        if (!ListenerConfig.TARGET_PACKAGE.equals(packageName) || !EventIdentity.isValid(eventId)) return false;
+        if (!NotificationClassifier.looksLikeIncomingPayment(title, text, bigText)) return false;
+        if (ListenerConfig.wasDelivered(appContext, eventId)) return false;
 
-        HttpURLConnection connection = null;
+        // WorkManager Data is limited to 10 KB. These caps keep worst-case UTF-8
+        // notification input below that limit without losing normal payment text.
+        Data input = new Data.Builder()
+            .putString(KEY_EVENT_ID, eventId)
+            .putLong(KEY_POSTED_AT, postedAt)
+            .putString(KEY_PACKAGE_NAME, packageName)
+            .putString(KEY_TITLE, truncate(title, 256))
+            .putString(KEY_TEXT, truncate(text, 1024))
+            .putString(KEY_BIG_TEXT, truncate(bigText, 1400))
+            .build();
+
+        Constraints constraints = new Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build();
+
+        OneTimeWorkRequest request = new OneTimeWorkRequest.Builder(PaymentDeliveryWorker.class)
+            .setInputData(input)
+            .setConstraints(constraints)
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+            .addTag(WORK_TAG)
+            .build();
+
         try {
-            JSONObject payload = new JSONObject();
-            payload.put("packageName", packageName);
-            payload.put("title", title == null ? "" : title);
-            payload.put("body", text == null ? "" : text);
-            payload.put("bigText", bigText == null ? "" : bigText);
-            payload.put("notificationText", combinedText);
-            payload.put("sentAt", System.currentTimeMillis());
-
-            byte[] body = payload.toString().getBytes(StandardCharsets.UTF_8);
-            connection = (HttpURLConnection) new URL(webhookUrl).openConnection();
-            connection.setRequestMethod("POST");
-            connection.setConnectTimeout(15000);
-            connection.setReadTimeout(15000);
-            connection.setDoOutput(true);
-            connection.setRequestProperty("content-type", "application/json; charset=utf-8");
-            connection.setRequestProperty("x-payment-secret", secret);
-            connection.setRequestProperty("content-length", String.valueOf(body.length));
-
-            try (OutputStream output = connection.getOutputStream()) {
-                output.write(body);
-            }
-
-            int status = connection.getResponseCode();
-            String response = readResponse(connection, status);
-            ListenerConfig.saveLastResult(context, status + " " + response);
-        } catch (Exception err) {
-            ListenerConfig.saveLastResult(context, "error " + err.getClass().getSimpleName() + ": " + err.getMessage());
-        } finally {
-            if (connection != null) connection.disconnect();
+            WorkManager.getInstance(appContext).enqueueUniqueWork(
+                UNIQUE_WORK_PREFIX + eventId,
+                ExistingWorkPolicy.KEEP,
+                request
+            );
+            ListenerConfig.saveLastResult(appContext, "queued " + eventId.substring(0, 12));
+            return true;
+        } catch (RuntimeException error) {
+            ListenerConfig.saveLastResult(appContext, "queue_error " + error.getClass().getSimpleName());
+            return false;
         }
     }
 
-    private static String readResponse(HttpURLConnection connection, int status) {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(
-            status >= 400 ? connection.getErrorStream() : connection.getInputStream(),
-            StandardCharsets.UTF_8
-        ))) {
-            StringBuilder builder = new StringBuilder();
-            String line;
-            while ((line = reader.readLine()) != null) builder.append(line);
-            return builder.toString();
-        } catch (Exception ignored) {
-            return "";
+    static String join(String title, String text, String bigText) {
+        StringBuilder builder = new StringBuilder();
+        appendLine(builder, title);
+        appendLine(builder, text);
+        if (bigText != null && !bigText.trim().isEmpty() && !bigText.trim().equals(safe(text).trim())) {
+            appendLine(builder, bigText);
         }
+        return builder.toString().trim();
+    }
+
+    private static void appendLine(StringBuilder builder, String value) {
+        if (value == null || value.trim().isEmpty()) return;
+        if (builder.length() > 0) builder.append('\n');
+        builder.append(value.trim());
+    }
+
+    private static String truncate(String value, int maxLength) {
+        String safe = safe(value);
+        return safe.length() <= maxLength ? safe : safe.substring(0, maxLength);
+    }
+
+    private static String safe(String value) {
+        return value == null ? "" : value;
     }
 }

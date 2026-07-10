@@ -1,5 +1,6 @@
 import type { StartLoginResult, VerifyOtpResult, TalabiehApi } from './appApi'
 import { cleanEnvValue } from '../config'
+import { storageKeys } from '../infrastructure/localStorage'
 
 type ErrorBody = {
   error?: string
@@ -59,8 +60,14 @@ export const whatsappAuthApi: TalabiehApi['auth'] = {
     const path = whatsappAuthMode === 'inbound' ? '/api/auth/whatsapp/inbound/start' : '/api/auth/whatsapp/start'
     return postJson<StartLoginResult>(path, { phone })
   },
-  verifyOtp(phone: string, code: string) {
+  async verifyOtp(phone: string, code: string) {
     const path = whatsappAuthMode === 'inbound' ? '/api/auth/whatsapp/inbound/status' : '/api/auth/whatsapp/verify'
-    return postJson<VerifyOtpResult>(path, { phone, code })
+    const result = await postJson<VerifyOtpResult>(path, { phone, code })
+    // Persist immediately so the authenticated profile request that follows
+    // this promise can use the token before React's state effect runs.
+    if (result.sessionToken && typeof window !== 'undefined') {
+      window.localStorage.setItem(storageKeys.sessionToken, JSON.stringify(result.sessionToken))
+    }
+    return result
   },
 }

@@ -1,5 +1,22 @@
 apply plugin: 'com.android.application'
 
+def signingValue = { String name ->
+    def value = project.findProperty(name)
+    if (value == null) value = System.getenv(name)
+    return value == null ? null : value.toString()
+}
+
+def releaseStoreFile = signingValue('OTLOBLI_LISTENER_STORE_FILE')
+def releaseStorePassword = signingValue('OTLOBLI_LISTENER_STORE_PASSWORD')
+def releaseKeyAlias = signingValue('OTLOBLI_LISTENER_KEY_ALIAS')
+def releaseKeyPassword = signingValue('OTLOBLI_LISTENER_KEY_PASSWORD')
+def releaseSigningConfigured = [
+    releaseStoreFile,
+    releaseStorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword,
+].every { it != null && !it.trim().isEmpty() }
+
 android {
     namespace = "com.otlobli.shamcashlistener"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -8,7 +25,46 @@ android {
         applicationId "com.otlobli.shamcashlistener"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode 2
+        versionName "2.0.0"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
+
+    signingConfigs {
+        if (releaseSigningConfigured) {
+            listenerRelease {
+                storeFile file(releaseStoreFile)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            debuggable true
+        }
+        release {
+            debuggable false
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            if (releaseSigningConfigured) {
+                signingConfig signingConfigs.listenerRelease
+            }
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation "androidx.work:work-runtime:2.11.2"
+
+    testImplementation "junit:junit:${rootProject.ext.junitVersion}"
 }

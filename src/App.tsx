@@ -38,6 +38,29 @@ const SHEIN_BROWSER_HEADERS = {
   'Accept-Language': 'ar-SA,ar;q=0.9,en;q=0.8',
 }
 
+// يكشف موقع خروج الإنترنت الحالي (بلد/منطقة الـVPN فعلياً) عبر خدمتي geo
+// تدعمان CORS، لتمييز «VPN مطفأ» (البلد سوريا) عن «منطقة VPN غير مدعومة»
+// (بلد آخر لكن المتجر محجوب). فشل الخدمتين معاً = الشبكة نفسها متعثرة.
+type VpnGeo = { countryCode: string; country: string; region: string }
+const probeVpnGeo = async (): Promise<VpnGeo | null> => {
+  const attempt = async (url: string, parse: (d: Record<string, unknown>) => VpnGeo | null): Promise<VpnGeo | null> => {
+    try {
+      const res = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(7000) })
+      if (!res.ok) return null
+      return parse(await res.json() as Record<string, unknown>)
+    } catch {
+      return null
+    }
+  }
+  const fromIpwho = await attempt('https://ipwho.is/', (d) => (d && d.success !== false && typeof d.country_code === 'string')
+    ? { countryCode: d.country_code, country: typeof d.country === 'string' ? d.country : '', region: typeof d.region === 'string' ? d.region : '' }
+    : null)
+  if (fromIpwho) return fromIpwho
+  return attempt('https://ipapi.co/json/', (d) => (d && typeof d.country_code === 'string')
+    ? { countryCode: d.country_code, country: typeof d.country_name === 'string' ? d.country_name : '', region: typeof d.region === 'string' ? d.region : '' }
+    : null)
+}
+
 const extractGroupInviteCode = (value: string) => {
   const raw = value.trim()
   try {
@@ -713,7 +736,11 @@ function App() {
   // API calls and bypass the relay regardless of fixes), so Android now uses
   // the exact same direct-connection + VPN-gate flow already proven stable
   // on iOS, rather than maintaining two different unreliable paths.
-  const [vpnState, setVpnState] = useState<'checking' | 'ok' | 'blocked'>('checking')
+  // حالات البوابة الذكية: no-vpn = الاتصال يظهر من سوريا (شغّل VPN)،
+  // bad-region = VPN شغّال لكن منطقته لا تفتح المتجر (غيّر السيرفر/الولاية)،
+  // offline = تعذر الوصول للإنترنت أصلاً.
+  const [vpnState, setVpnState] = useState<'checking' | 'ok' | 'no-vpn' | 'bad-region' | 'offline'>('checking')
+  const [vpnGeo, setVpnGeo] = useState<{ country: string; region: string } | null>(null)
   const [notifications, setNotifications] = useStoredState<AppNotification[]>(storageKeys.notifications, [])
   const [notificationPrefs, setNotificationPrefs] = useStoredState<NotificationPrefs>(storageKeys.notificationPrefs, DEFAULT_NOTIFICATION_PREFS)
   // يربط نوع الإشعار بمفتاح تفضيله؛ إذا المستخدم طفّى الفئة لا يُنشأ إشعار داخل التطبيق
@@ -769,7 +796,10 @@ function App() {
     if (API_BASE && phone && notificationPrefs.whatsapp) {
       void fetch(`${API_BASE}/api/notify/whatsapp`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${sessionToken}`,
+        },
         body: JSON.stringify({ phone, text: `otlobli: ${n.title}\n${n.body}` }),
       }).catch(() => undefined)
     }
@@ -1802,7 +1832,9 @@ function App() {
   // based on whether the bytes that came back are a real image, regardless
   // of CORS - the block page's HTML response fails to decode as one, a real
   // SHEIN asset succeeds.
-  const checkSheinReachable = () => {
+  // فحص وصول للمتجر المختار تحديداً (وليس أي متجر): منطقة VPN قد تفتح
+  // شي إن وتحجب تيمو، وفحص «أيهما نجح» كان يفتح متجراً سيفشل فعلياً.
+  const checkStoreReachable = (store: string) => {
     const probeImage = (url: string): Promise<boolean> =>
       new Promise((resolve) => {
         const img = new Image()
@@ -1815,32 +1847,37 @@ function App() {
       fetch(url, { mode: 'no-cors', cache: 'no-store', signal: AbortSignal.timeout(10000) })
         .then(() => true)
         .catch(() => false)
-    return Promise.any([
-      probeImage('https://m.shein.com/favicon.ico'),
-      probeImage('https://img.ltwebstatic.com/images3_spmp/2024/06/20/17/1718854498b4a8f5ebce05ea476acae42de72b810a_thumbnail_80x80.webp'),
-      probeImage('https://www.temu.com/favicon.ico'),
-      probeFetch('https://m.shein.com/favicon.ico'),
-      probeFetch('https://www.temu.com/favicon.ico'),
-    ]).catch(() => false)
+    const probes = store === 'temu'
+      ? [
+        probeImage('https://www.temu.com/favicon.ico'),
+        probeFetch('https://www.temu.com/favicon.ico'),
+      ]
+      : [
+        probeImage('https://m.shein.com/favicon.ico'),
+        probeImage('https://img.ltwebstatic.com/images3_spmp/2024/06/20/17/1718854498b4a8f5ebce05ea476acae42de72b810a_thumbnail_80x80.webp'),
+        probeFetch('https://m.shein.com/favicon.ico'),
+      ]
+    return Promise.any(probes).catch(() => false)
   }
 
   useEffect(() => {
     if (vpnState !== 'checking') return undefined
     let cancelled = false
-    const autoBypassTimer = window.setTimeout(() => {
-      if (!cancelled) setVpnState('ok')
-    }, 5000)
-    void checkSheinReachable().then((ok) => {
+    void (async () => {
+      // الفحصان بالتوازي: وصول المتجر + الموقع الجغرافي لخروج الإنترنت.
+      const [storeOk, geo] = await Promise.all([
+        checkStoreReachable(selectedStore),
+        probeVpnGeo(),
+      ])
       if (cancelled) return
-      window.clearTimeout(autoBypassTimer)
-      if (ok) {
-        window.setTimeout(() => { if (!cancelled) setVpnState('ok') }, 800)
-      } else {
-        setVpnState('ok')
-      }
-    })
-    return () => { cancelled = true; window.clearTimeout(autoBypassTimer) }
-  }, [vpnState])
+      if (storeOk) { setVpnState('ok'); return }
+      if (!geo) { setVpnState('offline'); return }
+      setVpnGeo({ country: geo.country, region: geo.region })
+      setVpnState(geo.countryCode === 'SY' ? 'no-vpn' : 'bad-region')
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vpnState, selectedStore])
 
   const postWebviewChromeState = (target: 'home' | 'cart') => {
     void InAppBrowser.postMessage({ detail: { type: '__resize' } })
@@ -2339,7 +2376,9 @@ function App() {
         ...item,
         priceSyp: getItemPriceSyp(item),
       })),
-      total: checkoutTotal,
+      // Store the full order value. The backend reserves the selected wallet
+      // amount and computes the remaining ShamCash amount in one transaction.
+      total: preWalletTotal,
       paymentStatus: 'بانتظار الدفع',
       statusIndex: 0,
       qadmousNumber: '',
@@ -2348,17 +2387,17 @@ function App() {
       groupCode: cartGroup?.code,
     }
 
-    const walletDeduction = walletSpendUsd > 0
-      ? appApi.wallet.spend(phone, walletSpendUsd, orderId).then((newBal) => {
-          setWalletBalanceUsd(newBal)
+    void appApi.orders.createPendingOrder(newOrder, paymentCurrency, walletSpendUsd, selectedStore)
+      .then((result) => {
+        if (typeof result.walletBalanceUsd === 'number') {
+          setWalletBalanceUsd(result.walletBalanceUsd)
+        }
+        if (walletSpendUsd > 0) {
           setUseWallet(false)
           setWalletSpendInput('')
-        }).catch(() => undefined)
-      : Promise.resolve()
+        }
 
-    void walletDeduction.then(() => appApi.orders.createPendingOrder(newOrder, paymentCurrency))
-      .then((result) => {
-        if (PAYMENT_MODE === 'auto') {
+        if (result.paymentStatus === 'مدفوع' || result.paymentAmount <= 0) {
           const savedOrder: Order = {
             ...newOrder,
             id: result.orderId,
@@ -3320,6 +3359,12 @@ function App() {
                 أكمل بيانات المنتجات المخصصة (الاسم/الصورة) للمتابعة
               </p>
             )}
+            {cartItems.length > 0 && (
+              <div className="sticky-pay-total">
+                <span>الإجمالي ({activeCheckoutItems.length} {activeCheckoutItems.length === 1 ? 'منتج' : 'منتجات'})</span>
+                <strong>{formatPrice(total)}</strong>
+              </div>
+            )}
             <button className="primary-action" disabled={activeCheckoutItems.length === 0 || !meetsMinimumOrder || hasIncompleteCheckoutCustom || hasAvailabilityIssues} onClick={() => setScreen('checkout')}>
               المتابعة للدفع
               <Icon name="arrow_back" />
@@ -3800,6 +3845,54 @@ function App() {
                     </label>
                   )
                 })()}
+                {order.items.length > 0 && (() => {
+                  // «الخيارات المتاحة» التي كتبتها الإدارة في المشكلة →
+                  // أزرار يختار منها الزبون بلمسة فيُحدَّث عنصر الطلب مباشرة.
+                  const note = order.paymentIssueNote || ''
+                  const optsMatch = note.match(/الخيارات المتاحة:\s*([^\n]+)/)
+                  if (!optsMatch) return null
+                  const options = optsMatch[1].split('|').map((opt) => opt.trim()).filter(Boolean)
+                  if (!options.length) return null
+                  const field: 'size' | 'color' = /نوع المشكلة:[^\n]*اللون/.test(note) ? 'color' : 'size'
+                  const idxMatch = note.match(/المنتج:\s*(\d+)\s*\./)
+                  const idx = idxMatch ? Math.min(order.items.length - 1, Math.max(0, Number(idxMatch[1]) - 1)) : 0
+                  const target = order.items[idx]
+                  if (!target) return null
+                  const current = field === 'size' ? target.size : target.color
+                  return (
+                    <div className="issue-options">
+                      <p className="issue-options-title">{field === 'size' ? 'اختر المقاس البديل بلمسة:' : 'اختر اللون البديل بلمسة:'}</p>
+                      <div className="issue-options-row">
+                        {options.map((opt) => (
+                          <button
+                            key={opt}
+                            className={`issue-option-chip${current === opt ? ' is-selected' : ''}`}
+                            disabled={sendingCustomFix}
+                            onClick={() => {
+                              setSendingCustomFix(true)
+                              void appApi.orders.submitOptionFix(order.id, target.id, field, opt)
+                                .then((ok) => {
+                                  if (ok) {
+                                    setOrders((list) => list.map((o) => o.id === order.id
+                                      ? { ...o, items: o.items.map((it) => it.id === target.id ? { ...it, [field]: opt } : it) }
+                                      : o))
+                                    showNotice(`تم اختيار «${opt}» — وصل للإدارة ✔`)
+                                  } else {
+                                    showNotice('تعذّر إرسال الاختيار، حاول مجدداً')
+                                  }
+                                })
+                                .catch(() => showNotice('تعذّر إرسال الاختيار، حاول مجدداً'))
+                                .finally(() => setSendingCustomFix(false))
+                            }}
+                          >
+                            {opt}
+                          </button>
+                        ))}
+                      </div>
+                      {current ? <p className="issue-options-current">اختيارك الحالي: {current}</p> : null}
+                    </div>
+                  )
+                })()}
                 {!!order.extraAmountUsd && order.extraAmountUsd > 0 && (
                   <p className="payment-issue-amount">المتبقي: ${order.extraAmountUsd.toFixed(2)}</p>
                 )}
@@ -3818,6 +3911,21 @@ function App() {
                 >
                   <Icon name="payments" /> حل الإجراء عبر واتساب
                 </button>
+              </section>
+            )}
+            {order.invoice && order.invoice.length > 0 && (
+              <section className="invoice-view">
+                <h2>🧾 تفاصيل الرسوم</h2>
+                {order.invoice.map((line, i) => (
+                  <div className="invoice-view-row" key={i}>
+                    <span>{line.label}</span>
+                    <strong>{formatUsd(line.amountUsd)}</strong>
+                  </div>
+                ))}
+                <div className="invoice-view-row invoice-view-total">
+                  <span>مجموع الرسوم</span>
+                  <strong>{formatUsd(order.invoice.reduce((sum, line) => sum + line.amountUsd, 0))}</strong>
+                </div>
               </section>
             )}
             {renderCropModal()}
@@ -4446,16 +4554,51 @@ function App() {
             </section>
             <span className="spinner" />
           </main>
-        ) : vpnState === 'blocked' ? (
+        ) : vpnState === 'no-vpn' ? (
           <main className="mobile-content shein-home">
             <div className="empty-state">
               <Icon name="vpn_key" />
-              <h2>فعّل الـ VPN أولاً</h2>
-              <p>متجر {currentStoreName} محجوب في سوريا - شغّل تطبيق VPN على جهازك، وبعدها اضغط الزر تحت لنتحقق من جديد.</p>
+              <h2>شغّل الـ VPN أولاً</h2>
+              <p>اتصالك الحالي يظهر من داخل سوريا، ومتجر {currentStoreName} محجوب هنا. شغّل تطبيق VPN على جهازك ثم اضغط «تحقّق من جديد».</p>
             </div>
             <button className="primary-action" onClick={() => setVpnState('checking')}>
               <Icon name="refresh" />
               تحقّق من جديد
+            </button>
+            <button className="ghost-action" onClick={() => setVpnState('ok')} style={{ marginTop: 8 }}>
+              <Icon name="open_in_browser" />
+              فتح المتجر على أي حال
+            </button>
+          </main>
+        ) : vpnState === 'bad-region' ? (
+          <main className="mobile-content shein-home">
+            <div className="empty-state">
+              <Icon name="travel_explore" />
+              <h2>غيّر منطقة الـ VPN</h2>
+              <p>
+                {`الـ VPN شغّال — اتصالك يظهر من ${vpnGeo?.country || 'خارج سوريا'}${vpnGeo?.region ? ` (${vpnGeo.region})` : ''}، لكن متجر ${currentStoreName} لا يفتح من هذه المنطقة.`}
+              </p>
+              <p>غيّر السيرفر أو الولاية من تطبيق الـ VPN — حتى داخل الدولة نفسها بعض المناطق تعمل وبعضها محجوب — ثم اضغط «تحقّق من جديد».</p>
+            </div>
+            <button className="primary-action" onClick={() => setVpnState('checking')}>
+              <Icon name="refresh" />
+              تحقّق من جديد
+            </button>
+            <button className="ghost-action" onClick={() => setVpnState('ok')} style={{ marginTop: 8 }}>
+              <Icon name="open_in_browser" />
+              فتح المتجر على أي حال
+            </button>
+          </main>
+        ) : vpnState === 'offline' ? (
+          <main className="mobile-content shein-home">
+            <div className="empty-state">
+              <Icon name="wifi_off" />
+              <h2>تعذّر فحص الاتصال</h2>
+              <p>لم نستطع الوصول للإنترنت إطلاقاً. تأكد من اتصال الجهاز (أو أن الـ VPN غير عالق على سيرفر ميت) ثم أعد المحاولة.</p>
+            </div>
+            <button className="primary-action" onClick={() => setVpnState('checking')}>
+              <Icon name="refresh" />
+              إعادة المحاولة
             </button>
             <button className="ghost-action" onClick={() => setVpnState('ok')} style={{ marginTop: 8 }}>
               <Icon name="open_in_browser" />
@@ -4659,9 +4802,12 @@ function ProfileRow({ icon, label, onClick }: { icon: string; label: string; onC
 
 function PaymentCurrencyRow({ value, onClick }: { value: PaymentCurrency; onClick: () => void }) {
   const selected = value === 'USD' ? 'دولار أمريكي' : 'ليرة سورية'
+  // اسم العملة في عنصر مستقل غير قابل للقص — داخل <b> كان يُبتر إلى "..."
+  // على الشاشات الضيقة (قاعدة ellipsis العامة في .profile-row-main b).
   return (
     <button className="profile-row" onClick={onClick}>
-      <span className="profile-row-main"><Icon name="attach_money" /> <b>عملة الدفع: {selected}</b></span>
+      <span className="profile-row-main"><Icon name="attach_money" /> <b>عملة الدفع</b></span>
+      <span className="profile-row-value">{selected}</span>
       <Icon name="chevron_left" />
     </button>
   )

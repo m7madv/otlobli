@@ -2161,8 +2161,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // العامة المفردة (اسم/نص/كتابة/صورة/رفع/عين/وجه) لأنها تظهر في كل صفحة
   // (مراجعات، شحن، واجهة المتجر، منتجات مقترحة) وكانت السبب الرئيسي في تحويل
   // منتجات عادية إلى "مخصصة" وحجز الدفع عبثاً.
+  // تنبيه (v60): كلمة "نقش" وحدها ممنوعة — "بنقشة التنين/منقوش بطبعة" تعني
+  // مطبوعاً بنمط جاهز لا تخصيصاً (جراب هاتف عادي فُعّل خطأً بسببها). نطابق
+  // نقش فقط في سياق تخصيص صريح: "نقش اسم/نص"، "قابل للنقش"، "انقش اسمك".
   function otlobliCustomTextSignal(text) {
-    return /custom\\s*(?:text|name)|personali[sz]|engrav|monogram|name\\s*plate|your\\s*(?:name|text)|enter\\s*(?:name|text)|نقش|محفور|محفورة|حفر\\s*(?:اسم|الاسم|نص)|بالاسم|باسمك|بأسمك|اسم\\s*مخصص|نص\\s*مخصص|اكتب\\s*(?:اسم|الاسم|نص|النص)/i.test(text || '');
+    return /custom\\s*(?:text|name)|personali[sz]|engrav|monogram|name\\s*plate|your\\s*(?:name|text)|enter\\s*(?:name|text)|نقش\\s*(?:اسم|الاسم|نص|النص|حسب)|قابل\\s*للنقش|انقش|محفور(?:ة)?\\s*(?:باسم|بالاسم|باسمك)|حفر\\s*(?:اسم|الاسم|نص)|بالاسم|باسمك|بأسمك|اسم\\s*مخصص|نص\\s*مخصص|اكتب\\s*(?:اسم|الاسم|نص|النص)/i.test(text || '');
   }
 
   function otlobliCustomPhotoSignal(text) {
@@ -2863,7 +2866,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
       'display:flex!important;direction:rtl!important;overflow:hidden!important;box-sizing:border-box!important;' +
       'background:rgba(255,255,255,.98)!important;border-top:1px solid #bccac0!important;' +
       'padding:0 0 max(env(safe-area-inset-bottom, 0px), 16px) 0!important;margin:0!important;' +
-      'font-size:11px!important;line-height:1.15!important;opacity:1!important;visibility:visible!important;pointer-events:auto!important;';
+      // 12px يطابق خط شريط otlobli الحقيقي (0.76rem ≈ 12.2px) — كان 11px
+      // فيبدو الشريطان مختلفين عند التنقل بين المتجر وبقية الشاشات.
+      'font-size:12px!important;line-height:1.15!important;opacity:1!important;visibility:visible!important;pointer-events:auto!important;';
     var existingNav = document.getElementById('otlobli-nav');
     if (existingNav) {
       existingNav.style.cssText = navCss;
@@ -2949,7 +2954,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       tab.style.cssText = 'position:relative!important;flex:1 1 0!important;height:74px!important;min-height:74px!important;max-height:74px!important;' +
         'border:0!important;background:transparent!important;display:flex!important;flex-direction:column!important;' +
         'align-items:center!important;justify-content:center!important;gap:4px!important;padding:6px 0!important;margin:0!important;' +
-        'box-sizing:border-box!important;font-size:11px!important;line-height:1.15!important;font-weight:700!important;' +
+        'box-sizing:border-box!important;font-size:12px!important;line-height:1.15!important;font-weight:700!important;' +
         'font-family:Cairo,system-ui,-apple-system,sans-serif!important;color:' + (isActiveTab ? '#006948' : '#3d4a42') + '!important;';
       if (isActiveTab) {
         var indicator = document.createElement('span');
@@ -2959,7 +2964,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var iconLabelWrap = document.createElement('span');
       iconLabelWrap.style.cssText = 'display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;' +
         'gap:4px!important;width:100%!important;height:62px!important;min-height:0!important;pointer-events:none!important;' +
-        'font-size:11px!important;line-height:1.15!important;box-sizing:border-box!important;';
+        'font-size:12px!important;line-height:1.15!important;box-sizing:border-box!important;';
       iconLabelWrap.innerHTML = '<svg width="22" height="22" style="width:22px!important;height:22px!important;flex:0 0 22px!important;display:block!important" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
         'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + item.icon + '</svg>' +
         '<span>' + item.label + '</span>';
@@ -3819,7 +3824,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
     '[class*="tab-d3nPD"],' +
     '[aria-label="عربة التسوق"], [aria-label="الحساب"], [aria-label="الفئات"],' +
     '[class*="downloadUI" i]' +
-    '{ display: none !important; visibility: hidden !important; pointer-events: none !important; }';
+    '{ display: none !important; visibility: hidden !important; pointer-events: none !important; }' +
+    // (v60) غلاف downloadsWrapper يبقى ظاهراً (يحوي البحث — درس v57)، لكن
+    // بعد إخفاء بانر downloadUI تبقى حشوة/خلفية الغلاف فتظهر إطاراً أبيض
+    // كبيراً حول البحث أحياناً — نصفّر تباعده دون إخفائه.
+    '[class*="downloadsWrapper"]' +
+    '{ padding: 0 !important; margin: 0 !important; min-height: 0 !important; box-shadow: none !important; }';
   // نحقن القاعدة في أبكر لحظة ممكنة (documentStart، قبل رسم أي شيء) لمنع أي
   // وميض للعناصر المخفية. لا نعتمد على flag لمرة واحدة، بل نفحص وجود <style>
   // فعلياً في كل استدعاء: لو أزالت تيمو عنصرنا أثناء إعادة بناء الصفحة (عند

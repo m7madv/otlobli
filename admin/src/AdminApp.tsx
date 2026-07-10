@@ -54,6 +54,8 @@ type Order = {
   paymentIssue: boolean
   paymentIssueNote: string
   extraAmountUsd: number
+  // فاتورة الطلب: بنود رسوم يحررها المشرف وتظهر للزبون في تفاصيل الطلب
+  invoice?: { label: string; amountUsd: number }[]
   groupId?: string
   groupCode?: string
 }
@@ -1054,13 +1056,21 @@ const issueTypes = [
   { value: 'other', label: 'مشكلة أخرى', action: 'افتح التطبيق لمراجعة تفاصيل المشكلة.' },
 ]
 
-function buildIssueNote(issueType: string, itemLabel: string, customNote: string, requiredSize: string) {
+function buildIssueNote(issueType: string, itemLabel: string, customNote: string, requiredSize: string, availableOptions: string) {
   const type = issueTypes.find((entry) => entry.value === issueType) ?? issueTypes[0]
+  // «الخيارات المتاحة» بصيغة ثابتة يقرؤها تطبيق الزبون فيعرضها أزراراً
+  // يختار منها بلمسة (تُحدّث عنصر الطلب مباشرة دون مراسلة).
+  const options = availableOptions
+    .split(/[|,،\n]/)
+    .map((opt) => opt.trim())
+    .filter(Boolean)
+    .join(' | ')
   return [
     `نوع المشكلة: ${type.label}`,
     itemLabel ? `المنتج: ${itemLabel}` : '',
     // سطر بصيغة ثابتة يقرؤه تطبيق الزبون ليقفل نسبة القص عليها (مثال 3:4 أو 800x800)
     requiredSize.trim() ? `القياس المطلوب: ${requiredSize.trim()}` : '',
+    options ? `الخيارات المتاحة: ${options}` : '',
     customNote.trim() ? `ملاحظة الإدارة: ${customNote.trim()}` : '',
     `المطلوب من الزبون: ${type.action}`,
   ].filter(Boolean).join('\n')
@@ -1074,13 +1084,14 @@ function PaymentIssueField({ order, onUpdate }: { order: Order; onUpdate: (order
   const [customNote, setCustomNote] = useState(order.paymentIssueNote)
   const [amount, setAmount] = useState(String(order.extraAmountUsd || ''))
   const [requiredSize, setRequiredSize] = useState('')
+  const [availableOptions, setAvailableOptions] = useState('')
 
   const save = (issue: boolean) => {
     const item = itemIndex === '' ? null : order.items[Number(itemIndex)]
     const itemLabel = item ? `${Number(itemIndex) + 1}. ${item.title}` : ''
     onUpdate(order.id, {
       paymentIssue: issue,
-      paymentIssueNote: issue ? buildIssueNote(issueType, itemLabel, customNote, requiredSize) : '',
+      paymentIssueNote: issue ? buildIssueNote(issueType, itemLabel, customNote, requiredSize, availableOptions) : '',
       extraAmountUsd: Number(amount) || 0,
     })
   }
@@ -1132,6 +1143,17 @@ function PaymentIssueField({ order, onUpdate }: { order: Order; onUpdate: (order
               />
             </label>
           )}
+          {(issueType === 'size' || issueType === 'color') && (
+            <label className="field">
+              <span>الخيارات المتاحة (تظهر أزراراً في التطبيق والزبون يختار بلمسة)</span>
+              <input
+                type="text"
+                placeholder={issueType === 'size' ? 'مثال: S | M | L | XL' : 'مثال: أسود | أبيض | أزرق'}
+                value={availableOptions}
+                onChange={(e) => setAvailableOptions(e.target.value)}
+              />
+            </label>
+          )}
           <textarea
             placeholder="ملاحظة إضافية للزبون: مثال اللون المطلوب غير متوفر، أرسل صورة أو اختر بديل..."
             value={customNote}
@@ -1148,6 +1170,54 @@ function PaymentIssueField({ order, onUpdate }: { order: Order; onUpdate: (order
           <button className="ghost-action" onClick={() => save(true)}>حفظ وإشعار الزبون</button>
         </>
       )}
+    </div>
+  )
+}
+
+// ── قسم الفاتورة ──────────────────────────────────────────────────────────────
+// بنود رسوم يحررها المشرف (شحن سعودية→سوريا، رسوم منصة...) وتُحفظ في عمود
+// invoice بالطلب فتظهر للزبون في تفاصيل الطلب داخل التطبيق بعد المزامنة.
+function InvoiceField({ order, onUpdate }: { order: Order; onUpdate: (orderId: string, patch: Partial<Order>) => void }) {
+  const [lines, setLines] = useState<{ label: string; amountUsd: string }[]>(
+    (order.invoice ?? []).map((line) => ({ label: line.label, amountUsd: String(line.amountUsd) })),
+  )
+  const totalUsd = lines.reduce((sum, line) => sum + (Number(line.amountUsd) || 0), 0)
+
+  const save = () => {
+    onUpdate(order.id, {
+      invoice: lines
+        .map((line) => ({ label: line.label.trim(), amountUsd: Math.round((Number(line.amountUsd) || 0) * 100) / 100 }))
+        .filter((line) => line.label !== ''),
+    })
+  }
+
+  return (
+    <div className="field invoice-field">
+      <span className="invoice-field-title">🧾 فاتورة الرسوم — تظهر للزبون في تفاصيل الطلب</span>
+      {lines.map((line, idx) => (
+        <div className="invoice-line" key={idx}>
+          <input
+            type="text"
+            placeholder="الوصف — مثال: شحن السعودية → سوريا"
+            value={line.label}
+            onChange={(e) => setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, label: e.target.value } : l)))}
+          />
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="$"
+            value={line.amountUsd}
+            onChange={(e) => setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, amountUsd: e.target.value } : l)))}
+          />
+          <button type="button" className="invoice-line-remove" onClick={() => setLines((prev) => prev.filter((_, i) => i !== idx))} title="حذف البند">✕</button>
+        </div>
+      ))}
+      <div className="invoice-actions">
+        <button type="button" className="ghost-action" onClick={() => setLines((prev) => [...prev, { label: '', amountUsd: '' }])}>+ إضافة بند</button>
+        <span className="invoice-total">المجموع: ${totalUsd.toFixed(2)}</span>
+        <button type="button" className="ghost-action invoice-save" onClick={save}>حفظ الفاتورة</button>
+      </div>
     </div>
   )
 }
@@ -1293,6 +1363,7 @@ function OrderModal({
           </label>
           <DriverAssignField order={order} drivers={drivers} onUpdate={onUpdate} />
           <PaymentIssueField order={order} onUpdate={onUpdate} />
+          <InvoiceField order={order} onUpdate={onUpdate} />
           <div className="detail-actions">
             <button className="primary-action" onClick={() => onMarkPaid(order)}>تأكيد الدفع</button>
             <button className="ghost-action" onClick={() => onAdvance(order)}>نقل للمرحلة التالية</button>

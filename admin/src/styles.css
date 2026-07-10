@@ -574,6 +574,16 @@ td:first-child {
   display: block;
 }
 
+/* قسم فاتورة الرسوم */
+.invoice-field { display: flex; flex-direction: column; gap: 8px; }
+.invoice-field-title { font-weight: 800; font-size: 0.85rem; }
+.invoice-line { display: flex; gap: 6px; align-items: center; }
+.invoice-line input[type="text"] { flex: 1; min-width: 0; }
+.invoice-line input[type="number"] { width: 90px; flex: 0 0 auto; }
+.invoice-line-remove { border: 0; background: transparent; color: #c62828; font-weight: 800; cursor: pointer; padding: 4px 6px; }
+.invoice-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.invoice-total { margin-inline-start: auto; font-weight: 800; color: var(--primary); }
+
 .info-row {
   display: flex;
   justify-content: space-between;

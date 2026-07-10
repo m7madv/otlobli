@@ -174,7 +174,9 @@ a {
 }
 
 .mobile-content--cart {
-  padding-bottom: calc(74px + max(env(safe-area-inset-bottom, 0px), 16px) + 96px + 72px);
+  /* 260px = أسوأ ارتفاع لشريط الدفع العائم (ملخص + تنبيهان + زر) — أقل من
+     هذا كان يحجب بطاقة "اطلب مع صديق" أسفل السلة فلا يمكن الوصول إليها. */
+  padding-bottom: calc(74px + max(env(safe-area-inset-bottom, 0px), 16px) + 260px);
 }
 
 .mobile-content--orders {
@@ -202,6 +204,30 @@ a {
   min-height: 54px;
   border-radius: 14px;
   box-shadow: none;
+}
+
+.sticky-pay-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 8px 8px;
+  font-size: 0.88rem;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.sticky-pay-total strong {
+  color: var(--primary);
+  font-size: 1.08rem;
+  font-weight: 800;
+}
+
+.profile-row-value {
+  flex: 0 0 auto;
+  color: var(--primary);
+  font-weight: 800;
+  font-size: 0.9rem;
+  white-space: nowrap;
 }
 
 .greeting h1,
@@ -832,6 +858,22 @@ a {
 /* زر قصّ وإرسال الصورة داخل بانر مشكلة الطلب */
 .payment-issue-fix-photo { display: inline-flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; }
 .payment-issue-fix-photo.is-disabled { opacity: 0.6; pointer-events: none; }
+
+/* خيارات حل المشكلة بلمسة (مقاس/لون بديل من الإدارة) */
+.issue-options { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.issue-options-title { margin: 0; font-size: 0.85rem; font-weight: 800; }
+.issue-options-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.issue-option-chip { border: 1.5px solid var(--primary); background: var(--surface); color: var(--primary); font-size: 0.88rem; font-weight: 800; border-radius: 999px; padding: 8px 18px; cursor: pointer; }
+.issue-option-chip.is-selected { background: var(--primary); color: #fff; }
+.issue-option-chip:disabled { opacity: 0.6; }
+.issue-options-current { margin: 0; font-size: 0.78rem; color: var(--muted); }
+
+/* فاتورة الرسوم في تفاصيل الطلب */
+.invoice-view { background: var(--surface); border: 1px solid var(--outline); border-radius: var(--radius); padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+.invoice-view h2 { margin: 0 0 2px; font-size: 1rem; }
+.invoice-view-row { display: flex; align-items: center; justify-content: space-between; font-size: 0.9rem; color: var(--text); }
+.invoice-view-row strong { font-weight: 800; }
+.invoice-view-total { border-top: 1px dashed var(--outline); padding-top: 8px; color: var(--primary); font-weight: 800; }
 
 .coupon-box { background: var(--primary-soft); border-radius: var(--radius); padding: 14px; margin: 12px 0; }
 .coupon-box > p { margin: 0 0 10px; font-size: 0.85rem; color: var(--primary); font-weight: 700; }
