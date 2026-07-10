@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
+import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 import {
   allowedProducts,
   blockedProducts,
@@ -51,35 +51,175 @@ const extractGroupInviteCode = (value: string) => {
   }
 }
 
-// صورة التخصيص تُخزَّن data URL داخل السلة والطلب (localStorage + jsonb) —
-// نصغّرها قبل الحفظ حتى لا تتضخم الحصة المحلية وحمولة الطلب (صور الكاميرا
-// الحديثة تتجاوز 5MB؛ بعد التصغير ~100-300KB وهي كافية تماماً للمتجر).
-const CUSTOM_PHOTO_MAX_SIDE = 1280
-const downscaleCustomPhoto = (file: File): Promise<string> =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onerror = () => reject(new Error('تعذر قراءة الصورة'))
-    reader.onload = (ev) => {
-      const src = typeof ev.target?.result === 'string' ? ev.target.result : ''
-      if (!src) { reject(new Error('تعذر قراءة الصورة')); return }
-      const img = new Image()
-      img.onload = () => {
-        const maxSide = Math.max(img.width, img.height)
-        if (maxSide <= CUSTOM_PHOTO_MAX_SIDE) { resolve(src); return }
-        const scale = CUSTOM_PHOTO_MAX_SIDE / maxSide
-        const canvas = document.createElement('canvas')
-        canvas.width = Math.round(img.width * scale)
-        canvas.height = Math.round(img.height * scale)
-        const ctx = canvas.getContext('2d')
-        if (!ctx) { resolve(src); return }
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-        resolve(canvas.toDataURL('image/jpeg', 0.85))
-      }
-      img.onerror = () => resolve(src)
-      img.src = src
+// يلتقط نسبة القص المطلوبة من نص حر: "3:4"، "800x800"، "1080×1350 بكسل"...
+// تأتي من ملاحظة صفحة المنتج (customPhotoNote) أو من سطر "القياس المطلوب:"
+// الذي تكتبه الإدارة في ملاحظة المشكلة. null = لا قيد (قص مربع افتراضي).
+const parsePhotoAspect = (text?: string): number | null => {
+  if (!text) return null
+  const m = text.match(/(\d+(?:\.\d+)?)\s*[x×*:]\s*(\d+(?:\.\d+)?)/)
+  if (!m) return null
+  const w = parseFloat(m[1])
+  const h = parseFloat(m[2])
+  if (!(w > 0) || !(h > 0)) return null
+  const ratio = w / h
+  if (ratio < 0.25 || ratio > 4) return null
+  return ratio
+}
+
+// طلب قص معلّق: مصدر الصورة + النسبة المقفولة + ما يحدث عند التأكيد.
+type CropRequest = {
+  src: string
+  aspect: number | null
+  hint?: string
+  onDone: (dataUrl: string) => void
+}
+
+// ── شاشة قصّ الصور (منتجات التخصيص) ────────────────────────────────────────
+// سحب لتحريك الصورة، تكبير بالشريط أو بقرصة الأصابع، وإطار قص يُقفل على
+// النسبة المطلوبة (قياس المتجر/الإدارة) أو مربع افتراضياً. الإخراج JPEG
+// بحد أقصى 1080px — مصغّر وجاهز للإرسال، فلا حاجة لتصغير لاحق.
+function PhotoCropModal({ src, aspect, hint, onConfirm, onCancel }: {
+  src: string
+  aspect: number | null
+  hint?: string
+  onConfirm: (dataUrl: string) => void
+  onCancel: () => void
+}) {
+  const ratio = aspect && aspect > 0 ? aspect : 1
+  const frameRef = useRef<HTMLDivElement | null>(null)
+  const imgElRef = useRef<HTMLImageElement | null>(null)
+  const [imgSize, setImgSize] = useState<{ w: number; h: number } | null>(null)
+  const [zoom, setZoom] = useState(1)
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+  const pointersRef = useRef(new Map<number, { x: number; y: number }>())
+  const pinchRef = useRef<{ dist: number; zoom: number } | null>(null)
+
+  const getFrameSize = () => {
+    const el = frameRef.current
+    if (!el) return { w: 300, h: 300 / ratio }
+    const r = el.getBoundingClientRect()
+    return { w: r.width || 300, h: r.height || 300 / ratio }
+  }
+
+  // موضع رسم الصورة داخل الإطار — مقيّد بحيث تغطي الصورة الإطار دائماً
+  // (لا فراغات سوداء داخل القص مهما سحب المستخدم).
+  const layout = () => {
+    if (!imgSize) return null
+    const frame = getFrameSize()
+    const cover = Math.max(frame.w / imgSize.w, frame.h / imgSize.h)
+    const scale = cover * zoom
+    const drawW = imgSize.w * scale
+    const drawH = imgSize.h * scale
+    const minX = frame.w - drawW
+    const minY = frame.h - drawH
+    const x = Math.min(0, Math.max(minX, minX / 2 + pan.x))
+    const y = Math.min(0, Math.max(minY, minY / 2 + pan.y))
+    return { frame, scale, drawW, drawH, x, y }
+  }
+
+  const lay = layout()
+
+  const onPointerDown = (e: ReactPointerEvent) => {
+    frameRef.current?.setPointerCapture?.(e.pointerId)
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    if (pointersRef.current.size === 2) {
+      const [a, b] = [...pointersRef.current.values()]
+      pinchRef.current = { dist: Math.hypot(a.x - b.x, a.y - b.y), zoom }
     }
-    reader.readAsDataURL(file)
-  })
+  }
+  const onPointerMove = (e: ReactPointerEvent) => {
+    const prev = pointersRef.current.get(e.pointerId)
+    if (!prev) return
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    if (pointersRef.current.size >= 2 && pinchRef.current) {
+      const [a, b] = [...pointersRef.current.values()]
+      const dist = Math.hypot(a.x - b.x, a.y - b.y)
+      if (pinchRef.current.dist > 0) {
+        setZoom(Math.min(4, Math.max(1, pinchRef.current.zoom * (dist / pinchRef.current.dist))))
+      }
+      return
+    }
+    setPan((p) => ({ x: p.x + (e.clientX - prev.x), y: p.y + (e.clientY - prev.y) }))
+  }
+  const onPointerEnd = (e: ReactPointerEvent) => {
+    pointersRef.current.delete(e.pointerId)
+    if (pointersRef.current.size < 2) pinchRef.current = null
+  }
+
+  const confirm = () => {
+    const l = layout()
+    const imgEl = imgElRef.current
+    if (!l || !imgEl || !imgSize) return
+    const outW = ratio >= 1 ? 1080 : Math.round(1080 * ratio)
+    const outH = Math.round(outW / ratio)
+    const canvas = document.createElement('canvas')
+    canvas.width = outW
+    canvas.height = outH
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.drawImage(
+      imgEl,
+      -l.x / l.scale, -l.y / l.scale, l.frame.w / l.scale, l.frame.h / l.scale,
+      0, 0, outW, outH,
+    )
+    onConfirm(canvas.toDataURL('image/jpeg', 0.87))
+  }
+
+  return (
+    <div className="crop-overlay">
+      <div className="crop-card">
+        <div className="crop-head">
+          <strong>قصّ الصورة</strong>
+          <span className={aspect ? 'crop-ratio-chip' : 'crop-ratio-chip crop-ratio-chip--free'}>
+            {aspect ? 'مقفول على القياس المطلوب' : 'قصّ مربع'}
+          </span>
+        </div>
+        {hint && <p className="crop-hint">{hint}</p>}
+        <div
+          ref={frameRef}
+          className="crop-frame"
+          style={{ aspectRatio: String(ratio) }}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerEnd}
+          onPointerCancel={onPointerEnd}
+        >
+          <img
+            ref={imgElRef}
+            src={src}
+            alt="الصورة المراد قصها"
+            draggable={false}
+            onLoad={(e) => {
+              const el = e.currentTarget
+              setImgSize({ w: el.naturalWidth || 1, h: el.naturalHeight || 1 })
+            }}
+            style={lay
+              ? { width: lay.drawW, height: lay.drawH, transform: `translate(${lay.x}px, ${lay.y}px)` }
+              : { opacity: 0 }}
+          />
+          <div className="crop-grid" />
+        </div>
+        <div className="crop-zoom-row">
+          <Icon name="zoom_out" />
+          <input
+            type="range"
+            min={100}
+            max={400}
+            value={Math.round(zoom * 100)}
+            onChange={(e) => setZoom(Number(e.target.value) / 100)}
+            aria-label="تكبير الصورة"
+          />
+          <Icon name="zoom_in" />
+        </div>
+        <p className="crop-tip">اسحب الصورة لتحريكها وكبّرها حتى يملأ الجزء المطلوب الإطار</p>
+        <div className="crop-actions">
+          <button className="ghost-action" onClick={onCancel}>إلغاء</button>
+          <button className="primary-action" onClick={confirm} disabled={!lay}>تأكيد القص</button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 const normalizeSheinBrowserUrl = (rawUrl: string) => {
   if (!rawUrl) return SHEIN_HOME_URL
@@ -343,6 +483,10 @@ function normalizePhoneForCompare(value: string) {
   return toAsciiDigits(value).replace(/\D+/g, '')
 }
 
+function isLegacyPhoneSessionToken(value: string) {
+  return /^\+?\d{7,18}$/.test(value.trim())
+}
+
 function formatRelativeRateTime(timestamp: number) {
   const elapsedMinutes = Math.max(0, Math.round((Date.now() - timestamp) / 60000))
   if (elapsedMinutes < 1) return 'تم التحديث الآن'
@@ -407,12 +551,18 @@ function App() {
 
   const [screen, setScreen] = useState<Screen>(() => {
     const token = readStoredJson<string>(storageKeys.sessionToken, '')
-    if (token) {
+    if (token && !isLegacyPhoneSessionToken(token)) {
       const profile = readStoredJson<UserProfile | null>(storageKeys.userProfile, null)
       return profile ? 'home' : 'onboarding'
     }
     return initialPendingWhatsappAuth ? 'otp' : 'login'
   })
+
+  useEffect(() => {
+    if (!isLegacyPhoneSessionToken(sessionToken)) return
+    setSessionToken('')
+    setScreen('login')
+  }, [sessionToken, setSessionToken])
 
   const [link, setLink] = useState('')
   const [sharedText] = useState('')
@@ -474,6 +624,23 @@ function App() {
     })
   }, [setCartsByStore])
   const [orders, setOrders] = useStoredState<Order[]>(storageKeys.orders, initialOrders)
+  // طلب قصّ صورة معلّق (منتجات التخصيص) — يفتح شاشة القص فوق أي شاشة.
+  const [cropRequest, setCropRequest] = useState<CropRequest | null>(null)
+  // إرسال تصحيح صورة تخصيص لطلب قائم (مشكلة قياس الصورة من الإدارة).
+  const [sendingCustomFix, setSendingCustomFix] = useState(false)
+  const renderCropModal = () => (cropRequest ? (
+    <PhotoCropModal
+      src={cropRequest.src}
+      aspect={cropRequest.aspect}
+      hint={cropRequest.hint}
+      onConfirm={(dataUrl) => {
+        const done = cropRequest.onDone
+        setCropRequest(null)
+        done(dataUrl)
+      }}
+      onCancel={() => setCropRequest(null)}
+    />
+  ) : null)
   const [addresses, setAddresses] = useStoredState<Address[]>(storageKeys.addresses, initialAddresses)
   const [currentOrderId, setCurrentOrderId] = useStoredState<string>(storageKeys.currentOrderId, '')
   const [recipient, setRecipient] = useStoredState<Recipient>(storageKeys.recipient, {
@@ -608,7 +775,7 @@ function App() {
     }
   }
 
-  const activeAccountPhone = normalizePhoneForCompare(userProfile?.phone || sessionToken || '')
+  const activeAccountPhone = normalizePhoneForCompare(userProfile?.phone || '')
   const visibleOrders = activeAccountPhone
     ? orders.filter((item) => normalizePhoneForCompare(item.phone) === activeAccountPhone)
     : []
@@ -1043,8 +1210,8 @@ function App() {
     const checkInboundMessage = () => {
       void appApi.auth
         .verifyOtp(phone, '')
-        .then(async () => {
-          setSessionToken(phone)
+        .then(async (result) => {
+          setSessionToken(result.sessionToken)
           setPendingWhatsappAuth(null)
           setInboundWhatsappUrl('')
           setInboundSupportPhone('')
@@ -1069,8 +1236,8 @@ function App() {
     const check = () => {
       void appApi.auth
         .verifyOtp(phone, telegramOtp)
-        .then(async () => {
-          setSessionToken(phone)
+        .then(async (result) => {
+          setSessionToken(result.sessionToken)
           setTelegramOtp('')
           const target = await fetchProfileAfterLogin(phone)
           setScreen(target)
@@ -1452,8 +1619,8 @@ function App() {
       setAuthState('verifying')
       void appApi.auth
         .verifyOtp(phone, '')
-        .then(async () => {
-          setSessionToken(phone)
+        .then(async (result) => {
+          setSessionToken(result.sessionToken)
           setPendingWhatsappAuth(null)
           setInboundWhatsappUrl('')
           setInboundSupportPhone('')
@@ -1477,8 +1644,8 @@ function App() {
     setAuthState('verifying')
     void appApi.auth
       .verifyOtp(phone, code)
-      .then(async () => {
-        setSessionToken(phone)
+      .then(async (result) => {
+        setSessionToken(result.sessionToken)
         setPendingWhatsappAuth(null)
         const target = await fetchProfileAfterLogin(phone)
         setScreen(target)
@@ -1492,8 +1659,8 @@ function App() {
     if (authState !== 'idle') return
     setAuthState('verifying')
     void appApi.auth.verifyOtp(phone, code)
-      .then(async () => {
-        setSessionToken(phone)
+      .then(async (result) => {
+        setSessionToken(result.sessionToken)
         setPendingWhatsappAuth(null)
         const target = await fetchProfileAfterLogin(phone)
         setScreen(target)
@@ -2834,6 +3001,7 @@ function App() {
         <MobileShell active="cart" onNavigate={setScreen}>
           <Header title="السلة" unreadCount={unreadCount} onNotifications={openNotifications} />
           <main className="mobile-content mobile-content--cart">
+            {renderCropModal()}
             {cartItems.length > 0 ? (
               <>
                 {cartItems.map((item) => {
@@ -2960,12 +3128,23 @@ function App() {
                                       style={{ display: 'none' }}
                                       onChange={(e) => {
                                         const file = e.target.files?.[0]
+                                        e.target.value = ''
                                         if (!file) return
-                                        void downscaleCustomPhoto(file)
-                                          .then((dataUrl) => setCartItems((items) => items.map((i) =>
-                                            i.id === item.id ? { ...i, customPhotoDataUrl: dataUrl } : i
-                                          )))
-                                          .catch(() => showNotice('تعذّرت قراءة الصورة — جرّب صورة أخرى'))
+                                        const reader = new FileReader()
+                                        reader.onload = (ev) => {
+                                          const src = typeof ev.target?.result === 'string' ? ev.target.result : ''
+                                          if (!src) { showNotice('تعذّرت قراءة الصورة — جرّب صورة أخرى'); return }
+                                          setCropRequest({
+                                            src,
+                                            aspect: parsePhotoAspect(item.customPhotoNote),
+                                            hint: item.customPhotoNote || '',
+                                            onDone: (dataUrl) => setCartItems((items) => items.map((i) =>
+                                              i.id === item.id ? { ...i, customPhotoDataUrl: dataUrl } : i
+                                            )),
+                                          })
+                                        }
+                                        reader.onerror = () => showNotice('تعذّرت قراءة الصورة — جرّب صورة أخرى')
+                                        reader.readAsDataURL(file)
                                       }}
                                     />
                                   </label>
@@ -2998,16 +3177,7 @@ function App() {
                             </div>
                           )}
                         </div>
-                      ) : (
-                        <button
-                          className="cart-custom-suggest"
-                          onClick={() => setCartItems((items) => items.map((i) =>
-                            i.id === item.id ? { ...i, needsCustomText: true } : i
-                          ))}
-                        >
-                          منتج مخصص (نقش/صورة)؟ اضغط لإضافة التخصيص
-                        </button>
-                      )}
+                      ) : null}
                       <div className="cart-item-bottom">
                         <strong>{formatPrice(getItemPriceSyp(item) * item.quantity)}</strong>
                         <div className="qty-stepper">
@@ -3573,6 +3743,63 @@ function App() {
                 {order.paymentIssueNote && (
                   <p className="payment-issue-note">{order.paymentIssueNote}</p>
                 )}
+                {order.items.length > 0 && (() => {
+                  // مشكلة صورة تخصيص (يحددها المشرف): نعرض زر قصّ وإرسال مباشر.
+                  // السطر "القياس المطلوب: W:H" في الملاحظة يقفل نسبة القص.
+                  const note = order.paymentIssueNote || ''
+                  if (!/قياس\/قصّ الصورة|منتج مخصص يحتاج صورة|القياس المطلوب/.test(note)) return null
+                  const idxMatch = note.match(/المنتج:\s*(\d+)\s*\./)
+                  const idx = idxMatch ? Math.min(order.items.length - 1, Math.max(0, Number(idxMatch[1]) - 1)) : 0
+                  const target = order.items[idx]
+                  if (!target) return null
+                  const requiredAspect = parsePhotoAspect(note)
+                  const sizeMatch = note.match(/القياس المطلوب:\s*([^\n]+)/)
+                  return (
+                    <label className={`primary-action payment-issue-fix-photo${sendingCustomFix ? ' is-disabled' : ''}`}>
+                      <Icon name="crop" />
+                      {sendingCustomFix ? 'جاري إرسال الصورة...' : 'قصّ الصورة المطلوبة وأرسلها الآن'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        disabled={sendingCustomFix}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          e.target.value = ''
+                          if (!file) return
+                          const reader = new FileReader()
+                          reader.onload = (ev) => {
+                            const src = typeof ev.target?.result === 'string' ? ev.target.result : ''
+                            if (!src) { showNotice('تعذّرت قراءة الصورة — جرّب صورة أخرى'); return }
+                            setCropRequest({
+                              src,
+                              aspect: requiredAspect,
+                              hint: sizeMatch ? `القياس المطلوب: ${sizeMatch[1].trim()}` : '',
+                              onDone: (dataUrl) => {
+                                setSendingCustomFix(true)
+                                void appApi.orders.submitCustomFix(order.id, target.id, dataUrl, '')
+                                  .then((ok) => {
+                                    if (ok) {
+                                      setOrders((list) => list.map((o) => o.id === order.id
+                                        ? { ...o, items: o.items.map((it) => it.id === target.id ? { ...it, customPhotoDataUrl: dataUrl } : it) }
+                                        : o))
+                                      showNotice('تم إرسال الصورة المصححة — سيراجعها الفريق')
+                                    } else {
+                                      showNotice('تعذّر إرسال الصورة، تحقق من الاتصال وحاول مجدداً')
+                                    }
+                                  })
+                                  .catch(() => showNotice('تعذّر إرسال الصورة، تحقق من الاتصال وحاول مجدداً'))
+                                  .finally(() => setSendingCustomFix(false))
+                              },
+                            })
+                          }
+                          reader.onerror = () => showNotice('تعذّرت قراءة الصورة — جرّب صورة أخرى')
+                          reader.readAsDataURL(file)
+                        }}
+                      />
+                    </label>
+                  )
+                })()}
                 {!!order.extraAmountUsd && order.extraAmountUsd > 0 && (
                   <p className="payment-issue-amount">المتبقي: ${order.extraAmountUsd.toFixed(2)}</p>
                 )}
@@ -3593,6 +3820,7 @@ function App() {
                 </button>
               </section>
             )}
+            {renderCropModal()}
             <Timeline statusIndex={order.statusIndex} createdAt={order.createdAt} paidAt={order.paidAt} />
             {order.statusIndex === orderStatuses.length - 1 && (
               order.rating ? (

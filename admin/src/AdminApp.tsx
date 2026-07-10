@@ -1046,6 +1046,7 @@ const issueTypes = [
   { value: 'size', label: 'المقاس غير واضح أو غير متوفر', action: 'افتح التطبيق واختر المقاس الصحيح أو اكتب البديل المناسب.' },
   { value: 'color', label: 'اللون غير واضح أو غير متوفر', action: 'افتح التطبيق وحدد اللون الصحيح أو البديل المناسب.' },
   { value: 'custom_photo', label: 'منتج مخصص يحتاج صورة', action: 'افتح التطبيق وأرسل الصورة المطلوبة للمنتج.' },
+  { value: 'custom_photo_size', label: 'قياس/قصّ الصورة غير مناسب', action: 'افتح التطبيق وقصّ الصورة على القياس المطلوب وأعد إرسالها.' },
   { value: 'custom_text', label: 'منتج مخصص يحتاج نص أو اسم', action: 'افتح التطبيق واكتب النص المطلوب للمنتج.' },
   { value: 'unavailable', label: 'المنتج غير متوفر', action: 'افتح التطبيق لاختيار بديل أو حذف المنتج من الطلب.' },
   { value: 'quantity', label: 'مشكلة بالكمية', action: 'افتح التطبيق وأكد الكمية المطلوبة.' },
@@ -1053,11 +1054,13 @@ const issueTypes = [
   { value: 'other', label: 'مشكلة أخرى', action: 'افتح التطبيق لمراجعة تفاصيل المشكلة.' },
 ]
 
-function buildIssueNote(issueType: string, itemLabel: string, customNote: string) {
+function buildIssueNote(issueType: string, itemLabel: string, customNote: string, requiredSize: string) {
   const type = issueTypes.find((entry) => entry.value === issueType) ?? issueTypes[0]
   return [
     `نوع المشكلة: ${type.label}`,
     itemLabel ? `المنتج: ${itemLabel}` : '',
+    // سطر بصيغة ثابتة يقرؤه تطبيق الزبون ليقفل نسبة القص عليها (مثال 3:4 أو 800x800)
+    requiredSize.trim() ? `القياس المطلوب: ${requiredSize.trim()}` : '',
     customNote.trim() ? `ملاحظة الإدارة: ${customNote.trim()}` : '',
     `المطلوب من الزبون: ${type.action}`,
   ].filter(Boolean).join('\n')
@@ -1070,13 +1073,14 @@ function PaymentIssueField({ order, onUpdate }: { order: Order; onUpdate: (order
   const [itemIndex, setItemIndex] = useState('')
   const [customNote, setCustomNote] = useState(order.paymentIssueNote)
   const [amount, setAmount] = useState(String(order.extraAmountUsd || ''))
+  const [requiredSize, setRequiredSize] = useState('')
 
   const save = (issue: boolean) => {
     const item = itemIndex === '' ? null : order.items[Number(itemIndex)]
     const itemLabel = item ? `${Number(itemIndex) + 1}. ${item.title}` : ''
     onUpdate(order.id, {
       paymentIssue: issue,
-      paymentIssueNote: issue ? buildIssueNote(issueType, itemLabel, customNote) : '',
+      paymentIssueNote: issue ? buildIssueNote(issueType, itemLabel, customNote, requiredSize) : '',
       extraAmountUsd: Number(amount) || 0,
     })
   }
@@ -1117,6 +1121,17 @@ function PaymentIssueField({ order, onUpdate }: { order: Order; onUpdate: (order
               </select>
             </label>
           </div>
+          {(issueType === 'custom_photo_size' || issueType === 'custom_photo') && (
+            <label className="field">
+              <span>القياس المطلوب للصورة (يُقفل القص عليه في تطبيق الزبون)</span>
+              <input
+                type="text"
+                placeholder="مثال: 3:4 أو 800x800 أو 1:1"
+                value={requiredSize}
+                onChange={(e) => setRequiredSize(e.target.value)}
+              />
+            </label>
+          )}
           <textarea
             placeholder="ملاحظة إضافية للزبون: مثال اللون المطلوب غير متوفر، أرسل صورة أو اختر بديل..."
             value={customNote}

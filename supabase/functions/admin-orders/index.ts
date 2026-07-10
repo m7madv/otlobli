@@ -34,6 +34,9 @@ type OrderItemRow = {
   quantity: number
   price_syp: number
   source_link: string
+  custom_text?: string
+  custom_photo?: string
+  custom_photo_note?: string
 }
 
 type OrderRow = {
@@ -226,6 +229,9 @@ Deno.serve(async (req) => {
         quantity: item.quantity,
         priceSyp: item.price_syp,
         sourceLink: item.source_link,
+        customText: item.custom_text || '',
+        customPhotoDataUrl: item.custom_photo || '',
+        customPhotoNote: item.custom_photo_note || '',
       })),
       total: row.total_syp ?? row.total ?? 0,
       paymentStatus: row.payment_status,

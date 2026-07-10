@@ -804,6 +804,20 @@ export const supabaseAppApi: TalabiehApi = {
       if (error) return false
       return Boolean(data)
     },
+
+    // تصحيح تخصيص عنصر في طلب قائم (صورة مقصوصة و/أو نص) — يحدّث حقول
+    // التخصيص فقط في order_items ويظهر فوراً للوحة الإدارة.
+    async submitCustomFix(orderId, productId, photoDataUrl, customText) {
+      if (!supabase) return false
+      const { data, error } = await supabase.rpc('submit_order_custom_fix', {
+        target_order_id: orderId,
+        p_product_id: productId,
+        p_custom_photo: photoDataUrl || '',
+        p_custom_text: (customText || '').trim(),
+      })
+      if (error) return false
+      return Boolean(data)
+    },
   },
 }
 

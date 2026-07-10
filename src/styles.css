@@ -811,7 +811,27 @@ a {
 .cart-custom-photo-change { border: 0; background: transparent; color: var(--primary); font-size: 0.8rem; font-weight: 700; padding: 4px; cursor: pointer; }
 .cart-custom-add-row { display: flex; gap: 8px; }
 .cart-custom-add { border: 1px dashed var(--primary); background: transparent; color: var(--primary); font-size: 0.75rem; font-weight: 700; border-radius: 8px; padding: 4px 10px; cursor: pointer; }
-.cart-custom-suggest { border: 0; background: transparent; color: var(--muted); font-size: 0.73rem; font-weight: 600; padding: 4px 0 0; cursor: pointer; text-decoration: underline; align-self: flex-start; text-align: start; }
+/* ── شاشة قصّ الصور (منتجات التخصيص) ─────────────────────────────────── */
+.crop-overlay { position: fixed; inset: 0; background: rgba(12, 14, 18, 0.8); z-index: 300; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.crop-card { background: var(--surface, #fff); border-radius: 16px; padding: 14px; width: min(92vw, 380px); display: flex; flex-direction: column; gap: 10px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35); }
+.crop-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.crop-head strong { font-size: 1rem; }
+.crop-ratio-chip { font-size: 0.68rem; font-weight: 700; color: var(--primary); background: var(--primary-soft); border-radius: 999px; padding: 3px 10px; white-space: nowrap; }
+.crop-ratio-chip--free { color: var(--muted); background: var(--outline); }
+.crop-hint { margin: 0; font-size: 0.75rem; color: #7a5b00; background: #fff3cd; border: 1px solid #ffe28a; border-radius: 8px; padding: 6px 8px; }
+.crop-frame { position: relative; overflow: hidden; width: 100%; background: #111; border-radius: 12px; touch-action: none; }
+.crop-frame img { position: absolute; top: 0; left: 0; max-width: none; pointer-events: none; user-select: none; -webkit-user-select: none; }
+.crop-grid { position: absolute; inset: 0; pointer-events: none; border: 2px solid rgba(255, 255, 255, 0.9); border-radius: 12px; box-sizing: border-box; background-image: linear-gradient(to right, rgba(255, 255, 255, 0.35) 1px, transparent 1px), linear-gradient(to bottom, rgba(255, 255, 255, 0.35) 1px, transparent 1px); background-size: 33.4% 33.4%; }
+.crop-zoom-row { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+.crop-zoom-row input[type="range"] { flex: 1; accent-color: var(--primary); }
+.crop-tip { margin: 0; font-size: 0.73rem; color: var(--muted); text-align: center; }
+.crop-actions { display: flex; gap: 8px; }
+.crop-actions .primary-action { flex: 1; margin: 0; }
+.crop-actions .ghost-action { margin: 0; }
+
+/* زر قصّ وإرسال الصورة داخل بانر مشكلة الطلب */
+.payment-issue-fix-photo { display: inline-flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; }
+.payment-issue-fix-photo.is-disabled { opacity: 0.6; pointer-events: none; }
 
 .coupon-box { background: var(--primary-soft); border-radius: var(--radius); padding: 14px; margin: 12px 0; }
 .coupon-box > p { margin: 0 0 10px; font-size: 0.85rem; color: var(--primary); font-weight: 700; }

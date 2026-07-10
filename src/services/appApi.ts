@@ -139,5 +139,8 @@ export type TalabiehApi = {
     redeemCoupon: (input: RedeemCouponInput) => Promise<RedeemCouponResult>
     // ظٹط­ظپط¸ طھظ‚ظٹظٹظ… ط§ظ„ط¹ظ…ظٹظ„ (ظ†ط¬ظˆظ… + ظ…ظ„ط§ط­ط¸ط© ط§ط®طھظٹط§ط±ظٹط©) ط¨ط¹ط¯ طھط³ظ„ظٹظ… ط§ظ„ط·ظ„ط¨ - ظ…ط±ط© ظˆط§ط­ط¯ط© ظپظ‚ط· ظ„ظƒظ„ ط·ظ„ط¨.
     submitOrderRating: (orderId: string, stars: number, note: string) => Promise<boolean>
+    // يرسل تصحيح تخصيص (صورة مقصوصة/نص) لعنصر في طلب قائم — تدفق
+    // "مشكلة قياس الصورة" الذي يفتحه المشرف من لوحة الإدارة.
+    submitCustomFix: (orderId: string, productId: string, photoDataUrl: string, customText: string) => Promise<boolean>
   }
 }

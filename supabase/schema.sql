@@ -63,7 +63,12 @@ create table if not exists public.order_items (
   quantity integer not null check (quantity > 0),
   price_syp integer not null check (price_syp >= 0),
   source_link text not null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  -- حقول المنتجات المخصصة (v59): نص النقش وصورة الزبون (data URL) وملاحظة
+  -- قياس الصورة من صفحة المنتج — يرسلها التطبيق ويعرضها للوحة الإدارة.
+  custom_text text not null default '',
+  custom_photo text not null default '',
+  custom_photo_note text not null default ''
 );
 
 create table if not exists public.payment_verifications (
@@ -368,8 +373,6 @@ language plpgsql
 security definer
 set search_path = public
 as $$
-declare
-  target_member_key text := p_customer_id::text;
 begin
   return public.ensure_customer(
     coalesce(nullif(order_payload->>'phone', ''), 'غير محدد'),
@@ -455,7 +458,10 @@ begin
     size,
     quantity,
     price_syp,
-    source_link
+    source_link,
+    custom_text,
+    custom_photo,
+    custom_photo_note
   )
   select
     target_order_id,
@@ -466,7 +472,10 @@ begin
     item.size,
     greatest(coalesce(item.quantity, 1), 1),
     greatest(coalesce(item."priceSyp", 0), 0),
-    item."sourceLink"
+    item."sourceLink",
+    coalesce(item."customText", ''),
+    coalesce(item."customPhotoDataUrl", ''),
+    coalesce(item."customPhotoNote", '')
   from jsonb_to_recordset(order_payload->'items') as item(
     id text,
     title text,
@@ -475,7 +484,10 @@ begin
     size text,
     quantity integer,
     "priceSyp" integer,
-    "sourceLink" text
+    "sourceLink" text,
+    "customText" text,
+    "customPhotoDataUrl" text,
+    "customPhotoNote" text
   );
 
   insert into public.order_events (order_id, status_index, title, note)
@@ -735,7 +747,7 @@ begin
     if exists (
       select 1
       from public.order_issue_payments
-      where status = 'ط¨ط§ظ†طھط¸ط§ط± ط§ظ„ط¯ظپط¹'
+      where status = 'بانتظار الدفع'
         and payment_currency = currency
         and payment_amount = candidate_amount
         and expires_at > now()
@@ -770,14 +782,17 @@ begin
       );
 
       insert into public.order_items (
-        order_id, product_id, title, image, color, size, quantity, price_syp, source_link
+        order_id, product_id, title, image, color, size, quantity, price_syp, source_link,
+        custom_text, custom_photo, custom_photo_note
       )
       select
         target_order_id, item.id, item.title, item.image, item.color, item.size,
-        greatest(coalesce(item.quantity, 1), 1), greatest(coalesce(item."priceSyp", 0), 0), item."sourceLink"
+        greatest(coalesce(item.quantity, 1), 1), greatest(coalesce(item."priceSyp", 0), 0), item."sourceLink",
+        coalesce(item."customText", ''), coalesce(item."customPhotoDataUrl", ''), coalesce(item."customPhotoNote", '')
       from jsonb_to_recordset(order_payload->'items') as item(
         id text, title text, image text, color text, size text,
-        quantity integer, "priceSyp" integer, "sourceLink" text
+        quantity integer, "priceSyp" integer, "sourceLink" text,
+        "customText" text, "customPhotoDataUrl" text, "customPhotoNote" text
       );
 
       insert into public.order_events (order_id, status_index, title, note)
@@ -992,7 +1007,7 @@ begin
     if exists (
       select 1
       from public.order_issue_payments
-      where status = 'ط¨ط§ظ†طھط¸ط§ط± ط§ظ„ط¯ظپط¹'
+      where status = 'بانتظار الدفع'
         and payment_currency = 'SYP'
         and payment_amount = candidate_amount
         and expires_at > now()
@@ -1665,6 +1680,41 @@ $$;
 revoke all on function public.submit_order_rating(text, integer, text) from public;
 grant execute on function public.submit_order_rating(text, integer, text) to anon, authenticated;
 
+-- يصحح الزبون صورة/نص التخصيص لعنصر في طلبه (تدفق "مشكلة قياس الصورة"):
+-- يحدّث فقط حقول التخصيص، ولا يمس السعر/الكمية/الحالة. تمريره فارغاً يُبقي
+-- القيمة الحالية. نفس مستوى حماية submit_order_rating (معرفة رقم الطلب).
+create or replace function public.submit_order_custom_fix(
+  target_order_id text,
+  p_product_id text,
+  p_custom_photo text,
+  p_custom_text text
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  updated_count integer;
+begin
+  if coalesce(target_order_id, '') = '' or coalesce(p_product_id, '') = '' then
+    return false;
+  end if;
+
+  update public.order_items
+  set custom_photo = coalesce(nullif(p_custom_photo, ''), custom_photo),
+      custom_text = coalesce(nullif(p_custom_text, ''), custom_text)
+  where order_id = target_order_id
+    and product_id = p_product_id;
+
+  get diagnostics updated_count = row_count;
+  return updated_count > 0;
+end;
+$$;
+
+revoke all on function public.submit_order_custom_fix(text, text, text, text) from public;
+grant execute on function public.submit_order_custom_fix(text, text, text, text) to anon, authenticated;
+
 create or replace function public.customer_orders_json(target_customer_id uuid, target_phone text)
 returns jsonb
 language sql
@@ -1688,7 +1738,10 @@ as $$
           'size', oi.size,
           'quantity', oi.quantity,
           'priceSyp', oi.price_syp,
-          'sourceLink', oi.source_link
+          'sourceLink', oi.source_link,
+          'customText', oi.custom_text,
+          'customPhotoDataUrl', oi.custom_photo,
+          'customPhotoNote', oi.custom_photo_note
         ) order by oi.created_at), '[]'::jsonb)
         from public.order_items oi
         where oi.order_id = o.id
