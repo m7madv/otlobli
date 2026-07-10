@@ -3954,6 +3954,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return false;
   }
 
+  // ملاحظة مهمة: هاتان الدالتان كانتا تستدعيان otlobliUnhideEl على البحث/الشعار
+  // + آبائهما (4-5 مستويات) + كل أطفال حاوية البحث. لوحة حساب تيمو (تسجيل الدخول
+  // /إنشاء حساب) تعيش داخل نفس حاوية الهيدر (شقيقة/طفلة للبحث) وهي مخفية بـ
+  // opacity:0. فكان توسيع الاستعادة للآباء/الأطفال يفرض عليها opacity:1 قسراً
+  // فتظهر تلقائياً عند النزول وتقفز الصفحة لأعلى. الآن نستعيد العنصر نفسه فقط
+  // (لا آباء ولا أطفال)، فلا نلمس اللوحة إطلاقاً. هذا يكفي لأن الإخفاء في v53
+  // يستهدف أصنافاً محددة (.tab-d3nPD/.downloadsWrapper) ولا يخفي حاوية البحث.
   function restoreTemuSearchChrome() {
     if (!IS_TEMU || !document.body) return;
     try {
@@ -3964,13 +3971,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var r = el.getBoundingClientRect();
         if (r.top < -20 || r.top > 170 || r.width < 40 || r.height < 16) continue;
         if (!otlobliNearSearchInput(el) && !otlobliLooksLikeSearchTrigger(el)) continue;
-        var cur = el;
-        for (var depth = 0; cur && depth < 5; depth++) {
-          otlobliUnhideEl(cur);
-          cur = cur.parentElement;
-        }
-        var children = el.querySelectorAll ? el.querySelectorAll('*') : [];
-        for (var ci = 0; ci < children.length; ci++) otlobliUnhideEl(children[ci]);
+        otlobliUnhideEl(el);
       }
     } catch (e) {}
   }
@@ -3985,11 +3986,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var r = el.getBoundingClientRect();
         if (r.top < -20 || r.top > 140 || r.width < 40 || r.height < 16) continue;
         if (!otlobliLooksLikeTemuLogo(el)) continue;
-        var cur = el;
-        for (var depth = 0; cur && depth < 4; depth++) {
-          otlobliUnhideEl(cur);
-          cur = cur.parentElement;
-        }
+        otlobliUnhideEl(el);
       }
     } catch (e) {}
   }
