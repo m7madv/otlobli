@@ -40,8 +40,8 @@ git log -5 --oneline
 
 **لم يُحلّ بعد.** جُرّب: إزالة منع login (`setUrl`) في v55 — لم يكفِ حسب المستخدم.
 
-**🧪 اختبار جارٍ (v56-test):** عُطّل المشتبه 1 (`killStorePopups`) لتيمو فقط — تعديل
-**غير مُرحَّل (uncommitted)** في `src/services/sheinBrowserScript.ts` ~سطر 3659 (الاستدعاء
+**🧪 اختبار جارٍ (v56-test):** عُطّل المشتبه 1 (`killStorePopups`) لتيمو فقط — commit
+تشخيصي `409274f` في `src/services/sheinBrowserScript.ts` ~سطر 3659 (الاستدعاء
 مُعلَّق داخل فرع `IS_TEMU`؛ الاستدعاء الثاني سطر 3669 لا يصل لتيمو لأن الفرع يعمل
 `return` قبله). بُنيت نسخة اختبار: `Desktop\otlobli-v56-test.apk` (تجزئتها مختلفة عن
 v55 — بناء حقيقي، وتأكد وجود التعطيل داخل الحزمة المبنية في assets). **بانتظار نتيجة
@@ -88,10 +88,12 @@ v55 — بناء حقيقي، وتأكد وجود التعطيل داخل الح
 - **v56-test (غير مُرحَّل)**: تعطيل `killStorePopups` لتيمو فقط لاختبار فرضية الوميض
   (انظر «اختبار جارٍ» أعلاه). بُني ووُضع على `Desktop\otlobli-v56-test.apk`.
 
-الفرع: `codex/customer-wallet-group-orders`. آخر commit: v55 (`434d287`) + تعديل v56
-غير مُرحَّل في working tree.
-نسخ للاختبار: `Desktop\otlobli-v56-test.apk` (الأحدث — اختبار الوميض)،
-`Desktop\otlobli-v55.apk`، و[iOS run 29064136009](https://github.com/m7madv/otlobli/actions/runs/29064136009).
+الفرع: `codex/customer-wallet-group-orders`. آخر commit: v56-test (`409274f`) —
+تعديل تشخيصي مُرحَّل ومدفوع ليشمله بناء iOS؛ لا يُعتمد كإصلاح نهائي.
+نسخ للاختبار (اختبار الوميض v56):
+- أندرويد: `Desktop\otlobli-v56-test.apk`
+- آيفون: `Desktop\otlobli-v56-test.ipa` (من [iOS run 29093171791](https://github.com/m7madv/otlobli/actions/runs/29093171791) — نجح)
+- نسخ أقدم: `Desktop\otlobli-v55.apk`، [iOS run 29064136009](https://github.com/m7madv/otlobli/actions/runs/29064136009)
 
 ---
 
