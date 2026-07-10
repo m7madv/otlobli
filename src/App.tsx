@@ -1581,8 +1581,6 @@ function App() {
   // عدّاد تحويل تيمو للعربية — يمنع الحلقة اللانهائية إذا تيمو يتجاوز التحويل
   const temuArabicRedirectRef = useRef(0)
   const temuArabicRedirectTsRef = useRef(0)
-  const temuLoginBlockRef = useRef(0)
-  const temuLoginBlockTsRef = useRef(0)
   const sheinSaudiRedirectRef = useRef(0)
   const sheinSaudiRedirectTsRef = useRef(0)
   const screenRef = useRef(screen)
@@ -1879,21 +1877,12 @@ function App() {
     // مقطع الدولة يُفحص بعد الدومين مباشرةً فقط (لا في أي موضع عشوائي بالرابط)
     const ARABIC_TEMU_RE = /temu\.com\/(?:sa|ae|kw|jo|bh|qa|eg|iq|om)(?:\/|\?|#|$)/i
     const LOCALE_SEG_RE = /temu\.com\/[a-z]{2}(?:\/|\?|#|$)/i
-    // صفحة تسجيل الدخول في تيمو يجب ألا تظهر أبداً — نعترضها على مستوى الملاحة
-    // ونُعيد الزبون للرئيسية العربية بدلاً منها. أنماط login الفعلية لتيمو:
-    // login.html، /login، signin، login.temu.com، /bgt_login، passport.
-    const TEMU_LOGIN_RE = /(?:login\.html|\/login\b|\/bgt_login|signin|sign-in|login\.temu\.com|passport\.temu)/i
+    // ملاحظة: أُزيل منع صفحة تسجيل الدخول الذي كان يستدعي InAppBrowser.setUrl عند
+    // اكتشاف login في الرابط. كان يسبب حلقة إعادة تحميل (شاشة بيضاء تومض) على iOS:
+    // تيمو تُطلق تنقّلاً فيه login عند التحميل، فكل setUrl يعيد التحميل من جديد
+    // فيُطلق تنقّل login آخر، بلا نهاية. منع login (إن لزم لاحقاً) يجب أن يتم
+    // بطريقة لا تعيد تحميل الصفحة (إخفاء عناصر/منع نقر)، لا عبر setUrl.
     const handle = InAppBrowser.addListener('urlChangeEvent', ({ url }: { url: string }) => {
-      if (/temu\.com|login\.temu/i.test(url) && TEMU_LOGIN_RE.test(url)) {
-        const now = Date.now()
-        // حماية الحلقة: 3 محاولات كحد أقصى خلال 15 ثانية
-        if (temuLoginBlockRef.current >= 3 && now - temuLoginBlockTsRef.current < 15000) return
-        if (now - temuLoginBlockTsRef.current > 15000) temuLoginBlockRef.current = 0
-        temuLoginBlockRef.current++
-        temuLoginBlockTsRef.current = now
-        void InAppBrowser.setUrl({ url: 'https://www.temu.com/jo/' })
-        return
-      }
       if (/shein/i.test(url)) {
         if (!shouldRedirectSheinToSaudi(url)) {
           sheinSaudiRedirectRef.current = 0
