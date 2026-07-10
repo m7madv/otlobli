@@ -27,6 +27,12 @@ type CartItem = {
   quantity: number
   priceSyp: number
   sourceLink: string
+  // بيانات المنتجات المخصصة (نقش/صورة) — يرسلها تطبيق الزبون داخل عناصر الطلب
+  needsCustomText?: boolean
+  customText?: string
+  needsCustomPhoto?: boolean
+  customPhotoNote?: string
+  customPhotoDataUrl?: string
 }
 
 type Order = {
@@ -981,6 +987,20 @@ function OrderDetail({
                 <span>× {item.quantity}</span>
                 <span>{formatMoney((item.priceSyp ?? 0) * (item.quantity ?? 0))}</span>
               </p>
+              {item.customText && (
+                <p className="custom-text-chip">✍️ النص المطلوب: <strong>{item.customText}</strong></p>
+              )}
+              {item.customPhotoDataUrl && (
+                <a
+                  className="custom-photo-chip"
+                  href={item.customPhotoDataUrl}
+                  download={`custom-${order.id}-${idx + 1}.jpg`}
+                  title="صورة التخصيص من الزبون — اضغط للتنزيل"
+                >
+                  <img src={item.customPhotoDataUrl} alt="صورة التخصيص" />
+                  <span>📷 صورة التخصيص — تنزيل</span>
+                </a>
+              )}
               {item.sourceLink && (
                 <a className="shein-link" href={item.sourceLink} rel="noreferrer" target="_blank">
                   فتح SHEIN{item.color ? ` — ${item.color}` : ''}{item.size ? ` / ${item.size}` : ''}
@@ -1205,6 +1225,20 @@ function OrderModal({
                     <span>× {item.quantity ?? 1}</span>
                     <span>{formatMoney((item.priceSyp ?? 0) * (item.quantity ?? 1))}</span>
                   </div>
+                  {item.customText && (
+                    <p className="custom-text-chip">✍️ النص المطلوب: <strong>{item.customText}</strong></p>
+                  )}
+                  {item.customPhotoDataUrl && (
+                    <a
+                      className="custom-photo-chip"
+                      href={item.customPhotoDataUrl}
+                      download={`custom-${order.id}-${idx + 1}.jpg`}
+                      title="صورة التخصيص من الزبون — اضغط للتنزيل"
+                    >
+                      <img src={item.customPhotoDataUrl} alt="صورة التخصيص" />
+                      <span>📷 صورة التخصيص — تنزيل</span>
+                    </a>
+                  )}
                   <div className="modal-item-actions">
                     {item.sourceLink && (
                       <a className="shein-link" href={item.sourceLink} rel="noreferrer" target="_blank">

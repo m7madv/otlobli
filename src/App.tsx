@@ -51,6 +51,36 @@ const extractGroupInviteCode = (value: string) => {
   }
 }
 
+// صورة التخصيص تُخزَّن data URL داخل السلة والطلب (localStorage + jsonb) —
+// نصغّرها قبل الحفظ حتى لا تتضخم الحصة المحلية وحمولة الطلب (صور الكاميرا
+// الحديثة تتجاوز 5MB؛ بعد التصغير ~100-300KB وهي كافية تماماً للمتجر).
+const CUSTOM_PHOTO_MAX_SIDE = 1280
+const downscaleCustomPhoto = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(new Error('تعذر قراءة الصورة'))
+    reader.onload = (ev) => {
+      const src = typeof ev.target?.result === 'string' ? ev.target.result : ''
+      if (!src) { reject(new Error('تعذر قراءة الصورة')); return }
+      const img = new Image()
+      img.onload = () => {
+        const maxSide = Math.max(img.width, img.height)
+        if (maxSide <= CUSTOM_PHOTO_MAX_SIDE) { resolve(src); return }
+        const scale = CUSTOM_PHOTO_MAX_SIDE / maxSide
+        const canvas = document.createElement('canvas')
+        canvas.width = Math.round(img.width * scale)
+        canvas.height = Math.round(img.height * scale)
+        const ctx = canvas.getContext('2d')
+        if (!ctx) { resolve(src); return }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+        resolve(canvas.toDataURL('image/jpeg', 0.85))
+      }
+      img.onerror = () => resolve(src)
+      img.src = src
+    }
+    reader.readAsDataURL(file)
+  })
+
 const normalizeSheinBrowserUrl = (rawUrl: string) => {
   if (!rawUrl) return SHEIN_HOME_URL
   try {
@@ -2001,6 +2031,7 @@ function App() {
         customPhotoNote: typeof product?.customPhotoNote === 'string' ? product.customPhotoNote : '',
         needsCustomText: typeof product?.needsCustomText === 'boolean' ? product.needsCustomText : false,
         customText: typeof product?.customText === 'string' ? product.customText : '',
+        customTextLimit: typeof product?.customTextLimit === 'number' && product.customTextLimit > 0 ? product.customTextLimit : 0,
       }])
       void InAppBrowser.postMessage({ detail: { type: 'addToCartAck' } })
       showNotice('تمت إضافة المنتج إلى السلة')
@@ -2842,64 +2873,140 @@ function App() {
                         {item.colorImage && <img className="cart-item-color-swatch" src={item.colorImage} alt={item.color} />}
                         {item.color} آ· {item.size}
                       </p>
-                      {item.needsCustomText && (
-                        <div className="cart-custom-field">
-                          <label className="cart-custom-label">
-                            النص/الاسم المراد نقشه:
-                          </label>
-                          <input
-                            className="cart-custom-input"
-                            type="text"
-                            placeholder="مثال: محمد"
-                            value={item.customText || ''}
-                            onChange={(e) => setCartItems((items) => items.map((i) =>
-                              i.id === item.id ? { ...i, customText: e.target.value } : i
-                            ))}
-                          />
-                        </div>
-                      )}
-                      {item.needsCustomPhoto && (
-                        <div className="cart-custom-field">
-                          <label className="cart-custom-label">
-                            {item.customPhotoNote
-                              ? `صورة مخصصة (${item.customPhotoNote})`
-                              : 'صورة مخصصة مطلوبة'}
-                          </label>
-                          {item.customPhotoDataUrl ? (
-                            <div className="cart-custom-photo-preview">
-                              <img src={item.customPhotoDataUrl} alt="صورتك" />
-                              <button
-                                className="cart-custom-photo-change"
-                                onClick={() => setCartItems((items) => items.map((i) =>
-                                  i.id === item.id ? { ...i, customPhotoDataUrl: '' } : i
-                                ))}
-                              >
-                                تغيير
-                              </button>
-                            </div>
-                          ) : (
-                            <label className="cart-custom-photo-btn">
-                              📷 إرفاق صورة
+                      {(item.needsCustomText || item.needsCustomPhoto) ? (
+                        <div className="cart-custom-card">
+                          <div className="cart-custom-head">
+                            <span className="cart-custom-title">🎨 منتج مخصص</span>
+                            <button
+                              className="cart-custom-dismiss"
+                              onClick={() => setCartItems((items) => items.map((i) =>
+                                i.id === item.id
+                                  ? { ...i, needsCustomText: false, needsCustomPhoto: false, customText: '', customPhotoDataUrl: '' }
+                                  : i
+                              ))}
+                            >
+                              ليس مخصصاً
+                            </button>
+                          </div>
+                          {item.needsCustomText && (
+                            <div className="cart-custom-field">
+                              <div className="cart-custom-field-head">
+                                <label className="cart-custom-label">النص المطلوب (نقش/طباعة):</label>
+                                <button
+                                  className="cart-custom-remove"
+                                  onClick={() => setCartItems((items) => items.map((i) =>
+                                    i.id === item.id ? { ...i, needsCustomText: false, customText: '' } : i
+                                  ))}
+                                >
+                                  إزالة
+                                </button>
+                              </div>
                               <input
-                                type="file"
-                                accept="image/*"
-                                style={{ display: 'none' }}
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0]
-                                  if (!file) return
-                                  const reader = new FileReader()
-                                  reader.onload = (ev) => {
-                                    const dataUrl = ev.target?.result as string
-                                    setCartItems((items) => items.map((i) =>
-                                      i.id === item.id ? { ...i, customPhotoDataUrl: dataUrl } : i
-                                    ))
-                                  }
-                                  reader.readAsDataURL(file)
-                                }}
+                                className="cart-custom-input"
+                                type="text"
+                                maxLength={item.customTextLimit || 40}
+                                placeholder="اكتبه تماماً كما تريده على المنتج"
+                                value={item.customText || ''}
+                                onChange={(e) => setCartItems((items) => items.map((i) =>
+                                  i.id === item.id ? { ...i, customText: e.target.value } : i
+                                ))}
                               />
-                            </label>
+                              <span className="cart-custom-counter">
+                                {(item.customText || '').length}/{item.customTextLimit || 40} حرفاً
+                                {item.customTextLimit ? ' (حد المتجر)' : ''}
+                              </span>
+                            </div>
+                          )}
+                          {item.needsCustomPhoto && (
+                            <div className="cart-custom-field">
+                              <div className="cart-custom-field-head">
+                                <label className="cart-custom-label">الصورة المطلوبة:</label>
+                                <button
+                                  className="cart-custom-remove"
+                                  onClick={() => setCartItems((items) => items.map((i) =>
+                                    i.id === item.id ? { ...i, needsCustomPhoto: false, customPhotoDataUrl: '' } : i
+                                  ))}
+                                >
+                                  إزالة
+                                </button>
+                              </div>
+                              {item.customPhotoNote && (
+                                <p className="cart-custom-note">متطلبات المتجر: {item.customPhotoNote}</p>
+                              )}
+                              {item.customPhotoDataUrl ? (
+                                <div className="cart-custom-photo-preview">
+                                  <img src={item.customPhotoDataUrl} alt="صورتك" />
+                                  <button
+                                    className="cart-custom-photo-change"
+                                    onClick={() => setCartItems((items) => items.map((i) =>
+                                      i.id === item.id ? { ...i, customPhotoDataUrl: '' } : i
+                                    ))}
+                                  >
+                                    تغيير
+                                  </button>
+                                </div>
+                              ) : (
+                                <>
+                                  <ul className="cart-custom-tips">
+                                    <li>صورة واضحة وبإضاءة جيدة</li>
+                                    <li>الجزء المطلوب (وجه/عين/شعار) في منتصف الصورة</li>
+                                    <li>تُرسل للمتجر كما هي — تأكد أنها النسخة النهائية</li>
+                                  </ul>
+                                  <label className="cart-custom-photo-btn">
+                                    📷 إرفاق صورة
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      style={{ display: 'none' }}
+                                      onChange={(e) => {
+                                        const file = e.target.files?.[0]
+                                        if (!file) return
+                                        void downscaleCustomPhoto(file)
+                                          .then((dataUrl) => setCartItems((items) => items.map((i) =>
+                                            i.id === item.id ? { ...i, customPhotoDataUrl: dataUrl } : i
+                                          )))
+                                          .catch(() => showNotice('تعذّرت قراءة الصورة — جرّب صورة أخرى'))
+                                      }}
+                                    />
+                                  </label>
+                                </>
+                              )}
+                            </div>
+                          )}
+                          {(!item.needsCustomText || !item.needsCustomPhoto) && (
+                            <div className="cart-custom-add-row">
+                              {!item.needsCustomText && (
+                                <button
+                                  className="cart-custom-add"
+                                  onClick={() => setCartItems((items) => items.map((i) =>
+                                    i.id === item.id ? { ...i, needsCustomText: true } : i
+                                  ))}
+                                >
+                                  + إضافة نص
+                                </button>
+                              )}
+                              {!item.needsCustomPhoto && (
+                                <button
+                                  className="cart-custom-add"
+                                  onClick={() => setCartItems((items) => items.map((i) =>
+                                    i.id === item.id ? { ...i, needsCustomPhoto: true } : i
+                                  ))}
+                                >
+                                  + إضافة صورة
+                                </button>
+                              )}
+                            </div>
                           )}
                         </div>
+                      ) : (
+                        <button
+                          className="cart-custom-suggest"
+                          onClick={() => setCartItems((items) => items.map((i) =>
+                            i.id === item.id ? { ...i, needsCustomText: true } : i
+                          ))}
+                        >
+                          منتج مخصص (نقش/صورة)؟ اضغط لإضافة التخصيص
+                        </button>
                       )}
                       <div className="cart-item-bottom">
                         <strong>{formatPrice(getItemPriceSyp(item) * item.quantity)}</strong>

@@ -2095,22 +2095,48 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (!TEMU_PERSO_INPUT.test(hint)) continue;          // لا دليل أنه حقل تخصيص → نتجاهله
       var v = (inp.value || '').trim();
       if (/^\\d+$/.test(v)) v = '';                        // قيمة رقمية بحتة = ليست نص نقش
-      return { has: true, text: v, inputVisible: true };
+      // (v58) حد أحرف النقش: من خاصية maxlength للحقل نفسه، وإلا من نص
+      // التلميح المجاور ("بحد أقصى 10 أحرف" / "max 12 characters").
+      var lim = parseInt(inp.getAttribute('maxlength') || '', 10);
+      if (!(lim > 0 && lim <= 80)) {
+        var lm = hint.match(/(\\d{1,2})\\s*(?:حرف|أحرف|حروف|characters?|chars?|letters?)/i);
+        lim = lm ? parseInt(lm[1], 10) : 0;
+      }
+      return { has: true, text: v, inputVisible: true, textLimit: (lim > 0 && lim <= 80) ? lim : 0 };
     }
     // مؤشر قوي بالعنوان بدون حقل مرئي → التخصيص داخل الشيت، الاسم يُكتب في السلة
-    if (hasStrong) return { has: true, text: '', inputVisible: false };
-    return { has: false, text: '' };
+    if (hasStrong) return { has: true, text: '', inputVisible: false, textLimit: 0 };
+    return { has: false, text: '', textLimit: 0 };
   }
-  // هل يتطلب المنتج رفع صورة مخصصة؟ (مثل أساور "Custom Photo").
-  // نبحث عن كلمات دالّة أو حقل رفع ملف (file input).
-  function temuNeedsCustomPhoto() {
-    var fileInputs = document.querySelectorAll('input[type="file"], input[accept*="image"]');
-    if (fileInputs.length > 0) return true;
-    var els = document.querySelectorAll('div, span, p, strong, h2, h3, a, button, label');
+  // (v58) بادج "التخصيص" الذي تضعه تيمو على صورة المنتج — نص قصير مطابق حرفياً.
+  // نقيّده بأعلى الصفحة (أول ~900px من المستند) لأن كروت "قد يعجبك أيضاً"
+  // أسفل الصفحة تحمل البادج نفسه على منتجات أخرى وكانت ستفعّل كل الصفحات.
+  function temuCustomBadgeVisible() {
+    var els = document.querySelectorAll('div, span, a, button, label');
+    var scrollY = window.pageYOffset || 0;
     for (var i = 0; i < els.length; i++) {
-      var t = (els[i].textContent || '').trim();
-      if (t.length < 3 || t.length > 80) continue;
-      if (/custom.?photo|upload.?photo|صورة.?مخصصة|رفع.?صورة|photo.?upload|upload.?image|custom.?image|add.?photo/i.test(t)) return true;
+      var t = temuCleanText(els[i].textContent);
+      if (!t || t.length > 20) continue;
+      if (!/^(?:التخصيص|تخصيص|قابل\\s*للتخصيص|customi[sz]ed?|personali[sz]ed?)$/i.test(t)) continue;
+      var r = els[i].getBoundingClientRect();
+      if (r.width <= 0 || r.height <= 0) continue;
+      if (r.top + scrollY > 900) continue;
+      return true;
+    }
+    return false;
+  }
+  // (v58) عنصر تحكم فعلي لرفع صورة: حقل ملف يقبل صوراً، أو زر نصّه حرفياً
+  // "أضف/ارفع/تحميل صورة". يُستدعى فقط بعد ثبوت أن المنتج مخصص — "أضف صورة"
+  // في قسم المراجعات مثلاً كانت تجعل كل المنتجات "تطلب صورة".
+  function temuPhotoUploadControl() {
+    if (document.querySelector('input[type="file"][accept*="image"], input[type="file"]:not([accept])')) return true;
+    var els = document.querySelectorAll('button, a, div, span, label');
+    for (var i = 0; i < els.length; i++) {
+      var t = temuCleanText(els[i].textContent);
+      if (!t || t.length > 22) continue;
+      if (!/^(?:أضف|إضافة|ارفع|رفع|تحميل|حمّل)\\s*(?:ال)?صورة(?:\\s*هنا)?$|^(?:add|upload)\\s*(?:a\\s*|your\\s*)?(?:photo|image|picture)s?$/i.test(t)) continue;
+      var r = els[i].getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) return true;
     }
     return false;
   }
@@ -2130,16 +2156,21 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return '';
   }
 
+  // (v58) إشارات التخصيص الصارمة — "خربطة صفر":
+  // تُطبَّق على عنوان المنتج (أو نص تحكم قصير مؤكد) فقط، وحُذفت منها الكلمات
+  // العامة المفردة (اسم/نص/كتابة/صورة/رفع/عين/وجه) لأنها تظهر في كل صفحة
+  // (مراجعات، شحن، واجهة المتجر، منتجات مقترحة) وكانت السبب الرئيسي في تحويل
+  // منتجات عادية إلى "مخصصة" وحجز الدفع عبثاً.
   function otlobliCustomTextSignal(text) {
-    return /custom\\s*(?:text|name)|personaliz|engrave|engraving|monogram|name\\s*plate|your\\s*(?:name|text)|enter\\s*(?:name|text)|اسم|نص|كتابة|اكتب|محفور|نقش|حفر/i.test(text || '');
+    return /custom\\s*(?:text|name)|personali[sz]|engrav|monogram|name\\s*plate|your\\s*(?:name|text)|enter\\s*(?:name|text)|نقش|محفور|محفورة|حفر\\s*(?:اسم|الاسم|نص)|بالاسم|باسمك|بأسمك|اسم\\s*مخصص|نص\\s*مخصص|اكتب\\s*(?:اسم|الاسم|نص|النص)/i.test(text || '');
   }
 
   function otlobliCustomPhotoSignal(text) {
-    return /custom\\s*(?:photo|image|picture)|upload\\s*(?:photo|image|picture)|photo\\s*upload|image\\s*upload|with\\s*(?:photo|picture)|صورة|ارفق|رفع|تحميل\\s*صورة|بالصور|عين|وجه/i.test(text || '');
+    return /custom\\s*(?:photo|image|picture)|(?:upload|add)\\s*(?:a\\s*|your\\s*)?(?:photo|image|picture)|photo\\s*upload|image\\s*upload|with\\s*your\\s*(?:photo|picture)|صورة\\s*مخصصة|بصورتك|صورتك|بالصور|(?:أضف|إضافة|ارفع|رفع|تحميل|حمّل)\\s*(?:ال)?صورة/i.test(text || '');
   }
 
   function otlobliCustomGenericSignal(text) {
-    return /customiz|personaliz|personalised|personalized|مخصص|مخصصة|التخصيص|تخصيص/i.test(text || '');
+    return /customi[sz]|\\bcustom\\b|personali[sz]|مخصص|التخصيص|تخصيص|بتصميمك|حسب\\s*الطلب|\\bDIY\\b/i.test(text || '');
   }
 
   function otlobliVisibleCustomText() {
@@ -2166,44 +2197,55 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return '';
   }
 
+  // (v58) قرار التخصيص لتيمو — طبقتان صارمتان:
+  // 1) هل المنتج مخصص أصلاً؟ يُحسم من عنوان المنتج نفسه، أو بادج "التخصيص"
+  //    أعلى الصفحة، أو حقل نقش حقيقي مرئي (perso). لا مسح نصي للصفحة كلها —
+  //    كروت المنتجات المقترحة والمراجعات كانت تلوّث القرار.
+  // 2) ماذا يحتاج (نص/صورة/كلاهما)؟ يُفحص فقط بعد ثبوت (1)، من العنوان
+  //    وعناصر تحكم قصيرة مؤكدة. عند الغموض: الافتراض نص، والمستخدم يعدّل
+  //    من السلة (أزرار +نص/+صورة و"ليس مخصصاً").
   function temuCustomRequirements(perso) {
-    var text = [
-      temuTitle(),
-      document.title,
-      otlobliVisibleCustomText(),
-    ].join(' ');
-    var needsText = !!(perso && perso.has) || otlobliCustomTextSignal(text);
-    var needsPhoto = temuNeedsCustomPhoto() || otlobliCustomPhotoSignal(text);
-    if (/image\\s*\\d+|photo\\s*\\d+|picture\\s*\\d+/i.test(text)) needsPhoto = true;
-    var customPhotoCase = otlobliCustomGenericSignal(text)
-      && /(phone|case|cover|جراب|كفر|حافظة|هاتف|موبايل|جوال)/i.test(text)
-      && !/(engrav|engrave|engraving|name|text|monogram|نقش|اسم|نص|محفور|حفر)/i.test(text);
-    if (customPhotoCase) {
-      needsPhoto = true;
-      if (!otlobliCustomTextSignal(text) && !(perso && perso.inputVisible)) needsText = false;
-    }
-    if (otlobliCustomGenericSignal(text) && !needsText && !needsPhoto) needsText = true;
+    var titleTxt = (temuTitle() || '') + ' ' + (document.title || '');
+    var isCustom = otlobliCustomGenericSignal(titleTxt)
+      || otlobliCustomTextSignal(titleTxt)
+      || otlobliCustomPhotoSignal(titleTxt)
+      || !!(perso && perso.has)
+      || temuCustomBadgeVisible();
+    if (!isCustom) return { needsText: false, needsPhoto: false, photoNote: '', textLimit: 0 };
+    var needsText = !!(perso && perso.has) || otlobliCustomTextSignal(titleTxt);
+    var needsPhoto = otlobliCustomPhotoSignal(titleTxt) || temuPhotoUploadControl();
+    // منتج مخصص وعنوانه يذكر عيوناً/وجهاً/حبيباً بالصورة (أساور نقش العين
+    // الرائجة) → صورة، حتى لو لم يقل "صورة" صراحة.
+    if (!needsPhoto && /(?:^|[\\s،:])(?:عين|عيون|للعينين|بالعين|وجه|وجهك|بورتريه)|\\bface\\b|\\beyes?\\b|\\bportrait\\b/i.test(titleTxt)) needsPhoto = true;
+    // جراب/كفر مخصص بلا ذكر نقش = طباعة صورة عادةً.
+    if (!needsText && !needsPhoto && /(phone|case|cover|جراب|كفر|حافظة)/i.test(titleTxt)) needsPhoto = true;
+    // مخصص مؤكد والنوع غامض → نص (الأشيَع)، والمستخدم يستطيع التعديل بالسلة.
+    if (!needsText && !needsPhoto) needsText = true;
     return {
       needsText: needsText,
       needsPhoto: needsPhoto,
-      photoNote: temuCustomPhotoNote() || otlobliCustomPhotoNoteFallback(),
+      photoNote: needsPhoto ? (temuCustomPhotoNote() || otlobliCustomPhotoNoteFallback()) : '',
+      textLimit: (perso && perso.textLimit) || 0,
     };
   }
 
+  // (v58) نفس مبدأ تيمو: العنوان يحسم "هل هو مخصص"، وحقل الملف يُحتسب فقط
+  // بعد ثبوت ذلك (شي إن فيها حقول رفع للمراجعات أيضاً).
   function sheinCustomRequirements() {
-    var text = [
-      getTitle(false),
-      document.title,
-      otlobliVisibleCustomText(),
-    ].join(' ');
-    var hasFile = !!document.querySelector('input[type="file"], input[accept*="image"]');
-    var needsText = otlobliCustomTextSignal(text);
-    var needsPhoto = hasFile || otlobliCustomPhotoSignal(text);
-    if (otlobliCustomGenericSignal(text) && !needsText && !needsPhoto) needsText = true;
+    var titleTxt = (getTitle(false) || '') + ' ' + (document.title || '');
+    var isCustom = otlobliCustomGenericSignal(titleTxt)
+      || otlobliCustomTextSignal(titleTxt)
+      || otlobliCustomPhotoSignal(titleTxt);
+    if (!isCustom) return { needsText: false, needsPhoto: false, photoNote: '', textLimit: 0 };
+    var hasFile = !!document.querySelector('input[type="file"][accept*="image"]');
+    var needsText = otlobliCustomTextSignal(titleTxt);
+    var needsPhoto = hasFile || otlobliCustomPhotoSignal(titleTxt);
+    if (!needsText && !needsPhoto) needsText = true;
     return {
       needsText: needsText,
       needsPhoto: needsPhoto,
-      photoNote: otlobliCustomPhotoNoteFallback(),
+      photoNote: needsPhoto ? otlobliCustomPhotoNoteFallback() : '',
+      textLimit: 0,
     };
   }
 
@@ -2272,6 +2314,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         customPhotoNote: customReq.photoNote,
         needsCustomText: customReq.needsText,
         customText: persoTxt,
+        customTextLimit: customReq.textLimit || 0,
       };
     }
     var sheinCustomReq = sheinCustomRequirements();
@@ -2293,6 +2336,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       customPhotoNote: sheinCustomReq.photoNote,
       needsCustomText: sheinCustomReq.needsText,
       customText: '',
+      customTextLimit: sheinCustomReq.textLimit || 0,
     };
   }
 
@@ -2680,12 +2724,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
               return;
             }
           }
-          // ب) منتج يحتاج صورة مخصصة → نُنبّه ونكمل الإضافة (الصورة تُرفق في السلة).
-          if (temuNeedsCustomPhoto()) {
+          // ب) منتج مخصص يحتاج صورة (بالكشف الصارم v58) → نُنبّه ونكمل الإضافة
+          // (الصورة تُرفق في السلة).
+          var persoChk = temuPersonalization();
+          if (temuCustomRequirements(persoChk).needsPhoto) {
             showMessage(btn, 'أضف صورتك في السلة قبل إتمام الطلب');
           }
           // ج) منتج تخصيص نصّي (نقش اسم).
-          var persoChk = temuPersonalization();
           if (persoChk.has && !persoChk.text) {
             if (persoChk.inputVisible) {
               // الحقل ظاهر وفارغ → نطلب الكتابة الآن

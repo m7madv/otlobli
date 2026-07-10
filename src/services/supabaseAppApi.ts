@@ -815,6 +815,22 @@ export const supabaseAppApi: TalabiehApi = {
 // TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID المُعدّة مسبقاً هناك.
 function notifyNewOrder(orderPayload: Record<string, unknown>) {
   try {
+    // صورة التخصيص data URL ضخمة (مئات KB) — تبقى في الطلب بقاعدة البيانات
+    // ويراها المشرف في لوحة الإدارة، لكن لا تُرسل في إشعار نصي (واتساب/
+    // تيليغرام) حتى لا يفشل الإشعار أو يتأخر.
+    const rawItems = (orderPayload as { items?: unknown }).items
+    if (Array.isArray(rawItems)) {
+      orderPayload = {
+        ...orderPayload,
+        items: rawItems.map((it) => {
+          if (!it || typeof it !== 'object') return it
+          const rec = it as Record<string, unknown>
+          if (!rec.customPhotoDataUrl) return it
+          const { customPhotoDataUrl: _omitted, ...rest } = rec
+          return { ...rest, hasCustomPhoto: true }
+        }),
+      }
+    }
     const apiBase = cleanEnvValue(import.meta.env.VITE_WHATSAPP_API_URL)
     if (apiBase) {
       void fetch(`${apiBase}/api/orders/notify`, {

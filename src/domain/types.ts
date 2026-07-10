@@ -151,6 +151,7 @@ export type CartItem = {
   customPhotoDataUrl?: string
   needsCustomText?: boolean
   customText?: string
+  customTextLimit?: number
 }
 
 export type WalletTransaction = {
