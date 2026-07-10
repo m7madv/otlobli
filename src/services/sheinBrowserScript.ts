@@ -3653,7 +3653,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (IS_TEMU) {
         try { injectTemuHeaderHideCSS(); } catch (e) {}
         try { ensureTemuNoZoom(); } catch (e) {}
-        try { killStorePopups(); } catch (e) {}
+        // killStorePopups معطّل لتيمو مؤقتاً: مشتبه رئيسي في الوميض كل نصف ثانية
+        // (يعمل كل 300ms، يحجب عنصراً كبيراً يطابق PROMO ثم تعيده المراجعة الذاتية
+        // → حجب/إظهار دوري). إن توقّف الوميض بتعطيله تأكّد أنه السبب ونُعيده مُلطّفاً.
+        // try { killStorePopups(); } catch (e) {}
         try { hideTemuHeaderIconsByProbe(); } catch (e) {}
         try { hideTemuCustomerAccountAndCart(); } catch (e) {}
         try { hideTemuCustomerChrome(); } catch (e) {}
