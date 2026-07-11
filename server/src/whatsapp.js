@@ -251,9 +251,12 @@ async function initSession(session) {
     browser: ['otlobli', 'Chrome', '120.0.6099.109'],
     syncFullHistory: false,
     markOnlineOnConnect: false,
-    fireInitQueries: false,
-    shouldSyncConnectionMessage: false,
-    emitOwnEvents: false,
+    // ملاحظة (v64): أُزيلت الأعلام العدوانية fireInitQueries/
+    // shouldSyncConnectionMessage/emitOwnEvents=false. كانت fireInitQueries:false
+    // تحديداً تمنع رفع مفاتيح التشفير المسبقة (prekeys) لخوادم واتساب عند
+    // الاتصال — فحين يريد جهاز المستلم فك رسالتنا لا يجد حزمة مفاتيحنا
+    // لتأسيس جلسة Signal، فتعلق الرسالة بحالة «في انتظار هذه الرسالة» للأبد.
+    // إعادتها للسلوك الافتراضي تضمن رفع/تجديد المفاتيح فتُسلَّم الرسائل.
     // حاسم: عند فشل جهاز المستلم بفك رسالة يطلب إعادتها، فيستدعي Baileys
     // getMessage ليعيد تشفيرها ويرسلها. إرجاع undefined (كما كان) يجعل
     // الرسالة تعلق للأبد بحالة «في انتظار هذه الرسالة». نُرجع المحتوى
