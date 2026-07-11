@@ -5,6 +5,10 @@
 - Exchange-rate source-label fix `9f42cf5` is deployed in Railway deployment
   `32116896-5c2c-4088-b8d5-40c7a058ba44` (`SUCCESS/RUNNING`). Production API and
   Supabase `app_settings.usd_to_syp_rate` both verify at `13050` SYP/USD.
+- Applied structured issue/payment hardening migrations `20260712031000` and
+  `20260712032000`; deployed `admin-orders` version 28. Production probes for the
+  empty account RPC and protected issue-resolve RPC returned controlled results, and
+  the root client build passed.
 
 Copy this into a new AI chat before continuing work.
 

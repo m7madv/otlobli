@@ -152,7 +152,13 @@ function normalizeCustomerAccount(data: unknown) {
     ? row.orders.map(normalizeOrder).filter((order): order is Order => !!order)
     : []
   const walletTransactions = Array.isArray(row.walletTransactions)
-    ? row.walletTransactions.filter((item): item is WalletTransaction => !!item && typeof item === 'object')
+    ? row.walletTransactions
+      .filter((item): item is WalletTransaction => !!item && typeof item === 'object')
+      .map((item) => ({
+        ...item,
+        amountSyp: Number(item.amountSyp) || 0,
+        amountUsd: Number.isFinite(Number(item.amountUsd)) ? Number(item.amountUsd) : undefined,
+      }))
     : []
   return {
     mode: 'external' as const,

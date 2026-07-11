@@ -36,6 +36,11 @@ Do not revert or fold the UI commits into it.
   - `android/shamcash-listener/build/outputs/apk/release/shamcash-listener-release.apk`
   - APK SHA-256: `343f0213d837410b0a4069a67ece69a2cc65b8aba3c3140f65d0663ecfb226b5`
   - signer certificate SHA-256: `44ed0b43a41924ca67dfa44c6815e5b9286f843b7879b1f1d2c7e4ee5b1f827b`
+- Structured order-issue payment hardening is applied in migrations `20260712031000`
+  and `20260712032000`: confirmed issue payments resolve `issues[]` atomically, a
+  customer cannot self-resolve a payment issue, admin issue saves derive only from
+  unresolved entries, item IDs match `product_id`, and wallet history returns the
+  stored USD amount instead of recalculating old transactions at today's rate.
 - The Note 8 is now authorized as serial `988e16384e4f51395230`, model `SM-N950F`.
   ShamCash must still be tested only on this Syrian-network phone, never on the PC.
 - Remaining payment trust debt is explicit: product prices/totals still originate in the

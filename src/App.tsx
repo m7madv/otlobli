@@ -4448,7 +4448,10 @@ function App() {
                 <h2>آخر حركات المحفظة</h2>
                 {walletTransactions.slice(0, 6).map((tx) => {
                   const isDeposit = tx.amountSyp > 0
-                  const usd = Math.abs(tx.amountSyp) / exchangeRate
+                  const storedUsd = Number(tx.amountUsd)
+                  const usd = Number.isFinite(storedUsd) && storedUsd !== 0
+                    ? Math.abs(storedUsd)
+                    : Math.abs(tx.amountSyp) / exchangeRate
                   // اسم المتجر من الطلب المرتبط (إن وُجد) عبر رابط أول منتج فيه.
                   let storeLabel = ''
                   if (tx.orderId) {

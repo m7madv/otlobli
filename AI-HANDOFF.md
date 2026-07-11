@@ -49,6 +49,11 @@ Prevent this by updating `CURRENT_STATE.md`, `AI-HANDOFF.md`, and `SESSION_SUMMA
 - Release code contains no `TEST_NOTIFICATION` action and no `x-payment-secret` header.
   Do not reintroduce either. A genuine ShamCash notification capture remains a release
   gate because the provider transaction/reference layout is not yet known.
+- Migrations `20260712031000_sync_structured_payment_issues.sql` and
+  `20260712032000_include_wallet_usd_history.sql` are applied. The first prevents
+  duplicate structured payment-issue charges and blocks customer-side payment-issue
+  resolution; `admin-orders` version 28 derives issue totals from unresolved entries
+  and uses `order_items.product_id`. The second preserves historical wallet USD values.
 - ADB now sees serial `988e16384e4f51395230` as authorized `device` (`SM-N950F`). Do not
   replace the installed debug listener yet: the user requested a stock reset, and the
   physical battery-temperature fault must be repaired before a reset/flash. After the

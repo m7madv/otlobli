@@ -28,6 +28,7 @@ const ORDER_STATUS_LABELS = [
 
 type OrderItemRow = {
   id: string
+  product_id?: string
   title: string
   image: string
   color: string
@@ -87,6 +88,41 @@ type CustomerRow = {
   details?: string
   created_at?: string
   updated_at?: string
+}
+
+function normalizeOrderIssues(value: unknown) {
+  const raw = Array.isArray(value) ? value : []
+  const issues = raw
+    .filter((issue): issue is Record<string, unknown> => !!issue && typeof issue === 'object')
+    .map((issue) => ({
+      id: String(issue.id ?? '').slice(0, 120),
+      type: String(issue.type ?? 'other').slice(0, 40),
+      itemId: String(issue.itemId ?? '').slice(0, 200),
+      note: String(issue.note ?? '').slice(0, 500),
+      options: Array.isArray(issue.options)
+        ? issue.options.map((option) => String(option).slice(0, 120)).filter(Boolean).slice(0, 20)
+        : [],
+      requiredSize: String(issue.requiredSize ?? '').slice(0, 120),
+      amountUsd: Math.max(0, Math.round((Number(issue.amountUsd) || 0) * 100) / 100),
+      resolved: issue.resolved === true,
+      resolvedValue: String(issue.resolvedValue ?? '').slice(0, 200),
+    }))
+    .filter((issue) => issue.id !== '')
+  const unresolved = issues.filter((issue) => !issue.resolved)
+  const paymentTotal = unresolved
+    .filter((issue) => issue.type === 'payment')
+    .reduce((sum, issue) => sum + issue.amountUsd, 0)
+  const note = unresolved
+    .map((issue) => issue.note || issue.type)
+    .filter(Boolean)
+    .join('\n')
+    .slice(0, 2000)
+  return {
+    issues,
+    paymentIssue: unresolved.length > 0,
+    paymentIssueNote: note,
+    extraAmountUsd: Math.round(paymentTotal * 100) / 100,
+  }
 }
 
 async function notifyCustomerStatusChange(
@@ -224,7 +260,9 @@ Deno.serve(async (req) => {
       city: row.city,
       address: row.address,
       items: (row.order_items || []).map((item) => ({
-        id: item.id,
+        // Customer orders use product_id as the stable item identity. The
+        // row UUID is an internal DB key and never matched on the customer.
+        id: item.product_id || item.id,
         title: item.title,
         image: item.image,
         color: item.color,
@@ -395,12 +433,16 @@ Deno.serve(async (req) => {
     if (patch.statusIndex !== undefined) dbPatch.status_index = patch.statusIndex
     if (patch.qadmousNumber !== undefined) dbPatch.qadmous_number = patch.qadmousNumber
     if (patch.paidAt !== undefined && patch.paymentStatus === undefined) dbPatch.paid_at = patch.paidAt
-    if (patch.paymentIssue !== undefined) dbPatch.payment_issue = Boolean(patch.paymentIssue)
-    if (patch.paymentIssueNote !== undefined) dbPatch.payment_issue_note = String(patch.paymentIssueNote || '')
-    if (patch.extraAmountUsd !== undefined) dbPatch.extra_amount_usd = Number(patch.extraAmountUsd) || 0
+    if (patch.paymentIssue !== undefined && patch.issues === undefined) dbPatch.payment_issue = Boolean(patch.paymentIssue)
+    if (patch.paymentIssueNote !== undefined && patch.issues === undefined) dbPatch.payment_issue_note = String(patch.paymentIssueNote || '')
+    if (patch.extraAmountUsd !== undefined && patch.issues === undefined) dbPatch.extra_amount_usd = Number(patch.extraAmountUsd) || 0
     // مشاكل الطلب المنظمة: نحفظ المصفوفة كما هي (الواجهة تبنيها منقّاة).
     if (patch.issues !== undefined) {
-      dbPatch.issues = Array.isArray(patch.issues) ? patch.issues : []
+      const issueState = normalizeOrderIssues(patch.issues)
+      dbPatch.issues = issueState.issues
+      dbPatch.payment_issue = issueState.paymentIssue
+      dbPatch.payment_issue_note = issueState.paymentIssueNote
+      dbPatch.extra_amount_usd = issueState.extraAmountUsd
     }
     // فاتورة الطلب: بنود {label, amountUsd} فقط — ننقّي الشكل قبل الحفظ.
     if (patch.invoice !== undefined) {
@@ -418,7 +460,7 @@ Deno.serve(async (req) => {
     }
 
     let previousPaymentIssue: boolean | null = null
-    if (patch.paymentIssue !== undefined) {
+    if (patch.paymentIssue !== undefined || patch.issues !== undefined) {
       const { data } = await supabase.from('orders').select('payment_issue').eq('id', orderId).single()
       previousPaymentIssue = data?.payment_issue ?? false
     }
@@ -462,13 +504,13 @@ Deno.serve(async (req) => {
       })
     }
 
-    if (patch.paymentIssue === true && previousPaymentIssue === false) {
+    if (Boolean(dbPatch.payment_issue) && previousPaymentIssue === false) {
       const { data: order } = await supabase.from('orders').select('phone').eq('id', orderId).single()
       if (order?.phone) {
         await notifyCustomerPaymentIssue(order.phone, {
           id: orderId,
-          note: typeof patch.paymentIssueNote === 'string' ? patch.paymentIssueNote : '',
-          extraAmountUsd: Number(patch.extraAmountUsd) || 0,
+          note: String(dbPatch.payment_issue_note || ''),
+          extraAmountUsd: Number(dbPatch.extra_amount_usd) || 0,
         })
       }
     }

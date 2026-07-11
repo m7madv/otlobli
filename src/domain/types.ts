@@ -157,6 +157,7 @@ export type CartItem = {
 export type WalletTransaction = {
   id: string
   amountSyp: number
+  amountUsd?: number
   kind: string
   note: string
   orderId?: string

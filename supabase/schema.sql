@@ -1981,6 +1981,7 @@ begin
   select coalesce(jsonb_agg(jsonb_build_object(
     'id', wt.id,
     'amountSyp', wt.amount_syp,
+    'amountUsd', wt.amount_usd,
     'kind', wt.kind,
     'note', wt.note,
     'orderId', wt.order_id,
