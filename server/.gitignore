@@ -5,3 +5,5 @@ qr-code.png
 otp-db.json
 *.log
 .env.local
+
+supabase/.temp/
