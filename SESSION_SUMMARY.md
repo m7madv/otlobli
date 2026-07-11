@@ -104,6 +104,35 @@ git log -5 --oneline
 الخادم، ومسار group checkout لا يبني snapshot موثقًا بالكامل. لا تصف التجارة كلها
 بأنها tamper-proof قبل price quotes وختم group snapshot على الخادم.
 
+## 🟡 v63 (2026-07-11): نظام مشاكل احترافي + محفظة/دعم/تعديل ملف + تصليب واتساب
+
+**نُفّذ ونُشر على الإنتاج بالكامل (DB + admin-orders + app-settings + Vercel
+admin + Railway server):**
+1. **نظام مشاكل متعدد احترافي:** عمود `orders.issues` jsonb + RPC
+   `submit_order_issue_resolve` (نواة service_role + غلاف جلسة). لوحة
+   الإدارة `OrderIssuesField`: عدة مشاكل مضغوطة لكل طلب/منتج
+   (payment/size/color/custom_photo/custom_photo_size/custom_text/
+   unavailable/quantity/link/other)، يُشتق منها paymentIssue/
+   extraAmountUsd/note للتوافق مع مسار الدفع وإشعار الواتساب. التطبيق:
+   قسم «مشاكل تحتاج حلّك» — أزرار مقاس/لون، قص صورة، إدخال نص، دفع
+   الفرق، أو تواصل/معالجة. **مسار دفع Codex المقوّى لم يُمس.** البانر
+   القديم يظهر فقط للطلبات بلا issues[] (توافق خلفي).
+2. **تعديل معلومات الاستلام:** الزر كان يضبط editingProfile دون الانتقال
+   لشاشة profile → لا يظهر ويظهر عند الرجوع. أُصلح بـ setScreen('profile').
+3. **حركات المحفظة:** «تم الإيداع/تم السحب» بالدولار + رقم الطلب والمتجر
+   (شي إن/تيمو) بأيقونات، بدل نص القاعدة الخام.
+4. **رقم دعم قابل للتعديل:** app-settings `support_whatsapp_phone` + حقل
+   بلوحة الإدارة + التطبيق يقرؤه في openWhatsappSupport.
+5. **تصليب واتساب (server/src/whatsapp.js):** هوية جهاز ثابتة، sendHumanLike
+   (حضور «يكتب» + تأخير) + paceSend (فاصل 4ث، طابور). صراحة موثّقة في
+   `server/WHATSAPP_ANTI_BAN.md`: الحظر سلوك واتساب حسب نوع/عمر الرقم؛
+   لا كود يمنعه 100%؛ الحل شرائح حقيقية مُحمّاة + inbound.
+
+نسخ v63: `Desktop\otlobli-v63.apk` + iOS
+[run 29158544945](https://github.com/m7madv/otlobli/actions/runs/29158544945).
+
+---
+
 ## 🟡 v62 (2026-07-11): شي إن — وضع التحقق الآمن (كلاودفلير)
 
 **التشخيص الحاسم (فحص مباشر من جهاز التطوير):** `m.shein.com` صارت خلف
