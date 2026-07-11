@@ -41,6 +41,8 @@ Do not revert or fold the UI commits into it.
   customer cannot self-resolve a payment issue, admin issue saves derive only from
   unresolved entries, item IDs match `product_id`, and wallet history returns the
   stored USD amount instead of recalculating old transactions at today's rate.
+- `admin-orders` also merges stale issue drafts against the current order and never
+  reopens or erases a customer-resolved issue during a late admin save.
 - The Note 8 is now authorized as serial `988e16384e4f51395230`, model `SM-N950F`.
   ShamCash must still be tested only on this Syrian-network phone, never on the PC.
 - Remaining payment trust debt is explicit: product prices/totals still originate in the

@@ -54,6 +54,8 @@ Prevent this by updating `CURRENT_STATE.md`, `AI-HANDOFF.md`, and `SESSION_SUMMA
   duplicate structured payment-issue charges and blocks customer-side payment-issue
   resolution; `admin-orders` version 28 derives issue totals from unresolved entries
   and uses `order_items.product_id`. The second preserves historical wallet USD values.
+  The admin function also preserves resolved issue entries when an old browser draft
+  is saved after a newer customer action.
 - ADB now sees serial `988e16384e4f51395230` as authorized `device` (`SM-N950F`). Do not
   replace the installed debug listener yet: the user requested a stock reset, and the
   physical battery-temperature fault must be repaired before a reset/flash. After the

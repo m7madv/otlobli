@@ -125,6 +125,30 @@ function normalizeOrderIssues(value: unknown) {
   }
 }
 
+function mergeIssueDrafts(incoming: unknown, current: unknown) {
+  const incomingList = Array.isArray(incoming) ? incoming : []
+  const currentList = Array.isArray(current)
+    ? current.filter((issue): issue is Record<string, unknown> => !!issue && typeof issue === 'object')
+    : []
+  const currentById = new Map(currentList.map((issue) => [String(issue.id ?? ''), issue]))
+  const incomingIds = new Set<string>()
+  const merged = incomingList.map((issue) => {
+    const record = (issue && typeof issue === 'object' ? issue : {}) as Record<string, unknown>
+    const id = String(record.id ?? '')
+    incomingIds.add(id)
+    const currentIssue = currentById.get(id)
+    if (currentIssue?.resolved === true && record.resolved !== true) {
+      return { ...record, resolved: true, resolvedValue: currentIssue.resolvedValue ?? '' }
+    }
+    return record
+  })
+  currentList.forEach((issue) => {
+    const id = String(issue.id ?? '')
+    if (id && issue.resolved === true && !incomingIds.has(id)) merged.push(issue)
+  })
+  return merged
+}
+
 async function notifyCustomerStatusChange(
   phone: string,
   order: { id: string; statusIndex: number; qadmousNumber?: string },
@@ -415,6 +439,15 @@ Deno.serve(async (req) => {
 
     // ملاحظة: جدول orders لا يحتوي على عمود updated_at، فلا نضيفه هنا
     const dbPatch: Record<string, unknown> = {}
+    let currentStructuredIssues: unknown[] = []
+    if (patch.issues !== undefined) {
+      const { data: currentOrder } = await supabase
+        .from('orders')
+        .select('issues')
+        .eq('id', orderId)
+        .single()
+      currentStructuredIssues = Array.isArray(currentOrder?.issues) ? currentOrder.issues : []
+    }
     if (patch.paymentStatus !== undefined) {
       const paymentStatus = String(patch.paymentStatus)
       const paidAt = typeof patch.paidAt === 'string' && patch.paidAt ? patch.paidAt : null
@@ -438,7 +471,7 @@ Deno.serve(async (req) => {
     if (patch.extraAmountUsd !== undefined && patch.issues === undefined) dbPatch.extra_amount_usd = Number(patch.extraAmountUsd) || 0
     // مشاكل الطلب المنظمة: نحفظ المصفوفة كما هي (الواجهة تبنيها منقّاة).
     if (patch.issues !== undefined) {
-      const issueState = normalizeOrderIssues(patch.issues)
+      const issueState = normalizeOrderIssues(mergeIssueDrafts(patch.issues, currentStructuredIssues))
       dbPatch.issues = issueState.issues
       dbPatch.payment_issue = issueState.paymentIssue
       dbPatch.payment_issue_note = issueState.paymentIssueNote

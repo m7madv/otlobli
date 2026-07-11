@@ -9,6 +9,8 @@
   `20260712032000`; deployed `admin-orders` version 28. Production probes for the
   empty account RPC and protected issue-resolve RPC returned controlled results, and
   the root client build passed.
+- `admin-orders` was redeployed with stale-draft merging so a late admin save cannot
+  reopen or delete a customer-resolved issue.
 
 Copy this into a new AI chat before continuing work.
 
