@@ -13,18 +13,12 @@ public class EventIdentityTest {
         String first = EventIdentity.create(
             ListenerConfig.TARGET_PACKAGE,
             "0|com.shmacash.shamcash|42",
-            123456789L,
-            "تم استلام حوالة",
-            "25 USD",
-            ""
+            123456789L
         );
         String second = EventIdentity.create(
             ListenerConfig.TARGET_PACKAGE,
             "0|com.shmacash.shamcash|42",
-            123456789L,
-            "تم استلام حوالة",
-            "25 USD",
-            ""
+            123456789L
         );
 
         assertEquals(first, second);
@@ -32,12 +26,12 @@ public class EventIdentityTest {
     }
 
     @Test
-    public void contentAndPostTimeAreBoundIntoEventId() {
-        String base = EventIdentity.create("pkg", "key", 100L, "title", "10 USD", "");
-        String changedBody = EventIdentity.create("pkg", "key", 100L, "title", "11 USD", "");
-        String changedTime = EventIdentity.create("pkg", "key", 101L, "title", "10 USD", "");
+    public void notificationUpdatesKeepIdentityButNewPostsDoNot() {
+        String base = EventIdentity.create("pkg", "key", 100L);
+        String samePostedNotificationAfterContentUpdate = EventIdentity.create("pkg", "key", 100L);
+        String changedTime = EventIdentity.create("pkg", "key", 101L);
 
-        assertNotEquals(base, changedBody);
+        assertEquals(base, samePostedNotificationAfterContentUpdate);
         assertNotEquals(base, changedTime);
         assertFalse(EventIdentity.isValid("not-a-sha256-id"));
     }

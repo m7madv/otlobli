@@ -21,6 +21,7 @@ public final class PaymentDeliveryWorker extends Worker {
     private static final int CONNECT_TIMEOUT_MS = 15_000;
     private static final int READ_TIMEOUT_MS = 20_000;
     private static final int MAX_RESPONSE_CHARS = 768;
+    private static final int MAX_CONFIGURATION_ATTEMPTS = 12;
 
     public PaymentDeliveryWorker(@NonNull Context context, @NonNull WorkerParameters parameters) {
         super(context, parameters);
@@ -42,7 +43,7 @@ public final class PaymentDeliveryWorker extends Worker {
             ListenerConfig.saveLastResult(context, "delivery_rejected invalid_event");
             return Result.failure();
         }
-        if (!NotificationClassifier.looksLikeIncomingPayment(title, text, bigText)) {
+        if (!NotificationClassifier.shouldForwardCandidate(title, text, bigText)) {
             ListenerConfig.saveLastResult(context, "delivery_rejected classifier");
             return Result.failure();
         }
@@ -51,6 +52,10 @@ public final class PaymentDeliveryWorker extends Worker {
         String webhookUrl = ListenerConfig.webhookUrl(context);
         String secret = ListenerConfig.secret(context);
         if (!ListenerConfig.isValidHttpsUrl(webhookUrl) || secret.isEmpty()) {
+            if (getRunAttemptCount() >= MAX_CONFIGURATION_ATTEMPTS) {
+                ListenerConfig.saveLastResult(context, "delivery_failed missing_config");
+                return Result.failure();
+            }
             return retry(context, "missing_config");
         }
 
@@ -70,7 +75,6 @@ public final class PaymentDeliveryWorker extends Worker {
             String signature = RequestSigner.sign(secret, deviceId, eventId, signatureTimestamp, body);
             HttpResult response = post(
                 webhookUrl,
-                secret,
                 deviceId,
                 eventId,
                 signatureTimestamp,
@@ -87,8 +91,11 @@ public final class PaymentDeliveryWorker extends Worker {
                 return Result.success();
             }
 
-            if (response.status == 404 && getRunAttemptCount() >= 12) {
-                ListenerConfig.saveLastResult(context, "delivery_expired_unmatched " + summary);
+            if (
+                (response.status == 401 || response.status == 403 || response.status == 404) &&
+                getRunAttemptCount() >= MAX_CONFIGURATION_ATTEMPTS
+            ) {
+                ListenerConfig.saveLastResult(context, "delivery_failed_non_transient " + summary);
                 return Result.failure();
             }
             if (shouldRetry(response.status)) return retry(context, summary);
@@ -131,7 +138,6 @@ public final class PaymentDeliveryWorker extends Worker {
 
     private static HttpResult post(
         String webhookUrl,
-        String secret,
         String deviceId,
         String eventId,
         long timestamp,
@@ -149,9 +155,6 @@ public final class PaymentDeliveryWorker extends Worker {
             connection.setInstanceFollowRedirects(false);
             connection.setFixedLengthStreamingMode(body.length);
             connection.setRequestProperty("content-type", "application/json; charset=utf-8");
-            // Kept for compatibility with the current endpoint. The HMAC headers let
-            // the server migrate to replay-resistant verification without another APK.
-            connection.setRequestProperty("x-payment-secret", secret);
             connection.setRequestProperty("x-payment-device", deviceId);
             connection.setRequestProperty("x-payment-event", eventId);
             connection.setRequestProperty("x-payment-timestamp", Long.toString(timestamp));

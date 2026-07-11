@@ -13,7 +13,6 @@ import java.util.UUID;
 
 final class ListenerConfig {
     static final String ACTION_SET_CONFIG = "com.otlobli.shamcashlistener.SET_CONFIG";
-    static final String ACTION_TEST_NOTIFICATION = "com.otlobli.shamcashlistener.TEST_NOTIFICATION";
     static final String TARGET_PACKAGE = "com.shmacash.shamcash";
 
     private static final String PREFS = "shamcash-listener";

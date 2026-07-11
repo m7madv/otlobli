@@ -2286,7 +2286,7 @@ $$;
 revoke all on function public.wallet_spend(text, numeric, text) from public;
 grant execute on function public.wallet_spend(text, numeric, text) to anon, authenticated;
 
-+-- Payment hardening v2
+-- Payment hardening v2
 -- - server-issued customer sessions (only SHA-256 token hashes are stored)
 -- - authenticated customer RPC overloads
 -- - atomic wallet reservation during checkout
@@ -2399,7 +2399,7 @@ create or replace function public.require_customer_session(
 returns uuid
 language plpgsql
 security definer
-set search_path = public
+set search_path = extensions, public, pg_temp
 as $$
 declare
   token_digest text := encode(digest(coalesce(p_session_token, ''), 'sha256'), 'hex');
@@ -2502,7 +2502,7 @@ begin
 
   select phone into account_phone from public.customers where id = target_order.customer_id;
   select value::numeric into usd_rate from public.app_settings where key = 'usd_to_syp_rate';
-  usd_rate := coalesce(nullif(usd_rate, 0), 13000);
+  usd_rate := case when usd_rate > 0 then usd_rate else 13000 end;
 
   insert into public.wallet_transactions (
     customer_id, phone, order_id, amount_syp, amount_usd,
@@ -2555,7 +2555,6 @@ declare
   unit_step numeric;
   candidate_amount numeric;
   expires timestamptz := now() + interval '2 hours';
-  attempt integer;
   max_attempts integer := 120;
 begin
   if target_order_id is null then raise exception 'order id is required'; end if;
@@ -2567,28 +2566,35 @@ begin
   target_customer_id := public.require_customer_session(p_session_token, null);
   select phone into account_phone from public.customers where id = target_customer_id;
 
+  perform pg_advisory_xact_lock(hashtext('shamcash-payment-' || normalized_currency));
+
+  update public.orders
+  set payment_status = 'فشل المطابقة'
+  where payment_status = 'بانتظار الدفع'
+    and payment_currency = normalized_currency
+    and payment_expires_at is not null
+    and payment_expires_at <= now();
+  update public.wallet_topups set status = 'منتهي'
+  where status = 'بانتظار الدفع'
+    and payment_currency = normalized_currency
+    and expires_at <= now();
+  update public.order_issue_payments set status = 'منتهي'
+  where status = 'بانتظار الدفع'
+    and payment_currency = normalized_currency
+    and expires_at <= now();
+
+  -- Keep lock ordering consistent with webhook confirmation: payment key,
+  -- then any rows being expired, then the per-customer wallet key.
   perform pg_advisory_xact_lock(hashtext('wallet-' || target_customer_id::text));
 
   select value::numeric into usd_rate from public.app_settings where key = 'usd_to_syp_rate';
-  usd_rate := coalesce(nullif(usd_rate, 0), 13000);
+  usd_rate := case when usd_rate > 0 then usd_rate else 13000 end;
   available_syp := public.available_wallet_syp(target_customer_id);
   wallet_requested_syp := round(coalesce(p_wallet_spend_usd, 0) * usd_rate)::integer;
 
   if wallet_requested_syp > available_syp then raise exception 'insufficient wallet balance'; end if;
   if wallet_requested_syp > order_total_syp then raise exception 'wallet amount exceeds order total'; end if;
   remaining_syp := order_total_syp - wallet_requested_syp;
-
-  perform pg_advisory_xact_lock(hashtext('shamcash-payment-' || normalized_currency));
-
-  update public.orders
-  set payment_status = 'فشل المطابقة'
-  where payment_status = 'بانتظار الدفع'
-    and payment_expires_at is not null
-    and payment_expires_at <= now();
-  update public.wallet_topups set status = 'منتهي'
-  where status = 'بانتظار الدفع' and expires_at <= now();
-  update public.order_issue_payments set status = 'منتهي'
-  where status = 'بانتظار الدفع' and expires_at <= now();
 
   if remaining_syp = 0 then
     insert into public.orders (
@@ -2600,7 +2606,7 @@ begin
     values (
       target_order_id, target_customer_id,
       coalesce(nullif(order_payload->>'customer', ''), 'عميل طلبية'),
-      coalesce(nullif(order_payload->>'phone', ''), account_phone, 'غير محدد'),
+      coalesce(account_phone, 'غير محدد'),
       coalesce(nullif(order_payload->>'city', ''), 'غير محدد'),
       coalesce(nullif(order_payload->>'address', ''), 'عنوان غير مكتمل'),
       order_total_syp, 'مدفوع', 1, '', current_date, current_date,
@@ -2687,7 +2693,7 @@ begin
       values (
         target_order_id, target_customer_id,
         coalesce(nullif(order_payload->>'customer', ''), 'عميل طلبية'),
-        coalesce(nullif(order_payload->>'phone', ''), account_phone, 'غير محدد'),
+        coalesce(account_phone, 'غير محدد'),
         coalesce(nullif(order_payload->>'city', ''), 'غير محدد'),
         coalesce(nullif(order_payload->>'address', ''), 'عنوان غير مكتمل'),
         order_total_syp, 'بانتظار الدفع', 0, '', current_date,
@@ -2752,7 +2758,6 @@ declare
   credit_syp integer;
   candidate_amount numeric;
   expires timestamptz := now() + interval '5 minutes';
-  attempt integer;
   inserted_topup_id uuid;
 begin
   if requested_usd <= 0 then raise exception 'amount must be positive'; end if;
@@ -2766,17 +2771,18 @@ begin
   end if;
 
   select value::numeric into usd_rate from public.app_settings where key = 'usd_to_syp_rate';
-  usd_rate := coalesce(nullif(usd_rate, 0), 13000);
+  usd_rate := case when usd_rate > 0 then usd_rate else 13000 end;
   credit_syp := round(requested_usd * usd_rate)::integer;
 
   perform pg_advisory_xact_lock(hashtext('shamcash-payment-USD'));
   update public.orders set payment_status = 'فشل المطابقة'
   where payment_status = 'بانتظار الدفع'
+    and payment_currency = 'USD'
     and payment_expires_at is not null and payment_expires_at <= now();
   update public.wallet_topups set status = 'منتهي'
-  where status = 'بانتظار الدفع' and expires_at <= now();
+  where status = 'بانتظار الدفع' and payment_currency = 'USD' and expires_at <= now();
   update public.order_issue_payments set status = 'منتهي'
-  where status = 'بانتظار الدفع' and expires_at <= now();
+  where status = 'بانتظار الدفع' and payment_currency = 'USD' and expires_at <= now();
 
   for attempt in 0..120 loop
     candidate_amount := requested_usd - (attempt * 0.01);
@@ -2843,16 +2849,26 @@ set search_path = public
 as $$
 declare
   target_customer_id uuid;
+  normalized_currency text := upper(trim(coalesce(p_currency, '')));
 begin
+  if normalized_currency not in ('SYP', 'USD') then
+    raise exception 'invalid currency';
+  end if;
+
   target_customer_id := public.require_customer_session(p_session_token, null);
-  if not exists (
-    select 1 from public.orders
-    where id = nullif(p_order_id, '') and customer_id = target_customer_id
-  ) then
+  perform pg_advisory_xact_lock(hashtext('shamcash-payment-' || normalized_currency));
+
+  -- Serialize issue-payment creation for the same order even if callers choose
+  -- different currencies, and bind the order to the authenticated customer.
+  perform 1
+  from public.orders
+  where id = nullif(p_order_id, '') and customer_id = target_customer_id
+  for update;
+  if not found then
     raise exception 'order not found';
   end if;
-  perform pg_advisory_xact_lock(hashtext('shamcash-payment-' || upper(coalesce(p_currency, ''))));
-  return public.create_order_issue_payment(p_order_id, p_amount_usd, upper(p_currency));
+
+  return public.create_order_issue_payment(p_order_id, p_amount_usd, normalized_currency);
 end;
 $$;
 
@@ -2872,11 +2888,25 @@ as $$
 declare
   matched_order public.orders%rowtype;
   match_count integer;
+  normalized_currency text := upper(trim(coalesce(match_currency, '')));
 begin
+  if coalesce(match_amount, 0) <= 0 or normalized_currency not in ('SYP', 'USD') then
+    return jsonb_build_object('matched', false, 'reason', 'invalid_payment');
+  end if;
+
+  perform pg_advisory_xact_lock(hashtext('shamcash-payment-' || normalized_currency));
+
+  update public.orders
+  set payment_status = 'فشل المطابقة'
+  where payment_status = 'بانتظار الدفع'
+    and payment_currency = normalized_currency
+    and payment_expires_at is not null
+    and payment_expires_at <= now();
+
   select count(*) into match_count
   from public.orders
   where payment_status = 'بانتظار الدفع'
-    and payment_currency = match_currency
+    and payment_currency = normalized_currency
     and payment_amount = match_amount
     and (payment_expires_at is null or payment_expires_at > now());
 
@@ -2886,18 +2916,25 @@ begin
   select * into matched_order
   from public.orders
   where payment_status = 'بانتظار الدفع'
-    and payment_currency = match_currency
+    and payment_currency = normalized_currency
     and payment_amount = match_amount
     and (payment_expires_at is null or payment_expires_at > now())
   limit 1
   for update;
+
+  -- An explicit admin update can win the row race without taking the payment
+  -- advisory lock. Treat that as an idempotent miss instead of dereferencing a
+  -- null row and creating a duplicate event.
+  if not found then
+    return jsonb_build_object('matched', false, 'reason', 'not_found');
+  end if;
 
   perform public.apply_order_wallet_reservation(matched_order.id);
 
   update public.orders
   set payment_status = 'مدفوع', status_index = 1, paid_at = current_date,
       payment_matched_by = 'sham-cash-webhook'
-  where id = matched_order.id;
+  where id = matched_order.id and payment_status = 'بانتظار الدفع';
 
   if matched_order.group_id is not null then
     update public.cart_groups
@@ -2935,14 +2972,23 @@ declare
   match_count integer;
   credit_amount integer;
   wallet_balance integer := 0;
+  normalized_currency text := upper(trim(coalesce(match_currency, '')));
 begin
+  if coalesce(match_amount, 0) <= 0 or normalized_currency not in ('SYP', 'USD') then
+    return jsonb_build_object('matched', false, 'reason', 'invalid_payment');
+  end if;
+
+  perform pg_advisory_xact_lock(hashtext('shamcash-payment-' || normalized_currency));
+
   update public.wallet_topups set status = 'منتهي'
-  where status = 'بانتظار الدفع' and expires_at <= now();
+  where status = 'بانتظار الدفع'
+    and payment_currency = normalized_currency
+    and expires_at <= now();
 
   select count(*) into match_count
   from public.wallet_topups
   where status = 'بانتظار الدفع'
-    and payment_currency = match_currency
+    and payment_currency = normalized_currency
     and payment_amount = match_amount
     and expires_at > now();
 
@@ -2952,11 +2998,15 @@ begin
   select * into matched_topup
   from public.wallet_topups
   where status = 'بانتظار الدفع'
-    and payment_currency = match_currency
+    and payment_currency = normalized_currency
     and payment_amount = match_amount
     and expires_at > now()
   limit 1
   for update;
+
+  if not found then
+    return jsonb_build_object('matched', false, 'reason', 'not_found');
+  end if;
 
   credit_amount := greatest(matched_topup.requested_amount_syp, 0);
   if credit_amount <= 0 then raise exception 'invalid wallet top-up credit'; end if;
@@ -2964,7 +3014,7 @@ begin
   update public.wallet_topups
   set status = 'مدفوع', paid_at = now(),
       notification_text = left(coalesce(raw_notification_text, ''), 1200)
-  where id = matched_topup.id;
+  where id = matched_topup.id and status = 'بانتظار الدفع';
 
   insert into public.wallet_transactions (
     customer_id, phone, amount_syp, amount_usd, kind, note, created_by, metadata
@@ -2995,6 +3045,252 @@ $$;
 
 revoke all on function public.confirm_wallet_topup_by_amount(numeric, text, text) from public, anon, authenticated;
 grant execute on function public.confirm_wallet_topup_by_amount(numeric, text, text) to service_role;
+
+create or replace function public.confirm_shamcash_payment_by_amount(
+  match_amount numeric,
+  match_currency text,
+  notification_text text default ''
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  normalized_currency text := upper(trim(coalesce(match_currency, '')));
+  order_count integer := 0;
+  topup_count integer := 0;
+  issue_count integer := 0;
+  matched_issue public.order_issue_payments%rowtype;
+  safe_notification_text text := left(coalesce(notification_text, ''), 1200);
+begin
+  if coalesce(match_amount, 0) <= 0 or normalized_currency not in ('SYP', 'USD') then
+    return jsonb_build_object('matched', false, 'reason', 'invalid_payment');
+  end if;
+
+  -- Creation and confirmation share this key. This closes the window where a
+  -- webhook could observe "not found" while a matching intent was committing.
+  perform pg_advisory_xact_lock(hashtext('shamcash-payment-' || normalized_currency));
+
+  update public.orders
+  set payment_status = 'فشل المطابقة'
+  where payment_status = 'بانتظار الدفع'
+    and payment_currency = normalized_currency
+    and payment_expires_at is not null
+    and payment_expires_at <= now();
+  update public.wallet_topups
+  set status = 'منتهي'
+  where status = 'بانتظار الدفع'
+    and payment_currency = normalized_currency
+    and expires_at <= now();
+  update public.order_issue_payments
+  set status = 'منتهي'
+  where status = 'بانتظار الدفع'
+    and payment_currency = normalized_currency
+    and expires_at <= now();
+
+  select count(*) into order_count
+  from public.orders
+  where payment_status = 'بانتظار الدفع'
+    and payment_currency = normalized_currency
+    and payment_amount = match_amount
+    and (payment_expires_at is null or payment_expires_at > now());
+
+  select count(*) into topup_count
+  from public.wallet_topups
+  where status = 'بانتظار الدفع'
+    and payment_currency = normalized_currency
+    and payment_amount = match_amount
+    and expires_at > now();
+
+  select count(*) into issue_count
+  from public.order_issue_payments
+  where status = 'بانتظار الدفع'
+    and payment_currency = normalized_currency
+    and payment_amount = match_amount
+    and expires_at > now();
+
+  if order_count + topup_count + issue_count = 0 then
+    return jsonb_build_object('matched', false, 'reason', 'not_found');
+  end if;
+  if order_count + topup_count + issue_count > 1 then
+    return jsonb_build_object('matched', false, 'reason', 'ambiguous');
+  end if;
+
+  if issue_count = 1 then
+    select * into matched_issue
+    from public.order_issue_payments
+    where status = 'بانتظار الدفع'
+      and payment_currency = normalized_currency
+      and payment_amount = match_amount
+      and expires_at > now()
+    limit 1
+    for update;
+
+    if not found then
+      return jsonb_build_object('matched', false, 'reason', 'not_found');
+    end if;
+
+    update public.order_issue_payments
+    set status = 'مدفوع',
+        paid_at = now(),
+        notification_text = safe_notification_text
+    where id = matched_issue.id and status = 'بانتظار الدفع';
+
+    update public.orders
+    set payment_issue = false,
+        payment_issue_note = '',
+        extra_amount_usd = 0
+    where id = matched_issue.order_id;
+
+    insert into public.order_events (order_id, status_index, title, note)
+    select matched_issue.order_id, status_index,
+           'تم حل مشكلة الدفع', 'تمت مطابقة الدفعة الإضافية عبر شام كاش'
+    from public.orders
+    where id = matched_issue.order_id;
+
+    return jsonb_build_object(
+      'matched', true,
+      'type', 'order_issue_payment',
+      'orderId', matched_issue.order_id,
+      'issuePaymentId', matched_issue.id
+    );
+  end if;
+
+  if topup_count = 1 then
+    return public.confirm_wallet_topup_by_amount(
+      match_amount, normalized_currency, safe_notification_text
+    );
+  end if;
+
+  return public.confirm_payment_by_amount(
+    match_amount, normalized_currency, safe_notification_text
+  ) || jsonb_build_object('type', 'order_payment');
+end;
+$$;
+
+revoke all on function public.confirm_shamcash_payment_by_amount(numeric, text, text)
+  from public, anon, authenticated;
+grant execute on function public.confirm_shamcash_payment_by_amount(numeric, text, text)
+  to service_role;
+
+create or replace function public.process_shamcash_payment_event(
+  p_event_id text,
+  p_amount numeric,
+  p_currency text,
+  p_notification_text text default ''
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  normalized_event_id text := trim(coalesce(p_event_id, ''));
+  normalized_amount numeric := round(coalesce(p_amount, 0), 2);
+  normalized_currency text := upper(trim(coalesce(p_currency, '')));
+  found_event public.payment_events%rowtype;
+  confirmation_result jsonb;
+  merged_result jsonb;
+  terminal_status text;
+  resolved_matched_type text;
+  resolved_matched_id text;
+  effective_notification_text text;
+begin
+  if normalized_event_id = '' or length(normalized_event_id) > 160 then
+    raise exception 'invalid payment event id';
+  end if;
+  if normalized_amount <= 0 or normalized_currency not in ('SYP', 'USD') then
+    raise exception 'invalid parsed payment';
+  end if;
+
+  select * into found_event
+  from public.payment_events
+  where event_id = normalized_event_id
+  for update;
+
+  if not found then
+    raise exception 'payment event not found';
+  end if;
+  if found_event.provider <> 'shamcash'
+     or found_event.package_name <> 'com.shmacash.shamcash' then
+    raise exception 'payment event source mismatch';
+  end if;
+  if found_event.parsed_amount is null
+     or found_event.parsed_amount <> normalized_amount
+     or found_event.parsed_currency is null
+     or found_event.parsed_currency <> normalized_currency then
+    raise exception 'payment event parse mismatch';
+  end if;
+
+  -- Replays of the same listener event return the durable first result. The
+  -- row lock makes two simultaneous deliveries of one event exactly-once.
+  if found_event.status in ('matched', 'ambiguous', 'rejected', 'duplicate') then
+    return coalesce(found_event.result, '{}'::jsonb);
+  end if;
+  if found_event.status = 'unmatched'
+     and found_event.received_at <= now() - interval '2 minutes' then
+    return coalesce(found_event.result, '{}'::jsonb);
+  end if;
+  if found_event.status not in ('received', 'error', 'unmatched') then
+    raise exception 'invalid payment event state';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtext('shamcash-payment-' || normalized_currency));
+
+  effective_notification_text := left(
+    coalesce(nullif(found_event.notification_text, ''), p_notification_text, ''),
+    1200
+  );
+  confirmation_result := public.confirm_shamcash_payment_by_amount(
+    normalized_amount,
+    normalized_currency,
+    effective_notification_text
+  );
+
+  if coalesce((confirmation_result->>'matched')::boolean, false) then
+    terminal_status := 'matched';
+    resolved_matched_type := coalesce(nullif(confirmation_result->>'type', ''), 'order_payment');
+    resolved_matched_id := case resolved_matched_type
+      when 'wallet_topup' then nullif(confirmation_result->>'topUpId', '')
+      when 'order_issue_payment' then coalesce(
+        nullif(confirmation_result->>'issuePaymentId', ''),
+        nullif(confirmation_result->>'orderId', '')
+      )
+      else nullif(confirmation_result->>'orderId', '')
+    end;
+  elsif confirmation_result->>'reason' = 'ambiguous' then
+    terminal_status := 'ambiguous';
+    resolved_matched_type := null;
+    resolved_matched_id := null;
+  else
+    terminal_status := 'unmatched';
+    resolved_matched_type := null;
+    resolved_matched_id := null;
+  end if;
+
+  -- Preserve immutable audit fields (notably bodyHash) written during the
+  -- authenticated insert while allowing the confirmation result to win on
+  -- matched/reason/type identifiers.
+  merged_result := coalesce(found_event.result, '{}'::jsonb)
+    || coalesce(confirmation_result, '{}'::jsonb);
+
+  update public.payment_events
+  set status = terminal_status,
+      matched_type = resolved_matched_type,
+      matched_id = resolved_matched_id,
+      result = merged_result,
+      updated_at = now()
+  where id = found_event.id;
+
+  return merged_result;
+end;
+$$;
+
+revoke all on function public.process_shamcash_payment_event(text, numeric, text, text)
+  from public, anon, authenticated;
+grant execute on function public.process_shamcash_payment_event(text, numeric, text, text)
+  to service_role;
 
 create or replace function public.get_customer_account(p_phone text, p_session_token text)
 returns jsonb
@@ -3043,7 +3339,12 @@ as $$
 begin
   perform public.require_customer_session(p_session_token, p_phone);
   perform public.upsert_customer_profile(
-    p_phone, p_name, p_governorate, p_qadmous_branch, p_city, p_details
+    p_phone => p_phone,
+    p_name => p_name,
+    p_governorate => p_governorate,
+    p_qadmous_branch => p_qadmous_branch,
+    p_city => p_city,
+    p_details => p_details
   );
   return public.get_customer_account(p_phone, p_session_token);
 end;
@@ -3085,7 +3386,7 @@ declare
 begin
   target_customer_id := public.require_customer_session(p_session_token, p_phone);
   select value::numeric into usd_rate from public.app_settings where key = 'usd_to_syp_rate';
-  usd_rate := coalesce(nullif(usd_rate, 0), 13000);
+  usd_rate := case when usd_rate > 0 then usd_rate else 13000 end;
   return round(public.available_wallet_syp(target_customer_id) / usd_rate, 2);
 end;
 $$;
@@ -3266,7 +3567,8 @@ as $$
 declare
   target_order public.orders%rowtype;
 begin
-  if p_payment_status not in ('بانتظار الدفع', 'مدفوع', 'فشل المطابقة') then
+  if p_payment_status is null
+     or p_payment_status not in ('بانتظار الدفع', 'مدفوع', 'فشل المطابقة') then
     raise exception 'invalid payment status';
   end if;
 
@@ -3301,24 +3603,24 @@ revoke all on function public.admin_set_order_payment_status(text, text, date) f
 grant execute on function public.admin_set_order_payment_status(text, text, date) to service_role;
 
 -- Remove all direct anonymous access to the legacy phone-trusting RPCs.
-revoke all on function public.submit_order(jsonb) from anon, authenticated;
-revoke all on function public.create_pending_order(jsonb, text) from anon, authenticated;
-revoke all on function public.create_order_issue_payment(text, numeric, text) from anon, authenticated;
-revoke all on function public.create_wallet_topup(text, text, integer) from anon, authenticated;
-revoke all on function public.create_wallet_topup(text, text, numeric) from anon, authenticated;
-revoke all on function public.get_wallet_topup_status(text) from anon, authenticated;
-revoke all on function public.get_order_payment_status(text) from anon, authenticated;
-revoke all on function public.get_customer_account(text) from anon, authenticated;
-revoke all on function public.get_wallet_balance_usd(text) from anon, authenticated;
-revoke all on function public.wallet_spend(text, numeric, text) from anon, authenticated;
-revoke all on function public.upsert_customer_profile(text, text, text, text, text, text) from anon, authenticated;
-revoke all on function public.update_customer_preferences(text, text, jsonb) from anon, authenticated;
-revoke all on function public.redeem_coupon(text, text, text, text, integer, numeric) from anon, authenticated;
-revoke all on function public.submit_order_rating(text, integer, text) from anon, authenticated;
-revoke all on function public.submit_order_custom_fix(text, text, text, text) from anon, authenticated;
-revoke all on function public.ensure_customer(text, text, text, text, text, text) from anon, authenticated;
-revoke all on function public.upsert_customer_from_order(jsonb) from anon, authenticated;
-revoke all on function public.customer_orders_json(uuid, text) from anon, authenticated;
+revoke all on function public.submit_order(jsonb) from public, anon, authenticated;
+revoke all on function public.create_pending_order(jsonb, text) from public, anon, authenticated;
+revoke all on function public.create_order_issue_payment(text, numeric, text) from public, anon, authenticated;
+revoke all on function public.create_wallet_topup(text, text, integer) from public, anon, authenticated;
+revoke all on function public.create_wallet_topup(text, text, numeric) from public, anon, authenticated;
+revoke all on function public.get_wallet_topup_status(text) from public, anon, authenticated;
+revoke all on function public.get_order_payment_status(text) from public, anon, authenticated;
+revoke all on function public.get_customer_account(text) from public, anon, authenticated;
+revoke all on function public.get_wallet_balance_usd(text) from public, anon, authenticated;
+revoke all on function public.wallet_spend(text, numeric, text) from public, anon, authenticated;
+revoke all on function public.upsert_customer_profile(text, text, text, text, text, text) from public, anon, authenticated;
+revoke all on function public.update_customer_preferences(text, text, jsonb) from public, anon, authenticated;
+revoke all on function public.redeem_coupon(text, text, text, text, integer, numeric) from public, anon, authenticated;
+revoke all on function public.submit_order_rating(text, integer, text) from public, anon, authenticated;
+revoke all on function public.submit_order_custom_fix(text, text, text, text) from public, anon, authenticated;
+revoke all on function public.ensure_customer(text, text, text, text, text, text) from public, anon, authenticated;
+revoke all on function public.upsert_customer_from_order(jsonb) from public, anon, authenticated;
+revoke all on function public.customer_orders_json(uuid, text) from public, anon, authenticated;
 
 grant execute on function public.submit_order(jsonb) to service_role;
 grant execute on function public.create_pending_order(jsonb, text) to service_role;
@@ -3338,3 +3640,77 @@ grant execute on function public.submit_order_custom_fix(text, text, text, text)
 grant execute on function public.ensure_customer(text, text, text, text, text, text) to service_role;
 grant execute on function public.upsert_customer_from_order(jsonb) to service_role;
 grant execute on function public.customer_orders_json(uuid, text) to service_role;
+
+-- Exact-only payment guard. A lower collision candidate must never settle a
+-- full order, wallet top-up, or issue payment.
+create or replace function public.enforce_exact_payment_intent()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  usd_rate numeric;
+  required_amount numeric;
+  remaining_syp integer;
+  metadata_requested_usd text;
+begin
+  select value::numeric into usd_rate from public.app_settings where key = 'usd_to_syp_rate';
+  usd_rate := case when usd_rate > 0 then usd_rate else 13000 end;
+
+  if tg_table_name = 'orders' then
+    if new.payment_status <> 'بانتظار الدفع' or new.payment_amount is null then return new; end if;
+    remaining_syp := greatest(coalesce(new.total_syp, 0) - coalesce(new.wallet_reserved_syp, 0), 0);
+    required_amount := case when new.payment_currency = 'USD'
+      then round(remaining_syp / usd_rate, 2) else remaining_syp::numeric end;
+  elsif tg_table_name = 'wallet_topups' then
+    if new.status <> 'بانتظار الدفع' then return new; end if;
+    if new.payment_currency = 'USD' then
+      metadata_requested_usd := coalesce(new.metadata->>'requestedUsd', '');
+      required_amount := case
+        when metadata_requested_usd ~ '^\d+(?:\.\d{1,2})?$' then round(metadata_requested_usd::numeric, 2)
+        else round(coalesce(new.requested_amount_syp, 0) / usd_rate, 2) end;
+    else
+      required_amount := coalesce(new.requested_amount_syp, 0)::numeric;
+    end if;
+  elsif tg_table_name = 'order_issue_payments' then
+    if new.status <> 'بانتظار الدفع' then return new; end if;
+    required_amount := case when new.payment_currency = 'USD'
+      then round(coalesce(new.requested_amount_usd, 0), 2)
+      else round(coalesce(new.requested_amount_usd, 0) * usd_rate) end;
+  else
+    raise exception 'unsupported payment intent table';
+  end if;
+
+  if required_amount <= 0 or new.payment_amount <> required_amount then
+    raise exception using errcode = 'P0001',
+      message = 'payment amount collision; retry after the existing intent expires';
+  end if;
+  return new;
+end;
+$$;
+revoke all on function public.enforce_exact_payment_intent() from public, anon, authenticated;
+grant execute on function public.enforce_exact_payment_intent() to service_role;
+
+drop trigger if exists orders_exact_payment_amount on public.orders;
+create trigger orders_exact_payment_amount before insert on public.orders
+for each row execute function public.enforce_exact_payment_intent();
+drop trigger if exists wallet_topups_exact_payment_amount on public.wallet_topups;
+create trigger wallet_topups_exact_payment_amount before insert on public.wallet_topups
+for each row execute function public.enforce_exact_payment_intent();
+drop trigger if exists order_issue_exact_payment_amount on public.order_issue_payments;
+create trigger order_issue_exact_payment_amount before insert on public.order_issue_payments
+for each row execute function public.enforce_exact_payment_intent();
+
+update public.wallet_topups set status = 'منتهي'
+where status = 'بانتظار الدفع' and expires_at <= now();
+with ranked as (
+  select id, row_number() over (
+    partition by customer_id order by created_at desc, id desc
+  ) as position
+  from public.wallet_topups where status = 'بانتظار الدفع'
+)
+update public.wallet_topups as topup set status = 'منتهي'
+from ranked where topup.id = ranked.id and ranked.position > 1;
+create unique index if not exists wallet_topups_one_pending_per_customer_uidx
+  on public.wallet_topups (customer_id) where status = 'بانتظار الدفع';

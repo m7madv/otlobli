@@ -10,19 +10,13 @@ final class EventIdentity {
     static String create(
         String packageName,
         String notificationKey,
-        long postedAt,
-        String title,
-        String text,
-        String bigText
+        long postedAt
     ) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             addPart(digest, packageName);
             addPart(digest, notificationKey);
             digest.update(ByteBuffer.allocate(Long.BYTES).putLong(postedAt).array());
-            addPart(digest, title);
-            addPart(digest, text);
-            addPart(digest, bigText);
             return toHex(digest.digest());
         } catch (Exception error) {
             throw new IllegalStateException("SHA-256 unavailable", error);

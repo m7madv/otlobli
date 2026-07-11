@@ -32,6 +32,68 @@ git rev-parse --abbrev-ref HEAD
 git log -5 --oneline
 ```
 
+## 🟡 Codex (2026-07-11): Note 8 + ShamCash + تقوية الدفع — الجهاز بانتظار USB
+
+هذا العمل منفصل عن تعديلات Claude المتزامنة على الواجهات. لا تخلط الملفات أو
+ترجع commits الخاصة به.
+
+**اكتمل في الإنتاج:**
+- طُبق `20260712020000_payment_hardening_hotfix.sql` كاملًا بعد اختبار PGlite
+  على schema حديث وتاريخي، وتشغيله مرتين، واختبار الطلب/المحفظة/دفعة المشكلة
+  مع replay دون تكرار مالي.
+- طُبق `20260712021000_fix_profile_wrapper_overload.sql` بعد أن كشف
+  `supabase db lint` غموض استدعاء حفظ الملف الشخصي. عاد lint لمسار الدفع نظيفًا؛
+  المتبقي فقط خطآن قديمان في `create_cart_group` و`join_cart_group` من نطاق Claude.
+- نُشر `payment-webhook` v9: `ACTIVE`, `verify_jwt=false`, import map مفعّل.
+  الحماية الآن HMAC على البايتات الأصلية + نافذة 5 دقائق + package ثابتة +
+  eventId دائم + RPC ذرّي.
+- دُوّر المفتاح القديم وحُفظ الجديد خارج git في Windows Credential Manager:
+  `Otlobli/ShamCashWebhookSecret`. لا تطبعه.
+- اختبارات الإنتاج: missing/invalid signature = 401، توقيع صحيح لإشعار OTP مرفوض
+  = 200، وإعادته = duplicate 200 بلا معالجة مكررة.
+- طُبق `20260712022000`: يمنع سلم المبالغ الناقص القابل للاستغلال ويجعل التصادم
+  exact-only، ويمنع أكثر من شحن محفظة معلّق للعميل. وطُبق `20260712023000`:
+  unmatched حديث يعاد توفيقه لدقيقتين فقط، والقديم يبقى نهائيًا.
+
+**Android Listener:**
+- أزيل نهائيًا header القديم `x-payment-secret`؛ السر يستخدم فقط لتوقيع HMAC
+  ومخزّن داخل Android Keystore.
+- أزيل `TEST_NOTIFICATION` من release، وأصبحت هوية الحدث ثابتة عبر تحديث الإشعار،
+  وتُرفض group summaries، وتُستعاد الإشعارات النشطة الحديثة بعد rebind، وحد Data
+  محسوب بالـUTF-8. الاختبارات 16/16، وDeno 13/13، وR8/lint ناجحة (تحذير أيقونة واحد).
+- APK موقّع جاهز:
+  `android/shamcash-listener/build/outputs/apk/release/shamcash-listener-release.apk`
+- SHA-256:
+  `343f0213d837410b0a4069a67ece69a2cc65b8aba3c3140f65d0663ecfb226b5`
+- signer SHA-256:
+  `44ed0b43a41924ca67dfa44c6815e5b9286f843b7879b1f1d2c7e4ee5b1f827b`
+
+**الهاتف/البطارية/التحكم — غير مكتمل بعد:**
+- ADB يرى Note 8 بالرقم `988e16384e4f51395230` لكن الحالة `unauthorized`.
+  يجب أن يقبل المستخدم نافذة USB debugging على الهاتف. لا تشغّل ShamCash على
+  الكمبيوتر؛ الاختبار الحقيقي فقط على الهاتف مع الشبكة السورية.
+- قراءات البطارية الحقيقية السابقة: 1%، `health=Cold`، حرارة clamp -20°C،
+  ADC≈3950، جهد≈3.36V، تيار=0. المرجح NTC/بطارية/BMS/موصل. سكربت
+  `/data/adb/service.d/fakebattery.sh` ما زال يعرض 100% مؤقتًا. ممنوع إجبار
+  الشحن أو تفعيل factory/slate أو تفليش حد 80% قبل إصلاح الحساس والتحقق بالملتيميتر.
+- TeamViewer Host وAnyDesk مثبتان للاختبار. قبول Samsung Knox EULA وربط حساب
+  TeamViewer/كلمة مرور AnyDesk يجب أن يفعله المستخدم بنفسه. اختبر حلًا واحدًا
+  ثم احذف الآخر لتقليل سطح الهجوم.
+
+**الخطوة التالية فور ظهور ADB:**
+1. تأكيد serial والجهاز/البطارية الحقيقية دون تعديل.
+2. إزالة listener debug ذي التوقيع القديم، تثبيت release الموقّع، واسترجاع السر
+   من Credential Manager داخل الذاكرة فقط ثم provisioning عبر ConfigReceiver المحمي.
+3. إعادة إذن Notification Listener والـbattery whitelist وفتح شاشة الحالة؛ لا يوجد
+   synthetic action في release عمدًا، والاختبار المالي لا يُزوّر عبر ADB.
+4. التقاط إشعار ShamCash حقيقي وبنيته/مرجعه على الهاتف والشبكة السورية؛ هذا release
+   gate لمنع أي duplicate provider event، ثم إكمال التحكم من iPhone.
+
+**دين أمان لم يُخفَ:** سلامة HMAC والمطابقة والمبلغ الاسمي أصبحت قوية، لكن أسعار
+المنتجات والإجمالي ما زالت آتية من WebView/العميل لعدم وجود price quote موثوق من
+الخادم، ومسار group checkout لا يبني snapshot موثقًا بالكامل. لا تصف التجارة كلها
+بأنها tamper-proof قبل price quotes وختم group snapshot على الخادم.
+
 ## 🟡 v62 (2026-07-11): شي إن — وضع التحقق الآمن (كلاودفلير)
 
 **التشخيص الحاسم (فحص مباشر من جهاز التطوير):** `m.shein.com` صارت خلف
@@ -60,8 +122,8 @@ git log -5 --oneline
   تأكيد الدفع بالإدارة معطل. زُرعت حرفياً من ملف Codex. ✅ مطبق ومتحقق.
 - لوحة الإدارة نُشرت يدوياً عبر vercel CLI (talabieh-admin) وتحقق وجود
   الميزات الأربع في حزمة الإنتاج.
-- ⚠️ hotfix كودكس `20260712020000` ما زال معلقاً: قطعة مفقودة ~سطر 505
-  (التحام create_wallet_topup مع confirm_shamcash) — متروك لصاحبه.
+- ✅ hotfix كودكس `20260712020000` أُعيد بناؤه كاملًا، اختُبر محليًا وتاريخيًا،
+  وطُبق على الإنتاج. كما طُبق `20260712021000` لإزالة غموض profile wrapper.
 
 ---
 

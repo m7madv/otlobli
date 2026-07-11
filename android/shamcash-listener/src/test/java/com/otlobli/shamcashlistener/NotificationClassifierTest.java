@@ -78,6 +78,11 @@ public class NotificationClassifierTest {
             ""
         ));
         assertFalse(NotificationClassifier.looksLikeIncomingPayment(
+            "OTP received",
+            "Your verification code is 123456",
+            ""
+        ));
+        assertFalse(NotificationClassifier.looksLikeIncomingPayment(
             "تحويل",
             "تحويل بقيمة 50 دولار",
             ""
@@ -85,6 +90,25 @@ public class NotificationClassifierTest {
         assertFalse(NotificationClassifier.looksLikeIncomingPayment(
             "تحويل من حسابك",
             "تم تحويل 50 دولار",
+            ""
+        ));
+    }
+
+    @Test
+    public void forwardsUnknownAmountBearingCandidateForServerSideAudit() {
+        assertTrue(NotificationClassifier.shouldForwardCandidate(
+            "شام كاش",
+            "عملية جديدة بقيمة 17.25 USD",
+            ""
+        ));
+        assertFalse(NotificationClassifier.shouldForwardCandidate(
+            "رمز الدخول",
+            "رمز التحقق 123456",
+            ""
+        ));
+        assertFalse(NotificationClassifier.shouldForwardCandidate(
+            "حوالة صادرة",
+            "تم إرسال 17.25 USD",
             ""
         ));
     }

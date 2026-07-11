@@ -24,6 +24,46 @@ Current known Claude/Codex failure mode:
 
 Prevent this by updating `CURRENT_STATE.md`, `AI-HANDOFF.md`, and `SESSION_SUMMARY.md` after every stable change.
 
+## Active Codex scope: Note 8 / ShamCash / payment security (2026-07-11)
+
+- Claude is working concurrently on UI/store behavior. Preserve its commits and do not
+  edit customer/admin UI for this scope.
+- Production migrations `20260712020000` and `20260712021000` are applied. The latter
+  removes an overload ambiguity in the authenticated profile wrapper found by remote lint.
+- `payment-webhook` v9 is deployed `ACTIVE`, `verify_jwt=false`, and uses HMAC rather
+  than Supabase JWT. Never re-enable the old plaintext `x-payment-secret` header.
+- The rotated HMAC value is intentionally absent from git. Retrieve it from Windows
+  Credential Manager target `Otlobli/ShamCashWebhookSecret` only while provisioning the
+  protected ADB receiver; never print it in logs or responses.
+- Signed APK ready at
+  `android/shamcash-listener/build/outputs/apk/release/shamcash-listener-release.apk`.
+  SHA-256 is `343f0213d837410b0a4069a67ece69a2cc65b8aba3c3140f65d0663ecfb226b5`.
+- `20260712022000` blocks the exploitable descending unique-amount ladder and limits
+  each customer to one active wallet top-up; `20260712023000` safely retries only recent
+  unmatched events for two minutes. Both are applied to production.
+- Release code contains no `TEST_NOTIFICATION` action and no `x-payment-secret` header.
+  Do not reintroduce either. A genuine ShamCash notification capture remains a release
+  gate because the provider transaction/reference layout is not yet known.
+- ADB currently sees serial `988e16384e4f51395230` as `unauthorized`. Wait for the user
+  to accept the on-device prompt. Before replacing the installed debug listener, confirm
+  the serial and state are `device`, then uninstall debug (release signer differs),
+  install the signed release, provision via the `android.permission.DUMP`-protected receiver,
+  re-enable notification-listener access, and battery-whitelist it.
+- Do not run ShamCash on the PC. End-to-end ShamCash notification testing must happen on
+  the Note 8 while it has the Syrian network.
+- Battery blocker: real readings were 1%, `Cold`, -20 C clamp, ADC about 3950, ~3.36 V,
+  current 0. Treat this as an NTC/battery/BMS/connector fault. Do not bypass the thermal
+  guard or flash a charge-limit kernel. The fake BatteryService script remains temporary
+  until software work is finished and physical diagnosis can be done safely.
+- Remote control is not finished: TeamViewer Host and AnyDesk are installed for testing;
+  the user must personally accept Samsung Knox terms and assign their own account/password.
+  Prefer TeamViewer Host if full control activates, then remove AnyDesk; otherwise verify
+  AnyDesk's official Samsung plugin/accessibility flow and remove TeamViewer.
+- Pricing/group trust is still incomplete: order totals and item prices originate from
+  client/WebView data, and group snapshots are not yet authoritative. Exact-amount and
+  webhook integrity are hardened, but server-issued price quotes and authenticated group
+  checkout must be completed before describing the entire commerce path as tamper-proof.
+
 ## أحدث تعديل (Claude — تيمو: إخفاء أزرار الهيدر + منع صفحة الدخول)
 
 غير ملتزم بعد (2026-07-09). التفاصيل الكاملة في `SESSION_SUMMARY.md`.

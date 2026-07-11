@@ -38,4 +38,18 @@ public class RequestSignerTest {
         assertNotEquals(first, changedEvent);
         assertNotEquals(first, changedBody);
     }
+
+    @Test
+    public void signatureMatchesCrossPlatformUtf8ProtocolVector() throws Exception {
+        String eventId = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        byte[] body = (
+            "{\"packageName\":\"com.shmacash.shamcash\","
+                + "\"body\":\"تم استلام ٢٥ دولار\"}"
+        ).getBytes(StandardCharsets.UTF_8);
+
+        assertEquals(
+            "a695f62636d49b94a8dea0eea4ae95ebe3ca5e1e28aefddee1d9ced35c6fa210",
+            RequestSigner.sign("secret-شام", "note8-terminal", eventId, 1770000000123L, body)
+        );
+    }
 }

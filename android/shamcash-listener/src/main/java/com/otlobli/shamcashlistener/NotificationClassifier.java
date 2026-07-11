@@ -18,20 +18,33 @@ final class NotificationClassifier {
             + "sent(?:\\s*payment)?|outgoing|debited|withdrawal|purchase)",
         Pattern.CASE_INSENSITIVE
     );
+    private static final Pattern SECURITY_CODE_PATTERN = Pattern.compile(
+        "(?:\\botp\\b|\\bone[\\s-]*time(?:\\s+password)?\\b|"
+            + "\\b(?:verification|security|login)\\s+code\\b|"
+            + "(?:رمز|كود)\\s*(?:التحقق|التأكيد|التاكيد|الأمان|الامان|الدخول|السري))",
+        Pattern.CASE_INSENSITIVE
+    );
     private NotificationClassifier() {}
 
     static boolean looksLikeIncomingPayment(String title, String text, String bigText) {
         String normalized = normalize(join(title, text, bigText));
-        if (normalized.isEmpty()) return false;
-
-        boolean hasAmount = AMOUNT_PATTERN.matcher(normalized).find();
+        if (!shouldForwardNormalized(normalized)) return false;
         boolean hasIncoming = INCOMING_PATTERN.matcher(normalized).find();
-        boolean hasOutgoing = OUTGOING_PATTERN.matcher(normalized).find();
+        return hasIncoming;
+    }
 
-        if (!hasAmount) return false;
-        if (!hasIncoming) return false;
-        if (hasOutgoing) return false;
-        return true;
+    // The server parser is authoritative because ShamCash can change wording without
+    // an APK update. Forward any amount-bearing, non-OTP, non-outgoing candidate from
+    // the fixed package so an unknown incoming format is audited instead of lost.
+    static boolean shouldForwardCandidate(String title, String text, String bigText) {
+        return shouldForwardNormalized(normalize(join(title, text, bigText)));
+    }
+
+    private static boolean shouldForwardNormalized(String normalized) {
+        if (normalized.isEmpty()) return false;
+        if (!AMOUNT_PATTERN.matcher(normalized).find()) return false;
+        if (SECURITY_CODE_PATTERN.matcher(normalized).find()) return false;
+        return !OUTGOING_PATTERN.matcher(normalized).find();
     }
 
     private static String join(String title, String text, String bigText) {

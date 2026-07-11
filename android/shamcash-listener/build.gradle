@@ -16,6 +16,10 @@ def releaseSigningConfigured = [
     releaseKeyAlias,
     releaseKeyPassword,
 ].every { it != null && !it.trim().isEmpty() }
+def releaseArtifactRequested = gradle.startParameter.taskNames.any { String taskName ->
+    def normalized = taskName.toLowerCase(Locale.ROOT)
+    return normalized.contains('assemblerelease') || normalized.contains('bundlerelease')
+}
 
 android {
     namespace = "com.otlobli.shamcashlistener"
@@ -38,6 +42,10 @@ android {
                 storePassword releaseStorePassword
                 keyAlias releaseKeyAlias
                 keyPassword releaseKeyPassword
+                enableV1Signing false
+                enableV2Signing true
+                enableV3Signing true
+                enableV4Signing false
             }
         }
     }
@@ -51,9 +59,7 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            if (releaseSigningConfigured) {
-                signingConfig signingConfigs.listenerRelease
-            }
+            if (releaseSigningConfigured) signingConfig signingConfigs.listenerRelease
         }
     }
 
@@ -67,4 +73,12 @@ dependencies {
     implementation "androidx.work:work-runtime:2.11.2"
 
     testImplementation "junit:junit:${rootProject.ext.junitVersion}"
+}
+
+afterEvaluate {
+    if (releaseArtifactRequested && !releaseSigningConfigured) {
+        throw new GradleException(
+            'Release signing is required. Configure the four OTLOBLI_LISTENER_* signing values.'
+        )
+    }
 }

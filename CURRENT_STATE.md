@@ -1,6 +1,51 @@
 # Otlobli Current State
 
-Last updated: 2026-07-09
+Last updated: 2026-07-11
+
+## Codex Note 8 / ShamCash payment work in progress (2026-07-11)
+
+This scope is intentionally separate from Claude's concurrent customer/admin UI work.
+Do not revert or fold the UI commits into it.
+
+- Supabase production project `dcicqdprtyhwmhegabay` now has both forward repairs:
+  - `20260712020000_payment_hardening_hotfix.sql`
+  - `20260712021000_fix_profile_wrapper_overload.sql`
+- `payment-webhook` version 9 is `ACTIVE` with `verify_jwt=false`. The endpoint is
+  protected by exact-body HMAC-SHA256, a five-minute timestamp window, fixed package
+  identity, durable event IDs, and transactional database matching.
+- The old webhook secret was rotated. The replacement is not in the repository and is
+  stored locally in Windows Credential Manager as `Otlobli/ShamCashWebhookSecret`.
+- Production probes passed: missing/invalid signature -> 401, valid signed OTP rejection
+  -> 200, replay -> 200 duplicate without repeated processing.
+- Financial migrations `20260712022000` and `20260712023000` are also applied:
+  lower collision amounts are rejected (exact-only), one customer cannot ladder active
+  wallet top-ups, and a recent unmatched event can reconcile for two minutes without
+  allowing an older event to drift into a new intent.
+- The Android listener no longer sends `x-payment-secret`; the secret remains only in
+  Android Keystore and signs the request. The release has no synthetic ADB notification
+  action, ignores group summaries, keeps an OS-stable event ID across notification
+  updates, safely recovers recent active notifications, and caps WorkManager data by
+  UTF-8 bytes. Unit tests are 16/16 and Deno webhook tests are 13/13. Release lint has
+  no errors (one pre-existing missing-icon warning).
+- Latest signed listener APK:
+  - `android/shamcash-listener/build/outputs/apk/release/shamcash-listener-release.apk`
+  - APK SHA-256: `343f0213d837410b0a4069a67ece69a2cc65b8aba3c3140f65d0663ecfb226b5`
+  - signer certificate SHA-256: `44ed0b43a41924ca67dfa44c6815e5b9286f843b7879b1f1d2c7e4ee5b1f827b`
+- The Note 8 is visible as serial `988e16384e4f51395230` but currently reports
+  `unauthorized`; the user must accept the USB-debugging prompt before any device action.
+  ShamCash must be tested on the Syrian-network phone, never on the PC.
+- Remaining payment trust debt is explicit: product prices/totals still originate in the
+  client because the vendor pages have no server-authoritative quote. Do not call pricing
+  fully tamper-proof or group payment fully secured until server-issued price quotes and
+  authenticated group snapshots are implemented and tested.
+- Battery safety is not complete: real sysfs previously reported `health=Cold`,
+  `temp=-20 C` clamp, ADC about 3950, roughly 3.36 V, and no charge current. This points
+  to a physical NTC/battery/BMS/connector path fault. `/data/adb/service.d/fakebattery.sh`
+  still masks Android as 100% only to keep maintenance possible. Do not force charging,
+  flash an 80% kernel, or enable factory/slate mode before the physical sensor is valid.
+- TeamViewer Host and AnyDesk were installed for evaluation. Samsung Knox EULA/account
+  assignment requires the user personally; test full unattended control and remove the
+  losing app after the phone reconnects.
 
 ## أحدث تعديل (Claude — تيمو: إخفاء أزرار الهيدر + منع صفحة الدخول)
 
