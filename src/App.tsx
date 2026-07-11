@@ -1799,6 +1799,8 @@ function App() {
   const webviewOpeningRef = useRef(false)
   const webviewIdRef = useRef('')
   const webviewErrorTimerRef = useRef<number | undefined>(undefined)
+  // إشعار تحقق «أنا إنسان» يُعرض مرة واحدة لكل جلسة webview كي لا يزعج.
+  const humanCheckNoticeRef = useRef(false)
   const pendingProductUrlRef = useRef('')
   const [sheinReady, setSheinReady] = useState(false)
   // Tracks which screen the in-page back button inside the SHEIN webview
@@ -1872,7 +1874,12 @@ function App() {
       if (storeOk) { setVpnState('ok'); return }
       if (!geo) { setVpnState('offline'); return }
       setVpnGeo({ country: geo.country, region: geo.region })
-      setVpnState(geo.countryCode === 'SY' ? 'no-vpn' : 'bad-region')
+      if (geo.countryCode === 'SY') { setVpnState('no-vpn'); return }
+      // شي إن خلف تحقق كلاودفلير: فحص الصور يفشل حتى والموقع شغال فعلياً
+      // (التحدي يرد HTML بدل الصورة). خارج سوريا نفتح المتجر ونترك صفحة
+      // التحقق تظهر ليكملها المستخدم — وضع التحقق الآمن يتكفل بالباقي.
+      if (selectedStore === 'shein') { setVpnState('ok'); return }
+      setVpnState('bad-region')
     })()
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2180,6 +2187,22 @@ function App() {
   useEffect(() => {
     const handle = InAppBrowser.addListener('messageFromWebview', (event: { detail?: Record<string, unknown> }) => {
       const detail = event?.detail
+
+      if (detail?.type === 'humanCheck') {
+        // شي إن خلف تحقق كلاودفلير «أنا إنسان» — ليست حالة فشل: نطفئ مؤقت
+        // الخطأ ونُبقي صفحة التحقق ظاهرة ليكملها المستخدم فيفتح الموقع بعدها.
+        if (webviewErrorTimerRef.current !== undefined) {
+          window.clearTimeout(webviewErrorTimerRef.current)
+          webviewErrorTimerRef.current = undefined
+        }
+        setSheinBlockedError(false)
+        markStoreWebviewReadyRef.current(webviewSessionRef.current)
+        if (!humanCheckNoticeRef.current) {
+          humanCheckNoticeRef.current = true
+          showNotice('المتجر يطلب تحققاً بسيطاً — اضغط مربع التحقق داخل الصفحة وسيفتح مباشرة')
+        }
+        return
+      }
 
       if (detail?.type === 'sheinBlocked') {
         void InAppBrowser.hide()

@@ -278,6 +278,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function ensureSheinSaudiStore(options) {
     if (!IS_SHEIN) return true;
+    // أثناء تحقق «أنا إنسان»: ممنوع أي إعادة تحميل/كتابة — تصفّر حل المستخدم.
+    if (otlobliIsHumanChallenge()) return false;
     clearOvercoercedSheinStorage();
     installSheinSaudiStorageGuard();
     writeSheinSaudiState();
@@ -3558,6 +3560,40 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // fixes it immediately). Detected here and handled by the app, since only
   // native code can clear HttpOnly cookies. Reset on navigation so a block
   // on one route doesn't suppress detecting it again on the next.
+  // ── وضع التحقق «أنا إنسان» (Cloudflare) — v62 ─────────────────────────────
+  // شي إن وضعت موقعها خلف جدار كلاودفلير: صفحة "Just a moment..." تظهر قبل
+  // أي محتوى (ثبت بفحص مباشر: HTTP 403 وصفحة تحدي من challenges.cloudflare.com).
+  // القاعدة الراسخة: لا نتجاوز التحقق ولا نغطيه ولا نعيد التحميل أثناءه.
+  // ما كان يكسر شي إن: حارس السعودية لا يجد مؤشرات سعودية على صفحة التحدي
+  // فيعيد تحميلها (حتى مرتين كل 30 ثانية) ويصفّر حل المستخدم قبل إتمامه —
+  // فتعلق شي إن للأبد. الحل: نكتشف التحدي، نجمّد كل تدخلاتنا ونزيل عناصرنا
+  // من الصفحة، ونبلغ التطبيق (humanCheck) ليطفئ مؤقت «تعذر الفتح» وينتظر.
+  var __otlobliChallengeNotified = false;
+  function otlobliIsHumanChallenge() {
+    try {
+      if (/just a moment/i.test(document.title || '')) return true;
+      if (document.getElementById('challenge-form')) return true;
+      if (document.querySelector('script[src*="challenges.cloudflare.com"], iframe[src*="challenges.cloudflare.com"]')) return true;
+    } catch (e) {}
+    return false;
+  }
+  function otlobliEnterChallengeMode() {
+    try {
+      var ours = document.querySelectorAll('[id^="otlobli"]');
+      for (var ci = 0; ci < ours.length; ci++) {
+        try { if (ours[ci].parentNode) ours[ci].parentNode.removeChild(ours[ci]); } catch (e) {}
+      }
+    } catch (e) {}
+    if (!__otlobliChallengeNotified) {
+      __otlobliChallengeNotified = true;
+      try {
+        if (window.mobileApp && window.mobileApp.postMessage) {
+          window.mobileApp.postMessage({ detail: { type: 'humanCheck' } });
+        }
+      } catch (e) {}
+    }
+  }
+
   var sheinBlockReported = false;
   function checkForSheinSecurityBlock() {
     if (sheinBlockReported) return;
@@ -3693,6 +3729,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // setInterval(tick, 300) already scheduled will simply call this again
     // shortly, by which point the parser is essentially always done with it.
     if (!document.body) return;
+    // صفحة تحقق «أنا إنسان» — تجميد كامل لكل تدخلاتنا حتى يكملها المستخدم.
+    if (otlobliIsHumanChallenge()) { otlobliEnterChallengeMode(); return; }
     ensureViewportFitCover();
     if (IS_SHEIN) ensureSheinSaudiStore({ navigate: false });
     ensureBackButton();
