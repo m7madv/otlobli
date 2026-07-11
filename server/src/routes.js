@@ -64,6 +64,36 @@ async function hasValidCustomerSession(req, phone) {
   return !error
 }
 
+async function persistExchangeRate(rate) {
+  if (!supabase) throw new Error('Supabase is not configured for exchange-rate sync')
+  const normalizedRate = Math.round(Number(rate))
+  if (!Number.isFinite(normalizedRate) || normalizedRate < 1000 || normalizedRate > 100000) {
+    throw new Error('Exchange rate is outside the accepted range')
+  }
+  const { error } = await supabase
+    .from('app_settings')
+    .upsert({ key: 'usd_to_syp_rate', value: String(normalizedRate) }, { onConflict: 'key' })
+  if (error) throw new Error(`Failed to persist exchange rate: ${error.message}`)
+  return normalizedRate
+}
+
+async function readPersistedExchangeRate() {
+  if (!supabase) return 0
+  const { data, error } = await supabase
+    .from('app_settings')
+    .select('value')
+    .eq('key', 'usd_to_syp_rate')
+    .maybeSingle()
+  if (error) throw new Error(`Failed to read persisted exchange rate: ${error.message}`)
+  const rate = Math.round(Number(data?.value))
+  return Number.isFinite(rate) && rate >= 1000 && rate <= 100000 ? rate : 0
+}
+
+function getConfiguredExchangeRateFallback() {
+  const rate = Math.round(Number(process.env.VITE_USD_TO_SYP_RATE ?? 13000))
+  return Number.isFinite(rate) && rate >= 1000 && rate <= 100000 ? rate : 13000
+}
+
 // الحصول على حالة اتصال واتساب
 
 // رفع جلسة واتساب مضغوطة (tar.gz base64)
@@ -426,7 +456,8 @@ router.post('/catalog/fetch-shein-product', async (req, res) => {
 // 💱 Exchange Rate (USD → SYP) from sp-today.com
 // ============================================================
 
-let _rateCache = { rate: 0, buy: 0, sell: 0, updatedAt: 0 }
+let _rateCache = { rate: 0, buy: 0, sell: 0, updatedAt: 0, source: 'none' }
+let _rateRefreshPromise = null
 const RATE_TTL = 30 * 60 * 1000 // 30 minutes
 
 async function fetchLiveRate() {
@@ -464,23 +495,83 @@ async function fetchLiveRate() {
   throw new Error('Could not parse USD rate from sp-today.com')
 }
 
+async function refreshExchangeRate() {
+  if (_rateRefreshPromise) return _rateRefreshPromise
+
+  const refreshPromise = (async () => {
+    const { buy, sell, rate: liveRate } = await fetchLiveRate()
+    // Persist first. The app must never display a fresh market rate while SQL
+    // still settles orders and wallet reservations with an older value.
+    const rate = await persistExchangeRate(liveRate)
+    const updatedAt = Date.now()
+    _rateCache = { rate, buy, sell, updatedAt, source: 'sp-today.com' }
+    console.log(`💱 Exchange rate updated and persisted: ${buy}/${sell} SYP/USD`)
+    return { ..._rateCache, cached: false }
+  })()
+
+  _rateRefreshPromise = refreshPromise
+  try {
+    return await refreshPromise
+  } finally {
+    if (_rateRefreshPromise === refreshPromise) _rateRefreshPromise = null
+  }
+}
+
+async function resolvePersistedFallbackRate() {
+  const persistedRate = await readPersistedExchangeRate()
+  if (persistedRate) {
+    _rateCache = {
+      rate: persistedRate,
+      buy: persistedRate,
+      sell: persistedRate,
+      updatedAt: Date.now(),
+      source: 'supabase',
+    }
+    return { ..._rateCache, cached: false }
+  }
+
+  // If the row is unexpectedly absent, persist the only candidate before
+  // exposing it. Returning an unpersisted value would recreate the checkout
+  // mismatch this endpoint is intended to prevent.
+  const hadCachedRate = Boolean(_rateCache.rate)
+  const candidate = _rateCache.rate || getConfiguredExchangeRateFallback()
+  const rate = await persistExchangeRate(candidate)
+  _rateCache = { rate, buy: rate, sell: rate, updatedAt: Date.now(), source: 'fallback' }
+  return { ..._rateCache, cached: hadCachedRate }
+}
+
 router.get('/exchange-rate', async (req, res) => {
+  res.set('Cache-Control', 'no-store')
   try {
     const now = Date.now()
     if (_rateCache.rate && now - _rateCache.updatedAt < RATE_TTL) {
-      return res.json({ ..._rateCache, cached: true, source: 'sp-today.com' })
+      // app_settings is the SQL source of truth. Revalidate every cached reply
+      // so an admin update or another replica can never be hidden for 30 min.
+      const persistedRate = await readPersistedExchangeRate()
+      if (persistedRate === _rateCache.rate) {
+        return res.json({ ..._rateCache, cached: true })
+      }
+      if (persistedRate) {
+        _rateCache = {
+          rate: persistedRate,
+          buy: persistedRate,
+          sell: persistedRate,
+          updatedAt: now,
+          source: 'supabase',
+        }
+        return res.json({ ..._rateCache, cached: false })
+      }
     }
 
-    const { buy, sell, rate } = await fetchLiveRate()
-    _rateCache = { rate, buy, sell, updatedAt: now }
-    console.log(`💱 Exchange rate updated: ${buy}/${sell} SYP/USD`)
-    res.json({ rate, buy, sell, updatedAt: now, cached: false, source: 'sp-today.com' })
+    return res.json(await refreshExchangeRate())
   } catch (err) {
     console.error('💱 Rate fetch failed:', err.message)
-    const fallback = parseInt(process.env.VITE_USD_TO_SYP_RATE ?? '13000', 10)
-    // Return cached value if available, otherwise env fallback
-    const rate = _rateCache.rate || fallback
-    res.json({ rate, buy: rate, sell: rate, updatedAt: _rateCache.updatedAt || Date.now(), cached: !!_rateCache.rate, source: 'fallback' })
+    try {
+      return res.json(await resolvePersistedFallbackRate())
+    } catch (fallbackError) {
+      console.error('💱 Safe persisted fallback failed:', fallbackError.message)
+      return res.status(503).json({ error: 'exchange_rate_unavailable' })
+    }
   }
 })
 
