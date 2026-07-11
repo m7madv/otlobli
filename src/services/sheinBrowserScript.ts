@@ -211,36 +211,48 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
+  // (v65) تنبيه المنطقة صار شريطاً علوياً غير حاجب قابلاً للإغلاق — بدل طبقة
+  // كاملة كانت تحجب الصفحة (blur + منع نقر) وزرها يعيد التحميل عبر
+  // location.replace فيعيد المستخدم لتحقق كلاودفلير في حلقة («يطلعني/واجهة
+  // صورة»). القاعدة: اجعل الصفحة قابلة للنقر ولا تحجبها. منع إضافة منتج من
+  // منطقة خطأ يبقى في حارس الإضافة المنفصل، لا بحجب التصفح.
   function setSheinSaudiGuardOverlay(visible) {
     if (!IS_SHEIN) return;
     var id = 'otlobli-shein-saudi-guard';
     var old = document.getElementById(id);
-    if (!visible) {
+    // لا نُظهره أثناء تحقق «أنا إنسان» ولا بعد أن أغلقه المستخدم يدوياً.
+    if (!visible || otlobliIsHumanChallenge() || window.__otlobliSheinGuardDismissed) {
       if (old) old.remove();
       if (document.documentElement) document.documentElement.classList.remove('otlobli-shein-saudi-locked');
       return;
     }
-    if (document.documentElement) document.documentElement.classList.add('otlobli-shein-saudi-locked');
     if (old) return;
     var style = document.createElement('style');
     style.textContent =
-      '.otlobli-shein-saudi-locked body > *:not(#' + id + '){filter:blur(2px)!important;pointer-events:none!important;}' +
-      '#' + id + '{position:fixed;inset:0;z-index:2147483647;background:rgba(255,255,255,.96);display:flex;align-items:center;justify-content:center;padding:22px;direction:rtl;font-family:Arial,sans-serif;}' +
-      '#' + id + ' .box{max-width:360px;border:1px solid #c8d8d1;border-radius:16px;background:#fff;box-shadow:0 18px 45px rgba(0,0,0,.14);padding:18px;text-align:center;color:#123;}' +
-      '#' + id + ' strong{display:block;color:#007953;font-size:18px;margin-bottom:8px;}' +
-      '#' + id + ' p{margin:0;color:#4b5563;font-size:14px;line-height:1.7;}' +
-      '#' + id + ' button{margin-top:14px;border:0;border-radius:12px;background:#007953;color:#fff;font-weight:800;padding:11px 16px;width:100%;font-size:15px;}';
-    var overlay = document.createElement('div');
-    overlay.id = id;
-    overlay.innerHTML = '<div class="box"><strong>نثبت متجر شي إن على السعودية</strong><p>تم اكتشاف أن شي إن فتح على دولة غير السعودية. لن يتم السماح بإضافة أي منتج حتى يرجع المتجر للسعودية.</p><button type="button">إعادة المحاولة</button></div>';
-    overlay.appendChild(style);
-    overlay.querySelector('button').addEventListener('click', function () {
+      '#' + id + '{position:fixed;top:0;left:0;right:0;z-index:2147483000;background:#fff8e1;border-bottom:1px solid #ffe082;' +
+      'display:flex;align-items:center;gap:8px;padding:8px 12px;direction:rtl;font-family:Arial,sans-serif;box-shadow:0 4px 14px rgba(0,0,0,.08);}' +
+      '#' + id + ' .txt{flex:1;color:#7a5b00;font-size:12px;line-height:1.5;}' +
+      '#' + id + ' button{border:0;border-radius:8px;background:#007953;color:#fff;font-weight:800;padding:7px 12px;font-size:12px;flex:0 0 auto;}' +
+      '#' + id + ' .x{background:transparent;color:#7a5b00;font-size:18px;padding:2px 8px;}';
+    var bar = document.createElement('div');
+    bar.id = id;
+    bar.innerHTML =
+      '<span class="txt">المتجر مفتوح على منطقة غير السعودية. قد لا يُسمح بإضافة المنتج حتى يرجع للسعودية.</span>' +
+      '<button type="button" class="fix">أعد الضبط</button>' +
+      '<button type="button" class="x" aria-label="إغلاق">×</button>';
+    bar.appendChild(style);
+    bar.querySelector('.fix').addEventListener('click', function () {
       window.__otlobliSheinSaudiLocked = false;
       try { sessionStorage.removeItem('__otlobliSheinSaudiLocked'); } catch (e) {}
       try { clearSheinForeignRegionState(); } catch (e) {}
-      try { location.replace(otlobliNormalizeSheinUrl(location.href)); } catch (e) {}
+      // إعادة تحميل واحدة فقط لضبط المنطقة — ممنوعة أثناء التحقق (فوق).
+      try { if (!otlobliIsHumanChallenge()) location.replace(otlobliNormalizeSheinUrl(location.href)); } catch (e) {}
     });
-    (document.body || document.documentElement).appendChild(overlay);
+    bar.querySelector('.x').addEventListener('click', function () {
+      window.__otlobliSheinGuardDismissed = true;
+      if (bar.parentNode) bar.parentNode.removeChild(bar);
+    });
+    (document.body || document.documentElement).appendChild(bar);
   }
 
   function clearSheinForeignRegionState() {
@@ -335,7 +347,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
     clearOvercoercedSheinStorage();
     installSheinSaudiStorageGuard();
     var normalizedArabicUrl = otlobliNormalizeSheinUrl(location.href);
-    if (shouldReloadSheinForSaudi()) {
+    // حارس صفحة تحقق «أنا إنسان»: ممنوع أي إعادة تحميل أثناءها — تُعيد بدء
+    // التحقق فلا يُكمله المستخدم أبداً (كان سبباً في «يطلعني/واجهة صورة»).
+    if (shouldReloadSheinForSaudi() && !otlobliIsHumanChallenge()) {
       var arRedirectAttempts = parseInt(sessionStorage.getItem('__otlobliArRedirects') || '0', 10);
       if (arRedirectAttempts < 2) {
         sessionStorage.setItem('__otlobliArRedirects', String(arRedirectAttempts + 1));
@@ -3752,6 +3766,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         try { restoreTemuSearchChrome(); } catch (e) {}
         try { restoreTemuLogo(); } catch (e) {}
         try { ensureAddToCartButton(); } catch (e) {}
+        try { dismissTemuLoginPopup(); } catch (e) {}
         try { detectEmptyTemuSearch(); } catch (e) {}
         return;
       }
@@ -3913,6 +3928,58 @@ export const SHEIN_CAPTURE_SCRIPT = `
         el.style.setProperty('pointer-events', 'none', 'important');
       }
     } catch (e) {}
+  }
+
+  // (v65) مُغلِق مهذّب لنافذة تسجيل دخول تيمو المنبثقة عند فتح منتج. لا يحجب
+  // محتوى المنتج ولا يُسجّل الدخول — فقط يبحث عن نافذة تسجيل دخول عائمة
+  // (position:fixed، تغطية كبيرة، نصّها يذكر تسجيل الدخول) وينقر زر الإغلاق
+  // (× / إغلاق / aria-label) أو زر «لاحقاً/تخطّي» إن وُجد. محاولة واحدة كل
+  // ظهور (علامة على النافذة) حتى لا نُكرر النقر. إن كانت شاشة تسجيل دخول
+  // كاملة (تنقّل صفحة، لا نافذة) فلا نقدر إغلاقها — تلك سياسة تيمو للمنطقة.
+  var __otlobliTemuLoginProbeTs = 0;
+  function dismissTemuLoginPopup() {
+    if (!IS_TEMU || !document.body) return;
+    var now = Date.now();
+    if (now - __otlobliTemuLoginProbeTs < 900) return; // لا نفحص كل tick
+    __otlobliTemuLoginProbeTs = now;
+    var LOGIN_RE = /سجّ?ل\\s*الدخول|تسجيل\\s*الدخول|sign\\s*in|log\\s*in|continue\\s*with|تابع\\s*عبر|أنشئ\\s*حساب|create\\s*account/i;
+    var CLOSE_RE = /^(?:×|✕|✖|x|close|إغلاق|اغلاق|تخطّ?ي|تخطي|skip|later|لاحقًا|لاحقا|ليس\\s*الآن|not\\s*now)$/i;
+    var vp = viewportSize();
+    var nodes = document.querySelectorAll('div, section, aside');
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      if (el.id && el.id.indexOf('otlobli') === 0) continue;
+      if (el.getAttribute && el.getAttribute('data-otlobli-login-handled') === '1') continue;
+      var cs = window.getComputedStyle(el);
+      if (cs.position !== 'fixed' && cs.position !== 'absolute') continue;
+      var r = el.getBoundingClientRect();
+      // نافذة كبيرة تغطي جزءاً معتبراً من الشاشة (لا شريط صغير).
+      if (r.width < vp.width * 0.6 || r.height < vp.height * 0.35) continue;
+      var txt = (el.textContent || '');
+      if (txt.length > 600 || !LOGIN_RE.test(txt)) continue;
+      // حارس المنتج: لا نلمس طبقة فيها سعر/شبكة صور منتجات (قد تكون المنتج).
+      if (el.querySelector && el.querySelector('[class*="curPrice" i]')) continue;
+      el.setAttribute('data-otlobli-login-handled', '1');
+      // ابحث عن زر إغلاق/تخطّي داخلها وانقره.
+      var btns = el.querySelectorAll('button, [role="button"], a, i, span, div');
+      var clicked = false;
+      for (var b = 0; b < btns.length && !clicked; b++) {
+        var bt = btns[b];
+        var bTxt = (bt.textContent || '').trim();
+        var aria = (bt.getAttribute && (bt.getAttribute('aria-label') || '')) || '';
+        var br = bt.getBoundingClientRect();
+        if (br.width === 0 || br.height === 0) continue;
+        if (CLOSE_RE.test(bTxt) || CLOSE_RE.test(aria.trim())) {
+          try { bt.click(); clicked = true; } catch (e) {}
+        }
+      }
+      // إن لم نجد زر إغلاق واضحاً، ننقر خلفية النافذة (تُغلق أغلب النوافذ)
+      // فقط إن كانت عائمة تغطي كامل الشاشة (backdrop).
+      if (!clicked && cs.position === 'fixed' && r.top <= 2 && r.left <= 2 &&
+          r.width >= vp.width - 4 && r.height >= vp.height - 4) {
+        try { el.click(); } catch (e) {}
+      }
+    }
   }
 
   function hideTemuCustomerAccountAndCart() {
