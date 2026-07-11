@@ -21,8 +21,8 @@ Do not revert or fold the UI commits into it.
   lower collision amounts are rejected (exact-only), one customer cannot ladder active
   wallet top-ups, and a recent unmatched event can reconcile for two minutes without
   allowing an older event to drift into a new intent.
-- Railway deployment `63fd12de-3c29-4c7b-8646-72600400de85` is `SUCCESS/RUNNING`
-  from isolated commit `d0ac78f`. `/api/exchange-rate` now persists the live rate before
+- Railway deployment `32116896-5c2c-4088-b8d5-40c7a058ba44` is `SUCCESS/RUNNING`
+  from commits `d0ac78f` and `9f42cf5`. `/api/exchange-rate` now persists the live rate before
   replying, revalidates cached responses against `app_settings`, uses a local single-flight,
   fails closed if no persisted fallback can be established, and sends `Cache-Control:
   no-store`. Production API and SQL source of truth both returned `13050 SYP/USD`.

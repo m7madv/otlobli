@@ -41,8 +41,8 @@ Prevent this by updating `CURRENT_STATE.md`, `AI-HANDOFF.md`, and `SESSION_SUMMA
 - `20260712022000` blocks the exploitable descending unique-amount ladder and limits
   each customer to one active wallet top-up; `20260712023000` safely retries only recent
   unmatched events for two minutes. Both are applied to production.
-- Exchange-rate synchronization is deployed from commit `d0ac78f` as Railway deployment
-  `63fd12de-3c29-4c7b-8646-72600400de85` (`SUCCESS/RUNNING`). The public endpoint and
+- Exchange-rate synchronization is deployed from commits `d0ac78f` and `9f42cf5` as Railway deployment
+  `32116896-5c2c-4088-b8d5-40c7a058ba44` (`SUCCESS/RUNNING`). The public endpoint and
   `app_settings.usd_to_syp_rate` both verified at `13050`; cached responses are DB-
   revalidated and marked `Cache-Control: no-store`. Railway currently has one replica,
   so the in-process single-flight covers the active topology.

@@ -1,5 +1,11 @@
 # SESSION_SUMMARY.md
 
+## Codex follow-up (2026-07-11)
+
+- Exchange-rate source-label fix `9f42cf5` is deployed in Railway deployment
+  `32116896-5c2c-4088-b8d5-40c7a058ba44` (`SUCCESS/RUNNING`). Production API and
+  Supabase `app_settings.usd_to_syp_rate` both verify at `13050` SYP/USD.
+
 Copy this into a new AI chat before continuing work.
 
 ## Start here
