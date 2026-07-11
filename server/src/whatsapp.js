@@ -254,7 +254,14 @@ async function initSession(session) {
     fireInitQueries: false,
     shouldSyncConnectionMessage: false,
     emitOwnEvents: false,
-    getMessage: () => undefined,
+    // حاسم: عند فشل جهاز المستلم بفك رسالة يطلب إعادتها، فيستدعي Baileys
+    // getMessage ليعيد تشفيرها ويرسلها. إرجاع undefined (كما كان) يجعل
+    // الرسالة تعلق للأبد بحالة «في انتظار هذه الرسالة». نُرجع المحتوى
+    // الأصلي من المخزن فتُعاد بنجاح. هذا هو الإصلاح الجذري لتلك المشكلة.
+    getMessage: async (key) => {
+      const stored = __waMsgStore.get(key?.id)
+      return stored || undefined
+    },
     keepAliveIntervalMs: 30000,
     connectTimeoutMs: 30000,
     defaultQueryTimeoutMs: 20000,
@@ -262,6 +269,13 @@ async function initSession(session) {
 
   session.sock = sock
   sock.ev.on('creds.update', saveCreds)
+  // نخزّن كل رسالة نُرسلها/نستقبلها ليتمكن getMessage من إعادة إرسالها عند
+  // طلب المستلم (يحل «في انتظار هذه الرسالة»). مخزن محدود الحجم في الذاكرة.
+  sock.ev.on('messages.upsert', ({ messages }) => {
+    for (const m of messages || []) {
+      if (m?.key?.id && m.message) rememberMessage(m.key.id, m.message)
+    }
+  })
 
   return new Promise((resolve, reject) => {
     sock.ev.on('connection.update', (update) => {
@@ -347,6 +361,22 @@ const MIN_SEND_GAP_MS = 4000
 let __lastSendAt = 0
 let __sendChain = Promise.resolve()
 
+// ── مخزن الرسائل (لإعادة الإرسال عند طلب المستلم) ────────────
+// يحل مشكلة «في انتظار هذه الرسالة»: حين يفشل جهاز المستلم بفك رسالة يطلب
+// إعادتها؛ نحتفظ بمحتواها هنا ليعيده getMessage. محدود الحجم (FIFO) حتى لا
+// تتضخم الذاكرة على الحاوية الدائمة.
+const __waMsgStore = new Map()
+const WA_MSG_STORE_MAX = 1500
+function rememberMessage(id, message) {
+  if (!id || !message) return
+  if (__waMsgStore.has(id)) __waMsgStore.delete(id)
+  __waMsgStore.set(id, message)
+  if (__waMsgStore.size > WA_MSG_STORE_MAX) {
+    const oldest = __waMsgStore.keys().next().value
+    if (oldest !== undefined) __waMsgStore.delete(oldest)
+  }
+}
+
 function jitter(minMs, maxMs) {
   return Math.floor(minMs + Math.random() * (maxMs - minMs))
 }
@@ -374,6 +404,8 @@ async function sendHumanLike(sock, jid, content) {
   try { await sock.sendPresenceUpdate('composing', jid) } catch (_) {}
   await sleep(jitter(900, 2200))
   const res = await sock.sendMessage(jid, content)
+  // نحفظ الرسالة المُرسَلة فوراً — عند طلب المستلم إعادتها يجدها getMessage.
+  try { if (res?.key?.id && res.message) rememberMessage(res.key.id, res.message) } catch (_) {}
   try { await sock.sendPresenceUpdate('paused', jid) } catch (_) {}
   return res
 }
