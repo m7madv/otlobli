@@ -62,6 +62,7 @@ type OrderRow = {
   payment_issue_note?: string
   extra_amount_usd?: number
   invoice?: { label: string; amountUsd: number }[]
+  issues?: Record<string, unknown>[]
   group_id?: string
   group_code?: string
 }
@@ -248,6 +249,7 @@ Deno.serve(async (req) => {
       paymentIssueNote: row.payment_issue_note || '',
       extraAmountUsd: row.extra_amount_usd || 0,
       invoice: Array.isArray(row.invoice) ? row.invoice : [],
+      issues: Array.isArray(row.issues) ? row.issues : [],
       groupId: row.group_id || '',
       groupCode: row.group_code || '',
     }))
@@ -396,6 +398,10 @@ Deno.serve(async (req) => {
     if (patch.paymentIssue !== undefined) dbPatch.payment_issue = Boolean(patch.paymentIssue)
     if (patch.paymentIssueNote !== undefined) dbPatch.payment_issue_note = String(patch.paymentIssueNote || '')
     if (patch.extraAmountUsd !== undefined) dbPatch.extra_amount_usd = Number(patch.extraAmountUsd) || 0
+    // مشاكل الطلب المنظمة: نحفظ المصفوفة كما هي (الواجهة تبنيها منقّاة).
+    if (patch.issues !== undefined) {
+      dbPatch.issues = Array.isArray(patch.issues) ? patch.issues : []
+    }
     // فاتورة الطلب: بنود {label, amountUsd} فقط — ننقّي الشكل قبل الحفظ.
     if (patch.invoice !== undefined) {
       dbPatch.invoice = Array.isArray(patch.invoice)

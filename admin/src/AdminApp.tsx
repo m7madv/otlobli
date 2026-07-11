@@ -56,8 +56,22 @@ type Order = {
   extraAmountUsd: number
   // فاتورة الطلب: بنود رسوم يحررها المشرف وتظهر للزبون في تفاصيل الطلب
   invoice?: { label: string; amountUsd: number }[]
+  // مشاكل الطلب المنظمة (v63) — عدة مشاكل يحلها الزبون من طلباتي
+  issues?: OrderIssue[]
   groupId?: string
   groupCode?: string
+}
+
+type OrderIssue = {
+  id: string
+  type: string
+  itemId?: string
+  note?: string
+  options?: string[]
+  requiredSize?: string
+  amountUsd?: number
+  resolved?: boolean
+  resolvedValue?: string
 }
 
 type Customer = {
@@ -1030,8 +1044,8 @@ function OrderDetail({
         />
       </label>
       <DriverAssignField order={order} drivers={drivers} onUpdate={onUpdate} />
-      <PaymentIssueField
-        key={`${order.id}-${order.paymentIssue}-${order.paymentIssueNote}-${order.extraAmountUsd}`}
+      <OrderIssuesField
+        key={`issues-${order.id}-${(order.issues ?? []).length}`}
         order={order}
         onUpdate={onUpdate}
       />
@@ -1049,132 +1063,135 @@ function OrderDetail({
 }
 
 const issueTypes = [
-  { value: 'price', label: 'فرق سعر / مبلغ إضافي', action: 'ادفع المبلغ المطلوب من التطبيق أو تواصل معنا لتأكيد الدفع.' },
-  { value: 'size', label: 'المقاس غير واضح أو غير متوفر', action: 'افتح التطبيق واختر المقاس الصحيح أو اكتب البديل المناسب.' },
-  { value: 'color', label: 'اللون غير واضح أو غير متوفر', action: 'افتح التطبيق وحدد اللون الصحيح أو البديل المناسب.' },
-  { value: 'custom_photo', label: 'منتج مخصص يحتاج صورة', action: 'افتح التطبيق وأرسل الصورة المطلوبة للمنتج.' },
-  { value: 'custom_photo_size', label: 'قياس/قصّ الصورة غير مناسب', action: 'افتح التطبيق وقصّ الصورة على القياس المطلوب وأعد إرسالها.' },
-  { value: 'custom_text', label: 'منتج مخصص يحتاج نص أو اسم', action: 'افتح التطبيق واكتب النص المطلوب للمنتج.' },
-  { value: 'unavailable', label: 'المنتج غير متوفر', action: 'افتح التطبيق لاختيار بديل أو حذف المنتج من الطلب.' },
-  { value: 'quantity', label: 'مشكلة بالكمية', action: 'افتح التطبيق وأكد الكمية المطلوبة.' },
-  { value: 'link', label: 'رابط المنتج غير صالح', action: 'افتح التطبيق وأرسل رابط المنتج الصحيح.' },
-  { value: 'other', label: 'مشكلة أخرى', action: 'افتح التطبيق لمراجعة تفاصيل المشكلة.' },
+  { value: 'payment', label: 'فرق سعر / مبلغ إضافي' },
+  { value: 'size', label: 'المقاس غير متوفر — بدائل' },
+  { value: 'color', label: 'اللون غير متوفر — بدائل' },
+  { value: 'custom_photo', label: 'منتج مخصص يحتاج صورة' },
+  { value: 'custom_photo_size', label: 'قياس/قصّ الصورة غير مناسب' },
+  { value: 'custom_text', label: 'منتج مخصص يحتاج نص/اسم' },
+  { value: 'unavailable', label: 'المنتج غير متوفر' },
+  { value: 'quantity', label: 'مشكلة بالكمية' },
+  { value: 'link', label: 'رابط المنتج غير صالح' },
+  { value: 'other', label: 'مشكلة أخرى' },
 ]
 
-function buildIssueNote(issueType: string, itemLabel: string, customNote: string, requiredSize: string, availableOptions: string) {
-  const type = issueTypes.find((entry) => entry.value === issueType) ?? issueTypes[0]
-  // «الخيارات المتاحة» بصيغة ثابتة يقرؤها تطبيق الزبون فيعرضها أزراراً
-  // يختار منها بلمسة (تُحدّث عنصر الطلب مباشرة دون مراسلة).
-  const options = availableOptions
-    .split(/[|,،\n]/)
-    .map((opt) => opt.trim())
-    .filter(Boolean)
-    .join(' | ')
-  return [
-    `نوع المشكلة: ${type.label}`,
-    itemLabel ? `المنتج: ${itemLabel}` : '',
-    // سطر بصيغة ثابتة يقرؤه تطبيق الزبون ليقفل نسبة القص عليها (مثال 3:4 أو 800x800)
-    requiredSize.trim() ? `القياس المطلوب: ${requiredSize.trim()}` : '',
-    options ? `الخيارات المتاحة: ${options}` : '',
-    customNote.trim() ? `ملاحظة الإدارة: ${customNote.trim()}` : '',
-    `المطلوب من الزبون: ${type.action}`,
-  ].filter(Boolean).join('\n')
+// ── نظام مشاكل الطلب الاحترافي (متعدد) ────────────────────────────────────────
+// المشرف يضيف عدة مشاكل لطلب/منتجات، كل مشكلة مضغوطة بنوعها وحقولها. عند
+// الحفظ نكتب issues[] المنظمة، ونشتق منها paymentIssue/extraAmountUsd/
+// paymentIssueNote للتوافق مع مسار الدفع وإشعار الواتساب القائم.
+let __issueSeq = 0
+function newIssueId() {
+  __issueSeq += 1
+  return `iss_${Date.now().toString(36)}_${__issueSeq}`
+}
+// أنواع تحتاج «خيارات متاحة» (مقاس/لون)، وأخرى تحتاج «القياس المطلوب» (صورة).
+const ISSUE_NEEDS_OPTIONS = new Set(['size', 'color'])
+const ISSUE_NEEDS_SIZE = new Set(['custom_photo', 'custom_photo_size'])
+const ISSUE_NEEDS_AMOUNT = new Set(['payment'])
+
+function issueLabel(type: string) {
+  return issueTypes.find((t) => t.value === type)?.label ?? type
 }
 
-// ── Product / order issue field ──────────────────────────────────────────────
-function PaymentIssueField({ order, onUpdate }: { order: Order; onUpdate: (orderId: string, patch: Partial<Order>) => void }) {
-  const [open, setOpen] = useState(order.paymentIssue)
-  const [issueType, setIssueType] = useState('price')
-  const [itemIndex, setItemIndex] = useState('')
-  const [customNote, setCustomNote] = useState(order.paymentIssueNote)
-  const [amount, setAmount] = useState(String(order.extraAmountUsd || ''))
-  const [requiredSize, setRequiredSize] = useState('')
-  const [availableOptions, setAvailableOptions] = useState('')
+function OrderIssuesField({ order, onUpdate }: { order: Order; onUpdate: (orderId: string, patch: Partial<Order>) => void }) {
+  const seed: OrderIssue[] = (order.issues ?? []).map((i) => ({ ...i }))
+  const [drafts, setDrafts] = useState<OrderIssue[]>(seed)
+  const patch = (id: string, changes: Partial<OrderIssue>) =>
+    setDrafts((prev) => prev.map((d) => (d.id === id ? { ...d, ...changes } : d)))
+  const addIssue = () =>
+    setDrafts((prev) => [...prev, { id: newIssueId(), type: 'size', itemId: '', note: '', options: [], requiredSize: '', amountUsd: 0 }])
+  const removeIssue = (id: string) => setDrafts((prev) => prev.filter((d) => d.id !== id))
 
-  const save = (issue: boolean) => {
-    const item = itemIndex === '' ? null : order.items[Number(itemIndex)]
-    const itemLabel = item ? `${Number(itemIndex) + 1}. ${item.title}` : ''
+  const save = () => {
+    const clean = drafts
+      .filter((d) => d.type)
+      .map((d) => ({
+        id: d.id || newIssueId(),
+        type: d.type,
+        itemId: d.itemId || '',
+        note: (d.note || '').trim(),
+        options: ISSUE_NEEDS_OPTIONS.has(d.type) ? (d.options || []).map((o) => o.trim()).filter(Boolean) : [],
+        requiredSize: ISSUE_NEEDS_SIZE.has(d.type) ? (d.requiredSize || '').trim() : '',
+        amountUsd: ISSUE_NEEDS_AMOUNT.has(d.type) ? Number(d.amountUsd) || 0 : 0,
+        resolved: !!d.resolved,
+        resolvedValue: d.resolvedValue || '',
+      }))
+    const unresolved = clean.filter((d) => !d.resolved)
+    const extraAmountUsd = clean.filter((d) => d.type === 'payment').reduce((s, d) => s + (d.amountUsd || 0), 0)
+    // ملخص نصي للواتساب (إشعار الزبون) — سطر لكل مشكلة غير محلولة.
+    const note = unresolved.length === 0 ? '' : unresolved.map((d) => {
+      const itemLabel = d.itemId ? (order.items.find((it) => it.id === d.itemId)?.title?.slice(0, 50) || '') : ''
+      return `• ${issueLabel(d.type)}${itemLabel ? ` — ${itemLabel}` : ''}${d.note ? `: ${d.note}` : ''}`
+    }).join('\n')
     onUpdate(order.id, {
-      paymentIssue: issue,
-      paymentIssueNote: issue ? buildIssueNote(issueType, itemLabel, customNote, requiredSize, availableOptions) : '',
-      extraAmountUsd: Number(amount) || 0,
+      issues: clean,
+      paymentIssue: unresolved.length > 0,
+      paymentIssueNote: note,
+      extraAmountUsd,
     })
   }
 
   return (
-    <div className={`field payment-issue-field ${order.paymentIssue ? 'active' : ''}`}>
-      <label className="checkbox-row">
-        <input
-          type="checkbox"
-          checked={open}
-          onChange={(e) => {
-            setOpen(e.target.checked)
-            if (!e.target.checked) save(false)
-          }}
-        />
-        <span>مشكلة تحتاج إشعار الزبون</span>
-      </label>
-      {open && (
-        <>
-          <div className="issue-grid">
-            <label className="field">
-              <span>المنتج</span>
-              <select value={itemIndex} onChange={(e) => setItemIndex(e.target.value)}>
-                <option value="">الطلب كامل / غير محدد</option>
-                {order.items.map((item, index) => (
-                  <option key={`${item.id || item.title}-${index}`} value={index}>
-                    {index + 1}. {item.title.slice(0, 70)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field">
-              <span>نوع المشكلة</span>
-              <select value={issueType} onChange={(e) => setIssueType(e.target.value)}>
-                {issueTypes.map((entry) => (
-                  <option key={entry.value} value={entry.value}>{entry.label}</option>
-                ))}
-              </select>
-            </label>
+    <div className={`field issues-field ${(order.issues ?? []).some((i) => !i.resolved) ? 'active' : ''}`}>
+      <div className="issues-head">
+        <span className="issues-title">🛠️ مشاكل الطلب</span>
+        <button type="button" className="issues-add" onClick={addIssue}>+ إضافة مشكلة</button>
+      </div>
+      {drafts.length === 0 && <p className="issues-empty">لا مشاكل. اضغط «إضافة مشكلة» لإنشاء واحدة أو أكثر.</p>}
+      {drafts.map((d) => (
+        <div className={`issue-row ${d.resolved ? 'issue-row--resolved' : ''}`} key={d.id}>
+          <div className="issue-row-top">
+            <select className="issue-type" value={d.type} onChange={(e) => patch(d.id, { type: e.target.value })}>
+              {issueTypes.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+            <select className="issue-item" value={d.itemId || ''} onChange={(e) => patch(d.id, { itemId: e.target.value })}>
+              <option value="">الطلب كامل</option>
+              {order.items.map((item) => (
+                <option key={item.id} value={item.id}>{item.title.slice(0, 40)}</option>
+              ))}
+            </select>
+            <button type="button" className="issue-remove" onClick={() => removeIssue(d.id)} title="حذف">✕</button>
           </div>
-          {(issueType === 'custom_photo_size' || issueType === 'custom_photo') && (
-            <label className="field">
-              <span>القياس المطلوب للصورة (يُقفل القص عليه في تطبيق الزبون)</span>
-              <input
-                type="text"
-                placeholder="مثال: 3:4 أو 800x800 أو 1:1"
-                value={requiredSize}
-                onChange={(e) => setRequiredSize(e.target.value)}
-              />
-            </label>
+          {ISSUE_NEEDS_OPTIONS.has(d.type) && (
+            <input
+              className="issue-inline"
+              type="text"
+              placeholder={d.type === 'size' ? 'الخيارات: S | M | L | XL' : 'الخيارات: أسود | أبيض | أزرق'}
+              value={(d.options || []).join(' | ')}
+              onChange={(e) => patch(d.id, { options: e.target.value.split(/[|,،]/) })}
+            />
           )}
-          {(issueType === 'size' || issueType === 'color') && (
-            <label className="field">
-              <span>الخيارات المتاحة (تظهر أزراراً في التطبيق والزبون يختار بلمسة)</span>
-              <input
-                type="text"
-                placeholder={issueType === 'size' ? 'مثال: S | M | L | XL' : 'مثال: أسود | أبيض | أزرق'}
-                value={availableOptions}
-                onChange={(e) => setAvailableOptions(e.target.value)}
-              />
-            </label>
+          {ISSUE_NEEDS_SIZE.has(d.type) && (
+            <input
+              className="issue-inline"
+              type="text"
+              placeholder="القياس المطلوب: 3:4 أو 800x800 أو 1:1"
+              value={d.requiredSize || ''}
+              onChange={(e) => patch(d.id, { requiredSize: e.target.value })}
+            />
           )}
-          <textarea
-            placeholder="ملاحظة إضافية للزبون: مثال اللون المطلوب غير متوفر، أرسل صورة أو اختر بديل..."
-            value={customNote}
-            onChange={(e) => setCustomNote(e.target.value)}
-          />
+          {ISSUE_NEEDS_AMOUNT.has(d.type) && (
+            <input
+              className="issue-inline"
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="المبلغ الإضافي بالدولار"
+              value={d.amountUsd || ''}
+              onChange={(e) => patch(d.id, { amountUsd: Number(e.target.value) || 0 })}
+            />
+          )}
           <input
-            type="number"
-            min="0"
-            step="0.01"
-            placeholder="المبلغ الإضافي بالدولار إن وجد"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
+            className="issue-inline"
+            type="text"
+            placeholder="ملاحظة للزبون (اختياري)"
+            value={d.note || ''}
+            onChange={(e) => patch(d.id, { note: e.target.value })}
           />
-          <button className="ghost-action" onClick={() => save(true)}>حفظ وإشعار الزبون</button>
-        </>
-      )}
+          {d.resolved && <span className="issue-resolved-tag">✓ حلّها الزبون{d.resolvedValue ? `: ${d.resolvedValue}` : ''}</span>}
+        </div>
+      ))}
+      <button type="button" className="ghost-action issues-save" onClick={save}>حفظ المشاكل وإشعار الزبون</button>
     </div>
   )
 }
@@ -1367,7 +1384,7 @@ function OrderModal({
             />
           </label>
           <DriverAssignField order={order} drivers={drivers} onUpdate={onUpdate} />
-          <PaymentIssueField order={order} onUpdate={onUpdate} />
+          <OrderIssuesField order={order} onUpdate={onUpdate} />
           <InvoiceField order={order} onUpdate={onUpdate} />
           <div className="detail-actions">
             <button className="primary-action" onClick={() => onMarkPaid(order)}>تأكيد الدفع</button>
@@ -1857,6 +1874,7 @@ function SettingsPanel({
   const [featureGroupOrders, setFeatureGroupOrders] = useState(true)
   const [featureWallet, setFeatureWallet] = useState(true)
   const [featureCoupons, setFeatureCoupons] = useState(true)
+  const [supportPhone, setSupportPhone] = useState('')
   const [saving,     setSaving]     = useState(false)
   const [loaded,     setLoaded]     = useState(false)
 
@@ -1875,6 +1893,7 @@ function SettingsPanel({
         setFeatureGroupOrders(data.feature_group_orders !== 'false')
         setFeatureWallet(data.feature_wallet !== 'false')
         setFeatureCoupons(data.feature_coupons !== 'false')
+        setSupportPhone(data.support_whatsapp_phone ?? '')
         setLoaded(true)
       })
       .catch(() => showNotice('تعذر جلب الإعدادات'))
@@ -1961,6 +1980,30 @@ function SettingsPanel({
           <small>{[sheinQr, temuQr, sheinCode, temuCode].every(Boolean) ? 'الكود والباركود جاهزان' : 'يلزم استكمال الكود أو الباركود'}</small>
         </article>
       </div>
+
+      <fieldset className="settings-group">
+        <legend>أرقام التواصل</legend>
+        <label className="field">
+          <span>رقم واتساب الدعم والمساعدة</span>
+          <div className="settings-row">
+            <input
+              type="tel"
+              value={supportPhone}
+              onChange={(e) => setSupportPhone(e.target.value.replace(/[^\d+]/g, ''))}
+              placeholder="مثال: 963912345678 (بصيغة دولية بلا +)"
+              dir="ltr"
+            />
+            <button
+              className="ghost-action"
+              disabled={saving}
+              onClick={() => void saveSetting('support_whatsapp_phone', supportPhone.replace(/\D/g, ''))}
+            >
+              حفظ
+            </button>
+          </div>
+          <small className="settings-hint">هذا الرقم يفتحه كل أزرار «تواصل معنا / الدعم» في التطبيق فوراً. اتركه فارغاً للرقم الافتراضي.</small>
+        </label>
+      </fieldset>
 
       <fieldset className="settings-group">
         <legend>تكلفة الشحن (بالليرة السورية)</legend>

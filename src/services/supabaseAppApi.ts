@@ -133,6 +133,11 @@ function normalizeOrder(value: unknown): Order | null {
         })
         .filter((line) => line.label.trim() !== '')
       : undefined,
+    issues: Array.isArray(row.issues)
+      ? row.issues
+        .filter((it): it is Record<string, unknown> => !!it && typeof it === 'object' && typeof (it as Record<string, unknown>).id === 'string')
+        .map((it) => it as unknown as import('../domain/types').OrderIssue)
+      : undefined,
     groupId: typeof row.groupId === 'string' ? row.groupId : undefined,
     groupCode: typeof row.groupCode === 'string' ? row.groupCode : undefined,
   }
@@ -825,6 +830,19 @@ export const supabaseAppApi: TalabiehApi = {
         p_product_id: productId,
         p_field: field,
         p_value: value,
+        p_session_token: requireCustomerSessionToken(),
+      })
+      if (error) return false
+      return Boolean(data)
+    },
+
+    // يعلّم مشكلة منظمة كمحلولة (بعد أن يحلها الزبون فعلياً عبر RPC المختصة).
+    async submitIssueResolve(orderId, issueId, resolvedValue) {
+      if (!supabase) return false
+      const { data, error } = await supabase.rpc('submit_order_issue_resolve', {
+        target_order_id: orderId,
+        p_issue_id: issueId,
+        p_resolved_value: resolvedValue || '',
         p_session_token: requireCustomerSessionToken(),
       })
       if (error) return false

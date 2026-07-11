@@ -225,6 +225,8 @@ export type Order = {
   extraAmountUsd?: number
   // فاتورة الرسوم من لوحة الإدارة (شحن/رسوم منصة...) — تُعرض في تفاصيل الطلب
   invoice?: OrderInvoiceLine[]
+  // مشاكل الطلب المنظمة (v63) — يحلها الزبون من طلباتي
+  issues?: OrderIssue[]
   groupId?: string
   groupCode?: string
 }
@@ -232,6 +234,22 @@ export type Order = {
 export type OrderInvoiceLine = {
   label: string
   amountUsd: number
+}
+
+export type OrderIssueType =
+  | 'payment' | 'size' | 'color' | 'custom_photo' | 'custom_photo_size'
+  | 'custom_text' | 'unavailable' | 'quantity' | 'link' | 'other'
+
+export type OrderIssue = {
+  id: string
+  type: OrderIssueType
+  itemId?: string        // product_id للمنتج المعني (فارغ = الطلب كامل)
+  note?: string
+  options?: string[]     // بدائل المقاس/اللون
+  requiredSize?: string  // نسبة قص الصورة المطلوبة (3:4 / 800x800)
+  amountUsd?: number     // مبلغ إضافي لمشاكل الدفع
+  resolved?: boolean
+  resolvedValue?: string
 }
 
 export type PriceLine = {

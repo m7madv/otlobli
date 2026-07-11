@@ -25,6 +25,8 @@ const DEFAULTS: Record<string, string> = {
   feature_group_orders: 'true',
   feature_wallet: 'true',
   feature_coupons: 'true',
+  // رقم واتساب الدعم/المساعدة الذي يفتحه التطبيق — يُعدَّل من لوحة الإدارة.
+  support_whatsapp_phone: '',
 }
 
 Deno.serve(async (req) => {

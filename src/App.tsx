@@ -556,6 +556,8 @@ function App() {
   const [shamcashCodeByStore, setShamcashCodeByStore] = useState<Record<StoreId, string>>({ shein: '', temu: '' })
   const [referralDiscountSyp, setReferralDiscountSyp] = useState(0)
   const [productProfitPercent, setProductProfitPercent] = useState(0)
+  // رقم واتساب الدعم القابل للتعديل من لوحة الإدارة (فارغ = رقم افتراضي بالكود).
+  const [supportPhoneOverride, setSupportPhoneOverride] = useState('')
   const [couponInput, setCouponInput] = useState('')
   const [appliedCoupon, setAppliedCoupon] = useStoredState<{ code: string; discountSyp: number } | null>(
     'talabieh.appliedCoupon',
@@ -651,6 +653,15 @@ function App() {
   const [cropRequest, setCropRequest] = useState<CropRequest | null>(null)
   // إرسال تصحيح صورة تخصيص لطلب قائم (مشكلة قياس الصورة من الإدارة).
   const [sendingCustomFix, setSendingCustomFix] = useState(false)
+  // مسودة نص لكل مشكلة تخصيص نصية (مفتاحها id المشكلة).
+  const [issueTextDraft, setIssueTextDraft] = useState<Record<string, string>>({})
+  // يعلّم مشكلة منظمة كمحلولة محلياً + في قاعدة البيانات بعد حلّها فعلياً.
+  const resolveIssueLocal = (orderId: string, issueId: string, value: string) => {
+    setOrders((list) => list.map((o) => o.id === orderId
+      ? { ...o, issues: (o.issues ?? []).map((iss) => iss.id === issueId ? { ...iss, resolved: true, resolvedValue: value } : iss) }
+      : o))
+    void appApi.orders.submitIssueResolve(orderId, issueId, value).catch(() => undefined)
+  }
   const renderCropModal = () => (cropRequest ? (
     <PhotoCropModal
       src={cropRequest.src}
@@ -1220,6 +1231,7 @@ function App() {
         if (data.feature_group_orders !== undefined) setFeatureGroupOrders(data.feature_group_orders !== 'false')
         if (data.feature_wallet !== undefined) setFeatureWallet(data.feature_wallet !== 'false')
         if (data.feature_coupons !== undefined) setFeatureCoupons(data.feature_coupons !== 'false')
+        setSupportPhoneOverride((data.support_whatsapp_phone ?? '').replace(/\D/g, ''))
       })
       .catch(() => undefined)
   }, [])
@@ -1743,7 +1755,11 @@ function App() {
   }
 
   const openWhatsappSupport = (message: string) => {
-    window.open(buildWhatsappLink(message), '_blank', 'noreferrer')
+    // رقم الدعم من لوحة الإدارة إن وُجد، وإلا الرقم الافتراضي داخل buildWhatsappLink.
+    const link = supportPhoneOverride
+      ? buildWhatsappLink(message, supportPhoneOverride)
+      : buildWhatsappLink(message)
+    window.open(link, '_blank', 'noreferrer')
   }
 
   const addToCart = () => {
@@ -3802,7 +3818,141 @@ function App() {
                 </article>
               ))}
             </section>
-            {order.paymentIssue && (
+            {(order.issues && order.issues.length > 0) && (
+              <section className="order-issues">
+                <h2><Icon name="build" /> مشاكل تحتاج حلّك</h2>
+                {order.issues.map((iss) => {
+                  const target = iss.itemId ? order.items.find((it) => it.id === iss.itemId) : order.items[0]
+                  const typeLabelMap: Record<string, string> = {
+                    payment: 'فرق سعر / مبلغ إضافي', size: 'المقاس', color: 'اللون',
+                    custom_photo: 'صورة مخصصة', custom_photo_size: 'قياس/قصّ الصورة',
+                    custom_text: 'نص مخصص', unavailable: 'المنتج غير متوفر',
+                    quantity: 'الكمية', link: 'رابط المنتج', other: 'مشكلة',
+                  }
+                  return (
+                    <div className={`order-issue ${iss.resolved ? 'order-issue--done' : ''}`} key={iss.id}>
+                      <div className="order-issue-head">
+                        <b>{typeLabelMap[iss.type] || 'مشكلة'}</b>
+                        {target && <span className="order-issue-item">{target.title.slice(0, 40)}</span>}
+                        {iss.resolved && <span className="order-issue-badge">✓ تم الحل</span>}
+                      </div>
+                      {iss.note && <p className="order-issue-note">{iss.note}</p>}
+                      {!iss.resolved && (iss.type === 'size' || iss.type === 'color') && target && (iss.options?.length ? (
+                        <div className="issue-options-row">
+                          {iss.options.map((opt) => (
+                            <button
+                              key={opt}
+                              className="issue-option-chip"
+                              disabled={sendingCustomFix}
+                              onClick={() => {
+                                setSendingCustomFix(true)
+                                const field = iss.type === 'color' ? 'color' : 'size'
+                                void appApi.orders.submitOptionFix(order.id, target.id, field, opt)
+                                  .then((ok) => {
+                                    if (ok) {
+                                      setOrders((list) => list.map((o) => o.id === order.id
+                                        ? { ...o, items: o.items.map((it) => it.id === target.id ? { ...it, [field]: opt } : it) }
+                                        : o))
+                                      resolveIssueLocal(order.id, iss.id, opt)
+                                      showNotice(`تم اختيار «${opt}» ✔`)
+                                    } else showNotice('تعذّر الإرسال، حاول مجدداً')
+                                  })
+                                  .catch(() => showNotice('تعذّر الإرسال، حاول مجدداً'))
+                                  .finally(() => setSendingCustomFix(false))
+                              }}
+                            >{opt}</button>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="order-issue-hint">راسلنا لتحديد {iss.type === 'color' ? 'اللون' : 'المقاس'} المناسب.</p>
+                      ))}
+                      {!iss.resolved && (iss.type === 'custom_photo' || iss.type === 'custom_photo_size') && target && (
+                        <label className={`primary-action order-issue-crop${sendingCustomFix ? ' is-disabled' : ''}`}>
+                          <Icon name="crop" /> {sendingCustomFix ? 'جاري الإرسال...' : 'قصّ الصورة وأرسلها'}
+                          <input
+                            type="file" accept="image/*" style={{ display: 'none' }} disabled={sendingCustomFix}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0]; e.target.value = ''
+                              if (!file) return
+                              const reader = new FileReader()
+                              reader.onload = (ev) => {
+                                const src = typeof ev.target?.result === 'string' ? ev.target.result : ''
+                                if (!src) { showNotice('تعذّرت قراءة الصورة'); return }
+                                setCropRequest({
+                                  src,
+                                  aspect: parsePhotoAspect(iss.requiredSize || target.customPhotoNote),
+                                  hint: iss.requiredSize ? `القياس المطلوب: ${iss.requiredSize}` : '',
+                                  onDone: (dataUrl) => {
+                                    setSendingCustomFix(true)
+                                    void appApi.orders.submitCustomFix(order.id, target.id, dataUrl, '')
+                                      .then((ok) => {
+                                        if (ok) {
+                                          setOrders((list) => list.map((o) => o.id === order.id
+                                            ? { ...o, items: o.items.map((it) => it.id === target.id ? { ...it, customPhotoDataUrl: dataUrl } : it) }
+                                            : o))
+                                          resolveIssueLocal(order.id, iss.id, 'صورة مقصوصة')
+                                          showNotice('تم إرسال الصورة ✔')
+                                        } else showNotice('تعذّر الإرسال، حاول مجدداً')
+                                      })
+                                      .catch(() => showNotice('تعذّر الإرسال، حاول مجدداً'))
+                                      .finally(() => setSendingCustomFix(false))
+                                  },
+                                })
+                              }
+                              reader.onerror = () => showNotice('تعذّرت قراءة الصورة')
+                              reader.readAsDataURL(file)
+                            }}
+                          />
+                        </label>
+                      )}
+                      {!iss.resolved && iss.type === 'custom_text' && target && (
+                        <div className="order-issue-text">
+                          <input
+                            type="text" placeholder="اكتب النص/الاسم المطلوب"
+                            value={issueTextDraft[iss.id] ?? ''}
+                            onChange={(e) => setIssueTextDraft((prev) => ({ ...prev, [iss.id]: e.target.value }))}
+                          />
+                          <button
+                            className="primary-action"
+                            disabled={sendingCustomFix || !(issueTextDraft[iss.id]?.trim())}
+                            onClick={() => {
+                              const value = (issueTextDraft[iss.id] || '').trim()
+                              setSendingCustomFix(true)
+                              void appApi.orders.submitCustomFix(order.id, target.id, '', value)
+                                .then((ok) => {
+                                  if (ok) {
+                                    setOrders((list) => list.map((o) => o.id === order.id
+                                      ? { ...o, items: o.items.map((it) => it.id === target.id ? { ...it, customText: value } : it) }
+                                      : o))
+                                    resolveIssueLocal(order.id, iss.id, value)
+                                    showNotice('تم إرسال النص ✔')
+                                  } else showNotice('تعذّر الإرسال، حاول مجدداً')
+                                })
+                                .catch(() => showNotice('تعذّر الإرسال، حاول مجدداً'))
+                                .finally(() => setSendingCustomFix(false))
+                            }}
+                          >إرسال</button>
+                        </div>
+                      )}
+                      {!iss.resolved && iss.type === 'payment' && (
+                        <p className="order-issue-hint">ادفع الفرق من زر «إنشاء طلب دفع» أدناه{iss.amountUsd ? ` (${formatUsd(iss.amountUsd)})` : ''}.</p>
+                      )}
+                      {!iss.resolved && (iss.type === 'unavailable' || iss.type === 'link' || iss.type === 'quantity' || iss.type === 'other') && (
+                        <div className="order-issue-actions">
+                          <button className="ghost-action" onClick={() => openWhatsappSupport(`مرحبا otlobli، بخصوص مشكلة (${typeLabelMap[iss.type]}) على الطلب ${order.id}`)}>
+                            <Icon name="support_agent" /> تواصل معنا
+                          </button>
+                          <button className="ghost-action" onClick={() => { resolveIssueLocal(order.id, iss.id, 'تمت المعالجة'); showNotice('تم وضع علامة معالجة') }}>
+                            تمّت المعالجة
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </section>
+            )}
+            {order.paymentIssue && (!order.issues || order.issues.length === 0) && (
               <section className="payment-issue-banner payment-issue-banner--detail">
                 <p>
                   <Icon name="error" /> يوجد إجراء مطلوب على هذا الطلب
@@ -3932,6 +4082,19 @@ function App() {
                   )}
                 >
                   <Icon name="payments" /> حل الإجراء عبر واتساب
+                </button>
+              </section>
+            )}
+            {/* زر الدفع للمبلغ الإضافي عند النظام المنظم (البانر القديم مخفي حينها) */}
+            {order.issues && order.issues.length > 0 && !!order.extraAmountUsd && order.extraAmountUsd > 0 && (
+              <section className="payment-issue-banner payment-issue-banner--detail">
+                <p className="payment-issue-amount">مبلغ إضافي مطلوب: ${order.extraAmountUsd.toFixed(2)}</p>
+                <button
+                  className="primary-action"
+                  disabled={isStartingIssuePayment}
+                  onClick={() => startIssuePayment(order)}
+                >
+                  <Icon name="payments" /> {isStartingIssuePayment ? 'جاري إنشاء طلب الدفع...' : 'إنشاء طلب دفع'}
                 </button>
               </section>
             )}
@@ -4152,6 +4315,9 @@ function App() {
                 setEditBranch(userProfile?.qadmousBranch ?? recipient.qadmousBranch ?? '')
                 setEditPickupLabel(recipient.pickupLabel || userProfile?.pickupLabel || '')
                 setEditingProfile(true)
+                // نموذج التعديل يُعرض فقط داخل شاشة profile — لا بد من الانتقال
+                // إليها، وإلا لا يظهر التعديل ويظهر عند الرجوع (كان هذا الخلل).
+                setScreen('profile')
               }}
             >
               <Icon name="edit" /> تعديل معلومات الاستلام
@@ -4278,14 +4444,36 @@ function App() {
               </section>
             )}
             {walletTransactions.length > 0 && (
-              <section className="payment-rules">
+              <section className="wallet-history">
                 <h2>آخر حركات المحفظة</h2>
-                {walletTransactions.slice(0, 5).map((tx) => (
-                  <p key={tx.id}>
-                    <b dir="ltr">{tx.amountSyp > 0 ? '+' : ''}{formatMoney(tx.amountSyp)}</b>
-                    {tx.note ? ` â€” ${tx.note}` : ''}
-                  </p>
-                ))}
+                {walletTransactions.slice(0, 6).map((tx) => {
+                  const isDeposit = tx.amountSyp > 0
+                  const usd = Math.abs(tx.amountSyp) / exchangeRate
+                  // اسم المتجر من الطلب المرتبط (إن وُجد) عبر رابط أول منتج فيه.
+                  let storeLabel = ''
+                  if (tx.orderId) {
+                    const linkedOrder = orders.find((o) => o.id === tx.orderId)
+                    const link = linkedOrder?.items?.[0]?.sourceLink || ''
+                    if (/temu/i.test(link)) storeLabel = 'تيمو'
+                    else if (/shein/i.test(link)) storeLabel = 'شي إن'
+                  }
+                  return (
+                    <div className={`wallet-tx ${isDeposit ? 'wallet-tx--in' : 'wallet-tx--out'}`} key={tx.id}>
+                      <span className="wallet-tx-icon"><Icon name={isDeposit ? 'south_west' : 'north_east'} /></span>
+                      <div className="wallet-tx-body">
+                        <b>{isDeposit ? 'تم الإيداع' : 'تم السحب'}</b>
+                        <small>
+                          {isDeposit
+                            ? 'شحن رصيد المحفظة'
+                            : tx.orderId
+                              ? `على الطلب ${tx.orderId}${storeLabel ? ` — ${storeLabel}` : ''}`
+                              : 'خصم من الرصيد'}
+                        </small>
+                      </div>
+                      <span className="wallet-tx-amount" dir="ltr">{isDeposit ? '+' : '−'}{formatUsd(usd)}</span>
+                    </div>
+                  )
+                })}
               </section>
             )}
             <section className="payment-rules">

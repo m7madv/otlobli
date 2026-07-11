@@ -53,7 +53,11 @@ create table if not exists public.orders (
   -- فاتورة الطلب (v60): بنود رسوم يحررها المشرف من لوحة الإدارة
   -- (شحن سعودية→سوريا، رسوم منصة...) وتظهر للزبون في تفاصيل الطلب.
   -- الشكل: [{"label": "شحن", "amountUsd": 2}, ...]
-  invoice jsonb not null default '[]'::jsonb
+  invoice jsonb not null default '[]'::jsonb,
+  -- مشاكل الطلب المنظمة (v63): مصفوفة {id,type,itemId,note,requiredSize,
+  -- options[],amountUsd,resolved,resolvedValue} — عدة مشاكل لكل طلب يحلها
+  -- الزبون من طلباتي. مسار الدفع يبقى في payment_issue/extra_amount_usd.
+  issues jsonb not null default '[]'::jsonb
 );
 
 create table if not exists public.order_items (
@@ -1790,6 +1794,68 @@ $$;
 revoke all on function public.submit_order_option_fix(text, text, text, text, text) from public;
 grant execute on function public.submit_order_option_fix(text, text, text, text, text) to anon, authenticated;
 
+-- يعلّم مشكلة منظمة كمحلولة بقيمة الزبون (v63). نواة service_role + غلاف جلسة.
+create or replace function public.submit_order_issue_resolve(
+  target_order_id text,
+  p_issue_id text,
+  p_resolved_value text
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  updated_count integer;
+begin
+  if coalesce(target_order_id, '') = '' or coalesce(p_issue_id, '') = '' then
+    return false;
+  end if;
+  update public.orders o
+  set issues = (
+    select jsonb_agg(
+      case when elem->>'id' = p_issue_id
+        then elem || jsonb_build_object('resolved', true, 'resolvedValue', left(coalesce(p_resolved_value, ''), 200))
+        else elem end
+    )
+    from jsonb_array_elements(o.issues) elem
+  )
+  where o.id = target_order_id
+    and jsonb_typeof(o.issues) = 'array'
+    and exists (select 1 from jsonb_array_elements(o.issues) e where e->>'id' = p_issue_id);
+  get diagnostics updated_count = row_count;
+  return updated_count > 0;
+end;
+$$;
+
+revoke all on function public.submit_order_issue_resolve(text, text, text) from public, anon, authenticated;
+grant execute on function public.submit_order_issue_resolve(text, text, text) to service_role;
+
+create or replace function public.submit_order_issue_resolve(
+  target_order_id text,
+  p_issue_id text,
+  p_resolved_value text,
+  p_session_token text
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  target_customer_id uuid;
+begin
+  target_customer_id := public.require_customer_session(p_session_token, null);
+  if not exists (
+    select 1 from public.orders where id = target_order_id and customer_id = target_customer_id
+  ) then return false; end if;
+  return public.submit_order_issue_resolve(target_order_id, p_issue_id, p_resolved_value);
+end;
+$$;
+
+revoke all on function public.submit_order_issue_resolve(text, text, text, text) from public;
+grant execute on function public.submit_order_issue_resolve(text, text, text, text) to anon, authenticated;
+
 create or replace function public.customer_orders_json(target_customer_id uuid, target_phone text)
 returns jsonb
 language sql
@@ -1833,6 +1899,7 @@ as $$
       'paymentIssueNote', o.payment_issue_note,
       'extraAmountUsd', o.extra_amount_usd,
       'invoice', o.invoice,
+      'issues', o.issues,
       'groupId', o.group_id,
       'groupCode', o.group_code
     ) order by o.created_at desc), '[]'::jsonb)

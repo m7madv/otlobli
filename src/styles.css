@@ -230,6 +230,20 @@ a {
   white-space: nowrap;
 }
 
+/* حركات المحفظة */
+.wallet-history { display: flex; flex-direction: column; gap: 8px; }
+.wallet-history h2 { margin: 0 0 4px; font-size: 1rem; }
+.wallet-tx { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--outline); border-radius: 12px; padding: 10px 12px; }
+.wallet-tx-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; flex: 0 0 auto; }
+.wallet-tx--in .wallet-tx-icon { background: rgba(0, 121, 83, 0.12); color: #007953; }
+.wallet-tx--out .wallet-tx-icon { background: rgba(198, 40, 40, 0.1); color: #c62828; }
+.wallet-tx-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.wallet-tx-body b { font-size: 0.9rem; }
+.wallet-tx-body small { color: var(--muted); font-size: 0.76rem; }
+.wallet-tx-amount { font-weight: 800; font-size: 0.95rem; flex: 0 0 auto; }
+.wallet-tx--in .wallet-tx-amount { color: #007953; }
+.wallet-tx--out .wallet-tx-amount { color: #c62828; }
+
 .greeting h1,
 .product-info h1 {
   margin: 0;
@@ -867,6 +881,25 @@ a {
 .issue-option-chip.is-selected { background: var(--primary); color: #fff; }
 .issue-option-chip:disabled { opacity: 0.6; }
 .issue-options-current { margin: 0; font-size: 0.78rem; color: var(--muted); }
+
+/* نظام مشاكل الطلب — واجهة الزبون في تفاصيل الطلب */
+.order-issues { display: flex; flex-direction: column; gap: 10px; background: #fff8f0; border: 1px solid #ffe0b2; border-radius: var(--radius); padding: 14px; }
+.order-issues h2 { margin: 0; font-size: 1rem; display: flex; align-items: center; gap: 6px; }
+.order-issue { background: var(--surface); border: 1px solid var(--outline); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.order-issue--done { opacity: 0.7; }
+.order-issue-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.order-issue-head b { font-size: 0.9rem; }
+.order-issue-item { font-size: 0.76rem; color: var(--muted); }
+.order-issue-badge { margin-inline-start: auto; font-size: 0.76rem; font-weight: 700; color: #007953; }
+.order-issue-note { margin: 0; font-size: 0.82rem; color: var(--text); }
+.order-issue-hint { margin: 0; font-size: 0.78rem; color: var(--muted); }
+.order-issue-crop { display: inline-flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; margin: 0; }
+.order-issue-crop.is-disabled { opacity: 0.6; pointer-events: none; }
+.order-issue-text { display: flex; gap: 8px; }
+.order-issue-text input { flex: 1; min-width: 0; border: 1px solid var(--outline); border-radius: 8px; padding: 8px 10px; font-family: inherit; font-size: 0.85rem; }
+.order-issue-text .primary-action { margin: 0; flex: 0 0 auto; padding-inline: 16px; }
+.order-issue-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.order-issue-actions .ghost-action { margin: 0; }
 
 /* فاتورة الرسوم في تفاصيل الطلب */
 .invoice-view { background: var(--surface); border: 1px solid var(--outline); border-radius: var(--radius); padding: 14px; display: flex; flex-direction: column; gap: 8px; }

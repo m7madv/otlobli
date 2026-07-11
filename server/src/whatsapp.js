@@ -245,7 +245,10 @@ async function initSession(session) {
   const sock = makeWASocket({
     auth: state,
     version,
-    browser: ['Chrome (Linux)', '', ''],
+    // هوية جهاز واقعية وثابتة (سطح مكتب Chrome على macOS) بدل النسخة الفارغة
+    // السابقة ['Chrome (Linux)','',''] — الحقل الفارغ يبدو شاذاً في «الأجهزة
+    // المرتبطة» وثباته عبر إعادة الاتصال أهم من قيمته: تغيّره يبدو كجهاز جديد.
+    browser: ['otlobli', 'Chrome', '120.0.6099.109'],
     syncFullHistory: false,
     markOnlineOnConnect: false,
     fireInitQueries: false,
@@ -334,23 +337,64 @@ async function sendWithFallback(fn) {
   throw lastError || new Error('فشل الإرسال من جميع الأرقام')
 }
 
+// ── إيقاع بشري لتقليل مخاطر الحظر ────────────────────────────
+// واتساب يحظر السلوك الآلي: اندفاع رسائل متطابقة بسرعة عالية لأرقام لم
+// تراسلنا. لا يمكن لأي كود جعل الرقم «لا يُحظر أبداً» (الحظر قرار خوادم
+// واتساب حسب السلوك والإبلاغ وعمر الرقم)، لكن هذه الإجراءات تجعل النمط
+// يشبه إنساناً حقيقياً: فاصل أدنى بين أي رسالتين + مؤشر «يكتب» قبل الإرسال
+// + تأخير عشوائي. راجع WHATSAPP_ANTI_BAN.md لبقية الإجراءات التشغيلية.
+const MIN_SEND_GAP_MS = 4000
+let __lastSendAt = 0
+let __sendChain = Promise.resolve()
+
+function jitter(minMs, maxMs) {
+  return Math.floor(minMs + Math.random() * (maxMs - minMs))
+}
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
+// يسلسل كل الإرسالات ويضمن فاصلاً أدنى بينها (لا اندفاع) — قناة واحدة عامة.
+function paceSend(task) {
+  const run = __sendChain.then(async () => {
+    const wait = Math.max(0, MIN_SEND_GAP_MS - (Date.now() - __lastSendAt))
+    if (wait > 0) await sleep(wait)
+    try {
+      return await task()
+    } finally {
+      __lastSendAt = Date.now()
+    }
+  })
+  // نُبقي السلسلة حيّة حتى لو فشلت مهمة (لا نكسر الطابور).
+  __sendChain = run.catch(() => {})
+  return run
+}
+
+// إرسال يحاكي إنساناً: اشتراك بالحضور + «يكتب» + تأخير قصير ثم الرسالة.
+async function sendHumanLike(sock, jid, content) {
+  try { await sock.presenceSubscribe(jid) } catch (_) {}
+  try { await sock.sendPresenceUpdate('composing', jid) } catch (_) {}
+  await sleep(jitter(900, 2200))
+  const res = await sock.sendMessage(jid, content)
+  try { await sock.sendPresenceUpdate('paused', jid) } catch (_) {}
+  return res
+}
+
 export async function sendOtpMessage(phone, code) {
   const jid = phone.replace(/[\s\-\(\)\+]/g, '') + '@s.whatsapp.net'
   const msg = `رمز التحقق من otlobli:\n\n${code}\n\nصالح لمدة 5 دقائق.`
 
-  await sendWithFallback(async (session) => {
-    await session.sock.sendMessage(jid, { text: msg })
+  await paceSend(() => sendWithFallback(async (session) => {
+    await sendHumanLike(session.sock, jid, { text: msg })
     console.log(`✅ OTP ${code} → ${phone} (session ${session.id})`)
-  })
+  }))
 }
 
 export async function sendNotificationMessage(phone, text) {
   const jid = phone.replace(/[\s\-\(\)\+]/g, '') + '@s.whatsapp.net'
 
-  await sendWithFallback(async (session) => {
-    await session.sock.sendMessage(jid, { text })
+  await paceSend(() => sendWithFallback(async (session) => {
+    await sendHumanLike(session.sock, jid, { text })
     console.log(`✅ إشعار → ${phone} (session ${session.id})`)
-  })
+  }))
 }
 
 // ── التوافقية ────────────────────────────────────────────

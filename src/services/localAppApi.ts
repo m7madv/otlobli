@@ -233,5 +233,10 @@ export const localAppApi: TalabiehApi = {
       await wait(220)
       return true
     },
+
+    async submitIssueResolve() {
+      await wait(220)
+      return true
+    },
   },
 }
