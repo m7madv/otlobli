@@ -536,7 +536,13 @@ async function resolvePersistedFallbackRate() {
   const hadCachedRate = Boolean(_rateCache.rate)
   const candidate = _rateCache.rate || getConfiguredExchangeRateFallback()
   const rate = await persistExchangeRate(candidate)
-  _rateCache = { rate, buy: rate, sell: rate, updatedAt: Date.now(), source: 'fallback' }
+  _rateCache = {
+    rate,
+    buy: rate,
+    sell: rate,
+    updatedAt: Date.now(),
+    source: hadCachedRate ? 'cache' : 'fallback',
+  }
   return { ..._rateCache, cached: hadCachedRate }
 }
 
