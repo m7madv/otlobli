@@ -21,6 +21,11 @@ Do not revert or fold the UI commits into it.
   lower collision amounts are rejected (exact-only), one customer cannot ladder active
   wallet top-ups, and a recent unmatched event can reconcile for two minutes without
   allowing an older event to drift into a new intent.
+- Railway deployment `63fd12de-3c29-4c7b-8646-72600400de85` is `SUCCESS/RUNNING`
+  from isolated commit `d0ac78f`. `/api/exchange-rate` now persists the live rate before
+  replying, revalidates cached responses against `app_settings`, uses a local single-flight,
+  fails closed if no persisted fallback can be established, and sends `Cache-Control:
+  no-store`. Production API and SQL source of truth both returned `13050 SYP/USD`.
 - The Android listener no longer sends `x-payment-secret`; the secret remains only in
   Android Keystore and signs the request. The release has no synthetic ADB notification
   action, ignores group summaries, keeps an OS-stable event ID across notification
@@ -31,18 +36,27 @@ Do not revert or fold the UI commits into it.
   - `android/shamcash-listener/build/outputs/apk/release/shamcash-listener-release.apk`
   - APK SHA-256: `343f0213d837410b0a4069a67ece69a2cc65b8aba3c3140f65d0663ecfb226b5`
   - signer certificate SHA-256: `44ed0b43a41924ca67dfa44c6815e5b9286f843b7879b1f1d2c7e4ee5b1f827b`
-- The Note 8 is visible as serial `988e16384e4f51395230` but currently reports
-  `unauthorized`; the user must accept the USB-debugging prompt before any device action.
-  ShamCash must be tested on the Syrian-network phone, never on the PC.
+- The Note 8 is now authorized as serial `988e16384e4f51395230`, model `SM-N950F`.
+  ShamCash must still be tested only on this Syrian-network phone, never on the PC.
 - Remaining payment trust debt is explicit: product prices/totals still originate in the
   client because the vendor pages have no server-authoritative quote. Do not call pricing
   fully tamper-proof or group payment fully secured until server-issued price quotes and
   authenticated group snapshots are implemented and tested.
-- Battery safety is not complete: real sysfs previously reported `health=Cold`,
-  `temp=-20 C` clamp, ADC about 3950, roughly 3.36 V, and no charge current. This points
-  to a physical NTC/battery/BMS/connector path fault. `/data/adb/service.d/fakebattery.sh`
-  still masks Android as 100% only to keep maintenance possible. Do not force charging,
-  flash an 80% kernel, or enable factory/slate mode before the physical sensor is valid.
+- Battery safety is physically blocked. A fresh six-sample sysfs capture while USB was
+  connected reported `capacity=0`, `health=Cold`, `temp=-20 C`, ADC `3950..3986`,
+  voltage `3.386..3.387 V`, current `0`, and `Not charging`. This proves the replacement
+  battery/NTC/connector/board-temperature path must be repaired or reseated before any
+  reset or flash. `/data/adb/service.d/fakebattery.sh` (SHA-256
+  `9575a5e9dd37e4f1d6a738a3b83b5159816d9eb254f825fcd98c1c895a526e95`) is the only
+  Magisk service/module found; it masks BatteryService as AC/100%/25 C every 15 seconds
+  so Android can stay alive on USB. Do not disable it, force charging, flash an 80%
+  kernel, or enable factory/slate mode until raw sysfs is plausibly `Good/Charging`.
+- The intended post-repair state is stock Samsung firmware, no Magisk/root, and no custom
+  charge-limit kernel. Captured restore identity is `XSG`, `N950FXXUGDVG7`, baseband
+  `N950FXXSGDUG6`. Root is unnecessary for ShamCash/listener/remote control and is the
+  wrong security trade-off for a payment terminal. Exact 80% must not be obtained by
+  weakening verified boot; use external power control or a newer Samsung with native
+  battery protection after the hardware path is valid.
 - TeamViewer Host and AnyDesk were installed for evaluation. Samsung Knox EULA/account
   assignment requires the user personally; test full unattended control and remove the
   losing app after the phone reconnects.

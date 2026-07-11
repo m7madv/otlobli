@@ -41,20 +41,31 @@ Prevent this by updating `CURRENT_STATE.md`, `AI-HANDOFF.md`, and `SESSION_SUMMA
 - `20260712022000` blocks the exploitable descending unique-amount ladder and limits
   each customer to one active wallet top-up; `20260712023000` safely retries only recent
   unmatched events for two minutes. Both are applied to production.
+- Exchange-rate synchronization is deployed from commit `d0ac78f` as Railway deployment
+  `63fd12de-3c29-4c7b-8646-72600400de85` (`SUCCESS/RUNNING`). The public endpoint and
+  `app_settings.usd_to_syp_rate` both verified at `13050`; cached responses are DB-
+  revalidated and marked `Cache-Control: no-store`. Railway currently has one replica,
+  so the in-process single-flight covers the active topology.
 - Release code contains no `TEST_NOTIFICATION` action and no `x-payment-secret` header.
   Do not reintroduce either. A genuine ShamCash notification capture remains a release
   gate because the provider transaction/reference layout is not yet known.
-- ADB currently sees serial `988e16384e4f51395230` as `unauthorized`. Wait for the user
-  to accept the on-device prompt. Before replacing the installed debug listener, confirm
-  the serial and state are `device`, then uninstall debug (release signer differs),
-  install the signed release, provision via the `android.permission.DUMP`-protected receiver,
-  re-enable notification-listener access, and battery-whitelist it.
+- ADB now sees serial `988e16384e4f51395230` as authorized `device` (`SM-N950F`). Do not
+  replace the installed debug listener yet: the user requested a stock reset, and the
+  physical battery-temperature fault must be repaired before a reset/flash. After the
+  stock restore, install the signed release, provision via the
+  `android.permission.DUMP`-protected receiver, re-enable notification-listener access,
+  and battery-whitelist it.
 - Do not run ShamCash on the PC. End-to-end ShamCash notification testing must happen on
   the Note 8 while it has the Syrian network.
-- Battery blocker: real readings were 1%, `Cold`, -20 C clamp, ADC about 3950, ~3.36 V,
-  current 0. Treat this as an NTC/battery/BMS/connector fault. Do not bypass the thermal
-  guard or flash a charge-limit kernel. The fake BatteryService script remains temporary
-  until software work is finished and physical diagnosis can be done safely.
+- Battery blocker is reconfirmed, not hypothetical: six USB-powered samples were 0%,
+  `Cold`, -20 C, ADC `3950..3986`, `3.386..3.387 V`, current 0, `Not charging`. Reseat or
+  replace the compatible battery/flex first; if ADC remains near 3950, repair the NTC/
+  connector/board trace. Never bridge the thermistor or force charging. The only Magisk
+  service/module found is `/data/adb/service.d/fakebattery.sh`, SHA-256
+  `9575a5e9dd37e4f1d6a738a3b83b5159816d9eb254f825fcd98c1c895a526e95`; it only fakes
+  BatteryService every 15 seconds to keep Android alive and must remain until raw sysfs is
+  sane. Restore target after repair: stock/no-root `XSG` `N950FXXUGDVG7`, baseband
+  `N950FXXSGDUG6`. Do not pursue exact 80% via root or a custom kernel on a payment device.
 - Remote control is not finished: TeamViewer Host and AnyDesk are installed for testing;
   the user must personally accept Samsung Knox terms and assign their own account/password.
   Prefer TeamViewer Host if full control activates, then remove AnyDesk; otherwise verify
