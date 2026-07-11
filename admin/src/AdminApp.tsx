@@ -1035,6 +1035,11 @@ function OrderDetail({
         order={order}
         onUpdate={onUpdate}
       />
+      <InvoiceField
+        key={`invoice-${order.id}-${(order.invoice ?? []).length}`}
+        order={order}
+        onUpdate={onUpdate}
+      />
       <div className="detail-actions">
         <button className="primary-action" onClick={() => onMarkPaid(order)}>تأكيد الدفع</button>
         <button className="ghost-action" onClick={() => onAdvance(order)}>نقل للمرحلة التالية</button>

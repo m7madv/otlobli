@@ -1834,6 +1834,11 @@ function App() {
   // SHEIN asset succeeds.
   // فحص وصول للمتجر المختار تحديداً (وليس أي متجر): منطقة VPN قد تفتح
   // شي إن وتحجب تيمو، وفحص «أيهما نجح» كان يفتح متجراً سيفشل فعلياً.
+  //
+  // صور فقط — ممنوع fetch no-cors هنا: الحجب السوري يرد بصفحة HTML حقيقية
+  // فيَعُدّها fetch «نجاحاً» (الدرس موثق أعلاه وتَكرر عملياً في v60: بلا VPN
+  // كانت البوابة تفتح المتجر على شاشة بيضاء بدل إظهار شاشة «شغّل VPN»).
+  // فك ترميز الصورة هو البرهان الوحيد أن الرد فعلاً من المتجر.
   const checkStoreReachable = (store: string) => {
     const probeImage = (url: string): Promise<boolean> =>
       new Promise((resolve) => {
@@ -1843,19 +1848,13 @@ function App() {
         img.onerror = () => { window.clearTimeout(timer); resolve(false) }
         img.src = `${url}?_=${Date.now()}`
       })
-    const probeFetch = (url: string): Promise<boolean> =>
-      fetch(url, { mode: 'no-cors', cache: 'no-store', signal: AbortSignal.timeout(10000) })
-        .then(() => true)
-        .catch(() => false)
     const probes = store === 'temu'
       ? [
         probeImage('https://www.temu.com/favicon.ico'),
-        probeFetch('https://www.temu.com/favicon.ico'),
       ]
       : [
         probeImage('https://m.shein.com/favicon.ico'),
         probeImage('https://img.ltwebstatic.com/images3_spmp/2024/06/20/17/1718854498b4a8f5ebce05ea476acae42de72b810a_thumbnail_80x80.webp'),
-        probeFetch('https://m.shein.com/favicon.ico'),
       ]
     return Promise.any(probes).catch(() => false)
   }
@@ -4638,6 +4637,20 @@ function App() {
             }}>
               <Icon name="delete_sweep" />
               مسح الكوكيز وإعادة التحميل
+            </button>
+            <button className="ghost-action" onClick={() => {
+              // يرجع لبوابة الفحص الذكي: يغلق الـwebview العالق ويعيد فحص
+              // الوصول + منطقة الـVPN فيوجَّه المستخدم (شغّل/غيّر المنطقة).
+              setSheinBlockedError(false)
+              webviewSessionRef.current += 1
+              webviewIdRef.current = ''
+              sheinOpenedRef.current = false
+              setSheinReady(false)
+              void InAppBrowser.close().catch(() => undefined)
+              setVpnState('checking')
+            }}>
+              <Icon name="vpn_key" />
+              فحص الاتصال والـ VPN
             </button>
           </main>
         ) : !sheinReady ? (
