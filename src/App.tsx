@@ -5033,10 +5033,6 @@ function App() {
               <Icon name="refresh" />
               تحقّق من جديد
             </button>
-            <button className="ghost-action" onClick={() => { openedViaBypassRef.current = true; setVpnState('ok') }} style={{ marginTop: 8 }}>
-              <Icon name="open_in_browser" />
-              فتح المتجر على أي حال
-            </button>
           </main>
         ) : vpnState === 'bad-region' ? (
           <main className="mobile-content shein-home">
@@ -5052,10 +5048,6 @@ function App() {
               <Icon name="refresh" />
               تحقّق من جديد
             </button>
-            <button className="ghost-action" onClick={() => { openedViaBypassRef.current = true; setVpnState('ok') }} style={{ marginTop: 8 }}>
-              <Icon name="open_in_browser" />
-              فتح المتجر على أي حال
-            </button>
           </main>
         ) : vpnState === 'offline' ? (
           <main className="mobile-content shein-home">
@@ -5067,10 +5059,6 @@ function App() {
             <button className="primary-action" onClick={() => setVpnState('checking')}>
               <Icon name="refresh" />
               إعادة المحاولة
-            </button>
-            <button className="ghost-action" onClick={() => { openedViaBypassRef.current = true; setVpnState('ok') }} style={{ marginTop: 8 }}>
-              <Icon name="open_in_browser" />
-              فتح المتجر على أي حال
             </button>
           </main>
         ) : sheinBlockedError ? (
