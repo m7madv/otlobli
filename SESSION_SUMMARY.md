@@ -12,7 +12,93 @@
 - `admin-orders` was redeployed with stale-draft merging so a late admin save cannot
   reopen or delete a customer-resolved issue.
 
-Copy this into a new AI chat before continuing work.
+---
+
+# 📋 تسليم مفصّل لكودكس — جلسة Claude (v58 → v65، 2026-07-10/12)
+
+الفرع `codex/customer-wallet-group-orders`. كل ما يلي **مطبّق على الإنتاج**
+(قاعدة البيانات + دوال Edge + Vercel admin + Railway server) ومدفوع لـ GitHub.
+النسخ الأحدث على سطح مكتب المستخدم: `otlobli-v65.apk` و`otlobli-v65.ipa`.
+
+## حدود العمل بيننا (مهم جداً)
+- **لم ألمس مسار الدفع/الجلسات المقوّى الذي بنيته** (webhook، wallet reservation،
+  create_pending_order، require_customer_session، ShamCash). فقط **أستهلكه**.
+- كل RPC جديدة لي تتبع نمطك: **نواة `service_role` + غلاف موقّع بـ
+  `p_session_token`** يستدعي `require_customer_session`.
+- تعارض ترتيب migrations: أي ملف تاريخه `20260711` (بلا طابع كامل) يُرتّب CLI
+  قبل ملفات `20260712xxxxxx` نصياً. لذلك كل migrations الجديدة لي بطابع
+  14 رقماً `20260712xxxxxx` لتُرتّب بعد `20260711_harden_customer_payments`.
+
+## Migrations التي طبّقتُها على الإنتاج (بالترتيب)
+1. `20260712000000_order_item_custom_fields` — أعمدة `order_items`:
+   `custom_text`, `custom_photo`, `custom_photo_note` + تحديث `submit_order`/
+   `create_pending_order`/`customer_orders_json` + RPC `submit_order_custom_fix`.
+   (كانت بيانات التخصيص تُسقط عند الإدراج فلا تصل الإدارة.)
+2. `20260712010000_order_invoice_and_option_fix` — عمود `orders.invoice` jsonb
+   + RPC `submit_order_option_fix` (مقاس/لون). **يعيد سحب صلاحيات anon** عن
+   4 دوال قديمة كانت `20260712000000` أعادت منحها بعد تقويتك.
+3. `20260712015000_fix_session_digest` — `require_customer_session` كانت
+   `search_path=public` فلا ترى `digest()` (pgcrypto في مخطط extensions) —
+   **كل إنشاء طلب كان يفشل** بـ `function digest(text, unknown) does not exist`.
+   الحل: `set search_path = extensions, public`.
+4. `20260712016000_add_admin_set_order_payment_status` — الدالة كانت مفقودة
+   من الإنتاج (النسخة المطبقة من تقويتك كانت مسودة أقدم) فزر «تأكيد الدفع»
+   بالإدارة معطّل. زُرعت **حرفياً من صيغتك النهائية**.
+5. `20260712030000_structured_order_issues` — عمود `orders.issues` jsonb +
+   RPC `submit_order_issue_resolve` + `customer_orders_json` يُخرج issues.
+
+> ملاحظة: `schema.sql` مُزامن مع كل ما سبق. ملف hotfix `20260712020000`
+> الخاص بك طُبّق (حسب متابعتك أعلاه) — لم أعدّله.
+
+## Edge functions المنشورة
+- `admin-orders`: يمرر `customText`/`customPhotoDataUrl`/`customPhotoNote`
+  و`invoice` و`issues` (GET) ويقبلها في PATCH.
+- `app-settings`: مفتاح جديد `support_whatsapp_phone`.
+
+## ميزات المنتج (v58→v65) — أماكن الكود
+- **كشف المنتجات المخصصة** (`sheinBrowserScript.ts`): `temuCustomRequirements`/
+  `otlobliCustomTextSignal`... إشارات صارمة من العنوان + بادج «التخصيص» أعلى
+  الصفحة فقط. «نقش» تُطابق فقط بسياق صريح (نقش اسم/قابل للنقش) — «بنقشة» لا.
+- **شاشة قص صور** (`App.tsx` `PhotoCropModal`): سحب/تكبير/إطار مقفول بالنسبة،
+  إخراج JPEG ≤1080px. تُستخدم في السلة وفي حل مشكلة قياس الصورة.
+- **نظام مشاكل متعدد احترافي**: الإدارة `OrderIssuesField` (`AdminApp.tsx`) —
+  عدة مشاكل/طلب، تُشتق منها `paymentIssue`/`extraAmountUsd`/note للتوافق.
+  الزبون `App.tsx` قسم «مشاكل تحتاج حلّك» — أزرار مقاس/لون، قص صورة، نص، دفع.
+  `submitOptionFix`/`submitCustomFix`/`submitIssueResolve` في `supabaseAppApi.ts`.
+- **فاتورة الطلب**: `InvoiceField` (إدارة) + `invoice-view` (تطبيق).
+- **محفظة**: عرض «تم الإيداع/السحب» + رقم الطلب والمتجر (`payment-methods`).
+- **رقم دعم قابل للتعديل**: `support_whatsapp_phone` → `openWhatsappSupport`.
+- **إصلاح شاشة تعديل الاستلام**: زر recipient-detail يضيف `setScreen('profile')`.
+- **VPN ذكي** (`App.tsx`): فحص وصول المتجر بالصور فقط (لا `fetch no-cors` — يكذب)
+  + geo (ipwho.is/ipapi.co): سوريا=شغّل VPN، خارجها+محجوب=غيّر المنطقة، لا شبكة=offline.
+- **شي إن كلاودفلير** (v62/v65): `otlobliIsHumanChallenge()` يجمّد tick أثناء
+  «Just a moment». v65: حارس السعودية صار **شريطاً علوياً غير حاجب** بدل طبقة
+  تحجب الصفحة+حلقة location.replace («يطلعني»). منع إعادة التحميل أثناء التحقق.
+- **تيمو**: v57 عطّل `killStorePopups` لتيمو (سبب وميض 500ms) — **لا تُعده**.
+  v65 `dismissTemuLoginPopup` يغلق نافذة دخول عائمة (لا صفحة كاملة).
+
+## واتساب (server/src/whatsapp.js) — عدة إصلاحات
+- **«في انتظار هذه الرسالة»**: كان `getMessage: () => undefined` يمنع إعادة
+  إرسال الرسائل غير المفكوكة. أضفت مخزن رسائل `__waMsgStore` + `getMessage`
+  يعيدها. **والأهم**: أزلت `fireInitQueries:false` (كانت تمنع رفع prekeys
+  فيتعذر على المستلم تأسيس جلسة Signal) + `shouldSyncConnectionMessage:false`
+  + `emitOwnEvents:false`.
+- **تصليب ضد الحظر**: هوية جهاز ثابتة، `sendHumanLike` (حضور+تأخير) + `paceSend`
+  (فاصل 4ث). `server/WHATSAPP_ANTI_BAN.md` يشرح بصدق أن الحظر سلوك واتساب.
+
+## 🔴 معلّق / يحتاج قراراً أو جهاز
+1. **واتساب — إعادة ربط الرقم**: من فحص السيرفر المباشر: جلسة 0 متصلة
+   (963990782172 = رقم البوت في صورة المستخدم)، جلسة 1 فارغة. رسائل هذا
+   الرقم تصل «في انتظار». الإصلاحات أعلاه تعالج الجذر للرسائل الجديدة، لكن
+   **المحادثات القديمة المكسورة تحتاج إعادة ربط الرقم** (يغيّر الهوية فيجبر
+   كل الأجهزة على تأسيس تشفير نظيف). ينتظر قرار المستخدم (إعادة الربط توقف
+   الرقم للحظات). endpoints: `POST/DELETE /api/whatsapp/sessions/:id`,
+   صفحة QR `/api/qr`. Baileys 6.6.0 قديم — ترقيته قد تساعد لكنها محفوفة.
+2. **شي إن/تيمو**: كل إصلاحات المتجر **غير مُعاينة** (المطور لا يصل للمتجرين).
+   تحتاج اختبار المستخدم على جهاز حقيقي عبر VPN. تيمو: يُحتاج تأكيد إن كانت
+   شاشة الدخول نافذة (يغلقها v65) أم صفحة كاملة (سياسة تيمو للمنطقة).
+
+## Copy this into a new AI chat before continuing work.
 
 ## Start here
 
