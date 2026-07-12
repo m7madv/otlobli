@@ -35,6 +35,10 @@ Last updated: 2026-07-12
   `https://talabieh-admin.vercel.app`.
 - Both public URLs return HTTP 200 and customer production JS contains v66.
 - Root and admin production builds pass locally. Real-device store verification remains.
+- Release commit `f7b4456` is pushed. GitHub iOS unsigned build run `29175819975`
+  succeeded for that exact SHA; `otlobli-v66.ipa` is on the Desktop.
+  - size: `1942781` bytes
+  - SHA-256: `6724eb9d147e780aac7d868853d341cb3a416e2d7c856300f6acc3db6372e6b1`
 
 ## Claude v65 app handoff confirmed (2026-07-12)
 

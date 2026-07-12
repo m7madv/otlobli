@@ -30,6 +30,11 @@
   - customer `dpl_Du4Rwp3kdyRNqqrPs36ELWv6pRfo` -> `https://talabieh.vercel.app`
   - admin `dpl_4Zdxn8VqEssPPW5NwhS4EKKCtGK5` -> `https://talabieh-admin.vercel.app`
 - Both aliases return HTTP 200 and customer production JS contains v66.
+- Release commit `f7b4456` was pushed. GitHub iOS unsigned build run
+  `https://github.com/m7madv/otlobli/actions/runs/29175819975` succeeded.
+- Downloaded artifact to `C:\Users\MOHAMMAD\Desktop\otlobli-v66.ipa`
+  (`1942781` bytes, SHA-256
+  `6724eb9d147e780aac7d868853d341cb3a416e2d7c856300f6acc3db6372e6b1`).
 
 ## Codex follow-up (2026-07-11)
 

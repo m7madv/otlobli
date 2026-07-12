@@ -25,8 +25,10 @@ Current integrated work after Claude/Codex agents hit usage limits:
 - Ownership/delivery values are resolved against server-side `cart_group_members` and
   `cart_group_items`, not trusted from client phone/name fields.
 - Customer/admin Vercel production deployments are READY and aliases return HTTP 200;
-  customer production JS was verified to contain v66. Remaining release step is
-  commit/push and the GitHub unsigned iOS workflow/artifact.
+  customer production JS was verified to contain v66.
+- Release commit `f7b4456` is pushed and GitHub iOS run `29175819975` succeeded.
+  Desktop artifact `otlobli-v66.ipa` SHA-256 is
+  `6724eb9d147e780aac7d868853d341cb3a416e2d7c856300f6acc3db6372e6b1`.
 
 ## AI continuity protocol
 
