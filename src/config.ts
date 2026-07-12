@@ -12,4 +12,4 @@ export const PAYMENT_MODE: 'auto' | 'shamcash' = 'shamcash'
 export const SOURCE_COUNTRY: 'JO' | 'LB' | 'SA' = 'SA'
 
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '2026.07.06-shamcash-admin-session-v36'
+export const APP_VERSION = '2026.07.12-shared-orders-store-fixes-v66'

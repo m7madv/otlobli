@@ -1,6 +1,50 @@
 # SESSION_SUMMARY.md
 
+## Codex follow-up (2026-07-12): parallel store/order work started
+
+- User supplied real-device reports for VPN fallback, SHEIN Cloudflare/black-screen
+  behavior, Temu search positioning, empty-cart invite links, shared-order ownership,
+  product issue workflows, and admin order selection.
+- Claude received the shared orders/admin task but reached its usage limit after code
+  inspection. Its branch `claude/otlobli-shared-orders-issues-0eeae1` and worktree are
+  clean at `cf4b53c`; the `+11,015/-724` shown in Claude was not saved repository work.
+- Codex changed `src/App.tsx` so invite links auto-join even with an empty local cart,
+  group-order controls remain visible in an empty cart, page-load failures return to the
+  VPN gate, and SHEIN verification routes are not rewritten by Saudi URL normalization.
+- `npm run build` passed. These changes are not committed or deployed yet.
+- Figma connector returned `requires reauthentication`; visual Temu/admin adjustments
+  must wait for Figma reconnection or an existing Figma source link.
+
+### Stable implementation checkpoint
+
+- Claude and the backend sub-agent both reached usage limits; Codex reviewed and finished
+  the saved work instead of assuming it was complete.
+- Shared order ownership, group-member visibility, delivery-member selection, owner-scoped
+  issue notification/response, photo responses, and product grouping are implemented.
+- Admin inline order selection, dynamic issue options, and request-photo are implemented.
+- Temu fixed search shell and conservative SHEIN verification/menu fixes are implemented.
+- Root `npm run build`, admin `npm run build`, and `git diff --check` pass.
+- `npm run lint` still has pre-existing repo-wide failures; Deno is not installed locally.
+- Migration `20260712033000_shared_order_ownership.sql` was applied and `admin-orders` deployed.
+- Vercel production deployments succeeded:
+  - customer `dpl_Du4Rwp3kdyRNqqrPs36ELWv6pRfo` -> `https://talabieh.vercel.app`
+  - admin `dpl_4Zdxn8VqEssPPW5NwhS4EKKCtGK5` -> `https://talabieh-admin.vercel.app`
+- Both aliases return HTTP 200 and customer production JS contains v66.
+
 ## Codex follow-up (2026-07-11)
+
+## Codex follow-up (2026-07-12): Claude v65 handoff confirmed
+
+- Claude's detailed v58→v65 handoff is now the current app/UI source of truth in this file;
+  it was committed as `cf4b53c` together with the v65 changes.
+- Desktop artifacts reported by Claude: `otlobli-v65.apk` and `otlobli-v65.ipa`.
+- The v65 scope includes the custom-product detector, crop modal, structured order issues,
+  invoice, wallet display, support number, VPN checks, SHEIN/Cloudflare guard, Temu popup
+  handling, and WhatsApp message/prekey pacing fixes. Treat these as implemented but test
+  SHEIN/Temu on a real device because Claude could not live-preview those stores.
+- Keep the WhatsApp number re-link decision pending; do not change it automatically.
+- This app handoff intentionally excludes the Note 8 hardware/firmware work. Keep that as a
+  separate scope and do not mix it into UI/store changes.
 
 - Exchange-rate source-label fix `9f42cf5` is deployed in Railway deployment
   `32116896-5c2c-4088-b8d5-40c7a058ba44` (`SUCCESS/RUNNING`). Production API and

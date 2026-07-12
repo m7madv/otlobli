@@ -68,10 +68,12 @@ type OrderIssue = {
   itemId?: string
   note?: string
   options?: string[]
+  requestPhoto?: boolean
   requiredSize?: string
   amountUsd?: number
   resolved?: boolean
   resolvedValue?: string
+  resolvedPhotoDataUrl?: string
 }
 
 type Customer = {
@@ -637,13 +639,12 @@ function AdminApp() {
     updateOrder(order.id, { statusIndex, paymentStatus: statusIndex > 0 ? 'مدفوع' : order.paymentStatus })
   }
 
-  const openModal = (orderId: string) => {
+  const selectOrder = (orderId: string) => {
     if (selectedOrderIds.size > 0) {
       toggleSelectedOrder(orderId)
       return
     }
     setSelectedOrderId(orderId)
-    setModalOrderId(orderId)
   }
 
   if (!pin) {
@@ -723,41 +724,50 @@ function AdminApp() {
                 orders={filteredOrders.slice(0, 8)}
                 tracked={tracked}
                 selectedIds={selectedOrderIds}
-                onOpen={openModal}
+                activeOrderId={selectedOrderId}
+                onOpen={selectOrder}
                 onToggleSelect={toggleSelectedOrder}
                 onClearSelection={clearSelectedOrders}
                 onDeleteSelected={deleteSelectedOrders}
                 onMarkPaid={markPaid}
               />
-              <OrderDetail order={selectedOrder} drivers={driverOptions} onOpen={openModal} onMarkPaid={markPaid} onAdvance={advanceOrder} onUpdate={updateOrder} />
+              <OrderDetail order={selectedOrder} drivers={driverOptions} onMarkPaid={markPaid} onAdvance={advanceOrder} onUpdate={updateOrder} />
             </section>
           </>
         )}
         {tab === 'orders' && (
-          <OrdersTable
-            orders={filteredOrders}
-            tracked={tracked}
-            selectedIds={selectedOrderIds}
-            onOpen={openModal}
-            onToggleSelect={toggleSelectedOrder}
-            onClearSelection={clearSelectedOrders}
-            onDeleteSelected={deleteSelectedOrders}
-            onMarkPaid={markPaid}
-          />
+          <section className="content-grid">
+            <OrdersTable
+              orders={filteredOrders}
+              tracked={tracked}
+              selectedIds={selectedOrderIds}
+              activeOrderId={selectedOrderId}
+              onOpen={selectOrder}
+              onToggleSelect={toggleSelectedOrder}
+              onClearSelection={clearSelectedOrders}
+              onDeleteSelected={deleteSelectedOrders}
+              onMarkPaid={markPaid}
+            />
+            <OrderDetail order={selectedOrder} drivers={driverOptions} onMarkPaid={markPaid} onAdvance={advanceOrder} onUpdate={updateOrder} />
+          </section>
         )}
         {tab === 'payments' && (
-          <OrdersTable
-            orders={filteredOrders.filter((o) => o.paymentStatus !== 'مدفوع')}
-            tracked={tracked}
-            selectedIds={selectedOrderIds}
-            onOpen={openModal}
-            onToggleSelect={toggleSelectedOrder}
-            onClearSelection={clearSelectedOrders}
-            onDeleteSelected={deleteSelectedOrders}
-            onMarkPaid={markPaid}
-          />
+          <section className="content-grid">
+            <OrdersTable
+              orders={filteredOrders.filter((o) => o.paymentStatus !== 'مدفوع')}
+              tracked={tracked}
+              selectedIds={selectedOrderIds}
+              activeOrderId={selectedOrderId}
+              onOpen={selectOrder}
+              onToggleSelect={toggleSelectedOrder}
+              onClearSelection={clearSelectedOrders}
+              onDeleteSelected={deleteSelectedOrders}
+              onMarkPaid={markPaid}
+            />
+            <OrderDetail order={selectedOrder} drivers={driverOptions} onMarkPaid={markPaid} onAdvance={advanceOrder} onUpdate={updateOrder} />
+          </section>
         )}
-        {tab === 'shipping' && <ShippingList orders={filteredOrders} drivers={driverOptions} onAdvance={advanceOrder} onUpdate={updateOrder} onOpen={openModal} />}
+        {tab === 'shipping' && <ShippingList orders={filteredOrders} drivers={driverOptions} onAdvance={advanceOrder} onUpdate={updateOrder} onOpen={selectOrder} />}
         {tab === 'customers' && (
           <CustomersGrid
             pin={pin}
@@ -813,11 +823,12 @@ function StatCard({ icon, label, value, note, dark = false }: { icon: string; la
 
 // ── Orders Table ──────────────────────────────────────────────────────────────
 function OrdersTable({
-  orders, tracked, selectedIds, onOpen, onToggleSelect, onClearSelection, onDeleteSelected, onMarkPaid,
+  orders, tracked, selectedIds, activeOrderId, onOpen, onToggleSelect, onClearSelection, onDeleteSelected, onMarkPaid,
 }: {
   orders: Order[]
   tracked: Set<string>
   selectedIds: Set<string>
+  activeOrderId: string
   onOpen: (orderId: string) => void
   onToggleSelect: (orderId: string) => void
   onClearSelection: () => void
@@ -861,10 +872,11 @@ function OrdersTable({
               const addedCount = items.filter((_, i) => tracked.has(itemKey(order.id, i))).length
               const allAdded = items.length > 0 && addedCount === items.length
               const selected = selectedIds.has(order.id)
+              const active = activeOrderId === order.id
               return (
                 <tr
                   key={order.id}
-                  className={`${allAdded ? 'row-done' : ''} ${selected ? 'row-selected' : ''}`}
+                  className={`${allAdded ? 'row-done' : ''} ${selected || active ? 'row-selected' : ''}`}
                   onClick={() => selectionActive ? onToggleSelect(order.id) : onOpen(order.id)}
                   onDoubleClick={() => onOpen(order.id)}
                   onContextMenu={(event) => {
@@ -887,22 +899,6 @@ function OrdersTable({
                   </td>
                   <td>
                     <div className="row-actions">
-                      <button
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          if (selectionActive) onToggleSelect(order.id)
-                          else onOpen(order.id)
-                        }}
-                        onPointerDown={(event) => {
-                          const timer = window.setTimeout(() => onToggleSelect(order.id), 520)
-                          const clear = () => window.clearTimeout(timer)
-                          event.currentTarget.addEventListener('pointerup', clear, { once: true })
-                          event.currentTarget.addEventListener('pointerleave', clear, { once: true })
-                        }}
-                        title={selectionActive ? 'تحديد الطلب' : 'فتح تفاصيل الطلب'}
-                      >
-                        <Icon name={selected ? 'check_circle' : 'open_in_full'} />
-                      </button>
                       {order.paymentStatus !== 'مدفوع' && (
                         <button
                           onClick={(event) => {
@@ -957,11 +953,10 @@ function DriverAssignField({
 
 // ── Order Detail (sidebar panel) ──────────────────────────────────────────────
 function OrderDetail({
-  order, drivers, onOpen, onMarkPaid, onAdvance, onUpdate,
+  order, drivers, onMarkPaid, onAdvance, onUpdate,
 }: {
   order?: Order
   drivers: DriverOption[]
-  onOpen: (orderId: string) => void
   onMarkPaid: (order: Order) => void
   onAdvance: (order: Order) => void
   onUpdate: (orderId: string, patch: Partial<Order>) => void
@@ -985,10 +980,6 @@ function OrderDetail({
           <h2>{order.id}</h2>
           <StatusBadge tone={order.paymentStatus === 'مدفوع' ? 'success' : 'pending'}>{order.paymentStatus}</StatusBadge>
         </div>
-        <button className="open-modal-btn" onClick={() => onOpen(order.id)} title="فتح واجهة كاملة">
-          <Icon name="open_in_full" />
-          <span>واجهة كاملة</span>
-        </button>
       </header>
 
       <div className="detail-items">
@@ -1099,8 +1090,25 @@ function OrderIssuesField({ order, onUpdate }: { order: Order; onUpdate: (orderI
   const patch = (id: string, changes: Partial<OrderIssue>) =>
     setDrafts((prev) => prev.map((d) => (d.id === id ? { ...d, ...changes } : d)))
   const addIssue = () =>
-    setDrafts((prev) => [...prev, { id: newIssueId(), type: 'size', itemId: '', note: '', options: [], requiredSize: '', amountUsd: 0 }])
+    setDrafts((prev) => [...prev, { id: newIssueId(), type: 'size', itemId: '', note: '', options: [''], requestPhoto: false, requiredSize: '', amountUsd: 0 }])
   const removeIssue = (id: string) => setDrafts((prev) => prev.filter((d) => d.id !== id))
+  const updateOption = (id: string, optionIndex: number, value: string) =>
+    setDrafts((prev) => prev.map((draft) => {
+      if (draft.id !== id) return draft
+      const options = [...(draft.options ?? [])]
+      options[optionIndex] = value
+      return { ...draft, options }
+    }))
+  const addOption = (id: string) =>
+    setDrafts((prev) => prev.map((draft) => draft.id === id
+      ? { ...draft, options: [...(draft.options ?? []), ''] }
+      : draft))
+  const removeOption = (id: string, optionIndex: number) =>
+    setDrafts((prev) => prev.map((draft) => {
+      if (draft.id !== id) return draft
+      const options = (draft.options ?? []).filter((_, index) => index !== optionIndex)
+      return { ...draft, options: options.length ? options : [''] }
+    }))
 
   const save = () => {
     const clean = drafts
@@ -1111,6 +1119,7 @@ function OrderIssuesField({ order, onUpdate }: { order: Order; onUpdate: (orderI
         itemId: d.itemId || '',
         note: (d.note || '').trim(),
         options: ISSUE_NEEDS_OPTIONS.has(d.type) ? (d.options || []).map((o) => o.trim()).filter(Boolean) : [],
+        requestPhoto: !!d.requestPhoto,
         requiredSize: ISSUE_NEEDS_SIZE.has(d.type) ? (d.requiredSize || '').trim() : '',
         amountUsd: ISSUE_NEEDS_AMOUNT.has(d.type) ? Number(d.amountUsd) || 0 : 0,
         resolved: !!d.resolved,
@@ -1153,13 +1162,42 @@ function OrderIssuesField({ order, onUpdate }: { order: Order; onUpdate: (orderI
             <button type="button" className="issue-remove" onClick={() => removeIssue(d.id)} title="حذف">✕</button>
           </div>
           {ISSUE_NEEDS_OPTIONS.has(d.type) && (
+            <div className="issue-options-list">
+              {(d.options?.length ? d.options : ['']).map((option, optionIndex) => (
+                <div className="issue-option-row" key={`${d.id}-option-${optionIndex}`}>
+                  <input
+                    className="issue-inline"
+                    type="text"
+                    placeholder={d.type === 'size' ? `المقاس ${optionIndex + 1}` : `اللون ${optionIndex + 1}`}
+                    value={option}
+                    onChange={(e) => updateOption(d.id, optionIndex, e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="issue-remove"
+                    onClick={() => removeOption(d.id, optionIndex)}
+                    title="حذف الخيار"
+                  >✕</button>
+                </div>
+              ))}
+              <button type="button" className="issues-add issue-option-add" onClick={() => addOption(d.id)}>
+                + إضافة خيار آخر
+              </button>
+            </div>
+          )}
+          <label className="issue-photo-request">
             <input
-              className="issue-inline"
-              type="text"
-              placeholder={d.type === 'size' ? 'الخيارات: S | M | L | XL' : 'الخيارات: أسود | أبيض | أزرق'}
-              value={(d.options || []).join(' | ')}
-              onChange={(e) => patch(d.id, { options: e.target.value.split(/[|,،]/) })}
+              type="checkbox"
+              checked={!!d.requestPhoto}
+              onChange={(e) => patch(d.id, { requestPhoto: e.target.checked })}
             />
+            <span>اطلب من العميل إرفاق صورة أو لقطة للون المطلوب</span>
+          </label>
+          {!!d.resolvedPhotoDataUrl && (
+            <a className="issue-response-photo" href={d.resolvedPhotoDataUrl} target="_blank" rel="noreferrer">
+              <img src={d.resolvedPhotoDataUrl} alt="صورة العميل لحل المشكلة" />
+              <span>فتح صورة العميل بالحجم الكامل</span>
+            </a>
           )}
           {ISSUE_NEEDS_SIZE.has(d.type) && (
             <input

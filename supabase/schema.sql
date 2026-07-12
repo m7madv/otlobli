@@ -60,6 +60,10 @@ create table if not exists public.orders (
   issues jsonb not null default '[]'::jsonb
 );
 
+alter table public.orders add column if not exists delivery_member_key text not null default '';
+alter table public.orders add column if not exists delivery_owner_phone text not null default '';
+alter table public.orders add column if not exists delivery_owner_name text not null default '';
+
 create table if not exists public.order_items (
   id uuid primary key default gen_random_uuid(),
   order_id text not null references public.orders(id) on delete cascade,
@@ -76,8 +80,15 @@ create table if not exists public.order_items (
   -- قياس الصورة من صفحة المنتج — يرسلها التطبيق ويعرضها للوحة الإدارة.
   custom_text text not null default '',
   custom_photo text not null default '',
-  custom_photo_note text not null default ''
+  custom_photo_note text not null default '',
+  owner_member_key text not null default '',
+  owner_phone text not null default '',
+  owner_name text not null default ''
 );
+
+alter table public.order_items add column if not exists owner_member_key text not null default '';
+alter table public.order_items add column if not exists owner_phone text not null default '';
+alter table public.order_items add column if not exists owner_name text not null default '';
 
 create table if not exists public.payment_verifications (
   id uuid primary key default gen_random_uuid(),
@@ -438,7 +449,10 @@ begin
     created_at,
     paid_at,
     group_id,
-    group_code
+    group_code,
+    delivery_member_key,
+    delivery_owner_phone,
+    delivery_owner_name
   )
   values (
     target_order_id,
@@ -454,7 +468,10 @@ begin
     coalesce(nullif(order_payload->>'createdAt', '')::date, current_date),
     target_paid_at,
     target_group_id,
-    coalesce(order_payload->>'groupCode', '')
+    coalesce(order_payload->>'groupCode', ''),
+    coalesce(order_payload->>'deliveryMemberKey', ''),
+    coalesce(order_payload->>'deliveryOwnerPhone', ''),
+    coalesce(order_payload->>'deliveryOwnerName', '')
   );
 
   insert into public.order_items (
@@ -469,7 +486,10 @@ begin
     source_link,
     custom_text,
     custom_photo,
-    custom_photo_note
+    custom_photo_note,
+    owner_member_key,
+    owner_phone,
+    owner_name
   )
   select
     target_order_id,
@@ -483,7 +503,10 @@ begin
     item."sourceLink",
     coalesce(item."customText", ''),
     coalesce(item."customPhotoDataUrl", ''),
-    coalesce(item."customPhotoNote", '')
+    coalesce(item."customPhotoNote", ''),
+    coalesce(item."ownerMemberKey", ''),
+    coalesce(item."ownerPhone", ''),
+    coalesce(item."ownerName", '')
   from jsonb_to_recordset(order_payload->'items') as item(
     id text,
     title text,
@@ -495,7 +518,10 @@ begin
     "sourceLink" text,
     "customText" text,
     "customPhotoDataUrl" text,
-    "customPhotoNote" text
+    "customPhotoNote" text,
+    "ownerMemberKey" text,
+    "ownerPhone" text,
+    "ownerName" text
   );
 
   insert into public.order_events (order_id, status_index, title, note)
@@ -1768,6 +1794,34 @@ $$;
 revoke all on function public.submit_order_option_fix(text, text, text, text) from public, anon, authenticated;
 grant execute on function public.submit_order_option_fix(text, text, text, text) to service_role;
 
+-- Ownership helpers are defined before the session wrappers that call them.
+create or replace function public.customer_owns_order_item_row(p_order_item_id uuid, p_customer_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1
+    from public.order_items oi
+    join public.orders o on o.id = oi.order_id
+    left join public.cart_group_members cgm
+      on cgm.group_id = o.group_id and cgm.member_key = oi.owner_member_key
+    left join public.customers owner_customer
+      on regexp_replace(owner_customer.phone, '\s+', '', 'g') = regexp_replace(oi.owner_phone, '\s+', '', 'g')
+    where oi.id = p_order_item_id
+      and (
+        cgm.customer_id = p_customer_id
+        or owner_customer.id = p_customer_id
+        or (oi.owner_member_key = '' and oi.owner_phone = '' and o.customer_id = p_customer_id)
+      )
+  );
+$$;
+
+revoke all on function public.customer_owns_order_item_row(uuid, uuid) from public, anon, authenticated;
+grant execute on function public.customer_owns_order_item_row(uuid, uuid) to service_role;
+
 create or replace function public.submit_order_option_fix(
   target_order_id text,
   p_product_id text,
@@ -1782,17 +1836,91 @@ set search_path = public
 as $$
 declare
   target_customer_id uuid;
+  updated_count integer;
+  clean_value text := left(trim(coalesce(p_value, '')), 120);
 begin
   target_customer_id := public.require_customer_session(p_session_token, null);
-  if not exists (
-    select 1 from public.orders where id = target_order_id and customer_id = target_customer_id
-  ) then return false; end if;
-  return public.submit_order_option_fix(target_order_id, p_product_id, p_field, p_value);
+  if clean_value = '' or p_field not in ('size', 'color') then return false; end if;
+  if p_field = 'size' then
+    update public.order_items oi set size = clean_value
+    where oi.order_id = target_order_id
+      and (oi.id::text = p_product_id or oi.product_id = p_product_id)
+      and public.customer_owns_order_item_row(oi.id, target_customer_id);
+  else
+    update public.order_items oi set color = clean_value
+    where oi.order_id = target_order_id
+      and (oi.id::text = p_product_id or oi.product_id = p_product_id)
+      and public.customer_owns_order_item_row(oi.id, target_customer_id);
+  end if;
+  get diagnostics updated_count = row_count;
+  return updated_count > 0;
 end;
 $$;
 
 revoke all on function public.submit_order_option_fix(text, text, text, text, text) from public;
 grant execute on function public.submit_order_option_fix(text, text, text, text, text) to anon, authenticated;
+
+create or replace function public.customer_owns_order_item(
+  p_order_id text,
+  p_product_or_item_id text,
+  p_customer_id uuid
+)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1
+    from public.order_items oi
+    join public.orders o on o.id = oi.order_id
+    left join public.cart_group_members cgm
+      on cgm.group_id = o.group_id and cgm.member_key = oi.owner_member_key
+    left join public.customers owner_customer
+      on regexp_replace(owner_customer.phone, '\s+', '', 'g') = regexp_replace(oi.owner_phone, '\s+', '', 'g')
+    where oi.order_id = p_order_id
+      and (oi.id::text = p_product_or_item_id or oi.product_id = p_product_or_item_id)
+      and (
+        cgm.customer_id = p_customer_id
+        or owner_customer.id = p_customer_id
+        or (
+          oi.owner_member_key = '' and oi.owner_phone = ''
+          and o.customer_id = p_customer_id
+        )
+      )
+  );
+$$;
+
+revoke all on function public.customer_owns_order_item(text, text, uuid) from public, anon, authenticated;
+grant execute on function public.customer_owns_order_item(text, text, uuid) to service_role;
+
+create or replace function public.customer_owns_order_item_row(p_order_item_id uuid, p_customer_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1
+    from public.order_items oi
+    join public.orders o on o.id = oi.order_id
+    left join public.cart_group_members cgm
+      on cgm.group_id = o.group_id and cgm.member_key = oi.owner_member_key
+    left join public.customers owner_customer
+      on regexp_replace(owner_customer.phone, '\s+', '', 'g') = regexp_replace(oi.owner_phone, '\s+', '', 'g')
+    where oi.id = p_order_item_id
+      and (
+        cgm.customer_id = p_customer_id
+        or owner_customer.id = p_customer_id
+        or (oi.owner_member_key = '' and oi.owner_phone = '' and o.customer_id = p_customer_id)
+      )
+  );
+$$;
+
+revoke all on function public.customer_owns_order_item_row(uuid, uuid) from public, anon, authenticated;
+grant execute on function public.customer_owns_order_item_row(uuid, uuid) to service_role;
 
 -- يعلّم مشكلة منظمة كمحلولة بقيمة الزبون (v63). نواة service_role + غلاف جلسة.
 create or replace function public.submit_order_issue_resolve(
@@ -1815,7 +1943,7 @@ begin
   set issues = (
     select jsonb_agg(
       case when elem->>'id' = p_issue_id
-        then elem || jsonb_build_object('resolved', true, 'resolvedValue', left(coalesce(p_resolved_value, ''), 200))
+        then elem || jsonb_build_object('resolved', true, 'resolvedValue', left(coalesce(p_resolved_value, ''), 2000))
         else elem end
     )
     from jsonb_array_elements(o.issues) elem
@@ -1846,8 +1974,19 @@ declare
   target_customer_id uuid;
 begin
   target_customer_id := public.require_customer_session(p_session_token, null);
+  if exists (
+    select 1 from public.orders o, jsonb_array_elements(o.issues) issue
+    where o.id = target_order_id and issue->>'id' = p_issue_id and issue->>'type' = 'payment'
+  ) then return false; end if;
   if not exists (
-    select 1 from public.orders where id = target_order_id and customer_id = target_customer_id
+    select 1
+    from public.orders o, jsonb_array_elements(o.issues) issue
+    where o.id = target_order_id
+      and issue->>'id' = p_issue_id
+      and (
+        (coalesce(issue->>'itemId', '') <> '' and public.customer_owns_order_item(o.id, issue->>'itemId', target_customer_id))
+        or (coalesce(issue->>'itemId', '') = '' and o.customer_id = target_customer_id)
+      )
   ) then return false; end if;
   return public.submit_order_issue_resolve(target_order_id, p_issue_id, p_resolved_value);
 end;
@@ -1855,6 +1994,74 @@ $$;
 
 revoke all on function public.submit_order_issue_resolve(text, text, text, text) from public;
 grant execute on function public.submit_order_issue_resolve(text, text, text, text) to anon, authenticated;
+
+create or replace function public.submit_order_issue_resolve(
+  target_order_id text,
+  p_issue_id text,
+  p_resolved_value text,
+  p_resolved_photo_data_url text,
+  p_session_token text
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  target_customer_id uuid;
+  clean_photo text := trim(coalesce(p_resolved_photo_data_url, ''));
+begin
+  target_customer_id := public.require_customer_session(p_session_token, null);
+  if clean_photo <> '' and (
+    length(clean_photo) > 4000000
+    or clean_photo !~ '^data:image/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=[:space:]]+$'
+  ) then return false; end if;
+  if exists (
+    select 1 from public.orders o, jsonb_array_elements(o.issues) issue
+    where o.id = target_order_id and issue->>'id' = p_issue_id and issue->>'type' = 'payment'
+  ) then return false; end if;
+  if not exists (
+    select 1
+    from public.orders o, jsonb_array_elements(o.issues) issue
+    where o.id = target_order_id
+      and issue->>'id' = p_issue_id
+      and (
+        (coalesce(issue->>'itemId', '') <> '' and public.customer_owns_order_item(o.id, issue->>'itemId', target_customer_id))
+        or (coalesce(issue->>'itemId', '') = '' and o.customer_id = target_customer_id)
+      )
+  ) then return false; end if;
+  if clean_photo <> '' and not exists (
+    select 1 from public.orders o, jsonb_array_elements(o.issues) issue
+    where o.id = target_order_id and issue->>'id' = p_issue_id
+      and (issue->>'requestPhoto' = 'true' or issue->>'responseType' = 'image')
+  ) then return false; end if;
+
+  if not public.submit_order_issue_resolve(
+    target_order_id,
+    p_issue_id,
+    left(coalesce(p_resolved_value, ''), 2000)
+  ) then return false; end if;
+
+  if clean_photo <> '' then
+    update public.orders o
+    set issues = (
+      select jsonb_agg(
+        case when issue->>'id' = p_issue_id
+          then issue || jsonb_build_object('resolvedPhotoDataUrl', clean_photo)
+          else issue end
+      ) from jsonb_array_elements(o.issues) issue
+    )
+    where o.id = target_order_id and exists (
+      select 1 from jsonb_array_elements(o.issues) issue
+      where issue->>'id' = p_issue_id
+    );
+  end if;
+  return true;
+end;
+$$;
+
+revoke all on function public.submit_order_issue_resolve(text, text, text, text, text) from public;
+grant execute on function public.submit_order_issue_resolve(text, text, text, text, text) to anon, authenticated;
 
 create or replace function public.customer_orders_json(target_customer_id uuid, target_phone text)
 returns jsonb
@@ -1873,6 +2080,7 @@ as $$
       'items', (
         select coalesce(jsonb_agg(jsonb_build_object(
           'id', oi.product_id,
+          'orderItemId', oi.id,
           'title', oi.title,
           'image', oi.image,
           'color', oi.color,
@@ -1882,7 +2090,10 @@ as $$
           'sourceLink', oi.source_link,
           'customText', oi.custom_text,
           'customPhotoDataUrl', oi.custom_photo,
-          'customPhotoNote', oi.custom_photo_note
+          'customPhotoNote', oi.custom_photo_note,
+          'ownerMemberKey', oi.owner_member_key,
+          'ownerPhone', oi.owner_phone,
+          'ownerName', oi.owner_name
         ) order by oi.created_at), '[]'::jsonb)
         from public.order_items oi
         where oi.order_id = o.id
@@ -1901,11 +2112,36 @@ as $$
       'invoice', o.invoice,
       'issues', o.issues,
       'groupId', o.group_id,
-      'groupCode', o.group_code
+      'groupCode', o.group_code,
+      'groupMembers', case when o.group_id is null then '[]'::jsonb else (
+        select coalesce(jsonb_agg(jsonb_build_object(
+          'memberKey', cgm.member_key,
+          'phone', cgm.phone,
+          'name', cgm.display_name,
+          'role', cgm.role
+        ) order by case when cgm.role = 'host' then 0 else 1 end, cgm.joined_at), '[]'::jsonb)
+        from public.cart_group_members cgm
+        where cgm.group_id = o.group_id
+      ) end,
+      'deliveryMemberKey', o.delivery_member_key,
+      'deliveryOwnerPhone', o.delivery_owner_phone,
+      'deliveryOwnerName', o.delivery_owner_name
     ) order by o.created_at desc), '[]'::jsonb)
   from public.orders o
   where (target_customer_id is not null and o.customer_id = target_customer_id)
-     or (target_phone <> '' and o.phone = target_phone);
+     or (target_phone <> '' and o.phone = target_phone)
+     or (
+       o.group_id is not null
+       and exists (
+         select 1
+         from public.cart_group_members cgm
+         where cgm.group_id = o.group_id
+           and (
+             (target_customer_id is not null and cgm.customer_id = target_customer_id)
+             or (target_phone <> '' and regexp_replace(cgm.phone, '\s+', '', 'g') = regexp_replace(target_phone, '\s+', '', 'g'))
+           )
+       )
+     );
 $$;
 
 revoke all on function public.customer_orders_json(uuid, text) from public;
@@ -2669,7 +2905,8 @@ begin
       id, customer_id, customer_name, phone, city, address, total_syp,
       payment_status, status_index, qadmous_number, created_at, paid_at,
       payment_amount, payment_currency, payment_expires_at, payment_matched_by,
-      group_id, group_code, wallet_reserved_syp, payment_destination
+      group_id, group_code, wallet_reserved_syp, payment_destination,
+      delivery_member_key, delivery_owner_phone, delivery_owner_name
     )
     values (
       target_order_id, target_customer_id,
@@ -2680,21 +2917,27 @@ begin
       order_total_syp, 'مدفوع', 1, '', current_date, current_date,
       null, normalized_currency, now(), 'wallet-only',
       target_group_id, coalesce(order_payload->>'groupCode', ''),
-      wallet_requested_syp, coalesce(order_payload->>'store', '')
+      wallet_requested_syp, coalesce(order_payload->>'store', ''),
+      coalesce(order_payload->>'deliveryMemberKey', ''),
+      coalesce(order_payload->>'deliveryOwnerPhone', ''),
+      coalesce(order_payload->>'deliveryOwnerName', '')
     );
 
     insert into public.order_items (
       order_id, product_id, title, image, color, size, quantity, price_syp, source_link,
-      custom_text, custom_photo, custom_photo_note
+      custom_text, custom_photo, custom_photo_note,
+      owner_member_key, owner_phone, owner_name
     )
     select
       target_order_id, item.id, item.title, item.image, item.color, item.size,
       greatest(coalesce(item.quantity, 1), 1), greatest(coalesce(item."priceSyp", 0), 0), item."sourceLink",
-      coalesce(item."customText", ''), coalesce(item."customPhotoDataUrl", ''), coalesce(item."customPhotoNote", '')
+      coalesce(item."customText", ''), coalesce(item."customPhotoDataUrl", ''), coalesce(item."customPhotoNote", ''),
+      coalesce(item."ownerMemberKey", ''), coalesce(item."ownerPhone", ''), coalesce(item."ownerName", '')
     from jsonb_to_recordset(order_payload->'items') as item(
       id text, title text, image text, color text, size text,
       quantity integer, "priceSyp" integer, "sourceLink" text,
-      "customText" text, "customPhotoDataUrl" text, "customPhotoNote" text
+      "customText" text, "customPhotoDataUrl" text, "customPhotoNote" text,
+      "ownerMemberKey" text, "ownerPhone" text, "ownerName" text
     );
 
     perform public.apply_order_wallet_reservation(target_order_id);
@@ -2756,7 +2999,8 @@ begin
         id, customer_id, customer_name, phone, city, address, total_syp,
         payment_status, status_index, qadmous_number, created_at,
         payment_amount, payment_currency, payment_expires_at,
-        group_id, group_code, wallet_reserved_syp, payment_destination
+        group_id, group_code, wallet_reserved_syp, payment_destination,
+        delivery_member_key, delivery_owner_phone, delivery_owner_name
       )
       values (
         target_order_id, target_customer_id,
@@ -2767,21 +3011,27 @@ begin
         order_total_syp, 'بانتظار الدفع', 0, '', current_date,
         candidate_amount, normalized_currency, expires,
         target_group_id, coalesce(order_payload->>'groupCode', ''),
-        wallet_requested_syp, coalesce(order_payload->>'store', '')
+        wallet_requested_syp, coalesce(order_payload->>'store', ''),
+        coalesce(order_payload->>'deliveryMemberKey', ''),
+        coalesce(order_payload->>'deliveryOwnerPhone', ''),
+        coalesce(order_payload->>'deliveryOwnerName', '')
       );
 
       insert into public.order_items (
         order_id, product_id, title, image, color, size, quantity, price_syp, source_link,
-        custom_text, custom_photo, custom_photo_note
+        custom_text, custom_photo, custom_photo_note,
+        owner_member_key, owner_phone, owner_name
       )
       select
         target_order_id, item.id, item.title, item.image, item.color, item.size,
         greatest(coalesce(item.quantity, 1), 1), greatest(coalesce(item."priceSyp", 0), 0), item."sourceLink",
-        coalesce(item."customText", ''), coalesce(item."customPhotoDataUrl", ''), coalesce(item."customPhotoNote", '')
+        coalesce(item."customText", ''), coalesce(item."customPhotoDataUrl", ''), coalesce(item."customPhotoNote", ''),
+        coalesce(item."ownerMemberKey", ''), coalesce(item."ownerPhone", ''), coalesce(item."ownerName", '')
       from jsonb_to_recordset(order_payload->'items') as item(
         id text, title text, image text, color text, size text,
         quantity integer, "priceSyp" integer, "sourceLink" text,
-        "customText" text, "customPhotoDataUrl" text, "customPhotoNote" text
+        "customText" text, "customPhotoDataUrl" text, "customPhotoNote" text,
+        "ownerMemberKey" text, "ownerPhone" text, "ownerName" text
       );
 
       insert into public.order_events (order_id, status_index, title, note)
@@ -2806,6 +3056,96 @@ $$;
 
 revoke all on function public.create_pending_order(jsonb, text, text, numeric) from public;
 grant execute on function public.create_pending_order(jsonb, text, text, numeric) to anon, authenticated;
+
+-- Shared-order wrapper. The payment/wallet transaction remains in the
+-- hardened create_pending_order implementation above; this wrapper only
+-- persists line ownership and the selected delivery member afterwards in the
+-- same database transaction.
+create or replace function public.create_pending_order_v2(
+  order_payload jsonb,
+  currency text,
+  p_session_token text,
+  p_wallet_spend_usd numeric
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  result jsonb;
+  target_order_id text;
+  target_group_id uuid;
+  selected_delivery_key text := '';
+  selected_delivery_phone text := '';
+  selected_delivery_name text := '';
+begin
+  result := public.create_pending_order(order_payload, currency, p_session_token, p_wallet_spend_usd);
+  target_order_id := result->>'orderId';
+
+  select o.group_id into target_group_id
+  from public.orders o
+  where o.id = target_order_id;
+
+  if target_group_id is not null then
+    select cgm.member_key, cgm.phone, cgm.display_name
+    into selected_delivery_key, selected_delivery_phone, selected_delivery_name
+    from public.cart_group_members cgm
+    where cgm.group_id = target_group_id
+      and cgm.member_key = left(coalesce(order_payload->>'deliveryMemberKey', ''), 200)
+    limit 1;
+  end if;
+
+  update public.orders o
+  set delivery_member_key = coalesce(selected_delivery_key, ''),
+      delivery_owner_phone = coalesce(nullif(selected_delivery_phone, ''), o.phone),
+      delivery_owner_name = coalesce(nullif(selected_delivery_name, ''), o.customer_name)
+  where o.id = target_order_id;
+
+  with payload_items as (
+    select
+      item->>'id' as product_id,
+      left(coalesce(item->>'ownerMemberKey', ''), 200) as owner_member_key,
+      left(coalesce(item->>'ownerPhone', ''), 80) as owner_phone,
+      left(coalesce(item->>'ownerName', ''), 200) as owner_name,
+      row_number() over (partition by item->>'id' order by ordinal) as occurrence
+    from jsonb_array_elements(order_payload->'items') with ordinality as source(item, ordinal)
+  ), db_items as (
+    select
+      oi.id,
+      oi.product_id,
+      row_number() over (partition by oi.product_id order by oi.created_at, oi.id) as occurrence
+    from public.order_items oi
+    where oi.order_id = target_order_id
+  ), paired as (
+    select db.id, member.member_key as owner_member_key,
+      member.phone as owner_phone, member.display_name as owner_name
+    from db_items db
+    join payload_items payload
+      on payload.product_id = db.product_id and payload.occurrence = db.occurrence
+    join public.cart_group_members member
+      on member.group_id = target_group_id and member.member_key = payload.owner_member_key
+    where target_group_id is not null
+      and exists (
+        select 1 from public.cart_group_items group_item
+        where group_item.group_id = target_group_id
+          and group_item.member_key = member.member_key
+          and group_item.payload->>'id' = db.product_id
+      )
+  )
+  update public.order_items oi
+  set owner_member_key = paired.owner_member_key,
+      owner_phone = paired.owner_phone,
+      owner_name = paired.owner_name
+  from paired
+  where oi.id = paired.id;
+
+  return result;
+end;
+$$;
+
+revoke all on function public.create_pending_order_v2(jsonb, text, text, numeric) from public;
+grant execute on function public.create_pending_order_v2(jsonb, text, text, numeric) to anon, authenticated;
 
 create or replace function public.create_wallet_topup(
   p_phone text,
@@ -3521,8 +3861,18 @@ declare
 begin
   target_customer_id := public.require_customer_session(p_session_token, null);
   select * into found_order
-  from public.orders
-  where id = target_order_id and customer_id = target_customer_id;
+  from public.orders o
+  where id = target_order_id
+    and (
+      customer_id = target_customer_id
+      or (
+        group_id is not null
+        and exists (
+          select 1 from public.cart_group_members cgm
+          where cgm.group_id = o.group_id and cgm.customer_id = target_customer_id
+        )
+      )
+    );
   if not found then return jsonb_build_object('found', false); end if;
 
   return jsonb_build_object(
@@ -3608,14 +3958,22 @@ set search_path = public
 as $$
 declare
   target_customer_id uuid;
+  updated_count integer;
+  clean_photo text := trim(coalesce(p_custom_photo, ''));
 begin
   target_customer_id := public.require_customer_session(p_session_token, null);
-  if not exists (
-    select 1 from public.orders where id = target_order_id and customer_id = target_customer_id
+  if clean_photo <> '' and (
+    length(clean_photo) > 4000000
+    or clean_photo !~ '^data:image/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=[:space:]]+$'
   ) then return false; end if;
-  return public.submit_order_custom_fix(
-    target_order_id, p_product_id, p_custom_photo, p_custom_text
-  );
+  update public.order_items oi
+  set custom_photo = coalesce(nullif(clean_photo, ''), oi.custom_photo),
+      custom_text = coalesce(nullif(left(trim(coalesce(p_custom_text, '')), 2000), ''), oi.custom_text)
+  where oi.order_id = target_order_id
+    and (oi.id::text = p_product_id or oi.product_id = p_product_id)
+    and public.customer_owns_order_item_row(oi.id, target_customer_id);
+  get diagnostics updated_count = row_count;
+  return updated_count > 0;
 end;
 $$;
 

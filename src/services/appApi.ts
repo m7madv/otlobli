@@ -153,6 +153,6 @@ export type TalabiehApi = {
     // التي عرضها المشرف في ملاحظة المشكلة — حل ذاتي دون مراسلة.
     submitOptionFix: (orderId: string, productId: string, field: 'size' | 'color', value: string) => Promise<boolean>
     // يعلّم مشكلة منظمة (issues[]) كمحلولة بقيمة الزبون بعد حلها فعلياً.
-    submitIssueResolve: (orderId: string, issueId: string, resolvedValue: string) => Promise<boolean>
+    submitIssueResolve: (orderId: string, issueId: string, resolvedValue: string, resolvedPhotoDataUrl?: string) => Promise<boolean>
   }
 }

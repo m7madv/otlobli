@@ -3,6 +3,31 @@
 Read `CURRENT_STATE.md` first.
 If this file conflicts with older context files, prefer `CURRENT_STATE.md` and the active branch code.
 
+## Active Codex/Claude split (2026-07-12)
+
+- Codex owns SHEIN/Temu/VPN/WebView and shared-cart invite-link behavior.
+- Claude received the shared-order ownership, issue routing, pickup recipient,
+  structured issue options/photo responses, and admin order-selection task, but hit
+  its usage limit before editing. Branch `claude/otlobli-shared-orders-issues-0eeae1`
+  and its worktree remain clean at `cf4b53c`; there is nothing to cherry-pick.
+- Current Codex changes in `src/App.tsx`: auto-join invite links even with empty carts,
+  show group-order controls in an empty cart, recheck VPN after native page-load failure,
+  and avoid rewriting SHEIN verification URLs. Root build passes.
+- Do not implement new visual styling until Figma is reauthenticated; Figma remains
+  the only design source.
+
+Current integrated work after Claude/Codex agents hit usage limits:
+
+- Codex took over and completed the shared-order/admin/store implementation locally.
+- Root/admin builds pass; `git diff --check` passes.
+- Migration `20260712033000_shared_order_ownership.sql` is applied to production and
+  `admin-orders` is deployed.
+- Ownership/delivery values are resolved against server-side `cart_group_members` and
+  `cart_group_items`, not trusted from client phone/name fields.
+- Customer/admin Vercel production deployments are READY and aliases return HTTP 200;
+  customer production JS was verified to contain v66. Remaining release step is
+  commit/push and the GitHub unsigned iOS workflow/artifact.
+
 ## AI continuity protocol
 
 This repo is shared between Codex, Claude Code, and possibly other agents. Before changing code, every agent must:
@@ -14,6 +39,14 @@ This repo is shared between Codex, Claude Code, and possibly other agents. Befor
 5. Treat existing modified/staged/untracked files as user or other-agent work. Do not revert or overwrite them.
 
 If the session gets long, or the user mentions billing/context limits, update `SESSION_SUMMARY.md` and include a copyable chat summary in the final response. Agents usually cannot know the user's real billing limit, so do not claim certainty about it.
+
+## Latest Claude v65 app handoff (2026-07-12)
+
+Claude's v58→v65 implementation summary is recorded at the top of `SESSION_SUMMARY.md`
+and committed as `cf4b53c`. Treat it as the current app/UI handoff: v65 APK/IPA artifacts,
+structured order issues, invoice/wallet/support updates, VPN checks, SHEIN/Temu fixes, and
+WhatsApp message/prekey changes are documented there. Real-device verification is still needed
+for SHEIN/Temu. Keep Note 8 hardware/firmware work separate from this app scope.
 
 Current known Claude/Codex failure mode:
 

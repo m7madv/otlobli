@@ -13,7 +13,7 @@ import { makeOrderId, today } from './domain/orders'
 import { FULL_NAME_ERROR_MESSAGE, getFullNameValidationError, normalizeFullName, sanitizeFullNameInput } from './domain/profile'
 import { buildPriceBreakdown, formatMoney, formatPriceSyp, formatUsd, sumPriceLines } from './domain/pricing'
 import type { PaymentCurrency } from './domain/pricing'
-import type { Address, AppNotification, CartGroupSnapshot, CartItem, NotificationPrefs, Order, Product, ProductColor, Recipient, Screen, StatusTone, UserProfile, WalletTransaction } from './domain/types'
+import type { Address, AppNotification, CartGroupSnapshot, CartItem, NotificationPrefs, Order, OrderIssue, Product, ProductColor, Recipient, Screen, StatusTone, UserProfile, WalletTransaction } from './domain/types'
 import { getDeviceId, readStoredJson, storageKeys, useStoredState } from './infrastructure/localStorage'
 import { appApi } from './services'
 import { PAYMENT_MODE, APP_VERSION, cleanEnvValue } from './config'
@@ -96,6 +96,23 @@ type CropRequest = {
   hint?: string
   onDone: (dataUrl: string) => void
 }
+
+const compressFullImage = (src: string): Promise<string> => new Promise((resolve, reject) => {
+  const image = new Image()
+  image.onload = () => {
+    const maxSide = 1600
+    const scale = Math.min(1, maxSide / Math.max(image.naturalWidth || 1, image.naturalHeight || 1))
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, Math.round((image.naturalWidth || 1) * scale))
+    canvas.height = Math.max(1, Math.round((image.naturalHeight || 1) * scale))
+    const context = canvas.getContext('2d')
+    if (!context) { reject(new Error('canvas_unavailable')); return }
+    context.drawImage(image, 0, 0, canvas.width, canvas.height)
+    resolve(canvas.toDataURL('image/jpeg', 0.82))
+  }
+  image.onerror = () => reject(new Error('image_decode_failed'))
+  image.src = src
+})
 
 // ── شاشة قصّ الصور (منتجات التخصيص) ────────────────────────────────────────
 // سحب لتحريك الصورة، تكبير بالشريط أو بقرصة الأصابع، وإطار قص يُقفل على
@@ -318,6 +335,11 @@ const shouldRedirectSheinToSaudi = (rawUrl: string) => {
   try {
     const url = new URL(rawUrl)
     if (!/shein/i.test(url.hostname)) return false
+    // Never rewrite SHEIN/Cloudflare verification routes. Replacing their URL
+    // with /ar while the challenge is running restarts the challenge and can
+    // make the native WebView flash/close in a loop when switching stores.
+    if (/\/(?:cdn-cgi|challenge|captcha|verify|verification|security)(?:\/|\?|#|$)/i.test(url.pathname)) return false
+    if (/(?:^|[?&#])(?:captcha|challenge|verification|security_token)=/i.test(url.search)) return false
     if (!/(^|\.)m\.shein\.com$/i.test(url.hostname)) return true
     if (!/^\/ar(?:\/|$)/i.test(url.pathname)) return true
     const country = url.searchParams.get('country')
@@ -345,6 +367,17 @@ function buildGroupInviteLink(code: string, store: StoreId, host: string, invite
 function getOrderStore(order: Pick<Order, 'items'>): StoreId {
   const firstLink = order.items[0]?.sourceLink ?? ''
   return /temu\.com/i.test(firstLink) ? 'temu' : 'shein'
+}
+
+function groupOrderItemsByOwner(items: CartItem[]) {
+  const groups = new Map<string, { name: string; items: CartItem[] }>()
+  items.forEach((item) => {
+    const key = item.ownerMemberKey || normalizePhoneForCompare(item.ownerPhone || '') || 'order'
+    const current = groups.get(key) ?? { name: item.ownerName || 'صاحب الطلب', items: [] }
+    current.items.push(item)
+    groups.set(key, current)
+  })
+  return [...groups.entries()].map(([key, value]) => ({ key, ...value }))
 }
 
 function StoreBadge({ store }: { store: StoreId }) {
@@ -662,6 +695,45 @@ function App() {
       : o))
     void appApi.orders.submitIssueResolve(orderId, issueId, value).catch(() => undefined)
   }
+  const submitIssuePhoto = (targetOrder: Order, issue: OrderIssue, file: File) => {
+    const reader = new FileReader()
+    const send = (dataUrl: string) => {
+      setSendingCustomFix(true)
+      void appApi.orders.submitIssueResolve(targetOrder.id, issue.id, 'صورة مرفقة', dataUrl)
+        .then((ok) => {
+          if (!ok) { showNotice('تعذّر إرسال الصورة، حاول مجدداً'); return }
+          setOrders((list) => list.map((item) => item.id === targetOrder.id
+            ? {
+              ...item,
+              issues: (item.issues ?? []).map((current) => current.id === issue.id
+                ? { ...current, resolved: true, resolvedValue: 'صورة مرفقة' }
+                : current),
+            }
+            : item))
+          showNotice('تم إرسال الصورة وربطها بالمشكلة ✔')
+        })
+        .catch(() => showNotice('تعذّر إرسال الصورة، حاول مجدداً'))
+        .finally(() => setSendingCustomFix(false))
+    }
+    reader.onload = (event) => {
+      const src = typeof event.target?.result === 'string' ? event.target.result : ''
+      if (!src) { showNotice('تعذّرت قراءة الصورة'); return }
+      if (issue.requiredSize) {
+        setCropRequest({
+          src,
+          aspect: parsePhotoAspect(issue.requiredSize),
+          hint: `القياس المطلوب: ${issue.requiredSize}`,
+          onDone: send,
+        })
+      } else {
+        void compressFullImage(src)
+          .then(send)
+          .catch(() => showNotice('تعذّر تجهيز الصورة، جرّب صورة أخرى'))
+      }
+    }
+    reader.onerror = () => showNotice('تعذّرت قراءة الصورة')
+    reader.readAsDataURL(file)
+  }
   const renderCropModal = () => (cropRequest ? (
     <PhotoCropModal
       src={cropRequest.src}
@@ -691,6 +763,8 @@ function App() {
   const [cartGroup, setCartGroup] = useStoredState<CartGroupSnapshot | null>(storageKeys.cartGroup, null)
   const [groupJoinCode, setGroupJoinCode] = useState('')
   const [pendingGroupInvite, setPendingGroupInvite] = useState<PendingGroupInvite | null>(null)
+  const autoJoinInviteRef = useRef('')
+  const [deliveryMemberKey, setDeliveryMemberKey] = useState('')
   const [isSyncingGroup, setIsSyncingGroup] = useState(false)
   const [verificationState, setVerificationState] = useState<'idle' | 'checking' | 'matched'>('idle')
   const [pendingPayment, setPendingPayment] = useStoredState<{
@@ -818,7 +892,10 @@ function App() {
 
   const activeAccountPhone = normalizePhoneForCompare(userProfile?.phone || '')
   const visibleOrders = activeAccountPhone
-    ? orders.filter((item) => normalizePhoneForCompare(item.phone) === activeAccountPhone)
+    ? orders.filter((item) =>
+      normalizePhoneForCompare(item.phone) === activeAccountPhone ||
+      (item.groupMembers ?? []).some((member) => normalizePhoneForCompare(member.phone) === activeAccountPhone),
+    )
     : []
   const order = visibleOrders.find((item) => item.id === currentOrderId) ?? visibleOrders[0] ?? null
 
@@ -1035,12 +1112,15 @@ function App() {
   }
 
   const mergeOrdersForPhone = useCallback((remoteOrders: Order[], loginPhone: string) => {
-    const cleanedPhone = loginPhone.replace(/\s+/g, '')
+    const cleanedPhone = normalizePhoneForCompare(loginPhone)
+    const belongsToCustomer = (remoteOrder: Order) =>
+      normalizePhoneForCompare(remoteOrder.phone) === cleanedPhone ||
+      (remoteOrder.groupMembers ?? []).some((member) => normalizePhoneForCompare(member.phone) === cleanedPhone)
     setOrders(remoteOrders
-      .filter((remoteOrder) => remoteOrder.phone.replace(/\s+/g, '') === cleanedPhone)
+      .filter(belongsToCustomer)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt)))
     setCurrentOrderId((current) => (
-      remoteOrders.some((remoteOrder) => remoteOrder.id === current && remoteOrder.phone.replace(/\s+/g, '') === cleanedPhone)
+      remoteOrders.some((remoteOrder) => remoteOrder.id === current && belongsToCustomer(remoteOrder))
         ? current
         : ''
     ))
@@ -1368,7 +1448,12 @@ function App() {
 
   const breakdown = subtotalBreakdown
   const total = subtotal
-  const groupCheckoutItems = cartGroup?.items.map((line) => line.item) ?? []
+  const groupCheckoutItems = cartGroup?.items.map((line) => ({
+    ...line.item,
+    ownerMemberKey: line.ownerMemberKey,
+    ownerPhone: line.ownerPhone,
+    ownerName: line.ownerName,
+  })) ?? []
   const groupInviteStore = normalizeInviteStore(cartGroup?.sourceStore) ?? selectedStore
   const groupInviteHost = userProfile?.name || recipient.name || 'صاحب السلة'
   const groupMemberKey = getDeviceId()
@@ -1392,6 +1477,10 @@ function App() {
   const myShareSyp = myItemsTotalSyp + halfShippingSyp
   const friendShareSyp = friendItemsTotalSyp + halfShippingSyp
   const groupHasFriend = cartGroup && cartGroup.members.length >= 2
+  const selectedDeliveryMember = cartGroup?.members.find((member) => member.memberKey === deliveryMemberKey)
+    ?? cartGroup?.members.find(isMyGroupMember)
+    ?? cartGroup?.members.find((member) => member.role === 'host')
+    ?? cartGroup?.members[0]
   const groupProductsTotalSyp = (cartGroup?.items ?? []).reduce((sum, line) => sum + getItemPriceSyp(line.item) * line.item.quantity, 0)
   const groupTotalSyp = groupProductsTotalSyp + shippingTotalSyp
   const groupMinimumSyp = Math.ceil(MIN_ORDER_USD * exchangeRate)
@@ -1501,10 +1590,42 @@ function App() {
     joinCartGroupFromValue(pendingGroupInvite.code, pendingGroupInvite.store)
   }
 
+  // Invite links are consent to join this specific shared cart. Join
+  // immediately even when the recipient's local cart is empty; the cart page
+  // then shows the linked-group state instead of hiding the invite behind the
+  // empty-cart branch.
+  useEffect(() => {
+    if (!pendingGroupInvite || !phone || isSyncingGroup) return
+    const inviteKey = `${pendingGroupInvite.code}:${pendingGroupInvite.store || ''}`
+    if (autoJoinInviteRef.current === inviteKey) return
+    autoJoinInviteRef.current = inviteKey
+    acceptPendingGroupInvite()
+    // The invite code/store are the event identity; the join function clears
+    // pendingGroupInvite after a successful join.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingGroupInvite?.code, pendingGroupInvite?.store, phone, isSyncingGroup])
+
   const cancelPendingGroupInvite = () => {
     setPendingGroupInvite(null)
     setGroupJoinCode('')
     showNotice('تم إلغاء ربط السلة')
+  }
+
+  const selectDeliveryMember = (member: CartGroupSnapshot['members'][number]) => {
+    const memberKey = member.memberKey || normalizePhoneForCompare(member.phone)
+    setDeliveryMemberKey(memberKey)
+    setRecipient((current) => {
+      const sameRecipient = normalizePhoneForCompare(current.phone) === normalizePhoneForCompare(member.phone)
+      return {
+        ...current,
+        name: member.name || current.name,
+        phone: member.phone || current.phone,
+        // Keep a previously selected Qadmous office only for the same person.
+        // Another group member must explicitly confirm their own pickup point.
+        ...(sameRecipient ? {} : { qadmousBranch: '', pickupLabel: '', details: '' }),
+      }
+    })
+    setEditingCheckoutPickup(true)
   }
 
   const cancelCartGroupOnServer = () => {
@@ -2097,14 +2218,28 @@ function App() {
       if (event?.id && event.id !== webviewIdRef.current) return
       markStoreWebviewReadyRef.current(webviewSessionRef.current)
     })
-    const errorHandle = InAppBrowser.addListener('pageLoadError', () => {
-      if (!webviewOpeningRef.current) return
+    const errorHandle = InAppBrowser.addListener('pageLoadError', (event: { id?: string }) => {
+      if (event?.id && webviewIdRef.current && event.id !== webviewIdRef.current) return
+      if (!sheinOpenedRef.current || screenRef.current !== 'home') return
       if (webviewErrorTimerRef.current !== undefined) window.clearTimeout(webviewErrorTimerRef.current)
       webviewErrorTimerRef.current = window.setTimeout(() => {
         webviewErrorTimerRef.current = undefined
-        if (!webviewOpeningRef.current) return
+        if (!sheinOpenedRef.current || screenRef.current !== 'home') return
+        // A navigation can fail after the first page was already shown (VPN
+        // disconnected, or "open anyway" reached a 404). Tear down this
+        // native instance and return to the connection gate; leaving the
+        // failed WebView visible produces a plain white screen.
+        suppressAutoReopenRef.current = true
+        webviewSessionRef.current += 1
         webviewOpeningRef.current = false
-        if (screenRef.current === 'home') setSheinBlockedError(true)
+        webviewIdRef.current = ''
+        sheinOpenedRef.current = false
+        setSheinReady(false)
+        setSheinBlockedError(false)
+        setVpnState('checking')
+        void InAppBrowser.close().catch(() => undefined).finally(() => {
+          suppressAutoReopenRef.current = false
+        })
       }, 1800)
     })
     let fallbackTimer: number | undefined
@@ -2400,7 +2535,12 @@ function App() {
       notificationPrefs,
     }
     setRecipient((current) => ({ ...current, name: normalizedRecipientName, pickupLabel: current.pickupLabel ?? '' }))
-    void appApi.customers.saveProfile(phone, profileForOrder).catch(() => undefined)
+    // Do not overwrite the payer's saved profile with a friend's delivery
+    // details in a shared order. Only persist when the selected recipient is
+    // the signed-in customer.
+    if (normalizePhoneForCompare(profileForOrder.phone || '') === normalizePhoneForCompare(phone)) {
+      void appApi.customers.saveProfile(phone, profileForOrder).catch(() => undefined)
+    }
     const orderId = makeOrderId(visibleOrders)
     const newOrder: Order = {
       id: orderId,
@@ -2423,6 +2563,10 @@ function App() {
       createdAt: today(),
       groupId: cartGroup?.id,
       groupCode: cartGroup?.code,
+      groupMembers: cartGroup?.members,
+      deliveryMemberKey: selectedDeliveryMember?.memberKey || deliveryMemberKey,
+      deliveryOwnerPhone: selectedDeliveryMember?.phone || recipient.phone || phone,
+      deliveryOwnerName: selectedDeliveryMember?.name || normalizedRecipientName,
     }
 
     void appApi.orders.createPendingOrder(newOrder, paymentCurrency, walletSpendUsd, selectedStore)
@@ -3079,7 +3223,7 @@ function App() {
           <Header title="السلة" unreadCount={unreadCount} onNotifications={openNotifications} />
           <main className="mobile-content mobile-content--cart">
             {renderCropModal()}
-            {cartItems.length > 0 ? (
+            {cartItems.length > 0 || featureGroupOrders ? (
               <>
                 {cartItems.map((item) => {
                   const issue = getAvailabilityIssue(item)
@@ -3288,8 +3432,12 @@ function App() {
                     </div>
                   </article>
                 )})}
-                <CurrencyToggle value={paymentCurrency} onChange={setPaymentCurrency} />
-                <PriceBreakdown items={breakdown} total={total} format={formatPrice} />
+                {cartItems.length > 0 && (
+                  <>
+                    <CurrencyToggle value={paymentCurrency} onChange={setPaymentCurrency} />
+                    <PriceBreakdown items={breakdown} total={total} format={formatPrice} />
+                  </>
+                )}
                 {featureGroupOrders && <section className="group-order-card">
                   <div>
                     <h2>اطلب مع صديق</h2>
@@ -3403,7 +3551,14 @@ function App() {
                 <strong>{formatPrice(total)}</strong>
               </div>
             )}
-            <button className="primary-action" disabled={activeCheckoutItems.length === 0 || !meetsMinimumOrder || hasIncompleteCheckoutCustom || hasAvailabilityIssues} onClick={() => setScreen('checkout')}>
+            <button
+              className="primary-action"
+              disabled={activeCheckoutItems.length === 0 || !meetsMinimumOrder || hasIncompleteCheckoutCustom || hasAvailabilityIssues}
+              onClick={() => {
+                if (cartGroup && selectedDeliveryMember) selectDeliveryMember(selectedDeliveryMember)
+                setScreen('checkout')
+              }}
+            >
               المتابعة للدفع
               <Icon name="arrow_back" />
             </button>
@@ -3421,6 +3576,30 @@ function App() {
         <MobileShell active="cart" onNavigate={setScreen} hideBottomNav>
           <Header title="بيانات الاستلام" back={() => setScreen('cart')} unreadCount={unreadCount} onNotifications={openNotifications} />
           <main className="mobile-content">
+            {cartGroup && cartGroup.members.length > 1 && (
+              <section className="group-order-card">
+                <div>
+                  <h2>من سيستلم الطلب من القدموس؟</h2>
+                  <p>اختر أحد أصحاب الطلب، ثم أكد فرع القدموس وبياناته قبل الدفع.</p>
+                </div>
+                <div className="issue-options-row">
+                  {cartGroup.members.map((member) => {
+                    const key = member.memberKey || normalizePhoneForCompare(member.phone)
+                    const selectedKey = selectedDeliveryMember?.memberKey || normalizePhoneForCompare(selectedDeliveryMember?.phone || '')
+                    return (
+                      <button
+                        type="button"
+                        key={key}
+                        className={`issue-option-chip${key === selectedKey ? ' is-selected' : ''}`}
+                        onClick={() => selectDeliveryMember(member)}
+                      >
+                        {member.name || member.phone}
+                      </button>
+                    )
+                  })}
+                </div>
+              </section>
+            )}
             {!showCheckoutPickupForm && (
               <section className="profile-summary-card">
                 <div className="profile-summary-card__head">
@@ -3789,6 +3968,12 @@ function App() {
           </MobileShell>
         )
       }
+      const trackingItemGroups = groupOrderItemsByOwner(order.items)
+      const visibleOrderIssues = (order.issues ?? []).filter((issue) => {
+        const target = issue.itemId ? order.items.find((item) => item.id === issue.itemId || item.orderItemId === issue.itemId) : undefined
+        const ownerPhone = issue.ownerPhone || target?.ownerPhone || ''
+        return !ownerPhone || normalizePhoneForCompare(ownerPhone) === activeAccountPhone
+      })
       return (
         <MobileShell active="orders" onNavigate={setScreen}>
           <Header title="تتبع الطلب" back={() => setScreen('orders')} unreadCount={unreadCount} onNotifications={openNotifications} />
@@ -3798,31 +3983,39 @@ function App() {
               <StoreBadge store={getOrderStore(order)} />
               <StatusBadge tone={order.paymentStatus === 'مدفوع' ? 'success' : 'pending'}>{order.paymentStatus}</StatusBadge>
               <StatusBadge tone="pending">{orderStatuses[order.statusIndex]}</StatusBadge>
+              {order.deliveryOwnerName && <p>المستلم المحدد: {order.deliveryOwnerName}</p>}
               <p>{order.qadmousNumber ? `رقم القدموس: ${order.qadmousNumber}` : 'رقم القدموس سيظهر بعد تسليم الشحنة.'}</p>
             </section>
             <section className="tracking-products">
-              {order.items.map((item, index) => (
-                <article key={`${item.id || item.title}-${index}`}>
-                  <img
-                    src={item.image || 'https://placehold.co/54x54/f5f5f5/aaa?text=+'}
-                    alt=""
-                    onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/54x54/f5f5f5/aaa?text=+' }}
-                  />
-                  <div>
-                    <b>{item.title}</b>
-                    <small>
-                      {[item.color, item.size, `×${item.quantity ?? 1}`].filter(Boolean).join(' · ')}
-                    </small>
-                  </div>
-                  <strong>{formatMoney((item.priceSyp ?? 0) * (item.quantity ?? 1))}</strong>
-                </article>
+              {trackingItemGroups.map((ownerGroup) => (
+                <div className="tracking-owner-group" key={ownerGroup.key}>
+                  {(order.groupId || trackingItemGroups.length > 1) && (
+                    <h3>طلب {ownerGroup.name}</h3>
+                  )}
+                  {ownerGroup.items.map((item, index) => (
+                    <article key={`${item.id || item.title}-${index}`}>
+                      <img
+                        src={item.image || 'https://placehold.co/54x54/f5f5f5/aaa?text=+'}
+                        alt=""
+                        onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/54x54/f5f5f5/aaa?text=+' }}
+                      />
+                      <div>
+                        <b>{item.title}</b>
+                        <small>
+                          {[item.color, item.size, `×${item.quantity ?? 1}`].filter(Boolean).join(' · ')}
+                        </small>
+                      </div>
+                      <strong>{formatMoney((item.priceSyp ?? 0) * (item.quantity ?? 1))}</strong>
+                    </article>
+                  ))}
+                </div>
               ))}
             </section>
-            {(order.issues && order.issues.length > 0) && (
+            {visibleOrderIssues.length > 0 && (
               <section className="order-issues">
                 <h2><Icon name="build" /> مشاكل تحتاج حلّك</h2>
-                {order.issues.map((iss) => {
-                  const target = iss.itemId ? order.items.find((it) => it.id === iss.itemId) : order.items[0]
+                {visibleOrderIssues.map((iss) => {
+                  const target = iss.itemId ? order.items.find((it) => it.id === iss.itemId || it.orderItemId === iss.itemId) : order.items[0]
                   const typeLabelMap: Record<string, string> = {
                     payment: 'فرق سعر / مبلغ إضافي', size: 'المقاس', color: 'اللون',
                     custom_photo: 'صورة مخصصة', custom_photo_size: 'قياس/قصّ الصورة',
@@ -3837,6 +4030,23 @@ function App() {
                         {iss.resolved && <span className="order-issue-badge">✓ تم الحل</span>}
                       </div>
                       {iss.note && <p className="order-issue-note">{iss.note}</p>}
+                      {!iss.resolved && iss.requestPhoto && (
+                        <label className={`primary-action order-issue-crop${sendingCustomFix ? ' is-disabled' : ''}`}>
+                          <Icon name="add_a_photo" />
+                          {sendingCustomFix ? 'جاري إرسال الصورة...' : 'إرفاق صورة أو لقطة اللون المطلوب'}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            style={{ display: 'none' }}
+                            disabled={sendingCustomFix}
+                            onChange={(event) => {
+                              const file = event.target.files?.[0]
+                              event.target.value = ''
+                              if (file) submitIssuePhoto(order, iss, file)
+                            }}
+                          />
+                        </label>
+                      )}
                       {!iss.resolved && (iss.type === 'size' || iss.type === 'color') && target && (iss.options?.length ? (
                         <div className="issue-options-row">
                           {iss.options.map((opt) => (
@@ -3847,7 +4057,7 @@ function App() {
                               onClick={() => {
                                 setSendingCustomFix(true)
                                 const field = iss.type === 'color' ? 'color' : 'size'
-                                void appApi.orders.submitOptionFix(order.id, target.id, field, opt)
+                                void appApi.orders.submitOptionFix(order.id, target.orderItemId || target.id, field, opt)
                                   .then((ok) => {
                                     if (ok) {
                                       setOrders((list) => list.map((o) => o.id === order.id
@@ -3866,7 +4076,31 @@ function App() {
                       ) : (
                         <p className="order-issue-hint">راسلنا لتحديد {iss.type === 'color' ? 'اللون' : 'المقاس'} المناسب.</p>
                       ))}
-                      {!iss.resolved && (iss.type === 'custom_photo' || iss.type === 'custom_photo_size') && target && (
+                      {!iss.resolved && iss.type !== 'size' && iss.type !== 'color' && iss.type !== 'payment' && !!iss.options?.length && (
+                        <div className="issue-options-row">
+                          {iss.options.map((option) => (
+                            <button
+                              key={option}
+                              className="issue-option-chip"
+                              disabled={sendingCustomFix}
+                              onClick={() => {
+                                setSendingCustomFix(true)
+                                void appApi.orders.submitIssueResolve(order.id, iss.id, option)
+                                  .then((ok) => {
+                                    if (!ok) { showNotice('تعذّر إرسال الاختيار، حاول مجدداً'); return }
+                                    setOrders((list) => list.map((current) => current.id === order.id
+                                      ? { ...current, issues: (current.issues ?? []).map((entry) => entry.id === iss.id ? { ...entry, resolved: true, resolvedValue: option } : entry) }
+                                      : current))
+                                    showNotice(`تم إرسال اختيارك «${option}» ✔`)
+                                  })
+                                  .catch(() => showNotice('تعذّر إرسال الاختيار، حاول مجدداً'))
+                                  .finally(() => setSendingCustomFix(false))
+                              }}
+                            >{option}</button>
+                          ))}
+                        </div>
+                      )}
+                      {!iss.resolved && !iss.requestPhoto && (iss.type === 'custom_photo' || iss.type === 'custom_photo_size') && target && (
                         <label className={`primary-action order-issue-crop${sendingCustomFix ? ' is-disabled' : ''}`}>
                           <Icon name="crop" /> {sendingCustomFix ? 'جاري الإرسال...' : 'قصّ الصورة وأرسلها'}
                           <input
@@ -3884,7 +4118,7 @@ function App() {
                                   hint: iss.requiredSize ? `القياس المطلوب: ${iss.requiredSize}` : '',
                                   onDone: (dataUrl) => {
                                     setSendingCustomFix(true)
-                                    void appApi.orders.submitCustomFix(order.id, target.id, dataUrl, '')
+                                    void appApi.orders.submitCustomFix(order.id, target.orderItemId || target.id, dataUrl, '')
                                       .then((ok) => {
                                         if (ok) {
                                           setOrders((list) => list.map((o) => o.id === order.id
@@ -3905,10 +4139,11 @@ function App() {
                           />
                         </label>
                       )}
-                      {!iss.resolved && iss.type === 'custom_text' && target && (
+                      {!iss.resolved && target && !iss.requestPhoto && !iss.options?.length && iss.type !== 'payment' && iss.type !== 'custom_photo' && iss.type !== 'custom_photo_size' && (
                         <div className="order-issue-text">
                           <input
-                            type="text" placeholder="اكتب النص/الاسم المطلوب"
+                            type="text"
+                            placeholder={iss.type === 'custom_text' ? 'اكتب النص/الاسم المطلوب' : 'اكتب ردك أو الخيار الذي تريده'}
                             value={issueTextDraft[iss.id] ?? ''}
                             onChange={(e) => setIssueTextDraft((prev) => ({ ...prev, [iss.id]: e.target.value }))}
                           />
@@ -3918,14 +4153,26 @@ function App() {
                             onClick={() => {
                               const value = (issueTextDraft[iss.id] || '').trim()
                               setSendingCustomFix(true)
-                              void appApi.orders.submitCustomFix(order.id, target.id, '', value)
+                              const optionField = iss.type === 'size' || iss.type === 'color' ? iss.type : null
+                              const request = optionField
+                                ? appApi.orders.submitOptionFix(order.id, target.orderItemId || target.id, optionField, value)
+                                : iss.type === 'custom_text'
+                                  ? appApi.orders.submitCustomFix(order.id, target.orderItemId || target.id, '', value)
+                                  : appApi.orders.submitIssueResolve(order.id, iss.id, value)
+                              void request
                                 .then((ok) => {
                                   if (ok) {
                                     setOrders((list) => list.map((o) => o.id === order.id
-                                      ? { ...o, items: o.items.map((it) => it.id === target.id ? { ...it, customText: value } : it) }
+                                      ? {
+                                        ...o,
+                                        items: o.items.map((it) => it.id === target.id
+                                          ? optionField ? { ...it, [optionField]: value } : iss.type === 'custom_text' ? { ...it, customText: value } : it
+                                          : it),
+                                        issues: (o.issues ?? []).map((entry) => entry.id === iss.id ? { ...entry, resolved: true, resolvedValue: value } : entry),
+                                      }
                                       : o))
-                                    resolveIssueLocal(order.id, iss.id, value)
-                                    showNotice('تم إرسال النص ✔')
+                                    if (optionField || iss.type === 'custom_text') void appApi.orders.submitIssueResolve(order.id, iss.id, value)
+                                    showNotice('تم إرسال ردك ✔')
                                   } else showNotice('تعذّر الإرسال، حاول مجدداً')
                                 })
                                 .catch(() => showNotice('تعذّر الإرسال، حاول مجدداً'))
@@ -3936,16 +4183,6 @@ function App() {
                       )}
                       {!iss.resolved && iss.type === 'payment' && (
                         <p className="order-issue-hint">ادفع الفرق من زر «إنشاء طلب دفع» أدناه{iss.amountUsd ? ` (${formatUsd(iss.amountUsd)})` : ''}.</p>
-                      )}
-                      {!iss.resolved && (iss.type === 'unavailable' || iss.type === 'link' || iss.type === 'quantity' || iss.type === 'other') && (
-                        <div className="order-issue-actions">
-                          <button className="ghost-action" onClick={() => openWhatsappSupport(`مرحبا otlobli، بخصوص مشكلة (${typeLabelMap[iss.type]}) على الطلب ${order.id}`)}>
-                            <Icon name="support_agent" /> تواصل معنا
-                          </button>
-                          <button className="ghost-action" onClick={() => { resolveIssueLocal(order.id, iss.id, 'تمت المعالجة'); showNotice('تم وضع علامة معالجة') }}>
-                            تمّت المعالجة
-                          </button>
-                        </div>
                       )}
                     </div>
                   )

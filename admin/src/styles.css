@@ -332,7 +332,7 @@ img {
 
 .content-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(340px, 0.55fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 18px;
 }
 
@@ -605,6 +605,13 @@ td:first-child {
 .issue-item { flex: 1 1 45%; min-width: 0; }
 .issue-remove { border: 0; background: transparent; color: #c62828; font-weight: 800; cursor: pointer; padding: 2px 6px; flex: 0 0 auto; }
 .issue-inline { width: 100%; box-sizing: border-box; }
+.issue-options-list { display: grid; gap: 6px; }
+.issue-option-row { display: flex; align-items: center; gap: 6px; }
+.issue-option-add { justify-self: start; }
+.issue-photo-request { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; font-weight: 700; }
+.issue-photo-request input { width: auto; min-height: auto; margin: 0; }
+.issue-response-photo { display: flex; align-items: center; gap: 8px; color: #007953; font-size: 0.78rem; font-weight: 700; text-decoration: none; }
+.issue-response-photo img { width: 58px; height: 58px; border-radius: 8px; border: 1px solid var(--outline); object-fit: cover; }
 .issue-resolved-tag { font-size: 0.76rem; color: #007953; font-weight: 700; }
 .issues-save { align-self: flex-start; }
 

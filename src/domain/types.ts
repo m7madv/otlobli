@@ -152,6 +152,12 @@ export type CartItem = {
   needsCustomText?: boolean
   customText?: string
   customTextLimit?: number
+  // Shared-order ownership is persisted with the order line. It must not be
+  // inferred from the payer or delivery recipient.
+  ownerMemberKey?: string
+  ownerPhone?: string
+  ownerName?: string
+  orderItemId?: string
 }
 
 export type WalletTransaction = {
@@ -230,6 +236,10 @@ export type Order = {
   issues?: OrderIssue[]
   groupId?: string
   groupCode?: string
+  groupMembers?: CartGroupMember[]
+  deliveryMemberKey?: string
+  deliveryOwnerPhone?: string
+  deliveryOwnerName?: string
 }
 
 export type OrderInvoiceLine = {
@@ -249,8 +259,14 @@ export type OrderIssue = {
   options?: string[]     // بدائل المقاس/اللون
   requiredSize?: string  // نسبة قص الصورة المطلوبة (3:4 / 800x800)
   amountUsd?: number     // مبلغ إضافي لمشاكل الدفع
+  requestPhoto?: boolean
+  responseType?: 'text' | 'option' | 'image'
+  ownerMemberKey?: string
+  ownerPhone?: string
+  ownerName?: string
   resolved?: boolean
   resolvedValue?: string
+  resolvedPhotoDataUrl?: string
 }
 
 export type PriceLine = {

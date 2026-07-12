@@ -2348,6 +2348,20 @@ a {
   gap: 8px;
 }
 
+.tracking-owner-group {
+  display: grid;
+  gap: 8px;
+}
+
+.tracking-owner-group h3 {
+  margin: 4px 0 0;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 0.82rem;
+}
+
 .tracking-products article {
   display: grid;
   grid-template-columns: 48px minmax(0, 1fr) auto;

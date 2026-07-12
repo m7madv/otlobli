@@ -39,6 +39,9 @@ type OrderItemRow = {
   custom_text?: string
   custom_photo?: string
   custom_photo_note?: string
+  owner_member_key?: string
+  owner_phone?: string
+  owner_name?: string
 }
 
 type OrderRow = {
@@ -66,6 +69,9 @@ type OrderRow = {
   issues?: Record<string, unknown>[]
   group_id?: string
   group_code?: string
+  delivery_member_key?: string
+  delivery_owner_phone?: string
+  delivery_owner_name?: string
 }
 
 type DriverRow = {
@@ -90,23 +96,34 @@ type CustomerRow = {
   updated_at?: string
 }
 
-function normalizeOrderIssues(value: unknown) {
+function normalizeOrderIssues(value: unknown, itemOwners = new Map<string, OrderItemRow>()) {
   const raw = Array.isArray(value) ? value : []
   const issues = raw
     .filter((issue): issue is Record<string, unknown> => !!issue && typeof issue === 'object')
-    .map((issue) => ({
-      id: String(issue.id ?? '').slice(0, 120),
-      type: String(issue.type ?? 'other').slice(0, 40),
-      itemId: String(issue.itemId ?? '').slice(0, 200),
-      note: String(issue.note ?? '').slice(0, 500),
-      options: Array.isArray(issue.options)
-        ? issue.options.map((option) => String(option).slice(0, 120)).filter(Boolean).slice(0, 20)
-        : [],
-      requiredSize: String(issue.requiredSize ?? '').slice(0, 120),
-      amountUsd: Math.max(0, Math.round((Number(issue.amountUsd) || 0) * 100) / 100),
-      resolved: issue.resolved === true,
-      resolvedValue: String(issue.resolvedValue ?? '').slice(0, 200),
-    }))
+    .map((issue) => {
+      const itemId = String(issue.itemId ?? '').slice(0, 200)
+      const owner = itemOwners.get(itemId)
+      const requestPhoto = issue.requestPhoto === true || issue.responseType === 'image'
+      return {
+        id: String(issue.id ?? '').slice(0, 120),
+        type: String(issue.type ?? 'other').slice(0, 40),
+        itemId,
+        note: String(issue.note ?? '').slice(0, 500),
+        options: Array.isArray(issue.options)
+          ? issue.options.map((option) => String(option).trim().slice(0, 120)).filter(Boolean).slice(0, 20)
+          : [],
+        requiredSize: String(issue.requiredSize ?? '').slice(0, 120),
+        amountUsd: Math.max(0, Math.round((Number(issue.amountUsd) || 0) * 100) / 100),
+        requestPhoto,
+        responseType: requestPhoto ? 'image' : (issue.responseType === 'option' ? 'option' : 'text'),
+        ownerMemberKey: owner?.owner_member_key || '',
+        ownerPhone: owner?.owner_phone || '',
+        ownerName: owner?.owner_name || '',
+        resolved: issue.resolved === true,
+        resolvedValue: String(issue.resolvedValue ?? '').slice(0, 2000),
+        resolvedPhotoDataUrl: String(issue.resolvedPhotoDataUrl ?? '').slice(0, 4_000_000),
+      }
+    })
     .filter((issue) => issue.id !== '')
   const unresolved = issues.filter((issue) => !issue.resolved)
   const paymentTotal = unresolved
@@ -284,9 +301,10 @@ Deno.serve(async (req) => {
       city: row.city,
       address: row.address,
       items: (row.order_items || []).map((item) => ({
-        // Customer orders use product_id as the stable item identity. The
-        // row UUID is an internal DB key and never matched on the customer.
-        id: item.product_id || item.id,
+        // Use the order-item UUID for admin actions so two members ordering
+        // the same vendor product can still receive separate, owner-scoped
+        // issues. Customer payloads also expose this as orderItemId.
+        id: item.id,
         title: item.title,
         image: item.image,
         color: item.color,
@@ -297,6 +315,9 @@ Deno.serve(async (req) => {
         customText: item.custom_text || '',
         customPhotoDataUrl: item.custom_photo || '',
         customPhotoNote: item.custom_photo_note || '',
+        ownerMemberKey: item.owner_member_key || '',
+        ownerPhone: item.owner_phone || '',
+        ownerName: item.owner_name || '',
       })),
       total: row.total_syp ?? row.total ?? 0,
       paymentStatus: row.payment_status,
@@ -314,6 +335,9 @@ Deno.serve(async (req) => {
       issues: Array.isArray(row.issues) ? row.issues : [],
       groupId: row.group_id || '',
       groupCode: row.group_code || '',
+      deliveryMemberKey: row.delivery_member_key || '',
+      deliveryOwnerPhone: row.delivery_owner_phone || '',
+      deliveryOwnerName: row.delivery_owner_name || '',
     }))
 
     const drivers = driverError ? [] : ((driverRows || []) as DriverRow[]).map((row) => ({ id: row.id, name: row.name }))
@@ -440,13 +464,16 @@ Deno.serve(async (req) => {
     // ملاحظة: جدول orders لا يحتوي على عمود updated_at، فلا نضيفه هنا
     const dbPatch: Record<string, unknown> = {}
     let currentStructuredIssues: unknown[] = []
+    let issueItems: OrderItemRow[] = []
+    let normalizedIssueState: ReturnType<typeof normalizeOrderIssues> | null = null
     if (patch.issues !== undefined) {
       const { data: currentOrder } = await supabase
         .from('orders')
-        .select('issues')
+        .select('issues, order_items(id, product_id, owner_member_key, owner_phone, owner_name)')
         .eq('id', orderId)
         .single()
       currentStructuredIssues = Array.isArray(currentOrder?.issues) ? currentOrder.issues : []
+      issueItems = Array.isArray(currentOrder?.order_items) ? currentOrder.order_items as OrderItemRow[] : []
     }
     if (patch.paymentStatus !== undefined) {
       const paymentStatus = String(patch.paymentStatus)
@@ -471,7 +498,13 @@ Deno.serve(async (req) => {
     if (patch.extraAmountUsd !== undefined && patch.issues === undefined) dbPatch.extra_amount_usd = Number(patch.extraAmountUsd) || 0
     // مشاكل الطلب المنظمة: نحفظ المصفوفة كما هي (الواجهة تبنيها منقّاة).
     if (patch.issues !== undefined) {
-      const issueState = normalizeOrderIssues(mergeIssueDrafts(patch.issues, currentStructuredIssues))
+      const itemOwners = new Map<string, OrderItemRow>()
+      issueItems.forEach((item) => {
+        itemOwners.set(item.id, item)
+        if (item.product_id && !itemOwners.has(item.product_id)) itemOwners.set(item.product_id, item)
+      })
+      const issueState = normalizeOrderIssues(mergeIssueDrafts(patch.issues, currentStructuredIssues), itemOwners)
+      normalizedIssueState = issueState
       dbPatch.issues = issueState.issues
       dbPatch.payment_issue = issueState.paymentIssue
       dbPatch.payment_issue_note = issueState.paymentIssueNote
@@ -537,13 +570,22 @@ Deno.serve(async (req) => {
       })
     }
 
-    if (Boolean(dbPatch.payment_issue) && previousPaymentIssue === false) {
+    if (Boolean(dbPatch.payment_issue) && (previousPaymentIssue === false || normalizedIssueState)) {
+      const existingIds = new Set(currentStructuredIssues.map((issue) => String((issue as Record<string, unknown>)?.id ?? '')))
+      const newIssues = normalizedIssueState?.issues.filter((issue) => !issue.resolved && !existingIds.has(issue.id)) ?? []
       const { data: order } = await supabase.from('orders').select('phone').eq('id', orderId).single()
-      if (order?.phone) {
-        await notifyCustomerPaymentIssue(order.phone, {
+      // Structured saves notify only genuinely new issue IDs. Re-saving an
+      // existing draft must not spam every unresolved group member again.
+      const issuesToNotify = normalizedIssueState ? newIssues : []
+      const recipientPhones = new Set(issuesToNotify.map((issue) => issue.ownerPhone || order?.phone || '').filter(Boolean))
+      if (!normalizedIssueState && previousPaymentIssue === false && order?.phone) recipientPhones.add(order.phone)
+      for (const recipientPhone of recipientPhones) {
+        const recipientIssues = issuesToNotify.filter((issue) => (issue.ownerPhone || order?.phone || '') === recipientPhone)
+        await notifyCustomerPaymentIssue(recipientPhone, {
           id: orderId,
-          note: String(dbPatch.payment_issue_note || ''),
-          extraAmountUsd: Number(dbPatch.extra_amount_usd) || 0,
+          note: recipientIssues.map((issue) => issue.note || issue.type).filter(Boolean).join('\n') || String(dbPatch.payment_issue_note || ''),
+          extraAmountUsd: recipientIssues.filter((issue) => issue.type === 'payment').reduce((sum, issue) => sum + issue.amountUsd, 0)
+            || Number(dbPatch.extra_amount_usd) || 0,
         })
       }
     }

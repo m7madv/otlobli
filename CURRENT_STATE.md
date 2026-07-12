@@ -1,6 +1,50 @@
 # Otlobli Current State
 
-Last updated: 2026-07-11
+Last updated: 2026-07-12
+
+## Codex store/group-link fixes in progress (2026-07-12)
+
+- `src/App.tsx` now auto-joins a valid shared-cart invite and keeps the group-order
+  controls visible even when the recipient cart is empty.
+- A native `pageLoadError` after the store was shown (including a failed 404 after
+  "open anyway" or a dropped VPN) now tears down the failed WebView and returns to
+  the VPN/connection check instead of leaving a blank white screen.
+- Native SHEIN URL normalization now leaves Cloudflare/captcha/security challenge
+  routes untouched so verification is not restarted by the Saudi `/ar` redirect.
+- `npm run build` passes. Real-device SHEIN/Temu verification is still required.
+- Figma writes are currently blocked because the connected Figma account requires
+  reauthentication; do not invent visual changes until that connection is restored.
+- The shared-orders/admin task was submitted to Claude in worktree
+  `.claude/worktrees/brave-gould-c49b60`, but Claude hit its usage limit during
+  inspection. The worktree is clean at `cf4b53c`; no Claude code exists to merge.
+- Full follow-up implementation is now in progress on the active branch:
+  - shared-order lines persist server-validated owner identity;
+  - every group member can load the order, while item issues/actions are scoped
+    to the owner of that product;
+  - checkout selects the Qadmous recipient from group members and persists it;
+  - tracking groups products by owner;
+  - issue responses support options, text, and requested screenshots/photos from
+    My Orders without requiring WhatsApp;
+  - admin order rows select inline and dynamic issue options/request-photo are implemented;
+  - Temu search chrome is stabilized and SHEIN challenge/menu click guards are narrowed.
+- Forward migration `20260712033000_shared_order_ownership.sql` is applied to production,
+  and `admin-orders` was deployed successfully.
+- Customer Vercel deployment `dpl_Du4Rwp3kdyRNqqrPs36ELWv6pRfo` is READY at
+  `https://talabieh.vercel.app`; admin deployment
+  `dpl_4Zdxn8VqEssPPW5NwhS4EKKCtGK5` is READY at
+  `https://talabieh-admin.vercel.app`.
+- Both public URLs return HTTP 200 and customer production JS contains v66.
+- Root and admin production builds pass locally. Real-device store verification remains.
+
+## Claude v65 app handoff confirmed (2026-07-12)
+
+- Claude's detailed v58→v65 handoff is recorded at the top of `SESSION_SUMMARY.md` and
+  committed in `cf4b53c`; v65 APK/IPA artifacts are reported on the user's Desktop.
+- App/UI scope includes structured order issues, invoice and wallet updates, support number,
+  VPN checks, SHEIN/Temu WebView fixes, and WhatsApp message/prekey handling. SHEIN/Temu
+  still require real-device verification.
+- The Note 8 hardware/firmware problem remains a separate scope and is intentionally excluded
+  from this app handoff.
 
 ## Codex Note 8 / ShamCash payment work in progress (2026-07-11)
 

@@ -98,6 +98,9 @@ function toOrderPayload(order: Order, store = '') {
     paidAt: order.paidAt ?? null,
     groupId: order.groupId ?? null,
     groupCode: order.groupCode ?? null,
+    deliveryMemberKey: order.deliveryMemberKey ?? null,
+    deliveryOwnerPhone: order.deliveryOwnerPhone ?? null,
+    deliveryOwnerName: order.deliveryOwnerName ?? null,
     store,
   }
 }
@@ -140,6 +143,20 @@ function normalizeOrder(value: unknown): Order | null {
       : undefined,
     groupId: typeof row.groupId === 'string' ? row.groupId : undefined,
     groupCode: typeof row.groupCode === 'string' ? row.groupCode : undefined,
+    groupMembers: Array.isArray(row.groupMembers)
+      ? row.groupMembers.map((member) => {
+        const value = (member && typeof member === 'object' ? member : {}) as Record<string, unknown>
+        return {
+          memberKey: typeof value.memberKey === 'string' ? value.memberKey : undefined,
+          phone: String(value.phone ?? ''),
+          name: String(value.name ?? ''),
+          role: value.role === 'host' ? 'host' as const : 'member' as const,
+        }
+      })
+      : undefined,
+    deliveryMemberKey: typeof row.deliveryMemberKey === 'string' ? row.deliveryMemberKey : undefined,
+    deliveryOwnerPhone: typeof row.deliveryOwnerPhone === 'string' ? row.deliveryOwnerPhone : undefined,
+    deliveryOwnerName: typeof row.deliveryOwnerName === 'string' ? row.deliveryOwnerName : undefined,
   }
 }
 
@@ -663,7 +680,7 @@ export const supabaseAppApi: TalabiehApi = {
         throw new Error('قاعدة البيانات غير متصلة. تأكد من إعدادات Supabase.')
       }
 
-      const { data, error } = await supabase.rpc('create_pending_order', {
+      const { data, error } = await supabase.rpc('create_pending_order_v2', {
         order_payload: toOrderPayload(order, store),
         currency,
         p_session_token: requireCustomerSessionToken(),
@@ -843,12 +860,13 @@ export const supabaseAppApi: TalabiehApi = {
     },
 
     // يعلّم مشكلة منظمة كمحلولة (بعد أن يحلها الزبون فعلياً عبر RPC المختصة).
-    async submitIssueResolve(orderId, issueId, resolvedValue) {
+    async submitIssueResolve(orderId, issueId, resolvedValue, resolvedPhotoDataUrl = '') {
       if (!supabase) return false
       const { data, error } = await supabase.rpc('submit_order_issue_resolve', {
         target_order_id: orderId,
         p_issue_id: issueId,
         p_resolved_value: resolvedValue || '',
+        p_resolved_photo_data_url: resolvedPhotoDataUrl || '',
         p_session_token: requireCustomerSessionToken(),
       })
       if (error) return false

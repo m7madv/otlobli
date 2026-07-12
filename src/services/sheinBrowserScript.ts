@@ -47,10 +47,32 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var SHEIN_REQUIRED_LANGUAGE = 'ar';
   var SHEIN_REQUIRED_SITE_UID = 'pwar';
 
+  // Verification pages can be injected at documentStart before their title,
+  // challenge form, or Cloudflare script exists in the DOM.  URL detection
+  // therefore has to happen before any Saudi URL/storage normalization: a
+  // redirect during that small parsing window restarts the challenge and can
+  // look like a black flash followed by the WebView closing.
+  function otlobliIsHumanChallengeUrl(href) {
+    try {
+      var u = new URL(href || location.href, location.href);
+      if (/\\/(?:cdn-cgi|challenge|captcha|verify|verification|security)(?:\\/|$)/i.test(u.pathname)) return true;
+      if (/(?:^|[?&#])(?:captcha|challenge|verification|security_token)=/i.test(u.search + u.hash)) return true;
+    } catch (e) {}
+    return false;
+  }
+
+  // On an explicit challenge route leave the document completely untouched.
+  // The next successful navigation gets a new document and a fresh injection.
+  if (IS_SHEIN && otlobliIsHumanChallengeUrl(location.href)) {
+    otlobliEnterChallengeMode();
+    return;
+  }
+
   function otlobliNormalizeSheinUrl(href) {
     try {
       var u = new URL(href, location.href);
       if (!/shein/i.test(u.hostname)) return href;
+      if (otlobliIsHumanChallengeUrl(u.toString())) return u.toString();
       var cleanPath = u.pathname.replace(/^\\/(?:[a-z]{2}(?:en)?|ar-en|ar)(?=\\/|$)/i, '') || '/';
       u.protocol = 'https:';
       u.hostname = 'm.shein.com';
@@ -275,6 +297,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function shouldReloadSheinForSaudi() {
     try {
       var u = new URL(location.href);
+      if (otlobliIsHumanChallengeUrl(u.toString())) return false;
       if (!/(^|\\.)m\\.shein\\.com$/i.test(u.hostname)) return true;
       if (!/^\\/ar(?:\\/|$)/i.test(u.pathname)) return true;
       var country = u.searchParams.get('country');
@@ -3157,7 +3180,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // the hamburger drawer does manage to open, every dangerous item inside it
     // is dead on tap.
     if (/currency|العملة|عملة|\\bregion\\b|country|البلد|الدولة|language|اللغة|\\blang\\b|لغة|\\bsetting|تغيير العملة|تغيير اللغة/.test(hint)) return true;
-    if (/hamburger|nav-?toggle|side-?menu|drawer|menu-?(btn|icon|toggle|bar)|\\bmenu\\b/.test(hint)) {
+    var strongMenuHint = /hamburger|nav-?toggle|side-?menu|drawer|menu-?(btn|button|icon|toggle|bar)/.test(hint);
+    // A plain menu class is also used by SHEIN's visible category links
+    // (women/men/kids). Treat it as the hamburger only when the control is
+    // icon-only; otherwise the global capture listener makes the whole home
+    // page feel like a non-interactive screenshot.
+    var genericIconMenu = /\\bmenu\\b/.test(hint) && shortText.length <= 2 &&
+      !!(el.querySelector && el.querySelector('svg,img'));
+    if (strongMenuHint || genericIconMenu) {
       var rect = el.getBoundingClientRect();
       // Band widened to top<=220 because SHEIN's home page can push its header
       // down behind a top promo/app-install banner, putting the hamburger well
@@ -3585,9 +3615,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var __otlobliChallengeNotified = false;
   function otlobliIsHumanChallenge() {
     try {
+      if (otlobliIsHumanChallengeUrl(location.href)) return true;
       if (/just a moment/i.test(document.title || '')) return true;
       if (document.getElementById('challenge-form')) return true;
       if (document.querySelector('script[src*="challenges.cloudflare.com"], iframe[src*="challenges.cloudflare.com"]')) return true;
+      if (document.querySelector('[id*="challenge" i], [class*="challenge" i], [data-testid*="challenge" i]')) {
+        var challengeText = document.body ? (document.body.innerText || '').slice(0, 2400) : '';
+        if (/verify you are human|security verification|checking your browser|cloudflare/i.test(challengeText)) return true;
+      }
     } catch (e) {}
     return false;
   }
@@ -3598,6 +3633,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
         try { if (ours[ci].parentNode) ours[ci].parentNode.removeChild(ours[ci]); } catch (e) {}
       }
     } catch (e) {}
+    // An add/loading overlay may have locked scrolling immediately before a
+    // same-document challenge appeared.  Removing our nodes is not enough;
+    // release that lock so the real verification control remains reachable.
+    try { if (document.body) document.body.style.overflow = ''; } catch (e) {}
     if (!__otlobliChallengeNotified) {
       __otlobliChallengeNotified = true;
       try {
@@ -3755,6 +3794,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (IS_TEMU) {
         try { injectTemuHeaderHideCSS(); } catch (e) {}
         try { ensureTemuNoZoom(); } catch (e) {}
+        try { stabilizeTemuSearchChrome(); } catch (e) {}
         // killStorePopups معطّلة لتيمو نهائياً (v57): أكّد اختبار المستخدم
         // (2026-07-10) أنها سبب وميض الشاشة الأبيض كل نصف ثانية — كانت تحجب
         // طبقة كبيرة تطابق PROMO ثم تعيدها المراجعة الذاتية، كل 300ms.
@@ -3882,7 +3922,18 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // بعد إخفاء بانر downloadUI تبقى حشوة/خلفية الغلاف فتظهر إطاراً أبيض
     // كبيراً حول البحث أحياناً — نصفّر تباعده دون إخفائه.
     '[class*="downloadsWrapper"]' +
-    '{ padding: 0 !important; margin: 0 !important; min-height: 0 !important; box-shadow: none !important; }';
+    '{ padding: 0 !important; margin: 0 !important; min-height: 0 !important; box-shadow: none !important; }' +
+    // Pin only the compact search shell, never downloadsWrapper/the full
+    // header. Keeping its measured horizontal geometry avoids covering the
+    // Temu logo, while the small white top pad lowers the field a little and
+    // prevents the half-clipped/jumping state during momentum scrolling.
+    '[data-otlobli-temu-search-shell="1"]' +
+    '{ position: fixed !important; top: 4px !important; left: var(--otlobli-temu-search-left) !important;' +
+    'width: var(--otlobli-temu-search-width) !important; z-index: 2147482000 !important;' +
+    'transform: translate3d(0,0,0) !important; will-change: transform !important;' +
+    'box-sizing: border-box !important; margin: 0 !important; padding-top: 8px !important;' +
+    'padding-bottom: 4px !important; background: #fff !important; opacity: 1 !important;' +
+    'visibility: visible !important; pointer-events: auto !important; }';
   // نحقن القاعدة في أبكر لحظة ممكنة (documentStart، قبل رسم أي شيء) لمنع أي
   // وميض للعناصر المخفية. لا نعتمد على flag لمرة واحدة، بل نفحص وجود <style>
   // فعلياً في كل استدعاء: لو أزالت تيمو عنصرنا أثناء إعادة بناء الصفحة (عند
@@ -3910,6 +3961,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       for (var i = 0; i < all.length; i++) {
         var el = all[i];
         if (el.id && el.id.indexOf('otlobli') === 0) continue;
+        if (el.closest && el.closest('[data-otlobli-temu-search-shell="1"]')) continue;
         if (el.getAttribute && el.getAttribute('data-otlobli-temu-hidden') === '1') continue;
         var r = el.getBoundingClientRect();
         if (r.width === 0 || r.height === 0) continue;
@@ -4008,6 +4060,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       for (var i = 0; i < nodes.length; i++) {
         var el = nodes[i];
         if (el.id && el.id.indexOf('otlobli') === 0) continue;
+        if (el.closest && el.closest('[data-otlobli-temu-search-shell="1"]')) continue;
         if (el.getAttribute && el.getAttribute('data-otlobli-temu-hidden') === '1') continue;
         if (el.querySelector && el.querySelector('input, textarea, select')) continue;
         var txt = temuCleanText(el.textContent);
@@ -4146,6 +4199,62 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if (!otlobliNearSearchInput(el) && !otlobliLooksLikeSearchTrigger(el)) continue;
         otlobliUnhideEl(el);
       }
+    } catch (e) {}
+  }
+
+  function stabilizeTemuSearchChrome() {
+    if (!IS_TEMU || !document.body) return;
+    try {
+      var vp = viewportSize();
+      var control = null;
+      var direct = document.querySelectorAll(
+        'input[type="search"], input[placeholder*="Search" i], input[placeholder*="ط¨ط­ط«"], [role="searchbox"]'
+      );
+      for (var i = 0; i < direct.length; i++) {
+        var dr = direct[i].getBoundingClientRect();
+        if (dr.width >= 100 && dr.height >= 22 && dr.height <= 64) { control = direct[i]; break; }
+      }
+      if (!control) {
+        var triggers = document.querySelectorAll('a, button, [role="button"], div');
+        for (var t = 0; t < triggers.length; t++) {
+          var tr = triggers[t].getBoundingClientRect();
+          if (tr.width < 140 || tr.width > vp.width - 4 || tr.height < 26 || tr.height > 64) continue;
+          if (otlobliLooksLikeSearchTrigger(triggers[t])) { control = triggers[t]; break; }
+        }
+      }
+      if (!control) return;
+
+      var controlRect = control.getBoundingClientRect();
+      // Keep the same shell after it is pinned. Its padding/geometry changes
+      // intentionally, so re-running the ancestor heuristic could otherwise
+      // walk inward on the next 120ms pass and make the field jump.
+      var pinnedShell = control.closest ? control.closest('[data-otlobli-temu-search-shell="1"]') : null;
+      var shell = pinnedShell || control;
+      var up = pinnedShell ? null : control.parentElement;
+      var hops = 0;
+      while (up && up !== document.body && hops < 4) {
+        var ur = up.getBoundingClientRect();
+        if (ur.width >= controlRect.width && ur.width <= vp.width - 4 && ur.height >= controlRect.height && ur.height <= 82) {
+          shell = up;
+          var identity = otlobliCollectIdentityHints(up);
+          if (/search|ط¨ط­ط«/i.test(identity) || up.tagName === 'FORM' || up.getAttribute('role') === 'search') break;
+        }
+        if (ur.width >= vp.width - 2 || ur.height > 96) break;
+        up = up.parentElement;
+        hops++;
+      }
+
+      var oldShells = document.querySelectorAll('[data-otlobli-temu-search-shell="1"]');
+      for (var s = 0; s < oldShells.length; s++) {
+        if (oldShells[s] !== shell) oldShells[s].removeAttribute('data-otlobli-temu-search-shell');
+      }
+
+      var sr = shell.getBoundingClientRect();
+      var left = Math.max(4, Math.min(sr.left, vp.width - 104));
+      var width = Math.max(100, Math.min(sr.width, vp.width - left - 4));
+      shell.setAttribute('data-otlobli-temu-search-shell', '1');
+      shell.style.setProperty('--otlobli-temu-search-left', Math.round(left) + 'px');
+      shell.style.setProperty('--otlobli-temu-search-width', Math.round(width) + 'px');
     } catch (e) {}
   }
 
@@ -4494,6 +4603,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     ensureOtlobliNav();
     if (IS_TEMU) {
       injectTemuHeaderHideCSS();
+      stabilizeTemuSearchChrome();
       restoreTemuSearchChrome();
       restoreTemuLogo();
     }
