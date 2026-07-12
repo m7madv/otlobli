@@ -3922,18 +3922,15 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // بعد إخفاء بانر downloadUI تبقى حشوة/خلفية الغلاف فتظهر إطاراً أبيض
     // كبيراً حول البحث أحياناً — نصفّر تباعده دون إخفائه.
     '[class*="downloadsWrapper"]' +
-    '{ padding: 0 !important; margin: 0 !important; min-height: 0 !important; box-shadow: none !important; }' +
-    // Pin only the compact search shell, never downloadsWrapper/the full
-    // header. Keeping its measured horizontal geometry avoids covering the
-    // Temu logo, while the small white top pad lowers the field a little and
-    // prevents the half-clipped/jumping state during momentum scrolling.
+    '{ padding: 0 !important; margin: 0 !important; min-height: 0 !important; box-shadow: none !important;' +
+    ' background: transparent !important; border: 0 !important; border-radius: 0 !important; }' +
+    // (v66-fix) لا نثبّت شريط البحث بـ position:fixed. التثبيت + خلفية #fff +
+    // إعادة القياس/الوسم كل tick كان يُنتج مستطيلاً أبيض كبيراً ووميض «ياضي
+    // ويطفي» أثناء التمرير (تيمو تُعيد بناء الهيدر فيُزال الوسم ثم يُعاد). نتركه
+    // في التدفق الطبيعي ونكتفي بإبقائه ظاهراً بخلفية شفافة — أبسط وأثبت.
     '[data-otlobli-temu-search-shell="1"]' +
-    '{ position: fixed !important; top: 4px !important; left: var(--otlobli-temu-search-left) !important;' +
-    'width: var(--otlobli-temu-search-width) !important; z-index: 2147482000 !important;' +
-    'transform: translate3d(0,0,0) !important; will-change: transform !important;' +
-    'box-sizing: border-box !important; margin: 0 !important; padding-top: 8px !important;' +
-    'padding-bottom: 4px !important; background: #fff !important; opacity: 1 !important;' +
-    'visibility: visible !important; pointer-events: auto !important; }';
+    '{ background: transparent !important; box-shadow: none !important; opacity: 1 !important;' +
+    ' visibility: visible !important; pointer-events: auto !important; }';
   // نحقن القاعدة في أبكر لحظة ممكنة (documentStart، قبل رسم أي شيء) لمنع أي
   // وميض للعناصر المخفية. لا نعتمد على flag لمرة واحدة، بل نفحص وجود <style>
   // فعلياً في كل استدعاء: لو أزالت تيمو عنصرنا أثناء إعادة بناء الصفحة (عند

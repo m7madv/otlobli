@@ -1111,19 +1111,15 @@ function App() {
     })
   }
 
-  const mergeOrdersForPhone = useCallback((remoteOrders: Order[], loginPhone: string) => {
-    const cleanedPhone = normalizePhoneForCompare(loginPhone)
-    const belongsToCustomer = (remoteOrder: Order) =>
-      normalizePhoneForCompare(remoteOrder.phone) === cleanedPhone ||
-      (remoteOrder.groupMembers ?? []).some((member) => normalizePhoneForCompare(member.phone) === cleanedPhone)
-    setOrders(remoteOrders
-      .filter(belongsToCustomer)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt)))
-    setCurrentOrderId((current) => (
-      remoteOrders.some((remoteOrder) => remoteOrder.id === current && belongsToCustomer(remoteOrder))
-        ? current
-        : ''
-    ))
+  const mergeOrdersForPhone = useCallback((remoteOrders: Order[], _loginPhone: string) => {
+    // get_customer_account موقّع بالجلسة ويعيد طلبات هذا الحساب فقط (المطابَقة
+    // بالحساب/الهاتف/عضوية المجموعة تتم على الخادم). لا نفلتر بالهاتف على العميل:
+    // كان يُسقط طلبات مطابَقة بالـcustomer_id أو بصيغة هاتف مختلفة قليلاً، فتبدو
+    // «الطلبات اختفت» رغم أن الخادم أرسلها (المحفظة تبقى ظاهرة لأنها رقم واحد).
+    void _loginPhone
+    const sorted = [...remoteOrders].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    setOrders(sorted)
+    setCurrentOrderId((current) => (sorted.some((remoteOrder) => remoteOrder.id === current) ? current : ''))
   }, [setCurrentOrderId, setOrders])
 
   const applyCustomerAccount = useCallback((
@@ -1936,6 +1932,9 @@ function App() {
   const webviewOpeningRef = useRef(false)
   const webviewIdRef = useRef('')
   const webviewErrorTimerRef = useRef<number | undefined>(undefined)
+  // فُتح المتجر عبر «فتح على أي حال» رغم فشل بوابة VPN. عندها لو لم تُحمّل الصفحة
+  // فعلاً، نرجع لبوابة «شغّل VPN» بدل عرض صفحة بيضاء (بدل الإظهار القسري).
+  const openedViaBypassRef = useRef(false)
   // إشعار تحقق «أنا إنسان» يُعرض مرة واحدة لكل جلسة webview كي لا يزعج.
   const humanCheckNoticeRef = useRef(false)
   const pendingProductUrlRef = useRef('')
@@ -2049,6 +2048,8 @@ function App() {
       return
     }
 
+    // وصلنا لعرض محتوى فعلي — التجاوز نجح، نُصفّر علم التجاوز.
+    openedViaBypassRef.current = false
     setSheinReady(true)
     const pendingProductUrl = pendingProductUrlRef.current
     if (pendingProductUrl) {
@@ -2248,6 +2249,23 @@ function App() {
       fallbackTimer = window.setTimeout(() => {
         fallbackTimer = undefined
         if (!webviewOpeningRef.current) return
+        // فُتح عبر «فتح على أي حال» بلا VPN ولم تُحمّل الصفحة خلال 12ث — الإظهار
+        // القسري هنا كان يعرض صفحة بيضاء بلا رجعة. بدلاً منه نرجع لبوابة VPN.
+        if (openedViaBypassRef.current) {
+          openedViaBypassRef.current = false
+          suppressAutoReopenRef.current = true
+          webviewSessionRef.current += 1
+          webviewOpeningRef.current = false
+          webviewIdRef.current = ''
+          sheinOpenedRef.current = false
+          setSheinReady(false)
+          setSheinBlockedError(false)
+          setVpnState('checking')
+          void InAppBrowser.close().catch(() => undefined).finally(() => {
+            suppressAutoReopenRef.current = false
+          })
+          return
+        }
         markStoreWebviewReadyRef.current(webviewSessionRef.current)
         void InAppBrowser.show().catch(() => undefined)
       }, 12000)
@@ -5015,7 +5033,7 @@ function App() {
               <Icon name="refresh" />
               تحقّق من جديد
             </button>
-            <button className="ghost-action" onClick={() => setVpnState('ok')} style={{ marginTop: 8 }}>
+            <button className="ghost-action" onClick={() => { openedViaBypassRef.current = true; setVpnState('ok') }} style={{ marginTop: 8 }}>
               <Icon name="open_in_browser" />
               فتح المتجر على أي حال
             </button>
@@ -5034,7 +5052,7 @@ function App() {
               <Icon name="refresh" />
               تحقّق من جديد
             </button>
-            <button className="ghost-action" onClick={() => setVpnState('ok')} style={{ marginTop: 8 }}>
+            <button className="ghost-action" onClick={() => { openedViaBypassRef.current = true; setVpnState('ok') }} style={{ marginTop: 8 }}>
               <Icon name="open_in_browser" />
               فتح المتجر على أي حال
             </button>
@@ -5050,7 +5068,7 @@ function App() {
               <Icon name="refresh" />
               إعادة المحاولة
             </button>
-            <button className="ghost-action" onClick={() => setVpnState('ok')} style={{ marginTop: 8 }}>
+            <button className="ghost-action" onClick={() => { openedViaBypassRef.current = true; setVpnState('ok') }} style={{ marginTop: 8 }}>
               <Icon name="open_in_browser" />
               فتح المتجر على أي حال
             </button>
