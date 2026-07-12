@@ -42,6 +42,27 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // عندها؛ على المتاجر الأخرى (تيمو/ترينديول) نكتفي بتنظيف العروض المنبثقة.
   var IS_SHEIN = /shein/i.test(location.hostname);
   var IS_TEMU = /temu/i.test(location.hostname);
+
+  // (v66-fix) بيانات الـWebView مشتركة/دائمة بين جلسات المتجر. أكّد المستخدم أن
+  // شي إن «كصور لا تنكبس» بعد تبديل المتجر (تيمو ثم شي إن)، بينما حذف/إعادة
+  // تنصيب التطبيق يُصلحه — أي أن حالة service worker/كاش مُتراكمة من جلسة سابقة
+  // تخدم أصولاً معطوبة فلا تُفعَّل الصفحة (hydration). نُلغي تسجيل أي service
+  // worker ونمسح Cache Storage عند بداية كل تحميل — fire-and-forget كي لا يعطّل
+  // الرسم — فتُطبَّق حالة نظيفة على التحميل التالي (يقارب التنصيب النظيف). لا
+  // نلمس localStorage (مسحه العريض يسبب skeleton loading — درس موثق).
+  try {
+    if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+      navigator.serviceWorker.getRegistrations().then(function (regs) {
+        for (var i = 0; i < regs.length; i++) { try { regs[i].unregister(); } catch (e) {} }
+      }).catch(function () {});
+    }
+    if (window.caches && caches.keys) {
+      caches.keys().then(function (keys) {
+        for (var k = 0; k < keys.length; k++) { try { caches.delete(keys[k]); } catch (e) {} }
+      }).catch(function () {});
+    }
+  } catch (e) {}
+
   var SHEIN_REQUIRED_COUNTRY = 'SA';
   var SHEIN_REQUIRED_CURRENCY = 'USD';
   var SHEIN_REQUIRED_LANGUAGE = 'ar';

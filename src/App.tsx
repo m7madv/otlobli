@@ -4844,10 +4844,16 @@ function App() {
           webviewIdRef.current = ''
           sheinOpenedRef.current = false
           setSheinReady(false)
-          void InAppBrowser.close().catch(() => undefined).then(() => {
-            suppressAutoReopenRef.current = false
-            setScreen('home')
-          })
+          // تبديل المتجر يُبقي بيانات الـWebView المشتركة (كوكيز/service worker)
+          // من المتجر السابق، فيُفتح المتجر الجديد بحالة «متّسخة» تكسر التفاعل
+          // (المستخدم أكّد: حذف/إعادة تنصيب التطبيق يُصلحه). نمسح الكوكيز بين
+          // الإغلاق والفتح لنقارب حالة التنصيب النظيف.
+          void InAppBrowser.close().catch(() => undefined)
+            .then(() => InAppBrowser.clearAllCookies().catch(() => undefined))
+            .then(() => {
+              suppressAutoReopenRef.current = false
+              setScreen('home')
+            })
           return
         }
         setScreen('home')
