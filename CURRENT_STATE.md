@@ -59,6 +59,15 @@ breaks (title/`#challenge-form`/challenge script presence) - add a temporary
 `messageFromWebview` breadcrumb reporting that state rather than guessing
 further blind.
 
+Committed as `26d5507` on branch `claude/competent-nash-557dc5` (pushed to
+`origin/claude/competent-nash-557dc5` - NOT merged into
+`codex/customer-wallet-group-orders`, to avoid touching the shared branch
+before the user confirms the fix on-device). GitHub iOS unsigned build run
+`https://github.com/m7madv/otlobli/actions/runs/29255893655` succeeded
+against this branch (57s). Artifact `otlobli-unsigned.ipa`:
+- size: `1943447` bytes
+- SHA-256: `f6ce7b93696f2994cf5d9ee88d29ee0f8821386ce6daf6a9baf5b10bd6850d06`
+
 ## Codex store/group-link fixes in progress (2026-07-12)
 
 - `src/App.tsx` now auto-joins a valid shared-cart invite and keeps the group-order
