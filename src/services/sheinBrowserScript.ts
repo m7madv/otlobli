@@ -3763,6 +3763,82 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
+  function otlobliOwnsNode(node) {
+    var n = node;
+    var depth = 0;
+    while (n && depth < 8) {
+      if (n.id && n.id.indexOf('otlobli') === 0) return true;
+      n = n.parentElement;
+      depth++;
+    }
+    return false;
+  }
+
+  function otlobliHideHard(node) {
+    if (!node || node === document.body || node === document.documentElement) return;
+    if (otlobliOwnsNode(node)) return;
+    try {
+      node.setAttribute('data-otlobli-hidden-store-bottom', '1');
+      node.style.setProperty('display', 'none', 'important');
+      node.style.setProperty('visibility', 'hidden', 'important');
+      node.style.setProperty('opacity', '0', 'important');
+      node.style.setProperty('pointer-events', 'none', 'important');
+      node.style.setProperty('height', '0px', 'important');
+      node.style.setProperty('min-height', '0px', 'important');
+      node.style.setProperty('max-height', '0px', 'important');
+      node.style.setProperty('overflow', 'hidden', 'important');
+    } catch (e) {}
+  }
+
+  function otlobliInteractiveCount(node) {
+    try {
+      return node.querySelectorAll('a,button,[role="button"],[role="tab"],svg,img').length;
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  function hideSheinLegacyBottomChrome() {
+    if (!IS_SHEIN || !document.body) return;
+    var vp = viewportSize();
+    var nav = document.getElementById('otlobli-nav');
+    var navRect = nav ? nav.getBoundingClientRect() : null;
+    var navTop = navRect && navRect.top > 0 ? navRect.top : (vp.height - 86);
+    var killTop = Math.max(0, navTop - 260);
+    var killBottom = Math.min(vp.height, navTop + 14);
+    var xs = [
+      Math.round(vp.width * 0.08), Math.round(vp.width * 0.18), Math.round(vp.width * 0.32),
+      Math.round(vp.width * 0.5), Math.round(vp.width * 0.68), Math.round(vp.width * 0.82),
+      Math.round(vp.width * 0.92),
+    ];
+    var ys = [];
+    for (var off = 8; off <= 250; off += 18) ys.push(Math.round(navTop - off));
+    for (var y = 0; y < ys.length; y++) {
+      if (ys[y] < 0 || ys[y] > vp.height) continue;
+      for (var x = 0; x < xs.length; x++) {
+        var el = document.elementFromPoint(xs[x], ys[y]);
+        var depth = 0;
+        while (el && el !== document.body && el !== document.documentElement && depth < 12) {
+          if (otlobliOwnsNode(el)) break;
+          var r = el.getBoundingClientRect();
+          if (r.width > vp.width * 0.42 && r.height >= 20 && r.height <= 240 && r.top < killBottom && r.bottom > killTop) {
+            var st = window.getComputedStyle(el);
+            var positioned = st.position === 'fixed' || st.position === 'sticky' || st.position === 'absolute';
+            var z = parseInt(st.zIndex, 10) || 0;
+            var interactive = otlobliInteractiveCount(el);
+            var wideBottomStrip = r.width > vp.width * 0.78 && r.height < 170 && r.bottom > navTop - 42;
+            if (positioned || z >= 2 || interactive >= 2 || wideBottomStrip) {
+              otlobliHideHard(el);
+              break;
+            }
+          }
+          el = el.parentElement;
+          depth++;
+        }
+      }
+    }
+  }
+
   // Deletes SHEIN's per-listing-card "quick add to cart" controls - both the
   // little cart icon sitting on each product thumbnail and the quick-add button
   // under the card - so a tap does nothing (the user explicitly asked for these
@@ -4069,10 +4145,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (!document.body) return;
     // صفحة تحقق «أنا إنسان» — تجميد كامل لكل تدخلاتنا حتى يكملها المستخدم.
     if (otlobliIsHumanChallenge()) { otlobliEnterChallengeMode(); return; }
-    ensureViewportFitCover();
-    if (IS_SHEIN) ensureSheinSaudiStore({ navigate: false });
-    ensureBackButton();
-    ensureOtlobliNav();
+    try { ensureViewportFitCover(); } catch (e) {}
+    if (IS_SHEIN) { try { ensureSheinSaudiStore({ navigate: false }); } catch (e) {} }
+    try { ensureBackButton(); } catch (e) {}
+    try { ensureOtlobliNav(); } catch (e) {}
+    if (IS_SHEIN) { try { hideSheinLegacyBottomChrome(); } catch (e) {} }
     // المتاجر غير شي إن (تيمو/ترينديول): تصفّح فقط - ننظّف العروض المنبثقة
     // المزعجة ولا نشغّل منطق الالتقاط/الحجب الخاص بشي إن (الذي قد يخرّب صفحاتهم).
     if (!IS_SHEIN) {
@@ -4099,18 +4176,19 @@ export const SHEIN_CAPTURE_SCRIPT = `
       try { killStorePopups(); } catch (e) {}
       return;
     }
-    ensureLoadingOverlay();
-    blockCartNavigation();
-    ensureAddToCartButton();
-    hideKnownHeaderIconsByHint();
-    hideSheinHeaderControls();
-    hideSheinChromeCollisionZones();
-    hideExtraHeaderIcons();
-    hideSheinCartIcons();
-    hideListingCardAddButtons();
-    hideForeignBottomNav();
-    hideStrayFixedBottomBars();
-    hideSheinAppInstallAndLoginPrompts();
+    try { ensureLoadingOverlay(); } catch (e) {}
+    try { blockCartNavigation(); } catch (e) {}
+    try { ensureAddToCartButton(); } catch (e) {}
+    try { hideSheinLegacyBottomChrome(); } catch (e) {}
+    try { hideKnownHeaderIconsByHint(); } catch (e) {}
+    try { hideSheinHeaderControls(); } catch (e) {}
+    try { hideSheinChromeCollisionZones(); } catch (e) {}
+    try { hideExtraHeaderIcons(); } catch (e) {}
+    try { hideSheinCartIcons(); } catch (e) {}
+    try { hideListingCardAddButtons(); } catch (e) {}
+    try { hideForeignBottomNav(); } catch (e) {}
+    try { hideStrayFixedBottomBars(); } catch (e) {}
+    try { hideSheinAppInstallAndLoginPrompts(); } catch (e) {}
   }
 
   // يكشف صفحة بحث تيمو الفارغة (الناتجة عن حجب الإعلانات الذي يمنع تحميل
@@ -4977,18 +5055,20 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // for the next general tick.
   setInterval(function () {
     if (!IS_SHEIN) return;
-    hideKnownHeaderIconsByHint();
-    hideSheinHeaderControls();
-    hideSheinChromeCollisionZones();
-    hideListingCardAddButtons();
+    try { hideSheinLegacyBottomChrome(); } catch (e) {}
+    try { hideKnownHeaderIconsByHint(); } catch (e) {}
+    try { hideSheinHeaderControls(); } catch (e) {}
+    try { hideSheinChromeCollisionZones(); } catch (e) {}
+    try { hideListingCardAddButtons(); } catch (e) {}
   }, 120);
   setInterval(function () {
-    ensureOtlobliNav();
+    try { ensureOtlobliNav(); } catch (e) {}
+    if (IS_SHEIN) { try { hideSheinLegacyBottomChrome(); } catch (e) {} }
     if (IS_TEMU) {
-      injectTemuHeaderHideCSS();
-      stabilizeTemuSearchChrome();
-      restoreTemuSearchChrome();
-      restoreTemuLogo();
+      try { injectTemuHeaderHideCSS(); } catch (e) {}
+      try { stabilizeTemuSearchChrome(); } catch (e) {}
+      try { restoreTemuSearchChrome(); } catch (e) {}
+      try { restoreTemuLogo(); } catch (e) {}
     }
   }, 120);
   // Own slower interval, not part of tick() - see checkForSheinSecurityBlock's
