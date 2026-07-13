@@ -3724,9 +3724,29 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function looksLikeNativeStoreBottomNav(el, rect, vp) {
     if (!el || !rect || rect.width < vp.width * 0.55) return false;
     if (rect.height <= 0 || rect.height > 170) return false;
-    if (rect.top < vp.height - 230 && rect.bottom < vp.height - 18) return false;
+    var navTop = vp.height - 86;
+    try {
+      var ownNav = document.getElementById('otlobli-nav');
+      var ownRect = ownNav ? ownNav.getBoundingClientRect() : null;
+      if (ownRect && ownRect.top > 0) navTop = ownRect.top;
+    } catch (e) {}
+    var nearViewportBottom = rect.bottom >= vp.height - 28 && rect.top >= vp.height - 225;
+    var directlyAboveOtlobliNav = rect.bottom >= navTop - 20 && rect.top >= navTop - 175;
+    if (!nearViewportBottom && !directlyAboveOtlobliNav) return false;
     var text = '';
     try { text = (el.innerText || el.textContent || '').replace(/\\s+/g, ' ').trim(); } catch (e) {}
+    var sheinBottomTextHits = 0;
+    var sheinBottomText = [
+      /أنا|انا|me|account|profile/i,
+      /حقيبة التسوق|السلة|cart|bag|basket/i,
+      /ترندات|trends|trending/i,
+      /الفئات|الأقسام|الاقسام|category|categories/i,
+      /متجر|shop|store/i,
+    ];
+    for (var st = 0; st < sheinBottomText.length; st++) {
+      if (sheinBottomText[st].test(text)) sheinBottomTextHits++;
+    }
+    if (sheinBottomTextHits >= 2) return true;
     var buttonCount = 0;
     try { buttonCount = el.querySelectorAll('a,button,[role="button"],[role="tab"],svg,img').length; } catch (e) {}
     var keywordHits = 0;
@@ -3740,20 +3760,61 @@ export const SHEIN_CAPTURE_SCRIPT = `
     for (var k = 0; k < keywords.length; k++) {
       if (keywords[k].test(text)) keywordHits++;
     }
-    return keywordHits >= 2 || buttonCount >= 4;
+    var href = '';
+    try {
+      href = Array.prototype.map.call(el.querySelectorAll('a[href]'), function (a) {
+        return a.getAttribute('href') || '';
+      }).join(' ');
+    } catch (e2) {}
+    var hrefHits = 0;
+    if (/cart|bag|basket/i.test(href)) hrefHits++;
+    if (/cat|category|cate/i.test(href)) hrefHits++;
+    if (/user|account|profile|member|me/i.test(href)) hrefHits++;
+    if (/trend|store|shop|home|index/i.test(href)) hrefHits++;
+    return keywordHits >= 2 || hrefHits >= 2 || (buttonCount >= 4 && (keywordHits >= 1 || hrefHits >= 1));
   }
 
   function hideForeignBottomNav() {
     var vp = viewportSize();
-    var candidates = document.querySelectorAll(
-      'nav, footer, [class*="tab-bar" i], [class*="tabbar" i], [class*="bottom-nav" i], ' +
-      '[class*="footer-nav" i], [class*="nav-bar" i], [class*="navbar" i], ' +
-      '[class*="add-to-bag" i], [class*="addtobag" i], [class*="addtocart" i], ' +
-      '[class*="action-bar" i], [class*="fixed-bottom" i], [class*="sticky-bottom" i], ' +
-      '[class*="bottom-bar" i], [class*="buy-bar" i]'
-    );
-    for (var i = 0; i < candidates.length; i++) {
-      var el = candidates[i];
+    var candidates;
+    try {
+      candidates = document.querySelectorAll(
+        'nav, footer, [role="navigation"], [role="tablist"], [class*="tab-bar" i], [class*="tabbar" i], [class*="bottom-nav" i], ' +
+        '[class*="footer-nav" i], [class*="nav-bar" i], [class*="navbar" i], ' +
+        '[class*="add-to-bag" i], [class*="addtobag" i], [class*="addtocart" i], ' +
+        '[class*="action-bar" i], [class*="fixed-bottom" i], [class*="sticky-bottom" i], ' +
+        '[class*="bottom-bar" i], [class*="buy-bar" i]'
+      );
+    } catch (e) {
+      candidates = document.querySelectorAll('nav, footer, [role="navigation"], [role="tablist"]');
+    }
+    var candidateList = [];
+    for (var ci = 0; ci < candidates.length; ci++) candidateList.push(candidates[ci]);
+    var ownNav = document.getElementById('otlobli-nav');
+    var navTop = vp.height - 86;
+    try {
+      var ownRect = ownNav ? ownNav.getBoundingClientRect() : null;
+      if (ownRect && ownRect.top > 0) navTop = ownRect.top;
+    } catch (e) {}
+    var probeXs = [Math.round(vp.width * 0.12), Math.round(vp.width * 0.32), Math.round(vp.width * 0.5), Math.round(vp.width * 0.68), Math.round(vp.width * 0.88)];
+    var probeYs = [Math.round(vp.height - 24), Math.round(navTop - 16), Math.round(navTop - 48), Math.round(navTop - 78)];
+    for (var py = 0; py < probeYs.length; py++) {
+      if (probeYs[py] < 0 || probeYs[py] > vp.height) continue;
+      for (var px = 0; px < probeXs.length; px++) {
+        var hit = document.elementFromPoint(probeXs[px], probeYs[py]);
+        var depth = 0;
+        while (hit && hit !== document.body && hit !== document.documentElement && depth < 8) {
+          candidateList.push(hit);
+          hit = hit.parentElement;
+          depth++;
+        }
+      }
+    }
+    var seen = [];
+    for (var i = 0; i < candidateList.length; i++) {
+      var el = candidateList[i];
+      if (!el || seen.indexOf(el) !== -1) continue;
+      seen.push(el);
       if (el.id && el.id.indexOf('otlobli') === 0) continue;
       var style = window.getComputedStyle(el);
       var rect = el.getBoundingClientRect();
@@ -3767,6 +3828,72 @@ export const SHEIN_CAPTURE_SCRIPT = `
       el.style.setProperty('visibility', 'hidden', 'important');
       el.style.setProperty('pointer-events', 'none', 'important');
       el.setAttribute('data-otlobli-hidden-store-bottom', '1');
+    }
+  }
+
+  var __otlobliHeroTabsLastFix = 0;
+  function stabilizeSheinHeroTabs() {
+    if (!IS_SHEIN || !document.body) return;
+    var vp = viewportSize();
+    if (vp.width > 400) return;
+    var now = Date.now();
+    if (now - __otlobliHeroTabsLastFix < 700) return;
+    __otlobliHeroTabsLastFix = now;
+    var nodes;
+    try {
+      nodes = document.querySelectorAll('header nav, nav, [role="tablist"], [class*="tab" i], [class*="channel" i], [class*="gender" i], [class*="category" i], header div');
+    } catch (e) {
+      nodes = document.querySelectorAll('header nav, nav, [role="tablist"], header div');
+    }
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      if (!el || el.id && el.id.indexOf('otlobli') === 0) continue;
+      var rect = el.getBoundingClientRect();
+      if (rect.width < vp.width * 0.45 || rect.height < 16 || rect.height > 96) continue;
+      if (rect.top < 44 || rect.top > 245) continue;
+      var text = '';
+      try { text = (el.innerText || el.textContent || '').replace(/\\s+/g, ' ').trim(); } catch (e2) {}
+      var hitCount = 0;
+      var tabWords = [
+        /(^|\\s)كل($|\\s)|all/i,
+        /نساء|women/i,
+        /رجال|men/i,
+        /أطفال|اطفال|kids|children/i,
+        /أحجام كبيرة|احجام كبيرة|مقاسات كبيرة|curve|plus/i,
+      ];
+      for (var tw = 0; tw < tabWords.length; tw++) {
+        if (tabWords[tw].test(text)) hitCount++;
+      }
+      if (hitCount < 2) continue;
+      el.setAttribute('data-otlobli-hero-tabs-fixed', '1');
+      el.style.setProperty('box-sizing', 'border-box', 'important');
+      el.style.setProperty('width', '100%', 'important');
+      el.style.setProperty('max-width', '100vw', 'important');
+      el.style.setProperty('min-width', '0', 'important');
+      el.style.setProperty('display', 'flex', 'important');
+      el.style.setProperty('flex-wrap', 'nowrap', 'important');
+      el.style.setProperty('align-items', 'center', 'important');
+      el.style.setProperty('justify-content', 'space-around', 'important');
+      el.style.setProperty('gap', '0', 'important');
+      el.style.setProperty('overflow-x', 'auto', 'important');
+      el.style.setProperty('overflow-y', 'visible', 'important');
+      el.style.setProperty('-webkit-overflow-scrolling', 'touch', 'important');
+      try { el.scrollLeft = 0; } catch (e3) {}
+      var children = el.children || [];
+      for (var c = 0; c < children.length; c++) {
+        var child = children[c];
+        var childText = '';
+        try { childText = (child.innerText || child.textContent || '').replace(/\\s+/g, ' ').trim(); } catch (e4) {}
+        if (!/(كل|نساء|رجال|أطفال|اطفال|أحجام|احجام|مقاسات|all|women|men|kids|children|curve|plus)/i.test(childText)) continue;
+        child.style.setProperty('flex', '0 1 auto', 'important');
+        child.style.setProperty('min-width', '0', 'important');
+        child.style.setProperty('max-width', '24vw', 'important');
+        child.style.setProperty('white-space', 'nowrap', 'important');
+        child.style.setProperty('font-size', '14px', 'important');
+        child.style.setProperty('padding-left', '4px', 'important');
+        child.style.setProperty('padding-right', '4px', 'important');
+      }
+      break;
     }
   }
 
@@ -4024,17 +4151,18 @@ export const SHEIN_CAPTURE_SCRIPT = `
       try { killStorePopups(); } catch (e) {}
       return;
     }
-    ensureLoadingOverlay();
-    blockCartNavigation();
-    ensureAddToCartButton();
-    hideKnownHeaderIconsByHint();
-    hideSheinHeaderControls();
-    hideExtraHeaderIcons();
-    hideSheinCartIcons();
-    hideListingCardAddButtons();
-    hideForeignBottomNav();
-    hideStrayFixedBottomBars();
-    hideSheinAppInstallAndLoginPrompts();
+    try { ensureLoadingOverlay(); } catch (e) {}
+    try { blockCartNavigation(); } catch (e) {}
+    try { ensureAddToCartButton(); } catch (e) {}
+    try { stabilizeSheinHeroTabs(); } catch (e) {}
+    try { hideKnownHeaderIconsByHint(); } catch (e) {}
+    try { hideSheinHeaderControls(); } catch (e) {}
+    try { hideExtraHeaderIcons(); } catch (e) {}
+    try { hideSheinCartIcons(); } catch (e) {}
+    try { hideListingCardAddButtons(); } catch (e) {}
+    try { hideForeignBottomNav(); } catch (e) {}
+    try { hideStrayFixedBottomBars(); } catch (e) {}
+    try { hideSheinAppInstallAndLoginPrompts(); } catch (e) {}
   }
 
   // يكشف صفحة بحث تيمو الفارغة (الناتجة عن حجب الإعلانات الذي يمنع تحميل
@@ -4901,9 +5029,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // for the next general tick.
   setInterval(function () {
     if (!IS_SHEIN) return;
-    hideKnownHeaderIconsByHint();
-    hideSheinHeaderControls();
-    hideListingCardAddButtons();
+    try { stabilizeSheinHeroTabs(); } catch (e) {}
+    try { hideKnownHeaderIconsByHint(); } catch (e) {}
+    try { hideSheinHeaderControls(); } catch (e) {}
+    try { hideListingCardAddButtons(); } catch (e) {}
+    try { hideForeignBottomNav(); } catch (e) {}
   }, 120);
   setInterval(function () {
     ensureOtlobliNav();
