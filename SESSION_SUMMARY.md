@@ -35,7 +35,7 @@ Read:
 
 ## Latest Stable Release
 
-- Latest feature commit: `47e51fc` (`fix: v71 handle ios webkit shein failures`)
+- Latest feature commit: `83c0562` (`fix: v72 relax vpn gate and auto-fix shein region`)
 - Customer deployed to `https://talabieh.vercel.app`
 - Admin deployed to `https://talabieh-admin.vercel.app`
 - Supabase migration `20260712033000_shared_order_ownership.sql` applied.
@@ -51,7 +51,10 @@ Read:
 - v71 iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v71.ipa`
 - v71 IPA SHA-256: `6A68B89F6CFBD9DF40D94795693A61A0AFE24A2EA9CCC91272D0E1B2ED19E6A6`
 - v71 GitHub Actions run: `29277541189`
-- No new Android build was requested for v71.
+- v72 iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v72.ipa`
+- v72 IPA SHA-256: `4D57D8D98E12F52743B905C15D5469E850D8FE2EF19EB2703F60439A40D12933`
+- v72 GitHub Actions run: `29278990511`
+- No new Android build was requested for v72.
 
 ## v66 Implemented
 
@@ -71,6 +74,8 @@ Read:
 
 ## Still Open
 
+- v72 VPN permissive gate is pushed and built.
+- v72 change: non-Syria/unknown VPNs are allowed through even if store/geo probes fail; SHEIN auto-fixes visible foreign shipping regions back to Saudi/USD before falling back to manual guard.
 - v71 iOS WebKit guard is pushed and built.
 - v71 change: iOS `pageLoadError` now includes WebKit details; SHEIN `-1005` / WebContent termination closes the stuck native WebView and shows retry instead of a white screen/app exit.
 - v70 Android debug fix is local, built, and installed on the emulator.
@@ -108,6 +113,11 @@ Read:
 - `npm run build` passed.
 - Patch-package patch applies cleanly to a clean `@capgo/capacitor-inappbrowser@8.6.25` package.
 - GitHub iOS unsigned build run `29277541189` passed and produced `otlobli-v71.ipa`.
+
+## Validation After v72 VPN Permissive Gate
+
+- `npm run build` passed.
+- GitHub iOS unsigned build run `29278990511` passed and produced `otlobli-v72.ipa`.
 
 ## Guidance For Claude New Account
 

@@ -21,7 +21,7 @@ Rules:
 ## Important Context
 
 - Active branch: `codex/customer-wallet-group-orders`
-- Latest feature commit: `47e51fc` (`fix: v71 handle ios webkit shein failures`)
+- Latest feature commit: `83c0562` (`fix: v72 relax vpn gate and auto-fix shein region`)
 - Claude old account may have worked after Codex. Always inspect current git state before editing.
 - Claude new account may not have the same skills/connectors authenticated. Check available skills/tools, especially Figma.
 
@@ -41,6 +41,9 @@ Rules:
 - Desktop v71 iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v71.ipa`
 - v71 IPA SHA-256: `6A68B89F6CFBD9DF40D94795693A61A0AFE24A2EA9CCC91272D0E1B2ED19E6A6`
 - v71 GitHub Actions run: `29277541189`
+- Desktop v72 iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v72.ipa`
+- v72 IPA SHA-256: `4D57D8D98E12F52743B905C15D5469E850D8FE2EF19EB2703F60439A40D12933`
+- v72 GitHub Actions run: `29278990511`
 
 ## Main Files
 
@@ -69,11 +72,18 @@ Rules:
 
 ## Current Highest Priority
 
+v72 iPhone build is ready:
+
+- `src/App.tsx` now uses a permissive VPN gate: if geo/store probes fail on a VPN, it still opens the store unless the exit country is explicitly blocked (`SY`) or the device reports offline.
+- `checkStoreReachable` now waits for all image probes and accepts any successful one instead of letting the first failed probe decide.
+- `src/services/sheinBrowserScript.ts` now auto-clears foreign SHEIN region state and reloads normalized Saudi/USD URL up to two times if the page visibly opens on another shipping country such as Qatar.
+- `src/config.ts` version: `2026.07.13-vpn-permissive-v72`.
+- v72 iPhone unsigned IPA was built by GitHub Actions run `29278990511` and copied to the desktop.
+
 v71 iPhone build is ready:
 
 - `src/App.tsx` treats detailed iOS SHEIN WebKit failures (`code=-1005`, WebContent termination, and early no-network/timeouts) as fatal for that native WebView instance, closes it, pauses auto-open, and shows retry instead of leaving a white screen/app exit.
 - `patches/@capgo+capacitor-inappbrowser+8.6.25.patch` now makes iOS `pageLoadError` include `phase`, `code`, `domain`, `description`, and failing URL, and emits on `webViewWebContentProcessDidTerminate`.
-- `src/config.ts` version: `2026.07.13-ios-webkit-guard-v71`.
 - v71 iPhone unsigned IPA was built by GitHub Actions run `29277541189` and copied to the desktop.
 - The patch file intentionally keeps `OTLOBLI_RELAY_KEY_PLACEHOLDER`; `scripts/inject-relay-key.cjs` injects the local/CI secret after `patch-package`.
 
@@ -96,7 +106,8 @@ v69 fix is pushed and the iPhone IPA is built:
 Still verify on a real device:
 
 - SHEIN fresh open -> Temu -> SHEIN, with VPN set to Qatar; shipping must stay Saudi.
-- SHEIN black security verification should stay visible with otlobli bottom nav and should not close the app after two seconds. If iOS WebKit returns `-1005` or kills WebContent, v71 should keep the app open and show retry.
+- SHEIN black security verification should stay visible with otlobli bottom nav and should not close the app after two seconds. If iOS WebKit returns `-1005` or kills WebContent, v72 should keep the app open and show retry.
+- Try several VPN countries; the app should not show the old "bad region" gate for non-Syria VPNs merely because probes fail.
 - Temu should land on Saudi region and USD, keep product/back navigation stable, and keep prices visible while scrolling.
 - Do not bypass captcha/security pages. The goal is to avoid breaking them and avoid app exit/white-screen loops.
 
@@ -125,6 +136,11 @@ Passed after v71 iOS WebKit guard:
 - Root `npm run build`
 - `patches/@capgo+capacitor-inappbrowser+8.6.25.patch` applies cleanly to a clean `@capgo/capacitor-inappbrowser@8.6.25` package.
 - GitHub iOS unsigned build run `29277541189` passed and produced `otlobli-v71.ipa`.
+
+Passed after v72 VPN permissive gate:
+
+- Root `npm run build`
+- GitHub iOS unsigned build run `29278990511` passed and produced `otlobli-v72.ipa`.
 
 Known gap:
 
