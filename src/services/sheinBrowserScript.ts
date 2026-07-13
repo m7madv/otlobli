@@ -4017,6 +4017,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         try { restoreTemuLogo(); } catch (e) {}
         try { ensureAddToCartButton(); } catch (e) {}
         try { dismissTemuLoginPopup(); } catch (e) {}
+        try { hideTemuSpinWheelPopup(); } catch (e) {}
         try { detectEmptyTemuSearch(); } catch (e) {}
         return;
       }
@@ -4033,6 +4034,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     hideListingCardAddButtons();
     hideForeignBottomNav();
     hideStrayFixedBottomBars();
+    hideSheinAppInstallAndLoginPrompts();
   }
 
   // يكشف صفحة بحث تيمو الفارغة (الناتجة عن حجب الإعلانات الذي يمنع تحميل
@@ -4746,6 +4748,98 @@ export const SHEIN_CAPTURE_SCRIPT = `
       target.setAttribute('data-otlobli-blocked', '1');
       target.style.setProperty('display', 'none', 'important');
     }
+  }
+
+  function hideSheinAppInstallAndLoginPrompts() {
+    if (!IS_SHEIN) return;
+    var vp = viewportSize();
+    var APP_RE = /(get\\s*(the\\s*)?app|open\\s*in\\s*(the\\s*)?app|download\\s*(the\\s*)?app|install\\s*(the\\s*)?app|app\\s*exclusive|\\u0627\\u062d\\u0635\\u0644|\\u062a\\u0637\\u0628\\u064a\\u0642|\\u062a\\u0646\\u0632\\u064a\\u0644)/i;
+    var LOGIN_RE = /(sign\\s*in|log\\s*in|login|continue\\s*with|create\\s*account|\\u062a\\u0633\\u062c\\u064a\\u0644\\s*\\u0627\\u0644\\u062f\\u062e\\u0648\\u0644|\\u0633\\u062c\\u0644\\s*\\u0627\\u0644\\u062f\\u062e\\u0648\\u0644|\\u062a\\u0627\\u0628\\u0639\\s*\\u0628\\u0648\\u0627\\u0633\\u0637\\u0629|\\u0623\\u0646\\u0634\\u0626\\s*\\u062d\\u0633\\u0627\\u0628)/i;
+    var nodes = document.querySelectorAll('div, section, aside, header, a, [role="banner"], [role="dialog"], [class*="app" i], [class*="login" i], [class*="signin" i]');
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      if (!el || el === document.body || el === document.documentElement) continue;
+      if (el.id && el.id.indexOf('otlobli') === 0) continue;
+      if (el.getAttribute && el.getAttribute('data-otlobli-blocked')) continue;
+      var txt = (el.textContent || '').replace(/\\s+/g, ' ').trim();
+      var hint = ((el.className || '') + ' ' + (el.id || '') + ' ' + txt).toString();
+      if (!txt && !/app|login|signin/i.test(hint)) continue;
+      if (txt.length > 520) continue;
+      var r = el.getBoundingClientRect();
+      if (!r || r.width < 40 || r.height < 24) continue;
+      var cs = window.getComputedStyle(el);
+      var isTopAppBanner = r.top > -20 && r.top < 190 && r.width > vp.width * 0.55 && r.height < 180 && APP_RE.test(hint);
+      var isLoginPrompt = LOGIN_RE.test(hint)
+        && (cs.position === 'fixed' || cs.position === 'absolute' || cs.position === 'sticky' || r.width > vp.width * 0.55)
+        && r.width > vp.width * 0.38 && r.height > 45 && r.height < vp.height * 0.75;
+      if (!isTopAppBanner && !isLoginPrompt) continue;
+      if (el.querySelector && el.querySelector('input[type="search"], textarea')) continue;
+      if (isLoginPrompt) {
+        var close = el.querySelector && el.querySelector('[aria-label*="close" i], [aria-label*="\\u0625\\u063a\\u0644\\u0627\\u0642"], button[class*="close" i], [class*="close" i]');
+        if (close && close.click) { try { close.click(); } catch (e) {} }
+      }
+      var target = el;
+      var up = el.parentElement;
+      var hops = 0;
+      while (up && up !== document.body && up !== document.documentElement && hops < 3) {
+        var ur = up.getBoundingClientRect();
+        var ucs = window.getComputedStyle(up);
+        var ut = (up.textContent || '').replace(/\\s+/g, ' ').trim();
+        if (ut.length > 650) break;
+        if (isTopAppBanner && ur.top > -25 && ur.top < 190 && ur.width > vp.width * 0.65 && ur.height < 190) target = up;
+        if (isLoginPrompt && (ucs.position === 'fixed' || ucs.position === 'absolute') && ur.width > vp.width * 0.45 && ur.height < vp.height * 0.8) target = up;
+        up = up.parentElement;
+        hops++;
+      }
+      target.setAttribute('data-otlobli-blocked', '1');
+      target.style.setProperty('display', 'none', 'important');
+      target.style.setProperty('visibility', 'hidden', 'important');
+      target.style.setProperty('pointer-events', 'none', 'important');
+    }
+    if (document.body) document.body.style.overflow = '';
+    if (document.documentElement) document.documentElement.style.overflow = '';
+  }
+
+  function hideTemuSpinWheelPopup() {
+    if (!IS_TEMU) return;
+    var vp = viewportSize();
+    var WHEEL_RE = /(spin|wheel|reward|claim|coupon|lucky|chance|prize|free\\s*gift|congratulations|SAR\\s*\\d|\\u062d\\u0631\\u0651?\\u0643|\\u0641\\u0631\\u0635\\u0629|\\u062c\\u0631\\u0628|\\u062a\\u062d\\u0635\\u0644|\\u062c\\u0627\\u0626\\u0632\\u0629|\\u0645\\u062c\\u0627\\u0646\\u064a|\\u062e\\u0635\\u0645)/i;
+    var nodes = document.querySelectorAll('div, section, aside, [role="dialog"], [class*="popup" i], [class*="modal" i], [class*="wheel" i], [class*="spin" i]');
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      if (!el || el === document.body || el === document.documentElement) continue;
+      if (el.id && el.id.indexOf('otlobli') === 0) continue;
+      if (el.getAttribute && el.getAttribute('data-otlobli-blocked')) continue;
+      var r = el.getBoundingClientRect();
+      if (!r || r.width < vp.width * 0.45 || r.height < vp.height * 0.16) continue;
+      var cs = window.getComputedStyle(el);
+      var positioned = cs.position === 'fixed' || cs.position === 'absolute' || cs.position === 'sticky';
+      var z = parseInt(cs.zIndex, 10) || 0;
+      if (!positioned && z < 20) continue;
+      var txt = (el.textContent || '').replace(/\\s+/g, ' ').trim();
+      var hint = ((el.className || '') + ' ' + (el.id || '') + ' ' + txt).toString();
+      if (txt.length > 900) continue;
+      if (!WHEEL_RE.test(hint)) continue;
+      if (el.querySelector && el.querySelector('input:not([type="hidden"]), textarea')) continue;
+      var target = el;
+      var up = el.parentElement;
+      var hops = 0;
+      while (up && up !== document.body && up !== document.documentElement && hops < 3) {
+        var ur = up.getBoundingClientRect();
+        var ucs = window.getComputedStyle(up);
+        var ut = (up.textContent || '').replace(/\\s+/g, ' ').trim();
+        if (ut.length > 1100) break;
+        if ((ucs.position === 'fixed' || ucs.position === 'absolute') && ur.width > vp.width * 0.55 && ur.height > vp.height * 0.22 && ur.height < vp.height * 0.95) target = up;
+        up = up.parentElement;
+        hops++;
+      }
+      target.setAttribute('data-otlobli-blocked', '1');
+      target.style.setProperty('display', 'none', 'important');
+      target.style.setProperty('visibility', 'hidden', 'important');
+      target.style.setProperty('pointer-events', 'none', 'important');
+    }
+    if (document.body) document.body.style.overflow = '';
+    if (document.documentElement) document.documentElement.style.overflow = '';
   }
 
 

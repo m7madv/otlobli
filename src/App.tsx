@@ -2186,6 +2186,7 @@ function App() {
   const forceStoreVpnRecheck = () => {
     if (screenRef.current !== 'home') return
     if (selectedStoreRef.current !== 'shein') return
+    if (sheinOpenedRef.current && sheinReadyRef.current) return
     const now = Date.now()
     if (now - lastResumeVpnRecheckRef.current < 1200) return
     lastResumeVpnRecheckRef.current = now
