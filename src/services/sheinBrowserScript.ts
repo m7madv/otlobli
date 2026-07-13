@@ -3075,11 +3075,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function ensureOtlobliNav() {
     var navCss = 'position:fixed!important;left:50%!important;right:auto!important;bottom:-10px!important;top:auto!important;' +
       'transform:translate3d(-50%,0,0)!important;will-change:transform!important;' +
+      'width:100%!important;max-width:440px!important;height:90px!important;max-height:90px!important;' +
       'width:min(100vw, 440px)!important;height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;' +
       'max-height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;z-index:2147483647!important;' +
       'display:flex!important;direction:rtl!important;overflow:hidden!important;box-sizing:border-box!important;' +
       'background:rgba(255,255,255,.98)!important;border-top:1px solid #bccac0!important;' +
-      'padding:0 0 max(env(safe-area-inset-bottom, 0px), 16px) 0!important;margin:0!important;' +
+      'padding:0 0 16px 0!important;padding:0 0 max(env(safe-area-inset-bottom, 0px), 16px) 0!important;margin:0!important;' +
       // 12px يطابق خط شريط otlobli الحقيقي (0.76rem ≈ 12.2px) — كان 11px
       // فيبدو الشريطان مختلفين عند التنقل بين المتجر وبقية الشاشات.
       'font-size:12px!important;line-height:1.15!important;opacity:1!important;visibility:visible!important;pointer-events:auto!important;';
@@ -3721,12 +3722,99 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // a user screenshot showed the action bar peeking out from behind
   // otlobli's own floating buttons. Find and remove any of these outright
   // instead of just hoping otlobli's own overlays paint above them.
+  var __otlobliBottomNavDebugCount = 0;
+  var __otlobliBottomNavDeepScanAt = 0;
+
+  function getElementText(el) {
+    try { return (el.innerText || el.textContent || '').replace(/\\s+/g, ' ').trim(); } catch (e) {}
+    return '';
+  }
+
+  function sheinBottomTabScore(text) {
+    if (!text) return 0;
+    var score = 0;
+    var patterns = [
+      /أنا|انا|me|account|profile/i,
+      /حقيبة التسوق|السلة|cart|bag|basket/i,
+      /ترندات|trends|trending/i,
+      /الفئات|الأقسام|الاقسام|categor/i,
+      /متجر|shop|store/i,
+    ];
+    for (var i = 0; i < patterns.length; i++) {
+      if (patterns[i].test(text)) score++;
+    }
+    return score;
+  }
+
+  function bottomBarGeometryOk(rect, vp) {
+    if (!rect || !vp) return false;
+    if (rect.width < vp.width * 0.55) return false;
+    if (rect.height <= 0 || rect.height > 190) return false;
+    return rect.bottom >= vp.height - 28 || rect.top >= vp.height - 180;
+  }
+
+  function hideStoreBottomElement(el, reason, score, rect) {
+    if (!el || el === document.body || el === document.documentElement) return false;
+    if (el.id && el.id.indexOf('otlobli') === 0) return false;
+    try {
+      if (el.querySelector && el.querySelector('#otlobli-nav')) return false;
+    } catch (e) {}
+    el.style.setProperty('display', 'none', 'important');
+    el.style.setProperty('visibility', 'hidden', 'important');
+    el.style.setProperty('pointer-events', 'none', 'important');
+    el.setAttribute('data-otlobli-hidden-store-bottom', reason || 'bottom-nav');
+    if (__otlobliBottomNavDebugCount < 4) {
+      __otlobliBottomNavDebugCount++;
+      try {
+        var payload = {
+          type: 'bottomNavHidden',
+          reason: reason || '',
+          score: score || 0,
+          tag: el.tagName || '',
+          id: el.id || '',
+          cls: (el.className && typeof el.className === 'string') ? el.className.slice(0, 120) : '',
+          text: getElementText(el).slice(0, 180),
+          top: rect ? Math.round(rect.top) : 0,
+          bottom: rect ? Math.round(rect.bottom) : 0,
+          height: rect ? Math.round(rect.height) : 0,
+        };
+        if (window.console && console.log) console.log('[otlobli] hid store bottom nav ' + JSON.stringify(payload));
+        if (window.mobileApp && window.mobileApp.postMessage) {
+          window.mobileApp.postMessage({ detail: { type: 'debugBottomNav', payload: payload } });
+        }
+      } catch (e2) {}
+    }
+    return true;
+  }
+
+  function findBottomNavRootFrom(el, vp) {
+    var cur = el;
+    var depth = 0;
+    var best = null;
+    while (cur && cur !== document.body && cur !== document.documentElement && depth < 10) {
+      if (cur.id && cur.id.indexOf('otlobli') === 0) break;
+      var rect = cur.getBoundingClientRect();
+      if (bottomBarGeometryOk(rect, vp)) {
+        var text = getElementText(cur);
+        var score = sheinBottomTabScore(text);
+        var controls = 0;
+        try { controls = cur.querySelectorAll('a,button,[role="button"],[role="tab"],svg,img').length; } catch (e) {}
+        if (score >= 2 || (score >= 1 && controls >= 4)) {
+          best = { el: cur, rect: rect, score: score };
+        }
+      }
+      cur = cur.parentElement;
+      depth++;
+    }
+    return best;
+  }
+
   function looksLikeNativeStoreBottomNav(el, rect, vp) {
     if (!el || !rect || rect.width < vp.width * 0.55) return false;
     if (rect.height <= 0 || rect.height > 170) return false;
     if (rect.top < vp.height - 230 && rect.bottom < vp.height - 18) return false;
-    var text = '';
-    try { text = (el.innerText || el.textContent || '').replace(/\\s+/g, ' ').trim(); } catch (e) {}
+    var text = getElementText(el);
+    if (sheinBottomTabScore(text) >= 2) return true;
     var buttonCount = 0;
     try { buttonCount = el.querySelectorAll('a,button,[role="button"],[role="tab"],svg,img').length; } catch (e) {}
     var keywordHits = 0;
@@ -3745,13 +3833,18 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function hideForeignBottomNav() {
     var vp = viewportSize();
-    var candidates = document.querySelectorAll(
-      'nav, footer, [class*="tab-bar" i], [class*="tabbar" i], [class*="bottom-nav" i], ' +
-      '[class*="footer-nav" i], [class*="nav-bar" i], [class*="navbar" i], ' +
-      '[class*="add-to-bag" i], [class*="addtobag" i], [class*="addtocart" i], ' +
-      '[class*="action-bar" i], [class*="fixed-bottom" i], [class*="sticky-bottom" i], ' +
-      '[class*="bottom-bar" i], [class*="buy-bar" i]'
-    );
+    var candidates;
+    try {
+      candidates = document.querySelectorAll(
+        'nav, footer, [class*="tab-bar" i], [class*="tabbar" i], [class*="bottom-nav" i], ' +
+        '[class*="footer-nav" i], [class*="nav-bar" i], [class*="navbar" i], ' +
+        '[class*="add-to-bag" i], [class*="addtobag" i], [class*="addtocart" i], ' +
+        '[class*="action-bar" i], [class*="fixed-bottom" i], [class*="sticky-bottom" i], ' +
+        '[class*="bottom-bar" i], [class*="buy-bar" i]'
+      );
+    } catch (e) {
+      candidates = document.querySelectorAll('nav, footer, [role="navigation"], [role="tablist"], div, section, ul');
+    }
     for (var i = 0; i < candidates.length; i++) {
       var el = candidates[i];
       if (el.id && el.id.indexOf('otlobli') === 0) continue;
@@ -3763,10 +3856,32 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (rect.width < vp.width * 0.5) continue;
       if (rect.height <= 0 || rect.height > 190) continue;
       if (rect.bottom < vp.height - 220 && !looksLikeBottomNav) continue;
-      el.style.setProperty('display', 'none', 'important');
-      el.style.setProperty('visibility', 'hidden', 'important');
-      el.style.setProperty('pointer-events', 'none', 'important');
-      el.setAttribute('data-otlobli-hidden-store-bottom', '1');
+      hideStoreBottomElement(el, looksLikeBottomNav ? 'selector-bottom-nav' : 'selector-fixed-bottom', sheinBottomTabScore(getElementText(el)), rect);
+    }
+
+    var probeXs = [Math.round(vp.width * 0.12), Math.round(vp.width * 0.32), Math.round(vp.width * 0.5), Math.round(vp.width * 0.68), Math.round(vp.width * 0.88)];
+    var probeYs = [Math.round(vp.height - 18), Math.round(vp.height - 46), Math.round(vp.height - 78), Math.round(vp.height - 110)];
+    for (var py = 0; py < probeYs.length; py++) {
+      for (var px = 0; px < probeXs.length; px++) {
+        var hit = document.elementFromPoint(probeXs[px], probeYs[py]);
+        var match = findBottomNavRootFrom(hit, vp);
+        if (match) hideStoreBottomElement(match.el, 'point-probe-bottom-tabs', match.score, match.rect);
+      }
+    }
+
+    var now = Date.now();
+    if (now - __otlobliBottomNavDeepScanAt > 900) {
+      __otlobliBottomNavDeepScanAt = now;
+      var all;
+      try { all = document.querySelectorAll('nav, footer, [role="navigation"], [role="tablist"], div, section, ul'); } catch (e2) { all = []; }
+      for (var a = 0; a < all.length; a++) {
+        var node = all[a];
+        if (!node || (node.id && node.id.indexOf('otlobli') === 0)) continue;
+        var nodeRect = node.getBoundingClientRect();
+        if (!bottomBarGeometryOk(nodeRect, vp)) continue;
+        var nodeScore = sheinBottomTabScore(getElementText(node));
+        if (nodeScore >= 3) hideStoreBottomElement(node, 'deep-scan-bottom-tabs', nodeScore, nodeRect);
+      }
     }
   }
 
