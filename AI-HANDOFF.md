@@ -21,7 +21,7 @@ Rules:
 ## Important Context
 
 - Active branch: `codex/customer-wallet-group-orders`
-- Latest feature commit: `0ad1425` (`fix: v83 rollback unstable SHEIN legacy changes`)
+- Latest feature commit: `65f7e64` (`fix: v84 hide SHEIN bottom nav by hit test`)
 - Claude old account may have worked after Codex. Always inspect current git state before editing.
 - Claude new account may not have the same skills/connectors authenticated. Check available skills/tools, especially Figma.
 
@@ -77,6 +77,9 @@ Rules:
 - Desktop v83 iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v83.ipa`
 - v83 IPA SHA-256: `8504DF389BAF1303C0F5BAAC89F1BDFCA8796C746848E9ED240FA56F48C3DB9C`
 - v83 GitHub Actions run: `29291593555`
+- Desktop v84 iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v84.ipa`
+- v84 IPA SHA-256: `8065DF95F2F44272C0D74BEB6A389EA86B9D3947A64014486AF21240739AA872`
+- v84 GitHub Actions run: `29292808196`
 
 ## Main Files
 
@@ -105,7 +108,17 @@ Rules:
 
 ## Current Highest Priority
 
-v83 iPhone build is ready:
+v84 iPhone build is ready:
+
+- This keeps the v83/v80 layout and does not change the SHEIN viewport.
+- `src/services/sheinBrowserScript.ts` now adds old-WebKit-safe fallback width/height/padding for otlobli's injected nav before modern `min()/max()/env()` declarations.
+- SHEIN's native bottom tab bar is hidden by bottom-of-screen hit testing and exact nav-text scoring (`أنا`, `حقيبة التسوق`, `ترندات`, `الفئات`, `متجر`) instead of broad CSS or viewport changes.
+- The script logs a small `[otlobli] hid store bottom nav ...` payload for the first few hides to aid diagnostics.
+- `src/config.ts` version: `2026.07.14-shein-bottom-hit-test-v84`.
+- v84 iPhone unsigned IPA was built by GitHub Actions run `29292808196` and copied to the desktop.
+- Do not repeat the failed v82 viewport/shield approach.
+
+v83 iPhone build remains available:
 
 - This is a clean rollback of the unstable v81/v82 SHEIN script work.
 - `src/services/sheinBrowserScript.ts` is back to the v80/v77-style SHEIN UI behavior that looked good on iPhone 16 Pro Max.
@@ -340,6 +353,13 @@ Passed after v83 clean rollback:
 - `git diff --check`
 - Injected `SHEIN_CAPTURE_SCRIPT` syntax parse passed.
 - GitHub iOS unsigned build run `29291593555` passed and produced `otlobli-v83.ipa`.
+
+Passed after v84 SHEIN bottom hit-test fix:
+
+- Root `npm run build`
+- `git diff --check`
+- Injected `SHEIN_CAPTURE_SCRIPT` syntax parse passed.
+- GitHub iOS unsigned build run `29292808196` passed and produced `otlobli-v84.ipa`.
 
 Known gap:
 

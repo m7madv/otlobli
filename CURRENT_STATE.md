@@ -8,7 +8,7 @@ This is the short source of truth for the app work. Keep it compact so Codex/Cla
 
 - Path: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`
 - Branch: `codex/customer-wallet-group-orders`
-- Latest feature commit: `0ad1425` (`fix: v83 rollback unstable SHEIN legacy changes`)
+- Latest feature commit: `65f7e64` (`fix: v84 hide SHEIN bottom nav by hit test`)
 
 Before any code change:
 
@@ -72,7 +72,10 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 - v83 iPhone artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v83.ipa`
 - v83 IPA SHA-256: `8504DF389BAF1303C0F5BAAC89F1BDFCA8796C746848E9ED240FA56F48C3DB9C`
 - v83 GitHub Actions run: `29291593555`
-- No new Android build was requested for v83.
+- v84 iPhone artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v84.ipa`
+- v84 IPA SHA-256: `8065DF95F2F44272C0D74BEB6A389EA86B9D3947A64014486AF21240739AA872`
+- v84 GitHub Actions run: `29292808196`
+- No new Android build was requested for v84.
 
 ## v66 Completed
 
@@ -91,7 +94,10 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 
 ## Current Known Issues
 
-- v83 iOS build is ready: `APP_VERSION = 2026.07.14-clean-v80-rollback-v83`.
+- v84 iOS build is ready: `APP_VERSION = 2026.07.14-shein-bottom-hit-test-v84`.
+- v84 change: keeps the v83/v80 layout, adds old-WebKit-safe fallback CSS for otlobli's nav, and hides SHEIN's native bottom bar using bottom-of-screen hit-testing/text detection instead of changing viewport width.
+- v84 deliberately avoids the failed v82 approach: no `width=430`, no white shield, no broad hiding of real SHEIN sections.
+- v83 iOS build remains available: `APP_VERSION = 2026.07.14-clean-v80-rollback-v83`.
 - v83 change: reverts the unstable v81/v82 SHEIN script changes and returns to the v80/v77-style SHEIN UI behavior while keeping the existing v78 VPN logic in `src/App.tsx`.
 - Do not use v82 for testing; user reported horizontal page movement, invisible otlobli nav, missing top SHEIN tabs, and a messy iPhone 6 layout.
 - Do not continue from v81/v82 SHEIN CSS without fresh diagnostics; v81 did not solve the iPhone 6 SHEIN bottom bar, and v82 made layout worse.
@@ -142,8 +148,8 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 
 ## Next Best Focus
 
-1. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v83.ipa` on iPhone 6 and iPhone 16 Pro Max. First verify iPhone 16 Pro Max returns to the clean v80-like look, with no horizontal page movement and otlobli's nav visible.
-2. If iPhone 6 still shows SHEIN's native bottom bar, gather diagnostics before adding new CSS hiders. Do not repeat the v82 viewport/shield approach.
+1. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v84.ipa` on iPhone 6 and iPhone 16 Pro Max. Verify iPhone 16 Pro Max still has the clean v80-like look with no horizontal page movement.
+2. On iPhone 6, verify SHEIN's native bottom bar (`أنا / حقيبة التسوق / ترندات / الفئات / متجر`) is hidden while otlobli's nav remains visible.
 3. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v70.apk` on Android / emulator and verify SHEIN does not exit the app.
 4. Verify SHEIN after this exact flow: fresh open -> switch to Temu -> switch back to SHEIN -> security check if shown -> normal browsing.
 5. Verify Temu region is Saudi and currency is USD.
