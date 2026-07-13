@@ -7,24 +7,23 @@ import android.content.Intent;
 public class ConfigReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
-        if (intent == null || intent.getAction() == null) return;
+        if (intent == null || !ListenerConfig.ACTION_SET_CONFIG.equals(intent.getAction())) return;
 
-        if (ListenerConfig.ACTION_SET_CONFIG.equals(intent.getAction())) {
-            ListenerConfig.saveConfig(
-                context,
-                intent.getStringExtra("webhook_url"),
-                intent.getStringExtra("secret"),
-                intent.getStringExtra("target_package")
-            );
-            ListenerConfig.saveLastResult(context, "config_saved");
-            return;
-        }
-
-        if (ListenerConfig.ACTION_TEST_NOTIFICATION.equals(intent.getAction())) {
-            String title = intent.getStringExtra("title");
-            String text = intent.getStringExtra("text");
-            String bigText = intent.getStringExtra("big_text");
-            WebhookForwarder.forward(context, ListenerConfig.DEFAULT_TARGET_PACKAGE, title, text, bigText);
-        }
+        // Keystore access can be slow on older hardware. Keep it off the receiver's
+        // main thread while goAsync() keeps the process alive until provisioning ends.
+        PendingResult pendingResult = goAsync();
+        Context appContext = context.getApplicationContext();
+        new Thread(() -> {
+            try {
+                boolean saved = ListenerConfig.saveConfig(
+                    appContext,
+                    intent.getStringExtra("webhook_url"),
+                    intent.getStringExtra("secret")
+                );
+                ListenerConfig.saveLastResult(appContext, saved ? "config_saved_securely" : "config_rejected");
+            } finally {
+                pendingResult.finish();
+            }
+        }, "shamcash-config").start();
     }
 }

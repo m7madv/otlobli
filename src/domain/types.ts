@@ -151,11 +151,19 @@ export type CartItem = {
   customPhotoDataUrl?: string
   needsCustomText?: boolean
   customText?: string
+  customTextLimit?: number
+  // Shared-order ownership is persisted with the order line. It must not be
+  // inferred from the payer or delivery recipient.
+  ownerMemberKey?: string
+  ownerPhone?: string
+  ownerName?: string
+  orderItemId?: string
 }
 
 export type WalletTransaction = {
   id: string
   amountSyp: number
+  amountUsd?: number
   kind: string
   note: string
   orderId?: string
@@ -222,8 +230,43 @@ export type Order = {
   paymentIssue?: boolean
   paymentIssueNote?: string
   extraAmountUsd?: number
+  // فاتورة الرسوم من لوحة الإدارة (شحن/رسوم منصة...) — تُعرض في تفاصيل الطلب
+  invoice?: OrderInvoiceLine[]
+  // مشاكل الطلب المنظمة (v63) — يحلها الزبون من طلباتي
+  issues?: OrderIssue[]
   groupId?: string
   groupCode?: string
+  groupMembers?: CartGroupMember[]
+  deliveryMemberKey?: string
+  deliveryOwnerPhone?: string
+  deliveryOwnerName?: string
+}
+
+export type OrderInvoiceLine = {
+  label: string
+  amountUsd: number
+}
+
+export type OrderIssueType =
+  | 'payment' | 'size' | 'color' | 'custom_photo' | 'custom_photo_size'
+  | 'custom_text' | 'unavailable' | 'quantity' | 'link' | 'other'
+
+export type OrderIssue = {
+  id: string
+  type: OrderIssueType
+  itemId?: string        // product_id للمنتج المعني (فارغ = الطلب كامل)
+  note?: string
+  options?: string[]     // بدائل المقاس/اللون
+  requiredSize?: string  // نسبة قص الصورة المطلوبة (3:4 / 800x800)
+  amountUsd?: number     // مبلغ إضافي لمشاكل الدفع
+  requestPhoto?: boolean
+  responseType?: 'text' | 'option' | 'image'
+  ownerMemberKey?: string
+  ownerPhone?: string
+  ownerName?: string
+  resolved?: boolean
+  resolvedValue?: string
+  resolvedPhotoDataUrl?: string
 }
 
 export type PriceLine = {

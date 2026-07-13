@@ -22,7 +22,7 @@ public class MainActivity extends Activity {
         root.setPadding(padding, padding, padding, padding);
 
         TextView title = new TextView(this);
-        title.setText("Otlobli ShamCash Listener");
+        title.setText(R.string.app_name);
         title.setTextSize(20);
         title.setGravity(Gravity.CENTER);
         root.addView(title, new LinearLayout.LayoutParams(
@@ -40,7 +40,7 @@ public class MainActivity extends Activity {
         ));
 
         Button settings = new Button(this);
-        settings.setText("Open Notification Access");
+        settings.setText(R.string.open_notification_access);
         settings.setOnClickListener((view) -> startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)));
         root.addView(settings, new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -51,12 +51,15 @@ public class MainActivity extends Activity {
     }
 
     private String buildStatusText() {
-        String configured = ListenerConfig.webhookUrl(this).isEmpty() || ListenerConfig.secret(this).isEmpty()
-            ? "Config: missing"
-            : "Config: ready";
-        return configured
-            + "\nTarget: " + ListenerConfig.targetPackage(this)
-            + "\nLast result: " + ListenerConfig.lastResult(this);
+        int configured = ListenerConfig.webhookUrl(this).isEmpty() || !ListenerConfig.hasStoredSecret(this)
+            ? R.string.config_missing
+            : R.string.config_ready;
+        return getString(
+            R.string.listener_status,
+            getString(configured),
+            ListenerConfig.TARGET_PACKAGE,
+            ListenerConfig.lastResult(this)
+        );
     }
 
     private int dp(int value) {

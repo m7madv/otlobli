@@ -245,13 +245,26 @@ async function initSession(session) {
   const sock = makeWASocket({
     auth: state,
     version,
-    browser: ['Chrome (Linux)', '', ''],
+    // هوية جهاز واقعية وثابتة (سطح مكتب Chrome على macOS) بدل النسخة الفارغة
+    // السابقة ['Chrome (Linux)','',''] — الحقل الفارغ يبدو شاذاً في «الأجهزة
+    // المرتبطة» وثباته عبر إعادة الاتصال أهم من قيمته: تغيّره يبدو كجهاز جديد.
+    browser: ['otlobli', 'Chrome', '120.0.6099.109'],
     syncFullHistory: false,
     markOnlineOnConnect: false,
-    fireInitQueries: false,
-    shouldSyncConnectionMessage: false,
-    emitOwnEvents: false,
-    getMessage: () => undefined,
+    // ملاحظة (v64): أُزيلت الأعلام العدوانية fireInitQueries/
+    // shouldSyncConnectionMessage/emitOwnEvents=false. كانت fireInitQueries:false
+    // تحديداً تمنع رفع مفاتيح التشفير المسبقة (prekeys) لخوادم واتساب عند
+    // الاتصال — فحين يريد جهاز المستلم فك رسالتنا لا يجد حزمة مفاتيحنا
+    // لتأسيس جلسة Signal، فتعلق الرسالة بحالة «في انتظار هذه الرسالة» للأبد.
+    // إعادتها للسلوك الافتراضي تضمن رفع/تجديد المفاتيح فتُسلَّم الرسائل.
+    // حاسم: عند فشل جهاز المستلم بفك رسالة يطلب إعادتها، فيستدعي Baileys
+    // getMessage ليعيد تشفيرها ويرسلها. إرجاع undefined (كما كان) يجعل
+    // الرسالة تعلق للأبد بحالة «في انتظار هذه الرسالة». نُرجع المحتوى
+    // الأصلي من المخزن فتُعاد بنجاح. هذا هو الإصلاح الجذري لتلك المشكلة.
+    getMessage: async (key) => {
+      const stored = __waMsgStore.get(key?.id)
+      return stored || undefined
+    },
     keepAliveIntervalMs: 30000,
     connectTimeoutMs: 30000,
     defaultQueryTimeoutMs: 20000,
@@ -259,6 +272,13 @@ async function initSession(session) {
 
   session.sock = sock
   sock.ev.on('creds.update', saveCreds)
+  // نخزّن كل رسالة نُرسلها/نستقبلها ليتمكن getMessage من إعادة إرسالها عند
+  // طلب المستلم (يحل «في انتظار هذه الرسالة»). مخزن محدود الحجم في الذاكرة.
+  sock.ev.on('messages.upsert', ({ messages }) => {
+    for (const m of messages || []) {
+      if (m?.key?.id && m.message) rememberMessage(m.key.id, m.message)
+    }
+  })
 
   return new Promise((resolve, reject) => {
     sock.ev.on('connection.update', (update) => {
@@ -334,23 +354,82 @@ async function sendWithFallback(fn) {
   throw lastError || new Error('فشل الإرسال من جميع الأرقام')
 }
 
+// ── إيقاع بشري لتقليل مخاطر الحظر ────────────────────────────
+// واتساب يحظر السلوك الآلي: اندفاع رسائل متطابقة بسرعة عالية لأرقام لم
+// تراسلنا. لا يمكن لأي كود جعل الرقم «لا يُحظر أبداً» (الحظر قرار خوادم
+// واتساب حسب السلوك والإبلاغ وعمر الرقم)، لكن هذه الإجراءات تجعل النمط
+// يشبه إنساناً حقيقياً: فاصل أدنى بين أي رسالتين + مؤشر «يكتب» قبل الإرسال
+// + تأخير عشوائي. راجع WHATSAPP_ANTI_BAN.md لبقية الإجراءات التشغيلية.
+const MIN_SEND_GAP_MS = 4000
+let __lastSendAt = 0
+let __sendChain = Promise.resolve()
+
+// ── مخزن الرسائل (لإعادة الإرسال عند طلب المستلم) ────────────
+// يحل مشكلة «في انتظار هذه الرسالة»: حين يفشل جهاز المستلم بفك رسالة يطلب
+// إعادتها؛ نحتفظ بمحتواها هنا ليعيده getMessage. محدود الحجم (FIFO) حتى لا
+// تتضخم الذاكرة على الحاوية الدائمة.
+const __waMsgStore = new Map()
+const WA_MSG_STORE_MAX = 1500
+function rememberMessage(id, message) {
+  if (!id || !message) return
+  if (__waMsgStore.has(id)) __waMsgStore.delete(id)
+  __waMsgStore.set(id, message)
+  if (__waMsgStore.size > WA_MSG_STORE_MAX) {
+    const oldest = __waMsgStore.keys().next().value
+    if (oldest !== undefined) __waMsgStore.delete(oldest)
+  }
+}
+
+function jitter(minMs, maxMs) {
+  return Math.floor(minMs + Math.random() * (maxMs - minMs))
+}
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
+// يسلسل كل الإرسالات ويضمن فاصلاً أدنى بينها (لا اندفاع) — قناة واحدة عامة.
+function paceSend(task) {
+  const run = __sendChain.then(async () => {
+    const wait = Math.max(0, MIN_SEND_GAP_MS - (Date.now() - __lastSendAt))
+    if (wait > 0) await sleep(wait)
+    try {
+      return await task()
+    } finally {
+      __lastSendAt = Date.now()
+    }
+  })
+  // نُبقي السلسلة حيّة حتى لو فشلت مهمة (لا نكسر الطابور).
+  __sendChain = run.catch(() => {})
+  return run
+}
+
+// إرسال يحاكي إنساناً: اشتراك بالحضور + «يكتب» + تأخير قصير ثم الرسالة.
+async function sendHumanLike(sock, jid, content) {
+  try { await sock.presenceSubscribe(jid) } catch (_) {}
+  try { await sock.sendPresenceUpdate('composing', jid) } catch (_) {}
+  await sleep(jitter(900, 2200))
+  const res = await sock.sendMessage(jid, content)
+  // نحفظ الرسالة المُرسَلة فوراً — عند طلب المستلم إعادتها يجدها getMessage.
+  try { if (res?.key?.id && res.message) rememberMessage(res.key.id, res.message) } catch (_) {}
+  try { await sock.sendPresenceUpdate('paused', jid) } catch (_) {}
+  return res
+}
+
 export async function sendOtpMessage(phone, code) {
   const jid = phone.replace(/[\s\-\(\)\+]/g, '') + '@s.whatsapp.net'
   const msg = `رمز التحقق من otlobli:\n\n${code}\n\nصالح لمدة 5 دقائق.`
 
-  await sendWithFallback(async (session) => {
-    await session.sock.sendMessage(jid, { text: msg })
+  await paceSend(() => sendWithFallback(async (session) => {
+    await sendHumanLike(session.sock, jid, { text: msg })
     console.log(`✅ OTP ${code} → ${phone} (session ${session.id})`)
-  })
+  }))
 }
 
 export async function sendNotificationMessage(phone, text) {
   const jid = phone.replace(/[\s\-\(\)\+]/g, '') + '@s.whatsapp.net'
 
-  await sendWithFallback(async (session) => {
-    await session.sock.sendMessage(jid, { text })
+  await paceSend(() => sendWithFallback(async (session) => {
+    await sendHumanLike(session.sock, jid, { text })
     console.log(`✅ إشعار → ${phone} (session ${session.id})`)
-  })
+  }))
 }
 
 // ── التوافقية ────────────────────────────────────────────

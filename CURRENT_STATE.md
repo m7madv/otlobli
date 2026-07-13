@@ -1,6 +1,135 @@
 # Otlobli Current State
 
-Last updated: 2026-07-09
+Last updated: 2026-07-12
+
+## Codex store/group-link fixes in progress (2026-07-12)
+
+- `src/App.tsx` now auto-joins a valid shared-cart invite and keeps the group-order
+  controls visible even when the recipient cart is empty.
+- A native `pageLoadError` after the store was shown (including a failed 404 after
+  "open anyway" or a dropped VPN) now tears down the failed WebView and returns to
+  the VPN/connection check instead of leaving a blank white screen.
+- Native SHEIN URL normalization now leaves Cloudflare/captcha/security challenge
+  routes untouched so verification is not restarted by the Saudi `/ar` redirect.
+- `npm run build` passes. Real-device SHEIN/Temu verification is still required.
+- Figma writes are currently blocked because the connected Figma account requires
+  reauthentication; do not invent visual changes until that connection is restored.
+- The shared-orders/admin task was submitted to Claude in worktree
+  `.claude/worktrees/brave-gould-c49b60`, but Claude hit its usage limit during
+  inspection. The worktree is clean at `cf4b53c`; no Claude code exists to merge.
+- Full follow-up implementation is now in progress on the active branch:
+  - shared-order lines persist server-validated owner identity;
+  - every group member can load the order, while item issues/actions are scoped
+    to the owner of that product;
+  - checkout selects the Qadmous recipient from group members and persists it;
+  - tracking groups products by owner;
+  - issue responses support options, text, and requested screenshots/photos from
+    My Orders without requiring WhatsApp;
+  - admin order rows select inline and dynamic issue options/request-photo are implemented;
+  - Temu search chrome is stabilized and SHEIN challenge/menu click guards are narrowed.
+- Forward migration `20260712033000_shared_order_ownership.sql` is applied to production,
+  and `admin-orders` was deployed successfully.
+- Customer Vercel deployment `dpl_Du4Rwp3kdyRNqqrPs36ELWv6pRfo` is READY at
+  `https://talabieh.vercel.app`; admin deployment
+  `dpl_4Zdxn8VqEssPPW5NwhS4EKKCtGK5` is READY at
+  `https://talabieh-admin.vercel.app`.
+- Both public URLs return HTTP 200 and customer production JS contains v66.
+- Root and admin production builds pass locally. Real-device store verification remains.
+- Release commit `f7b4456` is pushed. GitHub iOS unsigned build run `29175819975`
+  succeeded for that exact SHA; `otlobli-v66.ipa` is on the Desktop.
+  - size: `1942781` bytes
+  - SHA-256: `6724eb9d147e780aac7d868853d341cb3a416e2d7c856300f6acc3db6372e6b1`
+
+## Claude v65 app handoff confirmed (2026-07-12)
+
+- Claude's detailed v58→v65 handoff is recorded at the top of `SESSION_SUMMARY.md` and
+  committed in `cf4b53c`; v65 APK/IPA artifacts are reported on the user's Desktop.
+- App/UI scope includes structured order issues, invoice and wallet updates, support number,
+  VPN checks, SHEIN/Temu WebView fixes, and WhatsApp message/prekey handling. SHEIN/Temu
+  still require real-device verification.
+- The Note 8 hardware/firmware problem remains a separate scope and is intentionally excluded
+  from this app handoff.
+
+## Codex Note 8 / ShamCash payment work in progress (2026-07-11)
+
+This scope is intentionally separate from Claude's concurrent customer/admin UI work.
+Do not revert or fold the UI commits into it.
+
+- Supabase production project `dcicqdprtyhwmhegabay` now has both forward repairs:
+  - `20260712020000_payment_hardening_hotfix.sql`
+  - `20260712021000_fix_profile_wrapper_overload.sql`
+- `payment-webhook` version 9 is `ACTIVE` with `verify_jwt=false`. The endpoint is
+  protected by exact-body HMAC-SHA256, a five-minute timestamp window, fixed package
+  identity, durable event IDs, and transactional database matching.
+- The old webhook secret was rotated. The replacement is not in the repository and is
+  stored locally in Windows Credential Manager as `Otlobli/ShamCashWebhookSecret`.
+- Production probes passed: missing/invalid signature -> 401, valid signed OTP rejection
+  -> 200, replay -> 200 duplicate without repeated processing.
+- Financial migrations `20260712022000` and `20260712023000` are also applied:
+  lower collision amounts are rejected (exact-only), one customer cannot ladder active
+  wallet top-ups, and a recent unmatched event can reconcile for two minutes without
+  allowing an older event to drift into a new intent.
+- Railway deployment `32116896-5c2c-4088-b8d5-40c7a058ba44` is `SUCCESS/RUNNING`
+  from commits `d0ac78f` and `9f42cf5`. `/api/exchange-rate` now persists the live rate before
+  replying, revalidates cached responses against `app_settings`, uses a local single-flight,
+  fails closed if no persisted fallback can be established, and sends `Cache-Control:
+  no-store`. Production API and SQL source of truth both returned `13050 SYP/USD`.
+- The Android listener no longer sends `x-payment-secret`; the secret remains only in
+  Android Keystore and signs the request. The release has no synthetic ADB notification
+  action, ignores group summaries, keeps an OS-stable event ID across notification
+  updates, safely recovers recent active notifications, and caps WorkManager data by
+  UTF-8 bytes. Unit tests are 16/16 and Deno webhook tests are 13/13. Release lint has
+  no errors (one pre-existing missing-icon warning).
+- Latest signed listener APK:
+  - `android/shamcash-listener/build/outputs/apk/release/shamcash-listener-release.apk`
+  - APK SHA-256: `343f0213d837410b0a4069a67ece69a2cc65b8aba3c3140f65d0663ecfb226b5`
+  - signer certificate SHA-256: `44ed0b43a41924ca67dfa44c6815e5b9286f843b7879b1f1d2c7e4ee5b1f827b`
+- Structured order-issue payment hardening is applied in migrations `20260712031000`
+  and `20260712032000`: confirmed issue payments resolve `issues[]` atomically, a
+  customer cannot self-resolve a payment issue, admin issue saves derive only from
+  unresolved entries, item IDs match `product_id`, and wallet history returns the
+  stored USD amount instead of recalculating old transactions at today's rate.
+- `admin-orders` also merges stale issue drafts against the current order and never
+  reopens or erases a customer-resolved issue during a late admin save.
+- The Note 8 is now authorized as serial `988e16384e4f51395230`, model `SM-N950F`.
+  ShamCash must still be tested only on this Syrian-network phone, never on the PC.
+- Remaining payment trust debt is explicit: product prices/totals still originate in the
+  client because the vendor pages have no server-authoritative quote. Do not call pricing
+  fully tamper-proof or group payment fully secured until server-issued price quotes and
+  authenticated group snapshots are implemented and tested.
+- Battery safety is physically blocked. A fresh six-sample sysfs capture while USB was
+  connected reported `capacity=0`, `health=Cold`, `temp=-20 C`, ADC `3950..3986`,
+  voltage `3.386..3.387 V`, current `0`, and `Not charging`. This proves the replacement
+  battery/NTC/connector/board-temperature path must be repaired or reseated before any
+  reset or flash. `/data/adb/service.d/fakebattery.sh` (SHA-256
+  `9575a5e9dd37e4f1d6a738a3b83b5159816d9eb254f825fcd98c1c895a526e95`) is the only
+  Magisk service/module found; it masks BatteryService as AC/100%/25 C every 15 seconds
+  so Android can stay alive on USB. Do not disable it, force charging, flash an 80%
+  kernel, or enable factory/slate mode until raw sysfs is plausibly `Good/Charging`.
+- The intended post-repair state is stock Samsung firmware, no Magisk/root, and no custom
+  charge-limit kernel. Captured restore identity is `XSG`, `N950FXXUGDVG7`, baseband
+  `N950FXXSGDUG6`. Root is unnecessary for ShamCash/listener/remote control and is the
+  wrong security trade-off for a payment terminal. Exact 80% must not be obtained by
+  weakening verified boot; use external power control or a newer Samsung with native
+  battery protection after the hardware path is valid.
+- TeamViewer Host and AnyDesk were installed for evaluation. Samsung Knox EULA/account
+  assignment requires the user personally; test full unattended control and remove the
+  losing app after the phone reconnects.
+
+## أحدث تعديل (Claude — تيمو: إخفاء أزرار الهيدر + منع صفحة الدخول)
+
+غير ملتزم بعد. الملفان: `src/services/sheinBrowserScript.ts` و `src/App.tsx`.
+
+- إخفاء أزرار هيدر تيمو (عربة التسوق/الحساب/الفئات) + بانر "تسوّق مثل الملياردير"
+  مع إبقاء البحث والشعار: عبر `injectTemuHeaderHideCSS()` الذي يحقن CSS يستهدف
+  `[class*="tab-d3nPD"]` و`[class*="downloadsWrapper"]`/`[class*="downloadUI"]`
+  و aria الدقيق. السبب المكتشف: العناصر داخل حاوية `display:none` فأبعادها `0x0`
+  وأسماؤها في `aria-label` فقط، لهذا فشلت الطرق السابقة المعتمدة على الموقع/النص.
+- إصلاح الوميض (FOUC): الـ CSS يُحقن الآن فوراً عند `documentStart` (قبل الرسم)
+  ويُعاد حقنه لو أُزيل — فلا تظهر العناصر المخفية أبداً حتى عند الدخول/الرجوع.
+- منع صفحة `login.html` في تيمو نهائياً عبر `urlChangeEvent` في `App.tsx`
+  (`TEMU_LOGIN_RE` → إعادة التوجيه إلى `temu.com/jo/`). مُختبَر بصرياً + بالسجل.
+- التفاصيل الكاملة في `SESSION_SUMMARY.md`.
 
 ## Use this file first
 

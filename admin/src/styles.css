@@ -332,7 +332,7 @@ img {
 
 .content-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(340px, 0.55fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 18px;
 }
 
@@ -454,6 +454,14 @@ td:first-child {
   flex: 1;
 }
 
+.settings-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.78rem;
+  color: var(--muted, #6b7280);
+  line-height: 1.5;
+}
+
 .settings-qr-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -540,6 +548,72 @@ td:first-child {
   background: var(--primary);
   color: #fff;
 }
+
+/* بيانات المنتجات المخصصة (نقش/صورة) داخل عناصر الطلب */
+.custom-text-chip {
+  margin: 4px 0;
+  font-size: 0.82rem;
+  color: #7a5b00;
+  background: #fff3cd;
+  border: 1px solid #ffe28a;
+  border-radius: 8px;
+  padding: 5px 10px;
+  display: inline-block;
+}
+.custom-text-chip strong { font-weight: 800; }
+.custom-photo-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+  padding: 5px 10px 5px 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--primary);
+  text-decoration: none;
+  border: 1.5px dashed var(--primary);
+  border-radius: 10px;
+}
+.custom-photo-chip img {
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: 6px;
+  display: block;
+}
+
+/* قسم فاتورة الرسوم */
+.invoice-field { display: flex; flex-direction: column; gap: 8px; }
+.invoice-field-title { font-weight: 800; font-size: 0.85rem; }
+.invoice-line { display: flex; gap: 6px; align-items: center; }
+.invoice-line input[type="text"] { flex: 1; min-width: 0; }
+.invoice-line input[type="number"] { width: 90px; flex: 0 0 auto; }
+.invoice-line-remove { border: 0; background: transparent; color: #c62828; font-weight: 800; cursor: pointer; padding: 4px 6px; }
+.invoice-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.invoice-total { margin-inline-start: auto; font-weight: 800; color: var(--primary); }
+
+/* نظام مشاكل الطلب المتعدد */
+.issues-field { display: flex; flex-direction: column; gap: 8px; }
+.issues-head { display: flex; align-items: center; justify-content: space-between; }
+.issues-title { font-weight: 800; font-size: 0.9rem; }
+.issues-add { border: 1px dashed var(--primary, #007953); background: transparent; color: var(--primary, #007953); font-weight: 700; font-size: 0.78rem; border-radius: 8px; padding: 4px 10px; cursor: pointer; }
+.issues-empty { margin: 0; font-size: 0.8rem; color: var(--muted, #6b7280); }
+.issue-row { border: 1px solid var(--outline, #e2e8f0); border-radius: 10px; padding: 8px; display: flex; flex-direction: column; gap: 6px; background: rgba(0,0,0,0.015); }
+.issue-row--resolved { opacity: 0.7; border-style: dashed; }
+.issue-row-top { display: flex; gap: 6px; align-items: center; }
+.issue-type { flex: 1 1 40%; min-width: 0; }
+.issue-item { flex: 1 1 45%; min-width: 0; }
+.issue-remove { border: 0; background: transparent; color: #c62828; font-weight: 800; cursor: pointer; padding: 2px 6px; flex: 0 0 auto; }
+.issue-inline { width: 100%; box-sizing: border-box; }
+.issue-options-list { display: grid; gap: 6px; }
+.issue-option-row { display: flex; align-items: center; gap: 6px; }
+.issue-option-add { justify-self: start; }
+.issue-photo-request { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; font-weight: 700; }
+.issue-photo-request input { width: auto; min-height: auto; margin: 0; }
+.issue-response-photo { display: flex; align-items: center; gap: 8px; color: #007953; font-size: 0.78rem; font-weight: 700; text-decoration: none; }
+.issue-response-photo img { width: 58px; height: 58px; border-radius: 8px; border: 1px solid var(--outline); object-fit: cover; }
+.issue-resolved-tag { font-size: 0.76rem; color: #007953; font-weight: 700; }
+.issues-save { align-self: flex-start; }
 
 .info-row {
   display: flex;

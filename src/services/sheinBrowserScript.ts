@@ -42,15 +42,58 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // عندها؛ على المتاجر الأخرى (تيمو/ترينديول) نكتفي بتنظيف العروض المنبثقة.
   var IS_SHEIN = /shein/i.test(location.hostname);
   var IS_TEMU = /temu/i.test(location.hostname);
+
+  // (v66-fix) بيانات الـWebView مشتركة/دائمة بين جلسات المتجر. أكّد المستخدم أن
+  // شي إن «كصور لا تنكبس» بعد تبديل المتجر (تيمو ثم شي إن)، بينما حذف/إعادة
+  // تنصيب التطبيق يُصلحه — أي أن حالة service worker/كاش مُتراكمة من جلسة سابقة
+  // تخدم أصولاً معطوبة فلا تُفعَّل الصفحة (hydration). نُلغي تسجيل أي service
+  // worker ونمسح Cache Storage عند بداية كل تحميل — fire-and-forget كي لا يعطّل
+  // الرسم — فتُطبَّق حالة نظيفة على التحميل التالي (يقارب التنصيب النظيف). لا
+  // نلمس localStorage (مسحه العريض يسبب skeleton loading — درس موثق).
+  try {
+    if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+      navigator.serviceWorker.getRegistrations().then(function (regs) {
+        for (var i = 0; i < regs.length; i++) { try { regs[i].unregister(); } catch (e) {} }
+      }).catch(function () {});
+    }
+    if (window.caches && caches.keys) {
+      caches.keys().then(function (keys) {
+        for (var k = 0; k < keys.length; k++) { try { caches.delete(keys[k]); } catch (e) {} }
+      }).catch(function () {});
+    }
+  } catch (e) {}
+
   var SHEIN_REQUIRED_COUNTRY = 'SA';
   var SHEIN_REQUIRED_CURRENCY = 'USD';
   var SHEIN_REQUIRED_LANGUAGE = 'ar';
   var SHEIN_REQUIRED_SITE_UID = 'pwar';
 
+  // Verification pages can be injected at documentStart before their title,
+  // challenge form, or Cloudflare script exists in the DOM.  URL detection
+  // therefore has to happen before any Saudi URL/storage normalization: a
+  // redirect during that small parsing window restarts the challenge and can
+  // look like a black flash followed by the WebView closing.
+  function otlobliIsHumanChallengeUrl(href) {
+    try {
+      var u = new URL(href || location.href, location.href);
+      if (/\\/(?:cdn-cgi|challenge|captcha|verify|verification|security)(?:\\/|$)/i.test(u.pathname)) return true;
+      if (/(?:^|[?&#])(?:captcha|challenge|verification|security_token)=/i.test(u.search + u.hash)) return true;
+    } catch (e) {}
+    return false;
+  }
+
+  // On an explicit challenge route leave the document completely untouched.
+  // The next successful navigation gets a new document and a fresh injection.
+  if (IS_SHEIN && otlobliIsHumanChallengeUrl(location.href)) {
+    otlobliEnterChallengeMode();
+    return;
+  }
+
   function otlobliNormalizeSheinUrl(href) {
     try {
       var u = new URL(href, location.href);
       if (!/shein/i.test(u.hostname)) return href;
+      if (otlobliIsHumanChallengeUrl(u.toString())) return u.toString();
       var cleanPath = u.pathname.replace(/^\\/(?:[a-z]{2}(?:en)?|ar-en|ar)(?=\\/|$)/i, '') || '/';
       u.protocol = 'https:';
       u.hostname = 'm.shein.com';
@@ -211,36 +254,48 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
+  // (v65) تنبيه المنطقة صار شريطاً علوياً غير حاجب قابلاً للإغلاق — بدل طبقة
+  // كاملة كانت تحجب الصفحة (blur + منع نقر) وزرها يعيد التحميل عبر
+  // location.replace فيعيد المستخدم لتحقق كلاودفلير في حلقة («يطلعني/واجهة
+  // صورة»). القاعدة: اجعل الصفحة قابلة للنقر ولا تحجبها. منع إضافة منتج من
+  // منطقة خطأ يبقى في حارس الإضافة المنفصل، لا بحجب التصفح.
   function setSheinSaudiGuardOverlay(visible) {
     if (!IS_SHEIN) return;
     var id = 'otlobli-shein-saudi-guard';
     var old = document.getElementById(id);
-    if (!visible) {
+    // لا نُظهره أثناء تحقق «أنا إنسان» ولا بعد أن أغلقه المستخدم يدوياً.
+    if (!visible || otlobliIsHumanChallenge() || window.__otlobliSheinGuardDismissed) {
       if (old) old.remove();
       if (document.documentElement) document.documentElement.classList.remove('otlobli-shein-saudi-locked');
       return;
     }
-    if (document.documentElement) document.documentElement.classList.add('otlobli-shein-saudi-locked');
     if (old) return;
     var style = document.createElement('style');
     style.textContent =
-      '.otlobli-shein-saudi-locked body > *:not(#' + id + '){filter:blur(2px)!important;pointer-events:none!important;}' +
-      '#' + id + '{position:fixed;inset:0;z-index:2147483647;background:rgba(255,255,255,.96);display:flex;align-items:center;justify-content:center;padding:22px;direction:rtl;font-family:Arial,sans-serif;}' +
-      '#' + id + ' .box{max-width:360px;border:1px solid #c8d8d1;border-radius:16px;background:#fff;box-shadow:0 18px 45px rgba(0,0,0,.14);padding:18px;text-align:center;color:#123;}' +
-      '#' + id + ' strong{display:block;color:#007953;font-size:18px;margin-bottom:8px;}' +
-      '#' + id + ' p{margin:0;color:#4b5563;font-size:14px;line-height:1.7;}' +
-      '#' + id + ' button{margin-top:14px;border:0;border-radius:12px;background:#007953;color:#fff;font-weight:800;padding:11px 16px;width:100%;font-size:15px;}';
-    var overlay = document.createElement('div');
-    overlay.id = id;
-    overlay.innerHTML = '<div class="box"><strong>نثبت متجر شي إن على السعودية</strong><p>تم اكتشاف أن شي إن فتح على دولة غير السعودية. لن يتم السماح بإضافة أي منتج حتى يرجع المتجر للسعودية.</p><button type="button">إعادة المحاولة</button></div>';
-    overlay.appendChild(style);
-    overlay.querySelector('button').addEventListener('click', function () {
+      '#' + id + '{position:fixed;top:0;left:0;right:0;z-index:2147483000;background:#fff8e1;border-bottom:1px solid #ffe082;' +
+      'display:flex;align-items:center;gap:8px;padding:8px 12px;direction:rtl;font-family:Arial,sans-serif;box-shadow:0 4px 14px rgba(0,0,0,.08);}' +
+      '#' + id + ' .txt{flex:1;color:#7a5b00;font-size:12px;line-height:1.5;}' +
+      '#' + id + ' button{border:0;border-radius:8px;background:#007953;color:#fff;font-weight:800;padding:7px 12px;font-size:12px;flex:0 0 auto;}' +
+      '#' + id + ' .x{background:transparent;color:#7a5b00;font-size:18px;padding:2px 8px;}';
+    var bar = document.createElement('div');
+    bar.id = id;
+    bar.innerHTML =
+      '<span class="txt">المتجر مفتوح على منطقة غير السعودية. قد لا يُسمح بإضافة المنتج حتى يرجع للسعودية.</span>' +
+      '<button type="button" class="fix">أعد الضبط</button>' +
+      '<button type="button" class="x" aria-label="إغلاق">×</button>';
+    bar.appendChild(style);
+    bar.querySelector('.fix').addEventListener('click', function () {
       window.__otlobliSheinSaudiLocked = false;
       try { sessionStorage.removeItem('__otlobliSheinSaudiLocked'); } catch (e) {}
       try { clearSheinForeignRegionState(); } catch (e) {}
-      try { location.replace(otlobliNormalizeSheinUrl(location.href)); } catch (e) {}
+      // إعادة تحميل واحدة فقط لضبط المنطقة — ممنوعة أثناء التحقق (فوق).
+      try { if (!otlobliIsHumanChallenge()) location.replace(otlobliNormalizeSheinUrl(location.href)); } catch (e) {}
     });
-    (document.body || document.documentElement).appendChild(overlay);
+    bar.querySelector('.x').addEventListener('click', function () {
+      window.__otlobliSheinGuardDismissed = true;
+      if (bar.parentNode) bar.parentNode.removeChild(bar);
+    });
+    (document.body || document.documentElement).appendChild(bar);
   }
 
   function clearSheinForeignRegionState() {
@@ -263,6 +318,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function shouldReloadSheinForSaudi() {
     try {
       var u = new URL(location.href);
+      if (otlobliIsHumanChallengeUrl(u.toString())) return false;
       if (!/(^|\\.)m\\.shein\\.com$/i.test(u.hostname)) return true;
       if (!/^\\/ar(?:\\/|$)/i.test(u.pathname)) return true;
       var country = u.searchParams.get('country');
@@ -278,6 +334,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function ensureSheinSaudiStore(options) {
     if (!IS_SHEIN) return true;
+    // أثناء تحقق «أنا إنسان»: ممنوع أي إعادة تحميل/كتابة — تصفّر حل المستخدم.
+    if (otlobliIsHumanChallenge()) return false;
     clearOvercoercedSheinStorage();
     installSheinSaudiStorageGuard();
     writeSheinSaudiState();
@@ -333,7 +391,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
     clearOvercoercedSheinStorage();
     installSheinSaudiStorageGuard();
     var normalizedArabicUrl = otlobliNormalizeSheinUrl(location.href);
-    if (shouldReloadSheinForSaudi()) {
+    // حارس صفحة تحقق «أنا إنسان»: ممنوع أي إعادة تحميل أثناءها — تُعيد بدء
+    // التحقق فلا يُكمله المستخدم أبداً (كان سبباً في «يطلعني/واجهة صورة»).
+    if (shouldReloadSheinForSaudi() && !otlobliIsHumanChallenge()) {
       var arRedirectAttempts = parseInt(sessionStorage.getItem('__otlobliArRedirects') || '0', 10);
       if (arRedirectAttempts < 2) {
         sessionStorage.setItem('__otlobliArRedirects', String(arRedirectAttempts + 1));
@@ -2095,22 +2155,48 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (!TEMU_PERSO_INPUT.test(hint)) continue;          // لا دليل أنه حقل تخصيص → نتجاهله
       var v = (inp.value || '').trim();
       if (/^\\d+$/.test(v)) v = '';                        // قيمة رقمية بحتة = ليست نص نقش
-      return { has: true, text: v, inputVisible: true };
+      // (v58) حد أحرف النقش: من خاصية maxlength للحقل نفسه، وإلا من نص
+      // التلميح المجاور ("بحد أقصى 10 أحرف" / "max 12 characters").
+      var lim = parseInt(inp.getAttribute('maxlength') || '', 10);
+      if (!(lim > 0 && lim <= 80)) {
+        var lm = hint.match(/(\\d{1,2})\\s*(?:حرف|أحرف|حروف|characters?|chars?|letters?)/i);
+        lim = lm ? parseInt(lm[1], 10) : 0;
+      }
+      return { has: true, text: v, inputVisible: true, textLimit: (lim > 0 && lim <= 80) ? lim : 0 };
     }
     // مؤشر قوي بالعنوان بدون حقل مرئي → التخصيص داخل الشيت، الاسم يُكتب في السلة
-    if (hasStrong) return { has: true, text: '', inputVisible: false };
-    return { has: false, text: '' };
+    if (hasStrong) return { has: true, text: '', inputVisible: false, textLimit: 0 };
+    return { has: false, text: '', textLimit: 0 };
   }
-  // هل يتطلب المنتج رفع صورة مخصصة؟ (مثل أساور "Custom Photo").
-  // نبحث عن كلمات دالّة أو حقل رفع ملف (file input).
-  function temuNeedsCustomPhoto() {
-    var fileInputs = document.querySelectorAll('input[type="file"], input[accept*="image"]');
-    if (fileInputs.length > 0) return true;
-    var els = document.querySelectorAll('div, span, p, strong, h2, h3, a, button, label');
+  // (v58) بادج "التخصيص" الذي تضعه تيمو على صورة المنتج — نص قصير مطابق حرفياً.
+  // نقيّده بأعلى الصفحة (أول ~900px من المستند) لأن كروت "قد يعجبك أيضاً"
+  // أسفل الصفحة تحمل البادج نفسه على منتجات أخرى وكانت ستفعّل كل الصفحات.
+  function temuCustomBadgeVisible() {
+    var els = document.querySelectorAll('div, span, a, button, label');
+    var scrollY = window.pageYOffset || 0;
     for (var i = 0; i < els.length; i++) {
-      var t = (els[i].textContent || '').trim();
-      if (t.length < 3 || t.length > 80) continue;
-      if (/custom.?photo|upload.?photo|صورة.?مخصصة|رفع.?صورة|photo.?upload|upload.?image|custom.?image|add.?photo/i.test(t)) return true;
+      var t = temuCleanText(els[i].textContent);
+      if (!t || t.length > 20) continue;
+      if (!/^(?:التخصيص|تخصيص|قابل\\s*للتخصيص|customi[sz]ed?|personali[sz]ed?)$/i.test(t)) continue;
+      var r = els[i].getBoundingClientRect();
+      if (r.width <= 0 || r.height <= 0) continue;
+      if (r.top + scrollY > 900) continue;
+      return true;
+    }
+    return false;
+  }
+  // (v58) عنصر تحكم فعلي لرفع صورة: حقل ملف يقبل صوراً، أو زر نصّه حرفياً
+  // "أضف/ارفع/تحميل صورة". يُستدعى فقط بعد ثبوت أن المنتج مخصص — "أضف صورة"
+  // في قسم المراجعات مثلاً كانت تجعل كل المنتجات "تطلب صورة".
+  function temuPhotoUploadControl() {
+    if (document.querySelector('input[type="file"][accept*="image"], input[type="file"]:not([accept])')) return true;
+    var els = document.querySelectorAll('button, a, div, span, label');
+    for (var i = 0; i < els.length; i++) {
+      var t = temuCleanText(els[i].textContent);
+      if (!t || t.length > 22) continue;
+      if (!/^(?:أضف|إضافة|ارفع|رفع|تحميل|حمّل)\\s*(?:ال)?صورة(?:\\s*هنا)?$|^(?:add|upload)\\s*(?:a\\s*|your\\s*)?(?:photo|image|picture)s?$/i.test(t)) continue;
+      var r = els[i].getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) return true;
     }
     return false;
   }
@@ -2130,16 +2216,24 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return '';
   }
 
+  // (v58) إشارات التخصيص الصارمة — "خربطة صفر":
+  // تُطبَّق على عنوان المنتج (أو نص تحكم قصير مؤكد) فقط، وحُذفت منها الكلمات
+  // العامة المفردة (اسم/نص/كتابة/صورة/رفع/عين/وجه) لأنها تظهر في كل صفحة
+  // (مراجعات، شحن، واجهة المتجر، منتجات مقترحة) وكانت السبب الرئيسي في تحويل
+  // منتجات عادية إلى "مخصصة" وحجز الدفع عبثاً.
+  // تنبيه (v60): كلمة "نقش" وحدها ممنوعة — "بنقشة التنين/منقوش بطبعة" تعني
+  // مطبوعاً بنمط جاهز لا تخصيصاً (جراب هاتف عادي فُعّل خطأً بسببها). نطابق
+  // نقش فقط في سياق تخصيص صريح: "نقش اسم/نص"، "قابل للنقش"، "انقش اسمك".
   function otlobliCustomTextSignal(text) {
-    return /custom\\s*(?:text|name)|personaliz|engrave|engraving|monogram|name\\s*plate|your\\s*(?:name|text)|enter\\s*(?:name|text)|اسم|نص|كتابة|اكتب|محفور|نقش|حفر/i.test(text || '');
+    return /custom\\s*(?:text|name)|personali[sz]|engrav|monogram|name\\s*plate|your\\s*(?:name|text)|enter\\s*(?:name|text)|نقش\\s*(?:اسم|الاسم|نص|النص|حسب)|قابل\\s*للنقش|انقش|محفور(?:ة)?\\s*(?:باسم|بالاسم|باسمك)|حفر\\s*(?:اسم|الاسم|نص)|بالاسم|باسمك|بأسمك|اسم\\s*مخصص|نص\\s*مخصص|اكتب\\s*(?:اسم|الاسم|نص|النص)/i.test(text || '');
   }
 
   function otlobliCustomPhotoSignal(text) {
-    return /custom\\s*(?:photo|image|picture)|upload\\s*(?:photo|image|picture)|photo\\s*upload|image\\s*upload|with\\s*(?:photo|picture)|صورة|ارفق|رفع|تحميل\\s*صورة|بالصور|عين|وجه/i.test(text || '');
+    return /custom\\s*(?:photo|image|picture)|(?:upload|add)\\s*(?:a\\s*|your\\s*)?(?:photo|image|picture)|photo\\s*upload|image\\s*upload|with\\s*your\\s*(?:photo|picture)|صورة\\s*مخصصة|بصورتك|صورتك|بالصور|(?:أضف|إضافة|ارفع|رفع|تحميل|حمّل)\\s*(?:ال)?صورة/i.test(text || '');
   }
 
   function otlobliCustomGenericSignal(text) {
-    return /customiz|personaliz|personalised|personalized|مخصص|مخصصة|التخصيص|تخصيص/i.test(text || '');
+    return /customi[sz]|\\bcustom\\b|personali[sz]|مخصص|التخصيص|تخصيص|بتصميمك|حسب\\s*الطلب|\\bDIY\\b/i.test(text || '');
   }
 
   function otlobliVisibleCustomText() {
@@ -2166,44 +2260,55 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return '';
   }
 
+  // (v58) قرار التخصيص لتيمو — طبقتان صارمتان:
+  // 1) هل المنتج مخصص أصلاً؟ يُحسم من عنوان المنتج نفسه، أو بادج "التخصيص"
+  //    أعلى الصفحة، أو حقل نقش حقيقي مرئي (perso). لا مسح نصي للصفحة كلها —
+  //    كروت المنتجات المقترحة والمراجعات كانت تلوّث القرار.
+  // 2) ماذا يحتاج (نص/صورة/كلاهما)؟ يُفحص فقط بعد ثبوت (1)، من العنوان
+  //    وعناصر تحكم قصيرة مؤكدة. عند الغموض: الافتراض نص، والمستخدم يعدّل
+  //    من السلة (أزرار +نص/+صورة و"ليس مخصصاً").
   function temuCustomRequirements(perso) {
-    var text = [
-      temuTitle(),
-      document.title,
-      otlobliVisibleCustomText(),
-    ].join(' ');
-    var needsText = !!(perso && perso.has) || otlobliCustomTextSignal(text);
-    var needsPhoto = temuNeedsCustomPhoto() || otlobliCustomPhotoSignal(text);
-    if (/image\\s*\\d+|photo\\s*\\d+|picture\\s*\\d+/i.test(text)) needsPhoto = true;
-    var customPhotoCase = otlobliCustomGenericSignal(text)
-      && /(phone|case|cover|جراب|كفر|حافظة|هاتف|موبايل|جوال)/i.test(text)
-      && !/(engrav|engrave|engraving|name|text|monogram|نقش|اسم|نص|محفور|حفر)/i.test(text);
-    if (customPhotoCase) {
-      needsPhoto = true;
-      if (!otlobliCustomTextSignal(text) && !(perso && perso.inputVisible)) needsText = false;
-    }
-    if (otlobliCustomGenericSignal(text) && !needsText && !needsPhoto) needsText = true;
+    var titleTxt = (temuTitle() || '') + ' ' + (document.title || '');
+    var isCustom = otlobliCustomGenericSignal(titleTxt)
+      || otlobliCustomTextSignal(titleTxt)
+      || otlobliCustomPhotoSignal(titleTxt)
+      || !!(perso && perso.has)
+      || temuCustomBadgeVisible();
+    if (!isCustom) return { needsText: false, needsPhoto: false, photoNote: '', textLimit: 0 };
+    var needsText = !!(perso && perso.has) || otlobliCustomTextSignal(titleTxt);
+    var needsPhoto = otlobliCustomPhotoSignal(titleTxt) || temuPhotoUploadControl();
+    // منتج مخصص وعنوانه يذكر عيوناً/وجهاً/حبيباً بالصورة (أساور نقش العين
+    // الرائجة) → صورة، حتى لو لم يقل "صورة" صراحة.
+    if (!needsPhoto && /(?:^|[\\s،:])(?:عين|عيون|للعينين|بالعين|وجه|وجهك|بورتريه)|\\bface\\b|\\beyes?\\b|\\bportrait\\b/i.test(titleTxt)) needsPhoto = true;
+    // جراب/كفر مخصص بلا ذكر نقش = طباعة صورة عادةً.
+    if (!needsText && !needsPhoto && /(phone|case|cover|جراب|كفر|حافظة)/i.test(titleTxt)) needsPhoto = true;
+    // مخصص مؤكد والنوع غامض → نص (الأشيَع)، والمستخدم يستطيع التعديل بالسلة.
+    if (!needsText && !needsPhoto) needsText = true;
     return {
       needsText: needsText,
       needsPhoto: needsPhoto,
-      photoNote: temuCustomPhotoNote() || otlobliCustomPhotoNoteFallback(),
+      photoNote: needsPhoto ? (temuCustomPhotoNote() || otlobliCustomPhotoNoteFallback()) : '',
+      textLimit: (perso && perso.textLimit) || 0,
     };
   }
 
+  // (v58) نفس مبدأ تيمو: العنوان يحسم "هل هو مخصص"، وحقل الملف يُحتسب فقط
+  // بعد ثبوت ذلك (شي إن فيها حقول رفع للمراجعات أيضاً).
   function sheinCustomRequirements() {
-    var text = [
-      getTitle(false),
-      document.title,
-      otlobliVisibleCustomText(),
-    ].join(' ');
-    var hasFile = !!document.querySelector('input[type="file"], input[accept*="image"]');
-    var needsText = otlobliCustomTextSignal(text);
-    var needsPhoto = hasFile || otlobliCustomPhotoSignal(text);
-    if (otlobliCustomGenericSignal(text) && !needsText && !needsPhoto) needsText = true;
+    var titleTxt = (getTitle(false) || '') + ' ' + (document.title || '');
+    var isCustom = otlobliCustomGenericSignal(titleTxt)
+      || otlobliCustomTextSignal(titleTxt)
+      || otlobliCustomPhotoSignal(titleTxt);
+    if (!isCustom) return { needsText: false, needsPhoto: false, photoNote: '', textLimit: 0 };
+    var hasFile = !!document.querySelector('input[type="file"][accept*="image"]');
+    var needsText = otlobliCustomTextSignal(titleTxt);
+    var needsPhoto = hasFile || otlobliCustomPhotoSignal(titleTxt);
+    if (!needsText && !needsPhoto) needsText = true;
     return {
       needsText: needsText,
       needsPhoto: needsPhoto,
-      photoNote: otlobliCustomPhotoNoteFallback(),
+      photoNote: needsPhoto ? otlobliCustomPhotoNoteFallback() : '',
+      textLimit: 0,
     };
   }
 
@@ -2272,6 +2377,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         customPhotoNote: customReq.photoNote,
         needsCustomText: customReq.needsText,
         customText: persoTxt,
+        customTextLimit: customReq.textLimit || 0,
       };
     }
     var sheinCustomReq = sheinCustomRequirements();
@@ -2293,6 +2399,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       customPhotoNote: sheinCustomReq.photoNote,
       needsCustomText: sheinCustomReq.needsText,
       customText: '',
+      customTextLimit: sheinCustomReq.textLimit || 0,
     };
   }
 
@@ -2680,12 +2787,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
               return;
             }
           }
-          // ب) منتج يحتاج صورة مخصصة → نُنبّه ونكمل الإضافة (الصورة تُرفق في السلة).
-          if (temuNeedsCustomPhoto()) {
+          // ب) منتج مخصص يحتاج صورة (بالكشف الصارم v58) → نُنبّه ونكمل الإضافة
+          // (الصورة تُرفق في السلة).
+          var persoChk = temuPersonalization();
+          if (temuCustomRequirements(persoChk).needsPhoto) {
             showMessage(btn, 'أضف صورتك في السلة قبل إتمام الطلب');
           }
           // ج) منتج تخصيص نصّي (نقش اسم).
-          var persoChk = temuPersonalization();
           if (persoChk.has && !persoChk.text) {
             if (persoChk.inputVisible) {
               // الحقل ظاهر وفارغ → نطلب الكتابة الآن
@@ -2818,7 +2926,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
       'display:flex!important;direction:rtl!important;overflow:hidden!important;box-sizing:border-box!important;' +
       'background:rgba(255,255,255,.98)!important;border-top:1px solid #bccac0!important;' +
       'padding:0 0 max(env(safe-area-inset-bottom, 0px), 16px) 0!important;margin:0!important;' +
-      'font-size:11px!important;line-height:1.15!important;opacity:1!important;visibility:visible!important;pointer-events:auto!important;';
+      // 12px يطابق خط شريط otlobli الحقيقي (0.76rem ≈ 12.2px) — كان 11px
+      // فيبدو الشريطان مختلفين عند التنقل بين المتجر وبقية الشاشات.
+      'font-size:12px!important;line-height:1.15!important;opacity:1!important;visibility:visible!important;pointer-events:auto!important;';
     var existingNav = document.getElementById('otlobli-nav');
     if (existingNav) {
       existingNav.style.cssText = navCss;
@@ -2904,7 +3014,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       tab.style.cssText = 'position:relative!important;flex:1 1 0!important;height:74px!important;min-height:74px!important;max-height:74px!important;' +
         'border:0!important;background:transparent!important;display:flex!important;flex-direction:column!important;' +
         'align-items:center!important;justify-content:center!important;gap:4px!important;padding:6px 0!important;margin:0!important;' +
-        'box-sizing:border-box!important;font-size:11px!important;line-height:1.15!important;font-weight:700!important;' +
+        'box-sizing:border-box!important;font-size:12px!important;line-height:1.15!important;font-weight:700!important;' +
         'font-family:Cairo,system-ui,-apple-system,sans-serif!important;color:' + (isActiveTab ? '#006948' : '#3d4a42') + '!important;';
       if (isActiveTab) {
         var indicator = document.createElement('span');
@@ -2914,7 +3024,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var iconLabelWrap = document.createElement('span');
       iconLabelWrap.style.cssText = 'display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;' +
         'gap:4px!important;width:100%!important;height:62px!important;min-height:0!important;pointer-events:none!important;' +
-        'font-size:11px!important;line-height:1.15!important;box-sizing:border-box!important;';
+        'font-size:12px!important;line-height:1.15!important;box-sizing:border-box!important;';
       iconLabelWrap.innerHTML = '<svg width="22" height="22" style="width:22px!important;height:22px!important;flex:0 0 22px!important;display:block!important" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
         'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + item.icon + '</svg>' +
         '<span>' + item.label + '</span>';
@@ -3091,7 +3201,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // the hamburger drawer does manage to open, every dangerous item inside it
     // is dead on tap.
     if (/currency|العملة|عملة|\\bregion\\b|country|البلد|الدولة|language|اللغة|\\blang\\b|لغة|\\bsetting|تغيير العملة|تغيير اللغة/.test(hint)) return true;
-    if (/hamburger|nav-?toggle|side-?menu|drawer|menu-?(btn|icon|toggle|bar)|\\bmenu\\b/.test(hint)) {
+    var strongMenuHint = /hamburger|nav-?toggle|side-?menu|drawer|menu-?(btn|button|icon|toggle|bar)/.test(hint);
+    // A plain menu class is also used by SHEIN's visible category links
+    // (women/men/kids). Treat it as the hamburger only when the control is
+    // icon-only; otherwise the global capture listener makes the whole home
+    // page feel like a non-interactive screenshot.
+    var genericIconMenu = /\\bmenu\\b/.test(hint) && shortText.length <= 2 &&
+      !!(el.querySelector && el.querySelector('svg,img'));
+    if (strongMenuHint || genericIconMenu) {
       var rect = el.getBoundingClientRect();
       // Band widened to top<=220 because SHEIN's home page can push its header
       // down behind a top promo/app-install banner, putting the hamburger well
@@ -3508,6 +3625,49 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // fixes it immediately). Detected here and handled by the app, since only
   // native code can clear HttpOnly cookies. Reset on navigation so a block
   // on one route doesn't suppress detecting it again on the next.
+  // ── وضع التحقق «أنا إنسان» (Cloudflare) — v62 ─────────────────────────────
+  // شي إن وضعت موقعها خلف جدار كلاودفلير: صفحة "Just a moment..." تظهر قبل
+  // أي محتوى (ثبت بفحص مباشر: HTTP 403 وصفحة تحدي من challenges.cloudflare.com).
+  // القاعدة الراسخة: لا نتجاوز التحقق ولا نغطيه ولا نعيد التحميل أثناءه.
+  // ما كان يكسر شي إن: حارس السعودية لا يجد مؤشرات سعودية على صفحة التحدي
+  // فيعيد تحميلها (حتى مرتين كل 30 ثانية) ويصفّر حل المستخدم قبل إتمامه —
+  // فتعلق شي إن للأبد. الحل: نكتشف التحدي، نجمّد كل تدخلاتنا ونزيل عناصرنا
+  // من الصفحة، ونبلغ التطبيق (humanCheck) ليطفئ مؤقت «تعذر الفتح» وينتظر.
+  var __otlobliChallengeNotified = false;
+  function otlobliIsHumanChallenge() {
+    try {
+      if (otlobliIsHumanChallengeUrl(location.href)) return true;
+      if (/just a moment/i.test(document.title || '')) return true;
+      if (document.getElementById('challenge-form')) return true;
+      if (document.querySelector('script[src*="challenges.cloudflare.com"], iframe[src*="challenges.cloudflare.com"]')) return true;
+      if (document.querySelector('[id*="challenge" i], [class*="challenge" i], [data-testid*="challenge" i]')) {
+        var challengeText = document.body ? (document.body.innerText || '').slice(0, 2400) : '';
+        if (/verify you are human|security verification|checking your browser|cloudflare/i.test(challengeText)) return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+  function otlobliEnterChallengeMode() {
+    try {
+      var ours = document.querySelectorAll('[id^="otlobli"]');
+      for (var ci = 0; ci < ours.length; ci++) {
+        try { if (ours[ci].parentNode) ours[ci].parentNode.removeChild(ours[ci]); } catch (e) {}
+      }
+    } catch (e) {}
+    // An add/loading overlay may have locked scrolling immediately before a
+    // same-document challenge appeared.  Removing our nodes is not enough;
+    // release that lock so the real verification control remains reachable.
+    try { if (document.body) document.body.style.overflow = ''; } catch (e) {}
+    if (!__otlobliChallengeNotified) {
+      __otlobliChallengeNotified = true;
+      try {
+        if (window.mobileApp && window.mobileApp.postMessage) {
+          window.mobileApp.postMessage({ detail: { type: 'humanCheck' } });
+        }
+      } catch (e) {}
+    }
+  }
+
   var sheinBlockReported = false;
   function checkForSheinSecurityBlock() {
     if (sheinBlockReported) return;
@@ -3643,6 +3803,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // setInterval(tick, 300) already scheduled will simply call this again
     // shortly, by which point the parser is essentially always done with it.
     if (!document.body) return;
+    // صفحة تحقق «أنا إنسان» — تجميد كامل لكل تدخلاتنا حتى يكملها المستخدم.
+    if (otlobliIsHumanChallenge()) { otlobliEnterChallengeMode(); return; }
     ensureViewportFitCover();
     if (IS_SHEIN) ensureSheinSaudiStore({ navigate: false });
     ensureBackButton();
@@ -3651,13 +3813,21 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // المزعجة ولا نشغّل منطق الالتقاط/الحجب الخاص بشي إن (الذي قد يخرّب صفحاتهم).
     if (!IS_SHEIN) {
       if (IS_TEMU) {
+        try { injectTemuHeaderHideCSS(); } catch (e) {}
         try { ensureTemuNoZoom(); } catch (e) {}
+        try { stabilizeTemuSearchChrome(); } catch (e) {}
+        // killStorePopups معطّلة لتيمو نهائياً (v57): أكّد اختبار المستخدم
+        // (2026-07-10) أنها سبب وميض الشاشة الأبيض كل نصف ثانية — كانت تحجب
+        // طبقة كبيرة تطابق PROMO ثم تعيدها المراجعة الذاتية، كل 300ms.
+        // لا تُعِد تفعيلها لتيمو. بانر التنزيل يُحجب عبر OTLOBLI_TEMU_HIDE_CSS
+        // الثابت (downloadUI فقط، وليس الغلاف downloadsWrapper الحاوي للبحث).
+        try { hideTemuHeaderIconsByProbe(); } catch (e) {}
         try { hideTemuCustomerAccountAndCart(); } catch (e) {}
         try { hideTemuCustomerChrome(); } catch (e) {}
         try { restoreTemuSearchChrome(); } catch (e) {}
         try { restoreTemuLogo(); } catch (e) {}
-        try { hideTemuFooterSection(); } catch (e) {}
         try { ensureAddToCartButton(); } catch (e) {}
+        try { dismissTemuLoginPopup(); } catch (e) {}
         try { detectEmptyTemuSearch(); } catch (e) {}
         return;
       }
@@ -3753,9 +3923,135 @@ export const SHEIN_CAPTURE_SCRIPT = `
     } catch (e) {}
   }
 
-  // يزيل النوافذ المنبثقة الترويجية المزعجة على المتاجر غير شي إن (عجلة الحظ،
-  // نوافذ الخصومات، طبقات تغطّي الشاشة): أي عنصر ثابت/مطلق بطبقة عالية يغطّي
-  // جزءاً كبيراً من الشاشة = نافذة منبثقة، فنخفيه ونعيد تمكين التمرير.
+  // نص قاعدة CSS التي تُخفي أزرار هيدر تيمو + بانر "تسوّق مثل الملياردير".
+  // الأزرار الثلاثة (عربة التسوق/الحساب/الفئات) كلها من نوع .tab-d3nPD داخل
+  // حاوية الهيدر topTabContainer. نستهدف أيضاً aria-label الدقيق كطبقة احتياطية
+  // لو تغيّرت أسماء الأصناف المُولّدة. اللاحقة العشوائية للأصناف (مثل -RLshn)
+  // قد تتغيّر بين الإصدارات لذا نطابق بالبادئة عبر [class*=].
+  //
+  // تحذير (v57): ممنوع إخفاء .downloadsWrapper كاملاً — على الأجهزة الفعلية
+  // شريط البحث بالرئيسية يسكن داخل هذا الغلاف نفسه (درس v35 المكرر في v53)،
+  // فإخفاؤه يُخفي البحث معه. كانت المراجعة الذاتية في killStorePopups تنقذه،
+  // وبعد تعطيلها لتيمو (سبب الوميض) لا منقذ. نخفي .downloadUI فقط (واجهة
+  // بانر التنزيل الفعلية داخل الغلاف) ويبقى الغلاف والبحث ظاهرين.
+  var OTLOBLI_TEMU_HIDE_CSS =
+    '[class*="tab-d3nPD"],' +
+    '[aria-label="عربة التسوق"], [aria-label="الحساب"], [aria-label="الفئات"],' +
+    '[class*="downloadUI" i]' +
+    '{ display: none !important; visibility: hidden !important; pointer-events: none !important; }' +
+    // (v60) غلاف downloadsWrapper يبقى ظاهراً (يحوي البحث — درس v57)، لكن
+    // بعد إخفاء بانر downloadUI تبقى حشوة/خلفية الغلاف فتظهر إطاراً أبيض
+    // كبيراً حول البحث أحياناً — نصفّر تباعده دون إخفائه.
+    '[class*="downloadsWrapper"]' +
+    '{ padding: 0 !important; margin: 0 !important; min-height: 0 !important; box-shadow: none !important;' +
+    ' background: transparent !important; border: 0 !important; border-radius: 0 !important; }' +
+    // (v66-fix) لا نثبّت شريط البحث بـ position:fixed. التثبيت + خلفية #fff +
+    // إعادة القياس/الوسم كل tick كان يُنتج مستطيلاً أبيض كبيراً ووميض «ياضي
+    // ويطفي» أثناء التمرير (تيمو تُعيد بناء الهيدر فيُزال الوسم ثم يُعاد). نتركه
+    // في التدفق الطبيعي ونكتفي بإبقائه ظاهراً بخلفية شفافة — أبسط وأثبت.
+    '[data-otlobli-temu-search-shell="1"]' +
+    '{ background: transparent !important; box-shadow: none !important; opacity: 1 !important;' +
+    ' visibility: visible !important; pointer-events: auto !important; }';
+  // نحقن القاعدة في أبكر لحظة ممكنة (documentStart، قبل رسم أي شيء) لمنع أي
+  // وميض للعناصر المخفية. لا نعتمد على flag لمرة واحدة، بل نفحص وجود <style>
+  // فعلياً في كل استدعاء: لو أزالت تيمو عنصرنا أثناء إعادة بناء الصفحة (عند
+  // فتح منتج والرجوع مثلاً) نعيد حقنه فوراً فلا يظهر المخفي أبداً. نستخدم
+  // document.head إن وُجد وإلا document.documentElement (المتوفّر دائماً هذا
+  // الوقت المبكر) فتُطبَّق القاعدة حتى قبل إنشاء <head>.
+  function injectTemuHeaderHideCSS() {
+    if (!IS_TEMU) return;
+    if (document.getElementById('otlobli-temu-header-hide')) return;
+    var parent = document.head || document.documentElement;
+    if (!parent) return;
+    var style = document.createElement('style');
+    style.id = 'otlobli-temu-header-hide';
+    style.textContent = OTLOBLI_TEMU_HIDE_CSS;
+    parent.appendChild(style);
+  }
+  // حقن فوري لحظة تحميل السكربت (preShowScript يعمل عند documentStart) — هذا
+  // هو ما يمنع ظهور الأزرار/البانر ولو لجزء من الثانية عند أول دخول للمتجر.
+  try { injectTemuHeaderHideCSS(); } catch (e) {}
+
+  function hideTemuHeaderIconsByProbe() {
+    if (!IS_TEMU || !document.body) return;
+    try {
+      var all = document.querySelectorAll('a, button, div, span, i, [role="button"]');
+      for (var i = 0; i < all.length; i++) {
+        var el = all[i];
+        if (el.id && el.id.indexOf('otlobli') === 0) continue;
+        if (el.closest && el.closest('[data-otlobli-temu-search-shell="1"]')) continue;
+        if (el.getAttribute && el.getAttribute('data-otlobli-temu-hidden') === '1') continue;
+        var r = el.getBoundingClientRect();
+        if (r.width === 0 || r.height === 0) continue;
+        if (r.top < 0 || r.top > 160) continue;
+        if (r.width > 64 || r.height > 64) continue;
+        if (r.width < 14 || r.height < 14) continue;
+        var txt = (el.textContent || '').trim();
+        var isKnownDistraction = OTLOBLI_KNOWN_DISTRACTION.test(txt) || OTLOBLI_KNOWN_DISTRACTION.test(otlobliCollectIdentityHints(el));
+        if (txt.length > 20 && !isKnownDistraction) continue;
+        if (otlobliLooksLikeTemuLogo(el)) continue;
+        var hints = otlobliCollectIdentityHints(el);
+        if (/search|بحث|magnif/i.test(hints)) continue;
+        if (el.querySelector && el.querySelector('input, textarea')) continue;
+        el.setAttribute('data-otlobli-temu-hidden', '1');
+        el.style.setProperty('visibility', 'hidden', 'important');
+        el.style.setProperty('pointer-events', 'none', 'important');
+      }
+    } catch (e) {}
+  }
+
+  // (v65) مُغلِق مهذّب لنافذة تسجيل دخول تيمو المنبثقة عند فتح منتج. لا يحجب
+  // محتوى المنتج ولا يُسجّل الدخول — فقط يبحث عن نافذة تسجيل دخول عائمة
+  // (position:fixed، تغطية كبيرة، نصّها يذكر تسجيل الدخول) وينقر زر الإغلاق
+  // (× / إغلاق / aria-label) أو زر «لاحقاً/تخطّي» إن وُجد. محاولة واحدة كل
+  // ظهور (علامة على النافذة) حتى لا نُكرر النقر. إن كانت شاشة تسجيل دخول
+  // كاملة (تنقّل صفحة، لا نافذة) فلا نقدر إغلاقها — تلك سياسة تيمو للمنطقة.
+  var __otlobliTemuLoginProbeTs = 0;
+  function dismissTemuLoginPopup() {
+    if (!IS_TEMU || !document.body) return;
+    var now = Date.now();
+    if (now - __otlobliTemuLoginProbeTs < 900) return; // لا نفحص كل tick
+    __otlobliTemuLoginProbeTs = now;
+    var LOGIN_RE = /سجّ?ل\\s*الدخول|تسجيل\\s*الدخول|sign\\s*in|log\\s*in|continue\\s*with|تابع\\s*عبر|أنشئ\\s*حساب|create\\s*account/i;
+    var CLOSE_RE = /^(?:×|✕|✖|x|close|إغلاق|اغلاق|تخطّ?ي|تخطي|skip|later|لاحقًا|لاحقا|ليس\\s*الآن|not\\s*now)$/i;
+    var vp = viewportSize();
+    var nodes = document.querySelectorAll('div, section, aside');
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      if (el.id && el.id.indexOf('otlobli') === 0) continue;
+      if (el.getAttribute && el.getAttribute('data-otlobli-login-handled') === '1') continue;
+      var cs = window.getComputedStyle(el);
+      if (cs.position !== 'fixed' && cs.position !== 'absolute') continue;
+      var r = el.getBoundingClientRect();
+      // نافذة كبيرة تغطي جزءاً معتبراً من الشاشة (لا شريط صغير).
+      if (r.width < vp.width * 0.6 || r.height < vp.height * 0.35) continue;
+      var txt = (el.textContent || '');
+      if (txt.length > 600 || !LOGIN_RE.test(txt)) continue;
+      // حارس المنتج: لا نلمس طبقة فيها سعر/شبكة صور منتجات (قد تكون المنتج).
+      if (el.querySelector && el.querySelector('[class*="curPrice" i]')) continue;
+      el.setAttribute('data-otlobli-login-handled', '1');
+      // ابحث عن زر إغلاق/تخطّي داخلها وانقره.
+      var btns = el.querySelectorAll('button, [role="button"], a, i, span, div');
+      var clicked = false;
+      for (var b = 0; b < btns.length && !clicked; b++) {
+        var bt = btns[b];
+        var bTxt = (bt.textContent || '').trim();
+        var aria = (bt.getAttribute && (bt.getAttribute('aria-label') || '')) || '';
+        var br = bt.getBoundingClientRect();
+        if (br.width === 0 || br.height === 0) continue;
+        if (CLOSE_RE.test(bTxt) || CLOSE_RE.test(aria.trim())) {
+          try { bt.click(); clicked = true; } catch (e) {}
+        }
+      }
+      // إن لم نجد زر إغلاق واضحاً، ننقر خلفية النافذة (تُغلق أغلب النوافذ)
+      // فقط إن كانت عائمة تغطي كامل الشاشة (backdrop).
+      if (!clicked && cs.position === 'fixed' && r.top <= 2 && r.left <= 2 &&
+          r.width >= vp.width - 4 && r.height >= vp.height - 4) {
+        try { el.click(); } catch (e) {}
+      }
+    }
+  }
+
   function hideTemuCustomerAccountAndCart() {
     if (!IS_TEMU || !document.body) return;
     try {
@@ -3765,23 +4061,35 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var sr = search.getBoundingClientRect();
         if (sr.width > 40) searchLeft = Math.max(120, sr.left);
       }
+      if (searchLeft === 230) {
+        var probes = document.querySelectorAll('a, div, span, button');
+        for (var pi = 0; pi < probes.length; pi++) {
+          var pe = probes[pi];
+          var pr = pe.getBoundingClientRect();
+          if (pr.top < 0 || pr.top > 180 || pr.width < 100 || pr.height < 20 || pr.height > 60) continue;
+          if (otlobliLooksLikeSearchTrigger(pe) || (pe.querySelector && pe.querySelector('input'))) {
+            searchLeft = Math.max(120, pr.left);
+            break;
+          }
+        }
+      }
       var candidates = [];
       var nodes = document.querySelectorAll('a, button, [role="button"], div, span');
       for (var i = 0; i < nodes.length; i++) {
         var el = nodes[i];
         if (el.id && el.id.indexOf('otlobli') === 0) continue;
+        if (el.closest && el.closest('[data-otlobli-temu-search-shell="1"]')) continue;
         if (el.getAttribute && el.getAttribute('data-otlobli-temu-hidden') === '1') continue;
         if (el.querySelector && el.querySelector('input, textarea, select')) continue;
         var txt = temuCleanText(el.textContent);
-        if (txt.length > 10) continue;
+        var isDistraction = OTLOBLI_KNOWN_DISTRACTION.test(txt) || otlobliLooksLikeKnownDistraction(el);
+        if (txt.length > 25 && !isDistraction) continue;
         var r = el.getBoundingClientRect();
         if (r.width < 22 || r.height < 22 || r.width > 72 || r.height > 72) continue;
         if (r.top < 0 || r.top > 150) continue;
-        if (otlobliNearSearchInput(el) || otlobliLooksLikeSearchTrigger(el)) continue;
-        var elHints = otlobliCollectIdentityHints(el);
-        if (/temu|logo|brand/i.test(elHints)) continue;
-        if (el.tagName === 'A' && /^\\/(?:jo\\/)?$/.test(el.getAttribute('href') || '')) continue;
-        if (el.querySelector && el.querySelector('img[alt*="Temu" i], img[alt*="تيمو"], img[src*="temu" i]')) continue;
+        var isSearch = el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || (el.querySelector && el.querySelector('input, textarea, [role="searchbox"]'));
+        if (isSearch || otlobliLooksLikeSearchTrigger(el)) continue;
+        if (otlobliLooksLikeTemuLogo(el)) continue;
         var beforeSearch = r.left < searchLeft - 12;
         var leftHeaderIcon = r.left >= 0 && r.left <= 145;
         if (!beforeSearch && !leftHeaderIcon) continue;
@@ -3794,7 +4102,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var hidden = 0;
       var hiddenBuckets = [];
       for (var c = 0; c < candidates.length; c++) {
-        if (hidden >= 2) break;
+        if (hidden >= 5) break;
         var duplicateBucket = false;
         for (var hb = 0; hb < hiddenBuckets.length; hb++) {
           if (Math.abs(hiddenBuckets[hb] - candidates[c].left) < 18) duplicateBucket = true;
@@ -3846,6 +4154,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var bottomStoreAction = r.bottom > vp.height - 190 && (/(cart|bag|deal|offer|add to|login|sign in)/i.test(txt) || /rgb\\(255,\\s*(?:102|118|128|136|145|153|165),\\s*0\\)/i.test(cs.backgroundColor || ''));
         if (!fixedish && !topAppBanner) continue;
         if (topAppBanner || bottomLogin || bottomStoreAction) {
+          // حارس البحث (v57): ممنوع حجب أي حاوية تضم شريط/حقل البحث — العلامة
+          // data-otlobli-temu-hidden تمنع الاستعادة نهائياً (otlobliUnhideEl
+          // يرفضها)، فحجب حاوية البحث هنا يعني اختفاءه بلا رجعة.
+          if (el.querySelector && el.querySelector('input[type="search"], input[placeholder*="Search" i], input[placeholder*="بحث"], [role="searchbox"], [class*="searchBar" i]')) continue;
           el.setAttribute('data-otlobli-temu-hidden', '1');
           el.style.setProperty('display', 'none', 'important');
           el.style.setProperty('pointer-events', 'none', 'important');
@@ -3856,7 +4168,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function otlobliUnhideEl(el) {
     if (!el || (el.id && el.id.indexOf('otlobli') === 0)) return;
-    el.removeAttribute('data-otlobli-temu-hidden');
+    if (el.getAttribute && el.getAttribute('data-otlobli-temu-hidden') === '1') return;
     el.removeAttribute('data-otlobli-blocked');
     el.style.removeProperty('display');
     el.style.setProperty('visibility', 'visible', 'important');
@@ -3864,6 +4176,35 @@ export const SHEIN_CAPTURE_SCRIPT = `
     el.style.setProperty('pointer-events', 'auto', 'important');
   }
 
+  function otlobliLooksLikeTemuLogo(el) {
+    if (!el) return false;
+    var txt = (el.textContent || '').trim();
+    if (/^TEMU$/i.test(txt)) return true;
+    if (el.tagName === 'A') {
+      var href = el.getAttribute('href') || '';
+      if (/^\\/(?:jo\\/?)?\\.?$/.test(href) || href === '/') {
+        var r = el.getBoundingClientRect();
+        if (r.width > 60 && r.height > 20 && r.height < 60) return true;
+      }
+    }
+    var logoImg = el.tagName === 'IMG' ? el : (el.querySelector ? el.querySelector('img') : null);
+    if (logoImg) {
+      var alt = (logoImg.getAttribute('alt') || '').trim();
+      if (/^temu$/i.test(alt)) return true;
+      var src = logoImg.getAttribute('src') || '';
+      if (/logo/i.test(src) && /temu/i.test(src)) return true;
+    }
+    return false;
+  }
+
+  // ملاحظة مهمة: هاتان الدالتان كانتا تستدعيان otlobliUnhideEl على البحث/الشعار
+  // + آبائهما (4-5 مستويات) + كل أطفال حاوية البحث. لوحة حساب تيمو (تسجيل الدخول
+  // /إنشاء حساب) تعيش داخل نفس حاوية الهيدر (شقيقة/طفلة للبحث) وهي مخفية بـ
+  // opacity:0. فكان توسيع الاستعادة للآباء/الأطفال يفرض عليها opacity:1 قسراً
+  // فتظهر تلقائياً عند النزول وتقفز الصفحة لأعلى. الآن نستعيد العنصر نفسه فقط
+  // (لا آباء ولا أطفال)، فلا نلمس اللوحة إطلاقاً. هذا يكفي لأن الإخفاء الثابت
+  // (منذ v57) يستهدف .tab-d3nPD/.downloadUI فقط ولا يخفي حاوية البحث —
+  // ملاحظة: استعادة العنصر نفسه لا تنفع أصلاً إن حُجب أحد آبائه بـ display:none.
   function restoreTemuSearchChrome() {
     if (!IS_TEMU || !document.body) return;
     try {
@@ -3874,36 +4215,78 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var r = el.getBoundingClientRect();
         if (r.top < -20 || r.top > 170 || r.width < 40 || r.height < 16) continue;
         if (!otlobliNearSearchInput(el) && !otlobliLooksLikeSearchTrigger(el)) continue;
-        var cur = el;
-        for (var depth = 0; cur && depth < 5; depth++) {
-          otlobliUnhideEl(cur);
-          cur = cur.parentElement;
-        }
-        var children = el.querySelectorAll ? el.querySelectorAll('*') : [];
-        for (var ci = 0; ci < children.length; ci++) otlobliUnhideEl(children[ci]);
+        otlobliUnhideEl(el);
       }
+    } catch (e) {}
+  }
+
+  function stabilizeTemuSearchChrome() {
+    if (!IS_TEMU || !document.body) return;
+    try {
+      var vp = viewportSize();
+      var control = null;
+      var direct = document.querySelectorAll(
+        'input[type="search"], input[placeholder*="Search" i], input[placeholder*="ط¨ط­ط«"], [role="searchbox"]'
+      );
+      for (var i = 0; i < direct.length; i++) {
+        var dr = direct[i].getBoundingClientRect();
+        if (dr.width >= 100 && dr.height >= 22 && dr.height <= 64) { control = direct[i]; break; }
+      }
+      if (!control) {
+        var triggers = document.querySelectorAll('a, button, [role="button"], div');
+        for (var t = 0; t < triggers.length; t++) {
+          var tr = triggers[t].getBoundingClientRect();
+          if (tr.width < 140 || tr.width > vp.width - 4 || tr.height < 26 || tr.height > 64) continue;
+          if (otlobliLooksLikeSearchTrigger(triggers[t])) { control = triggers[t]; break; }
+        }
+      }
+      if (!control) return;
+
+      var controlRect = control.getBoundingClientRect();
+      // Keep the same shell after it is pinned. Its padding/geometry changes
+      // intentionally, so re-running the ancestor heuristic could otherwise
+      // walk inward on the next 120ms pass and make the field jump.
+      var pinnedShell = control.closest ? control.closest('[data-otlobli-temu-search-shell="1"]') : null;
+      var shell = pinnedShell || control;
+      var up = pinnedShell ? null : control.parentElement;
+      var hops = 0;
+      while (up && up !== document.body && hops < 4) {
+        var ur = up.getBoundingClientRect();
+        if (ur.width >= controlRect.width && ur.width <= vp.width - 4 && ur.height >= controlRect.height && ur.height <= 82) {
+          shell = up;
+          var identity = otlobliCollectIdentityHints(up);
+          if (/search|ط¨ط­ط«/i.test(identity) || up.tagName === 'FORM' || up.getAttribute('role') === 'search') break;
+        }
+        if (ur.width >= vp.width - 2 || ur.height > 96) break;
+        up = up.parentElement;
+        hops++;
+      }
+
+      var oldShells = document.querySelectorAll('[data-otlobli-temu-search-shell="1"]');
+      for (var s = 0; s < oldShells.length; s++) {
+        if (oldShells[s] !== shell) oldShells[s].removeAttribute('data-otlobli-temu-search-shell');
+      }
+
+      var sr = shell.getBoundingClientRect();
+      var left = Math.max(4, Math.min(sr.left, vp.width - 104));
+      var width = Math.max(100, Math.min(sr.width, vp.width - left - 4));
+      shell.setAttribute('data-otlobli-temu-search-shell', '1');
+      shell.style.setProperty('--otlobli-temu-search-left', Math.round(left) + 'px');
+      shell.style.setProperty('--otlobli-temu-search-width', Math.round(width) + 'px');
     } catch (e) {}
   }
 
   function restoreTemuLogo() {
     if (!IS_TEMU || !document.body) return;
     try {
-      var logos = document.querySelectorAll('img[alt*="Temu" i], img[alt*="تيمو"], img[src*="temu" i], a[href="/"], a[href="/jo/"], svg');
-      for (var i = 0; i < logos.length; i++) {
-        var el = logos[i];
+      var all = document.querySelectorAll('a, div, span, img');
+      for (var i = 0; i < all.length; i++) {
+        var el = all[i];
         if (el.id && el.id.indexOf('otlobli') === 0) continue;
         var r = el.getBoundingClientRect();
-        if (r.top < -20 || r.top > 140) continue;
-        if (r.width < 20 || r.width > 200 || r.height < 12 || r.height > 80) continue;
-        var hints = otlobliCollectIdentityHints(el);
-        var looksLogo = /temu|logo|brand|home/i.test(hints) || (el.tagName === 'A' && (el.getAttribute('href') === '/' || el.getAttribute('href') === '/jo/'));
-        if (!looksLogo) continue;
-        if (otlobliLooksLikeKnownDistraction(el)) continue;
-        var cur = el;
-        for (var depth = 0; cur && depth < 4; depth++) {
-          otlobliUnhideEl(cur);
-          cur = cur.parentElement;
-        }
+        if (r.top < -20 || r.top > 140 || r.width < 40 || r.height < 16) continue;
+        if (!otlobliLooksLikeTemuLogo(el)) continue;
+        otlobliUnhideEl(el);
       }
     } catch (e) {}
   }
@@ -4053,9 +4436,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
           // بأعلى الشاشة) كافيان للتمييز بمفردهما.
           if (otlobliNearSearchInput(ic)) continue;
           if (otlobliLooksLikeSearchTrigger(ic)) continue;
-          var icHints = otlobliCollectIdentityHints(ic);
-          if (/temu|logo|brand/i.test(icHints)) continue;
-          if (ic.querySelector && ic.querySelector('img[alt*="Temu" i], img[alt*="تيمو"], img[src*="temu" i]')) continue;
+          if (otlobliLooksLikeTemuLogo(ic)) continue;
           var inLeftCluster = irAll.left >= 0 && irAll.left <= LEFT_CLUSTER_MAX;
           if (!inLeftCluster && !otlobliLooksLikeKnownDistraction(ic)) {
             visibleTopIconDiag.push('[' + otlobliCollectIdentityHints(ic).trim().slice(0, 30) + ' @' + Math.round(irAll.left) + ',' + Math.round(irAll.top) + ']');
@@ -4239,6 +4620,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
   setInterval(function () {
     ensureOtlobliNav();
     if (IS_TEMU) {
+      injectTemuHeaderHideCSS();
+      stabilizeTemuSearchChrome();
       restoreTemuSearchChrome();
       restoreTemuLogo();
     }

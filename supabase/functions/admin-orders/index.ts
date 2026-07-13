@@ -4,6 +4,7 @@ const ADMIN_PIN = Deno.env.get('ADMIN_PIN') ?? ''
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 const WHATSAPP_SERVER_URL = Deno.env.get('WHATSAPP_SERVER_URL') ?? ''
+const ORDER_NOTIFY_SECRET = Deno.env.get('ORDER_NOTIFY_SECRET') ?? ''
 const DRIVER_URL = Deno.env.get('DRIVER_URL') ?? ''
 
 const corsHeaders = {
@@ -27,6 +28,7 @@ const ORDER_STATUS_LABELS = [
 
 type OrderItemRow = {
   id: string
+  product_id?: string
   title: string
   image: string
   color: string
@@ -34,6 +36,12 @@ type OrderItemRow = {
   quantity: number
   price_syp: number
   source_link: string
+  custom_text?: string
+  custom_photo?: string
+  custom_photo_note?: string
+  owner_member_key?: string
+  owner_phone?: string
+  owner_name?: string
 }
 
 type OrderRow = {
@@ -57,8 +65,13 @@ type OrderRow = {
   payment_issue?: boolean
   payment_issue_note?: string
   extra_amount_usd?: number
+  invoice?: { label: string; amountUsd: number }[]
+  issues?: Record<string, unknown>[]
   group_id?: string
   group_code?: string
+  delivery_member_key?: string
+  delivery_owner_phone?: string
+  delivery_owner_name?: string
 }
 
 type DriverRow = {
@@ -83,11 +96,81 @@ type CustomerRow = {
   updated_at?: string
 }
 
+function normalizeOrderIssues(value: unknown, itemOwners = new Map<string, OrderItemRow>()) {
+  const raw = Array.isArray(value) ? value : []
+  const issues = raw
+    .filter((issue): issue is Record<string, unknown> => !!issue && typeof issue === 'object')
+    .map((issue) => {
+      const itemId = String(issue.itemId ?? '').slice(0, 200)
+      const owner = itemOwners.get(itemId)
+      const requestPhoto = issue.requestPhoto === true || issue.responseType === 'image'
+      return {
+        id: String(issue.id ?? '').slice(0, 120),
+        type: String(issue.type ?? 'other').slice(0, 40),
+        itemId,
+        note: String(issue.note ?? '').slice(0, 500),
+        options: Array.isArray(issue.options)
+          ? issue.options.map((option) => String(option).trim().slice(0, 120)).filter(Boolean).slice(0, 20)
+          : [],
+        requiredSize: String(issue.requiredSize ?? '').slice(0, 120),
+        amountUsd: Math.max(0, Math.round((Number(issue.amountUsd) || 0) * 100) / 100),
+        requestPhoto,
+        responseType: requestPhoto ? 'image' : (issue.responseType === 'option' ? 'option' : 'text'),
+        ownerMemberKey: owner?.owner_member_key || '',
+        ownerPhone: owner?.owner_phone || '',
+        ownerName: owner?.owner_name || '',
+        resolved: issue.resolved === true,
+        resolvedValue: String(issue.resolvedValue ?? '').slice(0, 2000),
+        resolvedPhotoDataUrl: String(issue.resolvedPhotoDataUrl ?? '').slice(0, 4_000_000),
+      }
+    })
+    .filter((issue) => issue.id !== '')
+  const unresolved = issues.filter((issue) => !issue.resolved)
+  const paymentTotal = unresolved
+    .filter((issue) => issue.type === 'payment')
+    .reduce((sum, issue) => sum + issue.amountUsd, 0)
+  const note = unresolved
+    .map((issue) => issue.note || issue.type)
+    .filter(Boolean)
+    .join('\n')
+    .slice(0, 2000)
+  return {
+    issues,
+    paymentIssue: unresolved.length > 0,
+    paymentIssueNote: note,
+    extraAmountUsd: Math.round(paymentTotal * 100) / 100,
+  }
+}
+
+function mergeIssueDrafts(incoming: unknown, current: unknown) {
+  const incomingList = Array.isArray(incoming) ? incoming : []
+  const currentList = Array.isArray(current)
+    ? current.filter((issue): issue is Record<string, unknown> => !!issue && typeof issue === 'object')
+    : []
+  const currentById = new Map(currentList.map((issue) => [String(issue.id ?? ''), issue]))
+  const incomingIds = new Set<string>()
+  const merged = incomingList.map((issue) => {
+    const record = (issue && typeof issue === 'object' ? issue : {}) as Record<string, unknown>
+    const id = String(record.id ?? '')
+    incomingIds.add(id)
+    const currentIssue = currentById.get(id)
+    if (currentIssue?.resolved === true && record.resolved !== true) {
+      return { ...record, resolved: true, resolvedValue: currentIssue.resolvedValue ?? '' }
+    }
+    return record
+  })
+  currentList.forEach((issue) => {
+    const id = String(issue.id ?? '')
+    if (id && issue.resolved === true && !incomingIds.has(id)) merged.push(issue)
+  })
+  return merged
+}
+
 async function notifyCustomerStatusChange(
   phone: string,
   order: { id: string; statusIndex: number; qadmousNumber?: string },
 ) {
-  if (!WHATSAPP_SERVER_URL || !phone) return
+  if (!WHATSAPP_SERVER_URL || !ORDER_NOTIFY_SECRET || !phone) return
   const label = ORDER_STATUS_LABELS[order.statusIndex] ?? ''
   const lines = [`📦 *تحديث على طلبك ${order.id}*`, `الحالة الجديدة: ${label}`]
   if (order.statusIndex === ORDER_STATUS_LABELS.length - 1) {
@@ -99,7 +182,7 @@ async function notifyCustomerStatusChange(
   try {
     await fetch(`${WHATSAPP_SERVER_URL}/api/notify/whatsapp`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', 'x-service-secret': ORDER_NOTIFY_SECRET },
       body: JSON.stringify({ phone, text: lines.join('\n') }),
       signal: AbortSignal.timeout(8000),
     })
@@ -112,7 +195,7 @@ async function notifyCustomerPaymentIssue(
   phone: string,
   order: { id: string; note: string; extraAmountUsd: number },
 ) {
-  if (!WHATSAPP_SERVER_URL || !phone) return
+  if (!WHATSAPP_SERVER_URL || !ORDER_NOTIFY_SECRET || !phone) return
   const lines = [
     `⚠️ *طلبك ${order.id} يحتاج إجراء منك*`,
     order.note || 'يوجد تفصيل يحتاج مراجعتك قبل متابعة الطلب.',
@@ -125,7 +208,7 @@ async function notifyCustomerPaymentIssue(
   try {
     await fetch(`${WHATSAPP_SERVER_URL}/api/notify/whatsapp`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', 'x-service-secret': ORDER_NOTIFY_SECRET },
       body: JSON.stringify({ phone, text: lines.join('\n') }),
       signal: AbortSignal.timeout(8000),
     })
@@ -139,7 +222,7 @@ async function notifyDriverAssignment(
   driverName: string,
   order: { id: string; customer: string; phone: string; city: string; address: string; itemCount: number },
 ) {
-  if (!WHATSAPP_SERVER_URL) return
+  if (!WHATSAPP_SERVER_URL || !ORDER_NOTIFY_SECRET) return
   const text = [
     `📦 *طلب جديد مكلَّف لك — ${order.id}*`,
     `👤 ${order.customer}  |  📞 ${order.phone}`,
@@ -152,7 +235,7 @@ async function notifyDriverAssignment(
   try {
     await fetch(`${WHATSAPP_SERVER_URL}/api/notify/whatsapp`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', 'x-service-secret': ORDER_NOTIFY_SECRET },
       body: JSON.stringify({ phone: driverPhone, text }),
       signal: AbortSignal.timeout(8000),
     })
@@ -218,6 +301,9 @@ Deno.serve(async (req) => {
       city: row.city,
       address: row.address,
       items: (row.order_items || []).map((item) => ({
+        // Use the order-item UUID for admin actions so two members ordering
+        // the same vendor product can still receive separate, owner-scoped
+        // issues. Customer payloads also expose this as orderItemId.
         id: item.id,
         title: item.title,
         image: item.image,
@@ -226,6 +312,12 @@ Deno.serve(async (req) => {
         quantity: item.quantity,
         priceSyp: item.price_syp,
         sourceLink: item.source_link,
+        customText: item.custom_text || '',
+        customPhotoDataUrl: item.custom_photo || '',
+        customPhotoNote: item.custom_photo_note || '',
+        ownerMemberKey: item.owner_member_key || '',
+        ownerPhone: item.owner_phone || '',
+        ownerName: item.owner_name || '',
       })),
       total: row.total_syp ?? row.total ?? 0,
       paymentStatus: row.payment_status,
@@ -239,8 +331,13 @@ Deno.serve(async (req) => {
       paymentIssue: row.payment_issue || false,
       paymentIssueNote: row.payment_issue_note || '',
       extraAmountUsd: row.extra_amount_usd || 0,
+      invoice: Array.isArray(row.invoice) ? row.invoice : [],
+      issues: Array.isArray(row.issues) ? row.issues : [],
       groupId: row.group_id || '',
       groupCode: row.group_code || '',
+      deliveryMemberKey: row.delivery_member_key || '',
+      deliveryOwnerPhone: row.delivery_owner_phone || '',
+      deliveryOwnerName: row.delivery_owner_name || '',
     }))
 
     const drivers = driverError ? [] : ((driverRows || []) as DriverRow[]).map((row) => ({ id: row.id, name: row.name }))
@@ -366,16 +463,70 @@ Deno.serve(async (req) => {
 
     // ملاحظة: جدول orders لا يحتوي على عمود updated_at، فلا نضيفه هنا
     const dbPatch: Record<string, unknown> = {}
-    if (patch.paymentStatus !== undefined) dbPatch.payment_status = patch.paymentStatus
+    let currentStructuredIssues: unknown[] = []
+    let issueItems: OrderItemRow[] = []
+    let normalizedIssueState: ReturnType<typeof normalizeOrderIssues> | null = null
+    if (patch.issues !== undefined) {
+      const { data: currentOrder } = await supabase
+        .from('orders')
+        .select('issues, order_items(id, product_id, owner_member_key, owner_phone, owner_name)')
+        .eq('id', orderId)
+        .single()
+      currentStructuredIssues = Array.isArray(currentOrder?.issues) ? currentOrder.issues : []
+      issueItems = Array.isArray(currentOrder?.order_items) ? currentOrder.order_items as OrderItemRow[] : []
+    }
+    if (patch.paymentStatus !== undefined) {
+      const paymentStatus = String(patch.paymentStatus)
+      const paidAt = typeof patch.paidAt === 'string' && patch.paidAt ? patch.paidAt : null
+      const { error: paymentError } = await supabase.rpc('admin_set_order_payment_status', {
+        p_order_id: orderId,
+        p_payment_status: paymentStatus,
+        p_paid_at: paidAt,
+      })
+      if (paymentError) {
+        return new Response(JSON.stringify({ error: paymentError.message }), {
+          status: 400,
+          headers: { ...corsHeaders, 'content-type': 'application/json' },
+        })
+      }
+    }
     if (patch.statusIndex !== undefined) dbPatch.status_index = patch.statusIndex
     if (patch.qadmousNumber !== undefined) dbPatch.qadmous_number = patch.qadmousNumber
-    if (patch.paidAt !== undefined) dbPatch.paid_at = patch.paidAt
-    if (patch.paymentIssue !== undefined) dbPatch.payment_issue = Boolean(patch.paymentIssue)
-    if (patch.paymentIssueNote !== undefined) dbPatch.payment_issue_note = String(patch.paymentIssueNote || '')
-    if (patch.extraAmountUsd !== undefined) dbPatch.extra_amount_usd = Number(patch.extraAmountUsd) || 0
+    if (patch.paidAt !== undefined && patch.paymentStatus === undefined) dbPatch.paid_at = patch.paidAt
+    if (patch.paymentIssue !== undefined && patch.issues === undefined) dbPatch.payment_issue = Boolean(patch.paymentIssue)
+    if (patch.paymentIssueNote !== undefined && patch.issues === undefined) dbPatch.payment_issue_note = String(patch.paymentIssueNote || '')
+    if (patch.extraAmountUsd !== undefined && patch.issues === undefined) dbPatch.extra_amount_usd = Number(patch.extraAmountUsd) || 0
+    // مشاكل الطلب المنظمة: نحفظ المصفوفة كما هي (الواجهة تبنيها منقّاة).
+    if (patch.issues !== undefined) {
+      const itemOwners = new Map<string, OrderItemRow>()
+      issueItems.forEach((item) => {
+        itemOwners.set(item.id, item)
+        if (item.product_id && !itemOwners.has(item.product_id)) itemOwners.set(item.product_id, item)
+      })
+      const issueState = normalizeOrderIssues(mergeIssueDrafts(patch.issues, currentStructuredIssues), itemOwners)
+      normalizedIssueState = issueState
+      dbPatch.issues = issueState.issues
+      dbPatch.payment_issue = issueState.paymentIssue
+      dbPatch.payment_issue_note = issueState.paymentIssueNote
+      dbPatch.extra_amount_usd = issueState.extraAmountUsd
+    }
+    // فاتورة الطلب: بنود {label, amountUsd} فقط — ننقّي الشكل قبل الحفظ.
+    if (patch.invoice !== undefined) {
+      dbPatch.invoice = Array.isArray(patch.invoice)
+        ? patch.invoice
+          .map((line) => {
+            const rec = (line && typeof line === 'object' ? line : {}) as Record<string, unknown>
+            return {
+              label: String(rec.label ?? '').slice(0, 120),
+              amountUsd: Math.round((Number(rec.amountUsd) || 0) * 100) / 100,
+            }
+          })
+          .filter((line) => line.label.trim() !== '')
+        : []
+    }
 
     let previousPaymentIssue: boolean | null = null
-    if (patch.paymentIssue !== undefined) {
+    if (patch.paymentIssue !== undefined || patch.issues !== undefined) {
       const { data } = await supabase.from('orders').select('payment_issue').eq('id', orderId).single()
       previousPaymentIssue = data?.payment_issue ?? false
     }
@@ -393,7 +544,9 @@ Deno.serve(async (req) => {
       previousOrder = data
     }
 
-    const { error } = await supabase.from('orders').update(dbPatch).eq('id', orderId)
+    const { error } = Object.keys(dbPatch).length > 0
+      ? await supabase.from('orders').update(dbPatch).eq('id', orderId)
+      : { error: null }
 
     if (error) {
       return new Response(JSON.stringify({ error: error.message }), {
@@ -417,13 +570,22 @@ Deno.serve(async (req) => {
       })
     }
 
-    if (patch.paymentIssue === true && previousPaymentIssue === false) {
+    if (Boolean(dbPatch.payment_issue) && (previousPaymentIssue === false || normalizedIssueState)) {
+      const existingIds = new Set(currentStructuredIssues.map((issue) => String((issue as Record<string, unknown>)?.id ?? '')))
+      const newIssues = normalizedIssueState?.issues.filter((issue) => !issue.resolved && !existingIds.has(issue.id)) ?? []
       const { data: order } = await supabase.from('orders').select('phone').eq('id', orderId).single()
-      if (order?.phone) {
-        await notifyCustomerPaymentIssue(order.phone, {
+      // Structured saves notify only genuinely new issue IDs. Re-saving an
+      // existing draft must not spam every unresolved group member again.
+      const issuesToNotify = normalizedIssueState ? newIssues : []
+      const recipientPhones = new Set(issuesToNotify.map((issue) => issue.ownerPhone || order?.phone || '').filter(Boolean))
+      if (!normalizedIssueState && previousPaymentIssue === false && order?.phone) recipientPhones.add(order.phone)
+      for (const recipientPhone of recipientPhones) {
+        const recipientIssues = issuesToNotify.filter((issue) => (issue.ownerPhone || order?.phone || '') === recipientPhone)
+        await notifyCustomerPaymentIssue(recipientPhone, {
           id: orderId,
-          note: typeof patch.paymentIssueNote === 'string' ? patch.paymentIssueNote : '',
-          extraAmountUsd: Number(patch.extraAmountUsd) || 0,
+          note: recipientIssues.map((issue) => issue.note || issue.type).filter(Boolean).join('\n') || String(dbPatch.payment_issue_note || ''),
+          extraAmountUsd: recipientIssues.filter((issue) => issue.type === 'payment').reduce((sum, issue) => sum + issue.amountUsd, 0)
+            || Number(dbPatch.extra_amount_usd) || 0,
         })
       }
     }

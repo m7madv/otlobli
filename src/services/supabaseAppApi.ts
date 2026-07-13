@@ -7,13 +7,21 @@ import type { ProductFetchResult, TalabiehApi } from './appApi'
 import { localAppApi } from './localAppApi'
 import { supabase } from './supabaseClient'
 import { isWhatsappApiAuthEnabled, whatsappAuthApi } from './whatsappAuthApi'
-import { PAYMENT_MODE, cleanEnvValue } from '../config'
+import { cleanEnvValue } from '../config'
+import { readStoredJson, storageKeys } from '../infrastructure/localStorage'
 
 const DISPLAY_USD_RATE = Number(cleanEnvValue(import.meta.env.VITE_USD_TO_SYP_RATE)) || 13000
 const SUPABASE_URL = cleanEnvValue(import.meta.env.VITE_SUPABASE_URL)
 const SUPABASE_ANON_KEY = cleanEnvValue(import.meta.env.VITE_SUPABASE_ANON_KEY)
-const TELEGRAM_NOTIFY_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/telegram-notify` : ''
 const CART_GROUPS_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/cart-groups` : ''
+
+function requireCustomerSessionToken() {
+  const token = readStoredJson<string>(storageKeys.sessionToken, '')
+  if (!token || /^\d+$/.test(token)) {
+    throw new Error('انتهت جلسة الدخول. سجّل الدخول برقم واتساب من جديد.')
+  }
+  return token
+}
 
 // Cloudflare Worker (fast, edge-based) with Railway as fallback
 const SHEIN_WORKER_URL = cleanEnvValue(import.meta.env.VITE_SHEIN_WORKER_URL) || 'https://talabieh-shein.talabieh.workers.dev'
@@ -74,7 +82,7 @@ function isProduct(value: unknown): value is Product {
   )
 }
 
-function toOrderPayload(order: Order) {
+function toOrderPayload(order: Order, store = '') {
   return {
     id: order.id,
     customer: order.customer,
@@ -90,6 +98,10 @@ function toOrderPayload(order: Order) {
     paidAt: order.paidAt ?? null,
     groupId: order.groupId ?? null,
     groupCode: order.groupCode ?? null,
+    deliveryMemberKey: order.deliveryMemberKey ?? null,
+    deliveryOwnerPhone: order.deliveryOwnerPhone ?? null,
+    deliveryOwnerName: order.deliveryOwnerName ?? null,
+    store,
   }
 }
 
@@ -116,8 +128,35 @@ function normalizeOrder(value: unknown): Order | null {
     paymentIssue: Boolean(row.paymentIssue),
     paymentIssueNote: typeof row.paymentIssueNote === 'string' ? row.paymentIssueNote : '',
     extraAmountUsd: typeof row.extraAmountUsd === 'number' ? row.extraAmountUsd : Number(row.extraAmountUsd ?? 0),
+    invoice: Array.isArray(row.invoice)
+      ? row.invoice
+        .map((line) => {
+          const rec = (line && typeof line === 'object' ? line : {}) as Record<string, unknown>
+          return { label: String(rec.label ?? ''), amountUsd: Number(rec.amountUsd) || 0 }
+        })
+        .filter((line) => line.label.trim() !== '')
+      : undefined,
+    issues: Array.isArray(row.issues)
+      ? row.issues
+        .filter((it): it is Record<string, unknown> => !!it && typeof it === 'object' && typeof (it as Record<string, unknown>).id === 'string')
+        .map((it) => it as unknown as import('../domain/types').OrderIssue)
+      : undefined,
     groupId: typeof row.groupId === 'string' ? row.groupId : undefined,
     groupCode: typeof row.groupCode === 'string' ? row.groupCode : undefined,
+    groupMembers: Array.isArray(row.groupMembers)
+      ? row.groupMembers.map((member) => {
+        const value = (member && typeof member === 'object' ? member : {}) as Record<string, unknown>
+        return {
+          memberKey: typeof value.memberKey === 'string' ? value.memberKey : undefined,
+          phone: String(value.phone ?? ''),
+          name: String(value.name ?? ''),
+          role: value.role === 'host' ? 'host' as const : 'member' as const,
+        }
+      })
+      : undefined,
+    deliveryMemberKey: typeof row.deliveryMemberKey === 'string' ? row.deliveryMemberKey : undefined,
+    deliveryOwnerPhone: typeof row.deliveryOwnerPhone === 'string' ? row.deliveryOwnerPhone : undefined,
+    deliveryOwnerName: typeof row.deliveryOwnerName === 'string' ? row.deliveryOwnerName : undefined,
   }
 }
 
@@ -130,7 +169,13 @@ function normalizeCustomerAccount(data: unknown) {
     ? row.orders.map(normalizeOrder).filter((order): order is Order => !!order)
     : []
   const walletTransactions = Array.isArray(row.walletTransactions)
-    ? row.walletTransactions.filter((item): item is WalletTransaction => !!item && typeof item === 'object')
+    ? row.walletTransactions
+      .filter((item): item is WalletTransaction => !!item && typeof item === 'object')
+      .map((item) => ({
+        ...item,
+        amountSyp: Number(item.amountSyp) || 0,
+        amountUsd: Number.isFinite(Number(item.amountUsd)) ? Number(item.amountUsd) : undefined,
+      }))
     : []
   return {
     mode: 'external' as const,
@@ -397,20 +442,14 @@ export const supabaseAppApi: TalabiehApi = {
     },
   },
   payments: {
-    // وضع 'auto': الطلب مدفوع منذ إنشائه، فالحالة دائماً "مدفوع".
-    // وضع 'shamcash': يستعلم عن الحالة الحقيقية المخزنة بـSupabase - تتحول
-    // لـ"مدفوع" فقط لما webhook شام كاش يؤكّدها.
     async checkPaymentStatus(orderId) {
-      if (PAYMENT_MODE === 'auto') {
-        return { mode: 'external', status: 'مدفوع', paidAt: today() }
-      }
-
       if (!supabase) {
         return localAppApi.payments.checkPaymentStatus(orderId)
       }
 
       const { data, error } = await supabase.rpc('get_order_payment_status', {
         target_order_id: orderId,
+        p_session_token: requireCustomerSessionToken(),
       })
 
       if (error || !data || !(data as { found?: boolean }).found) {
@@ -435,6 +474,7 @@ export const supabaseAppApi: TalabiehApi = {
         p_phone: phone.trim(),
         p_name: name.trim(),
         p_amount_usd: Math.round(amountUsd * 100) / 100,
+        p_session_token: requireCustomerSessionToken(),
       })
 
       if (error || !data) {
@@ -466,6 +506,7 @@ export const supabaseAppApi: TalabiehApi = {
 
       const { data, error } = await supabase.rpc('get_wallet_topup_status', {
         target_topup_id: topUpId,
+        p_session_token: requireCustomerSessionToken(),
       })
 
       if (error || !data || !(data as { found?: boolean }).found) {
@@ -495,20 +536,20 @@ export const supabaseAppApi: TalabiehApi = {
 
     async getBalance(phone) {
       if (!supabase) return localAppApi.wallet.getBalance(phone)
-      const { data, error } = await supabase.rpc('get_wallet_balance_usd', { p_phone: phone.trim() })
+      const { data, error } = await supabase.rpc('get_wallet_balance_usd', {
+        p_phone: phone.trim(),
+        p_session_token: requireCustomerSessionToken(),
+      })
       if (error) return 0
       return Number(data ?? 0)
     },
 
     async spend(phone, amountUsd, orderId) {
       if (!supabase) return localAppApi.wallet.spend(phone, amountUsd, orderId)
-      const { data, error } = await supabase.rpc('wallet_spend', {
-        p_phone: phone.trim(),
-        p_amount_usd: amountUsd,
-        p_order_id: orderId,
-      })
-      if (error) throw new Error(error.message)
-      return Number(data ?? 0)
+      void phone
+      void amountUsd
+      void orderId
+      throw new Error('خصم المحفظة يتم الآن ذرياً داخل إنشاء الطلب.')
     },
   },
   customers: {
@@ -519,6 +560,7 @@ export const supabaseAppApi: TalabiehApi = {
 
       const { data, error } = await supabase.rpc('get_customer_account', {
         p_phone: phone.trim(),
+        p_session_token: requireCustomerSessionToken(),
       })
 
       if (error) {
@@ -551,6 +593,7 @@ export const supabaseAppApi: TalabiehApi = {
         p_qadmous_branch: profile.qadmousBranch ?? '',
         p_city: profile.city ?? '',
         p_details: profile.details ?? '',
+        p_session_token: requireCustomerSessionToken(),
       })
 
       if (error) throw new Error(getPublicDbError('\u062A\u0639\u0630\u0631 \u062D\u0641\u0638 \u0628\u064A\u0627\u0646\u0627\u062A \u0627\u0644\u0645\u0633\u062A\u062E\u062F\u0645', error.message))
@@ -569,6 +612,7 @@ export const supabaseAppApi: TalabiehApi = {
         p_phone: (profile.phone || phone).trim(),
         p_pickup_label: nextPickupLabel,
         p_notification_prefs: nextNotificationPrefs,
+        p_session_token: requireCustomerSessionToken(),
       })
 
       if (prefsError) {
@@ -631,70 +675,46 @@ export const supabaseAppApi: TalabiehApi = {
     },
   },
   orders: {
-    async createPendingOrder(order, currency) {
+    async createPendingOrder(order, currency, walletSpendUsd = 0, store = '') {
       if (!supabase) {
         throw new Error('قاعدة البيانات غير متصلة. تأكد من إعدادات Supabase.')
       }
 
-      if (PAYMENT_MODE === 'shamcash') {
-        // المسار الكامل: مبلغ دفع فريد + مطابقة تلقائية (يتطلب schema.sql المطبّق)
-        const { data, error } = await supabase.rpc('create_pending_order', {
-          order_payload: toOrderPayload(order),
-          currency,
-        })
-        if (error || !data) {
-          throw new Error(getPublicDbError('تعذّر إنشاء الطلب', error?.message))
-        }
-        const result = data as { orderId: string; paymentAmount: number; paymentCurrency: PaymentCurrency; paymentExpiresAt: string }
-        notifyNewOrder({
-          ...toOrderPayload(order),
-          id: result.orderId,
-          paymentAmount: result.paymentAmount,
-          paymentCurrency: result.paymentCurrency,
-          paymentExpiresAt: result.paymentExpiresAt,
-        })
-        return {
-          mode: 'external',
-          orderId: result.orderId,
-          paymentAmount: result.paymentAmount,
-          paymentCurrency: result.paymentCurrency,
-          paymentExpiresAt: result.paymentExpiresAt,
-        }
-      }
-
-      // وضع 'auto': الطلب يُحفظ مباشرة بحالة "مدفوع" عبر submit_order العاملة.
-      const paidOrder: Order = {
-        ...order,
-        paymentStatus: 'مدفوع',
-        statusIndex: 1,
-        paidAt: today(),
-      }
-
-      const { data, error } = await supabase.rpc('submit_order', {
-        order_payload: toOrderPayload(paidOrder),
+      const { data, error } = await supabase.rpc('create_pending_order_v2', {
+        order_payload: toOrderPayload(order, store),
+        currency,
+        p_session_token: requireCustomerSessionToken(),
+        p_wallet_spend_usd: Math.max(0, Number(walletSpendUsd) || 0),
       })
-
       if (error || !data) {
-        const isNetworkError = error?.message?.toLowerCase().includes('type error') || error?.message?.toLowerCase().includes('failed to fetch')
-        const userMsg = isNetworkError
-          ? 'تعذّر الاتصال بقاعدة البيانات. تحقق من اتصالك بالإنترنت وأعد المحاولة.'
-          : `تعذّر حفظ الطلب في قاعدة البيانات: ${error?.message ?? 'خطأ غير معروف'}`
-        throw new Error(userMsg)
+        throw new Error(getPublicDbError('تعذّر إنشاء الطلب', error?.message))
       }
 
-      const orderId = data as string
-      notifyNewOrder({ ...toOrderPayload(paidOrder), id: orderId })
-
-      const paymentAmount = currency === 'USD'
-        ? Math.round((order.total / DISPLAY_USD_RATE) * 100) / 100
-        : order.total
+      const result = data as {
+        orderId: string
+        paymentAmount: number
+        paymentCurrency: PaymentCurrency
+        paymentExpiresAt: string
+        paymentStatus?: PaymentStatus
+        walletBalanceUsd?: number
+      }
+      notifyNewOrder({
+        ...toOrderPayload(order, store),
+        id: result.orderId,
+        paymentAmount: result.paymentAmount,
+        paymentCurrency: result.paymentCurrency,
+        paymentExpiresAt: result.paymentExpiresAt,
+        paymentStatus: result.paymentStatus,
+      })
 
       return {
         mode: 'external',
-        orderId,
-        paymentAmount,
-        paymentCurrency: currency,
-        paymentExpiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+        orderId: result.orderId,
+        paymentAmount: Number(result.paymentAmount),
+        paymentCurrency: result.paymentCurrency,
+        paymentExpiresAt: result.paymentExpiresAt,
+        paymentStatus: result.paymentStatus,
+        walletBalanceUsd: Number(result.walletBalanceUsd ?? 0),
       }
     },
 
@@ -711,6 +731,7 @@ export const supabaseAppApi: TalabiehApi = {
         p_order_id: orderId,
         p_amount_usd: amountUsd,
         p_currency: currency,
+        p_session_token: requireCustomerSessionToken(),
       })
       if (error || !data) {
         throw new Error(getPublicDbError('تعذر إنشاء طلب الدفع', error?.message))
@@ -737,6 +758,7 @@ export const supabaseAppApi: TalabiehApi = {
 
       const { data, error } = await supabase.rpc('get_order_payment_status', {
         target_order_id: orderId,
+        p_session_token: requireCustomerSessionToken(),
       })
 
       if (error || !data || !(data as { found?: boolean }).found) return null
@@ -780,6 +802,7 @@ export const supabaseAppApi: TalabiehApi = {
         p_store: input.store || 'all',
         p_subtotal_syp: Math.max(0, Math.round(input.subtotalSyp)),
         p_usd_rate: DISPLAY_USD_RATE,
+        p_session_token: requireCustomerSessionToken(),
       })
       if (error || !data) return { valid: false, discountSyp: 0, reason: 'error' as const }
 
@@ -800,6 +823,51 @@ export const supabaseAppApi: TalabiehApi = {
         target_order_id: orderId,
         p_stars: stars,
         p_note: note.trim(),
+        p_session_token: requireCustomerSessionToken(),
+      })
+      if (error) return false
+      return Boolean(data)
+    },
+
+    // تصحيح تخصيص عنصر في طلب قائم (صورة مقصوصة و/أو نص) — يحدّث حقول
+    // التخصيص فقط في order_items ويظهر فوراً للوحة الإدارة.
+    async submitCustomFix(orderId, productId, photoDataUrl, customText) {
+      if (!supabase) return false
+      const { data, error } = await supabase.rpc('submit_order_custom_fix', {
+        target_order_id: orderId,
+        p_product_id: productId,
+        p_custom_photo: photoDataUrl || '',
+        p_custom_text: (customText || '').trim(),
+        p_session_token: requireCustomerSessionToken(),
+      })
+      if (error) return false
+      return Boolean(data)
+    },
+
+    // اختيار الزبون من «الخيارات المتاحة» في مشكلة الطلب (مقاس/لون) —
+    // يحدّث عنصر الطلب مباشرة عبر الغلاف الموقّع بالجلسة.
+    async submitOptionFix(orderId, productId, field, value) {
+      if (!supabase) return false
+      const { data, error } = await supabase.rpc('submit_order_option_fix', {
+        target_order_id: orderId,
+        p_product_id: productId,
+        p_field: field,
+        p_value: value,
+        p_session_token: requireCustomerSessionToken(),
+      })
+      if (error) return false
+      return Boolean(data)
+    },
+
+    // يعلّم مشكلة منظمة كمحلولة (بعد أن يحلها الزبون فعلياً عبر RPC المختصة).
+    async submitIssueResolve(orderId, issueId, resolvedValue, resolvedPhotoDataUrl = '') {
+      if (!supabase) return false
+      const { data, error } = await supabase.rpc('submit_order_issue_resolve', {
+        target_order_id: orderId,
+        p_issue_id: issueId,
+        p_resolved_value: resolvedValue || '',
+        p_resolved_photo_data_url: resolvedPhotoDataUrl || '',
+        p_session_token: requireCustomerSessionToken(),
       })
       if (error) return false
       return Boolean(data)
@@ -807,36 +875,9 @@ export const supabaseAppApi: TalabiehApi = {
   },
 }
 
-// إشعار Telegram للمشرف عند وصول طلب جديد (fire-and-forget، غير حيوي).
-// كان يستخدم سابقاً دالة Supabase Edge (telegram-notify) لكنها ترفض كل
-// الطلبات بـ401 لأنها تتطلب x-admin-pin ولم يكن يُرسَل عند إنشاء طلب جديد -
-// هذا هو السبب الحقيقي لعدم وصول إشعارات الطلبات الجديدة. مسار سيرفر
-// Railway الحالي (/api/orders/notify) لا يتطلب أي pin ويستخدم نفس متغيرات
-// TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID المُعدّة مسبقاً هناك.
+// The client must never be able to trigger operator notifications directly.
+// The signed payment webhook sends the notification after a real match.
 function notifyNewOrder(orderPayload: Record<string, unknown>) {
-  try {
-    const apiBase = cleanEnvValue(import.meta.env.VITE_WHATSAPP_API_URL)
-    if (apiBase) {
-      void fetch(`${apiBase}/api/orders/notify`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ order: orderPayload }),
-      }).catch(() => undefined)
-      return
-    }
-
-    if (TELEGRAM_NOTIFY_URL && SUPABASE_ANON_KEY) {
-      void fetch(TELEGRAM_NOTIFY_URL, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          apikey: SUPABASE_ANON_KEY,
-          authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify({ order: orderPayload }),
-      }).catch(() => undefined)
-      return
-    }
-  } catch { /* إشعار غير حيوي */ }
+  void orderPayload
 }
 

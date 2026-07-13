@@ -2,96 +2,120 @@ package com.otlobli.shamcashlistener;
 
 import android.content.Context;
 
-import org.json.JSONObject;
+import androidx.work.BackoffPolicy;
+import androidx.work.Constraints;
+import androidx.work.Data;
+import androidx.work.ExistingWorkPolicy;
+import androidx.work.NetworkType;
+import androidx.work.OneTimeWorkRequest;
+import androidx.work.WorkManager;
 
-import java.io.BufferedReader;
-import java.io.OutputStream;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.TimeUnit;
 
 final class WebhookForwarder {
+    static final String KEY_EVENT_ID = "event_id";
+    static final String KEY_POSTED_AT = "posted_at";
+    static final String KEY_PACKAGE_NAME = "package_name";
+    static final String KEY_TITLE = "title";
+    static final String KEY_TEXT = "text";
+    static final String KEY_BIG_TEXT = "big_text";
+
+    private static final String UNIQUE_WORK_PREFIX = "shamcash-delivery-";
+    private static final String WORK_TAG = "shamcash-payment-delivery";
+    private static final int TITLE_UTF8_BYTES = 384;
+    private static final int TEXT_UTF8_BYTES = 2_048;
+    private static final int BIG_TEXT_UTF8_BYTES = 3_072;
+
     private WebhookForwarder() {}
 
-    static void forward(Context context, String packageName, String title, String text, String bigText) {
-        String combinedText = join(title, text, bigText).trim();
-        if (combinedText.isEmpty()) return;
-
-        String hash = packageName + "|" + combinedText.hashCode();
-        if (!ListenerConfig.rememberHash(context, hash)) return;
-
-        new Thread(() -> send(context.getApplicationContext(), packageName, title, text, bigText, combinedText)).start();
-    }
-
-    private static String join(String title, String text, String bigText) {
-        StringBuilder builder = new StringBuilder();
-        if (title != null && !title.trim().isEmpty()) builder.append(title.trim()).append('\n');
-        if (text != null && !text.trim().isEmpty()) builder.append(text.trim()).append('\n');
-        if (bigText != null && !bigText.trim().isEmpty() && !bigText.equals(text)) builder.append(bigText.trim());
-        return builder.toString();
-    }
-
-    private static void send(
+    static boolean enqueue(
         Context context,
+        String eventId,
+        long postedAt,
         String packageName,
         String title,
         String text,
-        String bigText,
-        String combinedText
+        String bigText
     ) {
-        String webhookUrl = ListenerConfig.webhookUrl(context);
-        String secret = ListenerConfig.secret(context);
-        if (webhookUrl.isEmpty() || secret.isEmpty()) {
-            ListenerConfig.saveLastResult(context, "missing_config");
-            return;
-        }
+        Context appContext = context.getApplicationContext();
+        if (!ListenerConfig.TARGET_PACKAGE.equals(packageName) || !EventIdentity.isValid(eventId)) return false;
+        if (!NotificationClassifier.shouldForwardCandidate(title, text, bigText)) return false;
+        if (ListenerConfig.wasDelivered(appContext, eventId)) return false;
 
-        HttpURLConnection connection = null;
         try {
-            JSONObject payload = new JSONObject();
-            payload.put("packageName", packageName);
-            payload.put("title", title == null ? "" : title);
-            payload.put("body", text == null ? "" : text);
-            payload.put("bigText", bigText == null ? "" : bigText);
-            payload.put("notificationText", combinedText);
-            payload.put("sentAt", System.currentTimeMillis());
+            // WorkManager Data is limited to 10 KiB after serialization. Limit actual
+            // UTF-8 bytes (not Java chars), leave ample envelope overhead, and keep the
+            // build itself inside the guarded path so oversized vendor extras cannot
+            // crash the listener callback.
+            Data input = new Data.Builder()
+                .putString(KEY_EVENT_ID, eventId)
+                .putLong(KEY_POSTED_AT, postedAt)
+                .putString(KEY_PACKAGE_NAME, packageName)
+                .putString(KEY_TITLE, truncateUtf8(title, TITLE_UTF8_BYTES))
+                .putString(KEY_TEXT, truncateUtf8(text, TEXT_UTF8_BYTES))
+                .putString(KEY_BIG_TEXT, truncateUtf8(bigText, BIG_TEXT_UTF8_BYTES))
+                .build();
 
-            byte[] body = payload.toString().getBytes(StandardCharsets.UTF_8);
-            connection = (HttpURLConnection) new URL(webhookUrl).openConnection();
-            connection.setRequestMethod("POST");
-            connection.setConnectTimeout(15000);
-            connection.setReadTimeout(15000);
-            connection.setDoOutput(true);
-            connection.setRequestProperty("content-type", "application/json; charset=utf-8");
-            connection.setRequestProperty("x-payment-secret", secret);
-            connection.setRequestProperty("content-length", String.valueOf(body.length));
+            Constraints constraints = new Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .build();
 
-            try (OutputStream output = connection.getOutputStream()) {
-                output.write(body);
-            }
+            OneTimeWorkRequest request = new OneTimeWorkRequest.Builder(PaymentDeliveryWorker.class)
+                .setInputData(input)
+                .setConstraints(constraints)
+                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+                .addTag(WORK_TAG)
+                .build();
 
-            int status = connection.getResponseCode();
-            String response = readResponse(connection, status);
-            ListenerConfig.saveLastResult(context, status + " " + response);
-        } catch (Exception err) {
-            ListenerConfig.saveLastResult(context, "error " + err.getClass().getSimpleName() + ": " + err.getMessage());
-        } finally {
-            if (connection != null) connection.disconnect();
+            WorkManager.getInstance(appContext).enqueueUniqueWork(
+                UNIQUE_WORK_PREFIX + eventId,
+                ExistingWorkPolicy.KEEP,
+                request
+            );
+            ListenerConfig.saveLastResult(appContext, "queued " + eventId.substring(0, 12));
+            return true;
+        } catch (RuntimeException error) {
+            ListenerConfig.saveLastResult(appContext, "queue_error " + error.getClass().getSimpleName());
+            return false;
         }
     }
 
-    private static String readResponse(HttpURLConnection connection, int status) {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(
-            status >= 400 ? connection.getErrorStream() : connection.getInputStream(),
-            StandardCharsets.UTF_8
-        ))) {
-            StringBuilder builder = new StringBuilder();
-            String line;
-            while ((line = reader.readLine()) != null) builder.append(line);
-            return builder.toString();
-        } catch (Exception ignored) {
-            return "";
+    static String join(String title, String text, String bigText) {
+        StringBuilder builder = new StringBuilder();
+        appendLine(builder, title);
+        appendLine(builder, text);
+        if (bigText != null && !bigText.trim().isEmpty() && !bigText.trim().equals(safe(text).trim())) {
+            appendLine(builder, bigText);
         }
+        return builder.toString().trim();
+    }
+
+    private static void appendLine(StringBuilder builder, String value) {
+        if (value == null || value.trim().isEmpty()) return;
+        if (builder.length() > 0) builder.append('\n');
+        builder.append(value.trim());
+    }
+
+    static String truncateUtf8(String value, int maxBytes) {
+        String safe = safe(value);
+        if (safe.getBytes(StandardCharsets.UTF_8).length <= maxBytes) return safe;
+
+        StringBuilder result = new StringBuilder();
+        int usedBytes = 0;
+        for (int offset = 0; offset < safe.length();) {
+            int codePoint = safe.codePointAt(offset);
+            String character = new String(Character.toChars(codePoint));
+            int characterBytes = character.getBytes(StandardCharsets.UTF_8).length;
+            if (usedBytes + characterBytes > maxBytes) break;
+            result.append(character);
+            usedBytes += characterBytes;
+            offset += Character.charCount(codePoint);
+        }
+        return result.toString();
+    }
+
+    private static String safe(String value) {
+        return value == null ? "" : value;
     }
 }

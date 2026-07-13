@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
+import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 import {
   allowedProducts,
   blockedProducts,
@@ -13,7 +13,7 @@ import { makeOrderId, today } from './domain/orders'
 import { FULL_NAME_ERROR_MESSAGE, getFullNameValidationError, normalizeFullName, sanitizeFullNameInput } from './domain/profile'
 import { buildPriceBreakdown, formatMoney, formatPriceSyp, formatUsd, sumPriceLines } from './domain/pricing'
 import type { PaymentCurrency } from './domain/pricing'
-import type { Address, AppNotification, CartGroupSnapshot, CartItem, NotificationPrefs, Order, Product, ProductColor, Recipient, Screen, StatusTone, UserProfile, WalletTransaction } from './domain/types'
+import type { Address, AppNotification, CartGroupSnapshot, CartItem, NotificationPrefs, Order, OrderIssue, Product, ProductColor, Recipient, Screen, StatusTone, UserProfile, WalletTransaction } from './domain/types'
 import { getDeviceId, readStoredJson, storageKeys, useStoredState } from './infrastructure/localStorage'
 import { appApi } from './services'
 import { PAYMENT_MODE, APP_VERSION, cleanEnvValue } from './config'
@@ -38,6 +38,29 @@ const SHEIN_BROWSER_HEADERS = {
   'Accept-Language': 'ar-SA,ar;q=0.9,en;q=0.8',
 }
 
+// يكشف موقع خروج الإنترنت الحالي (بلد/منطقة الـVPN فعلياً) عبر خدمتي geo
+// تدعمان CORS، لتمييز «VPN مطفأ» (البلد سوريا) عن «منطقة VPN غير مدعومة»
+// (بلد آخر لكن المتجر محجوب). فشل الخدمتين معاً = الشبكة نفسها متعثرة.
+type VpnGeo = { countryCode: string; country: string; region: string }
+const probeVpnGeo = async (): Promise<VpnGeo | null> => {
+  const attempt = async (url: string, parse: (d: Record<string, unknown>) => VpnGeo | null): Promise<VpnGeo | null> => {
+    try {
+      const res = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(7000) })
+      if (!res.ok) return null
+      return parse(await res.json() as Record<string, unknown>)
+    } catch {
+      return null
+    }
+  }
+  const fromIpwho = await attempt('https://ipwho.is/', (d) => (d && d.success !== false && typeof d.country_code === 'string')
+    ? { countryCode: d.country_code, country: typeof d.country === 'string' ? d.country : '', region: typeof d.region === 'string' ? d.region : '' }
+    : null)
+  if (fromIpwho) return fromIpwho
+  return attempt('https://ipapi.co/json/', (d) => (d && typeof d.country_code === 'string')
+    ? { countryCode: d.country_code, country: typeof d.country_name === 'string' ? d.country_name : '', region: typeof d.region === 'string' ? d.region : '' }
+    : null)
+}
+
 const extractGroupInviteCode = (value: string) => {
   const raw = value.trim()
   try {
@@ -49,6 +72,193 @@ const extractGroupInviteCode = (value: string) => {
   } catch {
     return raw.toUpperCase().replace(/[^A-Z0-9]/g, '')
   }
+}
+
+// يلتقط نسبة القص المطلوبة من نص حر: "3:4"، "800x800"، "1080×1350 بكسل"...
+// تأتي من ملاحظة صفحة المنتج (customPhotoNote) أو من سطر "القياس المطلوب:"
+// الذي تكتبه الإدارة في ملاحظة المشكلة. null = لا قيد (قص مربع افتراضي).
+const parsePhotoAspect = (text?: string): number | null => {
+  if (!text) return null
+  const m = text.match(/(\d+(?:\.\d+)?)\s*[x×*:]\s*(\d+(?:\.\d+)?)/)
+  if (!m) return null
+  const w = parseFloat(m[1])
+  const h = parseFloat(m[2])
+  if (!(w > 0) || !(h > 0)) return null
+  const ratio = w / h
+  if (ratio < 0.25 || ratio > 4) return null
+  return ratio
+}
+
+// طلب قص معلّق: مصدر الصورة + النسبة المقفولة + ما يحدث عند التأكيد.
+type CropRequest = {
+  src: string
+  aspect: number | null
+  hint?: string
+  onDone: (dataUrl: string) => void
+}
+
+const compressFullImage = (src: string): Promise<string> => new Promise((resolve, reject) => {
+  const image = new Image()
+  image.onload = () => {
+    const maxSide = 1600
+    const scale = Math.min(1, maxSide / Math.max(image.naturalWidth || 1, image.naturalHeight || 1))
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, Math.round((image.naturalWidth || 1) * scale))
+    canvas.height = Math.max(1, Math.round((image.naturalHeight || 1) * scale))
+    const context = canvas.getContext('2d')
+    if (!context) { reject(new Error('canvas_unavailable')); return }
+    context.drawImage(image, 0, 0, canvas.width, canvas.height)
+    resolve(canvas.toDataURL('image/jpeg', 0.82))
+  }
+  image.onerror = () => reject(new Error('image_decode_failed'))
+  image.src = src
+})
+
+// ── شاشة قصّ الصور (منتجات التخصيص) ────────────────────────────────────────
+// سحب لتحريك الصورة، تكبير بالشريط أو بقرصة الأصابع، وإطار قص يُقفل على
+// النسبة المطلوبة (قياس المتجر/الإدارة) أو مربع افتراضياً. الإخراج JPEG
+// بحد أقصى 1080px — مصغّر وجاهز للإرسال، فلا حاجة لتصغير لاحق.
+function PhotoCropModal({ src, aspect, hint, onConfirm, onCancel }: {
+  src: string
+  aspect: number | null
+  hint?: string
+  onConfirm: (dataUrl: string) => void
+  onCancel: () => void
+}) {
+  const ratio = aspect && aspect > 0 ? aspect : 1
+  const frameRef = useRef<HTMLDivElement | null>(null)
+  const imgElRef = useRef<HTMLImageElement | null>(null)
+  const [imgSize, setImgSize] = useState<{ w: number; h: number } | null>(null)
+  const [zoom, setZoom] = useState(1)
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+  const pointersRef = useRef(new Map<number, { x: number; y: number }>())
+  const pinchRef = useRef<{ dist: number; zoom: number } | null>(null)
+
+  const getFrameSize = () => {
+    const el = frameRef.current
+    if (!el) return { w: 300, h: 300 / ratio }
+    const r = el.getBoundingClientRect()
+    return { w: r.width || 300, h: r.height || 300 / ratio }
+  }
+
+  // موضع رسم الصورة داخل الإطار — مقيّد بحيث تغطي الصورة الإطار دائماً
+  // (لا فراغات سوداء داخل القص مهما سحب المستخدم).
+  const layout = () => {
+    if (!imgSize) return null
+    const frame = getFrameSize()
+    const cover = Math.max(frame.w / imgSize.w, frame.h / imgSize.h)
+    const scale = cover * zoom
+    const drawW = imgSize.w * scale
+    const drawH = imgSize.h * scale
+    const minX = frame.w - drawW
+    const minY = frame.h - drawH
+    const x = Math.min(0, Math.max(minX, minX / 2 + pan.x))
+    const y = Math.min(0, Math.max(minY, minY / 2 + pan.y))
+    return { frame, scale, drawW, drawH, x, y }
+  }
+
+  const lay = layout()
+
+  const onPointerDown = (e: ReactPointerEvent) => {
+    frameRef.current?.setPointerCapture?.(e.pointerId)
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    if (pointersRef.current.size === 2) {
+      const [a, b] = [...pointersRef.current.values()]
+      pinchRef.current = { dist: Math.hypot(a.x - b.x, a.y - b.y), zoom }
+    }
+  }
+  const onPointerMove = (e: ReactPointerEvent) => {
+    const prev = pointersRef.current.get(e.pointerId)
+    if (!prev) return
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    if (pointersRef.current.size >= 2 && pinchRef.current) {
+      const [a, b] = [...pointersRef.current.values()]
+      const dist = Math.hypot(a.x - b.x, a.y - b.y)
+      if (pinchRef.current.dist > 0) {
+        setZoom(Math.min(4, Math.max(1, pinchRef.current.zoom * (dist / pinchRef.current.dist))))
+      }
+      return
+    }
+    setPan((p) => ({ x: p.x + (e.clientX - prev.x), y: p.y + (e.clientY - prev.y) }))
+  }
+  const onPointerEnd = (e: ReactPointerEvent) => {
+    pointersRef.current.delete(e.pointerId)
+    if (pointersRef.current.size < 2) pinchRef.current = null
+  }
+
+  const confirm = () => {
+    const l = layout()
+    const imgEl = imgElRef.current
+    if (!l || !imgEl || !imgSize) return
+    const outW = ratio >= 1 ? 1080 : Math.round(1080 * ratio)
+    const outH = Math.round(outW / ratio)
+    const canvas = document.createElement('canvas')
+    canvas.width = outW
+    canvas.height = outH
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.drawImage(
+      imgEl,
+      -l.x / l.scale, -l.y / l.scale, l.frame.w / l.scale, l.frame.h / l.scale,
+      0, 0, outW, outH,
+    )
+    onConfirm(canvas.toDataURL('image/jpeg', 0.87))
+  }
+
+  return (
+    <div className="crop-overlay">
+      <div className="crop-card">
+        <div className="crop-head">
+          <strong>قصّ الصورة</strong>
+          <span className={aspect ? 'crop-ratio-chip' : 'crop-ratio-chip crop-ratio-chip--free'}>
+            {aspect ? 'مقفول على القياس المطلوب' : 'قصّ مربع'}
+          </span>
+        </div>
+        {hint && <p className="crop-hint">{hint}</p>}
+        <div
+          ref={frameRef}
+          className="crop-frame"
+          style={{ aspectRatio: String(ratio) }}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerEnd}
+          onPointerCancel={onPointerEnd}
+        >
+          <img
+            ref={imgElRef}
+            src={src}
+            alt="الصورة المراد قصها"
+            draggable={false}
+            onLoad={(e) => {
+              const el = e.currentTarget
+              setImgSize({ w: el.naturalWidth || 1, h: el.naturalHeight || 1 })
+            }}
+            style={lay
+              ? { width: lay.drawW, height: lay.drawH, transform: `translate(${lay.x}px, ${lay.y}px)` }
+              : { opacity: 0 }}
+          />
+          <div className="crop-grid" />
+        </div>
+        <div className="crop-zoom-row">
+          <Icon name="zoom_out" />
+          <input
+            type="range"
+            min={100}
+            max={400}
+            value={Math.round(zoom * 100)}
+            onChange={(e) => setZoom(Number(e.target.value) / 100)}
+            aria-label="تكبير الصورة"
+          />
+          <Icon name="zoom_in" />
+        </div>
+        <p className="crop-tip">اسحب الصورة لتحريكها وكبّرها حتى يملأ الجزء المطلوب الإطار</p>
+        <div className="crop-actions">
+          <button className="ghost-action" onClick={onCancel}>إلغاء</button>
+          <button className="primary-action" onClick={confirm} disabled={!lay}>تأكيد القص</button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 const normalizeSheinBrowserUrl = (rawUrl: string) => {
@@ -125,6 +335,11 @@ const shouldRedirectSheinToSaudi = (rawUrl: string) => {
   try {
     const url = new URL(rawUrl)
     if (!/shein/i.test(url.hostname)) return false
+    // Never rewrite SHEIN/Cloudflare verification routes. Replacing their URL
+    // with /ar while the challenge is running restarts the challenge and can
+    // make the native WebView flash/close in a loop when switching stores.
+    if (/\/(?:cdn-cgi|challenge|captcha|verify|verification|security)(?:\/|\?|#|$)/i.test(url.pathname)) return false
+    if (/(?:^|[?&#])(?:captcha|challenge|verification|security_token)=/i.test(url.search)) return false
     if (!/(^|\.)m\.shein\.com$/i.test(url.hostname)) return true
     if (!/^\/ar(?:\/|$)/i.test(url.pathname)) return true
     const country = url.searchParams.get('country')
@@ -152,6 +367,17 @@ function buildGroupInviteLink(code: string, store: StoreId, host: string, invite
 function getOrderStore(order: Pick<Order, 'items'>): StoreId {
   const firstLink = order.items[0]?.sourceLink ?? ''
   return /temu\.com/i.test(firstLink) ? 'temu' : 'shein'
+}
+
+function groupOrderItemsByOwner(items: CartItem[]) {
+  const groups = new Map<string, { name: string; items: CartItem[] }>()
+  items.forEach((item) => {
+    const key = item.ownerMemberKey || normalizePhoneForCompare(item.ownerPhone || '') || 'order'
+    const current = groups.get(key) ?? { name: item.ownerName || 'صاحب الطلب', items: [] }
+    current.items.push(item)
+    groups.set(key, current)
+  })
+  return [...groups.entries()].map(([key, value]) => ({ key, ...value }))
 }
 
 function StoreBadge({ store }: { store: StoreId }) {
@@ -313,6 +539,10 @@ function normalizePhoneForCompare(value: string) {
   return toAsciiDigits(value).replace(/\D+/g, '')
 }
 
+function isLegacyPhoneSessionToken(value: string) {
+  return /^\+?\d{7,18}$/.test(value.trim())
+}
+
 function formatRelativeRateTime(timestamp: number) {
   const elapsedMinutes = Math.max(0, Math.round((Date.now() - timestamp) / 60000))
   if (elapsedMinutes < 1) return 'تم التحديث الآن'
@@ -359,6 +589,8 @@ function App() {
   const [shamcashCodeByStore, setShamcashCodeByStore] = useState<Record<StoreId, string>>({ shein: '', temu: '' })
   const [referralDiscountSyp, setReferralDiscountSyp] = useState(0)
   const [productProfitPercent, setProductProfitPercent] = useState(0)
+  // رقم واتساب الدعم القابل للتعديل من لوحة الإدارة (فارغ = رقم افتراضي بالكود).
+  const [supportPhoneOverride, setSupportPhoneOverride] = useState('')
   const [couponInput, setCouponInput] = useState('')
   const [appliedCoupon, setAppliedCoupon] = useStoredState<{ code: string; discountSyp: number } | null>(
     'talabieh.appliedCoupon',
@@ -377,12 +609,18 @@ function App() {
 
   const [screen, setScreen] = useState<Screen>(() => {
     const token = readStoredJson<string>(storageKeys.sessionToken, '')
-    if (token) {
+    if (token && !isLegacyPhoneSessionToken(token)) {
       const profile = readStoredJson<UserProfile | null>(storageKeys.userProfile, null)
       return profile ? 'home' : 'onboarding'
     }
     return initialPendingWhatsappAuth ? 'otp' : 'login'
   })
+
+  useEffect(() => {
+    if (!isLegacyPhoneSessionToken(sessionToken)) return
+    setSessionToken('')
+    setScreen('login')
+  }, [sessionToken, setSessionToken])
 
   const [link, setLink] = useState('')
   const [sharedText] = useState('')
@@ -444,6 +682,71 @@ function App() {
     })
   }, [setCartsByStore])
   const [orders, setOrders] = useStoredState<Order[]>(storageKeys.orders, initialOrders)
+  // طلب قصّ صورة معلّق (منتجات التخصيص) — يفتح شاشة القص فوق أي شاشة.
+  const [cropRequest, setCropRequest] = useState<CropRequest | null>(null)
+  // إرسال تصحيح صورة تخصيص لطلب قائم (مشكلة قياس الصورة من الإدارة).
+  const [sendingCustomFix, setSendingCustomFix] = useState(false)
+  // مسودة نص لكل مشكلة تخصيص نصية (مفتاحها id المشكلة).
+  const [issueTextDraft, setIssueTextDraft] = useState<Record<string, string>>({})
+  // يعلّم مشكلة منظمة كمحلولة محلياً + في قاعدة البيانات بعد حلّها فعلياً.
+  const resolveIssueLocal = (orderId: string, issueId: string, value: string) => {
+    setOrders((list) => list.map((o) => o.id === orderId
+      ? { ...o, issues: (o.issues ?? []).map((iss) => iss.id === issueId ? { ...iss, resolved: true, resolvedValue: value } : iss) }
+      : o))
+    void appApi.orders.submitIssueResolve(orderId, issueId, value).catch(() => undefined)
+  }
+  const submitIssuePhoto = (targetOrder: Order, issue: OrderIssue, file: File) => {
+    const reader = new FileReader()
+    const send = (dataUrl: string) => {
+      setSendingCustomFix(true)
+      void appApi.orders.submitIssueResolve(targetOrder.id, issue.id, 'صورة مرفقة', dataUrl)
+        .then((ok) => {
+          if (!ok) { showNotice('تعذّر إرسال الصورة، حاول مجدداً'); return }
+          setOrders((list) => list.map((item) => item.id === targetOrder.id
+            ? {
+              ...item,
+              issues: (item.issues ?? []).map((current) => current.id === issue.id
+                ? { ...current, resolved: true, resolvedValue: 'صورة مرفقة' }
+                : current),
+            }
+            : item))
+          showNotice('تم إرسال الصورة وربطها بالمشكلة ✔')
+        })
+        .catch(() => showNotice('تعذّر إرسال الصورة، حاول مجدداً'))
+        .finally(() => setSendingCustomFix(false))
+    }
+    reader.onload = (event) => {
+      const src = typeof event.target?.result === 'string' ? event.target.result : ''
+      if (!src) { showNotice('تعذّرت قراءة الصورة'); return }
+      if (issue.requiredSize) {
+        setCropRequest({
+          src,
+          aspect: parsePhotoAspect(issue.requiredSize),
+          hint: `القياس المطلوب: ${issue.requiredSize}`,
+          onDone: send,
+        })
+      } else {
+        void compressFullImage(src)
+          .then(send)
+          .catch(() => showNotice('تعذّر تجهيز الصورة، جرّب صورة أخرى'))
+      }
+    }
+    reader.onerror = () => showNotice('تعذّرت قراءة الصورة')
+    reader.readAsDataURL(file)
+  }
+  const renderCropModal = () => (cropRequest ? (
+    <PhotoCropModal
+      src={cropRequest.src}
+      aspect={cropRequest.aspect}
+      hint={cropRequest.hint}
+      onConfirm={(dataUrl) => {
+        const done = cropRequest.onDone
+        setCropRequest(null)
+        done(dataUrl)
+      }}
+      onCancel={() => setCropRequest(null)}
+    />
+  ) : null)
   const [addresses, setAddresses] = useStoredState<Address[]>(storageKeys.addresses, initialAddresses)
   const [currentOrderId, setCurrentOrderId] = useStoredState<string>(storageKeys.currentOrderId, '')
   const [recipient, setRecipient] = useStoredState<Recipient>(storageKeys.recipient, {
@@ -460,6 +763,8 @@ function App() {
   const [cartGroup, setCartGroup] = useStoredState<CartGroupSnapshot | null>(storageKeys.cartGroup, null)
   const [groupJoinCode, setGroupJoinCode] = useState('')
   const [pendingGroupInvite, setPendingGroupInvite] = useState<PendingGroupInvite | null>(null)
+  const autoJoinInviteRef = useRef('')
+  const [deliveryMemberKey, setDeliveryMemberKey] = useState('')
   const [isSyncingGroup, setIsSyncingGroup] = useState(false)
   const [verificationState, setVerificationState] = useState<'idle' | 'checking' | 'matched'>('idle')
   const [pendingPayment, setPendingPayment] = useStoredState<{
@@ -516,7 +821,11 @@ function App() {
   // API calls and bypass the relay regardless of fixes), so Android now uses
   // the exact same direct-connection + VPN-gate flow already proven stable
   // on iOS, rather than maintaining two different unreliable paths.
-  const [vpnState, setVpnState] = useState<'checking' | 'ok' | 'blocked'>('checking')
+  // حالات البوابة الذكية: no-vpn = الاتصال يظهر من سوريا (شغّل VPN)،
+  // bad-region = VPN شغّال لكن منطقته لا تفتح المتجر (غيّر السيرفر/الولاية)،
+  // offline = تعذر الوصول للإنترنت أصلاً.
+  const [vpnState, setVpnState] = useState<'checking' | 'ok' | 'no-vpn' | 'bad-region' | 'offline'>('checking')
+  const [vpnGeo, setVpnGeo] = useState<{ country: string; region: string } | null>(null)
   const [notifications, setNotifications] = useStoredState<AppNotification[]>(storageKeys.notifications, [])
   const [notificationPrefs, setNotificationPrefs] = useStoredState<NotificationPrefs>(storageKeys.notificationPrefs, DEFAULT_NOTIFICATION_PREFS)
   // يربط نوع الإشعار بمفتاح تفضيله؛ إذا المستخدم طفّى الفئة لا يُنشأ إشعار داخل التطبيق
@@ -572,15 +881,21 @@ function App() {
     if (API_BASE && phone && notificationPrefs.whatsapp) {
       void fetch(`${API_BASE}/api/notify/whatsapp`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${sessionToken}`,
+        },
         body: JSON.stringify({ phone, text: `otlobli: ${n.title}\n${n.body}` }),
       }).catch(() => undefined)
     }
   }
 
-  const activeAccountPhone = normalizePhoneForCompare(userProfile?.phone || sessionToken || '')
+  const activeAccountPhone = normalizePhoneForCompare(userProfile?.phone || '')
   const visibleOrders = activeAccountPhone
-    ? orders.filter((item) => normalizePhoneForCompare(item.phone) === activeAccountPhone)
+    ? orders.filter((item) =>
+      normalizePhoneForCompare(item.phone) === activeAccountPhone ||
+      (item.groupMembers ?? []).some((member) => normalizePhoneForCompare(member.phone) === activeAccountPhone),
+    )
     : []
   const order = visibleOrders.find((item) => item.id === currentOrderId) ?? visibleOrders[0] ?? null
 
@@ -796,16 +1111,15 @@ function App() {
     })
   }
 
-  const mergeOrdersForPhone = useCallback((remoteOrders: Order[], loginPhone: string) => {
-    const cleanedPhone = loginPhone.replace(/\s+/g, '')
-    setOrders(remoteOrders
-      .filter((remoteOrder) => remoteOrder.phone.replace(/\s+/g, '') === cleanedPhone)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt)))
-    setCurrentOrderId((current) => (
-      remoteOrders.some((remoteOrder) => remoteOrder.id === current && remoteOrder.phone.replace(/\s+/g, '') === cleanedPhone)
-        ? current
-        : ''
-    ))
+  const mergeOrdersForPhone = useCallback((remoteOrders: Order[], _loginPhone: string) => {
+    // get_customer_account موقّع بالجلسة ويعيد طلبات هذا الحساب فقط (المطابَقة
+    // بالحساب/الهاتف/عضوية المجموعة تتم على الخادم). لا نفلتر بالهاتف على العميل:
+    // كان يُسقط طلبات مطابَقة بالـcustomer_id أو بصيغة هاتف مختلفة قليلاً، فتبدو
+    // «الطلبات اختفت» رغم أن الخادم أرسلها (المحفظة تبقى ظاهرة لأنها رقم واحد).
+    void _loginPhone
+    const sorted = [...remoteOrders].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    setOrders(sorted)
+    setCurrentOrderId((current) => (sorted.some((remoteOrder) => remoteOrder.id === current) ? current : ''))
   }, [setCurrentOrderId, setOrders])
 
   const applyCustomerAccount = useCallback((
@@ -993,6 +1307,7 @@ function App() {
         if (data.feature_group_orders !== undefined) setFeatureGroupOrders(data.feature_group_orders !== 'false')
         if (data.feature_wallet !== undefined) setFeatureWallet(data.feature_wallet !== 'false')
         if (data.feature_coupons !== undefined) setFeatureCoupons(data.feature_coupons !== 'false')
+        setSupportPhoneOverride((data.support_whatsapp_phone ?? '').replace(/\D/g, ''))
       })
       .catch(() => undefined)
   }, [])
@@ -1013,8 +1328,8 @@ function App() {
     const checkInboundMessage = () => {
       void appApi.auth
         .verifyOtp(phone, '')
-        .then(async () => {
-          setSessionToken(phone)
+        .then(async (result) => {
+          setSessionToken(result.sessionToken)
           setPendingWhatsappAuth(null)
           setInboundWhatsappUrl('')
           setInboundSupportPhone('')
@@ -1039,8 +1354,8 @@ function App() {
     const check = () => {
       void appApi.auth
         .verifyOtp(phone, telegramOtp)
-        .then(async () => {
-          setSessionToken(phone)
+        .then(async (result) => {
+          setSessionToken(result.sessionToken)
           setTelegramOtp('')
           const target = await fetchProfileAfterLogin(phone)
           setScreen(target)
@@ -1129,7 +1444,12 @@ function App() {
 
   const breakdown = subtotalBreakdown
   const total = subtotal
-  const groupCheckoutItems = cartGroup?.items.map((line) => line.item) ?? []
+  const groupCheckoutItems = cartGroup?.items.map((line) => ({
+    ...line.item,
+    ownerMemberKey: line.ownerMemberKey,
+    ownerPhone: line.ownerPhone,
+    ownerName: line.ownerName,
+  })) ?? []
   const groupInviteStore = normalizeInviteStore(cartGroup?.sourceStore) ?? selectedStore
   const groupInviteHost = userProfile?.name || recipient.name || 'صاحب السلة'
   const groupMemberKey = getDeviceId()
@@ -1153,6 +1473,10 @@ function App() {
   const myShareSyp = myItemsTotalSyp + halfShippingSyp
   const friendShareSyp = friendItemsTotalSyp + halfShippingSyp
   const groupHasFriend = cartGroup && cartGroup.members.length >= 2
+  const selectedDeliveryMember = cartGroup?.members.find((member) => member.memberKey === deliveryMemberKey)
+    ?? cartGroup?.members.find(isMyGroupMember)
+    ?? cartGroup?.members.find((member) => member.role === 'host')
+    ?? cartGroup?.members[0]
   const groupProductsTotalSyp = (cartGroup?.items ?? []).reduce((sum, line) => sum + getItemPriceSyp(line.item) * line.item.quantity, 0)
   const groupTotalSyp = groupProductsTotalSyp + shippingTotalSyp
   const groupMinimumSyp = Math.ceil(MIN_ORDER_USD * exchangeRate)
@@ -1262,10 +1586,42 @@ function App() {
     joinCartGroupFromValue(pendingGroupInvite.code, pendingGroupInvite.store)
   }
 
+  // Invite links are consent to join this specific shared cart. Join
+  // immediately even when the recipient's local cart is empty; the cart page
+  // then shows the linked-group state instead of hiding the invite behind the
+  // empty-cart branch.
+  useEffect(() => {
+    if (!pendingGroupInvite || !phone || isSyncingGroup) return
+    const inviteKey = `${pendingGroupInvite.code}:${pendingGroupInvite.store || ''}`
+    if (autoJoinInviteRef.current === inviteKey) return
+    autoJoinInviteRef.current = inviteKey
+    acceptPendingGroupInvite()
+    // The invite code/store are the event identity; the join function clears
+    // pendingGroupInvite after a successful join.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingGroupInvite?.code, pendingGroupInvite?.store, phone, isSyncingGroup])
+
   const cancelPendingGroupInvite = () => {
     setPendingGroupInvite(null)
     setGroupJoinCode('')
     showNotice('تم إلغاء ربط السلة')
+  }
+
+  const selectDeliveryMember = (member: CartGroupSnapshot['members'][number]) => {
+    const memberKey = member.memberKey || normalizePhoneForCompare(member.phone)
+    setDeliveryMemberKey(memberKey)
+    setRecipient((current) => {
+      const sameRecipient = normalizePhoneForCompare(current.phone) === normalizePhoneForCompare(member.phone)
+      return {
+        ...current,
+        name: member.name || current.name,
+        phone: member.phone || current.phone,
+        // Keep a previously selected Qadmous office only for the same person.
+        // Another group member must explicitly confirm their own pickup point.
+        ...(sameRecipient ? {} : { qadmousBranch: '', pickupLabel: '', details: '' }),
+      }
+    })
+    setEditingCheckoutPickup(true)
   }
 
   const cancelCartGroupOnServer = () => {
@@ -1422,8 +1778,8 @@ function App() {
       setAuthState('verifying')
       void appApi.auth
         .verifyOtp(phone, '')
-        .then(async () => {
-          setSessionToken(phone)
+        .then(async (result) => {
+          setSessionToken(result.sessionToken)
           setPendingWhatsappAuth(null)
           setInboundWhatsappUrl('')
           setInboundSupportPhone('')
@@ -1447,8 +1803,8 @@ function App() {
     setAuthState('verifying')
     void appApi.auth
       .verifyOtp(phone, code)
-      .then(async () => {
-        setSessionToken(phone)
+      .then(async (result) => {
+        setSessionToken(result.sessionToken)
         setPendingWhatsappAuth(null)
         const target = await fetchProfileAfterLogin(phone)
         setScreen(target)
@@ -1462,8 +1818,8 @@ function App() {
     if (authState !== 'idle') return
     setAuthState('verifying')
     void appApi.auth.verifyOtp(phone, code)
-      .then(async () => {
-        setSessionToken(phone)
+      .then(async (result) => {
+        setSessionToken(result.sessionToken)
         setPendingWhatsappAuth(null)
         const target = await fetchProfileAfterLogin(phone)
         setScreen(target)
@@ -1516,7 +1872,11 @@ function App() {
   }
 
   const openWhatsappSupport = (message: string) => {
-    window.open(buildWhatsappLink(message), '_blank', 'noreferrer')
+    // رقم الدعم من لوحة الإدارة إن وُجد، وإلا الرقم الافتراضي داخل buildWhatsappLink.
+    const link = supportPhoneOverride
+      ? buildWhatsappLink(message, supportPhoneOverride)
+      : buildWhatsappLink(message)
+    window.open(link, '_blank', 'noreferrer')
   }
 
   const addToCart = () => {
@@ -1572,6 +1932,11 @@ function App() {
   const webviewOpeningRef = useRef(false)
   const webviewIdRef = useRef('')
   const webviewErrorTimerRef = useRef<number | undefined>(undefined)
+  // فُتح المتجر عبر «فتح على أي حال» رغم فشل بوابة VPN. عندها لو لم تُحمّل الصفحة
+  // فعلاً، نرجع لبوابة «شغّل VPN» بدل عرض صفحة بيضاء (بدل الإظهار القسري).
+  const openedViaBypassRef = useRef(false)
+  // إشعار تحقق «أنا إنسان» يُعرض مرة واحدة لكل جلسة webview كي لا يزعج.
+  const humanCheckNoticeRef = useRef(false)
   const pendingProductUrlRef = useRef('')
   const [sheinReady, setSheinReady] = useState(false)
   // Tracks which screen the in-page back button inside the SHEIN webview
@@ -1605,7 +1970,14 @@ function App() {
   // based on whether the bytes that came back are a real image, regardless
   // of CORS - the block page's HTML response fails to decode as one, a real
   // SHEIN asset succeeds.
-  const checkSheinReachable = () => {
+  // فحص وصول للمتجر المختار تحديداً (وليس أي متجر): منطقة VPN قد تفتح
+  // شي إن وتحجب تيمو، وفحص «أيهما نجح» كان يفتح متجراً سيفشل فعلياً.
+  //
+  // صور فقط — ممنوع fetch no-cors هنا: الحجب السوري يرد بصفحة HTML حقيقية
+  // فيَعُدّها fetch «نجاحاً» (الدرس موثق أعلاه وتَكرر عملياً في v60: بلا VPN
+  // كانت البوابة تفتح المتجر على شاشة بيضاء بدل إظهار شاشة «شغّل VPN»).
+  // فك ترميز الصورة هو البرهان الوحيد أن الرد فعلاً من المتجر.
+  const checkStoreReachable = (store: string) => {
     const probeImage = (url: string): Promise<boolean> =>
       new Promise((resolve) => {
         const img = new Image()
@@ -1614,37 +1986,40 @@ function App() {
         img.onerror = () => { window.clearTimeout(timer); resolve(false) }
         img.src = `${url}?_=${Date.now()}`
       })
-    const probeFetch = (url: string): Promise<boolean> =>
-      fetch(url, { mode: 'no-cors', cache: 'no-store', signal: AbortSignal.timeout(10000) })
-        .then(() => true)
-        .catch(() => false)
-    return Promise.any([
-      probeImage('https://m.shein.com/favicon.ico'),
-      probeImage('https://img.ltwebstatic.com/images3_spmp/2024/06/20/17/1718854498b4a8f5ebce05ea476acae42de72b810a_thumbnail_80x80.webp'),
-      probeImage('https://www.temu.com/favicon.ico'),
-      probeFetch('https://m.shein.com/favicon.ico'),
-      probeFetch('https://www.temu.com/favicon.ico'),
-    ]).catch(() => false)
+    const probes = store === 'temu'
+      ? [
+        probeImage('https://www.temu.com/favicon.ico'),
+      ]
+      : [
+        probeImage('https://m.shein.com/favicon.ico'),
+        probeImage('https://img.ltwebstatic.com/images3_spmp/2024/06/20/17/1718854498b4a8f5ebce05ea476acae42de72b810a_thumbnail_80x80.webp'),
+      ]
+    return Promise.any(probes).catch(() => false)
   }
 
   useEffect(() => {
     if (vpnState !== 'checking') return undefined
     let cancelled = false
-    void checkSheinReachable().then((ok) => {
+    void (async () => {
+      // الفحصان بالتوازي: وصول المتجر + الموقع الجغرافي لخروج الإنترنت.
+      const [storeOk, geo] = await Promise.all([
+        checkStoreReachable(selectedStore),
+        probeVpnGeo(),
+      ])
       if (cancelled) return
-      if (!ok) { setVpnState('blocked'); return }
-      // A VPN that just got toggled on can take a moment to actually settle
-      // its routing - this image check can succeed a beat before that's
-      // fully done. Opening the real webview immediately then races into a
-      // transient DNS/connection failure that gets cached for the rest of
-      // that WebView instance's life (confirmed: retrying inside the same
-      // session kept failing; only a fresh instance recovered) - a short
-      // pause here costs nothing on an already-stable connection and avoids
-      // that race when the VPN was just switched on seconds ago.
-      window.setTimeout(() => { if (!cancelled) setVpnState('ok') }, 1500)
-    })
+      if (storeOk) { setVpnState('ok'); return }
+      if (!geo) { setVpnState('offline'); return }
+      setVpnGeo({ country: geo.country, region: geo.region })
+      if (geo.countryCode === 'SY') { setVpnState('no-vpn'); return }
+      // شي إن خلف تحقق كلاودفلير: فحص الصور يفشل حتى والموقع شغال فعلياً
+      // (التحدي يرد HTML بدل الصورة). خارج سوريا نفتح المتجر ونترك صفحة
+      // التحقق تظهر ليكملها المستخدم — وضع التحقق الآمن يتكفل بالباقي.
+      if (selectedStore === 'shein') { setVpnState('ok'); return }
+      setVpnState('bad-region')
+    })()
     return () => { cancelled = true }
-  }, [vpnState])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vpnState, selectedStore])
 
   const postWebviewChromeState = (target: 'home' | 'cart') => {
     void InAppBrowser.postMessage({ detail: { type: '__resize' } })
@@ -1673,6 +2048,8 @@ function App() {
       return
     }
 
+    // وصلنا لعرض محتوى فعلي — التجاوز نجح، نُصفّر علم التجاوز.
+    openedViaBypassRef.current = false
     setSheinReady(true)
     const pendingProductUrl = pendingProductUrlRef.current
     if (pendingProductUrl) {
@@ -1842,14 +2219,28 @@ function App() {
       if (event?.id && event.id !== webviewIdRef.current) return
       markStoreWebviewReadyRef.current(webviewSessionRef.current)
     })
-    const errorHandle = InAppBrowser.addListener('pageLoadError', () => {
-      if (!webviewOpeningRef.current) return
+    const errorHandle = InAppBrowser.addListener('pageLoadError', (event: { id?: string }) => {
+      if (event?.id && webviewIdRef.current && event.id !== webviewIdRef.current) return
+      if (!sheinOpenedRef.current || screenRef.current !== 'home') return
       if (webviewErrorTimerRef.current !== undefined) window.clearTimeout(webviewErrorTimerRef.current)
       webviewErrorTimerRef.current = window.setTimeout(() => {
         webviewErrorTimerRef.current = undefined
-        if (!webviewOpeningRef.current) return
+        if (!sheinOpenedRef.current || screenRef.current !== 'home') return
+        // A navigation can fail after the first page was already shown (VPN
+        // disconnected, or "open anyway" reached a 404). Tear down this
+        // native instance and return to the connection gate; leaving the
+        // failed WebView visible produces a plain white screen.
+        suppressAutoReopenRef.current = true
+        webviewSessionRef.current += 1
         webviewOpeningRef.current = false
-        if (screenRef.current === 'home') setSheinBlockedError(true)
+        webviewIdRef.current = ''
+        sheinOpenedRef.current = false
+        setSheinReady(false)
+        setSheinBlockedError(false)
+        setVpnState('checking')
+        void InAppBrowser.close().catch(() => undefined).finally(() => {
+          suppressAutoReopenRef.current = false
+        })
       }, 1800)
     })
     let fallbackTimer: number | undefined
@@ -1858,6 +2249,23 @@ function App() {
       fallbackTimer = window.setTimeout(() => {
         fallbackTimer = undefined
         if (!webviewOpeningRef.current) return
+        // فُتح عبر «فتح على أي حال» بلا VPN ولم تُحمّل الصفحة خلال 12ث — الإظهار
+        // القسري هنا كان يعرض صفحة بيضاء بلا رجعة. بدلاً منه نرجع لبوابة VPN.
+        if (openedViaBypassRef.current) {
+          openedViaBypassRef.current = false
+          suppressAutoReopenRef.current = true
+          webviewSessionRef.current += 1
+          webviewOpeningRef.current = false
+          webviewIdRef.current = ''
+          sheinOpenedRef.current = false
+          setSheinReady(false)
+          setSheinBlockedError(false)
+          setVpnState('checking')
+          void InAppBrowser.close().catch(() => undefined).finally(() => {
+            suppressAutoReopenRef.current = false
+          })
+          return
+        }
         markStoreWebviewReadyRef.current(webviewSessionRef.current)
         void InAppBrowser.show().catch(() => undefined)
       }, 12000)
@@ -1878,6 +2286,11 @@ function App() {
     // مقطع الدولة يُفحص بعد الدومين مباشرةً فقط (لا في أي موضع عشوائي بالرابط)
     const ARABIC_TEMU_RE = /temu\.com\/(?:sa|ae|kw|jo|bh|qa|eg|iq|om)(?:\/|\?|#|$)/i
     const LOCALE_SEG_RE = /temu\.com\/[a-z]{2}(?:\/|\?|#|$)/i
+    // ملاحظة: أُزيل منع صفحة تسجيل الدخول الذي كان يستدعي InAppBrowser.setUrl عند
+    // اكتشاف login في الرابط. كان يسبب حلقة إعادة تحميل (شاشة بيضاء تومض) على iOS:
+    // تيمو تُطلق تنقّلاً فيه login عند التحميل، فكل setUrl يعيد التحميل من جديد
+    // فيُطلق تنقّل login آخر، بلا نهاية. منع login (إن لزم لاحقاً) يجب أن يتم
+    // بطريقة لا تعيد تحميل الصفحة (إخفاء عناصر/منع نقر)، لا عبر setUrl.
     const handle = InAppBrowser.addListener('urlChangeEvent', ({ url }: { url: string }) => {
       if (/shein/i.test(url)) {
         if (!shouldRedirectSheinToSaudi(url)) {
@@ -1944,6 +2357,22 @@ function App() {
     const handle = InAppBrowser.addListener('messageFromWebview', (event: { detail?: Record<string, unknown> }) => {
       const detail = event?.detail
 
+      if (detail?.type === 'humanCheck') {
+        // شي إن خلف تحقق كلاودفلير «أنا إنسان» — ليست حالة فشل: نطفئ مؤقت
+        // الخطأ ونُبقي صفحة التحقق ظاهرة ليكملها المستخدم فيفتح الموقع بعدها.
+        if (webviewErrorTimerRef.current !== undefined) {
+          window.clearTimeout(webviewErrorTimerRef.current)
+          webviewErrorTimerRef.current = undefined
+        }
+        setSheinBlockedError(false)
+        markStoreWebviewReadyRef.current(webviewSessionRef.current)
+        if (!humanCheckNoticeRef.current) {
+          humanCheckNoticeRef.current = true
+          showNotice('المتجر يطلب تحققاً بسيطاً — اضغط مربع التحقق داخل الصفحة وسيفتح مباشرة')
+        }
+        return
+      }
+
       if (detail?.type === 'sheinBlocked') {
         void InAppBrowser.hide()
         setSheinBlockedError(true)
@@ -1997,6 +2426,7 @@ function App() {
         customPhotoNote: typeof product?.customPhotoNote === 'string' ? product.customPhotoNote : '',
         needsCustomText: typeof product?.needsCustomText === 'boolean' ? product.needsCustomText : false,
         customText: typeof product?.customText === 'string' ? product.customText : '',
+        customTextLimit: typeof product?.customTextLimit === 'number' && product.customTextLimit > 0 ? product.customTextLimit : 0,
       }])
       void InAppBrowser.postMessage({ detail: { type: 'addToCartAck' } })
       showNotice('تمت إضافة المنتج إلى السلة')
@@ -2123,7 +2553,12 @@ function App() {
       notificationPrefs,
     }
     setRecipient((current) => ({ ...current, name: normalizedRecipientName, pickupLabel: current.pickupLabel ?? '' }))
-    void appApi.customers.saveProfile(phone, profileForOrder).catch(() => undefined)
+    // Do not overwrite the payer's saved profile with a friend's delivery
+    // details in a shared order. Only persist when the selected recipient is
+    // the signed-in customer.
+    if (normalizePhoneForCompare(profileForOrder.phone || '') === normalizePhoneForCompare(phone)) {
+      void appApi.customers.saveProfile(phone, profileForOrder).catch(() => undefined)
+    }
     const orderId = makeOrderId(visibleOrders)
     const newOrder: Order = {
       id: orderId,
@@ -2137,26 +2572,32 @@ function App() {
         ...item,
         priceSyp: getItemPriceSyp(item),
       })),
-      total: checkoutTotal,
+      // Store the full order value. The backend reserves the selected wallet
+      // amount and computes the remaining ShamCash amount in one transaction.
+      total: preWalletTotal,
       paymentStatus: 'بانتظار الدفع',
       statusIndex: 0,
       qadmousNumber: '',
       createdAt: today(),
       groupId: cartGroup?.id,
       groupCode: cartGroup?.code,
+      groupMembers: cartGroup?.members,
+      deliveryMemberKey: selectedDeliveryMember?.memberKey || deliveryMemberKey,
+      deliveryOwnerPhone: selectedDeliveryMember?.phone || recipient.phone || phone,
+      deliveryOwnerName: selectedDeliveryMember?.name || normalizedRecipientName,
     }
 
-    const walletDeduction = walletSpendUsd > 0
-      ? appApi.wallet.spend(phone, walletSpendUsd, orderId).then((newBal) => {
-          setWalletBalanceUsd(newBal)
+    void appApi.orders.createPendingOrder(newOrder, paymentCurrency, walletSpendUsd, selectedStore)
+      .then((result) => {
+        if (typeof result.walletBalanceUsd === 'number') {
+          setWalletBalanceUsd(result.walletBalanceUsd)
+        }
+        if (walletSpendUsd > 0) {
           setUseWallet(false)
           setWalletSpendInput('')
-        }).catch(() => undefined)
-      : Promise.resolve()
+        }
 
-    void walletDeduction.then(() => appApi.orders.createPendingOrder(newOrder, paymentCurrency))
-      .then((result) => {
-        if (PAYMENT_MODE === 'auto') {
+        if (result.paymentStatus === 'مدفوع' || result.paymentAmount <= 0) {
           const savedOrder: Order = {
             ...newOrder,
             id: result.orderId,
@@ -2799,7 +3240,8 @@ function App() {
         <MobileShell active="cart" onNavigate={setScreen}>
           <Header title="السلة" unreadCount={unreadCount} onNotifications={openNotifications} />
           <main className="mobile-content mobile-content--cart">
-            {cartItems.length > 0 ? (
+            {renderCropModal()}
+            {cartItems.length > 0 || featureGroupOrders ? (
               <>
                 {cartItems.map((item) => {
                   const issue = getAvailabilityIssue(item)
@@ -2838,65 +3280,143 @@ function App() {
                         {item.colorImage && <img className="cart-item-color-swatch" src={item.colorImage} alt={item.color} />}
                         {item.color} آ· {item.size}
                       </p>
-                      {item.needsCustomText && (
-                        <div className="cart-custom-field">
-                          <label className="cart-custom-label">
-                            النص/الاسم المراد نقشه:
-                          </label>
-                          <input
-                            className="cart-custom-input"
-                            type="text"
-                            placeholder="مثال: محمد"
-                            value={item.customText || ''}
-                            onChange={(e) => setCartItems((items) => items.map((i) =>
-                              i.id === item.id ? { ...i, customText: e.target.value } : i
-                            ))}
-                          />
-                        </div>
-                      )}
-                      {item.needsCustomPhoto && (
-                        <div className="cart-custom-field">
-                          <label className="cart-custom-label">
-                            {item.customPhotoNote
-                              ? `صورة مخصصة (${item.customPhotoNote})`
-                              : 'صورة مخصصة مطلوبة'}
-                          </label>
-                          {item.customPhotoDataUrl ? (
-                            <div className="cart-custom-photo-preview">
-                              <img src={item.customPhotoDataUrl} alt="صورتك" />
-                              <button
-                                className="cart-custom-photo-change"
-                                onClick={() => setCartItems((items) => items.map((i) =>
-                                  i.id === item.id ? { ...i, customPhotoDataUrl: '' } : i
-                                ))}
-                              >
-                                تغيير
-                              </button>
-                            </div>
-                          ) : (
-                            <label className="cart-custom-photo-btn">
-                              📷 إرفاق صورة
+                      {(item.needsCustomText || item.needsCustomPhoto) ? (
+                        <div className="cart-custom-card">
+                          <div className="cart-custom-head">
+                            <span className="cart-custom-title">🎨 منتج مخصص</span>
+                            <button
+                              className="cart-custom-dismiss"
+                              onClick={() => setCartItems((items) => items.map((i) =>
+                                i.id === item.id
+                                  ? { ...i, needsCustomText: false, needsCustomPhoto: false, customText: '', customPhotoDataUrl: '' }
+                                  : i
+                              ))}
+                            >
+                              ليس مخصصاً
+                            </button>
+                          </div>
+                          {item.needsCustomText && (
+                            <div className="cart-custom-field">
+                              <div className="cart-custom-field-head">
+                                <label className="cart-custom-label">النص المطلوب (نقش/طباعة):</label>
+                                <button
+                                  className="cart-custom-remove"
+                                  onClick={() => setCartItems((items) => items.map((i) =>
+                                    i.id === item.id ? { ...i, needsCustomText: false, customText: '' } : i
+                                  ))}
+                                >
+                                  إزالة
+                                </button>
+                              </div>
                               <input
-                                type="file"
-                                accept="image/*"
-                                style={{ display: 'none' }}
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0]
-                                  if (!file) return
-                                  const reader = new FileReader()
-                                  reader.onload = (ev) => {
-                                    const dataUrl = ev.target?.result as string
-                                    setCartItems((items) => items.map((i) =>
-                                      i.id === item.id ? { ...i, customPhotoDataUrl: dataUrl } : i
-                                    ))
-                                  }
-                                  reader.readAsDataURL(file)
-                                }}
+                                className="cart-custom-input"
+                                type="text"
+                                maxLength={item.customTextLimit || 40}
+                                placeholder="اكتبه تماماً كما تريده على المنتج"
+                                value={item.customText || ''}
+                                onChange={(e) => setCartItems((items) => items.map((i) =>
+                                  i.id === item.id ? { ...i, customText: e.target.value } : i
+                                ))}
                               />
-                            </label>
+                              <span className="cart-custom-counter">
+                                {(item.customText || '').length}/{item.customTextLimit || 40} حرفاً
+                                {item.customTextLimit ? ' (حد المتجر)' : ''}
+                              </span>
+                            </div>
+                          )}
+                          {item.needsCustomPhoto && (
+                            <div className="cart-custom-field">
+                              <div className="cart-custom-field-head">
+                                <label className="cart-custom-label">الصورة المطلوبة:</label>
+                                <button
+                                  className="cart-custom-remove"
+                                  onClick={() => setCartItems((items) => items.map((i) =>
+                                    i.id === item.id ? { ...i, needsCustomPhoto: false, customPhotoDataUrl: '' } : i
+                                  ))}
+                                >
+                                  إزالة
+                                </button>
+                              </div>
+                              {item.customPhotoNote && (
+                                <p className="cart-custom-note">متطلبات المتجر: {item.customPhotoNote}</p>
+                              )}
+                              {item.customPhotoDataUrl ? (
+                                <div className="cart-custom-photo-preview">
+                                  <img src={item.customPhotoDataUrl} alt="صورتك" />
+                                  <button
+                                    className="cart-custom-photo-change"
+                                    onClick={() => setCartItems((items) => items.map((i) =>
+                                      i.id === item.id ? { ...i, customPhotoDataUrl: '' } : i
+                                    ))}
+                                  >
+                                    تغيير
+                                  </button>
+                                </div>
+                              ) : (
+                                <>
+                                  <ul className="cart-custom-tips">
+                                    <li>صورة واضحة وبإضاءة جيدة</li>
+                                    <li>الجزء المطلوب (وجه/عين/شعار) في منتصف الصورة</li>
+                                    <li>تُرسل للمتجر كما هي — تأكد أنها النسخة النهائية</li>
+                                  </ul>
+                                  <label className="cart-custom-photo-btn">
+                                    📷 إرفاق صورة
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      style={{ display: 'none' }}
+                                      onChange={(e) => {
+                                        const file = e.target.files?.[0]
+                                        e.target.value = ''
+                                        if (!file) return
+                                        const reader = new FileReader()
+                                        reader.onload = (ev) => {
+                                          const src = typeof ev.target?.result === 'string' ? ev.target.result : ''
+                                          if (!src) { showNotice('تعذّرت قراءة الصورة — جرّب صورة أخرى'); return }
+                                          setCropRequest({
+                                            src,
+                                            aspect: parsePhotoAspect(item.customPhotoNote),
+                                            hint: item.customPhotoNote || '',
+                                            onDone: (dataUrl) => setCartItems((items) => items.map((i) =>
+                                              i.id === item.id ? { ...i, customPhotoDataUrl: dataUrl } : i
+                                            )),
+                                          })
+                                        }
+                                        reader.onerror = () => showNotice('تعذّرت قراءة الصورة — جرّب صورة أخرى')
+                                        reader.readAsDataURL(file)
+                                      }}
+                                    />
+                                  </label>
+                                </>
+                              )}
+                            </div>
+                          )}
+                          {(!item.needsCustomText || !item.needsCustomPhoto) && (
+                            <div className="cart-custom-add-row">
+                              {!item.needsCustomText && (
+                                <button
+                                  className="cart-custom-add"
+                                  onClick={() => setCartItems((items) => items.map((i) =>
+                                    i.id === item.id ? { ...i, needsCustomText: true } : i
+                                  ))}
+                                >
+                                  + إضافة نص
+                                </button>
+                              )}
+                              {!item.needsCustomPhoto && (
+                                <button
+                                  className="cart-custom-add"
+                                  onClick={() => setCartItems((items) => items.map((i) =>
+                                    i.id === item.id ? { ...i, needsCustomPhoto: true } : i
+                                  ))}
+                                >
+                                  + إضافة صورة
+                                </button>
+                              )}
+                            </div>
                           )}
                         </div>
-                      )}
+                      ) : null}
                       <div className="cart-item-bottom">
                         <strong>{formatPrice(getItemPriceSyp(item) * item.quantity)}</strong>
                         <div className="qty-stepper">
@@ -2930,8 +3450,12 @@ function App() {
                     </div>
                   </article>
                 )})}
-                <CurrencyToggle value={paymentCurrency} onChange={setPaymentCurrency} />
-                <PriceBreakdown items={breakdown} total={total} format={formatPrice} />
+                {cartItems.length > 0 && (
+                  <>
+                    <CurrencyToggle value={paymentCurrency} onChange={setPaymentCurrency} />
+                    <PriceBreakdown items={breakdown} total={total} format={formatPrice} />
+                  </>
+                )}
                 {featureGroupOrders && <section className="group-order-card">
                   <div>
                     <h2>اطلب مع صديق</h2>
@@ -3039,7 +3563,20 @@ function App() {
                 أكمل بيانات المنتجات المخصصة (الاسم/الصورة) للمتابعة
               </p>
             )}
-            <button className="primary-action" disabled={activeCheckoutItems.length === 0 || !meetsMinimumOrder || hasIncompleteCheckoutCustom || hasAvailabilityIssues} onClick={() => setScreen('checkout')}>
+            {cartItems.length > 0 && (
+              <div className="sticky-pay-total">
+                <span>الإجمالي ({activeCheckoutItems.length} {activeCheckoutItems.length === 1 ? 'منتج' : 'منتجات'})</span>
+                <strong>{formatPrice(total)}</strong>
+              </div>
+            )}
+            <button
+              className="primary-action"
+              disabled={activeCheckoutItems.length === 0 || !meetsMinimumOrder || hasIncompleteCheckoutCustom || hasAvailabilityIssues}
+              onClick={() => {
+                if (cartGroup && selectedDeliveryMember) selectDeliveryMember(selectedDeliveryMember)
+                setScreen('checkout')
+              }}
+            >
               المتابعة للدفع
               <Icon name="arrow_back" />
             </button>
@@ -3057,6 +3594,30 @@ function App() {
         <MobileShell active="cart" onNavigate={setScreen} hideBottomNav>
           <Header title="بيانات الاستلام" back={() => setScreen('cart')} unreadCount={unreadCount} onNotifications={openNotifications} />
           <main className="mobile-content">
+            {cartGroup && cartGroup.members.length > 1 && (
+              <section className="group-order-card">
+                <div>
+                  <h2>من سيستلم الطلب من القدموس؟</h2>
+                  <p>اختر أحد أصحاب الطلب، ثم أكد فرع القدموس وبياناته قبل الدفع.</p>
+                </div>
+                <div className="issue-options-row">
+                  {cartGroup.members.map((member) => {
+                    const key = member.memberKey || normalizePhoneForCompare(member.phone)
+                    const selectedKey = selectedDeliveryMember?.memberKey || normalizePhoneForCompare(selectedDeliveryMember?.phone || '')
+                    return (
+                      <button
+                        type="button"
+                        key={key}
+                        className={`issue-option-chip${key === selectedKey ? ' is-selected' : ''}`}
+                        onClick={() => selectDeliveryMember(member)}
+                      >
+                        {member.name || member.phone}
+                      </button>
+                    )
+                  })}
+                </div>
+              </section>
+            )}
             {!showCheckoutPickupForm && (
               <section className="profile-summary-card">
                 <div className="profile-summary-card__head">
@@ -3425,6 +3986,12 @@ function App() {
           </MobileShell>
         )
       }
+      const trackingItemGroups = groupOrderItemsByOwner(order.items)
+      const visibleOrderIssues = (order.issues ?? []).filter((issue) => {
+        const target = issue.itemId ? order.items.find((item) => item.id === issue.itemId || item.orderItemId === issue.itemId) : undefined
+        const ownerPhone = issue.ownerPhone || target?.ownerPhone || ''
+        return !ownerPhone || normalizePhoneForCompare(ownerPhone) === activeAccountPhone
+      })
       return (
         <MobileShell active="orders" onNavigate={setScreen}>
           <Header title="تتبع الطلب" back={() => setScreen('orders')} unreadCount={unreadCount} onNotifications={openNotifications} />
@@ -3434,27 +4001,213 @@ function App() {
               <StoreBadge store={getOrderStore(order)} />
               <StatusBadge tone={order.paymentStatus === 'مدفوع' ? 'success' : 'pending'}>{order.paymentStatus}</StatusBadge>
               <StatusBadge tone="pending">{orderStatuses[order.statusIndex]}</StatusBadge>
+              {order.deliveryOwnerName && <p>المستلم المحدد: {order.deliveryOwnerName}</p>}
               <p>{order.qadmousNumber ? `رقم القدموس: ${order.qadmousNumber}` : 'رقم القدموس سيظهر بعد تسليم الشحنة.'}</p>
             </section>
             <section className="tracking-products">
-              {order.items.map((item, index) => (
-                <article key={`${item.id || item.title}-${index}`}>
-                  <img
-                    src={item.image || 'https://placehold.co/54x54/f5f5f5/aaa?text=+'}
-                    alt=""
-                    onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/54x54/f5f5f5/aaa?text=+' }}
-                  />
-                  <div>
-                    <b>{item.title}</b>
-                    <small>
-                      {[item.color, item.size, `×${item.quantity ?? 1}`].filter(Boolean).join(' · ')}
-                    </small>
-                  </div>
-                  <strong>{formatMoney((item.priceSyp ?? 0) * (item.quantity ?? 1))}</strong>
-                </article>
+              {trackingItemGroups.map((ownerGroup) => (
+                <div className="tracking-owner-group" key={ownerGroup.key}>
+                  {(order.groupId || trackingItemGroups.length > 1) && (
+                    <h3>طلب {ownerGroup.name}</h3>
+                  )}
+                  {ownerGroup.items.map((item, index) => (
+                    <article key={`${item.id || item.title}-${index}`}>
+                      <img
+                        src={item.image || 'https://placehold.co/54x54/f5f5f5/aaa?text=+'}
+                        alt=""
+                        onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/54x54/f5f5f5/aaa?text=+' }}
+                      />
+                      <div>
+                        <b>{item.title}</b>
+                        <small>
+                          {[item.color, item.size, `×${item.quantity ?? 1}`].filter(Boolean).join(' · ')}
+                        </small>
+                      </div>
+                      <strong>{formatMoney((item.priceSyp ?? 0) * (item.quantity ?? 1))}</strong>
+                    </article>
+                  ))}
+                </div>
               ))}
             </section>
-            {order.paymentIssue && (
+            {visibleOrderIssues.length > 0 && (
+              <section className="order-issues">
+                <h2><Icon name="build" /> مشاكل تحتاج حلّك</h2>
+                {visibleOrderIssues.map((iss) => {
+                  const target = iss.itemId ? order.items.find((it) => it.id === iss.itemId || it.orderItemId === iss.itemId) : order.items[0]
+                  const typeLabelMap: Record<string, string> = {
+                    payment: 'فرق سعر / مبلغ إضافي', size: 'المقاس', color: 'اللون',
+                    custom_photo: 'صورة مخصصة', custom_photo_size: 'قياس/قصّ الصورة',
+                    custom_text: 'نص مخصص', unavailable: 'المنتج غير متوفر',
+                    quantity: 'الكمية', link: 'رابط المنتج', other: 'مشكلة',
+                  }
+                  return (
+                    <div className={`order-issue ${iss.resolved ? 'order-issue--done' : ''}`} key={iss.id}>
+                      <div className="order-issue-head">
+                        <b>{typeLabelMap[iss.type] || 'مشكلة'}</b>
+                        {target && <span className="order-issue-item">{target.title.slice(0, 40)}</span>}
+                        {iss.resolved && <span className="order-issue-badge">✓ تم الحل</span>}
+                      </div>
+                      {iss.note && <p className="order-issue-note">{iss.note}</p>}
+                      {!iss.resolved && iss.requestPhoto && (
+                        <label className={`primary-action order-issue-crop${sendingCustomFix ? ' is-disabled' : ''}`}>
+                          <Icon name="add_a_photo" />
+                          {sendingCustomFix ? 'جاري إرسال الصورة...' : 'إرفاق صورة أو لقطة اللون المطلوب'}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            style={{ display: 'none' }}
+                            disabled={sendingCustomFix}
+                            onChange={(event) => {
+                              const file = event.target.files?.[0]
+                              event.target.value = ''
+                              if (file) submitIssuePhoto(order, iss, file)
+                            }}
+                          />
+                        </label>
+                      )}
+                      {!iss.resolved && (iss.type === 'size' || iss.type === 'color') && target && (iss.options?.length ? (
+                        <div className="issue-options-row">
+                          {iss.options.map((opt) => (
+                            <button
+                              key={opt}
+                              className="issue-option-chip"
+                              disabled={sendingCustomFix}
+                              onClick={() => {
+                                setSendingCustomFix(true)
+                                const field = iss.type === 'color' ? 'color' : 'size'
+                                void appApi.orders.submitOptionFix(order.id, target.orderItemId || target.id, field, opt)
+                                  .then((ok) => {
+                                    if (ok) {
+                                      setOrders((list) => list.map((o) => o.id === order.id
+                                        ? { ...o, items: o.items.map((it) => it.id === target.id ? { ...it, [field]: opt } : it) }
+                                        : o))
+                                      resolveIssueLocal(order.id, iss.id, opt)
+                                      showNotice(`تم اختيار «${opt}» ✔`)
+                                    } else showNotice('تعذّر الإرسال، حاول مجدداً')
+                                  })
+                                  .catch(() => showNotice('تعذّر الإرسال، حاول مجدداً'))
+                                  .finally(() => setSendingCustomFix(false))
+                              }}
+                            >{opt}</button>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="order-issue-hint">راسلنا لتحديد {iss.type === 'color' ? 'اللون' : 'المقاس'} المناسب.</p>
+                      ))}
+                      {!iss.resolved && iss.type !== 'size' && iss.type !== 'color' && iss.type !== 'payment' && !!iss.options?.length && (
+                        <div className="issue-options-row">
+                          {iss.options.map((option) => (
+                            <button
+                              key={option}
+                              className="issue-option-chip"
+                              disabled={sendingCustomFix}
+                              onClick={() => {
+                                setSendingCustomFix(true)
+                                void appApi.orders.submitIssueResolve(order.id, iss.id, option)
+                                  .then((ok) => {
+                                    if (!ok) { showNotice('تعذّر إرسال الاختيار، حاول مجدداً'); return }
+                                    setOrders((list) => list.map((current) => current.id === order.id
+                                      ? { ...current, issues: (current.issues ?? []).map((entry) => entry.id === iss.id ? { ...entry, resolved: true, resolvedValue: option } : entry) }
+                                      : current))
+                                    showNotice(`تم إرسال اختيارك «${option}» ✔`)
+                                  })
+                                  .catch(() => showNotice('تعذّر إرسال الاختيار، حاول مجدداً'))
+                                  .finally(() => setSendingCustomFix(false))
+                              }}
+                            >{option}</button>
+                          ))}
+                        </div>
+                      )}
+                      {!iss.resolved && !iss.requestPhoto && (iss.type === 'custom_photo' || iss.type === 'custom_photo_size') && target && (
+                        <label className={`primary-action order-issue-crop${sendingCustomFix ? ' is-disabled' : ''}`}>
+                          <Icon name="crop" /> {sendingCustomFix ? 'جاري الإرسال...' : 'قصّ الصورة وأرسلها'}
+                          <input
+                            type="file" accept="image/*" style={{ display: 'none' }} disabled={sendingCustomFix}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0]; e.target.value = ''
+                              if (!file) return
+                              const reader = new FileReader()
+                              reader.onload = (ev) => {
+                                const src = typeof ev.target?.result === 'string' ? ev.target.result : ''
+                                if (!src) { showNotice('تعذّرت قراءة الصورة'); return }
+                                setCropRequest({
+                                  src,
+                                  aspect: parsePhotoAspect(iss.requiredSize || target.customPhotoNote),
+                                  hint: iss.requiredSize ? `القياس المطلوب: ${iss.requiredSize}` : '',
+                                  onDone: (dataUrl) => {
+                                    setSendingCustomFix(true)
+                                    void appApi.orders.submitCustomFix(order.id, target.orderItemId || target.id, dataUrl, '')
+                                      .then((ok) => {
+                                        if (ok) {
+                                          setOrders((list) => list.map((o) => o.id === order.id
+                                            ? { ...o, items: o.items.map((it) => it.id === target.id ? { ...it, customPhotoDataUrl: dataUrl } : it) }
+                                            : o))
+                                          resolveIssueLocal(order.id, iss.id, 'صورة مقصوصة')
+                                          showNotice('تم إرسال الصورة ✔')
+                                        } else showNotice('تعذّر الإرسال، حاول مجدداً')
+                                      })
+                                      .catch(() => showNotice('تعذّر الإرسال، حاول مجدداً'))
+                                      .finally(() => setSendingCustomFix(false))
+                                  },
+                                })
+                              }
+                              reader.onerror = () => showNotice('تعذّرت قراءة الصورة')
+                              reader.readAsDataURL(file)
+                            }}
+                          />
+                        </label>
+                      )}
+                      {!iss.resolved && target && !iss.requestPhoto && !iss.options?.length && iss.type !== 'payment' && iss.type !== 'custom_photo' && iss.type !== 'custom_photo_size' && (
+                        <div className="order-issue-text">
+                          <input
+                            type="text"
+                            placeholder={iss.type === 'custom_text' ? 'اكتب النص/الاسم المطلوب' : 'اكتب ردك أو الخيار الذي تريده'}
+                            value={issueTextDraft[iss.id] ?? ''}
+                            onChange={(e) => setIssueTextDraft((prev) => ({ ...prev, [iss.id]: e.target.value }))}
+                          />
+                          <button
+                            className="primary-action"
+                            disabled={sendingCustomFix || !(issueTextDraft[iss.id]?.trim())}
+                            onClick={() => {
+                              const value = (issueTextDraft[iss.id] || '').trim()
+                              setSendingCustomFix(true)
+                              const optionField = iss.type === 'size' || iss.type === 'color' ? iss.type : null
+                              const request = optionField
+                                ? appApi.orders.submitOptionFix(order.id, target.orderItemId || target.id, optionField, value)
+                                : iss.type === 'custom_text'
+                                  ? appApi.orders.submitCustomFix(order.id, target.orderItemId || target.id, '', value)
+                                  : appApi.orders.submitIssueResolve(order.id, iss.id, value)
+                              void request
+                                .then((ok) => {
+                                  if (ok) {
+                                    setOrders((list) => list.map((o) => o.id === order.id
+                                      ? {
+                                        ...o,
+                                        items: o.items.map((it) => it.id === target.id
+                                          ? optionField ? { ...it, [optionField]: value } : iss.type === 'custom_text' ? { ...it, customText: value } : it
+                                          : it),
+                                        issues: (o.issues ?? []).map((entry) => entry.id === iss.id ? { ...entry, resolved: true, resolvedValue: value } : entry),
+                                      }
+                                      : o))
+                                    if (optionField || iss.type === 'custom_text') void appApi.orders.submitIssueResolve(order.id, iss.id, value)
+                                    showNotice('تم إرسال ردك ✔')
+                                  } else showNotice('تعذّر الإرسال، حاول مجدداً')
+                                })
+                                .catch(() => showNotice('تعذّر الإرسال، حاول مجدداً'))
+                                .finally(() => setSendingCustomFix(false))
+                            }}
+                          >إرسال</button>
+                        </div>
+                      )}
+                      {!iss.resolved && iss.type === 'payment' && (
+                        <p className="order-issue-hint">ادفع الفرق من زر «إنشاء طلب دفع» أدناه{iss.amountUsd ? ` (${formatUsd(iss.amountUsd)})` : ''}.</p>
+                      )}
+                    </div>
+                  )
+                })}
+              </section>
+            )}
+            {order.paymentIssue && (!order.issues || order.issues.length === 0) && (
               <section className="payment-issue-banner payment-issue-banner--detail">
                 <p>
                   <Icon name="error" /> يوجد إجراء مطلوب على هذا الطلب
@@ -3462,6 +4215,111 @@ function App() {
                 {order.paymentIssueNote && (
                   <p className="payment-issue-note">{order.paymentIssueNote}</p>
                 )}
+                {order.items.length > 0 && (() => {
+                  // مشكلة صورة تخصيص (يحددها المشرف): نعرض زر قصّ وإرسال مباشر.
+                  // السطر "القياس المطلوب: W:H" في الملاحظة يقفل نسبة القص.
+                  const note = order.paymentIssueNote || ''
+                  if (!/قياس\/قصّ الصورة|منتج مخصص يحتاج صورة|القياس المطلوب/.test(note)) return null
+                  const idxMatch = note.match(/المنتج:\s*(\d+)\s*\./)
+                  const idx = idxMatch ? Math.min(order.items.length - 1, Math.max(0, Number(idxMatch[1]) - 1)) : 0
+                  const target = order.items[idx]
+                  if (!target) return null
+                  const requiredAspect = parsePhotoAspect(note)
+                  const sizeMatch = note.match(/القياس المطلوب:\s*([^\n]+)/)
+                  return (
+                    <label className={`primary-action payment-issue-fix-photo${sendingCustomFix ? ' is-disabled' : ''}`}>
+                      <Icon name="crop" />
+                      {sendingCustomFix ? 'جاري إرسال الصورة...' : 'قصّ الصورة المطلوبة وأرسلها الآن'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        disabled={sendingCustomFix}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          e.target.value = ''
+                          if (!file) return
+                          const reader = new FileReader()
+                          reader.onload = (ev) => {
+                            const src = typeof ev.target?.result === 'string' ? ev.target.result : ''
+                            if (!src) { showNotice('تعذّرت قراءة الصورة — جرّب صورة أخرى'); return }
+                            setCropRequest({
+                              src,
+                              aspect: requiredAspect,
+                              hint: sizeMatch ? `القياس المطلوب: ${sizeMatch[1].trim()}` : '',
+                              onDone: (dataUrl) => {
+                                setSendingCustomFix(true)
+                                void appApi.orders.submitCustomFix(order.id, target.id, dataUrl, '')
+                                  .then((ok) => {
+                                    if (ok) {
+                                      setOrders((list) => list.map((o) => o.id === order.id
+                                        ? { ...o, items: o.items.map((it) => it.id === target.id ? { ...it, customPhotoDataUrl: dataUrl } : it) }
+                                        : o))
+                                      showNotice('تم إرسال الصورة المصححة — سيراجعها الفريق')
+                                    } else {
+                                      showNotice('تعذّر إرسال الصورة، تحقق من الاتصال وحاول مجدداً')
+                                    }
+                                  })
+                                  .catch(() => showNotice('تعذّر إرسال الصورة، تحقق من الاتصال وحاول مجدداً'))
+                                  .finally(() => setSendingCustomFix(false))
+                              },
+                            })
+                          }
+                          reader.onerror = () => showNotice('تعذّرت قراءة الصورة — جرّب صورة أخرى')
+                          reader.readAsDataURL(file)
+                        }}
+                      />
+                    </label>
+                  )
+                })()}
+                {order.items.length > 0 && (() => {
+                  // «الخيارات المتاحة» التي كتبتها الإدارة في المشكلة →
+                  // أزرار يختار منها الزبون بلمسة فيُحدَّث عنصر الطلب مباشرة.
+                  const note = order.paymentIssueNote || ''
+                  const optsMatch = note.match(/الخيارات المتاحة:\s*([^\n]+)/)
+                  if (!optsMatch) return null
+                  const options = optsMatch[1].split('|').map((opt) => opt.trim()).filter(Boolean)
+                  if (!options.length) return null
+                  const field: 'size' | 'color' = /نوع المشكلة:[^\n]*اللون/.test(note) ? 'color' : 'size'
+                  const idxMatch = note.match(/المنتج:\s*(\d+)\s*\./)
+                  const idx = idxMatch ? Math.min(order.items.length - 1, Math.max(0, Number(idxMatch[1]) - 1)) : 0
+                  const target = order.items[idx]
+                  if (!target) return null
+                  const current = field === 'size' ? target.size : target.color
+                  return (
+                    <div className="issue-options">
+                      <p className="issue-options-title">{field === 'size' ? 'اختر المقاس البديل بلمسة:' : 'اختر اللون البديل بلمسة:'}</p>
+                      <div className="issue-options-row">
+                        {options.map((opt) => (
+                          <button
+                            key={opt}
+                            className={`issue-option-chip${current === opt ? ' is-selected' : ''}`}
+                            disabled={sendingCustomFix}
+                            onClick={() => {
+                              setSendingCustomFix(true)
+                              void appApi.orders.submitOptionFix(order.id, target.id, field, opt)
+                                .then((ok) => {
+                                  if (ok) {
+                                    setOrders((list) => list.map((o) => o.id === order.id
+                                      ? { ...o, items: o.items.map((it) => it.id === target.id ? { ...it, [field]: opt } : it) }
+                                      : o))
+                                    showNotice(`تم اختيار «${opt}» — وصل للإدارة ✔`)
+                                  } else {
+                                    showNotice('تعذّر إرسال الاختيار، حاول مجدداً')
+                                  }
+                                })
+                                .catch(() => showNotice('تعذّر إرسال الاختيار، حاول مجدداً'))
+                                .finally(() => setSendingCustomFix(false))
+                            }}
+                          >
+                            {opt}
+                          </button>
+                        ))}
+                      </div>
+                      {current ? <p className="issue-options-current">اختيارك الحالي: {current}</p> : null}
+                    </div>
+                  )
+                })()}
                 {!!order.extraAmountUsd && order.extraAmountUsd > 0 && (
                   <p className="payment-issue-amount">المتبقي: ${order.extraAmountUsd.toFixed(2)}</p>
                 )}
@@ -3482,6 +4340,35 @@ function App() {
                 </button>
               </section>
             )}
+            {/* زر الدفع للمبلغ الإضافي عند النظام المنظم (البانر القديم مخفي حينها) */}
+            {order.issues && order.issues.length > 0 && !!order.extraAmountUsd && order.extraAmountUsd > 0 && (
+              <section className="payment-issue-banner payment-issue-banner--detail">
+                <p className="payment-issue-amount">مبلغ إضافي مطلوب: ${order.extraAmountUsd.toFixed(2)}</p>
+                <button
+                  className="primary-action"
+                  disabled={isStartingIssuePayment}
+                  onClick={() => startIssuePayment(order)}
+                >
+                  <Icon name="payments" /> {isStartingIssuePayment ? 'جاري إنشاء طلب الدفع...' : 'إنشاء طلب دفع'}
+                </button>
+              </section>
+            )}
+            {order.invoice && order.invoice.length > 0 && (
+              <section className="invoice-view">
+                <h2>🧾 تفاصيل الرسوم</h2>
+                {order.invoice.map((line, i) => (
+                  <div className="invoice-view-row" key={i}>
+                    <span>{line.label}</span>
+                    <strong>{formatUsd(line.amountUsd)}</strong>
+                  </div>
+                ))}
+                <div className="invoice-view-row invoice-view-total">
+                  <span>مجموع الرسوم</span>
+                  <strong>{formatUsd(order.invoice.reduce((sum, line) => sum + line.amountUsd, 0))}</strong>
+                </div>
+              </section>
+            )}
+            {renderCropModal()}
             <Timeline statusIndex={order.statusIndex} createdAt={order.createdAt} paidAt={order.paidAt} />
             {order.statusIndex === orderStatuses.length - 1 && (
               order.rating ? (
@@ -3683,6 +4570,9 @@ function App() {
                 setEditBranch(userProfile?.qadmousBranch ?? recipient.qadmousBranch ?? '')
                 setEditPickupLabel(recipient.pickupLabel || userProfile?.pickupLabel || '')
                 setEditingProfile(true)
+                // نموذج التعديل يُعرض فقط داخل شاشة profile — لا بد من الانتقال
+                // إليها، وإلا لا يظهر التعديل ويظهر عند الرجوع (كان هذا الخلل).
+                setScreen('profile')
               }}
             >
               <Icon name="edit" /> تعديل معلومات الاستلام
@@ -3809,14 +4699,39 @@ function App() {
               </section>
             )}
             {walletTransactions.length > 0 && (
-              <section className="payment-rules">
+              <section className="wallet-history">
                 <h2>آخر حركات المحفظة</h2>
-                {walletTransactions.slice(0, 5).map((tx) => (
-                  <p key={tx.id}>
-                    <b dir="ltr">{tx.amountSyp > 0 ? '+' : ''}{formatMoney(tx.amountSyp)}</b>
-                    {tx.note ? ` â€” ${tx.note}` : ''}
-                  </p>
-                ))}
+                {walletTransactions.slice(0, 6).map((tx) => {
+                  const isDeposit = tx.amountSyp > 0
+                  const storedUsd = Number(tx.amountUsd)
+                  const usd = Number.isFinite(storedUsd) && storedUsd !== 0
+                    ? Math.abs(storedUsd)
+                    : Math.abs(tx.amountSyp) / exchangeRate
+                  // اسم المتجر من الطلب المرتبط (إن وُجد) عبر رابط أول منتج فيه.
+                  let storeLabel = ''
+                  if (tx.orderId) {
+                    const linkedOrder = orders.find((o) => o.id === tx.orderId)
+                    const link = linkedOrder?.items?.[0]?.sourceLink || ''
+                    if (/temu/i.test(link)) storeLabel = 'تيمو'
+                    else if (/shein/i.test(link)) storeLabel = 'شي إن'
+                  }
+                  return (
+                    <div className={`wallet-tx ${isDeposit ? 'wallet-tx--in' : 'wallet-tx--out'}`} key={tx.id}>
+                      <span className="wallet-tx-icon"><Icon name={isDeposit ? 'south_west' : 'north_east'} /></span>
+                      <div className="wallet-tx-body">
+                        <b>{isDeposit ? 'تم الإيداع' : 'تم السحب'}</b>
+                        <small>
+                          {isDeposit
+                            ? 'شحن رصيد المحفظة'
+                            : tx.orderId
+                              ? `على الطلب ${tx.orderId}${storeLabel ? ` — ${storeLabel}` : ''}`
+                              : 'خصم من الرصيد'}
+                        </small>
+                      </div>
+                      <span className="wallet-tx-amount" dir="ltr">{isDeposit ? '+' : '−'}{formatUsd(usd)}</span>
+                    </div>
+                  )
+                })}
               </section>
             )}
             <section className="payment-rules">
@@ -3929,10 +4844,16 @@ function App() {
           webviewIdRef.current = ''
           sheinOpenedRef.current = false
           setSheinReady(false)
-          void InAppBrowser.close().catch(() => undefined).then(() => {
-            suppressAutoReopenRef.current = false
-            setScreen('home')
-          })
+          // تبديل المتجر يُبقي بيانات الـWebView المشتركة (كوكيز/service worker)
+          // من المتجر السابق، فيُفتح المتجر الجديد بحالة «متّسخة» تكسر التفاعل
+          // (المستخدم أكّد: حذف/إعادة تنصيب التطبيق يُصلحه). نمسح الكوكيز بين
+          // الإغلاق والفتح لنقارب حالة التنصيب النظيف.
+          void InAppBrowser.close().catch(() => undefined)
+            .then(() => InAppBrowser.clearAllCookies().catch(() => undefined))
+            .then(() => {
+              suppressAutoReopenRef.current = false
+              setScreen('home')
+            })
           return
         }
         setScreen('home')
@@ -4107,20 +5028,43 @@ function App() {
             </section>
             <span className="spinner" />
           </main>
-        ) : vpnState === 'blocked' ? (
+        ) : vpnState === 'no-vpn' ? (
           <main className="mobile-content shein-home">
             <div className="empty-state">
               <Icon name="vpn_key" />
-              <h2>فعّل الـ VPN أولاً</h2>
-              <p>متجر {currentStoreName} محجوب في سوريا - شغّل تطبيق VPN على جهازك، وبعدها اضغط الزر تحت لنتحقق من جديد.</p>
+              <h2>شغّل الـ VPN أولاً</h2>
+              <p>اتصالك الحالي يظهر من داخل سوريا، ومتجر {currentStoreName} محجوب هنا. شغّل تطبيق VPN على جهازك ثم اضغط «تحقّق من جديد».</p>
             </div>
             <button className="primary-action" onClick={() => setVpnState('checking')}>
               <Icon name="refresh" />
               تحقّق من جديد
             </button>
-            <button className="ghost-action" onClick={() => setVpnState('ok')} style={{ marginTop: 8 }}>
-              <Icon name="open_in_browser" />
-              فتح المتجر على أي حال
+          </main>
+        ) : vpnState === 'bad-region' ? (
+          <main className="mobile-content shein-home">
+            <div className="empty-state">
+              <Icon name="travel_explore" />
+              <h2>غيّر منطقة الـ VPN</h2>
+              <p>
+                {`الـ VPN شغّال — اتصالك يظهر من ${vpnGeo?.country || 'خارج سوريا'}${vpnGeo?.region ? ` (${vpnGeo.region})` : ''}، لكن متجر ${currentStoreName} لا يفتح من هذه المنطقة.`}
+              </p>
+              <p>غيّر السيرفر أو الولاية من تطبيق الـ VPN — حتى داخل الدولة نفسها بعض المناطق تعمل وبعضها محجوب — ثم اضغط «تحقّق من جديد».</p>
+            </div>
+            <button className="primary-action" onClick={() => setVpnState('checking')}>
+              <Icon name="refresh" />
+              تحقّق من جديد
+            </button>
+          </main>
+        ) : vpnState === 'offline' ? (
+          <main className="mobile-content shein-home">
+            <div className="empty-state">
+              <Icon name="wifi_off" />
+              <h2>تعذّر فحص الاتصال</h2>
+              <p>لم نستطع الوصول للإنترنت إطلاقاً. تأكد من اتصال الجهاز (أو أن الـ VPN غير عالق على سيرفر ميت) ثم أعد المحاولة.</p>
+            </div>
+            <button className="primary-action" onClick={() => setVpnState('checking')}>
+              <Icon name="refresh" />
+              إعادة المحاولة
             </button>
           </main>
         ) : sheinBlockedError ? (
@@ -4156,6 +5100,20 @@ function App() {
             }}>
               <Icon name="delete_sweep" />
               مسح الكوكيز وإعادة التحميل
+            </button>
+            <button className="ghost-action" onClick={() => {
+              // يرجع لبوابة الفحص الذكي: يغلق الـwebview العالق ويعيد فحص
+              // الوصول + منطقة الـVPN فيوجَّه المستخدم (شغّل/غيّر المنطقة).
+              setSheinBlockedError(false)
+              webviewSessionRef.current += 1
+              webviewIdRef.current = ''
+              sheinOpenedRef.current = false
+              setSheinReady(false)
+              void InAppBrowser.close().catch(() => undefined)
+              setVpnState('checking')
+            }}>
+              <Icon name="vpn_key" />
+              فحص الاتصال والـ VPN
             </button>
           </main>
         ) : !sheinReady ? (
@@ -4320,9 +5278,12 @@ function ProfileRow({ icon, label, onClick }: { icon: string; label: string; onC
 
 function PaymentCurrencyRow({ value, onClick }: { value: PaymentCurrency; onClick: () => void }) {
   const selected = value === 'USD' ? 'دولار أمريكي' : 'ليرة سورية'
+  // اسم العملة في عنصر مستقل غير قابل للقص — داخل <b> كان يُبتر إلى "..."
+  // على الشاشات الضيقة (قاعدة ellipsis العامة في .profile-row-main b).
   return (
     <button className="profile-row" onClick={onClick}>
-      <span className="profile-row-main"><Icon name="attach_money" /> <b>عملة الدفع: {selected}</b></span>
+      <span className="profile-row-main"><Icon name="attach_money" /> <b>عملة الدفع</b></span>
+      <span className="profile-row-value">{selected}</span>
       <Icon name="chevron_left" />
     </button>
   )
