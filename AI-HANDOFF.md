@@ -21,7 +21,7 @@ Rules:
 ## Important Context
 
 - Active branch: `codex/customer-wallet-group-orders`
-- Latest feature commit: `83c0562` (`fix: v72 relax vpn gate and auto-fix shein region`)
+- Latest feature commit: `019788b` (`fix: v73 show vpn advice on store failure`)
 - Claude old account may have worked after Codex. Always inspect current git state before editing.
 - Claude new account may not have the same skills/connectors authenticated. Check available skills/tools, especially Figma.
 
@@ -44,6 +44,9 @@ Rules:
 - Desktop v72 iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v72.ipa`
 - v72 IPA SHA-256: `4D57D8D98E12F52743B905C15D5469E850D8FE2EF19EB2703F60439A40D12933`
 - v72 GitHub Actions run: `29278990511`
+- Desktop v73 iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v73.ipa`
+- v73 IPA SHA-256: `18C022FB0D207BB87E496DF67FDA4D8BC42F942922597B4C36ECE0B4D547D5F3`
+- v73 GitHub Actions run: `29279855967`
 
 ## Main Files
 
@@ -71,6 +74,16 @@ Rules:
 - SHEIN challenge URLs are left alone by URL normalization.
 
 ## Current Highest Priority
+
+v73 iPhone build is ready:
+
+- `src/App.tsx` now routes SHEIN/Temu open failures through one store-failure flow: close stuck WebView, pause auto-open, refresh VPN diagnosis, then show a clear VPN action.
+- If VPN is confirmed (`vpnState=ok` with non-Syria `vpnGeo`), the failure message says only to change VPN server/app and retry "إعادة الدخول إلى المتجر".
+- If VPN is not confirmed, the failure message says to turn VPN on first.
+- Timed-out store loading uses the same VPN advice instead of the old generic internet message.
+- `src/services/sheinBrowserScript.ts` hides SHEIN's native bottom nav more aggressively by detecting wide bottom tab bars on older devices such as iPhone 6.
+- `src/config.ts` version: `2026.07.13-store-failure-vpn-v73`.
+- v73 iPhone unsigned IPA was built by GitHub Actions run `29279855967` and copied to the desktop.
 
 v72 iPhone build is ready:
 
@@ -106,8 +119,9 @@ v69 fix is pushed and the iPhone IPA is built:
 Still verify on a real device:
 
 - SHEIN fresh open -> Temu -> SHEIN, with VPN set to Qatar; shipping must stay Saudi.
-- SHEIN black security verification should stay visible with otlobli bottom nav and should not close the app after two seconds. If iOS WebKit returns `-1005` or kills WebContent, v72 should keep the app open and show retry.
+- SHEIN black security verification should stay visible with otlobli bottom nav and should not close the app after two seconds. If iOS WebKit returns `-1005` or kills WebContent, v73 should keep the app open and show retry.
 - Try several VPN countries; the app should not show the old "bad region" gate for non-Syria VPNs merely because probes fail.
+- On iPhone 6, SHEIN's own bottom tab bar should not appear above otlobli's nav.
 - Temu should land on Saudi region and USD, keep product/back navigation stable, and keep prices visible while scrolling.
 - Do not bypass captcha/security pages. The goal is to avoid breaking them and avoid app exit/white-screen loops.
 
@@ -141,6 +155,11 @@ Passed after v72 VPN permissive gate:
 
 - Root `npm run build`
 - GitHub iOS unsigned build run `29278990511` passed and produced `otlobli-v72.ipa`.
+
+Passed after v73 store-failure VPN advice:
+
+- Root `npm run build`
+- GitHub iOS unsigned build run `29279855967` passed and produced `otlobli-v73.ipa`.
 
 Known gap:
 

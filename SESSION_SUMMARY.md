@@ -35,7 +35,7 @@ Read:
 
 ## Latest Stable Release
 
-- Latest feature commit: `83c0562` (`fix: v72 relax vpn gate and auto-fix shein region`)
+- Latest feature commit: `019788b` (`fix: v73 show vpn advice on store failure`)
 - Customer deployed to `https://talabieh.vercel.app`
 - Admin deployed to `https://talabieh-admin.vercel.app`
 - Supabase migration `20260712033000_shared_order_ownership.sql` applied.
@@ -54,7 +54,10 @@ Read:
 - v72 iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v72.ipa`
 - v72 IPA SHA-256: `4D57D8D98E12F52743B905C15D5469E850D8FE2EF19EB2703F60439A40D12933`
 - v72 GitHub Actions run: `29278990511`
-- No new Android build was requested for v72.
+- v73 iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v73.ipa`
+- v73 IPA SHA-256: `18C022FB0D207BB87E496DF67FDA4D8BC42F942922597B4C36ECE0B4D547D5F3`
+- v73 GitHub Actions run: `29279855967`
+- No new Android build was requested for v73.
 
 ## v66 Implemented
 
@@ -74,6 +77,8 @@ Read:
 
 ## Still Open
 
+- v73 store-failure VPN advice is pushed and built.
+- v73 change: SHEIN/Temu failures now show "غيّر سيرفر الـ VPN" when VPN is confirmed, or "شغّل الـ VPN أولاً" when it is not confirmed; timed-out loading uses the same advice. SHEIN native bottom nav is hidden more aggressively for iPhone 6.
 - v72 VPN permissive gate is pushed and built.
 - v72 change: non-Syria/unknown VPNs are allowed through even if store/geo probes fail; SHEIN auto-fixes visible foreign shipping regions back to Saudi/USD before falling back to manual guard.
 - v71 iOS WebKit guard is pushed and built.
@@ -118,6 +123,11 @@ Read:
 
 - `npm run build` passed.
 - GitHub iOS unsigned build run `29278990511` passed and produced `otlobli-v72.ipa`.
+
+## Validation After v73 Store Failure VPN Advice
+
+- `npm run build` passed.
+- GitHub iOS unsigned build run `29279855967` passed and produced `otlobli-v73.ipa`.
 
 ## Guidance For Claude New Account
 

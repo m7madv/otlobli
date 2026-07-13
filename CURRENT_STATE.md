@@ -8,7 +8,7 @@ This is the short source of truth for the app work. Keep it compact so Codex/Cla
 
 - Path: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`
 - Branch: `codex/customer-wallet-group-orders`
-- Latest feature commit: `83c0562` (`fix: v72 relax vpn gate and auto-fix shein region`)
+- Latest feature commit: `019788b` (`fix: v73 show vpn advice on store failure`)
 
 Before any code change:
 
@@ -39,7 +39,10 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 - v72 iPhone artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v72.ipa`
 - v72 IPA SHA-256: `4D57D8D98E12F52743B905C15D5469E850D8FE2EF19EB2703F60439A40D12933`
 - v72 GitHub Actions run: `29278990511`
-- No new Android build was requested for v72.
+- v73 iPhone artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v73.ipa`
+- v73 IPA SHA-256: `18C022FB0D207BB87E496DF67FDA4D8BC42F942922597B4C36ECE0B4D547D5F3`
+- v73 GitHub Actions run: `29279855967`
+- No new Android build was requested for v73.
 
 ## v66 Completed
 
@@ -58,8 +61,10 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 
 ## Current Known Issues
 
-- v72 iOS build is ready: `APP_VERSION = 2026.07.13-vpn-permissive-v72`.
-- v72 change: VPN gate is permissive for any non-Syria/unknown VPN instead of blocking on failed store/geo probes; SHEIN visible foreign shipping (e.g. Qatar) now attempts an automatic Saudi/USD reset before falling back to the manual guard.
+- v73 iOS build is ready: `APP_VERSION = 2026.07.13-store-failure-vpn-v73`.
+- v73 change: SHEIN/Temu store-open failures now show clear VPN advice. If VPN is confirmed, the message says to change VPN server/app; if not confirmed, it says to turn VPN on. The retry button says "إعادة الدخول إلى المتجر".
+- v73 change: SHEIN native bottom navigation is hidden more aggressively for older iPhones (e.g. iPhone 6) while preserving otlobli's own nav.
+- v72 change remains: VPN gate is permissive for any non-Syria/unknown VPN instead of blocking on failed store/geo probes; SHEIN visible foreign shipping (e.g. Qatar) now attempts an automatic Saudi/USD reset before falling back to the manual guard.
 - v71 change remains: iOS `pageLoadError` now carries WebKit details; SHEIN `-1005` / WebContent termination closes the stuck WebView and shows retry instead of leaving a white screen or exiting the app.
 - v70 SHEIN-only change remains: if the native SHEIN WebView closes itself during/just after the security challenge, the app pauses automatic reopen and shows retry instead of entering an open/close loop.
 - Emulator diagnostics: SHEIN opens after force-stop and after background/foreground; SHEIN emits many `pageLoadError` events even while working, so those must continue to be ignored during normal SHEIN browsing.
@@ -73,7 +78,7 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 
 ## Next Best Focus
 
-1. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v72.ipa` on real iPhones and multiple VPN regions. The app should not block valid VPNs just because probes fail; SHEIN should try to force Saudi/USD if the VPN makes it show another shipping country.
+1. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v73.ipa` on real iPhones and multiple VPN regions. On failure, confirmed VPN should show "غيّر سيرفر الـ VPN"; unconfirmed/no VPN should show "شغّل الـ VPN أولاً". Verify iPhone 6 does not show SHEIN's native bottom bar above otlobli's nav.
 2. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v70.apk` on Android / emulator and verify SHEIN does not exit the app.
 3. Verify SHEIN after this exact flow: fresh open -> switch to Temu -> switch back to SHEIN -> security check if shown -> normal browsing.
 4. Verify Temu region is Saudi and currency is USD.
