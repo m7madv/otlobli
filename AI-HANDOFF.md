@@ -21,7 +21,7 @@ Rules:
 ## Important Context
 
 - Active branch: `codex/customer-wallet-group-orders`
-- Latest feature commit: `96511f9` (`fix: v78 improve old iPhone store compatibility`)
+- Latest feature commit: `7f39edd` (`fix: v79 hide legacy shein bottom bar`)
 - Claude old account may have worked after Codex. Always inspect current git state before editing.
 - Claude new account may not have the same skills/connectors authenticated. Check available skills/tools, especially Figma.
 
@@ -62,6 +62,9 @@ Rules:
 - Desktop v78 iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v78.ipa`
 - v78 IPA SHA-256: `8EF9E6A4ABFF327C0E34A2AB7DD905EA9059BB35C346FC393C8EDAC3F053FD2F`
 - v78 GitHub Actions run: `29285536824`
+- Desktop v79 iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v79.ipa`
+- v79 IPA SHA-256: `3A3A6D705317D57EB9C4AC88019884B3DBCB81366930878F9D45672B18243ADF`
+- v79 GitHub Actions run: `29286393316`
 
 ## Main Files
 
@@ -90,7 +93,14 @@ Rules:
 
 ## Current Highest Priority
 
-v78 iPhone build is ready:
+v79 iPhone build is ready:
+
+- `src/services/sheinBrowserScript.ts` adds a geometry-only hider for iPhone 6/SHEIN legacy bottom chrome: any non-otlobli fixed/interactive/wide bottom strip immediately above `#otlobli-nav` is hard-hidden.
+- SHEIN cleanup ticks are wrapped defensively so one old-WKWebView failure cannot stop the remaining banner/header/bottom-nav cleanup.
+- `src/config.ts` version: `2026.07.14-legacy-shein-bottom-v79`.
+- v79 iPhone unsigned IPA was built by GitHub Actions run `29286393316` and copied to the desktop.
+
+v78 iPhone build remains available:
 
 - `src/App.tsx` no longer relies on `AbortSignal.timeout()` for VPN geo probes; it uses an older-WebView-safe timeout helper.
 - VPN geo probing now resolves on the first successful provider and lets a confirmed non-Syria geo open the store without waiting for slow store image probes.
@@ -245,6 +255,13 @@ Passed after v78 old iPhone compatibility:
 - `git diff --check`
 - Injected `SHEIN_CAPTURE_SCRIPT` syntax parse passed.
 - GitHub iOS unsigned build run `29285536824` passed and produced `otlobli-v78.ipa`.
+
+Passed after v79 legacy SHEIN bottom bar hider:
+
+- Root `npm run build`
+- `git diff --check`
+- Injected `SHEIN_CAPTURE_SCRIPT` syntax parse passed.
+- GitHub iOS unsigned build run `29286393316` passed and produced `otlobli-v79.ipa`.
 
 Known gap:
 

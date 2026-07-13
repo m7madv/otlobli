@@ -1,6 +1,6 @@
 # Session Summary
 
-Last updated: 2026-07-13
+Last updated: 2026-07-14
 
 This file is the copyable short summary for a fresh AI session. Keep it brief.
 
@@ -35,7 +35,7 @@ Read:
 
 ## Latest Stable Release
 
-- Latest feature commit: `96511f9` (`fix: v78 improve old iPhone store compatibility`)
+- Latest feature commit: `7f39edd` (`fix: v79 hide legacy shein bottom bar`)
 - Customer deployed to `https://talabieh.vercel.app`
 - Admin deployed to `https://talabieh-admin.vercel.app`
 - Supabase migration `20260712033000_shared_order_ownership.sql` applied.
@@ -72,7 +72,10 @@ Read:
 - v78 iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v78.ipa`
 - v78 IPA SHA-256: `8EF9E6A4ABFF327C0E34A2AB7DD905EA9059BB35C346FC393C8EDAC3F053FD2F`
 - v78 GitHub Actions run: `29285536824`
-- No new Android build was requested for v78.
+- v79 iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v79.ipa`
+- v79 IPA SHA-256: `3A3A6D705317D57EB9C4AC88019884B3DBCB81366930878F9D45672B18243ADF`
+- v79 GitHub Actions run: `29286393316`
+- No new Android build was requested for v79.
 
 ## v66 Implemented
 
@@ -92,6 +95,8 @@ Read:
 
 ## Still Open
 
+- v79 legacy SHEIN bottom bar hider is pushed and built.
+- v79 change: iPhone 6 SHEIN bottom chrome is hidden by geometry above otlobli's nav, not by brittle SHEIN selector names. SHEIN cleanup ticks are guarded so old WKWebView failures do not stop the hider chain.
 - v78 old iPhone compatibility is pushed and built.
 - v78 change: VPN geo probing is safer/faster on old WKWebView and SHEIN chrome collision zones are hidden more aggressively for iPhone 6 back-button/bottom-nav overlap.
 - v77 store popup/resume polish is pushed and built.
@@ -182,6 +187,13 @@ Read:
 - `git diff --check` passed.
 - Injected `SHEIN_CAPTURE_SCRIPT` syntax parse passed.
 - GitHub iOS unsigned build run `29285536824` passed and produced `otlobli-v78.ipa`.
+
+## Validation After v79 Legacy SHEIN Bottom Bar Hider
+
+- `npm run build` passed.
+- `git diff --check` passed.
+- Injected `SHEIN_CAPTURE_SCRIPT` syntax parse passed.
+- GitHub iOS unsigned build run `29286393316` passed and produced `otlobli-v79.ipa`.
 
 ## Guidance For Claude New Account
 
