@@ -35,7 +35,7 @@ Read:
 
 ## Latest Stable Release
 
-- Latest feature commit: `019788b` (`fix: v73 show vpn advice on store failure`)
+- Latest feature commit: `706dde2` (`fix: v74 guard against vpn-off webview crash`)
 - Customer deployed to `https://talabieh.vercel.app`
 - Admin deployed to `https://talabieh-admin.vercel.app`
 - Supabase migration `20260712033000_shared_order_ownership.sql` applied.
@@ -57,7 +57,10 @@ Read:
 - v73 iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v73.ipa`
 - v73 IPA SHA-256: `18C022FB0D207BB87E496DF67FDA4D8BC42F942922597B4C36ECE0B4D547D5F3`
 - v73 GitHub Actions run: `29279855967`
-- No new Android build was requested for v73.
+- v74 iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v74.ipa`
+- v74 IPA SHA-256: `68EC10E14E8F1D0E9D40009B577BD6B5D68AFAB451DA1FEC5D08D6B709030E06`
+- v74 GitHub Actions run: `29280481341`
+- No new Android build was requested for v74.
 
 ## v66 Implemented
 
@@ -77,6 +80,8 @@ Read:
 
 ## Still Open
 
+- v74 VPN-off crash guard is pushed and built.
+- v74 change: when VPN/geo cannot be confirmed and the device is online, the app shows the VPN-required state instead of opening the native store WebView. Unexpected native WebView close on home shows recovery/VPN UI instead of auto-reopening into a crash loop. iOS `-1001`, `-1004`, `-1005`, and `-1009` are handled as recoverable store failures.
 - v73 store-failure VPN advice is pushed and built.
 - v73 change: SHEIN/Temu failures now show "غيّر سيرفر الـ VPN" when VPN is confirmed, or "شغّل الـ VPN أولاً" when it is not confirmed; timed-out loading uses the same advice. SHEIN native bottom nav is hidden more aggressively for iPhone 6.
 - v72 VPN permissive gate is pushed and built.
@@ -128,6 +133,11 @@ Read:
 
 - `npm run build` passed.
 - GitHub iOS unsigned build run `29279855967` passed and produced `otlobli-v73.ipa`.
+
+## Validation After v74 VPN-Off Crash Guard
+
+- `npm run build` passed.
+- GitHub iOS unsigned build run `29280481341` passed and produced `otlobli-v74.ipa`.
 
 ## Guidance For Claude New Account
 
