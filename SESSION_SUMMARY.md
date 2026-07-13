@@ -44,6 +44,9 @@ Read:
 - iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v69.ipa`
 - IPA SHA-256: `B4EE4E92D2F7AA383309120AE514515C37055576EFCA67F8E92A2B20900E04A0`
 - GitHub Actions run: `29268560648`
+- v70 iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v70.ipa`
+- v70 IPA SHA-256: `C9A3F5BA4146E1FF1F4F88E289F64EE13CBDA6AF55B8361F06723BEFF52453DC`
+- v70 GitHub Actions run: `29273940532`
 - Android debug artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v70.apk`
 - APK SHA-256: `8D1AA3F46D3CA3FE3F83BE881A7FBB487EF0D54DEE35E218910C35C5F32A731A`
 - No new Android build was requested for v66.
@@ -69,7 +72,7 @@ Read:
 - v70 Android debug fix is local, built, and installed on the emulator.
 - v70 change: SHEIN native WebView close-loop guard. If SHEIN closes during/after security challenge, the app pauses auto-reopen and shows retry instead of repeatedly opening/closing or exiting.
 - Emulator diagnostics: SHEIN opens after force-stop and after background/foreground. SHEIN emits repeated `pageLoadError` events while still working, so they are ignored for normal SHEIN browsing.
-- No v70 iPhone build has been created yet.
+- v70 iPhone unsigned IPA has been created via GitHub Actions and copied to the desktop.
 - v69 fix is pushed and the iPhone IPA is built.
 - v69 changes: Temu no longer reloads whole page after product back due missing params; SHEIN normal opening ignores `pageLoadError`; SHEIN challenge detection covers more routes/text; Saudi shipping/currency keys are written even during challenge; store switch no longer clears all cookies automatically.
 - SHEIN still needs real-device verification for fresh open on SHEIN with VPN Qatar; it should not exit and shipping should stay Saudi.
@@ -94,6 +97,7 @@ Read:
 - `android\gradlew.bat -p android :app:assembleDebug` passed.
 - `adb install -r android\app\build\outputs\apk\debug\app-debug.apk` passed.
 - Emulator force-stop/open/background/return test passed: SHEIN stayed visible; no app crash.
+- GitHub iOS unsigned build run `29273940532` passed and produced `otlobli-v70.ipa`.
 
 ## Guidance For Claude New Account
 

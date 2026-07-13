@@ -29,6 +29,9 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 - v69 iPhone artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v69.ipa`
 - v69 IPA SHA-256: `B4EE4E92D2F7AA383309120AE514515C37055576EFCA67F8E92A2B20900E04A0`
 - v69 GitHub Actions run: `29268560648`
+- v70 iPhone artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v70.ipa`
+- v70 IPA SHA-256: `C9A3F5BA4146E1FF1F4F88E289F64EE13CBDA6AF55B8361F06723BEFF52453DC`
+- v70 GitHub Actions run: `29273940532`
 - v70 Android debug artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v70.apk`
 - v70 APK SHA-256: `8D1AA3F46D3CA3FE3F83BE881A7FBB487EF0D54DEE35E218910C35C5F32A731A`
 - No new Android build was requested for v66.
@@ -63,8 +66,8 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 
 ## Next Best Focus
 
-1. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v70.apk` on Android / emulator and verify SHEIN does not exit the app.
-2. Later build iPhone only if requested; no v70 IPA has been created.
+1. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v70.ipa` on iPhone and verify SHEIN does not exit the app.
+2. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v70.apk` on Android / emulator and verify SHEIN does not exit the app.
 3. Verify SHEIN after this exact flow: fresh open -> switch to Temu -> switch back to SHEIN -> security check if shown -> normal browsing.
 4. Verify Temu region is Saudi and currency is USD.
 4. Do not bypass SHEIN security verification; keep it clickable and avoid breaking it.

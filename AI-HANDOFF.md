@@ -34,6 +34,9 @@ Rules:
 - Desktop iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v69.ipa`
 - v69 IPA SHA-256: `B4EE4E92D2F7AA383309120AE514515C37055576EFCA67F8E92A2B20900E04A0`
 - v69 GitHub Actions run: `29268560648`
+- Desktop v70 iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v70.ipa`
+- v70 IPA SHA-256: `C9A3F5BA4146E1FF1F4F88E289F64EE13CBDA6AF55B8361F06723BEFF52453DC`
+- v70 GitHub Actions run: `29273940532`
 - Desktop Android debug artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v70.apk`
 - v70 APK SHA-256: `8D1AA3F46D3CA3FE3F83BE881A7FBB487EF0D54DEE35E218910C35C5F32A731A`
 
@@ -69,7 +72,7 @@ v70 local Android debug fix is built and installed on the emulator:
 - `src/App.tsx` adds a SHEIN close-loop guard: if the native WebView closes during/shortly after SHEIN opening/security challenge, it pauses automatic reopen and shows retry instead of looping/crashing out.
 - Emulator diagnostics showed SHEIN can emit many `pageLoadError` events while the page is visibly working; do not treat those as fatal during normal SHEIN browsing.
 - `src/config.ts` version: `2026.07.13-store-polish-v70`.
-- No v70 iPhone build has been made yet.
+- v70 iPhone unsigned IPA was built by GitHub Actions run `29273940532` and copied to the desktop.
 
 v69 fix is pushed and the iPhone IPA is built:
 
