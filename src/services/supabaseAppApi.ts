@@ -540,7 +540,7 @@ export const supabaseAppApi: TalabiehApi = {
         p_phone: phone.trim(),
         p_session_token: requireCustomerSessionToken(),
       })
-      if (error) return 0
+      if (error) throw new Error(error.message || 'Unable to refresh wallet balance')
       return Number(data ?? 0)
     },
 

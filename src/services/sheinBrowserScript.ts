@@ -67,6 +67,102 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var SHEIN_REQUIRED_CURRENCY = 'USD';
   var SHEIN_REQUIRED_LANGUAGE = 'ar';
   var SHEIN_REQUIRED_SITE_UID = 'pwar';
+  var TEMU_REQUIRED_COUNTRY = 'SA';
+  var TEMU_REQUIRED_CURRENCY = 'USD';
+
+  function writeTemuSaudiUsdState() {
+    if (!IS_TEMU) return;
+    try {
+      document.cookie = 'currency=' + TEMU_REQUIRED_CURRENCY + '; path=/; max-age=31536000';
+      document.cookie = 'currency=' + TEMU_REQUIRED_CURRENCY + '; domain=.temu.com; path=/; max-age=31536000';
+      document.cookie = 'currencyCode=' + TEMU_REQUIRED_CURRENCY + '; path=/; max-age=31536000';
+      document.cookie = 'currencyCode=' + TEMU_REQUIRED_CURRENCY + '; domain=.temu.com; path=/; max-age=31536000';
+      document.cookie = 'country=' + TEMU_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
+      document.cookie = 'country=' + TEMU_REQUIRED_COUNTRY + '; domain=.temu.com; path=/; max-age=31536000';
+      document.cookie = 'countryCode=' + TEMU_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
+      document.cookie = 'countryCode=' + TEMU_REQUIRED_COUNTRY + '; domain=.temu.com; path=/; max-age=31536000';
+      try {
+        localStorage.setItem('currency', TEMU_REQUIRED_CURRENCY);
+        localStorage.setItem('currencyCode', TEMU_REQUIRED_CURRENCY);
+        localStorage.setItem('country', TEMU_REQUIRED_COUNTRY);
+        localStorage.setItem('countryCode', TEMU_REQUIRED_COUNTRY);
+        localStorage.setItem('otlobli_temu_country', TEMU_REQUIRED_COUNTRY);
+        localStorage.setItem('otlobli_temu_currency', TEMU_REQUIRED_CURRENCY);
+        sessionStorage.setItem('currency', TEMU_REQUIRED_CURRENCY);
+        sessionStorage.setItem('currencyCode', TEMU_REQUIRED_CURRENCY);
+        sessionStorage.setItem('country', TEMU_REQUIRED_COUNTRY);
+        sessionStorage.setItem('countryCode', TEMU_REQUIRED_COUNTRY);
+      } catch (e) {}
+    } catch (e) {}
+  }
+
+  writeTemuSaudiUsdState();
+
+  function otlobliEnsureChallengeNav() {
+    if (!document.body) return false;
+    var navCss = 'position:fixed!important;left:50%!important;right:auto!important;bottom:-10px!important;top:auto!important;' +
+      'transform:translate3d(-50%,0,0)!important;will-change:transform!important;' +
+      'width:min(100vw, 440px)!important;height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;' +
+      'max-height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;z-index:2147483647!important;' +
+      'display:flex!important;direction:rtl!important;overflow:hidden!important;box-sizing:border-box!important;' +
+      'background:rgba(255,255,255,.98)!important;border-top:1px solid #bccac0!important;' +
+      'padding:0 0 max(env(safe-area-inset-bottom, 0px), 16px) 0!important;margin:0!important;' +
+      'font-family:Cairo,system-ui,-apple-system,sans-serif!important;font-size:12px!important;line-height:1.15!important;' +
+      'opacity:1!important;visibility:visible!important;pointer-events:auto!important;';
+    var nav = document.getElementById('otlobli-nav');
+    if (!nav) {
+      nav = document.createElement('div');
+      nav.id = 'otlobli-nav';
+      nav.setAttribute('data-otlobli-challenge-nav', '1');
+      var items = [
+        { label: '\\u0627\\u0644\\u0631\\u0626\\u064a\\u0633\\u064a\\u0629', type: '' },
+        { label: '\\u0637\\u0644\\u0628\\u0627\\u062a\\u064a', type: 'openOrders' },
+        { label: '\\u0627\\u0644\\u0633\\u0644\\u0629', type: 'openCart' },
+        { label: '\\u062d\\u0633\\u0627\\u0628\\u064a', type: 'openProfile' },
+      ];
+      for (var ni = 0; ni < items.length; ni++) {
+        var item = items[ni];
+        var tab = document.createElement('button');
+        tab.id = 'otlobli-nav-tab-' + ni;
+        tab.textContent = item.label;
+        tab.style.cssText = 'position:relative!important;flex:1 1 0!important;height:74px!important;min-height:74px!important;' +
+          'border:0!important;background:transparent!important;display:flex!important;align-items:center!important;justify-content:center!important;' +
+          'padding:6px 0!important;margin:0!important;box-sizing:border-box!important;font-size:12px!important;line-height:1.15!important;' +
+          'font-family:Cairo,system-ui,-apple-system,sans-serif!important;font-weight:700!important;color:' + (item.type ? '#3d4a42' : '#006948') + '!important;';
+        if (!item.type) {
+          var indicator = document.createElement('span');
+          indicator.style.cssText = 'position:absolute!important;top:0!important;width:32px!important;height:4px!important;border-radius:999px!important;background:#006948!important;';
+          tab.appendChild(indicator);
+        } else {
+          (function (messageType) {
+            tab.addEventListener('click', function (event) {
+              event.preventDefault();
+              event.stopPropagation();
+              try {
+                if (window.mobileApp && window.mobileApp.postMessage) {
+                  window.mobileApp.postMessage({ detail: { type: messageType } });
+                }
+              } catch (e) {}
+            }, true);
+          })(item.type);
+        }
+        nav.appendChild(tab);
+      }
+    }
+    nav.style.cssText = navCss;
+    if (nav.parentNode !== document.body || nav !== document.body.lastElementChild) {
+      document.body.appendChild(nav);
+    }
+    return true;
+  }
+
+  function otlobliScheduleChallengeNav() {
+    if (otlobliEnsureChallengeNav()) return;
+    var mount = function () { try { otlobliEnsureChallengeNav(); } catch (e) {} };
+    try { document.addEventListener('DOMContentLoaded', mount, { once: true }); } catch (e) {}
+    setTimeout(mount, 250);
+    setTimeout(mount, 1000);
+  }
 
   // Verification pages can be injected at documentStart before their title,
   // challenge form, or Cloudflare script exists in the DOM.  URL detection
@@ -412,6 +508,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
+  // Current Temu routing is native-level /sa/ + USD in App.tsx; keep this script from fighting it.
   // التحويل لـ temu.com/jo/ يتم على المستوى الأصلي (urlChangeEvent في App.tsx) قبل
   // تحميل الصفحة؛ التحويل JS كان يتعارض معه ويسبب شاشة بيضاء على بعض المنتجات.
 
@@ -1243,6 +1340,25 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // من تيمو تماماً - معاملات مجهولة بلا أي تأثير على تحميل الصفحة)، لتُقرأ
   // لاحقاً عند إعادة فتح نفس الرابط (temuAutoReselectFromLink) فيُعاد اختيار
   // نفس اللون/المقاس تلقائياً بدل صفحة افتراضية بلا اختيار.
+  function temuLooksLikePriceText(text) {
+    var txt = temuCleanText(text || '');
+    if (!txt || txt.length > 220) return false;
+    if (!/[0-9٠-٩]/.test(txt)) return false;
+    return /(?:US\\$|\\$|USD|SAR|QAR|AED|KWD|BHD|OMR|ريال|دولار|ر\\.? ?س|ر\\.? ?ق|د\\.? ?إ|د\\.? ?ك)/i.test(txt);
+  }
+
+  function temuContainsPrice(el) {
+    if (!el) return false;
+    try {
+      var priceSelector = '[class*="curPrice" i], [class*="price" i], [class*="amount" i], [data-testid*="price" i]';
+      if (el.matches && el.matches(priceSelector)) return true;
+      if (el.querySelector && el.querySelector(priceSelector)) return true;
+      return temuLooksLikePriceText(el.textContent || '');
+    } catch (e) {
+      return false;
+    }
+  }
+
   function otlobliBuildDeepLink(href, color, size) {
     try {
       var sep = href.indexOf('?') >= 0 ? '&' : '?';
@@ -3651,9 +3767,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
     try {
       var ours = document.querySelectorAll('[id^="otlobli"]');
       for (var ci = 0; ci < ours.length; ci++) {
-        try { if (ours[ci].parentNode) ours[ci].parentNode.removeChild(ours[ci]); } catch (e) {}
+        try {
+          var oid = ours[ci].id || '';
+          if (oid === 'otlobli-nav' || oid.indexOf('otlobli-nav-tab-') === 0) continue;
+          if (ours[ci].parentNode) ours[ci].parentNode.removeChild(ours[ci]);
+        } catch (e) {}
       }
     } catch (e) {}
+    otlobliScheduleChallengeNav();
     // An add/loading overlay may have locked scrolling immediately before a
     // same-document challenge appeared.  Removing our nodes is not enough;
     // release that lock so the real verification control remains reachable.
@@ -3993,6 +4114,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var hints = otlobliCollectIdentityHints(el);
         if (/search|بحث|magnif/i.test(hints)) continue;
         if (el.querySelector && el.querySelector('input, textarea')) continue;
+        if (temuContainsPrice(el)) continue;
         el.setAttribute('data-otlobli-temu-hidden', '1');
         el.style.setProperty('visibility', 'hidden', 'important');
         el.style.setProperty('pointer-events', 'none', 'important');
@@ -4028,7 +4150,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var txt = (el.textContent || '');
       if (txt.length > 600 || !LOGIN_RE.test(txt)) continue;
       // حارس المنتج: لا نلمس طبقة فيها سعر/شبكة صور منتجات (قد تكون المنتج).
-      if (el.querySelector && el.querySelector('[class*="curPrice" i]')) continue;
+      if (temuContainsPrice(el)) continue;
       el.setAttribute('data-otlobli-login-handled', '1');
       // ابحث عن زر إغلاق/تخطّي داخلها وانقره.
       var btns = el.querySelectorAll('button, [role="button"], a, i, span, div');
@@ -4081,6 +4203,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if (el.closest && el.closest('[data-otlobli-temu-search-shell="1"]')) continue;
         if (el.getAttribute && el.getAttribute('data-otlobli-temu-hidden') === '1') continue;
         if (el.querySelector && el.querySelector('input, textarea, select')) continue;
+        if (temuContainsPrice(el)) continue;
         var txt = temuCleanText(el.textContent);
         var isDistraction = OTLOBLI_KNOWN_DISTRACTION.test(txt) || otlobliLooksLikeKnownDistraction(el);
         if (txt.length > 25 && !isDistraction) continue;
@@ -4119,6 +4242,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       for (var f = 0; f < floating.length; f++) {
         var fcEl = floating[f];
         if (fcEl.id && fcEl.id.indexOf('otlobli') === 0) continue;
+        if (temuContainsPrice(fcEl)) continue;
         var fr = fcEl.getBoundingClientRect();
         var fcs = window.getComputedStyle(fcEl);
         if (fr.width < 34 || fr.width > 140 || fr.height < 34 || fr.height > 140) continue;
@@ -4143,6 +4267,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       for (var i = 0; i < nodes.length; i++) {
         var el = nodes[i];
         if (el.id && el.id.indexOf('otlobli') === 0) continue;
+        if (temuContainsPrice(el)) continue;
         var txt = temuCleanText(el.textContent);
         if (!txt || txt.length > 160) continue;
         var r = el.getBoundingClientRect();
@@ -4304,7 +4429,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (hv.style.display !== 'none') continue;
       var hvTxt = (hv.textContent || '').length;
       var hvImgs = hv.querySelectorAll ? hv.querySelectorAll('img').length : 0;
-      var hvPrice = hv.querySelector ? !!hv.querySelector('[class*="curPrice" i]') : false;
+      var hvPrice = temuContainsPrice(hv);
       if (hvTxt > 600 || hvImgs >= 4 || hvPrice) {
         hv.style.removeProperty('display');
         hv.setAttribute('data-otlobli-blocked', '0'); // قائمة بيضاء — لن يُحجب ثانية
@@ -4319,6 +4444,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var el = els[i];
       if (el.id && el.id.indexOf('otlobli') === 0) continue;
       if (el.getAttribute && el.getAttribute('data-otlobli-blocked')) continue;
+      if (temuContainsPrice(el)) continue;
       var cs = window.getComputedStyle(el);
       if (cs.position !== 'fixed' && cs.position !== 'absolute') continue;
       var z = parseInt(cs.zIndex, 10) || 0;
@@ -4334,7 +4460,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (/الكمية|موديل|المقاس|مقاس|اللون|أضف|السلة|حدد/.test(txt)) continue;
       // حرّاس محتوى المنتج: طبقة فيها سعر أو حقل إدخال أو ≥3 صور منتجات
       // ليست عرضاً ترويجياً بل صفحة/شيت حقيقي — ممنوع حجبها.
-      if (el.querySelector && el.querySelector('[class*="curPrice" i], input, textarea')) continue;
+      if ((el.querySelector && el.querySelector('input, textarea')) || temuContainsPrice(el)) continue;
       var kwc = 0, kimgs = el.querySelectorAll ? el.querySelectorAll('img') : [];
       for (var ki = 0; ki < kimgs.length && kwc < 3; ki++) {
         if (/kwcdn/i.test(kimgs[ki].currentSrc || kimgs[ki].src || '')) kwc++;
@@ -4479,7 +4605,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       for (var m = 0; m < markers.length; m++) { if (txt.indexOf(markers[m]) >= 0) matches++; }
       if (matches < 3) continue;
       // حرّاس أمان: لا نحجب حاوية فيها بحث فعلي أو سعر منتج حقيقي.
-      if (el.querySelector && (el.querySelector('input:not([type="hidden"])') || el.querySelector('[class*="curPrice" i]'))) continue;
+      if ((el.querySelector && el.querySelector('input:not([type="hidden"])')) || temuContainsPrice(el)) continue;
       if (txt.length < bestLen) { best = el; bestLen = txt.length; }
     }
     if (best) {
@@ -4521,7 +4647,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (n.querySelector('input:not([type="hidden"])')
         || n.querySelector('[class*="search" i]')
         || n.querySelector('[aria-label*="بحث"], [aria-label*="search" i]')
-        || n.querySelector('[class*="curPrice" i]')) return true;
+        || temuContainsPrice(n)) return true;
       var pImgs = n.querySelectorAll('img'), pk = 0;
       for (var pi = 0; pi < pImgs.length && pk < 3; pi++) {
         if (/kwcdn/i.test(pImgs[pi].currentSrc || pImgs[pi].src || '')) pk++;

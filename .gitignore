@@ -19,6 +19,22 @@ android/.gradle
 android/local.properties
 android/app/src/main/assets/public
 *.apk
+*.ipa
+*.log
+
+# Local/debug artifacts that should not live in the repo root
+/h*.png
+/btn*.png
+/cart_hide*.png
+/cartfix.png
+/cur*.png
+/verify*.png
+/check*.png
+/clean.png
+/playstore_check.png
+/syria_easy_exam_model.*
+/fakebattery.sh
+/mirror_note8.bat
 
 # iOS build output
 ios/App/Pods

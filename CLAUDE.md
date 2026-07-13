@@ -1,115 +1,110 @@
-# CLAUDE.md
+# Claude Code Notes
 
-تعليمات خاصة بـ Claude Code عند العمل على هذا المشروع.
+Use this file when working in Claude Code on this project.
 
-## اقرأ هذا أولاً
-
-قبل أي تعديل:
-
-1. اقرأ `AGENTS.md`.
-2. اقرأ `CURRENT_STATE.md`.
-3. اقرأ `AI-HANDOFF.md`.
-4. شغّل:
-   - `git status --short`
-   - `git rev-parse --abbrev-ref HEAD`
-   - `git log -5 --oneline`
-
-لا تبدأ من `main`، ولا تستخدم ملخصات قديمة كمصدر حقيقة.
-
-## تحذير سبب مشاكل سابقة
-
-المشروع مرّ على أكثر من AI وأكثر من فرع. المشكلة التي تكررت:
-
-- AI يقرأ ملف قديم.
-- يظن أن admin/coupons/wallet/group-orders غير موجودة.
-- يرجع كود أو UI من نسخة أقدم.
-- النتيجة: ميزات مكتملة تختفي أو ترجع بسلوك قديم.
-
-لذلك: لا تستبدل ملفات كاملة من branch قديم. قارن، ثم عدّل أقل مساحة ممكنة.
-
-## أوامر شائعة
-
-Frontend:
+## First Steps
 
 ```bash
-npm run build
-npm run dev
-npm run preview
+git status --short
+git rev-parse --abbrev-ref HEAD
+git log -5 --oneline
 ```
 
-Android:
+Then read:
 
-```bash
-npm run build
-npx cap sync android
-cd android
-./gradlew assembleDebug
-```
+1. `CURRENT_STATE.md`
+2. `AI-HANDOFF.md`
+3. `AGENTS.md`
 
-APK:
+Do not start from `main`. The active branch is usually:
 
 ```text
-android/app/build/outputs/apk/debug/app-debug.apk
+codex/customer-wallet-group-orders
 ```
 
-iOS unsigned build:
+## New Claude Account Warning
+
+The user has a new Claude Code account on the same computer. Do not assume every connector/skill is authenticated.
+
+- Check available skills/tools before using them.
+- Figma is required for design work and may need reauthentication.
+- If Figma is unavailable, say that clearly and ask the user to reconnect Figma; do not invent a design.
+- Use any available browser/WebView/testing skills for SHEIN/Temu debugging.
+- Keep context usage low. Read the short handoff files first and avoid old history unless needed.
+
+## Current Main Issue
+
+Local v68 fix is implemented but not deployed or built as IPA yet:
+
+- Temu opens/redirects to Saudi `/sa/` with USD params, but no longer reloads product URLs only because currency params are absent.
+- Temu writes exact Saudi/USD session keys and hide filters skip price-looking elements.
+- SHEIN security challenge pages keep a minimal otlobli bottom nav.
+- App ignores page-load errors while a SHEIN security challenge or ready page is active.
+- Switching back to SHEIN no longer clears cookies/cache automatically.
+- Wallet balance RPC errors no longer show false zero.
+- App version is `2026.07.13-shein-temu-stability-v68`.
+
+Symptoms reported before this fix:
+
+- SHEIN page behaves like a static image.
+- Taps are unreliable.
+- Black `m.shein.com` security verification can appear.
+- App may exit or reopen into the same verification flow.
+- VPN/load failure can degrade to a blank page if not handled.
+
+Investigate store-switch lifecycle:
+
+- WebView remount/key behavior.
+- Store-specific script injection separation.
+- Temu CSS/JS leaking into SHEIN.
+- SHEIN session persistence after switching.
+- Whether failed challenge/load URLs are reused.
+- Whether a failed SHEIN WebView should be torn down and rebuilt.
+
+Do not bypass captcha/security pages. Keep them usable and avoid breaking the WebView.
+
+## Fragile Areas
+
+- SHEIN should stay on mobile Arabic/Saudi/USD behavior.
+- Keep `site_uid` as `pwar` on mobile SHEIN.
+- Do not spoof a custom User-Agent; use `Accept-Language: ar-SA` only if needed.
+- Do not broadly overwrite every storage key with `country`, `currency`, or `lang`.
+- Do not treat country names inside product titles/descriptions as wrong-region signals.
+- Temu search must remain visible and stable.
+- Do not change payment, wallet, completed-order, coupon, or group-checkout logic unless explicitly asked.
+
+## Main Files
+
+- `src/App.tsx`
+- `src/services/sheinBrowserScript.ts`
+- `src/services/appApi.ts`
+- `src/services/supabaseAppApi.ts`
+- `src/infrastructure/localStorage.ts`
+- `src/domain/types.ts`
+- `admin/src/AdminApp.tsx`
+- `admin/src/styles.css`
+- `supabase/schema.sql`
+- `supabase/functions/admin-orders/index.ts`
+
+## Build Commands
+
+Customer:
+
+```bash
+npm run build
+```
+
+Admin:
+
+```bash
+cd admin
+npm run build
+```
+
+iOS unsigned GitHub build:
 
 ```bash
 gh workflow run ios-unsigned-build.yml --ref codex/customer-wallet-group-orders
 ```
 
-## خريطة الملفات الحالية
-
-- تطبيق الزبون: `src/App.tsx`
-- سكربت SHEIN/Temu داخل WebView: `src/services/sheinBrowserScript.ts`
-- API التطبيق: `src/services/supabaseAppApi.ts`, `src/services/appApi.ts`
-- localStorage/session/device ids: `src/infrastructure/localStorage.ts`
-- لوحة الإدارة: `admin/src/AdminApp.tsx`
-- تنسيقات الإدارة: `admin/src/styles.css`
-- قاعدة البيانات: `supabase/schema.sql`
-- دوال الإدارة: `supabase/functions/admin-orders`, `admin-coupons`, `admin-drivers`, `app-settings`
-- السلة المشتركة: `supabase/functions/cart-groups`
-
-## SHEIN الحالي
-
-- SHEIN يجب أن يفتح على `https://m.shein.com/ar/`.
-- الدولة المطلوبة: السعودية.
-- العملة المطلوبة: USD.
-- اللغة المطلوبة: Arabic.
-- `site_uid` على mobile SHEIN يجب أن يبقى `pwar`.
-- لا تعمل spoof مخصص لـ User-Agent؛ استخدم فقط `Accept-Language: ar-SA`.
-- لا تفحص أسماء الدول داخل وصف/عنوان المنتج لتقرر أن البلد خطأ. افحص فقط عبارات الشحن/التوصيل.
-- لا تكتب broadly على كل storage key يحتوي `country/currency/lang` لأن هذا يسبب skeleton loading.
-- إذا ظهر تحقق "أنا إنسان"، لا تحاول تجاوزه. فقط اجعل الصفحة قابلة للنقر ولا تحجبها.
-
-## Temu والشريط السفلي
-
-- شريط otlobli السفلي داخل WebView حساس جداً.
-- لا تغيّر `z-index`, `position: fixed`, `safe bottom margin`, أو `__resize` بدون اختبار Android/iOS.
-- لا تحجب البحث في Temu.
-- احجب فقط عناصر الحساب/السلة/تسجيل الدخول الخاصة بTemu عندما تكون مؤكدة، ولا تحجب محتوى المنتجات.
-
-## الدفع والمحفظة
-
-لا تغيّر منطق الدفع أو المحفظة إلا إذا طلب المستخدم ذلك صراحة.
-
-المسارات الحساسة:
-
-- ShamCash payment verification
-- wallet top-up
-- order issue payment request
-- coupon redemption
-- group order checkout
-
-## بروتوكول التسليم
-
-بعد كل تغيير مهم:
-
-1. حدّث `CURRENT_STATE.md`.
-2. حدّث `AI-HANDOFF.md`.
-3. حدّث `SESSION_SUMMARY.md` بملخص قابل للنسخ لشات جديد.
-
-إذا اقتربت من نهاية الجلسة أو خفت من نفاد الفاتورة/السياق، اجعل آخر رد هو ملخص شات واضح.
-
-ملاحظة: Claude/Codex قد لا يعرفان الفاتورة فعلياً. لا تدّعي معرفة وقت نفادها، لكن تصرف بحذر واكتب ملخصات متكررة.
-
+Do not publish or build artifacts unless the user asks or a fix is ready for release.

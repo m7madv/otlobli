@@ -1,56 +1,60 @@
 # AGENTS.md
 
-تعليمات ملزمة لأي AI يعمل على هذا المشروع.
+Mandatory rules for any AI working on this project.
 
-## أول 5 دقائق قبل أي تعديل
+## First Steps Before Any Edit
 
-1. اقرأ `CURRENT_STATE.md` أولاً.
-2. اقرأ `AI-HANDOFF.md` ثانياً.
-3. اقرأ هذا الملف قبل تعديل أي كود.
-4. شغّل:
-   - `git status --short`
-   - `git rev-parse --abbrev-ref HEAD`
-   - `git log -5 --oneline`
-5. إذا وجدت تغييرات موجودة مسبقاً، اعتبرها شغل المستخدم أو AI آخر. لا ترجعها ولا تستبدلها.
+1. Read `CURRENT_STATE.md`.
+2. Read `AI-HANDOFF.md`.
+3. Read this file.
+4. Run:
 
-## مصدر الحقيقة
+```bash
+git status --short
+git rev-parse --abbrev-ref HEAD
+git log -5 --oneline
+```
 
-- الفرع النشط عادة: `codex/customer-wallet-group-orders`
-- لا تفترض أن `main` هو الأحدث.
-- لا تبني من ملفات قديمة مثل `PROJECT-CONTEXT.md` أو `CHAT_SUMMARY.md` إلا إذا كانت ترسلك إلى `CURRENT_STATE.md`.
-- إذا تعارضت الملفات، الكود الحالي + `CURRENT_STATE.md` + `AI-HANDOFF.md` هي المرجع.
+If files are already modified, assume they belong to the user or another AI. Do not revert or overwrite them.
 
-## ممنوعات مهمة
+## Source Of Truth
 
-- ممنوع استبدال ملفات المشروع بنسخة من فرع قديم.
-- ممنوع إرجاع Admin أو Customer UI من branch قديم بدون مقارنة واعية.
-- ممنوع عمل `git reset --hard` أو `git checkout --` لتغييرات لم تطلب صراحة.
-- ممنوع commit/push إذا كان هناك staged changes لا تخص عملك، إلا إذا طلب المستخدم ذلك صراحة.
-- ممنوع تغيير منطق الدفع، المحفظة، أو الطلبات المكتملة عند إصلاح شيء محدود.
+- Usual active branch: `codex/customer-wallet-group-orders`
+- Do not assume `main` is latest.
+- Prefer current code plus `CURRENT_STATE.md` and `AI-HANDOFF.md`.
+- Older docs such as `PROJECT-CONTEXT.md` or `CHAT_SUMMARY.md` are not first-read sources.
 
-## بروتوكول التوثيق المستمر
+## Forbidden
 
-بعد كل تغيير مهم، حدّث هذه الملفات:
+- Do not replace project files with copies from an older branch.
+- Do not restore Admin or Customer UI from an old branch without deliberate comparison.
+- Do not run `git reset --hard` or `git checkout --` for changes the user did not explicitly ask to discard.
+- Do not commit/push staged changes that are not yours unless the user explicitly asks.
+- Do not change payment, wallet, or completed-order logic during a limited fix unless the user clearly asks.
+
+## Documentation Discipline
+
+After a stable important change, update:
 
 1. `CURRENT_STATE.md`
 2. `AI-HANDOFF.md`
 3. `SESSION_SUMMARY.md`
 
-لا تنتظر نهاية الجلسة فقط. حدّثها أثناء العمل عند كل نقطة مستقرة.
+Keep these files short. Long history belongs in git history, not in first-read context.
 
-## بروتوكول قرب نفاد الميزانية أو السياق
+## Figma And Design
 
-قد لا يعرف AI متى تنتهي فاتورة المستخدم فعلياً. لذلك:
+Designs must come from Figma only.
 
-- إذا لاحظت أن الجلسة طويلة، أو التغييرات كثيرة، أو المستخدم ذكر الفاتورة/الحدود، اكتب ملخص شات فوراً.
-- آخر رد قبل التوقف أو قبل طلب متابعة طويلة يجب أن يحتوي آخر حالة مؤكدة، الملفات المعدلة، الأوامر التي نجحت أو فشلت، وما يجب على AI التالي قراءته أولاً.
-- إذا لم تكن متأكداً من الوقت/الفاتورة، قل ذلك بوضوح ولا تدّعي أنك تعرف.
+When the user asks for interface design or design changes:
 
-## Figma والتصميم
+- Treat Figma as the only design source.
+- If Figma tools/permissions are available, use the relevant Figma skills.
+- If Figma is unavailable or needs reauthentication, explain the minimum reconnect step and continue only with review or code implementation that does not invent a new design.
 
-التصاميم فقط من Figma. عند طلب تصميم واجهة أو تعديل تصميم:
+## Token Discipline
 
-- اعتبر Figma المصدر الوحيد للتصميم.
-- إذا كانت أدوات Figma متاحة والصلاحيات كافية، استخدم مهارات Figma المناسبة.
-- إذا لم تكن الأدوات أو الصلاحيات متاحة، اشرح السبب وقدّم أقل خطوة عملية داخل Figma ثم تابع التنفيذ أو المراجعة.
-
+- Read the short handoff files first.
+- Use `rg`/targeted searches instead of opening large files blindly.
+- Avoid old summaries unless the task specifically needs history.
+- Keep status updates concise and practical.

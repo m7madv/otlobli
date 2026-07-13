@@ -34,6 +34,7 @@ const APP_SETTINGS_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/app-settin
 // الأسعار بالدولار نفسها، والزبون لا يرى اسم أي بلد (يُعرض "مركز التجميع").
 // السكربت المحقون يقرأ المنطقة من الرابط فيضبط لغة الموقع تلقائياً.
 const SHEIN_HOME_URL = 'https://m.shein.com/ar/?currency=USD&country=SA&countryCode=SA&lang=ar&language=ar&ship_to=SA&shipToCountry=SA&shippingCountry=SA'
+const TEMU_HOME_URL = 'https://www.temu.com/sa/?currency=USD&currencyCode=USD'
 const SHEIN_BROWSER_HEADERS = {
   'Accept-Language': 'ar-SA,ar;q=0.9,en;q=0.8',
 }
@@ -287,6 +288,23 @@ const normalizeSheinBrowserUrl = (rawUrl: string) => {
   }
 }
 
+const normalizeTemuBrowserUrl = (rawUrl: string) => {
+  if (!rawUrl) return TEMU_HOME_URL
+  try {
+    const url = new URL(rawUrl)
+    if (!/temu/i.test(url.hostname)) return rawUrl
+    url.protocol = 'https:'
+    url.hostname = 'www.temu.com'
+    const path = url.pathname.replace(/^\/[a-z]{2}(?=\/|$)/i, '/sa') || '/sa/'
+    url.pathname = path === '/' ? '/sa/' : path
+    url.searchParams.set('currency', 'USD')
+    url.searchParams.set('currencyCode', 'USD')
+    return url.toString()
+  } catch {
+    return rawUrl
+  }
+}
+
 // المتاجر المتاحة للتصفّح. الالتقاط التلقائي (سعر/إضافة للسلة) يعمل على شي إن
 // فقط حالياً؛ باقي المتاجر تُفتح للتصفّح. لكل متجر سلة منفصلة.
 type StoreId = 'shein' | 'temu'
@@ -296,7 +314,8 @@ const STORES: { id: StoreId; name: string; url: string }[] = [
   // بالرابط يُرفض ويُعاد لكندا)، فالعربية/الأردن/الدولار تتطلب VPN ببلد عربي.
   // /jo/ = الأردن: عربي + دينار أردني (ثابت ≈ 1.41$). يشغّل الزبون VPN أي دولة
   // لكن السكريبت يُحوّل تلقائياً لهذا المسار لضمان العربية بصرف النظر عن الـIP.
-  { id: 'temu', name: 'تيمو', url: 'https://www.temu.com/jo/' },
+  // Current requirement: Saudi Arabia region with USD. Do not change back to /jo/.
+  { id: 'temu', name: 'تيمو', url: TEMU_HOME_URL },
 ]
 const storeUrl = (id: string) => (STORES.find((s) => s.id === id)?.url) ?? SHEIN_HOME_URL
 const storeName = (id?: string) => STORES.find((store) => store.id === id)?.name ?? 'المتجر'
@@ -354,6 +373,35 @@ const shouldRedirectSheinToSaudi = (rawUrl: string) => {
       (!!lang && lang !== 'ar') ||
       (!!language && language !== 'ar') ||
       (!!shipTo && shipTo !== 'SA')
+  } catch {
+    return false
+  }
+}
+
+const isSheinHumanChallengeUrl = (rawUrl: string) => {
+  try {
+    const url = new URL(rawUrl)
+    if (!/shein/i.test(url.hostname)) return false
+    return /\/(?:cdn-cgi|challenge|captcha|verify|verification|security)(?:\/|\?|#|$)/i.test(url.pathname) ||
+      /(?:^|[?&#])(?:captcha|challenge|verification|security_token)=/i.test(url.search + url.hash)
+  } catch {
+    return false
+  }
+}
+
+const shouldRedirectTemuToSaudiUsd = (rawUrl: string) => {
+  try {
+    const url = new URL(rawUrl)
+    if (!/temu\.com/i.test(url.hostname)) return false
+    const pathname = url.pathname || '/'
+    const hasLocale = /^\/[a-z]{2}(?:\/|$)/i.test(pathname)
+    const isSaudi = /^\/sa(?:\/|$)/i.test(pathname)
+    const isRootLike = /^\/(?:[a-z]{2}\/?)?$/i.test(pathname)
+    return (hasLocale && !isSaudi) ||
+      (isRootLike && (
+        url.searchParams.get('currency') !== 'USD' ||
+        url.searchParams.get('currencyCode') !== 'USD'
+      ))
   } catch {
     return false
   }
@@ -1157,9 +1205,15 @@ function App() {
       setOnboardingBranch(profile.qadmousBranch || '')
     }
     mergeOrdersForPhone(account.orders, loginPhone)
-    setWalletBalanceSyp(account.walletBalanceSyp || account.profile?.walletBalanceSyp || 0)
+    const nextWalletBalanceSyp = account.walletBalanceSyp || account.profile?.walletBalanceSyp || 0
+    setWalletBalanceSyp(nextWalletBalanceSyp)
+    if (nextWalletBalanceSyp > 0 && exchangeRate > 0) {
+      setWalletBalanceUsd((current) => (
+        current > 0 ? current : Math.round((nextWalletBalanceSyp / exchangeRate) * 100) / 100
+      ))
+    }
     setWalletTransactions(account.walletTransactions || [])
-  }, [mergeOrdersForPhone, setNotificationPrefs, setRecipient, setUserProfile])
+  }, [exchangeRate, mergeOrdersForPhone, setNotificationPrefs, setRecipient, setUserProfile])
 
   const buildPersistedProfile = useCallback((
     overrides: Partial<UserProfile> = {},
@@ -1231,6 +1285,9 @@ function App() {
     setSessionToken('')
     setUserProfile(null)
     setOrders([])
+    setWalletBalanceUsd(0)
+    setWalletBalanceSyp(0)
+    setWalletTransactions([])
     setCartsByStore({ shein: [], temu: [] })
     setCartGroup(null)
     setPendingPayment(null)
@@ -1935,10 +1992,12 @@ function App() {
   // فُتح المتجر عبر «فتح على أي حال» رغم فشل بوابة VPN. عندها لو لم تُحمّل الصفحة
   // فعلاً، نرجع لبوابة «شغّل VPN» بدل عرض صفحة بيضاء (بدل الإظهار القسري).
   const openedViaBypassRef = useRef(false)
+  const sheinChallengeActiveRef = useRef(false)
   // إشعار تحقق «أنا إنسان» يُعرض مرة واحدة لكل جلسة webview كي لا يزعج.
   const humanCheckNoticeRef = useRef(false)
   const pendingProductUrlRef = useRef('')
   const [sheinReady, setSheinReady] = useState(false)
+  const sheinReadyRef = useRef(false)
   // Tracks which screen the in-page back button inside the SHEIN webview
   // should return to: 'cart' right after the user taps a cart item (so back
   // re-opens otlobli's cart), 'home' for ordinary browsing from the home tab.
@@ -1952,6 +2011,7 @@ function App() {
   const browseSheinRef = useRef<() => void>(() => undefined)
   const markStoreWebviewReadyRef = useRef<(sessionId: number) => void>(() => undefined)
   useEffect(() => { screenRef.current = screen }, [screen])
+  useEffect(() => { sheinReadyRef.current = sheinReady }, [sheinReady])
 
   // The SHEIN webview is a separate native layer floating on top of our own
   // React UI, not part of its DOM - trying to size it precisely to "leave a
@@ -2041,6 +2101,7 @@ function App() {
       if (wasOpening) {
         webviewSessionRef.current += 1
         webviewIdRef.current = ''
+        sheinChallengeActiveRef.current = false
         sheinOpenedRef.current = false
         setSheinReady(false)
         void InAppBrowser.close().catch(() => undefined)
@@ -2065,6 +2126,7 @@ function App() {
     webviewSessionRef.current += 1
     webviewOpeningRef.current = false
     webviewIdRef.current = ''
+    sheinChallengeActiveRef.current = false
     sheinOpenedRef.current = false
     setSheinReady(false)
     void InAppBrowser.close().catch(() => undefined)
@@ -2076,6 +2138,7 @@ function App() {
     webviewSessionRef.current = sessionId
     webviewOpeningRef.current = true
     webviewIdRef.current = ''
+    sheinChallengeActiveRef.current = false
     sheinOpenedRef.current = true
     setSheinReady(false)
     // SHEIN is reached directly on both platforms now, so it only loads once
@@ -2083,7 +2146,7 @@ function App() {
     // before this function ever runs.
     const activeStore = selectedStoreRef.current
     const rawTargetUrl = initialPendingUrl || storeUrl(activeStore)
-    const targetUrl = activeStore === 'shein' ? normalizeSheinBrowserUrl(rawTargetUrl) : rawTargetUrl
+    const targetUrl = activeStore === 'shein' ? normalizeSheinBrowserUrl(rawTargetUrl) : normalizeTemuBrowserUrl(rawTargetUrl)
     void InAppBrowser.openWebView({
       url: targetUrl,
       ...(activeStore === 'shein' ? { headers: SHEIN_BROWSER_HEADERS } : {}),
@@ -2139,6 +2202,7 @@ function App() {
         if (sessionId !== webviewSessionRef.current) return
         webviewOpeningRef.current = false
         webviewIdRef.current = ''
+        sheinChallengeActiveRef.current = false
         sheinOpenedRef.current = false
         setSheinReady(false)
       })
@@ -2200,6 +2264,7 @@ function App() {
       webviewSessionRef.current += 1
       webviewOpeningRef.current = false
       webviewIdRef.current = ''
+      sheinChallengeActiveRef.current = false
       sheinOpenedRef.current = false
       setSheinReady(false)
       if (suppressAutoReopenRef.current) {
@@ -2222,10 +2287,14 @@ function App() {
     const errorHandle = InAppBrowser.addListener('pageLoadError', (event: { id?: string }) => {
       if (event?.id && webviewIdRef.current && event.id !== webviewIdRef.current) return
       if (!sheinOpenedRef.current || screenRef.current !== 'home') return
+      const activeStore = selectedStoreRef.current
+      if (activeStore === 'shein' && (sheinChallengeActiveRef.current || sheinReadyRef.current)) return
       if (webviewErrorTimerRef.current !== undefined) window.clearTimeout(webviewErrorTimerRef.current)
       webviewErrorTimerRef.current = window.setTimeout(() => {
         webviewErrorTimerRef.current = undefined
         if (!sheinOpenedRef.current || screenRef.current !== 'home') return
+        const currentStore = selectedStoreRef.current
+        if (currentStore === 'shein' && (sheinChallengeActiveRef.current || sheinReadyRef.current)) return
         // A navigation can fail after the first page was already shown (VPN
         // disconnected, or "open anyway" reached a 404). Tear down this
         // native instance and return to the connection gate; leaving the
@@ -2234,6 +2303,7 @@ function App() {
         webviewSessionRef.current += 1
         webviewOpeningRef.current = false
         webviewIdRef.current = ''
+        sheinChallengeActiveRef.current = false
         sheinOpenedRef.current = false
         setSheinReady(false)
         setSheinBlockedError(false)
@@ -2280,12 +2350,11 @@ function App() {
   }, [])
 
   // اعتراض تحويلات تيمو على مستوى Native: إذا غيّر الخادم الرابط لنسخة غير
+  // Current requirement: force Temu to /sa/ with USD while preserving product paths.
   // عربية (بسبب IP الـVPN)، نُعيد التوجيه فوراً لـ /jo/ العربية قبل أن تُعرض.
   // هذا يعمل على مستوى WKWebView مباشرةً، أسرع وأقوى من JS داخل الصفحة.
   useEffect(() => {
     // مقطع الدولة يُفحص بعد الدومين مباشرةً فقط (لا في أي موضع عشوائي بالرابط)
-    const ARABIC_TEMU_RE = /temu\.com\/(?:sa|ae|kw|jo|bh|qa|eg|iq|om)(?:\/|\?|#|$)/i
-    const LOCALE_SEG_RE = /temu\.com\/[a-z]{2}(?:\/|\?|#|$)/i
     // ملاحظة: أُزيل منع صفحة تسجيل الدخول الذي كان يستدعي InAppBrowser.setUrl عند
     // اكتشاف login في الرابط. كان يسبب حلقة إعادة تحميل (شاشة بيضاء تومض) على iOS:
     // تيمو تُطلق تنقّلاً فيه login عند التحميل، فكل setUrl يعيد التحميل من جديد
@@ -2293,6 +2362,17 @@ function App() {
     // بطريقة لا تعيد تحميل الصفحة (إخفاء عناصر/منع نقر)، لا عبر setUrl.
     const handle = InAppBrowser.addListener('urlChangeEvent', ({ url }: { url: string }) => {
       if (/shein/i.test(url)) {
+        if (isSheinHumanChallengeUrl(url)) {
+          sheinChallengeActiveRef.current = true
+          if (webviewErrorTimerRef.current !== undefined) {
+            window.clearTimeout(webviewErrorTimerRef.current)
+            webviewErrorTimerRef.current = undefined
+          }
+          setSheinBlockedError(false)
+          markStoreWebviewReadyRef.current(webviewSessionRef.current)
+          return
+        }
+        sheinChallengeActiveRef.current = false
         if (!shouldRedirectSheinToSaudi(url)) {
           sheinSaudiRedirectRef.current = 0
           return
@@ -2311,25 +2391,18 @@ function App() {
         return
       }
       if (!/temu\.com/i.test(url)) return
-      if (ARABIC_TEMU_RE.test(url)) {
-        // وصلنا لنسخة عربية — نُصفّر العدّاد
+      if (!shouldRedirectTemuToSaudiUsd(url)) {
         temuArabicRedirectRef.current = 0
         return
       }
-      // روابط بلا مقطع دولة إطلاقاً (منتجات قسم "الكل" مثلاً: temu.com/goods...)
-      // نتركها كما هي — إعادة توجيهها كانت ترمي الزبون للصفحة الرئيسية
-      // بدل فتح المنتج (شاشة بيضاء/عودة لنفس القائمة).
-      if (!LOCALE_SEG_RE.test(url)) return
-      // نسخة غير عربية (us/de/uk/...) — نُحوّل لـ /jo/
       const now = Date.now()
       // حماية الحلقة: 3 محاولات كحد أقصى خلال 15 ثانية
       if (temuArabicRedirectRef.current >= 3 && now - temuArabicRedirectTsRef.current < 15000) return
       if (now - temuArabicRedirectTsRef.current > 15000) temuArabicRedirectRef.current = 0
       temuArabicRedirectRef.current++
       temuArabicRedirectTsRef.current = now
-      // نحافظ على مسار المنتج (مثلاً /us/prod.html → /jo/prod.html)
-      const arabicUrl = url.replace(/temu\.com\/[a-z]{2}(\/|\?|#|$)/i, 'temu.com/jo$1')
-      if (arabicUrl !== url) void InAppBrowser.setUrl({ url: arabicUrl })
+      const saUrl = normalizeTemuBrowserUrl(url)
+      if (saUrl !== url) void InAppBrowser.setUrl({ url: saUrl })
     })
     return () => { void handle.then((h) => h.remove()) }
   }, [])
@@ -2364,6 +2437,7 @@ function App() {
           window.clearTimeout(webviewErrorTimerRef.current)
           webviewErrorTimerRef.current = undefined
         }
+        sheinChallengeActiveRef.current = true
         setSheinBlockedError(false)
         markStoreWebviewReadyRef.current(webviewSessionRef.current)
         if (!humanCheckNoticeRef.current) {
@@ -2374,6 +2448,7 @@ function App() {
       }
 
       if (detail?.type === 'sheinBlocked') {
+        sheinChallengeActiveRef.current = false
         void InAppBrowser.hide()
         setSheinBlockedError(true)
         return
@@ -4842,6 +4917,7 @@ function App() {
           webviewSessionRef.current += 1
           webviewOpeningRef.current = false
           webviewIdRef.current = ''
+          sheinChallengeActiveRef.current = false
           sheinOpenedRef.current = false
           setSheinReady(false)
           // تبديل المتجر يُبقي بيانات الـWebView المشتركة (كوكيز/service worker)
@@ -5107,6 +5183,7 @@ function App() {
               setSheinBlockedError(false)
               webviewSessionRef.current += 1
               webviewIdRef.current = ''
+              sheinChallengeActiveRef.current = false
               sheinOpenedRef.current = false
               setSheinReady(false)
               void InAppBrowser.close().catch(() => undefined)
