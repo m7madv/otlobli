@@ -21,7 +21,7 @@ Rules:
 ## Important Context
 
 - Active branch: `codex/customer-wallet-group-orders`
-- Latest feature commit: `db7dfb8` (`fix: v80 combine v77 store UI with v78 VPN`)
+- Latest feature commit: `0d0b5ef` (`fix: v81 target iPhone 6 shein chrome`)
 - Claude old account may have worked after Codex. Always inspect current git state before editing.
 - Claude new account may not have the same skills/connectors authenticated. Check available skills/tools, especially Figma.
 
@@ -68,6 +68,9 @@ Rules:
 - Desktop v80 iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v80.ipa`
 - v80 IPA SHA-256: `DBED4F281A7A24597668B25EE1CB31F9A01EE6459696601A9A3D13BA94F65070`
 - v80 GitHub Actions run: `29287735934`
+- Desktop v81 iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v81.ipa`
+- v81 IPA SHA-256: `F4DC6785BD3811FB21ACC54FFC6224622DEE4EA3FD08377B3A656EBF35128760`
+- v81 GitHub Actions run: `29288517907`
 
 ## Main Files
 
@@ -96,7 +99,16 @@ Rules:
 
 ## Current Highest Priority
 
-v80 iPhone build is ready:
+v81 iPhone build is ready:
+
+- This keeps the v80 base: v77-like SHEIN/UI behavior plus v78 VPN behavior.
+- `src/services/sheinBrowserScript.ts` now detects SHEIN's native bottom tab bar by actual nav text/links (`أنا`, `حقيبة التسوق`, `ترندات`, `الفئات`, `متجر` / cart/category/profile/store) and point-probed ancestors near otlobli's nav. It avoids the broad v79 geometry hider.
+- On narrow screens only (`<=400px` CSS width, e.g. iPhone 6), SHEIN's hero category/gender tabs are stabilized to prevent clipping while leaving iPhone 16 Pro Max untouched.
+- SHEIN cleanup calls are individually guarded so old WebKit selector failures do not stop later cleanup steps.
+- `src/config.ts` version: `2026.07.14-iphone6-shein-chrome-v81`.
+- v81 iPhone unsigned IPA was built by GitHub Actions run `29288517907` and copied to the desktop.
+
+v80 iPhone build remains available:
 
 - This is the preferred test build after the user's correction.
 - `src/services/sheinBrowserScript.ts` is restored to the v77 SHEIN/UI behavior that worked well on iPhone 16 Pro Max.
@@ -281,6 +293,13 @@ Passed after v80 v77-UI/v78-VPN combination:
 - `git diff --check`
 - Injected `SHEIN_CAPTURE_SCRIPT` syntax parse passed.
 - GitHub iOS unsigned build run `29287735934` passed and produced `otlobli-v80.ipa`.
+
+Passed after v81 iPhone 6 SHEIN chrome fix:
+
+- Root `npm run build`
+- `git diff --check`
+- Injected `SHEIN_CAPTURE_SCRIPT` syntax parse passed.
+- GitHub iOS unsigned build run `29288517907` passed and produced `otlobli-v81.ipa`.
 
 Known gap:
 

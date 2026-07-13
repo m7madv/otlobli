@@ -8,7 +8,7 @@ This is the short source of truth for the app work. Keep it compact so Codex/Cla
 
 - Path: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`
 - Branch: `codex/customer-wallet-group-orders`
-- Latest feature commit: `db7dfb8` (`fix: v80 combine v77 store UI with v78 VPN`)
+- Latest feature commit: `0d0b5ef` (`fix: v81 target iPhone 6 shein chrome`)
 
 Before any code change:
 
@@ -63,7 +63,10 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 - v80 iPhone artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v80.ipa`
 - v80 IPA SHA-256: `DBED4F281A7A24597668B25EE1CB31F9A01EE6459696601A9A3D13BA94F65070`
 - v80 GitHub Actions run: `29287735934`
-- No new Android build was requested for v80.
+- v81 iPhone artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v81.ipa`
+- v81 IPA SHA-256: `F4DC6785BD3811FB21ACC54FFC6224622DEE4EA3FD08377B3A656EBF35128760`
+- v81 GitHub Actions run: `29288517907`
+- No new Android build was requested for v81.
 
 ## v66 Completed
 
@@ -82,7 +85,10 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 
 ## Current Known Issues
 
-- v80 iOS build is ready: `APP_VERSION = 2026.07.14-v77-ui-v78-vpn-v80`.
+- v81 iOS build is ready: `APP_VERSION = 2026.07.14-iphone6-shein-chrome-v81`.
+- v81 change: keeps the v80 base, then narrowly targets iPhone 6 SHEIN chrome: bottom SHEIN tab bar is detected by its real nav text/links and hidden, not by broad geometry.
+- v81 change: on narrow screens only, SHEIN hero gender/category tabs are made horizontally stable so labels like all/women/kids/men are not clipped.
+- v80 iOS build remains available: `APP_VERSION = 2026.07.14-v77-ui-v78-vpn-v80`.
 - v80 change: SHEIN/UI script was restored to the v77 behavior that worked well on iPhone 16 Pro Max.
 - v80 change: `src/App.tsx` keeps the v78 VPN probing improvements that made iPhone 6 work with more VPN servers.
 - Do not use v79 for testing; it over-hid real SHEIN options/categories and did not fix the iPhone 6 SHEIN bottom bar.
@@ -122,7 +128,7 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 
 ## Next Best Focus
 
-1. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v80.ipa` on iPhone 6 and iPhone 16 Pro Max. It intentionally combines v77 SHEIN/UI behavior with v78 VPN behavior.
+1. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v81.ipa` on iPhone 6 and iPhone 16 Pro Max. Verify iPhone 16 Pro Max still looks like v80, and on iPhone 6 SHEIN's own bottom bar is gone and the top category tabs are usable.
 2. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v70.apk` on Android / emulator and verify SHEIN does not exit the app.
 3. Verify SHEIN after this exact flow: fresh open -> switch to Temu -> switch back to SHEIN -> security check if shown -> normal browsing.
 4. Verify Temu region is Saudi and currency is USD.

@@ -35,7 +35,7 @@ Read:
 
 ## Latest Stable Release
 
-- Latest feature commit: `db7dfb8` (`fix: v80 combine v77 store UI with v78 VPN`)
+- Latest feature commit: `0d0b5ef` (`fix: v81 target iPhone 6 shein chrome`)
 - Customer deployed to `https://talabieh.vercel.app`
 - Admin deployed to `https://talabieh-admin.vercel.app`
 - Supabase migration `20260712033000_shared_order_ownership.sql` applied.
@@ -78,7 +78,10 @@ Read:
 - v80 iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v80.ipa`
 - v80 IPA SHA-256: `DBED4F281A7A24597668B25EE1CB31F9A01EE6459696601A9A3D13BA94F65070`
 - v80 GitHub Actions run: `29287735934`
-- No new Android build was requested for v80.
+- v81 iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v81.ipa`
+- v81 IPA SHA-256: `F4DC6785BD3811FB21ACC54FFC6224622DEE4EA3FD08377B3A656EBF35128760`
+- v81 GitHub Actions run: `29288517907`
+- No new Android build was requested for v81.
 
 ## v66 Implemented
 
@@ -98,6 +101,8 @@ Read:
 
 ## Still Open
 
+- v81 iPhone 6 SHEIN chrome fix is pushed and built.
+- v81 change: keeps v80 base, hides SHEIN's native bottom tab bar by its actual nav text/links, and stabilizes top SHEIN hero tabs only on narrow screens.
 - v80 v77-UI/v78-VPN combination is pushed and built.
 - v80 change: SHEIN/UI script is restored to v77 behavior that worked well on iPhone 16 Pro Max, while keeping v78 VPN probing behavior for iPhone 6.
 - v79 should not be used for testing; user reported it over-hid SHEIN options/categories and still did not solve the iPhone 6 bottom bar.
@@ -206,6 +211,13 @@ Read:
 - `git diff --check` passed.
 - Injected `SHEIN_CAPTURE_SCRIPT` syntax parse passed.
 - GitHub iOS unsigned build run `29287735934` passed and produced `otlobli-v80.ipa`.
+
+## Validation After v81 iPhone 6 SHEIN Chrome Fix
+
+- `npm run build` passed.
+- `git diff --check` passed.
+- Injected `SHEIN_CAPTURE_SCRIPT` syntax parse passed.
+- GitHub iOS unsigned build run `29288517907` passed and produced `otlobli-v81.ipa`.
 
 ## Guidance For Claude New Account
 
