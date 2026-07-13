@@ -110,6 +110,10 @@ type WebviewPageLoadErrorEvent = {
   code?: number | string
 }
 
+const STORE_BLOCKED_COUNTRIES = new Set(['SY'])
+const isBlockedStoreCountry = (countryCode?: string | null) =>
+  !!countryCode && STORE_BLOCKED_COUNTRIES.has(countryCode.toUpperCase())
+
 const compressFullImage = (src: string): Promise<string> => new Promise((resolve, reject) => {
   const image = new Image()
   image.onload = () => {
@@ -2067,7 +2071,9 @@ function App() {
         probeImage('https://m.shein.com/favicon.ico'),
         probeImage('https://img.ltwebstatic.com/images3_spmp/2024/06/20/17/1718854498b4a8f5ebce05ea476acae42de72b810a_thumbnail_80x80.webp'),
       ]
-    return Promise.any(probes).catch(() => false)
+    return Promise.all(probes)
+      .then((results) => results.some(Boolean))
+      .catch(() => false)
   }
 
   useEffect(() => {
@@ -2080,15 +2086,18 @@ function App() {
         probeVpnGeo(),
       ])
       if (cancelled) return
-      if (storeOk) { setVpnState('ok'); return }
-      if (!geo) { setVpnState('offline'); return }
-      setVpnGeo({ country: geo.country, region: geo.region })
-      if (geo.countryCode === 'SY') { setVpnState('no-vpn'); return }
-      // شي إن خلف تحقق كلاودفلير: فحص الصور يفشل حتى والموقع شغال فعلياً
-      // (التحدي يرد HTML بدل الصورة). خارج سوريا نفتح المتجر ونترك صفحة
-      // التحقق تظهر ليكملها المستخدم — وضع التحقق الآمن يتكفل بالباقي.
-      if (selectedStore === 'shein') { setVpnState('ok'); return }
-      setVpnState('bad-region')
+      if (geo) {
+        setVpnGeo({ country: geo.country, region: geo.region })
+        if (isBlockedStoreCountry(geo.countryCode)) { setVpnState('no-vpn'); return }
+        setVpnState('ok')
+        return
+      }
+      setVpnGeo(null)
+      if (storeOk || navigator.onLine !== false) {
+        setVpnState('ok')
+        return
+      }
+      setVpnState('offline')
     })()
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps

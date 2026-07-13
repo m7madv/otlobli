@@ -463,6 +463,18 @@ export const SHEIN_CAPTURE_SCRIPT = `
     writeSheinSaudiState();
     var normalized = otlobliNormalizeSheinUrl(location.href);
     var visibleForeignRegion = sheinVisibleForeignRegion();
+    if (visibleForeignRegion && options && options.navigate) {
+      try {
+        var autoFixKey = '__otlobliSheinSaudiAutoFix:' + Math.floor(Date.now() / 60000);
+        var autoFixAttempts = parseInt(sessionStorage.getItem(autoFixKey) || '0', 10);
+        if (autoFixAttempts < 2) {
+          sessionStorage.setItem(autoFixKey, String(autoFixAttempts + 1));
+          clearSheinForeignRegionState();
+          location.replace(normalized);
+          return false;
+        }
+      } catch (e) {}
+    }
     if (visibleForeignRegion) {
       window.__otlobliSheinSaudiLocked = true;
       try { sessionStorage.setItem('__otlobliSheinSaudiLocked', '1'); } catch (e) {}

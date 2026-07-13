@@ -12,4 +12,4 @@ export const PAYMENT_MODE: 'auto' | 'shamcash' = 'shamcash'
 export const SOURCE_COUNTRY: 'JO' | 'LB' | 'SA' = 'SA'
 
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '2026.07.13-ios-webkit-guard-v71'
+export const APP_VERSION = '2026.07.13-vpn-permissive-v72'
