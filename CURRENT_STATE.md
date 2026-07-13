@@ -2,6 +2,67 @@
 
 Last updated: 2026-07-13
 
+## Claude: the ACTUAL root cause — window.close() hijack, iOS only (2026-07-13, session 3)
+
+User retested the session-2 IPA (the pageLoadError/humanChallengeSeenRef fix
+below) on the real iPhone: **exact same problem, no change.** That fix was
+reasoned entirely from the ANDROID native plugin source
+(`WebViewDialog.java`'s `onReceivedError` firing per sub-resource). The user
+has only ever been testing **iOS**. Re-investigated `WKWebViewController.swift`
+specifically and found the fix targeted a mechanism that doesn't even apply
+on iOS the same way (confirmed: `WKNavigationDelegate`'s `didFail`/
+`didFailProvisionalNavigation` are main-frame/document-navigation-scoped
+only - WKWebView has no delegate visibility into sub-resource failures at
+all, unlike Android's `WebViewClient`).
+
+**The real mechanism, found by reading the iOS plugin source directly:**
+`WKWebViewController.swift` injects a `WKUserScript` at `.atDocumentStart`
+that unconditionally overrides the page's own `window.close`:
+```js
+window.close = function() {
+    window.webkit.messageHandlers.close.postMessage(null);
+};
+```
+The `close` message handler calls `closeView()` with **zero gating** -
+`dismiss(animated: true)` on the whole native browser, instantly. A second,
+equally unconditional path exists via `WKUIDelegate.webViewDidClose`. Neither
+of these goes through `pageLoadError`, `humanCheck`, or any JS the app
+controls - this is a pure native interception the app-level JS/React code
+cannot see or prevent at all.
+
+**Why this is almost certainly it:** Cloudflare's bot-mitigation/"Just a
+moment" challenge script is well known to call `window.close()` defensively
+when its environment fingerprinting flags an atypical/automated embedding
+context (no real tab history, WKWebView-specific window/navigator features)
+- exactly this app's situation (SHEIN reached via VPN, inside a bare
+WKWebView). This explains the ~2-second timing (roughly how long CF's
+fingerprinting script takes to run and decide), why it's "SHEIN never
+works" (the challenge fires essentially every time now per v62's diagnosis),
+and why the previous fix had literally zero effect (it gated a completely
+different, Android-only code path).
+
+**Fix:** patched `WKWebViewController.swift` + `InAppBrowserPlugin.swift` +
+`dist/esm/definitions.d.ts` in
+`patches/@capgo+capacitor-inappbrowser+8.6.25.patch` to add a new
+`ignorePageWindowClose` option (mirrors the existing
+`disableGoBackOnNativeApplication` pattern). When true, both the `window.close`
+message handler and `webViewDidClose` become no-ops. Wired
+`ignorePageWindowClose: true` into the single `InAppBrowser.openWebView({...})`
+call in `src/App.tsx` (`browseShein()`), applies to both stores. Android has
+no equivalent override at all (confirmed: no `window.close` hijack exists in
+`WebViewDialog.java`), so this is iOS-only by construction - no Android
+behavior change.
+
+**Verification limits, stated plainly:** there is no Mac/Xcode in this
+environment - Swift cannot be compiled locally. Verification here is limited
+to: `npm run build` (TypeScript typecheck of the new option passes) and the
+GitHub Actions `ios-unsigned-build.yml` workflow actually compiling the
+patched Swift successfully (real compiler, not just typechecking). If that
+workflow fails, the patch has a Swift syntax/API error that needs fixing
+before anything else. If it succeeds, that only proves the code compiles -
+NOT that this is the actual fix; that still requires the user's real-device
+test, same as every fix in this file so far.
+
 ## Claude: real root cause found — pageLoadError tears down mid-Cloudflare-challenge (2026-07-13, session 2)
 
 User tested the first APK/IPA from this session on a real iPhone and sent

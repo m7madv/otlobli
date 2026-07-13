@@ -2110,6 +2110,17 @@ function App() {
       // permanently blank home screen. This keeps back navigation inside the webview.
       activeNativeNavigationForWebview: true,
       disableGoBackOnNativeApplication: true,
+      // iOS only (patched plugin): upstream wires the page's own
+      // window.close() straight to a native dismiss with zero gating. Real,
+      // confirmed trigger: SHEIN's Cloudflare "Just a moment" challenge
+      // calls window.close() defensively once its bot-detection flags this
+      // embedded WKWebView as an atypical context - closing the whole
+      // browser instantly, with no pageLoadError and no app-visible error at
+      // all (this is why gating pageLoadError alone did not fix it - that
+      // path is never touched). We never open pages via window.open() from
+      // inside this webview, so there is no legitimate window.close() to
+      // respect here on either store.
+      ignorePageWindowClose: true,
       // Defaults to false in the plugin itself - without this, the native
       // WebView's own bounds extend all the way to the physical bottom edge
       // (this app targets Android SDK 36, which mandates edge-to-edge

@@ -146,6 +146,49 @@ index 8ae3e61..12fb994 100644
  
              // Strip conditional cache validators on the wire so upstream cannot return 304/3xx,
              // which WebResourceResponse.setStatusCodeAndReasonPhrase rejects (kills the renderer).
+diff --git a/node_modules/@capgo/capacitor-inappbrowser/dist/esm/definitions.d.ts b/node_modules/@capgo/capacitor-inappbrowser/dist/esm/definitions.d.ts
+index 19497b5..2a53c1f 100644
+--- a/node_modules/@capgo/capacitor-inappbrowser/dist/esm/definitions.d.ts
++++ b/node_modules/@capgo/capacitor-inappbrowser/dist/esm/definitions.d.ts
+@@ -673,6 +673,18 @@ export interface OpenWebViewOptions {
+      * Test URL: https://capgo.app
+      */
+     disableGoBackOnNativeApplication?: boolean;
++    /**
++     * otlobli patch: if true, the page calling window.close() on itself does
++     * NOT dismiss the native browser (iOS only - Android has no such
++     * override). Upstream unconditionally wires window.close() straight to
++     * a native dismiss with no gating; some third-party anti-bot scripts
++     * (observed: Cloudflare's challenge page) call window.close()
++     * defensively when they detect an atypical/embedded browser context,
++     * which otherwise closes this entire in-app browser instantly with no
++     * app-visible error.
++     * @default false
++     */
++    ignorePageWindowClose?: boolean;
+     /**
+      * Open url in a new window fullscreen
+      * isPresentAfterPageLoad: if true, the browser will be presented after the page is loaded, if false, the browser will be presented immediately.
+diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
+index 116e296..e35f8ac 100644
+--- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
++++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
+@@ -844,6 +844,7 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+         let ignoreUntrustedSSLError = call.getBool("ignoreUntrustedSSLError", false)
+         let enableGooglePaySupport = call.getBool("enableGooglePaySupport", false)
+         let activeNativeNavigationForWebview = call.getBool("activeNativeNavigationForWebview", true)
++        let ignorePageWindowClose = call.getBool("ignorePageWindowClose", false)
+ 
+         self.isPresentAfterPageLoad = call.getBool("isPresentAfterPageLoad", false)
+         let showReloadButton = call.getBool("showReloadButton", false)
+@@ -965,6 +966,7 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+ 
+             // Set native navigation gestures before view loads
+             webViewController.activeNativeNavigationForWebview = activeNativeNavigationForWebview
++            webViewController.ignorePageWindowClose = ignorePageWindowClose
+ 
+             // Update the webview's gesture property (if webview already exists)
+             webViewController.updateNavigationGestures()
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
 index 1c70884..be2b8ac 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
@@ -327,10 +370,54 @@ index 1c70884..be2b8ac 100644
          if
              ProxySchemeRequestSupport.supportsRequestBody(method: context.method),
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
-index 97a2fc1..0aa1902 100644
+index 97a2fc1..7cd9d05 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
-@@ -2756,6 +2756,14 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -353,6 +353,23 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+     var shareDisclaimer: [String: Any]?
+     var shareSubject: String?
+     var didpageInit = false
++    // otlobli: the plugin's own bridge script (below) unconditionally
++    // overrides window.close() on the page and wires it straight to a
++    // native dismiss with zero gating - any script on the page (not just
++    // ours) calling window.close() tears the whole browser down instantly.
++    // Confirmed real-world trigger: Cloudflare's bot-mitigation challenge
++    // ("Just a moment...") commonly calls window.close() defensively once
++    // its environment fingerprinting flags an embedded WKWebView as an
++    // atypical/automated context - which happens to be exactly this app's
++    // situation (SHEIN reached via VPN, inside a bare WKWebView with no real
++    // tab history). That looked identical to "SHEIN opens then kicks the
++    // user out to the app's home screen within ~2 seconds" - never touching
++    // pageLoadError or any of the app's own JS-side error handling, since
++    // this path is entirely native and unconditional. This app never opens
++    // pages that legitimately need window.close() to work (it always opens
++    // a fresh top-level URL via openWebView, never via window.open() from
++    // another page), so ignoring it here is safe.
++    open var ignorePageWindowClose = false
+     open var closeModal = false
+     open var closeModalTitle = ""
+     open var closeModalDescription = ""
+@@ -1170,7 +1187,9 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+             print("[InAppBrowser - preShowScriptError]: Error!!!!")
+             semaphore.signal()
+         } else if message.name == "close" {
+-            closeView()
++            if !ignorePageWindowClose {
++                closeView()
++            }
+         } else if message.name == "hide" {
+             guard allowWebViewJsVisibilityControl else {
+                 return
+@@ -2536,7 +2555,7 @@ extension WKWebViewController: WKUIDelegate {
+     }
+ 
+     public func webViewDidClose(_ webView: WKWebView) {
+-        if webView == self.webView {
++        if webView == self.webView && !ignorePageWindowClose {
+             closeView()
+         }
+     }
+@@ -2756,6 +2775,14 @@ extension WKWebViewController: WKNavigationDelegate {
          emit("pageLoadError")
      }
  

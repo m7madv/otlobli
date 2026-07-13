@@ -1,5 +1,30 @@
 # SESSION_SUMMARY.md
 
+## Claude follow-up (2026-07-13, session 3): the ACTUAL cause was iOS-only window.close() hijack
+
+Session-2 fix (below) had zero effect on retest - because it was reasoned
+from Android's native plugin source, and the user only ever tests iOS. Iterated:
+investigated `WKWebViewController.swift` specifically and found upstream
+unconditionally wires the page's own `window.close()` straight to a native
+`dismiss()` with no gating at all - never touches `pageLoadError` or any JS
+the app controls. Cloudflare's "Just a moment" challenge is known to call
+`window.close()` defensively when it detects an embedded/atypical WebView
+context, which is exactly this app's situation. This fully explains the
+~2-second kick-out and why nothing JS-side could have stopped it.
+
+Fixed by patching the plugin (`patches/@capgo+capacitor-inappbrowser+8.6.25.patch`):
+added a new `ignorePageWindowClose` option across `WKWebViewController.swift`,
+`InAppBrowserPlugin.swift`, and the TS `.d.ts`, wired `true` into `src/App.tsx`'s
+`openWebView()` call. Android has no such override - iOS-only fix, no Android
+behavior change.
+
+No Mac/Xcode in this environment - cannot compile Swift locally. Verified:
+`npm run build` (TS typecheck of the new option), `npx cap sync android` +
+`./gradlew assembleDebug` (Android parity, unaffected). Real verification is
+the GitHub Actions iOS build actually compiling the Swift - if that fails,
+there's a syntax error to fix before anything else matters. Even if it
+compiles, that's not proof of the fix - only the user's real-device retest is.
+
 ## Claude follow-up (2026-07-13, session 2): found the real cause + Temu region change
 
 User tested the session-1 APK/IPA on a real iPhone, sent screenshots: the

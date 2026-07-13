@@ -3,6 +3,31 @@
 Read `CURRENT_STATE.md` first.
 If this file conflicts with older context files, prefer `CURRENT_STATE.md` and the active branch code.
 
+## Claude: the fix below (session 2) did NOT work - real cause was iOS window.close() (2026-07-13, session 3)
+
+**Important meta-lesson, not just a bug fix:** the session-2 fix was reasoned
+entirely from Android's native plugin source. The user has only ever tested
+iOS. Retesting showed zero change. Before reasoning about native WebView
+behavior in this plugin again, **check the platform the user is actually
+testing on and read that platform's native source specifically** - Android's
+`WebViewClient` and iOS's `WKNavigationDelegate` do NOT expose the same
+error/event surface (confirmed: Android's `onReceivedError` fires per failed
+sub-resource; iOS's `didFail`/`didFailProvisionalNavigation` are main-frame-
+navigation-only, with zero visibility into sub-resource failures).
+
+Real cause, found in `WKWebViewController.swift`: the plugin unconditionally
+wires the page's own `window.close()` to a native `dismiss()`, no gating,
+never touching any JS the app controls. Cloudflare's challenge script is
+known to call `window.close()` defensively against embedded/atypical
+browser contexts. Fixed via a new `ignorePageWindowClose` plugin option
+(patch file + `src/App.tsx`). Full detail in `CURRENT_STATE.md`'s session-3
+entry - read it before touching `WKWebViewController.swift`,
+`InAppBrowserPlugin.swift`, or anything close/dismiss-related again.
+
+No Mac/Xcode here - Swift verified only via `npm run build` typecheck and the
+GitHub Actions iOS workflow actually compiling it. Real-device confirmation
+is still pending.
+
 ## Claude: real root cause of the SHEIN switch-bug (2026-07-13, session 2)
 
 The session-1 cache/cookie fixes below were real but not the main cause.
