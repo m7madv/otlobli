@@ -63,6 +63,11 @@ fired at all in this case.
    `pageLoadError` fires, to see exactly what the page looked like at that
    instant.
 
+Committed as `0caa23e` on `claude/competent-nash-557dc5` (pushed). GitHub iOS
+unsigned build run `https://github.com/m7madv/otlobli/actions/runs/29257970710`
+succeeded against this commit. Artifact `otlobli-unsigned.ipa`:
+- SHA-256: `f9ae91e7cef2d811ab86c84d1ed88adafb6ec803b7bc85124ce3bcc826a55184`
+
 ## Temu: switched from Jordan to Saudi Arabia (2026-07-13, session 2)
 
 User asked to switch Temu's forced region from Jordan (`/jo/`) to Saudi
