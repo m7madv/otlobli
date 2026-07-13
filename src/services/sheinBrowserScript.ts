@@ -67,6 +67,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var SHEIN_REQUIRED_CURRENCY = 'USD';
   var SHEIN_REQUIRED_LANGUAGE = 'ar';
   var SHEIN_REQUIRED_SITE_UID = 'pwar';
+  var SHEIN_CHALLENGE_PATH_RE = /\\/(?:cdn-cgi|challenge|captcha|verify|verification|security|robot|risk|anti[-_]?bot|human)(?:\\/|$)/i;
+  var SHEIN_CHALLENGE_QUERY_RE = /(?:^|[?&#])(?:captcha|challenge|verification|security_token|risk|robot|anti[-_]?bot|human)=/i;
   var TEMU_REQUIRED_COUNTRY = 'SA';
   var TEMU_REQUIRED_CURRENCY = 'USD';
 
@@ -172,8 +174,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function otlobliIsHumanChallengeUrl(href) {
     try {
       var u = new URL(href || location.href, location.href);
-      if (/\\/(?:cdn-cgi|challenge|captcha|verify|verification|security)(?:\\/|$)/i.test(u.pathname)) return true;
-      if (/(?:^|[?&#])(?:captcha|challenge|verification|security_token)=/i.test(u.search + u.hash)) return true;
+      if (SHEIN_CHALLENGE_PATH_RE.test(u.pathname)) return true;
+      if (SHEIN_CHALLENGE_QUERY_RE.test(u.search + u.hash)) return true;
     } catch (e) {}
     return false;
   }
@@ -181,6 +183,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // On an explicit challenge route leave the document completely untouched.
   // The next successful navigation gets a new document and a fresh injection.
   if (IS_SHEIN && otlobliIsHumanChallengeUrl(location.href)) {
+    try { writeSheinSaudiState(); } catch (e) {}
     otlobliEnterChallengeMode();
     return;
   }
@@ -197,11 +200,15 @@ export const SHEIN_CAPTURE_SCRIPT = `
       u.searchParams.set('currency', SHEIN_REQUIRED_CURRENCY);
       u.searchParams.set('country', SHEIN_REQUIRED_COUNTRY);
       u.searchParams.set('countryCode', SHEIN_REQUIRED_COUNTRY);
+      u.searchParams.set('country_code', SHEIN_REQUIRED_COUNTRY);
       u.searchParams.set('lang', SHEIN_REQUIRED_LANGUAGE);
       u.searchParams.set('language', SHEIN_REQUIRED_LANGUAGE);
       u.searchParams.set('ship_to', SHEIN_REQUIRED_COUNTRY);
+      u.searchParams.set('shipTo', SHEIN_REQUIRED_COUNTRY);
       u.searchParams.set('shipToCountry', SHEIN_REQUIRED_COUNTRY);
       u.searchParams.set('shippingCountry', SHEIN_REQUIRED_COUNTRY);
+      u.searchParams.set('shipping_country', SHEIN_REQUIRED_COUNTRY);
+      u.searchParams.set('store_country', SHEIN_REQUIRED_COUNTRY);
       return u.toString();
     } catch (e) {
       return href;
@@ -220,21 +227,33 @@ export const SHEIN_CAPTURE_SCRIPT = `
       document.cookie = 'country=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
       document.cookie = 'countryCode=' + SHEIN_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
       document.cookie = 'countryCode=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
+      document.cookie = 'country_code=' + SHEIN_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
+      document.cookie = 'country_code=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
       document.cookie = 'ship_to=' + SHEIN_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
       document.cookie = 'ship_to=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
+      document.cookie = 'shipTo=' + SHEIN_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
+      document.cookie = 'shipTo=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
       document.cookie = 'shipToCountry=' + SHEIN_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
       document.cookie = 'shipToCountry=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
       document.cookie = 'shippingCountry=' + SHEIN_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
       document.cookie = 'shippingCountry=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
+      document.cookie = 'shipping_country=' + SHEIN_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
+      document.cookie = 'shipping_country=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
+      document.cookie = 'store_country=' + SHEIN_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
+      document.cookie = 'store_country=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
       try {
         localStorage.setItem('language', SHEIN_REQUIRED_LANGUAGE);
         localStorage.setItem('site_uid', SHEIN_REQUIRED_SITE_UID);
         localStorage.setItem('currency', SHEIN_REQUIRED_CURRENCY);
         localStorage.setItem('country', SHEIN_REQUIRED_COUNTRY);
         localStorage.setItem('countryCode', SHEIN_REQUIRED_COUNTRY);
+        localStorage.setItem('country_code', SHEIN_REQUIRED_COUNTRY);
         localStorage.setItem('ship_to', SHEIN_REQUIRED_COUNTRY);
+        localStorage.setItem('shipTo', SHEIN_REQUIRED_COUNTRY);
         localStorage.setItem('shipToCountry', SHEIN_REQUIRED_COUNTRY);
         localStorage.setItem('shippingCountry', SHEIN_REQUIRED_COUNTRY);
+        localStorage.setItem('shipping_country', SHEIN_REQUIRED_COUNTRY);
+        localStorage.setItem('store_country', SHEIN_REQUIRED_COUNTRY);
         localStorage.setItem('otlobli_shein_country', SHEIN_REQUIRED_COUNTRY);
         localStorage.setItem('otlobli_shein_currency', SHEIN_REQUIRED_CURRENCY);
         sessionStorage.setItem('language', SHEIN_REQUIRED_LANGUAGE);
@@ -242,9 +261,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
         sessionStorage.setItem('currency', SHEIN_REQUIRED_CURRENCY);
         sessionStorage.setItem('country', SHEIN_REQUIRED_COUNTRY);
         sessionStorage.setItem('countryCode', SHEIN_REQUIRED_COUNTRY);
+        sessionStorage.setItem('country_code', SHEIN_REQUIRED_COUNTRY);
         sessionStorage.setItem('ship_to', SHEIN_REQUIRED_COUNTRY);
+        sessionStorage.setItem('shipTo', SHEIN_REQUIRED_COUNTRY);
         sessionStorage.setItem('shipToCountry', SHEIN_REQUIRED_COUNTRY);
         sessionStorage.setItem('shippingCountry', SHEIN_REQUIRED_COUNTRY);
+        sessionStorage.setItem('shipping_country', SHEIN_REQUIRED_COUNTRY);
+        sessionStorage.setItem('store_country', SHEIN_REQUIRED_COUNTRY);
       } catch (e) {}
     } catch (e) {}
   }
@@ -252,7 +275,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function coerceSheinSaudiStorageValue(key, value) {
     var k = String(key || '').toLowerCase();
     if (k === 'currency' || k === 'currencycode' || k === 'currency_code') return SHEIN_REQUIRED_CURRENCY;
-    if (k === 'country' || k === 'countrycode' || k === 'country_code' || k === 'ship_to' || k === 'shiptocountry' || k === 'shippingcountry') return SHEIN_REQUIRED_COUNTRY;
+    if (k === 'country' || k === 'countrycode' || k === 'country_code' || k === 'ship_to' || k === 'shipto' || k === 'shiptocountry' || k === 'shippingcountry' || k === 'shipping_country' || k === 'store_country') return SHEIN_REQUIRED_COUNTRY;
     if (k === 'language' || k === 'lang') return SHEIN_REQUIRED_LANGUAGE;
     if (k === 'site_uid') return SHEIN_REQUIRED_SITE_UID;
     return value;
@@ -268,8 +291,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
       countrycode: true,
       country_code: true,
       ship_to: true,
+      shipto: true,
       shiptocountry: true,
       shippingcountry: true,
+      shipping_country: true,
+      store_country: true,
       language: true,
       lang: true,
       site_uid: true
@@ -3758,12 +3784,15 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (document.querySelector('script[src*="challenges.cloudflare.com"], iframe[src*="challenges.cloudflare.com"]')) return true;
       if (document.querySelector('[id*="challenge" i], [class*="challenge" i], [data-testid*="challenge" i]')) {
         var challengeText = document.body ? (document.body.innerText || '').slice(0, 2400) : '';
-        if (/verify you are human|security verification|checking your browser|cloudflare/i.test(challengeText)) return true;
+        if (/verify you are human|security verification|checking your browser|cloudflare|إجراء التحقق من الأمان|التحقق من الأمان|لست روبوت|لستَ روبوت|لست روبوتاً|لست روبوتا/i.test(challengeText)) return true;
       }
+      var bodyText = document.body ? (document.body.innerText || '').slice(0, 2400) : '';
+      if (/m\\.shein\\.com.*إجراء التحقق من الأمان|إجراء التحقق من الأمان|التحقق من أنك لست روبوت|لست روبوت|برامج الروبوت/i.test(bodyText)) return true;
     } catch (e) {}
     return false;
   }
   function otlobliEnterChallengeMode() {
+    try { writeSheinSaudiState(); } catch (e) {}
     try {
       var ours = document.querySelectorAll('[id^="otlobli"]');
       for (var ci = 0; ci < ours.length; ci++) {
