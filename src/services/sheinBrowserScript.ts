@@ -1,5 +1,15 @@
 export const SHEIN_CAPTURE_SCRIPT = `
 (function () {
+  function isLegacyCompactIphone() {
+    var ua = '';
+    try { ua = navigator.userAgent || ''; } catch (e) {}
+    var sw = 0;
+    try { sw = window.screen && window.screen.width ? window.screen.width : 0; } catch (e2) {}
+    var vw = 0;
+    try { vw = window.innerWidth || document.documentElement.clientWidth || 0; } catch (e3) {}
+    return /iPhone/i.test(ua) && ((sw > 0 && sw <= 375) || (vw > 0 && vw <= 390));
+  }
+
   // env(safe-area-inset-bottom) only resolves to the device's real inset when
   // the PAGE's OWN viewport meta tag declares viewport-fit=cover - otherwise
   // it silently evaluates to 0 everywhere, regardless of device. otlobli's
@@ -19,11 +29,17 @@ export const SHEIN_CAPTURE_SCRIPT = `
       document.head.appendChild(meta);
     }
     var content = meta.getAttribute('content') || 'width=device-width, initial-scale=1';
+    var legacySheinViewport = /shein/i.test(location.hostname) && isLegacyCompactIphone();
     var nextContent = content
+      .replace(/,?\\s*width=[^,]*/ig, '')
+      .replace(/,?\\s*initial-scale=[^,]*/ig, '')
       .replace(/,?\\s*viewport-fit=[^,]*/ig, '')
       .replace(/,?\\s*maximum-scale=[^,]*/ig, '')
-      .replace(/,?\\s*user-scalable=[^,]*/ig, '');
-    nextContent += ', viewport-fit=cover, maximum-scale=1, user-scalable=no';
+      .replace(/,?\\s*user-scalable=[^,]*/ig, '')
+      .replace(/^\\s*,\\s*/, '')
+      .replace(/,\\s*,/g, ',');
+    nextContent = (legacySheinViewport ? 'width=430, initial-scale=1' : 'width=device-width, initial-scale=1') +
+      nextContent + ', viewport-fit=cover, maximum-scale=1, user-scalable=no';
     if (content !== nextContent) {
       meta.setAttribute('content', nextContent);
     }
@@ -100,17 +116,44 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   writeTemuSaudiUsdState();
 
-  function otlobliEnsureChallengeNav() {
-    if (!document.body) return false;
-    var navCss = 'position:fixed!important;left:50%!important;right:auto!important;bottom:-10px!important;top:auto!important;' +
+  function legacyOtlobliNavCss() {
+    if (IS_SHEIN && isLegacyCompactIphone()) {
+      return 'position:fixed!important;left:0!important;right:0!important;bottom:0!important;top:auto!important;' +
+        'transform:translateZ(0)!important;-webkit-transform:translateZ(0)!important;will-change:transform!important;' +
+        'width:100%!important;max-width:440px!important;height:96px!important;min-height:96px!important;max-height:96px!important;' +
+        'z-index:2147483647!important;display:flex!important;direction:rtl!important;overflow:hidden!important;box-sizing:border-box!important;' +
+        'background:rgba(255,255,255,.99)!important;border-top:1px solid #bccac0!important;' +
+        'padding:0 0 16px 0!important;margin:0 auto!important;' +
+        'font-size:12px!important;line-height:1.15!important;opacity:1!important;visibility:visible!important;pointer-events:auto!important;';
+    }
+    return 'position:fixed!important;left:50%!important;right:auto!important;bottom:-10px!important;top:auto!important;' +
       'transform:translate3d(-50%,0,0)!important;will-change:transform!important;' +
       'width:min(100vw, 440px)!important;height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;' +
       'max-height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;z-index:2147483647!important;' +
       'display:flex!important;direction:rtl!important;overflow:hidden!important;box-sizing:border-box!important;' +
       'background:rgba(255,255,255,.98)!important;border-top:1px solid #bccac0!important;' +
       'padding:0 0 max(env(safe-area-inset-bottom, 0px), 16px) 0!important;margin:0!important;' +
-      'font-family:Cairo,system-ui,-apple-system,sans-serif!important;font-size:12px!important;line-height:1.15!important;' +
-      'opacity:1!important;visibility:visible!important;pointer-events:auto!important;';
+      'font-size:12px!important;line-height:1.15!important;opacity:1!important;visibility:visible!important;pointer-events:auto!important;';
+  }
+
+  function ensureOtlobliBottomShield() {
+    if (!IS_SHEIN || !isLegacyCompactIphone() || !document.body) return;
+    var shield = document.getElementById('otlobli-bottom-shield');
+    if (!shield) {
+      shield = document.createElement('div');
+      shield.id = 'otlobli-bottom-shield';
+      document.body.appendChild(shield);
+    }
+    shield.style.cssText = 'position:fixed!important;left:0!important;right:0!important;bottom:0!important;top:auto!important;' +
+      'width:100%!important;max-width:440px!important;height:106px!important;margin:0 auto!important;' +
+      'z-index:2147483646!important;background:rgba(255,255,255,.99)!important;display:block!important;' +
+      'opacity:1!important;visibility:visible!important;pointer-events:auto!important;transform:translateZ(0)!important;-webkit-transform:translateZ(0)!important;';
+  }
+
+  function otlobliEnsureChallengeNav() {
+    if (!document.body) return false;
+    ensureOtlobliBottomShield();
+    var navCss = legacyOtlobliNavCss();
     var nav = document.getElementById('otlobli-nav');
     if (!nav) {
       nav = document.createElement('div');
@@ -3073,16 +3116,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   var __otlobliNavLastReclaim = 0;
   function ensureOtlobliNav() {
-    var navCss = 'position:fixed!important;left:50%!important;right:auto!important;bottom:-10px!important;top:auto!important;' +
-      'transform:translate3d(-50%,0,0)!important;will-change:transform!important;' +
-      'width:min(100vw, 440px)!important;height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;' +
-      'max-height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;z-index:2147483647!important;' +
-      'display:flex!important;direction:rtl!important;overflow:hidden!important;box-sizing:border-box!important;' +
-      'background:rgba(255,255,255,.98)!important;border-top:1px solid #bccac0!important;' +
-      'padding:0 0 max(env(safe-area-inset-bottom, 0px), 16px) 0!important;margin:0!important;' +
-      // 12px يطابق خط شريط otlobli الحقيقي (0.76rem ≈ 12.2px) — كان 11px
-      // فيبدو الشريطان مختلفين عند التنقل بين المتجر وبقية الشاشات.
-      'font-size:12px!important;line-height:1.15!important;opacity:1!important;visibility:visible!important;pointer-events:auto!important;';
+    ensureOtlobliBottomShield();
+    var navCss = legacyOtlobliNavCss();
     var existingNav = document.getElementById('otlobli-nav');
     if (existingNav) {
       existingNav.style.cssText = navCss;
@@ -3225,11 +3260,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
       btn.style.cssText = 'position:fixed;right:10px;top:12px;width:42px;height:42px;z-index:2147483647;' +
         'transform:translateZ(0);will-change:transform;' +
         'background:rgba(20,24,22,.6);color:#fff;border:none;border-radius:11px;display:none;' +
-        'align-items:center;justify-content:center;font-size:20px;line-height:1;' +
+        'align-items:center;justify-content:center;font-size:34px;font-family:Arial,Helvetica,sans-serif;font-weight:900;line-height:34px;' +
         'box-shadow:0 4px 12px rgba(0,0,0,.32);animation:otlobli-pop2 .25s ease-out;';
       // Right-pointing arrow reads as "back" in this RTL UI, matching the
       // app's own header back button convention (arrow_forward icon).
-      btn.innerHTML = '&#8594;';
+      btn.textContent = '›';
       btn.addEventListener('click', function (event) {
         event.preventDefault();
         event.stopPropagation();
@@ -3261,6 +3296,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // فكان looksLikeHomeRoot يخفي زر الرجوع داخل المنتج ويحبس الزبون.
     var shouldShow = __otlobliBackTarget === 'cart' || !looksLikeHomeRoot()
       || (IS_TEMU && looksLikeProductPage());
+    if (!btn.textContent || btn.textContent.trim() !== '›') btn.textContent = '›';
     btn.style.display = shouldShow ? 'flex' : 'none';
   }
 
@@ -3835,7 +3871,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function stabilizeSheinHeroTabs() {
     if (!IS_SHEIN || !document.body) return;
     var vp = viewportSize();
-    if (vp.width > 400) return;
+    if (!isLegacyCompactIphone() && vp.width > 400) return;
     var now = Date.now();
     if (now - __otlobliHeroTabsLastFix < 700) return;
     __otlobliHeroTabsLastFix = now;
