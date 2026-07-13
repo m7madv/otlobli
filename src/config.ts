@@ -12,4 +12,4 @@ export const PAYMENT_MODE: 'auto' | 'shamcash' = 'shamcash'
 export const SOURCE_COUNTRY: 'JO' | 'LB' | 'SA' = 'SA'
 
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '2026.07.14-shein-bottom-hit-test-v84'
+export const APP_VERSION = '2026.07.14-nav-polish-no-select-v85'

@@ -102,13 +102,16 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function otlobliEnsureChallengeNav() {
     if (!document.body) return false;
-    var navCss = 'position:fixed!important;left:50%!important;right:auto!important;bottom:-10px!important;top:auto!important;' +
+    var navCss = 'position:fixed!important;left:50%!important;right:auto!important;bottom:0!important;top:auto!important;' +
       'transform:translate3d(-50%,0,0)!important;will-change:transform!important;' +
+      'width:100%!important;max-width:440px!important;height:90px!important;min-height:90px!important;max-height:90px!important;' +
       'width:min(100vw, 440px)!important;height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;' +
+      'min-height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;' +
       'max-height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;z-index:2147483647!important;' +
       'display:flex!important;direction:rtl!important;overflow:hidden!important;box-sizing:border-box!important;' +
-      'background:rgba(255,255,255,.98)!important;border-top:1px solid #bccac0!important;' +
-      'padding:0 0 max(env(safe-area-inset-bottom, 0px), 16px) 0!important;margin:0!important;' +
+      'background:rgba(255,255,255,.97)!important;border-top:1px solid #bccac0!important;' +
+      'backdrop-filter:blur(16px)!important;-webkit-backdrop-filter:blur(16px)!important;' +
+      'padding:0 0 16px 0!important;padding:0 0 max(env(safe-area-inset-bottom, 0px), 16px) 0!important;margin:0!important;' +
       'font-family:Cairo,system-ui,-apple-system,sans-serif!important;font-size:12px!important;line-height:1.15!important;' +
       'opacity:1!important;visibility:visible!important;pointer-events:auto!important;';
     var nav = document.getElementById('otlobli-nav');
@@ -127,9 +130,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var tab = document.createElement('button');
         tab.id = 'otlobli-nav-tab-' + ni;
         tab.textContent = item.label;
-        tab.style.cssText = 'position:relative!important;flex:1 1 0!important;height:74px!important;min-height:74px!important;' +
-          'border:0!important;background:transparent!important;display:flex!important;align-items:center!important;justify-content:center!important;' +
-          'padding:6px 0!important;margin:0!important;box-sizing:border-box!important;font-size:12px!important;line-height:1.15!important;' +
+        tab.style.cssText = 'position:relative!important;flex:1 1 0!important;height:74px!important;min-height:74px!important;max-height:74px!important;' +
+          'border:0!important;background:transparent!important;display:grid!important;place-items:center!important;align-content:center!important;' +
+          'padding:10px 0 0 0!important;margin:0!important;box-sizing:border-box!important;font-size:12px!important;line-height:1.15!important;' +
           'font-family:Cairo,system-ui,-apple-system,sans-serif!important;font-weight:700!important;color:' + (item.type ? '#3d4a42' : '#006948') + '!important;';
         if (!item.type) {
           var indicator = document.createElement('span');
@@ -580,6 +583,19 @@ export const SHEIN_CAPTURE_SCRIPT = `
       width: document.documentElement.clientWidth || window.innerWidth || 360,
       height: document.documentElement.clientHeight || window.innerHeight || 640,
     };
+  }
+
+  function ensureNoTextSelection() {
+    if (!document.head) return;
+    if (document.getElementById('otlobli-no-select-style')) return;
+    var style = document.createElement('style');
+    style.id = 'otlobli-no-select-style';
+    style.textContent =
+      'html,body,body *:not(input):not(textarea):not(select):not([contenteditable]){' +
+      '-webkit-user-select:none!important;user-select:none!important;-webkit-touch-callout:none!important;}' +
+      'input,textarea,select,[contenteditable]{' +
+      '-webkit-user-select:text!important;user-select:text!important;-webkit-touch-callout:default!important;}';
+    document.head.appendChild(style);
   }
 
   function cleanTitle(raw) {
@@ -3073,13 +3089,15 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   var __otlobliNavLastReclaim = 0;
   function ensureOtlobliNav() {
-    var navCss = 'position:fixed!important;left:50%!important;right:auto!important;bottom:-10px!important;top:auto!important;' +
+    var navCss = 'position:fixed!important;left:50%!important;right:auto!important;bottom:0!important;top:auto!important;' +
       'transform:translate3d(-50%,0,0)!important;will-change:transform!important;' +
-      'width:100%!important;max-width:440px!important;height:90px!important;max-height:90px!important;' +
+      'width:100%!important;max-width:440px!important;height:90px!important;min-height:90px!important;max-height:90px!important;' +
       'width:min(100vw, 440px)!important;height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;' +
+      'min-height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;' +
       'max-height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;z-index:2147483647!important;' +
       'display:flex!important;direction:rtl!important;overflow:hidden!important;box-sizing:border-box!important;' +
-      'background:rgba(255,255,255,.98)!important;border-top:1px solid #bccac0!important;' +
+      'background:rgba(255,255,255,.97)!important;border-top:1px solid #bccac0!important;' +
+      'backdrop-filter:blur(16px)!important;-webkit-backdrop-filter:blur(16px)!important;' +
       'padding:0 0 16px 0!important;padding:0 0 max(env(safe-area-inset-bottom, 0px), 16px) 0!important;margin:0!important;' +
       // 12px يطابق خط شريط otlobli الحقيقي (0.76rem ≈ 12.2px) — كان 11px
       // فيبدو الشريطان مختلفين عند التنقل بين المتجر وبقية الشاشات.
@@ -3167,8 +3185,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
       // ضخم فتصير وحدات rem والخط الموروث هائلة فيتشوّه الشريط - التثبيت بالـpx
       // يجعله بنفس مقاس وتصميم شي إن على كل المتاجر.
       tab.style.cssText = 'position:relative!important;flex:1 1 0!important;height:74px!important;min-height:74px!important;max-height:74px!important;' +
-        'border:0!important;background:transparent!important;display:flex!important;flex-direction:column!important;' +
-        'align-items:center!important;justify-content:center!important;gap:4px!important;padding:6px 0!important;margin:0!important;' +
+        'border:0!important;background:transparent!important;display:grid!important;place-items:center!important;align-content:center!important;' +
+        'gap:4px!important;padding:10px 0 0 0!important;margin:0!important;' +
         'box-sizing:border-box!important;font-size:12px!important;line-height:1.15!important;font-weight:700!important;' +
         'font-family:Cairo,system-ui,-apple-system,sans-serif!important;color:' + (isActiveTab ? '#006948' : '#3d4a42') + '!important;';
       if (isActiveTab) {
@@ -3178,7 +3196,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       }
       var iconLabelWrap = document.createElement('span');
       iconLabelWrap.style.cssText = 'display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;' +
-        'gap:4px!important;width:100%!important;height:62px!important;min-height:0!important;pointer-events:none!important;' +
+        'gap:4px!important;width:100%!important;height:auto!important;min-height:0!important;pointer-events:none!important;' +
         'font-size:12px!important;line-height:1.15!important;box-sizing:border-box!important;';
       iconLabelWrap.innerHTML = '<svg width="22" height="22" style="width:22px!important;height:22px!important;flex:0 0 22px!important;display:block!important" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
         'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + item.icon + '</svg>' +
@@ -3226,11 +3244,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
       btn.style.cssText = 'position:fixed;right:10px;top:12px;width:42px;height:42px;z-index:2147483647;' +
         'transform:translateZ(0);will-change:transform;' +
         'background:rgba(20,24,22,.6);color:#fff;border:none;border-radius:11px;display:none;' +
-        'align-items:center;justify-content:center;font-size:20px;line-height:1;' +
+        'align-items:center;justify-content:center;font-size:30px;line-height:1;font-family:Arial,system-ui,sans-serif;font-weight:700;' +
         'box-shadow:0 4px 12px rgba(0,0,0,.32);animation:otlobli-pop2 .25s ease-out;';
       // Right-pointing arrow reads as "back" in this RTL UI, matching the
       // app's own header back button convention (arrow_forward icon).
-      btn.innerHTML = '&#8594;';
+      btn.innerHTML = '&#8250;';
       btn.addEventListener('click', function (event) {
         event.preventDefault();
         event.stopPropagation();
@@ -3262,6 +3280,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // فكان looksLikeHomeRoot يخفي زر الرجوع داخل المنتج ويحبس الزبون.
     var shouldShow = __otlobliBackTarget === 'cart' || !looksLikeHomeRoot()
       || (IS_TEMU && looksLikeProductPage());
+    btn.style.setProperty('top', (IS_SHEIN && viewportSize().width <= 390) ? '58px' : '12px', 'important');
     btn.style.display = shouldShow ? 'flex' : 'none';
   }
 
@@ -3344,6 +3363,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function isProtectedSheinControl(el) {
     if (!el || !el.getAttribute) return false;
     if (el.id && el.id.indexOf('otlobli') === 0) return false;
+    if (otlobliIsSheinTopCategoryEl(el)) return false;
     var tag = el.tagName;
     var interactive = tag === 'BUTTON' || tag === 'A' || el.getAttribute('role') === 'button' ||
       window.getComputedStyle(el).cursor === 'pointer';
@@ -3473,6 +3493,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     for (var i = 0; i < candidates.length; i++) {
       var el = candidates[i];
       if (el.id && el.id.indexOf('otlobli') === 0) continue;
+      if (otlobliIsSheinTopCategoryEl(el)) continue;
       var rect = el.getBoundingClientRect();
       if (rect.top < -10 || rect.top > 120) continue;
       if (rect.width <= 0 || rect.width > 64 || rect.height <= 0 || rect.height > 64) continue;
@@ -3538,6 +3559,56 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return OTLOBLI_KNOWN_DISTRACTION.test(otlobliCollectIdentityHints(el));
   }
 
+  function otlobliCompactText(text) {
+    return ((text || '') + '').replace(/\\s+/g, ' ').trim();
+  }
+
+  function otlobliIsSheinTopCategoryText(text) {
+    var t = otlobliCompactText(text);
+    return /^(?:\u0643\u0644|\u0646\u0633\u0627\u0621|\u0631\u062c\u0627\u0644|\u0623\u0637\u0641\u0627\u0644|\u0627\u0637\u0641\u0627\u0644|\u0623\u062d\u062c\u0627\u0645 \u0643\u0628\u064a\u0631\u0629|\u0627\u062d\u062c\u0627\u0645 \u0643\u0628\u064a\u0631\u0629|\u0645\u0642\u0627\u0633\u0627\u062a \u0643\u0628\u064a\u0631\u0629|all|women|men|kids|children|curve|plus size)$/i.test(t);
+  }
+
+  function otlobliIsSheinTopCategoryEl(el) {
+    if (!IS_SHEIN || !el) return false;
+    var text = otlobliCompactText(el.textContent || '');
+    if (!text || text.length > 32 || !otlobliIsSheinTopCategoryText(text)) return false;
+    var r = el.getBoundingClientRect && el.getBoundingClientRect();
+    if (!r) return true;
+    return r.top >= -30 && r.top <= 260;
+  }
+
+  function restoreSheinTopCategoryTabs() {
+    if (!IS_SHEIN || !document.body) return;
+    var nodes = document.querySelectorAll('a, button, [role="button"], [role="tab"], div, span');
+    var touchedParents = [];
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      if (!otlobliIsSheinTopCategoryEl(el)) continue;
+      el.removeAttribute('data-otlobli-blocked');
+      el.style.setProperty('visibility', 'visible', 'important');
+      el.style.setProperty('opacity', '1', 'important');
+      el.style.setProperty('pointer-events', 'auto', 'important');
+      if (el.style.display === 'none') el.style.removeProperty('display');
+      if (el.parentElement && touchedParents.indexOf(el.parentElement) === -1) touchedParents.push(el.parentElement);
+    }
+    for (var p = 0; p < touchedParents.length; p++) {
+      var parent = touchedParents[p];
+      var matches = 0;
+      for (var c = 0; c < parent.children.length; c++) {
+        if (otlobliIsSheinTopCategoryText(parent.children[c].textContent || '')) matches++;
+      }
+      if (matches < 3) continue;
+      parent.style.setProperty('visibility', 'visible', 'important');
+      parent.style.setProperty('opacity', '1', 'important');
+      parent.style.setProperty('overflow', 'visible', 'important');
+      parent.style.setProperty('display', 'flex', 'important');
+      parent.style.setProperty('justify-content', 'space-around', 'important');
+      parent.style.setProperty('align-items', 'center', 'important');
+      parent.style.setProperty('width', '100%', 'important');
+      parent.style.setProperty('max-width', '100%', 'important');
+    }
+  }
+
   function hideExtraHeaderIcons() {
     var vp = viewportSize();
     // Wider probe band than just the first ~50px - SHEIN's header height
@@ -3554,6 +3625,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var depth = 0;
         while (el && el !== document.body && el !== document.documentElement && depth < 6) {
           if (el.id && el.id.indexOf('otlobli') === 0) break;
+          if (otlobliIsSheinTopCategoryEl(el)) break;
           var elRect = el.getBoundingClientRect();
           var elIconSized = elRect.width > 0 && elRect.width < 64 && elRect.height > 0 && elRect.height < 64;
           // Not every clickable icon is a <button>/<a>/role="button" - sites
@@ -3571,7 +3643,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
             var hasInput = !!el.querySelector('input') || otlobliNearSearchInput(el);
             var hint = ((el.className || '') + ' ' + (el.getAttribute('aria-label') || '') + ' ' + (el.textContent || '')).toLowerCase();
             var isSearchish = hasInput || /search|بحث|camera|كاميرا|image|صورة|بالصورة|visual|photo|عدسة|lens/.test(hint);
-            if (elIconSized && !isSearchish) {
+            if (elIconSized && !isSearchish && !otlobliIsSheinTopCategoryEl(el)) {
               el.setAttribute('data-otlobli-blocked', '1');
               el.style.setProperty('visibility', 'hidden', 'important');
               el.style.setProperty('pointer-events', 'none', 'important');
@@ -3677,6 +3749,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         }
       }
       if (el.id && el.id.indexOf('otlobli') === 0) continue;
+      if (otlobliIsSheinTopCategoryEl(el)) continue;
       if (el.querySelector && el.querySelector('input')) continue; // search field wrapper
       if (otlobliNearSearchInput(el)) continue; // أيقونة داخل شريط البحث (الكاميرا)
       var hint = ((el.className || '') + ' ' + (el.getAttribute && el.getAttribute('aria-label') || '') + ' ' + (el.textContent || '')).toLowerCase();
@@ -4109,6 +4182,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (!document.body) return;
     // صفحة تحقق «أنا إنسان» — تجميد كامل لكل تدخلاتنا حتى يكملها المستخدم.
     if (otlobliIsHumanChallenge()) { otlobliEnterChallengeMode(); return; }
+    ensureNoTextSelection();
     ensureViewportFitCover();
     if (IS_SHEIN) ensureSheinSaudiStore({ navigate: false });
     ensureBackButton();
@@ -4145,6 +4219,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     hideKnownHeaderIconsByHint();
     hideSheinHeaderControls();
     hideExtraHeaderIcons();
+    restoreSheinTopCategoryTabs();
     hideSheinCartIcons();
     hideListingCardAddButtons();
     hideForeignBottomNav();
@@ -5018,6 +5093,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (!IS_SHEIN) return;
     hideKnownHeaderIconsByHint();
     hideSheinHeaderControls();
+    restoreSheinTopCategoryTabs();
     hideListingCardAddButtons();
   }, 120);
   setInterval(function () {
