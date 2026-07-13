@@ -35,7 +35,7 @@ Read:
 
 ## Latest Stable Release
 
-- Latest feature commit: `2f74cb7` (`fix: v77 polish store popups and resume`)
+- Latest feature commit: `96511f9` (`fix: v78 improve old iPhone store compatibility`)
 - Customer deployed to `https://talabieh.vercel.app`
 - Admin deployed to `https://talabieh-admin.vercel.app`
 - Supabase migration `20260712033000_shared_order_ownership.sql` applied.
@@ -69,7 +69,10 @@ Read:
 - v77 iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v77.ipa`
 - v77 IPA SHA-256: `0EF63774AC0D7753C3DA088D1026BC63EF6228578A38006040C4B62BC907BDA2`
 - v77 GitHub Actions run: `29283834227`
-- No new Android build was requested for v77.
+- v78 iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v78.ipa`
+- v78 IPA SHA-256: `8EF9E6A4ABFF327C0E34A2AB7DD905EA9059BB35C346FC393C8EDAC3F053FD2F`
+- v78 GitHub Actions run: `29285536824`
+- No new Android build was requested for v78.
 
 ## v66 Implemented
 
@@ -89,6 +92,8 @@ Read:
 
 ## Still Open
 
+- v78 old iPhone compatibility is pushed and built.
+- v78 change: VPN geo probing is safer/faster on old WKWebView and SHEIN chrome collision zones are hidden more aggressively for iPhone 6 back-button/bottom-nav overlap.
 - v77 store popup/resume polish is pushed and built.
 - v77 change: SHEIN ready WebViews are not forcibly closed/rechecked on normal app foreground. SHEIN app-install/login prompts are hidden. Temu spin/wheel reward popup is hidden.
 - v76 hidden SHEIN security check is pushed and built.
@@ -170,6 +175,13 @@ Read:
 - `git diff --check` passed.
 - Injected `SHEIN_CAPTURE_SCRIPT` syntax parse passed.
 - GitHub iOS unsigned build run `29283834227` passed and produced `otlobli-v77.ipa`.
+
+## Validation After v78 Old iPhone Compatibility
+
+- `npm run build` passed.
+- `git diff --check` passed.
+- Injected `SHEIN_CAPTURE_SCRIPT` syntax parse passed.
+- GitHub iOS unsigned build run `29285536824` passed and produced `otlobli-v78.ipa`.
 
 ## Guidance For Claude New Account
 

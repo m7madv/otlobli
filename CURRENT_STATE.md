@@ -8,7 +8,7 @@ This is the short source of truth for the app work. Keep it compact so Codex/Cla
 
 - Path: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`
 - Branch: `codex/customer-wallet-group-orders`
-- Latest feature commit: `2f74cb7` (`fix: v77 polish store popups and resume`)
+- Latest feature commit: `96511f9` (`fix: v78 improve old iPhone store compatibility`)
 
 Before any code change:
 
@@ -54,7 +54,10 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 - v77 iPhone artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v77.ipa`
 - v77 IPA SHA-256: `0EF63774AC0D7753C3DA088D1026BC63EF6228578A38006040C4B62BC907BDA2`
 - v77 GitHub Actions run: `29283834227`
-- No new Android build was requested for v77.
+- v78 iPhone artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v78.ipa`
+- v78 IPA SHA-256: `8EF9E6A4ABFF327C0E34A2AB7DD905EA9059BB35C346FC393C8EDAC3F053FD2F`
+- v78 GitHub Actions run: `29285536824`
+- No new Android build was requested for v78.
 
 ## v66 Completed
 
@@ -73,7 +76,10 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 
 ## Current Known Issues
 
-- v77 iOS build is ready: `APP_VERSION = 2026.07.13-store-polish-v77`.
+- v78 iOS build is ready: `APP_VERSION = 2026.07.14-old-iphone-vpn-v78`.
+- v78 change: VPN geo probing is old-WKWebView-safe, returns on the first successful geo provider, and no longer waits for slow store image probes when geo already confirms a non-Syria VPN.
+- v78 change: SHEIN header/bottom chrome collision zones are hidden more aggressively for old iPhones, especially iPhone 6 where SHEIN icons could cover otlobli's back button and SHEIN's bottom tab bar could appear above otlobli's nav.
+- v77 iOS build remains available: `APP_VERSION = 2026.07.13-store-polish-v77`.
 - v77 change: SHEIN ready WebViews are not forcibly closed/rechecked on normal app foreground, reducing store reload when returning from background.
 - v77 change: SHEIN app-install banners and login/sign-in prompts are hidden in the injected store script.
 - v77 change: Temu spin/wheel reward popup is hidden without re-enabling the broad Temu popup killer that caused white-screen/search issues.
@@ -105,7 +111,7 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 
 ## Next Best Focus
 
-1. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v77.ipa` on real iPhones. Verify SHEIN app-install/login prompts are gone, Temu spin popup is gone, and returning from background does not reload a ready store WebView.
+1. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v78.ipa` on iPhone 6 and iPhone 16 Pro Max. On iPhone 6 verify Proton Turkey/Japan no longer false-reports "turn on VPN", SHEIN icons do not cover otlobli's back button, and SHEIN's bottom tab bar does not appear above otlobli's nav.
 2. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v70.apk` on Android / emulator and verify SHEIN does not exit the app.
 3. Verify SHEIN after this exact flow: fresh open -> switch to Temu -> switch back to SHEIN -> security check if shown -> normal browsing.
 4. Verify Temu region is Saudi and currency is USD.

@@ -21,7 +21,7 @@ Rules:
 ## Important Context
 
 - Active branch: `codex/customer-wallet-group-orders`
-- Latest feature commit: `2f74cb7` (`fix: v77 polish store popups and resume`)
+- Latest feature commit: `96511f9` (`fix: v78 improve old iPhone store compatibility`)
 - Claude old account may have worked after Codex. Always inspect current git state before editing.
 - Claude new account may not have the same skills/connectors authenticated. Check available skills/tools, especially Figma.
 
@@ -59,6 +59,9 @@ Rules:
 - Desktop v77 iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v77.ipa`
 - v77 IPA SHA-256: `0EF63774AC0D7753C3DA088D1026BC63EF6228578A38006040C4B62BC907BDA2`
 - v77 GitHub Actions run: `29283834227`
+- Desktop v78 iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v78.ipa`
+- v78 IPA SHA-256: `8EF9E6A4ABFF327C0E34A2AB7DD905EA9059BB35C346FC393C8EDAC3F053FD2F`
+- v78 GitHub Actions run: `29285536824`
 
 ## Main Files
 
@@ -86,6 +89,14 @@ Rules:
 - SHEIN challenge URLs are left alone by URL normalization.
 
 ## Current Highest Priority
+
+v78 iPhone build is ready:
+
+- `src/App.tsx` no longer relies on `AbortSignal.timeout()` for VPN geo probes; it uses an older-WebView-safe timeout helper.
+- VPN geo probing now resolves on the first successful provider and lets a confirmed non-Syria geo open the store without waiting for slow store image probes.
+- `src/services/sheinBrowserScript.ts` reclaims otlobli's back button layer and hides SHEIN chrome collision zones around the top-right back button and bottom nav area.
+- `src/config.ts` version: `2026.07.14-old-iphone-vpn-v78`.
+- v78 iPhone unsigned IPA was built by GitHub Actions run `29285536824` and copied to the desktop.
 
 v77 iPhone build is ready:
 
@@ -227,6 +238,13 @@ Passed after v77 store popup/resume polish:
 - `git diff --check`
 - Injected `SHEIN_CAPTURE_SCRIPT` syntax parse passed.
 - GitHub iOS unsigned build run `29283834227` passed and produced `otlobli-v77.ipa`.
+
+Passed after v78 old iPhone compatibility:
+
+- Root `npm run build`
+- `git diff --check`
+- Injected `SHEIN_CAPTURE_SCRIPT` syntax parse passed.
+- GitHub iOS unsigned build run `29285536824` passed and produced `otlobli-v78.ipa`.
 
 Known gap:
 
