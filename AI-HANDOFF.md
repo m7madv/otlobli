@@ -3,6 +3,30 @@
 Read `CURRENT_STATE.md` first.
 If this file conflicts with older context files, prefer `CURRENT_STATE.md` and the active branch code.
 
+## Claude: real root cause of the SHEIN switch-bug (2026-07-13, session 2)
+
+The session-1 cache/cookie fixes below were real but not the main cause.
+User tested on a real iPhone: Cloudflare's challenge shows (Arabic-
+localized), then ~2 seconds later the user is kicked back to otlobli's blank
+home screen. Traced to `pageLoadError` in `src/App.tsx`: that event fires for
+ANY failed sub-resource (confirmed by reading the native plugin's
+`onReceivedError` wiring, not just theorized), and SHEIN's challenge loads a
+script from a different domain (`challenges.cloudflare.com`) that can fail
+transiently over the VPN. v66's "store recovery" treats that as fatal and
+tears the session down via a 1800ms timer - matches the ~2s report exactly.
+Fixed with a `humanChallengeSeenRef` gate plus a language-agnostic "Ray ID:"
+detection signal (English-only "just a moment" title check missed the
+Arabic-localized page). Full detail in `CURRENT_STATE.md`'s 2026-07-13
+"session 2" entry - read it before touching `pageLoadError`, `humanCheck`, or
+`otlobliIsHumanChallenge` again.
+
+Also switched Temu's forced region from Jordan to Saudi Arabia per user
+request (`STORES` array + the locale-redirect target in `src/App.tsx`).
+Currency stays tied to the region's native storefront (SAR now, was JOD) -
+already-documented prior testing in this repo found Temu rejects URL-based
+currency overrides, so "force USD" independent of region isn't possible
+without an English (non-Arabic) Temu storefront.
+
 ## Claude: branch was stale, now synced + SHEIN switch-bug fixes (2026-07-13)
 
 This worktree (`claude/competent-nash-557dc5`) started 40 commits behind

@@ -293,10 +293,12 @@ type StoreId = 'shein' | 'temu'
 const STORES: { id: StoreId; name: string; url: string }[] = [
   { id: 'shein', name: 'شي إن', url: SHEIN_HOME_URL },
   // ملاحظة: تيمو يحدّد اللغة/العملة/المنطقة من IP الـVPN (ثبت أن locale_override
-  // بالرابط يُرفض ويُعاد لكندا)، فالعربية/الأردن/الدولار تتطلب VPN ببلد عربي.
-  // /jo/ = الأردن: عربي + دينار أردني (ثابت ≈ 1.41$). يشغّل الزبون VPN أي دولة
-  // لكن السكريبت يُحوّل تلقائياً لهذا المسار لضمان العربية بصرف النظر عن الـIP.
-  { id: 'temu', name: 'تيمو', url: 'https://www.temu.com/jo/' },
+  // بالرابط يُرفض ويُعاد لكندا)، فالعربية تتطلب VPN ببلد عربي - لا يوجد اختيار
+  // عملة مستقل عن المتجر الإقليمي. /sa/ = السعودية: عربي + ريال سعودي (مثبّت
+  // بالفعل في temuPriceUsd أدناه بسعر 0.267 - نفس دقة تحويل الدينار الأردني
+  // سابقاً). يشغّل الزبون VPN أي دولة لكن السكريبت يُحوّل تلقائياً لهذا المسار
+  // لضمان العربية بصرف النظر عن الـIP.
+  { id: 'temu', name: 'تيمو', url: 'https://www.temu.com/sa/' },
 ]
 const storeUrl = (id: string) => (STORES.find((s) => s.id === id)?.url) ?? SHEIN_HOME_URL
 const storeName = (id?: string) => STORES.find((store) => store.id === id)?.name ?? 'المتجر'
@@ -1937,6 +1939,14 @@ function App() {
   const openedViaBypassRef = useRef(false)
   // إشعار تحقق «أنا إنسان» يُعرض مرة واحدة لكل جلسة webview كي لا يزعج.
   const humanCheckNoticeRef = useRef(false)
+  // شوهد تحقق «أنا إنسان» في هذه الجلسة أم لا. صفحة التحدي نفسها تحمّل موارد
+  // من challenges.cloudflare.com (سكربتات/خطوط) قد تفشل شبكياً بشكل عابر فوق
+  // VPN حتى وshein.com نفسها تصل بلا مشكلة - كل فشل مورد كهذا يطلق pageLoadError
+  // (الحدث لا يميّز الإطار الرئيسي عن أي مورد فرعي). قبل هذا العلم كان أي فشل
+  // مورد عابر أثناء/بعد التحقق يهدم الجلسة كاملة عبر مؤقت v66 (انظر أدناه) رغم
+  // أن التحقق نفسه ليس عطلاً - يطابق تماماً ما لاحظه المستخدم: يظهر التحقق ثم
+  // يُطرَد من الصفحة خلال ثانيتين تقريباً (1800ms). صُفِّر مع كل فتح جديد.
+  const humanChallengeSeenRef = useRef(false)
   const pendingProductUrlRef = useRef('')
   const [sheinReady, setSheinReady] = useState(false)
   // Tracks which screen the in-page back button inside the SHEIN webview
@@ -2078,6 +2088,7 @@ function App() {
     webviewIdRef.current = ''
     sheinOpenedRef.current = true
     setSheinReady(false)
+    humanChallengeSeenRef.current = false
     // SHEIN is reached directly on both platforms now, so it only loads once
     // the user's VPN is on - the vpnState check above already confirmed that
     // before this function ever runs.
@@ -2222,10 +2233,20 @@ function App() {
     const errorHandle = InAppBrowser.addListener('pageLoadError', (event: { id?: string }) => {
       if (event?.id && webviewIdRef.current && event.id !== webviewIdRef.current) return
       if (!sheinOpenedRef.current || screenRef.current !== 'home') return
+      // pageLoadError فايره native's onReceivedError، وهذا يطلق لأي مورد فرعي
+      // فاشل (سكربت/خط/صورة) لا فقط فشل الصفحة الرئيسية - الحدث نفسه لا يميّز.
+      // صفحة تحقق «أنا إنسان» من شي إن تحمّل مواردها من challenges.cloudflare.com
+      // (نطاق مختلف عن shein.com)، وقد تفشل شبكياً بشكل عابر فوق VPN حتى وshein.com
+      // تصل بلا مشكلة. تأكيد المستخدم: التحقق يظهر ثم يُطرَد من الصفحة خلال ~2
+      // ثانية - يطابق مؤقت الـ1800ms أدناه بالضبط. لا نهدم الجلسة إن كان التحقق
+      // مكتشفاً فعلاً هذه الجلسة - تلك ليست عطلاً، والتصميم الأصلي (v62) صريح:
+      // لا نتجاوز التحقق ولا نغطيه ولا نعيد التحميل أثناءه، وهذا يشمل عدم هدمه.
+      if (humanChallengeSeenRef.current) return
       if (webviewErrorTimerRef.current !== undefined) window.clearTimeout(webviewErrorTimerRef.current)
       webviewErrorTimerRef.current = window.setTimeout(() => {
         webviewErrorTimerRef.current = undefined
         if (!sheinOpenedRef.current || screenRef.current !== 'home') return
+        if (humanChallengeSeenRef.current) return
         // A navigation can fail after the first page was already shown (VPN
         // disconnected, or "open anyway" reached a 404). Tear down this
         // native instance and return to the connection gate; leaving the
@@ -2320,15 +2341,15 @@ function App() {
       // نتركها كما هي — إعادة توجيهها كانت ترمي الزبون للصفحة الرئيسية
       // بدل فتح المنتج (شاشة بيضاء/عودة لنفس القائمة).
       if (!LOCALE_SEG_RE.test(url)) return
-      // نسخة غير عربية (us/de/uk/...) — نُحوّل لـ /jo/
+      // نسخة غير عربية (us/de/uk/...) — نُحوّل لـ /sa/
       const now = Date.now()
       // حماية الحلقة: 3 محاولات كحد أقصى خلال 15 ثانية
       if (temuArabicRedirectRef.current >= 3 && now - temuArabicRedirectTsRef.current < 15000) return
       if (now - temuArabicRedirectTsRef.current > 15000) temuArabicRedirectRef.current = 0
       temuArabicRedirectRef.current++
       temuArabicRedirectTsRef.current = now
-      // نحافظ على مسار المنتج (مثلاً /us/prod.html → /jo/prod.html)
-      const arabicUrl = url.replace(/temu\.com\/[a-z]{2}(\/|\?|#|$)/i, 'temu.com/jo$1')
+      // نحافظ على مسار المنتج (مثلاً /us/prod.html → /sa/prod.html)
+      const arabicUrl = url.replace(/temu\.com\/[a-z]{2}(\/|\?|#|$)/i, 'temu.com/sa$1')
       if (arabicUrl !== url) void InAppBrowser.setUrl({ url: arabicUrl })
     })
     return () => { void handle.then((h) => h.remove()) }
@@ -2360,6 +2381,9 @@ function App() {
       if (detail?.type === 'humanCheck') {
         // شي إن خلف تحقق كلاودفلير «أنا إنسان» — ليست حالة فشل: نطفئ مؤقت
         // الخطأ ونُبقي صفحة التحقق ظاهرة ليكملها المستخدم فيفتح الموقع بعدها.
+        // العلم يبقى true لبقية هذه الجلسة كي لا يهدمها pageLoadError لاحق من
+        // مورد فرعي فاشل تابع لصفحة التحدي نفسها (انظر تعريف الـref).
+        humanChallengeSeenRef.current = true
         if (webviewErrorTimerRef.current !== undefined) {
           window.clearTimeout(webviewErrorTimerRef.current)
           webviewErrorTimerRef.current = undefined

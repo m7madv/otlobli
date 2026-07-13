@@ -2,6 +2,92 @@
 
 Last updated: 2026-07-13
 
+## Claude: real root cause found — pageLoadError tears down mid-Cloudflare-challenge (2026-07-13, session 2)
+
+User tested the first APK/IPA from this session on a real iPhone and sent
+screenshots + a detailed description. This is the ACTUAL root cause of
+"SHEIN breaks after switching stores" - stronger and more concrete than the
+session-1 cache/cookie gaps (those were still real bugs, now both sessions'
+fixes are combined):
+
+**What the user saw:** switch Temu -> SHEIN. The Cloudflare "Just a moment"
+challenge appears - but as an Arabic-localized page ("إجراء التحقق من
+الأمان"), not the English one. otlobli's own bottom nav bar is gone (expected
+- v62's challenge-safe mode strips our own elements during a detected
+challenge). Within about 2 seconds the user gets kicked all the way back to
+otlobli's own home screen (blank white content area, the `humanCheck` toast
+still lingering: "المتجر يطلب تحققاً بسيطاً..."). Sometimes it does open, but
+"as an image" (unresponsive).
+
+**Root cause, confirmed by reading the native plugin source
+(`WebViewDialog.java`):** the `pageLoadError` JS event is wired to Android's
+`onReceivedError` callback, which fires for ANY failed sub-resource load
+(script/font/image/xhr) - not just the main document - and carries no
+main-frame/sub-resource distinction in its payload. SHEIN's Cloudflare
+challenge page loads its own verification script from
+`challenges.cloudflare.com`, a different domain than `shein.com` - over a VPN
+tunnel that's specifically routing around a Syria geo-block, it's entirely
+plausible for that second domain to fail intermittently even while shein.com
+itself is reachable. The v66 "store recovery" feature added a `pageLoadError`
+handler that arms a 1800ms timer and, if not cancelled, tears the whole
+webview down and bounces back to the VPN-check gate
+(`src/App.tsx`, in the `InAppBrowser.addListener('pageLoadError', ...)`
+effect) - 1800ms matches "kicked out within ~2 seconds" exactly. v62's
+`humanCheck` message handler already cancels *that one* pending timer, but
+nothing stopped a *later* `pageLoadError` (from another failed challenge
+sub-resource) from arming a fresh, uncancelled one - and v62's own English-
+only `otlobliIsHumanChallenge()` title check (`/just a moment/i`) doesn't
+match the Arabic-localized challenge title, so detection may not even have
+fired at all in this case.
+
+**Fixed:**
+1. Added `humanChallengeSeenRef` (`src/App.tsx`) - set once `humanCheck` ever
+   fires for this webview session, reset only on a fresh `browseShein()`
+   open. The `pageLoadError` handler now refuses to arm (or fire, checked
+   again inside the timeout callback) its teardown-to-VPN-gate timer while
+   this ref is true. A stray sub-resource failure during/after a detected
+   challenge no longer nukes the session.
+2. Broadened `otlobliIsHumanChallenge()` (`src/services/sheinBrowserScript.ts`)
+   with a language-agnostic signal: Cloudflare always prints "Ray ID: xxxx"
+   in Latin script on its challenge/block pages regardless of the page's
+   language (confirmed in the user's own screenshot). Also added "attention
+   required" to the title check. A normal shopping page can never contain
+   "Ray ID:", so this is a safe, reliable signal with no plausible false
+   positive.
+3. This does NOT fix the "first race" (a `pageLoadError` whose 1800ms timer
+   elapses before `otlobliIsHumanChallenge()` ever gets a chance to fire
+   `humanCheck` at all, e.g. if detection itself still misses some challenge
+   variant). If the user still sees the ~2-second kick-out after this build,
+   the next step is a temporary breadcrumb: post `document.title` +
+   `document.body.innerText.slice(0,200)` back to the app the moment
+   `pageLoadError` fires, to see exactly what the page looked like at that
+   instant.
+
+## Temu: switched from Jordan to Saudi Arabia (2026-07-13, session 2)
+
+User asked to switch Temu's forced region from Jordan (`/jo/`) to Saudi
+Arabia (`/sa/`). Changed the base store URL and the non-Arabic-locale
+redirect target in `src/App.tsx` (`STORES` array + the `urlChangeEvent`
+redirect in the Temu-locale-guard effect). `/sa/` was already accepted as a
+valid "already Arabic" destination by the existing `ARABIC_TEMU_RE` guard, so
+no other logic needed to change.
+
+**Currency caveat - could not deliver "force USD" as literally asked:** this
+exact file already documents (see the `STORES` comment, now updated) that
+Temu was previously tested and confirmed to reject any URL-based
+locale/currency override - it bounces back to Canada. Temu ties currency to
+the region's native storefront currency, with no independent override; there
+is no live access to Temu in this environment to re-test that. So Saudi
+Arabia will very likely show Temu's own pages in Saudi Riyal (SAR), the same
+way Jordan showed Jordanian Dinar (JOD) before - not USD. This is NOT a new
+problem: `temuPriceUsd()` in `src/services/sheinBrowserScript.ts` already has
+a correct, fixed SAR->USD conversion rate (`0.267`) alongside JOD/AED/etc., so
+otlobli's own cart/checkout pricing is accurate in USD/SYP regardless of what
+currency Temu's own page visually displays while browsing. If the user needs
+Temu's own displayed prices (not otlobli's cart total) to visually read
+"$", that would require Temu's US/international storefront specifically,
+which is very unlikely to render Arabic - a real tradeoff, not a bug to fix.
+
 ## Claude: SHEIN-breaks-after-store-switch investigation (2026-07-13)
 
 Branch note: this worktree (`claude/competent-nash-557dc5`) started 40 commits

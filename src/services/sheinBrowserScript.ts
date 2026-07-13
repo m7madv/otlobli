@@ -422,7 +422,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
-  // التحويل لـ temu.com/jo/ يتم على المستوى الأصلي (urlChangeEvent في App.tsx) قبل
+  // التحويل لـ temu.com/sa/ يتم على المستوى الأصلي (urlChangeEvent في App.tsx) قبل
   // تحميل الصفحة؛ التحويل JS كان يتعارض معه ويسبب شاشة بيضاء على بعض المنتجات.
 
   if (window.__otlobliInjected) return;
@@ -3647,13 +3647,20 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function otlobliIsHumanChallenge() {
     try {
       if (otlobliIsHumanChallengeUrl(location.href)) return true;
-      if (/just a moment/i.test(document.title || '')) return true;
+      if (/just a moment|attention required/i.test(document.title || '')) return true;
       if (document.getElementById('challenge-form')) return true;
       if (document.querySelector('script[src*="challenges.cloudflare.com"], iframe[src*="challenges.cloudflare.com"]')) return true;
       if (document.querySelector('[id*="challenge" i], [class*="challenge" i], [data-testid*="challenge" i]')) {
         var challengeText = document.body ? (document.body.innerText || '').slice(0, 2400) : '';
         if (/verify you are human|security verification|checking your browser|cloudflare/i.test(challengeText)) return true;
       }
+      // كلاودفلير يُظهر شريط "Ray ID: xxxx" أسفل صفحة التحدي دائماً بالإنجليزي
+      // بغض النظر عن لغة الصفحة (شوهدت صفحة تحدي بالعربي كاملة - "إجراء التحقق
+      // من الأمان" - لا تحمل عنوان "Just a moment" ولا تُطابق أي فحص أعلاه، لكن
+      // "Ray ID" وعلامة Cloudflare التجارية تبقيان بلاتينية دوماً). صفحة تسوّق
+      // عادية لا يمكن أبداً أن تحوي هذا النص، فهو مؤشر مضمون بلا لغة.
+      var bodyText = document.body ? (document.body.innerText || '').slice(0, 4000) : '';
+      if (/ray id\s*[:：]/i.test(bodyText)) return true;
     } catch (e) {}
     return false;
   }

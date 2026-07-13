@@ -1,5 +1,37 @@
 # SESSION_SUMMARY.md
 
+## Claude follow-up (2026-07-13, session 2): found the real cause + Temu region change
+
+User tested the session-1 APK/IPA on a real iPhone, sent screenshots: the
+Cloudflare "Just a moment" challenge shows Arabic-localized ("إجراء التحقق من
+الأمان"), and within ~2 seconds the user gets kicked back to otlobli's own
+blank home screen. Root cause found by reading the native plugin source: the
+`pageLoadError` event fires for ANY failed sub-resource (not just the main
+page) with no way to tell which from the JS side. SHEIN's Cloudflare
+challenge loads a script from `challenges.cloudflare.com` (different domain
+than shein.com) that can fail transiently over the VPN even while shein.com
+itself loads fine - v66's "store recovery" feature treats that as a fatal
+error and tears the whole session down after a 1800ms timer (matches "~2
+seconds" exactly). Fixed: `humanChallengeSeenRef` in `src/App.tsx` now
+suppresses that teardown once a challenge was ever seen this session, and
+`otlobliIsHumanChallenge()` in `src/services/sheinBrowserScript.ts` gained a
+language-agnostic "Ray ID:" check (the English-only "just a moment" title
+check was missing the Arabic-localized page). Full detail in
+`CURRENT_STATE.md`.
+
+Also: switched Temu's forced region from Jordan (`/jo/`) to Saudi Arabia
+(`/sa/`) per user request. Currency could NOT be forced to USD as literally
+asked - this repo already documented (before this session) that Temu rejects
+URL-based currency/locale overrides and ties currency to the region's native
+storefront; Saudi Arabia will show SAR the same way Jordan showed JOD.
+otlobli's own cart/checkout pricing already converts SAR->USD correctly
+either way (`temuPriceUsd()` already had that rate).
+
+Verified: `npm run build`, `npm run lint` (no new errors), `npx cap sync
+android`, `./gradlew assembleDebug` (fresh APK) all pass. iOS unsigned build
+re-triggered on the same branch. Not yet verified on a real device again -
+waiting on user's next test.
+
 ## Claude follow-up (2026-07-13): SHEIN-after-store-switch, two concrete fixes
 
 Copy this block into a new chat if continuing this specific thread.
