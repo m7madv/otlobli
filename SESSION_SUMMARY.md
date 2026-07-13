@@ -44,6 +44,8 @@ Read:
 - iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v69.ipa`
 - IPA SHA-256: `B4EE4E92D2F7AA383309120AE514515C37055576EFCA67F8E92A2B20900E04A0`
 - GitHub Actions run: `29268560648`
+- Android debug artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v70.apk`
+- APK SHA-256: `8D1AA3F46D3CA3FE3F83BE881A7FBB487EF0D54DEE35E218910C35C5F32A731A`
 - No new Android build was requested for v66.
 
 ## v66 Implemented
@@ -64,9 +66,14 @@ Read:
 
 ## Still Open
 
+- v70 Android debug fix is local, built, and installed on the emulator.
+- v70 change: SHEIN native WebView close-loop guard. If SHEIN closes during/after security challenge, the app pauses auto-reopen and shows retry instead of repeatedly opening/closing or exiting.
+- Emulator diagnostics: SHEIN opens after force-stop and after background/foreground. SHEIN emits repeated `pageLoadError` events while still working, so they are ignored for normal SHEIN browsing.
+- No v70 iPhone build has been created yet.
 - v69 fix is pushed and the iPhone IPA is built.
 - v69 changes: Temu no longer reloads whole page after product back due missing params; SHEIN normal opening ignores `pageLoadError`; SHEIN challenge detection covers more routes/text; Saudi shipping/currency keys are written even during challenge; store switch no longer clears all cookies automatically.
 - SHEIN still needs real-device verification for fresh open on SHEIN with VPN Qatar; it should not exit and shipping should stay Saudi.
+- User reported SHEIN shipping can still follow VPN Qatar; Saudi shipping lock still needs real-device work.
 - Temu needs real-device verification for product open/back stability and price visibility while scrolling.
 - Figma needs reauthentication before design review. Do not design independently.
 - Unavailable-item refund policy is undecided and not implemented.
@@ -79,11 +86,14 @@ Read:
 - `CLAUDE.md` was rewritten for a new Claude Code account and includes skills/authentication guidance.
 - Unused root debug artifacts and old local build output were removed from the repo root.
 
-## Validation After v69 Local Fix
+## Validation After v70 Android Fix
 
 - `npm run build` passed.
-- `new Function(SHEIN_CAPTURE_SCRIPT)` parse check passed.
 - `git diff --check` passed.
+- `npx cap sync android` passed.
+- `android\gradlew.bat -p android :app:assembleDebug` passed.
+- `adb install -r android\app\build\outputs\apk\debug\app-debug.apk` passed.
+- Emulator force-stop/open/background/return test passed: SHEIN stayed visible; no app crash.
 
 ## Guidance For Claude New Account
 

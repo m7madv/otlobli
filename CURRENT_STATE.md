@@ -29,6 +29,8 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 - v69 iPhone artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v69.ipa`
 - v69 IPA SHA-256: `B4EE4E92D2F7AA383309120AE514515C37055576EFCA67F8E92A2B20900E04A0`
 - v69 GitHub Actions run: `29268560648`
+- v70 Android debug artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v70.apk`
+- v70 APK SHA-256: `8D1AA3F46D3CA3FE3F83BE881A7FBB487EF0D54DEE35E218910C35C5F32A731A`
 - No new Android build was requested for v66.
 
 ## v66 Completed
@@ -48,9 +50,12 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 
 ## Current Known Issues
 
-- v69 fix is pushed and the iPhone IPA was built: `APP_VERSION = 2026.07.13-store-stability-v69`.
+- v70 Android debug build is local and installed/tested on emulator: `APP_VERSION = 2026.07.13-store-polish-v70`.
+- v70 SHEIN-only change: if the native SHEIN WebView closes itself during/just after the security challenge, the app pauses automatic reopen and shows retry instead of entering an open/close loop.
+- Emulator diagnostics: SHEIN opens after force-stop and after background/foreground; SHEIN emits many `pageLoadError` events even while working, so those must continue to be ignored during normal SHEIN browsing.
 - v69 changes: Temu no longer reloads whole page after product back just because URL params are missing; SHEIN page-load errors are ignored during normal SHEIN opening; SHEIN challenge detection covers more routes/text; SHEIN writes Saudi shipping/currency keys even during challenge; store switching no longer clears all cookies automatically.
-- SHEIN still needs real-device verification with VPN on Qatar: initial app open on SHEIN should not exit and shipping should stay Saudi.
+- SHEIN still needs real-device verification with VPN on Qatar: initial app open on SHEIN should not exit; if native WebView closes, app should stay open and show retry.
+- SHEIN shipping still needs real-device verification; user reported VPN Qatar can still make SHEIN shipping show Qatar.
 - Temu still needs real-device verification for product open/back stability and price visibility.
 - Figma requires reauthentication before formal design review. Do not invent new designs outside Figma.
 - The unavailable-item refund/wallet policy is not implemented yet. Suggested direction: instant wallet credit plus optional original-payment refund after several days, but wait for explicit approval before changing money logic.
@@ -58,9 +63,10 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 
 ## Next Best Focus
 
-1. Install/test `C:\Users\MOHAMMAD\Desktop\otlobli-v69.ipa` on a real device.
-2. Verify SHEIN after this exact flow: fresh open -> switch to Temu -> switch back to SHEIN -> security check if shown -> normal browsing.
-3. Verify Temu region is Saudi and currency is USD.
+1. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v70.apk` on Android / emulator and verify SHEIN does not exit the app.
+2. Later build iPhone only if requested; no v70 IPA has been created.
+3. Verify SHEIN after this exact flow: fresh open -> switch to Temu -> switch back to SHEIN -> security check if shown -> normal browsing.
+4. Verify Temu region is Saudi and currency is USD.
 4. Do not bypass SHEIN security verification; keep it clickable and avoid breaking it.
 
 ## Context Discipline

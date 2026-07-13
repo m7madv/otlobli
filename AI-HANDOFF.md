@@ -34,6 +34,8 @@ Rules:
 - Desktop iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v69.ipa`
 - v69 IPA SHA-256: `B4EE4E92D2F7AA383309120AE514515C37055576EFCA67F8E92A2B20900E04A0`
 - v69 GitHub Actions run: `29268560648`
+- Desktop Android debug artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v70.apk`
+- v70 APK SHA-256: `8D1AA3F46D3CA3FE3F83BE881A7FBB487EF0D54DEE35E218910C35C5F32A731A`
 
 ## Main Files
 
@@ -62,6 +64,13 @@ Rules:
 
 ## Current Highest Priority
 
+v70 local Android debug fix is built and installed on the emulator:
+
+- `src/App.tsx` adds a SHEIN close-loop guard: if the native WebView closes during/shortly after SHEIN opening/security challenge, it pauses automatic reopen and shows retry instead of looping/crashing out.
+- Emulator diagnostics showed SHEIN can emit many `pageLoadError` events while the page is visibly working; do not treat those as fatal during normal SHEIN browsing.
+- `src/config.ts` version: `2026.07.13-store-polish-v70`.
+- No v70 iPhone build has been made yet.
+
 v69 fix is pushed and the iPhone IPA is built:
 
 - `src/App.tsx` starts Temu on `/sa/` with `currency=USD&currencyCode=USD`, but no longer redirects Temu root/product-back URLs just because params are absent.
@@ -70,12 +79,12 @@ v69 fix is pushed and the iPhone IPA is built:
 - `src/App.tsx` keeps wallet USD balance from becoming false zero on transient RPC failure and clears wallet state on logout.
 - `src/services/supabaseAppApi.ts` now throws on wallet balance RPC error instead of returning `0`.
 - `src/services/sheinBrowserScript.ts` renders the otlobli bottom nav on SHEIN challenge pages, writes exact Temu Saudi/USD session keys, avoids hiding Temu price-looking elements, detects Arabic SHEIN challenge text, and writes Saudi shipping/currency keys even during challenge.
-- `src/config.ts` version: `2026.07.13-store-stability-v69`.
+- v69 `src/config.ts` version was `2026.07.13-store-stability-v69`.
 
 Still verify on a real device:
 
 - SHEIN fresh open -> Temu -> SHEIN, with VPN set to Qatar; shipping must stay Saudi.
-- SHEIN black security verification should stay visible with otlobli bottom nav and should not close the app after two seconds.
+- SHEIN black security verification should stay visible with otlobli bottom nav and should not close the app after two seconds. If native WebView closes anyway, v70 should keep the app open and show retry.
 - Temu should land on Saudi region and USD, keep product/back navigation stable, and keep prices visible while scrolling.
 - Do not bypass captcha/security pages. The goal is to avoid breaking them and avoid app exit/white-screen loops.
 
@@ -90,11 +99,14 @@ Previously passed during v66:
 - Vercel customer/admin deployments
 - GitHub iOS unsigned build
 
-Passed after local v69 changes:
+Passed after local v70 Android changes:
 
 - Root `npm run build`
-- Injected WebView script parse check via `new Function(SHEIN_CAPTURE_SCRIPT)`
 - `git diff --check`
+- `npx cap sync android`
+- `android\gradlew.bat -p android :app:assembleDebug`
+- `adb install -r android\app\build\outputs\apk\debug\app-debug.apk`
+- Emulator force-stop/open/background/return test: SHEIN stayed visible; no app crash; repeated SHEIN `pageLoadError` events observed and ignored.
 
 Known gap:
 

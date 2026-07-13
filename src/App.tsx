@@ -1988,6 +1988,8 @@ function App() {
   const suppressAutoReopenRef = useRef(false)
   const webviewSessionRef = useRef(0)
   const webviewOpeningRef = useRef(false)
+  const webviewOpenedAtRef = useRef(0)
+  const webviewAutoOpenPausedUntilRef = useRef(0)
   const webviewIdRef = useRef('')
   const webviewErrorTimerRef = useRef<number | undefined>(undefined)
   // فُتح المتجر عبر «فتح على أي حال» رغم فشل بوابة VPN. عندها لو لم تُحمّل الصفحة
@@ -2093,6 +2095,7 @@ function App() {
       window.clearTimeout(webviewErrorTimerRef.current)
       webviewErrorTimerRef.current = undefined
     }
+    webviewAutoOpenPausedUntilRef.current = 0
     setSheinBlockedError(false)
 
     const wasOpening = webviewOpeningRef.current
@@ -2101,6 +2104,7 @@ function App() {
     if (screenRef.current !== 'home') {
       if (wasOpening) {
         webviewSessionRef.current += 1
+        webviewOpenedAtRef.current = 0
         webviewIdRef.current = ''
         sheinChallengeActiveRef.current = false
         sheinOpenedRef.current = false
@@ -2126,6 +2130,7 @@ function App() {
   const closeOpeningStoreWebview = () => {
     webviewSessionRef.current += 1
     webviewOpeningRef.current = false
+    webviewOpenedAtRef.current = 0
     webviewIdRef.current = ''
     sheinChallengeActiveRef.current = false
     sheinOpenedRef.current = false
@@ -2137,7 +2142,9 @@ function App() {
     const sessionId = webviewSessionRef.current + 1
     const initialPendingUrl = pendingProductUrlRef.current
     webviewSessionRef.current = sessionId
+    webviewAutoOpenPausedUntilRef.current = 0
     webviewOpeningRef.current = true
+    webviewOpenedAtRef.current = Date.now()
     webviewIdRef.current = ''
     sheinChallengeActiveRef.current = false
     sheinOpenedRef.current = true
@@ -2192,6 +2199,7 @@ function App() {
           if (sessionId !== webviewSessionRef.current) return
           if (!webviewOpeningRef.current) return
           webviewOpeningRef.current = false
+          webviewOpenedAtRef.current = 0
           if (screenRef.current === 'home') setSheinBlockedError(true)
         }, 20000)
         const checkLoaded = InAppBrowser.addListener('browserPageLoaded', () => {
@@ -2202,6 +2210,7 @@ function App() {
       .catch(() => {
         if (sessionId !== webviewSessionRef.current) return
         webviewOpeningRef.current = false
+        webviewOpenedAtRef.current = 0
         webviewIdRef.current = ''
         sheinChallengeActiveRef.current = false
         sheinOpenedRef.current = false
@@ -2225,6 +2234,7 @@ function App() {
           postWebviewChromeState(target)
         })
       } else if (vpnState === 'ok') {
+        if (sheinBlockedError || Date.now() < webviewAutoOpenPausedUntilRef.current) return
         openTimer = window.setTimeout(() => browseSheinRef.current(), 0)
       }
     } else if (sheinOpenedRef.current) {
@@ -2237,7 +2247,7 @@ function App() {
     return () => {
       if (openTimer !== undefined) window.clearTimeout(openTimer)
     }
-  }, [screen, vpnState, sheinReady])
+  }, [screen, vpnState, sheinReady, sheinBlockedError])
 
   // Navigates the already-open SHEIN webview to a cart item's saved product
   // link and switches back to it, so tapping a product inside the cart shows
@@ -2262,14 +2272,30 @@ function App() {
 
   useEffect(() => {
     const handle = InAppBrowser.addListener('closeEvent', () => {
+      const activeStore = selectedStoreRef.current
+      const openedRecently = webviewOpenedAtRef.current > 0 && Date.now() - webviewOpenedAtRef.current < 10000
+      const wasOpening = webviewOpeningRef.current
+      const wasChallenge = sheinChallengeActiveRef.current
       webviewSessionRef.current += 1
       webviewOpeningRef.current = false
+      webviewOpenedAtRef.current = 0
       webviewIdRef.current = ''
       sheinChallengeActiveRef.current = false
       sheinOpenedRef.current = false
       setSheinReady(false)
       if (suppressAutoReopenRef.current) {
         suppressAutoReopenRef.current = false
+        return
+      }
+      if (screenRef.current === 'home' && activeStore === 'shein') {
+        // Some real devices close SHEIN's native WebView during the security
+        // check. Re-opening immediately from closeEvent turns that into the
+        // visible "black verification then app exits" loop; keep the app
+        // stable and let the user retry with one fresh instance.
+        if (wasOpening || wasChallenge || openedRecently) {
+          webviewAutoOpenPausedUntilRef.current = Date.now() + 15000
+          setSheinBlockedError(true)
+        }
         return
       }
       if (screenRef.current === 'home') browseSheinRef.current()
@@ -4909,6 +4935,7 @@ function App() {
         if (id !== selectedStore) {
           setSelectedStore(id)
           selectedStoreRef.current = id
+          webviewAutoOpenPausedUntilRef.current = 0
           // لا تبسّط هذا التسلسل: تم تأكيد خلل شاشة بيضاء بتاريخ 2026-07-03.
           // إغلاق متصفّح المتجر الحالي ثم إعادة فتحه على المتجر الجديد (تُحقن
           // سكربتات otlobli من جديد). ننتظر اكتمال الإغلاق فعلياً قبل التنقل
@@ -5154,6 +5181,7 @@ function App() {
               <p>يبدو أن الموقع محجوب مؤقتاً. جرّب مرة ثانية أو امسح الكوكيز.</p>
             </div>
             <button className="primary-action" onClick={() => {
+              webviewAutoOpenPausedUntilRef.current = 0
               setSheinBlockedError(false)
               // Closes the webview outright instead of setUrl()+show() on the
               // SAME instance - a failed connection attempt (e.g. one that
@@ -5170,6 +5198,7 @@ function App() {
               إعادة المحاولة
             </button>
             <button className="ghost-action" onClick={() => {
+              webviewAutoOpenPausedUntilRef.current = 0
               setSheinBlockedError(false)
               void InAppBrowser.clearAllCookies().finally(() => {
                 void InAppBrowser.close().catch(() => undefined).then(() => {
@@ -5183,6 +5212,7 @@ function App() {
             <button className="ghost-action" onClick={() => {
               // يرجع لبوابة الفحص الذكي: يغلق الـwebview العالق ويعيد فحص
               // الوصول + منطقة الـVPN فيوجَّه المستخدم (شغّل/غيّر المنطقة).
+              webviewAutoOpenPausedUntilRef.current = 0
               setSheinBlockedError(false)
               webviewSessionRef.current += 1
               webviewIdRef.current = ''
@@ -5197,7 +5227,7 @@ function App() {
             </button>
           </main>
         ) : !sheinReady ? (
-          <HomeScreen userName={userProfile?.name} storeName={currentStoreName} onRetry={() => { sheinOpenedRef.current = false; browseShein() }} />
+          <HomeScreen userName={userProfile?.name} storeName={currentStoreName} onRetry={() => { webviewAutoOpenPausedUntilRef.current = 0; sheinOpenedRef.current = false; browseShein() }} />
         ) : null}
       </MobileShell>
     )
