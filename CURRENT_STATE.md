@@ -8,8 +8,7 @@ This is the short source of truth for the app work. Keep it compact so Codex/Cla
 
 - Path: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`
 - Branch: `codex/customer-wallet-group-orders`
-- Latest pushed docs commit before this cleanup: `c733c72`
-- Latest feature commit: `f7b4456` (`feat: ship v66 shared orders and store recovery`)
+- Latest feature commit: `47e51fc` (`fix: v71 handle ios webkit shein failures`)
 
 Before any code change:
 
@@ -34,7 +33,10 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 - v70 GitHub Actions run: `29273940532`
 - v70 Android debug artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v70.apk`
 - v70 APK SHA-256: `8D1AA3F46D3CA3FE3F83BE881A7FBB487EF0D54DEE35E218910C35C5F32A731A`
-- No new Android build was requested for v66.
+- v71 iPhone artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v71.ipa`
+- v71 IPA SHA-256: `6A68B89F6CFBD9DF40D94795693A61A0AFE24A2EA9CCC91272D0E1B2ED19E6A6`
+- v71 GitHub Actions run: `29277541189`
+- No new Android build was requested for v71.
 
 ## v66 Completed
 
@@ -53,8 +55,9 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 
 ## Current Known Issues
 
-- v70 Android debug build is local and installed/tested on emulator: `APP_VERSION = 2026.07.13-store-polish-v70`.
-- v70 SHEIN-only change: if the native SHEIN WebView closes itself during/just after the security challenge, the app pauses automatic reopen and shows retry instead of entering an open/close loop.
+- v71 iOS build is ready: `APP_VERSION = 2026.07.13-ios-webkit-guard-v71`.
+- v71 SHEIN-only change: iOS `pageLoadError` now carries WebKit details; SHEIN `-1005` / WebContent termination closes the stuck WebView and shows retry instead of leaving a white screen or exiting the app.
+- v70 SHEIN-only change remains: if the native SHEIN WebView closes itself during/just after the security challenge, the app pauses automatic reopen and shows retry instead of entering an open/close loop.
 - Emulator diagnostics: SHEIN opens after force-stop and after background/foreground; SHEIN emits many `pageLoadError` events even while working, so those must continue to be ignored during normal SHEIN browsing.
 - v69 changes: Temu no longer reloads whole page after product back just because URL params are missing; SHEIN page-load errors are ignored during normal SHEIN opening; SHEIN challenge detection covers more routes/text; SHEIN writes Saudi shipping/currency keys even during challenge; store switching no longer clears all cookies automatically.
 - SHEIN still needs real-device verification with VPN on Qatar: initial app open on SHEIN should not exit; if native WebView closes, app should stay open and show retry.
@@ -66,7 +69,7 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 
 ## Next Best Focus
 
-1. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v70.ipa` on iPhone and verify SHEIN does not exit the app.
+1. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v71.ipa` on real iPhones and BrowserStack App Live; if SHEIN hits WebKit `-1005`, it should return to retry instead of a white screen/app exit.
 2. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v70.apk` on Android / emulator and verify SHEIN does not exit the app.
 3. Verify SHEIN after this exact flow: fresh open -> switch to Temu -> switch back to SHEIN -> security check if shown -> normal browsing.
 4. Verify Temu region is Saudi and currency is USD.

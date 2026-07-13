@@ -21,8 +21,7 @@ Rules:
 ## Important Context
 
 - Active branch: `codex/customer-wallet-group-orders`
-- v66 feature commit: `f7b4456`
-- v66 docs commit: `c733c72`
+- Latest feature commit: `47e51fc` (`fix: v71 handle ios webkit shein failures`)
 - Claude old account may have worked after Codex. Always inspect current git state before editing.
 - Claude new account may not have the same skills/connectors authenticated. Check available skills/tools, especially Figma.
 
@@ -39,6 +38,9 @@ Rules:
 - v70 GitHub Actions run: `29273940532`
 - Desktop Android debug artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v70.apk`
 - v70 APK SHA-256: `8D1AA3F46D3CA3FE3F83BE881A7FBB487EF0D54DEE35E218910C35C5F32A731A`
+- Desktop v71 iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v71.ipa`
+- v71 IPA SHA-256: `6A68B89F6CFBD9DF40D94795693A61A0AFE24A2EA9CCC91272D0E1B2ED19E6A6`
+- v71 GitHub Actions run: `29277541189`
 
 ## Main Files
 
@@ -67,11 +69,18 @@ Rules:
 
 ## Current Highest Priority
 
+v71 iPhone build is ready:
+
+- `src/App.tsx` treats detailed iOS SHEIN WebKit failures (`code=-1005`, WebContent termination, and early no-network/timeouts) as fatal for that native WebView instance, closes it, pauses auto-open, and shows retry instead of leaving a white screen/app exit.
+- `patches/@capgo+capacitor-inappbrowser+8.6.25.patch` now makes iOS `pageLoadError` include `phase`, `code`, `domain`, `description`, and failing URL, and emits on `webViewWebContentProcessDidTerminate`.
+- `src/config.ts` version: `2026.07.13-ios-webkit-guard-v71`.
+- v71 iPhone unsigned IPA was built by GitHub Actions run `29277541189` and copied to the desktop.
+- The patch file intentionally keeps `OTLOBLI_RELAY_KEY_PLACEHOLDER`; `scripts/inject-relay-key.cjs` injects the local/CI secret after `patch-package`.
+
 v70 local Android debug fix is built and installed on the emulator:
 
 - `src/App.tsx` adds a SHEIN close-loop guard: if the native WebView closes during/shortly after SHEIN opening/security challenge, it pauses automatic reopen and shows retry instead of looping/crashing out.
 - Emulator diagnostics showed SHEIN can emit many `pageLoadError` events while the page is visibly working; do not treat those as fatal during normal SHEIN browsing.
-- `src/config.ts` version: `2026.07.13-store-polish-v70`.
 - v70 iPhone unsigned IPA was built by GitHub Actions run `29273940532` and copied to the desktop.
 
 v69 fix is pushed and the iPhone IPA is built:
@@ -87,7 +96,7 @@ v69 fix is pushed and the iPhone IPA is built:
 Still verify on a real device:
 
 - SHEIN fresh open -> Temu -> SHEIN, with VPN set to Qatar; shipping must stay Saudi.
-- SHEIN black security verification should stay visible with otlobli bottom nav and should not close the app after two seconds. If native WebView closes anyway, v70 should keep the app open and show retry.
+- SHEIN black security verification should stay visible with otlobli bottom nav and should not close the app after two seconds. If iOS WebKit returns `-1005` or kills WebContent, v71 should keep the app open and show retry.
 - Temu should land on Saudi region and USD, keep product/back navigation stable, and keep prices visible while scrolling.
 - Do not bypass captcha/security pages. The goal is to avoid breaking them and avoid app exit/white-screen loops.
 
@@ -110,6 +119,12 @@ Passed after local v70 Android changes:
 - `android\gradlew.bat -p android :app:assembleDebug`
 - `adb install -r android\app\build\outputs\apk\debug\app-debug.apk`
 - Emulator force-stop/open/background/return test: SHEIN stayed visible; no app crash; repeated SHEIN `pageLoadError` events observed and ignored.
+
+Passed after v71 iOS WebKit guard:
+
+- Root `npm run build`
+- `patches/@capgo+capacitor-inappbrowser+8.6.25.patch` applies cleanly to a clean `@capgo/capacitor-inappbrowser@8.6.25` package.
+- GitHub iOS unsigned build run `29277541189` passed and produced `otlobli-v71.ipa`.
 
 Known gap:
 

@@ -35,8 +35,7 @@ Read:
 
 ## Latest Stable Release
 
-- v66 feature commit: `f7b4456`
-- v66 docs commit: `c733c72`
+- Latest feature commit: `47e51fc` (`fix: v71 handle ios webkit shein failures`)
 - Customer deployed to `https://talabieh.vercel.app`
 - Admin deployed to `https://talabieh-admin.vercel.app`
 - Supabase migration `20260712033000_shared_order_ownership.sql` applied.
@@ -49,7 +48,10 @@ Read:
 - v70 GitHub Actions run: `29273940532`
 - Android debug artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v70.apk`
 - APK SHA-256: `8D1AA3F46D3CA3FE3F83BE881A7FBB487EF0D54DEE35E218910C35C5F32A731A`
-- No new Android build was requested for v66.
+- v71 iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v71.ipa`
+- v71 IPA SHA-256: `6A68B89F6CFBD9DF40D94795693A61A0AFE24A2EA9CCC91272D0E1B2ED19E6A6`
+- v71 GitHub Actions run: `29277541189`
+- No new Android build was requested for v71.
 
 ## v66 Implemented
 
@@ -69,6 +71,8 @@ Read:
 
 ## Still Open
 
+- v71 iOS WebKit guard is pushed and built.
+- v71 change: iOS `pageLoadError` now includes WebKit details; SHEIN `-1005` / WebContent termination closes the stuck native WebView and shows retry instead of a white screen/app exit.
 - v70 Android debug fix is local, built, and installed on the emulator.
 - v70 change: SHEIN native WebView close-loop guard. If SHEIN closes during/after security challenge, the app pauses auto-reopen and shows retry instead of repeatedly opening/closing or exiting.
 - Emulator diagnostics: SHEIN opens after force-stop and after background/foreground. SHEIN emits repeated `pageLoadError` events while still working, so they are ignored for normal SHEIN browsing.
@@ -98,6 +102,12 @@ Read:
 - `adb install -r android\app\build\outputs\apk\debug\app-debug.apk` passed.
 - Emulator force-stop/open/background/return test passed: SHEIN stayed visible; no app crash.
 - GitHub iOS unsigned build run `29273940532` passed and produced `otlobli-v70.ipa`.
+
+## Validation After v71 iOS WebKit Guard
+
+- `npm run build` passed.
+- Patch-package patch applies cleanly to a clean `@capgo/capacitor-inappbrowser@8.6.25` package.
+- GitHub iOS unsigned build run `29277541189` passed and produced `otlobli-v71.ipa`.
 
 ## Guidance For Claude New Account
 
