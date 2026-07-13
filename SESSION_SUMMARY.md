@@ -41,8 +41,9 @@ Read:
 - Admin deployed to `https://talabieh-admin.vercel.app`
 - Supabase migration `20260712033000_shared_order_ownership.sql` applied.
 - Supabase `admin-orders` deployed.
-- iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v66.ipa`
-- IPA SHA-256: `6724eb9d147e780aac7d868853d341cb3a416e2d7c856300f6acc3db6372e6b1`
+- iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v68.ipa`
+- IPA SHA-256: `9C4CCBE67057D3A924E27DDE93772C180073230025689D4F52299ECADBE74937`
+- GitHub Actions run: `29267376196`
 - No new Android build was requested for v66.
 
 ## v66 Implemented
@@ -63,7 +64,7 @@ Read:
 
 ## Still Open
 
-- Local v68 fix is implemented but not deployed or built as IPA yet.
+- v68 fix is pushed and the iPhone IPA is built.
 - v68 changes: Temu `/sa/` + USD without reloading product URLs, exact Temu Saudi/USD session keys, Temu price-protection guards, SHEIN challenge keeps otlobli nav, SHEIN no longer clears cookies/cache on every switch, SHEIN `pageLoadError` no longer closes an already-active page/challenge, wallet RPC errors no longer show false zero.
 - SHEIN still needs real-device verification for the flow: SHEIN -> Temu -> SHEIN, especially intermittent bottom-nav flicker/exit.
 - Temu needs real-device verification for Saudi/USD display, product/back stability, price visibility while scrolling, and VPN/load-failure cases.

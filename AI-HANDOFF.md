@@ -31,8 +31,9 @@ Rules:
 - Customer: `https://talabieh.vercel.app`
 - Admin: `https://talabieh-admin.vercel.app`
 - Supabase project: `dcicqdprtyhwmhegabay`
-- Desktop iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v66.ipa`
-- v66 IPA SHA-256: `6724eb9d147e780aac7d868853d341cb3a416e2d7c856300f6acc3db6372e6b1`
+- Desktop iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v68.ipa`
+- v68 IPA SHA-256: `9C4CCBE67057D3A924E27DDE93772C180073230025689D4F52299ECADBE74937`
+- v68 GitHub Actions run: `29267376196`
 
 ## Main Files
 
@@ -61,7 +62,7 @@ Rules:
 
 ## Current Highest Priority
 
-Local v68 fix is present but not deployed or built as IPA yet:
+v68 fix is pushed and the iPhone IPA is built:
 
 - `src/App.tsx` starts Temu on `/sa/` with `currency=USD&currencyCode=USD`, but no longer reloads product URLs just because those params are absent.
 - `src/App.tsx` tracks active SHEIN challenge/ready state through refs and ignores `pageLoadError` once SHEIN is already active.

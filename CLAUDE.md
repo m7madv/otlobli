@@ -34,7 +34,7 @@ The user has a new Claude Code account on the same computer. Do not assume every
 
 ## Current Main Issue
 
-Local v68 fix is implemented but not deployed or built as IPA yet:
+v68 fix is pushed and the iPhone IPA is built:
 
 - Temu opens/redirects to Saudi `/sa/` with USD params, but no longer reloads product URLs only because currency params are absent.
 - Temu writes exact Saudi/USD session keys and hide filters skip price-looking elements.
@@ -43,6 +43,8 @@ Local v68 fix is implemented but not deployed or built as IPA yet:
 - Switching back to SHEIN no longer clears cookies/cache automatically.
 - Wallet balance RPC errors no longer show false zero.
 - App version is `2026.07.13-shein-temu-stability-v68`.
+- IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v68.ipa`
+- IPA SHA-256: `9C4CCBE67057D3A924E27DDE93772C180073230025689D4F52299ECADBE74937`
 
 Symptoms reported before this fix:
 

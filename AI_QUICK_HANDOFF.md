@@ -8,7 +8,8 @@ Minimal context for Codex/Claude.
 - Admin: `https://talabieh-admin.vercel.app`
 - Latest feature commit: `f7b4456`
 - Latest docs commit before cleanup: `c733c72`
-- iPhone artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v66.ipa`
+- iPhone artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v68.ipa`
+- v68 IPA SHA-256: `9C4CCBE67057D3A924E27DDE93772C180073230025689D4F52299ECADBE74937`
 
 Before edits:
 
@@ -22,7 +23,7 @@ Read `CURRENT_STATE.md` and `AI-HANDOFF.md`. Use git history only when needed.
 
 ## Open Priority
 
-Local v68 fix is implemented but not deployed or built as IPA yet.
+v68 fix is pushed and the iPhone IPA is built.
 
 - Temu is forced to `/sa/` with USD without reloading product URLs only because currency params are absent.
 - Temu writes exact Saudi/USD session keys and protects price-looking elements from hide filters.
