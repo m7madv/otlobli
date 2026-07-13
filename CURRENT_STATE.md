@@ -1,6 +1,63 @@
 # Otlobli Current State
 
-Last updated: 2026-07-12
+Last updated: 2026-07-13
+
+## Claude: SHEIN-breaks-after-store-switch investigation (2026-07-13)
+
+Branch note: this worktree (`claude/competent-nash-557dc5`) started 40 commits
+behind `codex/customer-wallet-group-orders` (stuck at v52, missing v53-v66.3
+entirely, including the v62 Cloudflare challenge-safe mode and the v66.3
+WebView-state-cleanup fix). Merged `origin/codex/customer-wallet-group-orders`
+(tip `b5586d2`) in cleanly, no conflicts, before touching any code. If you are
+reading this on a different branch, check `git log --oneline --all --decorate`
+first - this repo currently has several stale AI worktree branches sitting at
+different points behind the real tip.
+
+User's reported symptom (still happening as of this session, tested after
+v66.3): SHEIN works on a fresh install, but breaks (page paints but looks
+"like a static image" - taps don't register, or only register after rapid
+repeated tapping) after switching Temu -> SHEIN. v66.3 (`b5586d2`) already
+attempted a fix (clear cookies + unregister service workers + clear Cache
+Storage between store switches). Found two concrete, code-verified gaps in
+that fix and closed them:
+
+1. **`InAppBrowser.clearAllCookies()` raced its own native call.** The
+   patched plugin's `CapgoInAppBrowserPlugin.clearAllCookies` (Android) called
+   `CookieManager.removeAllCookies(null)` - an asynchronous API - then called
+   `call.resolve()` immediately, without waiting for the actual removal to
+   finish. `switchStore` in `src/App.tsx` reopens the new WebView right after
+   that promise resolves, so on a slow/busy device the new page could start
+   loading while the old cookies (including a stale `cf_clearance` from
+   Cloudflare) were still technically present. Fixed in
+   `patches/@capgo+capacitor-inappbrowser+8.6.25.patch`: now waits for the
+   real `ValueCallback` before resolving.
+2. **The native HTTP cache was never cleared.** v66.3 only cleared the
+   Service-Worker-visible Cache Storage API from JS (`caches.delete(...)`) -
+   a completely different cache namespace from the WebView engine's own HTTP
+   disk/memory cache. The plugin exposes a separate native `clearCache()`
+   method (`WebView.clearCache(true)`) that was never called anywhere in the
+   store-switch flow. Added a call to it in `switchStore` (`src/App.tsx`),
+   **before** `InAppBrowser.close()` - `clearCache()` targets currently-open
+   WebView dialogs by id, and falls back to clearing otlobli's *own* app
+   webview if none are open, so it must run before the old store dialog is
+   torn down, not after.
+3. Also cleared IndexedDB alongside Cache Storage in the injected script
+   (`src/services/sheinBrowserScript.ts`) for symmetry - same storage class
+   as Cache Storage (structural, hydration-adjacent), not the same class of
+   risk as the documented localStorage lesson.
+
+Verified in this session: `npm run build` (tsc + vite) passes, `npx cap sync
+android` passes, `./gradlew assembleDebug` succeeds and produces a real
+`android/app/build/outputs/apk/debug/app-debug.apk` (confirms the Java patch
+actually compiles). **Not verified: real-device behavior.** This environment
+has no Syria-network/VPN/Cloudflare-challenge condition to reproduce the bug
+against, so these two fixes are honestly-reported as "closed real gaps in the
+existing cleanup logic", not a confirmed root-cause fix. If the user tests
+this build and SHEIN still breaks after a Temu->SHEIN switch, the next thing
+to check is whatever `otlobliIsHumanChallenge()` sees at the exact moment it
+breaks (title/`#challenge-form`/challenge script presence) - add a temporary
+`messageFromWebview` breadcrumb reporting that state rather than guessing
+further blind.
 
 ## Codex store/group-link fixes in progress (2026-07-12)
 

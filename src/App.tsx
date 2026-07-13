@@ -4841,14 +4841,20 @@ function App() {
           suppressAutoReopenRef.current = true
           webviewSessionRef.current += 1
           webviewOpeningRef.current = false
+          const closingWebviewId = webviewIdRef.current
           webviewIdRef.current = ''
           sheinOpenedRef.current = false
           setSheinReady(false)
-          // تبديل المتجر يُبقي بيانات الـWebView المشتركة (كوكيز/service worker)
-          // من المتجر السابق، فيُفتح المتجر الجديد بحالة «متّسخة» تكسر التفاعل
-          // (المستخدم أكّد: حذف/إعادة تنصيب التطبيق يُصلحه). نمسح الكوكيز بين
-          // الإغلاق والفتح لنقارب حالة التنصيب النظيف.
-          void InAppBrowser.close().catch(() => undefined)
+          // تبديل المتجر يُبقي بيانات الـWebView المشتركة (كوكيز/كاش HTTP/
+          // service worker) من المتجر السابق، فيُفتح المتجر الجديد بحالة
+          // «متّسخة» تكسر التفاعل (المستخدم أكّد: حذف/إعادة تنصيب التطبيق
+          // يُصلحه). clearCache يمسح كاش HTTP الأصلي للمحرّك - مختلف تماماً
+          // عن Cache Storage API التي يمسحها السكربت المحقون من JS - ويجب أن
+          // يُستدعى قبل close() وإلا فلن يجد أي WebView مسجَّل ليعمل عليه
+          // (يرتد حينها لمسح كاش تطبيق otlobli نفسه بالخطأ). نمسح الكوكيز بعد
+          // الإغلاق لنقارب حالة التنصيب النظيف.
+          void InAppBrowser.clearCache(closingWebviewId ? { id: closingWebviewId } : undefined).catch(() => undefined)
+            .then(() => InAppBrowser.close().catch(() => undefined))
             .then(() => InAppBrowser.clearAllCookies().catch(() => undefined))
             .then(() => {
               suppressAutoReopenRef.current = false

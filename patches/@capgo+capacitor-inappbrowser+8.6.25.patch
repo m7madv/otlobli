@@ -13,6 +13,47 @@ index 9979670..fcfd30a 100644
      }
  }
  
+diff --git a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/CapgoInAppBrowserPlugin.java b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/CapgoInAppBrowserPlugin.java
+index ae420ed..16d7831 100644
+--- a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/CapgoInAppBrowserPlugin.java
++++ b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/CapgoInAppBrowserPlugin.java
+@@ -18,6 +18,7 @@ import android.text.TextUtils;
+ import android.util.Log;
+ import android.webkit.CookieManager;
+ import android.webkit.PermissionRequest;
++import android.webkit.ValueCallback;
+ import android.webkit.WebView;
+ import androidx.activity.result.ActivityResult;
+ import androidx.activity.result.ActivityResultLauncher;
+@@ -787,10 +788,24 @@ public class CapgoInAppBrowserPlugin extends Plugin implements WebViewDialog.Per
+ 
+     @PluginMethod
+     public void clearAllCookies(PluginCall call) {
+-        CookieManager cookieManager = CookieManager.getInstance();
+-        cookieManager.removeAllCookies(null);
+-        cookieManager.flush();
+-        call.resolve();
++        // otlobli: removeAllCookies(null) is asynchronous - the previous code
++        // called call.resolve() immediately after issuing it, without waiting
++        // for the actual removal to finish. Callers that reopen a webview
++        // right after this promise resolves (e.g. switching stores) could
++        // then race a brand-new page load against cookies that hadn't
++        // actually been cleared yet on a busy/slow device, making the
++        // cleanup silently ineffective sometimes. Wait for the real
++        // onReceiveValue callback before resolving.
++        this.getActivity().runOnUiThread(() -> {
++            CookieManager cookieManager = CookieManager.getInstance();
++            cookieManager.removeAllCookies(new ValueCallback<Boolean>() {
++                @Override
++                public void onReceiveValue(Boolean value) {
++                    cookieManager.flush();
++                    call.resolve();
++                }
++            });
++        });
+     }
+ 
+     @PluginMethod
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
 index 8ae3e61..12fb994 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java

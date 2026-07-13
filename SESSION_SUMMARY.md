@@ -1,5 +1,42 @@
 # SESSION_SUMMARY.md
 
+## Claude follow-up (2026-07-13): SHEIN-after-store-switch, two concrete fixes
+
+Copy this block into a new chat if continuing this specific thread.
+
+- Start point: worktree `claude/competent-nash-557dc5` was 40 commits behind
+  `codex/customer-wallet-group-orders` (stuck at v52). Merged
+  `origin/codex/customer-wallet-group-orders` (`b5586d2`, v66.3) in first,
+  clean, no conflicts. Do this check (`git log --oneline --all --decorate`)
+  on any fresh worktree before trusting its file contents - several stale AI
+  branches exist in this repo at different points behind the real tip.
+- Task: user reports SHEIN still renders as a frozen/unresponsive "image"
+  after switching Temu -> SHEIN, even after v66.3's WebView-state cleanup
+  (cookies + service worker + Cache Storage clear between switches).
+- Found and fixed two concrete, code-verified gaps in v66.3's cleanup, not
+  reproduced firsthand (no device here):
+  1. `clearAllCookies()` in the patched `@capgo/capacitor-inappbrowser` Android
+     plugin resolved its promise before the async `CookieManager.removeAllCookies`
+     actually finished - a real race. Patched to await the real callback
+     (`patches/@capgo+capacitor-inappbrowser+8.6.25.patch`).
+  2. The native HTTP cache (`WebView.clearCache(true)`, a different cache
+     namespace from the JS Cache Storage API v66.3 already clears) was never
+     invoked anywhere in the store-switch flow. Added a `clearCache()` call in
+     `switchStore` (`src/App.tsx`), ordered before `close()` since it needs a
+     live WebView dialog to target.
+  3. Also clear IndexedDB alongside Cache Storage in the injected script
+     (`src/services/sheinBrowserScript.ts`) for symmetry.
+- Verified: `npm run build`, `npm run lint` (pre-existing repo-wide failures
+  only, none new), `npx cap sync android`, and a real
+  `./gradlew assembleDebug` all pass - produced
+  `android/app/build/outputs/apk/debug/app-debug.apk`. **Real-device
+  behavior is still unverified** - this environment cannot reproduce the
+  Syria-network/VPN/Cloudflare-challenge condition the bug depends on.
+- If this build still breaks after a Temu->SHEIN switch on a real device, next
+  step is a temporary diagnostic `messageFromWebview` breadcrumb reporting
+  `otlobliIsHumanChallenge()` state at the moment it breaks, rather than
+  guessing further blind.
+
 ## Codex follow-up (2026-07-12): parallel store/order work started
 
 - User supplied real-device reports for VPN fallback, SHEIN Cloudflare/black-screen

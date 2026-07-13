@@ -47,9 +47,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // شي إن «كصور لا تنكبس» بعد تبديل المتجر (تيمو ثم شي إن)، بينما حذف/إعادة
   // تنصيب التطبيق يُصلحه — أي أن حالة service worker/كاش مُتراكمة من جلسة سابقة
   // تخدم أصولاً معطوبة فلا تُفعَّل الصفحة (hydration). نُلغي تسجيل أي service
-  // worker ونمسح Cache Storage عند بداية كل تحميل — fire-and-forget كي لا يعطّل
-  // الرسم — فتُطبَّق حالة نظيفة على التحميل التالي (يقارب التنصيب النظيف). لا
-  // نلمس localStorage (مسحه العريض يسبب skeleton loading — درس موثق).
+  // worker ونمسح Cache Storage وIndexedDB عند بداية كل تحميل — fire-and-forget
+  // كي لا يعطّل الرسم — فتُطبَّق حالة نظيفة على التحميل التالي (يقارب التنصيب
+  // النظيف). لا نلمس localStorage (مسحه العريض يسبب skeleton loading — درس
+  // موثق)؛ IndexedDB مختلفة عن ذلك الدرس - قاعدة بيانات هيكلية للتخزين المؤقت/
+  // الهيدريشن (مثل Cache Storage) لا إعدادات بسيطة يعتمد عليها منطق العملة/
+  // الدولة.
   try {
     if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
       navigator.serviceWorker.getRegistrations().then(function (regs) {
@@ -59,6 +62,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (window.caches && caches.keys) {
       caches.keys().then(function (keys) {
         for (var k = 0; k < keys.length; k++) { try { caches.delete(keys[k]); } catch (e) {} }
+      }).catch(function () {});
+    }
+    if (window.indexedDB && indexedDB.databases) {
+      indexedDB.databases().then(function (dbs) {
+        for (var d = 0; d < dbs.length; d++) {
+          try { if (dbs[d] && dbs[d].name) indexedDB.deleteDatabase(dbs[d].name); } catch (e) {}
+        }
       }).catch(function () {});
     }
   } catch (e) {}

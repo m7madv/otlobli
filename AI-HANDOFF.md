@@ -3,6 +3,32 @@
 Read `CURRENT_STATE.md` first.
 If this file conflicts with older context files, prefer `CURRENT_STATE.md` and the active branch code.
 
+## Claude: branch was stale, now synced + SHEIN switch-bug fixes (2026-07-13)
+
+This worktree (`claude/competent-nash-557dc5`) started 40 commits behind
+`codex/customer-wallet-group-orders` - stuck at v52, missing v53 through
+v66.3 entirely. Merged `origin/codex/customer-wallet-group-orders` in first
+(clean, no conflicts) before changing anything. **Check
+`git log --oneline --all --decorate` on any fresh worktree in this repo
+before trusting its files** - there are several stale AI branches parked at
+different old points, exactly the failure mode `AGENTS.md` warns about.
+
+Fixed two concrete gaps in v66.3's SHEIN-store-switch WebView cleanup (full
+detail in `CURRENT_STATE.md`'s 2026-07-13 entry):
+- `clearAllCookies()` raced its own native async removal in the patched
+  `@capgo/capacitor-inappbrowser` plugin - fixed in the patch file to await
+  the real callback.
+- The native HTTP cache was never cleared (only the JS Cache Storage API
+  was) - added a `clearCache()` call in `switchStore`, before `close()`.
+- IndexedDB now clears alongside Cache Storage in the injected script, for
+  symmetry.
+
+`npm run build`, `npx cap sync android`, and `./gradlew assembleDebug` all
+pass; a real debug APK was produced. **Not verified on a real device** - this
+environment has no way to reproduce the Syria/VPN/Cloudflare condition the
+bug needs. Treat this as "closed two real gaps", not "confirmed root-cause
+fix", until the user tests it.
+
 ## Active Codex/Claude split (2026-07-12)
 
 - Codex owns SHEIN/Temu/VPN/WebView and shared-cart invite-link behavior.
