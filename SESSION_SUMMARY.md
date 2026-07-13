@@ -35,7 +35,7 @@ Read:
 
 ## Latest Stable Release
 
-- Latest feature commit: `65f7e64` (`fix: v84 hide SHEIN bottom nav by hit test`)
+- Latest feature commit: `2f24954` (`fix: v85 polish iOS nav and selection behavior`)
 - Customer deployed to `https://talabieh.vercel.app`
 - Admin deployed to `https://talabieh-admin.vercel.app`
 - Supabase migration `20260712033000_shared_order_ownership.sql` applied.
@@ -90,7 +90,10 @@ Read:
 - v84 iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v84.ipa`
 - v84 IPA SHA-256: `8065DF95F2F44272C0D74BEB6A389EA86B9D3947A64014486AF21240739AA872`
 - v84 GitHub Actions run: `29292808196`
-- No new Android build was requested for v84.
+- v85 iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v85.ipa`
+- v85 IPA SHA-256: `F4524E816E6243A039BD52D34E7A9AB59E3C5597DBF0515862BA5F9461B90ED4`
+- v85 GitHub Actions run: `29293816845`
+- No new Android build was requested for v85.
 
 ## v66 Implemented
 
@@ -110,6 +113,8 @@ Read:
 
 ## Still Open
 
+- v85 SHEIN/iOS polish fix is pushed and built.
+- v85 change: keeps v84 bottom-nav hit-test hiding, aligns the injected store nav with the real app nav, disables text selection/callouts while preserving inputs, lowers the SHEIN back button on compact iPhones, and restores/whitelists SHEIN top category tabs.
 - v84 SHEIN bottom hit-test fix is pushed and built.
 - v84 change: keeps v83/v80 layout, adds old-WebKit-safe fallback CSS for otlobli's nav, and hides SHEIN's native bottom bar by bottom-of-screen hit-testing/text detection instead of changing viewport width.
 - v84 avoids the failed v82 approach: no `width=430`, no white shield, no broad hiding of real SHEIN sections.
@@ -257,6 +262,13 @@ Read:
 - `git diff --check` passed.
 - Injected `SHEIN_CAPTURE_SCRIPT` syntax parse passed.
 - GitHub iOS unsigned build run `29292808196` passed and produced `otlobli-v84.ipa`.
+
+## Validation After v85 iOS Nav/Text Polish
+
+- `npm run build` passed.
+- `git diff --check` passed.
+- Injected `SHEIN_CAPTURE_SCRIPT` syntax parse passed.
+- GitHub iOS unsigned build run `29293816845` passed and produced `otlobli-v85.ipa`.
 
 ## Guidance For Claude New Account
 

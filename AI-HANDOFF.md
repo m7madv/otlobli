@@ -21,7 +21,7 @@ Rules:
 ## Important Context
 
 - Active branch: `codex/customer-wallet-group-orders`
-- Latest feature commit: `65f7e64` (`fix: v84 hide SHEIN bottom nav by hit test`)
+- Latest feature commit: `2f24954` (`fix: v85 polish iOS nav and selection behavior`)
 - Claude old account may have worked after Codex. Always inspect current git state before editing.
 - Claude new account may not have the same skills/connectors authenticated. Check available skills/tools, especially Figma.
 
@@ -80,6 +80,9 @@ Rules:
 - Desktop v84 iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v84.ipa`
 - v84 IPA SHA-256: `8065DF95F2F44272C0D74BEB6A389EA86B9D3947A64014486AF21240739AA872`
 - v84 GitHub Actions run: `29292808196`
+- Desktop v85 iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.ipa`
+- v85 IPA SHA-256: `F4524E816E6243A039BD52D34E7A9AB59E3C5597DBF0515862BA5F9461B90ED4`
+- v85 GitHub Actions run: `29293816845`
 
 ## Main Files
 
@@ -108,7 +111,16 @@ Rules:
 
 ## Current Highest Priority
 
-v84 iPhone build is ready:
+v85 iPhone build is ready:
+
+- This keeps the v84 hit-test bottom-nav hiding and does not change the SHEIN viewport.
+- `src/services/sheinBrowserScript.ts` aligns the injected store nav with the real app nav (`bottom:0`, same safe-area/fallback sizing), disables text selection/callouts while preserving inputs, moves the SHEIN back button lower on compact iPhones, and restores/whitelists SHEIN top category tabs from header-icon hiding.
+- `src/styles.css` disables text selection in the React app while preserving inputs/textareas/select/contenteditable.
+- `src/config.ts` version: `2026.07.14-nav-polish-no-select-v85`.
+- v85 iPhone unsigned IPA was built by GitHub Actions run `29293816845` and copied to the desktop.
+- Do not repeat the failed v82 viewport/shield approach.
+
+v84 iPhone build remains available:
 
 - This keeps the v83/v80 layout and does not change the SHEIN viewport.
 - `src/services/sheinBrowserScript.ts` now adds old-WebKit-safe fallback width/height/padding for otlobli's injected nav before modern `min()/max()/env()` declarations.
@@ -360,6 +372,13 @@ Passed after v84 SHEIN bottom hit-test fix:
 - `git diff --check`
 - Injected `SHEIN_CAPTURE_SCRIPT` syntax parse passed.
 - GitHub iOS unsigned build run `29292808196` passed and produced `otlobli-v84.ipa`.
+
+Passed after v85 iOS nav/text polish:
+
+- Root `npm run build`
+- `git diff --check`
+- Injected `SHEIN_CAPTURE_SCRIPT` syntax parse passed.
+- GitHub iOS unsigned build run `29293816845` passed and produced `otlobli-v85.ipa`.
 
 Known gap:
 
