@@ -35,7 +35,7 @@ Read:
 
 ## Latest Stable Release
 
-- Latest feature commit: `706dde2` (`fix: v74 guard against vpn-off webview crash`)
+- Latest feature commit: `c7e596e` (`fix: v75 recheck vpn before showing shein`)
 - Customer deployed to `https://talabieh.vercel.app`
 - Admin deployed to `https://talabieh-admin.vercel.app`
 - Supabase migration `20260712033000_shared_order_ownership.sql` applied.
@@ -60,7 +60,10 @@ Read:
 - v74 iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v74.ipa`
 - v74 IPA SHA-256: `68EC10E14E8F1D0E9D40009B577BD6B5D68AFAB451DA1FEC5D08D6B709030E06`
 - v74 GitHub Actions run: `29280481341`
-- No new Android build was requested for v74.
+- v75 iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v75.ipa`
+- v75 IPA SHA-256: `6D9FFE5F8B99611A73DB020D9B24F144F120B8048B2C2AB677297EA82B0F5DE1`
+- v75 GitHub Actions run: `29281360380`
+- No new Android build was requested for v75.
 
 ## v66 Implemented
 
@@ -80,6 +83,8 @@ Read:
 
 ## Still Open
 
+- v75 SHEIN resume VPN recheck is pushed and built.
+- v75 change: when returning to the app on SHEIN, stale native WebViews are closed and the VPN gate runs again before showing SHEIN. Geo probing uses four endpoints to avoid false no-VPN results, e.g. Turkish VPN working in Safari but rejected in-app. Non-blocked geo can open even if SHEIN image probes are flaky.
 - v74 VPN-off crash guard is pushed and built.
 - v74 change: when VPN/geo cannot be confirmed and the device is online, the app shows the VPN-required state instead of opening the native store WebView. Unexpected native WebView close on home shows recovery/VPN UI instead of auto-reopening into a crash loop. iOS `-1001`, `-1004`, `-1005`, and `-1009` are handled as recoverable store failures.
 - v73 store-failure VPN advice is pushed and built.
@@ -138,6 +143,11 @@ Read:
 
 - `npm run build` passed.
 - GitHub iOS unsigned build run `29280481341` passed and produced `otlobli-v74.ipa`.
+
+## Validation After v75 SHEIN Resume VPN Recheck
+
+- `npm run build` passed.
+- GitHub iOS unsigned build run `29281360380` passed and produced `otlobli-v75.ipa`.
 
 ## Guidance For Claude New Account
 

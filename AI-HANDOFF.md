@@ -21,7 +21,7 @@ Rules:
 ## Important Context
 
 - Active branch: `codex/customer-wallet-group-orders`
-- Latest feature commit: `706dde2` (`fix: v74 guard against vpn-off webview crash`)
+- Latest feature commit: `c7e596e` (`fix: v75 recheck vpn before showing shein`)
 - Claude old account may have worked after Codex. Always inspect current git state before editing.
 - Claude new account may not have the same skills/connectors authenticated. Check available skills/tools, especially Figma.
 
@@ -50,6 +50,9 @@ Rules:
 - Desktop v74 iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v74.ipa`
 - v74 IPA SHA-256: `68EC10E14E8F1D0E9D40009B577BD6B5D68AFAB451DA1FEC5D08D6B709030E06`
 - v74 GitHub Actions run: `29280481341`
+- Desktop v75 iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v75.ipa`
+- v75 IPA SHA-256: `6D9FFE5F8B99611A73DB020D9B24F144F120B8048B2C2AB677297EA82B0F5DE1`
+- v75 GitHub Actions run: `29281360380`
 
 ## Main Files
 
@@ -77,6 +80,15 @@ Rules:
 - SHEIN challenge URLs are left alone by URL normalization.
 
 ## Current Highest Priority
+
+v75 iPhone build is ready:
+
+- `src/App.tsx` now closes any stale SHEIN native WebView and re-runs the VPN gate when the app returns from background or launches on the home screen. This targets the real-device case where VPN was turned off while SHEIN was active, then the app opened SHEIN and exited.
+- `probeVpnGeo()` now checks four geo services in parallel (`ipwho.is`, `ipapi.co`, `api.country.is`, `geojs`) to reduce false no-VPN results.
+- Non-blocked geo such as Turkey/USA is allowed even if the SHEIN image probe is flaky. If the store itself later fails, the app shows the existing recovery/VPN advice instead of exiting.
+- `browseShein()` now has its own internal guard and refuses to open unless the current VPN state is `ok`, so direct retry paths cannot bypass the gate.
+- `src/config.ts` version: `2026.07.13-shein-resume-vpn-v75`.
+- v75 iPhone unsigned IPA was built by GitHub Actions run `29281360380` and copied to the desktop.
 
 v74 iPhone build is ready:
 
@@ -176,6 +188,11 @@ Passed after v74 VPN-off crash guard:
 
 - Root `npm run build`
 - GitHub iOS unsigned build run `29280481341` passed and produced `otlobli-v74.ipa`.
+
+Passed after v75 SHEIN resume VPN recheck:
+
+- Root `npm run build`
+- GitHub iOS unsigned build run `29281360380` passed and produced `otlobli-v75.ipa`.
 
 Known gap:
 

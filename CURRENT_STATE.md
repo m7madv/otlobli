@@ -8,7 +8,7 @@ This is the short source of truth for the app work. Keep it compact so Codex/Cla
 
 - Path: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`
 - Branch: `codex/customer-wallet-group-orders`
-- Latest feature commit: `706dde2` (`fix: v74 guard against vpn-off webview crash`)
+- Latest feature commit: `c7e596e` (`fix: v75 recheck vpn before showing shein`)
 
 Before any code change:
 
@@ -45,7 +45,10 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 - v74 iPhone artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v74.ipa`
 - v74 IPA SHA-256: `68EC10E14E8F1D0E9D40009B577BD6B5D68AFAB451DA1FEC5D08D6B709030E06`
 - v74 GitHub Actions run: `29280481341`
-- No new Android build was requested for v74.
+- v75 iPhone artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v75.ipa`
+- v75 IPA SHA-256: `6D9FFE5F8B99611A73DB020D9B24F144F120B8048B2C2AB677297EA82B0F5DE1`
+- v75 GitHub Actions run: `29281360380`
+- No new Android build was requested for v75.
 
 ## v66 Completed
 
@@ -64,7 +67,11 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 
 ## Current Known Issues
 
-- v74 iOS build is ready: `APP_VERSION = 2026.07.13-vpn-off-guard-v74`.
+- v75 iOS build is ready: `APP_VERSION = 2026.07.13-shein-resume-vpn-v75`.
+- v75 change: SHEIN is rechecked when the app returns from background or launches on the home screen; stale native SHEIN WebViews are closed before being shown again. This targets the real-device issue where turning VPN off while SHEIN was the active store made the app open then exit.
+- v75 change: VPN geo probing now uses four endpoints in parallel to reduce false "turn on VPN" results, such as Turkish VPN working in Safari but being rejected in-app.
+- v75 change: non-blocked geo such as Turkey/USA is allowed even when the SHEIN image probe is flaky; store failures still show recovery/VPN advice instead of exiting.
+- v74 change remains: VPN-off / unknown-geo startup is conservative. If probes cannot confirm a safe VPN while the device is online, the app shows the VPN-required state instead of opening the native store WebView.
 - v74 change: VPN-off / unknown-geo startup is conservative. If probes cannot confirm a safe VPN while the device is online, the app shows the VPN-required state instead of opening the native store WebView.
 - v74 change: unexpected SHEIN/Temu native WebView close on the home screen no longer auto-reopens into a crash loop; it pauses auto-open, refreshes VPN diagnosis, and shows store/VPN recovery UI.
 - v74 change: iOS network/WebKit failures `-1001`, `-1004`, `-1005`, and `-1009` are treated as recoverable store failures even after a page was previously ready.
@@ -84,7 +91,7 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 
 ## Next Best Focus
 
-1. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v74.ipa` on real iPhones with VPN off, VPN USA, and blocked/weak VPN servers. VPN off should show the VPN-required screen and must not exit the app. VPN USA should open the store normally. Verify iPhone 6 does not show SHEIN's native bottom bar above otlobli's nav.
+1. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v75.ipa` on real iPhones with VPN off, VPN Turkey, VPN USA, and weak VPN servers. VPN off on SHEIN should show the VPN-required screen and must not exit the app. VPN Turkey/USA should open if Safari opens SHEIN. Verify iPhone 6 does not show SHEIN's native bottom bar above otlobli's nav.
 2. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v70.apk` on Android / emulator and verify SHEIN does not exit the app.
 3. Verify SHEIN after this exact flow: fresh open -> switch to Temu -> switch back to SHEIN -> security check if shown -> normal browsing.
 4. Verify Temu region is Saudi and currency is USD.
