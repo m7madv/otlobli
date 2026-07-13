@@ -8,7 +8,7 @@ This is the short source of truth for the app work. Keep it compact so Codex/Cla
 
 - Path: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`
 - Branch: `codex/customer-wallet-group-orders`
-- Latest feature commit: `c7e596e` (`fix: v75 recheck vpn before showing shein`)
+- Latest feature commit: `46604db` (`fix: v76 hide shein security check before reveal`)
 
 Before any code change:
 
@@ -48,7 +48,10 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 - v75 iPhone artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v75.ipa`
 - v75 IPA SHA-256: `6D9FFE5F8B99611A73DB020D9B24F144F120B8048B2C2AB677297EA82B0F5DE1`
 - v75 GitHub Actions run: `29281360380`
-- No new Android build was requested for v75.
+- v76 iPhone artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v76.ipa`
+- v76 IPA SHA-256: `2F9581087DC884F7A432CE41DDB868C142885C68E6566EFC4F9AEAA732D1995C`
+- v76 GitHub Actions run: `29282623302`
+- No new Android build was requested for v76.
 
 ## v66 Completed
 
@@ -67,7 +70,11 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 
 ## Current Known Issues
 
-- v75 iOS build is ready: `APP_VERSION = 2026.07.13-shein-resume-vpn-v75`.
+- v76 iOS build is ready: `APP_VERSION = 2026.07.13-hidden-shein-check-v76`.
+- v76 change: SHEIN now opens hidden first on iOS/native WebView, with only a tiny post-load probe. Otlobli no longer injects the large SHEIN script at documentStart before security verification.
+- v76 change: SHEIN security/challenge pages remain hidden from the customer. If they do not turn into a normal page quickly, the app closes that WebView and shows VPN/server recovery advice instead of the black verification screen or app exit.
+- v76 change: SHEIN is revealed only after a non-challenge page is detected, then the otlobli capture/nav script is injected and the WebView is shown.
+- v75 change remains: SHEIN is rechecked when the app returns from background or launches on the home screen; stale native SHEIN WebViews are closed before being shown again.
 - v75 change: SHEIN is rechecked when the app returns from background or launches on the home screen; stale native SHEIN WebViews are closed before being shown again. This targets the real-device issue where turning VPN off while SHEIN was the active store made the app open then exit.
 - v75 change: VPN geo probing now uses four endpoints in parallel to reduce false "turn on VPN" results, such as Turkish VPN working in Safari but being rejected in-app.
 - v75 change: non-blocked geo such as Turkey/USA is allowed even when the SHEIN image probe is flaky; store failures still show recovery/VPN advice instead of exiting.
@@ -91,7 +98,7 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 
 ## Next Best Focus
 
-1. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v75.ipa` on real iPhones with VPN off, VPN Turkey, VPN USA, and weak VPN servers. VPN off on SHEIN should show the VPN-required screen and must not exit the app. VPN Turkey/USA should open if Safari opens SHEIN. Verify iPhone 6 does not show SHEIN's native bottom bar above otlobli's nav.
+1. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v76.ipa` on real iPhones with VPN off, VPN Turkey, VPN USA, and weak VPN servers. VPN off on SHEIN should show the VPN-required screen and must not exit the app. VPN Turkey/USA should open if the hidden check reaches a normal SHEIN page; the black security screen should not be shown to the customer.
 2. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v70.apk` on Android / emulator and verify SHEIN does not exit the app.
 3. Verify SHEIN after this exact flow: fresh open -> switch to Temu -> switch back to SHEIN -> security check if shown -> normal browsing.
 4. Verify Temu region is Saudi and currency is USD.

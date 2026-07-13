@@ -21,7 +21,7 @@ Rules:
 ## Important Context
 
 - Active branch: `codex/customer-wallet-group-orders`
-- Latest feature commit: `c7e596e` (`fix: v75 recheck vpn before showing shein`)
+- Latest feature commit: `46604db` (`fix: v76 hide shein security check before reveal`)
 - Claude old account may have worked after Codex. Always inspect current git state before editing.
 - Claude new account may not have the same skills/connectors authenticated. Check available skills/tools, especially Figma.
 
@@ -53,6 +53,9 @@ Rules:
 - Desktop v75 iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v75.ipa`
 - v75 IPA SHA-256: `6D9FFE5F8B99611A73DB020D9B24F144F120B8048B2C2AB677297EA82B0F5DE1`
 - v75 GitHub Actions run: `29281360380`
+- Desktop v76 iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v76.ipa`
+- v76 IPA SHA-256: `2F9581087DC884F7A432CE41DDB868C142885C68E6566EFC4F9AEAA732D1995C`
+- v76 GitHub Actions run: `29282623302`
 
 ## Main Files
 
@@ -80,6 +83,15 @@ Rules:
 - SHEIN challenge URLs are left alone by URL normalization.
 
 ## Current Highest Priority
+
+v76 iPhone build is ready:
+
+- `src/App.tsx` now opens SHEIN hidden first (`hidden: true`, `InvisibilityMode.FAKE_VISIBLE`) and runs only a tiny post-load probe instead of injecting the full otlobli script at `documentStart`.
+- If the hidden page is a SHEIN/Cloudflare/security challenge, it is not shown to the customer. After a short wait, the WebView is closed and the app shows VPN/server recovery advice.
+- If the hidden page is a normal SHEIN page, the full `SHEIN_CAPTURE_SCRIPT` is injected with `executeScript`, then the WebView is shown.
+- This is based on the observed Safari-vs-WKWebView difference and Cloudflare guidance that WebView challenges are sensitive to environment consistency, storage, and core browser behavior changes.
+- `src/config.ts` version: `2026.07.13-hidden-shein-check-v76`.
+- v76 iPhone unsigned IPA was built by GitHub Actions run `29282623302` and copied to the desktop.
 
 v75 iPhone build is ready:
 
@@ -193,6 +205,11 @@ Passed after v75 SHEIN resume VPN recheck:
 
 - Root `npm run build`
 - GitHub iOS unsigned build run `29281360380` passed and produced `otlobli-v75.ipa`.
+
+Passed after v76 hidden SHEIN security check:
+
+- Root `npm run build`
+- GitHub iOS unsigned build run `29282623302` passed and produced `otlobli-v76.ipa`.
 
 Known gap:
 
