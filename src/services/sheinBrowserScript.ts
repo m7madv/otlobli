@@ -3721,6 +3721,28 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // a user screenshot showed the action bar peeking out from behind
   // otlobli's own floating buttons. Find and remove any of these outright
   // instead of just hoping otlobli's own overlays paint above them.
+  function looksLikeNativeStoreBottomNav(el, rect, vp) {
+    if (!el || !rect || rect.width < vp.width * 0.55) return false;
+    if (rect.height <= 0 || rect.height > 170) return false;
+    if (rect.top < vp.height - 230 && rect.bottom < vp.height - 18) return false;
+    var text = '';
+    try { text = (el.innerText || el.textContent || '').replace(/\\s+/g, ' ').trim(); } catch (e) {}
+    var buttonCount = 0;
+    try { buttonCount = el.querySelectorAll('a,button,[role="button"],[role="tab"],svg,img').length; } catch (e) {}
+    var keywordHits = 0;
+    var keywords = [
+      /home|الرئيسية|الرئيسيه/i,
+      /category|categories|الفئات|الأقسام|الاقسام/i,
+      /cart|bag|basket|السلة|الحقيبة|العربة|عربة/i,
+      /me|account|profile|حسابي|أنا|انا/i,
+      /sale|deals|offers|العروض/i,
+    ];
+    for (var k = 0; k < keywords.length; k++) {
+      if (keywords[k].test(text)) keywordHits++;
+    }
+    return keywordHits >= 2 || buttonCount >= 4;
+  }
+
   function hideForeignBottomNav() {
     var vp = viewportSize();
     var candidates = document.querySelectorAll(
@@ -3734,12 +3756,17 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var el = candidates[i];
       if (el.id && el.id.indexOf('otlobli') === 0) continue;
       var style = window.getComputedStyle(el);
-      if (style.position !== 'fixed' && style.position !== 'sticky') continue;
       var rect = el.getBoundingClientRect();
+      var looksLikeBottomNav = looksLikeNativeStoreBottomNav(el, rect, vp);
+      var positioned = style.position === 'fixed' || style.position === 'sticky' || style.position === 'absolute';
+      if (!positioned && !looksLikeBottomNav) continue;
       if (rect.width < vp.width * 0.5) continue;
-      if (rect.height <= 0 || rect.height > 180) continue;
-      if (rect.bottom < vp.height - 200) continue;
+      if (rect.height <= 0 || rect.height > 190) continue;
+      if (rect.bottom < vp.height - 220 && !looksLikeBottomNav) continue;
       el.style.setProperty('display', 'none', 'important');
+      el.style.setProperty('visibility', 'hidden', 'important');
+      el.style.setProperty('pointer-events', 'none', 'important');
+      el.setAttribute('data-otlobli-hidden-store-bottom', '1');
     }
   }
 

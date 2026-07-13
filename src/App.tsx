@@ -44,6 +44,7 @@ const SHEIN_BROWSER_HEADERS = {
 // يكشف موقع خروج الإنترنت الحالي (بلد/منطقة الـVPN فعلياً) عبر خدمتي geo
 // تدعمان CORS، لتمييز «VPN مطفأ» (البلد سوريا) عن «منطقة VPN غير مدعومة»
 // (بلد آخر لكن المتجر محجوب). فشل الخدمتين معاً = الشبكة نفسها متعثرة.
+type VpnState = 'checking' | 'ok' | 'no-vpn' | 'bad-region' | 'offline'
 type VpnGeo = { countryCode: string; country: string; region: string }
 const probeVpnGeo = async (): Promise<VpnGeo | null> => {
   const attempt = async (url: string, parse: (d: Record<string, unknown>) => VpnGeo | null): Promise<VpnGeo | null> => {
@@ -113,6 +114,29 @@ type WebviewPageLoadErrorEvent = {
 const STORE_BLOCKED_COUNTRIES = new Set(['SY'])
 const isBlockedStoreCountry = (countryCode?: string | null) =>
   !!countryCode && STORE_BLOCKED_COUNTRIES.has(countryCode.toUpperCase())
+
+const isVpnConfirmed = (vpnState: VpnState, vpnGeo: VpnGeo | null) =>
+  vpnState === 'ok' && !!vpnGeo?.countryCode && !isBlockedStoreCountry(vpnGeo.countryCode)
+
+const getStoreFailureAdvice = (store: string, vpnState: VpnState, vpnGeo: VpnGeo | null) => {
+  const confirmedVpn = isVpnConfirmed(vpnState, vpnGeo)
+  const location = confirmedVpn && vpnGeo?.country
+    ? ` (${vpnGeo.country}${vpnGeo.region ? ` - ${vpnGeo.region}` : ''})`
+    : ''
+  return confirmedVpn
+    ? {
+      icon: 'vpn_key',
+      title: 'غيّر سيرفر الـ VPN',
+      body: `تم التحقق أن الـ VPN شغّال${location}، لكن متجر ${store} لم يفتح من هذا السيرفر. غيّر السيرفر أو استخدم VPN آخر ثم أعد الدخول إلى المتجر.`,
+      action: 'إعادة الدخول إلى المتجر',
+    }
+    : {
+      icon: 'vpn_key',
+      title: 'شغّل الـ VPN أولاً',
+      body: `تعذّر فتح متجر ${store}. شغّل VPN خارج سوريا، أو غيّر السيرفر إذا كان VPN شغّالاً عندك، ثم أعد الدخول إلى المتجر.`,
+      action: 'إعادة الدخول إلى المتجر',
+    }
+}
 
 const compressFullImage = (src: string): Promise<string> => new Promise((resolve, reject) => {
   const image = new Image()
@@ -887,8 +911,8 @@ function App() {
   // حالات البوابة الذكية: no-vpn = الاتصال يظهر من سوريا (شغّل VPN)،
   // bad-region = VPN شغّال لكن منطقته لا تفتح المتجر (غيّر السيرفر/الولاية)،
   // offline = تعذر الوصول للإنترنت أصلاً.
-  const [vpnState, setVpnState] = useState<'checking' | 'ok' | 'no-vpn' | 'bad-region' | 'offline'>('checking')
-  const [vpnGeo, setVpnGeo] = useState<{ country: string; region: string } | null>(null)
+  const [vpnState, setVpnState] = useState<VpnState>('checking')
+  const [vpnGeo, setVpnGeo] = useState<VpnGeo | null>(null)
   const [notifications, setNotifications] = useStoredState<AppNotification[]>(storageKeys.notifications, [])
   const [notificationPrefs, setNotificationPrefs] = useStoredState<NotificationPrefs>(storageKeys.notificationPrefs, DEFAULT_NOTIFICATION_PREFS)
   // يربط نوع الإشعار بمفتاح تفضيله؛ إذا المستخدم طفّى الفئة لا يُنشأ إشعار داخل التطبيق
@@ -2087,7 +2111,7 @@ function App() {
       ])
       if (cancelled) return
       if (geo) {
-        setVpnGeo({ country: geo.country, region: geo.region })
+        setVpnGeo(geo)
         if (isBlockedStoreCountry(geo.countryCode)) { setVpnState('no-vpn'); return }
         setVpnState('ok')
         return
@@ -2106,6 +2130,40 @@ function App() {
   const postWebviewChromeState = (target: 'home' | 'cart') => {
     void InAppBrowser.postMessage({ detail: { type: '__resize' } })
     void InAppBrowser.postMessage({ detail: { type: '__backTarget', target } })
+  }
+
+  const refreshVpnDiagnosisForStoreFailure = () => {
+    void probeVpnGeo().then((geo) => {
+      if (geo) {
+        setVpnGeo(geo)
+        setVpnState(isBlockedStoreCountry(geo.countryCode) ? 'no-vpn' : 'ok')
+        return
+      }
+      setVpnGeo(null)
+      if (navigator.onLine === false) setVpnState('offline')
+    })
+  }
+
+  const showStoreOpenFailure = () => {
+    if (webviewErrorTimerRef.current !== undefined) {
+      window.clearTimeout(webviewErrorTimerRef.current)
+      webviewErrorTimerRef.current = undefined
+    }
+    webviewAutoOpenPausedUntilRef.current = Date.now() + 15000
+    suppressAutoReopenRef.current = true
+    webviewSessionRef.current += 1
+    webviewOpeningRef.current = false
+    webviewOpenedAtRef.current = 0
+    webviewIdRef.current = ''
+    openedViaBypassRef.current = false
+    sheinChallengeActiveRef.current = false
+    sheinOpenedRef.current = false
+    setSheinReady(false)
+    setSheinBlockedError(true)
+    refreshVpnDiagnosisForStoreFailure()
+    void InAppBrowser.close().catch(() => undefined).finally(() => {
+      suppressAutoReopenRef.current = false
+    })
   }
 
   const webviewErrorCode = (event: WebviewPageLoadErrorEvent) => {
@@ -2133,21 +2191,6 @@ function App() {
   }
 
   const handleFatalSheinWebkitError = (event: WebviewPageLoadErrorEvent) => {
-    if (webviewErrorTimerRef.current !== undefined) {
-      window.clearTimeout(webviewErrorTimerRef.current)
-      webviewErrorTimerRef.current = undefined
-    }
-    webviewAutoOpenPausedUntilRef.current = Date.now() + 15000
-    suppressAutoReopenRef.current = true
-    webviewSessionRef.current += 1
-    webviewOpeningRef.current = false
-    webviewOpenedAtRef.current = 0
-    webviewIdRef.current = ''
-    openedViaBypassRef.current = false
-    sheinChallengeActiveRef.current = false
-    sheinOpenedRef.current = false
-    setSheinReady(false)
-    setSheinBlockedError(true)
     const code = webviewErrorCode(event)
     console.warn('[otlobli] SHEIN iOS WebKit failure', {
       phase: event.phase,
@@ -2155,9 +2198,7 @@ function App() {
       domain: event.domain,
       url: event.url ?? event.failingUrlString,
     })
-    void InAppBrowser.close().catch(() => undefined).finally(() => {
-      suppressAutoReopenRef.current = false
-    })
+    showStoreOpenFailure()
   }
 
   const markStoreWebviewReady = (sessionId: number) => {
@@ -2269,9 +2310,7 @@ function App() {
         const absoluteTimeout = window.setTimeout(() => {
           if (sessionId !== webviewSessionRef.current) return
           if (!webviewOpeningRef.current) return
-          webviewOpeningRef.current = false
-          webviewOpenedAtRef.current = 0
-          if (screenRef.current === 'home') setSheinBlockedError(true)
+          if (screenRef.current === 'home') showStoreOpenFailure()
         }, 20000)
         const checkLoaded = InAppBrowser.addListener('browserPageLoaded', () => {
           window.clearTimeout(absoluteTimeout)
@@ -2280,12 +2319,7 @@ function App() {
       })
       .catch(() => {
         if (sessionId !== webviewSessionRef.current) return
-        webviewOpeningRef.current = false
-        webviewOpenedAtRef.current = 0
-        webviewIdRef.current = ''
-        sheinChallengeActiveRef.current = false
-        sheinOpenedRef.current = false
-        setSheinReady(false)
+        if (screenRef.current === 'home') showStoreOpenFailure()
       })
   }
 
@@ -2343,7 +2377,6 @@ function App() {
 
   useEffect(() => {
     const handle = InAppBrowser.addListener('closeEvent', () => {
-      const activeStore = selectedStoreRef.current
       const openedRecently = webviewOpenedAtRef.current > 0 && Date.now() - webviewOpenedAtRef.current < 10000
       const wasOpening = webviewOpeningRef.current
       const wasChallenge = sheinChallengeActiveRef.current
@@ -2358,18 +2391,18 @@ function App() {
         suppressAutoReopenRef.current = false
         return
       }
-      if (screenRef.current === 'home' && activeStore === 'shein') {
-        // Some real devices close SHEIN's native WebView during the security
-        // check. Re-opening immediately from closeEvent turns that into the
-        // visible "black verification then app exits" loop; keep the app
-        // stable and let the user retry with one fresh instance.
+      if (screenRef.current === 'home') {
+        // Some real devices close the native WebView during opening/security
+        // checks. Re-opening immediately turns that into a visible open/close
+        // loop; keep the app stable and ask for a different VPN server.
         if (wasOpening || wasChallenge || openedRecently) {
           webviewAutoOpenPausedUntilRef.current = Date.now() + 15000
           setSheinBlockedError(true)
+          refreshVpnDiagnosisForStoreFailure()
+          return
         }
-        return
+        browseSheinRef.current()
       }
-      if (screenRef.current === 'home') browseSheinRef.current()
     })
     return () => {
       void handle.then((h) => h.remove())
@@ -2399,22 +2432,10 @@ function App() {
         const currentStore = selectedStoreRef.current
         if (currentStore === 'shein' && !openedViaBypassRef.current) return
         if (currentStore === 'shein' && (sheinChallengeActiveRef.current || sheinReadyRef.current)) return
-        // A navigation can fail after the first page was already shown (VPN
-        // disconnected, or "open anyway" reached a 404). Tear down this
-        // native instance and return to the connection gate; leaving the
-        // failed WebView visible produces a plain white screen.
-        suppressAutoReopenRef.current = true
-        webviewSessionRef.current += 1
-        webviewOpeningRef.current = false
-        webviewIdRef.current = ''
-        sheinChallengeActiveRef.current = false
-        sheinOpenedRef.current = false
-        setSheinReady(false)
-        setSheinBlockedError(false)
-        setVpnState('checking')
-        void InAppBrowser.close().catch(() => undefined).finally(() => {
-          suppressAutoReopenRef.current = false
-        })
+        // A navigation can fail after the VPN gate passed (bad VPN server,
+        // 404/blocked route, or a disconnected VPN). Tear down this native
+        // instance and show a clear VPN action instead of a blank screen.
+        showStoreOpenFailure()
       }, 1800)
     })
     let fallbackTimer: number | undefined
@@ -2426,18 +2447,7 @@ function App() {
         // فُتح عبر «فتح على أي حال» بلا VPN ولم تُحمّل الصفحة خلال 12ث — الإظهار
         // القسري هنا كان يعرض صفحة بيضاء بلا رجعة. بدلاً منه نرجع لبوابة VPN.
         if (openedViaBypassRef.current) {
-          openedViaBypassRef.current = false
-          suppressAutoReopenRef.current = true
-          webviewSessionRef.current += 1
-          webviewOpeningRef.current = false
-          webviewIdRef.current = ''
-          sheinOpenedRef.current = false
-          setSheinReady(false)
-          setSheinBlockedError(false)
-          setVpnState('checking')
-          void InAppBrowser.close().catch(() => undefined).finally(() => {
-            suppressAutoReopenRef.current = false
-          })
+          showStoreOpenFailure()
           return
         }
         markStoreWebviewReadyRef.current(webviewSessionRef.current)
@@ -5187,6 +5197,7 @@ function App() {
     }
 
     const currentStoreName = STORES.find((s) => s.id === selectedStore)?.name ?? 'المتجر'
+    const storeFailureAdvice = getStoreFailureAdvice(currentStoreName, vpnState, vpnGeo)
     return (
       // Keep React's own nav mounted here at all times, even while SHEIN's
       // webview (with its own injected nav - see ensureOtlobliNav) is
@@ -5251,9 +5262,9 @@ function App() {
         ) : sheinBlockedError ? (
           <main className="mobile-content shein-home">
             <div className="empty-state">
-              <Icon name="wifi_off" />
-              <h2>تعذّر فتح موقع {currentStoreName}</h2>
-              <p>يبدو أن الموقع محجوب مؤقتاً. جرّب مرة ثانية أو امسح الكوكيز.</p>
+              <Icon name={storeFailureAdvice.icon} />
+              <h2>{storeFailureAdvice.title}</h2>
+              <p>{storeFailureAdvice.body}</p>
             </div>
             <button className="primary-action" onClick={() => {
               webviewAutoOpenPausedUntilRef.current = 0
@@ -5270,19 +5281,7 @@ function App() {
               })
             }}>
               <Icon name="refresh" />
-              إعادة المحاولة
-            </button>
-            <button className="ghost-action" onClick={() => {
-              webviewAutoOpenPausedUntilRef.current = 0
-              setSheinBlockedError(false)
-              void InAppBrowser.clearAllCookies().finally(() => {
-                void InAppBrowser.close().catch(() => undefined).then(() => {
-                  if (!sheinOpenedRef.current) browseShein()
-                })
-              })
-            }}>
-              <Icon name="delete_sweep" />
-              مسح الكوكيز وإعادة التحميل
+              {storeFailureAdvice.action}
             </button>
             <button className="ghost-action" onClick={() => {
               // يرجع لبوابة الفحص الذكي: يغلق الـwebview العالق ويعيد فحص
@@ -5302,7 +5301,7 @@ function App() {
             </button>
           </main>
         ) : !sheinReady ? (
-          <HomeScreen userName={userProfile?.name} storeName={currentStoreName} onRetry={() => { webviewAutoOpenPausedUntilRef.current = 0; sheinOpenedRef.current = false; browseShein() }} />
+          <HomeScreen userName={userProfile?.name} storeName={currentStoreName} failureAdvice={storeFailureAdvice} onRetry={() => { webviewAutoOpenPausedUntilRef.current = 0; sheinOpenedRef.current = false; browseShein() }} />
         ) : null}
       </MobileShell>
     )
@@ -5383,7 +5382,7 @@ function Toast({ message }: { message: string }) {
   return <div className="toast">{message}</div>
 }
 
-function HomeScreen({ userName, onRetry, storeName = 'المتجر' }: { userName?: string; onRetry?: () => void; storeName?: string }) {
+function HomeScreen({ userName, onRetry, storeName = 'المتجر', failureAdvice }: { userName?: string; onRetry?: () => void; storeName?: string; failureAdvice: ReturnType<typeof getStoreFailureAdvice> }) {
   const [timedOut, setTimedOut] = useState(false)
   useEffect(() => {
     const t = window.setTimeout(() => setTimedOut(true), 30_000)
@@ -5394,14 +5393,14 @@ function HomeScreen({ userName, onRetry, storeName = 'المتجر' }: { userNam
       <section className="greeting">
         <h1>{userName ? `أهلاً، ${userName}` : 'أهلاً بك'}</h1>
         {timedOut ? (
-          <p style={{ color: 'var(--danger)' }}>تعذّر فتح موقع {storeName}. تأكد من اتصالك بالإنترنت.</p>
+          <p style={{ color: 'var(--danger)' }}>{failureAdvice.body}</p>
         ) : (
           <p>جاري تجهيز متجر {storeName}...</p>
         )}
       </section>
       {timedOut ? (
         <button className="ghost-action" onClick={onRetry}>
-          <Icon name="refresh" /> إعادة المحاولة
+          <Icon name="refresh" /> {failureAdvice.action}
         </button>
       ) : (
         <span className="spinner" />
