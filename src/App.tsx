@@ -100,6 +100,16 @@ type CropRequest = {
   onDone: (dataUrl: string) => void
 }
 
+type WebviewPageLoadErrorEvent = {
+  id?: string
+  url?: string
+  failingUrlString?: string
+  phase?: string
+  domain?: string
+  description?: string
+  code?: number | string
+}
+
 const compressFullImage = (src: string): Promise<string> => new Promise((resolve, reject) => {
   const image = new Image()
   image.onload = () => {
@@ -2089,6 +2099,58 @@ function App() {
     void InAppBrowser.postMessage({ detail: { type: '__backTarget', target } })
   }
 
+  const webviewErrorCode = (event: WebviewPageLoadErrorEvent) => {
+    if (typeof event.code === 'number' && Number.isFinite(event.code)) return event.code
+    if (typeof event.code === 'string' && event.code.trim()) {
+      const parsed = Number(event.code)
+      if (Number.isFinite(parsed)) return parsed
+    }
+    return undefined
+  }
+
+  const isFatalSheinWebkitError = (event: WebviewPageLoadErrorEvent) => {
+    if (selectedStoreRef.current !== 'shein') return false
+    const phase = String(event.phase ?? '')
+    if (phase === 'webContentProcessDidTerminate') return true
+    const code = webviewErrorCode(event)
+    if (code === undefined) return false
+
+    // Real iPhones reported WKWebView main-frame -1005 followed by a dead
+    // WebContent/GPU process. That leaves the native browser as a plain white
+    // layer unless we tear this instance down and let the user retry cleanly.
+    if (code === -1005) return true
+    if ((webviewOpeningRef.current || !sheinReadyRef.current) && [-1001, -1004, -1009].includes(code)) return true
+    return false
+  }
+
+  const handleFatalSheinWebkitError = (event: WebviewPageLoadErrorEvent) => {
+    if (webviewErrorTimerRef.current !== undefined) {
+      window.clearTimeout(webviewErrorTimerRef.current)
+      webviewErrorTimerRef.current = undefined
+    }
+    webviewAutoOpenPausedUntilRef.current = Date.now() + 15000
+    suppressAutoReopenRef.current = true
+    webviewSessionRef.current += 1
+    webviewOpeningRef.current = false
+    webviewOpenedAtRef.current = 0
+    webviewIdRef.current = ''
+    openedViaBypassRef.current = false
+    sheinChallengeActiveRef.current = false
+    sheinOpenedRef.current = false
+    setSheinReady(false)
+    setSheinBlockedError(true)
+    const code = webviewErrorCode(event)
+    console.warn('[otlobli] SHEIN iOS WebKit failure', {
+      phase: event.phase,
+      code,
+      domain: event.domain,
+      url: event.url ?? event.failingUrlString,
+    })
+    void InAppBrowser.close().catch(() => undefined).finally(() => {
+      suppressAutoReopenRef.current = false
+    })
+  }
+
   const markStoreWebviewReady = (sessionId: number) => {
     if (sessionId !== webviewSessionRef.current || !sheinOpenedRef.current) return
     if (webviewErrorTimerRef.current !== undefined) {
@@ -2311,10 +2373,14 @@ function App() {
       if (event?.id && event.id !== webviewIdRef.current) return
       markStoreWebviewReadyRef.current(webviewSessionRef.current)
     })
-    const errorHandle = InAppBrowser.addListener('pageLoadError', (event: { id?: string }) => {
+    const errorHandle = InAppBrowser.addListener('pageLoadError', (event: WebviewPageLoadErrorEvent) => {
       if (event?.id && webviewIdRef.current && event.id !== webviewIdRef.current) return
       if (!sheinOpenedRef.current || screenRef.current !== 'home') return
       const activeStore = selectedStoreRef.current
+      if (activeStore === 'shein' && isFatalSheinWebkitError(event)) {
+        handleFatalSheinWebkitError(event)
+        return
+      }
       if (activeStore === 'shein' && !openedViaBypassRef.current) return
       if (activeStore === 'shein' && (sheinChallengeActiveRef.current || sheinReadyRef.current)) return
       if (webviewErrorTimerRef.current !== undefined) window.clearTimeout(webviewErrorTimerRef.current)

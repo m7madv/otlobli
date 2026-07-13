@@ -14,7 +14,7 @@ index 9979670..fcfd30a 100644
  }
  
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
-index 8ae3e61..12fb994 100644
+index 8ae3e61..511df1d 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
 +++ b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
 @@ -215,6 +215,35 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
@@ -106,7 +106,7 @@ index 8ae3e61..12fb994 100644
              // Strip conditional cache validators on the wire so upstream cannot return 304/3xx,
              // which WebResourceResponse.setStatusCodeAndReasonPhrase rejects (kills the renderer).
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
-index 1c70884..be2b8ac 100644
+index 1c70884..26bdb5b 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
 @@ -449,6 +449,34 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
@@ -286,21 +286,71 @@ index 1c70884..be2b8ac 100644
          if
              ProxySchemeRequestSupport.supportsRequestBody(method: context.method),
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
-index 97a2fc1..0aa1902 100644
+index 97a2fc1..bfd71ac 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
-@@ -2756,6 +2756,14 @@ extension WKWebViewController: WKNavigationDelegate {
-         emit("pageLoadError")
+@@ -1001,6 +1001,37 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+         capBrowserPlugin?.notifyListeners(eventName, data: payload(with: data))
      }
  
-+    // otlobli: when iOS kills the WebContent process under memory pressure
-+    // (heavy SHEIN pages), the in-app browser goes black and stays black,
-+    // forcing the user to quit and relaunch the whole app. Reload the webview
-+    // automatically so it recovers itself instead.
-+    public func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
-+        webView.reload()
++    private func emitPageLoadError(_ webView: WKWebView?, error: Error?, phase: String) {
++        var data: [String: Any] = ["phase": phase]
++
++        if let error = error {
++            let nsError = error as NSError
++            data["domain"] = nsError.domain
++            data["code"] = nsError.code
++            data["description"] = nsError.localizedDescription
++
++            if let failingUrl = nsError.userInfo[NSURLErrorFailingURLErrorKey] as? URL {
++                data["url"] = failingUrl.absoluteString
++            }
++            if let failingUrlString = nsError.userInfo[NSURLErrorFailingURLStringErrorKey] as? String {
++                data["failingUrlString"] = failingUrlString
++                if data["url"] == nil {
++                    data["url"] = failingUrlString
++                }
++            }
++        }
++
++        if data["url"] == nil {
++            if let currentUrl = webView?.url {
++                data["url"] = currentUrl.absoluteString
++            } else if let currentUrl = self.url {
++                data["url"] = currentUrl.absoluteString
++            }
++        }
++
++        emit("pageLoadError", data: data)
 +    }
 +
+     private func startObservingKeyboardViewportChanges() {
+         guard !isObservingKeyboardViewportChanges else {
+             return
+@@ -2743,7 +2774,7 @@ extension WKWebViewController: WKNavigationDelegate {
+             self.url = url
+             delegate?.webViewController?(self, didFail: url, withError: error)
+         }
+-        emit("pageLoadError")
++        emitPageLoadError(webView, error: error, phase: "didFailProvisionalNavigation")
+     }
+ 
+     public func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+@@ -2753,7 +2784,16 @@ extension WKWebViewController: WKNavigationDelegate {
+             self.url = url
+             delegate?.webViewController?(self, didFail: url, withError: error)
+         }
+-        emit("pageLoadError")
++        emitPageLoadError(webView, error: error, phase: "didFailNavigation")
++    }
++
++    public func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
++        updateBarButtonItems()
++        self.progressView?.progress = 0
++        if let url = webView.url {
++            self.url = url
++        }
++        emitPageLoadError(webView, error: nil, phase: "webContentProcessDidTerminate")
+     }
+ 
      public func webView(_ webView: WKWebView, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
-         if let credentials = credentials,
-            challenge.protectionSpace.receivesCredentialSecurely,
