@@ -12,4 +12,4 @@ export const PAYMENT_MODE: 'auto' | 'shamcash' = 'shamcash'
 export const SOURCE_COUNTRY: 'JO' | 'LB' | 'SA' = 'SA'
 
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '2026.07.13-shein-resume-vpn-v75'
+export const APP_VERSION = '2026.07.13-hidden-shein-check-v76'
