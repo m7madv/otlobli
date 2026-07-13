@@ -3208,7 +3208,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // - "home" (default): normal browsing from the home tab; tapping back just
   //   walks the webview's own in-page history, same as a browser back button.
   var __otlobliBackTarget = 'home';
-  var __otlobliBackLastReclaim = 0;
 
   function ensureBackButton() {
     var btn = document.getElementById('otlobli-back-btn');
@@ -3253,12 +3252,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
       }, true);
       document.body.appendChild(btn);
     }
-    var now = Date.now();
-    if (btn !== document.body.lastElementChild && now - __otlobliBackLastReclaim > 700) {
-      __otlobliBackLastReclaim = now;
-      btn.style.setProperty('animation', 'none', 'important');
-      document.body.appendChild(btn);
-    }
+    // Deliberately NOT re-claiming "last child of body" here on every tick -
+    // see the matching comment in ensureAddToCartButton. This button has the
+    // same otlobli-pop2 entrance animation, which a repeated appendChild on
+    // an already-mounted node retriggers, causing a visible flicker every
+    // ~300ms on a page that's always inserting something else after it.
     // تيمو SPA قد تفتح المنتج على نفس مسار الرئيسية (query string فقط)
     // فكان looksLikeHomeRoot يخفي زر الرجوع داخل المنتج ويحبس الزبون.
     var shouldShow = __otlobliBackTarget === 'cart' || !looksLikeHomeRoot()
@@ -3690,155 +3688,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
-  function hideSheinChromeCollisionZones() {
-    if (!IS_SHEIN) return;
-    var vp = viewportSize();
-    var backZoneLeft = Math.max(0, vp.width - 112);
-    var backZoneBottom = 112;
-    var topNodes = document.querySelectorAll(
-      'button, a, [role="button"], svg, img, [class*="icon" i], [class*="cart" i], [class*="bag" i], ' +
-      '[class*="menu" i], [class*="hamburger" i], [class*="wishlist" i], [class*="favorite" i], [class*="header" i]'
-    );
-    for (var i = 0; i < topNodes.length; i++) {
-      var el = topNodes[i];
-      if (!el || el === document.body || el === document.documentElement) continue;
-      if (el.id && el.id.indexOf('otlobli') === 0) continue;
-      if (otlobliNearSearchInput(el)) continue;
-      var r = el.getBoundingClientRect();
-      if (r.width <= 0 || r.height <= 0 || r.width > 130 || r.height > 118) continue;
-      var intersectsBackZone = r.right > backZoneLeft && r.left < vp.width && r.bottom > 0 && r.top < backZoneBottom;
-      if (!intersectsBackZone) continue;
-      var hint = ((el.className || '') + ' ' + (el.getAttribute && el.getAttribute('aria-label') || '') + ' ' + (el.textContent || '')).toLowerCase();
-      if (/search|ط¨ط­ط«|camera|ظƒط§ظ…ظٹط±ط§|image|طµظˆط±ط©|visual|photo|lens/.test(hint)) continue;
-      el.setAttribute('data-otlobli-blocked', '1');
-      el.style.setProperty('display', 'none', 'important');
-      el.style.setProperty('visibility', 'hidden', 'important');
-      el.style.setProperty('pointer-events', 'none', 'important');
-    }
-
-    var bottomSelectors =
-      'nav, footer, [role="tablist"], [class*="tab-bar" i], [class*="tabbar" i], [class*="bottom-nav" i], ' +
-      '[class*="footer-nav" i], [class*="nav-bar" i], [class*="navbar" i], [class*="fixed-bottom" i], ' +
-      '[class*="sticky-bottom" i], [class*="bottom-bar" i], [class*="buy-bar" i], [class*="action-bar" i]';
-    var bottomNodes = document.querySelectorAll(bottomSelectors);
-    for (var b = 0; b < bottomNodes.length; b++) {
-      var node = bottomNodes[b];
-      if (!node || node === document.body || node === document.documentElement) continue;
-      if (node.id && node.id.indexOf('otlobli') === 0) continue;
-      var br = node.getBoundingClientRect();
-      if (br.width < vp.width * 0.55 || br.height <= 0 || br.height > 210) continue;
-      if (br.bottom < vp.height - 240 || br.top > vp.height - 45) continue;
-      node.setAttribute('data-otlobli-hidden-store-bottom', '1');
-      node.style.setProperty('display', 'none', 'important');
-      node.style.setProperty('visibility', 'hidden', 'important');
-      node.style.setProperty('pointer-events', 'none', 'important');
-    }
-
-    var probeYs = [vp.height - 112, vp.height - 138, vp.height - 166];
-    var probeXs = [Math.round(vp.width * 0.18), Math.round(vp.width * 0.5), Math.round(vp.width * 0.82)];
-    for (var py = 0; py < probeYs.length; py++) {
-      for (var px = 0; px < probeXs.length; px++) {
-        var hit = document.elementFromPoint(probeXs[px], probeYs[py]);
-        var depth = 0;
-        while (hit && hit !== document.body && hit !== document.documentElement && depth < 8) {
-          if (hit.id && hit.id.indexOf('otlobli') === 0) break;
-          var hr = hit.getBoundingClientRect();
-          var hStyle = window.getComputedStyle(hit);
-          var hText = '';
-          try { hText = (hit.innerText || hit.textContent || '').replace(/\\s+/g, ' ').trim(); } catch (e) {}
-          var hClass = ((hit.className || '') + ' ' + (hit.getAttribute && hit.getAttribute('role') || '')).toString();
-          var looksLikeBar = /(tab|bottom|footer|nav|bar|cart|bag|home|account|profile|category|ط§ظ„ط±ط¦ظٹط³ظٹط©|ط§ظ„ط³ظ„ط©|ط­ط³ط§ط¨ظٹ|ط§ظ„ط£ظ‚ط³ط§ظ…)/i.test(hClass + ' ' + hText);
-          var positioned = hStyle.position === 'fixed' || hStyle.position === 'sticky' || hStyle.position === 'absolute';
-          if ((positioned || looksLikeBar) && hr.width > vp.width * 0.5 && hr.height > 22 && hr.height < 210 && hr.bottom > vp.height - 245) {
-            hit.setAttribute('data-otlobli-hidden-store-bottom', '1');
-            hit.style.setProperty('display', 'none', 'important');
-            hit.style.setProperty('visibility', 'hidden', 'important');
-            hit.style.setProperty('pointer-events', 'none', 'important');
-            break;
-          }
-          hit = hit.parentElement;
-          depth++;
-        }
-      }
-    }
-  }
-
-  function otlobliOwnsNode(node) {
-    var n = node;
-    var depth = 0;
-    while (n && depth < 8) {
-      if (n.id && n.id.indexOf('otlobli') === 0) return true;
-      n = n.parentElement;
-      depth++;
-    }
-    return false;
-  }
-
-  function otlobliHideHard(node) {
-    if (!node || node === document.body || node === document.documentElement) return;
-    if (otlobliOwnsNode(node)) return;
-    try {
-      node.setAttribute('data-otlobli-hidden-store-bottom', '1');
-      node.style.setProperty('display', 'none', 'important');
-      node.style.setProperty('visibility', 'hidden', 'important');
-      node.style.setProperty('opacity', '0', 'important');
-      node.style.setProperty('pointer-events', 'none', 'important');
-      node.style.setProperty('height', '0px', 'important');
-      node.style.setProperty('min-height', '0px', 'important');
-      node.style.setProperty('max-height', '0px', 'important');
-      node.style.setProperty('overflow', 'hidden', 'important');
-    } catch (e) {}
-  }
-
-  function otlobliInteractiveCount(node) {
-    try {
-      return node.querySelectorAll('a,button,[role="button"],[role="tab"],svg,img').length;
-    } catch (e) {
-      return 0;
-    }
-  }
-
-  function hideSheinLegacyBottomChrome() {
-    if (!IS_SHEIN || !document.body) return;
-    var vp = viewportSize();
-    var nav = document.getElementById('otlobli-nav');
-    var navRect = nav ? nav.getBoundingClientRect() : null;
-    var navTop = navRect && navRect.top > 0 ? navRect.top : (vp.height - 86);
-    var killTop = Math.max(0, navTop - 260);
-    var killBottom = Math.min(vp.height, navTop + 14);
-    var xs = [
-      Math.round(vp.width * 0.08), Math.round(vp.width * 0.18), Math.round(vp.width * 0.32),
-      Math.round(vp.width * 0.5), Math.round(vp.width * 0.68), Math.round(vp.width * 0.82),
-      Math.round(vp.width * 0.92),
-    ];
-    var ys = [];
-    for (var off = 8; off <= 250; off += 18) ys.push(Math.round(navTop - off));
-    for (var y = 0; y < ys.length; y++) {
-      if (ys[y] < 0 || ys[y] > vp.height) continue;
-      for (var x = 0; x < xs.length; x++) {
-        var el = document.elementFromPoint(xs[x], ys[y]);
-        var depth = 0;
-        while (el && el !== document.body && el !== document.documentElement && depth < 12) {
-          if (otlobliOwnsNode(el)) break;
-          var r = el.getBoundingClientRect();
-          if (r.width > vp.width * 0.42 && r.height >= 20 && r.height <= 240 && r.top < killBottom && r.bottom > killTop) {
-            var st = window.getComputedStyle(el);
-            var positioned = st.position === 'fixed' || st.position === 'sticky' || st.position === 'absolute';
-            var z = parseInt(st.zIndex, 10) || 0;
-            var interactive = otlobliInteractiveCount(el);
-            var wideBottomStrip = r.width > vp.width * 0.78 && r.height < 170 && r.bottom > navTop - 42;
-            if (positioned || z >= 2 || interactive >= 2 || wideBottomStrip) {
-              otlobliHideHard(el);
-              break;
-            }
-          }
-          el = el.parentElement;
-          depth++;
-        }
-      }
-    }
-  }
-
   // Deletes SHEIN's per-listing-card "quick add to cart" controls - both the
   // little cart icon sitting on each product thumbnail and the quick-add button
   // under the card - so a tap does nothing (the user explicitly asked for these
@@ -4145,11 +3994,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (!document.body) return;
     // صفحة تحقق «أنا إنسان» — تجميد كامل لكل تدخلاتنا حتى يكملها المستخدم.
     if (otlobliIsHumanChallenge()) { otlobliEnterChallengeMode(); return; }
-    try { ensureViewportFitCover(); } catch (e) {}
-    if (IS_SHEIN) { try { ensureSheinSaudiStore({ navigate: false }); } catch (e) {} }
-    try { ensureBackButton(); } catch (e) {}
-    try { ensureOtlobliNav(); } catch (e) {}
-    if (IS_SHEIN) { try { hideSheinLegacyBottomChrome(); } catch (e) {} }
+    ensureViewportFitCover();
+    if (IS_SHEIN) ensureSheinSaudiStore({ navigate: false });
+    ensureBackButton();
+    ensureOtlobliNav();
     // المتاجر غير شي إن (تيمو/ترينديول): تصفّح فقط - ننظّف العروض المنبثقة
     // المزعجة ولا نشغّل منطق الالتقاط/الحجب الخاص بشي إن (الذي قد يخرّب صفحاتهم).
     if (!IS_SHEIN) {
@@ -4176,19 +4024,17 @@ export const SHEIN_CAPTURE_SCRIPT = `
       try { killStorePopups(); } catch (e) {}
       return;
     }
-    try { ensureLoadingOverlay(); } catch (e) {}
-    try { blockCartNavigation(); } catch (e) {}
-    try { ensureAddToCartButton(); } catch (e) {}
-    try { hideSheinLegacyBottomChrome(); } catch (e) {}
-    try { hideKnownHeaderIconsByHint(); } catch (e) {}
-    try { hideSheinHeaderControls(); } catch (e) {}
-    try { hideSheinChromeCollisionZones(); } catch (e) {}
-    try { hideExtraHeaderIcons(); } catch (e) {}
-    try { hideSheinCartIcons(); } catch (e) {}
-    try { hideListingCardAddButtons(); } catch (e) {}
-    try { hideForeignBottomNav(); } catch (e) {}
-    try { hideStrayFixedBottomBars(); } catch (e) {}
-    try { hideSheinAppInstallAndLoginPrompts(); } catch (e) {}
+    ensureLoadingOverlay();
+    blockCartNavigation();
+    ensureAddToCartButton();
+    hideKnownHeaderIconsByHint();
+    hideSheinHeaderControls();
+    hideExtraHeaderIcons();
+    hideSheinCartIcons();
+    hideListingCardAddButtons();
+    hideForeignBottomNav();
+    hideStrayFixedBottomBars();
+    hideSheinAppInstallAndLoginPrompts();
   }
 
   // يكشف صفحة بحث تيمو الفارغة (الناتجة عن حجب الإعلانات الذي يمنع تحميل
@@ -5055,20 +4901,17 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // for the next general tick.
   setInterval(function () {
     if (!IS_SHEIN) return;
-    try { hideSheinLegacyBottomChrome(); } catch (e) {}
-    try { hideKnownHeaderIconsByHint(); } catch (e) {}
-    try { hideSheinHeaderControls(); } catch (e) {}
-    try { hideSheinChromeCollisionZones(); } catch (e) {}
-    try { hideListingCardAddButtons(); } catch (e) {}
+    hideKnownHeaderIconsByHint();
+    hideSheinHeaderControls();
+    hideListingCardAddButtons();
   }, 120);
   setInterval(function () {
-    try { ensureOtlobliNav(); } catch (e) {}
-    if (IS_SHEIN) { try { hideSheinLegacyBottomChrome(); } catch (e) {} }
+    ensureOtlobliNav();
     if (IS_TEMU) {
-      try { injectTemuHeaderHideCSS(); } catch (e) {}
-      try { stabilizeTemuSearchChrome(); } catch (e) {}
-      try { restoreTemuSearchChrome(); } catch (e) {}
-      try { restoreTemuLogo(); } catch (e) {}
+      injectTemuHeaderHideCSS();
+      stabilizeTemuSearchChrome();
+      restoreTemuSearchChrome();
+      restoreTemuLogo();
     }
   }, 120);
   // Own slower interval, not part of tick() - see checkForSheinSecurityBlock's
