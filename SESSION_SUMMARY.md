@@ -35,7 +35,7 @@ Read:
 
 ## Latest Stable Release
 
-- Latest feature commit: `46604db` (`fix: v76 hide shein security check before reveal`)
+- Latest feature commit: `2f74cb7` (`fix: v77 polish store popups and resume`)
 - Customer deployed to `https://talabieh.vercel.app`
 - Admin deployed to `https://talabieh-admin.vercel.app`
 - Supabase migration `20260712033000_shared_order_ownership.sql` applied.
@@ -66,7 +66,10 @@ Read:
 - v76 iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v76.ipa`
 - v76 IPA SHA-256: `2F9581087DC884F7A432CE41DDB868C142885C68E6566EFC4F9AEAA732D1995C`
 - v76 GitHub Actions run: `29282623302`
-- No new Android build was requested for v76.
+- v77 iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v77.ipa`
+- v77 IPA SHA-256: `0EF63774AC0D7753C3DA088D1026BC63EF6228578A38006040C4B62BC907BDA2`
+- v77 GitHub Actions run: `29283834227`
+- No new Android build was requested for v77.
 
 ## v66 Implemented
 
@@ -86,6 +89,8 @@ Read:
 
 ## Still Open
 
+- v77 store popup/resume polish is pushed and built.
+- v77 change: SHEIN ready WebViews are not forcibly closed/rechecked on normal app foreground. SHEIN app-install/login prompts are hidden. Temu spin/wheel reward popup is hidden.
 - v76 hidden SHEIN security check is pushed and built.
 - v76 change: SHEIN opens hidden first with a tiny post-load probe. The full otlobli script is injected only after a normal non-challenge SHEIN page is detected. Security/challenge pages are not shown to the customer; they become VPN/server recovery advice instead.
 - v75 SHEIN resume VPN recheck is pushed and built.
@@ -158,6 +163,13 @@ Read:
 
 - `npm run build` passed.
 - GitHub iOS unsigned build run `29282623302` passed and produced `otlobli-v76.ipa`.
+
+## Validation After v77 Store Popup/Resume Polish
+
+- `npm run build` passed.
+- `git diff --check` passed.
+- Injected `SHEIN_CAPTURE_SCRIPT` syntax parse passed.
+- GitHub iOS unsigned build run `29283834227` passed and produced `otlobli-v77.ipa`.
 
 ## Guidance For Claude New Account
 

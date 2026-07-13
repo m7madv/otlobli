@@ -21,7 +21,7 @@ Rules:
 ## Important Context
 
 - Active branch: `codex/customer-wallet-group-orders`
-- Latest feature commit: `46604db` (`fix: v76 hide shein security check before reveal`)
+- Latest feature commit: `2f74cb7` (`fix: v77 polish store popups and resume`)
 - Claude old account may have worked after Codex. Always inspect current git state before editing.
 - Claude new account may not have the same skills/connectors authenticated. Check available skills/tools, especially Figma.
 
@@ -56,6 +56,9 @@ Rules:
 - Desktop v76 iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v76.ipa`
 - v76 IPA SHA-256: `2F9581087DC884F7A432CE41DDB868C142885C68E6566EFC4F9AEAA732D1995C`
 - v76 GitHub Actions run: `29282623302`
+- Desktop v77 iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v77.ipa`
+- v77 IPA SHA-256: `0EF63774AC0D7753C3DA088D1026BC63EF6228578A38006040C4B62BC907BDA2`
+- v77 GitHub Actions run: `29283834227`
 
 ## Main Files
 
@@ -83,6 +86,13 @@ Rules:
 - SHEIN challenge URLs are left alone by URL normalization.
 
 ## Current Highest Priority
+
+v77 iPhone build is ready:
+
+- `src/App.tsx` no longer forces a SHEIN close/recheck on normal foreground when the SHEIN WebView is already open and ready.
+- `src/services/sheinBrowserScript.ts` hides SHEIN app-install banners, SHEIN login/sign-in prompts, and Temu spin/wheel reward popups.
+- `src/config.ts` version: `2026.07.13-store-polish-v77`.
+- v77 iPhone unsigned IPA was built by GitHub Actions run `29283834227` and copied to the desktop.
 
 v76 iPhone build is ready:
 
@@ -210,6 +220,13 @@ Passed after v76 hidden SHEIN security check:
 
 - Root `npm run build`
 - GitHub iOS unsigned build run `29282623302` passed and produced `otlobli-v76.ipa`.
+
+Passed after v77 store popup/resume polish:
+
+- Root `npm run build`
+- `git diff --check`
+- Injected `SHEIN_CAPTURE_SCRIPT` syntax parse passed.
+- GitHub iOS unsigned build run `29283834227` passed and produced `otlobli-v77.ipa`.
 
 Known gap:
 

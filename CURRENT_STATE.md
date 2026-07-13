@@ -8,7 +8,7 @@ This is the short source of truth for the app work. Keep it compact so Codex/Cla
 
 - Path: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`
 - Branch: `codex/customer-wallet-group-orders`
-- Latest feature commit: `46604db` (`fix: v76 hide shein security check before reveal`)
+- Latest feature commit: `2f74cb7` (`fix: v77 polish store popups and resume`)
 
 Before any code change:
 
@@ -51,7 +51,10 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 - v76 iPhone artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v76.ipa`
 - v76 IPA SHA-256: `2F9581087DC884F7A432CE41DDB868C142885C68E6566EFC4F9AEAA732D1995C`
 - v76 GitHub Actions run: `29282623302`
-- No new Android build was requested for v76.
+- v77 iPhone artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v77.ipa`
+- v77 IPA SHA-256: `0EF63774AC0D7753C3DA088D1026BC63EF6228578A38006040C4B62BC907BDA2`
+- v77 GitHub Actions run: `29283834227`
+- No new Android build was requested for v77.
 
 ## v66 Completed
 
@@ -70,7 +73,11 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 
 ## Current Known Issues
 
-- v76 iOS build is ready: `APP_VERSION = 2026.07.13-hidden-shein-check-v76`.
+- v77 iOS build is ready: `APP_VERSION = 2026.07.13-store-polish-v77`.
+- v77 change: SHEIN ready WebViews are not forcibly closed/rechecked on normal app foreground, reducing store reload when returning from background.
+- v77 change: SHEIN app-install banners and login/sign-in prompts are hidden in the injected store script.
+- v77 change: Temu spin/wheel reward popup is hidden without re-enabling the broad Temu popup killer that caused white-screen/search issues.
+- v76 iOS build remains available: `APP_VERSION = 2026.07.13-hidden-shein-check-v76`.
 - v76 change: SHEIN now opens hidden first on iOS/native WebView, with only a tiny post-load probe. Otlobli no longer injects the large SHEIN script at documentStart before security verification.
 - v76 change: SHEIN security/challenge pages remain hidden from the customer. If they do not turn into a normal page quickly, the app closes that WebView and shows VPN/server recovery advice instead of the black verification screen or app exit.
 - v76 change: SHEIN is revealed only after a non-challenge page is detected, then the otlobli capture/nav script is injected and the WebView is shown.
@@ -98,7 +105,7 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 
 ## Next Best Focus
 
-1. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v76.ipa` on real iPhones with VPN off, VPN Turkey, VPN USA, and weak VPN servers. VPN off on SHEIN should show the VPN-required screen and must not exit the app. VPN Turkey/USA should open if the hidden check reaches a normal SHEIN page; the black security screen should not be shown to the customer.
+1. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v77.ipa` on real iPhones. Verify SHEIN app-install/login prompts are gone, Temu spin popup is gone, and returning from background does not reload a ready store WebView.
 2. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v70.apk` on Android / emulator and verify SHEIN does not exit the app.
 3. Verify SHEIN after this exact flow: fresh open -> switch to Temu -> switch back to SHEIN -> security check if shown -> normal browsing.
 4. Verify Temu region is Saudi and currency is USD.
