@@ -56,13 +56,21 @@ const probeVpnGeo = async (): Promise<VpnGeo | null> => {
       return null
     }
   }
-  const fromIpwho = await attempt('https://ipwho.is/', (d) => (d && d.success !== false && typeof d.country_code === 'string')
-    ? { countryCode: d.country_code, country: typeof d.country === 'string' ? d.country : '', region: typeof d.region === 'string' ? d.region : '' }
-    : null)
-  if (fromIpwho) return fromIpwho
-  return attempt('https://ipapi.co/json/', (d) => (d && typeof d.country_code === 'string')
-    ? { countryCode: d.country_code, country: typeof d.country_name === 'string' ? d.country_name : '', region: typeof d.region === 'string' ? d.region : '' }
-    : null)
+  const results = await Promise.all([
+    attempt('https://ipwho.is/', (d) => (d && d.success !== false && typeof d.country_code === 'string')
+      ? { countryCode: d.country_code, country: typeof d.country === 'string' ? d.country : '', region: typeof d.region === 'string' ? d.region : '' }
+      : null),
+    attempt('https://ipapi.co/json/', (d) => (d && typeof d.country_code === 'string')
+      ? { countryCode: d.country_code, country: typeof d.country_name === 'string' ? d.country_name : '', region: typeof d.region === 'string' ? d.region : '' }
+      : null),
+    attempt('https://api.country.is/', (d) => (d && typeof d.country === 'string')
+      ? { countryCode: d.country, country: d.country, region: '' }
+      : null),
+    attempt('https://get.geojs.io/v1/ip/country.json', (d) => (d && typeof d.country === 'string')
+      ? { countryCode: d.country, country: typeof d.name === 'string' ? d.name : d.country, region: '' }
+      : null),
+  ])
+  return results.find(Boolean) ?? null
 }
 
 const extractGroupInviteCode = (value: string) => {
@@ -2051,8 +2059,14 @@ function App() {
   const screenRef = useRef(screen)
   const browseSheinRef = useRef<() => void>(() => undefined)
   const markStoreWebviewReadyRef = useRef<(sessionId: number) => void>(() => undefined)
+  const vpnStateRef = useRef(vpnState)
+  const vpnGeoRef = useRef<VpnGeo | null>(vpnGeo)
+  const storeReachableRef = useRef(false)
+  const lastResumeVpnRecheckRef = useRef(0)
   useEffect(() => { screenRef.current = screen }, [screen])
   useEffect(() => { sheinReadyRef.current = sheinReady }, [sheinReady])
+  useEffect(() => { vpnStateRef.current = vpnState }, [vpnState])
+  useEffect(() => { vpnGeoRef.current = vpnGeo }, [vpnGeo])
 
   // The SHEIN webview is a separate native layer floating on top of our own
   // React UI, not part of its DOM - trying to size it precisely to "leave a
@@ -2110,6 +2124,7 @@ function App() {
         probeVpnGeo(),
       ])
       if (cancelled) return
+      storeReachableRef.current = storeOk
       if (geo) {
         setVpnGeo(geo)
         if (isBlockedStoreCountry(geo.countryCode)) { setVpnState('no-vpn'); return }
@@ -2137,14 +2152,44 @@ function App() {
   }
 
   const refreshVpnDiagnosisForStoreFailure = () => {
-    void probeVpnGeo().then((geo) => {
+    void Promise.all([
+      checkStoreReachable(selectedStoreRef.current),
+      probeVpnGeo(),
+    ]).then(([storeOk, geo]) => {
+      storeReachableRef.current = storeOk
       if (geo) {
         setVpnGeo(geo)
-        setVpnState(isBlockedStoreCountry(geo.countryCode) ? 'no-vpn' : 'ok')
+        if (isBlockedStoreCountry(geo.countryCode)) { setVpnState('no-vpn'); return }
+        setVpnState('ok')
         return
       }
       setVpnGeo(null)
-      setVpnState(navigator.onLine === false ? 'offline' : 'no-vpn')
+      setVpnState(storeOk ? 'ok' : (navigator.onLine === false ? 'offline' : 'no-vpn'))
+    })
+  }
+
+  const forceStoreVpnRecheck = () => {
+    if (screenRef.current !== 'home') return
+    if (selectedStoreRef.current !== 'shein') return
+    const now = Date.now()
+    if (now - lastResumeVpnRecheckRef.current < 1200) return
+    lastResumeVpnRecheckRef.current = now
+
+    suppressAutoReopenRef.current = true
+    webviewSessionRef.current += 1
+    webviewOpeningRef.current = false
+    webviewOpenedAtRef.current = 0
+    webviewIdRef.current = ''
+    openedViaBypassRef.current = false
+    sheinChallengeActiveRef.current = false
+    sheinOpenedRef.current = false
+    storeReachableRef.current = false
+    setSheinReady(false)
+    setSheinBlockedError(false)
+    setVpnGeo(null)
+    setVpnState('checking')
+    void InAppBrowser.close().catch(() => undefined).finally(() => {
+      suppressAutoReopenRef.current = false
     })
   }
 
@@ -2254,6 +2299,22 @@ function App() {
   }
 
   const browseShein = () => {
+    const currentVpnState = vpnStateRef.current
+    if (currentVpnState !== 'ok') {
+      webviewOpeningRef.current = false
+      webviewOpenedAtRef.current = 0
+      webviewIdRef.current = ''
+      sheinChallengeActiveRef.current = false
+      sheinOpenedRef.current = false
+      setSheinReady(false)
+      setSheinBlockedError(false)
+      if (currentVpnState === 'checking') {
+        setVpnState('checking')
+      } else {
+        setVpnState(currentVpnState === 'offline' ? 'offline' : 'no-vpn')
+      }
+      return
+    }
     const sessionId = webviewSessionRef.current + 1
     const initialPendingUrl = pendingProductUrlRef.current
     webviewSessionRef.current = sessionId
@@ -2518,23 +2579,27 @@ function App() {
     return () => { void handle.then((h) => h.remove()) }
   }, [])
 
-  // Backgrounding the app can drop the native SHEIN webview's visible state
-  // without firing any of our own events - resuming then showed a plain
-  // black screen (React's home fallback only renders while !sheinReady, but
-  // sheinReady was already true from before backgrounding, and the native
-  // layer wasn't actually back on screen). Re-assert it the same way the
-  // [screen] effect above already does whenever the user switches back to
-  // the home tab, just also on resume.
+  // When the app comes back from background, the user's VPN may have changed
+  // while SHEIN's native WebView is still alive. Showing that stale WebView
+  // immediately can reproduce the real-device "opens then exits" failure.
+  // Tear it down first, re-run the VPN gate, then let the normal home effect
+  // open a fresh WebView only after the connection is confirmed again.
   useEffect(() => {
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible' && screenRef.current === 'home' && sheinOpenedRef.current) {
-        void InAppBrowser.show().then(() => {
-          void InAppBrowser.postMessage({ detail: { type: '__resize' } })
-        })
-      }
+      if (document.visibilityState === 'visible') forceStoreVpnRecheck()
     }
     document.addEventListener('visibilitychange', handleVisibility)
-    return () => document.removeEventListener('visibilitychange', handleVisibility)
+    let appStateSub: { remove: () => Promise<void> } | undefined
+    if (Capacitor.isNativePlatform()) {
+      void CapacitorApp.addListener('appStateChange', (state: { isActive: boolean }) => {
+        if (state.isActive) forceStoreVpnRecheck()
+      }).then((sub) => { appStateSub = sub })
+      window.setTimeout(() => forceStoreVpnRecheck(), 0)
+    }
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility)
+      void appStateSub?.remove()
+    }
   }, [])
 
   useEffect(() => {
