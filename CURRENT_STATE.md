@@ -63,6 +63,13 @@ before anything else. If it succeeds, that only proves the code compiles -
 NOT that this is the actual fix; that still requires the user's real-device
 test, same as every fix in this file so far.
 
+Committed as `47a2328` on `claude/competent-nash-557dc5` (pushed). GitHub iOS
+unsigned build run `https://github.com/m7madv/otlobli/actions/runs/29261540024`
+succeeded (2m10s - the patched Swift actually compiled, longer than usual
+since this run couldn't reuse a cached build of that module). Artifact
+`otlobli-unsigned.ipa`:
+- SHA-256: `31a46167175d08b2cad06f94ad9275086225e3f18e7ae1d0d5db88f4adcd157f`
+
 ## Claude: real root cause found — pageLoadError tears down mid-Cloudflare-challenge (2026-07-13, session 2)
 
 User tested the first APK/IPA from this session on a real iPhone and sent
