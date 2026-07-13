@@ -21,7 +21,7 @@ Rules:
 ## Important Context
 
 - Active branch: `codex/customer-wallet-group-orders`
-- Latest feature commit: `0d0b5ef` (`fix: v81 target iPhone 6 shein chrome`)
+- Latest feature commit: `aa5e81f` (`fix: v82 legacy iPhone SHEIN nav`)
 - Claude old account may have worked after Codex. Always inspect current git state before editing.
 - Claude new account may not have the same skills/connectors authenticated. Check available skills/tools, especially Figma.
 
@@ -71,6 +71,9 @@ Rules:
 - Desktop v81 iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v81.ipa`
 - v81 IPA SHA-256: `F4DC6785BD3811FB21ACC54FFC6224622DEE4EA3FD08377B3A656EBF35128760`
 - v81 GitHub Actions run: `29288517907`
+- Desktop v82 iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v82.ipa`
+- v82 IPA SHA-256: `62F1D8A2EE9A68459FD5DBE5E417F30D331EFD187DDFE0A2C9FF115F4A6984A1`
+- v82 GitHub Actions run: `29290104486`
 
 ## Main Files
 
@@ -99,7 +102,17 @@ Rules:
 
 ## Current Highest Priority
 
-v81 iPhone build is ready:
+v82 iPhone build is ready:
+
+- This keeps the v80/v81 base and specifically targets the old iPhone 6 WebKit behavior reported by the user.
+- On compact legacy iPhones, `ensureViewportFitCover()` sets SHEIN viewport width to `430` so SHEIN uses the wider layout closer to iPhone 16 Pro Max.
+- `legacyOtlobliNavCss()` avoids CSS `min()`/`max()` for otlobli's injected bottom nav on compact legacy iPhones; these modern CSS functions likely made the injected nav collapse or fail on iPhone 6.
+- `ensureOtlobliBottomShield()` adds a white layer under otlobli's nav only on compact SHEIN iPhones, covering SHEIN's native bottom bar without hiding product/categories above the nav.
+- Back button now uses a plain text `›` glyph in a system font so the icon appears on old iPhone product pages.
+- `src/config.ts` version: `2026.07.14-legacy-iphone6-nav-v82`.
+- v82 iPhone unsigned IPA was built by GitHub Actions run `29290104486` and copied to the desktop.
+
+v81 iPhone build remains available:
 
 - This keeps the v80 base: v77-like SHEIN/UI behavior plus v78 VPN behavior.
 - `src/services/sheinBrowserScript.ts` now detects SHEIN's native bottom tab bar by actual nav text/links (`أنا`, `حقيبة التسوق`, `ترندات`, `الفئات`, `متجر` / cart/category/profile/store) and point-probed ancestors near otlobli's nav. It avoids the broad v79 geometry hider.
@@ -300,6 +313,13 @@ Passed after v81 iPhone 6 SHEIN chrome fix:
 - `git diff --check`
 - Injected `SHEIN_CAPTURE_SCRIPT` syntax parse passed.
 - GitHub iOS unsigned build run `29288517907` passed and produced `otlobli-v81.ipa`.
+
+Passed after v82 legacy iPhone SHEIN nav fix:
+
+- Root `npm run build`
+- `git diff --check`
+- Injected `SHEIN_CAPTURE_SCRIPT` syntax parse passed.
+- GitHub iOS unsigned build run `29290104486` passed and produced `otlobli-v82.ipa`.
 
 Known gap:
 

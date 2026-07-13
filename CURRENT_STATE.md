@@ -8,7 +8,7 @@ This is the short source of truth for the app work. Keep it compact so Codex/Cla
 
 - Path: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`
 - Branch: `codex/customer-wallet-group-orders`
-- Latest feature commit: `0d0b5ef` (`fix: v81 target iPhone 6 shein chrome`)
+- Latest feature commit: `aa5e81f` (`fix: v82 legacy iPhone SHEIN nav`)
 
 Before any code change:
 
@@ -66,7 +66,10 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 - v81 iPhone artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v81.ipa`
 - v81 IPA SHA-256: `F4DC6785BD3811FB21ACC54FFC6224622DEE4EA3FD08377B3A656EBF35128760`
 - v81 GitHub Actions run: `29288517907`
-- No new Android build was requested for v81.
+- v82 iPhone artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v82.ipa`
+- v82 IPA SHA-256: `62F1D8A2EE9A68459FD5DBE5E417F30D331EFD187DDFE0A2C9FF115F4A6984A1`
+- v82 GitHub Actions run: `29290104486`
+- No new Android build was requested for v82.
 
 ## v66 Completed
 
@@ -85,7 +88,11 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 
 ## Current Known Issues
 
-- v81 iOS build is ready: `APP_VERSION = 2026.07.14-iphone6-shein-chrome-v81`.
+- v82 iOS build is ready: `APP_VERSION = 2026.07.14-legacy-iphone6-nav-v82`.
+- v82 change: on compact legacy iPhones, SHEIN gets viewport width 430 and otlobli's injected bottom nav uses old-WebKit-safe CSS without CSS `min()`/`max()`.
+- v82 change: adds a bottom white shield under otlobli's nav on compact iPhones to cover SHEIN's native bottom bar without hiding page content above the nav.
+- v82 change: back button uses a plain text `›` glyph with system font so the icon is visible on old iPhones.
+- v81 iOS build remains available: `APP_VERSION = 2026.07.14-iphone6-shein-chrome-v81`.
 - v81 change: keeps the v80 base, then narrowly targets iPhone 6 SHEIN chrome: bottom SHEIN tab bar is detected by its real nav text/links and hidden, not by broad geometry.
 - v81 change: on narrow screens only, SHEIN hero gender/category tabs are made horizontally stable so labels like all/women/kids/men are not clipped.
 - v80 iOS build remains available: `APP_VERSION = 2026.07.14-v77-ui-v78-vpn-v80`.
@@ -128,7 +135,7 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 
 ## Next Best Focus
 
-1. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v81.ipa` on iPhone 6 and iPhone 16 Pro Max. Verify iPhone 16 Pro Max still looks like v80, and on iPhone 6 SHEIN's own bottom bar is gone and the top category tabs are usable.
+1. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v82.ipa` on iPhone 6 and iPhone 16 Pro Max. On iPhone 6 verify otlobli's own nav is visible, SHEIN's native bottom bar is covered, top SHEIN tabs are usable, and product back button icon is visible.
 2. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v70.apk` on Android / emulator and verify SHEIN does not exit the app.
 3. Verify SHEIN after this exact flow: fresh open -> switch to Temu -> switch back to SHEIN -> security check if shown -> normal browsing.
 4. Verify Temu region is Saudi and currency is USD.

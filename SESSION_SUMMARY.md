@@ -35,7 +35,7 @@ Read:
 
 ## Latest Stable Release
 
-- Latest feature commit: `0d0b5ef` (`fix: v81 target iPhone 6 shein chrome`)
+- Latest feature commit: `aa5e81f` (`fix: v82 legacy iPhone SHEIN nav`)
 - Customer deployed to `https://talabieh.vercel.app`
 - Admin deployed to `https://talabieh-admin.vercel.app`
 - Supabase migration `20260712033000_shared_order_ownership.sql` applied.
@@ -81,7 +81,10 @@ Read:
 - v81 iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v81.ipa`
 - v81 IPA SHA-256: `F4DC6785BD3811FB21ACC54FFC6224622DEE4EA3FD08377B3A656EBF35128760`
 - v81 GitHub Actions run: `29288517907`
-- No new Android build was requested for v81.
+- v82 iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v82.ipa`
+- v82 IPA SHA-256: `62F1D8A2EE9A68459FD5DBE5E417F30D331EFD187DDFE0A2C9FF115F4A6984A1`
+- v82 GitHub Actions run: `29290104486`
+- No new Android build was requested for v82.
 
 ## v66 Implemented
 
@@ -101,6 +104,8 @@ Read:
 
 ## Still Open
 
+- v82 legacy iPhone SHEIN nav fix is pushed and built.
+- v82 change: on compact legacy iPhones, SHEIN viewport is widened to 430, otlobli nav uses old-WebKit-safe CSS without CSS `min()`/`max()`, a bottom shield covers SHEIN's native bar, and back button uses visible text glyph `›`.
 - v81 iPhone 6 SHEIN chrome fix is pushed and built.
 - v81 change: keeps v80 base, hides SHEIN's native bottom tab bar by its actual nav text/links, and stabilizes top SHEIN hero tabs only on narrow screens.
 - v80 v77-UI/v78-VPN combination is pushed and built.
@@ -218,6 +223,13 @@ Read:
 - `git diff --check` passed.
 - Injected `SHEIN_CAPTURE_SCRIPT` syntax parse passed.
 - GitHub iOS unsigned build run `29288517907` passed and produced `otlobli-v81.ipa`.
+
+## Validation After v82 Legacy iPhone SHEIN Nav Fix
+
+- `npm run build` passed.
+- `git diff --check` passed.
+- Injected `SHEIN_CAPTURE_SCRIPT` syntax parse passed.
+- GitHub iOS unsigned build run `29290104486` passed and produced `otlobli-v82.ipa`.
 
 ## Guidance For Claude New Account
 
