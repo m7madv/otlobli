@@ -31,9 +31,9 @@ Rules:
 - Customer: `https://talabieh.vercel.app`
 - Admin: `https://talabieh-admin.vercel.app`
 - Supabase project: `dcicqdprtyhwmhegabay`
-- Desktop iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v68.ipa`
-- v68 IPA SHA-256: `9C4CCBE67057D3A924E27DDE93772C180073230025689D4F52299ECADBE74937`
-- v68 GitHub Actions run: `29267376196`
+- Desktop iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v69.ipa`
+- v69 IPA SHA-256: `B4EE4E92D2F7AA383309120AE514515C37055576EFCA67F8E92A2B20900E04A0`
+- v69 GitHub Actions run: `29268560648`
 
 ## Main Files
 
@@ -62,19 +62,19 @@ Rules:
 
 ## Current Highest Priority
 
-v68 fix is pushed and the iPhone IPA is built:
+v69 fix is pushed and the iPhone IPA is built:
 
-- `src/App.tsx` starts Temu on `/sa/` with `currency=USD&currencyCode=USD`, but no longer reloads product URLs just because those params are absent.
-- `src/App.tsx` tracks active SHEIN challenge/ready state through refs and ignores `pageLoadError` once SHEIN is already active.
-- `src/App.tsx` no longer clears SHEIN cookies/cache on every switch back to SHEIN.
+- `src/App.tsx` starts Temu on `/sa/` with `currency=USD&currencyCode=USD`, but no longer redirects Temu root/product-back URLs just because params are absent.
+- `src/App.tsx` ignores SHEIN `pageLoadError` during normal opening so the black security check does not close the WebView.
+- `src/App.tsx` no longer clears all cookies on store switch; it only clears cache when opening SHEIN.
 - `src/App.tsx` keeps wallet USD balance from becoming false zero on transient RPC failure and clears wallet state on logout.
 - `src/services/supabaseAppApi.ts` now throws on wallet balance RPC error instead of returning `0`.
-- `src/services/sheinBrowserScript.ts` renders the otlobli bottom nav on SHEIN challenge pages, writes exact Temu Saudi/USD session keys, and avoids hiding Temu price-looking elements.
-- `src/config.ts` version: `2026.07.13-shein-temu-stability-v68`.
+- `src/services/sheinBrowserScript.ts` renders the otlobli bottom nav on SHEIN challenge pages, writes exact Temu Saudi/USD session keys, avoids hiding Temu price-looking elements, detects Arabic SHEIN challenge text, and writes Saudi shipping/currency keys even during challenge.
+- `src/config.ts` version: `2026.07.13-store-stability-v69`.
 
 Still verify on a real device:
 
-- SHEIN fresh open -> Temu -> SHEIN.
+- SHEIN fresh open -> Temu -> SHEIN, with VPN set to Qatar; shipping must stay Saudi.
 - SHEIN black security verification should stay visible with otlobli bottom nav and should not close the app after two seconds.
 - Temu should land on Saudi region and USD, keep product/back navigation stable, and keep prices visible while scrolling.
 - Do not bypass captcha/security pages. The goal is to avoid breaking them and avoid app exit/white-screen loops.
@@ -90,7 +90,7 @@ Previously passed during v66:
 - Vercel customer/admin deployments
 - GitHub iOS unsigned build
 
-Passed after local v68 changes:
+Passed after local v69 changes:
 
 - Root `npm run build`
 - Injected WebView script parse check via `new Function(SHEIN_CAPTURE_SCRIPT)`

@@ -41,9 +41,9 @@ Read:
 - Admin deployed to `https://talabieh-admin.vercel.app`
 - Supabase migration `20260712033000_shared_order_ownership.sql` applied.
 - Supabase `admin-orders` deployed.
-- iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v68.ipa`
-- IPA SHA-256: `9C4CCBE67057D3A924E27DDE93772C180073230025689D4F52299ECADBE74937`
-- GitHub Actions run: `29267376196`
+- iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v69.ipa`
+- IPA SHA-256: `B4EE4E92D2F7AA383309120AE514515C37055576EFCA67F8E92A2B20900E04A0`
+- GitHub Actions run: `29268560648`
 - No new Android build was requested for v66.
 
 ## v66 Implemented
@@ -64,10 +64,10 @@ Read:
 
 ## Still Open
 
-- v68 fix is pushed and the iPhone IPA is built.
-- v68 changes: Temu `/sa/` + USD without reloading product URLs, exact Temu Saudi/USD session keys, Temu price-protection guards, SHEIN challenge keeps otlobli nav, SHEIN no longer clears cookies/cache on every switch, SHEIN `pageLoadError` no longer closes an already-active page/challenge, wallet RPC errors no longer show false zero.
-- SHEIN still needs real-device verification for the flow: SHEIN -> Temu -> SHEIN, especially intermittent bottom-nav flicker/exit.
-- Temu needs real-device verification for Saudi/USD display, product/back stability, price visibility while scrolling, and VPN/load-failure cases.
+- v69 fix is pushed and the iPhone IPA is built.
+- v69 changes: Temu no longer reloads whole page after product back due missing params; SHEIN normal opening ignores `pageLoadError`; SHEIN challenge detection covers more routes/text; Saudi shipping/currency keys are written even during challenge; store switch no longer clears all cookies automatically.
+- SHEIN still needs real-device verification for fresh open on SHEIN with VPN Qatar; it should not exit and shipping should stay Saudi.
+- Temu needs real-device verification for product open/back stability and price visibility while scrolling.
 - Figma needs reauthentication before design review. Do not design independently.
 - Unavailable-item refund policy is undecided and not implemented.
 - WhatsApp relink decision is pending and untouched.
@@ -79,7 +79,7 @@ Read:
 - `CLAUDE.md` was rewritten for a new Claude Code account and includes skills/authentication guidance.
 - Unused root debug artifacts and old local build output were removed from the repo root.
 
-## Validation After v68 Local Fix
+## Validation After v69 Local Fix
 
 - `npm run build` passed.
 - `new Function(SHEIN_CAPTURE_SCRIPT)` parse check passed.

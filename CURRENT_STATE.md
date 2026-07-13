@@ -26,9 +26,9 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 - Customer app: `https://talabieh.vercel.app`
 - Admin app: `https://talabieh-admin.vercel.app`
 - Supabase project ref: `dcicqdprtyhwmhegabay`
-- v68 iPhone artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v68.ipa`
-- v68 IPA SHA-256: `9C4CCBE67057D3A924E27DDE93772C180073230025689D4F52299ECADBE74937`
-- v68 GitHub Actions run: `29267376196`
+- v69 iPhone artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v69.ipa`
+- v69 IPA SHA-256: `B4EE4E92D2F7AA383309120AE514515C37055576EFCA67F8E92A2B20900E04A0`
+- v69 GitHub Actions run: `29268560648`
 - No new Android build was requested for v66.
 
 ## v66 Completed
@@ -48,17 +48,17 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 
 ## Current Known Issues
 
-- v68 fix is pushed and the iPhone IPA was built: `APP_VERSION = 2026.07.13-shein-temu-stability-v68`.
-- v68 changes: Temu starts on Saudi `/sa/` with USD and no longer redirects product URLs just because currency params are absent; Temu WebView writes exact Saudi/USD session keys; Temu hide filters skip any price-looking elements; SHEIN no longer clears cookies/cache on every store switch; SHEIN page-load errors no longer close the WebView after the page/challenge is already active; wallet balance RPC errors no longer display a false zero.
-- SHEIN still needs real-device verification. Latest user report: SHEIN can open, but switching Temu -> SHEIN may intermittently flicker the bottom bar and exit.
-- Temu still needs real-device verification for Saudi/USD display, product back/forward stability, price visibility while scrolling, and VPN/load-failure cases.
+- v69 fix is pushed and the iPhone IPA was built: `APP_VERSION = 2026.07.13-store-stability-v69`.
+- v69 changes: Temu no longer reloads whole page after product back just because URL params are missing; SHEIN page-load errors are ignored during normal SHEIN opening; SHEIN challenge detection covers more routes/text; SHEIN writes Saudi shipping/currency keys even during challenge; store switching no longer clears all cookies automatically.
+- SHEIN still needs real-device verification with VPN on Qatar: initial app open on SHEIN should not exit and shipping should stay Saudi.
+- Temu still needs real-device verification for product open/back stability and price visibility.
 - Figma requires reauthentication before formal design review. Do not invent new designs outside Figma.
 - The unavailable-item refund/wallet policy is not implemented yet. Suggested direction: instant wallet credit plus optional original-payment refund after several days, but wait for explicit approval before changing money logic.
 - WhatsApp relink decision is still pending and untouched.
 
 ## Next Best Focus
 
-1. Install/test `C:\Users\MOHAMMAD\Desktop\otlobli-v68.ipa` on a real device.
+1. Install/test `C:\Users\MOHAMMAD\Desktop\otlobli-v69.ipa` on a real device.
 2. Verify SHEIN after this exact flow: fresh open -> switch to Temu -> switch back to SHEIN -> security check if shown -> normal browsing.
 3. Verify Temu region is Saudi and currency is USD.
 4. Do not bypass SHEIN security verification; keep it clickable and avoid breaking it.

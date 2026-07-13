@@ -8,8 +8,8 @@ Minimal context for Codex/Claude.
 - Admin: `https://talabieh-admin.vercel.app`
 - Latest feature commit: `f7b4456`
 - Latest docs commit before cleanup: `c733c72`
-- iPhone artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v68.ipa`
-- v68 IPA SHA-256: `9C4CCBE67057D3A924E27DDE93772C180073230025689D4F52299ECADBE74937`
+- iPhone artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v69.ipa`
+- v69 IPA SHA-256: `B4EE4E92D2F7AA383309120AE514515C37055576EFCA67F8E92A2B20900E04A0`
 
 Before edits:
 
@@ -23,13 +23,13 @@ Read `CURRENT_STATE.md` and `AI-HANDOFF.md`. Use git history only when needed.
 
 ## Open Priority
 
-v68 fix is pushed and the iPhone IPA is built.
+v69 fix is pushed and the iPhone IPA is built.
 
-- Temu is forced to `/sa/` with USD without reloading product URLs only because currency params are absent.
+- Temu is forced to `/sa/` with USD and no longer reloads product-back/root URLs only because currency params are absent.
 - Temu writes exact Saudi/USD session keys and protects price-looking elements from hide filters.
 - SHEIN challenge pages keep otlobli bottom nav.
-- SHEIN challenge/ready mode ignores load errors that previously closed the WebView.
-- Switching back to SHEIN no longer clears cookies/cache automatically.
+- SHEIN normal opening ignores load errors that previously closed the WebView during the black security check.
+- Switching stores no longer clears all cookies automatically; SHEIN writes Saudi shipping/currency keys during challenge.
 - Wallet balance RPC errors no longer show false zero.
 
 Test on a real device: SHEIN -> Temu -> SHEIN, Temu product open/back, Temu USD price visibility, wallet balance. Do not bypass SHEIN security verification.

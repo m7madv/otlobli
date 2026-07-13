@@ -34,17 +34,17 @@ The user has a new Claude Code account on the same computer. Do not assume every
 
 ## Current Main Issue
 
-v68 fix is pushed and the iPhone IPA is built:
+v69 fix is pushed and the iPhone IPA is built:
 
-- Temu opens/redirects to Saudi `/sa/` with USD params, but no longer reloads product URLs only because currency params are absent.
+- Temu opens/redirects to Saudi `/sa/` with USD params, but no longer reloads product-back/root URLs only because currency params are absent.
 - Temu writes exact Saudi/USD session keys and hide filters skip price-looking elements.
 - SHEIN security challenge pages keep a minimal otlobli bottom nav.
-- App ignores page-load errors while a SHEIN security challenge or ready page is active.
-- Switching back to SHEIN no longer clears cookies/cache automatically.
+- App ignores page-load errors during normal SHEIN opening so the black security challenge does not close the WebView.
+- Store switch no longer clears all cookies automatically; SHEIN writes Saudi shipping/currency keys during challenge.
 - Wallet balance RPC errors no longer show false zero.
-- App version is `2026.07.13-shein-temu-stability-v68`.
-- IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v68.ipa`
-- IPA SHA-256: `9C4CCBE67057D3A924E27DDE93772C180073230025689D4F52299ECADBE74937`
+- App version is `2026.07.13-store-stability-v69`.
+- IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v69.ipa`
+- IPA SHA-256: `B4EE4E92D2F7AA383309120AE514515C37055576EFCA67F8E92A2B20900E04A0`
 
 Symptoms reported before this fix:
 
