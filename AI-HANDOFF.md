@@ -21,7 +21,7 @@ Rules:
 ## Important Context
 
 - Active branch: `codex/customer-wallet-group-orders`
-- Latest feature commit: `aa5e81f` (`fix: v82 legacy iPhone SHEIN nav`)
+- Latest feature commit: `0ad1425` (`fix: v83 rollback unstable SHEIN legacy changes`)
 - Claude old account may have worked after Codex. Always inspect current git state before editing.
 - Claude new account may not have the same skills/connectors authenticated. Check available skills/tools, especially Figma.
 
@@ -74,6 +74,9 @@ Rules:
 - Desktop v82 iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v82.ipa`
 - v82 IPA SHA-256: `62F1D8A2EE9A68459FD5DBE5E417F30D331EFD187DDFE0A2C9FF115F4A6984A1`
 - v82 GitHub Actions run: `29290104486`
+- Desktop v83 iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v83.ipa`
+- v83 IPA SHA-256: `8504DF389BAF1303C0F5BAAC89F1BDFCA8796C746848E9ED240FA56F48C3DB9C`
+- v83 GitHub Actions run: `29291593555`
 
 ## Main Files
 
@@ -102,7 +105,17 @@ Rules:
 
 ## Current Highest Priority
 
-v82 iPhone build is ready:
+v83 iPhone build is ready:
+
+- This is a clean rollback of the unstable v81/v82 SHEIN script work.
+- `src/services/sheinBrowserScript.ts` is back to the v80/v77-style SHEIN UI behavior that looked good on iPhone 16 Pro Max.
+- `src/App.tsx` was not changed; it keeps the v78 VPN behavior that helped iPhone 6 work with more VPN servers.
+- `src/config.ts` version: `2026.07.14-clean-v80-rollback-v83`.
+- v83 iPhone unsigned IPA was built by GitHub Actions run `29291593555` and copied to the desktop.
+- Do not use v82 for testing; user reported horizontal page movement, invisible otlobli nav, missing top SHEIN tabs, and messy iPhone 6 layout.
+- If iPhone 6 still shows SHEIN's native bottom bar on v83, gather diagnostics before adding more CSS hiders.
+
+v82 iPhone build is archived only:
 
 - This keeps the v80/v81 base and specifically targets the old iPhone 6 WebKit behavior reported by the user.
 - On compact legacy iPhones, `ensureViewportFitCover()` sets SHEIN viewport width to `430` so SHEIN uses the wider layout closer to iPhone 16 Pro Max.
@@ -320,6 +333,13 @@ Passed after v82 legacy iPhone SHEIN nav fix:
 - `git diff --check`
 - Injected `SHEIN_CAPTURE_SCRIPT` syntax parse passed.
 - GitHub iOS unsigned build run `29290104486` passed and produced `otlobli-v82.ipa`.
+
+Passed after v83 clean rollback:
+
+- Root `npm run build`
+- `git diff --check`
+- Injected `SHEIN_CAPTURE_SCRIPT` syntax parse passed.
+- GitHub iOS unsigned build run `29291593555` passed and produced `otlobli-v83.ipa`.
 
 Known gap:
 

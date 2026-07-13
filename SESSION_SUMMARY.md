@@ -35,7 +35,7 @@ Read:
 
 ## Latest Stable Release
 
-- Latest feature commit: `aa5e81f` (`fix: v82 legacy iPhone SHEIN nav`)
+- Latest feature commit: `0ad1425` (`fix: v83 rollback unstable SHEIN legacy changes`)
 - Customer deployed to `https://talabieh.vercel.app`
 - Admin deployed to `https://talabieh-admin.vercel.app`
 - Supabase migration `20260712033000_shared_order_ownership.sql` applied.
@@ -84,7 +84,10 @@ Read:
 - v82 iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v82.ipa`
 - v82 IPA SHA-256: `62F1D8A2EE9A68459FD5DBE5E417F30D331EFD187DDFE0A2C9FF115F4A6984A1`
 - v82 GitHub Actions run: `29290104486`
-- No new Android build was requested for v82.
+- v83 iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v83.ipa`
+- v83 IPA SHA-256: `8504DF389BAF1303C0F5BAAC89F1BDFCA8796C746848E9ED240FA56F48C3DB9C`
+- v83 GitHub Actions run: `29291593555`
+- No new Android build was requested for v83.
 
 ## v66 Implemented
 
@@ -104,7 +107,11 @@ Read:
 
 ## Still Open
 
-- v82 legacy iPhone SHEIN nav fix is pushed and built.
+- v83 clean rollback is pushed and built.
+- v83 change: reverted the unstable v81/v82 SHEIN script changes and returned to the v80/v77-style SHEIN UI behavior while keeping v78 VPN logic in `src/App.tsx`.
+- Do not use v82 for testing; user reported horizontal page movement, invisible otlobli nav, missing top SHEIN tabs, and messy iPhone 6 layout.
+- v81/v82 CSS should not be continued without fresh diagnostics; v81 did not solve the iPhone 6 SHEIN bottom bar and v82 made the layout worse.
+- v82 legacy iPhone SHEIN nav fix is archived only.
 - v82 change: on compact legacy iPhones, SHEIN viewport is widened to 430, otlobli nav uses old-WebKit-safe CSS without CSS `min()`/`max()`, a bottom shield covers SHEIN's native bar, and back button uses visible text glyph `›`.
 - v81 iPhone 6 SHEIN chrome fix is pushed and built.
 - v81 change: keeps v80 base, hides SHEIN's native bottom tab bar by its actual nav text/links, and stabilizes top SHEIN hero tabs only on narrow screens.
@@ -230,6 +237,13 @@ Read:
 - `git diff --check` passed.
 - Injected `SHEIN_CAPTURE_SCRIPT` syntax parse passed.
 - GitHub iOS unsigned build run `29290104486` passed and produced `otlobli-v82.ipa`.
+
+## Validation After v83 Clean Rollback
+
+- `npm run build` passed.
+- `git diff --check` passed.
+- Injected `SHEIN_CAPTURE_SCRIPT` syntax parse passed.
+- GitHub iOS unsigned build run `29291593555` passed and produced `otlobli-v83.ipa`.
 
 ## Guidance For Claude New Account
 
