@@ -2117,8 +2117,12 @@ function App() {
         return
       }
       setVpnGeo(null)
-      if (storeOk || navigator.onLine !== false) {
+      if (storeOk) {
         setVpnState('ok')
+        return
+      }
+      if (navigator.onLine !== false) {
+        setVpnState('no-vpn')
         return
       }
       setVpnState('offline')
@@ -2140,7 +2144,7 @@ function App() {
         return
       }
       setVpnGeo(null)
-      if (navigator.onLine === false) setVpnState('offline')
+      setVpnState(navigator.onLine === false ? 'offline' : 'no-vpn')
     })
   }
 
@@ -2185,8 +2189,7 @@ function App() {
     // Real iPhones reported WKWebView main-frame -1005 followed by a dead
     // WebContent/GPU process. That leaves the native browser as a plain white
     // layer unless we tear this instance down and let the user retry cleanly.
-    if (code === -1005) return true
-    if ((webviewOpeningRef.current || !sheinReadyRef.current) && [-1001, -1004, -1009].includes(code)) return true
+    if ([-1001, -1004, -1005, -1009].includes(code)) return true
     return false
   }
 
@@ -2377,9 +2380,6 @@ function App() {
 
   useEffect(() => {
     const handle = InAppBrowser.addListener('closeEvent', () => {
-      const openedRecently = webviewOpenedAtRef.current > 0 && Date.now() - webviewOpenedAtRef.current < 10000
-      const wasOpening = webviewOpeningRef.current
-      const wasChallenge = sheinChallengeActiveRef.current
       webviewSessionRef.current += 1
       webviewOpeningRef.current = false
       webviewOpenedAtRef.current = 0
@@ -2395,13 +2395,10 @@ function App() {
         // Some real devices close the native WebView during opening/security
         // checks. Re-opening immediately turns that into a visible open/close
         // loop; keep the app stable and ask for a different VPN server.
-        if (wasOpening || wasChallenge || openedRecently) {
-          webviewAutoOpenPausedUntilRef.current = Date.now() + 15000
-          setSheinBlockedError(true)
-          refreshVpnDiagnosisForStoreFailure()
-          return
-        }
-        browseSheinRef.current()
+        webviewAutoOpenPausedUntilRef.current = Date.now() + 15000
+        setSheinBlockedError(true)
+        refreshVpnDiagnosisForStoreFailure()
+        return
       }
     })
     return () => {
