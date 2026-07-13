@@ -57,17 +57,42 @@ const SHEIN_SAFE_PROBE_SCRIPT = `
 // (بلد آخر لكن المتجر محجوب). فشل الخدمتين معاً = الشبكة نفسها متعثرة.
 type VpnState = 'checking' | 'ok' | 'no-vpn' | 'bad-region' | 'offline'
 type VpnGeo = { countryCode: string; country: string; region: string }
-const probeVpnGeo = async (): Promise<VpnGeo | null> => {
+const fetchJsonWithTimeout = async (url: string, timeoutMs: number): Promise<Record<string, unknown> | null> => {
+  let controller: AbortController | undefined
+  if (typeof AbortController !== 'undefined') controller = new AbortController()
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<null>((resolve) => {
+    timer = setTimeout(() => {
+      try { controller?.abort() } catch { /* older WebView: ignore */ }
+      resolve(null)
+    }, timeoutMs)
+  })
+  const request = fetch(url, {
+    cache: 'no-store',
+    ...(controller ? { signal: controller.signal } : {}),
+  })
+    .then(async (res) => {
+      if (!res.ok) return null
+      return await res.json() as Record<string, unknown>
+    })
+    .catch(() => null)
+    .finally(() => {
+      if (timer !== undefined) clearTimeout(timer)
+    })
+  return await Promise.race([request, timeout])
+}
+
+const probeVpnGeo = async (timeoutMs = 12000): Promise<VpnGeo | null> => {
   const attempt = async (url: string, parse: (d: Record<string, unknown>) => VpnGeo | null): Promise<VpnGeo | null> => {
     try {
-      const res = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(7000) })
-      if (!res.ok) return null
-      return parse(await res.json() as Record<string, unknown>)
+      const data = await fetchJsonWithTimeout(url, timeoutMs)
+      if (!data) return null
+      return parse(data)
     } catch {
       return null
     }
   }
-  const results = await Promise.all([
+  const probes = [
     attempt('https://ipwho.is/', (d) => (d && d.success !== false && typeof d.country_code === 'string')
       ? { countryCode: d.country_code, country: typeof d.country === 'string' ? d.country : '', region: typeof d.region === 'string' ? d.region : '' }
       : null),
@@ -80,8 +105,27 @@ const probeVpnGeo = async (): Promise<VpnGeo | null> => {
     attempt('https://get.geojs.io/v1/ip/country.json', (d) => (d && typeof d.country === 'string')
       ? { countryCode: d.country, country: typeof d.name === 'string' ? d.name : d.country, region: '' }
       : null),
-  ])
-  return results.find(Boolean) ?? null
+  ]
+  return await new Promise<VpnGeo | null>((resolve) => {
+    let pending = probes.length
+    let done = false
+    probes.forEach((probe) => {
+      probe.then((geo) => {
+        if (done) return
+        if (geo) {
+          done = true
+          resolve(geo)
+          return
+        }
+        pending -= 1
+        if (pending <= 0) resolve(null)
+      }).catch(() => {
+        if (done) return
+        pending -= 1
+        if (pending <= 0) resolve(null)
+      })
+    })
+  })
 }
 
 const extractGroupInviteCode = (value: string) => {
@@ -2134,18 +2178,18 @@ function App() {
     let cancelled = false
     void (async () => {
       // الفحصان بالتوازي: وصول المتجر + الموقع الجغرافي لخروج الإنترنت.
-      const [storeOk, geo] = await Promise.all([
-        checkStoreReachable(selectedStore),
-        probeVpnGeo(),
-      ])
+      const storeReachablePromise = checkStoreReachable(selectedStore)
+      const geo = await probeVpnGeo()
       if (cancelled) return
-      storeReachableRef.current = storeOk
       if (geo) {
         setVpnGeo(geo)
         if (isBlockedStoreCountry(geo.countryCode)) { setVpnState('no-vpn'); return }
         setVpnState('ok')
         return
       }
+      const storeOk = await storeReachablePromise
+      if (cancelled) return
+      storeReachableRef.current = storeOk
       setVpnGeo(null)
       if (storeOk) {
         setVpnState('ok')
@@ -2167,17 +2211,16 @@ function App() {
   }
 
   const refreshVpnDiagnosisForStoreFailure = () => {
-    void Promise.all([
-      checkStoreReachable(selectedStoreRef.current),
-      probeVpnGeo(),
-    ]).then(([storeOk, geo]) => {
-      storeReachableRef.current = storeOk
+    const storeReachablePromise = checkStoreReachable(selectedStoreRef.current)
+    void probeVpnGeo().then(async (geo) => {
       if (geo) {
         setVpnGeo(geo)
         if (isBlockedStoreCountry(geo.countryCode)) { setVpnState('no-vpn'); return }
         setVpnState('ok')
         return
       }
+      const storeOk = await storeReachablePromise
+      storeReachableRef.current = storeOk
       setVpnGeo(null)
       setVpnState(storeOk ? 'ok' : (navigator.onLine === false ? 'offline' : 'no-vpn'))
     })
