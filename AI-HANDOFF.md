@@ -21,7 +21,7 @@ Rules:
 ## Important Context
 
 - Active branch: `codex/customer-wallet-group-orders`
-- Latest feature commit: `7f39edd` (`fix: v79 hide legacy shein bottom bar`)
+- Latest feature commit: `db7dfb8` (`fix: v80 combine v77 store UI with v78 VPN`)
 - Claude old account may have worked after Codex. Always inspect current git state before editing.
 - Claude new account may not have the same skills/connectors authenticated. Check available skills/tools, especially Figma.
 
@@ -65,6 +65,9 @@ Rules:
 - Desktop v79 iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v79.ipa`
 - v79 IPA SHA-256: `3A3A6D705317D57EB9C4AC88019884B3DBCB81366930878F9D45672B18243ADF`
 - v79 GitHub Actions run: `29286393316`
+- Desktop v80 iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v80.ipa`
+- v80 IPA SHA-256: `DBED4F281A7A24597668B25EE1CB31F9A01EE6459696601A9A3D13BA94F65070`
+- v80 GitHub Actions run: `29287735934`
 
 ## Main Files
 
@@ -93,12 +96,21 @@ Rules:
 
 ## Current Highest Priority
 
-v79 iPhone build is ready:
+v80 iPhone build is ready:
+
+- This is the preferred test build after the user's correction.
+- `src/services/sheinBrowserScript.ts` is restored to the v77 SHEIN/UI behavior that worked well on iPhone 16 Pro Max.
+- `src/App.tsx` remains at the v78 VPN behavior that made iPhone 6 work with more VPN servers.
+- `src/config.ts` version: `2026.07.14-v77-ui-v78-vpn-v80`.
+- v80 iPhone unsigned IPA was built by GitHub Actions run `29287735934` and copied to the desktop.
+
+v79 iPhone build is archived only and should not be used:
 
 - `src/services/sheinBrowserScript.ts` adds a geometry-only hider for iPhone 6/SHEIN legacy bottom chrome: any non-otlobli fixed/interactive/wide bottom strip immediately above `#otlobli-nav` is hard-hidden.
 - SHEIN cleanup ticks are wrapped defensively so one old-WKWebView failure cannot stop the remaining banner/header/bottom-nav cleanup.
 - `src/config.ts` version: `2026.07.14-legacy-shein-bottom-v79`.
 - v79 iPhone unsigned IPA was built by GitHub Actions run `29286393316` and copied to the desktop.
+- User reported v79 over-hid real SHEIN options/categories on iPhone 16 Pro Max and still did not solve the iPhone 6 bottom bar, so do not continue from v79's broad geometry hider.
 
 v78 iPhone build remains available:
 
@@ -262,6 +274,13 @@ Passed after v79 legacy SHEIN bottom bar hider:
 - `git diff --check`
 - Injected `SHEIN_CAPTURE_SCRIPT` syntax parse passed.
 - GitHub iOS unsigned build run `29286393316` passed and produced `otlobli-v79.ipa`.
+
+Passed after v80 v77-UI/v78-VPN combination:
+
+- Root `npm run build`
+- `git diff --check`
+- Injected `SHEIN_CAPTURE_SCRIPT` syntax parse passed.
+- GitHub iOS unsigned build run `29287735934` passed and produced `otlobli-v80.ipa`.
 
 Known gap:
 

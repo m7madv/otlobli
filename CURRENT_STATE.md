@@ -8,7 +8,7 @@ This is the short source of truth for the app work. Keep it compact so Codex/Cla
 
 - Path: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`
 - Branch: `codex/customer-wallet-group-orders`
-- Latest feature commit: `7f39edd` (`fix: v79 hide legacy shein bottom bar`)
+- Latest feature commit: `db7dfb8` (`fix: v80 combine v77 store UI with v78 VPN`)
 
 Before any code change:
 
@@ -60,7 +60,10 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 - v79 iPhone artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v79.ipa`
 - v79 IPA SHA-256: `3A3A6D705317D57EB9C4AC88019884B3DBCB81366930878F9D45672B18243ADF`
 - v79 GitHub Actions run: `29286393316`
-- No new Android build was requested for v79.
+- v80 iPhone artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v80.ipa`
+- v80 IPA SHA-256: `DBED4F281A7A24597668B25EE1CB31F9A01EE6459696601A9A3D13BA94F65070`
+- v80 GitHub Actions run: `29287735934`
+- No new Android build was requested for v80.
 
 ## v66 Completed
 
@@ -79,9 +82,11 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 
 ## Current Known Issues
 
-- v79 iOS build is ready: `APP_VERSION = 2026.07.14-legacy-shein-bottom-v79`.
-- v79 change: SHEIN's legacy iPhone 6 bottom chrome is hidden by geometry above otlobli's nav, not by fragile SHEIN selector names.
-- v79 change: SHEIN cleanup ticks are guarded so old WKWebView selector/style failures cannot stop the bottom-bar hider chain.
+- v80 iOS build is ready: `APP_VERSION = 2026.07.14-v77-ui-v78-vpn-v80`.
+- v80 change: SHEIN/UI script was restored to the v77 behavior that worked well on iPhone 16 Pro Max.
+- v80 change: `src/App.tsx` keeps the v78 VPN probing improvements that made iPhone 6 work with more VPN servers.
+- Do not use v79 for testing; it over-hid real SHEIN options/categories and did not fix the iPhone 6 SHEIN bottom bar.
+- v79 iOS build remains archived only: `APP_VERSION = 2026.07.14-legacy-shein-bottom-v79`.
 - v78 iOS build remains available: `APP_VERSION = 2026.07.14-old-iphone-vpn-v78`.
 - v78 change: VPN geo probing is old-WKWebView-safe, returns on the first successful geo provider, and no longer waits for slow store image probes when geo already confirms a non-Syria VPN.
 - v78 change: SHEIN header/bottom chrome collision zones are hidden more aggressively for old iPhones, especially iPhone 6 where SHEIN icons could cover otlobli's back button and SHEIN's bottom tab bar could appear above otlobli's nav.
@@ -117,7 +122,7 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 
 ## Next Best Focus
 
-1. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v79.ipa` on iPhone 6 and iPhone 16 Pro Max. On iPhone 6 verify Proton Turkey/Japan no longer false-reports "turn on VPN", SHEIN icons do not cover otlobli's back button, and SHEIN's bottom tab bar does not appear above otlobli's nav.
+1. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v80.ipa` on iPhone 6 and iPhone 16 Pro Max. It intentionally combines v77 SHEIN/UI behavior with v78 VPN behavior.
 2. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v70.apk` on Android / emulator and verify SHEIN does not exit the app.
 3. Verify SHEIN after this exact flow: fresh open -> switch to Temu -> switch back to SHEIN -> security check if shown -> normal browsing.
 4. Verify Temu region is Saudi and currency is USD.

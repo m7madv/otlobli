@@ -35,7 +35,7 @@ Read:
 
 ## Latest Stable Release
 
-- Latest feature commit: `7f39edd` (`fix: v79 hide legacy shein bottom bar`)
+- Latest feature commit: `db7dfb8` (`fix: v80 combine v77 store UI with v78 VPN`)
 - Customer deployed to `https://talabieh.vercel.app`
 - Admin deployed to `https://talabieh-admin.vercel.app`
 - Supabase migration `20260712033000_shared_order_ownership.sql` applied.
@@ -75,7 +75,10 @@ Read:
 - v79 iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v79.ipa`
 - v79 IPA SHA-256: `3A3A6D705317D57EB9C4AC88019884B3DBCB81366930878F9D45672B18243ADF`
 - v79 GitHub Actions run: `29286393316`
-- No new Android build was requested for v79.
+- v80 iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v80.ipa`
+- v80 IPA SHA-256: `DBED4F281A7A24597668B25EE1CB31F9A01EE6459696601A9A3D13BA94F65070`
+- v80 GitHub Actions run: `29287735934`
+- No new Android build was requested for v80.
 
 ## v66 Implemented
 
@@ -95,8 +98,10 @@ Read:
 
 ## Still Open
 
-- v79 legacy SHEIN bottom bar hider is pushed and built.
-- v79 change: iPhone 6 SHEIN bottom chrome is hidden by geometry above otlobli's nav, not by brittle SHEIN selector names. SHEIN cleanup ticks are guarded so old WKWebView failures do not stop the hider chain.
+- v80 v77-UI/v78-VPN combination is pushed and built.
+- v80 change: SHEIN/UI script is restored to v77 behavior that worked well on iPhone 16 Pro Max, while keeping v78 VPN probing behavior for iPhone 6.
+- v79 should not be used for testing; user reported it over-hid SHEIN options/categories and still did not solve the iPhone 6 bottom bar.
+- v79 legacy SHEIN bottom bar hider is archived only.
 - v78 old iPhone compatibility is pushed and built.
 - v78 change: VPN geo probing is safer/faster on old WKWebView and SHEIN chrome collision zones are hidden more aggressively for iPhone 6 back-button/bottom-nav overlap.
 - v77 store popup/resume polish is pushed and built.
@@ -194,6 +199,13 @@ Read:
 - `git diff --check` passed.
 - Injected `SHEIN_CAPTURE_SCRIPT` syntax parse passed.
 - GitHub iOS unsigned build run `29286393316` passed and produced `otlobli-v79.ipa`.
+
+## Validation After v80 v77-UI/v78-VPN Combination
+
+- `npm run build` passed.
+- `git diff --check` passed.
+- Injected `SHEIN_CAPTURE_SCRIPT` syntax parse passed.
+- GitHub iOS unsigned build run `29287735934` passed and produced `otlobli-v80.ipa`.
 
 ## Guidance For Claude New Account
 
