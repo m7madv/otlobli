@@ -193,10 +193,10 @@ index 8ae3e61..fc6cf04 100644
 +            switch (type) {
 +                case "sheinSaudiRepairStart" -> {
 +                    otlobliLoadingCoverMessage = "جاري ضبط المتجر على السعودية…";
-+                    if (otlobliLoadingCoverLabel != null) otlobliLoadingCoverLabel.setText(otlobliLoadingCoverMessage);
++                    showOtlobliLoadingCover();
 +                }
-+                case "sheinPreparing" -> hideOtlobliLoadingCover();
-+                case "sheinSaudiReady", "sheinPageInteractive", "humanCheck", "sheinBlocked" -> hideOtlobliLoadingCover();
++                case "sheinPreparing", "sheinBlocked" -> { /* Keep cover until final SHEIN readiness/app close. */ }
++                case "sheinSaudiReady", "sheinPageInteractive", "humanCheck" -> hideOtlobliLoadingCover();
 +                default -> {
 +                    // Other bridge messages are forwarded unchanged.
 +                }
@@ -614,12 +614,12 @@ index 97a2fc1..dadf498 100644
 +        switch type {
 +        case "sheinSaudiRepairStart":
 +            otlobliLoadingCoverMessage = "جاري ضبط المتجر على السعودية…"
-+            otlobliLoadingCoverLabel?.text = otlobliLoadingCoverMessage
-+        case "sheinPreparing":
-+            // The in-page Otlobli loading surface and bottom navigation are
-+            // now attached. Reveal those while SHEIN continues hydrating.
-+            hideOtlobliLoadingCover()
-+        case "sheinSaudiReady", "sheinPageInteractive", "humanCheck", "sheinBlocked":
++            showOtlobliLoadingCover()
++        case "sheinPreparing", "sheinBlocked":
++            // SHEIN may replace this first body while hydrating or applying
++            // Saudi state. Keep the native cover until final readiness.
++            break
++        case "sheinSaudiReady", "sheinPageInteractive", "humanCheck":
 +            hideOtlobliLoadingCover()
 +        default:
 +            break

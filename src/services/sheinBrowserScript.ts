@@ -389,12 +389,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
-  var sheinNativeCoverInitialReleased = false;
   var sheinNativeCoverRepairActive = false;
   var sheinNativeCoverRepairStartedAt = 0;
   var sheinNativeCoverCooldownUntil = 0;
   var sheinNativeCoverLastType = '';
   var sheinNativeCoverLastPostAt = 0;
+  var sheinNativeCoverReadySince = 0;
+  var sheinNativeCoverReadyUrl = '';
 
   // browserPageLoaded only proves that WKNavigation finished. SHEIN can still
   // be a partially hydrated shell (section labels with no products/touchable
@@ -449,6 +450,28 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return interactiveCount >= 2 && productCards >= 1;
   }
 
+  // One successful DOM sample is not enough: SHEIN can paint its shell, then
+  // replace the body again while hydrating or applying the signed region. Keep
+  // the native cover until the same final URL stays ready with Otlobli's nav
+  // attached for a short continuous window.
+  function sheinPageIsStableForReveal() {
+    var nav = document.getElementById('otlobli-nav');
+    var navRect = nav && nav.getBoundingClientRect ? nav.getBoundingClientRect() : null;
+    var ready = !!(nav && nav.isConnected && navRect && navRect.width > 40 && navRect.height > 40 && sheinPageLooksInteractive());
+    var currentUrl = String(location.href || '');
+    if (!ready) {
+      sheinNativeCoverReadySince = 0;
+      sheinNativeCoverReadyUrl = '';
+      return false;
+    }
+    if (sheinNativeCoverReadyUrl !== currentUrl) {
+      sheinNativeCoverReadyUrl = currentUrl;
+      sheinNativeCoverReadySince = Date.now();
+      return false;
+    }
+    return Date.now() - sheinNativeCoverReadySince >= 650;
+  }
+
   function sheinPostNativeCoverState(type) {
     if (!IS_SHEIN) return;
     var now = Date.now();
@@ -482,33 +505,25 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (sheinSignedSaudiAddressReady()) {
       sheinNativeCoverRepairActive = false;
       sheinNativeCoverRepairStartedAt = 0;
-      if (sheinPageLooksInteractive()) {
-        sheinNativeCoverInitialReleased = true;
+      if (sheinPageIsStableForReveal()) {
         releaseOtlobliLoadingOverlay();
         sheinPostNativeCoverState('sheinSaudiReady');
       }
       return;
     }
+    // A foreign/unsigned address is never a revealable state. Reset any
+    // stability sample collected before SHEIN changed its region/body.
+    sheinNativeCoverReadySince = 0;
+    sheinNativeCoverReadyUrl = '';
     if (sheinNativeCoverRepairActive) {
       if (Date.now() - sheinNativeCoverRepairStartedAt >= 15000) {
-        // Never trap the customer behind a cover when SHEIN changes its drawer
-        // or a security check interrupts the cascade. The bounded click guard
-        // already stops further automation; wait before one clean retry.
+        // Stop this automation attempt. React's bounded readiness watchdog will
+        // rebuild the WebView once; never expose a foreign/raw SHEIN page.
         sheinNativeCoverRepairActive = false;
         sheinNativeCoverRepairStartedAt = 0;
         sheinNativeCoverCooldownUntil = Date.now() + 120000;
-        if (sheinPageLooksInteractive()) {
-          sheinNativeCoverInitialReleased = true;
-          releaseOtlobliLoadingOverlay();
-          sheinPostNativeCoverState('sheinPageInteractive');
-        }
       }
       return;
-    }
-    if (!sheinNativeCoverInitialReleased && sheinPageLooksInteractive()) {
-      sheinNativeCoverInitialReleased = true;
-      releaseOtlobliLoadingOverlay();
-      sheinPostNativeCoverState('sheinPageInteractive');
     }
   }
 
@@ -4557,7 +4572,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // صفحة تحقق «أنا إنسان» — تجميد كامل لكل تدخلاتنا حتى يكملها المستخدم.
     if (otlobliIsHumanChallenge()) { otlobliEnterChallengeMode(); return; }
     if (IS_SHEIN) ensureSheinSaudiShippingSelection();
-    if (IS_SHEIN) updateSheinNativeCoverState();
     ensureNoTextSelection();
     ensureViewportFitCover();
     if (IS_SHEIN) ensureSheinSaudiStore({ navigate: false });
@@ -4600,6 +4614,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
     hideForeignBottomNav();
     hideStrayFixedBottomBars();
     hideSheinAppInstallPrompts();
+    // Final readiness must run after Saudi repair has been scheduled and after
+    // Otlobli's own chrome/guards are attached. Running this near the top of
+    // tick() exposed SHEIN's raw header and bottom bar during its next render.
+    updateSheinNativeCoverState();
   }
 
   // يكشف صفحة بحث تيمو الفارغة (الناتجة عن حجب الإعلانات الذي يمنع تحميل
