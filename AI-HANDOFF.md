@@ -6,9 +6,10 @@ Read `CURRENT_STATE.md` first, then `AGENTS.md`.
 
 - Active branch: `codex/customer-wallet-group-orders`
 - Stable SHEIN baseline: v85 commit `2f24954`.
-- Current candidate: v85.8.1 commit `3150a33`, exact v85.8 App/SHEIN/VPN/cache behavior plus one native iOS loading-cover lifecycle fix; version `2026.07.14-v85.8.1-ios-cover-race-no-otp-test`.
+- Current candidate: v85.8.2 commit `655a820`, version `2026.07.14-v85.8.2-persistent-nav-webview-no-otp-test`.
 - Working reference IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8-shein-cache-clean-entry-sa-status-no-otp-test.ipa`; SHA-256 `689EE2D978269FB2ECB2EB4A3AA1B8436335ABC700C6B6C28B588508B636EF05`; run `29325121680`.
 - v85.8.1 test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.1-ios-cover-race-no-otp-test.ipa`; SHA-256 `B091413083E4A0684855EBBFA62B89943623F82641F639EFCCB08C8E2DB4C745`; run `29331593635`.
+- v85.8.2 test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.2-persistent-nav-webview-no-otp-test.ipa`; SHA-256 `2A68FFE724D8987A0CAB197C11C4B8DBBB24CB969F1A7A9308950C8A340EE782`; run `29333674546`.
 - Reference IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.ipa`.
 - v85.4 IPA exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v85.4-shein-sa-no-otp-test.ipa`, but device testing failed: SHEIN still selected Bahrain. Its native initial-cookie preload has been removed.
 - v85.5 reads SHEIN's authoritative signed `addressCookie` and completes SHEIN's own exact native cascade: Saudi Arabia -> Riyadh Province -> Riyadh -> Al Olaya. It supports both observed native drawer structures and adds no CSS, storage purge, address fabrication, or reload loop.
@@ -19,6 +20,8 @@ Read `CURRENT_STATE.md` first, then `AGENTS.md`.
 - v85.8 matches the missing part of the user-proven Temu round-trip: before every SHEIN open it clears only WebKit memory/disk cache. Capgo's iOS implementation preserves cookies/localStorage, including the signed Saudi address.
 - v85.8 corrected device result: last build in the current round that accepted the user's VPN and opened SHEIN. Raw SHEIN is temporarily visible before the processed view; keep that as the next isolated issue.
 - v85.8.1 diagnosis: `initWebview()` touches `self.view` during controller initialization, triggering `viewDidLoad` before the plugin assigns the cover option. The option now has a main-thread synchronous `didSet` that installs the already-existing cover before `present`; no store script, cache, VPN, CSS, storage, or reload behavior changed.
+- v85.8.1 device result: raw first-entry exposure was much better, but the nav disappeared during preparation and returning from an app screen rebuilt SHEIN.
+- v85.8.2 installs only the existing nav as a real document-start script, sizes the native cover to stop exactly above `74 + max(safe-area, 16)`, and changes app-screen navigation from close/reopen to hide/show of the same prepared WKWebView. The per-instance iOS flag prevents Capgo's hidden path from reparenting WKWebView into its offscreen container. The full v85.8.1 `SHEIN_CAPTURE_SCRIPT`, VPN, Saudi-address, and cache paths are unchanged.
 - v85.9 removes per-entry cache clearing and the injected script's per-load Service Worker/Cache Storage purge. It injects at document start, keeps the existing Otlobli nav plus preparation surface until a loaded product card proves hydration, and uses one cache-clearing recovery only after a 35-second preparation failure. Preparation failure is no longer labeled as VPN failure.
 - v85.9 device result: rejected the working VPN and never entered successfully.
 - v85.10 keeps the native cover on `sheinPreparing`, performs Saudi scheduling/chrome cleanup before readiness, and requires 650ms of stable final URL + signed Saudi + product + Otlobli nav before revealing. Human verification alone is deliberately revealed.
@@ -41,7 +44,7 @@ Read `CURRENT_STATE.md` first, then `AGENTS.md`.
 
 ## Next Work
 
-Test v85.8.1 on first entry and Temu -> SHEIN on iPhone 6 and iPhone 16 Pro Max. Acceptance: no raw SHEIN frame, bounded preparation cover, then an interactive processed store. Keep v85.8 as the rollback reference.
+Test v85.8.2 on iPhone 6 and iPhone 16 Pro Max. Acceptance: Otlobli nav visible from the first preparation frame; final SHEIN remains interactive; cart/orders/profile -> home restores the same page and scroll immediately without preparation/reload. Keep v85.8 as the rollback reference.
 
 The inherited hidden/offscreen `FAKE_VISIBLE` path was removed deliberately after local plugin inspection showed it reparents and disables interaction on the first WebView. Do not reintroduce it.
 
@@ -71,6 +74,7 @@ The inherited hidden/offscreen `FAKE_VISIBLE` path was removed deliberately afte
 - Restore `ce865a0` matches v85.8 for all four store-path files and passes build/script/patch/diff validation. No duplicate IPA was built.
 - v85.11 Xcode workflow run `29328314651` passed; artifact payload contains the expected v85.11 marker and the copied IPA hash matches. Real-device testing is pending.
 - v85.8.1 clean patch reinstall, web build, script parse, exact v85.8 App/script parity, Xcode run `29331593635`, embedded marker, and SHA-256 verification all passed. Real-device acceptance is pending.
+- v85.8.2 clean patch reinstall, web build, both-script parse, full capture-script equality with v85.8.1, diff check, Xcode run `29333674546`, embedded marker, and SHA-256 verification passed. Real-device acceptance is pending.
 
 ## Main Files
 

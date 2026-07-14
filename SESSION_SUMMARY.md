@@ -14,9 +14,10 @@ Last updated: 2026-07-14
 - Stable store baseline: v85 / `2f24954`.
 - Reference IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.ipa`.
 - v85.4 IPA failed device testing; preloading `localcountry=SA` did not prevent Bahrain and that implementation is removed.
-- Active candidate: v85.8.1 / `3150a33` / `2026.07.14-v85.8.1-ios-cover-race-no-otp-test`; App/SHEIN/VPN/cache behavior remains exact v85.8.
+- Active candidate: v85.8.2 / `655a820` / `2026.07.14-v85.8.2-persistent-nav-webview-no-otp-test`.
 - Working reference IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8-shein-cache-clean-entry-sa-status-no-otp-test.ipa`; SHA-256 `689EE2D978269FB2ECB2EB4A3AA1B8436335ABC700C6B6C28B588508B636EF05`; run `29325121680`.
 - v85.8.1 IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.1-ios-cover-race-no-otp-test.ipa`; SHA-256 `B091413083E4A0684855EBBFA62B89943623F82641F639EFCCB08C8E2DB4C745`; run `29331593635`.
+- v85.8.2 IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.2-persistent-nav-webview-no-otp-test.ipa`; SHA-256 `2A68FFE724D8987A0CAB197C11C4B8DBBB24CB969F1A7A9308950C8A340EE782`; run `29333674546`.
 - v86-v88 are failed paths. v87 fixed nothing; v88 closed/crashed SHEIN on entry.
 - Root cause: SHEIN product APIs use a signed `addressCookie`; URL parameters, VPN, and `localcountry` are not authoritative. Country-only selection also does not persist.
 - v85.5 completes SHEIN's exact native Saudi address cascade. Android emulator validation converted a signed Qatar address to signed Saudi in about 9 seconds, persisted after reload with QA IP, and the product API returned Saudi Arabia.
@@ -27,6 +28,8 @@ Last updated: 2026-07-14
 - v85.8 adds the one missing action from the user-proven Temu round-trip: clear only WebKit memory/disk cache before each SHEIN open, preserving cookies/localStorage and the signed Saudi address.
 - v85.8 corrected device result: last build that accepted the user's VPN and opened SHEIN in the latest round; it still temporarily exposes raw SHEIN before processing completes.
 - Raw-frame root cause: native initialization loads `viewDidLoad` before the plugin assigns the cover option. v85.8.1 installs the existing cover synchronously when that option is assigned, before presentation; no CSS or WebView/store timing was changed.
+- v85.8.1 device result: first exposure improved, but the bottom nav disappeared during preparation and app-screen return rebuilt SHEIN.
+- v85.8.2 keeps the existing nav visible from document start, leaves the native cover only above its exact safe-area-aware height, and preserves the same attached WKWebView across cart/orders/profile with hide/show instead of close/reopen. The full SHEIN script/VPN/Saudi/cache behavior remains v85.8.1.
 - v85.9 preserves warm SHEIN cache/Service Workers on healthy entries, injects Otlobli at document start, keeps the existing preparation surface and nav until real product hydration, and clears native cache only for one bounded stuck-session recovery.
 - v85.9-v85.11 device result: all rejected the user's working VPN and never entered successfully. Their code path is reverted.
 - v85.10 keeps the native cover through all intermediate bodies/region repair and reveals only after 650ms of stable signed-Saudi product readiness with Otlobli nav attached.
@@ -36,6 +39,6 @@ Last updated: 2026-07-14
 
 ## Next Step
 
-Install v85.8.1 and test first SHEIN entry plus Temu -> SHEIN on both target iPhones. Do not claim success until raw SHEIN stays hidden and the revealed store remains interactive.
+Install v85.8.2 on both target iPhones. Verify the nav never disappears and cart/orders/profile -> home returns to the exact same SHEIN page/scroll without preparation or reload. Do not claim success until both devices pass.
 
 Do not touch Temu, payment, wallet, orders, coupons, or group checkout. Do not use broad CSS, viewport hacks, aggressive storage cleanup, or reload loops. Designs only from Figma.

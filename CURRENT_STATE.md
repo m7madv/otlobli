@@ -71,7 +71,11 @@ Read `AI-HANDOFF.md` and `AGENTS.md`. Preserve any existing user/other-AI change
 - v85.8.1 candidate commit: `3150a33`; version `2026.07.14-v85.8.1-ios-cover-race-no-otp-test`.
 - v85.8.1 test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.1-ios-cover-race-no-otp-test.ipa`; SHA-256 `B091413083E4A0684855EBBFA62B89943623F82641F639EFCCB08C8E2DB4C745`; run `29331593635`.
 - Root cause of the raw first frame: `WKWebViewController.initWebview()` loads the controller view before `InAppBrowserPlugin` assigns `otlobliLoadingCoverEnabled`, so the old `viewDidLoad` check always saw `false`. v85.8.1 installs the existing native cover synchronously from the option property's `didSet`, before presentation. `App.tsx`, `SHEIN_CAPTURE_SCRIPT`, VPN handling, and cache timing remain exactly v85.8.
-- v85.8.1 Xcode/build validation passed; first entry and Temu -> SHEIN real-device testing are pending.
+- v85.8.1 device result: the native cover greatly improved the raw first frame, but Otlobli's bottom nav still disappeared during preparation and cart/orders/profile -> home closed and rebuilt SHEIN instead of preserving the prepared page.
+- v85.8.2 candidate commit: `655a820`; version `2026.07.14-v85.8.2-persistent-nav-webview-no-otp-test`.
+- v85.8.2 test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.2-persistent-nav-webview-no-otp-test.ipa`; SHA-256 `2A68FFE724D8987A0CAB197C11C4B8DBBB24CB969F1A7A9308950C8A340EE782`; run `29333674546`.
+- v85.8.2 injects only the existing Otlobli nav at real iOS document start and keeps the native preparation cover above SHEIN but below the exact `74 + max(safe-area, 16)` nav height. It does not change the full `SHEIN_CAPTURE_SCRIPT`, VPN, Saudi address, storage, cache, payment, wallet, orders, or Temu paths.
+- App navigation now uses `hide/show` without closing the prepared SHEIN instance. The Otlobli-specific iOS flag skips Capgo's hidden-WebView reparenting into its offscreen container, keeping the same WKWebView/controller/page/scroll state attached while the native presentation is hidden.
 - v85.9 candidate commit: `86f15be`; version `2026.07.14-v85.9-shein-progressive-entry-warm-cache-no-otp-test`.
 - v85.9 test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.9-shein-progressive-entry-warm-cache-no-otp-test.ipa`
 - v85.9 SHA-256: `F8F61473E4B6FD8D08F2D9667408070B59E6C882F59F3E95FC80E98EBCC53A59`; run `29326728706`.
@@ -90,7 +94,7 @@ Read `AI-HANDOFF.md` and `AGENTS.md`. Preserve any existing user/other-AI change
 - Restore commit `ce865a0` deliberately reverses v85.9-v85.11 store-path code and matches v85.8 commit `585a28a` exactly for `src/App.tsx`, `src/services/sheinBrowserScript.ts`, `src/config.ts`, and the Capgo patch.
 - OTP screens remain bypassed only for this test candidate; set `TEST_ONLY_AUTH_BYPASS = false` before production.
 
-v85 remains the stable store/UI baseline. The active candidate is v85.8.1: exact working v85.8 store behavior plus one native iOS pre-presentation cover fix. v85.9-v85.11 are failed and must not be continued.
+v85 remains the stable store/UI baseline. The active candidate is v85.8.2: working v85.8/v85.8.1 store behavior plus persistent bottom-nav and same-WebView app navigation. v85.9-v85.11 are failed and must not be continued.
 
 ## Failed Paths
 
@@ -102,7 +106,8 @@ v85 remains the stable store/UI baseline. The active candidate is v85.8.1: exact
 
 ## Current Task
 
-- Test v85.8.1 on first SHEIN entry and after Temu -> SHEIN on both iPhone 6 and iPhone 16 Pro Max. Confirm raw SHEIN never appears while the existing loading cover remains bounded and the final store is interactive.
+- Test v85.8.2 on first SHEIN entry on both iPhone 6 and iPhone 16 Pro Max. Confirm the Otlobli nav is visible throughout preparation and the final store is interactive.
+- Open a product, note the scroll position, go to cart/orders/profile, then return home. The same SHEIN page and scroll position must return immediately without preparation/reload.
 - Verify the Saudi correction is not shown, the shipping-region control does not open for the customer, and Saudi persists across reload/store/VPN changes.
 - Android structural validation is not a claim that either iPhone issue is fixed; both real devices remain the acceptance test.
 - OTP bypass is only for faster store testing; customer account/server features and Add-to-Cart placement remain separate and unchanged.
@@ -132,6 +137,7 @@ v85 remains the stable store/UI baseline. The active candidate is v85.8.1: exact
 - Restore commit `ce865a0` passes build, runtime script parse, patch-package reinstall, diff checks, and exact v85.8 store-file parity. No duplicate IPA was built.
 - v85.11 unsigned IPA built successfully from `7c3249f` in run `29328314651`; embedded version marker and copied SHA-256 verified. Real-device testing is pending.
 - v85.8.1 passed clean `patch-package` reinstall, `npm run build`, runtime `SHEIN_CAPTURE_SCRIPT` parse, v85.8 App/script parity, `git diff --check`, Xcode run `29331593635`, and embedded version-marker/hash verification.
+- v85.8.2 passed clean `patch-package` reinstall, `npm run build`, runtime parse of both scripts, byte-for-byte equality of the full `SHEIN_CAPTURE_SCRIPT` with v85.8.1, `git diff --check`, Xcode run `29333674546`, and embedded version-marker/SHA-256 verification. Real-device acceptance is pending.
 
 ## Production References
 
