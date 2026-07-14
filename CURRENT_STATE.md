@@ -40,6 +40,11 @@ Read `AI-HANDOFF.md` and `AGENTS.md`. Preserve any existing user/other-AI change
 - v85.3 test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.3-shein-saudi-picker-test.ipa`
 - v85.3 SHA-256: `BEDD2A0F6E42C7547BE43A5B3C2373E099171B98CCFB8679CE596577973AB356`; run `29303217368`.
 - v85.3 uses only SHEIN's native shipping control: on an explicit foreign shipping label it opens the verified country picker, matches the exact Saudi Arabia row, and invokes SHEIN's own click handler. It also exempts only those verified controls from the old country/region click guard. No CSS, storage clearing, or reload was added.
+- v85.3 device result: a fresh install can initialize either Saudi Arabia or Bahrain according to the first session/network, then persists that result across VPN and store changes. The native picker automation did not reliably correct Bahrain.
+- v85.4 candidate head: `6a29b77`; version `2026.07.14-v85.4-shein-preload-sa-cookie-no-otp-test`.
+- v85.4 test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.4-shein-sa-no-otp-test.ipa`
+- v85.4 SHA-256: `30290F292574363CBC9594C765D6FE88C86A1E35869F17F85742636556FF2FFD`; run `29304645602`.
+- v85.4 writes only `localcountry=SA` to the native WK cookie store before SHEIN's first request, replacing only stale same-name SHEIN cookies and preserving auth/cart/session cookies. OTP screens are bypassed only in this test build; set `TEST_ONLY_AUTH_BYPASS = false` before production.
 
 v85 itself inherits the older hidden `FAKE_VISIBLE` flow and a limited exact-key storage guard. Do not alter those while establishing the baseline; first collect and isolate the user's real-device issues.
 
@@ -53,11 +58,11 @@ v85 itself inherits the older hidden `FAKE_VISIBLE` flow and a limited exact-key
 
 ## Current Task
 
-- Test v85.3 on iPhone 6 and iPhone 16 Pro Max.
-- Verify that a product showing Bahrain opens SHEIN's native country picker and changes to Saudi Arabia, including after US VPN then Saudi VPN without reinstalling.
-- Recheck cold entry/category taps and the previously broken Continue page separately.
-- Do not claim Bahrain or first-load interaction fixed before both device results.
-- Add-to-Cart placement remains separate and unchanged.
+- Test v85.4 on iPhone 6 and iPhone 16 Pro Max after deleting the previous app.
+- Critical first test: install/open under a non-Saudi VPN and verify the first product already ships to Saudi Arabia.
+- Repeat after delete/reinstall under a Saudi VPN, then switch VPNs without reinstalling.
+- Recheck cold entry/category taps separately. Do not claim the region or interaction issues fixed before both device results.
+- This IPA bypasses app OTP only to accelerate store testing; customer account/server features are not under test. Add-to-Cart placement remains separate and unchanged.
 
 ## Scope Guard
 
@@ -71,8 +76,8 @@ v85 itself inherits the older hidden `FAKE_VISIBLE` flow and a limited exact-key
 - `npm run build` passed.
 - Runtime evaluation and syntax parse of `SHEIN_CAPTURE_SCRIPT` passed.
 - `git diff --check` passed.
-- Shipping signal/picker positive and auth false-positive tests passed.
-- v85.3 unsigned IPA built successfully from commit `6f80823`.
+- Native patch parse/reverse checks passed; the tracked patch contains relay placeholders only.
+- v85.4 unsigned IPA built successfully from head `6a29b77` in run `29304645602`.
 
 ## Production References
 
