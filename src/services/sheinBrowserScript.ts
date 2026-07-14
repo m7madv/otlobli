@@ -17,6 +17,19 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
   };
 
   function mount() {
+    // (v85.8.5) حمّل خط Cairo داخل مستند شي إن أيضاً. التطبيق يحمّله عبر @import،
+    // لكن WebView شي إن مستند منفصل لا يرث خطوط التطبيق، فكان الشريط المحقون
+    // يسقط لخط النظام (SF) بينما شريط React بخط Cairo — وهذا سبب «اختلاف الخط
+    // والسماكة» الذي لاحظه المستخدم (Cairo أعرض/أثقل من SF بنفس الحجم). بحقن نفس
+    // رابط جوجل هنا يصير الشريطان بخط Cairo نفسه تماماً. إن فشل التحميل (نادر)
+    // يسقط لـSF كما هو الحال الآن — لا ضرر إضافي.
+    if (!document.getElementById('otlobli-cairo-font')) {
+      var fontLink = document.createElement('link');
+      fontLink.id = 'otlobli-cairo-font';
+      fontLink.rel = 'stylesheet';
+      fontLink.href = 'https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap';
+      (document.head || document.documentElement).appendChild(fontLink);
+    }
     if (!document.body) return false;
     if (document.getElementById('otlobli-nav')) return true;
 
