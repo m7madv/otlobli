@@ -1496,9 +1496,31 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function swatchImageFrom(el) {
     var scope = isColorBadgeEl(el) && el.parentElement ? el.parentElement : el;
-    var img = scope.tagName === 'IMG' ? scope : scope.querySelector('img');
-    var fromImg = realImgSrc(img);
-    if (fromImg && !isColorBadgeEl(img) && !isLikelyBadgeImageUrl(fromImg)) return fromImg;
+    // (v85.8.3-fix) شارة HOT/جديد التي يرسمها شي إن فوق حوّاسة اللون هي صورة
+    // منفصلة مستضافة على نفس CDN (ltwebstatic) تماماً مثل صورة اللون، فقائمة حظر
+    // الروابط (isLikelyBadgeImageUrl) لا تميّزها لأنها تستثني ltwebstatic. الفرق
+    // الحقيقي: الشارة طبقة صغيرة في زاوية الحوّاسة بينما صورة اللون تملأها. كان
+    // الكود يأخذ أول <img> في ترتيب DOM فيلتقط الشارة أحياناً (ظهرت كأيقونة غريبة
+    // في السلة). الآن نختار أكبر صورة فعلية (=صورة اللون) ونتخطّى الطبقات الصغيرة.
+    var imgList = scope.tagName === 'IMG' ? [scope] : scope.querySelectorAll('img');
+    var bestSrc = '';
+    var bestArea = -1;
+    for (var ii = 0; ii < imgList.length; ii++) {
+      var candImg = imgList[ii];
+      if (isColorBadgeEl(candImg)) continue;
+      var candSrc = realImgSrc(candImg);
+      if (!candSrc || isLikelyBadgeImageUrl(candSrc)) continue;
+      var cr = candImg.getBoundingClientRect();
+      var cw = cr.width || candImg.naturalWidth || 0;
+      var ch = cr.height || candImg.naturalHeight || 0;
+      // تخطّى طبقة الشارة الصغيرة في الزاوية (أصغر بكثير من حوّاسة اللون). إن كانت
+      // صورة اللون خلفية (background-image) والوحيدة <img> هي الشارة، يسقط هذا كله
+      // فيُستخدم مسار الخلفية أدناه — وهو الصحيح.
+      if (cw > 0 && ch > 0 && Math.min(cw, ch) < 18) continue;
+      var candArea = cw * ch;
+      if (candArea > bestArea) { bestArea = candArea; bestSrc = candSrc; }
+    }
+    if (bestSrc) return bestSrc;
     var bg = isColorBadgeEl(scope) ? '' : window.getComputedStyle(scope).backgroundImage;
     var match = bg && bg.match(/url\\(["']?(.*?)["']?\\)/);
     if (match && match[1] && !/blank|placeholder/i.test(match[1]) && !isLikelyBadgeImageUrl(match[1])) return match[1];
