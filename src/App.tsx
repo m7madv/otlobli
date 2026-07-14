@@ -2491,8 +2491,22 @@ function App() {
       // regardless of fixes - so both platforms now connect directly and
       // rely on the user's VPN, same as iOS always did.
     }
-    void InAppBrowser.openWebView(webViewOptions)
+    // The only recovery that consistently works on the reported iPhones is
+    // switching to Temu and back. That path closes the old WKWebView and then
+    // calls clearCache before opening SHEIN. Reproduce that proven sequence on
+    // every SHEIN entry. Capgo's iOS implementation clears only WebKit's disk
+    // and memory caches; cookies/localStorage (including addressCookie) stay
+    // intact, so the signed Saudi address is preserved.
+    const prepareStoreWebview = activeStore === 'shein'
+      ? InAppBrowser.clearCache()
+      : Promise.resolve()
+    void prepareStoreWebview
+      .then(() => {
+        if (sessionId !== webviewSessionRef.current || !sheinOpenedRef.current) return undefined
+        return InAppBrowser.openWebView(webViewOptions)
+      })
       .then((result) => {
+        if (!result) return
         if (sessionId !== webviewSessionRef.current) return
         webviewIdRef.current = result?.id ?? webviewIdRef.current
         if (initialPendingUrl && pendingProductUrlRef.current === initialPendingUrl) pendingProductUrlRef.current = ''
@@ -5254,10 +5268,8 @@ function App() {
           sheinChallengeActiveRef.current = false
           sheinOpenedRef.current = false
           setSheinReady(false)
-          // تبديل المتجر يُبقي بيانات الـWebView المشتركة (كوكيز/service worker)
-          // من المتجر السابق، فيُفتح المتجر الجديد بحالة «متّسخة» تكسر التفاعل
-          // (المستخدم أكّد: حذف/إعادة تنصيب التطبيق يُصلحه). نمسح الكوكيز بين
-          // الإغلاق والفتح لنقارب حالة التنصيب النظيف.
+          // الرجوع إلى شي إن ينظف WebKit memory/disk cache فقط بين الإغلاق
+          // والفتح؛ الكوكيز وlocalStorage (ومنها عنوان السعودية) تبقى محفوظة.
           void InAppBrowser.close().catch(() => undefined)
             .then(() => (id === 'shein' ? InAppBrowser.clearCache().catch(() => undefined) : undefined))
             .then(() => {
