@@ -195,7 +195,7 @@ index 8ae3e61..fc6cf04 100644
 +                    otlobliLoadingCoverMessage = "جاري ضبط المتجر على السعودية…";
 +                    showOtlobliLoadingCover();
 +                }
-+                case "sheinPreparing", "sheinBlocked" -> { /* Keep cover until final SHEIN readiness/app close. */ }
++                case "sheinPreparing", "sheinBlocked" -> { if ("sheinPreparing".equals(type)) hideOtlobliLoadingCover(); }
 +                case "sheinSaudiReady", "sheinPageInteractive", "humanCheck" -> hideOtlobliLoadingCover();
 +                default -> {
 +                    // Other bridge messages are forwarded unchanged.
@@ -616,9 +616,9 @@ index 97a2fc1..dadf498 100644
 +            otlobliLoadingCoverMessage = "جاري ضبط المتجر على السعودية…"
 +            showOtlobliLoadingCover()
 +        case "sheinPreparing", "sheinBlocked":
-+            // SHEIN may replace this first body while hydrating or applying
-+            // Saudi state. Keep the native cover until final readiness.
-+            break
++            // The in-page cover and persistent Otlobli nav are now attached.
++            // Blocked pages remain covered until React closes the WebView.
++            if type == "sheinPreparing" { hideOtlobliLoadingCover() }
 +        case "sheinSaudiReady", "sheinPageInteractive", "humanCheck":
 +            hideOtlobliLoadingCover()
 +        default:
