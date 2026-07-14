@@ -486,14 +486,20 @@ diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowser
 index 97a2fc1..dadf498 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
-@@ -748,6 +748,15 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -748,6 +748,21 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
      fileprivate var webView: WKWebView?
      fileprivate var progressView: UIProgressView?
 
 +    // Otlobli keeps the real WKWebView attached, sized, and interactive while
 +    // SHEIN resolves its signed Saudi address. This native cover hides only the
 +    // transient automation frames; it never reparents or alpha-hides WKWebView.
-+    open var otlobliLoadingCoverEnabled = false
++    open var otlobliLoadingCoverEnabled = false {
++        didSet {
++            if otlobliLoadingCoverEnabled && isViewLoaded {
++                showOtlobliLoadingCover()
++            }
++        }
++    }
 +    private var otlobliLoadingCoverView: UIView?
 +    private var otlobliLoadingCoverLabel: UILabel?
 +    private var otlobliLoadingCoverMessage = "جاري تجهيز متجر SHEIN…"
@@ -502,7 +508,7 @@ index 97a2fc1..dadf498 100644
      fileprivate var previousNavigationBarState: (tintColor: UIColor, hidden: Bool) = (.black, false)
      fileprivate var previousToolbarState: (tintColor: UIColor, hidden: Bool) = (.black, false)
 
-@@ -878,6 +887,10 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -878,6 +893,10 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
              self.initWebview()
          }
 
@@ -513,7 +519,7 @@ index 97a2fc1..dadf498 100644
          // Apply navigation gestures setting
          updateNavigationGestures()
 
-@@ -899,6 +912,110 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -899,6 +918,110 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
      override open func viewDidLayoutSubviews() {
          super.viewDidLayoutSubviews()
          refreshWebViewViewportIfNeeded()
@@ -533,8 +539,9 @@ index 97a2fc1..dadf498 100644
 +
 +    private func showOtlobliLoadingCover() {
 +        guard otlobliLoadingCoverEnabled else { return }
-+        DispatchQueue.main.async { [weak self] in
-+            guard let self, self.isViewLoaded else { return }
++        // The option is set after initWebview() has already loaded the view.
++        guard Thread.isMainThread else { DispatchQueue.main.async { [weak self] in self?.showOtlobliLoadingCover() }; return }
++        guard self.isViewLoaded else { return }
 +            if let existing = self.otlobliLoadingCoverView {
 +                existing.layer.removeAllAnimations()
 +                existing.alpha = 1
@@ -585,7 +592,6 @@ index 97a2fc1..dadf498 100644
 +            self.otlobliLoadingCoverLabel = label
 +            self.view.bringSubviewToFront(cover)
 +            self.scheduleOtlobliLoadingCoverTimeout()
-+        }
 +    }
 +
 +    private func hideOtlobliLoadingCover() {
@@ -624,7 +630,7 @@ index 97a2fc1..dadf498 100644
      }
 
      func updateButtonTintColors() {
-@@ -1001,6 +1118,37 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1001,6 +1124,37 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          capBrowserPlugin?.notifyListeners(eventName, data: payload(with: data))
      }
 
@@ -662,7 +668,7 @@ index 97a2fc1..dadf498 100644
      private func startObservingKeyboardViewportChanges() {
          guard !isObservingKeyboardViewportChanges else {
              return
-@@ -1136,6 +1284,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1136,6 +1290,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          if message.name == "messageHandler" {
              if let messageBody = message.body as? [String: Any] {
                  print("Received message from JavaScript:", messageBody)
@@ -670,7 +676,7 @@ index 97a2fc1..dadf498 100644
                  emit("messageFromWebview", data: messageBody)
              } else {
                  print("Received non-dictionary message from JavaScript:", message.body)
-@@ -1818,6 +1967,11 @@ public extension WKWebViewController {
+@@ -1818,6 +1973,11 @@ public extension WKWebViewController {
 
      open func cleanupWebView() {
          guard let webView = self.webView else { return }
@@ -682,7 +688,7 @@ index 97a2fc1..dadf498 100644
          webView.stopLoading()
          previewItemURL = nil
 
-@@ -2743,7 +2897,7 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2743,7 +2903,7 @@ extension WKWebViewController: WKNavigationDelegate {
              self.url = url
              delegate?.webViewController?(self, didFail: url, withError: error)
          }
@@ -691,7 +697,7 @@ index 97a2fc1..dadf498 100644
      }
 
      public func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-@@ -2753,7 +2907,16 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2753,7 +2913,16 @@ extension WKWebViewController: WKNavigationDelegate {
              self.url = url
              delegate?.webViewController?(self, didFail: url, withError: error)
          }
