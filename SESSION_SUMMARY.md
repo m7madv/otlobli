@@ -35,7 +35,7 @@ Read:
 
 ## Latest Stable Release
 
-- Latest feature commit: `2f24954` (`fix: v85 polish iOS nav and selection behavior`)
+- Latest feature commit: `982b84c` (`fix: v86 stabilize shein nav and saudi guard`)
 - Customer deployed to `https://talabieh.vercel.app`
 - Admin deployed to `https://talabieh-admin.vercel.app`
 - Supabase migration `20260712033000_shared_order_ownership.sql` applied.
@@ -93,7 +93,10 @@ Read:
 - v85 iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v85.ipa`
 - v85 IPA SHA-256: `F4524E816E6243A039BD52D34E7A9AB59E3C5597DBF0515862BA5F9461B90ED4`
 - v85 GitHub Actions run: `29293816845`
-- No new Android build was requested for v85.
+- v86 iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v86.ipa`
+- v86 IPA SHA-256: `3C310FCB25E9501D40F3D43E40E345CE0779CF28CD810680A2DC75723A971EAE`
+- v86 GitHub Actions run: `29295642229`
+- No new Android build was requested for v86.
 
 ## v66 Implemented
 
@@ -113,7 +116,9 @@ Read:
 
 ## Still Open
 
-- v85 SHEIN/iOS polish fix is pushed and built.
+- v86 SHEIN/iOS stability fix is pushed and built.
+- v86 change: keeps v85 base, protects the otlobli SHEIN back button from overlapping SHEIN icons, strengthens Saudi/USD region locking with extra store/shipping/region keys, adds a conservative stuck-overlay reload guard, throttles heavy SHEIN polling for weak phones, and aligns React nav sizing with the injected store nav.
+- v85 SHEIN/iOS polish fix remains available.
 - v85 change: keeps v84 bottom-nav hit-test hiding, aligns the injected store nav with the real app nav, disables text selection/callouts while preserving inputs, lowers the SHEIN back button on compact iPhones, and restores/whitelists SHEIN top category tabs.
 - v84 SHEIN bottom hit-test fix is pushed and built.
 - v84 change: keeps v83/v80 layout, adds old-WebKit-safe fallback CSS for otlobli's nav, and hides SHEIN's native bottom bar by bottom-of-screen hit-testing/text detection instead of changing viewport width.

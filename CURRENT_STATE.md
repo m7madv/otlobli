@@ -8,7 +8,7 @@ This is the short source of truth for the app work. Keep it compact so Codex/Cla
 
 - Path: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`
 - Branch: `codex/customer-wallet-group-orders`
-- Latest feature commit: `2f24954` (`fix: v85 polish iOS nav and selection behavior`)
+- Latest feature commit: `982b84c` (`fix: v86 stabilize shein nav and saudi guard`)
 
 Before any code change:
 
@@ -78,7 +78,10 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 - v85 iPhone artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.ipa`
 - v85 IPA SHA-256: `F4524E816E6243A039BD52D34E7A9AB59E3C5597DBF0515862BA5F9461B90ED4`
 - v85 GitHub Actions run: `29293816845`
-- No new Android build was requested for v85.
+- v86 iPhone artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v86.ipa`
+- v86 IPA SHA-256: `3C310FCB25E9501D40F3D43E40E345CE0779CF28CD810680A2DC75723A971EAE`
+- v86 GitHub Actions run: `29295642229`
+- No new Android build was requested for v86.
 
 ## v66 Completed
 
@@ -97,7 +100,13 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 
 ## Current Known Issues
 
-- v85 iOS build is ready: `APP_VERSION = 2026.07.14-nav-polish-no-select-v85`.
+- v86 iOS build is ready: `APP_VERSION = 2026.07.14-shein-stability-saudi-v86`.
+- v86 change: keeps v85 as the base, reclaims the otlobli SHEIN back button when SHEIN overlays icons above it, and hides only the small overlapping control instead of broad page sections.
+- v86 change: strengthens SHEIN Saudi/USD locking by writing/checking extra country/region/locale keys (`storeCountry`, `shipCountry`, `shippingRegion`, `region`, `regionCode`, `defaultCountry`, `locale`) and caching visible-region text checks to reduce old-iPhone load.
+- v86 change: adds a conservative stuck-overlay detector for SHEIN; if a large non-challenge blocker prevents interaction for ~5.2s, the page reloads at most once per 30s.
+- v86 change: reduces heavy SHEIN polling intervals and throttles category-tab restore scans to help weak phones like iPhone 6 heat less.
+- v86 change: real React bottom-nav button sizing now matches the injected store nav (`74px`, 12px text, same line-height) so Orders/Home transitions feel more consistent.
+- v85 iOS build remains available: `APP_VERSION = 2026.07.14-nav-polish-no-select-v85`.
 - v85 change: keeps the v84 hit-test bottom-nav hiding, aligns the injected store nav with the real app nav (`bottom:0`, same safe-area/fallback sizing), disables text selection/callouts while preserving inputs, moves the SHEIN back button lower on compact iPhones, and restores/whitelists SHEIN top category tabs from header-icon hiding.
 - v85 deliberately avoids the failed v82 approach: no `width=430`, no white shield, no broad hiding of real SHEIN sections.
 - v84 iOS build remains available: `APP_VERSION = 2026.07.14-shein-bottom-hit-test-v84`.
@@ -152,7 +161,7 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 
 ## Next Best Focus
 
-1. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v85.ipa` on iPhone 6 and iPhone 16 Pro Max. Verify the otlobli bottom nav has the same size/shape when switching between SHEIN home and app screens such as Orders.
+1. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v86.ipa` on iPhone 6 and iPhone 16 Pro Max. Verify the otlobli bottom nav has the same size/shape when switching between SHEIN home and app screens such as Orders.
 2. On iPhone 6, verify SHEIN top tabs are not over-hidden, the back button is visible/tappable, and SHEIN's native bottom bar (`أنا / حقيبة التسوق / ترندات / الفئات / متجر`) stays hidden while otlobli's nav remains visible.
 3. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v70.apk` on Android / emulator and verify SHEIN does not exit the app.
 4. Verify SHEIN after this exact flow: fresh open -> switch to Temu -> switch back to SHEIN -> security check if shown -> normal browsing.

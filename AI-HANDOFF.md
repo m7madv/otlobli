@@ -21,7 +21,7 @@ Rules:
 ## Important Context
 
 - Active branch: `codex/customer-wallet-group-orders`
-- Latest feature commit: `2f24954` (`fix: v85 polish iOS nav and selection behavior`)
+- Latest feature commit: `982b84c` (`fix: v86 stabilize shein nav and saudi guard`)
 - Claude old account may have worked after Codex. Always inspect current git state before editing.
 - Claude new account may not have the same skills/connectors authenticated. Check available skills/tools, especially Figma.
 
@@ -83,6 +83,9 @@ Rules:
 - Desktop v85 iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.ipa`
 - v85 IPA SHA-256: `F4524E816E6243A039BD52D34E7A9AB59E3C5597DBF0515862BA5F9461B90ED4`
 - v85 GitHub Actions run: `29293816845`
+- Desktop v86 iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v86.ipa`
+- v86 IPA SHA-256: `3C310FCB25E9501D40F3D43E40E345CE0779CF28CD810680A2DC75723A971EAE`
+- v86 GitHub Actions run: `29295642229`
 
 ## Main Files
 
@@ -111,7 +114,18 @@ Rules:
 
 ## Current Highest Priority
 
-v85 iPhone build is ready:
+v86 iPhone build is ready:
+
+- This keeps v85 as the base and avoids the failed v82 viewport/shield approach.
+- `src/services/sheinBrowserScript.ts` now reclaims the otlobli SHEIN back button when SHEIN overlays icons above it and hides only the small overlapping control.
+- SHEIN Saudi/USD locking now writes/checks extra store/shipping/region/locale keys and caches visible-region text checks to reduce old-iPhone load.
+- SHEIN gets a conservative stuck-overlay reload guard: a large non-challenge interaction blocker reloads after ~5.2s, at most once per 30s.
+- Heavy SHEIN polling/category restore work is throttled to reduce iPhone 6 heat.
+- `src/styles.css` aligns real React bottom-nav button sizing with the injected store nav.
+- `src/config.ts` version: `2026.07.14-shein-stability-saudi-v86`.
+- v86 iPhone unsigned IPA was built by GitHub Actions run `29295642229` and copied to the desktop.
+
+v85 iPhone build remains available:
 
 - This keeps the v84 hit-test bottom-nav hiding and does not change the SHEIN viewport.
 - `src/services/sheinBrowserScript.ts` aligns the injected store nav with the real app nav (`bottom:0`, same safe-area/fallback sizing), disables text selection/callouts while preserving inputs, moves the SHEIN back button lower on compact iPhones, and restores/whitelists SHEIN top category tabs from header-icon hiding.
