@@ -11,5 +11,10 @@ export const PAYMENT_MODE: 'auto' | 'shamcash' = 'shamcash'
 // بلد المصدر الذي تُجلب منه المنتجات من SHEIN ويُجمع فيه الشحن قبل سوريا.
 export const SOURCE_COUNTRY: 'JO' | 'LB' | 'SA' = 'SA'
 
+// TEST IPA ONLY: skips the local OTP screens so repeated delete/install checks
+// can reach the store immediately. This does not bypass server authentication
+// and must be false before any production build.
+export const TEST_ONLY_AUTH_BYPASS = true
+
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '2026.07.14-v85.3-shein-native-sa-picker-test'
+export const APP_VERSION = '2026.07.14-v85.4-shein-preload-sa-cookie-no-otp-test'

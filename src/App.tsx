@@ -16,7 +16,7 @@ import type { PaymentCurrency } from './domain/pricing'
 import type { Address, AppNotification, CartGroupSnapshot, CartItem, NotificationPrefs, Order, OrderIssue, Product, ProductColor, Recipient, Screen, StatusTone, UserProfile, WalletTransaction } from './domain/types'
 import { getDeviceId, readStoredJson, storageKeys, useStoredState } from './infrastructure/localStorage'
 import { appApi } from './services'
-import { PAYMENT_MODE, APP_VERSION, cleanEnvValue } from './config'
+import { PAYMENT_MODE, APP_VERSION, TEST_ONLY_AUTH_BYPASS, cleanEnvValue } from './config'
 import { buildWhatsappLink } from './services/whatsappLink'
 import { SHEIN_CAPTURE_SCRIPT } from './services/sheinBrowserScript'
 import { App as CapacitorApp } from '@capacitor/app'
@@ -34,6 +34,12 @@ const APP_SETTINGS_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/app-settin
 // الأسعار بالدولار نفسها، والزبون لا يرى اسم أي بلد (يُعرض "مركز التجميع").
 // السكربت المحقون يقرأ المنطقة من الرابط فيضبط لغة الموقع تلقائياً.
 const SHEIN_HOME_URL = 'https://m.shein.com/ar/?currency=USD&localcountry=SA&country=SA&countryCode=SA&country_code=SA&lang=ar&language=ar&ship_to=SA&shipTo=SA&shipToCountry=SA&shippingCountry=SA&shipping_country=SA&store_country=SA'
+// This cookie must exist in WKWebsiteDataStore before SHEIN's first network
+// request. Page JavaScript runs too late: SHEIN has already chosen and stored
+// an IP-derived shipping country by then.
+const SHEIN_INITIAL_COOKIES = [
+  { url: 'https://m.shein.com/', domain: '.shein.com', path: '/', key: 'localcountry', value: 'SA' },
+]
 const TEMU_HOME_URL = 'https://www.temu.com/sa/?currency=USD&currencyCode=USD'
 const SHEIN_CHALLENGE_PATH_RE = /\/(?:cdn-cgi|challenge|captcha|verify|verification|security|robot|risk|anti[-_]?bot|human)(?:\/|\?|#|$)/i
 const SHEIN_CHALLENGE_QUERY_RE = /(?:^|[?&#])(?:captcha|challenge|verification|security_token|risk|robot|anti[-_]?bot|human)=/i
@@ -759,6 +765,7 @@ function App() {
       : null
 
   const [screen, setScreen] = useState<Screen>(() => {
+    if (TEST_ONLY_AUTH_BYPASS) return 'home'
     const token = readStoredJson<string>(storageKeys.sessionToken, '')
     if (token && !isLegacyPhoneSessionToken(token)) {
       const profile = readStoredJson<UserProfile | null>(storageKeys.userProfile, null)
@@ -2464,6 +2471,7 @@ function App() {
     currentWebviewUrlRef.current = targetUrl
     void InAppBrowser.openWebView({
       url: targetUrl,
+      ...(activeStore === 'shein' ? { initialCookies: SHEIN_INITIAL_COOKIES } : {}),
       ...(openSheinHiddenFirst
         ? {
           hidden: true,
