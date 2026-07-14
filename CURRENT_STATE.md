@@ -56,6 +56,12 @@ Read `AI-HANDOFF.md` and `AGENTS.md`. Preserve any existing user/other-AI change
 - v85.6 SHA-256: `D457E19DF87236D00A3CABBE27F3EFFED8F6C8A4ED6A7B948415DD6111BD20F4`; run `29322372402`.
 - v85.6 removes the inherited hidden/offscreen `FAKE_VISIBLE` first-open path. SHEIN stays attached, visible, laid out, and interactive behind a bounded native loading cover while the exact Saudi address flow runs. The cover is removed for human verification and has a native timeout, so it cannot permanently trap the customer.
 - Verified shipping-region controls are narrowly locked against customer clicks; only the exact automatic native cascade is allowed. No broad CSS, viewport hack, content hiding, storage purge, or reload loop was added.
+- v85.6 device result: Saudi correction worked, but only the first SHEIN entry was healthy; the second entry could return as a partially loaded, untappable page. Switching to Temu and back still rebuilt the WebView and recovered it.
+- v85.7 candidate commit: `d2f2038`; version `2026.07.14-v85.7-shein-fresh-entry-health-recovery-sa-status-no-otp-test`.
+- v85.7 test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.7-shein-fresh-entry-recovery-sa-status-no-otp-test.ipa`
+- v85.7 SHA-256: `DE22B0B5BE643BDD7BB03704C45A072550912ED5DF1E9E39656713F482643552`; run `29324148070`.
+- v85.7 removes all app use of the plugin's SHEIN `hide/show` path. Leaving SHEIN or resuming after meaningful background time closes the old WKWebView and creates a fresh one while preserving shared website data and the signed Saudi address.
+- `browserPageLoaded` is no longer accepted as SHEIN readiness. A bounded 13-second DOM/content health check performs one fresh-instance recovery, then shows a clear store/VPN failure instead of leaving an image-like page. The native cover now says `جاري تجهيز متجر SHEIN…` or `جاري ضبط المتجر على السعودية…`.
 - OTP screens remain bypassed only for this test candidate; set `TEST_ONLY_AUTH_BYPASS = false` before production.
 
 v85 remains the stable store/UI baseline. v85.6 deliberately changes only the proven first-open WebView lifecycle and the exact Saudi shipping flow; it does not import v86-v88 behavior or broaden the old storage guard.
@@ -70,7 +76,7 @@ v85 remains the stable store/UI baseline. v85.6 deliberately changes only the pr
 
 ## Current Task
 
-- Install v85.6 on iPhone 6 and iPhone 16 Pro Max from a foreign persisted address, then cold-open SHEIN and verify it is touchable without switching to Temu and back.
+- Install v85.7 on iPhone 6 and iPhone 16 Pro Max, enter/leave SHEIN repeatedly, and background/resume the app. Verify every new entry is touchable without switching to Temu.
 - Verify the Saudi correction is not shown, the shipping-region control does not open for the customer, and Saudi persists across reload/store/VPN changes.
 - Android structural validation is not a claim that either iPhone issue is fixed; both real devices remain the acceptance test.
 - OTP bypass is only for faster store testing; customer account/server features and Add-to-Cart placement remain separate and unchanged.
@@ -91,7 +97,8 @@ v85 remains the stable store/UI baseline. v85.6 deliberately changes only the pr
 - Android Capacitor sync and `assembleDebug` passed.
 - Live Android WebView validation passed from signed Qatar to signed Saudi, across reload and at the product API response level.
 - v85.6 Android validation showed the first SHEIN WebView attached with `visible=true`; native cover show/hide worked, and a SHEIN human challenge remained visible instead of closing the WebView. The challenge was not bypassed.
-- v85.6 unsigned IPA built successfully from `3388071` in run `29322372402`; embedded version marker verified. Real-device testing is still pending.
+- v85.7 live Android validation proved that leaving SHEIN removes the old page target, returning creates a different attached `visible=true` WebView, category taps change SHEIN state, and a 3-second background/resume also creates a new target.
+- v85.7 unsigned IPA built successfully from `d2f2038` in run `29324148070`; embedded version marker verified. Real-device testing is still pending.
 
 ## Production References
 
