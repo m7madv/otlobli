@@ -1,3 +1,95 @@
+// Runs as a real WKUserScript before SHEIN's first document starts. It mounts
+// only Otlobli's existing bottom navigation; it does not touch SHEIN network,
+// storage, region, CSS, or page lifecycle. The full capture script adopts the
+// same #otlobli-nav node after page load.
+export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
+(function () {
+  if (window.top !== window || window.__otlobliNavBootstrapInstalled) return;
+  window.__otlobliNavBootstrapInstalled = true;
+
+  var timer = 0;
+  var attempts = 0;
+  var icons = {
+    home: '<path d="M4 11.5 12 4l8 7.5"/><path d="M6 10v9h12v-9"/><path d="M10 19v-5h4v5"/>',
+    orders: '<rect x="4" y="7" width="16" height="13" rx="1.3"/><path d="M4 7l8-4 8 4"/><path d="M12 11v9"/>',
+    cart: '<circle cx="9" cy="20" r="1.3"/><circle cx="18" cy="20" r="1.3"/><path d="M3 4h2l2.2 11.5a2 2 0 0 0 2 1.6h8.6a2 2 0 0 0 2-1.6L21 8H6"/>',
+    profile: '<circle cx="12" cy="8" r="3.6"/><path d="M5 20c0-3.8 3.1-6.4 7-6.4s7 2.6 7 6.4"/>'
+  };
+
+  function mount() {
+    if (!document.body) return false;
+    if (document.getElementById('otlobli-nav')) return true;
+
+    var nav = document.createElement('div');
+    nav.id = 'otlobli-nav';
+    nav.style.cssText = 'position:fixed!important;left:50%!important;right:auto!important;bottom:0!important;top:auto!important;' +
+      'transform:translate3d(-50%,0,0)!important;will-change:transform!important;width:100%!important;max-width:440px!important;' +
+      'width:min(100vw, 440px)!important;height:90px!important;min-height:90px!important;max-height:90px!important;' +
+      'height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;' +
+      'min-height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;' +
+      'max-height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;' +
+      'z-index:2147483647!important;display:flex!important;direction:rtl!important;overflow:hidden!important;box-sizing:border-box!important;' +
+      'background:rgba(255,255,255,.97)!important;border-top:1px solid #bccac0!important;padding:0 0 16px 0!important;margin:0!important;' +
+      'font-family:Cairo,system-ui,-apple-system,sans-serif!important;font-size:12px!important;line-height:1.15!important;' +
+      'opacity:1!important;visibility:visible!important;pointer-events:auto!important;';
+
+    var items = [
+      { label: '\\u0627\\u0644\\u0631\\u0626\\u064a\\u0633\\u064a\\u0629', icon: icons.home, type: '' },
+      { label: '\\u0637\\u0644\\u0628\\u0627\\u062a\\u064a', icon: icons.orders, type: 'openOrders' },
+      { label: '\\u0627\\u0644\\u0633\\u0644\\u0629', icon: icons.cart, type: 'openCart' },
+      { label: '\\u062d\\u0633\\u0627\\u0628\\u064a', icon: icons.profile, type: 'openProfile' }
+    ];
+
+    for (var i = 0; i < items.length; i++) {
+      var item = items[i];
+      var tab = document.createElement('button');
+      var active = !item.type;
+      tab.id = 'otlobli-nav-tab-' + i;
+      tab.style.cssText = 'position:relative!important;flex:1 1 0!important;height:74px!important;min-height:74px!important;max-height:74px!important;' +
+        'border:0!important;background:transparent!important;display:grid!important;place-items:center!important;align-content:center!important;' +
+        'gap:4px!important;padding:10px 0 0 0!important;margin:0!important;box-sizing:border-box!important;font-size:12px!important;' +
+        'line-height:1.15!important;font-weight:700!important;font-family:Cairo,system-ui,-apple-system,sans-serif!important;color:' +
+        (active ? '#006948' : '#3d4a42') + '!important;';
+      if (active) {
+        var indicator = document.createElement('span');
+        indicator.style.cssText = 'position:absolute!important;top:0!important;width:32px!important;height:4px!important;border-radius:999px!important;background:#006948!important;';
+        tab.appendChild(indicator);
+      }
+      var content = document.createElement('span');
+      content.style.cssText = 'display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;' +
+        'gap:4px!important;width:100%!important;pointer-events:none!important;font-size:12px!important;line-height:1.15!important;';
+      content.innerHTML = '<svg width="22" height="22" style="width:22px!important;height:22px!important;display:block!important" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
+        item.icon + '</svg><span>' + item.label + '</span>';
+      tab.appendChild(content);
+      if (item.type) {
+        (function (messageType) {
+          tab.addEventListener('click', function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            try {
+              if (window.mobileApp && window.mobileApp.postMessage) {
+                window.mobileApp.postMessage({ detail: { type: messageType } });
+              }
+            } catch (e) {}
+          }, true);
+        })(item.type);
+      }
+      nav.appendChild(tab);
+    }
+    document.body.appendChild(nav);
+    return true;
+  }
+
+  if (!mount()) {
+    document.addEventListener('DOMContentLoaded', mount, false);
+    timer = setInterval(function () {
+      attempts++;
+      if (mount() || attempts >= 400) clearInterval(timer);
+    }, 25);
+  }
+})();
+`
+
 export const SHEIN_CAPTURE_SCRIPT = `
 (function () {
   // env(safe-area-inset-bottom) only resolves to the device's real inset when

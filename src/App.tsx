@@ -18,7 +18,7 @@ import { getDeviceId, readStoredJson, storageKeys, useStoredState } from './infr
 import { appApi } from './services'
 import { PAYMENT_MODE, APP_VERSION, TEST_ONLY_AUTH_BYPASS, cleanEnvValue } from './config'
 import { buildWhatsappLink } from './services/whatsappLink'
-import { SHEIN_CAPTURE_SCRIPT } from './services/sheinBrowserScript'
+import { OTLOBLI_NAV_BOOTSTRAP_SCRIPT, SHEIN_CAPTURE_SCRIPT } from './services/sheinBrowserScript'
 import { App as CapacitorApp } from '@capacitor/app'
 import { Capacitor } from '@capacitor/core'
 import { BackgroundColor, InAppBrowser, ToolBarType } from '@capgo/capacitor-inappbrowser'
@@ -2082,7 +2082,6 @@ function App() {
   const webviewErrorTimerRef = useRef<number | undefined>(undefined)
   const sheinReadinessTimerRef = useRef<number | undefined>(undefined)
   const sheinRecoveryAttemptRef = useRef(0)
-  const appBackgroundedAtRef = useRef(0)
   // فُتح المتجر عبر «فتح على أي حال» رغم فشل بوابة VPN. عندها لو لم تُحمّل الصفحة
   // فعلاً، نرجع لبوابة «شغّل VPN» بدل عرض صفحة بيضاء (بدل الإظهار القسري).
   const openedViaBypassRef = useRef(false)
@@ -2219,10 +2218,13 @@ function App() {
     sheinReadinessTimerRef.current = undefined
   }
 
-  const forceStoreVpnRecheck = (forceFreshWebview = false) => {
+  const forceStoreVpnRecheck = () => {
     if (screenRef.current !== 'home') return
     if (selectedStoreRef.current !== 'shein') return
-    if (!forceFreshWebview && sheinOpenedRef.current && sheinReadyRef.current) return
+    // A healthy store keeps its exact page/scroll state across app screens and
+    // ordinary background/foreground transitions. Actual WebKit termination is
+    // handled by pageLoadError; normal resume is not a reason to destroy it.
+    if (sheinOpenedRef.current && sheinReadyRef.current) return
     if (sheinChallengeActiveRef.current) return
     const now = Date.now()
     if (now - lastResumeVpnRecheckRef.current < 1200) return
@@ -2318,21 +2320,7 @@ function App() {
     webviewAutoOpenPausedUntilRef.current = 0
     setSheinBlockedError(false)
 
-    const wasOpening = webviewOpeningRef.current
     webviewOpeningRef.current = false
-
-    if (screenRef.current !== 'home') {
-      if (wasOpening) {
-        webviewSessionRef.current += 1
-        webviewOpenedAtRef.current = 0
-        webviewIdRef.current = ''
-        sheinChallengeActiveRef.current = false
-        sheinOpenedRef.current = false
-        setSheinReady(false)
-        void InAppBrowser.close().catch(() => undefined)
-      }
-      return
-    }
 
     // وصلنا لعرض محتوى فعلي — التجاوز نجح، نُصفّر علم التجاوز.
     openedViaBypassRef.current = false
@@ -2342,35 +2330,12 @@ function App() {
       pendingProductUrlRef.current = ''
       void InAppBrowser.setUrl({ url: pendingProductUrl }).catch(() => undefined)
     }
+    // If readiness completed while the customer was on cart/orders/profile,
+    // keep the same prepared WebView hidden. It will be shown without reload.
+    if (screenRef.current !== 'home') return
     const target = pendingBackTargetRef.current
     pendingBackTargetRef.current = 'home'
     postWebviewChromeState(target)
-  }
-
-  const closeOpeningStoreWebview = () => {
-    clearSheinReadinessWatchdog()
-    sheinRecoveryAttemptRef.current = 0
-    webviewAutoOpenPausedUntilRef.current = Date.now() + 1000
-    suppressAutoReopenRef.current = true
-    webviewSessionRef.current += 1
-    webviewOpeningRef.current = false
-    webviewOpenedAtRef.current = 0
-    webviewIdRef.current = ''
-    sheinChallengeActiveRef.current = false
-    currentWebviewUrlRef.current = ''
-    sheinOpenedRef.current = false
-    setSheinReady(false)
-    void InAppBrowser.close()
-      .then(() => {
-        webviewAutoOpenPausedUntilRef.current = 0
-        if (screenRef.current === 'home' && vpnStateRef.current === 'ok' && !sheinOpenedRef.current) {
-          window.setTimeout(() => browseSheinRef.current(), 0)
-        }
-      })
-      .catch(() => {
-        webviewAutoOpenPausedUntilRef.current = 0
-        suppressAutoReopenRef.current = false
-      })
   }
 
   const restartStuckSheinWebview = (sessionId: number) => {
@@ -2456,10 +2421,18 @@ function App() {
     const rawTargetUrl = initialPendingUrl || storeUrl(activeStore)
     const targetUrl = activeStore === 'shein' ? normalizeSheinBrowserUrl(rawTargetUrl) : normalizeTemuBrowserUrl(rawTargetUrl)
     currentWebviewUrlRef.current = targetUrl
-    const webViewOptions: Parameters<typeof InAppBrowser.openWebView>[0] & { otlobliLoadingCover?: boolean } = {
+    const webViewOptions: Parameters<typeof InAppBrowser.openWebView>[0] & {
+      otlobliLoadingCover?: boolean
+      otlobliDocumentStartScript?: string
+      otlobliPreserveAttachedWhenHidden?: boolean
+    } = {
       url: targetUrl,
       ...(activeStore === 'shein'
-        ? { otlobliLoadingCover: true }
+        ? {
+          otlobliLoadingCover: true,
+          otlobliDocumentStartScript: OTLOBLI_NAV_BOOTSTRAP_SCRIPT,
+          otlobliPreserveAttachedWhenHidden: true,
+        }
         : { preShowScript: SHEIN_CAPTURE_SCRIPT, preShowScriptInjectionTime: 'documentStart' as const, isPresentAfterPageLoad: true }),
       toolbarType: ToolBarType.BLANK,
       backgroundColor: BackgroundColor.WHITE,
@@ -2509,6 +2482,9 @@ function App() {
         if (!result) return
         if (sessionId !== webviewSessionRef.current) return
         webviewIdRef.current = result?.id ?? webviewIdRef.current
+        if (screenRef.current !== 'home') {
+          void InAppBrowser.hide().catch(() => undefined)
+        }
         if (initialPendingUrl && pendingProductUrlRef.current === initialPendingUrl) pendingProductUrlRef.current = ''
         const absoluteTimeout = window.setTimeout(() => {
           if (sessionId !== webviewSessionRef.current) return
@@ -2535,20 +2511,20 @@ function App() {
     let openTimer: number | undefined
     if (screen === 'home') {
       if (sheinOpenedRef.current) {
-        if (webviewOpeningRef.current || !sheinReady) return
-        const target = pendingBackTargetRef.current
-        pendingBackTargetRef.current = 'home'
-        postWebviewChromeState(target)
+        void InAppBrowser.show().catch(() => undefined).then(() => {
+          if (webviewOpeningRef.current || !sheinReadyRef.current) return
+          const target = pendingBackTargetRef.current
+          pendingBackTargetRef.current = 'home'
+          postWebviewChromeState(target)
+        })
       } else if (vpnState === 'ok') {
         if (sheinBlockedError || Date.now() < webviewAutoOpenPausedUntilRef.current) return
         openTimer = window.setTimeout(() => browseSheinRef.current(), 0)
       }
     } else if (sheinOpenedRef.current) {
-      // Never park SHEIN in the plugin's hidden zero-frame container. On
-      // iOS that reparents the same WKWebView and the second presentation
-      // can render a static, untappable SPA. Close cleanly; cookies and the
-      // signed Saudi address remain in WKWebsiteDataStore for the fresh view.
-      closeOpeningStoreWebview()
+      // The iOS patch keeps Otlobli's WebView attached to its controller while
+      // hidden, so cart/orders/profile can appear without destroying SHEIN.
+      void InAppBrowser.hide().catch(() => undefined)
     }
     return () => {
       if (openTimer !== undefined) window.clearTimeout(openTimer)
@@ -2621,12 +2597,13 @@ function App() {
     })
     const errorHandle = InAppBrowser.addListener('pageLoadError', (event: WebviewPageLoadErrorEvent) => {
       if (event?.id && webviewIdRef.current && event.id !== webviewIdRef.current) return
-      if (!sheinOpenedRef.current || screenRef.current !== 'home') return
+      if (!sheinOpenedRef.current) return
       const activeStore = selectedStoreRef.current
       if (activeStore === 'shein' && isFatalSheinWebkitError(event)) {
         handleFatalSheinWebkitError(event)
         return
       }
+      if (screenRef.current !== 'home') return
       if (activeStore === 'shein' && !openedViaBypassRef.current) return
       if (activeStore === 'shein' && (sheinChallengeActiveRef.current || sheinReadyRef.current)) return
       if (webviewErrorTimerRef.current !== undefined) window.clearTimeout(webviewErrorTimerRef.current)
@@ -2739,12 +2716,9 @@ function App() {
     if (Capacitor.isNativePlatform()) {
       void CapacitorApp.addListener('appStateChange', (state: { isActive: boolean }) => {
         if (!state.isActive) {
-          appBackgroundedAtRef.current = Date.now()
           return
         }
-        const backgroundedFor = appBackgroundedAtRef.current ? Date.now() - appBackgroundedAtRef.current : 0
-        appBackgroundedAtRef.current = 0
-        forceStoreVpnRecheck(backgroundedFor >= 1500)
+        forceStoreVpnRecheck()
       }).then((sub) => { appStateSub = sub })
       window.setTimeout(() => forceStoreVpnRecheck(), 0)
     }

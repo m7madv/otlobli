@@ -291,17 +291,61 @@ index 8ae3e61..fc6cf04 100644
              // Strip conditional cache validators on the wire so upstream cannot return 304/3xx,
              // which WebResourceResponse.setStatusCodeAndReasonPhrase rejects (kills the renderer).
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
-index 116e296..66d64ba 100644
+index 116e296..51d1d3e 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
-@@ -936,6 +936,7 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -907,6 +907,15 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+                 self.proxySchemeHandlers[webViewId] = proxyHandler
+             }
+
++            var initialDocumentStartScripts = self.documentStartUserScripts(
++                authorizedAppLinks: authorizedAppLinks,
++                openBlankTargetInWebView: openBlankTargetInWebView
++            )
++            if let otlobliDocumentStartScript = call.getString("otlobliDocumentStartScript"),
++               !otlobliDocumentStartScript.isEmpty {
++                initialDocumentStartScripts.append(otlobliDocumentStartScript)
++            }
++
+             self.webViewController = WKWebViewController.init(
+                 url: url,
+                 headers: headers,
+@@ -923,10 +932,7 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+                 captureConsoleLogs: captureConsoleLogs,
+                 proxyRequests: legacyProxyRequests.isEnabled,
+                 proxySchemeHandler: proxyHandler,
+-                documentStartUserScripts: self.documentStartUserScripts(
+-                    authorizedAppLinks: authorizedAppLinks,
+-                    openBlankTargetInWebView: openBlankTargetInWebView
+-                ),
++                documentStartUserScripts: initialDocumentStartScripts,
+                 openBlankTargetInWebView: openBlankTargetInWebView
+             )
+
+@@ -936,6 +942,8 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
              }
 
              webViewController.instanceId = webViewId
 +            webViewController.otlobliLoadingCoverEnabled = call.getBool("otlobliLoadingCover", false)
++            webViewController.otlobliPreserveAttachedWhenHidden = call.getBool("otlobliPreserveAttachedWhenHidden", false)
 
              // Set HTTP method and body if provided
              if let method = httpMethod {
+@@ -1338,9 +1346,11 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+                     }
+                 }
+
+-                if !self.attachWebViewToWindow(webView) {
+-                    call?.reject("Failed to get active window for hidden webview")
+-                    return
++                if !webViewController.otlobliPreserveAttachedWhenHidden {
++                    if !self.attachWebViewToWindow(webView) {
++                        call?.reject("Failed to get active window for hidden webview")
++                        return
++                    }
+                 }
+             } else {
+                 if webView.superview !== webViewController.view {
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
 index 1c70884..be2b8ac 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
@@ -483,10 +527,10 @@ index 1c70884..be2b8ac 100644
          if
              ProxySchemeRequestSupport.supportsRequestBody(method: context.method),
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
-index 97a2fc1..dadf498 100644
+index 97a2fc1..9a3fbe2 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
-@@ -748,6 +748,21 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -748,6 +748,23 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
      fileprivate var webView: WKWebView?
      fileprivate var progressView: UIProgressView?
 
@@ -500,15 +544,17 @@ index 97a2fc1..dadf498 100644
 +            }
 +        }
 +    }
++    open var otlobliPreserveAttachedWhenHidden = false
 +    private var otlobliLoadingCoverView: UIView?
 +    private var otlobliLoadingCoverLabel: UILabel?
++    private var otlobliLoadingCoverBottomConstraint: NSLayoutConstraint?
 +    private var otlobliLoadingCoverMessage = "جاري تجهيز متجر SHEIN…"
 +    private var otlobliLoadingCoverTimeout: DispatchWorkItem?
 +
      fileprivate var previousNavigationBarState: (tintColor: UIColor, hidden: Bool) = (.black, false)
      fileprivate var previousToolbarState: (tintColor: UIColor, hidden: Bool) = (.black, false)
 
-@@ -878,6 +893,10 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -878,6 +895,10 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
              self.initWebview()
          }
 
@@ -519,11 +565,12 @@ index 97a2fc1..dadf498 100644
          // Apply navigation gestures setting
          updateNavigationGestures()
 
-@@ -899,6 +918,110 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -899,6 +920,119 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
      override open func viewDidLayoutSubviews() {
          super.viewDidLayoutSubviews()
          refreshWebViewViewportIfNeeded()
 +        if let cover = otlobliLoadingCoverView {
++            otlobliLoadingCoverBottomConstraint?.constant = -(74 + max(view.safeAreaInsets.bottom, 16))
 +            view.bringSubviewToFront(cover)
 +        }
 +    }
@@ -577,11 +624,17 @@ index 97a2fc1..dadf498 100644
 +            cover.addSubview(label)
 +
 +            self.view.addSubview(cover)
++            let coverBottomConstraint = cover.bottomAnchor.constraint(
++                equalTo: self.view.bottomAnchor,
++                constant: -(74 + max(self.view.safeAreaInsets.bottom, 16))
++            )
 +            NSLayoutConstraint.activate([
 +                cover.topAnchor.constraint(equalTo: self.view.topAnchor),
 +                cover.leadingAnchor.constraint(equalTo: self.view.leadingAnchor),
 +                cover.trailingAnchor.constraint(equalTo: self.view.trailingAnchor),
-+                cover.bottomAnchor.constraint(equalTo: self.view.bottomAnchor),
++                // Match the existing nav exactly: its 74pt content plus the
++                // larger of the real iOS safe-area or the existing 16pt floor.
++                coverBottomConstraint,
 +                spinner.centerXAnchor.constraint(equalTo: cover.centerXAnchor),
 +                spinner.centerYAnchor.constraint(equalTo: cover.centerYAnchor, constant: -24),
 +                label.topAnchor.constraint(equalTo: spinner.bottomAnchor, constant: 16),
@@ -590,6 +643,7 @@ index 97a2fc1..dadf498 100644
 +            ])
 +            self.otlobliLoadingCoverView = cover
 +            self.otlobliLoadingCoverLabel = label
++            self.otlobliLoadingCoverBottomConstraint = coverBottomConstraint
 +            self.view.bringSubviewToFront(cover)
 +            self.scheduleOtlobliLoadingCoverTimeout()
 +    }
@@ -602,6 +656,7 @@ index 97a2fc1..dadf498 100644
 +            guard let cover = self.otlobliLoadingCoverView else { return }
 +            self.otlobliLoadingCoverView = nil
 +            self.otlobliLoadingCoverLabel = nil
++            self.otlobliLoadingCoverBottomConstraint = nil
 +            cover.layer.removeAllAnimations()
 +            UIView.animate(withDuration: 0.12, animations: {
 +                cover.alpha = 0
@@ -630,7 +685,7 @@ index 97a2fc1..dadf498 100644
      }
 
      func updateButtonTintColors() {
-@@ -1001,6 +1124,37 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1001,6 +1135,37 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          capBrowserPlugin?.notifyListeners(eventName, data: payload(with: data))
      }
 
@@ -668,7 +723,7 @@ index 97a2fc1..dadf498 100644
      private func startObservingKeyboardViewportChanges() {
          guard !isObservingKeyboardViewportChanges else {
              return
-@@ -1136,6 +1290,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1136,6 +1301,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          if message.name == "messageHandler" {
              if let messageBody = message.body as? [String: Any] {
                  print("Received message from JavaScript:", messageBody)
@@ -676,7 +731,15 @@ index 97a2fc1..dadf498 100644
                  emit("messageFromWebview", data: messageBody)
              } else {
                  print("Received non-dictionary message from JavaScript:", message.body)
-@@ -1818,6 +1973,11 @@ public extension WKWebViewController {
+@@ -1581,6 +1747,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+         self.hiddenPopupWindow = parent.hiddenPopupWindow
+         self.opensHidden = parent.hiddenPopupWindow
+         self.captureConsoleLogs = parent.captureConsoleLogs
++        self.otlobliPreserveAttachedWhenHidden = parent.otlobliPreserveAttachedWhenHidden
+         self.allowWebViewJsVisibilityControl = parent.allowWebViewJsVisibilityControl
+         self.allowScreenshotsFromWebPage = parent.allowScreenshotsFromWebPage
+         self.handleDownloads = parent.handleDownloads
+@@ -1818,6 +1985,12 @@ public extension WKWebViewController {
 
      open func cleanupWebView() {
          guard let webView = self.webView else { return }
@@ -685,10 +748,11 @@ index 97a2fc1..dadf498 100644
 +        otlobliLoadingCoverView?.removeFromSuperview()
 +        otlobliLoadingCoverView = nil
 +        otlobliLoadingCoverLabel = nil
++        otlobliLoadingCoverBottomConstraint = nil
          webView.stopLoading()
          previewItemURL = nil
 
-@@ -2743,7 +2903,7 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2743,7 +2916,7 @@ extension WKWebViewController: WKNavigationDelegate {
              self.url = url
              delegate?.webViewController?(self, didFail: url, withError: error)
          }
@@ -697,7 +761,7 @@ index 97a2fc1..dadf498 100644
      }
 
      public func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-@@ -2753,7 +2913,16 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2753,7 +2926,16 @@ extension WKWebViewController: WKNavigationDelegate {
              self.url = url
              delegate?.webViewController?(self, didFail: url, withError: error)
          }
