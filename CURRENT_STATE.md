@@ -8,7 +8,7 @@ This is the short source of truth for the app work. Keep it compact so Codex/Cla
 
 - Path: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`
 - Branch: `codex/customer-wallet-group-orders`
-- Latest feature commit: `2324dd0` (`fix: v88 restore interactive shein webview`)
+- Stable store baseline: `2f24954` (`fix: v85 polish iOS nav and selection behavior`)
 
 Before any code change:
 
@@ -84,7 +84,7 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 - v87 iPhone artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v87.ipa`
 - v87 IPA SHA-256: `3E3F24099DDD4C2F664A345A3E8D9DA7A75DD91600AABED438BA9B496F2B1F31`
 - v87 GitHub Actions run: `29297647827`
-- v88 iPhone artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v88.ipa`
+- v88 failed/archived iPhone artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v88.ipa`
 - v88 IPA SHA-256: `50D7F388C64091F8B1FABA75D83E830FF5B44A9315E5121335043A40C46C1FE7`
 - v88 GitHub Actions run: `29298705874`
 - No new Android build was requested for v88.
@@ -108,7 +108,8 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 
 - v87 failed real-device testing: the first SHEIN page still appeared painted but completely untouchable, and the region/UI problems remained. Do not describe v87 as a fix.
 - v88 also failed real-device testing: entering SHEIN caused the WebView/app to close or crash. Do not continue from v86, v87, or v88.
-- The required stable baseline is v85 (`2f24954`); restore it exactly before attempting any single-issue fix or iOS build.
+- The store rollback now matches v85 (`2f24954`) exactly in `src/App.tsx`, `src/services/sheinBrowserScript.ts`, `src/config.ts`, and `src/styles.css`.
+- The v85 rollback passed `npm run build`, injected `SHEIN_CAPTURE_SCRIPT` syntax parsing, and both working/staged `git diff --check`. No IPA was built.
 - v87 iOS build is ready: `APP_VERSION = 2026.07.14-hidden-shein-ready-saudi-v87`.
 - v87 change: SHEIN opens hidden, runs a stronger readiness probe, silently corrects foreign shipping regions (e.g. Bahrain/Albania) before reveal, then automatically performs one hidden close/reopen warm-up before showing. This targets the first-open visible-but-untouchable SHEIN screenshot reported on iPhone.
 - v87 change: removes v86's visible Saudi reset bar, disables the risky stuck-blocker reload detector, and stops hiding SHEIN elements around the floating back button; the goal is less page mutation and fewer over-hidden categories/icons.
@@ -174,7 +175,7 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 
 ## Next Best Focus
 
-1. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v88.ipa` on iPhone 6 and iPhone 16 Pro Max. Verify fresh SHEIN open with VPN is touchable and does not enter a reload loop; v88 no longer uses hidden `FAKE_VISIBLE` opening.
+1. Keep v85 as the only active store baseline. Before any new change, use `C:\Users\MOHAMMAD\Desktop\otlobli-v85.ipa` as the real-device reference on iPhone 6 and iPhone 16 Pro Max.
 2. On iPhone 6, verify SHEIN top tabs are not over-hidden, the back button is visible/tappable, and SHEIN's native bottom bar (`أنا / حقيبة التسوق / ترندات / الفئات / متجر`) stays hidden while otlobli's nav remains visible.
 3. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v70.apk` on Android / emulator and verify SHEIN does not exit the app.
 4. Verify SHEIN after this exact flow: fresh open -> switch to Temu -> switch back to SHEIN -> security check if shown -> normal browsing.

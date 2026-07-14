@@ -654,9 +654,6 @@ a {
   display: grid;
   place-items: center;
   align-content: center;
-  height: 74px;
-  min-height: 74px;
-  max-height: 74px;
   /* Nudges the icon+label block down from dead-center within the button
      (the bar itself - height, position, padding-bottom safe-area math -
      is untouched; only where the icon sits inside it moves). */
@@ -665,9 +662,8 @@ a {
   border: 0;
   background: transparent;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 0.76rem;
   font-weight: 700;
-  line-height: 1.15;
 }
 
 .bottom-nav button.is-active {

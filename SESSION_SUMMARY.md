@@ -38,6 +38,7 @@ Read:
 - Stable SHEIN baseline: `2f24954` (`fix: v85 polish iOS nav and selection behavior`).
 - v87 failed the user's real-device test: SHEIN remained untouchable and the reported region/UI issues remained. Do not call v87 stable or fixed.
 - v88 also failed: entering SHEIN closed/crashed the WebView or app. Do not continue from v86, v87, or v88.
+- Current store rollback matches v85 (`2f24954`) byte-for-byte in `App.tsx`, `sheinBrowserScript.ts`, `config.ts`, and `styles.css`; build/script/diff checks pass and no IPA was built.
 - Customer deployed to `https://talabieh.vercel.app`
 - Admin deployed to `https://talabieh-admin.vercel.app`
 - Supabase migration `20260712033000_shared_order_ownership.sql` applied.
@@ -101,7 +102,7 @@ Read:
 - v87 iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v87.ipa`
 - v87 IPA SHA-256: `3E3F24099DDD4C2F664A345A3E8D9DA7A75DD91600AABED438BA9B496F2B1F31`
 - v87 GitHub Actions run: `29297647827`
-- v88 iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v88.ipa`
+- v88 failed/archived iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v88.ipa`
 - v88 IPA SHA-256: `50D7F388C64091F8B1FABA75D83E830FF5B44A9315E5121335043A40C46C1FE7`
 - v88 GitHub Actions run: `29298705874`
 - No new Android build was requested for v88.

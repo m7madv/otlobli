@@ -24,6 +24,7 @@ Rules:
 - Stable SHEIN baseline: `2f24954` (`fix: v85 polish iOS nav and selection behavior`).
 - User tested v87 and reported that none of the SHEIN problems were fixed. Treat the v87 IPA as failed evidence, not a stable release.
 - User tested v88 and reported a regression where entering SHEIN closes/crashes the WebView or app. Do not continue from v86, v87, or v88; restore v85 behavior first.
+- Current rollback restores `src/App.tsx`, `src/services/sheinBrowserScript.ts`, `src/config.ts`, and `src/styles.css` byte-for-byte to `2f24954` (v85). Build, injected-script syntax parse, and diff checks pass. No IPA was built from the rollback.
 - Claude old account may have worked after Codex. Always inspect current git state before editing.
 - Claude new account may not have the same skills/connectors authenticated. Check available skills/tools, especially Figma.
 
@@ -91,7 +92,7 @@ Rules:
 - Desktop v87 iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v87.ipa`
 - v87 IPA SHA-256: `3E3F24099DDD4C2F664A345A3E8D9DA7A75DD91600AABED438BA9B496F2B1F31`
 - v87 GitHub Actions run: `29297647827`
-- Desktop v88 iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v88.ipa`
+- Desktop v88 failed/archived iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v88.ipa`
 - v88 IPA SHA-256: `50D7F388C64091F8B1FABA75D83E830FF5B44A9315E5121335043A40C46C1FE7`
 - v88 GitHub Actions run: `29298705874`
 
