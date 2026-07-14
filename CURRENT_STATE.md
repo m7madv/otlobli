@@ -8,7 +8,7 @@ This is the short source of truth for the app work. Keep it compact so Codex/Cla
 
 - Path: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`
 - Branch: `codex/customer-wallet-group-orders`
-- Latest feature commit: `982b84c` (`fix: v86 stabilize shein nav and saudi guard`)
+- Latest feature commit: `4e43fbb` (`fix: v87 hide shein until interactive`)
 
 Before any code change:
 
@@ -81,7 +81,10 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 - v86 iPhone artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v86.ipa`
 - v86 IPA SHA-256: `3C310FCB25E9501D40F3D43E40E345CE0779CF28CD810680A2DC75723A971EAE`
 - v86 GitHub Actions run: `29295642229`
-- No new Android build was requested for v86.
+- v87 iPhone artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v87.ipa`
+- v87 IPA SHA-256: `3E3F24099DDD4C2F664A345A3E8D9DA7A75DD91600AABED438BA9B496F2B1F31`
+- v87 GitHub Actions run: `29297647827`
+- No new Android build was requested for v87.
 
 ## v66 Completed
 
@@ -100,7 +103,11 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 
 ## Current Known Issues
 
-- v86 iOS build is ready: `APP_VERSION = 2026.07.14-shein-stability-saudi-v86`.
+- v87 iOS build is ready: `APP_VERSION = 2026.07.14-hidden-shein-ready-saudi-v87`.
+- v87 change: SHEIN opens hidden, runs a stronger readiness probe, silently corrects foreign shipping regions (e.g. Bahrain/Albania) before reveal, then automatically performs one hidden close/reopen warm-up before showing. This targets the first-open visible-but-untouchable SHEIN screenshot reported on iPhone.
+- v87 change: removes v86's visible Saudi reset bar, disables the risky stuck-blocker reload detector, and stops hiding SHEIN elements around the floating back button; the goal is less page mutation and fewer over-hidden categories/icons.
+- v87 change: restores faster SHEIN/nav maintenance intervals and faster category-tab restore compared with v86.
+- v86 iOS build remains archived: `APP_VERSION = 2026.07.14-shein-stability-saudi-v86`.
 - v86 change: keeps v85 as the base, reclaims the otlobli SHEIN back button when SHEIN overlays icons above it, and hides only the small overlapping control instead of broad page sections.
 - v86 change: strengthens SHEIN Saudi/USD locking by writing/checking extra country/region/locale keys (`storeCountry`, `shipCountry`, `shippingRegion`, `region`, `regionCode`, `defaultCountry`, `locale`) and caching visible-region text checks to reduce old-iPhone load.
 - v86 change: adds a conservative stuck-overlay detector for SHEIN; if a large non-challenge blocker prevents interaction for ~5.2s, the page reloads at most once per 30s.
@@ -161,7 +168,7 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 
 ## Next Best Focus
 
-1. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v86.ipa` on iPhone 6 and iPhone 16 Pro Max. Verify the otlobli bottom nav has the same size/shape when switching between SHEIN home and app screens such as Orders.
+1. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v87.ipa` on iPhone 6 and iPhone 16 Pro Max. Verify fresh SHEIN open with VPN no longer shows a visible-but-untouchable screenshot; if SHEIN is not ready it should stay hidden/retry or show VPN recovery.
 2. On iPhone 6, verify SHEIN top tabs are not over-hidden, the back button is visible/tappable, and SHEIN's native bottom bar (`أنا / حقيبة التسوق / ترندات / الفئات / متجر`) stays hidden while otlobli's nav remains visible.
 3. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v70.apk` on Android / emulator and verify SHEIN does not exit the app.
 4. Verify SHEIN after this exact flow: fresh open -> switch to Temu -> switch back to SHEIN -> security check if shown -> normal browsing.

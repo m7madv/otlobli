@@ -35,7 +35,7 @@ Read:
 
 ## Latest Stable Release
 
-- Latest feature commit: `982b84c` (`fix: v86 stabilize shein nav and saudi guard`)
+- Latest feature commit: `4e43fbb` (`fix: v87 hide shein until interactive`)
 - Customer deployed to `https://talabieh.vercel.app`
 - Admin deployed to `https://talabieh-admin.vercel.app`
 - Supabase migration `20260712033000_shared_order_ownership.sql` applied.
@@ -96,7 +96,10 @@ Read:
 - v86 iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v86.ipa`
 - v86 IPA SHA-256: `3C310FCB25E9501D40F3D43E40E345CE0779CF28CD810680A2DC75723A971EAE`
 - v86 GitHub Actions run: `29295642229`
-- No new Android build was requested for v86.
+- v87 iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v87.ipa`
+- v87 IPA SHA-256: `3E3F24099DDD4C2F664A345A3E8D9DA7A75DD91600AABED438BA9B496F2B1F31`
+- v87 GitHub Actions run: `29297647827`
+- No new Android build was requested for v87.
 
 ## v66 Implemented
 
@@ -116,7 +119,10 @@ Read:
 
 ## Still Open
 
-- v86 SHEIN/iOS stability fix is pushed and built.
+- v87 SHEIN/iOS hidden-readiness fix is pushed and built.
+- v87 change: SHEIN opens hidden, probes for a complete non-challenge interactive page, silently redirects visible foreign regions (Bahrain/Albania/etc.) back to Saudi/USD before reveal, and performs one hidden close/reopen warm-up before showing to address the first-open untouchable screenshot.
+- v87 change: disables v86's visible Saudi reset bar, stuck-overlay reload detector, and back-button element hider to avoid over-hiding SHEIN tabs/icons.
+- v86 SHEIN/iOS stability fix remains archived.
 - v86 change: keeps v85 base, protects the otlobli SHEIN back button from overlapping SHEIN icons, strengthens Saudi/USD region locking with extra store/shipping/region keys, adds a conservative stuck-overlay reload guard, throttles heavy SHEIN polling for weak phones, and aligns React nav sizing with the injected store nav.
 - v85 SHEIN/iOS polish fix remains available.
 - v85 change: keeps v84 bottom-nav hit-test hiding, aligns the injected store nav with the real app nav, disables text selection/callouts while preserving inputs, lowers the SHEIN back button on compact iPhones, and restores/whitelists SHEIN top category tabs.
@@ -274,6 +280,14 @@ Read:
 - `git diff --check` passed.
 - Injected `SHEIN_CAPTURE_SCRIPT` syntax parse passed.
 - GitHub iOS unsigned build run `29293816845` passed and produced `otlobli-v85.ipa`.
+
+## Validation After v87 Hidden SHEIN Readiness
+
+- `npm run build` passed.
+- `git diff --check` passed.
+- Injected `SHEIN_CAPTURE_SCRIPT` syntax parse passed.
+- `npm run lint` still fails on pre-existing unrelated errors (unused vars, refs during render, hook dependency warnings, and one Supabase regex warning); no new v87 syntax/build failure.
+- GitHub iOS unsigned build run `29297647827` passed and produced `otlobli-v87.ipa`.
 
 ## Guidance For Claude New Account
 

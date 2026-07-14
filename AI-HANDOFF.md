@@ -21,7 +21,7 @@ Rules:
 ## Important Context
 
 - Active branch: `codex/customer-wallet-group-orders`
-- Latest feature commit: `982b84c` (`fix: v86 stabilize shein nav and saudi guard`)
+- Latest feature commit: `4e43fbb` (`fix: v87 hide shein until interactive`)
 - Claude old account may have worked after Codex. Always inspect current git state before editing.
 - Claude new account may not have the same skills/connectors authenticated. Check available skills/tools, especially Figma.
 
@@ -86,6 +86,9 @@ Rules:
 - Desktop v86 iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v86.ipa`
 - v86 IPA SHA-256: `3C310FCB25E9501D40F3D43E40E345CE0779CF28CD810680A2DC75723A971EAE`
 - v86 GitHub Actions run: `29295642229`
+- Desktop v87 iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v87.ipa`
+- v87 IPA SHA-256: `3E3F24099DDD4C2F664A345A3E8D9DA7A75DD91600AABED438BA9B496F2B1F31`
+- v87 GitHub Actions run: `29297647827`
 
 ## Main Files
 
@@ -114,14 +117,16 @@ Rules:
 
 ## Current Highest Priority
 
-v86 iPhone build is ready:
+v87 iPhone build is ready:
 
-- This keeps v85 as the base and avoids the failed v82 viewport/shield approach.
-- `src/services/sheinBrowserScript.ts` now reclaims the otlobli SHEIN back button when SHEIN overlays icons above it and hides only the small overlapping control.
-- SHEIN Saudi/USD locking now writes/checks extra store/shipping/region/locale keys and caches visible-region text checks to reduce old-iPhone load.
-- SHEIN gets a conservative stuck-overlay reload guard: a large non-challenge interaction blocker reloads after ~5.2s, at most once per 30s.
-- Heavy SHEIN polling/category restore work is throttled to reduce iPhone 6 heat.
-- `src/styles.css` aligns real React bottom-nav button sizing with the injected store nav.
+- SHEIN opens hidden and is only shown after a stronger readiness probe. It also performs one hidden close/reopen warm-up before reveal to mimic the user-found Temu -> SHEIN workaround for the first-open untouchable screenshot.
+- If hidden SHEIN visibly lands on a foreign shipping region such as Bahrain/Albania, native code silently rewrites back to Saudi/USD before reveal.
+- The visible Saudi reset bar, v86 stuck-overlay reload detector, and back-button overlap hider are disabled to avoid over-hiding categories/icons or causing CSS damage.
+- `src/config.ts` version: `2026.07.14-hidden-shein-ready-saudi-v87`.
+- v87 iPhone unsigned IPA was built by GitHub Actions run `29297647827` and copied to the desktop.
+
+v86 iPhone build is archived:
+
 - `src/config.ts` version: `2026.07.14-shein-stability-saudi-v86`.
 - v86 iPhone unsigned IPA was built by GitHub Actions run `29295642229` and copied to the desktop.
 
