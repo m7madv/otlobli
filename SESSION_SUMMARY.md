@@ -14,8 +14,8 @@ Last updated: 2026-07-14
 - Stable store baseline: v85 / `2f24954`.
 - Reference IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.ipa`.
 - v85.4 IPA failed device testing; preloading `localcountry=SA` did not prevent Bahrain and that implementation is removed.
-- Current candidate: v85.10 / `f273c80` / `2026.07.14-v85.10-shein-final-ready-cover-no-otp-test`.
-- Test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.10-shein-final-ready-cover-no-otp-test.ipa`; SHA-256 `811FF316CC9CC6677DD7E9E61D3104FA8175CD7D88EFA5F3E0AC7F53B65C874E`; run `29328000485`.
+- Current candidate: v85.11 / `7c3249f` / `2026.07.14-v85.11-shein-persistent-nav-loading-no-otp-test`.
+- Test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.11-shein-persistent-nav-loading-no-otp-test.ipa`; SHA-256 `70826941A97AF7496C602EC49C04C684BD308CC48029C3668A68CA91316AA3AF`; run `29328314651`.
 - v86-v88 are failed paths. v87 fixed nothing; v88 closed/crashed SHEIN on entry.
 - Root cause: SHEIN product APIs use a signed `addressCookie`; URL parameters, VPN, and `localcountry` are not authoritative. Country-only selection also does not persist.
 - v85.5 completes SHEIN's exact native Saudi address cascade. Android emulator validation converted a signed Qatar address to signed Saudi in about 9 seconds, persisted after reload with QA IP, and the product API returned Saudi Arabia.
@@ -28,10 +28,12 @@ Last updated: 2026-07-14
 - v85.9 preserves warm SHEIN cache/Service Workers on healthy entries, injects Otlobli at document start, keeps the existing preparation surface and nav until real product hydration, and clears native cache only for one bounded stuck-session recovery.
 - v85.9 device result: final store worked, but raw SHEIN remained visible for 5-10 seconds before the final reload.
 - v85.10 keeps the native cover through all intermediate bodies/region repair and reveals only after 650ms of stable signed-Saudi product readiness with Otlobli nav attached.
+- v85.10 device result: raw SHEIN was covered, but Otlobli nav disappeared during the later loading/reload phase.
+- v85.11 hands off from the native cover to the existing in-page preparation layer only after Otlobli nav is attached, keeping the nav visible above blocked SHEIN content.
 - OTP screens are bypassed in this test candidate only and must be restored before production. Build, runtime script parse, diff check, native patch parse, Capacitor sync, and Android assembly pass.
 
 ## Next Step
 
-Test v85.10 first entry plus repeated entry/background resume on iPhone 6 and iPhone 16 Pro Max. Raw SHEIN must never appear during the initial 5-10 second preparation/reload; the finished store should reveal once. Do not claim success until both results are known.
+Test v85.11 on iPhone 6 and iPhone 16 Pro Max. Otlobli nav must remain visible/usable during preparation and reload while raw SHEIN remains blocked, then the finished store should reveal once. Do not claim success until both results are known.
 
 Do not touch Temu, payment, wallet, orders, coupons, or group checkout. Do not use broad CSS, viewport hacks, aggressive storage cleanup, or reload loops. Designs only from Figma.

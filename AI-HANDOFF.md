@@ -6,8 +6,8 @@ Read `CURRENT_STATE.md` first, then `AGENTS.md`.
 
 - Active branch: `codex/customer-wallet-group-orders`
 - Stable SHEIN baseline: v85 commit `2f24954`.
-- Current candidate: v85.10 commit `f273c80`, version `2026.07.14-v85.10-shein-final-ready-cover-no-otp-test`.
-- Test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.10-shein-final-ready-cover-no-otp-test.ipa`; SHA-256 `811FF316CC9CC6677DD7E9E61D3104FA8175CD7D88EFA5F3E0AC7F53B65C874E`; run `29328000485`.
+- Current candidate: v85.11 commit `7c3249f`, version `2026.07.14-v85.11-shein-persistent-nav-loading-no-otp-test`.
+- Test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.11-shein-persistent-nav-loading-no-otp-test.ipa`; SHA-256 `70826941A97AF7496C602EC49C04C684BD308CC48029C3668A68CA91316AA3AF`; run `29328314651`.
 - Reference IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.ipa`.
 - v85.4 IPA exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v85.4-shein-sa-no-otp-test.ipa`, but device testing failed: SHEIN still selected Bahrain. Its native initial-cookie preload has been removed.
 - v85.5 reads SHEIN's authoritative signed `addressCookie` and completes SHEIN's own exact native cascade: Saudi Arabia -> Riyadh Province -> Riyadh -> Al Olaya. It supports both observed native drawer structures and adds no CSS, storage purge, address fabrication, or reload loop.
@@ -20,6 +20,8 @@ Read `CURRENT_STATE.md` first, then `AGENTS.md`.
 - v85.9 removes per-entry cache clearing and the injected script's per-load Service Worker/Cache Storage purge. It injects at document start, keeps the existing Otlobli nav plus preparation surface until a loaded product card proves hydration, and uses one cache-clearing recovery only after a 35-second preparation failure. Preparation failure is no longer labeled as VPN failure.
 - v85.9 device result: the final store worked, but its intermediate raw SHEIN header/content/bottom bar were visible for 5-10 seconds before the final Saudi reload.
 - v85.10 keeps the native cover on `sheinPreparing`, performs Saudi scheduling/chrome cleanup before readiness, and requires 650ms of stable final URL + signed Saudi + product + Otlobli nav before revealing. Human verification alone is deliberately revealed.
+- v85.10 device result: SHEIN stayed covered, but the full native cover hid Otlobli's nav during later loading/reload.
+- v85.11 restores handoff on `sheinPreparing` only after the in-page cover and Otlobli nav are attached. The in-page cover blocks SHEIN below the nav; v85.10 final-readiness ordering/stability remains unchanged.
 - App OTP screens are bypassed for this test IPA only. Set `TEST_ONLY_AUTH_BYPASS = false` before any production build.
 
 ## Real-Device Evidence
@@ -36,7 +38,7 @@ Read `CURRENT_STATE.md` first, then `AGENTS.md`.
 
 ## Next Work
 
-Install v85.10 on both target iPhones. Verify raw SHEIN never appears during initial preparation/reload, then test repeated entry, background/resume, category/product taps, region lock, and Saudi persistence. Do not claim success before device evidence.
+Install v85.11 on both target iPhones. Verify the Otlobli nav never disappears during preparation/reload and remains usable while raw SHEIN stays blocked. Then repeat entry/background and Saudi persistence tests. Do not claim success before device evidence.
 
 The inherited hidden/offscreen `FAKE_VISIBLE` path was removed deliberately after local plugin inspection showed it reparents and disables interaction on the first WebView. Do not reintroduce it.
 
@@ -63,6 +65,8 @@ The inherited hidden/offscreen `FAKE_VISIBLE` path was removed deliberately afte
 - v85.9 Xcode workflow run `29326728706` passed; artifact payload contains the expected v85.9 marker and the copied IPA hash matches. Real-device testing is pending.
 - v85.9 exposed intermediate raw SHEIN for 5-10 seconds in real-device testing.
 - v85.10 Xcode workflow run `29328000485` passed; artifact payload contains the expected v85.10 marker and the copied IPA hash matches. Real-device testing is pending.
+- v85.10 hid Otlobli nav during later preparation/reload in real-device testing.
+- v85.11 Xcode workflow run `29328314651` passed; artifact payload contains the expected v85.11 marker and the copied IPA hash matches. Real-device testing is pending.
 
 ## Main Files
 

@@ -77,9 +77,14 @@ Read `AI-HANDOFF.md` and `AGENTS.md`. Preserve any existing user/other-AI change
 - v85.10 test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.10-shein-final-ready-cover-no-otp-test.ipa`
 - v85.10 SHA-256: `811FF316CC9CC6677DD7E9E61D3104FA8175CD7D88EFA5F3E0AC7F53B65C874E`; run `29328000485`.
 - v85.10 keeps the native preparation cover through intermediate DOM bodies and Saudi repair. It reveals only after the signed Saudi address, a real loaded product, Otlobli nav, and the same final URL remain ready for 650ms. Human verification remains visible; blocked/foreign/raw states remain covered until app recovery/close.
+- v85.10 device result: raw SHEIN stayed covered, but the full native cover also hid Otlobli's bottom navigation during later preparation/reload; the bar returned only after the final reveal.
+- v85.11 candidate commit: `7c3249f`; version `2026.07.14-v85.11-shein-persistent-nav-loading-no-otp-test`.
+- v85.11 test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.11-shein-persistent-nav-loading-no-otp-test.ipa`
+- v85.11 SHA-256: `70826941A97AF7496C602EC49C04C684BD308CC48029C3668A68CA91316AA3AF`; run `29328314651`.
+- v85.11 uses the native cover only for the document-start gap, then hands off to the existing in-page preparation surface after Otlobli nav is attached. That surface remains below the nav and blocks SHEIN content/touches while preserving v85.10's signed-Saudi/product/650ms final-readiness gate.
 - OTP screens remain bypassed only for this test candidate; set `TEST_ONLY_AUTH_BYPASS = false` before production.
 
-v85 remains the stable store/UI baseline. v85.10 is a narrow final-readiness cover test on top of the exact Saudi shipping flow; it does not import v86-v88 behavior or broaden the old storage guard.
+v85 remains the stable store/UI baseline. v85.11 is a narrow persistent-nav preparation test on top of the exact Saudi shipping flow; it does not import v86-v88 behavior or broaden the old storage guard.
 
 ## Failed Paths
 
@@ -91,7 +96,7 @@ v85 remains the stable store/UI baseline. v85.10 is a narrow final-readiness cov
 
 ## Current Task
 
-- Install v85.10 on iPhone 6 and iPhone 16 Pro Max. Verify only the preparation screen is visible during the initial 5-10 second Saudi/reload phase, followed by one clean reveal of the finished Otlobli store.
+- Install v85.11 on iPhone 6 and iPhone 16 Pro Max. Verify Otlobli bottom navigation remains visible and usable over the preparation surface while raw SHEIN stays fully blocked until one final reveal.
 - Verify the Saudi correction is not shown, the shipping-region control does not open for the customer, and Saudi persists across reload/store/VPN changes.
 - Android structural validation is not a claim that either iPhone issue is fixed; both real devices remain the acceptance test.
 - OTP bypass is only for faster store testing; customer account/server features and Add-to-Cart placement remain separate and unchanged.
@@ -118,6 +123,8 @@ v85 remains the stable store/UI baseline. v85.10 is a narrow final-readiness cov
 - v85.9 unsigned IPA built successfully from `86f15be` in run `29326728706`; embedded version marker and copied SHA-256 verified. Real-device testing is pending.
 - v85.9 real-device result: functional after preparation, but exposed raw SHEIN chrome/content for 5-10 seconds before the final reload.
 - v85.10 unsigned IPA built successfully from `f273c80` in run `29328000485`; embedded version marker and copied SHA-256 verified. Real-device testing is pending.
+- v85.10 real-device result: raw SHEIN was covered, but Otlobli nav disappeared during later preparation/reload.
+- v85.11 unsigned IPA built successfully from `7c3249f` in run `29328314651`; embedded version marker and copied SHA-256 verified. Real-device testing is pending.
 
 ## Production References
 
