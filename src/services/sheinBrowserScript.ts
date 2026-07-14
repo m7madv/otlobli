@@ -67,6 +67,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var SHEIN_REQUIRED_CURRENCY = 'USD';
   var SHEIN_REQUIRED_LANGUAGE = 'ar';
   var SHEIN_REQUIRED_SITE_UID = 'pwar';
+  var SHEIN_REGION_CACHE_MS = 2200;
   var SHEIN_CHALLENGE_PATH_RE = /\\/(?:cdn-cgi|challenge|captcha|verify|verification|security|robot|risk|anti[-_]?bot|human)(?:\\/|$)/i;
   var SHEIN_CHALLENGE_QUERY_RE = /(?:^|[?&#])(?:captcha|challenge|verification|security_token|risk|robot|anti[-_]?bot|human)=/i;
   var TEMU_REQUIRED_COUNTRY = 'SA';
@@ -244,6 +245,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
       document.cookie = 'shipping_country=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
       document.cookie = 'store_country=' + SHEIN_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
       document.cookie = 'store_country=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
+      document.cookie = 'storeCountry=' + SHEIN_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
+      document.cookie = 'storeCountry=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
+      document.cookie = 'shipCountry=' + SHEIN_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
+      document.cookie = 'shipCountry=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
+      document.cookie = 'region=' + SHEIN_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
+      document.cookie = 'region=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
+      document.cookie = 'locale=ar_SA; path=/; max-age=31536000';
+      document.cookie = 'locale=ar_SA; domain=.shein.com; path=/; max-age=31536000';
       try {
         localStorage.setItem('language', SHEIN_REQUIRED_LANGUAGE);
         localStorage.setItem('site_uid', SHEIN_REQUIRED_SITE_UID);
@@ -257,6 +266,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
         localStorage.setItem('shippingCountry', SHEIN_REQUIRED_COUNTRY);
         localStorage.setItem('shipping_country', SHEIN_REQUIRED_COUNTRY);
         localStorage.setItem('store_country', SHEIN_REQUIRED_COUNTRY);
+        localStorage.setItem('storeCountry', SHEIN_REQUIRED_COUNTRY);
+        localStorage.setItem('shipCountry', SHEIN_REQUIRED_COUNTRY);
+        localStorage.setItem('shippingRegion', SHEIN_REQUIRED_COUNTRY);
+        localStorage.setItem('region', SHEIN_REQUIRED_COUNTRY);
+        localStorage.setItem('regionCode', SHEIN_REQUIRED_COUNTRY);
+        localStorage.setItem('defaultCountry', SHEIN_REQUIRED_COUNTRY);
+        localStorage.setItem('locale', 'ar_SA');
         localStorage.setItem('otlobli_shein_country', SHEIN_REQUIRED_COUNTRY);
         localStorage.setItem('otlobli_shein_currency', SHEIN_REQUIRED_CURRENCY);
         sessionStorage.setItem('language', SHEIN_REQUIRED_LANGUAGE);
@@ -271,6 +287,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
         sessionStorage.setItem('shippingCountry', SHEIN_REQUIRED_COUNTRY);
         sessionStorage.setItem('shipping_country', SHEIN_REQUIRED_COUNTRY);
         sessionStorage.setItem('store_country', SHEIN_REQUIRED_COUNTRY);
+        sessionStorage.setItem('storeCountry', SHEIN_REQUIRED_COUNTRY);
+        sessionStorage.setItem('shipCountry', SHEIN_REQUIRED_COUNTRY);
+        sessionStorage.setItem('shippingRegion', SHEIN_REQUIRED_COUNTRY);
+        sessionStorage.setItem('region', SHEIN_REQUIRED_COUNTRY);
+        sessionStorage.setItem('regionCode', SHEIN_REQUIRED_COUNTRY);
+        sessionStorage.setItem('defaultCountry', SHEIN_REQUIRED_COUNTRY);
+        sessionStorage.setItem('locale', 'ar_SA');
       } catch (e) {}
     } catch (e) {}
   }
@@ -278,8 +301,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function coerceSheinSaudiStorageValue(key, value) {
     var k = String(key || '').toLowerCase();
     if (k === 'currency' || k === 'currencycode' || k === 'currency_code') return SHEIN_REQUIRED_CURRENCY;
-    if (k === 'country' || k === 'countrycode' || k === 'country_code' || k === 'ship_to' || k === 'shipto' || k === 'shiptocountry' || k === 'shippingcountry' || k === 'shipping_country' || k === 'store_country') return SHEIN_REQUIRED_COUNTRY;
+    if (k === 'country' || k === 'countrycode' || k === 'country_code' || k === 'ship_to' || k === 'shipto' || k === 'shiptocountry' || k === 'shipcountry' || k === 'shippingcountry' || k === 'shipping_country' || k === 'shippingregion' || k === 'store_country' || k === 'storecountry' || k === 'region' || k === 'regioncode' || k === 'defaultcountry') return SHEIN_REQUIRED_COUNTRY;
     if (k === 'language' || k === 'lang') return SHEIN_REQUIRED_LANGUAGE;
+    if (k === 'locale') return 'ar_SA';
     if (k === 'site_uid') return SHEIN_REQUIRED_SITE_UID;
     return value;
   }
@@ -298,7 +322,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
       shiptocountry: true,
       shippingcountry: true,
       shipping_country: true,
+      shippingregion: true,
       store_country: true,
+      storecountry: true,
+      shipcountry: true,
+      region: true,
+      regioncode: true,
+      defaultcountry: true,
+      locale: true,
       language: true,
       lang: true,
       site_uid: true
@@ -352,27 +383,55 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (localStorage.getItem('currency') && localStorage.getItem('currency') !== SHEIN_REQUIRED_CURRENCY) return false;
       if (sessionStorage.getItem('country') && sessionStorage.getItem('country') !== SHEIN_REQUIRED_COUNTRY) return false;
       if (sessionStorage.getItem('currency') && sessionStorage.getItem('currency') !== SHEIN_REQUIRED_CURRENCY) return false;
+      var countryKeys = ['countryCode', 'country_code', 'ship_to', 'shipTo', 'shipToCountry', 'shipCountry', 'shippingCountry', 'shipping_country', 'shippingRegion', 'store_country', 'storeCountry', 'region', 'regionCode', 'defaultCountry'];
+      for (var i = 0; i < countryKeys.length; i++) {
+        var key = countryKeys[i];
+        var localValue = localStorage.getItem(key);
+        var sessionValue = sessionStorage.getItem(key);
+        if (localValue && localValue !== SHEIN_REQUIRED_COUNTRY) return false;
+        if (sessionValue && sessionValue !== SHEIN_REQUIRED_COUNTRY) return false;
+      }
+      var localLocale = localStorage.getItem('locale');
+      var sessionLocale = sessionStorage.getItem('locale');
+      if (localLocale && localLocale !== 'ar_SA') return false;
+      if (sessionLocale && sessionLocale !== 'ar_SA') return false;
     } catch (e) {}
     if (sheinVisibleForeignRegion()) return false;
     return true;
   }
 
-  function sheinVisibleForeignRegion() {
-    if (!IS_SHEIN || !document.body) return false;
+  var __otlobliSheinRegionTextCache = { ts: 0, href: '', text: '' };
+  function sheinRegionText() {
+    if (!IS_SHEIN || !document.body) return '';
+    var now = Date.now();
+    var href = location.href;
+    if (__otlobliSheinRegionTextCache.href === href && now - __otlobliSheinRegionTextCache.ts < SHEIN_REGION_CACHE_MS) {
+      return __otlobliSheinRegionTextCache.text;
+    }
     var text = '';
     try {
-      text = (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 25000);
+      text = (document.body.innerText || '').replace(/\\s+/g, ' ').slice(0, 25000);
     } catch (e) {
-      return false;
+      text = '';
     }
-    if (/السعودية|Saudi Arabia|Shipping to Saudi|Ship to Saudi|الشحن\s*(?:إلى|ل)\s*السعودية|التوصيل\s*(?:إلى|ل)\s*السعودية/i.test(text)) return false;
-    return /(?:Shipping|Ship|Ships|Delivery|Deliver|Delivering|الشحن|التوصيل)\s*(?:to|إلى|ل)?\s*(?!Saudi Arabia\b|السعودية\b)(?:Bahrain|United Kingdom|United States|UAE|Kuwait|Qatar|Oman|Jordan|البحرين|الإمارات|الكويت|قطر|عمان|الأردن)\b/i.test(text);
+    __otlobliSheinRegionTextCache = { ts: now, href: href, text: text };
+    return text;
+  }
+
+  function sheinVisibleForeignRegion() {
+    var text = sheinRegionText();
+    if (!text) return false;
+    if (/(?:Shipping|Ship|Delivery|Deliver|Delivering|الشحن|التوصيل)/i.test(text) && /(?:Albania|Turkey|Turkiye|Türkiye|United States|USA|Bahrain|Qatar|Kuwait|UAE|Oman|Jordan|ألبانيا|تركيا|الولايات المتحدة|البحرين|قطر|الكويت|الإمارات|عمان|الأردن)/i.test(text)) return true;
+    if (/السعودية|Saudi Arabia|Shipping to Saudi|Ship to Saudi|الشحن\\s*(?:إلى|ل)\\s*السعودية|التوصيل\\s*(?:إلى|ل)\\s*السعودية/i.test(text)) return false;
+    return /(?:Shipping|Ship|Ships|Delivery|Deliver|Delivering|الشحن|التوصيل)\\s*(?:to|إلى|ل)?\\s*(?!Saudi Arabia\\b|السعودية\\b)(?:Bahrain|United Kingdom|United States|UAE|Kuwait|Qatar|Oman|Jordan|البحرين|الإمارات|الكويت|قطر|عمان|الأردن)\\b/i.test(text);
   }
 
   function sheinVisibleSaudiRegion() {
+    var cachedText = sheinRegionText();
+    if (cachedText) return /Saudi Arabia|Shipping to Saudi|Ship to Saudi|\u0627\u0644\u0633\u0639\u0648\u062f\u064a\u0629/i.test(cachedText);
     if (!IS_SHEIN || !document.body) return false;
     try {
-      var text = (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 25000);
+      var text = (document.body.innerText || '').replace(/\\s+/g, ' ').slice(0, 25000);
       return /السعودية|Saudi Arabia|Shipping to Saudi|Ship to Saudi/i.test(text);
     } catch (e) {
       return false;
@@ -706,7 +765,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (!srcset) return '';
       var parts = String(srcset).split(',').map(function (part) { return part.trim(); }).filter(Boolean);
       if (!parts.length) return '';
-      return parts[parts.length - 1].split(/\s+/)[0] || '';
+      return parts[parts.length - 1].split(/\\s+/)[0] || '';
     };
     var candidates = [
       img.getAttribute && img.getAttribute('data-src'),
@@ -3227,6 +3286,53 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // - "home" (default): normal browsing from the home tab; tapping back just
   //   walks the webview's own in-page history, same as a browser back button.
   var __otlobliBackTarget = 'home';
+  var __otlobliBackLastReclaim = 0;
+
+  function hideElementsOverBackButton(btn) {
+    if (!IS_SHEIN || !btn || !document.body) return;
+    var r = btn.getBoundingClientRect();
+    if (!r || r.width <= 0 || r.height <= 0) return;
+    var points = [
+      [r.left + (r.width / 2), r.top + (r.height / 2)],
+      [r.left + 7, r.top + 7],
+      [r.right - 7, r.top + 7],
+      [r.left + 7, r.bottom - 7],
+      [r.right - 7, r.bottom - 7]
+    ];
+    for (var p = 0; p < points.length; p++) {
+      var el = document.elementFromPoint(points[p][0], points[p][1]);
+      var depth = 0;
+      while (el && el !== document.body && el !== document.documentElement && depth < 6) {
+        if (el === btn || (btn.contains && btn.contains(el))) break;
+        if (el.id && el.id.indexOf('otlobli') === 0) break;
+        if (otlobliIsSheinTopCategoryEl(el)) break;
+        var er = el.getBoundingClientRect && el.getBoundingClientRect();
+        if (!er) {
+          el = el.parentElement;
+          depth++;
+          continue;
+        }
+        var overlaps = er.left < r.right && er.right > r.left && er.top < r.bottom && er.bottom > r.top;
+        if (!overlaps) {
+          el = el.parentElement;
+          depth++;
+          continue;
+        }
+        var cs = window.getComputedStyle(el);
+        var iconSized = er.top < 160 && er.width > 0 && er.width <= 116 && er.height > 0 && er.height <= 116;
+        var clickable = el.tagName === 'BUTTON' || el.tagName === 'A' || el.getAttribute('role') === 'button' ||
+          cs.cursor === 'pointer' || (el.querySelector && (el.querySelector('svg') || el.querySelector('img')));
+        if (iconSized && clickable && !otlobliNearSearchInput(el)) {
+          el.setAttribute('data-otlobli-blocked', '1');
+          el.style.setProperty('visibility', 'hidden', 'important');
+          el.style.setProperty('pointer-events', 'none', 'important');
+          break;
+        }
+        el = el.parentElement;
+        depth++;
+      }
+    }
+  }
 
   function ensureBackButton() {
     var btn = document.getElementById('otlobli-back-btn');
@@ -3245,7 +3351,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         'transform:translateZ(0);will-change:transform;' +
         'background:rgba(20,24,22,.6);color:#fff;border:none;border-radius:11px;display:none;' +
         'align-items:center;justify-content:center;font-size:30px;line-height:1;font-family:Arial,system-ui,sans-serif;font-weight:700;' +
-        'box-shadow:0 4px 12px rgba(0,0,0,.32);animation:otlobli-pop2 .25s ease-out;';
+        'box-shadow:0 4px 12px rgba(0,0,0,.32);';
       // Right-pointing arrow reads as "back" in this RTL UI, matching the
       // app's own header back button convention (arrow_forward icon).
       btn.innerHTML = '&#8250;';
@@ -3282,6 +3388,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
       || (IS_TEMU && looksLikeProductPage());
     btn.style.setProperty('top', (IS_SHEIN && viewportSize().width <= 390) ? '58px' : '12px', 'important');
     btn.style.display = shouldShow ? 'flex' : 'none';
+    if (shouldShow) {
+      hideElementsOverBackButton(btn);
+      var now = Date.now();
+      if (btn !== document.body.lastElementChild && now - __otlobliBackLastReclaim > 650) {
+        __otlobliBackLastReclaim = now;
+        document.body.appendChild(btn);
+      }
+    }
   }
 
   function isAddToCartButton(el) {
@@ -3577,8 +3691,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return r.top >= -30 && r.top <= 260;
   }
 
+  var __otlobliLastTopCategoryRestore = 0;
+
   function restoreSheinTopCategoryTabs() {
     if (!IS_SHEIN || !document.body) return;
+    var now = Date.now();
+    if (now - __otlobliLastTopCategoryRestore < 900) return;
+    __otlobliLastTopCategoryRestore = now;
     var nodes = document.querySelectorAll('a, button, [role="button"], [role="tab"], div, span');
     var touchedParents = [];
     for (var i = 0; i < nodes.length; i++) {
@@ -4171,6 +4290,73 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // ويعيد المحاولة تلقائياً حتى انتهاء المحاولات أو النجاح (لا ازدواج).
   }
 
+  var __otlobliStuckBlockerKey = '';
+  var __otlobliStuckBlockerSince = 0;
+  var __otlobliLastAutoReload = 0;
+
+  function detectStuckInteractionBlocker() {
+    if (!IS_SHEIN || !document.body) return;
+    if (document.getElementById('otlobli-overlay') || document.getElementById('otlobli-loading')) return;
+    var vp = viewportSize();
+    var points = [
+      [Math.round(vp.width / 2), Math.round(vp.height / 2)],
+      [Math.round(vp.width / 2), Math.round(Math.min(vp.height - 140, vp.height * 0.72))],
+      [Math.round(vp.width * 0.2), Math.round(vp.height * 0.52)],
+      [Math.round(vp.width * 0.8), Math.round(vp.height * 0.52)]
+    ];
+    var blocker = null;
+    for (var i = 0; i < points.length; i++) {
+      var el = document.elementFromPoint(points[i][0], points[i][1]);
+      var depth = 0;
+      while (el && el !== document.body && el !== document.documentElement && depth < 7) {
+        if (el.id && el.id.indexOf('otlobli') === 0) break;
+        var cs = window.getComputedStyle(el);
+        if (cs.pointerEvents === 'none' || cs.visibility === 'hidden' || cs.display === 'none') {
+          el = el.parentElement;
+          depth++;
+          continue;
+        }
+        var r = el.getBoundingClientRect && el.getBoundingClientRect();
+        if (!r) {
+          el = el.parentElement;
+          depth++;
+          continue;
+        }
+        var big = r.width >= vp.width * 0.72 && r.height >= vp.height * 0.45;
+        var positioned = cs.position === 'fixed' || cs.position === 'absolute' || cs.position === 'sticky';
+        var z = parseInt(cs.zIndex, 10) || 0;
+        var text = ((el.textContent || '') + '').replace(/\\s+/g, ' ').slice(0, 500);
+        var isViewer = !!(el.querySelector && el.querySelector('img,video,canvas'));
+        var isChallenge = /captcha|challenge|security|robot|verify|verification|cloudflare|تحقق|روبوت|الأمان/i.test(text);
+        if (big && positioned && z >= 10 && !isViewer && !isChallenge) {
+          blocker = el;
+          break;
+        }
+        el = el.parentElement;
+        depth++;
+      }
+      if (blocker) break;
+    }
+    var now = Date.now();
+    if (!blocker) {
+      __otlobliStuckBlockerKey = '';
+      __otlobliStuckBlockerSince = 0;
+      return;
+    }
+    var key = (blocker.tagName || '') + '|' + (blocker.id || '') + '|' + (blocker.className || '') + '|' + location.pathname;
+    if (key !== __otlobliStuckBlockerKey) {
+      __otlobliStuckBlockerKey = key;
+      __otlobliStuckBlockerSince = now;
+      return;
+    }
+    if (now - __otlobliStuckBlockerSince > 5200 && now - __otlobliLastAutoReload > 30000) {
+      __otlobliLastAutoReload = now;
+      __otlobliStuckBlockerKey = '';
+      __otlobliStuckBlockerSince = 0;
+      try { location.reload(); } catch (e) {}
+    }
+  }
+
   function tick() {
     // Same documentStart race as the MutationObserver fix above - body can
     // still be null on the very first tick() call (the direct one at the
@@ -4187,6 +4373,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (IS_SHEIN) ensureSheinSaudiStore({ navigate: false });
     ensureBackButton();
     ensureOtlobliNav();
+    if (IS_SHEIN) detectStuckInteractionBlocker();
     // المتاجر غير شي إن (تيمو/ترينديول): تصفّح فقط - ننظّف العروض المنبثقة
     // المزعجة ولا نشغّل منطق الالتقاط/الحجب الخاص بشي إن (الذي قد يخرّب صفحاتهم).
     if (!IS_SHEIN) {
@@ -5081,13 +5268,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var observer = new MutationObserver(scheduleTick);
   observer.observe(document.documentElement, { childList: true, subtree: true });
 
-  setInterval(tick, 300);
+  setInterval(tick, 420);
   // hideKnownHeaderIconsByHint specifically needs to win what looks like an
   // ongoing fight against SHEIN periodically re-rendering its own header (a
   // user found the hamburger/wishlist icons could stay reachable for
   // several minutes on the home page even though the same code hid them
   // instantly elsewhere) - run it on its own much tighter interval so any
-  // freshly re-created icon gets caught within ~120ms instead of waiting
+  // freshly re-created icon gets caught quickly instead of waiting
   // for the next general tick.
   setInterval(function () {
     if (!IS_SHEIN) return;
@@ -5095,7 +5282,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     hideSheinHeaderControls();
     restoreSheinTopCategoryTabs();
     hideListingCardAddButtons();
-  }, 120);
+  }, 250);
   setInterval(function () {
     ensureOtlobliNav();
     if (IS_TEMU) {
@@ -5104,7 +5291,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       restoreTemuSearchChrome();
       restoreTemuLogo();
     }
-  }, 120);
+  }, 250);
   // Own slower interval, not part of tick() - see checkForSheinSecurityBlock's
   // comment on why innerText needs to stay off the 300ms timer. خاص بشي إن فقط.
   setInterval(function () { if (IS_SHEIN) checkForSheinSecurityBlock(); }, 1000);
