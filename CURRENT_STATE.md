@@ -8,7 +8,7 @@ This is the short source of truth for the app work. Keep it compact so Codex/Cla
 
 - Path: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`
 - Branch: `codex/customer-wallet-group-orders`
-- Latest feature commit: `4e43fbb` (`fix: v87 hide shein until interactive`)
+- Latest feature commit: `2324dd0` (`fix: v88 restore interactive shein webview`)
 
 Before any code change:
 
@@ -84,7 +84,10 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 - v87 iPhone artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v87.ipa`
 - v87 IPA SHA-256: `3E3F24099DDD4C2F664A345A3E8D9DA7A75DD91600AABED438BA9B496F2B1F31`
 - v87 GitHub Actions run: `29297647827`
-- No new Android build was requested for v87.
+- v88 iPhone artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v88.ipa`
+- v88 IPA SHA-256: `50D7F388C64091F8B1FABA75D83E830FF5B44A9315E5121335043A40C46C1FE7`
+- v88 GitHub Actions run: `29298705874`
+- No new Android build was requested for v88.
 
 ## v66 Completed
 
@@ -104,9 +107,9 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 ## Current Known Issues
 
 - v87 failed real-device testing: the first SHEIN page still appeared painted but completely untouchable, and the region/UI problems remained. Do not describe v87 as a fix.
-- Unbuilt v88 candidate removes the hidden `FAKE_VISIBLE` WKWebView lifecycle introduced in v76 and inherited through v87. SHEIN now presents through the plugin's normal post-page-load path, where the native view remains interaction-enabled; no warm-up close/reopen is performed.
-- Unbuilt v88 candidate stops treating missing optional Saudi query parameters on product/SPA URLs as a redirect condition, removes the global `Storage.prototype.setItem` region interceptor, and limits silent region cleanup to exact Otlobli-owned keys. This avoids navigation reload loops and deletion/corruption of SHEIN application state.
-- v88 is code-validated only (`npm run build`, injected script syntax parse, and `git diff --check` passed). It is not an IPA and is not real-device verified yet.
+- v88 removes the hidden `FAKE_VISIBLE` WKWebView lifecycle introduced in v76 and inherited through v87. SHEIN now presents through the plugin's normal post-page-load path, where the native view remains interaction-enabled; no warm-up close/reopen is performed.
+- v88 stops treating missing optional Saudi query parameters on product/SPA URLs as a redirect condition, removes the global `Storage.prototype.setItem` region interceptor, and limits silent region cleanup to exact Otlobli-owned keys. This avoids navigation reload loops and deletion/corruption of SHEIN application state.
+- v88 passed local build/script/diff checks and GitHub iOS build. Real-device verification is still required; do not claim the touch or region problems are solved until the user tests it.
 - v87 iOS build is ready: `APP_VERSION = 2026.07.14-hidden-shein-ready-saudi-v87`.
 - v87 change: SHEIN opens hidden, runs a stronger readiness probe, silently corrects foreign shipping regions (e.g. Bahrain/Albania) before reveal, then automatically performs one hidden close/reopen warm-up before showing. This targets the first-open visible-but-untouchable SHEIN screenshot reported on iPhone.
 - v87 change: removes v86's visible Saudi reset bar, disables the risky stuck-blocker reload detector, and stops hiding SHEIN elements around the floating back button; the goal is less page mutation and fewer over-hidden categories/icons.
@@ -172,7 +175,7 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 
 ## Next Best Focus
 
-1. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v87.ipa` on iPhone 6 and iPhone 16 Pro Max. Verify fresh SHEIN open with VPN no longer shows a visible-but-untouchable screenshot; if SHEIN is not ready it should stay hidden/retry or show VPN recovery.
+1. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v88.ipa` on iPhone 6 and iPhone 16 Pro Max. Verify fresh SHEIN open with VPN is touchable and does not enter a reload loop; v88 no longer uses hidden `FAKE_VISIBLE` opening.
 2. On iPhone 6, verify SHEIN top tabs are not over-hidden, the back button is visible/tappable, and SHEIN's native bottom bar (`أنا / حقيبة التسوق / ترندات / الفئات / متجر`) stays hidden while otlobli's nav remains visible.
 3. Test `C:\Users\MOHAMMAD\Desktop\otlobli-v70.apk` on Android / emulator and verify SHEIN does not exit the app.
 4. Verify SHEIN after this exact flow: fresh open -> switch to Temu -> switch back to SHEIN -> security check if shown -> normal browsing.

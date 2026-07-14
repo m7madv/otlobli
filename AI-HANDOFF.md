@@ -21,9 +21,9 @@ Rules:
 ## Important Context
 
 - Active branch: `codex/customer-wallet-group-orders`
-- Latest feature commit: `4e43fbb` (`fix: v87 hide shein until interactive`)
+- Latest feature commit: `2324dd0` (`fix: v88 restore interactive shein webview`)
 - User tested v87 and reported that none of the SHEIN problems were fixed. Treat the v87 IPA as failed evidence, not a stable release.
-- Current uncommitted v88 candidate diagnosis: v76 introduced hidden `FAKE_VISIBLE` WKWebView opening; the iOS plugin disables interaction while detached and v87 added a second hidden close/reopen. v86 also made absent URL region params trigger native `setUrl` and globally intercepted storage writes. The candidate removes those unsafe paths without adding CSS. Build/script-parse/diff-check pass; no IPA or real-device verification yet.
+- v88 diagnosis: v76 introduced hidden `FAKE_VISIBLE` WKWebView opening; the iOS plugin disables interaction while detached and v87 added a second hidden close/reopen. v86 also made absent URL region params trigger native `setUrl` and globally intercepted storage writes. v88 removes those unsafe paths without adding CSS. The IPA built successfully, but real-device verification is still required.
 - Claude old account may have worked after Codex. Always inspect current git state before editing.
 - Claude new account may not have the same skills/connectors authenticated. Check available skills/tools, especially Figma.
 
@@ -91,6 +91,9 @@ Rules:
 - Desktop v87 iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v87.ipa`
 - v87 IPA SHA-256: `3E3F24099DDD4C2F664A345A3E8D9DA7A75DD91600AABED438BA9B496F2B1F31`
 - v87 GitHub Actions run: `29297647827`
+- Desktop v88 iOS artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v88.ipa`
+- v88 IPA SHA-256: `50D7F388C64091F8B1FABA75D83E830FF5B44A9315E5121335043A40C46C1FE7`
+- v88 GitHub Actions run: `29298705874`
 
 ## Main Files
 

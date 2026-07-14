@@ -35,9 +35,9 @@ Read:
 
 ## Latest Stable Release
 
-- Latest feature commit: `4e43fbb` (`fix: v87 hide shein until interactive`)
+- Latest feature commit: `2324dd0` (`fix: v88 restore interactive shein webview`)
 - v87 failed the user's real-device test: SHEIN remained untouchable and the reported region/UI issues remained. Do not call v87 stable or fixed.
-- Current uncommitted v88 candidate removes hidden `FAKE_VISIBLE` opening/warm-up and broad region storage/URL interception. `npm run build`, injected-script syntax parsing, and `git diff --check` pass; no IPA has been built and real-device verification is still required.
+- v88 removes hidden `FAKE_VISIBLE` opening/warm-up and broad region storage/URL interception. Local checks and GitHub iOS build passed; real-device verification is still required.
 - Customer deployed to `https://talabieh.vercel.app`
 - Admin deployed to `https://talabieh-admin.vercel.app`
 - Supabase migration `20260712033000_shared_order_ownership.sql` applied.
@@ -101,7 +101,10 @@ Read:
 - v87 iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v87.ipa`
 - v87 IPA SHA-256: `3E3F24099DDD4C2F664A345A3E8D9DA7A75DD91600AABED438BA9B496F2B1F31`
 - v87 GitHub Actions run: `29297647827`
-- No new Android build was requested for v87.
+- v88 iPhone artifact exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v88.ipa`
+- v88 IPA SHA-256: `50D7F388C64091F8B1FABA75D83E830FF5B44A9315E5121335043A40C46C1FE7`
+- v88 GitHub Actions run: `29298705874`
+- No new Android build was requested for v88.
 
 ## v66 Implemented
 
