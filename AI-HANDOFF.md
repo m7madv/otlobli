@@ -6,14 +6,16 @@ Read `CURRENT_STATE.md` first, then `AGENTS.md`.
 
 - Active branch: `codex/customer-wallet-group-orders`
 - Stable SHEIN baseline: v85 commit `2f24954`.
-- Current candidate: v85.7 commit `d2f2038`, version `2026.07.14-v85.7-shein-fresh-entry-health-recovery-sa-status-no-otp-test`.
-- Test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.7-shein-fresh-entry-recovery-sa-status-no-otp-test.ipa`; SHA-256 `DE22B0B5BE643BDD7BB03704C45A072550912ED5DF1E9E39656713F482643552`; run `29324148070`.
+- Current candidate: v85.8 commit `585a28a`, version `2026.07.14-v85.8-shein-cache-clean-entry-sa-status-no-otp-test`.
+- Test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8-shein-cache-clean-entry-sa-status-no-otp-test.ipa`; SHA-256 `689EE2D978269FB2ECB2EB4A3AA1B8436335ABC700C6B6C28B588508B636EF05`; run `29325121680`.
 - Reference IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.ipa`.
 - v85.4 IPA exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v85.4-shein-sa-no-otp-test.ipa`, but device testing failed: SHEIN still selected Bahrain. Its native initial-cookie preload has been removed.
 - v85.5 reads SHEIN's authoritative signed `addressCookie` and completes SHEIN's own exact native cascade: Saudi Arabia -> Riyadh Province -> Riyadh -> Al Olaya. It supports both observed native drawer structures and adds no CSS, storage purge, address fabrication, or reload loop.
 - v85.6 keeps the same WebView attached and interactive from first open, removes hidden/offscreen `FAKE_VISIBLE`, and uses a bounded native cover only while the exact Saudi cascade runs. Human challenges reveal immediately. Verified shipping controls are customer-locked narrowly; the internal exact automation remains allowed.
 - v85.6 device result: first entry worked and Saudi correction worked, but the second entry could be a partial untappable page; the Temu round-trip still recovered it.
 - v85.7 never parks SHEIN through plugin `hide/show`. It closes on app-screen exit and after meaningful background time, then creates a fresh WebView with the same website data. It requires DOM/content readiness, performs at most one fresh-instance retry, and displays explicit native preparation/Saudi status text.
+- v85.7 failed on the real iPhone: the second-entry partial/untappable state remained exactly as before.
+- v85.8 matches the missing part of the user-proven Temu round-trip: before every SHEIN open it clears only WebKit memory/disk cache. Capgo's iOS implementation preserves cookies/localStorage, including the signed Saudi address.
 - App OTP screens are bypassed for this test IPA only. Set `TEST_ONLY_AUTH_BYPASS = false` before any production build.
 
 ## Real-Device Evidence
@@ -30,7 +32,7 @@ Read `CURRENT_STATE.md` first, then `AGENTS.md`.
 
 ## Next Work
 
-Install v85.7 on both target iPhones. Test repeated store entry, app background/resume, category/product taps, status text, region-control lock, and Saudi persistence. Do not claim iPhone success before device evidence.
+Install v85.8 on both target iPhones. Test repeated store entry, app background/resume, category/product taps, status text, region-control lock, and Saudi persistence. Do not claim iPhone success before device evidence.
 
 The inherited hidden/offscreen `FAKE_VISIBLE` path was removed deliberately after local plugin inspection showed it reparents and disables interaction on the first WebView. Do not reintroduce it.
 
@@ -52,7 +54,8 @@ The inherited hidden/offscreen `FAKE_VISIBLE` path was removed deliberately afte
 - Live Android WebView signed-address persistence and product API country validation: passed.
 - v85.6 Android validation confirmed an attached `visible=true` first WebView, working native cover messages, and visible human verification without closing. The challenge was not bypassed.
 - v85.7 live Android validation confirmed a fresh page target on second entry and after resume; the second page loaded products and accepted a category tap. Android assembly passed.
-- v85.7 Xcode workflow run `29324148070` passed; artifact payload contains the expected v85.7 version marker. Real-device testing is pending.
+- v85.7 failed real-device testing despite passing Android lifecycle validation.
+- v85.8 Xcode workflow run `29325121680` passed; artifact payload contains the expected v85.8 marker. Real-device testing is pending.
 
 ## Main Files
 
