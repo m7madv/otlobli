@@ -143,10 +143,9 @@ diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowser
 index 116e296..1e86004 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
-@@ -355,6 +355,79 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
-         }
-     }
-
+@@ -357,2 +357,79 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+-
++
 +    private func parseInitialCookies(_ rawCookies: [Any]) throws -> [HTTPCookie] {
 +        try rawCookies.enumerated().map { index, item in
 +            guard let dictionary = item as? [String: Any],
@@ -225,12 +224,8 @@ index 116e296..1e86004 100644
 +    }
 +
      func presentView(webViewId: String? = nil, isAnimated: Bool = true) {
-         let resolvedId = webViewId ?? activeWebViewId
-         let navigationController = resolvedId.flatMap { navigationControllers[$0] } ?? self.navigationWebViewController
-@@ -881,6 +954,13 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
-             call.reject("Invalid proxy rules: \(error.localizedDescription)")
-             return
-         }
+@@ -884,2 +961,9 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+-
 +        let initialCookies: [HTTPCookie]
 +        do {
 +            initialCookies = try parseInitialCookies(call.getArray("initialCookies", []))
@@ -238,12 +233,9 @@ index 116e296..1e86004 100644
 +            call.reject("Invalid initial cookies: \(error.localizedDescription)")
 +            return
 +        }
-
++
          // Validate dimension parameters
-         if width != nil && height == nil {
-@@ -889,10 +969,11 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
-         }
-
+@@ -891,7 +975,8 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
          DispatchQueue.main.async {
 -            guard let url = URL(string: urlString) else {
 -                call.reject("Invalid URL format")
@@ -254,19 +246,15 @@ index 116e296..1e86004 100644
 +                    call.reject("Invalid URL format")
 +                    return
 +                }
-
+-
++
              var proxyHandler: ProxySchemeHandler?
-             if legacyProxyRequests.isEnabled || !outboundProxyRules.isEmpty || !inboundProxyRules.isEmpty {
-@@ -1260,7 +1341,8 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
-             } else if !self.isPresentAfterPageLoad {
-                 self.presentView(webViewId: webViewId, isAnimated: isAnimated)
+@@ -1262,3 +1347,4 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
              }
 -            call.resolve(["id": webViewId])
 +                call.resolve(["id": webViewId])
 +            }
          }
-     }
-
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
 index 1c70884..26bdb5b 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
