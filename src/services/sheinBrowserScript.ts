@@ -3349,17 +3349,18 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
-  // Blocks SHEIN's own menu / settings controls on the very first tap, without
-  // waiting for the periodic hide passes (hideKnownHeaderIconsByHint et al.) to
-  // find and flag them - those depend on probe-grid luck and element sizing, so
-  // a user reported the hamburger staying tappable for minutes on the home page.
-  // The hamburger drawer leads to SHEIN's region/currency/language settings, and
-  // a currency switch there silently breaks our USD-based price capture, so this
-  // is protection, not just decluttering. Only icon-sized header controls match
-  // the "menu" hint (to avoid catching unrelated category-nav class names deeper
-  // in the page); the strong settings words (currency/region/language) are
-  // blocked wherever they appear, since they're never something the user should
-  // reach inside our flow.
+  function isIconOnlySheinControl(el) {
+    if (!el) return false;
+    var text = ((el.textContent || '') + '').replace(/\\s+/g, ' ').trim();
+    if (text.length > 2) return false;
+    if ((el.tagName || '').toUpperCase() === 'SVG') return true;
+    return !!(el.querySelector && el.querySelector('svg, img'));
+  }
+
+  // Block only the actual icon-only menu control on the first tap. SHEIN also
+  // uses menu/nav class names on visible category links; treating those textual
+  // links as hamburger buttons made the home page feel like a static image.
+  // Region/currency/language settings remain protected by their explicit text.
   function isProtectedSheinControl(el) {
     if (!el || !el.getAttribute) return false;
     if (el.id && el.id.indexOf('otlobli') === 0) return false;
@@ -3376,14 +3377,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // the hamburger drawer does manage to open, every dangerous item inside it
     // is dead on tap.
     if (/currency|العملة|عملة|\\bregion\\b|country|البلد|الدولة|language|اللغة|\\blang\\b|لغة|\\bsetting|تغيير العملة|تغيير اللغة/.test(hint)) return true;
-    var strongMenuHint = /hamburger|nav-?toggle|side-?menu|drawer|menu-?(btn|button|icon|toggle|bar)/.test(hint);
-    // A plain menu class is also used by SHEIN's visible category links
-    // (women/men/kids). Treat it as the hamburger only when the control is
-    // icon-only; otherwise the global capture listener makes the whole home
-    // page feel like a non-interactive screenshot.
-    var genericIconMenu = /\\bmenu\\b/.test(hint) && shortText.length <= 2 &&
-      !!(el.querySelector && el.querySelector('svg,img'));
-    if (strongMenuHint || genericIconMenu) {
+    var menuHint = /hamburger|nav-?toggle|side-?menu|drawer|menu-?(btn|button|icon|toggle|bar)|\\bmenu\\b/.test(hint);
+    if (menuHint && isIconOnlySheinControl(el)) {
       var rect = el.getBoundingClientRect();
       // Band widened to top<=220 because SHEIN's home page can push its header
       // down behind a top promo/app-install banner, putting the hamburger well
@@ -3494,6 +3489,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var el = candidates[i];
       if (el.id && el.id.indexOf('otlobli') === 0) continue;
       if (otlobliIsSheinTopCategoryEl(el)) continue;
+      if (!isIconOnlySheinControl(el)) continue;
       var rect = el.getBoundingClientRect();
       if (rect.top < -10 || rect.top > 120) continue;
       if (rect.width <= 0 || rect.width > 64 || rect.height <= 0 || rect.height > 64) continue;
@@ -3577,38 +3573,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return r.top >= -30 && r.top <= 260;
   }
 
-  function restoreSheinTopCategoryTabs() {
-    if (!IS_SHEIN || !document.body) return;
-    var nodes = document.querySelectorAll('a, button, [role="button"], [role="tab"], div, span');
-    var touchedParents = [];
-    for (var i = 0; i < nodes.length; i++) {
-      var el = nodes[i];
-      if (!otlobliIsSheinTopCategoryEl(el)) continue;
-      el.removeAttribute('data-otlobli-blocked');
-      el.style.setProperty('visibility', 'visible', 'important');
-      el.style.setProperty('opacity', '1', 'important');
-      el.style.setProperty('pointer-events', 'auto', 'important');
-      if (el.style.display === 'none') el.style.removeProperty('display');
-      if (el.parentElement && touchedParents.indexOf(el.parentElement) === -1) touchedParents.push(el.parentElement);
-    }
-    for (var p = 0; p < touchedParents.length; p++) {
-      var parent = touchedParents[p];
-      var matches = 0;
-      for (var c = 0; c < parent.children.length; c++) {
-        if (otlobliIsSheinTopCategoryText(parent.children[c].textContent || '')) matches++;
-      }
-      if (matches < 3) continue;
-      parent.style.setProperty('visibility', 'visible', 'important');
-      parent.style.setProperty('opacity', '1', 'important');
-      parent.style.setProperty('overflow', 'visible', 'important');
-      parent.style.setProperty('display', 'flex', 'important');
-      parent.style.setProperty('justify-content', 'space-around', 'important');
-      parent.style.setProperty('align-items', 'center', 'important');
-      parent.style.setProperty('width', '100%', 'important');
-      parent.style.setProperty('max-width', '100%', 'important');
-    }
-  }
-
   function hideExtraHeaderIcons() {
     var vp = viewportSize();
     // Wider probe band than just the first ~50px - SHEIN's header height
@@ -3643,7 +3607,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
             var hasInput = !!el.querySelector('input') || otlobliNearSearchInput(el);
             var hint = ((el.className || '') + ' ' + (el.getAttribute('aria-label') || '') + ' ' + (el.textContent || '')).toLowerCase();
             var isSearchish = hasInput || /search|بحث|camera|كاميرا|image|صورة|بالصورة|visual|photo|عدسة|lens/.test(hint);
-            if (elIconSized && !isSearchish && !otlobliIsSheinTopCategoryEl(el)) {
+            if (elIconSized && isIconOnlySheinControl(el) && !isSearchish && !otlobliIsSheinTopCategoryEl(el)) {
               el.setAttribute('data-otlobli-blocked', '1');
               el.style.setProperty('visibility', 'hidden', 'important');
               el.style.setProperty('pointer-events', 'none', 'important');
@@ -3750,6 +3714,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       }
       if (el.id && el.id.indexOf('otlobli') === 0) continue;
       if (otlobliIsSheinTopCategoryEl(el)) continue;
+      if (!isIconOnlySheinControl(el)) continue;
       if (el.querySelector && el.querySelector('input')) continue; // search field wrapper
       if (otlobliNearSearchInput(el)) continue; // أيقونة داخل شريط البحث (الكاميرا)
       var hint = ((el.className || '') + ' ' + (el.getAttribute && el.getAttribute('aria-label') || '') + ' ' + (el.textContent || '')).toLowerCase();
@@ -4219,7 +4184,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     hideKnownHeaderIconsByHint();
     hideSheinHeaderControls();
     hideExtraHeaderIcons();
-    restoreSheinTopCategoryTabs();
     hideSheinCartIcons();
     hideListingCardAddButtons();
     hideForeignBottomNav();
@@ -5093,7 +5057,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (!IS_SHEIN) return;
     hideKnownHeaderIconsByHint();
     hideSheinHeaderControls();
-    restoreSheinTopCategoryTabs();
     hideListingCardAddButtons();
   }, 120);
   setInterval(function () {
