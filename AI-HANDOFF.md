@@ -21,9 +21,9 @@ Rules:
 ## Important Context
 
 - Active branch: `codex/customer-wallet-group-orders`
-- Latest feature commit: `2324dd0` (`fix: v88 restore interactive shein webview`)
+- Stable SHEIN baseline: `2f24954` (`fix: v85 polish iOS nav and selection behavior`).
 - User tested v87 and reported that none of the SHEIN problems were fixed. Treat the v87 IPA as failed evidence, not a stable release.
-- v88 diagnosis: v76 introduced hidden `FAKE_VISIBLE` WKWebView opening; the iOS plugin disables interaction while detached and v87 added a second hidden close/reopen. v86 also made absent URL region params trigger native `setUrl` and globally intercepted storage writes. v88 removes those unsafe paths without adding CSS. The IPA built successfully, but real-device verification is still required.
+- User tested v88 and reported a regression where entering SHEIN closes/crashes the WebView or app. Do not continue from v86, v87, or v88; restore v85 behavior first.
 - Claude old account may have worked after Codex. Always inspect current git state before editing.
 - Claude new account may not have the same skills/connectors authenticated. Check available skills/tools, especially Figma.
 

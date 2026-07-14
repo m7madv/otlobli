@@ -107,9 +107,8 @@ If there are existing changes, treat them as user/other-AI work. Do not reset or
 ## Current Known Issues
 
 - v87 failed real-device testing: the first SHEIN page still appeared painted but completely untouchable, and the region/UI problems remained. Do not describe v87 as a fix.
-- v88 removes the hidden `FAKE_VISIBLE` WKWebView lifecycle introduced in v76 and inherited through v87. SHEIN now presents through the plugin's normal post-page-load path, where the native view remains interaction-enabled; no warm-up close/reopen is performed.
-- v88 stops treating missing optional Saudi query parameters on product/SPA URLs as a redirect condition, removes the global `Storage.prototype.setItem` region interceptor, and limits silent region cleanup to exact Otlobli-owned keys. This avoids navigation reload loops and deletion/corruption of SHEIN application state.
-- v88 passed local build/script/diff checks and GitHub iOS build. Real-device verification is still required; do not claim the touch or region problems are solved until the user tests it.
+- v88 also failed real-device testing: entering SHEIN caused the WebView/app to close or crash. Do not continue from v86, v87, or v88.
+- The required stable baseline is v85 (`2f24954`); restore it exactly before attempting any single-issue fix or iOS build.
 - v87 iOS build is ready: `APP_VERSION = 2026.07.14-hidden-shein-ready-saudi-v87`.
 - v87 change: SHEIN opens hidden, runs a stronger readiness probe, silently corrects foreign shipping regions (e.g. Bahrain/Albania) before reveal, then automatically performs one hidden close/reopen warm-up before showing. This targets the first-open visible-but-untouchable SHEIN screenshot reported on iPhone.
 - v87 change: removes v86's visible Saudi reset bar, disables the risky stuck-blocker reload detector, and stops hiding SHEIN elements around the floating back button; the goal is less page mutation and fewer over-hidden categories/icons.

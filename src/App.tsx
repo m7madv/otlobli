@@ -21,7 +21,7 @@ import { buildWhatsappLink } from './services/whatsappLink'
 import { SHEIN_CAPTURE_SCRIPT } from './services/sheinBrowserScript'
 import { App as CapacitorApp } from '@capacitor/app'
 import { Capacitor } from '@capacitor/core'
-import { BackgroundColor, InAppBrowser, ToolBarType } from '@capgo/capacitor-inappbrowser'
+import { BackgroundColor, InAppBrowser, InvisibilityMode, ToolBarType } from '@capgo/capacitor-inappbrowser'
 
 const API_BASE = cleanEnvValue(import.meta.env.VITE_WHATSAPP_API_URL)
 const SUPABASE_URL = cleanEnvValue(import.meta.env.VITE_SUPABASE_URL)
@@ -37,6 +37,91 @@ const SHEIN_HOME_URL = 'https://m.shein.com/ar/?currency=USD&country=SA&countryC
 const TEMU_HOME_URL = 'https://www.temu.com/sa/?currency=USD&currencyCode=USD'
 const SHEIN_CHALLENGE_PATH_RE = /\/(?:cdn-cgi|challenge|captcha|verify|verification|security|robot|risk|anti[-_]?bot|human)(?:\/|\?|#|$)/i
 const SHEIN_CHALLENGE_QUERY_RE = /(?:^|[?&#])(?:captcha|challenge|verification|security_token|risk|robot|anti[-_]?bot|human)=/i
+const SHEIN_SAFE_PROBE_SCRIPT = `
+(function () {
+  try {
+    var href = String(location.href || '');
+    var text = String((document.body && document.body.innerText) || '').slice(0, 1800);
+    var isChallengeUrl = /\\/(?:cdn-cgi|challenge|captcha|verify|verification|security|robot|risk|anti[-_]?bot|human)(?:\\/|\\?|#|$)/i.test(href) ||
+      /(?:^|[?&#])(?:captcha|challenge|verification|security_token|risk|robot|anti[-_]?bot|human)=/i.test(href);
+    var isChallengeText = /(security|verify|verification|robot|captcha|challenge|turnstile|cloudflare|التحقق|تحقق|روبوت|الأمان|امان|لست روبوت)/i.test(text);
+    if (window.mobileApp && window.mobileApp.postMessage) {
+      window.mobileApp.postMessage({ detail: { type: 'sheinProbe', href: href, isChallenge: !!(isChallengeUrl || isChallengeText) } });
+    }
+  } catch (e) {}
+})();
+`
+
+const SHEIN_READY_PROBE_SCRIPT = `
+(function () {
+  if (window.__otlobliSheinReadyProbeInstalled) return;
+  window.__otlobliSheinReadyProbeInstalled = true;
+  var startedAt = Date.now();
+  var attempts = 0;
+  function compact(value) {
+    return String(value || '').replace(/\\s+/g, ' ').trim();
+  }
+  function visibleText() {
+    try { return compact((document.body && document.body.innerText) || '').slice(0, 6000); } catch (e) { return ''; }
+  }
+  function isForeignRegion(text) {
+    if (!text) return false;
+    if (/Saudi Arabia|Shipping to Saudi|Ship to Saudi|\\u0627\\u0644\\u0633\\u0639\\u0648\\u062f\\u064a\\u0629/i.test(text)) return false;
+    return /(?:Shipping|Ship|Ships|Delivery|Deliver|Delivering|\\u0627\\u0644\\u0634\\u062d\\u0646|\\u0627\\u0644\\u062a\\u0648\\u0635\\u064a\\u0644)\\s*(?:to|\\u0625\\u0644\\u0649|\\u0644)?\\s*(?:Albania|Turkey|Turkiye|T\\u00fcrkiye|United States|USA|Bahrain|Qatar|Kuwait|UAE|Oman|Jordan|\\u0623\\u0644\\u0628\\u0627\\u0646\\u064a\\u0627|\\u062a\\u0631\\u0643\\u064a\\u0627|\\u0627\\u0644\\u0628\\u062d\\u0631\\u064a\\u0646|\\u0642\\u0637\\u0631|\\u0627\\u0644\\u0643\\u0648\\u064a\\u062a|\\u0627\\u0644\\u0625\\u0645\\u0627\\u0631\\u0627\\u062a|\\u0639\\u0645\\u0627\\u0646|\\u0627\\u0644\\u0623\\u0631\\u062f\\u0646)\\b/i.test(text);
+  }
+  function isChallenge(href, text) {
+    return /\\/(?:cdn-cgi|challenge|captcha|verify|verification|security|robot|risk|anti[-_]?bot|human)(?:\\/|\\?|#|$)/i.test(href) ||
+      /(?:^|[?&#])(?:captcha|challenge|verification|security_token|risk|robot|anti[-_]?bot|human)=/i.test(href) ||
+      /(security|verify|verification|robot|captcha|challenge|turnstile|cloudflare|\\u0625\\u062c\\u0631\\u0627\\u0621 \\u0627\\u0644\\u062a\\u062d\\u0642\\u0642|\\u0627\\u0644\\u062a\\u062d\\u0642\\u0642|\\u062a\\u062d\\u0642\\u0642|\\u0631\\u0648\\u0628\\u0648\\u062a|\\u0627\\u0644\\u0623\\u0645\\u0627\\u0646|\\u0644\\u0633\\u062a \\u0631\\u0648\\u0628\\u0648\\u062a)/i.test(text);
+  }
+  function hasUsableControls() {
+    if (!document.body || document.readyState !== 'complete') return false;
+    var nodes = document.querySelectorAll('a[href],button,[role="button"],input,select,textarea,[onclick]');
+    var visible = 0;
+    for (var i = 0; i < nodes.length && visible < 4; i++) {
+      var el = nodes[i];
+      var r = el.getBoundingClientRect && el.getBoundingClientRect();
+      if (!r || r.width < 8 || r.height < 8) continue;
+      var cs = window.getComputedStyle(el);
+      if (cs.display === 'none' || cs.visibility === 'hidden' || cs.pointerEvents === 'none') continue;
+      visible++;
+    }
+    return visible >= 3;
+  }
+  function sendProbe() {
+    attempts++;
+    var href = String(location.href || '');
+    var text = visibleText();
+    var challenge = isChallenge(href, text);
+    var foreignRegion = isForeignRegion(text);
+    var complete = document.readyState === 'complete';
+    var interactive = complete && !challenge && !foreignRegion && hasUsableControls() && (Date.now() - startedAt >= 2200);
+    try {
+      if (window.mobileApp && window.mobileApp.postMessage) {
+        window.mobileApp.postMessage({
+          detail: {
+            type: 'sheinProbe',
+            href: href,
+            isChallenge: !!challenge,
+            isComplete: !!complete,
+            isInteractive: !!interactive,
+            foreignRegion: !!foreignRegion,
+            elapsedMs: Date.now() - startedAt,
+            attempts: attempts
+          }
+        });
+      }
+    } catch (e) {}
+    if (!interactive && attempts < 16) window.setTimeout(sendProbe, attempts < 6 ? 450 : 750);
+  }
+  window.setTimeout(sendProbe, 180);
+})();
+`
+
+// Keep the older probe referenced so lint does not treat it as dead while v87
+// uses the stronger hidden-readiness probe above.
+void SHEIN_SAFE_PROBE_SCRIPT
+
 // يكشف موقع خروج الإنترنت الحالي (بلد/منطقة الـVPN فعلياً) عبر خدمتي geo
 // تدعمان CORS، لتمييز «VPN مطفأ» (البلد سوريا) عن «منطقة VPN غير مدعومة»
 // (بلد آخر لكن المتجر محجوب). فشل الخدمتين معاً = الشبكة نفسها متعثرة.
@@ -468,16 +553,14 @@ const shouldRedirectSheinToSaudi = (rawUrl: string) => {
     const language = url.searchParams.get('language')
     const locale = url.searchParams.get('locale')
     const countryKeys = ['ship_to', 'shipTo', 'shipToCountry', 'shipCountry', 'shippingCountry', 'shipping_country', 'shippingRegion', 'store_country', 'storeCountry', 'region', 'regionCode', 'defaultCountry']
-    return (!!country && country !== 'SA') ||
-      (!!countryCode && countryCode !== 'SA') ||
-      (!!currency && currency !== 'USD') ||
-      (!!lang && lang !== 'ar') ||
-      (!!language && language !== 'ar') ||
-      (!!locale && locale !== 'ar_SA') ||
-      countryKeys.some((key) => {
-        const value = url.searchParams.get(key)
-        return !!value && value !== 'SA'
-      })
+    return country !== 'SA' ||
+      countryCode !== 'SA' ||
+      currency !== 'USD' ||
+      lang !== 'ar' ||
+      language !== 'ar' ||
+      locale !== 'ar_SA' ||
+      countryKeys.some((key) => url.searchParams.get(key) !== 'SA') ||
+      url.searchParams.get('site_uid') !== 'pwar'
   } catch {
     return false
   }
@@ -2462,19 +2545,21 @@ function App() {
     const activeStore = selectedStoreRef.current
     const rawTargetUrl = initialPendingUrl || storeUrl(activeStore)
     const targetUrl = activeStore === 'shein' ? normalizeSheinBrowserUrl(rawTargetUrl) : normalizeTemuBrowserUrl(rawTargetUrl)
-    // Do not detach a live WKWebView into the plugin's hidden container.
-    // On iOS that path disables interaction and depends on a later native
-    // reattachment to restore it; real devices were sometimes left showing a
-    // painted but untouchable SHEIN view. Let the plugin present normally
-    // after the first page load, and inject only then (not at documentStart).
-    sheinHiddenUntilReadyRef.current = false
+    const openSheinHiddenFirst = activeStore === 'shein'
+    sheinHiddenUntilReadyRef.current = openSheinHiddenFirst
     sheinRevealInProgressRef.current = false
     currentWebviewUrlRef.current = targetUrl
     void InAppBrowser.openWebView({
       url: targetUrl,
-      preShowScript: SHEIN_CAPTURE_SCRIPT,
-      preShowScriptInjectionTime: activeStore === 'shein' ? 'pageLoad' as const : 'documentStart' as const,
-      isPresentAfterPageLoad: true,
+      ...(openSheinHiddenFirst
+        ? {
+          hidden: true,
+          invisibilityMode: InvisibilityMode.FAKE_VISIBLE,
+          preShowScript: SHEIN_READY_PROBE_SCRIPT,
+          preShowScriptInjectionTime: 'pageLoad' as const,
+          isPresentAfterPageLoad: true,
+        }
+        : { preShowScript: SHEIN_CAPTURE_SCRIPT, preShowScriptInjectionTime: 'documentStart' as const, isPresentAfterPageLoad: true }),
       toolbarType: ToolBarType.BLANK,
       backgroundColor: BackgroundColor.WHITE,
       toolbarColor: '#f7f9fb',
@@ -2609,6 +2694,12 @@ function App() {
   useEffect(() => {
     const loadedHandle = InAppBrowser.addListener('browserPageLoaded', (event: { id?: string }) => {
       if (event?.id && event.id !== webviewIdRef.current) return
+      if (selectedStoreRef.current === 'shein' && sheinHiddenUntilReadyRef.current) {
+        const id = webviewIdRef.current || undefined
+        void InAppBrowser.executeScript({ ...(id ? { id } : {}), code: SHEIN_READY_PROBE_SCRIPT })
+          .catch(() => undefined)
+        return
+      }
       markStoreWebviewReadyRef.current(webviewSessionRef.current)
     })
     const errorHandle = InAppBrowser.addListener('pageLoadError', (event: WebviewPageLoadErrorEvent) => {

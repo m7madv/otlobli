@@ -35,9 +35,9 @@ Read:
 
 ## Latest Stable Release
 
-- Latest feature commit: `2324dd0` (`fix: v88 restore interactive shein webview`)
+- Stable SHEIN baseline: `2f24954` (`fix: v85 polish iOS nav and selection behavior`).
 - v87 failed the user's real-device test: SHEIN remained untouchable and the reported region/UI issues remained. Do not call v87 stable or fixed.
-- v88 removes hidden `FAKE_VISIBLE` opening/warm-up and broad region storage/URL interception. Local checks and GitHub iOS build passed; real-device verification is still required.
+- v88 also failed: entering SHEIN closed/crashed the WebView or app. Do not continue from v86, v87, or v88.
 - Customer deployed to `https://talabieh.vercel.app`
 - Admin deployed to `https://talabieh-admin.vercel.app`
 - Supabase migration `20260712033000_shared_order_ownership.sql` applied.
