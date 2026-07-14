@@ -1,5 +1,12 @@
 export const SHEIN_CAPTURE_SCRIPT = `
 (function () {
+  // WKUserScript is injected into every frame by the plugin. Otlobli owns only
+  // the top-level store page; running this large observer set in SHEIN iframes
+  // wastes scarce memory on old iPhones and can duplicate bridge messages.
+  try { if (window.top !== window.self) return; } catch (e) { return; }
+  if (window.__otlobliCaptureScriptActive) return;
+  window.__otlobliCaptureScriptActive = true;
+
   // env(safe-area-inset-bottom) only resolves to the device's real inset when
   // the PAGE's OWN viewport meta tag declares viewport-fit=cover - otherwise
   // it silently evaluates to 0 everywhere, regardless of device. otlobli's
@@ -43,25 +50,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var IS_SHEIN = /shein/i.test(location.hostname);
   var IS_TEMU = /temu/i.test(location.hostname);
 
-  // (v66-fix) بيانات الـWebView مشتركة/دائمة بين جلسات المتجر. أكّد المستخدم أن
-  // شي إن «كصور لا تنكبس» بعد تبديل المتجر (تيمو ثم شي إن)، بينما حذف/إعادة
-  // تنصيب التطبيق يُصلحه — أي أن حالة service worker/كاش مُتراكمة من جلسة سابقة
-  // تخدم أصولاً معطوبة فلا تُفعَّل الصفحة (hydration). نُلغي تسجيل أي service
-  // worker ونمسح Cache Storage عند بداية كل تحميل — fire-and-forget كي لا يعطّل
-  // الرسم — فتُطبَّق حالة نظيفة على التحميل التالي (يقارب التنصيب النظيف). لا
-  // نلمس localStorage (مسحه العريض يسبب skeleton loading — درس موثق).
-  try {
-    if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
-      navigator.serviceWorker.getRegistrations().then(function (regs) {
-        for (var i = 0; i < regs.length; i++) { try { regs[i].unregister(); } catch (e) {} }
-      }).catch(function () {});
-    }
-    if (window.caches && caches.keys) {
-      caches.keys().then(function (keys) {
-        for (var k = 0; k < keys.length; k++) { try { caches.delete(keys[k]); } catch (e) {} }
-      }).catch(function () {});
-    }
-  } catch (e) {}
+  // Preserve SHEIN's own Service Worker and Cache Storage. Clearing them after
+  // every successful page load forced the next entry to cold-start and could
+  // leave the SPA as a partially hydrated, untappable shell on iPhone 6.
+  // Native clearCache remains available as a single bounded recovery only.
 
   var SHEIN_REQUIRED_COUNTRY = 'SA';
   var SHEIN_REQUIRED_CURRENCY = 'USD';
@@ -438,9 +430,23 @@ export const SHEIN_CAPTURE_SCRIPT = `
       loadedImageCount++;
     }
 
-    var homeLike = /^\\/ar\\/?$/i.test(location.pathname || '');
-    if (homeLike) return interactiveCount >= 3 && loadedImageCount >= 2;
-    return interactiveCount >= 1 && (loadedImageCount >= 1 || bodyText.length >= 500);
+    var productDetail = /-p-\\d+/i.test(location.pathname || '');
+    if (productDetail) return interactiveCount >= 1 && loadedImageCount >= 1;
+
+    // A listing shell can contain category controls and promotional images
+    // while its product feed is still absent. Do not reveal that state. A real
+    // SHEIN product card carries the stable -p-<id> URL and a loaded image.
+    var productCards = 0;
+    var productLinks = document.querySelectorAll('a[href*="-p-"]');
+    for (var pi = 0; pi < productLinks.length && productCards < 2; pi++) {
+      var productLink = productLinks[pi];
+      var pr = productLink.getBoundingClientRect();
+      if (!pr || pr.width < 24 || pr.height < 24 || pr.bottom <= 0 || pr.top >= window.innerHeight * 2.5) continue;
+      var productImage = productLink.querySelector('img');
+      if (!productImage || !productImage.complete || productImage.naturalWidth < 40 || productImage.naturalHeight < 40) continue;
+      productCards++;
+    }
+    return interactiveCount >= 2 && productCards >= 1;
   }
 
   function sheinPostNativeCoverState(type) {
@@ -466,6 +472,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (now < sheinNativeCoverCooldownUntil) return false;
     sheinNativeCoverRepairActive = true;
     sheinNativeCoverRepairStartedAt = now;
+    setOtlobliLoadingMessage('جاري ضبط المتجر على السعودية…');
     sheinPostNativeCoverState('sheinSaudiRepairStart');
     return false;
   }
@@ -477,6 +484,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       sheinNativeCoverRepairStartedAt = 0;
       if (sheinPageLooksInteractive()) {
         sheinNativeCoverInitialReleased = true;
+        releaseOtlobliLoadingOverlay();
         sheinPostNativeCoverState('sheinSaudiReady');
       }
       return;
@@ -491,6 +499,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         sheinNativeCoverCooldownUntil = Date.now() + 120000;
         if (sheinPageLooksInteractive()) {
           sheinNativeCoverInitialReleased = true;
+          releaseOtlobliLoadingOverlay();
           sheinPostNativeCoverState('sheinPageInteractive');
         }
       }
@@ -498,6 +507,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
     if (!sheinNativeCoverInitialReleased && sheinPageLooksInteractive()) {
       sheinNativeCoverInitialReleased = true;
+      releaseOtlobliLoadingOverlay();
       sheinPostNativeCoverState('sheinPageInteractive');
     }
   }
@@ -3205,6 +3215,18 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // to add a product to SHEIN's real cart from that exact window. Better to
   // make the user wait a beat than ever expose anything unprocessed.
   var __otlobliLoadingDone = false;
+  var __otlobliLoadingMessage = 'جاري تجهيز متجر SHEIN…';
+  function setOtlobliLoadingMessage(message) {
+    __otlobliLoadingMessage = message || __otlobliLoadingMessage;
+    var label = document.getElementById('otlobli-loading-label');
+    if (label) label.textContent = __otlobliLoadingMessage;
+  }
+  function releaseOtlobliLoadingOverlay() {
+    if (__otlobliLoadingDone) return;
+    __otlobliLoadingDone = true;
+    var el = document.getElementById('otlobli-loading');
+    if (el) el.remove();
+  }
   function ensureLoadingOverlay() {
     if (__otlobliLoadingDone || document.getElementById('otlobli-loading')) return;
     ensureOverlayStyle();
@@ -3214,40 +3236,23 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // One below max - see the matching comment on #otlobli-overlay above,
     // same reasoning: never let this win a stacking tie against the nav bar.
     overlay.style.cssText = 'position:fixed;left:0;top:0;width:' + vp.width + 'px;height:' + vp.height + 'px;' +
-      'background:#ffffff;z-index:2147483646;display:flex;align-items:center;justify-content:center;';
+      'background:#ffffff;z-index:2147483646;display:flex;flex-direction:column;gap:16px;align-items:center;justify-content:center;';
     overlay.addEventListener('touchmove', function (e) { e.preventDefault(); }, { passive: false });
     overlay.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); }, true);
     var spinner = document.createElement('div');
     spinner.style.cssText = 'width:38px;height:38px;border-radius:50%;border:4px solid #d8efe4;' +
       'border-top-color:#006948;animation:otlobli-spin .8s linear infinite;';
     overlay.appendChild(spinner);
+    var label = document.createElement('div');
+    label.id = 'otlobli-loading-label';
+    label.textContent = __otlobliLoadingMessage;
+    label.style.cssText = 'padding:0 28px;color:#26332f;font-size:15px;font-weight:600;line-height:1.5;text-align:center;direction:rtl;';
+    overlay.appendChild(label);
     document.body.appendChild(overlay);
-
-    // Used to remove this after a flat 1100ms no matter what - on a slow
-    // connection (the Syrian relay especially) the page is often still
-    // mid-load well past that, so the spinner vanished early and left the
-    // user staring at a half-rendered/blank page with nothing to indicate
-    // it was still working. Now it waits for the real page-load signal
-    // (with a short minimum so it doesn't just flash) and only force-closes
-    // after 8s as a safety net for a page that never fires load at all.
-    var minTimeElapsed = false;
-    var pageReady = document.readyState === 'complete';
-    function tryRemoveLoadingOverlay() {
-      if (__otlobliLoadingDone || !minTimeElapsed || !pageReady) return;
-      __otlobliLoadingDone = true;
-      var el = document.getElementById('otlobli-loading');
-      if (el) el.remove();
-    }
-    window.setTimeout(function () { minTimeElapsed = true; tryRemoveLoadingOverlay(); }, 400);
-    if (!pageReady) {
-      window.addEventListener('load', function () { pageReady = true; tryRemoveLoadingOverlay(); });
-    }
-    window.setTimeout(function () {
-      if (__otlobliLoadingDone) return;
-      __otlobliLoadingDone = true;
-      var el = document.getElementById('otlobli-loading');
-      if (el) el.remove();
-    }, 8000);
+    // The native cover shields the short document-start gap. Once this page
+    // overlay and Otlobli nav exist, reveal them together. This overlay itself
+    // is released only by sheinPageLooksInteractive(), never by a blind timer.
+    sheinPostNativeCoverState('sheinPreparing');
   }
 
   // Dedicated "add to cart" action. Used to share a corner with a floating

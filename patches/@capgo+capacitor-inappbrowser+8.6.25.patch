@@ -92,7 +92,7 @@ index 8ae3e61..fc6cf04 100644
 +
 +    private void scheduleOtlobliLoadingCoverTimeout() {
 +        mainHandler.removeCallbacks(otlobliLoadingCoverTimeout);
-+        mainHandler.postDelayed(otlobliLoadingCoverTimeout, 18_000L);
++        mainHandler.postDelayed(otlobliLoadingCoverTimeout, 50_000L);
 +    }
 +
 +    private void showOtlobliLoadingCover() {
@@ -194,8 +194,8 @@ index 8ae3e61..fc6cf04 100644
 +                case "sheinSaudiRepairStart" -> {
 +                    otlobliLoadingCoverMessage = "جاري ضبط المتجر على السعودية…";
 +                    if (otlobliLoadingCoverLabel != null) otlobliLoadingCoverLabel.setText(otlobliLoadingCoverMessage);
-+                    showOtlobliLoadingCover();
 +                }
++                case "sheinPreparing" -> hideOtlobliLoadingCover();
 +                case "sheinSaudiReady", "sheinPageInteractive", "humanCheck", "sheinBlocked" -> hideOtlobliLoadingCover();
 +                default -> {
 +                    // Other bridge messages are forwarded unchanged.
@@ -513,7 +513,7 @@ index 97a2fc1..dadf498 100644
          // Apply navigation gestures setting
          updateNavigationGestures()
 
-@@ -899,6 +912,110 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -899,6 +912,113 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
      override open func viewDidLayoutSubviews() {
          super.viewDidLayoutSubviews()
          refreshWebViewViewportIfNeeded()
@@ -528,7 +528,7 @@ index 97a2fc1..dadf498 100644
 +            self?.hideOtlobliLoadingCover()
 +        }
 +        otlobliLoadingCoverTimeout = timeout
-+        DispatchQueue.main.asyncAfter(deadline: .now() + 18, execute: timeout)
++        DispatchQueue.main.asyncAfter(deadline: .now() + 50, execute: timeout)
 +    }
 +
 +    private func showOtlobliLoadingCover() {
@@ -615,7 +615,10 @@ index 97a2fc1..dadf498 100644
 +        case "sheinSaudiRepairStart":
 +            otlobliLoadingCoverMessage = "جاري ضبط المتجر على السعودية…"
 +            otlobliLoadingCoverLabel?.text = otlobliLoadingCoverMessage
-+            showOtlobliLoadingCover()
++        case "sheinPreparing":
++            // The in-page Otlobli loading surface and bottom navigation are
++            // now attached. Reveal those while SHEIN continues hydrating.
++            hideOtlobliLoadingCover()
 +        case "sheinSaudiReady", "sheinPageInteractive", "humanCheck", "sheinBlocked":
 +            hideOtlobliLoadingCover()
 +        default:
@@ -624,7 +627,7 @@ index 97a2fc1..dadf498 100644
      }
 
      func updateButtonTintColors() {
-@@ -1001,6 +1118,37 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1001,6 +1121,37 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          capBrowserPlugin?.notifyListeners(eventName, data: payload(with: data))
      }
 
@@ -662,7 +665,7 @@ index 97a2fc1..dadf498 100644
      private func startObservingKeyboardViewportChanges() {
          guard !isObservingKeyboardViewportChanges else {
              return
-@@ -1136,6 +1284,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1136,6 +1287,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          if message.name == "messageHandler" {
              if let messageBody = message.body as? [String: Any] {
                  print("Received message from JavaScript:", messageBody)
@@ -670,7 +673,7 @@ index 97a2fc1..dadf498 100644
                  emit("messageFromWebview", data: messageBody)
              } else {
                  print("Received non-dictionary message from JavaScript:", message.body)
-@@ -1818,6 +1967,11 @@ public extension WKWebViewController {
+@@ -1818,6 +1970,11 @@ public extension WKWebViewController {
 
      open func cleanupWebView() {
          guard let webView = self.webView else { return }
@@ -682,7 +685,7 @@ index 97a2fc1..dadf498 100644
          webView.stopLoading()
          previewItemURL = nil
 
-@@ -2743,7 +2897,7 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2743,7 +2900,7 @@ extension WKWebViewController: WKNavigationDelegate {
              self.url = url
              delegate?.webViewController?(self, didFail: url, withError: error)
          }
@@ -691,7 +694,7 @@ index 97a2fc1..dadf498 100644
      }
 
      public func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-@@ -2753,7 +2907,16 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2753,7 +2910,16 @@ extension WKWebViewController: WKNavigationDelegate {
              self.url = url
              delegate?.webViewController?(self, didFail: url, withError: error)
          }
