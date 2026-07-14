@@ -6,11 +6,12 @@ Read `CURRENT_STATE.md` first, then `AGENTS.md`.
 
 - Active branch: `codex/customer-wallet-group-orders`
 - Stable SHEIN baseline: v85 commit `2f24954`.
-- Current candidate: v85.5 commit `a064739`, version `2026.07.14-v85.5-shein-native-sa-address-no-otp-test`.
-- Test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.5-shein-native-sa-no-otp-test.ipa`; SHA-256 `99F2E6311880607AC63E6B2AA5D50797317A29D5AEC1F26377AADBBEB14D2F8F`; run `29319264525`.
+- Current candidate: v85.6 commit `3388071`, version `2026.07.14-v85.6-shein-live-webview-native-cover-sa-lock-no-otp-test`.
+- Test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.6-shein-live-cover-sa-lock-no-otp-test.ipa`; SHA-256 `D457E19DF87236D00A3CABBE27F3EFFED8F6C8A4ED6A7B948415DD6111BD20F4`; run `29322372402`.
 - Reference IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.ipa`.
 - v85.4 IPA exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v85.4-shein-sa-no-otp-test.ipa`, but device testing failed: SHEIN still selected Bahrain. Its native initial-cookie preload has been removed.
 - v85.5 reads SHEIN's authoritative signed `addressCookie` and completes SHEIN's own exact native cascade: Saudi Arabia -> Riyadh Province -> Riyadh -> Al Olaya. It supports both observed native drawer structures and adds no CSS, storage purge, address fabrication, or reload loop.
+- v85.6 keeps the same WebView attached and interactive from first open, removes hidden/offscreen `FAKE_VISIBLE`, and uses a bounded native cover only while the exact Saudi cascade runs. Human challenges reveal immediately. Verified shipping controls are customer-locked narrowly; the internal exact automation remains allowed.
 - App OTP screens are bypassed for this test IPA only. Set `TEST_ONLY_AUTH_BYPASS = false` before any production build.
 
 ## Real-Device Evidence
@@ -27,9 +28,9 @@ Read `CURRENT_STATE.md` first, then `AGENTS.md`.
 
 ## Next Work
 
-Install v85.5 on both target iPhones from a persisted foreign address, then reload, switch stores, and switch VPNs. Cold entry/category taps remain a separate check. Do not claim iPhone success before device evidence.
+Install v85.6 on both target iPhones from a persisted foreign address. Test cold entry/category taps without switching stores, invisible Saudi correction, region-control lock, then reload/store/VPN persistence. Do not claim iPhone success before device evidence.
 
-Important baseline nuance: v85 contains the inherited hidden `FAKE_VISIBLE` opening flow and an exact-key storage guard. Do not casually remove or expand them. The current goal is observation and isolation, not another all-at-once region/WebView rewrite.
+The inherited hidden/offscreen `FAKE_VISIBLE` path was removed deliberately after local plugin inspection showed it reparents and disables interaction on the first WebView. Do not reintroduce it.
 
 ## Forbidden During SHEIN Pass
 
@@ -47,7 +48,8 @@ Important baseline nuance: v85 contains the inherited hidden `FAKE_VISIBLE` open
 - Native patch parse: passed; obsolete initial-cookie hunks are removed and relay secrets remain placeholders in Git.
 - Android Capacitor sync and debug APK assembly: passed.
 - Live Android WebView signed-address persistence and product API country validation: passed.
-- v85.5 Xcode workflow run `29319264525` passed; artifact payload contains the expected v85.5 version marker. Real-device testing is pending.
+- v85.6 Android validation confirmed an attached `visible=true` first WebView, working native cover messages, and visible human verification without closing. The challenge was not bypassed.
+- v85.6 Xcode workflow run `29322372402` passed; artifact payload contains the expected v85.6 version marker. Real-device testing is pending.
 
 ## Main Files
 

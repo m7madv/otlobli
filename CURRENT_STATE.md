@@ -51,9 +51,14 @@ Read `AI-HANDOFF.md` and `AGENTS.md`. Preserve any existing user/other-AI change
 - Root cause confirmed in Android WebView: SHEIN product APIs use a signed `addressCookie`, not VPN, URL params, or the `localcountry` cookie. Selecting only `Saudi Arabia` is incomplete; SHEIN persists the address only after country -> province -> city -> district.
 - v85.5 uses SHEIN's native visible address drawer with exact targets only: `Saudi Arabia` -> `Riyadh Province` -> `Riyadh` -> `Al Olaya`. It supports both current SHEIN drawer markups and performs no CSS hiding, storage deletion, reload loop, or fabricated address/signature.
 - Emulator proof from a signed Qatar address: `Qatar / Doha / Al Jasra / Zone 1` became a signed Saudi address in about 9 seconds, persisted after reload while `ipCountry` remained `QA`, and `get_goods_detail_realtime_data` returned `shipping_countryname = Saudi Arabia`.
+- v85.6 candidate commit: `3388071`; version `2026.07.14-v85.6-shein-live-webview-native-cover-sa-lock-no-otp-test`.
+- v85.6 test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.6-shein-live-cover-sa-lock-no-otp-test.ipa`
+- v85.6 SHA-256: `D457E19DF87236D00A3CABBE27F3EFFED8F6C8A4ED6A7B948415DD6111BD20F4`; run `29322372402`.
+- v85.6 removes the inherited hidden/offscreen `FAKE_VISIBLE` first-open path. SHEIN stays attached, visible, laid out, and interactive behind a bounded native loading cover while the exact Saudi address flow runs. The cover is removed for human verification and has a native timeout, so it cannot permanently trap the customer.
+- Verified shipping-region controls are narrowly locked against customer clicks; only the exact automatic native cascade is allowed. No broad CSS, viewport hack, content hiding, storage purge, or reload loop was added.
 - OTP screens remain bypassed only for this test candidate; set `TEST_ONLY_AUTH_BYPASS = false` before production.
 
-v85 itself inherits the older hidden `FAKE_VISIBLE` flow and a limited exact-key storage guard. Do not alter those while establishing the baseline; first collect and isolate the user's real-device issues.
+v85 remains the stable store/UI baseline. v85.6 deliberately changes only the proven first-open WebView lifecycle and the exact Saudi shipping flow; it does not import v86-v88 behavior or broaden the old storage guard.
 
 ## Failed Paths
 
@@ -65,8 +70,9 @@ v85 itself inherits the older hidden `FAKE_VISIBLE` flow and a limited exact-key
 
 ## Current Task
 
-- Install v85.5 on iPhone 6 and iPhone 16 Pro Max from a foreign persisted address, then reload/switch VPN/store and verify the signed Saudi address remains.
-- Recheck cold entry/category taps separately. Emulator success is not a claim that the iPhone interaction issue is fixed.
+- Install v85.6 on iPhone 6 and iPhone 16 Pro Max from a foreign persisted address, then cold-open SHEIN and verify it is touchable without switching to Temu and back.
+- Verify the Saudi correction is not shown, the shipping-region control does not open for the customer, and Saudi persists across reload/store/VPN changes.
+- Android structural validation is not a claim that either iPhone issue is fixed; both real devices remain the acceptance test.
 - OTP bypass is only for faster store testing; customer account/server features and Add-to-Cart placement remain separate and unchanged.
 
 ## Scope Guard
@@ -84,7 +90,8 @@ v85 itself inherits the older hidden `FAKE_VISIBLE` flow and a limited exact-key
 - Native patch parse passed; obsolete v85.4 initial-cookie additions were removed and tracked relay values remain placeholders.
 - Android Capacitor sync and `assembleDebug` passed.
 - Live Android WebView validation passed from signed Qatar to signed Saudi, across reload and at the product API response level.
-- v85.5 unsigned IPA built successfully from `a064739` in run `29319264525`; embedded version marker verified. Real-device testing is still pending.
+- v85.6 Android validation showed the first SHEIN WebView attached with `visible=true`; native cover show/hide worked, and a SHEIN human challenge remained visible instead of closing the WebView. The challenge was not bypassed.
+- v85.6 unsigned IPA built successfully from `3388071` in run `29322372402`; embedded version marker verified. Real-device testing is still pending.
 
 ## Production References
 
