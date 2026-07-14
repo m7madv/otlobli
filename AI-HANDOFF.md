@@ -6,8 +6,8 @@ Read `CURRENT_STATE.md` first, then `AGENTS.md`.
 
 - Active branch: `codex/customer-wallet-group-orders`
 - Stable SHEIN baseline: v85 commit `2f24954`.
-- Current candidate: v85.8 commit `585a28a`, version `2026.07.14-v85.8-shein-cache-clean-entry-sa-status-no-otp-test`.
-- Test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8-shein-cache-clean-entry-sa-status-no-otp-test.ipa`; SHA-256 `689EE2D978269FB2ECB2EB4A3AA1B8436335ABC700C6B6C28B588508B636EF05`; run `29325121680`.
+- Current candidate: v85.9 commit `86f15be`, version `2026.07.14-v85.9-shein-progressive-entry-warm-cache-no-otp-test`.
+- Test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.9-shein-progressive-entry-warm-cache-no-otp-test.ipa`; SHA-256 `F8F61473E4B6FD8D08F2D9667408070B59E6C882F59F3E95FC80E98EBCC53A59`; run `29326728706`.
 - Reference IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.ipa`.
 - v85.4 IPA exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v85.4-shein-sa-no-otp-test.ipa`, but device testing failed: SHEIN still selected Bahrain. Its native initial-cookie preload has been removed.
 - v85.5 reads SHEIN's authoritative signed `addressCookie` and completes SHEIN's own exact native cascade: Saudi Arabia -> Riyadh Province -> Riyadh -> Al Olaya. It supports both observed native drawer structures and adds no CSS, storage purge, address fabrication, or reload loop.
@@ -16,6 +16,8 @@ Read `CURRENT_STATE.md` first, then `AGENTS.md`.
 - v85.7 never parks SHEIN through plugin `hide/show`. It closes on app-screen exit and after meaningful background time, then creates a fresh WebView with the same website data. It requires DOM/content readiness, performs at most one fresh-instance retry, and displays explicit native preparation/Saudi status text.
 - v85.7 failed on the real iPhone: the second-entry partial/untappable state remained exactly as before.
 - v85.8 matches the missing part of the user-proven Temu round-trip: before every SHEIN open it clears only WebKit memory/disk cache. Capgo's iOS implementation preserves cookies/localStorage, including the signed Saudi address.
+- v85.8 device result: iPhone 16 Pro Max opened normally, but iPhone 6 showed raw SHEIN without the Otlobli bar, did not hydrate products, and then showed a false change-server instruction.
+- v85.9 removes per-entry cache clearing and the injected script's per-load Service Worker/Cache Storage purge. It injects at document start, keeps the existing Otlobli nav plus preparation surface until a loaded product card proves hydration, and uses one cache-clearing recovery only after a 35-second preparation failure. Preparation failure is no longer labeled as VPN failure.
 - App OTP screens are bypassed for this test IPA only. Set `TEST_ONLY_AUTH_BYPASS = false` before any production build.
 
 ## Real-Device Evidence
@@ -32,7 +34,7 @@ Read `CURRENT_STATE.md` first, then `AGENTS.md`.
 
 ## Next Work
 
-Install v85.8 on both target iPhones. Test repeated store entry, app background/resume, category/product taps, status text, region-control lock, and Saudi persistence. Do not claim iPhone success before device evidence.
+Install v85.9 on both target iPhones. Test repeated store entry, app background/resume, category/product taps, preparation status/bar continuity, region-control lock, and Saudi persistence. Do not claim iPhone success before device evidence.
 
 The inherited hidden/offscreen `FAKE_VISIBLE` path was removed deliberately after local plugin inspection showed it reparents and disables interaction on the first WebView. Do not reintroduce it.
 
@@ -55,7 +57,8 @@ The inherited hidden/offscreen `FAKE_VISIBLE` path was removed deliberately afte
 - v85.6 Android validation confirmed an attached `visible=true` first WebView, working native cover messages, and visible human verification without closing. The challenge was not bypassed.
 - v85.7 live Android validation confirmed a fresh page target on second entry and after resume; the second page loaded products and accepted a category tap. Android assembly passed.
 - v85.7 failed real-device testing despite passing Android lifecycle validation.
-- v85.8 Xcode workflow run `29325121680` passed; artifact payload contains the expected v85.8 marker. Real-device testing is pending.
+- v85.8 failed the iPhone 6 slow-entry acceptance test despite working on iPhone 16 Pro Max.
+- v85.9 Xcode workflow run `29326728706` passed; artifact payload contains the expected v85.9 marker and the copied IPA hash matches. Real-device testing is pending.
 
 ## Main Files
 
