@@ -3370,7 +3370,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
       // that's the real fix for the system nav bar overlap; this env()
       // fallback only needs to cover whatever small gesture-inset remains
       // after that, same as it did before that bug was ever introduced.
-      btn.style.cssText = 'position:fixed;right:14px;bottom:calc(78px + env(safe-area-inset-bottom, 0px));' +
+      // يُرفع بفجوة ثابتة 16px فوق شريط otlobli السفلي على كل الأجهزة: ارتفاع
+      // الشريط = 74px + max(safe-area,16px)، فنضع الزر عند ذلك + 16px. الصيغة
+      // القديمة (78px + safe-area) كانت تلاصق الشريط (~4px فقط على آيفون بنَقْش)
+      // وتتداخل معه على الأجهزة بلا نَقْش — نستخدم الآن نفس حساب المنطقة الآمنة
+      // للشريط تماماً فتبقى الفجوة ثابتة ومريحة أينما كان.
+      btn.style.cssText = 'position:fixed;right:14px;bottom:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px) + 16px);' +
         'transform:translateZ(0);will-change:transform;' +
         'min-width:128px;height:48px;z-index:2147483647;' +
         'background:#006948;color:#fff;border:none;border-radius:24px;display:none;align-items:center;' +

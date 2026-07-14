@@ -662,8 +662,14 @@ a {
   border: 0;
   background: transparent;
   color: var(--muted);
-  font-size: 0.76rem;
+  /* 12px ثابتة (لا rem) لتطابق شريط SHEIN المحقون (ensureOtlobliNav يستخدم
+     font-size:12px) بالبكسل. rem يتمدّد مع حجم خط جذر المستند وإعداد «تكبير
+     النص» في iOS، فكان حجم الخط يقفز عند التنقّل بين الرئيسية (شريط SHEIN
+     المحقون 12px) وطلباتي/السلة/حسابي (شريط React بـ rem) — نفس ما لاحظه
+     المستخدم. القيمة الثابتة تجعل الشريطين متطابقين فلا يتغيّر شيء أبداً. */
+  font-size: 12px;
   font-weight: 700;
+  font-family: 'Cairo', system-ui, sans-serif;
 }
 
 .bottom-nav button.is-active {

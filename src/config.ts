@@ -17,4 +17,4 @@ export const SOURCE_COUNTRY: 'JO' | 'LB' | 'SA' = 'SA'
 export const TEST_ONLY_AUTH_BYPASS = true
 
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '2026.07.14-v85.8.2-persistent-nav-webview-no-otp-test'
+export const APP_VERSION = '2026.07.14-v85.8.3-nav-fixed-addbtn-raised-no-otp-test'
