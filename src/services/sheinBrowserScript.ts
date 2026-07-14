@@ -347,16 +347,26 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // native shipping drawer writes a fully resolved addressCookie only after
   // country -> province -> city -> district are selected. Product APIs read
   // this value even when the exit IP belongs to another country.
+  function sheinAddressCookieData() {
+    if (!IS_SHEIN) return null;
+    try {
+      var raw = localStorage.getItem('addressCookie');
+      if (!raw) return null;
+      var parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch (e) {}
+    return null;
+  }
+
   function sheinAddressCookieCountry() {
     if (!IS_SHEIN) return '';
     try {
-      var raw = localStorage.getItem('addressCookie');
-      if (!raw) return '';
-      var parsed = JSON.parse(raw);
-      var value = String(parsed && (parsed.value || parsed.countryAbbr || parsed.countryCode) || '').toUpperCase();
+      var parsed = sheinAddressCookieData();
+      if (!parsed) return '';
+      var value = String((parsed.value || parsed.countryAbbr || parsed.countryCode) || '').toUpperCase();
       if (/^[A-Z]{2}$/.test(value)) return value;
-      var name = String(parsed && parsed.countryName || '').trim();
-      var countryId = String(parsed && parsed.countryId || '').trim();
+      var name = String(parsed.countryName || '').trim();
+      var countryId = String(parsed.countryId || '').trim();
       if (/^Saudi Arabia$/i.test(name) || countryId === '186') return SHEIN_REQUIRED_COUNTRY;
       // Fully resolved native addresses omit value/countryAbbr and keep only
       // countryName/countryId. Any explicit non-Saudi country is authoritative
@@ -365,6 +375,88 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (name || countryId) return 'FOREIGN';
     } catch (e) {}
     return '';
+  }
+
+  // A country-only value is not enough. SHEIN signs the resolved native
+  // country/state/city/district tuple in xAdFlag; that signed tuple is what its
+  // product APIs actually use for shipping. Never claim readiness before all
+  // four levels and the server signature exist.
+  function sheinSignedSaudiAddressReady() {
+    try {
+      var parsed = sheinAddressCookieData();
+      if (!parsed) return false;
+      var countryOk = String(parsed.countryId || '') === '186' || /^Saudi Arabia$/i.test(String(parsed.countryName || '').trim());
+      if (!countryOk) return false;
+      var state = String(parsed.stateId || parsed.state || '').trim();
+      var city = String(parsed.cityId || parsed.city || '').trim();
+      var district = String(parsed.districtId || parsed.district || '').trim();
+      var signature = String(parsed.xAdFlag || '').trim();
+      return !!(state && city && district && signature);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  var sheinNativeCoverInitialReleased = false;
+  var sheinNativeCoverRepairActive = false;
+  var sheinNativeCoverRepairStartedAt = 0;
+  var sheinNativeCoverCooldownUntil = 0;
+  var sheinNativeCoverLastType = '';
+  var sheinNativeCoverLastPostAt = 0;
+
+  function sheinPostNativeCoverState(type) {
+    if (!IS_SHEIN) return;
+    var now = Date.now();
+    if (type === sheinNativeCoverLastType && now - sheinNativeCoverLastPostAt < 750) return;
+    sheinNativeCoverLastType = type;
+    sheinNativeCoverLastPostAt = now;
+    try {
+      if (window.mobileApp && window.mobileApp.postMessage) {
+        window.mobileApp.postMessage({ detail: { type: type } });
+      }
+    } catch (e) {}
+  }
+
+  // The first call only asks native code to place the already-approved loading
+  // cover above this same, fully laid-out WebView. The automatic native click is
+  // deliberately delayed until a later tick so no country drawer frame can be
+  // painted in front of the customer.
+  function sheinPrepareNativeSaudiRepair() {
+    if (sheinNativeCoverRepairActive) return true;
+    var now = Date.now();
+    if (now < sheinNativeCoverCooldownUntil) return false;
+    sheinNativeCoverRepairActive = true;
+    sheinNativeCoverRepairStartedAt = now;
+    sheinPostNativeCoverState('sheinSaudiRepairStart');
+    return false;
+  }
+
+  function updateSheinNativeCoverState() {
+    if (!IS_SHEIN) return;
+    if (sheinSignedSaudiAddressReady()) {
+      sheinNativeCoverRepairActive = false;
+      sheinNativeCoverRepairStartedAt = 0;
+      sheinNativeCoverInitialReleased = true;
+      sheinPostNativeCoverState('sheinSaudiReady');
+      return;
+    }
+    if (sheinNativeCoverRepairActive) {
+      if (Date.now() - sheinNativeCoverRepairStartedAt >= 15000) {
+        // Never trap the customer behind a cover when SHEIN changes its drawer
+        // or a security check interrupts the cascade. The bounded click guard
+        // already stops further automation; wait before one clean retry.
+        sheinNativeCoverRepairActive = false;
+        sheinNativeCoverRepairStartedAt = 0;
+        sheinNativeCoverCooldownUntil = Date.now() + 120000;
+        sheinNativeCoverInitialReleased = true;
+        sheinPostNativeCoverState('sheinPageInteractive');
+      }
+      return;
+    }
+    if (!sheinNativeCoverInitialReleased) {
+      sheinNativeCoverInitialReleased = true;
+      sheinPostNativeCoverState('sheinPageInteractive');
+    }
   }
 
   function sheinSaudiSignalsOk() {
@@ -617,6 +709,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function sheinClickNativeShippingControl(target) {
     if (!target || typeof target.click !== 'function') return false;
+    if (!sheinPrepareNativeSaudiRepair()) return false;
     var now = Date.now();
     if (now - sheinShippingLastActionAt < 1200) return false;
     // Opening the drawer and resolving country/province/city/district takes up
@@ -650,7 +743,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     sheinShippingLastScanAt = now;
     if (sheinShippingActionCount >= 8 && now - sheinShippingLastActionAt < 120000) return;
     var addressCountry = sheinAddressCookieCountry();
-    if (addressCountry === SHEIN_REQUIRED_COUNTRY) {
+    if (addressCountry === SHEIN_REQUIRED_COUNTRY && sheinSignedSaudiAddressReady()) {
       sheinShippingActionCount = 0;
       return;
     }
@@ -3653,10 +3746,27 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var depth = 0;
     while (el && depth < 6) {
       if (el.id && el.id.indexOf('otlobli') === 0) return;
-      // The verified shipping selector must keep SHEIN's own click handler.
-      // Our generic country/region guard would otherwise swallow both the
-      // foreign shipping label and the exact Saudi Arabia row.
-      if (isSheinShippingRegionControl(el)) return;
+      // The customer never needs SHEIN's country drawer: Otlobli owns the
+      // fixed Saudi shipping context. Only a narrowly marked automatic click
+      // may reach SHEIN's native handler; ordinary taps are swallowed silently.
+      if (isSheinShippingRegionControl(el)) {
+        var shippingNode = el;
+        var shippingDepth = 0;
+        var automatedShippingAction = false;
+        while (shippingNode && shippingDepth < 8) {
+          if (shippingNode.getAttribute && shippingNode.getAttribute('data-otlobli-shein-shipping-action') === '1') {
+            automatedShippingAction = true;
+            break;
+          }
+          shippingNode = shippingNode.parentElement;
+          shippingDepth++;
+        }
+        if (automatedShippingAction) return;
+        event.preventDefault();
+        if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+        event.stopPropagation();
+        return;
+      }
       if (el.getAttribute && el.getAttribute('data-otlobli-blocked') === '1') {
         event.preventDefault();
         event.stopPropagation();
@@ -4399,6 +4509,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // صفحة تحقق «أنا إنسان» — تجميد كامل لكل تدخلاتنا حتى يكملها المستخدم.
     if (otlobliIsHumanChallenge()) { otlobliEnterChallengeMode(); return; }
     if (IS_SHEIN) ensureSheinSaudiShippingSelection();
+    if (IS_SHEIN) updateSheinNativeCoverState();
     ensureNoTextSelection();
     ensureViewportFitCover();
     if (IS_SHEIN) ensureSheinSaudiStore({ navigate: false });

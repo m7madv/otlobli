@@ -21,7 +21,7 @@ import { buildWhatsappLink } from './services/whatsappLink'
 import { SHEIN_CAPTURE_SCRIPT } from './services/sheinBrowserScript'
 import { App as CapacitorApp } from '@capacitor/app'
 import { Capacitor } from '@capacitor/core'
-import { BackgroundColor, InAppBrowser, InvisibilityMode, ToolBarType } from '@capgo/capacitor-inappbrowser'
+import { BackgroundColor, InAppBrowser, ToolBarType } from '@capgo/capacitor-inappbrowser'
 
 const API_BASE = cleanEnvValue(import.meta.env.VITE_WHATSAPP_API_URL)
 const SUPABASE_URL = cleanEnvValue(import.meta.env.VITE_SUPABASE_URL)
@@ -37,21 +37,6 @@ const SHEIN_HOME_URL = 'https://m.shein.com/ar/?currency=USD&localcountry=SA&cou
 const TEMU_HOME_URL = 'https://www.temu.com/sa/?currency=USD&currencyCode=USD'
 const SHEIN_CHALLENGE_PATH_RE = /\/(?:cdn-cgi|challenge|captcha|verify|verification|security|robot|risk|anti[-_]?bot|human)(?:\/|\?|#|$)/i
 const SHEIN_CHALLENGE_QUERY_RE = /(?:^|[?&#])(?:captcha|challenge|verification|security_token|risk|robot|anti[-_]?bot|human)=/i
-const SHEIN_SAFE_PROBE_SCRIPT = `
-(function () {
-  try {
-    var href = String(location.href || '');
-    var text = String((document.body && document.body.innerText) || '').slice(0, 1800);
-    var isChallengeUrl = /\\/(?:cdn-cgi|challenge|captcha|verify|verification|security|robot|risk|anti[-_]?bot|human)(?:\\/|\\?|#|$)/i.test(href) ||
-      /(?:^|[?&#])(?:captcha|challenge|verification|security_token|risk|robot|anti[-_]?bot|human)=/i.test(href);
-    var isChallengeText = /(security|verify|verification|robot|captcha|challenge|turnstile|cloudflare|التحقق|تحقق|روبوت|الأمان|امان|لست روبوت)/i.test(text);
-    if (window.mobileApp && window.mobileApp.postMessage) {
-      window.mobileApp.postMessage({ detail: { type: 'sheinProbe', href: href, isChallenge: !!(isChallengeUrl || isChallengeText) } });
-    }
-  } catch (e) {}
-})();
-`
-
 // يكشف موقع خروج الإنترنت الحالي (بلد/منطقة الـVPN فعلياً) عبر خدمتي geo
 // تدعمان CORS، لتمييز «VPN مطفأ» (البلد سوريا) عن «منطقة VPN غير مدعومة»
 // (بلد آخر لكن المتجر محجوب). فشل الخدمتين معاً = الشبكة نفسها متعثرة.
@@ -2099,9 +2084,6 @@ function App() {
   // فعلاً، نرجع لبوابة «شغّل VPN» بدل عرض صفحة بيضاء (بدل الإظهار القسري).
   const openedViaBypassRef = useRef(false)
   const sheinChallengeActiveRef = useRef(false)
-  const sheinHiddenUntilReadyRef = useRef(false)
-  const sheinRevealInProgressRef = useRef(false)
-  const sheinHiddenChallengeTimerRef = useRef<number | undefined>(undefined)
   const currentWebviewUrlRef = useRef('')
   // إشعار تحقق «أنا إنسان» يُعرض مرة واحدة لكل جلسة webview كي لا يزعج.
   const humanCheckNoticeRef = useRef(false)
@@ -2243,13 +2225,7 @@ function App() {
     webviewIdRef.current = ''
     openedViaBypassRef.current = false
     sheinChallengeActiveRef.current = false
-    sheinHiddenUntilReadyRef.current = false
-    sheinRevealInProgressRef.current = false
     currentWebviewUrlRef.current = ''
-    if (sheinHiddenChallengeTimerRef.current !== undefined) {
-      window.clearTimeout(sheinHiddenChallengeTimerRef.current)
-      sheinHiddenChallengeTimerRef.current = undefined
-    }
     sheinOpenedRef.current = false
     storeReachableRef.current = false
     setSheinReady(false)
@@ -2266,10 +2242,6 @@ function App() {
       window.clearTimeout(webviewErrorTimerRef.current)
       webviewErrorTimerRef.current = undefined
     }
-    if (sheinHiddenChallengeTimerRef.current !== undefined) {
-      window.clearTimeout(sheinHiddenChallengeTimerRef.current)
-      sheinHiddenChallengeTimerRef.current = undefined
-    }
     webviewAutoOpenPausedUntilRef.current = Date.now() + 15000
     suppressAutoReopenRef.current = true
     webviewSessionRef.current += 1
@@ -2278,8 +2250,6 @@ function App() {
     webviewIdRef.current = ''
     openedViaBypassRef.current = false
     sheinChallengeActiveRef.current = false
-    sheinHiddenUntilReadyRef.current = false
-    sheinRevealInProgressRef.current = false
     currentWebviewUrlRef.current = ''
     sheinOpenedRef.current = false
     setSheinReady(false)
@@ -2324,47 +2294,8 @@ function App() {
     showStoreOpenFailure()
   }
 
-  const keepHiddenSheinChallenge = () => {
-    if (!sheinHiddenUntilReadyRef.current) return
-    sheinChallengeActiveRef.current = true
-    setSheinBlockedError(false)
-    if (sheinHiddenChallengeTimerRef.current !== undefined) return
-    sheinHiddenChallengeTimerRef.current = window.setTimeout(() => {
-      sheinHiddenChallengeTimerRef.current = undefined
-      if (!sheinHiddenUntilReadyRef.current || selectedStoreRef.current !== 'shein') return
-      showStoreOpenFailure()
-    }, 14000)
-  }
-
   const markStoreWebviewReady = (sessionId: number) => {
     if (sessionId !== webviewSessionRef.current || !sheinOpenedRef.current) return
-    if (selectedStoreRef.current === 'shein' && sheinHiddenUntilReadyRef.current) {
-      if (isSheinHumanChallengeUrl(currentWebviewUrlRef.current)) {
-        keepHiddenSheinChallenge()
-        return
-      }
-      if (sheinRevealInProgressRef.current) return
-      sheinRevealInProgressRef.current = true
-      const id = webviewIdRef.current || undefined
-      void InAppBrowser.executeScript({ ...(id ? { id } : {}), code: SHEIN_CAPTURE_SCRIPT })
-        .catch((err) => {
-          console.warn('[otlobli] SHEIN post-load script injection failed', err)
-        })
-        .then(() => {
-          if (sessionId !== webviewSessionRef.current || !sheinOpenedRef.current) return
-          if (sheinHiddenChallengeTimerRef.current !== undefined) {
-            window.clearTimeout(sheinHiddenChallengeTimerRef.current)
-            sheinHiddenChallengeTimerRef.current = undefined
-          }
-          sheinHiddenUntilReadyRef.current = false
-          sheinRevealInProgressRef.current = false
-          const showOptions = webviewIdRef.current ? { id: webviewIdRef.current } : undefined
-          void InAppBrowser.show(showOptions)
-            .catch(() => undefined)
-            .then(() => markStoreWebviewReady(sessionId))
-        })
-      return
-    }
     if (webviewErrorTimerRef.current !== undefined) {
       window.clearTimeout(webviewErrorTimerRef.current)
       webviewErrorTimerRef.current = undefined
@@ -2402,17 +2333,11 @@ function App() {
   }
 
   const closeOpeningStoreWebview = () => {
-    if (sheinHiddenChallengeTimerRef.current !== undefined) {
-      window.clearTimeout(sheinHiddenChallengeTimerRef.current)
-      sheinHiddenChallengeTimerRef.current = undefined
-    }
     webviewSessionRef.current += 1
     webviewOpeningRef.current = false
     webviewOpenedAtRef.current = 0
     webviewIdRef.current = ''
     sheinChallengeActiveRef.current = false
-    sheinHiddenUntilReadyRef.current = false
-    sheinRevealInProgressRef.current = false
     currentWebviewUrlRef.current = ''
     sheinOpenedRef.current = false
     setSheinReady(false)
@@ -2426,13 +2351,7 @@ function App() {
       webviewOpenedAtRef.current = 0
       webviewIdRef.current = ''
       sheinChallengeActiveRef.current = false
-      sheinHiddenUntilReadyRef.current = false
-      sheinRevealInProgressRef.current = false
       currentWebviewUrlRef.current = ''
-      if (sheinHiddenChallengeTimerRef.current !== undefined) {
-        window.clearTimeout(sheinHiddenChallengeTimerRef.current)
-        sheinHiddenChallengeTimerRef.current = undefined
-      }
       sheinOpenedRef.current = false
       setSheinReady(false)
       setSheinBlockedError(false)
@@ -2459,20 +2378,11 @@ function App() {
     const activeStore = selectedStoreRef.current
     const rawTargetUrl = initialPendingUrl || storeUrl(activeStore)
     const targetUrl = activeStore === 'shein' ? normalizeSheinBrowserUrl(rawTargetUrl) : normalizeTemuBrowserUrl(rawTargetUrl)
-    const openSheinHiddenFirst = activeStore === 'shein'
-    sheinHiddenUntilReadyRef.current = openSheinHiddenFirst
-    sheinRevealInProgressRef.current = false
     currentWebviewUrlRef.current = targetUrl
-    void InAppBrowser.openWebView({
+    const webViewOptions: Parameters<typeof InAppBrowser.openWebView>[0] & { otlobliLoadingCover?: boolean } = {
       url: targetUrl,
-      ...(openSheinHiddenFirst
-        ? {
-          hidden: true,
-          invisibilityMode: InvisibilityMode.FAKE_VISIBLE,
-          preShowScript: SHEIN_SAFE_PROBE_SCRIPT,
-          preShowScriptInjectionTime: 'pageLoad' as const,
-          isPresentAfterPageLoad: true,
-        }
+      ...(activeStore === 'shein'
+        ? { otlobliLoadingCover: true }
         : { preShowScript: SHEIN_CAPTURE_SCRIPT, preShowScriptInjectionTime: 'documentStart' as const, isPresentAfterPageLoad: true }),
       toolbarType: ToolBarType.BLANK,
       backgroundColor: BackgroundColor.WHITE,
@@ -2503,7 +2413,8 @@ function App() {
       // answer them with a direct connection that bypassed the relay
       // regardless of fixes - so both platforms now connect directly and
       // rely on the user's VPN, same as iOS always did.
-    })
+    }
+    void InAppBrowser.openWebView(webViewOptions)
       .then((result) => {
         if (sessionId !== webviewSessionRef.current) return
         webviewIdRef.current = result?.id ?? webviewIdRef.current
@@ -2608,10 +2519,13 @@ function App() {
   useEffect(() => {
     const loadedHandle = InAppBrowser.addListener('browserPageLoaded', (event: { id?: string }) => {
       if (event?.id && event.id !== webviewIdRef.current) return
-      if (selectedStoreRef.current === 'shein' && sheinHiddenUntilReadyRef.current) {
+      if (selectedStoreRef.current === 'shein') {
         const id = webviewIdRef.current || undefined
-        void InAppBrowser.executeScript({ ...(id ? { id } : {}), code: SHEIN_SAFE_PROBE_SCRIPT })
-          .catch(() => undefined)
+        void InAppBrowser.executeScript({ ...(id ? { id } : {}), code: SHEIN_CAPTURE_SCRIPT })
+          .catch((err) => {
+            console.warn('[otlobli] SHEIN page script injection failed', err)
+          })
+          .then(() => markStoreWebviewReadyRef.current(webviewSessionRef.current))
         return
       }
       markStoreWebviewReadyRef.current(webviewSessionRef.current)
@@ -2652,7 +2566,6 @@ function App() {
           return
         }
         markStoreWebviewReadyRef.current(webviewSessionRef.current)
-        void InAppBrowser.show().catch(() => undefined)
       }, 12000)
     })
     return () => {
@@ -2750,28 +2663,24 @@ function App() {
     const handle = InAppBrowser.addListener('messageFromWebview', (event: { detail?: Record<string, unknown> }) => {
       const detail = event?.detail
 
-      if (detail?.type === 'sheinProbe') {
-        const href = typeof detail.href === 'string' ? detail.href : currentWebviewUrlRef.current
-        if (href) currentWebviewUrlRef.current = href
-        if (sheinHiddenUntilReadyRef.current && (detail.isChallenge === true || isSheinHumanChallengeUrl(href))) {
-          keepHiddenSheinChallenge()
-          return
-        }
-        if (sheinHiddenUntilReadyRef.current) {
-          sheinChallengeActiveRef.current = false
-          markStoreWebviewReadyRef.current(webviewSessionRef.current)
-        }
-        return
-      }
-
       if (detail?.type === 'humanCheck') {
         if (selectedStoreRef.current === 'shein') {
-          if (sheinHiddenUntilReadyRef.current) keepHiddenSheinChallenge()
-          else showStoreOpenFailure()
+          // The native cover is removed by the same message before this event
+          // reaches React. Keep the real challenge visible and untouched.
+          if (webviewErrorTimerRef.current !== undefined) {
+            window.clearTimeout(webviewErrorTimerRef.current)
+            webviewErrorTimerRef.current = undefined
+          }
+          sheinChallengeActiveRef.current = true
+          setSheinBlockedError(false)
+          markStoreWebviewReadyRef.current(webviewSessionRef.current)
+          if (!humanCheckNoticeRef.current) {
+            humanCheckNoticeRef.current = true
+            showNotice('المتجر يطلب تحققاً بسيطاً — اضغط مربع التحقق داخل الصفحة وسيفتح مباشرة')
+          }
           return
         }
-        // شي إن خلف تحقق كلاودفلير «أنا إنسان» — ليست حالة فشل: نطفئ مؤقت
-        // الخطأ ونُبقي صفحة التحقق ظاهرة ليكملها المستخدم فيفتح الموقع بعدها.
+        // Preserve the existing behavior for any non-SHEIN verification page.
         if (webviewErrorTimerRef.current !== undefined) {
           window.clearTimeout(webviewErrorTimerRef.current)
           webviewErrorTimerRef.current = undefined

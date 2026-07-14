@@ -12,12 +12,29 @@ index 9979670..fcfd30a 100644
 +        targetCompatibility JavaVersion.VERSION_17
      }
  }
- 
+
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
-index 8ae3e61..511df1d 100644
+index 8ae3e61..3756aaf 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
 +++ b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
-@@ -215,6 +215,35 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -33,6 +33,7 @@ import android.text.TextUtils;
+ import android.util.Base64;
+ import android.util.Log;
+ import android.util.TypedValue;
++import android.view.Gravity;
+ import android.view.KeyEvent;
+ import android.view.View;
+ import android.view.ViewGroup;
+@@ -55,6 +56,8 @@ import android.webkit.WebView;
+ import android.webkit.WebViewClient;
+ import android.widget.ImageButton;
+ import android.widget.ImageView;
++import android.widget.FrameLayout;
++import android.widget.ProgressBar;
+ import android.widget.RelativeLayout;
+ import android.widget.TextView;
+ import android.widget.Toast;
+@@ -215,6 +218,35 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
      private static final int REQUEST_CONNECT_TIMEOUT_MS = 15_000;
      private static final int REQUEST_READ_TIMEOUT_MS = 30_000;
      private static final int MAX_WEBVIEW_PROXY_REDIRECTS = 10;
@@ -53,10 +70,145 @@ index 8ae3e61..511df1d 100644
      private static final int MAX_MANAGED_DOWNLOAD_REDIRECTS = 10;
      private static final int BLOB_DOWNLOAD_CHUNK_BYTES = 64 * 1024;
      private static final long MAX_LEGACY_BLOB_DOWNLOAD_BYTES = 512L * 1024L;
-@@ -5586,17 +5615,50 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -333,6 +365,8 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+     private String proxyAccessToken;
+     private final ExecutorService executorService = Executors.newCachedThreadPool();
+     private final Handler mainHandler = new Handler(Looper.getMainLooper());
++    private View otlobliLoadingCover;
++    private final Runnable otlobliLoadingCoverTimeout = this::hideOtlobliLoadingCover;
+     private final Map<String, BlobDownloadSession> blobDownloadSessions = new ConcurrentHashMap<>();
+     private final Map<String, ClientCertificateIdentity> clientCertificateIdentities = new ConcurrentHashMap<>();
+     private int iconColor = Color.BLACK; // Default icon color
+@@ -433,6 +467,97 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+         openWebViewResolved = true;
+     }
+
++    private boolean isOtlobliLoadingCoverEnabled() {
++        if (_options == null || _options.getPluginCall() == null) return false;
++        return Boolean.TRUE.equals(_options.getPluginCall().getBoolean("otlobliLoadingCover", false));
++    }
++
++    private void scheduleOtlobliLoadingCoverTimeout() {
++        mainHandler.removeCallbacks(otlobliLoadingCoverTimeout);
++        mainHandler.postDelayed(otlobliLoadingCoverTimeout, 18_000L);
++    }
++
++    private void showOtlobliLoadingCover() {
++        if (!isOtlobliLoadingCoverEnabled()) return;
++        mainHandler.post(() -> {
++            if (otlobliLoadingCover != null) {
++                otlobliLoadingCover.animate().cancel();
++                otlobliLoadingCover.setAlpha(1f);
++                otlobliLoadingCover.setVisibility(View.VISIBLE);
++                otlobliLoadingCover.bringToFront();
++                scheduleOtlobliLoadingCoverTimeout();
++                return;
++            }
++
++            ViewGroup root = findViewById(android.R.id.content);
++            if (root == null) return;
++            FrameLayout cover = new FrameLayout(getContext());
++            cover.setBackgroundColor(Color.WHITE);
++            cover.setClickable(true);
++            cover.setFocusable(true);
++            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) cover.setElevation(1000f);
++
++            ProgressBar spinner = new ProgressBar(getContext());
++            if (spinner.getIndeterminateDrawable() != null) {
++                spinner.getIndeterminateDrawable().setColorFilter(Color.rgb(0, 105, 72), PorterDuff.Mode.SRC_IN);
++            }
++            int spinnerSize = (int) TypedValue.applyDimension(
++                TypedValue.COMPLEX_UNIT_DIP,
++                44,
++                getContext().getResources().getDisplayMetrics()
++            );
++            FrameLayout.LayoutParams spinnerParams = new FrameLayout.LayoutParams(spinnerSize, spinnerSize);
++            spinnerParams.gravity = Gravity.CENTER;
++            cover.addView(spinner, spinnerParams);
++
++            root.addView(
++                cover,
++                new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
++            );
++            otlobliLoadingCover = cover;
++            cover.bringToFront();
++            scheduleOtlobliLoadingCoverTimeout();
++        });
++    }
++
++    private void hideOtlobliLoadingCover() {
++        mainHandler.post(() -> {
++            mainHandler.removeCallbacks(otlobliLoadingCoverTimeout);
++            final View cover = otlobliLoadingCover;
++            if (cover == null) return;
++            cover.animate().cancel();
++            cover
++                .animate()
++                .alpha(0f)
++                .setDuration(120L)
++                .withEndAction(() -> {
++                    if (cover.getParent() instanceof ViewGroup) {
++                        ((ViewGroup) cover.getParent()).removeView(cover);
++                    }
++                    if (otlobliLoadingCover == cover) otlobliLoadingCover = null;
++                })
++                .start();
++        });
++    }
++
++    private void handleOtlobliLoadingCoverMessage(String message) {
++        if (!isOtlobliLoadingCoverEnabled()) return;
++        try {
++            JSONObject payload = new JSONObject(message);
++            JSONObject detail = payload.optJSONObject("detail");
++            String type = detail != null ? detail.optString("type", "") : "";
++            switch (type) {
++                case "sheinSaudiRepairStart" -> showOtlobliLoadingCover();
++                case "sheinSaudiReady", "sheinPageInteractive", "humanCheck", "sheinBlocked" -> hideOtlobliLoadingCover();
++                default -> {
++                    // Other bridge messages are forwarded unchanged.
++                }
++            }
++        } catch (JSONException ignored) {
++            // Keep the plugin's existing raw-message forwarding behavior.
++        }
++    }
++
+     // Add this class to provide safer JavaScript interface
+     private class JavaScriptInterface {
+
+@@ -1807,6 +1932,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+         applyDimensions();
+
+         this._webView = findViewById(R.id.browser_view);
++        if (isOtlobliLoadingCoverEnabled()) showOtlobliLoadingCover();
+
+         // Apply insets to fix edge-to-edge issues on Android 15+
+         applyInsets();
+@@ -2991,6 +3117,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+                 return;
+             }
+
++            handleOtlobliLoadingCoverMessage(message);
+             _options.getCallbacks().javascriptCallback(message);
+         } catch (Exception e) {
+             Log.e("InAppBrowser", "Error in postMessage: " + e.getMessage());
+@@ -4932,6 +5059,11 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+     @Override
+     public void dismiss() {
+         scheduleHostWebViewInsetRestore();
++        mainHandler.removeCallbacks(otlobliLoadingCoverTimeout);
++        if (otlobliLoadingCover != null && otlobliLoadingCover.getParent() instanceof ViewGroup) {
++            ((ViewGroup) otlobliLoadingCover.getParent()).removeView(otlobliLoadingCover);
++        }
++        otlobliLoadingCover = null;
+
+         // First, stop any ongoing operations and disable further interactions
+         if (_webView != null) {
+@@ -5586,17 +5718,50 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          );
      }
- 
+
 +    private static final int OTLOBLI_MAX_TRANSIENT_RETRIES = 2;
 +
      private NativeResponseData performNativeRequest(NativeRequestContext requestContext) throws IOException {
@@ -102,17 +254,29 @@ index 8ae3e61..511df1d 100644
              conn.setInstanceFollowRedirects(false);
 +            conn.setRequestProperty("X-Relay-Key", OTLOBLI_RELAY_KEY);
 +            conn.setRequestProperty("X-Relay-Url", requestContext.url);
- 
+
              // Strip conditional cache validators on the wire so upstream cannot return 304/3xx,
              // which WebResourceResponse.setStatusCodeAndReasonPhrase rejects (kills the renderer).
+diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
+index 116e296..66d64ba 100644
+--- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
++++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
+@@ -936,6 +936,7 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+             }
+
+             webViewController.instanceId = webViewId
++            webViewController.otlobliLoadingCoverEnabled = call.getBool("otlobliLoadingCover", false)
+
+             // Set HTTP method and body if provided
+             if let method = httpMethod {
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
-index 1c70884..26bdb5b 100644
+index 1c70884..be2b8ac 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
 @@ -449,6 +449,34 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
      /// still reach finish() or the scheme task strands.
      static let redirectStatusCodes: Set<Int> = [301, 302, 303, 307, 308]
- 
+
 +    /// otlobli: every native fetch this handler makes is routed through a
 +    /// Cloudflare Worker relay instead of contacting the target host
 +    /// directly. The relay forwards the request byte-for-byte and streams
@@ -211,12 +375,12 @@ index 1c70884..26bdb5b 100644
 +                self.writeCookiesOnMain(cookies) {}
 +            }
          }
- 
+
          taskLock.lock()
 @@ -819,23 +876,35 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
              return
          }
- 
+
 +        let responseHeaders = ProxySchemeRequestSupport.normalizedResponseHeaders(from: response)
          let redirectResponse = NativeResponseData(
              statusCode: response.statusCode,
@@ -225,7 +389,7 @@ index 1c70884..26bdb5b 100644
              body: Data(),
              contentType: response.value(forHTTPHeaderField: "Content-Type") ?? "application/octet-stream"
          )
- 
+
 -        pendingTask.requestContext.url = ProxySchemeRequestSupport.resolvedResponseURL(
 -            response,
 -            fallback: pendingTask.requestContext.url
@@ -241,7 +405,7 @@ index 1c70884..26bdb5b 100644
          pendingTask.responseData = redirectResponse
          pendingTask.redirectRequest = request
          completionHandler(nil)
- 
+
 -        syncResponseCookies(from: response, fallbackURL: pendingTask.requestContext.url) { [weak self] in
 -            self?.executeInboundDecision(requestId: requestId)
 +        // otlobli: manual header parsing against preRedirectURL instead of
@@ -255,10 +419,10 @@ index 1c70884..26bdb5b 100644
 +            writeCookiesOnMain(cookies) {}
          }
      }
- 
+
 @@ -958,10 +1027,13 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
      }
- 
+
      private func makeURLRequest(from context: NativeRequestContext) throws -> URLRequest {
 -        guard let url = URL(string: context.url) else {
 +        guard URL(string: context.url) != nil else {
@@ -286,13 +450,131 @@ index 1c70884..26bdb5b 100644
          if
              ProxySchemeRequestSupport.supportsRequestBody(method: context.method),
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
-index 97a2fc1..bfd71ac 100644
+index 97a2fc1..c505b34 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
-@@ -1001,6 +1001,37 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -748,6 +748,13 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+     fileprivate var webView: WKWebView?
+     fileprivate var progressView: UIProgressView?
+
++    // Otlobli keeps the real WKWebView attached, sized, and interactive while
++    // SHEIN resolves its signed Saudi address. This native cover hides only the
++    // transient automation frames; it never reparents or alpha-hides WKWebView.
++    open var otlobliLoadingCoverEnabled = false
++    private var otlobliLoadingCoverView: UIView?
++    private var otlobliLoadingCoverTimeout: DispatchWorkItem?
++
+     fileprivate var previousNavigationBarState: (tintColor: UIColor, hidden: Bool) = (.black, false)
+     fileprivate var previousToolbarState: (tintColor: UIColor, hidden: Bool) = (.black, false)
+
+@@ -878,6 +885,10 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+             self.initWebview()
+         }
+
++        if otlobliLoadingCoverEnabled {
++            showOtlobliLoadingCover()
++        }
++
+         // Apply navigation gestures setting
+         updateNavigationGestures()
+
+@@ -899,6 +910,92 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+     override open func viewDidLayoutSubviews() {
+         super.viewDidLayoutSubviews()
+         refreshWebViewViewportIfNeeded()
++        if let cover = otlobliLoadingCoverView {
++            view.bringSubviewToFront(cover)
++        }
++    }
++
++    private func scheduleOtlobliLoadingCoverTimeout() {
++        otlobliLoadingCoverTimeout?.cancel()
++        let timeout = DispatchWorkItem { [weak self] in
++            self?.hideOtlobliLoadingCover()
++        }
++        otlobliLoadingCoverTimeout = timeout
++        DispatchQueue.main.asyncAfter(deadline: .now() + 18, execute: timeout)
++    }
++
++    private func showOtlobliLoadingCover() {
++        guard otlobliLoadingCoverEnabled else { return }
++        DispatchQueue.main.async { [weak self] in
++            guard let self, self.isViewLoaded else { return }
++            if let existing = self.otlobliLoadingCoverView {
++                existing.layer.removeAllAnimations()
++                existing.alpha = 1
++                existing.isHidden = false
++                self.view.bringSubviewToFront(existing)
++                self.scheduleOtlobliLoadingCoverTimeout()
++                return
++            }
++
++            let cover = UIView(frame: .zero)
++            cover.translatesAutoresizingMaskIntoConstraints = false
++            cover.backgroundColor = .white
++            cover.isOpaque = true
++            cover.isUserInteractionEnabled = true
++            cover.accessibilityViewIsModal = true
++
++            // Reuse Otlobli's existing loading treatment; no new screen design.
++            let spinner = UIActivityIndicatorView(style: .gray)
++            spinner.translatesAutoresizingMaskIntoConstraints = false
++            spinner.color = UIColor(red: 0, green: 105.0 / 255.0, blue: 72.0 / 255.0, alpha: 1)
++            spinner.startAnimating()
++            cover.addSubview(spinner)
++
++            self.view.addSubview(cover)
++            NSLayoutConstraint.activate([
++                cover.topAnchor.constraint(equalTo: self.view.topAnchor),
++                cover.leadingAnchor.constraint(equalTo: self.view.leadingAnchor),
++                cover.trailingAnchor.constraint(equalTo: self.view.trailingAnchor),
++                cover.bottomAnchor.constraint(equalTo: self.view.bottomAnchor),
++                spinner.centerXAnchor.constraint(equalTo: cover.centerXAnchor),
++                spinner.centerYAnchor.constraint(equalTo: cover.centerYAnchor)
++            ])
++            self.otlobliLoadingCoverView = cover
++            self.view.bringSubviewToFront(cover)
++            self.scheduleOtlobliLoadingCoverTimeout()
++        }
++    }
++
++    private func hideOtlobliLoadingCover() {
++        DispatchQueue.main.async { [weak self] in
++            guard let self else { return }
++            self.otlobliLoadingCoverTimeout?.cancel()
++            self.otlobliLoadingCoverTimeout = nil
++            guard let cover = self.otlobliLoadingCoverView else { return }
++            self.otlobliLoadingCoverView = nil
++            cover.layer.removeAllAnimations()
++            UIView.animate(withDuration: 0.12, animations: {
++                cover.alpha = 0
++            }, completion: { _ in
++                cover.removeFromSuperview()
++            })
++        }
++    }
++
++    private func handleOtlobliLoadingCoverMessage(_ messageBody: [String: Any]) {
++        guard otlobliLoadingCoverEnabled,
++              let detail = messageBody["detail"] as? [String: Any],
++              let type = detail["type"] as? String else {
++            return
++        }
++        switch type {
++        case "sheinSaudiRepairStart":
++            showOtlobliLoadingCover()
++        case "sheinSaudiReady", "sheinPageInteractive", "humanCheck", "sheinBlocked":
++            hideOtlobliLoadingCover()
++        default:
++            break
++        }
+     }
+
+     func updateButtonTintColors() {
+@@ -1001,6 +1098,37 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          capBrowserPlugin?.notifyListeners(eventName, data: payload(with: data))
      }
- 
+
 +    private func emitPageLoadError(_ webView: WKWebView?, error: Error?, phase: String) {
 +        var data: [String: Any] = ["phase": phase]
 +
@@ -327,16 +609,35 @@ index 97a2fc1..bfd71ac 100644
      private func startObservingKeyboardViewportChanges() {
          guard !isObservingKeyboardViewportChanges else {
              return
-@@ -2743,7 +2774,7 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -1136,6 +1264,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+         if message.name == "messageHandler" {
+             if let messageBody = message.body as? [String: Any] {
+                 print("Received message from JavaScript:", messageBody)
++                handleOtlobliLoadingCoverMessage(messageBody)
+                 emit("messageFromWebview", data: messageBody)
+             } else {
+                 print("Received non-dictionary message from JavaScript:", message.body)
+@@ -1818,6 +1947,10 @@ public extension WKWebViewController {
+
+     open func cleanupWebView() {
+         guard let webView = self.webView else { return }
++        otlobliLoadingCoverTimeout?.cancel()
++        otlobliLoadingCoverTimeout = nil
++        otlobliLoadingCoverView?.removeFromSuperview()
++        otlobliLoadingCoverView = nil
+         webView.stopLoading()
+         previewItemURL = nil
+
+@@ -2743,7 +2876,7 @@ extension WKWebViewController: WKNavigationDelegate {
              self.url = url
              delegate?.webViewController?(self, didFail: url, withError: error)
          }
 -        emit("pageLoadError")
 +        emitPageLoadError(webView, error: error, phase: "didFailProvisionalNavigation")
      }
- 
+
      public func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-@@ -2753,7 +2784,16 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2753,7 +2886,16 @@ extension WKWebViewController: WKNavigationDelegate {
              self.url = url
              delegate?.webViewController?(self, didFail: url, withError: error)
          }
@@ -352,5 +653,5 @@ index 97a2fc1..bfd71ac 100644
 +        }
 +        emitPageLoadError(webView, error: nil, phase: "webContentProcessDidTerminate")
      }
- 
+
      public func webView(_ webView: WKWebView, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
