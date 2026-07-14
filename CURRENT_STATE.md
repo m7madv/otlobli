@@ -35,6 +35,11 @@ Read `AI-HANDOFF.md` and `AGENTS.md`. Preserve any existing user/other-AI change
 - v85.2 SHA-256: `CC1751C86EDD2BD98C92E77AA200E0759678AE6F276A3CDF46D3F032E6977A5B`
 - v85.2 GitHub Actions run: `29302214134`.
 - v85.2 preserves SHEIN auth forms, removes the destructive visible region reset/reload, accepts only shipping-labelled region evidence, and seeds SHEIN's evidenced `localcountry=SA` once per document.
+- v85.2 device result: fresh install with Saudi VPN can start on Saudi, but switching to a US VPN changes SHEIN to Bahrain and switching back does not restore Saudi. This proves SHEIN persists the shipping choice in its WebView session; VPN/seed values alone are not authoritative.
+- v85.3 candidate commit: `6f80823`; version `2026.07.14-v85.3-shein-native-sa-picker-test`.
+- v85.3 test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.3-shein-saudi-picker-test.ipa`
+- v85.3 SHA-256: `BEDD2A0F6E42C7547BE43A5B3C2373E099171B98CCFB8679CE596577973AB356`; run `29303217368`.
+- v85.3 uses only SHEIN's native shipping control: on an explicit foreign shipping label it opens the verified country picker, matches the exact Saudi Arabia row, and invokes SHEIN's own click handler. It also exempts only those verified controls from the old country/region click guard. No CSS, storage clearing, or reload was added.
 
 v85 itself inherits the older hidden `FAKE_VISIBLE` flow and a limited exact-key storage guard. Do not alter those while establishing the baseline; first collect and isolate the user's real-device issues.
 
@@ -48,8 +53,9 @@ v85 itself inherits the older hidden `FAKE_VISIBLE` flow and a limited exact-key
 
 ## Current Task
 
-- Test v85.2 on iPhone 6 and iPhone 16 Pro Max.
-- Verify cold entry/category taps, the previously broken Continue/auth page, and product-level shipping country.
+- Test v85.3 on iPhone 6 and iPhone 16 Pro Max.
+- Verify that a product showing Bahrain opens SHEIN's native country picker and changes to Saudi Arabia, including after US VPN then Saudi VPN without reinstalling.
+- Recheck cold entry/category taps and the previously broken Continue page separately.
 - Do not claim Bahrain or first-load interaction fixed before both device results.
 - Add-to-Cart placement remains separate and unchanged.
 
@@ -65,7 +71,8 @@ v85 itself inherits the older hidden `FAKE_VISIBLE` flow and a limited exact-key
 - `npm run build` passed.
 - Runtime evaluation and syntax parse of `SHEIN_CAPTURE_SCRIPT` passed.
 - `git diff --check` passed.
-- v85.2 unsigned IPA built successfully from commit `294dd78`.
+- Shipping signal/picker positive and auth false-positive tests passed.
+- v85.3 unsigned IPA built successfully from commit `6f80823`.
 
 ## Production References
 
