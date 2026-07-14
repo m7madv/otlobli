@@ -6,7 +6,8 @@ Read `CURRENT_STATE.md` first, then `AGENTS.md`.
 
 - Active branch: `codex/customer-wallet-group-orders`
 - Stable SHEIN baseline: v85 commit `2f24954`.
-- Current candidate: v85.5, version `2026.07.14-v85.5-shein-native-sa-address-no-otp-test`; no iOS IPA yet.
+- Current candidate: v85.5 commit `a064739`, version `2026.07.14-v85.5-shein-native-sa-address-no-otp-test`.
+- Test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.5-shein-native-sa-no-otp-test.ipa`; SHA-256 `99F2E6311880607AC63E6B2AA5D50797317A29D5AEC1F26377AADBBEB14D2F8F`; run `29319264525`.
 - Reference IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.ipa`.
 - v85.4 IPA exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v85.4-shein-sa-no-otp-test.ipa`, but device testing failed: SHEIN still selected Bahrain. Its native initial-cookie preload has been removed.
 - v85.5 reads SHEIN's authoritative signed `addressCookie` and completes SHEIN's own exact native cascade: Saudi Arabia -> Riyadh Province -> Riyadh -> Al Olaya. It supports both observed native drawer structures and adds no CSS, storage purge, address fabrication, or reload loop.
@@ -26,7 +27,7 @@ Read `CURRENT_STATE.md` first, then `AGENTS.md`.
 
 ## Next Work
 
-Review/commit v85.5 and build an iOS test IPA only when requested. Test it on both target iPhones from a persisted foreign address, then reload, switch stores, and switch VPNs. Cold entry/category taps remain a separate check. Do not claim iPhone success before device evidence.
+Install v85.5 on both target iPhones from a persisted foreign address, then reload, switch stores, and switch VPNs. Cold entry/category taps remain a separate check. Do not claim iPhone success before device evidence.
 
 Important baseline nuance: v85 contains the inherited hidden `FAKE_VISIBLE` opening flow and an exact-key storage guard. Do not casually remove or expand them. The current goal is observation and isolation, not another all-at-once region/WebView rewrite.
 
@@ -46,7 +47,7 @@ Important baseline nuance: v85 contains the inherited hidden `FAKE_VISIBLE` open
 - Native patch parse: passed; obsolete initial-cookie hunks are removed and relay secrets remain placeholders in Git.
 - Android Capacitor sync and debug APK assembly: passed.
 - Live Android WebView signed-address persistence and product API country validation: passed.
-- No v85.5 Xcode workflow or iOS artifact yet.
+- v85.5 Xcode workflow run `29319264525` passed; artifact payload contains the expected v85.5 version marker. Real-device testing is pending.
 
 ## Main Files
 

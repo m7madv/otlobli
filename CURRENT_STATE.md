@@ -45,7 +45,9 @@ Read `AI-HANDOFF.md` and `AGENTS.md`. Preserve any existing user/other-AI change
 - v85.4 test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.4-shein-sa-no-otp-test.ipa`
 - v85.4 SHA-256: `30290F292574363CBC9594C765D6FE88C86A1E35869F17F85742636556FF2FFD`; run `29304645602`.
 - v85.4 device result: failed. SHEIN still selected Bahrain. The preload-cookie implementation was removed; `localcountry` is not SHEIN's authoritative shipping address.
-- Current working candidate: v85.5, version `2026.07.14-v85.5-shein-native-sa-address-no-otp-test`; no iOS IPA has been built yet.
+- v85.5 candidate commit: `a064739`; version `2026.07.14-v85.5-shein-native-sa-address-no-otp-test`.
+- v85.5 test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.5-shein-native-sa-no-otp-test.ipa`
+- v85.5 SHA-256: `99F2E6311880607AC63E6B2AA5D50797317A29D5AEC1F26377AADBBEB14D2F8F`; run `29319264525`.
 - Root cause confirmed in Android WebView: SHEIN product APIs use a signed `addressCookie`, not VPN, URL params, or the `localcountry` cookie. Selecting only `Saudi Arabia` is incomplete; SHEIN persists the address only after country -> province -> city -> district.
 - v85.5 uses SHEIN's native visible address drawer with exact targets only: `Saudi Arabia` -> `Riyadh Province` -> `Riyadh` -> `Al Olaya`. It supports both current SHEIN drawer markups and performs no CSS hiding, storage deletion, reload loop, or fabricated address/signature.
 - Emulator proof from a signed Qatar address: `Qatar / Doha / Al Jasra / Zone 1` became a signed Saudi address in about 9 seconds, persisted after reload while `ipCountry` remained `QA`, and `get_goods_detail_realtime_data` returned `shipping_countryname = Saudi Arabia`.
@@ -63,8 +65,7 @@ v85 itself inherits the older hidden `FAKE_VISIBLE` flow and a limited exact-key
 
 ## Current Task
 
-- Review/commit the v85.5 candidate, then build an iOS test IPA only when requested.
-- Test the candidate on iPhone 6 and iPhone 16 Pro Max from a foreign persisted address, then reload/switch VPN/store and verify the signed Saudi address remains.
+- Install v85.5 on iPhone 6 and iPhone 16 Pro Max from a foreign persisted address, then reload/switch VPN/store and verify the signed Saudi address remains.
 - Recheck cold entry/category taps separately. Emulator success is not a claim that the iPhone interaction issue is fixed.
 - OTP bypass is only for faster store testing; customer account/server features and Add-to-Cart placement remain separate and unchanged.
 
@@ -83,7 +84,7 @@ v85 itself inherits the older hidden `FAKE_VISIBLE` flow and a limited exact-key
 - Native patch parse passed; obsolete v85.4 initial-cookie additions were removed and tracked relay values remain placeholders.
 - Android Capacitor sync and `assembleDebug` passed.
 - Live Android WebView validation passed from signed Qatar to signed Saudi, across reload and at the product API response level.
-- No v85.5 iOS IPA has been built or device-tested yet.
+- v85.5 unsigned IPA built successfully from `a064739` in run `29319264525`; embedded version marker verified. Real-device testing is still pending.
 
 ## Production References
 
