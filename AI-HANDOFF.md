@@ -22,6 +22,8 @@ Rules:
 
 - Active branch: `codex/customer-wallet-group-orders`
 - Latest feature commit: `4e43fbb` (`fix: v87 hide shein until interactive`)
+- User tested v87 and reported that none of the SHEIN problems were fixed. Treat the v87 IPA as failed evidence, not a stable release.
+- Current uncommitted v88 candidate diagnosis: v76 introduced hidden `FAKE_VISIBLE` WKWebView opening; the iOS plugin disables interaction while detached and v87 added a second hidden close/reopen. v86 also made absent URL region params trigger native `setUrl` and globally intercepted storage writes. The candidate removes those unsafe paths without adding CSS. Build/script-parse/diff-check pass; no IPA or real-device verification yet.
 - Claude old account may have worked after Codex. Always inspect current git state before editing.
 - Claude new account may not have the same skills/connectors authenticated. Check available skills/tools, especially Figma.
 

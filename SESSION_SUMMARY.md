@@ -36,6 +36,8 @@ Read:
 ## Latest Stable Release
 
 - Latest feature commit: `4e43fbb` (`fix: v87 hide shein until interactive`)
+- v87 failed the user's real-device test: SHEIN remained untouchable and the reported region/UI issues remained. Do not call v87 stable or fixed.
+- Current uncommitted v88 candidate removes hidden `FAKE_VISIBLE` opening/warm-up and broad region storage/URL interception. `npm run build`, injected-script syntax parsing, and `git diff --check` pass; no IPA has been built and real-device verification is still required.
 - Customer deployed to `https://talabieh.vercel.app`
 - Admin deployed to `https://talabieh-admin.vercel.app`
 - Supabase migration `20260712033000_shared_order_ownership.sql` applied.
