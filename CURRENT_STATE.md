@@ -67,24 +67,26 @@ Read `AI-HANDOFF.md` and `AGENTS.md`. Preserve any existing user/other-AI change
 - v85.8 test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8-shein-cache-clean-entry-sa-status-no-otp-test.ipa`
 - v85.8 SHA-256: `689EE2D978269FB2ECB2EB4A3AA1B8436335ABC700C6B6C28B588508B636EF05`; run `29325121680`.
 - The proven Temu -> SHEIN recovery closes the old WebView and calls `clearCache`. Capgo iOS source confirms this removes only `WKWebsiteDataTypeDiskCache` and `WKWebsiteDataTypeMemoryCache`, preserving cookies/localStorage and the signed Saudi `addressCookie`. v85.8 now performs that narrow cache cleanup before every SHEIN open.
-- v85.8 device result: iPhone 16 Pro Max opened normally, but iPhone 6 exposed raw SHEIN without the Otlobli bar, failed to hydrate the product feed, then incorrectly suggested changing the VPN server. Per-entry cache clearing made every iPhone 6 entry a cold start; the native cover also expired before the existing readiness flow.
+- v85.8 corrected device result: this is the last build in the latest test round that accepted the user's VPN and opened SHEIN. It still exposes raw SHEIN chrome/content temporarily before the final processed view; that visual lifecycle issue remains separate.
 - v85.9 candidate commit: `86f15be`; version `2026.07.14-v85.9-shein-progressive-entry-warm-cache-no-otp-test`.
 - v85.9 test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.9-shein-progressive-entry-warm-cache-no-otp-test.ipa`
 - v85.9 SHA-256: `F8F61473E4B6FD8D08F2D9667408070B59E6C882F59F3E95FC80E98EBCC53A59`; run `29326728706`.
 - v85.9 preserves SHEIN Service Workers/cache on healthy entries, injects the existing Otlobli nav at document start, and keeps the existing in-page preparation surface until a real loaded product card proves hydration. One bounded recovery may clear native cache; a second failure is reported as preparation, not VPN. The native cover outlives the 35-second readiness watchdog so raw SHEIN is not exposed first.
-- v85.9 device result: the store eventually became fully functional, but raw SHEIN header/content/bottom navigation remained visible for about 5-10 seconds before the Saudi reload finished. Root cause: native code removed its cover on the intermediate `sheinPreparing` message, and readiness ran before the same tick scheduled Saudi repair.
+- v85.9 device result: failed before usable store entry; it rejected the working VPN. Do not use it as a base. Its full `SHEIN_CAPTURE_SCRIPT` document-start injection and removal of v85.8's per-entry native cache clear have been reverted together.
 - v85.10 candidate commit: `f273c80`; version `2026.07.14-v85.10-shein-final-ready-cover-no-otp-test`.
 - v85.10 test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.10-shein-final-ready-cover-no-otp-test.ipa`
 - v85.10 SHA-256: `811FF316CC9CC6677DD7E9E61D3104FA8175CD7D88EFA5F3E0AC7F53B65C874E`; run `29328000485`.
 - v85.10 keeps the native preparation cover through intermediate DOM bodies and Saudi repair. It reveals only after the signed Saudi address, a real loaded product, Otlobli nav, and the same final URL remain ready for 650ms. Human verification remains visible; blocked/foreign/raw states remain covered until app recovery/close.
-- v85.10 device result: raw SHEIN stayed covered, but the full native cover also hid Otlobli's bottom navigation during later preparation/reload; the bar returned only after the final reveal.
+- v85.10 device result: failed like v85.9 by rejecting the working VPN; prior visual observations were from the working v85.8 flow, not proof that v85.10 entered successfully.
 - v85.11 candidate commit: `7c3249f`; version `2026.07.14-v85.11-shein-persistent-nav-loading-no-otp-test`.
 - v85.11 test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.11-shein-persistent-nav-loading-no-otp-test.ipa`
 - v85.11 SHA-256: `70826941A97AF7496C602EC49C04C684BD308CC48029C3668A68CA91316AA3AF`; run `29328314651`.
 - v85.11 uses the native cover only for the document-start gap, then hands off to the existing in-page preparation surface after Otlobli nav is attached. That surface remains below the nav and blocks SHEIN content/touches while preserving v85.10's signed-Saudi/product/650ms final-readiness gate.
+- v85.11 device result: failed like v85.9/v85.10 by rejecting the working VPN.
+- Restore commit `ce865a0` deliberately reverses v85.9-v85.11 store-path code and matches v85.8 commit `585a28a` exactly for `src/App.tsx`, `src/services/sheinBrowserScript.ts`, `src/config.ts`, and the Capgo patch.
 - OTP screens remain bypassed only for this test candidate; set `TEST_ONLY_AUTH_BYPASS = false` before production.
 
-v85 remains the stable store/UI baseline. v85.11 is a narrow persistent-nav preparation test on top of the exact Saudi shipping flow; it does not import v86-v88 behavior or broaden the old storage guard.
+v85 remains the stable store/UI baseline. The active store path is restored exactly to working v85.8; v85.9-v85.11 are failed and must not be continued.
 
 ## Failed Paths
 
@@ -96,7 +98,7 @@ v85 remains the stable store/UI baseline. v85.11 is a narrow persistent-nav prep
 
 ## Current Task
 
-- Install v85.11 on iPhone 6 and iPhone 16 Pro Max. Verify Otlobli bottom navigation remains visible and usable over the preparation surface while raw SHEIN stays fully blocked until one final reveal.
+- Use the existing v85.8 IPA as the working reference. Do not build another candidate until the raw-SHEIN/loading transition is isolated without changing v85.8 VPN/cache/script timing.
 - Verify the Saudi correction is not shown, the shipping-region control does not open for the customer, and Saudi persists across reload/store/VPN changes.
 - Android structural validation is not a claim that either iPhone issue is fixed; both real devices remain the acceptance test.
 - OTP bypass is only for faster store testing; customer account/server features and Add-to-Cart placement remain separate and unchanged.
@@ -121,9 +123,9 @@ v85 remains the stable store/UI baseline. v85.11 is a narrow persistent-nav prep
 - v85.7 failed real-device testing: the second-entry partial/untappable state remained.
 - v85.8 real-device result: passed initial opening on iPhone 16 Pro Max but failed slow entry on iPhone 6 with raw SHEIN, missing products, and a false server instruction.
 - v85.9 unsigned IPA built successfully from `86f15be` in run `29326728706`; embedded version marker and copied SHA-256 verified. Real-device testing is pending.
-- v85.9 real-device result: functional after preparation, but exposed raw SHEIN chrome/content for 5-10 seconds before the final reload.
+- v85.9-v85.11 real-device result: all rejected the user's otherwise working VPN and never reached a usable store.
 - v85.10 unsigned IPA built successfully from `f273c80` in run `29328000485`; embedded version marker and copied SHA-256 verified. Real-device testing is pending.
-- v85.10 real-device result: raw SHEIN was covered, but Otlobli nav disappeared during later preparation/reload.
+- Restore commit `ce865a0` passes build, runtime script parse, patch-package reinstall, diff checks, and exact v85.8 store-file parity. No duplicate IPA was built.
 - v85.11 unsigned IPA built successfully from `7c3249f` in run `29328314651`; embedded version marker and copied SHA-256 verified. Real-device testing is pending.
 
 ## Production References
