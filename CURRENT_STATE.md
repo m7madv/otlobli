@@ -68,6 +68,10 @@ Read `AI-HANDOFF.md` and `AGENTS.md`. Preserve any existing user/other-AI change
 - v85.8 SHA-256: `689EE2D978269FB2ECB2EB4A3AA1B8436335ABC700C6B6C28B588508B636EF05`; run `29325121680`.
 - The proven Temu -> SHEIN recovery closes the old WebView and calls `clearCache`. Capgo iOS source confirms this removes only `WKWebsiteDataTypeDiskCache` and `WKWebsiteDataTypeMemoryCache`, preserving cookies/localStorage and the signed Saudi `addressCookie`. v85.8 now performs that narrow cache cleanup before every SHEIN open.
 - v85.8 corrected device result: this is the last build in the latest test round that accepted the user's VPN and opened SHEIN. It still exposes raw SHEIN chrome/content temporarily before the final processed view; that visual lifecycle issue remains separate.
+- v85.8.1 candidate commit: `3150a33`; version `2026.07.14-v85.8.1-ios-cover-race-no-otp-test`.
+- v85.8.1 test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.1-ios-cover-race-no-otp-test.ipa`; SHA-256 `B091413083E4A0684855EBBFA62B89943623F82641F639EFCCB08C8E2DB4C745`; run `29331593635`.
+- Root cause of the raw first frame: `WKWebViewController.initWebview()` loads the controller view before `InAppBrowserPlugin` assigns `otlobliLoadingCoverEnabled`, so the old `viewDidLoad` check always saw `false`. v85.8.1 installs the existing native cover synchronously from the option property's `didSet`, before presentation. `App.tsx`, `SHEIN_CAPTURE_SCRIPT`, VPN handling, and cache timing remain exactly v85.8.
+- v85.8.1 Xcode/build validation passed; first entry and Temu -> SHEIN real-device testing are pending.
 - v85.9 candidate commit: `86f15be`; version `2026.07.14-v85.9-shein-progressive-entry-warm-cache-no-otp-test`.
 - v85.9 test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.9-shein-progressive-entry-warm-cache-no-otp-test.ipa`
 - v85.9 SHA-256: `F8F61473E4B6FD8D08F2D9667408070B59E6C882F59F3E95FC80E98EBCC53A59`; run `29326728706`.
@@ -86,7 +90,7 @@ Read `AI-HANDOFF.md` and `AGENTS.md`. Preserve any existing user/other-AI change
 - Restore commit `ce865a0` deliberately reverses v85.9-v85.11 store-path code and matches v85.8 commit `585a28a` exactly for `src/App.tsx`, `src/services/sheinBrowserScript.ts`, `src/config.ts`, and the Capgo patch.
 - OTP screens remain bypassed only for this test candidate; set `TEST_ONLY_AUTH_BYPASS = false` before production.
 
-v85 remains the stable store/UI baseline. The active store path is restored exactly to working v85.8; v85.9-v85.11 are failed and must not be continued.
+v85 remains the stable store/UI baseline. The active candidate is v85.8.1: exact working v85.8 store behavior plus one native iOS pre-presentation cover fix. v85.9-v85.11 are failed and must not be continued.
 
 ## Failed Paths
 
@@ -98,7 +102,7 @@ v85 remains the stable store/UI baseline. The active store path is restored exac
 
 ## Current Task
 
-- Use the existing v85.8 IPA as the working reference. Do not build another candidate until the raw-SHEIN/loading transition is isolated without changing v85.8 VPN/cache/script timing.
+- Test v85.8.1 on first SHEIN entry and after Temu -> SHEIN on both iPhone 6 and iPhone 16 Pro Max. Confirm raw SHEIN never appears while the existing loading cover remains bounded and the final store is interactive.
 - Verify the Saudi correction is not shown, the shipping-region control does not open for the customer, and Saudi persists across reload/store/VPN changes.
 - Android structural validation is not a claim that either iPhone issue is fixed; both real devices remain the acceptance test.
 - OTP bypass is only for faster store testing; customer account/server features and Add-to-Cart placement remain separate and unchanged.
@@ -127,6 +131,7 @@ v85 remains the stable store/UI baseline. The active store path is restored exac
 - v85.10 unsigned IPA built successfully from `f273c80` in run `29328000485`; embedded version marker and copied SHA-256 verified. Real-device testing is pending.
 - Restore commit `ce865a0` passes build, runtime script parse, patch-package reinstall, diff checks, and exact v85.8 store-file parity. No duplicate IPA was built.
 - v85.11 unsigned IPA built successfully from `7c3249f` in run `29328314651`; embedded version marker and copied SHA-256 verified. Real-device testing is pending.
+- v85.8.1 passed clean `patch-package` reinstall, `npm run build`, runtime `SHEIN_CAPTURE_SCRIPT` parse, v85.8 App/script parity, `git diff --check`, Xcode run `29331593635`, and embedded version-marker/hash verification.
 
 ## Production References
 
