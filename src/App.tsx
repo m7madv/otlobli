@@ -159,8 +159,6 @@ type WebviewPageLoadErrorEvent = {
   code?: number | string
 }
 
-type StoreOpenFailureReason = 'network' | 'preparation'
-
 const STORE_BLOCKED_COUNTRIES = new Set(['SY'])
 const isBlockedStoreCountry = (countryCode?: string | null) =>
   !!countryCode && STORE_BLOCKED_COUNTRIES.has(countryCode.toUpperCase())
@@ -168,15 +166,7 @@ const isBlockedStoreCountry = (countryCode?: string | null) =>
 const isVpnConfirmed = (vpnState: VpnState, vpnGeo: VpnGeo | null) =>
   vpnState === 'ok' && !!vpnGeo?.countryCode && !isBlockedStoreCountry(vpnGeo.countryCode)
 
-const getStoreFailureAdvice = (store: string, vpnState: VpnState, vpnGeo: VpnGeo | null, reason: StoreOpenFailureReason) => {
-  if (reason === 'preparation') {
-    return {
-      icon: 'refresh',
-      title: 'تعذّر تجهيز المتجر',
-      body: `اتصال الـ VPN يعمل، لكن منتجات ${store} لم تكتمل على هذا الجهاز. أعد التجهيز وسنبدأ جلسة نظيفة مرة واحدة.`,
-      action: 'إعادة تجهيز المتجر',
-    }
-  }
+const getStoreFailureAdvice = (store: string, vpnState: VpnState, vpnGeo: VpnGeo | null) => {
   const confirmedVpn = isVpnConfirmed(vpnState, vpnGeo)
   const location = confirmedVpn && vpnGeo?.country
     ? ` (${vpnGeo.country}${vpnGeo.region ? ` - ${vpnGeo.region}` : ''})`
@@ -956,7 +946,6 @@ function App() {
   const [editBranch, setEditBranch] = useState('')
   const [editPickupLabel, setEditPickupLabel] = useState('')
   const [sheinBlockedError, setSheinBlockedError] = useState(false)
-  const [storeOpenFailureReason, setStoreOpenFailureReason] = useState<StoreOpenFailureReason>('network')
   const onboardingNameError = onboardingName ? getFullNameValidationError(onboardingName) : ''
   const editNameError = editName ? getFullNameValidationError(editName) : ''
   const recipientNameError = recipient.name ? getFullNameValidationError(recipient.name) : ''
@@ -2093,7 +2082,6 @@ function App() {
   const webviewErrorTimerRef = useRef<number | undefined>(undefined)
   const sheinReadinessTimerRef = useRef<number | undefined>(undefined)
   const sheinRecoveryAttemptRef = useRef(0)
-  const sheinCacheResetPendingRef = useRef(false)
   const appBackgroundedAtRef = useRef(0)
   // فُتح المتجر عبر «فتح على أي حال» رغم فشل بوابة VPN. عندها لو لم تُحمّل الصفحة
   // فعلاً، نرجع لبوابة «شغّل VPN» بدل عرض صفحة بيضاء (بدل الإظهار القسري).
@@ -2261,7 +2249,7 @@ function App() {
     })
   }
 
-  const showStoreOpenFailure = (reason: StoreOpenFailureReason = 'network') => {
+  const showStoreOpenFailure = () => {
     clearSheinReadinessWatchdog()
     if (webviewErrorTimerRef.current !== undefined) {
       window.clearTimeout(webviewErrorTimerRef.current)
@@ -2278,10 +2266,8 @@ function App() {
     currentWebviewUrlRef.current = ''
     sheinOpenedRef.current = false
     setSheinReady(false)
-    setStoreOpenFailureReason(reason)
-    if (reason === 'preparation') sheinCacheResetPendingRef.current = true
     setSheinBlockedError(true)
-    if (reason === 'network') refreshVpnDiagnosisForStoreFailure()
+    refreshVpnDiagnosisForStoreFailure()
     void InAppBrowser.close().catch(() => undefined).finally(() => {
       suppressAutoReopenRef.current = false
     })
@@ -2394,7 +2380,7 @@ function App() {
     clearSheinReadinessWatchdog()
 
     if (sheinRecoveryAttemptRef.current >= 1) {
-      showStoreOpenFailure('preparation')
+      showStoreOpenFailure()
       return
     }
 
@@ -2412,7 +2398,6 @@ function App() {
     currentWebviewUrlRef.current = ''
     sheinOpenedRef.current = false
     setSheinReady(false)
-    sheinCacheResetPendingRef.current = true
     void InAppBrowser.close()
       .then(() => {
         webviewAutoOpenPausedUntilRef.current = 0
@@ -2433,7 +2418,7 @@ function App() {
     sheinReadinessTimerRef.current = window.setTimeout(() => {
       sheinReadinessTimerRef.current = undefined
       restartStuckSheinWebview(sessionId)
-    }, 35000)
+    }, 13000)
   }
 
   const browseShein = () => {
@@ -2474,11 +2459,7 @@ function App() {
     const webViewOptions: Parameters<typeof InAppBrowser.openWebView>[0] & { otlobliLoadingCover?: boolean } = {
       url: targetUrl,
       ...(activeStore === 'shein'
-        ? {
-          otlobliLoadingCover: true,
-          preShowScript: SHEIN_CAPTURE_SCRIPT,
-          preShowScriptInjectionTime: 'documentStart' as const,
-        }
+        ? { otlobliLoadingCover: true }
         : { preShowScript: SHEIN_CAPTURE_SCRIPT, preShowScriptInjectionTime: 'documentStart' as const, isPresentAfterPageLoad: true }),
       toolbarType: ToolBarType.BLANK,
       backgroundColor: BackgroundColor.WHITE,
@@ -2510,13 +2491,15 @@ function App() {
       // regardless of fixes - so both platforms now connect directly and
       // rely on the user's VPN, same as iOS always did.
     }
-    // Preserve SHEIN's warm cache and Service Worker during healthy entries,
-    // especially on memory-constrained older iPhones. The proven clearCache
-    // recovery is now used only after the readiness watchdog detects a truly
-    // stuck session (or by the existing explicit Temu -> SHEIN switch path).
-    const shouldResetSheinCache = activeStore === 'shein' && sheinCacheResetPendingRef.current
-    if (shouldResetSheinCache) sheinCacheResetPendingRef.current = false
-    const prepareStoreWebview = shouldResetSheinCache ? InAppBrowser.clearCache() : Promise.resolve()
+    // The only recovery that consistently works on the reported iPhones is
+    // switching to Temu and back. That path closes the old WKWebView and then
+    // calls clearCache before opening SHEIN. Reproduce that proven sequence on
+    // every SHEIN entry. Capgo's iOS implementation clears only WebKit's disk
+    // and memory caches; cookies/localStorage (including addressCookie) stay
+    // intact, so the signed Saudi address is preserved.
+    const prepareStoreWebview = activeStore === 'shein'
+      ? InAppBrowser.clearCache()
+      : Promise.resolve()
     void prepareStoreWebview
       .then(() => {
         if (sessionId !== webviewSessionRef.current || !sheinOpenedRef.current) return undefined
@@ -2527,7 +2510,15 @@ function App() {
         if (sessionId !== webviewSessionRef.current) return
         webviewIdRef.current = result?.id ?? webviewIdRef.current
         if (initialPendingUrl && pendingProductUrlRef.current === initialPendingUrl) pendingProductUrlRef.current = ''
-        if (activeStore === 'shein') startSheinReadinessWatchdog(sessionId)
+        const absoluteTimeout = window.setTimeout(() => {
+          if (sessionId !== webviewSessionRef.current) return
+          if (!webviewOpeningRef.current) return
+          if (screenRef.current === 'home') showStoreOpenFailure()
+        }, 20000)
+        const checkLoaded = InAppBrowser.addListener('browserPageLoaded', () => {
+          window.clearTimeout(absoluteTimeout)
+          void checkLoaded.then((h) => h.remove())
+        })
       })
       .catch(() => {
         if (sessionId !== webviewSessionRef.current) return
@@ -2603,7 +2594,6 @@ function App() {
         // checks. Re-opening immediately turns that into a visible open/close
         // loop; keep the app stable and ask for a different VPN server.
         webviewAutoOpenPausedUntilRef.current = Date.now() + 15000
-        setStoreOpenFailureReason('network')
         setSheinBlockedError(true)
         refreshVpnDiagnosisForStoreFailure()
         return
@@ -5438,7 +5428,7 @@ function App() {
     }
 
     const currentStoreName = STORES.find((s) => s.id === selectedStore)?.name ?? 'المتجر'
-    const storeFailureAdvice = getStoreFailureAdvice(currentStoreName, vpnState, vpnGeo, storeOpenFailureReason)
+    const storeFailureAdvice = getStoreFailureAdvice(currentStoreName, vpnState, vpnGeo)
     return (
       // Keep React's own nav mounted here at all times, even while SHEIN's
       // webview (with its own injected nav - see ensureOtlobliNav) is
