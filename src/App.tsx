@@ -33,7 +33,7 @@ const APP_SETTINGS_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/app-settin
 // بلد المصدر الفعلي (لبنان) شأن تشغيلي داخلي لا يؤثر على ما يراه الزبون:
 // الأسعار بالدولار نفسها، والزبون لا يرى اسم أي بلد (يُعرض "مركز التجميع").
 // السكربت المحقون يقرأ المنطقة من الرابط فيضبط لغة الموقع تلقائياً.
-const SHEIN_HOME_URL = 'https://m.shein.com/ar/?currency=USD&country=SA&countryCode=SA&country_code=SA&lang=ar&language=ar&ship_to=SA&shipTo=SA&shipToCountry=SA&shippingCountry=SA&shipping_country=SA&store_country=SA'
+const SHEIN_HOME_URL = 'https://m.shein.com/ar/?currency=USD&country=SA&countryCode=SA&country_code=SA&lang=ar&language=ar&locale=ar_SA&ship_to=SA&shipTo=SA&shipToCountry=SA&shipCountry=SA&shippingCountry=SA&shipping_country=SA&shippingRegion=SA&store_country=SA&storeCountry=SA&region=SA&regionCode=SA&defaultCountry=SA&site_uid=pwar'
 const TEMU_HOME_URL = 'https://www.temu.com/sa/?currency=USD&currencyCode=USD'
 const SHEIN_CHALLENGE_PATH_RE = /\/(?:cdn-cgi|challenge|captcha|verify|verification|security|robot|risk|anti[-_]?bot|human)(?:\/|\?|#|$)/i
 const SHEIN_CHALLENGE_QUERY_RE = /(?:^|[?&#])(?:captcha|challenge|verification|security_token|risk|robot|anti[-_]?bot|human)=/i
@@ -51,6 +51,76 @@ const SHEIN_SAFE_PROBE_SCRIPT = `
   } catch (e) {}
 })();
 `
+
+const SHEIN_READY_PROBE_SCRIPT = `
+(function () {
+  if (window.__otlobliSheinReadyProbeInstalled) return;
+  window.__otlobliSheinReadyProbeInstalled = true;
+  var startedAt = Date.now();
+  var attempts = 0;
+  function compact(value) {
+    return String(value || '').replace(/\\s+/g, ' ').trim();
+  }
+  function visibleText() {
+    try { return compact((document.body && document.body.innerText) || '').slice(0, 6000); } catch (e) { return ''; }
+  }
+  function isForeignRegion(text) {
+    if (!text) return false;
+    if (/Saudi Arabia|Shipping to Saudi|Ship to Saudi|\\u0627\\u0644\\u0633\\u0639\\u0648\\u062f\\u064a\\u0629/i.test(text)) return false;
+    return /(?:Shipping|Ship|Ships|Delivery|Deliver|Delivering|\\u0627\\u0644\\u0634\\u062d\\u0646|\\u0627\\u0644\\u062a\\u0648\\u0635\\u064a\\u0644)\\s*(?:to|\\u0625\\u0644\\u0649|\\u0644)?\\s*(?:Albania|Turkey|Turkiye|T\\u00fcrkiye|United States|USA|Bahrain|Qatar|Kuwait|UAE|Oman|Jordan|\\u0623\\u0644\\u0628\\u0627\\u0646\\u064a\\u0627|\\u062a\\u0631\\u0643\\u064a\\u0627|\\u0627\\u0644\\u0628\\u062d\\u0631\\u064a\\u0646|\\u0642\\u0637\\u0631|\\u0627\\u0644\\u0643\\u0648\\u064a\\u062a|\\u0627\\u0644\\u0625\\u0645\\u0627\\u0631\\u0627\\u062a|\\u0639\\u0645\\u0627\\u0646|\\u0627\\u0644\\u0623\\u0631\\u062f\\u0646)\\b/i.test(text);
+  }
+  function isChallenge(href, text) {
+    return /\\/(?:cdn-cgi|challenge|captcha|verify|verification|security|robot|risk|anti[-_]?bot|human)(?:\\/|\\?|#|$)/i.test(href) ||
+      /(?:^|[?&#])(?:captcha|challenge|verification|security_token|risk|robot|anti[-_]?bot|human)=/i.test(href) ||
+      /(security|verify|verification|robot|captcha|challenge|turnstile|cloudflare|\\u0625\\u062c\\u0631\\u0627\\u0621 \\u0627\\u0644\\u062a\\u062d\\u0642\\u0642|\\u0627\\u0644\\u062a\\u062d\\u0642\\u0642|\\u062a\\u062d\\u0642\\u0642|\\u0631\\u0648\\u0628\\u0648\\u062a|\\u0627\\u0644\\u0623\\u0645\\u0627\\u0646|\\u0644\\u0633\\u062a \\u0631\\u0648\\u0628\\u0648\\u062a)/i.test(text);
+  }
+  function hasUsableControls() {
+    if (!document.body || document.readyState !== 'complete') return false;
+    var nodes = document.querySelectorAll('a[href],button,[role="button"],input,select,textarea,[onclick]');
+    var visible = 0;
+    for (var i = 0; i < nodes.length && visible < 4; i++) {
+      var el = nodes[i];
+      var r = el.getBoundingClientRect && el.getBoundingClientRect();
+      if (!r || r.width < 8 || r.height < 8) continue;
+      var cs = window.getComputedStyle(el);
+      if (cs.display === 'none' || cs.visibility === 'hidden' || cs.pointerEvents === 'none') continue;
+      visible++;
+    }
+    return visible >= 3;
+  }
+  function sendProbe() {
+    attempts++;
+    var href = String(location.href || '');
+    var text = visibleText();
+    var challenge = isChallenge(href, text);
+    var foreignRegion = isForeignRegion(text);
+    var complete = document.readyState === 'complete';
+    var interactive = complete && !challenge && !foreignRegion && hasUsableControls() && (Date.now() - startedAt >= 2200);
+    try {
+      if (window.mobileApp && window.mobileApp.postMessage) {
+        window.mobileApp.postMessage({
+          detail: {
+            type: 'sheinProbe',
+            href: href,
+            isChallenge: !!challenge,
+            isComplete: !!complete,
+            isInteractive: !!interactive,
+            foreignRegion: !!foreignRegion,
+            elapsedMs: Date.now() - startedAt,
+            attempts: attempts
+          }
+        });
+      }
+    } catch (e) {}
+    if (!interactive && attempts < 16) window.setTimeout(sendProbe, attempts < 6 ? 450 : 750);
+  }
+  window.setTimeout(sendProbe, 180);
+})();
+`
+
+// Keep the older probe referenced so lint does not treat it as dead while v87
+// uses the stronger hidden-readiness probe above.
+void SHEIN_SAFE_PROBE_SCRIPT
 
 // يكشف موقع خروج الإنترنت الحالي (بلد/منطقة الـVPN فعلياً) عبر خدمتي geo
 // تدعمان CORS، لتمييز «VPN مطفأ» (البلد سوريا) عن «منطقة VPN غير مدعومة»
@@ -383,12 +453,20 @@ const normalizeSheinBrowserUrl = (rawUrl: string) => {
     url.searchParams.set('country_code', 'SA')
     url.searchParams.set('lang', 'ar')
     url.searchParams.set('language', 'ar')
+    url.searchParams.set('locale', 'ar_SA')
     url.searchParams.set('ship_to', 'SA')
     url.searchParams.set('shipTo', 'SA')
     url.searchParams.set('shipToCountry', 'SA')
+    url.searchParams.set('shipCountry', 'SA')
     url.searchParams.set('shippingCountry', 'SA')
     url.searchParams.set('shipping_country', 'SA')
+    url.searchParams.set('shippingRegion', 'SA')
     url.searchParams.set('store_country', 'SA')
+    url.searchParams.set('storeCountry', 'SA')
+    url.searchParams.set('region', 'SA')
+    url.searchParams.set('regionCode', 'SA')
+    url.searchParams.set('defaultCountry', 'SA')
+    url.searchParams.set('site_uid', 'pwar')
     return url.toString()
   } catch {
     return rawUrl
@@ -473,13 +551,16 @@ const shouldRedirectSheinToSaudi = (rawUrl: string) => {
     const currency = url.searchParams.get('currency')
     const lang = url.searchParams.get('lang')
     const language = url.searchParams.get('language')
-    const shipTo = url.searchParams.get('ship_to') || url.searchParams.get('shipTo') || url.searchParams.get('shipToCountry') || url.searchParams.get('shippingCountry') || url.searchParams.get('shipping_country') || url.searchParams.get('store_country')
-    return (!!country && country !== 'SA') ||
-      (!!countryCode && countryCode !== 'SA') ||
-      (!!currency && currency !== 'USD') ||
-      (!!lang && lang !== 'ar') ||
-      (!!language && language !== 'ar') ||
-      (!!shipTo && shipTo !== 'SA')
+    const locale = url.searchParams.get('locale')
+    const countryKeys = ['ship_to', 'shipTo', 'shipToCountry', 'shipCountry', 'shippingCountry', 'shipping_country', 'shippingRegion', 'store_country', 'storeCountry', 'region', 'regionCode', 'defaultCountry']
+    return country !== 'SA' ||
+      countryCode !== 'SA' ||
+      currency !== 'USD' ||
+      lang !== 'ar' ||
+      language !== 'ar' ||
+      locale !== 'ar_SA' ||
+      countryKeys.some((key) => url.searchParams.get(key) !== 'SA') ||
+      url.searchParams.get('site_uid') !== 'pwar'
   } catch {
     return false
   }
@@ -2099,6 +2180,7 @@ function App() {
   const sheinChallengeActiveRef = useRef(false)
   const sheinHiddenUntilReadyRef = useRef(false)
   const sheinRevealInProgressRef = useRef(false)
+  const sheinHiddenReadyRetryRef = useRef(0)
   const sheinHiddenChallengeTimerRef = useRef<number | undefined>(undefined)
   const currentWebviewUrlRef = useRef('')
   // إشعار تحقق «أنا إنسان» يُعرض مرة واحدة لكل جلسة webview كي لا يزعج.
@@ -2116,7 +2198,7 @@ function App() {
   const sheinSaudiRedirectRef = useRef(0)
   const sheinSaudiRedirectTsRef = useRef(0)
   const screenRef = useRef(screen)
-  const browseSheinRef = useRef<() => void>(() => undefined)
+  const browseSheinRef = useRef<(isHiddenRetry?: boolean) => void>(() => undefined)
   const markStoreWebviewReadyRef = useRef<(sessionId: number) => void>(() => undefined)
   const vpnStateRef = useRef(vpnState)
   const vpnGeoRef = useRef<VpnGeo | null>(vpnGeo)
@@ -2350,16 +2432,21 @@ function App() {
         })
         .then(() => {
           if (sessionId !== webviewSessionRef.current || !sheinOpenedRef.current) return
-          if (sheinHiddenChallengeTimerRef.current !== undefined) {
-            window.clearTimeout(sheinHiddenChallengeTimerRef.current)
-            sheinHiddenChallengeTimerRef.current = undefined
-          }
-          sheinHiddenUntilReadyRef.current = false
-          sheinRevealInProgressRef.current = false
-          const showOptions = webviewIdRef.current ? { id: webviewIdRef.current } : undefined
-          void InAppBrowser.show(showOptions)
-            .catch(() => undefined)
-            .then(() => markStoreWebviewReady(sessionId))
+          const elapsed = Date.now() - webviewOpenedAtRef.current
+          const revealDelay = Math.max(900, 4300 - elapsed)
+          window.setTimeout(() => {
+            if (sessionId !== webviewSessionRef.current || !sheinOpenedRef.current) return
+            if (sheinHiddenChallengeTimerRef.current !== undefined) {
+              window.clearTimeout(sheinHiddenChallengeTimerRef.current)
+              sheinHiddenChallengeTimerRef.current = undefined
+            }
+            sheinHiddenUntilReadyRef.current = false
+            sheinRevealInProgressRef.current = false
+            const showOptions = webviewIdRef.current ? { id: webviewIdRef.current } : undefined
+            void InAppBrowser.show(showOptions)
+              .catch(() => undefined)
+              .then(() => markStoreWebviewReady(sessionId))
+          }, revealDelay)
         })
       return
     }
@@ -2417,7 +2504,7 @@ function App() {
     void InAppBrowser.close().catch(() => undefined)
   }
 
-  const browseShein = () => {
+  const browseShein = (isHiddenRetry = false) => {
     const currentVpnState = vpnStateRef.current
     if (currentVpnState !== 'ok') {
       webviewOpeningRef.current = false
@@ -2441,6 +2528,7 @@ function App() {
       }
       return
     }
+    if (!isHiddenRetry) sheinHiddenReadyRetryRef.current = 0
     const sessionId = webviewSessionRef.current + 1
     const initialPendingUrl = pendingProductUrlRef.current
     webviewSessionRef.current = sessionId
@@ -2467,7 +2555,7 @@ function App() {
         ? {
           hidden: true,
           invisibilityMode: InvisibilityMode.FAKE_VISIBLE,
-          preShowScript: SHEIN_SAFE_PROBE_SCRIPT,
+          preShowScript: SHEIN_READY_PROBE_SCRIPT,
           preShowScriptInjectionTime: 'pageLoad' as const,
           isPresentAfterPageLoad: true,
         }
@@ -2608,7 +2696,7 @@ function App() {
       if (event?.id && event.id !== webviewIdRef.current) return
       if (selectedStoreRef.current === 'shein' && sheinHiddenUntilReadyRef.current) {
         const id = webviewIdRef.current || undefined
-        void InAppBrowser.executeScript({ ...(id ? { id } : {}), code: SHEIN_SAFE_PROBE_SCRIPT })
+        void InAppBrowser.executeScript({ ...(id ? { id } : {}), code: SHEIN_READY_PROBE_SCRIPT })
           .catch(() => undefined)
         return
       }
@@ -2643,6 +2731,19 @@ function App() {
       fallbackTimer = window.setTimeout(() => {
         fallbackTimer = undefined
         if (!webviewOpeningRef.current) return
+        if (selectedStoreRef.current === 'shein' && sheinHiddenUntilReadyRef.current) {
+          if (sheinHiddenReadyRetryRef.current < 1) {
+            sheinHiddenReadyRetryRef.current += 1
+            suppressAutoReopenRef.current = true
+            closeOpeningStoreWebview()
+            window.setTimeout(() => {
+              if (screenRef.current === 'home' && selectedStoreRef.current === 'shein') browseSheinRef.current(true)
+            }, 700)
+          } else {
+            showStoreOpenFailure()
+          }
+          return
+        }
         // فُتح عبر «فتح على أي حال» بلا VPN ولم تُحمّل الصفحة خلال 12ث — الإظهار
         // القسري هنا كان يعرض صفحة بيضاء بلا رجعة. بدلاً منه نرجع لبوابة VPN.
         if (openedViaBypassRef.current) {
@@ -2755,7 +2856,31 @@ function App() {
           keepHiddenSheinChallenge()
           return
         }
+        if (sheinHiddenUntilReadyRef.current && detail.foreignRegion === true) {
+          const now = Date.now()
+          if (now - sheinSaudiRedirectTsRef.current > 15000) sheinSaudiRedirectRef.current = 0
+          if (sheinSaudiRedirectRef.current < 4) {
+            sheinSaudiRedirectRef.current++
+            sheinSaudiRedirectTsRef.current = now
+            const id = webviewIdRef.current || undefined
+            void InAppBrowser.setUrl({ ...(id ? { id } : {}), url: normalizeSheinBrowserUrl(href || SHEIN_HOME_URL) }).catch(() => undefined)
+          } else {
+            showStoreOpenFailure()
+          }
+          return
+        }
         if (sheinHiddenUntilReadyRef.current) {
+          if (detail.isInteractive !== true) return
+          if (sheinHiddenReadyRetryRef.current < 1) {
+            sheinHiddenReadyRetryRef.current += 1
+            if (href && /^https?:\/\//i.test(href)) pendingProductUrlRef.current = normalizeSheinBrowserUrl(href)
+            suppressAutoReopenRef.current = true
+            closeOpeningStoreWebview()
+            window.setTimeout(() => {
+              if (screenRef.current === 'home' && selectedStoreRef.current === 'shein') browseSheinRef.current(true)
+            }, 650)
+            return
+          }
           sheinChallengeActiveRef.current = false
           markStoreWebviewReadyRef.current(webviewSessionRef.current)
         }

@@ -548,7 +548,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
     try { locked = locked || sessionStorage.getItem('__otlobliSheinSaudiLocked') === '1'; } catch (e) {}
     var signalsOk = sheinSaudiSignalsOk();
     var needsReload = shouldReloadSheinForSaudi();
-    setSheinSaudiGuardOverlay(locked || visibleForeignRegion);
+    // v87: keep region correction silent. A visible reset bar can fight
+    // SHEIN's layout and trigger the icon/CSS hiding symptoms reported on iOS.
+    setSheinSaudiGuardOverlay(false);
     if (needsReload || !signalsOk) {
       if (options && options.navigate) {
         var guardKey = '__otlobliSaudiRedirects:' + normalized + ':' + Math.floor(Date.now() / 30000);
@@ -3289,6 +3291,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var __otlobliBackLastReclaim = 0;
 
   function hideElementsOverBackButton(btn) {
+    // v87: do not hide SHEIN-owned elements around the floating back button.
+    // On older iPhones this heuristic was hiding category tabs / header bits
+    // and could leave the page looking broken. The button is positioned away
+    // from the top tabs instead; page chrome must stay intact.
+    void btn;
+    return;
     if (!IS_SHEIN || !btn || !document.body) return;
     var r = btn.getBoundingClientRect();
     if (!r || r.width <= 0 || r.height <= 0) return;
@@ -3696,7 +3704,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function restoreSheinTopCategoryTabs() {
     if (!IS_SHEIN || !document.body) return;
     var now = Date.now();
-    if (now - __otlobliLastTopCategoryRestore < 900) return;
+    if (now - __otlobliLastTopCategoryRestore < 180) return;
     __otlobliLastTopCategoryRestore = now;
     var nodes = document.querySelectorAll('a, button, [role="button"], [role="tab"], div, span');
     var touchedParents = [];
@@ -4295,6 +4303,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var __otlobliLastAutoReload = 0;
 
   function detectStuckInteractionBlocker() {
+    // v87: disabled. This page-level heuristic can mistake a valid SHEIN home
+    // paint for a blocker and reload/hide pieces of the page. Native hidden
+    // readiness probing now handles the real first-open frozen state instead.
+    return;
     if (!IS_SHEIN || !document.body) return;
     if (document.getElementById('otlobli-overlay') || document.getElementById('otlobli-loading')) return;
     var vp = viewportSize();
@@ -5268,7 +5280,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var observer = new MutationObserver(scheduleTick);
   observer.observe(document.documentElement, { childList: true, subtree: true });
 
-  setInterval(tick, 420);
+  setInterval(tick, 300);
   // hideKnownHeaderIconsByHint specifically needs to win what looks like an
   // ongoing fight against SHEIN periodically re-rendering its own header (a
   // user found the hamburger/wishlist icons could stay reachable for
@@ -5282,7 +5294,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     hideSheinHeaderControls();
     restoreSheinTopCategoryTabs();
     hideListingCardAddButtons();
-  }, 250);
+  }, 120);
   setInterval(function () {
     ensureOtlobliNav();
     if (IS_TEMU) {
@@ -5291,7 +5303,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       restoreTemuSearchChrome();
       restoreTemuLogo();
     }
-  }, 250);
+  }, 120);
   // Own slower interval, not part of tick() - see checkForSheinSecurityBlock's
   // comment on why innerText needs to stay off the 300ms timer. خاص بشي إن فقط.
   setInterval(function () { if (IS_SHEIN) checkForSheinSecurityBlock(); }, 1000);
