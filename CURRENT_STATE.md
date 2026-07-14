@@ -25,12 +25,11 @@ Read `AI-HANDOFF.md` and `AGENTS.md`. Preserve any existing user/other-AI change
 - v85 SHA-256: `F4524E816E6243A039BD52D34E7A9AB59E3C5597DBF0515862BA5F9461B90ED4`
 - v85 GitHub Actions run: `29293816845`
 - `APP_VERSION = 2026.07.14-nav-polish-no-select-v85`.
-- Local rollback commits `4854d5f` and `875220c` restore the store files to v85. They are not pushed because pushing this branch automatically builds iOS.
-- These files match `2f24954` byte-for-byte:
-  - `src/App.tsx`
-  - `src/services/sheinBrowserScript.ts`
-  - `src/config.ts`
-  - `src/styles.css`
+- v85.1 category-touch test commit: `8282091`.
+- v85.1 test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.1-shein-category-touch-test.ipa`
+- v85.1 SHA-256: `9AB2149845E43E81D120E169CD7C85DF9DAE0F022B23DE86C38BF4ADB73A03B0`
+- v85.1 GitHub Actions run: `29300495130`.
+- v85.1 narrows header/menu blocking to icon-only controls and removes v85's broad category layout restyling loop. It does not change the hidden WebView flow or region logic.
 
 v85 itself inherits the older hidden `FAKE_VISIBLE` flow and a limited exact-key storage guard. Do not alter those while establishing the baseline; first collect and isolate the user's real-device issues.
 
@@ -44,9 +43,9 @@ v85 itself inherits the older hidden `FAKE_VISIBLE` flow and a limited exact-key
 
 ## Current Task
 
-- No new store fix is active.
-- Next step is to receive the complete SHEIN issue inventory from the user, group related symptoms, then fix one root cause at a time from v85.
-- Do not build an IPA until the proposed single change and its exact diff are explained.
+- Test v85.1 category taps on iPhone 6 and iPhone 16 Pro Max.
+- Do not claim success before device results.
+- Bahrain/SA region, first-load `For You`, and Add-to-Cart placement remain unresolved and were not changed in v85.1.
 
 ## Scope Guard
 
@@ -58,9 +57,9 @@ v85 itself inherits the older hidden `FAKE_VISIBLE` flow and a limited exact-key
 ## Last Validation
 
 - `npm run build` passed.
-- Injected `SHEIN_CAPTURE_SCRIPT` syntax parse passed.
+- Runtime evaluation and syntax parse of `SHEIN_CAPTURE_SCRIPT` passed.
 - `git diff --check` passed.
-- No rollback IPA was built.
+- v85.1 unsigned IPA built successfully from commit `8282091`.
 
 ## Production References
 
