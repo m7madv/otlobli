@@ -6,10 +6,11 @@ Read `CURRENT_STATE.md` first, then `AGENTS.md`.
 
 - Active branch: `codex/customer-wallet-group-orders`
 - Stable SHEIN baseline: v85 commit `2f24954`.
-- Current test: v85.1 commit `8282091`, version `2026.07.14-v85.1-shein-category-touch-test`.
+- Current test: v85.2 commit `294dd78`, version `2026.07.14-v85.2-shein-auth-region-signal-test`.
 - Reference IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.ipa`.
-- Test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.1-shein-category-touch-test.ipa`.
-- v85.1 only narrows SHEIN menu/header interception to icon-only controls and removes the broad category restyling loop.
+- Test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.2-shein-saudi-auth-test.ipa`.
+- v85.2 preserves auth UI, removes destructive region reset/reload, tightens shipping-region evidence, and seeds `localcountry=SA` once per document.
+- SHA-256: `CC1751C86EDD2BD98C92E77AA200E0759678AE6F276A3CDF46D3F032E6977A5B`; run `29302214134`.
 
 ## Real-Device Evidence
 
@@ -20,7 +21,7 @@ Read `CURRENT_STATE.md` first, then `AGENTS.md`.
 
 ## Next Work
 
-Test v85.1 category interactions on both target iPhones. Bahrain/SA region, first-load `For You`, and Add-to-Cart placement remain unresolved; do not mix them into the category-touch result.
+Test v85.2 on both target iPhones. Check cold entry, category taps, the auth/Continue screen, and product shipping. Bahrain/SA and first-load interaction are still unconfirmed; do not claim success before device evidence.
 
 Important baseline nuance: v85 contains the inherited hidden `FAKE_VISIBLE` opening flow and an exact-key storage guard. Do not casually remove or expand them. The current goal is observation and isolation, not another all-at-once region/WebView rewrite.
 
@@ -37,7 +38,7 @@ Important baseline nuance: v85 contains the inherited hidden `FAKE_VISIBLE` open
 - Root `npm run build`: passed.
 - `SHEIN_CAPTURE_SCRIPT` syntax parse: passed.
 - `git diff --check`: passed.
-- v85.1 workflow run `29300495130`: passed; artifact source commit `8282091`.
+- v85.2 workflow run `29302214134`: passed; artifact source commit `294dd78`.
 
 ## Main Files
 
