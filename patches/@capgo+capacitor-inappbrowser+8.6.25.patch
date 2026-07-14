@@ -14,7 +14,7 @@ index 9979670..fcfd30a 100644
  }
 
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
-index 8ae3e61..3756aaf 100644
+index 8ae3e61..fc6cf04 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
 +++ b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
 @@ -33,6 +33,7 @@ import android.text.TextUtils;
@@ -70,16 +70,18 @@ index 8ae3e61..3756aaf 100644
      private static final int MAX_MANAGED_DOWNLOAD_REDIRECTS = 10;
      private static final int BLOB_DOWNLOAD_CHUNK_BYTES = 64 * 1024;
      private static final long MAX_LEGACY_BLOB_DOWNLOAD_BYTES = 512L * 1024L;
-@@ -333,6 +365,8 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -333,6 +365,10 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
      private String proxyAccessToken;
      private final ExecutorService executorService = Executors.newCachedThreadPool();
      private final Handler mainHandler = new Handler(Looper.getMainLooper());
 +    private View otlobliLoadingCover;
++    private TextView otlobliLoadingCoverLabel;
++    private String otlobliLoadingCoverMessage = "جاري تجهيز متجر SHEIN…";
 +    private final Runnable otlobliLoadingCoverTimeout = this::hideOtlobliLoadingCover;
      private final Map<String, BlobDownloadSession> blobDownloadSessions = new ConcurrentHashMap<>();
      private final Map<String, ClientCertificateIdentity> clientCertificateIdentities = new ConcurrentHashMap<>();
      private int iconColor = Color.BLACK; // Default icon color
-@@ -433,6 +467,97 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -433,6 +469,127 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          openWebViewResolved = true;
      }
 
@@ -100,6 +102,7 @@ index 8ae3e61..3756aaf 100644
 +                otlobliLoadingCover.animate().cancel();
 +                otlobliLoadingCover.setAlpha(1f);
 +                otlobliLoadingCover.setVisibility(View.VISIBLE);
++                if (otlobliLoadingCoverLabel != null) otlobliLoadingCoverLabel.setText(otlobliLoadingCoverMessage);
 +                otlobliLoadingCover.bringToFront();
 +                scheduleOtlobliLoadingCoverTimeout();
 +                return;
@@ -124,13 +127,35 @@ index 8ae3e61..3756aaf 100644
 +            );
 +            FrameLayout.LayoutParams spinnerParams = new FrameLayout.LayoutParams(spinnerSize, spinnerSize);
 +            spinnerParams.gravity = Gravity.CENTER;
++            spinner.setTranslationY(-24f * getContext().getResources().getDisplayMetrics().density);
 +            cover.addView(spinner, spinnerParams);
++
++            TextView label = new TextView(getContext());
++            label.setText(otlobliLoadingCoverMessage);
++            label.setTextColor(Color.rgb(38, 51, 47));
++            label.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
++            label.setGravity(Gravity.CENTER);
++            label.setMaxLines(2);
++            int horizontalPadding = (int) TypedValue.applyDimension(
++                TypedValue.COMPLEX_UNIT_DIP,
++                28,
++                getContext().getResources().getDisplayMetrics()
++            );
++            label.setPadding(horizontalPadding, 0, horizontalPadding, 0);
++            label.setTranslationY(38f * getContext().getResources().getDisplayMetrics().density);
++            FrameLayout.LayoutParams labelParams = new FrameLayout.LayoutParams(
++                ViewGroup.LayoutParams.MATCH_PARENT,
++                ViewGroup.LayoutParams.WRAP_CONTENT
++            );
++            labelParams.gravity = Gravity.CENTER;
++            cover.addView(label, labelParams);
 +
 +            root.addView(
 +                cover,
 +                new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
 +            );
 +            otlobliLoadingCover = cover;
++            otlobliLoadingCoverLabel = label;
 +            cover.bringToFront();
 +            scheduleOtlobliLoadingCoverTimeout();
 +        });
@@ -150,7 +175,10 @@ index 8ae3e61..3756aaf 100644
 +                    if (cover.getParent() instanceof ViewGroup) {
 +                        ((ViewGroup) cover.getParent()).removeView(cover);
 +                    }
-+                    if (otlobliLoadingCover == cover) otlobliLoadingCover = null;
++                    if (otlobliLoadingCover == cover) {
++                        otlobliLoadingCover = null;
++                        otlobliLoadingCoverLabel = null;
++                    }
 +                })
 +                .start();
 +        });
@@ -163,7 +191,11 @@ index 8ae3e61..3756aaf 100644
 +            JSONObject detail = payload.optJSONObject("detail");
 +            String type = detail != null ? detail.optString("type", "") : "";
 +            switch (type) {
-+                case "sheinSaudiRepairStart" -> showOtlobliLoadingCover();
++                case "sheinSaudiRepairStart" -> {
++                    otlobliLoadingCoverMessage = "جاري ضبط المتجر على السعودية…";
++                    if (otlobliLoadingCoverLabel != null) otlobliLoadingCoverLabel.setText(otlobliLoadingCoverMessage);
++                    showOtlobliLoadingCover();
++                }
 +                case "sheinSaudiReady", "sheinPageInteractive", "humanCheck", "sheinBlocked" -> hideOtlobliLoadingCover();
 +                default -> {
 +                    // Other bridge messages are forwarded unchanged.
@@ -177,7 +209,7 @@ index 8ae3e61..3756aaf 100644
      // Add this class to provide safer JavaScript interface
      private class JavaScriptInterface {
 
-@@ -1807,6 +1932,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -1807,6 +1964,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          applyDimensions();
 
          this._webView = findViewById(R.id.browser_view);
@@ -185,7 +217,7 @@ index 8ae3e61..3756aaf 100644
 
          // Apply insets to fix edge-to-edge issues on Android 15+
          applyInsets();
-@@ -2991,6 +3117,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -2991,6 +3149,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                  return;
              }
 
@@ -193,7 +225,7 @@ index 8ae3e61..3756aaf 100644
              _options.getCallbacks().javascriptCallback(message);
          } catch (Exception e) {
              Log.e("InAppBrowser", "Error in postMessage: " + e.getMessage());
-@@ -4932,6 +5059,11 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4932,6 +5091,12 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
      @Override
      public void dismiss() {
          scheduleHostWebViewInsetRestore();
@@ -202,10 +234,11 @@ index 8ae3e61..3756aaf 100644
 +            ((ViewGroup) otlobliLoadingCover.getParent()).removeView(otlobliLoadingCover);
 +        }
 +        otlobliLoadingCover = null;
++        otlobliLoadingCoverLabel = null;
 
          // First, stop any ongoing operations and disable further interactions
          if (_webView != null) {
-@@ -5586,17 +5718,50 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -5586,17 +5751,50 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          );
      }
 
@@ -450,10 +483,10 @@ index 1c70884..be2b8ac 100644
          if
              ProxySchemeRequestSupport.supportsRequestBody(method: context.method),
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
-index 97a2fc1..c505b34 100644
+index 97a2fc1..dadf498 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
-@@ -748,6 +748,13 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -748,6 +748,15 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
      fileprivate var webView: WKWebView?
      fileprivate var progressView: UIProgressView?
 
@@ -462,12 +495,14 @@ index 97a2fc1..c505b34 100644
 +    // transient automation frames; it never reparents or alpha-hides WKWebView.
 +    open var otlobliLoadingCoverEnabled = false
 +    private var otlobliLoadingCoverView: UIView?
++    private var otlobliLoadingCoverLabel: UILabel?
++    private var otlobliLoadingCoverMessage = "جاري تجهيز متجر SHEIN…"
 +    private var otlobliLoadingCoverTimeout: DispatchWorkItem?
 +
      fileprivate var previousNavigationBarState: (tintColor: UIColor, hidden: Bool) = (.black, false)
      fileprivate var previousToolbarState: (tintColor: UIColor, hidden: Bool) = (.black, false)
 
-@@ -878,6 +885,10 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -878,6 +887,10 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
              self.initWebview()
          }
 
@@ -478,7 +513,7 @@ index 97a2fc1..c505b34 100644
          // Apply navigation gestures setting
          updateNavigationGestures()
 
-@@ -899,6 +910,92 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -899,6 +912,110 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
      override open func viewDidLayoutSubviews() {
          super.viewDidLayoutSubviews()
          refreshWebViewViewportIfNeeded()
@@ -504,6 +539,7 @@ index 97a2fc1..c505b34 100644
 +                existing.layer.removeAllAnimations()
 +                existing.alpha = 1
 +                existing.isHidden = false
++                self.otlobliLoadingCoverLabel?.text = self.otlobliLoadingCoverMessage
 +                self.view.bringSubviewToFront(existing)
 +                self.scheduleOtlobliLoadingCoverTimeout()
 +                return
@@ -523,6 +559,16 @@ index 97a2fc1..c505b34 100644
 +            spinner.startAnimating()
 +            cover.addSubview(spinner)
 +
++            let label = UILabel(frame: .zero)
++            label.translatesAutoresizingMaskIntoConstraints = false
++            label.text = self.otlobliLoadingCoverMessage
++            label.textAlignment = .center
++            label.numberOfLines = 2
++            label.textColor = UIColor(red: 38.0 / 255.0, green: 51.0 / 255.0, blue: 47.0 / 255.0, alpha: 1)
++            label.font = UIFont.systemFont(ofSize: 15, weight: .medium)
++            label.accessibilityTraits = .updatesFrequently
++            cover.addSubview(label)
++
 +            self.view.addSubview(cover)
 +            NSLayoutConstraint.activate([
 +                cover.topAnchor.constraint(equalTo: self.view.topAnchor),
@@ -530,9 +576,13 @@ index 97a2fc1..c505b34 100644
 +                cover.trailingAnchor.constraint(equalTo: self.view.trailingAnchor),
 +                cover.bottomAnchor.constraint(equalTo: self.view.bottomAnchor),
 +                spinner.centerXAnchor.constraint(equalTo: cover.centerXAnchor),
-+                spinner.centerYAnchor.constraint(equalTo: cover.centerYAnchor)
++                spinner.centerYAnchor.constraint(equalTo: cover.centerYAnchor, constant: -24),
++                label.topAnchor.constraint(equalTo: spinner.bottomAnchor, constant: 16),
++                label.leadingAnchor.constraint(equalTo: cover.leadingAnchor, constant: 28),
++                label.trailingAnchor.constraint(equalTo: cover.trailingAnchor, constant: -28)
 +            ])
 +            self.otlobliLoadingCoverView = cover
++            self.otlobliLoadingCoverLabel = label
 +            self.view.bringSubviewToFront(cover)
 +            self.scheduleOtlobliLoadingCoverTimeout()
 +        }
@@ -545,6 +595,7 @@ index 97a2fc1..c505b34 100644
 +            self.otlobliLoadingCoverTimeout = nil
 +            guard let cover = self.otlobliLoadingCoverView else { return }
 +            self.otlobliLoadingCoverView = nil
++            self.otlobliLoadingCoverLabel = nil
 +            cover.layer.removeAllAnimations()
 +            UIView.animate(withDuration: 0.12, animations: {
 +                cover.alpha = 0
@@ -562,6 +613,8 @@ index 97a2fc1..c505b34 100644
 +        }
 +        switch type {
 +        case "sheinSaudiRepairStart":
++            otlobliLoadingCoverMessage = "جاري ضبط المتجر على السعودية…"
++            otlobliLoadingCoverLabel?.text = otlobliLoadingCoverMessage
 +            showOtlobliLoadingCover()
 +        case "sheinSaudiReady", "sheinPageInteractive", "humanCheck", "sheinBlocked":
 +            hideOtlobliLoadingCover()
@@ -571,7 +624,7 @@ index 97a2fc1..c505b34 100644
      }
 
      func updateButtonTintColors() {
-@@ -1001,6 +1098,37 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1001,6 +1118,37 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          capBrowserPlugin?.notifyListeners(eventName, data: payload(with: data))
      }
 
@@ -609,7 +662,7 @@ index 97a2fc1..c505b34 100644
      private func startObservingKeyboardViewportChanges() {
          guard !isObservingKeyboardViewportChanges else {
              return
-@@ -1136,6 +1264,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1136,6 +1284,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          if message.name == "messageHandler" {
              if let messageBody = message.body as? [String: Any] {
                  print("Received message from JavaScript:", messageBody)
@@ -617,7 +670,7 @@ index 97a2fc1..c505b34 100644
                  emit("messageFromWebview", data: messageBody)
              } else {
                  print("Received non-dictionary message from JavaScript:", message.body)
-@@ -1818,6 +1947,10 @@ public extension WKWebViewController {
+@@ -1818,6 +1967,11 @@ public extension WKWebViewController {
 
      open func cleanupWebView() {
          guard let webView = self.webView else { return }
@@ -625,10 +678,11 @@ index 97a2fc1..c505b34 100644
 +        otlobliLoadingCoverTimeout = nil
 +        otlobliLoadingCoverView?.removeFromSuperview()
 +        otlobliLoadingCoverView = nil
++        otlobliLoadingCoverLabel = nil
          webView.stopLoading()
          previewItemURL = nil
 
-@@ -2743,7 +2876,7 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2743,7 +2897,7 @@ extension WKWebViewController: WKNavigationDelegate {
              self.url = url
              delegate?.webViewController?(self, didFail: url, withError: error)
          }
@@ -637,7 +691,7 @@ index 97a2fc1..c505b34 100644
      }
 
      public func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-@@ -2753,7 +2886,16 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2753,7 +2907,16 @@ extension WKWebViewController: WKNavigationDelegate {
              self.url = url
              delegate?.webViewController?(self, didFail: url, withError: error)
          }

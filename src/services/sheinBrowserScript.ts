@@ -404,6 +404,45 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var sheinNativeCoverLastType = '';
   var sheinNativeCoverLastPostAt = 0;
 
+  // browserPageLoaded only proves that WKNavigation finished. SHEIN can still
+  // be a partially hydrated shell (section labels with no products/touchable
+  // SPA), which is the exact frozen state reported on the second iOS entry.
+  // Require live, visible store content before native code accepts readiness.
+  function sheinPageLooksInteractive() {
+    if (!IS_SHEIN || !document.body || document.readyState === 'loading') return false;
+    if (otlobliIsHumanChallenge()) return true;
+    var bodyText = String(document.body.innerText || '').replace(/\\s+/g, ' ').trim();
+    if (bodyText.length < 180) return false;
+
+    var interactiveCount = 0;
+    var controls = document.querySelectorAll('a[href], button, [role="button"], input, select');
+    for (var ci = 0; ci < controls.length && interactiveCount < 4; ci++) {
+      var control = controls[ci];
+      if (!control || (control.id && control.id.indexOf('otlobli') === 0)) continue;
+      if (control.closest && control.closest('[id^="otlobli"]')) continue;
+      var cr = control.getBoundingClientRect();
+      if (!cr || cr.width < 12 || cr.height < 12 || cr.bottom <= 0 || cr.top >= window.innerHeight) continue;
+      var ccs = window.getComputedStyle(control);
+      if (ccs.display === 'none' || ccs.visibility === 'hidden' || Number(ccs.opacity || 1) < 0.1 || ccs.pointerEvents === 'none') continue;
+      interactiveCount++;
+    }
+
+    var loadedImageCount = 0;
+    var images = document.images || [];
+    for (var ii = 0; ii < images.length && loadedImageCount < 3; ii++) {
+      var image = images[ii];
+      if (!image || !image.complete || image.naturalWidth < 40 || image.naturalHeight < 40) continue;
+      if (image.closest && image.closest('[id^="otlobli"]')) continue;
+      var ir = image.getBoundingClientRect();
+      if (!ir || ir.width < 24 || ir.height < 24 || ir.bottom <= 0 || ir.top >= window.innerHeight * 1.5) continue;
+      loadedImageCount++;
+    }
+
+    var homeLike = /^\\/ar\\/?$/i.test(location.pathname || '');
+    if (homeLike) return interactiveCount >= 3 && loadedImageCount >= 2;
+    return interactiveCount >= 1 && (loadedImageCount >= 1 || bodyText.length >= 500);
+  }
+
   function sheinPostNativeCoverState(type) {
     if (!IS_SHEIN) return;
     var now = Date.now();
@@ -436,8 +475,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (sheinSignedSaudiAddressReady()) {
       sheinNativeCoverRepairActive = false;
       sheinNativeCoverRepairStartedAt = 0;
-      sheinNativeCoverInitialReleased = true;
-      sheinPostNativeCoverState('sheinSaudiReady');
+      if (sheinPageLooksInteractive()) {
+        sheinNativeCoverInitialReleased = true;
+        sheinPostNativeCoverState('sheinSaudiReady');
+      }
       return;
     }
     if (sheinNativeCoverRepairActive) {
@@ -448,12 +489,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
         sheinNativeCoverRepairActive = false;
         sheinNativeCoverRepairStartedAt = 0;
         sheinNativeCoverCooldownUntil = Date.now() + 120000;
-        sheinNativeCoverInitialReleased = true;
-        sheinPostNativeCoverState('sheinPageInteractive');
+        if (sheinPageLooksInteractive()) {
+          sheinNativeCoverInitialReleased = true;
+          sheinPostNativeCoverState('sheinPageInteractive');
+        }
       }
       return;
     }
-    if (!sheinNativeCoverInitialReleased) {
+    if (!sheinNativeCoverInitialReleased && sheinPageLooksInteractive()) {
       sheinNativeCoverInitialReleased = true;
       sheinPostNativeCoverState('sheinPageInteractive');
     }
