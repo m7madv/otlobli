@@ -72,9 +72,14 @@ Read `AI-HANDOFF.md` and `AGENTS.md`. Preserve any existing user/other-AI change
 - v85.9 test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.9-shein-progressive-entry-warm-cache-no-otp-test.ipa`
 - v85.9 SHA-256: `F8F61473E4B6FD8D08F2D9667408070B59E6C882F59F3E95FC80E98EBCC53A59`; run `29326728706`.
 - v85.9 preserves SHEIN Service Workers/cache on healthy entries, injects the existing Otlobli nav at document start, and keeps the existing in-page preparation surface until a real loaded product card proves hydration. One bounded recovery may clear native cache; a second failure is reported as preparation, not VPN. The native cover outlives the 35-second readiness watchdog so raw SHEIN is not exposed first.
+- v85.9 device result: the store eventually became fully functional, but raw SHEIN header/content/bottom navigation remained visible for about 5-10 seconds before the Saudi reload finished. Root cause: native code removed its cover on the intermediate `sheinPreparing` message, and readiness ran before the same tick scheduled Saudi repair.
+- v85.10 candidate commit: `f273c80`; version `2026.07.14-v85.10-shein-final-ready-cover-no-otp-test`.
+- v85.10 test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.10-shein-final-ready-cover-no-otp-test.ipa`
+- v85.10 SHA-256: `811FF316CC9CC6677DD7E9E61D3104FA8175CD7D88EFA5F3E0AC7F53B65C874E`; run `29328000485`.
+- v85.10 keeps the native preparation cover through intermediate DOM bodies and Saudi repair. It reveals only after the signed Saudi address, a real loaded product, Otlobli nav, and the same final URL remain ready for 650ms. Human verification remains visible; blocked/foreign/raw states remain covered until app recovery/close.
 - OTP screens remain bypassed only for this test candidate; set `TEST_ONLY_AUTH_BYPASS = false` before production.
 
-v85 remains the stable store/UI baseline. v85.9 is a narrow slow-device preparation test on top of the exact Saudi shipping flow; it does not import v86-v88 behavior or broaden the old storage guard.
+v85 remains the stable store/UI baseline. v85.10 is a narrow final-readiness cover test on top of the exact Saudi shipping flow; it does not import v86-v88 behavior or broaden the old storage guard.
 
 ## Failed Paths
 
@@ -86,7 +91,7 @@ v85 remains the stable store/UI baseline. v85.9 is a narrow slow-device preparat
 
 ## Current Task
 
-- Install v85.9 on iPhone 6 and iPhone 16 Pro Max, enter/leave SHEIN repeatedly, and background/resume the app. On iPhone 6 verify the Otlobli bar/preparation surface remains visible until real products load and no false VPN instruction appears.
+- Install v85.10 on iPhone 6 and iPhone 16 Pro Max. Verify only the preparation screen is visible during the initial 5-10 second Saudi/reload phase, followed by one clean reveal of the finished Otlobli store.
 - Verify the Saudi correction is not shown, the shipping-region control does not open for the customer, and Saudi persists across reload/store/VPN changes.
 - Android structural validation is not a claim that either iPhone issue is fixed; both real devices remain the acceptance test.
 - OTP bypass is only for faster store testing; customer account/server features and Add-to-Cart placement remain separate and unchanged.
@@ -111,6 +116,8 @@ v85 remains the stable store/UI baseline. v85.9 is a narrow slow-device preparat
 - v85.7 failed real-device testing: the second-entry partial/untappable state remained.
 - v85.8 real-device result: passed initial opening on iPhone 16 Pro Max but failed slow entry on iPhone 6 with raw SHEIN, missing products, and a false server instruction.
 - v85.9 unsigned IPA built successfully from `86f15be` in run `29326728706`; embedded version marker and copied SHA-256 verified. Real-device testing is pending.
+- v85.9 real-device result: functional after preparation, but exposed raw SHEIN chrome/content for 5-10 seconds before the final reload.
+- v85.10 unsigned IPA built successfully from `f273c80` in run `29328000485`; embedded version marker and copied SHA-256 verified. Real-device testing is pending.
 
 ## Production References
 
