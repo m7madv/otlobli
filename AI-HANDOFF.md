@@ -6,12 +6,11 @@ Read `CURRENT_STATE.md` first, then `AGENTS.md`.
 
 - Active branch: `codex/customer-wallet-group-orders`
 - Stable SHEIN baseline: v85 commit `2f24954`.
-- Current test: v85.4 head `6a29b77`, version `2026.07.14-v85.4-shein-preload-sa-cookie-no-otp-test`.
+- Current candidate: v85.5, version `2026.07.14-v85.5-shein-native-sa-address-no-otp-test`; no iOS IPA yet.
 - Reference IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.ipa`.
-- Test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.4-shein-sa-no-otp-test.ipa`.
-- v85.4 seeds only `localcountry=SA` in `WKWebsiteDataStore` before the first SHEIN request. It preserves unrelated auth/cart/session cookies and adds no CSS, storage purge, picker loop, or reload.
+- v85.4 IPA exists at `C:\Users\MOHAMMAD\Desktop\otlobli-v85.4-shein-sa-no-otp-test.ipa`, but device testing failed: SHEIN still selected Bahrain. Its native initial-cookie preload has been removed.
+- v85.5 reads SHEIN's authoritative signed `addressCookie` and completes SHEIN's own exact native cascade: Saudi Arabia -> Riyadh Province -> Riyadh -> Al Olaya. It supports both observed native drawer structures and adds no CSS, storage purge, address fabrication, or reload loop.
 - App OTP screens are bypassed for this test IPA only. Set `TEST_ONLY_AUTH_BYPASS = false` before any production build.
-- SHA-256: `30290F292574363CBC9594C765D6FE88C86A1E35869F17F85742636556FF2FFD`; run `29304645602`.
 
 ## Real-Device Evidence
 
@@ -20,11 +19,14 @@ Read `CURRENT_STATE.md` first, then `AGENTS.md`.
 - v88 caused SHEIN entry to close/crash the WebView or app.
 - v85.2 real-device evidence: Saudi VPN + fresh install could select Saudi; US VPN changed the persisted WebView session to Bahrain; returning to Saudi VPN without reinstall stayed Bahrain. The shipping selector, not VPN alone, must update the authoritative session.
 - v85.3 real-device evidence: first install could initialize Saudi or Bahrain and then persist it; native picker automation did not reliably correct Bahrain.
+- v85.4 real-device evidence: preloading `localcountry=SA` did not correct Bahrain.
+- Android emulator root evidence: URL/cookies/storage said SA while SHEIN's server returned Qatar. The authoritative signed `addressCookie` and product API both returned Qatar. A full native selection generated a signed Saudi address even while `ipCountry` stayed QA.
+- v85.5 emulator test started from signed `Qatar / Doha / Al Jasra / Zone 1`, automatically completed the four Saudi levels in about 9 seconds, persisted across reload, and the product API returned `shipping_countryname = Saudi Arabia`.
 - Treat v86-v88 artifacts as failed archives, not bases for new work.
 
 ## Next Work
 
-Delete the previous app and test v85.4 on both target iPhones. First install/open under a non-Saudi VPN and verify the first product's shipping country, then repeat under a Saudi VPN and change VPNs without reinstalling. Cold entry/category taps remain a separate check. Do not claim success before device evidence.
+Review/commit v85.5 and build an iOS test IPA only when requested. Test it on both target iPhones from a persisted foreign address, then reload, switch stores, and switch VPNs. Cold entry/category taps remain a separate check. Do not claim iPhone success before device evidence.
 
 Important baseline nuance: v85 contains the inherited hidden `FAKE_VISIBLE` opening flow and an exact-key storage guard. Do not casually remove or expand them. The current goal is observation and isolation, not another all-at-once region/WebView rewrite.
 
@@ -41,8 +43,10 @@ Important baseline nuance: v85 contains the inherited hidden `FAKE_VISIBLE` open
 - Root `npm run build`: passed.
 - `SHEIN_CAPTURE_SCRIPT` syntax parse: passed.
 - `git diff --check`: passed.
-- Native patch parse/reverse checks: passed; relay secrets remain placeholders in Git.
-- v85.4 workflow run `29304645602`: passed, including Xcode; artifact head `6a29b77`.
+- Native patch parse: passed; obsolete initial-cookie hunks are removed and relay secrets remain placeholders in Git.
+- Android Capacitor sync and debug APK assembly: passed.
+- Live Android WebView signed-address persistence and product API country validation: passed.
+- No v85.5 Xcode workflow or iOS artifact yet.
 
 ## Main Files
 
