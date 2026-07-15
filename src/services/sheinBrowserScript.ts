@@ -3,6 +3,22 @@ import cairoArabicFontDataUrl from '@fontsource-variable/cairo/files/cairo-arabi
 const OTLOBLI_CAIRO_FONT_CSS =
   '@font-face{font-family:"OtlobliCairo";src:url("' + cairoArabicFontDataUrl + '") format("woff2");font-style:normal;font-weight:200 1000;font-display:block;}'
 
+const OTLOBLI_NAV_STYLE_VERSION = 'v85.8.10'
+const OTLOBLI_NAV_CSS =
+  'position:fixed!important;left:50%!important;right:auto!important;bottom:0!important;top:auto!important;' +
+  'transform:translate3d(-50%,0,0)!important;will-change:transform!important;width:100%!important;max-width:440px!important;' +
+  'width:min(100vw, 440px)!important;height:90px!important;min-height:90px!important;max-height:90px!important;' +
+  'height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;' +
+  'min-height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;' +
+  'max-height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;' +
+  'z-index:2147483647!important;display:flex!important;flex-direction:row!important;align-items:stretch!important;' +
+  'direction:rtl!important;overflow:hidden!important;box-sizing:border-box!important;' +
+  'background:rgba(255,255,255,.97)!important;border-top:1px solid #bccac0!important;' +
+  'backdrop-filter:blur(16px)!important;-webkit-backdrop-filter:blur(16px)!important;' +
+  'padding:0 0 16px 0!important;padding:0 0 max(env(safe-area-inset-bottom, 0px), 16px) 0!important;margin:0!important;' +
+  'font-family:OtlobliCairo,system-ui,-apple-system,sans-serif!important;font-size:12px!important;line-height:normal!important;' +
+  'opacity:1!important;visibility:visible!important;pointer-events:auto!important;'
+
 // Runs as a real WKUserScript before SHEIN's first document starts. It mounts
 // only Otlobli's existing bottom navigation; it does not touch SHEIN network,
 // storage, region, CSS, or page lifecycle. The full capture script adopts the
@@ -20,6 +36,21 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
     cart: '<circle cx="9" cy="20" r="1.3"/><circle cx="18" cy="20" r="1.3"/><path d="M3 4h2l2.2 11.5a2 2 0 0 0 2 1.6h8.6a2 2 0 0 0 2-1.6L21 8H6"/>',
     profile: '<circle cx="12" cy="8" r="3.6"/><path d="M5 20c0-3.8 3.1-6.4 7-6.4s7 2.6 7 6.4"/>'
   };
+
+  function ensureEarlyViewportFitCover() {
+    if (!document.head) return;
+    var meta = document.querySelector('meta[name="viewport"]');
+    if (!meta) {
+      meta = document.createElement('meta');
+      meta.setAttribute('name', 'viewport');
+      document.head.appendChild(meta);
+    }
+    var content = String(meta.getAttribute('content') || 'width=device-width, initial-scale=1');
+    if (!/viewport-fit\\s*=\\s*cover/i.test(content)) {
+      content = content.replace(/\\s*,?\\s*viewport-fit\\s*=\\s*[^,]+/ig, '');
+      meta.setAttribute('content', content.replace(/\\s*,\\s*$/, '') + ', viewport-fit=cover');
+    }
+  }
 
   function normalizedText(el) {
     return String((el && (el.innerText || el.textContent)) || '').replace(/\\s+/g, ' ').trim();
@@ -130,6 +161,7 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
   }
 
   function mount() {
+    ensureEarlyViewportFitCover();
     // (v85.8.5) حمّل خط Cairo داخل مستند شي إن أيضاً. التطبيق يحمّله عبر @import،
     // لكن WebView شي إن مستند منفصل لا يرث خطوط التطبيق، فكان الشريط المحقون
     // يسقط لخط النظام (SF) بينما شريط React بخط Cairo — وهذا سبب «اختلاف الخط
@@ -150,17 +182,8 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
 
     var nav = document.createElement('div');
     nav.id = 'otlobli-nav';
-    nav.style.cssText = 'position:fixed!important;left:50%!important;right:auto!important;bottom:0!important;top:auto!important;' +
-      'transform:translate3d(-50%,0,0)!important;will-change:transform!important;width:100%!important;max-width:440px!important;' +
-      'width:min(100vw, 440px)!important;height:90px!important;min-height:90px!important;max-height:90px!important;' +
-      'height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;' +
-      'min-height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;' +
-      'max-height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;' +
-      'z-index:2147483647!important;display:flex!important;flex-direction:row!important;align-items:stretch!important;' +
-      'direction:rtl!important;overflow:hidden!important;box-sizing:border-box!important;' +
-      'background:rgba(255,255,255,.97)!important;border-top:1px solid #bccac0!important;padding:0 0 16px 0!important;margin:0!important;' +
-      'font-family:OtlobliCairo,system-ui,-apple-system,sans-serif!important;font-size:12px!important;line-height:normal!important;' +
-      'opacity:1!important;visibility:visible!important;pointer-events:auto!important;';
+    nav.style.cssText = ${JSON.stringify(OTLOBLI_NAV_CSS)};
+    nav.setAttribute('data-otlobli-nav-style', ${JSON.stringify(OTLOBLI_NAV_STYLE_VERSION)});
 
     var items = [
       { label: '\\u0627\\u0644\\u0631\\u0626\\u064a\\u0633\\u064a\\u0629', icon: icons.home, type: '' },
@@ -225,6 +248,9 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
 
 export const SHEIN_CAPTURE_SCRIPT = `
 (function () {
+  var OTLOBLI_NAV_CSS = ${JSON.stringify(OTLOBLI_NAV_CSS)};
+  var OTLOBLI_NAV_STYLE_VERSION = ${JSON.stringify(OTLOBLI_NAV_STYLE_VERSION)};
+
   function ensureOtlobliCairoFont() {
     if (document.getElementById('otlobli-cairo-font')) return;
     var fontStyle = document.createElement('style');
@@ -346,19 +372,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function otlobliEnsureChallengeNav() {
     if (!document.body) return false;
-    var navCss = 'position:fixed!important;left:50%!important;right:auto!important;bottom:0!important;top:auto!important;' +
-      'transform:translate3d(-50%,0,0)!important;will-change:transform!important;' +
-      'width:100%!important;max-width:440px!important;height:90px!important;min-height:90px!important;max-height:90px!important;' +
-      'width:min(100vw, 440px)!important;height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;' +
-      'min-height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;' +
-      'max-height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;z-index:2147483647!important;' +
-      'display:flex!important;flex-direction:row!important;align-items:stretch!important;' +
-      'direction:rtl!important;overflow:hidden!important;box-sizing:border-box!important;' +
-      'background:rgba(255,255,255,.97)!important;border-top:1px solid #bccac0!important;' +
-      'backdrop-filter:blur(16px)!important;-webkit-backdrop-filter:blur(16px)!important;' +
-      'padding:0 0 16px 0!important;padding:0 0 max(env(safe-area-inset-bottom, 0px), 16px) 0!important;margin:0!important;' +
-      'font-family:OtlobliCairo,system-ui,-apple-system,sans-serif!important;font-size:12px!important;line-height:1.15!important;' +
-      'opacity:1!important;visibility:visible!important;pointer-events:auto!important;';
     var nav = document.getElementById('otlobli-nav');
     if (!nav) {
       nav = document.createElement('div');
@@ -399,8 +412,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
         nav.appendChild(tab);
       }
     }
-    nav.style.cssText = navCss;
-    if (nav.parentNode !== document.body || nav !== document.body.lastElementChild) {
+    if (nav.getAttribute('data-otlobli-nav-style') !== OTLOBLI_NAV_STYLE_VERSION) {
+      nav.style.cssText = OTLOBLI_NAV_CSS;
+      nav.setAttribute('data-otlobli-nav-style', OTLOBLI_NAV_STYLE_VERSION);
+    }
+    if (nav.parentNode !== document.body ||
+        (nav !== document.body.lastElementChild && otlobliNavIsActuallyCovered(nav))) {
       document.body.appendChild(nav);
     }
     return true;
@@ -3816,23 +3833,28 @@ export const SHEIN_CAPTURE_SCRIPT = `
   };
 
   var __otlobliNavLastReclaim = 0;
+  function otlobliNavIsActuallyCovered(nav) {
+    if (!nav || !document.elementFromPoint) return false;
+    var rect = nav.getBoundingClientRect();
+    if (!rect || rect.width < 1 || rect.height < 1) return false;
+    var y = Math.min(window.innerHeight - 1, rect.top + Math.min(34, rect.height / 2));
+    var xs = [0.125, 0.375, 0.625, 0.875];
+    for (var i = 0; i < xs.length; i++) {
+      var hit = document.elementFromPoint(rect.left + rect.width * xs[i], y);
+      if (hit && hit !== nav && !nav.contains(hit)) return true;
+    }
+    return false;
+  }
+
   function ensureOtlobliNav() {
-    var navCss = 'position:fixed!important;left:50%!important;right:auto!important;bottom:0!important;top:auto!important;' +
-      'transform:translate3d(-50%,0,0)!important;will-change:transform!important;' +
-      'width:100%!important;max-width:440px!important;height:90px!important;min-height:90px!important;max-height:90px!important;' +
-      'width:min(100vw, 440px)!important;height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;' +
-      'min-height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;' +
-      'max-height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;z-index:2147483647!important;' +
-      'display:flex!important;direction:rtl!important;overflow:hidden!important;box-sizing:border-box!important;' +
-      'background:rgba(255,255,255,.97)!important;border-top:1px solid #bccac0!important;' +
-      'backdrop-filter:blur(16px)!important;-webkit-backdrop-filter:blur(16px)!important;' +
-      'padding:0 0 16px 0!important;padding:0 0 max(env(safe-area-inset-bottom, 0px), 16px) 0!important;margin:0!important;' +
       // 12px يطابق خط شريط otlobli الحقيقي (0.76rem ≈ 12.2px) — كان 11px
       // فيبدو الشريطان مختلفين عند التنقل بين المتجر وبقية الشاشات.
-      'font-size:12px!important;line-height:normal!important;opacity:1!important;visibility:visible!important;pointer-events:auto!important;';
     var existingNav = document.getElementById('otlobli-nav');
     if (existingNav) {
-      existingNav.style.cssText = navCss;
+      if (existingNav.getAttribute('data-otlobli-nav-style') !== OTLOBLI_NAV_STYLE_VERSION) {
+        existingNav.style.cssText = OTLOBLI_NAV_CSS;
+        existingNav.setAttribute('data-otlobli-nav-style', OTLOBLI_NAV_STYLE_VERSION);
+      }
       // Re-claiming "last child of body" fixes a real bug (SHEIN's own SPA
       // keeps inserting new elements - promo banners, popups, app-install
       // prompts - some at the SAME max z-index we use, and on a tie the
@@ -3847,7 +3869,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
       // every ~2s is still fast enough that a stray SHEIN element can't sit
       // on top for long, at a fraction of the reflow cost.
       var now = Date.now();
-      if (existingNav !== document.body.lastElementChild && now - __otlobliNavLastReclaim > 2000) {
+      if (existingNav !== document.body.lastElementChild && now - __otlobliNavLastReclaim > 2000 &&
+          otlobliNavIsActuallyCovered(existingNav)) {
         __otlobliNavLastReclaim = now;
         document.body.appendChild(existingNav);
       }
@@ -3884,7 +3907,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // now would just add needless empty space under the icons.
     // direction:rtl ثابت حتى يكون ترتيب الأزرار (الرئيسية يمين ← حسابي يسار)
     // نفسه على كل المتاجر؛ بدونه ينقلب على المتاجر LTR مثل تيمو.
-    nav.style.cssText = navCss;
+    nav.style.cssText = OTLOBLI_NAV_CSS;
+    nav.setAttribute('data-otlobli-nav-style', OTLOBLI_NAV_STYLE_VERSION);
     var items = [
       { label: 'الرئيسية', icon: OTLOBLI_NAV_ICONS.home, type: '' },
       { label: 'طلباتي', icon: OTLOBLI_NAV_ICONS.orders, type: 'openOrders' },

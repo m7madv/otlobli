@@ -17,4 +17,4 @@ export const SOURCE_COUNTRY: 'JO' | 'LB' | 'SA' = 'SA'
 export const TEST_ONLY_AUTH_BYPASS = true
 
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '2026.07.15-v85.8.9-ios-flex-nav-first-launch-safe-no-otp-test'
+export const APP_VERSION = '2026.07.15-v85.8.10-single-paint-nav-no-otp-test'
