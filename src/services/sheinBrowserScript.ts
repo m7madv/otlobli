@@ -155,9 +155,84 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
     }
   }
 
+  // SHEIN injects a compact first-order registration offer after cookie
+  // consent on older layouts. Identify that one strip by its exact semantics
+  // and bottom-edge geometry instead of relying on obfuscated class names or
+  // hiding generic promotional elements (which would also match products).
+  function hideExactSheinSignupDiscountBanner() {
+    if (!document.body || !document.elementsFromPoint) return;
+    var vpHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+    var vpWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+    var nav = document.getElementById('otlobli-nav');
+    var navRect = nav && nav.getBoundingClientRect ? nav.getBoundingClientRect() : null;
+    var navTop = navRect && navRect.top > 0 ? navRect.top : vpHeight - 90;
+    var offerPattern = /(?:get\\s*15\\s*%\\s*off|15\\s*%\\s*off|\\u0627\\u062d\\u0635\\u0644\\s+\\u0639\\u0644[\\u0649\\u064a]\\s+\\u062e\\u0635\\u0645\\s*15\\s*%|\\u062e\\u0635\\u0645\\s*15\\s*%)/i;
+    var signupPattern = /(?:^|\\s)(?:register|sign\\s*up|join\\s*now|\\u062a\\u0633\\u062c\\u064a\\u0644|\\u0633\\u062c\\u0644)(?:\\s|$)/i;
+    var newsletterPattern = /(?:exclusive\\s+offers|shein\\s+news|newsletter|unsubscribe|\\u0627\\u0644\\u0639\\u0631\\u0648\\u0636\\s+\\u0627\\u0644\\u062d\\u0635\\u0631\\u064a\\u0629|\\u0623\\u062e\\u0628\\u0627\\u0631\\s+shein|(?:\\u0625|\\u0627)\\u0644\\u063a\\u0627\\u0621\\s+\\u0627\\u0644\\u0627\\u0634\\u062a\\u0631\\u0627\\u0643)/i;
+    var emailPattern = /(?:email|e-mail|\\u0627\\u0644\\u0628\\u0631\\u064a\\u062f\\s+\\u0627\\u0644(?:\\u0625|\\u0627)\\u0644\\u0643\\u062a\\u0631\\u0648\\u0646\\u064a|\\u0628\\u0631\\u064a\\u062f\\u0643\\s+\\u0627\\u0644(?:\\u0625|\\u0627)\\u0644\\u0643\\u062a\\u0631\\u0648\\u0646\\u064a)/i;
+    var authPattern = /(?:sign\\s*in|log\\s*in|continue\\s+with|phone\\s+number|\\u062a\\u0633\\u062c\\u064a\\u0644\\s+\\u0627\\u0644\\u062f\\u062e\\u0648\\u0644|\\u0631\\u0642\\u0645\\s+\\u0627\\u0644\\u0645\\u0648\\u0628\\u0627\\u064a\\u0644|\\u0627\\u0644\\u0627\\u0633\\u062a\\u0645\\u0631\\u0627\\u0631\\s+\\u0628\\u062c\\u0648\\u062c\\u0644)/i;
+
+    function inspect(node) {
+      var current = node;
+      var matched = null;
+      for (var depth = 0; current && current !== document.body && current !== document.documentElement && depth < 9; depth++) {
+        if (current.id && current.id.indexOf('otlobli') === 0) break;
+        var text = normalizedText(current).replace(/[\\u064B-\\u065F\\u0670]/g, '');
+        var hasEmailInput = false;
+        if (text.length > 0 && text.length < 720 && signupPattern.test(text)) {
+          var inputs = current.querySelectorAll ? current.querySelectorAll('input') : [];
+          for (var ii = 0; ii < inputs.length; ii++) {
+            var inputHint = String(inputs[ii].getAttribute('type') || '') + ' ' +
+              String(inputs[ii].getAttribute('placeholder') || '') + ' ' +
+              String(inputs[ii].getAttribute('aria-label') || '');
+            if (emailPattern.test(inputHint)) { hasEmailInput = true; break; }
+          }
+        }
+        var authSurface = authPattern.test(text);
+        var exactOfferStrip = !authSurface && offerPattern.test(text) && signupPattern.test(text);
+        var exactNewsletterPanel = !authSurface && signupPattern.test(text) && newsletterPattern.test(text) && hasEmailInput;
+        if (text.length > 0 && text.length < 720 && (exactOfferStrip || exactNewsletterPanel)) {
+          var rect = current.getBoundingClientRect();
+          var style = window.getComputedStyle(current);
+          var positioned = style.position === 'fixed' || style.position === 'sticky' || style.position === 'absolute';
+          var touchesNav = rect.bottom >= navTop - 36 && rect.top < navTop + 20;
+          var offerPlacement = exactOfferStrip && rect.width >= vpWidth * 0.62 &&
+            rect.height >= 32 && rect.height <= 180 && rect.top >= Math.max(0, navTop - 220) &&
+            touchesNav && (positioned || Math.abs(rect.bottom - navTop) <= 48);
+          var newsletterPlacement = exactNewsletterPanel && rect.width >= vpWidth * 0.62 &&
+            rect.height >= 80 && rect.height <= 520;
+          if (offerPlacement || newsletterPlacement) {
+            matched = current;
+          }
+        }
+        current = current.parentElement;
+      }
+      if (!matched) return;
+      matched.style.setProperty('display', 'none', 'important');
+      matched.style.setProperty('visibility', 'hidden', 'important');
+      matched.style.setProperty('pointer-events', 'none', 'important');
+      matched.setAttribute('data-otlobli-hidden-shein-signup', 'exact-offer-or-newsletter');
+    }
+
+    var xs = [Math.round(vpWidth * 0.08), Math.round(vpWidth * 0.28), Math.round(vpWidth * 0.5), Math.round(vpWidth * 0.72), Math.round(vpWidth * 0.92)];
+    var ys = [Math.max(1, Math.round(navTop - 6)), Math.max(1, Math.round(navTop - 32)), Math.max(1, Math.round(navTop - 58))];
+    for (var yi = 0; yi < ys.length; yi++) {
+      for (var xi = 0; xi < xs.length; xi++) {
+        var stack = document.elementsFromPoint(xs[xi], ys[yi]);
+        for (var si = 0; si < stack.length; si++) inspect(stack[si]);
+      }
+    }
+    // The larger newsletter variant can be ordinary page content rather than
+    // fixed. Start from its tiny set of email inputs so it is removed while
+    // still off-screen, before scrolling could reveal it above the nav.
+    var emailInputs = document.querySelectorAll('input[type="email"], input[placeholder], input[aria-label]');
+    for (var ei = 0; ei < emailInputs.length; ei++) inspect(emailInputs[ei]);
+  }
+
   function runEarlyProtections() {
     try { hideVerifiedStoreBottomNav(); } catch (e) {}
     try { protectCookieConsentAction(); } catch (e) {}
+    try { hideExactSheinSignupDiscountBanner(); } catch (e) {}
   }
 
   function mount() {
@@ -3809,8 +3884,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // visibly flickered/re-popped every ~300ms. The nav bar doesn't have
     // that animation and visually can't tell the difference, so it was safe
     // there; this one very much could.
-    // نخفي الزر عندما يكون عارض الصور بملء الشاشة مفتوحاً (تمنع ظهور الزر فوق الإكس)
-    var showAddBtn = looksLikeProductPage() && !(IS_TEMU && temuImageViewerOpen());
+    // A full-screen product gallery is for viewing/swiping only. Keeping the
+    // floating add button alive inside it exposed a tappable area in SHEIN's
+    // black lower letterbox (confirmed on iPhone 16), so both stores suppress
+    // the action until their viewer closes.
+    var showAddBtn = looksLikeProductPage() &&
+      !(IS_TEMU && temuImageViewerOpen()) &&
+      !(IS_SHEIN && sheinImageViewerOpen());
     btn.style.display = showAddBtn ? 'flex' : 'none';
   }
 
@@ -4741,6 +4821,76 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
+  // Hide only SHEIN's two confirmed first-order signup surfaces: the compact
+  // 15%-off strip, or the newsletter panel with a real email field. These
+  // compound checks prevent product discounts and the real auth form from
+  // matching this rule.
+  function hideSheinSignupDiscountBanner() {
+    if (!IS_SHEIN || !document.body || !document.elementsFromPoint) return;
+    var vp = viewportSize();
+    var nav = document.getElementById('otlobli-nav');
+    var navRect = nav && nav.getBoundingClientRect ? nav.getBoundingClientRect() : null;
+    var navTop = navRect && navRect.top > 0 ? navRect.top : vp.height - 90;
+    var offerPattern = /(?:get\\s*15\\s*%\\s*off|15\\s*%\\s*off|\\u0627\\u062d\\u0635\\u0644\\s+\\u0639\\u0644[\\u0649\\u064a]\\s+\\u062e\\u0635\\u0645\\s*15\\s*%|\\u062e\\u0635\\u0645\\s*15\\s*%)/i;
+    var signupPattern = /(?:^|\\s)(?:register|sign\\s*up|join\\s*now|\\u062a\\u0633\\u062c\\u064a\\u0644|\\u0633\\u062c\\u0644)(?:\\s|$)/i;
+    var newsletterPattern = /(?:exclusive\\s+offers|shein\\s+news|newsletter|unsubscribe|\\u0627\\u0644\\u0639\\u0631\\u0648\\u0636\\s+\\u0627\\u0644\\u062d\\u0635\\u0631\\u064a\\u0629|\\u0623\\u062e\\u0628\\u0627\\u0631\\s+shein|(?:\\u0625|\\u0627)\\u0644\\u063a\\u0627\\u0621\\s+\\u0627\\u0644\\u0627\\u0634\\u062a\\u0631\\u0627\\u0643)/i;
+    var emailPattern = /(?:email|e-mail|\\u0627\\u0644\\u0628\\u0631\\u064a\\u062f\\s+\\u0627\\u0644(?:\\u0625|\\u0627)\\u0644\\u0643\\u062a\\u0631\\u0648\\u0646\\u064a|\\u0628\\u0631\\u064a\\u062f\\u0643\\s+\\u0627\\u0644(?:\\u0625|\\u0627)\\u0644\\u0643\\u062a\\u0631\\u0648\\u0646\\u064a)/i;
+    var authPattern = /(?:sign\\s*in|log\\s*in|continue\\s+with|phone\\s+number|\\u062a\\u0633\\u062c\\u064a\\u0644\\s+\\u0627\\u0644\\u062f\\u062e\\u0648\\u0644|\\u0631\\u0642\\u0645\\s+\\u0627\\u0644\\u0645\\u0648\\u0628\\u0627\\u064a\\u0644|\\u0627\\u0644\\u0627\\u0633\\u062a\\u0645\\u0631\\u0627\\u0631\\s+\\u0628\\u062c\\u0648\\u062c\\u0644)/i;
+
+    function inspect(node) {
+      var current = node;
+      var matched = null;
+      for (var depth = 0; current && current !== document.body && current !== document.documentElement && depth < 9; depth++) {
+        if (current.id && current.id.indexOf('otlobli') === 0) break;
+        var text = getElementText(current).replace(/[\\u064B-\\u065F\\u0670]/g, '');
+        var hasEmailInput = false;
+        if (text.length > 0 && text.length < 720 && signupPattern.test(text)) {
+          var inputs = current.querySelectorAll ? current.querySelectorAll('input') : [];
+          for (var ii = 0; ii < inputs.length; ii++) {
+            var inputHint = String(inputs[ii].getAttribute('type') || '') + ' ' +
+              String(inputs[ii].getAttribute('placeholder') || '') + ' ' +
+              String(inputs[ii].getAttribute('aria-label') || '');
+            if (emailPattern.test(inputHint)) { hasEmailInput = true; break; }
+          }
+        }
+        var authSurface = authPattern.test(text);
+        var exactOfferStrip = !authSurface && offerPattern.test(text) && signupPattern.test(text);
+        var exactNewsletterPanel = !authSurface && signupPattern.test(text) && newsletterPattern.test(text) && hasEmailInput;
+        if (text.length > 0 && text.length < 720 && (exactOfferStrip || exactNewsletterPanel)) {
+          var rect = current.getBoundingClientRect();
+          var style = window.getComputedStyle(current);
+          var positioned = style.position === 'fixed' || style.position === 'sticky' || style.position === 'absolute';
+          var touchesNav = rect.bottom >= navTop - 36 && rect.top < navTop + 20;
+          var offerPlacement = exactOfferStrip && rect.width >= vp.width * 0.62 &&
+            rect.height >= 32 && rect.height <= 180 && rect.top >= Math.max(0, navTop - 220) &&
+            touchesNav && (positioned || Math.abs(rect.bottom - navTop) <= 48);
+          var newsletterPlacement = exactNewsletterPanel && rect.width >= vp.width * 0.62 &&
+            rect.height >= 80 && rect.height <= 520;
+          if (offerPlacement || newsletterPlacement) {
+            matched = current;
+          }
+        }
+        current = current.parentElement;
+      }
+      if (!matched) return;
+      matched.style.setProperty('display', 'none', 'important');
+      matched.style.setProperty('visibility', 'hidden', 'important');
+      matched.style.setProperty('pointer-events', 'none', 'important');
+      matched.setAttribute('data-otlobli-hidden-shein-signup', 'exact-offer-or-newsletter');
+    }
+
+    var xs = [Math.round(vp.width * 0.08), Math.round(vp.width * 0.28), Math.round(vp.width * 0.5), Math.round(vp.width * 0.72), Math.round(vp.width * 0.92)];
+    var ys = [Math.max(1, Math.round(navTop - 6)), Math.max(1, Math.round(navTop - 32)), Math.max(1, Math.round(navTop - 58))];
+    for (var yi = 0; yi < ys.length; yi++) {
+      for (var xi = 0; xi < xs.length; xi++) {
+        var stack = document.elementsFromPoint(xs[xi], ys[yi]);
+        for (var si = 0; si < stack.length; si++) inspect(stack[si]);
+      }
+    }
+    var emailInputs = document.querySelectorAll('input[type="email"], input[placeholder], input[aria-label]');
+    for (var ei = 0; ei < emailInputs.length; ei++) inspect(emailInputs[ei]);
+  }
+
   // SHEIN can draw its own black "added successfully" toast over Otlobli's
   // nav after our capture completes. Hide only that exact compact success
   // message; the real product button and every other bottom action remain.
@@ -4862,6 +5012,109 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (window.mobileApp && window.mobileApp.postMessage) {
         window.mobileApp.postMessage({ detail: { type: 'sheinBlocked' } });
       }
+    }
+  }
+
+  // SHEIN's photo viewer is a direct, fixed, near-full-screen body child that
+  // contains a large product image plus its "current/total" counter. Those
+  // structural facts are stable across obfuscated class names and exclude the
+  // ordinary PDP carousel, so no broad gallery CSS is needed.
+  var __otlobliSheinViewerRoot = null;
+  function sheinImageViewerRoot() {
+    if (!IS_SHEIN || !document.body || !looksLikeProductPage()) return null;
+    var vp = viewportSize();
+    var minArea = vp.width * vp.height * 0.68;
+    var candidates = document.querySelectorAll('body > div, body > section, body > [role="dialog"]');
+    for (var i = candidates.length - 1; i >= 0; i--) {
+      var el = candidates[i];
+      if (!el || (el.id || '').indexOf('otlobli') === 0) continue;
+      var cs = window.getComputedStyle(el);
+      if (cs.position !== 'fixed') continue;
+      if (cs.display === 'none' || cs.visibility === 'hidden' || parseFloat(cs.opacity || '1') <= 0.01) continue;
+      var r = el.getBoundingClientRect();
+      if (r.width * r.height < minArea || r.width < vp.width * 0.88) continue;
+      if (r.top > 90 || r.bottom < vp.height - 190) continue;
+      var text = String(el.innerText || el.textContent || '').replace(/\\s+/g, ' ').trim();
+      if (text.length > 420 || !/\\d+\\s*\\/\\s*\\d+/.test(text)) continue;
+      var images = el.querySelectorAll ? el.querySelectorAll('img') : [];
+      var hasLargeImage = false;
+      for (var j = 0; j < images.length; j++) {
+        var ir = images[j].getBoundingClientRect();
+        if (ir.width >= vp.width * 0.5 && ir.height >= vp.height * 0.3) {
+          hasLargeImage = true;
+          break;
+        }
+      }
+      if (hasLargeImage) return el;
+    }
+    return null;
+  }
+
+  function sheinImageViewerOpen() {
+    return !!sheinImageViewerRoot();
+  }
+
+  // Older WKWebView can keep hit-testing a max-z fixed element while painting
+  // a newer composited full-screen sibling over it. When the exact SHEIN
+  // viewer appears, reclaim paint order once (not every tick), make the back
+  // button opaque over SHEIN's close glyph, and place a transparent guard in
+  // the lower black letterbox so taps cannot fall through to a native/add
+  // action. Outside the viewer every v85.8.10 nav style remains untouched.
+  function stabilizeSheinImageViewerChrome() {
+    if (!IS_SHEIN || !document.body) return;
+    var viewer = sheinImageViewerRoot();
+    var guard = document.getElementById('otlobli-shein-viewer-bottom-guard');
+    var nav = document.getElementById('otlobli-nav');
+    var back = document.getElementById('otlobli-back-btn');
+
+    if (!viewer) {
+      if (guard) guard.remove();
+      __otlobliSheinViewerRoot = null;
+      if (back) back.style.setProperty('background', 'rgba(20,24,22,.6)', 'important');
+      return;
+    }
+
+    var vp = viewportSize();
+    var navRect = nav && nav.getBoundingClientRect ? nav.getBoundingClientRect() : null;
+    var navHeight = navRect && navRect.height > 0 ? Math.round(navRect.height) : 90;
+    if (!guard) {
+      guard = document.createElement('div');
+      guard.id = 'otlobli-shein-viewer-bottom-guard';
+      guard.setAttribute('aria-hidden', 'true');
+      guard.style.cssText = 'position:fixed!important;left:0!important;right:0!important;' +
+        'background:transparent!important;z-index:2147483647!important;pointer-events:auto!important;' +
+        'touch-action:none!important;transform:translate3d(0,0,0)!important;will-change:transform!important;';
+    }
+    guard.style.setProperty('bottom', navHeight + 'px', 'important');
+    guard.style.setProperty('height', Math.max(72, Math.min(96, Math.round(vp.height * 0.09))) + 'px', 'important');
+
+    var viewerFollowsChrome = false;
+    if (__otlobliSheinViewerRoot === viewer && back && viewer.compareDocumentPosition) {
+      viewerFollowsChrome = !!(back.compareDocumentPosition(viewer) & 4);
+    }
+    if (__otlobliSheinViewerRoot !== viewer || viewerFollowsChrome || !guard.parentElement) {
+      // Append in back-to-front order. Moving these existing nodes only on a
+      // viewer transition avoids the repeating animation/flicker caused by
+      // reclaiming them on every 300ms tick.
+      document.body.appendChild(guard);
+      if (nav) document.body.appendChild(nav);
+      if (back) {
+        back.style.setProperty('animation', 'none', 'important');
+        document.body.appendChild(back);
+      }
+      __otlobliSheinViewerRoot = viewer;
+    }
+
+    if (nav) {
+      nav.style.setProperty('opacity', '1', 'important');
+      nav.style.setProperty('visibility', 'visible', 'important');
+      nav.style.setProperty('pointer-events', 'auto', 'important');
+    }
+    if (back) {
+      back.style.setProperty('opacity', '1', 'important');
+      back.style.setProperty('visibility', 'visible', 'important');
+      back.style.setProperty('pointer-events', 'auto', 'important');
+      back.style.setProperty('background', 'rgba(20,24,22,.92)', 'important');
     }
   }
 
@@ -5014,6 +5267,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     ensureLoadingOverlay();
     blockCartNavigation();
     ensureAddToCartButton();
+    stabilizeSheinImageViewerChrome();
     hideKnownHeaderIconsByHint();
     hideSheinHeaderControls();
     hideExtraHeaderIcons();
@@ -5021,6 +5275,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     hideListingCardAddButtons();
     hideForeignBottomNav();
     protectSheinCookieConsentAction();
+    hideSheinSignupDiscountBanner();
     hideSheinCartSuccessToast();
     hideSheinAppInstallPrompts();
     // Readiness must be the final step. Previously it was posted before the
@@ -5872,7 +6127,24 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // to when this line ran. document.documentElement (<html>) - unlike body -
   // is guaranteed to exist this early, and observing it with subtree:true
   // covers body and everything under it once they do appear.
-  var observer = new MutationObserver(scheduleTick);
+  var __otlobliSignupFramePending = false;
+  var observer = new MutationObserver(function () {
+    // MutationObserver callbacks run before the browser's next paint. Catch
+    // the exact post-consent signup strip here so it never gets one visible
+    // frame above Otlobli's navigation on slower iPhone-6 WebViews. Coalescing
+    // to one requestAnimationFrame avoids repeated geometry work during a
+    // large SHEIN render batch while still running before that frame paints.
+    if (!__otlobliSignupFramePending) {
+      __otlobliSignupFramePending = true;
+      var inspectSignupBeforePaint = function () {
+        __otlobliSignupFramePending = false;
+        try { hideSheinSignupDiscountBanner(); } catch (e) {}
+      };
+      if (window.requestAnimationFrame) window.requestAnimationFrame(inspectSignupBeforePaint);
+      else setTimeout(inspectSignupBeforePaint, 0);
+    }
+    scheduleTick();
+  });
   observer.observe(document.documentElement, { childList: true, subtree: true });
 
   setInterval(tick, 300);
