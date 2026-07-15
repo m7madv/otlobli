@@ -58,4 +58,3 @@ Test on iPhone 6 and iPhone 16 Pro Max:
 - `git diff --check` passed.
 - Xcode unsigned build and packaging passed in run `29402834663`.
 - Embedded v85.8.6 marker and desktop IPA SHA-256 were verified.
-

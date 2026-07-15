@@ -33,4 +33,3 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Next Step
 
 Install v85.8.6 on iPhone 6 and iPhone 16 Pro Max and execute the checklist in `CURRENT_STATE.md`. Fix only one confirmed remaining issue at a time from this candidate. Do not touch Temu, payment, wallet, completed orders, or design without explicit scope/Figma.
-
