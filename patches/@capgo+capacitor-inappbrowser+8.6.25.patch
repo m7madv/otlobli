@@ -196,7 +196,7 @@ index 8ae3e61..fc6cf04 100644
 +                    if (otlobliLoadingCoverLabel != null) otlobliLoadingCoverLabel.setText(otlobliLoadingCoverMessage);
 +                    showOtlobliLoadingCover();
 +                }
-+                case "sheinSaudiReady", "sheinPageInteractive", "humanCheck", "sheinBlocked" -> hideOtlobliLoadingCover();
++                case "sheinPageInteractive", "humanCheck", "sheinBlocked" -> hideOtlobliLoadingCover();
 +                default -> {
 +                    // Other bridge messages are forwarded unchanged.
 +                }
@@ -714,7 +714,7 @@ index 97a2fc1..c24d7e2 100644
 +            otlobliLoadingCoverLabel?.text = otlobliLoadingCoverMessage
 +            showOtlobliLoadingCover()
 +            scheduleOtlobliChallengeReveal()
-+        case "sheinSaudiReady", "sheinPageInteractive", "sheinBlocked":
++        case "sheinPageInteractive", "sheinBlocked":
 +            cancelOtlobliChallengeReveal()
 +            hideOtlobliLoadingCover()
 +        default:

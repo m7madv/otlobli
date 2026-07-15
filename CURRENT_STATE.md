@@ -7,11 +7,11 @@ Last updated: 2026-07-15
 - Branch: `codex/customer-wallet-group-orders`.
 - Stable tested reference: v85.8.5 / `a914d81`.
 - Reference IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.5-nav-cairo-font-match-no-otp-test.ipa`.
-- Active working candidate: v85.8.13 (`b9cbb8e`; built, real-device acceptance pending).
+- Active working candidate: v85.8.14 (uncommitted; no IPA yet; real-device acceptance pending).
 - Last built IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.13.ipa`.
 - Last IPA SHA-256: `D1AEEF4A3ACA77DA1D8A216BBD457DD58E48830F9A48AFDE3D84A73A4700A109`.
 - Last iOS build run: `29422476203` (v85.8.13 success).
-- `APP_VERSION = 2026.07.15-v85.8.13-shein-ios-compat-guards-no-otp-test`.
+- `APP_VERSION = 2026.07.15-v85.8.14-shein-stable-interaction-gate-no-otp-test`.
 - Real-device acceptance is pending; do not claim the SHEIN issues are fixed yet.
 
 ## v85.8.6 Scope
@@ -91,6 +91,17 @@ Last updated: 2026-07-15
 - Passive SHEIN security frames stay behind the native preparation cover without the ordinary 45-second reveal timeout. The real page is revealed only when an interactive verification control exists, and challenge state clears again after SHEIN passes readiness.
 - Multi-choice descriptive variants such as `ملعقة` are never accepted from SHEIN's default highlight; capture requires a real customer tap recorded for that product.
 - Cart swatch shape and quantity-control styling remain pending because no Figma frame URL exists; no design was invented. Temu, payment, wallet, and orders are unchanged.
+
+## v85.8.14 Working Changes
+
+- Latest device report showed a fully painted but non-clickable SHEIN page on iPhone 16 and a two-second frozen paint on iPhone 6.
+- Fixed the readiness false positive: an ancestor/overlay returned by hit-testing no longer counts as the target control. Readiness now requires a complete document and four consecutive interactive checks.
+- Saudi address completion no longer releases the native cover by itself; only the stable interactive event can reveal the WebView.
+- Exact bounded cookie consent is hidden during preparation and its exact Accept-all control is retried for up to 30 throttled attempts, coordinated across document-start and hydrated scripts.
+- Standalone sizing-system labels such as DE/EU/US are never captured as product sizes, and the previous single-option auto-selection fallback was removed.
+- Old-WK gallery detection now supports a strongly bounded absolute full-screen viewer with an exact numeric counter and large media, restoring nav/back paint and click-through protection on iPhone 6.
+- No broad CSS, reload loop, storage reset, Temu change, or payment/wallet/order change was added.
+- The reported full iPhone restart is not attributed to Otlobli without an Apple panic/Jetsam/crash log.
 
 ## Failed Paths / Guardrails
 

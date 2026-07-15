@@ -5,7 +5,8 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Current Candidate
 
 - Branch: `codex/customer-wallet-group-orders`.
-- Current code/IPA: `b9cbb8e` / `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.13.ipa`.
+- Current code: uncommitted v85.8.14 working tree based on `b9cbb8e`; no v85.8.14 IPA yet.
+- Last IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.13.ipa`.
 - SHA-256: `D1AEEF4A3ACA77DA1D8A216BBD457DD58E48830F9A48AFDE3D84A73A4700A109`.
 - Build run: `29422476203` (success).
 - Rollback/reference: v85.8.5 / `a914d81` and the user-provided v85.8.5 IPA.
@@ -38,8 +39,10 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 - v85.8.13 mounts the existing nav before `<body>`, starts Saudi repair only after nav paint, auto-accepts only an exact cookie consent, recovers only recent-product auth interstitials, forces gallery-back paint on old WKWebView, and blocks late-detected size products before final capture.
 - It also preserves WebKit cache on routine Temu -> SHEIN switches, requires real hit-testable controls for readiness, performs at most one cache-preserving recovery after a trusted dead tap, and keeps passive security frames covered without a timeout until a real verification control exists.
 - Multi-choice descriptive variants (for example `ملعقة`) require a trusted customer tap; SHEIN's automatic first-option highlight is ignored.
+- v85.8.14 corrects the readiness hit-test false positive, requires four consecutive complete/interactive checks, and makes only `sheinPageInteractive` release the cover. Exact cookie Accept-all retries are shared and hidden; DE/EU/US are rejected as sizing systems; the old-WK gallery matcher accepts only a strongly bounded full-screen absolute viewer with an exact counter and large media.
+- A full-device restart needs the matching Apple panic/Jetsam/crash log before assigning cause; do not infer it from the screenshot alone.
 - Cart swatch/quantity visual changes are pending an exact Figma frame URL. Do not invent them.
 
 ## Next Step
 
-Install the built v85.8.13 IPA and test exact consent auto-accept, persistent nav during Saudi repair, first product entry without auth interruption, visible gallery back on iPhone 6, strict size selection on both phones, a weak single-VPN Temu -> SHEIN return, and the pictured descriptive-option product.
+After review, build v85.8.14 and test first/fresh SHEIN entry, repeated entry, exact consent auto-accept, persistent nav during Saudi repair, visible gallery back on iPhone 6, strict size selection on both phones, and Temu -> SHEIN return. Do not call it fixed before both phones pass.
