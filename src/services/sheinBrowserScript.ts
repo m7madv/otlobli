@@ -125,31 +125,62 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
     }
   }
 
+  var __otlobliEarlyCookieScanAt = 0;
   function protectCookieConsentAction() {
     if (!document.body) return;
-    var buttons = document.querySelectorAll('button, [role="button"]');
-    var acceptPattern = /^(?:accept all|allow all|agree to all|\\u0642\\u0628\\u0648\\u0644 \\u0627\\u0644\\u0643\\u0644|\\u0627\\u0644\\u0633\\u0645\\u0627\\u062d \\u0644\\u0644\\u0643\\u0644)$/i;
-    var cookiePattern = /cookie|cookies|\\u0645\\u0644\\u0641\\u0627\\u062a/i;
+    var scanNow = Date.now();
+    if (scanNow - __otlobliEarlyCookieScanAt < 650) return;
+    __otlobliEarlyCookieScanAt = scanNow;
+    var buttons = document.querySelectorAll('button, [role="button"], a, input[type="button"], input[type="submit"]');
+    var acceptPattern = /^(?:accept(?: all)?|allow(?: all)?|agree(?: to all)?|\\u0642\\u0628\\u0648\\u0644(?: \\u0627\\u0644\\u0643\\u0644)?|\\u0627\\u0642\\u0628\\u0644(?: \\u0627\\u0644\\u0643\\u0644)?|\\u0627\\u0644\\u0633\\u0645\\u0627\\u062d (?:\\u0644\\u0644\\u0643\\u0644|\\u0644\\u0644\\u062c\\u0645\\u064a\\u0639)|\\u0645\\u0648\\u0627\\u0641\\u0642)$/i;
+    var rejectPattern = /^(?:reject all|decline all|deny all|\\u0631\\u0641\\u0636 \\u0627\\u0644\\u0643\\u0644|\\u0639\\u062f\\u0645 \\u0627\\u0644\\u0642\\u0628\\u0648\\u0644)$/i;
+    var cookiePattern = /cookies?|\\u0645\\u0644\\u0641\\u0627\\u062a \\u062a\\u0639\\u0631\\u064a\\u0641 \\u0627\\u0644\\u0627\\u0631\\u062a\\u0628\\u0627\\u0637|\\u0627\\u0644\\u062a\\u0642\\u0646\\u064a\\u0627\\u062a \\u0627\\u0644\\u0645\\u0645\\u0627\\u062b\\u0644\\u0629/i;
     var vpHeight = window.innerHeight || document.documentElement.clientHeight || 0;
     for (var i = 0; i < buttons.length; i++) {
       var button = buttons[i];
-      if (!acceptPattern.test(normalizedText(button))) continue;
+      var buttonLabel = normalizedText(button) || String(button.value || '').replace(/\\s+/g, ' ').trim();
+      if (!acceptPattern.test(buttonLabel)) continue;
       var scope = button;
       var cookieScope = null;
       for (var hop = 0; scope && hop < 7; hop++, scope = scope.parentElement) {
         var scopeText = normalizedText(scope);
-        if (scopeText.length < 1800 && cookiePattern.test(scopeText)) cookieScope = scope;
+        if (scopeText.length < 2400 && cookiePattern.test(scopeText)) {
+          cookieScope = scope;
+          break;
+        }
       }
       if (!cookieScope) continue;
-      var rect = button.getBoundingClientRect();
-      if (rect.bottom < vpHeight - 72) continue;
-      var actionRoot = button.parentElement || button;
+      var scopedControls = cookieScope.querySelectorAll('button, [role="button"], a, input[type="button"], input[type="submit"]');
+      var reject = null;
+      for (var ri = 0; ri < scopedControls.length; ri++) {
+        var rejectLabel = normalizedText(scopedControls[ri]) || String(scopedControls[ri].value || '').replace(/\\s+/g, ' ').trim();
+        if (rejectPattern.test(rejectLabel)) { reject = scopedControls[ri]; break; }
+      }
+      var actionRoot = button;
+      if (reject) {
+        for (var parent = button.parentElement, depth = 0; parent && parent !== cookieScope.parentElement && depth < 6; parent = parent.parentElement, depth++) {
+          var parentRect = parent.getBoundingClientRect();
+          if (parent.contains(reject) && parentRect.height > 0 && parentRect.height <= 220) {
+            actionRoot = parent;
+            break;
+          }
+        }
+      } else if (button.parentElement) {
+        actionRoot = button.parentElement;
+      }
       var actionRect = actionRoot.getBoundingClientRect();
-      if (actionRect.height <= 0 || actionRect.height > 180) actionRoot = button;
+      if (actionRect.height <= 0 || actionRect.height > 220) {
+        actionRoot = button;
+        actionRect = button.getBoundingClientRect();
+      }
+      var nav = document.getElementById('otlobli-nav');
+      var navRect = nav && nav.getBoundingClientRect ? nav.getBoundingClientRect() : null;
+      var navTop = navRect && navRect.top > 0 ? navRect.top : vpHeight - 86;
+      if (actionRect.bottom < navTop - 8) continue;
       if (actionRoot.getAttribute('data-otlobli-cookie-raised') === '1') continue;
       var style = window.getComputedStyle(actionRoot);
       if (style.position === 'static') actionRoot.style.setProperty('position', 'relative', 'important');
-      actionRoot.style.setProperty('bottom', 'calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))', 'important');
+      actionRoot.style.setProperty('bottom', Math.max(74, Math.ceil(actionRect.bottom - navTop + 12)) + 'px', 'important');
       actionRoot.style.setProperty('z-index', '2147483646', 'important');
       actionRoot.setAttribute('data-otlobli-cookie-raised', '1');
     }
@@ -159,8 +190,12 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
   // consent on older layouts. Identify that one strip by its exact semantics
   // and bottom-edge geometry instead of relying on obfuscated class names or
   // hiding generic promotional elements (which would also match products).
+  var __otlobliEarlySignupScanAt = 0;
   function hideExactSheinSignupDiscountBanner() {
     if (!document.body || !document.elementsFromPoint) return;
+    var scanNow = Date.now();
+    if (scanNow - __otlobliEarlySignupScanAt < 650) return;
+    __otlobliEarlySignupScanAt = scanNow;
     var vpHeight = window.innerHeight || document.documentElement.clientHeight || 0;
     var vpWidth = window.innerWidth || document.documentElement.clientWidth || 0;
     var nav = document.getElementById('otlobli-nav');
@@ -214,8 +249,8 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
       matched.setAttribute('data-otlobli-hidden-shein-signup', 'exact-offer-or-newsletter');
     }
 
-    var xs = [Math.round(vpWidth * 0.08), Math.round(vpWidth * 0.28), Math.round(vpWidth * 0.5), Math.round(vpWidth * 0.72), Math.round(vpWidth * 0.92)];
-    var ys = [Math.max(1, Math.round(navTop - 6)), Math.max(1, Math.round(navTop - 32)), Math.max(1, Math.round(navTop - 58))];
+    var xs = [Math.round(vpWidth * 0.12), Math.round(vpWidth * 0.5), Math.round(vpWidth * 0.88)];
+    var ys = [Math.max(1, Math.round(navTop - 10)), Math.max(1, Math.round(navTop - 54))];
     for (var yi = 0; yi < ys.length; yi++) {
       for (var xi = 0; xi < xs.length; xi++) {
         var stack = document.elementsFromPoint(xs[xi], ys[yi]);
@@ -225,8 +260,13 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
     // The larger newsletter variant can be ordinary page content rather than
     // fixed. Start from its tiny set of email inputs so it is removed while
     // still off-screen, before scrolling could reveal it above the nav.
-    var emailInputs = document.querySelectorAll('input[type="email"], input[placeholder], input[aria-label]');
-    for (var ei = 0; ei < emailInputs.length; ei++) inspect(emailInputs[ei]);
+    var emailInputs = document.getElementsByTagName('input');
+    for (var ei = 0; ei < emailInputs.length && ei < 80; ei++) {
+      var emailHint = String(emailInputs[ei].getAttribute('type') || '') + ' ' +
+        String(emailInputs[ei].getAttribute('placeholder') || '') + ' ' +
+        String(emailInputs[ei].getAttribute('aria-label') || '');
+      if (emailPattern.test(emailHint)) inspect(emailInputs[ei]);
+    }
   }
 
   function runEarlyProtections() {
@@ -1120,6 +1160,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var sheinShippingActionCount = 0;
   var sheinShippingLastActionAt = 0;
   var sheinShippingLastScanAt = 0;
+  var sheinShippingCloseLastAt = 0;
 
   function sheinClickNativeShippingControl(target) {
     if (!target || typeof target.click !== 'function') return false;
@@ -1148,6 +1189,96 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
+  // Once SHEIN has written its signed Saudi address, close only the native
+  // address surface that performed that selection. This never navigates,
+  // clears storage, or clicks a generic page button; it is deliberately
+  // limited to a visible shipping drawer and its exact close/confirm action.
+  function sheinResolvedShippingUiRoot() {
+    if (!document.body) return null;
+    var vp = { width: window.innerWidth || 0, height: window.innerHeight || 0 };
+    var options = sheinVisibleCascadeOptions();
+    var tabs = sheinVisibleShippingTabs();
+    var seed = options[0] || tabs[0] || null;
+    var matched = null;
+
+    function inspect(el) {
+      if (!el || el === document.body || el === document.documentElement || !sheinElementIsVisible(el)) return false;
+      var rect = el.getBoundingClientRect();
+      if (rect.width < vp.width * 0.72 || rect.height < vp.height * 0.2) return false;
+      var text = sheinUiText(el);
+      if (!text || text.length > 6500) return false;
+      var hasSaudi = /Saudi Arabia|\\u0627\\u0644\\u0633\\u0639\\u0648\\u062f\\u064a\\u0629/i.test(text);
+      var hasAddressShape = /(?:Choose|Select)\\s+(?:a\\s+)?location|Riyadh|Al Olaya|Bahrain|\\u0627\\u062e\\u062a\\u064a\\u0627\\u0631\\s+\\u0645\\u0648\\u0642\\u0639|\\u0627\\u0644\\u0631\\u064a\\u0627\\u0636|\\u0627\\u0644\\u0628\\u062d\\u0631\\u064a\\u0646/i.test(text);
+      return hasSaudi && hasAddressShape;
+    }
+
+    if (seed) {
+      var current = seed;
+      for (var depth = 0; current && current !== document.body && depth < 9; current = current.parentElement, depth++) {
+        if (inspect(current)) matched = current;
+      }
+      if (matched) return matched;
+    }
+
+    var candidates = document.querySelectorAll(
+      '.sui-drawer__body,[role="dialog"],[aria-modal="true"],[class*="drawer"],[class*="cascade"]'
+    );
+    for (var i = candidates.length - 1; i >= 0; i--) {
+      var candidateRoot = null;
+      for (var candidate = candidates[i], hop = 0; candidate && candidate !== document.body && hop < 5; candidate = candidate.parentElement, hop++) {
+        if (inspect(candidate)) candidateRoot = candidate;
+      }
+      if (candidateRoot) return candidateRoot;
+    }
+    return null;
+  }
+
+  function closeResolvedSheinShippingUi() {
+    if (!sheinSignedSaudiAddressReady()) return false;
+    var now = Date.now();
+    if (now - sheinShippingCloseLastAt < 1200) return false;
+    var root = sheinResolvedShippingUiRoot();
+    if (!root) return false;
+    var controls = root.querySelectorAll('button, a, [role="button"], input[type="button"], input[type="submit"]');
+    var closePattern = /^(?:close|dismiss|done|\\u00d7|\\u2715|\\u2716|\\u0625\\u063a\\u0644\\u0627\\u0642|\\u0627\\u063a\\u0644\\u0627\\u0642|\\u062a\\u0645)$/i;
+    var confirmPattern = /^(?:continue|confirm|save|\\u0645\\u062a\\u0627\\u0628\\u0639\\u0629|\\u062a\\u0623\\u0643\\u064a\\u062f|\\u062d\\u0641\\u0638)$/i;
+    var closeTarget = null;
+    var confirmTarget = null;
+    for (var i = 0; i < controls.length; i++) {
+      var control = controls[i];
+      if (!control || (control.id && control.id.indexOf('otlobli') === 0) || !sheinElementIsVisible(control)) continue;
+      var label = String(control.innerText || control.textContent || control.value ||
+        control.getAttribute('aria-label') || control.getAttribute('title') || '')
+        .replace(/\\s+/g, ' ').trim();
+      if (closePattern.test(label)) { closeTarget = control; break; }
+      if (!confirmTarget && confirmPattern.test(label)) confirmTarget = control;
+      if (!closeTarget) {
+        var hint = String((control.className || '') + ' ' + (control.id || '') + ' ' +
+          (control.getAttribute('aria-label') || '') + ' ' + (control.getAttribute('title') || '')).toLowerCase();
+        var rect = control.getBoundingClientRect();
+        var rootRect = root.getBoundingClientRect();
+        if (/close|dismiss|drawer-close|popup-close/.test(hint) && rect.width <= 72 && rect.height <= 72 &&
+            rect.top <= rootRect.top + Math.max(96, rootRect.height * 0.2)) {
+          closeTarget = control;
+        }
+      }
+    }
+    var target = closeTarget || confirmTarget;
+    if (!target) return false;
+    sheinShippingCloseLastAt = now;
+    target.setAttribute('data-otlobli-shein-shipping-action', '1');
+    try {
+      target.click();
+      return true;
+    } catch (e) {
+      return false;
+    } finally {
+      setTimeout(function () {
+        try { target.removeAttribute('data-otlobli-shein-shipping-action'); } catch (e) {}
+      }, 1500);
+    }
+  }
+
   function ensureSheinSaudiShippingSelection() {
     if (!IS_SHEIN || !document.body || document.readyState === 'loading') return;
     var now = Date.now();
@@ -1155,12 +1286,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // that frequency and would be needlessly expensive on older iPhones.
     if (now - sheinShippingLastScanAt < 900) return;
     sheinShippingLastScanAt = now;
-    if (sheinShippingActionCount >= 8 && now - sheinShippingLastActionAt < 120000) return;
     var addressCountry = sheinAddressCookieCountry();
     if (addressCountry === SHEIN_REQUIRED_COUNTRY && sheinSignedSaudiAddressReady()) {
       sheinShippingActionCount = 0;
+      closeResolvedSheinShippingUi();
       return;
     }
+    if (sheinShippingActionCount >= 8 && now - sheinShippingLastActionAt < 120000) return;
     if (now - sheinShippingLastActionAt < 1200) return;
     if (sheinNativeSaudiAddressStep(addressCountry)) return;
     // A native address drawer may be between async cascade stages. Never
@@ -1443,7 +1575,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (!srcset) return '';
       var parts = String(srcset).split(',').map(function (part) { return part.trim(); }).filter(Boolean);
       if (!parts.length) return '';
-      return parts[parts.length - 1].split(/\s+/)[0] || '';
+      return parts[parts.length - 1].split(/\\s+/)[0] || '';
     };
     var candidates = [
       img.getAttribute && img.getAttribute('data-src'),
@@ -4112,7 +4244,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     btn.style.display = shouldShow ? 'flex' : 'none';
   }
 
-  function isAddToCartButton(el) {
+  function isAddToCartText(el) {
     var text = (el.textContent || '').trim();
     if (!text || text.length > 60) return false;
     // The Arabic-only regex below is what was actually missing - SHEIN's
@@ -4122,6 +4254,29 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // add-to-cart fired untouched (confirmed by a user screenshot showing
     // SHEIN's own "أضف إلى عربة التسوق بنجاح" success bar).
     return /add to (bag|cart)/i.test(text) || /أضف.*(عربة|السلة|الحقيبة|التسوق)/.test(text);
+  }
+
+  function isAddToCartButton(el, event) {
+    if (!el || el.nodeType !== 1 || !isAddToCartText(el)) return false;
+    // Text on a large gallery/page wrapper must never be treated as a button.
+    // Require the real compact interactive control and require the pointer to
+    // actually be inside its painted rectangle.
+    var tag = String(el.tagName || '').toUpperCase();
+    var role = String(el.getAttribute && el.getAttribute('role') || '').toLowerCase();
+    var interactive = tag === 'BUTTON' || tag === 'A' || tag === 'INPUT' ||
+      role === 'button' || typeof el.onclick === 'function';
+    if (!interactive) {
+      try { interactive = window.getComputedStyle(el).cursor === 'pointer'; } catch (e) {}
+    }
+    if (!interactive || !el.getBoundingClientRect) return false;
+    var rect = el.getBoundingClientRect();
+    var vp = viewportSize();
+    if (!rect || rect.width < 42 || rect.height < 24 || rect.height > 120 || rect.width > vp.width * 0.96) return false;
+    if (event && typeof event.clientX === 'number' && typeof event.clientY === 'number') {
+      if (event.clientX < rect.left - 2 || event.clientX > rect.right + 2 ||
+          event.clientY < rect.top - 2 || event.clientY > rect.bottom + 2) return false;
+    }
+    return true;
   }
 
   // SHEIN's "quick add" popup (opened from a listing card, without ever
@@ -4248,6 +4403,32 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // هذا الحارس أول سطر بالضبط - لا تُدمِج منطق شي إن وتيمو هنا مطلقاً.
     if (!IS_SHEIN) return;
     var el = event.target;
+    // A full-screen product gallery may be painted above a still-hit-testable
+    // PDP action on older WKWebView. While that exact viewer is open, block
+    // only dangerous underlying cart/wishlist controls and otherwise leave
+    // the gallery's own tap/swipe/close behavior untouched.
+    if (looksLikeProductPage() && sheinImageViewerOpen(true)) {
+      var viewerNode = el;
+      for (var viewerDepth = 0; viewerNode && viewerDepth < 7; viewerDepth++, viewerNode = viewerNode.parentElement) {
+        if (viewerNode.id && viewerNode.id.indexOf('otlobli') === 0) {
+          var viewerOtlobliId = viewerNode.id;
+          if (viewerOtlobliId === 'otlobli-nav' || viewerOtlobliId.indexOf('otlobli-nav-tab-') === 0 ||
+              viewerOtlobliId === 'otlobli-back-btn') return;
+          event.preventDefault();
+          if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+          event.stopPropagation();
+          return;
+        }
+        if (isAddToCartButton(viewerNode, event) || isQuickAddSubmitButton(viewerNode) ||
+            isCartLink(viewerNode) || isWishlistButton(viewerNode)) {
+          event.preventDefault();
+          if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+          event.stopPropagation();
+          return;
+        }
+      }
+      return;
+    }
     var depth = 0;
     while (el && depth < 6) {
       if (el.id && el.id.indexOf('otlobli') === 0) return;
@@ -4305,7 +4486,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         event.stopPropagation();
         return;
       }
-      if (isAddToCartButton(el)) {
+      if (isAddToCartButton(el, event)) {
         // Block SHEIN's own click handler from ever firing - otherwise it adds
         // the item to SHEIN's real bag and shows its own "added to bag" toast
         // alongside ours, which is exactly the native-cart usage we're trying
@@ -4790,32 +4971,62 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // Keep SHEIN's explicit cookie-consent action reachable without accepting
   // anything on the customer's behalf. Only the exact consent action row is
   // raised, and only when it would otherwise sit under Otlobli's fixed nav.
+  var __otlobliCookieScanAt = 0;
   function protectSheinCookieConsentAction() {
     if (!IS_SHEIN || !document.body) return;
-    var controls = document.querySelectorAll('button, [role="button"]');
-    var acceptPattern = /^(?:accept all|allow all|agree to all|\\u0642\\u0628\\u0648\\u0644 \\u0627\\u0644\\u0643\\u0644|\\u0627\\u0644\\u0633\\u0645\\u0627\\u062d \\u0644\\u0644\\u0643\\u0644)$/i;
-    var cookiePattern = /cookie|cookies|\\u0645\\u0644\\u0641\\u0627\\u062a/i;
+    var scanNow = Date.now();
+    if (scanNow - __otlobliCookieScanAt < 650) return;
+    __otlobliCookieScanAt = scanNow;
+    var controls = document.querySelectorAll('button, [role="button"], a, input[type="button"], input[type="submit"]');
+    var acceptPattern = /^(?:accept(?: all)?|allow(?: all)?|agree(?: to all)?|\\u0642\\u0628\\u0648\\u0644(?: \\u0627\\u0644\\u0643\\u0644)?|\\u0627\\u0642\\u0628\\u0644(?: \\u0627\\u0644\\u0643\\u0644)?|\\u0627\\u0644\\u0633\\u0645\\u0627\\u062d (?:\\u0644\\u0644\\u0643\\u0644|\\u0644\\u0644\\u062c\\u0645\\u064a\\u0639)|\\u0645\\u0648\\u0627\\u0641\\u0642)$/i;
+    var rejectPattern = /^(?:reject all|decline all|deny all|\\u0631\\u0641\\u0636 \\u0627\\u0644\\u0643\\u0644|\\u0639\\u062f\\u0645 \\u0627\\u0644\\u0642\\u0628\\u0648\\u0644)$/i;
+    var cookiePattern = /cookies?|\\u0645\\u0644\\u0641\\u0627\\u062a \\u062a\\u0639\\u0631\\u064a\\u0641 \\u0627\\u0644\\u0627\\u0631\\u062a\\u0628\\u0627\\u0637|\\u0627\\u0644\\u062a\\u0642\\u0646\\u064a\\u0627\\u062a \\u0627\\u0644\\u0645\\u0645\\u0627\\u062b\\u0644\\u0629/i;
     var vp = viewportSize();
     for (var i = 0; i < controls.length; i++) {
       var button = controls[i];
-      var label = String(button.innerText || button.textContent || '').replace(/\\s+/g, ' ').trim();
+      var label = String(button.innerText || button.textContent || button.value || button.getAttribute('aria-label') || '').replace(/\\s+/g, ' ').trim();
       if (!acceptPattern.test(label)) continue;
       var scope = button;
-      var isCookieConsent = false;
+      var cookieScope = null;
       for (var hop = 0; scope && hop < 7; hop++, scope = scope.parentElement) {
         var text = String(scope.innerText || scope.textContent || '').replace(/\\s+/g, ' ').trim();
-        if (text.length < 1800 && cookiePattern.test(text)) isCookieConsent = true;
+        if (text.length < 2400 && cookiePattern.test(text)) {
+          cookieScope = scope;
+          break;
+        }
       }
-      if (!isCookieConsent) continue;
-      var rect = button.getBoundingClientRect();
-      if (rect.bottom < vp.height - 72) continue;
-      var actionRoot = button.parentElement || button;
+      if (!cookieScope) continue;
+      var scopedControls = cookieScope.querySelectorAll('button, [role="button"], a, input[type="button"], input[type="submit"]');
+      var reject = null;
+      for (var ri = 0; ri < scopedControls.length; ri++) {
+        var rejectLabel = String(scopedControls[ri].innerText || scopedControls[ri].textContent || scopedControls[ri].value || scopedControls[ri].getAttribute('aria-label') || '').replace(/\\s+/g, ' ').trim();
+        if (rejectPattern.test(rejectLabel)) { reject = scopedControls[ri]; break; }
+      }
+      var actionRoot = button;
+      if (reject) {
+        for (var parent = button.parentElement, depth = 0; parent && parent !== cookieScope.parentElement && depth < 6; parent = parent.parentElement, depth++) {
+          var parentRect = parent.getBoundingClientRect();
+          if (parent.contains(reject) && parentRect.height > 0 && parentRect.height <= 220) {
+            actionRoot = parent;
+            break;
+          }
+        }
+      } else if (button.parentElement) {
+        actionRoot = button.parentElement;
+      }
       var actionRect = actionRoot.getBoundingClientRect();
-      if (actionRect.height <= 0 || actionRect.height > 180) actionRoot = button;
+      if (actionRect.height <= 0 || actionRect.height > 220) {
+        actionRoot = button;
+        actionRect = button.getBoundingClientRect();
+      }
+      var nav = document.getElementById('otlobli-nav');
+      var navRect = nav && nav.getBoundingClientRect ? nav.getBoundingClientRect() : null;
+      var navTop = navRect && navRect.top > 0 ? navRect.top : vp.height - 86;
+      if (actionRect.bottom < navTop - 8) continue;
       if (actionRoot.getAttribute('data-otlobli-cookie-raised') === '1') continue;
       var style = window.getComputedStyle(actionRoot);
       if (style.position === 'static') actionRoot.style.setProperty('position', 'relative', 'important');
-      actionRoot.style.setProperty('bottom', 'calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))', 'important');
+      actionRoot.style.setProperty('bottom', Math.max(74, Math.ceil(actionRect.bottom - navTop + 12)) + 'px', 'important');
       actionRoot.style.setProperty('z-index', '2147483646', 'important');
       actionRoot.setAttribute('data-otlobli-cookie-raised', '1');
     }
@@ -4825,8 +5036,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // 15%-off strip, or the newsletter panel with a real email field. These
   // compound checks prevent product discounts and the real auth form from
   // matching this rule.
+  var __otlobliSignupLastScanAt = 0;
   function hideSheinSignupDiscountBanner() {
     if (!IS_SHEIN || !document.body || !document.elementsFromPoint) return;
+    var scanNow = Date.now();
+    if (scanNow - __otlobliSignupLastScanAt < 700) return;
+    __otlobliSignupLastScanAt = scanNow;
     var vp = viewportSize();
     var nav = document.getElementById('otlobli-nav');
     var navRect = nav && nav.getBoundingClientRect ? nav.getBoundingClientRect() : null;
@@ -4879,16 +5094,71 @@ export const SHEIN_CAPTURE_SCRIPT = `
       matched.setAttribute('data-otlobli-hidden-shein-signup', 'exact-offer-or-newsletter');
     }
 
-    var xs = [Math.round(vp.width * 0.08), Math.round(vp.width * 0.28), Math.round(vp.width * 0.5), Math.round(vp.width * 0.72), Math.round(vp.width * 0.92)];
-    var ys = [Math.max(1, Math.round(navTop - 6)), Math.max(1, Math.round(navTop - 32)), Math.max(1, Math.round(navTop - 58))];
+    var xs = [Math.round(vp.width * 0.12), Math.round(vp.width * 0.5), Math.round(vp.width * 0.88)];
+    var ys = [Math.max(1, Math.round(navTop - 10)), Math.max(1, Math.round(navTop - 54))];
     for (var yi = 0; yi < ys.length; yi++) {
       for (var xi = 0; xi < xs.length; xi++) {
         var stack = document.elementsFromPoint(xs[xi], ys[yi]);
         for (var si = 0; si < stack.length; si++) inspect(stack[si]);
       }
     }
-    var emailInputs = document.querySelectorAll('input[type="email"], input[placeholder], input[aria-label]');
-    for (var ei = 0; ei < emailInputs.length; ei++) inspect(emailInputs[ei]);
+    var emailInputs = document.getElementsByTagName('input');
+    for (var ei = 0; ei < emailInputs.length && ei < 80; ei++) {
+      var emailHint = String(emailInputs[ei].getAttribute('type') || '') + ' ' +
+        String(emailInputs[ei].getAttribute('placeholder') || '') + ' ' +
+        String(emailInputs[ei].getAttribute('aria-label') || '');
+      if (emailPattern.test(emailHint)) inspect(emailInputs[ei]);
+    }
+  }
+
+  // Dismiss only unsolicited sign-in dialogs that SHEIN floats over a product.
+  // A real login route or a full account page is never modified, and no form
+  // field is hidden. This keeps cookie choices from turning into a forced
+  // account interruption while preserving user-initiated authentication.
+  var __otlobliSheinLoginDismissAt = 0;
+  function dismissSheinProductLoginPrompt() {
+    if (!IS_SHEIN || !document.body || !looksLikeProductPage()) return;
+    if (/(?:\\/user\\/login|\\/login|\\/signin|\\/sign-in|\\/auth)(?:[/?#]|$)/i.test(location.pathname + location.search)) return;
+    var now = Date.now();
+    if (now - __otlobliSheinLoginDismissAt < 900) return;
+    __otlobliSheinLoginDismissAt = now;
+    var vp = viewportSize();
+    var authPattern = /(?:sign\\s*in|log\\s*in|continue\\s+with|email|phone\\s+number|\\u062a\\u0633\\u062c\\u064a\\u0644\\s+\\u0627\\u0644\\u062f\\u062e\\u0648\\u0644|\\u0627\\u0644\\u0627\\u0633\\u062a\\u0645\\u0631\\u0627\\u0631\\s+\\u0628|\\u0627\\u0644\\u0628\\u0631\\u064a\\u062f\\s+\\u0627\\u0644(?:\\u0625|\\u0627)\\u0644\\u0643\\u062a\\u0631\\u0648\\u0646\\u064a|\\u0631\\u0642\\u0645\\s+\\u0627\\u0644\\u0647\\u0627\\u062a\\u0641)/i;
+    var cookiePattern = /cookies?|\\u0645\\u0644\\u0641\\u0627\\u062a \\u062a\\u0639\\u0631\\u064a\\u0641 \\u0627\\u0644\\u0627\\u0631\\u062a\\u0628\\u0627\\u0637/i;
+    var closePattern = /^(?:close|dismiss|skip|not now|maybe later|later|\\u00d7|\\u2715|\\u2716|\\u0625\\u063a\\u0644\\u0627\\u0642|\\u0627\\u063a\\u0644\\u0627\\u0642|\\u062a\\u062e\\u0637\\u064a|\\u0644\\u064a\\u0633 \\u0627\\u0644\\u0622\\u0646|\\u0644\\u0627\\u062d\\u0642(?:\\u0627|\\u0627\\u064b))$/i;
+    var candidates = document.querySelectorAll(
+      '[role="dialog"],[aria-modal="true"],[class*="login"],[class*="signin"],[class*="sign-in"],[class*="modal"],[class*="popup"],[class*="drawer"]'
+    );
+    for (var ci = candidates.length - 1; ci >= 0; ci--) {
+      var candidate = candidates[ci];
+      if (!candidate || (candidate.id && candidate.id.indexOf('otlobli') === 0) || !sheinElementIsVisible(candidate)) continue;
+      var rect = candidate.getBoundingClientRect();
+      if (rect.width < vp.width * 0.55 || rect.height < 90 || rect.bottom < 60 || rect.top > vp.height - 60) continue;
+      var text = getElementText(candidate).replace(/[\\u064B-\\u065F\\u0670]/g, '');
+      if (!text || text.length > 1800 || !authPattern.test(text) || cookiePattern.test(text)) continue;
+      var fields = candidate.querySelectorAll('input, select, textarea');
+      if (!fields.length && !/continue\\s+with|\\u0627\\u0644\\u0627\\u0633\\u062a\\u0645\\u0631\\u0627\\u0631\\s+\\u0628/i.test(text)) continue;
+      var controls = candidate.querySelectorAll('button, a, [role="button"]');
+      var closeTarget = null;
+      for (var bi = 0; bi < controls.length; bi++) {
+        var control = controls[bi];
+        if (!control || (control.id && control.id.indexOf('otlobli') === 0) || !sheinElementIsVisible(control)) continue;
+        var label = String(control.innerText || control.textContent || control.getAttribute('aria-label') || control.getAttribute('title') || '')
+          .replace(/\\s+/g, ' ').trim();
+        if (closePattern.test(label)) { closeTarget = control; break; }
+        var hint = String((control.className || '') + ' ' + (control.id || '') + ' ' +
+          (control.getAttribute('aria-label') || '') + ' ' + (control.getAttribute('title') || '')).toLowerCase();
+        var controlRect = control.getBoundingClientRect();
+        if (/close|dismiss|popup-close|modal-close/.test(hint) && controlRect.width <= 72 && controlRect.height <= 72 &&
+            controlRect.top <= rect.top + Math.max(96, rect.height * 0.22)) {
+          closeTarget = control;
+          break;
+        }
+      }
+      if (!closeTarget) continue;
+      try { closeTarget.click(); } catch (e) {}
+      return;
+    }
   }
 
   // SHEIN can draw its own black "added successfully" toast over Otlobli's
@@ -5015,43 +5285,89 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
-  // SHEIN's photo viewer is a direct, fixed, near-full-screen body child that
-  // contains a large product image plus its "current/total" counter. Those
-  // structural facts are stable across obfuscated class names and exclude the
-  // ordinary PDP carousel, so no broad gallery CSS is needed.
+  // SHEIN's photo viewer is fixed and near-full-screen, but on older layouts
+  // that fixed root is nested several levels below body. Detect it from a few
+  // painted points and walk upward to the fixed root; this stays independent
+  // of obfuscated classes without scanning the entire product DOM.
   var __otlobliSheinViewerRoot = null;
-  function sheinImageViewerRoot() {
+  var __otlobliSheinViewerDetectedRoot = null;
+  var __otlobliSheinViewerScanAt = 0;
+
+  function sheinViewerHasLargeMedia(el, vp) {
+    var media = el.querySelectorAll ? el.querySelectorAll('img, picture, canvas, video') : [];
+    for (var i = 0; i < media.length && i < 24; i++) {
+      var rect = media[i].getBoundingClientRect();
+      if (rect.width >= vp.width * 0.5 && rect.height >= vp.height * 0.28) return true;
+    }
+    return false;
+  }
+
+  function isSheinImageViewerCandidate(el, vp) {
+    if (!el || (el.id || '').indexOf('otlobli') === 0 || !el.getBoundingClientRect) return false;
+    var style = window.getComputedStyle(el);
+    if (style.display === 'none' || style.visibility === 'hidden' || parseFloat(style.opacity || '1') <= 0.01) return false;
+    var role = String(el.getAttribute && el.getAttribute('role') || '').toLowerCase();
+    var ariaModal = String(el.getAttribute && el.getAttribute('aria-modal') || '').toLowerCase();
+    if (style.position !== 'fixed' && role !== 'dialog' && ariaModal !== 'true') return false;
+    var rect = el.getBoundingClientRect();
+    if (rect.width < vp.width * 0.88 || rect.height < vp.height * 0.55) return false;
+    if (rect.top > 120 || rect.bottom < vp.height * 0.72) return false;
+    var text = String(el.innerText || el.textContent || '').replace(/\\s+/g, ' ').trim();
+    if (text.length > 700 || !/\\d+\\s*\\/\\s*\\d+/.test(text)) return false;
+    return sheinViewerHasLargeMedia(el, vp);
+  }
+
+  function sheinImageViewerRoot(forceScan) {
     if (!IS_SHEIN || !document.body || !looksLikeProductPage()) return null;
+    var now = Date.now();
+    if (!forceScan && now - __otlobliSheinViewerScanAt < 220) {
+      return __otlobliSheinViewerDetectedRoot && document.documentElement.contains(__otlobliSheinViewerDetectedRoot)
+        ? __otlobliSheinViewerDetectedRoot : null;
+    }
+    __otlobliSheinViewerScanAt = now;
     var vp = viewportSize();
-    var minArea = vp.width * vp.height * 0.68;
-    var candidates = document.querySelectorAll('body > div, body > section, body > [role="dialog"]');
-    for (var i = candidates.length - 1; i >= 0; i--) {
-      var el = candidates[i];
-      if (!el || (el.id || '').indexOf('otlobli') === 0) continue;
-      var cs = window.getComputedStyle(el);
-      if (cs.position !== 'fixed') continue;
-      if (cs.display === 'none' || cs.visibility === 'hidden' || parseFloat(cs.opacity || '1') <= 0.01) continue;
-      var r = el.getBoundingClientRect();
-      if (r.width * r.height < minArea || r.width < vp.width * 0.88) continue;
-      if (r.top > 90 || r.bottom < vp.height - 190) continue;
-      var text = String(el.innerText || el.textContent || '').replace(/\\s+/g, ' ').trim();
-      if (text.length > 420 || !/\\d+\\s*\\/\\s*\\d+/.test(text)) continue;
-      var images = el.querySelectorAll ? el.querySelectorAll('img') : [];
-      var hasLargeImage = false;
-      for (var j = 0; j < images.length; j++) {
-        var ir = images[j].getBoundingClientRect();
-        if (ir.width >= vp.width * 0.5 && ir.height >= vp.height * 0.3) {
-          hasLargeImage = true;
-          break;
+    if (__otlobliSheinViewerDetectedRoot && document.documentElement.contains(__otlobliSheinViewerDetectedRoot) &&
+        isSheinImageViewerCandidate(__otlobliSheinViewerDetectedRoot, vp)) {
+      return __otlobliSheinViewerDetectedRoot;
+    }
+
+    var seen = [];
+    var points = [
+      [Math.round(vp.width * 0.5), Math.round(vp.height * 0.5)],
+      [Math.round(vp.width * 0.5), Math.round(vp.height * 0.17)],
+      [Math.round(vp.width * 0.5), Math.round(vp.height * 0.76)],
+      [Math.round(vp.width * 0.12), Math.round(vp.height * 0.5)],
+      [Math.round(vp.width * 0.88), Math.round(vp.height * 0.5)]
+    ];
+    if (document.elementsFromPoint) {
+      for (var pi = 0; pi < points.length; pi++) {
+        var stack = document.elementsFromPoint(points[pi][0], points[pi][1]);
+        for (var si = 0; si < stack.length; si++) {
+          var current = stack[si];
+          for (var depth = 0; current && current !== document.body && depth < 12; current = current.parentElement, depth++) {
+            if (seen.indexOf(current) >= 0) continue;
+            seen.push(current);
+            if (isSheinImageViewerCandidate(current, vp)) {
+              __otlobliSheinViewerDetectedRoot = current;
+              return current;
+            }
+          }
         }
       }
-      if (hasLargeImage) return el;
     }
+    var candidates = document.querySelectorAll('[role="dialog"], [aria-modal="true"], body > div, body > section');
+    for (var i = candidates.length - 1; i >= 0; i--) {
+      if (isSheinImageViewerCandidate(candidates[i], vp)) {
+        __otlobliSheinViewerDetectedRoot = candidates[i];
+        return candidates[i];
+      }
+    }
+    __otlobliSheinViewerDetectedRoot = null;
     return null;
   }
 
-  function sheinImageViewerOpen() {
-    return !!sheinImageViewerRoot();
+  function sheinImageViewerOpen(forceScan) {
+    return !!sheinImageViewerRoot(!!forceScan);
   }
 
   // Older WKWebView can keep hit-testing a max-z fixed element while painting
@@ -5276,6 +5592,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     hideForeignBottomNav();
     protectSheinCookieConsentAction();
     hideSheinSignupDiscountBanner();
+    dismissSheinProductLoginPrompt();
     hideSheinCartSuccessToast();
     hideSheinAppInstallPrompts();
     // Readiness must be the final step. Previously it was posted before the
@@ -6127,24 +6444,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // to when this line ran. document.documentElement (<html>) - unlike body -
   // is guaranteed to exist this early, and observing it with subtree:true
   // covers body and everything under it once they do appear.
-  var __otlobliSignupFramePending = false;
-  var observer = new MutationObserver(function () {
-    // MutationObserver callbacks run before the browser's next paint. Catch
-    // the exact post-consent signup strip here so it never gets one visible
-    // frame above Otlobli's navigation on slower iPhone-6 WebViews. Coalescing
-    // to one requestAnimationFrame avoids repeated geometry work during a
-    // large SHEIN render batch while still running before that frame paints.
-    if (!__otlobliSignupFramePending) {
-      __otlobliSignupFramePending = true;
-      var inspectSignupBeforePaint = function () {
-        __otlobliSignupFramePending = false;
-        try { hideSheinSignupDiscountBanner(); } catch (e) {}
-      };
-      if (window.requestAnimationFrame) window.requestAnimationFrame(inspectSignupBeforePaint);
-      else setTimeout(inspectSignupBeforePaint, 0);
-    }
-    scheduleTick();
-  });
+  // Do not run geometry/text scans from MutationObserver. SHEIN mutates the
+  // product DOM continuously; doing layout work before every paint starves
+  // older WKWebView devices and delays image decoding. The coalesced tick owns
+  // all inspections at their explicit throttled intervals.
+  var observer = new MutationObserver(scheduleTick);
   observer.observe(document.documentElement, { childList: true, subtree: true });
 
   setInterval(tick, 300);

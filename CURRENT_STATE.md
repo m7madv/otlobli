@@ -7,11 +7,11 @@ Last updated: 2026-07-15
 - Branch: `codex/customer-wallet-group-orders`.
 - Stable tested reference: v85.8.5 / `a914d81`.
 - Reference IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.5-nav-cairo-font-match-no-otp-test.ipa`.
-- Active test candidate: v85.8.11 / `13585b6`.
-- Candidate IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.11.ipa`.
-- Candidate SHA-256: `EB4019D410D58FB7DE720F12BAE88FF015E6160CA0AC0C8870584E1715271539`.
-- iOS build run: `29414121203` (success).
-- `APP_VERSION = 2026.07.15-v85.8.11-shein-signup-photo-viewer-no-otp-test`.
+- Active code candidate: v85.8.12 (working tree; not packaged or device-tested yet).
+- Last packaged IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.11.ipa`.
+- Last packaged SHA-256: `EB4019D410D58FB7DE720F12BAE88FF015E6160CA0AC0C8870584E1715271539`.
+- Last iOS build run: `29414121203` (v85.8.11 success).
+- `APP_VERSION = 2026.07.15-v85.8.12-shein-consent-region-gallery-perf-no-otp-test`.
 - Real-device acceptance is pending; do not claim the SHEIN issues are fixed yet.
 
 ## v85.8.6 Scope
@@ -67,6 +67,16 @@ Last updated: 2026-07-15
 - The viewer is recognized only as a fixed near-full-screen layer with a large image and `current/total` counter. On opening it, the existing nav and back button reclaim paint order once so old WKWebView cannot paint the viewer over them while leaving their hit targets active.
 - v85.8.10 nav CSS, sizing, font, and ordinary-page behavior are unchanged.
 
+## v85.8.12 Changes (Unpackaged Candidate)
+
+- v85.8.11 device result: cookie Accept could sit below Otlobli's nav, the Saudi address surface could remain open after success, gallery/image taps could still capture the product, and the new pre-paint signup scan made iPhone 6 noticeably heavier.
+- Cookie consent remains the customer's decision. The exact Accept/Reject action row is raised together above the nav; Otlobli does not silently accept tracking consent.
+- A resolved Saudi shipping surface is closed only after SHEIN writes a fully signed Saudi address. Existing URL/storage/address guards continue to detect and repair a later foreign-region change.
+- Only an unsolicited login dialog over a product is dismissed. Real login/account routes remain untouched.
+- Gallery detection now walks from a few painted points to a nested fixed viewer root. Gallery taps cannot reach native or Otlobli add/cart/wishlist actions; nav/back reclaim paint order on the viewer transition.
+- Removed v85.8.11's MutationObserver-to-requestAnimationFrame whole-page signup inspection. Cookie/signup scans are throttled and use six targeted points instead of fifteen, reducing layout work on old WKWebView.
+- Fixed srcset whitespace parsing inside the injected script. Temu, payment, wallet, orders, and cart design are unchanged.
+
 ## Failed Paths / Guardrails
 
 - v86-v88 are failed paths. v87 fixed none of the reported issues; v88 closed/crashed SHEIN on entry.
@@ -90,6 +100,9 @@ Test on iPhone 6 and iPhone 16 Pro Max:
 8. Saudi shipping remains authoritative.
 9. After accepting cookies, neither the 15% registration strip nor the email-newsletter panel appears above the nav; real SHEIN sign-in remains usable.
 10. In a product photo viewer, add-to-cart is absent, the black lower band cannot add an item, and nav/back remain visibly painted on both phones.
+11. Cookie Accept and Reject are both reachable above the nav; rejecting does not leave a forced product-login popup.
+12. After Saudi setup completes, the address surface closes; a later foreign-region state is detected and repaired without broad storage clearing or reload loops.
+13. On iPhone 6, product images and scrolling remain responsive after cookie consent and repeated product/gallery opens.
 
 ## Validation
 
@@ -97,6 +110,8 @@ Test on iPhone 6 and iPhone 16 Pro Max:
 - `npm run build` passed.
 - Runtime syntax parse of both injected scripts passed.
 - `git diff --check` passed.
+- Targeted ESLint for `src/services/sheinBrowserScript.ts` and `src/config.ts` passed.
 - Full-project lint still has pre-existing unrelated errors in `App.tsx`, Admin, and the payment webhook; this SHEIN change introduced no build error.
 - Xcode unsigned build and packaging passed in run `29414121203`.
 - Embedded v85.8.11 marker and desktop IPA SHA-256 were verified.
+- v85.8.12 has no IPA or iOS build yet; do not point the user to v85.8.11 as if it contains these changes.

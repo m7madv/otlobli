@@ -5,12 +5,12 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Current Candidate
 
 - Branch: `codex/customer-wallet-group-orders`.
-- Code: `13585b6` (`fix: v85.8.11 stabilize SHEIN signup and photo viewer`).
-- IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.11.ipa`.
+- Code: v85.8.12 working tree based on `13585b6`; not committed or packaged yet.
+- Last IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.11.ipa` (does not contain v85.8.12 changes).
 - SHA-256: `EB4019D410D58FB7DE720F12BAE88FF015E6160CA0AC0C8870584E1715271539`.
 - Build run: `29414121203`.
 - Rollback/reference: v85.8.5 / `a914d81` and the user-provided v85.8.5 IPA.
-- v85.8.10's ordinary iPhone 16 nav behavior was accepted. v85.8.11 narrowly handles two confirmed iPhone-6 signup surfaces and the SHEIN photo-viewer compositing/click-through issue on both phone generations. Device testing is pending; never call it proven until both iPhones pass.
+- v85.8.10's ordinary iPhone 16 nav behavior was accepted. v85.8.12 corrects failures observed in v85.8.11: consent overlap, leftover Saudi UI, gallery click-through, and old-iPhone pre-paint scan overhead. Device testing is pending; never call it proven until both iPhones pass.
 
 ## Confirmed Diagnosis
 
@@ -35,7 +35,8 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 - v85.8.10 gives all injected nav phases one CSS source and only reclaims the DOM node after actual occlusion hit-tests.
 - v85.8.11 hides only the confirmed 15%-signup strip or the email-newsletter panel, with explicit real-auth exclusion.
 - A SHEIN photo viewer must be fixed, near-full-screen, contain a large image, and expose a numeric image counter before viewer handling activates. Its add button is suppressed, its lower black band is guarded, and nav/back reclaim paint order only on viewer transition.
+- v85.8.12 detects nested fixed viewers from targeted painted points, blocks gallery click-through at the event boundary, raises the full cookie action row without auto-consent, closes only a signed-Saudi address surface, and throttles signup/cookie scans. MutationObserver now schedules the normal coalesced tick only.
 
 ## Next Step
 
-Install v85.8.11 on iPhone 6 and iPhone 16 Pro Max. On a fresh iPhone-6 install, accept cookies and verify both registration surfaces stay absent. On both phones open a product image: no add action from the black band, and nav/back must stay visibly painted and tappable.
+Package v85.8.12 only when requested, then test it on iPhone 6 and iPhone 16 Pro Max. Verify both cookie choices are reachable, Saudi UI closes after signed completion, rejecting cookies does not force a product login popup, image/black-band taps never capture, nav/back stay visible, and old-iPhone image/scroll responsiveness improves.
