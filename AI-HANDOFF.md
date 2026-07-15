@@ -5,9 +5,9 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Current Candidate
 
 - Branch: `codex/customer-wallet-group-orders`.
-- Candidate: local v85.8.20 on top of v85.8.19; exact OneTrust acceptance, trusted SHEIN size binding, and one bounded recovery for a geo-confirmed VPN session that receives SHEIN's short WAF/block document. Not device-proven.
+- Candidate: v85.8.20 / `6b29546` on top of v85.8.19; exact OneTrust acceptance, trusted SHEIN size binding, and one bounded recovery for a geo-confirmed VPN session that receives SHEIN's short WAF/block document. Not device-proven.
 - Stable rollback/reference: v85.8.5 / `a914d81` and the user-provided v85.8.5 IPA.
-- IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.19.ipa`; run `29452454010`; SHA-256 `0CE0C4480D1D60CCD1BC11787A1C6F69293C13B4F0C1EB7521CF309FFD710F03`.
+- IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.20.ipa`; run `29454856559`; SHA-256 `711BAC7268E1CEBE10CE493B9A967CC89EED2A3C99BFEB861D452D5F0B60C3C7`.
 
 ## Why v85.8.17 Exists
 

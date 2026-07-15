@@ -7,9 +7,9 @@ Last updated: 2026-07-16
 - Branch: `codex/customer-wallet-group-orders`.
 - Stable tested reference: v85.8.5 / `a914d81`.
 - Reference IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.5-nav-cairo-font-match-no-otp-test.ipa`.
-- Active candidate: local v85.8.20 (exact OneTrust acceptance + trusted size binding + one bounded SHEIN block-session recovery; device acceptance pending).
-- Last built IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.19.ipa`.
-- Build run: `29452454010`; SHA-256 `0CE0C4480D1D60CCD1BC11787A1C6F69293C13B4F0C1EB7521CF309FFD710F03`.
+- Active candidate: v85.8.20 / `6b29546` (exact OneTrust acceptance + trusted size binding + one bounded SHEIN block-session recovery; device acceptance pending).
+- Last built IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.20.ipa`.
+- Build run: `29454856559`; SHA-256 `711BAC7268E1CEBE10CE493B9A967CC89EED2A3C99BFEB861D452D5F0B60C3C7`.
 - `APP_VERSION = 2026.07.16-v85.8.20-shein-consent-block-recovery-no-otp-test`.
 - Do not claim SHEIN is fixed before testing iPhone 6 and iPhone 16 Pro Max.
 
@@ -85,4 +85,5 @@ Test fresh install and repeated entry on iPhone 6 and iPhone 16 Pro Max:
 - `git diff --check` passed before documentation/version finalization; rerun before commit.
 - iOS unsigned build/package passed in run `29446101794`; embedded v85.8.18 marker and desktop IPA SHA-256 were verified.
 - iOS unsigned build/package passed in run `29452454010`; embedded v85.8.19 marker and desktop IPA SHA-256 were verified.
-- v85.8.20 `npm run build`, focused script/config lint, runtime parsing of both injected scripts, and `git diff --check` passed locally; IPA/device acceptance pending.
+- v85.8.20 `npm run build`, focused script/config lint, runtime parsing of both injected scripts, and `git diff --check` passed locally.
+- iOS unsigned build/package passed in run `29454856559`; the embedded v85.8.20 version, OneTrust selector, trusted-size binding, and desktop IPA SHA-256 were verified. Device acceptance is pending.
