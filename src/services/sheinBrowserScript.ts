@@ -25,6 +25,78 @@ const OTLOBLI_NAV_CSS =
 // same #otlobli-nav node after page load.
 export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
 (function () {
+  // SHEIN can render its consent manager in a child frame. The Otlobli shell
+  // must remain main-frame-only, but the customer's explicit "Accept all"
+  // preference has to be applied inside whichever frame owns that button.
+  // Keep this tiny, exact-label worker separate from every other blocker.
+  function installFrameCookieAutoAccept() {
+    if (window.__otlobliFrameCookieAutoAcceptInstalled) return;
+    window.__otlobliFrameCookieAutoAcceptInstalled = true;
+    var attempts = 0;
+    var lastAttemptAt = 0;
+    var scans = 0;
+    var sawConsent = false;
+    var isTopFrame = window.top === window;
+    var acceptPattern = /^(?:accept(?: all)?|allow(?: all)?|agree(?: to all)?|\\u0642\\u0628\\u0648\\u0644(?: \\u0627\\u0644\\u0643\\u0644| \\u0627\\u0644\\u062c\\u0645\\u064a\\u0639)?|\\u0627\\u0642\\u0628\\u0644(?: \\u0627\\u0644\\u0643\\u0644| \\u0627\\u0644\\u062c\\u0645\\u064a\\u0639)?|\\u0627\\u0644\\u0633\\u0645\\u0627\\u062d (?:\\u0644\\u0644\\u0643\\u0644|\\u0644\\u0644\\u062c\\u0645\\u064a\\u0639)|\\u0645\\u0648\\u0627\\u0641\\u0642)$/i;
+    var cookiePattern = /cookies?|cookie policy|\\u0645\\u0644\\u0641\\u0627\\u062a \\u062a\\u0639\\u0631\\u064a\\u0641 \\u0627\\u0644\\u0627\\u0631\\u062a\\u0628\\u0627\\u0637|\\u0627\\u0644\\u062a\\u0642\\u0646\\u064a\\u0627\\u062a \\u0627\\u0644\\u0645\\u0645\\u0627\\u062b\\u0644\\u0629/i;
+
+    function textOf(el) {
+      return String((el && (el.innerText || el.textContent || el.value ||
+        (el.getAttribute && el.getAttribute('aria-label')))) || '').replace(/\\s+/g, ' ').trim();
+    }
+
+    function scan() {
+      if (!document.documentElement || attempts >= 40) return;
+      scans++;
+      var now = Date.now();
+      if (now - lastAttemptAt < 500) return;
+      var controls = document.querySelectorAll('button,[role="button"],a,input[type="button"],input[type="submit"]');
+      var frameText = document.body ? textOf(document.body).slice(0, 20000) : '';
+      var frameIsConsent = cookiePattern.test(frameText);
+      if (frameIsConsent) sawConsent = true;
+      for (var i = 0; i < controls.length; i++) {
+        var control = controls[i];
+        if (!acceptPattern.test(textOf(control))) continue;
+        var scope = control;
+        var consentScope = null;
+        for (var hop = 0; scope && hop < 10; hop++, scope = scope.parentElement) {
+          var scopeText = textOf(scope);
+          if (scopeText.length < 8000 && cookiePattern.test(scopeText)) {
+            consentScope = scope;
+            break;
+          }
+        }
+        if (!consentScope && !frameIsConsent) continue;
+        attempts++;
+        lastAttemptAt = now;
+        try { control.click(); } catch (e) {}
+        (function (target) {
+          setTimeout(function () {
+            if (!document.documentElement.contains(target)) return;
+            try { target.click(); } catch (e) {}
+          }, 100);
+        })(control);
+        if (consentScope && consentScope !== document.body && consentScope !== document.documentElement) {
+          consentScope.style.setProperty('opacity', '0', 'important');
+          consentScope.style.setProperty('visibility', 'hidden', 'important');
+          consentScope.style.setProperty('pointer-events', 'none', 'important');
+        }
+        break;
+      }
+    }
+
+    scan();
+    var timer = setInterval(function () {
+      scan();
+      // Child frames either expose their consent DOM quickly or are unrelated
+      // content. Stop scanning unrelated frames after 10s to protect iPhone 6;
+      // the main document keeps the full 45s window for late SHEIN hydration.
+      if (attempts >= 40 || (!isTopFrame && !sawConsent && scans >= 40)) clearInterval(timer);
+    }, 250);
+    setTimeout(function () { clearInterval(timer); }, 45000);
+  }
+
+  installFrameCookieAutoAccept();
   if (window.top !== window || window.__otlobliNavBootstrapInstalled) return;
   window.__otlobliNavBootstrapInstalled = true;
 
@@ -69,15 +141,37 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
     return score;
   }
 
+  function storeBottomIconBucketCount(el, vpWidth, vpHeight) {
+    if (!el || !el.querySelectorAll) return 0;
+    var buckets = {};
+    var controls = el.querySelectorAll('button,a,li,[role="button"],[role="tab"],[role="menuitem"]');
+    for (var i = 0; i < controls.length; i++) {
+      var control = controls[i];
+      if (control.closest && control.closest('#otlobli-nav')) continue;
+      var rect = control.getBoundingClientRect ? control.getBoundingClientRect() : null;
+      if (!rect || rect.width < 24 || rect.width > vpWidth * 0.34 || rect.height < 22 || rect.height > 120) continue;
+      if (rect.top < vpHeight - 175 || rect.bottom > vpHeight + 8) continue;
+      var iconLike = !!(control.querySelector && control.querySelector('svg,img,[class*="icon" i]')) ||
+        String(control.tagName || '').toUpperCase() === 'BUTTON';
+      if (!iconLike) continue;
+      var center = rect.left + rect.width / 2;
+      var bucket = Math.max(0, Math.min(5, Math.floor(center / Math.max(1, vpWidth) * 6)));
+      buckets[bucket] = true;
+    }
+    return Object.keys(buckets).length;
+  }
+
   function hideStoreBottomFromPoint(node, vpWidth, vpHeight) {
     var current = node;
     var matched = null;
     for (var depth = 0; current && current !== document.body && current !== document.documentElement && depth < 9; depth++) {
       if (current.id && current.id.indexOf('otlobli') === 0) break;
       var rect = current.getBoundingClientRect();
-      if (rect.width >= vpWidth * 0.55 && rect.height >= 24 && rect.height <= 170 &&
+      var semanticTabs = storeBottomTabScore(normalizedText(current)) >= 3;
+      var iconTabs = storeBottomIconBucketCount(current, vpWidth, vpHeight) >= 4;
+      if (rect.width >= vpWidth * 0.72 && rect.height >= 24 && rect.height <= 170 &&
           (rect.bottom >= vpHeight - 30 || rect.top >= vpHeight - 190) &&
-          storeBottomTabScore(normalizedText(current)) >= 3) {
+          (semanticTabs || iconTabs)) {
         matched = current;
       }
       current = current.parentElement;
@@ -1127,25 +1221,111 @@ export const SHEIN_CAPTURE_SCRIPT = `
     });
   }
 
+  function sheinFindShippingEntryControl() {
+    var productTitle = document.querySelector('.productShippingTitle');
+    if (productTitle && sheinElementIsVisible(productTitle)) {
+      var productButton = productTitle.querySelector('button.productShippingTitle__text-container,button,[role="button"]');
+      if (productButton && sheinElementIsVisible(productButton)) return productButton;
+      return productTitle;
+    }
+    return sheinBestVisibleControl(function (text) {
+      return !!sheinShippingRegionFromText(text);
+    });
+  }
+
+  // Resolve only SHEIN's visible shipping surface. The country list is a
+  // full-page route on older iPhones and a drawer/cascade on newer layouts;
+  // tying the automation to the productShippingTitle class made the older route
+  // impossible to complete even while its real Saudi option was on screen.
+  var sheinShippingUiRootCache = null;
+  var sheinShippingUiRootCacheAt = 0;
+
+  function sheinVisibleShippingUiRoot() {
+    if (!document.body) return null;
+    var now = Date.now();
+    if (now - sheinShippingUiRootCacheAt < 250) return sheinShippingUiRootCache;
+    var vpWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+    var vpHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+    var candidates = document.querySelectorAll(
+      '.sui-drawer__body,[role="dialog"],[aria-modal="true"],[class*="drawer" i],[class*="cascade" i]'
+    );
+    var best = null;
+    var bestArea = 0;
+
+    function matchesAddressSurface(el) {
+      if (!el || !sheinElementIsVisible(el)) return false;
+      var rect = el.getBoundingClientRect();
+      if (!rect || rect.width < vpWidth * 0.68 || rect.height < Math.min(160, vpHeight * 0.2)) return false;
+      var text = sheinUiText(el);
+      if (!text || text.length > 18000) return false;
+      var hasCountryList = /Saudi Arabia|\\u0627\\u0644\\u0633\\u0639\\u0648\\u062f\\u064a\\u0629/i.test(text) &&
+        /Bahrain|Kuwait|Qatar|Oman|\\u0627\\u0644\\u0628\\u062d\\u0631\\u064a\\u0646|\\u0627\\u0644\\u0643\\u0648\\u064a\\u062a|\\u0642\\u0637\\u0631|\\u0639\\u0645\\u0627\\u0646/i.test(text);
+      var hasSaudiCascade = /Riyadh Province|Al Olaya|\\u0645\\u0646\\u0637\\u0642\\u0629 \\u0627\\u0644\\u0631\\u064a\\u0627\\u0636|\\u0627\\u0644\\u0639\\u0644\\u064a\\u0627/i.test(text);
+      return hasCountryList || hasSaudiCascade;
+    }
+
+    for (var i = 0; i < candidates.length; i++) {
+      var candidate = candidates[i];
+      if (!matchesAddressSurface(candidate)) continue;
+      var rect = candidate.getBoundingClientRect();
+      var area = rect.width * rect.height;
+      if (area > bestArea) {
+        best = candidate;
+        bestArea = area;
+      }
+    }
+    if (best) {
+      sheinShippingUiRootCache = best;
+      sheinShippingUiRootCacheAt = now;
+      return best;
+    }
+    // The legacy "shipping to" route uses the page body itself rather than a
+    // semantic dialog. Its verified GCC country-list or exact Saudi cascade
+    // heading keeps this fallback scoped to address selection.
+    if (sheinShippingPickerVisible()) {
+      sheinShippingUiRootCache = document.body;
+      sheinShippingUiRootCacheAt = now;
+      return document.body;
+    }
+    var bodyText = sheinUiText(document.body).slice(0, 30000);
+    var hasAddressHeading = /(?:Shipping to|Choose|Select)\\s+(?:a\\s+)?(?:location|country|state|province|city|district)|\\u0627\\u0644\\u0634\\u062d\\u0646 \\u0625\\u0644\\u0649|\\u0627\\u062e\\u062a\\u064a\\u0627\\u0631 \\u0645\\u0648\\u0642\\u0639|\\u0627\\u062e\\u062a\\u0631 (?:\\u0627\\u0644\\u062f\\u0648\\u0644\\u0629|\\u0627\\u0644\\u0645\\u0646\\u0637\\u0642\\u0629|\\u0627\\u0644\\u0645\\u062f\\u064a\\u0646\\u0629|\\u0627\\u0644\\u062d\\u064a)/i.test(bodyText);
+    var hasExactSaudiStep = /Riyadh Province|Al Olaya|\\u0645\\u0646\\u0637\\u0642\\u0629 \\u0627\\u0644\\u0631\\u064a\\u0627\\u0636|\\u0627\\u0644\\u0639\\u0644\\u064a\\u0627/i.test(bodyText);
+    sheinShippingUiRootCache = hasAddressHeading && hasExactSaudiStep ? document.body : null;
+    sheinShippingUiRootCacheAt = now;
+    return sheinShippingUiRootCache;
+  }
+
   function sheinVisibleCascadeOptions() {
     if (!document.body) return [];
     // SHEIN currently serves two native address drawers. One uses the
     // cascade/role=option markup; the other uses a letter-grouped upper-list.
     // Both are scoped to the visible drawer so product/listing <li> elements
     // can never become automatic address targets.
-    var nodes = document.querySelectorAll(
+    var root = sheinVisibleShippingUiRoot();
+    if (!root) return [];
+    var nodes = root.querySelectorAll(
       'li.cascade__list--option,[role="option"],.sui-drawer__body ul.upper-list > li'
     );
     var result = [];
     for (var i = 0; i < nodes.length; i++) {
       if (sheinElementIsVisible(nodes[i])) result.push(nodes[i]);
     }
+    if (result.length) return result;
+    // Older full-page pickers expose plain list/button rows. Admit only exact
+    // country/cascade values inside the already-verified shipping root.
+    var fallback = root.querySelectorAll('li,button,a,[role="button"],[role="menuitem"],label');
+    var exactStep = /^(?:Saudi Arabia|\\u0627\\u0644\\u0633\\u0639\\u0648\\u062f\\u064a\\u0629|Riyadh Province|Riyadh|Al Olaya|\\u0645\\u0646\\u0637\\u0642\\u0629 \\u0627\\u0644\\u0631\\u064a\\u0627\\u0636|\\u0627\\u0644\\u0631\\u064a\\u0627\\u0636|\\u0627\\u0644\\u0639\\u0644\\u064a\\u0627)(?:\\/.*)?$/i;
+    for (var fi = 0; fi < fallback.length; fi++) {
+      if (exactStep.test(sheinUiText(fallback[fi])) && sheinElementIsVisible(fallback[fi])) result.push(fallback[fi]);
+    }
     return result;
   }
 
   function sheinVisibleShippingTabs() {
     if (!document.body) return [];
-    var nodes = document.querySelectorAll('button[role="tab"]');
+    var root = sheinVisibleShippingUiRoot();
+    if (!root) return [];
+    var nodes = root.querySelectorAll('button[role="tab"],[role="tab"]');
     var result = [];
     for (var i = 0; i < nodes.length; i++) {
       if (sheinElementIsVisible(nodes[i])) result.push(nodes[i]);
@@ -1165,9 +1345,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // only changes the drawer tab and does not persist shipping. These exact
   // options were observed from SHEIN's live Saudi address data.
   function sheinNativeSaudiAddressStep(addressCountry) {
+    var root = sheinVisibleShippingUiRoot();
+    if (!root) return false;
     var options = sheinVisibleCascadeOptions();
     var tabs = sheinVisibleShippingTabs();
-    if (!options.length || !document.querySelector('.productShippingTitle')) return false;
+    if (!options.length) return false;
 
     var target = null;
     for (var i = 0; i < options.length; i++) {
@@ -1176,9 +1358,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
         break;
       }
     }
-    if (!target) target = sheinFindExactCascadeOption(/^Riyadh Province(?:\\/|$)/i);
-    if (!target) target = sheinFindExactCascadeOption(/^Riyadh(?:\\/|$)/i);
-    if (!target) target = sheinFindExactCascadeOption(/^Al Olaya(?:\\/|$)/i);
+    if (!target) target = sheinFindExactCascadeOption(/^(?:Riyadh Province|\\u0645\\u0646\\u0637\\u0642\\u0629 \\u0627\\u0644\\u0631\\u064a\\u0627\\u0636)(?:\\/|$)/i);
+    if (!target) target = sheinFindExactCascadeOption(/^(?:Riyadh|\\u0627\\u0644\\u0631\\u064a\\u0627\\u0636)(?:\\/|$)/i);
+    if (!target) target = sheinFindExactCascadeOption(/^(?:Al Olaya|\\u0627\\u0644\\u0639\\u0644\\u064a\\u0627)(?:\\/|$)/i);
     if (target) return sheinClickNativeShippingControl(target);
 
     if (addressCountry && addressCountry !== SHEIN_REQUIRED_COUNTRY) {
@@ -1222,6 +1404,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
     sheinShippingLastActionAt = now;
     sheinShippingActionCount++;
+    sheinShippingUiRootCacheAt = 0;
     target.removeAttribute('data-otlobli-blocked');
     target.setAttribute('data-otlobli-shein-shipping-action', '1');
     try {
@@ -1348,6 +1531,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (sheinVisibleCascadeOptions().length || sheinVisibleShippingTabs().length) return;
     var visibleRegion = sheinVisibleShippingRegion();
     if (visibleRegion === 'SA') {
+      // A country-only selection is not the signed delivery address used by
+      // product APIs. Re-open the exact shipping entry and finish the native
+      // province/city/district flow instead of treating the label as success.
+      if (!sheinSignedSaudiAddressReady()) {
+        sheinClickNativeShippingControl(sheinFindShippingEntryControl());
+      }
       return;
     }
     if (visibleRegion === 'FOREIGN' || (addressCountry && addressCountry !== SHEIN_REQUIRED_COUNTRY)) {
@@ -2171,9 +2360,15 @@ export const SHEIN_CAPTURE_SCRIPT = `
       .trim();
   }
 
+  function isSheinSizeSystemLabel(text) {
+    var value = String(text || '').replace(/[\\s:：]+/g, ' ').trim();
+    return /^(?:US|EU|DE|UK|FR|IT|BR|MX|CN|JP|KR|AU|CA)$/i.test(value) ||
+      /^(?:size system|sizing system|\\u0646\\u0638\\u0627\\u0645 \\u0627\\u0644\\u0645\\u0642\\u0627\\u0633|\\u0646\\u0638\\u0627\\u0645 \\u0627\\u0644\\u0642\\u064a\\u0627\\u0633)\\s*(?:US|EU|DE|UK|FR|IT|BR|MX|CN|JP|KR|AU|CA)?$/i.test(value);
+  }
+
   function looksLikeSheinSizeValue(text) {
     var value = String(text || '').replace(/\\s+/g, ' ').trim();
-    if (!value || value.length > 28 || looksLikeJunkValue(value)) return false;
+    if (!value || value.length > 28 || looksLikeJunkValue(value) || isSheinSizeSystemLabel(value)) return false;
     if (/guide|chart|standard|size info|measurement|\\u062f\\u0644\\u064a\\u0644|\\u0627\\u0644\\u0642\\u064a\\u0627\\u0633\\u0627\\u062a|\\u0642\\u064a\\u0627\\u0633\\u0627\\u062a|\\u0643\\u0645\\u064a\\u0629/i.test(value)) return false;
     if (/[$£€%]/.test(value)) return false;
     if (/^(?:x{0,4}[sml]|xs|xxs|[2-9]xl|one[ -]?size|free[ -]?size|petite|tall|regular|\\u0645\\u0642\\u0627\\u0633 \\u0648\\u0627\\u062d\\u062f|\\u0645\\u0648\\u062d\\u062f)$/i.test(value)) return true;
@@ -2197,6 +2392,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var interactive = tag === 'BUTTON' || tag === 'LI' || tag === 'LABEL' || tag === 'INPUT' ||
           role === 'button' || role === 'option' || role === 'radio';
         verified = interactive && label.length > 0 && label.length <= 70 && !looksLikeJunkValue(label) &&
+          !isSheinSizeSystemLabel(label) &&
           !/^(?:size|select size|choose size|\\u0627\\u0644\\u0645\\u0642\\u0627\\u0633|\\u0645\\u0642\\u0627\\u0633|\\u0627\\u0644\\u0642\\u064a\\u0627\\u0633|\\u0627\\u0644\\u062d\\u062c\\u0645|\\u062d\\u062f\\u062f.*|\\u0627\\u062e\\u062a\\u0631.*|add.*|\\u0623\\u0636\\u0641.*|\\u0627\\u0644\\u0643\\u0645\\u064a\\u0629|\\u062f\\u0644\\u064a\\u0644.*)$/i.test(label) &&
           !/[$£€%]/.test(label);
       }
@@ -2258,10 +2454,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (!marked && option.querySelector) {
         marked = !!option.querySelector('[aria-selected="true"],[aria-checked="true"],[aria-pressed="true"],input:checked,[class*="selected" i],[class*="active" i]');
       }
-      if (marked) return sheinSizeOptionLabel(option);
+      if (marked) {
+        var markedLabel = sheinSizeOptionLabel(option);
+        if (!isSheinSizeSystemLabel(markedLabel)) return markedLabel;
+      }
     }
     var printed = getAttrLabelValue(container, ['المقاس', 'مقاس', 'القياس', 'الحجم', 'Size']);
-    return looksLikeSheinSizeValue(printed) ? printed : '';
+    return looksLikeSheinSizeValue(printed) && !isSheinSizeSystemLabel(printed) ? printed : '';
   }
 
   function rememberTrustedSheinSizeChoice(target, event) {
@@ -2273,7 +2472,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     for (var hop = 0; node && node !== container && hop < 8; hop++, node = node.parentElement) {
       if (options.indexOf(node) < 0) continue;
       var label = sheinSizeOptionLabel(node);
-      if (!label) return;
+      if (!label || isSheinSizeSystemLabel(label)) return;
       var productKey = String(location.pathname || '').match(/-p-(\\d+)/i);
       productKey = productKey ? productKey[1] : String(location.pathname || '');
       window.__otlobliSheinSizeChoice = { productKey: productKey, label: label, at: Date.now() };
@@ -2314,7 +2513,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // Country sizing systems such as DE/EU/US describe the scale, not the
     // customer's chosen variant. Reject them only at the final state boundary
     // so option discovery and trusted size taps keep the proven v85.8.13 path.
-    if (/^(?:US|EU|DE|UK|FR|IT|BR|MX|CN|JP|KR|AU|CA)$/i.test(String(selected || '').replace(/[\\s:：]+/g, '').trim())) {
+    if (isSheinSizeSystemLabel(selected)) {
       selected = '';
     }
     return {
@@ -4288,7 +4487,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
       // every ~2s is still fast enough that a stray SHEIN element can't sit
       // on top for long, at a fraction of the reflow cost.
       var now = Date.now();
-      if (existingNav !== document.body.lastElementChild && now - __otlobliNavLastReclaim > 2000 &&
+      // Each native address-cascade step appends a new full-screen layer. Win
+      // that paint-order tie immediately while the repair cover is active so
+      // the persistent nav never disappears on older WKWebView devices.
+      var reclaimDelay = sheinNativeCoverRepairActive ? 150 : 2000;
+      if (existingNav !== document.body.lastElementChild && now - __otlobliNavLastReclaim > reclaimDelay &&
           otlobliNavIsActuallyCovered(existingNav)) {
         __otlobliNavLastReclaim = now;
         document.body.appendChild(existingNav);

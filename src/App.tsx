@@ -161,6 +161,13 @@ type WebviewPageLoadErrorEvent = {
 
 type StoreOpenFailureReason = 'network' | 'preparation'
 
+const isStandaloneSheinSizingSystem = (value: unknown) => {
+  if (typeof value !== 'string') return false
+  const normalized = value.replace(/[\s:：]+/g, ' ').trim()
+  return /^(?:US|EU|DE|UK|FR|IT|BR|MX|CN|JP|KR|AU|CA)$/i.test(normalized) ||
+    /^(?:size system|sizing system|نظام المقاس|نظام القياس)\s*(?:US|EU|DE|UK|FR|IT|BR|MX|CN|JP|KR|AU|CA)?$/i.test(normalized)
+}
+
 const STORE_BLOCKED_COUNTRIES = new Set(['SY'])
 const isBlockedStoreCountry = (countryCode?: string | null) =>
   !!countryCode && STORE_BLOCKED_COUNTRIES.has(countryCode.toUpperCase())
@@ -2383,7 +2390,10 @@ function App() {
       domain: event.domain,
       url: event.url ?? event.failingUrlString,
     })
-    showStoreOpenFailure()
+    // A terminated/failed WKWebView after the geo probe already confirmed a
+    // non-blocked VPN is a device preparation failure, not evidence that the
+    // customer's Germany/Qatar server is invalid.
+    showStoreOpenFailure(vpnStateRef.current === 'ok' ? 'preparation' : 'network')
   }
 
   const markStoreWebviewReady = (sessionId: number) => {
@@ -2459,7 +2469,9 @@ function App() {
       .catch(() => {
         webviewAutoOpenPausedUntilRef.current = 0
         suppressAutoReopenRef.current = false
-        if (screenRef.current === 'home') showStoreOpenFailure()
+        if (screenRef.current === 'home') {
+          showStoreOpenFailure(vpnStateRef.current === 'ok' ? 'preparation' : 'network')
+        }
       })
   }
 
@@ -2593,7 +2605,9 @@ function App() {
       })
       .catch(() => {
         if (sessionId !== webviewSessionRef.current) return
-        if (screenRef.current === 'home') showStoreOpenFailure()
+        if (screenRef.current === 'home') {
+          showStoreOpenFailure(vpnStateRef.current === 'ok' ? 'preparation' : 'network')
+        }
       })
   }
 
@@ -2683,12 +2697,15 @@ function App() {
       }
       if (screenRef.current === 'home') {
         // Some real devices close the native WebView during opening/security
-        // checks. Re-opening immediately turns that into a visible open/close
-        // loop; keep the app stable and ask for a different VPN server.
+        // checks. When geo already confirmed the VPN, classify this as local
+        // preparation/WebKit failure; blaming the verified server produced the
+        // false Germany warning reported only on iPhone 6.
         webviewAutoOpenPausedUntilRef.current = Date.now() + 15000
-        setStoreOpenFailureReason('network')
+        const reason: StoreOpenFailureReason = vpnStateRef.current === 'ok' ? 'preparation' : 'network'
+        setStoreOpenFailureReason(reason)
+        if (reason === 'preparation') sheinCacheResetPendingRef.current = true
         setSheinBlockedError(true)
-        refreshVpnDiagnosisForStoreFailure()
+        if (reason === 'network') refreshVpnDiagnosisForStoreFailure()
         return
       }
     })
@@ -2943,11 +2960,26 @@ function App() {
       const rawPrice = product?.priceUsd
       const parsedPrice = typeof rawPrice === 'number' ? rawPrice : parseFloat(String(rawPrice ?? ''))
       const priceUsd = Number.isFinite(parsedPrice) && parsedPrice > 0 ? parsedPrice : 0
+      const rawSourceLink = typeof product?.link === 'string' ? product.link : ''
+      const isSheinProduct = /(^|\.)shein\./i.test((() => {
+        try { return new URL(rawSourceLink).hostname } catch { return '' }
+      })()) || selectedStoreRef.current === 'shein'
+      const rawCapturedSize = typeof product?.size === 'string' ? product.size.trim() : ''
+      if (isSheinProduct && isStandaloneSheinSizingSystem(rawCapturedSize)) {
+        // Defense in depth at the native bridge: a country sizing-system tab
+        // such as DE is never a product variant. Do not let it reach cart even
+        // if a future SHEIN DOM change bypasses the in-page selector guard.
+        void InAppBrowser.postMessage({ detail: { type: 'addToCartAck' } })
+        showNotice('حدد المقاس الفعلي للمنتج أولاً')
+        return
+      }
       const sizesAvailable = Array.isArray(product?.sizesAvailable)
-        ? (product.sizesAvailable as unknown[]).filter((s): s is string => typeof s === 'string')
+        ? (product.sizesAvailable as unknown[]).filter((s): s is string =>
+          typeof s === 'string' && (!isSheinProduct || !isStandaloneSheinSizingSystem(s)))
         : []
       const sizesUnavailable = Array.isArray(product?.sizesUnavailable)
-        ? (product.sizesUnavailable as unknown[]).filter((s): s is string => typeof s === 'string')
+        ? (product.sizesUnavailable as unknown[]).filter((s): s is string =>
+          typeof s === 'string' && (!isSheinProduct || !isStandaloneSheinSizingSystem(s)))
         : []
       setCartItems((items) => [...items, {
         id: `shein-${Date.now()}`,
@@ -2955,13 +2987,13 @@ function App() {
         image: typeof product?.image === 'string' ? product.image : '',
         colorImage: typeof product?.colorImage === 'string' ? product.colorImage : '',
         color: typeof product?.color === 'string' ? product.color : '',
-        size: typeof product?.size === 'string' ? product.size : '',
+        size: rawCapturedSize,
         sizesAvailable,
         sizesUnavailable,
         quantity: 1,
         priceUsd,
         priceSyp: Math.round(priceUsd * exchangeRate),
-        sourceLink: typeof product?.link === 'string' ? normalizeSheinBrowserUrl(product.link) : '',
+        sourceLink: rawSourceLink ? normalizeSheinBrowserUrl(rawSourceLink) : '',
         needsCustomPhoto: typeof product?.needsCustomPhoto === 'boolean' ? product.needsCustomPhoto : false,
         customPhotoNote: typeof product?.customPhotoNote === 'string' ? product.customPhotoNote : '',
         needsCustomText: typeof product?.needsCustomText === 'boolean' ? product.needsCustomText : false,
