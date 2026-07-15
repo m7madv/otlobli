@@ -2925,7 +2925,16 @@ function App() {
 
       if (detail?.type === 'sheinBlocked') {
         sheinChallengeActiveRef.current = false
-        showStoreOpenFailure()
+        // A geo-confirmed VPN (including US) followed by SHEIN's short
+        // "System Not Available"/WAF document is a failed WebView session,
+        // not proof that the customer's VPN server is unsupported. Rebuild
+        // once with the existing bounded cache-reset path; if it repeats,
+        // report a preparation failure instead of falsely blaming the VPN.
+        if (vpnStateRef.current === 'ok') {
+          restartStuckSheinWebview(webviewSessionRef.current)
+        } else {
+          showStoreOpenFailure('network')
+        }
         return
       }
 

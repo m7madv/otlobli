@@ -1,6 +1,6 @@
 # Session Summary
 
-Last updated: 2026-07-15
+Last updated: 2026-07-16
 
 - Restored and verified the user-provided v85.8.5 line as the working base (`a914d81`).
 - Diagnosed iPhone 6's false VPN failure as a 13-second readiness timeout racing its observed ~14-second preparation.
@@ -38,3 +38,4 @@ Last updated: 2026-07-15
 - Committed v85.8.18 as `fd6d4db`; iOS run `29446101794` succeeded and produced `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.18.ipa` with SHA-256 `ABF792A41F8A1BF3271B3B793DD21C2769F1E04F96362B6A8D1AC40EFCF666DB`. Embedded marker verified; fresh-install device acceptance remains pending.
 - The local v85.8.19 candidate fixes the half-second white frame seen only over SHEIN/Temu when Notification Center makes iOS temporarily inactive. Root cause is Capgo InAppBrowser's unconditional launch-image privacy overlay on `willResignActive`; the native-only change disables that overlay without reloading or changing either store.
 - Committed v85.8.19 as `692f5bc`; iOS run `29452454010` succeeded and produced `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.19.ipa` with SHA-256 `0CE0C4480D1D60CCD1BC11787A1C6F69293C13B4F0C1EB7521CF309FFD710F03`. Embedded marker verified; device acceptance remains pending.
+- v85.8.19 device feedback still showed the full OneTrust consent sheet; its Notification Center change was not yet tested. Local v85.8.20 now clicks OneTrust's exact accept button, normalizes invisible Arabic bidi marks, binds a real size tap to the product despite SHEIN hydration replacing its node, preserves rejection of automatic/default and `DE/EU/US` values, and sends a confirmed-VPN SHEIN block document through one bounded fresh-WebView/cache recovery instead of falsely rejecting the server. App build, focused script/config lint, injected-script runtime parse, and diff checks passed; IPA pending.

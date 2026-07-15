@@ -7,10 +7,10 @@ Last updated: 2026-07-16
 - Branch: `codex/customer-wallet-group-orders`.
 - Stable tested reference: v85.8.5 / `a914d81`.
 - Reference IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.5-nav-cairo-font-match-no-otp-test.ipa`.
-- Active candidate: v85.8.19 / `692f5bc` (native iOS inactive-state white-flash fix; device acceptance pending).
+- Active candidate: local v85.8.20 (exact OneTrust acceptance + trusted size binding + one bounded SHEIN block-session recovery; device acceptance pending).
 - Last built IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.19.ipa`.
 - Build run: `29452454010`; SHA-256 `0CE0C4480D1D60CCD1BC11787A1C6F69293C13B4F0C1EB7521CF309FFD710F03`.
-- `APP_VERSION = 2026.07.16-v85.8.19-ios-store-resign-flash-no-otp-test`.
+- `APP_VERSION = 2026.07.16-v85.8.20-shein-consent-block-recovery-no-otp-test`.
 - Do not claim SHEIN is fixed before testing iPhone 6 and iPhone 16 Pro Max.
 
 ## Confirmed Runtime Diagnosis
@@ -46,6 +46,14 @@ Last updated: 2026-07-16
 - Disabled only that upstream privacy overlay, so iOS keeps the already-rendered store frame during temporary inactive transitions.
 - No WebView recreation, store script, region, capture, Temu, payment, wallet, order, cart, CSS, or design behavior changed.
 
+## v85.8.20 Changes
+
+- The pictured consent surface is confirmed as OneTrust. The owning frame now clicks the exact `onetrust-accept-btn-handler`; official consent-and-close APIs are fallback only.
+- Invisible RTL/bidi marks are stripped before comparing Arabic consent and size labels. OneTrust fallback discovery stays confined to its exact root; no broad page click or permanent polling was added.
+- A real trusted SHEIN size tap is now bound to the product independently of the option node SHEIN replaces during hydration. This restores selected-size capture while still rejecting automatic defaults and standalone `DE/EU/US` sizing-system labels.
+- A geo-confirmed US/Germany/etc. VPN followed by SHEIN's short WAF/block document gets one existing bounded fresh-WebView/cache recovery. Repeated failure is classified as WebView preparation, not falsely as an unsupported VPN server.
+- Temu, region forcing, cart, payment, wallet, and orders were not changed.
+
 ## Guardrails
 
 - v86-v88 are failed paths. v87 fixed none of the reported issues; v88 crashed/closed SHEIN.
@@ -77,3 +85,4 @@ Test fresh install and repeated entry on iPhone 6 and iPhone 16 Pro Max:
 - `git diff --check` passed before documentation/version finalization; rerun before commit.
 - iOS unsigned build/package passed in run `29446101794`; embedded v85.8.18 marker and desktop IPA SHA-256 were verified.
 - iOS unsigned build/package passed in run `29452454010`; embedded v85.8.19 marker and desktop IPA SHA-256 were verified.
+- v85.8.20 `npm run build`, focused script/config lint, runtime parsing of both injected scripts, and `git diff --check` passed locally; IPA/device acceptance pending.

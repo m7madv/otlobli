@@ -159,6 +159,39 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
   // must remain main-frame-only, but the customer's explicit "Accept all"
   // preference has to be applied inside whichever frame owns that button.
   // Keep this tiny, exact-label worker separate from every other blocker.
+  function oneTrustConsentIsVisible(banner, acceptButton) {
+    var node = banner || acceptButton;
+    if (!node || !document.documentElement || !document.documentElement.contains(node)) return false;
+    if (node.hidden || node.getAttribute('aria-hidden') === 'true') return false;
+    try {
+      var style = window.getComputedStyle(node);
+      if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return false;
+    } catch (e) {}
+    return true;
+  }
+
+  function acceptOneTrustConsent(acceptButton) {
+    // The real OneTrust button is the authoritative path: it grants consent,
+    // persists the CMP receipt, and dismisses the sheet through SHEIN's own
+    // registered handler. AllowAll() alone only changes category consent and
+    // is not documented as closing the banner.
+    if (acceptButton && typeof acceptButton.click === 'function') {
+      try {
+        acceptButton.click();
+        return true;
+      } catch (e) {}
+    }
+    if (!window.OneTrust || typeof window.OneTrust.AllowAll !== 'function') return false;
+    try {
+      window.OneTrust.AllowAll();
+      if (typeof window.OneTrust.SetAlertBoxClosed === 'function') window.OneTrust.SetAlertBoxClosed();
+      if (typeof window.OneTrust.Close === 'function') window.OneTrust.Close();
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   function installFrameCookieAutoAccept() {
     if (window.__otlobliFrameCookieAutoAcceptInstalled) return;
     window.__otlobliFrameCookieAutoAcceptInstalled = true;
@@ -172,7 +205,10 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
     function textOf(el) {
       // textContent avoids forcing layout during documentStart on old WebKit.
       return String((el && (el.textContent || el.value ||
-        (el.getAttribute && el.getAttribute('aria-label')))) || '').replace(/\\s+/g, ' ').trim();
+        (el.getAttribute && el.getAttribute('aria-label')))) || '')
+        .replace(/[\\u200b\\u200e\\u200f\\u061c\\u202a-\\u202e\\u2066-\\u2069\\ufeff]/g, '')
+        .replace(/\\s+/g, ' ')
+        .trim();
     }
 
     function nodeMayContainConsent(node) {
@@ -197,13 +233,38 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
       if (!document.documentElement || attempts >= 40) return;
       var now = Date.now();
       if (!force && now - lastAttemptAt < 500) return;
-      var controls = document.querySelectorAll('button,[role="button"],a,input[type="button"],input[type="submit"]');
+      var oneTrustSdk = document.getElementById('onetrust-consent-sdk');
+      var oneTrustBanner = document.getElementById('onetrust-banner-sdk');
+      var oneTrustAccept = document.getElementById('onetrust-accept-btn-handler');
+      var oneTrustRoot = oneTrustConsentIsVisible(oneTrustBanner, oneTrustAccept)
+        ? (oneTrustSdk || oneTrustBanner || oneTrustAccept.parentElement)
+        : null;
+      if (!oneTrustRoot) oneTrustAccept = null;
+      if (oneTrustRoot || oneTrustAccept) {
+        notifyTopCookieGate('detected');
+        if (now - lastAttemptAt >= 500) {
+          attempts++;
+          lastAttemptAt = now;
+          if (acceptOneTrustConsent(oneTrustAccept)) {
+            notifyTopCookieGate('accepted');
+            return;
+          }
+        }
+      }
+      var controlSelector = 'button,[role="button"],a,input[type="button"],input[type="submit"]';
+      // OneTrust occasionally renders a non-semantic wrapper on old WebKit.
+      // Limit the fallback to its exact consent root so this never scans or
+      // clicks arbitrary SHEIN product elements.
+      if (oneTrustRoot) controlSelector += ',div,span';
+      var controls = (oneTrustRoot || document).querySelectorAll(controlSelector);
       var frameText = document.body ? textOf(document.body).slice(0, 20000) : '';
-      var frameIsConsent = cookiePattern.test(frameText);
+      var frameIsConsent = !!oneTrustRoot || cookiePattern.test(frameText);
       for (var i = 0; i < controls.length; i++) {
         var control = controls[i];
         var controlLabel = textOf(control);
-        if (!acceptPattern.test(controlLabel) || !/(?:all|الكل|الجميع)/i.test(controlLabel)) continue;
+        var exactOneTrustAccept = control === oneTrustAccept || control.id === 'onetrust-accept-btn-handler';
+        if (!exactOneTrustAccept &&
+            (!acceptPattern.test(controlLabel) || !/(?:all|الكل|الجميع)/i.test(controlLabel))) continue;
         var scope = control;
         var consentScope = null;
         for (var hop = 0; scope && hop < 10; hop++, scope = scope.parentElement) {
@@ -325,7 +386,10 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
   }
 
   function normalizedText(el) {
-    return String((el && (el.innerText || el.textContent)) || '').replace(/\\s+/g, ' ').trim();
+    return String((el && (el.innerText || el.textContent)) || '')
+      .replace(/[\\u200b\\u200e\\u200f\\u061c\\u202a-\\u202e\\u2066-\\u2069\\ufeff]/g, '')
+      .replace(/\\s+/g, ' ')
+      .trim();
   }
 
   function storeBottomTabScore(text) {
@@ -454,13 +518,38 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
     var scanNow = Date.now();
     if (scanNow - __otlobliEarlyCookieScanAt < 650) return;
     __otlobliEarlyCookieScanAt = scanNow;
-    var buttons = document.querySelectorAll('button, [role="button"], a, input[type="button"], input[type="submit"]');
+    var retryRoot = document.documentElement;
+    var oneTrustSdk = document.getElementById('onetrust-consent-sdk');
+    var oneTrustBanner = document.getElementById('onetrust-banner-sdk');
+    var oneTrustAccept = document.getElementById('onetrust-accept-btn-handler');
+    var oneTrustRoot = oneTrustConsentIsVisible(oneTrustBanner, oneTrustAccept)
+      ? (oneTrustSdk || oneTrustBanner || oneTrustAccept.parentElement)
+      : null;
+    if (!oneTrustRoot) oneTrustAccept = null;
+    if (oneTrustRoot || oneTrustAccept) {
+      setTopCookieGateState('detected');
+      var apiAttempts = parseInt(retryRoot.getAttribute('data-otlobli-cookie-auto-accept-attempts') || '0', 10) || 0;
+      var apiLastAttemptAt = parseInt(retryRoot.getAttribute('data-otlobli-cookie-auto-accept-last-at') || '0', 10) || 0;
+      if (apiAttempts < 30 && scanNow - apiLastAttemptAt >= 600) {
+        retryRoot.setAttribute('data-otlobli-cookie-auto-accept-attempts', String(apiAttempts + 1));
+        retryRoot.setAttribute('data-otlobli-cookie-auto-accept-last-at', String(scanNow));
+        if (acceptOneTrustConsent(oneTrustAccept)) {
+          setTopCookieGateState('accepted');
+          return;
+        }
+      }
+    }
+    var earlyControlSelector = 'button, [role="button"], a, input[type="button"], input[type="submit"]';
+    if (oneTrustRoot) earlyControlSelector += ', div, span';
+    var buttons = (oneTrustRoot || document).querySelectorAll(earlyControlSelector);
     var acceptPattern = /^(?:accept(?: all)?|allow(?: all)?|agree(?: to all)?|\\u0642\\u0628\\u0648\\u0644(?: \\u0627\\u0644\\u0643\\u0644)?|\\u0627\\u0642\\u0628\\u0644(?: \\u0627\\u0644\\u0643\\u0644)?|\\u0627\\u0644\\u0633\\u0645\\u0627\\u062d (?:\\u0644\\u0644\\u0643\\u0644|\\u0644\\u0644\\u062c\\u0645\\u064a\\u0639)|\\u0645\\u0648\\u0627\\u0641\\u0642)$/i;
     var cookiePattern = /cookies?|\\u0645\\u0644\\u0641\\u0627\\u062a \\u062a\\u0639\\u0631\\u064a\\u0641 \\u0627\\u0644\\u0627\\u0631\\u062a\\u0628\\u0627\\u0637|\\u0627\\u0644\\u062a\\u0642\\u0646\\u064a\\u0627\\u062a \\u0627\\u0644\\u0645\\u0645\\u0627\\u062b\\u0644\\u0629/i;
     for (var i = 0; i < buttons.length; i++) {
       var button = buttons[i];
       var buttonLabel = normalizedText(button) || String(button.value || '').replace(/\\s+/g, ' ').trim();
-      if (!acceptPattern.test(buttonLabel) || !/(?:all|الكل|الجميع)/i.test(buttonLabel)) continue;
+      var exactOneTrustAccept = button === oneTrustAccept || button.id === 'onetrust-accept-btn-handler';
+      if (!exactOneTrustAccept &&
+          (!acceptPattern.test(buttonLabel) || !/(?:all|الكل|الجميع)/i.test(buttonLabel))) continue;
       var scope = button;
       var cookieScope = null;
       for (var hop = 0; scope && hop < 10; hop++, scope = scope.parentElement) {
@@ -474,7 +563,6 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
       // being prepared. The exact label is sufficient authorization; the old
       // viewport geometry rejected SHEIN's tall iPhone consent sheet entirely.
       setTopCookieGateState('detected');
-      var retryRoot = document.documentElement;
       var earlyAcceptAttempts = parseInt(retryRoot.getAttribute('data-otlobli-cookie-auto-accept-attempts') || '0', 10) || 0;
       var earlyLastAttemptAt = parseInt(retryRoot.getAttribute('data-otlobli-cookie-auto-accept-last-at') || '0', 10) || 0;
       if (earlyAcceptAttempts < 30 && scanNow - earlyLastAttemptAt >= 600) {
@@ -2625,13 +2713,20 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return { exists: !!container, selected: selected, image: getSelectedColorSwatchImage(container, selected) };
   }
 
+  function normalizeSheinSizeLabelText(text) {
+    return String(text || '')
+      .replace(/[\\u200b\\u200e\\u200f\\u061c\\u202a-\\u202e\\u2066-\\u2069\\ufeff]/g, '')
+      .replace(/\\s+/g, ' ')
+      .trim();
+  }
+
   function sheinSizeOptionLabel(el) {
     if (!el) return '';
     var label = el.getAttribute('aria-label') || el.getAttribute('title') ||
       el.getAttribute('data-name') || el.getAttribute('data-value') || el.getAttribute('data-attr-value') || '';
     if (!label && String(el.tagName || '').toUpperCase() === 'INPUT') label = el.value || '';
     if (!label) label = el.textContent || '';
-    return String(label)
+    return normalizeSheinSizeLabelText(label)
       .replace(/\\b(?:left|only)\\s*:?\\s*\\d+\\b/ig, ' ')
       .replace(/(?:\\u0645\\u062a\\u0628\\u0642(?:\\u064a|\\u064a\\u0629)|\\u0628\\u0642\\u064a)\\s*:?\\s*\\d+/ig, ' ')
       .replace(/\\s+/g, ' ')
@@ -2709,19 +2804,24 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function selectedSheinSize(container) {
     var options = sheinSizeOptionElements(container, true);
+    var trustedChoice = window.__otlobliSheinSizeChoice;
+    var productKey = String(location.pathname || '').match(/-p-(\\d+)/i);
+    productKey = productKey ? productKey[1] : String(location.pathname || '');
+    // A real tap inside this product's size container is authoritative even
+    // if SHEIN replaces the tapped option node during hydration. Requiring the
+    // replacement node to reappear in our heuristic option list caused the
+    // visible-selected-but-"choose size" regression. Product identity, age,
+    // and final value validation still prevent stale/default choices.
+    if (trustedChoice && trustedChoice.productKey === productKey && Date.now() - trustedChoice.at < 1800000 &&
+        looksLikeSheinSizeValue(trustedChoice.label) && !isSheinSizeSystemLabel(trustedChoice.label)) {
+      return normalizeSheinSizeLabelText(trustedChoice.label);
+    }
     var uniqueLabels = [];
     for (var labelIndex = 0; labelIndex < options.length; labelIndex++) {
       var optionLabel = sheinSizeOptionLabel(options[labelIndex]);
       if (optionLabel && uniqueLabels.indexOf(optionLabel) < 0) uniqueLabels.push(optionLabel);
     }
     if (uniqueLabels.length > 1) {
-      var trustedChoice = window.__otlobliSheinSizeChoice;
-      var productKey = String(location.pathname || '').match(/-p-(\\d+)/i);
-      productKey = productKey ? productKey[1] : String(location.pathname || '');
-      if (trustedChoice && trustedChoice.productKey === productKey && Date.now() - trustedChoice.at < 1800000 &&
-          uniqueLabels.indexOf(trustedChoice.label) >= 0) {
-        return trustedChoice.label;
-      }
       // SHEIN preselects the first descriptive variant on some products. For
       // multiple choices, only a real customer tap is accepted.
       return '';
@@ -2746,16 +2846,36 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var container = findSheinSizeContainer();
     if (!container || !container.contains(target)) return;
     var options = sheinSizeOptionElements(container, true);
+    var productKey = String(location.pathname || '').match(/-p-(\\d+)/i);
+    productKey = productKey ? productKey[1] : String(location.pathname || '');
+    function remember(label) {
+      label = normalizeSheinSizeLabelText(label);
+      if (!looksLikeSheinSizeValue(label) || isSheinSizeSystemLabel(label)) return false;
+      window.__otlobliSheinSizeChoice = { productKey: productKey, label: label, at: Date.now() };
+      return true;
+    }
     var node = target;
     for (var hop = 0; node && node !== container && hop < 8; hop++, node = node.parentElement) {
-      if (options.indexOf(node) < 0) continue;
       var label = sheinSizeOptionLabel(node);
-      if (!label || isSheinSizeSystemLabel(label)) return;
-      var productKey = String(location.pathname || '').match(/-p-(\\d+)/i);
-      productKey = productKey ? productKey[1] : String(location.pathname || '');
-      window.__otlobliSheinSizeChoice = { productKey: productKey, label: label, at: Date.now() };
-      return;
+      // Prefer a known option, but also accept the shortest real size label on
+      // the trusted tap path. Some current SHEIN templates use plain div/span
+      // option nodes and replace them immediately after selection.
+      if (options.indexOf(node) >= 0 && remember(label)) return;
+      var fallbackRect = node.getBoundingClientRect ? node.getBoundingClientRect() : null;
+      if (hop <= 2 && fallbackRect && fallbackRect.width > 0 && fallbackRect.width <= 240 &&
+          fallbackRect.height > 0 && fallbackRect.height <= 110 && remember(label)) return;
     }
+    // This capture listener runs before SHEIN's handler. If the tap target had
+    // no label, inspect the marked node once after SHEIN applies selection.
+    // One bounded post-tap check preserves the no-polling runtime contract.
+    setTimeout(function () {
+      var currentProductKey = String(location.pathname || '').match(/-p-(\\d+)/i);
+      currentProductKey = currentProductKey ? currentProductKey[1] : String(location.pathname || '');
+      if (currentProductKey !== productKey) return;
+      var refreshed = findSheinSizeContainer();
+      if (!refreshed) return;
+      remember(getSelectedWithin(refreshed));
+    }, 80);
   }
 
   // Walks every option inside the size container and splits it into
@@ -5737,19 +5857,82 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   // Accept only SHEIN's exact Accept-all label. Scope detection is used only
   // to hide the consent surface during preparation, never to block the click.
+  function sheinOneTrustConsentIsVisible(banner, acceptButton) {
+    var node = banner || acceptButton;
+    if (!node || !document.documentElement || !document.documentElement.contains(node)) return false;
+    if (node.hidden || node.getAttribute('aria-hidden') === 'true') return false;
+    try {
+      var style = window.getComputedStyle(node);
+      if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return false;
+    } catch (e) {}
+    return true;
+  }
+
+  function acceptSheinOneTrustConsent(acceptButton) {
+    if (acceptButton && typeof acceptButton.click === 'function') {
+      try {
+        acceptButton.click();
+        return true;
+      } catch (e) {}
+    }
+    if (!window.OneTrust || typeof window.OneTrust.AllowAll !== 'function') return false;
+    try {
+      window.OneTrust.AllowAll();
+      if (typeof window.OneTrust.SetAlertBoxClosed === 'function') window.OneTrust.SetAlertBoxClosed();
+      if (typeof window.OneTrust.Close === 'function') window.OneTrust.Close();
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   var __otlobliCookieScanAt = 0;
   function protectSheinCookieConsentAction() {
     if (!IS_SHEIN || !document.body) return;
     var scanNow = Date.now();
     if (scanNow - __otlobliCookieScanAt < 650) return;
     __otlobliCookieScanAt = scanNow;
-    var controls = document.querySelectorAll('button, [role="button"], a, input[type="button"], input[type="submit"]');
+    var retryRoot = document.documentElement;
+    var oneTrustSdk = document.getElementById('onetrust-consent-sdk');
+    var oneTrustBanner = document.getElementById('onetrust-banner-sdk');
+    var oneTrustAccept = document.getElementById('onetrust-accept-btn-handler');
+    var oneTrustRoot = sheinOneTrustConsentIsVisible(oneTrustBanner, oneTrustAccept)
+      ? (oneTrustSdk || oneTrustBanner || oneTrustAccept.parentElement)
+      : null;
+    if (!oneTrustRoot) oneTrustAccept = null;
+    if (oneTrustRoot || oneTrustAccept) {
+      try {
+        if (typeof window.__otlobliCookieGateState === 'function') {
+          window.__otlobliCookieGateState('detected');
+        }
+      } catch (e) {}
+      var apiAttempts = parseInt(retryRoot.getAttribute('data-otlobli-cookie-auto-accept-attempts') || '0', 10) || 0;
+      var apiLastAttemptAt = parseInt(retryRoot.getAttribute('data-otlobli-cookie-auto-accept-last-at') || '0', 10) || 0;
+      if (apiAttempts < 30 && scanNow - apiLastAttemptAt >= 600) {
+        retryRoot.setAttribute('data-otlobli-cookie-auto-accept-attempts', String(apiAttempts + 1));
+        retryRoot.setAttribute('data-otlobli-cookie-auto-accept-last-at', String(scanNow));
+        if (acceptSheinOneTrustConsent(oneTrustAccept)) {
+          if (typeof window.__otlobliCookieGateState === 'function') {
+            window.__otlobliCookieGateState('accepted');
+          }
+          return;
+        }
+      }
+    }
+    var consentControlSelector = 'button, [role="button"], a, input[type="button"], input[type="submit"]';
+    if (oneTrustRoot) consentControlSelector += ', div, span';
+    var controls = (oneTrustRoot || document).querySelectorAll(consentControlSelector);
     var acceptPattern = /^(?:accept(?: all)?|allow(?: all)?|agree(?: to all)?|\\u0642\\u0628\\u0648\\u0644(?: \\u0627\\u0644\\u0643\\u0644)?|\\u0627\\u0642\\u0628\\u0644(?: \\u0627\\u0644\\u0643\\u0644)?|\\u0627\\u0644\\u0633\\u0645\\u0627\\u062d (?:\\u0644\\u0644\\u0643\\u0644|\\u0644\\u0644\\u062c\\u0645\\u064a\\u0639)|\\u0645\\u0648\\u0627\\u0641\\u0642)$/i;
     var cookiePattern = /cookies?|\\u0645\\u0644\\u0641\\u0627\\u062a \\u062a\\u0639\\u0631\\u064a\\u0641 \\u0627\\u0644\\u0627\\u0631\\u062a\\u0628\\u0627\\u0637|\\u0627\\u0644\\u062a\\u0642\\u0646\\u064a\\u0627\\u062a \\u0627\\u0644\\u0645\\u0645\\u0627\\u062b\\u0644\\u0629/i;
     for (var i = 0; i < controls.length; i++) {
       var button = controls[i];
-      var label = String(button.textContent || button.value || button.getAttribute('aria-label') || '').replace(/\\s+/g, ' ').trim();
-      if (!acceptPattern.test(label) || !/(?:all|الكل|الجميع)/i.test(label)) continue;
+      var label = String(button.textContent || button.value || button.getAttribute('aria-label') || '')
+        .replace(/[\\u200b\\u200e\\u200f\\u061c\\u202a-\\u202e\\u2066-\\u2069\\ufeff]/g, '')
+        .replace(/\\s+/g, ' ')
+        .trim();
+      var exactOneTrustAccept = button === oneTrustAccept || button.id === 'onetrust-accept-btn-handler';
+      if (!exactOneTrustAccept &&
+          (!acceptPattern.test(label) || !/(?:all|الكل|الجميع)/i.test(label))) continue;
       var scope = button;
       var cookieScope = null;
       for (var hop = 0; scope && hop < 10; hop++, scope = scope.parentElement) {
@@ -5764,7 +5947,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
           window.__otlobliCookieGateState('detected');
         }
       } catch (e) {}
-      var retryRoot = document.documentElement;
       var acceptAttempts = parseInt(retryRoot.getAttribute('data-otlobli-cookie-auto-accept-attempts') || '0', 10) || 0;
       var lastAttemptAt = parseInt(retryRoot.getAttribute('data-otlobli-cookie-auto-accept-last-at') || '0', 10) || 0;
       if (acceptAttempts < 30 && scanNow - lastAttemptAt >= 600) {
