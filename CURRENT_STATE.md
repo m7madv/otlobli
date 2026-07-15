@@ -7,9 +7,9 @@ Last updated: 2026-07-15
 - Branch: `codex/customer-wallet-group-orders`.
 - Stable tested reference: v85.8.5 / `a914d81`.
 - Reference IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.5-nav-cairo-font-match-no-otp-test.ipa`.
-- Active local candidate: v85.8.18 (pre-paint cookie-consent gate; device acceptance pending).
-- Last built IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.17.ipa`.
-- Build run: `29442903610`; SHA-256 `0CF2E8ED4871FC1BC0CF327606D670E6BF7CDAB55C52F0A30875EAEC968E42B3`.
+- Active candidate: v85.8.18 / `fd6d4db` (pre-paint cookie-consent gate; device acceptance pending).
+- Last built IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.18.ipa`.
+- Build run: `29446101794`; SHA-256 `ABF792A41F8A1BF3271B3B793DD21C2769F1E04F96362B6A8D1AC40EFCF666DB`.
 - `APP_VERSION = 2026.07.15-v85.8.18-shein-cookie-prepaint-gate-no-otp-test`.
 - Do not claim SHEIN is fixed before testing iPhone 6 and iPhone 16 Pro Max.
 
@@ -67,4 +67,4 @@ Test fresh install and repeated entry on iPhone 6 and iPhone 16 Pro Max:
 - Runtime syntax parse passed for `OTLOBLI_NAV_BOOTSTRAP_SCRIPT` and `SHEIN_CAPTURE_SCRIPT`.
 - v85.8.18 generated script sizes: bootstrap `37,675` bytes; full capture `374,381` bytes. The added bootstrap path has no permanent interval.
 - `git diff --check` passed before documentation/version finalization; rerun before commit.
-- Last iOS unsigned build/package passed in run `29442903610`; embedded v85.8.17 marker and desktop IPA SHA-256 were verified. v85.8.18 IPA pending.
+- iOS unsigned build/package passed in run `29446101794`; embedded v85.8.18 marker and desktop IPA SHA-256 were verified.

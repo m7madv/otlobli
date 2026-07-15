@@ -5,9 +5,9 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Current Candidate
 
 - Branch: `codex/customer-wallet-group-orders`.
-- Candidate: local v85.8.18, exact pre-paint cookie-consent gate on top of v85.8.17; not device-proven.
+- Candidate: v85.8.18 / `fd6d4db`, exact pre-paint cookie-consent gate on top of v85.8.17; not device-proven.
 - Stable rollback/reference: v85.8.5 / `a914d81` and the user-provided v85.8.5 IPA.
-- IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.17.ipa`; run `29442903610`; SHA-256 `0CF2E8ED4871FC1BC0CF327606D670E6BF7CDAB55C52F0A30875EAEC968E42B3`.
+- IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.18.ipa`; run `29446101794`; SHA-256 `ABF792A41F8A1BF3271B3B793DD21C2769F1E04F96362B6A8D1AC40EFCF666DB`.
 
 ## Why v85.8.17 Exists
 
@@ -32,4 +32,4 @@ The monolithic capture script had accumulated overlapping permanent loops: full 
 
 ## Next Step
 
-Build v85.8.18, then test a deleted/reinstalled app on both phones: the consent sheet must never be visible or tappable, Otlobli must show only the established preparation state, and SHEIN must be interactive after automatic acceptance. Continue the v85.8.17 repeated navigation test afterward.
+Install v85.8.18 after deleting the app, then test both phones: the consent sheet must never be visible or tappable, Otlobli must show only the established preparation state, and SHEIN must be interactive after automatic acceptance. Continue the repeated navigation test afterward.
