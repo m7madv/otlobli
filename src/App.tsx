@@ -2098,6 +2098,7 @@ function App() {
   const webviewErrorTimerRef = useRef<number | undefined>(undefined)
   const sheinReadinessTimerRef = useRef<number | undefined>(undefined)
   const sheinRecoveryAttemptRef = useRef(0)
+  const sheinCacheResetPendingRef = useRef(false)
   // فُتح المتجر عبر «فتح على أي حال» رغم فشل بوابة VPN. عندها لو لم تُحمّل الصفحة
   // فعلاً، نرجع لبوابة «شغّل VPN» بدل عرض صفحة بيضاء (بدل الإظهار القسري).
   const openedViaBypassRef = useRef(false)
@@ -2285,6 +2286,7 @@ function App() {
     sheinOpenedRef.current = false
     setSheinReady(false)
     setStoreOpenFailureReason(reason)
+    if (reason === 'preparation') sheinCacheResetPendingRef.current = true
     setSheinBlockedError(true)
     if (reason === 'network') refreshVpnDiagnosisForStoreFailure()
     void InAppBrowser.close().catch(() => undefined).finally(() => {
@@ -2380,6 +2382,7 @@ function App() {
     currentWebviewUrlRef.current = ''
     sheinOpenedRef.current = false
     setSheinReady(false)
+    sheinCacheResetPendingRef.current = true
     void InAppBrowser.close()
       .then(() => {
         webviewAutoOpenPausedUntilRef.current = 0
@@ -2467,17 +2470,12 @@ function App() {
       // permanently blank home screen. This keeps back navigation inside the webview.
       activeNativeNavigationForWebview: true,
       disableGoBackOnNativeApplication: true,
-      // Defaults to false in the plugin itself - without this, the native
-      // WebView's own bounds extend all the way to the physical bottom edge
-      // (this app targets Android SDK 36, which mandates edge-to-edge
-      // display), and the system's own 3-button nav bar then draws ON TOP of
-      // whatever's there, overlapping otlobli's nav bar rather than sitting
-      // below it. This applies the missing margin at the native WebView
-      // level instead of trying to compensate from CSS inside the page
-      // (env(safe-area-inset-bottom) was confirmed unreliable in this
-      // specific Dialog context, which is a different surface than the
-      // main Activity it normally works on).
-      enabledSafeBottomMargin: true,
+      // Android still needs the native safe-bottom margin for its system
+      // navigation bar. On iOS that option shrinks WKWebView to the safe-area
+      // bottom and leaves a second native strip below our own safe-area-aware
+      // nav. Let WKWebView fill the iOS controller instead; viewport-fit=cover
+      // makes the injected nav own and paint the complete bottom inset.
+      enabledSafeBottomMargin: Capacitor.getPlatform() !== 'ios',
       // Used to route Android traffic through a Cloudflare Worker relay here
       // (outboundProxyRules) so the device's own geo-blocked IP was never
       // what shein.com saw, while iOS skipped it (the relay crashed iOS's
@@ -2488,13 +2486,13 @@ function App() {
       // regardless of fixes - so both platforms now connect directly and
       // rely on the user's VPN, same as iOS always did.
     }
-    // The only recovery that consistently works on the reported iPhones is
-    // switching to Temu and back. That path closes the old WKWebView and then
-    // calls clearCache before opening SHEIN. Reproduce that proven sequence on
-    // every SHEIN entry. Capgo's iOS implementation clears only WebKit's disk
-    // and memory caches; cookies/localStorage (including addressCookie) stay
-    // intact, so the signed Saudi address is preserved.
-    const prepareStoreWebview = activeStore === 'shein'
+    // Keep the healthy HTTP/WebKit cache for the fast path on older iPhones.
+    // A cache reset remains available only for the one bounded stuck-session
+    // recovery (and the explicit Temu -> SHEIN switch already performs it).
+    // This isolates the speed change from v85.9's failed document-start path.
+    const shouldResetSheinCache = activeStore === 'shein' && sheinCacheResetPendingRef.current
+    if (shouldResetSheinCache) sheinCacheResetPendingRef.current = false
+    const prepareStoreWebview = shouldResetSheinCache
       ? InAppBrowser.clearCache()
       : Promise.resolve()
     void prepareStoreWebview

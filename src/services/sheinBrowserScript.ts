@@ -38,6 +38,26 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
     return score;
   }
 
+  function hideStoreBottomFromPoint(node, vpWidth, vpHeight) {
+    var current = node;
+    var matched = null;
+    for (var depth = 0; current && current !== document.body && current !== document.documentElement && depth < 9; depth++) {
+      if (current.id && current.id.indexOf('otlobli') === 0) break;
+      var rect = current.getBoundingClientRect();
+      if (rect.width >= vpWidth * 0.55 && rect.height >= 24 && rect.height <= 170 &&
+          (rect.bottom >= vpHeight - 30 || rect.top >= vpHeight - 190) &&
+          storeBottomTabScore(normalizedText(current)) >= 3) {
+        matched = current;
+      }
+      current = current.parentElement;
+    }
+    if (!matched) return;
+    matched.style.setProperty('display', 'none', 'important');
+    matched.style.setProperty('visibility', 'hidden', 'important');
+    matched.style.setProperty('pointer-events', 'none', 'important');
+    matched.setAttribute('data-otlobli-hidden-store-bottom', 'bootstrap-point-tabs');
+  }
+
   function hideVerifiedStoreBottomNav() {
     if (!document.body) return;
     var vpHeight = window.innerHeight || document.documentElement.clientHeight || 0;
@@ -56,6 +76,21 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
       el.style.setProperty('visibility', 'hidden', 'important');
       el.style.setProperty('pointer-events', 'none', 'important');
       el.setAttribute('data-otlobli-hidden-store-bottom', 'bootstrap-verified-tabs');
+    }
+
+    // SHEIN's older/iPhone-6 markup uses obfuscated plain divs without nav
+    // roles or stable classes. elementsFromPoint returns the whole visual
+    // stack, including the real five-tab bar underneath Otlobli's nav, so we
+    // can identify it by exact tab semantics without scanning the whole DOM.
+    if (document.elementsFromPoint) {
+      var xs = [Math.round(vpWidth * 0.12), Math.round(vpWidth * 0.32), Math.round(vpWidth * 0.5), Math.round(vpWidth * 0.68), Math.round(vpWidth * 0.88)];
+      var ys = [Math.max(1, vpHeight - 6), Math.max(1, vpHeight - 42), Math.max(1, vpHeight - 78)];
+      for (var yi = 0; yi < ys.length; yi++) {
+        for (var xi = 0; xi < xs.length; xi++) {
+          var stack = document.elementsFromPoint(xs[xi], ys[yi]);
+          for (var si = 0; si < stack.length; si++) hideStoreBottomFromPoint(stack[si], vpWidth, vpHeight);
+        }
+      }
     }
   }
 
@@ -4687,6 +4722,49 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
+  // SHEIN can draw its own black "added successfully" toast over Otlobli's
+  // nav after our capture completes. Hide only that exact compact success
+  // message; the real product button and every other bottom action remain.
+  function hideSheinCartSuccessToast() {
+    if (!IS_SHEIN || !document.body) return;
+    var vp = viewportSize();
+    var successPattern = /added to (?:the )?(?:shopping )?(?:bag|cart) successfully|\\u0623\\u0636(?:\\u064a\\u0641|\\u0641)\\s+\\u0625\\u0644\\u0649\\s+(?:\\u0639\\u0631\\u0628\\u0629|\\u062d\\u0642\\u064a\\u0628\\u0629)\\s+\\u0627\\u0644\\u062a\\u0633\\u0648\\u0642\\s+\\u0628\\u0646\\u062c\\u0627\\u062d/i;
+
+    function inspect(node) {
+      var current = node;
+      for (var depth = 0; current && current !== document.body && current !== document.documentElement && depth < 7; depth++) {
+        if (current.id && current.id.indexOf('otlobli') === 0) return;
+        var text = String(current.innerText || current.textContent || '')
+          .replace(/[\\u064B-\\u065F\\u0670]/g, '')
+          .replace(/\\s+/g, ' ')
+          .trim();
+        if (text.length > 0 && text.length < 140 && successPattern.test(text)) {
+          var rect = current.getBoundingClientRect();
+          if (rect.width >= vp.width * 0.35 && rect.height >= 20 && rect.height <= 120 && rect.bottom >= vp.height - 230) {
+            current.style.setProperty('display', 'none', 'important');
+            current.style.setProperty('visibility', 'hidden', 'important');
+            current.style.setProperty('pointer-events', 'none', 'important');
+            current.setAttribute('data-otlobli-hidden-cart-toast', '1');
+            return;
+          }
+        }
+        current = current.parentElement;
+      }
+    }
+
+    if (document.elementsFromPoint) {
+      var ys = [Math.max(1, vp.height - 8), Math.max(1, vp.height - 52), Math.max(1, vp.height - 100), Math.max(1, vp.height - 150)];
+      for (var yi = 0; yi < ys.length; yi++) {
+        var stack = document.elementsFromPoint(Math.round(vp.width * 0.5), ys[yi]);
+        for (var si = 0; si < stack.length; si++) inspect(stack[si]);
+      }
+      return;
+    }
+
+    var alerts = document.querySelectorAll('[role="alert"], [role="status"], [class*="toast" i], [class*="message" i]');
+    for (var ai = 0; ai < alerts.length; ai++) inspect(alerts[ai]);
+  }
+
   // shein.com's own anti-bot system occasionally serves a branded "GSRM
   // Security"/"server's gone missing" block page instead of the real page -
   // observed tied to the session's cookies (clearing them and reloading
@@ -4925,6 +5003,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     hideListingCardAddButtons();
     hideForeignBottomNav();
     protectSheinCookieConsentAction();
+    hideSheinCartSuccessToast();
     hideSheinAppInstallPrompts();
   }
 
