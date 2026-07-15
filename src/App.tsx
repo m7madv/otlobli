@@ -2107,6 +2107,11 @@ function App() {
   // إشعار تحقق «أنا إنسان» يُعرض مرة واحدة لكل جلسة webview كي لا يزعج.
   const humanCheckNoticeRef = useRef(false)
   const pendingProductUrlRef = useRef('')
+  const pendingProductRevealUrlRef = useRef('')
+  const pendingProductRevealRef = useRef(false)
+  const pendingProductNavigationRequestedRef = useRef(false)
+  const pendingProductPageLoadedRef = useRef(false)
+  const pendingProductPrepareTimerRef = useRef<number | undefined>(undefined)
   const [sheinReady, setSheinReady] = useState(false)
   const sheinReadyRef = useRef(false)
   // Tracks which screen the in-page back button inside the SHEIN webview
@@ -2235,6 +2240,57 @@ function App() {
     sheinReadinessTimerRef.current = undefined
   }
 
+  const clearPendingProductPreparation = (clearQueuedUrl = true) => {
+    if (pendingProductPrepareTimerRef.current !== undefined) {
+      window.clearTimeout(pendingProductPrepareTimerRef.current)
+      pendingProductPrepareTimerRef.current = undefined
+    }
+    pendingProductRevealRef.current = false
+    pendingProductNavigationRequestedRef.current = false
+    pendingProductPageLoadedRef.current = false
+    pendingProductRevealUrlRef.current = ''
+    if (clearQueuedUrl) pendingProductUrlRef.current = ''
+  }
+
+  const beginPendingProductPreparation = (targetUrl: string) => {
+    clearPendingProductPreparation()
+    pendingProductUrlRef.current = targetUrl
+    pendingProductRevealUrlRef.current = targetUrl
+    pendingProductRevealRef.current = true
+    pendingProductPrepareTimerRef.current = window.setTimeout(() => {
+      if (!pendingProductRevealRef.current) return
+      clearPendingProductPreparation()
+      pendingBackTargetRef.current = 'home'
+      showNotice('تعذر تجهيز صفحة المنتج. جرّب فتحها مرة أخرى.')
+    }, 45000)
+  }
+
+  const markPendingProductNavigationRequested = () => {
+    if (!pendingProductRevealRef.current) return
+    pendingProductNavigationRequestedRef.current = true
+    pendingProductPageLoadedRef.current = false
+    // A ready message from the previous page must not reveal the target.
+    // The next document sets readiness again after all blockers have run.
+    sheinReadyRef.current = false
+    setSheinReady(false)
+  }
+
+  const revealPreparedProductIfReady = () => {
+    if (!pendingProductRevealRef.current ||
+        !pendingProductNavigationRequestedRef.current ||
+        !pendingProductPageLoadedRef.current) return false
+    const shouldReveal = screenRef.current === 'cart'
+    clearPendingProductPreparation()
+    if (!shouldReveal) {
+      pendingBackTargetRef.current = 'home'
+      return true
+    }
+    // Keep the React cart visible until the hidden target document is loaded
+    // and its injected blockers have explicitly reported readiness.
+    setScreen('home')
+    return true
+  }
+
   const forceStoreVpnRecheck = () => {
     if (screenRef.current !== 'home') return
     if (selectedStoreRef.current !== 'shein') return
@@ -2248,6 +2304,7 @@ function App() {
     lastResumeVpnRecheckRef.current = now
 
     clearSheinReadinessWatchdog()
+    clearPendingProductPreparation()
     sheinRecoveryAttemptRef.current = 0
     suppressAutoReopenRef.current = true
     webviewSessionRef.current += 1
@@ -2270,6 +2327,7 @@ function App() {
 
   const showStoreOpenFailure = (reason: StoreOpenFailureReason = 'network') => {
     clearSheinReadinessWatchdog()
+    clearPendingProductPreparation()
     if (webviewErrorTimerRef.current !== undefined) {
       window.clearTimeout(webviewErrorTimerRef.current)
       webviewErrorTimerRef.current = undefined
@@ -2347,7 +2405,12 @@ function App() {
     const pendingProductUrl = pendingProductUrlRef.current
     if (pendingProductUrl) {
       pendingProductUrlRef.current = ''
-      void InAppBrowser.setUrl({ url: pendingProductUrl }).catch(() => undefined)
+      markPendingProductNavigationRequested()
+      void InAppBrowser.setUrl({ url: pendingProductUrl }).catch(() => {
+        clearPendingProductPreparation()
+        pendingBackTargetRef.current = 'home'
+        showNotice('تعذر تجهيز صفحة المنتج. جرّب فتحها مرة أخرى.')
+      })
     }
     // If readiness completed while the customer was on cart/orders/profile,
     // keep the same prepared WebView hidden. It will be shown without reload.
@@ -2441,6 +2504,10 @@ function App() {
     const activeStore = selectedStoreRef.current
     const rawTargetUrl = initialPendingUrl || storeUrl(activeStore)
     const targetUrl = activeStore === 'shein' ? normalizeSheinBrowserUrl(rawTargetUrl) : normalizeTemuBrowserUrl(rawTargetUrl)
+    if (activeStore === 'shein' && initialPendingUrl && pendingProductRevealRef.current &&
+        pendingProductRevealUrlRef.current === targetUrl) {
+      markPendingProductNavigationRequested()
+    }
     currentWebviewUrlRef.current = targetUrl
     const webViewOptions: Parameters<typeof InAppBrowser.openWebView>[0] & {
       otlobliLoadingCover?: boolean
@@ -2554,29 +2621,46 @@ function App() {
     }
   }, [screen, vpnState, sheinReady, sheinBlockedError])
 
-  // Navigates the already-open SHEIN webview to a cart item's saved product
-  // link and switches back to it, so tapping a product inside the cart shows
-  // the real SHEIN page instead of just re-displaying the cart.
+  // Prepare a cart product inside the preserved, hidden SHEIN WebView. The
+  // cart stays visible until browserPageLoaded + blocker readiness both arrive.
   const openSheinProductFromCart = (sourceLink: string) => {
     if (!sourceLink) {
       showNotice('رابط المنتج غير متوفر على SHEIN')
       return
     }
     const targetUrl = normalizeSheinBrowserUrl(sourceLink)
-    if (!sheinOpenedRef.current || webviewOpeningRef.current || !sheinReady) {
-      pendingProductUrlRef.current = targetUrl
-      pendingBackTargetRef.current = 'cart'
-      setScreen('home')
+    beginPendingProductPreparation(targetUrl)
+    pendingBackTargetRef.current = 'cart'
+    showNotice('جاري تجهيز صفحة المنتج...')
+    if (vpnStateRef.current !== 'ok') {
+      clearPendingProductPreparation()
+      pendingBackTargetRef.current = 'home'
+      showNotice('شغّل VPN ثم جرّب فتح المنتج مرة أخرى.')
       return
     }
-    pendingBackTargetRef.current = 'cart'
+    if (!sheinOpenedRef.current) {
+      browseSheinRef.current()
+      return
+    }
+    if (webviewOpeningRef.current || !sheinReadyRef.current) {
+      // The in-flight page stays hidden. Its readiness callback consumes the
+      // queued URL and starts the target navigation without revealing it.
+      return
+    }
+    pendingProductUrlRef.current = ''
+    markPendingProductNavigationRequested()
     void InAppBrowser.setUrl({ url: targetUrl })
-      .catch(() => undefined)
-      .then(() => setScreen('home'))
+      .catch(() => {
+        clearPendingProductPreparation()
+        pendingBackTargetRef.current = 'home'
+        showNotice('تعذر تجهيز صفحة المنتج. جرّب فتحها مرة أخرى.')
+      })
   }
 
   useEffect(() => {
     const handle = InAppBrowser.addListener('closeEvent', () => {
+      const productWasPreparing = pendingProductRevealRef.current
+      clearPendingProductPreparation()
       webviewSessionRef.current += 1
       webviewOpeningRef.current = false
       webviewOpenedAtRef.current = 0
@@ -2584,6 +2668,10 @@ function App() {
       sheinChallengeActiveRef.current = false
       sheinOpenedRef.current = false
       setSheinReady(false)
+      if (productWasPreparing && screenRef.current === 'cart') {
+        pendingBackTargetRef.current = 'home'
+        showNotice('توقف تجهيز المنتج. جرّب فتحه مرة أخرى.')
+      }
       if (suppressAutoReopenRef.current) {
         suppressAutoReopenRef.current = false
         return
@@ -2609,6 +2697,9 @@ function App() {
     const loadedHandle = InAppBrowser.addListener('browserPageLoaded', (event: { id?: string }) => {
       if (event?.id && event.id !== webviewIdRef.current) return
       if (selectedStoreRef.current === 'shein') {
+        if (pendingProductRevealRef.current && pendingProductNavigationRequestedRef.current) {
+          pendingProductPageLoadedRef.current = true
+        }
         const id = webviewIdRef.current || undefined
         void InAppBrowser.executeScript({ ...(id ? { id } : {}), code: SHEIN_CAPTURE_SCRIPT })
           .catch((err) => {
@@ -2758,6 +2849,7 @@ function App() {
 
       if (detail?.type === 'sheinSaudiReady' || detail?.type === 'sheinPageInteractive') {
         markStoreWebviewReadyRef.current(webviewSessionRef.current)
+        revealPreparedProductIfReady()
         return
       }
 
@@ -2772,6 +2864,7 @@ function App() {
           sheinChallengeActiveRef.current = true
           setSheinBlockedError(false)
           markStoreWebviewReadyRef.current(webviewSessionRef.current)
+          revealPreparedProductIfReady()
           if (!humanCheckNoticeRef.current) {
             humanCheckNoticeRef.current = true
             showNotice('المتجر يطلب تحققاً بسيطاً — اضغط مربع التحقق داخل الصفحة وسيفتح مباشرة')
