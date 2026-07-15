@@ -5,9 +5,9 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Current Candidate
 
 - Branch: `codex/customer-wallet-group-orders`.
-- Current code/IPA: `9ba6a7f` / `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.15.ipa`.
-- SHA-256: `0BDEEC053CCAC3AEAA0944DFA360C0C8CE17742D783830B4326553527D277D4E`.
-- Build run: `29428880011` (success).
+- Current code/IPA: `ccf08aa` / `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.16.ipa`.
+- SHA-256: `F25EEBAAB50991CDAEFE373202EEE5A7BABF3F889ACEE9B09D2D0F6E232C370D`.
+- Build run: `29432951413` (success).
 - Rollback/reference: v85.8.5 / `a914d81` and the user-provided v85.8.5 IPA.
 - v85.8.12 was very good on iPhone 16, but its device report still found consent overlap and iPhone-6 nav/auth/gallery paint issues. v85.8.13 addresses those reports and size fail-closed behavior; never call it proven until both iPhones pass.
 
@@ -40,9 +40,10 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 - Multi-choice descriptive variants (for example `ملعقة`) require a trusted customer tap; SHEIN's automatic first-option highlight is ignored.
 - v85.8.14 corrects the readiness hit-test false positive, requires four consecutive complete/interactive checks, and makes only `sheinPageInteractive` release the cover. Exact cookie Accept-all retries are shared and hidden; DE/EU/US are rejected as sizing systems; the old-WK gallery matcher accepts only a strongly bounded full-screen absolute viewer with an exact counter and large media.
 - v85.8.14 failed real-device testing. v85.8.15 removes its four-pass/complete/cookie-pending wait, restores signed-Saudi release through the v85.8.13 event path, clicks exact Accept-all without a geometry prerequisite, restores proven size/tap discovery with final-only sizing-system rejection, and hides only the raw centered old-iPhone SHEIN icon by tight geometry.
+- v85.8.15 was faster but failed Saudi persistence and still exposed old-iPhone cookie/raw-nav states. v85.8.16 removes the incorrect product-title prerequisite from the native Saudi cascade, supports the verified full-page country picker, accepts exact consent inside child frames, classifies confirmed-VPN WebKit failures as preparation, rejects sizing-system labels at both capture and bridge boundaries, and reclaims nav paint during repair.
 - A full-device restart needs the matching Apple panic/Jetsam/crash log before assigning cause; do not infer it from the screenshot alone.
 - Cart swatch/quantity visual changes are pending an exact Figma frame URL. Do not invent them.
 
 ## Next Step
 
-Install v85.8.15, then test fresh/repeated SHEIN entry, exact consent auto-accept, one-time Saudi preparation, persistent nav/absence of the center raw icon on iPhone 6, and trusted color+size capture on both phones. Do not call it fixed before both phones pass.
+Install v85.8.16, then test fresh/repeated SHEIN entry, exact consent auto-accept, one-time signed Saudi preparation, persistent nav/absence of raw SHEIN tabs on iPhone 6, no false Germany-VPN warning, and trusted color+size capture on both phones. Do not call it fixed before both phones pass.

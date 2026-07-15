@@ -7,11 +7,11 @@ Last updated: 2026-07-15
 - Branch: `codex/customer-wallet-group-orders`.
 - Stable tested reference: v85.8.5 / `a914d81`.
 - Reference IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.5-nav-cairo-font-match-no-otp-test.ipa`.
-- Active working candidate: v85.8.15 (`9ba6a7f`; built, real-device acceptance pending).
-- Last built IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.15.ipa`.
-- Last IPA SHA-256: `0BDEEC053CCAC3AEAA0944DFA360C0C8CE17742D783830B4326553527D277D4E`.
-- Last iOS build run: `29428880011` (v85.8.15 success).
-- `APP_VERSION = 2026.07.15-v85.8.15-shein-fast-cookie-size-recovery-no-otp-test`.
+- Active working candidate: v85.8.16 (`ccf08aa`; built, real-device acceptance pending).
+- Last built IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.16.ipa`.
+- Last IPA SHA-256: `F25EEBAAB50991CDAEFE373202EEE5A7BABF3F889ACEE9B09D2D0F6E232C370D`.
+- Last iOS build run: `29432951413` (v85.8.16 success).
+- `APP_VERSION = 2026.07.15-v85.8.16-shein-saudi-consent-size-guard-no-otp-test`.
 - Real-device acceptance is pending; do not claim the SHEIN issues are fixed yet.
 
 ## v85.8.6 Scope
@@ -112,6 +112,16 @@ Last updated: 2026-07-15
 - Added a narrow center/bottom hit-stack guard for the single raw SHEIN icon seen through the four-tab Otlobli nav on iPhone 6; it does not hide arbitrary bottom content.
 - Kept the corrected overlay hit-test and the exact gallery enhancement. No Temu, payment, wallet, order, or design change was made.
 
+## v85.8.16 Working Changes
+
+- v85.8.15 was faster on-device, but Qatar could remain after the Saudi cover, iPhone 6 could show a false Germany-VPN warning, raw/cookie UI could overlap the nav, and standalone `DE` could still reach cart.
+- Saudi automation now recognizes both SHEIN's legacy full-page country route and its drawer/cascade, without requiring `.productShippingTitle`; it completes the exact Saudi -> Riyadh Province -> Riyadh -> Al Olaya path and reopens a country-only Saudi state until the signed address exists.
+- Exact Accept-all runs inside the frame that owns the consent UI; unrelated child-frame scans stop after ten seconds. No generic consent action is clicked.
+- The document-start guard recognizes an icon-only four/five-tab SHEIN row by distributed controls, and the Otlobli nav immediately reclaims paint order during address repair.
+- A confirmed non-Syrian VPN plus a WebKit open/termination failure is now reported as store preparation failure, not “change VPN server”.
+- Standalone sizing systems are rejected during option discovery and again at the app bridge, so `DE/EU/US` cannot become a cart size.
+- No broad CSS, viewport hack, reload loop, Temu change, or payment/wallet/order change was added.
+
 ## Failed Paths / Guardrails
 
 - v86-v88 are failed paths. v87 fixed none of the reported issues; v88 closed/crashed SHEIN on entry.
@@ -157,3 +167,4 @@ Test on iPhone 6 and iPhone 16 Pro Max:
 - Xcode unsigned build and packaging passed in run `29422476203`; the embedded v85.8.13 marker and desktop IPA SHA-256 were verified.
 - Xcode unsigned build and packaging passed in run `29426638388`; the embedded v85.8.14 marker and desktop IPA SHA-256 were verified.
 - Xcode unsigned build and packaging passed in run `29428880011`; the embedded v85.8.15 marker and desktop IPA SHA-256 were verified.
+- Xcode unsigned build and packaging passed in run `29432951413`; the embedded v85.8.16 marker and desktop IPA SHA-256 were verified.
