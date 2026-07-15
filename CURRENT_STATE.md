@@ -7,9 +7,9 @@ Last updated: 2026-07-16
 - Branch: `codex/customer-wallet-group-orders`.
 - Stable tested reference: v85.8.5 / `a914d81`.
 - Reference IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.5-nav-cairo-font-match-no-otp-test.ipa`.
-- Active candidate: v85.8.19 local (native iOS inactive-state white-flash fix; device acceptance pending).
-- Last built IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.18.ipa`.
-- Build run: `29446101794`; SHA-256 `ABF792A41F8A1BF3271B3B793DD21C2769F1E04F96362B6A8D1AC40EFCF666DB`.
+- Active candidate: v85.8.19 / `692f5bc` (native iOS inactive-state white-flash fix; device acceptance pending).
+- Last built IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.19.ipa`.
+- Build run: `29452454010`; SHA-256 `0CE0C4480D1D60CCD1BC11787A1C6F69293C13B4F0C1EB7521CF309FFD710F03`.
 - `APP_VERSION = 2026.07.16-v85.8.19-ios-store-resign-flash-no-otp-test`.
 - Do not claim SHEIN is fixed before testing iPhone 6 and iPhone 16 Pro Max.
 
@@ -76,3 +76,4 @@ Test fresh install and repeated entry on iPhone 6 and iPhone 16 Pro Max:
 - The patched native diff parses with `git apply --stat`.
 - `git diff --check` passed before documentation/version finalization; rerun before commit.
 - iOS unsigned build/package passed in run `29446101794`; embedded v85.8.18 marker and desktop IPA SHA-256 were verified.
+- iOS unsigned build/package passed in run `29452454010`; embedded v85.8.19 marker and desktop IPA SHA-256 were verified.

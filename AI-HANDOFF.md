@@ -5,9 +5,9 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Current Candidate
 
 - Branch: `codex/customer-wallet-group-orders`.
-- Candidate: v85.8.19 local, native iOS inactive-state white-flash fix on top of v85.8.18; not device-proven.
+- Candidate: v85.8.19 / `692f5bc`, native iOS inactive-state white-flash fix on top of v85.8.18; not device-proven.
 - Stable rollback/reference: v85.8.5 / `a914d81` and the user-provided v85.8.5 IPA.
-- IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.18.ipa`; run `29446101794`; SHA-256 `ABF792A41F8A1BF3271B3B793DD21C2769F1E04F96362B6A8D1AC40EFCF666DB`.
+- IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.19.ipa`; run `29452454010`; SHA-256 `0CE0C4480D1D60CCD1BC11787A1C6F69293C13B4F0C1EB7521CF309FFD710F03`.
 
 ## Why v85.8.17 Exists
 
