@@ -7,164 +7,55 @@ Last updated: 2026-07-15
 - Branch: `codex/customer-wallet-group-orders`.
 - Stable tested reference: v85.8.5 / `a914d81`.
 - Reference IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.5-nav-cairo-font-match-no-otp-test.ipa`.
-- Active working candidate: v85.8.16 (`ccf08aa`; built, real-device acceptance pending).
+- Active local candidate: v85.8.17 (event-driven SHEIN runtime; device acceptance pending).
 - Last built IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.16.ipa`.
-- Last IPA SHA-256: `F25EEBAAB50991CDAEFE373202EEE5A7BABF3F889ACEE9B09D2D0F6E232C370D`.
-- Last iOS build run: `29432951413` (v85.8.16 success).
-- `APP_VERSION = 2026.07.15-v85.8.16-shein-saudi-consent-size-guard-no-otp-test`.
-- Real-device acceptance is pending; do not claim the SHEIN issues are fixed yet.
+- Last built code: `ccf08aa`; run `29432951413`; SHA-256 `F25EEBAAB50991CDAEFE373202EEE5A7BABF3F889ACEE9B09D2D0F6E232C370D`.
+- `APP_VERSION = 2026.07.15-v85.8.17-shein-event-driven-runtime-no-otp-test`.
+- Do not claim SHEIN is fixed before testing iPhone 6 and iPhone 16 Pro Max.
 
-## v85.8.6 Scope
+## Confirmed Runtime Diagnosis
 
-- Keeps v85.8.5 store/VPN/Saudi-address behavior as the base.
-- Defers first iOS WebView presentation until its first live page while React's nav remains mounted.
-- Uses bundled Cairo in both React and the injected SHEIN nav; no Google Fonts timing shift.
-- Shows the native loading cover for every iOS main-frame navigation while leaving Otlobli's nav uncovered.
-- Gives slow devices 35 seconds for SHEIN readiness instead of falsely blaming the VPN at 13 seconds.
-- Passive security checks remain covered briefly; genuinely interactive verification is revealed after a bounded wait and is never bypassed.
-- Hides only a verified SHEIN bottom tab bar. The old generic fixed-bottom hiding path is no longer called.
-- Raises only an exact cookie-consent action that would overlap Otlobli's nav.
-- Retries only SHEIN's exact feed-error retry action, at most four times, without reload or `setUrl` loops.
-- Improves round/HOT swatch capture by ranking nested images and CSS backgrounds while rejecting small badge layers.
-- Runtime Service Worker/cache cleanup runs once per SHEIN WebView session, not on every product/back navigation.
+- The current SHEIN path had accumulated a full `tick()` every 300ms, header/listing scans every 120ms, nav maintenance every 120ms, a body-text security scan every second, and a whole-document MutationObserver that scheduled more ticks.
+- Cookie/bootstrap code also scanned every 250ms for up to 45 seconds.
+- On old WKWebView this creates sustained layout/text/DOM work while SHEIN is hydrating and decoding images. That matches the reported slowness, delayed blockers, and painted-but-unresponsive behavior.
+- Reinjecting the full script into the same live SPA document could duplicate observers and listeners.
 
-## v85.8.7 Changes
+## v85.8.17 Changes
 
-- v85.8.6 device result: iPhone 6 still showed SHEIN's five-tab bar under Otlobli's nav during preparation and remained slow; iPhone 16 showed a differently colored safe-area strip below the home nav.
-- The document-start bootstrap now finds obfuscated plain-div SHEIN tabs through the visual element stack plus exact tab semantics; no broad DOM/CSS scan was added.
-- Only SHEIN's exact compact "added to cart successfully" toast is hidden when it overlaps the app nav.
-- Healthy WebKit cache is preserved for the fast path. Cache clearing remains limited to bounded stuck-session recovery and explicit Temu -> SHEIN switching.
-- iOS WKWebView now fills the controller bottom; the injected safe-area-aware nav paints the whole inset. Android keeps its native safe-bottom margin.
+- Removed all permanent SHEIN full-page/header/security/nav polling.
+- SHEIN maintenance now runs in finite, replaceable bursts only on initial load, SPA navigation, customer interaction, foreground return, reconnect, or an explicit reinjection request.
+- The SHEIN MutationObserver repairs only a missing Otlobli nav; ordinary product mutations never start a full-page scan.
+- Duplicate full-script injection into one live document is rejected and converted to one bounded maintenance request.
+- Saudi address repair has its own state-bound loop. It runs only while the native repair cover is active and stops on signed Saudi success, timeout, or cooldown.
+- Exact cookie auto-accept and early nav protection use fixed hydration checkpoints plus bounded mutation wakeups instead of 250ms polling.
+- Temu, payment, wallet, orders, and cart logic were not changed.
+- No broad CSS, viewport hack, storage reset, reload loop, `hidden + FAKE_VISIBLE`, or full document-start SHEIN capture was added.
 
-## v85.8.8 Changes
+## Guardrails
 
-- Real-device v85.8.7 result: iPhone 16 navigation appearance improved, but the injected home icons sat lower than the React cart/orders/profile icons; iPhone 6 could expose icon-only SHEIN tabs on first entry.
-- The injected nav now mirrors React's grid row, direct SVG/label structure, normal line height, and natural content-box height instead of a separate flex/fixed-height layout.
-- Document-start hiding adds one narrow fallback: exactly five evenly spaced children inside a fixed/sticky bottom row. It does not hide arbitrary bottom elements.
-- A cart product is loaded inside the preserved hidden SHEIN WebView while the React cart stays visible. It is revealed only after the target page load and a blocker-ready message.
-- SHEIN readiness is posted only after header/cart/listing/bottom-nav/cookie/toast/install blockers have run for that tick.
-
-## v85.8.9 Changes
-
-- v85.8.8 device result: the injected nav collapsed to content width on an older iPhone WKWebView, stacking all four tabs at the right; the first fresh launch also exited once and the second launch was smooth.
-- The injected nav uses legacy-safe Flex again, with four explicit 25% cells and direct icon/label content stretched through the same 73px content row as React.
-- The v85.8.8 first-session geometry scan was removed; the proven v85.8.7 semantic tab detector remains. Hidden cart-product readiness remains unchanged.
-- Browser layout checks at 375px and 430px confirmed four equal cells across the full width.
-
-## v85.8.10 Changes
-
-- v85.8.9 device result: the fixed nav briefly flashed/brightened once while SHEIN opened.
-- Bootstrap, challenge, and hydrated SHEIN navigation now share one canonical CSS string, including safe-area padding, font, background, and blur from the first frame.
-- The hydrated script no longer rewrites `cssText` every tick. Reclaiming the nav to the end of `<body>` happens only when four hit-tests prove another layer actually covers it.
-- `viewport-fit=cover` is established during document-start so safe-area geometry settles before the native WebView is presented.
-
-## v85.8.11 Changes
-
-- v85.8.10 device result: the user accepted the normal iPhone 16 navigation behavior. On iPhone 6, SHEIN could inject either a compact `15% + Register` strip or a larger email-newsletter registration panel above the app nav after cookie consent.
-- Both registration surfaces are now matched by compound semantics plus exact structure. Product discounts and SHEIN's real sign-in/Google form are explicitly excluded; no generic promo CSS was added.
-- The exact registration check runs at document start and before the next SPA paint. The newsletter form is found from its email input while still off-screen.
-- In SHEIN's full-screen product-photo viewer, Otlobli's add button is hidden and a transparent lower-letterbox guard prevents taps from falling through to an add action.
-- The viewer is recognized only as a fixed near-full-screen layer with a large image and `current/total` counter. On opening it, the existing nav and back button reclaim paint order once so old WKWebView cannot paint the viewer over them while leaving their hit targets active.
-- v85.8.10 nav CSS, sizing, font, and ordinary-page behavior are unchanged.
-
-## v85.8.12 Changes
-
-- v85.8.11 device result: cookie Accept could sit below Otlobli's nav, the Saudi address surface could remain open after success, gallery/image taps could still capture the product, and the new pre-paint signup scan made iPhone 6 noticeably heavier.
-- Cookie consent remains the customer's decision. The exact Accept/Reject action row is raised together above the nav; Otlobli does not silently accept tracking consent.
-- A resolved Saudi shipping surface is closed only after SHEIN writes a fully signed Saudi address. Existing URL/storage/address guards continue to detect and repair a later foreign-region change.
-- Only an unsolicited login dialog over a product is dismissed. Real login/account routes remain untouched.
-- Gallery detection now walks from a few painted points to a nested fixed viewer root. Gallery taps cannot reach native or Otlobli add/cart/wishlist actions; nav/back reclaim paint order on the viewer transition.
-- Removed v85.8.11's MutationObserver-to-requestAnimationFrame whole-page signup inspection. Cookie/signup scans are throttled and use six targeted points instead of fifteen, reducing layout work on old WKWebView.
-- Fixed srcset whitespace parsing inside the injected script. Temu, payment, wallet, orders, and cart design are unchanged.
-
-## v85.8.13 Working Changes
-
-- v85.8.12 device result: iPhone 16 was otherwise accepted, but consent still overlapped; iPhone 6 could briefly lose the app nav during Saudi repair, show a one-time product auth surface, and keep the gallery back hit target invisible.
-- The nav mounts on `<html>` at documentStart and moves to `<body>` when available; Saudi repair cannot start before the nav is painted.
-- Exact SHEIN cookie consent now auto-clicks only `Accept all`, up to three bounded attempts, per the user's explicit request. No generic action is clicked.
-- A recent product URL can recover one bounded forced-auth route; only an exact full-screen product auth overlay can be suppressed when no close control exists.
-- Gallery back paint is isolated and reasserted for old WKWebView while preserving the existing button design.
-- Size detection uses exact visible size headings plus verified option controls, then fails closed again immediately before capture finalization.
-- The existing size warning is positioned from the real nav rectangle, announced as a polite status, and fades without changing its visual design.
-- Routine Temu -> SHEIN switching no longer clears healthy WebKit assets. One trusted product/category tap on a painted but unchanged page can request one cache-preserving WebView recreation; no reload loop was added.
-- Readiness now verifies that visible SHEIN controls actually win hit-testing, so a painted page covered by a transparent dead layer is not declared interactive.
-- Passive SHEIN security frames stay behind the native preparation cover without the ordinary 45-second reveal timeout. The real page is revealed only when an interactive verification control exists, and challenge state clears again after SHEIN passes readiness.
-- Multi-choice descriptive variants such as `ملعقة` are never accepted from SHEIN's default highlight; capture requires a real customer tap recorded for that product.
-- Cart swatch shape and quantity-control styling remain pending because no Figma frame URL exists; no design was invented. Temu, payment, wallet, and orders are unchanged.
-
-## v85.8.14 Working Changes
-
-- Latest device report showed a fully painted but non-clickable SHEIN page on iPhone 16 and a two-second frozen paint on iPhone 6.
-- Fixed the readiness false positive: an ancestor/overlay returned by hit-testing no longer counts as the target control. Readiness now requires a complete document and four consecutive interactive checks.
-- Saudi address completion no longer releases the native cover by itself; only the stable interactive event can reveal the WebView.
-- Exact bounded cookie consent is hidden during preparation and its exact Accept-all control is retried for up to 30 throttled attempts, coordinated across document-start and hydrated scripts.
-- Standalone sizing-system labels such as DE/EU/US are never captured as product sizes, and the previous single-option auto-selection fallback was removed.
-- Old-WK gallery detection now supports a strongly bounded absolute full-screen viewer with an exact numeric counter and large media, restoring nav/back paint and click-through protection on iPhone 6.
-- No broad CSS, reload loop, storage reset, Temu change, or payment/wallet/order change was added.
-- The reported full iPhone restart is not attributed to Otlobli without an Apple panic/Jetsam/crash log.
-
-## v85.8.15 Working Changes
-
-- v85.8.14 failed device testing: cookie Accept-all remained visible, SHEIN/product entry became slower, Saudi preparation repeated on products, trusted size selections were rejected, the app nav could disappear during repair, and the old-iPhone center SHEIN icon remained visible.
-- Removed v85.8.14's four-pass/complete-document/cookie-pending reveal gate. The corrected real target hit-test remains, but signed Saudi readiness can release the cover through the proven v85.8.13 message path.
-- Exact Accept-all is clicked independently of consent-sheet geometry, synchronously and once again after 80ms, with up to 30 throttled attempts. Geometry is used only to hide a discovered non-document consent scope.
-- Restored v85.8.13 size option discovery and trusted-tap handling. Only the final selected value rejects standalone sizing-system codes such as DE/EU/US.
-- Added a narrow center/bottom hit-stack guard for the single raw SHEIN icon seen through the four-tab Otlobli nav on iPhone 6; it does not hide arbitrary bottom content.
-- Kept the corrected overlay hit-test and the exact gallery enhancement. No Temu, payment, wallet, order, or design change was made.
-
-## v85.8.16 Working Changes
-
-- v85.8.15 was faster on-device, but Qatar could remain after the Saudi cover, iPhone 6 could show a false Germany-VPN warning, raw/cookie UI could overlap the nav, and standalone `DE` could still reach cart.
-- Saudi automation now recognizes both SHEIN's legacy full-page country route and its drawer/cascade, without requiring `.productShippingTitle`; it completes the exact Saudi -> Riyadh Province -> Riyadh -> Al Olaya path and reopens a country-only Saudi state until the signed address exists.
-- Exact Accept-all runs inside the frame that owns the consent UI; unrelated child-frame scans stop after ten seconds. No generic consent action is clicked.
-- The document-start guard recognizes an icon-only four/five-tab SHEIN row by distributed controls, and the Otlobli nav immediately reclaims paint order during address repair.
-- A confirmed non-Syrian VPN plus a WebKit open/termination failure is now reported as store preparation failure, not “change VPN server”.
-- Standalone sizing systems are rejected during option discovery and again at the app bridge, so `DE/EU/US` cannot become a cart size.
-- No broad CSS, viewport hack, reload loop, Temu change, or payment/wallet/order change was added.
-
-## Failed Paths / Guardrails
-
-- v86-v88 are failed paths. v87 fixed none of the reported issues; v88 closed/crashed SHEIN on entry.
-- v85.9-v85.11 rejected the user's working VPN. Do not reuse their full document-start capture path.
-- Do not reintroduce hidden/offscreen `FAKE_VISIBLE`, broad CSS, viewport-width hacks, wide storage resets, or reload loops.
-- Do not change payment, wallet, completed orders, Temu, coupons, or group checkout during this SHEIN pass.
+- v86-v88 are failed paths. v87 fixed none of the reported issues; v88 crashed/closed SHEIN.
+- v85.9-v85.11 rejected working VPNs. Do not restore their full document-start capture path.
+- Do not replace whole project files from an older branch.
 - Designs come only from Figma.
-- `TEST_ONLY_AUTH_BYPASS = true` only for rapid device testing; restore OTP before production.
+- `TEST_ONLY_AUTH_BYPASS = true` is test-only; restore OTP before production.
 
-## Acceptance Test
+## Device Acceptance
 
-Test on iPhone 6 and iPhone 16 Pro Max:
+Test fresh install and repeated entry on iPhone 6 and iPhone 16 Pro Max:
 
-1. Otlobli nav is visible from launch and never changes font/size.
-2. No raw SHEIN tab bar appears during initial load, product open, back, or app-tab return.
-3. Turkey/Germany VPN is not rejected merely because iPhone 6 prepares slowly.
-4. SHEIN feed becomes usable without repeated manual retry taps.
-5. Exact SHEIN cookie consent auto-accepts during preparation; no consent control overlaps the nav.
-6. Product from cart leaves the React cart visible until ready; no raw product reload/chrome appears; back is smooth.
-7. Round/HOT selected color produces the actual color thumbnail in cart.
-8. Saudi shipping remains authoritative.
-9. After accepting cookies, neither the 15% registration strip nor the email-newsletter panel appears above the nav; real SHEIN sign-in remains usable.
-10. In a product photo viewer, add-to-cart is absent, the black lower band cannot add an item, and nav/back remain visibly painted on both phones.
-11. A forced product-login interstitial after product entry is dismissed/recovered once without affecting a direct login visit.
-12. After Saudi setup completes, the address surface closes; a later foreign-region state is detected and repaired without broad storage clearing or reload loops.
-13. On iPhone 6, product images and scrolling remain responsive after cookie consent and repeated product/gallery opens.
-14. Products that expose size choices cannot be captured until a size is selected; the warning stays above the app nav and fades.
-15. With one weak VPN, Temu -> SHEIN keeps the warm cache; if a painted page ignores a real product/category tap, only one clean cache-preserving WebView recreation occurs.
-16. Passive security frames remain covered; if SHEIN exposes a real checkbox/button, only that interactive verification is shown.
-17. On the pictured product, `ملعقة` is not captured until the customer explicitly taps it or another descriptive option.
+1. Otlobli nav is visible and stable from the first frame.
+2. SHEIN becomes tappable without switching to Temu or repeated taps.
+3. No raw SHEIN tab/header/consent/signup surface appears over Otlobli controls.
+4. Germany/Turkey/US/Saudi working VPNs are not falsely rejected.
+5. Signed Saudi shipping persists across products and later VPN changes.
+6. Product open, back, cart entry, gallery, images, and scrolling remain responsive after several minutes.
+7. Size/color capture remains fail-closed and never records `DE/EU/US` as a size.
+8. Temu behavior remains unchanged.
 
-## Validation
+## Local Validation
 
-- Clean `patch-package` reinstall passed; tracked relay keys remain placeholders.
 - `npm run build` passed.
-- Runtime syntax parse of both injected scripts passed.
-- `git diff --check` passed.
-- Targeted ESLint for `src/services/sheinBrowserScript.ts` and `src/config.ts` passed.
-- Full-project lint still has pre-existing unrelated errors in `App.tsx`, Admin, and the payment webhook; this SHEIN change introduced no build error.
-- Xcode unsigned build and packaging passed in run `29414121203`.
-- Embedded v85.8.11 marker and desktop IPA SHA-256 were verified.
-- Xcode unsigned build and packaging passed in run `29416945278`; the embedded v85.8.12 marker and desktop IPA SHA-256 were verified.
-- Xcode unsigned build and packaging passed in run `29422476203`; the embedded v85.8.13 marker and desktop IPA SHA-256 were verified.
-- Xcode unsigned build and packaging passed in run `29426638388`; the embedded v85.8.14 marker and desktop IPA SHA-256 were verified.
-- Xcode unsigned build and packaging passed in run `29428880011`; the embedded v85.8.15 marker and desktop IPA SHA-256 were verified.
-- Xcode unsigned build and packaging passed in run `29432951413`; the embedded v85.8.16 marker and desktop IPA SHA-256 were verified.
+- Runtime syntax parse passed for `OTLOBLI_NAV_BOOTSTRAP_SCRIPT` and `SHEIN_CAPTURE_SCRIPT`.
+- Actual generated script sizes: bootstrap `29,938` bytes; full capture `374,046` bytes.
+- `git diff --check` passed before documentation/version finalization; rerun before commit.
+- IPA build is pending the final clean diff/commit.

@@ -34,8 +34,6 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
     window.__otlobliFrameCookieAutoAcceptInstalled = true;
     var attempts = 0;
     var lastAttemptAt = 0;
-    var scans = 0;
-    var sawConsent = false;
     var isTopFrame = window.top === window;
     var acceptPattern = /^(?:accept(?: all)?|allow(?: all)?|agree(?: to all)?|\\u0642\\u0628\\u0648\\u0644(?: \\u0627\\u0644\\u0643\\u0644| \\u0627\\u0644\\u062c\\u0645\\u064a\\u0639)?|\\u0627\\u0642\\u0628\\u0644(?: \\u0627\\u0644\\u0643\\u0644| \\u0627\\u0644\\u062c\\u0645\\u064a\\u0639)?|\\u0627\\u0644\\u0633\\u0645\\u0627\\u062d (?:\\u0644\\u0644\\u0643\\u0644|\\u0644\\u0644\\u062c\\u0645\\u064a\\u0639)|\\u0645\\u0648\\u0627\\u0641\\u0642)$/i;
     var cookiePattern = /cookies?|cookie policy|\\u0645\\u0644\\u0641\\u0627\\u062a \\u062a\\u0639\\u0631\\u064a\\u0641 \\u0627\\u0644\\u0627\\u0631\\u062a\\u0628\\u0627\\u0637|\\u0627\\u0644\\u062a\\u0642\\u0646\\u064a\\u0627\\u062a \\u0627\\u0644\\u0645\\u0645\\u0627\\u062b\\u0644\\u0629/i;
@@ -47,13 +45,11 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
 
     function scan() {
       if (!document.documentElement || attempts >= 40) return;
-      scans++;
       var now = Date.now();
       if (now - lastAttemptAt < 500) return;
       var controls = document.querySelectorAll('button,[role="button"],a,input[type="button"],input[type="submit"]');
       var frameText = document.body ? textOf(document.body).slice(0, 20000) : '';
       var frameIsConsent = cookiePattern.test(frameText);
-      if (frameIsConsent) sawConsent = true;
       for (var i = 0; i < controls.length; i++) {
         var control = controls[i];
         if (!acceptPattern.test(textOf(control))) continue;
@@ -85,23 +81,57 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
       }
     }
 
+    // Consent is an event, not a reason to scan every frame four times a
+    // second for 45 seconds. Keep a small fixed hydration burst and a bounded
+    // mutation wake-up for a late CMP iframe. This preserves automatic
+    // acceptance without permanently taxing old WKWebView devices.
+    var scanTimer = 0;
+    var mutationWakeups = 0;
+    var observer = null;
+    function scheduleScan(delay, fromMutation) {
+      if (attempts >= 40) return;
+      if (fromMutation) {
+        if (mutationWakeups >= (isTopFrame ? 10 : 5)) return;
+        mutationWakeups++;
+      }
+      if (scanTimer) return;
+      scanTimer = setTimeout(function () {
+        scanTimer = 0;
+        scan();
+      }, Math.max(0, delay || 0));
+    }
+    function connectObserver() {
+      if (!document.documentElement || observer) return;
+      observer = new MutationObserver(function (records) {
+        for (var ri = 0; ri < records.length; ri++) {
+          if (records[ri].addedNodes && records[ri].addedNodes.length) {
+            scheduleScan(120, true);
+            break;
+          }
+        }
+      });
+      observer.observe(document.documentElement, { childList: true, subtree: true });
+    }
+
     scan();
-    var timer = setInterval(function () {
-      scan();
-      // Child frames either expose their consent DOM quickly or are unrelated
-      // content. Stop scanning unrelated frames after 10s to protect iPhone 6;
-      // the main document keeps the full 45s window for late SHEIN hydration.
-      if (attempts >= 40 || (!isTopFrame && !sawConsent && scans >= 40)) clearInterval(timer);
-    }, 250);
-    setTimeout(function () { clearInterval(timer); }, 45000);
+    connectObserver();
+    if (!document.documentElement) document.addEventListener('DOMContentLoaded', connectObserver, { once: true });
+    var fixedScans = [180, 650, 1600, 3500, 7000, 12000, 20000];
+    for (var fsi = 0; fsi < fixedScans.length; fsi++) {
+      (function (delay) { setTimeout(function () { scheduleScan(0, false); }, delay); })(fixedScans[fsi]);
+    }
+    setTimeout(function () {
+      if (observer) observer.disconnect();
+      observer = null;
+      if (scanTimer) clearTimeout(scanTimer);
+      scanTimer = 0;
+    }, isTopFrame ? 22000 : 12000);
   }
 
   installFrameCookieAutoAccept();
   if (window.top !== window || window.__otlobliNavBootstrapInstalled) return;
   window.__otlobliNavBootstrapInstalled = true;
 
-  var timer = 0;
-  var attempts = 0;
   var icons = {
     home: '<path d="M4 11.5 12 4l8 7.5"/><path d="M6 10v9h12v-9"/><path d="M10 19v-5h4v5"/>',
     orders: '<rect x="4" y="7" width="16" height="13" rx="1.3"/><path d="M4 7l8-4 8 4"/><path d="M12 11v9"/>',
@@ -465,23 +495,73 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
   }
 
   if (!mount()) {
-    document.addEventListener('DOMContentLoaded', mount, false);
-    timer = setInterval(function () {
-      attempts++;
-      if (mount() || attempts >= 400) clearInterval(timer);
-    }, 25);
+    document.addEventListener('DOMContentLoaded', mount, { once: true });
+    // A short bounded body-mount retry is enough for documentStart. The old
+    // 25ms/10s interval kept waking the main thread while SHEIN hydrated.
+    var mountDelays = [25, 75, 160, 320, 650, 1200, 2200];
+    for (var mdi = 0; mdi < mountDelays.length; mdi++) {
+      (function (delay) { setTimeout(mount, delay); })(mountDelays[mdi]);
+    }
   }
-  var protectionRuns = 0;
-  var protectionTimer = setInterval(function () {
-    protectionRuns++;
-    runEarlyProtections();
-    if (protectionRuns >= 180) clearInterval(protectionTimer);
-  }, 250);
+
+  // Protect the early shell during hydration without a permanent 250ms loop.
+  // Mutations only wake a bounded debounce; fixed fallbacks cover late CMP and
+  // signup surfaces. The full script takes ownership after page load.
+  var protectionTimer = 0;
+  var protectionWakeups = 0;
+  var protectionObserver = null;
+  function scheduleEarlyProtections(delay, fromMutation) {
+    if (fromMutation) {
+      if (protectionWakeups >= 12) return;
+      protectionWakeups++;
+    }
+    if (protectionTimer) return;
+    protectionTimer = setTimeout(function () {
+      protectionTimer = 0;
+      runEarlyProtections();
+      mount();
+    }, Math.max(0, delay || 0));
+  }
+  if (document.documentElement) {
+    protectionObserver = new MutationObserver(function (records) {
+      for (var pri = 0; pri < records.length; pri++) {
+        if (records[pri].addedNodes && records[pri].addedNodes.length) {
+          scheduleEarlyProtections(140, true);
+          break;
+        }
+      }
+    });
+    protectionObserver.observe(document.documentElement, { childList: true, subtree: true });
+  }
+  var protectionDelays = [0, 220, 700, 1600, 3500, 7000, 12000];
+  for (var pdi = 0; pdi < protectionDelays.length; pdi++) {
+    (function (delay) { setTimeout(function () { scheduleEarlyProtections(0, false); }, delay); })(protectionDelays[pdi]);
+  }
+  setTimeout(function () {
+    if (protectionObserver) protectionObserver.disconnect();
+    protectionObserver = null;
+    if (protectionTimer) clearTimeout(protectionTimer);
+    protectionTimer = 0;
+  }, 15000);
 })();
 `
 
 export const SHEIN_CAPTURE_SCRIPT = `
 (function () {
+  // WKWebView can report more than one load completion for the same live SPA
+  // document. Never install another copy of this large script, observer and
+  // event-listener set into that document. Ask the existing instance for one
+  // bounded maintenance burst instead.
+  if (window.__otlobliCaptureScriptInstalled) {
+    try {
+      if (typeof window.__otlobliRequestMaintenance === 'function') {
+        window.__otlobliRequestMaintenance('reinjected');
+      }
+    } catch (e) {}
+    return;
+  }
+  window.__otlobliCaptureScriptInstalled = true;
+
   var OTLOBLI_NAV_CSS = ${JSON.stringify(OTLOBLI_NAV_CSS)};
   var OTLOBLI_NAV_STYLE_VERSION = ${JSON.stringify(OTLOBLI_NAV_STYLE_VERSION)};
 
@@ -899,6 +979,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var sheinNativeCoverCooldownUntil = 0;
   var sheinNativeCoverLastType = '';
   var sheinNativeCoverLastPostAt = 0;
+  var sheinSaudiRepairTimer = 0;
 
   var __otlobliFeedRetryCount = 0;
   var __otlobliFeedRetryAfter = 0;
@@ -1019,6 +1100,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     sheinNativeCoverRepairActive = true;
     sheinNativeCoverRepairStartedAt = now;
     sheinPostNativeCoverState('sheinSaudiRepairStart');
+    scheduleSheinSaudiRepair(950);
     return false;
   }
 
@@ -1027,6 +1109,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (sheinSignedSaudiAddressReady()) {
       sheinNativeCoverRepairActive = false;
       sheinNativeCoverRepairStartedAt = 0;
+      if (sheinSaudiRepairTimer) clearTimeout(sheinSaudiRepairTimer);
+      sheinSaudiRepairTimer = 0;
       if (sheinPageLooksInteractive()) {
         sheinNativeCoverInitialReleased = true;
         sheinPostNativeCoverState('sheinSaudiReady');
@@ -1409,6 +1493,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     target.setAttribute('data-otlobli-shein-shipping-action', '1');
     try {
       target.click();
+      scheduleSheinSaudiRepair(1250);
       return true;
     } catch (e) {
       return false;
@@ -1512,8 +1597,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function ensureSheinSaudiShippingSelection() {
     if (!IS_SHEIN || !document.body || document.readyState === 'loading') return;
     var now = Date.now();
-    // tick() runs every 300 ms. DOM-wide text/control inspection does not need
-    // that frequency and would be needlessly expensive on older iPhones.
+    // A lifecycle burst may call this several times while one page hydrates.
+    // Keep the expensive text/control inspection throttled within that burst.
     if (now - sheinShippingLastScanAt < 900) return;
     sheinShippingLastScanAt = now;
     var addressCountry = sheinAddressCookieCountry();
@@ -1542,6 +1627,25 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (visibleRegion === 'FOREIGN' || (addressCountry && addressCountry !== SHEIN_REQUIRED_COUNTRY)) {
       sheinClickNativeShippingControl(sheinFindForeignShippingControl());
     }
+  }
+
+  // Region repair is the only SHEIN job that legitimately needs repeated
+  // follow-up: the native country/province/city/district drawer hydrates one
+  // step at a time. Run that follow-up only while the native preparation cover
+  // is active, then stop completely on success, timeout or cooldown.
+  function scheduleSheinSaudiRepair(delay) {
+    if (!IS_SHEIN || sheinSignedSaudiAddressReady()) return;
+    if (sheinSaudiRepairTimer) return;
+    sheinSaudiRepairTimer = setTimeout(function () {
+      sheinSaudiRepairTimer = 0;
+      if (!sheinNativeCoverRepairActive || sheinSignedSaudiAddressReady()) return;
+      ensureSheinSaudiShippingSelection();
+      updateSheinNativeCoverState();
+      if (sheinNativeCoverRepairActive &&
+          Date.now() - sheinNativeCoverRepairStartedAt < 15000) {
+        scheduleSheinSaudiRepair(1000);
+      }
+    }, Math.max(250, delay || 1000));
   }
 
   // Keep region failure internal. The old visible reset button cleared broad
@@ -6163,8 +6267,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // bottom of this script, before the parser has necessarily reached
     // <body>). Every function below ultimately needs body to exist, so bail
     // out cheaply here instead of each of them hitting it separately; the
-    // setInterval(tick, 300) already scheduled will simply call this again
-    // shortly, by which point the parser is essentially always done with it.
+    // The bounded lifecycle burst (or the legacy non-SHEIN timer) will call
+    // this again shortly, by which point the parser normally has a body.
     if (!document.body) return;
     // صفحة تحقق «أنا إنسان» — تجميد كامل لكل تدخلاتنا حتى يكملها المستخدم.
     if (otlobliIsHumanChallenge()) { otlobliEnterChallengeMode(); return; }
@@ -7022,34 +7126,77 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
 
-  // Kept tight on purpose - every visible millisecond here is a window where
-  // a SHEIN button/icon that's supposed to be hidden or blocked is instead
-  // tappable, which is exactly the "nothing should ever be reachable, not
-  // even briefly" requirement this whole hide/block system exists for.
+  // Full SHEIN maintenance performs layout and semantic scans, so it must not
+  // be tied to a permanent timer or to every DOM mutation. Coalesce one direct
+  // request, then use bounded lifecycle bursts below for async SPA hydration.
   var tickScheduled = false;
-  function scheduleTick() {
-    sheinBlockReported = false;
+  function scheduleTick(delay) {
     if (tickScheduled) return;
     tickScheduled = true;
     setTimeout(function () {
       tickScheduled = false;
       tick();
-    }, 80);
+    }, Math.max(0, typeof delay === 'number' ? delay : 80));
+  }
+
+  var sheinMaintenanceTimers = [];
+  var sheinSecurityTimers = [];
+  function clearScheduledTimers(timers) {
+    for (var i = 0; i < timers.length; i++) clearTimeout(timers[i]);
+    timers.length = 0;
+  }
+
+  function scheduleSheinMaintenanceBurst(delays) {
+    if (!IS_SHEIN) {
+      scheduleTick();
+      return;
+    }
+    clearScheduledTimers(sheinMaintenanceTimers);
+    for (var i = 0; i < delays.length; i++) {
+      (function (delay) {
+        sheinMaintenanceTimers.push(setTimeout(function () {
+          tick();
+        }, Math.max(0, delay)));
+      })(delays[i]);
+    }
+  }
+
+  function scheduleSheinSecurityBurst(delays) {
+    if (!IS_SHEIN) return;
+    clearScheduledTimers(sheinSecurityTimers);
+    for (var i = 0; i < delays.length; i++) {
+      (function (delay) {
+        sheinSecurityTimers.push(setTimeout(function () {
+          checkForSheinSecurityBlock();
+        }, Math.max(0, delay)));
+      })(delays[i]);
+    }
+  }
+
+  function scheduleSheinNavigationMaintenance() {
+    sheinBlockReported = false;
+    scheduleSheinMaintenanceBurst([0, 180, 600, 1400, 3000]);
+    scheduleSheinSecurityBurst([550, 2200, 6000]);
   }
 
   var originalPushState = history.pushState;
   history.pushState = function () {
     var result = originalPushState.apply(this, arguments);
-    scheduleTick();
+    if (IS_SHEIN) scheduleSheinNavigationMaintenance();
+    else scheduleTick();
     return result;
   };
   var originalReplaceState = history.replaceState;
   history.replaceState = function () {
     var result = originalReplaceState.apply(this, arguments);
-    scheduleTick();
+    if (IS_SHEIN) scheduleSheinNavigationMaintenance();
+    else scheduleTick();
     return result;
   };
-  window.addEventListener('popstate', scheduleTick);
+  window.addEventListener('popstate', function () {
+    if (IS_SHEIN) scheduleSheinNavigationMaintenance();
+    else scheduleTick();
+  });
 
   // document.body observe(document.body, ...) here used to throw outright
   // at this documentStart injection timing - the parser hasn't necessarily
@@ -7057,7 +7204,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // in chromium's console log: "Failed to execute 'observe' on
   // 'MutationObserver': parameter 1 is not of type 'Node'." With nothing
   // catching it, that exception HALTED THE ENTIRE SCRIPT right here - every
-  // line after it (both setInterval(tick, ...) calls, the block-detector,
+  // line after it (the maintenance scheduler and the block-detector,
   // the very first tick()) silently never ran for the rest of that page
   // load, no matter how long the page lived. This is the real explanation
   // behind today's whole grab-bag of "sometimes works, sometimes doesn't"
@@ -7069,37 +7216,68 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // covers body and everything under it once they do appear.
   // Do not run geometry/text scans from MutationObserver. SHEIN mutates the
   // product DOM continuously; doing layout work before every paint starves
-  // older WKWebView devices and delays image decoding. The coalesced tick owns
-  // all inspections at their explicit throttled intervals.
-  var observer = new MutationObserver(scheduleTick);
+  // older WKWebView devices and delays image decoding. The observer below
+  // repairs only Otlobli's shell for SHEIN; lifecycle bursts own page work.
+  var shellRepairScheduled = false;
+  function scheduleShellRepair() {
+    if (shellRepairScheduled) return;
+    shellRepairScheduled = true;
+    setTimeout(function () {
+      shellRepairScheduled = false;
+      ensureOtlobliNav();
+    }, 80);
+  }
+  var observer = new MutationObserver(function () {
+    if (IS_SHEIN) {
+      // SHEIN may replace <body>, but ordinary product mutations must never
+      // start another full-page scan. Repair only the independent app shell.
+      var nav = document.getElementById('otlobli-nav');
+      if (!nav || !nav.isConnected) scheduleShellRepair();
+      return;
+    }
+    scheduleTick();
+  });
   observer.observe(document.documentElement, { childList: true, subtree: true });
 
-  setInterval(tick, 300);
-  // hideKnownHeaderIconsByHint specifically needs to win what looks like an
-  // ongoing fight against SHEIN periodically re-rendering its own header (a
-  // user found the hamburger/wishlist icons could stay reachable for
-  // several minutes on the home page even though the same code hid them
-  // instantly elsewhere) - run it on its own much tighter interval so any
-  // freshly re-created icon gets caught within ~120ms instead of waiting
-  // for the next general tick.
-  setInterval(function () {
-    if (!IS_SHEIN) return;
-    hideKnownHeaderIconsByHint();
-    hideSheinHeaderControls();
-    hideListingCardAddButtons();
-  }, 120);
-  setInterval(function () {
-    ensureOtlobliNav();
-    if (IS_TEMU) {
-      injectTemuHeaderHideCSS();
-      stabilizeTemuSearchChrome();
-      restoreTemuSearchChrome();
-      restoreTemuLogo();
-    }
-  }, 120);
-  // Own slower interval, not part of tick() - see checkForSheinSecurityBlock's
-  // comment on why innerText needs to stay off the 300ms timer. خاص بشي إن فقط.
-  setInterval(function () { if (IS_SHEIN) checkForSheinSecurityBlock(); }, 1000);
-  tick();
+  window.__otlobliRequestMaintenance = function () {
+    if (IS_SHEIN) scheduleSheinNavigationMaintenance();
+    else scheduleTick();
+  };
+
+  if (IS_SHEIN) {
+    // User actions and SPA lifecycle events start finite hydration bursts.
+    // A newer burst replaces the previous one instead of stacking more work.
+    document.addEventListener('click', function (event) {
+      var target = event.target;
+      if (target && target.closest && target.closest('#otlobli-nav')) return;
+      scheduleSheinMaintenanceBurst([50, 280, 850, 1800]);
+    }, true);
+    window.addEventListener('hashchange', scheduleSheinNavigationMaintenance);
+    window.addEventListener('pageshow', scheduleSheinNavigationMaintenance);
+    window.addEventListener('online', scheduleSheinNavigationMaintenance);
+    window.addEventListener('load', function () {
+      scheduleSheinMaintenanceBurst([0, 180, 550, 1300, 2800, 5500]);
+      scheduleSheinSecurityBurst([700, 2600, 6500]);
+    }, { once: true });
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) scheduleSheinMaintenanceBurst([0, 300, 1000]);
+    });
+    scheduleSheinMaintenanceBurst([0, 120, 350, 800, 1600, 3000, 6000, 10000]);
+    scheduleSheinSecurityBurst([650, 2500, 7000]);
+  } else {
+    // Temu and the other supported stores stay outside this SHEIN-only
+    // performance refactor.
+    setInterval(tick, 300);
+    setInterval(function () {
+      ensureOtlobliNav();
+      if (IS_TEMU) {
+        injectTemuHeaderHideCSS();
+        stabilizeTemuSearchChrome();
+        restoreTemuSearchChrome();
+        restoreTemuLogo();
+      }
+    }, 120);
+    tick();
+  }
 })();
 `
