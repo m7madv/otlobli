@@ -7,9 +7,9 @@ Last updated: 2026-07-15
 - Branch: `codex/customer-wallet-group-orders`.
 - Stable tested reference: v85.8.5 / `a914d81`.
 - Reference IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.5-nav-cairo-font-match-no-otp-test.ipa`.
-- Active local candidate: v85.8.17 (event-driven SHEIN runtime; device acceptance pending).
-- Last built IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.16.ipa`.
-- Last built code: `ccf08aa`; run `29432951413`; SHA-256 `F25EEBAAB50991CDAEFE373202EEE5A7BABF3F889ACEE9B09D2D0F6E232C370D`.
+- Active candidate: v85.8.17 / `dcb0539` (event-driven SHEIN runtime; device acceptance pending).
+- Last built IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.17.ipa`.
+- Build run: `29442903610`; SHA-256 `0CF2E8ED4871FC1BC0CF327606D670E6BF7CDAB55C52F0A30875EAEC968E42B3`.
 - `APP_VERSION = 2026.07.15-v85.8.17-shein-event-driven-runtime-no-otp-test`.
 - Do not claim SHEIN is fixed before testing iPhone 6 and iPhone 16 Pro Max.
 
@@ -58,4 +58,4 @@ Test fresh install and repeated entry on iPhone 6 and iPhone 16 Pro Max:
 - Runtime syntax parse passed for `OTLOBLI_NAV_BOOTSTRAP_SCRIPT` and `SHEIN_CAPTURE_SCRIPT`.
 - Actual generated script sizes: bootstrap `29,938` bytes; full capture `374,046` bytes.
 - `git diff --check` passed before documentation/version finalization; rerun before commit.
-- IPA build is pending the final clean diff/commit.
+- iOS unsigned build/package passed in run `29442903610`; embedded v85.8.17 marker and desktop IPA SHA-256 were verified.

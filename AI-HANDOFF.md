@@ -5,9 +5,9 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Current Candidate
 
 - Branch: `codex/customer-wallet-group-orders`.
-- Candidate: v85.8.17, event-driven SHEIN runtime; not device-proven.
+- Candidate: v85.8.17 / `dcb0539`, event-driven SHEIN runtime; not device-proven.
 - Stable rollback/reference: v85.8.5 / `a914d81` and the user-provided v85.8.5 IPA.
-- Last built artifact remains v85.8.16 until the v85.8.17 CI build completes.
+- IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.17.ipa`; run `29442903610`; SHA-256 `0CF2E8ED4871FC1BC0CF327606D670E6BF7CDAB55C52F0A30875EAEC968E42B3`.
 
 ## Why v85.8.17 Exists
 
@@ -31,4 +31,4 @@ The monolithic capture script had accumulated overlapping permanent loops: full 
 
 ## Next Step
 
-Build the v85.8.17 unsigned IPA, verify the embedded marker/hash, then test repeated SHEIN entry and several minutes of product/gallery/back navigation on both phones. If a device still freezes, collect the matching WebKit/app console or Apple Jetsam/crash log before adding another workaround.
+Install v85.8.17, then test repeated SHEIN entry and several minutes of product/gallery/back navigation on both phones. If a device still freezes, collect the matching WebKit/app console or Apple Jetsam/crash log before adding another workaround.
