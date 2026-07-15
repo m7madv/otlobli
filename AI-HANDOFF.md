@@ -5,12 +5,12 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Current Candidate
 
 - Branch: `codex/customer-wallet-group-orders`.
-- Code: `4989f25` (`fix: v85.8.6 stabilize slow SHEIN iOS navigation`).
-- IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.6.ipa`.
-- SHA-256: `F718B401A4FEB16991BC2C17DEB8648C19AA151C390FF4F80005F9B3B1EEBF1E`.
-- Build run: `29402834663`.
+- Code: `97c656f` (`fix: v85.8.7 speed up and mask iPhone 6 SHEIN tabs`).
+- IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.7.ipa`.
+- SHA-256: `5039D8037183926DB1D68E81F5EB5F52BA0A805A0122CB8A2021476DB9594F7E`.
+- Build run: `29408007214`.
 - Rollback/reference: v85.8.5 / `a914d81` and the user-provided v85.8.5 IPA.
-- Device testing is pending; never call v85.8.6 proven until both iPhones pass.
+- v85.8.6 still exposed SHEIN's tab bar during slow iPhone 6 preparation and showed an iPhone 16 safe-area color strip. v85.8.7 device testing is pending; never call it proven until both iPhones pass.
 
 ## Confirmed Diagnosis
 
@@ -29,7 +29,8 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 - Cairo is self-hosted through `@fontsource-variable/cairo` and embedded into the document-start script.
 - Product navigation keeps the same WebView and now gets a native loading cover.
 - OTP bypass is test-only.
+- v85.8.7 adds semantic visual-stack detection for SHEIN's obfuscated early five-tab div, exact success-toast suppression, warm-cache fast path with bounded clean recovery, and full-bottom iOS WebView layout.
 
 ## Next Step
 
-Install v85.8.6 on iPhone 6 and iPhone 16 Pro Max and execute the checklist in `CURRENT_STATE.md`. Fix only one confirmed remaining issue at a time from this candidate. Do not touch Temu, payment, wallet, completed orders, or design without explicit scope/Figma.
+Install v85.8.7 on iPhone 6 and iPhone 16 Pro Max and execute the checklist in `CURRENT_STATE.md`. Fix only one confirmed remaining issue at a time from this candidate. Do not touch Temu, payment, wallet, completed orders, or design without explicit scope/Figma.

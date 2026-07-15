@@ -7,11 +7,11 @@ Last updated: 2026-07-15
 - Branch: `codex/customer-wallet-group-orders`.
 - Stable tested reference: v85.8.5 / `a914d81`.
 - Reference IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.5-nav-cairo-font-match-no-otp-test.ipa`.
-- Active test candidate: v85.8.6 / `4989f25`.
-- Candidate IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.6.ipa`.
-- Candidate SHA-256: `F718B401A4FEB16991BC2C17DEB8648C19AA151C390FF4F80005F9B3B1EEBF1E`.
-- iOS build run: `29402834663` (success).
-- `APP_VERSION = 2026.07.15-v85.8.6-stable-nav-slow-ios-color-no-otp-test`.
+- Active test candidate: v85.8.7 / `97c656f`.
+- Candidate IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.7.ipa`.
+- Candidate SHA-256: `5039D8037183926DB1D68E81F5EB5F52BA0A805A0122CB8A2021476DB9594F7E`.
+- iOS build run: `29408007214` (success).
+- `APP_VERSION = 2026.07.15-v85.8.7-iphone6-fast-tabs-safearea-no-otp-test`.
 - Real-device acceptance is pending; do not claim the SHEIN issues are fixed yet.
 
 ## v85.8.6 Scope
@@ -27,6 +27,14 @@ Last updated: 2026-07-15
 - Retries only SHEIN's exact feed-error retry action, at most four times, without reload or `setUrl` loops.
 - Improves round/HOT swatch capture by ranking nested images and CSS backgrounds while rejecting small badge layers.
 - Runtime Service Worker/cache cleanup runs once per SHEIN WebView session, not on every product/back navigation.
+
+## v85.8.7 Changes
+
+- v85.8.6 device result: iPhone 6 still showed SHEIN's five-tab bar under Otlobli's nav during preparation and remained slow; iPhone 16 showed a differently colored safe-area strip below the home nav.
+- The document-start bootstrap now finds obfuscated plain-div SHEIN tabs through the visual element stack plus exact tab semantics; no broad DOM/CSS scan was added.
+- Only SHEIN's exact compact "added to cart successfully" toast is hidden when it overlaps the app nav.
+- Healthy WebKit cache is preserved for the fast path. Cache clearing remains limited to bounded stuck-session recovery and explicit Temu -> SHEIN switching.
+- iOS WKWebView now fills the controller bottom; the injected safe-area-aware nav paints the whole inset. Android keeps its native safe-bottom margin.
 
 ## Failed Paths / Guardrails
 
@@ -56,5 +64,5 @@ Test on iPhone 6 and iPhone 16 Pro Max:
 - `npm run build` passed.
 - Runtime syntax parse of both injected scripts passed.
 - `git diff --check` passed.
-- Xcode unsigned build and packaging passed in run `29402834663`.
-- Embedded v85.8.6 marker and desktop IPA SHA-256 were verified.
+- Xcode unsigned build and packaging passed in run `29408007214`.
+- Embedded v85.8.7 marker and desktop IPA SHA-256 were verified.
