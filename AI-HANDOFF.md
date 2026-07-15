@@ -5,10 +5,9 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Current Candidate
 
 - Branch: `codex/customer-wallet-group-orders`.
-- Current code: uncommitted v85.8.14 working tree based on `b9cbb8e`; no v85.8.14 IPA yet.
-- Last IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.13.ipa`.
-- SHA-256: `D1AEEF4A3ACA77DA1D8A216BBD457DD58E48830F9A48AFDE3D84A73A4700A109`.
-- Build run: `29422476203` (success).
+- Current code/IPA: `855b6eb` / `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.14.ipa`.
+- SHA-256: `0A9EFB370E718A9FFD8E157694ECC4A335F362F0E85B9DD40A97685A55D868AB`.
+- Build run: `29426638388` (success).
 - Rollback/reference: v85.8.5 / `a914d81` and the user-provided v85.8.5 IPA.
 - v85.8.12 was very good on iPhone 16, but its device report still found consent overlap and iPhone-6 nav/auth/gallery paint issues. v85.8.13 addresses those reports and size fail-closed behavior; never call it proven until both iPhones pass.
 
@@ -45,4 +44,4 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
 ## Next Step
 
-After review, build v85.8.14 and test first/fresh SHEIN entry, repeated entry, exact consent auto-accept, persistent nav during Saudi repair, visible gallery back on iPhone 6, strict size selection on both phones, and Temu -> SHEIN return. Do not call it fixed before both phones pass.
+Install v85.8.14 and test first/fresh SHEIN entry, repeated entry, exact consent auto-accept, persistent nav during Saudi repair, visible gallery back on iPhone 6, strict size selection on both phones, and Temu -> SHEIN return. Do not call it fixed before both phones pass.

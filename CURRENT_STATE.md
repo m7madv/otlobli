@@ -7,10 +7,10 @@ Last updated: 2026-07-15
 - Branch: `codex/customer-wallet-group-orders`.
 - Stable tested reference: v85.8.5 / `a914d81`.
 - Reference IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.5-nav-cairo-font-match-no-otp-test.ipa`.
-- Active working candidate: v85.8.14 (uncommitted; no IPA yet; real-device acceptance pending).
-- Last built IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.13.ipa`.
-- Last IPA SHA-256: `D1AEEF4A3ACA77DA1D8A216BBD457DD58E48830F9A48AFDE3D84A73A4700A109`.
-- Last iOS build run: `29422476203` (v85.8.13 success).
+- Active working candidate: v85.8.14 (`855b6eb`; built, real-device acceptance pending).
+- Last built IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.14.ipa`.
+- Last IPA SHA-256: `0A9EFB370E718A9FFD8E157694ECC4A335F362F0E85B9DD40A97685A55D868AB`.
+- Last iOS build run: `29426638388` (v85.8.14 success).
 - `APP_VERSION = 2026.07.15-v85.8.14-shein-stable-interaction-gate-no-otp-test`.
 - Real-device acceptance is pending; do not claim the SHEIN issues are fixed yet.
 
@@ -146,3 +146,4 @@ Test on iPhone 6 and iPhone 16 Pro Max:
 - Embedded v85.8.11 marker and desktop IPA SHA-256 were verified.
 - Xcode unsigned build and packaging passed in run `29416945278`; the embedded v85.8.12 marker and desktop IPA SHA-256 were verified.
 - Xcode unsigned build and packaging passed in run `29422476203`; the embedded v85.8.13 marker and desktop IPA SHA-256 were verified.
+- Xcode unsigned build and packaging passed in run `29426638388`; the embedded v85.8.14 marker and desktop IPA SHA-256 were verified.
