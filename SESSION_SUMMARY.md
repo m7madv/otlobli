@@ -8,9 +8,11 @@ Last updated: 2026-07-15
 - v85.8.8 device testing exposed an old-WKWebView Grid collapse and a one-time first-launch exit.
 - Implemented v85.8.9 in `917bfb7`: four legacy-safe 25% Flex nav cells and removal of the new first-session geometry scan, while retaining hidden cart-product preparation.
 - Implemented v85.8.10 in `6138b23`: one canonical nav paint state from document-start through hydration, with DOM reclaim only after actual occlusion.
+- v85.8.10 device testing accepted normal iPhone 16 navigation, but exposed two iPhone-6 SHEIN registration surfaces and a full-screen photo-viewer paint/hit-test conflict.
+- Implemented v85.8.11 in `13585b6`: exact 15%-strip/newsletter suppression with real-auth exclusion; photo-viewer add suppression, click-through guard, and one-time nav/back paint-order reclaim.
 - Kept payment, wallet, orders, Temu, and cart design out of scope.
 - Build/script/patch/diff checks passed.
-- iOS run `29411837856` succeeded.
-- Test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.10.ipa`.
-- SHA-256: `519EA5D2A7946548B55632D934B2CB438E39580357E6AE5432F6F19F4F368C18`.
+- iOS run `29414121203` succeeded.
+- Test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.11.ipa`.
+- SHA-256: `EB4019D410D58FB7DE720F12BAE88FF015E6160CA0AC0C8870584E1715271539`.
 - Real-device testing on iPhone 6 and iPhone 16 Pro Max is still required; no fix claim yet.

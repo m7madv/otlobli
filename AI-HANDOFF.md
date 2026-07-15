@@ -5,12 +5,12 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Current Candidate
 
 - Branch: `codex/customer-wallet-group-orders`.
-- Code: `6138b23` (`fix: v85.8.10 keep SHEIN nav on one paint layer`).
-- IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.10.ipa`.
-- SHA-256: `519EA5D2A7946548B55632D934B2CB438E39580357E6AE5432F6F19F4F368C18`.
-- Build run: `29411837856`.
+- Code: `13585b6` (`fix: v85.8.11 stabilize SHEIN signup and photo viewer`).
+- IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.11.ipa`.
+- SHA-256: `EB4019D410D58FB7DE720F12BAE88FF015E6160CA0AC0C8870584E1715271539`.
+- Build run: `29414121203`.
 - Rollback/reference: v85.8.5 / `a914d81` and the user-provided v85.8.5 IPA.
-- v85.8.9 fixed the collapsed legacy-iOS layout but still flashed the nav once during SHEIN presentation. v85.8.10 unifies the bootstrap/hydrated paint state and stops unconditional style rewrites/DOM moves. Device testing is pending; never call it proven until both iPhones pass.
+- v85.8.10's ordinary iPhone 16 nav behavior was accepted. v85.8.11 narrowly handles two confirmed iPhone-6 signup surfaces and the SHEIN photo-viewer compositing/click-through issue on both phone generations. Device testing is pending; never call it proven until both iPhones pass.
 
 ## Confirmed Diagnosis
 
@@ -33,7 +33,9 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 - v85.8.8 makes the injected nav DOM/grid match React, recognizes only exact five-control fixed tab geometry before labels appear, and keeps cart products hidden until both page-load and post-blocker readiness arrive.
 - v85.8.9 replaces the incompatible injected Grid with four explicit Flex cells and removes the new first-session geometry scan. The v85.8.7 semantic detector and v85.8.8 product readiness gate remain.
 - v85.8.10 gives all injected nav phases one CSS source and only reclaims the DOM node after actual occlusion hit-tests.
+- v85.8.11 hides only the confirmed 15%-signup strip or the email-newsletter panel, with explicit real-auth exclusion.
+- A SHEIN photo viewer must be fixed, near-full-screen, contain a large image, and expose a numeric image counter before viewer handling activates. Its add button is suppressed, its lower black band is guarded, and nav/back reclaim paint order only on viewer transition.
 
 ## Next Step
 
-Install v85.8.10 on iPhone 6 and iPhone 16 Pro Max. Verify specifically that the nav does not flash once while SHEIN opens, then recheck the existing full-width distribution and cart-product reveal timing.
+Install v85.8.11 on iPhone 6 and iPhone 16 Pro Max. On a fresh iPhone-6 install, accept cookies and verify both registration surfaces stay absent. On both phones open a product image: no add action from the black band, and nav/back must stay visibly painted and tappable.

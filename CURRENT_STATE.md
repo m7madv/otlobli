@@ -7,11 +7,11 @@ Last updated: 2026-07-15
 - Branch: `codex/customer-wallet-group-orders`.
 - Stable tested reference: v85.8.5 / `a914d81`.
 - Reference IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.5-nav-cairo-font-match-no-otp-test.ipa`.
-- Active test candidate: v85.8.10 / `6138b23`.
-- Candidate IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.10.ipa`.
-- Candidate SHA-256: `519EA5D2A7946548B55632D934B2CB438E39580357E6AE5432F6F19F4F368C18`.
-- iOS build run: `29411837856` (success).
-- `APP_VERSION = 2026.07.15-v85.8.10-single-paint-nav-no-otp-test`.
+- Active test candidate: v85.8.11 / `13585b6`.
+- Candidate IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.11.ipa`.
+- Candidate SHA-256: `EB4019D410D58FB7DE720F12BAE88FF015E6160CA0AC0C8870584E1715271539`.
+- iOS build run: `29414121203` (success).
+- `APP_VERSION = 2026.07.15-v85.8.11-shein-signup-photo-viewer-no-otp-test`.
 - Real-device acceptance is pending; do not claim the SHEIN issues are fixed yet.
 
 ## v85.8.6 Scope
@@ -58,6 +58,15 @@ Last updated: 2026-07-15
 - The hydrated script no longer rewrites `cssText` every tick. Reclaiming the nav to the end of `<body>` happens only when four hit-tests prove another layer actually covers it.
 - `viewport-fit=cover` is established during document-start so safe-area geometry settles before the native WebView is presented.
 
+## v85.8.11 Changes
+
+- v85.8.10 device result: the user accepted the normal iPhone 16 navigation behavior. On iPhone 6, SHEIN could inject either a compact `15% + Register` strip or a larger email-newsletter registration panel above the app nav after cookie consent.
+- Both registration surfaces are now matched by compound semantics plus exact structure. Product discounts and SHEIN's real sign-in/Google form are explicitly excluded; no generic promo CSS was added.
+- The exact registration check runs at document start and before the next SPA paint. The newsletter form is found from its email input while still off-screen.
+- In SHEIN's full-screen product-photo viewer, Otlobli's add button is hidden and a transparent lower-letterbox guard prevents taps from falling through to an add action.
+- The viewer is recognized only as a fixed near-full-screen layer with a large image and `current/total` counter. On opening it, the existing nav and back button reclaim paint order once so old WKWebView cannot paint the viewer over them while leaving their hit targets active.
+- v85.8.10 nav CSS, sizing, font, and ordinary-page behavior are unchanged.
+
 ## Failed Paths / Guardrails
 
 - v86-v88 are failed paths. v87 fixed none of the reported issues; v88 closed/crashed SHEIN on entry.
@@ -79,6 +88,8 @@ Test on iPhone 6 and iPhone 16 Pro Max:
 6. Product from cart leaves the React cart visible until ready; no raw product reload/chrome appears; back is smooth.
 7. Round/HOT selected color produces the actual color thumbnail in cart.
 8. Saudi shipping remains authoritative.
+9. After accepting cookies, neither the 15% registration strip nor the email-newsletter panel appears above the nav; real SHEIN sign-in remains usable.
+10. In a product photo viewer, add-to-cart is absent, the black lower band cannot add an item, and nav/back remain visibly painted on both phones.
 
 ## Validation
 
@@ -86,5 +97,6 @@ Test on iPhone 6 and iPhone 16 Pro Max:
 - `npm run build` passed.
 - Runtime syntax parse of both injected scripts passed.
 - `git diff --check` passed.
-- Xcode unsigned build and packaging passed in run `29411837856`.
-- Embedded v85.8.10 marker and desktop IPA SHA-256 were verified.
+- Full-project lint still has pre-existing unrelated errors in `App.tsx`, Admin, and the payment webhook; this SHEIN change introduced no build error.
+- Xcode unsigned build and packaging passed in run `29414121203`.
+- Embedded v85.8.11 marker and desktop IPA SHA-256 were verified.
