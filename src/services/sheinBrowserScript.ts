@@ -38,32 +38,6 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
     return score;
   }
 
-  function hasExactFiveFixedTabs(el, rect, vpWidth, vpHeight) {
-    if (!el || !rect || rect.bottom < vpHeight - 30 || rect.height > 150) return false;
-    var position = window.getComputedStyle(el).position;
-    if (position !== 'fixed' && position !== 'sticky') return false;
-    var children = el.children || [];
-    var centers = [];
-    for (var i = 0; i < children.length; i++) {
-      var childRect = children[i].getBoundingClientRect();
-      if (!childRect || childRect.width < vpWidth * 0.08 || childRect.width > vpWidth * 0.30 ||
-          childRect.height < 20 || childRect.height > 140) continue;
-      if (childRect.bottom < rect.top || childRect.top > rect.bottom) continue;
-      centers.push(childRect.left + childRect.width / 2);
-    }
-    centers.sort(function (a, b) { return a - b; });
-    var unique = [];
-    for (var ci = 0; ci < centers.length; ci++) {
-      if (!unique.length || centers[ci] - unique[unique.length - 1] > vpWidth * 0.07) unique.push(centers[ci]);
-    }
-    if (unique.length !== 5 || unique[4] - unique[0] < rect.width * 0.68) return false;
-    for (var gi = 1; gi < unique.length; gi++) {
-      var gap = unique[gi] - unique[gi - 1];
-      if (gap < rect.width * 0.12 || gap > rect.width * 0.28) return false;
-    }
-    return true;
-  }
-
   function hideStoreBottomFromPoint(node, vpWidth, vpHeight) {
     var current = node;
     var matched = null;
@@ -71,10 +45,9 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
       if (current.id && current.id.indexOf('otlobli') === 0) break;
       var rect = current.getBoundingClientRect();
       if (rect.width >= vpWidth * 0.55 && rect.height >= 24 && rect.height <= 170 &&
-          (rect.bottom >= vpHeight - 30 || rect.top >= vpHeight - 190)) {
-        var semanticTabs = storeBottomTabScore(normalizedText(current)) >= 3;
-        var exactIconTabs = hasExactFiveFixedTabs(current, rect, vpWidth, vpHeight);
-        if (semanticTabs || exactIconTabs) matched = current;
+          (rect.bottom >= vpHeight - 30 || rect.top >= vpHeight - 190) &&
+          storeBottomTabScore(normalizedText(current)) >= 3) {
+        matched = current;
       }
       current = current.parentElement;
     }
@@ -183,7 +156,7 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
       'height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;' +
       'min-height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;' +
       'max-height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;' +
-      'z-index:2147483647!important;display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;' +
+      'z-index:2147483647!important;display:flex!important;flex-direction:row!important;align-items:stretch!important;' +
       'direction:rtl!important;overflow:hidden!important;box-sizing:border-box!important;' +
       'background:rgba(255,255,255,.97)!important;border-top:1px solid #bccac0!important;padding:0 0 16px 0!important;margin:0!important;' +
       'font-family:OtlobliCairo,system-ui,-apple-system,sans-serif!important;font-size:12px!important;line-height:normal!important;' +
@@ -201,18 +174,19 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
       var tab = document.createElement('button');
       var active = !item.type;
       tab.id = 'otlobli-nav-tab-' + i;
-      tab.style.cssText = 'position:relative!important;min-width:0!important;height:auto!important;min-height:0!important;' +
-        'border:0!important;background:transparent!important;display:grid!important;place-items:center!important;align-content:center!important;' +
-        'gap:4px!important;padding:10px 0 0 0!important;margin:0!important;box-sizing:border-box!important;font-size:12px!important;' +
+      tab.style.cssText = 'position:relative!important;flex:1 1 25%!important;width:25%!important;max-width:25%!important;' +
+        'min-width:0!important;height:auto!important;min-height:0!important;align-self:stretch!important;border:0!important;' +
+        'background:transparent!important;display:flex!important;flex-direction:column!important;align-items:center!important;' +
+        'justify-content:center!important;padding:10px 0 0 0!important;margin:0!important;box-sizing:border-box!important;font-size:12px!important;' +
         'line-height:normal!important;font-weight:700!important;font-family:OtlobliCairo,system-ui,-apple-system,sans-serif!important;color:' +
         (active ? '#006948' : '#3d4a42') + '!important;';
       if (active) {
         var indicator = document.createElement('span');
-        indicator.style.cssText = 'position:absolute!important;top:0!important;width:32px!important;height:4px!important;border-radius:999px!important;background:#006948!important;';
+        indicator.style.cssText = 'position:absolute!important;top:0!important;left:50%!important;transform:translateX(-50%)!important;width:32px!important;height:4px!important;border-radius:999px!important;background:#006948!important;';
         tab.appendChild(indicator);
       }
       tab.insertAdjacentHTML('beforeend', '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
-        item.icon + '</svg><span style="font:inherit!important;line-height:normal!important">' + item.label + '</span>');
+        item.icon + '</svg><span style="font:inherit!important;line-height:normal!important;margin-top:4px!important">' + item.label + '</span>');
       if (item.type) {
         (function (messageType) {
           tab.addEventListener('click', function (event) {
@@ -378,7 +352,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       'width:min(100vw, 440px)!important;height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;' +
       'min-height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;' +
       'max-height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;z-index:2147483647!important;' +
-      'display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;' +
+      'display:flex!important;flex-direction:row!important;align-items:stretch!important;' +
       'direction:rtl!important;overflow:hidden!important;box-sizing:border-box!important;' +
       'background:rgba(255,255,255,.97)!important;border-top:1px solid #bccac0!important;' +
       'backdrop-filter:blur(16px)!important;-webkit-backdrop-filter:blur(16px)!important;' +
@@ -3932,26 +3906,26 @@ export const SHEIN_CAPTURE_SCRIPT = `
       // that guard catches it at depth 0, before any of the is*() checks run.
       tab.id = 'otlobli-nav-tab-' + i;
       var isActiveTab = !item.type;
-      // Mirror React's .bottom-nav button exactly. The old injected button
-      // forced its own 74px height inside a bordered/padded nav, while the
-      // React button naturally fills the grid content row. That one-pixel
-      // box-model difference became visible as the home icons sitting lower.
+      // Keep Flex for old WKWebView compatibility, but let each cell stretch
+      // through the nav's real content box. A forced 74px button sat lower;
+      // CSS Grid collapsed to content width on the user's older iPhone.
       // px ثابت (وليس rem) وخط محدّد صراحةً: بعض المتاجر (تيمو) تضبط خط جذر
       // ضخم فتصير وحدات rem والخط الموروث هائلة فيتشوّه الشريط - التثبيت بالـpx
       // يجعله بنفس مقاس وتصميم شي إن على كل المتاجر.
-      tab.style.cssText = 'position:relative!important;min-width:0!important;height:auto!important;min-height:0!important;' +
-        'border:0!important;background:transparent!important;display:grid!important;place-items:center!important;align-content:center!important;' +
-        'gap:4px!important;padding:10px 0 0 0!important;margin:0!important;' +
+      tab.style.cssText = 'position:relative!important;flex:1 1 25%!important;width:25%!important;max-width:25%!important;' +
+        'min-width:0!important;height:auto!important;min-height:0!important;align-self:stretch!important;border:0!important;' +
+        'background:transparent!important;display:flex!important;flex-direction:column!important;align-items:center!important;' +
+        'justify-content:center!important;padding:10px 0 0 0!important;margin:0!important;' +
         'box-sizing:border-box!important;font-size:12px!important;line-height:normal!important;font-weight:700!important;' +
         'font-family:OtlobliCairo,system-ui,-apple-system,sans-serif!important;color:' + (isActiveTab ? '#006948' : '#3d4a42') + '!important;';
       if (isActiveTab) {
         var indicator = document.createElement('span');
-        indicator.style.cssText = 'position:absolute!important;top:0!important;width:32px!important;height:4px!important;border-radius:999px!important;background:#006948!important;';
+        indicator.style.cssText = 'position:absolute!important;top:0!important;left:50%!important;transform:translateX(-50%)!important;width:32px!important;height:4px!important;border-radius:999px!important;background:#006948!important;';
         tab.appendChild(indicator);
       }
       tab.insertAdjacentHTML('beforeend', '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
         'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + item.icon + '</svg>' +
-        '<span style="font:inherit!important;line-height:normal!important">' + item.label + '</span>');
+        '<span style="font:inherit!important;line-height:normal!important;margin-top:4px!important">' + item.label + '</span>');
       if (item.type) {
         (function (messageType) {
           tab.addEventListener('click', function (event) {
