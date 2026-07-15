@@ -5,12 +5,12 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Current Candidate
 
 - Branch: `codex/customer-wallet-group-orders`.
-- Code: `c4738fb` (`fix: v85.8.8 align nav and prepare cart products`).
-- IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.8.ipa`.
-- SHA-256: `A2F6D1E8B3F41D96D0B94A346542BA15B88BED80188F9A553643B1C0333A1149`.
-- Build run: `29409886905`.
+- Code: `917bfb7` (`fix: v85.8.9 restore legacy iOS nav compatibility`).
+- IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.9.ipa`.
+- SHA-256: `F5FB938AC9B6C67D1964916BF9F49B2ECB13C4C56D865C2B1D13CE8B35ED5D3E`.
+- Build run: `29410938651`.
 - Rollback/reference: v85.8.5 / `a914d81` and the user-provided v85.8.5 IPA.
-- v85.8.7 improved the iPhone 16 safe-area appearance and iPhone 6 speed, but left injected nav icons vertically lower, a first-install icon-only SHEIN tab flash, and a visible product reload before blockers. v85.8.8 device testing is pending; never call it proven until both iPhones pass.
+- v85.8.8 collapsed the injected nav to the right on an older iPhone and exited once on the first fresh launch. v85.8.9 removes those two new startup/layout paths while retaining hidden cart-product preparation. Device testing is pending; never call it proven until both iPhones pass.
 
 ## Confirmed Diagnosis
 
@@ -31,7 +31,8 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 - OTP bypass is test-only.
 - v85.8.7 adds semantic visual-stack detection for SHEIN's obfuscated early five-tab div, exact success-toast suppression, warm-cache fast path with bounded clean recovery, and full-bottom iOS WebView layout.
 - v85.8.8 makes the injected nav DOM/grid match React, recognizes only exact five-control fixed tab geometry before labels appear, and keeps cart products hidden until both page-load and post-blocker readiness arrive.
+- v85.8.9 replaces the incompatible injected Grid with four explicit Flex cells and removes the new first-session geometry scan. The v85.8.7 semantic detector and v85.8.8 product readiness gate remain.
 
 ## Next Step
 
-Install v85.8.8 on iPhone 6 and iPhone 16 Pro Max and execute the checklist in `CURRENT_STATE.md`. Focus on nav vertical parity, first-install icon flash, and cart-product reveal timing. Do not touch Temu, payment, wallet, completed orders, or design without explicit scope/Figma.
+Install v85.8.9 on iPhone 6 and iPhone 16 Pro Max. Start with a fresh install, confirm the app stays open, then verify full-width nav distribution and cart-product reveal timing. Do not touch Temu, payment, wallet, completed orders, or design without explicit scope/Figma.

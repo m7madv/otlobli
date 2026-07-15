@@ -7,11 +7,11 @@ Last updated: 2026-07-15
 - Branch: `codex/customer-wallet-group-orders`.
 - Stable tested reference: v85.8.5 / `a914d81`.
 - Reference IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.5-nav-cairo-font-match-no-otp-test.ipa`.
-- Active test candidate: v85.8.8 / `c4738fb`.
-- Candidate IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.8.ipa`.
-- Candidate SHA-256: `A2F6D1E8B3F41D96D0B94A346542BA15B88BED80188F9A553643B1C0333A1149`.
-- iOS build run: `29409886905` (success).
-- `APP_VERSION = 2026.07.15-v85.8.8-nav-match-hidden-product-no-otp-test`.
+- Active test candidate: v85.8.9 / `917bfb7`.
+- Candidate IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.9.ipa`.
+- Candidate SHA-256: `F5FB938AC9B6C67D1964916BF9F49B2ECB13C4C56D865C2B1D13CE8B35ED5D3E`.
+- iOS build run: `29410938651` (success).
+- `APP_VERSION = 2026.07.15-v85.8.9-ios-flex-nav-first-launch-safe-no-otp-test`.
 - Real-device acceptance is pending; do not claim the SHEIN issues are fixed yet.
 
 ## v85.8.6 Scope
@@ -44,6 +44,13 @@ Last updated: 2026-07-15
 - A cart product is loaded inside the preserved hidden SHEIN WebView while the React cart stays visible. It is revealed only after the target page load and a blocker-ready message.
 - SHEIN readiness is posted only after header/cart/listing/bottom-nav/cookie/toast/install blockers have run for that tick.
 
+## v85.8.9 Changes
+
+- v85.8.8 device result: the injected nav collapsed to content width on an older iPhone WKWebView, stacking all four tabs at the right; the first fresh launch also exited once and the second launch was smooth.
+- The injected nav uses legacy-safe Flex again, with four explicit 25% cells and direct icon/label content stretched through the same 73px content row as React.
+- The v85.8.8 first-session geometry scan was removed; the proven v85.8.7 semantic tab detector remains. Hidden cart-product readiness remains unchanged.
+- Browser layout checks at 375px and 430px confirmed four equal cells across the full width.
+
 ## Failed Paths / Guardrails
 
 - v86-v88 are failed paths. v87 fixed none of the reported issues; v88 closed/crashed SHEIN on entry.
@@ -72,5 +79,5 @@ Test on iPhone 6 and iPhone 16 Pro Max:
 - `npm run build` passed.
 - Runtime syntax parse of both injected scripts passed.
 - `git diff --check` passed.
-- Xcode unsigned build and packaging passed in run `29409886905`.
-- Embedded v85.8.8 marker and desktop IPA SHA-256 were verified.
+- Xcode unsigned build and packaging passed in run `29410938651`.
+- Embedded v85.8.9 marker and desktop IPA SHA-256 were verified.
