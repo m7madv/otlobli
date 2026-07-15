@@ -5,10 +5,10 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Current Candidate
 
 - Branch: `codex/customer-wallet-group-orders`.
-- Code: v85.8.12 working tree based on `13585b6`; not committed or packaged yet.
-- Last IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.11.ipa` (does not contain v85.8.12 changes).
-- SHA-256: `EB4019D410D58FB7DE720F12BAE88FF015E6160CA0AC0C8870584E1715271539`.
-- Build run: `29414121203`.
+- Code: `4e12ef5` (`fix: v85.8.12 harden SHEIN consent region and gallery`).
+- IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.12.ipa`.
+- SHA-256: `67D59C6CE34075198CAA1000008515EAC5B0B2EA0C4F97B84C7764DE3210D047`.
+- Build run: `29416945278`.
 - Rollback/reference: v85.8.5 / `a914d81` and the user-provided v85.8.5 IPA.
 - v85.8.10's ordinary iPhone 16 nav behavior was accepted. v85.8.12 corrects failures observed in v85.8.11: consent overlap, leftover Saudi UI, gallery click-through, and old-iPhone pre-paint scan overhead. Device testing is pending; never call it proven until both iPhones pass.
 
@@ -39,4 +39,4 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
 ## Next Step
 
-Package v85.8.12 only when requested, then test it on iPhone 6 and iPhone 16 Pro Max. Verify both cookie choices are reachable, Saudi UI closes after signed completion, rejecting cookies does not force a product login popup, image/black-band taps never capture, nav/back stay visible, and old-iPhone image/scroll responsiveness improves.
+Install v85.8.12 on iPhone 6 and iPhone 16 Pro Max. Verify both cookie choices are reachable, Saudi UI closes after signed completion, rejecting cookies does not force a product login popup, image/black-band taps never capture, nav/back stay visible, and old-iPhone image/scroll responsiveness improves.

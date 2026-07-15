@@ -7,10 +7,10 @@ Last updated: 2026-07-15
 - Branch: `codex/customer-wallet-group-orders`.
 - Stable tested reference: v85.8.5 / `a914d81`.
 - Reference IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.5-nav-cairo-font-match-no-otp-test.ipa`.
-- Active code candidate: v85.8.12 (working tree; not packaged or device-tested yet).
-- Last packaged IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.11.ipa`.
-- Last packaged SHA-256: `EB4019D410D58FB7DE720F12BAE88FF015E6160CA0AC0C8870584E1715271539`.
-- Last iOS build run: `29414121203` (v85.8.11 success).
+- Active test candidate: v85.8.12 / `4e12ef5`.
+- Candidate IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.12.ipa`.
+- Candidate SHA-256: `67D59C6CE34075198CAA1000008515EAC5B0B2EA0C4F97B84C7764DE3210D047`.
+- iOS build run: `29416945278` (success).
 - `APP_VERSION = 2026.07.15-v85.8.12-shein-consent-region-gallery-perf-no-otp-test`.
 - Real-device acceptance is pending; do not claim the SHEIN issues are fixed yet.
 
@@ -67,7 +67,7 @@ Last updated: 2026-07-15
 - The viewer is recognized only as a fixed near-full-screen layer with a large image and `current/total` counter. On opening it, the existing nav and back button reclaim paint order once so old WKWebView cannot paint the viewer over them while leaving their hit targets active.
 - v85.8.10 nav CSS, sizing, font, and ordinary-page behavior are unchanged.
 
-## v85.8.12 Changes (Unpackaged Candidate)
+## v85.8.12 Changes
 
 - v85.8.11 device result: cookie Accept could sit below Otlobli's nav, the Saudi address surface could remain open after success, gallery/image taps could still capture the product, and the new pre-paint signup scan made iPhone 6 noticeably heavier.
 - Cookie consent remains the customer's decision. The exact Accept/Reject action row is raised together above the nav; Otlobli does not silently accept tracking consent.
@@ -114,4 +114,4 @@ Test on iPhone 6 and iPhone 16 Pro Max:
 - Full-project lint still has pre-existing unrelated errors in `App.tsx`, Admin, and the payment webhook; this SHEIN change introduced no build error.
 - Xcode unsigned build and packaging passed in run `29414121203`.
 - Embedded v85.8.11 marker and desktop IPA SHA-256 were verified.
-- v85.8.12 has no IPA or iOS build yet; do not point the user to v85.8.11 as if it contains these changes.
+- Xcode unsigned build and packaging passed in run `29416945278`; the embedded v85.8.12 marker and desktop IPA SHA-256 were verified.

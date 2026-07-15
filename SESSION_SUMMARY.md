@@ -18,4 +18,6 @@ Last updated: 2026-07-15
 - Test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.11.ipa`.
 - SHA-256: `EB4019D410D58FB7DE720F12BAE88FF015E6160CA0AC0C8870584E1715271539`.
 - Real-device testing on iPhone 6 and iPhone 16 Pro Max is still required; no fix claim yet.
-- No v85.8.12 IPA has been built yet; v85.8.11 remains the last packaged artifact.
+- iOS run `29416945278` succeeded for commit `4e12ef5`.
+- Test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.12.ipa`.
+- SHA-256: `67D59C6CE34075198CAA1000008515EAC5B0B2EA0C4F97B84C7764DE3210D047`.
