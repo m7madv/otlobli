@@ -5,10 +5,9 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Current Candidate
 
 - Branch: `codex/customer-wallet-group-orders`.
-- Current code: uncommitted v85.8.15 working tree based on `5b021ab`; no v85.8.15 IPA yet.
-- Last IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.14.ipa`.
-- SHA-256: `0A9EFB370E718A9FFD8E157694ECC4A335F362F0E85B9DD40A97685A55D868AB`.
-- Build run: `29426638388` (success).
+- Current code/IPA: `9ba6a7f` / `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.15.ipa`.
+- SHA-256: `0BDEEC053CCAC3AEAA0944DFA360C0C8CE17742D783830B4326553527D277D4E`.
+- Build run: `29428880011` (success).
 - Rollback/reference: v85.8.5 / `a914d81` and the user-provided v85.8.5 IPA.
 - v85.8.12 was very good on iPhone 16, but its device report still found consent overlap and iPhone-6 nav/auth/gallery paint issues. v85.8.13 addresses those reports and size fail-closed behavior; never call it proven until both iPhones pass.
 
@@ -46,4 +45,4 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
 ## Next Step
 
-Build v85.8.15, then test fresh/repeated SHEIN entry, exact consent auto-accept, one-time Saudi preparation, persistent nav/absence of the center raw icon on iPhone 6, and trusted color+size capture on both phones. Do not call it fixed before both phones pass.
+Install v85.8.15, then test fresh/repeated SHEIN entry, exact consent auto-accept, one-time Saudi preparation, persistent nav/absence of the center raw icon on iPhone 6, and trusted color+size capture on both phones. Do not call it fixed before both phones pass.
