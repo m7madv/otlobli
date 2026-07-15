@@ -150,6 +150,22 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
         }
       }
       if (!cookieScope) continue;
+      // The customer explicitly chose automatic "Accept all" while SHEIN is
+      // being prepared. Keep this bounded to an exact accept label inside an
+      // exact cookie-consent scope; never click a generic Continue/Agree CTA.
+      // Retry up to three scans because the earliest documentStart frame can
+      // exist before SHEIN attaches its click handler on older WKWebView.
+      var earlyAcceptAttempts = parseInt(button.getAttribute('data-otlobli-cookie-auto-accept') || '0', 10) || 0;
+      if (earlyAcceptAttempts < 3) {
+        button.setAttribute('data-otlobli-cookie-auto-accept', String(earlyAcceptAttempts + 1));
+        (function (target) {
+          setTimeout(function () {
+            if (!document.documentElement.contains(target)) return;
+            try { target.click(); } catch (e) {}
+          }, 0);
+        })(button);
+        continue;
+      }
       var scopedControls = cookieScope.querySelectorAll('button, [role="button"], a, input[type="button"], input[type="submit"]');
       var reject = null;
       for (var ri = 0; ri < scopedControls.length; ri++) {
@@ -289,10 +305,19 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
       fontStyle.textContent = ${JSON.stringify(OTLOBLI_CAIRO_FONT_CSS)};
       (document.head || document.documentElement).appendChild(fontStyle);
     }
-    if (!document.body) return false;
-    if (document.getElementById('otlobli-nav')) {
-      runEarlyProtections();
-      return true;
+    // A Saudi-region navigation replaces the whole SHEIN document. On old
+    // WKWebView, waiting for <body> left a visible blank strip where Otlobli's
+    // nav belongs. Mount against <html> at documentStart, then adopt the same
+    // node into <body> as soon as it exists. No duplicate nav and no paint gap.
+    var mountParent = document.body || document.documentElement;
+    if (!mountParent) return false;
+    var existingEarlyNav = document.getElementById('otlobli-nav');
+    if (existingEarlyNav) {
+      if (document.body && existingEarlyNav.parentElement !== document.body) {
+        document.body.appendChild(existingEarlyNav);
+      }
+      if (document.body) runEarlyProtections();
+      return !!document.body;
     }
 
     var nav = document.createElement('div');
@@ -340,9 +365,9 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
       }
       nav.appendChild(tab);
     }
-    document.body.appendChild(nav);
-    runEarlyProtections();
-    return true;
+    mountParent.appendChild(nav);
+    if (document.body) runEarlyProtections();
+    return !!document.body;
   }
 
   if (!mount()) {
@@ -826,6 +851,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (bodyText.length < 180) return false;
 
     var interactiveCount = 0;
+    var hittableControlCount = 0;
     var controls = document.querySelectorAll('a[href], button, [role="button"], input, select');
     for (var ci = 0; ci < controls.length && interactiveCount < 4; ci++) {
       var control = controls[ci];
@@ -836,6 +862,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var ccs = window.getComputedStyle(control);
       if (ccs.display === 'none' || ccs.visibility === 'hidden' || Number(ccs.opacity || 1) < 0.1 || ccs.pointerEvents === 'none') continue;
       interactiveCount++;
+      if (document.elementFromPoint) {
+        var hitX = Math.max(1, Math.min((window.innerWidth || document.documentElement.clientWidth || 1) - 1, Math.round(cr.left + cr.width / 2)));
+        var hitY = Math.max(1, Math.min((window.innerHeight || document.documentElement.clientHeight || 1) - 1, Math.round(cr.top + cr.height / 2)));
+        var hit = document.elementFromPoint(hitX, hitY);
+        if (hit && (hit === control || control.contains(hit) || (hit.contains && hit.contains(control)))) hittableControlCount++;
+      }
     }
 
     var loadedImageCount = 0;
@@ -850,8 +882,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
 
     var homeLike = /^\\/ar\\/?$/i.test(location.pathname || '');
-    if (homeLike) return interactiveCount >= 3 && loadedImageCount >= 2;
-    return interactiveCount >= 1 && (loadedImageCount >= 1 || bodyText.length >= 500);
+    if (homeLike) return interactiveCount >= 3 && hittableControlCount >= 2 && loadedImageCount >= 2;
+    return interactiveCount >= 1 && hittableControlCount >= 1 && (loadedImageCount >= 1 || bodyText.length >= 500);
   }
 
   function sheinPostNativeCoverState(type) {
@@ -875,6 +907,18 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (sheinNativeCoverRepairActive) return true;
     var now = Date.now();
     if (now < sheinNativeCoverCooldownUntil) return false;
+    // The native cover intentionally stops above Otlobli's nav. Guarantee the
+    // nav is mounted and painted before asking native code to reveal that
+    // cover; otherwise a document replacement can expose a blank bottom strip
+    // for a few frames on iPhone 6.
+    ensureOtlobliNav();
+    var nav = document.getElementById('otlobli-nav');
+    if (nav) {
+      nav.style.setProperty('display', 'flex', 'important');
+      nav.style.setProperty('opacity', '1', 'important');
+      nav.style.setProperty('visibility', 'visible', 'important');
+      nav.style.setProperty('pointer-events', 'auto', 'important');
+    }
     sheinNativeCoverRepairActive = true;
     sheinNativeCoverRepairStartedAt = now;
     sheinPostNativeCoverState('sheinSaudiRepairStart');
@@ -2111,6 +2155,129 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return { exists: !!container, selected: selected, image: getSelectedColorSwatchImage(container, selected) };
   }
 
+  function sheinSizeOptionLabel(el) {
+    if (!el) return '';
+    var label = el.getAttribute('aria-label') || el.getAttribute('title') ||
+      el.getAttribute('data-name') || el.getAttribute('data-value') || el.getAttribute('data-attr-value') || '';
+    if (!label && String(el.tagName || '').toUpperCase() === 'INPUT') label = el.value || '';
+    if (!label) label = el.textContent || '';
+    return String(label)
+      .replace(/\\b(?:left|only)\\s*:?\\s*\\d+\\b/ig, ' ')
+      .replace(/(?:\\u0645\\u062a\\u0628\\u0642(?:\\u064a|\\u064a\\u0629)|\\u0628\\u0642\\u064a)\\s*:?\\s*\\d+/ig, ' ')
+      .replace(/\\s+/g, ' ')
+      .trim();
+  }
+
+  function looksLikeSheinSizeValue(text) {
+    var value = String(text || '').replace(/\\s+/g, ' ').trim();
+    if (!value || value.length > 28 || looksLikeJunkValue(value)) return false;
+    if (/guide|chart|standard|size info|measurement|\\u062f\\u0644\\u064a\\u0644|\\u0627\\u0644\\u0642\\u064a\\u0627\\u0633\\u0627\\u062a|\\u0642\\u064a\\u0627\\u0633\\u0627\\u062a|\\u0643\\u0645\\u064a\\u0629/i.test(value)) return false;
+    if (/[$£€%]/.test(value)) return false;
+    if (/^(?:x{0,4}[sml]|xs|xxs|[2-9]xl|one[ -]?size|free[ -]?size|petite|tall|regular|\\u0645\\u0642\\u0627\\u0633 \\u0648\\u0627\\u062d\\u062f|\\u0645\\u0648\\u062d\\u062f)$/i.test(value)) return true;
+    return /\\d/.test(value) && !/^\\d{1,2}:\\d{2}(?::\\d{2})?$/.test(value);
+  }
+
+  function sheinSizeOptionElements(container, allowDescriptive) {
+    var result = [];
+    if (!container) return result;
+    var nodes = container.querySelectorAll(
+      'button,li,label,[role="button"],[role="option"],[role="radio"],input[type="radio"],input[type="checkbox"],' +
+      '[class*="size" i] [class*="item" i],[class*="sku" i] [class*="item" i],[class*="attr" i] [class*="item" i]'
+    );
+    for (var i = 0; i < nodes.length; i++) {
+      var node = nodes[i];
+      var label = sheinSizeOptionLabel(node);
+      var verified = looksLikeSheinSizeValue(label);
+      if (!verified && allowDescriptive) {
+        var tag = String(node.tagName || '').toUpperCase();
+        var role = String(node.getAttribute('role') || '').toLowerCase();
+        var interactive = tag === 'BUTTON' || tag === 'LI' || tag === 'LABEL' || tag === 'INPUT' ||
+          role === 'button' || role === 'option' || role === 'radio';
+        verified = interactive && label.length > 0 && label.length <= 70 && !looksLikeJunkValue(label) &&
+          !/^(?:size|select size|choose size|\\u0627\\u0644\\u0645\\u0642\\u0627\\u0633|\\u0645\\u0642\\u0627\\u0633|\\u0627\\u0644\\u0642\\u064a\\u0627\\u0633|\\u0627\\u0644\\u062d\\u062c\\u0645|\\u062d\\u062f\\u062f.*|\\u0627\\u062e\\u062a\\u0631.*|add.*|\\u0623\\u0636\\u0641.*|\\u0627\\u0644\\u0643\\u0645\\u064a\\u0629|\\u062f\\u0644\\u064a\\u0644.*)$/i.test(label) &&
+          !/[$£€%]/.test(label);
+      }
+      if (!verified) continue;
+      result.push(node);
+    }
+    return result;
+  }
+
+  function sheinSizeHeadingElement() {
+    var headings = document.querySelectorAll('div,span,p,h1,h2,h3,label,b,strong');
+    for (var i = 0; i < headings.length; i++) {
+      var text = String(headings[i].textContent || '').replace(/\\s+/g, ' ').trim();
+      if (!text || text.length > 48 || /guide|chart|\\u062f\\u0644\\u064a\\u0644|\\u0627\\u0644\\u0642\\u064a\\u0627\\u0633\\u0627\\u062a/i.test(text)) continue;
+      if (/^(?:(?:select|choose)\\s+)?size(?:\\s*[:：]\\s*.{1,24})?$|^(?:(?:\\u0627\\u062e\\u062a\\u0631|\\u062d\\u062f\\u062f)\\s+)?(?:\\u0627\\u0644\\u0645\\u0642\\u0627\\u0633|\\u0645\\u0642\\u0627\\u0633|\\u0627\\u0644\\u0642\\u064a\\u0627\\u0633|\\u0627\\u0644\\u062d\\u062c\\u0645)(?:\\s*[:：]\\s*.{1,24})?$/i.test(text)) {
+        return headings[i];
+      }
+    }
+    return null;
+  }
+
+  function findSheinSizeContainer() {
+    var heading = sheinSizeHeadingElement();
+    if (heading) {
+      var scope = heading.parentElement;
+      for (var hop = 0; scope && scope !== document.body && scope !== document.documentElement && hop < 5; hop++, scope = scope.parentElement) {
+        if (sheinSizeOptionElements(scope, true).length) return scope;
+      }
+      // An exact size heading is enough to fail closed while SPA options
+      // mount. Keep the fallback narrow; never scan the whole product/body.
+      return heading.parentElement;
+    }
+    var direct = findOptionContainer('size', ['المقاس', 'مقاس', 'القياس', 'الحجم', 'Size']);
+    return direct && sheinSizeOptionElements(direct).length ? direct : null;
+  }
+
+  function selectedSheinSize(container) {
+    var options = sheinSizeOptionElements(container, true);
+    var uniqueLabels = [];
+    for (var labelIndex = 0; labelIndex < options.length; labelIndex++) {
+      var optionLabel = sheinSizeOptionLabel(options[labelIndex]);
+      if (optionLabel && uniqueLabels.indexOf(optionLabel) < 0) uniqueLabels.push(optionLabel);
+    }
+    if (uniqueLabels.length > 1) {
+      var trustedChoice = window.__otlobliSheinSizeChoice;
+      var productKey = String(location.pathname || '').match(/-p-(\\d+)/i);
+      productKey = productKey ? productKey[1] : String(location.pathname || '');
+      if (trustedChoice && trustedChoice.productKey === productKey && Date.now() - trustedChoice.at < 1800000 &&
+          uniqueLabels.indexOf(trustedChoice.label) >= 0) {
+        return trustedChoice.label;
+      }
+      // SHEIN preselects the first descriptive variant on some products. For
+      // multiple choices, only a real customer tap is accepted.
+      return '';
+    }
+    for (var i = 0; i < options.length; i++) {
+      var option = options[i];
+      var marked = isSelectedSwatchEl(option);
+      if (!marked && option.querySelector) {
+        marked = !!option.querySelector('[aria-selected="true"],[aria-checked="true"],[aria-pressed="true"],input:checked,[class*="selected" i],[class*="active" i]');
+      }
+      if (marked) return sheinSizeOptionLabel(option);
+    }
+    var printed = getAttrLabelValue(container, ['المقاس', 'مقاس', 'القياس', 'الحجم', 'Size']);
+    return looksLikeSheinSizeValue(printed) ? printed : '';
+  }
+
+  function rememberTrustedSheinSizeChoice(target, event) {
+    if (!IS_SHEIN || !looksLikeProductPage() || !target || (event && event.isTrusted === false)) return;
+    var container = findSheinSizeContainer();
+    if (!container || !container.contains(target)) return;
+    var options = sheinSizeOptionElements(container, true);
+    var node = target;
+    for (var hop = 0; node && node !== container && hop < 8; hop++, node = node.parentElement) {
+      if (options.indexOf(node) < 0) continue;
+      var label = sheinSizeOptionLabel(node);
+      if (!label) return;
+      var productKey = String(location.pathname || '').match(/-p-(\\d+)/i);
+      productKey = productKey ? productKey[1] : String(location.pathname || '');
+      window.__otlobliSheinSizeChoice = { productKey: productKey, label: label, at: Date.now() };
+      return;
+    }
+  }
+
   // Walks every option inside the size container and splits it into
   // available vs unavailable based on the common ways sites mark a sold-out
   // option: aria-disabled, or a class hinting "disabled/soldout/out-of-stock".
@@ -2120,13 +2287,15 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var available = [];
     var unavailable = [];
     if (!container) return { available: available, unavailable: unavailable };
-    var opts = container.querySelectorAll('li, button, [class*="item" i]');
+    var heading = sheinSizeHeadingElement();
+    var allowDescriptive = !!(heading && container.contains && container.contains(heading));
+    var opts = sheinSizeOptionElements(container, allowDescriptive);
     for (var i = 0; i < opts.length; i++) {
       var el = opts[i];
-      var label = (el.getAttribute('aria-label') || el.getAttribute('title') || el.textContent || '').trim();
-      if (!label || label.length > 12 || looksLikeJunkValue(label)) continue;
+      var label = sheinSizeOptionLabel(el);
       var cls = ' ' + (el.className || '') + ' ';
       var isDisabled = el.getAttribute('aria-disabled') === 'true' ||
+        el.disabled === true ||
         /\\s(disable|disabled|soldout|sold-out|out-of-stock|unavailable)\\s/i.test(cls);
       var bucket = isDisabled ? unavailable : available;
       if (bucket.indexOf(label) === -1) bucket.push(label);
@@ -2135,9 +2304,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   function getSizeState() {
-    var container = findOptionContainer('size', ['المقاس', 'Size']);
+    var container = findSheinSizeContainer();
     var opts = getSizeOptions(container);
-    var selected = getSelectedWithin(container);
+    var selected = selectedSheinSize(container);
     if (!selected && opts.available.length === 1 && opts.unavailable.length === 0) selected = opts.available[0];
     return {
       exists: !!container,
@@ -3664,6 +3833,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var exhausted = attempts >= maxAttempts;
       var freshColor = getColorState();
       var freshSize = getSizeState();
+      // Final fail-closed invariant: SHEIN often mounts its size row after the
+      // first tap. If it appeared during capture, never finalize a product
+      // until a real size is selected.
+      if (IS_SHEIN && freshSize.exists && !freshSize.selected) {
+        removeOverlay(0);
+        showMessage(document.getElementById('otlobli-add-btn'), 'حدد المقاس أولاً');
+        return;
+      }
       payload = captureProductPayload(freshColor, freshSize, exhausted);
       if (isComplete(payload, freshColor) || exhausted) {
         finalize(payload);
@@ -3710,23 +3887,44 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   });
 
+  function positionOtlobliMessage(msg) {
+    if (!msg) return;
+    var vp = viewportSize();
+    var nav = document.getElementById('otlobli-nav');
+    var navRect = nav && nav.getBoundingClientRect ? nav.getBoundingClientRect() : null;
+    var navTop = navRect && navRect.top > 0 ? navRect.top : vp.height - 90;
+    msg.style.removeProperty('top');
+    msg.style.setProperty('left', '16px');
+    msg.style.setProperty('width', Math.max(120, vp.width - 32) + 'px');
+    msg.style.setProperty('bottom', Math.max(12, Math.ceil(vp.height - navTop + 12)) + 'px');
+  }
+
   function showMessage(btn, text, durationMs) {
     var msg = document.getElementById('otlobli-msg');
     if (!msg) {
-      var vp = viewportSize();
       msg = document.createElement('div');
       msg.id = 'otlobli-msg';
-      msg.style.cssText = 'position:fixed;left:16px;top:' + (vp.height - 122) + 'px;width:' + (vp.width - 32) + 'px;z-index:2147483647;' +
+      msg.setAttribute('role', 'status');
+      msg.setAttribute('aria-live', 'polite');
+      msg.style.cssText = 'position:fixed;left:16px;z-index:2147483647;pointer-events:none;' +
         'background:#fff3cd;color:#7a5b00;border:1px solid #ffe28a;border-radius:10px;' +
-        'padding:10px 14px;font-size:14px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.2);';
+        'padding:10px 14px;font-size:14px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.2);' +
+        'opacity:0;transition:opacity .18s ease;';
       document.body.appendChild(msg);
     }
+    positionOtlobliMessage(msg);
     msg.textContent = text;
     msg.style.display = 'block';
+    msg.style.opacity = '0';
     clearTimeout(window.__otlobliMsgTimer);
+    clearTimeout(window.__otlobliMsgHideTimer);
+    requestAnimationFrame(function () { msg.style.opacity = '1'; });
     // رسائل التشخيص (تحوي "[" — قوس السبب) تبقى أطول لإتاحة وقت للتصوير.
     var showFor = durationMs || (text.indexOf('[') >= 0 ? 6000 : 2500);
-    window.__otlobliMsgTimer = setTimeout(function () { msg.style.display = 'none'; }, showFor);
+    window.__otlobliMsgTimer = setTimeout(function () {
+      msg.style.opacity = '0';
+      window.__otlobliMsgHideTimer = setTimeout(function () { msg.style.display = 'none'; }, 200);
+    }, showFor);
 
     if (btn) {
       btn.style.animation = 'none';
@@ -4403,6 +4601,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // هذا الحارس أول سطر بالضبط - لا تُدمِج منطق شي إن وتيمو هنا مطلقاً.
     if (!IS_SHEIN) return;
     var el = event.target;
+    rememberTrustedSheinSizeChoice(el, event);
+    // Remember a real product destination before SHEIN can replace it with a
+    // one-time auth interstitial. The saved URL stays inside this WebView
+    // session and is never used for an ordinary account/login visit.
+    var productLink = el && el.closest ? el.closest('a[href]') : null;
+    if (productLink) rememberRecentSheinProduct(productLink.href || productLink.getAttribute('href') || '');
     // A full-screen product gallery may be painted above a still-hit-testable
     // PDP action on older WKWebView. While that exact viewer is open, block
     // only dangerous underlying cart/wishlist controls and otherwise leave
@@ -4508,6 +4712,50 @@ export const SHEIN_CAPTURE_SCRIPT = `
       depth++;
     }
   }, true);
+
+  // A partially loaded SHEIN document can be fully painted while its SPA
+  // handlers are dead (common after an asset-cold load over a weak/double
+  // VPN). Detect one real, trusted product/category tap that produces neither
+  // navigation nor an active-state change, then ask native code for one fresh
+  // cache-preserving WebView. This is bounded once per document and never
+  // reloads the damaged page in a loop.
+  var __otlobliInteractionStallReported = false;
+  function sheinInteractionFingerprint(node) {
+    var parts = [];
+    for (var hop = 0; node && hop < 4; hop++, node = node.parentElement) {
+      parts.push(String(node.className || '') + '|' + String(node.getAttribute && node.getAttribute('aria-selected') || '') +
+        '|' + String(node.getAttribute && node.getAttribute('aria-current') || ''));
+    }
+    return parts.join('>');
+  }
+
+  document.addEventListener('click', function (event) {
+    if (!IS_SHEIN || !event.isTrusted || __otlobliInteractionStallReported || otlobliIsHumanChallenge()) return;
+    var target = event.target;
+    if (!target || (target.closest && target.closest('[id^="otlobli"]'))) return;
+    var productAnchor = target.closest ? target.closest('a[href]') : null;
+    var productTap = !!(productAnchor && /-p-\\d+/i.test(productAnchor.href || productAnchor.getAttribute('href') || ''));
+    var categoryNode = target;
+    var categoryTap = false;
+    for (var hop = 0; categoryNode && hop < 6; hop++, categoryNode = categoryNode.parentElement) {
+      if (otlobliIsSheinTopCategoryEl(categoryNode)) { categoryTap = true; break; }
+    }
+    if (!productTap && !categoryTap) return;
+    var actionNode = productTap ? productAnchor : categoryNode;
+    var beforeUrl = location.href;
+    var beforeFingerprint = sheinInteractionFingerprint(actionNode);
+    if (categoryTap && /(?:^|[-_\\s])(active|selected|current)(?:$|[-_\\s])/i.test(beforeFingerprint)) return;
+    setTimeout(function () {
+      if (!document.documentElement.contains(actionNode) || location.href !== beforeUrl || otlobliIsHumanChallenge()) return;
+      if (sheinInteractionFingerprint(actionNode) !== beforeFingerprint) return;
+      __otlobliInteractionStallReported = true;
+      try {
+        if (window.mobileApp && window.mobileApp.postMessage) {
+          window.mobileApp.postMessage({ detail: { type: 'sheinInteractionStalled' } });
+        }
+      } catch (e) {}
+    }, 1800);
+  }, false);
 
   // Hide every SHEIN header icon except search (wishlist heart, inbox, hamburger
   // menu, etc.) - same point-probing + "walk up to the nearest small clickable
@@ -4968,9 +5216,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
-  // Keep SHEIN's explicit cookie-consent action reachable without accepting
-  // anything on the customer's behalf. Only the exact consent action row is
-  // raised, and only when it would otherwise sit under Otlobli's fixed nav.
+  // Automatically accept SHEIN's consent only when both the button label and
+  // its bounded consent scope are exact. If SHEIN has not attached its event
+  // handler after three attempts, keep the existing action-row clearance as a
+  // safe visible fallback rather than clicking anything broader.
   var __otlobliCookieScanAt = 0;
   function protectSheinCookieConsentAction() {
     if (!IS_SHEIN || !document.body) return;
@@ -4996,6 +5245,17 @@ export const SHEIN_CAPTURE_SCRIPT = `
         }
       }
       if (!cookieScope) continue;
+      var acceptAttempts = parseInt(button.getAttribute('data-otlobli-cookie-auto-accept') || '0', 10) || 0;
+      if (acceptAttempts < 3) {
+        button.setAttribute('data-otlobli-cookie-auto-accept', String(acceptAttempts + 1));
+        (function (target) {
+          setTimeout(function () {
+            if (!document.documentElement.contains(target)) return;
+            try { target.click(); } catch (e) {}
+          }, 0);
+        })(button);
+        continue;
+      }
       var scopedControls = cookieScope.querySelectorAll('button, [role="button"], a, input[type="button"], input[type="submit"]');
       var reject = null;
       for (var ri = 0; ri < scopedControls.length; ri++) {
@@ -5111,14 +5371,27 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
-  // Dismiss only unsolicited sign-in dialogs that SHEIN floats over a product.
-  // A real login route or a full account page is never modified, and no form
-  // field is hidden. This keeps cookie choices from turning into a forced
-  // account interruption while preserving user-initiated authentication.
+  // Dismiss only unsolicited sign-in surfaces reached from a product. A real
+  // login route with no recent product context is never modified.
   var __otlobliSheinLoginDismissAt = 0;
   function dismissSheinProductLoginPrompt() {
-    if (!IS_SHEIN || !document.body || !looksLikeProductPage()) return;
-    if (/(?:\\/user\\/login|\\/login|\\/signin|\\/sign-in|\\/auth)(?:[/?#]|$)/i.test(location.pathname + location.search)) return;
+    if (!IS_SHEIN || !document.body) return;
+    var isProduct = looksLikeProductPage();
+    var isLoginRoute = /(?:\\/user\\/login|\\/login|\\/signin|\\/sign-in|\\/auth)(?:[/?#]|$)/i.test(location.pathname + location.search);
+    if (isProduct) rememberRecentSheinProduct(location.href);
+    if (isLoginRoute) {
+      try {
+        var lastProductUrl = sessionStorage.getItem('otlobli-shein-last-product-url') || '';
+        var lastProductAt = parseInt(sessionStorage.getItem('otlobli-shein-last-product-at') || '0', 10) || 0;
+        var lastRecoveryAt = parseInt(sessionStorage.getItem('otlobli-shein-auth-recovery-at') || '0', 10) || 0;
+        if (/-p-\\d+/i.test(lastProductUrl) && Date.now() - lastProductAt < 120000 && Date.now() - lastRecoveryAt > 120000) {
+          sessionStorage.setItem('otlobli-shein-auth-recovery-at', String(Date.now()));
+          location.replace(lastProductUrl);
+        }
+      } catch (e) {}
+      return;
+    }
+    if (!isProduct) return;
     var now = Date.now();
     if (now - __otlobliSheinLoginDismissAt < 900) return;
     __otlobliSheinLoginDismissAt = now;
@@ -5126,9 +5399,22 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var authPattern = /(?:sign\\s*in|log\\s*in|continue\\s+with|email|phone\\s+number|\\u062a\\u0633\\u062c\\u064a\\u0644\\s+\\u0627\\u0644\\u062f\\u062e\\u0648\\u0644|\\u0627\\u0644\\u0627\\u0633\\u062a\\u0645\\u0631\\u0627\\u0631\\s+\\u0628|\\u0627\\u0644\\u0628\\u0631\\u064a\\u062f\\s+\\u0627\\u0644(?:\\u0625|\\u0627)\\u0644\\u0643\\u062a\\u0631\\u0648\\u0646\\u064a|\\u0631\\u0642\\u0645\\s+\\u0627\\u0644\\u0647\\u0627\\u062a\\u0641)/i;
     var cookiePattern = /cookies?|\\u0645\\u0644\\u0641\\u0627\\u062a \\u062a\\u0639\\u0631\\u064a\\u0641 \\u0627\\u0644\\u0627\\u0631\\u062a\\u0628\\u0627\\u0637/i;
     var closePattern = /^(?:close|dismiss|skip|not now|maybe later|later|\\u00d7|\\u2715|\\u2716|\\u0625\\u063a\\u0644\\u0627\\u0642|\\u0627\\u063a\\u0644\\u0627\\u0642|\\u062a\\u062e\\u0637\\u064a|\\u0644\\u064a\\u0633 \\u0627\\u0644\\u0622\\u0646|\\u0644\\u0627\\u062d\\u0642(?:\\u0627|\\u0627\\u064b))$/i;
-    var candidates = document.querySelectorAll(
+    var namedCandidates = document.querySelectorAll(
       '[role="dialog"],[aria-modal="true"],[class*="login"],[class*="signin"],[class*="sign-in"],[class*="modal"],[class*="popup"],[class*="drawer"]'
     );
+    var candidates = [];
+    for (var namedIndex = 0; namedIndex < namedCandidates.length; namedIndex++) candidates.push(namedCandidates[namedIndex]);
+    // A classless full-screen auth view is found only from the painted center
+    // stack. Avoid a whole body-child scan every 900ms on iPhone 6.
+    if (document.elementsFromPoint) {
+      var authStack = document.elementsFromPoint(Math.round(vp.width * 0.5), Math.round(vp.height * 0.45));
+      for (var authIndex = 0; authIndex < authStack.length; authIndex++) {
+        var authNode = authStack[authIndex];
+        for (var authHop = 0; authNode && authNode !== document.body && authNode !== document.documentElement && authHop < 8; authHop++, authNode = authNode.parentElement) {
+          if (candidates.indexOf(authNode) < 0) candidates.push(authNode);
+        }
+      }
+    }
     for (var ci = candidates.length - 1; ci >= 0; ci--) {
       var candidate = candidates[ci];
       if (!candidate || (candidate.id && candidate.id.indexOf('otlobli') === 0) || !sheinElementIsVisible(candidate)) continue;
@@ -5155,8 +5441,39 @@ export const SHEIN_CAPTURE_SCRIPT = `
           break;
         }
       }
-      if (!closeTarget) continue;
-      try { closeTarget.click(); } catch (e) {}
+      if (closeTarget) {
+        try { closeTarget.click(); } catch (e) {}
+        return;
+      }
+      // Some older SHEIN layouts provide no close control. Suppress only a
+      // genuine full-screen positioned auth surface with fields/social-login
+      // semantics; never hide an in-flow form or a product container.
+      var socialAuth = /(?:continue\\s+with\\s+(?:google|facebook|apple)|google|facebook|\\u062c\\u0648\\u062c\\u0644|\\u0641\\u064a\\u0633\\s*\\u0628\\u0648\\u0643)/i.test(text);
+      var dismissRoot = candidate;
+      var dismissStyle = window.getComputedStyle(dismissRoot);
+      var dismissRect = dismissRoot.getBoundingClientRect();
+      for (var rootHop = 0; rootHop < 4 && dismissRoot.parentElement && dismissRoot.parentElement !== document.body; rootHop++) {
+        var parentRoot = dismissRoot.parentElement;
+        var parentStyle = window.getComputedStyle(parentRoot);
+        var parentRect = parentRoot.getBoundingClientRect();
+        var parentText = getElementText(parentRoot).replace(/[\\u064B-\\u065F\\u0670]/g, '');
+        if (parentText.length > 2200 || !authPattern.test(parentText) || cookiePattern.test(parentText)) break;
+        if ((parentStyle.position === 'fixed' || parentStyle.position === 'absolute') &&
+            parentRect.width >= vp.width * 0.88 && parentRect.height >= vp.height * 0.72) {
+          dismissRoot = parentRoot;
+          dismissStyle = parentStyle;
+          dismissRect = parentRect;
+        }
+      }
+      var fullAuthSurface = (dismissStyle.position === 'fixed' || dismissStyle.position === 'absolute') &&
+        dismissRect.width >= vp.width * 0.88 && dismissRect.height >= vp.height * 0.72 && dismissRect.top <= 100;
+      if (!fullAuthSurface || (!fields.length && !socialAuth)) continue;
+      dismissRoot.style.setProperty('display', 'none', 'important');
+      dismissRoot.style.setProperty('visibility', 'hidden', 'important');
+      dismissRoot.style.setProperty('pointer-events', 'none', 'important');
+      dismissRoot.setAttribute('data-otlobli-hidden-product-auth', 'full-screen-exact');
+      document.documentElement.style.removeProperty('overflow');
+      document.body.style.removeProperty('overflow');
       return;
     }
   }
@@ -5218,7 +5535,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // فيعيد تحميلها (حتى مرتين كل 30 ثانية) ويصفّر حل المستخدم قبل إتمامه —
   // فتعلق شي إن للأبد. الحل: نكتشف التحدي، نجمّد كل تدخلاتنا ونزيل عناصرنا
   // من الصفحة، ونبلغ التطبيق (humanCheck) ليطفئ مؤقت «تعذر الفتح» وينتظر.
+  var __otlobliChallengePendingNotified = false;
   var __otlobliChallengeNotified = false;
+  var __otlobliChallengeProbeTimer = 0;
+  var __otlobliChallengeProbeCount = 0;
   function otlobliIsHumanChallenge() {
     try {
       if (otlobliIsHumanChallengeUrl(location.href)) return true;
@@ -5234,6 +5554,62 @@ export const SHEIN_CAPTURE_SCRIPT = `
     } catch (e) {}
     return false;
   }
+
+  function otlobliPostChallengeState(type) {
+    try {
+      if (window.mobileApp && window.mobileApp.postMessage) {
+        window.mobileApp.postMessage({ detail: { type: type } });
+      }
+    } catch (e) {}
+  }
+
+  function otlobliChallengeHasInteractiveControl() {
+    if (!document.body) return false;
+    var controls = document.querySelectorAll('input,button,[role="checkbox"],[role="button"],iframe[src*="challenge" i],iframe[title*="challenge" i]');
+    for (var i = 0; i < controls.length; i++) {
+      var control = controls[i];
+      if ((control.id || '').indexOf('otlobli') === 0 || (control.closest && control.closest('[id^="otlobli"]'))) continue;
+      var rect = control.getBoundingClientRect();
+      if (rect.width < 18 || rect.height < 18 || rect.bottom <= 0 || rect.top >= (window.innerHeight || 1)) continue;
+      var style = window.getComputedStyle(control);
+      if (style.display === 'none' || style.visibility === 'hidden' || parseFloat(style.opacity || '1') < 0.1 || style.pointerEvents === 'none') continue;
+      return true;
+    }
+    return false;
+  }
+
+  function otlobliScheduleInteractiveChallengeReveal() {
+    if (!__otlobliChallengePendingNotified) {
+      __otlobliChallengePendingNotified = true;
+      // React cancels its stuck-page watchdog, while native deliberately keeps
+      // the preparation cover over a passive black security frame.
+      otlobliPostChallengeState('humanCheckPending');
+    }
+    var probe = function () {
+      if (__otlobliChallengeNotified || !otlobliIsHumanChallenge()) {
+        if (__otlobliChallengeProbeTimer) clearInterval(__otlobliChallengeProbeTimer);
+        __otlobliChallengeProbeTimer = 0;
+        return;
+      }
+      __otlobliChallengeProbeCount = (__otlobliChallengeProbeCount || 0) + 1;
+      if (otlobliChallengeHasInteractiveControl()) {
+        __otlobliChallengeNotified = true;
+        if (__otlobliChallengeProbeTimer) clearInterval(__otlobliChallengeProbeTimer);
+        __otlobliChallengeProbeTimer = 0;
+        otlobliPostChallengeState('humanCheck');
+        return;
+      }
+      if (__otlobliChallengeProbeCount >= 150 && __otlobliChallengeProbeTimer) {
+        clearInterval(__otlobliChallengeProbeTimer);
+        __otlobliChallengeProbeTimer = 0;
+      }
+    };
+    probe();
+    if (!__otlobliChallengeNotified && !__otlobliChallengeProbeTimer) {
+      __otlobliChallengeProbeTimer = setInterval(probe, 400);
+    }
+  }
+
   function otlobliEnterChallengeMode() {
     try { writeSheinSaudiState(); } catch (e) {}
     try {
@@ -5251,14 +5627,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // same-document challenge appeared.  Removing our nodes is not enough;
     // release that lock so the real verification control remains reachable.
     try { if (document.body) document.body.style.overflow = ''; } catch (e) {}
-    if (!__otlobliChallengeNotified) {
-      __otlobliChallengeNotified = true;
-      try {
-        if (window.mobileApp && window.mobileApp.postMessage) {
-          window.mobileApp.postMessage({ detail: { type: 'humanCheck' } });
-        }
-      } catch (e) {}
-    }
+    otlobliScheduleInteractiveChallengeReveal();
   }
 
   var sheinBlockReported = false;
@@ -5300,6 +5669,16 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (rect.width >= vp.width * 0.5 && rect.height >= vp.height * 0.28) return true;
     }
     return false;
+  }
+
+  function rememberRecentSheinProduct(href) {
+    if (!IS_SHEIN || !href) return;
+    try {
+      var productUrl = new URL(href, location.href);
+      if (!/-p-\\d+/i.test(productUrl.pathname)) return;
+      sessionStorage.setItem('otlobli-shein-last-product-url', productUrl.href);
+      sessionStorage.setItem('otlobli-shein-last-product-at', String(Date.now()));
+    } catch (e) {}
   }
 
   function isSheinImageViewerCandidate(el, vp) {
@@ -5427,10 +5806,24 @@ export const SHEIN_CAPTURE_SCRIPT = `
       nav.style.setProperty('pointer-events', 'auto', 'important');
     }
     if (back) {
+      // The hit target remained alive on iPhone 6 while the button itself was
+      // not painted. Reassert both the glyph paint and an isolated composited
+      // layer after SHEIN's full-screen viewer is mounted.
+      back.style.setProperty('display', 'flex', 'important');
       back.style.setProperty('opacity', '1', 'important');
       back.style.setProperty('visibility', 'visible', 'important');
       back.style.setProperty('pointer-events', 'auto', 'important');
-      back.style.setProperty('background', 'rgba(20,24,22,.92)', 'important');
+      back.style.setProperty('z-index', '2147483647', 'important');
+      back.style.setProperty('color', '#fff', 'important');
+      back.style.setProperty('-webkit-text-fill-color', '#fff', 'important');
+      back.style.setProperty('background', 'rgba(20,24,22,.96)', 'important');
+      back.style.setProperty('border', '0', 'important');
+      back.style.setProperty('filter', 'none', 'important');
+      back.style.setProperty('mix-blend-mode', 'normal', 'important');
+      back.style.setProperty('isolation', 'isolate', 'important');
+      back.style.setProperty('transform', 'translate3d(0,0,2px)', 'important');
+      back.style.setProperty('-webkit-transform', 'translate3d(0,0,2px)', 'important');
+      back.style.setProperty('-webkit-backface-visibility', 'hidden', 'important');
     }
   }
 
@@ -5547,13 +5940,15 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (!document.body) return;
     // صفحة تحقق «أنا إنسان» — تجميد كامل لكل تدخلاتنا حتى يكملها المستخدم.
     if (otlobliIsHumanChallenge()) { otlobliEnterChallengeMode(); return; }
-    if (IS_SHEIN) ensureSheinSaudiShippingSelection();
-    if (IS_SHEIN) retrySheinFeedError();
     ensureNoTextSelection();
     ensureViewportFitCover();
-    if (IS_SHEIN) ensureSheinSaudiStore({ navigate: false });
     ensureBackButton();
     ensureOtlobliNav();
+    // Region work can navigate SHEIN and show the native preparation cover,
+    // so it must run only after the persistent app chrome is reclaimed.
+    if (IS_SHEIN) ensureSheinSaudiShippingSelection();
+    if (IS_SHEIN) retrySheinFeedError();
+    if (IS_SHEIN) ensureSheinSaudiStore({ navigate: false });
     // المتاجر غير شي إن (تيمو/ترينديول): تصفّح فقط - ننظّف العروض المنبثقة
     // المزعجة ولا نشغّل منطق الالتقاط/الحجب الخاص بشي إن (الذي قد يخرّب صفحاتهم).
     if (!IS_SHEIN) {

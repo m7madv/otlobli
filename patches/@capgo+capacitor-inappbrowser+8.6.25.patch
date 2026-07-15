@@ -566,7 +566,7 @@ index 97a2fc1..c24d7e2 100644
          // Apply navigation gestures setting
          updateNavigationGestures()
 
-@@ -899,6 +921,145 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -899,6 +921,156 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
      override open func viewDidLayoutSubviews() {
          super.viewDidLayoutSubviews()
          refreshWebViewViewportIfNeeded()
@@ -598,9 +598,10 @@ index 97a2fc1..c24d7e2 100644
 +            self.hideOtlobliLoadingCover()
 +        }
 +        otlobliChallengeRevealWorkItem = reveal
-+        // Passive checks normally finish without customer input. If SHEIN
-+        // serves an interactive challenge, reveal it after this bounded wait.
-+        DispatchQueue.main.asyncAfter(deadline: .now() + 6, execute: reveal)
++        // JavaScript now reports `humanCheck` only after a real visible
++        // challenge control exists. Reveal promptly; passive black security
++        // frames remain behind the preparation cover.
++        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: reveal)
 +    }
 +
 +    private func showOtlobliLoadingCover() {
@@ -698,6 +699,16 @@ index 97a2fc1..c24d7e2 100644
 +            otlobliLoadingCoverMessage = "جاري ضبط المتجر على السعودية…"
 +            otlobliLoadingCoverLabel?.text = otlobliLoadingCoverMessage
 +            showOtlobliLoadingCover()
++        case "humanCheckPending":
++            cancelOtlobliChallengeReveal()
++            otlobliLoadingCoverMessage = "جاري التحقق من اتصال المتجر…"
++            otlobliLoadingCoverLabel?.text = otlobliLoadingCoverMessage
++            showOtlobliLoadingCover()
++            // A passive security document can legitimately last longer than
++            // the ordinary 45-second navigation timeout on a weak VPN. Keep
++            // it covered until JS reports readiness or a real control.
++            otlobliLoadingCoverTimeout?.cancel()
++            otlobliLoadingCoverTimeout = nil
 +        case "humanCheck":
 +            otlobliLoadingCoverMessage = "جاري التحقق من اتصال المتجر…"
 +            otlobliLoadingCoverLabel?.text = otlobliLoadingCoverMessage
@@ -712,7 +723,7 @@ index 97a2fc1..c24d7e2 100644
      }
 
      func updateButtonTintColors() {
-@@ -1001,6 +1162,37 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1001,6 +1173,37 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          capBrowserPlugin?.notifyListeners(eventName, data: payload(with: data))
      }
 
@@ -750,7 +761,7 @@ index 97a2fc1..c24d7e2 100644
      private func startObservingKeyboardViewportChanges() {
          guard !isObservingKeyboardViewportChanges else {
              return
-@@ -1136,6 +1328,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1136,6 +1339,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          if message.name == "messageHandler" {
              if let messageBody = message.body as? [String: Any] {
                  print("Received message from JavaScript:", messageBody)
@@ -758,7 +769,7 @@ index 97a2fc1..c24d7e2 100644
                  emit("messageFromWebview", data: messageBody)
              } else {
                  print("Received non-dictionary message from JavaScript:", message.body)
-@@ -1581,6 +1774,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1581,6 +1785,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          self.hiddenPopupWindow = parent.hiddenPopupWindow
          self.opensHidden = parent.hiddenPopupWindow
          self.captureConsoleLogs = parent.captureConsoleLogs
@@ -766,7 +777,7 @@ index 97a2fc1..c24d7e2 100644
          self.allowWebViewJsVisibilityControl = parent.allowWebViewJsVisibilityControl
          self.allowScreenshotsFromWebPage = parent.allowScreenshotsFromWebPage
          self.handleDownloads = parent.handleDownloads
-@@ -1818,6 +2012,13 @@ public extension WKWebViewController {
+@@ -1818,6 +2023,13 @@ public extension WKWebViewController {
 
      open func cleanupWebView() {
          guard let webView = self.webView else { return }
@@ -780,7 +791,7 @@ index 97a2fc1..c24d7e2 100644
          webView.stopLoading()
          previewItemURL = nil
 
-@@ -2682,6 +2883,12 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2682,6 +2894,12 @@ extension WKWebViewController: WKNavigationDelegate {
      public func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
          updateBarButtonItems()
          self.progressView?.progress = 0
@@ -793,7 +804,7 @@ index 97a2fc1..c24d7e2 100644
          if let urlValue = webView.url {
              self.url = urlValue
              delegate?.webViewController?(self, didStart: urlValue)
-@@ -2703,12 +2910,18 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2703,12 +2921,18 @@ extension WKWebViewController: WKNavigationDelegate {
                      DispatchQueue.global(qos: .userInitiated).async {
                          self.injectPreShowScript()
                          DispatchQueue.main.async { [weak self] in
@@ -814,7 +825,7 @@ index 97a2fc1..c24d7e2 100644
              }
          } else if self.preShowScript != nil &&
                      !self.preShowScript!.isEmpty &&
-@@ -2743,7 +2956,7 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2743,7 +2967,7 @@ extension WKWebViewController: WKNavigationDelegate {
              self.url = url
              delegate?.webViewController?(self, didFail: url, withError: error)
          }
@@ -823,7 +834,7 @@ index 97a2fc1..c24d7e2 100644
      }
 
      public func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-@@ -2753,7 +2966,16 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2753,7 +2977,16 @@ extension WKWebViewController: WKNavigationDelegate {
              self.url = url
              delegate?.webViewController?(self, didFail: url, withError: error)
          }

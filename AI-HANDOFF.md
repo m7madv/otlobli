@@ -5,12 +5,12 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Current Candidate
 
 - Branch: `codex/customer-wallet-group-orders`.
-- Code: `4e12ef5` (`fix: v85.8.12 harden SHEIN consent region and gallery`).
-- IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.12.ipa`.
+- Working tree: v85.8.13 functional candidate, uncommitted and without an IPA.
+- Last code/IPA: `4e12ef5` / `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.12.ipa`.
 - SHA-256: `67D59C6CE34075198CAA1000008515EAC5B0B2EA0C4F97B84C7764DE3210D047`.
 - Build run: `29416945278`.
 - Rollback/reference: v85.8.5 / `a914d81` and the user-provided v85.8.5 IPA.
-- v85.8.10's ordinary iPhone 16 nav behavior was accepted. v85.8.12 corrects failures observed in v85.8.11: consent overlap, leftover Saudi UI, gallery click-through, and old-iPhone pre-paint scan overhead. Device testing is pending; never call it proven until both iPhones pass.
+- v85.8.12 was very good on iPhone 16, but its device report still found consent overlap and iPhone-6 nav/auth/gallery paint issues. v85.8.13 addresses those reports and size fail-closed behavior; never call it proven until both iPhones pass.
 
 ## Confirmed Diagnosis
 
@@ -36,7 +36,11 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 - v85.8.11 hides only the confirmed 15%-signup strip or the email-newsletter panel, with explicit real-auth exclusion.
 - A SHEIN photo viewer must be fixed, near-full-screen, contain a large image, and expose a numeric image counter before viewer handling activates. Its add button is suppressed, its lower black band is guarded, and nav/back reclaim paint order only on viewer transition.
 - v85.8.12 detects nested fixed viewers from targeted painted points, blocks gallery click-through at the event boundary, raises the full cookie action row without auto-consent, closes only a signed-Saudi address surface, and throttles signup/cookie scans. MutationObserver now schedules the normal coalesced tick only.
+- v85.8.13 mounts the existing nav before `<body>`, starts Saudi repair only after nav paint, auto-accepts only an exact cookie consent, recovers only recent-product auth interstitials, forces gallery-back paint on old WKWebView, and blocks late-detected size products before final capture.
+- It also preserves WebKit cache on routine Temu -> SHEIN switches, requires real hit-testable controls for readiness, performs at most one cache-preserving recovery after a trusted dead tap, and keeps passive security frames covered without a timeout until a real verification control exists.
+- Multi-choice descriptive variants (for example `ملعقة`) require a trusted customer tap; SHEIN's automatic first-option highlight is ignored.
+- Cart swatch/quantity visual changes are pending an exact Figma frame URL. Do not invent them.
 
 ## Next Step
 
-Install v85.8.12 on iPhone 6 and iPhone 16 Pro Max. Verify both cookie choices are reachable, Saudi UI closes after signed completion, rejecting cookies does not force a product login popup, image/black-band taps never capture, nav/back stay visible, and old-iPhone image/scroll responsiveness improves.
+After approval, build v85.8.13 for iOS. Test exact consent auto-accept, persistent nav during Saudi repair, first product entry without auth interruption, visible gallery back on iPhone 6, strict size selection on both phones, a weak single-VPN Temu -> SHEIN return, and the pictured descriptive-option product.

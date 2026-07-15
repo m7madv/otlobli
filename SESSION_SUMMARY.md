@@ -21,3 +21,8 @@ Last updated: 2026-07-15
 - iOS run `29416945278` succeeded for commit `4e12ef5`.
 - Test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.12.ipa`.
 - SHA-256: `67D59C6CE34075198CAA1000008515EAC5B0B2EA0C4F97B84C7764DE3210D047`.
+- v85.8.12 device report accepted most iPhone-16 behavior, but found exact consent overlap; iPhone 6 could lose nav paint during Saudi repair, show a one-time product auth screen, and keep the gallery back target invisible.
+- Implemented the uncommitted v85.8.13 functional candidate: documentStart nav continuity, exact bounded cookie auto-accept, recent-product auth recovery, old-WK gallery-back paint isolation, stricter size detection/final capture guard, and nav-aware fading size feedback.
+- Latest device diagnosis isolated the painted/non-clickable page to the router-VPN + phone-VPN case; disabling the router tunnel made the same iPhone 16 path fast. Routine Temu -> SHEIN cache clearing was removed, readiness now includes hit-testing, and one trusted dead tap can trigger one cache-preserving WebView recreation.
+- Passive black security frames remain covered without the ordinary 45-second reveal timeout until a real interactive verification control exists. The pictured multi-choice product now ignores SHEIN's automatic `ملعقة` default and requires a trusted customer selection.
+- No cart visual redesign was made because the project has no exact Figma frame URL. Temu, payment, wallet, and orders remain unchanged.

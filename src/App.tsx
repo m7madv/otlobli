@@ -2420,10 +2420,10 @@ function App() {
     postWebviewChromeState(target)
   }
 
-  const restartStuckSheinWebview = (sessionId: number) => {
+  const restartStuckSheinWebview = (sessionId: number, recoverPaintedButStalled = false) => {
     if (sessionId !== webviewSessionRef.current) return
     if (!sheinOpenedRef.current || screenRef.current !== 'home') return
-    if (sheinChallengeActiveRef.current || sheinReadyRef.current) return
+    if (sheinChallengeActiveRef.current || (!recoverPaintedButStalled && sheinReadyRef.current)) return
     clearSheinReadinessWatchdog()
 
     if (sheinRecoveryAttemptRef.current >= 1) {
@@ -2445,7 +2445,11 @@ function App() {
     currentWebviewUrlRef.current = ''
     sheinOpenedRef.current = false
     setSheinReady(false)
-    sheinCacheResetPendingRef.current = true
+    // A painted-but-stalled page usually means its JS assets were starved by
+    // the connection. Recreate WebKit once while preserving every healthy
+    // cached asset. Only the ordinary no-readiness recovery requests a cache
+    // reset on its next attempt.
+    sheinCacheResetPendingRef.current = !recoverPaintedButStalled
     void InAppBrowser.close()
       .then(() => {
         webviewAutoOpenPausedUntilRef.current = 0
@@ -2463,6 +2467,7 @@ function App() {
     clearSheinReadinessWatchdog()
     if (selectedStoreRef.current !== 'shein') return
     if (sessionId !== webviewSessionRef.current || !webviewOpeningRef.current) return
+    if (sheinChallengeActiveRef.current) return
     sheinReadinessTimerRef.current = window.setTimeout(() => {
       sheinReadinessTimerRef.current = undefined
       restartStuckSheinWebview(sessionId)
@@ -2554,8 +2559,8 @@ function App() {
       // rely on the user's VPN, same as iOS always did.
     }
     // Keep the healthy HTTP/WebKit cache for the fast path on older iPhones.
-    // A cache reset remains available only for the one bounded stuck-session
-    // recovery (and the explicit Temu -> SHEIN switch already performs it).
+    // A cache reset remains available only for the one bounded no-readiness
+    // recovery. Routine Temu -> SHEIN switches preserve healthy assets.
     // This isolates the speed change from v85.9's failed document-start path.
     const shouldResetSheinCache = activeStore === 'shein' && sheinCacheResetPendingRef.current
     if (shouldResetSheinCache) sheinCacheResetPendingRef.current = false
@@ -2848,8 +2853,23 @@ function App() {
       const detail = event?.detail
 
       if (detail?.type === 'sheinSaudiReady' || detail?.type === 'sheinPageInteractive') {
+        // A passive security document can complete inside the same URL. Once
+        // the real SHEIN controls pass readiness/hit-testing, the challenge is
+        // definitively over even if WKWebView emitted no intervening URL event.
+        sheinChallengeActiveRef.current = false
         markStoreWebviewReadyRef.current(webviewSessionRef.current)
         revealPreparedProductIfReady()
+        return
+      }
+
+      if (detail?.type === 'humanCheckPending') {
+        // A passive SHEIN security frame has no customer control yet. Stop the
+        // 35s stuck-page restart, but keep the native preparation cover in
+        // place. The injected script sends `humanCheck` only if a real visible
+        // control appears and the customer actually needs to interact.
+        clearSheinReadinessWatchdog()
+        sheinChallengeActiveRef.current = true
+        setSheinBlockedError(false)
         return
       }
 
@@ -2889,6 +2909,13 @@ function App() {
       if (detail?.type === 'sheinBlocked') {
         sheinChallengeActiveRef.current = false
         showStoreOpenFailure()
+        return
+      }
+
+      if (detail?.type === 'sheinInteractionStalled') {
+        if (selectedStoreRef.current === 'shein' && screenRef.current === 'home' && !sheinChallengeActiveRef.current) {
+          restartStuckSheinWebview(webviewSessionRef.current, true)
+        }
         return
       }
 
@@ -5359,10 +5386,12 @@ function App() {
           sheinChallengeActiveRef.current = false
           sheinOpenedRef.current = false
           setSheinReady(false)
-          // الرجوع إلى شي إن ينظف WebKit memory/disk cache فقط بين الإغلاق
-          // والفتح؛ الكوكيز وlocalStorage (ومنها عنوان السعودية) تبقى محفوظة.
+          // Preserve healthy WebKit cache when switching back to SHEIN. A
+          // routine Temu -> SHEIN switch used to clear every JS/image asset;
+          // on a slow/free (or accidentally double) VPN this produced a
+          // painted but unhydrated page. The one bounded stuck-WebView recovery
+          // remains the only path allowed to request a cache reset.
           void InAppBrowser.close().catch(() => undefined)
-            .then(() => (id === 'shein' ? InAppBrowser.clearCache().catch(() => undefined) : undefined))
             .then(() => {
               suppressAutoReopenRef.current = false
               setScreen('home')
