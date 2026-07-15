@@ -5,12 +5,12 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Current Candidate
 
 - Branch: `codex/customer-wallet-group-orders`.
-- Code: `917bfb7` (`fix: v85.8.9 restore legacy iOS nav compatibility`).
-- IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.9.ipa`.
-- SHA-256: `F5FB938AC9B6C67D1964916BF9F49B2ECB13C4C56D865C2B1D13CE8B35ED5D3E`.
-- Build run: `29410938651`.
+- Code: `6138b23` (`fix: v85.8.10 keep SHEIN nav on one paint layer`).
+- IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.10.ipa`.
+- SHA-256: `519EA5D2A7946548B55632D934B2CB438E39580357E6AE5432F6F19F4F368C18`.
+- Build run: `29411837856`.
 - Rollback/reference: v85.8.5 / `a914d81` and the user-provided v85.8.5 IPA.
-- v85.8.8 collapsed the injected nav to the right on an older iPhone and exited once on the first fresh launch. v85.8.9 removes those two new startup/layout paths while retaining hidden cart-product preparation. Device testing is pending; never call it proven until both iPhones pass.
+- v85.8.9 fixed the collapsed legacy-iOS layout but still flashed the nav once during SHEIN presentation. v85.8.10 unifies the bootstrap/hydrated paint state and stops unconditional style rewrites/DOM moves. Device testing is pending; never call it proven until both iPhones pass.
 
 ## Confirmed Diagnosis
 
@@ -32,7 +32,8 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 - v85.8.7 adds semantic visual-stack detection for SHEIN's obfuscated early five-tab div, exact success-toast suppression, warm-cache fast path with bounded clean recovery, and full-bottom iOS WebView layout.
 - v85.8.8 makes the injected nav DOM/grid match React, recognizes only exact five-control fixed tab geometry before labels appear, and keeps cart products hidden until both page-load and post-blocker readiness arrive.
 - v85.8.9 replaces the incompatible injected Grid with four explicit Flex cells and removes the new first-session geometry scan. The v85.8.7 semantic detector and v85.8.8 product readiness gate remain.
+- v85.8.10 gives all injected nav phases one CSS source and only reclaims the DOM node after actual occlusion hit-tests.
 
 ## Next Step
 
-Install v85.8.9 on iPhone 6 and iPhone 16 Pro Max. Start with a fresh install, confirm the app stays open, then verify full-width nav distribution and cart-product reveal timing. Do not touch Temu, payment, wallet, completed orders, or design without explicit scope/Figma.
+Install v85.8.10 on iPhone 6 and iPhone 16 Pro Max. Verify specifically that the nav does not flash once while SHEIN opens, then recheck the existing full-width distribution and cart-product reveal timing.

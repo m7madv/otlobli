@@ -7,11 +7,11 @@ Last updated: 2026-07-15
 - Branch: `codex/customer-wallet-group-orders`.
 - Stable tested reference: v85.8.5 / `a914d81`.
 - Reference IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.5-nav-cairo-font-match-no-otp-test.ipa`.
-- Active test candidate: v85.8.9 / `917bfb7`.
-- Candidate IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.9.ipa`.
-- Candidate SHA-256: `F5FB938AC9B6C67D1964916BF9F49B2ECB13C4C56D865C2B1D13CE8B35ED5D3E`.
-- iOS build run: `29410938651` (success).
-- `APP_VERSION = 2026.07.15-v85.8.9-ios-flex-nav-first-launch-safe-no-otp-test`.
+- Active test candidate: v85.8.10 / `6138b23`.
+- Candidate IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.10.ipa`.
+- Candidate SHA-256: `519EA5D2A7946548B55632D934B2CB438E39580357E6AE5432F6F19F4F368C18`.
+- iOS build run: `29411837856` (success).
+- `APP_VERSION = 2026.07.15-v85.8.10-single-paint-nav-no-otp-test`.
 - Real-device acceptance is pending; do not claim the SHEIN issues are fixed yet.
 
 ## v85.8.6 Scope
@@ -51,6 +51,13 @@ Last updated: 2026-07-15
 - The v85.8.8 first-session geometry scan was removed; the proven v85.8.7 semantic tab detector remains. Hidden cart-product readiness remains unchanged.
 - Browser layout checks at 375px and 430px confirmed four equal cells across the full width.
 
+## v85.8.10 Changes
+
+- v85.8.9 device result: the fixed nav briefly flashed/brightened once while SHEIN opened.
+- Bootstrap, challenge, and hydrated SHEIN navigation now share one canonical CSS string, including safe-area padding, font, background, and blur from the first frame.
+- The hydrated script no longer rewrites `cssText` every tick. Reclaiming the nav to the end of `<body>` happens only when four hit-tests prove another layer actually covers it.
+- `viewport-fit=cover` is established during document-start so safe-area geometry settles before the native WebView is presented.
+
 ## Failed Paths / Guardrails
 
 - v86-v88 are failed paths. v87 fixed none of the reported issues; v88 closed/crashed SHEIN on entry.
@@ -79,5 +86,5 @@ Test on iPhone 6 and iPhone 16 Pro Max:
 - `npm run build` passed.
 - Runtime syntax parse of both injected scripts passed.
 - `git diff --check` passed.
-- Xcode unsigned build and packaging passed in run `29410938651`.
-- Embedded v85.8.9 marker and desktop IPA SHA-256 were verified.
+- Xcode unsigned build and packaging passed in run `29411837856`.
+- Embedded v85.8.10 marker and desktop IPA SHA-256 were verified.
