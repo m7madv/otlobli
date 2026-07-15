@@ -7,10 +7,10 @@ Last updated: 2026-07-15
 - Branch: `codex/customer-wallet-group-orders`.
 - Stable tested reference: v85.8.5 / `a914d81`.
 - Reference IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.5-nav-cairo-font-match-no-otp-test.ipa`.
-- Active candidate: v85.8.17 / `dcb0539` (event-driven SHEIN runtime; device acceptance pending).
+- Active local candidate: v85.8.18 (pre-paint cookie-consent gate; device acceptance pending).
 - Last built IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.17.ipa`.
 - Build run: `29442903610`; SHA-256 `0CF2E8ED4871FC1BC0CF327606D670E6BF7CDAB55C52F0A30875EAEC968E42B3`.
-- `APP_VERSION = 2026.07.15-v85.8.17-shein-event-driven-runtime-no-otp-test`.
+- `APP_VERSION = 2026.07.15-v85.8.18-shein-cookie-prepaint-gate-no-otp-test`.
 - Do not claim SHEIN is fixed before testing iPhone 6 and iPhone 16 Pro Max.
 
 ## Confirmed Runtime Diagnosis
@@ -30,6 +30,15 @@ Last updated: 2026-07-15
 - Exact cookie auto-accept and early nav protection use fixed hydration checkpoints plus bounded mutation wakeups instead of 250ms polling.
 - Temu, payment, wallet, orders, and cart logic were not changed.
 - No broad CSS, viewport hack, storage reset, reload loop, `hidden + FAKE_VISIBLE`, or full document-start SHEIN capture was added.
+
+## v85.8.18 Changes
+
+- A fresh SHEIN document is interaction-gated before consent UI can paint; a saved accepted marker skips this preflight on later loads.
+- Exact `Accept all` / `قبول الكل` is detected in the owning main document or child frame, clicked automatically, and the gate releases after the click settles.
+- Consent mutations are inspected synchronously before the next paint using only the new small node (maximum 12 nodes, two ancestor levels, 80-child cap); no permanent scan or interval was added.
+- DOM text checks use `textContent` to avoid layout work on iPhone 6.
+- A 12-second consent fail-safe prevents a changed SHEIN consent implementation from trapping the customer.
+- The visual state reuses the existing Otlobli store-preparation treatment; no new page design was introduced.
 
 ## Guardrails
 
@@ -56,6 +65,6 @@ Test fresh install and repeated entry on iPhone 6 and iPhone 16 Pro Max:
 
 - `npm run build` passed.
 - Runtime syntax parse passed for `OTLOBLI_NAV_BOOTSTRAP_SCRIPT` and `SHEIN_CAPTURE_SCRIPT`.
-- Actual generated script sizes: bootstrap `29,938` bytes; full capture `374,046` bytes.
+- v85.8.18 generated script sizes: bootstrap `37,675` bytes; full capture `374,381` bytes. The added bootstrap path has no permanent interval.
 - `git diff --check` passed before documentation/version finalization; rerun before commit.
-- iOS unsigned build/package passed in run `29442903610`; embedded v85.8.17 marker and desktop IPA SHA-256 were verified.
+- Last iOS unsigned build/package passed in run `29442903610`; embedded v85.8.17 marker and desktop IPA SHA-256 were verified. v85.8.18 IPA pending.

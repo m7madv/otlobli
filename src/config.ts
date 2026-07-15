@@ -17,4 +17,4 @@ export const SOURCE_COUNTRY: 'JO' | 'LB' | 'SA' = 'SA'
 export const TEST_ONLY_AUTH_BYPASS = true
 
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '2026.07.15-v85.8.17-shein-event-driven-runtime-no-otp-test'
+export const APP_VERSION = '2026.07.15-v85.8.18-shein-cookie-prepaint-gate-no-otp-test'

@@ -25,6 +25,136 @@ const OTLOBLI_NAV_CSS =
 // same #otlobli-nav node after page load.
 export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
 (function () {
+  var COOKIE_GATE_MESSAGE = '__otlobliCookieConsentState';
+  var COOKIE_GATE_MARKER = '__otlobliCookieConsentAcceptedV1';
+  var isTopDocument = window.top === window;
+  var cookieGateReleaseTimer = 0;
+  var cookieGateConsentActive = false;
+  var cookieGateConsentFailSafeTimer = 0;
+
+  function cookieGateMarkerExists() {
+    try { return window.localStorage.getItem(COOKIE_GATE_MARKER) === '1'; } catch (e) { return false; }
+  }
+
+  function ensureTopCookieGate() {
+    if (!isTopDocument || !document.documentElement) return;
+    if (cookieGateReleaseTimer) clearTimeout(cookieGateReleaseTimer);
+    cookieGateReleaseTimer = 0;
+    document.documentElement.setAttribute('data-otlobli-cookie-gate-active', '1');
+    if (!document.getElementById('otlobli-cookie-gate-style')) {
+      var style = document.createElement('style');
+      style.id = 'otlobli-cookie-gate-style';
+      style.textContent =
+        '@keyframes otlobli-cookie-spin{to{transform:rotate(360deg)}}' +
+        'html[data-otlobli-cookie-gate-active="1"] #otlobli-nav{visibility:hidden!important;pointer-events:none!important;}';
+      document.documentElement.appendChild(style);
+    }
+    var gate = document.getElementById('otlobli-cookie-gate');
+    if (gate) {
+      document.documentElement.appendChild(gate);
+      return;
+    }
+    gate = document.createElement('div');
+    gate.id = 'otlobli-cookie-gate';
+    gate.setAttribute('role', 'status');
+    gate.setAttribute('aria-live', 'polite');
+    // Reuse Otlobli's established white store-preparation state; this is an
+    // interaction guard, not a new screen or visual design.
+    gate.style.cssText =
+      'position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;' +
+      'z-index:2147483647!important;background:#fff!important;display:flex!important;' +
+      'flex-direction:column!important;align-items:center!important;justify-content:center!important;' +
+      'gap:14px!important;color:#17211c!important;font-family:OtlobliCairo,system-ui,-apple-system,sans-serif!important;' +
+      'font-size:16px!important;font-weight:600!important;line-height:1.5!important;pointer-events:auto!important;';
+    var spinner = document.createElement('span');
+    spinner.style.cssText =
+      'display:block!important;width:28px!important;height:28px!important;border-radius:50%!important;' +
+      'border:3px solid #d8efe4!important;border-top-color:#006948!important;' +
+      'animation:otlobli-cookie-spin .8s linear infinite!important;';
+    var label = document.createElement('span');
+    label.textContent = '\u062c\u0627\u0631\u064a \u062a\u062c\u0647\u064a\u0632 \u0645\u062a\u062c\u0631 SHEIN...';
+    gate.appendChild(spinner);
+    gate.appendChild(label);
+    gate.addEventListener('touchmove', function (event) { event.preventDefault(); }, { passive: false });
+    gate.addEventListener('click', function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }, true);
+    document.documentElement.appendChild(gate);
+  }
+
+  function releaseTopCookieGate(markAccepted, delay) {
+    if (!isTopDocument) return;
+    if (cookieGateReleaseTimer) clearTimeout(cookieGateReleaseTimer);
+    cookieGateReleaseTimer = setTimeout(function () {
+      cookieGateReleaseTimer = 0;
+      if (markAccepted) {
+        try { window.localStorage.setItem(COOKIE_GATE_MARKER, '1'); } catch (e) {}
+      }
+      if (document.documentElement) document.documentElement.removeAttribute('data-otlobli-cookie-gate-active');
+      var gate = document.getElementById('otlobli-cookie-gate');
+      if (gate && gate.parentNode) gate.parentNode.removeChild(gate);
+    }, Math.max(0, delay || 0));
+  }
+
+  function setTopCookieGateState(state) {
+    if (!isTopDocument) return;
+    if (state === 'detected') {
+      cookieGateConsentActive = true;
+      ensureTopCookieGate();
+      if (!cookieGateConsentFailSafeTimer) {
+        cookieGateConsentFailSafeTimer = setTimeout(function () {
+          cookieGateConsentFailSafeTimer = 0;
+          cookieGateConsentActive = false;
+          releaseTopCookieGate(false, 0);
+        }, 12000);
+      }
+    }
+    if (state === 'accepted') {
+      cookieGateConsentActive = false;
+      if (cookieGateConsentFailSafeTimer) clearTimeout(cookieGateConsentFailSafeTimer);
+      cookieGateConsentFailSafeTimer = 0;
+      try { window.localStorage.setItem(COOKIE_GATE_MARKER, '1'); } catch (e) {}
+      releaseTopCookieGate(true, 900);
+    }
+  }
+
+  function notifyTopCookieGate(state) {
+    if (state === 'accepted') {
+      try { window.localStorage.setItem(COOKIE_GATE_MARKER, '1'); } catch (e) {}
+    }
+    if (isTopDocument) {
+      setTopCookieGateState(state);
+      return;
+    }
+    try {
+      window.top.postMessage({ type: COOKIE_GATE_MESSAGE, state: state }, '*');
+    } catch (e) {}
+  }
+
+  if (isTopDocument) {
+    window.__otlobliCookieGateState = setTopCookieGateState;
+    window.addEventListener('message', function (event) {
+      var data = event && event.data;
+      if (!data || data.type !== COOKIE_GATE_MESSAGE) return;
+      setTopCookieGateState(data.state);
+    });
+    // A fresh WebView is covered before SHEIN can paint consent controls. If
+    // consent is already stored, there is no preflight delay. A late consent
+    // surface will still reactivate this gate from its exact DOM mutation.
+    if (!cookieGateMarkerExists()) {
+      ensureTopCookieGate();
+      var releasePreflight = function () {
+        if (!cookieGateConsentActive) releaseTopCookieGate(false, 900);
+      };
+      if (document.readyState === 'complete') releasePreflight();
+      else window.addEventListener('load', releasePreflight, { once: true });
+      setTimeout(function () {
+        if (!cookieGateConsentActive && !cookieGateMarkerExists()) releaseTopCookieGate(false, 0);
+      }, 8000);
+    }
+  }
+
   // SHEIN can render its consent manager in a child frame. The Otlobli shell
   // must remain main-frame-only, but the customer's explicit "Accept all"
   // preference has to be applied inside whichever frame owns that button.
@@ -35,24 +165,45 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
     var attempts = 0;
     var lastAttemptAt = 0;
     var isTopFrame = window.top === window;
+    var acceptHintPattern = /accept(?: all)?|allow(?: all)?|agree(?: to all)?|قبول (?:الكل|الجميع)|اقبل (?:الكل|الجميع)/i;
     var acceptPattern = /^(?:accept(?: all)?|allow(?: all)?|agree(?: to all)?|\\u0642\\u0628\\u0648\\u0644(?: \\u0627\\u0644\\u0643\\u0644| \\u0627\\u0644\\u062c\\u0645\\u064a\\u0639)?|\\u0627\\u0642\\u0628\\u0644(?: \\u0627\\u0644\\u0643\\u0644| \\u0627\\u0644\\u062c\\u0645\\u064a\\u0639)?|\\u0627\\u0644\\u0633\\u0645\\u0627\\u062d (?:\\u0644\\u0644\\u0643\\u0644|\\u0644\\u0644\\u062c\\u0645\\u064a\\u0639)|\\u0645\\u0648\\u0627\\u0641\\u0642)$/i;
     var cookiePattern = /cookies?|cookie policy|\\u0645\\u0644\\u0641\\u0627\\u062a \\u062a\\u0639\\u0631\\u064a\\u0641 \\u0627\\u0644\\u0627\\u0631\\u062a\\u0628\\u0627\\u0637|\\u0627\\u0644\\u062a\\u0642\\u0646\\u064a\\u0627\\u062a \\u0627\\u0644\\u0645\\u0645\\u0627\\u062b\\u0644\\u0629/i;
 
     function textOf(el) {
-      return String((el && (el.innerText || el.textContent || el.value ||
+      // textContent avoids forcing layout during documentStart on old WebKit.
+      return String((el && (el.textContent || el.value ||
         (el.getAttribute && el.getAttribute('aria-label')))) || '').replace(/\\s+/g, ' ').trim();
     }
 
-    function scan() {
+    function nodeMayContainConsent(node) {
+      if (!node) return false;
+      if (node.nodeType === 3) {
+        var rawText = String(node.nodeValue || '').trim();
+        return acceptHintPattern.test(rawText) ||
+          (!cookieGateMarkerExists() && cookiePattern.test(rawText));
+      }
+      var current = node;
+      for (var depth = 0; current && depth < 2; depth++, current = current.parentElement) {
+        if (current === document.body || current === document.documentElement) break;
+        if (current.childElementCount > 80) break;
+        var text = textOf(current).slice(0, 8000);
+        if (acceptHintPattern.test(text) ||
+            (!cookieGateMarkerExists() && cookiePattern.test(text))) return true;
+      }
+      return false;
+    }
+
+    function scan(force) {
       if (!document.documentElement || attempts >= 40) return;
       var now = Date.now();
-      if (now - lastAttemptAt < 500) return;
+      if (!force && now - lastAttemptAt < 500) return;
       var controls = document.querySelectorAll('button,[role="button"],a,input[type="button"],input[type="submit"]');
       var frameText = document.body ? textOf(document.body).slice(0, 20000) : '';
       var frameIsConsent = cookiePattern.test(frameText);
       for (var i = 0; i < controls.length; i++) {
         var control = controls[i];
-        if (!acceptPattern.test(textOf(control))) continue;
+        var controlLabel = textOf(control);
+        if (!acceptPattern.test(controlLabel) || !/(?:all|الكل|الجميع)/i.test(controlLabel)) continue;
         var scope = control;
         var consentScope = null;
         for (var hop = 0; scope && hop < 10; hop++, scope = scope.parentElement) {
@@ -63,9 +214,13 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
           }
         }
         if (!consentScope && !frameIsConsent) continue;
+        notifyTopCookieGate('detected');
         attempts++;
         lastAttemptAt = now;
-        try { control.click(); } catch (e) {}
+        try {
+          control.click();
+          notifyTopCookieGate('accepted');
+        } catch (e) {}
         (function (target) {
           setTimeout(function () {
             if (!document.documentElement.contains(target)) return;
@@ -105,7 +260,22 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
       observer = new MutationObserver(function (records) {
         for (var ri = 0; ri < records.length; ri++) {
           if (records[ri].addedNodes && records[ri].addedNodes.length) {
-            scheduleScan(120, true);
+            var consentMutation = false;
+            for (var ni = 0; ni < records[ri].addedNodes.length && ni < 12; ni++) {
+              if (nodeMayContainConsent(records[ri].addedNodes[ni])) {
+                consentMutation = true;
+                break;
+              }
+            }
+            if (consentMutation) {
+              // MutationObserver runs before the next paint. Raise the gate and
+              // click synchronously so the raw consent sheet never flashes.
+              notifyTopCookieGate('detected');
+              scan(true);
+              scheduleScan(80, true);
+            } else {
+              scheduleScan(160, true);
+            }
             break;
           }
         }
@@ -290,7 +460,7 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
     for (var i = 0; i < buttons.length; i++) {
       var button = buttons[i];
       var buttonLabel = normalizedText(button) || String(button.value || '').replace(/\\s+/g, ' ').trim();
-      if (!acceptPattern.test(buttonLabel)) continue;
+      if (!acceptPattern.test(buttonLabel) || !/(?:all|الكل|الجميع)/i.test(buttonLabel)) continue;
       var scope = button;
       var cookieScope = null;
       for (var hop = 0; scope && hop < 10; hop++, scope = scope.parentElement) {
@@ -303,13 +473,17 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
       // The customer explicitly chose automatic "Accept all" while SHEIN is
       // being prepared. The exact label is sufficient authorization; the old
       // viewport geometry rejected SHEIN's tall iPhone consent sheet entirely.
+      setTopCookieGateState('detected');
       var retryRoot = document.documentElement;
       var earlyAcceptAttempts = parseInt(retryRoot.getAttribute('data-otlobli-cookie-auto-accept-attempts') || '0', 10) || 0;
       var earlyLastAttemptAt = parseInt(retryRoot.getAttribute('data-otlobli-cookie-auto-accept-last-at') || '0', 10) || 0;
       if (earlyAcceptAttempts < 30 && scanNow - earlyLastAttemptAt >= 600) {
         retryRoot.setAttribute('data-otlobli-cookie-auto-accept-attempts', String(earlyAcceptAttempts + 1));
         retryRoot.setAttribute('data-otlobli-cookie-auto-accept-last-at', String(scanNow));
-        try { button.click(); } catch (e) {}
+        try {
+          button.click();
+          setTopCookieGateState('accepted');
+        } catch (e) {}
         (function (target) {
           setTimeout(function () {
             if (!document.documentElement.contains(target)) return;
@@ -5574,24 +5748,34 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var cookiePattern = /cookies?|\\u0645\\u0644\\u0641\\u0627\\u062a \\u062a\\u0639\\u0631\\u064a\\u0641 \\u0627\\u0644\\u0627\\u0631\\u062a\\u0628\\u0627\\u0637|\\u0627\\u0644\\u062a\\u0642\\u0646\\u064a\\u0627\\u062a \\u0627\\u0644\\u0645\\u0645\\u0627\\u062b\\u0644\\u0629/i;
     for (var i = 0; i < controls.length; i++) {
       var button = controls[i];
-      var label = String(button.innerText || button.textContent || button.value || button.getAttribute('aria-label') || '').replace(/\\s+/g, ' ').trim();
-      if (!acceptPattern.test(label)) continue;
+      var label = String(button.textContent || button.value || button.getAttribute('aria-label') || '').replace(/\\s+/g, ' ').trim();
+      if (!acceptPattern.test(label) || !/(?:all|الكل|الجميع)/i.test(label)) continue;
       var scope = button;
       var cookieScope = null;
       for (var hop = 0; scope && hop < 10; hop++, scope = scope.parentElement) {
-        var text = String(scope.innerText || scope.textContent || '').replace(/\\s+/g, ' ').trim();
+        var text = String(scope.textContent || '').replace(/\\s+/g, ' ').trim();
         if (text.length < 6000 && cookiePattern.test(text)) {
           cookieScope = scope;
           break;
         }
       }
+      try {
+        if (typeof window.__otlobliCookieGateState === 'function') {
+          window.__otlobliCookieGateState('detected');
+        }
+      } catch (e) {}
       var retryRoot = document.documentElement;
       var acceptAttempts = parseInt(retryRoot.getAttribute('data-otlobli-cookie-auto-accept-attempts') || '0', 10) || 0;
       var lastAttemptAt = parseInt(retryRoot.getAttribute('data-otlobli-cookie-auto-accept-last-at') || '0', 10) || 0;
       if (acceptAttempts < 30 && scanNow - lastAttemptAt >= 600) {
         retryRoot.setAttribute('data-otlobli-cookie-auto-accept-attempts', String(acceptAttempts + 1));
         retryRoot.setAttribute('data-otlobli-cookie-auto-accept-last-at', String(scanNow));
-        try { button.click(); } catch (e) {}
+        try {
+          button.click();
+          if (typeof window.__otlobliCookieGateState === 'function') {
+            window.__otlobliCookieGateState('accepted');
+          }
+        } catch (e) {}
         (function (target) {
           setTimeout(function () {
             if (!document.documentElement.contains(target)) return;
