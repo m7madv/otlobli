@@ -5,7 +5,7 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Current Candidate
 
 - Branch: `codex/customer-wallet-group-orders`.
-- Candidate: v85.8.18 / `fd6d4db`, exact pre-paint cookie-consent gate on top of v85.8.17; not device-proven.
+- Candidate: v85.8.19 local, native iOS inactive-state white-flash fix on top of v85.8.18; not device-proven.
 - Stable rollback/reference: v85.8.5 / `a914d81` and the user-provided v85.8.5 IPA.
 - IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.18.ipa`; run `29446101794`; SHA-256 `ABF792A41F8A1BF3271B3B793DD21C2769F1E04F96362B6A8D1AC40EFCF666DB`.
 
@@ -22,6 +22,7 @@ The monolithic capture script had accumulated overlapping permanent loops: full 
 - Saudi repair may repeat only while `sheinNativeCoverRepairActive` and must stop within 15 seconds.
 - Cookie/frame/bootstrap observers are bounded and disconnected after hydration.
 - Temu keeps its prior scheduler and was not part of this refactor.
+- The InAppBrowser must not place its launch-image privacy overlay over a live store for ordinary iOS `willResignActive` transitions; that overlay was the confirmed Notification Center white flash.
 - Cookie handling must gate the top SHEIN document before a fresh consent surface paints, click only exact `Accept all` / `قبول الكل` in its owning frame, and release after acceptance. The mutation path stays bounded and may not become another polling loop.
 
 ## Failed Paths / Do Not Reintroduce
@@ -32,4 +33,4 @@ The monolithic capture script had accumulated overlapping permanent loops: full 
 
 ## Next Step
 
-Install v85.8.18 after deleting the app, then test both phones: the consent sheet must never be visible or tappable, Otlobli must show only the established preparation state, and SHEIN must be interactive after automatic acceptance. Continue the repeated navigation test afterward.
+Build/install v85.8.19, then pull and dismiss Notification Center repeatedly over both SHEIN and Temu on iPhone 6 and iPhone 16 Pro Max. The current store frame must remain visible with no white flash or reload. Continue the v85.8.18 consent and repeated-navigation checks afterward.

@@ -1,16 +1,16 @@
 # Otlobli Current State
 
-Last updated: 2026-07-15
+Last updated: 2026-07-16
 
 ## Active Baseline
 
 - Branch: `codex/customer-wallet-group-orders`.
 - Stable tested reference: v85.8.5 / `a914d81`.
 - Reference IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.5-nav-cairo-font-match-no-otp-test.ipa`.
-- Active candidate: v85.8.18 / `fd6d4db` (pre-paint cookie-consent gate; device acceptance pending).
+- Active candidate: v85.8.19 local (native iOS inactive-state white-flash fix; device acceptance pending).
 - Last built IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.18.ipa`.
 - Build run: `29446101794`; SHA-256 `ABF792A41F8A1BF3271B3B793DD21C2769F1E04F96362B6A8D1AC40EFCF666DB`.
-- `APP_VERSION = 2026.07.15-v85.8.18-shein-cookie-prepaint-gate-no-otp-test`.
+- `APP_VERSION = 2026.07.16-v85.8.19-ios-store-resign-flash-no-otp-test`.
 - Do not claim SHEIN is fixed before testing iPhone 6 and iPhone 16 Pro Max.
 
 ## Confirmed Runtime Diagnosis
@@ -40,6 +40,12 @@ Last updated: 2026-07-15
 - A 12-second consent fail-safe prevents a changed SHEIN consent implementation from trapping the customer.
 - The visual state reuses the existing Otlobli store-preparation treatment; no new page design was introduced.
 
+## v85.8.19 Changes
+
+- Confirmed the half-second white frame when opening Notification Center was not a SHEIN/Temu reload: Capgo InAppBrowser added the white launch image over its native controller on every iOS `willResignActive` event.
+- Disabled only that upstream privacy overlay, so iOS keeps the already-rendered store frame during temporary inactive transitions.
+- No WebView recreation, store script, region, capture, Temu, payment, wallet, order, cart, CSS, or design behavior changed.
+
 ## Guardrails
 
 - v86-v88 are failed paths. v87 fixed none of the reported issues; v88 crashed/closed SHEIN.
@@ -60,11 +66,13 @@ Test fresh install and repeated entry on iPhone 6 and iPhone 16 Pro Max:
 6. Product open, back, cart entry, gallery, images, and scrolling remain responsive after several minutes.
 7. Size/color capture remains fail-closed and never records `DE/EU/US` as a size.
 8. Temu behavior remains unchanged.
+9. Pulling and dismissing Notification Center over SHEIN and Temu does not show a white frame or reload the store.
 
 ## Local Validation
 
 - `npm run build` passed.
 - Runtime syntax parse passed for `OTLOBLI_NAV_BOOTSTRAP_SCRIPT` and `SHEIN_CAPTURE_SCRIPT`.
-- v85.8.18 generated script sizes: bootstrap `37,675` bytes; full capture `374,381` bytes. The added bootstrap path has no permanent interval.
+- The v85.8.19 change is native-only; the SHEIN scripts were not modified.
+- The patched native diff parses with `git apply --stat`.
 - `git diff --check` passed before documentation/version finalization; rerun before commit.
 - iOS unsigned build/package passed in run `29446101794`; embedded v85.8.18 marker and desktop IPA SHA-256 were verified.

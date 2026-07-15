@@ -291,7 +291,7 @@ index 8ae3e61..fc6cf04 100644
              // Strip conditional cache validators on the wire so upstream cannot return 304/3xx,
              // which WebResourceResponse.setStatusCodeAndReasonPhrase rejects (kills the renderer).
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
-index 116e296..51d1d3e 100644
+index 116e296..fcefa31 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
 @@ -907,6 +907,15 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
@@ -346,6 +346,19 @@ index 116e296..51d1d3e 100644
                  }
              } else {
                  if webView.superview !== webViewController.view {
+@@ -1814,7 +1824,11 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+     }
+
+     @objc func appWillResignActive(_ notification: NSNotification) {
+-        self.showPrivacyScreen()
++        // Keep the current store frame visible while iOS temporarily makes the
++        // app inactive (for example, while Notification Center is presented).
++        // The upstream privacy screen uses the launch image and causes a white
++        // flash on every embedded store, while non-browser app screens remain
++        // stable. iOS already snapshots the current UI for app switching.
+     }
+
+     private func readCredentials(_ call: CAPPluginCall) -> WKWebViewCredentials? {
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
 index 1c70884..be2b8ac 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
