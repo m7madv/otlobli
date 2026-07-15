@@ -159,6 +159,8 @@ type WebviewPageLoadErrorEvent = {
   code?: number | string
 }
 
+type StoreOpenFailureReason = 'network' | 'preparation'
+
 const STORE_BLOCKED_COUNTRIES = new Set(['SY'])
 const isBlockedStoreCountry = (countryCode?: string | null) =>
   !!countryCode && STORE_BLOCKED_COUNTRIES.has(countryCode.toUpperCase())
@@ -166,7 +168,20 @@ const isBlockedStoreCountry = (countryCode?: string | null) =>
 const isVpnConfirmed = (vpnState: VpnState, vpnGeo: VpnGeo | null) =>
   vpnState === 'ok' && !!vpnGeo?.countryCode && !isBlockedStoreCountry(vpnGeo.countryCode)
 
-const getStoreFailureAdvice = (store: string, vpnState: VpnState, vpnGeo: VpnGeo | null) => {
+const getStoreFailureAdvice = (
+  store: string,
+  vpnState: VpnState,
+  vpnGeo: VpnGeo | null,
+  reason: StoreOpenFailureReason,
+) => {
+  if (reason === 'preparation') {
+    return {
+      icon: 'refresh',
+      title: 'تعذّر تجهيز المتجر',
+      body: `اتصال الـ VPN يعمل، لكن منتجات ${store} لم تكتمل على هذا الجهاز. أعد التجهيز وسنبدأ جلسة نظيفة مرة واحدة.`,
+      action: 'إعادة تجهيز المتجر',
+    }
+  }
   const confirmedVpn = isVpnConfirmed(vpnState, vpnGeo)
   const location = confirmedVpn && vpnGeo?.country
     ? ` (${vpnGeo.country}${vpnGeo.region ? ` - ${vpnGeo.region}` : ''})`
@@ -946,6 +961,7 @@ function App() {
   const [editBranch, setEditBranch] = useState('')
   const [editPickupLabel, setEditPickupLabel] = useState('')
   const [sheinBlockedError, setSheinBlockedError] = useState(false)
+  const [storeOpenFailureReason, setStoreOpenFailureReason] = useState<StoreOpenFailureReason>('network')
   const onboardingNameError = onboardingName ? getFullNameValidationError(onboardingName) : ''
   const editNameError = editName ? getFullNameValidationError(editName) : ''
   const recipientNameError = recipient.name ? getFullNameValidationError(recipient.name) : ''
@@ -2251,7 +2267,7 @@ function App() {
     })
   }
 
-  const showStoreOpenFailure = () => {
+  const showStoreOpenFailure = (reason: StoreOpenFailureReason = 'network') => {
     clearSheinReadinessWatchdog()
     if (webviewErrorTimerRef.current !== undefined) {
       window.clearTimeout(webviewErrorTimerRef.current)
@@ -2268,8 +2284,9 @@ function App() {
     currentWebviewUrlRef.current = ''
     sheinOpenedRef.current = false
     setSheinReady(false)
+    setStoreOpenFailureReason(reason)
     setSheinBlockedError(true)
-    refreshVpnDiagnosisForStoreFailure()
+    if (reason === 'network') refreshVpnDiagnosisForStoreFailure()
     void InAppBrowser.close().catch(() => undefined).finally(() => {
       suppressAutoReopenRef.current = false
     })
@@ -2345,7 +2362,7 @@ function App() {
     clearSheinReadinessWatchdog()
 
     if (sheinRecoveryAttemptRef.current >= 1) {
-      showStoreOpenFailure()
+      showStoreOpenFailure('preparation')
       return
     }
 
@@ -2383,7 +2400,7 @@ function App() {
     sheinReadinessTimerRef.current = window.setTimeout(() => {
       sheinReadinessTimerRef.current = undefined
       restartStuckSheinWebview(sessionId)
-    }, 13000)
+    }, 35000)
   }
 
   const browseShein = () => {
@@ -2414,6 +2431,7 @@ function App() {
     sheinChallengeActiveRef.current = false
     sheinOpenedRef.current = true
     setSheinReady(false)
+    setStoreOpenFailureReason('network')
     // SHEIN is reached directly on both platforms now, so it only loads once
     // the user's VPN is on - the vpnState check above already confirmed that
     // before this function ever runs.
@@ -2432,6 +2450,12 @@ function App() {
           otlobliLoadingCover: true,
           otlobliDocumentStartScript: OTLOBLI_NAV_BOOTSTRAP_SCRIPT,
           otlobliPreserveAttachedWhenHidden: true,
+          // Keep React's already-mounted Otlobli shell and bottom nav visible
+          // while the first SHEIN document is loading. The native browser is
+          // presented only after WebKit has a live page and the document-start
+          // bootstrap has mounted the identical in-page nav.
+          isPresentAfterPageLoad: true,
+          isAnimated: false,
         }
         : { preShowScript: SHEIN_CAPTURE_SCRIPT, preShowScriptInjectionTime: 'documentStart' as const, isPresentAfterPageLoad: true }),
       toolbarType: ToolBarType.BLANK,
@@ -2485,12 +2509,13 @@ function App() {
         if (screenRef.current !== 'home') {
           void InAppBrowser.hide().catch(() => undefined)
         }
+        postWebviewChromeState(pendingBackTargetRef.current)
         if (initialPendingUrl && pendingProductUrlRef.current === initialPendingUrl) pendingProductUrlRef.current = ''
         const absoluteTimeout = window.setTimeout(() => {
           if (sessionId !== webviewSessionRef.current) return
           if (!webviewOpeningRef.current) return
-          if (screenRef.current === 'home') showStoreOpenFailure()
-        }, 20000)
+          if (screenRef.current === 'home') showStoreOpenFailure('preparation')
+        }, 45000)
         const checkLoaded = InAppBrowser.addListener('browserPageLoaded', () => {
           window.clearTimeout(absoluteTimeout)
           void checkLoaded.then((h) => h.remove())
@@ -2570,6 +2595,7 @@ function App() {
         // checks. Re-opening immediately turns that into a visible open/close
         // loop; keep the app stable and ask for a different VPN server.
         webviewAutoOpenPausedUntilRef.current = Date.now() + 15000
+        setStoreOpenFailureReason('network')
         setSheinBlockedError(true)
         refreshVpnDiagnosisForStoreFailure()
         return
@@ -5402,7 +5428,7 @@ function App() {
     }
 
     const currentStoreName = STORES.find((s) => s.id === selectedStore)?.name ?? 'المتجر'
-    const storeFailureAdvice = getStoreFailureAdvice(currentStoreName, vpnState, vpnGeo)
+    const storeFailureAdvice = getStoreFailureAdvice(currentStoreName, vpnState, vpnGeo, storeOpenFailureReason)
     return (
       // Keep React's own nav mounted here at all times, even while SHEIN's
       // webview (with its own injected nav - see ensureOtlobliNav) is

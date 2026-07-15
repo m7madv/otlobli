@@ -527,10 +527,10 @@ index 1c70884..be2b8ac 100644
          if
              ProxySchemeRequestSupport.supportsRequestBody(method: context.method),
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
-index 97a2fc1..9a3fbe2 100644
+index 97a2fc1..c24d7e2 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
-@@ -748,6 +748,23 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -748,6 +748,24 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
      fileprivate var webView: WKWebView?
      fileprivate var progressView: UIProgressView?
 
@@ -550,11 +550,12 @@ index 97a2fc1..9a3fbe2 100644
 +    private var otlobliLoadingCoverBottomConstraint: NSLayoutConstraint?
 +    private var otlobliLoadingCoverMessage = "جاري تجهيز متجر SHEIN…"
 +    private var otlobliLoadingCoverTimeout: DispatchWorkItem?
++    private var otlobliChallengeRevealWorkItem: DispatchWorkItem?
 +
      fileprivate var previousNavigationBarState: (tintColor: UIColor, hidden: Bool) = (.black, false)
      fileprivate var previousToolbarState: (tintColor: UIColor, hidden: Bool) = (.black, false)
 
-@@ -878,6 +895,10 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -878,6 +896,10 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
              self.initWebview()
          }
 
@@ -565,7 +566,7 @@ index 97a2fc1..9a3fbe2 100644
          // Apply navigation gestures setting
          updateNavigationGestures()
 
-@@ -899,6 +920,119 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -899,6 +921,145 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
      override open func viewDidLayoutSubviews() {
          super.viewDidLayoutSubviews()
          refreshWebViewViewportIfNeeded()
@@ -581,7 +582,25 @@ index 97a2fc1..9a3fbe2 100644
 +            self?.hideOtlobliLoadingCover()
 +        }
 +        otlobliLoadingCoverTimeout = timeout
-+        DispatchQueue.main.asyncAfter(deadline: .now() + 18, execute: timeout)
++        DispatchQueue.main.asyncAfter(deadline: .now() + 45, execute: timeout)
++    }
++
++    private func cancelOtlobliChallengeReveal() {
++        otlobliChallengeRevealWorkItem?.cancel()
++        otlobliChallengeRevealWorkItem = nil
++    }
++
++    private func scheduleOtlobliChallengeReveal() {
++        cancelOtlobliChallengeReveal()
++        let reveal = DispatchWorkItem { [weak self] in
++            guard let self else { return }
++            self.otlobliChallengeRevealWorkItem = nil
++            self.hideOtlobliLoadingCover()
++        }
++        otlobliChallengeRevealWorkItem = reveal
++        // Passive checks normally finish without customer input. If SHEIN
++        // serves an interactive challenge, reveal it after this bounded wait.
++        DispatchQueue.main.asyncAfter(deadline: .now() + 6, execute: reveal)
 +    }
 +
 +    private func showOtlobliLoadingCover() {
@@ -651,6 +670,7 @@ index 97a2fc1..9a3fbe2 100644
 +    private func hideOtlobliLoadingCover() {
 +        DispatchQueue.main.async { [weak self] in
 +            guard let self else { return }
++            self.cancelOtlobliChallengeReveal()
 +            self.otlobliLoadingCoverTimeout?.cancel()
 +            self.otlobliLoadingCoverTimeout = nil
 +            guard let cover = self.otlobliLoadingCoverView else { return }
@@ -674,10 +694,17 @@ index 97a2fc1..9a3fbe2 100644
 +        }
 +        switch type {
 +        case "sheinSaudiRepairStart":
++            cancelOtlobliChallengeReveal()
 +            otlobliLoadingCoverMessage = "جاري ضبط المتجر على السعودية…"
 +            otlobliLoadingCoverLabel?.text = otlobliLoadingCoverMessage
 +            showOtlobliLoadingCover()
-+        case "sheinSaudiReady", "sheinPageInteractive", "humanCheck", "sheinBlocked":
++        case "humanCheck":
++            otlobliLoadingCoverMessage = "جاري التحقق من اتصال المتجر…"
++            otlobliLoadingCoverLabel?.text = otlobliLoadingCoverMessage
++            showOtlobliLoadingCover()
++            scheduleOtlobliChallengeReveal()
++        case "sheinSaudiReady", "sheinPageInteractive", "sheinBlocked":
++            cancelOtlobliChallengeReveal()
 +            hideOtlobliLoadingCover()
 +        default:
 +            break
@@ -685,7 +712,7 @@ index 97a2fc1..9a3fbe2 100644
      }
 
      func updateButtonTintColors() {
-@@ -1001,6 +1135,37 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1001,6 +1162,37 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          capBrowserPlugin?.notifyListeners(eventName, data: payload(with: data))
      }
 
@@ -723,7 +750,7 @@ index 97a2fc1..9a3fbe2 100644
      private func startObservingKeyboardViewportChanges() {
          guard !isObservingKeyboardViewportChanges else {
              return
-@@ -1136,6 +1301,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1136,6 +1328,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          if message.name == "messageHandler" {
              if let messageBody = message.body as? [String: Any] {
                  print("Received message from JavaScript:", messageBody)
@@ -731,7 +758,7 @@ index 97a2fc1..9a3fbe2 100644
                  emit("messageFromWebview", data: messageBody)
              } else {
                  print("Received non-dictionary message from JavaScript:", message.body)
-@@ -1581,6 +1747,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1581,6 +1774,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          self.hiddenPopupWindow = parent.hiddenPopupWindow
          self.opensHidden = parent.hiddenPopupWindow
          self.captureConsoleLogs = parent.captureConsoleLogs
@@ -739,10 +766,11 @@ index 97a2fc1..9a3fbe2 100644
          self.allowWebViewJsVisibilityControl = parent.allowWebViewJsVisibilityControl
          self.allowScreenshotsFromWebPage = parent.allowScreenshotsFromWebPage
          self.handleDownloads = parent.handleDownloads
-@@ -1818,6 +1985,12 @@ public extension WKWebViewController {
+@@ -1818,6 +2012,13 @@ public extension WKWebViewController {
 
      open func cleanupWebView() {
          guard let webView = self.webView else { return }
++        cancelOtlobliChallengeReveal()
 +        otlobliLoadingCoverTimeout?.cancel()
 +        otlobliLoadingCoverTimeout = nil
 +        otlobliLoadingCoverView?.removeFromSuperview()
@@ -752,7 +780,41 @@ index 97a2fc1..9a3fbe2 100644
          webView.stopLoading()
          previewItemURL = nil
 
-@@ -2743,7 +2916,7 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2682,6 +2883,12 @@ extension WKWebViewController: WKNavigationDelegate {
+     public func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+         updateBarButtonItems()
+         self.progressView?.progress = 0
++        if otlobliLoadingCoverEnabled {
++            cancelOtlobliChallengeReveal()
++            otlobliLoadingCoverMessage = "جاري تجهيز متجر SHEIN…"
++            otlobliLoadingCoverLabel?.text = otlobliLoadingCoverMessage
++            showOtlobliLoadingCover()
++        }
+         if let urlValue = webView.url {
+             self.url = urlValue
+             delegate?.webViewController?(self, didStart: urlValue)
+@@ -2703,12 +2910,18 @@ extension WKWebViewController: WKNavigationDelegate {
+                     DispatchQueue.global(qos: .userInitiated).async {
+                         self.injectPreShowScript()
+                         DispatchQueue.main.async { [weak self] in
+-                            self?.capBrowserPlugin?.presentView(webViewId: self?.instanceId)
++                            self?.capBrowserPlugin?.presentView(
++                                webViewId: self?.instanceId,
++                                isAnimated: self?.otlobliLoadingCoverEnabled == true ? false : true
++                            )
+                         }
+                     }
+                 }
+             } else if !self.opensHidden {
+-                self.capBrowserPlugin?.presentView(webViewId: instanceId)
++                self.capBrowserPlugin?.presentView(
++                    webViewId: instanceId,
++                    isAnimated: otlobliLoadingCoverEnabled ? false : true
++                )
+             }
+         } else if self.preShowScript != nil &&
+                     !self.preShowScript!.isEmpty &&
+@@ -2743,7 +2956,7 @@ extension WKWebViewController: WKNavigationDelegate {
              self.url = url
              delegate?.webViewController?(self, didFail: url, withError: error)
          }
@@ -761,7 +823,7 @@ index 97a2fc1..9a3fbe2 100644
      }
 
      public func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-@@ -2753,7 +2926,16 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2753,7 +2966,16 @@ extension WKWebViewController: WKNavigationDelegate {
              self.url = url
              delegate?.webViewController?(self, didFail: url, withError: error)
          }

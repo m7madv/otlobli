@@ -1,3 +1,8 @@
+import cairoArabicFontDataUrl from '@fontsource-variable/cairo/files/cairo-arabic-wght-normal.woff2?inline'
+
+const OTLOBLI_CAIRO_FONT_CSS =
+  '@font-face{font-family:"OtlobliCairo";src:url("' + cairoArabicFontDataUrl + '") format("woff2");font-style:normal;font-weight:200 1000;font-display:block;}'
+
 // Runs as a real WKUserScript before SHEIN's first document starts. It mounts
 // only Otlobli's existing bottom navigation; it does not touch SHEIN network,
 // storage, region, CSS, or page lifecycle. The full capture script adopts the
@@ -16,6 +21,79 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
     profile: '<circle cx="12" cy="8" r="3.6"/><path d="M5 20c0-3.8 3.1-6.4 7-6.4s7 2.6 7 6.4"/>'
   };
 
+  function normalizedText(el) {
+    return String((el && (el.innerText || el.textContent)) || '').replace(/\\s+/g, ' ').trim();
+  }
+
+  function storeBottomTabScore(text) {
+    var patterns = [
+      /home|\\u0627\\u0644\\u0631\\u0626\\u064a\\u0633\\u064a\\u0629/i,
+      /categor|\\u0627\\u0644\\u0641\\u0626\\u0627\\u062a|\\u0627\\u0644\\u0623\\u0642\\u0633\\u0627\\u0645/i,
+      /cart|bag|basket|\\u0627\\u0644\\u0633\\u0644\\u0629|\\u062d\\u0642\\u064a\\u0628\\u0629/i,
+      /account|profile|\\u062d\\u0633\\u0627\\u0628\\u064a|\\u0623\\u0646\\u0627/i,
+      /store|shop|trends|\\u0645\\u062a\\u062c\\u0631|\\u062a\\u0631\\u0646\\u062f\\u0627\\u062a/i
+    ];
+    var score = 0;
+    for (var i = 0; i < patterns.length; i++) if (patterns[i].test(text)) score++;
+    return score;
+  }
+
+  function hideVerifiedStoreBottomNav() {
+    if (!document.body) return;
+    var vpHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+    var vpWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+    var nodes = document.querySelectorAll(
+      'nav, [role="navigation"], [role="tablist"], [class*="tab-bar" i], [class*="tabbar" i], [class*="bottom-nav" i], [class*="footer-nav" i]'
+    );
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      if (!el || (el.id && el.id.indexOf('otlobli') === 0)) continue;
+      var rect = el.getBoundingClientRect();
+      if (rect.width < vpWidth * 0.55 || rect.height < 24 || rect.height > 160) continue;
+      if (rect.bottom < vpHeight - 30 && rect.top < vpHeight - 180) continue;
+      if (storeBottomTabScore(normalizedText(el)) < 2) continue;
+      el.style.setProperty('display', 'none', 'important');
+      el.style.setProperty('visibility', 'hidden', 'important');
+      el.style.setProperty('pointer-events', 'none', 'important');
+      el.setAttribute('data-otlobli-hidden-store-bottom', 'bootstrap-verified-tabs');
+    }
+  }
+
+  function protectCookieConsentAction() {
+    if (!document.body) return;
+    var buttons = document.querySelectorAll('button, [role="button"]');
+    var acceptPattern = /^(?:accept all|allow all|agree to all|\\u0642\\u0628\\u0648\\u0644 \\u0627\\u0644\\u0643\\u0644|\\u0627\\u0644\\u0633\\u0645\\u0627\\u062d \\u0644\\u0644\\u0643\\u0644)$/i;
+    var cookiePattern = /cookie|cookies|\\u0645\\u0644\\u0641\\u0627\\u062a/i;
+    var vpHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+    for (var i = 0; i < buttons.length; i++) {
+      var button = buttons[i];
+      if (!acceptPattern.test(normalizedText(button))) continue;
+      var scope = button;
+      var cookieScope = null;
+      for (var hop = 0; scope && hop < 7; hop++, scope = scope.parentElement) {
+        var scopeText = normalizedText(scope);
+        if (scopeText.length < 1800 && cookiePattern.test(scopeText)) cookieScope = scope;
+      }
+      if (!cookieScope) continue;
+      var rect = button.getBoundingClientRect();
+      if (rect.bottom < vpHeight - 72) continue;
+      var actionRoot = button.parentElement || button;
+      var actionRect = actionRoot.getBoundingClientRect();
+      if (actionRect.height <= 0 || actionRect.height > 180) actionRoot = button;
+      if (actionRoot.getAttribute('data-otlobli-cookie-raised') === '1') continue;
+      var style = window.getComputedStyle(actionRoot);
+      if (style.position === 'static') actionRoot.style.setProperty('position', 'relative', 'important');
+      actionRoot.style.setProperty('bottom', 'calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))', 'important');
+      actionRoot.style.setProperty('z-index', '2147483646', 'important');
+      actionRoot.setAttribute('data-otlobli-cookie-raised', '1');
+    }
+  }
+
+  function runEarlyProtections() {
+    try { hideVerifiedStoreBottomNav(); } catch (e) {}
+    try { protectCookieConsentAction(); } catch (e) {}
+  }
+
   function mount() {
     // (v85.8.5) حمّل خط Cairo داخل مستند شي إن أيضاً. التطبيق يحمّله عبر @import،
     // لكن WebView شي إن مستند منفصل لا يرث خطوط التطبيق، فكان الشريط المحقون
@@ -24,14 +102,16 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
     // رابط جوجل هنا يصير الشريطان بخط Cairo نفسه تماماً. إن فشل التحميل (نادر)
     // يسقط لـSF كما هو الحال الآن — لا ضرر إضافي.
     if (!document.getElementById('otlobli-cairo-font')) {
-      var fontLink = document.createElement('link');
-      fontLink.id = 'otlobli-cairo-font';
-      fontLink.rel = 'stylesheet';
-      fontLink.href = 'https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap';
-      (document.head || document.documentElement).appendChild(fontLink);
+      var fontStyle = document.createElement('style');
+      fontStyle.id = 'otlobli-cairo-font';
+      fontStyle.textContent = ${JSON.stringify(OTLOBLI_CAIRO_FONT_CSS)};
+      (document.head || document.documentElement).appendChild(fontStyle);
     }
     if (!document.body) return false;
-    if (document.getElementById('otlobli-nav')) return true;
+    if (document.getElementById('otlobli-nav')) {
+      runEarlyProtections();
+      return true;
+    }
 
     var nav = document.createElement('div');
     nav.id = 'otlobli-nav';
@@ -43,7 +123,7 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
       'max-height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;' +
       'z-index:2147483647!important;display:flex!important;direction:rtl!important;overflow:hidden!important;box-sizing:border-box!important;' +
       'background:rgba(255,255,255,.97)!important;border-top:1px solid #bccac0!important;padding:0 0 16px 0!important;margin:0!important;' +
-      'font-family:Cairo,system-ui,-apple-system,sans-serif!important;font-size:12px!important;line-height:1.15!important;' +
+      'font-family:OtlobliCairo,system-ui,-apple-system,sans-serif!important;font-size:12px!important;line-height:1.15!important;' +
       'opacity:1!important;visibility:visible!important;pointer-events:auto!important;';
 
     var items = [
@@ -61,7 +141,7 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
       tab.style.cssText = 'position:relative!important;flex:1 1 0!important;height:74px!important;min-height:74px!important;max-height:74px!important;' +
         'border:0!important;background:transparent!important;display:grid!important;place-items:center!important;align-content:center!important;' +
         'gap:4px!important;padding:10px 0 0 0!important;margin:0!important;box-sizing:border-box!important;font-size:12px!important;' +
-        'line-height:1.15!important;font-weight:700!important;font-family:Cairo,system-ui,-apple-system,sans-serif!important;color:' +
+        'line-height:1.15!important;font-weight:700!important;font-family:OtlobliCairo,system-ui,-apple-system,sans-serif!important;color:' +
         (active ? '#006948' : '#3d4a42') + '!important;';
       if (active) {
         var indicator = document.createElement('span');
@@ -90,6 +170,7 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
       nav.appendChild(tab);
     }
     document.body.appendChild(nav);
+    runEarlyProtections();
     return true;
   }
 
@@ -100,11 +181,26 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
       if (mount() || attempts >= 400) clearInterval(timer);
     }, 25);
   }
+  var protectionRuns = 0;
+  var protectionTimer = setInterval(function () {
+    protectionRuns++;
+    runEarlyProtections();
+    if (protectionRuns >= 180) clearInterval(protectionTimer);
+  }, 250);
 })();
 `
 
 export const SHEIN_CAPTURE_SCRIPT = `
 (function () {
+  function ensureOtlobliCairoFont() {
+    if (document.getElementById('otlobli-cairo-font')) return;
+    var fontStyle = document.createElement('style');
+    fontStyle.id = 'otlobli-cairo-font';
+    fontStyle.textContent = ${JSON.stringify(OTLOBLI_CAIRO_FONT_CSS)};
+    (document.head || document.documentElement).appendChild(fontStyle);
+  }
+  ensureOtlobliCairoFont();
+
   // env(safe-area-inset-bottom) only resolves to the device's real inset when
   // the PAGE's OWN viewport meta tag declares viewport-fit=cover - otherwise
   // it silently evaluates to 0 everywhere, regardless of device. otlobli's
@@ -155,18 +251,28 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // worker ونمسح Cache Storage عند بداية كل تحميل — fire-and-forget كي لا يعطّل
   // الرسم — فتُطبَّق حالة نظيفة على التحميل التالي (يقارب التنصيب النظيف). لا
   // نلمس localStorage (مسحه العريض يسبب skeleton loading — درس موثق).
+  var cleanSheinRuntimeCache = IS_SHEIN;
   try {
-    if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
-      navigator.serviceWorker.getRegistrations().then(function (regs) {
-        for (var i = 0; i < regs.length; i++) { try { regs[i].unregister(); } catch (e) {} }
-      }).catch(function () {});
-    }
-    if (window.caches && caches.keys) {
-      caches.keys().then(function (keys) {
-        for (var k = 0; k < keys.length; k++) { try { caches.delete(keys[k]); } catch (e) {} }
-      }).catch(function () {});
+    if (sessionStorage.getItem('otlobli_shein_runtime_cleaned') === '1') {
+      cleanSheinRuntimeCache = false;
+    } else if (IS_SHEIN) {
+      sessionStorage.setItem('otlobli_shein_runtime_cleaned', '1');
     }
   } catch (e) {}
+  if (cleanSheinRuntimeCache) {
+    try {
+      if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+        navigator.serviceWorker.getRegistrations().then(function (regs) {
+          for (var i = 0; i < regs.length; i++) { try { regs[i].unregister(); } catch (e) {} }
+        }).catch(function () {});
+      }
+      if (window.caches && caches.keys) {
+        caches.keys().then(function (keys) {
+          for (var k = 0; k < keys.length; k++) { try { caches.delete(keys[k]); } catch (e) {} }
+        }).catch(function () {});
+      }
+    } catch (e) {}
+  }
 
   var SHEIN_REQUIRED_COUNTRY = 'SA';
   var SHEIN_REQUIRED_CURRENCY = 'USD';
@@ -217,7 +323,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       'background:rgba(255,255,255,.97)!important;border-top:1px solid #bccac0!important;' +
       'backdrop-filter:blur(16px)!important;-webkit-backdrop-filter:blur(16px)!important;' +
       'padding:0 0 16px 0!important;padding:0 0 max(env(safe-area-inset-bottom, 0px), 16px) 0!important;margin:0!important;' +
-      'font-family:Cairo,system-ui,-apple-system,sans-serif!important;font-size:12px!important;line-height:1.15!important;' +
+      'font-family:OtlobliCairo,system-ui,-apple-system,sans-serif!important;font-size:12px!important;line-height:1.15!important;' +
       'opacity:1!important;visibility:visible!important;pointer-events:auto!important;';
     var nav = document.getElementById('otlobli-nav');
     if (!nav) {
@@ -238,7 +344,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         tab.style.cssText = 'position:relative!important;flex:1 1 0!important;height:74px!important;min-height:74px!important;max-height:74px!important;' +
           'border:0!important;background:transparent!important;display:grid!important;place-items:center!important;align-content:center!important;' +
           'padding:10px 0 0 0!important;margin:0!important;box-sizing:border-box!important;font-size:12px!important;line-height:1.15!important;' +
-          'font-family:Cairo,system-ui,-apple-system,sans-serif!important;font-weight:700!important;color:' + (item.type ? '#3d4a42' : '#006948') + '!important;';
+          'font-family:OtlobliCairo,system-ui,-apple-system,sans-serif!important;font-weight:700!important;color:' + (item.type ? '#3d4a42' : '#006948') + '!important;';
         if (!item.type) {
           var indicator = document.createElement('span');
           indicator.style.cssText = 'position:absolute!important;top:0!important;width:32px!important;height:4px!important;border-radius:999px!important;background:#006948!important;';
@@ -509,6 +615,39 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var sheinNativeCoverLastType = '';
   var sheinNativeCoverLastPostAt = 0;
 
+  var __otlobliFeedRetryCount = 0;
+  var __otlobliFeedRetryAfter = 0;
+
+  function sheinRetryableFeedErrorButton() {
+    if (!IS_SHEIN || !document.body) return null;
+    var retryPattern = /^(?:try again|retry|\\u062d\\u0627\\u0648\\u0644 \\u0645\\u0631\\u0629 \\u0623\\u062e\\u0631\\u0649|\\u0625\\u0639\\u0627\\u062f\\u0629 \\u0627\\u0644\\u0645\\u062d\\u0627\\u0648\\u0644\\u0629)$/i;
+    var errorPattern = /there(?:'|\u2019)?s? (?:an? )?error in our system|something went wrong|system error|\\u0645\\u0639\\u0630\\u0631\\u0629|\\u0647\\u0646\\u0627\\u0643\\s+\\u062e\\u0637\\u0623\\s+\\u0645\\u0627\\s+\\u0641\\u064a\\s+\\u0646\\u0638\\u0627\\u0645\\u0646\\u0627/i;
+    var controls = document.querySelectorAll('button, [role="button"], a');
+    for (var i = 0; i < controls.length; i++) {
+      var control = controls[i];
+      var label = String(control.innerText || control.textContent || '').replace(/\\s+/g, ' ').trim();
+      if (!retryPattern.test(label)) continue;
+      var scope = control;
+      for (var hop = 0; scope && hop < 6; hop++, scope = scope.parentElement) {
+        var text = String(scope.innerText || scope.textContent || '').replace(/\\s+/g, ' ').trim();
+        if (text.length > 0 && text.length < 1400 && errorPattern.test(text)) return control;
+      }
+    }
+    return null;
+  }
+
+  function retrySheinFeedError() {
+    if (__otlobliFeedRetryCount >= 4 || Date.now() < __otlobliFeedRetryAfter) return;
+    var retry = sheinRetryableFeedErrorButton();
+    if (!retry || retry.disabled) return;
+    var rect = retry.getBoundingClientRect();
+    if (!rect || rect.width < 20 || rect.height < 20) return;
+    __otlobliFeedRetryCount++;
+    var delays = [900, 1500, 2400, 4000];
+    __otlobliFeedRetryAfter = Date.now() + delays[Math.min(__otlobliFeedRetryCount - 1, delays.length - 1)];
+    try { retry.click(); } catch (e) {}
+  }
+
   // browserPageLoaded only proves that WKNavigation finished. SHEIN can still
   // be a partially hydrated shell (section labels with no products/touchable
   // SPA), which is the exact frozen state reported on the second iOS entry.
@@ -516,6 +655,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function sheinPageLooksInteractive() {
     if (!IS_SHEIN || !document.body || document.readyState === 'loading') return false;
     if (otlobliIsHumanChallenge()) return true;
+    if (sheinRetryableFeedErrorButton()) return false;
     var bodyText = String(document.body.innerText || '').replace(/\\s+/g, ' ').trim();
     if (bodyText.length < 180) return false;
 
@@ -1497,6 +1637,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var cls = ' ' + ((el.className || '') + '').toLowerCase() + ' ';
     var r = el.getBoundingClientRect();
     var compact = r.width > 0 && r.width <= 96 && r.height > 0 && r.height <= 48;
+    // A circular swatch wrapper can contain only the text of its HOT child.
+    // Do not classify that whole 40-60px color tile as the badge itself.
+    var cs = window.getComputedStyle(el);
+    var before = window.getComputedStyle(el, '::before');
+    var hasSwatchVisual = Math.min(r.width, r.height) >= 32 && (
+      el.tagName === 'IMG' || !!el.querySelector('img') || /url\\(/.test(cs.backgroundImage || '') || /url\\(/.test(before.backgroundImage || '')
+    );
+    if (hasSwatchVisual) return false;
     if (compact && /^(hot|new|sale|best|bestseller|\\-?\\d+%?)$/i.test(text)) return true;
     return compact && /(?:^|[\\s_-])(hot|badge|tag|label|discount|promo|best|bestseller)(?:$|[\\s_-])/i.test(cls);
   }
@@ -1507,7 +1655,55 @@ export const SHEIN_CAPTURE_SCRIPT = `
       !/ltwebstatic|img\\.shein/i.test(src);
   }
 
+  function swatchBackgroundUrl(el, pseudo) {
+    try {
+      var bg = window.getComputedStyle(el, pseudo || null).backgroundImage || '';
+      var match = bg.match(/url\\(["']?(.*?)["']?\\)/);
+      return match && match[1] ? match[1] : '';
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function rankedSwatchImageFrom(el) {
+    if (!el) return '';
+    var scope = isColorBadgeEl(el) && el.parentElement ? el.parentElement : el;
+    var descendants = scope.querySelectorAll ? scope.querySelectorAll('*') : [];
+    var bestSrc = '';
+    var bestScore = -1;
+    for (var index = -1; index < descendants.length; index++) {
+      var node = index < 0 ? scope : descendants[index];
+      if (!node || isColorBadgeEl(node)) continue;
+      var rect = node.getBoundingClientRect();
+      var width = rect.width || 0;
+      var height = rect.height || 0;
+      if (width < 12 || height < 12 || width > 120 || height > 120) continue;
+      var sources = [];
+      if (node.tagName === 'IMG') sources.push(realImgSrc(node));
+      sources.push(swatchBackgroundUrl(node, null));
+      sources.push(swatchBackgroundUrl(node, '::before'));
+      sources.push(swatchBackgroundUrl(node, '::after'));
+      for (var si = 0; si < sources.length; si++) {
+        var src = sources[si];
+        if (!src || /blank|placeholder/i.test(src) || isLikelyBadgeImageUrl(src)) continue;
+        var minSide = Math.min(width, height);
+        var maxSide = Math.max(width, height);
+        if (minSide < 18) continue;
+        var squareBonus = minSide / Math.max(maxSide, 1) >= 0.62 ? 900 : 0;
+        var score = Math.min(width, 96) * Math.min(height, 96) + squareBonus;
+        if (/ltwebstatic|img\\.shein|shein/i.test(src)) score += 120;
+        if (score > bestScore) {
+          bestScore = score;
+          bestSrc = src;
+        }
+      }
+    }
+    return bestSrc;
+  }
+
   function swatchImageFrom(el) {
+    var rankedImage = rankedSwatchImageFrom(el);
+    if (rankedImage) return rankedImage;
     var scope = isColorBadgeEl(el) && el.parentElement ? el.parentElement : el;
     // (v85.8.3-fix) شارة HOT/جديد التي يرسمها شي إن فوق حوّاسة اللون هي صورة
     // منفصلة مستضافة على نفس CDN (ltwebstatic) تماماً مثل صورة اللون، فقائمة حظر
@@ -3686,7 +3882,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         'border:0!important;background:transparent!important;display:grid!important;place-items:center!important;align-content:center!important;' +
         'gap:4px!important;padding:10px 0 0 0!important;margin:0!important;' +
         'box-sizing:border-box!important;font-size:12px!important;line-height:1.15!important;font-weight:700!important;' +
-        'font-family:Cairo,system-ui,-apple-system,sans-serif!important;color:' + (isActiveTab ? '#006948' : '#3d4a42') + '!important;';
+        'font-family:OtlobliCairo,system-ui,-apple-system,sans-serif!important;color:' + (isActiveTab ? '#006948' : '#3d4a42') + '!important;';
       if (isActiveTab) {
         var indicator = document.createElement('span');
         indicator.style.cssText = 'position:absolute!important;top:0!important;width:32px!important;height:4px!important;border-radius:999px!important;background:#006948!important;';
@@ -4373,7 +4569,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var score = sheinBottomTabScore(text);
         var controls = 0;
         try { controls = cur.querySelectorAll('a,button,[role="button"],[role="tab"],svg,img').length; } catch (e) {}
-        if (score >= 2 || (score >= 1 && controls >= 4)) {
+        if (score >= 2) {
           best = { el: cur, rect: rect, score: score };
         }
       }
@@ -4402,7 +4598,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     for (var k = 0; k < keywords.length; k++) {
       if (keywords[k].test(text)) keywordHits++;
     }
-    return keywordHits >= 2 || buttonCount >= 4;
+    return keywordHits >= 2;
   }
 
   function hideForeignBottomNav() {
@@ -4412,9 +4608,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       candidates = document.querySelectorAll(
         'nav, footer, [class*="tab-bar" i], [class*="tabbar" i], [class*="bottom-nav" i], ' +
         '[class*="footer-nav" i], [class*="nav-bar" i], [class*="navbar" i], ' +
-        '[class*="add-to-bag" i], [class*="addtobag" i], [class*="addtocart" i], ' +
-        '[class*="action-bar" i], [class*="fixed-bottom" i], [class*="sticky-bottom" i], ' +
-        '[class*="bottom-bar" i], [class*="buy-bar" i]'
+        '[role="navigation"], [role="tablist"]'
       );
     } catch (e) {
       candidates = document.querySelectorAll('nav, footer, [role="navigation"], [role="tablist"], div, section, ul');
@@ -4426,11 +4620,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var rect = el.getBoundingClientRect();
       var looksLikeBottomNav = looksLikeNativeStoreBottomNav(el, rect, vp);
       var positioned = style.position === 'fixed' || style.position === 'sticky' || style.position === 'absolute';
-      if (!positioned && !looksLikeBottomNav) continue;
+      if (!looksLikeBottomNav) continue;
+      if (!positioned && rect.bottom < vp.height - 18) continue;
       if (rect.width < vp.width * 0.5) continue;
       if (rect.height <= 0 || rect.height > 190) continue;
-      if (rect.bottom < vp.height - 220 && !looksLikeBottomNav) continue;
-      hideStoreBottomElement(el, looksLikeBottomNav ? 'selector-bottom-nav' : 'selector-fixed-bottom', sheinBottomTabScore(getElementText(el)), rect);
+      hideStoreBottomElement(el, 'selector-bottom-nav', sheinBottomTabScore(getElementText(el)), rect);
     }
 
     var probeXs = [Math.round(vp.width * 0.12), Math.round(vp.width * 0.32), Math.round(vp.width * 0.5), Math.round(vp.width * 0.68), Math.round(vp.width * 0.88)];
@@ -4459,33 +4653,37 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
-  // SHEIN pins its own promo bars (e.g. "free shipping over $X") to the bottom
-  // of its page with position:fixed/sticky. Those were designed to sit above
-  // SHEIN's own bottom tab bar, but our webview's viewport ends right where
-  // otlobli's bottom nav begins (we don't show SHEIN's tab bar at all), so
-  // SHEIN's banner now renders flush against otlobli's nav and looks like a
-  // glitchy stacked bar. Hide any such stray fixed/sticky bottom element that
-  // isn't one of ours.
-  function hideStrayFixedBottomBars() {
+  // Keep SHEIN's explicit cookie-consent action reachable without accepting
+  // anything on the customer's behalf. Only the exact consent action row is
+  // raised, and only when it would otherwise sit under Otlobli's fixed nav.
+  function protectSheinCookieConsentAction() {
+    if (!IS_SHEIN || !document.body) return;
+    var controls = document.querySelectorAll('button, [role="button"]');
+    var acceptPattern = /^(?:accept all|allow all|agree to all|\\u0642\\u0628\\u0648\\u0644 \\u0627\\u0644\\u0643\\u0644|\\u0627\\u0644\\u0633\\u0645\\u0627\\u062d \\u0644\\u0644\\u0643\\u0644)$/i;
+    var cookiePattern = /cookie|cookies|\\u0645\\u0644\\u0641\\u0627\\u062a/i;
     var vp = viewportSize();
-    var probeY = vp.height - 3;
-    var probeXs = [Math.round(vp.width * 0.15), Math.round(vp.width * 0.5), Math.round(vp.width * 0.85)];
-    for (var p = 0; p < probeXs.length; p++) {
-      var el = document.elementFromPoint(probeXs[p], probeY);
-      var depth = 0;
-      while (el && el !== document.body && el !== document.documentElement && depth < 10) {
-        if (el.id && el.id.indexOf('otlobli') === 0) break;
-        var style = window.getComputedStyle(el);
-        if (style.position === 'fixed' || style.position === 'sticky') {
-          var rect = el.getBoundingClientRect();
-          if (rect.height > 0 && rect.height < 160 && rect.bottom >= vp.height - 6) {
-            el.style.setProperty('display', 'none', 'important');
-          }
-          break;
-        }
-        el = el.parentElement;
-        depth++;
+    for (var i = 0; i < controls.length; i++) {
+      var button = controls[i];
+      var label = String(button.innerText || button.textContent || '').replace(/\\s+/g, ' ').trim();
+      if (!acceptPattern.test(label)) continue;
+      var scope = button;
+      var isCookieConsent = false;
+      for (var hop = 0; scope && hop < 7; hop++, scope = scope.parentElement) {
+        var text = String(scope.innerText || scope.textContent || '').replace(/\\s+/g, ' ').trim();
+        if (text.length < 1800 && cookiePattern.test(text)) isCookieConsent = true;
       }
+      if (!isCookieConsent) continue;
+      var rect = button.getBoundingClientRect();
+      if (rect.bottom < vp.height - 72) continue;
+      var actionRoot = button.parentElement || button;
+      var actionRect = actionRoot.getBoundingClientRect();
+      if (actionRect.height <= 0 || actionRect.height > 180) actionRoot = button;
+      if (actionRoot.getAttribute('data-otlobli-cookie-raised') === '1') continue;
+      var style = window.getComputedStyle(actionRoot);
+      if (style.position === 'static') actionRoot.style.setProperty('position', 'relative', 'important');
+      actionRoot.style.setProperty('bottom', 'calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))', 'important');
+      actionRoot.style.setProperty('z-index', '2147483646', 'important');
+      actionRoot.setAttribute('data-otlobli-cookie-raised', '1');
     }
   }
 
@@ -4684,6 +4882,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // صفحة تحقق «أنا إنسان» — تجميد كامل لكل تدخلاتنا حتى يكملها المستخدم.
     if (otlobliIsHumanChallenge()) { otlobliEnterChallengeMode(); return; }
     if (IS_SHEIN) ensureSheinSaudiShippingSelection();
+    if (IS_SHEIN) retrySheinFeedError();
     if (IS_SHEIN) updateSheinNativeCoverState();
     ensureNoTextSelection();
     ensureViewportFitCover();
@@ -4725,7 +4924,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     hideSheinCartIcons();
     hideListingCardAddButtons();
     hideForeignBottomNav();
-    hideStrayFixedBottomBars();
+    protectSheinCookieConsentAction();
     hideSheinAppInstallPrompts();
   }
 
