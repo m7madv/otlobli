@@ -7,11 +7,11 @@ Last updated: 2026-07-15
 - Branch: `codex/customer-wallet-group-orders`.
 - Stable tested reference: v85.8.5 / `a914d81`.
 - Reference IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.5-nav-cairo-font-match-no-otp-test.ipa`.
-- Active test candidate: v85.8.7 / `97c656f`.
-- Candidate IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.7.ipa`.
-- Candidate SHA-256: `5039D8037183926DB1D68E81F5EB5F52BA0A805A0122CB8A2021476DB9594F7E`.
-- iOS build run: `29408007214` (success).
-- `APP_VERSION = 2026.07.15-v85.8.7-iphone6-fast-tabs-safearea-no-otp-test`.
+- Active test candidate: v85.8.8 / `c4738fb`.
+- Candidate IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.8.ipa`.
+- Candidate SHA-256: `A2F6D1E8B3F41D96D0B94A346542BA15B88BED80188F9A553643B1C0333A1149`.
+- iOS build run: `29409886905` (success).
+- `APP_VERSION = 2026.07.15-v85.8.8-nav-match-hidden-product-no-otp-test`.
 - Real-device acceptance is pending; do not claim the SHEIN issues are fixed yet.
 
 ## v85.8.6 Scope
@@ -36,6 +36,14 @@ Last updated: 2026-07-15
 - Healthy WebKit cache is preserved for the fast path. Cache clearing remains limited to bounded stuck-session recovery and explicit Temu -> SHEIN switching.
 - iOS WKWebView now fills the controller bottom; the injected safe-area-aware nav paints the whole inset. Android keeps its native safe-bottom margin.
 
+## v85.8.8 Changes
+
+- Real-device v85.8.7 result: iPhone 16 navigation appearance improved, but the injected home icons sat lower than the React cart/orders/profile icons; iPhone 6 could expose icon-only SHEIN tabs on first entry.
+- The injected nav now mirrors React's grid row, direct SVG/label structure, normal line height, and natural content-box height instead of a separate flex/fixed-height layout.
+- Document-start hiding adds one narrow fallback: exactly five evenly spaced children inside a fixed/sticky bottom row. It does not hide arbitrary bottom elements.
+- A cart product is loaded inside the preserved hidden SHEIN WebView while the React cart stays visible. It is revealed only after the target page load and a blocker-ready message.
+- SHEIN readiness is posted only after header/cart/listing/bottom-nav/cookie/toast/install blockers have run for that tick.
+
 ## Failed Paths / Guardrails
 
 - v86-v88 are failed paths. v87 fixed none of the reported issues; v88 closed/crashed SHEIN on entry.
@@ -54,7 +62,7 @@ Test on iPhone 6 and iPhone 16 Pro Max:
 3. Turkey/Germany VPN is not rejected merely because iPhone 6 prepares slowly.
 4. SHEIN feed becomes usable without repeated manual retry taps.
 5. Cookie consent is tappable above the nav and does not open Orders.
-6. Product from cart stays covered until ready; back is smooth.
+6. Product from cart leaves the React cart visible until ready; no raw product reload/chrome appears; back is smooth.
 7. Round/HOT selected color produces the actual color thumbnail in cart.
 8. Saudi shipping remains authoritative.
 
@@ -64,5 +72,5 @@ Test on iPhone 6 and iPhone 16 Pro Max:
 - `npm run build` passed.
 - Runtime syntax parse of both injected scripts passed.
 - `git diff --check` passed.
-- Xcode unsigned build and packaging passed in run `29408007214`.
-- Embedded v85.8.7 marker and desktop IPA SHA-256 were verified.
+- Xcode unsigned build and packaging passed in run `29409886905`.
+- Embedded v85.8.8 marker and desktop IPA SHA-256 were verified.
