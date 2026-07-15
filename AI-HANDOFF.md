@@ -5,7 +5,8 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Current Candidate
 
 - Branch: `codex/customer-wallet-group-orders`.
-- Current code/IPA: `855b6eb` / `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.14.ipa`.
+- Current code: uncommitted v85.8.15 working tree based on `5b021ab`; no v85.8.15 IPA yet.
+- Last IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.14.ipa`.
 - SHA-256: `0A9EFB370E718A9FFD8E157694ECC4A335F362F0E85B9DD40A97685A55D868AB`.
 - Build run: `29426638388` (success).
 - Rollback/reference: v85.8.5 / `a914d81` and the user-provided v85.8.5 IPA.
@@ -39,9 +40,10 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 - It also preserves WebKit cache on routine Temu -> SHEIN switches, requires real hit-testable controls for readiness, performs at most one cache-preserving recovery after a trusted dead tap, and keeps passive security frames covered without a timeout until a real verification control exists.
 - Multi-choice descriptive variants (for example `ملعقة`) require a trusted customer tap; SHEIN's automatic first-option highlight is ignored.
 - v85.8.14 corrects the readiness hit-test false positive, requires four consecutive complete/interactive checks, and makes only `sheinPageInteractive` release the cover. Exact cookie Accept-all retries are shared and hidden; DE/EU/US are rejected as sizing systems; the old-WK gallery matcher accepts only a strongly bounded full-screen absolute viewer with an exact counter and large media.
+- v85.8.14 failed real-device testing. v85.8.15 removes its four-pass/complete/cookie-pending wait, restores signed-Saudi release through the v85.8.13 event path, clicks exact Accept-all without a geometry prerequisite, restores proven size/tap discovery with final-only sizing-system rejection, and hides only the raw centered old-iPhone SHEIN icon by tight geometry.
 - A full-device restart needs the matching Apple panic/Jetsam/crash log before assigning cause; do not infer it from the screenshot alone.
 - Cart swatch/quantity visual changes are pending an exact Figma frame URL. Do not invent them.
 
 ## Next Step
 
-Install v85.8.14 and test first/fresh SHEIN entry, repeated entry, exact consent auto-accept, persistent nav during Saudi repair, visible gallery back on iPhone 6, strict size selection on both phones, and Temu -> SHEIN return. Do not call it fixed before both phones pass.
+Build v85.8.15, then test fresh/repeated SHEIN entry, exact consent auto-accept, one-time Saudi preparation, persistent nav/absence of the center raw icon on iPhone 6, and trusted color+size capture on both phones. Do not call it fixed before both phones pass.

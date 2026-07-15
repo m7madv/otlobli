@@ -89,6 +89,34 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
     matched.setAttribute('data-otlobli-hidden-store-bottom', 'bootstrap-point-tabs');
   }
 
+  function hideCenteredStoreBottomIcon(vpWidth, vpHeight) {
+    if (!document.elementsFromPoint) return;
+    var ys = [Math.max(1, vpHeight - 28), Math.max(1, vpHeight - 54), Math.max(1, vpHeight - 82)];
+    for (var yi = 0; yi < ys.length; yi++) {
+      var stack = document.elementsFromPoint(Math.round(vpWidth * 0.5), ys[yi]);
+      for (var si = 0; si < stack.length; si++) {
+        var current = stack[si];
+        for (var depth = 0; current && current !== document.body && current !== document.documentElement && depth < 4; depth++, current = current.parentElement) {
+          if ((current.id && current.id.indexOf('otlobli') === 0) ||
+              (current.closest && current.closest('#otlobli-nav'))) break;
+          var rect = current.getBoundingClientRect ? current.getBoundingClientRect() : null;
+          if (!rect || rect.width < 18 || rect.width > 96 || rect.height < 18 || rect.height > 96) continue;
+          if (rect.top < vpHeight - 135 || rect.bottom > vpHeight + 8) continue;
+          if (Math.abs(rect.left + rect.width / 2 - vpWidth / 2) > Math.max(42, vpWidth * 0.1)) continue;
+          var tag = String(current.tagName || '').toUpperCase();
+          var role = String(current.getAttribute && current.getAttribute('role') || '').toLowerCase();
+          var iconLike = tag === 'SVG' || tag === 'IMG' || tag === 'A' || tag === 'BUTTON' ||
+            role === 'button' || role === 'tab' || !!(current.querySelector && current.querySelector('svg,img'));
+          if (!iconLike || normalizedText(current).length > 36) continue;
+          current.style.setProperty('visibility', 'hidden', 'important');
+          current.style.setProperty('pointer-events', 'none', 'important');
+          current.setAttribute('data-otlobli-hidden-store-bottom', 'bootstrap-center-icon');
+          break;
+        }
+      }
+    }
+  }
+
   function hideVerifiedStoreBottomNav() {
     if (!document.body) return;
     var vpHeight = window.innerHeight || document.documentElement.clientHeight || 0;
@@ -123,6 +151,7 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
         }
       }
     }
+    hideCenteredStoreBottomIcon(vpWidth, vpHeight);
   }
 
   var __otlobliEarlyCookieScanAt = 0;
@@ -134,48 +163,41 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
     var buttons = document.querySelectorAll('button, [role="button"], a, input[type="button"], input[type="submit"]');
     var acceptPattern = /^(?:accept(?: all)?|allow(?: all)?|agree(?: to all)?|\\u0642\\u0628\\u0648\\u0644(?: \\u0627\\u0644\\u0643\\u0644)?|\\u0627\\u0642\\u0628\\u0644(?: \\u0627\\u0644\\u0643\\u0644)?|\\u0627\\u0644\\u0633\\u0645\\u0627\\u062d (?:\\u0644\\u0644\\u0643\\u0644|\\u0644\\u0644\\u062c\\u0645\\u064a\\u0639)|\\u0645\\u0648\\u0627\\u0641\\u0642)$/i;
     var cookiePattern = /cookies?|\\u0645\\u0644\\u0641\\u0627\\u062a \\u062a\\u0639\\u0631\\u064a\\u0641 \\u0627\\u0644\\u0627\\u0631\\u062a\\u0628\\u0627\\u0637|\\u0627\\u0644\\u062a\\u0642\\u0646\\u064a\\u0627\\u062a \\u0627\\u0644\\u0645\\u0645\\u0627\\u062b\\u0644\\u0629/i;
-    var vpWidth = window.innerWidth || document.documentElement.clientWidth || 0;
-    var vpHeight = window.innerHeight || document.documentElement.clientHeight || 0;
     for (var i = 0; i < buttons.length; i++) {
       var button = buttons[i];
       var buttonLabel = normalizedText(button) || String(button.value || '').replace(/\\s+/g, ' ').trim();
       if (!acceptPattern.test(buttonLabel)) continue;
       var scope = button;
       var cookieScope = null;
-      for (var hop = 0; scope && hop < 7; hop++, scope = scope.parentElement) {
+      for (var hop = 0; scope && hop < 10; hop++, scope = scope.parentElement) {
         var scopeText = normalizedText(scope);
-        var scopeRect = scope.getBoundingClientRect ? scope.getBoundingClientRect() : null;
-        var bounded = scope !== document.body && scope !== document.documentElement && scopeRect &&
-          scopeRect.width >= vpWidth * 0.6 && scopeRect.height >= 40 && scopeRect.height <= vpHeight * 0.8 &&
-          scopeRect.bottom >= vpHeight * 0.58;
-        if (bounded && scopeText.length < 2400 && cookiePattern.test(scopeText)) {
+        if (scopeText.length < 6000 && cookiePattern.test(scopeText)) {
           cookieScope = scope;
           break;
         }
       }
-      if (!cookieScope) continue;
       // The customer explicitly chose automatic "Accept all" while SHEIN is
-      // being prepared. Keep this bounded to an exact accept label inside an
-      // exact cookie-consent scope; never click a generic Continue/Agree CTA.
-      // Hide only the verified, bounded consent surface while retrying. SHEIN
-      // can paint this markup several seconds before attaching its handler on
-      // older WKWebView, so three early clicks were not sufficient.
-      cookieScope.setAttribute('data-otlobli-cookie-consent-scope', '1');
-      cookieScope.style.setProperty('opacity', '0', 'important');
-      cookieScope.style.setProperty('visibility', 'hidden', 'important');
-      cookieScope.style.setProperty('pointer-events', 'none', 'important');
+      // being prepared. The exact label is sufficient authorization; the old
+      // viewport geometry rejected SHEIN's tall iPhone consent sheet entirely.
       var retryRoot = document.documentElement;
       var earlyAcceptAttempts = parseInt(retryRoot.getAttribute('data-otlobli-cookie-auto-accept-attempts') || '0', 10) || 0;
       var earlyLastAttemptAt = parseInt(retryRoot.getAttribute('data-otlobli-cookie-auto-accept-last-at') || '0', 10) || 0;
       if (earlyAcceptAttempts < 30 && scanNow - earlyLastAttemptAt >= 600) {
         retryRoot.setAttribute('data-otlobli-cookie-auto-accept-attempts', String(earlyAcceptAttempts + 1));
         retryRoot.setAttribute('data-otlobli-cookie-auto-accept-last-at', String(scanNow));
+        try { button.click(); } catch (e) {}
         (function (target) {
           setTimeout(function () {
             if (!document.documentElement.contains(target)) return;
             try { target.click(); } catch (e) {}
-          }, 0);
+          }, 80);
         })(button);
+      }
+      if (cookieScope && cookieScope !== document.body && cookieScope !== document.documentElement) {
+        cookieScope.setAttribute('data-otlobli-cookie-consent-scope', '1');
+        cookieScope.style.setProperty('opacity', '0', 'important');
+        cookieScope.style.setProperty('visibility', 'hidden', 'important');
+        cookieScope.style.setProperty('pointer-events', 'none', 'important');
       }
     }
   }
@@ -783,9 +805,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var sheinNativeCoverCooldownUntil = 0;
   var sheinNativeCoverLastType = '';
   var sheinNativeCoverLastPostAt = 0;
-  var sheinInteractiveStableCount = 0;
-  var sheinInteractiveStableHref = '';
-  var __otlobliSheinCookiePending = false;
 
   var __otlobliFeedRetryCount = 0;
   var __otlobliFeedRetryAfter = 0;
@@ -825,9 +844,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // SPA), which is the exact frozen state reported on the second iOS entry.
   // Require live, visible store content before native code accepts readiness.
   function sheinPageLooksInteractive() {
-    if (!IS_SHEIN || !document.body || document.readyState !== 'complete') return false;
+    if (!IS_SHEIN || !document.body || document.readyState === 'loading') return false;
     if (otlobliIsHumanChallenge()) return true;
-    if (__otlobliSheinCookiePending) return false;
     if (sheinRetryableFeedErrorButton()) return false;
     var bodyText = String(document.body.innerText || '').replace(/\\s+/g, ' ').trim();
     if (bodyText.length < 180) return false;
@@ -869,20 +887,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var homeLike = /^\\/ar\\/?$/i.test(location.pathname || '');
     if (homeLike) return interactiveCount >= 3 && hittableControlCount >= 2 && loadedImageCount >= 2;
     return interactiveCount >= 1 && hittableControlCount >= 1 && (loadedImageCount >= 1 || bodyText.length >= 500);
-  }
-
-  function sheinPageIsStablyInteractive() {
-    var href = String(location.href || '');
-    if (href !== sheinInteractiveStableHref) {
-      sheinInteractiveStableHref = href;
-      sheinInteractiveStableCount = 0;
-    }
-    if (!sheinPageLooksInteractive()) {
-      sheinInteractiveStableCount = 0;
-      return false;
-    }
-    sheinInteractiveStableCount++;
-    return sheinInteractiveStableCount >= 4;
   }
 
   function sheinPostNativeCoverState(type) {
@@ -929,9 +933,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (sheinSignedSaudiAddressReady()) {
       sheinNativeCoverRepairActive = false;
       sheinNativeCoverRepairStartedAt = 0;
-      if (sheinPageIsStablyInteractive()) {
+      if (sheinPageLooksInteractive()) {
         sheinNativeCoverInitialReleased = true;
-        sheinPostNativeCoverState('sheinPageInteractive');
+        sheinPostNativeCoverState('sheinSaudiReady');
       }
       return;
     }
@@ -943,14 +947,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
         sheinNativeCoverRepairActive = false;
         sheinNativeCoverRepairStartedAt = 0;
         sheinNativeCoverCooldownUntil = Date.now() + 120000;
-        if (sheinPageIsStablyInteractive()) {
+        if (sheinPageLooksInteractive()) {
           sheinNativeCoverInitialReleased = true;
           sheinPostNativeCoverState('sheinPageInteractive');
         }
       }
       return;
     }
-    if (!sheinNativeCoverInitialReleased && sheinPageIsStablyInteractive()) {
+    if (!sheinNativeCoverInitialReleased && sheinPageLooksInteractive()) {
       sheinNativeCoverInitialReleased = true;
       sheinPostNativeCoverState('sheinPageInteractive');
     }
@@ -2167,15 +2171,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
       .trim();
   }
 
-  function isSheinSizeSystemLabel(text) {
-    var value = String(text || '').replace(/[\\s:：]+/g, ' ').trim();
-    return /^(?:US|EU|DE|UK|FR|IT|BR|MX|CN|JP|KR|AU|CA)$/i.test(value) ||
-      /^(?:size system|sizing system|نظام المقاس|نظام القياس)\\s*(?:US|EU|DE|UK|FR|IT|BR|MX|CN|JP|KR|AU|CA)?$/i.test(value);
-  }
-
   function looksLikeSheinSizeValue(text) {
     var value = String(text || '').replace(/\\s+/g, ' ').trim();
-    if (!value || value.length > 28 || looksLikeJunkValue(value) || isSheinSizeSystemLabel(value)) return false;
+    if (!value || value.length > 28 || looksLikeJunkValue(value)) return false;
     if (/guide|chart|standard|size info|measurement|\\u062f\\u0644\\u064a\\u0644|\\u0627\\u0644\\u0642\\u064a\\u0627\\u0633\\u0627\\u062a|\\u0642\\u064a\\u0627\\u0633\\u0627\\u062a|\\u0643\\u0645\\u064a\\u0629/i.test(value)) return false;
     if (/[$£€%]/.test(value)) return false;
     if (/^(?:x{0,4}[sml]|xs|xxs|[2-9]xl|one[ -]?size|free[ -]?size|petite|tall|regular|\\u0645\\u0642\\u0627\\u0633 \\u0648\\u0627\\u062d\\u062f|\\u0645\\u0648\\u062d\\u062f)$/i.test(value)) return true;
@@ -2199,7 +2197,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var interactive = tag === 'BUTTON' || tag === 'LI' || tag === 'LABEL' || tag === 'INPUT' ||
           role === 'button' || role === 'option' || role === 'radio';
         verified = interactive && label.length > 0 && label.length <= 70 && !looksLikeJunkValue(label) &&
-          !isSheinSizeSystemLabel(label) &&
           !/^(?:size|select size|choose size|\\u0627\\u0644\\u0645\\u0642\\u0627\\u0633|\\u0645\\u0642\\u0627\\u0633|\\u0627\\u0644\\u0642\\u064a\\u0627\\u0633|\\u0627\\u0644\\u062d\\u062c\\u0645|\\u062d\\u062f\\u062f.*|\\u0627\\u062e\\u062a\\u0631.*|add.*|\\u0623\\u0636\\u0641.*|\\u0627\\u0644\\u0643\\u0645\\u064a\\u0629|\\u062f\\u0644\\u064a\\u0644.*)$/i.test(label) &&
           !/[$£€%]/.test(label);
       }
@@ -2261,13 +2258,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (!marked && option.querySelector) {
         marked = !!option.querySelector('[aria-selected="true"],[aria-checked="true"],[aria-pressed="true"],input:checked,[class*="selected" i],[class*="active" i]');
       }
-      if (marked) {
-        var markedLabel = sheinSizeOptionLabel(option);
-        if (!isSheinSizeSystemLabel(markedLabel)) return markedLabel;
-      }
+      if (marked) return sheinSizeOptionLabel(option);
     }
     var printed = getAttrLabelValue(container, ['المقاس', 'مقاس', 'القياس', 'الحجم', 'Size']);
-    return looksLikeSheinSizeValue(printed) && !isSheinSizeSystemLabel(printed) ? printed : '';
+    return looksLikeSheinSizeValue(printed) ? printed : '';
   }
 
   function rememberTrustedSheinSizeChoice(target, event) {
@@ -2279,7 +2273,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     for (var hop = 0; node && node !== container && hop < 8; hop++, node = node.parentElement) {
       if (options.indexOf(node) < 0) continue;
       var label = sheinSizeOptionLabel(node);
-      if (!label || isSheinSizeSystemLabel(label)) return;
+      if (!label) return;
       var productKey = String(location.pathname || '').match(/-p-(\\d+)/i);
       productKey = productKey ? productKey[1] : String(location.pathname || '');
       window.__otlobliSheinSizeChoice = { productKey: productKey, label: label, at: Date.now() };
@@ -2316,6 +2310,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var container = findSheinSizeContainer();
     var opts = getSizeOptions(container);
     var selected = selectedSheinSize(container);
+    if (!selected && opts.available.length === 1 && opts.unavailable.length === 0) selected = opts.available[0];
+    // Country sizing systems such as DE/EU/US describe the scale, not the
+    // customer's chosen variant. Reject them only at the final state boundary
+    // so option discovery and trusted size taps keep the proven v85.8.13 path.
+    if (/^(?:US|EU|DE|UK|FR|IT|BR|MX|CN|JP|KR|AU|CA)$/i.test(String(selected || '').replace(/[\\s:：]+/g, '').trim())) {
+      selected = '';
+    }
     return {
       exists: !!container,
       selected: selected,
@@ -5172,6 +5173,34 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return keywordHits >= 2;
   }
 
+  function hideCenteredSheinBottomIcon(vp) {
+    if (!document.elementsFromPoint) return;
+    var ys = [Math.max(1, vp.height - 28), Math.max(1, vp.height - 54), Math.max(1, vp.height - 82)];
+    for (var yi = 0; yi < ys.length; yi++) {
+      var stack = document.elementsFromPoint(Math.round(vp.width * 0.5), ys[yi]);
+      for (var si = 0; si < stack.length; si++) {
+        var current = stack[si];
+        for (var depth = 0; current && current !== document.body && current !== document.documentElement && depth < 4; depth++, current = current.parentElement) {
+          if ((current.id && current.id.indexOf('otlobli') === 0) ||
+              (current.closest && current.closest('#otlobli-nav'))) break;
+          var rect = current.getBoundingClientRect ? current.getBoundingClientRect() : null;
+          if (!rect || rect.width < 18 || rect.width > 96 || rect.height < 18 || rect.height > 96) continue;
+          if (rect.top < vp.height - 135 || rect.bottom > vp.height + 8) continue;
+          if (Math.abs(rect.left + rect.width / 2 - vp.width / 2) > Math.max(42, vp.width * 0.1)) continue;
+          var tag = String(current.tagName || '').toUpperCase();
+          var role = String(current.getAttribute && current.getAttribute('role') || '').toLowerCase();
+          var iconLike = tag === 'SVG' || tag === 'IMG' || tag === 'A' || tag === 'BUTTON' ||
+            role === 'button' || role === 'tab' || !!(current.querySelector && current.querySelector('svg,img'));
+          if (!iconLike || getElementText(current).length > 36) continue;
+          current.style.setProperty('visibility', 'hidden', 'important');
+          current.style.setProperty('pointer-events', 'none', 'important');
+          current.setAttribute('data-otlobli-hidden-store-bottom', 'center-icon');
+          break;
+        }
+      }
+    }
+  }
+
   function hideForeignBottomNav() {
     var vp = viewportSize();
     var candidates;
@@ -5207,6 +5236,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if (match) hideStoreBottomElement(match.el, 'point-probe-bottom-tabs', match.score, match.rect);
       }
     }
+    hideCenteredSheinBottomIcon(vp);
 
     var now = Date.now();
     if (now - __otlobliBottomNavDeepScanAt > 900) {
@@ -5224,55 +5254,49 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
-  // Automatically accept SHEIN's consent only when both the button label and
-  // its bounded consent scope are exact. The documentStart bootstrap and this
-  // hydrated pass share retry state through documentElement attributes.
+  // Accept only SHEIN's exact Accept-all label. Scope detection is used only
+  // to hide the consent surface during preparation, never to block the click.
   var __otlobliCookieScanAt = 0;
   function protectSheinCookieConsentAction() {
     if (!IS_SHEIN || !document.body) return;
     var scanNow = Date.now();
     if (scanNow - __otlobliCookieScanAt < 650) return;
     __otlobliCookieScanAt = scanNow;
-    __otlobliSheinCookiePending = false;
     var controls = document.querySelectorAll('button, [role="button"], a, input[type="button"], input[type="submit"]');
     var acceptPattern = /^(?:accept(?: all)?|allow(?: all)?|agree(?: to all)?|\\u0642\\u0628\\u0648\\u0644(?: \\u0627\\u0644\\u0643\\u0644)?|\\u0627\\u0642\\u0628\\u0644(?: \\u0627\\u0644\\u0643\\u0644)?|\\u0627\\u0644\\u0633\\u0645\\u0627\\u062d (?:\\u0644\\u0644\\u0643\\u0644|\\u0644\\u0644\\u062c\\u0645\\u064a\\u0639)|\\u0645\\u0648\\u0627\\u0641\\u0642)$/i;
     var cookiePattern = /cookies?|\\u0645\\u0644\\u0641\\u0627\\u062a \\u062a\\u0639\\u0631\\u064a\\u0641 \\u0627\\u0644\\u0627\\u0631\\u062a\\u0628\\u0627\\u0637|\\u0627\\u0644\\u062a\\u0642\\u0646\\u064a\\u0627\\u062a \\u0627\\u0644\\u0645\\u0645\\u0627\\u062b\\u0644\\u0629/i;
-    var vp = viewportSize();
     for (var i = 0; i < controls.length; i++) {
       var button = controls[i];
       var label = String(button.innerText || button.textContent || button.value || button.getAttribute('aria-label') || '').replace(/\\s+/g, ' ').trim();
       if (!acceptPattern.test(label)) continue;
       var scope = button;
       var cookieScope = null;
-      for (var hop = 0; scope && hop < 7; hop++, scope = scope.parentElement) {
+      for (var hop = 0; scope && hop < 10; hop++, scope = scope.parentElement) {
         var text = String(scope.innerText || scope.textContent || '').replace(/\\s+/g, ' ').trim();
-        var scopeRect = scope.getBoundingClientRect ? scope.getBoundingClientRect() : null;
-        var bounded = scope !== document.body && scope !== document.documentElement && scopeRect &&
-          scopeRect.width >= vp.width * 0.6 && scopeRect.height >= 40 && scopeRect.height <= vp.height * 0.8 &&
-          scopeRect.bottom >= vp.height * 0.58;
-        if (bounded && text.length < 2400 && cookiePattern.test(text)) {
+        if (text.length < 6000 && cookiePattern.test(text)) {
           cookieScope = scope;
           break;
         }
       }
-      if (!cookieScope) continue;
-      __otlobliSheinCookiePending = true;
-      cookieScope.setAttribute('data-otlobli-cookie-consent-scope', '1');
-      cookieScope.style.setProperty('opacity', '0', 'important');
-      cookieScope.style.setProperty('visibility', 'hidden', 'important');
-      cookieScope.style.setProperty('pointer-events', 'none', 'important');
       var retryRoot = document.documentElement;
       var acceptAttempts = parseInt(retryRoot.getAttribute('data-otlobli-cookie-auto-accept-attempts') || '0', 10) || 0;
       var lastAttemptAt = parseInt(retryRoot.getAttribute('data-otlobli-cookie-auto-accept-last-at') || '0', 10) || 0;
       if (acceptAttempts < 30 && scanNow - lastAttemptAt >= 600) {
         retryRoot.setAttribute('data-otlobli-cookie-auto-accept-attempts', String(acceptAttempts + 1));
         retryRoot.setAttribute('data-otlobli-cookie-auto-accept-last-at', String(scanNow));
+        try { button.click(); } catch (e) {}
         (function (target) {
           setTimeout(function () {
             if (!document.documentElement.contains(target)) return;
             try { target.click(); } catch (e) {}
-          }, 0);
+          }, 80);
         })(button);
+      }
+      if (cookieScope && cookieScope !== document.body && cookieScope !== document.documentElement) {
+        cookieScope.setAttribute('data-otlobli-cookie-consent-scope', '1');
+        cookieScope.style.setProperty('opacity', '0', 'important');
+        cookieScope.style.setProperty('visibility', 'hidden', 'important');
+        cookieScope.style.setProperty('pointer-events', 'none', 'important');
       }
     }
   }

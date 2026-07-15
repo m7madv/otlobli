@@ -7,11 +7,11 @@ Last updated: 2026-07-15
 - Branch: `codex/customer-wallet-group-orders`.
 - Stable tested reference: v85.8.5 / `a914d81`.
 - Reference IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.5-nav-cairo-font-match-no-otp-test.ipa`.
-- Active working candidate: v85.8.14 (`855b6eb`; built, real-device acceptance pending).
+- Active working candidate: v85.8.15 (uncommitted; no IPA yet; real-device acceptance pending).
 - Last built IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.14.ipa`.
 - Last IPA SHA-256: `0A9EFB370E718A9FFD8E157694ECC4A335F362F0E85B9DD40A97685A55D868AB`.
 - Last iOS build run: `29426638388` (v85.8.14 success).
-- `APP_VERSION = 2026.07.15-v85.8.14-shein-stable-interaction-gate-no-otp-test`.
+- `APP_VERSION = 2026.07.15-v85.8.15-shein-fast-cookie-size-recovery-no-otp-test`.
 - Real-device acceptance is pending; do not claim the SHEIN issues are fixed yet.
 
 ## v85.8.6 Scope
@@ -102,6 +102,15 @@ Last updated: 2026-07-15
 - Old-WK gallery detection now supports a strongly bounded absolute full-screen viewer with an exact numeric counter and large media, restoring nav/back paint and click-through protection on iPhone 6.
 - No broad CSS, reload loop, storage reset, Temu change, or payment/wallet/order change was added.
 - The reported full iPhone restart is not attributed to Otlobli without an Apple panic/Jetsam/crash log.
+
+## v85.8.15 Working Changes
+
+- v85.8.14 failed device testing: cookie Accept-all remained visible, SHEIN/product entry became slower, Saudi preparation repeated on products, trusted size selections were rejected, the app nav could disappear during repair, and the old-iPhone center SHEIN icon remained visible.
+- Removed v85.8.14's four-pass/complete-document/cookie-pending reveal gate. The corrected real target hit-test remains, but signed Saudi readiness can release the cover through the proven v85.8.13 message path.
+- Exact Accept-all is clicked independently of consent-sheet geometry, synchronously and once again after 80ms, with up to 30 throttled attempts. Geometry is used only to hide a discovered non-document consent scope.
+- Restored v85.8.13 size option discovery and trusted-tap handling. Only the final selected value rejects standalone sizing-system codes such as DE/EU/US.
+- Added a narrow center/bottom hit-stack guard for the single raw SHEIN icon seen through the four-tab Otlobli nav on iPhone 6; it does not hide arbitrary bottom content.
+- Kept the corrected overlay hit-test and the exact gallery enhancement. No Temu, payment, wallet, order, or design change was made.
 
 ## Failed Paths / Guardrails
 

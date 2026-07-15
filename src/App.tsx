@@ -2852,7 +2852,7 @@ function App() {
     const handle = InAppBrowser.addListener('messageFromWebview', (event: { detail?: Record<string, unknown> }) => {
       const detail = event?.detail
 
-      if (detail?.type === 'sheinPageInteractive') {
+      if (detail?.type === 'sheinSaudiReady' || detail?.type === 'sheinPageInteractive') {
         // A passive security document can complete inside the same URL. Once
         // the real SHEIN controls pass readiness/hit-testing, the challenge is
         // definitively over even if WKWebView emitted no intervening URL event.
