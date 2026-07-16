@@ -4164,6 +4164,25 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
+  function otlobliStabilizeTemuNavLayer(nav) {
+    if (!IS_TEMU || !nav || !document.documentElement) return;
+    // Temu scrolls/repaints BODY as its application surface. A fixed child of
+    // that surface can remain correct in the DOM yet disappear from WebKit's
+    // async scrolling layer during a fast direction change. Keep Otlobli's
+    // navigation as a sibling of BODY and give it an isolated paint layer.
+    // This was verified against the live Temu DOM with repeated fast swipes.
+    if (nav.parentNode !== document.documentElement) {
+      document.documentElement.appendChild(nav);
+    }
+    if (nav.getAttribute('data-otlobli-temu-root-layer') !== '1') {
+      nav.style.setProperty('-webkit-backface-visibility', 'hidden', 'important');
+      nav.style.setProperty('backface-visibility', 'hidden', 'important');
+      nav.style.setProperty('isolation', 'isolate', 'important');
+      nav.style.setProperty('contain', 'layout style paint', 'important');
+      nav.setAttribute('data-otlobli-temu-root-layer', '1');
+    }
+  }
+
   function ensureOtlobliNav() {
       // 12px يطابق خط شريط otlobli الحقيقي (0.76rem ≈ 12.2px) — كان 11px
       // فيبدو الشريطان مختلفين عند التنقل بين المتجر وبقية الشاشات.
@@ -4173,6 +4192,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         existingNav.style.cssText = OTLOBLI_NAV_CSS;
         existingNav.setAttribute('data-otlobli-nav-style', OTLOBLI_NAV_STYLE_VERSION);
       }
+      otlobliStabilizeTemuNavLayer(existingNav);
       // Re-claiming "last child of body" fixes a real bug (SHEIN's own SPA
       // keeps inserting new elements - promo banners, popups, app-install
       // prompts - some at the SAME max z-index we use, and on a tie the
@@ -4187,10 +4207,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
       // every ~2s is still fast enough that a stray SHEIN element can't sit
       // on top for long, at a fraction of the reflow cost.
       var now = Date.now();
-      if (existingNav !== document.body.lastElementChild && now - __otlobliNavLastReclaim > 2000 &&
+      var navHost = IS_TEMU && document.documentElement ? document.documentElement : document.body;
+      if (existingNav !== navHost.lastElementChild && now - __otlobliNavLastReclaim > 2000 &&
           otlobliNavIsActuallyCovered(existingNav)) {
         __otlobliNavLastReclaim = now;
-        document.body.appendChild(existingNav);
+        navHost.appendChild(existingNav);
       }
       otlobliApplyNavYield(existingNav);
       return;
@@ -4284,7 +4305,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
       }
       nav.appendChild(tab);
     }
-    document.body.appendChild(nav);
+    if (IS_TEMU) otlobliStabilizeTemuNavLayer(nav);
+    else document.body.appendChild(nav);
   }
 
   // Lets the user always get back out of wherever they navigated to inside
@@ -6201,6 +6223,47 @@ export const SHEIN_CAPTURE_SCRIPT = `
     } catch (e) {}
   }
 
+  function otlobliTemuTransformY(transformValue) {
+    if (!transformValue || transformValue === 'none') return 0;
+    var m3 = transformValue.match(/^matrix3d\(([^)]+)\)$/i);
+    if (m3) {
+      var p3 = m3[1].split(',');
+      var y3 = parseFloat(p3[13]);
+      return isFinite(y3) ? y3 : 0;
+    }
+    var m2 = transformValue.match(/^matrix\(([^)]+)\)$/i);
+    if (m2) {
+      var p2 = m2[1].split(',');
+      var y2 = parseFloat(p2[5]);
+      return isFinite(y2) ? y2 : 0;
+    }
+    return 0;
+  }
+
+  function otlobliPinVisibleTemuSearchHeader(control, vp) {
+    if (!control) return;
+    var node = control;
+    for (var i = 0; i < 12 && node && node !== document.body; i++, node = node.parentElement) {
+      var style = window.getComputedStyle(node);
+      if (style.position !== 'fixed') continue;
+      var rect = node.getBoundingClientRect();
+      // Only Temu's compact, fully painted top header. Never pin search
+      // overlays, suggestions, dialogs, or off-screen copies of the input.
+      if (rect.width < vp.width * 0.8 || rect.height < 30 || rect.height > 120 ||
+          rect.top < 0 || rect.top > 170 || rect.bottom <= 0) return;
+      if (node.getAttribute('data-otlobli-temu-pinned-header') === '1') return;
+      var translateY = otlobliTemuTransformY(style.transform);
+      // Temu centres this header with translateX(-50%) and changes only Y to
+      // hide/show it while scrolling. The old fix replaced the whole transform
+      // with translateY(0), losing that X centring and breaking half the page.
+      // Preserve responsive X centring and freeze the currently painted Y.
+      node.style.setProperty('transform', 'translate3d(-50%,' + translateY + 'px,0)', 'important');
+      node.style.setProperty('transition', 'none', 'important');
+      node.setAttribute('data-otlobli-temu-pinned-header', '1');
+      return;
+    }
+  }
+
   function stabilizeTemuSearchChrome() {
     if (!IS_TEMU || !document.body) return;
     try {
@@ -6211,13 +6274,15 @@ export const SHEIN_CAPTURE_SCRIPT = `
       );
       for (var i = 0; i < direct.length; i++) {
         var dr = direct[i].getBoundingClientRect();
-        if (dr.width >= 100 && dr.height >= 22 && dr.height <= 64) { control = direct[i]; break; }
+        if (dr.width >= 100 && dr.height >= 22 && dr.height <= 64 &&
+            dr.bottom > 0 && dr.top < Math.min(vp.height, 180)) { control = direct[i]; break; }
       }
       if (!control) {
         var triggers = document.querySelectorAll('a, button, [role="button"], div');
         for (var t = 0; t < triggers.length; t++) {
           var tr = triggers[t].getBoundingClientRect();
-          if (tr.width < 140 || tr.width > vp.width - 4 || tr.height < 26 || tr.height > 64) continue;
+          if (tr.width < 140 || tr.width > vp.width - 4 || tr.height < 26 || tr.height > 64 ||
+              tr.bottom <= 0 || tr.top >= Math.min(vp.height, 180)) continue;
           if (otlobliLooksLikeSearchTrigger(triggers[t])) { control = triggers[t]; break; }
         }
       }
@@ -6254,6 +6319,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       shell.setAttribute('data-otlobli-temu-search-shell', '1');
       shell.style.setProperty('--otlobli-temu-search-left', Math.round(left) + 'px');
       shell.style.setProperty('--otlobli-temu-search-width', Math.round(width) + 'px');
+      otlobliPinVisibleTemuSearchHeader(control, vp);
     } catch (e) {}
   }
 
