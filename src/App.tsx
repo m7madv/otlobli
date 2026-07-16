@@ -2549,6 +2549,14 @@ function App() {
       // permanently blank home screen. This keeps back navigation inside the webview.
       activeNativeNavigationForWebview: true,
       disableGoBackOnNativeApplication: true,
+      // Temu's page and Otlobli's injected navigation share the same WebView.
+      // On iOS, WKWebView's rubber-band overscroll moves the whole rendered
+      // viewport beyond its bounds, including position:fixed children. That is
+      // why repeated pulls at the top/bottom could drag our nav away and leave
+      // it hidden. Use the plugin's native UIScrollView switch for Temu only;
+      // this keeps normal page scrolling while preventing out-of-bounds bounce
+      // and deliberately leaves the accepted SHEIN behaviour unchanged.
+      disableOverscroll: activeStore === 'temu',
       // Android still needs the native safe-bottom margin for its system
       // navigation bar. On iOS that option shrinks WKWebView to the safe-area
       // bottom and leaves a second native strip below our own safe-area-aware
