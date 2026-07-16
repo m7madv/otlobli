@@ -5776,8 +5776,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var temuSearching = otlobliTemuSearchMode();
         try { injectTemuHeaderHideCSS(); } catch (e) {}
         try { ensureTemuNoZoom(); } catch (e) {}
+        try { ensureTemuSearchTouchRepair(); } catch (e) {}
         if (temuSearching) {
           try { otlobliReleaseTemuSearchPinning(); } catch (e) {}
+          try { restoreTemuSearchBackControls(); } catch (e) {}
         } else {
           try { stabilizeTemuSearchChrome(); } catch (e) {}
         }
@@ -5888,8 +5890,35 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return false;
   }
 
+  function restoreTemuSearchBackControls() {
+    if (!IS_TEMU || !document.body) return;
+    try {
+      var nodes = document.querySelectorAll('[data-otlobli-temu-hidden="1"], button, a, [role="button"], div, span, i');
+      var vp = viewportSize();
+      for (var i = 0; i < nodes.length; i++) {
+        var el = nodes[i];
+        if (el.id && el.id.indexOf('otlobli') === 0) continue;
+        if (el.querySelector && el.querySelector('input, textarea, [role="searchbox"]')) continue;
+        var txt = temuCleanText(el.textContent);
+        var hints = otlobliCollectIdentityHints(el) + ' ' + txt;
+        if (/search|بحث|camera|كاميرا|cart|basket|bag|account|login|menu|logo|temu/i.test(hints)) continue;
+        var looksBack = /(back|go back|previous|prev|return|رجوع|عودة|السابق|arrow|chevron)/i.test(hints) ||
+          /^[‹›<>←→❮❯\u2039\u203a]$/.test(txt);
+        if (!looksBack) continue;
+        var r = el.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0 && (r.top < -4 || r.top > 190 || r.right < -4 || r.left > vp.width + 4)) continue;
+        el.removeAttribute('data-otlobli-temu-hidden');
+        el.style.removeProperty('display');
+        el.style.setProperty('visibility', 'visible', 'important');
+        el.style.setProperty('opacity', '1', 'important');
+        el.style.setProperty('pointer-events', 'auto', 'important');
+      }
+    } catch (e) {}
+  }
+
   function otlobliTemuExitSearchMode() {
     if (!IS_TEMU) return false;
+    restoreTemuSearchBackControls();
     if (otlobliTemuClickNativeBackControl()) return true;
     if (/search/i.test(location.pathname + location.search + location.hash) && history.length > 1) {
       try { history.back(); return true; } catch (e) {}
@@ -5993,8 +6022,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // وبعد تعطيلها لتيمو (سبب الوميض) لا منقذ. نخفي .downloadUI فقط (واجهة
   // بانر التنزيل الفعلية داخل الغلاف) ويبقى الغلاف والبحث ظاهرين.
   var OTLOBLI_TEMU_HIDE_CSS =
-    '[class*="tab-d3nPD"],' +
-    '[aria-label="عربة التسوق"], [aria-label="الحساب"], [aria-label="الفئات"],' +
+    '[aria-label*="cart" i], [aria-label*="basket" i], [aria-label*="bag" i],' +
+    '[aria-label*="account" i], [aria-label*="profile" i],' +
+    '[aria-label*="سلة"], [aria-label*="عربة"], [aria-label*="حساب"],' +
     '[class*="downloadUI" i]' +
     '{ display: none !important; visibility: hidden !important; pointer-events: none !important; }' +
     // (v60) غلاف downloadsWrapper يبقى ظاهراً (يحوي البحث — درس v57)، لكن
@@ -6037,6 +6067,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       for (var i = 0; i < all.length; i++) {
         var el = all[i];
         if (el.id && el.id.indexOf('otlobli') === 0) continue;
+        if (otlobliTemuLooksLikeCategoryOrFilter(el)) continue;
         if (el.closest && el.closest('[data-otlobli-temu-search-shell="1"]')) continue;
         if (el.getAttribute && el.getAttribute('data-otlobli-temu-hidden') === '1') continue;
         var r = el.getBoundingClientRect();
@@ -6137,6 +6168,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       for (var i = 0; i < nodes.length; i++) {
         var el = nodes[i];
         if (el.id && el.id.indexOf('otlobli') === 0) continue;
+        if (otlobliTemuLooksLikeCategoryOrFilter(el)) continue;
         if (el.closest && el.closest('[data-otlobli-temu-search-shell="1"]')) continue;
         if (el.getAttribute && el.getAttribute('data-otlobli-temu-hidden') === '1') continue;
         if (el.querySelector && el.querySelector('input, textarea, select')) continue;
@@ -6204,6 +6236,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       for (var i = 0; i < nodes.length; i++) {
         var el = nodes[i];
         if (el.id && el.id.indexOf('otlobli') === 0) continue;
+        if (otlobliTemuLooksLikeCategoryOrFilter(el)) continue;
         if (temuContainsPrice(el)) continue;
         var txt = temuCleanText(el.textContent);
         if (!txt || txt.length > 160) continue;
@@ -6259,6 +6292,21 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return false;
   }
 
+  function otlobliTemuLooksLikeCategoryOrFilter(el) {
+    if (!IS_TEMU || !el) return false;
+    try {
+      var txt = temuCleanText(el.textContent);
+      if (!txt || txt.length > 90) return false;
+      if (/(cart|basket|bag|account|login|profile|download|app|سلة|عربة|حساب|تسجيل|تنزيل|تطبيق)/i.test(txt)) return false;
+      var categoryWords = /(الكل|نساء|رجال|الرئيسية|مجوهرات|رياض|أطفال|اطفال|إلكترون|الكترون|أكياس|اكياس|صناعة|صناعي|منتجات|الجمال|المحافظة|الحرف|الصفقات|نجوم|الأكثر|الاكثر|كل|home|women|men|jewel|sport|kids|child|electron|bag|industrial|beauty|craft|deals|stars|popular|all)/i;
+      if (!categoryWords.test(txt)) return false;
+      var r = el.getBoundingClientRect ? el.getBoundingClientRect() : null;
+      if (r && r.top > 340) return false;
+      return true;
+    } catch (e) {}
+    return false;
+  }
+
   // ملاحظة مهمة: هاتان الدالتان كانتا تستدعيان otlobliUnhideEl على البحث/الشعار
   // + آبائهما (4-5 مستويات) + كل أطفال حاوية البحث. لوحة حساب تيمو (تسجيل الدخول
   // /إنشاء حساب) تعيش داخل نفس حاوية الهيدر (شقيقة/طفلة للبحث) وهي مخفية بـ
@@ -6278,6 +6326,22 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if (r.top < -20 || r.top > 170 || r.width < 40 || r.height < 16) continue;
         if (!otlobliNearSearchInput(el) && !otlobliLooksLikeSearchTrigger(el)) continue;
         otlobliUnhideEl(el);
+        if (otlobliTemuSearchMode()) {
+          var parent = el.parentElement;
+          for (var p = 0; parent && parent !== document.body && p < 3; p++, parent = parent.parentElement) {
+            if (parent.id && parent.id.indexOf('otlobli') === 0) break;
+            parent.removeAttribute('data-otlobli-temu-hidden');
+            parent.style.removeProperty('display');
+            parent.style.setProperty('visibility', 'visible', 'important');
+            parent.style.setProperty('opacity', '1', 'important');
+            parent.style.setProperty('pointer-events', 'auto', 'important');
+          }
+          if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.getAttribute('role') === 'searchbox') {
+            el.style.setProperty('pointer-events', 'auto', 'important');
+            el.style.setProperty('-webkit-user-select', 'text', 'important');
+            el.style.setProperty('user-select', 'text', 'important');
+          }
+        }
       }
     } catch (e) {}
   }
@@ -6309,7 +6373,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var rect = node.getBoundingClientRect();
       // Only Temu's compact, fully painted top header. Never pin search
       // overlays, suggestions, dialogs, or off-screen copies of the input.
-      if (rect.width < vp.width * 0.8 || rect.height < 30 || rect.height > 120 ||
+      if (rect.width < vp.width * 0.8 || rect.height < 30 || rect.height > 260 ||
           rect.top < 0 || rect.top > 170 || rect.bottom <= 0) return;
       if (node.getAttribute('data-otlobli-temu-pinned-header') === '1') return;
       var translateY = otlobliTemuTransformY(style.transform);
@@ -6359,6 +6423,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var nodes = document.querySelectorAll('[data-otlobli-temu-hidden="1"]');
       for (var i = 0; i < nodes.length; i++) {
         var el = nodes[i];
+        if (otlobliTemuLooksLikeCategoryOrFilter(el)) {
+          el.removeAttribute('data-otlobli-temu-hidden');
+          el.style.removeProperty('display');
+          el.style.removeProperty('visibility');
+          el.style.removeProperty('pointer-events');
+          el.style.removeProperty('opacity');
+          continue;
+        }
         var r = el.getBoundingClientRect();
         if (r.width < 20 || r.height < 12 || r.top < 45 || r.top > 240) continue;
         var txt = temuCleanText(el.textContent);
@@ -6372,6 +6444,32 @@ export const SHEIN_CAPTURE_SCRIPT = `
         el.style.removeProperty('opacity');
       }
     } catch (e) {}
+  }
+
+  var __otlobliTemuSearchTouchRepairInstalled = false;
+  function ensureTemuSearchTouchRepair() {
+    if (!IS_TEMU || __otlobliTemuSearchTouchRepairInstalled || !document) return;
+    __otlobliTemuSearchTouchRepairInstalled = true;
+    var repair = function (event) {
+      try {
+        if (!otlobliTemuSearchMode()) return;
+        var target = event.target;
+        if (!target || (target.closest && (target.closest('#otlobli-nav') || target.closest('#otlobli-back-btn')))) return;
+        var input = otlobliTemuSearchInput();
+        if (!input) return;
+        var point = event.touches && event.touches[0] ? event.touches[0] : event;
+        var ir = input.getBoundingClientRect();
+        var inSearchBand = point && point.clientY >= Math.max(0, ir.top - 36) && point.clientY <= ir.bottom + 36;
+        var onSearchControl = target === input || (target.closest && target.closest('input[type="search"], input[placeholder*="Search" i], input[placeholder*="بحث"], [role="searchbox"]'));
+        if (!onSearchControl && !inSearchBand && !otlobliLooksLikeSearchTrigger(target)) return;
+        input.style.setProperty('pointer-events', 'auto', 'important');
+        input.style.setProperty('-webkit-user-select', 'text', 'important');
+        input.style.setProperty('user-select', 'text', 'important');
+        try { input.focus({ preventScroll: true }); } catch (e) { try { input.focus(); } catch (e2) {} }
+      } catch (e3) {}
+    };
+    document.addEventListener('touchstart', repair, true);
+    document.addEventListener('click', repair, true);
   }
 
   function stabilizeTemuSearchChrome() {
@@ -6877,8 +6975,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
     ensureOtlobliNav();
     if (IS_TEMU) {
       injectTemuHeaderHideCSS();
-      if (otlobliTemuSearchMode()) otlobliReleaseTemuSearchPinning();
-      else stabilizeTemuSearchChrome();
+      ensureTemuSearchTouchRepair();
+      if (otlobliTemuSearchMode()) {
+        otlobliReleaseTemuSearchPinning();
+        restoreTemuSearchBackControls();
+      } else {
+        stabilizeTemuSearchChrome();
+      }
       restoreTemuSearchChrome();
       restoreTemuCategoryStrip();
       restoreTemuLogo();
