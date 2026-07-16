@@ -4334,7 +4334,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
         // from the root could land back on a half-finished verification
         // page instead of doing nothing).
         // تيمو: منتج مفتوح على مسار الرئيسية (query string) — الرجوع مسموح.
-        if (!looksLikeHomeRoot() || (IS_TEMU && looksLikeProductPage())) history.back();
+        // تيمو أثناء البحث: أغلق البحث (blur) ثم ارجع، فيخرج المستخدم من شاشة
+        // الاقتراحات إلى الرئيسية بدل حبسه بلا زر رجوع.
+        if (IS_TEMU && otlobliTemuSearchMode()) {
+          try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch (e) {}
+          history.back();
+        } else if (!looksLikeHomeRoot() || (IS_TEMU && looksLikeProductPage())) {
+          history.back();
+        }
       }, true);
       document.body.appendChild(btn);
     }
@@ -4346,7 +4353,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // تيمو SPA قد تفتح المنتج على نفس مسار الرئيسية (query string فقط)
     // فكان looksLikeHomeRoot يخفي زر الرجوع داخل المنتج ويحبس الزبون.
     var shouldShow = __otlobliBackTarget === 'cart' || !looksLikeHomeRoot()
-      || (IS_TEMU && looksLikeProductPage());
+      || (IS_TEMU && looksLikeProductPage()) || (IS_TEMU && otlobliTemuSearchMode());
     btn.style.setProperty('top', (IS_SHEIN && viewportSize().width <= 390) ? '58px' : '12px', 'important');
     btn.style.display = shouldShow ? 'flex' : 'none';
   }
@@ -5732,6 +5739,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // المزعجة ولا نشغّل منطق الالتقاط/الحجب الخاص بشي إن (الذي قد يخرّب صفحاتهم).
     if (!IS_SHEIN) {
       if (IS_TEMU) {
+        var temuSearching = otlobliTemuSearchMode();
         try { injectTemuHeaderHideCSS(); } catch (e) {}
         try { ensureTemuNoZoom(); } catch (e) {}
         try { stabilizeTemuSearchChrome(); } catch (e) {}
@@ -5740,14 +5748,19 @@ export const SHEIN_CAPTURE_SCRIPT = `
         // طبقة كبيرة تطابق PROMO ثم تعيدها المراجعة الذاتية، كل 300ms.
         // لا تُعِد تفعيلها لتيمو. بانر التنزيل يُحجب عبر OTLOBLI_TEMU_HIDE_CSS
         // الثابت (downloadUI فقط، وليس الغلاف downloadsWrapper الحاوي للبحث).
-        try { hideTemuHeaderIconsByProbe(); } catch (e) {}
-        try { hideTemuCustomerAccountAndCart(); } catch (e) {}
-        try { hideTemuCustomerChrome(); } catch (e) {}
+        // أثناء البحث: نوقف دوال إخفاء الكروم حتى لا تبتلع صفوف الاقتراحات.
+        if (!temuSearching) {
+          try { hideTemuHeaderIconsByProbe(); } catch (e) {}
+          try { hideTemuCustomerAccountAndCart(); } catch (e) {}
+          try { hideTemuCustomerChrome(); } catch (e) {}
+        }
         try { restoreTemuSearchChrome(); } catch (e) {}
         try { restoreTemuLogo(); } catch (e) {}
         try { ensureAddToCartButton(); } catch (e) {}
         try { dismissTemuLoginPopup(); } catch (e) {}
-        try { hideTemuSpinWheelPopup(); } catch (e) {}
+        if (!temuSearching) {
+          try { hideTemuSpinWheelPopup(); } catch (e) {}
+        }
         try { detectEmptyTemuSearch(); } catch (e) {}
         return;
       }
@@ -5774,6 +5787,19 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // header/cart/listing/nav blockers below ran, so native code could reveal
     // a product for one or two seconds with raw SHEIN chrome still visible.
     updateSheinNativeCoverState();
+  }
+
+  // وضع بحث تيمو: عندما يركّز المستخدم حقل البحث ويكتب، تعرض تيمو قائمة
+  // اقتراحات أسفل الشريط. دوال إخفاء «كروم» تيمو تعمل كل tick وتخفي تدريجياً
+  // عناصر أعلى الصفحة — فكانت تبتلع صفوف الاقتراحات (تظهر ثم تختفي بعد ثانية).
+  // أثناء البحث نعلّق تلك الدوال تماماً (كما نعلّق فحوصاتنا أثناء تحدي شي إن)
+  // فلا نلمس الاقتراحات، ونُظهر زر الرجوع ليخرج المستخدم من البحث.
+  function otlobliTemuSearchMode() {
+    if (!IS_TEMU || !document.body) return false;
+    var ae = document.activeElement;
+    if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')) return true;
+    if (/search/i.test(location.pathname) || /search/i.test(location.search)) return true;
+    return false;
   }
 
   // يكشف صفحة بحث تيمو الفارغة (الناتجة عن حجب الإعلانات الذي يمنع تحميل
@@ -6160,7 +6186,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var vp = viewportSize();
       var control = null;
       var direct = document.querySelectorAll(
-        'input[type="search"], input[placeholder*="Search" i], input[placeholder*="ط¨ط­ط«"], [role="searchbox"]'
+        'input[type="search"], input[placeholder*="Search" i], input[placeholder*="بحث"], [role="searchbox"]'
       );
       for (var i = 0; i < direct.length; i++) {
         var dr = direct[i].getBoundingClientRect();
@@ -6189,7 +6215,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if (ur.width >= controlRect.width && ur.width <= vp.width - 4 && ur.height >= controlRect.height && ur.height <= 82) {
           shell = up;
           var identity = otlobliCollectIdentityHints(up);
-          if (/search|ط¨ط­ط«/i.test(identity) || up.tagName === 'FORM' || up.getAttribute('role') === 'search') break;
+          if (/search|بحث/i.test(identity) || up.tagName === 'FORM' || up.getAttribute('role') === 'search') break;
         }
         if (ur.width >= vp.width - 2 || ur.height > 96) break;
         up = up.parentElement;

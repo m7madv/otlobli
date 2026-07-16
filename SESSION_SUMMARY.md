@@ -1,23 +1,53 @@
-# Session Summary
+# SESSION_SUMMARY.md
 
-Last updated: 2026-07-15
+انسخ هذا لأي شات جديد قبل المتابعة. آخر تحديث: 2026-07-16.
 
-- Restored and verified the user-provided v85.8.5 line as the working base (`a914d81`).
-- Diagnosed iPhone 6's false VPN failure as a 13-second readiness timeout racing its observed ~14-second preparation.
-- v85.8.6 testing showed the early five-tab SHEIN bar still visible on iPhone 6, slow entry, an overlapping SHEIN success toast, and an iPhone 16 safe-area color strip.
-- v85.8.8 device testing exposed an old-WKWebView Grid collapse and a one-time first-launch exit.
-- Implemented v85.8.9 in `917bfb7`: four legacy-safe 25% Flex nav cells and removal of the new first-session geometry scan, while retaining hidden cart-product preparation.
-- Implemented v85.8.10 in `6138b23`: one canonical nav paint state from document-start through hydration, with DOM reclaim only after actual occlusion.
-- v85.8.10 device testing accepted normal iPhone 16 navigation, but exposed two iPhone-6 SHEIN registration surfaces and a full-screen photo-viewer paint/hit-test conflict.
-- Implemented v85.8.11 in `13585b6`: exact 15%-strip/newsletter suppression with real-auth exclusion; photo-viewer add suppression, click-through guard, and one-time nav/back paint-order reclaim.
-- v85.8.11 device testing found four remaining issues: hidden cookie Accept, Saudi UI left open, gallery/image taps still capturing, and iPhone-6 jank after the pre-paint signup scan.
-- Implemented the uncommitted v85.8.12 candidate: full consent-row clearance without auto-accept, signed-Saudi UI close plus ongoing foreign-region guards, narrow product-login dismissal, nested-viewer detection and event-level click-through blocking, throttled scans, and removal of MutationObserver pre-paint geometry work.
-- Kept payment, wallet, orders, Temu, and cart design out of scope.
-- Build/script/targeted-lint/diff checks passed for v85.8.12.
-- iOS run `29414121203` succeeded.
-- Test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.11.ipa`.
-- SHA-256: `EB4019D410D58FB7DE720F12BAE88FF015E6160CA0AC0C8870584E1715271539`.
-- Real-device testing on iPhone 6 and iPhone 16 Pro Max is still required; no fix claim yet.
-- iOS run `29416945278` succeeded for commit `4e12ef5`.
-- Test IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.12.ipa`.
-- SHA-256: `67D59C6CE34075198CAA1000008515EAC5B0B2EA0C4F97B84C7764DE3210D047`.
+## المسار والفرع
+
+```text
+C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA
+```
+
+- الفرع النشط: `claude/ios6-cover-fix` (متفرّع من v85.8.12 المستقرة)
+- الأساس المستقر: **v85.8.12** (commit `129630e`)
+- نُسخ احتياطية: فرع `backup-v85.8.14-state` + تاجات `backup-before-8.12-revert` و `backup-v85.8.20-broken`
+- iOS يُبنى عبر GitHub Actions فقط: `gh workflow run ios-unsigned-build.yml --ref claude/ios6-cover-fix` ثم يُنزَّل الـ artifact `otlobli-ios` ويوضع على سطح المكتب. لا Mac محلي.
+- OTP معطّل في نسخ الاختبار (`no-otp-test`) — يجب استعادته قبل الإنتاج.
+
+## قبل أي تعديل
+
+اقرأ `AGENTS.md` و`CURRENT_STATE.md` و`AI-HANDOFF.md` و`CLAUDE.md`، ثم:
+
+```bash
+git status --short
+git rev-parse --abbrev-ref HEAD
+git log -8 --oneline
+```
+
+## ما أُنجز في هذه الجلسة (كله فوق v85.8.12)
+
+1. رجوع المشروع من v85.8.20 المكسور إلى v85.8.12 المستقرة.
+2. **قبول كوكيز شي إن تلقائياً** (`otlobliForceAcceptCookies` + `sheinSkuSelectionPending`) — بحث لا يعتمد على نوع العنصر + تنظيف علامات الاتجاه. المستخدم لا يستطيع «رفض الكل».
+3. **إكمال اختيار منطقة السعودية** على iPhone 6 حتى الخيار الأخير (رفع ميزانية الضغطات إلى 24 + منع إعادة ضغط نفس الخيار).
+4. **تسريع تحقّق أمان شي إن**: علم `otlobliChallengeActive` يوقف فحوصاتنا أثناء تحدي Cloudflare (البطء أساساً من Cloudflare + ضعف الجهاز — يظهر حتى في Safari).
+5. **غطاء التحميل الذكي**: iPhone 16 (safe-area>0) يبقى الشريط ظاهراً؛ iPhone 6 (safe-area=0) غطاء كامل (لا تسريب أيقونات شي إن ولا strip فاضٍ).
+6. **تخفيف الفحوصات على الأجهزة الضعيفة** (`OTLOBLI_LOW_END` = نواتان): tick 300→450، مؤقتات 120→240، تجميع المراقب 80→160.
+7. **إصلاح جذب المتغيّر**: `getSizeOptions` كان يستبعد الأسماء الطويلة (>12 حرف) فيُختار الخيار الوحيد المتبقّي تلقائياً — رُفع الحد إلى 40 + كشف «انقر للشراء».
+8. **الشريط السفلي يتوقف عن سرقة النقر** عند فتح درج شي إن (`otlobliApplyNavYield` → pointer-events:none ما دام درج/نافذة كبيرة متقاطعة معه).
+9. **تيمو**: إصلاح mojibake لكلمة «بحث» في `stabilizeTemuSearchChrome`؛ تعليق دوال إخفاء كروم تيمو أثناء البحث (`otlobliTemuSearchMode`) حتى لا تُبتلع صفوف الاقتراحات؛ إظهار زر الرجوع في وضع البحث.
+
+## مناطق حسّاسة
+
+- شي إن: `m.shein.com/ar` + السعودية + USD + عربي + `site_uid=pwar`. لا User-Agent مخصص، لا كتابة storage عريضة، لا فحص أسماء دول داخل عناوين المنتجات.
+- تحدي Cloudflare «أنا إنسان»: لا نتجاوزه ولا نعيد تحميله.
+- تيمو: لا نحجب البحث. الشريط السفلي داخل WebView حسّاس (z-index/position/__resize).
+- الدفع/المحفظة/الكوبونات/الطلب الجماعي: لا تُلمس إلا بطلب صريح.
+
+## معلّق (بانتظار المستخدم)
+
+- **صفحة تسجيل دخول شي إن** الكاملة (route): بانتظار صورة لأتعامل معها احترافياً.
+- تأكيد نتائج تيمو على الجهازين (اقتراحات + زر الرجوع + ثبات الشريط).
+
+## بروتوكول التسليم
+
+بعد كل تغيير مستقر: حدّث `CURRENT_STATE.md` و`AI-HANDOFF.md` و`SESSION_SUMMARY.md`، واختم بملخص عربي قابل للنسخ.
