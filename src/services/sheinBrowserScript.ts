@@ -126,6 +126,7 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
   }
 
   var __otlobliEarlyCookieScanAt = 0;
+  var __otlobliCookieAcceptClicks = 0;
   function protectCookieConsentAction() {
     if (!document.body) return;
     var scanNow = Date.now();
@@ -150,6 +151,20 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
         }
       }
       if (!cookieScope) continue;
+      // otlobli: auto-accept the cookie consent. High-confidence match - the
+      // button label matched acceptPattern AND its surrounding scope matched
+      // cookiePattern - so click it so the banner dismisses itself. The customer
+      // never has to reach it (it sits behind the fixed nav on tall devices) and
+      // can never pick "reject all". Bounded attempts; if the click does not
+      // dismiss it we fall through to the raise logic so buttons stay tappable.
+      // The human-check prompt never matches acceptPattern, so it is untouched.
+      if (__otlobliCookieAcceptClicks < 4) {
+        var acceptRect0 = button.getBoundingClientRect();
+        if (acceptRect0.width > 0 && acceptRect0.height > 0) {
+          __otlobliCookieAcceptClicks++;
+          try { button.click(); } catch (eAccept0) {}
+        }
+      }
       var scopedControls = cookieScope.querySelectorAll('button, [role="button"], a, input[type="button"], input[type="submit"]');
       var reject = null;
       for (var ri = 0; ri < scopedControls.length; ri++) {
@@ -4968,10 +4983,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
-  // Keep SHEIN's explicit cookie-consent action reachable without accepting
-  // anything on the customer's behalf. Only the exact consent action row is
-  // raised, and only when it would otherwise sit under Otlobli's fixed nav.
+  // otlobli: auto-accept SHEIN's cookie consent on the customer's behalf. The
+  // customer must never be able to pick "reject all" and must never have to hunt
+  // for the accept button (it sits behind Otlobli's fixed nav on tall devices),
+  // so the exact accept action is clicked as soon as it is confidently found.
+  // As a fallback, if the click does not dismiss the banner, its action row is
+  // still raised above the fixed nav so it stays reachable.
   var __otlobliCookieScanAt = 0;
+  var __otlobliCookieAcceptClicksShein = 0;
   function protectSheinCookieConsentAction() {
     if (!IS_SHEIN || !document.body) return;
     var scanNow = Date.now();
@@ -4996,6 +5015,17 @@ export const SHEIN_CAPTURE_SCRIPT = `
         }
       }
       if (!cookieScope) continue;
+      // otlobli: auto-accept (see the note above this function). Click the
+      // confidently-matched accept button so the banner dismisses itself before
+      // the customer can pick "reject all"; bounded attempts, then fall through
+      // to the raise fallback below. The human-check never matches acceptPattern.
+      if (__otlobliCookieAcceptClicksShein < 4) {
+        var acceptRectS = button.getBoundingClientRect();
+        if (acceptRectS.width > 0 && acceptRectS.height > 0) {
+          __otlobliCookieAcceptClicksShein++;
+          try { button.click(); } catch (eAcceptS) {}
+        }
+      }
       var scopedControls = cookieScope.querySelectorAll('button, [role="button"], a, input[type="button"], input[type="submit"]');
       var reject = null;
       for (var ri = 0; ri < scopedControls.length; ri++) {
