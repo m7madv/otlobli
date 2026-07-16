@@ -2154,7 +2154,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
     for (var i = 0; i < opts.length; i++) {
       var el = opts[i];
       var label = (el.getAttribute('aria-label') || el.getAttribute('title') || el.textContent || '').trim();
-      if (!label || label.length > 12 || looksLikeJunkValue(label)) continue;
+      // Was 12 — tuned for short size codes (S/M/L/38/One Size). But SHEIN's
+      // "نوع الموديلات" variant names are long (e.g. "4 قطع/مجموعة ذهبية"), so a
+      // 12-char cap silently dropped every long option and left just the one
+      // short one ("1 قطعة/أ"), which the single-option auto-select below then
+      // captured as if the customer had chosen it. 40 keeps real variant names
+      // while looksLikeJunkValue still rejects timers/badges.
+      if (!label || label.length > 40 || looksLikeJunkValue(label)) continue;
       var cls = ' ' + (el.className || '') + ' ';
       var isDisabled = el.getAttribute('aria-disabled') === 'true' ||
         /\\s(disable|disabled|soldout|sold-out|out-of-stock|unavailable)\\s/i.test(cls);
@@ -2175,6 +2181,31 @@ export const SHEIN_CAPTURE_SCRIPT = `
       available: opts.available,
       unavailable: opts.unavailable,
     };
+  }
+
+  // SHEIN's own "you haven't chosen a variant yet" signal. Until the customer
+  // picks a "نوع الموديلات"/size combination, SHEIN prints a placeholder in the
+  // sku summary row ("انقر للشراء" / "Please Select") instead of the chosen
+  // value. This is authoritative and beats any chip-class guess: some products
+  // paint a default highlight on the first variant chip (which our selection
+  // heuristics would otherwise read as "selected"), yet the summary still says
+  // "انقر للشراء" — meaning nothing is committed. When this is on screen we must
+  // refuse to capture and ask the customer to choose, so we never add a random
+  // default variant they never picked.
+  function sheinSkuSelectionPending() {
+    if (!IS_SHEIN || !document.body) return false;
+    var nodes = document.querySelectorAll('div, span, p, a, button');
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      if (el.id && el.id.indexOf('otlobli') === 0) continue;
+      if (el.children && el.children.length > 3) continue;
+      var t = (el.textContent || '').replace(/\\s+/g, ' ').trim();
+      if (!t || t.length > 30) continue;
+      if (/انقر للشراء|please\\s*select|الرجاء الاختيار|يرجى الاختيار|اختر الخيارات/i.test(t) && sheinElementIsVisible(el)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   function looksLikeProductPage() {
@@ -3641,6 +3672,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
       }
       if (sizeState && sizeState.exists && !sizeState.selected) {
         showMessage(addBtn, 'حدد المقاس أولاً');
+        return;
+      }
+      // Authoritative guard: even if the checks above thought a variant was
+      // selected (SHEIN sometimes default-highlights a chip), a visible
+      // "انقر للشراء"/"Please Select" placeholder means nothing is committed yet.
+      if (sheinSkuSelectionPending()) {
+        showMessage(addBtn, 'حدد نوع الموديلات أولاً');
         return;
       }
     }
