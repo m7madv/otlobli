@@ -1176,20 +1176,35 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var sheinShippingLastActionAt = 0;
   var sheinShippingLastScanAt = 0;
   var sheinShippingCloseLastAt = 0;
+  // Slower devices (iPhone 6) need more attempts: each cascade level can take
+  // longer than the re-click gap to render, so some clicks get spent retrying.
+  // Give the whole country->province->city->district run a generous bounded
+  // budget so the final district option is always reached and clicked. Paired
+  // with the same-option guard below so the extra budget is not wasted.
+  var SHEIN_SHIPPING_MAX_ACTIONS = 24;
+  var sheinShippingLastOptionText = '';
+  var sheinShippingLastOptionAt = 0;
 
   function sheinClickNativeShippingControl(target) {
     if (!target || typeof target.click !== 'function') return false;
     if (!sheinPrepareNativeSaudiRepair()) return false;
     var now = Date.now();
     if (now - sheinShippingLastActionAt < 1200) return false;
+    // Don't waste the click budget re-tapping the same cascade option while a
+    // slow device is still rendering the next level; give it up to 3s to change.
+    var targetText = sheinUiText(target);
+    if (targetText && targetText === sheinShippingLastOptionText && now - sheinShippingLastOptionAt < 3000) return false;
     // Opening the drawer and resolving country/province/city/district takes up
-    // to six native clicks. Keep two bounded retries for slow SPA transitions.
-    if (sheinShippingActionCount >= 8) {
+    // to six native clicks; slow devices need extra retries, so the budget is
+    // generous but still bounded (see SHEIN_SHIPPING_MAX_ACTIONS).
+    if (sheinShippingActionCount >= SHEIN_SHIPPING_MAX_ACTIONS) {
       if (now - sheinShippingLastActionAt < 120000) return false;
       sheinShippingActionCount = 0;
     }
     sheinShippingLastActionAt = now;
     sheinShippingActionCount++;
+    sheinShippingLastOptionText = targetText;
+    sheinShippingLastOptionAt = now;
     target.removeAttribute('data-otlobli-blocked');
     target.setAttribute('data-otlobli-shein-shipping-action', '1');
     try {
@@ -1307,7 +1322,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       closeResolvedSheinShippingUi();
       return;
     }
-    if (sheinShippingActionCount >= 8 && now - sheinShippingLastActionAt < 120000) return;
+    if (sheinShippingActionCount >= SHEIN_SHIPPING_MAX_ACTIONS && now - sheinShippingLastActionAt < 120000) return;
     if (now - sheinShippingLastActionAt < 1200) return;
     if (sheinNativeSaudiAddressStep(addressCountry)) return;
     // A native address drawer may be between async cascade stages. Never
