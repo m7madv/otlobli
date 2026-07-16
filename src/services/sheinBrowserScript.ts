@@ -4126,6 +4126,44 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return false;
   }
 
+  // When SHEIN opens a bottom drawer/modal (e.g. the "نوع الموديلات" sku
+  // picker) it can extend up into — or render its lower options behind — our
+  // fixed nav, which sits at the max z-index. A tap on a drawer option that
+  // overlaps the nav band was landing on the nav tab underneath instead (a user
+  // tapped "50 قطعة" and got sent to "طلباتي"). While such an overlay is on
+  // screen the nav must stop intercepting taps so they reach the drawer; we
+  // restore it the moment the drawer closes.
+  function otlobliNavShouldYield(nav) {
+    if (!IS_SHEIN || !document.body) return false;
+    var navRect = nav.getBoundingClientRect();
+    if (navRect.height <= 0) return false;
+    var vp = viewportSize();
+    var overlays = document.querySelectorAll('.sui-drawer__body,[role="dialog"],[aria-modal="true"],[class*="drawer" i],[class*="cascade" i]');
+    for (var i = 0; i < overlays.length; i++) {
+      var m = overlays[i];
+      if (!m || (m.id && m.id.indexOf('otlobli') === 0)) continue;
+      if (!sheinElementIsVisible(m)) continue;
+      var r = m.getBoundingClientRect();
+      if (r.width >= vp.width * 0.6 && r.height >= vp.height * 0.25 &&
+          r.bottom > navRect.top + 4 && r.top < navRect.bottom) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function otlobliApplyNavYield(nav) {
+    var shouldYield = otlobliNavShouldYield(nav);
+    var isYielding = nav.getAttribute('data-otlobli-nav-yield') === '1';
+    if (shouldYield && !isYielding) {
+      nav.style.setProperty('pointer-events', 'none', 'important');
+      nav.setAttribute('data-otlobli-nav-yield', '1');
+    } else if (!shouldYield && isYielding) {
+      nav.style.setProperty('pointer-events', 'auto', 'important');
+      nav.removeAttribute('data-otlobli-nav-yield');
+    }
+  }
+
   function ensureOtlobliNav() {
       // 12px يطابق خط شريط otlobli الحقيقي (0.76rem ≈ 12.2px) — كان 11px
       // فيبدو الشريطان مختلفين عند التنقل بين المتجر وبقية الشاشات.
@@ -4154,6 +4192,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         __otlobliNavLastReclaim = now;
         document.body.appendChild(existingNav);
       }
+      otlobliApplyNavYield(existingNav);
       return;
     }
     ensureShakeStyle();
