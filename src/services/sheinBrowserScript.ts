@@ -5796,6 +5796,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         }
         try { restoreTemuSearchChrome(); } catch (e) {}
         try { restoreTemuCategoryStrip(); } catch (e) {}
+        try { otlobliForceTemuHomeHeaderState(); } catch (e) {}
         try { restoreTemuLogo(); } catch (e) {}
         try { ensureAddToCartButton(); } catch (e) {}
         try { dismissTemuLoginPopup(); } catch (e) {}
@@ -6119,9 +6120,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function dismissTemuLoginPopup() {
     if (!IS_TEMU || !document.body) return;
     var now = Date.now();
-    if (now - __otlobliTemuLoginProbeTs < 900) return; // لا نفحص كل tick
+    var searchMode = otlobliTemuSearchMode();
+    if (now - __otlobliTemuLoginProbeTs < (searchMode ? 180 : 900)) return; // لا نفحص كل tick
     __otlobliTemuLoginProbeTs = now;
-    var LOGIN_RE = /سجّ?ل\\s*الدخول|تسجيل\\s*الدخول|sign\\s*in|log\\s*in|continue\\s*with|تابع\\s*عبر|أنشئ\\s*حساب|create\\s*account/i;
+    var LOGIN_RE = /سجّ?ل\\s*الدخول|تسجيل\\s*الدخول|sign\\s*in|log\\s*in|continue\\s*with|تابع\\s*عبر|أنشئ\\s*حساب|create\\s*account|\u062a\u0633\u062c\u064a\u0644\\s*\u0627\u0644\u062f\u062e\u0648\u0644|\u0625\u0646\u0634\u0627\u0621\\s*\u062d\u0633\u0627\u0628|\u0627\u0644\u0631\u0635\u064a\u062f\\s*\u0627\u0644\u0627\u0626\u062a\u0645\u0627\u0646\u064a|\u0642\u0633\u0627\u0626\u0645|\u0637\u0644\u0628\u0627\u062a\u0643|\u0633\u062c\u0644\\s*\u0627\u0644\u062a\u0635\u0641\u062d|\u0627\u0644\u0639\u0646\u0627\u0648\u064a\u0646|\u062f\u0639\u0645\\s*\u0627\u0644\u0639\u0645\u0644\u0627\u0621/i;
     var CLOSE_RE = /^(?:×|✕|✖|x|close|إغلاق|اغلاق|تخطّ?ي|تخطي|skip|later|لاحقًا|لاحقا|ليس\\s*الآن|not\\s*now)$/i;
     var vp = viewportSize();
     var nodes = document.querySelectorAll('div, section, aside');
@@ -6130,14 +6132,17 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (el.id && el.id.indexOf('otlobli') === 0) continue;
       if (el.getAttribute && el.getAttribute('data-otlobli-login-handled') === '1') continue;
       var cs = window.getComputedStyle(el);
-      if (cs.position !== 'fixed' && cs.position !== 'absolute') continue;
       var r = el.getBoundingClientRect();
+      if (cs.position !== 'fixed' && cs.position !== 'absolute') {
+        if (!searchMode || r.top < 0 || r.top > vp.height * 0.62) continue;
+      }
       // نافذة كبيرة تغطي جزءاً معتبراً من الشاشة (لا شريط صغير).
-      if (r.width < vp.width * 0.6 || r.height < vp.height * 0.35) continue;
+      if (r.width < vp.width * 0.55 || r.height < vp.height * (searchMode ? 0.22 : 0.35)) continue;
       var txt = (el.textContent || '');
-      if (txt.length > 600 || !LOGIN_RE.test(txt)) continue;
+      if (txt.length > (searchMode ? 1400 : 600) || !LOGIN_RE.test(txt)) continue;
+      if (searchMode && el.querySelector && el.querySelector('input[type="search"], input[placeholder*="Search" i], input[placeholder*="بحث"], [role="searchbox"]')) continue;
       // حارس المنتج: لا نلمس طبقة فيها سعر/شبكة صور منتجات (قد تكون المنتج).
-      if (temuContainsPrice(el)) continue;
+      if (!searchMode && temuContainsPrice(el)) continue;
       el.setAttribute('data-otlobli-login-handled', '1');
       // ابحث عن زر إغلاق/تخطّي داخلها وانقره.
       var btns = el.querySelectorAll('button, [role="button"], a, i, span, div');
@@ -6157,6 +6162,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (!clicked && cs.position === 'fixed' && r.top <= 2 && r.left <= 2 &&
           r.width >= vp.width - 4 && r.height >= vp.height - 4) {
         try { el.click(); } catch (e) {}
+      }
+      if (!clicked && searchMode) {
+        el.style.setProperty('display', 'none', 'important');
+        el.style.setProperty('visibility', 'hidden', 'important');
+        el.style.setProperty('pointer-events', 'none', 'important');
+        try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch (e2) {}
       }
     }
   }
@@ -6469,6 +6480,74 @@ export const SHEIN_CAPTURE_SCRIPT = `
     } catch (e) {}
   }
 
+  var __otlobliTemuHomeHeaderWakeUrl = '';
+  var __otlobliTemuHomeHeaderWakeUntil = 0;
+  var __otlobliTemuHomeHeaderWakeCount = 0;
+  function otlobliTemuHomeLikeUrl() {
+    if (!IS_TEMU) return false;
+    var path = (location.pathname || '') + ' ' + (location.search || '') + ' ' + (location.hash || '');
+    if (/search|goods|product|cart|checkout|order|account|login|sign/i.test(path)) return false;
+    return true;
+  }
+
+  function otlobliResetTemuHomeHeaderWakeIfNeeded() {
+    var url = (location.origin || '') + location.pathname + location.search;
+    if (__otlobliTemuHomeHeaderWakeUrl === url) return;
+    __otlobliTemuHomeHeaderWakeUrl = url;
+    __otlobliTemuHomeHeaderWakeUntil = Date.now() + 4200;
+    __otlobliTemuHomeHeaderWakeCount = 0;
+  }
+
+  function otlobliForceTemuHomeHeaderState() {
+    if (!IS_TEMU || !document.body) return;
+    if (!otlobliTemuHomeLikeUrl() || otlobliTemuSearchMode()) return;
+    otlobliResetTemuHomeHeaderWakeIfNeeded();
+    try {
+      var vp = viewportSize();
+      var now = Date.now();
+      if (now < __otlobliTemuHomeHeaderWakeUntil && __otlobliTemuHomeHeaderWakeCount < 8) {
+        var y = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+        if (y > 2 && y < 520) {
+          try { window.scrollTo(0, 0); } catch (e) {}
+        }
+        try { window.dispatchEvent(new Event('scroll')); } catch (e2) {}
+        try { window.dispatchEvent(new Event('resize')); } catch (e3) {}
+        __otlobliTemuHomeHeaderWakeCount++;
+      }
+
+      var nodes = document.querySelectorAll('[data-otlobli-temu-hidden="1"], nav, section, div, a, button, span');
+      for (var i = 0; i < nodes.length; i++) {
+        var el = nodes[i];
+        if (!otlobliTemuLooksLikeCategoryOrFilter(el)) continue;
+        otlobliUnhideEl(el);
+        var row = el;
+        var best = el;
+        for (var d = 0; d < 7 && row && row !== document.body; d++, row = row.parentElement) {
+          var rr = row.getBoundingClientRect();
+          var rt = temuCleanText(row.textContent);
+          if (rr.width >= vp.width * 0.68 && rr.height >= 18 && rr.height <= 118 &&
+              rr.top > -140 && rr.top < 260 && rt.length <= 360) {
+            best = row;
+          }
+        }
+        if (!best || (best.id && best.id.indexOf('otlobli') === 0)) continue;
+        best.removeAttribute('data-otlobli-temu-hidden');
+        best.style.removeProperty('display');
+        best.style.setProperty('visibility', 'visible', 'important');
+        best.style.setProperty('opacity', '1', 'important');
+        best.style.setProperty('pointer-events', 'auto', 'important');
+        best.style.setProperty('transform', 'translate3d(0,0,0)', 'important');
+        best.style.setProperty('transition', 'none', 'important');
+        best.style.setProperty('max-height', 'none', 'important');
+        best.style.setProperty('overflow-x', 'auto', 'important');
+        best.style.setProperty('overflow-y', 'visible', 'important');
+        best.style.setProperty('-webkit-overflow-scrolling', 'touch', 'important');
+        best.style.setProperty('background', '#fff', 'important');
+        best.style.setProperty('z-index', '2147483000', 'important');
+      }
+    } catch (e4) {}
+  }
+
   var __otlobliTemuSearchTouchRepairInstalled = false;
   function ensureTemuSearchTouchRepair() {
     if (!IS_TEMU || __otlobliTemuSearchTouchRepairInstalled || !document) return;
@@ -6488,6 +6567,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         input.style.setProperty('pointer-events', 'auto', 'important');
         input.style.setProperty('-webkit-user-select', 'text', 'important');
         input.style.setProperty('user-select', 'text', 'important');
+        if (event.type === 'touchstart') return;
         try { input.focus({ preventScroll: true }); } catch (e) { try { input.focus(); } catch (e2) {} }
       } catch (e3) {}
     };
@@ -7007,6 +7087,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       }
       restoreTemuSearchChrome();
       restoreTemuCategoryStrip();
+      otlobliForceTemuHomeHeaderState();
       restoreTemuLogo();
     }
   }, OTLOBLI_LOW_END ? 240 : 120);
