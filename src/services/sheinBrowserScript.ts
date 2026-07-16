@@ -3,7 +3,7 @@ import cairoArabicFontDataUrl from '@fontsource-variable/cairo/files/cairo-arabi
 const OTLOBLI_CAIRO_FONT_CSS =
   '@font-face{font-family:"OtlobliCairo";src:url("' + cairoArabicFontDataUrl + '") format("woff2");font-style:normal;font-weight:200 1000;font-display:block;}'
 
-const OTLOBLI_NAV_STYLE_VERSION = 'v85.8.10'
+const OTLOBLI_NAV_STYLE_VERSION = 'v85.8.15'
 const OTLOBLI_NAV_CSS =
   'position:fixed!important;left:50%!important;right:auto!important;bottom:0!important;top:auto!important;' +
   'transform:translate3d(-50%,0,0)!important;will-change:transform!important;width:100%!important;max-width:440px!important;' +
@@ -13,7 +13,7 @@ const OTLOBLI_NAV_CSS =
   'max-height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;' +
   'z-index:2147483647!important;display:flex!important;flex-direction:row!important;align-items:stretch!important;' +
   'direction:rtl!important;overflow:hidden!important;box-sizing:border-box!important;' +
-  'background:rgba(255,255,255,.97)!important;border-top:1px solid #bccac0!important;' +
+  'background:#fff!important;border-top:1px solid #bccac0!important;' +
   'backdrop-filter:blur(16px)!important;-webkit-backdrop-filter:blur(16px)!important;' +
   'padding:0 0 16px 0!important;padding:0 0 max(env(safe-area-inset-bottom, 0px), 16px) 0!important;margin:0!important;' +
   'font-family:OtlobliCairo,system-ui,-apple-system,sans-serif!important;font-size:12px!important;line-height:normal!important;' +
@@ -4183,6 +4183,17 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
+  function otlobliStabilizeTemuRootOverlay(el) {
+    if (!IS_TEMU || !el || !document.documentElement) return;
+    if (el.parentNode !== document.documentElement) {
+      document.documentElement.appendChild(el);
+    }
+    el.style.setProperty('-webkit-backface-visibility', 'hidden', 'important');
+    el.style.setProperty('backface-visibility', 'hidden', 'important');
+    el.style.setProperty('transform', el.id === 'otlobli-back-btn' ? 'translate3d(0,0,0)' : 'translateZ(0)', 'important');
+    el.style.setProperty('pointer-events', 'auto', 'important');
+  }
+
   function ensureOtlobliNav() {
       // 12px يطابق خط شريط otlobli الحقيقي (0.76rem ≈ 12.2px) — كان 11px
       // فيبدو الشريطان مختلفين عند التنقل بين المتجر وبقية الشاشات.
@@ -4359,23 +4370,15 @@ export const SHEIN_CAPTURE_SCRIPT = `
         // input event يجعل تيمو يُخفي لوحة الاقتراحات ويرجع للرئيسية، ثم blur
         // يغلق الكيبورد. history.back كان يعلّق الشاشة (لا صفحة سابقة).
         if (IS_TEMU && otlobliTemuSearchMode()) {
-          var tsi = otlobliTemuSearchInput();
-          if (tsi) {
-            try {
-              var vproto = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
-              if (vproto && vproto.set) vproto.set.call(tsi, ''); else tsi.value = '';
-              tsi.dispatchEvent(new Event('input', { bubbles: true }));
-            } catch (e) {}
-            try { if (tsi.blur) tsi.blur(); } catch (e) {}
-          } else if (document.activeElement && document.activeElement.blur) {
-            try { document.activeElement.blur(); } catch (e) {}
-          }
+          otlobliTemuExitSearchMode();
         } else if (!looksLikeHomeRoot() || (IS_TEMU && looksLikeProductPage())) {
           history.back();
         }
       }, true);
-      document.body.appendChild(btn);
+      if (IS_TEMU) otlobliStabilizeTemuRootOverlay(btn);
+      else document.body.appendChild(btn);
     }
+    if (IS_TEMU) otlobliStabilizeTemuRootOverlay(btn);
     // Deliberately NOT re-claiming "last child of body" here on every tick -
     // see the matching comment in ensureAddToCartButton. This button has the
     // same otlobli-pop2 entrance animation, which a repeated appendChild on
@@ -5773,7 +5776,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var temuSearching = otlobliTemuSearchMode();
         try { injectTemuHeaderHideCSS(); } catch (e) {}
         try { ensureTemuNoZoom(); } catch (e) {}
-        try { stabilizeTemuSearchChrome(); } catch (e) {}
+        if (temuSearching) {
+          try { otlobliReleaseTemuSearchPinning(); } catch (e) {}
+        } else {
+          try { stabilizeTemuSearchChrome(); } catch (e) {}
+        }
         // killStorePopups معطّلة لتيمو نهائياً (v57): أكّد اختبار المستخدم
         // (2026-07-10) أنها سبب وميض الشاشة الأبيض كل نصف ثانية — كانت تحجب
         // طبقة كبيرة تطابق PROMO ثم تعيدها المراجعة الذاتية، كل 300ms.
@@ -5786,6 +5793,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
           try { hideTemuCustomerChrome(); } catch (e) {}
         }
         try { restoreTemuSearchChrome(); } catch (e) {}
+        try { restoreTemuCategoryStrip(); } catch (e) {}
         try { restoreTemuLogo(); } catch (e) {}
         try { ensureAddToCartButton(); } catch (e) {}
         try { dismissTemuLoginPopup(); } catch (e) {}
@@ -5842,6 +5850,57 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if ((si.value || '').trim()) return true;
     }
     if (/search/i.test(location.pathname) || /search/i.test(location.search)) return true;
+    return false;
+  }
+
+  function otlobliTemuClickNativeBackControl() {
+    if (!IS_TEMU || !document.body) return false;
+    try {
+      var vp = viewportSize();
+      var nodes = document.querySelectorAll('button, a, [role="button"], div, span, i');
+      var best = null;
+      var bestScore = -1;
+      for (var i = 0; i < nodes.length; i++) {
+        var el = nodes[i];
+        if (el.id && el.id.indexOf('otlobli') === 0) continue;
+        if (el.closest && (el.closest('#otlobli-nav') || el.closest('#otlobli-back-btn'))) continue;
+        if (el.querySelector && el.querySelector('input, textarea, [role="searchbox"]')) continue;
+        var r = el.getBoundingClientRect();
+        if (r.width < 18 || r.width > 72 || r.height < 18 || r.height > 72) continue;
+        if (r.top < 0 || r.top > 150 || r.left < -4 || r.right > vp.width + 4) continue;
+        var hints = otlobliCollectIdentityHints(el) + ' ' + temuCleanText(el.textContent);
+        if (/search|بحث|camera|كاميرا|cart|basket|bag|account|login|menu|logo|temu/i.test(hints)) continue;
+        var arrowText = temuCleanText(el.textContent);
+        var looksBack = /(back|go back|previous|prev|return|رجوع|عودة|السابق|arrow|chevron)/i.test(hints) ||
+          /^[‹›<>←→❮❯\u2039\u203a]$/.test(arrowText);
+        if (!looksBack) continue;
+        var edge = Math.min(Math.max(0, r.left), Math.max(0, vp.width - r.right));
+        var score = 200 - r.top - edge;
+        if (score > bestScore) { bestScore = score; best = el; }
+      }
+      if (!best) return false;
+      try { best.click(); return true; } catch (e) {}
+      try {
+        best.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+        return true;
+      } catch (e2) {}
+    } catch (e3) {}
+    return false;
+  }
+
+  function otlobliTemuExitSearchMode() {
+    if (!IS_TEMU) return false;
+    if (otlobliTemuClickNativeBackControl()) return true;
+    if (/search/i.test(location.pathname + location.search + location.hash) && history.length > 1) {
+      try { history.back(); return true; } catch (e) {}
+    }
+    var si = otlobliTemuSearchInput();
+    if (si && document.activeElement === si) {
+      try { si.blur(); return true; } catch (e2) {}
+    }
+    if (document.activeElement && document.activeElement.blur) {
+      try { document.activeElement.blur(); return true; } catch (e3) {}
+    }
     return false;
   }
 
@@ -6242,6 +6301,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function otlobliPinVisibleTemuSearchHeader(control, vp) {
     if (!control) return;
+    if (otlobliTemuSearchMode()) return;
     var node = control;
     for (var i = 0; i < 12 && node && node !== document.body; i++, node = node.parentElement) {
       var style = window.getComputedStyle(node);
@@ -6253,6 +6313,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
           rect.top < 0 || rect.top > 170 || rect.bottom <= 0) return;
       if (node.getAttribute('data-otlobli-temu-pinned-header') === '1') return;
       var translateY = otlobliTemuTransformY(style.transform);
+      if (!node.hasAttribute('data-otlobli-temu-original-transform')) {
+        node.setAttribute('data-otlobli-temu-original-transform', node.style.transform || '');
+        node.setAttribute('data-otlobli-temu-original-transition', node.style.transition || '');
+      }
       // Temu centres this header with translateX(-50%) and changes only Y to
       // hide/show it while scrolling. The old fix replaced the whole transform
       // with translateY(0), losing that X centring and breaking half the page.
@@ -6264,8 +6328,55 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
+  function otlobliReleaseTemuSearchPinning() {
+    if (!IS_TEMU || !document.body) return;
+    try {
+      var shells = document.querySelectorAll('[data-otlobli-temu-search-shell="1"]');
+      for (var s = 0; s < shells.length; s++) {
+        shells[s].removeAttribute('data-otlobli-temu-search-shell');
+        shells[s].style.removeProperty('--otlobli-temu-search-left');
+        shells[s].style.removeProperty('--otlobli-temu-search-width');
+      }
+      var pinned = document.querySelectorAll('[data-otlobli-temu-pinned-header="1"]');
+      for (var p = 0; p < pinned.length; p++) {
+        var el = pinned[p];
+        var originalTransform = el.getAttribute('data-otlobli-temu-original-transform');
+        var originalTransition = el.getAttribute('data-otlobli-temu-original-transition');
+        if (originalTransform) el.style.setProperty('transform', originalTransform);
+        else el.style.removeProperty('transform');
+        if (originalTransition) el.style.setProperty('transition', originalTransition);
+        else el.style.removeProperty('transition');
+        el.removeAttribute('data-otlobli-temu-pinned-header');
+        el.removeAttribute('data-otlobli-temu-original-transform');
+        el.removeAttribute('data-otlobli-temu-original-transition');
+      }
+    } catch (e) {}
+  }
+
+  function restoreTemuCategoryStrip() {
+    if (!IS_TEMU || !document.body) return;
+    try {
+      var nodes = document.querySelectorAll('[data-otlobli-temu-hidden="1"]');
+      for (var i = 0; i < nodes.length; i++) {
+        var el = nodes[i];
+        var r = el.getBoundingClientRect();
+        if (r.width < 20 || r.height < 12 || r.top < 45 || r.top > 240) continue;
+        var txt = temuCleanText(el.textContent);
+        if (!txt || txt.length > 80) continue;
+        if (!/(^الكل$|الصفقات|منتجات|نجوم|الأكثر|الاكثر|مستلزمات|حيوانات|أجهزة|اجهزة|الأطفال|الاطفال|الجمال|all|deals|rating|stars|popular|beauty|kids|home|pets|electronics)/i.test(txt)) continue;
+        if (/(cart|basket|bag|account|login|download|app|تطبيق|تنزيل|حساب|سلة|عربة|تسجيل)/i.test(txt)) continue;
+        el.removeAttribute('data-otlobli-temu-hidden');
+        el.style.removeProperty('display');
+        el.style.removeProperty('visibility');
+        el.style.removeProperty('pointer-events');
+        el.style.removeProperty('opacity');
+      }
+    } catch (e) {}
+  }
+
   function stabilizeTemuSearchChrome() {
     if (!IS_TEMU || !document.body) return;
+    if (otlobliTemuSearchMode()) { otlobliReleaseTemuSearchPinning(); return; }
     try {
       var vp = viewportSize();
       var control = null;
@@ -6766,8 +6877,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
     ensureOtlobliNav();
     if (IS_TEMU) {
       injectTemuHeaderHideCSS();
-      stabilizeTemuSearchChrome();
+      if (otlobliTemuSearchMode()) otlobliReleaseTemuSearchPinning();
+      else stabilizeTemuSearchChrome();
       restoreTemuSearchChrome();
+      restoreTemuCategoryStrip();
       restoreTemuLogo();
     }
   }, OTLOBLI_LOW_END ? 240 : 120);
