@@ -17,4 +17,4 @@ export const SOURCE_COUNTRY: 'JO' | 'LB' | 'SA' = 'SA'
 export const TEST_ONLY_AUTH_BYPASS = true
 
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '2026.07.16-v85.8.12-fix-saudi-cascade-iphone6-no-otp-test'
+export const APP_VERSION = '2026.07.16-v85.8.12-speed-challenge-backoff-no-otp-test'

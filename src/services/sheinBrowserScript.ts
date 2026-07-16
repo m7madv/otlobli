@@ -5306,6 +5306,15 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // فتعلق شي إن للأبد. الحل: نكتشف التحدي، نجمّد كل تدخلاتنا ونزيل عناصرنا
   // من الصفحة، ونبلغ التطبيق (humanCheck) ليطفئ مؤقت «تعذر الفتح» وينتظر.
   var __otlobliChallengeNotified = false;
+  // While a Cloudflare / "verify you are human" challenge is on screen we
+  // deliberately do nothing (our nodes are removed; the nav is kept by
+  // otlobliScheduleChallengeNav). This flag lets the hot polling paths back off
+  // so the challenge's own JS gets the CPU and resolves faster — the security
+  // check and first paint were slow largely because our 80ms mutation-driven
+  // tick kept forcing innerText reflows while Cloudflare was working. The 300ms
+  // interval keeps calling tick(), which clears this flag the moment the
+  // challenge is gone, so normal hiding/blocking resumes immediately after.
+  var otlobliChallengeActive = false;
   function otlobliIsHumanChallenge() {
     try {
       if (otlobliIsHumanChallengeUrl(location.href)) return true;
@@ -5633,7 +5642,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // shortly, by which point the parser is essentially always done with it.
     if (!document.body) return;
     // صفحة تحقق «أنا إنسان» — تجميد كامل لكل تدخلاتنا حتى يكملها المستخدم.
-    if (otlobliIsHumanChallenge()) { otlobliEnterChallengeMode(); return; }
+    if (otlobliIsHumanChallenge()) { otlobliChallengeActive = true; otlobliEnterChallengeMode(); return; }
+    otlobliChallengeActive = false;
     if (IS_SHEIN) ensureSheinSaudiShippingSelection();
     if (IS_SHEIN) retrySheinFeedError();
     ensureNoTextSelection();
@@ -6494,6 +6504,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var tickScheduled = false;
   function scheduleTick() {
     sheinBlockReported = false;
+    // Don't storm-tick on every Cloudflare DOM mutation during the challenge;
+    // the 300ms interval still polls tick() to detect when it ends.
+    if (otlobliChallengeActive) return;
     if (tickScheduled) return;
     tickScheduled = true;
     setTimeout(function () {
@@ -6548,7 +6561,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // freshly re-created icon gets caught within ~120ms instead of waiting
   // for the next general tick.
   setInterval(function () {
-    if (!IS_SHEIN) return;
+    if (otlobliChallengeActive || !IS_SHEIN) return;
     hideKnownHeaderIconsByHint();
     hideSheinHeaderControls();
     hideListingCardAddButtons();
