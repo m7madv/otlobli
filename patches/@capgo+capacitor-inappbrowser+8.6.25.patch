@@ -571,7 +571,7 @@ index 97a2fc1..c24d7e2 100644
          super.viewDidLayoutSubviews()
          refreshWebViewViewportIfNeeded()
 +        if let cover = otlobliLoadingCoverView {
-+            otlobliLoadingCoverBottomConstraint?.constant = -(74 + max(view.safeAreaInsets.bottom, 16))
++            otlobliLoadingCoverBottomConstraint?.constant = view.safeAreaInsets.bottom > 0 ? -(74 + max(view.safeAreaInsets.bottom, 16)) : CGFloat(0)
 +            view.bringSubviewToFront(cover)
 +        }
 +    }
@@ -645,7 +645,7 @@ index 97a2fc1..c24d7e2 100644
 +            self.view.addSubview(cover)
 +            let coverBottomConstraint = cover.bottomAnchor.constraint(
 +                equalTo: self.view.bottomAnchor,
-+                constant: -(74 + max(self.view.safeAreaInsets.bottom, 16))
++                constant: self.view.safeAreaInsets.bottom > 0 ? -(74 + max(self.view.safeAreaInsets.bottom, 16)) : CGFloat(0)
 +            )
 +            NSLayoutConstraint.activate([
 +                cover.topAnchor.constraint(equalTo: self.view.topAnchor),

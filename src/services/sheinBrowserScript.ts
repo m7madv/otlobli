@@ -6502,6 +6502,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // tappable, which is exactly the "nothing should ever be reachable, not
   // even briefly" requirement this whole hide/block system exists for.
   var tickScheduled = false;
+  // On low-end devices (iPhone 6 etc. — 2 CPU cores) our own polling competes
+  // with Cloudflare's verification JS and SHEIN's image decoding, making a
+  // weak-CPU device feel heavy and slow. Relax every hot interval there so the
+  // device spends its cycles rendering / passing the challenge instead of on
+  // our scans. Modern devices (iPhone 16) keep the original tight timings.
+  var OTLOBLI_LOW_END = (typeof navigator !== 'undefined' && (navigator.hardwareConcurrency || 4) <= 2);
   function scheduleTick() {
     sheinBlockReported = false;
     // Don't storm-tick on every Cloudflare DOM mutation during the challenge;
@@ -6512,7 +6518,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     setTimeout(function () {
       tickScheduled = false;
       tick();
-    }, 80);
+    }, OTLOBLI_LOW_END ? 160 : 80);
   }
 
   var originalPushState = history.pushState;
@@ -6552,7 +6558,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var observer = new MutationObserver(scheduleTick);
   observer.observe(document.documentElement, { childList: true, subtree: true });
 
-  setInterval(tick, 300);
+  setInterval(tick, OTLOBLI_LOW_END ? 450 : 300);
   // hideKnownHeaderIconsByHint specifically needs to win what looks like an
   // ongoing fight against SHEIN periodically re-rendering its own header (a
   // user found the hamburger/wishlist icons could stay reachable for
@@ -6565,7 +6571,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     hideKnownHeaderIconsByHint();
     hideSheinHeaderControls();
     hideListingCardAddButtons();
-  }, 120);
+  }, OTLOBLI_LOW_END ? 240 : 120);
   setInterval(function () {
     ensureOtlobliNav();
     if (IS_TEMU) {
@@ -6574,7 +6580,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       restoreTemuSearchChrome();
       restoreTemuLogo();
     }
-  }, 120);
+  }, OTLOBLI_LOW_END ? 240 : 120);
   // Own slower interval, not part of tick() - see checkForSheinSecurityBlock's
   // comment on why innerText needs to stay off the 300ms timer. خاص بشي إن فقط.
   setInterval(function () { if (IS_SHEIN) checkForSheinSecurityBlock(); }, 1000);
