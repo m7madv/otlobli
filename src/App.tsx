@@ -2129,6 +2129,10 @@ function App() {
   const vpnStateRef = useRef(vpnState)
   const vpnGeoRef = useRef<VpnGeo | null>(vpnGeo)
   const storeReachableRef = useRef(false)
+  // تيمو تُطلق pageLoadError لموارد فرعية (إعلانات/تتبّع محجوب) باستمرار أثناء
+  // التصفّح. بعد تحميل الصفحة مرة نعتبر المتجر شغّالاً فلا نُظهر بوابة «شغّل VPN»
+  // على خطأ مورد فرعي — نُصفّره عند فتح جلسة متجر جديدة فقط.
+  const temuContentLoadedRef = useRef(false)
   const lastResumeVpnRecheckRef = useRef(0)
   useEffect(() => { screenRef.current = screen }, [screen])
   useEffect(() => { sheinReadyRef.current = sheinReady }, [sheinReady])
@@ -2503,6 +2507,7 @@ function App() {
     webviewIdRef.current = ''
     sheinChallengeActiveRef.current = false
     sheinOpenedRef.current = true
+    temuContentLoadedRef.current = false
     setSheinReady(false)
     setStoreOpenFailureReason('network')
     // SHEIN is reached directly on both platforms now, so it only loads once
@@ -2715,12 +2720,15 @@ function App() {
           .then(() => startSheinReadinessWatchdog(webviewSessionRef.current))
         return
       }
+      if (selectedStoreRef.current === 'temu') temuContentLoadedRef.current = true
       markStoreWebviewReadyRef.current(webviewSessionRef.current)
     })
     const errorHandle = InAppBrowser.addListener('pageLoadError', (event: WebviewPageLoadErrorEvent) => {
       if (event?.id && webviewIdRef.current && event.id !== webviewIdRef.current) return
       if (!sheinOpenedRef.current) return
       const activeStore = selectedStoreRef.current
+      // تيمو حمّلت مسبقاً → هذا خطأ مورد فرعي (إعلان/تتبّع)، لا تُظهر البوابة.
+      if (activeStore === 'temu' && temuContentLoadedRef.current) return
       if (activeStore === 'shein' && isFatalSheinWebkitError(event)) {
         handleFatalSheinWebkitError(event)
         return
@@ -2733,6 +2741,7 @@ function App() {
         webviewErrorTimerRef.current = undefined
         if (!sheinOpenedRef.current || screenRef.current !== 'home') return
         const currentStore = selectedStoreRef.current
+        if (currentStore === 'temu' && temuContentLoadedRef.current) return
         if (currentStore === 'shein' && !openedViaBypassRef.current) return
         if (currentStore === 'shein' && (sheinChallengeActiveRef.current || sheinReadyRef.current)) return
         // A navigation can fail after the VPN gate passed (bad VPN server,
