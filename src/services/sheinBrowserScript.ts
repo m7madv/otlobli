@@ -5752,7 +5752,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
         try { injectTemuHeaderHideCSS(); } catch (e) {}
         try { ensureTemuNoZoom(); } catch (e) {}
         try { stabilizeTemuSearchChrome(); } catch (e) {}
-        try { pinTemuSearchHeader(); } catch (e) {}
         // killStorePopups معطّلة لتيمو نهائياً (v57): أكّد اختبار المستخدم
         // (2026-07-10) أنها سبب وميض الشاشة الأبيض كل نصف ثانية — كانت تحجب
         // طبقة كبيرة تطابق PROMO ثم تعيدها المراجعة الذاتية، كل 300ms.
@@ -5822,25 +5821,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
     if (/search/i.test(location.pathname) || /search/i.test(location.search)) return true;
     return false;
-  }
-
-  // يثبّت هيدر تيمو العلوي (الحاوي لشريط البحث) فلا يختفي بالنزول: نعلّم أقرب
-  // سلف position:fixed قرب الأعلى، والقاعدة !important في OTLOBLI_TEMU_HIDE_CSS
-  // تُبطل transform الإخفاء التلقائي الذي تضعه تيمو إنلاين (بلا !important).
-  function pinTemuSearchHeader() {
-    if (!IS_TEMU || !document.body) return;
-    var si = otlobliTemuSearchInput();
-    if (!si) return;
-    var p = si.parentElement;
-    for (var k = 0; k < 12 && p && p !== document.body; k++, p = p.parentElement) {
-      if (window.getComputedStyle(p).position === 'fixed') {
-        var r = p.getBoundingClientRect();
-        if (r.top <= 6 && r.top >= -6 && p.getAttribute('data-otlobli-temu-pinned-header') !== '1') {
-          p.setAttribute('data-otlobli-temu-pinned-header', '1');
-        }
-        return;
-      }
-    }
   }
 
   // يكشف صفحة بحث تيمو الفارغة (الناتجة عن حجب الإعلانات الذي يمنع تحميل
@@ -5948,12 +5928,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // في التدفق الطبيعي ونكتفي بإبقائه ظاهراً بخلفية شفافة — أبسط وأثبت.
     '[data-otlobli-temu-search-shell="1"]' +
     '{ background: transparent !important; box-shadow: none !important; opacity: 1 !important;' +
-    ' visibility: visible !important; pointer-events: auto !important; }' +
-    // تثبيت شريط البحث العلوي: هيدر تيمو position:fixed يُخفي نفسه بالنزول عبر
-    // transform إنلاين (بلا !important). قاعدة !important هنا تتفوّق عليه فيبقى
-    // مثبتاً — ثبت حياً بأن ضبط transform إلى -171px يُلغى بهذه القاعدة.
-    '[data-otlobli-temu-pinned-header="1"]' +
-    '{ transform: translateY(0px) !important; transition: none !important; }';
+    ' visibility: visible !important; pointer-events: auto !important; }';
   // نحقن القاعدة في أبكر لحظة ممكنة (documentStart، قبل رسم أي شيء) لمنع أي
   // وميض للعناصر المخفية. لا نعتمد على flag لمرة واحدة، بل نفحص وجود <style>
   // فعلياً في كل استدعاء: لو أزالت تيمو عنصرنا أثناء إعادة بناء الصفحة (عند
