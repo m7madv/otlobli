@@ -5849,9 +5849,18 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var si = otlobliTemuSearchInput();
     if (si) {
       if (document.activeElement === si) return true;
-      if ((si.value || '').trim()) return true;
     }
     if (/search/i.test(location.pathname) || /search/i.test(location.search)) return true;
+    var overlays = document.querySelectorAll('div, section, aside');
+    var vp = viewportSize();
+    for (var i = 0; i < overlays.length; i++) {
+      var el = overlays[i];
+      var r = el.getBoundingClientRect();
+      if (r.width < vp.width * 0.7 || r.height < 80 || r.top < 0 || r.top > 280) continue;
+      var txt = temuCleanText(el.textContent);
+      if (txt.length > 320) continue;
+      if (/(رائج الآن|اقتراح|بحث شائع|search|suggest|trending)/i.test(txt)) return true;
+    }
     return false;
   }
 
@@ -5869,12 +5878,17 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if (el.querySelector && el.querySelector('input, textarea, [role="searchbox"]')) continue;
         var r = el.getBoundingClientRect();
         if (r.width < 18 || r.width > 72 || r.height < 18 || r.height > 72) continue;
-        if (r.top < 0 || r.top > 150 || r.left < -4 || r.right > vp.width + 4) continue;
+        if (r.top < 0 || r.top > 260 || r.left < -4 || r.right > vp.width + 4) continue;
         var hints = otlobliCollectIdentityHints(el) + ' ' + temuCleanText(el.textContent);
-        if (/search|بحث|camera|كاميرا|cart|basket|bag|account|login|menu|logo|temu/i.test(hints)) continue;
+        if (/camera|كاميرا|cart|basket|bag|account|login|menu|logo|temu/i.test(hints)) continue;
         var arrowText = temuCleanText(el.textContent);
         var looksBack = /(back|go back|previous|prev|return|رجوع|عودة|السابق|arrow|chevron)/i.test(hints) ||
           /^[‹›<>←→❮❯\u2039\u203a]$/.test(arrowText);
+        if (!looksBack && otlobliTemuSearchMode()) {
+          looksBack = r.top < 240 && r.width <= 56 && r.height <= 64 && (r.left <= 80 || r.right >= vp.width - 80) &&
+            !(el.querySelector && el.querySelector('input, textarea, [role="searchbox"]')) &&
+            !otlobliLooksLikeSearchTrigger(el);
+        }
         if (!looksBack) continue;
         var edge = Math.min(Math.max(0, r.left), Math.max(0, vp.width - r.right));
         var score = 200 - r.top - edge;
@@ -5901,12 +5915,17 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if (el.querySelector && el.querySelector('input, textarea, [role="searchbox"]')) continue;
         var txt = temuCleanText(el.textContent);
         var hints = otlobliCollectIdentityHints(el) + ' ' + txt;
-        if (/search|بحث|camera|كاميرا|cart|basket|bag|account|login|menu|logo|temu/i.test(hints)) continue;
+        if (/camera|كاميرا|cart|basket|bag|account|login|menu|logo|temu/i.test(hints)) continue;
+        var r = el.getBoundingClientRect();
         var looksBack = /(back|go back|previous|prev|return|رجوع|عودة|السابق|arrow|chevron)/i.test(hints) ||
           /^[‹›<>←→❮❯\u2039\u203a]$/.test(txt);
+        if (!looksBack && otlobliTemuSearchMode()) {
+          looksBack = r.top < 240 && r.width <= 56 && r.height <= 64 && (r.left <= 80 || r.right >= vp.width - 80) &&
+            !(el.querySelector && el.querySelector('input, textarea, [role="searchbox"]')) &&
+            !otlobliLooksLikeSearchTrigger(el);
+        }
         if (!looksBack) continue;
-        var r = el.getBoundingClientRect();
-        if (r.width > 0 && r.height > 0 && (r.top < -4 || r.top > 190 || r.right < -4 || r.left > vp.width + 4)) continue;
+        if (r.width > 0 && r.height > 0 && (r.top < -4 || r.top > 260 || r.right < -4 || r.left > vp.width + 4)) continue;
         el.removeAttribute('data-otlobli-temu-hidden');
         el.style.removeProperty('display');
         el.style.setProperty('visibility', 'visible', 'important');
@@ -6374,9 +6393,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       // Only Temu's compact, fully painted top header. Never pin search
       // overlays, suggestions, dialogs, or off-screen copies of the input.
       if (rect.width < vp.width * 0.8 || rect.height < 30 || rect.height > 260 ||
-          rect.top < 0 || rect.top > 170 || rect.bottom <= 0) return;
-      if (node.getAttribute('data-otlobli-temu-pinned-header') === '1') return;
-      var translateY = otlobliTemuTransformY(style.transform);
+          rect.top < -180 || rect.top > 170 || rect.bottom <= 0) return;
       if (!node.hasAttribute('data-otlobli-temu-original-transform')) {
         node.setAttribute('data-otlobli-temu-original-transform', node.style.transform || '');
         node.setAttribute('data-otlobli-temu-original-transition', node.style.transition || '');
@@ -6384,9 +6401,15 @@ export const SHEIN_CAPTURE_SCRIPT = `
       // Temu centres this header with translateX(-50%) and changes only Y to
       // hide/show it while scrolling. The old fix replaced the whole transform
       // with translateY(0), losing that X centring and breaking half the page.
-      // Preserve responsive X centring and freeze the currently painted Y.
-      node.style.setProperty('transform', 'translate3d(-50%,' + translateY + 'px,0)', 'important');
+      // Preserve responsive X centring, but force Y to zero every tick. Temu
+      // rewrites this transform while scrolling to hide the search/logo row.
+      // If we only set it once, the row disappears again on the next scroll.
+      node.style.setProperty('transform', 'translate3d(-50%,0,0)', 'important');
       node.style.setProperty('transition', 'none', 'important');
+      node.style.setProperty('top', '0px', 'important');
+      node.style.setProperty('visibility', 'visible', 'important');
+      node.style.setProperty('opacity', '1', 'important');
+      node.style.setProperty('pointer-events', 'auto', 'important');
       node.setAttribute('data-otlobli-temu-pinned-header', '1');
       return;
     }
