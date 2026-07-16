@@ -4333,13 +4333,21 @@ export const SHEIN_CAPTURE_SCRIPT = `
         // both add entries that were never real user navigation, so a back()
         // from the root could land back on a half-finished verification
         // page instead of doing nothing).
-        // تيمو أثناء البحث: أغلق الكيبورد أولاً (blur). لو كان البحث مساراً
-        // فعلياً (فيه history) نرجع لصفحة سابقة؛ أما لوحة الاقتراحات على مسار
-        // الرئيسية (بلا history) فالـ blur وحده يغلقها — history.back هنا كان
-        // إما لا يفعل شيئاً أو يخرج المستخدم/يعلّق الشاشة.
+        // تيمو أثناء البحث: البحث overlay بلا history، فتفريغ حقل البحث + إطلاق
+        // input event يجعل تيمو يُخفي لوحة الاقتراحات ويرجع للرئيسية، ثم blur
+        // يغلق الكيبورد. history.back كان يعلّق الشاشة (لا صفحة سابقة).
         if (IS_TEMU && otlobliTemuSearchMode()) {
-          try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch (e) {}
-          if (/search/i.test(location.pathname) || /search/i.test(location.search)) history.back();
+          var tsi = otlobliTemuSearchInput();
+          if (tsi) {
+            try {
+              var vproto = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
+              if (vproto && vproto.set) vproto.set.call(tsi, ''); else tsi.value = '';
+              tsi.dispatchEvent(new Event('input', { bubbles: true }));
+            } catch (e) {}
+            try { if (tsi.blur) tsi.blur(); } catch (e) {}
+          } else if (document.activeElement && document.activeElement.blur) {
+            try { document.activeElement.blur(); } catch (e) {}
+          }
         } else if (!looksLikeHomeRoot() || (IS_TEMU && looksLikeProductPage())) {
           history.back();
         }
@@ -5795,10 +5803,22 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // عناصر أعلى الصفحة — فكانت تبتلع صفوف الاقتراحات (تظهر ثم تختفي بعد ثانية).
   // أثناء البحث نعلّق تلك الدوال تماماً (كما نعلّق فحوصاتنا أثناء تحدي شي إن)
   // فلا نلمس الاقتراحات، ونُظهر زر الرجوع ليخرج المستخدم من البحث.
+  function otlobliTemuSearchInput() {
+    if (!IS_TEMU) return null;
+    return document.querySelector('input[type="search"], [role="searchbox"], input[placeholder*="بحث"], input[placeholder*="Search" i]');
+  }
+  // وضع البحث نشط طالما لوحة الاقتراحات ظاهرة — لا فقط أثناء التركيز. حقل بحث
+  // تيمو يحتفظ بقيمته والاقتراحات (overlay ._3KC0yZ4V، z-index 999) تبقى ظاهرة
+  // حتى بعد إغلاق الكيبورد (blur). الاعتماد على activeElement وحده كان يُنهي وضع
+  // البحث باكراً فتعود دوال الإخفاء وتبتلع الاقتراحات ويختفي زر الرجوع. نعتبره
+  // نشطاً إذا كان حقل البحث مركّزاً أو يحمل قيمة.
   function otlobliTemuSearchMode() {
     if (!IS_TEMU || !document.body) return false;
-    var ae = document.activeElement;
-    if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')) return true;
+    var si = otlobliTemuSearchInput();
+    if (si) {
+      if (document.activeElement === si) return true;
+      if ((si.value || '').trim()) return true;
+    }
     if (/search/i.test(location.pathname) || /search/i.test(location.search)) return true;
     return false;
   }
