@@ -6121,7 +6121,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (!IS_TEMU || !document.body) return;
     var now = Date.now();
     var searchMode = otlobliTemuSearchMode();
-    if (now - __otlobliTemuLoginProbeTs < (searchMode ? 180 : 900)) return; // لا نفحص كل tick
+    if (now - __otlobliTemuLoginProbeTs < (searchMode ? 420 : 900)) return; // لا نفحص كل tick
     __otlobliTemuLoginProbeTs = now;
     var LOGIN_RE = /سجّ?ل\\s*الدخول|تسجيل\\s*الدخول|sign\\s*in|log\\s*in|continue\\s*with|تابع\\s*عبر|أنشئ\\s*حساب|create\\s*account|\u062a\u0633\u062c\u064a\u0644\\s*\u0627\u0644\u062f\u062e\u0648\u0644|\u0625\u0646\u0634\u0627\u0621\\s*\u062d\u0633\u0627\u0628|\u0627\u0644\u0631\u0635\u064a\u062f\\s*\u0627\u0644\u0627\u0626\u062a\u0645\u0627\u0646\u064a|\u0642\u0633\u0627\u0626\u0645|\u0637\u0644\u0628\u0627\u062a\u0643|\u0633\u062c\u0644\\s*\u0627\u0644\u062a\u0635\u0641\u062d|\u0627\u0644\u0639\u0646\u0627\u0648\u064a\u0646|\u062f\u0639\u0645\\s*\u0627\u0644\u0639\u0645\u0644\u0627\u0621/i;
     var CLOSE_RE = /^(?:×|✕|✖|x|close|إغلاق|اغلاق|تخطّ?ي|تخطي|skip|later|لاحقًا|لاحقا|ليس\\s*الآن|not\\s*now)$/i;
@@ -6167,7 +6167,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
         el.style.setProperty('display', 'none', 'important');
         el.style.setProperty('visibility', 'hidden', 'important');
         el.style.setProperty('pointer-events', 'none', 'important');
-        try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch (e2) {}
       }
     }
   }
