@@ -1,5 +1,17 @@
 # SESSION_SUMMARY.md
 
+## 2026-07-17 Temu v85.8.20 Local Update
+
+- Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
+- Branch: `claude/ios6-cover-fix`.
+- Last real-device Temu IPA tested: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.19-temu-search-keyboard.ipa`.
+- Last tested commit: `0426529` (`fix: v85.8.19 keep Temu search keyboard open`).
+- v85.8.19 is not fixed: Temu still shows an empty/white header band, search typing is slow/unstable, and the login/account panel can appear over search and keyboard.
+- Current local candidate: v85.8.20 / `APP_VERSION = 2026.07.17-v85.8.20-temu-header-search-login-no-otp-test`.
+- v85.8.20 IPA has not been built yet.
+- Local changes are limited to Temu in `src/services/sheinBrowserScript.ts`: broader live search-input detection, short search-mode probe cache, safer search chrome restoration that avoids account panel ancestors, search-only login panel re-hide, and less aggressive home-header forcing.
+- Do not use the simulator for final judgment; test on the real iPhone. Do not touch payment, wallet, completed orders, or account route logic unless explicitly requested.
+
 انسخ هذا لأي شات جديد قبل المتابعة. آخر تحديث: 2026-07-16.
 
 ## المسار والفرع والبناء

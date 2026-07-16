@@ -4,13 +4,14 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
 ## Current Candidate
 
-- Branch: `codex/customer-wallet-group-orders`.
-- Code: `4e12ef5` (`fix: v85.8.12 harden SHEIN consent region and gallery`).
-- IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.12.ipa`.
-- SHA-256: `67D59C6CE34075198CAA1000008515EAC5B0B2EA0C4F97B84C7764DE3210D047`.
-- Build run: `29416945278`.
+- Branch: `claude/ios6-cover-fix`.
+- Last tested IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.19-temu-search-keyboard.ipa`.
+- Last tested code: `0426529` (`fix: v85.8.19 keep Temu search keyboard open`).
+- Current local code candidate: v85.8.20 / `APP_VERSION = 2026.07.17-v85.8.20-temu-header-search-login-no-otp-test`.
+- v85.8.20 IPA has not been built yet.
 - Rollback/reference: v85.8.5 / `a914d81` and the user-provided v85.8.5 IPA.
-- v85.8.10's ordinary iPhone 16 nav behavior was accepted. v85.8.12 corrects failures observed in v85.8.11: consent overlap, leftover Saudi UI, gallery click-through, and old-iPhone pre-paint scan overhead. Device testing is pending; never call it proven until both iPhones pass.
+- v85.8.19 did not fix Temu. Current focus is Temu only; do not touch payment, wallet, completed orders, or account routes unless explicitly requested.
+- v85.8.10's ordinary iPhone 16 SHEIN nav behavior was accepted. Do not call any new Temu change proven until tested on the real iPhone device; do not rely on the simulator.
 
 ## Confirmed Diagnosis
 
@@ -36,7 +37,8 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 - v85.8.11 hides only the confirmed 15%-signup strip or the email-newsletter panel, with explicit real-auth exclusion.
 - A SHEIN photo viewer must be fixed, near-full-screen, contain a large image, and expose a numeric image counter before viewer handling activates. Its add button is suppressed, its lower black band is guarded, and nav/back reclaim paint order only on viewer transition.
 - v85.8.12 detects nested fixed viewers from targeted painted points, blocks gallery click-through at the event boundary, raises the full cookie action row without auto-consent, closes only a signed-Saudi address surface, and throttles signup/cookie scans. MutationObserver now schedules the normal coalesced tick only.
+- v85.8.20 local Temu candidate broadens top search-field detection, caches search-mode probing briefly to reduce typing lag, prevents search chrome restoration from re-showing account/login panel ancestors, reapplies search-only login panel hiding if Temu redraws it, and stops home-header forcing from scrolling to top or raising the category strip with forced transform/background/z-index.
 
 ## Next Step
 
-Install v85.8.12 on iPhone 6 and iPhone 16 Pro Max. Verify both cookie choices are reachable, Saudi UI closes after signed completion, rejecting cookies does not force a product login popup, image/black-band taps never capture, nav/back stay visible, and old-iPhone image/scroll responsiveness improves.
+Run targeted validation, then build an iOS IPA only after reviewing the limited v85.8.20 diff. On the real iPhone, verify Temu opens with a clean header from first entry, the category strip remains visible without a white blank header band, search keeps the keyboard open, typing is fast, and the login/account panel does not appear during search while the real account path still works when opened intentionally.

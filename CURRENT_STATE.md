@@ -1,18 +1,27 @@
 # Otlobli Current State
 
-Last updated: 2026-07-15
+Last updated: 2026-07-17
 
 ## Active Baseline
 
-- Branch: `codex/customer-wallet-group-orders`.
+- Branch: `claude/ios6-cover-fix`.
 - Stable tested reference: v85.8.5 / `a914d81`.
 - Reference IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.5-nav-cairo-font-match-no-otp-test.ipa`.
-- Active test candidate: v85.8.12 / `4e12ef5`.
-- Candidate IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.12.ipa`.
-- Candidate SHA-256: `67D59C6CE34075198CAA1000008515EAC5B0B2EA0C4F97B84C7764DE3210D047`.
-- iOS build run: `29416945278` (success).
-- `APP_VERSION = 2026.07.15-v85.8.12-shein-consent-region-gallery-perf-no-otp-test`.
-- Real-device acceptance is pending; do not claim the SHEIN issues are fixed yet.
+- Last real-device Temu IPA tested: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.19-temu-search-keyboard.ipa`.
+- Last tested commit: `0426529` (`fix: v85.8.19 keep Temu search keyboard open`).
+- Current local candidate: v85.8.20 / `APP_VERSION = 2026.07.17-v85.8.20-temu-header-search-login-no-otp-test`.
+- v85.8.20 IPA has not been built yet.
+- v85.8.19 did not fix Temu: header still has empty white space, search typing is slow/unstable, and the account/login panel can appear over search.
+- SHEIN is mostly considered previously stabilized; current work is Temu only unless the user explicitly asks otherwise.
+
+## v85.8.20 Local Temu Changes
+
+- Broadened Temu search input detection to include the live top text field when Temu omits `type="search"`/placeholder metadata.
+- Cached expensive Temu search-mode DOM probing for a very short window so typing does not repeatedly scan the whole page.
+- Search chrome restoration now avoids walking into account/login panel containers.
+- Login/account panel hiding is reapplied while search is active if Temu redraws the same visible panel.
+- Home-header forcing no longer scrolls the page back to top and no longer raises the category strip with forced transform/background/z-index.
+- No payment, wallet, completed-order, or account-route logic was intentionally changed.
 
 ## v85.8.6 Scope
 
