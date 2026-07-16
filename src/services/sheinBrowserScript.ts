@@ -4333,12 +4333,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
         // both add entries that were never real user navigation, so a back()
         // from the root could land back on a half-finished verification
         // page instead of doing nothing).
-        // تيمو: منتج مفتوح على مسار الرئيسية (query string) — الرجوع مسموح.
-        // تيمو أثناء البحث: أغلق البحث (blur) ثم ارجع، فيخرج المستخدم من شاشة
-        // الاقتراحات إلى الرئيسية بدل حبسه بلا زر رجوع.
+        // تيمو أثناء البحث: أغلق الكيبورد أولاً (blur). لو كان البحث مساراً
+        // فعلياً (فيه history) نرجع لصفحة سابقة؛ أما لوحة الاقتراحات على مسار
+        // الرئيسية (بلا history) فالـ blur وحده يغلقها — history.back هنا كان
+        // إما لا يفعل شيئاً أو يخرج المستخدم/يعلّق الشاشة.
         if (IS_TEMU && otlobliTemuSearchMode()) {
           try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch (e) {}
-          history.back();
+          if (/search/i.test(location.pathname) || /search/i.test(location.search)) history.back();
         } else if (!looksLikeHomeRoot() || (IS_TEMU && looksLikeProductPage())) {
           history.back();
         }

@@ -2186,28 +2186,35 @@ function App() {
     let cancelled = false
     void (async () => {
       // الفحصان بالتوازي: وصول المتجر + الموقع الجغرافي لخروج الإنترنت.
-      const storeReachablePromise = checkStoreReachable(selectedStore)
-      const geo = await probeVpnGeo()
-      if (cancelled) return
-      if (geo) {
-        setVpnGeo(geo)
-        if (isBlockedStoreCountry(geo.countryCode)) { setVpnState('no-vpn'); return }
-        setVpnState('ok')
-        return
+      const resolveState = async (): Promise<'ok' | 'no-vpn' | 'offline' | null> => {
+        const storeReachablePromise = checkStoreReachable(selectedStore)
+        const geo = await probeVpnGeo()
+        if (cancelled) return null
+        if (geo) {
+          setVpnGeo(geo)
+          return isBlockedStoreCountry(geo.countryCode) ? 'no-vpn' : 'ok'
+        }
+        const storeOk = await storeReachablePromise
+        if (cancelled) return null
+        storeReachableRef.current = storeOk
+        setVpnGeo(null)
+        if (storeOk) return 'ok'
+        return navigator.onLine !== false ? 'no-vpn' : 'offline'
       }
-      const storeOk = await storeReachablePromise
-      if (cancelled) return
-      storeReachableRef.current = storeOk
-      setVpnGeo(null)
-      if (storeOk) {
-        setVpnState('ok')
-        return
+      let state = await resolveState()
+      if (cancelled || state === null) return
+      // إعادة محاولة واحدة قبل إظهار بوابة «شغّل VPN». عدم استقرار السيرفر/الـ
+      // relay كان يُسقط جلسة شغّالة إلى «no-vpn» على فشل probe عابر واحد (خصوصاً
+      // عند إغلاق الكيبورد/الرجوع الذي يُطلق إعادة فحص). محاولة ثانية بعد مهلة
+      // قصيرة تمتصّ الفشل العابر بينما تبقى نتيجة «حجب حقيقي» صحيحة.
+      if (state === 'no-vpn') {
+        await new Promise((r) => window.setTimeout(r, 1600))
+        if (cancelled) return
+        const retryState = await resolveState()
+        if (cancelled || retryState === null) return
+        state = retryState
       }
-      if (navigator.onLine !== false) {
-        setVpnState('no-vpn')
-        return
-      }
-      setVpnState('offline')
+      setVpnState(state)
     })()
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
