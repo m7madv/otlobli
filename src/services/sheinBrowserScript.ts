@@ -4983,6 +4983,48 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
+  // otlobli: robust, tag-agnostic auto-accept. SHEIN renders its consent
+  // buttons as styled <div>s (not <button>/<a>/<input>), so the label-scoped
+  // matcher below never finds them and never fires. This scans ALL small
+  // elements by their own text, strips bidi control marks, and clicks the
+  // accept control (never reject/manage) whenever a cookie consent is on
+  // screen. It runs from the same 300ms tick. The human-check ("أنا إنسان")
+  // never matches acceptRe, so it is left untouched.
+  var __otlobliForceAcceptTries = 0;
+  function otlobliForceAcceptCookies() {
+    if (!document.body) return;
+    if (__otlobliForceAcceptTries >= 10) return;
+    var bodyText = document.body.innerText || '';
+    if (!/ملفات تعريف الارتباط|cookies?/i.test(bodyText)) return;
+    function cleanLabel(s) {
+      return String(s || '').replace(/[\\u200e\\u200f\\u061c\\u202a-\\u202e]/g, '').replace(/\\s+/g, ' ').trim();
+    }
+    var acceptRe = /^(?:قبول(?: الكل)?|accept(?: all)?|allow(?: all)?|agree(?: to all)?|موافق)$/i;
+    var badRe = /رفض|reject|decline|deny|إدارة|manage|preferences|settings|تفضيل/i;
+    var nodes = document.querySelectorAll('button,[role="button"],a,input[type="button"],input[type="submit"],div,span,li,p');
+    var accept = null;
+    for (var fi = 0; fi < nodes.length; fi++) {
+      var fel = nodes[fi];
+      if (fel.children && fel.children.length > 4) continue;
+      var ft = cleanLabel(fel.textContent || fel.value || '');
+      if (!ft || ft.length > 20) continue;
+      if (badRe.test(ft)) continue;
+      if (!acceptRe.test(ft)) continue;
+      var fr = fel.getBoundingClientRect();
+      if (fr.width <= 0 || fr.height <= 0) continue;
+      accept = fel;
+    }
+    if (!accept) return;
+    __otlobliForceAcceptTries++;
+    try { accept.click(); } catch (e1) {}
+    try {
+      var types = ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'];
+      for (var k = 0; k < types.length; k++) {
+        accept.dispatchEvent(new MouseEvent(types[k], { bubbles: true, cancelable: true, view: window }));
+      }
+    } catch (e2) {}
+  }
+
   // otlobli: auto-accept SHEIN's cookie consent on the customer's behalf. The
   // customer must never be able to pick "reject all" and must never have to hunt
   // for the accept button (it sits behind Otlobli's fixed nav on tall devices),
@@ -5620,6 +5662,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     hideSheinCartIcons();
     hideListingCardAddButtons();
     hideForeignBottomNav();
+    otlobliForceAcceptCookies();
     protectSheinCookieConsentAction();
     hideSheinSignupDiscountBanner();
     dismissSheinProductLoginPrompt();
