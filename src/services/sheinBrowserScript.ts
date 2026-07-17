@@ -5790,9 +5790,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
         try { ensureTemuNoZoom(); } catch (e) {}
         try { ensureTemuSearchTouchRepair(); } catch (e) {}
         try { otlobliSyncTemuSearchModeState(temuSearching); } catch (e) {}
-        if (temuSearching) {
-          try { restoreTemuSearchBackControls(); } catch (e) {}
-        }
         // killStorePopups معطّلة لتيمو نهائياً (v57): أكّد اختبار المستخدم
         // (2026-07-10) أنها سبب وميض الشاشة الأبيض كل نصف ثانية — كانت تحجب
         // طبقة كبيرة تطابق PROMO ثم تعيدها المراجعة الذاتية، كل 300ms.
@@ -6117,7 +6114,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function otlobliTemuExitSearchMode() {
     if (!IS_TEMU) return false;
-    restoreTemuSearchBackControls();
     var searchInputForExit = otlobliTemuSearchInputForExit();
     if (/search/i.test(location.pathname + location.search + location.hash) && history.length > 1) {
       try {
@@ -6308,6 +6304,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (!force && now - __otlobliTemuCleanBlockersTs < (OTLOBLI_LOW_END ? 1800 : 1100)) return;
     __otlobliTemuCleanBlockersTs = now;
     try {
+      if (otlobliTemuSearchMode()) return;
       var vp = viewportSize();
       var accountCartRe = /cart|basket|shopping\\s*bag|bag|account|profile|sign\\s*in|signin|login|log\\s*in|\u0633\u0644\u0629|\u0639\u0631\u0628\u0629|\u062d\u0633\u0627\u0628|\u062f\u062e\u0648\u0644|\u062a\u0633\u062c\u064a\u0644/i;
       var appRe = /download\\s*(the\\s*)?app|open\\s*app|get\\s*app|install\\s*app|app\\s*download|\u062a\u0637\u0628\u064a\u0642|\u062a\u0646\u0632\u064a\u0644|\u062d\u0645\u0644|\u0627\u0644\u062a\u0637\u0628\u064a\u0642/i;
@@ -7645,9 +7642,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
       ensureTemuSearchTouchRepair();
       var intervalTemuSearching = otlobliTemuSearchMode();
       otlobliSyncTemuSearchModeState(intervalTemuSearching);
-      if (intervalTemuSearching) {
-        restoreTemuSearchBackControls();
-      }
       try { otlobliCleanTemuBlockers(true); } catch (e) {}
     }
   }, OTLOBLI_LOW_END ? 1800 : 1200);
