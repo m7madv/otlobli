@@ -9,15 +9,24 @@ Last updated: 2026-07-17
 - Reference IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.5-nav-cairo-font-match-no-otp-test.ipa`.
 - Last real-device Temu IPA tested: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.19-temu-search-keyboard.ipa`.
 - Last tested commit: `0426529` (`fix: v85.8.19 keep Temu search keyboard open`).
-- Current local candidate: v85.8.22 / `APP_VERSION = 2026.07.17-v85.8.22-temu-focused-search-no-otp-test`.
-- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.22-temu-focused-search.ipa`.
+- Current local candidate: v85.8.23 / `APP_VERSION = 2026.07.17-v85.8.23-temu-search-exit-home-no-otp-test`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.23-temu-search-exit-home.ipa`.
+- v85.8.23 build run: `29554026083` (success), built from code commit `47bdfaa`.
+- v85.8.23 IPA SHA-256: `119DA708BE544BD2AF2CA74F0EE1C33F482A4A969ACFD66BAA025B3A67F87857`.
+- Previous iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.22-temu-focused-search.ipa`.
 - v85.8.22 build run: `29553022990` (success), built from code commit `8b665ed`.
 - v85.8.22 IPA SHA-256: `1233327C658582DA8D4B11EFF5D621CC4728B13C132CEC93D3AF52391B14CEB5`.
-- Previous iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.21-temu-category-search-account.ipa`.
-- v85.8.21 build run: `29551174390` (success), built from code commit `603c902`.
-- v85.8.21 IPA SHA-256: `E42467AD3BB2F13E6F82E0638AB8AE04846C9036514E94B497E4B2018E53CA1E`.
 - v85.8.19 did not fix Temu: header still has empty white space, search typing is slow/unstable, and the account/login panel can appear over search.
 - SHEIN is mostly considered previously stabilized; current work is Temu only unless the user explicitly asks otherwise.
+
+## v85.8.23 Local Temu Changes
+
+- Fixes the real-device report that Temu home looks correct on first entry but the home header/layout breaks after entering search and backing out.
+- On Otlobli search-back, the search input is found even after focus moves to the back button, then cleared with `input/search/change` events and blurred.
+- Adds a short explicit search-exit suppress window so leftover suggestion overlays cannot keep the page in search mode after returning home.
+- Hides only search suggestion/recent/trending overlays created by the search session, and marks them so search/category restoration cannot revive them as category strips.
+- Tightens category-strip detection so search/suggest/trending text is never treated as a category strip even if it contains words like women/kids.
+- Validated with targeted ESLint, injected-script parse, `npm run build`, a WebKit iPhone-sized home -> search -> back fixture, and GitHub iOS build `29554026083`.
 
 ## v85.8.22 Local Temu Changes
 

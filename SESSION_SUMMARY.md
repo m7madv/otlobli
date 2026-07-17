@@ -1,5 +1,19 @@
 # SESSION_SUMMARY.md
 
+## 2026-07-17 Temu v85.8.23 Search Exit Home Fix
+
+- Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
+- Branch: `claude/ios6-cover-fix`.
+- Current local candidate: v85.8.23 / `APP_VERSION = 2026.07.17-v85.8.23-temu-search-exit-home-no-otp-test`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.23-temu-search-exit-home.ipa`.
+- Build run: `29554026083` (success), built from code commit `47bdfaa`.
+- IPA SHA-256: `119DA708BE544BD2AF2CA74F0EE1C33F482A4A969ACFD66BAA025B3A67F87857`.
+- Scope: only the first new issue, where Temu home looked correct on first entry but broke after entering search and returning home.
+- Fix: Otlobli back from Temu search remembers/falls back to the last search input, clears it, dispatches `input/search/change`, briefly suppresses stale search-mode, and hides only search suggestion/recent/trending overlays from that session.
+- Guard: search suggestion overlays are marked so Temu search/category restoration cannot revive them as category strips; category detection now excludes search/suggest/trending text.
+- Validation passed: targeted ESLint, injected-script parse, `npm run build`, WebKit iPhone-sized home -> search -> back fixture, GitHub unsigned iOS build, embedded v85.8.23 marker check.
+- Next real-device check: install v85.8.23 and verify only home -> search -> back returns to the same clean home layout before moving to the second issue.
+
 ## 2026-07-17 Temu v85.8.22 GitHub Build
 
 - Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
