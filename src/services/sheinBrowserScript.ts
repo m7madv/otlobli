@@ -5862,6 +5862,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return true;
   }
 
+  var __otlobliTemuLastSearchInput = null;
+  function otlobliTemuRememberSearchInput(el) {
+    if (el) __otlobliTemuLastSearchInput = el;
+    return el;
+  }
+
   function otlobliTemuSearchInput() {
     if (!IS_TEMU || !document.body) return null;
     try {
@@ -5880,12 +5886,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if (focusedLooksText && focusedLooksSearch && !focusedBadType &&
           focusedRect.width >= 20 && focusedRect.height >= 8 &&
           focusedRect.bottom > 0 && focusedRect.top >= -12 && focusedRect.top <= Math.min(260, vp.height * 0.42)) {
-          return focused;
+          return otlobliTemuRememberSearchInput(focused);
         }
       }
       var direct = document.querySelectorAll('input[type="search"], [role="searchbox"], input[placeholder*="بحث"], input[placeholder*="Search" i]');
       for (var d = 0; d < direct.length; d++) {
-        if (otlobliTemuUsableSearchField(direct[d], vp)) return direct[d];
+        if (otlobliTemuUsableSearchField(direct[d], vp)) return otlobliTemuRememberSearchInput(direct[d]);
       }
       var fields = document.querySelectorAll('input, textarea, [contenteditable="true"]');
       for (var i = 0; i < fields.length; i++) {
@@ -5894,8 +5900,28 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var hints = otlobliCollectIdentityHints(el);
         var ph = ((el.getAttribute && (el.getAttribute('placeholder') || el.getAttribute('aria-label') || el.getAttribute('name') || '')) || '');
         var value = typeof el.value === 'string' ? el.value : (el.textContent || '');
-        if (/search|بحث/i.test(hints + ' ' + ph)) return el;
-        if (value && value.length <= 80 && !/(email|mail|password|pass|login|account|حساب|دخول)/i.test(hints + ' ' + ph)) return el;
+        if (/search|بحث/i.test(hints + ' ' + ph)) return otlobliTemuRememberSearchInput(el);
+        if (value && value.length <= 80 && !/(email|mail|password|pass|login|account|حساب|دخول)/i.test(hints + ' ' + ph)) return otlobliTemuRememberSearchInput(el);
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  function otlobliTemuSearchInputForExit() {
+    var input = otlobliTemuSearchInput();
+    if (input) return input;
+    try {
+      if (__otlobliTemuLastSearchInput && document.contains && document.contains(__otlobliTemuLastSearchInput)) {
+        return __otlobliTemuLastSearchInput;
+      }
+      var vp = viewportSize();
+      var nodes = document.querySelectorAll('input[type="search"], [role="searchbox"], input[placeholder*="Search" i], input[placeholder*="بحث"]');
+      for (var i = 0; i < nodes.length; i++) {
+        var el = nodes[i];
+        var r = el.getBoundingClientRect();
+        if (r.width >= 20 && r.height >= 8 && r.bottom > 0 && r.top >= -20 && r.top <= Math.min(320, vp.height * 0.5)) {
+          return otlobliTemuRememberSearchInput(el);
+        }
       }
     } catch (e) {}
     return null;
@@ -5908,12 +5934,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var __otlobliTemuSearchModeCacheTs = 0;
   var __otlobliTemuSearchModeCacheHref = '';
   var __otlobliTemuSearchModeCacheValue = false;
+  var __otlobliTemuSearchExitSuppressUntil = 0;
   function otlobliTemuSearchMode() {
     if (!IS_TEMU || !document.body) return false;
     var si = otlobliTemuSearchInput();
     if (si) {
       if (document.activeElement === si) return true;
     }
+    if (Date.now() < __otlobliTemuSearchExitSuppressUntil && otlobliTemuHomeLikeUrl()) return false;
     if (/search/i.test(location.pathname) || /search/i.test(location.search)) return true;
     var now = Date.now();
     var href = location.href || '';
@@ -5990,6 +6018,65 @@ export const SHEIN_CAPTURE_SCRIPT = `
     } catch (e) {}
   }
 
+  function otlobliHideTemuSearchExitOverlays() {
+    if (!IS_TEMU || !document.body) return;
+    try {
+      var vp = viewportSize();
+      var nodes = document.querySelectorAll('[data-otlobli-temu-search-exit-hidden="1"], div, section, aside');
+      for (var i = 0; i < nodes.length; i++) {
+        var el = nodes[i];
+        if (!el || (el.id && el.id.indexOf('otlobli') === 0)) continue;
+        if (el.closest && (el.closest('#otlobli-nav') || el.closest('#otlobli-back-btn'))) continue;
+        if (el.querySelector && el.querySelector('input, textarea, [role="searchbox"]')) continue;
+        if (temuContainsPrice(el)) continue;
+        var r = el.getBoundingClientRect();
+        if (r.width < vp.width * 0.55 || r.height < 34 || r.height > vp.height * 0.72) continue;
+        if (r.bottom < -4 || r.top < -4 || r.top > 340) continue;
+        var txt = temuCleanText(el.textContent);
+        if (!txt || txt.length > 700) continue;
+        if (otlobliTemuAccountPanelScore(txt) >= 2) continue;
+        if (!/(رائج الآن|اقتراح|بحث شائع|عمليات البحث|search|suggest|trending|recent searches|popular searches)/i.test(txt)) continue;
+        el.setAttribute('data-otlobli-temu-search-exit-hidden', '1');
+        el.setAttribute('data-otlobli-temu-hidden', '1');
+        el.style.setProperty('display', 'none', 'important');
+        el.style.setProperty('visibility', 'hidden', 'important');
+        el.style.setProperty('opacity', '0', 'important');
+        el.style.setProperty('pointer-events', 'none', 'important');
+      }
+    } catch (e) {}
+  }
+
+  function otlobliResetTemuHomeAfterSearchExit(input, clearValue) {
+    try {
+      var now = Date.now();
+      __otlobliTemuSearchExitSuppressUntil = Math.max(__otlobliTemuSearchExitSuppressUntil, now + (OTLOBLI_LOW_END ? 1400 : 900));
+      if (input) {
+        if (clearValue && typeof input.value === 'string' && input.value) {
+          input.value = '';
+        } else if (clearValue && input.isContentEditable) {
+          input.textContent = '';
+        }
+        try { input.dispatchEvent(new Event('input', { bubbles: true })); } catch (e0) {}
+        try { input.dispatchEvent(new Event('search', { bubbles: true })); } catch (e1) {}
+        try { input.dispatchEvent(new Event('change', { bubbles: true })); } catch (e2) {}
+        try { input.blur(); } catch (e3) {}
+      }
+      otlobliSyncTemuSearchModeState(false);
+      otlobliHideTemuSearchExitOverlays();
+      hideTemuAccountSurfaces();
+      hideTemuDistractingSheets();
+      restoreTemuCategoryStrip();
+      otlobliForceTemuHomeHeaderState();
+      ensureBackButton();
+    } catch (e4) {}
+  }
+
+  function otlobliScheduleTemuHomeAfterSearchExit(input, clearValue) {
+    otlobliResetTemuHomeAfterSearchExit(input, clearValue);
+    setTimeout(function () { otlobliResetTemuHomeAfterSearchExit(null, false); }, 80);
+    setTimeout(function () { otlobliResetTemuHomeAfterSearchExit(null, false); }, OTLOBLI_LOW_END ? 520 : 260);
+  }
+
   function otlobliTemuClickNativeBackControl() {
     if (!IS_TEMU || !document.body) return false;
     try {
@@ -6064,29 +6151,28 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function otlobliTemuExitSearchMode() {
     if (!IS_TEMU) return false;
     restoreTemuSearchBackControls();
+    var searchInputForExit = otlobliTemuSearchInputForExit();
     if (/search/i.test(location.pathname + location.search + location.hash) && history.length > 1) {
-      try { history.back(); return true; } catch (e) {}
-    }
-    var si = otlobliTemuSearchInput();
-    if (si && document.activeElement === si) {
-      try { si.blur(); } catch (e2) {}
       try {
-        si.dispatchEvent(new Event('change', { bubbles: true }));
-      } catch (e4) {}
-      try { hideTemuAccountSurfaces(); } catch (e5) {}
-      try { hideTemuDistractingSheets(); } catch (e6) {}
+        history.back();
+        otlobliScheduleTemuHomeAfterSearchExit(searchInputForExit, false);
+        return true;
+      } catch (e) {}
+    }
+    var si = searchInputForExit;
+    if (si && document.activeElement === si) {
       __otlobliTemuSearchModeCacheTs = Date.now();
       __otlobliTemuSearchModeCacheHref = location.href || '';
       __otlobliTemuSearchModeCacheValue = false;
+      otlobliScheduleTemuHomeAfterSearchExit(si, true);
       return true;
     }
     if (document.activeElement && document.activeElement.blur) {
       try { document.activeElement.blur(); } catch (e3) {}
-      try { hideTemuAccountSurfaces(); } catch (e7) {}
-      try { hideTemuDistractingSheets(); } catch (e8) {}
       __otlobliTemuSearchModeCacheTs = Date.now();
       __otlobliTemuSearchModeCacheHref = location.href || '';
       __otlobliTemuSearchModeCacheValue = false;
+      otlobliScheduleTemuHomeAfterSearchExit(si, true);
       return true;
     }
     return false;
@@ -6455,6 +6541,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function otlobliUnhideEl(el) {
     if (!el || (el.id && el.id.indexOf('otlobli') === 0)) return;
     if (el.getAttribute && el.getAttribute('data-otlobli-temu-hidden') === '1') return;
+    if (el.getAttribute && el.getAttribute('data-otlobli-temu-search-exit-hidden') === '1') return;
     el.removeAttribute('data-otlobli-blocked');
     el.style.removeProperty('display');
     el.style.setProperty('visibility', 'visible', 'important');
@@ -6488,7 +6575,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     try {
       var txt = temuCleanText(el.textContent);
       if (!txt || txt.length > 90) return false;
-      if (/(cart|basket|bag|account|login|profile|download|app|سلة|عربة|حساب|تسجيل|تنزيل|تطبيق)/i.test(txt)) return false;
+      if (/(cart|basket|bag|account|login|profile|download|app|search|suggest|trending|recent searches|popular searches|سلة|عربة|حساب|تسجيل|تنزيل|تطبيق|بحث|اقتراح|رائج)/i.test(txt)) return false;
       var categoryWords = /(الكل|نساء|رجال|الرئيسية|مجوهرات|رياض|أطفال|اطفال|إلكترون|الكترون|أكياس|اكياس|صناعة|صناعي|منتجات|الجمال|المحافظة|الحرف|الصفقات|نجوم|الأكثر|الاكثر|كل|home|women|men|jewel|sport|kids|child|electron|bag|industrial|beauty|craft|deals|stars|popular|all)/i;
       if (!categoryWords.test(txt)) return false;
       var r = el.getBoundingClientRect ? el.getBoundingClientRect() : null;
@@ -6670,6 +6757,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
           var parent = el.parentElement;
           for (var p = 0; parent && parent !== document.body && p < 3; p++, parent = parent.parentElement) {
             if (parent.id && parent.id.indexOf('otlobli') === 0) break;
+            if (parent.getAttribute && parent.getAttribute('data-otlobli-temu-search-exit-hidden') === '1') break;
+            if (parent.getAttribute && parent.getAttribute('data-otlobli-temu-hidden') === '1') break;
             var parentText = temuCleanText(parent.textContent);
             if (parentText.length > 80 && otlobliTemuLooksLikeAccountPanelText(parentText)) break;
             parent.removeAttribute('data-otlobli-temu-hidden');
@@ -6768,6 +6857,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     try {
       function showCategoryStripEl(el, forceDisplay) {
         if (!el || !otlobliTemuLooksLikeCategoryOrFilter(el)) return false;
+        if (el.getAttribute && el.getAttribute('data-otlobli-temu-search-exit-hidden') === '1') return false;
         var hasSeveralItems = (el.children && el.children.length >= 2) || temuCleanText(el.textContent).length > 14;
         if (!hasSeveralItems) return false;
         el.setAttribute('data-otlobli-temu-category-strip', '1');
@@ -6792,6 +6882,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var nodes = document.querySelectorAll('[data-otlobli-temu-hidden="1"]');
       for (var i = 0; i < nodes.length; i++) {
         var el = nodes[i];
+        if (el.getAttribute && el.getAttribute('data-otlobli-temu-search-exit-hidden') === '1') continue;
         if (showCategoryStripEl(el, false)) {
           continue;
         }
@@ -6813,6 +6904,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if (restored >= 3) break;
         var strip = strips[s];
         if (strip.id && strip.id.indexOf('otlobli') === 0) continue;
+        if (strip.getAttribute && strip.getAttribute('data-otlobli-temu-search-exit-hidden') === '1') continue;
         if (strip.closest && (strip.closest('#otlobli-nav') || strip.closest('#otlobli-back-btn'))) continue;
         var stripRect = strip.getBoundingClientRect();
         if (stripRect.top > 280) continue;
