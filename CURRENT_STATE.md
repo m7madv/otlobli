@@ -10,7 +10,9 @@ Last updated: 2026-07-17
 - Last real-device Temu IPA tested: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.19-temu-search-keyboard.ipa`.
 - Last tested commit: `0426529` (`fix: v85.8.19 keep Temu search keyboard open`).
 - Current local candidate: v85.8.20 / `APP_VERSION = 2026.07.17-v85.8.20-temu-header-search-login-no-otp-test`.
-- v85.8.20 IPA has not been built yet.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.20-temu-header-search-login.ipa`.
+- v85.8.20 build run: `29543466932` (success), built from code commit `5a5b0c6`.
+- v85.8.20 IPA SHA-256: `16EFD9C2C1C38FE88C87404CF24BD157A1DC7DED4B265CF914BCE5FC4C9BEEC5`.
 - v85.8.19 did not fix Temu: header still has empty white space, search typing is slow/unstable, and the account/login panel can appear over search.
 - SHEIN is mostly considered previously stabilized; current work is Temu only unless the user explicitly asks otherwise.
 

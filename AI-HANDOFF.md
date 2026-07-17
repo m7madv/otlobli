@@ -8,7 +8,9 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 - Last tested IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.19-temu-search-keyboard.ipa`.
 - Last tested code: `0426529` (`fix: v85.8.19 keep Temu search keyboard open`).
 - Current local code candidate: v85.8.20 / `APP_VERSION = 2026.07.17-v85.8.20-temu-header-search-login-no-otp-test`.
-- v85.8.20 IPA has not been built yet.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.20-temu-header-search-login.ipa`.
+- Build run: `29543466932` (success), built from code commit `5a5b0c6`.
+- IPA SHA-256: `16EFD9C2C1C38FE88C87404CF24BD157A1DC7DED4B265CF914BCE5FC4C9BEEC5`.
 - Rollback/reference: v85.8.5 / `a914d81` and the user-provided v85.8.5 IPA.
 - v85.8.19 did not fix Temu. Current focus is Temu only; do not touch payment, wallet, completed orders, or account routes unless explicitly requested.
 - v85.8.10's ordinary iPhone 16 SHEIN nav behavior was accepted. Do not call any new Temu change proven until tested on the real iPhone device; do not rely on the simulator.
@@ -41,4 +43,4 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
 ## Next Step
 
-Run targeted validation, then build an iOS IPA only after reviewing the limited v85.8.20 diff. On the real iPhone, verify Temu opens with a clean header from first entry, the category strip remains visible without a white blank header band, search keeps the keyboard open, typing is fast, and the login/account panel does not appear during search while the real account path still works when opened intentionally.
+Install `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.20-temu-header-search-login.ipa` on the real iPhone. Verify Temu opens with a clean header from first entry, the category strip remains visible without a white blank header band, search keeps the keyboard open, typing is fast, and the login/account panel does not appear during search while the real account path still works when opened intentionally.

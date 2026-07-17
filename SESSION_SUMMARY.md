@@ -8,7 +8,9 @@
 - Last tested commit: `0426529` (`fix: v85.8.19 keep Temu search keyboard open`).
 - v85.8.19 is not fixed: Temu still shows an empty/white header band, search typing is slow/unstable, and the login/account panel can appear over search and keyboard.
 - Current local candidate: v85.8.20 / `APP_VERSION = 2026.07.17-v85.8.20-temu-header-search-login-no-otp-test`.
-- v85.8.20 IPA has not been built yet.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.20-temu-header-search-login.ipa`.
+- Build run: `29543466932` (success), built from code commit `5a5b0c6`.
+- IPA SHA-256: `16EFD9C2C1C38FE88C87404CF24BD157A1DC7DED4B265CF914BCE5FC4C9BEEC5`.
 - Local changes are limited to Temu in `src/services/sheinBrowserScript.ts`: broader live search-input detection, short search-mode probe cache, safer search chrome restoration that avoids account panel ancestors, search-only login panel re-hide, and less aggressive home-header forcing.
 - Do not use the simulator for final judgment; test on the real iPhone. Do not touch payment, wallet, completed orders, or account route logic unless explicitly requested.
 
