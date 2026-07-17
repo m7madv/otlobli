@@ -5971,6 +5971,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
       for (var i = 0; i < marked.length; i++) {
         marked[i].removeAttribute('data-otlobli-temu-active-search-shell');
       }
+      var frames = document.querySelectorAll('[data-otlobli-temu-active-search-frame="1"]');
+      for (var f = 0; f < frames.length; f++) {
+        frames[f].removeAttribute('data-otlobli-temu-active-search-frame');
+      }
     } catch (e) {}
   }
 
@@ -5980,6 +5984,30 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var vp = viewportSize();
       var control = otlobliTemuSearchInput();
       if (!control) {
+        var active = document.activeElement;
+        if (active && active.getBoundingClientRect) {
+          var activeTag = (active.tagName || '').toLowerCase();
+          var activeType = ((active.getAttribute && active.getAttribute('type')) || '').toLowerCase();
+          var activeRole = ((active.getAttribute && active.getAttribute('role')) || '').toLowerCase();
+          var activeRect = active.getBoundingClientRect();
+          var activeTextField = activeTag === 'input' || activeTag === 'textarea' ||
+            active.getAttribute('contenteditable') === 'true' || activeRole === 'searchbox';
+          if (activeTextField && !/^(email|password|number|hidden|checkbox|radio|submit|button)$/i.test(activeType) &&
+              activeRect.width >= 20 && activeRect.height >= 8 &&
+              activeRect.bottom > 0 && activeRect.top >= -12 && activeRect.top <= Math.min(260, vp.height * 0.42)) {
+            control = otlobliTemuRememberSearchInput(active);
+          }
+        }
+      }
+      if (!control && __otlobliTemuLastSearchInput && document.contains &&
+          document.contains(__otlobliTemuLastSearchInput)) {
+        var lastRect = __otlobliTemuLastSearchInput.getBoundingClientRect();
+        if (lastRect.width >= 20 && lastRect.height >= 8 &&
+            lastRect.bottom > 0 && lastRect.top >= -20 && lastRect.top <= Math.min(320, vp.height * 0.5)) {
+          control = __otlobliTemuLastSearchInput;
+        }
+      }
+      if (!control) {
         var triggers = document.querySelectorAll('[class*="searchBar" i], [role="searchbox"], input[type="search"], div, button, a');
         for (var t = 0; t < triggers.length; t++) {
           var tr = triggers[t].getBoundingClientRect();
@@ -5988,19 +6016,34 @@ export const SHEIN_CAPTURE_SCRIPT = `
         }
       }
       if (!control) return;
+      var controlRect = control.getBoundingClientRect();
       var shell = control;
       var up = control.parentElement;
-      for (var h = 0; up && up !== document.body && h < 4; h++, up = up.parentElement) {
+      for (var h = 0; up && up !== document.body && h < 5; h++, up = up.parentElement) {
         var r = up.getBoundingClientRect();
         var txt = temuCleanText(up.textContent);
         if (txt.length > 500 || otlobliTemuAccountPanelScore(txt) >= 2) break;
         if (r.width >= 100 && r.width <= vp.width + 8 && r.height >= 24 && r.height <= 96 &&
             r.top > -12 && r.top < 140) {
           shell = up;
+          if (r.height <= Math.max(74, controlRect.height + 34)) break;
         }
       }
       otlobliTemuClearActiveSearchShells();
       shell.setAttribute('data-otlobli-temu-active-search-shell', '1');
+      var frame = shell.parentElement;
+      var markedFrame = false;
+      for (var fp = 0; frame && frame !== document.body && fp < 3; fp++, frame = frame.parentElement) {
+        var fr = frame.getBoundingClientRect();
+        var ft = temuCleanText(frame.textContent);
+        if (ft.length > 500 || otlobliTemuAccountPanelScore(ft) >= 2) break;
+        if (fr.width >= 120 && fr.width <= vp.width + 8 && fr.height >= 28 && fr.height <= 150 && fr.top > -18 && fr.top < 150) {
+          frame.setAttribute('data-otlobli-temu-active-search-frame', '1');
+          markedFrame = true;
+          break;
+        }
+      }
+      if (!markedFrame) shell.setAttribute('data-otlobli-temu-active-search-frame', '1');
     } catch (e) {}
   }
 
@@ -6063,6 +6106,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       }
       otlobliSyncTemuSearchModeState(false);
       otlobliHideTemuSearchExitOverlays();
+      otlobliWakeTemuHomeHeaderAfterSearchExit();
       hideTemuAccountSurfaces();
       hideTemuDistractingSheets();
       restoreTemuCategoryStrip();
@@ -6075,6 +6119,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     otlobliResetTemuHomeAfterSearchExit(input, clearValue);
     setTimeout(function () { otlobliResetTemuHomeAfterSearchExit(null, false); }, 80);
     setTimeout(function () { otlobliResetTemuHomeAfterSearchExit(null, false); }, OTLOBLI_LOW_END ? 520 : 260);
+    setTimeout(function () { otlobliResetTemuHomeAfterSearchExit(null, false); }, OTLOBLI_LOW_END ? 1250 : 700);
   }
 
   function otlobliTemuClickNativeBackControl() {
@@ -6285,8 +6330,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
     '[data-otlobli-temu-search-shell="1"]' +
     '{ background: transparent !important; box-shadow: none !important; opacity: 1 !important;' +
     ' visibility: visible !important; pointer-events: auto !important; }' +
+    'body[data-otlobli-temu-search-mode="1"] [data-otlobli-temu-active-search-frame="1"]' +
+    '{ overflow: visible !important; min-height: 68px !important; padding-bottom: 12px !important;' +
+    ' box-sizing: border-box !important; }' +
     'body[data-otlobli-temu-search-mode="1"] [data-otlobli-temu-active-search-shell="1"]' +
-    '{ margin-top: 18px !important; }' +
+    '{ margin-top: 0 !important; transform: translate3d(0,10px,0) !important;' +
+    ' will-change: transform !important; overflow: visible !important; }' +
     '[data-otlobli-temu-category-strip="1"]' +
     '{ display: flex !important; align-items: center !important; overflow-x: auto !important;' +
     ' -webkit-overflow-scrolling: touch !important; visibility: visible !important;' +
@@ -6937,6 +6986,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var __otlobliTemuHomeHeaderWakeUrl = '';
   var __otlobliTemuHomeHeaderWakeUntil = 0;
   var __otlobliTemuHomeHeaderWakeCount = 0;
+  function otlobliWakeTemuHomeHeaderAfterSearchExit() {
+    if (!IS_TEMU || !otlobliTemuHomeLikeUrl()) return;
+    var url = (location.origin || '') + location.pathname + location.search;
+    __otlobliTemuHomeHeaderWakeUrl = url;
+    __otlobliTemuHomeHeaderWakeUntil = Date.now() + (OTLOBLI_LOW_END ? 2200 : 1400);
+    __otlobliTemuHomeHeaderWakeCount = 0;
+  }
+
   function otlobliTemuHomeLikeUrl() {
     if (!IS_TEMU) return false;
     var path = (location.pathname || '') + ' ' + (location.search || '') + ' ' + (location.hash || '');
