@@ -5,15 +5,15 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Current Candidate
 
 - Branch: `claude/ios6-cover-fix`.
-- Last tested IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.23-temu-search-exit-home.ipa`.
-- Last tested code: `47bdfaa` (`fix: v85.8.23 restore Temu home after search`).
-- Current local code candidate: v85.8.24 / `APP_VERSION = 2026.07.17-v85.8.24-temu-search-layout-no-otp-test`.
-- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.24-temu-search-layout.ipa`.
-- Build run: `29577463207` (success), built from code commit `b061da5`.
-- IPA SHA-256: `15A3FD16D00F8BB04316D05A70F55FA54DCB90EDABF21AF5B96249E4637E9426`.
-- Previous iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.23-temu-search-exit-home.ipa`.
-- Previous build run: `29554026083` (success), built from code commit `47bdfaa`.
-- Previous IPA SHA-256: `119DA708BE544BD2AF2CA74F0EE1C33F482A4A969ACFD66BAA025B3A67F87857`.
+- Last tested IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.24-temu-search-layout.ipa`.
+- Last tested code: `b061da5` (`fix: v85.8.24 stabilize Temu search layout`) - rejected on device.
+- Current local code candidate: v85.8.25 / `APP_VERSION = 2026.07.17-v85.8.25-temu-search-no-motion-no-otp-test`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.25-temu-search-no-motion.ipa`.
+- Build run: `29578629966` (success), built from code commit `806b7d7`.
+- IPA SHA-256: `75C0A98B98B504EFFCB409AE432A56E689A1E5911198C5B7F0BCF7029E6CEC41`.
+- Previous iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.24-temu-search-layout.ipa`.
+- Previous build run: `29577463207` (success), built from code commit `b061da5`.
+- Previous IPA SHA-256: `15A3FD16D00F8BB04316D05A70F55FA54DCB90EDABF21AF5B96249E4637E9426`.
 - Rollback/reference: v85.8.5 / `a914d81` and the user-provided v85.8.5 IPA.
 - v85.8.19 did not fix Temu. Current focus is Temu only; do not touch payment, wallet, completed orders, or account routes unless explicitly requested.
 - v85.8.10's ordinary iPhone 16 SHEIN nav behavior was accepted. Do not call any new Temu change proven until tested on the real iPhone device; do not rely on the simulator.
@@ -46,8 +46,9 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 - v85.8.21 fixes a WebKit document-start abort in Cairo font injection and defers the MutationObserver until a root node exists. It nudges Temu's first-entry home header only when the category strip is missing, then returns to top. It hides the live Temu account/login surfaces by observed classes on non-account routes, including search redraws, without the previous heavy 90ms full-page text scan.
 - v85.8.22 marks verified Temu category strips and forces only those strips to `display:flex`, detects focused searchboxes as search mode, lowers the active search shell by 18px, hides Temu's native search back control, and cleans login/offer sheets on non-account routes while preserving real account routes. The iOS splash PNGs are now blank white to avoid the blue logo in app switcher previews.
 - v85.8.23 fixes home layout breaking after entering Temu search and backing out. Otlobli search-back now remembers/clears the search input, dispatches input/search/change, suppresses stale search-mode briefly, hides only search suggestion overlays, and prevents those overlays from being restored as category strips.
-- v85.8.24 fixes the follow-up real-device layout issues: the Temu search bar lower edge was clipped on search entry, and home could return compressed after search. Search mode now marks a scoped active search shell/frame, expands only the nearest frame temporarily, lowers the shell with `transform` instead of `margin-top`, clears those markers on exit, and restarts a bounded home-header wake window for weak iPhones.
+- v85.8.24 is rejected on real device. It used active search shell/frame marking plus transform/min-height CSS and caused multiple-tap search entry, moving search bar while typing, half-hidden category strip, and broken home size after exit.
+- v85.8.25 removes the v85.8.24 motion/frame path. During search, Otlobli no longer restores/forces the category strip and no longer applies search-mode transform/min-height/margin CSS. Otlobli back uses a short focus-loss grace window so tapping the back button still exits search even if focus leaves the input first.
 
 ## Next Step
 
-Install v85.8.24 on the real iPhone. Verify only this loop first: Temu home opens cleanly, tap search and confirm the search bar is not cut from the bottom, then press Otlobli back and confirm home returns to the same clean first-entry header/category layout without needing scroll.
+Install v85.8.25 on the real iPhone. Verify only this loop first: Temu home opens cleanly, one tap enters search, typing does not move the search bar, the category strip does not appear half-hidden during search, and Otlobli back returns to the clean home layout.

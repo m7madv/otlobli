@@ -7,20 +7,29 @@ Last updated: 2026-07-17
 - Branch: `claude/ios6-cover-fix`.
 - Stable tested reference: v85.8.5 / `a914d81`.
 - Reference IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.5-nav-cairo-font-match-no-otp-test.ipa`.
-- Last real-device Temu IPA tested: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.23-temu-search-exit-home.ipa`.
-- Last tested commit: `47bdfaa` (`fix: v85.8.23 restore Temu home after search`).
-- Current local candidate: v85.8.24 / `APP_VERSION = 2026.07.17-v85.8.24-temu-search-layout-no-otp-test`.
-- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.24-temu-search-layout.ipa`.
+- Last real-device Temu IPA tested: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.24-temu-search-layout.ipa`.
+- Last tested commit: `b061da5` (`fix: v85.8.24 stabilize Temu search layout`) - rejected on device.
+- Current local candidate: v85.8.25 / `APP_VERSION = 2026.07.17-v85.8.25-temu-search-no-motion-no-otp-test`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.25-temu-search-no-motion.ipa`.
+- v85.8.25 build run: `29578629966` (success), built from code commit `806b7d7`.
+- v85.8.25 IPA SHA-256: `75C0A98B98B504EFFCB409AE432A56E689A1E5911198C5B7F0BCF7029E6CEC41`.
+- Previous iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.24-temu-search-layout.ipa`.
 - v85.8.24 build run: `29577463207` (success), built from code commit `b061da5`.
 - v85.8.24 IPA SHA-256: `15A3FD16D00F8BB04316D05A70F55FA54DCB90EDABF21AF5B96249E4637E9426`.
-- Previous iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.23-temu-search-exit-home.ipa`.
-- v85.8.23 build run: `29554026083` (success), built from code commit `47bdfaa`.
-- v85.8.23 IPA SHA-256: `119DA708BE544BD2AF2CA74F0EE1C33F482A4A969ACFD66BAA025B3A67F87857`.
 - v85.8.19 did not fix Temu: header still has empty white space, search typing is slow/unstable, and the account/login panel can appear over search.
 - SHEIN is mostly considered previously stabilized; current work is Temu only unless the user explicitly asks otherwise.
 
+## v85.8.25 Local Temu Changes
+
+- Treats v85.8.24 as rejected on real device: search needed multiple taps, the search bar moved while typing, the category strip was half-hidden during search, and the header size broke after exiting.
+- Removes the v85.8.24 active search shell/frame marking path and all search-mode CSS that changed `min-height`, `padding-bottom`, `transform`, or `margin-top`.
+- Stops restoring/forcing the Temu category strip while Temu search mode is active; category-strip CSS now applies only outside search mode.
+- Makes Otlobli search-back robust when tapping the back button steals focus from the input, using a short search-back grace window that is cleared immediately on exit.
+- Validated with targeted ESLint, injected-script parse, `npm run build`, a WebKit browser harness for single tap -> type without motion -> Otlobli back -> home, GitHub iOS build `29578629966`, and embedded v85.8.25 marker check.
+
 ## v85.8.24 Local Temu Changes
 
+- Rejected on real device. It moved/expanded the search layout and caused multiple-tap search entry, moving search bar while typing, hidden category strip, and broken home size after exit.
 - Fixes the latest real-device report after v85.8.23: entering Temu search cut the lower part of the search bar, and returning home could leave the header/category strip compressed or shifted.
 - Replaces the previous search-mode `margin-top:18px` with a scoped active search shell/frame: only the nearest search frame gets temporary `overflow:visible`/minimum height, while the search shell is visually lowered with `transform`.
 - Adds active-element and last-search-input fallbacks so the active search shell is marked reliably without broad guessing or page-wide CSS.

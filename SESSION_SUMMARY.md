@@ -1,7 +1,22 @@
 # SESSION_SUMMARY.md
 
+## 2026-07-17 Temu v85.8.25 Search No-Motion Fix
+
+- Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
+- Branch: `claude/ios6-cover-fix`.
+- Current local candidate: v85.8.25 / `APP_VERSION = 2026.07.17-v85.8.25-temu-search-no-motion-no-otp-test`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.25-temu-search-no-motion.ipa`.
+- Build run: `29578629966` (success), built from code commit `806b7d7`.
+- IPA SHA-256: `75C0A98B98B504EFFCB409AE432A56E689A1E5911198C5B7F0BCF7029E6CEC41`.
+- v85.8.24 was rejected on real device: search sometimes needed multiple taps, the search bar moved while typing, the category strip was half-hidden during search, and home size broke after exit.
+- Fix: removed the v85.8.24 active search shell/frame marking path and all search-mode `transform`/`min-height`/`margin-top` CSS; category-strip forcing is now disabled while search mode is active.
+- Back handling: Otlobli back now uses a short focus-loss grace window so tapping the back button still exits search even if focus leaves the input first, then clears that grace immediately on exit.
+- Validation passed: targeted ESLint, injected-script parse, `npm run build`, WebKit browser harness for one-tap search -> stable typing -> Otlobli back -> home, GitHub unsigned iOS build, embedded v85.8.25 marker check.
+- Live Temu in headless WebKit was attempted but Temu redirected to a download, so it was not used as proof.
+
 ## 2026-07-17 Temu v85.8.24 Search Layout Fix
 
+- Rejected on real device. Kept for history only.
 - Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
 - Branch: `claude/ios6-cover-fix`.
 - Current local candidate: v85.8.24 / `APP_VERSION = 2026.07.17-v85.8.24-temu-search-layout-no-otp-test`.
