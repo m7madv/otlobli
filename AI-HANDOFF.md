@@ -5,15 +5,18 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Current Candidate
 
 - Branch: `claude/ios6-cover-fix`.
-- Last tested IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.28-temu-search-preserve-query.ipa`.
-- Last tested code: `c7c49d5` (`fix: v85.8.28 preserve Temu search query`) - user reported Temu search is working well.
-- Current local code candidate: v85.8.29 / `APP_VERSION = 2026.07.17-v85.8.29-temu-ram-variant-gate-no-otp-test`.
-- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.29-temu-ram-variant-gate.ipa`.
-- Build run: `29586606771` (success), built from code commit `74e2c0f`.
-- IPA SHA-256: `6EB037D772BD6FBF6BB0E2264A61AA323A13E6177FA431EE238CD73A548847C5`.
-- Previous iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.28-temu-search-preserve-query.ipa`.
-- Previous build run: `29584752961` (success), built from code commit `c7c49d5`.
-- Previous IPA SHA-256: `2AFC1C27164E1023493632323B0F1F7992ACC16B3C6294BB9E7CFE54B97C8BCB`.
+- Last tested IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.29-temu-ram-variant-gate.ipa`.
+- Last tested code: `74e2c0f` (`fix: v85.8.29 gate Temu RAM variants`) - user reported products with no size options could still be blocked by "select size".
+- Current local code candidate: v85.8.30 / `APP_VERSION = 2026.07.17-v85.8.30-temu-no-false-size-gate-no-otp-test`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.30-temu-no-false-size-gate.ipa`.
+- Build run: `29587915183` (success), built from code commit `dcc2bb5`.
+- IPA SHA-256: `4804EB86912DAD859BC389819C351ABD74A58795E957286BE36E6FAD4C6DF747`.
+- Previous iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.29-temu-ram-variant-gate.ipa`.
+- Previous build run: `29586606771` (success), built from code commit `74e2c0f`.
+- Previous IPA SHA-256: `6EB037D772BD6FBF6BB0E2264A61AA323A13E6177FA431EE238CD73A548847C5`.
+- Older iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.28-temu-search-preserve-query.ipa`.
+- Older build run: `29584752961` (success), built from code commit `c7c49d5`.
+- Older IPA SHA-256: `2AFC1C27164E1023493632323B0F1F7992ACC16B3C6294BB9E7CFE54B97C8BCB`.
 - Older iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.27-temu-search-light-blockers.ipa`.
 - Older build run: `29583256531` (success), built from code commit `d9368b4`.
 - Older IPA SHA-256: `9B706F650718BA25A7D3E9B61CACB54AAAC873DA492FD5F11CA81866EE2A3826`.
@@ -58,7 +61,8 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 - v85.8.27 lightens blockers during active Temu search: it no longer hides Temu's native search back button, and the JS text/geometry cleaner returns immediately while search is active so suggestion words/letters are preserved. Static CSS blockers still apply.
 - v85.8.28 adds a narrow search-only cleanup that hides compact top account/cart/menu controls and the fixed Temu bottom nav during search/results without touching suggestion text or Temu's native search back. Otlobli search exit now preserves a focused/populated query instead of clearing it.
 - v85.8.29 fixes Temu product option gating for summaries that include RAM/memory/storage, including Arabic `ذاكرة الوصول العشوائي`. Otlobli add now opens the `حدد` variant row instead of adding directly when color plus memory/storage options are present.
+- v85.8.30 fixes false Temu size/color gates: products with no size/RAM/model options no longer show "select size"; text-only single-color products such as `اللون: لون فضي` can add and capture the color text. v80 (`db7dfb8`) was checked and not reused because it lacks RAM/memory support and still uses the broad size-section block.
 
 ## Next Step
 
-Install v85.8.29 on the real iPhone. Verify the product shown in the latest screenshot first: tapping Otlobli `أضف للسلة` while color/RAM options are unselected should open the Temu `حدد` variant selector and must not add directly to Otlobli cart. After selecting required options, verify add still captures normally. Temu search behavior should remain like accepted v85.8.28.
+Install v85.8.30 on the real iPhone. Verify the latest no-size product first: color/quantity-only products should add without "select size" and should not store quantity as size. Also verify a color+RAM summary product still opens `حدد` before adding. Temu search behavior should remain like accepted v85.8.28.

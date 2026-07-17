@@ -1,5 +1,20 @@
 # SESSION_SUMMARY.md
 
+## 2026-07-17 Temu v85.8.30 No False Size Gate
+
+- Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
+- Branch: `claude/ios6-cover-fix`.
+- Current local candidate: v85.8.30 / `APP_VERSION = 2026.07.17-v85.8.30-temu-no-false-size-gate-no-otp-test`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.30-temu-no-false-size-gate.ipa`.
+- Build run: `29587915183` (success), built from code commit `dcc2bb5`.
+- IPA SHA-256: `4804EB86912DAD859BC389819C351ABD74A58795E957286BE36E6FAD4C6DF747`.
+- User report after v85.8.29: some Temu products have no size options, only color/quantity, but Otlobli still asked to select size.
+- Fix: the second-option block now requires real option pills or a variant summary count greater than one; a suspicious heading alone is not enough.
+- Fix: text-only single-color products such as `اللون: لون فضي` pass and capture the color text without requiring a swatch image.
+- Checked v80 (`db7dfb8`): it does not include RAM/memory support and still uses the older broad size-section gate, so it was not restored.
+- Validation passed: targeted ESLint, injected-script parse, `npm run build`, WebKit fixtures for no-size, text-only color, and RAM summary gating, GitHub unsigned iOS build, embedded v85.8.30 marker check.
+- No simulator was used. Final acceptance is still real-device only.
+
 ## 2026-07-17 Temu v85.8.29 RAM Variant Gate
 
 - Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
