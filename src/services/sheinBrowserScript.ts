@@ -4030,6 +4030,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if (IS_TEMU) {
           // أي نقرة "أضف" جديدة تُلغي جولة انتظار خيارات سابقة (لا ازدواج إضافة).
           window.__otlobliTemuAwaitSeq = (window.__otlobliTemuAwaitSeq || 0) + 1;
+          // مقياس تتبّع البوابة (نسخة اختبار): يسجّل كل قرار وتعرضه لوحة التشخيص.
+          var gtr = window.__otlobliGateTrace = { res: 'يفحص...' };
           // شجرة قرار كاملة فاشلة-بأمان: لا نضيف أبداً قبل التأكد من كل قيمة
           // مطلوبة؛ أي شكّ → نمنع ونطلب الاختيار (خربطة = صفر).
           // أ) لوحة الخيارات مغلقة وفيها خيارات ("X Color, Y Size") → نفتحها.
@@ -4037,6 +4039,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
           // يبقى بالـDOM حتى بعد فتح اللوحة (خلف الشيت)، فنفرّق بين الحالتين:
           // اللوحة مفتوحة = أزرار المقاس ظاهرة بالشاشة، أو الزبون سبق نقر لون.
           var summaryEl = temuVariantSummaryEl();
+          gtr.sum = summaryEl ? temuCleanText(summaryEl.textContent).slice(0, 24) : 'لا';
           if (summaryEl) {
             var vp2 = viewportSize();
             var sheetAlreadyOpen = false;
@@ -4058,10 +4061,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
               var vcPre = temuVariantCounts();
               if (vcPre.colors === 1 && vcPre.sizes === 1) sheetAlreadyOpen = true;
             }
+            gtr.sheet = sheetAlreadyOpen ? 'مفتوح' : 'مغلق';
             if (!sheetAlreadyOpen) {
               // جذب احترافي بنقرة واحدة: نفتح شيت الخيارات بأنفسنا، ننقر
               // الخيارات الوحيدة تلقائياً، ننتظر اختيار الزبون للمتعدد، وفور
               // اكتمال كل الأبعاد نكمل الإضافة تلقائياً — بلا نقرة "أضف" ثانية.
+              gtr.res = 'فتح الشيت + انتظار الاختيار';
               try { summaryEl.click(); } catch (e) {}
               otlobliShowGateSpinner();
               var awaitGid0 = temuGoodsId();
@@ -4076,8 +4081,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
                   !!((window.__otlobliTemuColor || window.__otlobliTemuColorSwatch) &&
                      window.__otlobliTemuColorGid === temuGoodsId());
                 var sizeOkA = !temuHasSelectableSecondOption() || vcA.sizes === 1 || !!temuSelectedSize();
+                gtr.note = 'انتظار اختيار (' + attemptsLeft + ') لون=' + (colorOkA ? '✓' : '✗') + ' مقاس=' + (sizeOkA ? '✓' : '✗');
                 if (colorOkA && sizeOkA) { temuFinalizeAdd(10); return; }
                 if (attemptsLeft <= 0) {
+                  gtr.res = 'مهلة انتظار الاختيار';
                   otlobliRemoveGateSpinner();
                   showMessage(btn, 'حدد الخيارات ثم اضغط أضف للسلة');
                   return;
@@ -4109,6 +4116,21 @@ export const SHEIN_CAPTURE_SCRIPT = `
           var knownOneColor = vCounts.colors === 1;  // "1 اللون"
           var knownOneSize  = vCounts.sizes  === 1;  // "1 موديل" أو "1 مقاس"
           var blockMsg = '';
+          // تتبّع: ماذا ترى البوابة الآن بالضبط (يظهر في لوحة التشخيص).
+          try {
+            var gtrF = window.__otlobliGateTrace = window.__otlobliGateTrace || {};
+            var headT0 = temuSizeHeadEl();
+            gtrF.head = headT0 ? temuCleanText(headT0.textContent).slice(0, 24) : 'لا';
+            var pillsT0 = temuSizePills();
+            gtrF.pills = pillsT0.length;
+            var pt0 = [];
+            for (var pz = 0; pz < pillsT0.length && pz < 3; pz++) pt0.push(temuCleanText(pillsT0[pz].textContent).slice(0, 8));
+            gtrF.pillTxts = pt0.join('،');
+            gtrF.sel = temuSelectedSize() || '-';
+            gtrF.vc = vCounts.colors + '/' + vCounts.sizes;
+            gtrF.cSec = temuHasColorSection() ? 'نعم' : 'لا';
+            gtrF.cVal = (temuColor() || '-').slice(0, 14);
+          } catch (eT) {}
           // د) فيه ألوان متعددة لكن لم يُحدّد لون — لون وحيد يمرّ مباشرة.
           // يسري على منتجات التخصيص أيضاً (سوارة النقش لها ألوان يجب جذبها).
           // نقرة كرت صورة بلا اسم (أحذية/أجهزة) تُحتسب اختياراً عبر الـswatch.
@@ -4145,6 +4167,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
             }
           }
           if (blockMsg) {
+            try { window.__otlobliGateTrace.res = 'حجب: ' + blockMsg + ' (بقي ' + attemptsLeft + ')'; } catch (eT2) {}
             if (attemptsLeft > 0) { setTimeout(function () { temuFinalizeAdd(attemptsLeft - 1); }, 500); return; }
             otlobliRemoveGateSpinner();
             showMessage(btn, blockMsg);
@@ -4170,6 +4193,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
           }
           // ز) السعر: لا نضيف بصفر/غير مقروء.
           if (!(temuPriceUsd() > 0)) {
+            try { window.__otlobliGateTrace.res = 'سعر غير مقروء (بقي ' + attemptsLeft + ')'; } catch (eT3) {}
             if (attemptsLeft > 0) { setTimeout(function () { temuFinalizeAdd(attemptsLeft - 1); }, 500); return; }
             otlobliRemoveGateSpinner();
             showMessage(btn, 'تعذّر قراءة السعر — انتظر ثانية وحاول');
@@ -4177,6 +4201,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
           }
           // و) كل شيء مؤكّد → نضيف. الطبقة الكاملة (showAddingOverlay) تتولى
           // من هنا فوراً - نزيل مؤشر التحقق المؤقت أولاً حتى لا يتعارضا.
+          try { window.__otlobliGateTrace.res = 'أضاف ✓'; } catch (eT4) {}
           otlobliRemoveGateSpinner();
           addToCartFlow({ exists: false }, { exists: false });
           }
@@ -6419,6 +6444,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // الوقت المبكر) فتُطبَّق القاعدة حتى قبل إنشاء <head>.
   function injectTemuHeaderHideCSS() {
     if (!IS_TEMU) return;
+    // وضع اختبار "الحجب مطفأ" (زر لوحة التشخيص): نزيل CSS الحجب ولا نعيده.
+    if (window.__otlobliTemuHideOff) {
+      var stOff = document.getElementById('otlobli-temu-header-hide');
+      if (stOff && stOff.parentNode) stOff.parentNode.removeChild(stOff);
+      return;
+    }
     try { otlobliSyncTemuAccountRouteState(); } catch (e) {}
     if (document.getElementById('otlobli-temu-header-hide')) return;
     var parent = document.head || document.documentElement;
@@ -6588,9 +6619,30 @@ export const SHEIN_CAPTURE_SCRIPT = `
     } catch (e) {}
   }
 
-  // لوحة تشخيص (نسخة اختبار فقط): تكشف بدقة سبب الشاشة البيضاء على الجهاز —
-  // "سليمة" = يظهر محتوى، "محتوى مخفي" = DOM فيه منتج لكنه محجوب (خطأ حجب منّا)،
-  // "DOM فارغ" = تيمو لم ترسم شيئاً (فشل رندر/رابط، ليس حجباً منّا).
+  // استعادة كل ما أخفيناه على تيمو + إزالة CSS الحجب الثابت — لوضع الاختبار
+  // "الحجب مطفأ" (زر اللوحة): يثبت أو ينفي أن الحجب هو مخرّب الجذب.
+  function otlobliTemuUnhideAllForTest() {
+    try {
+      var st = document.getElementById('otlobli-temu-header-hide');
+      if (st && st.parentNode) st.parentNode.removeChild(st);
+      var hidden = document.querySelectorAll('[data-otlobli-temu-clean-hidden="1"],[data-otlobli-temu-hidden="1"],[data-otlobli-temu-search-chrome-hidden="1"]');
+      for (var i = 0; i < hidden.length; i++) {
+        var el = hidden[i];
+        el.removeAttribute('data-otlobli-temu-clean-hidden');
+        el.removeAttribute('data-otlobli-temu-hidden');
+        el.removeAttribute('data-otlobli-temu-search-chrome-hidden');
+        el.style.removeProperty('display');
+        el.style.removeProperty('visibility');
+        el.style.removeProperty('opacity');
+        el.style.removeProperty('pointer-events');
+      }
+    } catch (e) {}
+  }
+
+  // لوحة تشخيص (نسخة اختبار فقط): سطر الحالة + مقياس تتبّع البوابة (ماذا رأت
+  // بوابة "أضف للسلة" بالضبط: الرأس/الأزرار/المختار/العدّ/القرار) + زر تبديل
+  // "الحجب" يطفئ كل حاجبات تيمو ويستعيد المخفي — لإثبات/نفي أن الحجب يخرّب
+  // الجذب بدليل قاطع من الجهاز نفسه.
   function otlobliTemuDiag() {
     if (!IS_TEMU || !document.body) return;
     try {
@@ -6600,21 +6652,43 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var clean = document.querySelectorAll('[data-otlobli-temu-clean-hidden="1"]').length;
       var gen = document.querySelectorAll('[data-otlobli-temu-hidden="1"]').length;
       var chrome = document.querySelectorAll('[data-otlobli-temu-search-chrome-hidden="1"]').length;
-      var bodyNodes = document.body.getElementsByTagName('*').length;
-      var panel = ex;
+      var panel = ex, txt;
       if (!panel) {
         panel = document.createElement('div');
         panel.id = 'otlobli-temu-diag';
         panel.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;' +
-          'background:rgba(0,0,0,.82);color:#fff;font-size:10px;line-height:1.4;padding:3px 6px;' +
-          'direction:rtl;text-align:right;font-family:monospace;pointer-events:none;white-space:pre;';
+          'background:rgba(0,0,0,.85);color:#fff;font-size:10px;line-height:1.45;padding:3px 64px 3px 6px;' +
+          'direction:rtl;text-align:right;font-family:monospace;pointer-events:none;white-space:pre-wrap;';
+        txt = document.createElement('span');
+        txt.id = 'otlobli-temu-diag-txt';
+        panel.appendChild(txt);
+        var tg = document.createElement('button');
+        tg.id = 'otlobli-temu-diag-toggle';
+        tg.textContent = 'الحجب: شغّال';
+        tg.style.cssText = 'position:absolute;left:4px;top:3px;pointer-events:auto;font-size:10px;' +
+          'background:#0a7d4f;color:#fff;border:0;border-radius:6px;padding:3px 8px;font-family:inherit;';
+        tg.addEventListener('click', function (ev) {
+          ev.preventDefault(); ev.stopPropagation();
+          window.__otlobliTemuHideOff = !window.__otlobliTemuHideOff;
+          tg.textContent = window.__otlobliTemuHideOff ? 'الحجب: مطفأ' : 'الحجب: شغّال';
+          tg.style.background = window.__otlobliTemuHideOff ? '#b3261e' : '#0a7d4f';
+          if (window.__otlobliTemuHideOff) otlobliTemuUnhideAllForTest();
+        }, true);
+        panel.appendChild(tg);
+      } else {
+        txt = document.getElementById('otlobli-temu-diag-txt');
       }
-      var culprit = (v.visImg === 0 && v.domHasContent) ? otlobliTemuHiddenAncestorInfo() : '-';
-      panel.textContent =
-        'otlobli تشخيص | الحالة: ' + v.state + ' | صور تيمو DOM=' + v.domImg + ' مرئي=' + v.visImg +
-        ' | سعر=' + (v.hasPrice ? 'نعم' : 'لا') + ' | عقد=' + bodyNodes + '\\n' +
-        'أخفينا: نظّف=' + clean + ' عام=' + gen + ' بحث=' + chrome + '\\n' +
-        'المُذنب: ' + culprit;
+      var lines = 'otlobli v85.8.38 | ' + v.state + ' | صور=' + v.domImg + '/' + v.visImg +
+        ' سعر=' + (v.hasPrice ? 'نعم' : 'لا') + ' | نظّف=' + clean + ' عام=' + gen + ' بحث=' + chrome +
+        (window.__otlobliTemuHideOff ? ' | الحجب مطفأ!' : '');
+      var tr = window.__otlobliGateTrace;
+      if (tr) {
+        lines += '\\nبوابة: ' + (tr.res || '...') + ' | ملخّص=' + (tr.sum || '-') + ' شيت=' + (tr.sheet || '-') +
+          '\\nرأس=' + (tr.head || '-') + ' أزرار=' + (tr.pills === undefined ? '-' : tr.pills) +
+          (tr.pillTxts ? '[' + tr.pillTxts + ']' : '') + ' مختار=' + (tr.sel || '-') + ' عدّ=' + (tr.vc || '-') +
+          ' لون:' + (tr.cSec || '-') + '/' + (tr.cVal || '-') + (tr.note ? ' | ' + tr.note : '');
+      }
+      if (txt) txt.textContent = lines;
       try { document.body.appendChild(panel); } catch (e) {}
     } catch (e) {}
   }
@@ -6648,6 +6722,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // فلا يرى الزبون العناصر المحجوبة إطلاقاً. مرة واحدة لكل رابط منتج.
   var __otlobliTemuCoverUrl = '';
   function otlobliTemuEntryCover() {
+    if (window.__otlobliTemuHideOff) return; // وضع اختبار: الحجب مطفأ
     if (!looksLikeProductPage() || otlobliTemuSearchMode()) return;
     var url = (location.href || '').split('#')[0];
     if (__otlobliTemuCoverUrl === url) return;
@@ -6696,6 +6771,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var __otlobliTemuCleanBlockersTs = 0;
   function otlobliCleanTemuBlockers(force) {
     if (!IS_TEMU || !document.body) return;
+    if (window.__otlobliTemuHideOff) return; // وضع اختبار: الحجب مطفأ
     var now = Date.now();
     if (!force && now - __otlobliTemuCleanBlockersTs < (OTLOBLI_LOW_END ? 1800 : 1100)) return;
     __otlobliTemuCleanBlockersTs = now;
@@ -6792,6 +6868,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function hideTemuSearchVisibleAccountCart(searchMode) {
     if (!IS_TEMU || !document.body) return;
+    if (window.__otlobliTemuHideOff) return; // وضع اختبار: الحجب مطفأ
     try {
       var active = typeof searchMode === 'boolean' ? searchMode : otlobliTemuSearchMode();
       if (!active && !/search/i.test(location.pathname + location.search + location.hash)) return;
