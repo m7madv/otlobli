@@ -4397,9 +4397,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // ~300ms on a page that's always inserting something else after it.
     // تيمو SPA قد تفتح المنتج على نفس مسار الرئيسية (query string فقط)
     // فكان looksLikeHomeRoot يخفي زر الرجوع داخل المنتج ويحبس الزبون.
+    var temuSearchBack = IS_TEMU && otlobliTemuSearchMode();
     var shouldShow = __otlobliBackTarget === 'cart' || !looksLikeHomeRoot()
-      || (IS_TEMU && looksLikeProductPage()) || (IS_TEMU && otlobliTemuSearchMode());
-    btn.style.setProperty('top', (IS_SHEIN && viewportSize().width <= 390) ? '58px' : '12px', 'important');
+      || (IS_TEMU && looksLikeProductPage()) || temuSearchBack;
+    btn.style.setProperty('top', temuSearchBack ? '30px' : ((IS_SHEIN && viewportSize().width <= 390) ? '58px' : '12px'), 'important');
     btn.style.display = shouldShow ? 'flex' : 'none';
   }
 
@@ -5788,6 +5789,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         try { injectTemuHeaderHideCSS(); } catch (e) {}
         try { ensureTemuNoZoom(); } catch (e) {}
         try { ensureTemuSearchTouchRepair(); } catch (e) {}
+        try { otlobliSyncTemuSearchModeState(temuSearching); } catch (e) {}
         if (temuSearching) {
           try { otlobliReleaseTemuSearchPinning(); } catch (e) {}
           try { restoreTemuSearchBackControls(); } catch (e) {}
@@ -5810,6 +5812,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         try { otlobliForceTemuHomeHeaderState(); } catch (e) {}
         try { restoreTemuLogo(); } catch (e) {}
         try { hideTemuAccountSurfaces(); } catch (e) {}
+        try { hideTemuDistractingSheets(); } catch (e) {}
         try { ensureAddToCartButton(); } catch (e) {}
         try { dismissTemuLoginPopup(); } catch (e) {}
         if (!temuSearching) {
@@ -5863,6 +5866,23 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (!IS_TEMU || !document.body) return null;
     try {
       var vp = viewportSize();
+      var focused = document.activeElement;
+      if (focused && focused.getBoundingClientRect) {
+        var focusedTag = (focused.tagName || '').toLowerCase();
+        var focusedType = ((focused.getAttribute && focused.getAttribute('type')) || '').toLowerCase();
+        var focusedRole = ((focused.getAttribute && focused.getAttribute('role')) || '').toLowerCase();
+        var focusedHints = otlobliCollectIdentityHints(focused) + ' ' +
+          ((focused.getAttribute && (focused.getAttribute('placeholder') || focused.getAttribute('aria-label') || focused.getAttribute('name') || '')) || '');
+        var focusedRect = focused.getBoundingClientRect();
+        var focusedLooksText = focusedTag === 'input' || focusedTag === 'textarea' || focused.getAttribute('contenteditable') === 'true';
+        var focusedLooksSearch = focusedRole === 'searchbox' || /search|بحث/i.test(focusedHints);
+        var focusedBadType = /^(email|password|number|hidden|checkbox|radio|submit|button)$/i.test(focusedType);
+        if (focusedLooksText && focusedLooksSearch && !focusedBadType &&
+          focusedRect.width >= 20 && focusedRect.height >= 8 &&
+          focusedRect.bottom > 0 && focusedRect.top >= -12 && focusedRect.top <= Math.min(260, vp.height * 0.42)) {
+          return focused;
+        }
+      }
       var direct = document.querySelectorAll('input[type="search"], [role="searchbox"], input[placeholder*="بحث"], input[placeholder*="Search" i]');
       for (var d = 0; d < direct.length; d++) {
         if (otlobliTemuUsableSearchField(direct[d], vp)) return direct[d];
@@ -5915,6 +5935,59 @@ export const SHEIN_CAPTURE_SCRIPT = `
     __otlobliTemuSearchModeCacheHref = href;
     __otlobliTemuSearchModeCacheValue = found;
     return found;
+  }
+
+  function otlobliTemuClearActiveSearchShells() {
+    try {
+      var marked = document.querySelectorAll('[data-otlobli-temu-active-search-shell="1"]');
+      for (var i = 0; i < marked.length; i++) {
+        marked[i].removeAttribute('data-otlobli-temu-active-search-shell');
+      }
+    } catch (e) {}
+  }
+
+  function otlobliTemuMarkActiveSearchShell() {
+    if (!IS_TEMU || !document.body) return;
+    try {
+      var vp = viewportSize();
+      var control = otlobliTemuSearchInput();
+      if (!control) {
+        var triggers = document.querySelectorAll('[class*="searchBar" i], [role="searchbox"], input[type="search"], div, button, a');
+        for (var t = 0; t < triggers.length; t++) {
+          var tr = triggers[t].getBoundingClientRect();
+          if (tr.width < 100 || tr.height < 22 || tr.height > 70 || tr.top < -6 || tr.top > 120) continue;
+          if (otlobliLooksLikeSearchTrigger(triggers[t])) { control = triggers[t]; break; }
+        }
+      }
+      if (!control) return;
+      var shell = control;
+      var up = control.parentElement;
+      for (var h = 0; up && up !== document.body && h < 4; h++, up = up.parentElement) {
+        var r = up.getBoundingClientRect();
+        var txt = temuCleanText(up.textContent);
+        if (txt.length > 500 || otlobliTemuAccountPanelScore(txt) >= 2) break;
+        if (r.width >= 100 && r.width <= vp.width + 8 && r.height >= 24 && r.height <= 96 &&
+            r.top > -12 && r.top < 140) {
+          shell = up;
+        }
+      }
+      otlobliTemuClearActiveSearchShells();
+      shell.setAttribute('data-otlobli-temu-active-search-shell', '1');
+    } catch (e) {}
+  }
+
+  function otlobliSyncTemuSearchModeState(searchMode) {
+    if (!IS_TEMU || !document.body) return;
+    try {
+      var active = typeof searchMode === 'boolean' ? searchMode : otlobliTemuSearchMode();
+      if (active) {
+        document.body.setAttribute('data-otlobli-temu-search-mode', '1');
+        otlobliTemuMarkActiveSearchShell();
+      } else {
+        document.body.removeAttribute('data-otlobli-temu-search-mode');
+        otlobliTemuClearActiveSearchShells();
+      }
+    } catch (e) {}
   }
 
   function otlobliTemuClickNativeBackControl() {
@@ -5979,11 +6052,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
         }
         if (!looksBack) continue;
         if (r.width > 0 && r.height > 0 && (r.top < -4 || r.top > 260 || r.right < -4 || r.left > vp.width + 4)) continue;
-        el.removeAttribute('data-otlobli-temu-hidden');
-        el.style.removeProperty('display');
-        el.style.setProperty('visibility', 'visible', 'important');
-        el.style.setProperty('opacity', '1', 'important');
-        el.style.setProperty('pointer-events', 'auto', 'important');
+        el.setAttribute('data-otlobli-temu-native-search-back', '1');
+        el.setAttribute('data-otlobli-temu-hidden', '1');
+        el.style.setProperty('visibility', 'hidden', 'important');
+        el.style.setProperty('opacity', '0', 'important');
+        el.style.setProperty('pointer-events', 'none', 'important');
       }
     } catch (e) {}
   }
@@ -5991,16 +6064,30 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function otlobliTemuExitSearchMode() {
     if (!IS_TEMU) return false;
     restoreTemuSearchBackControls();
-    if (otlobliTemuClickNativeBackControl()) return true;
     if (/search/i.test(location.pathname + location.search + location.hash) && history.length > 1) {
       try { history.back(); return true; } catch (e) {}
     }
     var si = otlobliTemuSearchInput();
     if (si && document.activeElement === si) {
-      try { si.blur(); return true; } catch (e2) {}
+      try { si.blur(); } catch (e2) {}
+      try {
+        si.dispatchEvent(new Event('change', { bubbles: true }));
+      } catch (e4) {}
+      try { hideTemuAccountSurfaces(); } catch (e5) {}
+      try { hideTemuDistractingSheets(); } catch (e6) {}
+      __otlobliTemuSearchModeCacheTs = Date.now();
+      __otlobliTemuSearchModeCacheHref = location.href || '';
+      __otlobliTemuSearchModeCacheValue = false;
+      return true;
     }
     if (document.activeElement && document.activeElement.blur) {
-      try { document.activeElement.blur(); return true; } catch (e3) {}
+      try { document.activeElement.blur(); } catch (e3) {}
+      try { hideTemuAccountSurfaces(); } catch (e7) {}
+      try { hideTemuDistractingSheets(); } catch (e8) {}
+      __otlobliTemuSearchModeCacheTs = Date.now();
+      __otlobliTemuSearchModeCacheHref = location.href || '';
+      __otlobliTemuSearchModeCacheValue = false;
+      return true;
     }
     return false;
   }
@@ -6112,6 +6199,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
     '[data-otlobli-temu-search-shell="1"]' +
     '{ background: transparent !important; box-shadow: none !important; opacity: 1 !important;' +
     ' visibility: visible !important; pointer-events: auto !important; }' +
+    'body[data-otlobli-temu-search-mode="1"] [data-otlobli-temu-active-search-shell="1"]' +
+    '{ margin-top: 18px !important; }' +
+    '[data-otlobli-temu-category-strip="1"]' +
+    '{ display: flex !important; align-items: center !important; overflow-x: auto !important;' +
+    ' -webkit-overflow-scrolling: touch !important; visibility: visible !important;' +
+    ' opacity: 1 !important; pointer-events: auto !important; }' +
     // Live Temu account surfaces observed in WebKit/iPhone layout. Scoped to
     // non-account routes so a deliberate Temu account page can still render.
     'body:not([data-otlobli-temu-account-route="1"]) [class*="panel-"][class*="adaptPad"],' +
@@ -6157,7 +6250,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if (el.getAttribute && el.getAttribute('data-otlobli-temu-hidden') === '1') continue;
         var r = el.getBoundingClientRect();
         if (r.width === 0 || r.height === 0) continue;
-        if (r.top < 0 || r.top > 160) continue;
+        if (r.top < 0 || r.top > 240) continue;
         if (r.width > 64 || r.height > 64) continue;
         if (r.width < 14 || r.height < 14) continue;
         var txt = (el.textContent || '').trim();
@@ -6276,7 +6369,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if (txt.length > 25 && !isDistraction) continue;
         var r = el.getBoundingClientRect();
         if (r.width < 22 || r.height < 22 || r.width > 72 || r.height > 72) continue;
-        if (r.top < 0 || r.top > 150) continue;
+        if (r.top < 0 || r.top > 240) continue;
         var isSearch = el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || (el.querySelector && el.querySelector('input, textarea, [role="searchbox"]'));
         if (isSearch || otlobliLooksLikeSearchTrigger(el)) continue;
         if (otlobliLooksLikeTemuLogo(el)) continue;
@@ -6410,8 +6503,15 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   function otlobliTemuAccountRoute() {
-    var path = (location.pathname || '') + ' ' + (location.search || '') + ' ' + (location.hash || '');
-    return /account|login|sign|profile|user|orders?|coupon|credit|address/i.test(path);
+    var path = (location.pathname || '').toLowerCase();
+    var hash = (location.hash || '').toLowerCase();
+    var route = path + ' ' + hash;
+    var tokens = route.split(/[^a-z0-9]+/i);
+    for (var i = 0; i < tokens.length; i++) {
+      if (/^(account|login|signin|sign|profile|user|member|order|orders|coupon|credit|address)$/i.test(tokens[i] || '')) return true;
+    }
+    if (/[#?&](?:page|scene|tab|route)=(?:account|login|profile|user|orders?|coupon|credit|address)\\b/i.test(location.href || '')) return true;
+    return false;
   }
 
   function otlobliSyncTemuAccountRouteState() {
@@ -6503,6 +6603,41 @@ export const SHEIN_CAPTURE_SCRIPT = `
         }
         if (!fixedish && !bottomLogin && r.top > 180) continue;
         el.setAttribute('data-otlobli-temu-account-surface', '1');
+        el.setAttribute('data-otlobli-temu-hidden', '1');
+        el.style.setProperty('display', 'none', 'important');
+        el.style.setProperty('visibility', 'hidden', 'important');
+        el.style.setProperty('opacity', '0', 'important');
+        el.style.setProperty('pointer-events', 'none', 'important');
+      }
+    } catch (e) {}
+  }
+
+  function hideTemuDistractingSheets() {
+    if (!IS_TEMU || !document.body) return;
+    try {
+      var vp = viewportSize();
+      var onAccountRoute = otlobliTemuAccountRoute();
+      var nodes = document.querySelectorAll('[data-otlobli-temu-distraction-sheet="1"], div, section, aside');
+      for (var i = 0; i < nodes.length; i++) {
+        var el = nodes[i];
+        if (el.id && el.id.indexOf('otlobli') === 0) continue;
+        if (el.closest && (el.closest('#otlobli-nav') || el.closest('#otlobli-back-btn'))) continue;
+        if (el.querySelector && el.querySelector('input, textarea, [role="searchbox"], [class*="searchBar" i]')) continue;
+        if (temuContainsPrice(el)) continue;
+        var r = el.getBoundingClientRect();
+        if (r.width < vp.width * 0.55 || r.height < 28 || r.height > vp.height * 0.92) continue;
+        if (r.bottom < -4 || r.top > vp.height + 4) continue;
+        var txt = temuCleanText(el.textContent);
+        if (!txt || txt.length > 2200) continue;
+        var looksSheet = /available\\s+offers|service\\s+guarantee|free\\s+shipping|delivery\\s+guarantee|\u0627\u0644\u0639\u0631\u0648\u0636\\s+\u0627\u0644\u0645\u062a\u0648\u0641\u0631\u0629|\u0636\u0645\u0627\u0646\\s+\u0627\u0644\u062e\u062f\u0645\u0629|\u0627\u0644\u0634\u062d\u0646\\s+\u0645\u062c\u0627\u0646|\u0636\u0645\u0627\u0646\\s+\u0627\u0644\u062a\u0648\u0635\u064a\u0644|\u0644\u0645\u0627\u0630\u0627\\s+\u062a\u062e\u062a\u0627\u0631\\s+temu|\u0645\u062f\u0641\u0648\u0639\u0627\u062a\\s+\u0622\u0645\u0646\u0629/i.test(txt);
+        var accountScore = otlobliTemuAccountPanelScore(txt);
+        var accountSheet = !onAccountRoute && accountScore >= 2;
+        if (!looksSheet && !accountSheet) continue;
+        var cs = window.getComputedStyle(el);
+        var fixedish = cs.position === 'fixed' || cs.position === 'absolute' || cs.position === 'sticky';
+        var modalLike = fixedish || r.top < 260 || r.bottom > vp.height - 220;
+        if (!modalLike) continue;
+        el.setAttribute('data-otlobli-temu-distraction-sheet', '1');
         el.setAttribute('data-otlobli-temu-hidden', '1');
         el.style.setProperty('display', 'none', 'important');
         el.style.setProperty('visibility', 'hidden', 'important');
@@ -6631,15 +6766,33 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function restoreTemuCategoryStrip() {
     if (!IS_TEMU || !document.body) return;
     try {
+      function showCategoryStripEl(el, forceDisplay) {
+        if (!el || !otlobliTemuLooksLikeCategoryOrFilter(el)) return false;
+        var hasSeveralItems = (el.children && el.children.length >= 2) || temuCleanText(el.textContent).length > 14;
+        if (!hasSeveralItems) return false;
+        el.setAttribute('data-otlobli-temu-category-strip', '1');
+        el.removeAttribute('data-otlobli-temu-hidden');
+        el.style.removeProperty('display');
+        el.style.removeProperty('visibility');
+        el.style.removeProperty('pointer-events');
+        el.style.removeProperty('opacity');
+        var cs = window.getComputedStyle(el);
+        var r = el.getBoundingClientRect();
+        if (forceDisplay || cs.display === 'none' || r.height < 6 || r.width < 20) {
+          el.style.setProperty('display', 'flex', 'important');
+          el.style.setProperty('align-items', 'center', 'important');
+          el.style.setProperty('overflow-x', 'auto', 'important');
+          el.style.setProperty('-webkit-overflow-scrolling', 'touch', 'important');
+        }
+        el.style.setProperty('visibility', 'visible', 'important');
+        el.style.setProperty('opacity', '1', 'important');
+        el.style.setProperty('pointer-events', 'auto', 'important');
+        return true;
+      }
       var nodes = document.querySelectorAll('[data-otlobli-temu-hidden="1"]');
       for (var i = 0; i < nodes.length; i++) {
         var el = nodes[i];
-        if (otlobliTemuLooksLikeCategoryOrFilter(el)) {
-          el.removeAttribute('data-otlobli-temu-hidden');
-          el.style.removeProperty('display');
-          el.style.removeProperty('visibility');
-          el.style.removeProperty('pointer-events');
-          el.style.removeProperty('opacity');
+        if (showCategoryStripEl(el, false)) {
           continue;
         }
         var r = el.getBoundingClientRect();
@@ -6653,6 +6806,19 @@ export const SHEIN_CAPTURE_SCRIPT = `
         el.style.removeProperty('visibility');
         el.style.removeProperty('pointer-events');
         el.style.removeProperty('opacity');
+      }
+      var strips = document.querySelectorAll('nav, section, div, [role="tablist"], [class*="category" i], [class*="cat" i], [class*="tab" i]');
+      var restored = 0;
+      for (var s = 0; s < strips.length; s++) {
+        if (restored >= 3) break;
+        var strip = strips[s];
+        if (strip.id && strip.id.indexOf('otlobli') === 0) continue;
+        if (strip.closest && (strip.closest('#otlobli-nav') || strip.closest('#otlobli-back-btn'))) continue;
+        var stripRect = strip.getBoundingClientRect();
+        if (stripRect.top > 280) continue;
+        var stripStyle = window.getComputedStyle(strip);
+        if (stripStyle.display !== 'none' && stripStyle.visibility !== 'hidden' && parseFloat(stripStyle.opacity || '1') >= 0.1 && stripRect.height >= 6) continue;
+        if (showCategoryStripEl(strip, true)) restored++;
       }
     } catch (e) {}
   }
@@ -6690,7 +6856,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var url = (location.origin || '') + location.pathname + location.search;
     if (__otlobliTemuHomeHeaderWakeUrl === url) return;
     __otlobliTemuHomeHeaderWakeUrl = url;
-    __otlobliTemuHomeHeaderWakeUntil = Date.now() + 4200;
+    __otlobliTemuHomeHeaderWakeUntil = Date.now() + (OTLOBLI_LOW_END ? 9000 : 6500);
     __otlobliTemuHomeHeaderWakeCount = 0;
   }
 
@@ -6701,15 +6867,15 @@ export const SHEIN_CAPTURE_SCRIPT = `
     try {
       var vp = viewportSize();
       var now = Date.now();
-      if (now < __otlobliTemuHomeHeaderWakeUntil && __otlobliTemuHomeHeaderWakeCount < 8) {
+      if (now < __otlobliTemuHomeHeaderWakeUntil && __otlobliTemuHomeHeaderWakeCount < (OTLOBLI_LOW_END ? 18 : 14)) {
         if (!otlobliTemuCategoryStripVisible(vp)) {
           var y = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
           if (y > 1 && y < 520) {
             try { window.scrollTo(0, 0); } catch (e0) {}
-          } else if (y <= 1 && __otlobliTemuHomeHeaderWakeCount < 3) {
+          } else if (y <= 1 && (__otlobliTemuHomeHeaderWakeCount < 5 || __otlobliTemuHomeHeaderWakeCount % 3 === 0)) {
             try {
-              window.scrollBy(0, 1);
-              setTimeout(function () { try { window.scrollTo(0, 0); } catch (e) {} }, 0);
+              window.scrollTo(0, 1);
+              setTimeout(function () { try { window.scrollTo(0, 0); } catch (e) {} }, 35);
             } catch (e1) {}
           }
         }
@@ -6754,9 +6920,27 @@ export const SHEIN_CAPTURE_SCRIPT = `
     __otlobliTemuSearchTouchRepairInstalled = true;
     var repair = function (event) {
       try {
-        if (!otlobliTemuSearchMode()) return;
         var target = event.target;
         if (!target || (target.closest && (target.closest('#otlobli-nav') || target.closest('#otlobli-back-btn')))) return;
+        var targetLooksSearch = otlobliLooksLikeSearchTrigger(target) ||
+          !!(target.closest && target.closest('[class*="searchBar" i], input[type="search"], input[placeholder*="Search" i], input[placeholder*="بحث"], [role="searchbox"]'));
+        var searchModeNow = otlobliTemuSearchMode();
+        if (!searchModeNow && targetLooksSearch) {
+          setTimeout(function () {
+            try {
+              var delayedInput = otlobliTemuSearchInput();
+              var delayedSearchMode = otlobliTemuSearchMode();
+              otlobliSyncTemuSearchModeState(delayedSearchMode);
+              hideTemuAccountSurfaces();
+              hideTemuDistractingSheets();
+              if (delayedInput && delayedSearchMode && document.activeElement !== delayedInput) {
+                try { delayedInput.focus({ preventScroll: true }); } catch (e) { try { delayedInput.focus(); } catch (e2) {} }
+              }
+            } catch (e3) {}
+          }, 90);
+          return;
+        }
+        if (!searchModeNow) return;
         var input = otlobliTemuSearchInput();
         if (!input) return;
         var point = event.touches && event.touches[0] ? event.touches[0] : event;
@@ -6859,6 +7043,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function killStorePopups() {
     if (IS_SHEIN) return;
     var vp = viewportSize();
+    var onTemuAccountRoute = IS_TEMU && otlobliTemuAccountRoute();
     // مراجعة ذاتية أولاً: أي طبقة أخفيناها ثم كبر محتواها لاحقاً = صفحة منتج
     // أُخفيت خطأً أثناء الرندر (طبقة انتقال SPA نصّها المبكر "خصم 77%" فقط
     // فطابقت ملف العرض الترويجي) → نُعيدها فوراً ونُدرجها بقائمة بيضاء دائمة.
@@ -6893,6 +7078,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (r.width < vp.width * 0.5 || r.height < vp.height * 0.3) continue;
       var txt = (el.textContent || '');
       if (txt.length > 400) continue;       // شبكات المحتوى نصّها طويل - نتجاهلها
+      if (onTemuAccountRoute && otlobliTemuAccountPanelScore(txt) >= 2) continue;
       if (!PROMO.test(txt)) continue;        // لا بد أن يقرأ كعرض ترويجي
       // شيت خيارات المنتج (موديل/مقاس/لون/كمية/أضف): نصّه يحوي "خصم 65%"
       // فيطابق ملف الإعلانات ويُحجب تاركاً الخلفية المعتمة فقط — "شاشة عتمة"
@@ -7079,6 +7265,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // ثم يصعد لأقرب حاوية عريضة (لكن ليست الصفحة كلها) ويخفيها.
   function hideStoreBannerByText(phrases, maxLen) {
     var vp = viewportSize();
+    var onTemuAccountRoute = IS_TEMU && otlobliTemuAccountRoute();
     // حاوية تضم شريط البحث أو محتوى منتجات حقيقياً؟ لا يجوز إخفاؤها أبداً —
     // التسلّق كان يبتلع هيدر تيمو (البانر والبحث معاً) فيختفي البحث، وقد
     // يبتلع حاوية صفحة كاملة أثناء الرندر فتصير الشاشة بيضاء.
@@ -7101,6 +7288,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (el.getAttribute && el.getAttribute('data-otlobli-blocked')) continue;
       var txt = (el.textContent || '');
       if (!txt || txt.length > maxLen) continue;
+      if (onTemuAccountRoute && otlobliTemuAccountPanelScore(txt) >= 2) continue;
       var low = txt.toLowerCase();
       var hit = false;
       for (var p = 0; p < phrases.length; p++) { if (low.indexOf(phrases[p]) >= 0) { hit = true; break; } }
@@ -7165,6 +7353,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function hideTemuSpinWheelPopup() {
     if (!IS_TEMU) return;
     var vp = viewportSize();
+    var onAccountRoute = otlobliTemuAccountRoute();
     var WHEEL_RE = /(spin|wheel|reward|claim|coupon|lucky|chance|prize|free\\s*gift|congratulations|SAR\\s*\\d|\\u062d\\u0631\\u0651?\\u0643|\\u0641\\u0631\\u0635\\u0629|\\u062c\\u0631\\u0628|\\u062a\\u062d\\u0635\\u0644|\\u062c\\u0627\\u0626\\u0632\\u0629|\\u0645\\u062c\\u0627\\u0646\\u064a|\\u062e\\u0635\\u0645)/i;
     var nodes = document.querySelectorAll('div, section, aside, [role="dialog"], [class*="popup" i], [class*="modal" i], [class*="wheel" i], [class*="spin" i]');
     for (var i = 0; i < nodes.length; i++) {
@@ -7181,6 +7370,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var txt = (el.textContent || '').replace(/\\s+/g, ' ').trim();
       var hint = ((el.className || '') + ' ' + (el.id || '') + ' ' + txt).toString();
       if (txt.length > 900) continue;
+      if (onAccountRoute && otlobliTemuAccountPanelScore(txt) >= 2) continue;
       if (!WHEEL_RE.test(hint)) continue;
       if (el.querySelector && el.querySelector('input:not([type="hidden"]), textarea')) continue;
       var target = el;
@@ -7292,7 +7482,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
       try { hideTemuAccountSurfaces(); } catch (e) {}
       injectTemuHeaderHideCSS();
       ensureTemuSearchTouchRepair();
-      if (otlobliTemuSearchMode()) {
+      var intervalTemuSearching = otlobliTemuSearchMode();
+      otlobliSyncTemuSearchModeState(intervalTemuSearching);
+      if (intervalTemuSearching) {
         otlobliReleaseTemuSearchPinning();
         restoreTemuSearchBackControls();
       } else {
@@ -7303,6 +7495,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       otlobliForceTemuHomeHeaderState();
       restoreTemuLogo();
       try { hideTemuAccountSurfaces(); } catch (e) {}
+      try { hideTemuDistractingSheets(); } catch (e) {}
     }
   }, OTLOBLI_LOW_END ? 240 : 120);
   // Own slower interval, not part of tick() - see checkForSheinSecurityBlock's
