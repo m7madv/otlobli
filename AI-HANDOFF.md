@@ -5,18 +5,21 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Current Candidate
 
 - Branch: `claude/ios6-cover-fix`.
-- Last tested IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.27-temu-search-light-blockers.ipa`.
-- Last tested code: `d9368b4` (`fix: v85.8.27 lighten Temu search blockers`) - text/back improved, but account/cart/menu and Temu bottom nav were visible during search/results, and Otlobli back could clear the query.
-- Current local code candidate: v85.8.28 / `APP_VERSION = 2026.07.17-v85.8.28-temu-search-preserve-query-no-otp-test`.
-- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.28-temu-search-preserve-query.ipa`.
-- Build run: `29584752961` (success), built from code commit `c7c49d5`.
-- IPA SHA-256: `2AFC1C27164E1023493632323B0F1F7992ACC16B3C6294BB9E7CFE54B97C8BCB`.
-- Previous iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.27-temu-search-light-blockers.ipa`.
-- Previous build run: `29583256531` (success), built from code commit `d9368b4`.
-- Previous IPA SHA-256: `9B706F650718BA25A7D3E9B61CACB54AAAC873DA492FD5F11CA81866EE2A3826`.
+- Last tested IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.28-temu-search-preserve-query.ipa`.
+- Last tested code: `c7c49d5` (`fix: v85.8.28 preserve Temu search query`) - user reported Temu search is working well.
+- Current local code candidate: v85.8.29 / `APP_VERSION = 2026.07.17-v85.8.29-temu-ram-variant-gate-no-otp-test`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.29-temu-ram-variant-gate.ipa`.
+- Build run: `29586606771` (success), built from code commit `74e2c0f`.
+- IPA SHA-256: `6EB037D772BD6FBF6BB0E2264A61AA323A13E6177FA431EE238CD73A548847C5`.
+- Previous iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.28-temu-search-preserve-query.ipa`.
+- Previous build run: `29584752961` (success), built from code commit `c7c49d5`.
+- Previous IPA SHA-256: `2AFC1C27164E1023493632323B0F1F7992ACC16B3C6294BB9E7CFE54B97C8BCB`.
+- Older iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.27-temu-search-light-blockers.ipa`.
+- Older build run: `29583256531` (success), built from code commit `d9368b4`.
+- Older IPA SHA-256: `9B706F650718BA25A7D3E9B61CACB54AAAC873DA492FD5F11CA81866EE2A3826`.
 - Older iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.26-temu-clean-blockers.ipa`.
-- Previous build run: `29581021125` (success), built from code commit `e3984fd`.
-- Previous IPA SHA-256: `DD22DFD3CE658E056F652F140B6AEA5FEAC8A5CA1193DDAEEEDE557BA0864C2B`.
+- v85.8.26 build run: `29581021125` (success), built from code commit `e3984fd`.
+- v85.8.26 IPA SHA-256: `DD22DFD3CE658E056F652F140B6AEA5FEAC8A5CA1193DDAEEEDE557BA0864C2B`.
 - Rollback/reference: v85.8.5 / `a914d81` and the user-provided v85.8.5 IPA.
 - v85.8.19 did not fix Temu. Current focus is Temu only; do not touch payment, wallet, completed orders, or account routes unless explicitly requested.
 - v85.8.10's ordinary iPhone 16 SHEIN nav behavior was accepted. Do not call any new Temu change proven until tested on the real iPhone device; do not rely on the simulator.
@@ -54,7 +57,8 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 - v85.8.26 resets the active Temu blocker path: one lightweight cleaner hides only account/login, cart/basket, app-download/open-app, and promo/offer/coupon sheets. The active Temu tick no longer calls the old header/search/category forcing stack. The cleaner protects search inputs/triggers, category rows, product grids, prices, and image-heavy content; it also fixes the old broad `near search input` guard and removes generic `category/nav/menu` distraction matching from promo detection.
 - v85.8.27 lightens blockers during active Temu search: it no longer hides Temu's native search back button, and the JS text/geometry cleaner returns immediately while search is active so suggestion words/letters are preserved. Static CSS blockers still apply.
 - v85.8.28 adds a narrow search-only cleanup that hides compact top account/cart/menu controls and the fixed Temu bottom nav during search/results without touching suggestion text or Temu's native search back. Otlobli search exit now preserves a focused/populated query instead of clearing it.
+- v85.8.29 fixes Temu product option gating for summaries that include RAM/memory/storage, including Arabic `ذاكرة الوصول العشوائي`. Otlobli add now opens the `حدد` variant row instead of adding directly when color plus memory/storage options are present.
 
 ## Next Step
 
-Install v85.8.28 on the real iPhone. Verify Temu search/results first: account/cart/menu and Temu bottom nav hidden, native search back visible, suggestion text/letters visible, keyboard usable, and Otlobli back does not clear an existing query.
+Install v85.8.29 on the real iPhone. Verify the product shown in the latest screenshot first: tapping Otlobli `أضف للسلة` while color/RAM options are unselected should open the Temu `حدد` variant selector and must not add directly to Otlobli cart. After selecting required options, verify add still captures normally. Temu search behavior should remain like accepted v85.8.28.

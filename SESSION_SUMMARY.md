@@ -1,5 +1,19 @@
 # SESSION_SUMMARY.md
 
+## 2026-07-17 Temu v85.8.29 RAM Variant Gate
+
+- Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
+- Branch: `claude/ios6-cover-fix`.
+- Current local candidate: v85.8.29 / `APP_VERSION = 2026.07.17-v85.8.29-temu-ram-variant-gate-no-otp-test`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.29-temu-ram-variant-gate.ipa`.
+- Build run: `29586606771` (success), built from code commit `74e2c0f`.
+- IPA SHA-256: `6EB037D772BD6FBF6BB0E2264A61AA323A13E6177FA431EE238CD73A548847C5`.
+- User report after v85.8.28: Temu search is now good, but product capture/add-to-cart could add directly even when required options like color and RAM/memory existed.
+- Fix: Temu variant summary detection now treats RAM/memory/storage/capacity labels, including Arabic `ذاكرة الوصول العشوائي`, as a required second option dimension.
+- Guard: pressing Otlobli add on a product summary such as `3 اللون, 1 ذاكرة الوصول العشوائي` opens/clicks the `حدد` variant row and does not post `addToCart` before selection.
+- Validation passed: targeted ESLint, injected-script parse, `npm run build`, WebKit iPhone-sized product fixture, GitHub unsigned iOS build, embedded v85.8.29 marker check.
+- No simulator was used. Final acceptance is still real-device only.
+
 ## 2026-07-17 Temu v85.8.28 Search Preserve Query
 
 - Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.

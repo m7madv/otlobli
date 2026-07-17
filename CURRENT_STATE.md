@@ -7,13 +7,16 @@ Last updated: 2026-07-17
 - Branch: `claude/ios6-cover-fix`.
 - Stable tested reference: v85.8.5 / `a914d81`.
 - Reference IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.5-nav-cairo-font-match-no-otp-test.ipa`.
-- Last real-device Temu IPA tested: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.27-temu-search-light-blockers.ipa`.
-- Last tested commit: `d9368b4` (`fix: v85.8.27 lighten Temu search blockers`) - search text/back improved, but account/cart/menu and Temu bottom nav were visible during search/results, and Otlobli back could clear the query.
-- Current local candidate: v85.8.28 / `APP_VERSION = 2026.07.17-v85.8.28-temu-search-preserve-query-no-otp-test`.
-- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.28-temu-search-preserve-query.ipa`.
+- Last real-device Temu IPA tested: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.28-temu-search-preserve-query.ipa`.
+- Last tested commit: `c7c49d5` (`fix: v85.8.28 preserve Temu search query`) - user reported Temu search is now working well.
+- Current local candidate: v85.8.29 / `APP_VERSION = 2026.07.17-v85.8.29-temu-ram-variant-gate-no-otp-test`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.29-temu-ram-variant-gate.ipa`.
+- v85.8.29 build run: `29586606771` (success), built from code commit `74e2c0f`.
+- v85.8.29 IPA SHA-256: `6EB037D772BD6FBF6BB0E2264A61AA323A13E6177FA431EE238CD73A548847C5`.
+- Previous iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.28-temu-search-preserve-query.ipa`.
 - v85.8.28 build run: `29584752961` (success), built from code commit `c7c49d5`.
 - v85.8.28 IPA SHA-256: `2AFC1C27164E1023493632323B0F1F7992ACC16B3C6294BB9E7CFE54B97C8BCB`.
-- Previous iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.27-temu-search-light-blockers.ipa`.
+- Older iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.27-temu-search-light-blockers.ipa`.
 - v85.8.27 build run: `29583256531` (success), built from code commit `d9368b4`.
 - v85.8.27 IPA SHA-256: `9B706F650718BA25A7D3E9B61CACB54AAAC873DA492FD5F11CA81866EE2A3826`.
 - Older iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.26-temu-clean-blockers.ipa`.
@@ -21,6 +24,15 @@ Last updated: 2026-07-17
 - v85.8.26 IPA SHA-256: `DD22DFD3CE658E056F652F140B6AEA5FEAC8A5CA1193DDAEEEDE557BA0864C2B`.
 - v85.8.19 did not fix Temu: header still has empty white space, search typing is slow/unstable, and the account/login panel can appear over search.
 - SHEIN is mostly considered previously stabilized; current work is Temu only unless the user explicitly asks otherwise.
+
+## v85.8.29 Local Temu Changes
+
+- Keeps the accepted v85.8.28 Temu search behavior unchanged.
+- Fixes the product capture gate for Temu products whose option summary includes RAM/memory/storage wording, such as `3 اللون, 1 ذاكرة الوصول العشوائي`.
+- The Otlobli add button now treats these summaries as multi-option products and opens/clicks the `حدد` variant row instead of adding directly to the Otlobli cart.
+- Extends Temu variant section detection to Arabic/English memory, storage, capacity, RAM, and ROM labels without broad product-page blocking.
+- Validated with targeted ESLint, injected-script parse, `npm run build`, a WebKit iPhone-sized product fixture proving add does not post before variant selection, GitHub iOS build `29586606771`, and embedded v85.8.29 marker check.
+- Final judgment still requires the real iPhone install; no simulator was used.
 
 ## v85.8.28 Local Temu Changes
 
