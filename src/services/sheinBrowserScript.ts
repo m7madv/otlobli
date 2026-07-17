@@ -5848,6 +5848,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
         // شبكة أمان أخيرة: إن كانت صفحة المنتج فارغة بصرياً ومحتواها مخفيّ في
         // DOM، نستعيد كل ما أخفيناه (يغطّي المنتجات المحددة التي تفلت من أعلاه).
         try { otlobliTemuBlankPageRescue(); } catch (e) {}
+        // إصلاح «محتوى مخفي»: يُجبر محتوى المنتج على الظهور مهما كان مصدر الحجب
+        // (CSS ثابت منّا بالصنف، أو انهيار layout) — لا يعتمد على الـattributes.
+        try { otlobliTemuForceProductVisible(); } catch (e) {}
         // لوحة تشخيص (نسخة اختبار) + إصلاح تلقائي لفشل رندر تيمو (DOM فارغ).
         try { otlobliTemuDiag(); } catch (e) {}
         try { otlobliTemuBlankPageAutoReload(); } catch (e) {}
@@ -6449,6 +6452,71 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return { domImg: domImg, visImg: visImg, hasPrice: hasPrice, domHasContent: domHasContent, state: state };
   }
 
+  // يختار مرساة محتوى المنتج (أول صورة تيمو في DOM، أو عنصر السعر).
+  function otlobliTemuContentAnchor() {
+    var imgs = document.querySelectorAll('img');
+    for (var i = 0; i < imgs.length; i++) {
+      var s = imgs[i].currentSrc || imgs[i].src || '';
+      if (/kwcdn|temu/i.test(s)) return imgs[i];
+    }
+    try { return document.querySelector('[class*="curPrice" i]'); } catch (e) { return null; }
+  }
+
+  // يصعد من مرساة المحتوى ويجد أول سلف يُلغي الظهور (display:none/visibility/
+  // opacity/حجم صفر) — يعيد وصفاً مقروءاً (وسم/صنف/السبب) للتشخيص.
+  function otlobliTemuHiddenAncestorInfo() {
+    var node = otlobliTemuContentAnchor();
+    if (!node) return 'لا مرساة';
+    var depth = 0;
+    while (node && node !== document.body && node !== document.documentElement && depth < 45) {
+      try {
+        var cs = window.getComputedStyle(node);
+        var r = node.getBoundingClientRect();
+        var why = '';
+        if (cs.display === 'none') why = 'display:none';
+        else if (cs.visibility === 'hidden') why = 'visibility';
+        else if (parseFloat(cs.opacity || '1') < 0.05) why = 'opacity0';
+        else if (r.height <= 2 || r.width <= 2) why = 'حجم' + Math.round(r.width) + 'x' + Math.round(r.height);
+        if (why) {
+          var cls = (((node.className || '') + '') || node.id || '').replace(/\\s+/g, '.').slice(0, 46);
+          return (node.tagName || '?') + '.' + cls + ' ' + why;
+        }
+      } catch (e) {}
+      node = node.parentElement; depth++;
+    }
+    return 'لا سلف مخفي';
+  }
+
+  // إصلاح تلقائي للشاشة البيضاء «محتوى مخفي»: DOM فيه منتج لكن لا شيء مرئي،
+  // ولسنا نحن من حجبه بالـattributes (رأينا نظّف=عام=بحث=0). السبب سلف يُلغي
+  // ظهوره (CSS ثابت منّا يطابق بالصنف، أو انهيار layout). نصعد من مرساة المحتوى
+  // ونُجبر كل سلف مخفي على الظهور بأنماط inline مهمة (تتفوّق على أي stylesheet،
+  // فلا تكرار قتال كل tick). نوسمه keep حتى لا تعبث به الحاجبات.
+  function otlobliTemuForceProductVisible() {
+    if (!IS_TEMU || !document.body) return;
+    try {
+      if (!looksLikeProductPage() || otlobliTemuSearchMode()) return;
+      var v = otlobliTemuProductVitals();
+      if (v.visImg > 0 || !v.domHasContent) return; // سليمة أو DOM فارغ — لا نتدخّل
+      var node = otlobliTemuContentAnchor();
+      if (!node) return;
+      var depth = 0;
+      while (node && node !== document.documentElement && depth < 45) {
+        if (!(node.id && node.id.indexOf('otlobli') === 0)) {
+          try {
+            var cs = window.getComputedStyle(node);
+            if (cs.display === 'none') { node.style.setProperty('display', 'block', 'important'); node.setAttribute('data-otlobli-temu-keep', '1'); }
+            if (cs.visibility === 'hidden') { node.style.setProperty('visibility', 'visible', 'important'); }
+            if (parseFloat(cs.opacity || '1') < 0.05) { node.style.setProperty('opacity', '1', 'important'); }
+            var r = node.getBoundingClientRect();
+            if (r.height <= 2) node.style.setProperty('min-height', 'auto', 'important');
+          } catch (e) {}
+        }
+        node = node.parentElement; depth++;
+      }
+    } catch (e) {}
+  }
+
   // لوحة تشخيص (نسخة اختبار فقط): تكشف بدقة سبب الشاشة البيضاء على الجهاز —
   // "سليمة" = يظهر محتوى، "محتوى مخفي" = DOM فيه منتج لكنه محجوب (خطأ حجب منّا)،
   // "DOM فارغ" = تيمو لم ترسم شيئاً (فشل رندر/رابط، ليس حجباً منّا).
@@ -6470,10 +6538,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
           'background:rgba(0,0,0,.82);color:#fff;font-size:10px;line-height:1.4;padding:3px 6px;' +
           'direction:rtl;text-align:right;font-family:monospace;pointer-events:none;white-space:pre;';
       }
+      var culprit = (v.visImg === 0 && v.domHasContent) ? otlobliTemuHiddenAncestorInfo() : '-';
       panel.textContent =
         'otlobli تشخيص | الحالة: ' + v.state + ' | صور تيمو DOM=' + v.domImg + ' مرئي=' + v.visImg +
         ' | سعر=' + (v.hasPrice ? 'نعم' : 'لا') + ' | عقد=' + bodyNodes + '\\n' +
-        'أخفينا: نظّف=' + clean + ' عام=' + gen + ' بحث=' + chrome + ' | مسار=' + (location.pathname || '').slice(0, 44);
+        'أخفينا: نظّف=' + clean + ' عام=' + gen + ' بحث=' + chrome + '\\n' +
+        'المُذنب: ' + culprit;
       try { document.body.appendChild(panel); } catch (e) {}
     } catch (e) {}
   }
