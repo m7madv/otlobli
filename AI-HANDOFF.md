@@ -5,15 +5,15 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Current Candidate
 
 - Branch: `claude/ios6-cover-fix`.
-- Last tested IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.25-temu-search-no-motion.ipa`.
-- Last tested code: `806b7d7` (`fix: v85.8.25 stop Temu search layout motion`) - rejected as still heavy/unstable on real device.
-- Current local code candidate: v85.8.26 / `APP_VERSION = 2026.07.17-v85.8.26-temu-clean-blockers-no-otp-test`.
-- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.26-temu-clean-blockers.ipa`.
-- Build run: `29581021125` (success), built from code commit `e3984fd`.
-- IPA SHA-256: `DD22DFD3CE658E056F652F140B6AEA5FEAC8A5CA1193DDAEEEDE557BA0864C2B`.
-- Previous iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.25-temu-search-no-motion.ipa`.
-- Previous build run: `29578629966` (success), built from code commit `806b7d7`.
-- Previous IPA SHA-256: `75C0A98B98B504EFFCB409AE432A56E689A1E5911198C5B7F0BCF7029E6CEC41`.
+- Last tested IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.26-temu-clean-blockers.ipa`.
+- Last tested code: `e3984fd` (`fix: v85.8.26 reset Temu blockers`) - search suggestions/letters and the search back button could still be hidden.
+- Current local code candidate: v85.8.27 / `APP_VERSION = 2026.07.17-v85.8.27-temu-search-light-blockers-no-otp-test`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.27-temu-search-light-blockers.ipa`.
+- Build run: `29583256531` (success), built from code commit `d9368b4`.
+- IPA SHA-256: `9B706F650718BA25A7D3E9B61CACB54AAAC873DA492FD5F11CA81866EE2A3826`.
+- Previous iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.26-temu-clean-blockers.ipa`.
+- Previous build run: `29581021125` (success), built from code commit `e3984fd`.
+- Previous IPA SHA-256: `DD22DFD3CE658E056F652F140B6AEA5FEAC8A5CA1193DDAEEEDE557BA0864C2B`.
 - Rollback/reference: v85.8.5 / `a914d81` and the user-provided v85.8.5 IPA.
 - v85.8.19 did not fix Temu. Current focus is Temu only; do not touch payment, wallet, completed orders, or account routes unless explicitly requested.
 - v85.8.10's ordinary iPhone 16 SHEIN nav behavior was accepted. Do not call any new Temu change proven until tested on the real iPhone device; do not rely on the simulator.
@@ -49,7 +49,8 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 - v85.8.24 is rejected on real device. It used active search shell/frame marking plus transform/min-height CSS and caused multiple-tap search entry, moving search bar while typing, half-hidden category strip, and broken home size after exit.
 - v85.8.25 removes the v85.8.24 motion/frame path. During search, Otlobli no longer restores/forces the category strip and no longer applies search-mode transform/min-height/margin CSS. Otlobli back uses a short focus-loss grace window so tapping the back button still exits search even if focus leaves the input first.
 - v85.8.26 resets the active Temu blocker path: one lightweight cleaner hides only account/login, cart/basket, app-download/open-app, and promo/offer/coupon sheets. The active Temu tick no longer calls the old header/search/category forcing stack. The cleaner protects search inputs/triggers, category rows, product grids, prices, and image-heavy content; it also fixes the old broad `near search input` guard and removes generic `category/nav/menu` distraction matching from promo detection.
+- v85.8.27 lightens blockers during active Temu search: it no longer hides Temu's native search back button, and the JS text/geometry cleaner returns immediately while search is active so suggestion words/letters are preserved. Static CSS blockers still apply.
 
 ## Next Step
 
-Install v85.8.26 on the real iPhone. Verify Temu first-entry home, category row after light horizontal/vertical movement, search open/typing/back, and that account/login, cart, app-download, and offer popups are hidden without header/category resizing or phone heat.
+Install v85.8.27 on the real iPhone. Verify Temu search first: back button visible, suggestion text/letters visible while typing/editing, keyboard stays usable, then verify home blockers still hide account/cart/app/offers outside search.

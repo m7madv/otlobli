@@ -7,17 +7,26 @@ Last updated: 2026-07-17
 - Branch: `claude/ios6-cover-fix`.
 - Stable tested reference: v85.8.5 / `a914d81`.
 - Reference IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.5-nav-cairo-font-match-no-otp-test.ipa`.
-- Last real-device Temu IPA tested: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.25-temu-search-no-motion.ipa`.
-- Last tested commit: `806b7d7` (`fix: v85.8.25 stop Temu search layout motion`) - rejected as still too heavy/unstable.
-- Current local candidate: v85.8.26 / `APP_VERSION = 2026.07.17-v85.8.26-temu-clean-blockers-no-otp-test`.
-- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.26-temu-clean-blockers.ipa`.
+- Last real-device Temu IPA tested: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.26-temu-clean-blockers.ipa`.
+- Last tested commit: `e3984fd` (`fix: v85.8.26 reset Temu blockers`) - mostly improved, but search suggestions/letters and the search back button could be hidden.
+- Current local candidate: v85.8.27 / `APP_VERSION = 2026.07.17-v85.8.27-temu-search-light-blockers-no-otp-test`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.27-temu-search-light-blockers.ipa`.
+- v85.8.27 build run: `29583256531` (success), built from code commit `d9368b4`.
+- v85.8.27 IPA SHA-256: `9B706F650718BA25A7D3E9B61CACB54AAAC873DA492FD5F11CA81866EE2A3826`.
+- Previous iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.26-temu-clean-blockers.ipa`.
 - v85.8.26 build run: `29581021125` (success), built from code commit `e3984fd`.
 - v85.8.26 IPA SHA-256: `DD22DFD3CE658E056F652F140B6AEA5FEAC8A5CA1193DDAEEEDE557BA0864C2B`.
-- Previous iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.25-temu-search-no-motion.ipa`.
-- v85.8.25 build run: `29578629966` (success), built from code commit `806b7d7`.
-- v85.8.25 IPA SHA-256: `75C0A98B98B504EFFCB409AE432A56E689A1E5911198C5B7F0BCF7029E6CEC41`.
 - v85.8.19 did not fix Temu: header still has empty white space, search typing is slow/unstable, and the account/login panel can appear over search.
 - SHEIN is mostly considered previously stabilized; current work is Temu only unless the user explicitly asks otherwise.
+
+## v85.8.27 Local Temu Changes
+
+- Lightens the v85.8.26 Temu blocker while search is active.
+- Stops calling the old native-search-back hiding function, so Temu's search back button remains visible.
+- Skips the JS text/geometry blocker sweep during active Temu search, so search suggestions/letters containing words like offer/deal/cart/bag are not hidden.
+- Keeps the static CSS blocker active, so blockers hidden before search stay hidden.
+- Validated with targeted ESLint, injected-script parse, `npm run build`, a WebKit search-mode fixture for visible back/suggestions, GitHub iOS build `29583256531`, and embedded v85.8.27 marker check.
+- Final judgment still requires the real iPhone install; no simulator was used.
 
 ## v85.8.26 Local Temu Changes
 

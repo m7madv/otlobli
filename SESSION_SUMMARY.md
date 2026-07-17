@@ -1,5 +1,20 @@
 # SESSION_SUMMARY.md
 
+## 2026-07-17 Temu v85.8.27 Search Light Blockers
+
+- Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
+- Branch: `claude/ios6-cover-fix`.
+- Current local candidate: v85.8.27 / `APP_VERSION = 2026.07.17-v85.8.27-temu-search-light-blockers-no-otp-test`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.27-temu-search-light-blockers.ipa`.
+- Build run: `29583256531` (success), built from code commit `d9368b4`.
+- IPA SHA-256: `9B706F650718BA25A7D3E9B61CACB54AAAC873DA492FD5F11CA81866EE2A3826`.
+- User report after v85.8.26: Temu search sometimes hid words/letters, and the search back button was hidden.
+- Fix: removed active calls to `restoreTemuSearchBackControls`, including Otlobli search exit, so Temu's native search back button stays visible.
+- Fix: `otlobliCleanTemuBlockers` now returns immediately while Temu search mode is active, preventing text/geometry blocker matches from hiding suggestions containing words like offer/deal/cart/bag.
+- Static CSS blockers remain active, so account/cart/app/offers already hidden before search stay hidden.
+- Validation passed: targeted ESLint, injected-script parse, `npm run build`, WebKit search-mode fixture for visible back/suggestions, GitHub unsigned iOS build, embedded v85.8.27 marker check.
+- No simulator was used. Final acceptance is still real-device only.
+
 ## 2026-07-17 Temu v85.8.26 Clean Blockers Reset
 
 - Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
