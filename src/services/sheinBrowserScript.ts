@@ -5845,6 +5845,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
         // غير مقيّد بمهلة المنظّف (1100ms) ليُصلح خلال ~300ms فيصير وميضاً قصيراً
         // لا شاشة بيضاء دائمة — والقائمة البيضاء تمنع تكرار الحجب بعدها.
         try { otlobliTemuRestoreCleanHidden(); } catch (e) {}
+        // شبكة أمان أخيرة: إن كانت صفحة المنتج فارغة بصرياً ومحتواها مخفيّ في
+        // DOM، نستعيد كل ما أخفيناه (يغطّي المنتجات المحددة التي تفلت من أعلاه).
+        try { otlobliTemuBlankPageRescue(); } catch (e) {}
         // killStorePopups معطّلة لتيمو نهائياً (v57): أكّد اختبار المستخدم
         // (2026-07-10) أنها سبب وميض الشاشة الأبيض كل نصف ثانية — كانت تحجب
         // طبقة كبيرة تطابق PROMO ثم تعيدها المراجعة الذاتية، كل 300ms.
@@ -6370,6 +6373,51 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if (!temuContainsPrice(el) && !temuLooksLikeProductContent(el)) continue;
         el.setAttribute('data-otlobli-temu-keep', '1');
         el.removeAttribute('data-otlobli-temu-clean-hidden');
+        el.style.removeProperty('display');
+        el.style.removeProperty('visibility');
+        el.style.removeProperty('opacity');
+        el.style.removeProperty('pointer-events');
+      }
+    } catch (e) {}
+  }
+
+  // شبكة أمان أخيرة ضد الشاشة البيضاء على منتجات محددة: تغطّي أي حجب خاطئ
+  // مهما كانت الدالة أو بنية DOM (لا تعتمد على تخمين "أي عنصر هو المنتج").
+  // المنطق: على صفحة منتج، إن لم تُوجد أي صورة منتج كبيرة **مرئية** في نطاق
+  // المحتوى، لكن DOM يحوي محتوى منتج (صور/سعر) = أخفيناه خطأً → نستعيد كل ما
+  // أخفيناه على تيمو. إن بقيت الصفحة فارغة رغم ذلك فـDOM كان فارغاً أصلاً =
+  // فشل رندر من Temu لا حجب منّا (تشخيص ذاتي). العناصر المُستعادة تُوسم keep.
+  function otlobliTemuBlankPageRescue() {
+    if (!IS_TEMU || !document.body) return;
+    try {
+      if (!looksLikeProductPage()) return;
+      if (otlobliTemuSearchMode()) return;
+      var vp = viewportSize();
+      var imgs = document.querySelectorAll('img');
+      var visibleProductImg = false, domProductImg = false;
+      for (var i = 0; i < imgs.length; i++) {
+        var src = imgs[i].currentSrc || imgs[i].src || '';
+        if (!/kwcdn|temu/i.test(src)) continue;
+        domProductImg = true;
+        var r = imgs[i].getBoundingClientRect();
+        if (r.width >= 110 && r.height >= 110 && r.bottom > 70 && r.top < vp.height - 60) {
+          visibleProductImg = true; break;
+        }
+      }
+      if (visibleProductImg) return; // الصفحة ليست فارغة — لا تدخّل
+      var domHasContent = domProductImg || !!document.querySelector('[class*="curPrice" i], [class*="goods" i]');
+      if (!domHasContent) return; // لا محتوى في DOM بعد — ربما تُحمّل، لا نتدخّل
+      var hidden = document.querySelectorAll(
+        '[data-otlobli-temu-clean-hidden="1"],[data-otlobli-temu-hidden="1"],[data-otlobli-temu-search-chrome-hidden="1"]'
+      );
+      for (var h = 0; h < hidden.length; h++) {
+        var el = hidden[h];
+        if (el.id && el.id.indexOf('otlobli') === 0) continue;
+        if (el.closest && (el.closest('#otlobli-nav') || el.closest('#otlobli-back-btn') || el.closest('#otlobli-add-btn'))) continue;
+        el.setAttribute('data-otlobli-temu-keep', '1');
+        el.removeAttribute('data-otlobli-temu-clean-hidden');
+        el.removeAttribute('data-otlobli-temu-hidden');
+        el.removeAttribute('data-otlobli-temu-search-chrome-hidden');
         el.style.removeProperty('display');
         el.style.removeProperty('visibility');
         el.style.removeProperty('opacity');
