@@ -5791,10 +5791,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         try { ensureTemuSearchTouchRepair(); } catch (e) {}
         try { otlobliSyncTemuSearchModeState(temuSearching); } catch (e) {}
         if (temuSearching) {
-          try { otlobliReleaseTemuSearchPinning(); } catch (e) {}
           try { restoreTemuSearchBackControls(); } catch (e) {}
-        } else {
-          try { stabilizeTemuSearchChrome(); } catch (e) {}
         }
         // killStorePopups معطّلة لتيمو نهائياً (v57): أكّد اختبار المستخدم
         // (2026-07-10) أنها سبب وميض الشاشة الأبيض كل نصف ثانية — كانت تحجب
@@ -5802,24 +5799,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
         // لا تُعِد تفعيلها لتيمو. بانر التنزيل يُحجب عبر OTLOBLI_TEMU_HIDE_CSS
         // الثابت (downloadUI فقط، وليس الغلاف downloadsWrapper الحاوي للبحث).
         // أثناء البحث: نوقف دوال إخفاء الكروم حتى لا تبتلع صفوف الاقتراحات.
-        if (!temuSearching) {
-          try { hideTemuHeaderIconsByProbe(); } catch (e) {}
-          try { hideTemuCustomerAccountAndCart(); } catch (e) {}
-          try { hideTemuCustomerChrome(); } catch (e) {}
-        }
-        try { restoreTemuSearchChrome(); } catch (e) {}
-        if (!temuSearching) {
-          try { restoreTemuCategoryStrip(); } catch (e) {}
-          try { otlobliForceTemuHomeHeaderState(); } catch (e) {}
-          try { restoreTemuLogo(); } catch (e) {}
-        }
-        try { hideTemuAccountSurfaces(); } catch (e) {}
-        try { hideTemuDistractingSheets(); } catch (e) {}
+        try { otlobliCleanTemuBlockers(); } catch (e) {}
         try { ensureAddToCartButton(); } catch (e) {}
-        try { dismissTemuLoginPopup(); } catch (e) {}
-        if (!temuSearching) {
-          try { hideTemuSpinWheelPopup(); } catch (e) {}
-        }
         try { detectEmptyTemuSearch(); } catch (e) {}
         return;
       }
@@ -6052,10 +6033,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       otlobliSyncTemuSearchModeState(false);
       otlobliHideTemuSearchExitOverlays();
       otlobliWakeTemuHomeHeaderAfterSearchExit();
-      hideTemuAccountSurfaces();
-      hideTemuDistractingSheets();
-      restoreTemuCategoryStrip();
-      otlobliForceTemuHomeHeaderState();
+      otlobliCleanTemuBlockers(true);
       ensureBackButton();
     } catch (e4) {}
   }
@@ -6290,6 +6268,18 @@ export const SHEIN_CAPTURE_SCRIPT = `
     'body:not([data-otlobli-temu-account-route="1"]) [class*="guideText-"],' +
     'body:not([data-otlobli-temu-account-route="1"]) [class*="guideButton-"]' +
     '{ display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; }';
+
+  // v85.8.26: Temu blocker reset. Do not style search, header, category rows,
+  // downloadsWrapper, or product grids. Only hide account/cart/app/promo nodes.
+  OTLOBLI_TEMU_HIDE_CSS =
+    '[data-otlobli-temu-clean-hidden="1"],' +
+    '[aria-label*="cart" i], [aria-label*="basket" i], [aria-label*="shopping bag" i],' +
+    '[aria-label*="account" i], [aria-label*="profile" i], [aria-label*="sign in" i],' +
+    'a[href*="cart" i], a[href*="login" i], a[href*="signin" i], a[href*="account" i],' +
+    '[class*="downloadUI" i], [class*="appDownload" i], [class*="downloadApp" i],' +
+    '[class*="openApp" i], [class*="signInWrap-" i], [class*="signInBtn-" i],' +
+    '[class*="panel-"][class*="adaptPad"], [class*="guideButton-" i]' +
+    '{ display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; }';
   // نحقن القاعدة في أبكر لحظة ممكنة (documentStart، قبل رسم أي شيء) لمنع أي
   // وميض للعناصر المخفية. لا نعتمد على flag لمرة واحدة، بل نفحص وجود <style>
   // فعلياً في كل استدعاء: لو أزالت تيمو عنصرنا أثناء إعادة بناء الصفحة (عند
@@ -6310,6 +6300,92 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // حقن فوري لحظة تحميل السكربت (preShowScript يعمل عند documentStart) — هذا
   // هو ما يمنع ظهور الأزرار/البانر ولو لجزء من الثانية عند أول دخول للمتجر.
   try { injectTemuHeaderHideCSS(); } catch (e) {}
+
+  var __otlobliTemuCleanBlockersTs = 0;
+  function otlobliCleanTemuBlockers(force) {
+    if (!IS_TEMU || !document.body) return;
+    var now = Date.now();
+    if (!force && now - __otlobliTemuCleanBlockersTs < (OTLOBLI_LOW_END ? 1800 : 1100)) return;
+    __otlobliTemuCleanBlockersTs = now;
+    try {
+      var vp = viewportSize();
+      var accountCartRe = /cart|basket|shopping\\s*bag|bag|account|profile|sign\\s*in|signin|login|log\\s*in|\u0633\u0644\u0629|\u0639\u0631\u0628\u0629|\u062d\u0633\u0627\u0628|\u062f\u062e\u0648\u0644|\u062a\u0633\u062c\u064a\u0644/i;
+      var appRe = /download\\s*(the\\s*)?app|open\\s*app|get\\s*app|install\\s*app|app\\s*download|\u062a\u0637\u0628\u064a\u0642|\u062a\u0646\u0632\u064a\u0644|\u062d\u0645\u0644|\u0627\u0644\u062a\u0637\u0628\u064a\u0642/i;
+      var promoRe = /coupon|voucher|offer|deal|promo|promotion|reward|spin|free\\s*gift|claim|flash\\s*sale|\u0642\u0633\u064a\u0645|\u0643\u0648\u0628\u0648\u0646|\u0639\u0631\u0636|\u0639\u0631\u0648\u0636|\u062e\u0635\u0645|\u0647\u062f\u064a\u0629|\u062c\u0627\u0626\u0632\u0629|\u0627\u0631\u0628\u062d|\u0634\u062d\u0646\\s*\u0645\u062c\u0627\u0646/i;
+
+      function hideCleanNode(el) {
+        el.setAttribute('data-otlobli-temu-clean-hidden', '1');
+        el.style.setProperty('display', 'none', 'important');
+        el.style.setProperty('visibility', 'hidden', 'important');
+        el.style.setProperty('opacity', '0', 'important');
+        el.style.setProperty('pointer-events', 'none', 'important');
+      }
+
+      function protectedTemuContent(el, text, target) {
+        if (!el || (el.id && el.id.indexOf('otlobli') === 0)) return true;
+        if (el.closest && (el.closest('#otlobli-nav') || el.closest('#otlobli-back-btn') || el.closest('#otlobli-add-btn'))) return true;
+        if (el.querySelector && el.querySelector('input[type="search"], [role="searchbox"], input[placeholder*="Search"]')) return true;
+        var blockerTarget = !!(target && (target.accountCart || target.appInstall || target.promo));
+        var protectRect = el.getBoundingClientRect ? el.getBoundingClientRect() : null;
+        var protectStyle = protectRect ? window.getComputedStyle(el) : null;
+        if (otlobliLooksLikeSearchTrigger(el)) return true;
+        var nearSearchBand = !blockerTarget && protectRect &&
+          protectRect.top <= Math.min(260, vp.height * 0.45) && protectRect.bottom >= -8;
+        if (nearSearchBand && otlobliNearSearchInput(el)) return true;
+        var protectFixed = protectStyle &&
+          (protectStyle.position === 'fixed' || protectStyle.position === 'absolute' || protectStyle.position === 'sticky');
+        var floatingBlocker = blockerTarget && protectRect && protectFixed &&
+          protectRect.width >= vp.width * 0.42 && protectRect.height >= 28 &&
+          (protectRect.top <= 320 || protectRect.bottom >= vp.height - 180);
+        if (floatingBlocker) {
+          if (temuContainsPrice(el)) return true;
+          if (el.querySelectorAll && el.querySelectorAll('img').length >= 3 && text.length > 40) return true;
+          return false;
+        }
+        if (otlobliTemuLooksLikeCategoryOrFilter(el)) {
+          return true;
+        }
+        if (temuContainsPrice(el)) return true;
+        if (el.querySelectorAll && el.querySelectorAll('img').length >= 3 && text.length > 40) return true;
+        return false;
+      }
+
+      var nodes = document.querySelectorAll(
+        '[data-otlobli-temu-clean-hidden="1"],' +
+        'a,button,[role="button"],div,section,aside,nav,header'
+      );
+      var hidden = 0;
+      for (var i = 0; i < nodes.length && hidden < 30; i++) {
+        var el = nodes[i];
+        if (!el || !el.getBoundingClientRect) continue;
+        var r = el.getBoundingClientRect();
+        if (r.width <= 0 || r.height <= 0 || r.bottom < -4 || r.top > vp.height + 4) continue;
+        var text = temuCleanText(el.textContent);
+        if (text.length > 1600) continue;
+        var hints = (otlobliCollectIdentityHints(el) + ' ' + text).slice(0, 2200);
+        var accountCart = accountCartRe.test(hints);
+        var appInstall = appRe.test(hints);
+        var promo = promoRe.test(hints);
+        if (!accountCart && !appInstall && !promo && el.getAttribute('data-otlobli-temu-clean-hidden') !== '1') continue;
+        if (protectedTemuContent(el, text, { accountCart: accountCart, appInstall: appInstall, promo: promo })) continue;
+        var cs = window.getComputedStyle(el);
+
+        var fixedish = cs.position === 'fixed' || cs.position === 'absolute' || cs.position === 'sticky';
+        var compactHeader = r.top <= 260 && r.width >= 14 && r.height >= 14 && r.width <= 170 && r.height <= 96;
+        var sheetLike = fixedish && r.width >= vp.width * 0.42 && r.height >= 28 &&
+          (r.top <= 320 || r.bottom >= vp.height - 180);
+        var bannerLike = r.width >= vp.width * 0.55 && r.height >= 24 && r.height <= 190 &&
+          (r.top <= 220 || r.bottom >= vp.height - 190);
+
+        if ((accountCart && (compactHeader || sheetLike || fixedish || r.top <= 340)) ||
+            (appInstall && (compactHeader || sheetLike || bannerLike)) ||
+            (promo && (sheetLike || bannerLike))) {
+          hideCleanNode(el);
+          hidden++;
+        }
+      }
+    } catch (e) {}
+  }
 
   function hideTemuHeaderIconsByProbe() {
     if (!IS_TEMU || !document.body) return;
@@ -7018,8 +7094,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
               var delayedInput = otlobliTemuSearchInput();
               var delayedSearchMode = otlobliTemuSearchMode();
               otlobliSyncTemuSearchModeState(delayedSearchMode);
-              hideTemuAccountSurfaces();
-              hideTemuDistractingSheets();
+              otlobliCleanTemuBlockers(true);
               if (delayedInput && delayedSearchMode && document.activeElement !== delayedInput) {
                 try { delayedInput.focus({ preventScroll: true }); } catch (e) { try { delayedInput.focus(); } catch (e2) {} }
               }
@@ -7566,27 +7641,16 @@ export const SHEIN_CAPTURE_SCRIPT = `
   setInterval(function () {
     ensureOtlobliNav();
     if (IS_TEMU) {
-      try { hideTemuAccountSurfaces(); } catch (e) {}
       injectTemuHeaderHideCSS();
       ensureTemuSearchTouchRepair();
       var intervalTemuSearching = otlobliTemuSearchMode();
       otlobliSyncTemuSearchModeState(intervalTemuSearching);
       if (intervalTemuSearching) {
-        otlobliReleaseTemuSearchPinning();
         restoreTemuSearchBackControls();
-      } else {
-        stabilizeTemuSearchChrome();
       }
-      restoreTemuSearchChrome();
-      if (!intervalTemuSearching) {
-        restoreTemuCategoryStrip();
-        otlobliForceTemuHomeHeaderState();
-        restoreTemuLogo();
-      }
-      try { hideTemuAccountSurfaces(); } catch (e) {}
-      try { hideTemuDistractingSheets(); } catch (e) {}
+      try { otlobliCleanTemuBlockers(true); } catch (e) {}
     }
-  }, OTLOBLI_LOW_END ? 240 : 120);
+  }, OTLOBLI_LOW_END ? 1800 : 1200);
   // Own slower interval, not part of tick() - see checkForSheinSecurityBlock's
   // comment on why innerText needs to stay off the 300ms timer. خاص بشي إن فقط.
   setInterval(function () { if (IS_SHEIN) checkForSheinSecurityBlock(); }, 1000);
