@@ -1,5 +1,19 @@
 # SESSION_SUMMARY.md
 
+## 2026-07-17 Temu v85.8.24 Search Layout Fix
+
+- Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
+- Branch: `claude/ios6-cover-fix`.
+- Current local candidate: v85.8.24 / `APP_VERSION = 2026.07.17-v85.8.24-temu-search-layout-no-otp-test`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.24-temu-search-layout.ipa`.
+- Build run: `29577463207` (success), built from code commit `b061da5`.
+- IPA SHA-256: `15A3FD16D00F8BB04316D05A70F55FA54DCB90EDABF21AF5B96249E4637E9426`.
+- Scope: only the follow-up Temu search layout issues after v85.8.23: search bar clipped from the bottom on entry, and home header/category shape breaking after backing out.
+- Fix: active Temu search now marks a scoped search shell plus nearest frame, expands only that frame temporarily, and lowers the shell with `transform` instead of the old layout-changing `margin-top`.
+- Home return: Otlobli search-back clears active search shell/frame markers and restarts a bounded home-header wake window even when the URL stays the same, with one extra delayed reset for low-end iPhones.
+- Validation passed: targeted ESLint, injected-script parse, `npm run build`, WebKit iPhone 6-sized clipped-search -> Otlobli-back -> home fixture, GitHub unsigned iOS build, embedded v85.8.24 marker check.
+- Next real-device check: install v85.8.24 and verify only this loop before moving to any next issue.
+
 ## 2026-07-17 Temu v85.8.23 Search Exit Home Fix
 
 - Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
