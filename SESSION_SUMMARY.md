@@ -1,5 +1,21 @@
 # SESSION_SUMMARY.md
 
+## 2026-07-17 Temu v85.8.26 Clean Blockers Reset
+
+- Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
+- Branch: `claude/ios6-cover-fix`.
+- Current local candidate: v85.8.26 / `APP_VERSION = 2026.07.17-v85.8.26-temu-clean-blockers-no-otp-test`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.26-temu-clean-blockers.ipa`.
+- Build run: `29581021125` (success), built from code commit `e3984fd`.
+- IPA SHA-256: `DD22DFD3CE658E056F652F140B6AEA5FEAC8A5CA1193DDAEEEDE557BA0864C2B`.
+- v85.8.25 was still rejected: Temu was too heavy/unstable, category row could gap/hide, and old blocker/header/search interventions were still risky.
+- Fix: active Temu now uses one cleaner that hides only account/login, cart/basket, app-download/open-app, and promo/offer/coupon sheets.
+- Removed from active Temu path: header/search/category pinning/restoring/forcing, broad customer chrome hiding, broad account/sheet scans, and login-popup clicking.
+- Guard fixes: search inputs/triggers, category rows, product grids, prices, and image-heavy product content are protected; the old broad `near search input` guard no longer protects unrelated floating offer sheets; generic `category/nav/menu` matching is no longer used as promo detection.
+- Performance: Temu cleanup interval is relaxed to `1200ms` / `1800ms` on low-end devices.
+- Validation passed: targeted ESLint, injected-script parse, `npm run build`, iPhone-6-sized WebKit blocker harness, GitHub unsigned iOS build, embedded v85.8.26 marker check.
+- Live Temu headless redirected to a download, so final acceptance still requires installing on the real iPhone. No simulator was used.
+
 ## 2026-07-17 Temu v85.8.25 Search No-Motion Fix
 
 - Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
