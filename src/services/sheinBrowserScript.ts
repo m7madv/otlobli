@@ -2432,6 +2432,33 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
+  function temuLooksLikeProductContent(el) {
+    if (!el) return false;
+    try {
+      if (temuContainsPrice(el)) return true;
+      var text = temuCleanText(el.textContent);
+      if (text.length > 80 && /تم البيع|الشحن|مستودع|محلي|خصم|اللون|الكمية|sold|shipping|colour|color|quantity/i.test(text) &&
+          /[0-9٠-٩]|ر\\.?\\s*س|ريال|SAR/i.test(text)) {
+        return true;
+      }
+      if (el.querySelector && el.querySelector('[class*="curPrice" i], [class*="goods" i], [class*="product" i], h1, h2')) {
+        return true;
+      }
+      var imgs = el.querySelectorAll ? el.querySelectorAll('img') : [];
+      var largeProductImages = 0;
+      for (var i = 0; i < imgs.length; i++) {
+        var src = imgs[i].currentSrc || imgs[i].src || '';
+        if (!/kwcdn|temu/i.test(src)) continue;
+        var r = imgs[i].getBoundingClientRect ? imgs[i].getBoundingClientRect() : { width: 0, height: 0 };
+        if (r.width >= 90 && r.height >= 90) largeProductImages++;
+      }
+      return largeProductImages >= 1 && text.length > 25 &&
+        /تم البيع|الشحن|مستودع|محلي|خصم|اللون|الكمية|sold|shipping|colour|color|quantity/i.test(text);
+    } catch (e) {
+      return false;
+    }
+  }
+
   function otlobliBuildDeepLink(href, color, size) {
     try {
       var sep = href.indexOf('?') >= 0 ? '&' : '?';
@@ -4050,7 +4077,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
               var gateDefColor = temuDefaultSelectedColorCard();
               if (gateDefColor) gateColorSwatch = gateDefColor.image;
             }
-            if (!gateColorSwatch) {
+            if (!gateColorSwatch && !gateColorVal) {
               blockMsg = 'حدد اللون أولاً';
             }
           }
@@ -6298,8 +6325,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     '[aria-label*="account" i], [aria-label*="profile" i], [aria-label*="sign in" i],' +
     'a[href*="cart" i], a[href*="login" i], a[href*="signin" i], a[href*="account" i],' +
     '[class*="downloadUI" i], [class*="appDownload" i], [class*="downloadApp" i],' +
-    '[class*="openApp" i], [class*="signInWrap-" i], [class*="signInBtn-" i],' +
-    '[class*="panel-"][class*="adaptPad"], [class*="guideButton-" i]' +
+    '[class*="openApp" i]' +
     '{ display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; }';
   // نحقن القاعدة في أبكر لحظة ممكنة (documentStart، قبل رسم أي شيء) لمنع أي
   // وميض للعناصر المخفية. لا نعتمد على flag لمرة واحدة، بل نفحص وجود <style>
@@ -6839,6 +6865,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
           // lives as a sibling/child nearby, and narrower descendants match.
           continue;
         }
+        if (looksLikeProductPage() && temuLooksLikeProductContent(el)) continue;
         if (!fixedish && !bottomLogin && r.top > 180) continue;
         el.setAttribute('data-otlobli-temu-account-surface', '1');
         el.setAttribute('data-otlobli-temu-hidden', '1');
