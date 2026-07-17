@@ -5790,6 +5790,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         try { ensureTemuNoZoom(); } catch (e) {}
         try { ensureTemuSearchTouchRepair(); } catch (e) {}
         try { otlobliSyncTemuSearchModeState(temuSearching); } catch (e) {}
+        try { hideTemuSearchVisibleAccountCart(temuSearching); } catch (e) {}
         // killStorePopups معطّلة لتيمو نهائياً (v57): أكّد اختبار المستخدم
         // (2026-07-10) أنها سبب وميض الشاشة الأبيض كل نصف ثانية — كانت تحجب
         // طبقة كبيرة تطابق PROMO ثم تعيدها المراجعة الذاتية، كل 300ms.
@@ -6115,6 +6116,15 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function otlobliTemuExitSearchMode() {
     if (!IS_TEMU) return false;
     var searchInputForExit = otlobliTemuSearchInputForExit();
+    var si = searchInputForExit;
+    var siValue = si && typeof si.value === 'string' ? si.value : (si ? (si.textContent || '') : '');
+    if (si && (document.activeElement === si || siValue)) {
+      __otlobliTemuSearchModeCacheTs = Date.now();
+      __otlobliTemuSearchModeCacheHref = location.href || '';
+      __otlobliTemuSearchModeCacheValue = false;
+      otlobliScheduleTemuHomeAfterSearchExit(si, false);
+      return true;
+    }
     if (/search/i.test(location.pathname + location.search + location.hash) && history.length > 1) {
       try {
         history.back();
@@ -6122,20 +6132,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
         return true;
       } catch (e) {}
     }
-    var si = searchInputForExit;
-    if (si && document.activeElement === si) {
-      __otlobliTemuSearchModeCacheTs = Date.now();
-      __otlobliTemuSearchModeCacheHref = location.href || '';
-      __otlobliTemuSearchModeCacheValue = false;
-      otlobliScheduleTemuHomeAfterSearchExit(si, true);
-      return true;
-    }
     if (document.activeElement && document.activeElement.blur) {
       try { document.activeElement.blur(); } catch (e3) {}
       __otlobliTemuSearchModeCacheTs = Date.now();
       __otlobliTemuSearchModeCacheHref = location.href || '';
       __otlobliTemuSearchModeCacheValue = false;
-      otlobliScheduleTemuHomeAfterSearchExit(si, true);
+      otlobliScheduleTemuHomeAfterSearchExit(si, false);
       return true;
     }
     return false;
@@ -6380,6 +6382,72 @@ export const SHEIN_CAPTURE_SCRIPT = `
           hideCleanNode(el);
           hidden++;
         }
+      }
+    } catch (e) {}
+  }
+
+  function hideTemuSearchVisibleAccountCart(searchMode) {
+    if (!IS_TEMU || !document.body) return;
+    try {
+      var active = typeof searchMode === 'boolean' ? searchMode : otlobliTemuSearchMode();
+      if (!active && !/search/i.test(location.pathname + location.search + location.hash)) return;
+      var vp = viewportSize();
+      var input = otlobliTemuSearchInputForExit() || otlobliTemuSearchInput();
+      var inputRect = input && input.getBoundingClientRect ? input.getBoundingClientRect() : null;
+      var searchTop = inputRect && inputRect.height > 0 ? inputRect.top : 230;
+      var nodes = document.querySelectorAll('a,button,[role="button"],div,span,i');
+      for (var i = 0; i < nodes.length; i++) {
+        var el = nodes[i];
+        if (!el || !el.getBoundingClientRect) continue;
+        if (el.id && el.id.indexOf('otlobli') === 0) continue;
+        if (el.closest && (el.closest('#otlobli-nav') || el.closest('#otlobli-back-btn') || el.closest('#otlobli-add-btn'))) continue;
+        if (el.querySelector && el.querySelector('input,textarea,[role="searchbox"]')) continue;
+        if (otlobliLooksLikeSearchTrigger(el) || otlobliLooksLikeTemuLogo(el)) continue;
+        var r = el.getBoundingClientRect();
+        if (r.width <= 0 || r.height <= 0) continue;
+        var txt = temuCleanText(el.textContent);
+        var hints = otlobliCollectIdentityHints(el) + ' ' + txt;
+        var topIconOnly = r.top >= 0 && r.bottom <= searchTop - 4 &&
+          r.left >= -4 && r.left <= Math.max(180, vp.width * 0.46) &&
+          r.width >= 18 && r.width <= 72 && r.height >= 18 && r.height <= 72 &&
+          txt.length <= 3;
+        var semanticCartAccount = /(cart|basket|shopping\\s*bag|account|profile|sign\\s*in|login|\u0633\u0644\u0629|\u0639\u0631\u0628\u0629|\u062d\u0633\u0627\u0628|\u062f\u062e\u0648\u0644|\u062a\u0633\u062c\u064a\u0644)/i.test(hints);
+        var tag = (el.tagName || '').toLowerCase();
+        var role = (el.getAttribute && (el.getAttribute('role') || '').toLowerCase()) || '';
+        var interactive = tag === 'a' || tag === 'button' || role === 'button';
+        var compactSemantic = semanticCartAccount && interactive &&
+          r.width >= 18 && r.width <= 90 && r.height >= 18 && r.height <= 90 &&
+          txt.length <= 32 && !temuContainsPrice(el);
+        if (topIconOnly || compactSemantic) {
+          el.setAttribute('data-otlobli-temu-search-chrome-hidden', '1');
+          el.style.setProperty('visibility', 'hidden', 'important');
+          el.style.setProperty('opacity', '0', 'important');
+          el.style.setProperty('pointer-events', 'none', 'important');
+        }
+      }
+
+      var bars = document.querySelectorAll('nav,footer,div,[role="navigation"],[role="tablist"]');
+      for (var b = 0; b < bars.length; b++) {
+        var bar = bars[b];
+        if (!bar || !bar.getBoundingClientRect) continue;
+        if (bar.id && bar.id.indexOf('otlobli') === 0) continue;
+        if (bar.closest && bar.closest('#otlobli-nav')) continue;
+        var br = bar.getBoundingClientRect();
+        if (br.width < vp.width * 0.55 || br.height < 34 || br.height > 180 || br.top < vp.height - 210) {
+          continue;
+        }
+        var cs = window.getComputedStyle(bar);
+        if (cs.position !== 'fixed' && cs.position !== 'sticky' && cs.position !== 'absolute') continue;
+        var barText = temuCleanText(bar.textContent);
+        if (barText.length > 120) continue;
+        var navLikeChildren = bar.children && bar.children.length >= 3 && bar.children.length <= 5;
+        if (!/(account|profile|cart|basket|orders?|home|\u062d\u0633\u0627\u0628\u064a|\u0627\u0644\u0633\u0644\u0629|\u0637\u0644\u0628\u0627\u062a\u064a|\u0627\u0644\u0631\u0626\u064a\u0633\u064a\u0629)/i.test(barText) &&
+            !(navLikeChildren && br.height >= 48 && br.height <= 120)) continue;
+        bar.setAttribute('data-otlobli-temu-search-chrome-hidden', '1');
+        bar.style.setProperty('display', 'none', 'important');
+        bar.style.setProperty('visibility', 'hidden', 'important');
+        bar.style.setProperty('opacity', '0', 'important');
+        bar.style.setProperty('pointer-events', 'none', 'important');
       }
     } catch (e) {}
   }
@@ -7642,6 +7710,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       ensureTemuSearchTouchRepair();
       var intervalTemuSearching = otlobliTemuSearchMode();
       otlobliSyncTemuSearchModeState(intervalTemuSearching);
+      try { hideTemuSearchVisibleAccountCart(intervalTemuSearching); } catch (e) {}
       try { otlobliCleanTemuBlockers(true); } catch (e) {}
     }
   }, OTLOBLI_LOW_END ? 1800 : 1200);
