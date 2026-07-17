@@ -5841,6 +5841,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
         try { ensureTemuSearchTouchRepair(); } catch (e) {}
         try { otlobliSyncTemuSearchModeState(temuSearching); } catch (e) {}
         try { hideTemuSearchVisibleAccountCart(temuSearching); } catch (e) {}
+        // أول شيء كل تِك: نستعيد أي محتوى منتج حجبه المنظّف خطأً (شاشة بيضاء).
+        // غير مقيّد بمهلة المنظّف (1100ms) ليُصلح خلال ~300ms فيصير وميضاً قصيراً
+        // لا شاشة بيضاء دائمة — والقائمة البيضاء تمنع تكرار الحجب بعدها.
+        try { otlobliTemuRestoreCleanHidden(); } catch (e) {}
         // killStorePopups معطّلة لتيمو نهائياً (v57): أكّد اختبار المستخدم
         // (2026-07-10) أنها سبب وميض الشاشة الأبيض كل نصف ثانية — كانت تحجب
         // طبقة كبيرة تطابق PROMO ثم تعيدها المراجعة الذاتية، كل 300ms.
@@ -6348,6 +6352,32 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // هو ما يمنع ظهور الأزرار/البانر ولو لجزء من الثانية عند أول دخول للمتجر.
   try { injectTemuHeaderHideCSS(); } catch (e) {}
 
+  // مراجعة ذاتية لِما حجبته otlobliCleanTemuBlockers: العنصر المحجوب يصير
+  // rect=0 فيتخطّاه المنظّف ولا يُعاد فحصه أبداً — فأي حجب خاطئ يبقى دائماً.
+  // على صفحة المنتج، regex الـpromo يطابق "خصم/شحن مجاني" فيحجب حاوية أثناء
+  // الرندر قبل تحميل السعر (يفشل حارس السعر)، والنتيجة شاشة بيضاء دائمة تظهر
+  // فيها الصورة ثم تبيضّ. querySelector/textContent يعملان رغم display:none،
+  // فنفحص المحتوى ونستعيد أي عنصر صار الآن محتوى منتج، ونُدرجه بقائمة بيضاء
+  // دائمة (data-otlobli-temu-keep) فلا يُحجب ثانيةً — هذا يمنع وميض الحجب/
+  // الاستعادة المتكرّر الذي عطّل killStorePopups سابقاً.
+  function otlobliTemuRestoreCleanHidden() {
+    if (!IS_TEMU || !document.body) return;
+    try {
+      var hidden = document.querySelectorAll('[data-otlobli-temu-clean-hidden="1"]');
+      for (var i = 0; i < hidden.length; i++) {
+        var el = hidden[i];
+        if (el.id && el.id.indexOf('otlobli') === 0) continue;
+        if (!temuContainsPrice(el) && !temuLooksLikeProductContent(el)) continue;
+        el.setAttribute('data-otlobli-temu-keep', '1');
+        el.removeAttribute('data-otlobli-temu-clean-hidden');
+        el.style.removeProperty('display');
+        el.style.removeProperty('visibility');
+        el.style.removeProperty('opacity');
+        el.style.removeProperty('pointer-events');
+      }
+    } catch (e) {}
+  }
+
   var __otlobliTemuCleanBlockersTs = 0;
   function otlobliCleanTemuBlockers(force) {
     if (!IS_TEMU || !document.body) return;
@@ -6371,6 +6401,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
       function protectedTemuContent(el, text, target) {
         if (!el || (el.id && el.id.indexOf('otlobli') === 0)) return true;
+        // قائمة بيضاء دائمة: عنصر استعادته المراجعة الذاتية بعد حجب خاطئ — لا
+        // يُحجب ثانيةً أبداً (يمنع دورة الحجب/الاستعادة والوميض المتكرّر).
+        if (el.getAttribute && el.getAttribute('data-otlobli-temu-keep') === '1') return true;
         if (el.closest && (el.closest('#otlobli-nav') || el.closest('#otlobli-back-btn') || el.closest('#otlobli-add-btn'))) return true;
         if (el.querySelector && el.querySelector('input[type="search"], [role="searchbox"], input[placeholder*="Search"]')) return true;
         var blockerTarget = !!(target && (target.accountCart || target.appInstall || target.promo));
@@ -6414,6 +6447,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var accountCart = accountCartRe.test(hints);
         var appInstall = appRe.test(hints);
         var promo = promoRe.test(hints);
+        // على صفحة المنتج، "خصم/شحن مجاني/عرض" جزء طبيعي من كل منتج، فلا تكفي
+        // وحدها لاعتبار العنصر عرضاً منبثقاً. نشترط كلمة عرض قوية (كوبون/عجلة
+        // الحظ/اربح/هدية/جائزة...) — بدون هذا كان يُحجب محتوى المنتج فتبيضّ
+        // الصفحة. الحساب/التطبيق يبقيان كما هما (ليسا محتوى منتج طبيعياً).
+        if (promo && looksLikeProductPage() && !accountCart && !appInstall) {
+          promo = /coupon|voucher|spin|free\\s*gift|lucky\\s*draw|claim|reward|قسيمة|كوبون|عجلة\\s*الحظ|اربح|هدية\\s*مجان|جائزة|الملياردير/i.test(hints);
+        }
         if (!accountCart && !appInstall && !promo && el.getAttribute('data-otlobli-temu-clean-hidden') !== '1') continue;
         if (protectedTemuContent(el, text, { accountCart: accountCart, appInstall: appInstall, promo: promo })) continue;
         var cs = window.getComputedStyle(el);
