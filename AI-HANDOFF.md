@@ -8,7 +8,9 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 - Last tested IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.19-temu-search-keyboard.ipa`.
 - Last tested code: `0426529` (`fix: v85.8.19 keep Temu search keyboard open`).
 - Current local code candidate: v85.8.21 / `APP_VERSION = 2026.07.17-v85.8.21-temu-category-search-account-no-otp-test`.
-- Current iOS IPA: pending GitHub Actions build.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.21-temu-category-search-account.ipa`.
+- Build run: `29551174390` (success), built from code commit `603c902`.
+- IPA SHA-256: `E42467AD3BB2F13E6F82E0638AB8AE04846C9036514E94B497E4B2018E53CA1E`.
 - Previous iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.20-temu-header-search-login.ipa`.
 - Previous build run: `29543466932` (success), built from code commit `5a5b0c6`.
 - Previous IPA SHA-256: `16EFD9C2C1C38FE88C87404CF24BD157A1DC7DED4B265CF914BCE5FC4C9BEEC5`.

@@ -5,7 +5,9 @@
 - Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
 - Branch: `claude/ios6-cover-fix`.
 - Current local candidate: v85.8.21 / `APP_VERSION = 2026.07.17-v85.8.21-temu-category-search-account-no-otp-test`.
-- Current iOS IPA: pending GitHub Actions build.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.21-temu-category-search-account.ipa`.
+- Build run: `29551174390` (success), built from code commit `603c902`.
+- IPA SHA-256: `E42467AD3BB2F13E6F82E0638AB8AE04846C9036514E94B497E4B2018E53CA1E`.
 - Focus stayed Temu-only: first-entry category strip, header startup stability, search typing/focus, and login/account panel removal outside real account routes.
 - Fixed early WebKit document-start aborts by guarding Cairo font injection and deferring the MutationObserver until a root node exists.
 - Added a bounded Temu home wake nudge that triggers the same tiny scroll/resize path needed to reveal categories, then returns to top.
