@@ -7,13 +7,13 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 - Branch: `claude/ios6-cover-fix`.
 - Last tested IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.19-temu-search-keyboard.ipa`.
 - Last tested code: `0426529` (`fix: v85.8.19 keep Temu search keyboard open`).
-- Current local code candidate: v85.8.21 / `APP_VERSION = 2026.07.17-v85.8.21-temu-category-search-account-no-otp-test`.
-- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.21-temu-category-search-account.ipa`.
-- Build run: `29551174390` (success), built from code commit `603c902`.
-- IPA SHA-256: `E42467AD3BB2F13E6F82E0638AB8AE04846C9036514E94B497E4B2018E53CA1E`.
-- Previous iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.20-temu-header-search-login.ipa`.
-- Previous build run: `29543466932` (success), built from code commit `5a5b0c6`.
-- Previous IPA SHA-256: `16EFD9C2C1C38FE88C87404CF24BD157A1DC7DED4B265CF914BCE5FC4C9BEEC5`.
+- Current local code candidate: v85.8.22 / `APP_VERSION = 2026.07.17-v85.8.22-temu-focused-search-no-otp-test`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.22-temu-focused-search.ipa`.
+- Build run: `29553022990` (success), built from code commit `8b665ed`.
+- IPA SHA-256: `1233327C658582DA8D4B11EFF5D621CC4728B13C132CEC93D3AF52391B14CEB5`.
+- Previous iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.21-temu-category-search-account.ipa`.
+- Previous build run: `29551174390` (success), built from code commit `603c902`.
+- Previous IPA SHA-256: `E42467AD3BB2F13E6F82E0638AB8AE04846C9036514E94B497E4B2018E53CA1E`.
 - Rollback/reference: v85.8.5 / `a914d81` and the user-provided v85.8.5 IPA.
 - v85.8.19 did not fix Temu. Current focus is Temu only; do not touch payment, wallet, completed orders, or account routes unless explicitly requested.
 - v85.8.10's ordinary iPhone 16 SHEIN nav behavior was accepted. Do not call any new Temu change proven until tested on the real iPhone device; do not rely on the simulator.
@@ -44,7 +44,8 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 - v85.8.12 detects nested fixed viewers from targeted painted points, blocks gallery click-through at the event boundary, raises the full cookie action row without auto-consent, closes only a signed-Saudi address surface, and throttles signup/cookie scans. MutationObserver now schedules the normal coalesced tick only.
 - v85.8.20 local Temu candidate broadens top search-field detection, caches search-mode probing briefly to reduce typing lag, prevents search chrome restoration from re-showing account/login panel ancestors, reapplies search-only login panel hiding if Temu redraws it, and stops home-header forcing from scrolling to top or raising the category strip with forced transform/background/z-index.
 - v85.8.21 fixes a WebKit document-start abort in Cairo font injection and defers the MutationObserver until a root node exists. It nudges Temu's first-entry home header only when the category strip is missing, then returns to top. It hides the live Temu account/login surfaces by observed classes on non-account routes, including search redraws, without the previous heavy 90ms full-page text scan.
+- v85.8.22 marks verified Temu category strips and forces only those strips to `display:flex`, detects focused searchboxes as search mode, lowers the active search shell by 18px, hides Temu's native search back control, and cleans login/offer sheets on non-account routes while preserving real account routes. The iOS splash PNGs are now blank white to avoid the blue logo in app switcher previews.
 
 ## Next Step
 
-Build v85.8.21 with GitHub Actions, then install the new IPA on the real iPhone. Verify Temu opens with search plus category strip from first entry, no blank white header band, search keeps the keyboard open, typing is fast, and the login/account panel does not appear during search while the real account path still works when opened intentionally.
+Install v85.8.22 on the real iPhone. Verify Temu opens with search plus category strip from first entry, no blank white header band, search keeps the keyboard open, typing is fast, Otlobli back does not open "Available offers", login/account panels do not appear during search, and the real account path still works when opened intentionally.

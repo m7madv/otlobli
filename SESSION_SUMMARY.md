@@ -1,5 +1,20 @@
 # SESSION_SUMMARY.md
 
+## 2026-07-17 Temu v85.8.22 GitHub Build
+
+- Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
+- Branch: `claude/ios6-cover-fix`.
+- Current local candidate: v85.8.22 / `APP_VERSION = 2026.07.17-v85.8.22-temu-focused-search-no-otp-test`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.22-temu-focused-search.ipa`.
+- Build run: `29553022990` (success), built from code commit `8b665ed`.
+- IPA SHA-256: `1233327C658582DA8D4B11EFF5D621CC4728B13C132CEC93D3AF52391B14CEB5`.
+- Temu focus: category strip visible from first entry, cleaner header/search state, faster focused search path, no login/account or available-offers interruption during search/back.
+- Implementation is targeted: verified category strips get `display:flex`; focused searchboxes count as Temu search mode; the active search shell is lowered 18px; Temu native search back is hidden; Otlobli back exits search without opening Temu offer sheets.
+- Real Temu account routes are preserved when opened intentionally; account-route WebKit fixture passed.
+- iOS splash PNGs are blank white so the blue splash logo should not show in the app switcher/background preview.
+- Validation passed: targeted ESLint, injected-script parse, `npm run build`, WebKit iPhone-sized home/search/back fixture, WebKit account-route fixture, GitHub unsigned iOS build, embedded v85.8.22 marker check.
+- Do not use the simulator for final judgment; install on the real iPhone 6/iPhone 16. Do not touch payment, wallet, completed orders, or account-route logic unless explicitly requested.
+
 ## 2026-07-17 Temu v85.8.21 Local Update
 
 - Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
