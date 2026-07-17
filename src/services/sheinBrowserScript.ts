@@ -2943,13 +2943,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
   // هل للمنتج لون وحيد؟ يُقلّص الصور الملوّنة القريبة من عنوان "Color:".
-  function temuHasSingleColor() {
+  function temuColorChoiceCardCount() {
     var nodes = document.querySelectorAll('div, span, h2, h3, p, strong');
     var colorHead = null;
     for (var i = 0; i < nodes.length; i++) {
       if (temuIsColorHeadText((nodes[i].textContent || '').trim())) { colorHead = nodes[i]; break; }
     }
-    if (!colorHead) return false;
+    if (!colorHead) return 0;
     var container = colorHead.parentElement, hops = 0;
     while (container && hops < 5) {
       var imgs = container.querySelectorAll('img');
@@ -2960,10 +2960,15 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var r = imgs[j].getBoundingClientRect();
         if (r.width >= 28 && r.width < 200 && r.height >= 28 && r.height < 200) count++;
       }
-      if (count >= 1) return count === 1;
+      if (count >= 1) return count;
       container = container.parentElement; hops++;
     }
-    return false;
+    return 0;
+  }
+  function temuHasSingleColor() {
+    var count = temuColorChoiceCardCount();
+    if (count >= 1) return count === 1;
+    return !!temuColorFromHeading();
   }
   // يقرأ اللون الحالي من عنوان "اللون: X" فقط (بلا مصادر النقر) — يُستخدم
   // للالتقاط الاحتياطي بعد أي نقرة: كروت الألوان النصية (ساعات) بلا صور
@@ -3513,6 +3518,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   // هل توجد قائمة مقاسات؟ (عنوان "Size"/"المقاس"/"موديل متوافق")
   function temuHasSizeSection() { return !!temuSizeHeadEl(); }
+  function temuHasSelectableSecondOption() {
+    var pills = temuSizePills();
+    if (pills.length > 0) return true;
+    var counts = temuVariantCounts();
+    return counts.sizes > 1;
+  }
   // صفحة المنتج المغلقة تعرض ملخّصاً مثل "7 Color, 3 Size" أو "5 اللون, 20 موديل"
   // قبل اكتمال الاختيار — هذا الزر يفتح لوحة الخيارات عند النقر عليه.
   function temuVariantSummaryEl() {
@@ -4045,10 +4056,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
           }
           if (!blockMsg && !persoChk.has) {
             // ذكاء: مقاس وحيد → نحدّده تلقائياً قبل التحقق (يحلّ مشكلة ONE SIZE).
-            if (knownOneSize || temuHasSizeSection()) temuForceSingleSize();
+            var hasSecondOptionChoices = temuHasSelectableSecondOption();
+            if (knownOneSize || hasSecondOptionChoices) temuForceSingleSize();
             // هـ) فيه مقاسات/موديلات متعددة لكن لم يُحدّد شيء.
             // (لمنتجات التخصيص لا نفحص المقاس — خانته تحمل نص النقش.)
-            if (temuHasSizeSection() && !temuSelectedSize() && !knownOneSize) {
+            if (hasSecondOptionChoices && !temuSelectedSize() && !knownOneSize) {
               var sHead = temuSizeHeadEl();
               var sLabel = sHead ? (sHead.textContent || '').trim() : 'المقاس';
               blockMsg = /موديل/i.test(sLabel) ? 'حدد موديل جوالك أولاً' : 'حدد المقاس أولاً';
