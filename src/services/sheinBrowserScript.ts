@@ -5848,6 +5848,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
         // شبكة أمان أخيرة: إن كانت صفحة المنتج فارغة بصرياً ومحتواها مخفيّ في
         // DOM، نستعيد كل ما أخفيناه (يغطّي المنتجات المحددة التي تفلت من أعلاه).
         try { otlobliTemuBlankPageRescue(); } catch (e) {}
+        // لوحة تشخيص (نسخة اختبار) + إصلاح تلقائي لفشل رندر تيمو (DOM فارغ).
+        try { otlobliTemuDiag(); } catch (e) {}
+        try { otlobliTemuBlankPageAutoReload(); } catch (e) {}
         // killStorePopups معطّلة لتيمو نهائياً (v57): أكّد اختبار المستخدم
         // (2026-07-10) أنها سبب وميض الشاشة الأبيض كل نصف ثانية — كانت تحجب
         // طبقة كبيرة تطابق PROMO ثم تعيدها المراجعة الذاتية، كل 300ms.
@@ -6423,6 +6426,78 @@ export const SHEIN_CAPTURE_SCRIPT = `
         el.style.removeProperty('opacity');
         el.style.removeProperty('pointer-events');
       }
+    } catch (e) {}
+  }
+
+  // يقيس المحتوى المرئي/المخفي على صفحة منتج تيمو مرّة واحدة (يُعاد استخدامه
+  // في التشخيص وإعادة التحميل التلقائي حتى لا يتكرّر المنطق).
+  function otlobliTemuProductVitals() {
+    var vp = viewportSize();
+    var imgs = document.querySelectorAll('img');
+    var domImg = 0, visImg = 0;
+    for (var i = 0; i < imgs.length; i++) {
+      var s = imgs[i].currentSrc || imgs[i].src || '';
+      if (!/kwcdn|temu/i.test(s)) continue;
+      domImg++;
+      var r = imgs[i].getBoundingClientRect();
+      if (r.width >= 110 && r.height >= 110 && r.bottom > 70 && r.top < vp.height - 60) visImg++;
+    }
+    var hasPrice = false;
+    try { hasPrice = !!document.querySelector('[class*="curPrice" i]'); } catch (e) {}
+    var domHasContent = domImg > 0 || hasPrice;
+    var state = visImg > 0 ? 'سليمة' : (domHasContent ? 'محتوى مخفي' : 'DOM فارغ');
+    return { domImg: domImg, visImg: visImg, hasPrice: hasPrice, domHasContent: domHasContent, state: state };
+  }
+
+  // لوحة تشخيص (نسخة اختبار فقط): تكشف بدقة سبب الشاشة البيضاء على الجهاز —
+  // "سليمة" = يظهر محتوى، "محتوى مخفي" = DOM فيه منتج لكنه محجوب (خطأ حجب منّا)،
+  // "DOM فارغ" = تيمو لم ترسم شيئاً (فشل رندر/رابط، ليس حجباً منّا).
+  function otlobliTemuDiag() {
+    if (!IS_TEMU || !document.body) return;
+    try {
+      var ex = document.getElementById('otlobli-temu-diag');
+      if (!looksLikeProductPage() || otlobliTemuSearchMode()) { if (ex) ex.remove(); return; }
+      var v = otlobliTemuProductVitals();
+      var clean = document.querySelectorAll('[data-otlobli-temu-clean-hidden="1"]').length;
+      var gen = document.querySelectorAll('[data-otlobli-temu-hidden="1"]').length;
+      var chrome = document.querySelectorAll('[data-otlobli-temu-search-chrome-hidden="1"]').length;
+      var bodyNodes = document.body.getElementsByTagName('*').length;
+      var panel = ex;
+      if (!panel) {
+        panel = document.createElement('div');
+        panel.id = 'otlobli-temu-diag';
+        panel.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;' +
+          'background:rgba(0,0,0,.82);color:#fff;font-size:10px;line-height:1.4;padding:3px 6px;' +
+          'direction:rtl;text-align:right;font-family:monospace;pointer-events:none;white-space:pre;';
+      }
+      panel.textContent =
+        'otlobli تشخيص | الحالة: ' + v.state + ' | صور تيمو DOM=' + v.domImg + ' مرئي=' + v.visImg +
+        ' | سعر=' + (v.hasPrice ? 'نعم' : 'لا') + ' | عقد=' + bodyNodes + '\\n' +
+        'أخفينا: نظّف=' + clean + ' عام=' + gen + ' بحث=' + chrome + ' | مسار=' + (location.pathname || '').slice(0, 44);
+      try { document.body.appendChild(panel); } catch (e) {}
+    } catch (e) {}
+  }
+
+  // إصلاح تلقائي لفشل رندر تيمو: إن بقيت صفحة المنتج فارغة بصرياً و DOM فارغ
+  // فعلاً (لا محتوى مخفي — فذاك يتكفّل به watchdog) لأكثر من 3.5 ثانية = تيمو
+  // لم ترسم الصفحة → نعيد تحميل الرابط مرّة واحدة (يُصلح غالباً فشل SPA).
+  var __otlobliTemuBlankUrl = '';
+  var __otlobliTemuBlankSince = 0;
+  var __otlobliTemuBlankReloaded = '';
+  function otlobliTemuBlankPageAutoReload() {
+    if (!IS_TEMU || !document.body) return;
+    try {
+      if (!looksLikeProductPage() || otlobliTemuSearchMode()) { __otlobliTemuBlankSince = 0; return; }
+      var v = otlobliTemuProductVitals();
+      if (v.visImg > 0) { __otlobliTemuBlankSince = 0; return; }   // يظهر محتوى — سليمة
+      if (v.domHasContent) return;                                 // محجوب — للـwatchdog لا لإعادة التحميل
+      var url = location.href, now = Date.now();
+      if (__otlobliTemuBlankUrl !== url) { __otlobliTemuBlankUrl = url; __otlobliTemuBlankSince = now; return; }
+      if (!__otlobliTemuBlankSince) { __otlobliTemuBlankSince = now; return; }
+      if (now - __otlobliTemuBlankSince < 3500) return;
+      if (__otlobliTemuBlankReloaded === url) return;              // مرّة واحدة لكل رابط
+      __otlobliTemuBlankReloaded = url;
+      location.reload();
     } catch (e) {}
   }
 
