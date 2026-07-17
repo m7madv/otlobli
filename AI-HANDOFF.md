@@ -5,13 +5,16 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Current Candidate
 
 - Branch: `claude/ios6-cover-fix`.
-- Last tested IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.26-temu-clean-blockers.ipa`.
-- Last tested code: `e3984fd` (`fix: v85.8.26 reset Temu blockers`) - search suggestions/letters and the search back button could still be hidden.
-- Current local code candidate: v85.8.27 / `APP_VERSION = 2026.07.17-v85.8.27-temu-search-light-blockers-no-otp-test`.
-- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.27-temu-search-light-blockers.ipa`.
-- Build run: `29583256531` (success), built from code commit `d9368b4`.
-- IPA SHA-256: `9B706F650718BA25A7D3E9B61CACB54AAAC873DA492FD5F11CA81866EE2A3826`.
-- Previous iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.26-temu-clean-blockers.ipa`.
+- Last tested IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.27-temu-search-light-blockers.ipa`.
+- Last tested code: `d9368b4` (`fix: v85.8.27 lighten Temu search blockers`) - text/back improved, but account/cart/menu and Temu bottom nav were visible during search/results, and Otlobli back could clear the query.
+- Current local code candidate: v85.8.28 / `APP_VERSION = 2026.07.17-v85.8.28-temu-search-preserve-query-no-otp-test`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.28-temu-search-preserve-query.ipa`.
+- Build run: `29584752961` (success), built from code commit `c7c49d5`.
+- IPA SHA-256: `2AFC1C27164E1023493632323B0F1F7992ACC16B3C6294BB9E7CFE54B97C8BCB`.
+- Previous iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.27-temu-search-light-blockers.ipa`.
+- Previous build run: `29583256531` (success), built from code commit `d9368b4`.
+- Previous IPA SHA-256: `9B706F650718BA25A7D3E9B61CACB54AAAC873DA492FD5F11CA81866EE2A3826`.
+- Older iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.26-temu-clean-blockers.ipa`.
 - Previous build run: `29581021125` (success), built from code commit `e3984fd`.
 - Previous IPA SHA-256: `DD22DFD3CE658E056F652F140B6AEA5FEAC8A5CA1193DDAEEEDE557BA0864C2B`.
 - Rollback/reference: v85.8.5 / `a914d81` and the user-provided v85.8.5 IPA.
@@ -50,7 +53,8 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 - v85.8.25 removes the v85.8.24 motion/frame path. During search, Otlobli no longer restores/forces the category strip and no longer applies search-mode transform/min-height/margin CSS. Otlobli back uses a short focus-loss grace window so tapping the back button still exits search even if focus leaves the input first.
 - v85.8.26 resets the active Temu blocker path: one lightweight cleaner hides only account/login, cart/basket, app-download/open-app, and promo/offer/coupon sheets. The active Temu tick no longer calls the old header/search/category forcing stack. The cleaner protects search inputs/triggers, category rows, product grids, prices, and image-heavy content; it also fixes the old broad `near search input` guard and removes generic `category/nav/menu` distraction matching from promo detection.
 - v85.8.27 lightens blockers during active Temu search: it no longer hides Temu's native search back button, and the JS text/geometry cleaner returns immediately while search is active so suggestion words/letters are preserved. Static CSS blockers still apply.
+- v85.8.28 adds a narrow search-only cleanup that hides compact top account/cart/menu controls and the fixed Temu bottom nav during search/results without touching suggestion text or Temu's native search back. Otlobli search exit now preserves a focused/populated query instead of clearing it.
 
 ## Next Step
 
-Install v85.8.27 on the real iPhone. Verify Temu search first: back button visible, suggestion text/letters visible while typing/editing, keyboard stays usable, then verify home blockers still hide account/cart/app/offers outside search.
+Install v85.8.28 on the real iPhone. Verify Temu search/results first: account/cart/menu and Temu bottom nav hidden, native search back visible, suggestion text/letters visible, keyboard usable, and Otlobli back does not clear an existing query.

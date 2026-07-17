@@ -1,5 +1,20 @@
 # SESSION_SUMMARY.md
 
+## 2026-07-17 Temu v85.8.28 Search Preserve Query
+
+- Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
+- Branch: `claude/ios6-cover-fix`.
+- Current local candidate: v85.8.28 / `APP_VERSION = 2026.07.17-v85.8.28-temu-search-preserve-query-no-otp-test`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.28-temu-search-preserve-query.ipa`.
+- Build run: `29584752961` (success), built from code commit `c7c49d5`.
+- IPA SHA-256: `2AFC1C27164E1023493632323B0F1F7992ACC16B3C6294BB9E7CFE54B97C8BCB`.
+- User report after v85.8.27: in Temu search/results, account/cart/menu and Temu bottom nav were visible; tapping Otlobli back while a query existed could clear the text.
+- Fix: added a narrow search-only cleanup that hides compact top account/cart/menu controls and Temu's fixed bottom nav during search/results.
+- Guard: Temu's native search back button and suggestion/search text stay visible; the broad JS text/geometry blocker still skips active search.
+- Fix: Otlobli search exit preserves a focused or populated search query instead of clearing it.
+- Validation passed: targeted ESLint, injected-script parse, `npm run build`, WebKit iPhone-sized search/results fixture, GitHub unsigned iOS build, embedded v85.8.28 marker check.
+- No simulator was used. Final acceptance is still real-device only.
+
 ## 2026-07-17 Temu v85.8.27 Search Light Blockers
 
 - Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
