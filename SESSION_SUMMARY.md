@@ -1,5 +1,20 @@
 # SESSION_SUMMARY.md
 
+## 2026-07-17 Temu v85.8.31 Product Panel And Text Color
+
+- Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
+- Branch: `claude/ios6-cover-fix`.
+- Current local candidate: v85.8.31 / `APP_VERSION = 2026.07.17-v85.8.31-temu-product-panel-color-no-otp-test`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.31-temu-product-panel-color.ipa`.
+- Build run: `29589915204` (success), built from code commit `81426c7`.
+- IPA SHA-256: `C6E8DA038BC4CB9E7363222E17452F24678B169B6FB729675C5CACFBD937CBCC`.
+- User report after v85.8.30: some Temu product pages could become blank white while Otlobli back/add buttons remained, and a product with text-only color `اللون: اسود و ابيض` was blocked by "select color".
+- Fix: removed early static hiding of live Temu `panel/adaptPad`/sign-in/guide classes; login/account panels are still hidden by the dynamic cleaner after checks.
+- Guard: dynamic account hiding now skips clear product content with price, product text, or large Temu images.
+- Fix: a selected text-only color can pass the add gate without requiring a swatch image; product image fallback remains used for the cart image.
+- Validation passed: targeted ESLint, injected-script parse, `npm run build`, WebKit fixtures for product-panel visibility, dynamic account-panel hiding, and text-only color add, GitHub unsigned iOS build, embedded v85.8.31 marker check.
+- No simulator was used. Final acceptance is still real-device only.
+
 ## 2026-07-17 Temu v85.8.30 No False Size Gate
 
 - Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
