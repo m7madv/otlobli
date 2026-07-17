@@ -2667,6 +2667,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var ht = temuCleanText(text);
     if (!ht || ht.length > 58) return false;
     if (/guide|chart|info|\u062f\u0644\u064a\u0644/i.test(ht)) return false;
+    // \u062d\u0627\u0631\u0633 \u0627\u0644\u0631\u0624\u0648\u0633 \u0627\u0644\u0634\u0628\u062d\u064a\u0629 (\u062b\u0628\u062a \u0645\u0646 6 \u0644\u0642\u0637\u0627\u062a \u062c\u0647\u0627\u0632 \u062d\u0642\u064a\u0642\u064a): \u062c\u0645\u0644\u0629 \u0637\u0648\u064a\u0644\u0629 \u0628\u0644\u0627 \u0646\u0642\u0637\u062a\u064a\u0646
+    // \u062a\u0628\u062f\u0623 \u0628\u0643\u0644\u0645\u0629 \u062e\u064a\u0627\u0631 ("\u0645\u0642\u0627\u0633 \u0647\u0630\u0627 \u0627\u0644\u0645\u0646\u062a\u062c \u0645\u0648\u0627\u0641\u0642 \u0644\u0644\u062d\u062c\u0645 \u0627\u0644\u062d\u0642\u064a\u0642\u064a"\u060c "\u0633\u0639\u0629 10000 \u0645\u0644\u0644\u064a
+    // \u0623\u0645\u0628\u064a\u0631") = \u0646\u0635\u0651 \u0648\u0635\u0641\u064a \u0644\u0627 \u0631\u0623\u0633\u064e \u0642\u0633\u0645 \u2014 \u0643\u0627\u0646\u062a \u062a\u0635\u0646\u0639 "\u0642\u0633\u0645 \u0645\u0642\u0627\u0633" \u0648\u0647\u0645\u064a\u0627\u064b \u0641\u062a\u062d\u062c\u0628
+    // \u0645\u0646\u062a\u062c\u0627\u062a \u0628\u0644\u0627 \u0645\u0642\u0627\u0633\u0627\u062a \u0625\u0637\u0644\u0627\u0642\u0627\u064b (\u0648\u0633\u0627\u062f\u0629/\u0628\u0627\u0648\u0631 \u0628\u0627\u0646\u0643/\u0645\u0627\u0643\u064a\u0646\u0629 \u062d\u0644\u0627\u0642\u0629) \u0628\u0640"\u062d\u062f\u062f \u0627\u0644\u0645\u0642\u0627\u0633
+    // \u0623\u0648\u0644\u0627\u064b". \u0631\u0623\u0633 \u0627\u0644\u0642\u0633\u0645 \u0627\u0644\u062d\u0642\u064a\u0642\u064a \u0625\u0645\u0627 \u0642\u0635\u064a\u0631 ("\u0627\u0644\u0645\u0648\u062f\u064a\u0644") \u0623\u0648 \u064a\u062d\u0645\u0644 \u0646\u0642\u0637\u062a\u064a\u0646 \u0648\u0642\u064a\u0645\u0629.
+    if (!/[:\uff1a]/.test(ht) && ht.length > 14) return false;
     if (/^(?:Size|Compatible\\s*Model|Model|Style|Type|Memory|Storage|Capacity|RAM|ROM)\\s*[:\uff1a]?/i.test(ht)) return true;
     if (/^(?:\u0627\u0644)?(?:\u0645\u0642\u0627\u0633|\u0642\u064a\u0627\u0633|\u062d\u062c\u0645|\u0645\u0648\u062f\u064a\u0644|\u0623\u0633\u0644\u0648\u0628|\u0646\u0645\u0637|\u0646\u0648\u0639|\u0630\u0627\u0643\u0631\u0629|\u0631\u0627\u0645|\u0633\u0639\u0629|\u062a\u062e\u0632\u064a\u0646)\\s*[:\uff1a]?/i.test(ht)) return true;
     return false;
@@ -2808,6 +2814,16 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if (/^(?:us|ca|eu|uk|au|jo|sa|ae|kw|qa|bh|om|asia|intl)$/i.test(t)) continue;
         if (t === 'قياسي' || t === 'عادي' || t === 'الطول' || t === 'العمر' || t === 'الوزن'
           || /دليل|كمية|كميه/.test(t)) continue;
+        // حارس عدّاد الكمية (v85.8.37): الرقم بين زرّي +/− في [−][1][+] ليس
+        // مقاساً — كان يُلتقط كزر مقاس شبحي فيفعّل بوابة "حدد المقاس أولاً"
+        // على منتجات بلا مقاسات (ثبت من لقطة الوسادة).
+        if (/^\\d+$/.test(t)) {
+          var qPrev = el.previousElementSibling, qNext = el.nextElementSibling;
+          var qPv = qPrev ? temuCleanText(qPrev.textContent) : '';
+          var qNx = qNext ? temuCleanText(qNext.textContent) : '';
+          var isStep = function (s) { return s === '+' || s === '-' || s === '−'; };
+          if (isStep(qPv) && isStep(qNx)) continue;
+        }
         if (el.querySelector && el.querySelector('img')) continue;
         var r = el.getBoundingClientRect();
         if (r.width < 18 || r.width > 260 || r.height < 16 || r.height > 80) continue;
@@ -2876,6 +2892,15 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var head = temuSizeHeadEl();
     if (head) {
       var headText = temuCleanText(head.textContent);
+      // (v85.8.37) قيمة مضمّنة بعد النقطتين لأي رأس خيار = محددة مسبقاً:
+      // "الموديل: BHB1200"، "ذاكرة الوصول العشوائي + روم: 8 جيجا + 128 جيجا".
+      // كانت تُقرأ فقط بصيغ Size/مقاس فتُحجب منتجات محسومة أصلاً بـ"حدد
+      // موديل جوالك أولاً" (ثبت من لقطات الخلاط والتابلت).
+      var inlineVal = headText.match(/[:：]\\s*(.{1,44})$/);
+      if (inlineVal && inlineVal[1]) {
+        var iv = inlineVal[1].trim();
+        if (iv.length >= 1 && !/دليل|guide|chart/i.test(iv)) return iv;
+      }
       var hm = headText.match(/Size[\\s\\-]*[:\\-]?[\\s\\-]*(one.?size|free.?size|[\\w ]{2,20})/i);
       if (hm && hm[1]) {
         var hv = hm[1].trim();
@@ -4115,13 +4140,32 @@ export const SHEIN_CAPTURE_SCRIPT = `
             if (hasSecondOptionChoices && !temuSelectedSize() && !knownOneSize) {
               var sHead = temuSizeHeadEl();
               var sLabel = sHead ? (sHead.textContent || '').trim() : 'المقاس';
-              blockMsg = /موديل/i.test(sLabel) ? 'حدد موديل جوالك أولاً' : 'حدد المقاس أولاً';
+              // (v85.8.37) نصّ عام: "موديل جوالك" كان يظهر للخلاطات والأجهزة.
+              blockMsg = /موديل/i.test(sLabel) ? 'حدد الموديل أولاً' : 'حدد المقاس أولاً';
             }
           }
           if (blockMsg) {
             if (attemptsLeft > 0) { setTimeout(function () { temuFinalizeAdd(attemptsLeft - 1); }, 500); return; }
             otlobliRemoveGateSpinner();
             showMessage(btn, blockMsg);
+            // (v85.8.37) متابعة ذكية بعد رسالة الحجب: نراقب حتى 10 ثوانٍ؛ فور
+            // اختيار الزبون الناقص (لون/مقاس) نُكمل الإضافة تلقائياً — بلا نقرة
+            // "أضف" ثانية. شروط المراقبة مطابقة تماماً لشروط البوابة فلا تكرار
+            // رسائل. نقرة "أضف" جديدة أو منتج آخر يلغيان المراقبة (نفس العدّاد).
+            var watchToken = window.__otlobliTemuAwaitSeq;
+            var watchGid = temuGoodsId();
+            (function temuWatchPickThenAdd(left) {
+              if (window.__otlobliTemuAwaitSeq !== watchToken) return;
+              if (temuGoodsId() !== watchGid) return;
+              var vcW = temuVariantCounts();
+              var colorOkW = !temuHasColorSection() || vcW.colors === 1 || temuHasSingleColor() ||
+                !!((window.__otlobliTemuColor || window.__otlobliTemuColorSwatch) &&
+                   window.__otlobliTemuColorGid === temuGoodsId()) || !!temuColor();
+              var sizeOkW = !temuHasSelectableSecondOption() || vcW.sizes === 1 || !!temuSelectedSize();
+              if (colorOkW && sizeOkW) { otlobliShowGateSpinner(); temuFinalizeAdd(3); return; }
+              if (left <= 0) return;
+              setTimeout(function () { temuWatchPickThenAdd(left - 1); }, 500);
+            })(20);
             return;
           }
           // ز) السعر: لا نضيف بصفر/غير مقروء.
