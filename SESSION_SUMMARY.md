@@ -1,5 +1,18 @@
 # SESSION_SUMMARY.md
 
+## 2026-07-17 Temu v85.8.21 Local Update
+
+- Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
+- Branch: `claude/ios6-cover-fix`.
+- Current local candidate: v85.8.21 / `APP_VERSION = 2026.07.17-v85.8.21-temu-category-search-account-no-otp-test`.
+- Current iOS IPA: pending GitHub Actions build.
+- Focus stayed Temu-only: first-entry category strip, header startup stability, search typing/focus, and login/account panel removal outside real account routes.
+- Fixed early WebKit document-start aborts by guarding Cairo font injection and deferring the MutationObserver until a root node exists.
+- Added a bounded Temu home wake nudge that triggers the same tiny scroll/resize path needed to reveal categories, then returns to top.
+- Hid Temu account/login surfaces by observed live WebKit/iPhone classes and removed the heavy 90ms full-page account text scan to keep typing responsive.
+- Validation passed: `git diff --check`, targeted ESLint, injected-script parse, `npm run build`, WebKit iPhone-sized live smoke, and a routed Temu fixture reproducing hidden categories plus recreated account panels.
+- Do not use the simulator for final judgment; install the GitHub-built IPA on the real iPhone. Do not touch payment, wallet, completed orders, or real account routes unless explicitly requested.
+
 ## 2026-07-17 Temu v85.8.20 Local Update
 
 - Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.

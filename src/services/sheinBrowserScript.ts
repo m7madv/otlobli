@@ -299,10 +299,13 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
     // رابط جوجل هنا يصير الشريطان بخط Cairo نفسه تماماً. إن فشل التحميل (نادر)
     // يسقط لـSF كما هو الحال الآن — لا ضرر إضافي.
     if (!document.getElementById('otlobli-cairo-font')) {
-      var fontStyle = document.createElement('style');
-      fontStyle.id = 'otlobli-cairo-font';
-      fontStyle.textContent = ${JSON.stringify(OTLOBLI_CAIRO_FONT_CSS)};
-      (document.head || document.documentElement).appendChild(fontStyle);
+      var fontParent = document.head || document.documentElement;
+      if (fontParent) {
+        var fontStyle = document.createElement('style');
+        fontStyle.id = 'otlobli-cairo-font';
+        fontStyle.textContent = ${JSON.stringify(OTLOBLI_CAIRO_FONT_CSS)};
+        fontParent.appendChild(fontStyle);
+      }
     }
     if (!document.body) return false;
     if (document.getElementById('otlobli-nav')) {
@@ -382,13 +385,21 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var OTLOBLI_NAV_STYLE_VERSION = ${JSON.stringify(OTLOBLI_NAV_STYLE_VERSION)};
 
   function ensureOtlobliCairoFont() {
-    if (document.getElementById('otlobli-cairo-font')) return;
+    var parent = document.head || document.documentElement;
+    if (!parent) return false;
+    if (document.getElementById('otlobli-cairo-font')) return true;
     var fontStyle = document.createElement('style');
     fontStyle.id = 'otlobli-cairo-font';
     fontStyle.textContent = ${JSON.stringify(OTLOBLI_CAIRO_FONT_CSS)};
-    (document.head || document.documentElement).appendChild(fontStyle);
+    parent.appendChild(fontStyle);
+    return true;
   }
-  ensureOtlobliCairoFont();
+  if (!ensureOtlobliCairoFont()) {
+    var otlobliCairoFontTimer = setInterval(function () {
+      if (ensureOtlobliCairoFont()) clearInterval(otlobliCairoFontTimer);
+    }, 25);
+    setTimeout(function () { clearInterval(otlobliCairoFontTimer); }, 1200);
+  }
 
   // env(safe-area-inset-bottom) only resolves to the device's real inset when
   // the PAGE's OWN viewport meta tag declares viewport-fit=cover - otherwise
@@ -5798,6 +5809,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         try { restoreTemuCategoryStrip(); } catch (e) {}
         try { otlobliForceTemuHomeHeaderState(); } catch (e) {}
         try { restoreTemuLogo(); } catch (e) {}
+        try { hideTemuAccountSurfaces(); } catch (e) {}
         try { ensureAddToCartButton(); } catch (e) {}
         try { dismissTemuLoginPopup(); } catch (e) {}
         if (!temuSearching) {
@@ -5836,22 +5848,29 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // عناصر أعلى الصفحة — فكانت تبتلع صفوف الاقتراحات (تظهر ثم تختفي بعد ثانية).
   // أثناء البحث نعلّق تلك الدوال تماماً (كما نعلّق فحوصاتنا أثناء تحدي شي إن)
   // فلا نلمس الاقتراحات، ونُظهر زر الرجوع ليخرج المستخدم من البحث.
+  function otlobliTemuUsableSearchField(el, vp) {
+    if (!el) return false;
+    if (el.disabled) return false;
+    var type = ((el.getAttribute && el.getAttribute('type')) || '').toLowerCase();
+    if (type && !/^(search|text|url|tel)$/.test(type)) return false;
+    var r = el.getBoundingClientRect();
+    if (r.width < 80 || r.height < 20 || r.height > 72) return false;
+    if (r.bottom <= 0 || r.top < -8 || r.top > Math.min(210, vp.height * 0.36)) return false;
+    return true;
+  }
+
   function otlobliTemuSearchInput() {
-    if (!IS_TEMU) return null;
-    var direct = document.querySelector('input[type="search"], [role="searchbox"], input[placeholder*="بحث"], input[placeholder*="Search" i]');
-    if (direct) return direct;
-    if (!document.body) return null;
+    if (!IS_TEMU || !document.body) return null;
     try {
       var vp = viewportSize();
+      var direct = document.querySelectorAll('input[type="search"], [role="searchbox"], input[placeholder*="بحث"], input[placeholder*="Search" i]');
+      for (var d = 0; d < direct.length; d++) {
+        if (otlobliTemuUsableSearchField(direct[d], vp)) return direct[d];
+      }
       var fields = document.querySelectorAll('input, textarea, [contenteditable="true"]');
       for (var i = 0; i < fields.length; i++) {
         var el = fields[i];
-        if (el.disabled) continue;
-        var type = ((el.getAttribute && el.getAttribute('type')) || '').toLowerCase();
-        if (type && !/^(search|text|url|tel)$/.test(type)) continue;
-        var r = el.getBoundingClientRect();
-        if (r.width < 80 || r.height < 20 || r.height > 72) continue;
-        if (r.top < -8 || r.top > Math.min(190, vp.height * 0.34)) continue;
+        if (!otlobliTemuUsableSearchField(el, vp)) continue;
         var hints = otlobliCollectIdentityHints(el);
         var ph = ((el.getAttribute && (el.getAttribute('placeholder') || el.getAttribute('aria-label') || el.getAttribute('name') || '')) || '');
         var value = typeof el.value === 'string' ? el.value : (el.textContent || '');
@@ -6092,7 +6111,19 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // في التدفق الطبيعي ونكتفي بإبقائه ظاهراً بخلفية شفافة — أبسط وأثبت.
     '[data-otlobli-temu-search-shell="1"]' +
     '{ background: transparent !important; box-shadow: none !important; opacity: 1 !important;' +
-    ' visibility: visible !important; pointer-events: auto !important; }';
+    ' visibility: visible !important; pointer-events: auto !important; }' +
+    // Live Temu account surfaces observed in WebKit/iPhone layout. Scoped to
+    // non-account routes so a deliberate Temu account page can still render.
+    'body:not([data-otlobli-temu-account-route="1"]) [class*="panel-"][class*="adaptPad"],' +
+    'body:not([data-otlobli-temu-account-route="1"]) [class*="signInWrap-"],' +
+    'body:not([data-otlobli-temu-account-route="1"]) [class*="signInBtn-"],' +
+    'body:not([data-otlobli-temu-account-route="1"]) [class*="topItems-"],' +
+    'body:not([data-otlobli-temu-account-route="1"]) [class*="bottomContent-"],' +
+    'body:not([data-otlobli-temu-account-route="1"]) [class*="container-3zpvw"],' +
+    'body:not([data-otlobli-temu-account-route="1"]) [class*="wrap-6ZxH0"],' +
+    'body:not([data-otlobli-temu-account-route="1"]) [class*="guideText-"],' +
+    'body:not([data-otlobli-temu-account-route="1"]) [class*="guideButton-"]' +
+    '{ display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; }';
   // نحقن القاعدة في أبكر لحظة ممكنة (documentStart، قبل رسم أي شيء) لمنع أي
   // وميض للعناصر المخفية. لا نعتمد على flag لمرة واحدة، بل نفحص وجود <style>
   // فعلياً في كل استدعاء: لو أزالت تيمو عنصرنا أثناء إعادة بناء الصفحة (عند
@@ -6101,6 +6132,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // الوقت المبكر) فتُطبَّق القاعدة حتى قبل إنشاء <head>.
   function injectTemuHeaderHideCSS() {
     if (!IS_TEMU) return;
+    try { otlobliSyncTemuAccountRouteState(); } catch (e) {}
     if (document.getElementById('otlobli-temu-header-hide')) return;
     var parent = document.head || document.documentElement;
     if (!parent) return;
@@ -6374,7 +6406,110 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   function otlobliTemuLooksLikeAccountPanelText(text) {
-    return /sign\\s*in|log\\s*in|create\\s*account|orders?|coupons?|credit|settings|addresses?|support|تسجيل\\s*الدخول|إنشاء\\s*حساب|طلباتك|القسائم|العروض|الرصيد\\s*الائتماني|الإعدادات|العناوين|دعم\\s*العملاء/i.test(text || '');
+    return /sign\\s*in|log\\s*in|create\\s*account|orders?|coupons?|credit|settings|addresses?|support|best\\s*experience|تسجيل\\s*الدخول|سجل\\s*الدخول|إنشاء\\s*حساب|طلباتك|القسائم|العروض|الرصيد\\s*الائتماني|الإعدادات|العناوين|دعم\\s*العملاء|أفضل\\s*تجربة/i.test(text || '');
+  }
+
+  function otlobliTemuAccountRoute() {
+    var path = (location.pathname || '') + ' ' + (location.search || '') + ' ' + (location.hash || '');
+    return /account|login|sign|profile|user|orders?|coupon|credit|address/i.test(path);
+  }
+
+  function otlobliSyncTemuAccountRouteState() {
+    if (!document.body) return;
+    if (otlobliTemuAccountRoute()) {
+      document.body.setAttribute('data-otlobli-temu-account-route', '1');
+    } else {
+      document.body.removeAttribute('data-otlobli-temu-account-route');
+    }
+  }
+
+  function otlobliTemuAccountPanelScore(text) {
+    var t = text || '';
+    var score = 0;
+    if (/sign\\s*in|log\\s*in|تسجيل\\s*الدخول|سجل\\s*الدخول/i.test(t)) score++;
+    if (/create\\s*account|إنشاء\\s*حساب/i.test(t)) score++;
+    if (/orders?|طلباتك/i.test(t)) score++;
+    if (/coupons?|القسائم|العروض/i.test(t)) score++;
+    if (/credit|الرصيد\\s*الائتماني/i.test(t)) score++;
+    if (/settings|addresses?|support|الإعدادات|العناوين|دعم\\s*العملاء/i.test(t)) score++;
+    if (/best\\s*experience|أفضل\\s*تجربة/i.test(t)) score++;
+    return score;
+  }
+
+  function hideTemuAccountSurfaces() {
+    if (!IS_TEMU || !document.body || otlobliTemuAccountRoute()) return;
+    try {
+      otlobliSyncTemuAccountRouteState();
+      var vp = viewportSize();
+      var seen = [];
+      var nodes = [];
+      function addNode(node) {
+        if (!node || !node.getBoundingClientRect) return;
+        for (var s = 0; s < seen.length; s++) if (seen[s] === node) return;
+        seen.push(node);
+        nodes.push(node);
+      }
+      var exact = document.querySelectorAll(
+        '[data-otlobli-temu-account-surface="1"],' +
+        '[class*="panel-"][class*="adaptPad"],' +
+        '[class*="signInWrap-"],[class*="signInBtn-"],' +
+        '[class*="topItems-"],[class*="bottomContent-"],' +
+        '[class*="container-3zpvw"],[class*="wrap-6ZxH0"],' +
+        '[class*="guideText-"],[class*="guideButton-"]'
+      );
+      for (var e = 0; e < exact.length; e++) {
+        var root = exact[e].closest ? exact[e].closest('[class*="panel-"][class*="adaptPad"],[class*="container-3zpvw"]') : null;
+        addNode(root || exact[e]);
+      }
+      if (otlobliTemuSearchMode() && document.elementsFromPoint) {
+        var xs = [vp.width * 0.2, vp.width * 0.5, vp.width * 0.8];
+        var ys = [54, 96, 150, 220, Math.max(40, vp.height - 112)];
+        for (var xi = 0; xi < xs.length; xi++) {
+          for (var yi = 0; yi < ys.length; yi++) {
+            var stack = document.elementsFromPoint(xs[xi], ys[yi]);
+            for (var si = 0; si < stack.length && si < 10; si++) {
+              var n = stack[si];
+              for (var hops = 0; n && n !== document.body && hops < 4; hops++, n = n.parentElement) {
+                var nt = temuCleanText(n.textContent);
+                if (nt && nt.length < 1500 && otlobliTemuAccountPanelScore(nt) >= 2) addNode(n);
+              }
+            }
+          }
+        }
+      }
+      for (var i = 0; i < nodes.length; i++) {
+        var el = nodes[i];
+        if (el.id && el.id.indexOf('otlobli') === 0) continue;
+        if (el.closest && (el.closest('#otlobli-nav') || el.closest('#otlobli-back-btn'))) continue;
+        var r = el.getBoundingClientRect();
+        if (r.width < vp.width * 0.42 || r.height < 35 || r.height > vp.height * 0.82) continue;
+        if (r.bottom < 0 || r.top > vp.height + 2) continue;
+        var txt = temuCleanText(el.textContent);
+        if (txt.length > 1500) continue;
+        var score = otlobliTemuAccountPanelScore(txt);
+        var cls = String(el.className || '');
+        var exactClass = /panel-.*adaptPad|signInWrap-|signInBtn-|topItems-|bottomContent-|container-3zpvw|wrap-6ZxH0|guideText-|guideButton-/i.test(cls);
+        if (score < 2 && !exactClass) continue;
+        var cs = window.getComputedStyle(el);
+        var fixedish = cs.position === 'fixed' || cs.position === 'absolute' || cs.position === 'sticky';
+        var bottomLogin = r.bottom > vp.height - 180 && score >= 2 &&
+          (/best\\s*experience|أفضل\\s*تجربة|سجل\\s*الدخول/i.test(txt) || fixedish);
+        var dropdown = (score >= 3 || exactClass) && r.top < Math.min(340, vp.height * 0.58) && r.height >= 35;
+        if (!bottomLogin && !dropdown) continue;
+        if (el.querySelector && el.querySelector('[class*="searchBar" i], input[type="search"], [role="searchbox"]')) {
+          // Do not hide the header/search container itself. The account panel
+          // lives as a sibling/child nearby, and narrower descendants match.
+          continue;
+        }
+        if (!fixedish && !bottomLogin && r.top > 180) continue;
+        el.setAttribute('data-otlobli-temu-account-surface', '1');
+        el.setAttribute('data-otlobli-temu-hidden', '1');
+        el.style.setProperty('display', 'none', 'important');
+        el.style.setProperty('visibility', 'hidden', 'important');
+        el.style.setProperty('opacity', '0', 'important');
+        el.style.setProperty('pointer-events', 'none', 'important');
+      }
+    } catch (e) {}
   }
 
   // ملاحظة مهمة: هاتان الدالتان كانتا تستدعيان otlobliUnhideEl على البحث/الشعار
@@ -6522,6 +6657,25 @@ export const SHEIN_CAPTURE_SCRIPT = `
     } catch (e) {}
   }
 
+  function otlobliTemuCategoryStripVisible(vp) {
+    try {
+      var nodes = document.querySelectorAll('div, a, button, span');
+      var count = 0;
+      for (var i = 0; i < nodes.length; i++) {
+        var el = nodes[i];
+        if (!otlobliTemuLooksLikeCategoryOrFilter(el)) continue;
+        var r = el.getBoundingClientRect();
+        if (r.width < 18 || r.height < 8 || r.right <= 0 || r.left >= vp.width) continue;
+        if (r.top < 4 || r.top > 190 || r.bottom <= 8) continue;
+        var cs = window.getComputedStyle(el);
+        if (cs.display === 'none' || cs.visibility === 'hidden' || parseFloat(cs.opacity || '1') < 0.1) continue;
+        count++;
+        if (count >= 3) return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+
   var __otlobliTemuHomeHeaderWakeUrl = '';
   var __otlobliTemuHomeHeaderWakeUntil = 0;
   var __otlobliTemuHomeHeaderWakeCount = 0;
@@ -6548,6 +6702,17 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var vp = viewportSize();
       var now = Date.now();
       if (now < __otlobliTemuHomeHeaderWakeUntil && __otlobliTemuHomeHeaderWakeCount < 8) {
+        if (!otlobliTemuCategoryStripVisible(vp)) {
+          var y = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+          if (y > 1 && y < 520) {
+            try { window.scrollTo(0, 0); } catch (e0) {}
+          } else if (y <= 1 && __otlobliTemuHomeHeaderWakeCount < 3) {
+            try {
+              window.scrollBy(0, 1);
+              setTimeout(function () { try { window.scrollTo(0, 0); } catch (e) {} }, 0);
+            } catch (e1) {}
+          }
+        }
         try { window.dispatchEvent(new Event('scroll')); } catch (e2) {}
         try { window.dispatchEvent(new Event('resize')); } catch (e3) {}
         __otlobliTemuHomeHeaderWakeCount++;
@@ -7086,20 +7251,26 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // catching it, that exception HALTED THE ENTIRE SCRIPT right here - every
   // line after it (both setInterval(tick, ...) calls, the block-detector,
   // the very first tick()) silently never ran for the rest of that page
-  // load, no matter how long the page lived. This is the real explanation
-  // behind today's whole grab-bag of "sometimes works, sometimes doesn't"
-  // symptoms (cart tab, nav position, block detection) - they're all code
-  // inside tick()/the intervals below, which this exception was randomly
-  // skipping depending only on how fast the page happened to parse relative
-  // to when this line ran. document.documentElement (<html>) - unlike body -
-  // is guaranteed to exist this early, and observing it with subtree:true
-  // covers body and everything under it once they do appear.
+  // load, no matter how long the page lived. WebKit can also run this before
+  // <html> is exposed to script, so the observer attaches as soon as a root
+  // node is actually available instead of assuming documentElement exists.
   // Do not run geometry/text scans from MutationObserver. SHEIN mutates the
   // product DOM continuously; doing layout work before every paint starves
   // older WKWebView devices and delays image decoding. The coalesced tick owns
   // all inspections at their explicit throttled intervals.
   var observer = new MutationObserver(scheduleTick);
-  observer.observe(document.documentElement, { childList: true, subtree: true });
+  function observeOtlobliDocumentRoot() {
+    var root = document.documentElement || document.body;
+    if (!root) return false;
+    observer.observe(root, { childList: true, subtree: true });
+    return true;
+  }
+  if (!observeOtlobliDocumentRoot()) {
+    var otlobliObserverTimer = setInterval(function () {
+      if (observeOtlobliDocumentRoot()) clearInterval(otlobliObserverTimer);
+    }, 25);
+    setTimeout(function () { clearInterval(otlobliObserverTimer); }, 1200);
+  }
 
   setInterval(tick, OTLOBLI_LOW_END ? 450 : 300);
   // hideKnownHeaderIconsByHint specifically needs to win what looks like an
@@ -7118,6 +7289,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   setInterval(function () {
     ensureOtlobliNav();
     if (IS_TEMU) {
+      try { hideTemuAccountSurfaces(); } catch (e) {}
       injectTemuHeaderHideCSS();
       ensureTemuSearchTouchRepair();
       if (otlobliTemuSearchMode()) {
@@ -7130,6 +7302,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       restoreTemuCategoryStrip();
       otlobliForceTemuHomeHeaderState();
       restoreTemuLogo();
+      try { hideTemuAccountSurfaces(); } catch (e) {}
     }
   }, OTLOBLI_LOW_END ? 240 : 120);
   // Own slower interval, not part of tick() - see checkForSheinSecurityBlock's

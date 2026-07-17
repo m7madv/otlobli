@@ -9,12 +9,23 @@ Last updated: 2026-07-17
 - Reference IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.5-nav-cairo-font-match-no-otp-test.ipa`.
 - Last real-device Temu IPA tested: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.19-temu-search-keyboard.ipa`.
 - Last tested commit: `0426529` (`fix: v85.8.19 keep Temu search keyboard open`).
-- Current local candidate: v85.8.20 / `APP_VERSION = 2026.07.17-v85.8.20-temu-header-search-login-no-otp-test`.
-- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.20-temu-header-search-login.ipa`.
+- Current local candidate: v85.8.21 / `APP_VERSION = 2026.07.17-v85.8.21-temu-category-search-account-no-otp-test`.
+- Current iOS IPA: pending GitHub Actions build.
+- Previous iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.20-temu-header-search-login.ipa`.
 - v85.8.20 build run: `29543466932` (success), built from code commit `5a5b0c6`.
 - v85.8.20 IPA SHA-256: `16EFD9C2C1C38FE88C87404CF24BD157A1DC7DED4B265CF914BCE5FC4C9BEEC5`.
 - v85.8.19 did not fix Temu: header still has empty white space, search typing is slow/unstable, and the account/login panel can appear over search.
 - SHEIN is mostly considered previously stabilized; current work is Temu only unless the user explicitly asks otherwise.
+
+## v85.8.21 Local Temu Changes
+
+- Fixed a WebKit document-start crash where Cairo font injection assumed `document.head` or `documentElement` already existed.
+- Deferred the full-script `MutationObserver` until a real document root exists, so Temu protections cannot abort before intervals start.
+- Added a first-entry Temu home wake nudge: if the category strip is not visible, dispatch the same tiny scroll/resize path that makes Temu reveal it, then return to top.
+- Hid Temu account/login surfaces by observed live classes (`panel/adaptPad`, sign-in rows, account bottom strip) on non-account routes, including redraws during search.
+- Kept login hiding targeted and lightweight; no broad 90ms page-wide text scan remains, so search typing should stay responsive.
+- Validated with WebKit iPhone-sized Playwright, including a routed Temu fixture that reproduces hidden categories and recreated account panels without using the simulator.
+- No payment, wallet, completed-order, or real account-route logic was intentionally changed.
 
 ## v85.8.20 Local Temu Changes
 
