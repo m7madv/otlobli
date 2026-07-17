@@ -4003,6 +4003,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
         event.preventDefault();
         event.stopPropagation();
         if (IS_TEMU) {
+          // أي نقرة "أضف" جديدة تُلغي جولة انتظار خيارات سابقة (لا ازدواج إضافة).
+          window.__otlobliTemuAwaitSeq = (window.__otlobliTemuAwaitSeq || 0) + 1;
           // شجرة قرار كاملة فاشلة-بأمان: لا نضيف أبداً قبل التأكد من كل قيمة
           // مطلوبة؛ أي شكّ → نمنع ونطلب الاختيار (خربطة = صفر).
           // أ) لوحة الخيارات مغلقة وفيها خيارات ("X Color, Y Size") → نفتحها.
@@ -4032,8 +4034,31 @@ export const SHEIN_CAPTURE_SCRIPT = `
               if (vcPre.colors === 1 && vcPre.sizes === 1) sheetAlreadyOpen = true;
             }
             if (!sheetAlreadyOpen) {
-              showMessage(btn, 'حدد الخيارات أولاً');
+              // جذب احترافي بنقرة واحدة: نفتح شيت الخيارات بأنفسنا، ننقر
+              // الخيارات الوحيدة تلقائياً، ننتظر اختيار الزبون للمتعدد، وفور
+              // اكتمال كل الأبعاد نكمل الإضافة تلقائياً — بلا نقرة "أضف" ثانية.
               try { summaryEl.click(); } catch (e) {}
+              otlobliShowGateSpinner();
+              var awaitGid0 = temuGoodsId();
+              var awaitToken = window.__otlobliTemuAwaitSeq;
+              (function temuAwaitOptionsThenAdd(attemptsLeft) {
+                // نقرة "أضف" جديدة أو منتج آخر → نلغي هذه الجولة (لا ازدواج).
+                if (window.__otlobliTemuAwaitSeq !== awaitToken) return;
+                if (temuGoodsId() !== awaitGid0) { otlobliRemoveGateSpinner(); return; }
+                try { temuForceSingleSize(); } catch (e) {}
+                var vcA = temuVariantCounts();
+                var colorOkA = !temuHasColorSection() || vcA.colors === 1 || temuHasSingleColor() ||
+                  !!((window.__otlobliTemuColor || window.__otlobliTemuColorSwatch) &&
+                     window.__otlobliTemuColorGid === temuGoodsId());
+                var sizeOkA = !temuHasSelectableSecondOption() || vcA.sizes === 1 || !!temuSelectedSize();
+                if (colorOkA && sizeOkA) { temuFinalizeAdd(10); return; }
+                if (attemptsLeft <= 0) {
+                  otlobliRemoveGateSpinner();
+                  showMessage(btn, 'حدد الخيارات ثم اضغط أضف للسلة');
+                  return;
+                }
+                setTimeout(function () { temuAwaitOptionsThenAdd(attemptsLeft - 1); }, 500);
+              })(16);
               return;
             }
           }
@@ -5841,6 +5866,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
         try { ensureTemuSearchTouchRepair(); } catch (e) {}
         try { otlobliSyncTemuSearchModeState(temuSearching); } catch (e) {}
         try { hideTemuSearchVisibleAccountCart(temuSearching); } catch (e) {}
+        // غطاء دخول المنتج: يستر لحظة ظهور الأيقونات قبل حجبها (مرة لكل رابط).
+        try { otlobliTemuEntryCover(); } catch (e) {}
         // أول شيء كل تِك: نستعيد أي محتوى منتج حجبه المنظّف خطأً (شاشة بيضاء).
         // غير مقيّد بمهلة المنظّف (1100ms) ليُصلح خلال ~300ms فيصير وميضاً قصيراً
         // لا شاشة بيضاء دائمة — والقائمة البيضاء تمنع تكرار الحجب بعدها.
@@ -6569,6 +6596,57 @@ export const SHEIN_CAPTURE_SCRIPT = `
       __otlobliTemuBlankReloaded = url;
       location.reload();
     } catch (e) {}
+  }
+
+  // غطاء دخول المنتج (شكوى مستخدم): عند فتح منتج كانت أيقونات تيمو تظهر لحظةً
+  // قبل أن يلحقها الحجب (المنظّف مقيّد بمهلة 1100/1800ms). الحل المطلوب صراحةً:
+  // غطاء تحميل قصير يستر الصفحة، نشغّل تحته موجات حجب قسرية سريعة، ثم نرفعه —
+  // فلا يرى الزبون العناصر المحجوبة إطلاقاً. مرة واحدة لكل رابط منتج.
+  var __otlobliTemuCoverUrl = '';
+  function otlobliTemuEntryCover() {
+    if (!looksLikeProductPage() || otlobliTemuSearchMode()) return;
+    var url = (location.href || '').split('#')[0];
+    if (__otlobliTemuCoverUrl === url) return;
+    __otlobliTemuCoverUrl = url;
+    if (document.getElementById('otlobli-temu-entry-cover')) return;
+    ensureOverlayStyle();
+    var cov = document.createElement('div');
+    cov.id = 'otlobli-temu-entry-cover';
+    cov.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:2147483600;' +
+      'background:#fff;display:flex;align-items:center;justify-content:center;' +
+      'transition:opacity .22s ease;pointer-events:auto;';
+    var sp = document.createElement('div');
+    sp.style.cssText = 'width:36px;height:36px;border:3px solid #e3e6e4;border-top-color:#006948;' +
+      'border-radius:50%;animation:otlobli-spin .8s linear infinite;';
+    cov.appendChild(sp);
+    try { document.body.appendChild(cov); } catch (e) { return; }
+    // موجات حجب قسرية تحت الغطاء (تتجاوز مهلة المنظّف)
+    try { otlobliCleanTemuBlockers(true); } catch (e) {}
+    setTimeout(function () { try { otlobliCleanTemuBlockers(true); } catch (e) {} }, 260);
+    setTimeout(function () { try { otlobliCleanTemuBlockers(true); } catch (e) {} }, 620);
+    var hideAfter = OTLOBLI_LOW_END ? 1300 : 900;
+    setTimeout(function () {
+      var c = document.getElementById('otlobli-temu-entry-cover');
+      if (!c) return;
+      c.style.opacity = '0';
+      c.style.pointerEvents = 'none';
+      setTimeout(function () { if (c.parentNode) c.parentNode.removeChild(c); }, 260);
+    }, hideAfter);
+  }
+
+  // إعادة الحجب أثناء التمرير (شكوى مستخدم): النزول والصعود السريع يجعل تيمو
+  // تعيد رسم أيقونات الهيدر فتظهر ثانيةً حتى يلحقها المنظّف المُمهَل. نستمع
+  // للتمرير (capture يلتقط حاويات تيمو الداخلية) ونشغّل حجباً قسرياً مخنوقاً
+  // كل ~350ms أثناء التمرير وبعده مباشرة.
+  if (IS_TEMU && !window.__otlobliTemuScrollRehideBound) {
+    window.__otlobliTemuScrollRehideBound = true;
+    var __otlobliTemuScrollHideTs = 0;
+    window.addEventListener('scroll', function () {
+      var n = Date.now();
+      if (n - __otlobliTemuScrollHideTs < 350) return;
+      __otlobliTemuScrollHideTs = n;
+      setTimeout(function () { try { otlobliCleanTemuBlockers(true); } catch (e) {} }, 120);
+    }, { passive: true, capture: true });
   }
 
   var __otlobliTemuCleanBlockersTs = 0;
