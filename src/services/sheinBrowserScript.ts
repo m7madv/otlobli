@@ -3189,6 +3189,24 @@ export const SHEIN_CAPTURE_SCRIPT = `
   if (IS_TEMU && !window.__otlobliTemuClickBound) {
     window.__otlobliTemuClickBound = true;
     document.addEventListener('click', function (e) {
+      // مسجّل نقرات تشخيصي (نسخة اختبار): يحسم "النقر مش راضي يُسجّل" — هل
+      // النقرة تصل خيار [role=radio]، وهل Temu تقلب aria-checked بعدها؟
+      try {
+        var tEl0 = e.target;
+        var inRadio0 = (tEl0 && tEl0.closest) ? tEl0.closest('[role="radio"]') : null;
+        var inSku0 = (tEl0 && tEl0.closest) ? tEl0.closest('[class*="skuSelector"]') : null;
+        window.__otlobliLastTap = {
+          tag: (tEl0 && tEl0.tagName) || '?',
+          radio: !!inRadio0, sku: !!inSku0,
+          before: inRadio0 ? (inRadio0.getAttribute('aria-checked') || '?') : '-',
+          after: '?'
+        };
+        if (inRadio0) {
+          setTimeout(function () {
+            try { if (window.__otlobliLastTap) window.__otlobliLastTap.after = inRadio0.getAttribute('aria-checked') || '?'; } catch (e2) {}
+          }, 450);
+        }
+      } catch (eTap) {}
       // توجيه نقرات شريط otlobli السفلي: تيمو تضيف طبقات بنفس z-index الأقصى
       // بعد شريطنا في DOM فتبتلع نقراته حتى يُعاد ترتيبه (كل ثانيتين). نحن
       // مسجّلون أول مستمع capture على document (السكريبت يعمل documentStart)
@@ -6807,7 +6825,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       } else {
         txt = document.getElementById('otlobli-temu-diag-txt');
       }
-      var lines = 'otlobli v85.8.44 | ' + v.state + ' | صور=' + v.domImg + '/' + v.visImg +
+      var lines = 'otlobli v85.8.45 | ' + v.state + ' | صور=' + v.domImg + '/' + v.visImg +
         ' سعر=' + (v.hasPrice ? 'نعم' : 'لا') +
         (window.__otlobliTemuHideOff ? ' | الحجب مطفأ!' : '');
       // قراءة sku حيّة: اكبس لوناً/مقاساً وراقب هل "مختار" يتحدّث فوراً — يحسم
@@ -6818,6 +6836,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
           skuD.dims.map(function (d) { return d.name + '=' + d.count + '/' + (d.selected || '-'); }).join('  ') : 'لا خيارات');
         lines += '\\nsku: ' + skuStr;
       } catch (eSku) { lines += '\\nsku: خطأ'; }
+      var lt = window.__otlobliLastTap;
+      if (lt) {
+        lines += '\\nنقر: ' + lt.tag + ' radio=' + (lt.radio ? 'نعم' : 'لا') + ' sku=' + (lt.sku ? 'نعم' : 'لا') +
+          ' | Temu سجّل: ' + lt.before + '→' + lt.after;
+      }
       var tr = window.__otlobliGateTrace;
       if (tr) {
         lines += '\\nبوابة: ' + (tr.res || '...') + ' | ملخّص=' + (tr.sum || '-') + ' شيت=' + (tr.sheet || '-') +
