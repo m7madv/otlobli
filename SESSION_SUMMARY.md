@@ -1,5 +1,19 @@
 # SESSION_SUMMARY.md
 
+## 2026-07-18 Temu v85.8.52 Bottom Nav Preserve
+
+- Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
+- Branch: `claude/ios6-cover-fix`.
+- Current local candidate: v85.8.52 / `APP_VERSION = 2026.07.18-v85.8.52-temu-preserve-webview-nav-no-otp-test`.
+- User report after v85.8.51: the Temu bottom nav still showed a blank/grey strip underneath after navigating to Orders and returning Home; Orders itself had the correct React nav spacing.
+- Fix: Temu on iOS now keeps the WKWebView attached while hidden using the existing native `otlobliPreserveAttachedWhenHidden` path, avoiding the 1x1 detach/reattach cycle that can disturb viewport/safe-area sizing.
+- Fix: removed the Temu-only delayed resume `__resize` messages from v85.8.51 to avoid layout motion/flicker after returning Home.
+- Scope stayed narrow: no Temu header forcing, blockers, product/SKU capture, payment, wallet, orders logic, or account route changes.
+- GitHub iOS build `29656122048` succeeded from code commit `92461f2`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.52-temu-preserve-webview-nav.ipa`.
+- v85.8.52 IPA SHA-256: `26FC0A8B5C288EE11D7A877A4EB1DABC6DCFB945089EC09398E8F844340E429A`.
+- Validation: `npm run build`, `git diff --check`, GitHub build, and embedded v85.8.52 marker check passed. Targeted ESLint against `App.tsx` still reports old unrelated App lint errors. Final acceptance still requires the real iPhone.
+
 ## 2026-07-18 Temu v85.8.51 Native Header Rollback
 
 - Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.

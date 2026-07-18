@@ -5,17 +5,17 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Current Candidate
 
 - Branch: `claude/ios6-cover-fix`.
-- Current local code candidate: v85.8.51 / `APP_VERSION = 2026.07.18-v85.8.51-temu-native-header-resume-gap-no-otp-test`.
-- User rejected v85.8.50 on real iPhone: Temu top bar became laggy/stuttery and loading slowed.
-- Scope: Temu header rollback + app resume gap only. No payment, wallet, orders logic, account route, SKU/product capture, or blocker redesign changes.
-- Change: removed execution and code for the v85.8.49/v85.8.50 Temu header interventions: no header pinning, no category-row forcing/wake, no download-shell collapse, and no empty-gap DOM scan inside Temu.
-- Change: on returning from React tabs to Temu home, native posts two delayed `__resize` messages so WKWebView can recalculate layout without touching Temu's header DOM.
-- GitHub iOS build `29655425599` succeeded from code commit `aa2f287`.
-- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.51-temu-native-header-resume-gap.ipa`.
-- v85.8.51 IPA SHA-256: `EEE8BA63452CDACB03AC8FB6502C3DEB97258FDBB9C99BECC9297EB87503FFA6`.
-- Validation: targeted ESLint for injected script/config, injected-script parse, `npm run build`, GitHub build, and embedded v85.8.51 marker check passed. Real-device acceptance is still pending.
+- Current local code candidate: v85.8.52 / `APP_VERSION = 2026.07.18-v85.8.52-temu-preserve-webview-nav-no-otp-test`.
+- User report after v85.8.51: Temu's bottom nav still had a blank/grey strip under it after Orders -> Home, while the React Orders nav looked correct.
+- Scope: Temu iOS WebView show/hide + bottom navigation stability only. No Temu header forcing, product/SKU capture, blockers, payment, wallet, orders logic, or account route changes.
+- Change: Temu on iOS now uses the existing `otlobliPreserveAttachedWhenHidden` native path, like SHEIN, so WKWebView stays attached while hidden instead of being moved to a 1x1 offscreen container. This should keep the viewport and bottom safe-area stable across Orders -> Home.
+- Change: removed v85.8.51's Temu-only delayed `__resize` posts after returning home to avoid extra layout movement/flicker.
+- GitHub iOS build `29656122048` succeeded from code commit `92461f2`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.52-temu-preserve-webview-nav.ipa`.
+- v85.8.52 IPA SHA-256: `26FC0A8B5C288EE11D7A877A4EB1DABC6DCFB945089EC09398E8F844340E429A`.
+- Validation: `npm run build`, `git diff --check`, GitHub build, and embedded v85.8.52 marker check passed. Targeted ESLint against `App.tsx` still reports pre-existing unrelated App lint errors; real-device acceptance is still pending.
 - Do not reapply the v85.8.47 visible-SKU/group-dims approach until the white-page regression is understood from real-device evidence or a DOM fixture that reproduces it.
-- Next step: build/install v85.8.51 and verify Temu header is back to its native/default behavior, with no gap after Orders -> Home.
+- Next step: install v85.8.52 on the real iPhone and verify only this path: open Temu Home, go to Orders, return Home, and confirm the bottom nav matches Orders/Cart with no grey strip, flicker, or vertical movement.
 
 <!-- Older handoff content below may be stale. -->
 
