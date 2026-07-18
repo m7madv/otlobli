@@ -3,7 +3,7 @@ import cairoArabicFontDataUrl from '@fontsource-variable/cairo/files/cairo-arabi
 const OTLOBLI_CAIRO_FONT_CSS =
   '@font-face{font-family:"OtlobliCairo";src:url("' + cairoArabicFontDataUrl + '") format("woff2");font-style:normal;font-weight:200 1000;font-display:block;}'
 
-const OTLOBLI_NAV_STYLE_VERSION = 'v85.8.18'
+const OTLOBLI_NAV_STYLE_VERSION = 'v85.8.19'
 const OTLOBLI_NAV_CSS =
   'position:fixed!important;left:50%!important;right:auto!important;bottom:0!important;top:auto!important;' +
   'transform:translate3d(-50%,0,0)!important;will-change:transform!important;width:100%!important;max-width:440px!important;' +
@@ -4405,8 +4405,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (nav.parentNode !== document.documentElement) {
       document.documentElement.appendChild(nav);
     }
-    if (nav.style.getPropertyValue('bottom') !== '-8px') {
-      nav.style.setProperty('bottom', '-8px', 'important');
+    if (nav.style.getPropertyValue('bottom') !== '-12px') {
+      nav.style.setProperty('bottom', '-12px', 'important');
     }
     if (nav.style.getPropertyValue('transform') !== 'translate3d(-50%,0,0)') {
       nav.style.setProperty('transform', 'translate3d(-50%,0,0)', 'important');
