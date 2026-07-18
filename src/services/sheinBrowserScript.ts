@@ -6008,6 +6008,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var temuSearching = otlobliTemuSearchMode();
         try { injectTemuHeaderHideCSS(); } catch (e) {}
         try { otlobliCollapseTemuAppDownloadShells(); } catch (e) {}
+        try { otlobliNormalizeTemuHomeCategoryStrip(); } catch (e) {}
+        try { otlobliCollapseTemuEmptyHomeHeaderGaps(); } catch (e) {}
         try { stabilizeTemuSearchChrome(); } catch (e) {}
         try { ensureTemuNoZoom(); } catch (e) {}
         try { ensureTemuSearchTouchRepair(); } catch (e) {}
@@ -6521,6 +6523,16 @@ export const SHEIN_CAPTURE_SCRIPT = `
     '[data-otlobli-temu-download-shell="1"]' +
     '{ display:block!important;height:0!important;min-height:0!important;max-height:0!important;' +
     ' padding:0!important;margin:0!important;overflow:hidden!important;border:0!important;' +
+    ' box-shadow:none!important;background:transparent!important;pointer-events:none!important; }' +
+    'body:not([data-otlobli-temu-search-mode="1"]) [data-otlobli-temu-home-category-row="1"]' +
+    '{ display:flex!important;align-items:center!important;visibility:visible!important;opacity:1!important;' +
+    ' pointer-events:auto!important;max-height:none!important;overflow-x:auto!important;overflow-y:hidden!important;' +
+    ' -webkit-overflow-scrolling:touch!important;background:#fff!important; }' +
+    'body:not([data-otlobli-temu-search-mode="1"]) [data-otlobli-temu-home-category-row="1"]>*' +
+    '{ flex-shrink:0!important; }' +
+    'body:not([data-otlobli-temu-search-mode="1"]) [data-otlobli-temu-empty-header-gap="1"]' +
+    '{ display:block!important;height:0!important;min-height:0!important;max-height:0!important;' +
+    ' padding:0!important;margin:0!important;overflow:hidden!important;border:0!important;' +
     ' box-shadow:none!important;background:transparent!important;pointer-events:none!important; }';
   // نحقن القاعدة في أبكر لحظة ممكنة (documentStart، قبل رسم أي شيء) لمنع أي
   // وميض للعناصر المخفية. لا نعتمد على flag لمرة واحدة، بل نفحص وجود <style>
@@ -6565,6 +6577,23 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (!IS_TEMU || !document.documentElement || window.__otlobliTemuHideOff) return;
     try {
       var vp = viewportSize();
+      var marked = document.querySelectorAll('[data-otlobli-temu-download-shell="1"]');
+      for (var m = 0; m < marked.length; m++) {
+        if (otlobliTemuElementHasSearchChrome(marked[m]) || otlobliTemuHomeCategoryScore(marked[m].textContent || '') >= 2) {
+          marked[m].removeAttribute('data-otlobli-temu-download-shell');
+          marked[m].style.removeProperty('display');
+          marked[m].style.removeProperty('height');
+          marked[m].style.removeProperty('min-height');
+          marked[m].style.removeProperty('max-height');
+          marked[m].style.removeProperty('padding');
+          marked[m].style.removeProperty('margin');
+          marked[m].style.removeProperty('overflow');
+          marked[m].style.removeProperty('border');
+          marked[m].style.removeProperty('box-shadow');
+          marked[m].style.removeProperty('background');
+          marked[m].style.removeProperty('pointer-events');
+        }
+      }
       var starts = [];
       var seen = [];
       function addStart(node) {
@@ -6609,8 +6638,184 @@ export const SHEIN_CAPTURE_SCRIPT = `
     } catch (e) {}
   }
 
+  var __otlobliTemuCategoryWakeTs = 0;
+  var __otlobliTemuCategoryNormalizeTs = 0;
+  function otlobliTemuHomeCategoryScore(text) {
+    text = temuCleanText(text || '');
+    if (!text || text.length > 420) return 0;
+    if (/(cart|basket|account|login|signin|profile|download|open app|get app|search|suggest|trending|recent|popular searches|\u0633\u0644\u0629|\u0639\u0631\u0628\u0629|\u062d\u0633\u0627\u0628|\u062a\u0633\u062c\u064a\u0644|\u062a\u0646\u0632\u064a\u0644|\u062a\u0637\u0628\u064a\u0642|\u0628\u062d\u062b|\u0627\u0642\u062a\u0631\u0627\u062d)/i.test(text)) return 0;
+    var words = [
+      /\b(all|women|men|home|jewel|jewelry|sports?|kids?|children|electronics?|beauty|bags?|industrial|crafts?)\b/i,
+      /\u0627\u0644\u0643\u0644/i,
+      /\u0646\u0633\u0627\u0621/i,
+      /\u0631\u062c\u0627\u0644/i,
+      /\u0627\u0644\u0631\u0626\u064a\u0633\u064a\u0629/i,
+      /\u0645\u062c\u0648\u0647\u0631\u0627\u062a/i,
+      /\u0631\u064a\u0627\u0636/i,
+      /\u0623\u0637\u0641\u0627\u0644|\u0627\u0637\u0641\u0627\u0644/i,
+      /\u0625\u0644\u0643\u062a\u0631\u0648\u0646|\u0627\u0644\u0643\u062a\u0631\u0648\u0646/i,
+      /\u0623\u0643\u064a\u0627\u0633|\u0627\u0643\u064a\u0627\u0633/i,
+      /\u0627\u0644\u062c\u0645\u0627\u0644/i,
+      /\u0635\u0646\u0627\u0639/i
+    ];
+    var score = 0;
+    for (var i = 0; i < words.length; i++) {
+      if (words[i].test(text)) score++;
+    }
+    return score;
+  }
+
+  function otlobliTemuPromoteHomeCategoryRow(el, vp) {
+    if (!el || !vp) return null;
+    try {
+      var best = null;
+      var node = el;
+      for (var d = 0; node && node !== document.body && d < 7; d++, node = node.parentElement) {
+        if (node.id && node.id.indexOf('otlobli') === 0) break;
+        if (node.closest && (node.closest('#otlobli-nav') || node.closest('#otlobli-back-btn'))) break;
+        var txt = temuCleanText(node.textContent);
+        var score = otlobliTemuHomeCategoryScore(txt);
+        if (score < 2) continue;
+        var r = node.getBoundingClientRect();
+        var topOk = r.top > -80 && r.top < 270;
+        var widthOk = r.width >= vp.width * 0.45 || (node.scrollWidth && node.scrollWidth >= vp.width * 0.45);
+        var heightOk = r.height <= 118 || (r.height < 2 && node.scrollWidth > node.clientWidth + 20);
+        var textOk = txt.length <= 360;
+        if (topOk && widthOk && heightOk && textOk) best = node;
+      }
+      return best;
+    } catch (e) {}
+    return null;
+  }
+
+  function otlobliNormalizeTemuHomeCategoryStrip() {
+    if (!IS_TEMU || !document.body || window.__otlobliTemuHideOff) return;
+    if (!otlobliTemuHomeLikeUrl() || otlobliTemuSearchMode()) return;
+    try {
+      var tickNow = Date.now();
+      if (tickNow - __otlobliTemuCategoryNormalizeTs < (OTLOBLI_LOW_END ? 900 : 650)) return;
+      __otlobliTemuCategoryNormalizeTs = tickNow;
+      var vp = viewportSize();
+      var nodes = document.querySelectorAll('[data-otlobli-temu-home-category-row="1"], [data-otlobli-temu-category-strip="1"], nav, section, div, [role="tablist"], [class*="category" i], [class*="cat" i], [class*="tab" i]');
+      var best = null;
+      var bestScore = 0;
+      for (var i = 0; i < nodes.length; i++) {
+        var row = otlobliTemuPromoteHomeCategoryRow(nodes[i], vp);
+        if (!row) continue;
+        var rr = row.getBoundingClientRect();
+        if (rr.top > 290) continue;
+        var score = otlobliTemuHomeCategoryScore(row.textContent || '');
+        if (rr.top >= 28 && rr.top <= 235) score += 2;
+        if (row.scrollWidth > row.clientWidth + 16) score += 1;
+        if (!best || score > bestScore || (score === bestScore && rr.top < best.getBoundingClientRect().top)) {
+          best = row;
+          bestScore = score;
+        }
+      }
+      if (!best || bestScore < 3) return;
+      best.setAttribute('data-otlobli-temu-home-category-row', '1');
+      best.setAttribute('data-otlobli-temu-category-strip', '1');
+      best.removeAttribute('data-otlobli-temu-hidden');
+      best.removeAttribute('data-otlobli-temu-clean-hidden');
+      best.style.removeProperty('display');
+      best.style.setProperty('visibility', 'visible', 'important');
+      best.style.setProperty('opacity', '1', 'important');
+      best.style.setProperty('pointer-events', 'auto', 'important');
+      best.style.setProperty('max-height', 'none', 'important');
+      best.style.setProperty('overflow-x', 'auto', 'important');
+      best.style.setProperty('overflow-y', 'hidden', 'important');
+      best.style.setProperty('-webkit-overflow-scrolling', 'touch', 'important');
+      best.style.setProperty('background', '#fff', 'important');
+      var br = best.getBoundingClientRect();
+      var bcs = window.getComputedStyle(best);
+      if (bcs.display === 'none' || br.height < 10 || br.width < 60) {
+        best.style.setProperty('display', 'flex', 'important');
+        best.style.setProperty('align-items', 'center', 'important');
+      }
+      var now = tickNow;
+      if (best.scrollWidth > best.clientWidth + 12 && now - __otlobliTemuCategoryWakeTs > 700) {
+        __otlobliTemuCategoryWakeTs = now;
+        var oldLeft = best.scrollLeft;
+        try {
+          best.scrollLeft = oldLeft + 1;
+          best.dispatchEvent(new Event('scroll', { bubbles: true }));
+          window.requestAnimationFrame(function () {
+            try {
+              best.scrollLeft = oldLeft;
+              best.dispatchEvent(new Event('scroll', { bubbles: true }));
+            } catch (e) {}
+          });
+        } catch (e2) {}
+      }
+    } catch (e3) {}
+  }
+
+  var __otlobliTemuEmptyHeaderGapTs = 0;
+  function otlobliCollapseTemuEmptyHomeHeaderGaps() {
+    if (!IS_TEMU || !document.body || window.__otlobliTemuHideOff) return;
+    if (!otlobliTemuHomeLikeUrl() || otlobliTemuSearchMode()) return;
+    try {
+      var now = Date.now();
+      if (now - __otlobliTemuEmptyHeaderGapTs < (OTLOBLI_LOW_END ? 1400 : 1000)) return;
+      __otlobliTemuEmptyHeaderGapTs = now;
+      var vp = viewportSize();
+      var nodes = document.querySelectorAll('[data-otlobli-temu-empty-header-gap="1"], div, section');
+      for (var i = 0; i < nodes.length; i++) {
+        var el = nodes[i];
+        if (!el || (el.id && el.id.indexOf('otlobli') === 0)) continue;
+        if (el.closest && (el.closest('#otlobli-nav') || el.closest('#otlobli-back-btn') || el.closest('[data-otlobli-temu-home-category-row="1"]'))) continue;
+        if (otlobliTemuElementHasSearchChrome(el)) continue;
+        if (otlobliTemuHomeCategoryScore(el.textContent || '') >= 2) continue;
+        var isMarked = el.getAttribute && el.getAttribute('data-otlobli-temu-empty-header-gap') === '1';
+        var r = el.getBoundingClientRect();
+        if (!isMarked && (r.width < vp.width * 0.72 || r.top < 70 || r.top > 360 || r.height < 8 || r.height > 96)) {
+          continue;
+        }
+        var text = temuCleanText(el.textContent);
+        var img = el.querySelector && el.querySelector('img, picture, video, canvas');
+        var hasMedia = false;
+        if (img && img.getBoundingClientRect) {
+          var ir = img.getBoundingClientRect();
+          hasMedia = isMarked || (ir.width > 24 && ir.height > 24);
+        }
+        var empty = !hasMedia && text.length <= 2;
+        if (!empty) {
+          if (isMarked) {
+            el.removeAttribute('data-otlobli-temu-empty-header-gap');
+            el.style.removeProperty('display');
+            el.style.removeProperty('height');
+            el.style.removeProperty('min-height');
+            el.style.removeProperty('max-height');
+            el.style.removeProperty('padding');
+            el.style.removeProperty('margin');
+            el.style.removeProperty('overflow');
+            el.style.removeProperty('border');
+            el.style.removeProperty('box-shadow');
+            el.style.removeProperty('background');
+            el.style.removeProperty('pointer-events');
+          }
+          continue;
+        }
+        el.setAttribute('data-otlobli-temu-empty-header-gap', '1');
+        el.style.setProperty('display', 'block', 'important');
+        el.style.setProperty('height', '0px', 'important');
+        el.style.setProperty('min-height', '0px', 'important');
+        el.style.setProperty('max-height', '0px', 'important');
+        el.style.setProperty('padding', '0', 'important');
+        el.style.setProperty('margin', '0', 'important');
+        el.style.setProperty('overflow', 'hidden', 'important');
+        el.style.setProperty('border', '0', 'important');
+        el.style.setProperty('box-shadow', 'none', 'important');
+        el.style.setProperty('background', 'transparent', 'important');
+        el.style.setProperty('pointer-events', 'none', 'important');
+      }
+    } catch (e) {}
+  }
+
   try { injectTemuHeaderHideCSS(); } catch (e) {}
   try { otlobliCollapseTemuAppDownloadShells(); } catch (e) {}
+  try { otlobliNormalizeTemuHomeCategoryStrip(); } catch (e) {}
+  try { otlobliCollapseTemuEmptyHomeHeaderGaps(); } catch (e) {}
 
   // مراجعة ذاتية لِما حجبته otlobliCleanTemuBlockers: العنصر المحجوب يصير
   // rect=0 فيتخطّاه المنظّف ولا يُعاد فحصه أبداً — فأي حجب خاطئ يبقى دائماً.
@@ -8425,6 +8630,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (IS_TEMU) {
       injectTemuHeaderHideCSS();
       try { otlobliCollapseTemuAppDownloadShells(); } catch (e) {}
+      try { otlobliNormalizeTemuHomeCategoryStrip(); } catch (e) {}
+      try { otlobliCollapseTemuEmptyHomeHeaderGaps(); } catch (e) {}
       try { stabilizeTemuSearchChrome(); } catch (e) {}
       ensureTemuSearchTouchRepair();
       var intervalTemuSearching = otlobliTemuSearchMode();

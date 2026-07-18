@@ -5,13 +5,15 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Current Candidate
 
 - Branch: `claude/ios6-cover-fix`.
-- Current local code candidate: v85.8.49 / `APP_VERSION = 2026.07.18-v85.8.49-temu-shein-like-header-no-otp-test`.
-- Scope: Temu header only. No payment, wallet, orders, account route, SKU/product capture, or blocker redesign changes.
-- Change: collapse only Temu app-download banner shells/ancestors that do not contain search chrome, removing the blank white strip left after the app banner is hidden.
-- Change: call the narrow existing Temu header stabilizer so the fixed search/header row keeps Y=0 outside active search and releases during search.
-- Validation: targeted ESLint, injected-script parse, `git diff --check`, `npm run build`, plus WebKit mobile DOM checks. Final acceptance still requires the real iPhone install.
+- Current local code candidate: v85.8.50 / `APP_VERSION = 2026.07.18-v85.8.50-temu-category-header-stable-no-otp-test`.
+- Scope: Temu home header/category only. No payment, wallet, orders, account route, SKU/product capture, or blocker redesign changes.
+- Change: keep v85.8.49's narrow app-download shell collapse and fixed-header Y stabilizer.
+- Change: normalize only the verified top Temu category row and wake its horizontal scroller without vertical pull/scroll nudges, matching the state the user reaches by swiping sideways.
+- Change: collapse only empty top header gaps on Temu home and self-restore them if content later appears.
+- Performance: category/gap scans are throttled for low-end iPhones.
+- Validation: targeted ESLint, injected-script parse, `git diff --check`, `npm run build`, and a WebKit fixture for hidden categories + empty header gap passed. GitHub build and real-device acceptance are still pending.
 - Do not reapply the v85.8.47 visible-SKU/group-dims approach until the white-page regression is understood from real-device evidence or a DOM fixture that reproduces it.
-- Next step: build/install v85.8.49 and verify Temu opens with the SHEIN-like stable top bar, then search/back returns to the same shape.
+- Next step: build/install v85.8.50 and verify Temu home shows search + categories from first entry, then product/back returns to the same shape without the empty gap.
 
 <!-- Older handoff content below may be stale. -->
 

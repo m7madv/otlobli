@@ -2,6 +2,16 @@
 
 Last updated: 2026-07-18
 
+## v85.8.50 Temu Category Header Candidate
+
+- Branch: `claude/ios6-cover-fix`.
+- Current local candidate: v85.8.50 / `APP_VERSION = 2026.07.18-v85.8.50-temu-category-header-stable-no-otp-test`.
+- Scope: Temu home header/category only. No payment, wallet, orders, account route, SKU/product capture, or blocker redesign changes.
+- Fix: normalize only the verified top Temu home category row and wake its horizontal scroller without vertical pull/scroll nudges, so categories can appear from first entry.
+- Fix: collapse only empty top header gaps on Temu home and self-restore them if content later appears, avoiding stuck 0px wrappers.
+- Performance: category/gap scans are throttled for low-end iPhones.
+- Validation so far: targeted ESLint, injected-script parse, `git diff --check`, `npm run build`, and a WebKit fixture for hidden categories + empty header gap passed. IPA still pending.
+
 ## v85.8.49 Temu SHEIN-Like Header Candidate
 
 - Branch: `claude/ios6-cover-fix`.

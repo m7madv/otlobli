@@ -1,5 +1,16 @@
 # SESSION_SUMMARY.md
 
+## 2026-07-18 Temu v85.8.50 Category Header Stabilization
+
+- Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
+- Branch: `claude/ios6-cover-fix`.
+- Current local candidate: v85.8.50 / `APP_VERSION = 2026.07.18-v85.8.50-temu-category-header-stable-no-otp-test`.
+- User report after v85.8.49: Temu search row is better, but categories can stay hidden until a sideways/pull gesture; after product/back an empty gap can appear below the header.
+- Fix: normalize only the verified top Temu category row and wake its horizontal scroller without vertical pull/scroll nudges.
+- Fix: collapse only empty top header gaps on Temu home and restore them automatically if content later appears.
+- Scope stayed narrow: no product capture/SKU logic, payment, wallet, orders, account route, or blocker redesign.
+- Validation so far: targeted ESLint, injected-script parse, `git diff --check`, `npm run build`, and a WebKit fixture for hidden categories + empty header gap passed. Real-device acceptance is still pending.
+
 ## 2026-07-18 Temu v85.8.49 SHEIN-Like Header
 
 - Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
