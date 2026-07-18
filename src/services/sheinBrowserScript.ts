@@ -6639,6 +6639,44 @@ export const SHEIN_CAPTURE_SCRIPT = `
     } catch (e) {}
   }
 
+  // يلتقط لقطة نظيفة من DOM منتج الجوّال الحقيقي (البنية فقط: وسوم/أصناف/سمات
+  // aria-data/نص) لينسخها الزبون ويلصقها لي — فأبني مصنع اختبار محلي بـDOM
+  // حقيقي بدل التخمين. ننظّف السكربت/الأنماط/الصور الطويلة ونضغط المسافات.
+  function otlobliTemuDumpProductDom() {
+    var root = document.body.cloneNode(true);
+    // نزيل ما لا يفيد التحليل ويضخّم الحجم.
+    var kill = root.querySelectorAll('script,style,noscript,link,meta,svg,path,canvas,iframe,[id^="otlobli"]');
+    for (var i = 0; i < kill.length; i++) { if (kill[i].parentNode) kill[i].parentNode.removeChild(kill[i]); }
+    // نقصّر src/srcset/style الطويلة (base64/روابط) ونُبقي الأصناف والسمات الدلالية.
+    var withAttrs = root.querySelectorAll('*');
+    for (var a = 0; a < withAttrs.length; a++) {
+      var el = withAttrs[a];
+      var at = el.attributes;
+      for (var k = at.length - 1; k >= 0; k--) {
+        var nm = at[k].name, vl = at[k].value;
+        if (nm === 'src' || nm === 'srcset' || nm === 'style' || nm === 'href') {
+          el.setAttribute(nm, vl.slice(0, 40));
+        } else if (vl.length > 60 && !/aria|role|data-|class/i.test(nm)) {
+          el.removeAttribute(nm);
+        }
+      }
+    }
+    var html = root.innerHTML.replace(/>\\s+</g, '><').replace(/\\s{2,}/g, ' ');
+    if (html.length > 120000) html = html.slice(0, 120000);
+    var payload = 'URL: ' + location.href.split('?')[0] + '\\n' +
+      'العنوان: ' + (document.title || '').slice(0, 80) + '\\n\\n' + html;
+    // نسخ للحافظة مع بديل execCommand (أوثق داخل WebView).
+    try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(payload); } catch (e) {}
+    try {
+      var ta = document.createElement('textarea');
+      ta.value = payload; ta.style.cssText = 'position:fixed;left:-9999px;top:0;';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch (e2) {}
+      document.body.removeChild(ta);
+    } catch (e3) {}
+    return payload;
+  }
+
   // لوحة تشخيص (نسخة اختبار فقط): سطر الحالة + مقياس تتبّع البوابة (ماذا رأت
   // بوابة "أضف للسلة" بالضبط: الرأس/الأزرار/المختار/العدّ/القرار) + زر تبديل
   // "الحجب" يطفئ كل حاجبات تيمو ويستعيد المخفي — لإثبات/نفي أن الحجب يخرّب
@@ -6675,6 +6713,20 @@ export const SHEIN_CAPTURE_SCRIPT = `
           if (window.__otlobliTemuHideOff) otlobliTemuUnhideAllForTest();
         }, true);
         panel.appendChild(tg);
+        var dmp = document.createElement('button');
+        dmp.id = 'otlobli-temu-diag-dump';
+        dmp.textContent = 'انسخ DOM';
+        dmp.style.cssText = 'position:absolute;left:82px;top:3px;pointer-events:auto;font-size:10px;' +
+          'background:#1a56db;color:#fff;border:0;border-radius:6px;padding:3px 8px;font-family:inherit;';
+        dmp.addEventListener('click', function (ev) {
+          ev.preventDefault(); ev.stopPropagation();
+          try {
+            var out = otlobliTemuDumpProductDom();
+            dmp.textContent = 'تم النسخ (' + Math.round(out.length / 1024) + 'ك)';
+            setTimeout(function () { dmp.textContent = 'انسخ DOM'; }, 2500);
+          } catch (e) { dmp.textContent = 'فشل'; }
+        }, true);
+        panel.appendChild(dmp);
       } else {
         txt = document.getElementById('otlobli-temu-diag-txt');
       }
