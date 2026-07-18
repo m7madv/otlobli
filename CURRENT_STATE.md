@@ -2,6 +2,16 @@
 
 Last updated: 2026-07-18
 
+## v85.8.51 Temu Native Header Rollback Candidate
+
+- Branch: `claude/ios6-cover-fix`.
+- Current local candidate: v85.8.51 / `APP_VERSION = 2026.07.18-v85.8.51-temu-native-header-resume-gap-no-otp-test`.
+- User rejected v85.8.50 on real iPhone: Temu top bar became laggy/stuttery and loading slowed.
+- Scope: Temu header rollback + app resume gap only. No payment, wallet, orders logic, account route, SKU/product capture, or blocker redesign changes.
+- Change: removed execution and code for the v85.8.49/v85.8.50 Temu header interventions: no header pinning, no category-row forcing/wake, no download-shell collapse, and no empty-gap DOM scan inside Temu.
+- Change: on returning from React tabs to Temu home, native posts two delayed `__resize` messages so WKWebView can recalculate layout without touching Temu's header DOM.
+- Validation so far: targeted ESLint for injected script/config, injected-script parse, and `npm run build` passed. GitHub IPA still pending.
+
 ## v85.8.50 Temu Category Header Candidate
 
 - Branch: `claude/ios6-cover-fix`.

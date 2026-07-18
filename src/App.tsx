@@ -2229,6 +2229,20 @@ function App() {
     void InAppBrowser.postMessage({ detail: { type: '__backTarget', target } })
   }
 
+  const postTemuResumeResize = () => {
+    if (selectedStoreRef.current !== 'temu') return
+    window.setTimeout(() => {
+      if (screenRef.current === 'home' && selectedStoreRef.current === 'temu') {
+        void InAppBrowser.postMessage({ detail: { type: '__resize' } })
+      }
+    }, 180)
+    window.setTimeout(() => {
+      if (screenRef.current === 'home' && selectedStoreRef.current === 'temu') {
+        void InAppBrowser.postMessage({ detail: { type: '__resize' } })
+      }
+    }, 520)
+  }
+
   const refreshVpnDiagnosisForStoreFailure = () => {
     const storeReachablePromise = checkStoreReachable(selectedStoreRef.current)
     void probeVpnGeo().then(async (geo) => {
@@ -2622,6 +2636,7 @@ function App() {
           const target = pendingBackTargetRef.current
           pendingBackTargetRef.current = 'home'
           postWebviewChromeState(target)
+          postTemuResumeResize()
         })
       } else if (vpnState === 'ok') {
         if (sheinBlockedError || Date.now() < webviewAutoOpenPausedUntilRef.current) return

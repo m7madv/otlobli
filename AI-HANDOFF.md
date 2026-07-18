@@ -5,18 +5,14 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Current Candidate
 
 - Branch: `claude/ios6-cover-fix`.
-- Current local code candidate: v85.8.50 / `APP_VERSION = 2026.07.18-v85.8.50-temu-category-header-stable-no-otp-test`.
-- Scope: Temu home header/category only. No payment, wallet, orders, account route, SKU/product capture, or blocker redesign changes.
-- Change: keep v85.8.49's narrow app-download shell collapse and fixed-header Y stabilizer.
-- Change: normalize only the verified top Temu category row and wake its horizontal scroller without vertical pull/scroll nudges, matching the state the user reaches by swiping sideways.
-- Change: collapse only empty top header gaps on Temu home and self-restore them if content later appears.
-- Performance: category/gap scans are throttled for low-end iPhones.
-- GitHub iOS build `29654853138` succeeded from code commit `471809a`.
-- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.50-temu-category-header-stable.ipa`.
-- v85.8.50 IPA SHA-256: `F66B240EDCB94EFA278C2C6E611428343BAFABC76A23A678E5E5E4031A6FE8EC`.
-- Validation: targeted ESLint, injected-script parse, `git diff --check`, `npm run build`, WebKit fixture for hidden categories + empty header gap, GitHub build, and embedded v85.8.50 marker check passed. Real-device acceptance is still pending.
+- Current local code candidate: v85.8.51 / `APP_VERSION = 2026.07.18-v85.8.51-temu-native-header-resume-gap-no-otp-test`.
+- User rejected v85.8.50 on real iPhone: Temu top bar became laggy/stuttery and loading slowed.
+- Scope: Temu header rollback + app resume gap only. No payment, wallet, orders logic, account route, SKU/product capture, or blocker redesign changes.
+- Change: removed execution and code for the v85.8.49/v85.8.50 Temu header interventions: no header pinning, no category-row forcing/wake, no download-shell collapse, and no empty-gap DOM scan inside Temu.
+- Change: on returning from React tabs to Temu home, native posts two delayed `__resize` messages so WKWebView can recalculate layout without touching Temu's header DOM.
+- Validation: targeted ESLint for injected script/config, injected-script parse, and `npm run build` passed. GitHub build and real-device acceptance are still pending.
 - Do not reapply the v85.8.47 visible-SKU/group-dims approach until the white-page regression is understood from real-device evidence or a DOM fixture that reproduces it.
-- Next step: build/install v85.8.50 and verify Temu home shows search + categories from first entry, then product/back returns to the same shape without the empty gap.
+- Next step: build/install v85.8.51 and verify Temu header is back to its native/default behavior, with no gap after Orders -> Home.
 
 <!-- Older handoff content below may be stale. -->
 
