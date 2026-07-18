@@ -2932,6 +2932,15 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return '';
   }
   function temuSelectedSize() {
+    // v85.8.41: القيمة المختارة من الخيار aria-checked داخل skuSelector — الأدقّ
+    // والأنظف. يمنع التقاط كل الأزرار ("XXL XL L M S") بدل المقاس الواحد المختار.
+    try {
+      var sk = otlobliTemuSku();
+      for (var d = 0; d < sk.dims.length; d++) {
+        var dd = sk.dims[d];
+        if (dd.kind === 'size' && dd.selected && dd.selected !== 'محدد' && dd.selected.length <= 30) return dd.selected;
+      }
+    } catch (e) {}
     var pills = temuSizePills();
     // لا توجد أزرار مقاس — قد يكون المقاس محدداً مسبقاً (مثل "One-size" على الصفحة مباشرة).
     if (pills.length < 1) {
@@ -3633,12 +3642,17 @@ export const SHEIN_CAPTURE_SCRIPT = `
         for (var o = 0; o < opts.length; o++) {
           if (opts[o].getAttribute('aria-checked') === 'true') {
             var im = opts[o].querySelector('img');
-            sel = (im && im.getAttribute('alt')) || 'محدد';
+            // اسم اللون من alt الصورة؛ المقاس من نص الزر ("L") — لا "محدد".
+            sel = (im && im.getAttribute('alt')) || temuCleanText(opts[o].textContent) || 'محدد';
           }
         }
-        if (!sel) {
+        // مهم (v85.8.41): لا نعتمد .specValue لتحديد "مُختار" للمقاس — رأس المقاس
+        // يعرض نظام المقاس "(SA)" لا القيمة المختارة، فكان يُحسب اختياراً زائفاً
+        // فيمرّ المنتج بلا اختيار مقاس. الاختيار = aria-checked فقط. للّون فقط
+        // نقبل specValue اسماً مساعداً (اللون الافتراضي يظهر بالرأس ": أخضر").
+        if (!sel && isColor) {
           var sv = groups[g].querySelector('[class*="specValue"]');
-          if (sv) sel = temuCleanText(sv.textContent).replace(/^[:：]\\s*/, '');
+          if (sv) { var svt = temuCleanText(sv.textContent).replace(/^[:：]\\s*/, ''); if (svt && svt.length <= 24) sel = svt; }
         }
         out.hasSelector = true;
         out.dims.push({ kind: isColor ? 'color' : 'size', name: nm, count: opts.length || 1, selected: sel || null });
@@ -6774,7 +6788,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       } else {
         txt = document.getElementById('otlobli-temu-diag-txt');
       }
-      var lines = 'otlobli v85.8.40 | ' + v.state + ' | صور=' + v.domImg + '/' + v.visImg +
+      var lines = 'otlobli v85.8.41 | ' + v.state + ' | صور=' + v.domImg + '/' + v.visImg +
         ' سعر=' + (v.hasPrice ? 'نعم' : 'لا') + ' | نظّف=' + clean + ' عام=' + gen + ' بحث=' + chrome +
         (window.__otlobliTemuHideOff ? ' | الحجب مطفأ!' : '');
       var tr = window.__otlobliGateTrace;
