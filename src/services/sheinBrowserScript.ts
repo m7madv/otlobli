@@ -2941,6 +2941,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if (dd.kind === 'size' && dd.selected && dd.selected !== 'محدد' && dd.selected.length <= 30) return dd.selected;
       }
     } catch (e) {}
+    if (window.__otlobliTemuSize && window.__otlobliTemuSizeGid === temuGoodsId()) {
+      var cachedSize0 = temuCleanText(window.__otlobliTemuSize);
+      if (cachedSize0 && cachedSize0.length <= 40) return cachedSize0;
+    }
     var pills = temuSizePills();
     // لا توجد أزرار مقاس — قد يكون المقاس محدداً مسبقاً (مثل "One-size" على الصفحة مباشرة).
     if (pills.length < 1) {
@@ -3205,6 +3209,21 @@ export const SHEIN_CAPTURE_SCRIPT = `
           setTimeout(function () {
             try { if (window.__otlobliLastTap) window.__otlobliLastTap.after = inRadio0.getAttribute('aria-checked') || '?'; } catch (e2) {}
           }, 450);
+          (function (radioEl, gidAtClick) {
+            setTimeout(function () {
+              try {
+                var groupName = otlobliTemuSkuOptionGroupName(radioEl);
+                var optionText = otlobliTemuSkuOptionValue(radioEl, false);
+                var hasImage = !!(radioEl.querySelector && radioEl.querySelector('img'));
+                var colorGroup = /\u0627\u0644\u0644\u0648\u0646|\u0644\u0648\u0646|colou?r/i.test(groupName) || (hasImage && !/\u0645\u0648\u062f\u064a\u0644|\u0645\u0642\u0627\u0633|size|model|iphone|\u0622\u064a\u0641\u0648\u0646|\u0627\u064a\u0641\u0648\u0646/i.test(groupName));
+                if (!colorGroup && optionText && optionText.length <= 40
+                    && !/\u0623\u0636\u0641|\u0627\u0644\u0633\u0644\u0629|\u0627\u0644\u0643\u0645\u064a\u0629|quantity|shipping|\u062e\u0635\u0645|\u0639\u0631\u0636/i.test(optionText)) {
+                  window.__otlobliTemuSize = optionText;
+                  window.__otlobliTemuSizeGid = gidAtClick;
+                }
+              } catch (e3) {}
+            }, 120);
+          })(inRadio0, temuGoodsId());
         }
       } catch (eTap) {}
       // توجيه نقرات شريط otlobli السفلي: تيمو تضيف طبقات بنفس z-index الأقصى
@@ -3627,6 +3646,44 @@ export const SHEIN_CAPTURE_SCRIPT = `
   //  - مفرود: .specListWrap-* لكل بُعد؛ رأسه .type-*[aria-label] (اللون/المقاس،
   //    والكمية منفصلة .specTypeName-*)، وخياراته [role=radio]، والمختار
   //    aria-checked="true" (إشارة موثوقة، لا تخمين حدود/حلقات).
+  function otlobliTemuSkuOptionGroupName(opt) {
+    try {
+      var optRect = opt && opt.getBoundingClientRect ? opt.getBoundingClientRect() : null;
+      var node = opt, depth = 0;
+      while (node && depth < 7) {
+        var heads = node.querySelectorAll ? node.querySelectorAll('[class*="type-"][aria-label], [class*="specTypeName"], [class*="type-"]') : [];
+        var best = '', bestDy = 999999, fallback = '';
+        for (var h = 0; h < heads.length; h++) {
+          var ht = temuCleanText((heads[h].getAttribute && heads[h].getAttribute('aria-label')) || heads[h].textContent || '');
+          if (!ht || ht.length > 80 || /\u0627\u0644\u0643\u0645\u064a\u0629|\u0643\u0645\u064a\u0629|quantity/i.test(ht)) continue;
+          if (!fallback) fallback = ht;
+          if (!optRect || !heads[h].getBoundingClientRect) continue;
+          var hr = heads[h].getBoundingClientRect();
+          if (hr.height <= 0 || hr.bottom > optRect.bottom + 8) continue;
+          var dy = Math.abs(optRect.top - hr.bottom);
+          if (dy < bestDy) { bestDy = dy; best = ht; }
+        }
+        if (best) return best;
+        if (fallback && depth < 3) return fallback;
+        node = node.parentElement; depth++;
+      }
+    } catch (e) {}
+    return '';
+  }
+
+  function otlobliTemuSkuOptionValue(opt, isColor) {
+    try {
+      if (!opt) return '';
+      var im = opt.querySelector && opt.querySelector('img');
+      var imgTxt = im ? temuCleanText((im.getAttribute && (im.getAttribute('alt') || im.getAttribute('title'))) || '') : '';
+      var txt = temuCleanText(opt.textContent || '');
+      if (isColor && imgTxt) return imgTxt;
+      if (txt && txt.length <= 50) return txt;
+      return imgTxt || 'selected';
+    } catch (e) {}
+    return '';
+  }
+
   function otlobliTemuSku() {
     var out = { hasSelector: false, single: false, dims: [], collapsedEl: null };
     try {
@@ -3651,14 +3708,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
       }
       var groups = document.querySelectorAll('[class*="specListWrap"]');
       for (var g = 0; g < groups.length; g++) {
-        var head = groups[g].querySelector('[class*="type-"][aria-label]');
-        var nm = head ? temuCleanText(head.getAttribute('aria-label')) : '';
+        var head = groups[g].querySelector('[class*="type-"][aria-label], [class*="specTypeName"], [class*="type-"]');
+        var nm = head ? temuCleanText((head.getAttribute && head.getAttribute('aria-label')) || head.textContent || '') : '';
         if (!nm || /الكمية|كمية|quantity/i.test(nm)) continue;
         var isColor = /اللون|لون|colou?r/i.test(nm);
-        var opts = groups[g].querySelectorAll('[role="radio"]');
+        var opts = groups[g].querySelectorAll('[role="radio"], [aria-checked], [aria-selected]');
         var sel = null;
         for (var o = 0; o < opts.length; o++) {
-          if (opts[o].getAttribute('aria-checked') === 'true') {
+          if (opts[o].getAttribute('aria-checked') === 'true' || opts[o].getAttribute('aria-selected') === 'true') {
             var im = opts[o].querySelector('img');
             // اسم اللون من alt الصورة؛ المقاس من نص الزر ("L") — لا "محدد".
             sel = (im && im.getAttribute('alt')) || temuCleanText(opts[o].textContent) || 'محدد';
@@ -3668,6 +3725,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
         // يعرض نظام المقاس "(SA)" لا القيمة المختارة، فكان يُحسب اختياراً زائفاً
         // فيمرّ المنتج بلا اختيار مقاس. الاختيار = aria-checked فقط. للّون فقط
         // نقبل specValue اسماً مساعداً (اللون الافتراضي يظهر بالرأس ": أخضر").
+        if (!sel && opts.length) {
+          var optList = [];
+          for (var oo = 0; oo < opts.length; oo++) optList.push(opts[oo]);
+          var pickedOpt = temuPickSingleSelected(optList);
+          if (pickedOpt) sel = otlobliTemuSkuOptionValue(pickedOpt, isColor);
+        }
         if (!sel && isColor) {
           var sv = groups[g].querySelector('[class*="specValue"]');
           if (sv) { var svt = temuCleanText(sv.textContent).replace(/^[:：]\\s*/, ''); if (svt && svt.length <= 24) sel = svt; }
@@ -3688,6 +3751,28 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (d.count > 1 && !d.selected) return d;
     }
     return null;
+  }
+
+  function otlobliTemuCurrentColorPicked() {
+    try {
+      return !!((window.__otlobliTemuColor || window.__otlobliTemuColorSwatch) &&
+        window.__otlobliTemuColorGid === temuGoodsId());
+    } catch (e) {}
+    return false;
+  }
+
+  function otlobliTemuUnmetDimResolved(sku, kind) {
+    var unmet = otlobliTemuUnmetDim(sku, kind);
+    if (!unmet) return null;
+    if (unmet.kind === 'color' && otlobliTemuCurrentColorPicked()) {
+      if (kind) return null;
+      return otlobliTemuUnmetDimResolved(sku, 'size');
+    }
+    if (unmet.kind === 'size' && temuSelectedSize()) {
+      if (kind) return null;
+      return otlobliTemuUnmetDimResolved(sku, 'color');
+    }
+    return unmet;
   }
 
   function captureProductPayload(colorState, sizeState, allowGenericTitle) {
@@ -4142,7 +4227,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
           var sku0 = otlobliTemuSku();
           gtr.sum = sku0.single ? 'خيار واحد' :
             (sku0.dims.length ? sku0.dims.map(function (d) { return d.count + ' ' + d.name; }).join(', ') : 'لا');
-          var unmet0 = otlobliTemuUnmetDim(sku0, null);
+          var unmet0 = otlobliTemuUnmetDimResolved(sku0, null);
           gtr.sheet = (unmet0 && sku0.collapsedEl) ? 'مغلق' : 'مفرود/جاهز';
           if (unmet0 && sku0.collapsedEl) {
             gtr.res = 'فتح الشيت + انتظار الاختيار';
@@ -4156,7 +4241,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
               if (temuGoodsId() !== awaitGid0) { otlobliRemoveGateSpinner(); return; }
               try { temuForceSingleSize(); } catch (e) {}
               var skuA = otlobliTemuSku();
-              var unmetA = otlobliTemuUnmetDim(skuA, null);
+              var unmetA = otlobliTemuUnmetDimResolved(skuA, null);
               // اللون قد يُلتقط عبر نقرة الكرت (swatch) قبل ظهور aria-checked.
               var colorPickedA = !!((window.__otlobliTemuColor || window.__otlobliTemuColorSwatch) &&
                 window.__otlobliTemuColorGid === temuGoodsId());
@@ -4217,7 +4302,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
           // مسح نصوص الصفحة (الذي حجب منتجات بلا مقاس بسبب "قياسي: مجانًا").
           var skuGate = otlobliTemuSku();
           var swatchChosen = !!(window.__otlobliTemuColorSwatch && window.__otlobliTemuColorGid === temuGoodsId());
-          var colorUnmet = otlobliTemuUnmetDim(skuGate, 'color');
+          var colorUnmet = otlobliTemuUnmetDimResolved(skuGate, 'color');
           if (colorUnmet) {
             // نلتقط صورة كرت اللون المختار للسلة؛ وإن تعذّر تماماً = نحجب.
             var gateColorSwatch = swatchChosen ? window.__otlobliTemuColorSwatch : '';
@@ -4234,10 +4319,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
               blockMsg = 'حدد اللون أولاً';
             }
           }
-          if (!blockMsg && !persoChk.has) {
+          if (!blockMsg) {
             // مقاس وحيد يُحدَّد تلقائياً؛ مقاس متعدد بلا اختيار → نطلب.
             try { temuForceSingleSize(); } catch (e) {}
-            var sizeUnmet = otlobliTemuUnmetDim(skuGate, 'size');
+            var sizeUnmet = otlobliTemuUnmetDimResolved(skuGate, 'size');
             if (sizeUnmet && !temuSelectedSize()) {
               blockMsg = /موديل/i.test(sizeUnmet.name) ? 'حدد الموديل أولاً' : 'حدد المقاس أولاً';
             }
@@ -4257,7 +4342,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
               if (window.__otlobliTemuAwaitSeq !== watchToken) return;
               if (temuGoodsId() !== watchGid) return;
               var skuW = otlobliTemuSku();
-              var unmetW = otlobliTemuUnmetDim(skuW, null);
+              var unmetW = otlobliTemuUnmetDimResolved(skuW, null);
               var colorPickedW = !!((window.__otlobliTemuColor || window.__otlobliTemuColorSwatch) &&
                 window.__otlobliTemuColorGid === temuGoodsId());
               if (unmetW && unmetW.kind === 'color' && colorPickedW) unmetW = otlobliTemuUnmetDim(skuW, 'size');
