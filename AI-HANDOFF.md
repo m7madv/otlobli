@@ -5,12 +5,13 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Current Candidate
 
 - Branch: `claude/ios6-cover-fix`.
-- Current local code candidate: v85.8.48 / `APP_VERSION = 2026.07.18-v85.8.48-temu-rollback-47-no-otp-test`.
-- This is an emergency rollback after the user rejected v85.8.47 on a real iPhone: product pages became blank white again and the header issue was still unresolved.
-- Action: reverted commit `ae51ae8` (`fix: v85.8.47 capture Temu single style option`) and kept only a new version marker/documentation for v85.8.48.
-- Runtime target: restore v85.8.46 behavior (`2fbb96d`, unfreeze Temu page after the bad `appDownload` selector) before attempting any new SKU/header work.
+- Current local code candidate: v85.8.49 / `APP_VERSION = 2026.07.18-v85.8.49-temu-shein-like-header-no-otp-test`.
+- Scope: Temu header only. No payment, wallet, orders, account route, SKU/product capture, or blocker redesign changes.
+- Change: collapse only Temu app-download banner shells/ancestors that do not contain search chrome, removing the blank white strip left after the app banner is hidden.
+- Change: call the narrow existing Temu header stabilizer so the fixed search/header row keeps Y=0 outside active search and releases during search.
+- Validation: targeted ESLint, injected-script parse, `git diff --check`, `npm run build`, plus WebKit mobile DOM checks. Final acceptance still requires the real iPhone install.
 - Do not reapply the v85.8.47 visible-SKU/group-dims approach until the white-page regression is understood from real-device evidence or a DOM fixture that reproduces it.
-- Next step: build/install v85.8.48 and verify Temu product pages are no longer blank white. Only after that, address the header separately with one narrow change.
+- Next step: build/install v85.8.49 and verify Temu opens with the SHEIN-like stable top bar, then search/back returns to the same shape.
 
 <!-- Older handoff content below may be stale. -->
 

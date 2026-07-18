@@ -2,6 +2,15 @@
 
 Last updated: 2026-07-18
 
+## v85.8.49 Temu SHEIN-Like Header Candidate
+
+- Branch: `claude/ios6-cover-fix`.
+- Current local candidate: v85.8.49 / `APP_VERSION = 2026.07.18-v85.8.49-temu-shein-like-header-no-otp-test`.
+- Scope: Temu header only. No payment, wallet, orders, account route, SKU/product capture, or blocker redesign changes.
+- Fix: collapse Temu's app-download banner shell and its banner-only ancestors when they do not contain search chrome, so the hidden banner cannot leave the empty white top strip.
+- Fix: re-enable only the narrow existing Temu search/header stabilizer to zero the fixed header's Y transform outside active search, matching SHEIN's stable top-bar behavior without broad CSS.
+- Validation so far: targeted ESLint, injected-script parse, `git diff --check`, `npm run build`, and WebKit mobile DOM checks for collapsed download shell and unclipped top search. Final acceptance still requires the real iPhone install.
+
 ## v85.8.48 Temu Emergency Rollback
 
 - Branch: `claude/ios6-cover-fix`.

@@ -6007,6 +6007,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (IS_TEMU) {
         var temuSearching = otlobliTemuSearchMode();
         try { injectTemuHeaderHideCSS(); } catch (e) {}
+        try { otlobliCollapseTemuAppDownloadShells(); } catch (e) {}
+        try { stabilizeTemuSearchChrome(); } catch (e) {}
         try { ensureTemuNoZoom(); } catch (e) {}
         try { ensureTemuSearchTouchRepair(); } catch (e) {}
         try { otlobliSyncTemuSearchModeState(temuSearching); } catch (e) {}
@@ -6515,7 +6517,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // بيضاء، ثم بعد force-visible تُعاد رؤيتها لكنها تبقى مجمّدة "كأنها صورة"
     // (pointer-events:none باقٍ). البانر الفعلي صنفه downloadUI ويُحجب أدناه.
     '[class*="downloadUI" i], [class*="openApp" i]' +
-    '{ display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; }';
+    '{ display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; }' +
+    '[data-otlobli-temu-download-shell="1"]' +
+    '{ display:block!important;height:0!important;min-height:0!important;max-height:0!important;' +
+    ' padding:0!important;margin:0!important;overflow:hidden!important;border:0!important;' +
+    ' box-shadow:none!important;background:transparent!important;pointer-events:none!important; }';
   // نحقن القاعدة في أبكر لحظة ممكنة (documentStart، قبل رسم أي شيء) لمنع أي
   // وميض للعناصر المخفية. لا نعتمد على flag لمرة واحدة، بل نفحص وجود <style>
   // فعلياً في كل استدعاء: لو أزالت تيمو عنصرنا أثناء إعادة بناء الصفحة (عند
@@ -6541,7 +6547,70 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
   // حقن فوري لحظة تحميل السكربت (preShowScript يعمل عند documentStart) — هذا
   // هو ما يمنع ظهور الأزرار/البانر ولو لجزء من الثانية عند أول دخول للمتجر.
+  function otlobliTemuElementHasSearchChrome(el) {
+    if (!el || !el.querySelector) return false;
+    try {
+      if (el.querySelector('[class*="searchBar" i], input[type="search"], input[placeholder*="Search" i], input[placeholder*="\\u0628\\u062d\\u062b"], [role="searchbox"], [aria-label*="Search" i], [aria-label*="\\u0628\\u062d\\u062b"]')) {
+        return true;
+      }
+      var controls = el.querySelectorAll('input, textarea, [role="searchbox"], [class*="searchBar" i], a, button, [role="button"], div');
+      for (var i = 0; i < controls.length && i < 40; i++) {
+        if (otlobliLooksLikeSearchTrigger(controls[i])) return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+
+  function otlobliCollapseTemuAppDownloadShells() {
+    if (!IS_TEMU || !document.documentElement || window.__otlobliTemuHideOff) return;
+    try {
+      var vp = viewportSize();
+      var starts = [];
+      var seen = [];
+      function addStart(node) {
+        if (!node || seen.indexOf(node) >= 0) return;
+        seen.push(node);
+        starts.push(node);
+      }
+      var wrappers = document.querySelectorAll('[class*="downloadsWrapper" i], [class*="downloadWrapper" i], [class*="downloadBanner" i]');
+      for (var w = 0; w < wrappers.length; w++) addStart(wrappers[w]);
+      var uis = document.querySelectorAll('[class*="downloadUI" i], [class*="openApp" i], [aria-label*="get Temu App" i]');
+      for (var u = 0; u < uis.length; u++) addStart(uis[u].parentElement || uis[u]);
+
+      for (var s = 0; s < starts.length; s++) {
+        var start = starts[s];
+        if (!start || (start.id && start.id.indexOf('otlobli') === 0)) continue;
+        if (otlobliTemuElementHasSearchChrome(start)) continue;
+        var startText = temuCleanText(start.textContent);
+        var startHints = otlobliCollectIdentityHints(start) + ' ' + startText;
+        var hasDownloadUi = !!(start.querySelector && start.querySelector('[class*="downloadUI" i], [class*="openApp" i], [aria-label*="get Temu App" i]'));
+        if (!hasDownloadUi && !/(temu|download|get|open|install|app)/i.test(startHints)) continue;
+
+        var node = start;
+        for (var depth = 0; node && node !== document.body && node !== document.documentElement && depth < 8; depth++, node = node.parentElement) {
+          if (node.id && node.id.indexOf('otlobli') === 0) break;
+          if (otlobliTemuElementHasSearchChrome(node)) break;
+          var r = node.getBoundingClientRect();
+          if (r.width < vp.width * 0.72 || r.top < -12 || r.top > 190 || r.height > 150) break;
+          node.setAttribute('data-otlobli-temu-download-shell', '1');
+          node.style.setProperty('display', 'block', 'important');
+          node.style.setProperty('height', '0px', 'important');
+          node.style.setProperty('min-height', '0px', 'important');
+          node.style.setProperty('max-height', '0px', 'important');
+          node.style.setProperty('padding', '0', 'important');
+          node.style.setProperty('margin', '0', 'important');
+          node.style.setProperty('overflow', 'hidden', 'important');
+          node.style.setProperty('border', '0', 'important');
+          node.style.setProperty('box-shadow', 'none', 'important');
+          node.style.setProperty('background', 'transparent', 'important');
+          node.style.setProperty('pointer-events', 'none', 'important');
+        }
+      }
+    } catch (e) {}
+  }
+
   try { injectTemuHeaderHideCSS(); } catch (e) {}
+  try { otlobliCollapseTemuAppDownloadShells(); } catch (e) {}
 
   // مراجعة ذاتية لِما حجبته otlobliCleanTemuBlockers: العنصر المحجوب يصير
   // rect=0 فيتخطّاه المنظّف ولا يُعاد فحصه أبداً — فأي حجب خاطئ يبقى دائماً.
@@ -8355,6 +8424,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
     ensureOtlobliNav();
     if (IS_TEMU) {
       injectTemuHeaderHideCSS();
+      try { otlobliCollapseTemuAppDownloadShells(); } catch (e) {}
+      try { stabilizeTemuSearchChrome(); } catch (e) {}
       ensureTemuSearchTouchRepair();
       var intervalTemuSearching = otlobliTemuSearchMode();
       otlobliSyncTemuSearchModeState(intervalTemuSearching);

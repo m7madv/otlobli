@@ -1,5 +1,16 @@
 # SESSION_SUMMARY.md
 
+## 2026-07-18 Temu v85.8.49 SHEIN-Like Header
+
+- Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
+- Branch: `claude/ios6-cover-fix`.
+- Current local candidate: v85.8.49 / `APP_VERSION = 2026.07.18-v85.8.49-temu-shein-like-header-no-otp-test`.
+- User asked to start with one issue: make Temu's top bar match SHEIN's stable bar.
+- Fix: collapse only Temu app-download banner shells/ancestors that do not contain search chrome, removing the blank white top strip after the banner is hidden.
+- Fix: call the narrow existing Temu header stabilizer so the fixed header keeps Y=0 outside active search and releases during active search.
+- Scope stayed narrow: no product capture/SKU logic, payment, wallet, orders, account route, or broad blocker redesign.
+- Validation: targeted ESLint, injected-script parse, `git diff --check`, `npm run build`, and WebKit mobile DOM checks. Real-device acceptance is still required.
+
 ## 2026-07-18 Temu v85.8.48 Emergency Rollback
 
 - Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
