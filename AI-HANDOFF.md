@@ -5,23 +5,14 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Current Candidate
 
 - Branch: `claude/ios6-cover-fix`.
-- Base before this handoff: v85.8.46 / `2fbb96d` (`fix: v85.8.46 unfreeze Temu page — bad appDownload selector matched #main wrapper`).
-- Current local code candidate: v85.8.47 / `APP_VERSION = 2026.07.18-v85.8.47-temu-sku-single-style-no-otp-test`.
-- Current change is Temu product capture only. Do not touch payment, wallet, completed orders, or account routes during this pass.
-- Fix: `otlobliTemuSku()` separates collapsed summary dims from visible opened `specListWrap` dims. Visible SKU groups win; hidden groups are ignored.
-- Fix: one visible option in any non-color dimension (`أسلوب`, style, model/type-like options) is treated as selected and captured as the product size/style.
-- Guard: if a visible non-color dimension has multiple options and none is selected, the add gate blocks structurally and does not trust the older `temuSelectedSize()` fallback. Style-specific block text is now `حدد الأسلوب أولاً`.
-- Local validation passed: targeted ESLint, injected-script parse, `git diff --check`, `npm run build`, and WebKit routed Temu fixtures for single-style add and multi-style block.
-- Next real-device check: install the GitHub-built v85.8.47 IPA and verify the bracelet case (`أسلوب` one option) adds, while products with multiple styles/sizes still require the customer selection.
+- Current local code candidate: v85.8.48 / `APP_VERSION = 2026.07.18-v85.8.48-temu-rollback-47-no-otp-test`.
+- This is an emergency rollback after the user rejected v85.8.47 on a real iPhone: product pages became blank white again and the header issue was still unresolved.
+- Action: reverted commit `ae51ae8` (`fix: v85.8.47 capture Temu single style option`) and kept only a new version marker/documentation for v85.8.48.
+- Runtime target: restore v85.8.46 behavior (`2fbb96d`, unfreeze Temu page after the bad `appDownload` selector) before attempting any new SKU/header work.
+- Do not reapply the v85.8.47 visible-SKU/group-dims approach until the white-page regression is understood from real-device evidence or a DOM fixture that reproduces it.
+- Next step: build/install v85.8.48 and verify Temu product pages are no longer blank white. Only after that, address the header separately with one narrow change.
 
-## Previous Candidate
-
-- Branch: `claude/ios6-cover-fix`.
-- Last candidate from Claude handoff: v85.8.46 / `2fbb96d`.
-- IPA before this work: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.46-UNFREEZE.ipa`.
-- v85.8.46 fixed the Temu page freeze/white screen caused by broad `appDownload` matching, but its real-device result was not confirmed before this v85.8.47 SKU work.
-
-<!-- Older handoff content below is kept for history and may be stale. -->
+<!-- Older handoff content below may be stale. -->
 
 ## Current Candidate
 

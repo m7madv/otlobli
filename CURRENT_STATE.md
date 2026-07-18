@@ -2,17 +2,14 @@
 
 Last updated: 2026-07-18
 
-## v85.8.47 Temu SKU Single Style Candidate
+## v85.8.48 Temu Emergency Rollback
 
 - Branch: `claude/ios6-cover-fix`.
-- Base pulled from Claude handoff: v85.8.46 / `2fbb96d` (`fix: v85.8.46 unfreeze Temu page — bad appDownload selector matched #main wrapper`).
-- Current local candidate: v85.8.47 / `APP_VERSION = 2026.07.18-v85.8.47-temu-sku-single-style-no-otp-test`.
-- Scope is Temu product capture only; payment, wallet, orders, and broader header/blocker behavior were not changed.
-- Fix: `otlobliTemuSku()` now treats the opened visible SKU sheet as the source of truth and does not mix it with the collapsed summary row.
-- Fix: a visible one-option dimension such as `أسلوب` / style is treated as selected automatically and is captured into the cart payload.
-- Guard: a visible multi-option dimension with no selected option is still blocked; the old size fallback is not allowed to override the structural SKU gate.
-- Validation passed locally: targeted ESLint, injected-script parse, `git diff --check`, `npm run build`, and WebKit fixtures for (1) color selected + single style adds as `ذهبي` / `سلسلة 5NK`, and (2) two styles with no selected option does not add and shows `حدد الأسلوب أولاً`.
-- No simulator was used. Final acceptance still requires installing the GitHub-built IPA on a real iPhone.
+- Current local candidate: v85.8.48 / `APP_VERSION = 2026.07.18-v85.8.48-temu-rollback-47-no-otp-test`.
+- User rejected v85.8.47 on real iPhone: Temu product pages became blank white again and the header issue was still not fixed.
+- Action: reverted the v85.8.47 SKU-capture changes only, restoring the Temu runtime behavior from v85.8.46, then bumped the app version so the rollback IPA is identifiable.
+- Scope: no payment, wallet, orders, account route, header, or blocker redesign changes in this emergency rollback.
+- Next real-device check: install v85.8.48 first and confirm product pages no longer become blank white. Do not continue with SKU/header work until this rollback is confirmed.
 
 ## Active Baseline
 
