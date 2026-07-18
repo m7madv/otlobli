@@ -6652,34 +6652,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // ظهوره (CSS ثابت منّا يطابق بالصنف، أو انهيار layout). نصعد من مرساة المحتوى
   // ونُجبر كل سلف مخفي على الظهور بأنماط inline مهمة (تتفوّق على أي stylesheet،
   // فلا تكرار قتال كل tick). نوسمه keep حتى لا تعبث به الحاجبات.
+  // ملغاة الفرض (v85.8.43): فرض display:block على حاويات Temu كان (أ) يكسر
+  // تخطيط flex وتفاعل نقر الألوان/المقاسات، و(ب) يُحدث وميضاً أبيض سريعاً —
+  // حلقة فرض كل تِك ثم إزالة (يبيّض ويطفّي). الشاشة البيضاء مغطّاة بالفعل عبر
+  // otlobliTemuBlankPageRescue (يستعيد ما أخفيناه) + otlobliTemuBlankPageAutoReload
+  // (فشل رندر Temu). هنا نكتفي بتنظيف أي فرض سابق تركته النسخ الأقدم.
   function otlobliTemuForceProductVisible() {
     if (!IS_TEMU || !document.body) return;
-    try {
-      if (!looksLikeProductPage() || otlobliTemuSearchMode()) return;
-      var v = otlobliTemuProductVitals();
-      // فور ظهور المحتوى: نُزيل أي أنماط قسرية تركناها — كانت تبقى على حاويات
-      // Temu (flex) فتكسر تخطيطها وتفاعلها (النقر على الألوان/المقاسات لا يُسجّل).
-      if (v.visImg > 0) { otlobliTemuUndoForcedVisible(); return; }
-      if (!v.domHasContent) return; // DOM فارغ — لا نتدخّل
-      var node = otlobliTemuContentAnchor();
-      if (!node) return;
-      var depth = 0;
-      while (node && node !== document.documentElement && depth < 45) {
-        if (!(node.id && node.id.indexOf('otlobli') === 0)) {
-          try {
-            var cs = window.getComputedStyle(node);
-            var forced = [];
-            if (cs.display === 'none') { node.style.setProperty('display', 'block', 'important'); forced.push('display'); }
-            if (cs.visibility === 'hidden') { node.style.setProperty('visibility', 'visible', 'important'); forced.push('visibility'); }
-            if (parseFloat(cs.opacity || '1') < 0.05) { node.style.setProperty('opacity', '1', 'important'); forced.push('opacity'); }
-            var r = node.getBoundingClientRect();
-            if (r.height <= 2) { node.style.setProperty('min-height', 'auto', 'important'); forced.push('min-height'); }
-            if (forced.length) node.setAttribute('data-otlobli-forced-vis', forced.join(','));
-          } catch (e) {}
-        }
-        node = node.parentElement; depth++;
-      }
-    } catch (e) {}
+    try { otlobliTemuUndoForcedVisible(); } catch (e) {}
   }
   // يُزيل الأنماط القسرية التي أضافتها force-visible فور تعافي الصفحة، فتعود
   // تخطيطات وتفاعلات Temu (نقر الألوان/المقاسات) لحالتها الأصلية الطبيعية.
@@ -6806,7 +6786,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       } else {
         txt = document.getElementById('otlobli-temu-diag-txt');
       }
-      var lines = 'otlobli v85.8.42 | ' + v.state + ' | صور=' + v.domImg + '/' + v.visImg +
+      var lines = 'otlobli v85.8.43 | ' + v.state + ' | صور=' + v.domImg + '/' + v.visImg +
         ' سعر=' + (v.hasPrice ? 'نعم' : 'لا') +
         (window.__otlobliTemuHideOff ? ' | الحجب مطفأ!' : '');
       // قراءة sku حيّة: اكبس لوناً/مقاساً وراقب هل "مختار" يتحدّث فوراً — يحسم
