@@ -3,7 +3,7 @@ import cairoArabicFontDataUrl from '@fontsource-variable/cairo/files/cairo-arabi
 const OTLOBLI_CAIRO_FONT_CSS =
   '@font-face{font-family:"OtlobliCairo";src:url("' + cairoArabicFontDataUrl + '") format("woff2");font-style:normal;font-weight:200 1000;font-display:block;}'
 
-const OTLOBLI_NAV_STYLE_VERSION = 'v85.8.15'
+const OTLOBLI_NAV_STYLE_VERSION = 'v85.8.16'
 const OTLOBLI_NAV_CSS =
   'position:fixed!important;left:50%!important;right:auto!important;bottom:0!important;top:auto!important;' +
   'transform:translate3d(-50%,0,0)!important;will-change:transform!important;width:100%!important;max-width:440px!important;' +
@@ -4414,6 +4414,28 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
+  function otlobliAlignTemuNavContent(nav) {
+    if (!IS_TEMU || !nav || !nav.querySelectorAll) return;
+    if (nav.getAttribute('data-otlobli-temu-nav-content-align') === 'v85.8.53') return;
+    var tabs = nav.querySelectorAll('button[id^="otlobli-nav-tab-"]');
+    for (var i = 0; i < tabs.length; i++) {
+      var tab = tabs[i];
+      var svg = tab.querySelector && tab.querySelector('svg');
+      if (svg && svg.style) {
+        svg.style.setProperty('transform', 'translateY(3px)', 'important');
+        svg.style.setProperty('-webkit-transform', 'translateY(3px)', 'important');
+      }
+      var spans = tab.querySelectorAll ? tab.querySelectorAll('span') : [];
+      for (var s = 0; s < spans.length; s++) {
+        var span = spans[s];
+        if (!span || !span.textContent || !span.textContent.trim()) continue;
+        span.style.setProperty('transform', 'translateY(3px)', 'important');
+        span.style.setProperty('-webkit-transform', 'translateY(3px)', 'important');
+      }
+    }
+    nav.setAttribute('data-otlobli-temu-nav-content-align', 'v85.8.53');
+  }
+
   function otlobliStabilizeTemuRootOverlay(el) {
     if (!IS_TEMU || !el || !document.documentElement) return;
     if (el.parentNode !== document.documentElement) {
@@ -4434,6 +4456,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         existingNav.style.cssText = OTLOBLI_NAV_CSS;
         existingNav.setAttribute('data-otlobli-nav-style', OTLOBLI_NAV_STYLE_VERSION);
       }
+      otlobliAlignTemuNavContent(existingNav);
       otlobliStabilizeTemuNavLayer(existingNav);
       // Re-claiming "last child of body" fixes a real bug (SHEIN's own SPA
       // keeps inserting new elements - promo banners, popups, app-install
@@ -4547,6 +4570,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       }
       nav.appendChild(tab);
     }
+    otlobliAlignTemuNavContent(nav);
     if (IS_TEMU) otlobliStabilizeTemuNavLayer(nav);
     else document.body.appendChild(nav);
   }
