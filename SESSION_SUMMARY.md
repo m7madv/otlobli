@@ -9,7 +9,10 @@
 - Action: removed execution and code for the v85.8.49/v85.8.50 Temu header interventions: no header pinning, no category wake/forcing, no download-shell collapse, and no empty-gap DOM scan inside Temu.
 - Fix attempt for remaining gap: when returning from React tabs to Temu home, native posts two delayed `__resize` messages so WKWebView recalculates layout without touching Temu's header DOM.
 - Scope stayed narrow: no product capture/SKU logic, payment, wallet, orders logic, account route, or blocker redesign.
-- Validation so far: targeted ESLint for injected script/config, injected-script parse, and `npm run build` passed. GitHub build and real-device acceptance are still pending.
+- GitHub iOS build `29655425599` succeeded from code commit `aa2f287`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.51-temu-native-header-resume-gap.ipa`.
+- v85.8.51 IPA SHA-256: `EEE8BA63452CDACB03AC8FB6502C3DEB97258FDBB9C99BECC9297EB87503FFA6`.
+- Validation: targeted ESLint for injected script/config, injected-script parse, `npm run build`, GitHub build, and embedded v85.8.51 marker check passed. Real-device acceptance is still pending.
 
 ## 2026-07-18 Temu v85.8.50 Category Header Stabilization
 
