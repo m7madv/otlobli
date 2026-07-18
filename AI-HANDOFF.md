@@ -5,16 +5,16 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Current Candidate
 
 - Branch: `claude/ios6-cover-fix`.
-- Current local code candidate: v85.8.54 / `APP_VERSION = 2026.07.18-v85.8.54-temu-nav-bar-lower-no-otp-test`.
-- User report after v85.8.53: the whole Temu injected bottom nav still sits slightly higher than the React nav in Cart/Orders, not just the icon/label content.
+- Current local code candidate: v85.8.55 / `APP_VERSION = 2026.07.18-v85.8.55-temu-nav-bottom-offset-no-otp-test`.
+- User rejected v85.8.54 on real iPhone: the Temu injected bottom nav still sits slightly higher than the React nav in Orders/Cart.
 - Scope: Temu injected bottom-nav vertical placement only. No WebView show/hide changes, Temu header forcing, product/SKU capture, blockers, payment, wallet, orders logic, or account route changes.
-- Change: removes the v85.8.53 per-icon/per-label downward offset and instead applies one Temu-only `translate3d(-50%,4px,0)` to `#otlobli-nav`, moving the bar, active indicator, icons, labels, and hit area together.
-- GitHub iOS build `29657282400` succeeded from code commit `d0c13f4`.
-- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.54-temu-nav-bar-lower.ipa`.
-- v85.8.54 IPA SHA-256: `00127450AE6E228DE3A07DFDADF71B2788E48071149C44357DF220D21FA0003D`.
-- Validation: targeted ESLint for script/config, injected-script parse, `git diff --check`, `npm run build`, GitHub build, and embedded v85.8.54 marker check passed. Real-device acceptance is still pending.
+- Change: removes the v85.8.54 Y-transform offset and lowers the Temu nav container itself with `bottom:-8px`, while keeping `transform:translate3d(-50%,0,0)` to avoid fighting the existing stability CSS.
+- GitHub iOS build `29657616560` succeeded from code commit `eb7b0ca`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.55-temu-nav-bottom-offset.ipa`.
+- v85.8.55 IPA SHA-256: `52ED888B77AF294970B6CC7E19557131CDC848B3A29D79E4C40B3D3E93FF1F16`.
+- Validation: targeted ESLint for script/config, injected-script parse plus `bottom:-8px` marker check, `git diff --check`, `npm run build`, GitHub build, and embedded v85.8.55 marker/offset checks passed. Real-device acceptance is still pending.
 - Do not reapply the v85.8.47 visible-SKU/group-dims approach until the white-page regression is understood from real-device evidence or a DOM fixture that reproduces it.
-- Next step: install v85.8.54 on the real iPhone and compare only the bottom nav vertical alignment between Temu Home and Orders/Cart. The v85.8.52 no-gap behavior should remain unchanged.
+- Next step: install v85.8.55 on the real iPhone and compare only the bottom nav vertical alignment between Temu Home and Orders/Cart. The v85.8.52 no-gap behavior should remain unchanged.
 
 <!-- Older handoff content below may be stale. -->
 

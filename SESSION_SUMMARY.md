@@ -1,5 +1,18 @@
 # SESSION_SUMMARY.md
 
+## 2026-07-18 Temu v85.8.55 Nav Bottom Offset
+
+- Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
+- Branch: `claude/ios6-cover-fix`.
+- Current local candidate: v85.8.55 / `APP_VERSION = 2026.07.18-v85.8.55-temu-nav-bottom-offset-no-otp-test`.
+- User rejected v85.8.54 on real iPhone: the Temu injected nav still sits higher than the React nav in Orders/Cart.
+- Fix: removed the Temu-only `translate3d(-50%,4px,0)` offset and lowered the actual Temu nav container with `bottom:-8px`, while keeping the normal `translate3d(-50%,0,0)` transform so the stability CSS is no longer fighting the position.
+- Scope stayed narrow: no WebView show/hide change, Temu header forcing, blockers, product/SKU capture, payment, wallet, orders logic, or account route changes.
+- GitHub iOS build `29657616560` succeeded from code commit `eb7b0ca`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.55-temu-nav-bottom-offset.ipa`.
+- v85.8.55 IPA SHA-256: `52ED888B77AF294970B6CC7E19557131CDC848B3A29D79E4C40B3D3E93FF1F16`.
+- Validation: targeted ESLint for script/config, injected-script parse plus `bottom:-8px` marker check, `git diff --check`, `npm run build`, GitHub build, and embedded v85.8.55 marker/offset checks passed. Final acceptance still requires the real iPhone.
+
 ## 2026-07-18 Temu v85.8.54 Nav Bar Alignment
 
 - Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
