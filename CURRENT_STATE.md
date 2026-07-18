@@ -1,6 +1,18 @@
 # Otlobli Current State
 
-Last updated: 2026-07-17
+Last updated: 2026-07-18
+
+## v85.8.47 Temu SKU Single Style Candidate
+
+- Branch: `claude/ios6-cover-fix`.
+- Base pulled from Claude handoff: v85.8.46 / `2fbb96d` (`fix: v85.8.46 unfreeze Temu page — bad appDownload selector matched #main wrapper`).
+- Current local candidate: v85.8.47 / `APP_VERSION = 2026.07.18-v85.8.47-temu-sku-single-style-no-otp-test`.
+- Scope is Temu product capture only; payment, wallet, orders, and broader header/blocker behavior were not changed.
+- Fix: `otlobliTemuSku()` now treats the opened visible SKU sheet as the source of truth and does not mix it with the collapsed summary row.
+- Fix: a visible one-option dimension such as `أسلوب` / style is treated as selected automatically and is captured into the cart payload.
+- Guard: a visible multi-option dimension with no selected option is still blocked; the old size fallback is not allowed to override the structural SKU gate.
+- Validation passed locally: targeted ESLint, injected-script parse, `git diff --check`, `npm run build`, and WebKit fixtures for (1) color selected + single style adds as `ذهبي` / `سلسلة 5NK`, and (2) two styles with no selected option does not add and shows `حدد الأسلوب أولاً`.
+- No simulator was used. Final acceptance still requires installing the GitHub-built IPA on a real iPhone.
 
 ## Active Baseline
 

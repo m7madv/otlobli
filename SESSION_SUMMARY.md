@@ -1,5 +1,18 @@
 # SESSION_SUMMARY.md
 
+## 2026-07-18 Temu v85.8.47 SKU Single Style
+
+- Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
+- Branch: `claude/ios6-cover-fix`.
+- Base: v85.8.46 / `2fbb96d`, which fixed the Temu freeze caused by broad `appDownload` matching.
+- Current local candidate: v85.8.47 / `APP_VERSION = 2026.07.18-v85.8.47-temu-sku-single-style-no-otp-test`.
+- Scope stayed limited to Temu product option capture; payment, wallet, orders, and broad header/blocker styling were not changed.
+- Fix: `otlobliTemuSku()` now keeps collapsed summary dimensions separate from visible opened SKU groups. If the option sheet is open, visible groups are the source of truth and hidden groups are ignored.
+- Fix: a visible one-option dimension such as `أسلوب` is auto-satisfied and captured, so products like the custom bracelet can add with `size/style = سلسلة 5NK`.
+- Guard: a visible multi-option style/size/model dimension with no selected option still blocks and no longer trusts the older `temuSelectedSize()` fallback. The style-specific message is `حدد الأسلوب أولاً`.
+- Validation passed: targeted ESLint, injected-script parse for injected scripts, `git diff --check`, `npm run build`, and WebKit routed Temu fixtures for single-style add plus multi-style block.
+- No simulator was used; final acceptance remains real iPhone install/test.
+
 ## 2026-07-17 Temu v85.8.31 Product Panel And Text Color
 
 - Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.

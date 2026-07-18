@@ -3630,6 +3630,29 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function otlobliTemuSku() {
     var out = { hasSelector: false, single: false, dims: [], collapsedEl: null };
     try {
+      function temuSkuOptionText(opt) {
+        if (!opt) return '';
+        var img = opt.querySelector && opt.querySelector('img');
+        var raw = '';
+        if (img) raw = img.getAttribute('alt') || img.getAttribute('title') || img.getAttribute('aria-label') || '';
+        if (!raw) raw = opt.getAttribute('aria-label') || opt.getAttribute('title') || '';
+        if (!raw) raw = opt.textContent || '';
+        var txt = temuCleanText(raw)
+          .replace(/^[:：\\s-]+/, '')
+          .replace(/\\s*(?:✓|✔|selected|\u0645\u062d\u062f\u062f|\u062a\u0645 \u0627\u0644\u062a\u062d\u062f\u064a\u062f|\u062a\u0645 \u0627\u062e\u062a\u064a\u0627\u0631)\\s*$/i, '')
+          .trim();
+        if (/^(?:selected|\u0645\u062d\u062f\u062f|\u062a\u0645 \u0627\u0644\u062a\u062d\u062f\u064a\u062f|\u062a\u0645 \u0627\u062e\u062a\u064a\u0627\u0631)$/i.test(txt)) return '';
+        return txt.length > 80 ? txt.slice(0, 80).trim() : txt;
+      }
+      function temuSkuVisible(el) {
+        if (!el || !el.getBoundingClientRect) return false;
+        var st = window.getComputedStyle(el);
+        if (!st || st.display === 'none' || st.visibility === 'hidden' || parseFloat(st.opacity || '1') <= 0.05) return false;
+        var r = el.getBoundingClientRect();
+        return r.width > 8 && r.height > 8;
+      }
+      var collapsedDims = [];
+      var groupDims = [];
       var sels = document.querySelectorAll('[class*="skuSelector"]');
       var collapsed = null;
       for (var i = 0; i < sels.length; i++) {
@@ -3645,25 +3668,32 @@ export const SHEIN_CAPTURE_SCRIPT = `
           out.single = true;
         }
         var cM = infoTxt.match(/(\\d+)\\s*(?:اللون|ألوان|لون|colou?rs?)/i);
-        var sM = infoTxt.match(/(\\d+)\\s*(?:مقاس|مقاسات|موديل|size|ram|rom|ذاكرة|سعة|تخزين)/i);
-        if (cM) out.dims.push({ kind: 'color', name: 'اللون', count: parseInt(cM[1], 10), selected: null });
-        if (sM) out.dims.push({ kind: 'size', name: 'مقاس', count: parseInt(sM[1], 10), selected: null });
+        var sM = infoTxt.match(/(\\d+)\\s*(?:مقاس|مقاسات|موديل|size|ram|rom|ذاكرة|سعة|تخزين|أسلوب|اسلوب|style|نمط|نوع|النوع)/i);
+        if (cM) collapsedDims.push({ kind: 'color', name: 'اللون', count: parseInt(cM[1], 10), selected: null });
+        if (sM) collapsedDims.push({ kind: 'size', name: 'مقاس', count: parseInt(sM[1], 10), selected: null });
       }
       var groups = document.querySelectorAll('[class*="specListWrap"]');
       for (var g = 0; g < groups.length; g++) {
-        var head = groups[g].querySelector('[class*="type-"][aria-label]');
-        var nm = head ? temuCleanText(head.getAttribute('aria-label')) : '';
+        if (!temuSkuVisible(groups[g])) continue;
+        var head = groups[g].querySelector('[class*="type-"][aria-label]') || groups[g].querySelector('[class*="type-"]');
+        var nm = head ? temuCleanText(head.getAttribute('aria-label') || head.textContent) : '';
         if (!nm || /الكمية|كمية|quantity/i.test(nm)) continue;
         var isColor = /اللون|لون|colou?r/i.test(nm);
         var opts = groups[g].querySelectorAll('[role="radio"]');
         var sel = null;
+        var optCount = 0;
+        var soleOptText = '';
         for (var o = 0; o < opts.length; o++) {
+          if (!temuSkuVisible(opts[o])) continue;
+          optCount++;
+          var optText = temuSkuOptionText(opts[o]);
+          if (optCount === 1) soleOptText = optText;
           if (opts[o].getAttribute('aria-checked') === 'true') {
-            var im = opts[o].querySelector('img');
             // اسم اللون من alt الصورة؛ المقاس من نص الزر ("L") — لا "محدد".
-            sel = (im && im.getAttribute('alt')) || temuCleanText(opts[o].textContent) || 'محدد';
+            sel = optText || 'محدد';
           }
         }
+        if (!sel && optCount === 1) sel = soleOptText || null;
         // مهم (v85.8.41): لا نعتمد .specValue لتحديد "مُختار" للمقاس — رأس المقاس
         // يعرض نظام المقاس "(SA)" لا القيمة المختارة، فكان يُحسب اختياراً زائفاً
         // فيمرّ المنتج بلا اختيار مقاس. الاختيار = aria-checked فقط. للّون فقط
@@ -3672,8 +3702,19 @@ export const SHEIN_CAPTURE_SCRIPT = `
           var sv = groups[g].querySelector('[class*="specValue"]');
           if (sv) { var svt = temuCleanText(sv.textContent).replace(/^[:：]\\s*/, ''); if (svt && svt.length <= 24) sel = svt; }
         }
+        if (!sel && optCount === 0) {
+          var sv2 = groups[g].querySelector('[class*="specValue"]');
+          if (sv2) { var svt2 = temuCleanText(sv2.textContent).replace(/^[:：]\\s*/, ''); if (svt2 && svt2.length <= 40) { sel = svt2; optCount = 1; } }
+        }
+        if (optCount < 1 && !sel) continue;
         out.hasSelector = true;
-        out.dims.push({ kind: isColor ? 'color' : 'size', name: nm, count: opts.length || 1, selected: sel || null });
+        groupDims.push({ kind: isColor ? 'color' : 'size', name: nm, count: optCount || 1, selected: sel || null });
+      }
+      if (groupDims.length > 0) {
+        out.dims = groupDims;
+        out.collapsedEl = null;
+      } else {
+        out.dims = collapsedDims;
       }
     } catch (e) {}
     return out;
@@ -3690,19 +3731,37 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return null;
   }
 
+  function otlobliTemuSelectedDimValue(sku, kind) {
+    try {
+      if (!sku || !sku.dims) return '';
+      for (var i = 0; i < sku.dims.length; i++) {
+        var d = sku.dims[i];
+        if (!d || (kind && d.kind !== kind)) continue;
+        var txt = temuCleanText(d.selected || '');
+        if (!txt || txt.length > 80) continue;
+        if (/^(?:selected|\u0645\u062d\u062f\u062f|\u062a\u0645 \u0627\u0644\u062a\u062d\u062f\u064a\u062f|\u062a\u0645 \u0627\u062e\u062a\u064a\u0627\u0631)$/i.test(txt)) continue;
+        return txt;
+      }
+    } catch (e) {}
+    return '';
+  }
+
   function captureProductPayload(colorState, sizeState, allowGenericTitle) {
     if (IS_TEMU) {
       var perso = temuPersonalization();
       var customReq = temuCustomRequirements(perso);
+      var skuCapture = otlobliTemuSku();
+      var skuColorVal = otlobliTemuSelectedDimValue(skuCapture, 'color');
+      var skuSizeVal = otlobliTemuSelectedDimValue(skuCapture, 'size');
       // منتج التخصيص: نضع النص المطلوب مكان المقاس ليصل للمالك بوضوح.
       // حارس مزدوج: قيمة رقمية بحتة (حقل كمية التقط خطأً) لا تكون نص نقش أبداً.
       var persoTxt = (perso.text && !/^\\d+$/.test(perso.text)) ? perso.text : '';
-      var temuSizeVal = (perso.has && persoTxt) ? ('نقش: ' + persoTxt) : temuSelectedSize();
+      var temuSizeVal = (perso.has && persoTxt) ? ('نقش: ' + persoTxt) : (skuSizeVal || temuSelectedSize());
       var temuColorSwatch = (window.__otlobliTemuColorSwatch && window.__otlobliTemuColorGid === temuGoodsId())
         ? window.__otlobliTemuColorSwatch : '';
       // شبكة أمان: لا swatch مخزّن (اختيار داخل الشيت/لون افتراضي) → نبحث
       // وقت الجذب عن كرت اللون المطابق للاسم المختار ونأخذ صورته.
-      var temuColorVal = temuColor();
+      var temuColorVal = temuColor() || skuColorVal;
       if (!temuColorSwatch && temuColorVal) {
         temuColorSwatch = temuSelectedColorCardImg(temuColorVal) || '';
       }
@@ -4237,9 +4296,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
           if (!blockMsg && !persoChk.has) {
             // مقاس وحيد يُحدَّد تلقائياً؛ مقاس متعدد بلا اختيار → نطلب.
             try { temuForceSingleSize(); } catch (e) {}
+            skuGate = otlobliTemuSku();
             var sizeUnmet = otlobliTemuUnmetDim(skuGate, 'size');
-            if (sizeUnmet && !temuSelectedSize()) {
-              blockMsg = /موديل/i.test(sizeUnmet.name) ? 'حدد الموديل أولاً' : 'حدد المقاس أولاً';
+            var sizeSelectedGate = otlobliTemuSelectedDimValue(skuGate, 'size');
+            if (!sizeSelectedGate && !sizeUnmet) sizeSelectedGate = temuSelectedSize();
+            if (sizeUnmet && !sizeSelectedGate) {
+              if (/أسلوب|اسلوب|style|نمط/i.test(sizeUnmet.name)) blockMsg = 'حدد الأسلوب أولاً';
+              else if (/نوع|type/i.test(sizeUnmet.name)) blockMsg = 'حدد النوع أولاً';
+              else blockMsg = /موديل|model/i.test(sizeUnmet.name) ? 'حدد الموديل أولاً' : 'حدد المقاس أولاً';
             }
           }
           if (blockMsg) {
