@@ -1,5 +1,18 @@
 # SESSION_SUMMARY.md
 
+## 2026-07-18 Temu v85.8.54 Nav Bar Alignment
+
+- Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
+- Branch: `claude/ios6-cover-fix`.
+- Current local candidate: v85.8.54 / `APP_VERSION = 2026.07.18-v85.8.54-temu-nav-bar-lower-no-otp-test`.
+- User report after v85.8.53: the whole Temu injected bottom nav, including the active indicator/icons/labels, sits slightly higher than the React nav in Orders/Cart.
+- Fix: removed the v85.8.53 icon/label-only offset and applied a single Temu-only `translate3d(-50%,4px,0)` to `#otlobli-nav`, moving the entire injected bar together.
+- Scope stayed narrow: no WebView show/hide change, Temu header forcing, blockers, product/SKU capture, payment, wallet, orders logic, or account route changes.
+- GitHub iOS build `29657282400` succeeded from code commit `d0c13f4`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.54-temu-nav-bar-lower.ipa`.
+- v85.8.54 IPA SHA-256: `00127450AE6E228DE3A07DFDADF71B2788E48071149C44357DF220D21FA0003D`.
+- Validation: targeted ESLint for script/config, injected-script parse, `git diff --check`, `npm run build`, GitHub build, and embedded v85.8.54 marker check passed. Final acceptance still requires the real iPhone.
+
 ## 2026-07-18 Temu v85.8.53 Nav Content Alignment
 
 - Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
