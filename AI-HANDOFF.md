@@ -5,17 +5,16 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Current Candidate
 
 - Branch: `claude/ios6-cover-fix`.
-- Current local code candidate: v85.8.52 / `APP_VERSION = 2026.07.18-v85.8.52-temu-preserve-webview-nav-no-otp-test`.
-- User report after v85.8.51: Temu's bottom nav still had a blank/grey strip under it after Orders -> Home, while the React Orders nav looked correct.
-- Scope: Temu iOS WebView show/hide + bottom navigation stability only. No Temu header forcing, product/SKU capture, blockers, payment, wallet, orders logic, or account route changes.
-- Change: Temu on iOS now uses the existing `otlobliPreserveAttachedWhenHidden` native path, like SHEIN, so WKWebView stays attached while hidden instead of being moved to a 1x1 offscreen container. This should keep the viewport and bottom safe-area stable across Orders -> Home.
-- Change: removed v85.8.51's Temu-only delayed `__resize` posts after returning home to avoid extra layout movement/flicker.
-- GitHub iOS build `29656122048` succeeded from code commit `92461f2`.
-- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.52-temu-preserve-webview-nav.ipa`.
-- v85.8.52 IPA SHA-256: `26FC0A8B5C288EE11D7A877A4EB1DABC6DCFB945089EC09398E8F844340E429A`.
-- Validation: `npm run build`, `git diff --check`, GitHub build, and embedded v85.8.52 marker check passed. Targeted ESLint against `App.tsx` still reports pre-existing unrelated App lint errors; real-device acceptance is still pending.
+- Current local code candidate: v85.8.53 / `APP_VERSION = 2026.07.18-v85.8.53-temu-nav-content-lower-no-otp-test`.
+- User confirmed v85.8.52 fixed the disappearing/blank strip under Temu's bottom nav. Remaining issue: Temu's injected nav content sits slightly higher than the React nav in Orders/Cart.
+- Scope: visual alignment of Temu injected bottom-nav content only. No WebView show/hide changes, Temu header forcing, product/SKU capture, blockers, payment, wallet, orders logic, or account route changes.
+- Change: applies a Temu-only 3px visual downward offset to the injected nav SVG icons and labels. The nav container height, safe-area math, active indicator, and hit targets stay unchanged.
+- GitHub iOS build `29656814832` succeeded from code commit `0009f24`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.53-temu-nav-content-lower.ipa`.
+- v85.8.53 IPA SHA-256: `089DE99FED0E44E278CB443323A3C486E5212E0F5A276594B84413D2FD44A8E9`.
+- Validation: targeted ESLint for script/config, injected-script parse, `git diff --check`, `npm run build`, GitHub build, and embedded v85.8.53 marker check passed. Real-device acceptance is still pending.
 - Do not reapply the v85.8.47 visible-SKU/group-dims approach until the white-page regression is understood from real-device evidence or a DOM fixture that reproduces it.
-- Next step: install v85.8.52 on the real iPhone and verify only this path: open Temu Home, go to Orders, return Home, and confirm the bottom nav matches Orders/Cart with no grey strip, flicker, or vertical movement.
+- Next step: install v85.8.53 on the real iPhone and compare only the bottom nav vertical alignment between Temu Home and Orders/Cart. The v85.8.52 no-gap behavior should remain unchanged.
 
 <!-- Older handoff content below may be stale. -->
 

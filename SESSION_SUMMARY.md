@@ -1,5 +1,18 @@
 # SESSION_SUMMARY.md
 
+## 2026-07-18 Temu v85.8.53 Nav Content Alignment
+
+- Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
+- Branch: `claude/ios6-cover-fix`.
+- Current local candidate: v85.8.53 / `APP_VERSION = 2026.07.18-v85.8.53-temu-nav-content-lower-no-otp-test`.
+- User confirmed v85.8.52 fixed the blank/grey strip under Temu's bottom nav. New narrow report: the injected Temu nav content is slightly higher than the React nav in Orders/Cart.
+- Fix: added a Temu-only 3px visual downward offset for injected nav SVG icons and labels. The nav container, safe-area height, active indicator, and hit targets are unchanged.
+- Scope stayed narrow: no WebView show/hide change, Temu header forcing, blockers, product/SKU capture, payment, wallet, orders logic, or account route changes.
+- GitHub iOS build `29656814832` succeeded from code commit `0009f24`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.53-temu-nav-content-lower.ipa`.
+- v85.8.53 IPA SHA-256: `089DE99FED0E44E278CB443323A3C486E5212E0F5A276594B84413D2FD44A8E9`.
+- Validation: targeted ESLint for script/config, injected-script parse, `git diff --check`, `npm run build`, GitHub build, and embedded v85.8.53 marker check passed. Final acceptance still requires the real iPhone.
+
 ## 2026-07-18 Temu v85.8.52 Bottom Nav Preserve
 
 - Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
