@@ -11,7 +11,10 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 - Change: normalize only the verified top Temu category row and wake its horizontal scroller without vertical pull/scroll nudges, matching the state the user reaches by swiping sideways.
 - Change: collapse only empty top header gaps on Temu home and self-restore them if content later appears.
 - Performance: category/gap scans are throttled for low-end iPhones.
-- Validation: targeted ESLint, injected-script parse, `git diff --check`, `npm run build`, and a WebKit fixture for hidden categories + empty header gap passed. GitHub build and real-device acceptance are still pending.
+- GitHub iOS build `29654853138` succeeded from code commit `471809a`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.50-temu-category-header-stable.ipa`.
+- v85.8.50 IPA SHA-256: `F66B240EDCB94EFA278C2C6E611428343BAFABC76A23A678E5E5E4031A6FE8EC`.
+- Validation: targeted ESLint, injected-script parse, `git diff --check`, `npm run build`, WebKit fixture for hidden categories + empty header gap, GitHub build, and embedded v85.8.50 marker check passed. Real-device acceptance is still pending.
 - Do not reapply the v85.8.47 visible-SKU/group-dims approach until the white-page regression is understood from real-device evidence or a DOM fixture that reproduces it.
 - Next step: build/install v85.8.50 and verify Temu home shows search + categories from first entry, then product/back returns to the same shape without the empty gap.
 

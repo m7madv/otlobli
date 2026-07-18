@@ -10,7 +10,10 @@ Last updated: 2026-07-18
 - Fix: normalize only the verified top Temu home category row and wake its horizontal scroller without vertical pull/scroll nudges, so categories can appear from first entry.
 - Fix: collapse only empty top header gaps on Temu home and self-restore them if content later appears, avoiding stuck 0px wrappers.
 - Performance: category/gap scans are throttled for low-end iPhones.
-- Validation so far: targeted ESLint, injected-script parse, `git diff --check`, `npm run build`, and a WebKit fixture for hidden categories + empty header gap passed. IPA still pending.
+- GitHub iOS build `29654853138` succeeded from code commit `471809a`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.50-temu-category-header-stable.ipa`.
+- v85.8.50 IPA SHA-256: `F66B240EDCB94EFA278C2C6E611428343BAFABC76A23A678E5E5E4031A6FE8EC`.
+- Validation: targeted ESLint, injected-script parse, `git diff --check`, `npm run build`, WebKit fixture for hidden categories + empty header gap, GitHub build, and embedded v85.8.50 marker check passed. Real-device acceptance is still required.
 
 ## v85.8.49 Temu SHEIN-Like Header Candidate
 
