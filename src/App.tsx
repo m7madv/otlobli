@@ -2229,20 +2229,6 @@ function App() {
     void InAppBrowser.postMessage({ detail: { type: '__backTarget', target } })
   }
 
-  const postTemuResumeResize = () => {
-    if (selectedStoreRef.current !== 'temu') return
-    window.setTimeout(() => {
-      if (screenRef.current === 'home' && selectedStoreRef.current === 'temu') {
-        void InAppBrowser.postMessage({ detail: { type: '__resize' } })
-      }
-    }, 180)
-    window.setTimeout(() => {
-      if (screenRef.current === 'home' && selectedStoreRef.current === 'temu') {
-        void InAppBrowser.postMessage({ detail: { type: '__resize' } })
-      }
-    }, 520)
-  }
-
   const refreshVpnDiagnosisForStoreFailure = () => {
     const storeReachablePromise = checkStoreReachable(selectedStoreRef.current)
     void probeVpnGeo().then(async (geo) => {
@@ -2535,6 +2521,7 @@ function App() {
       markPendingProductNavigationRequested()
     }
     currentWebviewUrlRef.current = targetUrl
+    const isIosNative = Capacitor.getPlatform() === 'ios'
     const webViewOptions: Parameters<typeof InAppBrowser.openWebView>[0] & {
       otlobliLoadingCover?: boolean
       otlobliDocumentStartScript?: string
@@ -2553,7 +2540,16 @@ function App() {
           isPresentAfterPageLoad: true,
           isAnimated: false,
         }
-        : { preShowScript: SHEIN_CAPTURE_SCRIPT, preShowScriptInjectionTime: 'documentStart' as const, isPresentAfterPageLoad: true }),
+        : {
+          preShowScript: SHEIN_CAPTURE_SCRIPT,
+          preShowScriptInjectionTime: 'documentStart' as const,
+          isPresentAfterPageLoad: true,
+          // Temu's bottom safe-area/nav height drifted after Orders -> Home
+          // because the iOS WKWebView was detached to a 1x1 hidden container
+          // and then reattached. Keep it mounted like SHEIN so the viewport
+          // and env(safe-area-inset-bottom) stay stable.
+          otlobliPreserveAttachedWhenHidden: isIosNative,
+        }),
       toolbarType: ToolBarType.BLANK,
       backgroundColor: BackgroundColor.WHITE,
       toolbarColor: '#f7f9fb',
@@ -2572,7 +2568,7 @@ function App() {
       // bottom and leaves a second native strip below our own safe-area-aware
       // nav. Let WKWebView fill the iOS controller instead; viewport-fit=cover
       // makes the injected nav own and paint the complete bottom inset.
-      enabledSafeBottomMargin: Capacitor.getPlatform() !== 'ios',
+      enabledSafeBottomMargin: !isIosNative,
       // Used to route Android traffic through a Cloudflare Worker relay here
       // (outboundProxyRules) so the device's own geo-blocked IP was never
       // what shein.com saw, while iOS skipped it (the relay crashed iOS's
@@ -2636,7 +2632,6 @@ function App() {
           const target = pendingBackTargetRef.current
           pendingBackTargetRef.current = 'home'
           postWebviewChromeState(target)
-          postTemuResumeResize()
         })
       } else if (vpnState === 'ok') {
         if (sheinBlockedError || Date.now() < webviewAutoOpenPausedUntilRef.current) return
