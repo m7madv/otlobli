@@ -5,16 +5,16 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Current Candidate
 
 - Branch: `claude/ios6-cover-fix`.
-- Current local code candidate: v85.8.57 / `APP_VERSION = 2026.07.18-v85.8.57-temu-nav-bottom-offset-22-no-otp-test`.
-- User provided side-by-side screenshots; measurement showed Temu's injected bottom nav is about 9-10px higher than the React Orders nav.
+- Current local code candidate: v85.8.58 / `APP_VERSION = 2026.07.18-v85.8.58-temu-nav-bottom-offset-18-no-otp-test`.
+- User report after v85.8.57: Temu bottom nav needs to be raised a tiny bit.
 - Scope: Temu injected bottom-nav vertical placement only. No WebView show/hide changes, Temu header forcing, product/SKU capture, blockers, payment, wallet, orders logic, or account route changes.
-- Change: lowers the Temu nav container from `bottom:-12px` to `bottom:-22px`, preserving the accepted fixed WebView/no-gap behavior and normal `translate3d(-50%,0,0)` transform.
-- GitHub iOS build `29658557163` succeeded from code commit `a0d4b0d`.
-- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.57-temu-nav-bottom-offset-22.ipa`.
-- v85.8.57 IPA SHA-256: `00C83CA2EB2BCB2F506525C5B7AF63BC3D1F697E88358BD690B4E301124AF209`.
-- Validation: targeted ESLint for script/config, injected-script parse plus `bottom:-22px` marker check, `git diff --check`, `npm run build`, GitHub build, and embedded v85.8.57 marker/offset checks passed. Real-device acceptance is still pending.
+- Change: raises the Temu nav container from `bottom:-22px` to `bottom:-18px`, a 4px upward correction, preserving the accepted fixed WebView/no-gap behavior and normal `translate3d(-50%,0,0)` transform.
+- GitHub iOS build `29658975318` succeeded from code commit `6cd9aa6`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.58-temu-nav-bottom-offset-18.ipa`.
+- v85.8.58 IPA SHA-256: `6D1D060D03404F9546AC513B2AD85993A347D2A5938A6B378EA1050028AC0401`.
+- Validation: targeted ESLint for script/config, injected-script parse plus `bottom:-18px` marker check, `git diff --check`, `npm run build`, GitHub build, and embedded v85.8.58 marker/offset checks passed. Real-device acceptance is still pending.
 - Do not reapply the v85.8.47 visible-SKU/group-dims approach until the white-page regression is understood from real-device evidence or a DOM fixture that reproduces it.
-- Next step: install v85.8.57 on the real iPhone and compare only the bottom nav vertical alignment between Temu Home and Orders/Cart. The v85.8.52 no-gap behavior should remain unchanged.
+- Next step: install v85.8.58 on the real iPhone and compare only the bottom nav vertical alignment between Temu Home and Orders/Cart. The v85.8.52 no-gap behavior should remain unchanged.
 
 <!-- Older handoff content below may be stale. -->
 

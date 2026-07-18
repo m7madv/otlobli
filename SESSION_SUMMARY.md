@@ -1,5 +1,18 @@
 # SESSION_SUMMARY.md
 
+## 2026-07-18 Temu v85.8.58 Nav Raised Slightly
+
+- Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
+- Branch: `claude/ios6-cover-fix`.
+- Current local candidate: v85.8.58 / `APP_VERSION = 2026.07.18-v85.8.58-temu-nav-bottom-offset-18-no-otp-test`.
+- User report after v85.8.57: Temu bottom nav needs to be raised a tiny bit.
+- Fix: changed only the Temu nav container offset from `bottom:-22px` to `bottom:-18px`.
+- Scope stayed narrow: no WebView show/hide change, Temu header forcing, blockers, product/SKU capture, payment, wallet, orders logic, or account route changes.
+- GitHub iOS build `29658975318` succeeded from code commit `6cd9aa6`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.58-temu-nav-bottom-offset-18.ipa`.
+- v85.8.58 IPA SHA-256: `6D1D060D03404F9546AC513B2AD85993A347D2A5938A6B378EA1050028AC0401`.
+- Validation: targeted ESLint for script/config, injected-script parse plus `bottom:-18px` marker check, `git diff --check`, `npm run build`, GitHub build, and embedded v85.8.58 marker/offset checks passed. Final acceptance still requires the real iPhone.
+
 ## 2026-07-18 Temu v85.8.57 Nav Matched From Screenshots
 
 - Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
