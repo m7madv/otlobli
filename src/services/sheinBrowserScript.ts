@@ -6657,7 +6657,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
     try {
       if (!looksLikeProductPage() || otlobliTemuSearchMode()) return;
       var v = otlobliTemuProductVitals();
-      if (v.visImg > 0 || !v.domHasContent) return; // سليمة أو DOM فارغ — لا نتدخّل
+      // فور ظهور المحتوى: نُزيل أي أنماط قسرية تركناها — كانت تبقى على حاويات
+      // Temu (flex) فتكسر تخطيطها وتفاعلها (النقر على الألوان/المقاسات لا يُسجّل).
+      if (v.visImg > 0) { otlobliTemuUndoForcedVisible(); return; }
+      if (!v.domHasContent) return; // DOM فارغ — لا نتدخّل
       var node = otlobliTemuContentAnchor();
       if (!node) return;
       var depth = 0;
@@ -6665,14 +6668,29 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if (!(node.id && node.id.indexOf('otlobli') === 0)) {
           try {
             var cs = window.getComputedStyle(node);
-            if (cs.display === 'none') { node.style.setProperty('display', 'block', 'important'); node.setAttribute('data-otlobli-temu-keep', '1'); }
-            if (cs.visibility === 'hidden') { node.style.setProperty('visibility', 'visible', 'important'); }
-            if (parseFloat(cs.opacity || '1') < 0.05) { node.style.setProperty('opacity', '1', 'important'); }
+            var forced = [];
+            if (cs.display === 'none') { node.style.setProperty('display', 'block', 'important'); forced.push('display'); }
+            if (cs.visibility === 'hidden') { node.style.setProperty('visibility', 'visible', 'important'); forced.push('visibility'); }
+            if (parseFloat(cs.opacity || '1') < 0.05) { node.style.setProperty('opacity', '1', 'important'); forced.push('opacity'); }
             var r = node.getBoundingClientRect();
-            if (r.height <= 2) node.style.setProperty('min-height', 'auto', 'important');
+            if (r.height <= 2) { node.style.setProperty('min-height', 'auto', 'important'); forced.push('min-height'); }
+            if (forced.length) node.setAttribute('data-otlobli-forced-vis', forced.join(','));
           } catch (e) {}
         }
         node = node.parentElement; depth++;
+      }
+    } catch (e) {}
+  }
+  // يُزيل الأنماط القسرية التي أضافتها force-visible فور تعافي الصفحة، فتعود
+  // تخطيطات وتفاعلات Temu (نقر الألوان/المقاسات) لحالتها الأصلية الطبيعية.
+  function otlobliTemuUndoForcedVisible() {
+    try {
+      var forced = document.querySelectorAll('[data-otlobli-forced-vis]');
+      for (var i = 0; i < forced.length; i++) {
+        var el = forced[i];
+        var props = (el.getAttribute('data-otlobli-forced-vis') || '').split(',');
+        for (var p = 0; p < props.length; p++) { if (props[p]) el.style.removeProperty(props[p]); }
+        el.removeAttribute('data-otlobli-forced-vis');
       }
     } catch (e) {}
   }
@@ -6788,9 +6806,17 @@ export const SHEIN_CAPTURE_SCRIPT = `
       } else {
         txt = document.getElementById('otlobli-temu-diag-txt');
       }
-      var lines = 'otlobli v85.8.41 | ' + v.state + ' | صور=' + v.domImg + '/' + v.visImg +
-        ' سعر=' + (v.hasPrice ? 'نعم' : 'لا') + ' | نظّف=' + clean + ' عام=' + gen + ' بحث=' + chrome +
+      var lines = 'otlobli v85.8.42 | ' + v.state + ' | صور=' + v.domImg + '/' + v.visImg +
+        ' سعر=' + (v.hasPrice ? 'نعم' : 'لا') +
         (window.__otlobliTemuHideOff ? ' | الحجب مطفأ!' : '');
+      // قراءة sku حيّة: اكبس لوناً/مقاساً وراقب هل "مختار" يتحدّث فوراً — يحسم
+      // إن كان النقر يصل Temu (aria-checked) أم أن شيئاً يمنعه.
+      try {
+        var skuD = otlobliTemuSku();
+        var skuStr = skuD.single ? 'خيار واحد' : (skuD.dims.length ?
+          skuD.dims.map(function (d) { return d.name + '=' + d.count + '/' + (d.selected || '-'); }).join('  ') : 'لا خيارات');
+        lines += '\\nsku: ' + skuStr;
+      } catch (eSku) { lines += '\\nsku: خطأ'; }
       var tr = window.__otlobliGateTrace;
       if (tr) {
         lines += '\\nبوابة: ' + (tr.res || '...') + ' | ملخّص=' + (tr.sum || '-') + ' شيت=' + (tr.sheet || '-') +
