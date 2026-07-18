@@ -2,6 +2,18 @@
 
 Last updated: 2026-07-18
 
+## v85.8.56 Temu Bottom Nav Lowered Slightly More
+
+- Branch: `claude/ios6-cover-fix`.
+- Current local candidate: v85.8.56 / `APP_VERSION = 2026.07.18-v85.8.56-temu-nav-bottom-offset-12-no-otp-test`.
+- User report after v85.8.55: Temu bottom nav is closer but still needs to move down a little more.
+- Scope: Temu injected bottom-nav vertical placement only. No WebView show/hide changes, Temu header forcing, blockers, product/SKU capture, payment, wallet, orders logic, or account route changes.
+- Fix: lower the Temu nav container from `bottom:-8px` to `bottom:-12px` and bump the injected nav style version so the WebView refreshes the inline style.
+- GitHub iOS build `29657864109` succeeded from code commit `9674808`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.56-temu-nav-bottom-offset-12.ipa`.
+- v85.8.56 IPA SHA-256: `D916588CFE9C45E2C0B5764F18179AE65216EF4DF6D8854770F47E2CD0ED378A`.
+- Validation: targeted ESLint for `src/services/sheinBrowserScript.ts` and `src/config.ts`, injected-script parse plus `bottom:-12px` marker check, `git diff --check`, `npm run build`, GitHub build, and embedded v85.8.56 marker/offset checks passed. Real-device acceptance is still required.
+
 ## v85.8.55 Temu Bottom Nav Bottom Offset
 
 - Branch: `claude/ios6-cover-fix`.
