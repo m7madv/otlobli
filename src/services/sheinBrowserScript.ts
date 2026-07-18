@@ -6509,8 +6509,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
     '[aria-label*="cart" i], [aria-label*="basket" i], [aria-label*="shopping bag" i],' +
     '[aria-label*="account" i], [aria-label*="profile" i], [aria-label*="sign in" i],' +
     'a[href*="cart" i], a[href*="login" i], a[href*="signin" i], a[href*="account" i],' +
-    '[class*="downloadUI" i], [class*="appDownload" i], [class*="downloadApp" i],' +
-    '[class*="openApp" i]' +
+    // ⚠️ لا تُعِد [class*="appDownload"]/[class*="downloadApp"] أبداً: صنف Temu
+    // "withAppDownload-1iFDH" يغلّف #main (الصفحة كلها) و"appDownload" جزء منه،
+    // فكانا يطبّقان display:none+pointer-events:none على الصفحة بأكملها = شاشة
+    // بيضاء، ثم بعد force-visible تُعاد رؤيتها لكنها تبقى مجمّدة "كأنها صورة"
+    // (pointer-events:none باقٍ). البانر الفعلي صنفه downloadUI ويُحجب أدناه.
+    '[class*="downloadUI" i], [class*="openApp" i]' +
     '{ display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; }';
   // نحقن القاعدة في أبكر لحظة ممكنة (documentStart، قبل رسم أي شيء) لمنع أي
   // وميض للعناصر المخفية. لا نعتمد على flag لمرة واحدة، بل نفحص وجود <style>
@@ -6825,7 +6829,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       } else {
         txt = document.getElementById('otlobli-temu-diag-txt');
       }
-      var lines = 'otlobli v85.8.45 | ' + v.state + ' | صور=' + v.domImg + '/' + v.visImg +
+      var lines = 'otlobli v85.8.46 | ' + v.state + ' | صور=' + v.domImg + '/' + v.visImg +
         ' سعر=' + (v.hasPrice ? 'نعم' : 'لا') +
         (window.__otlobliTemuHideOff ? ' | الحجب مطفأ!' : '');
       // قراءة sku حيّة: اكبس لوناً/مقاساً وراقب هل "مختار" يتحدّث فوراً — يحسم
@@ -6891,9 +6895,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
     ensureOverlayStyle();
     var cov = document.createElement('div');
     cov.id = 'otlobli-temu-entry-cover';
+    // pointer-events:none: الغطاء بصري فقط (يستر وميض الأيقونات) — يجب ألّا
+    // يبتلع نقرات الزبون أبداً (كان يجمّد "أول منتجين" إن ضُغط أثناء ظهوره).
     cov.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:2147483600;' +
       'background:#fff;display:flex;align-items:center;justify-content:center;' +
-      'transition:opacity .22s ease;pointer-events:auto;';
+      'transition:opacity .22s ease;pointer-events:none;';
     var sp = document.createElement('div');
     sp.style.cssText = 'width:36px;height:36px;border:3px solid #e3e6e4;border-top-color:#006948;' +
       'border-radius:50%;animation:otlobli-spin .8s linear infinite;';
