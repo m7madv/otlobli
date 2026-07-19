@@ -1,5 +1,20 @@
 # SESSION_SUMMARY.md
 
+## 2026-07-19 Temu v85.8.66 Cart Product Open + Notice Polish
+
+- Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
+- Branch: `claude/ios6-cover-fix`.
+- Current iOS candidate: v85.8.66 / `APP_VERSION = 2026.07.19-v85.8.66-cart-product-open-notice-polish-no-otp-test`.
+- Code commit: `3648898` (`fix: v85.8.66 open cart products and polish notices`).
+- User report: from Otlobli cart, tapping a product did not open it; also product/add notices looked too framed/heavy.
+- Fix: pending product URLs loaded as the initial hidden WebView page now mark navigation requested for all stores, not only SHEIN, and the open promise no longer hides a fast-revealed cart product.
+- Polish: React toast and injected browser messages now use lighter dark snackbar text surfaces with Cairo/system font, safe-area bottom positioning, and no old yellow border. The product verification overlay is text-only instead of a white framed card.
+- Scope stayed narrow: cart-product open flow and notice visuals only. No payment, wallet, orders logic, account route, Temu header, bottom nav placement, or SKU gate changes.
+- GitHub iOS build `29700181145` succeeded from code commit `3648898`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.66-cart-product-open-notice-polish.ipa`.
+- v85.8.66 IPA SHA-256: `943C7862779CA9284855C3DD717CC93BA9B1229C87D8D799CC768CF3F435953D`.
+- Validation: targeted ESLint for script/config, `npm run build`, `git diff --check`, GitHub build, and embedded IPA marker checks passed. Targeted `src/App.tsx` lint still reports pre-existing unrelated project lint issues; full build passes.
+
 ## 2026-07-19 Temu v85.8.65 Legacy Safe-Area Nav
 
 - Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.

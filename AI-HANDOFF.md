@@ -5,19 +5,25 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Current Candidate
 
 - Branch: `claude/ios6-cover-fix`.
-- Current local code candidate: v85.8.65 / `APP_VERSION = 2026.07.19-v85.8.65-temu-legacy-safe-area-nav-no-otp-test`.
-- Code commit: `d3b2be2` (`fix: v85.8.65 align Temu nav on legacy iPhones`).
-- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.65-temu-legacy-safe-area-nav.ipa`.
-- GitHub iOS build `29697979381` succeeded from code commit `d3b2be2`.
-- v85.8.65 IPA SHA-256: `FDBA2940D03E7962193C416CCB11F93B7838D5F157DBC3BDBE78BAEE3F21CECF`.
-- Latest user screenshots: v85.8.64 was good on iPhone 16 Pro Max, but on iPhone 6 the Temu bottom nav sat differently than the React Orders nav. Pixel measurement showed Temu's nav top/indicator about 36 physical pixels (18 CSS px) lower on the iPhone 6 screenshot.
-- Root cause: the Temu nav always used `bottom:-18px`. That matches modern iPhones with a bottom safe area/home indicator, but legacy iPhones report `safe-area-inset-bottom = 0`, so the same offset over-lowers the bar.
-- Change: `otlobliStabilizeTemuNavLayer()` now calls `otlobliTemuNavBottomOffset()`. iOS devices with real bottom safe area keep `-18px`; legacy iPhones with no bottom safe area use `0px`; Android keeps `-18px`.
-- Includes v85.8.64/v85.8.63 underneath: counted Temu item/model selector rows are detected, and Temu products opened from Otlobli cart reveal after WebView page load instead of leaving a white screen.
-- Scope: Temu injected bottom-nav vertical placement only. No header, blocker, product/SKU capture, payment, wallet, orders logic, or account route changes.
-- Validation: screenshot pixel comparison, targeted ESLint for script/config, `npm run build`, injected-script parse, safe-area logic check (`iphone6 safe=0 => 0px`, `iphone16 safe=34 => -18px`, Android unchanged), `git diff --check`, GitHub build, and embedded IPA marker checks passed. Real-device acceptance is still pending.
+- Current local code candidate: v85.8.66 / `APP_VERSION = 2026.07.19-v85.8.66-cart-product-open-notice-polish-no-otp-test`.
+- Code commit: `3648898` (`fix: v85.8.66 open cart products and polish notices`).
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.66-cart-product-open-notice-polish.ipa`.
+- GitHub iOS build `29700181145` succeeded from code commit `3648898`.
+- v85.8.66 IPA SHA-256: `943C7862779CA9284855C3DD717CC93BA9B1229C87D8D799CC768CF3F435953D`.
+- Latest user report: after v85.8.65, tapping a product from Otlobli cart did not open it, and the add/product notice surfaces looked too framed/heavy.
+- Root cause for cart open: a Temu product opened from cart into a fresh hidden WebView loaded as the initial target page but was not marked as a requested product navigation, so the reveal gate never completed. A fast Temu page load could also reveal and then be hidden again by the open promise handler.
+- Change: initial pending product URLs now call `markPendingProductNavigationRequested()` for all stores, not only SHEIN, and the hide-after-open branch skips hiding if that pending product already revealed.
+- Notice polish: React toast and injected browser messages now use a lighter snackbar-style dark translucent text surface with Cairo/system font, no yellow border, safe-area bottom positioning, and a text-only product verification overlay instead of the white framed card.
+- Includes v85.8.65/v85.8.64/v85.8.63 underneath: legacy iPhone Temu nav safe-area fix, counted selector rows, and Temu cart-product white-screen reveal.
+- Scope: cart-product open flow and visual notice surfaces only. No payment, wallet, orders logic, account route, Temu header, bottom nav placement, or SKU gate changes.
+- Validation: targeted ESLint for script/config, `npm run build`, `git diff --check`, GitHub build, and embedded IPA marker checks passed. `src/App.tsx` targeted lint still reports pre-existing unrelated lint issues; full TypeScript/Vite build passes.
 - Do not reapply the v85.8.47 visible-SKU/group-dims approach until the white-page regression is understood from real-device evidence or a DOM fixture that reproduces it.
-- Next real-device checks: install v85.8.65 on iPhone 6 and iPhone 16. On iPhone 6, compare Temu Home/Product bottom nav against React Orders/Cart nav; it should no longer sit 18 CSS px too low. On iPhone 16, the nav should remain like the accepted v85.8.64 alignment. Also spot-check cart product open and selector capture from v85.8.64.
+- Next real-device checks: install v85.8.66. From Otlobli cart, tap a Temu product while the store is not visible and confirm it opens. Verify back returns to cart. Check that "جاري التحقق/حدد الخيارات/تعذر..." notices appear as light text snackbars without the old yellow framed box, and that the product verification overlay is text-only. Recheck iPhone 6/16 bottom-nav alignment from v85.8.65.
+
+## Previous Candidate (v85.8.65)
+
+- v85.8.65 / commit `d3b2be2` fixed Temu bottom-nav vertical alignment on legacy iPhones by reading real `env(safe-area-inset-bottom)`: no-safe-area iPhones use `bottom:0px`, home-indicator iPhones keep `bottom:-18px`, Android unchanged.
+- GitHub iOS build `29697979381` produced `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.65-temu-legacy-safe-area-nav.ipa` with SHA-256 `FDBA2940D03E7962193C416CCB11F93B7838D5F157DBC3BDBE78BAEE3F21CECF`.
 
 ## Previous Candidate (v85.8.64)
 
