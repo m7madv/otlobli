@@ -17,4 +17,4 @@ export const SOURCE_COUNTRY: 'JO' | 'LB' | 'SA' = 'SA'
 export const TEST_ONLY_AUTH_BYPASS = true
 
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '2026.07.19-v85.8.60-temu-ignore-unavailable-sku-no-otp-test'
+export const APP_VERSION = '2026.07.19-v85.8.61-temu-disabled-child-sku-no-otp-test'

@@ -2668,6 +2668,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
           var hint = (' ' + clsRaw + ' ' + (node.id || '') + ' ' +
             (node.getAttribute('aria-label') || '') + ' ' + (node.getAttribute('title') || '') + ' ').toLowerCase();
           if (/(?:^|[\\s_-])(?:disable|disabled|soldout|sold-out|sold_out|outofstock|out-of-stock|out_of_stock|unavailable|notavailable|not-available)(?:$|[\\s_-])/i.test(hint)) return true;
+          var role = (node.getAttribute('role') || '').toLowerCase();
+          var choiceShell = role === 'radio' || node.getAttribute('aria-checked') !== null || node.getAttribute('aria-selected') !== null;
+          if (depth === 0 && choiceShell && node.querySelector) {
+            var disabledChild = node.querySelector('[disabled], [aria-disabled="true"], [data-disabled="true"], [data-disabled="1"], [data-sold-out], [data-soldout], [data-out-of-stock], [data-unavailable], [class*="disabled"], [class*="disable"], [class*="soldout"], [class*="sold-out"], [class*="outofstock"], [class*="out-of-stock"], [class*="unavailable"], [class*="notavailable"], [class*="not-available"]');
+            if (disabledChild) return true;
+          }
           var txt = temuCleanText((node.getAttribute('aria-label') || '') + ' ' +
             (node.getAttribute('title') || '') + ' ' + (node.textContent || ''));
           if (txt && txt.length <= 140 &&
