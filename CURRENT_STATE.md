@@ -2,6 +2,20 @@
 
 Last updated: 2026-07-19
 
+## v85.8.64 Temu Items Selector Row + Cart Product Open
+
+- Branch: `claude/ios6-cover-fix`.
+- Current iOS candidate: v85.8.64 / `APP_VERSION = 2026.07.19-v85.8.64-temu-items-row-cart-open-no-otp-test`.
+- Code commit: `d7cd70f` (`fix: v85.8.64 detect Temu items selector row`).
+- Includes v85.8.63 underneath: Temu products opened from Otlobli cart now mark the WebView ready after the browser page load and reveal the prepared product instead of staying on a white screen.
+- User-provided Temu DOM for a smart-watch product showed the real selector row as `skuSelector-* role="button" aria-label="7 أغراض:حدد"`. The previous structural parser detected the selector shell but did not count `أغراض`, so the product could be treated like it had no required options.
+- Fix: centralize Temu counted-variant label detection and reuse it in `temuVariantCounts()`, `temuVariantSummaryEl()`, `otlobliTemuCollapsedVariantRow()`, and the structural `skuSelector-*` parser. The second option family now includes size/model/style/type/RAM/storage plus Arabic/English item/piece labels: `أغراض/اغراض/غرض/عناصر/عنصر/قطع/قطعة/items/pieces/pcs`.
+- Scope: Temu SKU/variant detection and cart product reveal only. No header, bottom nav, blocker, payment, wallet, orders, or account route changes.
+- GitHub iOS build `29672118803` succeeded from code commit `d7cd70f`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.64-temu-items-row-cart-open.ipa`.
+- v85.8.64 IPA SHA-256: `81C48D748AB0A5C219BA585FF84A46E1219AAAB6C349EA3BF53BBF340C0882C7`.
+- Validation: pasted-DOM check extracts `7 أغراض` as `secondCount=7`, targeted ESLint for `src/services/sheinBrowserScript.ts` and `src/config.ts`, injected-script parse, `git diff --check`, `npm run build`, GitHub iOS build, and embedded IPA marker checks passed. Real-device acceptance is still required.
+
 ## v85.8.62 Temu Single Model Selector Row
 
 - Branch: `claude/ios6-cover-fix`.
