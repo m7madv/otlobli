@@ -3,7 +3,7 @@ import cairoArabicFontDataUrl from '@fontsource-variable/cairo/files/cairo-arabi
 const OTLOBLI_CAIRO_FONT_CSS =
   '@font-face{font-family:"OtlobliCairo";src:url("' + cairoArabicFontDataUrl + '") format("woff2");font-style:normal;font-weight:200 1000;font-display:block;}'
 
-const OTLOBLI_NAV_STYLE_VERSION = 'v85.8.65'
+const OTLOBLI_NAV_STYLE_VERSION = 'v85.8.67'
 const OTLOBLI_NAV_CSS =
   'position:fixed!important;left:50%!important;right:auto!important;bottom:0!important;top:auto!important;' +
   'transform:translate3d(-50%,0,0)!important;will-change:transform!important;width:100%!important;max-width:440px!important;' +
@@ -4702,9 +4702,23 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var isAppleMobile = /iP(?:hone|od|ad)/i.test(ua) ||
         ((navigator.platform || '') === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1);
       if (!isAppleMobile) return '-18px';
-      return otlobliReadSafeAreaBottomPx() > 1 ? '-18px' : '0px';
+      if (otlobliReadSafeAreaBottomPx() > 1) return '-18px';
+      return otlobliLooksLikeLegacyIOSViewport() ? '0px' : '-18px';
     } catch (e) {}
     return '-18px';
+  }
+
+  function otlobliLooksLikeLegacyIOSViewport() {
+    try {
+      var w = Math.min(window.innerWidth || 0, window.innerHeight || 0);
+      var h = Math.max(window.innerWidth || 0, window.innerHeight || 0);
+      var dpr = window.devicePixelRatio || 1;
+      // iPhone 6/7/8/SE and Plus-class legacy devices have no home indicator
+      // and top out at 414x736 CSS px. Modern iPhones are taller (812+ CSS px)
+      // even if WKWebView reports env(safe-area-inset-bottom) as 0.
+      return dpr >= 2 && w <= 414 && h <= 736;
+    } catch (e) {}
+    return false;
   }
 
   function otlobliResetTemuNavContentOffset(nav) {
