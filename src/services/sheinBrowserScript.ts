@@ -2285,43 +2285,43 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // through another tab, exactly the symptom of an overlay occasionally
     // winning the stacking tie and eating the tap.
     overlay.style.cssText = 'position:fixed;left:0;top:0;width:' + vp.width + 'px;height:' + vp.height + 'px;' +
-      'background:rgba(10,20,16,.55);z-index:2147483646;display:flex;align-items:center;justify-content:center;';
+      'background:rgba(13,18,22,.42);z-index:2147483646;display:flex;align-items:center;justify-content:center;';
     overlay.addEventListener('touchmove', function (e) { e.preventDefault(); }, { passive: false });
     overlay.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); }, true);
 
     var card = document.createElement('div');
-    card.style.cssText = 'background:#fff;border-radius:16px;padding:20px;width:min(78vw,290px);' +
-      'display:flex;flex-direction:column;align-items:center;gap:10px;animation:otlobli-pop .22s ease-out;' +
-      'box-shadow:0 14px 32px rgba(0,0,0,.32);';
+    card.style.cssText = 'background:transparent;border:0;border-radius:0;padding:0 28px;width:min(86vw,340px);' +
+      'display:flex;flex-direction:column;align-items:center;gap:8px;animation:otlobli-pop .22s ease-out;' +
+      'box-shadow:none;color:#fff;font-family:Cairo,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;text-shadow:0 1px 8px rgba(0,0,0,.28);';
 
     var thumbWrap = document.createElement('div');
-    thumbWrap.style.cssText = 'width:84px;height:84px;border-radius:12px;overflow:hidden;background:#f2f4f6;' +
-      'border:1px solid #e6e8ea;position:relative;';
+    thumbWrap.style.cssText = 'width:34px;height:34px;border-radius:50%;overflow:hidden;background:transparent;' +
+      'border:0;position:relative;margin-bottom:2px;';
     var thumb = document.createElement('img');
     thumb.id = 'otlobli-overlay-thumb';
-    thumb.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
+    thumb.style.cssText = 'width:100%;height:100%;object-fit:cover;display:none;';
     thumbWrap.appendChild(thumb);
     var spinner = document.createElement('div');
     spinner.id = 'otlobli-overlay-spinner';
-    spinner.style.cssText = 'position:absolute;inset:-3px;border-radius:14px;border:3px solid rgba(0,105,72,.2);' +
-      'border-top-color:#006948;animation:otlobli-spin .8s linear infinite;';
+    spinner.style.cssText = 'position:absolute;inset:0;border-radius:50%;border:3px solid rgba(255,255,255,.24);' +
+      'border-top-color:#fff;animation:otlobli-spin .8s linear infinite;';
     thumbWrap.appendChild(spinner);
 
     var title = document.createElement('div');
     title.id = 'otlobli-overlay-title';
-    title.style.cssText = 'font-size:13px;font-weight:700;color:#191c1e;text-align:center;direction:rtl;line-height:1.4;';
+    title.style.cssText = 'font-size:14px;font-weight:700;color:#fff;text-align:center;direction:rtl;line-height:1.45;max-width:100%;';
 
     card.appendChild(thumbWrap);
     card.appendChild(title);
 
     var meta = document.createElement('div');
     meta.id = 'otlobli-overlay-meta';
-    meta.style.cssText = 'font-size:12px;color:#3d4a42;direction:rtl;';
+    meta.style.cssText = 'font-size:12px;color:rgba(255,255,255,.82);direction:rtl;line-height:1.45;text-align:center;';
     card.appendChild(meta);
 
     var status = document.createElement('div');
     status.id = 'otlobli-overlay-status';
-    status.style.cssText = 'font-size:12px;color:#006948;font-weight:700;text-align:center;direction:rtl;margin-top:4px;';
+    status.style.cssText = 'font-size:12px;color:#d8f7e8;font-weight:700;text-align:center;direction:rtl;margin-top:2px;line-height:1.45;';
     card.appendChild(status);
 
 
@@ -4202,14 +4202,16 @@ export const SHEIN_CAPTURE_SCRIPT = `
   });
 
   function showMessage(btn, text, durationMs) {
+    ensureShakeStyle();
     var msg = document.getElementById('otlobli-msg');
     if (!msg) {
-      var vp = viewportSize();
       msg = document.createElement('div');
       msg.id = 'otlobli-msg';
-      msg.style.cssText = 'position:fixed;left:16px;top:' + (vp.height - 122) + 'px;width:' + (vp.width - 32) + 'px;z-index:2147483647;' +
-        'background:#fff3cd;color:#7a5b00;border:1px solid #ffe28a;border-radius:10px;' +
-        'padding:10px 14px;font-size:14px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.2);';
+      msg.style.cssText = 'position:fixed;left:22px;right:22px;bottom:calc(env(safe-area-inset-bottom,0px) + 98px);z-index:2147483647;' +
+        'background:rgba(23,29,36,.92);color:#fff;border:0;border-radius:14px;' +
+        'padding:10px 14px;font-size:13px;font-weight:700;line-height:1.45;text-align:center;' +
+        'box-shadow:0 12px 28px rgba(15,22,32,.24);font-family:Cairo,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;' +
+        'backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);animation:otlobli-slide-up .16s ease-out;direction:rtl;';
       document.body.appendChild(msg);
     }
     msg.textContent = text;
@@ -4232,17 +4234,18 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // بلا هذا، الفاصل الصامت كان يبدو كأن التطبيق تجمّد (شكوى مستخدم حقيقية).
   function otlobliShowGateSpinner() {
     ensureOverlayStyle();
+    ensureShakeStyle();
     if (document.getElementById('otlobli-gate-spinner')) return;
-    var vp = viewportSize();
     var wrap = document.createElement('div');
     wrap.id = 'otlobli-gate-spinner';
-    wrap.style.cssText = 'position:fixed;left:16px;top:' + (vp.height - 122) + 'px;width:' + (vp.width - 32) + 'px;z-index:2147483647;' +
-      'background:#fff3cd;color:#7a5b00;border:1px solid #ffe28a;border-radius:10px;' +
-      'padding:10px 14px;font-size:14px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.2);' +
+    wrap.style.cssText = 'position:fixed;left:22px;right:22px;bottom:calc(env(safe-area-inset-bottom,0px) + 98px);z-index:2147483647;' +
+      'background:rgba(23,29,36,.92);color:#fff;border:0;border-radius:14px;' +
+      'padding:10px 14px;font-size:13px;font-weight:700;line-height:1.45;text-align:center;box-shadow:0 12px 28px rgba(15,22,32,.24);' +
+      'font-family:Cairo,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);animation:otlobli-slide-up .16s ease-out;' +
       'display:flex;align-items:center;justify-content:center;gap:8px;direction:rtl;';
     var spin = document.createElement('span');
-    spin.style.cssText = 'width:16px;height:16px;border-radius:50%;border:2px solid rgba(122,91,0,.25);' +
-      'border-top-color:#7a5b00;animation:otlobli-spin .8s linear infinite;flex-shrink:0;';
+    spin.style.cssText = 'width:15px;height:15px;border-radius:50%;border:2px solid rgba(255,255,255,.28);' +
+      'border-top-color:#fff;animation:otlobli-spin .8s linear infinite;flex-shrink:0;';
     wrap.appendChild(spin);
     var label = document.createElement('span');
     label.textContent = 'جاري التحقق من المنتج...';

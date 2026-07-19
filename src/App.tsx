@@ -821,6 +821,7 @@ function App() {
   const [quantity, setQuantity] = useState(1)
   const [activeImage, setActiveImage] = useState(0)
   const [notice, setNotice] = useState('')
+  const noticeTimerRef = useRef<number | undefined>(undefined)
   const [savedProduct, setSavedProduct] = useStoredState(storageKeys.savedProduct, false)
   const [selectedStore, setSelectedStore] = useStoredState<StoreId>(storageKeys.selectedStore, 'shein')
   const selectedStoreRef = useRef(selectedStore)
@@ -1067,8 +1068,14 @@ function App() {
   const order = visibleOrders.find((item) => item.id === currentOrderId) ?? visibleOrders[0] ?? null
 
   const showNotice = (message: string) => {
+    if (noticeTimerRef.current !== undefined) {
+      window.clearTimeout(noticeTimerRef.current)
+    }
     setNotice(message)
-    window.setTimeout(() => setNotice(''), 1900)
+    noticeTimerRef.current = window.setTimeout(() => {
+      setNotice('')
+      noticeTimerRef.current = undefined
+    }, 2200)
   }
 
   const handleGroupInviteUrl = useCallback((url: string) => {
@@ -2530,7 +2537,7 @@ function App() {
     const activeStore = selectedStoreRef.current
     const rawTargetUrl = initialPendingUrl || storeUrl(activeStore)
     const targetUrl = activeStore === 'shein' ? normalizeSheinBrowserUrl(rawTargetUrl) : normalizeTemuBrowserUrl(rawTargetUrl)
-    if (activeStore === 'shein' && initialPendingUrl && pendingProductRevealRef.current &&
+    if (initialPendingUrl && pendingProductRevealRef.current &&
         pendingProductRevealUrlRef.current === targetUrl) {
       markPendingProductNavigationRequested()
     }
@@ -2611,7 +2618,7 @@ function App() {
         if (!result) return
         if (sessionId !== webviewSessionRef.current) return
         webviewIdRef.current = result?.id ?? webviewIdRef.current
-        if (screenRef.current !== 'home') {
+        if (screenRef.current !== 'home' && (!initialPendingUrl || pendingProductRevealRef.current)) {
           void InAppBrowser.hide().catch(() => undefined)
         }
         postWebviewChromeState(pendingBackTargetRef.current)
