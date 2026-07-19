@@ -1,5 +1,20 @@
 # SESSION_SUMMARY.md
 
+## 2026-07-20 Temu v85.8.67 Modern iPhone Nav Offset
+
+- Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
+- Branch: `claude/ios6-cover-fix`.
+- Current iOS candidate: v85.8.67 / `APP_VERSION = 2026.07.20-v85.8.67-temu-modern-iphone-nav-offset-no-otp-test`.
+- Code commit: `3a4e2dc` (`fix: v85.8.67 keep modern iPhone Temu nav offset`).
+- User report: the iPhone 6 nav fix worked, but Temu bottom nav placement broke on iPhone 16 Pro Max.
+- Root cause: inside Temu WKWebView, `env(safe-area-inset-bottom)` can return `0` on iPhone 16 Pro Max, so the v85.8.65 adaptive logic chose the legacy iPhone 6 path.
+- Fix: keep `bottom:-18px` when safe-area is present; if safe-area is zero, classify legacy no-home-indicator phones by viewport (`<=414x736` CSS px) and use `0px`; modern tall iPhones fall back to `-18px`.
+- Scope stayed narrow: Temu injected bottom-nav vertical placement only. No cart flow, notices, header, blockers, product/SKU capture, payment, wallet, orders logic, or account route changes.
+- GitHub iOS build `29704696750` succeeded from code commit `3a4e2dc`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.67-temu-modern-iphone-nav-offset.ipa`.
+- v85.8.67 IPA SHA-256: `1A9CF7A06D25ADF48A91EF71C0F037A09187AA49511348F41ACBCCD1C7E16451`.
+- Validation: targeted ESLint for script/config, viewport logic check, `npm run build`, `git diff --check`, GitHub build, and embedded IPA marker checks passed.
+
 ## 2026-07-19 Temu v85.8.66 Cart Product Open + Notice Polish
 
 - Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.

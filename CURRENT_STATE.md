@@ -1,11 +1,26 @@
 # Otlobli Current State
 
-Last updated: 2026-07-19
+Last updated: 2026-07-20
+
+## v85.8.67 Temu Modern iPhone Nav Offset
+
+- Branch: `claude/ios6-cover-fix`.
+- Current iOS candidate: v85.8.67 / `APP_VERSION = 2026.07.20-v85.8.67-temu-modern-iphone-nav-offset-no-otp-test`.
+- Code commit: `3a4e2dc` (`fix: v85.8.67 keep modern iPhone Temu nav offset`).
+- User report after v85.8.66: the v85.8.65 iPhone 6 bottom-nav fix worked on iPhone 6, but broke the Temu bottom nav on iPhone 16 Pro Max.
+- Root cause: relying only on `env(safe-area-inset-bottom)` is not stable inside Temu's WKWebView; on iPhone 16 Pro Max it can report `0`, which incorrectly selected the legacy iPhone 6 `bottom:0px` path.
+- Fix: if real safe-area is present, keep `bottom:-18px`; if safe-area is zero, classify legacy no-home-indicator iPhones by CSS viewport (`<=414x736`) and use `bottom:0px`; modern tall iPhones such as iPhone 16 Pro Max fall back to `bottom:-18px`.
+- Scope: Temu injected bottom-nav vertical placement only. No cart flow, notices, header, blocker, product/SKU capture, payment, wallet, orders logic, or account route changes.
+- GitHub iOS build `29704696750` succeeded from code commit `3a4e2dc`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.67-temu-modern-iphone-nav-offset.ipa`.
+- v85.8.67 IPA SHA-256: `1A9CF7A06D25ADF48A91EF71C0F037A09187AA49511348F41ACBCCD1C7E16451`.
+- Validation: targeted ESLint for `src/services/sheinBrowserScript.ts` and `src/config.ts`, viewport logic check (`iPhone6 => 0px`, `iPhone16PM env0 => -18px`), `npm run build`, `git diff --check`, GitHub iOS build, and embedded IPA marker checks passed.
+- Includes v85.8.66 underneath: cart product open flow and notice polish.
 
 ## v85.8.66 Cart Product Open + Notice Polish
 
 - Branch: `claude/ios6-cover-fix`.
-- Current iOS candidate: v85.8.66 / `APP_VERSION = 2026.07.19-v85.8.66-cart-product-open-notice-polish-no-otp-test`.
+- Previous iOS candidate: v85.8.66 / `APP_VERSION = 2026.07.19-v85.8.66-cart-product-open-notice-polish-no-otp-test`.
 - Code commit: `3648898` (`fix: v85.8.66 open cart products and polish notices`).
 - User report after v85.8.65: tapping a product from Otlobli cart did not open it, and the browser/product notices looked too framed/heavy.
 - Root cause for cart open: when Temu was opened directly from a cart item while the WebView was not already visible, the target URL loaded as the initial hidden page but was not marked as a requested product navigation, so the reveal gate never completed. A fast Temu load could also reveal and then be hidden again by the open promise handler.
