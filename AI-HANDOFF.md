@@ -5,9 +5,26 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Current Candidate
 
 - Branch: `claude/ios6-cover-fix`.
-- Current local code candidate: v85.8.64 / `APP_VERSION = 2026.07.19-v85.8.64-temu-items-row-cart-open-no-otp-test`.
+- Current local code candidate: v85.8.65 / `APP_VERSION = 2026.07.19-v85.8.65-temu-legacy-safe-area-nav-no-otp-test`.
+- Code commit: `d3b2be2` (`fix: v85.8.65 align Temu nav on legacy iPhones`).
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.65-temu-legacy-safe-area-nav.ipa`.
+- GitHub iOS build `29697979381` succeeded from code commit `d3b2be2`.
+- v85.8.65 IPA SHA-256: `FDBA2940D03E7962193C416CCB11F93B7838D5F157DBC3BDBE78BAEE3F21CECF`.
+- Latest user screenshots: v85.8.64 was good on iPhone 16 Pro Max, but on iPhone 6 the Temu bottom nav sat differently than the React Orders nav. Pixel measurement showed Temu's nav top/indicator about 36 physical pixels (18 CSS px) lower on the iPhone 6 screenshot.
+- Root cause: the Temu nav always used `bottom:-18px`. That matches modern iPhones with a bottom safe area/home indicator, but legacy iPhones report `safe-area-inset-bottom = 0`, so the same offset over-lowers the bar.
+- Change: `otlobliStabilizeTemuNavLayer()` now calls `otlobliTemuNavBottomOffset()`. iOS devices with real bottom safe area keep `-18px`; legacy iPhones with no bottom safe area use `0px`; Android keeps `-18px`.
+- Includes v85.8.64/v85.8.63 underneath: counted Temu item/model selector rows are detected, and Temu products opened from Otlobli cart reveal after WebView page load instead of leaving a white screen.
+- Scope: Temu injected bottom-nav vertical placement only. No header, blocker, product/SKU capture, payment, wallet, orders logic, or account route changes.
+- Validation: screenshot pixel comparison, targeted ESLint for script/config, `npm run build`, injected-script parse, safe-area logic check (`iphone6 safe=0 => 0px`, `iphone16 safe=34 => -18px`, Android unchanged), `git diff --check`, GitHub build, and embedded IPA marker checks passed. Real-device acceptance is still pending.
+- Do not reapply the v85.8.47 visible-SKU/group-dims approach until the white-page regression is understood from real-device evidence or a DOM fixture that reproduces it.
+- Next real-device checks: install v85.8.65 on iPhone 6 and iPhone 16. On iPhone 6, compare Temu Home/Product bottom nav against React Orders/Cart nav; it should no longer sit 18 CSS px too low. On iPhone 16, the nav should remain like the accepted v85.8.64 alignment. Also spot-check cart product open and selector capture from v85.8.64.
+
+## Previous Candidate (v85.8.64)
+
+- Branch: `claude/ios6-cover-fix`.
+- Previous local code candidate: v85.8.64 / `APP_VERSION = 2026.07.19-v85.8.64-temu-items-row-cart-open-no-otp-test`.
 - Code commit: `d7cd70f` (`fix: v85.8.64 detect Temu items selector row`).
-- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.64-temu-items-row-cart-open.ipa`.
+- Previous iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.64-temu-items-row-cart-open.ipa`.
 - GitHub iOS build `29672118803` succeeded from code commit `d7cd70f`.
 - v85.8.64 IPA SHA-256: `81C48D748AB0A5C219BA585FF84A46E1219AAAB6C349EA3BF53BBF340C0882C7`.
 - Latest user DOM/screenshot: Temu smart-watch product has structural row `skuSelector-* role="button" aria-label="7 أغراض:حدد"`. The old structural parser detected the selector shell but did not count `أغراض`, so Otlobli could treat the product as if it had no required options.

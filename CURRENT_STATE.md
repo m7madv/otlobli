@@ -2,10 +2,25 @@
 
 Last updated: 2026-07-19
 
+## v85.8.65 Temu Legacy Safe-Area Nav
+
+- Branch: `claude/ios6-cover-fix`.
+- Current iOS candidate: v85.8.65 / `APP_VERSION = 2026.07.19-v85.8.65-temu-legacy-safe-area-nav-no-otp-test`.
+- Code commit: `d3b2be2` (`fix: v85.8.65 align Temu nav on legacy iPhones`).
+- User tested v85.8.64 on iPhone 16 Pro Max and iPhone 6: general behavior was good, but the Temu bottom nav was vertically different on iPhone 6 while iPhone 16 looked aligned.
+- Real screenshot measurement on iPhone 6 showed the Temu nav top/indicator about 36 physical pixels (18 CSS px) lower than the React Orders nav. This matched the old universal `bottom:-18px` Temu nav offset.
+- Fix: Temu nav now reads the real `env(safe-area-inset-bottom)` at runtime. iOS devices with a home-indicator safe area keep `bottom:-18px`; legacy iPhones with `safe-area-inset-bottom = 0` use `bottom:0px`; Android keeps the previous `-18px` path.
+- Scope: Temu injected bottom-nav vertical placement only. No header, blocker, product/SKU capture, payment, wallet, orders logic, or account route changes.
+- GitHub iOS build `29697979381` succeeded from code commit `d3b2be2`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.65-temu-legacy-safe-area-nav.ipa`.
+- v85.8.65 IPA SHA-256: `FDBA2940D03E7962193C416CCB11F93B7838D5F157DBC3BDBE78BAEE3F21CECF`.
+- Validation: screenshot pixel comparison, targeted ESLint for `src/services/sheinBrowserScript.ts` and `src/config.ts`, injected-script parse, safe-area logic check (`iphone6 safe=0 => 0px`, `iphone16 safe=34 => -18px`, Android unchanged), `npm run build`, `git diff --check`, GitHub iOS build, and embedded IPA marker checks passed. Real-device acceptance is still required.
+- Includes v85.8.64 underneath: Temu counted-variant item labels are detected in summary/collapsed/structural selector paths, and Temu products opened from Otlobli cart reveal after WebView page load.
+
 ## v85.8.64 Temu Items Selector Row + Cart Product Open
 
 - Branch: `claude/ios6-cover-fix`.
-- Current iOS candidate: v85.8.64 / `APP_VERSION = 2026.07.19-v85.8.64-temu-items-row-cart-open-no-otp-test`.
+- Previous iOS candidate: v85.8.64 / `APP_VERSION = 2026.07.19-v85.8.64-temu-items-row-cart-open-no-otp-test`.
 - Code commit: `d7cd70f` (`fix: v85.8.64 detect Temu items selector row`).
 - Includes v85.8.63 underneath: Temu products opened from Otlobli cart now mark the WebView ready after the browser page load and reveal the prepared product instead of staying on a white screen.
 - User-provided Temu DOM for a smart-watch product showed the real selector row as `skuSelector-* role="button" aria-label="7 أغراض:حدد"`. The previous structural parser detected the selector shell but did not count `أغراض`, so the product could be treated like it had no required options.

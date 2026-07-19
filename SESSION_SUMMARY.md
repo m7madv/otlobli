@@ -1,5 +1,20 @@
 # SESSION_SUMMARY.md
 
+## 2026-07-19 Temu v85.8.65 Legacy Safe-Area Nav
+
+- Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
+- Branch: `claude/ios6-cover-fix`.
+- Current iOS candidate: v85.8.65 / `APP_VERSION = 2026.07.19-v85.8.65-temu-legacy-safe-area-nav-no-otp-test`.
+- Code commit: `d3b2be2` (`fix: v85.8.65 align Temu nav on legacy iPhones`).
+- User tested v85.8.64 on iPhone 16 Pro Max and iPhone 6. iPhone 16 nav alignment was good, but on iPhone 6 the Temu bottom nav sat differently than the React Orders nav.
+- Screenshot measurement found a 36 physical pixel / 18 CSS px vertical difference on iPhone 6, matching the old universal Temu `bottom:-18px` offset.
+- Fix: Temu nav placement now depends on actual `env(safe-area-inset-bottom)`: modern iPhones with bottom safe area keep `-18px`, legacy iPhones with no bottom safe area use `0px`, and Android keeps the previous `-18px` behavior.
+- Scope stayed narrow: Temu injected bottom-nav vertical placement only. No header, blockers, product/SKU capture, payment, wallet, orders logic, or account route changes.
+- GitHub iOS build `29697979381` succeeded from code commit `d3b2be2`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.65-temu-legacy-safe-area-nav.ipa`.
+- v85.8.65 IPA SHA-256: `FDBA2940D03E7962193C416CCB11F93B7838D5F157DBC3BDBE78BAEE3F21CECF`.
+- Validation: screenshot pixel comparison, targeted ESLint for script/config, injected-script parse, safe-area logic check, `git diff --check`, `npm run build`, GitHub build, and embedded IPA marker checks passed. Final acceptance still requires the real iPhone 6 and iPhone 16 check.
+
 ## 2026-07-19 Temu v85.8.64 Items Selector Row + Cart Product Open
 
 - Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
