@@ -5,16 +5,17 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Current Candidate
 
 - Branch: `claude/ios6-cover-fix`.
-- Current local code candidate: v85.8.58 / `APP_VERSION = 2026.07.18-v85.8.58-temu-nav-bottom-offset-18-no-otp-test`.
-- User report after v85.8.57: Temu bottom nav needs to be raised a tiny bit.
-- Scope: Temu injected bottom-nav vertical placement only. No WebView show/hide changes, Temu header forcing, product/SKU capture, blockers, payment, wallet, orders logic, or account route changes.
-- Change: raises the Temu nav container from `bottom:-22px` to `bottom:-18px`, a 4px upward correction, preserving the accepted fixed WebView/no-gap behavior and normal `translate3d(-50%,0,0)` transform.
-- GitHub iOS build `29658975318` succeeded from code commit `6cd9aa6`.
-- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.58-temu-nav-bottom-offset-18.ipa`.
-- v85.8.58 IPA SHA-256: `6D1D060D03404F9546AC513B2AD85993A347D2A5938A6B378EA1050028AC0401`.
-- Validation: targeted ESLint for script/config, injected-script parse plus `bottom:-18px` marker check, `git diff --check`, `npm run build`, GitHub build, and embedded v85.8.58 marker/offset checks passed. Real-device acceptance is still pending.
+- Current local code candidate: v85.8.61 / `APP_VERSION = 2026.07.19-v85.8.61-temu-disabled-child-sku-no-otp-test`.
+- User's latest DOM paste for a Temu luggage product shows unavailable options as `role="radio"` shells containing an inner `disabled-*` SKU card, while the radio wrapper itself is not disabled.
+- Scope: Temu SKU/variant availability only. No bottom nav placement, header forcing, blockers, payment, wallet, orders logic, or account route changes.
+- Change: `temuOptionUnavailable()` now checks disabled/sold-out/out-of-stock descendants inside radio/ARIA choice shells. Unavailable choices no longer count as selected, no longer satisfy the add gate, and recent unavailable taps show `هذا الخيار غير متوفر حالياً`.
+- v85.8.60 (`cb7563d`, build `29668648639`) is superseded; it filtered unavailable options but missed this child-disabled DOM shape.
+- GitHub iOS build `29668801470` succeeded from code commit `480b2b1`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.61-temu-disabled-child-sku.ipa`.
+- v85.8.61 IPA SHA-256: `7EAECBC0F233250E4379859CA581EB13099660FD4836E059FD93905ACECCC5D5`.
+- Validation: targeted ESLint for script/config, `npm run build`, injected-script parse, pasted-DOM extraction (`روز جولدن` available, `أسود`/`أبيض` disabled children), `git diff --check`, GitHub build, and embedded bundle marker check passed. Real-device acceptance is still pending.
 - Do not reapply the v85.8.47 visible-SKU/group-dims approach until the white-page regression is understood from real-device evidence or a DOM fixture that reproduces it.
-- Next step: install v85.8.58 on the real iPhone and compare only the bottom nav vertical alignment between Temu Home and Orders/Cart. The v85.8.52 no-gap behavior should remain unchanged.
+- Next step: install v85.8.61 on the real iPhone. On the pasted luggage product, tapping unavailable colors should not add or satisfy the SKU gate; choosing an available option should still add normally.
 
 <!-- Older handoff content below may be stale. -->
 

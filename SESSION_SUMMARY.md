@@ -1,5 +1,18 @@
 # SESSION_SUMMARY.md
 
+## 2026-07-19 Temu v85.8.61 Disabled Child SKU Options
+
+- Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
+- Branch: `claude/ios6-cover-fix`.
+- Current local candidate: v85.8.61 / `APP_VERSION = 2026.07.19-v85.8.61-temu-disabled-child-sku-no-otp-test`.
+- User pasted DOM after pressing an unavailable Temu option. The real marker is inside the radio option: inner class `disabled-*` while the `role="radio"` shell remains present.
+- Fix: `temuOptionUnavailable()` now checks disabled/sold-out/out-of-stock child markers inside radio/ARIA choice shells, so unavailable options are not captured as selected and do not satisfy add-to-cart validation.
+- Scope stayed narrow: Temu SKU availability only. No bottom nav placement, header forcing, blockers, payment, wallet, orders logic, or account route changes.
+- GitHub iOS build `29668801470` succeeded from code commit `480b2b1`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.61-temu-disabled-child-sku.ipa`.
+- v85.8.61 IPA SHA-256: `7EAECBC0F233250E4379859CA581EB13099660FD4836E059FD93905ACECCC5D5`.
+- Validation: targeted ESLint for script/config, `npm run build`, injected-script parse, pasted-DOM radio extraction, `git diff --check`, GitHub build, and embedded marker check passed. Final acceptance still requires the real iPhone.
+
 ## 2026-07-18 Temu v85.8.58 Nav Raised Slightly
 
 - Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
