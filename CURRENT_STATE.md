@@ -2,6 +2,18 @@
 
 Last updated: 2026-07-19
 
+## v85.8.62 Temu Single Model Selector Row
+
+- Branch: `claude/ios6-cover-fix`.
+- Current local candidate: v85.8.62 / `APP_VERSION = 2026.07.19-v85.8.62-temu-single-model-row-no-otp-test`.
+- User screenshot showed a Temu product whose diagnostic overlay said `sku: لا خيارات` while the page visibly had a collapsed option row: `4 الموديل: ...` with a `حدد` button. The existing detector only trusted `skuSelector-*` collapsed rows or color+size summaries, so a single model-only row was missed.
+- Scope: Temu SKU/variant detection only. No bottom nav, header, blockers, payment, wallet, orders, or account route changes.
+- Fix: add `otlobliTemuCollapsedVariantRow()` to detect visible collapsed rows that contain `حدد/select/choose` plus a counted variant label such as `4 الموديل`, `3 اللون`, `24 موديل متوافق`, size/style/type/RAM/storage. This row becomes the `collapsedEl`, so Otlobli opens the options sheet and waits for the user selection instead of adding with missing model data.
+- GitHub iOS build `29670967272` succeeded from code commit `0e7882c`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.62-temu-single-model-row.ipa`.
+- v85.8.62 IPA SHA-256: `5A23674D464277D424C6D961A3190179638FF86D4B22A45804B8A6939B3D4B5B`.
+- Validation: targeted ESLint for `src/services/sheinBrowserScript.ts` and `src/config.ts`, `npm run build`, regex check for the screenshot pattern (`4 الموديل` -> 4), injected-script parse, `git diff --check`, GitHub build, and embedded bundle marker check passed. Real-device acceptance is still required.
+
 ## v85.8.61 Temu Disabled Child SKU Options
 
 - Branch: `claude/ios6-cover-fix`.

@@ -1,5 +1,18 @@
 # SESSION_SUMMARY.md
 
+## 2026-07-19 Temu v85.8.62 Single Model Selector Row
+
+- Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
+- Branch: `claude/ios6-cover-fix`.
+- Current local candidate: v85.8.62 / `APP_VERSION = 2026.07.19-v85.8.62-temu-single-model-row-no-otp-test`.
+- User screenshot showed a WEEME Temu product with `4 الموديل: ...` and `حدد`, while the diagnostic overlay reported `sku: لا خيارات`.
+- Fix: added a narrow collapsed-row detector for visible `حدد/select/choose` rows with counted variant labels, so model-only selectors are opened and required before add-to-cart.
+- Scope stayed narrow: Temu SKU detection only. No bottom nav, header, blockers, payment, wallet, orders logic, or account route changes.
+- GitHub iOS build `29670967272` succeeded from code commit `0e7882c`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.62-temu-single-model-row.ipa`.
+- v85.8.62 IPA SHA-256: `5A23674D464277D424C6D961A3190179638FF86D4B22A45804B8A6939B3D4B5B`.
+- Validation: targeted ESLint for script/config, `npm run build`, screenshot-pattern regex check, injected-script parse, `git diff --check`, GitHub build, and embedded marker check passed. Final acceptance still requires the real iPhone.
+
 ## 2026-07-19 Temu v85.8.61 Disabled Child SKU Options
 
 - Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.

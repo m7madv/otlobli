@@ -5,17 +5,17 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Current Candidate
 
 - Branch: `claude/ios6-cover-fix`.
-- Current local code candidate: v85.8.61 / `APP_VERSION = 2026.07.19-v85.8.61-temu-disabled-child-sku-no-otp-test`.
-- User's latest DOM paste for a Temu luggage product shows unavailable options as `role="radio"` shells containing an inner `disabled-*` SKU card, while the radio wrapper itself is not disabled.
-- Scope: Temu SKU/variant availability only. No bottom nav placement, header forcing, blockers, payment, wallet, orders logic, or account route changes.
-- Change: `temuOptionUnavailable()` now checks disabled/sold-out/out-of-stock descendants inside radio/ARIA choice shells. Unavailable choices no longer count as selected, no longer satisfy the add gate, and recent unavailable taps show `هذا الخيار غير متوفر حالياً`.
-- v85.8.60 (`cb7563d`, build `29668648639`) is superseded; it filtered unavailable options but missed this child-disabled DOM shape.
-- GitHub iOS build `29668801470` succeeded from code commit `480b2b1`.
-- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.61-temu-disabled-child-sku.ipa`.
-- v85.8.61 IPA SHA-256: `7EAECBC0F233250E4379859CA581EB13099660FD4836E059FD93905ACECCC5D5`.
-- Validation: targeted ESLint for script/config, `npm run build`, injected-script parse, pasted-DOM extraction (`روز جولدن` available, `أسود`/`أبيض` disabled children), `git diff --check`, GitHub build, and embedded bundle marker check passed. Real-device acceptance is still pending.
+- Current local code candidate: v85.8.62 / `APP_VERSION = 2026.07.19-v85.8.62-temu-single-model-row-no-otp-test`.
+- Latest user screenshot: Temu product with collapsed row `4 الموديل: ...` and `حدد`, while diagnostic overlay reads `sku: لا خيارات`. The row is model-only, so old summary detection missed it.
+- Scope: Temu SKU/variant detection only. No bottom nav placement, header forcing, blockers, payment, wallet, orders logic, or account route changes.
+- Change: added `otlobliTemuCollapsedVariantRow()` to detect visible `حدد/select/choose` rows with counted variant labels (`4 الموديل`, color/model/size/style/type/RAM/storage). It sets `collapsedEl` so add opens the sheet and waits for the customer selection.
+- v85.8.61 remains the unavailable-option fix and is included underneath this change.
+- GitHub iOS build `29670967272` succeeded from code commit `0e7882c`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.62-temu-single-model-row.ipa`.
+- v85.8.62 IPA SHA-256: `5A23674D464277D424C6D961A3190179638FF86D4B22A45804B8A6939B3D4B5B`.
+- Validation: targeted ESLint for script/config, `npm run build`, regex check for `4 الموديل`, injected-script parse, `git diff --check`, GitHub build, and embedded bundle marker check passed. Real-device acceptance is still pending.
 - Do not reapply the v85.8.47 visible-SKU/group-dims approach until the white-page regression is understood from real-device evidence or a DOM fixture that reproduces it.
-- Next step: install v85.8.61 on the real iPhone. On the pasted luggage product, tapping unavailable colors should not add or satisfy the SKU gate; choosing an available option should still add normally.
+- Next step: install v85.8.62 on the real iPhone. On the WEEME product, pressing Otlobli add should open the `4 الموديل` options sheet instead of treating the product as `لا خيارات`; after selecting a model, it should capture/add normally.
 
 <!-- Older handoff content below may be stale. -->
 
