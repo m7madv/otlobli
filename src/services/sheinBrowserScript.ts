@@ -2736,6 +2736,19 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // القابلية للنقر هي ما يميّز زر الخيار عن شارة السعر (غير قابلة للنقر) -
   // وهذا أصلح خطأ التقاط السعر مكان المقاس.
   // عنوان قسم المقاس ("Size"/"المقاس").
+  function temuVariantColorCountMatch(txt) {
+    return temuCleanText(txt).match(/(\\d+)\\s*(?:\u0627\u0644\u0644\u0648\u0646|\u0644\u0648\u0646|\u0623\u0644\u0648\u0627\u0646|\u0627\u0644\u0623\u0644\u0648\u0627\u0646|colou?rs?)/i);
+  }
+  function temuVariantSecondOptionCountMatch(txt) {
+    return temuCleanText(txt).match(/(\\d+)\\s*(?:\u0627\u0644\u0645\u0648\u062f\u064a\u0644|\u0645\u0648\u062f\u064a\u0644|models?|\u0645\u0642\u0627\u0633|\u0645\u0642\u0627\u0633\u0627\u062a|sizes?|\u0623\u0633\u0644\u0648\u0628|\u0646\u0645\u0637|style|\u0646\u0648\u0639|type|ram|rom|memory|storage|capacity|gb|g\\b|\u0630\u0627\u0643\u0631\u0629|\u0627\u0644\u0630\u0627\u0643\u0631\u0629|\u0631\u0627\u0645|\u0627\u0644\u0631\u0627\u0645|\u0633\u0639\u0629|\u0627\u0644\u0633\u0639\u0629|\u062a\u062e\u0632\u064a\u0646|\u0627\u0644\u062a\u062e\u0632\u064a\u0646|\u0623\u063a\u0631\u0627\u0636|\u0627\u063a\u0631\u0627\u0636|\u0627\u0644\u0623\u063a\u0631\u0627\u0636|\u0627\u0644\u0627\u063a\u0631\u0627\u0636|\u063a\u0631\u0636|\u0627\u0644\u063a\u0631\u0636|\u0639\u0646\u0635\u0631|\u0627\u0644\u0639\u0646\u0635\u0631|\u0639\u0646\u0627\u0635\u0631|\u0627\u0644\u0639\u0646\u0627\u0635\u0631|\u0642\u0637\u0639|\u0627\u0644\u0642\u0637\u0639|\u0642\u0637\u0639\u0629|\u0627\u0644\u0642\u0637\u0639\u0629|items?|pieces?|pcs?)/i);
+  }
+  function temuVariantSecondOptionName(txt) {
+    var t = temuCleanText(txt);
+    if (/\u0645\u0648\u062f\u064a\u0644|models?/i.test(t)) return '\u0627\u0644\u0645\u0648\u062f\u064a\u0644';
+    if (/\u0623\u0633\u0644\u0648\u0628|\u0646\u0645\u0637|style|\u0646\u0648\u0639|type/i.test(t)) return '\u0623\u0633\u0644\u0648\u0628';
+    if (/\u0623\u063a\u0631\u0627\u0636|\u0627\u063a\u0631\u0627\u0636|\u063a\u0631\u0636|\u0639\u0646\u0635\u0631|\u0639\u0646\u0627\u0635\u0631|\u0642\u0637\u0639|\u0642\u0637\u0639\u0629|items?|pieces?|pcs?/i.test(t)) return '\u0623\u063a\u0631\u0627\u0636';
+    return '\u0645\u0642\u0627\u0633';
+  }
   function temuLooksLikeVariantOptionLabel(text) {
     var ht = temuCleanText(text);
     if (!ht || ht.length > 58) return false;
@@ -2746,8 +2759,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // \u0645\u0646\u062a\u062c\u0627\u062a \u0628\u0644\u0627 \u0645\u0642\u0627\u0633\u0627\u062a \u0625\u0637\u0644\u0627\u0642\u0627\u064b (\u0648\u0633\u0627\u062f\u0629/\u0628\u0627\u0648\u0631 \u0628\u0627\u0646\u0643/\u0645\u0627\u0643\u064a\u0646\u0629 \u062d\u0644\u0627\u0642\u0629) \u0628\u0640"\u062d\u062f\u062f \u0627\u0644\u0645\u0642\u0627\u0633
     // \u0623\u0648\u0644\u0627\u064b". \u0631\u0623\u0633 \u0627\u0644\u0642\u0633\u0645 \u0627\u0644\u062d\u0642\u064a\u0642\u064a \u0625\u0645\u0627 \u0642\u0635\u064a\u0631 ("\u0627\u0644\u0645\u0648\u062f\u064a\u0644") \u0623\u0648 \u064a\u062d\u0645\u0644 \u0646\u0642\u0637\u062a\u064a\u0646 \u0648\u0642\u064a\u0645\u0629.
     if (!/[:\uff1a]/.test(ht) && ht.length > 14) return false;
-    if (/^(?:Size|Compatible\\s*Model|Model|Style|Type|Memory|Storage|Capacity|RAM|ROM)\\s*[:\uff1a]?/i.test(ht)) return true;
-    if (/^(?:\u0627\u0644)?(?:\u0645\u0642\u0627\u0633|\u0642\u064a\u0627\u0633|\u062d\u062c\u0645|\u0645\u0648\u062f\u064a\u0644|\u0623\u0633\u0644\u0648\u0628|\u0646\u0645\u0637|\u0646\u0648\u0639|\u0630\u0627\u0643\u0631\u0629|\u0631\u0627\u0645|\u0633\u0639\u0629|\u062a\u062e\u0632\u064a\u0646)\\s*[:\uff1a]?/i.test(ht)) return true;
+    if (/^(?:Size|Compatible\\s*Model|Model|Style|Type|Memory|Storage|Capacity|RAM|ROM|Items?|Pieces?|PCS)\\s*[:\uff1a]?/i.test(ht)) return true;
+    if (/^(?:\u0627\u0644)?(?:\u0645\u0642\u0627\u0633|\u0642\u064a\u0627\u0633|\u062d\u062c\u0645|\u0645\u0648\u062f\u064a\u0644|\u0623\u0633\u0644\u0648\u0628|\u0646\u0645\u0637|\u0646\u0648\u0639|\u0630\u0627\u0643\u0631\u0629|\u0631\u0627\u0645|\u0633\u0639\u0629|\u062a\u062e\u0632\u064a\u0646|\u0623\u063a\u0631\u0627\u0636|\u0627\u063a\u0631\u0627\u0636|\u063a\u0631\u0636|\u0639\u0646\u0635\u0631|\u0639\u0646\u0627\u0635\u0631|\u0642\u0637\u0639|\u0642\u0637\u0639\u0629)\\s*[:\uff1a]?/i.test(ht)) return true;
     return false;
   }
   function temuSizeHeadEl() {
@@ -2774,12 +2787,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function temuVariantCounts() {
     var el = temuVariantSummaryEl();
     var txt = el ? temuCleanText(el.textContent) : '';
-    var ramMatch = txt.match(/(\\d+)\\s*(?:memory|storage|capacity|ram|rom|gb|g\\b|\u0630\u0627\u0643\u0631\u0629|\u0627\u0644\u0630\u0627\u0643\u0631\u0629|\u0631\u0627\u0645|\u0627\u0644\u0631\u0627\u0645|\u0633\u0639\u0629|\u0627\u0644\u0633\u0639\u0629|\u062a\u062e\u0632\u064a\u0646|\u0627\u0644\u062a\u062e\u0632\u064a\u0646)/i);
-    var cMatch = txt.match(/(\\d+)\\s*(?:colou?rs?|ألوان|اللون|لون)/i);
-    var sMatch = txt.match(/(\\d+)\\s*(?:sizes?|مقاس|مقاسات|موديل|model|أسلوب|style|نوع)/i);
+    var cMatch = temuVariantColorCountMatch(txt);
+    var sMatch = temuVariantSecondOptionCountMatch(txt);
     return {
       colors: cMatch ? parseInt(cMatch[1], 10) : -1,  // -1 = غير معروف
-      sizes:  sMatch ? parseInt(sMatch[1], 10) : (ramMatch ? parseInt(ramMatch[1], 10) : -1),
+      sizes:  sMatch ? parseInt(sMatch[1], 10) : -1,
     };
   }
   // قتامة حدّ العنصر (مجموع RGB، أقل=أغمق؛ 999 لو شفاف/غير موجود).
@@ -3726,9 +3738,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
     for (var i = 0; i < els.length; i++) {
       var t = temuCleanText(els[i].textContent);
       if (t.length > 65) continue;
-      var hasClr = /\\d+\\s*(?:colou?rs?|ألوان|اللون|لون)/i.test(t);
-      var hasSz  = /\\d+\\s*(?:sizes?|مقاس|مقاسات|موديل|model)/i.test(t);
-      if (!hasSz) hasSz = /\\d+\\s*(?:memory|storage|capacity|ram|rom|gb|g\\b|\u0630\u0627\u0643\u0631\u0629|\u0627\u0644\u0630\u0627\u0643\u0631\u0629|\u0631\u0627\u0645|\u0627\u0644\u0631\u0627\u0645|\u0633\u0639\u0629|\u0627\u0644\u0633\u0639\u0629|\u062a\u062e\u0632\u064a\u0646|\u0627\u0644\u062a\u062e\u0632\u064a\u0646)/i.test(t);
+      var hasClr = !!temuVariantColorCountMatch(t);
+      var hasSz  = !!temuVariantSecondOptionCountMatch(t);
       if (hasClr && hasSz) return els[i];
     }
     return null;
@@ -3736,14 +3747,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function otlobliTemuCollapsedVariantRow() {
     try {
-      var countFor = function (txt, re) {
-        var m = txt.match(re);
-        if (!m) return 0;
-        for (var mi = 1; mi < m.length; mi++) {
-          if (m[mi]) return parseInt(m[mi], 10) || 0;
-        }
-        return 0;
-      };
       var triggers = document.querySelectorAll('button, [role="button"], a, div, span');
       for (var i = 0; i < triggers.length; i++) {
         var trigger = triggers[i];
@@ -3758,11 +3761,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
           if (r && (r.width <= 0 || r.height <= 0)) { node = node.parentElement; depth++; continue; }
           var txt = temuCleanText((node.getAttribute && (node.getAttribute('aria-label') || node.getAttribute('title'))) || node.textContent || '');
           if (txt.length >= 8 && txt.length <= 220 && /(?:\u062d\u062f\u062f|select|choose)/i.test(txt) && !temuContainsPrice(node)) {
-            var colorCount = countFor(txt, /(\\d+)\\s*(?:\u0627\u0644\u0644\u0648\u0646|\u0644\u0648\u0646|\u0623\u0644\u0648\u0627\u0646|colou?rs?)/i);
-            var sizeCount = countFor(txt, /(\\d+)\\s*(?:\u0627\u0644\u0645\u0648\u062f\u064a\u0644|\u0645\u0648\u062f\u064a\u0644|models?|\u0645\u0642\u0627\u0633|\u0645\u0642\u0627\u0633\u0627\u062a|sizes?|\u0623\u0633\u0644\u0648\u0628|style|\u0646\u0648\u0639|type|ram|rom|memory|storage|capacity|\u0630\u0627\u0643\u0631\u0629|\u0633\u0639\u0629|\u062a\u062e\u0632\u064a\u0646)/i);
+            var colorMatch = temuVariantColorCountMatch(txt);
+            var sizeMatch = temuVariantSecondOptionCountMatch(txt);
+            var colorCount = colorMatch ? (parseInt(colorMatch[1], 10) || 0) : 0;
+            var sizeCount = sizeMatch ? (parseInt(sizeMatch[1], 10) || 0) : 0;
             if (colorCount > 0 || sizeCount > 0) {
-              var sizeName = /\u0645\u0648\u062f\u064a\u0644|model/i.test(txt) ? '\u0627\u0644\u0645\u0648\u062f\u064a\u0644' :
-                (/\u0623\u0633\u0644\u0648\u0628|style|\u0646\u0648\u0639|type/i.test(txt) ? '\u0623\u0633\u0644\u0648\u0628' : '\u0645\u0642\u0627\u0633');
+              var sizeName = temuVariantSecondOptionName(txt);
               return { el: trigger, text: txt, colors: colorCount, sizes: sizeCount, sizeName: sizeName };
             }
           }
@@ -3837,10 +3841,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
             /خيار واحد فقط|يتوفر خيار واحد|only one option/i.test(infoTxt)) {
           out.single = true;
         }
-        var cM = infoTxt.match(/(\\d+)\\s*(?:اللون|ألوان|لون|colou?rs?)/i);
-        var sM = infoTxt.match(/(\\d+)\\s*(?:مقاس|مقاسات|موديل|size|ram|rom|ذاكرة|سعة|تخزين)/i);
+        var cM = temuVariantColorCountMatch(infoTxt);
+        var sM = temuVariantSecondOptionCountMatch(infoTxt);
         if (cM) out.dims.push({ kind: 'color', name: 'اللون', count: parseInt(cM[1], 10), selected: null });
-        if (sM) out.dims.push({ kind: 'size', name: 'مقاس', count: parseInt(sM[1], 10), selected: null });
+        if (sM) out.dims.push({ kind: 'size', name: temuVariantSecondOptionName(infoTxt), count: parseInt(sM[1], 10), selected: null });
       }
       if (!collapsed) {
         var looseCollapsed = otlobliTemuCollapsedVariantRow();
