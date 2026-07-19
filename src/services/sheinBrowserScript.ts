@@ -3734,6 +3734,45 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return null;
   }
 
+  function otlobliTemuCollapsedVariantRow() {
+    try {
+      var countFor = function (txt, re) {
+        var m = txt.match(re);
+        if (!m) return 0;
+        for (var mi = 1; mi < m.length; mi++) {
+          if (m[mi]) return parseInt(m[mi], 10) || 0;
+        }
+        return 0;
+      };
+      var triggers = document.querySelectorAll('button, [role="button"], a, div, span');
+      for (var i = 0; i < triggers.length; i++) {
+        var trigger = triggers[i];
+        if (trigger.id && trigger.id.indexOf('otlobli') === 0) continue;
+        var triggerText = temuCleanText((trigger.getAttribute && (trigger.getAttribute('aria-label') || trigger.getAttribute('title'))) || trigger.textContent || '');
+        if (!/^(?:\u062d\u062f\u062f|select|choose)$/i.test(triggerText) && !/(?:\u062d\u062f\u062f|select|choose)/i.test(triggerText)) continue;
+        var tr = trigger.getBoundingClientRect ? trigger.getBoundingClientRect() : null;
+        if (tr && (tr.width <= 0 || tr.height <= 0)) continue;
+        var node = trigger, depth = 0;
+        while (node && node !== document.body && depth < 6) {
+          var r = node.getBoundingClientRect ? node.getBoundingClientRect() : null;
+          if (r && (r.width <= 0 || r.height <= 0)) { node = node.parentElement; depth++; continue; }
+          var txt = temuCleanText((node.getAttribute && (node.getAttribute('aria-label') || node.getAttribute('title'))) || node.textContent || '');
+          if (txt.length >= 8 && txt.length <= 220 && /(?:\u062d\u062f\u062f|select|choose)/i.test(txt) && !temuContainsPrice(node)) {
+            var colorCount = countFor(txt, /(\\d+)\\s*(?:\u0627\u0644\u0644\u0648\u0646|\u0644\u0648\u0646|\u0623\u0644\u0648\u0627\u0646|colou?rs?)/i);
+            var sizeCount = countFor(txt, /(\\d+)\\s*(?:\u0627\u0644\u0645\u0648\u062f\u064a\u0644|\u0645\u0648\u062f\u064a\u0644|models?|\u0645\u0642\u0627\u0633|\u0645\u0642\u0627\u0633\u0627\u062a|sizes?|\u0623\u0633\u0644\u0648\u0628|style|\u0646\u0648\u0639|type|ram|rom|memory|storage|capacity|\u0630\u0627\u0643\u0631\u0629|\u0633\u0639\u0629|\u062a\u062e\u0632\u064a\u0646)/i);
+            if (colorCount > 0 || sizeCount > 0) {
+              var sizeName = /\u0645\u0648\u062f\u064a\u0644|model/i.test(txt) ? '\u0627\u0644\u0645\u0648\u062f\u064a\u0644' :
+                (/\u0623\u0633\u0644\u0648\u0628|style|\u0646\u0648\u0639|type/i.test(txt) ? '\u0623\u0633\u0644\u0648\u0628' : '\u0645\u0642\u0627\u0633');
+              return { el: trigger, text: txt, colors: colorCount, sizes: sizeCount, sizeName: sizeName };
+            }
+          }
+          node = node.parentElement; depth++;
+        }
+      }
+    } catch (e) {}
+    return null;
+  }
+
   // كاشف الخيارات البنيوي (v85.8.40): يقرأ عنصر skuSelector الفعلي فقط، بدل
   // مسح نصوص الصفحة كلها (الذي كان يلتقط "قياسي: مجانًا" الشحن كرأس مقاس، ونص
   // "أكثر من..." كأزرار مقاس وهمية → بوابة "حدد المقاس" خاطئة). ثبت من DOM
@@ -3802,6 +3841,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var sM = infoTxt.match(/(\\d+)\\s*(?:مقاس|مقاسات|موديل|size|ram|rom|ذاكرة|سعة|تخزين)/i);
         if (cM) out.dims.push({ kind: 'color', name: 'اللون', count: parseInt(cM[1], 10), selected: null });
         if (sM) out.dims.push({ kind: 'size', name: 'مقاس', count: parseInt(sM[1], 10), selected: null });
+      }
+      if (!collapsed) {
+        var looseCollapsed = otlobliTemuCollapsedVariantRow();
+        if (looseCollapsed) {
+          out.hasSelector = true; out.collapsedEl = looseCollapsed.el;
+          if (looseCollapsed.colors > 0) out.dims.push({ kind: 'color', name: '\u0627\u0644\u0644\u0648\u0646', count: looseCollapsed.colors, selected: null });
+          if (looseCollapsed.sizes > 0) out.dims.push({ kind: 'size', name: looseCollapsed.sizeName || '\u0645\u0642\u0627\u0633', count: looseCollapsed.sizes, selected: null });
+        }
       }
       var groups = document.querySelectorAll('[class*="specListWrap"]');
       for (var g = 0; g < groups.length; g++) {
