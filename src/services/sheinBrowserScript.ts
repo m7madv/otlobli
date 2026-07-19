@@ -2650,6 +2650,73 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
   // خلفية فاتحة (أو شفافة)؟ لتمييز أزرار المقاس المحدّدة (حدّ غامق + خلفية
   // فاتحة) عن الأزرار المعبّأة الغامقة مثل مبدّل نظام المقاس "Standard".
+  function temuOptionUnavailable(el) {
+    try {
+      var node = el, depth = 0;
+      while (node && node !== document.body && node !== document.documentElement && depth < 5) {
+        if (node.id && node.id.indexOf('otlobli') === 0) return false;
+        if (node.disabled) return true;
+        if (node.getAttribute) {
+          if (node.getAttribute('disabled') !== null) return true;
+          if (node.getAttribute('aria-disabled') === 'true') return true;
+          var dataAttrs = ['data-disabled', 'data-sold-out', 'data-soldout', 'data-out-of-stock', 'data-unavailable', 'data-status', 'data-stock-status'];
+          for (var da = 0; da < dataAttrs.length; da++) {
+            var dv = node.getAttribute(dataAttrs[da]);
+            if (dv && /^(?:1|true|disabled|soldout|sold-out|outofstock|out-of-stock|unavailable|notavailable|not-available)$/i.test(dv)) return true;
+          }
+          var clsRaw = (node.className && node.className.baseVal !== undefined) ? node.className.baseVal : (node.className || '');
+          var hint = (' ' + clsRaw + ' ' + (node.id || '') + ' ' +
+            (node.getAttribute('aria-label') || '') + ' ' + (node.getAttribute('title') || '') + ' ').toLowerCase();
+          if (/(?:^|[\\s_-])(?:disable|disabled|soldout|sold-out|sold_out|outofstock|out-of-stock|out_of_stock|unavailable|notavailable|not-available)(?:$|[\\s_-])/i.test(hint)) return true;
+          var txt = temuCleanText((node.getAttribute('aria-label') || '') + ' ' +
+            (node.getAttribute('title') || '') + ' ' + (node.textContent || ''));
+          if (txt && txt.length <= 140 &&
+              /sold\\s*out|out\\s*of\\s*stock|unavailable|not\\s*available|\u063a\u064a\u0631\\s+\u0645\u062a(?:\u0648\u0641\u0631|\u0627\u062d)|\u0646\u0641\u062f|\u0646\u0641\u062f\u062a|\u0627\u0646\u062a\u0647\u0649\\s+\u0627\u0644\u0645\u062e\u0632\u0648\u0646|\u0645\u0628\u0627\u0639|\u062a\u0645\\s+\u0627\u0644\u0628\u064a\u0639/i.test(txt)) return true;
+        }
+        if (depth <= 2 && node.getBoundingClientRect) {
+          var cs = window.getComputedStyle(node);
+          var op = parseFloat(cs.opacity || '1');
+          if (!isNaN(op) && op > 0 && op < 0.45) return true;
+          if (cs.pointerEvents === 'none') return true;
+        }
+        node = node.parentElement; depth++;
+      }
+    } catch (e) {}
+    return false;
+  }
+
+  function temuVisibleOptionTextAvailable(optionText) {
+    var wanted = temuCleanText(optionText);
+    if (!wanted) return false;
+    var saw = false;
+    try {
+      var nodes = document.querySelectorAll('[role="radio"], [aria-checked], [aria-selected], button, [role="button"]');
+      for (var i = 0; i < nodes.length; i++) {
+        if (nodes[i].id && nodes[i].id.indexOf('otlobli') === 0) continue;
+        if (temuCleanText(nodes[i].textContent) !== wanted) continue;
+        saw = true;
+        if (!temuOptionUnavailable(nodes[i])) return true;
+      }
+    } catch (e) {}
+    return !saw;
+  }
+
+  function otlobliTemuMarkUnavailableTap() {
+    try {
+      window.__otlobliTemuUnavailableTapGid = temuGoodsId();
+      window.__otlobliTemuUnavailableTapTs = Date.now();
+    } catch (e) {}
+  }
+
+  function otlobliTemuRecentUnavailableTap() {
+    try {
+      return window.__otlobliTemuUnavailableTapGid === temuGoodsId() &&
+        window.__otlobliTemuUnavailableTapTs &&
+        (Date.now() - window.__otlobliTemuUnavailableTapTs) < 8000;
+    } catch (e) {}
+    return false;
+  }
+
   function temuLightBackground(el) {
     var bg = window.getComputedStyle(el).backgroundColor || '';
     var m = bg.match(/rgba?\\((\\d+),\\s*(\\d+),\\s*(\\d+)(?:,\\s*([\\d.]+))?/i);
@@ -2733,6 +2800,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // التالية، وفشل الكل = فارغ (لا تخمين).
   function temuPickSingleSelected(els) {
     if (!els || els.length < 2) return null;
+    var availableEls = [];
+    for (var ae = 0; ae < els.length; ae++) {
+      if (!temuOptionUnavailable(els[ae])) availableEls.push(els[ae]);
+    }
+    els = availableEls;
+    if (els.length < 2) return null;
     // إشارة 0 (الأوثق دائماً): علامة دلالية صريحة (aria/data/اسم صنف) لا
     // تعتمد على تقنية الرسم البصري إطلاقاً — إن وُجدت نثق بها فوراً.
     var semantic = [];
@@ -2803,6 +2876,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       for (var i = 0; i < cand.length; i++) {
         var el = cand[i];
         if (el.id && el.id.indexOf('otlobli') === 0) continue;
+        if (temuOptionUnavailable(el)) continue;
         var t = temuCleanText(el.textContent);
         if (t.length < 1 || t.length > 24) continue;
         // أزرار كمية "−" "+" حرف واحد غير حرفي/رقمي — نتجاهلها.
@@ -2943,7 +3017,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     } catch (e) {}
     if (window.__otlobliTemuSize && window.__otlobliTemuSizeGid === temuGoodsId()) {
       var cachedSize0 = temuCleanText(window.__otlobliTemuSize);
-      if (cachedSize0 && cachedSize0.length <= 40) return cachedSize0;
+      if (cachedSize0 && cachedSize0.length <= 40 && temuVisibleOptionTextAvailable(cachedSize0)) return cachedSize0;
     }
     var pills = temuSizePills();
     // لا توجد أزرار مقاس — قد يكون المقاس محدداً مسبقاً (مثل "One-size" على الصفحة مباشرة).
@@ -2960,7 +3034,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // تحديداً في اللحظة التي الزر ظاهر فيها كمُختار — عكس المطلوب تماماً.
     if (window.__otlobliTemuSize && window.__otlobliTemuSizeGid === temuGoodsId()) {
       for (var k = 0; k < pills.length; k++) {
-        if (temuCleanText(pills[k].textContent) === window.__otlobliTemuSize) return window.__otlobliTemuSize;
+        if (!temuOptionUnavailable(pills[k]) && temuCleanText(pills[k].textContent) === window.__otlobliTemuSize) return window.__otlobliTemuSize;
       }
     }
     // 2) مقاس وحيد = اختيار تلقائي (لا داعي لنقر الزبون عليه).
@@ -3023,7 +3097,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var src = imgs[j].currentSrc || imgs[j].src || '';
         if (!/kwcdn|temu/i.test(src)) continue;
         var r = imgs[j].getBoundingClientRect();
-        if (r.width >= 28 && r.width < 200 && r.height >= 28 && r.height < 200) count++;
+        if (r.width >= 28 && r.width < 200 && r.height >= 28 && r.height < 200 && !temuOptionUnavailable(imgs[j].parentElement || imgs[j])) count++;
       }
       if (count >= 1) return count;
       container = container.parentElement; hops++;
@@ -3072,6 +3146,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if (!src || src.indexOf('http') !== 0) continue;
         var r = imgs[j].getBoundingClientRect();
         if (r.width < 28 || r.width > 220 || r.height < 28 || r.height > 220) continue;
+        if (temuOptionUnavailable(imgs[j].parentElement || imgs[j])) continue;
         swCount++;
         var alt = temuCleanText(imgs[j].getAttribute('alt') || imgs[j].getAttribute('title') || '').toLowerCase();
         var ptxt = imgs[j].parentElement ? temuCleanText(imgs[j].parentElement.textContent).toLowerCase() : '';
@@ -3107,6 +3182,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if (r.width < 28 || r.width > 220 || r.height < 28 || r.height > 220) continue;
         var alt = temuCleanText(imgs[j].getAttribute('alt') || imgs[j].getAttribute('title') || '').toLowerCase();
         var parentEl = imgs[j].parentElement || imgs[j];
+        if (temuOptionUnavailable(parentEl)) continue;
         var ptxt = temuCleanText(parentEl.textContent).toLowerCase();
         if ((alt && alt.length >= 2 && (alt === lowName || alt.indexOf(lowName) >= 0 || lowName.indexOf(alt) >= 0))
           || (ptxt && ptxt.length <= 50 && ptxt.indexOf(lowName) >= 0)) { matches.push(parentEl); }
@@ -3138,6 +3214,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if (r.width < 28 || r.width > 220 || r.height < 28 || r.height > 220) continue;
         var parentEl = imgs[j].parentElement || imgs[j];
         var grandEl = parentEl.parentElement || parentEl;
+        if (temuOptionUnavailable(parentEl) || temuOptionUnavailable(grandEl)) continue;
         cards.push({ img: imgs[j], src: src, parentEl: parentEl, grandEl: grandEl });
         parentEls.push(parentEl);
         grandEls.push(grandEl);
@@ -3205,6 +3282,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
           before: inRadio0 ? (inRadio0.getAttribute('aria-checked') || '?') : '-',
           after: '?'
         };
+        if (inRadio0 && temuOptionUnavailable(inRadio0)) {
+          window.__otlobliLastTap.disabled = 'yes';
+          otlobliTemuMarkUnavailableTap();
+        }
         if (inRadio0) {
           setTimeout(function () {
             try { if (window.__otlobliLastTap) window.__otlobliLastTap.after = inRadio0.getAttribute('aria-checked') || '?'; } catch (e2) {}
@@ -3212,6 +3293,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
           (function (radioEl, gidAtClick) {
             setTimeout(function () {
               try {
+                if (temuOptionUnavailable(radioEl)) {
+                  if (window.__otlobliLastTap) window.__otlobliLastTap.disabled = 'yes';
+                  return;
+                }
+                window.__otlobliTemuUnavailableTapTs = 0;
                 var groupName = otlobliTemuSkuOptionGroupName(radioEl);
                 var optionText = otlobliTemuSkuOptionValue(radioEl, false);
                 var hasImage = !!(radioEl.querySelector && radioEl.querySelector('img'));
@@ -3296,6 +3382,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
             if (pills[i] === node) {
               var t = temuCleanText(node.textContent);
               if (t && t.length <= 24) {
+                window.__otlobliTemuUnavailableTapTs = 0;
                 window.__otlobliTemuSize = t;
                 window.__otlobliTemuSizeGid = temuGoodsId();
               }
@@ -3320,8 +3407,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
           var cnode = e.target, ch = 0;
           while (cnode && ch < 6) {
             var cr3 = cnode.getBoundingClientRect ? cnode.getBoundingClientRect() : null;
+            var cnodeUnavailable = temuOptionUnavailable(cnode);
+            if (cnodeUnavailable) otlobliTemuMarkUnavailableTap();
             // حجم معقول لكرت لون فردي (يستبعد الشبكة الكاملة)
-            if (cr3 && cr3.width > 20 && cr3.width < 300 && cr3.height > 20 && cr3.height < 420) {
+            if (!cnodeUnavailable && cr3 && cr3.width > 20 && cr3.width < 300 && cr3.height > 20 && cr3.height < 420) {
               var cImgs = cnode.querySelectorAll ? cnode.querySelectorAll('img') : [];
               if (cImgs.length >= 1 && cImgs.length <= 4) {
                 var cardImg2 = cImgs[0];
@@ -3344,6 +3433,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
                 }
                 if (colorName2) {
                   var gidNow = temuGoodsId();
+                  window.__otlobliTemuUnavailableTapTs = 0;
                   window.__otlobliTemuColor = colorName2;
                   window.__otlobliTemuColorGid = gidNow;
                   // طابع زمني: يمنع مؤقّت قراءة العنوان (450ms) من استبدال
@@ -3399,6 +3489,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
                     var cSrc2 = cardImg2.currentSrc || cardImg2.src || '';
                     if (cSrc2 && cSrc2.indexOf('http') === 0) {
                       var gidNow2 = temuGoodsId();
+                      window.__otlobliTemuUnavailableTapTs = 0;
                       if (window.__otlobliTemuColorGid !== gidNow2) window.__otlobliTemuColor = '';
                       window.__otlobliTemuColorGid = gidNow2;
                       window.__otlobliTemuColorSwatch = cSrc2;
@@ -3713,12 +3804,16 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if (!nm || /الكمية|كمية|quantity/i.test(nm)) continue;
         var isColor = /اللون|لون|colou?r/i.test(nm);
         var opts = groups[g].querySelectorAll('[role="radio"], [aria-checked], [aria-selected]');
+        var availableOpts = [];
+        for (var av = 0; av < opts.length; av++) {
+          if (!temuOptionUnavailable(opts[av])) availableOpts.push(opts[av]);
+        }
         var sel = null;
-        for (var o = 0; o < opts.length; o++) {
-          if (opts[o].getAttribute('aria-checked') === 'true' || opts[o].getAttribute('aria-selected') === 'true') {
-            var im = opts[o].querySelector('img');
+        for (var o = 0; o < availableOpts.length; o++) {
+          if (availableOpts[o].getAttribute('aria-checked') === 'true' || availableOpts[o].getAttribute('aria-selected') === 'true') {
+            var im = availableOpts[o].querySelector('img');
             // اسم اللون من alt الصورة؛ المقاس من نص الزر ("L") — لا "محدد".
-            sel = (im && im.getAttribute('alt')) || temuCleanText(opts[o].textContent) || 'محدد';
+            sel = (im && im.getAttribute('alt')) || temuCleanText(availableOpts[o].textContent) || 'محدد';
           }
         }
         // مهم (v85.8.41): لا نعتمد .specValue لتحديد "مُختار" للمقاس — رأس المقاس
@@ -3727,7 +3822,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         // نقبل specValue اسماً مساعداً (اللون الافتراضي يظهر بالرأس ": أخضر").
         if (!sel && opts.length) {
           var optList = [];
-          for (var oo = 0; oo < opts.length; oo++) optList.push(opts[oo]);
+          for (var oo = 0; oo < availableOpts.length; oo++) optList.push(availableOpts[oo]);
           var pickedOpt = temuPickSingleSelected(optList);
           if (pickedOpt) sel = otlobliTemuSkuOptionValue(pickedOpt, isColor);
         }
@@ -3736,7 +3831,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
           if (sv) { var svt = temuCleanText(sv.textContent).replace(/^[:：]\\s*/, ''); if (svt && svt.length <= 24) sel = svt; }
         }
         out.hasSelector = true;
-        out.dims.push({ kind: isColor ? 'color' : 'size', name: nm, count: opts.length || 1, selected: sel || null });
+        var unavailableOnly = opts.length > 0 && availableOpts.length === 0;
+        out.dims.push({ kind: isColor ? 'color' : 'size', name: nm, count: unavailableOnly ? 2 : (availableOpts.length || 1), selected: sel || null, unavailableOnly: unavailableOnly });
       }
     } catch (e) {}
     return out;
@@ -3764,6 +3860,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function otlobliTemuUnmetDimResolved(sku, kind) {
     var unmet = otlobliTemuUnmetDim(sku, kind);
     if (!unmet) return null;
+    if (unmet.unavailableOnly) return unmet;
     if (unmet.kind === 'color' && otlobliTemuCurrentColorPicked()) {
       if (kind) return null;
       return otlobliTemuUnmetDimResolved(sku, 'size');
@@ -4245,8 +4342,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
               // اللون قد يُلتقط عبر نقرة الكرت (swatch) قبل ظهور aria-checked.
               var colorPickedA = !!((window.__otlobliTemuColor || window.__otlobliTemuColorSwatch) &&
                 window.__otlobliTemuColorGid === temuGoodsId());
-              if (unmetA && unmetA.kind === 'color' && colorPickedA) unmetA = otlobliTemuUnmetDim(skuA, 'size');
+              if (unmetA && unmetA.kind === 'color' && colorPickedA) unmetA = otlobliTemuUnmetDimResolved(skuA, 'size');
               gtr.note = 'انتظار (' + attemptsLeft + ') ناقص=' + (unmetA ? unmetA.name : 'لا');
+              if (unmetA && unmetA.unavailableOnly) {
+                gtr.res = 'غير متوفر';
+                otlobliRemoveGateSpinner();
+                showMessage(btn, 'هذا الخيار غير متوفر حالياً');
+                return;
+              }
               if (!unmetA) { temuFinalizeAdd(10); return; }
               if (attemptsLeft <= 0) {
                 gtr.res = 'مهلة انتظار الاختيار';
@@ -4280,6 +4383,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
           var knownOneColor = vCounts.colors === 1;  // "1 اللون"
           var knownOneSize  = vCounts.sizes  === 1;  // "1 موديل" أو "1 مقاس"
           var blockMsg = '';
+          if (otlobliTemuRecentUnavailableTap()) blockMsg = 'هذا الخيار غير متوفر حالياً';
           // تتبّع: ماذا ترى البوابة الآن بالضبط (يظهر في لوحة التشخيص).
           try {
             var gtrF = window.__otlobliGateTrace = window.__otlobliGateTrace || {};
@@ -4304,6 +4408,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
           var swatchChosen = !!(window.__otlobliTemuColorSwatch && window.__otlobliTemuColorGid === temuGoodsId());
           var colorUnmet = otlobliTemuUnmetDimResolved(skuGate, 'color');
           if (colorUnmet) {
+            if (colorUnmet.unavailableOnly) {
+              blockMsg = 'هذا الخيار غير متوفر حالياً';
+            }
             // نلتقط صورة كرت اللون المختار للسلة؛ وإن تعذّر تماماً = نحجب.
             var gateColorSwatch = swatchChosen ? window.__otlobliTemuColorSwatch : '';
             var gateColorVal = temuColor();
@@ -4315,7 +4422,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
               if (gateDefColor) gateColorSwatch = gateDefColor.image;
             }
             var colorPickedG = swatchChosen || (window.__otlobliTemuColorGid === temuGoodsId() && !!window.__otlobliTemuColor);
-            if (!gateColorSwatch && !gateColorVal && !colorPickedG) {
+            if (!blockMsg && !gateColorSwatch && !gateColorVal && !colorPickedG) {
               blockMsg = 'حدد اللون أولاً';
             }
           }
@@ -4324,7 +4431,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
             try { temuForceSingleSize(); } catch (e) {}
             var sizeUnmet = otlobliTemuUnmetDimResolved(skuGate, 'size');
             if (sizeUnmet && !temuSelectedSize()) {
-              blockMsg = /موديل/i.test(sizeUnmet.name) ? 'حدد الموديل أولاً' : 'حدد المقاس أولاً';
+              blockMsg = sizeUnmet.unavailableOnly ? 'هذا الخيار غير متوفر حالياً' : (/موديل/i.test(sizeUnmet.name) ? 'حدد الموديل أولاً' : 'حدد المقاس أولاً');
             }
           }
           if (blockMsg) {
@@ -4345,7 +4452,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
               var unmetW = otlobliTemuUnmetDimResolved(skuW, null);
               var colorPickedW = !!((window.__otlobliTemuColor || window.__otlobliTemuColorSwatch) &&
                 window.__otlobliTemuColorGid === temuGoodsId());
-              if (unmetW && unmetW.kind === 'color' && colorPickedW) unmetW = otlobliTemuUnmetDim(skuW, 'size');
+              if (unmetW && unmetW.kind === 'color' && colorPickedW) unmetW = otlobliTemuUnmetDimResolved(skuW, 'size');
+              if (unmetW && unmetW.unavailableOnly) return;
               if (!unmetW) { otlobliShowGateSpinner(); temuFinalizeAdd(3); return; }
               if (left <= 0) return;
               setTimeout(function () { temuWatchPickThenAdd(left - 1); }, 500);
