@@ -427,6 +427,20 @@ const STORES: { id: StoreId; name: string; url: string }[] = [
 ]
 const storeUrl = (id: string) => (STORES.find((s) => s.id === id)?.url) ?? SHEIN_HOME_URL
 const storeName = (id?: string) => STORES.find((store) => store.id === id)?.name ?? 'المتجر'
+const storeFromProductUrl = (rawUrl: string): StoreId | undefined => {
+  try {
+    const host = new URL(rawUrl).hostname
+    if (/temu/i.test(host)) return 'temu'
+    if (/shein/i.test(host)) return 'shein'
+  } catch {
+    return undefined
+  }
+  return undefined
+}
+const normalizeStoreBrowserUrl = (rawUrl: string, fallbackStore: StoreId) => {
+  const store = storeFromProductUrl(rawUrl) ?? fallbackStore
+  return store === 'temu' ? normalizeTemuBrowserUrl(rawUrl) : normalizeSheinBrowserUrl(rawUrl)
+}
 const GROUP_INVITE_WEB_ORIGIN = 'https://talabieh.vercel.app'
 const GROUP_INVITE_SCHEME = 'otlobli://group'
 
@@ -2075,7 +2089,7 @@ function App() {
       quantity,
       priceUsd: activeProduct.priceUsd,
       priceSyp: activeProduct.priceSyp || Math.round(activeProduct.priceUsd * exchangeRate),
-      sourceLink: normalizeSheinBrowserUrl(link || activeProduct.link),
+      sourceLink: normalizeStoreBrowserUrl(link || activeProduct.link, selectedStore),
     }])
     showNotice('تمت إضافة المنتج إلى السلة')
     setScreen('cart')
@@ -2647,14 +2661,14 @@ function App() {
     }
   }, [screen, vpnState, sheinReady, sheinBlockedError])
 
-  // Prepare a cart product inside the preserved, hidden SHEIN WebView. The
+  // Prepare a cart product inside the preserved, hidden store WebView. The
   // cart stays visible until browserPageLoaded + blocker readiness both arrive.
-  const openSheinProductFromCart = (sourceLink: string) => {
+  const openStoreProductFromCart = (sourceLink: string) => {
     if (!sourceLink) {
-      showNotice('رابط المنتج غير متوفر على SHEIN')
+      showNotice('رابط المنتج غير متوفر على المتجر')
       return
     }
-    const targetUrl = normalizeSheinBrowserUrl(sourceLink)
+    const targetUrl = normalizeStoreBrowserUrl(sourceLink, selectedStoreRef.current)
     beginPendingProductPreparation(targetUrl)
     pendingBackTargetRef.current = 'cart'
     showNotice('جاري تجهيز صفحة المنتج...')
@@ -2734,7 +2748,15 @@ function App() {
           .then(() => startSheinReadinessWatchdog(webviewSessionRef.current))
         return
       }
-      if (selectedStoreRef.current === 'temu') temuContentLoadedRef.current = true
+      if (selectedStoreRef.current === 'temu') {
+        temuContentLoadedRef.current = true
+        if (pendingProductRevealRef.current && pendingProductNavigationRequestedRef.current) {
+          pendingProductPageLoadedRef.current = true
+        }
+        markStoreWebviewReadyRef.current(webviewSessionRef.current)
+        revealPreparedProductIfReady()
+        return
+      }
       markStoreWebviewReadyRef.current(webviewSessionRef.current)
     })
     const errorHandle = InAppBrowser.addListener('pageLoadError', (event: WebviewPageLoadErrorEvent) => {
@@ -2964,7 +2986,7 @@ function App() {
         quantity: 1,
         priceUsd,
         priceSyp: Math.round(priceUsd * exchangeRate),
-        sourceLink: typeof product?.link === 'string' ? normalizeSheinBrowserUrl(product.link) : '',
+        sourceLink: typeof product?.link === 'string' ? normalizeStoreBrowserUrl(product.link, selectedStoreRef.current) : '',
         needsCustomPhoto: typeof product?.needsCustomPhoto === 'boolean' ? product.needsCustomPhoto : false,
         customPhotoNote: typeof product?.customPhotoNote === 'string' ? product.customPhotoNote : '',
         needsCustomText: typeof product?.needsCustomText === 'boolean' ? product.needsCustomText : false,
@@ -3794,8 +3816,8 @@ function App() {
                     <button
                       type="button"
                       className="cart-item-view"
-                      onClick={() => openSheinProductFromCart(item.sourceLink)}
-                      aria-label={`عرض ${item.title} على SHEIN`}
+                      onClick={() => openStoreProductFromCart(item.sourceLink)}
+                      aria-label={`عرض ${item.title} في ${storeName(selectedStore)}`}
                     >
                       <img
                         src={item.image}
@@ -3807,7 +3829,7 @@ function App() {
                       <div className="cart-item-top">
                         <h3
                           className="cart-item-view"
-                          onClick={() => openSheinProductFromCart(item.sourceLink)}
+                          onClick={() => openStoreProductFromCart(item.sourceLink)}
                         >
                           {item.title}
                         </h3>
@@ -3983,10 +4005,10 @@ function App() {
                         <AvailabilityActionRequest
                           item={item}
                           onChangeQuantity={typeof maxQty === 'number' && maxQty > 0 ? () => setCartItems((items) => items.map((i) => i.id === item.id ? { ...i, quantity: maxQty, availabilityIssue: undefined } : i)) : undefined}
-                          onSelectAlternative={() => openSheinProductFromCart(item.sourceLink)}
+                          onSelectAlternative={() => openStoreProductFromCart(item.sourceLink)}
                           onRemoveUnavailable={typeof maxQty === 'number' && maxQty > 0 ? () => setCartItems((items) => items.map((i) => i.id === item.id ? { ...i, quantity: maxQty, availabilityIssue: undefined } : i)) : undefined}
                           onRemoveProduct={() => setCartItems((items) => items.filter((i) => i.id !== item.id))}
-                          onReplace={() => openSheinProductFromCart(item.sourceLink)}
+                          onReplace={() => openStoreProductFromCart(item.sourceLink)}
                           onSupport={() => openWhatsappSupport(`?????? otlobli? ????? ?????? ????? ???? ??????: ${item.title}`)}
                         />
                       )}
