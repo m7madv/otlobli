@@ -3,7 +3,7 @@ import cairoArabicFontDataUrl from '@fontsource-variable/cairo/files/cairo-arabi
 const OTLOBLI_CAIRO_FONT_CSS =
   '@font-face{font-family:"OtlobliCairo";src:url("' + cairoArabicFontDataUrl + '") format("woff2");font-style:normal;font-weight:200 1000;font-display:block;}'
 
-const OTLOBLI_NAV_STYLE_VERSION = 'v85.8.21'
+const OTLOBLI_NAV_STYLE_VERSION = 'v85.8.65'
 const OTLOBLI_NAV_CSS =
   'position:fixed!important;left:50%!important;right:auto!important;bottom:0!important;top:auto!important;' +
   'transform:translate3d(-50%,0,0)!important;will-change:transform!important;width:100%!important;max-width:440px!important;' +
@@ -4655,8 +4655,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (nav.parentNode !== document.documentElement) {
       document.documentElement.appendChild(nav);
     }
-    if (nav.style.getPropertyValue('bottom') !== '-18px') {
-      nav.style.setProperty('bottom', '-18px', 'important');
+    var temuBottom = otlobliTemuNavBottomOffset();
+    if (nav.style.getPropertyValue('bottom') !== temuBottom) {
+      nav.style.setProperty('bottom', temuBottom, 'important');
     }
     if (nav.style.getPropertyValue('transform') !== 'translate3d(-50%,0,0)') {
       nav.style.setProperty('transform', 'translate3d(-50%,0,0)', 'important');
@@ -4669,6 +4670,38 @@ export const SHEIN_CAPTURE_SCRIPT = `
       nav.style.setProperty('contain', 'layout style paint', 'important');
       nav.setAttribute('data-otlobli-temu-root-layer', '1');
     }
+  }
+
+  function otlobliReadSafeAreaBottomPx() {
+    try {
+      var now = Date.now();
+      if (window.__otlobliSafeAreaBottomAt && now - window.__otlobliSafeAreaBottomAt < 750) {
+        return window.__otlobliSafeAreaBottomPx || 0;
+      }
+      var host = document.body || document.documentElement;
+      if (!host) return 0;
+      var probe = document.createElement('div');
+      probe.style.cssText = 'position:fixed!important;left:0!important;bottom:0!important;width:0!important;height:0!important;' +
+        'padding-bottom:env(safe-area-inset-bottom, 0px)!important;visibility:hidden!important;pointer-events:none!important;';
+      host.appendChild(probe);
+      var px = parseFloat(window.getComputedStyle(probe).paddingBottom || '0') || 0;
+      probe.parentNode && probe.parentNode.removeChild(probe);
+      window.__otlobliSafeAreaBottomPx = px;
+      window.__otlobliSafeAreaBottomAt = now;
+      return px;
+    } catch (e) {}
+    return 0;
+  }
+
+  function otlobliTemuNavBottomOffset() {
+    try {
+      var ua = navigator.userAgent || '';
+      var isAppleMobile = /iP(?:hone|od|ad)/i.test(ua) ||
+        ((navigator.platform || '') === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1);
+      if (!isAppleMobile) return '-18px';
+      return otlobliReadSafeAreaBottomPx() > 1 ? '-18px' : '0px';
+    } catch (e) {}
+    return '-18px';
   }
 
   function otlobliResetTemuNavContentOffset(nav) {
