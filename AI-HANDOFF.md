@@ -5,18 +5,23 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Current Candidate
 
 - Branch: `claude/ios6-cover-fix`.
-- Current local code candidate: v85.8.68 / `APP_VERSION = 2026.07.20-v85.8.68-temu-product-white-screen-guard-no-otp-test`.
-- Code commit: `091a35f` (`fix: v85.8.68 prevent Temu product white screen`).
-- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.68-temu-product-white-screen-guard.ipa`.
-- GitHub iOS build `29733534914` succeeded from code commit `091a35f`.
-- v85.8.68 IPA SHA-256: `C26CC0F9EB31B01D105F1F004305E2F16B7F8F47DABF6C89DF5F0B499613337B`.
-- Latest user clarification: the white-screen product issue happened on installed v85.8.67, not v85.8.68. v85.8.67 could open a few Temu products, then a later product briefly showed login/account UI and became a white page with only Otlobli back visible. v85.8.68 has not been installed yet.
-- Change: remove the full-page white Temu product-entry cover while keeping immediate cleanup waves, and protect large non-floating Temu product-flow containers from account/promo hiding on product URLs.
-- Includes v85.8.67/v85.8.66 underneath: adaptive iPhone 6/iPhone 16 bottom-nav offset, cart product open flow, notice polish, counted selector rows, and Temu cart-product reveal.
-- Scope: Temu product white-screen guard only. No SKU capture, cart flow, header, payment, wallet, orders logic, or real account route changes.
-- Validation: targeted ESLint for script/config, `npm run build`, `git diff --check`, GitHub build, and embedded IPA marker checks passed (`NoCoverElement=true`, product-flow guard present, modern/legacy nav markers still present).
+- Current local code candidate: v85.8.69 / `APP_VERSION = 2026.07.20-v85.8.69-temu-cart-product-visible-gate-no-otp-test`.
+- Code commit: `b9d6d14` (`fix: v85.8.69 gate Temu cart product reveal`).
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.69-temu-cart-product-visible-gate.ipa`.
+- GitHub iOS build `29735372870` succeeded from code commit `b9d6d14`.
+- v85.8.69 IPA SHA-256: `C66EF04310F50891BA1D1A127E587DBC9A1FF94153CAA5C6E85307F890FCBF4F`.
+- Latest user report after v85.8.68: ordinary Temu product opens work again, but tapping a product from Otlobli cart briefly shows Temu login/account UI and then a white product screen.
+- Change: Temu pending cart-product reveal no longer trusts native `browserPageLoaded` alone. The injected page script posts `temuProductVisible` only after visible product content exists (large product image or visible price) and no visible account/login surface remains. React verifies the visible URL against the pending cart URL before switching from cart to home.
+- Includes v85.8.68 underneath: no opaque Temu product-entry cover and large product-flow containers protected from account/promo hiding.
+- Scope: Temu cart-product reveal timing only. No SKU capture, add-to-cart logic, header, bottom nav placement, payment, wallet, orders logic, or real account route changes.
+- Validation: targeted ESLint for script/config, `npm run build`, `git diff --check`, injected-script parse, GitHub build, and embedded IPA marker checks passed (`v85.8.69`, `temuProductVisible`, and `otlobliPostTemuProductVisibleIfReady` present).
 - Do not reapply the v85.8.47 visible-SKU/group-dims approach until the white-page regression is understood from real-device evidence or a DOM fixture that reproduces it.
-- Next real-device checks: install v85.8.68. Repeat the exact v85.8.67 failure path by opening several Temu products in a row from listing/back; confirm no login flash turns into a white page. Also compare Temu bottom nav on iPhone 6 and iPhone 16 Pro Max.
+- Next real-device checks: install v85.8.69, add a Temu item to cart, open it from Otlobli cart, and confirm the cart remains visible until the actual Temu product content appears with no login flash -> white page.
+
+## Previous Candidate (v85.8.68)
+
+- v85.8.68 / commit `091a35f` removed the full-page white Temu product-entry cover and protected large non-floating product-flow containers from account/promo hiding on product URLs.
+- GitHub iOS build `29733534914` produced `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.68-temu-product-white-screen-guard.ipa` with SHA-256 `C26CC0F9EB31B01D105F1F004305E2F16B7F8F47DABF6C89DF5F0B499613337B`.
 
 ## Previous Candidate (v85.8.67)
 

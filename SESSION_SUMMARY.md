@@ -1,5 +1,19 @@
 # SESSION_SUMMARY.md
 
+## 2026-07-20 Temu v85.8.69 Cart Product Visible Gate
+
+- Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
+- Branch: `claude/ios6-cover-fix`.
+- Current iOS candidate: v85.8.69 / `APP_VERSION = 2026.07.20-v85.8.69-temu-cart-product-visible-gate-no-otp-test`.
+- Code commit: `b9d6d14` (`fix: v85.8.69 gate Temu cart product reveal`).
+- User confirmed ordinary Temu product opens are working again, but tapping a product from Otlobli cart can briefly show Temu login/account UI and then a white screen.
+- Fix: the cart-product reveal gate now waits for a `temuProductVisible` message from the injected Temu script instead of trusting native `browserPageLoaded` alone. The script sends that message only when visible product content exists and no visible account/login surface remains; React verifies the visible URL against the pending cart URL before revealing the WebView.
+- Scope stayed narrow: Temu cart-product reveal timing only. No SKU capture, add-to-cart logic, header, bottom nav placement, payment, wallet, orders, or real account-route logic changed.
+- GitHub iOS build `29735372870` succeeded from code commit `b9d6d14`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.69-temu-cart-product-visible-gate.ipa`.
+- v85.8.69 IPA SHA-256: `C66EF04310F50891BA1D1A127E587DBC9A1FF94153CAA5C6E85307F890FCBF4F`.
+- Validation: targeted ESLint for script/config, `npm run build`, `git diff --check`, injected-script parse, GitHub build, and embedded IPA marker checks passed.
+
 ## 2026-07-20 Temu v85.8.68 Product White-Screen Guard
 
 - Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.

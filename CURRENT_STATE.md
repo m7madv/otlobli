@@ -2,6 +2,21 @@
 
 Last updated: 2026-07-20
 
+## v85.8.69 Temu Cart Product Visible Gate
+
+- Branch: `claude/ios6-cover-fix`.
+- Current iOS candidate: v85.8.69 / `APP_VERSION = 2026.07.20-v85.8.69-temu-cart-product-visible-gate-no-otp-test`.
+- Code commit: `b9d6d14` (`fix: v85.8.69 gate Temu cart product reveal`).
+- User confirmed ordinary Temu product opens work again after v85.8.68, but opening a product from Otlobli cart can briefly show Temu login/account UI and then reveal a white product screen.
+- Root cause: the cart-product reveal gate for Temu still trusted the native `browserPageLoaded` event. On iOS WKWebView, Temu can fire that event before the SPA paints visible product content or before the transient login/account surface is cleaned.
+- Fix: Temu cart-product reveal now waits for a page-script `temuProductVisible` message. The injected script only sends it when the current Temu product page has visible product content (large image or visible price) and no visible account/login surface; React also verifies the visible URL matches the pending cart product before switching from cart to home.
+- Scope: Temu cart-product reveal timing only. No SKU capture, add-to-cart logic, header, bottom nav placement, payment, wallet, orders, or real account-route logic changed.
+- GitHub iOS build `29735372870` succeeded from code commit `b9d6d14`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.69-temu-cart-product-visible-gate.ipa`.
+- v85.8.69 IPA SHA-256: `C66EF04310F50891BA1D1A127E587DBC9A1FF94153CAA5C6E85307F890FCBF4F`.
+- Validation: targeted ESLint for `src/services/sheinBrowserScript.ts` and `src/config.ts`, `npm run build`, `git diff --check`, injected-script parse, GitHub iOS build, and embedded IPA marker checks passed (`v85.8.69`, `temuProductVisible`, and `otlobliPostTemuProductVisibleIfReady` present).
+- Next real-device check: install v85.8.69, add a Temu item to Otlobli cart, go to the cart, tap the product, and confirm the cart stays visible until the Temu product page content appears with no login flash -> white screen.
+
 ## v85.8.68 Temu Product White-Screen Guard
 
 - Branch: `claude/ios6-cover-fix`.
