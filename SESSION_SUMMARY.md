@@ -1,5 +1,19 @@
 # SESSION_SUMMARY.md
 
+## 2026-07-20 Temu v85.8.68 Product White-Screen Guard
+
+- Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
+- Branch: `claude/ios6-cover-fix`.
+- Current iOS candidate: v85.8.68 / `APP_VERSION = 2026.07.20-v85.8.68-temu-product-white-screen-guard-no-otp-test`.
+- Code commit: `091a35f` (`fix: v85.8.68 prevent Temu product white screen`).
+- User clarified the failing installed version was v85.8.67: several Temu products opened first, then a later product showed login briefly and became a white page with only the Otlobli back button. v85.8.68 was not installed yet at the time of that report.
+- Fix: removed the opaque full-page Temu product-entry cover, while keeping immediate cleanup waves, and added a product-page guard so large non-floating product-flow containers are not hidden as account/promo surfaces during early SPA rendering.
+- Scope stayed narrow: Temu product white-screen guard only; no SKU capture, cart flow, header, payment, wallet, orders, or real account-route logic changed. v85.8.67 iPhone 6/iPhone 16 nav logic remains included.
+- GitHub iOS build `29733534914` succeeded from code commit `091a35f`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.68-temu-product-white-screen-guard.ipa`.
+- v85.8.68 IPA SHA-256: `C26CC0F9EB31B01D105F1F004305E2F16B7F8F47DABF6C89DF5F0B499613337B`.
+- Validation: targeted ESLint for script/config, `npm run build`, `git diff --check`, GitHub build, and embedded IPA marker checks passed.
+
 ## 2026-07-20 Temu v85.8.67 Modern iPhone Nav Offset
 
 - Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.

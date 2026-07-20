@@ -2,10 +2,25 @@
 
 Last updated: 2026-07-20
 
+## v85.8.68 Temu Product White-Screen Guard
+
+- Branch: `claude/ios6-cover-fix`.
+- Current iOS candidate: v85.8.68 / `APP_VERSION = 2026.07.20-v85.8.68-temu-product-white-screen-guard-no-otp-test`.
+- Code commit: `091a35f` (`fix: v85.8.68 prevent Temu product white screen`).
+- User clarified after v85.8.67: v85.8.67 was the installed build; a few Temu products opened correctly, then later product entry showed the login surface briefly and became a white screen with only Otlobli back visible. v85.8.68 has not been real-device tested yet.
+- Fix: Temu product entry no longer paints a full-page white Otlobli cover. It still runs the immediate cleanup waves, but without an opaque overlay that can look like a permanent blank page if Temu's SPA delays rendering.
+- Fix: while on a Temu product URL, large non-floating product-flow containers are protected from account/promo hiding even if early text contains login/account wording before product images and price finish rendering.
+- Scope: Temu product white-screen guard only, plus keeping the v85.8.67 iPhone 6/iPhone 16 bottom-nav offset logic. No SKU capture, cart flow, header, payment, wallet, orders, or real account-route logic changed.
+- GitHub iOS build `29733534914` succeeded from code commit `091a35f`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.68-temu-product-white-screen-guard.ipa`.
+- v85.8.68 IPA SHA-256: `C26CC0F9EB31B01D105F1F004305E2F16B7F8F47DABF6C89DF5F0B499613337B`.
+- Validation: targeted ESLint for `src/services/sheinBrowserScript.ts` and `src/config.ts`, `npm run build`, `git diff --check`, GitHub iOS build, and embedded IPA marker checks passed (`NoCoverElement=true`, product-flow guard present, v85.8.67 modern/legacy nav markers still present).
+- Next real-device check: install v85.8.68 and repeat the exact v85.8.67 failure path: open several Temu products in a row from listing/back. Confirm no login flash turns into a white product page. Also recheck bottom nav on iPhone 6 and iPhone 16 Pro Max.
+
 ## v85.8.67 Temu Modern iPhone Nav Offset
 
 - Branch: `claude/ios6-cover-fix`.
-- Current iOS candidate: v85.8.67 / `APP_VERSION = 2026.07.20-v85.8.67-temu-modern-iphone-nav-offset-no-otp-test`.
+- Previous iOS candidate: v85.8.67 / `APP_VERSION = 2026.07.20-v85.8.67-temu-modern-iphone-nav-offset-no-otp-test`.
 - Code commit: `3a4e2dc` (`fix: v85.8.67 keep modern iPhone Temu nav offset`).
 - User report after v85.8.66: the v85.8.65 iPhone 6 bottom-nav fix worked on iPhone 6, but broke the Temu bottom nav on iPhone 16 Pro Max.
 - Root cause: relying only on `env(safe-area-inset-bottom)` is not stable inside Temu's WKWebView; on iPhone 16 Pro Max it can report `0`, which incorrectly selected the legacy iPhone 6 `bottom:0px` path.

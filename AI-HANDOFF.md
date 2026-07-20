@@ -5,19 +5,23 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Current Candidate
 
 - Branch: `claude/ios6-cover-fix`.
-- Current local code candidate: v85.8.67 / `APP_VERSION = 2026.07.20-v85.8.67-temu-modern-iphone-nav-offset-no-otp-test`.
-- Code commit: `3a4e2dc` (`fix: v85.8.67 keep modern iPhone Temu nav offset`).
-- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.67-temu-modern-iphone-nav-offset.ipa`.
-- GitHub iOS build `29704696750` succeeded from code commit `3a4e2dc`.
-- v85.8.67 IPA SHA-256: `1A9CF7A06D25ADF48A91EF71C0F037A09187AA49511348F41ACBCCD1C7E16451`.
-- Latest user report: the v85.8.65 iPhone 6 bottom-nav fix worked on iPhone 6 but broke Temu bottom-nav placement on iPhone 16 Pro Max.
-- Root cause: `env(safe-area-inset-bottom)` can report `0` inside Temu's WKWebView on iPhone 16 Pro Max, so the adaptive v85.8.65 logic incorrectly chose the legacy iPhone 6 `bottom:0px` path.
-- Change: when safe-area is >0, keep modern `bottom:-18px`; when safe-area is 0, use CSS viewport fallback. Legacy no-home-indicator iPhones (`<=414x736` CSS px) use `0px`; taller modern iPhones such as iPhone 16 Pro Max use `-18px`.
-- Includes v85.8.66/v85.8.64/v85.8.63 underneath: cart product open flow, notice polish, counted selector rows, and Temu cart-product white-screen reveal.
-- Scope: Temu injected bottom-nav vertical placement only. No cart flow, notice, header, blocker, product/SKU capture, payment, wallet, orders logic, or account route changes.
-- Validation: targeted ESLint for script/config, viewport logic check (`iPhone6 => 0px`, `iPhone16PM env0 => -18px`), `npm run build`, `git diff --check`, GitHub build, and embedded IPA marker checks passed.
+- Current local code candidate: v85.8.68 / `APP_VERSION = 2026.07.20-v85.8.68-temu-product-white-screen-guard-no-otp-test`.
+- Code commit: `091a35f` (`fix: v85.8.68 prevent Temu product white screen`).
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.68-temu-product-white-screen-guard.ipa`.
+- GitHub iOS build `29733534914` succeeded from code commit `091a35f`.
+- v85.8.68 IPA SHA-256: `C26CC0F9EB31B01D105F1F004305E2F16B7F8F47DABF6C89DF5F0B499613337B`.
+- Latest user clarification: the white-screen product issue happened on installed v85.8.67, not v85.8.68. v85.8.67 could open a few Temu products, then a later product briefly showed login/account UI and became a white page with only Otlobli back visible. v85.8.68 has not been installed yet.
+- Change: remove the full-page white Temu product-entry cover while keeping immediate cleanup waves, and protect large non-floating Temu product-flow containers from account/promo hiding on product URLs.
+- Includes v85.8.67/v85.8.66 underneath: adaptive iPhone 6/iPhone 16 bottom-nav offset, cart product open flow, notice polish, counted selector rows, and Temu cart-product reveal.
+- Scope: Temu product white-screen guard only. No SKU capture, cart flow, header, payment, wallet, orders logic, or real account route changes.
+- Validation: targeted ESLint for script/config, `npm run build`, `git diff --check`, GitHub build, and embedded IPA marker checks passed (`NoCoverElement=true`, product-flow guard present, modern/legacy nav markers still present).
 - Do not reapply the v85.8.47 visible-SKU/group-dims approach until the white-page regression is understood from real-device evidence or a DOM fixture that reproduces it.
-- Next real-device checks: install v85.8.67. Compare Temu bottom nav on iPhone 6 and iPhone 16 Pro Max: iPhone 6 should remain like v85.8.65, and iPhone 16 Pro Max should return to the accepted v85.8.64/v85.8.66 placement. Spot-check cart product open and notice polish from v85.8.66.
+- Next real-device checks: install v85.8.68. Repeat the exact v85.8.67 failure path by opening several Temu products in a row from listing/back; confirm no login flash turns into a white page. Also compare Temu bottom nav on iPhone 6 and iPhone 16 Pro Max.
+
+## Previous Candidate (v85.8.67)
+
+- v85.8.67 / commit `3a4e2dc` fixed Temu bottom-nav placement for modern iPhones when `env(safe-area-inset-bottom)` reports zero, while keeping legacy iPhone 6 on the `0px` path.
+- GitHub iOS build `29704696750` produced `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.67-temu-modern-iphone-nav-offset.ipa` with SHA-256 `1A9CF7A06D25ADF48A91EF71C0F037A09187AA49511348F41ACBCCD1C7E16451`.
 
 ## Previous Candidate (v85.8.66)
 
