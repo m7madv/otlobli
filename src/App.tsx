@@ -427,6 +427,28 @@ const STORES: { id: StoreId; name: string; url: string }[] = [
 ]
 const storeUrl = (id: string) => (STORES.find((s) => s.id === id)?.url) ?? SHEIN_HOME_URL
 const storeName = (id?: string) => STORES.find((store) => store.id === id)?.name ?? 'المتجر'
+const temuProductIdentityFromUrl = (rawUrl: string) => {
+  if (!rawUrl) return ''
+  try {
+    const url = new URL(rawUrl)
+    const queryId = url.searchParams.get('goods_id') ||
+      url.searchParams.get('goodsId') ||
+      url.searchParams.get('product_id') ||
+      url.searchParams.get('productId')
+    if (queryId) return `id:${queryId}`
+    const pathId = url.pathname.match(/(?:goods|product|g)[^0-9]{0,8}(\d{5,})|[_-](\d{5,})(?:\.html)?$/i)
+    if (pathId) return `id:${pathId[1] || pathId[2]}`
+    return `path:${url.hostname.replace(/^www\./i, '')}${url.pathname.replace(/^\/[a-z]{2}(?=\/|$)/i, '')}`
+  } catch {
+    return rawUrl.split(/[?#]/)[0]
+  }
+}
+
+const sameTemuProductNavigation = (expectedUrl: string, visibleUrl: string) => {
+  if (!expectedUrl || !visibleUrl) return true
+  return temuProductIdentityFromUrl(expectedUrl) === temuProductIdentityFromUrl(visibleUrl)
+}
+
 const storeFromProductUrl = (rawUrl: string): StoreId | undefined => {
   try {
     const host = new URL(rawUrl).hostname
@@ -2132,6 +2154,8 @@ function App() {
   const pendingProductRevealRef = useRef(false)
   const pendingProductNavigationRequestedRef = useRef(false)
   const pendingProductPageLoadedRef = useRef(false)
+  const pendingProductRequiresVisualReadyRef = useRef(false)
+  const pendingProductVisualReadyRef = useRef(false)
   const pendingProductPrepareTimerRef = useRef<number | undefined>(undefined)
   const [sheinReady, setSheinReady] = useState(false)
   const sheinReadyRef = useRef(false)
@@ -2280,6 +2304,8 @@ function App() {
     pendingProductRevealRef.current = false
     pendingProductNavigationRequestedRef.current = false
     pendingProductPageLoadedRef.current = false
+    pendingProductRequiresVisualReadyRef.current = false
+    pendingProductVisualReadyRef.current = false
     pendingProductRevealUrlRef.current = ''
     if (clearQueuedUrl) pendingProductUrlRef.current = ''
   }
@@ -2289,6 +2315,8 @@ function App() {
     pendingProductUrlRef.current = targetUrl
     pendingProductRevealUrlRef.current = targetUrl
     pendingProductRevealRef.current = true
+    pendingProductRequiresVisualReadyRef.current = /(^|\/\/)([^/?#]+\.)?temu\.com/i.test(targetUrl)
+    pendingProductVisualReadyRef.current = !pendingProductRequiresVisualReadyRef.current
     pendingProductPrepareTimerRef.current = window.setTimeout(() => {
       if (!pendingProductRevealRef.current) return
       clearPendingProductPreparation()
@@ -2301,6 +2329,7 @@ function App() {
     if (!pendingProductRevealRef.current) return
     pendingProductNavigationRequestedRef.current = true
     pendingProductPageLoadedRef.current = false
+    pendingProductVisualReadyRef.current = !pendingProductRequiresVisualReadyRef.current
     // A ready message from the previous page must not reveal the target.
     // The next document sets readiness again after all blockers have run.
     sheinReadyRef.current = false
@@ -2310,7 +2339,8 @@ function App() {
   const revealPreparedProductIfReady = () => {
     if (!pendingProductRevealRef.current ||
         !pendingProductNavigationRequestedRef.current ||
-        !pendingProductPageLoadedRef.current) return false
+        !pendingProductPageLoadedRef.current ||
+        (pendingProductRequiresVisualReadyRef.current && !pendingProductVisualReadyRef.current)) return false
     const shouldReveal = screenRef.current === 'cart'
     clearPendingProductPreparation()
     if (!shouldReveal) {
@@ -2905,6 +2935,18 @@ function App() {
   useEffect(() => {
     const handle = InAppBrowser.addListener('messageFromWebview', (event: { detail?: Record<string, unknown> }) => {
       const detail = event?.detail
+
+      if (detail?.type === 'temuProductVisible') {
+        if (selectedStoreRef.current === 'temu' && pendingProductRevealRef.current) {
+          const visibleUrl = typeof detail.url === 'string' ? detail.url : ''
+          if (!sameTemuProductNavigation(pendingProductRevealUrlRef.current, visibleUrl)) return
+          pendingProductPageLoadedRef.current = true
+          pendingProductVisualReadyRef.current = true
+          markStoreWebviewReadyRef.current(webviewSessionRef.current)
+          revealPreparedProductIfReady()
+        }
+        return
+      }
 
       if (detail?.type === 'sheinSaudiReady' || detail?.type === 'sheinPageInteractive') {
         markStoreWebviewReadyRef.current(webviewSessionRef.current)

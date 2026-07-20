@@ -6354,6 +6354,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         // إصلاح «محتوى مخفي»: يُجبر محتوى المنتج على الظهور مهما كان مصدر الحجب
         // (CSS ثابت منّا بالصنف، أو انهيار layout) — لا يعتمد على الـattributes.
         try { otlobliTemuForceProductVisible(); } catch (e) {}
+        try { otlobliPostTemuProductVisibleIfReady(); } catch (e) {}
         // لوحة تشخيص (نسخة اختبار) + إصلاح تلقائي لفشل رندر تيمو (DOM فارغ).
         try { otlobliTemuDiag(); } catch (e) {}
         try { otlobliTemuBlankPageAutoReload(); } catch (e) {}
@@ -6963,6 +6964,71 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var domHasContent = domImg > 0 || hasPrice;
     var state = visImg > 0 ? 'سليمة' : (domHasContent ? 'محتوى مخفي' : 'DOM فارغ');
     return { domImg: domImg, visImg: visImg, hasPrice: hasPrice, domHasContent: domHasContent, state: state };
+  }
+
+  function otlobliTemuVisibleAccountSurfaceOpen() {
+    try {
+      var nodes = document.querySelectorAll(
+        '[data-otlobli-temu-account-surface="1"],[role="dialog"],[aria-modal="true"],' +
+        '[class*="panel-"][class*="adaptPad"],[class*="signInWrap-"],[class*="signInBtn-"],' +
+        '[class*="topItems-"],[class*="bottomContent-"],[class*="container-3zpvw"],[class*="wrap-6ZxH0"]'
+      );
+      var vp = viewportSize();
+      for (var i = 0; i < nodes.length && i < 40; i++) {
+        var el = nodes[i];
+        if (!sheinElementIsVisible(el)) continue;
+        var r = el.getBoundingClientRect();
+        if (r.width < Math.min(260, vp.width * 0.55) || r.height < 70) continue;
+        if (r.bottom <= 80 || r.top >= vp.height - 120) continue;
+        var txt = (el.textContent || '').replace(/\\s+/g, ' ').trim();
+        if (otlobliTemuAccountPanelScore(txt) >= 2) return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+
+  function otlobliTemuHasVisibleProductContent(v) {
+    try {
+      if (v && v.visImg > 0) return true;
+      var selectors = [
+        '[class*="curPrice" i]',
+        '[class*="salePrice" i]',
+        '[class*="price" i]'
+      ];
+      var vp = viewportSize();
+      for (var i = 0; i < selectors.length; i++) {
+        var nodes = document.querySelectorAll(selectors[i]);
+        for (var j = 0; j < nodes.length; j++) {
+          var el = nodes[j];
+          if (!sheinElementIsVisible(el)) continue;
+          var r = el.getBoundingClientRect();
+          if (r.bottom <= 56 || r.top >= vp.height - 70) continue;
+          var txt = (el.textContent || '').replace(/\\s+/g, ' ').trim();
+          if (/\\d/.test(txt)) return true;
+        }
+      }
+    } catch (e) {}
+    return false;
+  }
+
+  var __otlobliTemuProductVisibleKey = '';
+  var __otlobliTemuProductVisibleTs = 0;
+  function otlobliPostTemuProductVisibleIfReady() {
+    if (!IS_TEMU || !document.body) return;
+    try {
+      if (!looksLikeProductPage() || otlobliTemuSearchMode()) return;
+      if (otlobliTemuVisibleAccountSurfaceOpen()) return;
+      var v = otlobliTemuProductVitals();
+      if (!otlobliTemuHasVisibleProductContent(v)) return;
+      var now = Date.now();
+      var key = temuGoodsId() + '|' + (location.href || '').split('#')[0];
+      if (__otlobliTemuProductVisibleKey === key && now - __otlobliTemuProductVisibleTs < 1400) return;
+      __otlobliTemuProductVisibleKey = key;
+      __otlobliTemuProductVisibleTs = now;
+      if (window.mobileApp && window.mobileApp.postMessage) {
+        window.mobileApp.postMessage({ detail: { type: 'temuProductVisible', url: location.href, key: key } });
+      }
+    } catch (e) {}
   }
 
   function otlobliTemuLooksLikeLargeProductFlowContainer(el, rect, style, vp) {
