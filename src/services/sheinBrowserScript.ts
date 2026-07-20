@@ -6965,6 +6965,19 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return { domImg: domImg, visImg: visImg, hasPrice: hasPrice, domHasContent: domHasContent, state: state };
   }
 
+  function otlobliTemuLooksLikeLargeProductFlowContainer(el, rect, style, vp) {
+    try {
+      if (!looksLikeProductPage() || !el || !rect || !style || !vp) return false;
+      if (style.position === 'fixed' || style.position === 'absolute' || style.position === 'sticky') return false;
+      if (rect.width < vp.width * 0.72) return false;
+      if (rect.height < Math.min(vp.height * 0.35, 260)) return false;
+      if (rect.top > Math.min(280, vp.height * 0.42)) return false;
+      if (el.closest && el.closest('#otlobli-nav,#otlobli-back-btn,#otlobli-add-btn')) return false;
+      return true;
+    } catch (e) {}
+    return false;
+  }
+
   // يختار مرساة محتوى المنتج (أول صورة تيمو في DOM، أو عنصر السعر).
   function otlobliTemuContentAnchor() {
     var imgs = document.querySelectorAll('img');
@@ -7222,32 +7235,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var url = (location.href || '').split('#')[0];
     if (__otlobliTemuCoverUrl === url) return;
     __otlobliTemuCoverUrl = url;
-    if (document.getElementById('otlobli-temu-entry-cover')) return;
-    ensureOverlayStyle();
-    var cov = document.createElement('div');
-    cov.id = 'otlobli-temu-entry-cover';
-    // pointer-events:none: الغطاء بصري فقط (يستر وميض الأيقونات) — يجب ألّا
-    // يبتلع نقرات الزبون أبداً (كان يجمّد "أول منتجين" إن ضُغط أثناء ظهوره).
-    cov.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:2147483600;' +
-      'background:#fff;display:flex;align-items:center;justify-content:center;' +
-      'transition:opacity .22s ease;pointer-events:none;';
-    var sp = document.createElement('div');
-    sp.style.cssText = 'width:36px;height:36px;border:3px solid #e3e6e4;border-top-color:#006948;' +
-      'border-radius:50%;animation:otlobli-spin .8s linear infinite;';
-    cov.appendChild(sp);
-    try { document.body.appendChild(cov); } catch (e) { return; }
-    // موجات حجب قسرية تحت الغطاء (تتجاوز مهلة المنظّف)
+    // v85.8.68: never paint a full-page white cover on Temu product entry.
+    // On real iPhones, a login/auth sheet can briefly mount before the PDP
+    // content; covering that phase made the page look permanently blank if the
+    // SPA delayed timers or mutated the URL. Run the same immediate cleanup
+    // waves without putting an opaque layer above the product.
     try { otlobliCleanTemuBlockers(true); } catch (e) {}
     setTimeout(function () { try { otlobliCleanTemuBlockers(true); } catch (e) {} }, 260);
     setTimeout(function () { try { otlobliCleanTemuBlockers(true); } catch (e) {} }, 620);
-    var hideAfter = OTLOBLI_LOW_END ? 1300 : 900;
-    setTimeout(function () {
-      var c = document.getElementById('otlobli-temu-entry-cover');
-      if (!c) return;
-      c.style.opacity = '0';
-      c.style.pointerEvents = 'none';
-      setTimeout(function () { if (c.parentNode) c.parentNode.removeChild(c); }, 260);
-    }, hideAfter);
   }
 
   // إعادة الحجب أثناء التمرير (شكوى مستخدم): النزول والصعود السريع يجعل تيمو
@@ -7303,6 +7298,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if (nearSearchBand && otlobliNearSearchInput(el)) return true;
         var protectFixed = protectStyle &&
           (protectStyle.position === 'fixed' || protectStyle.position === 'absolute' || protectStyle.position === 'sticky');
+        if (otlobliTemuLooksLikeLargeProductFlowContainer(el, protectRect, protectStyle, vp)) return true;
         var floatingBlocker = blockerTarget && protectRect && protectFixed &&
           protectRect.width >= vp.width * 0.42 && protectRect.height >= 28 &&
           (protectRect.top <= 320 || protectRect.bottom >= vp.height - 180);
@@ -7352,8 +7348,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
           (r.top <= 320 || r.bottom >= vp.height - 180);
         var bannerLike = r.width >= vp.width * 0.55 && r.height >= 24 && r.height <= 190 &&
           (r.top <= 220 || r.bottom >= vp.height - 190);
+        var topFlowAccount = !looksLikeProductPage() && r.top <= 340;
 
-        if ((accountCart && (compactHeader || sheetLike || fixedish || r.top <= 340)) ||
+        if ((accountCart && (compactHeader || sheetLike || fixedish || topFlowAccount)) ||
             (appInstall && (compactHeader || sheetLike || bannerLike)) ||
             (promo && (sheetLike || bannerLike))) {
           hideCleanNode(el);
@@ -7785,6 +7782,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if (score < 2 && !exactClass) continue;
         var cs = window.getComputedStyle(el);
         var fixedish = cs.position === 'fixed' || cs.position === 'absolute' || cs.position === 'sticky';
+        if (otlobliTemuLooksLikeLargeProductFlowContainer(el, r, cs, vp)) continue;
         var bottomLogin = r.bottom > vp.height - 180 && score >= 2 &&
           (/best\\s*experience|أفضل\\s*تجربة|سجل\\s*الدخول/i.test(txt) || fixedish);
         var dropdown = (score >= 3 || exactClass) && r.top < Math.min(340, vp.height * 0.58) && r.height >= 35;
@@ -7829,6 +7827,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if (!looksSheet && !accountSheet) continue;
         var cs = window.getComputedStyle(el);
         var fixedish = cs.position === 'fixed' || cs.position === 'absolute' || cs.position === 'sticky';
+        if (otlobliTemuLooksLikeLargeProductFlowContainer(el, r, cs, vp)) continue;
         var modalLike = fixedish || r.top < 260 || r.bottom > vp.height - 220;
         if (!modalLike) continue;
         el.setAttribute('data-otlobli-temu-distraction-sheet', '1');
