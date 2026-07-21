@@ -6355,9 +6355,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
         // (CSS ثابت منّا بالصنف، أو انهيار layout) — لا يعتمد على الـattributes.
         try { otlobliTemuForceProductVisible(); } catch (e) {}
         try { otlobliPostTemuProductVisibleIfReady(); } catch (e) {}
-        // لوحة تشخيص (نسخة اختبار) + إصلاح تلقائي لفشل رندر تيمو (DOM فارغ).
-        try { otlobliTemuDiag(); } catch (e) {}
-        try { otlobliTemuUrlProbe(); } catch (e) {}
+        // لوحتا التشخيص (الأصفر + الأسود) عُطّلتا بعد نجاح فتح المنتج داخل تيمو.
+        // نُزيل أي بقايا لهما إن وُجدت. للإرجاع عند الحاجة: أعِد استدعاء
+        // otlobliTemuDiag() و otlobliTemuUrlProbe().
+        try {
+          var __d1 = document.getElementById('otlobli-temu-diag'); if (__d1) __d1.remove();
+          var __d2 = document.getElementById('otlobli-temu-urlprobe'); if (__d2) __d2.remove();
+        } catch (e) {}
+        // إصلاح تلقائي لفشل رندر تيمو (DOM فارغ).
         // ارتداد تيمو لتسجيل الدخول عند فتح منتج بتحميل بارد: أعد التوجيه للمنتج
         // مرة واحدة (استرداد ضيف) قبل أي محاولة إعادة تحميل عمياء.
         try { if (otlobliTemuRecoverFromLoginRedirect()) return; } catch (e) {}

@@ -2,6 +2,15 @@
 
 Last updated: 2026-07-21
 
+## v85.8.75 Temu Cart In-Page Nav — diagnostics removed (fix CONFIRMED working)
+
+- Branch: `claude/ios6-cover-fix`. `APP_VERSION = 2026.07.21-v85.8.75-temu-cart-inpage-nav-clean-no-otp-test`.
+- User confirmed on device (v85.8.74): opening a Temu product from the cart now reaches the real Temu product page — the two diagnostic overlays were visible ON the product, meaning the in-page-navigation fix works and the /login.html white screen is resolved.
+- Change: disabled both test-only diagnostic overlays now that the fix is confirmed — the black `otlobliTemuDiag` panel (state + "الحجب"/"انسخ DOM" buttons) and the yellow `otlobliTemuUrlProbe` bar. Their `otlobliTemuDiag()` / `otlobliTemuUrlProbe()` calls in the Temu tick were removed and any leftover `#otlobli-temu-diag` / `#otlobli-temu-urlprobe` nodes are now removed each tick. The functions remain in the file; re-add the two calls to bring the diagnostics back.
+- The v85.8.74 in-page navigation (`navigateStoreWebviewInPage` → `window.location.assign` with a temu.com referrer), the cold-open home-first path, and the v85.8.73 login recovery + `temuLoginBlocked` graceful fallback all remain.
+- Validation: `npm run build` (tsc + vite) clean.
+- Next real-device check: confirm the product page is clean (no diagnostic bars) and still opens correctly from the cart.
+
 ## v85.8.74 Temu Cart In-Page Navigation (real fix for the login gate)
 
 - Branch: `claude/ios6-cover-fix`. `APP_VERSION = 2026.07.21-v85.8.74-temu-cart-inpage-nav-no-otp-test`.
