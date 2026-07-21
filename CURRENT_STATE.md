@@ -2,6 +2,18 @@
 
 Last updated: 2026-07-21
 
+## v85.8.71 Temu Cart Stable-Visibility Gate + URL Probe (diagnostic build)
+
+- Branch: `claude/ios6-cover-fix`. `APP_VERSION = 2026.07.21-v85.8.71-temu-cart-stable-gate-urlprobe-no-otp-test`.
+- Ground truth established from the capgo InAppBrowser source: `preShowScript` with `preShowScriptInjectionTime: 'documentStart'` is registered as a persistent `WKUserScript` (WKWebViewController.swift ~L1565), so the injected script DOES run on every full `setUrl` navigation, including the cart-opened product document. The v85.8.68–70 "script/gate" theories were wrong about injection.
+- User evidence (v85.8.70): the top diagnostic bar shows on normal Temu product browsing but NOT on the white screen from cart. Since the script always runs, the bar is absent only because `looksLikeProductPage()` is false on the final white state — i.e. Temu redirected the cart-origin direct PDP load to a login/blank URL (no `goods` path, no `curPrice`).
+- Model: cart tap → full navigation → PDP paints briefly → reveal gate posts `temuProductVisible` on that first paint → WebView revealed → Temu bounces to login (the brief login flash) → collapses to a non-PDP blank URL → permanent white. The reveal fired on a transient paint Temu then abandoned.
+- Fix (v85.8.71): `otlobliPostTemuProductVisibleIfReady` now requires product content to stay continuously visible for `OTLOBLI_TEMU_STABLE_MS = 900`ms before posting `temuProductVisible`. Any non-PDP / search / account / login-sheet / no-visible-content tick resets the stability timer, so a transient paint that bounces to login never triggers reveal. If the PDP never stabilises (genuine login wall), the cart stays with its spinner and eventually shows "تعذر تجهيز صفحة المنتج" instead of a white reveal.
+- Diagnostic (test build): added `otlobliTemuUrlProbe()` — a permanent bottom bar on Temu (pointer-events:none) showing `[PDP/no-PDP ACCT LOGIN] img=dom/vis price=0|1 | <path+query>`. It stays visible even on the white screen (unlike the product-only top panel), so the final URL + state can be read to confirm whether white = Temu login/verify URL (Temu-side) or hidden product content (our blockers).
+- Scope: Temu cart-product reveal timing + a read-only diagnostic bar. No blocker/hiding heuristics, payment, wallet, orders, or account-route logic changed.
+- Validation: `npm run build` clean. NOT yet real-device tested.
+- Next real-device check: open a Temu product from cart; if still white, READ the bottom bar and report it (especially the `[...]` flags and the URL path). That determines the next fix.
+
 ## v85.8.70 Temu Cart Login-Sheet Reveal Gate
 
 - Branch: `claude/ios6-cover-fix`.

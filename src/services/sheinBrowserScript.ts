@@ -6357,6 +6357,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         try { otlobliPostTemuProductVisibleIfReady(); } catch (e) {}
         // لوحة تشخيص (نسخة اختبار) + إصلاح تلقائي لفشل رندر تيمو (DOM فارغ).
         try { otlobliTemuDiag(); } catch (e) {}
+        try { otlobliTemuUrlProbe(); } catch (e) {}
         try { otlobliTemuBlankPageAutoReload(); } catch (e) {}
         // killStorePopups معطّلة لتيمو نهائياً (v57): أكّد اختبار المستخدم
         // (2026-07-10) أنها سبب وميض الشاشة الأبيض كل نصف ثانية — كانت تحجب
@@ -7046,22 +7047,69 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   var __otlobliTemuProductVisibleKey = '';
   var __otlobliTemuProductVisibleTs = 0;
+  var __otlobliTemuVisibleSinceKey = '';
+  var __otlobliTemuVisibleSince = 0;
+  // كم يجب أن يبقى محتوى المنتج ظاهراً بثبات قبل كشف الـWebView (بالمللي ثانية).
+  var OTLOBLI_TEMU_STABLE_MS = 900;
   function otlobliPostTemuProductVisibleIfReady() {
     if (!IS_TEMU || !document.body) return;
     try {
-      if (!looksLikeProductPage() || otlobliTemuSearchMode()) return;
-      if (otlobliTemuVisibleAccountSurfaceOpen()) return;
-      if (otlobliTemuLoginSheetVisible()) return;
-      var v = otlobliTemuProductVitals();
-      if (!otlobliTemuHasVisibleProductContent(v)) return;
       var now = Date.now();
       var key = temuGoodsId() + '|' + (location.href || '').split('#')[0];
+      // أي حالة تنفي "الظهور المستقر" (ليست صفحة منتج، بحث، سطح حساب/دخول، أو لا
+      // محتوى مرئي) تُصفّر المؤقّت — فلا تُحسب الرسمة العابرة التي ترتدّ عنها تيمو
+      // إلى شاشة الدخول ثم البياض. هذا سبب «دخول لحظي ثم أبيض»: كانت البوابة تكشف
+      // على أول رسمة قبل الارتداد.
+      if (!looksLikeProductPage() || otlobliTemuSearchMode() ||
+          otlobliTemuVisibleAccountSurfaceOpen() || otlobliTemuLoginSheetVisible()) {
+        __otlobliTemuVisibleSince = 0; __otlobliTemuVisibleSinceKey = '';
+        return;
+      }
+      var v = otlobliTemuProductVitals();
+      if (!otlobliTemuHasVisibleProductContent(v)) {
+        __otlobliTemuVisibleSince = 0; __otlobliTemuVisibleSinceKey = '';
+        return;
+      }
+      // بدأ الظهور لهذا المنتج: سجّل لحظته ولا تكشف بعد.
+      if (__otlobliTemuVisibleSinceKey !== key) {
+        __otlobliTemuVisibleSinceKey = key;
+        __otlobliTemuVisibleSince = now;
+        return;
+      }
+      // لم يمرّ زمن الثبات بعد — انتظر (لو ارتدّت تيمو سيُصفَّر المؤقّت أعلاه).
+      if (now - __otlobliTemuVisibleSince < OTLOBLI_TEMU_STABLE_MS) return;
       if (__otlobliTemuProductVisibleKey === key && now - __otlobliTemuProductVisibleTs < 1400) return;
       __otlobliTemuProductVisibleKey = key;
       __otlobliTemuProductVisibleTs = now;
       if (window.mobileApp && window.mobileApp.postMessage) {
         window.mobileApp.postMessage({ detail: { type: 'temuProductVisible', url: location.href, key: key } });
       }
+    } catch (e) {}
+  }
+
+  // شريط تشخيص سفلي دائم لتيمو (نسخة اختبار): يبقى ظاهراً حتى على الشاشة البيضاء
+  // (بخلاف لوحة التشخيص العلوية المقيّدة بصفحة المنتج) ليكشف الرابط النهائي وحالة
+  // المحتوى — فنحسم إن كانت الشاشة البيضاء رابط دخول/تحقّق من تيمو أم محتوى حجبناه.
+  // pointer-events:none حتى لا يعطّل أزرار الرجوع/الإضافة تحته.
+  function otlobliTemuUrlProbe() {
+    if (!IS_TEMU || !document.body) return;
+    try {
+      var bar = document.getElementById('otlobli-temu-urlprobe');
+      if (!bar) {
+        bar = document.createElement('div');
+        bar.id = 'otlobli-temu-urlprobe';
+        bar.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:2147483647;' +
+          'background:rgba(0,0,0,.82);color:#8ef;font:10px/1.4 monospace;padding:2px 6px;' +
+          'direction:ltr;text-align:left;pointer-events:none;white-space:pre-wrap;word-break:break-all;';
+        document.body.appendChild(bar);
+      }
+      var v = otlobliTemuProductVitals();
+      var pdp = looksLikeProductPage() ? 'PDP' : 'no-PDP';
+      var acc = otlobliTemuVisibleAccountSurfaceOpen() ? ' ACCT' : '';
+      var login = otlobliTemuLoginSheetVisible() ? ' LOGIN' : '';
+      var u = (location.pathname + location.search).slice(0, 90);
+      bar.textContent = '[' + pdp + acc + login + '] img=' + v.domImg + '/' + v.visImg +
+        ' price=' + (v.hasPrice ? '1' : '0') + ' | ' + u;
     } catch (e) {}
   }
 

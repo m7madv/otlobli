@@ -17,4 +17,4 @@ export const SOURCE_COUNTRY: 'JO' | 'LB' | 'SA' = 'SA'
 export const TEST_ONLY_AUTH_BYPASS = true
 
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '2026.07.21-v85.8.70-temu-cart-login-sheet-gate-no-otp-test'
+export const APP_VERSION = '2026.07.21-v85.8.71-temu-cart-stable-gate-urlprobe-no-otp-test'
