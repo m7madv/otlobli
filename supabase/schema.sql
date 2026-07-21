@@ -141,6 +141,9 @@ alter table public.customers add column if not exists qadmous_branch text not nu
 alter table public.customers add column if not exists details text not null default '';
 alter table public.customers add column if not exists pickup_label text not null default '';
 alter table public.customers add column if not exists notification_prefs jsonb not null default '{}'::jsonb;
+-- حظر المستخدم (من لوحة الإدارة): المحظور يُمنع من الدخول ومن إرسال طلبات. يُفرض
+-- مركزياً داخل ensure_customer (نقطة المرور المشتركة للدخول والطلب).
+alter table public.customers add column if not exists blocked boolean not null default false;
 
 create table if not exists public.wallet_transactions (
   id uuid primary key default gen_random_uuid(),
@@ -355,6 +358,12 @@ declare
 begin
   if cleaned_phone = '' then
     raise exception 'phone is required';
+  end if;
+
+  -- حظر المستخدم: لو كان الرقم موجوداً ومحظوراً، امنع الدخول والطلب معاً. رقم جديد
+  -- لا يمكن أن يكون محظوراً (غير موجود بعد)، فهذا لا يؤثّر على المستخدمين الجدد.
+  if exists (select 1 from public.customers where phone = cleaned_phone and blocked = true) then
+    raise exception 'customer_blocked' using errcode = 'P0001';
   end if;
 
   if trim(coalesce(p_name, '')) <> '' then
@@ -2176,6 +2185,12 @@ begin
   where phone = cleaned_phone
   limit 1;
 
+  -- حظر المستخدم: يُرفض المحظور عند تحميل الحساب (الدخول). التطبيق يلتقط
+  -- customer_blocked ويعرض تنبيهاً ويمنع الدخول.
+  if found and found_customer.blocked = true then
+    raise exception 'customer_blocked' using errcode = 'P0001';
+  end if;
+
   if not found then
     select * into latest_order
     from public.orders
@@ -2727,6 +2742,12 @@ begin
   end if;
   if cleaned_phone <> '' and found_session.phone <> cleaned_phone then
     raise exception 'customer session phone mismatch';
+  end if;
+
+  -- حظر المستخدم: يُمنع المحظور من كل إجراء موثّق (طلب/محفظة/حفظ ملف...) لأن
+  -- جميعها تمرّ من هنا. الرسالة customer_blocked يلتقطها التطبيق ويعرض تنبيهاً.
+  if exists (select 1 from public.customers where id = found_session.customer_id and blocked = true) then
+    raise exception 'customer_blocked' using errcode = 'P0001';
   end if;
 
   update public.customer_sessions

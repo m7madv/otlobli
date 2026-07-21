@@ -564,6 +564,10 @@ export const supabaseAppApi: TalabiehApi = {
       })
 
       if (error) {
+        // حساب محظور من لوحة الإدارة: نرفع الخطأ ليعالجه التطبيق (رسالة + خروج).
+        if (/customer_blocked/i.test(error.message || '')) {
+          throw new Error('customer_blocked')
+        }
         return {
           mode: 'external',
           profile: null,

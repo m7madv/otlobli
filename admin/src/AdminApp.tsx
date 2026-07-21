@@ -88,6 +88,7 @@ type Customer = {
   orderCount: number
   totalSpentSyp: number
   lastOrderAt: string
+  blocked: boolean
   createdAt: string
   updatedAt: string
 }
@@ -276,6 +277,20 @@ async function addWalletTransaction(pin: string, customer: Pick<Customer, 'phone
     }),
   })
   if (!response.ok) throw new Error('wallet_transaction_failed')
+}
+
+async function setCustomerBlocked(pin: string, phone: string, blocked: boolean) {
+  const response = await fetch(ADMIN_ORDERS_FN, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-admin-pin': pin,
+      'apikey': ANON_KEY,
+      'authorization': `Bearer ${ANON_KEY}`,
+    },
+    body: JSON.stringify({ action: 'set_blocked', phone, blocked }),
+  })
+  if (!response.ok) throw new Error('set_blocked_failed')
 }
 
 async function fetchDrivers(pin: string) {
@@ -1512,12 +1527,30 @@ function CustomersGrid({
     orderCount: orders.filter((o) => o.phone === order.phone).length,
     totalSpentSyp: orders.filter((o) => o.phone === order.phone).reduce((sum, o) => sum + o.total, 0),
     lastOrderAt: order.createdAt,
+    blocked: false,
     createdAt: order.createdAt,
     updatedAt: order.createdAt,
   }))
   const visibleCustomers = customers.length ? customers : fallbackCustomers
   const [amounts, setAmounts] = useState<Record<string, string>>({})
   const [notes, setNotes] = useState<Record<string, string>>({})
+  const [blocking, setBlocking] = useState<Record<string, boolean>>({})
+
+  const toggleBlocked = (customer: Customer) => {
+    const next = !customer.blocked
+    const confirmMsg = next
+      ? `حظر ${customer.name || customer.phone}؟ لن يستطيع الدخول أو إرسال طلبات.`
+      : `فك الحظر عن ${customer.name || customer.phone}؟`
+    if (!window.confirm(confirmMsg)) return
+    setBlocking((prev) => ({ ...prev, [customer.phone]: true }))
+    void setCustomerBlocked(pin, customer.phone, next)
+      .then(() => {
+        showNotice(next ? 'تم حظر المستخدم' : 'تم فك الحظر')
+        onRefresh()
+      })
+      .catch(() => showNotice(next ? 'فشل حظر المستخدم' : 'فشل فك الحظر'))
+      .finally(() => setBlocking((prev) => ({ ...prev, [customer.phone]: false })))
+  }
 
   const submitWallet = (customer: Customer) => {
     const amount = Math.trunc(Number(amounts[customer.phone] || 0))
@@ -1534,9 +1567,9 @@ function CustomersGrid({
   return (
     <section className="customers">
       {visibleCustomers.map((customer) => (
-        <article className="panel customer" key={customer.phone}>
+        <article className={customer.blocked ? 'panel customer customer--blocked' : 'panel customer'} key={customer.phone}>
           <div className="avatar">{customer.name[0] ?? 'ط'}</div>
-          <h2>{customer.name || 'عميل بدون اسم'}</h2>
+          <h2>{customer.name || 'عميل بدون اسم'}{customer.blocked && <span className="blocked-badge">محظور</span>}</h2>
           <span className="phone-row">{customer.phone}<CopyBtn text={customer.phone} /></span>
           <p>{customer.governorate || customer.city || 'محافظة غير محددة'}</p>
           {customer.qadmousBranch && <p>{customer.qadmousBranch}</p>}
@@ -1564,6 +1597,14 @@ function CustomersGrid({
               <Icon name="account_balance_wallet" /> تسجيل
             </button>
           </div>
+          <button
+            className={customer.blocked ? 'block-btn block-btn--unblock' : 'block-btn'}
+            onClick={() => toggleBlocked(customer)}
+            disabled={blocking[customer.phone]}
+          >
+            <Icon name={customer.blocked ? 'lock_open' : 'block'} />
+            {customer.blocked ? 'فك الحظر' : 'حظر المستخدم'}
+          </button>
         </article>
       ))}
     </section>

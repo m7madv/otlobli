@@ -92,6 +92,7 @@ type CustomerRow = {
   city?: string
   qadmous_branch?: string
   details?: string
+  blocked?: boolean
   created_at?: string
   updated_at?: string
 }
@@ -279,7 +280,7 @@ Deno.serve(async (req) => {
         .order('name', { ascending: true }),
       supabase
         .from('customers')
-        .select('id, phone, name, governorate, city, qadmous_branch, details, created_at, updated_at')
+        .select('id, phone, name, governorate, city, qadmous_branch, details, blocked, created_at, updated_at')
         .order('updated_at', { ascending: false })
         .limit(500),
       supabase
@@ -367,6 +368,7 @@ Deno.serve(async (req) => {
         city: row.city || '',
         qadmousBranch: row.qadmous_branch || '',
         details: row.details || '',
+        blocked: row.blocked === true,
         walletBalanceSyp: walletByCustomer.get(row.id) || 0,
         orderCount: stats.orderCount,
         totalSpentSyp: stats.totalSpentSyp,
@@ -391,6 +393,33 @@ Deno.serve(async (req) => {
       kind?: string
       note?: string
       orderId?: string
+      blocked?: boolean
+    }
+
+    // حظر/فك حظر مستخدم: تحديث مباشر لعمود blocked عبر الرقم (لا يمرّ عبر
+    // ensure_customer لأنها ترفض المحظورين). المحظور يُمنع لاحقاً من الدخول
+    // والطلب مركزياً داخل ensure_customer.
+    if (body.action === 'set_blocked') {
+      const targetPhone = String(body.phone || '').replace(/\s+/g, '')
+      if (!targetPhone) {
+        return new Response(JSON.stringify({ error: 'missing_phone' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'content-type': 'application/json' },
+        })
+      }
+      const { error: blockError } = await supabase
+        .from('customers')
+        .update({ blocked: body.blocked === true, updated_at: new Date().toISOString() })
+        .eq('phone', targetPhone)
+      if (blockError) {
+        return new Response(JSON.stringify({ error: blockError.message }), {
+          status: 500,
+          headers: { ...corsHeaders, 'content-type': 'application/json' },
+        })
+      }
+      return new Response(JSON.stringify({ ok: true, blocked: body.blocked === true }), {
+        headers: { ...corsHeaders, 'content-type': 'application/json' },
+      })
     }
 
     if (body.action !== 'wallet_transaction') {

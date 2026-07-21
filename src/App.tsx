@@ -690,6 +690,10 @@ function PaymentQr({ src }: { src: string }) {
 
 function getPublicErrorMessage(error: unknown) {
   if (error instanceof Error) {
+    // حساب محظور من الإدارة: أي إجراء موثّق (طلب/محفظة/كوبون) يفشل بهذه الرسالة.
+    if (/customer_blocked|account_blocked/i.test(error.message)) {
+      return 'تم إيقاف حسابك من قبل الإدارة. للاستفسار تواصل مع الدعم.'
+    }
     return error.message
   }
   return 'حدث خطأ غير متوقع. حاول مرة ثانية.'
@@ -1449,9 +1453,32 @@ function App() {
     setScreen('login')
   }
 
+  // حظر المستخدم: الخادم يرفع customer_blocked من require_customer_session/
+  // get_customer_account. عند اكتشافه نُخرج المستخدم فوراً (بلا تأكيد سلة) ونعرض
+  // تنبيهاً — الأمان مفروض في SQL، وهذا فقط لتجربة استخدام واضحة.
+  const BLOCKED_NOTICE = 'تم إيقاف حسابك من قبل الإدارة. للاستفسار تواصل مع الدعم.'
+  const isBlockedError = (e: unknown) =>
+    e instanceof Error && /customer_blocked|account_blocked/i.test(e.message)
+  const forceLogoutBlocked = () => {
+    setSessionToken('')
+    setUserProfile(null)
+    setOrders([])
+    setWalletBalanceUsd(0)
+    setWalletBalanceSyp(0)
+    setWalletTransactions([])
+    setCartsByStore({ shein: [], temu: [] })
+    setCartGroup(null)
+    setPendingPayment(null)
+    setPendingWalletTopUp(null)
+    setCurrentOrderId('')
+    setScreen('login')
+    // مؤجّل ليظهر بعد أي رسالة نجاح يعرضها مستدعي الدخول (فيبقى تنبيه الحظر ظاهراً).
+    window.setTimeout(() => showNotice(BLOCKED_NOTICE), 0)
+  }
+
   // تجلب ملف الزبون من الخادم بعد نجاح OTP. إذا وُجد الملف → home مباشرة.
   // إذا لم يوجد → onboarding (سيُحفظ الاسم/المحافظة إلى الخادم بعد الإدخال).
-  const fetchProfileAfterLogin = async (loginPhone: string): Promise<'home' | 'onboarding'> => {
+  const fetchProfileAfterLogin = async (loginPhone: string): Promise<'home' | 'onboarding' | 'login'> => {
     void appApi.wallet.getBalance(loginPhone)
       .then((bal) => setWalletBalanceUsd(bal))
       .catch(() => undefined)
@@ -1461,7 +1488,11 @@ function App() {
       if (account.profile?.name || account.orders.length > 0) {
         return 'home'
       }
-    } catch { /* fallback below */ }
+    } catch (e) {
+      // حساب محظور → خروج فوري ورسالة، ولا نكمل لِonboarding.
+      if (isBlockedError(e)) { forceLogoutBlocked(); return 'login' }
+      /* fallback below */
+    }
     const normalizedLoginPhone = normalizePhoneForCompare(loginPhone)
     const hasLocalProfile = normalizePhoneForCompare(userProfile?.phone ?? '') === normalizedLoginPhone && !!userProfile?.name
     const hasLocalOrders = false

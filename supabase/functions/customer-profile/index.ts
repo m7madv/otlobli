@@ -26,6 +26,18 @@ Deno.serve(async (req) => {
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY)
 
+  // حظر المستخدم: يُرفض المحظور فوراً من الدخول/الملف (والطلب يُرفض مركزياً في
+  // ensure_customer). نطابق الرقم بعد إزالة المسافات كما يُخزَّن.
+  const cleanedPhone = headerPhone.replace(/\s+/g, '')
+  const { data: blockRow } = await supabase
+    .from('customers')
+    .select('blocked')
+    .eq('phone', cleanedPhone)
+    .maybeSingle()
+  if (blockRow?.blocked === true) {
+    return json({ blocked: true, error: 'account_blocked', message: 'تم إيقاف حسابك. للاستفسار تواصل مع الدعم.' }, 403)
+  }
+
   if (req.method === 'GET') {
     const { data, error } = await supabase.rpc('get_customer_account', {
       p_phone: headerPhone,

@@ -1468,3 +1468,41 @@ tr.row-selected td {
     flex: 1;
   }
 }
+
+/* حظر المستخدمين (لوحة الإدارة) */
+.customer .block-btn {
+  margin-top: 10px;
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 12px;
+  border: 1px solid #e0b4b4;
+  border-radius: 10px;
+  background: #fff5f5;
+  color: #b3261e;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.customer .block-btn:disabled { opacity: 0.6; cursor: default; }
+.customer .block-btn--unblock {
+  border-color: #b7dfc3;
+  background: #f1fbf4;
+  color: #0a7d4f;
+}
+.customer.customer--blocked {
+  border-color: #e0b4b4;
+  background: #fdf3f3;
+}
+.blocked-badge {
+  margin-inline-start: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #b3261e;
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  vertical-align: middle;
+}
