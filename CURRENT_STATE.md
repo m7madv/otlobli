@@ -2,6 +2,16 @@
 
 Last updated: 2026-07-21
 
+## v85.8.73 Temu Login-Redirect Recovery (ROOT CAUSE FOUND)
+
+- Branch: `claude/ios6-cover-fix`. `APP_VERSION = 2026.07.21-v85.8.73-temu-login-redirect-recover-no-otp-test`.
+- ROOT CAUSE, confirmed on real device via the v85.8.72 URL probe: opening a Temu product from the Otlobli cart lands on Temu's OWN login page. Probe read `[no-PDP] img=0/0 price=0` and URL `/login.html?from=https%3A%2F%2Fwww.temu.com%2Fsa%2F<url-encoded product slug>`. Temu rejects a COLD full-navigation to a deep product URL for logged-out users and 302s to `/login.html`; normal in-app browsing works because it is soft SPA navigation, not a cold load. This is Temu-side auth behaviour, not our blocking — no product content is ever hidden (img=0/0).
+- Fix: `otlobliTemuRecoverFromLoginRedirect()` (runs early in the Temu tick). On `/login.html?from=<temu product url>` it navigates once to the `from` target via `location.replace` — Temu usually sets a guest cookie on the login page, so the retry loads the PDP as a guest. Guarded by `sessionStorage['otlobli_lr_'+target]` so it retries only ONCE per target across same-origin navigations (no login→product→login loop). Account/settings/login `from` targets are skipped so intentional logins are untouched.
+- Graceful failure: if the single retry still lands on login, the script posts `temuLoginBlocked`; App.tsx aborts the pending cart-product preparation, returns to the cart, and shows "تيمو تطلب تسجيل الدخول لفتح هذا المنتج مباشرةً. افتحه من داخل تيمو بدل السلة." — never a white login reveal.
+- Still includes the v85.8.71 stable-visibility gate (900ms) and the `otlobliTemuUrlProbe` diagnostic bar (now top-of-screen, v85.8.72).
+- Validation: `npm run build` clean. NOT yet real-device tested.
+- Next real-device check: open a Temu product from cart. Best case the guest retry opens the product; otherwise expect the cart + the login notice (no white). If it still ends white, read the top probe again — it will show whether it looped on `/login.html` or reached a `goods` PDP.
+
 ## v85.8.71 Temu Cart Stable-Visibility Gate + URL Probe (diagnostic build)
 
 - Branch: `claude/ios6-cover-fix`. `APP_VERSION = 2026.07.21-v85.8.71-temu-cart-stable-gate-urlprobe-no-otp-test`.

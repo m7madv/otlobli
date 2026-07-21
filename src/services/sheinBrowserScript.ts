@@ -6358,6 +6358,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
         // لوحة تشخيص (نسخة اختبار) + إصلاح تلقائي لفشل رندر تيمو (DOM فارغ).
         try { otlobliTemuDiag(); } catch (e) {}
         try { otlobliTemuUrlProbe(); } catch (e) {}
+        // ارتداد تيمو لتسجيل الدخول عند فتح منتج بتحميل بارد: أعد التوجيه للمنتج
+        // مرة واحدة (استرداد ضيف) قبل أي محاولة إعادة تحميل عمياء.
+        try { if (otlobliTemuRecoverFromLoginRedirect()) return; } catch (e) {}
         try { otlobliTemuBlankPageAutoReload(); } catch (e) {}
         // killStorePopups معطّلة لتيمو نهائياً (v57): أكّد اختبار المستخدم
         // (2026-07-10) أنها سبب وميض الشاشة الأبيض كل نصف ثانية — كانت تحجب
@@ -7117,6 +7120,39 @@ export const SHEIN_CAPTURE_SCRIPT = `
       bar.textContent = '[' + pdp + acc + login + ']  img=' + v.domImg + '/' + v.visImg +
         '  price=' + (v.hasPrice ? '1' : '0') + '\\n' + u;
     } catch (e) {}
+  }
+
+  // استرداد من ارتداد تيمو لتسجيل الدخول: التحميل البارد لرابط منتج عميق (فتح من
+  // السلة) ترفضه تيمو لغير المسجّلين وتحوّله إلى /login.html?from=<المنتج>. غالباً
+  // تكون تيمو ثبّتت كوكيز ضيف على صفحة الدخول، فإعادة التوجيه لرابط from تفتح
+  // المنتج كضيف. نعيد المحاولة **مرة واحدة فقط لكل هدف** عبر sessionStorage (يبقى
+  // بين تنقّلات نفس الأصل، فلا ندخل حلقة login->product->login). لو فشلت، نُبلّغ
+  // التطبيق (temuLoginBlocked) ليرجع للسلة برسالة بدل الشاشة البيضاء.
+  function otlobliTemuRecoverFromLoginRedirect() {
+    if (!IS_TEMU) return false;
+    try {
+      if (!/\\/login(\\.html)?(?:$|\\/|\\?)/i.test(location.pathname)) return false;
+      var m = (location.search || '').match(/[?&]from=([^&]+)/i);
+      if (!m) return false;
+      var target;
+      try { target = decodeURIComponent(m[1]); } catch (e) { target = m[1]; }
+      if (!/temu\\.com/i.test(target)) return false;
+      // تجاهل الأهداف غير المنتجات (حساب/إعدادات/دخول/جذر) حتى لا نعطّل دخولاً مقصوداً.
+      if (/\\/(login|account|user|setting|signin|register)/i.test(target)) return false;
+      var key = 'otlobli_lr_' + target.slice(0, 180);
+      var already = false;
+      try { already = sessionStorage.getItem(key) === '1'; } catch (e) {}
+      if (already) {
+        if (window.mobileApp && window.mobileApp.postMessage) {
+          window.mobileApp.postMessage({ detail: { type: 'temuLoginBlocked', target: target } });
+        }
+        return false;
+      }
+      try { sessionStorage.setItem(key, '1'); } catch (e) {}
+      location.replace(target);
+      return true;
+    } catch (e) {}
+    return false;
   }
 
   function otlobliTemuLooksLikeLargeProductFlowContainer(el, rect, style, vp) {

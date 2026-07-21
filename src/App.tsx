@@ -2948,6 +2948,20 @@ function App() {
         return
       }
 
+      // Temu redirected a cold cart-product load to its own /login.html and the
+      // one guest retry did not recover the product. Never reveal that login
+      // page as a white screen — abort the preparation and return to the cart
+      // with a clear explanation instead.
+      if (detail?.type === 'temuLoginBlocked') {
+        if (selectedStoreRef.current === 'temu' && pendingProductRevealRef.current) {
+          clearPendingProductPreparation()
+          pendingBackTargetRef.current = 'home'
+          if (screenRef.current !== 'cart') setScreen('cart')
+          showNotice('تيمو تطلب تسجيل الدخول لفتح هذا المنتج مباشرةً. افتحه من داخل تيمو بدل السلة.')
+        }
+        return
+      }
+
       if (detail?.type === 'sheinSaudiReady' || detail?.type === 'sheinPageInteractive') {
         markStoreWebviewReadyRef.current(webviewSessionRef.current)
         revealPreparedProductIfReady()
