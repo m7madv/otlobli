@@ -7098,18 +7098,24 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (!bar) {
         bar = document.createElement('div');
         bar.id = 'otlobli-temu-urlprobe';
-        bar.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:2147483647;' +
-          'background:rgba(0,0,0,.82);color:#8ef;font:10px/1.4 monospace;padding:2px 6px;' +
-          'direction:ltr;text-align:left;pointer-events:none;white-space:pre-wrap;word-break:break-all;';
+        // أعلى الشاشة (كان بالأسفل مغطّى بشريط التنقّل) مع احترام النوتش، خط أكبر
+        // وأصفر عالي التباين لسهولة القراءة والتصوير. pointer-events:none حتى لا
+        // يعطّل أي زر تحته.
+        bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;' +
+          'background:#000;color:#ffe600;' +
+          'font:700 13px/1.5 monospace;' +
+          'padding:calc(env(safe-area-inset-top,0px) + 6px) 10px 8px;' +
+          'direction:ltr;text-align:left;pointer-events:none;' +
+          'white-space:pre-wrap;word-break:break-all;box-shadow:0 2px 6px rgba(0,0,0,.5);';
         document.body.appendChild(bar);
       }
       var v = otlobliTemuProductVitals();
       var pdp = looksLikeProductPage() ? 'PDP' : 'no-PDP';
       var acc = otlobliTemuVisibleAccountSurfaceOpen() ? ' ACCT' : '';
       var login = otlobliTemuLoginSheetVisible() ? ' LOGIN' : '';
-      var u = (location.pathname + location.search).slice(0, 90);
-      bar.textContent = '[' + pdp + acc + login + '] img=' + v.domImg + '/' + v.visImg +
-        ' price=' + (v.hasPrice ? '1' : '0') + ' | ' + u;
+      var u = (location.pathname + location.search).slice(0, 120);
+      bar.textContent = '[' + pdp + acc + login + ']  img=' + v.domImg + '/' + v.visImg +
+        '  price=' + (v.hasPrice ? '1' : '0') + '\\n' + u;
     } catch (e) {}
   }
 
