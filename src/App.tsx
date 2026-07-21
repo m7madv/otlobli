@@ -1528,6 +1528,13 @@ function App() {
         const temu = parseInt(data.shipping_cost_temu_syp ?? '0', 10)
         const referralDiscount = parseInt(data.referral_discount_syp ?? '0', 10)
         const profitPercent = Number(data.product_profit_percent ?? '0')
+        // سعر الصرف يُحدَّث في Supabase عبر مهمة GitHub Actions (بديل سيرفر Railway).
+        // نقرأه من هنا حتى يبقى التسعير يعمل بعد إيقاف السيرفر.
+        const usdRate = parseInt(data.usd_to_syp_rate ?? '0', 10)
+        if (usdRate >= 1000 && usdRate <= 100000) {
+          setExchangeRate(usdRate)
+          setExchangeRateFetchedAt(Date.now())
+        }
         if (shein > 0) setShippingCostShein(shein)
         if (temu > 0) setShippingCostTemu(temu)
         setShamcashQrByStore({

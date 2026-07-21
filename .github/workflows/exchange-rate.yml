@@ -1,0 +1,30 @@
+name: Update Exchange Rate
+
+# يحدّث سعر صرف الدولار → الليرة في Supabase مجاناً (بديل سيرفر Railway).
+# كل 30 دقيقة + إمكانية التشغيل اليدوي. يحتاج سرّين في إعدادات المستودع:
+#   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'   # كل 30 دقيقة (توقيت UTC)
+  workflow_dispatch: {}       # تشغيل يدوي من تبويب Actions
+
+# يمنع تراكب التشغيلات لو تأخّر أحدها.
+concurrency:
+  group: exchange-rate
+  cancel-in-progress: false
+
+jobs:
+  update-rate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Fetch and persist USD→SYP rate
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node .github/scripts/update-exchange-rate.mjs
