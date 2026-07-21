@@ -7011,6 +7011,39 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return false;
   }
 
+  // كشف قوي لورقة تسجيل الدخول التي تعرضها تيمو أحياناً فوق صفحة المنتج عند
+  // الدخول من السلة. لوحة الحساب (otlobliTemuVisibleAccountSurfaceOpen) تشترط
+  // إشارتين، لكن ورقة الدخول المصغّرة قد تحمل عبارة دخول واحدة فقط فتفلت من
+  // البوابة، فيُكشف الـWebView وهي معلّقة ثم تبيضّ الصفحة. هنا نكتفي بإشارة
+  // واحدة (عبارة دخول/متابعة) مؤكَّدة بحقل هاتف/بريد/كلمة مرور أو زر تواصل
+  // اجتماعي داخل نطاق كبير مرئي. تُستخدم للكشف كبوابة فقط: تؤخّر إظهار الـWebView
+  // ولا تحجب أي عنصر، فلا يمكن أن تسبّب شاشة بيضاء بذاتها.
+  function otlobliTemuLoginSheetVisible() {
+    try {
+      var vp = viewportSize();
+      var signInRe = /sign\\s*in|log\\s*in|continue\\s*with|تسجيل\\s*الدخول|سجّ?ل\\s*الدخول|تابع\\s*عبر|المتابعة\\s*عبر/i;
+      var socialRe = /google|facebook|apple|whatsapp|continue\\s*with|المتابعة\\s*عبر|تابع\\s*عبر/i;
+      var nodes = document.querySelectorAll('[role="dialog"],[aria-modal="true"],div,section,form');
+      for (var i = 0; i < nodes.length && i < 400; i++) {
+        var el = nodes[i];
+        if (el.id && el.id.indexOf('otlobli') === 0) continue;
+        if (!sheinElementIsVisible(el)) continue;
+        var r = el.getBoundingClientRect();
+        if (r.width < Math.min(260, vp.width * 0.55) || r.height < 120) continue;
+        if (r.bottom <= 90 || r.top >= vp.height - 120) continue;
+        var txt = (el.textContent || '').replace(/\\s+/g, ' ').trim();
+        if (txt.length > 900) continue;
+        if (!signInRe.test(txt)) continue;
+        var hasControl = !!el.querySelector(
+          'input[type="tel"],input[type="password"],input[type="email"],' +
+          'input[autocomplete*="tel"],input[name*="phone" i]'
+        );
+        if (hasControl || socialRe.test(txt)) return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+
   var __otlobliTemuProductVisibleKey = '';
   var __otlobliTemuProductVisibleTs = 0;
   function otlobliPostTemuProductVisibleIfReady() {
@@ -7018,6 +7051,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     try {
       if (!looksLikeProductPage() || otlobliTemuSearchMode()) return;
       if (otlobliTemuVisibleAccountSurfaceOpen()) return;
+      if (otlobliTemuLoginSheetVisible()) return;
       var v = otlobliTemuProductVitals();
       if (!otlobliTemuHasVisibleProductContent(v)) return;
       var now = Date.now();

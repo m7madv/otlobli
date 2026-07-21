@@ -1,6 +1,17 @@
 # Otlobli Current State
 
-Last updated: 2026-07-20
+Last updated: 2026-07-21
+
+## v85.8.70 Temu Cart Login-Sheet Reveal Gate
+
+- Branch: `claude/ios6-cover-fix`.
+- Current local code candidate: v85.8.70 / `APP_VERSION = 2026.07.21-v85.8.70-temu-cart-login-sheet-gate-no-otp-test`.
+- User report after v85.8.69: opening a Temu product from the Otlobli cart still briefly shows the Temu login screen and then a blank white product page.
+- Root cause: the v85.8.69 reveal gate (`otlobliPostTemuProductVisibleIfReady`) blocked reveal only when `otlobliTemuVisibleAccountSurfaceOpen()` matched, and that detector needs an account-panel score of ≥2. Temu's minimal cart-origin sign-in sheet often carries a single sign-in signal, so it slipped past the gate: the product image behind the sheet counted as "visible content", the WebView was revealed while the login sheet was still up, and when Temu tore the sheet down the page collapsed to white.
+- Fix: added `otlobliTemuLoginSheetVisible()` — a content-based detector that flags a large, visible, centered surface containing a sign-in/continue phrase confirmed by a phone/email/password input or a social "continue with" button. `otlobliPostTemuProductVisibleIfReady` now also returns early when it fires, so the cart stays visible until the login sheet is gone and real product content shows. It is a reveal gate only (delays showing the WebView); it hides nothing, so it cannot itself cause a white screen.
+- Scope: Temu cart-product reveal timing only. No blocker/hiding heuristics, SKU capture, add-to-cart, header, bottom nav, payment, wallet, orders, or account-route logic changed.
+- Validation: `npm run build` passed with no syntax errors in the injected script template.
+- Not yet real-device tested. Next check: install v85.8.70, add a Temu item to the Otlobli cart, tap it, and confirm the cart stays visible (spinner "جاري تجهيز صفحة المنتج...") until the real Temu product page appears — no login flash then white. If a product is genuinely login-walled, expect the gate to hold and eventually show "تعذر تجهيز صفحة المنتج" rather than a white screen.
 
 ## v85.8.69 Temu Cart Product Visible Gate
 
