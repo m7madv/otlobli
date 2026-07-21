@@ -2,6 +2,17 @@
 
 Last updated: 2026-07-21
 
+## v85.8.74 Temu Cart In-Page Navigation (real fix for the login gate)
+
+- Branch: `claude/ios6-cover-fix`. `APP_VERSION = 2026.07.21-v85.8.74-temu-cart-inpage-nav-no-otp-test`.
+- Builds on the v85.8.72/73 root-cause finding (reproduced live in a browser): Temu 302s a cold top-level load of any deep page (product OR search) to `/login.html` because that programmatic load carries no `temu.com` referrer. Normal in-app browsing works because tapping a card is an in-page navigation with a Temu referrer.
+- Fix: open a Temu cart product with an IN-PAGE navigation inside the already-warm Temu document instead of a refererless `InAppBrowser.setUrl`. New helper `navigateStoreWebviewInPage(url)` runs `window.location.assign(url)` via `executeScript`, so the navigation carries the current Temu page as Referer — the same request shape as a real product-card tap. Applied in both the warm path (`openStoreProductFromCart`) and the queued path (`markStoreWebviewReady`). SHEIN is unchanged (still `setUrl`).
+- Cold-open path: when the store WebView is not open yet, `browseShein` now loads the Temu HOME first (guest browsing works) instead of cold-loading the deep product URL; once home is warm, `markStoreWebviewReady` reaches the queued product via the in-page navigation. The pending product URL stays queued for that step.
+- Safety net kept: v85.8.73 `otlobliTemuRecoverFromLoginRedirect` (one guest retry) + `temuLoginBlocked` → App returns to cart with a notice, so a still-gated product never shows a white login page. v85.8.71 900ms stable gate + v85.8.72 top URL probe remain for evidence.
+- Hypothesis (referrer-based gating) is well-reasoned but NOT yet device-verified — the test browser is bot-flagged and cannot reproduce a warm Temu session. User will test on device.
+- Validation: `npm run build` (tsc + vite) clean.
+- Next real-device check: open a Temu product from cart. Expected: the real Temu product page opens (like normal browsing). If it still shows the login/white, read the top yellow probe: `[PDP...]` + URL — if still `/login.html`, referrer gating is not the (whole) cause and we move to driving Temu's SPA router.
+
 ## v85.8.73 Temu Login-Redirect Recovery (ROOT CAUSE FOUND)
 
 - Branch: `claude/ios6-cover-fix`. `APP_VERSION = 2026.07.21-v85.8.73-temu-login-redirect-recover-no-otp-test`.

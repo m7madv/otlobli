@@ -2468,7 +2468,13 @@ function App() {
     if (pendingProductUrl) {
       pendingProductUrlRef.current = ''
       markPendingProductNavigationRequested()
-      void InAppBrowser.setUrl({ url: pendingProductUrl }).catch(() => {
+      // The store WebView is now warm on its home page. For Temu, reach the
+      // product by an in-page navigation (temu.com referrer) so Temu does not
+      // gate it to /login.html; other stores keep the programmatic load.
+      const navigate = selectedStoreRef.current === 'temu'
+        ? navigateStoreWebviewInPage(pendingProductUrl)
+        : InAppBrowser.setUrl({ url: pendingProductUrl })
+      void navigate.catch(() => {
         clearPendingProductPreparation()
         pendingBackTargetRef.current = 'home'
         showNotice('تعذر تجهيز صفحة المنتج. جرّب فتحها مرة أخرى.')
@@ -2565,7 +2571,13 @@ function App() {
     // the user's VPN is on - the vpnState check above already confirmed that
     // before this function ever runs.
     const activeStore = selectedStoreRef.current
-    const rawTargetUrl = initialPendingUrl || storeUrl(activeStore)
+    // For a Temu cart product on a cold open, load the Temu HOME first (guest
+    // browsing works) instead of cold-loading the deep product URL, which Temu
+    // would 302 to /login.html. Once home is warm, markStoreWebviewReady reaches
+    // the queued product with an in-page navigation that carries a temu.com
+    // referrer. The queued pendingProductUrl stays set for that step.
+    const wantsWarmTemuProductNav = activeStore === 'temu' && pendingProductRevealRef.current && !!initialPendingUrl
+    const rawTargetUrl = wantsWarmTemuProductNav ? storeUrl(activeStore) : (initialPendingUrl || storeUrl(activeStore))
     const targetUrl = activeStore === 'shein' ? normalizeSheinBrowserUrl(rawTargetUrl) : normalizeTemuBrowserUrl(rawTargetUrl)
     if (initialPendingUrl && pendingProductRevealRef.current &&
         pendingProductRevealUrlRef.current === targetUrl) {
@@ -2698,6 +2710,23 @@ function App() {
     }
   }, [screen, vpnState, sheinReady, sheinBlockedError])
 
+  // Temu rejects a programmatic top-level load (InAppBrowser.setUrl) of a deep
+  // product URL for logged-out users and 302s it to /login.html — because that
+  // load carries no temu.com referrer, so Temu treats it as direct/bot access.
+  // A navigation performed INSIDE the already-warm Temu document (the same thing
+  // that happens when the customer taps a product card) carries the current
+  // Temu page as its Referer, so Temu serves the product. We therefore open the
+  // cart product by running window.location.assign inside the live Temu page
+  // instead of a refererless setUrl. Verified live: cold deep loads (product AND
+  // search) all redirect to /login.html; only in-page Temu navigation works.
+  const navigateStoreWebviewInPage = (url: string) => {
+    const wid = webviewIdRef.current || undefined
+    return InAppBrowser.executeScript({
+      ...(wid ? { id: wid } : {}),
+      code: `try{window.location.assign(${JSON.stringify(url)})}catch(e){window.location.href=${JSON.stringify(url)}}`,
+    })
+  }
+
   // Prepare a cart product inside the preserved, hidden store WebView. The
   // cart stays visible until browserPageLoaded + blocker readiness both arrive.
   const openStoreProductFromCart = (sourceLink: string) => {
@@ -2726,7 +2755,12 @@ function App() {
     }
     pendingProductUrlRef.current = ''
     markPendingProductNavigationRequested()
-    void InAppBrowser.setUrl({ url: targetUrl })
+    // Temu: navigate inside the warm page (carries a temu.com referrer, avoids
+    // the /login.html gate). Other stores keep the plain programmatic load.
+    const navigate = selectedStoreRef.current === 'temu'
+      ? navigateStoreWebviewInPage(targetUrl)
+      : InAppBrowser.setUrl({ url: targetUrl })
+    void navigate
       .catch(() => {
         clearPendingProductPreparation()
         pendingBackTargetRef.current = 'home'
