@@ -11,7 +11,10 @@
 - Added close/open serialization so a new SHEIN `openWebView` waits for the previous native close to finish. This targets weak phones where async close/open races can leave the native browser stuck.
 - Removed the SHEIN page heartbeat and the 4-second post-ready watchdog. The remaining stuck recovery is only the old pre-ready preparation guard, not a constant freeze detector.
 - Scope stayed narrow: no color, size, capture, add-to-cart, product link normalization, nav/icon sizing, payment, wallet, completed orders, or Temu capture logic changed.
-- Local validation: `npm run build`, injected-script parse with a font import stub, `npx eslint src/services/sheinBrowserScript.ts src/config.ts`, and `git diff --check` passed aside from Windows LF/CRLF warnings. `npx eslint src/App.tsx` still reports broad pre-existing React lint errors in the large App file.
+- GitHub iOS build `29956713013` succeeded from code commit `7e770cf`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.83-shein-fresh-session.ipa`.
+- v85.8.83 IPA SHA-256: `60E2B311A1190D19873C2DFD98AA615BC5F06163A39C2B8DE58D18C48CFA0828`.
+- Validation: `npm run build`, injected-script parse with a font import stub, `npx eslint src/services/sheinBrowserScript.ts src/config.ts`, `git diff --check`, GitHub iOS build, and embedded IPA marker check passed aside from Windows LF/CRLF warnings. `npx eslint src/App.tsx` still reports broad pre-existing React lint errors in the large App file.
 
 ## 2026-07-22 SHEIN v85.8.82 Stable Saudi + Cart Back Target
 

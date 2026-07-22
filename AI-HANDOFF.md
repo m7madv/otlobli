@@ -11,7 +11,8 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 - Added SHEIN close/open serialization: `browseShein()` queues behind an in-flight native close, so low-end devices do not start a new `openWebView` while the previous close is still finishing.
 - Removed the SHEIN page heartbeat and 4-second post-ready recovery watchdog. This avoids the rejected "script running forever then rebuild after freeze" approach. The old pre-ready watchdog still handles first-load preparation failures only.
 - Scope protected: no color/size, product capture, add-to-cart, product link normalization, nav/icon sizing, payment, wallet, completed-order, or Temu capture logic changes.
-- Local validation: `npm run build` clean; injected scripts parse with `new Function`; `npx eslint src/services/sheinBrowserScript.ts src/config.ts` clean; `git diff --check` only reports Windows LF/CRLF warnings. `npx eslint src/App.tsx` still fails on broad pre-existing React lint issues in the large App file. GitHub iOS build is pending.
+- GitHub iOS build `29956713013` succeeded from code commit `7e770cf`; IPA is `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.83-shein-fresh-session.ipa`; SHA-256 `60E2B311A1190D19873C2DFD98AA615BC5F06163A39C2B8DE58D18C48CFA0828`.
+- Validation: `npm run build` clean; injected scripts parse with `new Function`; `npx eslint src/services/sheinBrowserScript.ts src/config.ts` clean; `git diff --check` only reports Windows LF/CRLF warnings; GitHub iOS build passed; embedded IPA marker check found v85.8.83. `npx eslint src/App.tsx` still fails on broad pre-existing React lint issues in the large App file.
 - Next real-device check: install v85.8.83. Expected: SHEIN home and cart-product flows rebuild from a fresh browser instance after returning from cart/app background, while the Otlobli bottom nav size/placement and capture/add/color/size flows remain unchanged.
 
 ## Previous Candidate

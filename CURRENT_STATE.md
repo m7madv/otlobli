@@ -10,8 +10,11 @@ Last updated: 2026-07-22
 - Added close/open serialization for SHEIN so a weak phone cannot start a new `openWebView` while the previous native close is still finishing.
 - Removed the SHEIN page heartbeat and 4-second post-ready watchdog. The only stuck recovery left is the old conservative pre-ready readiness guard; there is no 24/7 freeze detector or store-switch workaround.
 - Protected scope: no color, size, product capture, add-to-cart, product URL normalization, icon/nav sizing, payment, wallet, completed-order, or Temu capture logic changed.
-- Local validation: `npm run build` passed; `npx eslint src/services/sheinBrowserScript.ts src/config.ts` passed; injected `OTLOBLI_NAV_BOOTSTRAP_SCRIPT` and `SHEIN_CAPTURE_SCRIPT` parsed with `new Function`; `git diff --check` had only Windows LF/CRLF warnings. `npx eslint src/App.tsx` still reports pre-existing broad React lint issues in the large App file.
-- GitHub iOS build: pending. Real-device proof still requires installing v85.8.83 on iPhone 6/16 and Android low-memory devices.
+- GitHub iOS build `29956713013` succeeded from code commit `7e770cf`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.83-shein-fresh-session.ipa`.
+- v85.8.83 IPA SHA-256: `60E2B311A1190D19873C2DFD98AA615BC5F06163A39C2B8DE58D18C48CFA0828`.
+- Validation: `npm run build` passed; `npx eslint src/services/sheinBrowserScript.ts src/config.ts` passed; injected `OTLOBLI_NAV_BOOTSTRAP_SCRIPT` and `SHEIN_CAPTURE_SCRIPT` parsed with `new Function`; `git diff --check` had only Windows LF/CRLF warnings; GitHub iOS build passed; embedded IPA marker check found v85.8.83. `npx eslint src/App.tsx` still reports pre-existing broad React lint issues in the large App file.
+- Next real-device check: install v85.8.83 on iPhone 6 and iPhone 16. Expected: SHEIN home and cart-product flows open from a fresh browser instance after cart/background/app resume, while bottom nav size/placement and capture/add/color/size remain unchanged.
 
 ## v85.8.82 SHEIN Stable Saudi + Cart Back Target
 
