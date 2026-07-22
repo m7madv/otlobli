@@ -9,7 +9,10 @@
 - Corrected root cause: repeated `sheinPageInteractive` messages overwrote the cart-product back target. The product initially set the injected back button to `cart`, but a later readiness message reset/sent `home`, so the button ran SHEIN `history.back()` and landed on SHEIN's broken half-rendered categories state.
 - Fix: back target is no longer reset after posting to the WebView. It resets only when the user actually leaves the WebView via Otlobli cart/orders/profile. Cart-opened SHEIN products therefore keep back bound to Otlobli cart.
 - Scope stayed narrow: no color, size, capture, add-to-cart, product link, nav/icon sizing, payment, wallet, or order logic changed.
-- Validation: `npm run build`, injected-script parse, and `npx eslint src/services/sheinBrowserScript.ts src/config.ts` passed.
+- GitHub iOS build `29946868465` succeeded from code commit `505db9d`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.81-shein-cart-back-target.ipa`.
+- v85.8.81 IPA SHA-256: `3A418030C59499B76611B59E0102C72909686954879185E7A9258CCF5E3B7A84`.
+- Validation: `npm run build`, injected-script parse, `npx eslint src/services/sheinBrowserScript.ts src/config.ts`, GitHub iOS build, and embedded IPA marker check passed.
 
 ## 2026-07-22 SHEIN v85.8.80 Cart Light In-Page Navigation
 

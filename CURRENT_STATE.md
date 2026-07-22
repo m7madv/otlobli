@@ -9,7 +9,10 @@ Last updated: 2026-07-22
 - Corrected root cause: product opening was no longer the failing part. `sheinPageInteractive` is posted repeatedly by the injected SHEIN script. After a cart product revealed, React initially sent `__backTarget = cart`, but the next repeated readiness message called `markStoreWebviewReady()` again, posted `__backTarget = home`, and reset the button into normal in-page `history.back()` mode. The user's next tap therefore drove SHEIN's own history back to a half-rendered categories state instead of returning to Otlobli cart.
 - Fix: `markStoreWebviewReady()` and the home-show effect now keep posting the current back target without resetting it to `home`. The target resets only when the customer actually leaves the WebView through Otlobli cart/orders/profile messages. A cart-opened SHEIN product therefore keeps its back button bound to Otlobli cart and never falls into SHEIN's broken in-page back state.
 - Scope protected: no product URL/opening rewrite beyond v85.8.80, and no color, size, capture, add-to-cart, deep-link, nav/icon sizing, payment, wallet, or order changes.
-- Validation: `npm run build` passed; `npx eslint src/services/sheinBrowserScript.ts src/config.ts` passed; injected `OTLOBLI_NAV_BOOTSTRAP_SCRIPT` and `SHEIN_CAPTURE_SCRIPT` parsed with `new Function`.
+- GitHub iOS build `29946868465` succeeded from code commit `505db9d`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.81-shein-cart-back-target.ipa`.
+- v85.8.81 IPA SHA-256: `3A418030C59499B76611B59E0102C72909686954879185E7A9258CCF5E3B7A84`.
+- Validation: `npm run build` passed; `npx eslint src/services/sheinBrowserScript.ts src/config.ts` passed; injected `OTLOBLI_NAV_BOOTSTRAP_SCRIPT` and `SHEIN_CAPTURE_SCRIPT` parsed with `new Function`; GitHub iOS build passed; embedded IPA marker check found v85.8.81.
 - Next real-device check: install v85.8.81, open a SHEIN product from Otlobli cart, press Otlobli's back button once. Expected: app returns to Otlobli cart, not to SHEIN categories/home. Then reopen SHEIN normally and verify browsing/products remain tappable.
 
 ## v85.8.80 SHEIN Cart Light In-Page Navigation
