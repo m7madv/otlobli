@@ -10,7 +10,10 @@ Last updated: 2026-07-22
 - Kept the useful v85.8.81 cart back-target fix: repeated `sheinPageInteractive` no longer resets a cart-opened product back button from `cart` to `home`; the target resets only when the customer actually leaves the WebView through Otlobli cart/orders/profile.
 - Added one narrow Saudi recovery: if SHEIN has a saved `addressCookie` with an explicit non-Saudi country such as Bahrain, remove only that `addressCookie` before seeding the Saudi/USD state. This is not broad storage clearing and it preserves signed Saudi addresses.
 - Scope protected: no color, size, product capture, add-to-cart flow, product link normalization, icon/nav sizing, payment, wallet, or order logic changes.
-- Validation: `npm run build` passed; `npx eslint src/services/sheinBrowserScript.ts src/config.ts` passed; injected `OTLOBLI_NAV_BOOTSTRAP_SCRIPT` and `SHEIN_CAPTURE_SCRIPT` parsed with `new Function`; `git diff --check` had only Windows LF/CRLF warnings.
+- GitHub iOS build `29952878400` succeeded from code commit `394bcae`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.82-shein-stable-saudi-back.ipa`.
+- v85.8.82 IPA SHA-256: `20763A568A3E399CA59C98A4AF622C2059A62469F8D14893E77A51F1736297E3`.
+- Validation: `npm run build` passed; `npx eslint src/services/sheinBrowserScript.ts src/config.ts` passed; injected `OTLOBLI_NAV_BOOTSTRAP_SCRIPT` and `SHEIN_CAPTURE_SCRIPT` parsed with `new Function`; `git diff --check` had only Windows LF/CRLF warnings; GitHub iOS build passed; embedded IPA marker check found v85.8.82.
 - Next real-device check: install v85.8.82, open SHEIN fresh and confirm Saudi/USD before any product capture. Then open a SHEIN cart product and press Otlobli back once; expected: return to Otlobli cart, not SHEIN categories/home.
 
 ## v85.8.81 SHEIN Cart Back Target Fix

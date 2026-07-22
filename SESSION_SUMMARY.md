@@ -11,7 +11,10 @@
 - Restored v85.8.79 SHEIN stability behavior: page heartbeat, post-ready recovery watchdog, app visibility resets, and the old low-end scan intervals.
 - Added a narrow Saudi recovery: if SHEIN local storage contains an explicit non-Saudi `addressCookie` such as Bahrain, only that key is cleared so the existing Saudi seed can take effect again. Signed Saudi address data is not cleared.
 - Scope stayed narrow: no color, size, capture, add-to-cart, product parsing, icon sizing, payment, wallet, completed-order, or Temu logic changed.
-- Local validation passed so far: `npm run build`, injected-script parse, `npx eslint src/services/sheinBrowserScript.ts src/config.ts`, and targeted `git diff --check` aside from Windows LF/CRLF warnings.
+- GitHub iOS build `29952878400` succeeded from code commit `394bcae`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.82-shein-stable-saudi-back.ipa`.
+- v85.8.82 IPA SHA-256: `20763A568A3E399CA59C98A4AF622C2059A62469F8D14893E77A51F1736297E3`.
+- Validation: `npm run build`, injected-script parse, `npx eslint src/services/sheinBrowserScript.ts src/config.ts`, targeted `git diff --check`, GitHub iOS build, and embedded IPA marker check passed aside from Windows LF/CRLF warnings.
 
 ## 2026-07-22 SHEIN v85.8.81 Cart Back Target Fix
 
