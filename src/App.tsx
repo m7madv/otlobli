@@ -1779,7 +1779,8 @@ function App() {
     void appApi.cartGroups.create(phone, userProfile?.name || recipient.name || 'صاحب الطلب', selectedStore, cartItems, groupMemberKey)
       .then((snapshot) => {
         setCartGroup(snapshot)
-        showNotice(`كود الطلب المشترك: ${snapshot.code}`)
+        // اسم المتجر صريح: الطلب المشترك مخصّص لمتجر واحد فقط، فيعرف الطرفان أي سلة.
+        showNotice(`طلب مشترك على ${storeName(selectedStore)} — الكود: ${snapshot.code}`)
       })
       .catch((error: unknown) => showNotice(getPublicErrorMessage(error)))
       .finally(() => setIsSyncingGroup(false))
@@ -1802,7 +1803,8 @@ function App() {
         setCartGroup(snapshot)
         setGroupJoinCode('')
         setPendingGroupInvite(null)
-        showNotice('تم ربط السلة مع صديقك')
+        // اسم المتجر صريح حتى يعرف المستخدم بأي سلة ارتبط (نفس متجر مُنشئ الرابط).
+        showNotice(`تم ربط سلة ${storeName(joinStore)} مع صديقك`)
       })
       .catch((error: unknown) => showNotice(getPublicErrorMessage(error)))
       .finally(() => setIsSyncingGroup(false))
