@@ -2531,10 +2531,10 @@ function App() {
     postWebviewChromeState(target)
   }
 
-  const restartStuckSheinWebview = (sessionId: number) => {
+  const restartStuckSheinWebview = (sessionId: number, allowReadyRecovery = false) => {
     if (sessionId !== webviewSessionRef.current) return
     if (!sheinOpenedRef.current || screenRef.current !== 'home') return
-    if (sheinChallengeActiveRef.current || sheinReadyRef.current) return
+    if (sheinChallengeActiveRef.current || (sheinReadyRef.current && !allowReadyRecovery)) return
     clearSheinReadinessWatchdog()
 
     if (sheinRecoveryAttemptRef.current >= 1) {
@@ -3032,7 +3032,7 @@ function App() {
       if (webviewOpeningRef.current) return
       if (Date.now() - lastSheinHeartbeatRef.current > 15000) {
         lastSheinHeartbeatRef.current = Date.now()
-        restartStuckSheinWebview(webviewSessionRef.current)
+        restartStuckSheinWebview(webviewSessionRef.current, true)
       }
     }, 4000)
     return () => window.clearInterval(id)

@@ -5935,8 +5935,19 @@ export const SHEIN_CAPTURE_SCRIPT = `
           break;
         }
       }
-      if (!closeTarget) continue;
-      try { closeTarget.click(); } catch (e) {}
+      if (closeTarget) {
+        try { closeTarget.click(); } catch (e) {}
+      } else {
+        // Some first-visit SHEIN auth sheets have no reliable close label/icon.
+        // Only on a real product page, hide that unsolicited floating auth
+        // surface and release any scroll lock it left behind.
+        candidate.setAttribute('data-otlobli-hidden-shein-login-prompt', '1');
+        candidate.style.setProperty('display', 'none', 'important');
+        candidate.style.setProperty('visibility', 'hidden', 'important');
+        candidate.style.setProperty('pointer-events', 'none', 'important');
+        try { document.body.style.overflow = ''; } catch (e) {}
+        try { document.documentElement.style.overflow = ''; } catch (e) {}
+      }
       return;
     }
   }

@@ -1,5 +1,16 @@
 # SESSION_SUMMARY.md
 
+## 2026-07-22 SHEIN v85.8.79 Ready-Freeze Recovery
+
+- Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
+- Branch: `claude/ios6-cover-fix`.
+- Current local candidate: v85.8.79 / `APP_VERSION = 2026.07.22-v85.8.79-shein-ready-freeze-recovery-no-otp-test`.
+- User report: after opening a SHEIN product from Otlobli cart and backing out to SHEIN home, the page can become visible but untappable. Switching to Temu and back fixes it by rebuilding the WebView.
+- Root cause: v85.8.78's heartbeat watchdog called the existing stuck-WebView restart while `sheinReadyRef.current` was true, but that restart function returned immediately for any ready page. The recovery path for post-ready freezes was therefore disabled.
+- Fix: `restartStuckSheinWebview()` now accepts `allowReadyRecovery`; the heartbeat watchdog passes `true` so an already-ready frozen SHEIN WebView can be rebuilt after the heartbeat stops. Added a narrow fallback to hide unsolicited product-page SHEIN login dialogs that have no detectable close button, without touching real login routes.
+- Scope stayed narrow: SHEIN freeze recovery and SHEIN product auth prompt only. No Temu, payment, wallet, completed orders, SKU capture, cart pricing, or order logic changed.
+- Validation: `npm run build`, injected-script syntax parse, `npx eslint src/services/sheinBrowserScript.ts src/config.ts`, and `git diff --check` passed aside from Windows LF/CRLF warnings. Full targeted lint including `src/App.tsx` still reports pre-existing unrelated App lint errors.
+
 ## 2026-07-20 Temu v85.8.69 Cart Product Visible Gate
 
 - Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.

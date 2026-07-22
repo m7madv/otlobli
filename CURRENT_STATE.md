@@ -1,6 +1,17 @@
 # Otlobli Current State
 
-Last updated: 2026-07-21
+Last updated: 2026-07-22
+
+## v85.8.79 SHEIN Ready-Freeze Recovery Fix
+
+- Branch: `claude/ios6-cover-fix`. `APP_VERSION = 2026.07.22-v85.8.79-shein-ready-freeze-recovery-no-otp-test`.
+- User report: SHEIN can freeze after opening a product from the Otlobli cart and backing out to SHEIN home; tapping SHEIN categories no longer works. Switching to Temu and back fixes it because that rebuilds the store WebView; killing the app does not reliably fix it.
+- Root cause in the local v85.8.78 fix: the new heartbeat watchdog detected "SHEIN is ready but heartbeat stopped", then called `restartStuckSheinWebview()`, but that function immediately returned when `sheinReadyRef.current` was true. So the post-ready freeze recovery path was logically disabled.
+- Fix: `restartStuckSheinWebview(sessionId, allowReadyRecovery)` now allows the heartbeat watchdog to rebuild an already-ready frozen SHEIN WebView, while the old pre-ready readiness watchdog still keeps its conservative guard.
+- Also strengthened first-product SHEIN login blocking: if an unsolicited product-page auth dialog has no reliable close control, the injected script hides that floating auth surface and releases body/html scroll lock. Real login routes remain untouched.
+- Scope: SHEIN WebView recovery and SHEIN product login prompt only. No Temu, payment, wallet, completed orders, SKU capture, or cart math changes.
+- Validation: `npm run build` passed; injected `OTLOBLI_NAV_BOOTSTRAP_SCRIPT` and `SHEIN_CAPTURE_SCRIPT` both parsed with `new Function`; `npx eslint src/services/sheinBrowserScript.ts src/config.ts` passed; `git diff --check` had only Windows LF/CRLF warnings. Targeted lint including `src/App.tsx` still reports pre-existing unrelated App lint errors.
+- Next real-device check: on iPhone 6 and iPhone 16 Pro Max, open SHEIN from a cart item, back out to SHEIN home, wait if needed, then tap top categories/search/products. Expected: if SHEIN's JS freezes, the app rebuilds the WebView automatically after about 15-19 seconds instead of staying frozen; first-product login prompts should not remain visible.
 
 ## v85.8.75 Temu Cart In-Page Nav — diagnostics removed (fix CONFIRMED working)
 
