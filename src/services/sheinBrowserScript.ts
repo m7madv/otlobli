@@ -4280,6 +4280,18 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // to add a product to SHEIN's real cart from that exact window. Better to
   // make the user wait a beat than ever expose anything unprocessed.
   var __otlobliLoadingDone = false;
+  // نبضة حياة SHEIN: تُرسل كل ~1.2 ثانية لتُثبت أن خيط JS للصفحة حيّ يعمل. لو
+  // تجمّدت الصفحة (صارت صورة لا تستجيب) يتوقّف الـtick فتتوقّف النبضة، فيرصد
+  // التطبيق التجمّد ويعيد بناء الـWebView (نفس أثر تبديل المتجر يدوياً).
+  var __otlobliSheinHeartbeatTs = 0;
+  function otlobliPostSheinHeartbeat() {
+    if (IS_TEMU || !window.mobileApp || !window.mobileApp.postMessage) return;
+    var now = Date.now();
+    if (now - __otlobliSheinHeartbeatTs < 1200) return;
+    __otlobliSheinHeartbeatTs = now;
+    try { window.mobileApp.postMessage({ detail: { type: 'sheinHeartbeat' } }); } catch (e) {}
+  }
+
   function ensureLoadingOverlay() {
     if (__otlobliLoadingDone || document.getElementById('otlobli-loading')) return;
     ensureOverlayStyle();
@@ -6401,6 +6413,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // header/cart/listing/nav blockers below ran, so native code could reveal
     // a product for one or two seconds with raw SHEIN chrome still visible.
     updateSheinNativeCoverState();
+    // نبضة حياة (آخر خطوة): يرصد التطبيق توقّفها كتجمّد ويعيد بناء الـWebView.
+    otlobliPostSheinHeartbeat();
   }
 
   // وضع بحث تيمو: عندما يركّز المستخدم حقل البحث ويكتب، تعرض تيمو قائمة

@@ -2199,6 +2199,9 @@ function App() {
   const pendingProductPrepareTimerRef = useRef<number | undefined>(undefined)
   const [sheinReady, setSheinReady] = useState(false)
   const sheinReadyRef = useRef(false)
+  // مراقب تجمّد SHEIN: آخر نبضة من صفحة المتجر + هل التطبيق بالمقدمة.
+  const lastSheinHeartbeatRef = useRef(Date.now())
+  const appActiveRef = useRef(true)
   // Tracks which screen the in-page back button inside the SHEIN webview
   // should return to: 'cart' right after the user taps a cart item (so back
   // re-opens otlobli's cart), 'home' for ordinary browsing from the home tab.
@@ -2987,15 +2990,25 @@ function App() {
   // process, especially after the user visited a VPN app.
   useEffect(() => {
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible') forceStoreVpnRecheck()
+      if (document.visibilityState === 'visible') {
+        appActiveRef.current = true
+        // نبضة SHEIN تتوقّف حين يكون التطبيق بالخلفية؛ عند العودة نُصفّر المؤقّت
+        // حتى لا يظنّ مراقب التجمّد أن الصفحة معلّقة بسبب فترة الخلفية.
+        lastSheinHeartbeatRef.current = Date.now()
+        forceStoreVpnRecheck()
+      } else {
+        appActiveRef.current = false
+      }
     }
     document.addEventListener('visibilitychange', handleVisibility)
     let appStateSub: { remove: () => Promise<void> } | undefined
     if (Capacitor.isNativePlatform()) {
       void CapacitorApp.addListener('appStateChange', (state: { isActive: boolean }) => {
+        appActiveRef.current = state.isActive
         if (!state.isActive) {
           return
         }
+        lastSheinHeartbeatRef.current = Date.now()
         forceStoreVpnRecheck()
       }).then((sub) => { appStateSub = sub })
       window.setTimeout(() => forceStoreVpnRecheck(), 0)
@@ -3006,9 +3019,40 @@ function App() {
     }
   }, [])
 
+  // مراقب تجمّد SHEIN: الصفحة تبثّ نبضة كل ~ثانية. لو توقّفت ≥15 ثانية والمتجر
+  // ظاهر ومحمّل والتطبيق بالمقدمة = الصفحة تجمّدت (صورة لا تستجيب) — نعمل نفس
+  // استرداد «تبديل المتجر» (WebView جديد) تلقائياً. محافظ جداً: يشترط تجمّداً
+  // حقيقياً طويلاً حتى لا يزعج النسخة السليمة. الاسترداد الحالي كان يعمل فقط قبل
+  // نجاح التحميل؛ هذا يغطّي التجمّد بعد نجاح التحميل (السبب الذي أبلغ عنه المستخدم).
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      if (selectedStoreRef.current !== 'shein') return
+      if (screenRef.current !== 'home' || !sheinOpenedRef.current || !sheinReadyRef.current) return
+      if (sheinChallengeActiveRef.current || !appActiveRef.current) return
+      if (webviewOpeningRef.current) return
+      if (Date.now() - lastSheinHeartbeatRef.current > 15000) {
+        lastSheinHeartbeatRef.current = Date.now()
+        restartStuckSheinWebview(webviewSessionRef.current)
+      }
+    }, 4000)
+    return () => window.clearInterval(id)
+  }, [])
+
+  // عند دخول شاشة المتجر (home) تُصفّر النبضة: أثناء السلة يكون الـWebView مخفياً
+  // ونبضته متوقّفة، فبدون هذا التصفير قد يُنذر المراقب خطأً فور العودة.
+  useEffect(() => {
+    if (screen === 'home') lastSheinHeartbeatRef.current = Date.now()
+  }, [screen])
+
   useEffect(() => {
     const handle = InAppBrowser.addListener('messageFromWebview', (event: { detail?: Record<string, unknown> }) => {
       const detail = event?.detail
+
+      // نبضة حياة صفحة SHEIN: تُثبت أن خيط JS حيّ. توقّفها يرصده مراقب التجمّد.
+      if (detail?.type === 'sheinHeartbeat') {
+        lastSheinHeartbeatRef.current = Date.now()
+        return
+      }
 
       if (detail?.type === 'temuProductVisible') {
         if (selectedStoreRef.current === 'temu' && pendingProductRevealRef.current) {
