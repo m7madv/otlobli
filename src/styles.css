@@ -2474,8 +2474,10 @@ a {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 92px);
-  z-index: 80;
+  /* أعلى من شريط الدفع (z-index 120) وفوقه مكاناً حتى يظهر التنبيه واضحاً
+     («جاري تجهيز المنتج») بدل ما يختفي خلف زر المتابعة للدفع. */
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 172px);
+  z-index: 200;
   width: max-content;
   max-width: min(342px, calc(100vw - 40px));
   margin-inline: auto;
