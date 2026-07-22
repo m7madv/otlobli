@@ -13,8 +13,11 @@ Last updated: 2026-07-22
 - Scope protected: no changes to `getColorState`, `getSizeState`, `captureProductPayload`, `addToCartFlow`, deep-link building, add-to-cart validation, or injected nav/icon sizing.
 - Browser harness: added `scripts/shein-cart-browser-harness.mjs` for visible desktop testing. It injects the same SHEIN script, compares native full load vs in-page navigation, writes screenshots/report, and supports `--keep-open=1` for manual CAPTCHA checks. Playwright Chromium is bot-flagged by SHEIN, so CAPTCHA results there are not trusted.
 - Browser evidence with the user's product URL: SHEIN home became interactive and the long product URL was preserved; product navigation in desktop automation was redirected by SHEIN to `/risk/challenge` with `humanCheck`. This confirms the URL shape is valid but desktop automation cannot complete SHEIN's human check reliably.
-- Validation: `npm run build` passed; `npx eslint src/services/sheinBrowserScript.ts src/config.ts` passed; injected `OTLOBLI_NAV_BOOTSTRAP_SCRIPT` and `SHEIN_CAPTURE_SCRIPT` parsed with `new Function`; `git diff --check` had only Windows LF/CRLF warnings. Targeted `src/App.tsx` lint still reports pre-existing unrelated App lint errors.
-- Next real-device check: build/install v85.8.80 on iPhone 6 and iPhone 16 Pro Max. Reproduce: SHEIN cart item -> product -> back to SHEIN home -> tap categories/products. Expected: product opens through the live SHEIN page path, back/home remains tappable, no delayed rebuild workaround, and capture/add/color/size behavior stays unchanged.
+- GitHub iOS build `29944509509` succeeded from code commit `71a3f13`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.80-shein-cart-light-nav.ipa`.
+- v85.8.80 IPA SHA-256: `67D53FD87BCFECF606DAFD641CB2AAB657C2EB1084C8401C248432BF150C8AAD`.
+- Validation: `npm run build` passed; `npx eslint src/services/sheinBrowserScript.ts src/config.ts` passed; injected `OTLOBLI_NAV_BOOTSTRAP_SCRIPT` and `SHEIN_CAPTURE_SCRIPT` parsed with `new Function`; `git diff --check` had only Windows LF/CRLF warnings; GitHub iOS build passed; embedded IPA marker check found v85.8.80 and no old SHEIN heartbeat markers. Targeted `src/App.tsx` lint still reports pre-existing unrelated App lint errors.
+- Next real-device check: install v85.8.80 on iPhone 6 and iPhone 16 Pro Max. Reproduce: SHEIN cart item -> product -> back to SHEIN home -> tap categories/products. Expected: product opens through the live SHEIN page path, back/home remains tappable, no delayed rebuild workaround, and capture/add/color/size behavior stays unchanged.
 
 ## v85.8.79 SHEIN Ready-Freeze Recovery Fix
 

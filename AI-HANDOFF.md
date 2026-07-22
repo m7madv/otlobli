@@ -14,8 +14,9 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 - Scope protected: no changes to color/size detection, product payload capture, add-to-cart flow, deep-link building, add validation, or nav/icon sizing.
 - Added visible browser harness `scripts/shein-cart-browser-harness.mjs`. It injects the real SHEIN script and compares full load vs in-page navigation. It has `--keep-open=1` for manual CAPTCHA, but Playwright Chromium is bot-flagged by SHEIN, so a failed CAPTCHA answer there is not evidence the user selected wrong images.
 - Browser evidence with the user's product URL: SHEIN home became interactive and the long URL was preserved; both desktop automation paths reached SHEIN `/risk/challenge` with `humanCheck`. This proves URL shape is valid and desktop automation cannot be trusted for CAPTCHA completion.
-- Validation: `npm run build` clean; injected scripts parse with `new Function`; `npx eslint src/services/sheinBrowserScript.ts src/config.ts` clean; `git diff --check` only reports Windows LF/CRLF warnings. `npx eslint src/App.tsx ...` still reports pre-existing unrelated App lint errors.
-- Next real-device check: build/install v85.8.80 on iPhone 6 and iPhone 16 Pro Max. Reproduce SHEIN cart item -> product -> back to SHEIN home -> tap categories/products. Expected: no permanent freeze and no delayed rebuild workaround; add/cart/capture/color/size behavior unchanged.
+- GitHub iOS build `29944509509` succeeded from code commit `71a3f13`; IPA is `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.80-shein-cart-light-nav.ipa`; SHA-256 `67D53FD87BCFECF606DAFD641CB2AAB657C2EB1084C8401C248432BF150C8AAD`.
+- Validation: `npm run build` clean; injected scripts parse with `new Function`; `npx eslint src/services/sheinBrowserScript.ts src/config.ts` clean; `git diff --check` only reports Windows LF/CRLF warnings; GitHub iOS build passed; embedded IPA marker check found v85.8.80 and no old SHEIN heartbeat markers. `npx eslint src/App.tsx ...` still reports pre-existing unrelated App lint errors.
+- Next real-device check: install v85.8.80 on iPhone 6 and iPhone 16 Pro Max. Reproduce SHEIN cart item -> product -> back to SHEIN home -> tap categories/products. Expected: no permanent freeze and no delayed rebuild workaround; add/cart/capture/color/size behavior unchanged.
 
 ## Previous Candidate
 
