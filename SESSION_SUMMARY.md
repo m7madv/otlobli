@@ -9,7 +9,10 @@
 - Root cause: v85.8.78's heartbeat watchdog called the existing stuck-WebView restart while `sheinReadyRef.current` was true, but that restart function returned immediately for any ready page. The recovery path for post-ready freezes was therefore disabled.
 - Fix: `restartStuckSheinWebview()` now accepts `allowReadyRecovery`; the heartbeat watchdog passes `true` so an already-ready frozen SHEIN WebView can be rebuilt after the heartbeat stops. Added a narrow fallback to hide unsolicited product-page SHEIN login dialogs that have no detectable close button, without touching real login routes.
 - Scope stayed narrow: SHEIN freeze recovery and SHEIN product auth prompt only. No Temu, payment, wallet, completed orders, SKU capture, cart pricing, or order logic changed.
-- Validation: `npm run build`, injected-script syntax parse, `npx eslint src/services/sheinBrowserScript.ts src/config.ts`, and `git diff --check` passed aside from Windows LF/CRLF warnings. Full targeted lint including `src/App.tsx` still reports pre-existing unrelated App lint errors.
+- GitHub iOS build `29928244012` succeeded from code commit `377f6d5`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.79-shein-ready-freeze-recovery.ipa`.
+- v85.8.79 IPA SHA-256: `89677EFA17882DFB02C893FF16447323829A074141DC0C5E937A68771F2A120A`.
+- Validation: `npm run build`, injected-script syntax parse, `npx eslint src/services/sheinBrowserScript.ts src/config.ts`, `git diff --check`, GitHub iOS build, and embedded IPA marker checks passed aside from Windows LF/CRLF warnings. Full targeted lint including `src/App.tsx` still reports pre-existing unrelated App lint errors.
 
 ## 2026-07-20 Temu v85.8.69 Cart Product Visible Gate
 
