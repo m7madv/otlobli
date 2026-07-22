@@ -2199,6 +2199,8 @@ function App() {
   const pendingProductPrepareTimerRef = useRef<number | undefined>(undefined)
   const [sheinReady, setSheinReady] = useState(false)
   const sheinReadyRef = useRef(false)
+  const lastSheinHeartbeatRef = useRef(Date.now())
+  const appActiveRef = useRef(true)
   // Tracks which screen the in-page back button inside the SHEIN webview
   // should return to: 'cart' right after the user taps a cart item (so back
   // re-opens otlobli's cart), 'home' for ordinary browsing from the home tab.
@@ -2508,12 +2510,9 @@ function App() {
     if (pendingProductUrl) {
       pendingProductUrlRef.current = ''
       markPendingProductNavigationRequested()
-      currentWebviewUrlRef.current = pendingProductUrl
-      // The store WebView is now warm on its home page. Cart products are
-      // opened from inside the live store document, matching a real in-store
-      // tap and avoiding a heavy native setUrl navigation on the preserved
-      // iOS WebView.
-      const navigate = selectedStoreRef.current === 'temu' || selectedStoreRef.current === 'shein'
+      // Temu needs in-page navigation to keep a store referrer. SHEIN keeps the
+      // previously stable native product load path.
+      const navigate = selectedStoreRef.current === 'temu'
         ? navigateStoreWebviewInPage(pendingProductUrl)
         : InAppBrowser.setUrl({ url: pendingProductUrl })
       void navigate.catch(() => {
@@ -2528,10 +2527,10 @@ function App() {
     postWebviewChromeState(pendingBackTargetRef.current)
   }
 
-  const restartStuckSheinWebview = (sessionId: number) => {
+  const restartStuckSheinWebview = (sessionId: number, allowReadyRecovery = false) => {
     if (sessionId !== webviewSessionRef.current) return
     if (!sheinOpenedRef.current || screenRef.current !== 'home') return
-    if (sheinChallengeActiveRef.current || sheinReadyRef.current) return
+    if (sheinChallengeActiveRef.current || (sheinReadyRef.current && !allowReadyRecovery)) return
     clearSheinReadinessWatchdog()
 
     if (sheinRecoveryAttemptRef.current >= 1) {
@@ -2611,11 +2610,10 @@ function App() {
     // the user's VPN is on - the vpnState check above already confirmed that
     // before this function ever runs.
     const activeStore = selectedStoreRef.current
-    // Cart products start from the store home, then navigate inside the live
-    // document. This keeps deep product URLs out of the cold native load path
-    // that has been fragile on mobile store WebViews.
-    const wantsWarmCartProductNav = pendingProductRevealRef.current && !!initialPendingUrl
-    const rawTargetUrl = wantsWarmCartProductNav ? storeUrl(activeStore) : (initialPendingUrl || storeUrl(activeStore))
+    // Temu cart products start from home, then navigate inside the live
+    // document. SHEIN keeps the previously stable native product load path.
+    const wantsWarmTemuProductNav = activeStore === 'temu' && pendingProductRevealRef.current && !!initialPendingUrl
+    const rawTargetUrl = wantsWarmTemuProductNav ? storeUrl(activeStore) : (initialPendingUrl || storeUrl(activeStore))
     const targetUrl = activeStore === 'shein' ? normalizeSheinBrowserUrl(rawTargetUrl) : normalizeTemuBrowserUrl(rawTargetUrl)
     if (initialPendingUrl && pendingProductRevealRef.current &&
         pendingProductRevealUrlRef.current === targetUrl) {
@@ -2698,12 +2696,11 @@ function App() {
         if (!result) return
         if (sessionId !== webviewSessionRef.current) return
         webviewIdRef.current = result?.id ?? webviewIdRef.current
-        const keepPendingCartProductVisible = activeStore === 'shein' && !!initialPendingUrl && pendingProductRevealRef.current
-        if (screenRef.current !== 'home' && (!initialPendingUrl || pendingProductRevealRef.current) && !keepPendingCartProductVisible) {
+        if (screenRef.current !== 'home' && (!initialPendingUrl || pendingProductRevealRef.current)) {
           void InAppBrowser.hide().catch(() => undefined)
         }
         postWebviewChromeState(pendingBackTargetRef.current)
-        if (!wantsWarmCartProductNav && initialPendingUrl && pendingProductUrlRef.current === initialPendingUrl) pendingProductUrlRef.current = ''
+        if (initialPendingUrl && pendingProductUrlRef.current === initialPendingUrl) pendingProductUrlRef.current = ''
         const absoluteTimeout = window.setTimeout(() => {
           if (sessionId !== webviewSessionRef.current) return
           if (!webviewOpeningRef.current) return
@@ -2738,10 +2735,6 @@ function App() {
         openTimer = window.setTimeout(() => browseSheinRef.current(), 0)
       }
     } else if (sheinOpenedRef.current) {
-      if (selectedStoreRef.current === 'shein' && pendingProductRevealRef.current) {
-        void InAppBrowser.show().catch(() => undefined)
-        return
-      }
       // The iOS patch keeps Otlobli's WebView attached to its controller while
       // hidden, so cart/orders/profile can appear without destroying SHEIN.
       void InAppBrowser.hide().catch(() => undefined)
@@ -2751,9 +2744,8 @@ function App() {
     }
   }, [screen, vpnState, sheinReady, sheinBlockedError])
 
-  // Deep cart links are safer when the store page performs the navigation
-  // itself. Temu needs this to keep a store referrer. SHEIN needs it to avoid
-  // driving the preserved iOS WebView through a cold native product load.
+  // Temu rejects a refererless native deep product load. Opening the product
+  // from inside the warm Temu page matches a real card tap.
   const navigateStoreWebviewInPage = (url: string) => {
     const wid = webviewIdRef.current || undefined
     return InAppBrowser.executeScript({
@@ -2790,19 +2782,11 @@ function App() {
     }
     pendingProductUrlRef.current = ''
     markPendingProductNavigationRequested()
-    currentWebviewUrlRef.current = targetUrl
-    // Cart products navigate inside the warm store document. SHEIN used to keep
-    // the plain setUrl path here; that was the fragile cart-product path on iOS.
-    const shouldUseInPageCartNavigation = selectedStoreRef.current === 'temu' || selectedStoreRef.current === 'shein'
-    const revealSheinBeforeProductNavigation = selectedStoreRef.current === 'shein'
-    const showBeforeNavigate = revealSheinBeforeProductNavigation
-      ? InAppBrowser.show().catch(() => undefined)
-      : Promise.resolve()
-    const navigate = showBeforeNavigate.then(() => (
-      shouldUseInPageCartNavigation
-        ? navigateStoreWebviewInPage(targetUrl)
-        : InAppBrowser.setUrl({ url: targetUrl })
-    ))
+    // Temu: navigate inside the warm page. SHEIN keeps the native setUrl path
+    // that was stable before the v85.8.80 experiment.
+    const navigate = selectedStoreRef.current === 'temu'
+      ? navigateStoreWebviewInPage(targetUrl)
+      : InAppBrowser.setUrl({ url: targetUrl })
     void navigate
       .catch(() => {
         clearPendingProductPreparation()
@@ -2991,16 +2975,22 @@ function App() {
   useEffect(() => {
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
+        appActiveRef.current = true
+        lastSheinHeartbeatRef.current = Date.now()
         forceStoreVpnRecheck()
+      } else {
+        appActiveRef.current = false
       }
     }
     document.addEventListener('visibilitychange', handleVisibility)
     let appStateSub: { remove: () => Promise<void> } | undefined
     if (Capacitor.isNativePlatform()) {
       void CapacitorApp.addListener('appStateChange', (state: { isActive: boolean }) => {
+        appActiveRef.current = state.isActive
         if (!state.isActive) {
           return
         }
+        lastSheinHeartbeatRef.current = Date.now()
         forceStoreVpnRecheck()
       }).then((sub) => { appStateSub = sub })
       window.setTimeout(() => forceStoreVpnRecheck(), 0)
@@ -3012,8 +3002,31 @@ function App() {
   }, [])
 
   useEffect(() => {
+    const id = window.setInterval(() => {
+      if (selectedStoreRef.current !== 'shein') return
+      if (screenRef.current !== 'home' || !sheinOpenedRef.current || !sheinReadyRef.current) return
+      if (sheinChallengeActiveRef.current || !appActiveRef.current) return
+      if (webviewOpeningRef.current) return
+      if (Date.now() - lastSheinHeartbeatRef.current > 15000) {
+        lastSheinHeartbeatRef.current = Date.now()
+        restartStuckSheinWebview(webviewSessionRef.current, true)
+      }
+    }, 4000)
+    return () => window.clearInterval(id)
+  }, [])
+
+  useEffect(() => {
+    if (screen === 'home') lastSheinHeartbeatRef.current = Date.now()
+  }, [screen])
+
+  useEffect(() => {
     const handle = InAppBrowser.addListener('messageFromWebview', (event: { detail?: Record<string, unknown> }) => {
       const detail = event?.detail
+
+      if (detail?.type === 'sheinHeartbeat') {
+        lastSheinHeartbeatRef.current = Date.now()
+        return
+      }
 
       if (detail?.type === 'temuProductVisible') {
         if (selectedStoreRef.current === 'temu' && pendingProductRevealRef.current) {

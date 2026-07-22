@@ -1,5 +1,18 @@
 # SESSION_SUMMARY.md
 
+## 2026-07-22 SHEIN v85.8.82 Stable Saudi + Cart Back Target
+
+- Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
+- Branch: `claude/ios6-cover-fix`.
+- Current local candidate: v85.8.82 / `APP_VERSION = 2026.07.22-v85.8.82-shein-stable-saudi-back-no-otp-test`.
+- User tested v85.8.81 and rejected it: SHEIN opened on Bahrain instead of Saudi, product capture failed because Saudi locking failed, and the page could freeze again after exiting/re-entering without even opening a cart product.
+- Decision: v85.8.80/v85.8.81 SHEIN cart-product navigation experiment is rolled back. SHEIN cart products are again opened through the older stable native `InAppBrowser.setUrl()` path from v85.8.79.
+- Kept one proven fix only: the Otlobli back target for a SHEIN product opened from cart is no longer overwritten by repeated page-ready messages, so the back button stays bound to Otlobli cart instead of SHEIN history/home.
+- Restored v85.8.79 SHEIN stability behavior: page heartbeat, post-ready recovery watchdog, app visibility resets, and the old low-end scan intervals.
+- Added a narrow Saudi recovery: if SHEIN local storage contains an explicit non-Saudi `addressCookie` such as Bahrain, only that key is cleared so the existing Saudi seed can take effect again. Signed Saudi address data is not cleared.
+- Scope stayed narrow: no color, size, capture, add-to-cart, product parsing, icon sizing, payment, wallet, completed-order, or Temu logic changed.
+- Local validation passed so far: `npm run build`, injected-script parse, `npx eslint src/services/sheinBrowserScript.ts src/config.ts`, and targeted `git diff --check` aside from Windows LF/CRLF warnings.
+
 ## 2026-07-22 SHEIN v85.8.81 Cart Back Target Fix
 
 - Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.

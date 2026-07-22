@@ -2,6 +2,17 @@
 
 Last updated: 2026-07-22
 
+## v85.8.82 SHEIN Stable Saudi + Cart Back Target
+
+- Branch: `claude/ios6-cover-fix`. `APP_VERSION = 2026.07.22-v85.8.82-shein-stable-saudi-back-no-otp-test`.
+- User rejected v85.8.81 as worse: first entry showed SHEIN on Bahrain and the app failed to lock Saudi, so product capture/add was blocked; after leaving/re-entering the app, SHEIN could freeze even without opening cart or a product.
+- Response: rolled back the failed v85.8.80/81 SHEIN experiment. SHEIN cart products again use the previously stable native `InAppBrowser.setUrl()` path; the in-page navigation remains Temu-only. Restored the old SHEIN hot interval timings and the SHEIN heartbeat/recovery path from v85.8.79.
+- Kept the useful v85.8.81 cart back-target fix: repeated `sheinPageInteractive` no longer resets a cart-opened product back button from `cart` to `home`; the target resets only when the customer actually leaves the WebView through Otlobli cart/orders/profile.
+- Added one narrow Saudi recovery: if SHEIN has a saved `addressCookie` with an explicit non-Saudi country such as Bahrain, remove only that `addressCookie` before seeding the Saudi/USD state. This is not broad storage clearing and it preserves signed Saudi addresses.
+- Scope protected: no color, size, product capture, add-to-cart flow, product link normalization, icon/nav sizing, payment, wallet, or order logic changes.
+- Validation: `npm run build` passed; `npx eslint src/services/sheinBrowserScript.ts src/config.ts` passed; injected `OTLOBLI_NAV_BOOTSTRAP_SCRIPT` and `SHEIN_CAPTURE_SCRIPT` parsed with `new Function`; `git diff --check` had only Windows LF/CRLF warnings.
+- Next real-device check: install v85.8.82, open SHEIN fresh and confirm Saudi/USD before any product capture. Then open a SHEIN cart product and press Otlobli back once; expected: return to Otlobli cart, not SHEIN categories/home.
+
 ## v85.8.81 SHEIN Cart Back Target Fix
 
 - Branch: `claude/ios6-cover-fix`. `APP_VERSION = 2026.07.22-v85.8.81-shein-cart-back-target-no-otp-test`.
