@@ -2,6 +2,17 @@
 
 Last updated: 2026-07-22
 
+## v85.8.83 SHEIN Fresh Session Browser Layer
+
+- Branch: `claude/ios6-cover-fix`. `APP_VERSION = 2026.07.22-v85.8.83-shein-fresh-session-no-heartbeat-no-otp-test`.
+- User-provided real-device repro plus USB syslog points away from a missing product URL: touches still reached `com.otlobli.app.36D743K87T`, WebKit reported a loaded main frame, but the WebContent process was around 220-227 MB and iOS emitted repeated critical memory-pressure notifications near the frozen SHEIN state.
+- Fix direction: treat SHEIN as a heavy volatile browser session. On leaving the Otlobli home tab, app background/inactive, and app resume, the SHEIN native WebView is closed and the next entry opens a fresh instance after the normal VPN/Saudi check. Temu keeps its preserved hidden WebView behavior because the user reports Temu is stable and fast.
+- Added close/open serialization for SHEIN so a weak phone cannot start a new `openWebView` while the previous native close is still finishing.
+- Removed the SHEIN page heartbeat and 4-second post-ready watchdog. The only stuck recovery left is the old conservative pre-ready readiness guard; there is no 24/7 freeze detector or store-switch workaround.
+- Protected scope: no color, size, product capture, add-to-cart, product URL normalization, icon/nav sizing, payment, wallet, completed-order, or Temu capture logic changed.
+- Local validation: `npm run build` passed; `npx eslint src/services/sheinBrowserScript.ts src/config.ts` passed; injected `OTLOBLI_NAV_BOOTSTRAP_SCRIPT` and `SHEIN_CAPTURE_SCRIPT` parsed with `new Function`; `git diff --check` had only Windows LF/CRLF warnings. `npx eslint src/App.tsx` still reports pre-existing broad React lint issues in the large App file.
+- GitHub iOS build: pending. Real-device proof still requires installing v85.8.83 on iPhone 6/16 and Android low-memory devices.
+
 ## v85.8.82 SHEIN Stable Saudi + Cart Back Target
 
 - Branch: `claude/ios6-cover-fix`. `APP_VERSION = 2026.07.22-v85.8.82-shein-stable-saudi-back-no-otp-test`.

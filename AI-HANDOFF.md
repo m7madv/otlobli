@@ -5,14 +5,26 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Current Candidate
 
 - Branch: `claude/ios6-cover-fix`.
-- Current local code candidate: v85.8.82 / `APP_VERSION = 2026.07.22-v85.8.82-shein-stable-saudi-back-no-otp-test`.
+- Current local code candidate: v85.8.83 / `APP_VERSION = 2026.07.22-v85.8.83-shein-fresh-session-no-heartbeat-no-otp-test`.
+- Real-device USB syslog during the user's freeze showed touch events still reaching the app and WebKit main-frame load completion, but the SHEIN WebContent process was around 220-227 MB with repeated critical memory-pressure notifications. This points to a stale/heavy SHEIN `WKWebView` session instead of a missing product URL.
+- Change: SHEIN is now treated as a fresh-session browser layer. Leaving Otlobli home, app background/inactive, and app resume close the SHEIN native WebView, reset only volatile browser refs, and let the next entry open a fresh instance after the normal VPN/Saudi check. Temu remains preserved/hidden across Otlobli screens because it is stable on weak phones.
+- Added SHEIN close/open serialization: `browseShein()` queues behind an in-flight native close, so low-end devices do not start a new `openWebView` while the previous close is still finishing.
+- Removed the SHEIN page heartbeat and 4-second post-ready recovery watchdog. This avoids the rejected "script running forever then rebuild after freeze" approach. The old pre-ready watchdog still handles first-load preparation failures only.
+- Scope protected: no color/size, product capture, add-to-cart, product link normalization, nav/icon sizing, payment, wallet, completed-order, or Temu capture logic changes.
+- Local validation: `npm run build` clean; injected scripts parse with `new Function`; `npx eslint src/services/sheinBrowserScript.ts src/config.ts` clean; `git diff --check` only reports Windows LF/CRLF warnings. `npx eslint src/App.tsx` still fails on broad pre-existing React lint issues in the large App file. GitHub iOS build is pending.
+- Next real-device check: install v85.8.83. Expected: SHEIN home and cart-product flows rebuild from a fresh browser instance after returning from cart/app background, while the Otlobli bottom nav size/placement and capture/add/color/size flows remain unchanged.
+
+## Previous Candidate
+
+- Branch: `claude/ios6-cover-fix`.
+- Previous local code candidate: v85.8.82 / `APP_VERSION = 2026.07.22-v85.8.82-shein-stable-saudi-back-no-otp-test`.
 - User rejected v85.8.81 as worse: first entry could show SHEIN on Bahrain and fail Saudi locking, so capture/add was blocked; after leaving/re-entering the app, SHEIN could freeze without cart/product.
 - Response: v85.8.82 rolls back the failed v85.8.80/81 SHEIN experiment. SHEIN cart products again use the v85.8.79 native `InAppBrowser.setUrl()` path; in-page cart navigation remains Temu-only. Restored the old SHEIN hot interval timings and the SHEIN heartbeat/recovery path from v85.8.79.
 - Kept only the useful back-target fix: repeated `sheinPageInteractive` no longer resets a cart-opened product back button from `cart` to `home`; reset happens only when the user actually leaves through Otlobli cart/orders/profile.
 - Added narrow Saudi recovery: if SHEIN has `addressCookie` saved with an explicit non-Saudi country such as Bahrain, remove only that one key before seeding Saudi/USD. Signed Saudi addresses are preserved.
 - Scope protected: no color/size, product capture, add-to-cart, product link normalization, nav/icon sizing, payment, wallet, or order logic changes.
 - GitHub iOS build `29952878400` succeeded from code commit `394bcae`; IPA is `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.82-shein-stable-saudi-back.ipa`; SHA-256 `20763A568A3E399CA59C98A4AF622C2059A62469F8D14893E77A51F1736297E3`.
-- Validation: `npm run build` clean; injected scripts parse with `new Function`; `npx eslint src/services/sheinBrowserScript.ts src/config.ts` clean; `git diff --check` only reports Windows LF/CRLF warnings; GitHub iOS build passed; embedded IPA marker check found v85.8.82. Needs real-device check.
+- Validation: `npm run build` clean; injected scripts parse with `new Function`; `npx eslint src/services/sheinBrowserScript.ts src/config.ts` clean; `git diff --check` only reports Windows LF/CRLF warnings; GitHub iOS build passed; embedded IPA marker check found v85.8.82. User reported the SHEIN freeze still remained.
 
 ## Previous Candidate
 

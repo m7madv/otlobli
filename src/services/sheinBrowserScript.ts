@@ -4292,14 +4292,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // to add a product to SHEIN's real cart from that exact window. Better to
   // make the user wait a beat than ever expose anything unprocessed.
   var __otlobliLoadingDone = false;
-  var __otlobliSheinHeartbeatTs = 0;
-  function otlobliPostSheinHeartbeat() {
-    if (IS_TEMU || !window.mobileApp || !window.mobileApp.postMessage) return;
-    var now = Date.now();
-    if (now - __otlobliSheinHeartbeatTs < 1200) return;
-    __otlobliSheinHeartbeatTs = now;
-    try { window.mobileApp.postMessage({ detail: { type: 'sheinHeartbeat' } }); } catch (e) {}
-  }
 
   function ensureLoadingOverlay() {
     if (__otlobliLoadingDone || document.getElementById('otlobli-loading')) return;
@@ -6433,7 +6425,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // header/cart/listing/nav blockers below ran, so native code could reveal
     // a product for one or two seconds with raw SHEIN chrome still visible.
     updateSheinNativeCoverState();
-    otlobliPostSheinHeartbeat();
   }
 
   // وضع بحث تيمو: عندما يركّز المستخدم حقل البحث ويكتب، تعرض تيمو قائمة

@@ -1,5 +1,18 @@
 # SESSION_SUMMARY.md
 
+## 2026-07-22 SHEIN v85.8.83 Fresh Session Browser Layer
+
+- Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
+- Branch: `claude/ios6-cover-fix`.
+- Current local candidate: v85.8.83 / `APP_VERSION = 2026.07.22-v85.8.83-shein-fresh-session-no-heartbeat-no-otp-test`.
+- User's latest report: the freeze was no longer only cart-related; SHEIN could freeze after repeated open/exit cycles, and switching to Temu then back recovered it. The user also requested a cleaner, lighter root fix rather than a 24/7 watchdog/recovery loop.
+- Device evidence from USB syslog: touches still reached the app while frozen, WebKit reported loaded documents, but the SHEIN WebContent process sat around 220-227 MB and iOS sent repeated critical memory-pressure notifications. That matches a stale/heavy `WKWebView` session on low-end devices more than a bad product URL.
+- Fix: SHEIN is closed on leaving Otlobli home, app background/inactive, and app resume; the next SHEIN entry opens a fresh browser instance after the existing VPN/Saudi check. Temu remains preserved because the user reports it is stable on weak phones.
+- Added close/open serialization so a new SHEIN `openWebView` waits for the previous native close to finish. This targets weak phones where async close/open races can leave the native browser stuck.
+- Removed the SHEIN page heartbeat and the 4-second post-ready watchdog. The remaining stuck recovery is only the old pre-ready preparation guard, not a constant freeze detector.
+- Scope stayed narrow: no color, size, capture, add-to-cart, product link normalization, nav/icon sizing, payment, wallet, completed orders, or Temu capture logic changed.
+- Local validation: `npm run build`, injected-script parse with a font import stub, `npx eslint src/services/sheinBrowserScript.ts src/config.ts`, and `git diff --check` passed aside from Windows LF/CRLF warnings. `npx eslint src/App.tsx` still reports broad pre-existing React lint errors in the large App file.
+
 ## 2026-07-22 SHEIN v85.8.82 Stable Saudi + Cart Back Target
 
 - Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
