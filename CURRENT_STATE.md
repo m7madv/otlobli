@@ -2,19 +2,14 @@
 
 Last updated: 2026-07-22
 
-## v85.8.83 SHEIN Fresh Session Browser Layer
+## v85.8.84 Roll Back Failed v85.8.83 Fresh Session
 
-- Branch: `claude/ios6-cover-fix`. `APP_VERSION = 2026.07.22-v85.8.83-shein-fresh-session-no-heartbeat-no-otp-test`.
-- User-provided real-device repro plus USB syslog points away from a missing product URL: touches still reached `com.otlobli.app.36D743K87T`, WebKit reported a loaded main frame, but the WebContent process was around 220-227 MB and iOS emitted repeated critical memory-pressure notifications near the frozen SHEIN state.
-- Fix direction: treat SHEIN as a heavy volatile browser session. On leaving the Otlobli home tab, app background/inactive, and app resume, the SHEIN native WebView is closed and the next entry opens a fresh instance after the normal VPN/Saudi check. Temu keeps its preserved hidden WebView behavior because the user reports Temu is stable and fast.
-- Added close/open serialization for SHEIN so a weak phone cannot start a new `openWebView` while the previous native close is still finishing.
-- Removed the SHEIN page heartbeat and 4-second post-ready watchdog. The only stuck recovery left is the old conservative pre-ready readiness guard; there is no 24/7 freeze detector or store-switch workaround.
-- Protected scope: no color, size, product capture, add-to-cart, product URL normalization, icon/nav sizing, payment, wallet, completed-order, or Temu capture logic changed.
-- GitHub iOS build `29956713013` succeeded from code commit `7e770cf`.
-- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.83-shein-fresh-session.ipa`.
-- v85.8.83 IPA SHA-256: `60E2B311A1190D19873C2DFD98AA615BC5F06163A39C2B8DE58D18C48CFA0828`.
-- Validation: `npm run build` passed; `npx eslint src/services/sheinBrowserScript.ts src/config.ts` passed; injected `OTLOBLI_NAV_BOOTSTRAP_SCRIPT` and `SHEIN_CAPTURE_SCRIPT` parsed with `new Function`; `git diff --check` had only Windows LF/CRLF warnings; GitHub iOS build passed; embedded IPA marker check found v85.8.83. `npx eslint src/App.tsx` still reports pre-existing broad React lint issues in the large App file.
-- Next real-device check: install v85.8.83 on iPhone 6 and iPhone 16. Expected: SHEIN home and cart-product flows open from a fresh browser instance after cart/background/app resume, while bottom nav size/placement and capture/add/color/size remain unchanged.
+- Branch: `claude/ios6-cover-fix`. `APP_VERSION = 2026.07.22-v85.8.84-rollback-v83-shein-stable-saudi-no-otp-test`.
+- User rejected v85.8.83 on real iPhone: Saudi locking broke again, first open worked only once, then returning to the app left SHEIN as a frozen image. Treat v85.8.83 as a failed path.
+- What failed in v85.8.83: closing SHEIN on app background/resume and forcing a fresh VPN/Saudi recheck made the browser lifecycle worse. It could kill/reopen the native WebView at sensitive moments and destabilize the Saudi setup.
+- Response: reverted the v85.8.83 fresh-session policy, close/open queue, and removal of the SHEIN heartbeat. Restored the v85.8.82/v85.8.79 behavior that preserved the SHEIN WebView and had the old page heartbeat/recovery path.
+- Scope protected: no color, size, product capture, add-to-cart, product URL normalization, icon/nav sizing, payment, wallet, completed-order, or Temu capture logic changed.
+- GitHub iOS build: pending.
 
 ## v85.8.82 SHEIN Stable Saudi + Cart Back Target
 

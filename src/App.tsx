@@ -2199,6 +2199,8 @@ function App() {
   const pendingProductPrepareTimerRef = useRef<number | undefined>(undefined)
   const [sheinReady, setSheinReady] = useState(false)
   const sheinReadyRef = useRef(false)
+  const lastSheinHeartbeatRef = useRef(Date.now())
+  const appActiveRef = useRef(true)
   // Tracks which screen the in-page back button inside the SHEIN webview
   // should return to: 'cart' right after the user taps a cart item (so back
   // re-opens otlobli's cart), 'home' for ordinary browsing from the home tab.
@@ -2209,7 +2211,6 @@ function App() {
   const sheinSaudiRedirectRef = useRef(0)
   const sheinSaudiRedirectTsRef = useRef(0)
   const screenRef = useRef(screen)
-  const screenForStoreWebviewEffectRef = useRef(screen)
   const browseSheinRef = useRef<() => void>(() => undefined)
   const markStoreWebviewReadyRef = useRef<(sessionId: number) => void>(() => undefined)
   const vpnStateRef = useRef(vpnState)
@@ -2220,9 +2221,6 @@ function App() {
   // على خطأ مورد فرعي — نُصفّره عند فتح جلسة متجر جديدة فقط.
   const temuContentLoadedRef = useRef(false)
   const lastResumeVpnRecheckRef = useRef(0)
-  const sheinClosePromiseRef = useRef<Promise<void> | null>(null)
-  const sheinBrowseQueuedAfterCloseRef = useRef(false)
-  const sheinBrowseQueueAttachedRef = useRef(false)
   useEffect(() => { screenRef.current = screen }, [screen])
   useEffect(() => { sheinReadyRef.current = sheinReady }, [sheinReady])
   useEffect(() => { vpnStateRef.current = vpnState }, [vpnState])
@@ -2397,36 +2395,18 @@ function App() {
     return true
   }
 
-  const queueSheinBrowseAfterClose = () => {
-    const closePromise = sheinClosePromiseRef.current
-    if (!closePromise) return false
+  const forceStoreVpnRecheck = () => {
+    if (screenRef.current !== 'home') return
+    if (selectedStoreRef.current !== 'shein') return
+    // A healthy store keeps its exact page/scroll state across app screens and
+    // ordinary background/foreground transitions. Actual WebKit termination is
+    // handled by pageLoadError; normal resume is not a reason to destroy it.
+    if (sheinOpenedRef.current && sheinReadyRef.current) return
+    if (sheinChallengeActiveRef.current) return
+    const now = Date.now()
+    if (now - lastResumeVpnRecheckRef.current < 1200) return
+    lastResumeVpnRecheckRef.current = now
 
-    sheinBrowseQueuedAfterCloseRef.current = true
-    if (sheinBrowseQueueAttachedRef.current) return true
-
-    sheinBrowseQueueAttachedRef.current = true
-    void closePromise.finally(() => {
-      sheinBrowseQueueAttachedRef.current = false
-      if (!sheinBrowseQueuedAfterCloseRef.current) return
-      sheinBrowseQueuedAfterCloseRef.current = false
-      if (selectedStoreRef.current !== 'shein') return
-      if (vpnStateRef.current !== 'ok') return
-      if (screenRef.current !== 'home' && !pendingProductRevealRef.current) return
-      window.setTimeout(() => browseSheinRef.current(), 0)
-    })
-    return true
-  }
-
-  const closeStoreBrowserNative = () => {
-    const closePromise = InAppBrowser.close().catch(() => undefined).finally(() => {
-      if (sheinClosePromiseRef.current === closePromise) sheinClosePromiseRef.current = null
-    })
-    sheinClosePromiseRef.current = closePromise
-    return closePromise
-  }
-
-  const closeSheinWebviewForFreshOpen = (options: { recheckVpn?: boolean } = {}) => {
-    const hadNativeWebview = sheinOpenedRef.current || webviewOpeningRef.current || !!webviewIdRef.current
     clearSheinReadinessWatchdog()
     clearPendingProductPreparation()
     sheinRecoveryAttemptRef.current = 0
@@ -2442,31 +2422,11 @@ function App() {
     storeReachableRef.current = false
     setSheinReady(false)
     setSheinBlockedError(false)
-    if (options.recheckVpn) {
-      setVpnGeo(null)
-      setVpnState('checking')
-    }
-    if (!hadNativeWebview) {
-      suppressAutoReopenRef.current = false
-      return
-    }
-    void closeStoreBrowserNative().finally(() => {
+    setVpnGeo(null)
+    setVpnState('checking')
+    void InAppBrowser.close().catch(() => undefined).finally(() => {
       suppressAutoReopenRef.current = false
     })
-  }
-
-  const forceStoreVpnRecheck = () => {
-    if (screenRef.current !== 'home') return
-    if (selectedStoreRef.current !== 'shein') return
-    if (sheinChallengeActiveRef.current) return
-    const now = Date.now()
-    if (now - lastResumeVpnRecheckRef.current < 1200) return
-    lastResumeVpnRecheckRef.current = now
-
-    // SHEIN is heavy enough that iOS can leave a previously ready WKWebView
-    // visually present but disconnected after background/foreground cycles.
-    // Treat resume as a fresh browser boundary instead of trusting stale refs.
-    closeSheinWebviewForFreshOpen({ recheckVpn: true })
   }
 
   const showStoreOpenFailure = (reason: StoreOpenFailureReason = 'network') => {
@@ -2491,7 +2451,7 @@ function App() {
     if (reason === 'preparation') sheinCacheResetPendingRef.current = true
     setSheinBlockedError(true)
     if (reason === 'network') refreshVpnDiagnosisForStoreFailure()
-    void closeStoreBrowserNative().finally(() => {
+    void InAppBrowser.close().catch(() => undefined).finally(() => {
       suppressAutoReopenRef.current = false
     })
   }
@@ -2528,16 +2488,6 @@ function App() {
       url: event.url ?? event.failingUrlString,
     })
     showStoreOpenFailure()
-  }
-
-  // Temu rejects a refererless native deep product load. Opening the product
-  // from inside the warm Temu page matches a real card tap.
-  const navigateStoreWebviewInPage = (url: string) => {
-    const wid = webviewIdRef.current || undefined
-    return InAppBrowser.executeScript({
-      ...(wid ? { id: wid } : {}),
-      code: `try{window.location.assign(${JSON.stringify(url)})}catch(e){window.location.href=${JSON.stringify(url)}}`,
-    })
   }
 
   const markStoreWebviewReady = (sessionId: number) => {
@@ -2577,10 +2527,10 @@ function App() {
     postWebviewChromeState(pendingBackTargetRef.current)
   }
 
-  const restartStuckSheinWebview = (sessionId: number) => {
+  const restartStuckSheinWebview = (sessionId: number, allowReadyRecovery = false) => {
     if (sessionId !== webviewSessionRef.current) return
     if (!sheinOpenedRef.current || screenRef.current !== 'home') return
-    if (sheinChallengeActiveRef.current || sheinReadyRef.current) return
+    if (sheinChallengeActiveRef.current || (sheinReadyRef.current && !allowReadyRecovery)) return
     clearSheinReadinessWatchdog()
 
     if (sheinRecoveryAttemptRef.current >= 1) {
@@ -2603,7 +2553,7 @@ function App() {
     sheinOpenedRef.current = false
     setSheinReady(false)
     sheinCacheResetPendingRef.current = true
-    void closeStoreBrowserNative()
+    void InAppBrowser.close()
       .then(() => {
         webviewAutoOpenPausedUntilRef.current = 0
         if (screenRef.current !== 'home' || vpnStateRef.current !== 'ok' || sheinOpenedRef.current) return
@@ -2644,7 +2594,6 @@ function App() {
       }
       return
     }
-    if (queueSheinBrowseAfterClose()) return
     const sessionId = webviewSessionRef.current + 1
     const initialPendingUrl = pendingProductUrlRef.current
     webviewSessionRef.current = sessionId
@@ -2775,8 +2724,6 @@ function App() {
 
   useEffect(() => {
     let openTimer: number | undefined
-    const previousScreen = screenForStoreWebviewEffectRef.current
-    screenForStoreWebviewEffectRef.current = screen
     if (screen === 'home') {
       if (sheinOpenedRef.current) {
         void InAppBrowser.show().catch(() => undefined).then(() => {
@@ -2787,18 +2734,25 @@ function App() {
         if (sheinBlockedError || Date.now() < webviewAutoOpenPausedUntilRef.current) return
         openTimer = window.setTimeout(() => browseSheinRef.current(), 0)
       }
-    } else if (previousScreen === 'home' && sheinOpenedRef.current) {
-      if (selectedStoreRef.current === 'shein') {
-        closeSheinWebviewForFreshOpen()
-      } else {
-        // Temu has stayed stable when preserved across Otlobli screens.
-        void InAppBrowser.hide().catch(() => undefined)
-      }
+    } else if (sheinOpenedRef.current) {
+      // The iOS patch keeps Otlobli's WebView attached to its controller while
+      // hidden, so cart/orders/profile can appear without destroying SHEIN.
+      void InAppBrowser.hide().catch(() => undefined)
     }
     return () => {
       if (openTimer !== undefined) window.clearTimeout(openTimer)
     }
   }, [screen, vpnState, sheinReady, sheinBlockedError])
+
+  // Temu rejects a refererless native deep product load. Opening the product
+  // from inside the warm Temu page matches a real card tap.
+  const navigateStoreWebviewInPage = (url: string) => {
+    const wid = webviewIdRef.current || undefined
+    return InAppBrowser.executeScript({
+      ...(wid ? { id: wid } : {}),
+      code: `try{window.location.assign(${JSON.stringify(url)})}catch(e){window.location.href=${JSON.stringify(url)}}`,
+    })
+  }
 
   // Prepare a cart product inside the preserved, hidden store WebView. The
   // cart stays visible until browserPageLoaded + blocker readiness both arrive.
@@ -2873,7 +2827,7 @@ function App() {
     })
     return () => {
       void handle.then((h) => h.remove())
-      if (sheinOpenedRef.current) void closeStoreBrowserNative()
+      if (sheinOpenedRef.current) void InAppBrowser.close()
     }
   }, [])
 
@@ -3021,23 +2975,22 @@ function App() {
   useEffect(() => {
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
+        appActiveRef.current = true
+        lastSheinHeartbeatRef.current = Date.now()
         forceStoreVpnRecheck()
       } else {
-        if (selectedStoreRef.current === 'shein' && screenRef.current === 'home' && !sheinChallengeActiveRef.current) {
-          closeSheinWebviewForFreshOpen()
-        }
+        appActiveRef.current = false
       }
     }
     document.addEventListener('visibilitychange', handleVisibility)
     let appStateSub: { remove: () => Promise<void> } | undefined
     if (Capacitor.isNativePlatform()) {
       void CapacitorApp.addListener('appStateChange', (state: { isActive: boolean }) => {
+        appActiveRef.current = state.isActive
         if (!state.isActive) {
-          if (selectedStoreRef.current === 'shein' && screenRef.current === 'home' && !sheinChallengeActiveRef.current) {
-            closeSheinWebviewForFreshOpen()
-          }
           return
         }
+        lastSheinHeartbeatRef.current = Date.now()
         forceStoreVpnRecheck()
       }).then((sub) => { appStateSub = sub })
       window.setTimeout(() => forceStoreVpnRecheck(), 0)
@@ -3049,8 +3002,31 @@ function App() {
   }, [])
 
   useEffect(() => {
+    const id = window.setInterval(() => {
+      if (selectedStoreRef.current !== 'shein') return
+      if (screenRef.current !== 'home' || !sheinOpenedRef.current || !sheinReadyRef.current) return
+      if (sheinChallengeActiveRef.current || !appActiveRef.current) return
+      if (webviewOpeningRef.current) return
+      if (Date.now() - lastSheinHeartbeatRef.current > 15000) {
+        lastSheinHeartbeatRef.current = Date.now()
+        restartStuckSheinWebview(webviewSessionRef.current, true)
+      }
+    }, 4000)
+    return () => window.clearInterval(id)
+  }, [])
+
+  useEffect(() => {
+    if (screen === 'home') lastSheinHeartbeatRef.current = Date.now()
+  }, [screen])
+
+  useEffect(() => {
     const handle = InAppBrowser.addListener('messageFromWebview', (event: { detail?: Record<string, unknown> }) => {
       const detail = event?.detail
+
+      if (detail?.type === 'sheinHeartbeat') {
+        lastSheinHeartbeatRef.current = Date.now()
+        return
+      }
 
       if (detail?.type === 'temuProductVisible') {
         if (selectedStoreRef.current === 'temu' && pendingProductRevealRef.current) {
@@ -5595,7 +5571,7 @@ function App() {
           setSheinReady(false)
           // الرجوع إلى شي إن ينظف WebKit memory/disk cache فقط بين الإغلاق
           // والفتح؛ الكوكيز وlocalStorage (ومنها عنوان السعودية) تبقى محفوظة.
-          void closeStoreBrowserNative()
+          void InAppBrowser.close().catch(() => undefined)
             .then(() => (id === 'shein' ? InAppBrowser.clearCache().catch(() => undefined) : undefined))
             .then(() => {
               suppressAutoReopenRef.current = false
@@ -5832,7 +5808,7 @@ function App() {
               // only a genuinely fresh instance recovered. closeEvent's own
               // listener re-opens automatically while still on 'home' - only
               // call browseShein() here if that somehow didn't happen.
-              void closeStoreBrowserNative().then(() => {
+              void InAppBrowser.close().catch(() => undefined).then(() => {
                 if (!sheinOpenedRef.current) browseShein()
               })
             }}>
@@ -5849,7 +5825,7 @@ function App() {
               sheinChallengeActiveRef.current = false
               sheinOpenedRef.current = false
               setSheinReady(false)
-              void closeStoreBrowserNative()
+              void InAppBrowser.close().catch(() => undefined)
               setVpnState('checking')
             }}>
               <Icon name="vpn_key" />
