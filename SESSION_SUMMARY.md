@@ -1,5 +1,16 @@
 # SESSION_SUMMARY.md
 
+## 2026-07-22 SHEIN v85.8.81 Cart Back Target Fix
+
+- Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
+- Branch: `claude/ios6-cover-fix`.
+- Current local candidate: v85.8.81 / `APP_VERSION = 2026.07.22-v85.8.81-shein-cart-back-target-no-otp-test`.
+- User tested v85.8.80 and clarified the exact failure: SHEIN cart product opens correctly, but pressing Otlobli back returns inside SHEIN to a categories/home page where products do not render and the page is stuck.
+- Corrected root cause: repeated `sheinPageInteractive` messages overwrote the cart-product back target. The product initially set the injected back button to `cart`, but a later readiness message reset/sent `home`, so the button ran SHEIN `history.back()` and landed on SHEIN's broken half-rendered categories state.
+- Fix: back target is no longer reset after posting to the WebView. It resets only when the user actually leaves the WebView via Otlobli cart/orders/profile. Cart-opened SHEIN products therefore keep back bound to Otlobli cart.
+- Scope stayed narrow: no color, size, capture, add-to-cart, product link, nav/icon sizing, payment, wallet, or order logic changed.
+- Validation: `npm run build`, injected-script parse, and `npx eslint src/services/sheinBrowserScript.ts src/config.ts` passed.
+
 ## 2026-07-22 SHEIN v85.8.80 Cart Light In-Page Navigation
 
 - Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.

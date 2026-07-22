@@ -2525,9 +2525,7 @@ function App() {
     // If readiness completed while the customer was on cart/orders/profile,
     // keep the same prepared WebView hidden. It will be shown without reload.
     if (screenRef.current !== 'home') return
-    const target = pendingBackTargetRef.current
-    pendingBackTargetRef.current = 'home'
-    postWebviewChromeState(target)
+    postWebviewChromeState(pendingBackTargetRef.current)
   }
 
   const restartStuckSheinWebview = (sessionId: number) => {
@@ -2733,9 +2731,7 @@ function App() {
       if (sheinOpenedRef.current) {
         void InAppBrowser.show().catch(() => undefined).then(() => {
           if (webviewOpeningRef.current || !sheinReadyRef.current) return
-          const target = pendingBackTargetRef.current
-          pendingBackTargetRef.current = 'home'
-          postWebviewChromeState(target)
+          postWebviewChromeState(pendingBackTargetRef.current)
         })
       } else if (vpnState === 'ok') {
         if (sheinBlockedError || Date.now() < webviewAutoOpenPausedUntilRef.current) return
@@ -3091,16 +3087,19 @@ function App() {
       }
 
       if (detail?.type === 'openCart' || detail?.type === 'backToCart') {
+        pendingBackTargetRef.current = 'home'
         setScreen('cart')
         return
       }
 
       if (detail?.type === 'openOrders') {
+        pendingBackTargetRef.current = 'home'
         setScreen('orders')
         return
       }
 
       if (detail?.type === 'openProfile') {
+        pendingBackTargetRef.current = 'home'
         setScreen('profile')
         return
       }
