@@ -9,7 +9,10 @@ Last updated: 2026-07-22
 - What failed in v85.8.83: closing SHEIN on app background/resume and forcing a fresh VPN/Saudi recheck made the browser lifecycle worse. It could kill/reopen the native WebView at sensitive moments and destabilize the Saudi setup.
 - Response: reverted the v85.8.83 fresh-session policy, close/open queue, and removal of the SHEIN heartbeat. Restored the v85.8.82/v85.8.79 behavior that preserved the SHEIN WebView and had the old page heartbeat/recovery path.
 - Scope protected: no color, size, product capture, add-to-cart, product URL normalization, icon/nav sizing, payment, wallet, completed-order, or Temu capture logic changed.
-- GitHub iOS build: pending.
+- GitHub iOS build `29957413860` succeeded from code commit `81ac13c`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.84-rollback-v83-shein-stable-saudi.ipa`.
+- v85.8.84 IPA SHA-256: `36C2A08AFB95DAA88D97916DCFB1B6E595664111E59BEEBC7F6D3341E803CB10`.
+- Validation: `npm run build` passed; `npx eslint src/services/sheinBrowserScript.ts src/config.ts` passed; injected scripts parsed with `new Function`; `git diff --check` had only Windows LF/CRLF warnings; GitHub iOS build passed; embedded IPA marker check found v85.8.84.
 
 ## v85.8.82 SHEIN Stable Saudi + Cart Back Target
 

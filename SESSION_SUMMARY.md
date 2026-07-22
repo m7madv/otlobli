@@ -9,7 +9,10 @@
 - Explanation for the failure: v85.8.83 closed SHEIN on leaving Otlobli home/background/resume and forced a fresh VPN/Saudi check. That was intended to avoid stale `WKWebView` memory, but on the real device it killed/reopened the browser at fragile moments and destabilized Saudi setup.
 - Response: reverted v85.8.83's fresh-session policy, close/open queue, and heartbeat removal. Restored v85.8.82/v85.8.79 preserved-session behavior with the old SHEIN page heartbeat/recovery path.
 - Scope stayed narrow: no color, size, capture, add-to-cart, product link normalization, icon sizing, payment, wallet, completed orders, or Temu logic changed.
-- GitHub iOS build: pending.
+- GitHub iOS build `29957413860` succeeded from code commit `81ac13c`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.84-rollback-v83-shein-stable-saudi.ipa`.
+- v85.8.84 IPA SHA-256: `36C2A08AFB95DAA88D97916DCFB1B6E595664111E59BEEBC7F6D3341E803CB10`.
+- Validation: `npm run build`, injected-script parse, `npx eslint src/services/sheinBrowserScript.ts src/config.ts`, `git diff --check`, GitHub iOS build, and embedded IPA marker check passed aside from Windows LF/CRLF warnings.
 
 ## 2026-07-22 SHEIN v85.8.82 Stable Saudi + Cart Back Target
 
