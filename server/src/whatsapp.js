@@ -325,18 +325,27 @@ async function initSession(session) {
 
 // ── إرسال مع fallback ────────────────────────────────────
 
+// مؤشّر التوزيع الدوّار: يبدأ كل إرسال من رقم متصل مختلف بالتناوب، فيتوزّع الحمل
+// بالتساوي على كل الأرقام بدل إرهاق أول رقم — كل رقم يرسل أقل = خطر حظر أقل.
+let __rrIndex = 0
 async function sendWithFallback(fn) {
-  const orderedSessions = [...sessions.values()]
-    .filter(s => s.connected || s.status === 'idle')
-    .sort((a, b) => {
-      if (a.connected && !b.connected) return -1
-      if (!a.connected && b.connected) return 1
-      return parseInt(a.id) - parseInt(b.id)
-    })
+  const usable = [...sessions.values()].filter(s => s.connected || s.status === 'idle')
+  // المتصلون أولاً (بالترتيب) ثم الخاملون كاحتياط يُوصَلون عند الحاجة.
+  const connected = usable.filter(s => s.connected).sort((a, b) => parseInt(a.id) - parseInt(b.id))
+  const idle = usable.filter(s => !s.connected).sort((a, b) => parseInt(a.id) - parseInt(b.id))
 
-  if (orderedSessions.length === 0) {
+  if (connected.length === 0 && idle.length === 0) {
     throw new Error('لا توجد جلسة واتساب متصلة. أضف رقماً من لوحة الإدارة.')
   }
+
+  // تدوير المتصلين: نبدأ من مؤشّر يتقدّم كل مرة (round-robin) لتوزيع الرسائل.
+  let rotatedConnected = connected
+  if (connected.length > 1) {
+    const start = __rrIndex % connected.length
+    __rrIndex = (__rrIndex + 1) % connected.length
+    rotatedConnected = [...connected.slice(start), ...connected.slice(0, start)]
+  }
+  const orderedSessions = [...rotatedConnected, ...idle]
 
   let lastError = null
   for (const session of orderedSessions) {
@@ -360,7 +369,9 @@ async function sendWithFallback(fn) {
 // واتساب حسب السلوك والإبلاغ وعمر الرقم)، لكن هذه الإجراءات تجعل النمط
 // يشبه إنساناً حقيقياً: فاصل أدنى بين أي رسالتين + مؤشر «يكتب» قبل الإرسال
 // + تأخير عشوائي. راجع WHATSAPP_ANTI_BAN.md لبقية الإجراءات التشغيلية.
-const MIN_SEND_GAP_MS = 4000
+// الفاصل الأدنى بين أي رسالتين (ضدّ الاندفاع). قابل للزيادة عبر البيئة بلا تعديل
+// كود: WHATSAPP_MIN_SEND_GAP_MS. القيمة الأكبر = أأمن ضدّ الحظر لكن إرسال أبطأ.
+const MIN_SEND_GAP_MS = Math.max(1000, parseInt(process.env.WHATSAPP_MIN_SEND_GAP_MS || '4000', 10) || 4000)
 let __lastSendAt = 0
 let __sendChain = Promise.resolve()
 
