@@ -1,5 +1,17 @@
 # SESSION_SUMMARY.md
 
+## 2026-07-22 SHEIN v85.8.80 Cart Light In-Page Navigation
+
+- Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
+- Branch: `claude/ios6-cover-fix`.
+- Current local candidate: v85.8.80 / `APP_VERSION = 2026.07.22-v85.8.80-shein-cart-light-nav-no-otp-test`.
+- User rejected v85.8.79: the freeze remained and a recovery watchdog was the wrong style of fix. The goal became a cleaner source fix plus lighter behavior on weak phones.
+- Root-cause direction: SHEIN cart products were still opened by native `InAppBrowser.setUrl()` deep loads from the cart/hidden preserved WebView. Switching Temu -> SHEIN fixed the freeze by rebuilding the WebView, so the fragile part is the cart-origin native deep product load into the preserved SHEIN session.
+- Fix: SHEIN cart products now open like a real in-store tap. If the WebView is cold, load SHEIN home first, keep the pending product URL, then navigate inside the live document with `window.location.assign()` through `executeScript`. Warm cart opens show SHEIN first, then run the same in-page navigation. The v85.8.79 heartbeat watchdog/page heartbeat was removed.
+- Low-end adjustment: weak/small devices get slower SHEIN hot scan intervals through a broader `OTLOBLI_LOW_END` detector. Product capture, color, size, add-to-cart, deep links, add validation, and nav/icon sizing were not changed.
+- Added `scripts/shein-cart-browser-harness.mjs` for visible browser checks. With the user's SHEIN product URL, desktop automation preserved the URL and got SHEIN home interactive, then SHEIN redirected product navigation to `/risk/challenge` with `humanCheck`. Playwright Chromium is bot-flagged, so CAPTCHA answers there can fail even when the user solves them correctly.
+- Validation: `npm run build`, injected-script parse, `npx eslint src/services/sheinBrowserScript.ts src/config.ts`, and `git diff --check` passed aside from Windows LF/CRLF warnings. Targeted lint including `src/App.tsx` still reports pre-existing unrelated App lint errors.
+
 ## 2026-07-22 SHEIN v85.8.79 Ready-Freeze Recovery
 
 - Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.

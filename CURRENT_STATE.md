@@ -2,6 +2,20 @@
 
 Last updated: 2026-07-22
 
+## v85.8.80 SHEIN Cart Light In-Page Navigation
+
+- Branch: `claude/ios6-cover-fix`. `APP_VERSION = 2026.07.22-v85.8.80-shein-cart-light-nav-no-otp-test`.
+- User rejected v85.8.79 because it was a recovery-after-freeze approach and the same SHEIN cart-product freeze remained. New goal: fix the entry path, keep code lighter, and avoid a 24/7 watchdog workaround.
+- Root-cause direction: SHEIN cart products were still opened with native `InAppBrowser.setUrl()` deep loads from the cart, while switching Temu -> SHEIN recovered because it rebuilt the WebView. This points to the preserved SHEIN iOS WebView getting driven into a bad state by the cart-origin native deep product load, not to a missing product URL.
+- Fix: SHEIN cart products now follow the same safer shape used for the confirmed Temu fix: load the store home first if needed, then open the product from inside the live store document with `window.location.assign()` through `executeScript`. Warm SHEIN cart opens show the WebView before the in-page navigation instead of preparing the deep product in a hidden preserved WebView.
+- Removed the v85.8.79 SHEIN heartbeat watchdog/page heartbeat recovery path. The only remaining stuck-WebView restart is the old conservative pre-ready readiness guard. This keeps the fix at the source instead of adding an always-running freeze detector.
+- Low-end phones: widened the low-end detector to include small iPhone-6-sized viewports, low CPU, and low memory; relaxed hot SHEIN scan intervals on those devices to reduce load while keeping modern phones on the faster timings.
+- Scope protected: no changes to `getColorState`, `getSizeState`, `captureProductPayload`, `addToCartFlow`, deep-link building, add-to-cart validation, or injected nav/icon sizing.
+- Browser harness: added `scripts/shein-cart-browser-harness.mjs` for visible desktop testing. It injects the same SHEIN script, compares native full load vs in-page navigation, writes screenshots/report, and supports `--keep-open=1` for manual CAPTCHA checks. Playwright Chromium is bot-flagged by SHEIN, so CAPTCHA results there are not trusted.
+- Browser evidence with the user's product URL: SHEIN home became interactive and the long product URL was preserved; product navigation in desktop automation was redirected by SHEIN to `/risk/challenge` with `humanCheck`. This confirms the URL shape is valid but desktop automation cannot complete SHEIN's human check reliably.
+- Validation: `npm run build` passed; `npx eslint src/services/sheinBrowserScript.ts src/config.ts` passed; injected `OTLOBLI_NAV_BOOTSTRAP_SCRIPT` and `SHEIN_CAPTURE_SCRIPT` parsed with `new Function`; `git diff --check` had only Windows LF/CRLF warnings. Targeted `src/App.tsx` lint still reports pre-existing unrelated App lint errors.
+- Next real-device check: build/install v85.8.80 on iPhone 6 and iPhone 16 Pro Max. Reproduce: SHEIN cart item -> product -> back to SHEIN home -> tap categories/products. Expected: product opens through the live SHEIN page path, back/home remains tappable, no delayed rebuild workaround, and capture/add/color/size behavior stays unchanged.
+
 ## v85.8.79 SHEIN Ready-Freeze Recovery Fix
 
 - Branch: `claude/ios6-cover-fix`. `APP_VERSION = 2026.07.22-v85.8.79-shein-ready-freeze-recovery-no-otp-test`.

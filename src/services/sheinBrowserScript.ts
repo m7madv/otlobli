@@ -4280,18 +4280,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // to add a product to SHEIN's real cart from that exact window. Better to
   // make the user wait a beat than ever expose anything unprocessed.
   var __otlobliLoadingDone = false;
-  // نبضة حياة SHEIN: تُرسل كل ~1.2 ثانية لتُثبت أن خيط JS للصفحة حيّ يعمل. لو
-  // تجمّدت الصفحة (صارت صورة لا تستجيب) يتوقّف الـtick فتتوقّف النبضة، فيرصد
-  // التطبيق التجمّد ويعيد بناء الـWebView (نفس أثر تبديل المتجر يدوياً).
-  var __otlobliSheinHeartbeatTs = 0;
-  function otlobliPostSheinHeartbeat() {
-    if (IS_TEMU || !window.mobileApp || !window.mobileApp.postMessage) return;
-    var now = Date.now();
-    if (now - __otlobliSheinHeartbeatTs < 1200) return;
-    __otlobliSheinHeartbeatTs = now;
-    try { window.mobileApp.postMessage({ detail: { type: 'sheinHeartbeat' } }); } catch (e) {}
-  }
-
   function ensureLoadingOverlay() {
     if (__otlobliLoadingDone || document.getElementById('otlobli-loading')) return;
     ensureOverlayStyle();
@@ -6424,8 +6412,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // header/cart/listing/nav blockers below ran, so native code could reveal
     // a product for one or two seconds with raw SHEIN chrome still visible.
     updateSheinNativeCoverState();
-    // نبضة حياة (آخر خطوة): يرصد التطبيق توقّفها كتجمّد ويعيد بناء الـWebView.
-    otlobliPostSheinHeartbeat();
   }
 
   // وضع بحث تيمو: عندما يركّز المستخدم حقل البحث ويكتب، تعرض تيمو قائمة
@@ -8830,7 +8816,20 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // weak-CPU device feel heavy and slow. Relax every hot interval there so the
   // device spends its cycles rendering / passing the challenge instead of on
   // our scans. Modern devices (iPhone 16) keep the original tight timings.
-  var OTLOBLI_LOW_END = (typeof navigator !== 'undefined' && (navigator.hardwareConcurrency || 4) <= 2);
+  function otlobliLowEndViewport() {
+    try {
+      var w = Math.min(window.innerWidth || 0, window.innerHeight || 0);
+      var h = Math.max(window.innerWidth || 0, window.innerHeight || 0);
+      return w <= 414 && h <= 736;
+    } catch (e) {
+      return false;
+    }
+  }
+  var OTLOBLI_LOW_END = (typeof navigator !== 'undefined' && (
+    (navigator.hardwareConcurrency || 4) <= 4 ||
+    (navigator.deviceMemory || 8) <= 4 ||
+    otlobliLowEndViewport()
+  ));
   function scheduleTick() {
     sheinBlockReported = false;
     // Don't storm-tick on every Cloudflare DOM mutation during the challenge;
@@ -8841,7 +8840,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     setTimeout(function () {
       tickScheduled = false;
       tick();
-    }, OTLOBLI_LOW_END ? 160 : 80);
+    }, OTLOBLI_LOW_END ? 220 : 80);
   }
 
   var originalPushState = history.pushState;
@@ -8887,7 +8886,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     setTimeout(function () { clearInterval(otlobliObserverTimer); }, 1200);
   }
 
-  setInterval(tick, OTLOBLI_LOW_END ? 450 : 300);
+  setInterval(tick, OTLOBLI_LOW_END ? 650 : 300);
   // hideKnownHeaderIconsByHint specifically needs to win what looks like an
   // ongoing fight against SHEIN periodically re-rendering its own header (a
   // user found the hamburger/wishlist icons could stay reachable for
@@ -8900,7 +8899,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     hideKnownHeaderIconsByHint();
     hideSheinHeaderControls();
     hideListingCardAddButtons();
-  }, OTLOBLI_LOW_END ? 240 : 120);
+  }, OTLOBLI_LOW_END ? 360 : 120);
   setInterval(function () {
     ensureOtlobliNav();
     if (IS_TEMU) {
@@ -8911,10 +8910,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
       try { hideTemuSearchVisibleAccountCart(intervalTemuSearching); } catch (e) {}
       try { otlobliCleanTemuBlockers(true); } catch (e) {}
     }
-  }, OTLOBLI_LOW_END ? 1800 : 1200);
+  }, OTLOBLI_LOW_END ? 2200 : 1200);
   // Own slower interval, not part of tick() - see checkForSheinSecurityBlock's
   // comment on why innerText needs to stay off the 300ms timer. خاص بشي إن فقط.
-  setInterval(function () { if (IS_SHEIN) checkForSheinSecurityBlock(); }, 1000);
+  setInterval(function () { if (IS_SHEIN) checkForSheinSecurityBlock(); }, OTLOBLI_LOW_END ? 1600 : 1000);
   tick();
 })();
 `
