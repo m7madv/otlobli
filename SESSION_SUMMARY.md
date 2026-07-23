@@ -1,5 +1,18 @@
 # SESSION_SUMMARY.md
 
+## 2026-07-23 SHEIN v85.8.89 iOS Modal Lifecycle
+
+- Workspace/branch: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA` / `claude/ios6-cover-fix`.
+- Candidate: v85.8.89 / `APP_VERSION = 2026.07.23-v85.8.89-shein-ios-modal-lifecycle-no-otp-test`.
+- Device evidence split the issue: old Otlobli crashes on iPhone 16 Pro Max end in `didFinish -> presentView -> UIViewController.present`; a separate fresh-process failed run receives one 705-byte 200 response and no normal resource fan-out. No captcha, 429, WebContent termination, or jetsam appeared.
+- Capgo 8.6.25 predates upstream fixes for touch-blocking `UITransitionView` layers, safe presentation, and `openWebView` double resolution.
+- Fix: SHEIN alone dismisses the UIKit modal instead of alpha-hiding its transition container, retains the same live/sized `WKWebView`, suppresses destructive `viewDidDisappear` cleanup only during visibility hide, serializes `hide/show`, and uses guarded single-result presentation. Temu and financial/order logic are unchanged.
+- Code commit `35913c1` is pushed. GitHub Xcode run `30012069056` succeeded.
+- IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.89-shein-ios-modal-lifecycle.ipa`.
+- SHA-256: `38568CD56DDAB5E042443A60E8EBA7F5BE9C68A139FE8D4BE12BF70A8330664C`.
+- Validation passed: clean patch application, `npm run build`, targeted ESLint, independent diff/Swift review, Xcode compilation, and embedded version/dismiss/lifecycle-guard marker checks. App-wide lint failures remain old and unrelated.
+- Real-device testing is pending on iPhone 16 and iPhone 6. The native fix does not by itself prove the separate 705-byte cold-load path solved. Old-version installs preserved WebKit data; if failure remains, use a read-only WebKit-container snapshot or one true Delete App + reboot + reinstall test before deciding between persistent website data and SHEIN device/IP/fingerprint treatment.
+
 ## 2026-07-23 SHEIN v85.8.88 Passive Saudi Handling
 
 - Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.

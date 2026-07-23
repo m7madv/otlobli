@@ -2,6 +2,20 @@
 
 Last updated: 2026-07-23
 
+## v85.8.89 SHEIN iOS Modal Lifecycle
+
+- Branch: `claude/ios6-cover-fix`. `APP_VERSION = 2026.07.23-v85.8.89-shein-ios-modal-lifecycle-no-otp-test`.
+- Real-device diagnosis on iPhone 16 Pro Max (`iPhone17,2`, iOS 27.0 beta `24A5380h`) separated two failures. Older crash reports show `WKWebViewController.webView(_:didFinish:) -> presentView -> UIViewController.present` ending in `SIGABRT`. A separate failed cold run started fresh app/WebContent processes but received only one 705-byte HTTP 200 response and no normal resource fan-out, challenge, 429, WebContent termination, or jetsam.
+- The project uses Capgo InAppBrowser 8.6.25, before the official safe-presentation, touch-blocking `UITransitionView`, and `openWebView` double-resolve fixes. Old IPAs were installed as updates under the same bundle ID, so they retained the same WebKit website-data container and were not clean A/B tests.
+- Fix: SHEIN alone now dismisses its UIKit modal instead of alpha-hiding the transition container, while preserving the same live `WKWebView` and viewport. A transient lifecycle guard prevents `viewDidDisappear` from destroying that WebView during visibility hide, `hide/show` calls are serialized, repeated presentation is guarded, and the SHEIN `openWebView` call resolves once with its ID.
+- Temu keeps its previous presentation, popup, preserve-attached, and hide/show paths. No payment, wallet, completed-order, cart-financial, product-capture, or Saudi-handling logic changed.
+- Code commit: `35913c1` (`fix: v85.8.89 stabilize SHEIN iOS modal lifecycle`), pushed to `origin/claude/ios6-cover-fix`.
+- GitHub iOS build `30012069056` succeeded, including Xcode compilation.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.89-shein-ios-modal-lifecycle.ipa`.
+- v85.8.89 IPA SHA-256: `38568CD56DDAB5E042443A60E8EBA7F5BE9C68A139FE8D4BE12BF70A8330664C`.
+- Validation: clean `patch-package` apply against Capgo 8.6.25, `npm run build`, targeted SHEIN/config ESLint, independent Swift/diff review, `git diff --check`, GitHub Xcode build, and embedded IPA checks for the v85.8.89 marker, `otlobliDismissModalWhenHidden`, and `otlobliVisibilityHideInProgress`. `src/App.tsx` still has the documented pre-existing unrelated lint errors.
+- Not yet device-verified. Acceptance is repeated Home ↔ Cart, rapid hide/show during first load, background/resume, and cold reopen on both iPhones. This build fixes the confirmed native modal/touch/crash defects; it does not yet claim to explain the separate 705-byte cold-load failure. If that remains on iPhone 16, pull the persistent WebKit container read-only or run one true Delete App + reboot + reinstall test before calling it server fingerprint reputation.
+
 ## v85.8.88 SHEIN Passive Saudi Handling
 
 - Branch: `claude/ios6-cover-fix`. `APP_VERSION = 2026.07.23-v85.8.88-shein-passive-saudi-no-otp-test`.

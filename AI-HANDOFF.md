@@ -5,16 +5,22 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Current Candidate
 
 - Branch: `claude/ios6-cover-fix`.
-- Current local code candidate: v85.8.88 / `APP_VERSION = 2026.07.23-v85.8.88-shein-passive-saudi-no-otp-test`.
-- User rejected v85.8.87 on iPhone 16 Pro Max: SHEIN still remained blocked/frozen. This excludes the previous concrete code causes: document-start injection, challenge-page writes, and host-targeted SHEIN cookie/cache cleanup.
-- Strongest remaining code-root cause: the loaded SHEIN script was still too automation-heavy after page load. It mass-wrote common SHEIN cookies/localStorage/sessionStorage keys, monkey-patched `Storage.prototype.setItem`, repeatedly scanned full body text for shipping country, auto-clicked SHEIN's shipping drawer from the browse tick, and the native side rebuilt a ready WebView after heartbeat misses.
-- Fix: v85.8.88 makes SHEIN handling passive. Saudi/USD/Arabic stays in the normalized URL and native redirect path. The injected script no longer writes the broad Saudi cookie/storage set, no longer sweeps arbitrary storage, no longer monkey-patches storage, no longer auto-opens/clicks the native shipping drawer during browsing, caches visible region scans, and no longer sends/uses post-ready heartbeat rebuilds. Add-to-cart still blocks on explicit visible foreign shipping/address signals.
-- Scope protected: no product capture, add-to-cart payload, color/size parsing, product URL normalization, cart math, payment, wallet, completed-order, or Temu logic changed.
-- Code commit: `832e2cb` (`fix: v85.8.88 make SHEIN Saudi handling passive`), pushed to `origin/claude/ios6-cover-fix`.
-- GitHub iOS build `29972064005` succeeded.
-- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.88-shein-passive-saudi.ipa`; SHA-256 `5BF571331F8CCE96B6D11F4AA13D18DA1EEE8CABA99E9E844205CAC4632317C6`.
-- Validation: `npm run build` clean; `npx eslint src/services/sheinBrowserScript.ts src/config.ts` clean; injected scripts parse with `new Function`; `git diff --check` only reports Windows LF/CRLF warnings; GitHub iOS build passed; embedded IPA marker check found `v85.8.88` and `Passive Saudi mode`. Targeted `src/App.tsx` lint still reports pre-existing unrelated App errors.
-- Not yet device-verified. If this passive build remains blocked only on the same iPhone while other phones work, treat the remaining cause as SHEIN server-side device/IP/fingerprint reputation rather than Otlobli storage/cookie/document-start automation.
+- Current candidate: v85.8.89 / `APP_VERSION = 2026.07.23-v85.8.89-shein-ios-modal-lifecycle-no-otp-test`.
+- iPhone 16 Pro Max evidence: the failed reopen used new app/WebContent processes, then stopped after one 705-byte HTTP 200 response without normal resource fan-out, challenge, 429, renderer termination, or jetsam. Two older crash reports independently show `didFinish -> presentView -> UIViewController.present -> SIGABRT`.
+- Root native defect: Capgo InAppBrowser 8.6.25 predates its official safe-presentation, touch-blocking `UITransitionView`, and double-resolve fixes. The old hide path left modal transition layers above the app, matching the image-like untappable UI.
+- Fix: SHEIN-only opt-in dismisses the modal while preserving the same sized `WKWebView`; a transient flag prevents `viewDidDisappear` cleanup during visibility hide; React serializes SHEIN `hide/show`; presentation is guarded; and SHEIN `openWebView` resolves once. Temu remains on its old path.
+- Scope protected: no Saudi/passive handling, product capture, add-to-cart payload, color/size parsing, cart math, payment, wallet, completed orders, or Temu behavior changed.
+- Code commit: `35913c1`, pushed to `origin/claude/ios6-cover-fix`. GitHub iOS run `30012069056` passed.
+- IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.89-shein-ios-modal-lifecycle.ipa`; SHA-256 `38568CD56DDAB5E042443A60E8EBA7F5BE9C68A139FE8D4BE12BF70A8330664C`.
+- Validation: clean patch apply, web build, targeted lint, independent native review, Xcode build, and embedded version/native-guard marker checks passed. App-wide lint still has old unrelated errors.
+- Device acceptance remains mandatory on iPhone 16 and iPhone 6: repeated Home ↔ Cart, rapid transition during first load, background/resume, then cold reopen. Do not claim the separate 705-byte cold-load path fixed solely from this native build.
+- Old IPAs installed over the same bundle ID preserved `Library/WebKit/WebsiteData`; they were not clean tests. If cold reopen still fails, reconnect/unlock the iPhone 16 and pull `Library/WebKit` plus `Library/Caches/WebKit` read-only after force-closing Otlobli, or perform one Delete App + reboot + reinstall test with fixed VPN/IP.
+
+## Previous Candidate
+
+- Previous candidate: v85.8.88 / `APP_VERSION = 2026.07.23-v85.8.88-shein-passive-saudi-no-otp-test`.
+- v85.8.88 made SHEIN Saudi handling passive and remains the code baseline beneath the native v85.8.89 lifecycle fix.
+- User result: it opened once on iPhone 16 Pro Max, then failed after leaving/reopening. iPhone 6 continued to work better.
 
 ## Previous Candidate
 
