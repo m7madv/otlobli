@@ -9,8 +9,11 @@ Last updated: 2026-07-23
 - Concrete fix: when SHEIN shows a human/security challenge, the injected script no longer writes Saudi cookies/storage and no longer mounts/re-mounts the Otlobli nav inside the challenge document. It removes Otlobli nodes, releases scroll lock, posts `humanCheck`, and leaves the challenge page alone.
 - Load reduction: all iOS SHEIN WebViews now use the gentler polling cadence previously reserved for weak devices, so iPhone 16 no longer runs the 80ms/120ms hot path that can look automation-heavy and compete with the challenge script.
 - Scope protected: no product capture, add-to-cart, color, size, product URL normalization, cart math, payment, wallet, completed-order, or Temu logic changed.
-- Validation: `npm run build` passed; `npx eslint src/services/sheinBrowserScript.ts src/config.ts` passed; injected `OTLOBLI_NAV_BOOTSTRAP_SCRIPT` and `SHEIN_CAPTURE_SCRIPT` parsed with `new Function`.
-- Not yet device-verified and no IPA has been built for this candidate yet.
+- GitHub iOS build `29969344175` succeeded from code commit `e363db1`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.85-shein-ios-gentle-challenge.ipa`.
+- v85.8.85 IPA SHA-256: `0DB95F793C7E74108595C0E16708303B99512B3388305B2C69C235B545FAAF0A`.
+- Validation: `npm run build` passed; `npx eslint src/services/sheinBrowserScript.ts src/config.ts` passed; injected `OTLOBLI_NAV_BOOTSTRAP_SCRIPT` and `SHEIN_CAPTURE_SCRIPT` parsed with `new Function`; GitHub iOS build passed; embedded IPA marker check found v85.8.85 and `OTLOBLI_SHEIN_GENTLE_TIMERS`.
+- Not yet device-verified.
 
 ## v85.8.84 Roll Back Failed v85.8.83 Fresh Session
 
