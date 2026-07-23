@@ -586,9 +586,26 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return false;
   }
 
-  // On an explicit challenge route leave the document completely untouched.
-  // The next successful navigation gets a new document and a fresh injection.
-  if (IS_SHEIN && otlobliIsHumanChallengeUrl(location.href)) {
+  function otlobliIsEarlyHumanChallenge() {
+    try {
+      if (otlobliIsHumanChallengeUrl(location.href)) return true;
+      if (/just a moment/i.test(document.title || '')) return true;
+      if (document.getElementById && document.getElementById('challenge-form')) return true;
+      if (document.querySelector && document.querySelector('script[src*="challenges.cloudflare.com"], iframe[src*="challenges.cloudflare.com"]')) return true;
+      if (document.querySelector && document.querySelector('[id*="challenge" i], [class*="challenge" i], [data-testid*="challenge" i]')) {
+        var challengeText = document.body ? (document.body.innerText || '').slice(0, 2400) : '';
+        if (/verify you are human|security verification|checking your browser|cloudflare|إجراء التحقق من الأمان|التحقق من الأمان|لست روبوت|لستَ روبوت|لست روبوتاً|لست روبوتا/i.test(challengeText)) return true;
+      }
+      var bodyText = document.body ? (document.body.innerText || '').slice(0, 2400) : '';
+      if (/m\\.shein\\.com.*إجراء التحقق من الأمان|إجراء التحقق من الأمان|التحقق من أنك لست روبوت|لست روبوت|برامج الروبوت/i.test(bodyText)) return true;
+    } catch (e) {}
+    return false;
+  }
+
+  // On a challenge page leave the document completely untouched. Some SHEIN
+  // challenges are served on the original URL, so this must inspect the loaded
+  // document before any Saudi storage/cookie write.
+  if (IS_SHEIN && otlobliIsEarlyHumanChallenge()) {
     otlobliEnterChallengeMode();
     return;
   }
@@ -6047,8 +6064,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var ours = document.querySelectorAll('[id^="otlobli"]');
       for (var ci = 0; ci < ours.length; ci++) {
         try {
-          var oid = ours[ci].id || '';
-          if (oid === 'otlobli-nav' || oid.indexOf('otlobli-nav-tab-') === 0) continue;
           if (ours[ci].parentNode) ours[ci].parentNode.removeChild(ours[ci]);
         } catch (e) {}
       }

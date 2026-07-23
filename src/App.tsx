@@ -18,7 +18,7 @@ import { getDeviceId, readStoredJson, storageKeys, useStoredState } from './infr
 import { appApi } from './services'
 import { PAYMENT_MODE, APP_VERSION, TEST_ONLY_AUTH_BYPASS, cleanEnvValue } from './config'
 import { buildWhatsappLink } from './services/whatsappLink'
-import { OTLOBLI_NAV_BOOTSTRAP_SCRIPT, SHEIN_CAPTURE_SCRIPT } from './services/sheinBrowserScript'
+import { SHEIN_CAPTURE_SCRIPT } from './services/sheinBrowserScript'
 import { App as CapacitorApp } from '@capacitor/app'
 import { Capacitor } from '@capacitor/core'
 import { BackgroundColor, InAppBrowser, ToolBarType } from '@capgo/capacitor-inappbrowser'
@@ -2630,12 +2630,11 @@ function App() {
       ...(activeStore === 'shein'
         ? {
           otlobliLoadingCover: true,
-          otlobliDocumentStartScript: OTLOBLI_NAV_BOOTSTRAP_SCRIPT,
           otlobliPreserveAttachedWhenHidden: true,
-          // Keep React's already-mounted Otlobli shell and bottom nav visible
-          // while the first SHEIN document is loading. The native browser is
-          // presented only after WebKit has a live page and the document-start
-          // bootstrap has mounted the identical in-page nav.
+          // Keep React's already-mounted Otlobli shell visible while the first
+          // SHEIN document is loading. The full SHEIN script is injected only
+          // after page load, so security challenges are not touched at
+          // documentStart.
           isPresentAfterPageLoad: true,
           isAnimated: false,
         }

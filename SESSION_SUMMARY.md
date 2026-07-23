@@ -1,5 +1,17 @@
 # SESSION_SUMMARY.md
 
+## 2026-07-23 SHEIN v85.8.86 No DocumentStart Challenge Touch
+
+- Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
+- Branch: `claude/ios6-cover-fix`.
+- Current local candidate: v85.8.86 / `APP_VERSION = 2026.07.23-v85.8.86-shein-no-docstart-challenge-no-otp-test`.
+- User rejected v85.8.85 on iPhone 16 Pro Max: SHEIN was still blocked.
+- Fix: removed SHEIN's `otlobliDocumentStartScript` bootstrap entirely, so SHEIN receives no Otlobli DOM/nav injection at document start.
+- Fix: added early loaded-document challenge detection before any Saudi cookie/storage write. Same-URL Cloudflare/security pages now remove Otlobli nodes, post `humanCheck`, and return without touching the challenge.
+- Scope stayed narrow: no product capture, add-to-cart, color, size, cart math, payment, wallet, completed orders, or Temu logic changed.
+- Validation passed: `npm run build`; injected-script syntax parse for `OTLOBLI_NAV_BOOTSTRAP_SCRIPT` and `SHEIN_CAPTURE_SCRIPT`; `npx eslint src/services/sheinBrowserScript.ts src/config.ts`. Targeted `src/App.tsx` lint still reports pre-existing unrelated App errors; full build passes.
+- No IPA has been built from this candidate yet.
+
 ## 2026-07-23 SHEIN v85.8.85 iOS Gentle Challenge
 
 - Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
