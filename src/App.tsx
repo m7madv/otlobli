@@ -2211,6 +2211,7 @@ function App() {
   // تحديداً حين يكون الإغلاق مقصوداً من تبديل المتجر.
   const suppressAutoReopenRef = useRef(false)
   const webviewSessionRef = useRef(0)
+  const sheinVisibilityTransitionRef = useRef<Promise<void>>(Promise.resolve())
   const webviewOpeningRef = useRef(false)
   const webviewOpenedAtRef = useRef(0)
   const webviewAutoOpenPausedUntilRef = useRef(0)
@@ -2620,6 +2621,28 @@ function App() {
     }, 35000)
   }
 
+  const setStoreWebviewVisible = useCallback((
+    visible: boolean,
+    store: StoreId = selectedStoreRef.current,
+    sessionId = webviewSessionRef.current,
+  ): Promise<void> => {
+    const runTransition = () => {
+      if (sessionId !== webviewSessionRef.current || !sheinOpenedRef.current) return Promise.resolve()
+      return (visible ? InAppBrowser.show() : InAppBrowser.hide()).then(() => undefined)
+    }
+
+    if (store !== 'shein') return runTransition()
+
+    // UIKit must finish dismissing SHEIN before the same controller is shown
+    // again. Serializing only SHEIN avoids a present/dismiss race while Temu
+    // keeps its existing visibility timing.
+    const transition = sheinVisibilityTransitionRef.current
+      .catch(() => undefined)
+      .then(runTransition)
+    sheinVisibilityTransitionRef.current = transition.catch(() => undefined)
+    return transition
+  }, [])
+
   const browseShein = () => {
     const currentVpnState = vpnStateRef.current
     if (currentVpnState !== 'ok') {
@@ -2669,12 +2692,18 @@ function App() {
       otlobliLoadingCover?: boolean
       otlobliDocumentStartScript?: string
       otlobliPreserveAttachedWhenHidden?: boolean
+      otlobliDismissModalWhenHidden?: boolean
     } = {
       url: targetUrl,
       ...(activeStore === 'shein'
         ? {
           otlobliLoadingCover: true,
+          // Keep SHEIN's live viewport/session mounted, but dismiss the UIKit
+          // modal instead of making its UITransitionView transparent. iOS 27
+          // can otherwise leave that layer above the app and block all taps.
+          // This opt-in is SHEIN-only; Temu keeps its existing hide path.
           otlobliPreserveAttachedWhenHidden: true,
+          otlobliDismissModalWhenHidden: true,
           // Keep React's already-mounted Otlobli shell visible while the first
           // SHEIN document is loading. The full SHEIN script is injected only
           // after page load, so security challenges are not touched at
@@ -2747,7 +2776,7 @@ function App() {
         if (sessionId !== webviewSessionRef.current) return
         webviewIdRef.current = result?.id ?? webviewIdRef.current
         if (screenRef.current !== 'home' && (!initialPendingUrl || pendingProductRevealRef.current)) {
-          void InAppBrowser.hide().catch(() => undefined)
+          void setStoreWebviewVisible(false, activeStore, sessionId).catch(() => undefined)
         }
         postWebviewChromeState(pendingBackTargetRef.current)
         if (initialPendingUrl && pendingProductUrlRef.current === initialPendingUrl) pendingProductUrlRef.current = ''
@@ -2776,7 +2805,7 @@ function App() {
     let openTimer: number | undefined
     if (screen === 'home') {
       if (sheinOpenedRef.current) {
-        void InAppBrowser.show().catch(() => undefined).then(() => {
+        void setStoreWebviewVisible(true).catch(() => undefined).then(() => {
           if (webviewOpeningRef.current || !sheinReadyRef.current) return
           postWebviewChromeState(pendingBackTargetRef.current)
         })
@@ -2785,14 +2814,14 @@ function App() {
         openTimer = window.setTimeout(() => browseSheinRef.current(), 0)
       }
     } else if (sheinOpenedRef.current) {
-      // The iOS patch keeps Otlobli's WebView attached to its controller while
-      // hidden, so cart/orders/profile can appear without destroying SHEIN.
-      void InAppBrowser.hide().catch(() => undefined)
+      // Keep the store session alive while native iOS hide/show owns the
+      // presentation transition. SHEIN and Temu both retain their WebViews.
+      void setStoreWebviewVisible(false).catch(() => undefined)
     }
     return () => {
       if (openTimer !== undefined) window.clearTimeout(openTimer)
     }
-  }, [screen, vpnState, sheinReady, sheinBlockedError])
+  }, [screen, vpnState, sheinReady, sheinBlockedError, setStoreWebviewVisible])
 
   // Temu rejects a refererless native deep product load. Opening the product
   // from inside the warm Temu page matches a real card tap.

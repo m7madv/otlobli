@@ -291,10 +291,114 @@ index 8ae3e61..fc6cf04 100644
              // Strip conditional cache validators on the wire so upstream cannot return 304/3xx,
              // which WebResourceResponse.setStatusCodeAndReasonPhrase rejects (kills the renderer).
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
-index 116e296..51d1d3e 100644
+index 116e296..b475161 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
-@@ -907,6 +907,15 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -206,6 +206,18 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+         return navigationWebViewController
+     }
+
++    private func dismissNavigationControllerIfPresented(
++        _ navigationController: UINavigationController?,
++        completion: (() -> Void)? = nil
++    ) {
++        guard let navigationController,
++              navigationController.presentingViewController != nil else {
++            completion?()
++            return
++        }
++        navigationController.dismiss(animated: false, completion: completion)
++    }
++
+     private func notifyPopupWindowOpened(id: String, parentId: String?, url: String?, visible: Bool) {
+         var event: [String: Any] = [
+             "id": id,
+@@ -355,19 +367,79 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+         }
+     }
+
+-    func presentView(webViewId: String? = nil, isAnimated: Bool = true) {
++    private func topPresenter(from root: UIViewController) -> UIViewController {
++        var top = root
++        while let presented = top.presentedViewController {
++            top = presented
++        }
++        return top
++    }
++
++    private func presentNavigationControllerSafely(
++        _ navigationController: UINavigationController,
++        from presenter: UIViewController?,
++        animated: Bool,
++        completion: ((Bool) -> Void)? = nil
++    ) {
++        guard let presenter else {
++            completion?(false)
++            return
++        }
++
++        let presentBlock = {
++            if navigationController.presentingViewController != nil {
++                completion?(true)
++                return
++            }
++
++            let top = self.topPresenter(from: presenter)
++            guard top.presentedViewController == nil else {
++                print("[InAppBrowser] Skipping present; presenter already has a presented view controller")
++                completion?(false)
++                return
++            }
++            top.present(navigationController, animated: animated) {
++                completion?(true)
++            }
++        }
++
++        if Thread.isMainThread,
++           !presenter.isBeingPresented,
++           !presenter.isBeingDismissed {
++            presentBlock()
++        } else {
++            DispatchQueue.main.async(execute: presentBlock)
++        }
++    }
++
++    @discardableResult
++    func presentView(webViewId: String? = nil, isAnimated: Bool = true) -> Bool {
+         let resolvedId = webViewId ?? activeWebViewId
++        let webViewController = resolvedId.flatMap { webViewControllers[$0] } ?? self.webViewController
+         let navigationController = resolvedId.flatMap { navigationControllers[$0] } ?? self.navigationWebViewController
+         guard let navigationController else {
+             self.currentPluginCall?.reject("Navigation controller is not initialized")
+-            return
++            return false
++        }
++        if webViewController?.otlobliDismissModalWhenHidden == true,
++           self.isHidden {
++            return true
+         }
+
+         dismissActiveKeyboard()
+         let presenter = self.bridge?.viewController?.presentedViewController ?? self.bridge?.viewController
+-        presenter?.present(navigationController, animated: isAnimated, completion: {
+-            self.currentPluginCall?.resolve()
+-        })
++        if webViewController?.otlobliDismissModalWhenHidden == true {
++            presentNavigationControllerSafely(navigationController, from: presenter, animated: isAnimated) { presented in
++                if !presented {
++                    self.currentPluginCall?.reject("Failed to present webview")
++                }
++            }
++        } else {
++            presenter?.present(navigationController, animated: isAnimated, completion: {
++                self.currentPluginCall?.resolve()
++            })
++        }
++        return true
+     }
+
+     private func dismissActiveKeyboard() {
+@@ -907,6 +979,15 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
                  self.proxySchemeHandlers[webViewId] = proxyHandler
              }
 
@@ -310,7 +414,7 @@ index 116e296..51d1d3e 100644
              self.webViewController = WKWebViewController.init(
                  url: url,
                  headers: headers,
-@@ -923,10 +932,7 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -923,10 +1004,7 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
                  captureConsoleLogs: captureConsoleLogs,
                  proxyRequests: legacyProxyRequests.isEnabled,
                  proxySchemeHandler: proxyHandler,
@@ -322,30 +426,134 @@ index 116e296..51d1d3e 100644
                  openBlankTargetInWebView: openBlankTargetInWebView
              )
 
-@@ -936,6 +942,8 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -936,6 +1014,9 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
              }
 
              webViewController.instanceId = webViewId
 +            webViewController.otlobliLoadingCoverEnabled = call.getBool("otlobliLoadingCover", false)
 +            webViewController.otlobliPreserveAttachedWhenHidden = call.getBool("otlobliPreserveAttachedWhenHidden", false)
++            webViewController.otlobliDismissModalWhenHidden = call.getBool("otlobliDismissModalWhenHidden", false)
 
              // Set HTTP method and body if provided
              if let method = httpMethod {
-@@ -1338,9 +1346,11 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
-                     }
+@@ -1258,9 +1339,15 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+                     return
                  }
+             } else if !self.isPresentAfterPageLoad {
+-                self.presentView(webViewId: webViewId, isAnimated: isAnimated)
++                guard self.presentView(webViewId: webViewId, isAnimated: isAnimated) else {
++                    return
++                }
+             }
+             call.resolve(["id": webViewId])
++            if webViewController.otlobliDismissModalWhenHidden,
++               self.currentPluginCall === call {
++                self.currentPluginCall = nil
++            }
+         }
+     }
 
+@@ -1324,22 +1411,39 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+             self.isHidden = hidden
+
+             if hidden {
+-                if let navController = navigationController, navController.presentingViewController != nil {
+-                    navController.view.isHidden = true
+-                    navController.view.isUserInteractionEnabled = false
+-                    if let containerView = navController.view.superview {
+-                        if self.presentationContainerView == nil || self.presentationContainerView !== containerView {
+-                            self.presentationContainerView = containerView
+-                            self.presentationContainerWasInteractive = containerView.isUserInteractionEnabled
+-                            self.presentationContainerPreviousAlpha = containerView.alpha
++                if webViewController.otlobliPreserveAttachedWhenHidden {
++                    if webViewController.otlobliDismissModalWhenHidden {
++                        webViewController.otlobliVisibilityHideInProgress = true
++                        self.dismissNavigationControllerIfPresented(navigationController) {
++                            webViewController.otlobliVisibilityHideInProgress = false
++                            call?.resolve()
++                        }
++                        return
++                    } else {
++                        if let navController = navigationController, navController.presentingViewController != nil {
++                            navController.view.isHidden = true
++                            navController.view.isUserInteractionEnabled = false
++                            if let containerView = navController.view.superview {
++                                if self.presentationContainerView == nil || self.presentationContainerView !== containerView {
++                                    self.presentationContainerView = containerView
++                                    self.presentationContainerWasInteractive = containerView.isUserInteractionEnabled
++                                    self.presentationContainerPreviousAlpha = containerView.alpha
++                                }
++                                containerView.isUserInteractionEnabled = false
++                                containerView.alpha = 0
++                            }
+                         }
+-                        containerView.isUserInteractionEnabled = false
+-                        containerView.alpha = 0
+                     }
+-                }
+-
 -                if !self.attachWebViewToWindow(webView) {
 -                    call?.reject("Failed to get active window for hidden webview")
--                    return
-+                if !webViewController.otlobliPreserveAttachedWhenHidden {
++                } else {
 +                    if !self.attachWebViewToWindow(webView) {
 +                        call?.reject("Failed to get active window for hidden webview")
 +                        return
 +                    }
++                    webViewController.otlobliVisibilityHideInProgress = true
++                    self.dismissNavigationControllerIfPresented(navigationController) {
++                        webViewController.otlobliVisibilityHideInProgress = false
++                        call?.resolve()
++                    }
+                     return
                  }
              } else {
-                 if webView.superview !== webViewController.view {
+@@ -1351,21 +1455,35 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+                     if let resolvedId {
+                         self.setActiveWebView(id: resolvedId, webView: webViewController, navigationController: navController)
+                     }
+-                    navController.view.isHidden = false
+-                    navController.view.isUserInteractionEnabled = true
+-                    if let containerView = self.presentationContainerView {
+-                        containerView.isUserInteractionEnabled = self.presentationContainerWasInteractive
+-                        containerView.alpha = self.presentationContainerPreviousAlpha
+-                        self.presentationContainerView = nil
+-                        self.presentationContainerWasInteractive = true
+-                        self.presentationContainerPreviousAlpha = 1
++                    if webViewController.otlobliPreserveAttachedWhenHidden &&
++                       !webViewController.otlobliDismissModalWhenHidden {
++                        navController.view.isHidden = false
++                        navController.view.isUserInteractionEnabled = true
++                        if let containerView = self.presentationContainerView {
++                            containerView.isUserInteractionEnabled = self.presentationContainerWasInteractive
++                            containerView.alpha = self.presentationContainerPreviousAlpha
++                            self.presentationContainerView = nil
++                            self.presentationContainerWasInteractive = true
++                            self.presentationContainerPreviousAlpha = 1
++                        }
+                     }
+
+                     if navController.presentingViewController == nil {
+                         let presenter = self.bridge?.viewController?.presentedViewController ?? self.bridge?.viewController
+-                        presenter?.present(navController, animated: true, completion: {
+-                            call?.resolve()
+-                        })
++                        if webViewController.otlobliDismissModalWhenHidden ||
++                           !webViewController.otlobliPreserveAttachedWhenHidden {
++                            self.presentNavigationControllerSafely(navController, from: presenter, animated: true) { presented in
++                                if presented {
++                                    call?.resolve()
++                                } else {
++                                    call?.reject("Failed to present webview")
++                                }
++                            }
++                        } else {
++                            presenter?.present(navController, animated: true, completion: {
++                                call?.resolve()
++                            })
++                        }
+                         return
+                     }
+                 }
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
 index 1c70884..be2b8ac 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
@@ -527,10 +735,10 @@ index 1c70884..be2b8ac 100644
          if
              ProxySchemeRequestSupport.supportsRequestBody(method: context.method),
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
-index 97a2fc1..c24d7e2 100644
+index 97a2fc1..1676096 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
-@@ -748,6 +748,24 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -748,6 +748,26 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
      fileprivate var webView: WKWebView?
      fileprivate var progressView: UIProgressView?
 
@@ -545,6 +753,8 @@ index 97a2fc1..c24d7e2 100644
 +        }
 +    }
 +    open var otlobliPreserveAttachedWhenHidden = false
++    open var otlobliDismissModalWhenHidden = false
++    var otlobliVisibilityHideInProgress = false
 +    private var otlobliLoadingCoverView: UIView?
 +    private var otlobliLoadingCoverLabel: UILabel?
 +    private var otlobliLoadingCoverBottomConstraint: NSLayoutConstraint?
@@ -555,7 +765,17 @@ index 97a2fc1..c24d7e2 100644
      fileprivate var previousNavigationBarState: (tintColor: UIColor, hidden: Bool) = (.black, false)
      fileprivate var previousToolbarState: (tintColor: UIColor, hidden: Bool) = (.black, false)
 
-@@ -878,6 +896,10 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -862,7 +882,8 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+     override open func viewDidDisappear(_ animated: Bool) {
+         super.viewDidDisappear(animated)
+
+-        if self.isBeingDismissed || self.isMovingFromParent {
++        if (self.isBeingDismissed || self.isMovingFromParent) &&
++            !otlobliVisibilityHideInProgress {
+             self.cleanupWebView()
+         }
+
+@@ -878,6 +899,10 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
              self.initWebview()
          }
 
@@ -566,7 +786,7 @@ index 97a2fc1..c24d7e2 100644
          // Apply navigation gestures setting
          updateNavigationGestures()
 
-@@ -899,6 +921,145 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -899,6 +924,145 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
      override open func viewDidLayoutSubviews() {
          super.viewDidLayoutSubviews()
          refreshWebViewViewportIfNeeded()
@@ -712,7 +932,7 @@ index 97a2fc1..c24d7e2 100644
      }
 
      func updateButtonTintColors() {
-@@ -1001,6 +1162,37 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1001,6 +1165,37 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          capBrowserPlugin?.notifyListeners(eventName, data: payload(with: data))
      }
 
@@ -750,7 +970,7 @@ index 97a2fc1..c24d7e2 100644
      private func startObservingKeyboardViewportChanges() {
          guard !isObservingKeyboardViewportChanges else {
              return
-@@ -1136,6 +1328,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1136,6 +1331,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          if message.name == "messageHandler" {
              if let messageBody = message.body as? [String: Any] {
                  print("Received message from JavaScript:", messageBody)
@@ -758,15 +978,16 @@ index 97a2fc1..c24d7e2 100644
                  emit("messageFromWebview", data: messageBody)
              } else {
                  print("Received non-dictionary message from JavaScript:", message.body)
-@@ -1581,6 +1774,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1581,6 +1777,8 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          self.hiddenPopupWindow = parent.hiddenPopupWindow
          self.opensHidden = parent.hiddenPopupWindow
          self.captureConsoleLogs = parent.captureConsoleLogs
 +        self.otlobliPreserveAttachedWhenHidden = parent.otlobliPreserveAttachedWhenHidden
++        self.otlobliDismissModalWhenHidden = parent.otlobliDismissModalWhenHidden
          self.allowWebViewJsVisibilityControl = parent.allowWebViewJsVisibilityControl
          self.allowScreenshotsFromWebPage = parent.allowScreenshotsFromWebPage
          self.handleDownloads = parent.handleDownloads
-@@ -1818,6 +2012,13 @@ public extension WKWebViewController {
+@@ -1818,6 +2016,13 @@ public extension WKWebViewController {
 
      open func cleanupWebView() {
          guard let webView = self.webView else { return }
@@ -780,7 +1001,7 @@ index 97a2fc1..c24d7e2 100644
          webView.stopLoading()
          previewItemURL = nil
 
-@@ -2682,6 +2883,12 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2682,6 +2887,12 @@ extension WKWebViewController: WKNavigationDelegate {
      public func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
          updateBarButtonItems()
          self.progressView?.progress = 0
@@ -793,7 +1014,7 @@ index 97a2fc1..c24d7e2 100644
          if let urlValue = webView.url {
              self.url = urlValue
              delegate?.webViewController?(self, didStart: urlValue)
-@@ -2703,12 +2910,18 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2703,12 +2914,18 @@ extension WKWebViewController: WKNavigationDelegate {
                      DispatchQueue.global(qos: .userInitiated).async {
                          self.injectPreShowScript()
                          DispatchQueue.main.async { [weak self] in
@@ -814,7 +1035,7 @@ index 97a2fc1..c24d7e2 100644
              }
          } else if self.preShowScript != nil &&
                      !self.preShowScript!.isEmpty &&
-@@ -2743,7 +2956,7 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2743,7 +2960,7 @@ extension WKWebViewController: WKNavigationDelegate {
              self.url = url
              delegate?.webViewController?(self, didFail: url, withError: error)
          }
@@ -823,7 +1044,7 @@ index 97a2fc1..c24d7e2 100644
      }
 
      public func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-@@ -2753,7 +2966,16 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2753,7 +2970,16 @@ extension WKWebViewController: WKNavigationDelegate {
              self.url = url
              delegate?.webViewController?(self, didFail: url, withError: error)
          }
