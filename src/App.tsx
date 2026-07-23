@@ -2532,7 +2532,11 @@ function App() {
       domain: event.domain,
       url: event.url ?? event.failingUrlString,
     })
-    showStoreOpenFailure()
+    // السبب المؤكّد (من سجلّ الجهاز): على iOS الحديث تتضخّم ذاكرة عملية WebContent
+    // لصفحة SHEIN الثقيلة فيقتلها النظام، فيبقى الـWKWebView صورة جامدة لا تستجيب.
+    // الحل: نعيد بناء WebView جديد فوراً (نفس ما يثبته المستخدم بتبديل المتجر) بدل
+    // ترك الشاشة متجمّدة. نمرّر allowReadyRecovery لأن الصفحة كانت جاهزة قبل الموت.
+    restartStuckSheinWebview(webviewSessionRef.current, true)
   }
 
   const markStoreWebviewReady = (sessionId: number) => {
