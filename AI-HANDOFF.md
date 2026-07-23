@@ -5,6 +5,21 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 ## Current Candidate
 
 - Branch: `claude/ios6-cover-fix`.
+- Current local code candidate: v85.8.87 / `APP_VERSION = 2026.07.23-v85.8.87-shein-cookie-reset-no-otp-test`.
+- User rejected v85.8.86 on iPhone 16 Pro Max: SHEIN still showed the blocked/frozen behavior even after removing SHEIN document-start injection and avoiding challenge-page writes.
+- Strongest remaining source-backed root cause: Otlobli previously used `InAppBrowser.clearCache()` for SHEIN recovery, but the iOS plugin implementation clears only WebKit memory/disk cache, not cookies. A SHEIN challenge/block cookie can therefore survive every cache-only recovery and poison fresh WKWebViews on the same phone.
+- Fix: added bounded, SHEIN-only website-data reset. It clears cookies for `https://m.shein.com/`, `https://www.shein.com/`, and `https://shein.com/`, plus cache, once per `APP_VERSION` before the first SHEIN open. It also queues the same reset after `sheinBlocked`, preparation failure, stuck-WebView recovery, unexpected SHEIN close on home, and retry buttons.
+- Cleanup failures are swallowed/logged so native cleanup cannot become a new reason for the store not to open.
+- Scope protected: no product capture, add-to-cart, color/size parsing, product URL normalization, cart math, payment, wallet, completed-order, or Temu logic changed.
+- Code commit: `d9903c2` (`fix: v85.8.87 reset SHEIN blocked cookies`), pushed to `origin/claude/ios6-cover-fix`.
+- GitHub iOS build `29971119985` succeeded.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.87-shein-cookie-reset.ipa`; SHA-256 `A8F70B21D2A7DCD5F6D73A2F865D7793BF5B7A5669D5EFDE787113603CFD294E`.
+- Validation: `npm run build` clean; `npx eslint src/config.ts` clean; `git diff --check` only reports Windows LF/CRLF warnings; GitHub iOS build passed; embedded IPA marker check found `v85.8.87`, `shein-website-data-reset`, and `SHEIN cookie reset`. Targeted `src/App.tsx` lint still reports pre-existing unrelated App errors.
+- Not yet device-verified. If v85.8.87 remains blocked on the same iPhone 16 while another phone works, the likely remaining cause is SHEIN server-side device/IP/fingerprint reputation, not Otlobli DOM injection/cache.
+
+## Previous Candidate
+
+- Branch: `claude/ios6-cover-fix`.
 - Current local code candidate: v85.8.86 / `APP_VERSION = 2026.07.23-v85.8.86-shein-no-docstart-challenge-no-otp-test`.
 - User rejected v85.8.85 on iPhone 16 Pro Max: SHEIN was still blocked.
 - Change: removed SHEIN's `otlobliDocumentStartScript` bootstrap entirely. SHEIN now gets no Otlobli DOM/nav injection at document start; the full script is injected only after page load.

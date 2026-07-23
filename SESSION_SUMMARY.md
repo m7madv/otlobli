@@ -1,5 +1,21 @@
 # SESSION_SUMMARY.md
 
+## 2026-07-23 SHEIN v85.8.87 Cookie Reset
+
+- Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
+- Branch: `claude/ios6-cover-fix`.
+- Current local candidate: v85.8.87 / `APP_VERSION = 2026.07.23-v85.8.87-shein-cookie-reset-no-otp-test`.
+- User rejected v85.8.86 on iPhone 16 Pro Max: SHEIN remained blocked/frozen. This excludes the previous two concrete code causes: touching challenge pages at document start and writing Saudi state into challenge documents.
+- Source-backed diagnosis: `@capgo/capacitor-inappbrowser` iOS `clearCache()` clears only memory/disk cache; it does not clear cookies. The plugin's `clearCookies({ url })` deletes matching `WKHTTPCookieStore` cookies. Therefore a stale SHEIN challenge/block cookie can survive the app's old cache-only recovery and affect every fresh WKWebView on the same phone.
+- Fix: added bounded SHEIN-only cookie/cache reset. It clears `m.shein.com`, `www.shein.com`, and `shein.com` cookies plus cache once per app version before SHEIN first opens, and again only after confirmed stuck/blocked paths or retry actions.
+- Scope stayed narrow: no product capture, add-to-cart, color, size, product URL normalization, cart math, payment, wallet, completed orders, or Temu logic changed.
+- Code commit: `d9903c2` (`fix: v85.8.87 reset SHEIN blocked cookies`), pushed to `origin/claude/ios6-cover-fix`.
+- GitHub iOS build `29971119985` succeeded.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.87-shein-cookie-reset.ipa`.
+- v85.8.87 IPA SHA-256: `A8F70B21D2A7DCD5F6D73A2F865D7793BF5B7A5669D5EFDE787113603CFD294E`.
+- Validation passed: `npm run build`; `npx eslint src/config.ts`; `git diff --check` aside from Windows LF/CRLF warnings; GitHub unsigned iOS build; embedded IPA marker check for `v85.8.87`, `shein-website-data-reset`, and `SHEIN cookie reset`. Targeted `src/App.tsx` lint still reports pre-existing unrelated App errors.
+- Real-device judgment is still pending. If the same iPhone 16 remains blocked while iPhone 6/other phones work, the remaining likely cause is SHEIN server-side device/IP/fingerprint reputation.
+
 ## 2026-07-23 SHEIN v85.8.86 No DocumentStart Challenge Touch
 
 - Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.

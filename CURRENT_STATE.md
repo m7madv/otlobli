@@ -2,6 +2,21 @@
 
 Last updated: 2026-07-23
 
+## v85.8.87 SHEIN Cookie Reset
+
+- Branch: `claude/ios6-cover-fix`. `APP_VERSION = 2026.07.23-v85.8.87-shein-cookie-reset-no-otp-test`.
+- User rejected v85.8.86 on iPhone 16 Pro Max: SHEIN remained blocked even after removing SHEIN document-start injection and avoiding challenge-page writes.
+- Confirmed local plugin source: `InAppBrowser.clearCache()` only removes `WKWebsiteDataTypeDiskCache` and `WKWebsiteDataTypeMemoryCache` on iOS; it does not remove SHEIN cookies. The plugin already exposes host-targeted `clearCookies({ url })`, which deletes matching `WKHTTPCookieStore` cookies.
+- Fix: before opening SHEIN for this build once, clear host-targeted SHEIN cookies for `m.shein.com`, `www.shein.com`, and `shein.com`, plus WebKit cache. Also queue the same SHEIN-only cookie/cache reset after `sheinBlocked`, preparation failure, stuck-WebView recovery, unexpected SHEIN close on home, and user retry buttons.
+- The reset is bounded, not a 24/7 watchdog: it runs once per `APP_VERSION` or after a confirmed stuck/blocked session. Failures in native cleanup are logged and do not prevent the WebView from opening.
+- Scope protected: no product capture, add-to-cart, color/size parsing, product URL normalization, cart math, payment, wallet, completed-order, or Temu logic changed.
+- Code commit: `d9903c2` (`fix: v85.8.87 reset SHEIN blocked cookies`), pushed to `origin/claude/ios6-cover-fix`.
+- GitHub iOS build `29971119985` succeeded.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.87-shein-cookie-reset.ipa`.
+- v85.8.87 IPA SHA-256: `A8F70B21D2A7DCD5F6D73A2F865D7793BF5B7A5669D5EFDE787113603CFD294E`.
+- Validation: `npm run build` passed; `npx eslint src/config.ts` passed; `git diff --check` passed aside from Windows LF/CRLF warnings; GitHub iOS build passed; embedded IPA marker check found `v85.8.87`, `shein-website-data-reset`, and `SHEIN cookie reset`. Targeted `src/App.tsx` lint still reports pre-existing unrelated project lint errors; full build passes.
+- Not yet device-verified. If this build remains blocked on the same iPhone 16 but works on another phone, the remaining likely cause is SHEIN server-side device/IP/fingerprint reputation rather than Otlobli DOM injection or WebKit cache.
+
 ## v85.8.86 SHEIN No DocumentStart Challenge Touch
 
 - Branch: `claude/ios6-cover-fix`. `APP_VERSION = 2026.07.23-v85.8.86-shein-no-docstart-challenge-no-otp-test`.
