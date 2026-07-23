@@ -1,5 +1,21 @@
 # SESSION_SUMMARY.md
 
+## 2026-07-23 SHEIN v85.8.88 Passive Saudi Handling
+
+- Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
+- Branch: `claude/ios6-cover-fix`.
+- Current local candidate: v85.8.88 / `APP_VERSION = 2026.07.23-v85.8.88-shein-passive-saudi-no-otp-test`.
+- User rejected v85.8.87 on iPhone 16 Pro Max: the same SHEIN blocked/frozen behavior remained. This excludes the previous attempted causes: document-start injection, challenge-page writes, and SHEIN-only cookie/cache reset.
+- New code-root-cause direction: the full SHEIN script still acted too much like automation after page load. It wrote many common SHEIN cookie/storage keys, monkey-patched `Storage.prototype.setItem`, scanned full body text too frequently for shipping country, auto-clicked the native shipping drawer from the browse tick, and React rebuilt a ready WebView after heartbeat misses.
+- Fix: changed SHEIN to passive Saudi handling. Saudi/USD/Arabic remains in URL/native redirect. The injected script no longer mass-writes SHEIN cookies/local/session storage, no longer storage-sweeps, no longer monkey-patches storage, no longer auto-clicks the shipping drawer while browsing, caches shipping-region text scans, and no longer sends/uses post-ready heartbeat rebuilds. Add-to-cart still blocks when visible shipping/address signals are explicitly foreign.
+- Scope stayed narrow: no product capture payload, color/size logic, cart math, payment, wallet, completed orders, or Temu behavior changed.
+- Code commit: `832e2cb` (`fix: v85.8.88 make SHEIN Saudi handling passive`), pushed to `origin/claude/ios6-cover-fix`.
+- GitHub iOS build `29972064005` succeeded.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.88-shein-passive-saudi.ipa`.
+- v85.8.88 IPA SHA-256: `5BF571331F8CCE96B6D11F4AA13D18DA1EEE8CABA99E9E844205CAC4632317C6`.
+- Validation passed: `npm run build`; `npx eslint src/services/sheinBrowserScript.ts src/config.ts`; injected-script syntax parse; `git diff --check` aside from Windows LF/CRLF warnings; GitHub unsigned iOS build; embedded IPA marker check for `v85.8.88` and `Passive Saudi mode`. Targeted `src/App.tsx` lint still reports pre-existing unrelated App errors.
+- Real-device judgment pending. If only the same iPhone 16 remains blocked while other phones work, the remaining likely cause is SHEIN server-side device/IP/fingerprint reputation; the local code paths that looked automation-heavy have now been removed.
+
 ## 2026-07-23 SHEIN v85.8.87 Cookie Reset
 
 - Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
