@@ -35,6 +35,12 @@ const APP_SETTINGS_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/app-settin
 // السكربت المحقون يقرأ المنطقة من الرابط فيضبط لغة الموقع تلقائياً.
 const SHEIN_HOME_URL = 'https://m.shein.com/ar/?currency=USD&localcountry=SA&country=SA&countryCode=SA&country_code=SA&lang=ar&language=ar&ship_to=SA&shipTo=SA&shipToCountry=SA&shippingCountry=SA&shipping_country=SA&store_country=SA'
 const TEMU_HOME_URL = 'https://www.temu.com/sa/?currency=USD&currencyCode=USD'
+const SHEIN_WEBSITE_DATA_RESET_URLS = [
+  'https://m.shein.com/',
+  'https://www.shein.com/',
+  'https://shein.com/',
+]
+const SHEIN_WEBSITE_DATA_RESET_KEY = `otlobli:shein-website-data-reset:${APP_VERSION}`
 const SHEIN_CHALLENGE_PATH_RE = /\/(?:cdn-cgi|challenge|captcha|verify|verification|security|robot|risk|anti[-_]?bot|human)(?:\/|\?|#|$)/i
 const SHEIN_CHALLENGE_QUERY_RE = /(?:^|[?&#])(?:captcha|challenge|verification|security_token|risk|robot|anti[-_]?bot|human)=/i
 // يكشف موقع خروج الإنترنت الحالي (بلد/منطقة الـVPN فعلياً) عبر خدمتي geo
@@ -530,6 +536,37 @@ const isSheinHumanChallengeUrl = (rawUrl: string) => {
       SHEIN_CHALLENGE_QUERY_RE.test(url.search + url.hash)
   } catch {
     return false
+  }
+}
+
+const hasCompletedSheinWebsiteDataReset = () => {
+  try {
+    return window.localStorage.getItem(SHEIN_WEBSITE_DATA_RESET_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+const rememberSheinWebsiteDataReset = () => {
+  try {
+    window.localStorage.setItem(SHEIN_WEBSITE_DATA_RESET_KEY, '1')
+  } catch {
+    // Storage can be unavailable in private/old WebViews; the reset itself already ran.
+  }
+}
+
+const resetSheinWebsiteData = async ({ cookies, cache }: { cookies: boolean; cache: boolean }) => {
+  if (cookies) {
+    for (const url of SHEIN_WEBSITE_DATA_RESET_URLS) {
+      await InAppBrowser.clearCookies({ url }).catch((error) => {
+        console.warn('[otlobli] SHEIN cookie reset failed', url, error)
+      })
+    }
+  }
+  if (cache) {
+    await InAppBrowser.clearCache().catch((error) => {
+      console.warn('[otlobli] SHEIN cache reset failed', error)
+    })
   }
 }
 
@@ -2182,6 +2219,7 @@ function App() {
   const sheinReadinessTimerRef = useRef<number | undefined>(undefined)
   const sheinRecoveryAttemptRef = useRef(0)
   const sheinCacheResetPendingRef = useRef(false)
+  const sheinCookieResetPendingRef = useRef(false)
   // فُتح المتجر عبر «فتح على أي حال» رغم فشل بوابة VPN. عندها لو لم تُحمّل الصفحة
   // فعلاً، نرجع لبوابة «شغّل VPN» بدل عرض صفحة بيضاء (بدل الإظهار القسري).
   const openedViaBypassRef = useRef(false)
@@ -2338,6 +2376,12 @@ function App() {
     sheinReadinessTimerRef.current = undefined
   }
 
+  const queueSheinSessionReset = () => {
+    if (selectedStoreRef.current !== 'shein') return
+    sheinCacheResetPendingRef.current = true
+    sheinCookieResetPendingRef.current = true
+  }
+
   const clearPendingProductPreparation = (clearQueuedUrl = true) => {
     if (pendingProductPrepareTimerRef.current !== undefined) {
       window.clearTimeout(pendingProductPrepareTimerRef.current)
@@ -2448,7 +2492,7 @@ function App() {
     sheinOpenedRef.current = false
     setSheinReady(false)
     setStoreOpenFailureReason(reason)
-    if (reason === 'preparation') sheinCacheResetPendingRef.current = true
+    if (reason === 'preparation') queueSheinSessionReset()
     setSheinBlockedError(true)
     if (reason === 'network') refreshVpnDiagnosisForStoreFailure()
     void InAppBrowser.close().catch(() => undefined).finally(() => {
@@ -2552,7 +2596,7 @@ function App() {
     currentWebviewUrlRef.current = ''
     sheinOpenedRef.current = false
     setSheinReady(false)
-    sheinCacheResetPendingRef.current = true
+    queueSheinSessionReset()
     void InAppBrowser.close()
       .then(() => {
         webviewAutoOpenPausedUntilRef.current = 0
@@ -2677,14 +2721,21 @@ function App() {
       // regardless of fixes - so both platforms now connect directly and
       // rely on the user's VPN, same as iOS always did.
     }
-    // Keep the healthy HTTP/WebKit cache for the fast path on older iPhones.
-    // A cache reset remains available only for the one bounded stuck-session
-    // recovery (and the explicit Temu -> SHEIN switch already performs it).
-    // This isolates the speed change from v85.9's failed document-start path.
-    const shouldResetSheinCache = activeStore === 'shein' && sheinCacheResetPendingRef.current
-    if (shouldResetSheinCache) sheinCacheResetPendingRef.current = false
-    const prepareStoreWebview = shouldResetSheinCache
-      ? InAppBrowser.clearCache()
+    // Keep the healthy fast path. Reset SHEIN website data only once for this
+    // build or after a confirmed stuck/blocked session; stale challenge cookies
+    // survive cache clears and can poison every new WKWebView on the same phone.
+    const shouldRunVersionSheinReset = activeStore === 'shein' && !hasCompletedSheinWebsiteDataReset()
+    const shouldResetSheinCookies = activeStore === 'shein' && (sheinCookieResetPendingRef.current || shouldRunVersionSheinReset)
+    const shouldResetSheinCache = activeStore === 'shein' && (sheinCacheResetPendingRef.current || shouldResetSheinCookies)
+    if (activeStore === 'shein') {
+      if (shouldResetSheinCookies) sheinCookieResetPendingRef.current = false
+      if (shouldResetSheinCache) sheinCacheResetPendingRef.current = false
+    }
+    const prepareStoreWebview = activeStore === 'shein' && (shouldResetSheinCookies || shouldResetSheinCache)
+      ? resetSheinWebsiteData({ cookies: shouldResetSheinCookies, cache: shouldResetSheinCache })
+        .then(() => {
+          if (shouldRunVersionSheinReset) rememberSheinWebsiteDataReset()
+        })
       : Promise.resolve()
     void prepareStoreWebview
       .then(() => {
@@ -2817,6 +2868,7 @@ function App() {
         // Some real devices close the native WebView during opening/security
         // checks. Re-opening immediately turns that into a visible open/close
         // loop; keep the app stable and ask for a different VPN server.
+        queueSheinSessionReset()
         webviewAutoOpenPausedUntilRef.current = Date.now() + 15000
         setStoreOpenFailureReason('network')
         setSheinBlockedError(true)
@@ -3094,7 +3146,8 @@ function App() {
 
       if (detail?.type === 'sheinBlocked') {
         sheinChallengeActiveRef.current = false
-        showStoreOpenFailure()
+        queueSheinSessionReset()
+        showStoreOpenFailure('preparation')
         return
       }
 
@@ -5798,6 +5851,7 @@ function App() {
               <p>{storeFailureAdvice.body}</p>
             </div>
             <button className="primary-action" onClick={() => {
+              queueSheinSessionReset()
               webviewAutoOpenPausedUntilRef.current = 0
               setSheinBlockedError(false)
               // Closes the webview outright instead of setUrl()+show() on the
@@ -5817,6 +5871,7 @@ function App() {
             <button className="ghost-action" onClick={() => {
               // يرجع لبوابة الفحص الذكي: يغلق الـwebview العالق ويعيد فحص
               // الوصول + منطقة الـVPN فيوجَّه المستخدم (شغّل/غيّر المنطقة).
+              queueSheinSessionReset()
               webviewAutoOpenPausedUntilRef.current = 0
               setSheinBlockedError(false)
               webviewSessionRef.current += 1
@@ -5832,7 +5887,7 @@ function App() {
             </button>
           </main>
         ) : !sheinReady ? (
-          <HomeScreen userName={userProfile?.name} storeName={currentStoreName} failureAdvice={storeFailureAdvice} onRetry={() => { webviewAutoOpenPausedUntilRef.current = 0; sheinOpenedRef.current = false; browseShein() }} />
+          <HomeScreen userName={userProfile?.name} storeName={currentStoreName} failureAdvice={storeFailureAdvice} onRetry={() => { queueSheinSessionReset(); webviewAutoOpenPausedUntilRef.current = 0; sheinOpenedRef.current = false; browseShein() }} />
         ) : null}
       </MobileShell>
     )
