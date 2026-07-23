@@ -3052,19 +3052,10 @@ function App() {
     }
   }, [])
 
-  useEffect(() => {
-    const id = window.setInterval(() => {
-      if (selectedStoreRef.current !== 'shein') return
-      if (screenRef.current !== 'home' || !sheinOpenedRef.current || !sheinReadyRef.current) return
-      if (sheinChallengeActiveRef.current || !appActiveRef.current) return
-      if (webviewOpeningRef.current) return
-      if (Date.now() - lastSheinHeartbeatRef.current > 15000) {
-        lastSheinHeartbeatRef.current = Date.now()
-        restartStuckSheinWebview(webviewSessionRef.current, true)
-      }
-    }, 4000)
-    return () => window.clearInterval(id)
-  }, [])
+  // v85.8.88: no post-ready heartbeat rebuild. If a ready SHEIN page misses
+  // heartbeats, rebuilding the WebView is only a recovery-after-freeze path
+  // and can look like the store restarted on weak phones. Keep the pre-ready
+  // opening watchdog, but do not destroy a page that already became usable.
 
   useEffect(() => {
     if (screen === 'home') lastSheinHeartbeatRef.current = Date.now()
