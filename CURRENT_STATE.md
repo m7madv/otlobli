@@ -9,8 +9,11 @@ Last updated: 2026-07-23
 - Concrete follow-up: removed SHEIN's `otlobliDocumentStartScript` bootstrap entirely. SHEIN no longer gets any Otlobli DOM/nav injection at document start; the full SHEIN script runs only after page load.
 - Added an early loaded-document challenge detector before any Saudi cookie/storage write. This catches same-URL Cloudflare/security pages, not only `/challenge` URLs, then removes every Otlobli node and returns without touching the challenge.
 - Scope protected: no product capture, add-to-cart, color, size, product URL normalization, cart math, payment, wallet, completed-order, or Temu logic changed.
-- Validation: `npm run build` passed; `npx eslint src/services/sheinBrowserScript.ts src/config.ts` passed; injected `OTLOBLI_NAV_BOOTSTRAP_SCRIPT` and `SHEIN_CAPTURE_SCRIPT` parsed with `new Function`. Targeted `src/App.tsx` lint still reports pre-existing unrelated project lint errors; full build passes.
-- Not yet device-verified and no IPA has been built for this candidate yet.
+- GitHub iOS build `29970160713` succeeded from code commit `d92b777`.
+- Current iOS IPA: `C:\Users\MOHAMMAD\Desktop\otlobli-v85.8.86-shein-no-docstart-challenge.ipa`.
+- v85.8.86 IPA SHA-256: `4BE352FDDCC5FFBAB5EE4707D210E204FC75CB4AFA48B3A3A7DB85B7702FC9FA`.
+- Validation: `npm run build` passed; `npx eslint src/services/sheinBrowserScript.ts src/config.ts` passed; injected `OTLOBLI_NAV_BOOTSTRAP_SCRIPT` and `SHEIN_CAPTURE_SCRIPT` parsed with `new Function`; GitHub iOS build passed; embedded IPA marker check found v85.8.86 and no `otlobliDocumentStartScript` marker. Targeted `src/App.tsx` lint still reports pre-existing unrelated project lint errors; full build passes.
+- Not yet device-verified.
 
 ## v85.8.85 SHEIN iOS Gentle Challenge
 
