@@ -1,5 +1,17 @@
 # SESSION_SUMMARY.md
 
+## 2026-07-23 SHEIN v85.8.85 iOS Gentle Challenge
+
+- Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.
+- Branch: `claude/ios6-cover-fix`.
+- Current local candidate: v85.8.85 / `APP_VERSION = 2026.07.23-v85.8.85-shein-ios-gentle-challenge-no-otp-test`.
+- New real-device evidence: SHEIN works on iPhone 6, but iPhone 16 Pro Max gets challenged/blocked after first entry even after reinstall. This points to SHEIN anti-bot/session sensitivity on that device, not a universal broken build.
+- Fix: during SHEIN human/security challenge pages, the injected script no longer writes Saudi storage/cookies and no longer mounts Otlobli nav into the challenge page. It removes Otlobli nodes, releases scroll lock, posts `humanCheck`, and leaves the challenge itself untouched.
+- Load reduction: all iOS SHEIN pages now use the gentler low-end polling cadence instead of the modern-device 80ms/120ms hot path, reducing automation-like pressure while keeping the working iPhone 6 behavior.
+- Scope stayed narrow: no product capture, add-to-cart, color, size, cart math, payment, wallet, completed orders, or Temu logic changed.
+- Validation passed: `npm run build`; injected-script syntax parse for `OTLOBLI_NAV_BOOTSTRAP_SCRIPT` and `SHEIN_CAPTURE_SCRIPT`; `npx eslint src/services/sheinBrowserScript.ts src/config.ts`.
+- No IPA has been built from this candidate yet.
+
 ## 2026-07-22 SHEIN v85.8.84 Roll Back Failed Fresh Session
 
 - Workspace: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`.

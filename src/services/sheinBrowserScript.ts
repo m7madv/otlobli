@@ -589,7 +589,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // On an explicit challenge route leave the document completely untouched.
   // The next successful navigation gets a new document and a fresh injection.
   if (IS_SHEIN && otlobliIsHumanChallengeUrl(location.href)) {
-    try { writeSheinSaudiState(); } catch (e) {}
     otlobliEnterChallengeMode();
     return;
   }
@@ -6044,7 +6043,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return false;
   }
   function otlobliEnterChallengeMode() {
-    try { writeSheinSaudiState(); } catch (e) {}
     try {
       var ours = document.querySelectorAll('[id^="otlobli"]');
       for (var ci = 0; ci < ours.length; ci++) {
@@ -6055,7 +6053,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
         } catch (e) {}
       }
     } catch (e) {}
-    otlobliScheduleChallengeNav();
     // An add/loading overlay may have locked scrolling immediately before a
     // same-document challenge appeared.  Removing our nodes is not enough;
     // release that lock so the real verification control remains reachable.
@@ -8839,6 +8836,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // device spends its cycles rendering / passing the challenge instead of on
   // our scans. Modern devices (iPhone 16) keep the original tight timings.
   var OTLOBLI_LOW_END = (typeof navigator !== 'undefined' && (navigator.hardwareConcurrency || 4) <= 2);
+  var OTLOBLI_IOS_WEBKIT = (typeof navigator !== 'undefined' &&
+    (/iP(?:hone|ad|od)/i.test(navigator.userAgent || '') ||
+      ((navigator.platform || '') === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1)));
+  var OTLOBLI_SHEIN_GENTLE_TIMERS = !!(IS_SHEIN && OTLOBLI_IOS_WEBKIT);
   function scheduleTick() {
     sheinBlockReported = false;
     // Don't storm-tick on every Cloudflare DOM mutation during the challenge;
@@ -8849,7 +8850,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     setTimeout(function () {
       tickScheduled = false;
       tick();
-    }, OTLOBLI_LOW_END ? 160 : 80);
+    }, (OTLOBLI_LOW_END || OTLOBLI_SHEIN_GENTLE_TIMERS) ? 160 : 80);
   }
 
   var originalPushState = history.pushState;
@@ -8895,7 +8896,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     setTimeout(function () { clearInterval(otlobliObserverTimer); }, 1200);
   }
 
-  setInterval(tick, OTLOBLI_LOW_END ? 450 : 300);
+  setInterval(tick, (OTLOBLI_LOW_END || OTLOBLI_SHEIN_GENTLE_TIMERS) ? 450 : 300);
   // hideKnownHeaderIconsByHint specifically needs to win what looks like an
   // ongoing fight against SHEIN periodically re-rendering its own header (a
   // user found the hamburger/wishlist icons could stay reachable for
@@ -8908,7 +8909,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     hideKnownHeaderIconsByHint();
     hideSheinHeaderControls();
     hideListingCardAddButtons();
-  }, OTLOBLI_LOW_END ? 240 : 120);
+  }, (OTLOBLI_LOW_END || OTLOBLI_SHEIN_GENTLE_TIMERS) ? 240 : 120);
   setInterval(function () {
     ensureOtlobliNav();
     if (IS_TEMU) {
@@ -8919,10 +8920,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
       try { hideTemuSearchVisibleAccountCart(intervalTemuSearching); } catch (e) {}
       try { otlobliCleanTemuBlockers(true); } catch (e) {}
     }
-  }, OTLOBLI_LOW_END ? 1800 : 1200);
+  }, (OTLOBLI_LOW_END || OTLOBLI_SHEIN_GENTLE_TIMERS) ? 1800 : 1200);
   // Own slower interval, not part of tick() - see checkForSheinSecurityBlock's
   // comment on why innerText needs to stay off the 300ms timer. خاص بشي إن فقط.
-  setInterval(function () { if (IS_SHEIN) checkForSheinSecurityBlock(); }, 1000);
+  setInterval(function () { if (IS_SHEIN) checkForSheinSecurityBlock(); }, OTLOBLI_SHEIN_GENTLE_TIMERS ? 1600 : 1000);
   tick();
 })();
 `

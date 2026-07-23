@@ -17,4 +17,4 @@ export const SOURCE_COUNTRY: 'JO' | 'LB' | 'SA' = 'SA'
 export const TEST_ONLY_AUTH_BYPASS = true
 
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '2026.07.22-v85.8.84-rollback-v83-shein-stable-saudi-no-otp-test'
+export const APP_VERSION = '2026.07.23-v85.8.85-shein-ios-gentle-challenge-no-otp-test'

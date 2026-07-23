@@ -1,6 +1,16 @@
 # Otlobli Current State
 
-Last updated: 2026-07-22
+Last updated: 2026-07-23
+
+## v85.8.85 SHEIN iOS Gentle Challenge
+
+- Branch: `claude/ios6-cover-fix`. `APP_VERSION = 2026.07.23-v85.8.85-shein-ios-gentle-challenge-no-otp-test`.
+- New real-device evidence: the same SHEIN build can work normally on iPhone 6, while iPhone 16 Pro Max gets challenged/blocked after the first entry even after reinstall. Treat this as SHEIN anti-bot/session sensitivity on the modern device, not a universal code failure.
+- Concrete fix: when SHEIN shows a human/security challenge, the injected script no longer writes Saudi cookies/storage and no longer mounts/re-mounts the Otlobli nav inside the challenge document. It removes Otlobli nodes, releases scroll lock, posts `humanCheck`, and leaves the challenge page alone.
+- Load reduction: all iOS SHEIN WebViews now use the gentler polling cadence previously reserved for weak devices, so iPhone 16 no longer runs the 80ms/120ms hot path that can look automation-heavy and compete with the challenge script.
+- Scope protected: no product capture, add-to-cart, color, size, product URL normalization, cart math, payment, wallet, completed-order, or Temu logic changed.
+- Validation: `npm run build` passed; `npx eslint src/services/sheinBrowserScript.ts src/config.ts` passed; injected `OTLOBLI_NAV_BOOTSTRAP_SCRIPT` and `SHEIN_CAPTURE_SCRIPT` parsed with `new Function`.
+- Not yet device-verified and no IPA has been built for this candidate yet.
 
 ## v85.8.84 Roll Back Failed v85.8.83 Fresh Session
 
