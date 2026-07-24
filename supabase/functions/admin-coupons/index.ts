@@ -25,6 +25,7 @@ function mapCoupon(row: Record<string, unknown>) {
     appliesTo: row.applies_to,
     active: row.active,
     maxUses: row.max_uses,
+    perUserMaxUses: row.per_user_max_uses ?? 1,
     usedCount: row.used_count,
     minSubtotalSyp: row.min_subtotal_syp,
     startsAt: row.starts_at,
@@ -61,6 +62,7 @@ Deno.serve(async (req) => {
       value?: number
       appliesTo?: string
       maxUses?: number | null
+      perUserMaxUses?: number | null
       minSubtotalSyp?: number
       expiresAt?: string | null
     }
@@ -90,6 +92,9 @@ Deno.serve(async (req) => {
     if (body.maxUses != null && Number(body.maxUses) > 0) {
       insert.max_uses = Math.round(Number(body.maxUses))
     }
+    // كم مرة يقدر المستخدم الواحد يستعمل نفس الكود (افتراضي 1). يُفرض ذرّياً في
+    // redeem_coupon عبر عمّاد coupon_redemptions.uses مع بقاء الفهارس الفريدة.
+    insert.per_user_max_uses = Math.max(1, Math.round(Number(body.perUserMaxUses) || 1))
     if (body.expiresAt) {
       insert.expires_at = body.expiresAt
     }

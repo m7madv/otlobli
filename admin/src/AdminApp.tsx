@@ -11,6 +11,7 @@ type Coupon = {
   appliesTo: 'all' | 'shein' | 'temu'
   active: boolean
   maxUses: number | null
+  perUserMaxUses: number
   usedCount: number
   minSubtotalSyp: number
   startsAt: string | null
@@ -402,6 +403,7 @@ async function createCouponApi(pin: string, input: {
   value: number
   appliesTo: 'all' | 'shein' | 'temu'
   maxUses: number | null
+  perUserMaxUses: number
   minSubtotalSyp: number
   expiresAt: string | null
 }) {
@@ -1749,6 +1751,7 @@ function CouponsPanel({ pin, showNotice }: { pin: string; showNotice: (message: 
   const [appliesTo, setAppliesTo] = useState<'all' | 'shein' | 'temu'>('all')
   const [minSubtotal, setMinSubtotal] = useState('')
   const [maxUses, setMaxUses] = useState('')
+  const [perUserMaxUses, setPerUserMaxUses] = useState('1')
   const [expiresAt, setExpiresAt] = useState('')
 
   const reload = () => {
@@ -1784,6 +1787,7 @@ function CouponsPanel({ pin, showNotice }: { pin: string; showNotice: (message: 
       value: numericValue,
       appliesTo,
       maxUses: maxUses.trim() ? Math.max(1, Math.round(Number(maxUses))) : null,
+      perUserMaxUses: Math.max(1, Math.round(Number(perUserMaxUses) || 1)),
       minSubtotalSyp: Math.max(0, Math.round(Number(minSubtotal) || 0)),
       expiresAt: expiresAt.trim() ? new Date(expiresAt).toISOString() : null,
     })
@@ -1793,6 +1797,7 @@ function CouponsPanel({ pin, showNotice }: { pin: string; showNotice: (message: 
         setValue('')
         setMinSubtotal('')
         setMaxUses('')
+        setPerUserMaxUses('1')
         setExpiresAt('')
         setShowForm(false)
         showNotice('تم إنشاء كود الخصم')
@@ -1880,8 +1885,12 @@ function CouponsPanel({ pin, showNotice }: { pin: string; showNotice: (message: 
               <input type="number" min="0" step="1000" value={minSubtotal} onChange={(event) => setMinSubtotal(event.target.value)} />
             </label>
             <label className="field">
-              <span>عدد الاستخدامات</span>
-              <input type="number" min="1" step="1" value={maxUses} onChange={(event) => setMaxUses(event.target.value)} placeholder="اختياري" />
+              <span>إجمالي الاستخدامات</span>
+              <input type="number" min="1" step="1" value={maxUses} onChange={(event) => setMaxUses(event.target.value)} placeholder="اختياري (بلا حد)" />
+            </label>
+            <label className="field">
+              <span>مرات الاستخدام لكل مستخدم</span>
+              <input type="number" min="1" step="1" value={perUserMaxUses} onChange={(event) => setPerUserMaxUses(event.target.value)} placeholder="1" />
             </label>
             <label className="field">
               <span>تاريخ الانتهاء</span>
@@ -1891,7 +1900,7 @@ function CouponsPanel({ pin, showNotice }: { pin: string; showNotice: (message: 
           <button className="primary-btn" disabled={busy} onClick={createCoupon}>
             <Icon name="add" /> إنشاء الكود
           </button>
-          <p className="coupon-hint">الاستخدام مرة واحدة لكل رقم هاتف ولكل جهاز.</p>
+          <p className="coupon-hint">افتراضياً: مرة واحدة لكل رقم هاتف ولكل جهاز. غيّر «مرات الاستخدام لكل مستخدم» للسماح بأكثر من مرة.</p>
         </div>
       )}
 
@@ -1908,6 +1917,7 @@ function CouponsPanel({ pin, showNotice }: { pin: string; showNotice: (message: 
                 <span className="coupon-desc">{describeCoupon(coupon)}</span>
                 <small className="coupon-meta">
                   استُخدم {coupon.usedCount}{coupon.maxUses ? ` / ${coupon.maxUses}` : ''}
+                  {coupon.perUserMaxUses > 1 ? ` · ${coupon.perUserMaxUses}× لكل مستخدم` : ''}
                   {coupon.expiresAt ? ` · ينتهي ${new Date(coupon.expiresAt).toLocaleDateString('ar-SY')}` : ''}
                   {coupon.minSubtotalSyp ? ` · حد أدنى ${formatMoney(coupon.minSubtotalSyp)}` : ''}
                 </small>

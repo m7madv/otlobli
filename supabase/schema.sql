@@ -4161,3 +4161,26 @@ update public.wallet_topups as topup set status = 'منتهي'
 from ranked where topup.id = ranked.id and ranked.position > 1;
 create unique index if not exists wallet_topups_one_pending_per_customer_uidx
   on public.wallet_topups (customer_id) where status = 'بانتظار الدفع';
+
+-- ============================================================================
+-- تحصين أمني (2026-07-25): إغلاق دوال قديمة (legacy) كانت مكشوفة لـ anon على
+-- مستوى الملف لكنها غير مستعملة من التطبيق (التطبيق يستعمل نسخ محمية بالجلسة:
+-- get_customer_account(text,text) و get_wallet_balance_usd). بلا هذا التحصين،
+-- أي إعادة تطبيق كاملة لهذا الملف تعيد فتح تسريب: قراءة حساب/رصيد أي زبون
+-- برقم الهاتف فقط. طُبِّق هذا فعلياً على قاعدة البيانات الحيّة عبر Supabase CLI.
+-- راجع [[project_shamcash_listener_pipeline]] لآلية الوصول للسيرفر الحيّ.
+-- ============================================================================
+revoke execute on function public.get_customer_account(text) from public, anon, authenticated;
+revoke execute on function public.get_wallet(text) from public, anon, authenticated;
+
+-- ============================================================================
+-- ميزة (2026-07-25): حد استخدام الكوبون لكل مستخدم قابل للضبط. الافتراضي 1
+-- (نفس السلوك السابق). يُفرض ذرّياً في redeem_coupon عبر INSERT..ON CONFLICT
+-- DO UPDATE مع عمّاد coupon_redemptions.uses، مع بقاء الفهرسين الفريدين
+-- (هاتف + جهاز مضاد للاحتيال). طُبِّق فعلياً على السيرفر الحيّ عبر Supabase CLI.
+-- انظر النسخة الكاملة للدالة أعلاه؛ هنا نضمن الأعمدة فقط عند إعادة التطبيق.
+-- ============================================================================
+alter table public.coupons
+  add column if not exists per_user_max_uses integer not null default 1;
+alter table public.coupon_redemptions
+  add column if not exists uses integer not null default 1;
