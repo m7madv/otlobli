@@ -4184,3 +4184,13 @@ alter table public.coupons
   add column if not exists per_user_max_uses integer not null default 1;
 alter table public.coupon_redemptions
   add column if not exists uses integer not null default 1;
+
+-- ============================================================================
+-- ميزة (2026-07-25): نافذة دفع الطلب صارت قابلة للضبط عبر إعداد
+-- order_payment_window_minutes (افتراضي 5 دقائق بدل ساعتين). تُقرأ داخل
+-- create_pending_order عند حساب payment_expires_at. بعد انتهائها لا تحدث
+-- المطابقة التلقائية ويُعلَّم الطلب "فشل المطابقة". طُبِّق على السيرفر الحيّ.
+-- ============================================================================
+insert into public.app_settings(key, value)
+values ('order_payment_window_minutes', '5')
+on conflict (key) do nothing;
