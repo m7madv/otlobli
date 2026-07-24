@@ -13,8 +13,30 @@ index 9979670..fcfd30a 100644
      }
  }
  
+diff --git a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/CapgoInAppBrowserPlugin.java b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/CapgoInAppBrowserPlugin.java
+index ae420ed..ae452de 100644
+--- a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/CapgoInAppBrowserPlugin.java
++++ b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/CapgoInAppBrowserPlugin.java
+@@ -1561,6 +1561,17 @@ public class CapgoInAppBrowserPlugin extends Plugin implements WebViewDialog.Per
+             openSecureWindowSavedCall.reject("OAuth cancelled or no callback received");
+             openSecureWindowSavedCall = null;
+         }
++        // otlobli: wake every managed webview's renderer on resume - defensive
++        // cross-platform guard against the iOS "frozen frame after background"
++        // ever appearing on Android (see WebViewDialog.otlobliOnHostResume).
++        for (WebViewDialog dialog : webViewDialogs.values()) {
++            if (dialog != null) {
++                dialog.otlobliOnHostResume();
++            }
++        }
++        if (webViewDialog != null) {
++            webViewDialog.otlobliOnHostResume();
++        }
+     }
+ 
+     protected void handleOnPause() {
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
-index 8ae3e61..fc6cf04 100644
+index 8ae3e61..fb71cb6 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
 +++ b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
 @@ -33,6 +33,7 @@ import android.text.TextUtils;
@@ -209,7 +231,40 @@ index 8ae3e61..fc6cf04 100644
      // Add this class to provide safer JavaScript interface
      private class JavaScriptInterface {
  
-@@ -1807,6 +1964,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -1263,6 +1420,32 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+         return false;
+     }
+ 
++    // otlobli: cross-platform guard against the "frozen still frame after the
++    // app returns from the background" bug. It is confirmed only on iPhone16 /
++    // iOS27 (WKWebView) and is fixed natively on iOS by detaching + reattaching
++    // the web view on resume (see WKWebViewController.otlobliForceRecompose).
++    // Android's Chromium WebView has NOT reproduced it, so here we deliberately
++    // use only the SAFE, non-invasive wake - resume the renderer/timers and ask
++    // for a redraw + layout pass. We do NOT touch visibility / z-index /
++    // position / margins, which are extremely sensitive on the Temu bottom bar
++    // (see CLAUDE.md). Called from CapgoInAppBrowserPlugin.handleOnResume().
++    public void otlobliOnHostResume() {
++        final WebView webView = _webView;
++        if (webView == null || isDismissing) {
++            return;
++        }
++        mainHandler.post(() -> {
++            try {
++                webView.onResume();
++                webView.resumeTimers();
++                webView.invalidate();
++                webView.requestLayout();
++            } catch (Exception e) {
++                Log.e("InAppBrowser", "otlobliOnHostResume failed", e);
++            }
++        });
++    }
++
+     private void previewDownloadedFileInWebView(File file, String mimeType, String sourceUrl) {
+         WebView webView = _webView;
+         if (webView == null || isDismissing) {
+@@ -1807,6 +1990,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          applyDimensions();
  
          this._webView = findViewById(R.id.browser_view);
@@ -217,7 +272,7 @@ index 8ae3e61..fc6cf04 100644
  
          // Apply insets to fix edge-to-edge issues on Android 15+
          applyInsets();
-@@ -2991,6 +3149,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -2991,6 +3175,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                  return;
              }
  
@@ -225,7 +280,7 @@ index 8ae3e61..fc6cf04 100644
              _options.getCallbacks().javascriptCallback(message);
          } catch (Exception e) {
              Log.e("InAppBrowser", "Error in postMessage: " + e.getMessage());
-@@ -4932,6 +5091,12 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4932,6 +5117,12 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
      @Override
      public void dismiss() {
          scheduleHostWebViewInsetRestore();
@@ -238,7 +293,7 @@ index 8ae3e61..fc6cf04 100644
  
          // First, stop any ongoing operations and disable further interactions
          if (_webView != null) {
-@@ -5586,17 +5751,50 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -5586,17 +5777,50 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          );
      }
  
@@ -291,7 +346,7 @@ index 8ae3e61..fc6cf04 100644
              // Strip conditional cache validators on the wire so upstream cannot return 304/3xx,
              // which WebResourceResponse.setStatusCodeAndReasonPhrase rejects (kills the renderer).
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
-index 116e296..b475161 100644
+index 116e296..43d2699 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
 @@ -206,6 +206,18 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
@@ -554,6 +609,32 @@ index 116e296..b475161 100644
                          return
                      }
                  }
+@@ -1811,6 +1929,25 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+ 
+     @objc func appDidBecomeActive(_ notification: NSNotification) {
+         self.hidePrivacyScreen()
++
++        // otlobli: THE iPhone16/iOS27 "frozen still image" reproduces 100% when
++        // the app is backgrounded (or swiped out of the app switcher and
++        // reopened) and then returns to the foreground - WKWebView keeps its
++        // last painted frame on screen while the page stays alive underneath
++        // (taps still route, sections still open once tapped). The injected JS
++        // rAF watchdog cannot be trusted to catch this, because JS timers are
++        // throttled/suspended while the app is in the background, so the
++        // __otlobliRecompose message often never arrives (or arrives late).
++        // didBecomeActive, on the other hand, fires 100% on resume - so drive
++        // the recompose directly from here. Recompose every registered webview
++        // (SHEIN and Temu both), delayed a beat so the view hierarchy and the
++        // GPU render server have settled after coming back to the foreground.
++        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
++            guard let self = self else { return }
++            for (_, controller) in self.webViewControllers {
++                controller.otlobliForceRecompose()
++            }
++        }
+     }
+ 
+     @objc func appWillResignActive(_ notification: NSNotification) {
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
 index 1c70884..be2b8ac 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
@@ -735,7 +816,7 @@ index 1c70884..be2b8ac 100644
          if
              ProxySchemeRequestSupport.supportsRequestBody(method: context.method),
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
-index 97a2fc1..071206d 100644
+index 97a2fc1..d92ed51 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
 @@ -748,6 +748,26 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
@@ -970,58 +1051,80 @@ index 97a2fc1..071206d 100644
      private func startObservingKeyboardViewportChanges() {
          guard !isObservingKeyboardViewportChanges else {
              return
-@@ -1025,6 +1220,50 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1025,6 +1220,72 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          return max(0.05, duration.doubleValue)
      }
  
 +    // otlobli: cooldown so a stall storm can't nudge every second.
 +    private var otlobliLastRecomposeAt: TimeInterval = 0
 +
-+    // Forces a suspended/throttled WebContent to produce a fresh composited frame
-+    // WITHOUT reloading (no lost scroll/state). A 1pt height nudge triggers a web
-+    // reflow + fresh render-server frame; a 1pt scroll nudge repaints the visible
-+    // tile. Restored on the next runloop so the change is imperceptible. This is
-+    // the automatic equivalent of the user's manual "switch store and come back".
++    // otlobli: Clears the iPhone16/iOS27 "frozen still frame" that appears when
++    // the app returns from the background. Root cause: iOS 27 aggressively
++    // reclaims a backgrounded WKWebView's GPU/render-server resources, and on
++    // resume it does not always reattach the remote layer tree - so the last
++    // painted frame stays on screen while the page is fully alive underneath
++    // (taps route, sections open once tapped). An old iPhone 6 on iOS 12 never
++    // does this reclaim, which is why it never freezes. A 1pt frame/scroll nudge
++    // (the previous attempt) does NOT fix it: setNeedsLayout only re-lays out
++    // UIKit and never forces the remote layer tree to rebuild.
++    //
++    // The ONLY reliable fix is to remove the WKWebView from the render tree and
++    // re-add it - that makes WebKit's separate render process tear down and
++    // rebuild the remote layer tree. This is EXACTLY what the user's manual
++    // "switch to Temu and come back" does: setHiddenState re-attaches via
++    // attachWebViewToController on the way back. We replicate that attach here
++    // (same Auto Layout constraints) and preserve scroll offset so nothing else
++    // about the page changes. A ~1 frame blank is imperceptible next to a
++    // permanent freeze.
 +    func otlobliForceRecompose() {
 +        let now = Date().timeIntervalSince1970
-+        if now - otlobliLastRecomposeAt < 1.2 { return }
++        if now - otlobliLastRecomposeAt < 1.0 { return }
 +        otlobliLastRecomposeAt = now
 +        DispatchQueue.main.async { [weak self] in
 +            guard let self = self,
 +                  self.isViewLoaded,
 +                  let webView = self.webView,
-+                  webView.superview != nil,
++                  webView.superview === self.view,
 +                  webView.bounds.height > 2 else {
 +                return
 +            }
-+            let original = webView.frame
-+            webView.frame = CGRect(
-+                x: original.origin.x,
-+                y: original.origin.y,
-+                width: original.width,
-+                height: original.height - 1
-+            )
-+            webView.setNeedsLayout()
-+            webView.layoutIfNeeded()
 +
 +            let offset = webView.scrollView.contentOffset
-+            let nudged = CGPoint(x: offset.x, y: offset.y + (offset.y > 1 ? -1 : 1))
-+            webView.scrollView.setContentOffset(nudged, animated: false)
-+            webView.evaluateJavaScript("window.dispatchEvent(new Event('resize'));", completionHandler: nil)
 +
-+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
-+                webView.frame = original
-+                webView.setNeedsLayout()
-+                webView.layoutIfNeeded()
-+                webView.scrollView.setContentOffset(offset, animated: false)
-+            }
++            // Detach from + reattach to the render tree (forces layer rebuild).
++            webView.removeFromSuperview()
++            webView.translatesAutoresizingMaskIntoConstraints = false
++            self.view.addSubview(webView)
++
++            let bottomAnchor = self.enabledSafeBottomMargin
++                ? self.view.safeAreaLayoutGuide.bottomAnchor
++                : self.view.bottomAnchor
++            let topAnchor = self.enabledSafeTopMargin
++                ? self.view.safeAreaLayoutGuide.topAnchor
++                : self.view.topAnchor
++
++            NSLayoutConstraint.activate([
++                webView.topAnchor.constraint(equalTo: topAnchor),
++                webView.leadingAnchor.constraint(equalTo: self.view.leadingAnchor),
++                webView.trailingAnchor.constraint(equalTo: self.view.trailingAnchor),
++                webView.bottomAnchor.constraint(equalTo: bottomAnchor)
++            ])
++
++            webView.alpha = 1
++            webView.isOpaque = true
++            webView.isUserInteractionEnabled = true
++
++            self.view.setNeedsLayout()
++            self.view.layoutIfNeeded()
++            webView.scrollView.setContentOffset(offset, animated: false)
++            webView.evaluateJavaScript("window.dispatchEvent(new Event('resize'));", completionHandler: nil)
 +        }
 +    }
 +
      private func scheduleWebViewViewportRefresh(force: Bool = false, delay: TimeInterval = 0.05) {
          DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
              self?.refreshWebViewViewportIfNeeded(force: force)
-@@ -1135,7 +1374,17 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1135,7 +1396,17 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
      public func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
          if message.name == "messageHandler" {
              if let messageBody = message.body as? [String: Any] {
@@ -1039,7 +1142,7 @@ index 97a2fc1..071206d 100644
                  emit("messageFromWebview", data: messageBody)
              } else {
                  print("Received non-dictionary message from JavaScript:", message.body)
-@@ -1581,6 +1830,8 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1581,6 +1852,8 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          self.hiddenPopupWindow = parent.hiddenPopupWindow
          self.opensHidden = parent.hiddenPopupWindow
          self.captureConsoleLogs = parent.captureConsoleLogs
@@ -1048,7 +1151,7 @@ index 97a2fc1..071206d 100644
          self.allowWebViewJsVisibilityControl = parent.allowWebViewJsVisibilityControl
          self.allowScreenshotsFromWebPage = parent.allowScreenshotsFromWebPage
          self.handleDownloads = parent.handleDownloads
-@@ -1818,6 +2069,13 @@ public extension WKWebViewController {
+@@ -1818,6 +2091,13 @@ public extension WKWebViewController {
  
      open func cleanupWebView() {
          guard let webView = self.webView else { return }
@@ -1062,7 +1165,7 @@ index 97a2fc1..071206d 100644
          webView.stopLoading()
          previewItemURL = nil
  
-@@ -2682,6 +2940,12 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2682,6 +2962,12 @@ extension WKWebViewController: WKNavigationDelegate {
      public func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
          updateBarButtonItems()
          self.progressView?.progress = 0
@@ -1075,7 +1178,7 @@ index 97a2fc1..071206d 100644
          if let urlValue = webView.url {
              self.url = urlValue
              delegate?.webViewController?(self, didStart: urlValue)
-@@ -2703,12 +2967,18 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2703,12 +2989,18 @@ extension WKWebViewController: WKNavigationDelegate {
                      DispatchQueue.global(qos: .userInitiated).async {
                          self.injectPreShowScript()
                          DispatchQueue.main.async { [weak self] in
@@ -1096,7 +1199,7 @@ index 97a2fc1..071206d 100644
              }
          } else if self.preShowScript != nil &&
                      !self.preShowScript!.isEmpty &&
-@@ -2743,7 +3013,7 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2743,7 +3035,7 @@ extension WKWebViewController: WKNavigationDelegate {
              self.url = url
              delegate?.webViewController?(self, didFail: url, withError: error)
          }
@@ -1105,7 +1208,7 @@ index 97a2fc1..071206d 100644
      }
  
      public func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-@@ -2753,7 +3023,16 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2753,7 +3045,16 @@ extension WKWebViewController: WKNavigationDelegate {
              self.url = url
              delegate?.webViewController?(self, didFail: url, withError: error)
          }

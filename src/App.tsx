@@ -16,9 +16,9 @@ import type { PaymentCurrency } from './domain/pricing'
 import type { Address, AppNotification, CartGroupSnapshot, CartItem, NotificationPrefs, Order, OrderIssue, Product, ProductColor, Recipient, Screen, StatusTone, UserProfile, WalletTransaction } from './domain/types'
 import { getDeviceId, readStoredJson, storageKeys, useStoredState } from './infrastructure/localStorage'
 import { appApi } from './services'
-import { PAYMENT_MODE, APP_VERSION, TEST_ONLY_AUTH_BYPASS, SHEIN_RAW_DIAGNOSTIC, cleanEnvValue } from './config'
+import { PAYMENT_MODE, APP_VERSION, TEST_ONLY_AUTH_BYPASS, cleanEnvValue } from './config'
 import { buildWhatsappLink } from './services/whatsappLink'
-import { SHEIN_CAPTURE_SCRIPT, SHEIN_RENDER_WATCHDOG_SCRIPT } from './services/sheinBrowserScript'
+import { SHEIN_CAPTURE_SCRIPT } from './services/sheinBrowserScript'
 import { App as CapacitorApp } from '@capacitor/app'
 import { Capacitor } from '@capacitor/core'
 import { BackgroundColor, InAppBrowser, ToolBarType } from '@capgo/capacitor-inappbrowser'
@@ -2685,10 +2685,7 @@ function App() {
     // document. SHEIN keeps the previously stable native product load path.
     const wantsWarmTemuProductNav = activeStore === 'temu' && pendingProductRevealRef.current && !!initialPendingUrl
     const rawTargetUrl = wantsWarmTemuProductNav ? storeUrl(activeStore) : (initialPendingUrl || storeUrl(activeStore))
-    // نسخة خام تشخيصية: SHEIN يُحمّل مباشرةً بلا تحويل للسعودية ولا أي إعادة كتابة.
-    const targetUrl = activeStore === 'shein'
-      ? (SHEIN_RAW_DIAGNOSTIC ? 'https://m.shein.com/ar/' : normalizeSheinBrowserUrl(rawTargetUrl))
-      : normalizeTemuBrowserUrl(rawTargetUrl)
+    const targetUrl = activeStore === 'shein' ? normalizeSheinBrowserUrl(rawTargetUrl) : normalizeTemuBrowserUrl(rawTargetUrl)
     if (initialPendingUrl && pendingProductRevealRef.current &&
         pendingProductRevealUrlRef.current === targetUrl) {
       markPendingProductNavigationRequested()
@@ -2704,10 +2701,7 @@ function App() {
       url: targetUrl,
       ...(activeStore === 'shein'
         ? {
-          // بالوضع الخام التشخيصي: بلا غطاء «جاري تجهيز» — نعرض SHEIN حيّاً من
-          // أول لحظة (بما فيه صفحة تحدّي أمان Cloudflare «جاري التحقق من الأمان»)
-          // حتى يراها المستخدم ويكمّلها. تعليمات المشروع: ممنوع تغطية التحدّي.
-          otlobliLoadingCover: !SHEIN_RAW_DIAGNOSTIC,
+          otlobliLoadingCover: true,
           // Keep SHEIN's live viewport/session mounted, but dismiss the UIKit
           // modal instead of making its UITransitionView transparent. iOS 27
           // can otherwise leave that layer above the app and block all taps.
@@ -2717,9 +2711,8 @@ function App() {
           // Keep React's already-mounted Otlobli shell visible while the first
           // SHEIN document is loading. The full SHEIN script is injected only
           // after page load, so security challenges are not touched at
-          // documentStart. بالوضع الخام نعرض الـ webview فوراً (بلا انتظار تحميل)
-          // حتى تظهر صفحة تحدّي الأمان مباشرةً.
-          isPresentAfterPageLoad: !SHEIN_RAW_DIAGNOSTIC,
+          // documentStart.
+          isPresentAfterPageLoad: true,
           isAnimated: false,
         }
         : {
@@ -2786,11 +2779,6 @@ function App() {
         if (!result) return
         if (sessionId !== webviewSessionRef.current) return
         webviewIdRef.current = result?.id ?? webviewIdRef.current
-        // بالوضع الخام: ارفع غطاء React «جاري تجهيز» فوراً حتى يظهر SHEIN حيّاً
-        // من أول لحظة (تحدّي الأمان مرئي وقابل للإكمال) بدل انتظار browserPageLoaded.
-        if (SHEIN_RAW_DIAGNOSTIC && activeStore === 'shein') {
-          markStoreWebviewReadyRef.current(sessionId)
-        }
         if (screenRef.current !== 'home' && (!initialPendingUrl || pendingProductRevealRef.current)) {
           void setStoreWebviewVisible(false, activeStore, sessionId).catch(() => undefined)
         }
@@ -2933,21 +2921,6 @@ function App() {
       if (selectedStoreRef.current === 'shein') {
         if (pendingProductRevealRef.current && pendingProductNavigationRequestedRef.current) {
           pendingProductPageLoadedRef.current = true
-        }
-        const watchdogId = webviewIdRef.current || undefined
-        // كاشف تجمّد الرسم على iOS 27: يُحقن دائماً (حتى بالوضع الخام) لأنه هو
-        // إصلاح التجمّد — يكتشف توقّف الرسم مع بقاء الصفحة حيّة ويجبر إعادة رسم
-        // native غير مرئية. خفيف جداً ولا يلمس شبكة/تخزين/منطقة SHEIN.
-        void InAppBrowser.executeScript({ ...(watchdogId ? { id: watchdogId } : {}), code: SHEIN_RENDER_WATCHDOG_SCRIPT })
-          .catch((err) => {
-            console.warn('[otlobli] SHEIN render watchdog injection failed', err)
-          })
-        // نسخة خام تشخيصية: لا نحقن السكربت الثقيل (بلا حجب/تغطية/تحكّم) — فقط
-        // الكاشف أعلاه + كشف المتجر. هكذا نختبر إصلاح التجمّد على SHEIN عارٍ.
-        if (SHEIN_RAW_DIAGNOSTIC) {
-          markStoreWebviewReadyRef.current(webviewSessionRef.current)
-          revealPreparedProductIfReady()
-          return
         }
         const id = webviewIdRef.current || undefined
         void InAppBrowser.executeScript({ ...(id ? { id } : {}), code: SHEIN_CAPTURE_SCRIPT })
