@@ -16,5 +16,9 @@ export const SOURCE_COUNTRY: 'JO' | 'LB' | 'SA' = 'SA'
 // and must be false before any production build.
 export const TEST_ONLY_AUTH_BYPASS = true
 
+// نسخة تشخيصية: SHEIN خام تماماً — بلا سكربتات حقن، بلا حجب، بلا تحويل للسعودية.
+// الهدف: عزل السبب — هل التجمّد من كودنا أم من SHEIN/WebKit نفسه. اجعله false للإنتاج.
+export const SHEIN_RAW_DIAGNOSTIC = true
+
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '2026.07.23-v85.8.79-shein-webcontent-death-recovery-no-otp-test'
+export const APP_VERSION = '2026.07.23-v85.8.80-shein-raw-diagnostic-no-otp-test'

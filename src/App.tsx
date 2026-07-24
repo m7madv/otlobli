@@ -16,7 +16,7 @@ import type { PaymentCurrency } from './domain/pricing'
 import type { Address, AppNotification, CartGroupSnapshot, CartItem, NotificationPrefs, Order, OrderIssue, Product, ProductColor, Recipient, Screen, StatusTone, UserProfile, WalletTransaction } from './domain/types'
 import { getDeviceId, readStoredJson, storageKeys, useStoredState } from './infrastructure/localStorage'
 import { appApi } from './services'
-import { PAYMENT_MODE, APP_VERSION, TEST_ONLY_AUTH_BYPASS, cleanEnvValue } from './config'
+import { PAYMENT_MODE, APP_VERSION, TEST_ONLY_AUTH_BYPASS, SHEIN_RAW_DIAGNOSTIC, cleanEnvValue } from './config'
 import { buildWhatsappLink } from './services/whatsappLink'
 import { SHEIN_CAPTURE_SCRIPT } from './services/sheinBrowserScript'
 import { App as CapacitorApp } from '@capacitor/app'
@@ -2685,7 +2685,10 @@ function App() {
     // document. SHEIN keeps the previously stable native product load path.
     const wantsWarmTemuProductNav = activeStore === 'temu' && pendingProductRevealRef.current && !!initialPendingUrl
     const rawTargetUrl = wantsWarmTemuProductNav ? storeUrl(activeStore) : (initialPendingUrl || storeUrl(activeStore))
-    const targetUrl = activeStore === 'shein' ? normalizeSheinBrowserUrl(rawTargetUrl) : normalizeTemuBrowserUrl(rawTargetUrl)
+    // نسخة خام تشخيصية: SHEIN يُحمّل مباشرةً بلا تحويل للسعودية ولا أي إعادة كتابة.
+    const targetUrl = activeStore === 'shein'
+      ? (SHEIN_RAW_DIAGNOSTIC ? 'https://m.shein.com/ar/' : normalizeSheinBrowserUrl(rawTargetUrl))
+      : normalizeTemuBrowserUrl(rawTargetUrl)
     if (initialPendingUrl && pendingProductRevealRef.current &&
         pendingProductRevealUrlRef.current === targetUrl) {
       markPendingProductNavigationRequested()
@@ -2921,6 +2924,13 @@ function App() {
       if (selectedStoreRef.current === 'shein') {
         if (pendingProductRevealRef.current && pendingProductNavigationRequestedRef.current) {
           pendingProductPageLoadedRef.current = true
+        }
+        // نسخة خام تشخيصية: لا نحقن أي سكربت (بلا حجب/تغطية/تحكّم) — فقط نكشف
+        // المتجر مباشرةً. هكذا يظهر SHEIN عارياً تماماً لعزل سبب التجمّد.
+        if (SHEIN_RAW_DIAGNOSTIC) {
+          markStoreWebviewReadyRef.current(webviewSessionRef.current)
+          revealPreparedProductIfReady()
+          return
         }
         const id = webviewIdRef.current || undefined
         void InAppBrowser.executeScript({ ...(id ? { id } : {}), code: SHEIN_CAPTURE_SCRIPT })
