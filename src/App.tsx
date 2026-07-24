@@ -18,7 +18,7 @@ import { getDeviceId, readStoredJson, storageKeys, useStoredState } from './infr
 import { appApi } from './services'
 import { PAYMENT_MODE, APP_VERSION, TEST_ONLY_AUTH_BYPASS, cleanEnvValue } from './config'
 import { buildWhatsappLink } from './services/whatsappLink'
-import { SHEIN_CAPTURE_SCRIPT } from './services/sheinBrowserScript'
+import { OTLOBLI_NAV_BOOTSTRAP_SCRIPT, SHEIN_CAPTURE_SCRIPT } from './services/sheinBrowserScript'
 import { App as CapacitorApp } from '@capacitor/app'
 import { Capacitor } from '@capacitor/core'
 import { BackgroundColor, InAppBrowser, ToolBarType } from '@capgo/capacitor-inappbrowser'
@@ -35,12 +35,6 @@ const APP_SETTINGS_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/app-settin
 // السكربت المحقون يقرأ المنطقة من الرابط فيضبط لغة الموقع تلقائياً.
 const SHEIN_HOME_URL = 'https://m.shein.com/ar/?currency=USD&localcountry=SA&country=SA&countryCode=SA&country_code=SA&lang=ar&language=ar&ship_to=SA&shipTo=SA&shipToCountry=SA&shippingCountry=SA&shipping_country=SA&store_country=SA'
 const TEMU_HOME_URL = 'https://www.temu.com/sa/?currency=USD&currencyCode=USD'
-const SHEIN_WEBSITE_DATA_RESET_URLS = [
-  'https://m.shein.com/',
-  'https://www.shein.com/',
-  'https://shein.com/',
-]
-const SHEIN_WEBSITE_DATA_RESET_KEY = `otlobli:shein-website-data-reset:${APP_VERSION}`
 const SHEIN_CHALLENGE_PATH_RE = /\/(?:cdn-cgi|challenge|captcha|verify|verification|security|robot|risk|anti[-_]?bot|human)(?:\/|\?|#|$)/i
 const SHEIN_CHALLENGE_QUERY_RE = /(?:^|[?&#])(?:captcha|challenge|verification|security_token|risk|robot|anti[-_]?bot|human)=/i
 // يكشف موقع خروج الإنترنت الحالي (بلد/منطقة الـVPN فعلياً) عبر خدمتي geo
@@ -536,37 +530,6 @@ const isSheinHumanChallengeUrl = (rawUrl: string) => {
       SHEIN_CHALLENGE_QUERY_RE.test(url.search + url.hash)
   } catch {
     return false
-  }
-}
-
-const hasCompletedSheinWebsiteDataReset = () => {
-  try {
-    return window.localStorage.getItem(SHEIN_WEBSITE_DATA_RESET_KEY) === '1'
-  } catch {
-    return false
-  }
-}
-
-const rememberSheinWebsiteDataReset = () => {
-  try {
-    window.localStorage.setItem(SHEIN_WEBSITE_DATA_RESET_KEY, '1')
-  } catch {
-    // Storage can be unavailable in private/old WebViews; the reset itself already ran.
-  }
-}
-
-const resetSheinWebsiteData = async ({ cookies, cache }: { cookies: boolean; cache: boolean }) => {
-  if (cookies) {
-    for (const url of SHEIN_WEBSITE_DATA_RESET_URLS) {
-      await InAppBrowser.clearCookies({ url }).catch((error) => {
-        console.warn('[otlobli] SHEIN cookie reset failed', url, error)
-      })
-    }
-  }
-  if (cache) {
-    await InAppBrowser.clearCache().catch((error) => {
-      console.warn('[otlobli] SHEIN cache reset failed', error)
-    })
   }
 }
 
@@ -2211,7 +2174,6 @@ function App() {
   // تحديداً حين يكون الإغلاق مقصوداً من تبديل المتجر.
   const suppressAutoReopenRef = useRef(false)
   const webviewSessionRef = useRef(0)
-  const sheinVisibilityTransitionRef = useRef<Promise<void>>(Promise.resolve())
   const webviewOpeningRef = useRef(false)
   const webviewOpenedAtRef = useRef(0)
   const webviewAutoOpenPausedUntilRef = useRef(0)
@@ -2220,7 +2182,6 @@ function App() {
   const sheinReadinessTimerRef = useRef<number | undefined>(undefined)
   const sheinRecoveryAttemptRef = useRef(0)
   const sheinCacheResetPendingRef = useRef(false)
-  const sheinCookieResetPendingRef = useRef(false)
   // فُتح المتجر عبر «فتح على أي حال» رغم فشل بوابة VPN. عندها لو لم تُحمّل الصفحة
   // فعلاً، نرجع لبوابة «شغّل VPN» بدل عرض صفحة بيضاء (بدل الإظهار القسري).
   const openedViaBypassRef = useRef(false)
@@ -2238,8 +2199,6 @@ function App() {
   const pendingProductPrepareTimerRef = useRef<number | undefined>(undefined)
   const [sheinReady, setSheinReady] = useState(false)
   const sheinReadyRef = useRef(false)
-  const lastSheinHeartbeatRef = useRef(Date.now())
-  const appActiveRef = useRef(true)
   // Tracks which screen the in-page back button inside the SHEIN webview
   // should return to: 'cart' right after the user taps a cart item (so back
   // re-opens otlobli's cart), 'home' for ordinary browsing from the home tab.
@@ -2377,12 +2336,6 @@ function App() {
     sheinReadinessTimerRef.current = undefined
   }
 
-  const queueSheinSessionReset = () => {
-    if (selectedStoreRef.current !== 'shein') return
-    sheinCacheResetPendingRef.current = true
-    sheinCookieResetPendingRef.current = true
-  }
-
   const clearPendingProductPreparation = (clearQueuedUrl = true) => {
     if (pendingProductPrepareTimerRef.current !== undefined) {
       window.clearTimeout(pendingProductPrepareTimerRef.current)
@@ -2493,7 +2446,7 @@ function App() {
     sheinOpenedRef.current = false
     setSheinReady(false)
     setStoreOpenFailureReason(reason)
-    if (reason === 'preparation') queueSheinSessionReset()
+    if (reason === 'preparation') sheinCacheResetPendingRef.current = true
     setSheinBlockedError(true)
     if (reason === 'network') refreshVpnDiagnosisForStoreFailure()
     void InAppBrowser.close().catch(() => undefined).finally(() => {
@@ -2532,11 +2485,7 @@ function App() {
       domain: event.domain,
       url: event.url ?? event.failingUrlString,
     })
-    // السبب المؤكّد (من سجلّ الجهاز): على iOS الحديث تتضخّم ذاكرة عملية WebContent
-    // لصفحة SHEIN الثقيلة فيقتلها النظام، فيبقى الـWKWebView صورة جامدة لا تستجيب.
-    // الحل: نعيد بناء WebView جديد فوراً (نفس ما يثبته المستخدم بتبديل المتجر) بدل
-    // ترك الشاشة متجمّدة. نمرّر allowReadyRecovery لأن الصفحة كانت جاهزة قبل الموت.
-    restartStuckSheinWebview(webviewSessionRef.current, true)
+    showStoreOpenFailure()
   }
 
   const markStoreWebviewReady = (sessionId: number) => {
@@ -2559,8 +2508,9 @@ function App() {
     if (pendingProductUrl) {
       pendingProductUrlRef.current = ''
       markPendingProductNavigationRequested()
-      // Temu needs in-page navigation to keep a store referrer. SHEIN keeps the
-      // previously stable native product load path.
+      // The store WebView is now warm on its home page. For Temu, reach the
+      // product by an in-page navigation (temu.com referrer) so Temu does not
+      // gate it to /login.html; other stores keep the programmatic load.
       const navigate = selectedStoreRef.current === 'temu'
         ? navigateStoreWebviewInPage(pendingProductUrl)
         : InAppBrowser.setUrl({ url: pendingProductUrl })
@@ -2573,13 +2523,15 @@ function App() {
     // If readiness completed while the customer was on cart/orders/profile,
     // keep the same prepared WebView hidden. It will be shown without reload.
     if (screenRef.current !== 'home') return
-    postWebviewChromeState(pendingBackTargetRef.current)
+    const target = pendingBackTargetRef.current
+    pendingBackTargetRef.current = 'home'
+    postWebviewChromeState(target)
   }
 
-  const restartStuckSheinWebview = (sessionId: number, allowReadyRecovery = false) => {
+  const restartStuckSheinWebview = (sessionId: number) => {
     if (sessionId !== webviewSessionRef.current) return
     if (!sheinOpenedRef.current || screenRef.current !== 'home') return
-    if (sheinChallengeActiveRef.current || (sheinReadyRef.current && !allowReadyRecovery)) return
+    if (sheinChallengeActiveRef.current || sheinReadyRef.current) return
     clearSheinReadinessWatchdog()
 
     if (sheinRecoveryAttemptRef.current >= 1) {
@@ -2601,7 +2553,7 @@ function App() {
     currentWebviewUrlRef.current = ''
     sheinOpenedRef.current = false
     setSheinReady(false)
-    queueSheinSessionReset()
+    sheinCacheResetPendingRef.current = true
     void InAppBrowser.close()
       .then(() => {
         webviewAutoOpenPausedUntilRef.current = 0
@@ -2624,28 +2576,6 @@ function App() {
       restartStuckSheinWebview(sessionId)
     }, 35000)
   }
-
-  const setStoreWebviewVisible = useCallback((
-    visible: boolean,
-    store: StoreId = selectedStoreRef.current,
-    sessionId = webviewSessionRef.current,
-  ): Promise<void> => {
-    const runTransition = () => {
-      if (sessionId !== webviewSessionRef.current || !sheinOpenedRef.current) return Promise.resolve()
-      return (visible ? InAppBrowser.show() : InAppBrowser.hide()).then(() => undefined)
-    }
-
-    if (store !== 'shein') return runTransition()
-
-    // UIKit must finish dismissing SHEIN before the same controller is shown
-    // again. Serializing only SHEIN avoids a present/dismiss race while Temu
-    // keeps its existing visibility timing.
-    const transition = sheinVisibilityTransitionRef.current
-      .catch(() => undefined)
-      .then(runTransition)
-    sheinVisibilityTransitionRef.current = transition.catch(() => undefined)
-    return transition
-  }, [])
 
   const browseShein = () => {
     const currentVpnState = vpnStateRef.current
@@ -2681,8 +2611,11 @@ function App() {
     // the user's VPN is on - the vpnState check above already confirmed that
     // before this function ever runs.
     const activeStore = selectedStoreRef.current
-    // Temu cart products start from home, then navigate inside the live
-    // document. SHEIN keeps the previously stable native product load path.
+    // For a Temu cart product on a cold open, load the Temu HOME first (guest
+    // browsing works) instead of cold-loading the deep product URL, which Temu
+    // would 302 to /login.html. Once home is warm, markStoreWebviewReady reaches
+    // the queued product with an in-page navigation that carries a temu.com
+    // referrer. The queued pendingProductUrl stays set for that step.
     const wantsWarmTemuProductNav = activeStore === 'temu' && pendingProductRevealRef.current && !!initialPendingUrl
     const rawTargetUrl = wantsWarmTemuProductNav ? storeUrl(activeStore) : (initialPendingUrl || storeUrl(activeStore))
     const targetUrl = activeStore === 'shein' ? normalizeSheinBrowserUrl(rawTargetUrl) : normalizeTemuBrowserUrl(rawTargetUrl)
@@ -2696,22 +2629,17 @@ function App() {
       otlobliLoadingCover?: boolean
       otlobliDocumentStartScript?: string
       otlobliPreserveAttachedWhenHidden?: boolean
-      otlobliDismissModalWhenHidden?: boolean
     } = {
       url: targetUrl,
       ...(activeStore === 'shein'
         ? {
           otlobliLoadingCover: true,
-          // Keep SHEIN's live viewport/session mounted, but dismiss the UIKit
-          // modal instead of making its UITransitionView transparent. iOS 27
-          // can otherwise leave that layer above the app and block all taps.
-          // This opt-in is SHEIN-only; Temu keeps its existing hide path.
+          otlobliDocumentStartScript: OTLOBLI_NAV_BOOTSTRAP_SCRIPT,
           otlobliPreserveAttachedWhenHidden: true,
-          otlobliDismissModalWhenHidden: true,
-          // Keep React's already-mounted Otlobli shell visible while the first
-          // SHEIN document is loading. The full SHEIN script is injected only
-          // after page load, so security challenges are not touched at
-          // documentStart.
+          // Keep React's already-mounted Otlobli shell and bottom nav visible
+          // while the first SHEIN document is loading. The native browser is
+          // presented only after WebKit has a live page and the document-start
+          // bootstrap has mounted the identical in-page nav.
           isPresentAfterPageLoad: true,
           isAnimated: false,
         }
@@ -2754,21 +2682,14 @@ function App() {
       // regardless of fixes - so both platforms now connect directly and
       // rely on the user's VPN, same as iOS always did.
     }
-    // Keep the healthy fast path. Reset SHEIN website data only once for this
-    // build or after a confirmed stuck/blocked session; stale challenge cookies
-    // survive cache clears and can poison every new WKWebView on the same phone.
-    const shouldRunVersionSheinReset = activeStore === 'shein' && !hasCompletedSheinWebsiteDataReset()
-    const shouldResetSheinCookies = activeStore === 'shein' && (sheinCookieResetPendingRef.current || shouldRunVersionSheinReset)
-    const shouldResetSheinCache = activeStore === 'shein' && (sheinCacheResetPendingRef.current || shouldResetSheinCookies)
-    if (activeStore === 'shein') {
-      if (shouldResetSheinCookies) sheinCookieResetPendingRef.current = false
-      if (shouldResetSheinCache) sheinCacheResetPendingRef.current = false
-    }
-    const prepareStoreWebview = activeStore === 'shein' && (shouldResetSheinCookies || shouldResetSheinCache)
-      ? resetSheinWebsiteData({ cookies: shouldResetSheinCookies, cache: shouldResetSheinCache })
-        .then(() => {
-          if (shouldRunVersionSheinReset) rememberSheinWebsiteDataReset()
-        })
+    // Keep the healthy HTTP/WebKit cache for the fast path on older iPhones.
+    // A cache reset remains available only for the one bounded stuck-session
+    // recovery (and the explicit Temu -> SHEIN switch already performs it).
+    // This isolates the speed change from v85.9's failed document-start path.
+    const shouldResetSheinCache = activeStore === 'shein' && sheinCacheResetPendingRef.current
+    if (shouldResetSheinCache) sheinCacheResetPendingRef.current = false
+    const prepareStoreWebview = shouldResetSheinCache
+      ? InAppBrowser.clearCache()
       : Promise.resolve()
     void prepareStoreWebview
       .then(() => {
@@ -2780,7 +2701,7 @@ function App() {
         if (sessionId !== webviewSessionRef.current) return
         webviewIdRef.current = result?.id ?? webviewIdRef.current
         if (screenRef.current !== 'home' && (!initialPendingUrl || pendingProductRevealRef.current)) {
-          void setStoreWebviewVisible(false, activeStore, sessionId).catch(() => undefined)
+          void InAppBrowser.hide().catch(() => undefined)
         }
         postWebviewChromeState(pendingBackTargetRef.current)
         if (initialPendingUrl && pendingProductUrlRef.current === initialPendingUrl) pendingProductUrlRef.current = ''
@@ -2809,26 +2730,35 @@ function App() {
     let openTimer: number | undefined
     if (screen === 'home') {
       if (sheinOpenedRef.current) {
-        void setStoreWebviewVisible(true).catch(() => undefined).then(() => {
+        void InAppBrowser.show().catch(() => undefined).then(() => {
           if (webviewOpeningRef.current || !sheinReadyRef.current) return
-          postWebviewChromeState(pendingBackTargetRef.current)
+          const target = pendingBackTargetRef.current
+          pendingBackTargetRef.current = 'home'
+          postWebviewChromeState(target)
         })
       } else if (vpnState === 'ok') {
         if (sheinBlockedError || Date.now() < webviewAutoOpenPausedUntilRef.current) return
         openTimer = window.setTimeout(() => browseSheinRef.current(), 0)
       }
     } else if (sheinOpenedRef.current) {
-      // Keep the store session alive while native iOS hide/show owns the
-      // presentation transition. SHEIN and Temu both retain their WebViews.
-      void setStoreWebviewVisible(false).catch(() => undefined)
+      // The iOS patch keeps Otlobli's WebView attached to its controller while
+      // hidden, so cart/orders/profile can appear without destroying SHEIN.
+      void InAppBrowser.hide().catch(() => undefined)
     }
     return () => {
       if (openTimer !== undefined) window.clearTimeout(openTimer)
     }
-  }, [screen, vpnState, sheinReady, sheinBlockedError, setStoreWebviewVisible])
+  }, [screen, vpnState, sheinReady, sheinBlockedError])
 
-  // Temu rejects a refererless native deep product load. Opening the product
-  // from inside the warm Temu page matches a real card tap.
+  // Temu rejects a programmatic top-level load (InAppBrowser.setUrl) of a deep
+  // product URL for logged-out users and 302s it to /login.html — because that
+  // load carries no temu.com referrer, so Temu treats it as direct/bot access.
+  // A navigation performed INSIDE the already-warm Temu document (the same thing
+  // that happens when the customer taps a product card) carries the current
+  // Temu page as its Referer, so Temu serves the product. We therefore open the
+  // cart product by running window.location.assign inside the live Temu page
+  // instead of a refererless setUrl. Verified live: cold deep loads (product AND
+  // search) all redirect to /login.html; only in-page Temu navigation works.
   const navigateStoreWebviewInPage = (url: string) => {
     const wid = webviewIdRef.current || undefined
     return InAppBrowser.executeScript({
@@ -2865,8 +2795,8 @@ function App() {
     }
     pendingProductUrlRef.current = ''
     markPendingProductNavigationRequested()
-    // Temu: navigate inside the warm page. SHEIN keeps the native setUrl path
-    // that was stable before the v85.8.80 experiment.
+    // Temu: navigate inside the warm page (carries a temu.com referrer, avoids
+    // the /login.html gate). Other stores keep the plain programmatic load.
     const navigate = selectedStoreRef.current === 'temu'
       ? navigateStoreWebviewInPage(targetUrl)
       : InAppBrowser.setUrl({ url: targetUrl })
@@ -2901,7 +2831,6 @@ function App() {
         // Some real devices close the native WebView during opening/security
         // checks. Re-opening immediately turns that into a visible open/close
         // loop; keep the app stable and ask for a different VPN server.
-        queueSheinSessionReset()
         webviewAutoOpenPausedUntilRef.current = Date.now() + 15000
         setStoreOpenFailureReason('network')
         setSheinBlockedError(true)
@@ -3058,23 +2987,15 @@ function App() {
   // process, especially after the user visited a VPN app.
   useEffect(() => {
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        appActiveRef.current = true
-        lastSheinHeartbeatRef.current = Date.now()
-        forceStoreVpnRecheck()
-      } else {
-        appActiveRef.current = false
-      }
+      if (document.visibilityState === 'visible') forceStoreVpnRecheck()
     }
     document.addEventListener('visibilitychange', handleVisibility)
     let appStateSub: { remove: () => Promise<void> } | undefined
     if (Capacitor.isNativePlatform()) {
       void CapacitorApp.addListener('appStateChange', (state: { isActive: boolean }) => {
-        appActiveRef.current = state.isActive
         if (!state.isActive) {
           return
         }
-        lastSheinHeartbeatRef.current = Date.now()
         forceStoreVpnRecheck()
       }).then((sub) => { appStateSub = sub })
       window.setTimeout(() => forceStoreVpnRecheck(), 0)
@@ -3085,23 +3006,9 @@ function App() {
     }
   }, [])
 
-  // v85.8.88: no post-ready heartbeat rebuild. If a ready SHEIN page misses
-  // heartbeats, rebuilding the WebView is only a recovery-after-freeze path
-  // and can look like the store restarted on weak phones. Keep the pre-ready
-  // opening watchdog, but do not destroy a page that already became usable.
-
-  useEffect(() => {
-    if (screen === 'home') lastSheinHeartbeatRef.current = Date.now()
-  }, [screen])
-
   useEffect(() => {
     const handle = InAppBrowser.addListener('messageFromWebview', (event: { detail?: Record<string, unknown> }) => {
       const detail = event?.detail
-
-      if (detail?.type === 'sheinHeartbeat') {
-        lastSheinHeartbeatRef.current = Date.now()
-        return
-      }
 
       if (detail?.type === 'temuProductVisible') {
         if (selectedStoreRef.current === 'temu' && pendingProductRevealRef.current) {
@@ -3170,25 +3077,21 @@ function App() {
 
       if (detail?.type === 'sheinBlocked') {
         sheinChallengeActiveRef.current = false
-        queueSheinSessionReset()
-        showStoreOpenFailure('preparation')
+        showStoreOpenFailure()
         return
       }
 
       if (detail?.type === 'openCart' || detail?.type === 'backToCart') {
-        pendingBackTargetRef.current = 'home'
         setScreen('cart')
         return
       }
 
       if (detail?.type === 'openOrders') {
-        pendingBackTargetRef.current = 'home'
         setScreen('orders')
         return
       }
 
       if (detail?.type === 'openProfile') {
-        pendingBackTargetRef.current = 'home'
         setScreen('profile')
         return
       }
@@ -5875,7 +5778,6 @@ function App() {
               <p>{storeFailureAdvice.body}</p>
             </div>
             <button className="primary-action" onClick={() => {
-              queueSheinSessionReset()
               webviewAutoOpenPausedUntilRef.current = 0
               setSheinBlockedError(false)
               // Closes the webview outright instead of setUrl()+show() on the
@@ -5895,7 +5797,6 @@ function App() {
             <button className="ghost-action" onClick={() => {
               // يرجع لبوابة الفحص الذكي: يغلق الـwebview العالق ويعيد فحص
               // الوصول + منطقة الـVPN فيوجَّه المستخدم (شغّل/غيّر المنطقة).
-              queueSheinSessionReset()
               webviewAutoOpenPausedUntilRef.current = 0
               setSheinBlockedError(false)
               webviewSessionRef.current += 1
@@ -5911,7 +5812,7 @@ function App() {
             </button>
           </main>
         ) : !sheinReady ? (
-          <HomeScreen userName={userProfile?.name} storeName={currentStoreName} failureAdvice={storeFailureAdvice} onRetry={() => { queueSheinSessionReset(); webviewAutoOpenPausedUntilRef.current = 0; sheinOpenedRef.current = false; browseShein() }} />
+          <HomeScreen userName={userProfile?.name} storeName={currentStoreName} failureAdvice={storeFailureAdvice} onRetry={() => { webviewAutoOpenPausedUntilRef.current = 0; sheinOpenedRef.current = false; browseShein() }} />
         ) : null}
       </MobileShell>
     )

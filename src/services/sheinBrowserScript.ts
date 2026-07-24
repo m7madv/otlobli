@@ -586,26 +586,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return false;
   }
 
-  function otlobliIsEarlyHumanChallenge() {
-    try {
-      if (otlobliIsHumanChallengeUrl(location.href)) return true;
-      if (/just a moment/i.test(document.title || '')) return true;
-      if (document.getElementById && document.getElementById('challenge-form')) return true;
-      if (document.querySelector && document.querySelector('script[src*="challenges.cloudflare.com"], iframe[src*="challenges.cloudflare.com"]')) return true;
-      if (document.querySelector && document.querySelector('[id*="challenge" i], [class*="challenge" i], [data-testid*="challenge" i]')) {
-        var challengeText = document.body ? (document.body.innerText || '').slice(0, 2400) : '';
-        if (/verify you are human|security verification|checking your browser|cloudflare|إجراء التحقق من الأمان|التحقق من الأمان|لست روبوت|لستَ روبوت|لست روبوتاً|لست روبوتا/i.test(challengeText)) return true;
-      }
-      var bodyText = document.body ? (document.body.innerText || '').slice(0, 2400) : '';
-      if (/m\\.shein\\.com.*إجراء التحقق من الأمان|إجراء التحقق من الأمان|التحقق من أنك لست روبوت|لست روبوت|برامج الروبوت/i.test(bodyText)) return true;
-    } catch (e) {}
-    return false;
-  }
-
-  // On a challenge page leave the document completely untouched. Some SHEIN
-  // challenges are served on the original URL, so this must inspect the loaded
-  // document before any Saudi storage/cookie write.
-  if (IS_SHEIN && otlobliIsEarlyHumanChallenge()) {
+  // On an explicit challenge route leave the document completely untouched.
+  // The next successful navigation gets a new document and a fresh injection.
+  if (IS_SHEIN && otlobliIsHumanChallengeUrl(location.href)) {
+    try { writeSheinSaudiState(); } catch (e) {}
     otlobliEnterChallengeMode();
     return;
   }
@@ -639,24 +623,67 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   function writeSheinSaudiState() {
-    // Passive Saudi mode: keep the country contract in the URL/native redirect
-    // and avoid mass cookie/storage writes inside SHEIN's SPA. The old seed
-    // rewrote many common keys, which can race SHEIN hydration and looks like
-    // automation on sensitive devices. Only remove an explicit foreign native
-    // addressCookie, because that value is authoritative for shipping APIs.
+    // Seed once per document. Rewriting cookies/storage on every 300 ms tick
+    // races SHEIN's own SPA state and can leave rendered controls unhydrated.
     if (window.__otlobliSheinSaudiStateSeeded) return;
     window.__otlobliSheinSaudiStateSeeded = true;
     try {
-      var addressRaw = localStorage.getItem('addressCookie');
-      if (addressRaw) {
-        var addressParsed = JSON.parse(addressRaw);
-        var addressName = String(addressParsed && addressParsed.countryName || '').trim();
-        var addressId = String(addressParsed && addressParsed.countryId || '').trim();
-        var addressCode = String(addressParsed && (addressParsed.value || addressParsed.countryAbbr || addressParsed.countryCode) || '').toUpperCase();
-        var explicitForeignAddress = !!(addressName || addressId || addressCode);
-        var isSaudiAddress = addressId === '186' || addressCode === SHEIN_REQUIRED_COUNTRY || /^Saudi Arabia$/i.test(addressName);
-        if (explicitForeignAddress && !isSaudiAddress) localStorage.removeItem('addressCookie');
-      }
+      document.cookie = 'language=' + SHEIN_REQUIRED_LANGUAGE + '; path=/; max-age=31536000';
+      document.cookie = 'language=' + SHEIN_REQUIRED_LANGUAGE + '; domain=.shein.com; path=/; max-age=31536000';
+      document.cookie = 'site_uid=' + SHEIN_REQUIRED_SITE_UID + '; path=/; max-age=31536000';
+      document.cookie = 'site_uid=' + SHEIN_REQUIRED_SITE_UID + '; domain=.shein.com; path=/; max-age=31536000';
+      document.cookie = 'currency=' + SHEIN_REQUIRED_CURRENCY + '; path=/; max-age=31536000';
+      document.cookie = 'currency=' + SHEIN_REQUIRED_CURRENCY + '; domain=.shein.com; path=/; max-age=31536000';
+      document.cookie = 'localcountry=' + SHEIN_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
+      document.cookie = 'localcountry=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
+      document.cookie = 'country=' + SHEIN_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
+      document.cookie = 'country=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
+      document.cookie = 'countryCode=' + SHEIN_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
+      document.cookie = 'countryCode=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
+      document.cookie = 'country_code=' + SHEIN_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
+      document.cookie = 'country_code=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
+      document.cookie = 'ship_to=' + SHEIN_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
+      document.cookie = 'ship_to=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
+      document.cookie = 'shipTo=' + SHEIN_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
+      document.cookie = 'shipTo=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
+      document.cookie = 'shipToCountry=' + SHEIN_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
+      document.cookie = 'shipToCountry=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
+      document.cookie = 'shippingCountry=' + SHEIN_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
+      document.cookie = 'shippingCountry=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
+      document.cookie = 'shipping_country=' + SHEIN_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
+      document.cookie = 'shipping_country=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
+      document.cookie = 'store_country=' + SHEIN_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
+      document.cookie = 'store_country=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
+      try {
+        localStorage.setItem('language', SHEIN_REQUIRED_LANGUAGE);
+        localStorage.setItem('site_uid', SHEIN_REQUIRED_SITE_UID);
+        localStorage.setItem('currency', SHEIN_REQUIRED_CURRENCY);
+        localStorage.setItem('localcountry', SHEIN_REQUIRED_COUNTRY);
+        localStorage.setItem('country', SHEIN_REQUIRED_COUNTRY);
+        localStorage.setItem('countryCode', SHEIN_REQUIRED_COUNTRY);
+        localStorage.setItem('country_code', SHEIN_REQUIRED_COUNTRY);
+        localStorage.setItem('ship_to', SHEIN_REQUIRED_COUNTRY);
+        localStorage.setItem('shipTo', SHEIN_REQUIRED_COUNTRY);
+        localStorage.setItem('shipToCountry', SHEIN_REQUIRED_COUNTRY);
+        localStorage.setItem('shippingCountry', SHEIN_REQUIRED_COUNTRY);
+        localStorage.setItem('shipping_country', SHEIN_REQUIRED_COUNTRY);
+        localStorage.setItem('store_country', SHEIN_REQUIRED_COUNTRY);
+        localStorage.setItem('otlobli_shein_country', SHEIN_REQUIRED_COUNTRY);
+        localStorage.setItem('otlobli_shein_currency', SHEIN_REQUIRED_CURRENCY);
+        sessionStorage.setItem('language', SHEIN_REQUIRED_LANGUAGE);
+        sessionStorage.setItem('site_uid', SHEIN_REQUIRED_SITE_UID);
+        sessionStorage.setItem('currency', SHEIN_REQUIRED_CURRENCY);
+        sessionStorage.setItem('localcountry', SHEIN_REQUIRED_COUNTRY);
+        sessionStorage.setItem('country', SHEIN_REQUIRED_COUNTRY);
+        sessionStorage.setItem('countryCode', SHEIN_REQUIRED_COUNTRY);
+        sessionStorage.setItem('country_code', SHEIN_REQUIRED_COUNTRY);
+        sessionStorage.setItem('ship_to', SHEIN_REQUIRED_COUNTRY);
+        sessionStorage.setItem('shipTo', SHEIN_REQUIRED_COUNTRY);
+        sessionStorage.setItem('shipToCountry', SHEIN_REQUIRED_COUNTRY);
+        sessionStorage.setItem('shippingCountry', SHEIN_REQUIRED_COUNTRY);
+        sessionStorage.setItem('shipping_country', SHEIN_REQUIRED_COUNTRY);
+        sessionStorage.setItem('store_country', SHEIN_REQUIRED_COUNTRY);
+      } catch (e) {}
     } catch (e) {}
   }
 
@@ -671,15 +698,52 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function clearOvercoercedSheinStorage() {
     if (!IS_SHEIN) return;
-    // No storage sweeping in passive mode. Older cleanup touched arbitrary
-    // SHEIN keys and could make the page look synthetic before it hydrated.
+    var exact = {
+      currency: true,
+      currencycode: true,
+      currency_code: true,
+      localcountry: true,
+      country: true,
+      countrycode: true,
+      country_code: true,
+      ship_to: true,
+      shipto: true,
+      shiptocountry: true,
+      shippingcountry: true,
+      shipping_country: true,
+      store_country: true,
+      language: true,
+      lang: true,
+      site_uid: true
+    };
+    var riskyKey = /country|currency|region|ship|locale|language|lang|site_uid/i;
+    [localStorage, sessionStorage].forEach(function (store) {
+      try {
+        var keys = [];
+        for (var i = 0; i < store.length; i += 1) {
+          var key = store.key(i);
+          if (!key) continue;
+          var lower = String(key).toLowerCase();
+          if (exact[lower]) continue;
+          var value = store.getItem(key);
+          if (riskyKey.test(key) && (value === SHEIN_REQUIRED_COUNTRY || value === SHEIN_REQUIRED_CURRENCY || value === SHEIN_REQUIRED_LANGUAGE)) {
+            keys.push(key);
+          }
+        }
+        keys.forEach(function (key) { try { store.removeItem(key); } catch (e) {} });
+      } catch (e) {}
+    });
   }
 
   function installSheinSaudiStorageGuard() {
     if (!IS_SHEIN || window.__otlobliSheinSaudiStorageGuard) return;
     window.__otlobliSheinSaudiStorageGuard = true;
-    // Do not monkey-patch Storage.prototype on SHEIN. It is global inside the
-    // page and can interfere with SHEIN's own SPA state machine.
+    try {
+      var originalSetItem = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (key, value) {
+        return originalSetItem.call(this, key, coerceSheinSaudiStorageValue(key, value));
+      };
+    } catch (e) {}
   }
 
   // SHEIN's authoritative shipping choice is not localcountry/ipCountry. The
@@ -891,9 +955,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
     } catch (e) {
       return false;
     }
-    // Passive mode trusts the normalized URL and visible shipping/address
-    // signals. Do not fail readiness because SHEIN's volatile storage has a
-    // missing or stale key; trying to repair those keys caused the heavy path.
+    try {
+      if (localStorage.getItem('localcountry') && localStorage.getItem('localcountry') !== SHEIN_REQUIRED_COUNTRY) return false;
+      if (localStorage.getItem('country') && localStorage.getItem('country') !== SHEIN_REQUIRED_COUNTRY) return false;
+      if (localStorage.getItem('currency') && localStorage.getItem('currency') !== SHEIN_REQUIRED_CURRENCY) return false;
+      if (sessionStorage.getItem('localcountry') && sessionStorage.getItem('localcountry') !== SHEIN_REQUIRED_COUNTRY) return false;
+      if (sessionStorage.getItem('country') && sessionStorage.getItem('country') !== SHEIN_REQUIRED_COUNTRY) return false;
+      if (sessionStorage.getItem('currency') && sessionStorage.getItem('currency') !== SHEIN_REQUIRED_CURRENCY) return false;
+    } catch (e) {}
     var addressCountry = sheinAddressCookieCountry();
     if (addressCountry && addressCountry !== SHEIN_REQUIRED_COUNTRY) return false;
     if (sheinVisibleForeignRegion()) return false;
@@ -911,26 +980,20 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
-  var sheinVisibleShippingRegionCache = '';
-  var sheinVisibleShippingRegionScannedAt = 0;
-  function sheinVisibleShippingRegion(force) {
+  function sheinVisibleShippingRegion() {
     if (!IS_SHEIN || !document.body) return '';
-    var now = Date.now();
-    if (!force && now - sheinVisibleShippingRegionScannedAt < 1800) return sheinVisibleShippingRegionCache;
-    sheinVisibleShippingRegionScannedAt = now;
     // A login form also contains "Saudi Arabia" as the +966 phone country.
     // That is not a shipping signal. Only accept a country when SHEIN itself
     // places it next to an explicit shipping/delivery label.
-    sheinVisibleShippingRegionCache = sheinShippingRegionFromText((document.body.innerText || '').slice(0, 30000));
-    return sheinVisibleShippingRegionCache;
+    return sheinShippingRegionFromText((document.body.innerText || '').slice(0, 30000));
   }
 
-  function sheinVisibleForeignRegion(force) {
-    return sheinVisibleShippingRegion(force) === 'FOREIGN';
+  function sheinVisibleForeignRegion() {
+    return sheinVisibleShippingRegion() === 'FOREIGN';
   }
 
-  function sheinVisibleSaudiRegion(force) {
-    return sheinVisibleShippingRegion(force) === 'SA';
+  function sheinVisibleSaudiRegion() {
+    return sheinVisibleShippingRegion() === 'SA';
   }
 
   function sheinUiText(el) {
@@ -1316,26 +1379,24 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
-  var sheinSaudiStoreLastCheckAt = 0;
-  var sheinSaudiStoreLastOk = true;
   function ensureSheinSaudiStore(options) {
     if (!IS_SHEIN) return true;
     // أثناء تحقق «أنا إنسان»: ممنوع أي إعادة تحميل/كتابة — تصفّر حل المستخدم.
     if (otlobliIsHumanChallenge()) return false;
-    var force = !!(options && options.navigate);
-    var now = Date.now();
-    if (!force && now - sheinSaudiStoreLastCheckAt < 2200) return sheinSaudiStoreLastOk;
-    sheinSaudiStoreLastCheckAt = now;
+    installSheinSaudiStorageGuard();
     writeSheinSaudiState();
     var normalized = otlobliNormalizeSheinUrl(location.href);
     var addressCountry = sheinAddressCookieCountry();
-    var visibleForeignRegion = addressCountry === SHEIN_REQUIRED_COUNTRY ? false : sheinVisibleForeignRegion(force);
+    var visibleForeignRegion = addressCountry === SHEIN_REQUIRED_COUNTRY ? false : sheinVisibleForeignRegion();
     if (visibleForeignRegion) {
       window.__otlobliSheinSaudiLocked = true;
+      try { sessionStorage.setItem('__otlobliSheinSaudiLocked', '1'); } catch (e) {}
     } else if (addressCountry === SHEIN_REQUIRED_COUNTRY || sheinVisibleSaudiRegion()) {
       window.__otlobliSheinSaudiLocked = false;
+      try { sessionStorage.removeItem('__otlobliSheinSaudiLocked'); } catch (e) {}
     }
     var locked = !!window.__otlobliSheinSaudiLocked;
+    try { locked = locked || sessionStorage.getItem('__otlobliSheinSaudiLocked') === '1'; } catch (e) {}
     var signalsOk = sheinSaudiSignalsOk();
     var needsReload = shouldReloadSheinForSaudi();
     setSheinSaudiGuardOverlay(locked || visibleForeignRegion);
@@ -1352,10 +1413,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       try {
         history.replaceState(history.state, '', normalized);
       } catch (e) {}
-      if (locked || visibleForeignRegion) {
-        sheinSaudiStoreLastOk = false;
-        return false;
-      }
+      if (locked || visibleForeignRegion) return false;
     } else if (normalized !== location.href) {
       try {
         history.replaceState(history.state, '', normalized);
@@ -1365,12 +1423,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var ok = sheinSaudiSignalsOk();
       if (ok && sheinVisibleSaudiRegion()) {
         window.__otlobliSheinSaudiLocked = false;
+        try { sessionStorage.removeItem('__otlobliSheinSaudiLocked'); } catch (e) {}
         setSheinSaudiGuardOverlay(false);
       }
-      sheinSaudiStoreLastOk = ok;
       return ok;
     } catch (e) {
-      sheinSaudiStoreLastOk = false;
       return false;
     }
   }
@@ -4223,11 +4280,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // to add a product to SHEIN's real cart from that exact window. Better to
   // make the user wait a beat than ever expose anything unprocessed.
   var __otlobliLoadingDone = false;
-  function otlobliPostSheinHeartbeat() {
-    // The native side no longer rebuilds a ready SHEIN WebView from heartbeat
-    // misses, so avoid sending periodic bridge messages during browsing.
-  }
-
   function ensureLoadingOverlay() {
     if (__otlobliLoadingDone || document.getElementById('otlobli-loading')) return;
     ensureOverlayStyle();
@@ -5871,19 +5923,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
           break;
         }
       }
-      if (closeTarget) {
-        try { closeTarget.click(); } catch (e) {}
-      } else {
-        // Some first-visit SHEIN auth sheets have no reliable close label/icon.
-        // Only on a real product page, hide that unsolicited floating auth
-        // surface and release any scroll lock it left behind.
-        candidate.setAttribute('data-otlobli-hidden-shein-login-prompt', '1');
-        candidate.style.setProperty('display', 'none', 'important');
-        candidate.style.setProperty('visibility', 'hidden', 'important');
-        candidate.style.setProperty('pointer-events', 'none', 'important');
-        try { document.body.style.overflow = ''; } catch (e) {}
-        try { document.documentElement.style.overflow = ''; } catch (e) {}
-      }
+      if (!closeTarget) continue;
+      try { closeTarget.click(); } catch (e) {}
       return;
     }
   }
@@ -5971,14 +6012,18 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return false;
   }
   function otlobliEnterChallengeMode() {
+    try { writeSheinSaudiState(); } catch (e) {}
     try {
       var ours = document.querySelectorAll('[id^="otlobli"]');
       for (var ci = 0; ci < ours.length; ci++) {
         try {
+          var oid = ours[ci].id || '';
+          if (oid === 'otlobli-nav' || oid.indexOf('otlobli-nav-tab-') === 0) continue;
           if (ours[ci].parentNode) ours[ci].parentNode.removeChild(ours[ci]);
         } catch (e) {}
       }
     } catch (e) {}
+    otlobliScheduleChallengeNav();
     // An add/loading overlay may have locked scrolling immediately before a
     // same-document challenge appeared.  Removing our nodes is not enough;
     // release that lock so the real verification control remains reachable.
@@ -6280,9 +6325,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // صفحة تحقق «أنا إنسان» — تجميد كامل لكل تدخلاتنا حتى يكملها المستخدم.
     if (otlobliIsHumanChallenge()) { otlobliChallengeActive = true; otlobliEnterChallengeMode(); return; }
     otlobliChallengeActive = false;
-    // Passive browsing: do not auto-open/click SHEIN's shipping drawer on
-    // every tick. Saudi is enforced by URL/native redirect, while add-to-cart
-    // still blocks if the page visibly shows a foreign shipping region.
+    if (IS_SHEIN) ensureSheinSaudiShippingSelection();
     if (IS_SHEIN) retrySheinFeedError();
     ensureNoTextSelection();
     ensureViewportFitCover();
@@ -6358,7 +6401,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // header/cart/listing/nav blockers below ran, so native code could reveal
     // a product for one or two seconds with raw SHEIN chrome still visible.
     updateSheinNativeCoverState();
-    otlobliPostSheinHeartbeat();
   }
 
   // وضع بحث تيمو: عندما يركّز المستخدم حقل البحث ويكتب، تعرض تيمو قائمة
@@ -8764,10 +8806,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // device spends its cycles rendering / passing the challenge instead of on
   // our scans. Modern devices (iPhone 16) keep the original tight timings.
   var OTLOBLI_LOW_END = (typeof navigator !== 'undefined' && (navigator.hardwareConcurrency || 4) <= 2);
-  var OTLOBLI_IOS_WEBKIT = (typeof navigator !== 'undefined' &&
-    (/iP(?:hone|ad|od)/i.test(navigator.userAgent || '') ||
-      ((navigator.platform || '') === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1)));
-  var OTLOBLI_SHEIN_GENTLE_TIMERS = !!(IS_SHEIN && OTLOBLI_IOS_WEBKIT);
   function scheduleTick() {
     sheinBlockReported = false;
     // Don't storm-tick on every Cloudflare DOM mutation during the challenge;
@@ -8778,7 +8816,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     setTimeout(function () {
       tickScheduled = false;
       tick();
-    }, (OTLOBLI_LOW_END || OTLOBLI_SHEIN_GENTLE_TIMERS) ? 160 : 80);
+    }, OTLOBLI_LOW_END ? 160 : 80);
   }
 
   var originalPushState = history.pushState;
@@ -8824,7 +8862,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     setTimeout(function () { clearInterval(otlobliObserverTimer); }, 1200);
   }
 
-  setInterval(tick, (OTLOBLI_LOW_END || OTLOBLI_SHEIN_GENTLE_TIMERS) ? 450 : 300);
+  setInterval(tick, OTLOBLI_LOW_END ? 450 : 300);
   // hideKnownHeaderIconsByHint specifically needs to win what looks like an
   // ongoing fight against SHEIN periodically re-rendering its own header (a
   // user found the hamburger/wishlist icons could stay reachable for
@@ -8837,7 +8875,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     hideKnownHeaderIconsByHint();
     hideSheinHeaderControls();
     hideListingCardAddButtons();
-  }, (OTLOBLI_LOW_END || OTLOBLI_SHEIN_GENTLE_TIMERS) ? 240 : 120);
+  }, OTLOBLI_LOW_END ? 240 : 120);
   setInterval(function () {
     ensureOtlobliNav();
     if (IS_TEMU) {
@@ -8848,10 +8886,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
       try { hideTemuSearchVisibleAccountCart(intervalTemuSearching); } catch (e) {}
       try { otlobliCleanTemuBlockers(true); } catch (e) {}
     }
-  }, (OTLOBLI_LOW_END || OTLOBLI_SHEIN_GENTLE_TIMERS) ? 1800 : 1200);
+  }, OTLOBLI_LOW_END ? 1800 : 1200);
   // Own slower interval, not part of tick() - see checkForSheinSecurityBlock's
   // comment on why innerText needs to stay off the 300ms timer. خاص بشي إن فقط.
-  setInterval(function () { if (IS_SHEIN) checkForSheinSecurityBlock(); }, OTLOBLI_SHEIN_GENTLE_TIMERS ? 1600 : 1000);
+  setInterval(function () { if (IS_SHEIN) checkForSheinSecurityBlock(); }, 1000);
   tick();
 })();
 `
