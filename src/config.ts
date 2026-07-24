@@ -21,4 +21,4 @@ export const TEST_ONLY_AUTH_BYPASS = true
 export const SHEIN_RAW_DIAGNOSTIC = true
 
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '2026.07.23-v85.8.80-shein-raw-diagnostic-no-otp-test'
+export const APP_VERSION = '2026.07.24-v85.8.81-shein-render-recompose-fix-raw-test'

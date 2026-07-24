@@ -18,7 +18,7 @@ import { getDeviceId, readStoredJson, storageKeys, useStoredState } from './infr
 import { appApi } from './services'
 import { PAYMENT_MODE, APP_VERSION, TEST_ONLY_AUTH_BYPASS, SHEIN_RAW_DIAGNOSTIC, cleanEnvValue } from './config'
 import { buildWhatsappLink } from './services/whatsappLink'
-import { SHEIN_CAPTURE_SCRIPT } from './services/sheinBrowserScript'
+import { SHEIN_CAPTURE_SCRIPT, SHEIN_RENDER_WATCHDOG_SCRIPT } from './services/sheinBrowserScript'
 import { App as CapacitorApp } from '@capacitor/app'
 import { Capacitor } from '@capacitor/core'
 import { BackgroundColor, InAppBrowser, ToolBarType } from '@capgo/capacitor-inappbrowser'
@@ -2925,8 +2925,16 @@ function App() {
         if (pendingProductRevealRef.current && pendingProductNavigationRequestedRef.current) {
           pendingProductPageLoadedRef.current = true
         }
-        // نسخة خام تشخيصية: لا نحقن أي سكربت (بلا حجب/تغطية/تحكّم) — فقط نكشف
-        // المتجر مباشرةً. هكذا يظهر SHEIN عارياً تماماً لعزل سبب التجمّد.
+        const watchdogId = webviewIdRef.current || undefined
+        // كاشف تجمّد الرسم على iOS 27: يُحقن دائماً (حتى بالوضع الخام) لأنه هو
+        // إصلاح التجمّد — يكتشف توقّف الرسم مع بقاء الصفحة حيّة ويجبر إعادة رسم
+        // native غير مرئية. خفيف جداً ولا يلمس شبكة/تخزين/منطقة SHEIN.
+        void InAppBrowser.executeScript({ ...(watchdogId ? { id: watchdogId } : {}), code: SHEIN_RENDER_WATCHDOG_SCRIPT })
+          .catch((err) => {
+            console.warn('[otlobli] SHEIN render watchdog injection failed', err)
+          })
+        // نسخة خام تشخيصية: لا نحقن السكربت الثقيل (بلا حجب/تغطية/تحكّم) — فقط
+        // الكاشف أعلاه + كشف المتجر. هكذا نختبر إصلاح التجمّد على SHEIN عارٍ.
         if (SHEIN_RAW_DIAGNOSTIC) {
           markStoreWebviewReadyRef.current(webviewSessionRef.current)
           revealPreparedProductIfReady()

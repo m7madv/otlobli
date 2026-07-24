@@ -19,6 +19,40 @@ const OTLOBLI_NAV_CSS =
   'font-family:OtlobliCairo,system-ui,-apple-system,sans-serif!important;font-size:12px!important;line-height:normal!important;' +
   'opacity:1!important;visibility:visible!important;pointer-events:auto!important;'
 
+// كاشف تجمّد الرسم (iOS 27): على الآيفون الحديث يوقف النظام "رسم" صفحة SHEIN
+// الثقيلة مؤقتاً بينما الصفحة نفسها تبقى حيّة — فتظهر الشاشة كصورة جامدة رغم أن
+// اللمس ما زال يعمل. المؤشر الدقيق: requestAnimationFrame يتوقف عن النبض بينما
+// التبويب مرئي والـ JS (setInterval) ما زال يعمل. عندها نُبلّغ الـ native ليجبر
+// إعادة رسم غير مرئية (نفس أثر "بدّل المتجر وارجع" لكن فوري وتلقائي). خفيف جداً:
+// إطار واحد + مؤقّت واحد بالثانية، بلا أي querySelector.
+export const SHEIN_RENDER_WATCHDOG_SCRIPT = `(function(){
+  try {
+    if (window.top !== window || window.__otlobliRenderWatchInstalled) return;
+    window.__otlobliRenderWatchInstalled = true;
+    var STALL_MS = 2600;
+    var COOLDOWN_MS = 3500;
+    var lastRaf = Date.now();
+    var lastRecompose = 0;
+    function tick(){ lastRaf = Date.now(); try { window.requestAnimationFrame(tick); } catch (e) {} }
+    try { window.requestAnimationFrame(tick); } catch (e) {}
+    setInterval(function(){
+      var now = Date.now();
+      var visible = document.visibilityState !== 'hidden' && !document.hidden;
+      if (!visible) { lastRaf = now; return; }
+      if ((now - lastRaf) > STALL_MS && (now - lastRecompose) > COOLDOWN_MS) {
+        lastRecompose = now;
+        try {
+          if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.messageHandler) {
+            window.webkit.messageHandlers.messageHandler.postMessage({ __otlobliRecompose: true });
+          }
+        } catch (e) {}
+        lastRaf = now;
+        try { window.requestAnimationFrame(tick); } catch (e) {}
+      }
+    }, 1000);
+  } catch (e) {}
+})();`
+
 // Runs as a real WKUserScript before SHEIN's first document starts. It mounts
 // only Otlobli's existing bottom navigation; it does not touch SHEIN network,
 // storage, region, CSS, or page lifecycle. The full capture script adopts the
