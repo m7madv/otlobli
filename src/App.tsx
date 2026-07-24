@@ -2704,7 +2704,10 @@ function App() {
       url: targetUrl,
       ...(activeStore === 'shein'
         ? {
-          otlobliLoadingCover: true,
+          // بالوضع الخام التشخيصي: بلا غطاء «جاري تجهيز» — نعرض SHEIN حيّاً من
+          // أول لحظة (بما فيه صفحة تحدّي أمان Cloudflare «جاري التحقق من الأمان»)
+          // حتى يراها المستخدم ويكمّلها. تعليمات المشروع: ممنوع تغطية التحدّي.
+          otlobliLoadingCover: !SHEIN_RAW_DIAGNOSTIC,
           // Keep SHEIN's live viewport/session mounted, but dismiss the UIKit
           // modal instead of making its UITransitionView transparent. iOS 27
           // can otherwise leave that layer above the app and block all taps.
@@ -2714,8 +2717,9 @@ function App() {
           // Keep React's already-mounted Otlobli shell visible while the first
           // SHEIN document is loading. The full SHEIN script is injected only
           // after page load, so security challenges are not touched at
-          // documentStart.
-          isPresentAfterPageLoad: true,
+          // documentStart. بالوضع الخام نعرض الـ webview فوراً (بلا انتظار تحميل)
+          // حتى تظهر صفحة تحدّي الأمان مباشرةً.
+          isPresentAfterPageLoad: !SHEIN_RAW_DIAGNOSTIC,
           isAnimated: false,
         }
         : {
@@ -2782,6 +2786,11 @@ function App() {
         if (!result) return
         if (sessionId !== webviewSessionRef.current) return
         webviewIdRef.current = result?.id ?? webviewIdRef.current
+        // بالوضع الخام: ارفع غطاء React «جاري تجهيز» فوراً حتى يظهر SHEIN حيّاً
+        // من أول لحظة (تحدّي الأمان مرئي وقابل للإكمال) بدل انتظار browserPageLoaded.
+        if (SHEIN_RAW_DIAGNOSTIC && activeStore === 'shein') {
+          markStoreWebviewReadyRef.current(sessionId)
+        }
         if (screenRef.current !== 'home' && (!initialPendingUrl || pendingProductRevealRef.current)) {
           void setStoreWebviewVisible(false, activeStore, sessionId).catch(() => undefined)
         }
