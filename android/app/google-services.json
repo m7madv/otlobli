@@ -12,7 +12,20 @@
           "package_name": "com.otlobli.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "677396296147-5iqi089o84ra4bu2unofkbjfqeee3mev.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.otlobli.app",
+            "certificate_hash": "971c7efe3d1009bd800b8aea2ca59f647ce168a3"
+          }
+        },
+        {
+          "client_id": "677396296147-o5q0rt5qk2rq0rqh714kuki7gabkdmcu.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCr7kObgWzdMc4jZ9NfYVNUnaNUwAsPG2A"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "677396296147-o5q0rt5qk2rq0rqh714kuki7gabkdmcu.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

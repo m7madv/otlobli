@@ -1,7 +1,7 @@
 // تسجيل الدخول عبر جوجل (واجهة العميل).
-// خامل تماماً حتى: (1) تُثبَّت إضافة @codetrix-studio/capacitor-google-auth،
-// (2) يُضبط VITE_GOOGLE_AUTH_ENABLED=true و VITE_GOOGLE_WEB_CLIENT_ID.
-// الاستيراد ديناميكي محروس بـ @vite-ignore حتى يمرّ بناء الويب دون تثبيت الإضافة.
+// خامل تماماً حتى: (1) يُضبط VITE_GOOGLE_AUTH_ENABLED=true و VITE_GOOGLE_WEB_CLIENT_ID،
+// (2) يعمل داخل تطبيق أصلي مع إضافة @capgo/capacitor-social-login.
+// الاستيراد ديناميكي محروس بـ @vite-ignore حتى يمرّ بناء الويب بأمان.
 import { cleanEnvValue } from '../config'
 
 const SUPABASE_URL = cleanEnvValue(import.meta.env.VITE_SUPABASE_URL)
@@ -25,20 +25,22 @@ let pluginInitialized = false
 // يحصل على idToken من إضافة جوجل الأصلية (يُهيّئها مرة واحدة).
 async function getGoogleIdToken(): Promise<string> {
   // اسم الحزمة في متغيّر حتى لا يحاول Vite حلّها وقت البناء.
-  const pkg = '@codetrix-studio/capacitor-google-auth'
+  const pkg = '@capgo/capacitor-social-login'
   const mod = (await import(/* @vite-ignore */ pkg)) as {
-    GoogleAuth: {
-      initialize: (opts: { clientId: string; scopes: string[]; grantOfflineAccess: boolean }) => void
-      signIn: () => Promise<{ authentication?: { idToken?: string } }>
+    SocialLogin: {
+      initialize: (opts: { google?: { webClientId?: string } }) => Promise<void>
+      login: (opts: { provider: 'google'; options: { scopes?: string[] } }) => Promise<{
+        result?: { idToken?: string }
+      }>
     }
   }
-  const GoogleAuth = mod.GoogleAuth
+  const SocialLogin = mod.SocialLogin
   if (!pluginInitialized) {
-    GoogleAuth.initialize({ clientId: WEB_CLIENT_ID, scopes: ['profile', 'email'], grantOfflineAccess: false })
+    await SocialLogin.initialize({ google: { webClientId: WEB_CLIENT_ID } })
     pluginInitialized = true
   }
-  const user = await GoogleAuth.signIn()
-  const idToken = user?.authentication?.idToken
+  const res = await SocialLogin.login({ provider: 'google', options: { scopes: ['email', 'profile'] } })
+  const idToken = res?.result?.idToken
   if (!idToken) throw new Error('تعذّر الحصول على رمز جوجل.')
   return idToken
 }
