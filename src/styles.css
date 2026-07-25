@@ -3121,3 +3121,57 @@ a {
     height: 260px;
   }
 }
+
+/* ── تسجيل الدخول عبر جوجل ─────────────────────────────────────────────── */
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 14px 0 4px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--outline);
+}
+.google-signin-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid var(--outline);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.google-signin-btn:hover:not(:disabled) {
+  background: var(--surface-soft);
+  border-color: var(--outline-strong);
+}
+.google-signin-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.google-signin-btn .google-g {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  border: 1px solid var(--outline);
+  color: #4285f4;
+  font-weight: 800;
+  font-family: Arial, sans-serif;
+}

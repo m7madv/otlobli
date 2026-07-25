@@ -1,6 +1,16 @@
 # Otlobli Current State
 
-Last updated: 2026-07-25
+Last updated: 2026-07-26
+
+## v86 — دخول جوجل + إشعارات Push + تنبيه حظر تيليغرام (2026-07-26)
+
+الفرع الفعّال: `claude/otlobli-v86-push-google-telegram` (على `claude/ios6-cover-fix`).
+كل ميزات v86 **إضافية وخاملة وآمنة** (خلف أعلام/أسرار). التطبيق يعمل طبيعياً دونها.
+- قاعدة البيانات (مطبّقة حيّة): جدولا `customer_identities` + `device_tokens` و٦ دوال.
+- دوال حافة منشورة: `google-auth`, `send-push` (كلاهما خامل/يفشل مغلقاً)، و`admin-orders` مربوطة بإشعار الحالة.
+- الواجهة: `googleAuthApi.ts`, `pushNotifications.ts` + زر جوجل، عبر استيراد ديناميكي محروس (البناء ناجح).
+- تنبيه تيليغرام لحظر واتساب: جاهز في `server/src/whatsapp.js`، يحتاج نشر Oracle فقط.
+- **التفعيل خطوة بخطوة: `docs/CREDENTIALS_SETUP.md`. الملخّص الكامل: `SESSION_SUMMARY.md`.**
 
 ## v85.8.92 — Freeze fixed + payment/coupon/security + WhatsApp anti-ban (2026-07-25)
 

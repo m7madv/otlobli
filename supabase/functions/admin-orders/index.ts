@@ -6,6 +6,8 @@ const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 const WHATSAPP_SERVER_URL = Deno.env.get('WHATSAPP_SERVER_URL') ?? ''
 const ORDER_NOTIFY_SECRET = Deno.env.get('ORDER_NOTIFY_SECRET') ?? ''
 const DRIVER_URL = Deno.env.get('DRIVER_URL') ?? ''
+// سرّ استدعاء دالة الإشعارات send-push (خامل ما لم يُضبط).
+const PUSH_TRIGGER_SECRET = Deno.env.get('PUSH_TRIGGER_SECRET') ?? ''
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -167,11 +169,31 @@ function mergeIssueDrafts(incoming: unknown, current: unknown) {
   return merged
 }
 
+// إشعار Push للعميل (كل أجهزته) عبر دالة send-push. خامل وآمن: يخرج بهدوء إن
+// لم يُضبط السرّ، ولا يؤثّر أبداً على مسار الاستجابة (fire-and-forget).
+async function sendCustomerPush(
+  phone: string,
+  title: string,
+  body: string,
+  data: Record<string, string> = {},
+) {
+  if (!PUSH_TRIGGER_SECRET || !SUPABASE_URL || !phone) return
+  try {
+    await fetch(`${SUPABASE_URL}/functions/v1/send-push`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-push-secret': PUSH_TRIGGER_SECRET },
+      body: JSON.stringify({ phone, title, body, data }),
+      signal: AbortSignal.timeout(8000),
+    })
+  } catch (err) {
+    console.error('push send failed:', (err as Error).message)
+  }
+}
+
 async function notifyCustomerStatusChange(
   phone: string,
   order: { id: string; statusIndex: number; qadmousNumber?: string },
 ) {
-  if (!WHATSAPP_SERVER_URL || !ORDER_NOTIFY_SECRET || !phone) return
   const label = ORDER_STATUS_LABELS[order.statusIndex] ?? ''
   const lines = [`📦 *تحديث على طلبك ${order.id}*`, `الحالة الجديدة: ${label}`]
   if (order.statusIndex === ORDER_STATUS_LABELS.length - 1) {
@@ -180,6 +202,15 @@ async function notifyCustomerStatusChange(
     lines.push(`رقم القدموس: ${order.qadmousNumber}`)
   }
 
+  // إشعار Push بالتوازي مع واتساب (كلٌّ مستقلّ وخامل عند غياب إعداده).
+  void sendCustomerPush(
+    phone,
+    'تحديث على طلبك',
+    `طلبك ${order.id}: ${label}`,
+    { orderId: order.id, statusIndex: String(order.statusIndex), type: 'order_status' },
+  )
+
+  if (!WHATSAPP_SERVER_URL || !ORDER_NOTIFY_SECRET || !phone) return
   try {
     await fetch(`${WHATSAPP_SERVER_URL}/api/notify/whatsapp`, {
       method: 'POST',

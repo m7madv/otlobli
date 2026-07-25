@@ -2,6 +2,15 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
+## Current Candidate (2026-07-26) — v86
+
+الفرع: `claude/otlobli-v86-push-google-telegram`. أُضيفت ٣ ميزات إضافية خاملة آمنة:
+دخول جوجل (ربط هوية مرتكز على الهاتف)، إشعارات Push (FCM/APNs)، تنبيه تيليغرام لحظر واتساب.
+كل الطبقة الخلفية منشورة وحيّة لكنها تفشل مغلقة/خاملة حتى يُدخل المستخدم مفاتيحه.
+**اقرأ `SESSION_SUMMARY.md` + `docs/CREDENTIALS_SETUP.md` قبل أي عمل على هذه الميزات.**
+لا تحوّل الاستيراد الديناميكي المحروس في `googleAuthApi.ts`/`pushNotifications.ts` إلى استيراد ثابت (يكسر البناء).
+عند إعادة نشر أي دالة حافة: حافظ على `verify_jwt` نفسه (`admin-orders`=true, `google-auth`/`send-push`=false).
+
 ## Current Candidate (2026-07-25) — v85.8.92
 
 - Branch `claude/ios6-cover-fix`, base re-set to clean v85.8.77 source + layered fixes. `APP_VERSION = 2026.07.25-v85.8.92-freeze-fix-plus-payment-claim-5min-no-otp-test`.

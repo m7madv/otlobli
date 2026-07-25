@@ -18,6 +18,8 @@ import { getDeviceId, readStoredJson, storageKeys, useStoredState } from './infr
 import { appApi } from './services'
 import { PAYMENT_MODE, APP_VERSION, TEST_ONLY_AUTH_BYPASS, cleanEnvValue } from './config'
 import { buildWhatsappLink } from './services/whatsappLink'
+import { isGoogleAuthEnabled, signInWithGoogle, linkGoogleToSession } from './services/googleAuthApi'
+import { registerPushNotifications } from './services/pushNotifications'
 import { OTLOBLI_NAV_BOOTSTRAP_SCRIPT, SHEIN_CAPTURE_SCRIPT } from './services/sheinBrowserScript'
 import { App as CapacitorApp } from '@capacitor/app'
 import { Capacitor } from '@capacitor/core'
@@ -828,6 +830,9 @@ function App() {
   })
   const phone = countryCode + localPhone.replace(/^0+/, '')
 
+  // رمز جوجل المؤقّت بانتظار توثيق الهاتف لأول مرة (ربط الهوية بعد OTP).
+  const [pendingGoogleIdToken, setPendingGoogleIdToken] = useState('')
+
   const [otpDigits, setOtpDigits] = useState(['', '', '', ''])
   const otpRefs = useRef<(HTMLInputElement | null)[]>([null, null, null, null])
   const [otpExpiresInSeconds, setOtpExpiresInSeconds] = useState(() =>
@@ -1507,6 +1512,12 @@ function App() {
     return hasLocalProfile || hasLocalOrders ? 'home' : 'onboarding'
   }
 
+  // تسجيل جهاز الإشعارات عند توفّر جلسة صالحة (خامل ما لم تُفعّل الميزة).
+  useEffect(() => {
+    if (!sessionToken || isLegacyPhoneSessionToken(sessionToken)) return
+    void registerPushNotifications(sessionToken)
+  }, [sessionToken])
+
   useEffect(() => {
     const fetchRate = () => {
       fetch(`${API_BASE}/api/exchange-rate`)
@@ -1585,6 +1596,7 @@ function App() {
           setInboundWhatsappUrl('')
           setInboundSupportPhone('')
           setInboundVerificationMessage('')
+          await linkPendingGoogle(result.sessionToken)
           const target = await fetchProfileAfterLogin(phone)
           setScreen(target)
           showNotice('تم تأكيد رقم واتساب من الرسالة')
@@ -1608,6 +1620,7 @@ function App() {
         .then(async (result) => {
           setSessionToken(result.sessionToken)
           setTelegramOtp('')
+          await linkPendingGoogle(result.sessionToken)
           const target = await fetchProfileAfterLogin(phone)
           setScreen(target)
           showNotice('تم تأكيد رقمك بنجاح')
@@ -1974,6 +1987,43 @@ function App() {
       })
   }
 
+  // بعد توثيق الهاتف بنجاح: إن كان هناك رمز جوجل معلّق، اربط الهوية بالحساب.
+  const linkPendingGoogle = async (activeSessionToken: string) => {
+    if (!pendingGoogleIdToken || !activeSessionToken) return
+    try {
+      await linkGoogleToSession(pendingGoogleIdToken, activeSessionToken)
+      showNotice('تم ربط حساب جوجل بحسابك')
+    } catch (error) {
+      showNotice(getPublicErrorMessage(error))
+    } finally {
+      setPendingGoogleIdToken('')
+    }
+  }
+
+  // تسجيل الدخول عبر جوجل: إمّا جلسة جاهزة (هوية مربوطة) أو طلب توثيق هاتف لأول مرة.
+  const handleGoogleSignIn = () => {
+    if (authState !== 'idle') return
+    setAuthState('sending')
+    void signInWithGoogle()
+      .then(async (result) => {
+        if (result.mode === 'existing') {
+          const parts = extractCountryCode(result.phone)
+          setCountryCode(parts.code)
+          setLocalPhone(parts.local)
+          setSessionToken(result.sessionToken)
+          const target = await fetchProfileAfterLogin(result.phone)
+          setScreen(target)
+          showNotice('تم تسجيل الدخول عبر جوجل')
+        } else {
+          // هوية جديدة: احتفظ برمز جوجل واطلب توثيق الهاتف مرة واحدة.
+          setPendingGoogleIdToken(result.idToken)
+          showNotice('لتفعيل حسابك أول مرة، وثّق رقم واتساب مرة واحدة وسيُربط بجوجل')
+        }
+      })
+      .catch((error: unknown) => showNotice(getPublicErrorMessage(error)))
+      .finally(() => setAuthState('idle'))
+  }
+
   const startLogin = () => {
     if (localPhone.replace(/\D/g, '').length < 7) {
       showNotice('أدخل رقم واتساب صحيح')
@@ -2037,6 +2087,7 @@ function App() {
           setInboundWhatsappUrl('')
           setInboundSupportPhone('')
           setInboundVerificationMessage('')
+          await linkPendingGoogle(result.sessionToken)
           const target = await fetchProfileAfterLogin(phone)
           setScreen(target)
           showNotice('تم تأكيد رقم واتساب من الرسالة')
@@ -2059,6 +2110,7 @@ function App() {
       .then(async (result) => {
         setSessionToken(result.sessionToken)
         setPendingWhatsappAuth(null)
+        await linkPendingGoogle(result.sessionToken)
         const target = await fetchProfileAfterLogin(phone)
         setScreen(target)
         showNotice('تم تأكيد رقم واتساب')
@@ -2074,6 +2126,7 @@ function App() {
       .then(async (result) => {
         setSessionToken(result.sessionToken)
         setPendingWhatsappAuth(null)
+        await linkPendingGoogle(result.sessionToken)
         const target = await fetchProfileAfterLogin(phone)
         setScreen(target)
       })
@@ -3561,6 +3614,20 @@ function App() {
                 : 'إرسال رمز التحقق'}
             <Icon name="arrow_back" />
           </button>
+          {isGoogleAuthEnabled && (
+            <>
+              <div className="auth-divider"><span>أو</span></div>
+              <button
+                type="button"
+                className="google-signin-btn"
+                disabled={authState !== 'idle'}
+                onClick={handleGoogleSignIn}
+              >
+                <span className="google-g" aria-hidden="true">G</span>
+                {authState === 'sending' ? 'جاري فتح جوجل...' : 'المتابعة عبر جوجل'}
+              </button>
+            </>
+          )}
           <p className="hint">يلزم تأكيد رقم واتساب قبل إنشاء أي طلب.</p>
         </AuthShell>
       )
