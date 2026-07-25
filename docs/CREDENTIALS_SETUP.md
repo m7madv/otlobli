@@ -23,35 +23,33 @@
 
 ## 🔔 المهمة ١: إشعارات Push
 
-تحتاج مشروع **Firebase** (أندرويد مجاني) و — للآيفون — مفتاح **APNs** (يتطلّب حساب Apple Developer مدفوع).
-ابدأ بأندرويد؛ الآيفون لاحقاً.
+### أ) أندرويد (FCM) — ✅ **تمّ إعداده بالكامل والتحقق منه**
 
-### أ) أندرويد (FCM) — مجاني
+أُنجز تلقائياً في الجلسة:
+- مشروع Firebase **`otlobli-1ccf5`** (Spark plan المجاني) + تطبيق أندرويد `com.otlobli.app`.
+- `android/app/google-services.json` مضاف للمستودع.
+- `@capacitor/push-notifications@8.1.2` مثبّت ومسجّل في gradle.
+- مفتاح حساب الخدمة مضبوط كسرّ `FCM_SERVICE_ACCOUNT_JSON` + `PUSH_TRIGGER_SECRET` في Supabase.
+- **تحقّق فعلي:** أرسلنا اختباراً فقبِلت Google الرسالة (رفضت رمزاً وهمياً كما هو متوقّع) → FCM يعمل.
 
-1. افتح <https://console.firebase.google.com> → **Add project** → سمِّه مثلاً `otlobli`.
-2. داخل المشروع: **Add app → Android**. اسم الحزمة (package name) لازم يطابق التطبيق:
-   افحصه في `android/app/build.gradle` (`applicationId`) أو `capacitor.config.*`.
-3. نزّل ملف **`google-services.json`** وضعه في: `android/app/google-services.json`.
-4. ثبّت الإضافة وأضِف مُلحق Gradle:
-   ```bash
-   npm install @capacitor/push-notifications
-   ```
-   - في `android/build.gradle` (المستوى الأعلى) ضِف ضمن `dependencies`:
-     `classpath 'com.google.gms:google-services:4.4.2'`
-   - في نهاية `android/app/build.gradle` ضِف سطراً:
-     `apply plugin: 'com.google.gms.google-services'`
-5. من إعدادات مشروع Firebase → **Service accounts** → **Generate new private key**.
-   سينزّل ملف JSON. **هذا سرّي جداً — لا ترفعه إلى Git.**
-6. ضع محتوى ذلك الـ JSON كاملاً في متغيّر بيئة دالة `send-push`:
-   ```bash
-   supabase secrets set FCM_SERVICE_ACCOUNT_JSON="$(cat ~/Downloads/otlobli-xxxx.json)" --project-ref dcicqdprtyhwmhegabay
-   ```
-7. فعّل التسجيل في التطبيق: في `.env` (وVercel) ضع `VITE_PUSH_ENABLED=true`، ثم أعد البناء والمزامنة:
-   ```bash
-   npm run build && npx cap sync android
-   ```
+**يتبقّى خطوة واحدة فقط: بناء APK بالعلم مفعّلاً وتركيبه.** في المستودع الرئيسي
+(`C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`، وليس الـ worktree — البناء يفشل في مسار به مسافات عميقة):
+```bash
+# اجلب فرع v86 أولاً، ثم:
+# أنشئ .env يحوي قيم الإنتاج + السطر التالي (أو أضِفه في بيئة البناء):
+#   VITE_PUSH_ENABLED=true
+npm run build && npx cap sync android
+cd android && ./gradlew assembleDebug
+# ثم ركّبه على الجهاز:
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+بمجرّد تشغيل النسخة الجديدة وتسجيل الدخول، يسجّل الجهاز رمزه تلقائياً، وتصله الإشعارات
+(من تبويب "الإشعارات" بلوحة الإدارة، ومن تغيّر حالة الطلب تلقائياً).
 
-### ب) آيفون (APNs) — يحتاج Apple Developer (مدفوع)
+> ملاحظة: مفتاح حساب الخدمة السرّي حُذف من مجلد التنزيلات بعد تخزينه (يمكن إعادة توليده من
+> Firebase → Project settings → Service accounts وقت الحاجة). ملف `google-services.json` غير سرّي.
+
+### ب) آيفون (APNs) — يحتاج Apple Developer (مدفوع) — مؤجَّل
 
 1. من <https://developer.apple.com/account> → **Keys** → أنشئ مفتاح **APNs** (نوع Apple Push Notifications service).
    نزّل ملف `.p8` وسجّل **Key ID** و**Team ID**.
@@ -61,14 +59,11 @@
    `APNS_BUNDLE_ID`، `APNS_PRODUCTION=true`.
 3. في Xcode: أضِف قدرة **Push Notifications** و**Background Modes → Remote notifications**.
 
-### ج) تشغيل الربط بالطلبات
+### ج) الربط بالطلبات — ✅ مضبوط
 
-بعد ضبط FCM، فعّل استدعاء الإشعار من لوحة الإدارة عند تغيّر حالة الطلب:
-```bash
-# سرّ مشترك بين admin-orders و send-push (اختر قيمة عشوائية طويلة)
-supabase secrets set PUSH_TRIGGER_SECRET="ضع-سرّاً-عشوائياً-طويلاً" --project-ref dcicqdprtyhwmhegabay
-```
-(الدالتان تقرآن نفس السرّ. بدونه لا يُرسَل أي Push — آمن.)
+`PUSH_TRIGGER_SECRET` مضبوط في Supabase ومشترك بين `admin-orders` و`send-push`.
+لذلك عند تغيّر حالة أي طلب من لوحة الإدارة، يُرسَل إشعار Push للعميل تلقائياً (بالتوازي مع واتساب).
+كما يمكنك الإرسال اليدوي من تبويب **"الإشعارات"** بلوحة الإدارة (للكل أو لعميل واحد).
 
 ---
 
