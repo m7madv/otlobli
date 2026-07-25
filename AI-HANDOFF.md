@@ -2,6 +2,17 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
+## Current Candidate (2026-07-25) — v85.8.92
+
+- Branch `claude/ios6-cover-fix`, base re-set to clean v85.8.77 source + layered fixes. `APP_VERSION = 2026.07.25-v85.8.92-freeze-fix-plus-payment-claim-5min-no-otp-test`.
+- **SHEIN iPhone-16 freeze FIXED (user-confirmed):** native detach+reattach WKWebView on `appDidBecomeActive` (patch-package `otlobliForceRecompose`) + Android `handleOnResume`. iOS run `30144837725`; Android APK launches clean on Note 8.
+- **ShamCash payment auto-match FIXED:** Note 8 upgraded to listener v2 (HMAC) via adb + `PAYMENT_WEBHOOK_SECRET` rotated via Supabase CLI (both sides match; signed test → 200).
+- Live DB/edge/admin changes this session (all deployed via CLI): coupon `per_user_max_uses`, 5-min `order_payment_window_minutes`, `claim_order_payment` + `orders.paid_claim_at`, revoked anon on leaky legacy `get_customer_account(text)`/`get_wallet(text)`, admin-orders + admin frontend redeployed.
+- **WhatsApp anti-ban** added to the ACTIVE `server/` (warmup, per-number cap, risk auto-pause, 429/463 handling, onWhatsApp check, Telegram alerts). Deploy on Oracle via `git pull && cd server && npm install && pm2 restart`.
+- **CRITICAL gotchas:** (1) `schema.sql` ≠ live DB — audit live via `supabase db query --linked`. (2) TWO whatsapp dirs: `server/` is active, `server-whatsapp/` is a DEAD duplicate — never edit it. (3) harness may start on a stale branch — verify branch + APP_VERSION first.
+- Access available: Supabase CLI (linked `dcicqdprtyhwmhegabay`), Vercel CLI (`talabieh-admin`), adb (Note 8 serial `988e16384e4f51395230`), GitHub Actions (iOS).
+- **Pending next (user-requested):** push notifications (FCM/APNs — needs Firebase + Apple APNs key), Google sign-in + account linking (needs Google OAuth client), cart-group session hardening.
+
 ## Current Candidate
 
 - Branch: `claude/ios6-cover-fix`.

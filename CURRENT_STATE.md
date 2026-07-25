@@ -1,6 +1,19 @@
 # Otlobli Current State
 
-Last updated: 2026-07-23
+Last updated: 2026-07-25
+
+## v85.8.92 — Freeze fixed + payment/coupon/security + WhatsApp anti-ban (2026-07-25)
+
+- Branch `claude/ios6-cover-fix`. `APP_VERSION = 2026.07.25-v85.8.92-freeze-fix-plus-payment-claim-5min-no-otp-test`. Base re-set to the clean v85.8.77 source (user-confirmed) with only the fixes below layered on.
+- **SHEIN iPhone-16/iOS-27 freeze: FIXED (user-confirmed 100%).** Root cause = WKWebView's remote layer tree not reattaching on app resume from background. Fix (patch-package): `otlobliForceRecompose` detaches+reattaches the WebView (same constraints, preserves scroll) driven by `appDidBecomeActive`; Android defensive `handleOnResume` wake. iOS build `30144837725` + Android APK both built; the Android build launches clean on the Note 8.
+- **Payment auto-match (ShamCash): FIXED & verified.** The Note 8 ran the OLD v1 listener (no HMAC) → webhook 401. Installed v2.0.0 via adb + rotated `PAYMENT_WEBHOOK_SECRET` via Supabase CLI so both sides match. Signed test → 200.
+- **Security (live):** revoked `anon` EXECUTE on legacy `get_customer_account(text)` and `get_wallet(text)` (leaked any customer's account/wallet by phone). schema.sql is DRIFTED from prod — audit live via `supabase db query --linked`.
+- **Coupons:** configurable `per_user_max_uses` (default 1) + `coupon_redemptions.uses` counter, atomic enforcement, admin form field. Live + tested.
+- **Order payment window:** now 5 min, configurable via `app_settings.order_payment_window_minutes`, in `create_pending_order`.
+- **"لقد دفعت" claim:** `orders.paid_claim_at` + `claim_order_payment` RPC; client records the press + disables the button after the window; admin shows "الزبون أكّد الدفع" badge (admin-orders + AdminApp deployed).
+- **WhatsApp anti-ban on the ACTIVE `server/`** (NOT `server-whatsapp/`, a dead duplicate): onWhatsApp validation, warmup ramp, per-number daily cap, risk-score auto-pause, 429/463/403 handling, Telegram ban alerts. Deploy on Oracle: `git pull && cd server && npm install && pm2 restart`.
+- Deploy access this environment has: Supabase CLI (linked, project `dcicqdprtyhwmhegabay`), Vercel CLI (`talabieh-admin`), adb to the Note 8. iOS via GitHub Actions.
+- Pending (user-requested next): push notifications (FCM/APNs), Google sign-in + account linking, cart-group session hardening.
 
 ## v85.8.89 SHEIN iOS Modal Lifecycle
 
