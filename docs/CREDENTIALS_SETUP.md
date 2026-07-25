@@ -67,36 +67,25 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 ---
 
-## 🔐 المهمة ٢: تسجيل الدخول عبر جوجل
+## 🔐 المهمة ٢: تسجيل الدخول عبر جوجل — ✅ **تمّ إعداده بالكامل (أندرويد)**
 
-تحتاج **Google OAuth Client IDs** من Google Cloud Console.
+أُنجز تلقائياً في الجلسة (على Chrome + الخوادم):
+- في Firebase `otlobli-1ccf5`: فُعّل مزوّد **Google** (باسم عام "otlobli" وبريد دعمك)،
+  وسُجّلت **بصمة SHA-1** لمفتاح التطوير → أنشأ Google عملاء OAuth تلقائياً.
+- **Web Client ID:** `677396296147-o5q0rt5qk2rq0rqh714kuki7gabkdmcu.apps.googleusercontent.com`
+- **Android Client ID:** `677396296147-5iqi089o84ra4bu2unofkbjfqeee3mev.apps.googleusercontent.com`
+- سرّ الخادم **`GOOGLE_CLIENT_IDS`** مضبوط (Web+Android). تحقّق: `google-auth` ترجع `401 invalid_google_token`.
+- الإضافة **`@capgo/capacitor-social-login@8.3.38`** مثبّتة (تدعم Capacitor 8) وواجهة `googleAuthApi.ts` محدّثة.
+- `.env.example` يحوي `VITE_GOOGLE_AUTH_ENABLED=true` + Web Client ID.
+- `google-services.json` محدّث بعملاء OAuth.
 
-1. افتح <https://console.cloud.google.com> → أنشئ مشروعاً (أو استخدم مشروع Firebase نفسه).
-2. **APIs & Services → OAuth consent screen** → اضبطه (External، اسم التطبيق، بريد الدعم).
-3. **Credentials → Create credentials → OAuth client ID**، أنشئ ثلاثة:
-   - **Web application** → انسخ **Client ID** (هذا الأهم — يستخدمه التطبيق والخادم).
-   - **Android** → أدخل package name + بصمة **SHA‑1**:
-     ```bash
-     cd android && ./gradlew signingReport   # انسخ SHA1 من variant: debug (وrelease لاحقاً)
-     ```
-   - **iOS** → أدخل Bundle ID.
-4. ثبّت إضافة جوجل واضبطها:
-   ```bash
-   npm install @codetrix-studio/capacitor-google-auth
-   ```
-   - أندرويد: في `android/app/src/main/res/values/strings.xml` أضِف:
-     `<string name="server_client_id">WEB_CLIENT_ID_هنا</string>`
-   - iOS: في `ios/App/App/Info.plist` أضِف `CFBundleURLTypes` مع **reversed client ID** لعميل iOS.
-5. أخبر الخادم بالمعرّفات المسموح بها (Web + Android + iOS، مفصولة بفواصل):
-   ```bash
-   supabase secrets set GOOGLE_CLIENT_IDS="WEB_ID.apps.googleusercontent.com,ANDROID_ID.apps.googleusercontent.com,IOS_ID.apps.googleusercontent.com" --project-ref dcicqdprtyhwmhegabay
-   ```
-6. فعّل الزر في التطبيق: في `.env` (وVercel) ضع:
-   ```
-   VITE_GOOGLE_AUTH_ENABLED=true
-   VITE_GOOGLE_WEB_CLIENT_ID=WEB_ID.apps.googleusercontent.com
-   ```
-   ثم `npm run build && npx cap sync`.
+**يتبقّى:** بناء APK بالعلم مفعّلاً وتركيبه (نفس خطوة الإشعارات). عند التشغيل، زر
+"المتابعة عبر جوجل" يظهر ويعمل.
+
+> ⚠️ **مهم لاحقاً (الإنتاج):** بصمة SHA-1 المسجّلة هي لمفتاح **التطوير** (debug). قبل توزيع نسخة
+> موقّعة بمفتاح release، سجّل بصمة SHA-1 الخاصة بمفتاح release أيضاً في Firebase (نفس المكان)،
+> وإلا يفشل دخول جوجل على النسخة الموزّعة برسالة خطأ 10.
+> **iOS:** يحتاج عميل OAuth آيفون + Info.plist (مؤجَّل مع Apple Developer).
 
 ### كيف يعمل الربط (القرار المتّخذ تلقائياً)
 
