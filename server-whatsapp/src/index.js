@@ -1,6 +1,6 @@
 import express from 'express'
 import cors from 'cors'
-import { initWhatsapp, onConnection, isWhatsappConnected, getConnectionStatus } from './whatsapp.js'
+import { initWhatsapp, onConnection, isWhatsappConnected, getConnectionStatus, getNumberQr, getPoolStatus } from './whatsapp.js'
 import routes from './routes.js'
 
 const PORT = process.env.PORT || 3001
@@ -13,10 +13,19 @@ app.use(express.urlencoded({ extended: true }))
 app.use('/api', routes)
 
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', whatsappConnected: isWhatsappConnected() })
+  const pool = getPoolStatus()
+  res.json({ status: 'ok', whatsappConnected: isWhatsappConnected(), healthyNumbers: pool.healthy, totalNumbers: pool.total })
 })
 
+// حالة مجموعة الأرقام كاملة (للمراقبة): كم رقم صحّي/محظور وكم أرسل كل رقم.
+app.get('/api/whatsapp/pool', (req, res) => {
+  res.json(getPoolStatus())
+})
+
+// QR لرقم محدّد (?number=main) لإضافة/إعادة ربط رقم؛ بدون معامل = الحالة العامة.
 app.get('/api/qr-url', (req, res) => {
+  const label = req.query.number
+  if (label) return res.json(getNumberQr(String(label)))
   const status = getConnectionStatus()
   if (status.qrImageUrl) res.json({ qrUrl: status.qrImageUrl, connected: false })
   else if (status.connected) res.json({ connected: true })
