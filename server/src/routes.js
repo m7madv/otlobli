@@ -296,10 +296,17 @@ router.post('/auth/whatsapp/start', async (req, res) => {
   } catch (error) {
     console.error('❌ Failed to send OTP:', error.message)
 
-    if (error.message.includes('WhatsApp غير متصل')) {
+    if (error.message.includes('WhatsApp غير متصل') || error.message.includes('لا توجد جلسة')) {
       return res.status(503).json({
         error: 'whatsapp_not_configured',
         message: 'واتساب server غير مربوط بعد. امسح QR لربط الرقم.',
+      })
+    }
+
+    if (error.message.includes('recipient_not_on_whatsapp')) {
+      return res.status(400).json({
+        error: 'recipient_not_on_whatsapp',
+        message: 'هذا الرقم غير مسجّل على واتساب. تأكد من الرقم أو استخدم تيليغرام.',
       })
     }
 

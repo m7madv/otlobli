@@ -23,6 +23,20 @@ const LEGACY_AUTH_DIR = VOLUME_PATH
 
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000
 
+// تنبيه المشرف عبر تيليغرام (مثلاً عند حظر رقم) — يعمل فقط إذا توفّرت المتغيّرات.
+const TG_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ''
+const TG_CHAT = process.env.TELEGRAM_ALERT_CHAT_ID || process.env.TELEGRAM_CHAT_ID || ''
+async function alertAdmin(text) {
+  if (!TG_TOKEN || !TG_CHAT) return
+  try {
+    await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ chat_id: TG_CHAT, text }),
+    })
+  } catch (_) {}
+}
+
 if (!fs.existsSync(BASE_AUTH_DIR)) {
   fs.mkdirSync(BASE_AUTH_DIR, { recursive: true })
 }
@@ -310,6 +324,7 @@ async function initSession(session) {
         if (code === DisconnectReason.loggedOut) {
           clearSessionFiles(session)
           session.status = 'error'
+          void alertAdmin(`🚫 otlobli: رقم واتساب (session ${session.id}${session.phoneNumber ? ' / ' + session.phoneNumber : ''}) انحظر أو سجّل خروج.\nأعد ربط رقم من لوحة الإدارة. الأرقام المتصلة الآن: ${[...sessions.values()].filter(s => s.connected).length}`)
           reject(new Error('انتهت الجلسة — يلزم QR جديد'))
         } else if (code === DisconnectReason.restartRequired) {
           session.sock = null
@@ -424,9 +439,26 @@ async function sendHumanLike(sock, jid, content) {
   return res
 }
 
+// يتحقق أن رقم المستلم مسجّل فعلاً على واتساب قبل الإرسال. الإرسال المتكرر
+// لأرقام غير مسجّلة من أقوى إشارات السلوك الآلي التي تؤدي للحظر. آمن: عند تعذّر
+// التحقق (لا جلسة متصلة أو خطأ) لا نمنع الإرسال، نمنع فقط عند نفي صريح.
+async function isRecipientOnWhatsapp(jid) {
+  const sock = getSocket()
+  if (!sock) return true
+  try {
+    const res = await sock.onWhatsApp(jid)
+    if (Array.isArray(res) && res.length) return res[0]?.exists !== false
+    return true
+  } catch (_) { return true }
+}
+
 export async function sendOtpMessage(phone, code) {
   const jid = phone.replace(/[\s\-\(\)\+]/g, '') + '@s.whatsapp.net'
   const msg = `رمز التحقق من otlobli:\n\n${code}\n\nصالح لمدة 5 دقائق.`
+
+  if (!(await isRecipientOnWhatsapp(jid))) {
+    throw new Error('recipient_not_on_whatsapp')
+  }
 
   await paceSend(() => sendWithFallback(async (session) => {
     await sendHumanLike(session.sock, jid, { text: msg })
