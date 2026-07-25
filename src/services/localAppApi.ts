@@ -207,6 +207,10 @@ export const localAppApi: TalabiehApi = {
       return null
     },
 
+    async claimPayment() {
+      return { ok: true, claimed: true }
+    },
+
     // بالوضع المحلي نقبل أي كود غير فارغ كمحاكاة لتجربة الخصم.
     async validateReferralCode(code) {
       await wait(220)

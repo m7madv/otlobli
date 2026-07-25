@@ -969,6 +969,14 @@ function App() {
     purpose?: 'order' | 'issue'
     issuePaymentId?: string
   } | null>(storageKeys.pendingPayment, null)
+  // مؤقّت يعيد الرسم كل ثانية أثناء شاشة الدفع، ليُعطَّل زر "لقد دفعت" فور
+  // انتهاء نافذة الدفع (5 دقائق) ويظهر بدله طلب التواصل معنا.
+  const [paymentNowTs, setPaymentNowTs] = useState(() => Date.now())
+  useEffect(() => {
+    if (screen !== 'payment' || !pendingPayment) return
+    const id = window.setInterval(() => setPaymentNowTs(Date.now()), 1000)
+    return () => window.clearInterval(id)
+  }, [screen, pendingPayment])
   const [pendingWalletTopUp, setPendingWalletTopUp] = useStoredState<{
     topUpId: string
     amount: number
@@ -3344,6 +3352,8 @@ function App() {
 
   const verifyB2BPayment = () => {
     if (!pendingPayment) return
+    // سجّل ضغط "لقد دفعت" ليظهر في لوحة الإدارة (best-effort، لا يعطّل التحقق).
+    void appApi.orders.claimPayment(pendingPayment.orderId).catch(() => {})
     setVerificationState('checking')
     if (pendingPayment.purpose === 'issue') {
       void appApi.orders.pollOrderStatus(pendingPayment.orderId).then((result) => {
@@ -4543,6 +4553,7 @@ function App() {
       const paymentQr = shamcashQrByStore[pendingPayment.store ?? selectedStore] || ''
       const paymentCode = shamcashCodeByStore[pendingPayment.store ?? selectedStore] || paymentSettings.receiverAccount
       const paymentExpiresIn = formatExpiryCountdown(pendingPayment.expiresAt)
+      const paymentWindowClosed = new Date(pendingPayment.expiresAt).getTime() <= paymentNowTs
       const isIssuePayment = pendingPayment.purpose === 'issue'
       const paymentStoreName = STORES.find((store) => store.id === (pendingPayment.store ?? selectedStore))?.name ?? 'المتجر'
 
@@ -4582,11 +4593,27 @@ function App() {
               <p>لا تحتاج كتابة رقم الطلب في الملاحظة.</p>
               <p>المهم جداً: ادفع نفس المبلغ أعلاه بالضبط حتى تتم المطابقة تلقائياً.</p>
             </div>
-            <button className="primary-action" disabled={verificationState === 'checking'} onClick={verifyB2BPayment}>
-              {verificationState === 'checking' ? 'جاري التحقق من الدفع...' : 'لقد دفعت'}
-              <Icon name="sync" />
-            </button>
-            <p className="hint">بعد الضغط سنراجع التحويل المرسل. لا تحوّل مرة ثانية إلا إذا طلبنا منك ذلك.</p>
+            {paymentWindowClosed ? (
+              <>
+                <button className="primary-action" disabled>
+                  انتهت مهلة الدفع
+                  <Icon name="schedule" />
+                </button>
+                <button className="ghost-action" onClick={() => openWhatsappSupport(`مرحباً otlobli، دفعت الطلب ${pendingPayment.orderId} لكن انتهت المهلة قبل التأكيد، أرجو مراجعة تحويلي.`)}>
+                  <Icon name="support_agent" />
+                  راسلنا لتأكيد الدفع
+                </button>
+                <p className="hint">انتهت المهلة فتوقّف التأكيد التلقائي. إذا كنت قد دفعت، راسلنا وسنراجع تحويلك يدوياً.</p>
+              </>
+            ) : (
+              <>
+                <button className="primary-action" disabled={verificationState === 'checking'} onClick={verifyB2BPayment}>
+                  {verificationState === 'checking' ? 'جاري التحقق من الدفع...' : 'لقد دفعت'}
+                  <Icon name="sync" />
+                </button>
+                <p className="hint">بعد الضغط سنراجع التحويل المرسل. لا تحوّل مرة ثانية إلا إذا طلبنا منك ذلك.</p>
+              </>
+            )}
           </main>
         </MobileShell>
       )

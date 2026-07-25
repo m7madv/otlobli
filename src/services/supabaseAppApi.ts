@@ -788,6 +788,17 @@ export const supabaseAppApi: TalabiehApi = {
       }
     },
 
+    // يسجّل "لقد دفعت" في لوحة الإدارة. best-effort: لا يعطّل التحقق الأساسي.
+    async claimPayment(orderId) {
+      if (!supabase) return null
+      const { data, error } = await supabase.rpc('claim_order_payment', {
+        p_order_id: orderId,
+        p_session_token: requireCustomerSessionToken(),
+      })
+      if (error) return { ok: false, reason: 'error' }
+      return data as { ok: boolean; claimed?: boolean; reason?: string }
+    },
+
     // يتحقق من قاعدة البيانات أن كود الإحالة هو رقم هاتف عميل سابق فعلاً، لا
     // أي نص عشوائي - الجدول orders محمي بـRLS فيستخدم RPC ضيقة مخصصة لهذا.
     async validateReferralCode(code) {

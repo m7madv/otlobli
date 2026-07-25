@@ -326,6 +326,8 @@ Deno.serve(async (req) => {
       qadmousNumber: row.qadmous_number || '',
       createdAt: row.created_at,
       paidAt: row.paid_at,
+      paidClaimAt: row.paid_claim_at ?? null,
+      paidClaimCount: row.paid_claim_count ?? 0,
       assignedDriverId: row.assigned_driver_id || '',
       rating: row.rating || undefined,
       ratingNote: row.rating_note || '',

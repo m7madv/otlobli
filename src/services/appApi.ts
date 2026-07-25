@@ -141,6 +141,8 @@ export type TalabiehApi = {
     // ظٹط³طھط¹ظ„ظ… ط¹ظ† ط­ط§ظ„ط© ط§ظ„ط·ظ„ط¨ ط§ظ„ط­ط§ظ„ظٹط© (ط§ظ„ظ…ط±ط­ظ„ط©طŒ ط±ظ‚ظ… ط§ظ„ظ‚ط¯ظ…ظˆط³...) ظ„طھط­ط¯ظٹط« ط´ط§ط´ط©
     // ط§ظ„طھطھط¨ط¹ - ظٹط±ط¬ط¹ null ط¥ط°ط§ ط§ظ„ط·ظ„ط¨ ط؛ظٹط± ظ…ظˆط¬ظˆط¯ ط£ظˆ ط§ظ„ظ‚ط§ط¹ط¯ط© ط؛ظٹط± ظ…طھط§ط­ط©.
     pollOrderStatus: (orderId: string) => Promise<OrderStatusResult | null>
+    // يسجّل ضغط الزبون على "لقد دفعت" ليظهر في لوحة الإدارة (لا يؤكّد الدفع).
+    claimPayment: (orderId: string) => Promise<{ ok: boolean; claimed?: boolean; reason?: string } | null>
     // ظٹطھط­ظ‚ظ‚ ط£ظ† ظƒظˆط¯ ط§ظ„ط¥ط­ط§ظ„ط© (ط±ظ‚ظ… ظ‡ط§طھظپ ط¹ظ…ظٹظ„ ط³ط§ط¨ظ‚) ط­ظ‚ظٹظ‚ظٹ ظ‚ط¨ظ„ طھط·ط¨ظٹظ‚ ط®طµظ… ط§ظ„ط¥ط­ط§ظ„ط©.
     validateReferralCode: (code: string) => Promise<boolean>
     redeemCoupon: (input: RedeemCouponInput) => Promise<RedeemCouponResult>

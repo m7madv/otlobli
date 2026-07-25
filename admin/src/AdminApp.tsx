@@ -49,6 +49,8 @@ type Order = {
   qadmousNumber: string
   createdAt: string
   paidAt?: string
+  paidClaimAt?: string | null
+  paidClaimCount?: number
   assignedDriverId: string
   rating?: number
   ratingNote?: string
@@ -907,7 +909,12 @@ function OrdersTable({
                     <CopyBtn text={order.phone} />
                   </td>
                   <td>{formatMoney(order.total)}</td>
-                  <td><StatusBadge tone={order.paymentStatus === 'مدفوع' ? 'success' : 'pending'}>{order.paymentStatus}</StatusBadge></td>
+                  <td>
+                    <StatusBadge tone={order.paymentStatus === 'مدفوع' ? 'success' : 'pending'}>{order.paymentStatus}</StatusBadge>
+                    {order.paymentStatus === 'بانتظار الدفع' && order.paidClaimAt && (
+                      <span className="claim-flag" title={`الزبون كبس «تم الدفع» ${new Date(order.paidClaimAt).toLocaleString('ar-SY')}`}> ✓ أكّد الدفع</span>
+                    )}
+                  </td>
                   <td><StatusBadge>{orderStatuses[order.statusIndex] ?? 'غير محدد'}</StatusBadge></td>
                   <td>
                     <span className={`cart-progress ${allAdded ? 'cart-progress--done' : ''}`}>
@@ -996,6 +1003,11 @@ function OrderDetail({
         <div>
           <h2>{order.id}</h2>
           <StatusBadge tone={order.paymentStatus === 'مدفوع' ? 'success' : 'pending'}>{order.paymentStatus}</StatusBadge>
+          {order.paymentStatus === 'بانتظار الدفع' && order.paidClaimAt && (
+            <StatusBadge tone="pending">
+              {`الزبون أكّد الدفع ⏱ ${new Date(order.paidClaimAt).toLocaleString('ar-SY')}`}
+            </StatusBadge>
+          )}
         </div>
       </header>
 
