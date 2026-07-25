@@ -1755,13 +1755,25 @@ function DriversPanel({ pin, showNotice }: { pin: string; showNotice: (message: 
   )
 }
 
+const NOTIF_TEMPLATES: { label: string; title: string; body: string }[] = [
+  { label: '🎉 عرض جديد', title: 'وصلنا عروض جديدة! 🎉', body: 'شوف أحدث المنتجات والخصومات داخل التطبيق الآن.' },
+  { label: '🔥 تخفيضات', title: 'تخفيضات حصرية 🔥', body: 'خصومات لفترة محدودة على SHEIN وTemu — لا تفوّتها!' },
+  { label: '🛒 تذكير سلة', title: 'سلتك بتنطرك 🛒', body: 'عندك منتجات بالسلة — أكمل طلبك قبل ما تخلص الكمية.' },
+  { label: '🚚 شحن مجاني', title: 'شحن مجاني اليوم 🚚', body: 'اطلب الآن واستفد من الشحن المجاني على طلبك.' },
+]
+
 function NotificationsPanel({ pin, showNotice }: { pin: string; showNotice: (message: string) => void }) {
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [target, setTarget] = useState<'all' | 'phone'>('all')
   const [phone, setPhone] = useState('')
   const [busy, setBusy] = useState(false)
-  const [lastResult, setLastResult] = useState('')
+  const [lastResult, setLastResult] = useState<{ ok: boolean; text: string } | null>(null)
+
+  const applyTemplate = (t: { title: string; body: string }) => {
+    setTitle(t.title)
+    setBody(t.body)
+  }
 
   const send = () => {
     const t = title.trim()
@@ -1780,7 +1792,7 @@ function NotificationsPanel({ pin, showNotice }: { pin: string; showNotice: (mes
         : { phone: phone.replace(/\D/g, ''), title: t, body: b }
 
     setBusy(true)
-    setLastResult('')
+    setLastResult(null)
     void fetch(SEND_PUSH_FN, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-admin-pin': pin },
@@ -1788,69 +1800,129 @@ function NotificationsPanel({ pin, showNotice }: { pin: string; showNotice: (mes
     })
       .then(async (res) => {
         const data = (await res.json().catch(() => ({}))) as { sent?: number; total?: number; reason?: string; error?: string }
-        if (!res.ok) {
-          throw new Error(data.error || 'فشل الإرسال')
-        }
+        if (!res.ok) throw new Error(data.error || 'فشل الإرسال')
         if (data.reason === 'not_configured') {
-          setLastResult('⚠️ الإشعارات غير مُفعّلة بعد (مفاتيح Firebase غير مضبوطة).')
+          setLastResult({ ok: false, text: '⚠️ الإشعارات غير مُفعّلة بعد (مفاتيح Firebase غير مضبوطة).' })
           showNotice('الإشعارات غير مُفعّلة بعد')
           return
         }
         if (data.reason === 'no_devices') {
-          setLastResult('لا يوجد أجهزة مسجّلة بعد لاستقبال الإشعارات.')
+          setLastResult({ ok: false, text: 'لا يوجد أجهزة مسجّلة بعد لاستقبال الإشعارات. سيصل الإشعار فور تسجيل أول جهاز.' })
           showNotice('لا يوجد أجهزة مسجّلة بعد')
           return
         }
-        setLastResult(`✅ أُرسل إلى ${data.sent ?? 0} جهاز من أصل ${data.total ?? 0}.`)
+        setLastResult({ ok: true, text: `✅ تم الإرسال بنجاح إلى ${data.sent ?? 0} جهاز من أصل ${data.total ?? 0}.` })
         showNotice(`تم الإرسال إلى ${data.sent ?? 0} جهاز`)
         setTitle('')
         setBody('')
       })
-      .catch((error: Error) => showNotice(error.message || 'فشل إرسال الإشعار'))
+      .catch((error: Error) => {
+        setLastResult({ ok: false, text: error.message || 'فشل إرسال الإشعار' })
+        showNotice(error.message || 'فشل إرسال الإشعار')
+      })
       .finally(() => setBusy(false))
   }
+
+  const pvTitle = title.trim() || 'عنوان الإشعار'
+  const pvBody = body.trim() || 'نص الإشعار رح يظهر هون للعميل...'
 
   return (
     <section className="panel">
       <header className="panel-head">
         <h2>الإشعارات</h2>
-        <p className="muted">أرسل إشعاراً يصل هواتف العملاء حتى والتطبيق مغلق.</p>
+        <p className="muted">أرسل إشعاراً يصل هواتف العملاء حتى والتطبيق مغلق — مع معاينة حيّة لشكله على آيفون وأندرويد.</p>
       </header>
 
-      <div className="card notif-compose">
-        <label className="field">
-          <span>عنوان الإشعار</span>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={64} placeholder="مثال: عرض جديد على SHEIN 🎉" />
-        </label>
+      <div className="notif-layout">
+        {/* ── نموذج الكتابة ── */}
+        <div className="card notif-form">
+          <div className="notif-templates">
+            <span className="notif-templates-label">قوالب جاهزة</span>
+            <div className="notif-chips">
+              {NOTIF_TEMPLATES.map((t) => (
+                <button key={t.label} type="button" className="notif-chip" onClick={() => applyTemplate(t)}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
 
-        <label className="field">
-          <span>نص الإشعار</span>
-          <textarea value={body} onChange={(e) => setBody(e.target.value)} maxLength={240} rows={3} placeholder="اكتب رسالتك للعملاء هنا..." />
-        </label>
-
-        <label className="field">
-          <span>إلى مَن؟</span>
-          <select value={target} onChange={(e) => setTarget(e.target.value as 'all' | 'phone')}>
-            <option value="all">كل العملاء</option>
-            <option value="phone">عميل واحد (برقم الهاتف)</option>
-          </select>
-        </label>
-
-        {target === 'phone' && (
           <label className="field">
-            <span>رقم الهاتف</span>
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} dir="ltr" placeholder="9639xxxxxxxx" />
+            <span>عنوان الإشعار <em className="notif-counter">{title.length}/50</em></span>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={50} placeholder="مثال: عرض جديد على SHEIN 🎉" />
           </label>
-        )}
 
-        <button className="primary" onClick={send} disabled={busy}>
-          {busy ? 'جاري الإرسال...' : target === 'all' ? 'إرسال للكل' : 'إرسال'}
-        </button>
+          <label className="field">
+            <span>نص الإشعار <em className="notif-counter">{body.length}/150</em></span>
+            <textarea value={body} onChange={(e) => setBody(e.target.value)} maxLength={150} rows={4} placeholder="اكتب رسالتك للعملاء هنا..." />
+          </label>
 
-        {lastResult && <p className="notif-result">{lastResult}</p>}
-        <p className="muted notif-preview-hint">
-          سيظهر للعميل كإشعار على هاتفه: <strong>{title.trim() || 'العنوان'}</strong> — {body.trim() || 'النص'}
-        </p>
+          <div className="field">
+            <span>إلى مَن؟</span>
+            <div className="notif-seg">
+              <button type="button" className={target === 'all' ? 'is-active' : ''} onClick={() => setTarget('all')}>
+                👥 كل العملاء
+              </button>
+              <button type="button" className={target === 'phone' ? 'is-active' : ''} onClick={() => setTarget('phone')}>
+                📱 عميل واحد
+              </button>
+            </div>
+          </div>
+
+          {target === 'phone' && (
+            <label className="field">
+              <span>رقم هاتف العميل</span>
+              <input value={phone} onChange={(e) => setPhone(e.target.value)} dir="ltr" placeholder="9639xxxxxxxx" />
+            </label>
+          )}
+
+          <button className="primary notif-send" onClick={send} disabled={busy}>
+            {busy ? '⏳ جاري الإرسال...' : target === 'all' ? '🔔 إرسال لكل العملاء' : '🔔 إرسال الإشعار'}
+          </button>
+
+          {lastResult && <p className={`notif-result ${lastResult.ok ? 'is-ok' : 'is-warn'}`}>{lastResult.text}</p>}
+        </div>
+
+        {/* ── المعاينة الحيّة ── */}
+        <div className="notif-previews">
+          <p className="notif-pv-caption">هيك رح يشوفها العميل على جهازه 👇</p>
+
+          {/* iPhone */}
+          <div className="pv-group">
+            <span className="pv-os-label"> شكلها على iPhone</span>
+            <div className="ios-lockscreen">
+              <div className="ios-clock">9:41</div>
+              <div className="ios-notif" dir="rtl">
+                <img className="ios-notif-ico" src="/app-icon.png" alt="" />
+                <div className="ios-notif-txt">
+                  <div className="ios-notif-head">
+                    <span className="ios-notif-app">OTLOBLI</span>
+                    <span className="ios-notif-time">الآن</span>
+                  </div>
+                  <div className="ios-notif-title">{pvTitle}</div>
+                  <div className="ios-notif-body">{pvBody}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Android */}
+          <div className="pv-group">
+            <span className="pv-os-label">🤖 شكلها على Android</span>
+            <div className="and-shade">
+              <div className="and-notif" dir="rtl">
+                <div className="and-notif-head">
+                  <img className="and-notif-ico" src="/app-icon.png" alt="" />
+                  <span className="and-notif-app">otlobli</span>
+                  <span className="and-notif-dot">•</span>
+                  <span className="and-notif-time">الآن</span>
+                </div>
+                <div className="and-notif-title">{pvTitle}</div>
+                <div className="and-notif-body">{pvBody}</div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   )
