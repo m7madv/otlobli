@@ -37,6 +37,70 @@ async function alertAdmin(text) {
   } catch (_) {}
 }
 
+// ── إدارة صحة الأرقام (2026-07-25): إحماء + سقف يومي + نقاط خطر + إيقاف تلقائي ──
+// الهدف: تقليل الحظر عبر ضبط الحجم حسب عمر الرقم، واحترام إشارات واتساب
+// (429 rate-overlimit / 463 timelock / 403 forbidden) بإيقاف الرقم مؤقتاً قبل أن
+// يتحوّل التقييد إلى حظر دائم. لا يمنع الحظر 100% لكن يطيل عمر الرقم ويحميه.
+const PER_NUMBER_PER_DAY = Math.max(20, parseInt(process.env.WHATSAPP_PER_NUMBER_PER_DAY || '300', 10) || 300)
+// سقف تدريجي للأرقام الجديدة (يوم 1..7) ثم السقف الكامل — إحماء.
+const WARMUP_CAPS = [20, 36, 65, 117, 210, 300, 300]
+
+function todayKey() { return new Date().toISOString().slice(0, 10) }
+function healthFile(session) { return path.join(session.authDir, '_health.json') }
+function loadHealth(session) {
+  try {
+    const h = JSON.parse(fs.readFileSync(healthFile(session), 'utf-8'))
+    session.firstSeenAt = h.firstSeenAt || 0
+    session.sentTotal = h.sentTotal || 0
+    session.dayKey = h.dayKey || ''
+    session.sentToday = h.dayKey === todayKey() ? (h.sentToday || 0) : 0
+    session.riskScore = h.riskScore || 0
+    session.pausedUntil = h.pausedUntil || 0
+  } catch (_) {}
+}
+function saveHealth(session) {
+  try {
+    fs.mkdirSync(session.authDir, { recursive: true })
+    fs.writeFileSync(healthFile(session), JSON.stringify({
+      firstSeenAt: session.firstSeenAt, sentTotal: session.sentTotal,
+      dayKey: session.dayKey, sentToday: session.sentToday,
+      riskScore: session.riskScore, pausedUntil: session.pausedUntil,
+    }))
+  } catch (_) {}
+}
+function rollDay(session) {
+  const tk = todayKey()
+  if (session.dayKey !== tk) { session.dayKey = tk; session.sentToday = 0; saveHealth(session) }
+}
+function dailyCap(session) {
+  if (!session.firstSeenAt) return WARMUP_CAPS[0]
+  const ageDays = Math.floor((Date.now() - session.firstSeenAt) / 86400000)
+  if (ageDays >= WARMUP_CAPS.length) return PER_NUMBER_PER_DAY
+  return Math.min(WARMUP_CAPS[ageDays], PER_NUMBER_PER_DAY)
+}
+function isHardPaused(session) { return (session.pausedUntil || 0) > Date.now() }
+function canUse(session) {
+  rollDay(session)
+  return !isHardPaused(session) && session.sentToday < dailyCap(session)
+}
+// يسجّل حدثاً سيّئاً: يرفع نقاط الخطر ويوقف الرقم مؤقتاً حسب الشدّة، وينبّه عند الخطر العالي.
+function penalize(session, points, pauseMs, reason) {
+  session.riskScore = (session.riskScore || 0) + points
+  if (pauseMs > 0) session.pausedUntil = Math.max(session.pausedUntil || 0, Date.now() + pauseMs)
+  if (session.riskScore >= 85) {
+    session.pausedUntil = Math.max(session.pausedUntil || 0, Date.now() + 2 * 60 * 60 * 1000)
+    void alertAdmin(`⚠️ otlobli: رقم (session ${session.id}${session.phoneNumber ? ' / ' + session.phoneNumber : ''}) خطره مرتفع (${session.riskScore}) — أُوقف مؤقتاً لحمايته من الحظر (${reason}).`)
+  }
+  saveHealth(session)
+  console.log(`🩺 session ${session.id}: +${points} خطر (=${session.riskScore})${pauseMs ? `, إيقاف ${Math.round(pauseMs / 60000)}د` : ''} — ${reason}`)
+}
+function classifyAndPenalize(session, code, reason) {
+  if (code === 403) penalize(session, 40, 2 * 60 * 60 * 1000, reason || 'forbidden 403')
+  else if (code === 429) penalize(session, 25, 60 * 60 * 1000, reason || 'rate-overlimit 429')
+  else if (code === 461 || code === 463) penalize(session, 25, 6 * 60 * 60 * 1000, reason || 'timelock')
+  else penalize(session, 15, 0, reason || `disconnect ${code}`)
+}
+
 if (!fs.existsSync(BASE_AUTH_DIR)) {
   fs.mkdirSync(BASE_AUTH_DIR, { recursive: true })
 }
@@ -93,7 +157,7 @@ function loadExistingSessions() {
 }
 
 function createSessionObj(id) {
-  return {
+  const s = {
     id,
     authDir: getAuthDir(id),
     sock: null,
@@ -104,7 +168,17 @@ function createSessionObj(id) {
     connectingPromise: null,
     status: 'idle',
     label: '',
+    // صحة الرقم (إحماء/سقف/خطر/إيقاف) — تُحمّل من _health.json إن وُجد.
+    firstSeenAt: 0,
+    sentTotal: 0,
+    dayKey: '',
+    sentToday: 0,
+    riskScore: 0,
+    pausedUntil: 0,
+    lastSentAt: 0,
   }
+  loadHealth(s)
+  return s
 }
 
 function nextSessionId() {
@@ -126,6 +200,11 @@ export function getAllSessions() {
     qrImageUrl: s.qrCode
       ? 'https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=' + encodeURIComponent(s.qrCode)
       : null,
+    // صحة الرقم (مراقبة): كم أرسل اليوم/السقف، نقاط الخطر، وهل هو موقوف مؤقتاً.
+    sentToday: s.sentToday || 0,
+    dailyCap: dailyCap(s),
+    riskScore: s.riskScore || 0,
+    pausedUntil: (s.pausedUntil && s.pausedUntil > Date.now()) ? s.pausedUntil : null,
   }))
 }
 
@@ -308,6 +387,8 @@ async function initSession(session) {
         session.connected = true
         session.qrCode = null
         session.status = 'connected'
+        if (!session.firstSeenAt) session.firstSeenAt = Date.now() // بداية الإحماء
+        saveHealth(session)
         // استخرج رقم الهاتف من بيانات الاتصال
         const me = sock.user
         if (me?.id) session.phoneNumber = me.id.split(':')[0].split('@')[0]
@@ -329,6 +410,11 @@ async function initSession(session) {
         } else if (code === DisconnectReason.restartRequired) {
           session.sock = null
           initSession(session).then(resolve).catch(reject)
+        } else if (code === 403 || code === 429 || code === 461 || code === 463) {
+          // تقييد من واتساب: أوقف الرقم مؤقتاً وارفع خطره بدل الضغط عليه أكثر.
+          classifyAndPenalize(session, code, `close ${code}`)
+          session.status = 'error'
+          reject(new Error(`تقييد واتساب (${code})`))
         } else {
           session.status = 'error'
           reject(new Error(`انقطع: ${reason}`))
@@ -344,34 +430,51 @@ async function initSession(session) {
 // بالتساوي على كل الأرقام بدل إرهاق أول رقم — كل رقم يرسل أقل = خطر حظر أقل.
 let __rrIndex = 0
 async function sendWithFallback(fn) {
-  const usable = [...sessions.values()].filter(s => s.connected || s.status === 'idle')
-  // المتصلون أولاً (بالترتيب) ثم الخاملون كاحتياط يُوصَلون عند الحاجة.
-  const connected = usable.filter(s => s.connected).sort((a, b) => parseInt(a.id) - parseInt(b.id))
-  const idle = usable.filter(s => !s.connected).sort((a, b) => parseInt(a.id) - parseInt(b.id))
+  const all = [...sessions.values()]
+  const byId = (a, b) => parseInt(a.id) - parseInt(b.id)
 
-  if (connected.length === 0 && idle.length === 0) {
-    throw new Error('لا توجد جلسة واتساب متصلة. أضف رقماً من لوحة الإدارة.')
+  // أولوية: متصل ومؤهّل (غير موقوف وتحت السقف اليومي) → خامل مؤهّل → كاحتياط
+  // أخير متصل تجاوز سقفه (لكنه غير موقوف بأمر واتساب): نرسل منه بدل فشل OTP
+  // كلياً لأن وصول الرمز أهم من السقف الإرشادي. الموقوف بأمر واتساب لا نلمسه.
+  const eligibleConnected = all.filter(s => s.connected && canUse(s)).sort(byId)
+  const eligibleIdle = all.filter(s => !s.connected && s.status !== 'error' && !isHardPaused(s) && canUse(s)).sort(byId)
+  const cappedConnected = all.filter(s => s.connected && !isHardPaused(s) && !canUse(s)).sort(byId)
+
+  if (eligibleConnected.length === 0 && eligibleIdle.length === 0 && cappedConnected.length === 0) {
+    throw new Error('لا توجد جلسة واتساب متاحة (كلها موقوفة/محظورة). أضف رقماً من لوحة الإدارة.')
   }
 
-  // تدوير المتصلين: نبدأ من مؤشّر يتقدّم كل مرة (round-robin) لتوزيع الرسائل.
-  let rotatedConnected = connected
-  if (connected.length > 1) {
-    const start = __rrIndex % connected.length
-    __rrIndex = (__rrIndex + 1) % connected.length
-    rotatedConnected = [...connected.slice(start), ...connected.slice(0, start)]
+  // round-robin على المؤهّلين المتصلين لتوزيع الحمل بالتساوي.
+  let rotated = eligibleConnected
+  if (eligibleConnected.length > 1) {
+    const start = __rrIndex % eligibleConnected.length
+    __rrIndex = (__rrIndex + 1) % eligibleConnected.length
+    rotated = [...eligibleConnected.slice(start), ...eligibleConnected.slice(0, start)]
   }
-  const orderedSessions = [...rotatedConnected, ...idle]
+  const orderedSessions = [...rotated, ...eligibleIdle, ...cappedConnected]
 
   let lastError = null
   for (const session of orderedSessions) {
     try {
       if (!session.connected) await connectSession(session.id)
       await fn(session)
+      // نجاح: عدّاد اليوم + تهدئة الخطر تدريجياً + حفظ.
+      rollDay(session)
+      session.sentToday += 1
+      session.sentTotal += 1
+      session.lastSentAt = Date.now()
+      session.riskScore = Math.max(0, (session.riskScore || 0) - 2)
+      saveHealth(session)
       resetIdleTimer(session)
       return
     } catch (err) {
       lastError = err
-      console.log(`⚠️ Session ${session.id} (${session.phoneNumber || '?'}): فشل الإرسال — ${err.message}`)
+      const m = (err && err.message) || ''
+      if (/429|rate.?over/i.test(m)) penalize(session, 25, 60 * 60 * 1000, 'send 429')
+      else if (/timelock|463|461|restrict/i.test(m)) penalize(session, 25, 6 * 60 * 60 * 1000, 'send timelock')
+      else if (/\b403\b|forbidden/i.test(m)) penalize(session, 40, 2 * 60 * 60 * 1000, 'send 403')
+      else penalize(session, 20, 0, 'send fail')
+      console.log(`⚠️ Session ${session.id} (${session.phoneNumber || '?'}): فشل الإرسال — ${m}`)
     }
   }
 
