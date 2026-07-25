@@ -1,0 +1,56 @@
+name: Android Debug Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - run: npm install
+
+      - run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_WHATSAPP_API_URL: ${{ secrets.VITE_WHATSAPP_API_URL }}
+          VITE_WHATSAPP_AUTH_MODE: ${{ secrets.VITE_WHATSAPP_AUTH_MODE }}
+          VITE_SHEIN_WORKER_URL: ${{ secrets.VITE_SHEIN_WORKER_URL }}
+          VITE_SHEIN_SCRAPER_URL: ${{ secrets.VITE_SHEIN_SCRAPER_URL }}
+          VITE_USD_TO_SYP_RATE: ${{ secrets.VITE_USD_TO_SYP_RATE }}
+          # ميزات v86 مفعّلة على الأندرويد (القيم أدناه عامة، غير سرّية):
+          VITE_PUSH_ENABLED: 'true'
+          VITE_GOOGLE_AUTH_ENABLED: 'true'
+          VITE_GOOGLE_WEB_CLIENT_ID: '677396296147-o5q0rt5qk2rq0rqh714kuki7gabkdmcu.apps.googleusercontent.com'
+
+      # استخدم مفتاح التطوير المُثبَّت (بصمته SHA-1 مسجّلة في Firebase) حتى يعمل
+      # دخول جوجل على الـ APK. مفتاح debug غير سرّي (كلمة السر العامة "android").
+      - name: Use registered debug keystore
+        run: |
+          mkdir -p ~/.android
+          cp android/debug.keystore ~/.android/debug.keystore
+
+      - run: npx cap sync android
+
+      - name: Build debug APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: otlobli-android-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
