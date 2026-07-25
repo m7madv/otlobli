@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 
-type AdminTab = 'dashboard' | 'orders' | 'payments' | 'shipping' | 'customers' | 'drivers' | 'coupons' | 'settings'
+type AdminTab = 'dashboard' | 'orders' | 'payments' | 'shipping' | 'customers' | 'drivers' | 'coupons' | 'notifications' | 'settings'
 type PaymentStatus = 'بانتظار الدفع' | 'مدفوع' | 'فشل المطابقة'
 
 type Coupon = {
@@ -207,6 +207,7 @@ const ADMIN_ORDERS_FN   = `${SUPABASE_URL}/functions/v1/admin-orders`
 const ADMIN_DRIVERS_FN  = `${SUPABASE_URL}/functions/v1/admin-drivers`
 const ADMIN_COUPONS_FN  = `${SUPABASE_URL}/functions/v1/admin-coupons`
 const APP_SETTINGS_FN   = `${SUPABASE_URL}/functions/v1/app-settings`
+const SEND_PUSH_FN      = `${SUPABASE_URL}/functions/v1/send-push`
 const WA_API_BASE = stripBom(import.meta.env.VITE_WHATSAPP_API_URL as string | undefined) || ''
 const ANON_KEY = stripBom(import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)
 const ADMIN_SESSION_STORAGE_KEY = 'talabieh_admin_session'
@@ -705,6 +706,7 @@ function AdminApp() {
           ['customers', 'العملاء', 'group'],
           ['drivers', 'السواقين', 'local_shipping'],
           ['coupons', 'أكواد الخصم', 'sell'],
+          ['notifications', 'الإشعارات', 'notifications'],
           ['settings', 'الإعدادات', 'settings'],
         ] as const).map(([key, label, icon]) => (
           <button className={tab === key ? 'is-active' : ''} key={key} onClick={() => setTab(key as AdminTab)}>
@@ -798,6 +800,7 @@ function AdminApp() {
         )}
         {tab === 'drivers' && <DriversPanel pin={pin} showNotice={showNotice} />}
         {tab === 'coupons' && <CouponsPanel pin={pin} showNotice={showNotice} />}
+        {tab === 'notifications' && <NotificationsPanel pin={pin} showNotice={showNotice} />}
         {tab === 'settings' && (
           <SettingsPanel
             pin={pin}
@@ -1747,6 +1750,107 @@ function DriversPanel({ pin, showNotice }: { pin: string; showNotice: (message: 
             )}
           </tbody>
         </table>
+      </div>
+    </section>
+  )
+}
+
+function NotificationsPanel({ pin, showNotice }: { pin: string; showNotice: (message: string) => void }) {
+  const [title, setTitle] = useState('')
+  const [body, setBody] = useState('')
+  const [target, setTarget] = useState<'all' | 'phone'>('all')
+  const [phone, setPhone] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [lastResult, setLastResult] = useState('')
+
+  const send = () => {
+    const t = title.trim()
+    const b = body.trim()
+    if (!t && !b) {
+      showNotice('اكتب عنواناً أو نصاً للإشعار')
+      return
+    }
+    if (target === 'phone' && phone.replace(/\D/g, '').length < 7) {
+      showNotice('أدخل رقم هاتف صحيح')
+      return
+    }
+    const payload =
+      target === 'all'
+        ? { broadcast: true, title: t, body: b }
+        : { phone: phone.replace(/\D/g, ''), title: t, body: b }
+
+    setBusy(true)
+    setLastResult('')
+    void fetch(SEND_PUSH_FN, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-admin-pin': pin },
+      body: JSON.stringify(payload),
+    })
+      .then(async (res) => {
+        const data = (await res.json().catch(() => ({}))) as { sent?: number; total?: number; reason?: string; error?: string }
+        if (!res.ok) {
+          throw new Error(data.error || 'فشل الإرسال')
+        }
+        if (data.reason === 'not_configured') {
+          setLastResult('⚠️ الإشعارات غير مُفعّلة بعد (مفاتيح Firebase غير مضبوطة).')
+          showNotice('الإشعارات غير مُفعّلة بعد')
+          return
+        }
+        if (data.reason === 'no_devices') {
+          setLastResult('لا يوجد أجهزة مسجّلة بعد لاستقبال الإشعارات.')
+          showNotice('لا يوجد أجهزة مسجّلة بعد')
+          return
+        }
+        setLastResult(`✅ أُرسل إلى ${data.sent ?? 0} جهاز من أصل ${data.total ?? 0}.`)
+        showNotice(`تم الإرسال إلى ${data.sent ?? 0} جهاز`)
+        setTitle('')
+        setBody('')
+      })
+      .catch((error: Error) => showNotice(error.message || 'فشل إرسال الإشعار'))
+      .finally(() => setBusy(false))
+  }
+
+  return (
+    <section className="panel">
+      <header className="panel-head">
+        <h2>الإشعارات</h2>
+        <p className="muted">أرسل إشعاراً يصل هواتف العملاء حتى والتطبيق مغلق.</p>
+      </header>
+
+      <div className="card notif-compose">
+        <label className="field">
+          <span>عنوان الإشعار</span>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={64} placeholder="مثال: عرض جديد على SHEIN 🎉" />
+        </label>
+
+        <label className="field">
+          <span>نص الإشعار</span>
+          <textarea value={body} onChange={(e) => setBody(e.target.value)} maxLength={240} rows={3} placeholder="اكتب رسالتك للعملاء هنا..." />
+        </label>
+
+        <label className="field">
+          <span>إلى مَن؟</span>
+          <select value={target} onChange={(e) => setTarget(e.target.value as 'all' | 'phone')}>
+            <option value="all">كل العملاء</option>
+            <option value="phone">عميل واحد (برقم الهاتف)</option>
+          </select>
+        </label>
+
+        {target === 'phone' && (
+          <label className="field">
+            <span>رقم الهاتف</span>
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} dir="ltr" placeholder="9639xxxxxxxx" />
+          </label>
+        )}
+
+        <button className="primary" onClick={send} disabled={busy}>
+          {busy ? 'جاري الإرسال...' : target === 'all' ? 'إرسال للكل' : 'إرسال'}
+        </button>
+
+        {lastResult && <p className="notif-result">{lastResult}</p>}
+        <p className="muted notif-preview-hint">
+          سيظهر للعميل كإشعار على هاتفه: <strong>{title.trim() || 'العنوان'}</strong> — {body.trim() || 'النص'}
+        </p>
       </div>
     </section>
   )

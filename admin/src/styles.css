@@ -1506,3 +1506,9 @@ tr.row-selected td {
   font-weight: 700;
   vertical-align: middle;
 }
+
+/* لوحة الإشعارات */
+.notif-compose { display: flex; flex-direction: column; gap: 14px; max-width: 560px; }
+.notif-compose textarea { resize: vertical; }
+.notif-result { margin: 4px 0 0; font-weight: 600; }
+.notif-preview-hint { margin: 2px 0 0; font-size: 0.85rem; line-height: 1.5; }

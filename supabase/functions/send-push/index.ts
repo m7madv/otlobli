@@ -205,6 +205,7 @@ Deno.serve(async (req) => {
   let body: {
     customerId?: string
     phone?: string
+    broadcast?: boolean
     title?: string
     body?: string
     data?: Record<string, string>
@@ -223,10 +224,11 @@ Deno.serve(async (req) => {
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY)
 
-  // جلب أجهزة العميل المفعّلة.
+  // جلب الأجهزة المفعّلة: لعميل محدّد، أو لرقم، أو للكل (broadcast).
   let query = supabase.from('device_tokens').select('token, platform').eq('enabled', true)
   if (body.customerId) query = query.eq('customer_id', body.customerId)
   else if (body.phone) query = query.eq('phone', body.phone.replace(/[^0-9]/g, ''))
+  else if (body.broadcast === true) query = query.limit(5000) // إرسال جماعي لكل الأجهزة
   else return json({ error: 'missing_target' }, 400)
 
   const { data: rows, error } = await query
