@@ -474,13 +474,20 @@ export const SHEIN_CAPTURE_SCRIPT = `
     } catch (e) {}
   }
 
-  var SHEIN_REQUIRED_COUNTRY = 'SA';
+  var OTLOBLI_STORE_REGIONS = window.__OTLOBLI_STORE_REGIONS__ || {};
+  var OTLOBLI_SHEIN_REGION = OTLOBLI_STORE_REGIONS.shein || {};
+  var OTLOBLI_TEMU_REGION = OTLOBLI_STORE_REGIONS.temu || {};
+  var SHEIN_REQUIRED_COUNTRY = /^[A-Z]{2}$/.test(String(OTLOBLI_SHEIN_REGION.countryCode || '').toUpperCase())
+    ? String(OTLOBLI_SHEIN_REGION.countryCode).toUpperCase()
+    : 'SA';
   var SHEIN_REQUIRED_CURRENCY = 'USD';
   var SHEIN_REQUIRED_LANGUAGE = 'ar';
   var SHEIN_REQUIRED_SITE_UID = 'pwar';
   var SHEIN_CHALLENGE_PATH_RE = /\\/(?:cdn-cgi|challenge|captcha|verify|verification|security|robot|risk|anti[-_]?bot|human)(?:\\/|$)/i;
   var SHEIN_CHALLENGE_QUERY_RE = /(?:^|[?&#])(?:captcha|challenge|verification|security_token|risk|robot|anti[-_]?bot|human)=/i;
-  var TEMU_REQUIRED_COUNTRY = 'SA';
+  var TEMU_REQUIRED_COUNTRY = /^[A-Z]{2}$/.test(String(OTLOBLI_TEMU_REGION.countryCode || '').toUpperCase())
+    ? String(OTLOBLI_TEMU_REGION.countryCode).toUpperCase()
+    : 'SA';
   var TEMU_REQUIRED_CURRENCY = 'USD';
 
   function writeTemuSaudiUsdState() {
@@ -770,7 +777,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (/^[A-Z]{2}$/.test(value)) return value;
       var name = String(parsed.countryName || '').trim();
       var countryId = String(parsed.countryId || '').trim();
-      if (/^Saudi Arabia$/i.test(name) || countryId === '186') return SHEIN_REQUIRED_COUNTRY;
+      if (/^Saudi Arabia$/i.test(name) || countryId === '186') return 'SA';
       // Fully resolved native addresses omit value/countryAbbr and keep only
       // countryName/countryId. Any explicit non-Saudi country is authoritative
       // foreign state, even when the visible PDP label has changed to a
@@ -963,6 +970,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (sessionStorage.getItem('country') && sessionStorage.getItem('country') !== SHEIN_REQUIRED_COUNTRY) return false;
       if (sessionStorage.getItem('currency') && sessionStorage.getItem('currency') !== SHEIN_REQUIRED_CURRENCY) return false;
     } catch (e) {}
+    // The native country/state/city/district cascade below is intentionally
+    // Saudi-specific. Other admin-selected regions are enforced through the
+    // URL and store state without guessing a foreign address hierarchy.
+    if (SHEIN_REQUIRED_COUNTRY !== 'SA') return true;
     var addressCountry = sheinAddressCookieCountry();
     if (addressCountry && addressCountry !== SHEIN_REQUIRED_COUNTRY) return false;
     if (sheinVisibleForeignRegion()) return false;
@@ -1322,6 +1333,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function ensureSheinSaudiShippingSelection() {
     if (!IS_SHEIN || !document.body || document.readyState === 'loading') return;
+    if (SHEIN_REQUIRED_COUNTRY !== 'SA') return;
     var now = Date.now();
     // tick() runs every 300 ms. DOM-wide text/control inspection does not need
     // that frequency and would be needlessly expensive on older iPhones.
@@ -1386,6 +1398,22 @@ export const SHEIN_CAPTURE_SCRIPT = `
     installSheinSaudiStorageGuard();
     writeSheinSaudiState();
     var normalized = otlobliNormalizeSheinUrl(location.href);
+    if (SHEIN_REQUIRED_COUNTRY !== 'SA') {
+      var genericNeedsReload = shouldReloadSheinForSaudi();
+      if (genericNeedsReload && options && options.navigate) {
+        var genericGuardKey = '__otlobliRegionRedirects:' + SHEIN_REQUIRED_COUNTRY + ':' + Math.floor(Date.now() / 30000);
+        var genericAttempts = parseInt(sessionStorage.getItem(genericGuardKey) || '0', 10);
+        if (genericAttempts < 2) {
+          sessionStorage.setItem(genericGuardKey, String(genericAttempts + 1));
+          location.replace(normalized);
+          return false;
+        }
+      }
+      if (normalized !== location.href) {
+        try { history.replaceState(history.state, '', normalized); } catch (e) {}
+      }
+      return sheinSaudiSignalsOk();
+    }
     var addressCountry = sheinAddressCookieCountry();
     var visibleForeignRegion = addressCountry === SHEIN_REQUIRED_COUNTRY ? false : sheinVisibleForeignRegion();
     if (visibleForeignRegion) {

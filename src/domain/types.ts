@@ -13,6 +13,7 @@ export type UserProfile = {
 export type Screen =
   | 'login'
   | 'otp'
+  | 'google-onboarding'
   | 'onboarding'
   | 'home'
   | 'loading'
@@ -32,6 +33,7 @@ export type Screen =
   | 'support'
   | 'notifications'
   | 'notification-settings'
+  | 'account-access'
   | 'store-select'
   | 'recipient-detail'
 

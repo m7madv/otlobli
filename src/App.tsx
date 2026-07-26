@@ -18,7 +18,15 @@ import { getDeviceId, readStoredJson, storageKeys, useStoredState } from './infr
 import { appApi } from './services'
 import { PAYMENT_MODE, APP_VERSION, TEST_ONLY_AUTH_BYPASS, cleanEnvValue } from './config'
 import { buildWhatsappLink } from './services/whatsappLink'
-import { isGoogleAuthEnabled, signInWithGoogle, linkGoogleToSession } from './services/googleAuthApi'
+import {
+  getAccountAuthMethods,
+  isGoogleAuthEnabled,
+  linkGoogleAccount,
+  linkGoogleToSession,
+  registerGoogleAccount,
+  signInWithGoogle,
+} from './services/googleAuthApi'
+import type { AccountAuthMethods, GoogleProfile } from './services/googleAuthApi'
 import { registerPushNotifications } from './services/pushNotifications'
 import { OTLOBLI_NAV_BOOTSTRAP_SCRIPT, SHEIN_CAPTURE_SCRIPT } from './services/sheinBrowserScript'
 import { App as CapacitorApp } from '@capacitor/app'
@@ -35,8 +43,44 @@ const APP_SETTINGS_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/app-settin
 // بلد المصدر الفعلي (لبنان) شأن تشغيلي داخلي لا يؤثر على ما يراه الزبون:
 // الأسعار بالدولار نفسها، والزبون لا يرى اسم أي بلد (يُعرض "مركز التجميع").
 // السكربت المحقون يقرأ المنطقة من الرابط فيضبط لغة الموقع تلقائياً.
-const SHEIN_HOME_URL = 'https://m.shein.com/ar/?currency=USD&localcountry=SA&country=SA&countryCode=SA&country_code=SA&lang=ar&language=ar&ship_to=SA&shipTo=SA&shipToCountry=SA&shippingCountry=SA&shipping_country=SA&store_country=SA'
-const TEMU_HOME_URL = 'https://www.temu.com/sa/?currency=USD&currencyCode=USD'
+type StoreRegion = {
+  countryCode: string
+  currency: 'USD'
+  language: 'ar'
+}
+
+type StoreRegions = Record<'shein' | 'temu', StoreRegion>
+
+const DEFAULT_STORE_REGIONS: StoreRegions = {
+  shein: { countryCode: 'SA', currency: 'USD', language: 'ar' },
+  temu: { countryCode: 'SA', currency: 'USD', language: 'ar' },
+}
+
+const normalizeStoreCountryCode = (value: unknown, fallback = 'SA') => {
+  const code = String(value ?? '').trim().toUpperCase()
+  return /^[A-Z]{2}$/.test(code) ? code : fallback
+}
+
+const parseStoreRegionSetting = (value: unknown, fallback: StoreRegion): StoreRegion => {
+  if (typeof value !== 'string' || !value.trim()) return fallback
+  try {
+    const parsed = JSON.parse(value) as { countryCode?: unknown }
+    return { ...fallback, countryCode: normalizeStoreCountryCode(parsed.countryCode, fallback.countryCode) }
+  } catch {
+    return { ...fallback, countryCode: normalizeStoreCountryCode(value, fallback.countryCode) }
+  }
+}
+
+const buildSheinHomeUrl = (region: StoreRegion) =>
+  `https://m.shein.com/ar/?currency=${region.currency}&localcountry=${region.countryCode}&country=${region.countryCode}&countryCode=${region.countryCode}&country_code=${region.countryCode}&lang=${region.language}&language=${region.language}&ship_to=${region.countryCode}&shipTo=${region.countryCode}&shipToCountry=${region.countryCode}&shippingCountry=${region.countryCode}&shipping_country=${region.countryCode}&store_country=${region.countryCode}`
+
+const buildTemuHomeUrl = (region: StoreRegion) =>
+  `https://www.temu.com/${region.countryCode.toLowerCase()}/?currency=${region.currency}&currencyCode=${region.currency}`
+
+const SHEIN_HOME_URL = buildSheinHomeUrl(DEFAULT_STORE_REGIONS.shein)
+const TEMU_HOME_URL = buildTemuHomeUrl(DEFAULT_STORE_REGIONS.temu)
+const buildStoreCaptureScript = (regions: StoreRegions) =>
+  `window.__OTLOBLI_STORE_REGIONS__=${JSON.stringify(regions)};\n${SHEIN_CAPTURE_SCRIPT}`
 const SHEIN_CHALLENGE_PATH_RE = /\/(?:cdn-cgi|challenge|captcha|verify|verification|security|robot|risk|anti[-_]?bot|human)(?:\/|\?|#|$)/i
 const SHEIN_CHALLENGE_QUERY_RE = /(?:^|[?&#])(?:captcha|challenge|verification|security_token|risk|robot|anti[-_]?bot|human)=/i
 // يكشف موقع خروج الإنترنت الحالي (بلد/منطقة الـVPN فعلياً) عبر خدمتي geo
@@ -367,8 +411,8 @@ function PhotoCropModal({ src, aspect, hint, onConfirm, onCancel }: {
   )
 }
 
-const normalizeSheinBrowserUrl = (rawUrl: string) => {
-  if (!rawUrl) return SHEIN_HOME_URL
+const normalizeSheinBrowserUrl = (rawUrl: string, region = DEFAULT_STORE_REGIONS.shein) => {
+  if (!rawUrl) return buildSheinHomeUrl(region)
   try {
     const url = new URL(rawUrl)
     if (!/shein/i.test(url.hostname)) return rawUrl
@@ -379,36 +423,42 @@ const normalizeSheinBrowserUrl = (rawUrl: string) => {
     url.protocol = 'https:'
     url.hostname = 'm.shein.com'
     url.pathname = `/ar${path === '/' ? '/' : path}`
-    url.searchParams.set('currency', 'USD')
-    url.searchParams.set('localcountry', 'SA')
-    url.searchParams.set('country', 'SA')
-    url.searchParams.set('countryCode', 'SA')
-    url.searchParams.set('country_code', 'SA')
-    url.searchParams.set('lang', 'ar')
-    url.searchParams.set('language', 'ar')
-    url.searchParams.set('ship_to', 'SA')
-    url.searchParams.set('shipTo', 'SA')
-    url.searchParams.set('shipToCountry', 'SA')
-    url.searchParams.set('shippingCountry', 'SA')
-    url.searchParams.set('shipping_country', 'SA')
-    url.searchParams.set('store_country', 'SA')
+    url.searchParams.set('currency', region.currency)
+    url.searchParams.set('localcountry', region.countryCode)
+    url.searchParams.set('country', region.countryCode)
+    url.searchParams.set('countryCode', region.countryCode)
+    url.searchParams.set('country_code', region.countryCode)
+    url.searchParams.set('lang', region.language)
+    url.searchParams.set('language', region.language)
+    url.searchParams.set('ship_to', region.countryCode)
+    url.searchParams.set('shipTo', region.countryCode)
+    url.searchParams.set('shipToCountry', region.countryCode)
+    url.searchParams.set('shippingCountry', region.countryCode)
+    url.searchParams.set('shipping_country', region.countryCode)
+    url.searchParams.set('store_country', region.countryCode)
     return url.toString()
   } catch {
     return rawUrl
   }
 }
 
-const normalizeTemuBrowserUrl = (rawUrl: string) => {
-  if (!rawUrl) return TEMU_HOME_URL
+const normalizeTemuBrowserUrl = (rawUrl: string, region = DEFAULT_STORE_REGIONS.temu) => {
+  if (!rawUrl) return buildTemuHomeUrl(region)
   try {
     const url = new URL(rawUrl)
     if (!/temu/i.test(url.hostname)) return rawUrl
     url.protocol = 'https:'
     url.hostname = 'www.temu.com'
-    const path = url.pathname.replace(/^\/[a-z]{2}(?=\/|$)/i, '/sa') || '/sa/'
-    url.pathname = path === '/' ? '/sa/' : path
-    url.searchParams.set('currency', 'USD')
-    url.searchParams.set('currencyCode', 'USD')
+    const localePath = `/${region.countryCode.toLowerCase()}`
+    const sourcePath = url.pathname || '/'
+    const path = /^\/[a-z]{2}(?=\/|$)/i.test(sourcePath)
+      ? sourcePath.replace(/^\/[a-z]{2}(?=\/|$)/i, localePath)
+      : sourcePath === '/'
+        ? `${localePath}/`
+        : `${localePath}${sourcePath.startsWith('/') ? sourcePath : `/${sourcePath}`}`
+    url.pathname = path
+    url.searchParams.set('currency', region.currency)
+    url.searchParams.set('currencyCode', region.currency)
     return url.toString()
   } catch {
     return rawUrl
@@ -420,14 +470,12 @@ const normalizeTemuBrowserUrl = (rawUrl: string) => {
 type StoreId = 'shein' | 'temu'
 const STORES: { id: StoreId; name: string; url: string }[] = [
   { id: 'shein', name: 'شي إن', url: SHEIN_HOME_URL },
-  // ملاحظة: تيمو يحدّد اللغة/العملة/المنطقة من IP الـVPN (ثبت أن locale_override
-  // بالرابط يُرفض ويُعاد لكندا)، فالعربية/الأردن/الدولار تتطلب VPN ببلد عربي.
-  // /jo/ = الأردن: عربي + دينار أردني (ثابت ≈ 1.41$). يشغّل الزبون VPN أي دولة
-  // لكن السكريبت يُحوّل تلقائياً لهذا المسار لضمان العربية بصرف النظر عن الـIP.
-  // Current requirement: Saudi Arabia region with USD. Do not change back to /jo/.
+  // تيمو يقرأ المنطقة أيضاً من مسار الدولة. القيمة الفعلية تأتي من إعداد
+  // store_region_temu المستقل، مع بقاء التسعير بالدولار لحماية حسابات الطلب.
   { id: 'temu', name: 'تيمو', url: TEMU_HOME_URL },
 ]
-const storeUrl = (id: string) => (STORES.find((s) => s.id === id)?.url) ?? SHEIN_HOME_URL
+const storeUrl = (id: StoreId, regions = DEFAULT_STORE_REGIONS) =>
+  id === 'temu' ? buildTemuHomeUrl(regions.temu) : buildSheinHomeUrl(regions.shein)
 const storeName = (id?: string) => STORES.find((store) => store.id === id)?.name ?? 'المتجر'
 const temuProductIdentityFromUrl = (rawUrl: string) => {
   if (!rawUrl) return ''
@@ -461,9 +509,11 @@ const storeFromProductUrl = (rawUrl: string): StoreId | undefined => {
   }
   return undefined
 }
-const normalizeStoreBrowserUrl = (rawUrl: string, fallbackStore: StoreId) => {
+const normalizeStoreBrowserUrl = (rawUrl: string, fallbackStore: StoreId, regions = DEFAULT_STORE_REGIONS) => {
   const store = storeFromProductUrl(rawUrl) ?? fallbackStore
-  return store === 'temu' ? normalizeTemuBrowserUrl(rawUrl) : normalizeSheinBrowserUrl(rawUrl)
+  return store === 'temu'
+    ? normalizeTemuBrowserUrl(rawUrl, regions.temu)
+    : normalizeSheinBrowserUrl(rawUrl, regions.shein)
 }
 const GROUP_INVITE_WEB_ORIGIN = 'https://talabieh.vercel.app'
 const GROUP_INVITE_SCHEME = 'otlobli://group'
@@ -496,7 +546,7 @@ function parseGroupInvite(value: string): PendingGroupInvite | null {
   }
 }
 
-const shouldRedirectSheinToSaudi = (rawUrl: string) => {
+const shouldRedirectSheinToRegion = (rawUrl: string, region: StoreRegion) => {
   try {
     const url = new URL(rawUrl)
     if (!/shein/i.test(url.hostname)) return false
@@ -513,12 +563,12 @@ const shouldRedirectSheinToSaudi = (rawUrl: string) => {
     const lang = url.searchParams.get('lang')
     const language = url.searchParams.get('language')
     const shipTo = url.searchParams.get('ship_to') || url.searchParams.get('shipTo') || url.searchParams.get('shipToCountry') || url.searchParams.get('shippingCountry') || url.searchParams.get('shipping_country') || url.searchParams.get('store_country')
-    return (!!country && country !== 'SA') ||
-      (!!countryCode && countryCode !== 'SA') ||
-      (!!currency && currency !== 'USD') ||
-      (!!lang && lang !== 'ar') ||
-      (!!language && language !== 'ar') ||
-      (!!shipTo && shipTo !== 'SA')
+    return (!!country && country.toUpperCase() !== region.countryCode) ||
+      (!!countryCode && countryCode.toUpperCase() !== region.countryCode) ||
+      (!!currency && currency.toUpperCase() !== region.currency) ||
+      (!!lang && lang.toLowerCase() !== region.language) ||
+      (!!language && language.toLowerCase() !== region.language) ||
+      (!!shipTo && shipTo.toUpperCase() !== region.countryCode)
   } catch {
     return false
   }
@@ -535,14 +585,14 @@ const isSheinHumanChallengeUrl = (rawUrl: string) => {
   }
 }
 
-const shouldRedirectTemuToSaudiUsd = (rawUrl: string) => {
+const shouldRedirectTemuToRegion = (rawUrl: string, region: StoreRegion) => {
   try {
     const url = new URL(rawUrl)
     if (!/temu\.com/i.test(url.hostname)) return false
     const pathname = url.pathname || '/'
     const hasLocale = /^\/[a-z]{2}(?:\/|$)/i.test(pathname)
-    const isSaudi = /^\/sa(?:\/|$)/i.test(pathname)
-    return hasLocale && !isSaudi
+    const isSelectedRegion = new RegExp(`^/${region.countryCode.toLowerCase()}(?:/|$)`, 'i').test(pathname)
+    return hasLocale && !isSelectedRegion
   } catch {
     return false
   }
@@ -778,6 +828,11 @@ function App() {
   const [exchangeRateFetchedAt, setExchangeRateFetchedAt] = useState(() => Date.now())
   const [shippingCostShein, setShippingCostShein] = useState(FIXED_SHIPPING_SYP)
   const [shippingCostTemu, setShippingCostTemu] = useState(FIXED_SHIPPING_SYP)
+  const [storeRegions, setStoreRegions] = useState<StoreRegions>(DEFAULT_STORE_REGIONS)
+  const storeRegionsRef = useRef(storeRegions)
+  useEffect(() => { storeRegionsRef.current = storeRegions }, [storeRegions])
+  const [brandName, setBrandName] = useState('otlobli')
+  const [brandLogoDataUrl, setBrandLogoDataUrl] = useState('')
   const [shamcashQrByStore, setShamcashQrByStore] = useState<Record<StoreId, string>>({ shein: '', temu: '' })
   const [shamcashCodeByStore, setShamcashCodeByStore] = useState<Record<StoreId, string>>({ shein: '', temu: '' })
   const [referralDiscountSyp, setReferralDiscountSyp] = useState(0)
@@ -830,8 +885,13 @@ function App() {
   })
   const phone = countryCode + localPhone.replace(/^0+/, '')
 
-  // رمز جوجل المؤقّت بانتظار توثيق الهاتف لأول مرة (ربط الهوية بعد OTP).
+  // هوية Google الجديدة تبقى مؤقتاً حتى يحفظ المستخدم بيانات الاستلام.
+  // رقم الاستلام لا يصبح وسيلة دخول إلا بعد تأكيده اختيارياً عبر OTP.
   const [pendingGoogleIdToken, setPendingGoogleIdToken] = useState('')
+  const [pendingGoogleProfile, setPendingGoogleProfile] = useState<GoogleProfile | null>(null)
+  const [otpPurpose, setOtpPurpose] = useState<'login' | 'link-phone'>('login')
+  const [accountAuthMethods, setAccountAuthMethods] = useState<AccountAuthMethods | null>(null)
+  const [accountAuthBusy, setAccountAuthBusy] = useState(false)
 
   const [otpDigits, setOtpDigits] = useState(['', '', '', ''])
   const otpRefs = useRef<(HTMLInputElement | null)[]>([null, null, null, null])
@@ -847,6 +907,7 @@ function App() {
     initialPendingWhatsappAuth?.verificationMessage ?? '',
   )
   const [authState, setAuthState] = useState<'idle' | 'sending' | 'verifying'>('idle')
+  const [googleAuthBusy, setGoogleAuthBusy] = useState(false)
   const [selectedColor, setSelectedColor] = useState<ProductColor | null>(null)
   const [selectedSize, setSelectedSize] = useState<string>('')
   const [quantity, setQuantity] = useState(1)
@@ -1115,6 +1176,13 @@ function App() {
       setNotice('')
       noticeTimerRef.current = undefined
     }, 2200)
+  }
+
+  const refreshAccountAuthMethods = async (activeToken = sessionToken) => {
+    if (!activeToken || isLegacyPhoneSessionToken(activeToken)) return null
+    const methods = await getAccountAuthMethods(activeToken)
+    setAccountAuthMethods(methods)
+    return methods
   }
 
   const handleGroupInviteUrl = useCallback((url: string) => {
@@ -1463,6 +1531,10 @@ function App() {
     setAppliedReferralCode('')
     setReferralCodeInput('')
     setCurrentOrderId('')
+    setPendingGoogleIdToken('')
+    setPendingGoogleProfile(null)
+    setAccountAuthMethods(null)
+    setOtpPurpose('login')
     setScreen('login')
   }
 
@@ -1519,6 +1591,14 @@ function App() {
   }, [sessionToken])
 
   useEffect(() => {
+    if (screen !== 'account-access' || !sessionToken) return
+    setAccountAuthBusy(true)
+    void refreshAccountAuthMethods(sessionToken)
+      .catch((error: unknown) => showNotice(getPublicErrorMessage(error)))
+      .finally(() => setAccountAuthBusy(false))
+  }, [screen, sessionToken])
+
+  useEffect(() => {
     const fetchRate = () => {
       fetch(`${API_BASE}/api/exchange-rate`)
         .then((r) => r.json())
@@ -1566,12 +1646,53 @@ function App() {
         })
         setReferralDiscountSyp(referralDiscount > 0 ? referralDiscount : 0)
         setProductProfitPercent(Number.isFinite(profitPercent) && profitPercent > 0 ? profitPercent : 0)
+        setStoreRegions({
+          shein: parseStoreRegionSetting(data.store_region_shein, DEFAULT_STORE_REGIONS.shein),
+          temu: parseStoreRegionSetting(data.store_region_temu, DEFAULT_STORE_REGIONS.temu),
+        })
+        const nextBrandName = (data.brand_name ?? '').trim().slice(0, 24)
+        const nextBrandLogo = data.brand_logo_data_url ?? ''
+        setBrandName(nextBrandName || 'otlobli')
+        setBrandLogoDataUrl(/^data:image\/(?:png|jpe?g|webp);base64,/i.test(nextBrandLogo) ? nextBrandLogo : '')
         if (data.feature_group_orders !== undefined) setFeatureGroupOrders(data.feature_group_orders !== 'false')
         if (data.feature_wallet !== undefined) setFeatureWallet(data.feature_wallet !== 'false')
         if (data.feature_coupons !== undefined) setFeatureCoupons(data.feature_coupons !== 'false')
         setSupportPhoneOverride((data.support_whatsapp_phone ?? '').replace(/\D/g, ''))
       })
       .catch(() => undefined)
+  }, [])
+
+  // Region changes are operational controls, so keep them fresher than the
+  // rest of the pricing settings. An admin update reaches a running app within
+  // 30 seconds (or immediately when the app returns to the foreground).
+  useEffect(() => {
+    if (!APP_SETTINGS_URL) return undefined
+    let disposed = false
+    const refreshStoreRegions = () => {
+      const regionSettingsUrl = `${APP_SETTINGS_URL}?keys=store_region_shein,store_region_temu`
+      void fetch(regionSettingsUrl, {
+        headers: { apikey: SUPABASE_ANON_KEY, authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+      })
+        .then((r) => r.json())
+        .then((data: Record<string, string>) => {
+          if (disposed) return
+          setStoreRegions({
+            shein: parseStoreRegionSetting(data.store_region_shein, DEFAULT_STORE_REGIONS.shein),
+            temu: parseStoreRegionSetting(data.store_region_temu, DEFAULT_STORE_REGIONS.temu),
+          })
+        })
+        .catch(() => undefined)
+    }
+    const intervalId = window.setInterval(refreshStoreRegions, 30_000)
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') refreshStoreRegions()
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => {
+      disposed = true
+      window.clearInterval(intervalId)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
   }, [])
 
   useEffect(() => {
@@ -1590,17 +1711,7 @@ function App() {
     const checkInboundMessage = () => {
       void appApi.auth
         .verifyOtp(phone, '')
-        .then(async (result) => {
-          setSessionToken(result.sessionToken)
-          setPendingWhatsappAuth(null)
-          setInboundWhatsappUrl('')
-          setInboundSupportPhone('')
-          setInboundVerificationMessage('')
-          await linkPendingGoogle(result.sessionToken)
-          const target = await fetchProfileAfterLogin(phone)
-          setScreen(target)
-          showNotice('تم تأكيد رقم واتساب من الرسالة')
-        })
+        .then((result) => completePhoneVerification(result.sessionToken, 'تم تأكيد رقم واتساب من الرسالة'))
         .catch(() => undefined)
     }
 
@@ -1617,14 +1728,7 @@ function App() {
     const check = () => {
       void appApi.auth
         .verifyOtp(phone, telegramOtp)
-        .then(async (result) => {
-          setSessionToken(result.sessionToken)
-          setTelegramOtp('')
-          await linkPendingGoogle(result.sessionToken)
-          const target = await fetchProfileAfterLogin(phone)
-          setScreen(target)
-          showNotice('تم تأكيد رقمك بنجاح')
-        })
+        .then((result) => completePhoneVerification(result.sessionToken, 'تم تأكيد رقمك بنجاح'))
         .catch(() => undefined)
     }
 
@@ -2000,10 +2104,34 @@ function App() {
     }
   }
 
-  // تسجيل الدخول عبر جوجل: إمّا جلسة جاهزة (هوية مربوطة) أو طلب توثيق هاتف لأول مرة.
+  const completePhoneVerification = async (activeSessionToken: string, successMessage: string) => {
+    setSessionToken(activeSessionToken)
+    setPendingWhatsappAuth(null)
+    setInboundWhatsappUrl('')
+    setInboundSupportPhone('')
+    setInboundVerificationMessage('')
+    setTelegramOtp('')
+    setOtpDigits(['', '', '', ''])
+    await linkPendingGoogle(activeSessionToken)
+
+    if (otpPurpose === 'link-phone') {
+      await refreshAccountAuthMethods(activeSessionToken).catch(() => undefined)
+      setOtpPurpose('login')
+      setScreen('account-access')
+      showNotice('تم تأكيد رقم الاستلام وربطه لتسجيل الدخول')
+      return
+    }
+
+    const target = await fetchProfileAfterLogin(phone)
+    setScreen(target)
+    showNotice(successMessage)
+  }
+
+  // تسجيل الدخول عبر Google: الهوية المربوطة تدخل فوراً، والجديدة تنتقل إلى
+  // بيانات الاستلام من دون OTP. توثيق الرقم يبقى اختيارياً داخل «حسابي».
   const handleGoogleSignIn = () => {
-    if (authState !== 'idle') return
-    setAuthState('sending')
+    if (authState !== 'idle' || googleAuthBusy) return
+    setGoogleAuthBusy(true)
     void signInWithGoogle()
       .then(async (result) => {
         if (result.mode === 'existing') {
@@ -2015,23 +2143,112 @@ function App() {
           setScreen(target)
           showNotice('تم تسجيل الدخول عبر جوجل')
         } else {
-          // هوية جديدة: احتفظ برمز جوجل واطلب توثيق الهاتف مرة واحدة.
           setPendingGoogleIdToken(result.idToken)
-          showNotice('لتفعيل حسابك أول مرة، وثّق رقم واتساب مرة واحدة وسيُربط بجوجل')
+          setPendingGoogleProfile(result.google)
+          if (result.google.name) {
+            setOnboardingName(sanitizeFullNameInput(result.google.name))
+          }
+          setScreen('google-onboarding')
+          showNotice('تم اختيار حساب Google — أكمل معلومات الاستلام')
         }
       })
-      .catch((error: unknown) => showNotice(getPublicErrorMessage(error)))
-      .finally(() => setAuthState('idle'))
+      .catch((error: unknown) => {
+        const errorCode = typeof error === 'object' && error !== null && 'code' in error
+          ? String((error as { code?: unknown }).code ?? '')
+          : ''
+        const errorMessage = error instanceof Error ? error.message : String(error ?? '')
+        if (/USER_CANCELLED|cancel(?:led|ed)(?: by user)?/i.test(`${errorCode} ${errorMessage}`)) return
+        showNotice(getPublicErrorMessage(error))
+      })
+      .finally(() => setGoogleAuthBusy(false))
   }
 
-  const startLogin = () => {
+  const completeGoogleRegistration = () => {
+    const deliveryPhone = phone.trim()
+    const normalizedName = normalizeFullName(onboardingName)
+    const nameError = getFullNameValidationError(normalizedName)
+    if (!pendingGoogleIdToken || !pendingGoogleProfile) {
+      showNotice('انتهت محاولة Google. أعد اختيار الحساب.')
+      setScreen('login')
+      return
+    }
+    if (nameError) {
+      showNotice(nameError)
+      return
+    }
     if (localPhone.replace(/\D/g, '').length < 7) {
+      showNotice('أدخل رقم استلام صحيح')
+      return
+    }
+    if (QADMOUS_BRANCHES[onboardingGov] && !onboardingBranch) {
+      showNotice('اختر فرع القدموس الأقرب')
+      return
+    }
+
+    setGoogleAuthBusy(true)
+    void registerGoogleAccount(pendingGoogleIdToken, {
+      phone: deliveryPhone,
+      name: normalizedName,
+      governorate: onboardingGov,
+      qadmousBranch: onboardingBranch,
+    })
+      .then(async (result) => {
+        setSessionToken(result.sessionToken)
+        setPendingGoogleIdToken('')
+        setPendingGoogleProfile(null)
+        const profile: UserProfile = {
+          name: result.name || normalizedName,
+          phone: result.phone || deliveryPhone,
+          governorate: onboardingGov,
+          qadmousBranch: onboardingBranch,
+          pickupLabel: '',
+          notificationPrefs,
+        }
+        setUserProfile(profile)
+        setRecipient((current) => ({
+          ...current,
+          name: profile.name,
+          phone: profile.phone ?? deliveryPhone,
+          governorate: profile.governorate,
+          qadmousBranch: profile.qadmousBranch,
+        }))
+        setScreen('home')
+        showNotice('أهلاً بك — تم إنشاء حسابك عبر Google')
+        await refreshAccountAuthMethods(result.sessionToken).catch(() => undefined)
+      })
+      .catch((error: unknown) => showNotice(getPublicErrorMessage(error)))
+      .finally(() => setGoogleAuthBusy(false))
+  }
+
+  const handleLinkGoogleAccount = () => {
+    if (!sessionToken || accountAuthBusy) return
+    setAccountAuthBusy(true)
+    void linkGoogleAccount(sessionToken)
+      .then(async () => {
+        await refreshAccountAuthMethods(sessionToken)
+        showNotice('تم ربط Google بنفس حسابك')
+      })
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error ?? '')
+        if (/USER_CANCELLED|cancel(?:led|ed)(?: by user)?/i.test(message)) return
+        showNotice(getPublicErrorMessage(error))
+      })
+      .finally(() => setAccountAuthBusy(false))
+  }
+
+  const startPhoneVerification = (targetPhone: string, purpose: 'login' | 'link-phone') => {
+    const cleanTargetPhone = targetPhone.replace(/\D/g, '')
+    if (cleanTargetPhone.length < 8) {
       showNotice('أدخل رقم واتساب صحيح')
       return
     }
 
+    const parts = extractCountryCode(cleanTargetPhone)
+    setCountryCode(parts.code)
+    setLocalPhone(parts.local)
+    setOtpPurpose(purpose)
     setAuthState('sending')
-    const tryLogin = () => appApi.auth.startWhatsappLogin(phone)
+    const tryLogin = () => appApi.auth.startWhatsappLogin(cleanTargetPhone)
     void tryLogin()
       .catch(() => new Promise<Awaited<ReturnType<typeof tryLogin>>>((resolve, reject) => setTimeout(() => tryLogin().then(resolve, reject), 2000)))
       .then((result) => {
@@ -2049,7 +2266,7 @@ function App() {
 
         const pendingAuth = result.whatsappUrl
           ? {
-              phone,
+              phone: cleanTargetPhone,
               whatsappUrl: result.whatsappUrl,
               supportPhone: result.supportPhone ?? '',
               verificationMessage: result.verificationMessage ?? '',
@@ -2076,22 +2293,19 @@ function App() {
       .finally(() => setAuthState('idle'))
   }
 
+  const startLogin = () => startPhoneVerification(phone, 'login')
+
+  const handleLinkDeliveryPhone = () => {
+    const deliveryPhone = accountAuthMethods?.deliveryPhone || userProfile?.phone || recipient.phone || phone
+    startPhoneVerification(deliveryPhone, 'link-phone')
+  }
+
   const verifyOtp = () => {
     if (inboundWhatsappUrl) {
       setAuthState('verifying')
       void appApi.auth
         .verifyOtp(phone, '')
-        .then(async (result) => {
-          setSessionToken(result.sessionToken)
-          setPendingWhatsappAuth(null)
-          setInboundWhatsappUrl('')
-          setInboundSupportPhone('')
-          setInboundVerificationMessage('')
-          await linkPendingGoogle(result.sessionToken)
-          const target = await fetchProfileAfterLogin(phone)
-          setScreen(target)
-          showNotice('تم تأكيد رقم واتساب من الرسالة')
-        })
+        .then((result) => completePhoneVerification(result.sessionToken, 'تم تأكيد رقم واتساب من الرسالة'))
         .catch((error: unknown) => showNotice(getPublicErrorMessage(error)))
         .finally(() => setAuthState('idle'))
       return
@@ -2107,14 +2321,7 @@ function App() {
     setAuthState('verifying')
     void appApi.auth
       .verifyOtp(phone, code)
-      .then(async (result) => {
-        setSessionToken(result.sessionToken)
-        setPendingWhatsappAuth(null)
-        await linkPendingGoogle(result.sessionToken)
-        const target = await fetchProfileAfterLogin(phone)
-        setScreen(target)
-        showNotice('تم تأكيد رقم واتساب')
-      })
+      .then((result) => completePhoneVerification(result.sessionToken, 'تم تأكيد رقم واتساب'))
       .catch((error: unknown) => showNotice(getPublicErrorMessage(error)))
       .finally(() => setAuthState('idle'))
   }
@@ -2123,13 +2330,7 @@ function App() {
     if (authState !== 'idle') return
     setAuthState('verifying')
     void appApi.auth.verifyOtp(phone, code)
-      .then(async (result) => {
-        setSessionToken(result.sessionToken)
-        setPendingWhatsappAuth(null)
-        await linkPendingGoogle(result.sessionToken)
-        const target = await fetchProfileAfterLogin(phone)
-        setScreen(target)
-      })
+      .then((result) => completePhoneVerification(result.sessionToken, 'تم تأكيد رقم واتساب'))
       .catch((error: unknown) => {
         showNotice(getPublicErrorMessage(error))
         setOtpDigits(['', '', '', ''])
@@ -2219,7 +2420,7 @@ function App() {
       quantity,
       priceUsd: activeProduct.priceUsd,
       priceSyp: activeProduct.priceSyp || Math.round(activeProduct.priceUsd * exchangeRate),
-      sourceLink: normalizeStoreBrowserUrl(link || activeProduct.link, selectedStore),
+      sourceLink: normalizeStoreBrowserUrl(link || activeProduct.link, selectedStore, storeRegionsRef.current),
     }])
     showNotice('تمت إضافة المنتج إلى السلة')
     setScreen('cart')
@@ -2284,6 +2485,37 @@ function App() {
   useEffect(() => { sheinReadyRef.current = sheinReady }, [sheinReady])
   useEffect(() => { vpnStateRef.current = vpnState }, [vpnState])
   useEffect(() => { vpnGeoRef.current = vpnGeo }, [vpnGeo])
+
+  const previousStoreRegionsRef = useRef(storeRegions)
+  useEffect(() => {
+    const previous = previousStoreRegionsRef.current
+    previousStoreRegionsRef.current = storeRegions
+    const activeStore = selectedStoreRef.current
+    if (previous[activeStore].countryCode === storeRegions[activeStore].countryCode) return
+
+    temuArabicRedirectRef.current = 0
+    sheinSaudiRedirectRef.current = 0
+    if (!sheinOpenedRef.current) return
+
+    // Region constants are injected when the native WebView is created.
+    // Recreate the one active store session once so an admin change cannot
+    // leave old and new region state competing inside the same document.
+    suppressAutoReopenRef.current = true
+    webviewSessionRef.current += 1
+    webviewOpeningRef.current = false
+    webviewOpenedAtRef.current = 0
+    webviewIdRef.current = ''
+    currentWebviewUrlRef.current = ''
+    sheinOpenedRef.current = false
+    setSheinReady(false)
+    void InAppBrowser.close()
+      .catch(() => undefined)
+      .finally(() => {
+        suppressAutoReopenRef.current = false
+        if (screenRef.current !== 'home' || vpnStateRef.current !== 'ok') return
+        window.setTimeout(() => browseSheinRef.current(), 120)
+      })
+  }, [storeRegions])
 
   // The SHEIN webview is a separate native layer floating on top of our own
   // React UI, not part of its DOM - trying to size it precisely to "leave a
@@ -2678,8 +2910,14 @@ function App() {
     // the queued product with an in-page navigation that carries a temu.com
     // referrer. The queued pendingProductUrl stays set for that step.
     const wantsWarmTemuProductNav = activeStore === 'temu' && pendingProductRevealRef.current && !!initialPendingUrl
-    const rawTargetUrl = wantsWarmTemuProductNav ? storeUrl(activeStore) : (initialPendingUrl || storeUrl(activeStore))
-    const targetUrl = activeStore === 'shein' ? normalizeSheinBrowserUrl(rawTargetUrl) : normalizeTemuBrowserUrl(rawTargetUrl)
+    const activeRegions = storeRegionsRef.current
+    const rawTargetUrl = wantsWarmTemuProductNav
+      ? storeUrl(activeStore, activeRegions)
+      : (initialPendingUrl || storeUrl(activeStore, activeRegions))
+    const targetUrl = activeStore === 'shein'
+      ? normalizeSheinBrowserUrl(rawTargetUrl, activeRegions.shein)
+      : normalizeTemuBrowserUrl(rawTargetUrl, activeRegions.temu)
+    const captureScript = buildStoreCaptureScript(activeRegions)
     if (initialPendingUrl && pendingProductRevealRef.current &&
         pendingProductRevealUrlRef.current === targetUrl) {
       markPendingProductNavigationRequested()
@@ -2705,7 +2943,7 @@ function App() {
           isAnimated: false,
         }
         : {
-          preShowScript: SHEIN_CAPTURE_SCRIPT,
+          preShowScript: captureScript,
           preShowScriptInjectionTime: 'documentStart' as const,
           isPresentAfterPageLoad: true,
           // Temu's bottom safe-area/nav height drifted after Orders -> Home
@@ -2835,7 +3073,7 @@ function App() {
       showNotice('رابط المنتج غير متوفر على المتجر')
       return
     }
-    const targetUrl = normalizeStoreBrowserUrl(sourceLink, selectedStoreRef.current)
+    const targetUrl = normalizeStoreBrowserUrl(sourceLink, selectedStoreRef.current, storeRegionsRef.current)
     beginPendingProductPreparation(targetUrl)
     pendingBackTargetRef.current = 'cart'
     showNotice('جاري تجهيز صفحة المنتج...')
@@ -2913,7 +3151,10 @@ function App() {
           pendingProductPageLoadedRef.current = true
         }
         const id = webviewIdRef.current || undefined
-        void InAppBrowser.executeScript({ ...(id ? { id } : {}), code: SHEIN_CAPTURE_SCRIPT })
+        void InAppBrowser.executeScript({
+          ...(id ? { id } : {}),
+          code: buildStoreCaptureScript(storeRegionsRef.current),
+        })
           .catch((err) => {
             console.warn('[otlobli] SHEIN page script injection failed', err)
           })
@@ -2984,9 +3225,8 @@ function App() {
     }
   }, [])
 
-  // اعتراض تحويلات تيمو على مستوى Native: إذا غيّر الخادم الرابط لنسخة غير
-  // Current requirement: force Temu to /sa/ with USD while preserving product paths.
-  // عربية (بسبب IP الـVPN)، نُعيد التوجيه فوراً لـ /jo/ العربية قبل أن تُعرض.
+  // اعتراض تحويلات المتاجر على مستوى Native: إذا غيّر الخادم الرابط لمنطقة
+  // أخرى، نعيده إلى الدولة المحددة لكل متجر قبل أن تظهر للمستخدم.
   // هذا يعمل على مستوى WKWebView مباشرةً، أسرع وأقوى من JS داخل الصفحة.
   useEffect(() => {
     // مقطع الدولة يُفحص بعد الدومين مباشرةً فقط (لا في أي موضع عشوائي بالرابط)
@@ -3009,11 +3249,12 @@ function App() {
           return
         }
         sheinChallengeActiveRef.current = false
-        if (!shouldRedirectSheinToSaudi(url)) {
+        const sheinRegion = storeRegionsRef.current.shein
+        if (!shouldRedirectSheinToRegion(url, sheinRegion)) {
           sheinSaudiRedirectRef.current = 0
           return
         }
-        const saUrl = normalizeSheinBrowserUrl(url)
+        const saUrl = normalizeSheinBrowserUrl(url, sheinRegion)
         if (saUrl === url) {
           sheinSaudiRedirectRef.current = 0
           return
@@ -3027,7 +3268,8 @@ function App() {
         return
       }
       if (!/temu\.com/i.test(url)) return
-      if (!shouldRedirectTemuToSaudiUsd(url)) {
+      const temuRegion = storeRegionsRef.current.temu
+      if (!shouldRedirectTemuToRegion(url, temuRegion)) {
         temuArabicRedirectRef.current = 0
         return
       }
@@ -3037,7 +3279,7 @@ function App() {
       if (now - temuArabicRedirectTsRef.current > 15000) temuArabicRedirectRef.current = 0
       temuArabicRedirectRef.current++
       temuArabicRedirectTsRef.current = now
-      const saUrl = normalizeTemuBrowserUrl(url)
+      const saUrl = normalizeTemuBrowserUrl(url, temuRegion)
       if (saUrl !== url) void InAppBrowser.setUrl({ url: saUrl })
     })
     return () => { void handle.then((h) => h.remove()) }
@@ -3184,7 +3426,9 @@ function App() {
         quantity: 1,
         priceUsd,
         priceSyp: Math.round(priceUsd * exchangeRate),
-        sourceLink: typeof product?.link === 'string' ? normalizeStoreBrowserUrl(product.link, selectedStoreRef.current) : '',
+        sourceLink: typeof product?.link === 'string'
+          ? normalizeStoreBrowserUrl(product.link, selectedStoreRef.current, storeRegionsRef.current)
+          : '',
         needsCustomPhoto: typeof product?.needsCustomPhoto === 'boolean' ? product.needsCustomPhoto : false,
         customPhotoNote: typeof product?.customPhotoNote === 'string' ? product.customPhotoNote : '',
         needsCustomText: typeof product?.needsCustomText === 'boolean' ? product.needsCustomText : false,
@@ -3581,7 +3825,12 @@ function App() {
   const renderScreen = () => {
     if (screen === 'login') {
       return (
-        <AuthShell title="تسجيل الدخول" subtitle="ادخل رقم واتساب لتفعيل حسابك ومتابعة الطلبات">
+        <AuthShell
+          title="تسجيل الدخول"
+          subtitle="اختر طريقة واحدة للدخول. إذا اخترت Google ستضيف رقم الاستلام في الخطوة التالية فقط."
+          brandName={brandName}
+          brandLogoDataUrl={brandLogoDataUrl}
+        >
           <label className="field">
             <span>رقم واتساب</span>
             <div className="phone-field">
@@ -3589,6 +3838,8 @@ function App() {
                 value={countryCode}
                 onChange={(event) => setCountryCode(event.target.value)}
                 aria-label="رمز الدولة"
+                name="country-code"
+                autoComplete="tel-country-code"
                 className="country-select"
               >
                 {COUNTRY_CODES.map((c) => (
@@ -3599,16 +3850,23 @@ function App() {
                 value={localPhone}
                 onChange={(event) => setLocalPhone(event.target.value.replace(/\D/g, ''))}
                 inputMode="tel"
-                placeholder="912345678"
+                type="tel"
+                name="phone"
+                autoComplete="tel-national"
+                aria-describedby="phone-auth-hint"
+                placeholder="مثال: 912345678"
                 dir="ltr"
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && authState === 'idle' && !googleAuthBusy) startLogin()
+                }}
               />
             </div>
           </label>
-          <button className="primary-action" disabled={authState === 'sending'} onClick={startLogin}>
+          <button className="primary-action auth-primary-action" disabled={authState === 'sending' || googleAuthBusy} onClick={startLogin}>
             {authState === 'sending'
               ? usesInboundWhatsappAuth
-                ? 'جاري تجهيز واتساب...'
-                : 'جاري إرسال الرمز...'
+                ? 'جارٍ تجهيز واتساب…'
+                : 'جارٍ إرسال الرمز…'
               : usesInboundWhatsappAuth
                 ? 'تأكيد عبر واتساب'
                 : 'إرسال رمز التحقق'}
@@ -3620,7 +3878,7 @@ function App() {
               <button
                 type="button"
                 className="google-signin-btn"
-                disabled={authState !== 'idle'}
+                disabled={authState !== 'idle' || googleAuthBusy}
                 onClick={handleGoogleSignIn}
               >
                 <svg className="google-g-logo" viewBox="0 0 48 48" width="19" height="19" aria-hidden="true">
@@ -3629,11 +3887,140 @@ function App() {
                   <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
                   <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
                 </svg>
-                <span>{authState === 'sending' ? 'جارٍ فتح Google...' : 'المتابعة باستخدام Google'}</span>
+                <span>{googleAuthBusy ? 'جارٍ فتح Google…' : 'المتابعة باستخدام Google'}</span>
               </button>
             </>
           )}
-          <p className="hint">يلزم تأكيد رقم واتساب قبل إنشاء أي طلب.</p>
+          <p className="auth-trust-note" id="phone-auth-hint">
+            <Icon name="verified_user" />
+            رقم الاستلام لا يصبح وسيلة دخول إلا بعد أن تؤكده بنفسك.
+          </p>
+        </AuthShell>
+      )
+    }
+
+    if (screen === 'google-onboarding') {
+      const cancelGoogleRegistration = () => {
+        setPendingGoogleIdToken('')
+        setPendingGoogleProfile(null)
+        setGoogleAuthBusy(false)
+        setScreen('login')
+      }
+      return (
+        <AuthShell
+          title="جهّز حسابك"
+          subtitle="بقيت معلومات الاستلام فقط. لن نستخدم الرقم للدخول قبل أن تؤكده لاحقاً."
+          onBack={cancelGoogleRegistration}
+          brandName={brandName}
+          brandLogoDataUrl={brandLogoDataUrl}
+        >
+          <div className="google-account-chip" aria-label="حساب Google المختار">
+            <span className="google-account-chip__mark" aria-hidden="true">G</span>
+            <span className="google-account-chip__copy">
+              <b>{pendingGoogleProfile?.name || 'حساب Google'}</b>
+              <small dir="ltr">{pendingGoogleProfile?.email || 'Google'}</small>
+            </span>
+            <Icon name="verified" />
+          </div>
+
+          <label className="field">
+            <span>الاسم الكامل</span>
+            <input
+              value={onboardingName}
+              onChange={(event) => setOnboardingName(sanitizeFullNameInput(event.target.value))}
+              name="full-name"
+              autoComplete="name"
+              placeholder="مثال: محمد أحمد"
+            />
+            {onboardingNameError && <small className="field-error" aria-live="polite">{onboardingNameError}</small>}
+          </label>
+
+          <label className="field">
+            <span>رقم واتساب للاستلام</span>
+            <div className="phone-field">
+              <select
+                value={countryCode}
+                onChange={(event) => setCountryCode(event.target.value)}
+                aria-label="رمز الدولة لرقم الاستلام"
+                name="delivery-country-code"
+                autoComplete="tel-country-code"
+                className="country-select"
+              >
+                {COUNTRY_CODES.map((country) => (
+                  <option key={country.code} value={country.code}>{country.flag} +{country.code}</option>
+                ))}
+              </select>
+              <input
+                value={localPhone}
+                onChange={(event) => setLocalPhone(event.target.value.replace(/\D/g, ''))}
+                inputMode="tel"
+                type="tel"
+                name="delivery-phone"
+                autoComplete="tel-national"
+                placeholder="مثال: 912345678"
+                dir="ltr"
+                aria-describedby="google-delivery-phone-hint"
+              />
+            </div>
+            <small className="field-help" id="google-delivery-phone-hint">
+              هذا رقم التواصل عند الشحن، وليس وسيلة دخول حتى تؤكده بنفسك.
+            </small>
+          </label>
+
+          <label className="field">
+            <span>المحافظة</span>
+            <select
+              value={onboardingGov}
+              onChange={(event) => {
+                setOnboardingGov(event.target.value)
+                setOnboardingBranch('')
+              }}
+              name="governorate"
+              autoComplete="address-level1"
+            >
+              {QADMOUS_GOVS.map((governorate) => (
+                <option key={governorate} value={governorate}>{governorate}</option>
+              ))}
+            </select>
+          </label>
+
+          {QADMOUS_BRANCHES[onboardingGov] ? (
+            <label className="field">
+              <span>فرع القدموس</span>
+              <select
+                value={onboardingBranch}
+                onChange={(event) => setOnboardingBranch(event.target.value)}
+                name="qadmous-branch"
+                autoComplete="off"
+              >
+                <option value="">اختر أقرب فرع</option>
+                {QADMOUS_BRANCHES[onboardingGov].map((branch) => (
+                  <option key={branch} value={branch}>{branch}</option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+
+          <button
+            type="button"
+            className="primary-action auth-primary-action"
+            disabled={
+              googleAuthBusy ||
+              !!onboardingNameError ||
+              !onboardingName.trim() ||
+              localPhone.replace(/\D/g, '').length < 7 ||
+              !!(QADMOUS_BRANCHES[onboardingGov] && !onboardingBranch)
+            }
+            onClick={completeGoogleRegistration}
+          >
+            {googleAuthBusy ? 'جارٍ إنشاء الحساب…' : 'إنشاء الحساب والمتابعة'}
+            <Icon name="arrow_back" />
+          </button>
+
+          <p className="auth-trust-note">
+            <Icon name="lock" />
+            يمكنك ربط الرقم لتسجيل الدخول لاحقاً من «حسابي ← طرق تسجيل الدخول».
+          </p>
         </AuthShell>
       )
     }
@@ -3646,13 +4033,17 @@ function App() {
         setInboundSupportPhone('')
         setInboundVerificationMessage('')
         setAuthState('idle')
-        setScreen('login')
+        const target = otpPurpose === 'link-phone' ? 'account-access' : 'login'
+        setOtpPurpose('login')
+        setScreen(target)
       }
       return (
         <AuthShell
-          title={telegramOtp ? 'تأكيد عبر تيليغرام' : inboundWhatsappUrl ? 'تأكيد واتساب' : 'تأكيد الرقم'}
-          subtitle={telegramOtp ? 'أرسل الرمز أدناه لبوت تيليغرام' : inboundWhatsappUrl ? 'افتح واتساب وأرسل الرسالة الجاهزة فقط' : 'أدخل الرمز المرسل إلى واتساب'}
+          title={otpPurpose === 'link-phone' ? 'ربط رقم الدخول' : telegramOtp ? 'تأكيد عبر تيليغرام' : inboundWhatsappUrl ? 'تأكيد واتساب' : 'تأكيد الرقم'}
+          subtitle={otpPurpose === 'link-phone' ? 'أكد رقم الاستلام مرة واحدة لتستخدمه لاحقاً في تسجيل الدخول.' : telegramOtp ? 'أرسل الرمز أدناه لبوت تيليغرام' : inboundWhatsappUrl ? 'افتح واتساب وأرسل الرسالة الجاهزة فقط' : 'أدخل الرمز المرسل إلى واتساب'}
           onBack={goBackToLogin}
+          brandName={brandName}
+          brandLogoDataUrl={brandLogoDataUrl}
         >
           {telegramOtp ? (
             <section className="whatsapp-verification">
@@ -3696,8 +4087,8 @@ function App() {
                   onChange={(event) => updateOtpDigit(index, event.target.value)}
                   onKeyDown={(event) => handleOtpKeyDown(index, event)}
                   onPaste={(event) => {
-                    event.preventDefault()
-                    pasteOtpDigits(event.clipboardData.getData('text'))
+                    const pastedCode = event.clipboardData.getData('text')
+                    window.setTimeout(() => pasteOtpDigits(pastedCode), 0)
                   }}
                 />
               ))}
@@ -3716,7 +4107,12 @@ function App() {
 
     if (screen === 'onboarding') {
       return (
-        <AuthShell title="أهلاً بك في otlobli" subtitle="أكمل ملفك الشخصي لتسهيل طلباتك">
+        <AuthShell
+          title={`أهلاً بك في ${brandName}`}
+          subtitle="أكمل ملفك الشخصي لتسهيل طلباتك"
+          brandName={brandName}
+          brandLogoDataUrl={brandLogoDataUrl}
+        >
           <label className="field">
             <span>الاسم الكامل</span>
             <input
@@ -5322,6 +5718,11 @@ function App() {
               label="معلومات الاستلام"
               onClick={() => setScreen('recipient-detail')}
             />
+            <ProfileRow
+              icon="passkey"
+              label="طرق تسجيل الدخول"
+              onClick={() => setScreen('account-access')}
+            />
             <ProfileRow icon="receipt_long" label={`طلباتي (${visibleOrders.length})`} onClick={() => setScreen('orders')} />
             <PaymentCurrencyRow
               value={paymentCurrency}
@@ -5338,6 +5739,95 @@ function App() {
             </button>
             <p className="app-version-tag">نسخة التطبيق: {APP_VERSION}</p>
           </main>
+        </MobileShell>
+      )
+    }
+
+    if (screen === 'account-access') {
+      const deliveryPhone = accountAuthMethods?.deliveryPhone || userProfile?.phone || recipient.phone || phone
+      return (
+        <MobileShell active="profile" onNavigate={setScreen} hideBottomNav>
+          <Header title="طرق تسجيل الدخول" back={() => setScreen('profile')} unreadCount={unreadCount} onNotifications={openNotifications} />
+          <main className="mobile-content">
+            <section className="access-intro-card">
+              <div className="access-intro-card__icon" aria-hidden="true">
+                <Icon name="shield_lock" />
+              </div>
+              <div>
+                <h2>حساب واحد، أكثر من طريقة دخول</h2>
+                <p>اربط Google أو رقمك بنفس الحساب. معلومات الطلبات والمحفظة لا تتكرر ولا تنتقل لحساب جديد.</p>
+              </div>
+            </section>
+
+            <section className="access-method-card" aria-labelledby="google-access-title">
+              <div className="access-method-card__head">
+                <span className="access-method-card__brand access-method-card__brand--google" aria-hidden="true">G</span>
+                <div>
+                  <h3 id="google-access-title">Google</h3>
+                  <p dir={accountAuthMethods?.googleEmail ? 'ltr' : 'rtl'}>
+                    {accountAuthMethods?.googleLinked
+                      ? accountAuthMethods.googleEmail || 'مرتبط بهذا الحساب'
+                      : 'دخول سريع من دون رمز واتساب'}
+                  </p>
+                </div>
+                <StatusBadge tone={accountAuthMethods?.googleLinked ? 'success' : 'neutral'}>
+                  {accountAuthBusy && !accountAuthMethods ? 'جارٍ التحقق…' : accountAuthMethods?.googleLinked ? 'مرتبط' : 'غير مرتبط'}
+                </StatusBadge>
+              </div>
+              {!accountAuthMethods?.googleLinked ? (
+                <button
+                  type="button"
+                  className="access-method-action"
+                  disabled={accountAuthBusy}
+                  onClick={handleLinkGoogleAccount}
+                >
+                  <Icon name="add_link" />
+                  {accountAuthBusy ? 'جارٍ ربط Google…' : 'ربط حساب Google'}
+                </button>
+              ) : null}
+            </section>
+
+            <section className="access-method-card" aria-labelledby="phone-access-title">
+              <div className="access-method-card__head">
+                <span className="access-method-card__brand access-method-card__brand--phone" aria-hidden="true">
+                  <Icon name="phone_iphone" />
+                </span>
+                <div>
+                  <h3 id="phone-access-title">رقم واتساب</h3>
+                  <p dir="ltr">{deliveryPhone ? `+${deliveryPhone}` : '—'}</p>
+                </div>
+                <StatusBadge tone={accountAuthMethods?.phoneLinked ? 'success' : 'neutral'}>
+                  {accountAuthBusy && !accountAuthMethods ? 'جارٍ التحقق…' : accountAuthMethods?.phoneLinked ? 'مؤكد' : 'للاستلام فقط'}
+                </StatusBadge>
+              </div>
+              {!accountAuthMethods?.phoneLinked ? (
+                <>
+                  <p className="access-method-card__note">
+                    الرقم محفوظ للتواصل عند الشحن فقط. أكّده إذا أردت استخدامه لتسجيل الدخول.
+                  </p>
+                  <button
+                    type="button"
+                    className="access-method-action"
+                    disabled={accountAuthBusy || !deliveryPhone}
+                    onClick={handleLinkDeliveryPhone}
+                  >
+                    <Icon name="verified_user" />
+                    تأكيد الرقم وربطه
+                  </button>
+                </>
+              ) : (
+                <p className="access-method-card__note access-method-card__note--success">
+                  يمكنك الدخول بهذا الرقم أو بحساب Google، وستصل دائماً إلى نفس الحساب.
+                </p>
+              )}
+            </section>
+
+            <p className="access-security-note">
+              <Icon name="info" />
+              حمايةً لحسابك، لا نربط وسيلة دخول موجودة بحساب آخر تلقائياً.
+            </p>
+          </main>
+          <Toast message={notice} />
         </MobileShell>
       )
     }
@@ -5925,24 +6415,57 @@ function App() {
   )
 }
 
-function AuthShell({ title, subtitle, children, onBack }: { title: string; subtitle: string; children: ReactNode; onBack?: () => void }) {
+function AuthShell({
+  title,
+  subtitle,
+  children,
+  onBack,
+  brandName = 'otlobli',
+  brandLogoDataUrl = '',
+}: {
+  title: string
+  subtitle: string
+  children: ReactNode
+  onBack?: () => void
+  brandName?: string
+  brandLogoDataUrl?: string
+}) {
   return (
-    <div className="auth-shell">
-      <div className="auth-card">
+    <div className="auth-shell" dir="rtl">
+      <main className="auth-card">
         {onBack && (
           <button type="button" className="back-btn" onClick={onBack} aria-label="رجوع">
             <Icon name="arrow_forward" />
-            <span>تغيير الرقم</span>
+            <span>رجوع</span>
           </button>
         )}
-        <div className="brand-lockup">
-          <span>otlobli</span>
-          <small>اطلب من SHEIN واستلم في سوريا</small>
+        <div className="auth-brand-row">
+          <div className={`auth-brand-mark${brandLogoDataUrl ? ' has-image' : ''}`} aria-hidden={!brandLogoDataUrl}>
+            {brandLogoDataUrl ? (
+              <img src={brandLogoDataUrl} alt={`شعار ${brandName}`} width="46" height="46" fetchPriority="high" />
+            ) : (
+              <span translate="no">o</span>
+            )}
+          </div>
+          <div className="brand-lockup">
+            <span translate="no">{brandName}</span>
+            <small>من المتجر إلى سوريا، بطلب واحد</small>
+          </div>
         </div>
-        <h1>{title}</h1>
-        <p>{subtitle}</p>
-        {children}
-      </div>
+        <div className="auth-route" aria-hidden="true">
+          <span translate="no">SHEIN</span>
+          <i />
+          <b>طلبية</b>
+          <i />
+          <span>سوريا</span>
+        </div>
+        <header className="auth-heading">
+          <span className="auth-kicker">حسابك وطلباتك في مكان واحد</span>
+          <h1>{title}</h1>
+          <p>{subtitle}</p>
+        </header>
+        <div className="auth-content">{children}</div>
+      </main>
     </div>
   )
 }
@@ -5965,12 +6488,12 @@ function Header({
   return (
     <header className="app-header">
       <div>
-        {back && <button className="icon-button" onClick={back}><Icon name="arrow_forward" /></button>}
+        {back && <button className="icon-button" onClick={back} aria-label="رجوع"><Icon name="arrow_forward" /></button>}
         <h1>{title}</h1>
       </div>
       <div>
         {actions.map((action) => (
-          <button className="icon-button" key={action} onClick={() => onAction?.(action)}><Icon name={action} /></button>
+          <button className="icon-button" key={action} onClick={() => onAction?.(action)} aria-label={action === 'done_all' ? 'تحديد الكل كمقروء' : action}><Icon name={action} /></button>
         ))}
         {!actions.length && (
           <button className="icon-button notif-bell" onClick={onNotifications} aria-label="الإشعارات">
@@ -5989,7 +6512,7 @@ function Toast({ message }: { message: string }) {
   if (!message) {
     return null
   }
-  return <div className="toast">{message}</div>
+  return <div className="toast" role="status" aria-live="polite">{message}</div>
 }
 
 function HomeScreen({ userName, onRetry, storeName = 'المتجر', failureAdvice }: { userName?: string; onRetry?: () => void; storeName?: string; failureAdvice: ReturnType<typeof getStoreFailureAdvice> }) {
