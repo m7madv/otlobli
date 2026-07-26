@@ -114,7 +114,7 @@ index 8ae3e61..fb71cb6 100644
 +
 +    private void scheduleOtlobliLoadingCoverTimeout() {
 +        mainHandler.removeCallbacks(otlobliLoadingCoverTimeout);
-+        mainHandler.postDelayed(otlobliLoadingCoverTimeout, 18_000L);
++        mainHandler.postDelayed(otlobliLoadingCoverTimeout, 45_000L);
 +    }
 +
 +    private void showOtlobliLoadingCover() {
@@ -214,7 +214,7 @@ index 8ae3e61..fb71cb6 100644
 +            String type = detail != null ? detail.optString("type", "") : "";
 +            switch (type) {
 +                case "sheinSaudiRepairStart" -> {
-+                    otlobliLoadingCoverMessage = "جاري ضبط المتجر على السعودية…";
++                    otlobliLoadingCoverMessage = "جاري ضبط منطقة المتجر…";
 +                    if (otlobliLoadingCoverLabel != null) otlobliLoadingCoverLabel.setText(otlobliLoadingCoverMessage);
 +                    showOtlobliLoadingCover();
 +                }
@@ -996,7 +996,7 @@ index 97a2fc1..d92ed51 100644
 +        switch type {
 +        case "sheinSaudiRepairStart":
 +            cancelOtlobliChallengeReveal()
-+            otlobliLoadingCoverMessage = "جاري ضبط المتجر على السعودية…"
++            otlobliLoadingCoverMessage = "جاري ضبط منطقة المتجر…"
 +            otlobliLoadingCoverLabel?.text = otlobliLoadingCoverMessage
 +            showOtlobliLoadingCover()
 +        case "humanCheck":

@@ -47,13 +47,19 @@ type StoreRegion = {
   countryCode: string
   currency: 'USD'
   language: 'ar'
+  addressPath: string[]
 }
 
 type StoreRegions = Record<'shein' | 'temu', StoreRegion>
 
 const DEFAULT_STORE_REGIONS: StoreRegions = {
-  shein: { countryCode: 'SA', currency: 'USD', language: 'ar' },
-  temu: { countryCode: 'SA', currency: 'USD', language: 'ar' },
+  shein: {
+    countryCode: 'SA',
+    currency: 'USD',
+    language: 'ar',
+    addressPath: ['Riyadh Province', 'Riyadh', 'Al Olaya'],
+  },
+  temu: { countryCode: 'SA', currency: 'USD', language: 'ar', addressPath: [] },
 }
 
 const normalizeStoreCountryCode = (value: unknown, fallback = 'SA') => {
@@ -64,10 +70,24 @@ const normalizeStoreCountryCode = (value: unknown, fallback = 'SA') => {
 const parseStoreRegionSetting = (value: unknown, fallback: StoreRegion): StoreRegion => {
   if (typeof value !== 'string' || !value.trim()) return fallback
   try {
-    const parsed = JSON.parse(value) as { countryCode?: unknown }
-    return { ...fallback, countryCode: normalizeStoreCountryCode(parsed.countryCode, fallback.countryCode) }
+    const parsed = JSON.parse(value) as { countryCode?: unknown; addressPath?: unknown }
+    const countryCode = normalizeStoreCountryCode(parsed.countryCode, fallback.countryCode)
+    const addressPath = Array.isArray(parsed.addressPath)
+      ? parsed.addressPath
+        .map((part) => String(part ?? '').replace(/\s+/g, ' ').trim())
+        .filter(Boolean)
+        .slice(0, 4)
+      : countryCode === fallback.countryCode
+        ? fallback.addressPath
+        : []
+    return { ...fallback, countryCode, addressPath }
   } catch {
-    return { ...fallback, countryCode: normalizeStoreCountryCode(value, fallback.countryCode) }
+    const countryCode = normalizeStoreCountryCode(value, fallback.countryCode)
+    return {
+      ...fallback,
+      countryCode,
+      addressPath: countryCode === fallback.countryCode ? fallback.addressPath : [],
+    }
   }
 }
 
@@ -451,8 +471,8 @@ const normalizeTemuBrowserUrl = (rawUrl: string, region = DEFAULT_STORE_REGIONS.
     url.hostname = 'www.temu.com'
     const localePath = `/${region.countryCode.toLowerCase()}`
     const sourcePath = url.pathname || '/'
-    const path = /^\/[a-z]{2}(?=\/|$)/i.test(sourcePath)
-      ? sourcePath.replace(/^\/[a-z]{2}(?=\/|$)/i, localePath)
+    const path = /^\/[a-z]{2}(?:-[a-z]{2})?(?=\/|$)/i.test(sourcePath)
+      ? sourcePath.replace(/^\/[a-z]{2}(?:-[a-z]{2})?(?=\/|$)/i, localePath)
       : sourcePath === '/'
         ? `${localePath}/`
         : `${localePath}${sourcePath.startsWith('/') ? sourcePath : `/${sourcePath}`}`
@@ -488,7 +508,7 @@ const temuProductIdentityFromUrl = (rawUrl: string) => {
     if (queryId) return `id:${queryId}`
     const pathId = url.pathname.match(/(?:goods|product|g)[^0-9]{0,8}(\d{5,})|[_-](\d{5,})(?:\.html)?$/i)
     if (pathId) return `id:${pathId[1] || pathId[2]}`
-    return `path:${url.hostname.replace(/^www\./i, '')}${url.pathname.replace(/^\/[a-z]{2}(?=\/|$)/i, '')}`
+    return `path:${url.hostname.replace(/^www\./i, '')}${url.pathname.replace(/^\/[a-z]{2}(?:-[a-z]{2})?(?=\/|$)/i, '')}`
   } catch {
     return rawUrl.split(/[?#]/)[0]
   }
@@ -590,9 +610,14 @@ const shouldRedirectTemuToRegion = (rawUrl: string, region: StoreRegion) => {
     const url = new URL(rawUrl)
     if (!/temu\.com/i.test(url.hostname)) return false
     const pathname = url.pathname || '/'
-    const hasLocale = /^\/[a-z]{2}(?:\/|$)/i.test(pathname)
-    const isSelectedRegion = new RegExp(`^/${region.countryCode.toLowerCase()}(?:/|$)`, 'i').test(pathname)
-    return hasLocale && !isSelectedRegion
+    // Temu may preserve the previous region as /jo/, /jo-en/, etc. Accept
+    // both route forms and also repair locale-less roots. Authentication and
+    // anti-bot routes are left alone to avoid the reload loop documented
+    // below in the native URL handler.
+    if (/^\/(?:login|signin|verify|verification|captcha|challenge)(?:[./-]|\/|$)/i.test(pathname)) return false
+    const localeMatch = pathname.match(/^\/([a-z]{2})(?:-[a-z]{2})?(?=\/|$)/i)
+    if (!localeMatch) return pathname === '/' || /^\/(?:home|index)(?:\.html)?\/?$/i.test(pathname)
+    return localeMatch[1].toUpperCase() !== region.countryCode
   } catch {
     return false
   }
@@ -2491,7 +2516,7 @@ function App() {
     const previous = previousStoreRegionsRef.current
     previousStoreRegionsRef.current = storeRegions
     const activeStore = selectedStoreRef.current
-    if (previous[activeStore].countryCode === storeRegions[activeStore].countryCode) return
+    if (JSON.stringify(previous[activeStore]) === JSON.stringify(storeRegions[activeStore])) return
 
     temuArabicRedirectRef.current = 0
     sheinSaudiRedirectRef.current = 0
@@ -2867,7 +2892,9 @@ function App() {
     sheinReadinessTimerRef.current = window.setTimeout(() => {
       sheinReadinessTimerRef.current = undefined
       restartStuckSheinWebview(sessionId)
-    }, 35000)
+    // A full first-run SHEIN cascade can require four async levels on an old
+    // device. Let the region cover finish before treating the WebView as stuck.
+    }, 60000)
   }
 
   const browseShein = () => {
