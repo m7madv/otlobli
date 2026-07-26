@@ -36,10 +36,13 @@ jobs:
       - run: npx cap sync ios
 
       - name: Configure Google Sign-In callback
-        if: ${{ secrets.VITE_GOOGLE_IOS_CLIENT_ID != '' }}
         env:
           VITE_GOOGLE_IOS_CLIENT_ID: ${{ secrets.VITE_GOOGLE_IOS_CLIENT_ID }}
         run: |
+          if [ -z "$VITE_GOOGLE_IOS_CLIENT_ID" ]; then
+            echo "No iOS OAuth client configured; Google action remains hidden in this build."
+            exit 0
+          fi
           client_prefix="${VITE_GOOGLE_IOS_CLIENT_ID%.apps.googleusercontent.com}"
           reversed_client_id="com.googleusercontent.apps.${client_prefix}"
           plist="ios/App/App/Info.plist"
