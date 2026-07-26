@@ -117,8 +117,12 @@ a {
 
 .mobile-shell {
   position: relative;
+  display: flex;
+  flex-direction: column;
   width: min(100%, 440px);
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
   margin-inline: auto;
   overflow: hidden;
   background: var(--background);
@@ -126,21 +130,17 @@ a {
 }
 
 .app-header {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
+  position: relative;
+  flex: 0 0 auto;
   z-index: 30;
   display: flex;
   align-items: center;
   justify-content: space-between;
   min-height: 64px;
-  width: min(100%, 440px);
-  margin-inline: auto;
+  width: 100%;
   padding: env(safe-area-inset-top, 0px) 16px 0;
   border-bottom: 1px solid var(--outline);
-  background: rgba(247, 249, 251, 0.88);
-  backdrop-filter: blur(14px);
+  background: #f7f9fb;
 }
 
 .app-header > div {
@@ -150,12 +150,22 @@ a {
   min-width: 0;
 }
 
+.app-header > div:first-child {
+  flex: 1 1 auto;
+}
+
+.app-header > div:last-child {
+  flex: 0 0 auto;
+}
+
 .app-header h1 {
   margin: 0;
   color: var(--primary);
-  font-size: 1.35rem;
+  font-size: clamp(1.02rem, 5vw, 1.35rem);
   font-weight: 800;
+  line-height: 1.35;
   text-align: right;
+  white-space: nowrap;
 }
 
 .icon-button,
@@ -175,16 +185,20 @@ a {
   background: var(--surface-soft);
 }
 
-/* Top padding clears the now-fixed .app-header (64px + real safe-area-inset-top,
-   which is far bigger than 24px on notched/Dynamic-Island iPhones). Bottom
-   padding clears .bottom-nav using the SAME calc() .bottom-nav itself uses
-   for its height - the old flat 96px assumed a ~16px safe-area-inset-bottom
-   floor, but real iPhones report 34px, so the nav was taller than the
-   padding and list items peeked out from underneath it. */
+/* The shell owns the viewport and only this main region scrolls. Header and
+   navigation therefore never participate in fast-scroll compositing, which
+   keeps them stable on low-memory Android WebViews and iOS. */
 .mobile-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
   display: grid;
+  align-content: start;
   gap: 20px;
-  padding: calc(64px + env(safe-area-inset-top, 0px) + 20px) 16px
+  padding: 20px 16px
     calc(74px + max(env(safe-area-inset-bottom, 0px), 16px) + 16px);
 }
 
@@ -642,9 +656,7 @@ a {
   max-height: calc(74px + max(env(safe-area-inset-bottom, 0px), 16px));
   padding-bottom: max(env(safe-area-inset-bottom, 0px), 16px);
   border-top: 1px solid var(--outline);
-  background: rgba(255, 255, 255, 0.97);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: #ffffff;
 }
 
 .bottom-nav button {
@@ -2278,8 +2290,8 @@ a {
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  min-height: 50px;
-  padding: 0 12px;
+  min-height: 54px;
+  padding: 9px 12px;
   border: 1px solid var(--outline);
   border-radius: 12px;
   background: var(--surface);
@@ -2292,6 +2304,14 @@ a {
 .admin-link:active {
   transform: scale(0.99);
   background: var(--primary-soft);
+}
+
+.profile-row:focus-visible,
+.admin-link:focus-visible,
+.icon-button:focus-visible,
+.bottom-nav button:focus-visible {
+  outline: 3px solid rgba(0, 105, 72, 0.25);
+  outline-offset: -3px;
 }
 
 .profile-row-main,
@@ -2307,9 +2327,12 @@ a {
 .profile-row-main b {
   display: block;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+  line-height: 1.45;
   font-size: 0.94rem;
 }
 
@@ -2326,6 +2349,7 @@ a {
 .profile-row > [class*="icon"]:last-child {
   color: var(--muted);
   opacity: 0.6;
+  flex: 0 0 auto;
 }
 
 .profile-row--danger {
@@ -3620,7 +3644,10 @@ a {
   .auth-card *,
   .google-signin-btn,
   .auth-primary-action,
-  .access-method-action {
+  .access-method-action,
+  .profile-row,
+  .admin-link,
+  .bottom-nav button {
     scroll-behavior: auto;
     transition-duration: 0.01ms !important;
   }

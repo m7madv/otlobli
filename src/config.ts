@@ -17,4 +17,4 @@ export const SOURCE_COUNTRY: 'JO' | 'LB' | 'SA' = 'SA'
 export const TEST_ONLY_AUTH_BYPASS = false
 
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '2026.07.26-v86.4-complete-store-region-routing'
+export const APP_VERSION = '2026.07.26-v86.5-account-recovery-responsive-shell'

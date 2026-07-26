@@ -1036,14 +1036,14 @@ function App() {
   const [recipient, setRecipient] = useStoredState<Recipient>(storageKeys.recipient, {
     name: '', phone: '', governorate: 'دمشق', city: '', details: '', notes: '',
   })
-  const [walletBalanceSyp, setWalletBalanceSyp] = useState(0)
-  const [walletBalanceUsd, setWalletBalanceUsd] = useState(0)
+  const [walletBalanceSyp, setWalletBalanceSyp] = useStoredState(storageKeys.walletBalanceSyp, 0)
+  const [walletBalanceUsd, setWalletBalanceUsd] = useStoredState(storageKeys.walletBalanceUsd, 0)
   const [useWallet, setUseWallet] = useState(false)
   const [walletSpendInput, setWalletSpendInput] = useState('')
   const [featureGroupOrders, setFeatureGroupOrders] = useState(true)
   const [featureWallet, setFeatureWallet] = useState(true)
   const [featureCoupons, setFeatureCoupons] = useState(true)
-  const [walletTransactions, setWalletTransactions] = useState<WalletTransaction[]>([])
+  const [walletTransactions, setWalletTransactions] = useStoredState<WalletTransaction[]>(storageKeys.walletTransactions, [])
   const [cartGroup, setCartGroup] = useStoredState<CartGroupSnapshot | null>(storageKeys.cartGroup, null)
   const [groupJoinCode, setGroupJoinCode] = useState('')
   const [pendingGroupInvite, setPendingGroupInvite] = useState<PendingGroupInvite | null>(null)
@@ -1463,15 +1463,44 @@ function App() {
       setOnboardingBranch(profile.qadmousBranch || '')
     }
     mergeOrdersForPhone(account.orders, loginPhone)
-    const nextWalletBalanceSyp = account.walletBalanceSyp || account.profile?.walletBalanceSyp || 0
+    const nextWalletBalanceSyp = Number.isFinite(account.walletBalanceSyp)
+      ? account.walletBalanceSyp
+      : account.profile?.walletBalanceSyp || 0
     setWalletBalanceSyp(nextWalletBalanceSyp)
-    if (nextWalletBalanceSyp > 0 && exchangeRate > 0) {
-      setWalletBalanceUsd((current) => (
-        current > 0 ? current : Math.round((nextWalletBalanceSyp / exchangeRate) * 100) / 100
-      ))
-    }
+    setWalletBalanceUsd(exchangeRate > 0
+      ? Math.round((nextWalletBalanceSyp / exchangeRate) * 100) / 100
+      : 0)
     setWalletTransactions(account.walletTransactions || [])
-  }, [exchangeRate, mergeOrdersForPhone, setNotificationPrefs, setRecipient, setUserProfile])
+  }, [
+    exchangeRate,
+    mergeOrdersForPhone,
+    setNotificationPrefs,
+    setRecipient,
+    setUserProfile,
+    setWalletBalanceSyp,
+    setWalletBalanceUsd,
+    setWalletTransactions,
+  ])
+
+  const refreshCustomerAccount = useCallback(async (loginPhone: string) => {
+    // Both RPCs are session-scoped. Account data is authoritative for
+    // profile/orders/ledger, while the dedicated wallet RPC supplies the
+    // display balance using the server's current USD rate.
+    const [accountResult, walletResult] = await Promise.allSettled([
+      appApi.customers.getAccount(loginPhone),
+      appApi.wallet.getBalance(loginPhone),
+    ])
+
+    if (accountResult.status === 'rejected') {
+      throw accountResult.reason
+    }
+
+    applyCustomerAccount(accountResult.value, loginPhone)
+    if (walletResult.status === 'fulfilled' && Number.isFinite(walletResult.value)) {
+      setWalletBalanceUsd(walletResult.value)
+    }
+    return accountResult.value
+  }, [applyCustomerAccount, setWalletBalanceUsd])
 
   const buildPersistedProfile = useCallback((
     overrides: Partial<UserProfile> = {},
@@ -1589,12 +1618,8 @@ function App() {
   // تجلب ملف الزبون من الخادم بعد نجاح OTP. إذا وُجد الملف → home مباشرة.
   // إذا لم يوجد → onboarding (سيُحفظ الاسم/المحافظة إلى الخادم بعد الإدخال).
   const fetchProfileAfterLogin = async (loginPhone: string): Promise<'home' | 'onboarding' | 'login'> => {
-    void appApi.wallet.getBalance(loginPhone)
-      .then((bal) => setWalletBalanceUsd(bal))
-      .catch(() => undefined)
     try {
-      const account = await appApi.customers.getAccount(loginPhone)
-      applyCustomerAccount(account, loginPhone)
+      const account = await refreshCustomerAccount(loginPhone)
       if (account.profile?.name || account.orders.length > 0) {
         return 'home'
       }
@@ -1608,6 +1633,46 @@ function App() {
     const hasLocalOrders = false
     return hasLocalProfile || hasLocalOrders ? 'home' : 'onboarding'
   }
+
+  const hydratedSessionRef = useRef('')
+  useEffect(() => {
+    if (!sessionToken || isLegacyPhoneSessionToken(sessionToken)) {
+      hydratedSessionRef.current = ''
+      return
+    }
+
+    // A valid session identifies the customer. The SQL RPC resolves the phone
+    // from that session when this local fallback is empty, so reinstall/crash
+    // recovery does not depend on stale form state.
+    const loginPhone = (userProfile?.phone || recipient.phone || phone).trim()
+    const hydrationKey = `${sessionToken}:${loginPhone}`
+    if (hydratedSessionRef.current === hydrationKey) return
+    hydratedSessionRef.current = hydrationKey
+
+    let cancelled = false
+    void refreshCustomerAccount(loginPhone)
+      .then((account) => {
+        if (cancelled) return
+        if (!userProfile?.name && account.profile?.name) setScreen('home')
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return
+        // Keep the last trusted local snapshot on transient network/database
+        // failures. Only a server-side block forces a destructive logout.
+        if (isBlockedError(error)) forceLogoutBlocked()
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    phone,
+    recipient.phone,
+    refreshCustomerAccount,
+    sessionToken,
+    userProfile?.name,
+    userProfile?.phone,
+  ])
 
   // تسجيل جهاز الإشعارات عند توفّر جلسة صالحة (خامل ما لم تُفعّل الميزة).
   useEffect(() => {

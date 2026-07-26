@@ -568,13 +568,10 @@ export const supabaseAppApi: TalabiehApi = {
         if (/customer_blocked/i.test(error.message || '')) {
           throw new Error('customer_blocked')
         }
-        return {
-          mode: 'external',
-          profile: null,
-          orders: [],
-          walletBalanceSyp: 0,
-          walletTransactions: [],
-        }
+        // A transport/session/database failure is not an authoritative empty
+        // account. Returning empty data here used to erase the locally cached
+        // orders and display a zero wallet whenever a refresh briefly failed.
+        throw new Error(error.message || 'Unable to refresh customer account')
       }
 
       return normalizeCustomerAccount(data)

@@ -72,9 +72,14 @@ async function getGoogleIdToken(): Promise<string> {
   const res = await SocialLogin.login({
     provider: 'google',
     options: {
-      style: 'bottom',
+      // This is an explicit Google button, so use Google's button flow rather
+      // than the passive bottom-sheet suggestion flow. The standard flow shows
+      // the complete device account chooser (and lets the user add an account)
+      // instead of favouring the single previously-authorized credential.
+      style: 'standard',
       filterByAuthorizedAccounts: false,
       autoSelectEnabled: false,
+      forcePrompt: true,
     },
   })
   const googleResult = res.provider === 'google' ? res.result : null

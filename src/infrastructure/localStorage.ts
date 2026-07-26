@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import type { Dispatch, SetStateAction } from 'react'
 
 // يمسح البيانات التجريبية القديمة مرة واحدة عند أول تشغيل للنسخة الحقيقية
 const CLEAN_VERSION = 'v2-real'
@@ -39,6 +40,9 @@ export const storageKeys = {
   selectedStore: 'talabieh.selectedStore',
   cartsByStore: 'talabieh.cartsByStore',
   cartGroup: 'talabieh.cartGroup',
+  walletBalanceSyp: 'talabieh.walletBalanceSyp',
+  walletBalanceUsd: 'talabieh.walletBalanceUsd',
+  walletTransactions: 'talabieh.walletTransactions',
 } as const
 
 export function getDeviceId(): string {
@@ -88,10 +92,28 @@ function writeStoredJson<T>(key: string, value: T) {
 
 export function useStoredState<T>(key: string, initialValue: T) {
   const [value, setValue] = useState<T>(() => readStoredJson(key, initialValue))
+  const valueRef = useRef(value)
+
+  useEffect(() => {
+    valueRef.current = value
+  }, [value])
 
   useEffect(() => {
     writeStoredJson(key, value)
   }, [key, value])
 
-  return [value, setValue] as const
+  // Persist before scheduling React's render. Authentication APIs read the
+  // session directly from localStorage, so waiting for the effect above creates
+  // a race immediately after Google/OTP login: the first account request sees
+  // the previous token and incorrectly treats an existing customer as new.
+  const setStoredValue = useCallback<Dispatch<SetStateAction<T>>>((next) => {
+    const resolved = typeof next === 'function'
+      ? (next as (current: T) => T)(valueRef.current)
+      : next
+    valueRef.current = resolved
+    writeStoredJson(key, resolved)
+    setValue(resolved)
+  }, [key])
+
+  return [value, setStoredValue] as const
 }
