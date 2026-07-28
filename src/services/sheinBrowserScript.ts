@@ -1710,6 +1710,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var root = sheinResolvedShippingUiRoot();
     if (!root) {
       sheinShippingInteractionRoot = null;
+      var staleNavGuard = document.getElementById('otlobli-nav-region-guard');
+      if (staleNavGuard) staleNavGuard.remove();
       sheinRestoreShippingInteractionStyles();
       sheinUnlockPageBehindShippingDrawer();
       return;
@@ -1743,7 +1745,38 @@ export const SHEIN_CAPTURE_SCRIPT = `
       }
     }
 
-    var chromeIds = ['otlobli-nav', 'otlobli-add-btn', 'otlobli-back-btn'];
+    // The native iOS loading cover intentionally stops above the in-page nav.
+    // Keep that nav opaque and visible so the country rows can never appear in
+    // its reserved band. A transparent child guard blocks navigation during
+    // the short automatic cascade without letting touches fall through to
+    // SHEIN; the real tabs become interactive again when the drawer closes.
+    var nav = document.getElementById('otlobli-nav');
+    if (nav) {
+      sheinRememberShippingStyle(nav, 'display', 'flex');
+      sheinRememberShippingStyle(nav, 'visibility', 'visible');
+      sheinRememberShippingStyle(nav, 'opacity', '1');
+      sheinRememberShippingStyle(nav, 'pointer-events', 'auto');
+      sheinRememberShippingStyle(nav, 'background', '#fff');
+      var navGuard = document.getElementById('otlobli-nav-region-guard');
+      if (!navGuard) {
+        navGuard = document.createElement('div');
+        navGuard.id = 'otlobli-nav-region-guard';
+        navGuard.setAttribute('aria-hidden', 'true');
+        navGuard.style.cssText = 'position:absolute!important;inset:0!important;z-index:2147483647!important;' +
+          'display:block!important;background:transparent!important;pointer-events:auto!important;touch-action:none!important;';
+        var blockNavDuringRegionChange = function (event) {
+          if (event.cancelable) event.preventDefault();
+          event.stopPropagation();
+          if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+        };
+        navGuard.addEventListener('pointerdown', blockNavDuringRegionChange, true);
+        navGuard.addEventListener('touchstart', blockNavDuringRegionChange, { capture: true, passive: false });
+        navGuard.addEventListener('click', blockNavDuringRegionChange, true);
+        nav.appendChild(navGuard);
+      }
+    }
+
+    var chromeIds = ['otlobli-add-btn', 'otlobli-back-btn'];
     for (var ci = 0; ci < chromeIds.length; ci++) {
       var chrome = document.getElementById(chromeIds[ci]);
       if (!chrome) continue;
