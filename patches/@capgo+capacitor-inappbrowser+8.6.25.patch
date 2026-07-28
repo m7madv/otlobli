@@ -36,7 +36,7 @@ index ae420ed..ae452de 100644
  
      protected void handleOnPause() {
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
-index 8ae3e61..fb71cb6 100644
+index 8ae3e61..e44560d 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
 +++ b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
 @@ -33,6 +33,7 @@ import android.text.TextUtils;
@@ -88,7 +88,7 @@ index 8ae3e61..fb71cb6 100644
 +    // Substituted at build time from the OTLOBLI_RELAY_KEY env var by
 +    // scripts/inject-relay-key.cjs (see package.json postinstall) - never
 +    // committed in real form, see CHAT_SUMMARY.md section 9.
-+    private static final String OTLOBLI_RELAY_KEY = "OTLOBLI_RELAY_KEY_PLACEHOLDER";
++    private static final String OTLOBLI_RELAY_KEY = "hPY3kD8xBt7i6n5zXq4pKCmlMwucQSRrHW1oaZU9";
      private static final int MAX_MANAGED_DOWNLOAD_REDIRECTS = 10;
      private static final int BLOB_DOWNLOAD_CHUNK_BYTES = 64 * 1024;
      private static final long MAX_LEGACY_BLOB_DOWNLOAD_BYTES = 512L * 1024L;
@@ -114,7 +114,7 @@ index 8ae3e61..fb71cb6 100644
 +
 +    private void scheduleOtlobliLoadingCoverTimeout() {
 +        mainHandler.removeCallbacks(otlobliLoadingCoverTimeout);
-+        mainHandler.postDelayed(otlobliLoadingCoverTimeout, 45_000L);
++        mainHandler.postDelayed(otlobliLoadingCoverTimeout, 18_000L);
 +    }
 +
 +    private void showOtlobliLoadingCover() {
@@ -214,7 +214,7 @@ index 8ae3e61..fb71cb6 100644
 +            String type = detail != null ? detail.optString("type", "") : "";
 +            switch (type) {
 +                case "sheinSaudiRepairStart" -> {
-+                    otlobliLoadingCoverMessage = "جاري ضبط منطقة المتجر…";
++                    otlobliLoadingCoverMessage = "جاري ضبط المتجر على السعودية…";
 +                    if (otlobliLoadingCoverLabel != null) otlobliLoadingCoverLabel.setText(otlobliLoadingCoverMessage);
 +                    showOtlobliLoadingCover();
 +                }
@@ -346,10 +346,22 @@ index 8ae3e61..fb71cb6 100644
              // Strip conditional cache validators on the wire so upstream cannot return 304/3xx,
              // which WebResourceResponse.setStatusCodeAndReasonPhrase rejects (kills the renderer).
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
-index 116e296..43d2699 100644
+index 116e296..cb59472 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
-@@ -206,6 +206,18 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -153,9 +153,11 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+         #if swift(>=4.2)
+         NotificationCenter.default.addObserver(self, selector: #selector(appDidBecomeActive(_:)), name: UIApplication.didBecomeActiveNotification, object: nil)
+         NotificationCenter.default.addObserver(self, selector: #selector(appWillResignActive(_:)), name: UIApplication.willResignActiveNotification, object: nil)
++        NotificationCenter.default.addObserver(self, selector: #selector(appWillEnterForeground(_:)), name: UIApplication.willEnterForegroundNotification, object: nil)
+         #else
+         NotificationCenter.default.addObserver(self, selector: #selector(appDidBecomeActive(_:)), name: .UIApplicationDidBecomeActive, object: nil)
+         NotificationCenter.default.addObserver(self, selector: #selector(appWillResignActive(_:)), name: .UIApplicationWillResignActive, object: nil)
++        NotificationCenter.default.addObserver(self, selector: #selector(appWillEnterForeground(_:)), name: .UIApplicationWillEnterForeground, object: nil)
+         #endif
+     }
+ 
+@@ -206,6 +208,18 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
          return navigationWebViewController
      }
  
@@ -368,7 +380,7 @@ index 116e296..43d2699 100644
      private func notifyPopupWindowOpened(id: String, parentId: String?, url: String?, visible: Bool) {
          var event: [String: Any] = [
              "id": id,
-@@ -355,19 +367,79 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -355,19 +369,79 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
          }
      }
  
@@ -453,7 +465,7 @@ index 116e296..43d2699 100644
      }
  
      private func dismissActiveKeyboard() {
-@@ -907,6 +979,15 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -907,6 +981,15 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
                  self.proxySchemeHandlers[webViewId] = proxyHandler
              }
  
@@ -469,7 +481,7 @@ index 116e296..43d2699 100644
              self.webViewController = WKWebViewController.init(
                  url: url,
                  headers: headers,
-@@ -923,10 +1004,7 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -923,10 +1006,7 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
                  captureConsoleLogs: captureConsoleLogs,
                  proxyRequests: legacyProxyRequests.isEnabled,
                  proxySchemeHandler: proxyHandler,
@@ -481,7 +493,7 @@ index 116e296..43d2699 100644
                  openBlankTargetInWebView: openBlankTargetInWebView
              )
  
-@@ -936,6 +1014,9 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -936,6 +1016,9 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
              }
  
              webViewController.instanceId = webViewId
@@ -491,7 +503,7 @@ index 116e296..43d2699 100644
  
              // Set HTTP method and body if provided
              if let method = httpMethod {
-@@ -1258,9 +1339,15 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -1258,9 +1341,15 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
                      return
                  }
              } else if !self.isPresentAfterPageLoad {
@@ -508,7 +520,7 @@ index 116e296..43d2699 100644
          }
      }
  
-@@ -1324,22 +1411,39 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -1324,22 +1413,39 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
              self.isHidden = hidden
  
              if hidden {
@@ -562,7 +574,7 @@ index 116e296..43d2699 100644
                      return
                  }
              } else {
-@@ -1351,21 +1455,35 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -1351,21 +1457,35 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
                      if let resolvedId {
                          self.setActiveWebView(id: resolvedId, webView: webViewController, navigationController: navController)
                      }
@@ -609,7 +621,7 @@ index 116e296..43d2699 100644
                          return
                      }
                  }
-@@ -1811,6 +1929,25 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -1811,6 +1931,39 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
  
      @objc func appDidBecomeActive(_ notification: NSNotification) {
          self.hidePrivacyScreen()
@@ -623,20 +635,34 @@ index 116e296..43d2699 100644
 +        // throttled/suspended while the app is in the background, so the
 +        // __otlobliRecompose message often never arrives (or arrives late).
 +        // didBecomeActive, on the other hand, fires 100% on resume - so drive
-+        // the recompose directly from here. Recompose every registered webview
-+        // (SHEIN and Temu both), delayed a beat so the view hierarchy and the
-+        // GPU render server have settled after coming back to the foreground.
-+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
-+            guard let self = self else { return }
-+            for (_, controller) in self.webViewControllers {
-+                controller.otlobliForceRecompose()
++        // the recompose directly from here. v86.5: the page is now heavier, so a
++        // single recompose can land before the GPU render server is ready and
++        // "miss". We fire a forced burst at several delays so at least one lands
++        // after the compositor is ready. `force` bypasses the recompose cooldown.
++        self.otlobliRecomposeAllWebViews()
++    }
++
++    // برست إعادة إرفاق مُجبَر عند الرجوع/الدخول للواجهة: عدّة محاولات لأن الصفحة
++    // الأثقل (v86) قد لا "تمسك" من محاولة واحدة قبل جهوزية المُركِّب.
++    private func otlobliRecomposeAllWebViews() {
++        for delay in [0.12, 0.5, 1.2, 2.2] {
++            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
++                guard let self = self else { return }
++                for (_, controller) in self.webViewControllers {
++                    controller.otlobliForceRecompose(force: true)
++                }
 +            }
 +        }
++    }
++
++    @objc func appWillEnterForeground(_ notification: NSNotification) {
++        // أبكر من didBecomeActive — نبدأ إعادة الإرفاق مباشرةً عند دخول الواجهة.
++        self.otlobliRecomposeAllWebViews()
      }
  
      @objc func appWillResignActive(_ notification: NSNotification) {
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
-index 1c70884..be2b8ac 100644
+index 1c70884..60018b4 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
 @@ -449,6 +449,34 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
@@ -669,7 +695,7 @@ index 1c70884..be2b8ac 100644
 +    // Substituted at build time from the OTLOBLI_RELAY_KEY env var by
 +    // scripts/inject-relay-key.cjs (see package.json postinstall) - never
 +    // committed in real form, see CHAT_SUMMARY.md section 9.
-+    static let otlobliRelayKey = "OTLOBLI_RELAY_KEY_PLACEHOLDER"
++    static let otlobliRelayKey = "hPY3kD8xBt7i6n5zXq4pKCmlMwucQSRrHW1oaZU9"
 +
      weak var plugin: CapgoInAppBrowserPlugin?
      private var pendingTasks: [String: PendingProxyTask] = [:]
@@ -816,7 +842,7 @@ index 1c70884..be2b8ac 100644
          if
              ProxySchemeRequestSupport.supportsRequestBody(method: context.method),
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
-index 97a2fc1..d92ed51 100644
+index 97a2fc1..ad7fa14 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
 @@ -748,6 +748,26 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
@@ -996,7 +1022,7 @@ index 97a2fc1..d92ed51 100644
 +        switch type {
 +        case "sheinSaudiRepairStart":
 +            cancelOtlobliChallengeReveal()
-+            otlobliLoadingCoverMessage = "جاري ضبط منطقة المتجر…"
++            otlobliLoadingCoverMessage = "جاري ضبط المتجر على السعودية…"
 +            otlobliLoadingCoverLabel?.text = otlobliLoadingCoverMessage
 +            showOtlobliLoadingCover()
 +        case "humanCheck":
@@ -1051,7 +1077,7 @@ index 97a2fc1..d92ed51 100644
      private func startObservingKeyboardViewportChanges() {
          guard !isObservingKeyboardViewportChanges else {
              return
-@@ -1025,6 +1220,72 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1025,6 +1220,75 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          return max(0.05, duration.doubleValue)
      }
  
@@ -1076,9 +1102,12 @@ index 97a2fc1..d92ed51 100644
 +    // (same Auto Layout constraints) and preserve scroll offset so nothing else
 +    // about the page changes. A ~1 frame blank is imperceptible next to a
 +    // permanent freeze.
-+    func otlobliForceRecompose() {
++    func otlobliForceRecompose(force: Bool = false) {
++        // v86.5: على الصفحة الأثقل صارت إعادة الإرفاق مرة واحدة غير كافية أحياناً.
++        // نسمح ببرست مُجبَر (force) عند الرجوع من الخلفية يتجاوز الـcooldown ليُطلق
++        // عدّة مرات حتى «يمسك» المُركِّب بعد أن يجهز.
 +        let now = Date().timeIntervalSince1970
-+        if now - otlobliLastRecomposeAt < 1.0 { return }
++        if !force && now - otlobliLastRecomposeAt < 1.0 { return }
 +        otlobliLastRecomposeAt = now
 +        DispatchQueue.main.async { [weak self] in
 +            guard let self = self,
@@ -1124,7 +1153,7 @@ index 97a2fc1..d92ed51 100644
      private func scheduleWebViewViewportRefresh(force: Bool = false, delay: TimeInterval = 0.05) {
          DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
              self?.refreshWebViewViewportIfNeeded(force: force)
-@@ -1135,7 +1396,17 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1135,7 +1399,17 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
      public func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
          if message.name == "messageHandler" {
              if let messageBody = message.body as? [String: Any] {
@@ -1142,7 +1171,7 @@ index 97a2fc1..d92ed51 100644
                  emit("messageFromWebview", data: messageBody)
              } else {
                  print("Received non-dictionary message from JavaScript:", message.body)
-@@ -1581,6 +1852,8 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1581,6 +1855,8 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          self.hiddenPopupWindow = parent.hiddenPopupWindow
          self.opensHidden = parent.hiddenPopupWindow
          self.captureConsoleLogs = parent.captureConsoleLogs
@@ -1151,7 +1180,7 @@ index 97a2fc1..d92ed51 100644
          self.allowWebViewJsVisibilityControl = parent.allowWebViewJsVisibilityControl
          self.allowScreenshotsFromWebPage = parent.allowScreenshotsFromWebPage
          self.handleDownloads = parent.handleDownloads
-@@ -1818,6 +2091,13 @@ public extension WKWebViewController {
+@@ -1818,6 +2094,13 @@ public extension WKWebViewController {
  
      open func cleanupWebView() {
          guard let webView = self.webView else { return }
@@ -1165,7 +1194,7 @@ index 97a2fc1..d92ed51 100644
          webView.stopLoading()
          previewItemURL = nil
  
-@@ -2682,6 +2962,12 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2682,6 +2965,12 @@ extension WKWebViewController: WKNavigationDelegate {
      public func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
          updateBarButtonItems()
          self.progressView?.progress = 0
@@ -1178,7 +1207,7 @@ index 97a2fc1..d92ed51 100644
          if let urlValue = webView.url {
              self.url = urlValue
              delegate?.webViewController?(self, didStart: urlValue)
-@@ -2703,12 +2989,18 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2703,12 +2992,18 @@ extension WKWebViewController: WKNavigationDelegate {
                      DispatchQueue.global(qos: .userInitiated).async {
                          self.injectPreShowScript()
                          DispatchQueue.main.async { [weak self] in
@@ -1199,7 +1228,7 @@ index 97a2fc1..d92ed51 100644
              }
          } else if self.preShowScript != nil &&
                      !self.preShowScript!.isEmpty &&
-@@ -2743,7 +3035,7 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2743,7 +3038,7 @@ extension WKWebViewController: WKNavigationDelegate {
              self.url = url
              delegate?.webViewController?(self, didFail: url, withError: error)
          }
@@ -1208,7 +1237,7 @@ index 97a2fc1..d92ed51 100644
      }
  
      public func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-@@ -2753,7 +3045,16 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2753,7 +3048,16 @@ extension WKWebViewController: WKNavigationDelegate {
              self.url = url
              delegate?.webViewController?(self, didFail: url, withError: error)
          }
