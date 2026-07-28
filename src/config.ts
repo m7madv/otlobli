@@ -17,4 +17,4 @@ export const SOURCE_COUNTRY: 'JO' | 'LB' | 'SA' = 'SA'
 export const TEST_ONLY_AUTH_BYPASS = false
 
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '2026.07.28-v86.10-ios-persistent-nav-region-cover'
+export const APP_VERSION = '2026.07.28-v86.11-scroll-safe-nav-input'

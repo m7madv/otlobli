@@ -64,6 +64,20 @@ const checks = [
       'if (JSON.stringify(previous[activeStore]) === JSON.stringify(storeRegions[activeStore])) return',
     ],
   },
+  {
+    label: 'SHEIN scroll/navigation interaction guard',
+    file: 'src/services/sheinBrowserScript.ts',
+    markers: [
+      'function sheinRestoreNavAfterShipping()',
+      "nav.style.setProperty('pointer-events', 'auto', 'important')",
+      "nav.removeAttribute('data-otlobli-nav-yield')",
+      "if (nav.querySelector('#otlobli-nav-region-guard'))",
+      'function otlobliInteractionActive()',
+      'if (IS_SHEIN && otlobliInteractionActive() &&',
+      '!sheinNativeCoverRepairActive && !sheinShippingBodyLockState',
+      'sheinShippingUiLikelyOpen() && sheinResolvedShippingUiRoot()',
+    ],
+  },
 ]
 
 const failures = []

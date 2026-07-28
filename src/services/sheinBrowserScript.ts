@@ -990,7 +990,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       // Do not uncover a fully resolved address drawer for one last frame.
       // Close SHEIN's own surface first, then let the next short progress tick
       // release the native cover after its closing animation has detached it.
-      if (sheinResolvedShippingUiRoot()) {
+      if (sheinShippingUiLikelyOpen() && sheinResolvedShippingUiRoot()) {
         closeResolvedSheinShippingUi();
         scheduleSheinShippingProgress(OTLOBLI_LOW_END ? 260 : 160);
         return;
@@ -1406,6 +1406,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var sheinShippingProgressKey = '';
   var sheinShippingProgressAt = 0;
   var sheinShippingProgressTimer = 0;
+  var sheinResolvedShippingRootCache = null;
+  var sheinResolvedShippingRootCacheAt = 0;
 
   function resetSheinShippingProgress(sessionKey) {
     sheinShippingSessionKey = sessionKey || '';
@@ -1485,6 +1487,15 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // limited to a visible shipping drawer and its exact close/confirm action.
   function sheinResolvedShippingUiRoot() {
     if (!document.body) return null;
+    var now = Date.now();
+    var cacheGap = sheinNativeCoverRepairActive ? 90 : 700;
+    if (now - sheinResolvedShippingRootCacheAt < cacheGap) {
+      if (!sheinResolvedShippingRootCache) return null;
+      if (sheinResolvedShippingRootCache.isConnected &&
+          sheinElementIsPainted(sheinResolvedShippingRootCache)) {
+        return sheinResolvedShippingRootCache;
+      }
+    }
     var vp = { width: window.innerWidth || 0, height: window.innerHeight || 0 };
     var options = sheinVisibleCascadeOptions();
     var tabs = sheinVisibleShippingTabs();
@@ -1516,7 +1527,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
       for (var depth = 0; current && current !== document.body && depth < 9; current = current.parentElement, depth++) {
         if (inspect(current)) matched = current;
       }
-      if (matched) return matched;
+      if (matched) {
+        sheinResolvedShippingRootCache = matched;
+        sheinResolvedShippingRootCacheAt = now;
+        return matched;
+      }
     }
 
     var candidates = document.querySelectorAll(
@@ -1528,8 +1543,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
       for (var candidate = candidates[i], hop = 0; candidate && candidate !== document.body && hop < 5; candidate = candidate.parentElement, hop++) {
         if (inspect(candidate)) candidateRoot = candidate;
       }
-      if (candidateRoot) return candidateRoot;
+      if (candidateRoot) {
+        sheinResolvedShippingRootCache = candidateRoot;
+        sheinResolvedShippingRootCacheAt = now;
+        return candidateRoot;
+      }
     }
+    sheinResolvedShippingRootCache = null;
+    sheinResolvedShippingRootCacheAt = now;
     return null;
   }
 
@@ -1591,6 +1612,26 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var sheinShippingInteractionStyles = [];
   var sheinShippingBodyLockState = null;
   var sheinShippingTouchGuardInstalled = false;
+
+  function sheinShippingUiLikelyOpen() {
+    if (sheinShippingInteractionRoot && sheinShippingInteractionRoot.isConnected) return true;
+    return !!document.querySelector(
+      '.c-address-upper-drawer,.address-header-tab .j-tab-item,' +
+      'li.cascade__list--option,[role="listbox"] > li,.sui-drawer__body [role="option"]'
+    );
+  }
+
+  function sheinRestoreNavAfterShipping() {
+    var nav = document.getElementById('otlobli-nav');
+    if (!nav) return null;
+    nav.style.setProperty('display', 'flex', 'important');
+    nav.style.setProperty('visibility', 'visible', 'important');
+    nav.style.setProperty('opacity', '1', 'important');
+    nav.style.setProperty('pointer-events', 'auto', 'important');
+    nav.style.setProperty('background', '#fff', 'important');
+    nav.removeAttribute('data-otlobli-nav-yield');
+    return nav;
+  }
 
   function sheinRememberShippingStyle(el, name, value) {
     if (!el || !el.style) return;
@@ -1707,13 +1748,15 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // maintenance tick and creates no new polling loop.
   function stabilizeSheinShippingDrawerInteraction() {
     if (!IS_SHEIN || !document.body) return;
-    var root = sheinResolvedShippingUiRoot();
+    var root = sheinShippingUiLikelyOpen() ? sheinResolvedShippingUiRoot() : null;
     if (!root) {
       sheinShippingInteractionRoot = null;
       var staleNavGuard = document.getElementById('otlobli-nav-region-guard');
       if (staleNavGuard) staleNavGuard.remove();
       sheinRestoreShippingInteractionStyles();
       sheinUnlockPageBehindShippingDrawer();
+      var restoredNav = sheinRestoreNavAfterShipping();
+      if (restoredNav) otlobliApplyNavYield(restoredNav);
       return;
     }
 
@@ -1750,13 +1793,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // its reserved band. A transparent child guard blocks navigation during
     // the short automatic cascade without letting touches fall through to
     // SHEIN; the real tabs become interactive again when the drawer closes.
-    var nav = document.getElementById('otlobli-nav');
+    var nav = sheinRestoreNavAfterShipping();
     if (nav) {
-      sheinRememberShippingStyle(nav, 'display', 'flex');
-      sheinRememberShippingStyle(nav, 'visibility', 'visible');
-      sheinRememberShippingStyle(nav, 'opacity', '1');
-      sheinRememberShippingStyle(nav, 'pointer-events', 'auto');
-      sheinRememberShippingStyle(nav, 'background', '#fff');
       var navGuard = document.getElementById('otlobli-nav-region-guard');
       if (!navGuard) {
         navGuard = document.createElement('div');
@@ -1809,7 +1847,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (addressCountry === SHEIN_REQUIRED_COUNTRY && sheinSignedSaudiAddressReady()) {
       sheinShippingActionCount = 0;
       sheinShippingLastTarget = null;
-      closeResolvedSheinShippingUi();
+      if (sheinShippingUiLikelyOpen()) closeResolvedSheinShippingUi();
       return;
     }
     var visibleOptions = sheinVisibleCascadeOptions();
@@ -5167,6 +5205,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   function otlobliApplyNavYield(nav) {
+    if (nav.querySelector('#otlobli-nav-region-guard')) {
+      nav.style.setProperty('pointer-events', 'auto', 'important');
+      nav.removeAttribute('data-otlobli-nav-yield');
+      return;
+    }
     var shouldYield = otlobliNavShouldYield(nav);
     var isYielding = nav.getAttribute('data-otlobli-nav-yield') === '1';
     if (shouldYield && !isYielding) {
@@ -6856,6 +6899,15 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // صفحة تحقق «أنا إنسان» — تجميد كامل لكل تدخلاتنا حتى يكملها المستخدم.
     if (otlobliIsHumanChallenge()) { otlobliChallengeActive = true; otlobliEnterChallengeMode(); return; }
     otlobliChallengeActive = false;
+    // Never compete with WebKit's async scrolling or delay a bottom-nav tap
+    // with full-page geometry/text scans. The nav click handlers are already
+    // mounted and post to native directly; the next idle interval catches up.
+    // Region automation is exempt because its native cover owns interaction.
+    if (IS_SHEIN && otlobliInteractionActive() &&
+        !sheinNativeCoverRepairActive && !sheinShippingBodyLockState) {
+      if (!document.getElementById('otlobli-nav')) ensureOtlobliNav();
+      return;
+    }
     if (IS_SHEIN) ensureSheinSaudiShippingSelection();
     if (IS_SHEIN) retrySheinFeedError();
     ensureNoTextSelection();
@@ -9334,6 +9386,17 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // tappable, which is exactly the "nothing should ever be reachable, not
   // even briefly" requirement this whole hide/block system exists for.
   var tickScheduled = false;
+  var otlobliInteractionUntil = 0;
+  function markOtlobliInteraction() {
+    otlobliInteractionUntil = Date.now() + 320;
+  }
+  function otlobliInteractionActive() {
+    return Date.now() < otlobliInteractionUntil;
+  }
+  document.addEventListener('pointerdown', markOtlobliInteraction, { capture: true, passive: true });
+  document.addEventListener('touchstart', markOtlobliInteraction, { capture: true, passive: true });
+  document.addEventListener('touchmove', markOtlobliInteraction, { capture: true, passive: true });
+  document.addEventListener('scroll', markOtlobliInteraction, { capture: true, passive: true });
   // On low-end devices (iPhone 6 etc. — 2 CPU cores) our own polling competes
   // with Cloudflare's verification JS and SHEIN's image decoding, making a
   // weak-CPU device feel heavy and slow. Relax every hot interval there so the
@@ -9349,6 +9412,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // Don't storm-tick on every Cloudflare DOM mutation during the challenge;
     // the 300ms interval still polls tick() to detect when it ends.
     if (otlobliChallengeActive) return;
+    if (IS_SHEIN && otlobliInteractionActive() && !sheinNativeCoverRepairActive) return;
     if (tickScheduled) return;
     tickScheduled = true;
     setTimeout(function () {
@@ -9409,13 +9473,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // freshly re-created icon gets caught within ~120ms instead of waiting
   // for the next general tick.
   setInterval(function () {
-    if (otlobliChallengeActive || !IS_SHEIN) return;
+    if (otlobliChallengeActive || !IS_SHEIN || otlobliInteractionActive()) return;
     hideKnownHeaderIconsByHint();
     hideSheinHeaderControls();
     hideListingCardAddButtons();
   }, OTLOBLI_LOW_END ? 420 : 120);
   setInterval(function () {
-    ensureOtlobliNav();
+    if (!otlobliInteractionActive() || !document.getElementById('otlobli-nav')) ensureOtlobliNav();
     if (IS_TEMU) {
       injectTemuHeaderHideCSS();
       ensureTemuSearchTouchRepair();
@@ -9427,7 +9491,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }, OTLOBLI_LOW_END ? 2200 : 1200);
   // Own slower interval, not part of tick() - see checkForSheinSecurityBlock's
   // comment on why innerText needs to stay off the 300ms timer. خاص بشي إن فقط.
-  setInterval(function () { if (IS_SHEIN) checkForSheinSecurityBlock(); }, OTLOBLI_LOW_END ? 1600 : 1000);
+  setInterval(function () {
+    if (IS_SHEIN && !otlobliInteractionActive()) checkForSheinSecurityBlock();
+  }, OTLOBLI_LOW_END ? 1600 : 1000);
   tick();
 })();
 `
