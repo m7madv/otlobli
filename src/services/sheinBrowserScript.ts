@@ -1137,6 +1137,23 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
+  // A SHEIN drawer can remain fully painted while its iOS transition layer
+  // temporarily inherits pointer-events:none. Treat that as visible for
+  // automation/root discovery; the interaction stabilizer below restores
+  // pointer handling only on the verified shipping drawer.
+  function sheinElementIsPainted(el) {
+    if (!el || !el.getBoundingClientRect) return false;
+    try {
+      var rect = el.getBoundingClientRect();
+      if (!rect || rect.width <= 0 || rect.height <= 0) return false;
+      var style = window.getComputedStyle(el);
+      return style.display !== 'none' && style.visibility !== 'hidden' &&
+        parseFloat(style.opacity || '1') > 0;
+    } catch (e) {
+      return false;
+    }
+  }
+
   function sheinClosestInteractive(el) {
     var node = el;
     var depth = 0;
@@ -1239,11 +1256,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // Both are scoped to the visible drawer so product/listing <li> elements
     // can never become automatic address targets.
     var nodes = document.querySelectorAll(
-      'li.cascade__list--option,[role="option"],.sui-drawer__body ul.upper-list > li,[role="listbox"] > li'
+      'li.cascade__list--option,[role="option"],.sui-drawer__body ul.upper-list > li,' +
+      '.c-address-upper-drawer ul.upper-list > li,.c-address-upper-drawer [role="listbox"] > li,' +
+      '[role="listbox"] > li'
     );
     var result = [];
     for (var i = 0; i < nodes.length; i++) {
-      if (sheinElementIsVisible(nodes[i])) result.push(nodes[i]);
+      if (sheinElementIsPainted(nodes[i])) result.push(nodes[i]);
     }
     return result;
   }
@@ -1257,7 +1276,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var nodes = document.querySelectorAll('[role="tab"],.address-header-tab .j-tab-item');
     var result = [];
     for (var i = 0; i < nodes.length; i++) {
-      if (sheinElementIsVisible(nodes[i])) result.push(nodes[i]);
+      if (sheinElementIsPainted(nodes[i])) result.push(nodes[i]);
     }
     return result;
   }
@@ -1283,6 +1302,22 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return null;
   }
 
+  function sheinCountryListState(options) {
+    var seen = {};
+    var target = null;
+    var count = 0;
+    for (var oi = 0; oi < options.length; oi++) {
+      var code = sheinCountryCodeFromLabel(sheinUiText(options[oi]));
+      if (!code) continue;
+      if (!seen[code]) {
+        seen[code] = true;
+        count++;
+      }
+      if (code === SHEIN_REQUIRED_COUNTRY) target = options[oi];
+    }
+    return { isCountryList: count >= 2, target: target };
+  }
+
   // Complete SHEIN's own live native address cascade. The configured path is
   // preferred; when a country has a different/variable hierarchy, select the
   // first valid live option at each level until SHEIN writes its signed
@@ -1292,6 +1327,18 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var options = visibleOptions || sheinVisibleCascadeOptions();
     var tabs = visibleTabs || sheinVisibleShippingTabs();
     if (!options.length || !sheinLooksLikeProductPageForShipping()) return false;
+
+    // iOS keeps the old country name in the first tab even after the country
+    // list has opened. Looking at that tab first caused us to tap "Qatar"
+    // again on every pass and never reach the visible Saudi option. Two or
+    // more country-coded rows prove that the current level is the country
+    // list, so select the configured country before considering stale tabs.
+    var countryList = sheinCountryListState(options);
+    if (countryList.isCountryList) {
+      return countryList.target
+        ? sheinClickNativeShippingControl(countryList.target)
+        : false;
+    }
 
     // A drawer opened on an old address starts at that country's next level.
     // Return to the country tab first; otherwise a generic "first option"
@@ -1445,7 +1492,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var matched = null;
 
     function inspect(el) {
-      if (!el || el === document.body || el === document.documentElement || !sheinElementIsVisible(el)) return false;
+      if (!el || el === document.body || el === document.documentElement || !sheinElementIsPainted(el)) return false;
       var rect = el.getBoundingClientRect();
       if (rect.width < vp.width * 0.72 || rect.height < vp.height * 0.2) return false;
       var text = sheinUiText(el);
@@ -1454,11 +1501,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var hasAddressShape = /(?:Choose|Select)\\s+(?:a\\s+)?location|Province|Governorate|District|Riyadh|Al Olaya|\\u0627\\u062e\\u062a\\u064a\\u0627\\u0631\\s+\\u0645\\u0648\\u0642\\u0639|\\u0645\\u0642\\u0627\\u0637\\u0639\\u0629|\\u0645\\u062d\\u0627\\u0641\\u0638\\u0629|\\u0627\\u0644\\u0645\\u062f\\u064a\\u0646\\u0629|\\u0645\\u0646\\u0637\\u0642\\u0629/i.test(text);
       var hasVerifiedUpperDrawerShape = !!(
         el.querySelector &&
-        el.querySelector('.common-address-header .header-close') &&
+        el.querySelector('.header-close,.common-address-header [class*="close" i]') &&
         el.querySelector('.address-header-tab') &&
-        el.querySelector('ul.upper-list')
+        el.querySelector('ul.upper-list,[role="listbox"],[class*="upper-list" i]')
       );
-      return hasCountry && (hasAddressShape || hasVerifiedUpperDrawerShape);
+      var countryMatches = text.match(/Saudi Arabia|United Arab Emirates|Bahrain|Kuwait|Lebanon|Oman|Qatar|\\u0627\\u0644\\u0633\\u0639\\u0648\\u062f\\u064a\\u0629|\\u0627\\u0644\\u0625\\u0645\\u0627\\u0631\\u0627\\u062a|\\u0627\\u0644\\u0628\\u062d\\u0631\\u064a\\u0646|\\u0627\\u0644\\u0643\\u0648\\u064a\\u062a|\\u0644\\u0628\\u0646\\u0627\\u0646|\\u0639\\u0645\\u0627\\u0646|\\u0642\\u0637\\u0631/ig) || [];
+      var hasCountryListShape = countryMatches.length >= 3 &&
+        /Shipping\\s+to|Ship\\s+to|\\u0627\\u0644\\u0634\\u062d\\u0646\\s+(?:\\u0625\\u0644\\u0649|\\u0627\\u0644\\u064a)/i.test(text);
+      return hasCountry && (hasAddressShape || hasVerifiedUpperDrawerShape || hasCountryListShape);
     }
 
     if (seed) {
@@ -1470,7 +1520,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
 
     var candidates = document.querySelectorAll(
-      '.sui-drawer__body,[role="dialog"],[aria-modal="true"],[class*="drawer"],[class*="cascade"]'
+      '.c-address-upper-drawer,.sui-drawer__body,[role="dialog"],[aria-modal="true"],' +
+      '[class*="drawer"],[class*="cascade"]'
     );
     for (var i = candidates.length - 1; i >= 0; i--) {
       var candidateRoot = null;
@@ -1533,6 +1584,172 @@ export const SHEIN_CAPTURE_SCRIPT = `
       setTimeout(function () {
         try { target.removeAttribute('data-otlobli-shein-shipping-action'); } catch (e) {}
       }, 1500);
+    }
+  }
+
+  var sheinShippingInteractionRoot = null;
+  var sheinShippingInteractionStyles = [];
+  var sheinShippingBodyLockState = null;
+  var sheinShippingTouchGuardInstalled = false;
+
+  function sheinRememberShippingStyle(el, name, value) {
+    if (!el || !el.style) return;
+    var record = null;
+    for (var ri = 0; ri < sheinShippingInteractionStyles.length; ri++) {
+      if (sheinShippingInteractionStyles[ri].el === el) {
+        record = sheinShippingInteractionStyles[ri];
+        break;
+      }
+    }
+    if (!record) {
+      record = { el: el, props: {} };
+      sheinShippingInteractionStyles.push(record);
+    }
+    if (!Object.prototype.hasOwnProperty.call(record.props, name)) {
+      record.props[name] = {
+        value: el.style.getPropertyValue(name),
+        priority: el.style.getPropertyPriority(name)
+      };
+    }
+    el.style.setProperty(name, value, 'important');
+  }
+
+  function sheinRestoreShippingInteractionStyles() {
+    for (var ri = 0; ri < sheinShippingInteractionStyles.length; ri++) {
+      var record = sheinShippingInteractionStyles[ri];
+      if (!record.el || !record.el.style) continue;
+      var names = Object.keys(record.props);
+      for (var ni = 0; ni < names.length; ni++) {
+        var name = names[ni];
+        var saved = record.props[name];
+        if (saved.value) record.el.style.setProperty(name, saved.value, saved.priority || '');
+        else record.el.style.removeProperty(name);
+      }
+    }
+    sheinShippingInteractionStyles = [];
+  }
+
+  function sheinLockPageBehindShippingDrawer() {
+    if (sheinShippingBodyLockState || !document.body || !document.documentElement) return;
+    var body = document.body;
+    var html = document.documentElement;
+    var y = window.pageYOffset || html.scrollTop || body.scrollTop || 0;
+    sheinShippingBodyLockState = {
+      y: y,
+      bodyPosition: body.style.getPropertyValue('position'),
+      bodyPositionPriority: body.style.getPropertyPriority('position'),
+      bodyTop: body.style.getPropertyValue('top'),
+      bodyTopPriority: body.style.getPropertyPriority('top'),
+      bodyLeft: body.style.getPropertyValue('left'),
+      bodyLeftPriority: body.style.getPropertyPriority('left'),
+      bodyRight: body.style.getPropertyValue('right'),
+      bodyRightPriority: body.style.getPropertyPriority('right'),
+      bodyWidth: body.style.getPropertyValue('width'),
+      bodyWidthPriority: body.style.getPropertyPriority('width'),
+      bodyOverflow: body.style.getPropertyValue('overflow'),
+      bodyOverflowPriority: body.style.getPropertyPriority('overflow'),
+      htmlOverflow: html.style.getPropertyValue('overflow'),
+      htmlOverflowPriority: html.style.getPropertyPriority('overflow'),
+      htmlOverscroll: html.style.getPropertyValue('overscroll-behavior'),
+      htmlOverscrollPriority: html.style.getPropertyPriority('overscroll-behavior')
+    };
+    body.style.setProperty('position', 'fixed', 'important');
+    body.style.setProperty('top', (-y) + 'px', 'important');
+    body.style.setProperty('left', '0', 'important');
+    body.style.setProperty('right', '0', 'important');
+    body.style.setProperty('width', '100%', 'important');
+    body.style.setProperty('overflow', 'hidden', 'important');
+    html.style.setProperty('overflow', 'hidden', 'important');
+    html.style.setProperty('overscroll-behavior', 'none', 'important');
+  }
+
+  function sheinRestoreLockedPageStyle(el, name, value, priority) {
+    if (!el || !el.style) return;
+    if (value) el.style.setProperty(name, value, priority || '');
+    else el.style.removeProperty(name);
+  }
+
+  function sheinUnlockPageBehindShippingDrawer() {
+    if (!sheinShippingBodyLockState || !document.body || !document.documentElement) return;
+    var saved = sheinShippingBodyLockState;
+    sheinShippingBodyLockState = null;
+    var body = document.body;
+    var html = document.documentElement;
+    sheinRestoreLockedPageStyle(body, 'position', saved.bodyPosition, saved.bodyPositionPriority);
+    sheinRestoreLockedPageStyle(body, 'top', saved.bodyTop, saved.bodyTopPriority);
+    sheinRestoreLockedPageStyle(body, 'left', saved.bodyLeft, saved.bodyLeftPriority);
+    sheinRestoreLockedPageStyle(body, 'right', saved.bodyRight, saved.bodyRightPriority);
+    sheinRestoreLockedPageStyle(body, 'width', saved.bodyWidth, saved.bodyWidthPriority);
+    sheinRestoreLockedPageStyle(body, 'overflow', saved.bodyOverflow, saved.bodyOverflowPriority);
+    sheinRestoreLockedPageStyle(html, 'overflow', saved.htmlOverflow, saved.htmlOverflowPriority);
+    sheinRestoreLockedPageStyle(html, 'overscroll-behavior', saved.htmlOverscroll, saved.htmlOverscrollPriority);
+    try { window.scrollTo(0, saved.y || 0); } catch (e) {}
+  }
+
+  function sheinInstallShippingTouchGuard() {
+    if (sheinShippingTouchGuardInstalled) return;
+    sheinShippingTouchGuardInstalled = true;
+    document.addEventListener('touchmove', function (event) {
+      var root = sheinShippingInteractionRoot;
+      if (!root || !root.isConnected) return;
+      var target = event.target;
+      if (!target || (target !== root && !root.contains(target))) {
+        if (event.cancelable) event.preventDefault();
+      }
+    }, { capture: true, passive: false });
+  }
+
+  // iOS can paint SHEIN's address drawer while its transition layer still has
+  // pointer-events:none; swipes then scroll the product underneath. Once the
+  // strict shipping-root detector confirms the real drawer, isolate its touch
+  // surface, lock the page at its existing offset, and temporarily remove
+  // Otlobli chrome that overlaps the list. This runs in the existing 300 ms
+  // maintenance tick and creates no new polling loop.
+  function stabilizeSheinShippingDrawerInteraction() {
+    if (!IS_SHEIN || !document.body) return;
+    var root = sheinResolvedShippingUiRoot();
+    if (!root) {
+      sheinShippingInteractionRoot = null;
+      sheinRestoreShippingInteractionStyles();
+      sheinUnlockPageBehindShippingDrawer();
+      return;
+    }
+
+    if (sheinShippingInteractionRoot && sheinShippingInteractionRoot !== root) {
+      sheinRestoreShippingInteractionStyles();
+    }
+    sheinShippingInteractionRoot = root;
+    sheinInstallShippingTouchGuard();
+    sheinLockPageBehindShippingDrawer();
+
+    sheinRememberShippingStyle(root, 'pointer-events', 'auto');
+    sheinRememberShippingStyle(root, 'touch-action', 'pan-y');
+    sheinRememberShippingStyle(root, 'overscroll-behavior', 'contain');
+
+    var scrollNodes = root.querySelectorAll(
+      '.sui-drawer__body,ul.upper-list,[role="listbox"],[class*="upper-list" i],' +
+      '[class*="scroll" i],[class*="cascade" i]'
+    );
+    for (var si = 0; si < scrollNodes.length; si++) {
+      var node = scrollNodes[si];
+      if (!sheinElementIsPainted(node)) continue;
+      var isScrollable = node.scrollHeight > node.clientHeight + 2;
+      sheinRememberShippingStyle(node, 'pointer-events', 'auto');
+      sheinRememberShippingStyle(node, 'touch-action', 'pan-y');
+      sheinRememberShippingStyle(node, 'overscroll-behavior', 'contain');
+      if (isScrollable) {
+        sheinRememberShippingStyle(node, 'overflow-y', 'auto');
+        sheinRememberShippingStyle(node, '-webkit-overflow-scrolling', 'touch');
+      }
+    }
+
+    var chromeIds = ['otlobli-nav', 'otlobli-add-btn', 'otlobli-back-btn'];
+    for (var ci = 0; ci < chromeIds.length; ci++) {
+      var chrome = document.getElementById(chromeIds[ci]);
+      if (!chrome) continue;
+      sheinRememberShippingStyle(chrome, 'visibility', 'hidden');
+      sheinRememberShippingStyle(chrome, 'opacity', '0');
+      sheinRememberShippingStyle(chrome, 'pointer-events', 'none');
     }
   }
 
@@ -6682,6 +6899,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // header/cart/listing/nav blockers below ran, so native code could reveal
     // a product for one or two seconds with raw SHEIN chrome still visible.
     updateSheinNativeCoverState();
+    // Must run after ensureBack/Nav/Add and after cover-state close attempts,
+    // so Otlobli chrome cannot repaint over SHEIN's live shipping drawer.
+    stabilizeSheinShippingDrawerInteraction();
   }
 
   // وضع بحث تيمو: عندما يركّز المستخدم حقل البحث ويكتب، تعرض تيمو قائمة
