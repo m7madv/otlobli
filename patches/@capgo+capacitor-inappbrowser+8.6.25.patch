@@ -88,7 +88,7 @@ index 8ae3e61..e44560d 100644
 +    // Substituted at build time from the OTLOBLI_RELAY_KEY env var by
 +    // scripts/inject-relay-key.cjs (see package.json postinstall) - never
 +    // committed in real form, see CHAT_SUMMARY.md section 9.
-+    private static final String OTLOBLI_RELAY_KEY = "hPY3kD8xBt7i6n5zXq4pKCmlMwucQSRrHW1oaZU9";
++    private static final String OTLOBLI_RELAY_KEY = "OTLOBLI_RELAY_KEY_PLACEHOLDER";
      private static final int MAX_MANAGED_DOWNLOAD_REDIRECTS = 10;
      private static final int BLOB_DOWNLOAD_CHUNK_BYTES = 64 * 1024;
      private static final long MAX_LEGACY_BLOB_DOWNLOAD_BYTES = 512L * 1024L;
@@ -695,7 +695,7 @@ index 1c70884..60018b4 100644
 +    // Substituted at build time from the OTLOBLI_RELAY_KEY env var by
 +    // scripts/inject-relay-key.cjs (see package.json postinstall) - never
 +    // committed in real form, see CHAT_SUMMARY.md section 9.
-+    static let otlobliRelayKey = "hPY3kD8xBt7i6n5zXq4pKCmlMwucQSRrHW1oaZU9"
++    static let otlobliRelayKey = "OTLOBLI_RELAY_KEY_PLACEHOLDER"
 +
      weak var plugin: CapgoInAppBrowserPlugin?
      private var pendingTasks: [String: PendingProxyTask] = [:]
