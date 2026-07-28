@@ -1298,8 +1298,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // click would complete the old country instead of switching regions.
     var countryTab = tabs[0] || null;
     var countryTabCode = countryTab ? sheinCountryCodeFromLabel(sheinUiText(countryTab)) : '';
-    if (countryTab && ((countryTabCode && countryTabCode !== SHEIN_REQUIRED_COUNTRY) ||
-        (addressCountry && addressCountry !== SHEIN_REQUIRED_COUNTRY))) {
+    // The cookie intentionally remains on the previous country until SHEIN
+    // signs the final lower-level selection. Do not use that stale cookie to
+    // jump back after the requested country tab is already selected. A
+    // placeholder such as "Select location" has no country code and means we
+    // are already looking at the country list, so proceed to its real option.
+    if (countryTab && countryTabCode && countryTabCode !== SHEIN_REQUIRED_COUNTRY) {
       return sheinClickNativeShippingControl(countryTab);
     }
 
