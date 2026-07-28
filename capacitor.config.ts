@@ -16,6 +16,12 @@ const config: CapacitorConfig = {
         twitter: false,
       },
     },
+    CapgoInAppBrowser: {
+      // Store navigation is rendered inside the native WebView. Let its own
+      // bottom bar hide that layer immediately on tap instead of waiting for
+      // the background React WebView to render and then run an effect.
+      allowWebViewJsVisibilityControl: true,
+    },
   },
 };
 

@@ -350,6 +350,7 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
             event.stopPropagation();
             try {
               if (window.mobileApp && window.mobileApp.postMessage) {
+                if (typeof window.mobileApp.hide === 'function') window.mobileApp.hide();
                 window.mobileApp.postMessage({ detail: { type: messageType } });
               }
             } catch (e) {}
@@ -573,6 +574,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
               event.stopPropagation();
               try {
                 if (window.mobileApp && window.mobileApp.postMessage) {
+                  if (typeof window.mobileApp.hide === 'function') window.mobileApp.hide();
                   window.mobileApp.postMessage({ detail: { type: messageType } });
                 }
               } catch (e) {}
@@ -3501,6 +3503,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
               if (idx2 < 0) idx2 = 0; if (idx2 > 3) idx2 = 3;
               var types2 = ['', 'openOrders', 'openCart', 'openProfile'];
               if (types2[idx2] && window.mobileApp && window.mobileApp.postMessage) {
+                if (typeof window.mobileApp.hide === 'function') window.mobileApp.hide();
                 window.mobileApp.postMessage({ detail: { type: types2[idx2] } });
               }
               // نعيد شريطنا لآخر الـDOM فوراً ليستعيد أولوية الرسم
@@ -5016,6 +5019,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
             event.stopPropagation();
             try {
               if (window.mobileApp && window.mobileApp.postMessage) {
+                if (typeof window.mobileApp.hide === 'function') window.mobileApp.hide();
                 window.mobileApp.postMessage({ detail: { type: messageType } });
               }
             } catch (e) {}

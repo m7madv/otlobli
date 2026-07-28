@@ -3477,16 +3477,22 @@ function App() {
       }
 
       if (detail?.type === 'openCart' || detail?.type === 'backToCart') {
+        // Start the native hide before React renders the destination screen.
+        // The injected store bar already requests the same idempotent hide;
+        // this host-side call is the fallback for old/cached page scripts.
+        if (sheinOpenedRef.current) void InAppBrowser.hide().catch(() => undefined)
         setScreen('cart')
         return
       }
 
       if (detail?.type === 'openOrders') {
+        if (sheinOpenedRef.current) void InAppBrowser.hide().catch(() => undefined)
         setScreen('orders')
         return
       }
 
       if (detail?.type === 'openProfile') {
+        if (sheinOpenedRef.current) void InAppBrowser.hide().catch(() => undefined)
         setScreen('profile')
         return
       }
