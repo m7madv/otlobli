@@ -2920,6 +2920,12 @@ function App() {
     const code = webviewErrorCode(event)
     if (code === undefined) return false
 
+    // A normal offline transition is recoverable inside the same native
+    // WebView. Its lightweight Otlobli cover keeps the failing product URL and
+    // retries when connectivity returns, so tearing the WebView down here would
+    // expose a blank/raw WebKit page and lose that exact navigation target.
+    if (code === -1009) return false
+
     // Real iPhones reported WKWebView main-frame -1005 followed by a dead
     // WebContent/GPU process. That leaves the native browser as a plain white
     // layer unless we tear this instance down and let the user retry cleanly.
