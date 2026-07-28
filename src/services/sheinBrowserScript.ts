@@ -987,6 +987,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function updateSheinNativeCoverState() {
     if (!IS_SHEIN) return;
     if (sheinSignedSaudiAddressReady()) {
+      // Do not uncover a fully resolved address drawer for one last frame.
+      // Close SHEIN's own surface first, then let the next short progress tick
+      // release the native cover after its closing animation has detached it.
+      if (sheinResolvedShippingUiRoot()) {
+        closeResolvedSheinShippingUi();
+        scheduleSheinShippingProgress(OTLOBLI_LOW_END ? 260 : 160);
+        return;
+      }
       sheinNativeCoverRepairActive = false;
       sheinNativeCoverRepairStartedAt = 0;
       if (sheinShippingProgressTimer) {
@@ -1000,10 +1008,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
       return;
     }
     if (sheinNativeCoverRepairActive) {
-      if (Date.now() - sheinNativeCoverRepairStartedAt >= 45000) {
+      if (Date.now() - sheinNativeCoverRepairStartedAt >= 25000) {
         // Never trap the customer behind a cover when SHEIN changes its drawer
         // or a security check interrupts the cascade. The bounded click guard
         // already stops further automation; wait before one clean retry.
+        // If SHEIN changes the cascade again, never expose a half-selected
+        // full-screen list after the bounded recovery window.
+        closeResolvedSheinShippingUi(true);
         sheinNativeCoverRepairActive = false;
         sheinNativeCoverRepairStartedAt = 0;
         sheinNativeCoverCooldownUntil = Date.now() + 30000;
@@ -1239,7 +1250,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function sheinVisibleShippingTabs() {
     if (!document.body) return [];
-    var nodes = document.querySelectorAll('[role="tab"]');
+    // The current SHEIN full-screen address drawer uses focusable
+    // .j-tab-item spans (without role=tab). Include both generations so a
+    // drawer that opens on the previous country's city level can jump back to
+    // its country tab immediately instead of walking the stale hierarchy.
+    var nodes = document.querySelectorAll('[role="tab"],.address-header-tab .j-tab-item');
     var result = [];
     for (var i = 0; i < nodes.length; i++) {
       if (sheinElementIsVisible(nodes[i])) result.push(nodes[i]);
@@ -1433,7 +1448,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (!text || text.length > 6500) return false;
       var hasCountry = /Saudi Arabia|United Arab Emirates|Bahrain|Kuwait|Lebanon|Oman|Qatar|\\u0627\\u0644\\u0633\\u0639\\u0648\\u062f\\u064a\\u0629|\\u0627\\u0644\\u0625\\u0645\\u0627\\u0631\\u0627\\u062a|\\u0627\\u0644\\u0628\\u062d\\u0631\\u064a\\u0646|\\u0627\\u0644\\u0643\\u0648\\u064a\\u062a|\\u0644\\u0628\\u0646\\u0627\\u0646|\\u0639\\u0645\\u0627\\u0646|\\u0642\\u0637\\u0631/i.test(text);
       var hasAddressShape = /(?:Choose|Select)\\s+(?:a\\s+)?location|Province|Governorate|District|Riyadh|Al Olaya|\\u0627\\u062e\\u062a\\u064a\\u0627\\u0631\\s+\\u0645\\u0648\\u0642\\u0639|\\u0645\\u0642\\u0627\\u0637\\u0639\\u0629|\\u0645\\u062d\\u0627\\u0641\\u0638\\u0629|\\u0627\\u0644\\u0645\\u062f\\u064a\\u0646\\u0629|\\u0645\\u0646\\u0637\\u0642\\u0629/i.test(text);
-      return hasCountry && hasAddressShape;
+      var hasVerifiedUpperDrawerShape = !!(
+        el.querySelector &&
+        el.querySelector('.common-address-header .header-close') &&
+        el.querySelector('.address-header-tab') &&
+        el.querySelector('ul.upper-list')
+      );
+      return hasCountry && (hasAddressShape || hasVerifiedUpperDrawerShape);
     }
 
     if (seed) {
@@ -1457,13 +1478,21 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return null;
   }
 
-  function closeResolvedSheinShippingUi() {
-    if (!sheinSignedSaudiAddressReady()) return false;
+  function closeResolvedSheinShippingUi(allowIncomplete) {
+    if (!allowIncomplete && !sheinSignedSaudiAddressReady()) return false;
     var now = Date.now();
     if (now - sheinShippingCloseLastAt < 1200) return false;
     var root = sheinResolvedShippingUiRoot();
     if (!root) return false;
-    var controls = root.querySelectorAll('button, a, [role="button"], input[type="button"], input[type="submit"]');
+    // SHEIN's current drawer close control is a focusable span:
+    // span.header-close[aria-label="إغلاق"]. It is not a button
+    // and has no role, so the old selector never found it and the native cover
+    // waited for its bounded escape hatch after the address was already
+    // signed. Keep the expansion scoped to this verified shipping root.
+    var controls = root.querySelectorAll(
+      'button,a,[role="button"],input[type="button"],input[type="submit"],' +
+      '.header-close,[aria-label][tabindex],[class*="close" i][tabindex]'
+    );
     var closePattern = /^(?:close|dismiss|done|\\u00d7|\\u2715|\\u2716|\\u0625\\u063a\\u0644\\u0627\\u0642|\\u0627\\u063a\\u0644\\u0627\\u0642|\\u062a\\u0645)$/i;
     var confirmPattern = /^(?:continue|confirm|save|\\u0645\\u062a\\u0627\\u0628\\u0639\\u0629|\\u062a\\u0623\\u0643\\u064a\\u062f|\\u062d\\u0641\\u0638)$/i;
     var closeTarget = null;
