@@ -6896,18 +6896,19 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // setInterval(tick, 300) already scheduled will simply call this again
     // shortly, by which point the parser is essentially always done with it.
     if (!document.body) return;
-    // صفحة تحقق «أنا إنسان» — تجميد كامل لكل تدخلاتنا حتى يكملها المستخدم.
-    if (otlobliIsHumanChallenge()) { otlobliChallengeActive = true; otlobliEnterChallengeMode(); return; }
-    otlobliChallengeActive = false;
     // Never compete with WebKit's async scrolling or delay a bottom-nav tap
-    // with full-page geometry/text scans. The nav click handlers are already
-    // mounted and post to native directly; the next idle interval catches up.
+    // with full-page geometry/text scans. This must run before the challenge
+    // detector because that detector reads body.innerText. The nav handlers
+    // are already mounted; the next idle interval performs the full catch-up.
     // Region automation is exempt because its native cover owns interaction.
     if (IS_SHEIN && otlobliInteractionActive() &&
         !sheinNativeCoverRepairActive && !sheinShippingBodyLockState) {
       if (!document.getElementById('otlobli-nav')) ensureOtlobliNav();
       return;
     }
+    // صفحة تحقق «أنا إنسان» — تجميد كامل لكل تدخلاتنا حتى يكملها المستخدم.
+    if (otlobliIsHumanChallenge()) { otlobliChallengeActive = true; otlobliEnterChallengeMode(); return; }
+    otlobliChallengeActive = false;
     if (IS_SHEIN) ensureSheinSaudiShippingSelection();
     if (IS_SHEIN) retrySheinFeedError();
     ensureNoTextSelection();
