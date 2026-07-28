@@ -978,7 +978,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (now < sheinNativeCoverCooldownUntil) return false;
     sheinNativeCoverRepairActive = true;
     sheinNativeCoverRepairStartedAt = now;
+    sheinShippingProgressAt = now;
     sheinPostNativeCoverState('sheinSaudiRepairStart');
+    scheduleSheinShippingProgress(OTLOBLI_LOW_END ? 320 : 140);
     return false;
   }
 
@@ -987,6 +989,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (sheinSignedSaudiAddressReady()) {
       sheinNativeCoverRepairActive = false;
       sheinNativeCoverRepairStartedAt = 0;
+      if (sheinShippingProgressTimer) {
+        clearTimeout(sheinShippingProgressTimer);
+        sheinShippingProgressTimer = 0;
+      }
       if (sheinPageLooksInteractive()) {
         sheinNativeCoverInitialReleased = true;
         sheinPostNativeCoverState('sheinSaudiReady');
@@ -1001,6 +1007,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
         sheinNativeCoverRepairActive = false;
         sheinNativeCoverRepairStartedAt = 0;
         sheinNativeCoverCooldownUntil = Date.now() + 30000;
+        if (sheinShippingProgressTimer) {
+          clearTimeout(sheinShippingProgressTimer);
+          sheinShippingProgressTimer = 0;
+        }
         if (sheinPageLooksInteractive()) {
           sheinNativeCoverInitialReleased = true;
           sheinPostNativeCoverState('sheinPageInteractive');
@@ -1263,9 +1273,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // first valid live option at each level until SHEIN writes its signed
   // addressCookie. This supports every country in the PWA selector without
   // shipping a stale list of its cities and districts inside Otlobli.
-  function sheinNativeSaudiAddressStep(addressCountry) {
-    var options = sheinVisibleCascadeOptions();
-    var tabs = sheinVisibleShippingTabs();
+  function sheinNativeSaudiAddressStep(addressCountry, visibleOptions, visibleTabs) {
+    var options = visibleOptions || sheinVisibleCascadeOptions();
+    var tabs = visibleTabs || sheinVisibleShippingTabs();
     if (!options.length || !sheinLooksLikeProductPageForShipping()) return false;
 
     // A drawer opened on an old address starts at that country's next level.
@@ -1325,16 +1335,57 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var SHEIN_SHIPPING_MAX_ACTIONS = 24;
   var sheinShippingLastOptionText = '';
   var sheinShippingLastOptionAt = 0;
+  var sheinShippingLastTarget = null;
+  var sheinShippingSessionKey = '';
+  var sheinShippingProgressKey = '';
+  var sheinShippingProgressAt = 0;
+  var sheinShippingProgressTimer = 0;
+
+  function resetSheinShippingProgress(sessionKey) {
+    sheinShippingSessionKey = sessionKey || '';
+    sheinShippingActionCount = 0;
+    sheinShippingLastActionAt = 0;
+    sheinShippingLastScanAt = 0;
+    sheinShippingLastOptionText = '';
+    sheinShippingLastOptionAt = 0;
+    sheinShippingLastTarget = null;
+    sheinShippingProgressKey = '';
+    sheinShippingProgressAt = Date.now();
+    if (sheinShippingProgressTimer) {
+      clearTimeout(sheinShippingProgressTimer);
+      sheinShippingProgressTimer = 0;
+    }
+  }
+
+  function scheduleSheinShippingProgress(delay) {
+    if (!IS_SHEIN || !sheinNativeCoverRepairActive || sheinShippingProgressTimer) return;
+    sheinShippingProgressTimer = setTimeout(function () {
+      sheinShippingProgressTimer = 0;
+      try { ensureSheinSaudiShippingSelection(); } catch (e) {}
+      try { updateSheinNativeCoverState(); } catch (e) {}
+    }, Math.max(80, Number(delay) || 0));
+  }
 
   function sheinClickNativeShippingControl(target) {
     if (!target || typeof target.click !== 'function') return false;
     if (!sheinPrepareNativeSaudiRepair()) return false;
     var now = Date.now();
-    if (now - sheinShippingLastActionAt < 1200) return false;
-    // Don't waste the click budget re-tapping the same cascade option while a
-    // slow device is still rendering the next level; give it up to 3s to change.
+    var actionGap = OTLOBLI_LOW_END ? 850 : 480;
+    if (now - sheinShippingLastActionAt < actionGap) {
+      scheduleSheinShippingProgress(actionGap - (now - sheinShippingLastActionAt) + 30);
+      return false;
+    }
+    // Don't re-tap the exact same live node while the next cascade level is
+    // rendering. A newly rendered node with the same label is allowed because
+    // several SHEIN levels legitimately reuse short location labels.
     var targetText = sheinUiText(target);
-    if (targetText && targetText === sheinShippingLastOptionText && now - sheinShippingLastOptionAt < 3000) return false;
+    var sameTargetGap = OTLOBLI_LOW_END ? 2200 : 1200;
+    if (target === sheinShippingLastTarget && targetText &&
+        targetText === sheinShippingLastOptionText &&
+        now - sheinShippingLastOptionAt < sameTargetGap) {
+      scheduleSheinShippingProgress(sameTargetGap - (now - sheinShippingLastOptionAt) + 30);
+      return false;
+    }
     // Opening the drawer and resolving country/province/city/district takes up
     // to six native clicks; slow devices need extra retries, so the budget is
     // generous but still bounded (see SHEIN_SHIPPING_MAX_ACTIONS).
@@ -1346,17 +1397,19 @@ export const SHEIN_CAPTURE_SCRIPT = `
     sheinShippingActionCount++;
     sheinShippingLastOptionText = targetText;
     sheinShippingLastOptionAt = now;
+    sheinShippingLastTarget = target;
     target.removeAttribute('data-otlobli-blocked');
     target.setAttribute('data-otlobli-shein-shipping-action', '1');
     try {
       target.click();
+      scheduleSheinShippingProgress(OTLOBLI_LOW_END ? 420 : 220);
       return true;
     } catch (e) {
       return false;
     } finally {
       setTimeout(function () {
         try { target.removeAttribute('data-otlobli-shein-shipping-action'); } catch (e) {}
-      }, 1500);
+      }, 900);
     }
   }
 
@@ -1454,23 +1507,65 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (!IS_SHEIN || !document.body || document.readyState === 'loading') return;
     if (!sheinLooksLikeProductPageForShipping()) return;
     var now = Date.now();
-    // tick() runs every 300 ms. DOM-wide text/control inspection does not need
-    // that frequency and would be needlessly expensive on older iPhones.
-    if (now - sheinShippingLastScanAt < 900) return;
+    var sessionKey = SHEIN_REQUIRED_COUNTRY + ':' + location.pathname;
+    if (sessionKey !== sheinShippingSessionKey) resetSheinShippingProgress(sessionKey);
+    // Outside a conversion, keep the broad DOM scan relaxed. While the native
+    // cover is active, use a short region-only cadence driven by DOM progress;
+    // it does not speed up the heavy general tick or add permanent polling.
+    var scanGap = sheinNativeCoverRepairActive
+      ? (OTLOBLI_LOW_END ? 420 : 220)
+      : (OTLOBLI_LOW_END ? 850 : 650);
+    if (now - sheinShippingLastScanAt < scanGap) {
+      if (sheinNativeCoverRepairActive) {
+        scheduleSheinShippingProgress(scanGap - (now - sheinShippingLastScanAt) + 20);
+      }
+      return;
+    }
     sheinShippingLastScanAt = now;
     var addressCountry = sheinAddressCookieCountry();
     if (addressCountry === SHEIN_REQUIRED_COUNTRY && sheinSignedSaudiAddressReady()) {
       sheinShippingActionCount = 0;
+      sheinShippingLastTarget = null;
       closeResolvedSheinShippingUi();
       return;
     }
-    if (sheinShippingActionCount >= SHEIN_SHIPPING_MAX_ACTIONS && now - sheinShippingLastActionAt < 120000) return;
-    if (now - sheinShippingLastActionAt < 1200) return;
-    if (sheinNativeSaudiAddressStep(addressCountry)) return;
+    var visibleOptions = sheinVisibleCascadeOptions();
+    var visibleTabs = sheinVisibleShippingTabs();
+    var progressKey = addressCountry + '|' +
+      visibleTabs.slice(0, 5).map(sheinUiText).join('>') + '|' +
+      visibleOptions.slice(0, 8).map(sheinUiText).join('>');
+    if (progressKey !== sheinShippingProgressKey) {
+      sheinShippingProgressKey = progressKey;
+      sheinShippingProgressAt = now;
+      sheinShippingLastTarget = null;
+      sheinShippingLastOptionText = '';
+      sheinShippingLastOptionAt = 0;
+    }
+    // An exhausted click budget is no longer a two-minute dead end. If the
+    // drawer has made no progress for a bounded window, start one clean retry
+    // from its current live state while keeping the overall budget finite.
+    if (sheinShippingActionCount >= SHEIN_SHIPPING_MAX_ACTIONS) {
+      if (now - sheinShippingProgressAt < 6000) {
+        scheduleSheinShippingProgress(500);
+        return;
+      }
+      sheinShippingActionCount = 0;
+      sheinShippingLastActionAt = 0;
+      sheinShippingLastTarget = null;
+    }
+    var actionGap = OTLOBLI_LOW_END ? 850 : 480;
+    if (now - sheinShippingLastActionAt < actionGap) {
+      scheduleSheinShippingProgress(actionGap - (now - sheinShippingLastActionAt) + 30);
+      return;
+    }
+    if (sheinNativeSaudiAddressStep(addressCountry, visibleOptions, visibleTabs)) return;
     // A native address drawer may be between async cascade stages. Never
     // click the underlying PDP shipping button while that drawer is visible;
     // doing so merely closes it and restarts the selection.
-    if (sheinVisibleCascadeOptions().length || sheinVisibleShippingTabs().length) return;
+    if (visibleOptions.length || visibleTabs.length) {
+      scheduleSheinShippingProgress(OTLOBLI_LOW_END ? 500 : 260);
+      return;
+    }
     var visibleRegion = sheinVisibleShippingRegion();
     // Country text on the PDP is only level one, not completion. Re-open the
     // product's shipping control even when it already shows the requested
@@ -1479,7 +1574,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
       (addressCountry && addressCountry !== SHEIN_REQUIRED_COUNTRY)
       ? sheinFindForeignShippingControl() || sheinFindShippingEntryControl()
       : sheinFindShippingEntryControl();
-    sheinClickNativeShippingControl(entryControl);
+    if (!sheinClickNativeShippingControl(entryControl) && sheinNativeCoverRepairActive) {
+      scheduleSheinShippingProgress(OTLOBLI_LOW_END ? 600 : 320);
+    }
   }
 
   // Keep region failure internal. The old visible reset button cleared broad

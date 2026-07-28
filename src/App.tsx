@@ -91,6 +91,33 @@ const parseStoreRegionSetting = (value: unknown, fallback: StoreRegion): StoreRe
   }
 }
 
+const STORE_REGIONS_CACHE_KEY = 'otlobli.store-regions.v1'
+
+const sameStoreRegions = (left: StoreRegions, right: StoreRegions) =>
+  JSON.stringify(left) === JSON.stringify(right)
+
+const readCachedStoreRegions = (): StoreRegions => {
+  if (typeof window === 'undefined') return DEFAULT_STORE_REGIONS
+  try {
+    const cached = JSON.parse(window.localStorage.getItem(STORE_REGIONS_CACHE_KEY) || '{}') as {
+      shein?: unknown
+      temu?: unknown
+    }
+    return {
+      shein: parseStoreRegionSetting(
+        typeof cached.shein === 'string' ? cached.shein : JSON.stringify(cached.shein ?? ''),
+        DEFAULT_STORE_REGIONS.shein,
+      ),
+      temu: parseStoreRegionSetting(
+        typeof cached.temu === 'string' ? cached.temu : JSON.stringify(cached.temu ?? ''),
+        DEFAULT_STORE_REGIONS.temu,
+      ),
+    }
+  } catch {
+    return DEFAULT_STORE_REGIONS
+  }
+}
+
 const buildSheinHomeUrl = (region: StoreRegion) =>
   `https://m.shein.com/ar/?currency=${region.currency}&localcountry=${region.countryCode}&country=${region.countryCode}&countryCode=${region.countryCode}&country_code=${region.countryCode}&lang=${region.language}&language=${region.language}&ship_to=${region.countryCode}&shipTo=${region.countryCode}&shipToCountry=${region.countryCode}&shippingCountry=${region.countryCode}&shipping_country=${region.countryCode}&store_country=${region.countryCode}`
 
@@ -853,9 +880,20 @@ function App() {
   const [exchangeRateFetchedAt, setExchangeRateFetchedAt] = useState(() => Date.now())
   const [shippingCostShein, setShippingCostShein] = useState(FIXED_SHIPPING_SYP)
   const [shippingCostTemu, setShippingCostTemu] = useState(FIXED_SHIPPING_SYP)
-  const [storeRegions, setStoreRegions] = useState<StoreRegions>(DEFAULT_STORE_REGIONS)
+  const [storeRegions, setStoreRegions] = useState<StoreRegions>(readCachedStoreRegions)
+  const [storeRegionsReady, setStoreRegionsReady] = useState(!APP_SETTINGS_URL)
   const storeRegionsRef = useRef(storeRegions)
   useEffect(() => { storeRegionsRef.current = storeRegions }, [storeRegions])
+  const commitStoreRegions = useCallback((next: StoreRegions) => {
+    storeRegionsRef.current = next
+    try {
+      window.localStorage.setItem(STORE_REGIONS_CACHE_KEY, JSON.stringify(next))
+    } catch {
+      // A private/locked WebView can reject storage; the in-memory setting is
+      // still authoritative for this session.
+    }
+    setStoreRegions((current) => sameStoreRegions(current, next) ? current : next)
+  }, [])
   const [brandName, setBrandName] = useState('otlobli')
   const [brandLogoDataUrl, setBrandLogoDataUrl] = useState('')
   const [shamcashQrByStore, setShamcashQrByStore] = useState<Record<StoreId, string>>({ shein: '', temu: '' })
@@ -1736,10 +1774,6 @@ function App() {
         })
         setReferralDiscountSyp(referralDiscount > 0 ? referralDiscount : 0)
         setProductProfitPercent(Number.isFinite(profitPercent) && profitPercent > 0 ? profitPercent : 0)
-        setStoreRegions({
-          shein: parseStoreRegionSetting(data.store_region_shein, DEFAULT_STORE_REGIONS.shein),
-          temu: parseStoreRegionSetting(data.store_region_temu, DEFAULT_STORE_REGIONS.temu),
-        })
         const nextBrandName = (data.brand_name ?? '').trim().slice(0, 24)
         const nextBrandLogo = data.brand_logo_data_url ?? ''
         setBrandName(nextBrandName || 'otlobli')
@@ -1752,38 +1786,63 @@ function App() {
       .catch(() => undefined)
   }, [])
 
-  // Region changes are operational controls, so keep them fresher than the
-  // rest of the pricing settings. An admin update reaches a running app within
-  // 30 seconds (or immediately when the app returns to the foreground).
+  // Store routing is startup-critical. Resolve it before opening a native
+  // WebView so a cold launch never opens the default country and then tears it
+  // down again when the admin setting arrives. The last verified value is
+  // cached as a fast/offline fallback; the small deadline prevents a slow
+  // settings request from trapping the customer behind the app shell.
   useEffect(() => {
-    if (!APP_SETTINGS_URL) return undefined
+    if (!APP_SETTINGS_URL) {
+      setStoreRegionsReady(true)
+      return undefined
+    }
     let disposed = false
+    let firstResolutionPending = true
+    const finishFirstResolution = () => {
+      if (!firstResolutionPending || disposed) return
+      firstResolutionPending = false
+      setStoreRegionsReady(true)
+    }
     const refreshStoreRegions = () => {
       const regionSettingsUrl = `${APP_SETTINGS_URL}?keys=store_region_shein,store_region_temu`
-      void fetch(regionSettingsUrl, {
+      return fetch(regionSettingsUrl, {
+        cache: 'no-store',
         headers: { apikey: SUPABASE_ANON_KEY, authorization: `Bearer ${SUPABASE_ANON_KEY}` },
       })
         .then((r) => r.json())
         .then((data: Record<string, string>) => {
           if (disposed) return
-          setStoreRegions({
+          commitStoreRegions({
             shein: parseStoreRegionSetting(data.store_region_shein, DEFAULT_STORE_REGIONS.shein),
             temu: parseStoreRegionSetting(data.store_region_temu, DEFAULT_STORE_REGIONS.temu),
           })
+          finishFirstResolution()
         })
-        .catch(() => undefined)
+        .catch(() => {
+          finishFirstResolution()
+        })
     }
-    const intervalId = window.setInterval(refreshStoreRegions, 30_000)
+    void refreshStoreRegions()
+    // A first install has no verified region cache. On a slower iPhone the
+    // settings edge commonly answers just after 1.5s; releasing the fallback
+    // that early opens the default country, then immediately destroys it for
+    // the real country. Four seconds is only an offline ceiling—the normal
+    // path still opens as soon as the small two-key response arrives.
+    const startupDeadline = window.setTimeout(finishFirstResolution, 4000)
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void refreshStoreRegions()
+    }, 20_000)
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible') refreshStoreRegions()
+      if (document.visibilityState === 'visible') void refreshStoreRegions()
     }
     document.addEventListener('visibilitychange', handleVisibility)
     return () => {
       disposed = true
+      window.clearTimeout(startupDeadline)
       window.clearInterval(intervalId)
       document.removeEventListener('visibilitychange', handleVisibility)
     }
-  }, [])
+  }, [commitStoreRegions])
 
   useEffect(() => {
     if (screen !== 'otp' || otpExpiresInSeconds <= 0) return undefined
@@ -2530,6 +2589,8 @@ function App() {
   const webviewOpenedAtRef = useRef(0)
   const webviewAutoOpenPausedUntilRef = useRef(0)
   const webviewIdRef = useRef('')
+  const webviewClosingRef = useRef(false)
+  const ignoredWebviewCloseIdsRef = useRef(new Set<string>())
   const webviewErrorTimerRef = useRef<number | undefined>(undefined)
   const sheinReadinessTimerRef = useRef<number | undefined>(undefined)
   const sheinRecoveryAttemptRef = useRef(0)
@@ -2591,6 +2652,8 @@ function App() {
     // Recreate the one active store session once so an admin change cannot
     // leave old and new region state competing inside the same document.
     suppressAutoReopenRef.current = true
+    webviewClosingRef.current = true
+    const closingWebviewId = webviewIdRef.current
     webviewSessionRef.current += 1
     webviewOpeningRef.current = false
     webviewOpenedAtRef.current = 0
@@ -2598,14 +2661,18 @@ function App() {
     currentWebviewUrlRef.current = ''
     sheinOpenedRef.current = false
     setSheinReady(false)
-    void InAppBrowser.close()
+    void InAppBrowser.close(closingWebviewId ? { id: closingWebviewId } : undefined)
       .catch(() => undefined)
       .finally(() => {
+        webviewClosingRef.current = false
         suppressAutoReopenRef.current = false
-        if (screenRef.current !== 'home' || vpnStateRef.current !== 'ok') return
-        window.setTimeout(() => browseSheinRef.current(), 120)
+        if (!storeRegionsReady || screenRef.current !== 'home' || vpnStateRef.current !== 'ok') return
+        window.setTimeout(() => {
+          if (webviewClosingRef.current || sheinOpenedRef.current || webviewOpeningRef.current) return
+          browseSheinRef.current()
+        }, 80)
       })
-  }, [storeRegions])
+  }, [storeRegions, storeRegionsReady])
 
   // The SHEIN webview is a separate native layer floating on top of our own
   // React UI, not part of its DOM - trying to size it precisely to "leave a
@@ -2963,6 +3030,12 @@ function App() {
   }
 
   const browseShein = () => {
+    // Every store session is a singleton. A settings response and React's
+    // home/open effect can land in the same frame after a native close. Without
+    // this guard both callers create a WebView; the untracked one has no capture
+    // script and can cover the healthy one on iOS.
+    if (!storeRegionsReady || webviewClosingRef.current ||
+        sheinOpenedRef.current || webviewOpeningRef.current) return
     const currentVpnState = vpnStateRef.current
     if (currentVpnState !== 'ok') {
       webviewOpeningRef.current = false
@@ -3089,7 +3162,13 @@ function App() {
       })
       .then((result) => {
         if (!result) return
-        if (sessionId !== webviewSessionRef.current) return
+        if (sessionId !== webviewSessionRef.current || !sheinOpenedRef.current) {
+          if (result.id) {
+            ignoredWebviewCloseIdsRef.current.add(result.id)
+            void InAppBrowser.close({ id: result.id }).catch(() => undefined)
+          }
+          return
+        }
         webviewIdRef.current = result?.id ?? webviewIdRef.current
         if (screenRef.current !== 'home' && (!initialPendingUrl || pendingProductRevealRef.current)) {
           void InAppBrowser.hide().catch(() => undefined)
@@ -3120,6 +3199,7 @@ function App() {
   useEffect(() => {
     let openTimer: number | undefined
     if (screen === 'home') {
+      if (!storeRegionsReady) return undefined
       if (sheinOpenedRef.current) {
         void InAppBrowser.show().catch(() => undefined).then(() => {
           if (webviewOpeningRef.current || !sheinReadyRef.current) return
@@ -3139,7 +3219,7 @@ function App() {
     return () => {
       if (openTimer !== undefined) window.clearTimeout(openTimer)
     }
-  }, [screen, vpnState, sheinReady, sheinBlockedError])
+  }, [screen, vpnState, sheinReady, sheinBlockedError, storeRegionsReady])
 
   // Temu rejects a programmatic top-level load (InAppBrowser.setUrl) of a deep
   // product URL for logged-out users and 302s it to /login.html — because that
@@ -3200,7 +3280,10 @@ function App() {
   }
 
   useEffect(() => {
-    const handle = InAppBrowser.addListener('closeEvent', () => {
+    const handle = InAppBrowser.addListener('closeEvent', (event: { id?: string }) => {
+      const closedId = event?.id ?? ''
+      if (closedId && ignoredWebviewCloseIdsRef.current.delete(closedId)) return
+      if (closedId && webviewIdRef.current && closedId !== webviewIdRef.current) return
       const productWasPreparing = pendingProductRevealRef.current
       clearPendingProductPreparation()
       webviewSessionRef.current += 1
@@ -3327,7 +3410,9 @@ function App() {
     // تيمو تُطلق تنقّلاً فيه login عند التحميل، فكل setUrl يعيد التحميل من جديد
     // فيُطلق تنقّل login آخر، بلا نهاية. منع login (إن لزم لاحقاً) يجب أن يتم
     // بطريقة لا تعيد تحميل الصفحة (إخفاء عناصر/منع نقر)، لا عبر setUrl.
-    const handle = InAppBrowser.addListener('urlChangeEvent', ({ url }: { url: string }) => {
+    const handle = InAppBrowser.addListener('urlChangeEvent', ({ id, url }: { id?: string; url: string }) => {
+      if (webviewClosingRef.current) return
+      if (id && webviewIdRef.current && id !== webviewIdRef.current) return
       currentWebviewUrlRef.current = url
       if (/shein/i.test(url)) {
         if (isSheinHumanChallengeUrl(url)) {
@@ -3356,7 +3441,7 @@ function App() {
         if (now - sheinSaudiRedirectTsRef.current > 15000) sheinSaudiRedirectRef.current = 0
         sheinSaudiRedirectRef.current++
         sheinSaudiRedirectTsRef.current = now
-        void InAppBrowser.setUrl({ url: saUrl })
+        void InAppBrowser.setUrl({ ...(id ? { id } : {}), url: saUrl })
         return
       }
       if (!/temu\.com/i.test(url)) return
@@ -3372,7 +3457,7 @@ function App() {
       temuArabicRedirectRef.current++
       temuArabicRedirectTsRef.current = now
       const saUrl = normalizeTemuBrowserUrl(url, temuRegion)
-      if (saUrl !== url) void InAppBrowser.setUrl({ url: saUrl })
+      if (saUrl !== url) void InAppBrowser.setUrl({ ...(id ? { id } : {}), url: saUrl })
     })
     return () => { void handle.then((h) => h.remove()) }
   }, [])
@@ -3402,7 +3487,8 @@ function App() {
   }, [])
 
   useEffect(() => {
-    const handle = InAppBrowser.addListener('messageFromWebview', (event: { detail?: Record<string, unknown> }) => {
+    const handle = InAppBrowser.addListener('messageFromWebview', (event: { id?: string; detail?: Record<string, unknown> }) => {
+      if (event?.id && webviewIdRef.current && event.id !== webviewIdRef.current) return
       const detail = event?.detail
 
       if (detail?.type === 'temuProductVisible') {
