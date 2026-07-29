@@ -905,12 +905,26 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
+  function sheinRegionDiag(stage, data, key) {
+    try {
+      if (window.__otlobliRegionDiagnostic) {
+        window.__otlobliRegionDiagnostic(stage, data || {}, key || '');
+      }
+    } catch (e) {}
+  }
+
   var sheinNativeCoverInitialReleased = false;
   var sheinNativeCoverRepairActive = false;
   var sheinNativeCoverRepairStartedAt = 0;
   var sheinNativeCoverCooldownUntil = 0;
   var sheinNativeCoverLastType = '';
   var sheinNativeCoverLastPostAt = 0;
+  sheinRegionDiag('capture-script-injected', {
+    requiredCountry: SHEIN_REQUIRED_COUNTRY,
+    productRoute: sheinLooksLikeProductRouteForShipping(),
+    addressCountry: sheinAddressCookieCountry(),
+    signedReady: sheinSignedSaudiAddressReady()
+  }, 'script');
 
   var __otlobliFeedRetryCount = 0;
   var __otlobliFeedRetryAfter = 0;
@@ -1042,17 +1056,34 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function sheinPrepareNativeSaudiRepair() {
     if (sheinNativeCoverRepairActive) {
+      sheinRegionDiag('repair-active', {
+        elapsedMs: Date.now() - sheinNativeCoverRepairStartedAt
+      }, 'active');
       sheinRegionTransitionVeil(true);
       scheduleSheinShippingProgress(OTLOBLI_LOW_END ? 260 : 120);
       return true;
     }
     var now = Date.now();
-    if (now < sheinNativeCoverCooldownUntil) return false;
+    if (now < sheinNativeCoverCooldownUntil) {
+      sheinRegionDiag('repair-cooldown', {
+        remainingMs: sheinNativeCoverCooldownUntil - now
+      }, 'cooldown');
+      return false;
+    }
     sheinNativeCoverRepairActive = true;
     sheinNativeCoverRepairStartedAt = now;
     sheinShippingProgressAt = now;
     sheinRegionVeilStartedAt = now;
+    sheinRegionDiag('repair-started', {
+      addressCountry: sheinAddressCookieCountry(),
+      signedReady: sheinSignedSaudiAddressReady()
+    }, 'started');
     sheinRegionTransitionVeil(true);
+    var regionVeil = document.getElementById('otlobli-region-switching');
+    sheinRegionDiag('region-veil-state', {
+      mounted: !!regionVeil,
+      zIndex: regionVeil ? regionVeil.style.zIndex : ''
+    }, regionVeil ? 'mounted' : 'missing');
     scheduleSheinShippingProgress(OTLOBLI_LOW_END ? 240 : 90);
     return true;
   }
@@ -1072,6 +1103,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
       sheinNativeCoverRepairStartedAt = 0;
       sheinRegionVeilStartedAt = 0;
       sheinRegionTransitionVeil(false);
+      sheinRegionDiag('repair-signed-ready', {
+        addressCountry: sheinAddressCookieCountry()
+      }, 'ready');
       if (sheinShippingProgressTimer) {
         clearTimeout(sheinShippingProgressTimer);
         sheinShippingProgressTimer = 0;
@@ -1084,6 +1118,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
     if (sheinNativeCoverRepairActive) {
       if (Date.now() - sheinNativeCoverRepairStartedAt >= 12000) {
+        sheinRegionDiag('repair-timeout', {
+          addressCountry: sheinAddressCookieCountry(),
+          shippingUiOpen: sheinShippingUiLikelyOpen()
+        }, 'timeout');
         closeResolvedSheinShippingUi(true);
         sheinNativeCoverRepairActive = false;
         sheinNativeCoverRepairStartedAt = 0;
@@ -1604,6 +1642,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
     sheinShippingLastTarget = target;
     target.removeAttribute('data-otlobli-blocked');
     target.setAttribute('data-otlobli-shein-shipping-action', '1');
+    sheinRegionDiag('shipping-control-click', {
+      label: targetText.slice(0, 160),
+      actionCount: sheinShippingActionCount
+    }, targetText.slice(0, 80));
     try {
       target.click();
       scheduleSheinShippingProgress(OTLOBLI_LOW_END ? 300 : 140);
@@ -1962,7 +2004,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function ensureSheinSaudiShippingSelection() {
     if (!IS_SHEIN || !document.body || document.readyState === 'loading') return;
-    if (!sheinLooksLikeProductPageForShipping()) return;
+    if (!sheinLooksLikeProductPageForShipping()) {
+      sheinRegionDiag('product-page-not-detected', {
+        productRoute: sheinLooksLikeProductRouteForShipping()
+      }, String(location.href || '').slice(-180) + '|' + String(document.title || '').slice(0, 80));
+      return;
+    }
     var now = Date.now();
     var sessionKey = SHEIN_REQUIRED_COUNTRY + ':' + location.pathname;
     if (sessionKey !== sheinShippingSessionKey) resetSheinShippingProgress(sessionKey);
@@ -1986,6 +2033,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
     var visibleOptions = sheinVisibleCascadeOptions();
     var visibleTabs = sheinVisibleShippingTabs();
+    sheinRegionDiag('shipping-scan', {
+      addressCountry: addressCountry,
+      signedReady: sheinSignedSaudiAddressReady(),
+      visibleOptions: visibleOptions.length,
+      visibleTabs: visibleTabs.length
+    }, addressCountry + '|' + visibleOptions.length + '|' + visibleTabs.length);
     sheinTranslateRegionLabels(visibleOptions, visibleTabs);
     var progressKey = addressCountry + '|' +
       visibleTabs.slice(0, 5).map(sheinUiText).join('>') + '|' +
@@ -2030,6 +2083,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
       (addressCountry && addressCountry !== SHEIN_REQUIRED_COUNTRY)
       ? sheinFindForeignShippingControl() || sheinFindShippingEntryControl()
       : sheinFindShippingEntryControl();
+    sheinRegionDiag('shipping-entry-control', {
+      found: !!entryControl,
+      visibleRegion: visibleRegion,
+      label: entryControl ? sheinUiText(entryControl).slice(0, 160) : ''
+    }, (entryControl ? 'found|' : 'missing|') + visibleRegion);
     if (!sheinClickNativeShippingControl(entryControl) && sheinNativeCoverRepairActive) {
       scheduleSheinShippingProgress(OTLOBLI_LOW_END ? 420 : 220);
     }
@@ -2079,14 +2137,33 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   function sheinPrimeRegionRepairFromRoute() {
-    if (!IS_SHEIN || !sheinLooksLikeProductRouteForShipping() || otlobliIsHumanChallenge()) return false;
-    if (sheinSignedSaudiAddressReady()) { sheinRegionTransitionVeil(false); return false; }
+    if (!IS_SHEIN || !sheinLooksLikeProductRouteForShipping()) return false;
+    if (otlobliIsHumanChallenge()) {
+      sheinRegionDiag('prime-blocked-challenge', {}, 'challenge');
+      return false;
+    }
+    if (sheinSignedSaudiAddressReady()) {
+      sheinRegionDiag('prime-already-ready', {
+        addressCountry: sheinAddressCookieCountry()
+      }, 'ready');
+      sheinRegionTransitionVeil(false);
+      return false;
+    }
+    sheinRegionDiag('prime-called', {
+      addressCountry: sheinAddressCookieCountry()
+    }, 'prime');
     installSheinSaudiStorageGuard();
     writeSheinSaudiState();
     if (sheinAddressCookieCountry() && sheinAddressCookieCountry() !== SHEIN_REQUIRED_COUNTRY) {
       try { localStorage.removeItem('addressCookie'); } catch (e) {}
+      sheinRegionDiag('foreign-address-cookie-cleared', {}, 'cleared');
     }
-    return sheinPrepareNativeSaudiRepair();
+    var repairStarted = sheinPrepareNativeSaudiRepair();
+    sheinRegionDiag('prime-repair-result', {
+      repairStarted: repairStarted,
+      repairActive: sheinNativeCoverRepairActive
+    }, repairStarted ? 'started' : 'not-started');
+    return repairStarted;
   }
 
   function ensureSheinSaudiStore(options) {
@@ -2123,6 +2200,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
           if (sessionStorage.getItem(reloadKey) !== '1') {
             sessionStorage.setItem(reloadKey, '1');
             sheinPrepareNativeSaudiRepair();
+            sheinRegionDiag('product-bootstrap-reload', {
+              normalizedUrl: normalized.slice(0, 700)
+            }, reloadKey);
             location.replace(normalized);
             return false;
           }
@@ -6997,6 +7077,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // setInterval(tick, 300) already scheduled will simply call this again
     // shortly, by which point the parser is essentially always done with it.
     if (!document.body) return;
+    if (IS_SHEIN && sheinLooksLikeProductRouteForShipping()) {
+      sheinRegionDiag('tick-product-route', {
+        addressCountry: sheinAddressCookieCountry(),
+        signedReady: sheinSignedSaudiAddressReady()
+      }, 'tick');
+    }
     if (IS_SHEIN) sheinPrimeRegionRepairFromRoute();
     // Never compete with WebKit's async scrolling or delay a bottom-nav tap
     // with full-page scans. Region repair has its own small progress timer.
@@ -7039,9 +7125,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         // (CSS ثابت منّا بالصنف، أو انهيار layout) — لا يعتمد على الـattributes.
         try { otlobliTemuForceProductVisible(); } catch (e) {}
         try { otlobliPostTemuProductVisibleIfReady(); } catch (e) {}
-        // لوحتا التشخيص (الأصفر + الأسود) عُطّلتا بعد نجاح فتح المنتج داخل تيمو.
-        // نُزيل أي بقايا لهما إن وُجدت. للإرجاع عند الحاجة: أعِد استدعاء
-        // otlobliTemuDiag() و otlobliTemuUrlProbe().
+        // نظّف أي بقايا للوحات تشخيص Temu القديمة من الجلسات المحفوظة.
         try {
           var __d1 = document.getElementById('otlobli-temu-diag'); if (__d1) __d1.remove();
           var __d2 = document.getElementById('otlobli-temu-urlprobe'); if (__d2) __d2.remove();
@@ -7782,38 +7866,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     } catch (e) {}
   }
 
-  // شريط تشخيص سفلي دائم لتيمو (نسخة اختبار): يبقى ظاهراً حتى على الشاشة البيضاء
-  // (بخلاف لوحة التشخيص العلوية المقيّدة بصفحة المنتج) ليكشف الرابط النهائي وحالة
-  // المحتوى — فنحسم إن كانت الشاشة البيضاء رابط دخول/تحقّق من تيمو أم محتوى حجبناه.
-  // pointer-events:none حتى لا يعطّل أزرار الرجوع/الإضافة تحته.
-  function otlobliTemuUrlProbe() {
-    if (!IS_TEMU || !document.body) return;
-    try {
-      var bar = document.getElementById('otlobli-temu-urlprobe');
-      if (!bar) {
-        bar = document.createElement('div');
-        bar.id = 'otlobli-temu-urlprobe';
-        // أعلى الشاشة (كان بالأسفل مغطّى بشريط التنقّل) مع احترام النوتش، خط أكبر
-        // وأصفر عالي التباين لسهولة القراءة والتصوير. pointer-events:none حتى لا
-        // يعطّل أي زر تحته.
-        bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;' +
-          'background:#000;color:#ffe600;' +
-          'font:700 13px/1.5 monospace;' +
-          'padding:calc(env(safe-area-inset-top,0px) + 6px) 10px 8px;' +
-          'direction:ltr;text-align:left;pointer-events:none;' +
-          'white-space:pre-wrap;word-break:break-all;box-shadow:0 2px 6px rgba(0,0,0,.5);';
-        document.body.appendChild(bar);
-      }
-      var v = otlobliTemuProductVitals();
-      var pdp = looksLikeProductPage() ? 'PDP' : 'no-PDP';
-      var acc = otlobliTemuVisibleAccountSurfaceOpen() ? ' ACCT' : '';
-      var login = otlobliTemuLoginSheetVisible() ? ' LOGIN' : '';
-      var u = (location.pathname + location.search).slice(0, 120);
-      bar.textContent = '[' + pdp + acc + login + ']  img=' + v.domImg + '/' + v.visImg +
-        '  price=' + (v.hasPrice ? '1' : '0') + '\\n' + u;
-    } catch (e) {}
-  }
-
   // استرداد من ارتداد تيمو لتسجيل الدخول: التحميل البارد لرابط منتج عميق (فتح من
   // السلة) ترفضه تيمو لغير المسجّلين وتحوّله إلى /login.html?from=<المنتج>. غالباً
   // تكون تيمو ثبّتت كوكيز ضيف على صفحة الدخول، فإعادة التوجيه لرابط from تفتح
@@ -8000,87 +8052,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
       document.body.removeChild(ta);
     } catch (e3) {}
     return payload;
-  }
-
-  // لوحة تشخيص (نسخة اختبار فقط): سطر الحالة + مقياس تتبّع البوابة (ماذا رأت
-  // بوابة "أضف للسلة" بالضبط: الرأس/الأزرار/المختار/العدّ/القرار) + زر تبديل
-  // "الحجب" يطفئ كل حاجبات تيمو ويستعيد المخفي — لإثبات/نفي أن الحجب يخرّب
-  // الجذب بدليل قاطع من الجهاز نفسه.
-  function otlobliTemuDiag() {
-    if (!IS_TEMU || !document.body) return;
-    try {
-      var ex = document.getElementById('otlobli-temu-diag');
-      if (!looksLikeProductPage() || otlobliTemuSearchMode()) { if (ex) ex.remove(); return; }
-      var v = otlobliTemuProductVitals();
-      var clean = document.querySelectorAll('[data-otlobli-temu-clean-hidden="1"]').length;
-      var gen = document.querySelectorAll('[data-otlobli-temu-hidden="1"]').length;
-      var chrome = document.querySelectorAll('[data-otlobli-temu-search-chrome-hidden="1"]').length;
-      var panel = ex, txt;
-      if (!panel) {
-        panel = document.createElement('div');
-        panel.id = 'otlobli-temu-diag';
-        panel.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;' +
-          'background:rgba(0,0,0,.85);color:#fff;font-size:10px;line-height:1.45;padding:3px 64px 3px 6px;' +
-          'direction:rtl;text-align:right;font-family:monospace;pointer-events:none;white-space:pre-wrap;';
-        txt = document.createElement('span');
-        txt.id = 'otlobli-temu-diag-txt';
-        panel.appendChild(txt);
-        var tg = document.createElement('button');
-        tg.id = 'otlobli-temu-diag-toggle';
-        tg.textContent = 'الحجب: شغّال';
-        tg.style.cssText = 'position:absolute;left:4px;top:3px;pointer-events:auto;font-size:10px;' +
-          'background:#0a7d4f;color:#fff;border:0;border-radius:6px;padding:3px 8px;font-family:inherit;';
-        tg.addEventListener('click', function (ev) {
-          ev.preventDefault(); ev.stopPropagation();
-          window.__otlobliTemuHideOff = !window.__otlobliTemuHideOff;
-          tg.textContent = window.__otlobliTemuHideOff ? 'الحجب: مطفأ' : 'الحجب: شغّال';
-          tg.style.background = window.__otlobliTemuHideOff ? '#b3261e' : '#0a7d4f';
-          if (window.__otlobliTemuHideOff) otlobliTemuUnhideAllForTest();
-        }, true);
-        panel.appendChild(tg);
-        var dmp = document.createElement('button');
-        dmp.id = 'otlobli-temu-diag-dump';
-        dmp.textContent = 'انسخ DOM';
-        dmp.style.cssText = 'position:absolute;left:82px;top:3px;pointer-events:auto;font-size:10px;' +
-          'background:#1a56db;color:#fff;border:0;border-radius:6px;padding:3px 8px;font-family:inherit;';
-        dmp.addEventListener('click', function (ev) {
-          ev.preventDefault(); ev.stopPropagation();
-          try {
-            var out = otlobliTemuDumpProductDom();
-            dmp.textContent = 'تم النسخ (' + Math.round(out.length / 1024) + 'ك)';
-            setTimeout(function () { dmp.textContent = 'انسخ DOM'; }, 2500);
-          } catch (e) { dmp.textContent = 'فشل'; }
-        }, true);
-        panel.appendChild(dmp);
-      } else {
-        txt = document.getElementById('otlobli-temu-diag-txt');
-      }
-      var lines = 'otlobli v85.8.46 | ' + v.state + ' | صور=' + v.domImg + '/' + v.visImg +
-        ' سعر=' + (v.hasPrice ? 'نعم' : 'لا') +
-        (window.__otlobliTemuHideOff ? ' | الحجب مطفأ!' : '');
-      // قراءة sku حيّة: اكبس لوناً/مقاساً وراقب هل "مختار" يتحدّث فوراً — يحسم
-      // إن كان النقر يصل Temu (aria-checked) أم أن شيئاً يمنعه.
-      try {
-        var skuD = otlobliTemuSku();
-        var skuStr = skuD.single ? 'خيار واحد' : (skuD.dims.length ?
-          skuD.dims.map(function (d) { return d.name + '=' + d.count + '/' + (d.selected || '-'); }).join('  ') : 'لا خيارات');
-        lines += '\\nsku: ' + skuStr;
-      } catch (eSku) { lines += '\\nsku: خطأ'; }
-      var lt = window.__otlobliLastTap;
-      if (lt) {
-        lines += '\\nنقر: ' + lt.tag + ' radio=' + (lt.radio ? 'نعم' : 'لا') + ' sku=' + (lt.sku ? 'نعم' : 'لا') +
-          ' | Temu سجّل: ' + lt.before + '→' + lt.after;
-      }
-      var tr = window.__otlobliGateTrace;
-      if (tr) {
-        lines += '\\nبوابة: ' + (tr.res || '...') + ' | ملخّص=' + (tr.sum || '-') + ' شيت=' + (tr.sheet || '-') +
-          '\\nرأس=' + (tr.head || '-') + ' أزرار=' + (tr.pills === undefined ? '-' : tr.pills) +
-          (tr.pillTxts ? '[' + tr.pillTxts + ']' : '') + ' مختار=' + (tr.sel || '-') + ' عدّ=' + (tr.vc || '-') +
-          ' لون:' + (tr.cSec || '-') + '/' + (tr.cVal || '-') + (tr.note ? ' | ' + tr.note : '');
-      }
-      if (txt) txt.textContent = lines;
-      try { document.body.appendChild(panel); } catch (e) {}
-    } catch (e) {}
   }
 
   // إصلاح تلقائي لفشل رندر تيمو: إن بقيت صفحة المنتج فارغة بصرياً و DOM فارغ
@@ -9326,28 +9297,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
       best.style.setProperty('display', 'none', 'important');
     }
   }
-  // لوحة تشخيص مرئية (مرة واحدة لكل صفحة) تُظهر بالضبط ماذا أُخفي وماذا
-  // بقي ظاهراً في نطاق الهيدر — بدل التخمين الأعمى لمكان زر البحث.
-  function otlobliShowHideDiagnostics(bars, hiddenIcons, visibleIcons, rawStats) {
-    if (document.getElementById('otlobli-hide-diag')) return;
-    var panel = document.createElement('div');
-    panel.id = 'otlobli-hide-diag';
-    panel.style.cssText = 'position:fixed;left:8px;right:8px;bottom:140px;z-index:2147483647;' +
-      'background:#fff3cd;color:#7a5b00;border:1px solid #ffe28a;border-radius:10px;padding:8px 10px;' +
-      'font-size:10px;direction:rtl;text-align:right;max-height:220px;overflow:auto;white-space:pre-wrap;';
-    var lines = [];
-    if (rawStats) lines.push(rawStats);
-    lines.push('أشرطة سفلية مخفية (' + bars.length + '):');
-    for (var i = 0; i < bars.length && i < 3; i++) lines.push(bars[i]);
-    lines.push('أيقونات هيدر مخفية (' + hiddenIcons.length + '):');
-    for (var j = 0; j < hiddenIcons.length && j < 6; j++) lines.push(hiddenIcons[j]);
-    lines.push('أيقونات هيدر ظاهرة (' + visibleIcons.length + '):');
-    for (var m = 0; m < visibleIcons.length && m < 6; m++) lines.push(visibleIcons[m]);
-    panel.textContent = lines.join('\\n');
-    document.body.appendChild(panel);
-    setTimeout(function () { var p = document.getElementById('otlobli-hide-diag'); if (p) p.remove(); }, 20000);
-  }
-
   // يخفي حاوية بانر نصّي على المتاجر غير شي إن بمطابقة عبارة قصيرة مميّزة،
   // ثم يصعد لأقرب حاوية عريضة (لكن ليست الصفحة كلها) ويخفيها.
   function hideStoreBannerByText(phrases, maxLen) {

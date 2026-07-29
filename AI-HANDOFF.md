@@ -2,6 +2,15 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
+## Current diagnostic candidate (2026-07-29) - v86.18 region injection trace
+
+- Marker/version: `2026.07.29-v86.18-shein-region-injection-diagnostics`; Android/iOS `878/86.18`; auth bypass off. v86.17 was rejected on the real iPhone 16 because first-product region switching still did not start visibly.
+- Do not guess at iPhone DOM yet. The confirmed architecture gap is earlier: `OTLOBLI_NAV_BOOTSTRAP_SCRIPT` can make the nav visible without proving the full `SHEIN_CAPTURE_SCRIPT` ran. The `browserPageLoaded` handler used to reject a non-empty event id when `webviewIdRef.current` was still empty; it now adopts that first singleton id and injects against it.
+- WebView → React telemetry type is `sheinRegionDiagnostic`. Expected first-product chain: `capture-evaluation-start` → `capture-script-injected` → `tick-product-route` → `prime-called` → `repair-started` → `region-veil-state` → `shipping-scan`/`shipping-entry-control`/`shipping-control-click` → `repair-signed-ready` or `repair-timeout`.
+- React keeps the last 80 entries in `window.__OTLOBLI_SHEIN_REGION_DIAGNOSTICS__` and logs them under `[otlobli][shein-region]`; no state update/render occurs. The WebView queue is capped at 32 and retries for at most 20 × 250ms.
+- Add-to-cart still requires `sheinSignedSaudiAddressReady()`. The one product bootstrap reload, native recompose patch/burst, Android resume defense, and unchanged-region `JSON.stringify` guard remain intact. No device-acceptance claim is allowed until a real iPhone captures the diagnostic chain plus the five resume cycles and cold launch.
+- Local validation passed: TypeScript, production build, freeze guard, performance budget, Android/iOS Capacitor sync, and Android Gradle debug build. APK: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.18-shein-region-injection-diagnostics-debug.apk`, SHA-256 `5A143E2038E61508FD4E6D15A6B3E105AB04557572CE8DCF08303C5BB9CF6070`, size `11,528,789` bytes. No ADB device was connected; iOS CI/artifact details are still pending.
+
 ## Current candidate (2026-07-29) - v86.17 first-product region bootstrap + hidden switch veil
 
 - Marker/version: `2026.07.29-v86.17-shein-first-product-region-veil`; Android/iOS `877/86.17`; auth bypass off. Primary branch remains `claude/ios6-cover-fix`; matching iOS source is pushed on `codex/ios-v86-4` at `ad8b93d`.

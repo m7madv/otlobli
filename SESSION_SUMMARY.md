@@ -1,5 +1,13 @@
 # ملخّص الجلسة — otlobli (2026-07-29)
 
+## v86.18 — تشخيص حقن قلب منطقة SHEIN
+
+- اختبار iPhone 16 الحقيقي أثبت أن v86.17 لم يحل أول دخول للمنتج، لذلك لم نعدّل selectors عشوائياً. ظهر خلل بنيوي قبل DOM: شريط Otlobli يُحقن عند بداية المستند، لكن سكربت المنطقة الكامل يعتمد على `browserPageLoaded`، وكان أول event يُرفض إذا وصل `id` قبل تخزينه في React.
+- v86.18 يعتمد معرّف أول WebView singleton بدل إسقاطه، ثم يرسل telemetry خفيفة من WebView إلى React لكل مرحلة حاسمة: الحقن، route، tick، prime، repair/cooldown، الغطاء وz-index، زر الشحن، درج المناطق، `addressCookie` وتوقيعه، النجاح أو timeout.
+- آخر 80 حدثاً فقط متاحة في `window.__OTLOBLI_SHEIN_REGION_DIAGNOSTICS__` وفي console بالبادئة `[otlobli][shein-region]`. لا توجد واجهة تشخيص تغطي المستخدم، ولا polling دائم؛ مؤقت تفريغ الرسائل يتوقف خلال 5 ثوانٍ.
+- حماية السلة ما زالت تعتمد على `sheinSignedSaudiAddressReady()`، وإصلاح تجمّد iPhone 16 ومسار Android resume وحارس إعادة بناء المنطقة لم تتغير. لا يجوز وصف المشكلة بأنها محلولة قبل اختبار iPhone الحقيقي ورؤية سلسلة الأحداث.
+- نجح TypeScript والبناء الإنتاجي وحارسا التجمّد والأداء ومزامنة Android/iOS وبناء Android. ملف APK: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.18-shein-region-injection-diagnostics-debug.apk`، وبصمته `5A143E2038E61508FD4E6D15A6B3E105AB04557572CE8DCF08303C5BB9CF6070`. لم يكن هناك جهاز Android متصل للاختبار، وتفاصيل بناء iPhone ستضاف بعد اكتمال CI.
+
 ## v86.17 — إصلاح أول دخول لمنتج SHEIN وإخفاء تبديل المنطقة
 
 - عالجت المشكلة الجديدة بعد v86.16: على iPhone 16 بعد حذف/تثبيت التطبيق، أول دخول لمنتج SHEIN كان ممكن لا يبدأ قلب المنطقة إطلاقاً. صار السكربت يتعرف على صفحة المنتج من الرابط نفسه، وليس فقط من عناصر الشحن بعد ما تظهر.

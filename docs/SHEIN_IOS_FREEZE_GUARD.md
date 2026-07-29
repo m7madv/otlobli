@@ -2,6 +2,14 @@
 
 هذه قاعدة إصدار إلزامية وليست ملاحظة تاريخية.
 
+## حارس حقن وتشخيص المنطقة — v86.18
+
+- اختبار iPhone 16 الحقيقي رفض v86.17: لا تعتبر route bootstrap أو نجاح البناء دليلاً أن قلب المنطقة بدأ. شريط Otlobli يأتي من `OTLOBLI_NAV_BOOTSTRAP_SCRIPT` عند document start، بينما منطق المنطقة الكامل يأتي لاحقاً من `browserPageLoaded`; ظهور الشريط وحده لا يثبت حقن `SHEIN_CAPTURE_SCRIPT`.
+- أول `browserPageLoaded` ذو `id` لا يجوز إسقاطه لمجرد أن `webviewIdRef.current` ما يزال فارغاً. أثناء فتح الـWebView singleton يجب اعتماد هذا المعرّف ثم حقن السكربت الكامل؛ يحمي الحارس علامتي `loadedWebviewId` و`host-page-loaded-id-adopted`.
+- التشخيص المؤقت المحدود يرسل `sheinRegionDiagnostic` من WebView إلى React لمراحل: بدء/نجاح الحقن، اكتشاف route، prime، repair/cooldown، veil، مسح درج الشحن، العثور على زر الدخول/فقده، click، cookie الموقّع، والمهلة. يحتفظ host بآخر 80 سجلاً فقط في `window.__OTLOBLI_SHEIN_REGION_DIAGNOSTICS__`.
+- تشخيص WebView لا يضيف polling دائماً: يعيد محاولة تفريغ الرسائل المعلقة لمدة أقصاها 20 × 250ms ثم يوقف مؤقته. لا يغيّر قرار `sheinSignedSaudiAddressReady()` ولا يفتح السلة ولا يضيف reload/setUrl.
+- قبول الجهاز التالي يجب أن يُظهر التسلسل الفعلي في console: `capture-evaluation-start` ثم `capture-script-injected`، وبعد فتح المنتج `tick-product-route`/`prime-called` ثم `repair-started`. إن توقف التسلسل قبل مرحلة محددة، تُعالج تلك المرحلة فقط؛ لا تُعدّل DOM selectors عشوائياً.
+
 ## حارس أول منتج وغطاء تبديل المنطقة — v86.17
 
 - أول منتج SHEIN يجب أن يطلق إصلاح المنطقة من مسار الرابط نفسه، حتى قبل ظهور عناصر الشحن. حافظ على `sheinLooksLikeProductRouteForShipping()` و`sheinPrimeRegionRepairFromRoute()` واستدعاء `if (IS_SHEIN) sheinPrimeRegionRepairFromRoute();` قبل early-return الخاص باللمس/التمرير.

@@ -29,6 +29,7 @@ import {
 import type { AccountAuthMethods, GoogleProfile } from './services/googleAuthApi'
 import { registerPushNotifications } from './services/pushNotifications'
 import { OTLOBLI_NAV_BOOTSTRAP_SCRIPT, SHEIN_CAPTURE_SCRIPT } from './services/sheinBrowserScript'
+import { SHEIN_REGION_DIAGNOSTICS_SCRIPT } from './services/sheinRegionDiagnostics'
 import { App as CapacitorApp } from '@capacitor/app'
 import { Capacitor } from '@capacitor/core'
 import { BackgroundColor, InAppBrowser, ToolBarType } from '@capgo/capacitor-inappbrowser'
@@ -128,7 +129,7 @@ const buildTemuHomeUrl = (region: StoreRegion) =>
 const SHEIN_HOME_URL = buildSheinHomeUrl(DEFAULT_STORE_REGIONS.shein)
 const TEMU_HOME_URL = buildTemuHomeUrl(DEFAULT_STORE_REGIONS.temu)
 const buildStoreCaptureScript = (regions: StoreRegions) =>
-  `window.__OTLOBLI_STORE_REGIONS__=${JSON.stringify(regions)};\n${SHEIN_CAPTURE_SCRIPT}`
+  `window.__OTLOBLI_STORE_REGIONS__=${JSON.stringify(regions)};\n${SHEIN_REGION_DIAGNOSTICS_SCRIPT}\ntry{\n${SHEIN_CAPTURE_SCRIPT}\n}catch(__otlobliCaptureError){try{window.__otlobliRegionDiagnostic('capture-runtime-error',{message:String(__otlobliCaptureError&&(__otlobliCaptureError.stack||__otlobliCaptureError.message)||__otlobliCaptureError)},'runtime')}catch(__otlobliDiagnosticError){}}`
 const SHEIN_CHALLENGE_PATH_RE = /\/(?:cdn-cgi|challenge|captcha|verify|verification|security|robot|risk|anti[-_]?bot|human)(?:\/|\?|#|$)/i
 const SHEIN_CHALLENGE_QUERY_RE = /(?:^|[?&#])(?:captcha|challenge|verification|security_token|risk|robot|anti[-_]?bot|human)=/i
 // يكشف موقع خروج الإنترنت الحالي (بلد/منطقة الـVPN فعلياً) عبر خدمتي geo
@@ -251,6 +252,11 @@ type WebviewPageLoadErrorEvent = {
   domain?: string
   description?: string
   code?: number | string
+}
+
+type SheinRegionDiagnosticRecord = Record<string, unknown>
+type SheinRegionDiagnosticWindow = Window & {
+  __OTLOBLI_SHEIN_REGION_DIAGNOSTICS__?: SheinRegionDiagnosticRecord[]
 }
 
 type StoreOpenFailureReason = 'network' | 'preparation'
@@ -2625,6 +2631,7 @@ function App() {
   const screenRef = useRef(screen)
   const browseSheinRef = useRef<() => void>(() => undefined)
   const markStoreWebviewReadyRef = useRef<(sessionId: number) => void>(() => undefined)
+  const sheinRegionDiagnosticsRef = useRef<SheinRegionDiagnosticRecord[]>([])
   const vpnStateRef = useRef(vpnState)
   const vpnGeoRef = useRef<VpnGeo | null>(vpnGeo)
   const storeReachableRef = useRef(false)
@@ -2637,6 +2644,14 @@ function App() {
   useEffect(() => { sheinReadyRef.current = sheinReady }, [sheinReady])
   useEffect(() => { vpnStateRef.current = vpnState }, [vpnState])
   useEffect(() => { vpnGeoRef.current = vpnGeo }, [vpnGeo])
+
+  const recordSheinRegionDiagnostic = useCallback((record: SheinRegionDiagnosticRecord) => {
+    const next = [...sheinRegionDiagnosticsRef.current.slice(-79), record]
+    sheinRegionDiagnosticsRef.current = next
+    ;(window as SheinRegionDiagnosticWindow).__OTLOBLI_SHEIN_REGION_DIAGNOSTICS__ = next
+    console.info('[otlobli][shein-region]', record)
+  }, [])
+
   useEffect(() => {
     const navigateFromNativeStore = (event: Event) => {
       const target = (event as CustomEvent<unknown>).detail
@@ -2661,6 +2676,16 @@ function App() {
     previousStoreRegionsRef.current = storeRegions
     const activeStore = selectedStoreRef.current
     if (JSON.stringify(previous[activeStore]) === JSON.stringify(storeRegions[activeStore])) return
+
+    if (activeStore === 'shein') {
+      recordSheinRegionDiagnostic({
+        stage: 'host-region-settings-changed',
+        previous: previous.shein,
+        next: storeRegions.shein,
+        webviewOpen: sheinOpenedRef.current,
+        at: Date.now(),
+      })
+    }
 
     temuArabicRedirectRef.current = 0
     sheinSaudiRedirectRef.current = 0
@@ -2690,7 +2715,7 @@ function App() {
           browseSheinRef.current()
         }, 80)
       })
-  }, [storeRegions, storeRegionsReady])
+  }, [recordSheinRegionDiagnostic, storeRegions, storeRegionsReady])
 
   // The SHEIN webview is a separate native layer floating on top of our own
   // React UI, not part of its DOM - trying to size it precisely to "leave a
@@ -3112,6 +3137,15 @@ function App() {
       markPendingProductNavigationRequested()
     }
     currentWebviewUrlRef.current = targetUrl
+    if (activeStore === 'shein') {
+      recordSheinRegionDiagnostic({
+        stage: 'host-open-requested',
+        sessionId,
+        targetUrl,
+        requiredRegion: activeRegions.shein,
+        at: Date.now(),
+      })
+    }
     const isIosNative = Capacitor.getPlatform() === 'ios'
     const webViewOptions: Parameters<typeof InAppBrowser.openWebView>[0] & {
       otlobliLoadingCover?: boolean
@@ -3200,6 +3234,14 @@ function App() {
           return
         }
         webviewIdRef.current = result?.id ?? webviewIdRef.current
+        if (activeStore === 'shein') {
+          recordSheinRegionDiagnostic({
+            stage: 'host-open-resolved',
+            sessionId,
+            webviewId: result?.id ?? '',
+            at: Date.now(),
+          })
+        }
         if (screenRef.current !== 'home' && (!initialPendingUrl || pendingProductRevealRef.current)) {
           void InAppBrowser.hide().catch(() => undefined)
         }
@@ -3350,20 +3392,58 @@ function App() {
 
   useEffect(() => {
     const loadedHandle = InAppBrowser.addListener('browserPageLoaded', (event: { id?: string }) => {
-      if (event?.id && event.id !== webviewIdRef.current) return
+      const loadedWebviewId = event?.id ?? ''
+      if (loadedWebviewId && ignoredWebviewCloseIdsRef.current.has(loadedWebviewId)) return
+      if (loadedWebviewId && webviewIdRef.current && loadedWebviewId !== webviewIdRef.current) return
+      if (loadedWebviewId && !webviewIdRef.current && webviewOpeningRef.current && !webviewClosingRef.current) {
+        // Android resolves openWebView only after the first page load, and a
+        // very fast iOS load can also emit before the JS promise callback stores
+        // its id. Adopt the active singleton event instead of discarding the
+        // only event that injects SHEIN's full capture/region script.
+        webviewIdRef.current = loadedWebviewId
+        if (selectedStoreRef.current === 'shein') {
+          recordSheinRegionDiagnostic({
+            stage: 'host-page-loaded-id-adopted',
+            webviewId: loadedWebviewId,
+            sessionId: webviewSessionRef.current,
+            at: Date.now(),
+          })
+        }
+      }
       if (selectedStoreRef.current === 'shein') {
         if (pendingProductRevealRef.current && pendingProductNavigationRequestedRef.current) {
           pendingProductPageLoadedRef.current = true
         }
-        const id = webviewIdRef.current || undefined
+        const id = loadedWebviewId || webviewIdRef.current || undefined
+        recordSheinRegionDiagnostic({
+          stage: 'host-page-loaded',
+          webviewId: id ?? '',
+          currentUrl: currentWebviewUrlRef.current,
+          sessionId: webviewSessionRef.current,
+          at: Date.now(),
+        })
         void InAppBrowser.executeScript({
           ...(id ? { id } : {}),
           code: buildStoreCaptureScript(storeRegionsRef.current),
         })
+          .then(() => {
+            recordSheinRegionDiagnostic({
+              stage: 'host-capture-dispatched',
+              webviewId: id ?? '',
+              sessionId: webviewSessionRef.current,
+              at: Date.now(),
+            })
+          })
           .catch((err) => {
             console.warn('[otlobli] SHEIN page script injection failed', err)
+            recordSheinRegionDiagnostic({
+              stage: 'host-capture-dispatch-failed',
+              webviewId: id ?? '',
+              message: err instanceof Error ? err.message : String(err),
+              at: Date.now(),
+            })
           })
-          .then(() => startSheinReadinessWatchdog(webviewSessionRef.current))
+          .finally(() => startSheinReadinessWatchdog(webviewSessionRef.current))
         return
       }
       if (selectedStoreRef.current === 'temu') {
@@ -3428,7 +3508,7 @@ function App() {
       void errorHandle.then((h) => h.remove())
       void startFallback.then((h) => h.remove())
     }
-  }, [])
+  }, [recordSheinRegionDiagnostic])
 
   // اعتراض تحويلات المتاجر على مستوى Native: إذا غيّر الخادم الرابط لمنطقة
   // أخرى، نعيده إلى الدولة المحددة لكل متجر قبل أن تظهر للمستخدم.
@@ -3520,6 +3600,16 @@ function App() {
     const handle = InAppBrowser.addListener('messageFromWebview', (event: { id?: string; detail?: Record<string, unknown> }) => {
       if (event?.id && webviewIdRef.current && event.id !== webviewIdRef.current) return
       const detail = event?.detail
+
+      if (detail?.type === 'sheinRegionDiagnostic') {
+        recordSheinRegionDiagnostic({
+          ...detail,
+          source: 'shein-webview',
+          webviewId: event?.id ?? '',
+          receivedAt: Date.now(),
+        })
+        return
+      }
 
       if (detail?.type === 'temuProductVisible') {
         if (selectedStoreRef.current === 'temu' && pendingProductRevealRef.current) {
@@ -3655,7 +3745,7 @@ function App() {
       showNotice('تمت إضافة المنتج إلى السلة')
     })
     return () => { void handle.then((h) => h.remove()) }
-  }, [exchangeRate])
+  }, [exchangeRate, recordSheinRegionDiagnostic])
 
   // يعبّئ رقم واتساب المستلم تلقائياً برقم المستخدم المسجَّل دخوله عند دخول
   // صفحة الدفع لأول مرة فقط (لا يطغى على قيمة عدّلها المستخدم يدوياً بعدها)

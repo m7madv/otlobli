@@ -17,4 +17,4 @@ export const SOURCE_COUNTRY: 'JO' | 'LB' | 'SA' = 'SA'
 export const TEST_ONLY_AUTH_BYPASS = false
 
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '2026.07.29-v86.17-shein-first-product-region-veil'
+export const APP_VERSION = '2026.07.29-v86.18-shein-region-injection-diagnostics'

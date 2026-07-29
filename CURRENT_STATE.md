@@ -2,6 +2,16 @@
 
 Last updated: 2026-07-29
 
+## v86.18 SHEIN region injection diagnostics + first-load id adoption (2026-07-29)
+
+- Current diagnostic marker is `2026.07.29-v86.18-shein-region-injection-diagnostics`; Android and iOS are `878/86.18`, and the auth test bypass remains off.
+- Real iPhone 16 testing rejected v86.17: first-product region setup still did not visibly start. The new static diagnosis found a concrete injection reliability gap before changing SHEIN DOM selectors: document start installs only the Otlobli nav, while the complete region/capture script depends on `browserPageLoaded`; that handler previously discarded an event id whenever `webviewIdRef.current` was still empty.
+- During an active singleton open, the first page-loaded id is now adopted and used for the full script injection instead of being rejected. This is a host injection fix only; it does not change `addressCookie` readiness, drawer automation, reload limits, or the iPhone detach/reattach lifecycle.
+- Bounded `sheinRegionDiagnostic` telemetry now reports `capture-evaluation-start`, `capture-script-injected`, product-route/tick/prime, repair active/cooldown/start, veil mount/z-index, shipping scan/entry/click, cookie/signature state, success, and timeout from WebView to React. The host stores only the latest 80 records in `window.__OTLOBLI_SHEIN_REGION_DIAGNOSTICS__` and console; the WebView flush timer stops within 5 seconds.
+- Dead Temu diagnostic panels that had no callers were removed to preserve the frozen SHEIN source budget; no user feature was removed. `npx tsc --noEmit`, `npm run build`, `verify:shein-freeze-guard`, Android/iOS sync, and Android Gradle debug build pass. Budgets: largest JS `1,178,213/1,200,000`, total JS gzip `354,348/370,000`, CSS `62,602/70,000`, fonts `81,364/100,000`, SHEIN source `544,125/550,000`.
+- Android artifact: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.18-shein-region-injection-diagnostics-debug.apk`; SHA-256 `5A143E2038E61508FD4E6D15A6B3E105AB04557572CE8DCF08303C5BB9CF6070`; size `11,528,789` bytes. `adb devices -l` listed no device, so no Android installation/device acceptance was performed. iOS CI artifact details will be appended after the isolated build.
+- `sheinPageInteractive` can mark the host WebView usable only after the bounded repair times out; it does not cancel the in-page tick/repair path. A real iPhone 16 must still capture the diagnostic sequence, verify the signed selected country, then pass five resume cycles and a cold launch. Do not claim the region issue solved from static analysis or builds.
+
 ## v86.17 first-product SHEIN region bootstrap + hidden switch veil (2026-07-29)
 
 - Current marker is `2026.07.29-v86.17-shein-first-product-region-veil`; Android and iOS are `877/86.17`, and the auth test bypass remains off.
