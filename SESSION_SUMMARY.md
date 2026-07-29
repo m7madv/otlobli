@@ -6,7 +6,8 @@
 - v86.18 يعتمد معرّف أول WebView singleton بدل إسقاطه، ثم يرسل telemetry خفيفة من WebView إلى React لكل مرحلة حاسمة: الحقن، route، tick، prime، repair/cooldown، الغطاء وz-index، زر الشحن، درج المناطق، `addressCookie` وتوقيعه، النجاح أو timeout.
 - آخر 80 حدثاً فقط متاحة في `window.__OTLOBLI_SHEIN_REGION_DIAGNOSTICS__` وفي console بالبادئة `[otlobli][shein-region]`. لا توجد واجهة تشخيص تغطي المستخدم، ولا polling دائم؛ مؤقت تفريغ الرسائل يتوقف خلال 5 ثوانٍ.
 - حماية السلة ما زالت تعتمد على `sheinSignedSaudiAddressReady()`، وإصلاح تجمّد iPhone 16 ومسار Android resume وحارس إعادة بناء المنطقة لم تتغير. لا يجوز وصف المشكلة بأنها محلولة قبل اختبار iPhone الحقيقي ورؤية سلسلة الأحداث.
-- نجح TypeScript والبناء الإنتاجي وحارسا التجمّد والأداء ومزامنة Android/iOS وبناء Android. ملف APK: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.18-shein-region-injection-diagnostics-debug.apk`، وبصمته `5A143E2038E61508FD4E6D15A6B3E105AB04557572CE8DCF08303C5BB9CF6070`. لم يكن هناك جهاز Android متصل للاختبار، وتفاصيل بناء iPhone ستضاف بعد اكتمال CI.
+- نجح TypeScript والبناء الإنتاجي وحارسا التجمّد والأداء ومزامنة Android/iOS وبناء Android. ملف APK: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.18-shein-region-injection-diagnostics-debug.apk`، وبصمته `5A143E2038E61508FD4E6D15A6B3E105AB04557572CE8DCF08303C5BB9CF6070`. لم يكن هناك جهاز Android متصل للاختبار.
+- نجح بناء iPhone عبر GitHub/Xcode في run `30489996516` من commit `5e68790`. ملف IPA غير الموقّع: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.18-iphone16-unsigned.ipa`، وبصمته `99BA19D125568162F8AB4601148375080FCBB8825755F724332EEC1CD7AEC41F`. فحص الحزمة أكد `86.18/878` وعلامات التشخيص والحقن و`otlobliForceRecompose`، لكنها تبقى بحاجة للتوقيع والاختبار الحقيقي على iPhone 16.
 
 ## v86.17 — إصلاح أول دخول لمنتج SHEIN وإخفاء تبديل المنطقة
 
