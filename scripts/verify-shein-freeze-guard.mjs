@@ -21,6 +21,10 @@ const checks = [
       'controller.otlobliForceRecompose(force: true)',
       'messageBody["__otlobliRecompose"] as? Bool == true',
       'public void otlobliOnHostResume()',
+      'public void navigate(String target)',
+      "new CustomEvent('otlobli:nativeNavigate'",
+      'func navigateHostFromJavaScript(_ target: String',
+      'window.webkit.messageHandlers.navigate.postMessage',
     ],
   },
   {
@@ -33,6 +37,8 @@ const checks = [
       'private func otlobliRecomposeAllWebViews()',
       'for delay in [0.12, 0.5, 1.2, 2.2]',
       'controller.otlobliForceRecompose(force: true)',
+      'func navigateHostFromJavaScript(_ target: String',
+      "new CustomEvent('otlobli:nativeNavigate'",
     ],
   },
   {
@@ -44,6 +50,8 @@ const checks = [
       'self.view.addSubview(webView)',
       'webView.scrollView.setContentOffset(offset, animated: false)',
       'messageBody["__otlobliRecompose"] as? Bool == true',
+      'message.name == "navigate"',
+      'window.webkit.messageHandlers.navigate.postMessage',
     ],
   },
   {
@@ -54,6 +62,8 @@ const checks = [
       'webView.onResume()',
       'webView.invalidate()',
       'webView.requestLayout()',
+      'public void navigate(String target)',
+      "new CustomEvent('otlobli:nativeNavigate'",
     ],
   },
   {
@@ -62,6 +72,9 @@ const checks = [
     markers: [
       'const previousStoreRegionsRef = useRef(storeRegions)',
       'if (JSON.stringify(previous[activeStore]) === JSON.stringify(storeRegions[activeStore])) return',
+      "window.addEventListener('otlobli:nativeNavigate'",
+      'flushSync(() => setScreen(target))',
+      'useTopInset: !isIosNative',
     ],
   },
   {
@@ -76,6 +89,10 @@ const checks = [
       'if (IS_SHEIN && otlobliInteractionActive() &&',
       '!sheinNativeCoverRepairActive && !sheinShippingBodyLockState',
       'sheinShippingUiLikelyOpen() && sheinResolvedShippingUiRoot()',
+      "typeof window.mobileApp.navigate === 'function'",
+      'window.mobileApp.navigate(nativeTarget)',
+      'var stableNavHost = document.documentElement || document.body',
+      'stableNavHost.appendChild(nav)',
     ],
   },
 ]

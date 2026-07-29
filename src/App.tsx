@@ -32,6 +32,7 @@ import { OTLOBLI_NAV_BOOTSTRAP_SCRIPT, SHEIN_CAPTURE_SCRIPT } from './services/s
 import { App as CapacitorApp } from '@capacitor/app'
 import { Capacitor } from '@capacitor/core'
 import { BackgroundColor, InAppBrowser, ToolBarType } from '@capgo/capacitor-inappbrowser'
+import { flushSync } from 'react-dom'
 
 const API_BASE = cleanEnvValue(import.meta.env.VITE_WHATSAPP_API_URL)
 const SUPABASE_URL = cleanEnvValue(import.meta.env.VITE_SUPABASE_URL)
@@ -2636,6 +2637,23 @@ function App() {
   useEffect(() => { sheinReadyRef.current = sheinReady }, [sheinReady])
   useEffect(() => { vpnStateRef.current = vpnState }, [vpnState])
   useEffect(() => { vpnGeoRef.current = vpnGeo }, [vpnGeo])
+  useEffect(() => {
+    const navigateFromNativeStore = (event: Event) => {
+      const target = (event as CustomEvent<unknown>).detail
+      if (target !== 'orders' && target !== 'cart' && target !== 'profile') return
+      if (screenRef.current === target) return
+
+      // The native store stays above Capacitor's host WebView. Commit the
+      // destination synchronously before native removes that cover so the
+      // first exposed frame is already Orders/Cart/Profile, not a stale Home
+      // frame followed by a delayed React render.
+      screenRef.current = target
+      flushSync(() => setScreen(target))
+    }
+
+    window.addEventListener('otlobli:nativeNavigate', navigateFromNativeStore)
+    return () => window.removeEventListener('otlobli:nativeNavigate', navigateFromNativeStore)
+  }, [])
 
   const previousStoreRegionsRef = useRef(storeRegions)
   useEffect(() => {
@@ -3142,6 +3160,12 @@ function App() {
       // nav. Let WKWebView fill the iOS controller instead; viewport-fit=cover
       // makes the injected nav own and paint the complete bottom inset.
       enabledSafeBottomMargin: !isIosNative,
+      // Android's blank-toolbar dialog draws edge-to-edge. Without the real
+      // status-bar inset, the first SHEIN row (including its search field) is
+      // painted behind the system bar and appears cropped. iOS already lays
+      // WKWebView below its top safe area, so this remains Android-only.
+      enabledSafeTopMargin: !isIosNative,
+      useTopInset: !isIosNative,
       // Used to route Android traffic through a Cloudflare Worker relay here
       // (outboundProxyRules) so the device's own geo-blocked IP was never
       // what shein.com saw, while iOS skipped it (the relay crashed iOS's
@@ -3569,23 +3593,25 @@ function App() {
       }
 
       if (detail?.type === 'openCart' || detail?.type === 'backToCart') {
-        // Start the native hide before React renders the destination screen.
-        // The injected store bar already requests the same idempotent hide;
-        // this host-side call is the fallback for old/cached page scripts.
+        screenRef.current = 'cart'
+        flushSync(() => setScreen('cart'))
+        // New native builds render the destination before hiding the store.
+        // Keep this idempotent fallback for cached scripts and older builds.
         if (sheinOpenedRef.current) void InAppBrowser.hide().catch(() => undefined)
-        setScreen('cart')
         return
       }
 
       if (detail?.type === 'openOrders') {
+        screenRef.current = 'orders'
+        flushSync(() => setScreen('orders'))
         if (sheinOpenedRef.current) void InAppBrowser.hide().catch(() => undefined)
-        setScreen('orders')
         return
       }
 
       if (detail?.type === 'openProfile') {
+        screenRef.current = 'profile'
+        flushSync(() => setScreen('profile'))
         if (sheinOpenedRef.current) void InAppBrowser.hide().catch(() => undefined)
-        setScreen('profile')
         return
       }
 
@@ -4627,16 +4653,22 @@ function App() {
                       <img
                         src={item.image}
                         alt={item.title}
+                        width={72}
+                        height={88}
+                        decoding="async"
                         onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/80x100/f5f5f5/aaa?text=صورة' }}
                       />
                     </button>
                     <div className="cart-item-body">
                       <div className="cart-item-top">
-                        <h3
-                          className="cart-item-view"
-                          onClick={() => openStoreProductFromCart(item.sourceLink)}
-                        >
-                          {item.title}
+                        <h3>
+                          <button
+                            type="button"
+                            className="cart-item-title"
+                            onClick={() => openStoreProductFromCart(item.sourceLink)}
+                          >
+                            {item.title}
+                          </button>
                         </h3>
                         <button
                           className="delete-cart"
@@ -4647,7 +4679,16 @@ function App() {
                         </button>
                       </div>
                       <p className="cart-item-variant">
-                        {item.colorImage && <img className="cart-item-color-swatch" src={item.colorImage} alt={item.color} />}
+                        {item.colorImage && (
+                          <img
+                            className="cart-item-color-swatch"
+                            src={item.colorImage}
+                            alt={item.color}
+                            width={18}
+                            height={18}
+                            decoding="async"
+                          />
+                        )}
                         {item.color} آ· {item.size}
                       </p>
                       {(item.needsCustomText || item.needsCustomPhoto) ? (

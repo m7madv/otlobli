@@ -350,8 +350,13 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
             event.stopPropagation();
             try {
               if (window.mobileApp && window.mobileApp.postMessage) {
-                if (typeof window.mobileApp.hide === 'function') window.mobileApp.hide();
-                window.mobileApp.postMessage({ detail: { type: messageType } });
+                var nativeTarget = messageType === 'openOrders' ? 'orders' : (messageType === 'openCart' ? 'cart' : 'profile');
+                if (typeof window.mobileApp.navigate === 'function') {
+                  window.mobileApp.navigate(nativeTarget);
+                } else {
+                  window.mobileApp.postMessage({ detail: { type: messageType } });
+                  if (typeof window.mobileApp.hide === 'function') window.mobileApp.hide();
+                }
               }
             } catch (e) {}
           }, true);
@@ -359,7 +364,7 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
       }
       nav.appendChild(tab);
     }
-    document.body.appendChild(nav);
+    document.documentElement.appendChild(nav);
     runEarlyProtections();
     return true;
   }
@@ -574,8 +579,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
               event.stopPropagation();
               try {
                 if (window.mobileApp && window.mobileApp.postMessage) {
-                  if (typeof window.mobileApp.hide === 'function') window.mobileApp.hide();
-                  window.mobileApp.postMessage({ detail: { type: messageType } });
+                  var nativeTarget = messageType === 'openOrders' ? 'orders' : (messageType === 'openCart' ? 'cart' : 'profile');
+                  if (typeof window.mobileApp.navigate === 'function') {
+                    window.mobileApp.navigate(nativeTarget);
+                  } else {
+                    window.mobileApp.postMessage({ detail: { type: messageType } });
+                    if (typeof window.mobileApp.hide === 'function') window.mobileApp.hide();
+                  }
                 }
               } catch (e) {}
             }, true);
@@ -588,9 +598,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
       nav.style.cssText = OTLOBLI_NAV_CSS;
       nav.setAttribute('data-otlobli-nav-style', OTLOBLI_NAV_STYLE_VERSION);
     }
-    if (nav.parentNode !== document.body ||
-        (nav !== document.body.lastElementChild && otlobliNavIsActuallyCovered(nav))) {
-      document.body.appendChild(nav);
+    var stableNavHost = document.documentElement || document.body;
+    if (nav.parentNode !== stableNavHost ||
+        (nav !== stableNavHost.lastElementChild && otlobliNavIsActuallyCovered(nav))) {
+      stableNavHost.appendChild(nav);
     }
     return true;
   }
@@ -3921,11 +3932,16 @@ export const SHEIN_CAPTURE_SCRIPT = `
               if (idx2 < 0) idx2 = 0; if (idx2 > 3) idx2 = 3;
               var types2 = ['', 'openOrders', 'openCart', 'openProfile'];
               if (types2[idx2] && window.mobileApp && window.mobileApp.postMessage) {
-                if (typeof window.mobileApp.hide === 'function') window.mobileApp.hide();
-                window.mobileApp.postMessage({ detail: { type: types2[idx2] } });
+                var nativeTarget2 = types2[idx2] === 'openOrders' ? 'orders' : (types2[idx2] === 'openCart' ? 'cart' : 'profile');
+                if (typeof window.mobileApp.navigate === 'function') {
+                  window.mobileApp.navigate(nativeTarget2);
+                } else {
+                  window.mobileApp.postMessage({ detail: { type: types2[idx2] } });
+                  if (typeof window.mobileApp.hide === 'function') window.mobileApp.hide();
+                }
               }
               // نعيد شريطنا لآخر الـDOM فوراً ليستعيد أولوية الرسم
-              try { document.body.appendChild(navEl2); } catch (err2) {}
+              try { (document.documentElement || document.body).appendChild(navEl2); } catch (err2) {}
               return;
             }
           }
@@ -5442,8 +5458,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
             event.stopPropagation();
             try {
               if (window.mobileApp && window.mobileApp.postMessage) {
-                if (typeof window.mobileApp.hide === 'function') window.mobileApp.hide();
-                window.mobileApp.postMessage({ detail: { type: messageType } });
+                var nativeTarget = messageType === 'openOrders' ? 'orders' : (messageType === 'openCart' ? 'cart' : 'profile');
+                if (typeof window.mobileApp.navigate === 'function') {
+                  window.mobileApp.navigate(nativeTarget);
+                } else {
+                  window.mobileApp.postMessage({ detail: { type: messageType } });
+                  if (typeof window.mobileApp.hide === 'function') window.mobileApp.hide();
+                }
               }
             } catch (e) {}
           }, true);
@@ -5453,7 +5474,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
     otlobliResetTemuNavContentOffset(nav);
     if (IS_TEMU) otlobliStabilizeTemuNavLayer(nav);
-    else document.body.appendChild(nav);
+    else (document.documentElement || document.body).appendChild(nav);
   }
 
   // Lets the user always get back out of wherever they navigated to inside
@@ -6764,7 +6785,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       // viewer transition avoids the repeating animation/flicker caused by
       // reclaiming them on every 300ms tick.
       document.body.appendChild(guard);
-      if (nav) document.body.appendChild(nav);
+      if (nav) (document.documentElement || document.body).appendChild(nav);
       if (back) {
         back.style.setProperty('animation', 'none', 'important');
         document.body.appendChild(back);

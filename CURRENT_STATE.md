@@ -2,6 +2,18 @@
 
 Last updated: 2026-07-29
 
+## v86.13 responsive cart + direct store navigation + Android top inset (2026-07-29)
+
+- Current marker is `2026.07.29-v86.13-responsive-cart-instant-native-nav`; Android and iOS are `873/86.13`, and the auth test bypass remains off.
+- The cart overlap came from its scrollable CSS Grid shrinking implicit rows below their contents. Cart rows now use `grid-auto-rows:max-content` and compact flex cards with bounded image/swatch dimensions, semantic title/delete buttons, narrow-screen sizing, and visible overflow. Playwright visual/geometry acceptance passed at `390px` and `320px`: every card's rendered height is greater than its content scroll height, so adjacent cards no longer collide.
+- Store-bar Orders/Cart/Profile taps now use a one-shot native `mobileApp.navigate(target)` bridge on Android and iOS. The host commits the React destination with `flushSync`; Android has a bounded 120ms reveal fallback. Cached/older scripts retain the idempotent post-message/hide path. This adds no polling, timer loop, or recurring scan.
+- Android alone now enables the plugin's real top inset and safe top margin. The Note 8 WebView bounds are `[0,63][1080,2094]`, below the status bar `[0,0][1080,63]`; SHEIN's logo/search/header is fully visible. iOS keeps its existing sizing unchanged because the user's iPhone 16 layout is already correct.
+- SHEIN can replace its body during live product/ranking updates. `#otlobli-nav` is therefore mounted on the stable document root rather than the replaceable body; the existing maintenance cycle remains, with no new persistent timer. The guard now protects this invariant.
+- Real Note 8 acceptance used the installed `86.13/873` over existing app data: the Android top header is visible, product/search pages retain the bar, and Orders appeared in the first capture `1.17s` after the ADB command began, including about `0.58s` of ADB input overhead and screenshot time. Existing user cart data was inspected but not overwritten. No crash or ANR was observed.
+- Production build, freeze/navigation guard, performance budget, Android/iOS sync, Android Gradle, APK install, and narrow visual fixtures pass. Current budgets: largest JS `1,176,414/1,200,000`, total JS gzip `354,837/370,000`, CSS `62,241/70,000`, and SHEIN source `546,869/550,000`.
+- Android artifact: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.13-responsive-cart-fast-nav-debug.apk`; SHA-256 `D74996688545B1FA884F6883ED4741ECF948E404FC6C6B8B0B9089831AD9D9E4`.
+- iOS source is synchronized locally and the workflow expects `otlobli-v86.13-iphone16-unsigned.ipa`; GitHub/Xcode artifact status is still pending at this point. Real iPhone acceptance remains mandatory: cart layout, fast bar taps, five background/resume cycles, and a separate cold launch. No iPhone device success is claimed from Android/build checks.
+
 ## v86.12 native store offline recovery (2026-07-29)
 
 - Current marker is `2026.07.28-v86.12-native-offline-recovery`; Android and iOS are `872/86.12`, and the test auth bypass remains off.

@@ -35,8 +35,26 @@ index ae420ed..ae452de 100644
      }
  
      protected void handleOnPause() {
+diff --git a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/MobileAppBridgeScript.java b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/MobileAppBridgeScript.java
+index 6b4115a..8e557cf 100644
+--- a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/MobileAppBridgeScript.java
++++ b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/MobileAppBridgeScript.java
+@@ -17,6 +17,13 @@ final class MobileAppBridgeScript {
+                             console.error('Error in mobileApp.hide:', e);
+                           }
+                         },
++                        navigate: function(target) {
++                          try {
++                            window.AndroidInterface.navigate(String(target || ''));
++                          } catch(e) {
++                            console.error('Error in mobileApp.navigate:', e);
++                          }
++                        },
+                         show: function() {
+                           try {
+                             window.AndroidInterface.show();
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
-index 8ae3e61..0cf22bd 100644
+index 8ae3e61..3c18e7d 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
 +++ b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
 @@ -16,7 +16,13 @@ import android.graphics.Color;
@@ -532,7 +550,68 @@ index 8ae3e61..0cf22bd 100644
      // Add this class to provide safer JavaScript interface
      private class JavaScriptInterface {
  
-@@ -1263,6 +1713,32 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -480,6 +930,60 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+             activity.runOnUiThread(() -> setHidden(true));
+         }
+ 
++        @JavascriptInterface
++        public void navigate(String target) {
++            if (!isJavaScriptControlAllowed()) {
++                Log.w("InAppBrowser", "navigate() blocked: allowWebViewJsVisibilityControl is false");
++                return;
++            }
++            if (activity == null) {
++                Log.e("InAppBrowser", "Cannot navigate host - activity is null");
++                return;
++            }
++
++            final String route;
++            switch (target == null ? "" : target) {
++                case "orders":
++                    route = "orders";
++                    break;
++                case "cart":
++                    route = "cart";
++                    break;
++                case "profile":
++                    route = "profile";
++                    break;
++                default:
++                    Log.w("InAppBrowser", "Ignoring unsupported host route");
++                    return;
++            }
++
++            activity.runOnUiThread(() -> {
++                if (capacitorWebView == null) {
++                    setHidden(true);
++                    return;
++                }
++
++                AtomicBoolean revealFinished = new AtomicBoolean(false);
++                Runnable revealHost = () -> {
++                    if (!revealFinished.compareAndSet(false, true)) {
++                        return;
++                    }
++                    setHidden(true);
++                };
++                String script =
++                    "window.dispatchEvent(new CustomEvent('otlobli:nativeNavigate',{detail:" +
++                    JSONObject.quote(route) +
++                    "}));";
++
++                // The host React route commits synchronously inside this event.
++                // Hide the store only after that JavaScript has run, with one
++                // bounded fallback in case an old WebView never invokes the
++                // evaluateJavascript callback.
++                capacitorWebView.evaluateJavascript(script, ignored -> revealHost.run());
++                capacitorWebView.postDelayed(revealHost, 120L);
++            });
++        }
++
+         @JavascriptInterface
+         public void show() {
+             if (!isJavaScriptControlAllowed()) {
+@@ -1263,6 +1767,32 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          return false;
      }
  
@@ -565,7 +644,7 @@ index 8ae3e61..0cf22bd 100644
      private void previewDownloadedFileInWebView(File file, String mimeType, String sourceUrl) {
          WebView webView = _webView;
          if (webView == null || isDismissing) {
-@@ -1807,6 +2283,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -1807,6 +2337,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          applyDimensions();
  
          this._webView = findViewById(R.id.browser_view);
@@ -573,7 +652,7 @@ index 8ae3e61..0cf22bd 100644
  
          // Apply insets to fix edge-to-edge issues on Android 15+
          applyInsets();
-@@ -2991,6 +3468,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -2991,6 +3522,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                  return;
              }
  
@@ -581,7 +660,7 @@ index 8ae3e61..0cf22bd 100644
              _options.getCallbacks().javascriptCallback(message);
          } catch (Exception e) {
              Log.e("InAppBrowser", "Error in postMessage: " + e.getMessage());
-@@ -4703,6 +5181,9 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4703,6 +5235,9 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                      if (view == null || _webView == null) {
                          return;
                      }
@@ -591,7 +670,7 @@ index 8ae3e61..0cf22bd 100644
                      if (ProxyRequestSupport.shouldInjectBridge(_options) && proxyBridgeScript != null && proxyAccessToken != null) {
                          String preparedProxyBridgeScript = prepareProxyBridgeScript();
                          if (preparedProxyBridgeScript != null) {
-@@ -4742,6 +5223,13 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4742,6 +5277,13 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                      if (view == null || _webView == null) {
                          return;
                      }
@@ -605,7 +684,7 @@ index 8ae3e61..0cf22bd 100644
                      if (!isInitialized) {
                          isInitialized = true;
                          _webView.clearHistory();
-@@ -4801,8 +5289,21 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4801,8 +5343,21 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                      if (view == null || _webView == null) {
                          return;
                      }
@@ -628,7 +707,7 @@ index 8ae3e61..0cf22bd 100644
                          CharSequence description = error != null ? error.getDescription() : null;
                          String message = description != null ? "Initial page load failed: " + description : "Initial page load failed";
                          rejectOpenWebViewIfNeeded(message);
-@@ -4932,6 +5433,19 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4932,6 +5487,19 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
      @Override
      public void dismiss() {
          scheduleHostWebViewInsetRestore();
@@ -648,7 +727,7 @@ index 8ae3e61..0cf22bd 100644
  
          // First, stop any ongoing operations and disable further interactions
          if (_webView != null) {
-@@ -5586,17 +6100,50 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -5586,17 +6154,50 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          );
      }
  
@@ -701,7 +780,7 @@ index 8ae3e61..0cf22bd 100644
              // Strip conditional cache validators on the wire so upstream cannot return 304/3xx,
              // which WebResourceResponse.setStatusCodeAndReasonPhrase rejects (kills the renderer).
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
-index 116e296..a99fd90 100644
+index 116e296..e8eb43c 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
 @@ -152,9 +152,11 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
@@ -976,7 +1055,40 @@ index 116e296..a99fd90 100644
                          return
                      }
                  }
-@@ -1811,6 +1931,34 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -1386,6 +1506,32 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+         )
+     }
+ 
++    func navigateHostFromJavaScript(_ target: String, sourceId: String? = nil) {
++        let route: String
++        switch target {
++        case "orders":
++            route = "orders"
++        case "cart":
++            route = "cart"
++        case "profile":
++            route = "profile"
++        default:
++            return
++        }
++
++        DispatchQueue.main.async {
++            guard let hostWebView = self.bridge?.webView else {
++                self.setHiddenFromJavaScript(true, sourceId: sourceId)
++                return
++            }
++
++            let script = "window.dispatchEvent(new CustomEvent('otlobli:nativeNavigate',{detail:'\(route)'}));"
++            hostWebView.evaluateJavaScript(script) { _, _ in
++                self.setHiddenFromJavaScript(true, sourceId: sourceId)
++            }
++        }
++    }
++
+     @objc func hide(_ call: CAPPluginCall) {
+         self.setHiddenState(true, targetId: call.getString("id"), call: call)
+     }
+@@ -1811,6 +1957,34 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
  
      @objc func appDidBecomeActive(_ notification: NSNotification) {
          self.hidePrivacyScreen()
@@ -1192,7 +1304,7 @@ index 1c70884..60018b4 100644
          if
              ProxySchemeRequestSupport.supportsRequestBody(method: context.method),
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
-index 97a2fc1..113b7d4 100644
+index 97a2fc1..af5a599 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
 @@ -9,6 +9,7 @@
@@ -1754,7 +1866,46 @@ index 97a2fc1..113b7d4 100644
                  emit("messageFromWebview", data: messageBody)
              } else {
                  print("Received non-dictionary message from JavaScript:", message.body)
-@@ -1581,6 +2081,8 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1176,6 +1676,12 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+                 return
+             }
+             capBrowserPlugin?.setHiddenFromJavaScript(true, sourceId: instanceId)
++        } else if message.name == "navigate" {
++            guard allowWebViewJsVisibilityControl,
++                  let target = message.body as? String else {
++                return
++            }
++            capBrowserPlugin?.navigateHostFromJavaScript(target, sourceId: instanceId)
+         } else if message.name == "show" {
+             guard allowWebViewJsVisibilityControl else {
+                 return
+@@ -1237,6 +1743,9 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+                                 hide: function() {
+                                         window.webkit.messageHandlers.hide.postMessage(null);
+                                 },
++                                navigate: function(target) {
++                                        window.webkit.messageHandlers.navigate.postMessage(String(target || ''));
++                                },
+                                 show: function() {
+                                         window.webkit.messageHandlers.show.postMessage(null);
+                                 }
+@@ -1337,6 +1846,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+         userContentController.removeScriptMessageHandler(forName: "preShowScriptSuccess")
+         userContentController.removeScriptMessageHandler(forName: "close")
+         userContentController.removeScriptMessageHandler(forName: "hide")
++        userContentController.removeScriptMessageHandler(forName: "navigate")
+         userContentController.removeScriptMessageHandler(forName: "show")
+         userContentController.removeScriptMessageHandler(forName: "takeScreenshot")
+         userContentController.removeScriptMessageHandler(forName: "consoleMessageHandler")
+@@ -1358,6 +1868,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+         userContentController.add(weakHandler, name: "preShowScriptSuccess")
+         userContentController.add(weakHandler, name: "close")
+         userContentController.add(weakHandler, name: "hide")
++        userContentController.add(weakHandler, name: "navigate")
+         userContentController.add(weakHandler, name: "show")
+         if allowScreenshotsFromWebPage {
+             userContentController.add(weakHandler, name: "takeScreenshot")
+@@ -1581,6 +2092,8 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          self.hiddenPopupWindow = parent.hiddenPopupWindow
          self.opensHidden = parent.hiddenPopupWindow
          self.captureConsoleLogs = parent.captureConsoleLogs
@@ -1763,7 +1914,7 @@ index 97a2fc1..113b7d4 100644
          self.allowWebViewJsVisibilityControl = parent.allowWebViewJsVisibilityControl
          self.allowScreenshotsFromWebPage = parent.allowScreenshotsFromWebPage
          self.handleDownloads = parent.handleDownloads
-@@ -1818,6 +2320,18 @@ public extension WKWebViewController {
+@@ -1818,6 +2331,18 @@ public extension WKWebViewController {
  
      open func cleanupWebView() {
          guard let webView = self.webView else { return }
@@ -1782,7 +1933,15 @@ index 97a2fc1..113b7d4 100644
          webView.stopLoading()
          previewItemURL = nil
  
-@@ -2682,12 +3196,30 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -1837,6 +2362,7 @@ public extension WKWebViewController {
+         webView.configuration.userContentController.removeScriptMessageHandler(forName: "messageHandler")
+         webView.configuration.userContentController.removeScriptMessageHandler(forName: "close")
+         webView.configuration.userContentController.removeScriptMessageHandler(forName: "hide")
++        webView.configuration.userContentController.removeScriptMessageHandler(forName: "navigate")
+         webView.configuration.userContentController.removeScriptMessageHandler(forName: "show")
+         if allowScreenshotsFromWebPage {
+             webView.configuration.userContentController.removeScriptMessageHandler(forName: "takeScreenshot")
+@@ -2682,12 +3208,30 @@ extension WKWebViewController: WKNavigationDelegate {
      public func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
          updateBarButtonItems()
          self.progressView?.progress = 0
@@ -1813,7 +1972,7 @@ index 97a2fc1..113b7d4 100644
          if !didpageInit && self.capBrowserPlugin?.isPresentAfterPageLoad == true {
              // Only inject preShowScript if it wasn't already injected at document start
              let shouldInjectScript = self.preShowScript.map { !$0.isEmpty } ?? false &&
-@@ -2703,12 +3235,18 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2703,12 +3247,18 @@ extension WKWebViewController: WKNavigationDelegate {
                      DispatchQueue.global(qos: .userInitiated).async {
                          self.injectPreShowScript()
                          DispatchQueue.main.async { [weak self] in
@@ -1834,7 +1993,7 @@ index 97a2fc1..113b7d4 100644
              }
          } else if self.preShowScript != nil &&
                      !self.preShowScript!.isEmpty &&
-@@ -2743,7 +3281,10 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2743,7 +3293,10 @@ extension WKWebViewController: WKNavigationDelegate {
              self.url = url
              delegate?.webViewController?(self, didFail: url, withError: error)
          }
@@ -1846,7 +2005,7 @@ index 97a2fc1..113b7d4 100644
      }
  
      public func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-@@ -2753,7 +3294,19 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2753,7 +3306,19 @@ extension WKWebViewController: WKNavigationDelegate {
              self.url = url
              delegate?.webViewController?(self, didFail: url, withError: error)
          }
