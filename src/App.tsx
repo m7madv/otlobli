@@ -5004,7 +5004,7 @@ function App() {
       return (
         <MobileShell active="cart" onNavigate={setScreen} hideBottomNav>
           <Header title="بيانات الاستلام" back={() => setScreen('cart')} unreadCount={unreadCount} onNotifications={openNotifications} />
-          <main className="mobile-content">
+          <main className="mobile-content mobile-content--checkout">
             {cartGroup && cartGroup.members.length > 1 && (
               <section className="group-order-card">
                 <div>
