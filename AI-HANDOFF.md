@@ -2,6 +2,16 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
+## Current candidate (2026-07-30) - v86.19 auth, compound variant, tracking
+
+- Marker/version: `2026.07.30-v86.19-auth-variant-tracking-fix`; Android/iOS `879/86.19`; auth bypass off.
+- Production auth root cause is confirmed and fixed live: `public.ensure_customer` called `public.validate_customer_full_name`, but no migration had ever created the validator. Migration `20260730120000_fix_new_phone_customer_session.sql` is applied; `validator_exists=true`, `validate_customer_full_name('عميل طلبية')` passes, and a new-customer `ensure_customer` path passed inside `BEGIN/ROLLBACK`. Ask the user to request a fresh OTP when retesting.
+- The server source also reopens the same correct OTP when session persistence throws. That defense is not deployed to the Oracle WhatsApp host because this workspace has no accepted SSH/deploy credential; do not claim it live. The database change that caused the user-visible failure is deployed.
+- SHEIN size capture must preserve the complete visible combined selector. `sheinQuantitySizeSummary()` scores `M / CP1` above a nested partial `1PC`, caches the bounded scan for 1.2s during retries, and invalidates it after a real SHEIN tap. The Playwright fixture proved the posted cart value is exactly `M / CP1` while signed-region readiness remains true.
+- Do not weaken `sheinSignedSaudiAddressReady()`, region diagnostics, one-reload guard, veil, or native freeze lifecycle. This release did not change region switching or native recompose timing.
+- Tracking now uses `mobile-content--tracking` max-content rows and two-column cards. At 320/430px: header/product overlap false, card overlap false, horizontal overflow false. Visual artifacts are under `output/playwright/v86.19/`.
+- Validation/build budgets and artifact hashes are recorded in `CURRENT_STATE.md`. APK is `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.19-auth-variant-tracking-fix-debug.apk`; IPA is `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.19-iphone16-unsigned.ipa`. GitHub run `30493537125` passed from iOS commit `0400ffb`; IPA is unsigned and real-device acceptance is pending.
+
 ## Current diagnostic candidate (2026-07-29) - v86.18 region injection trace
 
 - Marker/version: `2026.07.29-v86.18-shein-region-injection-diagnostics`; Android/iOS `878/86.18`; auth bypass off. v86.17 was rejected on the real iPhone 16 because first-product region switching still did not start visibly.

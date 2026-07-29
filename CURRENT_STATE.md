@@ -1,6 +1,18 @@
 # Otlobli Current State
 
-Last updated: 2026-07-29
+Last updated: 2026-07-30
+
+## v86.19 new-phone auth + exact SHEIN variant + tracking layout (2026-07-30)
+
+- Current marker is `2026.07.30-v86.19-auth-variant-tracking-fix`; Android/iOS are `879/86.19`; auth bypass remains off.
+- The new-number OTP failure was not a wrong-code bug. Production had `ensure_customer(text,...)` but `validate_customer_full_name(text)` was absent because it existed only in `supabase/schema.sql`, never in a migration. Existing numbers bypassed that insert branch. Migration `20260730120000_fix_new_phone_customer_session.sql` is applied live; the validator accepts `عميل طلبية`, and a full new-customer `ensure_customer` call passed inside a transaction that was rolled back.
+- `server/src/otpStore.js` now releases a correctly reserved OTP if the later session write fails, so a transient backend error does not turn the same correct code into `already_verified`. This defense is committed but not yet redeployed to the Oracle WhatsApp host; the production database root fix is live.
+- SHEIN combined selectors now prefer the complete visible `الكمية / مقاس` value over a nested partial aria label. A real-browser fixture with nested `aria-label="1PC"` and visible `M / CP1` sent `M / CP1` to cart while retaining a signed `addressCookie`. The lookup is bounded, cached for 1.2s between capture retries, and invalidated by the next real SHEIN tap; region readiness/add protection and all freeze paths are unchanged.
+- Tracking uses a max-content grid and two-column product cards with bounded two-line titles, wrapped variants, explicit image dimensions, and the price below the copy. Playwright at `320×800` and `430×932` reported no header/product overlap, no card overlap, and no horizontal overflow; screenshots are in `output/playwright/v86.19/`.
+- Validation passed: server syntax and OTP retry test, live Supabase migration/query/rollback test, `verify:shein-freeze-guard`, production build/performance budget, Android/iOS sync, Android Gradle debug build, compound-variant Playwright fixture, tracking layout metrics, and visual review. Budgets: JS raw `1,183,523/1,200,000`, JS gzip `355,635/370,000`, CSS `63,029/70,000`, fonts `81,364/100,000`, SHEIN source `549,317/550,000`. Targeted ESLint remains red on 22 pre-existing errors and 15 warnings in `App.tsx`; TypeScript/build pass.
+- Android APK: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.19-auth-variant-tracking-fix-debug.apk`; SHA-256 `92BCF3B2533FAFA7E3DA3E063E5D8339B708B9DF6D51F1720D98109E5B741239`; size `11,121,054` bytes. No ADB device was connected.
+- Primary source commits are `08851ea` and `a747791`; matching iOS commits are `1827322` and `0400ffb`. GitHub/Xcode run `30493537125` passed. Unsigned IPA: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.19-iphone16-unsigned.ipa`; SHA-256 `223DBA03AE55B6A2CC7FB945E2E979A3DD498720A74CE70B2C1FC4485664941E`; size `7,066,065` bytes.
+- IPA inspection confirms `com.otlobli.app`, `86.19/879`, the release/compound-selector/tracking markers, and `otlobliForceRecompose`; there is no provisioning profile or code-signature directory, and the only URL scheme is `otlobli`. Real-device acceptance remains required: request a fresh OTP for a genuinely new number, capture the live `M / CP1` product, inspect tracking, then run five iPhone 16 resume cycles plus a cold launch.
 
 ## v86.18 SHEIN region injection diagnostics + first-load id adoption (2026-07-29)
 
