@@ -3160,11 +3160,11 @@ function App() {
       // nav. Let WKWebView fill the iOS controller instead; viewport-fit=cover
       // makes the injected nav own and paint the complete bottom inset.
       enabledSafeBottomMargin: !isIosNative,
-      // Android's blank-toolbar dialog draws edge-to-edge. Without the real
-      // status-bar inset, the first SHEIN row (including its search field) is
-      // painted behind the system bar and appears cropped. iOS already lays
-      // WKWebView below its top safe area, so this remains Android-only.
-      enabledSafeTopMargin: !isIosNative,
+      // Keep native content below the status bar/notch. Android needs the
+      // explicit top inset, while iOS only needs the safe-area anchor (the
+      // Android-only useTopInset flag is ignored by WKWebView). Do not apply
+      // the bottom safe margin on iOS; Otlobli's injected nav owns that inset.
+      enabledSafeTopMargin: true,
       useTopInset: !isIosNative,
       // Used to route Android traffic through a Cloudflare Worker relay here
       // (outboundProxyRules) so the device's own geo-blocked IP was never

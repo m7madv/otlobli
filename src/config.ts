@@ -17,4 +17,4 @@ export const SOURCE_COUNTRY: 'JO' | 'LB' | 'SA' = 'SA'
 export const TEST_ONLY_AUTH_BYPASS = false
 
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '2026.07.29-v86.14-checkout-cart-ios-layout-payment-status-fix'
+export const APP_VERSION = '2026.07.29-v86.15-ios-safe-top-saudi-region-repair'

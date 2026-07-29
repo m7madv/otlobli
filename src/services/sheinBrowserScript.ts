@@ -814,9 +814,19 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   function sheinAddressPathLabelMatches(optionText, wanted) {
-    var option = sheinNormalizedAddressLabel(optionText).split('/')[0].trim().toLowerCase();
-    var target = sheinNormalizedAddressLabel(wanted).split('/')[0].trim().toLowerCase();
-    return !!option && !!target && option === target;
+    var option = sheinNormalizedAddressLabel(optionText).toLowerCase();
+    var target = sheinNormalizedAddressLabel(wanted).toLowerCase();
+    if (!option || !target) return false;
+    var optionParts = option.split('/').map(function (part) { return part.trim(); }).filter(Boolean);
+    var targetParts = target.split('/').map(function (part) { return part.trim(); }).filter(Boolean);
+    if (!optionParts.length) optionParts = [option];
+    if (!targetParts.length) targetParts = [target];
+    for (var ti = 0; ti < targetParts.length; ti++) {
+      for (var oi = 0; oi < optionParts.length; oi++) {
+        if (optionParts[oi] === targetParts[ti]) return true;
+      }
+    }
+    return false;
   }
 
   function sheinLooksLikeProductPageForShipping() {
@@ -1077,6 +1087,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var addressCountry = sheinAddressCookieCountry();
     if (addressCountry && addressCountry !== SHEIN_REQUIRED_COUNTRY) return false;
     if (sheinVisibleForeignRegion()) return false;
+    if (SHEIN_REQUIRED_COUNTRY === 'SA' && sheinLooksLikeProductPageForShipping() && !sheinSignedSaudiAddressReady()) return false;
     return true;
   }
 
@@ -1215,11 +1226,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   function sheinFindForeignShippingControl() {
-    // On current PDPs the explicit "shipping to <country>" label lives on a
-    // non-semantic wrapper, while the actual native control is its child
-    // button whose text is only the country name. The generic text scanner
-    // therefore sees the foreign region but cannot identify a clickable
-    // ancestor. Prefer this narrow SHEIN-owned control before the fallback.
     var productTitle = document.querySelector('.productShippingTitle');
     var addressCountry = sheinAddressCookieCountry();
     if (productTitle && sheinElementIsVisible(productTitle)
@@ -1229,9 +1235,37 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (productButton && sheinElementIsVisible(productButton)) return productButton;
       return productTitle;
     }
-    return sheinBestVisibleControl(function (text) {
+    return sheinFindShippingRegionContextControl() || sheinBestVisibleControl(function (text) {
       return sheinShippingRegionFromText(text) === 'FOREIGN';
     });
+  }
+
+  function sheinFindShippingRegionContextControl() {
+    if (!document.body || !sheinLooksLikeProductPageForShipping()) return null;
+    var nodes = document.querySelectorAll('button,[role="button"],span,div,li');
+    for (var i = 0; i < nodes.length && i < 2600; i++) {
+      var node = nodes[i];
+      if (!node || (node.id && node.id.indexOf('otlobli') === 0) || !sheinElementIsPainted(node)) continue;
+      var nodeText = sheinUiText(node);
+      if (!nodeText || nodeText.length > 90 || !sheinCountryCodeFromLabel(nodeText)) continue;
+      var context = node;
+      for (var hop = 0; context && hop < 6; hop++, context = context.parentElement) {
+        if (context === document.body || context === document.documentElement) break;
+        var text = sheinUiText(context), cls = String(context.className || '');
+        if (!text || text.length > 1300 || !/shipping|ship|delivery|deliver|address|location|country|region|productShipping|الشحن|التوصيل|الموقع|موقع|البلد|دولة/i.test(text + ' ' + cls)) continue;
+        var directTarget = sheinClosestInteractive(node);
+        if (directTarget && sheinElementIsVisible(directTarget)) return directTarget;
+        if (context.querySelectorAll) {
+          var controls = context.querySelectorAll('button,[role="button"],a');
+          for (var ci = 0; ci < controls.length; ci++) {
+            if (sheinElementIsVisible(controls[ci])) return controls[ci];
+          }
+        }
+        var contextTarget = sheinClosestInteractive(context);
+        if (contextTarget && sheinElementIsVisible(contextTarget)) return contextTarget;
+      }
+    }
+    return null;
   }
 
   function sheinFindShippingEntryControl() {
@@ -1241,8 +1275,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (productButton && sheinElementIsVisible(productButton)) return productButton;
       return sheinClosestInteractive(productTitle);
     }
-    // Current SHEIN PWA exposes a heading "الشحن الي" followed by the country
-    // button. Keep the fallback scoped to a compact product section.
     var headings = document.querySelectorAll('h1,h2,h3,[role="heading"]');
     for (var hi = 0; hi < headings.length && hi < 120; hi++) {
       var heading = headings[hi];
@@ -1257,7 +1289,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         }
       }
     }
-    return null;
+    return sheinFindShippingRegionContextControl();
   }
 
   function sheinVisibleCascadeOptions() {
@@ -1329,38 +1361,71 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return { isCountryList: count >= 2, target: target };
   }
 
-  // Complete SHEIN's own live native address cascade. The configured path is
-  // preferred; when a country has a different/variable hierarchy, select the
-  // first valid live option at each level until SHEIN writes its signed
-  // addressCookie. This supports every country in the PWA selector without
-  // shipping a stale list of its cities and districts inside Otlobli.
+  function sheinCountryIndexLetter() {
+    var map = { SA: 'S', AE: 'U', BH: 'B', KW: 'K', LB: 'L', OM: 'O', QA: 'Q' };
+    return map[SHEIN_REQUIRED_COUNTRY] || String((SHEIN_SUPPORTED_COUNTRY_NAMES[SHEIN_REQUIRED_COUNTRY] || [''])[0] || '').charAt(0).toUpperCase();
+  }
+
+  function sheinAddressListScroller(options) {
+    var candidates = [], root = sheinResolvedShippingUiRoot && sheinResolvedShippingUiRoot();
+    if (root) candidates.push(root);
+    if (options && options.length) {
+      var node = options[0];
+      for (var hop = 0; node && hop < 8; hop++, node = node.parentElement) candidates.push(node);
+    }
+    for (var i = 0; i < candidates.length; i++) {
+      var el = candidates[i];
+      if (!el || !el.getBoundingClientRect) continue;
+      try {
+        if (el.scrollHeight > el.clientHeight + 24) return el;
+      } catch (e) {}
+    }
+    return null;
+  }
+
+  function sheinMoveCountryListTowardRequiredCountry(options) {
+    if (!options || !options.length) return false;
+    if (!sheinPrepareNativeSaudiRepair()) return false;
+    var root = sheinResolvedShippingUiRoot && sheinResolvedShippingUiRoot(), wantedLetter = sheinCountryIndexLetter();
+    if (wantedLetter && root && root.querySelectorAll) {
+      var shortcuts = root.querySelectorAll('button,a,[role="button"],li,span,div');
+      for (var si = 0; si < shortcuts.length && si < 260; si++) {
+        var shortcut = shortcuts[si];
+        var rect = shortcut.getBoundingClientRect();
+        if (rect && rect.width <= 64 && rect.height <= 64 && sheinElementIsPainted(shortcut) && sheinUiText(shortcut).toUpperCase() === wantedLetter) {
+          return sheinClickNativeShippingControl(shortcut);
+        }
+      }
+    }
+    var scroller = sheinAddressListScroller(options);
+    if (!scroller) return false;
+    try {
+      var before = scroller.scrollTop;
+      var delta = Math.max(160, Math.floor((scroller.clientHeight || 360) * 0.72));
+      var direction = SHEIN_REQUIRED_COUNTRY === 'BH' ? -1 : 1;
+      scroller.scrollTop = Math.max(0, before + (direction * delta));
+      if (Math.abs(scroller.scrollTop - before) < 2 && direction > 0) scroller.scrollTop = scroller.scrollHeight;
+      scheduleSheinShippingProgress(OTLOBLI_LOW_END ? 520 : 260);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   function sheinNativeSaudiAddressStep(addressCountry, visibleOptions, visibleTabs) {
     var options = visibleOptions || sheinVisibleCascadeOptions();
     var tabs = visibleTabs || sheinVisibleShippingTabs();
     if (!options.length || !sheinLooksLikeProductPageForShipping()) return false;
 
-    // iOS keeps the old country name in the first tab even after the country
-    // list has opened. Looking at that tab first caused us to tap "Qatar"
-    // again on every pass and never reach the visible Saudi option. Two or
-    // more country-coded rows prove that the current level is the country
-    // list, so select the configured country before considering stale tabs.
     var countryList = sheinCountryListState(options);
     if (countryList.isCountryList) {
       return countryList.target
         ? sheinClickNativeShippingControl(countryList.target)
-        : false;
+        : sheinMoveCountryListTowardRequiredCountry(options);
     }
 
-    // A drawer opened on an old address starts at that country's next level.
-    // Return to the country tab first; otherwise a generic "first option"
-    // click would complete the old country instead of switching regions.
     var countryTab = tabs[0] || null;
     var countryTabCode = countryTab ? sheinCountryCodeFromLabel(sheinUiText(countryTab)) : '';
-    // The cookie intentionally remains on the previous country until SHEIN
-    // signs the final lower-level selection. Do not use that stale cookie to
-    // jump back after the requested country tab is already selected. A
-    // placeholder such as "Select location" has no country code and means we
-    // are already looking at the country list, so proceed to its real option.
     if (countryTab && countryTabCode && countryTabCode !== SHEIN_REQUIRED_COUNTRY) {
       return sheinClickNativeShippingControl(countryTab);
     }
