@@ -2,6 +2,17 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
+## Current candidate (2026-07-29) - v86.17 first-product region bootstrap + hidden switch veil
+
+- Marker/version: `2026.07.29-v86.17-shein-first-product-region-veil`; Android/iOS `877/86.17`; auth bypass off. Primary branch remains `claude/ios6-cover-fix`; matching iOS source is pushed on `codex/ios-v86-4` at `ad8b93d`.
+- Root cause addressed after v86.16: iPhone 16 fresh install/first product could show no region action because repair was effectively waiting on shipping DOM/readiness. `sheinLooksLikeProductRouteForShipping()` now treats product URL/queries as enough to prime repair, and `tick()` calls `sheinPrimeRegionRepairFromRoute()` before the touch/scroll early-return.
+- Product URLs missing/stale region params get one bounded bootstrap reload through `__otlobliRegionBootstrapReload:<country>:<path>`; this is allowed only on product routes and skipped on SHEIN challenge routes. Do not turn it into a repeated reload/setUrl loop.
+- The switch is hidden by the in-page `#otlobli-region-switching` veil, not the old native `sheinSaudiRepairStart` cover. The bottom nav remains above it; add/back are hidden while the veil is active; add-to-cart must still require `sheinSignedSaudiAddressReady()`.
+- Preserve the new freeze-guard markers in `scripts/verify-shein-freeze-guard.mjs`: first-product route detection, region veil, prime repair, bootstrap reload key, and the tick call. Old `OTLOBLI_DBG` console scanning was intentionally reduced to a no-op to stay under the SHEIN source budget.
+- Validation passed: production build, freeze guard, performance budget, Android sync, iOS sync, Android Gradle debug build, GitHub/Xcode run `30487346505`, and IPA inspection. Budgets: JS raw `1,180,135`, JS gzip `355,127`, CSS `62,602`, fonts `81,364`, SHEIN source `549,688/550,000`.
+- APK/SHA: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.17-shein-first-product-region-veil-debug.apk`, `036333156DFA7A9C37123E1CAFD1057391596304EC118066E0F0A9243583A91D`. No Android device was connected for install.
+- IPA/SHA: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.17-iphone16-unsigned.ipa`, `56A70B26090D484045A09654077D48D5B5B7108F67B31D792B8B82018F746A3A`. Unsigned/unprovisioned; Info.plist is `com.otlobli.app`, `86.17/877`, URL schemes only `otlobli`. Real iPhone acceptance remains required.
+
 ## Current candidate (2026-07-29) - v86.16 background region repair + payment normalizer
 
 - Marker/version: `2026.07.29-v86.16-region-background-payment-status-normalizer`; Android/iOS `876/86.16`; auth bypass off. Primary branch remains `claude/ios6-cover-fix`; matching iOS source is pushed on `codex/ios-v86-4` at `225cdb2`.

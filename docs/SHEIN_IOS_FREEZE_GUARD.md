@@ -2,6 +2,13 @@
 
 هذه قاعدة إصدار إلزامية وليست ملاحظة تاريخية.
 
+## حارس أول منتج وغطاء تبديل المنطقة — v86.17
+
+- أول منتج SHEIN يجب أن يطلق إصلاح المنطقة من مسار الرابط نفسه، حتى قبل ظهور عناصر الشحن. حافظ على `sheinLooksLikeProductRouteForShipping()` و`sheinPrimeRegionRepairFromRoute()` واستدعاء `if (IS_SHEIN) sheinPrimeRegionRepairFromRoute();` قبل early-return الخاص باللمس/التمرير.
+- إذا كان رابط المنتج لا يحمل دولة/عملة/لغة الإعداد الحالي، مسموح فقط بإعادة تحميل واحدة محكومة بالمفتاح `__otlobliRegionBootstrapReload:<country>:<path>`. لا تحول هذا إلى reload/setUrl loop، ولا تشغله على صفحات التحقق البشري.
+- إخفاء تبديل المنطقة يتم عبر غطاء HTML خفيف داخل WebView: `#otlobli-region-switching`. هذا ليس غطاء `sheinSaudiRepairStart` native القديم. يجب أن يبقى شريط Otlobli فوقه، وأن تختفي أزرار add/back فقط أثناء التهيئة.
+- الجاهزية النهائية ما زالت `sheinSignedSaudiAddressReady()` فقط. لا تجعل ظهور الصفحة أو URL params كافيين للسلة.
+
 ## حارس قلب المنطقة بالخلفية — v86.16
 
 - قلب منطقة SHEIN يجب ألّا يحبس المستخدم خلف غطاء native خاص بالمنطقة. `sheinPrepareNativeSaudiRepair()` يبدأ إصلاحاً سريعاً ومحدوداً بالخلفية، ويترك الصفحة قابلة للتصفح.

@@ -82,6 +82,11 @@ const checks = [
     file: 'src/services/sheinBrowserScript.ts',
     markers: [
       'function sheinRestoreNavAfterShipping()',
+      'function sheinLooksLikeProductRouteForShipping()',
+      'function sheinRegionTransitionVeil(show)',
+      'function sheinPrimeRegionRepairFromRoute()',
+      '__otlobliRegionBootstrapReload:',
+      'if (IS_SHEIN) sheinPrimeRegionRepairFromRoute();',
       "nav.style.setProperty('pointer-events', 'auto', 'important')",
       "nav.removeAttribute('data-otlobli-nav-yield')",
       "if (nav.querySelector('#otlobli-nav-region-guard'))",

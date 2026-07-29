@@ -2,6 +2,18 @@
 
 Last updated: 2026-07-29
 
+## v86.17 first-product SHEIN region bootstrap + hidden switch veil (2026-07-29)
+
+- Current marker is `2026.07.29-v86.17-shein-first-product-region-veil`; Android and iOS are `877/86.17`, and the auth test bypass remains off.
+- This release targets the real iPhone 16 report after v86.16: after delete/reinstall, opening a SHEIN product could remain on the old/no signed region for minutes because the repair trigger waited too much on shipping DOM/readiness. Product-route detection now starts from the URL itself (`-p-...`, product/goods/item routes, and product query IDs), so the first product primes region repair immediately even before SHEIN renders the shipping row.
+- SHEIN product URLs that are missing or carrying stale region query parameters now get one bounded bootstrap `location.replace()` to the normalized country/currency/language URL (`__otlobliRegionBootstrapReload:<country>:<path>`). This is not a loop and is skipped on challenge routes; after that, the signed `addressCookie` cascade remains the authority.
+- A lightweight in-page region veil (`#otlobli-region-switching`) hides the SHEIN address drawer/switching steps while keeping Otlobli's bottom nav above it. It is HTML/CSS inside the WebView, not the old native `sheinSaudiRepairStart` cover, and auto-removes on signed readiness, failed repair timeout, or repair end. Add/back controls are hidden during the veil; add-to-cart still requires `sheinSignedSaudiAddressReady()`.
+- The general tick now cheaply primes product-route repair before the touch/scroll early-return, then heavy scans still back off during interaction. Old `OTLOBLI_DBG` console scanning was replaced with a no-op to keep weak-phone overhead and the SHEIN source budget under control.
+- Validation passed: `npm run build`, `verify:shein-freeze-guard`, `verify:performance-budget`, Android sync, iOS sync, Android Gradle debug build, GitHub/Xcode iOS build, and IPA inspection. Budgets: largest JS `1,180,135/1,200,000`, total JS gzip `355,127/370,000`, CSS `62,602/70,000`, fonts `81,364/100,000`, SHEIN source `549,688/550,000`.
+- Android artifact: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.17-shein-first-product-region-veil-debug.apk`; SHA-256 `036333156DFA7A9C37123E1CAFD1057391596304EC118066E0F0A9243583A91D`. `adb devices` listed no connected Android device, so it was not installed/device-accepted.
+- Matching iOS source was pushed on `codex/ios-v86-4` at `ad8b93d`; GitHub Actions run `30487346505` passed. IPA: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.17-iphone16-unsigned.ipa`; SHA-256 `56A70B26090D484045A09654077D48D5B5B7108F67B31D792B8B82018F746A3A`.
+- IPA inspection confirms `com.otlobli.app`, `86.17/877`, the v86.17 marker, first-product route/bootstrap markers, region veil marker, and `otlobliForceRecompose`. It remains unsigned/unprovisioned, and URL schemes still include only `otlobli`. Real iPhone 16 acceptance remains required: delete/install, first product must immediately show Otlobli preparation/finish selected Admin country, country change from Admin must rebuild/reprime, no visible stuck drawer, add-to-cart blocked until signed, and five background/resume cycles plus cold launch must pass.
+
 ## v86.16 background region repair + payment-status normalizer (2026-07-29)
 
 - Current marker is `2026.07.29-v86.16-region-background-payment-status-normalizer`; Android and iOS are `876/86.16`, and the auth test bypass remains off.
