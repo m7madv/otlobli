@@ -2,6 +2,16 @@
 
 Last updated: 2026-07-30
 
+## v86.20 SHEIN variant regression rollback + narrow compound completion (2026-07-30)
+
+- Current marker is `2026.07.30-v86.20-shein-variant-regression-fix`; Android/iOS are `880/86.20`; auth bypass remains off.
+- Real-device feedback rejected v86.19's broad `sheinQuantitySizeSummary()` path. It treated any control near `الكمية / مقاس` as a confirmed selection, which could add without a real size choice, keep stale `M` after choosing `L`, and make the captured price appear tied to the wrong variant.
+- v86.20 restores the complete v86.18 extraction and price flow for ordinary products. The only new path runs when the existing selected value is an exact piece-count token (`1PC`/`CP1`) and an actual selected size exists in the same option container; it then preserves the same control's `M / CP1` text or joins the two confirmed selected values. It never infers from a heading or nearby unselected control and stores no variant cache.
+- Playwright real-browser regression cases pass: no selection posts nothing; an ordinary selected `L` stays `L`; nested compound selection captures `M / CP1`; separate selected piece/size captures `M / 1PC`; changing the selected size to `L` captures `L / 1PC`. Each successful fixture retained the unchanged baseline price `$3.49` and signed `addressCookie`.
+- `verify:shein-freeze-guard`, production build/performance budget, Android/iOS sync, Android Gradle debug build, and `git diff --check` pass. Budgets: JS raw `1,180,447/1,200,000`, JS gzip `354,917/370,000`, CSS `63,029/70,000`, fonts `81,364/100,000`, SHEIN source `546,214/550,000`.
+- Android APK: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.20-shein-variant-regression-fix-debug.apk`; SHA-256 `EE74578B350CF53BB89119991235E3A748790B2EDEC442C4EADC1961DDF9E81F`; size `11,120,174` bytes. ADB listed no connected device.
+- iOS CI/IPA and real iPhone 16 acceptance are still pending. Required device checks: no-selection block, ordinary M→L, the three-group product, variant price, five resume cycles, and a cold launch. Do not claim the regression fixed on device from fixtures/builds alone.
+
 ## v86.19 new-phone auth + exact SHEIN variant + tracking layout (2026-07-30)
 
 - Current marker is `2026.07.30-v86.19-auth-variant-tracking-fix`; Android/iOS are `879/86.19`; auth bypass remains off.

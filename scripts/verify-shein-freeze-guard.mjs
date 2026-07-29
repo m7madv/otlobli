@@ -107,6 +107,12 @@ const checks = [
       'window.mobileApp.navigate(nativeTarget)',
       'var stableNavHost = document.documentElement || document.body',
       'stableNavHost.appendChild(nav)',
+      'function completeSelectedCompoundSize(container, selected)',
+      'completeSelectedCompoundSize(container, getSelectedWithin(container))',
+    ],
+    forbidden: [
+      'function sheinQuantitySizeSummary()',
+      '__otlobliQuantitySizeSummaryCache',
     ],
   },
   {
@@ -137,6 +143,11 @@ for (const check of checks) {
   for (const marker of check.markers) {
     if (!contents.includes(marker)) {
       failures.push(`${check.label}: missing ${JSON.stringify(marker)} in ${check.file}`)
+    }
+  }
+  for (const forbidden of check.forbidden || []) {
+    if (contents.includes(forbidden)) {
+      failures.push(`${check.label}: forbidden ${JSON.stringify(forbidden)} in ${check.file}`)
     }
   }
 }
