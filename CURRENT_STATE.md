@@ -12,7 +12,8 @@ Last updated: 2026-07-29
 - Real Note 8 acceptance used the installed `86.13/873` over existing app data: the Android top header is visible, product/search pages retain the bar, and Orders appeared in the first capture `1.17s` after the ADB command began, including about `0.58s` of ADB input overhead and screenshot time. Existing user cart data was inspected but not overwritten. No crash or ANR was observed.
 - Production build, freeze/navigation guard, performance budget, Android/iOS sync, Android Gradle, APK install, and narrow visual fixtures pass. Current budgets: largest JS `1,176,414/1,200,000`, total JS gzip `354,837/370,000`, CSS `62,241/70,000`, and SHEIN source `546,869/550,000`.
 - Android artifact: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.13-responsive-cart-fast-nav-debug.apk`; SHA-256 `D74996688545B1FA884F6883ED4741ECF948E404FC6C6B8B0B9089831AD9D9E4`.
-- iOS source is synchronized locally and the workflow expects `otlobli-v86.13-iphone16-unsigned.ipa`; GitHub/Xcode artifact status is still pending at this point. Real iPhone acceptance remains mandatory: cart layout, fast bar taps, five background/resume cycles, and a separate cold launch. No iPhone device success is claimed from Android/build checks.
+- Matching iOS source is pushed on `codex/ios-v86-4` at `011b4a1`; GitHub/Xcode run `30437092864` passed. IPA: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.13-iPhone16-unsigned.ipa`; SHA-256 `B9ECA22B8457625645FE8D2355AF44B2A0CE3725EDBC8FFB325424719F063019`.
+- IPA inspection confirms `com.otlobli.app`, `86.13/873`, the v86.13/native-navigation/stable-root/recompose markers, no embedded provisioning profile, and no top-level app signature. Only the `otlobli` URL scheme exists, so Google iOS remains hidden. Real iPhone acceptance remains mandatory: cart layout, fast bar taps, five background/resume cycles, and a separate cold launch.
 
 ## v86.12 native store offline recovery (2026-07-29)
 
