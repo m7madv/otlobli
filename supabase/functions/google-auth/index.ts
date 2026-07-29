@@ -1,7 +1,8 @@
 // دالة حافة: تسجيل الدخول/الربط عبر جوجل.
-// المرتكز يبقى رقم الهاتف. جوجل هوية مربوطة بحساب مرتكز على الهاتف:
-//  - إن كانت هوية جوجل مربوطة أصلاً بعميل → نصدر جلسة له مباشرة (دخول فوري).
-//  - إن كانت جديدة → نطلب من التطبيق توثيق الهاتف مرة عبر OTP ثم استدعاء action=link.
+// حساب العميل هو المرتكز، وبيانات الاستلام منفصلة عن وسائل تسجيل الدخول:
+//  - هوية جوجل المربوطة → نصدر جلسة فورية.
+//  - هوية جوجل الجديدة → ينشئ التطبيق الحساب مع رقم استلام غير موثّق.
+//  - توثيق رقم الاستلام لاحقاً عبر OTP يجعله وسيلة دخول اختيارية.
 //
 // أمان: لا تعمل الدالة إطلاقاً ما لم تُضبط GOOGLE_CLIENT_IDS (تفشل مغلقة).
 // التحقق من التوقيع/الصلاحية يتم عبر خدمة جوجل tokeninfo (موقّعة من جوجل).
@@ -91,11 +92,37 @@ Deno.serve(async (req) => {
     return json({ error: 'google_auth_not_configured' }, 503)
   }
 
-  let body: { idToken?: string; action?: string; sessionToken?: string }
+  let body: {
+    idToken?: string
+    action?: string
+    sessionToken?: string
+    phone?: string
+    name?: string
+    governorate?: string
+    qadmousBranch?: string
+    city?: string
+    details?: string
+  }
   try {
     body = (await req.json()) as typeof body
   } catch {
     return json({ error: 'invalid_body' }, 400)
+  }
+
+  const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY)
+
+  // الجلسة الحالية هي إثبات الهوية هنا، لذلك لا نطلب رمز جوجل لقراءة الحالة.
+  if (body.action === 'status') {
+    const sessionToken = (body.sessionToken ?? '').trim()
+    if (!sessionToken) return json({ error: 'missing_session' }, 401)
+    const { data, error } = await supabase.rpc('get_customer_auth_methods', {
+      p_session_token: sessionToken,
+    })
+    if (error) {
+      const code = /invalid customer session/i.test(error.message) ? 'invalid_session' : error.message
+      return json({ error: code }, 401)
+    }
+    return json(data ?? {})
   }
 
   const idToken = (body.idToken ?? '').trim()
@@ -103,7 +130,6 @@ Deno.serve(async (req) => {
   if (!claims) return json({ error: 'invalid_google_token' }, 401)
 
   const emailVerified = claims.email_verified === true || claims.email_verified === 'true'
-  const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY)
 
   // ── مسار الربط: مستخدم مصادَق عليه (بجلسة هاتف) يربط جوجل بحسابه ──────────
   if (body.action === 'link') {
@@ -124,6 +150,51 @@ Deno.serve(async (req) => {
       return json({ ok: false, error: msg }, 409)
     }
     return json({ ok: true, linked: true })
+  }
+
+  // ── إنشاء حساب Google جديد مع بيانات الاستلام، من دون ربط الرقم للدخول ──
+  if (body.action === 'register') {
+    const rawToken = randomToken()
+    const tokenHash = await sha256Hex(rawToken)
+    const expiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString()
+    const { data, error } = await supabase.rpc('register_google_customer', {
+      p_provider_user_id: claims.sub,
+      p_email: claims.email ?? null,
+      p_email_verified: emailVerified,
+      p_display_name: claims.name ?? null,
+      p_phone: body.phone ?? '',
+      p_name: body.name ?? claims.name ?? '',
+      p_governorate: body.governorate ?? 'دمشق',
+      p_qadmous_branch: body.qadmousBranch ?? '',
+      p_city: body.city ?? '',
+      p_details: body.details ?? '',
+      p_token_hash: tokenHash,
+      p_expires_at: expiresAt,
+    })
+    if (error) {
+      if (/delivery phone already belongs/i.test(error.message)) {
+        return json({
+          error: 'phone_account_exists',
+          message: 'هذا الرقم مرتبط بحساب موجود. ادخل بالرقم أولاً، ثم اربط Google من «حسابي».',
+        }, 409)
+      }
+      if (/google identity already registered/i.test(error.message)) {
+        return json({
+          error: 'google_account_exists',
+          message: 'حساب Google هذا مسجّل بالفعل. أعد تسجيل الدخول.',
+        }, 409)
+      }
+      return json({ error: error.message }, 400)
+    }
+
+    const registered = (data ?? {}) as { phone?: string; name?: string }
+    return json({
+      mode: 'registered',
+      sessionToken: rawToken,
+      phone: registered.phone ?? body.phone ?? '',
+      name: registered.name ?? body.name ?? claims.name ?? '',
+      google: { sub: claims.sub, email: claims.email ?? '', name: claims.name ?? '', emailVerified },
+    })
   }
 
   // ── مسار الدخول: هل هوية جوجل مربوطة بعميل؟ ─────────────────────────────
@@ -173,10 +244,9 @@ Deno.serve(async (req) => {
     })
   }
 
-  // ── هوية جديدة: يحتاج توثيق هاتف مرة واحدة ثم action=link ────────────────
+  // ── هوية جديدة: بيانات استلام فقط؛ لا OTP ولا ربط رقم تلقائي ─────────────
   return json({
     mode: 'new',
-    needsPhoneLink: true,
     google: { sub: claims.sub, email: claims.email ?? '', name: claims.name ?? '', emailVerified },
   })
 })

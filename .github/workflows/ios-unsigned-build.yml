@@ -16,11 +16,17 @@ jobs:
           node-version: 22
 
       - run: npm install
+        env:
+          OTLOBLI_RELAY_KEY: ${{ secrets.OTLOBLI_RELAY_KEY }}
 
       - run: npm run build
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_GOOGLE_AUTH_ENABLED: 'true'
+          VITE_GOOGLE_WEB_CLIENT_ID: '677396296147-o5q0rt5qk2rq0rqh714kuki7gabkdmcu.apps.googleusercontent.com'
+          VITE_GOOGLE_IOS_CLIENT_ID: ${{ secrets.VITE_GOOGLE_IOS_CLIENT_ID }}
+          VITE_PUSH_ENABLED: 'true'
           VITE_WHATSAPP_API_URL: ${{ secrets.VITE_WHATSAPP_API_URL }}
           VITE_WHATSAPP_AUTH_MODE: ${{ secrets.VITE_WHATSAPP_AUTH_MODE }}
           VITE_SHEIN_WORKER_URL: ${{ secrets.VITE_SHEIN_WORKER_URL }}
@@ -28,6 +34,22 @@ jobs:
           VITE_USD_TO_SYP_RATE: ${{ secrets.VITE_USD_TO_SYP_RATE }}
 
       - run: npx cap sync ios
+
+      - name: Configure Google Sign-In callback
+        env:
+          VITE_GOOGLE_IOS_CLIENT_ID: ${{ secrets.VITE_GOOGLE_IOS_CLIENT_ID }}
+        run: |
+          if [ -z "$VITE_GOOGLE_IOS_CLIENT_ID" ]; then
+            echo "No iOS OAuth client configured; Google action remains hidden in this build."
+            exit 0
+          fi
+          client_prefix="${VITE_GOOGLE_IOS_CLIENT_ID%.apps.googleusercontent.com}"
+          reversed_client_id="com.googleusercontent.apps.${client_prefix}"
+          plist="ios/App/App/Info.plist"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:1 dict" "$plist"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:1:CFBundleURLName string google" "$plist"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:1:CFBundleURLSchemes array" "$plist"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:1:CFBundleURLSchemes:0 string ${reversed_client_id}" "$plist"
 
       - name: Build unsigned .app
         working-directory: ios/App
@@ -57,10 +79,10 @@ jobs:
         run: |
           mkdir -p Payload
           cp -r build/Build/Products/Release-iphoneos/App.app Payload/
-          zip -r otlobli-unsigned.ipa Payload
+          zip -r otlobli-v86.16-iphone16-unsigned.ipa Payload
 
       - uses: actions/upload-artifact@v4
         with:
-          name: otlobli-ios
-          path: ios/App/otlobli-unsigned.ipa
+          name: otlobli-ios-v86.16-iphone16
+          path: ios/App/otlobli-v86.16-iphone16-unsigned.ipa
           retention-days: 30

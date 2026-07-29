@@ -14,7 +14,7 @@ export const SOURCE_COUNTRY: 'JO' | 'LB' | 'SA' = 'SA'
 // TEST IPA ONLY: skips the local OTP screens so repeated delete/install checks
 // can reach the store immediately. This does not bypass server authentication
 // and must be false before any production build.
-export const TEST_ONLY_AUTH_BYPASS = true
+export const TEST_ONLY_AUTH_BYPASS = false
 
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '2026.07.26-v86-google-signin-push-telegram-ban-alert'
+export const APP_VERSION = '2026.07.29-v86.16-region-background-payment-status-normalizer'

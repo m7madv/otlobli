@@ -22,13 +22,21 @@ Do not start from `main`. The active branch is usually:
 codex/customer-wallet-group-orders
 ```
 
+## Mandatory Same-Task Sync
+
+After every completed modification batch—not only major changes—update `CURRENT_STATE.md`, `AI-HANDOFF.md`, and `SESSION_SUMMARY.md` before handoff. Propagate shared customer changes to every affected native project, keep migrations/schema/backend mirrors aligned, build affected customer/Admin targets, and record deployment, version, artifact, hash, and device-validation status honestly. Documentation-only changes do not require native rebuilds. Follow the detailed rules in `AGENTS.md`.
+
+Before any SHEIN/InAppBrowser/WebView/lifecycle/store-region change, read `docs/SHEIN_IOS_FREEZE_GUARD.md`. The iPhone 16 detach/reattach fix and the unchanged-region comparison are release invariants; `npm run build` must pass their automated guard, followed by the documented real-device acceptance when the affected release is handed off.
+
+Before any runtime/UI/WebView/polling/dependency/bundle change, read `docs/LOW_END_DEVICE_PERFORMANCE_GUARD.md`. Preserve every feature, apply the React performance skill, and keep the automated post-build performance budget passing without raising its ceilings to hide regressions.
+
 ## New Claude Account Warning
 
 The user has a new Claude Code account on the same computer. Do not assume every connector/skill is authenticated.
 
 - Check available skills/tools before using them.
-- Figma is required for design work and may need reauthentication.
-- If Figma is unavailable, say that clearly and ask the user to reconnect Figma; do not invent a design.
+- Use an approved Figma file as the source of truth when one is provided.
+- Without an approved design, design directly in code using the installed frontend design, interface-guideline, and React performance skills. Figma availability must not block visual work.
 - Use any available browser/WebView/testing skills for SHEIN/Temu debugging.
 - Keep context usage low. Read the short handoff files first and avoid old history unless needed.
 

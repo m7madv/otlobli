@@ -91,7 +91,7 @@ function toOrderPayload(order: Order, store = '') {
     address: order.address,
     items: order.items,
     total: order.total,
-    paymentStatus: order.paymentStatus,
+    paymentStatus: normalizePaymentStatus(order.paymentStatus),
     statusIndex: order.statusIndex,
     qadmousNumber: order.qadmousNumber,
     createdAt: order.createdAt,
@@ -103,6 +103,17 @@ function toOrderPayload(order: Order, store = '') {
     deliveryOwnerName: order.deliveryOwnerName ?? null,
     store,
   }
+}
+
+function normalizePaymentStatus(value: unknown): PaymentStatus {
+  const status = String(value ?? '').trim()
+  if (status === 'مدفوع' || status === 'ظ…ط¯ظپظˆط¹' || /^paid$/i.test(status)) {
+    return 'مدفوع'
+  }
+  if (status === 'فشل المطابقة' || status === 'ظپط´ظ„ ط§ظ„ظ…ط·ط§ط¨ظ‚ط©' || /^(failed|failed_match|payment_failed)$/i.test(status)) {
+    return 'فشل المطابقة'
+  }
+  return 'بانتظار الدفع'
 }
 
 function normalizeOrder(value: unknown): Order | null {
@@ -118,7 +129,7 @@ function normalizeOrder(value: unknown): Order | null {
     address: typeof row.address === 'string' ? row.address : '',
     items,
     total: typeof row.total === 'number' ? row.total : Number(row.total ?? 0),
-    paymentStatus: row.paymentStatus as PaymentStatus,
+    paymentStatus: normalizePaymentStatus(row.paymentStatus),
     statusIndex: typeof row.statusIndex === 'number' ? row.statusIndex : Number(row.statusIndex ?? 0),
     qadmousNumber: typeof row.qadmousNumber === 'string' ? row.qadmousNumber : '',
     createdAt: typeof row.createdAt === 'string' ? row.createdAt : today(),
@@ -261,6 +272,12 @@ function getPublicDbError(prefix: string, message?: string) {
   const raw = message || 'خطأ غير معروف'
   if (/schema cache|Could not find the function|PGRST202|function public\\./i.test(raw)) {
     return `${prefix}: تحديث قاعدة البيانات لم يصل بعد. أعد فتح التطبيق بعد دقيقة أو تواصل مع الإدارة إذا استمر الخطأ.`
+  }
+  if (/orders_payment_status_check/i.test(raw)) {
+    return `${prefix}: قاعدة بيانات الدفع تحتاج تحديثاً بسيطاً. أعد المحاولة بعد التحديث أو تواصل مع الإدارة إذا استمر الخطأ.`
+  }
+  if (/violates check constraint/i.test(raw)) {
+    return `${prefix}: تعذّر حفظ بيانات الطلب بسبب قيمة غير مدعومة. حدّث التطبيق وأعد المحاولة.`
   }
   return `${prefix}: ${raw}`
 }
@@ -568,13 +585,10 @@ export const supabaseAppApi: TalabiehApi = {
         if (/customer_blocked/i.test(error.message || '')) {
           throw new Error('customer_blocked')
         }
-        return {
-          mode: 'external',
-          profile: null,
-          orders: [],
-          walletBalanceSyp: 0,
-          walletTransactions: [],
-        }
+        // A transport/session/database failure is not an authoritative empty
+        // account. Returning empty data here used to erase the locally cached
+        // orders and display a zero wallet whenever a refresh briefly failed.
+        throw new Error(error.message || 'Unable to refresh customer account')
       }
 
       return normalizeCustomerAccount(data)

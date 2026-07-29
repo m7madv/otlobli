@@ -141,6 +141,8 @@ alter table public.customers add column if not exists qadmous_branch text not nu
 alter table public.customers add column if not exists details text not null default '';
 alter table public.customers add column if not exists pickup_label text not null default '';
 alter table public.customers add column if not exists notification_prefs jsonb not null default '{}'::jsonb;
+alter table public.customers add column if not exists phone_login_enabled boolean not null default true;
+alter table public.customers add column if not exists phone_verified_at timestamptz;
 -- حظر المستخدم (من لوحة الإدارة): المحظور يُمنع من الدخول ومن إرسال طلبات. يُفرض
 -- مركزياً داخل ensure_customer (نقطة المرور المشتركة للدخول والطلب).
 alter table public.customers add column if not exists blocked boolean not null default false;
@@ -2138,7 +2140,12 @@ as $$
     ) order by o.created_at desc), '[]'::jsonb)
   from public.orders o
   where (target_customer_id is not null and o.customer_id = target_customer_id)
-     or (target_phone <> '' and o.phone = target_phone)
+     or (
+       length(regexp_replace(coalesce(target_phone, ''), '[^0-9]', '', 'g')) >= 9
+       and length(regexp_replace(coalesce(o.phone, ''), '[^0-9]', '', 'g')) >= 9
+       and right(regexp_replace(o.phone, '[^0-9]', '', 'g'), 9)
+         = right(regexp_replace(target_phone, '[^0-9]', '', 'g'), 9)
+     )
      or (
        o.group_id is not null
        and exists (
@@ -2147,7 +2154,12 @@ as $$
          where cgm.group_id = o.group_id
            and (
              (target_customer_id is not null and cgm.customer_id = target_customer_id)
-             or (target_phone <> '' and regexp_replace(cgm.phone, '\s+', '', 'g') = regexp_replace(target_phone, '\s+', '', 'g'))
+             or (
+               length(regexp_replace(coalesce(target_phone, ''), '[^0-9]', '', 'g')) >= 9
+               and length(regexp_replace(coalesce(cgm.phone, ''), '[^0-9]', '', 'g')) >= 9
+               and right(regexp_replace(cgm.phone, '[^0-9]', '', 'g'), 9)
+                 = right(regexp_replace(target_phone, '[^0-9]', '', 'g'), 9)
+             )
            )
        )
      );
@@ -3729,11 +3741,18 @@ set search_path = public
 as $$
 declare
   target_customer_id uuid;
+  resolved_phone text;
   payload jsonb;
   available_syp integer;
 begin
-  target_customer_id := public.require_customer_session(p_session_token, p_phone);
-  payload := public.get_customer_account(p_phone);
+  target_customer_id := public.require_customer_session(p_session_token, null);
+  select phone into resolved_phone
+  from public.customers
+  where id = target_customer_id;
+  if coalesce(resolved_phone, '') = '' then
+    raise exception 'customer account not found';
+  end if;
+  payload := public.get_customer_account(resolved_phone);
   available_syp := public.available_wallet_syp(target_customer_id);
   payload := payload || jsonb_build_object('walletBalanceSyp', available_syp);
   if jsonb_typeof(payload->'profile') = 'object' then
@@ -3813,7 +3832,7 @@ declare
   target_customer_id uuid;
   usd_rate numeric;
 begin
-  target_customer_id := public.require_customer_session(p_session_token, p_phone);
+  target_customer_id := public.require_customer_session(p_session_token, null);
   select value::numeric into usd_rate from public.app_settings where key = 'usd_to_syp_rate';
   usd_rate := case when usd_rate > 0 then usd_rate else 13000 end;
   return round(public.available_wallet_syp(target_customer_id) / usd_rate, 2);
@@ -4088,6 +4107,33 @@ grant execute on function public.ensure_customer(text, text, text, text, text, t
 grant execute on function public.upsert_customer_from_order(jsonb) to service_role;
 grant execute on function public.customer_orders_json(uuid, text) to service_role;
 
+create or replace function public.normalize_order_payment_status_before_write()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  s text := coalesce(nullif(trim(new.payment_status), ''), 'بانتظار الدفع');
+begin
+  if s in ('مدفوع', 'ظ…ط¯ظپظˆط¹', 'paid', 'paid_pending') then
+    new.payment_status := 'مدفوع';
+  elsif s in ('فشل المطابقة', 'ظپط´ظ„ ط§ظ„ظ…ط·ط§ط¨ظ‚ط©', 'failed', 'failed_match', 'payment_failed') then
+    new.payment_status := 'فشل المطابقة';
+  else
+    new.payment_status := 'بانتظار الدفع';
+  end if;
+  return new;
+end;
+$$;
+revoke all on function public.normalize_order_payment_status_before_write() from public, anon, authenticated;
+grant execute on function public.normalize_order_payment_status_before_write() to service_role;
+
+drop trigger if exists orders_aa_normalize_payment_status on public.orders;
+create trigger orders_aa_normalize_payment_status
+before insert or update of payment_status on public.orders
+for each row execute function public.normalize_order_payment_status_before_write();
+
 -- Exact-only payment guard. A lower collision candidate must never settle a
 -- full order, wallet top-up, or issue payment.
 create or replace function public.enforce_exact_payment_intent()
@@ -4193,4 +4239,17 @@ alter table public.coupon_redemptions
 -- ============================================================================
 insert into public.app_settings(key, value)
 values ('order_payment_window_minutes', '5')
+on conflict (key) do nothing;
+
+-- Unified Google/phone auth is applied by:
+-- supabase/migrations/20260726223000_unified_customer_auth.sql
+-- Keep that migration as the deployable source for register_google_customer,
+-- get_customer_auth_methods, and the OTP-backed create_customer_session update.
+
+insert into public.app_settings (key, value)
+values
+  ('store_region_shein', '{"countryCode":"SA","currency":"USD","language":"ar","addressPath":["Riyadh Province","Riyadh","Al Olaya"]}'),
+  ('store_region_temu', '{"countryCode":"SA","currency":"USD","language":"ar","addressPath":[]}'),
+  ('brand_name', 'otlobli'),
+  ('brand_logo_data_url', '')
 on conflict (key) do nothing;

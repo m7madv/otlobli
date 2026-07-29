@@ -1,7 +1,131 @@
 import { useEffect, useMemo, useState } from 'react'
 
-type AdminTab = 'dashboard' | 'orders' | 'payments' | 'shipping' | 'customers' | 'drivers' | 'coupons' | 'notifications' | 'settings'
+type AdminTab = 'dashboard' | 'orders' | 'payments' | 'shipping' | 'customers' | 'drivers' | 'coupons' | 'stores' | 'notifications' | 'settings'
 type PaymentStatus = 'بانتظار الدفع' | 'مدفوع' | 'فشل المطابقة'
+
+type StoreRegionId = 'shein' | 'temu'
+
+const SHEIN_STORE_COUNTRIES = [
+  ['SA', 'السعودية'],
+  ['AE', 'الإمارات'],
+  ['KW', 'الكويت'],
+  ['QA', 'قطر'],
+  ['BH', 'البحرين'],
+  ['OM', 'عُمان'],
+  ['LB', 'لبنان'],
+] as const
+
+// Countries published by Temu for its current global program. Keeping this
+// explicit prevents the admin from entering an unsupported/random ISO code.
+const TEMU_STORE_COUNTRIES = [
+  ['AL', 'ألبانيا'],
+  ['DZ', 'الجزائر'],
+  ['AD', 'أندورا'],
+  ['AR', 'الأرجنتين'],
+  ['AM', 'أرمينيا'],
+  ['AU', 'أستراليا'],
+  ['AT', 'النمسا'],
+  ['AZ', 'أذربيجان'],
+  ['BH', 'البحرين'],
+  ['BE', 'بلجيكا'],
+  ['BA', 'البوسنة والهرسك'],
+  ['BR', 'البرازيل'],
+  ['BG', 'بلغاريا'],
+  ['KH', 'كمبوديا'],
+  ['CA', 'كندا'],
+  ['CL', 'تشيلي'],
+  ['CO', 'كولومبيا'],
+  ['CR', 'كوستاريكا'],
+  ['HR', 'كرواتيا'],
+  ['CY', 'قبرص'],
+  ['CZ', 'التشيك'],
+  ['DK', 'الدنمارك'],
+  ['DO', 'جمهورية الدومينيكان'],
+  ['EC', 'الإكوادور'],
+  ['EG', 'مصر'],
+  ['SV', 'السلفادور'],
+  ['EE', 'إستونيا'],
+  ['FI', 'فنلندا'],
+  ['FR', 'فرنسا'],
+  ['GE', 'جورجيا'],
+  ['DE', 'ألمانيا'],
+  ['GR', 'اليونان'],
+  ['GT', 'غواتيمالا'],
+  ['HN', 'هندوراس'],
+  ['HU', 'المجر'],
+  ['IS', 'آيسلندا'],
+  ['IE', 'أيرلندا'],
+  ['IL', 'إسرائيل'],
+  ['IT', 'إيطاليا'],
+  ['JP', 'اليابان'],
+  ['JO', 'الأردن'],
+  ['KZ', 'كازاخستان'],
+  ['KW', 'الكويت'],
+  ['KG', 'قيرغيزستان'],
+  ['LV', 'لاتفيا'],
+  ['LT', 'ليتوانيا'],
+  ['LU', 'لوكسمبورغ'],
+  ['MY', 'ماليزيا'],
+  ['MV', 'المالديف'],
+  ['MT', 'مالطا'],
+  ['MU', 'موريشيوس'],
+  ['MX', 'المكسيك'],
+  ['MD', 'مولدوفا'],
+  ['MN', 'منغوليا'],
+  ['ME', 'الجبل الأسود'],
+  ['MA', 'المغرب'],
+  ['NL', 'هولندا'],
+  ['NZ', 'نيوزيلندا'],
+  ['NG', 'نيجيريا'],
+  ['MK', 'مقدونيا الشمالية'],
+  ['NO', 'النرويج'],
+  ['OM', 'عُمان'],
+  ['PK', 'باكستان'],
+  ['PE', 'بيرو'],
+  ['PH', 'الفلبين'],
+  ['PL', 'بولندا'],
+  ['PT', 'البرتغال'],
+  ['QA', 'قطر'],
+  ['KR', 'كوريا الجنوبية'],
+  ['RO', 'رومانيا'],
+  ['SA', 'السعودية'],
+  ['RS', 'صربيا'],
+  ['SK', 'سلوفاكيا'],
+  ['SI', 'سلوفينيا'],
+  ['ZA', 'جنوب أفريقيا'],
+  ['ES', 'إسبانيا'],
+  ['LK', 'سريلانكا'],
+  ['SE', 'السويد'],
+  ['CH', 'سويسرا'],
+  ['TH', 'تايلاند'],
+  ['TT', 'ترينيداد وتوباغو'],
+  ['TR', 'تركيا'],
+  ['UA', 'أوكرانيا'],
+  ['AE', 'الإمارات'],
+  ['GB', 'المملكة المتحدة'],
+  ['US', 'الولايات المتحدة'],
+  ['UY', 'أوروغواي'],
+  ['UZ', 'أوزبكستان'],
+] as const
+
+const storeCountries = (store: StoreRegionId) =>
+  store === 'shein' ? SHEIN_STORE_COUNTRIES : TEMU_STORE_COUNTRIES
+
+const storeCountryName = (code: string) =>
+  [...SHEIN_STORE_COUNTRIES, ...TEMU_STORE_COUNTRIES]
+    .find(([countryCode]) => countryCode === code)?.[1] ?? `المنطقة ${code}`
+
+const parseStoreCountryCode = (value: string | undefined, fallback = 'SA') => {
+  if (!value) return fallback
+  try {
+    const parsed = JSON.parse(value) as { countryCode?: unknown }
+    const code = String(parsed.countryCode ?? '').trim().toUpperCase()
+    return /^[A-Z]{2}$/.test(code) ? code : fallback
+  } catch {
+    const code = value.trim().toUpperCase()
+    return /^[A-Z]{2}$/.test(code) ? code : fallback
+  }
+}
 
 type Coupon = {
   id: string
@@ -241,12 +365,29 @@ function writeAdminSession(session: AdminSession | null) {
   }
 }
 
-async function fetchPublicSettings() {
-  const response = await fetch(APP_SETTINGS_FN, {
+async function fetchPublicSettings(keys: string[] = []) {
+  const url = keys.length > 0
+    ? `${APP_SETTINGS_FN}?keys=${encodeURIComponent(keys.join(','))}`
+    : APP_SETTINGS_FN
+  const response = await fetch(url, {
     headers: { apikey: ANON_KEY, authorization: `Bearer ${ANON_KEY}` },
   })
   if (!response.ok) throw new Error('settings_unavailable')
   return response.json() as Promise<Record<string, string>>
+}
+
+async function saveAppSetting(pin: string, key: string, value: string) {
+  const response = await fetch(APP_SETTINGS_FN, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-admin-pin': pin,
+      apikey: ANON_KEY,
+      authorization: `Bearer ${ANON_KEY}`,
+    },
+    body: JSON.stringify({ key, value }),
+  })
+  if (!response.ok) throw new Error('setting_update_failed')
 }
 
 async function fetchOrders(pin: string) {
@@ -503,7 +644,7 @@ function AdminApp() {
     }
     setLoading(true)
     try {
-      const settings = await fetchPublicSettings()
+      const settings = await fetchPublicSettings(['admin_session_version'])
       const nextVersion = settings.admin_session_version ?? '1'
       const { orders: nextOrders, drivers: nextDrivers, customers: nextCustomers } = await fetchOrders(nextPin)
       setSessionVersion(nextVersion)
@@ -537,7 +678,7 @@ function AdminApp() {
   const refresh = () => {
     if (!pin) return
     setLoading(true)
-    void Promise.all([fetchPublicSettings(), fetchOrders(pin)])
+    void Promise.all([fetchPublicSettings(['admin_session_version']), fetchOrders(pin)])
       .then(([settings, { orders: nextOrders, drivers: nextDrivers, customers: nextCustomers }]) => {
         const nextVersion = settings.admin_session_version ?? '1'
         if (nextVersion !== sessionVersion) {
@@ -556,7 +697,7 @@ function AdminApp() {
   useEffect(() => {
     const storedSession = readAdminSession()
     if (!storedSession) return
-    void fetchPublicSettings()
+    void fetchPublicSettings(['admin_session_version'])
       .then((settings) => {
         const nextVersion = settings.admin_session_version ?? '1'
         setSessionVersion(nextVersion)
@@ -574,7 +715,7 @@ function AdminApp() {
   useEffect(() => {
     if (!pin) return
     const interval = window.setInterval(() => {
-      void Promise.all([fetchPublicSettings(), fetchOrders(pin)])
+      void Promise.all([fetchPublicSettings(['admin_session_version']), fetchOrders(pin)])
         .then(([settings, { orders: nextOrders, drivers: nextDrivers, customers: nextCustomers }]) => {
           const nextVersion = settings.admin_session_version ?? '1'
           if (nextVersion !== sessionVersion) {
@@ -688,7 +829,7 @@ function AdminApp() {
             {loading || bootingSession ? 'جار التحقق...' : 'فتح لوحة الإدارة'}
             <Icon name="lock_open" />
           </button>
-          {notice && <p className="notice">{notice}</p>}
+          {notice && <p className="notice" role="status" aria-live="polite">{notice}</p>}
         </section>
       </main>
     )
@@ -706,6 +847,7 @@ function AdminApp() {
           ['customers', 'العملاء', 'group'],
           ['drivers', 'السواقين', 'local_shipping'],
           ['coupons', 'أكواد الخصم', 'sell'],
+          ['stores', 'المتاجر والهوية', 'storefront'],
           ['notifications', 'الإشعارات', 'notifications'],
           ['settings', 'الإعدادات', 'settings'],
         ] as const).map(([key, label, icon]) => (
@@ -800,6 +942,7 @@ function AdminApp() {
         )}
         {tab === 'drivers' && <DriversPanel pin={pin} showNotice={showNotice} />}
         {tab === 'coupons' && <CouponsPanel pin={pin} showNotice={showNotice} />}
+        {tab === 'stores' && <StoresBrandingPanel pin={pin} showNotice={showNotice} />}
         {tab === 'notifications' && <NotificationsPanel pin={pin} showNotice={showNotice} />}
         {tab === 'settings' && (
           <SettingsPanel
@@ -826,7 +969,7 @@ function AdminApp() {
         />
       )}
 
-      {notice && <div className="toast">{notice}</div>}
+      {notice && <div className="toast" role="status" aria-live="polite">{notice}</div>}
     </div>
   )
 }
@@ -1807,7 +1950,7 @@ function NotificationsPanel({ pin, showNotice }: { pin: string; showNotice: (mes
           return
         }
         if (data.reason === 'no_devices') {
-          setLastResult({ ok: false, text: 'لا يوجد أجهزة مسجّلة بعد لاستقبال الإشعارات. سيصل الإشعار فور تسجيل أول جهاز.' })
+          setLastResult({ ok: false, text: 'لا توجد أجهزة مفعّلة للإشعارات بعد. وجود حساب وحده لا يكفي؛ يجب فتح أحدث نسخة من التطبيق، تسجيل الدخول، والسماح بالإشعارات مرة واحدة.' })
           showNotice('لا يوجد أجهزة مسجّلة بعد')
           return
         }
@@ -2125,6 +2268,224 @@ function CouponsPanel({ pin, showNotice }: { pin: string; showNotice: (message: 
           ))}
         </div>
       )}
+    </section>
+  )
+}
+
+// ── Stores & branding ───────────────────────────────────────────────────────
+function StoresBrandingPanel({ pin, showNotice }: { pin: string; showNotice: (msg: string) => void }) {
+  const [regions, setRegions] = useState<Record<StoreRegionId, string>>({ shein: 'SA', temu: 'SA' })
+  const [brandName, setBrandName] = useState('otlobli')
+  const [brandLogo, setBrandLogo] = useState('')
+  const [loaded, setLoaded] = useState(false)
+  const [savingTarget, setSavingTarget] = useState<StoreRegionId | 'brand' | ''>('')
+
+  useEffect(() => {
+    void fetchPublicSettings()
+      .then((settings) => {
+        setRegions({
+          shein: parseStoreCountryCode(settings.store_region_shein),
+          temu: parseStoreCountryCode(settings.store_region_temu),
+        })
+        setBrandName((settings.brand_name ?? '').trim().slice(0, 24) || 'otlobli')
+        const logo = settings.brand_logo_data_url ?? ''
+        setBrandLogo(/^data:image\/(?:png|jpe?g|webp);base64,/i.test(logo) ? logo : '')
+        setLoaded(true)
+      })
+      .catch(() => showNotice('تعذر جلب إعدادات المتاجر والهوية'))
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const updateRegionCode = (store: StoreRegionId, value: string) => {
+    const countryCode = value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2)
+    setRegions((current) => ({ ...current, [store]: countryCode }))
+  }
+
+  const saveRegion = async (store: StoreRegionId) => {
+    const countryCode = regions[store]
+    if (!storeCountries(store).some(([code]) => code === countryCode)) {
+      showNotice('اختر دولة مدعومة من القائمة')
+      return
+    }
+    setSavingTarget(store)
+    try {
+      await saveAppSetting(pin, `store_region_${store}`, JSON.stringify({
+        countryCode,
+        currency: 'USD',
+        language: 'ar',
+        // SHEIN needs a complete signed address, not a country alone. Saudi
+        // uses the verified Riyadh route; other supported countries resolve
+        // their remaining levels from SHEIN's live cascade at runtime.
+        addressPath: store === 'shein' && countryCode === 'SA'
+          ? ['Riyadh Province', 'Riyadh', 'Al Olaya']
+          : [],
+      }))
+      showNotice(`تم ضبط ${store === 'shein' ? 'SHEIN' : 'Temu'} على ${storeCountryName(countryCode)}`)
+    } catch {
+      showNotice('فشل حفظ منطقة المتجر')
+    } finally {
+      setSavingTarget('')
+    }
+  }
+
+  const readLogoFile = (file: File) => {
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+      showNotice('استخدم شعار PNG أو JPG أو WebP')
+      return
+    }
+    if (file.size > 350 * 1024) {
+      showNotice('حجم الشعار يجب أن يكون أقل من 350 KB')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => setBrandLogo(String(reader.result || ''))
+    reader.onerror = () => showNotice('تعذر قراءة ملف الشعار')
+    reader.readAsDataURL(file)
+  }
+
+  const saveBrand = async () => {
+    const safeName = brandName.trim().slice(0, 24) || 'otlobli'
+    setSavingTarget('brand')
+    try {
+      await Promise.all([
+        saveAppSetting(pin, 'brand_name', safeName),
+        saveAppSetting(pin, 'brand_logo_data_url', brandLogo),
+      ])
+      setBrandName(safeName)
+      showNotice('تم حفظ هوية التطبيق')
+    } catch {
+      showNotice('فشل حفظ هوية التطبيق')
+    } finally {
+      setSavingTarget('')
+    }
+  }
+
+  if (!loaded) {
+    return <section className="panel stores-branding-panel"><p>جارٍ تحميل إعدادات المتاجر…</p></section>
+  }
+
+  return (
+    <section className="panel stores-branding-panel">
+      <header className="stores-panel-head">
+        <div>
+          <span className="section-kicker">تحكم مباشر من لوحة الإدارة</span>
+          <h2>المتاجر والهوية</h2>
+          <p>غيّر منطقة كل متجر بشكل مستقل، وحدّث شعار شاشة دخول التطبيق.</p>
+        </div>
+        <span className="live-setting-badge"><Icon name="sync" /> يصل التطبيق خلال 20 ثانية</span>
+      </header>
+
+      <div className="store-region-grid">
+        {([
+          ['shein', 'SHEIN', 'المتجر الأساسي للملابس', 'storefront'],
+          ['temu', 'Temu', 'المنتجات العامة والإكسسوارات', 'shopping_bag'],
+        ] as const).map(([store, name, description, icon]) => (
+          <article className={`store-region-card store-region-card--${store}`} key={store}>
+            <header>
+              <span className="store-symbol" aria-hidden="true"><Icon name={icon} /></span>
+              <div>
+                <h3 translate="no">{name}</h3>
+                <p>{description}</p>
+              </div>
+              <span className="region-chip">{regions[store] || '—'}</span>
+            </header>
+            <label className="field" htmlFor={`${store}-country`}>
+              <span>منطقة المتجر</span>
+              <div className="country-code-control">
+                <select
+                  id={`${store}-country`}
+                  name={`${store}-country`}
+                  value={regions[store]}
+                  onChange={(event) => updateRegionCode(store, event.target.value)}
+                >
+                  {storeCountries(store).map(([code, countryName]) => (
+                    <option key={code} value={code}>{countryName} · {code}</option>
+                  ))}
+                </select>
+                <b>
+                  {store === 'shein'
+                    ? 'يكمل التطبيق المقاطعة والمدينة والمنطقة تلقائياً'
+                    : `${storeCountries(store).length} دولة مدعومة`}
+                </b>
+              </div>
+            </label>
+            <button
+              type="button"
+              className="primary-action"
+              disabled={Boolean(savingTarget)}
+              onClick={() => void saveRegion(store)}
+            >
+              {savingTarget === store ? 'جارٍ الحفظ…' : `حفظ منطقة ${name}`}
+              <Icon name="save" />
+            </button>
+          </article>
+        ))}
+      </div>
+
+      <aside className="region-safety-note">
+        <Icon name="info" />
+        <div>
+          <b>تحويل كامل وقابل للعكس</b>
+          <span>يتغيّر بلد التصفح والشحن ويُعاد فتح المتجر فور وصول الإعداد. في SHEIN لا يظهر المنتج حتى يكتمل مسار العنوان من بيانات المتجر الحية.</span>
+        </div>
+      </aside>
+
+      <article className="brand-editor">
+        <div className="brand-preview-card">
+          <span className="brand-preview-label">معاينة شاشة الدخول</span>
+          <div className="brand-preview-lockup">
+            <div className={`brand-preview-mark${brandLogo ? ' has-image' : ''}`}>
+              {brandLogo
+                ? <img src={brandLogo} alt={`معاينة شعار ${brandName || 'otlobli'}`} width="58" height="58" />
+                : <span translate="no">o</span>}
+            </div>
+            <div>
+              <strong translate="no">{brandName || 'otlobli'}</strong>
+              <small>من المتجر إلى سوريا، بطلب واحد</small>
+            </div>
+          </div>
+        </div>
+
+        <div className="brand-fields">
+          <div>
+            <span className="section-kicker">هوية التطبيق</span>
+            <h3>الاسم والشعار</h3>
+            <p>الشعار يظهر في واجهة الدخول. الأفضل صورة مربعة بخلفية شفافة.</p>
+          </div>
+          <label className="field">
+            <span>اسم العلامة</span>
+            <input
+              name="brand-name"
+              value={brandName}
+              onChange={(event) => setBrandName(event.target.value.slice(0, 24))}
+              maxLength={24}
+              autoComplete="off"
+              placeholder="مثال: otlobli"
+            />
+          </label>
+          <label className="logo-upload">
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={(event) => {
+                const file = event.target.files?.[0]
+                if (file) readLogoFile(file)
+              }}
+            />
+            <Icon name="upload" />
+            <span>اختيار شعار PNG أو JPG أو WebP</span>
+            <small>حتى 350 KB</small>
+          </label>
+          <div className="brand-actions">
+            <button type="button" className="primary-action" disabled={Boolean(savingTarget)} onClick={() => void saveBrand()}>
+              {savingTarget === 'brand' ? 'جارٍ الحفظ…' : 'حفظ الهوية'}
+              <Icon name="save" />
+            </button>
+            <button type="button" className="ghost-action" disabled={Boolean(savingTarget) || !brandLogo} onClick={() => setBrandLogo('')}>
+              إزالة الشعار
+            </button>
+          </div>
+        </div>
+      </article>
     </section>
   )
 }

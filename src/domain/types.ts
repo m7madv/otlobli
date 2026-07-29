@@ -13,6 +13,7 @@ export type UserProfile = {
 export type Screen =
   | 'login'
   | 'otp'
+  | 'google-onboarding'
   | 'onboarding'
   | 'home'
   | 'loading'
@@ -32,6 +33,7 @@ export type Screen =
   | 'support'
   | 'notifications'
   | 'notification-settings'
+  | 'account-access'
   | 'store-select'
   | 'recipient-detail'
 
@@ -60,9 +62,6 @@ export type PaymentStatus =
   | 'بانتظار الدفع'
   | 'مدفوع'
   | 'فشل المطابقة'
-  | 'ط¨ط§ظ†طھط¸ط§ط± ط§ظ„ط¯ظپط¹'
-  | 'ظ…ط¯ظپظˆط¹'
-  | 'ظپط´ظ„ ط§ظ„ظ…ط·ط§ط¨ظ‚ط©'
 
 export type ProductColor = {
   id?: string

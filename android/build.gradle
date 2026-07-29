@@ -3,6 +3,14 @@
 buildscript {
     
     repositories {
+        maven {
+            url 'https://maven.aliyun.com/repository/google'
+            content {
+                includeGroupByRegex 'androidx\\..*'
+                includeGroupByRegex 'com\\.android\\..*'
+                includeGroupByRegex 'com\\.google\\..*'
+            }
+        }
         google()
         mavenCentral()
     }
@@ -19,6 +27,17 @@ apply from: "variables.gradle"
 
 allprojects {
     repositories {
+        // Google Maven returns false 404 responses on the current build
+        // network. Limit this mirror to Google/AndroidX artifacts only;
+        // every other dependency continues to come from Maven Central.
+        maven {
+            url 'https://maven.aliyun.com/repository/google'
+            content {
+                includeGroupByRegex 'androidx\\..*'
+                includeGroupByRegex 'com\\.android\\..*'
+                includeGroupByRegex 'com\\.google\\..*'
+            }
+        }
         google()
         mavenCentral()
     }

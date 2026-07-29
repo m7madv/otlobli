@@ -46,6 +46,9 @@ Test on a real device: SHEIN -> Temu -> SHEIN, Temu product open/back, Temu USD 
 
 ## Hard Rules
 
-- Figma only for design.
+- Use approved Figma designs when provided; otherwise direct professional code-native design is allowed and must be visually validated.
 - Do not change money logic unless explicitly asked.
 - Treat existing git changes as user/other-AI work.
+- After every completed modification batch, immediately update `CURRENT_STATE.md`, `AI-HANDOFF.md`, and `SESSION_SUMMARY.md`, and synchronize/build every affected web, Android, iOS, Admin, database, or backend target as defined in `AGENTS.md`. Never leave project state documentation for a later chat.
+- Before touching SHEIN, InAppBrowser, WebView lifecycle, injected store scripts, or store-region polling, read `docs/SHEIN_IOS_FREEZE_GUARD.md` and preserve its automated build guard and real iPhone 16 acceptance gate.
+- Preserve all features while optimizing weak-device performance. Read `docs/LOW_END_DEVICE_PERFORMANCE_GUARD.md`; every affected build must pass its size budget and receive honest low-end device acceptance.

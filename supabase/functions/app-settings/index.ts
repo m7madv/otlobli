@@ -25,6 +25,12 @@ const DEFAULTS: Record<string, string> = {
   feature_group_orders: 'true',
   feature_wallet: 'true',
   feature_coupons: 'true',
+  // Each store has an independent browsing region. Pricing remains USD so
+  // cart totals and invoices keep their existing currency contract.
+  store_region_shein: '{"countryCode":"SA","currency":"USD","language":"ar","addressPath":["Riyadh Province","Riyadh","Al Olaya"]}',
+  store_region_temu: '{"countryCode":"SA","currency":"USD","language":"ar","addressPath":[]}',
+  brand_name: 'otlobli',
+  brand_logo_data_url: '',
   // رقم واتساب الدعم/المساعدة الذي يفتحه التطبيق — يُعدَّل من لوحة الإدارة.
   support_whatsapp_phone: '',
 }
@@ -36,17 +42,26 @@ Deno.serve(async (req) => {
 
   // GET: يُرجع كل الإعدادات (عام، بدون مصادقة)
   if (req.method === 'GET') {
-    const { data, error } = await supabase
+    const requestedKeys = (new URL(req.url).searchParams.get('keys') ?? '')
+      .split(',')
+      .map((key) => key.trim())
+      .filter((key) => /^[a-z0-9_]{1,64}$/.test(key))
+    let query = supabase
       .from('app_settings')
       .select('key, value')
+    if (requestedKeys.length > 0) query = query.in('key', requestedKeys)
+    const { data, error } = await query
+
+    const settings = requestedKeys.length > 0
+      ? Object.fromEntries(requestedKeys.map((key) => [key, DEFAULTS[key] ?? '']))
+      : { ...DEFAULTS }
 
     if (error) {
-      return new Response(JSON.stringify(DEFAULTS), {
+      return new Response(JSON.stringify(settings), {
         headers: { ...corsHeaders, 'content-type': 'application/json' },
       })
     }
 
-    const settings = { ...DEFAULTS }
     for (const row of data ?? []) {
       settings[row.key as string] = row.value as string
     }

@@ -1,6 +1,203 @@
 # Otlobli Current State
 
-Last updated: 2026-07-26
+Last updated: 2026-07-29
+
+## v86.15 iOS safe top + Saudi region repair (2026-07-29)
+
+- Current marker is `2026.07.29-v86.15-ios-safe-top-saudi-region-repair`; Android and iOS are `875/86.15`, and the auth test bypass remains off.
+- The live Admin setting was verified from Supabase as SHEIN `SA` with `Riyadh Province -> Riyadh -> Al Olaya`; the user-visible failure was in the iPhone WebView automation, not the Admin setting.
+- iOS now keeps the WKWebView below the real top safe-area/notch by setting `enabledSafeTopMargin:true`. Android still uses `useTopInset`; iOS still does not use the bottom safe margin because the injected Otlobli nav owns the home-indicator area. This fixes the SHEIN header/search/logo being drawn under the iPhone status bar without global zoom or CSS scaling.
+- Saudi readiness on a product now requires SHEIN's signed `addressCookie`, not only SA URL/storage keys. If the country list opens while Saudi is off-screen, the automation clicks the country index letter (`S`) or scrolls the native country list within the existing bounded repair cadence. Address path matching now handles bilingual rows such as `العليا/Al Olaya` by matching either side of `/`.
+- No feature was removed and no performance budget was raised. Production build, SHEIN freeze guard, performance budget, Android sync, iOS sync, Android Gradle, isolated iOS build, and GitHub/Xcode passed. Primary build budgets: largest JS `1,179,804/1,200,000`, total JS gzip `355,415/370,000`, CSS `62,602/70,000`, fonts `81,364/100,000`, SHEIN source `549,631/550,000`.
+- Android artifact: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.15-ios-safe-top-saudi-region-repair-debug.apk`; SHA-256 `FA406DAFD77CD390023E2686E41EF9786B65CA208E2BA758456ED35F1B410DC2`.
+- Matching iOS source is pushed on `codex/ios-v86-4` at `36d0486`; GitHub Actions run `30445161898` passed. IPA: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.15-iphone16-unsigned.ipa`; SHA-256 `64C3DCFAEBE2FD27225D266305819B58EA167CCD744697AFB128DA0135ED8125`.
+- IPA inspection confirms `com.otlobli.app`, `86.15/875`, the v86.15 marker, and the country-list movement marker. It remains unsigned/unprovisioned. Real iPhone acceptance is still required: delete/install or cold-launch, open a SHEIN product from a stale Qatar state, confirm it completes to Saudi/Riyadh/Al Olaya and the header is below the status bar, then run the permanent five background/resume cycles.
+
+## v86.14 checkout/cart iOS layout + payment-status fix (2026-07-29)
+
+- Current marker is `2026.07.29-v86.14-checkout-cart-ios-layout-payment-status-fix`; Android and iOS are `874/86.14`, and the auth test bypass remains off.
+- The iPhone checkout regression came from the same implicit CSS Grid row-shrink class of bug as the earlier cart issue: the checkout price/details region could be clipped while the fixed payment action overlapped it. Checkout now has its own `.mobile-content--checkout { grid-auto-rows:max-content; }`, compact spacing, and a separated primary action. Do not replace this with global zoom, page-scale changes, or iOS top inset changes.
+- Long cart product names are compact and bounded to three lines with wrapping, so a SHEIN title can no longer make the cart card huge or collide with the totals/sticky pay area. The sticky pay bar no longer uses `backdrop-filter`, keeping the weak-phone path lighter without removing features.
+- New orders now normalize `payment_status` before sending to Supabase. The production database migration `20260729210000_fix_order_payment_status_constraint.sql` was applied with `supabase db push --linked`; it normalizes legacy/invalid values and keeps the canonical check constraint: `بانتظار الدفع`, `مدفوع`, `فشل المطابقة`.
+- Visual Playwright acceptance passed at iPhone/narrow sizes. Evidence files: `output/playwright/v8614-cart-iphone16.png`, `output/playwright/v8614-cart-narrow.png`, `output/playwright/v8614-checkout-iphone16.png`, `output/playwright/v8614-checkout-narrow.png`, and `output/playwright/v8614-layout-report.json`.
+- Production build, SHEIN freeze guard, performance budget, Android sync, iOS sync, Android Gradle, isolated iOS build, and GitHub/Xcode passed. Primary build budgets: largest JS `1,177,045/1,200,000`, total JS gzip `355,151/370,000`, CSS `62,602/70,000`, fonts `81,364/100,000`, SHEIN source `546,869/550,000`.
+- Android artifact: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.14-checkout-cart-ios-layout-payment-status-fix-debug.apk`; SHA-256 `7538734E1C5DF5F8D6ED7D7517A693FF3BF12CBFEC250E62E611D7B8212001BD`.
+- Matching iOS source is pushed on `codex/ios-v86-4` at `db6e73c`; GitHub Actions run `30441863134` passed. IPA: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.14-iphone16-unsigned.ipa`; SHA-256 `E64F0A488ABC5BB241E972BD67E3A95DAF15B61ACA7F3F39988446C4C9F922A9`.
+- The IPA remains unsigned/unprovisioned, so real iPhone acceptance is still required after install/signing: checkout spacing, cart long-title card, payment submit, store nav taps, five background/resume cycles, and a separate cold launch. Do not claim device acceptance from CI or screenshots alone.
+
+## v86.13 responsive cart + direct store navigation + Android top inset (2026-07-29)
+
+- Current marker is `2026.07.29-v86.13-responsive-cart-instant-native-nav`; Android and iOS are `873/86.13`, and the auth test bypass remains off.
+- The cart overlap came from its scrollable CSS Grid shrinking implicit rows below their contents. Cart rows now use `grid-auto-rows:max-content` and compact flex cards with bounded image/swatch dimensions, semantic title/delete buttons, narrow-screen sizing, and visible overflow. Playwright visual/geometry acceptance passed at `390px` and `320px`: every card's rendered height is greater than its content scroll height, so adjacent cards no longer collide.
+- Store-bar Orders/Cart/Profile taps now use a one-shot native `mobileApp.navigate(target)` bridge on Android and iOS. The host commits the React destination with `flushSync`; Android has a bounded 120ms reveal fallback. Cached/older scripts retain the idempotent post-message/hide path. This adds no polling, timer loop, or recurring scan.
+- Android alone now enables the plugin's real top inset and safe top margin. The Note 8 WebView bounds are `[0,63][1080,2094]`, below the status bar `[0,0][1080,63]`; SHEIN's logo/search/header is fully visible. iOS keeps its existing sizing unchanged because the user's iPhone 16 layout is already correct.
+- SHEIN can replace its body during live product/ranking updates. `#otlobli-nav` is therefore mounted on the stable document root rather than the replaceable body; the existing maintenance cycle remains, with no new persistent timer. The guard now protects this invariant.
+- Real Note 8 acceptance used the installed `86.13/873` over existing app data: the Android top header is visible, product/search pages retain the bar, and Orders appeared in the first capture `1.17s` after the ADB command began, including about `0.58s` of ADB input overhead and screenshot time. Existing user cart data was inspected but not overwritten. No crash or ANR was observed.
+- Production build, freeze/navigation guard, performance budget, Android/iOS sync, Android Gradle, APK install, and narrow visual fixtures pass. Current budgets: largest JS `1,176,414/1,200,000`, total JS gzip `354,837/370,000`, CSS `62,241/70,000`, and SHEIN source `546,869/550,000`.
+- Android artifact: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.13-responsive-cart-fast-nav-debug.apk`; SHA-256 `D74996688545B1FA884F6883ED4741ECF948E404FC6C6B8B0B9089831AD9D9E4`.
+- Matching iOS source is pushed on `codex/ios-v86-4` at `011b4a1`; GitHub/Xcode run `30437092864` passed. IPA: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.13-iPhone16-unsigned.ipa`; SHA-256 `B9ECA22B8457625645FE8D2355AF44B2A0CE3725EDBC8FFB325424719F063019`.
+- IPA inspection confirms `com.otlobli.app`, `86.13/873`, the v86.13/native-navigation/stable-root/recompose markers, no embedded provisioning profile, and no top-level app signature. Only the `otlobli` URL scheme exists, so Google iOS remains hidden. Real iPhone acceptance remains mandatory: cart layout, fast bar taps, five background/resume cycles, and a separate cold launch.
+
+## v86.12 native store offline recovery (2026-07-29)
+
+- Current marker is `2026.07.28-v86.12-native-offline-recovery`; Android and iOS are `872/86.12`, and the test auth bypass remains off.
+- Main-frame network loss in the native SHEIN WebView no longer exposes Chromium/WebKit's raw error page. Android and iOS immediately place a compact Arabic Otlobli screen above the failed document, retain the exact product URL, offer an accessible native `إعادة المحاولة` button, and keep the cover in place until a real page succeeds.
+- Recovery does not rebuild or clear the store session. A native network observer exists only while the offline cover is visible, performs one guarded retry when a validated path returns, and is cancelled on success or dismissal. There is no polling, DOM scan, fixed blur, or added React render work. iOS `NSURLErrorNotConnectedToInternet (-1009)` is now treated as recoverable instead of tearing down WKWebView.
+- The loading cover is removed before the offline cover is exposed, so assistive technology sees one modal state and the raw error cannot flash behind a second accessibility layer. The existing iPhone detach/reattach burst and Android resume defense were not retimed or weakened.
+- Real Note 8 acceptance passed with app data preserved. v86.12 was installed over v86.11; an offline SHEIN main-frame load was triggered through the real Capacitor plugin, the raw `ERR_INTERNET_DISCONNECTED` page was absent, the Arabic cover and native retry button were present, and a retry while still offline returned to the same cover without a blank/raw frame. Automatic recovery after a live network return was not exercised because the device had no reachable Wi-Fi/mobile route.
+- Production build, freeze/interaction guard, performance budget, Android/iOS sync, Android Gradle, Note 8 visual/accessibility checks, and GitHub/Xcode passed. Main measurements remain within budget: largest JS `1,174,452/1,200,000`, total JS gzip `354,383/370,000`, and SHEIN source `545,474/550,000`.
+- Android artifact: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.12-offline-recovery-debug.apk`; SHA-256 `79E8EFBA569381E3AB62B9121DE79ECF57F2C64077814F56839CD3728301EED6`.
+- iOS source is pushed on `codex/ios-v86-4` at `5ab5639`; GitHub Actions run `30390632982` passed. IPA: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.12-iPhone16-unsigned.ipa`; SHA-256 `EF7E0175AEAB4091B647E8FD7C05D924029848C1436105CC734301BAED0850DE`.
+- IPA inspection confirms `com.otlobli.app`, `86.12/872`, the v86.12 marker, native offline-retry strings, and the permanent recompose marker. It remains unsigned/unprovisioned and only has the `otlobli` URL scheme. Real iPhone acceptance is still required: disconnect/reconnect during a product, manual retry, then the permanent five background/resume cycles and separate cold launch.
+
+## v86.11 scroll-safe SHEIN nav input (2026-07-28)
+
+- Current marker is `2026.07.28-v86.11-scroll-safe-nav-input`; Android is `871/86.11`, iOS is `871/86.11`, and the test auth bypass remains off.
+- Real Note 8 DevTools evidence on installed v86.9 proved the stuck-bar cause: after region setup, `#otlobli-nav` was visible but computed `pointer-events:none`, had no `data-otlobli-nav-yield`, and all four hit-test points landed on SHEIN content behind it. A race let drawer-style restoration save and later restore the temporary `none` written by nav-yield logic.
+- The shipping drawer no longer snapshots or restores nav interaction styles. `sheinRestoreNavAfterShipping()` owns the invariant visible/opaque/`pointer-events:auto` state, the transparent region guard alone blocks taps during conversion, and normal modal-yield logic runs again after the drawer closes.
+- During active pointer/touch/scroll input, full SHEIN DOM, `innerText`, and layout scans are deferred until 320 ms after the last interaction. Region automation remains exempt behind its native cover, and shipping-root discovery is cached to avoid duplicate scans. No feature, blocker, region step, or permanent iPhone freeze repair was removed.
+- `verify:shein-freeze-guard` now protects the nav-interaction and scroll-yield markers in addition to the WKWebView recompose patch.
+- v86.11 was installed over v86.9 on the connected Note 8 with app data preserved. Repeated fast-scroll stress then opened Orders, Cart, and Profile from the first correct nav tap; no crash, ANR, or render-process loss occurred. The v86.9 baseline was p90/p95/p99 `21/24/38ms` with `22` missed frame deadlines. v86.11 runs measured `18/20/28-29ms` with `4-7` missed deadlines; jank percentage varied by run, so real iPhone acceptance remains required.
+- Production build, freeze/interaction guard, performance budget, Android sync/Gradle/install, iOS sync, and GitHub/Xcode passed. Main measurements: largest JS `1,174,439/1,200,000`, total JS gzip `354,383/370,000`, and SHEIN source `545,474/550,000`.
+- Android artifact: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.11-scroll-safe-nav-debug.apk`; SHA-256 `1E930ADF3C6FB5ABB2B3D1F1DD3A32DC3E2593AA684820F22B5AD56390AAF1E5`.
+- iOS source is pushed on `codex/ios-v86-4` at `ab5dda3`; GitHub Actions run `30361886400` passed. IPA: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.11-iPhone16-unsigned.ipa`; SHA-256 `E8CF4581911EB0B2B45E1C5B87575224F26960023529C67F58EA233AC06B8814`.
+- IPA inspection confirms `com.otlobli.app`, `86.11/871`, and the scroll/nav/region guard markers. It remains unsigned/unprovisioned and only has the `otlobli` URL scheme, so Google iOS remains hidden. Required iPhone acceptance: fast product scrolling followed immediately by Orders/Cart/Profile taps, region conversion, and the permanent five background/resume cycles.
+
+## v86.10 persistent iOS nav during region setup (2026-07-28)
+
+- Current marker is `2026.07.28-v86.10-ios-persistent-nav-region-cover`; Android is `870/86.10`, iOS is `870/86.10`, and the test auth bypass remains off.
+- Root cause: v86.9 intentionally hid `otlobli-nav` while the SHEIN shipping drawer was open, but the native iOS cover stops above the reserved bottom-nav band. That exposed SHEIN region rows in the band and made the app bar disappear during store/region changes.
+- The verified drawer now keeps `otlobli-nav` visible, opaque, and mounted. A transparent in-nav interaction guard prevents accidental navigation while the automatic country/province/city/district cascade is running; only the overlapping Add and Back buttons are hidden. The guard is removed as soon as the drawer closes.
+- This reuses the existing SHEIN maintenance tick and adds no polling, timer, blur, or WebView rebuild. The permanent iPhone freeze recompose patch was not weakened.
+- Visual fixture acceptance passed at `390x844`: nav display `flex`, visibility `visible`, opacity `1`, guard present, and the bottom hit target was the guard rather than the hidden region list. Screenshot: `output/playwright/v86.10-nav-region-visible.png`.
+- Production build, freeze guard, performance budget, Android sync/Gradle, iOS sync, and GitHub/Xcode passed. Main measurements: largest JS `1,171,247/1,200,000`, total JS gzip `353,644/370,000`, and SHEIN source `542,297/550,000`.
+- Android artifact: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.10-persistent-nav-region-cover-debug.apk`; SHA-256 `904B81F6BC1FF6A72C2AC738B2CDF1EB780387E08ADBFFC4CD54AF6FF957B6F1`. The Note 8 was disconnected, so it was not installed/device-accepted.
+- iOS source is pushed on `codex/ios-v86-4` at `88a9765`; GitHub Actions run `30357835150` passed. IPA: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.10-iPhone16-unsigned.ipa`; SHA-256 `F38D74471E35A3AE6F3C8991C66A180822C1040AB3E78DCF9EE1302CB6045DE0`.
+- IPA inspection confirms `com.otlobli.app`, `86.10/870`, the v86.10 marker, and the persistent-nav guard. It remains unsigned/unprovisioned; Google iOS remains hidden because only the `otlobli` URL scheme is present. Real iPhone acceptance is still required: switch store/region, confirm the bar never disappears, then run the permanent five background/resume cycles.
+
+## v86.9 iOS country-first cascade + shipping drawer touch lock (2026-07-28)
+
+- Current marker is `2026.07.28-v86.9-ios-country-first-drawer-touch-lock`; Android is `869/86.9`, iOS is `869/86.9`, and the test auth bypass remains off.
+- The iPhone screenshot exposed an iOS-only state: SHEIN had already opened the country list but kept the stale `Qatar` label in its first tab. The old order checked that tab first and re-tapped Qatar on every pass instead of choosing Saudi Arabia.
+- The cascade now detects two or more country-coded rows as authoritative country-list mode and selects the Admin-configured country before consulting stale tabs. Painted iOS transition nodes are detected even while they inherit `pointer-events:none`.
+- A verified shipping drawer now owns touch interaction while open: the product page is position-locked at its saved scroll offset, touch scrolling is restored inside the real drawer/list, and Otlobli nav/Add/Back chrome is temporarily hidden and restored after close. This uses the existing maintenance tick and adds no permanent polling.
+- Freeze guard, production build, low-end budget, iOS sync, GitHub/Xcode, Android sync, and Gradle passed. Current low-end measurements: largest JS `1,169,318/1,200,000` raw, total JS gzip `353,185/370,000`, and SHEIN source `540,365/550,000`.
+- Android artifact: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.9-ios-country-drawer-fix-debug.apk`; SHA-256 `3202CC4930233F336851492134D69A9486D21ED3CC6D72A4A432B4351C052276`. The Note 8 was disconnected, so this exact APK is built but not installed/device-accepted.
+- iOS source is pushed on `codex/ios-v86-4` at `4fe7f5b`; GitHub Actions run `30356842504` passed. IPA: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.9-iPhone16-unsigned.ipa`; SHA-256 `5A8A39E38CC59D88EA598F3F87427F2A837C85A7E7B9C2C789E28E4C4D86A20B`.
+- IPA inspection confirms `com.otlobli.app`, `86.9/869`, the country-first and touch-lock markers, plus both permanent freeze markers. It remains unsigned/unprovisioned and Google iOS remains hidden because no iOS OAuth URL scheme was injected. Real iPhone acceptance is still required; build inspection is not a substitute.
+
+## v86.8 smart store-region session + fast drawer completion (2026-07-28)
+
+- Current marker is `2026.07.28-v86.8-smart-fast-region-close-single-webview`; Android is `868/86.8`, iOS is `868/86.8`, and the test auth bypass remains off.
+- Real Note 8/DevTools evidence found two independent failures: a settings/home race could create two native SHEIN WebViews (only one received Otlobli scripts), and SHEIN's current address close target is a focusable `span.header-close`, not a button. The latter left the already-signed location drawer visible until the old 45-second escape hatch.
+- `App.tsx` now resolves the two region keys before first native open, caches the last verified region, owns one open/close lifecycle, closes stale returned WebView IDs, and filters URL/message/close events by the tracked ID. Region changes no longer leave an untracked Saudi/default WebView over the configured one.
+- The injected SHEIN cascade now recognizes `.address-header-tab .j-tab-item`, selects the configured country from a placeholder country list, does not jump backwards because `addressCookie` still describes the previous country, advances through the configured path, recognizes the current close span, keeps the native cover until the drawer is gone, and force-closes an incomplete drawer after a 25-second bounded fallback.
+- Real Note 8 tests passed with data preserved: Kuwait completed to `Abu Halifa` and closed the drawer in `4.926s`; the user's Kuwait-to-Saudi switch completed `Saudi Arabia -> Riyadh Province -> Riyadh -> Al Olaya`, wrote a signed Saudi `addressCookie`, closed the drawer in `6.666s`, and retained the Otlobli nav and Add button. Current live SHEIN Admin setting remains Saudi with that full path.
+- Customer production build, freeze guard, low-end budget, Android sync/Gradle/install, iOS sync, and Admin build passed. Admin production `https://talabieh-admin.vercel.app` now accurately says region changes reach a visible app within 20 seconds.
+- Android artifact: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.8-smart-fast-region-debug.apk`; SHA-256 `5EDB396603F94337E151AA9C8117D63C16C7784C729966D3DD55D3F72A712F78`.
+- Final iOS CI run `30354782068` at commit `3b371a4` passed. IPA: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.8-iPhone16-unsigned.ipa`; SHA-256 `F36A6F6A90542808E7353038CD2E72326069C482F34540EB547AF7C990EC1C73`. Inspection confirms bundle `com.otlobli.app`, `86.8/868`, the singleton/placeholder/close fixes, visibility control, and both freeze markers.
+- The IPA is intentionally unsigned and has no provisioning profile. GitHub still has no `VITE_GOOGLE_IOS_CLIENT_ID`, so Google remains hidden in this build. Real iPhone acceptance is still required: Saudi region/product/Add button plus five background/resume cycles and one force-quit/cold launch; build inspection is not a substitute.
+
+## Permanent project-sync rule (2026-07-28)
+
+- Every completed change batch must update `CURRENT_STATE.md`, `AI-HANDOFF.md`, and `SESSION_SUMMARY.md` immediately in the same task, even when the change is small.
+- Shared customer changes must be built and synchronized to every affected Android/iOS project; Admin, database, backend, workflows, versions, and artifacts must remain consistent with their source changes.
+- Deployment and real-device status must always be recorded as succeeded, local-only, pending, or failed. Documentation-only edits do not trigger unnecessary native rebuilds.
+- The authoritative detailed rule is `AGENTS.md → Mandatory Immediate Project Sync`; Claude and the quick handoff now contain the same requirement.
+
+## Permanent SHEIN iPhone freeze guard (2026-07-28)
+
+- `docs/SHEIN_IOS_FREEZE_GUARD.md` is now the mandatory source for the iPhone 16/iOS 27 frozen-frame regression. It distinguishes background/resume from force-quit/cold-launch and requires separate real-device acceptance.
+- `scripts/verify-shein-freeze-guard.mjs` verifies the persistent patch, the applied iOS/Android native sources, and the unchanged-region rebuild guard in `App.tsx`.
+- `npm run build` now runs the verifier through `prebuild`, so missing detach/reattach, scroll restoration, resume invocation, Android wake, or region comparison fails the build.
+- The current persistent patch uses both `appDidBecomeActive` and `appWillEnterForeground`, then runs the bounded `otlobliRecomposeAllWebViews()` burst at `0.12/0.5/1.2/2.2s`; each forced pass calls `otlobliForceRecompose(force: true)`. The automated guard now requires those exact markers.
+- The burst is resume-only and adds no polling or continuous work. Production web build, low-end budget, Android/iOS sync, and Android real-device checks pass. Five iPhone 16 background/resume cycles plus separate cold-launch acceptance remain mandatory.
+
+## Permanent weak-device performance + iOS credential requirements (2026-07-28)
+
+- `docs/LOW_END_DEVICE_PERFORMANCE_GUARD.md` makes weak-phone performance a release invariant without removing features. `npm run build` now post-runs `scripts/verify-performance-budget.mjs`.
+- Baseline ceilings prevent bundle regressions: largest JS 1.2MB raw, total JS 370KB gzip, CSS 70KB, fonts 100KB, and SHEIN script source 550KB. The current 1.15MB main JS still triggers Vite's >500KB warning and remains explicit code-splitting debt.
+- `docs/IOS_GOOGLE_PUSH_REQUIREMENTS.md` records the exact Apple/Google/APNs handoff. Current iOS Google is hidden because GitHub lacks `VITE_GOOGLE_IOS_CLIENT_ID`.
+- The current iOS project has no `aps-environment` entitlements file, the IPA is unsigned, and Supabase has no `APNS_KEY/APNS_KEY_ID/APNS_TEAM_ID/APNS_BUNDLE_ID`; the permission prompt alone therefore cannot deliver remote notifications.
+- Google iOS OAuth requires Google Cloud access and an iOS client for `com.otlobli.app`. Real APNs requires Apple Developer Program signing/capability/profile plus a p8 key. Passwords and 2FA codes must not be shared in chat.
+- Validation passed: freeze guard, production build, performance budget (`1,151,303` largest JS raw / `348,843` total JS gzip), Android sync, and iOS sync. This guard/documentation batch did not alter runtime/version or create new artifacts; weak-device and signed-iPhone acceptance remain pending.
+
+## v86.7 instant store-bar navigation + iPhone 16 candidate (2026-07-28)
+
+- `APP_VERSION=2026.07.28-v86.7-instant-store-nav-iphone16-candidate`; Android `867/86.7`; iOS `867/86.7`; auth bypass remains off.
+- Real Note 8 baseline recording proved that SHEIN → Orders took about `5–6s`: the injected store bar posted to the background React WebView, React rendered, then an effect requested native hide while the store dialog still covered the app.
+- `CapgoInAppBrowser.allowWebViewJsVisibilityControl=true` now lets the injected SHEIN/Temu bar call native `window.mobileApp.hide()` at the tap itself for Orders, Cart, and Profile. The host message handler starts the same idempotent hide before `setScreen` as a fallback for cached/older scripts. The store WebView remains alive and is shown again on Home without reload.
+- Repeated screen-record measurements on the connected Note 8 show Orders, Cart, and Profile appearing in roughly `0.5–0.75s`; no crash, ANR, render-process loss, or blocked hide appeared. SHEIN remains ready after returning Home.
+- Production build and performance guard pass (`1,151,784` largest JS raw, `348,941` total JS gzip, `524,091` SHEIN source). Android 86.7 is installed over 86.6 with data preserved.
+- APK: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.7-instant-store-nav-debug.apk`; SHA-256 `0CD3A847436F44B0FED48426692498B87E4E6CA8B17509C67DD123315F90D026`.
+- Matching iOS source is pushed on isolated branch `codex/ios-v86-4` at `7b32f28`; GitHub/Xcode run `30350677536` passed. Unsigned IPA: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.7-iPhone16-unsigned.ipa`; SHA-256 `FBD006DE08A2CFEBA49F161B5A8E908E918191405B136A48018646645651CF57`.
+- Embedded IPA checks passed: bundle `com.otlobli.app`, version/build `86.7/867`, v86.7 marker, native visibility control `true`, injected `window.mobileApp.hide()` marker, expected Capacitor plugin classes, no relay placeholder, and no code signature. Do not hand off the older successful 86.6 IPA as the current candidate.
+- iOS remains unsigned and `VITE_GOOGLE_IOS_CLIENT_ID` is still absent, so Google is hidden and APNs is not end-to-end. Real iPhone 16 freeze/navigation acceptance remains the user's next device test.
+
+## v86.5 account recovery + responsive mobile shell (2026-07-26)
+
+- `APP_VERSION=2026.07.26-v86.5-account-recovery-responsive-shell`; Android `versionCode=865`, `versionName=86.5`; iOS marketing/build `86.5/865`; auth bypass remains off.
+- Fixed the post-login session race: stored session values now reach localStorage synchronously before the first account, wallet, order, or push RPC. Android Google uses the standard explicit chooser with auto-select disabled and a forced prompt instead of reusing one old account silently.
+- An authenticated startup now hydrates profile, historical orders, SYP/USD wallet balances, and wallet transactions. Temporary backend/network errors preserve the last good local snapshot instead of replacing orders with an empty list or wallet with zero.
+- Production migrations `20260721120000_block_customers.sql`, `20260726223000_unified_customer_auth.sql`, and `20260726234500_session_account_hydration.sql` are applied. Account/order hydration resolves the phone from the authenticated session and matches legacy phone formats by their final 9 digits. `google-auth` is redeployed.
+- The app shell now keeps the header and bottom navigation outside the only scroll container, removes expensive persistent blur, and keeps compact opaque chrome on weak WebViews. `طرق تسجيل الدخول` wraps naturally instead of truncating with an ellipsis.
+- Visual acceptance passed at 320, 360, and 412 px: the full login-method label is visible, the header remains fixed while content scrolls, the body does not acquire a second scroll, and focus/reduced-motion behavior is present. Screenshots are under `output/playwright/`.
+- Android build passed and the APK is at `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.5-account-recovery-responsive-debug.apk`; SHA-256 `A5D5BFDFE7E251C6CE114AF9FF049B6082163898BD2D633D61B45B4EFFBBEE05`. The Note 8 was disconnected at final acceptance, so v86.5 is not yet installed or device-verified.
+- Matching iOS source is committed/pushed on isolated branch `codex/ios-v86-4` at `e9662da`. GitHub/Xcode run `30216693369` passed. Unsigned IPA: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.5-iPhone-unsigned.ipa`; SHA-256 `0E241E31DD9316EA67AD0F2F54040D4A924ABD364F6E17A780869FCA5356C5CC`. Embedded verification passed for bundle `com.otlobli.app`, version/build `86.5/865`, and the v86.5 marker.
+- Honest remaining acceptance: reconnect the Note 8 and install without clearing data, then verify Google chooser, restart/store-switch hydration, old orders, wallet, and device-token registration. The iOS IPA is unsigned and Google remains hidden because `VITE_GOOGLE_IOS_CLIENT_ID` is not configured; APNs still needs Apple signing/credentials.
+
+## v86.4 complete store-region routing (2026-07-26)
+
+- `APP_VERSION=2026.07.26-v86.4-complete-store-region-routing`; Android `versionCode=864`, `versionName=86.4`; auth bypass remains off.
+- Root cause fixed: SHEIN country text was treated as completion even when its authoritative `addressCookie` lacked province/city/district. Product reveal now waits for SHEIN's signed complete address, the live shipping drawer runs country → province → city → district behind the native cover, the drawer closes, then the product appears.
+- Real Note 8 first-run acceptance passed after temporarily removing only `localStorage.addressCookie`: cover appeared, the script selected `Saudi Arabia → Riyadh Province → Riyadh → Al Olaya`, generated a 216-character `xAdFlag`, closed the drawer, preserved the Otlobli nav, and revealed the product. The temporary backup was removed after success.
+- SHEIN admin destinations are limited to the 7 countries exposed by the live Arabic PWA: SA, AE, BH, KW, LB, OM, QA. Temu uses a curated 80+ country list based on its official global coverage. Region changes are reversible and Temu handles `/jo/`, `/jo-en/`, `/sa/`, and `/sa-en/` route forms.
+- Weak-device work: bounded expensive fallback scans, relaxed hot polling on ≤4-core/≤3 GB/Android 7–10 devices, removed opaque-nav blur, extended the full-cascade watchdog to 60 seconds, and added a lightweight permanent nav remount watchdog.
+- Production `app-settings` and `https://talabieh-admin.vercel.app` are deployed. Live SHEIN setting contains the complete Riyadh path; Temu is currently SA with an empty variable path.
+- Android APK is installed on Note 8 and copied to `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.4-complete-region-routing-debug.apk`; SHA-256 `BAF091D2C1C940C80B71982E3999325303C6AC77E3C9598A2FB0694CB00320DA`.
+- iOS source is isolated on `codex/ios-v86-4` (`3529bfb`, `7a5b69d`) so the primary dirty worktree remains untouched. GitHub/Xcode run `30196655282` passed. Unsigned IPA: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.4-iPhone-unsigned.ipa`; SHA-256 `2A004AC399C033B70F978B3BFC2385BAEBA128FB956A08E0680F46F4ECC4FA17`.
+- Embedded IPA verification passed: bundle ID `com.otlobli.app`, marketing/build `86.4/864`, v86.4 marker, complete Riyadh path, InAppBrowser/SocialLogin/Push plugins, and no relay placeholder.
+- Remaining honest acceptance: test every non-SA live destination individually and install the unsigned IPA on an iPhone. iOS Google still requires the iOS OAuth client; signed APNs still requires Apple signing/credentials.
+
+## v86.3 iPhone candidate (2026-07-26)
+
+- An isolated iOS build branch, `codex/ios-v86-3`, contains the current v86.3 customer source without committing the primary dirty worktree. Commits: `facff16`, `e808fd0`.
+- GitHub Actions/Xcode run `30194500640` passed every step and produced an unsigned IPA.
+- IPA: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.3-iPhone-unsigned.ipa`; SHA-256 `B4274F8CB1AA3BA5875A2EE10CA75B05FCE82E0723BCBF196700DC7BA3AEDE88`.
+- Embedded verification passed: bundle ID `com.otlobli.app`, marketing version `86.3`, build `863`, v86.3 app marker present, Google/Push/InAppBrowser native plugins linked, and the relay placeholder is absent.
+- The iOS workflow now injects `OTLOBLI_RELAY_KEY` before Capacitor sync, enables Push in the web bundle, and supports the required `VITE_GOOGLE_IOS_CLIENT_ID` plus reversed callback URL.
+- Google is deliberately hidden on iOS when that iOS OAuth client is absent instead of exposing a broken button. The current Google Cloud account that appears to own the Firebase project requires identity re-verification before the iOS client can be created.
+- This artifact is unsigned and has not been accepted on a real iPhone. Google needs the iOS OAuth secret/rebuild; APNs needs Apple signing/capability/credentials before iPhone push can be claimed.
+
+## v86.3 unified auth + verified Android push (2026-07-26)
+
+- `APP_VERSION = 2026.07.26-v86.3-unified-google-phone-auth`; Android `versionCode=863`, `versionName=86.3`; `TEST_ONLY_AUTH_BYPASS=false`.
+- Authentication is now account-centric: Google is a complete login method, while the receiving/WhatsApp number starts as delivery contact data and becomes a phone login only after a successful OTP.
+- A new Google customer chooses Google, enters name/delivery details, and enters immediately without OTP. Existing Google identities still receive an immediate session.
+- `حسابي → طرق تسجيل الدخول` shows Google and phone status, links Google to a phone account, and verifies the saved delivery number for phone login. The server rejects identities already linked to another customer instead of merging by typed email/phone.
+- Live migration `20260726223000_unified_customer_auth.sql` and the updated `google-auth` function are deployed. All 27 pre-existing customers were preserved with phone login enabled.
+- Real Note 8 acceptance passed: the installed Google account produced an online `idToken`; the live edge exchange returned `mode=existing`, a session, and the same account phone. The live account-status response showed both Google and phone linked.
+- Push notifications are also now accepted end-to-end: one enabled Android token exists, admin sends return `sent=1`, Android channel `otlobli_general` is importance 5, the notification appeared, and the user confirmed it works. Admin production has the improved empty-device guidance.
+- Android APK: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.3-unified-google-phone-auth-debug.apk`; SHA-256 `DAB16D357518A27AB2732EEFB2EAF0DC358A3847D4772A074FC4E4BCD8FF859B`.
+- Validation passed: live SQL rollback assertions for Google-first → optional phone verification, edge-function contract tests, production build, Playwright 412×915 UI review, Capacitor sync, Gradle build, APK install, device version check, live account-method UI, native Google ID-token return, backend exchange, and push delivery.
+- Remaining acceptance is outside this Android/auth/push scope: test non-Saudi store regions on real store pages, install/test the unsigned iOS candidate, finish the iOS OAuth client, and configure signed APNs delivery.
+
+## v86.2 professional auth + live store/branding controls (2026-07-26)
+
+- Active worktree branch: `claude/ios6-cover-fix`, fast-forwarded to v86 commit `e72f4db`.
+- `APP_VERSION = 2026.07.26-v86.2-professional-auth-admin-stores-branding`; Android `versionCode=862`, `versionName=86.2`.
+- Google and Push Capacitor packages now use static bundled imports. The Android Google flow was verified on the connected Note 8 through the native Google activity; cancelling returns cleanly with no raw module-specifier error or stuck phone-login state.
+- Google is enabled by default with the public Web OAuth client ID. Set `VITE_GOOGLE_AUTH_ENABLED=false` only for an intentional opt-out.
+- `TEST_ONLY_AUTH_BYPASS = false`: a fresh customer must authenticate by phone or Google.
+- Public settings `store_region_shein` and `store_region_temu` are live. Each accepts JSON `{ country, currency, language }`; both currently default to `SA/USD/ar`. The app polls every 30 seconds and recreates the active store WebView once when its region changes.
+- SHEIN and Temu country URLs are now dynamic. Currency remains deliberately locked to USD until cart/invoice currency conversion is designed and audited.
+- The production admin now has a visible `المتاجر والهوية` tab: independent two-letter region controls for SHEIN/Temu (including custom ISO codes), live arrival notice, USD safety explanation, and app name/logo upload with preview.
+- `brand_name` and `brand_logo_data_url` are live app settings. The customer auth shell consumes them and now uses a compact, Arabic-first Otlobli route design instead of the oversized generic login card.
+- The live database migration, `app-settings` edge function, and admin at `https://talabieh-admin.vercel.app` are deployed.
+- Final Android debug APK: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.2-professional-auth-admin-stores-debug.apk`; SHA-256 `F4F7BBDC04549FE428FFFEB56DE837FCBAF3F6EC8337126B5FCD92E31D2176E7`.
+- Validation passed: customer/admin production builds, desktop/mobile Playwright screenshots, custom `JP` region form save against a mocked backend, live settings verification, Capacitor sync, Gradle build, real-device install/launch, Android version inspection, native Google launch/cancel, and `git diff --check`.
+- Region/session polling uses the filtered `app-settings?keys=...` endpoint, so a configured logo is not downloaded every 15–30 seconds.
+- Honest remaining acceptance: complete a real Google account selection and backend token exchange; register at least one logged-in device and send a real FCM notification; test non-Saudi SHEIN/Temu regions on real store pages; build/test the matching iOS candidate.
 
 ## v86 — دخول جوجل + إشعارات Push + تنبيه حظر تيليغرام (2026-07-26)
 
@@ -675,7 +872,7 @@ Last updated: 2026-07-26
 - v85.9-v85.11 rejected the user's working VPN. Do not reuse their full document-start capture path.
 - Do not reintroduce hidden/offscreen `FAKE_VISIBLE`, broad CSS, viewport-width hacks, wide storage resets, or reload loops.
 - Do not change payment, wallet, completed orders, Temu, coupons, or group checkout during this SHEIN pass.
-- Designs come only from Figma.
+- Use approved Figma designs when supplied; otherwise direct professional code-native design is allowed and must be visually validated.
 - `TEST_ONLY_AUTH_BYPASS = true` only for rapid device testing; restore OTP before production.
 
 ## Acceptance Test

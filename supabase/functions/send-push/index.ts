@@ -120,7 +120,13 @@ async function sendFcm(
         token,
         notification: { title, body: bodyText },
         data,
-        android: { priority: 'high', notification: { sound: 'default' } },
+        android: {
+          priority: 'high',
+          notification: {
+            sound: 'default',
+            channel_id: 'otlobli_general',
+          },
+        },
       },
     }),
   })

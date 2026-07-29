@@ -35,11 +35,43 @@ index ae420ed..ae452de 100644
      }
  
      protected void handleOnPause() {
+diff --git a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/MobileAppBridgeScript.java b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/MobileAppBridgeScript.java
+index 6b4115a..8e557cf 100644
+--- a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/MobileAppBridgeScript.java
++++ b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/MobileAppBridgeScript.java
+@@ -17,6 +17,13 @@ final class MobileAppBridgeScript {
+                             console.error('Error in mobileApp.hide:', e);
+                           }
+                         },
++                        navigate: function(target) {
++                          try {
++                            window.AndroidInterface.navigate(String(target || ''));
++                          } catch(e) {
++                            console.error('Error in mobileApp.navigate:', e);
++                          }
++                        },
+                         show: function() {
+                           try {
+                             window.AndroidInterface.show();
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
-index 8ae3e61..fb71cb6 100644
+index 8ae3e61..3c18e7d 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
 +++ b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
-@@ -33,6 +33,7 @@ import android.text.TextUtils;
+@@ -16,7 +16,13 @@ import android.graphics.Color;
+ import android.graphics.Paint;
+ import android.graphics.PorterDuff;
+ import android.graphics.PorterDuffColorFilter;
++import android.graphics.Typeface;
+ import android.graphics.drawable.Drawable;
++import android.graphics.drawable.GradientDrawable;
++import android.net.ConnectivityManager;
++import android.net.Network;
++import android.net.NetworkCapabilities;
++import android.net.NetworkRequest;
+ import android.net.Uri;
+ import android.net.http.SslError;
+ import android.os.Build;
+@@ -33,6 +39,7 @@ import android.text.TextUtils;
  import android.util.Base64;
  import android.util.Log;
  import android.util.TypedValue;
@@ -47,16 +79,18 @@ index 8ae3e61..fb71cb6 100644
  import android.view.KeyEvent;
  import android.view.View;
  import android.view.ViewGroup;
-@@ -55,6 +56,8 @@ import android.webkit.WebView;
+@@ -55,6 +62,10 @@ import android.webkit.WebView;
  import android.webkit.WebViewClient;
  import android.widget.ImageButton;
  import android.widget.ImageView;
++import android.widget.Button;
 +import android.widget.FrameLayout;
++import android.widget.LinearLayout;
 +import android.widget.ProgressBar;
  import android.widget.RelativeLayout;
  import android.widget.TextView;
  import android.widget.Toast;
-@@ -215,6 +218,35 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -215,6 +226,35 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
      private static final int REQUEST_CONNECT_TIMEOUT_MS = 15_000;
      private static final int REQUEST_READ_TIMEOUT_MS = 30_000;
      private static final int MAX_WEBVIEW_PROXY_REDIRECTS = 10;
@@ -88,11 +122,11 @@ index 8ae3e61..fb71cb6 100644
 +    // Substituted at build time from the OTLOBLI_RELAY_KEY env var by
 +    // scripts/inject-relay-key.cjs (see package.json postinstall) - never
 +    // committed in real form, see CHAT_SUMMARY.md section 9.
-+    private static final String OTLOBLI_RELAY_KEY = "OTLOBLI_RELAY_KEY_PLACEHOLDER";
++    private static final String OTLOBLI_RELAY_KEY = "hPY3kD8xBt7i6n5zXq4pKCmlMwucQSRrHW1oaZU9";
      private static final int MAX_MANAGED_DOWNLOAD_REDIRECTS = 10;
      private static final int BLOB_DOWNLOAD_CHUNK_BYTES = 64 * 1024;
      private static final long MAX_LEGACY_BLOB_DOWNLOAD_BYTES = 512L * 1024L;
-@@ -333,6 +365,10 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -333,6 +373,32 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
      private String proxyAccessToken;
      private final ExecutorService executorService = Executors.newCachedThreadPool();
      private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -100,10 +134,32 @@ index 8ae3e61..fb71cb6 100644
 +    private TextView otlobliLoadingCoverLabel;
 +    private String otlobliLoadingCoverMessage = "جاري تجهيز متجر SHEIN…";
 +    private final Runnable otlobliLoadingCoverTimeout = this::hideOtlobliLoadingCover;
++    private View otlobliOfflineCover;
++    private TextView otlobliOfflineStatusLabel;
++    private Button otlobliOfflineRetryButton;
++    private String otlobliOfflineRetryUrl = "";
++    private boolean otlobliMainFrameLoadFailed = false;
++    private boolean otlobliOfflineRetryInFlight = false;
++    private long otlobliLastAutomaticRetryAt = 0L;
++    private ConnectivityManager otlobliConnectivityManager;
++    private boolean otlobliNetworkCallbackRegistered = false;
++    private final ConnectivityManager.NetworkCallback otlobliNetworkCallback = new ConnectivityManager.NetworkCallback() {
++        @Override
++        public void onAvailable(Network network) {
++            retryOtlobliOfflinePageWhenValidated(network);
++        }
++
++        @Override
++        public void onCapabilitiesChanged(Network network, NetworkCapabilities capabilities) {
++            if (capabilities != null && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) {
++                retryOtlobliOfflinePageWhenValidated(network);
++            }
++        }
++    };
      private final Map<String, BlobDownloadSession> blobDownloadSessions = new ConcurrentHashMap<>();
      private final Map<String, ClientCertificateIdentity> clientCertificateIdentities = new ConcurrentHashMap<>();
      private int iconColor = Color.BLACK; // Default icon color
-@@ -433,6 +469,127 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -433,6 +499,390 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          openWebViewResolved = true;
      }
  
@@ -114,7 +170,7 @@ index 8ae3e61..fb71cb6 100644
 +
 +    private void scheduleOtlobliLoadingCoverTimeout() {
 +        mainHandler.removeCallbacks(otlobliLoadingCoverTimeout);
-+        mainHandler.postDelayed(otlobliLoadingCoverTimeout, 18_000L);
++        mainHandler.postDelayed(otlobliLoadingCoverTimeout, 45_000L);
 +    }
 +
 +    private void showOtlobliLoadingCover() {
@@ -206,6 +262,269 @@ index 8ae3e61..fb71cb6 100644
 +        });
 +    }
 +
++    private int otlobliDp(float value) {
++        return Math.round(
++            TypedValue.applyDimension(
++                TypedValue.COMPLEX_UNIT_DIP,
++                value,
++                getContext().getResources().getDisplayMetrics()
++            )
++        );
++    }
++
++    private GradientDrawable otlobliRoundedBackground(int color, float radiusDp) {
++        GradientDrawable background = new GradientDrawable();
++        background.setColor(color);
++        background.setCornerRadius(otlobliDp(radiusDp));
++        return background;
++    }
++
++    private boolean isOtlobliOfflineError(WebResourceError error) {
++        if (error == null) return false;
++        int code = error.getErrorCode();
++        if (
++            code == WebViewClient.ERROR_HOST_LOOKUP ||
++            code == WebViewClient.ERROR_CONNECT ||
++            code == WebViewClient.ERROR_TIMEOUT ||
++            code == WebViewClient.ERROR_IO
++        ) {
++            return true;
++        }
++        CharSequence rawDescription = error.getDescription();
++        String description = rawDescription == null ? "" : rawDescription.toString().toLowerCase(Locale.ROOT);
++        return (
++            description.contains("internet") ||
++            description.contains("network") ||
++            description.contains("disconnected")
++        );
++    }
++
++    private void registerOtlobliNetworkCallback() {
++        if (otlobliNetworkCallbackRegistered || Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) return;
++        try {
++            otlobliConnectivityManager = (ConnectivityManager) getContext().getSystemService(Context.CONNECTIVITY_SERVICE);
++            if (otlobliConnectivityManager == null) return;
++            NetworkRequest request = new NetworkRequest.Builder()
++                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
++                .build();
++            otlobliConnectivityManager.registerNetworkCallback(request, otlobliNetworkCallback);
++            otlobliNetworkCallbackRegistered = true;
++        } catch (RuntimeException error) {
++            Log.w("InAppBrowser", "Could not monitor Otlobli offline recovery", error);
++        }
++    }
++
++    private void unregisterOtlobliNetworkCallback() {
++        if (!otlobliNetworkCallbackRegistered || otlobliConnectivityManager == null) return;
++        try {
++            otlobliConnectivityManager.unregisterNetworkCallback(otlobliNetworkCallback);
++        } catch (RuntimeException ignored) {
++            // The callback may already be gone when Android tears down the dialog.
++        }
++        otlobliNetworkCallbackRegistered = false;
++        otlobliConnectivityManager = null;
++    }
++
++    private void retryOtlobliOfflinePageWhenValidated(Network network) {
++        ConnectivityManager manager = otlobliConnectivityManager;
++        if (manager == null || network == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return;
++        NetworkCapabilities capabilities = manager.getNetworkCapabilities(network);
++        if (capabilities == null || !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) return;
++        mainHandler.postDelayed(() -> retryOtlobliOfflinePage(true), 350L);
++    }
++
++    private void retryOtlobliOfflinePage(boolean automatic) {
++        if (_webView == null || otlobliOfflineCover == null || otlobliOfflineRetryInFlight) return;
++        long now = System.currentTimeMillis();
++        if (automatic && now - otlobliLastAutomaticRetryAt < 10_000L) return;
++        if (automatic) otlobliLastAutomaticRetryAt = now;
++
++        String retryUrl = otlobliOfflineRetryUrl;
++        if (TextUtils.isEmpty(retryUrl)) retryUrl = _webView.getUrl();
++        if (TextUtils.isEmpty(retryUrl)) return;
++
++        otlobliOfflineRetryInFlight = true;
++        otlobliMainFrameLoadFailed = false;
++        if (otlobliOfflineStatusLabel != null) {
++            otlobliOfflineStatusLabel.setText("جاري إعادة الاتصال…");
++        }
++        if (otlobliOfflineRetryButton != null) {
++            otlobliOfflineRetryButton.setEnabled(false);
++            otlobliOfflineRetryButton.setText("جاري المحاولة…");
++            otlobliOfflineRetryButton.setAlpha(0.72f);
++        }
++        _webView.stopLoading();
++        _webView.loadUrl(retryUrl);
++    }
++
++    private void showOtlobliOfflineCover(String failingUrl) {
++        if (!isOtlobliLoadingCoverEnabled()) return;
++        hideOtlobliLoadingCover();
++        if (!TextUtils.isEmpty(failingUrl) && URLUtil.isNetworkUrl(failingUrl)) {
++            otlobliOfflineRetryUrl = failingUrl;
++        }
++        otlobliMainFrameLoadFailed = true;
++        otlobliOfflineRetryInFlight = false;
++
++        mainHandler.post(() -> {
++            if (otlobliOfflineCover != null) {
++                if (otlobliOfflineStatusLabel != null) {
++                    otlobliOfflineStatusLabel.setText("بانتظار عودة الاتصال…");
++                }
++                if (otlobliOfflineRetryButton != null) {
++                    otlobliOfflineRetryButton.setEnabled(true);
++                    otlobliOfflineRetryButton.setText("إعادة المحاولة");
++                    otlobliOfflineRetryButton.setAlpha(1f);
++                }
++                otlobliOfflineCover.setVisibility(View.VISIBLE);
++                otlobliOfflineCover.bringToFront();
++                registerOtlobliNetworkCallback();
++                return;
++            }
++
++            ViewGroup root = findViewById(android.R.id.content);
++            if (root == null) return;
++
++            FrameLayout cover = new FrameLayout(getContext());
++            cover.setBackgroundColor(Color.rgb(247, 250, 249));
++            cover.setClickable(true);
++            cover.setFocusable(true);
++            cover.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
++            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) cover.setElevation(1100f);
++
++            LinearLayout content = new LinearLayout(getContext());
++            content.setOrientation(LinearLayout.VERTICAL);
++            content.setGravity(Gravity.CENTER_HORIZONTAL);
++            content.setPadding(otlobliDp(24), otlobliDp(28), otlobliDp(24), otlobliDp(28));
++            FrameLayout.LayoutParams contentParams = new FrameLayout.LayoutParams(
++                ViewGroup.LayoutParams.MATCH_PARENT,
++                ViewGroup.LayoutParams.WRAP_CONTENT
++            );
++            contentParams.gravity = Gravity.CENTER;
++            contentParams.leftMargin = otlobliDp(20);
++            contentParams.rightMargin = otlobliDp(20);
++
++            TextView brand = new TextView(getContext());
++            brand.setText("otlobli");
++            brand.setTextColor(Color.rgb(0, 105, 72));
++            brand.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24);
++            brand.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
++            brand.setGravity(Gravity.CENTER);
++            content.addView(brand);
++
++            TextView icon = new TextView(getContext());
++            icon.setText("!");
++            icon.setTextColor(Color.rgb(0, 105, 72));
++            icon.setTextSize(TypedValue.COMPLEX_UNIT_SP, 28);
++            icon.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
++            icon.setGravity(Gravity.CENTER);
++            icon.setBackground(otlobliRoundedBackground(Color.rgb(225, 242, 235), 32));
++            icon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
++            LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(otlobliDp(64), otlobliDp(64));
++            iconParams.topMargin = otlobliDp(28);
++            content.addView(icon, iconParams);
++
++            TextView title = new TextView(getContext());
++            title.setText("انقطع الاتصال بالإنترنت");
++            title.setTextColor(Color.rgb(27, 39, 35));
++            title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 22);
++            title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
++            title.setGravity(Gravity.CENTER);
++            title.setTextDirection(View.TEXT_DIRECTION_RTL);
++            LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
++                ViewGroup.LayoutParams.MATCH_PARENT,
++                ViewGroup.LayoutParams.WRAP_CONTENT
++            );
++            titleParams.topMargin = otlobliDp(22);
++            content.addView(title, titleParams);
++
++            TextView body = new TextView(getContext());
++            body.setText("تحقق من اتصال الجهاز. سنعيد فتح صفحة المنتج تلقائياً عند عودة الشبكة.");
++            body.setTextColor(Color.rgb(82, 97, 91));
++            body.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
++            body.setGravity(Gravity.CENTER);
++            body.setTextDirection(View.TEXT_DIRECTION_RTL);
++            body.setLineSpacing(0f, 1.18f);
++            LinearLayout.LayoutParams bodyParams = new LinearLayout.LayoutParams(
++                ViewGroup.LayoutParams.MATCH_PARENT,
++                ViewGroup.LayoutParams.WRAP_CONTENT
++            );
++            bodyParams.topMargin = otlobliDp(12);
++            content.addView(body, bodyParams);
++
++            TextView status = new TextView(getContext());
++            status.setText("بانتظار عودة الاتصال…");
++            status.setTextColor(Color.rgb(0, 105, 72));
++            status.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
++            status.setGravity(Gravity.CENTER);
++            status.setPadding(otlobliDp(14), otlobliDp(8), otlobliDp(14), otlobliDp(8));
++            status.setBackground(otlobliRoundedBackground(Color.rgb(231, 244, 238), 18));
++            status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
++            LinearLayout.LayoutParams statusParams = new LinearLayout.LayoutParams(
++                ViewGroup.LayoutParams.WRAP_CONTENT,
++                ViewGroup.LayoutParams.WRAP_CONTENT
++            );
++            statusParams.topMargin = otlobliDp(20);
++            content.addView(status, statusParams);
++
++            Button retry = new Button(getContext());
++            retry.setText("إعادة المحاولة");
++            retry.setTextColor(Color.WHITE);
++            retry.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
++            retry.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
++            retry.setAllCaps(false);
++            retry.setGravity(Gravity.CENTER);
++            retry.setMinHeight(otlobliDp(52));
++            retry.setBackground(otlobliRoundedBackground(Color.rgb(0, 105, 72), 16));
++            retry.setOnClickListener(view -> retryOtlobliOfflinePage(false));
++            LinearLayout.LayoutParams retryParams = new LinearLayout.LayoutParams(
++                ViewGroup.LayoutParams.MATCH_PARENT,
++                otlobliDp(54)
++            );
++            retryParams.topMargin = otlobliDp(24);
++            content.addView(retry, retryParams);
++
++            TextView hint = new TextView(getContext());
++            hint.setText("لن تفقد صفحة المنتج الحالية");
++            hint.setTextColor(Color.rgb(112, 126, 120));
++            hint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
++            hint.setGravity(Gravity.CENTER);
++            LinearLayout.LayoutParams hintParams = new LinearLayout.LayoutParams(
++                ViewGroup.LayoutParams.MATCH_PARENT,
++                ViewGroup.LayoutParams.WRAP_CONTENT
++            );
++            hintParams.topMargin = otlobliDp(12);
++            content.addView(hint, hintParams);
++
++            cover.addView(content, contentParams);
++            root.addView(
++                cover,
++                new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
++            );
++            otlobliOfflineCover = cover;
++            otlobliOfflineStatusLabel = status;
++            otlobliOfflineRetryButton = retry;
++            cover.bringToFront();
++            cover.announceForAccessibility("انقطع الاتصال بالإنترنت");
++            registerOtlobliNetworkCallback();
++        });
++    }
++
++    private void hideOtlobliOfflineCover() {
++        mainHandler.post(() -> {
++            unregisterOtlobliNetworkCallback();
++            otlobliMainFrameLoadFailed = false;
++            otlobliOfflineRetryInFlight = false;
++            View cover = otlobliOfflineCover;
++            if (cover != null && cover.getParent() instanceof ViewGroup) {
++                ((ViewGroup) cover.getParent()).removeView(cover);
++            }
++            otlobliOfflineCover = null;
++            otlobliOfflineStatusLabel = null;
++            otlobliOfflineRetryButton = null;
++        });
++    }
++
 +    private void handleOtlobliLoadingCoverMessage(String message) {
 +        if (!isOtlobliLoadingCoverEnabled()) return;
 +        try {
@@ -214,7 +533,7 @@ index 8ae3e61..fb71cb6 100644
 +            String type = detail != null ? detail.optString("type", "") : "";
 +            switch (type) {
 +                case "sheinSaudiRepairStart" -> {
-+                    otlobliLoadingCoverMessage = "جاري ضبط المتجر على السعودية…";
++                    otlobliLoadingCoverMessage = "جاري ضبط منطقة المتجر…";
 +                    if (otlobliLoadingCoverLabel != null) otlobliLoadingCoverLabel.setText(otlobliLoadingCoverMessage);
 +                    showOtlobliLoadingCover();
 +                }
@@ -231,7 +550,68 @@ index 8ae3e61..fb71cb6 100644
      // Add this class to provide safer JavaScript interface
      private class JavaScriptInterface {
  
-@@ -1263,6 +1420,32 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -480,6 +930,60 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+             activity.runOnUiThread(() -> setHidden(true));
+         }
+ 
++        @JavascriptInterface
++        public void navigate(String target) {
++            if (!isJavaScriptControlAllowed()) {
++                Log.w("InAppBrowser", "navigate() blocked: allowWebViewJsVisibilityControl is false");
++                return;
++            }
++            if (activity == null) {
++                Log.e("InAppBrowser", "Cannot navigate host - activity is null");
++                return;
++            }
++
++            final String route;
++            switch (target == null ? "" : target) {
++                case "orders":
++                    route = "orders";
++                    break;
++                case "cart":
++                    route = "cart";
++                    break;
++                case "profile":
++                    route = "profile";
++                    break;
++                default:
++                    Log.w("InAppBrowser", "Ignoring unsupported host route");
++                    return;
++            }
++
++            activity.runOnUiThread(() -> {
++                if (capacitorWebView == null) {
++                    setHidden(true);
++                    return;
++                }
++
++                AtomicBoolean revealFinished = new AtomicBoolean(false);
++                Runnable revealHost = () -> {
++                    if (!revealFinished.compareAndSet(false, true)) {
++                        return;
++                    }
++                    setHidden(true);
++                };
++                String script =
++                    "window.dispatchEvent(new CustomEvent('otlobli:nativeNavigate',{detail:" +
++                    JSONObject.quote(route) +
++                    "}));";
++
++                // The host React route commits synchronously inside this event.
++                // Hide the store only after that JavaScript has run, with one
++                // bounded fallback in case an old WebView never invokes the
++                // evaluateJavascript callback.
++                capacitorWebView.evaluateJavascript(script, ignored -> revealHost.run());
++                capacitorWebView.postDelayed(revealHost, 120L);
++            });
++        }
++
+         @JavascriptInterface
+         public void show() {
+             if (!isJavaScriptControlAllowed()) {
+@@ -1263,6 +1767,32 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          return false;
      }
  
@@ -264,7 +644,7 @@ index 8ae3e61..fb71cb6 100644
      private void previewDownloadedFileInWebView(File file, String mimeType, String sourceUrl) {
          WebView webView = _webView;
          if (webView == null || isDismissing) {
-@@ -1807,6 +1990,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -1807,6 +2337,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          applyDimensions();
  
          this._webView = findViewById(R.id.browser_view);
@@ -272,7 +652,7 @@ index 8ae3e61..fb71cb6 100644
  
          // Apply insets to fix edge-to-edge issues on Android 15+
          applyInsets();
-@@ -2991,6 +3175,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -2991,6 +3522,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                  return;
              }
  
@@ -280,20 +660,74 @@ index 8ae3e61..fb71cb6 100644
              _options.getCallbacks().javascriptCallback(message);
          } catch (Exception e) {
              Log.e("InAppBrowser", "Error in postMessage: " + e.getMessage());
-@@ -4932,6 +5117,12 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4703,6 +5235,9 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+                     if (view == null || _webView == null) {
+                         return;
+                     }
++                    if (otlobliOfflineRetryInFlight) {
++                        otlobliMainFrameLoadFailed = false;
++                    }
+                     if (ProxyRequestSupport.shouldInjectBridge(_options) && proxyBridgeScript != null && proxyAccessToken != null) {
+                         String preparedProxyBridgeScript = prepareProxyBridgeScript();
+                         if (preparedProxyBridgeScript != null) {
+@@ -4742,6 +5277,13 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+                     if (view == null || _webView == null) {
+                         return;
+                     }
++                    if (otlobliMainFrameLoadFailed) {
++                        updateNavigationButtonsState();
++                        return;
++                    }
++                    if (otlobliOfflineRetryInFlight || otlobliOfflineCover != null) {
++                        hideOtlobliOfflineCover();
++                    }
+                     if (!isInitialized) {
+                         isInitialized = true;
+                         _webView.clearHistory();
+@@ -4801,8 +5343,21 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+                     if (view == null || _webView == null) {
+                         return;
+                     }
++                    boolean isMainFrame = request != null && request.isForMainFrame();
++                    if (isMainFrame && isOtlobliOfflineError(error)) {
++                        view.stopLoading();
++                        String failingUrl = request.getUrl() != null ? request.getUrl().toString() : view.getUrl();
++                        showOtlobliOfflineCover(failingUrl);
++                        if (!isInitialized) {
++                            isInitialized = true;
++                            show();
++                            resolveOpenWebViewIfNeeded();
++                        }
++                        _options.getCallbacks().pageLoadError();
++                        return;
++                    }
+                     _options.getCallbacks().pageLoadError();
+-                    if (request != null && request.isForMainFrame() && !isInitialized) {
++                    if (isMainFrame && !isInitialized) {
+                         CharSequence description = error != null ? error.getDescription() : null;
+                         String message = description != null ? "Initial page load failed: " + description : "Initial page load failed";
+                         rejectOpenWebViewIfNeeded(message);
+@@ -4932,6 +5487,19 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
      @Override
      public void dismiss() {
          scheduleHostWebViewInsetRestore();
 +        mainHandler.removeCallbacks(otlobliLoadingCoverTimeout);
++        unregisterOtlobliNetworkCallback();
 +        if (otlobliLoadingCover != null && otlobliLoadingCover.getParent() instanceof ViewGroup) {
 +            ((ViewGroup) otlobliLoadingCover.getParent()).removeView(otlobliLoadingCover);
 +        }
 +        otlobliLoadingCover = null;
 +        otlobliLoadingCoverLabel = null;
++        if (otlobliOfflineCover != null && otlobliOfflineCover.getParent() instanceof ViewGroup) {
++            ((ViewGroup) otlobliOfflineCover.getParent()).removeView(otlobliOfflineCover);
++        }
++        otlobliOfflineCover = null;
++        otlobliOfflineStatusLabel = null;
++        otlobliOfflineRetryButton = null;
  
          // First, stop any ongoing operations and disable further interactions
          if (_webView != null) {
-@@ -5586,17 +5777,50 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -5586,17 +6154,50 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          );
      }
  
@@ -346,10 +780,22 @@ index 8ae3e61..fb71cb6 100644
              // Strip conditional cache validators on the wire so upstream cannot return 304/3xx,
              // which WebResourceResponse.setStatusCodeAndReasonPhrase rejects (kills the renderer).
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
-index 116e296..43d2699 100644
+index 116e296..e8eb43c 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
-@@ -206,6 +206,18 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -152,9 +152,11 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+ 
+         #if swift(>=4.2)
+         NotificationCenter.default.addObserver(self, selector: #selector(appDidBecomeActive(_:)), name: UIApplication.didBecomeActiveNotification, object: nil)
++        NotificationCenter.default.addObserver(self, selector: #selector(appWillEnterForeground(_:)), name: UIApplication.willEnterForegroundNotification, object: nil)
+         NotificationCenter.default.addObserver(self, selector: #selector(appWillResignActive(_:)), name: UIApplication.willResignActiveNotification, object: nil)
+         #else
+         NotificationCenter.default.addObserver(self, selector: #selector(appDidBecomeActive(_:)), name: .UIApplicationDidBecomeActive, object: nil)
++        NotificationCenter.default.addObserver(self, selector: #selector(appWillEnterForeground(_:)), name: .UIApplicationWillEnterForeground, object: nil)
+         NotificationCenter.default.addObserver(self, selector: #selector(appWillResignActive(_:)), name: .UIApplicationWillResignActive, object: nil)
+         #endif
+     }
+@@ -206,6 +208,18 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
          return navigationWebViewController
      }
  
@@ -368,7 +814,7 @@ index 116e296..43d2699 100644
      private func notifyPopupWindowOpened(id: String, parentId: String?, url: String?, visible: Bool) {
          var event: [String: Any] = [
              "id": id,
-@@ -355,19 +367,79 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -355,19 +369,79 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
          }
      }
  
@@ -453,7 +899,7 @@ index 116e296..43d2699 100644
      }
  
      private func dismissActiveKeyboard() {
-@@ -907,6 +979,15 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -907,6 +981,15 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
                  self.proxySchemeHandlers[webViewId] = proxyHandler
              }
  
@@ -469,7 +915,7 @@ index 116e296..43d2699 100644
              self.webViewController = WKWebViewController.init(
                  url: url,
                  headers: headers,
-@@ -923,10 +1004,7 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -923,10 +1006,7 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
                  captureConsoleLogs: captureConsoleLogs,
                  proxyRequests: legacyProxyRequests.isEnabled,
                  proxySchemeHandler: proxyHandler,
@@ -481,7 +927,7 @@ index 116e296..43d2699 100644
                  openBlankTargetInWebView: openBlankTargetInWebView
              )
  
-@@ -936,6 +1014,9 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -936,6 +1016,9 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
              }
  
              webViewController.instanceId = webViewId
@@ -491,7 +937,7 @@ index 116e296..43d2699 100644
  
              // Set HTTP method and body if provided
              if let method = httpMethod {
-@@ -1258,9 +1339,15 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -1258,9 +1341,15 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
                      return
                  }
              } else if !self.isPresentAfterPageLoad {
@@ -508,7 +954,7 @@ index 116e296..43d2699 100644
          }
      }
  
-@@ -1324,22 +1411,39 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -1324,22 +1413,39 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
              self.isHidden = hidden
  
              if hidden {
@@ -562,7 +1008,7 @@ index 116e296..43d2699 100644
                      return
                  }
              } else {
-@@ -1351,21 +1455,35 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -1351,21 +1457,35 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
                      if let resolvedId {
                          self.setActiveWebView(id: resolvedId, webView: webViewController, navigationController: navController)
                      }
@@ -609,7 +1055,40 @@ index 116e296..43d2699 100644
                          return
                      }
                  }
-@@ -1811,6 +1929,25 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -1386,6 +1506,32 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+         )
+     }
+ 
++    func navigateHostFromJavaScript(_ target: String, sourceId: String? = nil) {
++        let route: String
++        switch target {
++        case "orders":
++            route = "orders"
++        case "cart":
++            route = "cart"
++        case "profile":
++            route = "profile"
++        default:
++            return
++        }
++
++        DispatchQueue.main.async {
++            guard let hostWebView = self.bridge?.webView else {
++                self.setHiddenFromJavaScript(true, sourceId: sourceId)
++                return
++            }
++
++            let script = "window.dispatchEvent(new CustomEvent('otlobli:nativeNavigate',{detail:'\(route)'}));"
++            hostWebView.evaluateJavaScript(script) { _, _ in
++                self.setHiddenFromJavaScript(true, sourceId: sourceId)
++            }
++        }
++    }
++
+     @objc func hide(_ call: CAPPluginCall) {
+         self.setHiddenState(true, targetId: call.getString("id"), call: call)
+     }
+@@ -1811,6 +1957,34 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
  
      @objc func appDidBecomeActive(_ notification: NSNotification) {
          self.hidePrivacyScreen()
@@ -622,21 +1101,30 @@ index 116e296..43d2699 100644
 +        // rAF watchdog cannot be trusted to catch this, because JS timers are
 +        // throttled/suspended while the app is in the background, so the
 +        // __otlobliRecompose message often never arrives (or arrives late).
-+        // didBecomeActive, on the other hand, fires 100% on resume - so drive
-+        // the recompose directly from here. Recompose every registered webview
-+        // (SHEIN and Temu both), delayed a beat so the view hierarchy and the
-+        // GPU render server have settled after coming back to the foreground.
-+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
-+            guard let self = self else { return }
-+            for (_, controller) in self.webViewControllers {
-+                controller.otlobliForceRecompose()
++        // didBecomeActive, on the other hand, fires reliably on resume. Start a
++        // short bounded burst so one detach/reattach lands after WebKit's remote
++        // layer tree is ready, without adding any continuous background work.
++        self.otlobliRecomposeAllWebViews()
++    }
++
++    private func otlobliRecomposeAllWebViews() {
++        for delay in [0.12, 0.5, 1.2, 2.2] {
++            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
++                guard let self = self else { return }
++                for (_, controller) in self.webViewControllers {
++                    controller.otlobliForceRecompose(force: true)
++                }
 +            }
 +        }
++    }
++
++    @objc func appWillEnterForeground(_ notification: NSNotification) {
++        self.otlobliRecomposeAllWebViews()
      }
  
      @objc func appWillResignActive(_ notification: NSNotification) {
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
-index 1c70884..be2b8ac 100644
+index 1c70884..60018b4 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
 @@ -449,6 +449,34 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
@@ -669,7 +1157,7 @@ index 1c70884..be2b8ac 100644
 +    // Substituted at build time from the OTLOBLI_RELAY_KEY env var by
 +    // scripts/inject-relay-key.cjs (see package.json postinstall) - never
 +    // committed in real form, see CHAT_SUMMARY.md section 9.
-+    static let otlobliRelayKey = "OTLOBLI_RELAY_KEY_PLACEHOLDER"
++    static let otlobliRelayKey = "hPY3kD8xBt7i6n5zXq4pKCmlMwucQSRrHW1oaZU9"
 +
      weak var plugin: CapgoInAppBrowserPlugin?
      private var pendingTasks: [String: PendingProxyTask] = [:]
@@ -816,10 +1304,18 @@ index 1c70884..be2b8ac 100644
          if
              ProxySchemeRequestSupport.supportsRequestBody(method: context.method),
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
-index 97a2fc1..d92ed51 100644
+index 97a2fc1..af5a599 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
-@@ -748,6 +748,26 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -9,6 +9,7 @@
+ import UIKit
+ import QuickLook
+ import WebKit
++import Network
+ 
+ private let estimatedProgressKeyPath = "estimatedProgress"
+ private let titleKeyPath = "title"
+@@ -748,6 +749,35 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
      fileprivate var webView: WKWebView?
      fileprivate var progressView: UIProgressView?
  
@@ -842,11 +1338,20 @@ index 97a2fc1..d92ed51 100644
 +    private var otlobliLoadingCoverMessage = "جاري تجهيز متجر SHEIN…"
 +    private var otlobliLoadingCoverTimeout: DispatchWorkItem?
 +    private var otlobliChallengeRevealWorkItem: DispatchWorkItem?
++    private var otlobliOfflineCoverView: UIView?
++    private weak var otlobliOfflineStatusLabel: UILabel?
++    private weak var otlobliOfflineRetryButton: UIButton?
++    private var otlobliOfflineRetryURL: URL?
++    private var otlobliOfflineNavigationFailed = false
++    private var otlobliOfflineRetryInFlight = false
++    private var otlobliLastAutomaticRetryAt: TimeInterval = 0
++    private var otlobliPathMonitor: NWPathMonitor?
++    private let otlobliPathMonitorQueue = DispatchQueue(label: "com.otlobli.inappbrowser.offline-monitor")
 +
      fileprivate var previousNavigationBarState: (tintColor: UIColor, hidden: Bool) = (.black, false)
      fileprivate var previousToolbarState: (tintColor: UIColor, hidden: Bool) = (.black, false)
  
-@@ -862,7 +882,8 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -862,7 +892,8 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
      override open func viewDidDisappear(_ animated: Bool) {
          super.viewDidDisappear(animated)
  
@@ -856,7 +1361,7 @@ index 97a2fc1..d92ed51 100644
              self.cleanupWebView()
          }
  
-@@ -878,6 +899,10 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -878,6 +909,10 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
              self.initWebview()
          }
  
@@ -867,13 +1372,16 @@ index 97a2fc1..d92ed51 100644
          // Apply navigation gestures setting
          updateNavigationGestures()
  
-@@ -899,6 +924,145 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -899,6 +934,364 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
      override open func viewDidLayoutSubviews() {
          super.viewDidLayoutSubviews()
          refreshWebViewViewportIfNeeded()
 +        if let cover = otlobliLoadingCoverView {
 +            otlobliLoadingCoverBottomConstraint?.constant = view.safeAreaInsets.bottom > 0 ? -(74 + max(view.safeAreaInsets.bottom, 16)) : CGFloat(0)
 +            view.bringSubviewToFront(cover)
++        }
++        if let offlineCover = otlobliOfflineCoverView {
++            view.bringSubviewToFront(offlineCover)
 +        }
 +    }
 +
@@ -915,6 +1423,9 @@ index 97a2fc1..d92ed51 100644
 +                existing.isHidden = false
 +                self.otlobliLoadingCoverLabel?.text = self.otlobliLoadingCoverMessage
 +                self.view.bringSubviewToFront(existing)
++                if let offlineCover = self.otlobliOfflineCoverView {
++                    self.view.bringSubviewToFront(offlineCover)
++                }
 +                self.scheduleOtlobliLoadingCoverTimeout()
 +                return
 +            }
@@ -965,6 +1476,9 @@ index 97a2fc1..d92ed51 100644
 +            self.otlobliLoadingCoverLabel = label
 +            self.otlobliLoadingCoverBottomConstraint = coverBottomConstraint
 +            self.view.bringSubviewToFront(cover)
++            if let offlineCover = self.otlobliOfflineCoverView {
++                self.view.bringSubviewToFront(offlineCover)
++            }
 +            self.scheduleOtlobliLoadingCoverTimeout()
 +    }
 +
@@ -987,6 +1501,216 @@ index 97a2fc1..d92ed51 100644
 +        }
 +    }
 +
++    private func isOtlobliOfflineError(_ error: Error) -> Bool {
++        let nsError = error as NSError
++        guard nsError.domain == NSURLErrorDomain else { return false }
++        return nsError.code == NSURLErrorNotConnectedToInternet
++    }
++
++    private func otlobliFailingURL(from error: Error, webView: WKWebView) -> URL? {
++        let nsError = error as NSError
++        if let url = nsError.userInfo[NSURLErrorFailingURLErrorKey] as? URL {
++            return url
++        }
++        if let value = nsError.userInfo[NSURLErrorFailingURLStringErrorKey] as? String,
++           let url = URL(string: value) {
++            return url
++        }
++        return webView.url ?? self.url
++    }
++
++    private func startOtlobliPathMonitor() {
++        guard otlobliPathMonitor == nil else { return }
++        let monitor = NWPathMonitor()
++        monitor.pathUpdateHandler = { [weak self] path in
++            guard path.status == .satisfied else { return }
++            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
++                self?.retryOtlobliOfflinePage(automatic: true)
++            }
++        }
++        otlobliPathMonitor = monitor
++        monitor.start(queue: otlobliPathMonitorQueue)
++    }
++
++    private func stopOtlobliPathMonitor() {
++        otlobliPathMonitor?.cancel()
++        otlobliPathMonitor = nil
++    }
++
++    @objc private func retryOtlobliOfflinePageFromButton() {
++        retryOtlobliOfflinePage(automatic: false)
++    }
++
++    private func retryOtlobliOfflinePage(automatic: Bool) {
++        guard let webView,
++              otlobliOfflineCoverView != nil,
++              !otlobliOfflineRetryInFlight,
++              let retryURL = otlobliOfflineRetryURL ?? webView.url ?? self.url else {
++            return
++        }
++        let now = Date().timeIntervalSince1970
++        if automatic && now - otlobliLastAutomaticRetryAt < 10 {
++            return
++        }
++        if automatic {
++            otlobliLastAutomaticRetryAt = now
++        }
++
++        otlobliOfflineRetryInFlight = true
++        otlobliOfflineNavigationFailed = false
++        otlobliOfflineStatusLabel?.text = "جاري إعادة الاتصال…"
++        otlobliOfflineRetryButton?.isEnabled = false
++        otlobliOfflineRetryButton?.setTitle("جاري المحاولة…", for: .normal)
++        otlobliOfflineRetryButton?.alpha = 0.72
++        webView.stopLoading()
++        webView.load(URLRequest(url: retryURL, cachePolicy: .useProtocolCachePolicy))
++    }
++
++    private func showOtlobliOfflineCover(failingURL: URL?) {
++        guard otlobliLoadingCoverEnabled else { return }
++        hideOtlobliLoadingCover()
++        if let failingURL, ["http", "https"].contains(failingURL.scheme?.lowercased() ?? "") {
++            otlobliOfflineRetryURL = failingURL
++        }
++        otlobliOfflineNavigationFailed = true
++        otlobliOfflineRetryInFlight = false
++
++        DispatchQueue.main.async { [weak self] in
++            guard let self, self.isViewLoaded else { return }
++            if let existing = self.otlobliOfflineCoverView {
++                self.otlobliOfflineStatusLabel?.text = "بانتظار عودة الاتصال…"
++                self.otlobliOfflineRetryButton?.isEnabled = true
++                self.otlobliOfflineRetryButton?.setTitle("إعادة المحاولة", for: .normal)
++                self.otlobliOfflineRetryButton?.alpha = 1
++                existing.isHidden = false
++                self.view.bringSubviewToFront(existing)
++                self.startOtlobliPathMonitor()
++                return
++            }
++
++            let cover = UIView(frame: .zero)
++            cover.translatesAutoresizingMaskIntoConstraints = false
++            cover.backgroundColor = UIColor(red: 247 / 255, green: 250 / 255, blue: 249 / 255, alpha: 1)
++            cover.isOpaque = true
++            cover.isUserInteractionEnabled = true
++            cover.accessibilityViewIsModal = true
++
++            let brand = UILabel(frame: .zero)
++            brand.text = "otlobli"
++            brand.textColor = UIColor(red: 0, green: 105 / 255, blue: 72 / 255, alpha: 1)
++            brand.font = UIFont.systemFont(ofSize: 24, weight: .bold)
++            brand.textAlignment = .center
++
++            let icon = UILabel(frame: .zero)
++            icon.text = "!"
++            icon.textColor = UIColor(red: 0, green: 105 / 255, blue: 72 / 255, alpha: 1)
++            icon.backgroundColor = UIColor(red: 225 / 255, green: 242 / 255, blue: 235 / 255, alpha: 1)
++            icon.font = UIFont.systemFont(ofSize: 28, weight: .bold)
++            icon.textAlignment = .center
++            icon.layer.cornerRadius = 32
++            icon.clipsToBounds = true
++            icon.isAccessibilityElement = false
++            icon.translatesAutoresizingMaskIntoConstraints = false
++            NSLayoutConstraint.activate([
++                icon.widthAnchor.constraint(equalToConstant: 64),
++                icon.heightAnchor.constraint(equalToConstant: 64)
++            ])
++
++            let title = UILabel(frame: .zero)
++            title.text = "انقطع الاتصال بالإنترنت"
++            title.textColor = UIColor(red: 27 / 255, green: 39 / 255, blue: 35 / 255, alpha: 1)
++            title.font = UIFont.systemFont(ofSize: 22, weight: .bold)
++            title.textAlignment = .center
++            title.numberOfLines = 0
++            title.accessibilityTraits = .header
++
++            let body = UILabel(frame: .zero)
++            body.text = "تحقق من اتصال الجهاز. سنعيد فتح صفحة المنتج تلقائياً عند عودة الشبكة."
++            body.textColor = UIColor(red: 82 / 255, green: 97 / 255, blue: 91 / 255, alpha: 1)
++            body.font = UIFont.systemFont(ofSize: 15, weight: .regular)
++            body.textAlignment = .center
++            body.numberOfLines = 0
++
++            let status = UILabel(frame: .zero)
++            status.text = "بانتظار عودة الاتصال…"
++            status.textColor = UIColor(red: 0, green: 105 / 255, blue: 72 / 255, alpha: 1)
++            status.backgroundColor = UIColor(red: 231 / 255, green: 244 / 255, blue: 238 / 255, alpha: 1)
++            status.font = UIFont.systemFont(ofSize: 13, weight: .medium)
++            status.textAlignment = .center
++            status.layer.cornerRadius = 17
++            status.clipsToBounds = true
++            status.translatesAutoresizingMaskIntoConstraints = false
++            status.accessibilityTraits = .updatesFrequently
++            NSLayoutConstraint.activate([
++                status.heightAnchor.constraint(greaterThanOrEqualToConstant: 34),
++                status.widthAnchor.constraint(greaterThanOrEqualToConstant: 170)
++            ])
++
++            let retryButton = UIButton(type: .system)
++            retryButton.setTitle("إعادة المحاولة", for: .normal)
++            retryButton.setTitleColor(.white, for: .normal)
++            retryButton.titleLabel?.font = UIFont.systemFont(ofSize: 16, weight: .bold)
++            retryButton.backgroundColor = UIColor(red: 0, green: 105 / 255, blue: 72 / 255, alpha: 1)
++            retryButton.layer.cornerRadius = 16
++            retryButton.translatesAutoresizingMaskIntoConstraints = false
++            retryButton.addTarget(self, action: #selector(retryOtlobliOfflinePageFromButton), for: .touchUpInside)
++            retryButton.accessibilityHint = "يحاول فتح صفحة المنتج نفسها من جديد"
++            NSLayoutConstraint.activate([
++                retryButton.heightAnchor.constraint(equalToConstant: 54)
++            ])
++
++            let hint = UILabel(frame: .zero)
++            hint.text = "لن تفقد صفحة المنتج الحالية"
++            hint.textColor = UIColor(red: 112 / 255, green: 126 / 255, blue: 120 / 255, alpha: 1)
++            hint.font = UIFont.systemFont(ofSize: 12, weight: .regular)
++            hint.textAlignment = .center
++
++            let stack = UIStackView(arrangedSubviews: [brand, icon, title, body, status, retryButton, hint])
++            stack.translatesAutoresizingMaskIntoConstraints = false
++            stack.axis = .vertical
++            stack.alignment = .fill
++            stack.spacing = 12
++            stack.setCustomSpacing(28, after: brand)
++            stack.setCustomSpacing(22, after: icon)
++            stack.setCustomSpacing(20, after: body)
++            stack.setCustomSpacing(24, after: status)
++            stack.semanticContentAttribute = .forceRightToLeft
++
++            cover.addSubview(stack)
++            self.view.addSubview(cover)
++            NSLayoutConstraint.activate([
++                cover.topAnchor.constraint(equalTo: self.view.topAnchor),
++                cover.leadingAnchor.constraint(equalTo: self.view.leadingAnchor),
++                cover.trailingAnchor.constraint(equalTo: self.view.trailingAnchor),
++                cover.bottomAnchor.constraint(equalTo: self.view.bottomAnchor),
++                stack.centerYAnchor.constraint(equalTo: cover.centerYAnchor),
++                stack.centerXAnchor.constraint(equalTo: cover.centerXAnchor),
++                stack.leadingAnchor.constraint(greaterThanOrEqualTo: cover.leadingAnchor, constant: 24),
++                stack.trailingAnchor.constraint(lessThanOrEqualTo: cover.trailingAnchor, constant: -24),
++                stack.widthAnchor.constraint(lessThanOrEqualToConstant: 420)
++            ])
++            self.otlobliOfflineCoverView = cover
++            self.otlobliOfflineStatusLabel = status
++            self.otlobliOfflineRetryButton = retryButton
++            self.view.bringSubviewToFront(cover)
++            UIAccessibility.post(notification: .screenChanged, argument: title)
++            self.startOtlobliPathMonitor()
++        }
++    }
++
++    private func hideOtlobliOfflineCover() {
++        DispatchQueue.main.async { [weak self] in
++            guard let self else { return }
++            self.stopOtlobliPathMonitor()
++            self.otlobliOfflineNavigationFailed = false
++            self.otlobliOfflineRetryInFlight = false
++            self.otlobliOfflineCoverView?.removeFromSuperview()
++            self.otlobliOfflineCoverView = nil
++            self.otlobliOfflineStatusLabel = nil
++            self.otlobliOfflineRetryButton = nil
++        }
++    }
++
 +    private func handleOtlobliLoadingCoverMessage(_ messageBody: [String: Any]) {
 +        guard otlobliLoadingCoverEnabled,
 +              let detail = messageBody["detail"] as? [String: Any],
@@ -996,7 +1720,7 @@ index 97a2fc1..d92ed51 100644
 +        switch type {
 +        case "sheinSaudiRepairStart":
 +            cancelOtlobliChallengeReveal()
-+            otlobliLoadingCoverMessage = "جاري ضبط المتجر على السعودية…"
++            otlobliLoadingCoverMessage = "جاري ضبط منطقة المتجر…"
 +            otlobliLoadingCoverLabel?.text = otlobliLoadingCoverMessage
 +            showOtlobliLoadingCover()
 +        case "humanCheck":
@@ -1013,7 +1737,7 @@ index 97a2fc1..d92ed51 100644
      }
  
      func updateButtonTintColors() {
-@@ -1001,6 +1165,37 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1001,6 +1394,37 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          capBrowserPlugin?.notifyListeners(eventName, data: payload(with: data))
      }
  
@@ -1051,7 +1775,7 @@ index 97a2fc1..d92ed51 100644
      private func startObservingKeyboardViewportChanges() {
          guard !isObservingKeyboardViewportChanges else {
              return
-@@ -1025,6 +1220,72 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1025,6 +1449,72 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          return max(0.05, duration.doubleValue)
      }
  
@@ -1076,9 +1800,9 @@ index 97a2fc1..d92ed51 100644
 +    // (same Auto Layout constraints) and preserve scroll offset so nothing else
 +    // about the page changes. A ~1 frame blank is imperceptible next to a
 +    // permanent freeze.
-+    func otlobliForceRecompose() {
++    func otlobliForceRecompose(force: Bool = false) {
 +        let now = Date().timeIntervalSince1970
-+        if now - otlobliLastRecomposeAt < 1.0 { return }
++        if !force && now - otlobliLastRecomposeAt < 1.0 { return }
 +        otlobliLastRecomposeAt = now
 +        DispatchQueue.main.async { [weak self] in
 +            guard let self = self,
@@ -1124,7 +1848,7 @@ index 97a2fc1..d92ed51 100644
      private func scheduleWebViewViewportRefresh(force: Bool = false, delay: TimeInterval = 0.05) {
          DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
              self?.refreshWebViewViewportIfNeeded(force: force)
-@@ -1135,7 +1396,17 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1135,7 +1625,17 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
      public func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
          if message.name == "messageHandler" {
              if let messageBody = message.body as? [String: Any] {
@@ -1142,7 +1866,46 @@ index 97a2fc1..d92ed51 100644
                  emit("messageFromWebview", data: messageBody)
              } else {
                  print("Received non-dictionary message from JavaScript:", message.body)
-@@ -1581,6 +1852,8 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1176,6 +1676,12 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+                 return
+             }
+             capBrowserPlugin?.setHiddenFromJavaScript(true, sourceId: instanceId)
++        } else if message.name == "navigate" {
++            guard allowWebViewJsVisibilityControl,
++                  let target = message.body as? String else {
++                return
++            }
++            capBrowserPlugin?.navigateHostFromJavaScript(target, sourceId: instanceId)
+         } else if message.name == "show" {
+             guard allowWebViewJsVisibilityControl else {
+                 return
+@@ -1237,6 +1743,9 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+                                 hide: function() {
+                                         window.webkit.messageHandlers.hide.postMessage(null);
+                                 },
++                                navigate: function(target) {
++                                        window.webkit.messageHandlers.navigate.postMessage(String(target || ''));
++                                },
+                                 show: function() {
+                                         window.webkit.messageHandlers.show.postMessage(null);
+                                 }
+@@ -1337,6 +1846,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+         userContentController.removeScriptMessageHandler(forName: "preShowScriptSuccess")
+         userContentController.removeScriptMessageHandler(forName: "close")
+         userContentController.removeScriptMessageHandler(forName: "hide")
++        userContentController.removeScriptMessageHandler(forName: "navigate")
+         userContentController.removeScriptMessageHandler(forName: "show")
+         userContentController.removeScriptMessageHandler(forName: "takeScreenshot")
+         userContentController.removeScriptMessageHandler(forName: "consoleMessageHandler")
+@@ -1358,6 +1868,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+         userContentController.add(weakHandler, name: "preShowScriptSuccess")
+         userContentController.add(weakHandler, name: "close")
+         userContentController.add(weakHandler, name: "hide")
++        userContentController.add(weakHandler, name: "navigate")
+         userContentController.add(weakHandler, name: "show")
+         if allowScreenshotsFromWebPage {
+             userContentController.add(weakHandler, name: "takeScreenshot")
+@@ -1581,6 +2092,8 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          self.hiddenPopupWindow = parent.hiddenPopupWindow
          self.opensHidden = parent.hiddenPopupWindow
          self.captureConsoleLogs = parent.captureConsoleLogs
@@ -1151,7 +1914,7 @@ index 97a2fc1..d92ed51 100644
          self.allowWebViewJsVisibilityControl = parent.allowWebViewJsVisibilityControl
          self.allowScreenshotsFromWebPage = parent.allowScreenshotsFromWebPage
          self.handleDownloads = parent.handleDownloads
-@@ -1818,6 +2091,13 @@ public extension WKWebViewController {
+@@ -1818,6 +2331,18 @@ public extension WKWebViewController {
  
      open func cleanupWebView() {
          guard let webView = self.webView else { return }
@@ -1162,23 +1925,54 @@ index 97a2fc1..d92ed51 100644
 +        otlobliLoadingCoverView = nil
 +        otlobliLoadingCoverLabel = nil
 +        otlobliLoadingCoverBottomConstraint = nil
++        stopOtlobliPathMonitor()
++        otlobliOfflineCoverView?.removeFromSuperview()
++        otlobliOfflineCoverView = nil
++        otlobliOfflineStatusLabel = nil
++        otlobliOfflineRetryButton = nil
          webView.stopLoading()
          previewItemURL = nil
  
-@@ -2682,6 +2962,12 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -1837,6 +2362,7 @@ public extension WKWebViewController {
+         webView.configuration.userContentController.removeScriptMessageHandler(forName: "messageHandler")
+         webView.configuration.userContentController.removeScriptMessageHandler(forName: "close")
+         webView.configuration.userContentController.removeScriptMessageHandler(forName: "hide")
++        webView.configuration.userContentController.removeScriptMessageHandler(forName: "navigate")
+         webView.configuration.userContentController.removeScriptMessageHandler(forName: "show")
+         if allowScreenshotsFromWebPage {
+             webView.configuration.userContentController.removeScriptMessageHandler(forName: "takeScreenshot")
+@@ -2682,12 +3208,30 @@ extension WKWebViewController: WKNavigationDelegate {
      public func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
          updateBarButtonItems()
          self.progressView?.progress = 0
-+        if otlobliLoadingCoverEnabled {
++        if otlobliLoadingCoverEnabled && !otlobliOfflineRetryInFlight {
 +            cancelOtlobliChallengeReveal()
 +            otlobliLoadingCoverMessage = "جاري تجهيز متجر SHEIN…"
 +            otlobliLoadingCoverLabel?.text = otlobliLoadingCoverMessage
 +            showOtlobliLoadingCover()
 +        }
++        if otlobliOfflineRetryInFlight {
++            otlobliOfflineNavigationFailed = false
++            if let offlineCover = otlobliOfflineCoverView {
++                view.bringSubviewToFront(offlineCover)
++            }
++        }
          if let urlValue = webView.url {
              self.url = urlValue
              delegate?.webViewController?(self, didStart: urlValue)
-@@ -2703,12 +2989,18 @@ extension WKWebViewController: WKNavigationDelegate {
+         }
+     }
+     public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
++        if otlobliOfflineNavigationFailed {
++            return
++        }
++        if otlobliOfflineRetryInFlight || otlobliOfflineCoverView != nil {
++            hideOtlobliOfflineCover()
++        }
+         if !didpageInit && self.capBrowserPlugin?.isPresentAfterPageLoad == true {
+             // Only inject preShowScript if it wasn't already injected at document start
+             let shouldInjectScript = self.preShowScript.map { !$0.isEmpty } ?? false &&
+@@ -2703,12 +3247,18 @@ extension WKWebViewController: WKNavigationDelegate {
                      DispatchQueue.global(qos: .userInitiated).async {
                          self.injectPreShowScript()
                          DispatchQueue.main.async { [weak self] in
@@ -1199,20 +1993,26 @@ index 97a2fc1..d92ed51 100644
              }
          } else if self.preShowScript != nil &&
                      !self.preShowScript!.isEmpty &&
-@@ -2743,7 +3035,7 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2743,7 +3293,10 @@ extension WKWebViewController: WKNavigationDelegate {
              self.url = url
              delegate?.webViewController?(self, didFail: url, withError: error)
          }
 -        emit("pageLoadError")
++        if isOtlobliOfflineError(error) {
++            showOtlobliOfflineCover(failingURL: otlobliFailingURL(from: error, webView: webView))
++        }
 +        emitPageLoadError(webView, error: error, phase: "didFailProvisionalNavigation")
      }
  
      public func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-@@ -2753,7 +3045,16 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2753,7 +3306,19 @@ extension WKWebViewController: WKNavigationDelegate {
              self.url = url
              delegate?.webViewController?(self, didFail: url, withError: error)
          }
 -        emit("pageLoadError")
++        if isOtlobliOfflineError(error) {
++            showOtlobliOfflineCover(failingURL: otlobliFailingURL(from: error, webView: webView))
++        }
 +        emitPageLoadError(webView, error: error, phase: "didFailNavigation")
 +    }
 +

@@ -5,9 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5174",
+    "prebuild": "npm run verify:shein-freeze-guard",
     "build": "tsc -b && vite build",
+    "postbuild": "npm run verify:performance-budget",
     "lint": "eslint .",
     "preview": "vite preview --host 127.0.0.1 --port 5174",
+    "verify:performance-budget": "node scripts/verify-performance-budget.mjs",
+    "verify:shein-freeze-guard": "node scripts/verify-shein-freeze-guard.mjs",
     "postinstall": "patch-package && node scripts/inject-relay-key.cjs"
   },
   "dependencies": {

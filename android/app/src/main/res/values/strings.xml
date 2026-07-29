@@ -4,4 +4,5 @@
     <string name="title_activity_main">otlobli</string>
     <string name="package_name">com.otlobli.app</string>
     <string name="custom_url_scheme">com.otlobli.app</string>
+    <string name="default_notification_channel_id">otlobli_general</string>
 </resources>
