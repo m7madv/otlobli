@@ -829,9 +829,18 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return false;
   }
 
-  function sheinLooksLikeProductPageForShipping() {
+  function sheinLooksLikeProductRouteForShipping() {
     if (!IS_SHEIN) return false;
-    if (/-p-\\d+\\.html(?:$|[?#])/i.test(location.href)) return true;
+    try {
+      var u = new URL(location.href);
+      return /(?:-p-\\d+|\\/product\\/|\\/goods\\/|\\/item\\/)/i.test(u.pathname || '') ||
+        /[?&](?:goods_id|goodsId|product_id|productId|mallCode|skc)=/i.test(u.search || '');
+    } catch (e) {}
+    return false;
+  }
+
+  function sheinLooksLikeProductPageForShipping() {
+    if (sheinLooksLikeProductRouteForShipping()) return true;
     return !!document.querySelector('.productShippingTitle,.product-intro__head,[class*="product-intro"]');
   }
 
@@ -989,15 +998,61 @@ export const SHEIN_CAPTURE_SCRIPT = `
     } catch (e) {}
   }
 
-  // Region repair is now background-first: keep the product usable, run a
-  // bounded fast cascade, and let add-to-cart be the hard safety gate.
+  var sheinRegionVeilStartedAt = 0;
+  function sheinRegionCountryLabel() {
+    return ({ SA: '\u0627\u0644\u0633\u0639\u0648\u062f\u064a\u0629', AE: '\u0627\u0644\u0625\u0645\u0627\u0631\u0627\u062a', QA: '\u0642\u0637\u0631', KW: '\u0627\u0644\u0643\u0648\u064a\u062a', BH: '\u0627\u0644\u0628\u062d\u0631\u064a\u0646', OM: '\u0639\u064f\u0645\u0627\u0646', LB: '\u0644\u0628\u0646\u0627\u0646' })[SHEIN_REQUIRED_COUNTRY] || SHEIN_REQUIRED_COUNTRY;
+  }
+  function sheinRegionTransitionVeil(show) {
+    if (!IS_SHEIN || !document.body) return;
+    var id = 'otlobli-region-switching', el = document.getElementById(id);
+    if (!show) {
+      if (el) el.remove();
+      if (document.documentElement) document.documentElement.classList.remove('otlobli-shein-region-veil-active');
+      return;
+    }
+    sheinRegionVeilStartedAt = sheinRegionVeilStartedAt || Date.now();
+    if (!document.getElementById('otlobli-region-switching-style') && document.documentElement) {
+      var st = document.createElement('style');
+      st.id = 'otlobli-region-switching-style';
+      st.textContent = 'html.otlobli-shein-region-veil-active #otlobli-add-btn,html.otlobli-shein-region-veil-active #otlobli-back-btn{visibility:hidden!important;opacity:0!important;pointer-events:none!important}';
+      document.documentElement.appendChild(st);
+    }
+    if (!el) {
+      el = document.createElement('div');
+      el.id = id;
+      el.setAttribute('role', 'status');
+      el.setAttribute('aria-live', 'polite');
+      el.style.cssText = 'position:fixed!important;inset:0!important;background:#fff!important;z-index:2147483646!important;display:flex!important;align-items:center!important;justify-content:center!important;direction:rtl!important;font-family:OtlobliCairo,system-ui,sans-serif!important;color:#063f2d!important;text-align:center!important;pointer-events:auto!important;';
+      el.addEventListener('touchmove', function (e) { if (e.cancelable) e.preventDefault(); }, { passive: false });
+      el.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); }, true);
+      document.body.appendChild(el);
+    }
+    el.innerHTML = '<div style="display:grid;gap:10px;place-items:center;padding:22px"><div style="width:34px;height:34px;border:4px solid #d8efe4;border-top-color:#007a52;border-radius:50%;animation:otlobli-spin .8s linear infinite"></div><div style="font-weight:800;font-size:17px">\u062c\u0627\u0631\u064a \u062a\u0647\u064a\u0626\u0629 \u0645\u062a\u062c\u0631 SHEIN</div><div style="font-size:13px;color:#55746a">\u0625\u0644\u0649 ' + sheinRegionCountryLabel() + '</div></div>';
+    if (document.documentElement) document.documentElement.classList.add('otlobli-shein-region-veil-active');
+  }
+  function sheinUpdateRegionTransitionVeil() {
+    var el = document.getElementById('otlobli-region-switching');
+    if (!el) return;
+    if (sheinSignedSaudiAddressReady() || !sheinNativeCoverRepairActive ||
+        Date.now() - sheinRegionVeilStartedAt > (OTLOBLI_LOW_END ? 22000 : 16000)) {
+      sheinRegionVeilStartedAt = 0;
+      sheinRegionTransitionVeil(false);
+    }
+  }
+
   function sheinPrepareNativeSaudiRepair() {
-    if (sheinNativeCoverRepairActive) return true;
+    if (sheinNativeCoverRepairActive) {
+      sheinRegionTransitionVeil(true);
+      scheduleSheinShippingProgress(OTLOBLI_LOW_END ? 260 : 120);
+      return true;
+    }
     var now = Date.now();
     if (now < sheinNativeCoverCooldownUntil) return false;
     sheinNativeCoverRepairActive = true;
     sheinNativeCoverRepairStartedAt = now;
     sheinShippingProgressAt = now;
+    sheinRegionVeilStartedAt = now;
+    sheinRegionTransitionVeil(true);
     scheduleSheinShippingProgress(OTLOBLI_LOW_END ? 240 : 90);
     return true;
   }
@@ -1015,6 +1070,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
       }
       sheinNativeCoverRepairActive = false;
       sheinNativeCoverRepairStartedAt = 0;
+      sheinRegionVeilStartedAt = 0;
+      sheinRegionTransitionVeil(false);
       if (sheinShippingProgressTimer) {
         clearTimeout(sheinShippingProgressTimer);
         sheinShippingProgressTimer = 0;
@@ -1031,6 +1088,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
         sheinNativeCoverRepairActive = false;
         sheinNativeCoverRepairStartedAt = 0;
         sheinNativeCoverCooldownUntil = Date.now() + 2500;
+        sheinRegionVeilStartedAt = 0;
+        sheinRegionTransitionVeil(false);
         if (sheinShippingProgressTimer) {
           clearTimeout(sheinShippingProgressTimer);
           sheinShippingProgressTimer = 0;
@@ -1042,6 +1101,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       }
       return;
     }
+    sheinUpdateRegionTransitionVeil();
     if (!sheinNativeCoverInitialReleased && sheinPageLooksInteractive()) {
       sheinNativeCoverInitialReleased = true;
       sheinPostNativeCoverState('sheinPageInteractive');
@@ -1906,6 +1966,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var now = Date.now();
     var sessionKey = SHEIN_REQUIRED_COUNTRY + ':' + location.pathname;
     if (sessionKey !== sheinShippingSessionKey) resetSheinShippingProgress(sessionKey);
+    if (!sheinSignedSaudiAddressReady()) sheinPrepareNativeSaudiRepair();
     var scanGap = sheinNativeCoverRepairActive
       ? (OTLOBLI_LOW_END ? 260 : 120)
       : (OTLOBLI_LOW_END ? 720 : 480);
@@ -2004,6 +2065,30 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
+  function sheinProductUrlNeedsRegionBootstrap(normalized) {
+    try {
+      if (!sheinLooksLikeProductRouteForShipping()) return false;
+      var a = new URL(location.href), b = new URL(normalized);
+      if (a.hostname !== b.hostname || a.pathname !== b.pathname) return true;
+      var keys = ['currency','localcountry','country','countryCode','country_code','lang','language','ship_to','shipTo','shipToCountry','shippingCountry','shipping_country','store_country'];
+      for (var i = 0; i < keys.length; i++) {
+        if (String(a.searchParams.get(keys[i]) || '').toLowerCase() !== String(b.searchParams.get(keys[i]) || '').toLowerCase()) return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+
+  function sheinPrimeRegionRepairFromRoute() {
+    if (!IS_SHEIN || !sheinLooksLikeProductRouteForShipping() || otlobliIsHumanChallenge()) return false;
+    if (sheinSignedSaudiAddressReady()) { sheinRegionTransitionVeil(false); return false; }
+    installSheinSaudiStorageGuard();
+    writeSheinSaudiState();
+    if (sheinAddressCookieCountry() && sheinAddressCookieCountry() !== SHEIN_REQUIRED_COUNTRY) {
+      try { localStorage.removeItem('addressCookie'); } catch (e) {}
+    }
+    return sheinPrepareNativeSaudiRepair();
+  }
+
   function ensureSheinSaudiStore(options) {
     if (!IS_SHEIN) return true;
     // أثناء تحقق «أنا إنسان»: ممنوع أي إعادة تحميل/كتابة — تصفّر حل المستخدم.
@@ -2028,9 +2113,21 @@ export const SHEIN_CAPTURE_SCRIPT = `
     try { locked = locked || sessionStorage.getItem('__otlobliSheinSaudiLocked') === '1'; } catch (e) {}
     var signalsOk = sheinSaudiSignalsOk();
     var needsReload = shouldReloadSheinForSaudi();
+    var needsProductBootstrapReload = sheinProductUrlNeedsRegionBootstrap(normalized);
     setSheinSaudiGuardOverlay(locked || visibleForeignRegion);
-    if (needsReload || !signalsOk) {
+    if (needsReload || needsProductBootstrapReload || !signalsOk) {
       if (sheinLooksLikeProductPageForShipping()) sheinPrepareNativeSaudiRepair();
+      if ((needsReload || needsProductBootstrapReload) && sheinLooksLikeProductRouteForShipping()) {
+        var reloadKey = '__otlobliRegionBootstrapReload:' + SHEIN_REQUIRED_COUNTRY + ':' + location.pathname;
+        try {
+          if (sessionStorage.getItem(reloadKey) !== '1') {
+            sessionStorage.setItem(reloadKey, '1');
+            sheinPrepareNativeSaudiRepair();
+            location.replace(normalized);
+            return false;
+          }
+        } catch (e) {}
+      }
       if (options && options.navigate) {
         var guardKey = '__otlobliSaudiRedirects:' + normalized + ':' + Math.floor(Date.now() / 30000);
         var attempts = parseInt(sessionStorage.getItem(guardKey) || '0', 10);
@@ -4646,69 +4743,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // SHEIN's markup or depending on a perfectly-timed screenshot.
   // logcat truncates long single log entries hard, so log many SHORT lines
   // instead of one big JSON blob - and log what our OWN extraction functions
-  // actually return right now, not just raw page data, so the real bug is
-  // visible directly instead of needing to re-derive it by hand.
-  function debugSnapshot(colorState, sizeState) {
-    try {
-      console.log('OTLOBLI_DBG A url=' + location.href.slice(0, 140));
-      console.log('OTLOBLI_DBG B mainImage()=' + (getMainImage() || 'EMPTY').slice(0, 160));
-      console.log('OTLOBLI_DBG C galleryImage()=' + (getGalleryImage() || 'EMPTY').slice(0, 160));
-
-      (function debugGalleryGroup() {
-        var imgs2 = document.querySelectorAll('img[src*="ltwebstatic"], img[src*="img.shein"], img[data-src*="ltwebstatic"], img[data-src*="img.shein"]');
-        var byCls = {};
-        var ord = [];
-        for (var i2 = 0; i2 < imgs2.length; i2++) {
-          var im = imgs2[i2];
-          if (isInPromoWidget(im)) continue;
-          var s2 = realImgSrc(im);
-          if (!s2) continue;
-          var pc = im.parentElement ? (im.parentElement.className || '').trim() : '';
-          if (!pc) continue;
-          if (!byCls[pc]) { byCls[pc] = []; ord.push(pc); }
-          byCls[pc].push(im);
-        }
-        var bk = null;
-        for (var k2 = 0; k2 < ord.length; k2++) {
-          if (byCls[ord[k2]].length >= 3 && (!bk || byCls[ord[k2]].length > byCls[bk].length)) bk = ord[k2];
-        }
-        console.log('OTLOBLI_DBG M bestGroupKey=[' + (bk || 'NONE') + '] size=' + (bk ? byCls[bk].length : 0));
-        if (bk) {
-          var grp = byCls[bk];
-          for (var g2 = 0; g2 < grp.length && g2 < 12; g2++) {
-            var r = grp[g2].getBoundingClientRect();
-            console.log('OTLOBLI_DBG N' + g2 + ' w=' + Math.round(r.width) + ' h=' + Math.round(r.height) + ' top=' + Math.round(r.top) + ' left=' + Math.round(r.left) + ' src=' + (realImgSrc(grp[g2]) || '').slice(-60));
-          }
-        }
-      })();
-      console.log('OTLOBLI_DBG D largestImage()=' + (getLargestSheinImage() || 'EMPTY').slice(0, 160));
-      console.log('OTLOBLI_DBG E ogImage=' + (getMeta('og:image') || 'EMPTY').slice(0, 140));
-      console.log('OTLOBLI_DBG F capturedColor=[' + colorState.selected + '] capturedSize=[' + sizeState.selected + '] colorImg=' + (colorState.image || 'EMPTY').slice(0, 140));
-
-      var colorContainer = findOptionContainer('color', ['اللون', 'Color']);
-      var sizeContainer = findOptionContainer('size', ['المقاس', 'Size']);
-      console.log('OTLOBLI_DBG H colorContainerFound=' + !!colorContainer + ' cls=[' + (colorContainer ? colorContainer.className.slice(0, 80) : '') + ']');
-      console.log('OTLOBLI_DBG I sizeContainerFound=' + !!sizeContainer + ' cls=[' + (sizeContainer ? sizeContainer.className.slice(0, 80) : '') + ']');
-      if (colorContainer) console.log('OTLOBLI_DBG J colorHTML=' + colorContainer.outerHTML.slice(0, 150));
-      if (sizeContainer) console.log('OTLOBLI_DBG K sizeHTML=' + sizeContainer.outerHTML.slice(0, 150));
-
-      var byClassColor = document.querySelectorAll('[class*="color" i]');
-      console.log('OTLOBLI_DBG L byClassColorCount=' + byClassColor.length);
-      for (var bc = 0; bc < byClassColor.length && bc < 5; bc++) {
-        console.log('OTLOBLI_DBG L' + bc + ' cls=[' + (byClassColor[bc].className || '').slice(0, 70) + '] kids=' + byClassColor[bc].children.length);
-      }
-
-      var imgs = document.querySelectorAll('img[src*="ltwebstatic"], img[src*="img.shein"], img[data-src*="ltwebstatic"], img[data-src*="img.shein"]');
-      console.log('OTLOBLI_DBG G imgCount=' + imgs.length);
-      for (var i = 0; i < imgs.length && i < 10; i++) {
-        var img = imgs[i];
-        var pCls = img.parentElement ? (img.parentElement.className || '') : '';
-        console.log('OTLOBLI_DBG IMG' + i + ' promo=' + isInPromoWidget(img) + ' parentCls=[' + pCls.slice(0, 50) + '] realSrc=' + (realImgSrc(img) || 'EMPTY').slice(0, 120));
-      }
-    } catch (e) {
-      console.log('OTLOBLI_DBG ERROR ' + e);
-    }
-  }
+  function debugSnapshot(colorState, sizeState) {}
 
   // Shared by both add-to-cart entry points (our floating button, and
   // intercepting SHEIN's own "Add to bag" button): show the freeze/loading
@@ -4908,13 +4943,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     document.head.appendChild(style);
   }
 
-  // Covers the whole page with an opaque, untappable overlay from the very
-  // first tick() until SHEIN's UI has had a few polling cycles to actually
-  // get hidden/blocked. Without this, there's a real (if short) window
-  // right after a page loads where SHEIN's own buttons are rendered but our
-  // hide/block pass hasn't reached them yet - confirmed by a user managing
-  // to add a product to SHEIN's real cart from that exact window. Better to
-  // make the user wait a beat than ever expose anything unprocessed.
   var __otlobliLoadingDone = false;
   function ensureLoadingOverlay() {
     if (__otlobliLoadingDone || document.getElementById('otlobli-loading')) return;
@@ -6969,6 +6997,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // setInterval(tick, 300) already scheduled will simply call this again
     // shortly, by which point the parser is essentially always done with it.
     if (!document.body) return;
+    if (IS_SHEIN) sheinPrimeRegionRepairFromRoute();
     // Never compete with WebKit's async scrolling or delay a bottom-nav tap
     // with full-page scans. Region repair has its own small progress timer.
     if (IS_SHEIN && otlobliInteractionActive() &&
