@@ -2,6 +2,17 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
+## Current candidate (2026-07-29) - v86.16 background region repair + payment normalizer
+
+- Marker/version: `2026.07.29-v86.16-region-background-payment-status-normalizer`; Android/iOS `876/86.16`; auth bypass off. Primary branch remains `claude/ios6-cover-fix`; matching iOS source is pushed on `codex/ios-v86-4` at `225cdb2`.
+- Payment screenshot root cause was production `orders_payment_status_check`. Remote Supabase has migration `20260729223000_normalize_order_payment_status_before_check.sql` applied and listed. It adds `normalize_order_payment_status_before_write()` plus trigger `orders_aa_normalize_payment_status` before insert/update so legacy/mojibake/mobile statuses normalize to canonical Arabic before constraints and exact-payment trigger logic. Keep `supabase/schema.sql` aligned.
+- SHEIN region repair changed intentionally: do not restore the old native `sheinSaudiRepairStart` cover. Repair now starts in the background, returns immediately, and uses a fast bounded progress timer. It applies the signed `addressCookie` requirement to every configured supported country, not Saudi only. Add-to-cart must remain blocked until `sheinSignedSaudiAddressReady()` passes.
+- Region switching performance guard: heavy `tick()` backs off during touch/scroll even while repair is active; only `scheduleSheinShippingProgress(...)` continues. If the shipping drawer is visible, `stabilizeSheinShippingDrawerInteraction()` must keep touches inside the drawer and keep Otlobli nav visible.
+- Lightweight Arabic labels are visual-only (`data-otlobli-ar-label`/CSS) and must not replace SHEIN option `textContent`, because automation depends on original English/Arabic labels.
+- Validation passed: production build, freeze guard, performance budget, Android sync, iOS sync, Android Gradle debug build, Supabase migration push/list, GitHub/Xcode run `30455469510`, and IPA inspection. Budgets: JS raw `1,178,885`, JS gzip `355,134`, CSS `62,602`, fonts `81,364`, SHEIN source `548,516/550,000`.
+- APK/SHA: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.16-region-background-payment-status-debug.apk`, `6A6E250025BC9A8D9D4C1D3615E8C16DB8FFE9F64D90086E4BB3F6334AC6CEFB`. No Android device was connected for install.
+- IPA/SHA: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.16-iphone16-unsigned.ipa`, `B306938FC6AEAEB2189026AF9D4966C05658F0F8CC05C2DBE79677FAA816E5D9`. Unsigned/unprovisioned; Info.plist is `com.otlobli.app`, `86.16/876`, URL schemes only `otlobli`. Real iPhone acceptance remains required.
+
 ## Current candidate (2026-07-29) - v86.15 iOS safe top + Saudi region repair
 
 - Marker/version: `2026.07.29-v86.15-ios-safe-top-saudi-region-repair`; Android/iOS `875/86.15`; auth bypass off. Preserve the dirty primary worktree. Matching iOS source is pushed on `codex/ios-v86-4` at `36d0486`.
