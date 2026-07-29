@@ -2,6 +2,13 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
+## Current candidate (2026-07-30) - v86.20 SHEIN variant regression fix
+
+- Marker/version: `2026.07.30-v86.20-shein-variant-regression-fix`; Android/iOS `880/86.20`; auth bypass off.
+- v86.19's `sheinQuantitySizeSummary()` is rejected by real-device feedback. It scanned controls near `الكمية / مقاس` and could mistake an unselected/default/stale value for the customer's choice. Do not restore that function, its 1.2s value cache, its click invalidation, or the extra broad size heading labels.
+- Ordinary product capture and price logic are exactly the v86.18 baseline again. `completeSelectedCompoundSize()` is deliberately narrow: it activates only when the old selected value is an exact piece count (`1PC`/`CP1`) and completes it from a size that is also explicitly selected inside the same container, preserving `M / CP1` when that is the selected control text.
+- Playwright passes five cases: unselected blocked, normal `L`, nested `M / CP1`, separate `M / 1PC`, and changed `L / 1PC`. Local build/freeze/performance, Android/iOS sync, and Android Gradle pass. APK/SHA are recorded in `CURRENT_STATE.md`; iOS artifact and all real-device acceptance remain pending.
+
 ## Current candidate (2026-07-30) - v86.19 auth, compound variant, tracking
 
 - Marker/version: `2026.07.30-v86.19-auth-variant-tracking-fix`; Android/iOS `879/86.19`; auth bypass off.

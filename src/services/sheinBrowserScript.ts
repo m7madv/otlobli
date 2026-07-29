@@ -2681,108 +2681,45 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return String(value || '').replace(/\\s+/g, ' ').trim();
   }
 
-  function looksLikeQuantitySizeHeading(value) {
-    var text = normalizedOptionText(value);
-    return /^(?:الكمية\\s*\\/\\s*مقاس|الكمية\\s*\\/\\s*المقاس|مقاس|المقاس|quantity\\s*\\/\\s*size|size)$/i.test(text);
+  function sheinPieceCountKey(value) {
+    var text = normalizedOptionText(value).toUpperCase().replace(/\\s+/g, '');
+    var match = text.match(/^(\\d+)(?:PC|PCS|PIECE|PIECES)$/) ||
+      text.match(/^(?:PC|PCS|CP)(\\d+)$/);
+    return match ? match[1] : '';
   }
 
-  function scoreSizeValue(value) {
+  function sheinSimpleSize(value) {
     var text = normalizedOptionText(value);
-    if (!text || text.length > 60 || looksLikeJunkValue(text) || looksLikeQuantitySizeHeading(text)) return -1;
-    var score = 1;
-    // Combined SHEIN variants such as "M / CP1" must beat a nested child
-    // whose aria-label exposes only "1PC". The combined visible button is the
-    // exact choice the customer sees and is the value that must reach cart.
-    if (/\\S\\s*[\\/+|]\\s*\\S/.test(text)) score += 20;
-    if (/\\([^)]{1,32}\\)/.test(text)) score += 4;
-    if (/^(?:xxs|xs|s|m|l|xl|xxl|xxxl|one\\s*size|\\d{1,3})$/i.test(text)) score += 2;
-    return score;
+    return /^(?:xxs|xs|s|m|l|xl|xxl|xxxl|one\\s*size|[2-9]\\d|[1-9]\\d{2})$/i.test(text) ? text : '';
   }
 
-  function selectedSizeValue(container) {
-    if (!container) return '';
-    var best = '';
-    var bestScore = -1;
+  // Narrow exception only: complete a selected 1PC with a size that is also
+  // explicitly selected inside the same option container.
+  function completeSelectedCompoundSize(container, selected) {
+    var pieceKey = sheinPieceCountKey(selected);
+    if (!container || !pieceKey) return selected;
     var nodes = container.querySelectorAll('*');
+    var pickedSize = '';
     for (var i = 0; i < nodes.length; i++) {
-      var selected = nodes[i];
-      if (!isSelectedSwatchEl(selected)) continue;
-      var controls = [selected];
-      if (selected.closest) {
-        var control = selected.closest('button, li, [role="radio"], [role="option"], [role="button"], [class*="item" i]');
-        if (control && control !== selected) controls.push(control);
+      if (!isSelectedSwatchEl(nodes[i])) continue;
+      var value = nodes[i].getAttribute('aria-label') || nodes[i].getAttribute('title') ||
+        nodes[i].getAttribute('data-name') || nodes[i].getAttribute('data-value') ||
+        nodes[i].getAttribute('data-attr-value') || nodes[i].textContent || '';
+      pickedSize = pickedSize || sheinSimpleSize(value);
+      var control = nodes[i].closest &&
+        nodes[i].closest('button, li, [role="radio"], [role="option"], [role="button"], [class*="item" i]');
+      if (!control || !sheinElementIsVisible(control)) continue;
+      var full = normalizedOptionText(control.textContent);
+      if (!full || full.length > 60 || !/[\\/+|]/.test(full)) continue;
+      var parts = full.split(/\\s*[\\/+|]\\s*/);
+      var hasPiece = false, hasSize = false;
+      for (var p = 0; p < parts.length; p++) {
+        if (sheinPieceCountKey(parts[p]) === pieceKey) hasPiece = true;
+        else if (sheinSimpleSize(parts[p])) hasSize = true;
       }
-      for (var c = 0; c < controls.length; c++) {
-        var el = controls[c];
-        var values = [
-          el.textContent,
-          el.getAttribute && el.getAttribute('aria-label'),
-          el.getAttribute && el.getAttribute('title'),
-          el.getAttribute && el.getAttribute('data-name'),
-          el.getAttribute && el.getAttribute('data-value'),
-          el.getAttribute && el.getAttribute('data-attr-value'),
-        ];
-        for (var v = 0; v < values.length; v++) {
-          var value = normalizedOptionText(values[v]);
-          var score = scoreSizeValue(value);
-          if (score < 0) continue;
-          score += v === 0 ? 3 : 0;
-          if (score > bestScore) {
-            bestScore = score;
-            best = value;
-          }
-        }
-      }
+      if (hasPiece && hasSize) return full;
     }
-    return best || getSelectedWithin(container);
-  }
-
-  // Some mobile SHEIN product templates collapse "Quantity / Size" into one
-  // selector button. Its visible button can contain a compound value such as
-  // "M / CP1", while the nested selected chip exposes only "1PC". Read the
-  // closest visible selector to the printed heading and preserve its complete
-  // text. The bounded element/ancestor caps keep this off-page scan cheap.
-  var __otlobliQuantitySizeSummaryCacheAt = 0;
-  var __otlobliQuantitySizeSummaryCacheValue = '';
-  function sheinQuantitySizeSummary() {
-    if (!IS_SHEIN || !document.body) return '';
-    var now = Date.now();
-    if (now - __otlobliQuantitySizeSummaryCacheAt < 1200) {
-      return __otlobliQuantitySizeSummaryCacheValue;
-    }
-    var labels = document.querySelectorAll('div, span, p, label, b, strong');
-    var labelCap = Math.min(labels.length, 900);
-    var best = '';
-    var bestScore = -1;
-    for (var i = 0; i < labelCap; i++) {
-      var label = labels[i];
-      var labelText = normalizedOptionText(label.textContent);
-      if (!looksLikeQuantitySizeHeading(labelText) || !sheinElementIsVisible(label)) continue;
-      var labelRect = label.getBoundingClientRect();
-      var scope = label.parentElement;
-      for (var hop = 0; hop < 3 && scope; hop++) {
-        var controls = scope.querySelectorAll('button, [role="button"], [role="radio"], [role="option"], [aria-selected="true"], [aria-checked="true"]');
-        var controlCap = Math.min(controls.length, 80);
-        for (var c = 0; c < controlCap; c++) {
-          var control = controls[c];
-          if (!sheinElementIsVisible(control) || (control.id && control.id.indexOf('otlobli') === 0)) continue;
-          var rect = control.getBoundingClientRect();
-          if (rect.top < labelRect.top - 16 || rect.top > labelRect.bottom + 190) continue;
-          var value = normalizedOptionText(control.textContent || control.getAttribute('aria-label') || control.getAttribute('title'));
-          var score = scoreSizeValue(value);
-          if (score < 0) continue;
-          score += Math.max(0, 8 - Math.round(Math.abs(rect.top - labelRect.bottom) / 20));
-          if (score > bestScore) {
-            bestScore = score;
-            best = value;
-          }
-        }
-        scope = scope.parentElement;
-      }
-    }
-    __otlobliQuantitySizeSummaryCacheAt = now;
-    __otlobliQuantitySizeSummaryCacheValue = best;
-    return best;
+    return pickedSize ? pickedSize + ' / ' + selected : selected;
   }
 
   // The most reliable, class-name-agnostic way to read "which color is
@@ -3097,13 +3034,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   function getSizeState() {
-    var container = findOptionContainer('size', ['المقاس', 'مقاس', 'الكمية / مقاس', 'Quantity / Size', 'Size']);
+    var container = findOptionContainer('size', ['المقاس', 'Size']);
     var opts = getSizeOptions(container);
-    var summary = sheinQuantitySizeSummary();
-    var selected = summary || selectedSizeValue(container);
+    var selected = completeSelectedCompoundSize(container, getSelectedWithin(container));
     if (!selected && opts.available.length === 1 && opts.unavailable.length === 0) selected = opts.available[0];
     return {
-      exists: !!container || !!summary,
+      exists: !!container,
       selected: selected,
       available: opts.available,
       unavailable: opts.unavailable,
@@ -5977,10 +5913,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // المنتج تلقائياً بلا أي تحقق. إن احتجت تعديل هذا المعالج مستقبلاً، أبقِ
     // هذا الحارس أول سطر بالضبط - لا تُدمِج منطق شي إن وتيمو هنا مطلقاً.
     if (!IS_SHEIN) return;
-    // Any real tap can change the compound Quantity / Size selector. The next
-    // add attempt re-reads it once, then the retry loop reuses that bounded
-    // result instead of rescanning up to 900 nodes every 500ms.
-    __otlobliQuantitySizeSummaryCacheAt = 0;
     var el = event.target;
     // A full-screen product gallery may be painted above a still-hit-testable
     // PDP action on older WKWebView. While that exact viewer is open, block
