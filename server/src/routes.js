@@ -9,7 +9,7 @@ import path from 'path'
 import zlib from 'zlib'
 import { createRequire } from 'module'
 import { fileURLToPath } from 'url'
-import { createOtp, verifyOtp } from './otpStore.js'
+import { createOtp, verifyOtp, releaseOtpVerification } from './otpStore.js'
 import { sendOtpMessage, sendNotificationMessage, getConnectionStatus, connectOnDemand, getAllSessions, getSession, createSession, removeSession, connectSession } from './whatsapp.js'
 import { supabase } from './supabase.js'
 import { sendTelegramNotification, isTelegramConfigured } from './telegram.js'
@@ -347,7 +347,13 @@ router.post('/auth/whatsapp/verify', async (req, res) => {
       })
     }
 
-    const sessionToken = await createCustomerSession(cleanPhone)
+    let sessionToken
+    try {
+      sessionToken = await createCustomerSession(cleanPhone)
+    } catch (error) {
+      releaseOtpVerification(cleanPhone, String(code))
+      throw error
+    }
 
     res.json({
       mode: 'external',
@@ -406,7 +412,13 @@ router.post('/auth/whatsapp/inbound/status', async (req, res) => {
       })
     }
 
-    const sessionToken = await createCustomerSession(cleanPhone)
+    let sessionToken
+    try {
+      sessionToken = await createCustomerSession(cleanPhone)
+    } catch (error) {
+      releaseOtpVerification(cleanPhone, String(code))
+      throw error
+    }
 
     res.json({
       mode: 'external',

@@ -8,7 +8,7 @@ import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const DB_PATH = join(__dirname, '..', 'otp-db.json')
+const DB_PATH = process.env.OTP_DB_PATH || join(__dirname, '..', 'otp-db.json')
 
 const OTP_EXPIRY_SECONDS = 300 // 5 دقائق
 const MAX_ATTEMPTS = 5
@@ -82,6 +82,22 @@ export function verifyOtp(phone, code) {
   record.verified = true
   saveDb(db)
   return { valid: true, reason: null }
+}
+
+// A correct OTP is reserved before the async customer-session write so two
+// requests cannot consume it concurrently. If that downstream write fails,
+// reopen only the same still-live code; the customer can retry instead of
+// receiving the misleading "already verified" error for a valid code.
+export function releaseOtpVerification(phone, code) {
+  const db = loadDb()
+  const record = db[phone]
+  if (!record || !record.verified || record.code !== code || Date.now() > record.expiresAt) {
+    return false
+  }
+
+  record.verified = false
+  saveDb(db)
+  return true
 }
 
 export function cleanExpiredOtps() {
