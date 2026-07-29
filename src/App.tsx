@@ -5513,7 +5513,7 @@ function App() {
       return (
         <MobileShell active="orders" onNavigate={setScreen}>
           <Header title="تتبع الطلب" back={() => setScreen('orders')} unreadCount={unreadCount} onNotifications={openNotifications} />
-          <main className="mobile-content">
+          <main className="mobile-content mobile-content--tracking">
             <section className="tracking-head">
               <span>{order.id}</span>
               <StoreBadge store={getOrderStore(order)} />
@@ -5532,11 +5532,14 @@ function App() {
                     <article key={`${item.id || item.title}-${index}`}>
                       <img
                         src={item.image || 'https://placehold.co/54x54/f5f5f5/aaa?text=+'}
-                        alt=""
+                        alt={item.title}
+                        width={52}
+                        height={52}
+                        decoding="async"
                         onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/54x54/f5f5f5/aaa?text=+' }}
                       />
-                      <div>
-                        <b>{item.title}</b>
+                      <div className="tracking-item-copy">
+                        <b title={item.title}>{item.title}</b>
                         <small>
                           {[item.color, item.size, `×${item.quantity ?? 1}`].filter(Boolean).join(' · ')}
                         </small>
