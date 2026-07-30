@@ -2406,7 +2406,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var nodes = roots[r].querySelectorAll('*');
       for (var i = 0; i < nodes.length && i < 60; i++) {
         var el = nodes[i];
-        if (!sheinElementIsVisible(el)) continue;
+        if (!sheinElementIsVisible(el) || el.getAttribute('aria-hidden') === 'true') continue;
         var text = String(el.textContent || '').replace(/\\s+/g, ' ').trim();
         if (!text || text.indexOf('%') >= 0 || (text.match(/(?:US\\$|USD|\\$)/gi) || []).length !== 1) continue;
         var value = sheinMoneyValue(text);
@@ -2416,7 +2416,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if (/line-through/i.test(style.textDecorationLine || style.textDecoration || '') ||
             /(?:old|original|retail|market|compare|cross|del)(?:-|_|\\s|$)/i.test(hint)) continue;
         var score = parseFloat(style.fontSize || '0') + (/current|sale|final|special|price-content/i.test(hint) ? 12 : 0);
-        if (score > bestScore) { best = value; bestScore = score; }
+        if (score >= bestScore) { best = value; bestScore = score; }
       }
       if (!(best > 0)) {
         var prices = String(roots[r].textContent || '').match(/(?:US\\$|USD|\\$)\\s*[0-9][0-9,.]*|[0-9][0-9,.]*\\s*(?:US\\$|USD|\\$)/gi);
@@ -2427,17 +2427,25 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return 0;
   }
 
-  function getPrice() {
-    var livePrice = sheinLiveSkuPrice();
-    if (livePrice > 0) return livePrice;
+  function sheinJsonLdPrice() {
     var ld = getProductJsonLd();
-    if (ld && ld.offers) {
-      var offers = Array.isArray(ld.offers) ? ld.offers[0] : ld.offers;
-      var ldPrice = offers && parseFloat(offers.price || offers.lowPrice);
-      if (ldPrice > 0) return ldPrice;
-    }
+    if (!ld || !ld.offers) return 0;
+    var offers = Array.isArray(ld.offers) ? ld.offers[0] : ld.offers;
+    var value = offers && parseFloat(offers.price || offers.lowPrice);
+    return value > 0 ? value : 0;
+  }
+
+  var __otlobliSheinPriceSource = '';
+  function getPrice() {
+    // Restore the original proven order: SHEIN updates this meta value with
+    // the selected SKU, while JSON-LD remains the immutable entry offer.
     var metaPrice = parseFloat(getMeta('product:price:amount'));
-    if (metaPrice > 0) return metaPrice;
+    if (metaPrice > 0) { __otlobliSheinPriceSource = 'meta'; return metaPrice; }
+    var livePrice = sheinLiveSkuPrice();
+    if (livePrice > 0) { __otlobliSheinPriceSource = 'live'; return livePrice; }
+    var ldPrice = sheinJsonLdPrice();
+    if (ldPrice > 0) { __otlobliSheinPriceSource = 'json'; return ldPrice; }
+    __otlobliSheinPriceSource = 'missing';
     return 0;
   }
 
@@ -4975,6 +4983,21 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var ab = document.getElementById('otlobli-add-btn');
         if (ab) showMessage(ab, 'تعذّر قراءة بيانات المنتج — حاول مرة ثانية');
         return;
+      }
+      if (IS_SHEIN) {
+        var diagnosticMetaPrice = parseFloat(getMeta('product:price:amount')) || 0;
+        var diagnosticLivePrice = sheinLiveSkuPrice();
+        var diagnosticJsonPrice = sheinJsonLdPrice();
+        sheinRegionDiag('price-capture', {
+          captured: p.priceUsd,
+          source: __otlobliSheinPriceSource,
+          meta: diagnosticMetaPrice,
+          live: diagnosticLivePrice,
+          json: diagnosticJsonPrice,
+          color: p.color || '',
+          size: p.size || ''
+        }, [p.priceUsd, __otlobliSheinPriceSource, diagnosticMetaPrice, diagnosticLivePrice,
+          diagnosticJsonPrice, p.color || '', p.size || ''].join('|'));
       }
       updateOverlayContent(p, 'جاري إضافة المنتج لسلة otlobli...');
       preloadImage(p.image, 2500).then(function (ok) {

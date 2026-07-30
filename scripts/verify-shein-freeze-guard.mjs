@@ -111,6 +111,8 @@ const checks = [
       'completeSelectedCompoundSize(container, getSelectedWithin(container))',
       'function sheinLiveSkuPrice()',
       'stableSheinPriceReads >= 2',
+      "var metaPrice = parseFloat(getMeta('product:price:amount'))",
+      "sheinRegionDiag('price-capture'",
     ],
     forbidden: [
       'function sheinQuantitySizeSummary()',
