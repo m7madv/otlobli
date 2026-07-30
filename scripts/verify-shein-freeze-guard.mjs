@@ -118,6 +118,13 @@ const checks = [
       "document.addEventListener('click', sheinTrackSelectedSkuPrice, true)",
       "sheinRegionDiag('selected-sku-price-capture'",
       'setTimeout(commit, 1500)',
+      'var __otlobliInitialCapturePath = location.pathname',
+      'function sheinSpaRoutePrice()',
+      "__otlobliSkuPriceSource = 'spa-dom'",
+      'function sheinCountryRowsInRoot(root)',
+      "sheinRegionDiag('country-row-fallback'",
+      "sheinRegionDiag('country-list-scroll'",
+      'node.clientHeight < best.clientHeight',
     ],
     forbidden: [
       'function sheinQuantitySizeSummary()',
