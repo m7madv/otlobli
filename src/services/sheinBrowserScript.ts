@@ -2360,6 +2360,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return /شي\\s*إن|shein/i.test(t) && /(تسوق|fashion|shop|الموضة)/i.test(t);
   }
 
+  function sheinPdpTitleElement() {
+    return document.querySelector('.product-intro__head-name') || document.querySelector('h1') ||
+      document.querySelector('.goods-name, [class*="goods-name" i], [class*="product-name" i], [class*="head-name" i]');
+  }
+
   function getTitle(allowGenericFallback) {
     var ld = getProductJsonLd();
     if (ld && ld.name) {
@@ -2368,7 +2373,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
     var fromMeta = cleanTitle(getMeta('og:title'));
     if (fromMeta && !looksGenericTitle(fromMeta)) return fromMeta;
-    var el = document.querySelector('h1, .product-intro__head-name, .goods-name, [class*="goods-name" i], [class*="product-name" i], [class*="head-name" i]');
+    var el = sheinPdpTitleElement();
     var fromEl = cleanTitle(el ? el.textContent : '');
     if (fromEl && !looksGenericTitle(fromEl)) return fromEl;
     if (fromMeta) return fromMeta;
@@ -2392,7 +2397,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var __otlobliSheinPriceRoots = '';
   function sheinLiveSkuPrice() {
     if (!IS_SHEIN) return 0;
-    var title = document.querySelector('h1, .product-intro__head-name, .goods-name, [class*="goods-name" i], [class*="product-name" i], [class*="head-name" i]');
+    var title = sheinPdpTitleElement();
     var roots = document.querySelectorAll('.product-intro__head-price, .product-price, [class*="head-price" i]');
     var best = 0;
     var bestScore = -1;
@@ -4978,14 +4983,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
 
     function finalize(p) {
-      // فاشل-بأمان لتيمو: لا نُرسل بيانات ناقصة أبداً (سعر صفر/بلا عنوان/بلا
-      // صورة) - بدل ذلك نلغي ونطلب إعادة المحاولة، فلا تدخل خربطة للسلة.
-      if ((IS_TEMU || IS_SHEIN) && (!p.title || !p.image || !(p.priceUsd > 0))) {
-        removeOverlay(0);
-        var ab = document.getElementById('otlobli-add-btn');
-        if (ab) showMessage(ab, 'تعذّر قراءة بيانات المنتج — حاول مرة ثانية');
-        return;
-      }
       if (IS_SHEIN) {
         var diagnosticMetaPrice = parseFloat(getMeta('product:price:amount')) || 0;
         var diagnosticLivePrice = sheinLiveSkuPrice();
@@ -4997,10 +4994,20 @@ export const SHEIN_CAPTURE_SCRIPT = `
           live: diagnosticLivePrice,
           json: diagnosticJsonPrice,
           roots: __otlobliSheinPriceRoots,
+          title: !!p.title,
+          image: !!p.image,
           color: p.color || '',
           size: p.size || ''
         }, [p.priceUsd, __otlobliSheinPriceSource, diagnosticMetaPrice, diagnosticLivePrice,
-          diagnosticJsonPrice, p.color || '', p.size || ''].join('|'));
+          diagnosticJsonPrice, !!p.title, !!p.image, p.color || '', p.size || ''].join('|'));
+      }
+      // فاشل-بأمان لتيمو: لا نُرسل بيانات ناقصة أبداً (سعر صفر/بلا عنوان/بلا
+      // صورة) - بدل ذلك نلغي ونطلب إعادة المحاولة، فلا تدخل خربطة للسلة.
+      if ((IS_TEMU || IS_SHEIN) && (!p.title || !p.image || !(p.priceUsd > 0))) {
+        removeOverlay(0);
+        var ab = document.getElementById('otlobli-add-btn');
+        if (ab) showMessage(ab, 'تعذّر قراءة بيانات المنتج — حاول مرة ثانية');
+        return;
       }
       updateOverlayContent(p, 'جاري إضافة المنتج لسلة otlobli...');
       preloadImage(p.image, 2500).then(function (ok) {
