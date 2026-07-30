@@ -2,6 +2,18 @@
 
 Last updated: 2026-07-30
 
+## v86.25 SHEIN priority PDP-title price boundary (2026-07-30)
+
+- Current marker is `2026.07.30-v86.25-shein-priority-pdp-title-price`; Android/iOS are `885/86.25`; auth bypass remains off.
+- The new screenshot of product `418157946` showed a readable `$14.26` PDP, selected compound option, and the Otlobli `تعذّر قراءة بيانات المنتج` fail-safe. The concrete cause was selector priority: `document.querySelector('h1, ... [class*="product-name"] ...')` returns the first matching node in document order, not the first selector. When SHEIN mounted a similar-products drawer name before the PDP price/title, that recommendation name became the boundary and all real PDP price roots were rejected.
+- `sheinPdpTitleElement()` now deliberately prioritizes the exact `.product-intro__head-name`, then `h1`, then the broad legacy fallbacks. Both title capture and `sheinLiveSkuPrice()` use the same authoritative element. The bounded price-root scan, later equal-score active-SKU rule, two stable reads, signed-address guard, option extraction, and fail-safe remain unchanged.
+- `price-capture` now runs before the incomplete-payload return and includes `title`/`image` booleans. An unreadable add still posts no product, but device evidence can now distinguish missing price, title, or image instead of producing only the toast.
+- The full injected script passed a real Playwright regression with a recommendation name before the PDP, stale `$11.15`, active `$14.26`, and later recommendation `$2.23`: one product was posted at `$14.26`, source `live`, roots `11.15@40,14.26@40`, `title:true`, `image:true`. A second run removed both PDP prices: zero add messages, the Arabic fail-safe toast, and `captured:0/source:missing/title:true/image:true`.
+- `verify:shein-freeze-guard`, production build/performance budget, Android/iOS sync, Android Gradle debug build, and `git diff --check` pass. Budgets: JS raw `1,184,099/1,200,000`, JS gzip `355,715/370,000`, CSS `63,029/70,000`, fonts `81,364/100,000`, SHEIN source `549,828/550,000`.
+- v86.25/885 was installed over v86.24 on the connected Galaxy Note8 without clearing data. The app launched and stayed focused with no fatal/ANR signal. Live SHEIN product acceptance was not possible because the phone had no SHEIN/VPN route; its proxy remained `null` with no ADB reverse/forward left behind.
+- Android APK: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.25-shein-priority-pdp-title-price-debug.apk`; SHA-256 `9ADC6749748B59B8E94D7949D58847B5704EB2FFFABD88D14CD754A3849BCDD4`; size `11,121,254` bytes.
+- Primary code commit is `46e4dae`; matching iOS commit is `7adff45` on `codex/ios-v86-4`. GitHub/Xcode run `30533726236` passed. Unsigned IPA: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.25-iphone16-unsigned.ipa`; SHA-256 `162124F26DA00229276FA0CBC80A7F9E51EBCB1351A05F05A4C2336B1E63BFF3`; size `7,066,587` bytes. Inspection confirms `com.otlobli.app`, `86.25/885`, only the `otlobli` URL scheme, the release/PDP-title/native-recompose markers, no app `_CodeSignature`, and no provisioning profile. Real iPhone 16 acceptance remains mandatory for the exact product, rapid SKU changes, five resume cycles, and cold launch.
+
 ## v86.24 SHEIN PDP-only price + signed-region fast path (2026-07-30)
 
 - Current marker is `2026.07.30-v86.24-shein-pdp-price-signed-fast-path`; Android/iOS are `884/86.24`; auth bypass remains off.
