@@ -2407,6 +2407,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var __otlobliSelectedSkuPriceKey = '';
   var __otlobliSelectedSkuPricePath = '';
   var __otlobliSelectedSkuPriceAt = 0;
+  var __otlobliSelectedSkuPriceBefore = 0;
   var __otlobliSelectedSkuPriceObserver = null;
   var __otlobliSelectedSkuPriceRun = 0, __otlobliSkuPriceSource = '';
   function sheinCurrentSelectionKey() {
@@ -2449,7 +2450,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   function sheinSpaRoutePrice() {
-    if (!sheinSpaCaptureRoute()) return 0;
+    if (!IS_SHEIN) return 0;
     var roots = document.querySelectorAll('.product-intro__head-price');
     if (!roots.length) roots = document.querySelectorAll('.product-price');
     var price = 0;
@@ -2467,6 +2468,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var colorBox = findOptionContainer('color', ['اللون', 'Color']);
     var sizeBox = findOptionContainer('size', ['المقاس', 'Size']);
     if ((!colorBox || !colorBox.contains(target)) && (!sizeBox || !sizeBox.contains(target))) return;
+    __otlobliSelectedSkuPriceBefore = getPrice();
     __otlobliSelectedSkuPriceAt = 0;
     if (__otlobliSelectedSkuPriceObserver) __otlobliSelectedSkuPriceObserver.disconnect();
     var run = ++__otlobliSelectedSkuPriceRun;
@@ -2516,6 +2518,15 @@ export const SHEIN_CAPTURE_SCRIPT = `
       __otlobliSelectedSkuPriceObserver.disconnect();
       __otlobliSelectedSkuPriceObserver = null;
     }, 1750);
+  }
+
+  function sheinSelectedSkuPricePending() {
+    if (!__otlobliSelectedSkuPriceObserver) return false;
+    var ready = __otlobliSelectedSkuPrice > 0 &&
+      __otlobliSelectedSkuPricePath === location.pathname &&
+      __otlobliSelectedSkuPriceKey === sheinCurrentSelectionKey() &&
+      __otlobliSelectedSkuPriceAt > 0;
+    return !ready || Math.abs(__otlobliSelectedSkuPrice - __otlobliSelectedSkuPriceBefore) < 0.0001;
   }
 
   function getPrice() {
@@ -5016,6 +5027,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     showAddingOverlay(payload);
 
     var attempts = 0;
+    var priceWaits = 0;
     var maxAttempts = 10;
     var intervalMs = 500;
     function isComplete(p, cs) {
@@ -5027,7 +5039,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var colorImgReady = !colorPicked || !!window.__otlobliTemuColorSwatch || !!window.__otlobliTemuColorImg;
         return !!p.title && !!p.image && p.priceUsd > 0 && colorImgReady;
       }
-      return !!p.title && !!p.image && (!cs.exists || !!p.color);
+      return !!p.title && !!p.image && p.priceUsd > 0 && (!cs.exists || !!p.color);
     }
 
     function finalize(p) {
@@ -5036,15 +5048,15 @@ export const SHEIN_CAPTURE_SCRIPT = `
           captured: p.priceUsd,
           source: __otlobliSkuPriceSource,
           spaRoute: sheinSpaCaptureRoute(),
+          before: __otlobliSelectedSkuPriceBefore,
+          priceWaits: priceWaits,
           tracked: __otlobliSelectedSkuPrice,
           trackedKey: __otlobliSelectedSkuPriceKey,
           currentKey: sheinCurrentSelectionKey()
         }, [p.priceUsd, __otlobliSkuPriceSource, __otlobliSelectedSkuPrice,
           __otlobliSelectedSkuPriceKey, sheinCurrentSelectionKey()].join('|'));
       }
-      // فاشل-بأمان لتيمو: لا نُرسل بيانات ناقصة أبداً (سعر صفر/بلا عنوان/بلا
-      // صورة) - بدل ذلك نلغي ونطلب إعادة المحاولة، فلا تدخل خربطة للسلة.
-      if (IS_TEMU && (!p.title || !p.image || !(p.priceUsd > 0))) {
+      if (!p.title || !p.image || !(p.priceUsd > 0)) {
         removeOverlay(0);
         var ab = document.getElementById('otlobli-add-btn');
         if (ab) showMessage(ab, 'تعذّر قراءة بيانات المنتج — حاول مرة ثانية');
@@ -5067,6 +5079,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
 
     function attempt() {
+      if (IS_SHEIN && sheinSelectedSkuPricePending() && priceWaits++ < 16) {
+        updateOverlayContent(payload, 'جاري تثبيت سعر الخيار المختار...');
+        setTimeout(attempt, 120);
+        return;
+      }
       attempts++;
       var exhausted = attempts >= maxAttempts;
       var freshColor = getColorState();
