@@ -2,6 +2,16 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
+## Current candidate (2026-07-30) - v86.26 v85.8.55 capture baseline
+
+- Marker/version: `2026.07.30-v86.26-shein-v855-capture-baseline`; Android/iOS `886/86.26`; auth bypass off.
+- The user rejected v86.25 on the real iPhone. The requested known-good baseline is not a guessed tag: GitHub run `29657616560`, commit `eb7b0ca`, and downloaded v85.8.55 IPA SHA-256 `52ED888B77AF294970B6CC7E19557131CDC848B3A29D79E4C40B3D3E93FF1F16`. Its built production script was inspected directly.
+- Preserve the restored v85.8.55 capture order: JSON-LD offer, `product:price:amount`, then `.product-price .price-content, .product-intro__head-price, [class*="price" i]`. Do not reintroduce `sheinLiveSkuPrice()`, `stableSheinPriceReads`, or the `price-capture` diagnostic without new real-device evidence; the guard now forbids them.
+- Preserve v85.8.55's immediate SHEIN add completion once title/image/color are ready. This removes the newer repeated price waiting that made “جاري التجهيز” slower. Keep the signed `addressCookie`/region guard and `sheinSkuSelectionPending()` protection.
+- The sole intentional post-v85.8.55 capture delta is the narrow `completeSelectedCompoundSize()` helper, retained for the user's original `M / CP1` case. Do not replace it with broad summary or quantity inference.
+- Playwright passed `$11.15 -> $17.19` at `$17.19` in `314ms`, plus no-selection, `L`, `M / CP1`, `M / 1PC`, and `L / 1PC`. Freeze/performance/build, native sync, Gradle, APK metadata, GitHub/Xcode run `30536477640`, and IPA inspection pass. Paths/hashes are in `CURRENT_STATE.md`.
+- Primary code commit: `08bc726`; iOS code commit: `7196f98`. The connected iPhone was detected by Windows but the unsigned IPA could not be installed from this host. Do not claim real iPhone acceptance until the user tests the exact product, rapid variant changes, region setup, resume cycles, and cold launch.
+
 ## Current candidate (2026-07-30) - v86.25 priority SHEIN PDP title
 
 - Marker/version: `2026.07.30-v86.25-shein-priority-pdp-title-price`; Android/iOS `885/86.25`; auth bypass off.
