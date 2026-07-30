@@ -109,6 +109,8 @@ const checks = [
       'stableNavHost.appendChild(nav)',
       'function completeSelectedCompoundSize(container, selected)',
       'completeSelectedCompoundSize(container, getSelectedWithin(container))',
+      'function sheinLiveSkuPrice()',
+      'stableSheinPriceReads >= 2',
     ],
     forbidden: [
       'function sheinQuantitySizeSummary()',

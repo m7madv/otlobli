@@ -17,4 +17,4 @@ export const SOURCE_COUNTRY: 'JO' | 'LB' | 'SA' = 'SA'
 export const TEST_ONLY_AUTH_BYPASS = false
 
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '2026.07.30-v86.20-shein-variant-regression-fix'
+export const APP_VERSION = '2026.07.30-v86.21-shein-live-sku-price-fix'
