@@ -2,6 +2,14 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
+## Current candidate (2026-07-30) - v86.29 selected-price race guard
+
+- Marker/version: `2026.07.30-v86.29-shein-price-race-guard`; Android/iOS `889/86.29`; auth bypass off. The intermittent symptom is now reproduced: add completion could beat SHEIN's delayed option-price mutation.
+- Preserve `__otlobliSelectedSkuPriceBefore` and `sheinSelectedSkuPricePending()`. The capture-phase option click stores the old amount; add waits only while the existing bounded observer has not produced a current path/key amount different from that old value. Do not replace this with a permanent observer, global price polling, or a fixed delay on every product.
+- `priceWaits` is bounded to 16 × `120ms` and runs only during an active add after an option click. A price mutation releases it immediately. A legitimately same-price option falls through when the existing `1.75s` observer disconnects. Preserve the positive-price completeness/fail-safe and the exact live PDP price preference on the first product as well as SPA routes.
+- Browser proof before/after: delayed `$1 -> $9.99` posted wrong `$1/json` in `42ms`; after the guard it posted `$9.99/selected-mutation` in `747ms`. The no-change `$1` case completed in `1,835ms`. Immediate mutation, SPA, compound/no-selection, country-scroll, and signed-region suites also pass.
+- Freeze/performance/build, Android/iOS sync, Gradle, APK metadata, GitHub/Xcode run `30547309099`, and IPA inspection pass. APK/IPA paths and hashes are in `CURRENT_STATE.md`. Primary code commit is `216ea26`; iOS code commit is `29e8e08`. The IPA contains the price-pending, country-scroll, and native-recompose markers, excludes the old live-scanner/stable-read markers, and has no app signature or provisioning. Do not claim real iPhone acceptance until the timing, multi-product, region, resume, and cold-launch cases are tested on-device.
+
 ## Current candidate (2026-07-30) - v86.28 SPA price and country-list scroll
 
 - Marker/version: `2026.07.30-v86.28-shein-spa-price-country-scroll`; Android/iOS `888/86.28`; auth bypass off. The user proved the price defect is session-scoped: several products reused one amount, then a full app restart made prices change correctly.
