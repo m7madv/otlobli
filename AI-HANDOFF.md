@@ -2,6 +2,15 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
+## Current candidate (2026-07-30) - v86.27 selected-SKU mutation price
+
+- Marker/version: `2026.07.30-v86.27-shein-selected-sku-mutation-price`; Android/iOS `887/86.27`; auth bypass off. The user rejected v86.26 on the real iPhone because changing to a higher-priced color/size still posted the entry price.
+- Preserve the causal selection tracker: `sheinTrackSelectedSkuPrice()` starts only from a click inside the detected color/size containers, watches only changed PDP price roots for at most `1.75s`, and caches the non-crossed USD amount with the exact `color|size` key plus pathname. It commits from the price mutation immediately so a fast add does not fall back to static JSON.
+- Preserve the key/path validation in `getPrice()`. A selected-mutation price must never be reused for another option or product. When no matching mutation exists, keep the exact v85.8.55 fallback order: JSON-LD, meta, legacy DOM. Do not restore `sheinLiveSkuPrice()`, stable-read waiting, whole-page scanning, or the old `price-capture` diagnostic.
+- Preserve `selected-sku-price-capture` through the existing diagnostic bridge. It is event-driven and bounded; do not turn it into polling or a permanent observer. Keep the source budget and do not raise performance limits.
+- Playwright proves static JSON/meta `$1` plus immediate live mutations: `S=$1` source `json`, `M=$2` and `L=$9.99` source `selected-mutation`. The no-selection and compound suite still passes `L`, `M / CP1`, `M / 1PC`, and `L / 1PC`.
+- Freeze/performance/build, Android/iOS sync, Gradle, APK metadata, GitHub/Xcode run `30538230343`, and IPA inspection pass. APK/IPA paths and hashes are in `CURRENT_STATE.md`. Primary code commit is `4b0b99d`; iOS code commit is `237db18`. The IPA contains the selected-mutation and native-recompose markers, excludes the old scanner/stable-read markers, and has no app signature or provisioning. The connected iPhone cannot receive an unsigned IPA from this Windows host, so do not claim device acceptance before the user tests the exact product and resume/cold-launch cases.
+
 ## Current candidate (2026-07-30) - v86.26 v85.8.55 capture baseline
 
 - Marker/version: `2026.07.30-v86.26-shein-v855-capture-baseline`; Android/iOS `886/86.26`; auth bypass off.

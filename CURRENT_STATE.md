@@ -2,6 +2,17 @@
 
 Last updated: 2026-07-30
 
+## v86.27 SHEIN selected-SKU mutation price (2026-07-30)
+
+- Current marker is `2026.07.30-v86.27-shein-selected-sku-mutation-price`; Android/iOS are `887/86.27`; auth bypass remains off. The user rejected v86.26 on the real iPhone: restoring the v85.8.55 getter still captured the entry SKU price after choosing a more expensive color/size.
+- The confirmed root cause is that current SHEIN keeps JSON-LD and `product:price:amount` at the entry price while changing the selected SKU price inside the live PDP after the option click. The old baseline therefore cannot identify the new amount by itself.
+- v86.27 listens only to real clicks inside the detected color/size containers, then observes only changed/mounted PDP price roots for a bounded `1.75s`. It immediately stores the visible non-crossed USD price with the exact current `color|size` key and product pathname. `getPrice()` accepts this value only when that key/path still match; otherwise it retains the v85.8.55 JSON -> meta -> legacy DOM fallback. The observer disconnects and adds no polling, WebView reload, React state, or region rebuild.
+- The add diagnostic stage `selected-sku-price-capture` reports the captured source/value and tracked/current selection keys through the existing bounded WebView diagnostic bridge. The narrow `M / CP1` completion, no-selection block, signed `addressCookie` guard, bottom navigation, region repair, unchanged-store comparison, and all native recompose timing remain unchanged.
+- Full-script Playwright held JSON-LD/meta at `$1` while the PDP changed on click: initial `S=$1` used `json`, immediate `M=$2` and `L=$9.99` used `selected-mutation`. A separate suite passed no-selection blocking, `L`, `M / CP1`, `M / 1PC`, and `L / 1PC`.
+- `verify:shein-freeze-guard`, production build, performance budget, Android/iOS sync, Android Gradle debug, APK metadata, and `git diff --check` pass. Budgets: JS raw `1,184,302/1,200,000`, JS gzip `355,462/370,000`, CSS `63,029/70,000`, fonts `81,364/100,000`, SHEIN source `549,995/550,000`.
+- Android APK: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.27-shein-selected-sku-mutation-price-debug.apk`; SHA-256 `2905A5D599DC888D1B0AC3D4952653B3E406040EBEB17B808E307B60F9B1F3DF`; size `11,133,402` bytes; metadata confirms `com.otlobli.app`, `86.27/887`.
+- Primary code commit is `4b0b99d`; matching iOS code commit is `237db18` on `codex/ios-v86-4`. GitHub/Xcode run `30538230343` passed. Unsigned IPA: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.27-iphone16-unsigned.ipa`; SHA-256 `97E8F84E5ACE19766B6E4A54AA2CB3C7C1514879271E82E9C9B32AFC060EEF30`; size `7,065,900` bytes. Inspection confirms `com.otlobli.app`, `86.27/887`, only the `otlobli` URL scheme, the selected-mutation/diagnostic/native-recompose markers, no old live-scanner/stable-read markers, no app `_CodeSignature`, and no provisioning profile. Windows detects the connected Apple iPhone, but the host cannot install an unsigned IPA. Real iPhone acceptance remains mandatory for the photographed premium SKU, rapid size/color changes, clean region setup, five resume cycles, and cold launch.
+
 ## v86.26 SHEIN v85.8.55 capture baseline (2026-07-30)
 
 - Current marker is `2026.07.30-v86.26-shein-v855-capture-baseline`; Android/iOS are `886/86.26`; auth bypass remains off. The user rejected v86.25 on the real iPhone because selected color/size prices still captured the entry price and the loading state remained slower than the known-good build.
