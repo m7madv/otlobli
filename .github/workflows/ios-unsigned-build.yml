@@ -79,10 +79,10 @@ jobs:
         run: |
           mkdir -p Payload
           cp -r build/Build/Products/Release-iphoneos/App.app Payload/
-          zip -r otlobli-v86.23-iphone16-unsigned.ipa Payload
+          zip -r otlobli-v86.24-iphone16-unsigned.ipa Payload
 
       - uses: actions/upload-artifact@v4
         with:
-          name: otlobli-ios-v86.23-iphone16
-          path: ios/App/otlobli-v86.23-iphone16-unsigned.ipa
+          name: otlobli-ios-v86.24-iphone16
+          path: ios/App/otlobli-v86.24-iphone16-unsigned.ipa
           retention-days: 30
