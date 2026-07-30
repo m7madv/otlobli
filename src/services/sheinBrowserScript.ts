@@ -2391,11 +2391,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return value > 0 ? value : 0;
   }
 
+  var __otlobliSheinPriceRoots = '';
   function sheinLiveSkuPrice() {
     if (!IS_SHEIN) return 0;
     var roots = document.querySelectorAll('.product-intro__head-price, .product-price, [class*="head-price" i], [data-testid*="price" i]');
     var best = 0;
     var bestScore = -1;
+    var rootTrace = [];
     for (var r = 0; r < roots.length && r < 8; r++) {
       if (!sheinElementIsPainted(roots[r])) continue;
       var rootBest = 0;
@@ -2429,8 +2431,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if (prices && prices.length) { rootBest = sheinMoneyValue(prices[prices.length - 1]); rootScore = 0; }
       }
       // Equal-score later roots are the newly active SKU.
+      if (rootBest > 0) rootTrace.push(rootBest + '@' + Math.round(rootScore));
       if (rootBest > 0 && rootScore >= bestScore) { best = rootBest; bestScore = rootScore; }
     }
+    __otlobliSheinPriceRoots = rootTrace.join(',');
     return best;
   }
 
@@ -4994,6 +4998,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
           meta: diagnosticMetaPrice,
           live: diagnosticLivePrice,
           json: diagnosticJsonPrice,
+          roots: __otlobliSheinPriceRoots,
           color: p.color || '',
           size: p.size || ''
         }, [p.priceUsd, __otlobliSheinPriceSource, diagnosticMetaPrice, diagnosticLivePrice,

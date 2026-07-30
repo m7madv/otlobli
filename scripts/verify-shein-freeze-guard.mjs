@@ -110,6 +110,7 @@ const checks = [
       'function completeSelectedCompoundSize(container, selected)',
       'completeSelectedCompoundSize(container, getSelectedWithin(container))',
       'function sheinLiveSkuPrice()',
+      "__otlobliSheinPriceRoots = rootTrace.join(',')",
       'if (rootBest > 0 && rootScore >= bestScore)',
       'stableSheinPriceReads >= 2',
       'var livePrice = sheinLiveSkuPrice();',
