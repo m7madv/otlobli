@@ -2350,11 +2350,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return null;
   }
 
-  // SHEIN's <title> tag briefly (or sometimes permanently, on this site) holds
-  // a generic site-wide tagline rather than the product name - "Women's and
-  // men's clothing, shop fashion on the site | SHEIN" rather than the actual
-  // item. Treat that as "no title yet" so retries keep trying the real
-  // sources instead of locking onto the generic tagline on the first attempt.
   function looksGenericTitle(t) {
     if (!t) return true;
     return /شي\\s*إن|shein/i.test(t) && /(تسوق|fashion|shop|الموضة)/i.test(t);
@@ -2378,30 +2373,133 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return cleanTitle(document.title);
   }
 
+  var __otlobliSelectedSkuPrice = 0;
+  var __otlobliSelectedSkuPriceKey = '';
+  var __otlobliSelectedSkuPricePath = '';
+  var __otlobliSelectedSkuPriceAt = 0;
+  var __otlobliSelectedSkuPriceObserver = null;
+  var __otlobliSelectedSkuPriceRun = 0, __otlobliSkuPriceSource = '';
+  function sheinCurrentSelectionKey() {
+    var color = getColorState();
+    var size = getSizeState();
+    return String(color.selected || '') + '|' + String(size.selected || '');
+  }
+
+  function sheinUsdValue(text) {
+    var match = String(text || '').match(/(?:US\\$|USD|\\$)\\s*([0-9][0-9,.]*)/i);
+    if (!match) return 0;
+    var raw = match[1];
+    if (raw.indexOf('.') >= 0 && raw.indexOf(',') >= 0) raw = raw.replace(/,/g, '');
+    else if (/,[0-9]{1,2}$/.test(raw)) raw = raw.replace(',', '.');
+    else raw = raw.replace(/,/g, '');
+    var value = parseFloat(raw);
+    return value > 0 ? value : 0;
+  }
+
+  function sheinPriceFromChangedRoot(root) {
+    if (!root || !sheinElementIsPainted(root)) return 0;
+    var nodes = root.querySelectorAll('*');
+    var best = 0, bestScore = -1;
+    var inspect = function (el) {
+      if (!sheinElementIsPainted(el)) return;
+      var text = String(el.textContent || '').replace(/\\s+/g, ' ').trim();
+      if (!text || text.indexOf('%') >= 0 || (text.match(/(?:US\\$|USD|\\$)/gi) || []).length !== 1) return;
+      var value = sheinUsdValue(text);
+      if (!(value > 0)) return;
+      var style = window.getComputedStyle(el);
+      var hint = String(el.className || '') + ' ' + String(el.parentElement && el.parentElement.className || '');
+      if (/line-through/i.test(style.textDecorationLine || style.textDecoration || '') ||
+          /(?:old|original|retail|market|compare|cross|del)(?:-|_|\\s|$)/i.test(hint)) return;
+      var score = parseFloat(style.fontSize || '0') + (/current|sale|final|special|price-content/i.test(hint) ? 12 : 0);
+      if (score >= bestScore) { best = value; bestScore = score; }
+    };
+    inspect(root);
+    for (var i = 0; i < nodes.length && i < 60; i++) inspect(nodes[i]);
+    return best;
+  }
+
+  function sheinTrackSelectedSkuPrice(event) {
+    if (!IS_SHEIN || !document.body) return;
+    var target = event && event.target;
+    if (!target || !target.closest || target.closest('[id^="otlobli-"]')) return;
+    var colorBox = findOptionContainer('color', ['اللون', 'Color']);
+    var sizeBox = findOptionContainer('size', ['المقاس', 'Size']);
+    if ((!colorBox || !colorBox.contains(target)) && (!sizeBox || !sizeBox.contains(target))) return;
+    __otlobliSelectedSkuPriceAt = 0;
+    if (__otlobliSelectedSkuPriceObserver) __otlobliSelectedSkuPriceObserver.disconnect();
+    var run = ++__otlobliSelectedSkuPriceRun;
+    var roots = [], priceChanged = false;
+    var selector = '.product-intro__head-price, .product-price, [class*="head-price" i]';
+    var rememberRoot = function (node) {
+      if (!node || node.nodeType !== 1) return;
+      var root = node.matches && node.matches(selector) ? node : (node.closest && node.closest(selector));
+      if (!root && node.querySelector) root = node.querySelector(selector);
+      if (root) {
+        priceChanged = true;
+        if (!roots.includes(root) && roots.length < 8) roots.push(root);
+      }
+    };
+    __otlobliSelectedSkuPriceObserver = new MutationObserver(function (records) {
+      priceChanged = false;
+      for (var i = 0; i < records.length; i++) {
+        rememberRoot(records[i].target.nodeType === 3 ? records[i].target.parentElement : records[i].target);
+        for (var j = 0; records[i].addedNodes && j < records[i].addedNodes.length; j++) rememberRoot(records[i].addedNodes[j]);
+      }
+      if (priceChanged) commit();
+    });
+    __otlobliSelectedSkuPriceObserver.observe(document.body, {
+      subtree: true, childList: true, characterData: true, attributes: true,
+      attributeFilter: ['class', 'style', 'hidden', 'aria-hidden']
+    });
+    var commit = function () {
+      if (run !== __otlobliSelectedSkuPriceRun) return;
+      var price = 0;
+      for (var i = 0; i < roots.length; i++) {
+        var found = sheinPriceFromChangedRoot(roots[i]);
+        if (found > 0) price = found;
+      }
+      if (!(price > 0)) return;
+      __otlobliSelectedSkuPrice = price;
+      __otlobliSelectedSkuPriceKey = sheinCurrentSelectionKey();
+      __otlobliSelectedSkuPricePath = location.pathname;
+      __otlobliSelectedSkuPriceAt = Date.now();
+    };
+    setTimeout(commit, 90);
+    setTimeout(commit, 260);
+    setTimeout(commit, 700);
+    setTimeout(commit, 1500);
+    setTimeout(function () {
+      if (run !== __otlobliSelectedSkuPriceRun || !__otlobliSelectedSkuPriceObserver) return;
+      commit();
+      __otlobliSelectedSkuPriceObserver.disconnect();
+      __otlobliSelectedSkuPriceObserver = null;
+    }, 1750);
+  }
+
   function getPrice() {
+    var selectionKey = sheinCurrentSelectionKey();
+    if (__otlobliSelectedSkuPrice > 0 &&
+        __otlobliSelectedSkuPricePath === location.pathname &&
+        __otlobliSelectedSkuPriceKey === selectionKey &&
+        Date.now() - __otlobliSelectedSkuPriceAt < 1800000) {
+      __otlobliSkuPriceSource = 'selected-mutation';
+      return __otlobliSelectedSkuPrice;
+    }
     var ld = getProductJsonLd();
     if (ld && ld.offers) {
       var offers = Array.isArray(ld.offers) ? ld.offers[0] : ld.offers;
       var ldPrice = offers && parseFloat(offers.price || offers.lowPrice);
-      if (ldPrice > 0) return ldPrice;
+      if (ldPrice > 0) { __otlobliSkuPriceSource = 'json'; return ldPrice; }
     }
     var metaPrice = parseFloat(getMeta('product:price:amount'));
-    if (metaPrice > 0) return metaPrice;
+    if (metaPrice > 0) { __otlobliSkuPriceSource = 'meta'; return metaPrice; }
     var el = document.querySelector('.product-price .price-content, .product-intro__head-price, [class*="price" i]');
     var text = el ? (el.textContent || '') : '';
     var match = text.match(/[0-9]+\\.?[0-9]*/);
+    __otlobliSkuPriceSource = match ? 'legacy-dom' : 'missing';
     return match ? parseFloat(match[0]) : 0;
   }
 
-  // Lazy-loaded SHEIN images often keep a tiny placeholder/blank gif in "src"
-  // until they scroll into view, with the real photo sitting in a data-* attr.
-  // Reading "src" directly grabs the placeholder, so we check those first.
-  // ".src"/".currentSrc" are DOM properties the browser already resolves to a
-  // full absolute URL. The raw data-* attributes are NOT resolved though -
-  // sites very commonly write protocol-relative image URLs ("//img.cdn.com/x.jpg")
-  // which work fine rendered inside SHEIN's own page (inherits SHEIN's https:
-  // protocol) but can come back broken once handed to a *different* app/page
-  // context downstream, so make sure every URL we hand off is fully absolute.
   function normalizeImageUrl(url) {
     if (!url) return '';
     url = url.trim();
@@ -4908,6 +5006,16 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
 
     function finalize(p) {
+      if (IS_SHEIN) {
+        sheinRegionDiag('selected-sku-price-capture', {
+          captured: p.priceUsd,
+          source: __otlobliSkuPriceSource,
+          tracked: __otlobliSelectedSkuPrice,
+          trackedKey: __otlobliSelectedSkuPriceKey,
+          currentKey: sheinCurrentSelectionKey()
+        }, [p.priceUsd, __otlobliSkuPriceSource, __otlobliSelectedSkuPrice,
+          __otlobliSelectedSkuPriceKey, sheinCurrentSelectionKey()].join('|'));
+      }
       // فاشل-بأمان لتيمو: لا نُرسل بيانات ناقصة أبداً (سعر صفر/بلا عنوان/بلا
       // صورة) - بدل ذلك نلغي ونطلب إعادة المحاولة، فلا تدخل خربطة للسلة.
       if (IS_TEMU && (!p.title || !p.image || !(p.priceUsd > 0))) {
@@ -9478,6 +9586,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   document.addEventListener('touchstart', markOtlobliInteraction, { capture: true, passive: true });
   document.addEventListener('touchmove', markOtlobliInteraction, { capture: true, passive: true });
   document.addEventListener('scroll', markOtlobliInteraction, { capture: true, passive: true });
+  document.addEventListener('click', sheinTrackSelectedSkuPrice, true);
   // On low-end devices (iPhone 6 etc. — 2 CPU cores) our own polling competes
   // with Cloudflare's verification JS and SHEIN's image decoding, making a
   // weak-CPU device feel heavy and slow. Relax every hot interval there so the
