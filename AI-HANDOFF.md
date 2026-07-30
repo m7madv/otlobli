@@ -2,6 +2,16 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
+## Current candidate (2026-07-30) - v86.25 priority SHEIN PDP title
+
+- Marker/version: `2026.07.30-v86.25-shein-priority-pdp-title-price`; Android/iOS `885/86.25`; auth bypass off.
+- Preserve `sheinPdpTitleElement()` priority: exact `.product-intro__head-name`, then `h1`, then legacy broad fallbacks. A comma-separated `querySelector('h1, ... [class*="product-name"] ...')` is forbidden here because selector order does not create priority; a recommendation name earlier in DOM can become the boundary and reject the real PDP price.
+- Preserve v86.24's bounded price roots before the authoritative PDP title, v86.23's later equal-score active root, live-before-meta/JSON fallback, two stable reads, and the incomplete-payload block. Do not restore whole-page price scanning or variant inference.
+- `price-capture` deliberately runs before the fail-safe and records `title`/`image` booleans. Keep it bounded to the existing add flow; do not add polling or a new observer.
+- Full-script Playwright passes the exact drawer-before-PDP regression: stale `$11.15`, active `$14.26`, later recommendation `$2.23` posts `$14.26` with roots `11.15@40,14.26@40`. A no-price run posts nothing and diagnoses `captured:0/source:missing/title:true/image:true`.
+- Build/freeze/performance, native sync, Gradle, Android install, GitHub/Xcode run `30533726236`, and IPA inspection pass. APK/IPA paths and hashes are in `CURRENT_STATE.md`. The connected Note8 had no usable SHEIN/VPN route, and no real iPhone acceptance was performed; do not claim the photographed product is device-accepted until the user tests it.
+- Primary code commit: `46e4dae`; iOS code commit: `7adff45`. Preserve the signed-address region fast path, bottom bar, unchanged-region comparison, and all native recompose timing.
+
 ## Current candidate (2026-07-30) - v86.24 PDP-only price and signed-region fast path
 
 - Marker/version: `2026.07.30-v86.24-shein-pdp-price-signed-fast-path`; Android/iOS `884/86.24`; auth bypass off.
