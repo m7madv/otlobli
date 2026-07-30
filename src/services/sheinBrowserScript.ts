@@ -2360,11 +2360,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return /شي\\s*إن|shein/i.test(t) && /(تسوق|fashion|shop|الموضة)/i.test(t);
   }
 
-  function sheinPdpTitleElement() {
-    return document.querySelector('.product-intro__head-name') || document.querySelector('h1') ||
-      document.querySelector('.goods-name, [class*="goods-name" i], [class*="product-name" i], [class*="head-name" i]');
-  }
-
   function getTitle(allowGenericFallback) {
     var ld = getProductJsonLd();
     if (ld && ld.name) {
@@ -2373,7 +2368,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
     var fromMeta = cleanTitle(getMeta('og:title'));
     if (fromMeta && !looksGenericTitle(fromMeta)) return fromMeta;
-    var el = sheinPdpTitleElement();
+    var el = document.querySelector('h1, .product-intro__head-name, .goods-name, [class*="goods-name" i], [class*="product-name" i], [class*="head-name" i]');
     var fromEl = cleanTitle(el ? el.textContent : '');
     if (fromEl && !looksGenericTitle(fromEl)) return fromEl;
     if (fromMeta) return fromMeta;
@@ -2383,83 +2378,19 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return cleanTitle(document.title);
   }
 
-  function sheinMoneyValue(text) {
-    var match = String(text || '').match(/(?:US\\$|USD|\\$)\\s*([0-9][0-9,.]*)|([0-9][0-9,.]*)\\s*(?:US\\$|USD|\\$)/i);
-    var raw = match && (match[1] || match[2]);
-    if (!raw) return 0;
-    if (raw.indexOf('.') >= 0 && raw.indexOf(',') >= 0) raw = raw.replace(/,/g, '');
-    else if (/,[0-9]{1,2}$/.test(raw)) raw = raw.replace(',', '.');
-    else raw = raw.replace(/,/g, '');
-    var value = parseFloat(raw);
-    return value > 0 ? value : 0;
-  }
-
-  var __otlobliSheinPriceRoots = '';
-  function sheinLiveSkuPrice() {
-    if (!IS_SHEIN) return 0;
-    var title = sheinPdpTitleElement();
-    var roots = document.querySelectorAll('.product-intro__head-price, .product-price, [class*="head-price" i]');
-    var best = 0;
-    var bestScore = -1;
-    var rootTrace = [];
-    for (var r = 0; r < roots.length && r < 8; r++) {
-      if (!sheinElementIsPainted(roots[r])) continue;
-      if (title && !(roots[r].compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING)) continue;
-      var rootBest = 0;
-      var rootScore = -1;
-      var nodes = roots[r].querySelectorAll('*');
-      for (var i = 0; i < nodes.length && i < 80; i++) {
-        var el = nodes[i];
-        if (!sheinElementIsPainted(el)) continue;
-        var branch = el;
-        var hidden = false;
-        for (var h = 0; branch && h < 6; h++, branch = branch.parentElement) {
-          var branchStyle = window.getComputedStyle(branch);
-          if (branch.getAttribute('aria-hidden') === 'true' || branch.hasAttribute('hidden') ||
-              branchStyle.display === 'none' || branchStyle.visibility === 'hidden' ||
-              parseFloat(branchStyle.opacity || '1') <= 0.01) { hidden = true; break; }
-        }
-        if (hidden) continue;
-        var text = String(el.textContent || '').replace(/\\s+/g, ' ').trim();
-        if (!text || text.indexOf('%') >= 0 || (text.match(/(?:US\\$|USD|\\$)/gi) || []).length !== 1) continue;
-        var value = sheinMoneyValue(text);
-        if (!(value > 0)) continue;
-        var style = window.getComputedStyle(el);
-        var hint = String(el.className || '') + ' ' + String(el.parentElement && el.parentElement.className || '');
-        if (/line-through/i.test(style.textDecorationLine || style.textDecoration || '') ||
-            /(?:old|original|retail|market|compare|cross|del)(?:-|_|\\s|$)/i.test(hint)) continue;
-        var score = parseFloat(style.fontSize || '0') + (/current|sale|final|special|price-content/i.test(hint) ? 12 : 0);
-        if (score >= rootScore) { rootBest = value; rootScore = score; }
-      }
-      if (!(rootBest > 0)) {
-        var prices = String(roots[r].textContent || '').match(/(?:US\\$|USD|\\$)\\s*[0-9][0-9,.]*|[0-9][0-9,.]*\\s*(?:US\\$|USD|\\$)/gi);
-        if (prices && prices.length) { rootBest = sheinMoneyValue(prices[prices.length - 1]); rootScore = 0; }
-      }
-      if (rootBest > 0) rootTrace.push(rootBest + '@' + Math.round(rootScore));
-      if (rootBest > 0 && rootScore >= bestScore) { best = rootBest; bestScore = rootScore; }
-    }
-    __otlobliSheinPriceRoots = rootTrace.join(',');
-    return best;
-  }
-
-  function sheinJsonLdPrice() {
-    var ld = getProductJsonLd();
-    if (!ld || !ld.offers) return 0;
-    var offers = Array.isArray(ld.offers) ? ld.offers[0] : ld.offers;
-    var value = offers && parseFloat(offers.price || offers.lowPrice);
-    return value > 0 ? value : 0;
-  }
-
-  var __otlobliSheinPriceSource = '';
   function getPrice() {
-    var livePrice = sheinLiveSkuPrice();
-    if (livePrice > 0) { __otlobliSheinPriceSource = 'live'; return livePrice; }
+    var ld = getProductJsonLd();
+    if (ld && ld.offers) {
+      var offers = Array.isArray(ld.offers) ? ld.offers[0] : ld.offers;
+      var ldPrice = offers && parseFloat(offers.price || offers.lowPrice);
+      if (ldPrice > 0) return ldPrice;
+    }
     var metaPrice = parseFloat(getMeta('product:price:amount'));
-    if (metaPrice > 0) { __otlobliSheinPriceSource = 'meta'; return metaPrice; }
-    var ldPrice = sheinJsonLdPrice();
-    if (ldPrice > 0) { __otlobliSheinPriceSource = 'json'; return ldPrice; }
-    __otlobliSheinPriceSource = 'missing';
-    return 0;
+    if (metaPrice > 0) return metaPrice;
+    var el = document.querySelector('.product-price .price-content, .product-intro__head-price, [class*="price" i]');
+    var text = el ? (el.textContent || '') : '';
+    var match = text.match(/[0-9]+\\.?[0-9]*/);
+    return match ? parseFloat(match[0]) : 0;
   }
 
   // Lazy-loaded SHEIN images often keep a tiny placeholder/blank gif in "src"
@@ -4964,9 +4895,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var attempts = 0;
     var maxAttempts = 10;
     var intervalMs = 500;
-    var stableSheinPrice = 0;
-    var stableSheinPriceReads = 0;
-
     function isComplete(p, cs) {
       if (IS_TEMU) {
         // إذا اختار الزبون لوناً ننتظر حتى يُلتقط هيرو اللون (300ms بعد النقر)
@@ -4976,34 +4904,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var colorImgReady = !colorPicked || !!window.__otlobliTemuColorSwatch || !!window.__otlobliTemuColorImg;
         return !!p.title && !!p.image && p.priceUsd > 0 && colorImgReady;
       }
-      if (!(p.priceUsd > 0) || otlobliInteractionActive()) return false;
-      if (p.priceUsd === stableSheinPrice) stableSheinPriceReads++;
-      else { stableSheinPrice = p.priceUsd; stableSheinPriceReads = 1; }
-      return stableSheinPriceReads >= 2 && !!p.title && !!p.image && (!cs.exists || !!p.color);
+      return !!p.title && !!p.image && (!cs.exists || !!p.color);
     }
 
     function finalize(p) {
-      if (IS_SHEIN) {
-        var diagnosticMetaPrice = parseFloat(getMeta('product:price:amount')) || 0;
-        var diagnosticLivePrice = sheinLiveSkuPrice();
-        var diagnosticJsonPrice = sheinJsonLdPrice();
-        sheinRegionDiag('price-capture', {
-          captured: p.priceUsd,
-          source: __otlobliSheinPriceSource,
-          meta: diagnosticMetaPrice,
-          live: diagnosticLivePrice,
-          json: diagnosticJsonPrice,
-          roots: __otlobliSheinPriceRoots,
-          title: !!p.title,
-          image: !!p.image,
-          color: p.color || '',
-          size: p.size || ''
-        }, [p.priceUsd, __otlobliSheinPriceSource, diagnosticMetaPrice, diagnosticLivePrice,
-          diagnosticJsonPrice, !!p.title, !!p.image, p.color || '', p.size || ''].join('|'));
-      }
       // فاشل-بأمان لتيمو: لا نُرسل بيانات ناقصة أبداً (سعر صفر/بلا عنوان/بلا
       // صورة) - بدل ذلك نلغي ونطلب إعادة المحاولة، فلا تدخل خربطة للسلة.
-      if ((IS_TEMU || IS_SHEIN) && (!p.title || !p.image || !(p.priceUsd > 0))) {
+      if (IS_TEMU && (!p.title || !p.image || !(p.priceUsd > 0))) {
         removeOverlay(0);
         var ab = document.getElementById('otlobli-add-btn');
         if (ab) showMessage(ab, 'تعذّر قراءة بيانات المنتج — حاول مرة ثانية');
