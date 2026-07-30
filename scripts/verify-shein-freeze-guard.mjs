@@ -113,6 +113,11 @@ const checks = [
       "var metaPrice = parseFloat(getMeta('product:price:amount'))",
       "document.querySelector('.product-price .price-content, .product-intro__head-price, [class*=\"price\" i]')",
       'return !!p.title && !!p.image && (!cs.exists || !!p.color)',
+      'function sheinTrackSelectedSkuPrice(event)',
+      "__otlobliSkuPriceSource = 'selected-mutation'",
+      "document.addEventListener('click', sheinTrackSelectedSkuPrice, true)",
+      "sheinRegionDiag('selected-sku-price-capture'",
+      'setTimeout(commit, 1500)',
     ],
     forbidden: [
       'function sheinQuantitySizeSummary()',
