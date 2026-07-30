@@ -2,6 +2,14 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
+## Current candidate (2026-07-30) - v86.28 SPA price and country-list scroll
+
+- Marker/version: `2026.07.30-v86.28-shein-spa-price-country-scroll`; Android/iOS `888/86.28`; auth bypass off. The user proved the price defect is session-scoped: several products reused one amount, then a full app restart made prices change correctly.
+- Preserve the SPA boundary. `__otlobliInitialCapturePath` identifies a later `history.pushState` product route; on that later route `getTitle()`, `getMainImage()`, and `sheinSpaRoutePrice()` prefer exact live PDP state instead of document-static JSON/meta from the first product. The selected-mutation value remains first priority and must keep exact selection-key/path validation. Never restore a whole-page price scan or cache a price without the current route/selection boundary.
+- Preserve `sheinCountryRowsInRoot()` as a fallback only inside `sheinResolvedShippingUiRoot()`, with exact known-country matching and bounded descendants. `sheinAddressListScroller()` must compare ancestors of all visible rows and pick the smallest true scroller; inspecting only the first row can select a drawer/tab ancestor and leave the inner virtual list unchanged. Keep `country-row-fallback` and `country-list-scroll` bounded diagnostics.
+- Browser proof: a same-document SPA transition with stale `$4.50` JSON/meta and visible `$8.25` changed from wrong `$4.50`/first title to `$8.25`/second title/source `spa-dom`. A generic-row drawer started with `visibleOptions:0`; after the fix the inner list scrolled `0 -> 180`, Saudi rendered and was clicked, and the signed cookie became Saudi. Selected mutation, compound selection, no-selection, and already-signed fast-path suites also pass.
+- Freeze/performance/build, Android/iOS sync, Gradle, APK metadata, GitHub/Xcode run `30540335090`, and IPA inspection pass. APK/IPA paths and hashes are in `CURRENT_STATE.md`. Primary code commit is `25e2b4d`; iOS code commit is `39ba8ef`. The IPA contains the SPA-price/country-scroll and native-recompose markers, excludes the old live-scanner/stable-read markers, and has no app signature or provisioning. Do not claim real iPhone acceptance until the user tests the exact session, region, resume, and cold-launch cases.
+
 ## Current candidate (2026-07-30) - v86.27 selected-SKU mutation price
 
 - Marker/version: `2026.07.30-v86.27-shein-selected-sku-mutation-price`; Android/iOS `887/86.27`; auth bypass off. The user rejected v86.26 on the real iPhone because changing to a higher-priced color/size still posted the entry price.
