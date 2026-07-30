@@ -2,6 +2,16 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
+## Current candidate (2026-07-30) - v86.24 PDP-only price and signed-region fast path
+
+- Marker/version: `2026.07.30-v86.24-shein-pdp-price-signed-fast-path`; Android/iOS `884/86.24`; auth bypass off.
+- Preserve the diagnosed price boundary: only painted PDP price roots before the real product title are eligible. Do not restore generic `[data-testid*="price"]`, whole-page price scanning, or recommendation roots after the title. Keep the later equal-score PDP root rule so a newly selected SPA SKU beats a stale entry root.
+- Preserve the region condition `!sheinSignedSaudiAddressReady() && sheinProductUrlNeedsRegionBootstrap(normalized)`. Real-device v86.23 proved that omitting the signed check caused a false veil/repair/reload on every signed SPA product. The signed `addressCookie` remains the add-to-cart authority.
+- Preserve readiness dedupe by `type + pathname`. It posts one state per route but still permits a new route and an `interactive -> signed-ready` transition. The key is set only when the bridge exists.
+- Real Note8 final evidence: `86.24/884`, signed Saudi cookie with signature length 192, `prime-already-ready`, one `sheinSaudiReady`, no veil, and zero `product-bootstrap-reload`. The pictured product `418157946` visibly mounted recommendation prices `$2.66/$2.40`; its active SKU was sold out, so the incomplete add was blocked. A Chrome renderer crash occurred only during the Android 9 DevTools stress session; do not present it as an app-JS fix or iPhone result.
+- Playwright exact regression captures `$14.26` from stale `$11.15` + active `$14.26` PDP roots while excluding later `$2.23`; all repeated/delayed/compound/no-selection suites pass. Build/freeze/performance, native sync, and Gradle pass. APK path/hash are in `CURRENT_STATE.md`.
+- Primary commits: `608842d` + `f4ce902`; iOS commits: `9597fc9` + `0cbf6dc`; GitHub run `30530246600` passed. The unsigned IPA path/hash and inspection are in `CURRENT_STATE.md`. Real iPhone acceptance is still mandatory; do not infer it from Android, Playwright, or CI.
+
 ## Current candidate (2026-07-30) - v86.23 active SHEIN SKU price root
 
 - Marker/version: `2026.07.30-v86.23-shein-active-sku-price-root`; Android/iOS `883/86.23`; auth bypass off.
