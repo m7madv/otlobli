@@ -2,6 +2,17 @@
 
 Last updated: 2026-07-30
 
+## v86.26 SHEIN v85.8.55 capture baseline (2026-07-30)
+
+- Current marker is `2026.07.30-v86.26-shein-v855-capture-baseline`; Android/iOS are `886/86.26`; auth bypass remains off. The user rejected v86.25 on the real iPhone because selected color/size prices still captured the entry price and the loading state remained slower than the known-good build.
+- The exact requested v85.8.55 GitHub artifact was resolved and downloaded rather than inferred: run `29657616560`, commit `eb7b0ca04b012519f0e4191ebf13c392f9b56367`, IPA SHA-256 `52ED888B77AF294970B6CC7E19557131CDC848B3A29D79E4C40B3D3E93FF1F16`. Its production bundle uses JSON-LD offer first, then `product:price:amount`, then the legacy PDP DOM selector. It has no live price-root scanner, stable-read gate, or add-time price diagnostic.
+- v86.26 restores that built v85.8.55 title/price/add-completion path exactly. It removes `sheinLiveSkuPrice()`, `sheinPdpTitleElement()`, two-stable-price waits, and the SHEIN-specific incomplete-payload delay. The narrow v86.20 `completeSelectedCompoundSize()` is deliberately retained so the original `M / CP1` requirement is not regressed. Region signing/add guard, bottom navigation, SPA repair, unchanged-region comparison, and native foreground/recompose code were not changed.
+- Full injected-script Playwright passed after changing the fixture from `$11.15` to `$17.19`: the posted product was `$17.19` in `314ms`. The option suite also passed: no-selection blocked, `L`, `M / CP1`, `M / 1PC`, and `L / 1PC` were exact.
+- `verify:shein-freeze-guard`, production build, performance budget, Android/iOS sync, Android Gradle debug, APK metadata, and `git diff --check` pass. Budgets: JS raw `1,179,559/1,200,000`, JS gzip `354,536/370,000`, CSS `63,029/70,000`, fonts `81,364/100,000`, SHEIN source `545,277/550,000`.
+- Android APK: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.26-shein-v855-capture-baseline-debug.apk`; SHA-256 `F3F20A13A6457315B797E60CBD6CC0F4D793EE3A0BDC83D92F930ADEE53820D8`; size `11,119,826` bytes; metadata confirms `com.otlobli.app`, `86.26/886`.
+- Primary code commit is `08bc726`; matching iOS commit is `7196f98` on `codex/ios-v86-4`. GitHub/Xcode run `30536477640` passed. Unsigned IPA: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.26-iphone16-unsigned.ipa`; SHA-256 `7BB535820B4F2768F0874B4C7CF2FE0C46A002A4B6FD66F1E139A2505D289A64`; size `7,064,897` bytes. Inspection confirms `com.otlobli.app`, `86.26/886`, only the `otlobli` URL scheme, the baseline/compound/native-recompose markers, no app `_CodeSignature`, and no provisioning profile.
+- Windows detects the connected Apple iPhone (`00008140001E6D581E11801C`), but the machine has no Xcode/`ios-deploy`/libimobiledevice toolchain and the IPA is unsigned, so it was not installed from this host. Real iPhone acceptance is still mandatory for the photographed premium SKU, repeated size/color changes, clean region setup, five background/resume cycles, and cold launch.
+
 ## v86.25 SHEIN priority PDP-title price boundary (2026-07-30)
 
 - Current marker is `2026.07.30-v86.25-shein-priority-pdp-title-price`; Android/iOS are `885/86.25`; auth bypass remains off.
