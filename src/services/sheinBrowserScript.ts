@@ -2333,7 +2333,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // HTML for SEO, so unlike CSS-class-based scraping it doesn't depend on
   // guessing SHEIN's current class names (which break silently whenever they
   // ship a redesign) and it's available even very early in the page load.
-  // This is the primary, most reliable source for name/image/price.
+  // This is the primary source for name/image and the fallback product price.
   var __otlobliLdCache = null;
   var __otlobliLdCacheUrl = '';
   function getProductJsonLd() {
@@ -2385,7 +2385,51 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return cleanTitle(document.title);
   }
 
+  function sheinMoneyValue(text) {
+    var match = String(text || '').match(/(?:US\\$|USD|\\$)\\s*([0-9][0-9,.]*)|([0-9][0-9,.]*)\\s*(?:US\\$|USD|\\$)/i);
+    var raw = match && (match[1] || match[2]);
+    if (!raw) return 0;
+    if (raw.indexOf('.') >= 0 && raw.indexOf(',') >= 0) raw = raw.replace(/,/g, '');
+    else if (/,[0-9]{1,2}$/.test(raw)) raw = raw.replace(',', '.');
+    else raw = raw.replace(/,/g, '');
+    var value = parseFloat(raw);
+    return value > 0 ? value : 0;
+  }
+
+  function sheinLiveSkuPrice() {
+    if (!IS_SHEIN) return 0;
+    var roots = document.querySelectorAll('.product-intro__head-price, .product-price');
+    var best = 0;
+    var bestScore = -1;
+    for (var r = 0; r < roots.length && r < 4; r++) {
+      if (!sheinElementIsVisible(roots[r])) continue;
+      var nodes = roots[r].querySelectorAll('*');
+      for (var i = 0; i < nodes.length && i < 60; i++) {
+        var el = nodes[i];
+        if (!sheinElementIsVisible(el)) continue;
+        var text = String(el.textContent || '').replace(/\\s+/g, ' ').trim();
+        if (!text || text.indexOf('%') >= 0 || (text.match(/(?:US\\$|USD|\\$)/gi) || []).length !== 1) continue;
+        var value = sheinMoneyValue(text);
+        if (!(value > 0)) continue;
+        var style = window.getComputedStyle(el);
+        var hint = String(el.className || '') + ' ' + String(el.parentElement && el.parentElement.className || '');
+        if (/line-through/i.test(style.textDecorationLine || style.textDecoration || '') ||
+            /(?:old|original|retail|market|compare|cross|del)(?:-|_|\\s|$)/i.test(hint)) continue;
+        var score = parseFloat(style.fontSize || '0') + (/current|sale|final|special|price-content/i.test(hint) ? 12 : 0);
+        if (score > bestScore) { best = value; bestScore = score; }
+      }
+      if (!(best > 0)) {
+        var prices = String(roots[r].textContent || '').match(/(?:US\\$|USD|\\$)\\s*[0-9][0-9,.]*|[0-9][0-9,.]*\\s*(?:US\\$|USD|\\$)/gi);
+        if (prices && prices.length) best = sheinMoneyValue(prices[prices.length - 1]);
+      }
+      if (best > 0) return best;
+    }
+    return 0;
+  }
+
   function getPrice() {
+    var livePrice = sheinLiveSkuPrice();
+    if (livePrice > 0) return livePrice;
     var ld = getProductJsonLd();
     if (ld && ld.offers) {
       var offers = Array.isArray(ld.offers) ? ld.offers[0] : ld.offers;
@@ -2394,10 +2438,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
     var metaPrice = parseFloat(getMeta('product:price:amount'));
     if (metaPrice > 0) return metaPrice;
-    var el = document.querySelector('.product-price .price-content, .product-intro__head-price, [class*="price" i]');
-    var text = el ? (el.textContent || '') : '';
-    var match = text.match(/[0-9]+\\.?[0-9]*/);
-    return match ? parseFloat(match[0]) : 0;
+    return 0;
   }
 
   // Lazy-loaded SHEIN images often keep a tiny placeholder/blank gif in "src"
@@ -4908,6 +4949,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var attempts = 0;
     var maxAttempts = 10;
     var intervalMs = 500;
+    var stableSheinPrice = 0;
+    var stableSheinPriceReads = 0;
 
     function isComplete(p, cs) {
       if (IS_TEMU) {
@@ -4918,13 +4961,16 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var colorImgReady = !colorPicked || !!window.__otlobliTemuColorSwatch || !!window.__otlobliTemuColorImg;
         return !!p.title && !!p.image && p.priceUsd > 0 && colorImgReady;
       }
-      return !!p.title && !!p.image && (!cs.exists || !!p.color);
+      if (!(p.priceUsd > 0) || otlobliInteractionActive()) return false;
+      if (p.priceUsd === stableSheinPrice) stableSheinPriceReads++;
+      else { stableSheinPrice = p.priceUsd; stableSheinPriceReads = 1; }
+      return stableSheinPriceReads >= 2 && !!p.title && !!p.image && (!cs.exists || !!p.color);
     }
 
     function finalize(p) {
       // فاشل-بأمان لتيمو: لا نُرسل بيانات ناقصة أبداً (سعر صفر/بلا عنوان/بلا
       // صورة) - بدل ذلك نلغي ونطلب إعادة المحاولة، فلا تدخل خربطة للسلة.
-      if (IS_TEMU && (!p.title || !p.image || !(p.priceUsd > 0))) {
+      if ((IS_TEMU || IS_SHEIN) && (!p.title || !p.image || !(p.priceUsd > 0))) {
         removeOverlay(0);
         var ab = document.getElementById('otlobli-add-btn');
         if (ab) showMessage(ab, 'تعذّر قراءة بيانات المنتج — حاول مرة ثانية');
