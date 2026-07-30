@@ -109,6 +109,7 @@ const checks = [
       'stableNavHost.appendChild(nav)',
       'function completeSelectedCompoundSize(container, selected)',
       'completeSelectedCompoundSize(container, getSelectedWithin(container))',
+      'function sheinPdpTitleElement()',
       'function sheinLiveSkuPrice()',
       "__otlobliSheinPriceRoots = rootTrace.join(',')",
       'if (rootBest > 0 && rootScore >= bestScore)',
