@@ -2,6 +2,17 @@
 
 Last updated: 2026-07-30
 
+## v86.21 SHEIN live selected-SKU price capture (2026-07-30)
+
+- Current marker is `2026.07.30-v86.21-shein-live-sku-price-fix`; Android/iOS are `881/86.21`; auth bypass remains off.
+- The screenshot pair proves the price root cause: the selected `أخضر عسكري · L` variant visibly cost `$17.19`, while Otlobli captured `$11.15`. `getPrice()` returned the product's server-rendered JSON-LD/default offer before reading the live SPA price for the selected color.
+- SHEIN capture now reads only bounded visible nodes inside the primary PDP price roots (`.product-intro__head-price`/`.product-price`), rejects discount percentages and crossed/old/original/retail prices, and prefers the current rendered SKU amount. JSON-LD/meta remain fallbacks for templates with no rendered price. The generic whole-page `[class*="price"]` fallback was removed.
+- Add capture waits for two equal price reads after active touch/scroll ends. This lets SHEIN finish an asynchronous color-price update before posting to React. Zero/unreadable SHEIN prices fail safely; option extraction, v86.20's narrow compound completion, signed-region guard, region automation, and native recompose timing are unchanged.
+- Playwright reproduces JSON-LD `$11.15` plus old `$21.84`, `-21%`, and live `$17.19`; capture posts `$17.19 · L`. A delayed `$11.15 → $17.19` update also posts `$17.19`. JSON-only `$3.49`, `M / CP1`, no-selection blocking, ordinary `L`, separate `M / 1PC`, and changed `L / 1PC` regressions pass.
+- `verify:shein-freeze-guard`, production build/performance budget, Android/iOS sync, Android Gradle debug build, GitHub/Xcode, IPA inspection, and `git diff --check` pass. Budgets: JS raw `1,182,728/1,200,000`, JS gzip `355,467/370,000`, CSS `63,029/70,000`, fonts `81,364/100,000`, SHEIN source `548,490/550,000`.
+- Android APK: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.21-shein-live-sku-price-fix-debug.apk`; SHA-256 `4A0A81EB64FCFE88A0BB633A8D5C5044D54E9FD60C4BF94384F3BB78581BFF1E`; size `11,120,882` bytes. ADB listed no connected device.
+- Primary code commit is `9efab6b`; matching iOS commit is `cf7a442` on `codex/ios-v86-4`; GitHub run `30519999113` passed. Unsigned IPA: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.21-iphone16-unsigned.ipa`; SHA-256 `F406AD5B7901478E725A14F988B7CBEDD1558D9832D951235CEDACE43277B966`; size `7,066,319` bytes. Inspection confirms `com.otlobli.app`, `86.21/881`, only `otlobli`, the release/live-price/stability/recompose markers, and no provisioning/signature. Real iPhone acceptance remains pending for the pictured product, immediate variant changes, region signing, five resume cycles, and cold launch.
+
 ## v86.20 SHEIN variant regression rollback + narrow compound completion (2026-07-30)
 
 - Current marker is `2026.07.30-v86.20-shein-variant-regression-fix`; Android/iOS are `880/86.20`; auth bypass remains off.

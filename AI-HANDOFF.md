@@ -2,6 +2,15 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
+## Current candidate (2026-07-30) - v86.21 SHEIN live selected-SKU price
+
+- Marker/version: `2026.07.30-v86.21-shein-live-sku-price-fix`; Android/iOS `881/86.21`; auth bypass off.
+- Confirmed root cause: `getPrice()` returned JSON-LD's default offer `$11.15` before the selected color's live DOM price `$17.19`. Do not restore JSON-LD-first pricing or generic page-wide `[class*="price"]` scraping.
+- `sheinLiveSkuPrice()` scans at most four primary PDP price roots and 60 descendants per root, excludes percent/old/crossed prices, and runs only during the existing add retries. Capture requires two stable price reads after interaction settles; there is no permanent timer, cache, React state, or new polling.
+- Do not mix this price fix with option inference. v86.20's no-cache `completeSelectedCompoundSize()` remains the only narrow compound exception, and `sheinQuantitySizeSummary()` remains forbidden. Signed `addressCookie`, region repair/diagnostics, bottom nav, and all iPhone/Android recompose guards are unchanged.
+- Playwright passes the exact `$11.15 JSON → $17.19 live` case, delayed price update, JSON fallback, compound size, and the complete v86.20 selection suite. Local build/sync/Gradle and GitHub/Xcode run `30519999113` pass. APK/IPA paths and hashes are in `CURRENT_STATE.md`.
+- Primary code commit `9efab6b`; iOS code commit `cf7a442`. IPA inspection is clean and unsigned. No Android device was connected and no real iPhone acceptance was performed; require the photographed premium color/size, rapid variant changes, five background/resume cycles, and cold launch before claiming device resolution.
+
 ## Current candidate (2026-07-30) - v86.20 SHEIN variant regression fix
 
 - Marker/version: `2026.07.30-v86.20-shein-variant-regression-fix`; Android/iOS `880/86.20`; auth bypass off.
