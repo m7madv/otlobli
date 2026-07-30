@@ -917,8 +917,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var sheinNativeCoverRepairActive = false;
   var sheinNativeCoverRepairStartedAt = 0;
   var sheinNativeCoverCooldownUntil = 0;
-  var sheinNativeCoverLastType = '';
-  var sheinNativeCoverLastPostAt = 0;
+  var sheinNativeCoverLastKey = '';
   sheinRegionDiag('capture-script-injected', {
     requiredCountry: SHEIN_REQUIRED_COUNTRY,
     productRoute: sheinLooksLikeProductRouteForShipping(),
@@ -1001,12 +1000,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function sheinPostNativeCoverState(type) {
     if (!IS_SHEIN) return;
-    var now = Date.now();
-    if (type === sheinNativeCoverLastType && now - sheinNativeCoverLastPostAt < 750) return;
-    sheinNativeCoverLastType = type;
-    sheinNativeCoverLastPostAt = now;
+    var key = type + '|' + location.pathname;
+    if (key === sheinNativeCoverLastKey) return;
     try {
       if (window.mobileApp && window.mobileApp.postMessage) {
+        sheinNativeCoverLastKey = key;
         window.mobileApp.postMessage({ detail: { type: type } });
       }
     } catch (e) {}
@@ -2190,7 +2188,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     try { locked = locked || sessionStorage.getItem('__otlobliSheinSaudiLocked') === '1'; } catch (e) {}
     var signalsOk = sheinSaudiSignalsOk();
     var needsReload = shouldReloadSheinForSaudi();
-    var needsProductBootstrapReload = sheinProductUrlNeedsRegionBootstrap(normalized);
+    var needsProductBootstrapReload = !sheinSignedSaudiAddressReady() && sheinProductUrlNeedsRegionBootstrap(normalized);
     setSheinSaudiGuardOverlay(locked || visibleForeignRegion);
     if (needsReload || needsProductBootstrapReload || !signalsOk) {
       if (sheinLooksLikeProductPageForShipping()) sheinPrepareNativeSaudiRepair();
@@ -2394,12 +2392,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var __otlobliSheinPriceRoots = '';
   function sheinLiveSkuPrice() {
     if (!IS_SHEIN) return 0;
-    var roots = document.querySelectorAll('.product-intro__head-price, .product-price, [class*="head-price" i], [data-testid*="price" i]');
+    var title = document.querySelector('h1, .product-intro__head-name, .goods-name, [class*="goods-name" i], [class*="product-name" i], [class*="head-name" i]');
+    var roots = document.querySelectorAll('.product-intro__head-price, .product-price, [class*="head-price" i]');
     var best = 0;
     var bestScore = -1;
     var rootTrace = [];
     for (var r = 0; r < roots.length && r < 8; r++) {
       if (!sheinElementIsPainted(roots[r])) continue;
+      if (title && !(roots[r].compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING)) continue;
       var rootBest = 0;
       var rootScore = -1;
       var nodes = roots[r].querySelectorAll('*');
@@ -2430,7 +2430,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var prices = String(roots[r].textContent || '').match(/(?:US\\$|USD|\\$)\\s*[0-9][0-9,.]*|[0-9][0-9,.]*\\s*(?:US\\$|USD|\\$)/gi);
         if (prices && prices.length) { rootBest = sheinMoneyValue(prices[prices.length - 1]); rootScore = 0; }
       }
-      // Equal-score later roots are the newly active SKU.
       if (rootBest > 0) rootTrace.push(rootBest + '@' + Math.round(rootScore));
       if (rootBest > 0 && rootScore >= bestScore) { best = rootBest; bestScore = rootScore; }
     }
@@ -2448,7 +2447,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   var __otlobliSheinPriceSource = '';
   function getPrice() {
-    // Current PDPs can retain the entry offer after the SKU changes.
     var livePrice = sheinLiveSkuPrice();
     if (livePrice > 0) { __otlobliSheinPriceSource = 'live'; return livePrice; }
     var metaPrice = parseFloat(getMeta('product:price:amount'));
