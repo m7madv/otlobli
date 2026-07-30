@@ -2,6 +2,18 @@
 
 Last updated: 2026-07-30
 
+## v86.23 SHEIN active SKU price-root selection (2026-07-30)
+
+- Current marker is `2026.07.30-v86.23-shein-active-sku-price-root`; Android/iOS are `883/86.23`; auth bypass remains off.
+- The user corrected the known-good reference to GitHub Actions run `#427`. It was resolved exactly to run `30085191333`, commit `b22f5d1`, and the downloaded `v85.8.91` IPA (SHA-256 `07E6AFBC0B508DDB34306BACA3CF1615FD8B91CBF62FE42058F37FDEDF0FA165`). Its built script was inspected, not guessed: it used JSON-LD first, then meta, then a generic DOM fallback and had no later live-price scanner.
+- The concrete regression in the new scanner was an early return from the first painted `.product-intro__head-price`/`.product-price` root. SHEIN can retain the entry SKU root while mounting the newly selected SKU root, so `$11.15` won before `$17.19` was inspected. The intermediate v86.22 candidate also preferred static meta before the live root and was superseded before device handoff.
+- `sheinLiveSkuPrice()` now compares every bounded candidate root, rejects hidden ancestor branches and crossed/old/discount values, and lets the later equal-score root win as the active SPA SKU. The live painted price is authoritative; meta and JSON-LD are fallbacks only. The existing two-stable-read add retry remains unchanged.
+- The add-time diagnostic now reports `captured/source/meta/live/json/roots/color/size`. `roots` is a bounded trace such as `11.15@40,17.19@40`; it runs only during existing add retries and adds no observer, permanent cache, timer, React render, reload, or WebView rebuild.
+- Playwright reproduces two simultaneously mounted price roots across repeated adds: `S=$1`, `M=$2`, `L=$9.99`, with traces `1@40,1@40`, `1@40,2@40`, and `1@40,9.99@40`. The screenshot `$11.15 -> $17.19`, delayed update, JSON-only fallback, no-selection block, normal `L`, `M / CP1`, `M / 1PC`, and changed `L / 1PC` suites also pass.
+- `verify:shein-freeze-guard`, production build/performance budget, Android/iOS sync, Android Gradle debug build, and `git diff --check` pass. Budgets: JS raw `1,183,951/1,200,000`, JS gzip `355,665/370,000`, CSS `63,029/70,000`, fonts `81,364/100,000`, SHEIN source `549,691/550,000`.
+- Android APK: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.23-shein-active-sku-price-root-debug.apk`; SHA-256 `B0C16C35FEB7F5849ECB7A7C46EE3E4AEAA5E124C4A6730B18EE90F654FE2A58`; size `11,121,746` bytes. ADB listed no connected device.
+- Primary commits are `80d9d1a` + `a390f5e`; matching iOS commits are `1c960e1` + `328a563` on `codex/ios-v86-4`. Final GitHub/Xcode run `30522960782` passed. Unsigned IPA: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.23-iphone16-unsigned.ipa`; SHA-256 `B6BC93BC933DD5F9CB53F05E336EEA0D56C3BDDA8F490CA0C5445F6AF23A6447`; size `7,066,532` bytes. Inspection confirms `com.otlobli.app`, `86.23/883`, only `otlobli`, the active-root/price-trace/native-recompose markers, and no provisioning/signature. Real iPhone acceptance remains pending for the pictured premium SKU, rapid SKU changes, signed region, five resume cycles, and cold launch.
+
 ## v86.21 SHEIN live selected-SKU price capture (2026-07-30)
 
 - Current marker is `2026.07.30-v86.21-shein-live-sku-price-fix`; Android/iOS are `881/86.21`; auth bypass remains off.
