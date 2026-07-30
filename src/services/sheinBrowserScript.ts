@@ -1472,20 +1472,32 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   function sheinAddressListScroller(options) {
-    var candidates = [], root = sheinResolvedShippingUiRoot && sheinResolvedShippingUiRoot();
-    if (root) candidates.push(root);
-    if (options && options.length) {
-      var node = options[0];
-      for (var hop = 0; node && hop < 8; hop++, node = node.parentElement) candidates.push(node);
+    var best = null;
+    for (var i = 0; options && i < options.length; i++) {
+      for (var node = options[i], hop = 0; node && hop < 8; hop++, node = node.parentElement) {
+        try {
+          if (node.scrollHeight > node.clientHeight + 24 &&
+              (!best || node.clientHeight < best.clientHeight)) best = node;
+        } catch (e) {}
+      }
     }
-    for (var i = 0; i < candidates.length; i++) {
-      var el = candidates[i];
-      if (!el || !el.getBoundingClientRect) continue;
-      try {
-        if (el.scrollHeight > el.clientHeight + 24) return el;
-      } catch (e) {}
+    if (best) return best;
+    var root = sheinResolvedShippingUiRoot && sheinResolvedShippingUiRoot();
+    try {
+      return root && root.scrollHeight > root.clientHeight + 24 ? root : null;
+    } catch (e) { return null; }
+  }
+
+  function sheinCountryRowsInRoot(root) {
+    if (!root || !root.querySelectorAll) return [];
+    var nodes = root.querySelectorAll('[data-country],[data-country-code],button,[role="option"],[role="button"],li,div,span');
+    var rows = [];
+    for (var i = 0; i < nodes.length && i < 900; i++) {
+      if (!sheinCountryCodeFromLabel(sheinUiText(nodes[i]))) continue;
+      var row = sheinClosestInteractive(nodes[i]);
+      if (row && row !== root && sheinElementIsPainted(row) && rows.indexOf(row) < 0) rows.push(row);
     }
-    return null;
+    return rows;
   }
 
   function sheinMoveCountryListTowardRequiredCountry(options) {
@@ -1503,13 +1515,22 @@ export const SHEIN_CAPTURE_SCRIPT = `
       }
     }
     var scroller = sheinAddressListScroller(options);
-    if (!scroller) return false;
+    if (!scroller) {
+      sheinRegionDiag('country-list-scroll', { found: false, country: SHEIN_REQUIRED_COUNTRY }, 'missing');
+      return false;
+    }
     try {
       var before = scroller.scrollTop;
       var delta = Math.max(160, Math.floor((scroller.clientHeight || 360) * 0.72));
-      var direction = SHEIN_REQUIRED_COUNTRY === 'BH' ? -1 : 1;
+      var order = { BH: 0, KW: 1, LB: 2, OM: 3, QA: 4, SA: 5, AE: 6 };
+      var firstCode = sheinCountryCodeFromLabel(sheinUiText(options[0]));
+      var direction = firstCode && order[SHEIN_REQUIRED_COUNTRY] < order[firstCode] ? -1 : 1;
       scroller.scrollTop = Math.max(0, before + (direction * delta));
       if (Math.abs(scroller.scrollTop - before) < 2 && direction > 0) scroller.scrollTop = scroller.scrollHeight;
+      sheinRegionDiag('country-list-scroll', {
+        found: true, before: before, after: scroller.scrollTop,
+        max: scroller.scrollHeight - scroller.clientHeight, direction: direction
+      }, [before, scroller.scrollTop, direction].join('|'));
       scheduleSheinShippingProgress(OTLOBLI_LOW_END ? 520 : 260);
       return true;
     } catch (e) {
@@ -1794,7 +1815,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return !!document.querySelector(
       '.c-address-upper-drawer,.address-header-tab .j-tab-item,' +
       'li.cascade__list--option,[role="listbox"] > li,.sui-drawer__body [role="option"]'
-    );
+    ) || !!sheinResolvedShippingUiRoot();
   }
 
   function sheinRestoreNavAfterShipping() {
@@ -2031,6 +2052,15 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
     var visibleOptions = sheinVisibleCascadeOptions();
     var visibleTabs = sheinVisibleShippingTabs();
+    if (!visibleOptions.length) {
+      visibleOptions = sheinCountryRowsInRoot(sheinResolvedShippingUiRoot());
+      if (visibleOptions.length) {
+        sheinRegionDiag('country-row-fallback', {
+          count: visibleOptions.length,
+          labels: visibleOptions.slice(0, 7).map(sheinUiText)
+        }, visibleOptions.slice(0, 7).map(sheinUiText).join('|'));
+      }
+    }
     sheinRegionDiag('shipping-scan', {
       addressCountry: addressCountry,
       signedReady: sheinSignedSaudiAddressReady(),
@@ -2271,16 +2301,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
   if (window.__otlobliInjected) return;
   window.__otlobliInjected = true;
 
-  // Remembers the very first page this webview session landed on (the
-  // SHEIN home root), persisted in sessionStorage since this whole script
-  // re-runs fresh on every navigation. Used to tell "the user is at the
-  // top, nothing to go back to" apart from "the user navigated somewhere
-  // and there's a real previous page" - relying on history.length for that
-  // is unsafe because the language-redirect reload above (and SHEIN's own
-  // Cloudflare verification redirect before that) can leave extra entries
-  // in history that aren't real user navigation, so a plain history.back()
-  // from the home root can land back on a half-finished verification page
-  // instead of just doing nothing.
   if (!sessionStorage.getItem('__otlobliHomePath')) {
     sessionStorage.setItem('__otlobliHomePath', location.pathname);
   }
@@ -2326,6 +2346,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return el ? (el.getAttribute('content') || '') : '';
   }
 
+  var __otlobliInitialCapturePath = location.pathname;
+  function sheinSpaCaptureRoute() {
+    return IS_SHEIN && location.pathname !== __otlobliInitialCapturePath;
+  }
+
   // Static product metadata; current SKU price must come from the painted PDP.
   var __otlobliLdCache = null;
   var __otlobliLdCacheUrl = '';
@@ -2356,6 +2381,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   function getTitle(allowGenericFallback) {
+    if (sheinSpaCaptureRoute()) {
+      var liveTitle = document.querySelector('.product-intro__head-name') || document.querySelector('h1');
+      var fromLive = cleanTitle(liveTitle ? liveTitle.textContent : '');
+      if (fromLive && !looksGenericTitle(fromLive)) return fromLive;
+    }
     var ld = getProductJsonLd();
     if (ld && ld.name) {
       var fromLd = cleanTitle(ld.name);
@@ -2416,6 +2446,18 @@ export const SHEIN_CAPTURE_SCRIPT = `
     inspect(root);
     for (var i = 0; i < nodes.length && i < 60; i++) inspect(nodes[i]);
     return best;
+  }
+
+  function sheinSpaRoutePrice() {
+    if (!sheinSpaCaptureRoute()) return 0;
+    var roots = document.querySelectorAll('.product-intro__head-price');
+    if (!roots.length) roots = document.querySelectorAll('.product-price');
+    var price = 0;
+    for (var i = 0; i < roots.length && i < 8; i++) {
+      var found = sheinPriceFromChangedRoot(roots[i]);
+      if (found > 0) price = found;
+    }
+    return price;
   }
 
   function sheinTrackSelectedSkuPrice(event) {
@@ -2485,6 +2527,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
       __otlobliSkuPriceSource = 'selected-mutation';
       return __otlobliSelectedSkuPrice;
     }
+    var spaPrice = sheinSpaRoutePrice();
+    if (spaPrice > 0) { __otlobliSkuPriceSource = 'spa-dom'; return spaPrice; }
     var ld = getProductJsonLd();
     if (ld && ld.offers) {
       var offers = Array.isArray(ld.offers) ? ld.offers[0] : ld.offers;
@@ -2668,6 +2712,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   function getMainImage() {
+    if (sheinSpaCaptureRoute()) {
+      var liveMain = document.querySelector('.product-intro__main-image img, .product-intro__main-image');
+      var liveSrc = realImgSrc(liveMain);
+      if (liveSrc && !isInPromoWidget(liveMain)) return liveSrc;
+    }
     var ld = getProductJsonLd();
     if (ld && ld.image) {
       var ldImg = Array.isArray(ld.image) ? ld.image[0] : ld.image;
@@ -2694,11 +2743,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var opts = el.querySelectorAll('li, button, [class*="item" i]');
       if (opts.length >= 2) return el;
     }
-    // Fallback for products where the attribute section's class doesn't
-    // literally contain "color"/"size" (SHEIN's internal naming isn't
-    // consistent across every product template): find a short text node
-    // matching the attribute's visible label (e.g. "اللون") and walk up from
-    // there looking for a nearby list of 2+ selectable options.
     if (labelWords) {
       var candidates = document.querySelectorAll('div, span, p, h1, h2, h3, label, b, strong');
       for (var j = 0; j < candidates.length; j++) {
@@ -2720,11 +2764,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return null;
   }
 
-  // Covers every common way a UI marks "this is the chosen option": aria
-  // state, a "selected/active/..." class, or an actually-checked radio /
-  // checkbox input nested inside the swatch (checked is a live DOM property,
-  // not always reflected back onto the HTML attribute, so element.checked
-  // has to be read directly rather than via getAttribute).
   function isSelectedSwatchEl(el) {
     if (el.getAttribute('aria-selected') === 'true') return true;
     if (el.getAttribute('aria-checked') === 'true') return true;
@@ -2736,11 +2775,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return false;
   }
 
-  // Rejects captured text that's clearly not a real color/size value - e.g.
-  // a clock-formatted string like "1:52". Confirmed from a user report: a
-  // flash-sale countdown timer elsewhere on the page got mistaken for the
-  // size value by the generic "nearby short text" fallback heuristics
-  // below, so the cart ended up showing a time instead of S/M/L/XL.
   function looksLikeJunkValue(text) {
     if (!text) return true;
     if (/^(hot|new|sale|best|bestseller|#\\s*\\d+|\\-?\\d+%?)$/i.test(text.trim())) return true;
@@ -3137,15 +3171,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     };
   }
 
-  // SHEIN's own "you haven't chosen a variant yet" signal. Until the customer
-  // picks a "نوع الموديلات"/size combination, SHEIN prints a placeholder in the
-  // sku summary row ("انقر للشراء" / "Please Select") instead of the chosen
-  // value. This is authoritative and beats any chip-class guess: some products
-  // paint a default highlight on the first variant chip (which our selection
-  // heuristics would otherwise read as "selected"), yet the summary still says
-  // "انقر للشراء" — meaning nothing is committed. When this is on screen we must
-  // refuse to capture and ask the customer to choose, so we never add a random
-  // default variant they never picked.
   function sheinSkuSelectionPending() {
     if (!IS_SHEIN || !document.body) return false;
     var nodes = document.querySelectorAll('div, span, p, a, button');
@@ -5010,6 +5035,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         sheinRegionDiag('selected-sku-price-capture', {
           captured: p.priceUsd,
           source: __otlobliSkuPriceSource,
+          spaRoute: sheinSpaCaptureRoute(),
           tracked: __otlobliSelectedSkuPrice,
           trackedKey: __otlobliSelectedSkuPriceKey,
           currentKey: sheinCurrentSelectionKey()
@@ -5776,12 +5802,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     else (document.documentElement || document.body).appendChild(nav);
   }
 
-  // Lets the user always get back out of wherever they navigated to inside
-  // SHEIN. Two modes depending on how this view was entered:
-  // - "cart": this webview was opened from a cart item tap; tapping back
-  //   asks the app to switch back to the otlobli cart screen.
-  // - "home" (default): normal browsing from the home tab; tapping back just
-  //   walks the webview's own in-page history, same as a browser back button.
   var __otlobliBackTarget = 'home';
 
   function ensureBackButton() {
@@ -5791,19 +5811,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
       btn = document.createElement('button');
       btn.id = 'otlobli-back-btn';
       btn.setAttribute('aria-label', 'رجوع');
-      // Top-right corner, mirroring the cart button's top-left spot, so the
-      // two don't crowd into the same corner.
-      // translateZ(0)/will-change forces this onto its own GPU compositing
-      // layer - see the matching comment on the nav bar's cssText. Confirmed
-      // real symptom here too: this button visibly drifted/moved during
-      // scroll instead of staying pinned to the same spot on screen.
       btn.style.cssText = 'position:fixed;right:10px;top:12px;width:42px;height:42px;z-index:2147483647;' +
         'transform:translateZ(0);will-change:transform;' +
         'background:rgba(20,24,22,.6);color:#fff;border:none;border-radius:11px;display:none;' +
         'align-items:center;justify-content:center;font-size:30px;line-height:1;font-family:Arial,system-ui,sans-serif;font-weight:700;' +
         'box-shadow:0 4px 12px rgba(0,0,0,.32);animation:otlobli-pop2 .25s ease-out;';
-      // Right-pointing arrow reads as "back" in this RTL UI, matching the
-      // app's own header back button convention (arrow_forward icon).
       btn.innerHTML = '&#8250;';
       btn.addEventListener('click', function (event) {
         event.preventDefault();
@@ -7208,13 +7220,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   function tick() {
-    // Same documentStart race as the MutationObserver fix above - body can
-    // still be null on the very first tick() call (the direct one at the
-    // bottom of this script, before the parser has necessarily reached
-    // <body>). Every function below ultimately needs body to exist, so bail
-    // out cheaply here instead of each of them hitting it separately; the
-    // setInterval(tick, 300) already scheduled will simply call this again
-    // shortly, by which point the parser is essentially always done with it.
     if (!document.body) return;
     if (IS_SHEIN && sheinLooksLikeProductRouteForShipping()) {
       sheinRegionDiag('tick-product-route', {
