@@ -2328,12 +2328,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return el ? (el.getAttribute('content') || '') : '';
   }
 
-  // SHEIN (like most e-commerce sites) embeds a Schema.org Product block as
-  // <script type="application/ld+json">. It's server-rendered into the initial
-  // HTML for SEO, so unlike CSS-class-based scraping it doesn't depend on
-  // guessing SHEIN's current class names (which break silently whenever they
-  // ship a redesign) and it's available even very early in the page load.
-  // This is the primary source for name/image and the fallback product price.
+  // Static product metadata; current SKU price must come from the painted PDP.
   var __otlobliLdCache = null;
   var __otlobliLdCacheUrl = '';
   function getProductJsonLd() {
@@ -2398,15 +2393,26 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function sheinLiveSkuPrice() {
     if (!IS_SHEIN) return 0;
-    var roots = document.querySelectorAll('.product-intro__head-price, .product-price');
+    var roots = document.querySelectorAll('.product-intro__head-price, .product-price, [class*="head-price" i], [data-testid*="price" i]');
     var best = 0;
     var bestScore = -1;
-    for (var r = 0; r < roots.length && r < 4; r++) {
-      if (!sheinElementIsVisible(roots[r])) continue;
+    for (var r = 0; r < roots.length && r < 8; r++) {
+      if (!sheinElementIsPainted(roots[r])) continue;
+      var rootBest = 0;
+      var rootScore = -1;
       var nodes = roots[r].querySelectorAll('*');
-      for (var i = 0; i < nodes.length && i < 60; i++) {
+      for (var i = 0; i < nodes.length && i < 80; i++) {
         var el = nodes[i];
-        if (!sheinElementIsVisible(el) || el.getAttribute('aria-hidden') === 'true') continue;
+        if (!sheinElementIsPainted(el)) continue;
+        var branch = el;
+        var hidden = false;
+        for (var h = 0; branch && h < 6; h++, branch = branch.parentElement) {
+          var branchStyle = window.getComputedStyle(branch);
+          if (branch.getAttribute('aria-hidden') === 'true' || branch.hasAttribute('hidden') ||
+              branchStyle.display === 'none' || branchStyle.visibility === 'hidden' ||
+              parseFloat(branchStyle.opacity || '1') <= 0.01) { hidden = true; break; }
+        }
+        if (hidden) continue;
         var text = String(el.textContent || '').replace(/\\s+/g, ' ').trim();
         if (!text || text.indexOf('%') >= 0 || (text.match(/(?:US\\$|USD|\\$)/gi) || []).length !== 1) continue;
         var value = sheinMoneyValue(text);
@@ -2416,15 +2422,16 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if (/line-through/i.test(style.textDecorationLine || style.textDecoration || '') ||
             /(?:old|original|retail|market|compare|cross|del)(?:-|_|\\s|$)/i.test(hint)) continue;
         var score = parseFloat(style.fontSize || '0') + (/current|sale|final|special|price-content/i.test(hint) ? 12 : 0);
-        if (score >= bestScore) { best = value; bestScore = score; }
+        if (score >= rootScore) { rootBest = value; rootScore = score; }
       }
-      if (!(best > 0)) {
+      if (!(rootBest > 0)) {
         var prices = String(roots[r].textContent || '').match(/(?:US\\$|USD|\\$)\\s*[0-9][0-9,.]*|[0-9][0-9,.]*\\s*(?:US\\$|USD|\\$)/gi);
-        if (prices && prices.length) best = sheinMoneyValue(prices[prices.length - 1]);
+        if (prices && prices.length) { rootBest = sheinMoneyValue(prices[prices.length - 1]); rootScore = 0; }
       }
-      if (best > 0) return best;
+      // Equal-score later roots are the newly active SKU.
+      if (rootBest > 0 && rootScore >= bestScore) { best = rootBest; bestScore = rootScore; }
     }
-    return 0;
+    return best;
   }
 
   function sheinJsonLdPrice() {
@@ -2437,12 +2444,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   var __otlobliSheinPriceSource = '';
   function getPrice() {
-    // Restore the original proven order: SHEIN updates this meta value with
-    // the selected SKU, while JSON-LD remains the immutable entry offer.
-    var metaPrice = parseFloat(getMeta('product:price:amount'));
-    if (metaPrice > 0) { __otlobliSheinPriceSource = 'meta'; return metaPrice; }
+    // Current PDPs can retain the entry offer after the SKU changes.
     var livePrice = sheinLiveSkuPrice();
     if (livePrice > 0) { __otlobliSheinPriceSource = 'live'; return livePrice; }
+    var metaPrice = parseFloat(getMeta('product:price:amount'));
+    if (metaPrice > 0) { __otlobliSheinPriceSource = 'meta'; return metaPrice; }
     var ldPrice = sheinJsonLdPrice();
     if (ldPrice > 0) { __otlobliSheinPriceSource = 'json'; return ldPrice; }
     __otlobliSheinPriceSource = 'missing';
@@ -4911,12 +4917,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     };
   }
 
-  // Dumps real ground-truth data about the current page to the JS console -
-  // Android WebView forwards console.log to logcat (tag "chromium"), so this
-  // can be read directly with "adb logcat" instead of guessing blind at
-  // SHEIN's markup or depending on a perfectly-timed screenshot.
-  // logcat truncates long single log entries hard, so log many SHORT lines
-  // instead of one big JSON blob - and log what our OWN extraction functions
   function debugSnapshot(colorState, sizeState) {}
 
   // Shared by both add-to-cart entry points (our floating button, and
