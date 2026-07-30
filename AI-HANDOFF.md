@@ -2,6 +2,16 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
+## Current candidate (2026-07-30) - v86.23 active SHEIN SKU price root
+
+- Marker/version: `2026.07.30-v86.23-shein-active-sku-price-root`; Android/iOS `883/86.23`; auth bypass off.
+- The user's known-good GitHub reference is workflow run `#427`, resolved to run id `30085191333`, commit `b22f5d1`, and built marker `v85.8.91`. The actual IPA was downloaded and inspected. That script used JSON-LD first and did not contain `sheinLiveSkuPrice()`.
+- The new regression was inside v86.21's live scanner: `if (best > 0) return best` ran inside the root loop, so a still-mounted entry-price root could win before the selected SKU root. v86.22 was not handed off; it still returned static meta before the live price. Do not restore either order.
+- Preserve the v86.23 rule: scan only the bounded product-price roots during existing add retries, reject hidden ancestor branches/old prices, compare all roots, prefer the later equal-score active root, then fall back to meta/JSON. Preserve the bounded `roots` diagnostic; it is the next device-proof signal if the page still differs.
+- No variant inference changed. Keep v86.20's narrow `completeSelectedCompoundSize()` and the ban on `sheinQuantitySizeSummary()`. Keep signed `addressCookie`, region repair, bottom nav, WebView lifecycle, and native recompose invariants unchanged.
+- Playwright passes repeated two-root prices (`1 -> 2 -> 9.99`) with exact root traces, the screenshot and delayed-price fixtures, JSON fallback, and all no-selection/normal/compound variant regressions. Build/freeze/performance, native sync, and Android Gradle pass. APK and hashes are in `CURRENT_STATE.md`.
+- Primary commits: `80d9d1a` + `a390f5e`; iOS commits: `1c960e1` + `328a563`. Final iOS run `30522960782` passed. The unsigned IPA path/hash and clean inspection are recorded in `CURRENT_STATE.md`. No real-device acceptance has been performed.
+
 ## Current candidate (2026-07-30) - v86.21 SHEIN live selected-SKU price
 
 - Marker/version: `2026.07.30-v86.21-shein-live-sku-price-fix`; Android/iOS `881/86.21`; auth bypass off.
