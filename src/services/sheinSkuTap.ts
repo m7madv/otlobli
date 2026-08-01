@@ -32,11 +32,18 @@
 //
 // One tap and nothing else. v86.44 also ran a confirm/retry timer that re-tapped
 // the row after 450ms when it could not prove the drawer had opened. That probe
-// was wrong: SHEIN's drawer is a bottom sheet and the entry row above it stays
-// visible and uncovered, so the timer fired on a drawer that HAD opened, the
-// second tap closed it again, and the user got a refusal message on every
-// product. Device verdict on v86.44 was "خربت الدنيا". Never re-tap blind: if a
-// single press is not enough, diagnose with __otlobliTapTrace first.
+// was wrong, the second tap undid the first, and the user got a refusal message
+// on every product. Device verdict on v86.44 was "خربت الدنيا". Never re-tap
+// blind: diagnose with __otlobliTapTrace first.
+//
+// sheinRevealSkuOptions is why v86.45 still looked dead. Measured over CDP on the
+// user's Note 8 (SM-N950F, product 1pc-Tabletop-Jewelry-Storage-Box): pressing
+// أضف للسلة DID activate SHEIN's control - .SIZE_ITEM_HOOK went 0 -> 2 and four
+// .sui-drawer nodes appeared, and __otlobliTapTrace recorded the hit - but SHEIN
+// renders the revealed نوع الموديلات / مقاس groups ~500 CSS px BELOW the fold, so
+// the screen did not change by one pixel and the shopper reported "لا يحدث شيء
+// أبدا". Scrolling the last revealed group to centre put both groups on screen.
+// The press was never the missing piece; showing its result was.
 export const OTLOBLI_SKU_TAP_JS = `
   var OTLOBLI_SKU_PROMPT = /انقر للشراء|please\\s*select|الرجاء الاختيار|يرجى الاختيار|اختر الخيارات/i;
 
@@ -87,6 +94,14 @@ export const OTLOBLI_SKU_TAP_JS = `
         ' at=' + Math.round(x) + ',' + Math.round(y);
     } catch (e) {}
     return true;
+  }
+
+  function sheinRevealSkuOptions(round) {
+    setTimeout(function () {
+      var h = document.querySelectorAll('.SIZE_ITEM_HOOK');
+      if (!h.length) { if (round < 5) sheinRevealSkuOptions(round + 1); return; }
+      try { h[h.length - 1].scrollIntoView({ block: 'center' }); } catch (e) {}
+    }, 280);
   }
 
   function sheinSkuPromptNode(row) {
