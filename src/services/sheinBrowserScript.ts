@@ -19,6 +19,42 @@ const OTLOBLI_NAV_CSS =
   'font-family:OtlobliCairo,system-ui,-apple-system,sans-serif!important;font-size:12px!important;line-height:normal!important;' +
   'opacity:1!important;visibility:visible!important;pointer-events:auto!important;'
 
+// Document-start touch routing beats modal click cancellation. The timestamp
+// deduplicates the synthetic click that follows a completed touch.
+const OTLOBLI_NAV_TOUCH_BRIDGE_JS = `
+  function otlobliInstallNavTouchBridge() {
+    if (window.__otlobliNavTouchBridgeBound) return;
+    window.__otlobliNavTouchBridgeBound = true;
+    var routeOtlobliNavTouch = function (event) {
+      var node = event.target, messageType = '';
+      for (var depth = 0; node && depth < 8; depth++, node = node.parentElement) {
+        if (node.getAttribute) messageType = node.getAttribute('data-otlobli-nav-type') || '';
+        if (messageType) break;
+      }
+      if (!messageType) return;
+      if (event.cancelable) event.preventDefault();
+      event.stopPropagation();
+      if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+      var now = Date.now();
+      if (now - (window.__otlobliNavTouchBridgeAt || 0) < 450) return;
+      window.__otlobliNavTouchBridgeAt = now;
+      try {
+        if (window.mobileApp && window.mobileApp.postMessage) {
+          var nativeTarget = messageType === 'openOrders' ? 'orders' : (messageType === 'openCart' ? 'cart' : 'profile');
+          if (typeof window.mobileApp.navigate === 'function') window.mobileApp.navigate(nativeTarget);
+          else {
+            window.mobileApp.postMessage({ detail: { type: messageType } });
+            if (typeof window.mobileApp.hide === 'function') window.mobileApp.hide();
+          }
+        }
+      } catch (e) {}
+    };
+    window.addEventListener('touchend', routeOtlobliNavTouch, { capture: true, passive: false });
+    window.addEventListener('click', routeOtlobliNavTouch, true);
+  }
+  otlobliInstallNavTouchBridge();
+`
+
 // Runs as a real WKUserScript before SHEIN's first document starts. It mounts
 // only Otlobli's existing bottom navigation; it does not touch SHEIN network,
 // storage, region, CSS, or page lifecycle. The full capture script adopts the
@@ -27,6 +63,8 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
 (function () {
   if (window.top !== window || window.__otlobliNavBootstrapInstalled) return;
   window.__otlobliNavBootstrapInstalled = true;
+
+  ${OTLOBLI_NAV_TOUCH_BRIDGE_JS}
 
   var timer = 0;
   var attempts = 0;
@@ -344,23 +382,7 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
       tab.insertAdjacentHTML('beforeend', '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
         item.icon + '</svg><span style="font:inherit!important;line-height:normal!important;margin-top:4px!important">' + item.label + '</span>');
       if (item.type) {
-        (function (messageType) {
-          tab.addEventListener('click', function (event) {
-            event.preventDefault();
-            event.stopPropagation();
-            try {
-              if (window.mobileApp && window.mobileApp.postMessage) {
-                var nativeTarget = messageType === 'openOrders' ? 'orders' : (messageType === 'openCart' ? 'cart' : 'profile');
-                if (typeof window.mobileApp.navigate === 'function') {
-                  window.mobileApp.navigate(nativeTarget);
-                } else {
-                  window.mobileApp.postMessage({ detail: { type: messageType } });
-                  if (typeof window.mobileApp.hide === 'function') window.mobileApp.hide();
-                }
-              }
-            } catch (e) {}
-          }, true);
-        })(item.type);
+        tab.setAttribute('data-otlobli-nav-type', item.type);
       }
       nav.appendChild(tab);
     }
@@ -397,6 +419,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
 (function () {
   var OTLOBLI_NAV_CSS = ${JSON.stringify(OTLOBLI_NAV_CSS)};
   var OTLOBLI_NAV_STYLE_VERSION = ${JSON.stringify(OTLOBLI_NAV_STYLE_VERSION)};
+
+  ${OTLOBLI_NAV_TOUCH_BRIDGE_JS}
 
   function ensureOtlobliCairoFont() {
     var parent = document.head || document.documentElement;
@@ -573,23 +597,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
           indicator.style.cssText = 'position:absolute!important;top:0!important;width:32px!important;height:4px!important;border-radius:999px!important;background:#006948!important;';
           tab.appendChild(indicator);
         } else {
-          (function (messageType) {
-            tab.addEventListener('click', function (event) {
-              event.preventDefault();
-              event.stopPropagation();
-              try {
-                if (window.mobileApp && window.mobileApp.postMessage) {
-                  var nativeTarget = messageType === 'openOrders' ? 'orders' : (messageType === 'openCart' ? 'cart' : 'profile');
-                  if (typeof window.mobileApp.navigate === 'function') {
-                    window.mobileApp.navigate(nativeTarget);
-                  } else {
-                    window.mobileApp.postMessage({ detail: { type: messageType } });
-                    if (typeof window.mobileApp.hide === 'function') window.mobileApp.hide();
-                  }
-                }
-              } catch (e) {}
-            }, true);
-          })(item.type);
+          tab.setAttribute('data-otlobli-nav-type', item.type);
         }
         nav.appendChild(tab);
       }
@@ -5701,17 +5709,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return false;
   }
 
-  // When SHEIN opens a bottom drawer/modal (e.g. the "نوع الموديلات" sku
-  // picker) it can extend up into — or render its lower options behind — our
-  // fixed nav, which sits at the max z-index. A tap on a drawer option that
-  // overlaps the nav band was landing on the nav tab underneath instead (a user
-  // tapped "50 قطعة" and got sent to "طلباتي"). While such an overlay is on
-  // screen the nav must stop intercepting taps so they reach the drawer; we
-  // restore it the moment the drawer closes.
+  // Yield only for drawer content that is truly painted over the nav.
   function otlobliNavShouldYield(nav) {
     if (!IS_SHEIN || !document.body) return false;
     var navRect = nav.getBoundingClientRect();
     if (navRect.height <= 0) return false;
+    // Geometry alone includes a backdrop behind our visible max-z bar.
+    if (!otlobliNavIsActuallyCovered(nav)) return false;
     var vp = viewportSize();
     var overlays = document.querySelectorAll('.sui-drawer__body,[role="dialog"],[aria-modal="true"],[class*="drawer" i],[class*="cascade" i]');
     for (var i = 0; i < overlays.length; i++) {
@@ -5959,23 +5963,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + item.icon + '</svg>' +
         '<span style="font:inherit!important;line-height:normal!important;margin-top:4px!important">' + item.label + '</span>');
       if (item.type) {
-        (function (messageType) {
-          tab.addEventListener('click', function (event) {
-            event.preventDefault();
-            event.stopPropagation();
-            try {
-              if (window.mobileApp && window.mobileApp.postMessage) {
-                var nativeTarget = messageType === 'openOrders' ? 'orders' : (messageType === 'openCart' ? 'cart' : 'profile');
-                if (typeof window.mobileApp.navigate === 'function') {
-                  window.mobileApp.navigate(nativeTarget);
-                } else {
-                  window.mobileApp.postMessage({ detail: { type: messageType } });
-                  if (typeof window.mobileApp.hide === 'function') window.mobileApp.hide();
-                }
-              }
-            } catch (e) {}
-          }, true);
-        })(item.type);
+        tab.setAttribute('data-otlobli-nav-type', item.type);
       }
       nav.appendChild(tab);
     }

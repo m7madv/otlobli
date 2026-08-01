@@ -1,6 +1,16 @@
 # Otlobli Current State
 
-Last updated: 2026-07-30
+Last updated: 2026-08-01
+
+## v86.35 SHEIN product-options drawer navigation (2026-08-01)
+
+- Current marker is `2026.08.01-v86.35-shein-options-drawer-nav`; Android/iOS are `895/86.35`. The selected-price and SKU capture paths from v86.33/v86.34 are intentionally unchanged.
+- Root cause: `otlobliNavShouldYield()` disabled `pointer-events` for the entire visible Otlobli bar whenever a full-screen SHEIN product-options backdrop geometrically overlapped it. It now yields only when `otlobliNavIsActuallyCovered()` proves SHEIN is actually painted over the bar.
+- A document-start `touchend`/click bridge routes tabs to native before SHEIN's modal capture listener can cancel the synthetic click. A bounded `450ms` timestamp deduplicates touch + click; no timer, polling, reload, WebView rebuild, price, region, or SKU logic was added.
+- Playwright at `430×932` reproduced the old geometry result, kept nav `pointer-events:auto`, routed `cart → orders → profile` exactly once each, and kept the drawer's `M` option interactive. Screenshot: `output/playwright/v86.35-options-nav.png` (untracked test evidence).
+- `verify:shein-freeze-guard`, production build, performance budget, Android/iOS sync, Android Gradle debug, APK metadata, and `git diff --check` pass. Budgets: JS raw `1,198,537/1,200,000`, JS gzip `359,122/370,000`, CSS `63,029/70,000`, fonts `81,364/100,000`, SHEIN source `548,712/550,000`.
+- Android APK: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.35-shein-options-drawer-nav-debug.apk`; SHA-256 `336074AE7BD25DC59079D51ADD177371EBB63EBBF0A850BFB38FF191E2F31D6C`; size `11,541,524` bytes; metadata confirms `com.otlobli.app`, `86.35/895`. No ADB device or present Windows iPhone device was available for physical acceptance.
+- Real iPhone acceptance is not yet performed; it must cover first-tap navigation with the options drawer open, option selection/add, five resume cycles, and cold launch. Windows cannot build/install a signed iOS app, so no IPA or GitHub iOS run is claimed in this local batch.
 
 ## v86.29 SHEIN selected-price race guard (2026-07-30)
 

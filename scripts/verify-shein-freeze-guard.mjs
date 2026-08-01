@@ -136,6 +136,13 @@ const checks = [
       '&& sheinElementIsVisible(el) && !sheinCovered(el)',
       'function sheinSkuMemo(key, value)',
       "sheinSkuMemo('s', selected)",
+      // v86.35: a visible nav must stay first-tap responsive while SHEIN's
+      // product-options backdrop is open, without stealing a truly covered row.
+      'const OTLOBLI_NAV_TOUCH_BRIDGE_JS',
+      'function otlobliInstallNavTouchBridge()',
+      "window.addEventListener('touchend', routeOtlobliNavTouch",
+      "tab.setAttribute('data-otlobli-nav-type', item.type)",
+      'if (!otlobliNavIsActuallyCovered(nav)) return false;',
       "var metaPrice = parseFloat(getMeta('product:price:amount'))",
       "document.querySelector('.product-price .price-content, .product-intro__head-price, [class*=\"price\" i]')",
       'return !!p.title && !!p.image && p.priceUsd > 0 && (!cs.exists || !!p.color)',

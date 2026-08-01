@@ -2,6 +2,15 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
+## Current candidate (2026-08-01) - v86.35 product-options drawer navigation
+
+- Marker/version: `2026.08.01-v86.35-shein-options-drawer-nav`; Android/iOS `895/86.35`. The user explicitly confirmed the price issue is fixed; do not alter price capture while validating this candidate.
+- The remaining defect was deterministic: the v85.8.12 geometry-only drawer guard set the visible `#otlobli-nav` to `pointer-events:none` whenever the full-screen product-options backdrop overlapped its rectangle. Preserve the new `!otlobliNavIsActuallyCovered(nav)` boundary: a backdrop painted behind Otlobli must not disable it, while a real option painted above it may still receive the tap.
+- Preserve `OTLOBLI_NAV_TOUCH_BRIDGE_JS`, `data-otlobli-nav-type`, the capture-phase `touchend`, and its `450ms` touch/click dedupe. The bridge is installed at documentStart so SHEIN's later modal listener cannot swallow navigation before the button handler.
+- Playwright at `430×932` passes the exact modal-capture regression: old geometry would yield, new hit-test does not, nav remains `auto`, `cart/orders/profile` each fire once, and an SKU option remains clickable. Evidence is untracked under `output/playwright/v86.35-options-nav.png`.
+- Freeze guard, production/performance build, Android/iOS sync, Gradle debug, and APK metadata pass. APK: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.35-shein-options-drawer-nav-debug.apk`; SHA-256 `336074AE7BD25DC59079D51ADD177371EBB63EBBF0A850BFB38FF191E2F31D6C`; `86.35/895`. No physical device was present for this batch.
+- Do not claim iPhone acceptance from Playwright/build. Test the photographed SHEIN options drawer on the real iPhone, including first-tap cart/orders/profile, SKU choice/add, five background/resume cycles, and cold launch. Preserve all v86.34 SKU memo/covered-placeholder and v86.33 price markup logic.
+
 ## Current candidate (2026-07-30) - v86.29 selected-price race guard
 
 - Marker/version: `2026.07.30-v86.29-shein-price-race-guard`; Android/iOS `889/86.29`; auth bypass off. The intermittent symptom is now reproduced: add completion could beat SHEIN's delayed option-price mutation.
