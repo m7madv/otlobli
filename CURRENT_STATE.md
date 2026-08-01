@@ -2,7 +2,15 @@
 
 Last updated: 2026-08-01
 
-## v86.44 SHEIN SKU drawer opened by a real tap (2026-08-01)
+## v86.45 SHEIN SKU drawer, single press (2026-08-01)
+
+- Current marker is `2026.08.01-v86.45-shein-sku-drawer-single-press`; Android/iOS are `905/86.45`. **v86.44 is device-rejected**: "خربت الدنيا ولا شي زابط".
+- Regression cause, and the lesson: `sheinConfirmSkuDrawer()` assumed a drawer covers the row it was opened from. That is false — SHEIN's options drawer is a bottom sheet and the entry row above it stays visible and uncovered. The 450ms probe therefore concluded "did not open" on a drawer that HAD opened, its retry tap closed it again, and the refusal message then appeared on every product. Never verify a UI state with a probe that has not been observed on device; a wrong probe is worse than no probe.
+- Recovery: `src/` was restored to `2dccab9` (v86.43) in full, then only the requested behaviour was re-applied. The complete functional delta against v86.43 is now: `sheinSkuTap.ts` interpolated into the capture script, the `انقر للشراء` pattern moved to the shared `OTLOBLI_SKU_PROMPT` constant (identical semantics), `entry.click()` replaced by one real tap on the chip, and the dead `debugSnapshot` removed. No timer, no retry, no new refusal message.
+- The user's requirement, restated from their own words: on a product whose colour/size lives behind a separate screen (`انقر للشراء`), pressing `أضف للسلة` must immediately press `انقر للشراء` so SHEIN opens its own selection panel.
+- Budgets as CI sees them (LF endings, realistic secret lengths): JS raw `1,198,715/1,200,000` — headroom `1,285` bytes, against `154` for v86.43 — gzip `357,786/370,000`, SHEIN source `545,598/550,000`; freeze guard OK. Syntax check and the four-scenario tap harness pass.
+
+## v86.44 SHEIN SKU drawer opened by a real tap (2026-08-01, device-rejected)
 
 - Current marker is `2026.08.01-v86.44-shein-sku-drawer-tap`; Android/iOS are `904/86.44`. Branch is `claude/shein-drawer-open-fix`, branched from `claude/ios6-cover-fix` at `2dccab9`. Price capture, region logic, payment/wallet paths and the native recompose patch are untouched.
 - Defect: on device the options drawer never opened for `انقر للشراء` products, and the add button gave no feedback at all. v86.43 activated the entry with `entry.click()`, which reaches only listeners bound to `click` on that exact node or an ancestor; SHEIN's mobile PDP binds the options entry with a touch directive on an inner chip, so no listener ran, while `sheinOpenSkuDrawer()` still returned `true` and `addToCartFlow` returned silently. The v86.42 note that "direct `entry.click()` is required" is therefore superseded.

@@ -2,7 +2,16 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
-## Current candidate (2026-08-01) - v86.44 SKU drawer opened by a real tap
+## Current candidate (2026-08-01) - v86.45 SKU drawer, single press
+
+- Marker/version: `2026.08.01-v86.45-shein-sku-drawer-single-press`; Android/iOS `905/86.45`; branch `claude/shein-drawer-open-fix`. v86.44 was device-rejected outright ("خربت الدنيا") and its retry logic is deleted, not disabled.
+- **Do not re-add a confirm/retry timer around the drawer.** v86.44's probe assumed an open drawer covers its entry row; SHEIN's drawer is a bottom sheet, the row stays visible and uncovered, so the timer re-tapped and CLOSED drawers that had opened, then refused the add on every product. If one press proves insufficient, read `__otlobliTapTrace` from the diagnostics `=== الدرج ===` section before touching the code.
+- What must stay: `sheinTapElement()` (deepest node under the target centre; `pointerdown → touchstart → pointerup → touchend`, mouse/click tail only when the page did not cancel the touch) and `sheinSkuPromptNode()` (aim at the `انقر للشراء` chip, not its label row). `sheinOpenSkuDrawer()` presses once and returns.
+- Requirement in the user's own words: on a product whose colour/size sits behind a separate screen, one press on `أضف للسلة` must press `انقر للشراء` for them so SHEIN opens its selection panel.
+- `src/` equals v86.43 (`2dccab9`) plus exactly four things: the `sheinSkuTap` interpolation, the shared `OTLOBLI_SKU_PROMPT` constant, the tap replacing `entry.click()`, and the removal of the dead `debugSnapshot`. Keep it that small until the device confirms.
+- Budget note stands: CI builds `1,230` bytes larger than a secretless local build (Vite inlines the real `VITE_*` values), NOT `~120`. Current CI-equivalent JS raw is `1,198,715/1,200,000`.
+
+## Superseded (2026-08-01) - v86.44 SKU drawer opened by a real tap
 
 - Marker/version: `2026.08.01-v86.44-shein-sku-drawer-tap`; Android/iOS `904/86.44`; branch `claude/shein-drawer-open-fix` off `claude/ios6-cover-fix` (`2dccab9`). v86.43 is device-rejected with "ما فتح": the drawer never opened and the add button said nothing.
 - Superseded guidance: v86.42's "direct `entry.click()` is required for SHEIN's delegated product-drawer row" is wrong. `.click()` only reaches `click` listeners on that node or an ancestor, and the mobile options entry is bound with a touch directive on an inner chip.
