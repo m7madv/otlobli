@@ -1,4 +1,5 @@
 import cairoArabicFontDataUrl from '@fontsource-variable/cairo/files/cairo-arabic-wght-normal.woff2?inline'
+import { OTLOBLI_SKU_TAP_JS } from './sheinSkuTap'
 
 const OTLOBLI_CAIRO_FONT_CSS =
   '@font-face{font-family:"OtlobliCairo";src:url("' + cairoArabicFontDataUrl + '") format("woff2");font-style:normal;font-weight:200 1000;font-display:block;}'
@@ -3388,6 +3389,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return m[key] || '';
   }
 
+  ${OTLOBLI_SKU_TAP_JS}
+
   function sheinSkuSelectionEntry() {
     if (!IS_SHEIN || !document.body) return null;
     var titles = document.querySelectorAll('.goods-size__title,[class*="size__title" i]');
@@ -3405,10 +3408,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (el.children && el.children.length > 3) continue;
       var t = (el.textContent || '').replace(/\\s+/g, ' ').trim();
       if (!t || t.length > 30) continue;
-      if (/انقر للشراء|please\\s*select|الرجاء الاختيار|يرجى الاختيار|اختر الخيارات/i.test(t)
-          && sheinElementIsVisible(el) && !sheinCovered(el)) {
-        return el;
-      }
+      if (OTLOBLI_SKU_PROMPT.test(t) && sheinElementIsVisible(el) && !sheinCovered(el)) return el;
     }
     return null;
   }
@@ -3430,7 +3430,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (entry) {
       __otlobliSheinDrawerPath = location.pathname;
       __otlobliSkuMemo[location.pathname] = {};
-      try { entry.click(); } catch (e) { return false; }
+      sheinTapElement(sheinSkuPromptNode(entry) || entry);
+      sheinConfirmSkuDrawer(entry, 0);
       return true;
     }
     // No entry resolved, yet a range ("من") price is still printed - that only

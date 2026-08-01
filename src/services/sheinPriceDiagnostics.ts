@@ -133,6 +133,13 @@ export const SHEIN_PRICE_DIAGNOSTICS_SCRIPT = `
       n++;
     }
 
+    add('=== الدرج ===');
+    var ent = go('entry', function () { return D.skuEntry(); });
+    add('صف: ' + (ent ? cls(ent) + ' | ' + txt(ent, 40) : '!! مفقود'));
+    add('لمسة: ' + (window.__otlobliTapTrace || '(لا لمسة بعد)'));
+    add('SIZE_ITEM_HOOK: ' + document.querySelectorAll('.SIZE_ITEM_HOOK').length);
+    add('');
+
     add('=== آخر إضافة ===');
     if (!LAST_ADD) {
       add('(لا إضافة بعد)');
