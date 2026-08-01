@@ -2874,12 +2874,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return realImgSrc(anyImg);
   }
 
-  // The "انقر للشراء" template labels its option groups with BARE Arabic words
-  // ("لون", "مقاس", and the combined "لون / مقاس" summary row), not "اللون" /
-  // "المقاس". indexOf('اللون') never matches "لون", so both containers came
-  // back null on exactly those products: the size was never captured, and
-  // sheinTrackSelectedSkuPrice() returned early so the selected-price observer
-  // never ran - leaving the "من $X" (from/cheapest-variant) head price.
+  // Bare Arabic labels are used inside the "انقر للشراء" drawer.
   var OTLOBLI_COLOR_LABELS = ['اللون', 'لون', 'Color', 'Colour'];
   var OTLOBLI_SIZE_LABELS = ['المقاس', 'مقاس', 'الحجم', 'Size'];
 
@@ -2975,9 +2970,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
         if (headingKey !== 'لون/مقاس' && headingKey !== 'color/size' && headingKey !== 'colour/size') continue;
         var next = combinedTitles[c].nextElementSibling;
         var summary = normalizedOptionText(next && next.textContent);
-        if (!summary) {
-          var row = normalizedOptionText(combinedTitles[c].parentElement && combinedTitles[c].parentElement.textContent);
-          if (row.indexOf(heading) === 0) summary = row.slice(heading.length).trim();
+        var scope = combinedTitles[c];
+        for (var h = 0; !summary && h < 3 && scope !== container; h++) {
+          scope = scope.parentElement;
+          var row = normalizedOptionText(scope && scope.textContent);
+          if (row.indexOf(heading) === 0 && row.length < 60) summary = row.slice(heading.length).trim();
         }
         var chosen = summary.split('/');
         var first = normalizedOptionText(chosen[0]);

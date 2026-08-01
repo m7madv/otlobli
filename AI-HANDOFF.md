@@ -2,6 +2,14 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
+## Current candidate (2026-08-01) - v86.37 nested combined-size summary
+
+- Marker/version: `2026.08.01-v86.37-shein-nested-combined-size`; Android/iOS `897/86.37`. v86.36 is device-rejected: its one-level relationship assumption still sent `رمادي`, despite the visible `رمادي / كبير` summary.
+- Preserve the bounded ancestor walk in `completeSelectedCompoundSize()`: at most three levels, never beyond the detected container, exact heading, row shorter than 60, and exact equality between the first combined segment and the selected descendant. Do not replace it with page-text inference or option-stock parsing.
+- The device-shaped nested fixture fails before and passes after: `صينية من الخشب الصلب|رمادي / كبير` is used by diagnostic, selected-price key, and add payload. Normal `L`, legacy `M / 1PC`, and price `14.43/selected-mutation` pass unchanged.
+- Freeze/performance build, native sync, Gradle, and APK metadata pass. APK: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.37-shein-nested-combined-size-debug.apk`; SHA-256 `C0A98346368A80111F69C0C61FE0532530190F9D286C3E7D3CE27E366DD174A1`; `86.37/897`.
+- Real iPhone acceptance remains mandatory; require the full key/selected/last-add/cart evidence and retain five resume cycles plus cold launch. Preserve v86.35 navigation, v86.34 SKU memo, v86.33 price selectors, signed region guard, and all native recompose timing.
+
 ## Current candidate (2026-08-01) - v86.36 combined color/size capture
 
 - Marker/version: `2026.08.01-v86.36-shein-combined-color-size`; Android/iOS `896/86.36`. Do not change price capture: the user confirmed it is fixed, and the exact regression still posts `14.43/selected-mutation`.

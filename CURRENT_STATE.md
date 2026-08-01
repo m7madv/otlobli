@@ -2,6 +2,16 @@
 
 Last updated: 2026-08-01
 
+## v86.37 SHEIN nested combined-size summary (2026-08-01)
+
+- Current marker is `2026.08.01-v86.37-shein-nested-combined-size`; Android/iOS are `897/86.37`. The user rejected v86.36 on the real iPhone: the diagnostic and last add still reported `صينية من الخشب الصلب|رمادي`, while the same DOM visibly reported `لون / مقاس` then `رمادي / كبير`.
+- Root cause: v86.36 handled a direct sibling or direct parent only. The real `goods-detail__top-other` markup wraps the heading and value separately, so the heading's direct parent contains only `لون / مقاس`; the combined row exists higher in the already-detected size container.
+- The completion now walks at most three ancestors from the exact `.goods-size__title`, never beyond the detected size container. It accepts only a row shorter than 60 characters that begins with the exact combined heading and whose first summary segment exactly equals the selected descendant. It adds no page scan, timer, observer, reload, or price change.
+- Full-script Playwright with the nested wrappers reproduced v86.36 exactly (`size/key/payload=رمادي`, price `14.43`) and passes after the fix with all three equal to `رمادي / كبير`; normal `L` and legacy `M / 1PC` still pass. Price remains `14.43/selected-mutation`.
+- Freeze guard, production/performance build, Android/iOS sync, Gradle debug, and APK metadata pass. Budgets: JS raw `1,199,257/1,200,000`, JS gzip `359,246/370,000`, CSS `63,029/70,000`, fonts `81,364/100,000`, SHEIN source `549,430/550,000`.
+- Android APK: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.37-shein-nested-combined-size-debug.apk`; SHA-256 `C0A98346368A80111F69C0C61FE0532530190F9D286C3E7D3CE27E366DD174A1`; size `11,125,854` bytes; metadata confirms `com.otlobli.app`, `86.37/897`. No ADB device was connected for physical acceptance.
+- Real iPhone acceptance is not yet performed for v86.37. The exact diagnostic must show `مفتاح: [صينية من الخشب الصلب|رمادي / كبير]`, `مختار: [رمادي / كبير]`, and the last add/cart line must include `كبير`.
+
 ## v86.36 SHEIN combined color/size capture (2026-08-01)
 
 - Current marker is `2026.08.01-v86.36-shein-combined-color-size`; Android/iOS are `896/86.36`. Price capture is intentionally unchanged because the user confirmed it is fixed.
