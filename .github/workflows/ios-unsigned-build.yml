@@ -11,6 +11,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Read the version from the project instead of hardcoding it: a stale
+      # literal shipped IPAs named after a version they did not contain.
+      - name: Resolve app version
+        id: appver
+        run: |
+          version=$(grep -m1 'MARKETING_VERSION = ' ios/App/App.xcodeproj/project.pbxproj | sed 's/.*MARKETING_VERSION = //; s/;//' | tr -d ' ')
+          if [ -z "$version" ]; then echo "MARKETING_VERSION not found" >&2; exit 1; fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Building iOS v$version"
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -76,13 +86,16 @@ jobs:
 
       - name: Package unsigned IPA
         working-directory: ios/App
+        env:
+          APP_VERSION: ${{ steps.appver.outputs.version }}
         run: |
           mkdir -p Payload
           cp -r build/Build/Products/Release-iphoneos/App.app Payload/
-          zip -r otlobli-v86.42-iphone16-unsigned.ipa Payload
+          zip -r "otlobli-v${APP_VERSION}-iphone16-unsigned.ipa" Payload
+          shasum -a 256 "otlobli-v${APP_VERSION}-iphone16-unsigned.ipa"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: otlobli-ios-v86.42-iphone16
-          path: ios/App/otlobli-v86.42-iphone16-unsigned.ipa
+          name: otlobli-ios-v${{ steps.appver.outputs.version }}-iphone16
+          path: ios/App/otlobli-v${{ steps.appver.outputs.version }}-iphone16-unsigned.ipa
           retention-days: 30
