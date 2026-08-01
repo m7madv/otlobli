@@ -2,14 +2,14 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
-## Current candidate (2026-08-01) - v86.41 shipping guard and drawer reopen
+## Current candidate (2026-08-01) - v86.42 image swatches and inline sizes
 
-- Marker/version: `2026.08.01-v86.41-shein-shipping-add-guard-drawer-reopen`; Android/iOS `901/86.41`. Preserve v86.40 compound capture: the user confirmed color and size are now correct, and price remains fixed/unchanged.
-- `sheinOpenSkuDrawer()` is also the fail-closed shipping boundary. On every add tap it invalidates the shipping-root cache, verifies the real painted shipping root, clears `__otlobliSheinDrawerPath` and the current SKU memo, shows the close-shipping message, and returns handled. Never capture or add while that root is open.
-- Preserve the viewport intersection in `sheinDrawerCompoundSizeState()`. SHEIN retains a closed option drawer offscreen with positive dimensions; such groups are not active and must not suppress reopening. Preserve returning/clicking the full exact `.goods-detail__top-other` row, not only its inner text.
-- Full-script proof blocks shipping with no open/add, opens the product drawer after shipping closes, reopens an offscreen retained drawer, then sends `صينية من الخشب الصلب | بيج / كبير | $14.66`. v86.40/v86.39/v86.38 cases remain passing.
-- Freeze/performance build, native syncs, Gradle/APK, and GitHub/Xcode run `30698158082` pass. Code commit `760d62f`; inspected APK/IPA paths and hashes are in `CURRENT_STATE.md`. IPA confirms `86.41/901`, shipping/drawer/compound/native markers, and no app-root signature/provisioning.
-- Do not claim real-device acceptance. Test the exact shipping-open and options-reopen sequence plus cart, five resume cycles, and cold launch. Preserve signed-region add guard and native freeze invariants; automatic region switching remains a separate open defect.
+- Marker/version: `2026.08.01-v86.42-shein-image-swatch-color-inline-size-focus`; Android/iOS `902/86.42`. v86.41 is device-rejected for product `p-453254089`: its active `.bs-color__item` produced an empty color, and an unselected inline `0XL–4XL` group did not receive the user. Preserve correct `$19.18/spa-dom` price.
+- Preserve selected-host priority in `findOptionContainer()` and the `j=-1` container-self pass in both `getSelectedWithin()` and `getSelectedColorSwatchImage()`. Image-only active swatches may put the `active` class and image on the container itself, with no descendant selection label.
+- Preserve `sheinPageColorHeading()`: at most four exact `.main-sales-attr-container` nodes, exact `لون/اللون/Color/Colour: value`, and only when no active compound drawer state exists. This changing heading supplies names such as `الأسود`/`الأحمر`; the selected swatch supplies the matching image.
+- `sheinRevealSizeOptions()` scrolls and focuses the real detected size group but never clicks a size. Call it before both missing-size messages. Direct `entry.click()` is required for SHEIN's delegated product-drawer row. Full-script proof sends `الأحمر | 2XL | red.jpg | $19.18` only after a no-add focus step; prior shipping/drawer/compound regressions pass.
+- Freeze/performance build, native syncs, Gradle/APK, and GitHub/Xcode run `30698764256` pass. Code commit `cbeada7`; inspected paths/hashes are in `CURRENT_STATE.md`. IPA confirms `86.42/902`, all new and native freeze markers, and no app-root signature/provisioning.
+- Do not claim real-device acceptance. Test multiple image swatches, inline-size focus and two selected sizes, plus `انقر للشراء`, shipping blocking, five resume cycles, and cold launch. Automatic region switching remains separately open.
 
 ## Current candidate (2026-08-01) - v86.38 externally-rendered combined size
 
