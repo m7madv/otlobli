@@ -2429,7 +2429,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function sheinPriceFromChangedRoot(root) {
     if (!root || !sheinElementIsPainted(root)) return 0;
-    var nodes = root.querySelectorAll('*');
     var best = 0, bestScore = -1;
     var inspect = function (el) {
       if (!sheinElementIsPainted(el)) return;
@@ -2445,17 +2444,73 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (score >= bestScore) { best = value; bestScore = score; }
     };
     inspect(root);
-    for (var i = 0; i < nodes.length && i < 60; i++) inspect(nodes[i]);
+    // Targeted first: the old blind walk stopped at the 60th descendant, and on
+    // products with coupon/flash-sale/member chips the real price node sits past
+    // it, so this returned 0 and getPrice() fell to the JSON-LD base price -
+    // product-dependent, hence "intermittent". Class-targeted lookup finds it
+    // with fewer getComputedStyle calls than before, keeping the v86.23 budget.
+    var priced = root.querySelectorAll('[class*="price" i], [class*="amount" i]');
+    for (var i = 0; i < priced.length && i < 40; i++) inspect(priced[i]);
+    if (bestScore < 0) {
+      var nodes = root.querySelectorAll('*');
+      for (var j = 0; j < nodes.length && j < 80; j++) inspect(nodes[j]);
+    }
     return best;
+  }
+
+  // Recommendation rails sit BELOW the PDP and reuse the generic .product-price
+  // class, so an unscoped scan can read a RECOMMENDED item's price. Explains
+  // different products landing in the cart with one identical price (same rail
+  // on every PDP) and why a restart cleared it (rail not mounted on cold load).
+  var OTLOBLI_PRICE_RAIL_HINT = /recommend|similar|also-?like|you-?may|often-?bought|frequently|related|goods-?list|product-?list|listing|rail|carousel|swiper|slider|footer/i;
+
+  function sheinInRecommendationRail(el) {
+    var node = el, depth = 0;
+    while (node && node !== document.body && node !== document.documentElement && depth < 10) {
+      var hint = String(node.className || '') + ' ' + String(node.id || '');
+      if (OTLOBLI_PRICE_RAIL_HINT.test(hint)) return true;
+      node = node.parentElement;
+      depth++;
+    }
+    return false;
+  }
+
+  // The PDP block owning this product's name + price, used to scope the generic
+  // .product-price fallback so it can never reach a rail below.
+  function sheinPdpPriceScope() {
+    var anchor = document.querySelector('.product-intro__head-price') ||
+      document.querySelector('.product-intro__head-name');
+    if (anchor) {
+      var box = (anchor.closest && anchor.closest('.product-intro')) || anchor.parentElement;
+      if (box) return box;
+    }
+    var name = document.querySelector('.product-intro__head-name') || document.querySelector('h1');
+    var node = name, depth = 0;
+    while (node && node !== document.body && depth < 6) {
+      if (node.querySelector && node.querySelector('.product-price, [class*="head-price" i]')) return node;
+      node = node.parentElement;
+      depth++;
+    }
+    return null;
   }
 
   function sheinSpaRoutePrice() {
     if (!IS_SHEIN) return 0;
-    var roots = document.querySelectorAll('.product-intro__head-price');
-    if (!roots.length) roots = document.querySelectorAll('.product-price');
+    // 1) Head-price class is header-only, never a rail, so keep v86.23's "last
+    //    painted root wins" (SHEIN leaves a stale root and appends the live one).
+    var heads = document.querySelectorAll('.product-intro__head-price');
     var price = 0;
-    for (var i = 0; i < roots.length && i < 8; i++) {
-      var found = sheinPriceFromChangedRoot(roots[i]);
+    for (var i = 0; i < heads.length && i < 8; i++) {
+      var head = sheinPriceFromChangedRoot(heads[i]);
+      if (head > 0) price = head;
+    }
+    if (price > 0) return price;
+    // 2) Fallback: generic .product-price, but only inside this product's block.
+    var scope = sheinPdpPriceScope();
+    var roots = (scope || document).querySelectorAll('.product-price');
+    for (var j = 0; j < roots.length && j < 12; j++) {
+      if (sheinInRecommendationRail(roots[j])) continue;
+      var found = sheinPriceFromChangedRoot(roots[j]);
       if (found > 0) price = found;
     }
     return price;
@@ -2543,7 +2598,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var ld = getProductJsonLd();
     if (ld && ld.offers) {
       var offers = Array.isArray(ld.offers) ? ld.offers[0] : ld.offers;
-      var ldPrice = offers && parseFloat(offers.price || offers.lowPrice);
+      // Never offers.lowPrice: it is the CHEAPEST variant, a price the shopper
+      // never saw. Returning 0 makes addToCartFlow block instead of charging it.
+      var ldPrice = offers && parseFloat(offers.price);
       if (ldPrice > 0) { __otlobliSkuPriceSource = 'json'; return ldPrice; }
     }
     var metaPrice = parseFloat(getMeta('product:price:amount'));
@@ -4967,9 +5024,21 @@ export const SHEIN_CAPTURE_SCRIPT = `
       };
     }
     var sheinCustomReq = sheinCustomRequirements();
+    // Resolve price before the payload so the source describes THIS read, and
+    // ship it: the source used to be computed then dropped, so a wrong price on
+    // a real device gave no way to tell which branch produced it.
+    var sheinPriceUsd = getPrice();
+    var sheinPriceSource = __otlobliSkuPriceSource;
+    try {
+      console.log('[otlobli][shein-price] usd=' + sheinPriceUsd +
+        ' source=' + sheinPriceSource +
+        ' sel=' + sheinCurrentSelectionKey() +
+        ' path=' + location.pathname);
+    } catch (e) {}
     return {
       title: getTitle(allowGenericTitle),
-      priceUsd: getPrice(),
+      priceUsd: sheinPriceUsd,
+      priceSource: sheinPriceSource,
       // Main product photo - always the gallery/hero image, never swapped
       // for the (much smaller) color swatch crop. The swatch travels
       // separately as colorImage so the app can show both.

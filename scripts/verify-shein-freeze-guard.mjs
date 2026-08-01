@@ -109,7 +109,16 @@ const checks = [
       'stableNavHost.appendChild(nav)',
       'function completeSelectedCompoundSize(container, selected)',
       'completeSelectedCompoundSize(container, getSelectedWithin(container))',
-      'var ldPrice = offers && parseFloat(offers.price || offers.lowPrice)',
+      // v86.30: offers.lowPrice is the CHEAPEST variant and must never be a
+      // price source. JSON stays a fallback, but only via offers.price.
+      'var ldPrice = offers && parseFloat(offers.price)',
+      // v86.30: PDP price roots must stay scoped away from recommendation rails.
+      'OTLOBLI_PRICE_RAIL_HINT',
+      'function sheinInRecommendationRail(el)',
+      'function sheinPdpPriceScope()',
+      'if (sheinInRecommendationRail(roots[j])) continue',
+      // v86.30: the captured price must carry the branch that produced it.
+      'priceSource: sheinPriceSource',
       "var metaPrice = parseFloat(getMeta('product:price:amount'))",
       "document.querySelector('.product-price .price-content, .product-intro__head-price, [class*=\"price\" i]')",
       'return !!p.title && !!p.image && p.priceUsd > 0 && (!cs.exists || !!p.color)',

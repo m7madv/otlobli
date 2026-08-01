@@ -17,4 +17,4 @@ export const SOURCE_COUNTRY: 'JO' | 'LB' | 'SA' = 'SA'
 export const TEST_ONLY_AUTH_BYPASS = false
 
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '2026.07.30-v86.29-shein-price-race-guard'
+export const APP_VERSION = '2026.08.01-v86.30-shein-price-rail-scope'
