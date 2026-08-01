@@ -2,7 +2,16 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
-## Current candidate (2026-08-01) - v86.45 SKU drawer, single press
+## Current candidate (2026-08-01) - v86.46 reveal the opened options
+
+- Marker/version: `2026.08.01-v86.46-shein-reveal-sku-options`; Android/iOS `906/86.46`; branch `claude/shein-drawer-open-fix`, commit `47b216b`.
+- **Diagnose on the Note 8 before writing code.** It is on ADB and the app's WebView is debuggable: `adb forward tcp:9222 localabstract:webview_devtools_remote_$(adb shell pidof com.otlobli.app)`, then CDP `Runtime.evaluate` against the `m.shein.com` page. Three blind releases (v86.43/44/45) cost a day; the device answered in an hour.
+- The lesson those three encode: the press was already working. `.SIZE_ITEM_HOOK 0 -> 2` after every press, yet SHEIN renders the revealed groups ~500 CSS px below the fold, so the screen never changed and the user reported that nothing happens. Verify the *user-visible* result, not the DOM side effect.
+- Keep `sheinRevealSkuOptions()`: last `.SIZE_ITEM_HOOK` scrolled to centre, 280ms after the press, five retries. Keep `sheinTapElement`/`sheinSkuPromptNode`. Do NOT add a confirm/retry timer around the press (v86.44's mistake) - re-tapping undoes it.
+- Real control: `li.j-select-to-buy.goods-size__click-to-buy` > `span.capsule-box`. A plain `.click()` activates it; the tap sequence is retained because it also covers touch-bound markup.
+- Android device acceptance done for the reveal (screenshot + rects). iPhone acceptance still owed, plus five resume cycles and a cold launch.
+
+## Superseded (2026-08-01) - v86.45 SKU drawer, single press
 
 - Marker/version: `2026.08.01-v86.45-shein-sku-drawer-single-press`; Android/iOS `905/86.45`; branch `claude/shein-drawer-open-fix`. v86.44 was device-rejected outright ("خربت الدنيا") and its retry logic is deleted, not disabled.
 - **Do not re-add a confirm/retry timer around the drawer.** v86.44's probe assumed an open drawer covers its entry row; SHEIN's drawer is a bottom sheet, the row stays visible and uncovered, so the timer re-tapped and CLOSED drawers that had opened, then refused the add on every product. If one press proves insufficient, read `__otlobliTapTrace` from the diagnostics `=== الدرج ===` section before touching the code.

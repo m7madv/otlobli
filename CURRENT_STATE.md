@@ -2,6 +2,17 @@
 
 Last updated: 2026-08-01
 
+## v86.46 SHEIN reveals the options it opened (2026-08-01)
+
+- Current marker is `2026.08.01-v86.46-shein-reveal-sku-options`; Android/iOS are `906/86.46`. Branch `claude/shein-drawer-open-fix`, commit `47b216b`.
+- **First fix in this series diagnosed on real hardware instead of inferred.** The user's Note 8 (SM-N950F) is reachable over ADB and the app's WebView exposes `@webview_devtools_remote_<pid>`, so the live SHEIN DOM was inspected over CDP (hand-rolled WebSocket client, no deps) while the app ran.
+- What the device proved, against every earlier assumption: **v86.45 already worked.** Pressing `أضف للسلة` recorded `__otlobliTapTrace = SPAN.capsule-box touch=1 cancel=0`, `.SIZE_ITEM_HOOK` went `0 -> 2` and four `.sui-drawer` nodes appeared - SHEIN *did* open the selection. But it renders the revealed `نوع الموديلات` / `مقاس` groups roughly 500 CSS px below the fold, so not one pixel of the screen changed and the user correctly reported `لا يحدث شيء أبدا`. The press was never the missing piece; showing its result was.
+- Also measured, and worth keeping: the real control is `li.j-select-to-buy.goods-size__click-to-buy` (SHEIN's `j-` prefix marks a JS hook) wrapping `span.capsule-box`; a plain `.click()` on it works once it is on screen; the entry row sits below the viewport at rest, which is why `sheinTapElement` clamps its coordinates - harmless, because the event target and its bubble path are what matter.
+- `sheinRevealSkuOptions()` (in `sheinSkuTap.ts`) scrolls the last `.SIZE_ITEM_HOOK` to centre 280ms after the press, retrying up to five times while SHEIN renders. Nothing else changed.
+- Device acceptance for the fix itself, on `Jewelry-Tray-Organizer...` (a real `انقر للشراء` product): before the press `SIZE_ITEM_HOOK: 0`; after it `2`, both groups inside the viewport (`394-557` and `593-632` of `773`), and the screenshot shows the colour swatches, all sixteen `نوع الموديلات` options and `مقاس`. Verified on the Android build of the same source; iPhone acceptance is still owed.
+- GitHub/Xcode run `30704341295` passed (CI reported JS raw `1,199,011/1,200,000`, freeze guard OK). Unsigned IPA on the Desktop: `otlobli-v86.46-iphone16-unsigned.ipa`; SHA-256 `4DF6FA6DE9809787204E4862DA98160F5D97A6022D28C6B508D4D4D2BCD80FF9` (matches CI); size `7,068,834` bytes; inspection confirms `86.46/906`, `sheinRevealSkuOptions` present, `sheinConfirmSkuDrawer`/`entry.click()` absent, native recompose symbols intact.
+- Reproducible diagnosis recipe for the next session, since it collapsed days of blind guessing into one hour: `adb forward tcp:9222 localabstract:webview_devtools_remote_$(adb shell pidof com.otlobli.app)`, then `curl http://127.0.0.1:9222/json` for the `m.shein.com` page and drive `Runtime.evaluate` / `Page.captureScreenshot` over the WebSocket. `adb exec-out screencap -p` shows what the shopper actually sees; keep the screen awake (`settings put system screen_off_timeout`) or captures come back black/stale.
+
 ## v86.45 SHEIN SKU drawer, single press (2026-08-01)
 
 - Current marker is `2026.08.01-v86.45-shein-sku-drawer-single-press`; Android/iOS are `905/86.45`. **v86.44 is device-rejected**: "خربت الدنيا ولا شي زابط".
