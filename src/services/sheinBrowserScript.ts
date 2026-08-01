@@ -3426,7 +3426,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
       __otlobliSheinDrawerPath = location.pathname;
       __otlobliSkuMemo[location.pathname] = {};
       sheinTapElement(sheinSkuPromptNode(entry) || entry);
-      sheinConfirmSkuDrawer(entry, 0);
       return true;
     }
     // No entry resolved, yet a range ("من") price is still printed - that only

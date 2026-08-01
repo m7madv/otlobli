@@ -30,12 +30,13 @@
 // sheinSkuPromptNode aims at the chip that literally reads "انقر للشراء" - the
 // control the shopper taps - rather than the row, which is only its label.
 //
-// sheinConfirmSkuDrawer probes the result: a drawer that opened covers the row
-// it came from, so a row that is still visible AND still uncovered means
-// nothing opened. That is the one probe that does not depend on SHEIN's class
-// names, which change without warning. Round 1 aims at the row itself, a
-// different node than round 0's chip; after that it says so, because silently
-// swallowing the tap is exactly what the user reported.
+// One tap and nothing else. v86.44 also ran a confirm/retry timer that re-tapped
+// the row after 450ms when it could not prove the drawer had opened. That probe
+// was wrong: SHEIN's drawer is a bottom sheet and the entry row above it stays
+// visible and uncovered, so the timer fired on a drawer that HAD opened, the
+// second tap closed it again, and the user got a refusal message on every
+// product. Device verdict on v86.44 was "خربت الدنيا". Never re-tap blind: if a
+// single press is not enough, diagnose with __otlobliTapTrace first.
 export const OTLOBLI_SKU_TAP_JS = `
   var OTLOBLI_SKU_PROMPT = /انقر للشراء|please\\s*select|الرجاء الاختيار|يرجى الاختيار|اختر الخيارات/i;
 
@@ -100,13 +101,4 @@ export const OTLOBLI_SKU_TAP_JS = `
     return null;
   }
 
-  function sheinConfirmSkuDrawer(entry, round) {
-    setTimeout(function () {
-      if (sheinDrawerCompoundSizeState()) return;
-      if (!(entry.isConnected && sheinElementIsVisible(entry) && !sheinCovered(entry))) return;
-      if (round < 1) { sheinTapElement(entry); sheinConfirmSkuDrawer(entry, round + 1); return; }
-      __otlobliSheinDrawerPath = '';
-      showMessage(document.getElementById('otlobli-add-btn'), 'اضغط "لون/مقاس" واختر ثم أضف');
-    }, 450);
-  }
 `
