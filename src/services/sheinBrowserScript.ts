@@ -2884,7 +2884,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var inView = rect.bottom > 0 && rect.right > 0 &&
         rect.top < (document.documentElement.clientHeight || 0) &&
         rect.left < (document.documentElement.clientWidth || 0);
-      if (inView && sheinElementIsVisible(el) && !sheinCovered(el) && opts.length < activeCount) {
+      var picked = isSelectedSwatchEl(el) && (!active || !isSelectedSwatchEl(active));
+      if (inView && sheinElementIsVisible(el) && !sheinCovered(el) && (opts.length < activeCount || picked)) {
         active = el;
         activeCount = opts.length;
       }
@@ -2949,8 +2950,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function getSelectedWithin(container) {
     if (!container) return '';
     var nodes = container.querySelectorAll('*');
-    for (var j = 0; j < nodes.length; j++) {
-      var el = nodes[j];
+    for (var j = -1; j < nodes.length; j++) {
+      var el = j < 0 ? container : nodes[j];
       if (isSelectedSwatchEl(el)) {
         var label = el.getAttribute('aria-label') || el.getAttribute('title') ||
           el.getAttribute('data-color') || el.getAttribute('data-name') || el.getAttribute('data-value') ||
@@ -3042,12 +3043,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return pickedSize ? pickedSize + ' / ' + selected : selected;
   }
 
-  // The most reliable, class-name-agnostic way to read "which color is
-  // currently selected": almost every shopping site prints it as plain text
-  // next to the attribute's own label, e.g. "اللون: Apricot" or "Color: Black"
-  // - look for any short text node containing one of those label words and
-  // take whatever follows the separator (":" / "(" / "-"). This depends only
-  // on the visible wording, not on guessing SHEIN's current CSS classes.
   function getAttrLabelValue(container, labelWords) {
     if (!container) return '';
     var scope = container.parentElement || container;
@@ -3071,11 +3066,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return '';
   }
 
-  // SHEIN often shows a generic swatch badge ("multicolor" thumbnail, a plain
-  // dot, etc.) but prints the actual precise color name as a separate text
-  // label next to/above the swatch row (e.g. "اللون: Apricot"), outside the
-  // swatch list itself. When that label exists it's far more accurate than
-  // anything we can infer from the swatch element, so prefer it.
   function getColorHeadingLabel(container) {
     if (!container) return '';
     var scope = container.parentElement;
@@ -3094,14 +3084,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return '';
   }
 
-  // The color swatch the user picked is the single most reliable source for a
-  // "this is exactly the color they chose" photo - SHEIN renders each swatch
-  // as either a small cropped <img> or a CSS background-image of the actual
-  // colorway. The big hero photo can lag a tick behind the swatch click (it
-  // fades/lazy-loads in), so prefer the swatch's own image over it.
-  // Pulls the colorway photo out of one swatch element: its own <img>, its
-  // background-image, or a direct child's background-image (SHEIN sometimes
-  // wraps a small <li>/<button> whose image lives on a child div).
   function isColorBadgeEl(el) {
     if (!el || !el.getBoundingClientRect) return false;
     var text = ((el.textContent || '') + '').replace(/\\s+/g, ' ').trim();
@@ -3254,9 +3236,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // 1) Explicit selection signals (aria-selected/checked, a "selected"/
     //    "active" class, a checked radio).
     var nodes = container.querySelectorAll('*');
-    for (var j = 0; j < nodes.length; j++) {
-      if (!isSelectedSwatchEl(nodes[j])) continue;
-      var im1 = swatchImageFrom(nodes[j]);
+    for (var j = -1; j < nodes.length; j++) {
+      var selectedNode = j < 0 ? container : nodes[j];
+      if (!isSelectedSwatchEl(selectedNode)) continue;
+      var im1 = swatchImageFrom(selectedNode);
       if (im1) return im1;
     }
     // 2) Match the swatch whose own label (alt/title/aria-label) equals the
@@ -3300,9 +3283,20 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return /ألوان متعددة|متعدد الألوان|متعدد الالوان|multi-?colou?r|multi colou?r|assorted/.test(t);
   }
 
+  function sheinPageColorHeading() {
+    var heads = document.querySelectorAll('.main-sales-attr-container');
+    for (var i = 0; i < heads.length && i < 4; i++) {
+      if (!sheinElementIsVisible(heads[i])) continue;
+      var match = normalizedOptionText(heads[i].textContent).match(/^(?:اللون|لون|colou?r)\s*[:：]\s*(.{1,39})$/i);
+      if (match && !looksLikeJunkValue(match[1])) return normalizedOptionText(match[1]);
+    }
+    return '';
+  }
+
   function getColorState() {
     var container = findOptionContainer('color', OTLOBLI_COLOR_LABELS);
-    var labelVal = getAttrLabelValue(container, ['اللون', 'Color', 'color']) || getColorHeadingLabel(container);
+    var pageVal = sheinDrawerCompoundSizeState() ? '' : sheinPageColorHeading();
+    var labelVal = pageVal || getAttrLabelValue(container, ['اللون', 'Color', 'color']) || getColorHeadingLabel(container);
     var swatchVal = getSelectedWithin(container);
     var selected;
     if (labelVal && !isGenericColorName(labelVal)) selected = labelVal;
@@ -3436,8 +3430,18 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (!entry) return false;
     __otlobliSheinDrawerPath = location.pathname;
     __otlobliSkuMemo[location.pathname] = {};
-    try { sheinClosestInteractive(entry).click(); } catch (e) { return false; }
+    try { entry.click(); } catch (e) { return false; }
     return true;
+  }
+
+  function sheinRevealSizeOptions() {
+    var group = findOptionContainer('size', OTLOBLI_SIZE_LABELS);
+    if (!group) return;
+    try {
+      group.scrollIntoView({ block: 'center' });
+      var control = group.querySelector('button:not([disabled]),[role="option"],li');
+      if (control && control.focus) control.focus({ preventScroll: true });
+    } catch (e) {}
   }
 
   function looksLikeProductPage() {
@@ -5242,6 +5246,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         return;
       }
       if (sizeState && sizeState.exists && !sizeState.selected) {
+        sheinRevealSizeOptions();
         showMessage(addBtn, 'حدد المقاس أولاً');
         return;
       }
@@ -5700,6 +5705,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var colorState = getColorState();
         var sizeState = getSizeState();
         if (sizeState.exists && !sizeState.selected) {
+          sheinRevealSizeOptions();
           showMessage(btn, 'حدد المقاس أولاً');
           return;
         }

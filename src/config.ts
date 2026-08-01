@@ -17,4 +17,4 @@ export const SOURCE_COUNTRY: 'JO' | 'LB' | 'SA' = 'SA'
 export const TEST_ONLY_AUTH_BYPASS = false
 
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '2026.08.01-v86.41-shein-shipping-add-guard-drawer-reopen'
+export const APP_VERSION = '2026.08.01-v86.42-shein-image-swatch-color-inline-size-focus'
