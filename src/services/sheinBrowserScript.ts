@@ -2656,9 +2656,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return match ? parseFloat(match[0]) : 0;
   }
 
-  // Diagnostic hook. Exposes the REAL capture internals (never a re-implementation,
-  // which could disagree with what actually ships) so the overlay in
-  // sheinPriceDiagnostics.ts can report ground truth from the device.
   try {
     window.__otlobliDiag = {
       price: getPrice,
@@ -2670,6 +2667,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
       isRange: sheinHeadPriceIsRange,
       spa: sheinSpaRoutePrice,
       key: sheinCurrentSelectionKey,
+      skuEntry: sheinSkuSelectionEntry,
+      openDrawer: sheinOpenSkuDrawer,
       pending: sheinSelectedSkuPricePending,
       saved: function () {
         return {
@@ -2874,17 +2873,45 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return realImgSrc(anyImg);
   }
 
-  // Bare Arabic labels are used inside the "انقر للشراء" drawer.
   var OTLOBLI_COLOR_LABELS = ['اللون', 'لون', 'Color', 'Colour'];
   var OTLOBLI_SIZE_LABELS = ['المقاس', 'مقاس', 'الحجم', 'Size'];
 
   function findOptionContainer(keyword, labelWords) {
     var all = document.querySelectorAll('[class*="' + keyword + '" i]');
+    var fallback = null, active = null, activeCount = 1e9;
     for (var i = 0; i < all.length; i++) {
       var el = all[i];
       var opts = el.querySelectorAll('li, button, [class*="item" i]');
-      if (opts.length >= 2) return el;
+      if (opts.length < 2) continue;
+      fallback = fallback || el;
+      var rect = el.getBoundingClientRect();
+      var inView = rect.bottom > 0 && rect.right > 0 &&
+        rect.top < (document.documentElement.clientHeight || 0) &&
+        rect.left < (document.documentElement.clientWidth || 0);
+      if (inView && sheinElementIsVisible(el) && !sheinCovered(el) && opts.length < activeCount) {
+        active = el;
+        activeCount = opts.length;
+      }
     }
+    if (__otlobliSheinDrawerPath === location.pathname && !active) return null;
+    var base = active || fallback;
+    if (base && active && labelWords) {
+      var heads = base.querySelectorAll('div, span, p, h1, h2, h3, label, b, strong');
+      for (var h = 0; h < heads.length; h++) {
+        var headText = normalizedOptionText(heads[h].textContent).replace(/[:：]$/, '').toLowerCase();
+        var exact = false;
+        for (var lw = 0; lw < labelWords.length; lw++) {
+          if (headText === labelWords[lw].toLowerCase()) { exact = true; break; }
+        }
+        if (!exact) continue;
+        var group = heads[h].parentElement;
+        for (var gh = 0; gh < 3 && group && (group === base || base.contains(group)); gh++) {
+          if (group.querySelectorAll('li, button, [class*="item" i], img').length >= 2) return group;
+          group = group.parentElement;
+        }
+      }
+    }
+    if (base) return base;
     if (labelWords) {
       var candidates = document.querySelectorAll('div, span, p, h1, h2, h3, label, b, strong');
       for (var j = 0; j < candidates.length; j++) {
@@ -2898,7 +2925,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var scope = candidates[j].parentElement;
         for (var hop = 0; hop < 3 && scope; hop++) {
           var opts2 = scope.querySelectorAll('li, button, [class*="item" i], img');
-          if (opts2.length >= 2) return scope;
+          if (opts2.length >= 2 && sheinElementIsVisible(scope) && !sheinCovered(scope)) return scope;
           scope = scope.parentElement;
         }
       }
@@ -3287,11 +3314,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function getColorState() {
     var container = findOptionContainer('color', OTLOBLI_COLOR_LABELS);
-    // The printed "اللون: X" heading is normally the most reliable source, but
-    // when it only yields the generic multicolor label, fall through to the
-    // actually-selected swatch's own name (aria-label/title/data-name), which
-    // is usually the precise colorway. Only settle for the generic word if
-    // nothing more specific exists anywhere.
     var labelVal = getAttrLabelValue(container, ['اللون', 'Color', 'color']) || getColorHeadingLabel(container);
     var swatchVal = getSelectedWithin(container);
     var selected;
@@ -3310,12 +3332,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     for (var i = 0; i < opts.length; i++) {
       var el = opts[i];
       var label = (el.getAttribute('aria-label') || el.getAttribute('title') || el.textContent || '').trim();
-      // Was 12 — tuned for short size codes (S/M/L/38/One Size). But SHEIN's
-      // "نوع الموديلات" variant names are long (e.g. "4 قطع/مجموعة ذهبية"), so a
-      // 12-char cap silently dropped every long option and left just the one
-      // short one ("1 قطعة/أ"), which the single-option auto-select below then
-      // captured as if the customer had chosen it. 40 keeps real variant names
-      // while looksLikeJunkValue still rejects timers/badges.
       if (!label || label.length > 40 || looksLikeJunkValue(label)) continue;
       var cls = ' ' + (el.className || '') + ' ';
       var isDisabled = el.getAttribute('aria-disabled') === 'true' ||
@@ -3354,16 +3370,16 @@ export const SHEIN_CAPTURE_SCRIPT = `
     } catch (e) { return false; }
   }
 
-  // Remembers colour/size per product; the drawer drops the groups when closed.
   var __otlobliSkuMemo = {};
+  var __otlobliSheinDrawerPath = '';
   function sheinSkuMemo(key, value) {
     var m = __otlobliSkuMemo[location.pathname] || (__otlobliSkuMemo[location.pathname] = {});
     if (value) m[key] = value;
     return m[key] || '';
   }
 
-  function sheinSkuSelectionPending() {
-    if (!IS_SHEIN || !document.body) return false;
+  function sheinSkuSelectionEntry() {
+    if (!IS_SHEIN || !document.body) return null;
     var nodes = document.querySelectorAll('div, span, p, a, button');
     for (var i = 0; i < nodes.length; i++) {
       var el = nodes[i];
@@ -3373,10 +3389,19 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (!t || t.length > 30) continue;
       if (/انقر للشراء|please\\s*select|الرجاء الاختيار|يرجى الاختيار|اختر الخيارات/i.test(t)
           && sheinElementIsVisible(el) && !sheinCovered(el)) {
-        return true;
+        return el;
       }
     }
-    return false;
+    return null;
+  }
+
+  function sheinOpenSkuDrawer() {
+    var entry = sheinSkuSelectionEntry();
+    if (!entry) return false;
+    __otlobliSheinDrawerPath = location.pathname;
+    __otlobliSkuMemo[location.pathname] = {};
+    try { sheinClosestInteractive(entry).click(); } catch (e) { return false; }
+    return true;
   }
 
   function looksLikeProductPage() {
@@ -5184,13 +5209,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function debugSnapshot(colorState, sizeState) {}
 
-  // Shared by both add-to-cart entry points (our floating button, and
-  // intercepting SHEIN's own "Add to bag" button): show the freeze/loading
-  // modal, then RETRY scraping the page for up to ~5s. SHEIN is a heavy SPA -
-  // on first tap the hero photo/title can still be mid-render, so a single
-  // immediate read often comes back empty. Polling gives the page time to
-  // finish rendering before we give up on any field, and the overlay updates
-  // live so the user can see it's actively working, not stuck.
   function addToCartFlow(colorState, sizeState) {
     if (document.getElementById('otlobli-overlay')) return;
     if (IS_SHEIN) {
@@ -5199,19 +5217,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
         showMessage(addBtn, 'نثبت منطقة الشحن المختارة والدولار... حاول بعد لحظة');
         return;
       }
+      if (sheinOpenSkuDrawer()) return;
       if (colorState && colorState.exists && !colorState.selected) {
         showMessage(addBtn, 'حدد اللون أولاً');
         return;
       }
       if (sizeState && sizeState.exists && !sizeState.selected) {
         showMessage(addBtn, 'حدد المقاس أولاً');
-        return;
-      }
-      // Authoritative guard: even if the checks above thought a variant was
-      // selected (SHEIN sometimes default-highlights a chip), a visible
-      // "انقر للشراء"/"Please Select" placeholder means nothing is committed yet.
-      if (sheinSkuSelectionPending()) {
-        showMessage(addBtn, 'حدد نوع الموديلات أولاً');
         return;
       }
     }
@@ -5665,6 +5677,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
           addToCartFlow({ exists: false }, { exists: false });
           return;
         }
+        if (sheinOpenSkuDrawer()) return;
         var colorState = getColorState();
         var sizeState = getSizeState();
         if (sizeState.exists && !sizeState.selected) {
