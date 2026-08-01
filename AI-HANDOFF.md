@@ -2,6 +2,16 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
+## Current candidate (2026-08-01) - v86.44 SKU drawer opened by a real tap
+
+- Marker/version: `2026.08.01-v86.44-shein-sku-drawer-tap`; Android/iOS `904/86.44`; branch `claude/shein-drawer-open-fix` off `claude/ios6-cover-fix` (`2dccab9`). v86.43 is device-rejected with "ما فتح": the drawer never opened and the add button said nothing.
+- Superseded guidance: v86.42's "direct `entry.click()` is required for SHEIN's delegated product-drawer row" is wrong. `.click()` only reaches `click` listeners on that node or an ancestor, and the mobile options entry is bound with a touch directive on an inner chip.
+- Preserve `src/services/sheinSkuTap.ts` and its `${OTLOBLI_SKU_TAP_JS}` interpolation next to `sheinSkuSelectionEntry`. It must stay outside `sheinBrowserScript.ts` (source budget) and its explanation must stay outside the template literal (everything inside ships verbatim).
+- Preserve the tap contract in `sheinTapElement()`: deepest node under the target centre, `pointerdown → touchstart → pointerup → touchend`, and the mouse/click tail ONLY when the page did not cancel the touch. Sending it unconditionally double-activates a dual-bound row and toggles the drawer shut. Preserve `sheinConfirmSkuDrawer()`'s coverage probe (a drawer covers its own row) rather than any `.SIZE_ITEM_HOOK`-style class check, and its single retry plus the `اضغط "لون/مقاس" واختر ثم أضف` message - silence is the defect the user reported.
+- Budget reality check before you add anything: CI builds `1,230` bytes larger than a secretless local build (Vite inlines the real `VITE_*` values), NOT `~120` as previously recorded. Measure with LF endings and realistic secret lengths. Current CI-equivalent headroom is `763` bytes on `largest JavaScript raw`.
+- Evidence is logic-level only: injected-script syntax check, a four-scenario synthetic-DOM harness (touch-bound chip, ancestor click, no `TouchEvent`, blocked `elementFromPoint`), freeze guard and production build. No APK/IPA and no device acceptance - build them from this branch's workflows.
+- If it still does not open, do not guess again: read the diagnostics `=== الدرج ===` section. `لمسة:` gives the tapped tag/class, `touch=0` means the engine refused to construct real touch events (then the touch path is unavailable on that WebView and the listener must be reached another way), and `cancel=1` means the page consumed the tap.
+
 ## Current candidate (2026-08-01) - v86.42 image swatches and inline sizes
 
 - Marker/version: `2026.08.01-v86.42-shein-image-swatch-color-inline-size-focus`; Android/iOS `902/86.42`. v86.41 is device-rejected for product `p-453254089`: its active `.bs-color__item` produced an empty color, and an unselected inline `0XL–4XL` group did not receive the user. Preserve correct `$19.18/spa-dom` price.
