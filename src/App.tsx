@@ -4782,7 +4782,7 @@ function App() {
                             decoding="async"
                           />
                         )}
-                        {item.color} آ· {item.size}
+                        {[item.color, item.color !== item.size ? item.size : ''].filter(Boolean).join(' آ· ') || item.size}
                       </p>
                       {(item.needsCustomText || item.needsCustomPhoto) ? (
                         <div className="cart-custom-card">

@@ -2868,11 +2868,23 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var OTLOBLI_COLOR_LABELS = ['اللون', 'لون', 'Color', 'Colour'];
   var OTLOBLI_SIZE_LABELS = ['المقاس', 'مقاس', 'الحجم', 'Size'];
 
+  var QTY_RE = /الكمية|كمية|quantity/i;
+  function sheinIsQuantityEl(el) {
+    if (!el) return false;
+    var t = (el.textContent || '').trim();
+    if (t.length < 20 && QTY_RE.test(t)) return true;
+    var h = el.querySelector && el.querySelector('.goods-size__title');
+    return !!(h && QTY_RE.test(h.textContent || ''));
+  }
+
   function findOptionContainer(keyword, labelWords) {
     var all = document.querySelectorAll('[class*="' + keyword + '" i]');
     var fallback = null, active = null, activeCount = 1e9;
     for (var i = 0; i < all.length; i++) {
       var el = all[i];
+      var cls = ' ' + (el.className || '') + ' ';
+      if (/review|comment|rating|feedback/i.test(cls)) continue;
+      if (IS_SHEIN && sheinIsQuantityEl(el)) continue;
       var opts = el.querySelectorAll('li, button, [class*="item" i]');
       if (opts.length < 2) continue;
       fallback = fallback || el;
@@ -3327,6 +3339,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     for (var i = 0; i < groups.length && i < 6; i++) {
       var group = groups[i];
       if (!sheinElementIsVisible(group) || sheinCovered(group)) continue;
+      if (sheinIsQuantityEl(group)) continue;
       var r = group.getBoundingClientRect();
       if (r.bottom <= 0 || r.right <= 0 || r.top >= innerHeight || r.left >= innerWidth) continue;
       var opts = getSizeOptions(group);
@@ -3997,11 +4010,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var ht = temuCleanText(text);
     if (!ht || ht.length > 58) return false;
     if (/guide|chart|info|\u062f\u0644\u064a\u0644/i.test(ht)) return false;
-    // \u062d\u0627\u0631\u0633 \u0627\u0644\u0631\u0624\u0648\u0633 \u0627\u0644\u0634\u0628\u062d\u064a\u0629 (\u062b\u0628\u062a \u0645\u0646 6 \u0644\u0642\u0637\u0627\u062a \u062c\u0647\u0627\u0632 \u062d\u0642\u064a\u0642\u064a): \u062c\u0645\u0644\u0629 \u0637\u0648\u064a\u0644\u0629 \u0628\u0644\u0627 \u0646\u0642\u0637\u062a\u064a\u0646
-    // \u062a\u0628\u062f\u0623 \u0628\u0643\u0644\u0645\u0629 \u062e\u064a\u0627\u0631 ("\u0645\u0642\u0627\u0633 \u0647\u0630\u0627 \u0627\u0644\u0645\u0646\u062a\u062c \u0645\u0648\u0627\u0641\u0642 \u0644\u0644\u062d\u062c\u0645 \u0627\u0644\u062d\u0642\u064a\u0642\u064a"\u060c "\u0633\u0639\u0629 10000 \u0645\u0644\u0644\u064a
-    // \u0623\u0645\u0628\u064a\u0631") = \u0646\u0635\u0651 \u0648\u0635\u0641\u064a \u0644\u0627 \u0631\u0623\u0633\u064e \u0642\u0633\u0645 \u2014 \u0643\u0627\u0646\u062a \u062a\u0635\u0646\u0639 "\u0642\u0633\u0645 \u0645\u0642\u0627\u0633" \u0648\u0647\u0645\u064a\u0627\u064b \u0641\u062a\u062d\u062c\u0628
-    // \u0645\u0646\u062a\u062c\u0627\u062a \u0628\u0644\u0627 \u0645\u0642\u0627\u0633\u0627\u062a \u0625\u0637\u0644\u0627\u0642\u0627\u064b (\u0648\u0633\u0627\u062f\u0629/\u0628\u0627\u0648\u0631 \u0628\u0627\u0646\u0643/\u0645\u0627\u0643\u064a\u0646\u0629 \u062d\u0644\u0627\u0642\u0629) \u0628\u0640"\u062d\u062f\u062f \u0627\u0644\u0645\u0642\u0627\u0633
-    // \u0623\u0648\u0644\u0627\u064b". \u0631\u0623\u0633 \u0627\u0644\u0642\u0633\u0645 \u0627\u0644\u062d\u0642\u064a\u0642\u064a \u0625\u0645\u0627 \u0642\u0635\u064a\u0631 ("\u0627\u0644\u0645\u0648\u062f\u064a\u0644") \u0623\u0648 \u064a\u062d\u0645\u0644 \u0646\u0642\u0637\u062a\u064a\u0646 \u0648\u0642\u064a\u0645\u0629.
+    // \u062c\u0645\u0644\u0629 \u0637\u0648\u064a\u0644\u0629 \u0628\u0644\u0627 \u0646\u0642\u0637\u062a\u064a\u0646 = \u0646\u0635 \u0648\u0635\u0641\u064a \u0644\u0627 \u0631\u0623\u0633 \u0642\u0633\u0645
     if (!/[:\uff1a]/.test(ht) && ht.length > 14) return false;
     if (/^(?:Size|Compatible\\s*Model|Model|Style|Type|Memory|Storage|Capacity|RAM|ROM|Items?|Pieces?|PCS)\\s*[:\uff1a]?/i.test(ht)) return true;
     if (/^(?:\u0627\u0644)?(?:\u0645\u0642\u0627\u0633|\u0642\u064a\u0627\u0633|\u062d\u062c\u0645|\u0645\u0648\u062f\u064a\u0644|\u0623\u0633\u0644\u0648\u0628|\u0646\u0645\u0637|\u0646\u0648\u0639|\u0630\u0627\u0643\u0631\u0629|\u0631\u0627\u0645|\u0633\u0639\u0629|\u062a\u062e\u0632\u064a\u0646|\u0623\u063a\u0631\u0627\u0636|\u0627\u063a\u0631\u0627\u0636|\u063a\u0631\u0636|\u0639\u0646\u0635\u0631|\u0639\u0646\u0627\u0635\u0631|\u0642\u0637\u0639|\u0642\u0637\u0639\u0629)\\s*[:\uff1a]?/i.test(ht)) return true;
@@ -5524,19 +5533,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
       btn = document.createElement('button');
       btn.id = 'otlobli-add-btn';
       btn.setAttribute('aria-label', 'إضافة إلى سلة otlobli');
-      // Cleared above ensureOtlobliNav's bar so the two never overlap.
-      // translateZ(0)/will-change forces its own GPU compositing layer: a
-      // documented Android WebView quirk lets plain position:fixed elements
-      // drift with the page during touch-scroll momentum (here: hidden behind
-      // the system nav bar when scrolling back up). No 56px floor needed now
-      // that the native side applies its own bottom margin
-      // (enabledSafeBottomMargin in App.tsx); env() only covers the remaining
-      // gesture-inset.
-      // يُرفع بفجوة ثابتة 16px فوق شريط otlobli السفلي على كل الأجهزة: ارتفاع
-      // الشريط = 74px + max(safe-area,16px)، فنضع الزر عند ذلك + 16px. الصيغة
-      // القديمة (78px + safe-area) كانت تلاصق الشريط (~4px فقط على آيفون بنَقْش)
-      // وتتداخل معه على الأجهزة بلا نَقْش — نستخدم الآن نفس حساب المنطقة الآمنة
-      // للشريط تماماً فتبقى الفجوة ثابتة ومريحة أينما كان.
+      // translateZ forces GPU layer (Android scroll drift fix).
+      // 74px + safe-area + 16px gap above the otlobli nav bar.
       btn.style.cssText = 'position:fixed;right:14px;bottom:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px) + 16px);' +
         'transform:translateZ(0);will-change:transform;' +
         'min-width:128px;height:48px;z-index:2147483647;' +
