@@ -17,4 +17,4 @@ export const SOURCE_COUNTRY: 'JO' | 'LB' | 'SA' = 'SA'
 export const TEST_ONLY_AUTH_BYPASS = false
 
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '2026.08.01-v86.31-shein-clicktobuy-labels'
+export const APP_VERSION = '2026.08.01-v86.32d-price-diagnostics'

@@ -2633,6 +2633,32 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return match ? parseFloat(match[0]) : 0;
   }
 
+  // Diagnostic hook. Exposes the REAL capture internals (never a re-implementation,
+  // which could disagree with what actually ships) so the overlay in
+  // sheinPriceDiagnostics.ts can report ground truth from the device.
+  try {
+    window.__otlobliDiag = {
+      price: getPrice,
+      source: function () { return __otlobliSkuPriceSource; },
+      color: getColorState,
+      size: getSizeState,
+      find: findOptionContainer,
+      labels: function () { return { color: OTLOBLI_COLOR_LABELS, size: OTLOBLI_SIZE_LABELS }; },
+      isRange: sheinHeadPriceIsRange,
+      spa: sheinSpaRoutePrice,
+      key: sheinCurrentSelectionKey,
+      pending: sheinSelectedSkuPricePending,
+      saved: function () {
+        return {
+          price: __otlobliSelectedSkuPrice, key: __otlobliSelectedSkuPriceKey,
+          path: __otlobliSelectedSkuPricePath, at: __otlobliSelectedSkuPriceAt,
+          before: __otlobliSelectedSkuPriceBefore,
+          observing: !!__otlobliSelectedSkuPriceObserver,
+        };
+      },
+    };
+  } catch (e) {}
+
   function normalizeImageUrl(url) {
     if (!url) return '';
     url = url.trim();

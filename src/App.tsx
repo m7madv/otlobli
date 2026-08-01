@@ -30,6 +30,7 @@ import type { AccountAuthMethods, GoogleProfile } from './services/googleAuthApi
 import { registerPushNotifications } from './services/pushNotifications'
 import { OTLOBLI_NAV_BOOTSTRAP_SCRIPT, SHEIN_CAPTURE_SCRIPT } from './services/sheinBrowserScript'
 import { SHEIN_REGION_DIAGNOSTICS_SCRIPT } from './services/sheinRegionDiagnostics'
+import { SHEIN_PRICE_DIAGNOSTICS_SCRIPT } from './services/sheinPriceDiagnostics'
 import { App as CapacitorApp } from '@capacitor/app'
 import { Capacitor } from '@capacitor/core'
 import { BackgroundColor, InAppBrowser, ToolBarType } from '@capgo/capacitor-inappbrowser'
@@ -129,7 +130,9 @@ const buildTemuHomeUrl = (region: StoreRegion) =>
 const SHEIN_HOME_URL = buildSheinHomeUrl(DEFAULT_STORE_REGIONS.shein)
 const TEMU_HOME_URL = buildTemuHomeUrl(DEFAULT_STORE_REGIONS.temu)
 const buildStoreCaptureScript = (regions: StoreRegions) =>
-  `window.__OTLOBLI_STORE_REGIONS__=${JSON.stringify(regions)};\n${SHEIN_REGION_DIAGNOSTICS_SCRIPT}\ntry{\n${SHEIN_CAPTURE_SCRIPT}\n}catch(__otlobliCaptureError){try{window.__otlobliRegionDiagnostic('capture-runtime-error',{message:String(__otlobliCaptureError&&(__otlobliCaptureError.stack||__otlobliCaptureError.message)||__otlobliCaptureError)},'runtime')}catch(__otlobliDiagnosticError){}}`
+  // The price-diagnostics overlay is injected LAST and in its own try block, so
+  // a fault in it can never stop the capture script from running.
+  `window.__OTLOBLI_STORE_REGIONS__=${JSON.stringify(regions)};\n${SHEIN_REGION_DIAGNOSTICS_SCRIPT}\ntry{\n${SHEIN_CAPTURE_SCRIPT}\n}catch(__otlobliCaptureError){try{window.__otlobliRegionDiagnostic('capture-runtime-error',{message:String(__otlobliCaptureError&&(__otlobliCaptureError.stack||__otlobliCaptureError.message)||__otlobliCaptureError)},'runtime')}catch(__otlobliDiagnosticError){}}\ntry{\n${SHEIN_PRICE_DIAGNOSTICS_SCRIPT}\n}catch(__otlobliPriceDiagError){}`
 const SHEIN_CHALLENGE_PATH_RE = /\/(?:cdn-cgi|challenge|captcha|verify|verification|security|robot|risk|anti[-_]?bot|human)(?:\/|\?|#|$)/i
 const SHEIN_CHALLENGE_QUERY_RE = /(?:^|[?&#])(?:captcha|challenge|verification|security_token|risk|robot|anti[-_]?bot|human)=/i
 // يكشف موقع خروج الإنترنت الحالي (بلد/منطقة الـVPN فعلياً) عبر خدمتي geo
