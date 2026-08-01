@@ -2,6 +2,16 @@
 
 Last updated: 2026-08-01
 
+## v86.36 SHEIN combined color/size capture (2026-08-01)
+
+- Current marker is `2026.08.01-v86.36-shein-combined-color-size`; Android/iOS are `896/86.36`. Price capture is intentionally unchanged because the user confirmed it is fixed.
+- The photographed product exposes one size container whose first selected descendant is `رمادي`, while its authoritative adjacent `لون / مقاس` summary is `رمادي / كبير`. The old generic getter stopped at that first descendant, so the cart received the color correctly but lost `كبير`.
+- `completeSelectedCompoundSize()` now accepts a combined summary only inside the already-detected size container, only for the exact headings `لون / مقاس`, `color / size`, or `colour / size`, and only when the summary's first segment exactly equals the selected descendant. It then returns the full value (`رمادي / كبير`). The existing `M / 1PC`/`CP1` exception and normal single sizes remain unchanged.
+- Full-script Playwright reproduced the defect before the change (`size=رمادي`) and passes after it with diagnostic/payload/key all equal to `رمادي / كبير`; normal `L` and legacy `M / 1PC` also pass. The captured price stays `14.43` with source `selected-mutation`.
+- Freeze guard, production build, performance budget, Android/iOS sync, Android Gradle debug, and APK metadata pass. Budgets: JS raw `1,199,595/1,200,000`, JS gzip `359,371/370,000`, CSS `63,029/70,000`, fonts `81,364/100,000`, SHEIN source `549,769/550,000`.
+- Android APK: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.36-shein-combined-color-size-debug.apk`; SHA-256 `6DC49B83FD3E46281528A5C4499588CC2F9857318A47C4E4C534F8AF6E2F8143`; size `11,125,978` bytes; metadata confirms `com.otlobli.app`, `86.36/896`. No ADB device was connected for physical acceptance.
+- Real iPhone acceptance is still required on the exact product: select the photographed model, then `رمادي / كبير`, add it, and confirm the cart line contains both segments. Also retain the mandatory five background/resume cycles and cold launch; browser/build evidence alone is not device acceptance.
+
 ## v86.35 SHEIN product-options drawer navigation (2026-08-01)
 
 - Current marker is `2026.08.01-v86.35-shein-options-drawer-nav`; Android/iOS are `895/86.35`. The selected-price and SKU capture paths from v86.33/v86.34 are intentionally unchanged.

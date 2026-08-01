@@ -2965,9 +2965,26 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return /^(?:xxs|xs|s|m|l|xl|xxl|xxxl|one\\s*size|[2-9]\\d|[1-9]\\d{2})$/i.test(text) ? text : '';
   }
 
-  // Narrow exception only: complete a selected 1PC with a size that is also
-  // explicitly selected inside the same option container.
+  // Complete an explicit combined summary or the legacy 1PC + size.
   function completeSelectedCompoundSize(container, selected) {
+    if (container && selected) {
+      var combinedTitles = container.querySelectorAll('.goods-size__title,[class*="size__title" i]');
+      for (var c = 0; c < combinedTitles.length && c < 4; c++) {
+        var heading = normalizedOptionText(combinedTitles[c].textContent);
+        var headingKey = heading.replace(/\\s+/g, '').toLowerCase();
+        if (headingKey !== 'لون/مقاس' && headingKey !== 'color/size' && headingKey !== 'colour/size') continue;
+        var next = combinedTitles[c].nextElementSibling;
+        var summary = normalizedOptionText(next && next.textContent);
+        if (!summary) {
+          var row = normalizedOptionText(combinedTitles[c].parentElement && combinedTitles[c].parentElement.textContent);
+          if (row.indexOf(heading) === 0) summary = row.slice(heading.length).trim();
+        }
+        var chosen = summary.split('/');
+        var first = normalizedOptionText(chosen[0]);
+        var rest = normalizedOptionText(chosen.slice(1).join(' / '));
+        if (summary.length < 60 && first === normalizedOptionText(selected) && rest) return first + ' / ' + rest;
+      }
+    }
     var pieceKey = sheinPieceCountKey(selected);
     if (!container || !pieceKey) return selected;
     var nodes = container.querySelectorAll('*');

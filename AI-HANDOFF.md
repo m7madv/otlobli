@@ -2,6 +2,14 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
+## Current candidate (2026-08-01) - v86.36 combined color/size capture
+
+- Marker/version: `2026.08.01-v86.36-shein-combined-color-size`; Android/iOS `896/86.36`. Do not change price capture: the user confirmed it is fixed, and the exact regression still posts `14.43/selected-mutation`.
+- Root cause is proven from the device diagnostic and full-script fixture: the detected size container returned its first selected descendant `رمادي`, although the same container's adjacent exact `لون / مقاس` summary said `رمادي / كبير`. Preserve the narrow completion in `completeSelectedCompoundSize()`.
+- The completion is valid only for exact combined headings, a summary shorter than 60 characters, and an exact first-segment match with the already-selected descendant. Do not broaden this to nearby page text or infer a size from stock labels. Preserve the normal single-size path and the old `M / 1PC`/`CP1` path.
+- Browser proof passes the photographed DOM (`صينية من الخشب الصلب | رمادي / كبير`), normal `L`, and `M / 1PC`. Freeze/performance build, both native syncs, Gradle, and APK metadata pass; paths and hashes are in `CURRENT_STATE.md`.
+- Real iPhone acceptance remains unperformed. Verify the exact cart text, five background/resume cycles, and cold launch before calling the issue solved. Preserve v86.35 navigation, v86.34 drawer/SKU memo, v86.33 price selectors, signed-region guard, and all native recompose timing.
+
 ## Current candidate (2026-08-01) - v86.35 product-options drawer navigation
 
 - Marker/version: `2026.08.01-v86.35-shein-options-drawer-nav`; Android/iOS `895/86.35`. The user explicitly confirmed the price issue is fixed; do not alter price capture while validating this candidate.

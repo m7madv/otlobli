@@ -109,6 +109,11 @@ const checks = [
       'stableNavHost.appendChild(nav)',
       'function completeSelectedCompoundSize(container, selected)',
       'completeSelectedCompoundSize(container, getSelectedWithin(container))',
+      // v86.36: when SHEIN renders "color / size" as one selected summary,
+      // retain the second segment instead of sending only the first one.
+      "var combinedTitles = container.querySelectorAll('.goods-size__title",
+      "headingKey !== 'لون/مقاس'",
+      "return first + ' / ' + rest",
       // v86.30: offers.lowPrice is the CHEAPEST variant and must never be a
       // price source. JSON stays a fallback, but only via offers.price.
       'var ldPrice = offers && parseFloat(offers.price)',
