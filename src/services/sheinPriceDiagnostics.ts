@@ -72,12 +72,11 @@ export const SHEIN_PRICE_DIAGNOSTICS_SCRIPT = `
     var D = window.__otlobliDiag;
     var L = [];
     var add = function (s) { L.push(s == null ? '' : String(s)); };
-    add('otlobli — تشخيص سعر SHEIN');
-    add('المسار: ' + location.pathname);
+    add('تشخيص سعر SHEIN');
+    add('مسار: ' + location.pathname);
     add('');
     if (!D) {
-      add('!! window.__otlobliDiag غير موجود.');
-      add('سكربت الالتقاط لم يُحقن هنا — هذه هي المشكلة.');
+      add('!! __otlobliDiag مفقود — لم يُحقن سكربت الالتقاط.');
       return L.join('\\n');
     }
     var go = function (n, fn) {
@@ -87,15 +86,14 @@ export const SHEIN_PRICE_DIAGNOSTICS_SCRIPT = `
     add('=== الالتقاط ===');
     add('السعر: ' + go('price', function () { return D.price(); }));
     add('المصدر: ' + go('source', function () { return D.source(); }));
-    add('نطاق (من $X)؟ ' + go('range', function () { return D.isRange() ? 'نعم' : 'لا'; }));
+    add('نطاق؟ ' + go('range', function () { return D.isRange() ? 'نعم' : 'لا'; }));
     add('spa: ' + go('spa', function () { return D.spa(); }));
     add('مفتاح: [' + go('key', function () { return D.key(); }) + ']');
     add('ينتظر؟ ' + go('pend', function () { return D.pending() ? 'نعم' : 'لا'; }));
     var sv = go('saved', function () { return D.saved(); });
     if (sv) {
-      add('المحفوظ: ' + sv.price + ' | مفتاحه: [' + sv.key + ']');
+      add('محفوظ: ' + sv.price + ' | مفتاح: [' + sv.key + ']');
       add('  مسار: ' + sv.path + ' | مراقب؟ ' + (sv.observing ? 'نعم' : 'لا'));
-      add('  قبل النقر: ' + sv.before);
     }
     add('');
 
@@ -115,7 +113,7 @@ export const SHEIN_PRICE_DIAGNOSTICS_SCRIPT = `
     }
     add('');
 
-    add('=== عناوين ظاهرة (تطابق قوائمنا؟) ===');
+    add('=== عناوين (تطابق؟) ===');
     var hit = function (list, t) {
       for (var i = 0; i < (list || []).length; i++) if (t.indexOf(list[i]) !== -1) return list[i];
       return '';
@@ -135,8 +133,8 @@ export const SHEIN_PRICE_DIAGNOSTICS_SCRIPT = `
       n++;
     }
 
-    add('=== عناصر السعر ===');
-    var roots = document.querySelectorAll('.product-intro__head-price, .product-price, [class*="head-price" i]');
+    add('=== أسعار ===');
+    var roots = document.querySelectorAll('.product-intro__head-price,[class*="productPriceContainer" i],[class*="head-price" i],[class*="main-price" i]');
     add('جذور: ' + roots.length);
     for (var r = 0; r < roots.length && r < 6; r++) {
       var rt = roots[r];
@@ -155,44 +153,41 @@ export const SHEIN_PRICE_DIAGNOSTICS_SCRIPT = `
       }
     }
 
-    add('=== آخر إضافة للسلة ===');
+    add('=== آخر إضافة ===');
     if (!LAST_ADD) {
-      add('(لا إضافة بعد — اضغط «أضف للسلة» ثم التشخيص)');
+      add('(لا إضافة بعد)');
     } else {
       var p = LAST_ADD.p || {};
       add('قبل ' + Math.round((Date.now() - LAST_ADD.at) / 1000) + 'ث');
       add('مُرسل: ' + p.priceUsd + ' | المصدر: ' + p.priceSource);
-      add('اللون: [' + (p.color || '') + '] | المقاس: [' + (p.size || '') + ']');
+      add('لون: [' + (p.color || '') + '] | مقاس: [' + (p.size || '') + ']');
       add('عنوان: ' + String(p.title || '').slice(0, 70));
     }
     return L.join('\\n');
   }
 
   function style() {
-    if (document.getElementById('otlobli-pdiag-css')) return;
+    if (document.getElementById('otlobli-pdc')) return;
     var s = document.createElement('style');
-    s.id = 'otlobli-pdiag-css';
-    s.textContent = '#otlobli-pdiag-btn{position:fixed;left:10px;bottom:96px;z-index:2147483500;'
-      + 'padding:10px 14px;border:0;border-radius:20px;background:#b91c1c;color:#fff;'
-      + 'font:700 13px sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.4)}'
-      + '#otlobli-pdiag-panel{position:fixed;inset:0;z-index:2147483600;background:#0b1120;'
-      + 'display:flex;flex-direction:column}'
-      + '#otlobli-pdiag-panel .b{display:flex;gap:8px;padding:10px;background:#111827}'
-      + '#otlobli-pdiag-panel button{flex:1;padding:12px;border:0;border-radius:8px;'
-      + 'color:#fff;font:700 15px sans-serif}'
-      + '#otlobli-pdiag-panel pre{flex:1;overflow:auto;margin:0;padding:12px;color:#e5e7eb;'
+    s.id = 'otlobli-pdc';
+    s.textContent = '#otlobli-pdb{position:fixed;left:10px;bottom:96px;z-index:2147483500;'
+      + 'padding:10px 14px;border:0;border-radius:20px;background:#b91c1c;color:#fff;font:700 13px sans-serif}'
+      + '#otlobli-pdp{position:fixed;inset:0;z-index:2147483600;background:#0b1120;display:flex;flex-direction:column}'
+      + '#otlobli-pdp .b{display:flex;gap:8px;padding:10px}'
+      + '#otlobli-pdp button{flex:1;padding:12px;border:0;border-radius:8px;color:#fff;font:700 15px sans-serif}'
+      + '#otlobli-pdp pre{flex:1;overflow:auto;margin:0;padding:12px;color:#e5e7eb;'
       + 'font:11px/1.5 monospace;white-space:pre-wrap;word-break:break-word;direction:ltr;'
       + 'text-align:left;-webkit-user-select:text!important;user-select:text!important}';
     (document.head || document.documentElement).appendChild(s);
   }
 
   function panel() {
-    var old = document.getElementById('otlobli-pdiag-panel');
+    var old = document.getElementById('otlobli-pdp');
     if (old) old.parentNode.removeChild(old);
     style();
     var rep = build();
     var w = document.createElement('div');
-    w.id = 'otlobli-pdiag-panel';
+    w.id = 'otlobli-pdp';
     var bar = document.createElement('div');
     bar.className = 'b';
     var copy = document.createElement('button');
@@ -222,10 +217,10 @@ export const SHEIN_PRICE_DIAGNOSTICS_SCRIPT = `
   }
 
   function btn() {
-    if (!document.body || document.getElementById('otlobli-pdiag-btn')) return;
+    if (!document.body || document.getElementById('otlobli-pdb')) return;
     style();
     var b = document.createElement('button');
-    b.id = 'otlobli-pdiag-btn';
+    b.id = 'otlobli-pdb';
     b.textContent = 'تشخيص';
     b.addEventListener('click', function (e) {
       e.preventDefault();

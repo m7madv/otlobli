@@ -124,6 +124,12 @@ const checks = [
       'var OTLOBLI_SIZE_LABELS',
       'function sheinHeadPriceIsRange()',
       "__otlobliSkuPriceSource = 'range-blocked'",
+      // v86.33: SHEIN's current price markup. Device diagnostics returned
+      // "roots: 0" for the old selectors, so these must not regress.
+      'var OTLOBLI_PRICE_SEL',
+      'var OTLOBLI_MAIN_PRICE_SEL',
+      'productPriceContainer',
+      '[class*="from-tag" i]',
       "var metaPrice = parseFloat(getMeta('product:price:amount'))",
       "document.querySelector('.product-price .price-content, .product-intro__head-price, [class*=\"price\" i]')",
       'return !!p.title && !!p.image && p.priceUsd > 0 && (!cs.exists || !!p.color)',

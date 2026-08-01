@@ -2439,8 +2439,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var style = window.getComputedStyle(el);
       var hint = String(el.className || '') + ' ' + String(el.parentElement && el.parentElement.className || '');
       if (/line-through/i.test(style.textDecorationLine || style.textDecoration || '') ||
-          /(?:old|original|retail|market|compare|cross|del)(?:-|_|\\s|$)/i.test(hint)) return;
-      var score = parseFloat(style.fontSize || '0') + (/current|sale|final|special|price-content/i.test(hint) ? 12 : 0);
+          /(?:old|original|retail|market|compare|cross|del|strikethrough)(?:-|_|\\s|$)/i.test(hint)) return;
+      var score = parseFloat(style.fontSize || '0') + (/current|sale|final|special|price-content|main-price/i.test(hint) ? 12 : 0);
       if (score >= bestScore) { best = value; bestScore = score; }
     };
     inspect(root);
@@ -2498,8 +2498,15 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // number as offers.lowPrice, and never what the shopper is buying. Seen on the
   // click-to-buy template before a variant is committed. If that is all the page
   // exposes, capture must fail closed instead of charging the low end.
+  // Device diagnostics returned "roots: 0" - SHEIN replaced the PDP price markup.
+  // See v86.33 in docs/SHEIN_IOS_FREEZE_GUARD.md.
+  var OTLOBLI_PRICE_SEL = '.product-intro__head-price, [class*="productPriceContainer" i], [class*="head-price" i]';
+  var OTLOBLI_MAIN_PRICE_SEL = '[class*="bsc-main-price" i], [class*="main-price" i]';
+
   function sheinHeadPriceIsRange() {
-    var roots = document.querySelectorAll('.product-intro__head-price, .product-price');
+    var f = document.querySelector('[class*="from-tag" i]');
+    if (f && sheinElementIsPainted(f)) return true;
+    var roots = document.querySelectorAll(OTLOBLI_PRICE_SEL);
     for (var i = 0; i < roots.length && i < 4; i++) {
       var t = String(roots[i].textContent || '').replace(/\\s+/g, ' ');
       if (/(?:^|[\\s(])(?:من|from|starting at)\\s*(?:US\\$|USD|\\$)/i.test(t)) return true;
@@ -2510,10 +2517,18 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function sheinSpaRoutePrice() {
     if (!IS_SHEIN) return 0;
     if (sheinHeadPriceIsRange()) return 0;
+    var price = 0;
+    // 0) Current markup: bsc-main-price is the live price on its own.
+    var mains = document.querySelectorAll(OTLOBLI_MAIN_PRICE_SEL);
+    for (var m = 0; m < mains.length && m < 4; m++) {
+      if (!sheinElementIsPainted(mains[m])) continue;
+      var mv = sheinUsdValue(mains[m].textContent || '');
+      if (mv > 0) price = mv;
+    }
+    if (price > 0) return price;
     // 1) Head-price class is header-only, never a rail, so keep v86.23's "last
     //    painted root wins" (SHEIN leaves a stale root and appends the live one).
-    var heads = document.querySelectorAll('.product-intro__head-price');
-    var price = 0;
+    var heads = document.querySelectorAll(OTLOBLI_PRICE_SEL);
     for (var i = 0; i < heads.length && i < 8; i++) {
       var head = sheinPriceFromChangedRoot(heads[i]);
       if (head > 0) price = head;
@@ -2542,7 +2557,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (__otlobliSelectedSkuPriceObserver) __otlobliSelectedSkuPriceObserver.disconnect();
     var run = ++__otlobliSelectedSkuPriceRun;
     var roots = [], priceChanged = false;
-    var selector = '.product-intro__head-price, .product-price, [class*="head-price" i]';
+    var selector = OTLOBLI_PRICE_SEL + ', .product-price, ' + OTLOBLI_MAIN_PRICE_SEL;
     var rememberRoot = function (node) {
       if (!node || node.nodeType !== 1) return;
       var root = node.matches && node.matches(selector) ? node : (node.closest && node.closest(selector));
