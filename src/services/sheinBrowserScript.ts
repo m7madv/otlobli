@@ -2494,8 +2494,22 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return null;
   }
 
+  // "من $8.63" / "from $8.63" is a RANGE start - the cheapest variant, the same
+  // number as offers.lowPrice, and never what the shopper is buying. Seen on the
+  // click-to-buy template before a variant is committed. If that is all the page
+  // exposes, capture must fail closed instead of charging the low end.
+  function sheinHeadPriceIsRange() {
+    var roots = document.querySelectorAll('.product-intro__head-price, .product-price');
+    for (var i = 0; i < roots.length && i < 4; i++) {
+      var t = String(roots[i].textContent || '').replace(/\\s+/g, ' ');
+      if (/(?:^|[\\s(])(?:من|from|starting at)\\s*(?:US\\$|USD|\\$)/i.test(t)) return true;
+    }
+    return false;
+  }
+
   function sheinSpaRoutePrice() {
     if (!IS_SHEIN) return 0;
+    if (sheinHeadPriceIsRange()) return 0;
     // 1) Head-price class is header-only, never a rail, so keep v86.23's "last
     //    painted root wins" (SHEIN leaves a stale root and appends the live one).
     var heads = document.querySelectorAll('.product-intro__head-price');
@@ -2520,8 +2534,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (!IS_SHEIN || !document.body) return;
     var target = event && event.target;
     if (!target || !target.closest || target.closest('[id^="otlobli-"]')) return;
-    var colorBox = findOptionContainer('color', ['اللون', 'Color']);
-    var sizeBox = findOptionContainer('size', ['المقاس', 'Size']);
+    var colorBox = findOptionContainer('color', OTLOBLI_COLOR_LABELS);
+    var sizeBox = findOptionContainer('size', OTLOBLI_SIZE_LABELS);
     if ((!colorBox || !colorBox.contains(target)) && (!sizeBox || !sizeBox.contains(target))) return;
     __otlobliSelectedSkuPriceBefore = getPrice();
     __otlobliSelectedSkuPriceAt = 0;
@@ -2586,15 +2600,22 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function getPrice() {
     var selectionKey = sheinCurrentSelectionKey();
+    // The click-to-buy template commits the variant inside a drawer, and the
+    // option groups are gone once it closes, so the live key degrades to "|".
+    // Keep honouring the price captured for this route in that case, otherwise
+    // the correct drawer price would be thrown away the moment the sheet shuts.
     if (__otlobliSelectedSkuPrice > 0 &&
         __otlobliSelectedSkuPricePath === location.pathname &&
-        __otlobliSelectedSkuPriceKey === selectionKey &&
+        (__otlobliSelectedSkuPriceKey === selectionKey || selectionKey === '|') &&
         Date.now() - __otlobliSelectedSkuPriceAt < 1800000) {
       __otlobliSkuPriceSource = 'selected-mutation';
       return __otlobliSelectedSkuPrice;
     }
     var spaPrice = sheinSpaRoutePrice();
     if (spaPrice > 0) { __otlobliSkuPriceSource = 'spa-dom'; return spaPrice; }
+    // A range head price means JSON/meta carry that same low end, so every
+    // remaining source is wrong here. Fail closed rather than undercharge.
+    if (sheinHeadPriceIsRange()) { __otlobliSkuPriceSource = 'range-blocked'; return 0; }
     var ld = getProductJsonLd();
     if (ld && ld.offers) {
       var offers = Array.isArray(ld.offers) ? ld.offers[0] : ld.offers;
@@ -2803,6 +2824,15 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var anyImg = document.querySelector('img[src*="ltwebstatic"], img[src*="img.shein"]');
     return realImgSrc(anyImg);
   }
+
+  // The "انقر للشراء" template labels its option groups with BARE Arabic words
+  // ("لون", "مقاس", and the combined "لون / مقاس" summary row), not "اللون" /
+  // "المقاس". indexOf('اللون') never matches "لون", so both containers came
+  // back null on exactly those products: the size was never captured, and
+  // sheinTrackSelectedSkuPrice() returned early so the selected-price observer
+  // never ran - leaving the "من $X" (from/cheapest-variant) head price.
+  var OTLOBLI_COLOR_LABELS = ['اللون', 'لون', 'Color', 'Colour'];
+  var OTLOBLI_SIZE_LABELS = ['المقاس', 'مقاس', 'الحجم', 'Size'];
 
   function findOptionContainer(keyword, labelWords) {
     var all = document.querySelectorAll('[class*="' + keyword + '" i]');
@@ -3182,7 +3212,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   function getColorState() {
-    var container = findOptionContainer('color', ['اللون', 'Color']);
+    var container = findOptionContainer('color', OTLOBLI_COLOR_LABELS);
     // The printed "اللون: X" heading is normally the most reliable source, but
     // when it only yields the generic multicolor label, fall through to the
     // actually-selected swatch's own name (aria-label/title/data-name), which
@@ -3227,7 +3257,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   function getSizeState() {
-    var container = findOptionContainer('size', ['المقاس', 'Size']);
+    var container = findOptionContainer('size', OTLOBLI_SIZE_LABELS);
     var opts = getSizeOptions(container);
     var selected = completeSelectedCompoundSize(container, getSelectedWithin(container));
     if (!selected && opts.available.length === 1 && opts.unavailable.length === 0) selected = opts.available[0];

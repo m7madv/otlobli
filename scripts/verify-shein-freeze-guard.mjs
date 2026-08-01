@@ -119,6 +119,11 @@ const checks = [
       'if (sheinInRecommendationRail(roots[j])) continue',
       // v86.30: the captured price must carry the branch that produced it.
       'priceSource: sheinPriceSource',
+      // v86.31: bare Arabic option labels + never ship a range ("from") price.
+      'var OTLOBLI_COLOR_LABELS',
+      'var OTLOBLI_SIZE_LABELS',
+      'function sheinHeadPriceIsRange()',
+      "__otlobliSkuPriceSource = 'range-blocked'",
       "var metaPrice = parseFloat(getMeta('product:price:amount'))",
       "document.querySelector('.product-price .price-content, .product-intro__head-price, [class*=\"price\" i]')",
       'return !!p.title && !!p.image && p.priceUsd > 0 && (!cs.exists || !!p.color)',
