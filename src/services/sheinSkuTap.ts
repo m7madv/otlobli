@@ -44,6 +44,23 @@
 // the screen did not change by one pixel and the shopper reported "لا يحدث شيء
 // أبدا". Scrolling the last revealed group to centre put both groups on screen.
 // The press was never the missing piece; showing its result was.
+//
+// v86.47, measured on the same phone while the user held it on
+// 1pc-3-Tier-Lockable-Jewelry-Storage-Box, which still failed:
+//   1. Its combined heading reads مقاس/لون, the REVERSE of the لون/مقاس the entry
+//      detector accepted, so the precise first branch never fired and detection
+//      fell back to the fragile text scan (which had already returned null once).
+//   2. The control is an <li>, and every candidate query listed
+//      div/span/p/a/button - never li - so the real node was unreachable except
+//      through its inner span.
+//   3. The press TOGGLES. Clicking it while the groups are open closes them, so
+//      pressing أضف للسلة after the shopper had opened the options themselves
+//      shut them again. Only press when nothing is open.
+//   4. The decisive one: otlobli's own floating أضف للسلة button sits at the
+//      bottom right and covered the very chips the shopper is being told to
+//      choose (مقاس S/L and لون أخضر/وردي were both behind it). Centring is not
+//      enough - the groups must be scrolled CLEAR of our own button, which
+//      scroll-margin-bottom does exactly, using the button's live position.
 export const OTLOBLI_SKU_TAP_JS = `
   var OTLOBLI_SKU_PROMPT = /انقر للشراء|please\\s*select|الرجاء الاختيار|يرجى الاختيار|اختر الخيارات/i;
 
@@ -55,10 +72,12 @@ export const OTLOBLI_SKU_TAP_JS = `
     var x = Math.max(1, Math.min(vw - 2, r.left + r.width / 2));
     var y = Math.max(1, Math.min(vh - 2, r.top + r.height / 2));
     var target = el;
-    try {
-      var hit = document.elementFromPoint(x, y);
-      if (hit && (hit === el || el.contains(hit))) target = hit;
-    } catch (e) {}
+    if (!(el.classList && el.classList.contains('j-select-to-buy'))) {
+      try {
+        var hit = document.elementFromPoint(x, y);
+        if (hit && (hit === el || el.contains(hit))) target = hit;
+      } catch (e) {}
+    }
     function fire(Ctor, type, extra) {
       try {
         var init = { bubbles: true, cancelable: true, composed: true, view: window,
@@ -96,17 +115,41 @@ export const OTLOBLI_SKU_TAP_JS = `
     return true;
   }
 
+  function sheinLowestOptionGroup() {
+    var list = document.querySelectorAll('.SIZE_ITEM_HOOK');
+    var best = null, low = -1;
+    for (var i = 0; i < list.length; i++) {
+      var r = list[i].getBoundingClientRect();
+      if (r.height > 0 && r.bottom > low) { low = r.bottom; best = list[i]; }
+    }
+    return best;
+  }
+
+  function sheinClearOptionsFromButton(el) {
+    if (!el) return;
+    var btn = document.getElementById('otlobli-add-btn');
+    var top = btn ? btn.getBoundingClientRect().top : innerHeight;
+    var prev = el.style.scrollMarginBottom;
+    el.style.scrollMarginBottom = (Math.max(0, innerHeight - top) + 26) + 'px';
+    try { el.scrollIntoView({ block: 'end' }); } catch (e) {}
+    setTimeout(function () { el.style.scrollMarginBottom = prev; }, 700);
+  }
+
   function sheinRevealSkuOptions(round) {
     setTimeout(function () {
-      var h = document.querySelectorAll('.SIZE_ITEM_HOOK');
-      if (!h.length) { if (round < 5) sheinRevealSkuOptions(round + 1); return; }
-      try { h[h.length - 1].scrollIntoView({ block: 'center' }); } catch (e) {}
-    }, 280);
+      var g = sheinLowestOptionGroup();
+      if (!g) { if (round < 5) sheinRevealSkuOptions(round + 1); return; }
+      sheinClearOptionsFromButton(g);
+      if (round < 9) sheinRevealSkuOptions(9);
+    }, round === 9 ? 850 : 280);
   }
 
   function sheinSkuPromptNode(row) {
     if (!row) return null;
-    var nodes = row.querySelectorAll('div, span, p, a, button, i');
+    if (row.classList && row.classList.contains('j-select-to-buy')) return row;
+    var hook = row.querySelector('.j-select-to-buy');
+    if (hook) return hook;
+    var nodes = row.querySelectorAll('li, div, span, p, a, button, i');
     for (var i = 0; i < nodes.length; i++) {
       var n = nodes[i];
       if (n.children.length > 2) continue;

@@ -3388,15 +3388,22 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function sheinSkuSelectionEntry() {
     if (!IS_SHEIN || !document.body) return null;
+    // SHEIN's own JS hook class. Device-measured on three products: the text
+    // scan below kept resolving to the goods-size WRAPPER, which ignores the
+    // press, while this is the node that actually carries the handler.
+    var hook = document.querySelector('.j-select-to-buy');
+    if (hook && sheinElementIsVisible(hook)) return hook;
     var titles = document.querySelectorAll('.goods-size__title,[class*="size__title" i]');
     for (var h = 0; h < titles.length && h < 4; h++) {
       var key = normalizedOptionText(titles[h].textContent).replace(/\\s+/g, '').toLowerCase();
-      if (key !== 'لون/مقاس' && key !== 'color/size' && key !== 'colour/size') continue;
+      // Device-measured: SHEIN prints this heading in either order.
+      if (key !== 'لون/مقاس' && key !== 'مقاس/لون' && key !== 'color/size' &&
+          key !== 'size/color' && key !== 'colour/size' && key !== 'size/colour') continue;
       var row = titles[h].closest('.goods-detail__top-other') || titles[h].parentElement;
       if (!row || !sheinElementIsVisible(row) || sheinCovered(row)) continue;
       return row;
     }
-    var nodes = document.querySelectorAll('div, span, p, a, button');
+    var nodes = document.querySelectorAll('li, div, span, p, a, button');
     for (var i = 0; i < nodes.length; i++) {
       var el = nodes[i];
       if (el.id && el.id.indexOf('otlobli') === 0) continue;
@@ -3423,10 +3430,23 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (sheinDrawerCompoundSizeState()) return false;
     var entry = sheinSkuSelectionEntry();
     if (entry) {
+      // The control TOGGLES (device-measured): pressing it while the groups
+      // are open shuts them. Adopt that state and fall through instead.
+      if (sheinLowestOptionGroup()) {
+        __otlobliSheinDrawerPath = location.pathname;
+        return false;
+      }
       __otlobliSheinDrawerPath = location.pathname;
       __otlobliSkuMemo[location.pathname] = {};
-      sheinTapElement(sheinSkuPromptNode(entry) || entry);
-      sheinRevealSkuOptions(0);
+      // Bring the control on screen before pressing it: at rest it sits below
+      // the fold, and a press aimed at clamped coordinates lands on whatever
+      // happens to be at the viewport edge.
+      var ctrl = sheinSkuPromptNode(entry) || entry;
+      sheinClearOptionsFromButton(ctrl);
+      setTimeout(function () {
+        sheinTapElement(ctrl);
+        sheinRevealSkuOptions(0);
+      }, 260);
       return true;
     }
     // No entry resolved, yet a range ("من") price is still printed - that only
@@ -3434,17 +3454,24 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // end with a stale remembered combination. See v86.43 in the freeze doc.
     if (sheinHeadPriceIsRange()) {
       __otlobliSkuMemo[location.pathname] = {};
+      // Telling the shopper to choose while the chips sit behind our own
+      // floating button is the same dead end as doing nothing (device-measured
+      // on 3-Tier-Large-Capacity: the only group lived at 717-753, under both
+      // the add button at 620 and the nav at 684).
+      sheinClearOptionsFromButton(sheinLowestOptionGroup());
       showMessage(document.getElementById('otlobli-add-btn'), 'حدد الخيارات أولاً');
       return true;
     }
     return false;
   }
 
+  // Centring was not enough: our own floating add button covered the very chips
+  // this message tells the shopper to tap (device-measured).
   function sheinRevealSizeOptions() {
     var group = findOptionContainer('size', OTLOBLI_SIZE_LABELS);
     if (!group) return;
     try {
-      group.scrollIntoView({ block: 'center' });
+      sheinClearOptionsFromButton(sheinLowestOptionGroup() || group);
       var control = group.querySelector('button:not([disabled]),[role="option"],li');
       if (control && control.focus) control.focus({ preventScroll: true });
     } catch (e) {}
@@ -6219,16 +6246,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   document.addEventListener('click', function (event) {
-    // ⚠️ تحذير دائم — ممنوع حذف هذا الحارس أو تغييره لأي سبب (خلل حقيقي أضاف
-    // منتجات لسلة المستخدم بلا علمه، مؤكَّد 2026-07-03):
-    // كل الفحوص أدناه (isProtectedSheinControl/isCartLink/isWishlistButton/
-    // isQuickAddSubmitButton/isAddToCartButton) مصمّمة حصراً لاعتراض أزرار
-    // شي إن الأصلية - وaddToCartFlow() هنا تُستدعى مباشرة بلا المرور بحارس
-    // تيمو الصارم (temuFinalizeAdd، انتظار 5 ثوانٍ، تحقق اللون/المقاس). بلا
-    // "if (!IS_SHEIN) return;" أدناه، أي نقرة على تيمو تُصادف نصاً يطابق
-    // "أضف...السلة" (حتى خلف طبقة معاينة صورة كاملة الشاشة) كانت تُضيف
-    // المنتج تلقائياً بلا أي تحقق. إن احتجت تعديل هذا المعالج مستقبلاً، أبقِ
-    // هذا الحارس أول سطر بالضبط - لا تُدمِج منطق شي إن وتيمو هنا مطلقاً.
+    // ⚠️ تحذير دائم — ممنوع حذف هذا الحارس (خلل حقيقي أضاف منتجات لسلة
+    // المستخدم بلا علمه، 2026-07-03): الفحوص أدناه لاعتراض أزرار شي إن وحدها،
+    // وaddToCartFlow() تُستدعى هنا بلا حارس تيمو الصارم. بلا
+    // "if (!IS_SHEIN) return;" كانت أي نقرة على تيمو تُصادف نص "أضف...السلة"
+    // تُضيف المنتج بلا تحقق. أبقِ هذا السطر أولاً دائماً.
     if (!IS_SHEIN) return;
     var el = event.target;
     // A full-screen product gallery may be painted above a still-hit-testable
@@ -7082,11 +7104,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
     for (var ai = 0; ai < alerts.length; ai++) inspect(alerts[ai]);
   }
 
-  // SHEIN's anti-bot sometimes serves a branded "GSRM Security"/"server's
-  // gone missing" block page - tied to the session cookies (clearing them and
-  // reloading fixes it at once). Only native code can clear HttpOnly cookies,
-  // so we detect and the app handles it. Reset on navigation so a block on one
-  // route doesn't suppress detection on the next.
+  // SHEIN's anti-bot sometimes serves a "GSRM Security" block page, tied to
+  // session cookies. Only native code can clear HttpOnly cookies, so we detect
+  // and the app handles it. Reset on navigation.
   // وضع التحقق «أنا إنسان» (Cloudflare) — v62: صفحة "Just a moment..." تظهر
   // قبل أي محتوى (ثبت: HTTP 403 وتحدٍّ من challenges.cloudflare.com). القاعدة
   // الراسخة: لا نتجاوزه ولا نغطيه ولا نعيد التحميل أثناءه. ما كان يكسر شي إن:
@@ -8287,11 +8307,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return 'لا سلف مخفي';
   }
 
-  // إصلاح تلقائي للشاشة البيضاء «محتوى مخفي»: DOM فيه منتج لكن لا شيء مرئي،
-  // ولسنا نحن من حجبه بالـattributes (رأينا نظّف=عام=بحث=0). السبب سلف يُلغي
-  // ظهوره (CSS ثابت منّا يطابق بالصنف، أو انهيار layout). نصعد من مرساة المحتوى
-  // ونُجبر كل سلف مخفي على الظهور بأنماط inline مهمة (تتفوّق على أي stylesheet،
-  // فلا تكرار قتال كل tick). نوسمه keep حتى لا تعبث به الحاجبات.
+  // الشاشة البيضاء «محتوى مخفي»: DOM فيه منتج بلا شيء مرئي وليس الحجب من
+  // attributes لدينا، بل سلف يُلغي ظهوره. نصعد من مرساة المحتوى ونفرض الظهور
+  // بأنماط inline مهمة، ونوسمه keep حتى لا تعبث به الحاجبات.
   // مهم (v85.8.44): يفرض مرّة ثم **يتوقف** فور ظهور المحتوى (visImg>0) — لا
   // يُزيل ما فرضه أبداً. إزالة v85.8.42 كانت تُنشئ حلقة فرض/إزالة = وميض أبيض
   // سريع (الفرض نفسه هو ما يجعل المحتوى مرئياً، فإزالته تُخفيه ثانيةً فوراً).
@@ -9030,14 +9048,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
     } catch (e) {}
   }
 
-  // ملاحظة مهمة: هاتان الدالتان كانتا تستدعيان otlobliUnhideEl على البحث/الشعار
-  // + آبائهما (4-5 مستويات) + كل أطفال حاوية البحث. لوحة حساب تيمو (تسجيل الدخول
-  // /إنشاء حساب) تعيش داخل نفس حاوية الهيدر (شقيقة/طفلة للبحث) وهي مخفية بـ
-  // opacity:0. فكان توسيع الاستعادة للآباء/الأطفال يفرض عليها opacity:1 قسراً
-  // فتظهر تلقائياً عند النزول وتقفز الصفحة لأعلى. الآن نستعيد العنصر نفسه فقط
-  // (لا آباء ولا أطفال)، فلا نلمس اللوحة إطلاقاً. هذا يكفي لأن الإخفاء الثابت
-  // (منذ v57) يستهدف .tab-d3nPD/.downloadUI فقط ولا يخفي حاوية البحث —
-  // ملاحظة: استعادة العنصر نفسه لا تنفع أصلاً إن حُجب أحد آبائه بـ display:none.
+  // نستعيد العنصر نفسه فقط (لا آباء ولا أطفال): لوحة حساب تيمو تعيش داخل حاوية
+  // الهيدر مخفيةً بـopacity:0، فتوسيع الاستعادة كان يفرض عليها الظهور فتقفز
+  // الصفحة. يكفي ذلك لأن الإخفاء الثابت يستهدف .tab-d3nPD/.downloadUI فقط.
   function restoreTemuSearchChrome() {
     if (!IS_TEMU || !document.body) return;
     try {
