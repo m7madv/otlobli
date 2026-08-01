@@ -1686,10 +1686,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
-  // Once SHEIN has written its signed Saudi address, close only the native
-  // address surface that performed that selection. This never navigates,
-  // clears storage, or clicks a generic page button; it is deliberately
-  // limited to a visible shipping drawer and its exact close/confirm action.
   function sheinResolvedShippingUiRoot() {
     if (!document.body) return null;
     var now = Date.now();
@@ -3341,6 +3337,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
     for (var i = 0; i < groups.length && i < 6; i++) {
       var group = groups[i];
       if (!sheinElementIsVisible(group) || sheinCovered(group)) continue;
+      var r = group.getBoundingClientRect();
+      if (r.bottom <= 0 || r.right <= 0 || r.top >= innerHeight || r.left >= innerWidth) continue;
       var opts = getSizeOptions(group);
       if (!opts.available.length && !opts.unavailable.length) continue;
       found++;
@@ -3404,9 +3402,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (key !== 'لون/مقاس' && key !== 'color/size' && key !== 'colour/size') continue;
       var row = titles[h].closest('.goods-detail__top-other') || titles[h].parentElement;
       if (!row || !sheinElementIsVisible(row) || sheinCovered(row)) continue;
-      var value = titles[h].nextElementSibling ||
-        (titles[h].parentElement && titles[h].parentElement.nextElementSibling);
-      return value || row;
+      return row;
     }
     var nodes = document.querySelectorAll('div, span, p, a, button');
     for (var i = 0; i < nodes.length; i++) {
@@ -3424,6 +3420,17 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   function sheinOpenSkuDrawer() {
+    sheinResolvedShippingRootCacheAt = 0;
+    var shippingRoot = sheinShippingInteractionRoot;
+    if (!(shippingRoot && shippingRoot.isConnected && sheinElementIsPainted(shippingRoot))) {
+      shippingRoot = sheinResolvedShippingUiRoot();
+    }
+    if (shippingRoot) {
+      __otlobliSheinDrawerPath = '';
+      __otlobliSkuMemo[location.pathname] = {};
+      showMessage(document.getElementById('otlobli-add-btn'), 'أغلق قائمة الشحن أولاً');
+      return true;
+    }
     if (sheinDrawerCompoundSizeState()) return false;
     var entry = sheinSkuSelectionEntry();
     if (!entry) return false;
@@ -5203,9 +5210,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
       title: getTitle(allowGenericTitle),
       priceUsd: sheinPriceUsd,
       priceSource: sheinPriceSource,
-      // Main product photo - always the gallery/hero image, never swapped
-      // for the (much smaller) color swatch crop. The swatch travels
-      // separately as colorImage so the app can show both.
       image: getMainImage(),
       colorImage: colorState.image || '',
       colorImageFound: !!colorState.image,
