@@ -2,15 +2,14 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
-## Current candidate (2026-08-01) - v86.39 drawer-only option priority
+## Current candidate (2026-08-01) - v86.40 real drawer compound size
 
-- Marker/version: `2026.08.01-v86.39-shein-drawer-options-priority`; Android/iOS `899/86.39`. Price is user-confirmed fixed and unchanged.
-- Preserve `sheinSkuSelectionEntry()`/`sheinOpenSkuDrawer()`: a visible uncovered `انقر للشراء` is clicked on the first Otlobli add tap, which must open the drawer and return without adding.
-- Preserve active-container priority in `findOptionContainer()`. Painted/uncovered candidates beat DOM order, and exact visible `لون`/`مقاس` headings narrow a broad wrapper. When `__otlobliSheinDrawerPath` is active and no drawer group is currently readable, return `null` instead of the background.
-- Clearing `__otlobliSkuMemo[path]` when opening is an intentional fail-closed boundary: an empty drawer may not inherit a stale background size. Once the drawer choice is read, memo retains it through `#otlobli-overlay`, whose cover otherwise makes the retry see background DOM.
-- Playwright proves background `أسود/S` cannot replace drawer `أزرق/L`; first tap opens exactly once with no add, empty drawer blocks, final payload is `أزرق/L/$14.43`. v86.38 cases `رمادي / كبير`, empty size, `L`, and `M / 1PC` remain passing.
-- Freeze/performance build, both native syncs, Gradle/APK and GitHub/Xcode run `30696575866` pass. Code commit `5779f29`; APK/IPA paths and hashes are in `CURRENT_STATE.md`. IPA inspection confirms `86.39/899`, drawer and native recompose markers, and no signature/provisioning.
-- Do not claim real-device acceptance. Test the photographed `انقر للشراء` product on iPhone, changing drawer options before add, five resume cycles and cold launch. The separate region-switching defect remains open.
+- Marker/version: `2026.08.01-v86.40-shein-real-drawer-compound-size`; Android/iOS `900/86.40`. v86.39 is device-rejected: it did not reliably open the drawer and treated the first repeated `.SIZE_ITEM_HOOK` group (`بيج/رمادي`) as the size, missing the second same-class group (`صغير/كبير`). Price is user-confirmed fixed and unchanged.
+- Preserve the exact combined-summary entry in `sheinSkuSelectionEntry()`: first add must click the visible `لون / مقاس` row whether its value is `انقر للشراء` or an earlier selected summary. `sheinOpenSkuDrawer()` must return without adding on that first tap.
+- Preserve `sheinDrawerCompoundSizeState()`: while `__otlobliSheinDrawerPath` is active, read each painted/uncovered `.SIZE_ITEM_HOOK` group separately, require a real selection in every detected group, and join selections such as `بيج / كبير`. Never fall back to the background container when a real drawer group is incomplete.
+- Full-script device-shaped proof opens once/no add, blocks an unselected second group, and then sends `صينية من الخشب الصلب | بيج / كبير | $14.66`. Older drawer-priority, external-summary, single `L`, and `M / 1PC` regressions remain passing.
+- Freeze/performance build, native syncs, Gradle/APK, and GitHub/Xcode run `30697305864` pass. Code commit `87c85b1`; inspected APK/IPA paths and hashes are in `CURRENT_STATE.md`. IPA confirms `86.40/900`, compound-size and native recompose markers, and no app-root signature/provisioning.
+- Do not claim real-device acceptance for v86.40. Test first-tap opening, incomplete-option blocking, option changes inside the real drawer, five resume cycles, and cold launch. Preserve signed-region add guard and all native freeze invariants; the separate region-switching defect remains open.
 
 ## Current candidate (2026-08-01) - v86.38 externally-rendered combined size
 
