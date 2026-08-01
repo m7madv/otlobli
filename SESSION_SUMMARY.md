@@ -9,6 +9,8 @@
 - **كسر الحلقة:** صار السعر يُرسل مع `priceSource`، ويُسجَّل سطر console بالبادئة `[otlobli][shein-price]`. عند أي سعر خاطئ على iPhone، هذا السطر يحدد الفرع فوراً: `selected-mutation`/`spa-dom` = التقاط حي سليم، أما `json`/`meta`/`legacy-dom` مع وجود اختيار = فشل الالتقاط الحي وتُعالج تلك المرحلة تحديداً.
 - حُدِّث `scripts/verify-shein-freeze-guard.mjs` و`docs/SHEIN_IOS_FREEZE_GUARD.md` معاً كما يفرض البروتوكول. النسخة: `890 / 86.30`.
 - نجح حارس التجمّد وميزانية الأداء (`544,725 / 550,000`). **لم تُجرَّب على iPhone بعد، ولا يوجد أي ادعاء بأن المشكلة انتهت.**
+- نجح GitHub run `30689906945` على `claude/ios6-cover-fix` عند `2bfa4a8` خلال 2م59ث. ملف iPhone غير الموقّع: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.30-iphone16-unsigned.ipa`، SHA-256 `B31E71E00F4463B9D7D4BC3E6999B2578A3296273A89954D03A34ABD5114FD2F`. فحص محتوى الحزمة أكّد `86.30/890` ووجود `OTLOBLI_PRICE_RAIL_HINT` و`sheinInRecommendationRail` و`sheinPdpPriceScope` و`priceSource` وسجل `[otlobli][shein-price]`، وأن `offers.lowPrice` لم يبقَ إلا داخل تعليق. تنبيه: اسم الأرتيفاكت في `ios-unsigned-build.yml` ما زال مثبتاً على نص `v86.29` (لا يعكس النسخة المبنية).
+- لم يُحدَّث `codex/ios-v86-4` لأنه محجوز في worktree آخر (`C:/Users/MOHAMMAD/Projects/otlobli-ios-v86-3-build`)؛ البناء تمّ من `claude/ios6-cover-fix` مباشرة عبر `workflow_dispatch`.
 - ⚠️ ملاحظة بيئة: `core.autocrlf=true` يجعل ميزانية الأداء تفشل محلياً على ويندوز (CRLF يضيف ~9.7KB). محتوى HEAD نفسه بصيغة CRLF = `550,899` أي أنه كان يفشل قبل هذا التعديل. CI على لينكس (LF) يمرّ. الحل الجذري `.gitattributes` أو `core.autocrlf=input` — قرار مؤجَّل للمستخدم.
 - ❗ مشكلة المنطقة (`addressCookie` الموقّع) **لم تُعالَج في هذه الجولة**؛ ما زالت مفتوحة كما وردت في التسليم.
 
