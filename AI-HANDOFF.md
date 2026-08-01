@@ -2,6 +2,16 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
+## Current candidate (2026-08-01) - v86.39 drawer-only option priority
+
+- Marker/version: `2026.08.01-v86.39-shein-drawer-options-priority`; Android/iOS `899/86.39`. Price is user-confirmed fixed and unchanged.
+- Preserve `sheinSkuSelectionEntry()`/`sheinOpenSkuDrawer()`: a visible uncovered `انقر للشراء` is clicked on the first Otlobli add tap, which must open the drawer and return without adding.
+- Preserve active-container priority in `findOptionContainer()`. Painted/uncovered candidates beat DOM order, and exact visible `لون`/`مقاس` headings narrow a broad wrapper. When `__otlobliSheinDrawerPath` is active and no drawer group is currently readable, return `null` instead of the background.
+- Clearing `__otlobliSkuMemo[path]` when opening is an intentional fail-closed boundary: an empty drawer may not inherit a stale background size. Once the drawer choice is read, memo retains it through `#otlobli-overlay`, whose cover otherwise makes the retry see background DOM.
+- Playwright proves background `أسود/S` cannot replace drawer `أزرق/L`; first tap opens exactly once with no add, empty drawer blocks, final payload is `أزرق/L/$14.43`. v86.38 cases `رمادي / كبير`, empty size, `L`, and `M / 1PC` remain passing.
+- Freeze/performance build, both native syncs, Gradle/APK and GitHub/Xcode run `30696575866` pass. Code commit `5779f29`; APK/IPA paths and hashes are in `CURRENT_STATE.md`. IPA inspection confirms `86.39/899`, drawer and native recompose markers, and no signature/provisioning.
+- Do not claim real-device acceptance. Test the photographed `انقر للشراء` product on iPhone, changing drawer options before add, five resume cycles and cold launch. The separate region-switching defect remains open.
+
 ## Current candidate (2026-08-01) - v86.38 externally-rendered combined size
 
 - Marker/version: `2026.08.01-v86.38-shein-confirmed-external-size`; Android/iOS `898/86.38`. v86.37 is device-rejected: the combined heading/value can live outside the detected drawer container, so a container-scoped query cannot see it.

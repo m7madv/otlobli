@@ -2,6 +2,17 @@
 
 Last updated: 2026-08-01
 
+## v86.39 SHEIN drawer-only option priority (2026-08-01)
+
+- Current marker is `2026.08.01-v86.39-shein-drawer-options-priority`; Android/iOS are `899/86.39`. The user confirmed price is fixed, so price capture was intentionally unchanged.
+- For products showing `انقر للشراء`, the first Otlobli add tap now clicks that entry and opens SHEIN's options drawer without adding. While the drawer is open, painted/uncovered drawer groups win over earlier background DOM; exact `لون`/`مقاس` headings narrow broad wrappers to the current group.
+- Opening the drawer clears background SKU memo. An unselected drawer cannot inherit a stale background size, while the chosen drawer values remain memoized through Otlobli's adding overlay so its cover cannot make a retry fall back to the background.
+- Full-script Playwright passed with background `أسود/S`, drawer `أزرق/L`, first-tap open count `1`, no premature add, an empty-drawer block, and final payload `أزرق/L/$14.43`. The v86.38 suite still passes `رمادي / كبير`, the unconfirmed-size block, normal `L`, and legacy `M / 1PC` at `$14.43`.
+- Freeze guard, production/performance build, Android/iOS sync, Gradle debug, APK metadata, and IPA inspection pass. Budgets: JS raw `1,199,366/1,200,000`, JS gzip `358,779/370,000`, CSS `63,029/70,000`, fonts `81,364/100,000`, SHEIN source `549,536/550,000`.
+- Android APK: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.39-shein-drawer-options-priority-debug.apk`; SHA-256 `358229CFE3A271C462A4B3C03331A5A6B2FCF9F60A24165D2FB9FDE0F1850953`; size `11,125,498` bytes; metadata confirms `com.otlobli.app`, `86.39/899` and the release marker.
+- Code commit is `5779f29` on `claude/ios6-cover-fix`; GitHub/Xcode run `30696575866` passed. Unsigned IPA: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.39-iphone16-unsigned.ipa`; SHA-256 `C08672FFF95A949F3B1097CB65972705F3E468E2B87521E17A064EB499CD44DC`; size `7,069,764` bytes. Inspection confirms `com.otlobli.app`, `86.39/899`, iOS 15 minimum, only `otlobli`, drawer-priority and native-recompose markers, with no app signature or provisioning profile.
+- Real iPhone acceptance is not yet performed. Test first-tap drawer opening, empty-option blocking, changing the drawer selection before add, five background/resume cycles, and a cold launch. v86.39 does not claim the separate store-region problem is resolved.
+
 ## v86.38 SHEIN externally-rendered combined size (2026-08-01)
 
 - Current marker is `2026.08.01-v86.38-shein-confirmed-external-size`; Android/iOS are `898/86.38`. The user rejected v86.37 on the real iPhone with the same missing `كبير` symptom; price remains confirmed correct and unchanged.
