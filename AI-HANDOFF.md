@@ -2,6 +2,14 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
+## Current candidate (2026-08-01) - v86.38 externally-rendered combined size
+
+- Marker/version: `2026.08.01-v86.38-shein-confirmed-external-size`; Android/iOS `898/86.38`. v86.37 is device-rejected: the combined heading/value can live outside the detected drawer container, so a container-scoped query cannot see it.
+- Preserve the strict two-signal rule: the external summary supplies order/text, but the second segment is accepted only when `isSelectedSwatchEl()` confirms a matching selected descendant inside the detected options container. If the summary matches the first segment but the second is unconfirmed, return an empty size and block the add.
+- Browser proof reproduces the device failure before and passes after with `صينية من الخشب الصلب|رمادي / كبير`, while a stale/unconfirmed external summary is blocked. Normal `L`, `M / 1PC`, and `14.43/selected-mutation` stay unchanged.
+- Freeze/performance build, native sync, Gradle, and APK metadata pass. APK: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.38-shein-confirmed-external-size-debug.apk`; SHA-256 `86B530AAAD1C98A680DA5CE644A8BFEAE5E80DDCA28E2C4A294EAE972CE615B1`; `86.38/898`.
+- Do not claim success without the exact v86.38 iPhone diagnostic and cart evidence. Preserve price, region signing, nav/drawer behavior, SKU memo, native recompose timing, and the unchanged-store comparison.
+
 ## Current candidate (2026-08-01) - v86.37 nested combined-size summary
 
 - Marker/version: `2026.08.01-v86.37-shein-nested-combined-size`; Android/iOS `897/86.37`. v86.36 is device-rejected: its one-level relationship assumption still sent `رمادي`, despite the visible `رمادي / كبير` summary.

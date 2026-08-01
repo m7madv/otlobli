@@ -2963,7 +2963,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // Complete an explicit combined summary or the legacy 1PC + size.
   function completeSelectedCompoundSize(container, selected) {
     if (container && selected) {
-      var combinedTitles = container.querySelectorAll('.goods-size__title,[class*="size__title" i]');
+      var combinedUnconfirmed = false;
+      var combinedTitles = document.querySelectorAll('.goods-size__title,[class*="size__title" i]');
       for (var c = 0; c < combinedTitles.length && c < 4; c++) {
         var heading = normalizedOptionText(combinedTitles[c].textContent);
         var headingKey = heading.replace(/\\s+/g, '').toLowerCase();
@@ -2971,7 +2972,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var next = combinedTitles[c].nextElementSibling;
         var summary = normalizedOptionText(next && next.textContent);
         var scope = combinedTitles[c];
-        for (var h = 0; !summary && h < 3 && scope !== container; h++) {
+        for (var h = 0; !summary && h < 3 && scope && scope !== document.body; h++) {
           scope = scope.parentElement;
           var row = normalizedOptionText(scope && scope.textContent);
           if (row.indexOf(heading) === 0 && row.length < 60) summary = row.slice(heading.length).trim();
@@ -2979,8 +2980,18 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var chosen = summary.split('/');
         var first = normalizedOptionText(chosen[0]);
         var rest = normalizedOptionText(chosen.slice(1).join(' / '));
-        if (summary.length < 60 && first === normalizedOptionText(selected) && rest) return first + ' / ' + rest;
+        if (summary.length < 60 && first === normalizedOptionText(selected) && rest) {
+          combinedUnconfirmed = true;
+          var selectedNodes = container.querySelectorAll('*');
+          for (var s = 0; s < selectedNodes.length; s++) {
+            if (!isSelectedSwatchEl(selectedNodes[s])) continue;
+            var value = normalizedOptionText(selectedNodes[s].getAttribute('aria-label') ||
+              selectedNodes[s].getAttribute('title') || selectedNodes[s].getAttribute('data-value') || selectedNodes[s].textContent);
+            if (value === rest || (value.length < 60 && value.indexOf(rest) === 0)) return first + ' / ' + rest;
+          }
+        }
       }
+      if (combinedUnconfirmed) return '';
     }
     var pieceKey = sheinPieceCountKey(selected);
     if (!container || !pieceKey) return selected;
@@ -3291,11 +3302,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return { exists: !!container, selected: selected, image: getSelectedColorSwatchImage(container, selected) };
   }
 
-  // Walks every option inside the size container and splits it into
-  // available vs unavailable based on the common ways sites mark a sold-out
-  // option: aria-disabled, or a class hinting "disabled/soldout/out-of-stock".
-  // Heuristic (SHEIN's exact class names aren't guaranteed), but degrades
-  // safely - worst case an option lands in "available" when unsure.
   function getSizeOptions(container) {
     var available = [];
     var unavailable = [];

@@ -109,13 +109,17 @@ const checks = [
       'stableNavHost.appendChild(nav)',
       'function completeSelectedCompoundSize(container, selected)',
       'completeSelectedCompoundSize(container, getSelectedWithin(container))',
-      // v86.37: the combined summary may sit behind wrappers, but the bounded
-      // walk must stay inside the detected container and require an exact key.
-      "var combinedTitles = container.querySelectorAll('.goods-size__title",
+      // v86.38: the summary may be outside the drawer container; accept its
+      // second segment only when a selected option inside that container confirms it.
+      "var combinedTitles = document.querySelectorAll('.goods-size__title",
+      'var combinedUnconfirmed = false',
       "headingKey !== 'لون/مقاس'",
-      'h < 3 && scope !== container',
+      'h < 3 && scope && scope !== document.body',
       'row.indexOf(heading) === 0 && row.length < 60',
+      "var selectedNodes = container.querySelectorAll('*')",
+      'value === rest || (value.length < 60 && value.indexOf(rest) === 0)',
       "return first + ' / ' + rest",
+      "if (combinedUnconfirmed) return ''",
       // v86.30: offers.lowPrice is the CHEAPEST variant and must never be a
       // price source. JSON stays a fallback, but only via offers.price.
       'var ldPrice = offers && parseFloat(offers.price)',

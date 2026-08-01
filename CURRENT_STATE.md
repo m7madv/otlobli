@@ -2,6 +2,16 @@
 
 Last updated: 2026-08-01
 
+## v86.38 SHEIN externally-rendered combined size (2026-08-01)
+
+- Current marker is `2026.08.01-v86.38-shein-confirmed-external-size`; Android/iOS are `898/86.38`. The user rejected v86.37 on the real iPhone with the same missing `كبير` symptom; price remains confirmed correct and unchanged.
+- Root cause boundary corrected: the exact `لون / مقاس — رمادي / كبير` summary can be outside the `goods-size` drawer container. v86.37 queried titles only inside that container, so its ancestor walk never started. The real diagnostic showed both nodes globally but did not establish containment.
+- v86.38 queries only SHEIN's exact size-title selector across the document, examines at most four headings and three ancestors, and accepts `كبير` only when an actually selected element inside the detected options container has an exact/prefix match. A stale external summary therefore cannot authorize an add.
+- Full-script Playwright with the summary outside the container reproduces v86.37 (`size/key/payload=رمادي`, price `14.43`) and passes after the fix with `رمادي / كبير`. A negative fixture with an external summary but no selected `كبير` now returns an empty size and posts no add. Normal `L` and legacy `M / 1PC` still pass; price remains `14.43/selected-mutation`.
+- Freeze guard, production/performance build, Android/iOS sync, Gradle debug, and APK metadata pass. Budgets: JS raw `1,199,542/1,200,000`, JS gzip `359,214/370,000`, CSS `63,029/70,000`, fonts `81,364/100,000`, SHEIN source `549,712/550,000`.
+- Android APK: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.38-shein-confirmed-external-size-debug.apk`; SHA-256 `86B530AAAD1C98A680DA5CE644A8BFEAE5E80DDCA28E2C4A294EAE972CE615B1`; size `11,125,830` bytes; metadata confirms `com.otlobli.app`, `86.38/898`. No ADB device was connected.
+- Real iPhone acceptance is not yet performed for v86.38. Require `مختار: [رمادي / كبير]`, the full selection key, last-add size, and cart line before calling the issue resolved.
+
 ## v86.37 SHEIN nested combined-size summary (2026-08-01)
 
 - Current marker is `2026.08.01-v86.37-shein-nested-combined-size`; Android/iOS are `897/86.37`. The user rejected v86.36 on the real iPhone: the diagnostic and last add still reported `صينية من الخشب الصلب|رمادي`, while the same DOM visibly reported `لون / مقاس` then `رمادي / كبير`.
