@@ -2,14 +2,19 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
-## Current candidate (2026-08-01) - v86.46 reveal the opened options
+## Current candidate (2026-08-01) - v86.47 four device-measured fixes
 
-- Marker/version: `2026.08.01-v86.46-shein-reveal-sku-options`; Android/iOS `906/86.46`; branch `claude/shein-drawer-open-fix`, commit `47b216b`.
-- **Diagnose on the Note 8 before writing code.** It is on ADB and the app's WebView is debuggable: `adb forward tcp:9222 localabstract:webview_devtools_remote_$(adb shell pidof com.otlobli.app)`, then CDP `Runtime.evaluate` against the `m.shein.com` page. Three blind releases (v86.43/44/45) cost a day; the device answered in an hour.
-- The lesson those three encode: the press was already working. `.SIZE_ITEM_HOOK 0 -> 2` after every press, yet SHEIN renders the revealed groups ~500 CSS px below the fold, so the screen never changed and the user reported that nothing happens. Verify the *user-visible* result, not the DOM side effect.
-- Keep `sheinRevealSkuOptions()`: last `.SIZE_ITEM_HOOK` scrolled to centre, 280ms after the press, five retries. Keep `sheinTapElement`/`sheinSkuPromptNode`. Do NOT add a confirm/retry timer around the press (v86.44's mistake) - re-tapping undoes it.
-- Real control: `li.j-select-to-buy.goods-size__click-to-buy` > `span.capsule-box`. A plain `.click()` activates it; the tap sequence is retained because it also covers touch-bound markup.
-- Android device acceptance done for the reveal (screenshot + rects). iPhone acceptance still owed, plus five resume cycles and a cold launch.
+- Marker/version: `2026.08.01-v86.47-shein-options-clear-of-button`; Android/iOS `907/86.47`; branch `claude/shein-drawer-open-fix`, commit `154338c`.
+- PR [#1](https://github.com/m7madv/otlobli/pull/1) open for merge to `main`.
+- **Android verified on device**: add-to-cart $21.08, "L / أخضر" on 3-Tier-Lockable. Options visible and clear of floating button.
+- **iOS IPA** on Desktop: `otlobli-ios-v86.47/otlobli-v86.47-iphone16-unsigned.ipa`. Build run `30711387365` passed.
+- Four bugs fixed (all CDP-measured on Note 8): reversed heading `مقاس/لون`, missing `li` in selectors, toggle re-close, floating button covering options.
+- **Diagnose on the Note 8 before writing code.** ADB + CDP: `adb forward tcp:9222 localabstract:webview_devtools_remote_$(adb shell pidof com.otlobli.app)`.
+- Do NOT add confirm/retry timers (v86.44 disaster). Do NOT re-tap blind. Read `__otlobliTapTrace` first.
+- Real control: `li.j-select-to-buy` > `span.capsule-box`. Toggle behavior — skip press if `sheinLowestOptionGroup()` returns non-null.
+- `sheinClearOptionsFromButton` uses `scroll-margin-bottom` from the add button's live position to push options above it.
+- Budget: JS raw `1,198,804/1,200,000` locally. CI adds ~1,230 bytes (Vite inlines secrets). Very tight.
+- iPhone acceptance still owed.
 
 ## Superseded (2026-08-01) - v86.45 SKU drawer, single press
 

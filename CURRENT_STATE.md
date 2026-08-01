@@ -2,6 +2,19 @@
 
 Last updated: 2026-08-01
 
+## v86.47 SHEIN drawer: أربعة أعطال حقيقية (2026-08-01)
+
+- Current marker is `2026.08.01-v86.47-shein-options-clear-of-button`; Android/iOS are `907/86.47`. Branch `claude/shein-drawer-open-fix`, commit `154338c`.
+- PR [#1](https://github.com/m7madv/otlobli/pull/1) open for merge to `main`.
+- **Android verified on device**: add-to-cart with correct price $21.08, "L / أخضر" on 3-Tier-Lockable product. Options visible and clear of floating button.
+- **iOS IPA**: build run `30711387365` passed. IPA on Desktop: `otlobli-ios-v86.47/otlobli-v86.47-iphone16-unsigned.ipa`.
+- Four bugs fixed (all measured on Note 8 via CDP):
+  1. Heading `مقاس/لون` (reversed) not accepted → accept both orders
+  2. `li` missing from selector queries → added
+  3. Toggle: pressing while open closes → skip if options already visible
+  4. Floating button covers options → `scroll-margin-bottom` clears them
+- JS budget: `1,198,804/1,200,000` (headroom ~1,196 bytes locally).
+
 ## v86.46 SHEIN reveals the options it opened (2026-08-01)
 
 - Current marker is `2026.08.01-v86.46-shein-reveal-sku-options`; Android/iOS are `906/86.46`. Branch `claude/shein-drawer-open-fix`, commit `47b216b`.
