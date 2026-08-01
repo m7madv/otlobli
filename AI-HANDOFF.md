@@ -2,14 +2,14 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
-## Current candidate (2026-08-01) - v86.40 real drawer compound size
+## Current candidate (2026-08-01) - v86.41 shipping guard and drawer reopen
 
-- Marker/version: `2026.08.01-v86.40-shein-real-drawer-compound-size`; Android/iOS `900/86.40`. v86.39 is device-rejected: it did not reliably open the drawer and treated the first repeated `.SIZE_ITEM_HOOK` group (`بيج/رمادي`) as the size, missing the second same-class group (`صغير/كبير`). Price is user-confirmed fixed and unchanged.
-- Preserve the exact combined-summary entry in `sheinSkuSelectionEntry()`: first add must click the visible `لون / مقاس` row whether its value is `انقر للشراء` or an earlier selected summary. `sheinOpenSkuDrawer()` must return without adding on that first tap.
-- Preserve `sheinDrawerCompoundSizeState()`: while `__otlobliSheinDrawerPath` is active, read each painted/uncovered `.SIZE_ITEM_HOOK` group separately, require a real selection in every detected group, and join selections such as `بيج / كبير`. Never fall back to the background container when a real drawer group is incomplete.
-- Full-script device-shaped proof opens once/no add, blocks an unselected second group, and then sends `صينية من الخشب الصلب | بيج / كبير | $14.66`. Older drawer-priority, external-summary, single `L`, and `M / 1PC` regressions remain passing.
-- Freeze/performance build, native syncs, Gradle/APK, and GitHub/Xcode run `30697305864` pass. Code commit `87c85b1`; inspected APK/IPA paths and hashes are in `CURRENT_STATE.md`. IPA confirms `86.40/900`, compound-size and native recompose markers, and no app-root signature/provisioning.
-- Do not claim real-device acceptance for v86.40. Test first-tap opening, incomplete-option blocking, option changes inside the real drawer, five resume cycles, and cold launch. Preserve signed-region add guard and all native freeze invariants; the separate region-switching defect remains open.
+- Marker/version: `2026.08.01-v86.41-shein-shipping-add-guard-drawer-reopen`; Android/iOS `901/86.41`. Preserve v86.40 compound capture: the user confirmed color and size are now correct, and price remains fixed/unchanged.
+- `sheinOpenSkuDrawer()` is also the fail-closed shipping boundary. On every add tap it invalidates the shipping-root cache, verifies the real painted shipping root, clears `__otlobliSheinDrawerPath` and the current SKU memo, shows the close-shipping message, and returns handled. Never capture or add while that root is open.
+- Preserve the viewport intersection in `sheinDrawerCompoundSizeState()`. SHEIN retains a closed option drawer offscreen with positive dimensions; such groups are not active and must not suppress reopening. Preserve returning/clicking the full exact `.goods-detail__top-other` row, not only its inner text.
+- Full-script proof blocks shipping with no open/add, opens the product drawer after shipping closes, reopens an offscreen retained drawer, then sends `صينية من الخشب الصلب | بيج / كبير | $14.66`. v86.40/v86.39/v86.38 cases remain passing.
+- Freeze/performance build, native syncs, Gradle/APK, and GitHub/Xcode run `30698158082` pass. Code commit `760d62f`; inspected APK/IPA paths and hashes are in `CURRENT_STATE.md`. IPA confirms `86.41/901`, shipping/drawer/compound/native markers, and no app-root signature/provisioning.
+- Do not claim real-device acceptance. Test the exact shipping-open and options-reopen sequence plus cart, five resume cycles, and cold launch. Preserve signed-region add guard and native freeze invariants; automatic region switching remains a separate open defect.
 
 ## Current candidate (2026-08-01) - v86.38 externally-rendered combined size
 
