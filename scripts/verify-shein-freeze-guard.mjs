@@ -146,6 +146,9 @@ const checks = [
       'function sheinCovered(el)',
       '&& sheinElementIsVisible(el) && !sheinCovered(el)',
       'function sheinSkuMemo(key, value)',
+      // v86.43: a range price means no variant is committed - never add then.
+      'if (sheinHeadPriceIsRange()) {',
+      "showMessage(document.getElementById('otlobli-add-btn'), 'حدد الخيارات أولاً')",
       "sheinSkuMemo('s', selected)",
       // v86.35: a visible nav must stay first-tap responsive while SHEIN's
       // product-options backdrop is open, without stealing a truly covered row.

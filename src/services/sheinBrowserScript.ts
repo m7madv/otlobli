@@ -3427,11 +3427,21 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
     if (sheinDrawerCompoundSizeState()) return false;
     var entry = sheinSkuSelectionEntry();
-    if (!entry) return false;
-    __otlobliSheinDrawerPath = location.pathname;
-    __otlobliSkuMemo[location.pathname] = {};
-    try { entry.click(); } catch (e) { return false; }
-    return true;
+    if (entry) {
+      __otlobliSheinDrawerPath = location.pathname;
+      __otlobliSkuMemo[location.pathname] = {};
+      try { entry.click(); } catch (e) { return false; }
+      return true;
+    }
+    // No entry resolved, yet a range ("من") price is still printed - that only
+    // happens while NO variant is committed, so refuse rather than ship the low
+    // end with a stale remembered combination. See v86.43 in the freeze doc.
+    if (sheinHeadPriceIsRange()) {
+      __otlobliSkuMemo[location.pathname] = {};
+      showMessage(document.getElementById('otlobli-add-btn'), 'حدد الخيارات أولاً');
+      return true;
+    }
+    return false;
   }
 
   function sheinRevealSizeOptions() {
