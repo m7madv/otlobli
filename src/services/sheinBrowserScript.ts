@@ -2737,21 +2737,16 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return false;
   }
 
-  // A real product photo gallery is a cluster of 3+ same-ish SHEIN-hosted
-  // <img> siblings sharing a close common ancestor (the swipeable carousel +
-  // its thumbnail strip). That structural shape is a far more reliable
-  // fingerprint than "biggest image on the page", which can accidentally
-  // match a single oversized promo banner instead.
-  // Confirmed from a real captured page: SHEIN's gallery photos each sit in
-  // their OWN individual <li> wrapper (so grouping by a shared parent/
-  // grandparent ELEMENT always produces one-image "groups" of size 1 and
-  // never finds anything). What they DO share is the exact same wrapper
-  // *className* string (e.g. every photo's direct parent is independently
-  // class="crop-image-container"). Group by that className text instead.
-  // Smallest rendered side of an image, in CSS px. Off-screen carousel clones
-  // still report their full size (they're translated, not collapsed), so they
-  // pass; a not-yet-laid-out lazy image reports 0, which we treat as "unknown"
-  // (don't filter it out on size alone).
+  // A real photo gallery is a cluster of 3+ same-ish SHEIN-hosted <img>
+  // siblings - a far more reliable fingerprint than "biggest image on the
+  // page", which can match an oversized promo banner instead. Confirmed from
+  // a captured page: each gallery photo sits in its OWN <li>, so grouping by a
+  // shared ancestor ELEMENT only ever yields groups of 1. What they share is
+  // the wrapper *className* string (class="crop-image-container") - group by
+  // that. renderedMinDim = smallest rendered side in CSS px: off-screen
+  // carousel clones still report full size (translated, not collapsed) so they
+  // pass, while a not-yet-laid-out lazy image reports 0 = "unknown", which we
+  // do not filter out on size alone.
   function renderedMinDim(img) {
     var r = img.getBoundingClientRect();
     var w = r.width || img.clientWidth || 0;
@@ -3618,7 +3613,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }, delay || 0);
   }
 
-  // ── جذب تيمو ────────────────────────────────────────────────────────────
+  // جذب تيمو
   // ينظّف نصاً من رموز التحكم بالاتجاه غير المرئية (RLM/LRM/ALM وعلامات
   // العزل الاتجاهي Unicode Bidi Isolates) التي تُدرجها تيمو أحياناً حول
   // النصوص العربية لضبط اتجاه العرض — تجعل المقارنة الحرفية (===) والـregex
@@ -5241,8 +5236,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     };
   }
 
-  function debugSnapshot(colorState, sizeState) {}
-
   function addToCartFlow(colorState, sizeState) {
     if (document.getElementById('otlobli-overlay')) return;
     if (IS_SHEIN) {
@@ -5262,7 +5255,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
         return;
       }
     }
-    if (IS_SHEIN) debugSnapshot(colorState, sizeState);
     var payload = captureProductPayload(colorState, sizeState);
     showAddingOverlay(payload);
 
@@ -5505,20 +5497,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
       btn = document.createElement('button');
       btn.id = 'otlobli-add-btn';
       btn.setAttribute('aria-label', 'إضافة إلى سلة otlobli');
-      // Cleared above ensureOtlobliNav's bar (~64px + safe-area) instead of
-      // sitting flush with the screen edge, so the two never overlap.
-      // translateZ(0)/will-change forces this onto its own GPU compositing
-      // layer - a documented Android WebView quirk lets plain position:fixed
-      // elements drift with the page during touch-scroll momentum (only
-      // snapping back once scrolling fully stops, or in this case ending up
-      // hidden behind the system nav bar when scrolling back up) instead of
-      // staying pinned to the viewport the whole time; a composited layer
-      // is what actually keeps it visually anchored throughout the gesture.
-      // The 56px floor this used to need is gone now that the native side
-      // applies its own bottom margin (enabledSafeBottomMargin in App.tsx) -
-      // that's the real fix for the system nav bar overlap; this env()
-      // fallback only needs to cover whatever small gesture-inset remains
-      // after that, same as it did before that bug was ever introduced.
+      // Cleared above ensureOtlobliNav's bar so the two never overlap.
+      // translateZ(0)/will-change forces its own GPU compositing layer: a
+      // documented Android WebView quirk lets plain position:fixed elements
+      // drift with the page during touch-scroll momentum (here: hidden behind
+      // the system nav bar when scrolling back up). No 56px floor needed now
+      // that the native side applies its own bottom margin
+      // (enabledSafeBottomMargin in App.tsx); env() only covers the remaining
+      // gesture-inset.
       // يُرفع بفجوة ثابتة 16px فوق شريط otlobli السفلي على كل الأجهزة: ارتفاع
       // الشريط = 74px + max(safe-area,16px)، فنضع الزر عند ذلك + 16px. الصيغة
       // القديمة (78px + safe-area) كانت تلاصق الشريط (~4px فقط على آيفون بنَقْش)
@@ -5960,32 +5946,18 @@ export const SHEIN_CAPTURE_SCRIPT = `
     ensureShakeStyle();
     var nav = document.createElement('div');
     nav.id = 'otlobli-nav';
-    // Max z-index (tied with the other otlobli overlays, and appended last
-    // so it wins paint order among ties) - guarantees this sits above any
-    // bottom bar SHEIN's own page might render now that the webview is
-    // full-screen, rather than hoping ours happens to be on top.
-    // Matches otlobli's real .bottom-nav as closely as a separate webview
-    // can: same colors (--primary #006948 / --muted #3d4a42), same ~74px
-    // min-height, same 4px top indicator bar on the active tab, and the
-    // same 440px max-width/centering (matters on tablets - on a phone-width
-    // screen this is identical to full width).
-    // max() floor matches otlobli's real .bottom-nav (see styles.css): on
-    // Android, env(safe-area-inset-bottom) can report 0 even with a 3-button
-    // system nav bar on screen, letting taps near the bottom edge land in
-    // the system's gesture/button strip instead of these nav buttons.
-    // translateZ(0)/will-change forces this onto its own GPU compositing
-    // layer - confirmed real symptom: a plain position:fixed bar on Android
-    // WebView showed correctly while scrolling down, but disappeared behind
-    // the phone's own system navigation bar when scrolling back up. A
-    // composited layer keeps it visually pinned to the viewport throughout
-    // the scroll gesture instead of drifting with page content/system UI.
-    // The system-nav-bar overlap this used to need a bigger floor for is
-    // really fixed natively now (enabledSafeBottomMargin in App.tsx) - the
-    // WebView's own bounds correctly shrink to avoid the system bar at the
-    // native level, so env(safe-area-inset-bottom) only has whatever small
-    // gesture-inset is left over to report. Back to the original 16px floor
-    // for that, same as before that bug was ever introduced - a bigger one
-    // now would just add needless empty space under the icons.
+    // Max z-index (tied with the other otlobli overlays, appended last so it
+    // wins paint order among ties): sits above any bottom bar SHEIN renders.
+    // Mirrors otlobli's real .bottom-nav: colors --primary #006948 / --muted
+    // #3d4a42, ~74px min-height, 4px active-tab indicator, 440px max-width
+    // centering (tablets only - identical to full width on a phone).
+    // max(env(safe-area-inset-bottom),16px) floor: Android can report 0 even
+    // with a 3-button system bar on screen, and taps then land in the
+    // system's strip. 16px is right because the native side already shrinks
+    // the WebView bounds (enabledSafeBottomMargin in App.tsx); more would
+    // only add empty space. translateZ(0)/will-change forces its own GPU
+    // layer - confirmed symptom: a plain position:fixed bar on Android
+    // WebView vanished behind the system nav bar when scrolling back up.
     // direction:rtl ثابت حتى يكون ترتيب الأزرار (الرئيسية يمين ← حسابي يسار)
     // نفسه على كل المتاجر؛ بدونه ينقلب على المتاجر LTR مثل تيمو.
     nav.style.cssText = OTLOBLI_NAV_CSS;
@@ -6365,24 +6337,17 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }, true);
 
-  // Hide every SHEIN header icon except search (wishlist heart, inbox, hamburger
-  // menu, etc.) - same point-probing + "walk up to the nearest small clickable
-  // element" pattern as hideStrayFixedBottomBars below, deliberately avoiding a
-  // blind document-wide querySelectorAll('a,button') like the earlier cart-icon
-  // lockout used: that one matched an oversized wrapping element once and tore
-  // a transparent hole in SHEIN's header. Capping at icon-sized elements (and
-  // skipping anything that contains/looks like the search input) keeps this
-  // safe even if SHEIN's markup doesn't match our assumptions.
-  // Point-probing (hideExtraHeaderIcons below) can miss a small icon
-  // outright if it just happens to sit between two sample points - a user
-  // reported the wishlist heart and hamburger menu sometimes taking
-  // minutes to disappear, purely down to probe-grid luck. This is a direct,
-  // grid-independent pass: query for the hamburger/wishlist by name instead
-  // of by position, so it gets caught on literally the first tick
-  // regardless of exactly where it sits. The hamburger is a real risk
-  // beyond clutter too - it can lead to SHEIN's own account/region/currency
-  // settings, and a currency switch there would silently break price
-  // capture (which assumes USD).
+  // Hide every SHEIN header icon except search (wishlist heart, inbox,
+  // hamburger). Never a blind document-wide querySelectorAll('a,button') like
+  // the earlier cart-icon lockout: that matched an oversized wrapper once and
+  // tore a transparent hole in SHEIN's header. Cap at icon-sized elements and
+  // skip anything that looks like the search input.
+  // Point-probing (hideExtraHeaderIcons below) can miss a small icon that
+  // happens to sit between two sample points - reported as the heart/hamburger
+  // taking minutes to disappear. This pass is grid-independent: query them by
+  // name so they go on the first tick. The hamburger is a real risk, not just
+  // clutter - it reaches SHEIN's own region/currency settings, and a currency
+  // switch there would silently break price capture (which assumes USD).
   function hideKnownHeaderIconsByHint() {
     var candidates = document.querySelectorAll(
       '[class*="menu" i], [aria-label*="menu" i], [class*="hamburger" i], [class*="nav-toggle" i], ' +
@@ -7117,20 +7082,17 @@ export const SHEIN_CAPTURE_SCRIPT = `
     for (var ai = 0; ai < alerts.length; ai++) inspect(alerts[ai]);
   }
 
-  // shein.com's own anti-bot system occasionally serves a branded "GSRM
-  // Security"/"server's gone missing" block page instead of the real page -
-  // observed tied to the session's cookies (clearing them and reloading
-  // fixes it immediately). Detected here and handled by the app, since only
-  // native code can clear HttpOnly cookies. Reset on navigation so a block
-  // on one route doesn't suppress detecting it again on the next.
-  // ── وضع التحقق «أنا إنسان» (Cloudflare) — v62 ─────────────────────────────
-  // شي إن وضعت موقعها خلف جدار كلاودفلير: صفحة "Just a moment..." تظهر قبل
-  // أي محتوى (ثبت بفحص مباشر: HTTP 403 وصفحة تحدي من challenges.cloudflare.com).
-  // القاعدة الراسخة: لا نتجاوز التحقق ولا نغطيه ولا نعيد التحميل أثناءه.
-  // ما كان يكسر شي إن: حارس السعودية لا يجد مؤشرات سعودية على صفحة التحدي
-  // فيعيد تحميلها (حتى مرتين كل 30 ثانية) ويصفّر حل المستخدم قبل إتمامه —
-  // فتعلق شي إن للأبد. الحل: نكتشف التحدي، نجمّد كل تدخلاتنا ونزيل عناصرنا
-  // من الصفحة، ونبلغ التطبيق (humanCheck) ليطفئ مؤقت «تعذر الفتح» وينتظر.
+  // SHEIN's anti-bot sometimes serves a branded "GSRM Security"/"server's
+  // gone missing" block page - tied to the session cookies (clearing them and
+  // reloading fixes it at once). Only native code can clear HttpOnly cookies,
+  // so we detect and the app handles it. Reset on navigation so a block on one
+  // route doesn't suppress detection on the next.
+  // وضع التحقق «أنا إنسان» (Cloudflare) — v62: صفحة "Just a moment..." تظهر
+  // قبل أي محتوى (ثبت: HTTP 403 وتحدٍّ من challenges.cloudflare.com). القاعدة
+  // الراسخة: لا نتجاوزه ولا نغطيه ولا نعيد التحميل أثناءه. ما كان يكسر شي إن:
+  // حارس السعودية لا يجد مؤشرات سعودية في صفحة التحدي فيعيد تحميلها ويصفّر حل
+  // المستخدم فتعلق للأبد. الحل: نكتشف التحدي، نجمّد تدخلاتنا ونزيل عناصرنا،
+  // ونبلغ التطبيق (humanCheck) ليطفئ مؤقت «تعذر الفتح» وينتظر.
   var __otlobliChallengeNotified = false;
   // While a Cloudflare / "verify you are human" challenge is on screen we
   // deliberately do nothing (our nodes are removed; the nav is kept by
@@ -7950,17 +7912,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
     } catch (e) {}
   }
 
-  // نص قاعدة CSS التي تُخفي أزرار هيدر تيمو + بانر "تسوّق مثل الملياردير".
-  // الأزرار الثلاثة (عربة التسوق/الحساب/الفئات) كلها من نوع .tab-d3nPD داخل
-  // حاوية الهيدر topTabContainer. نستهدف أيضاً aria-label الدقيق كطبقة احتياطية
-  // لو تغيّرت أسماء الأصناف المُولّدة. اللاحقة العشوائية للأصناف (مثل -RLshn)
-  // قد تتغيّر بين الإصدارات لذا نطابق بالبادئة عبر [class*=].
-  //
-  // تحذير (v57): ممنوع إخفاء .downloadsWrapper كاملاً — على الأجهزة الفعلية
-  // شريط البحث بالرئيسية يسكن داخل هذا الغلاف نفسه (درس v35 المكرر في v53)،
-  // فإخفاؤه يُخفي البحث معه. كانت المراجعة الذاتية في killStorePopups تنقذه،
-  // وبعد تعطيلها لتيمو (سبب الوميض) لا منقذ. نخفي .downloadUI فقط (واجهة
-  // بانر التنزيل الفعلية داخل الغلاف) ويبقى الغلاف والبحث ظاهرين.
+  // CSS تُخفي أزرار هيدر تيمو (السلة/الحساب/الفئات، كلها .tab-d3nPD داخل
+  // topTabContainer) + بانر "تسوّق مثل الملياردير". نطابق بالبادئة [class*=]
+  // لأن لاحقة الأصناف عشوائية، وaria-label كطبقة احتياطية.
+  // تحذير (v57): ممنوع إخفاء .downloadsWrapper كاملاً — شريط بحث الرئيسية
+  // يسكن داخله على الأجهزة الفعلية (درس v35 المكرر في v53) فيختفي معه، ولا
+  // منقذ بعد تعطيل killStorePopups لتيمو (سبب الوميض). نخفي .downloadUI فقط.
   var OTLOBLI_TEMU_HIDE_CSS =
     '[aria-label*="cart" i], [aria-label*="basket" i], [aria-label*="bag" i],' +
     '[aria-label*="account" i], [aria-label*="profile" i],' +
@@ -8335,9 +8292,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // ظهوره (CSS ثابت منّا يطابق بالصنف، أو انهيار layout). نصعد من مرساة المحتوى
   // ونُجبر كل سلف مخفي على الظهور بأنماط inline مهمة (تتفوّق على أي stylesheet،
   // فلا تكرار قتال كل tick). نوسمه keep حتى لا تعبث به الحاجبات.
-  // إظهار محتوى المنتج المخفي (الشاشة البيضاء "محتوى مخفي"): DOM فيه منتج لكن
-  // لا شيء مرئي وسبب الحجب ليس بالـattributes (CSS/حالة Temu). نصعد من مرساة
-  // المحتوى ونُجبر كل سلف مخفي على الظهور.
   // مهم (v85.8.44): يفرض مرّة ثم **يتوقف** فور ظهور المحتوى (visImg>0) — لا
   // يُزيل ما فرضه أبداً. إزالة v85.8.42 كانت تُنشئ حلقة فرض/إزالة = وميض أبيض
   // سريع (الفرض نفسه هو ما يجعل المحتوى مرئياً، فإزالته تُخفيه ثانيةً فوراً).
@@ -9872,17 +9826,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
   };
   window.addEventListener('popstate', scheduleTick);
 
-  // document.body observe(document.body, ...) here used to throw outright
-  // at this documentStart injection timing - the parser hasn't necessarily
-  // reached <body> yet, so it's still null. Confirmed via the actual error
-  // in chromium's console log: "Failed to execute 'observe' on
-  // 'MutationObserver': parameter 1 is not of type 'Node'." With nothing
-  // catching it, that exception HALTED THE ENTIRE SCRIPT right here - every
-  // line after it (both setInterval(tick, ...) calls, the block-detector,
-  // the very first tick()) silently never ran for the rest of that page
-  // load, no matter how long the page lived. WebKit can also run this before
-  // <html> is exposed to script, so the observer attaches as soon as a root
-  // node is actually available instead of assuming documentElement exists.
+  // observe(document.body, ...) here used to throw at this documentStart
+  // timing - body is still null ("Failed to execute 'observe' on
+  // 'MutationObserver': parameter 1 is not of type 'Node'") - and uncaught it
+  // HALTED THE ENTIRE SCRIPT: both setInterval(tick) calls, the block-detector
+  // and the first tick() never ran for that whole page load. WebKit can run
+  // this before <html> is exposed too, so attach as soon as a root node
+  // actually exists instead of assuming documentElement does.
   // Do not run geometry/text scans from MutationObserver. SHEIN mutates the
   // product DOM continuously; doing layout work before every paint starves
   // older WKWebView devices and delays image decoding. The coalesced tick owns

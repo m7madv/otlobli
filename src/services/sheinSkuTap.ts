@@ -9,21 +9,36 @@
 // closure - sheinElementIsVisible, sheinCovered, sheinDrawerCompoundSizeState,
 // showMessage and __otlobliSheinDrawerPath are the capture script's own.
 // It ships in the same injected string, so it still counts against the real
-// (bundle gzip) budget; only the source-file proxy changes.
+// (bundle raw/gzip) budget; only the source-file proxy changes. Everything
+// inside the template ships verbatim - a string the minifier cannot touch - so
+// the explanation lives up here, where it is free, and the body stays lean.
 //
 // Why it exists: on device the drawer never opened. v86.43 activated the row
-// with a bare element.click(), which reaches only listeners bound to `click`
-// on that exact node or an ancestor - SHEIN's mobile PDP binds the options
-// entry with a touch directive on an inner chip, so nothing fired at all and
-// the add button silently did nothing (sheinOpenSkuDrawer returned true).
+// with a bare element.click(), which reaches only listeners bound to `click` on
+// that exact node or an ancestor - SHEIN's mobile PDP binds the options entry
+// with a touch directive on an inner chip, so nothing fired at all and the add
+// button silently did nothing (sheinOpenSkuDrawer returned true regardless).
+//
+// sheinTapElement replays a real tap: pointer -> touch -> mouse -> click on the
+// deepest node under the target's centre, so every binding on the way up fires.
+// When the page cancels the touch (what a tap handler does) the mouse/click
+// tail is dropped exactly like a browser drops it - sending it anyway would
+// activate a dual-bound row twice and toggle the drawer straight back shut.
+// __otlobliTapTrace records what was actually hit; without it a failed tap is
+// invisible and the next fix is another blind guess, which is what cost v86.43.
+//
+// sheinSkuPromptNode aims at the chip that literally reads "انقر للشراء" - the
+// control the shopper taps - rather than the row, which is only its label.
+//
+// sheinConfirmSkuDrawer probes the result: a drawer that opened covers the row
+// it came from, so a row that is still visible AND still uncovered means
+// nothing opened. That is the one probe that does not depend on SHEIN's class
+// names, which change without warning. Round 1 aims at the row itself, a
+// different node than round 0's chip; after that it says so, because silently
+// swallowing the tap is exactly what the user reported.
 export const OTLOBLI_SKU_TAP_JS = `
   var OTLOBLI_SKU_PROMPT = /انقر للشراء|please\\s*select|الرجاء الاختيار|يرجى الاختيار|اختر الخيارات/i;
 
-  // Replay a real tap: pointer -> touch -> mouse -> click on the deepest node
-  // under the target's centre, so every binding on the way up fires. When the
-  // page cancels the touch (what a tap handler does) the mouse/click tail is
-  // dropped exactly like a browser drops it - sending it anyway would activate
-  // a dual-bound row twice and toggle the drawer straight back shut.
   function sheinTapElement(el) {
     if (!el) return false;
     var r = el.getBoundingClientRect();
@@ -65,8 +80,6 @@ export const OTLOBLI_SKU_TAP_JS = `
       fire(MouseEvent, 'mouseup');
       fire(MouseEvent, 'click');
     }
-    // Read back by the diagnostics panel: without it a failed tap is invisible
-    // and the next fix is another blind guess, which is what cost v86.43.
     try {
       window.__otlobliTapTrace = target.tagName + '.' + String(target.className || '').slice(0, 40) +
         ' touch=' + (touched ? 1 : 0) + ' cancel=' + (cancelled ? 1 : 0) +
@@ -75,8 +88,6 @@ export const OTLOBLI_SKU_TAP_JS = `
     return true;
   }
 
-  // The chip that literally reads "انقر للشراء" is the control the shopper
-  // taps; the row around it is only its label, so aim at the chip first.
   function sheinSkuPromptNode(row) {
     if (!row) return null;
     var nodes = row.querySelectorAll('div, span, p, a, button, i');
@@ -89,11 +100,6 @@ export const OTLOBLI_SKU_TAP_JS = `
     return null;
   }
 
-  // A drawer that opened covers the row it came from, so a row that is still
-  // visible AND still uncovered means nothing opened - the one probe that does
-  // not depend on SHEIN's class names, which change without warning. Round 1
-  // aims at the row itself, a different node than round 0's chip. After that,
-  // say so: silently swallowing the tap is what the user actually reported.
   function sheinConfirmSkuDrawer(entry, round) {
     setTimeout(function () {
       if (sheinDrawerCompoundSizeState()) return;
