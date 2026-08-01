@@ -3265,6 +3265,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (labelVal && !isGenericColorName(labelVal)) selected = labelVal;
     else if (swatchVal && !isGenericColorName(swatchVal)) selected = swatchVal;
     else selected = labelVal || swatchVal;
+    selected = sheinSkuMemo('c', selected);
     return { exists: !!container, selected: selected, image: getSelectedColorSwatchImage(container, selected) };
   }
 
@@ -3302,12 +3303,35 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var opts = getSizeOptions(container);
     var selected = completeSelectedCompoundSize(container, getSelectedWithin(container));
     if (!selected && opts.available.length === 1 && opts.unavailable.length === 0) selected = opts.available[0];
+    selected = sheinSkuMemo('s', selected);
     return {
       exists: !!container,
       selected: selected,
       available: opts.available,
       unavailable: opts.unavailable,
     };
+  }
+
+  // Is another layer painted over this element? See v86.34 in the freeze doc.
+  function sheinCovered(el) {
+    try {
+      var r = el.getBoundingClientRect();
+      var x = r.left + r.width / 2, y = r.top + r.height / 2;
+      var vw = document.documentElement.clientWidth || 0;
+      var vh = document.documentElement.clientHeight || 0;
+      if (x < 0 || y < 0 || x > vw || y > vh) return false;
+      var top = document.elementFromPoint(x, y);
+      if (!top) return false;
+      return !(top === el || el.contains(top) || top.contains(el));
+    } catch (e) { return false; }
+  }
+
+  // Remembers colour/size per product; the drawer drops the groups when closed.
+  var __otlobliSkuMemo = {};
+  function sheinSkuMemo(key, value) {
+    var m = __otlobliSkuMemo[location.pathname] || (__otlobliSkuMemo[location.pathname] = {});
+    if (value) m[key] = value;
+    return m[key] || '';
   }
 
   function sheinSkuSelectionPending() {
@@ -3319,7 +3343,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (el.children && el.children.length > 3) continue;
       var t = (el.textContent || '').replace(/\\s+/g, ' ').trim();
       if (!t || t.length > 30) continue;
-      if (/انقر للشراء|please\\s*select|الرجاء الاختيار|يرجى الاختيار|اختر الخيارات/i.test(t) && sheinElementIsVisible(el)) {
+      if (/انقر للشراء|please\\s*select|الرجاء الاختيار|يرجى الاختيار|اختر الخيارات/i.test(t)
+          && sheinElementIsVisible(el) && !sheinCovered(el)) {
         return true;
       }
     }

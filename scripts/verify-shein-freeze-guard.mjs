@@ -130,6 +130,12 @@ const checks = [
       'var OTLOBLI_MAIN_PRICE_SEL',
       'productPriceContainer',
       '[class*="from-tag" i]',
+      // v86.34: the collapsed placeholder must not block the add while the
+      // options drawer covers it, and the picked sku must survive its close.
+      'function sheinCovered(el)',
+      '&& sheinElementIsVisible(el) && !sheinCovered(el)',
+      'function sheinSkuMemo(key, value)',
+      "sheinSkuMemo('s', selected)",
       "var metaPrice = parseFloat(getMeta('product:price:amount'))",
       "document.querySelector('.product-price .price-content, .product-intro__head-price, [class*=\"price\" i]')",
       'return !!p.title && !!p.image && p.priceUsd > 0 && (!cs.exists || !!p.color)',

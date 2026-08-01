@@ -133,26 +133,6 @@ export const SHEIN_PRICE_DIAGNOSTICS_SCRIPT = `
       n++;
     }
 
-    add('=== أسعار ===');
-    var roots = document.querySelectorAll('.product-intro__head-price,[class*="productPriceContainer" i],[class*="head-price" i],[class*="main-price" i]');
-    add('جذور: ' + roots.length);
-    for (var r = 0; r < roots.length && r < 6; r++) {
-      var rt = roots[r];
-      add('-- ' + (r + 1) + ' ظاهر=' + (vis(rt) ? 'نعم' : 'لا') + ' | ' + cls(rt));
-      add('    "' + txt(rt, 120) + '"');
-      var kids = rt.querySelectorAll('*'), pr = 0;
-      for (var k = 0; k < kids.length && pr < 10; k++) {
-        var kd = kids[k], kt = txt(kd, 28);
-        if (!kt || kt.indexOf('$') === -1) continue;
-        if (kd.children && kd.children.length > 1) continue;
-        var st = window.getComputedStyle(kd);
-        var sk = /line-through/.test((st.textDecorationLine || '') + ' ' + (st.textDecoration || ''));
-        add('      • "' + kt + '"  ' + Math.round(parseFloat(st.fontSize || '0')) + 'px'
-          + (sk ? ' مشطوب' : '') + '  cls=' + cls(kd));
-        pr++;
-      }
-    }
-
     add('=== آخر إضافة ===');
     if (!LAST_ADD) {
       add('(لا إضافة بعد)');
