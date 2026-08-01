@@ -3197,9 +3197,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var cr = candImg.getBoundingClientRect();
       var cw = cr.width || candImg.naturalWidth || 0;
       var ch = cr.height || candImg.naturalHeight || 0;
-      // تخطّى طبقة الشارة الصغيرة في الزاوية (أصغر بكثير من حوّاسة اللون). إن كانت
-      // صورة اللون خلفية (background-image) والوحيدة <img> هي الشارة، يسقط هذا كله
-      // فيُستخدم مسار الخلفية أدناه — وهو الصحيح.
       if (cw > 0 && ch > 0 && Math.min(cw, ch) < 18) continue;
       var candArea = cw * ch;
       if (candArea > bestArea) { bestArea = candArea; bestSrc = candSrc; }
@@ -3301,11 +3298,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return '';
   }
 
-  // SHEIN prints a generic "ألوان متعددة" / "Multicolor" label for products
-  // whose swatches it groups under one name (nail-polish sets, print fabrics,
-  // etc.). Capturing that verbatim is useless - every variant of the product
-  // ends up with the same meaningless color - so treat it as a low-quality
-  // value and prefer a more specific name when one is available.
   function isGenericColorName(text) {
     if (!text) return true;
     var t = text.toLowerCase();
@@ -3342,7 +3334,34 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return { available: available, unavailable: unavailable };
   }
 
+  function sheinDrawerCompoundSizeState() {
+    if (__otlobliSheinDrawerPath !== location.pathname) return null;
+    var groups = document.querySelectorAll('.SIZE_ITEM_HOOK');
+    var picked = [], available = [], unavailable = [], found = 0;
+    for (var i = 0; i < groups.length && i < 6; i++) {
+      var group = groups[i];
+      if (!sheinElementIsVisible(group) || sheinCovered(group)) continue;
+      var opts = getSizeOptions(group);
+      if (!opts.available.length && !opts.unavailable.length) continue;
+      found++;
+      available = opts.available;
+      unavailable = opts.unavailable;
+      var value = getSelectedWithin(group);
+      if (!value && available.length === 1 && !unavailable.length) value = available[0];
+      if (!value) return { exists: true, selected: '', available: available, unavailable: unavailable };
+      if (picked.indexOf(value) < 0) picked.push(value);
+    }
+    if (!found) return null;
+    if (picked.length === 2 && sheinPieceCountKey(picked[0]) && sheinSimpleSize(picked[1])) picked.reverse();
+    return { exists: true, selected: picked.join(' / '), available: available, unavailable: unavailable };
+  }
+
   function getSizeState() {
+    var drawerState = sheinDrawerCompoundSizeState();
+    if (drawerState) {
+      if (drawerState.selected) drawerState.selected = sheinSkuMemo('s', drawerState.selected);
+      return drawerState;
+    }
     var container = findOptionContainer('size', OTLOBLI_SIZE_LABELS);
     var opts = getSizeOptions(container);
     var selected = completeSelectedCompoundSize(container, getSelectedWithin(container));
@@ -3356,7 +3375,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     };
   }
 
-  // Is another layer painted over this element? See v86.34 in the freeze doc.
   function sheinCovered(el) {
     try {
       var r = el.getBoundingClientRect();
@@ -3380,6 +3398,16 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function sheinSkuSelectionEntry() {
     if (!IS_SHEIN || !document.body) return null;
+    var titles = document.querySelectorAll('.goods-size__title,[class*="size__title" i]');
+    for (var h = 0; h < titles.length && h < 4; h++) {
+      var key = normalizedOptionText(titles[h].textContent).replace(/\\s+/g, '').toLowerCase();
+      if (key !== 'لون/مقاس' && key !== 'color/size' && key !== 'colour/size') continue;
+      var row = titles[h].closest('.goods-detail__top-other') || titles[h].parentElement;
+      if (!row || !sheinElementIsVisible(row) || sheinCovered(row)) continue;
+      var value = titles[h].nextElementSibling ||
+        (titles[h].parentElement && titles[h].parentElement.nextElementSibling);
+      return value || row;
+    }
     var nodes = document.querySelectorAll('div, span, p, a, button');
     for (var i = 0; i < nodes.length; i++) {
       var el = nodes[i];
@@ -3396,6 +3424,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   function sheinOpenSkuDrawer() {
+    if (sheinDrawerCompoundSizeState()) return false;
     var entry = sheinSkuSelectionEntry();
     if (!entry) return false;
     __otlobliSheinDrawerPath = location.pathname;
@@ -3405,20 +3434,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   function looksLikeProductPage() {
-    // SHEIN product detail pages always have a "-p-<id>" segment in the URL
-    // (e.g. /ar/some-name-p-12345678-cat-1727.html). The home/category/deals
-    // pages don't, so the URL is the reliable PDP signal on its own.
-    // IMPORTANT: this used to also require title/price/image to all be
-    // truthy before counting as a PDP - but that conflated "is this a
-    // product page" with "did our scraping succeed". Any single field
-    // failing (e.g. price selector not matching) made the button silently
-    // treat a real product page as "not a product page" and just open the
-    // (empty) cart instead of attempting to add anything - a totally silent
-    // dead end with no error. Now we only gate on the URL, and let
-    // addToCartFlow run regardless; its diagnostics chips show exactly
-    // which field(s) failed instead of hiding the failure entirely.
-    // تيمو: صفحة المنتج = goods بالمسار، أو (احتياط أمتن) وجود عنصر السعر
-    // curPrice الذي يظهر فقط بصفحة المنتج - حتى لو لم يتطابق المسار.
     if (IS_TEMU) {
       if (/goods/i.test(location.pathname)) return true;
       try { return !!document.querySelector('[class*="curPrice" i]'); } catch (e) { return false; }
