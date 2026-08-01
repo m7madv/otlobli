@@ -7,6 +7,7 @@
 - أضيف توجيه `touchend` مبكر من `documentStart` إلى native، مع منع تكرار click اللاحق. لذلك درج SHEIN لا يستطيع ابتلاع أول لمسة على السلة أو طلباتي أو حسابي.
 - اختبار Playwright على مقاس هاتف أثبت أن السلة ثم طلباتي ثم حسابي تعمل مرة واحدة لكل لمسة، وأن اختيار `M` داخل الدرج بقي يعمل. اختبار iPhone الحقيقي ما زال مطلوباً ولا يوجد ادعاء قبول جهاز بعد.
 - نجح حارس التجمّد والبناء وميزانية الأداء ومزامنة Android/iOS وبناء APK. الملف: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.35-shein-options-drawer-nav-debug.apk`، والبصمة `336074AE7BD25DC59079D51ADD177371EBB63EBBF0A850BFB38FF191E2F31D6C`.
+- نجح GitHub/Xcode run `30693899285` من commit `4768893`. نسخة iPhone غير الموقعة: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-v86.35-iphone16-unsigned.ipa`، والبصمة `22B61C8F6204433A5E4F30E8FFABDC43F11D6CC61F83A5C48DAD771387AAF00B`. الفحص أكد `86.35/895` وعلامات الإصلاح والتجمّد؛ يلزم توقيعها قبل التثبيت العادي واختبارها على iPhone حقيقي.
 
 ## v86.31 — قالب «انقر للشراء»: عناوين مجرّدة وسعر نطاق
 
