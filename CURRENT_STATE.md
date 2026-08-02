@@ -2,6 +2,15 @@
 
 Last updated: 2026-08-02
 
+## v86.54 SHEIN selected color capture from cart screenshots (2026-08-02)
+
+- Current marker is `2026.08.02-v86.54-shein-selected-color-capture-fix`; Android/iOS are `914/86.54`. Branch is `claude/shein-drawer-open-fix`.
+- User reported three SHEIN cart color defects visible on both iPhone and Android: text-button color product selected `لون القرنفل` but cart showed `أبيض حريري`; another row stored all color labels and put the chosen color at the end; an `انقر للشراء` product kept the previous red-purple image after the customer changed to green in the opened selector.
+- Fix: `getSelectedWithin()` now extracts labels only from a single selected option, rejects selected wrapper/container text that contains multiple option children, and falls back to the visually selected black/white option button when SHEIN does not expose `aria`/class selection. `getColorState()` now trusts the direct selected option before stale page heading text. `getSelectedColorSwatchImage()` skips selected multi-option wrappers, and SHEIN payloads prefer `colorState.image` over the hero image so cart thumbnails do not keep a previous color while the hero is lagging.
+- To keep budgets safe, one old explanatory comment block inside `SHEIN_CAPTURE_SCRIPT` was removed; no timer, polling, region, price, payment, wallet, order, or native WebView lifecycle behavior changed.
+- Validation so far: `npm run build` passed; `verify:shein-freeze-guard` OK; `verify:performance-budget` OK with largest JS raw `1,197,091 / 1,200,000`, JS gzip `355,995 / 370,000`, CSS `63,029`, fonts `81,364`, SHEIN script source `543,352 / 550,000`; extracted `SHEIN_CAPTURE_SCRIPT` parses with `new Function`; `npx cap sync android`; `npx cap sync ios`; Android Gradle `assembleDebug` passed. APK: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA\.claude\worktrees\brave-gould-c49b60\android\app\build\outputs\apk\debug\app-debug.apk`; SHA-256 `366BBDFF77FD5A6535AFDCF1C7B62E40198EA964E4D8CA4AF1CDA3B9326F62D2`; size `11,121,882` bytes.
+- Real iPhone/Android acceptance on the three photographed products is still pending. ADB currently lists no connected Android device.
+
 ## v86.53 Note8 cart gold swatch + v86.52 freeze chain (2026-08-02)
 
 - Current marker is `2026.08.02-v86.53-cart-solid-color-swatch-fix`; Android/iOS are `913/86.53`. Branch is `claude/shein-drawer-open-fix`. Base fix commit `861031f` is pushed; a follow-up in this task removes shipped comments only to restore iOS CI bundle headroom.

@@ -2,6 +2,14 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
+## Current candidate (2026-08-02) - v86.54 SHEIN selected color capture
+
+- Marker/version: `2026.08.02-v86.54-shein-selected-color-capture-fix`; Android/iOS `914/86.54`; branch `claude/shein-drawer-open-fix`.
+- User provided three cart screenshots: first product selected `لون القرنفل` on a text-button color row but cart showed `أبيض حريري`; second product cart variant joined every color and placed the selected color last; third `انقر للشراء` product kept the earlier red-purple image after the customer changed to green in the opened picker.
+- Keep the v86.54 color-capture rules: `getSelectedWithin()` must not return text from a selected wrapper that contains multiple option children; it should use `sheinSelectionLabel()` from a single option and can fall back to `sheinLooksVisuallySelected()` for SHEIN's black selected button. `getColorState()` must prefer direct selected option text over stale page heading text. `getSelectedColorSwatchImage()` must skip multi-option selected wrappers. SHEIN payload image intentionally prefers `colorState.image || getMainImage()` to avoid stale hero thumbnails after a color change.
+- Scope stayed narrow: no price, payment, wallet, order, region, native WebView lifecycle, or timing changes. One old shipped comment block was removed only to protect the bundle budget.
+- Validation so far: `npm run build` passed, freeze guard OK, performance budget OK (`largest JS raw 1,197,091/1,200,000`, gzip `355,995/370,000`, SHEIN source `543,352/550,000`), extracted `SHEIN_CAPTURE_SCRIPT` `new Function` parse OK, `npx cap sync android`, `npx cap sync ios`, Gradle debug build. APK SHA-256 `366BBDFF77FD5A6535AFDCF1C7B62E40198EA964E4D8CA4AF1CDA3B9326F62D2`, size `11,121,882` bytes. Real-device acceptance is still pending; `adb devices` was empty.
+
 ## Current candidate (2026-08-02) - v86.53 cart gold swatch + Note 8 freeze fixes
 
 - Marker/version: `2026.08.02-v86.53-cart-solid-color-swatch-fix`; Android/iOS `913/86.53`; branch `claude/shein-drawer-open-fix`. Base fix commit `861031f` is pushed; this follow-up trims shipped comments only so the iOS workflow has safe bundle headroom.

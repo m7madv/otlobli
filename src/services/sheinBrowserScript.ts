@@ -2964,23 +2964,56 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return /^\\d{1,2}:\\d{2}(:\\d{2})?$/.test(text);
   }
 
+  function sheinHasManyOptionChildren(el) {
+    return !!(el && el.querySelectorAll &&
+      el.querySelectorAll('li,button,[role="radio"],[role="option"],[role="button"],[class*="item" i]').length > 1);
+  }
+
+  function sheinSelectionLabel(el) {
+    if (!el) return '';
+    var label = el.getAttribute('aria-label') || el.getAttribute('title') ||
+      el.getAttribute('data-color') || el.getAttribute('data-name') || el.getAttribute('data-value') ||
+      el.getAttribute('data-attr-value') || '';
+    label = normalizedOptionText(label);
+    if (!label) {
+      var innerImg = el.tagName === 'IMG' ? el : el.querySelector && el.querySelector('img');
+      if (innerImg) label = normalizedOptionText(innerImg.getAttribute('alt') || innerImg.getAttribute('title') || '');
+    }
+    if (!label && !sheinHasManyOptionChildren(el)) label = normalizedOptionText(el.textContent);
+    return label && label.length < 60 && !looksLikeJunkValue(label) ? label : '';
+  }
+
+  function sheinRgb(value) {
+    var m = String(value || '').match(/rgba?\\((\\d+),\\s*(\\d+),\\s*(\\d+)(?:,\\s*([\\d.]+))?/i);
+    return m ? [+m[1], +m[2], +m[3], m[4] === undefined ? 1 : +m[4]] : null;
+  }
+
+  function sheinLooksVisuallySelected(el) {
+    try {
+      if (!sheinSelectionLabel(el) || sheinHasManyOptionChildren(el)) return false;
+      var r = el.getBoundingClientRect();
+      if (!r || r.width < 20 || r.height < 20 || r.width > 280 || r.height > 120) return false;
+      var cs = window.getComputedStyle(el);
+      var bg = sheinRgb(cs.backgroundColor);
+      var fg = sheinRgb(cs.color);
+      return !!(bg && bg[3] > 0.55 && bg[0] < 80 && bg[1] < 80 && bg[2] < 80 &&
+        (!fg || (fg[0] > 150 && fg[1] > 150 && fg[2] > 150)));
+    } catch (e) { return false; }
+  }
+
   function getSelectedWithin(container) {
     if (!container) return '';
     var nodes = container.querySelectorAll('*');
     for (var j = -1; j < nodes.length; j++) {
       var el = j < 0 ? container : nodes[j];
       if (isSelectedSwatchEl(el)) {
-        var label = el.getAttribute('aria-label') || el.getAttribute('title') ||
-          el.getAttribute('data-color') || el.getAttribute('data-name') || el.getAttribute('data-value') ||
-          el.getAttribute('data-attr-value') || '';
-        label = (label || '').trim();
-        if (!label) {
-          var innerImg = el.tagName === 'IMG' ? el : el.querySelector('img');
-          if (innerImg) label = (innerImg.getAttribute('alt') || innerImg.getAttribute('title') || '').trim();
-        }
-        if (!label) label = (el.textContent || '').trim();
-        if (label && label.length < 60 && !looksLikeJunkValue(label)) return label;
+        var label = sheinSelectionLabel(el);
+        if (label) return label;
       }
+    }
+    var opts = container.querySelectorAll('li,button,[role="radio"],[role="option"],[role="button"],[class*="item" i]');
+    for (var o = 0; o < opts.length; o++) {
+      if (sheinLooksVisuallySelected(opts[o])) return sheinSelectionLabel(opts[o]);
     }
     return '';
   }
@@ -3175,12 +3208,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var rankedImage = rankedSwatchImageFrom(el);
     if (rankedImage) return rankedImage;
     var scope = isColorBadgeEl(el) && el.parentElement ? el.parentElement : el;
-    // (v85.8.3-fix) شارة HOT/جديد التي يرسمها شي إن فوق حوّاسة اللون هي صورة
-    // منفصلة مستضافة على نفس CDN (ltwebstatic) تماماً مثل صورة اللون، فقائمة حظر
-    // الروابط (isLikelyBadgeImageUrl) لا تميّزها لأنها تستثني ltwebstatic. الفرق
-    // الحقيقي: الشارة طبقة صغيرة في زاوية الحوّاسة بينما صورة اللون تملأها. كان
-    // الكود يأخذ أول <img> في ترتيب DOM فيلتقط الشارة أحياناً (ظهرت كأيقونة غريبة
-    // في السلة). الآن نختار أكبر صورة فعلية (=صورة اللون) ونتخطّى الطبقات الصغيرة.
     var imgList = scope.tagName === 'IMG' ? [scope] : scope.querySelectorAll('img');
     var bestSrc = '';
     var bestArea = -1;
@@ -3243,6 +3270,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     for (var j = -1; j < nodes.length; j++) {
       var selectedNode = j < 0 ? container : nodes[j];
       if (!isSelectedSwatchEl(selectedNode)) continue;
+      if (sheinHasManyOptionChildren(selectedNode)) continue;
       var im1 = swatchImageFrom(selectedNode);
       if (im1) return im1;
     }
@@ -3297,8 +3325,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var labelVal = pageVal || getAttrLabelValue(container, ['اللون', 'Color', 'color']) || getColorHeadingLabel(container);
     var swatchVal = getSelectedWithin(container);
     var selected;
-    if (labelVal && !isGenericColorName(labelVal)) selected = labelVal;
-    else if (swatchVal && !isGenericColorName(swatchVal)) selected = swatchVal;
+    if (swatchVal && !isGenericColorName(swatchVal)) selected = swatchVal;
+    else if (labelVal && !isGenericColorName(labelVal)) selected = labelVal;
     else selected = labelVal || swatchVal;
     selected = sheinSkuMemo('c', selected);
     return { exists: !!container, selected: selected, image: getSelectedColorSwatchImage(container, selected) };
@@ -5246,7 +5274,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       title: getTitle(allowGenericTitle),
       priceUsd: sheinPriceUsd,
       priceSource: sheinPriceSource,
-      image: getMainImage(),
+      image: colorState.image || getMainImage(),
       colorImage: colorState.image || '',
       colorImageFound: !!colorState.image,
       color: colorState.selected,
