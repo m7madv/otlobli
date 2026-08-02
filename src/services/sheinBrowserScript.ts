@@ -2901,16 +2901,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var OTLOBLI_SIZE_LABELS = ['المقاس', 'مقاس', 'الحجم', 'Size'];
 
   var QTY_RE = /الكمية|كمية|quantity/i;
-  function sheinIsQuantityEl(el) {
-    if (!el) return false;
-    var t = (el.textContent || '').trim();
-    if (t.length < 20 && QTY_RE.test(t)) return true;
+  // The group's resolved heading text: goods-size__title is often NOT a
+  // descendant (intermediate wrapper), and a shared wrapper holds several
+  // titles. Walk ancestors; the nearest title PRECEDING this group is its
+  // heading (swan p-517537202, cloud tray p-420303185).
+  function sheinGroupHeading(el) {
+    if (!el) return '';
     var h = el.querySelector && el.querySelector('.goods-size__title');
-    if (h && QTY_RE.test(h.textContent || '')) return true;
-    // Device-measured (swan tray p-517537202): the group's goods-size__title is
-    // neither descendant nor direct sibling (intermediate wrapper), and the
-    // shared goods-size__wrapper holds both titles. Walk ancestors; the nearest
-    // level with a title PRECEDING this group is its heading - decide and stop.
+    if (h) return normalizedOptionText(h.textContent);
     var node = el.parentElement;
     for (var up = 0; up < 4 && node; up++) {
       var titles = node.querySelectorAll ? node.querySelectorAll('.goods-size__title') : [];
@@ -2918,15 +2916,32 @@ export const SHEIN_CAPTURE_SCRIPT = `
       for (var ti = 0; ti < titles.length; ti++) {
         if (titles[ti].compareDocumentPosition(el) & 4) nearest = titles[ti];
       }
-      if (nearest) return QTY_RE.test(nearest.textContent || '');
+      if (nearest) return normalizedOptionText(nearest.textContent);
       node = node.parentElement;
+    }
+    return '';
+  }
+
+  function sheinHeadingMatchesLabels(el, labelWords) {
+    if (!labelWords) return false;
+    var head = sheinGroupHeading(el).replace(/[:：]/g, ' ').toLowerCase();
+    if (!head) return false;
+    for (var w = 0; w < labelWords.length; w++) {
+      if (head.indexOf(labelWords[w].toLowerCase()) !== -1) return true;
     }
     return false;
   }
 
+  function sheinIsQuantityEl(el) {
+    if (!el) return false;
+    var t = (el.textContent || '').trim();
+    if (t.length < 20 && QTY_RE.test(t)) return true;
+    return QTY_RE.test(sheinGroupHeading(el));
+  }
+
   function findOptionContainer(keyword, labelWords) {
     var all = document.querySelectorAll('[class*="' + keyword + '" i]');
-    var fallback = null, active = null, activeCount = 1e9;
+    var fallback = null, active = null, activeCount = 1e9, activeMatch = false;
     for (var i = 0; i < all.length; i++) {
       var el = all[i];
       var cls = ' ' + (el.className || '') + ' ';
@@ -2939,11 +2954,17 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var inView = rect.bottom > 0 && rect.right > 0 &&
         rect.top < (document.documentElement.clientHeight || 0) &&
         rect.left < (document.documentElement.clientWidth || 0);
+      if (!(inView && sheinElementIsVisible(el) && !sheinCovered(el))) continue;
+      // Prefer the group whose heading matches the requested attribute so a
+      // "نوع الموديلات" group never wins the size slot over the real "مقاس"
+      // (cloud tray p-420303185). Same-tier tiebreak: fewest options.
+      var matches = IS_SHEIN && sheinHeadingMatchesLabels(el, labelWords);
       var picked = isSelectedSwatchEl(el) && (!active || !isSelectedSwatchEl(active));
-      if (inView && sheinElementIsVisible(el) && !sheinCovered(el) && (opts.length < activeCount || picked)) {
-        active = el;
-        activeCount = opts.length;
-      }
+      var better;
+      if (!active) better = true;
+      else if (matches !== activeMatch) better = matches;
+      else better = (opts.length < activeCount) || picked;
+      if (better) { active = el; activeCount = opts.length; activeMatch = matches; }
     }
     if (__otlobliSheinDrawerPath === location.pathname && !active) return null;
     var base = active || fallback;
@@ -5617,14 +5638,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
           window.__otlobliTemuAwaitSeq = (window.__otlobliTemuAwaitSeq || 0) + 1;
           // مقياس تتبّع البوابة (نسخة اختبار): يسجّل كل قرار وتعرضه لوحة التشخيص.
           var gtr = window.__otlobliGateTrace = { res: 'يفحص...' };
-          // شجرة قرار كاملة فاشلة-بأمان: لا نضيف أبداً قبل التأكد من كل قيمة
-          // مطلوبة؛ أي شكّ → نمنع ونطلب الاختيار (خربطة = صفر).
-          // أ) لوحة الخيارات مغلقة وفيها خيارات ("X Color, Y Size") → نفتحها.
-          // مهم: نتحقق أن اللوحة مغلقة فعلاً قبل الحجب — النص "4 Color, 1 Size"
-          // يبقى بالـDOM حتى بعد فتح اللوحة (خلف الشيت)، فنفرّق بين الحالتين:
-          // اللوحة مفتوحة = أزرار المقاس ظاهرة بالشاشة، أو الزبون سبق نقر لون.
-          // جذب بنيوي (v85.8.40): نقرأ skuSelector الحقيقي. أي بُعد عدده>1 وبلا
-          // اختيار والزر مطوي → نفتح الشيت وننتظر اختيار الزبون ثم نُكمل تلقائياً.
+          // فاشلة-بأمان: لا نضيف قبل تأكيد كل بُعد مطلوب؛ أي شكّ → نطلب الاختيار.
+          // نقرأ skuSelector الحقيقي: أي بُعد عدده>1 وبلا اختيار والزر مطوي → نفتح
+          // الشيت وننتظر اختيار الزبون ثم نُكمل تلقائياً. (النص "4 Color, 1 Size"
+          // يبقى بالـDOM خلف الشيت، فلا نعتمد عليه للتفريق.)
           var sku0 = otlobliTemuSku();
           gtr.sum = sku0.single ? 'خيار واحد' :
             (sku0.dims.length ? sku0.dims.map(function (d) { return d.count + ' ' + d.name; }).join(', ') : 'لا');
@@ -8102,10 +8119,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // rect=0 فيتخطّاه المنظّف ولا يُعاد فحصه أبداً — فأي حجب خاطئ يبقى دائماً.
   // على صفحة المنتج، regex الـpromo يطابق "خصم/شحن مجاني" فيحجب حاوية أثناء
   // الرندر قبل تحميل السعر (يفشل حارس السعر)، والنتيجة شاشة بيضاء دائمة تظهر
-  // فيها الصورة ثم تبيضّ. querySelector/textContent يعملان رغم display:none،
-  // فنفحص المحتوى ونستعيد أي عنصر صار الآن محتوى منتج، ونُدرجه بقائمة بيضاء
-  // دائمة (data-otlobli-temu-keep) فلا يُحجب ثانيةً — هذا يمنع وميض الحجب/
-  // الاستعادة المتكرّر الذي عطّل killStorePopups سابقاً.
+  // فيها الصورة ثم تبيضّ. نفحص المحتوى (يعمل رغم display:none) ونستعيد أي عنصر
+  // صار محتوى منتج، ونُدرجه بقائمة بيضاء دائمة (data-otlobli-temu-keep) لمنع
+  // وميض الحجب/الاستعادة المتكرّر الذي عطّل killStorePopups سابقاً.
   function otlobliTemuRestoreCleanHidden() {
     if (!IS_TEMU || !document.body) return;
     try {

@@ -17,4 +17,4 @@ export const SOURCE_COUNTRY: 'JO' | 'LB' | 'SA' = 'SA'
 export const TEST_ONLY_AUTH_BYPASS = false
 
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '2026.08.02-v86.60-shein-color-tap-lock'
+export const APP_VERSION = '2026.08.02-v86.61-shein-size-heading-match'
