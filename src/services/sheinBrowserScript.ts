@@ -2409,6 +2409,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   var __otlobliSelectedSkuPrice = 0;
   var __otlobliSelectedSkuPriceKey = '';
+  var __otlobliSelectedSkuColor = '';
+  var __otlobliSelectedSkuColorImage = '';
   var __otlobliSelectedSkuPricePath = '';
   var __otlobliSelectedSkuPriceAt = 0;
   var __otlobliSelectedSkuPriceBefore = 0;
@@ -2605,6 +2607,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
       __otlobliSelectedSkuPriceKey = sheinCurrentSelectionKey();
       __otlobliSelectedSkuPricePath = location.pathname;
       __otlobliSelectedSkuPriceAt = Date.now();
+      // Stash colour+swatch image with the price, read while the drawer is open
+      // (reliable); the click-to-buy sheet closes at add-time, degrading reads.
+      var ckColor = String(__otlobliSelectedSkuPriceKey).split('|')[0];
+      if (ckColor && !isGenericColorName(ckColor)) {
+        __otlobliSelectedSkuColor = ckColor;
+        var ckImg = getColorState().image;
+        if (ckImg) __otlobliSelectedSkuColorImage = ckImg;
+      }
     };
     setTimeout(commit, 90);
     setTimeout(commit, 260);
@@ -2884,11 +2894,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (t.length < 20 && QTY_RE.test(t)) return true;
     var h = el.querySelector && el.querySelector('.goods-size__title');
     if (h && QTY_RE.test(h.textContent || '')) return true;
-    // Device-measured (swan tray p-517537202): the group's goods-size__title
-    // heading is neither descendant nor direct sibling (an intermediate wrapper
-    // sits between), and the shared goods-size__wrapper holds BOTH الكمية and
-    // مقاس titles. Walk ancestors; the nearest level with a title PRECEDING this
-    // group carries its own heading, so decide there and stop.
+    // Device-measured (swan tray p-517537202): the group's goods-size__title is
+    // neither descendant nor direct sibling (intermediate wrapper), and the
+    // shared goods-size__wrapper holds both titles. Walk ancestors; the nearest
+    // level with a title PRECEDING this group is its heading - decide and stop.
     var node = el.parentElement;
     for (var up = 0; up < 4 && node; up++) {
       var titles = node.querySelectorAll ? node.querySelectorAll('.goods-size__title') : [];
@@ -3419,11 +3428,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (x < 0 || y < 0 || x > vw || y > vh) return false;
       var top = document.elementFromPoint(x, y);
       if (!top) return false;
-      // otlobli's own transient layers (add overlay/veils) sit ON TOP of SHEIN
-      // and must not count as it covering its options. Device-measured (jewelry
-      // tray p-534350565): the add overlay covered the open drawer for ~450ms,
-      // so the re-read saw it closed and shipped the stale main-page colour.
-      if (top.closest && top.closest('[id^="otlobli-"]')) return false;
       return !(top === el || el.contains(top) || top.contains(el));
     } catch (e) { return false; }
   }
@@ -4100,14 +4104,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var bw = parseFloat(window.getComputedStyle(el).borderTopWidth || '0');
     return isNaN(bw) ? 0 : bw;
   }
-  // كاشف "المُختار" متعدد الإشارات ضمن مجموعة أزرار/كروت متجانسة (مقاس أو
-  // لون). تيمو تستخدم قوالب مختلفة للتمييز البصري: أحياناً خلفية ممتلئة
-  // داكنة، وأحياناً حدّ أسمك فقط بلا تعبئة، ونادراً لون حدّ مختلف فقط.
-  // لون الحدّ وحده غير كافٍ — ثبت من تشخيص حقيقي: 4 أزرار مقاس، جميعها
-  // سُجِّلت "حدّ غامق" رغم اختيار واحد فقط ظاهرياً (نفس لون الحدّ الافتراضي
-  // للكل). نجرّب إشارات بترتيب الأقوى فالأضعف؛ أول إشارة تُرجع تطابقاً
-  // واحداً بلا غموض تفوز — أي غموض (صفر أو أكثر من واحد) ننتقل للإشارة
-  // التالية، وفشل الكل = فارغ (لا تخمين).
+  // كاشف "المُختار" متعدد الإشارات لأزرار/كروت متجانسة (مقاس/لون). لون الحدّ
+  // وحده غير كافٍ (كل الأزرار قد تحمل نفس الحدّ). نجرّب الإشارات من الأقوى
+  // للأضعف؛ أول إشارة تُرجع تطابقاً واحداً بلا غموض تفوز، وفشل الكل = فارغ.
   function temuPickSingleSelected(els) {
     if (!els || els.length < 2) return null;
     var availableEls = [];
@@ -4221,14 +4220,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
           if (!byCls[ck]) { byCls[ck] = []; order.push(ck); }
           byCls[ck].push(pills[p2]);
         }
-        // نجمّع كل المجموعات "القوية" (تشبه مقاسات) بهذا المستوى معاً، لا نكتفي
-        // بأكبر واحدة فقط. السبب: الزر المختار غالباً يحمل صنفاً CSS إضافياً
-        // ("active"/"selected"...) فيُفرد بمجموعة صنف منفصلة قد تكون بحجم 1 —
-        // وكانت تخسر تلقائياً أمام مجموعة البقية الأكبر فتختفي من النتيجة
-        // تماماً (ثبت من تشخيص جهاز حقيقي: كل الإشارات صفر رغم زر مُختار
-        // ظاهر بوضوح — لأنه لم يكن ضمن الأزرار المفحوصة أصلاً). حارس أمان:
-        // نضمّ فقط المجموعات القريبة عمودياً من أكبر مجموعة (نفس الصفّ)، لا
-        // أي مجموعة "قوية" بمستوى الصفحة كله.
+        // نجمّع كل المجموعات "القوية" (تشبه مقاسات) بهذا المستوى، لا الأكبر فقط:
+        // الزر المختار غالباً يحمل صنف CSS إضافياً (active/selected) فيُفرد بمجموعة
+        // حجمها 1 وتخسر أمام الأكبر فتختفي. حارس أمان: نضمّ فقط المجموعات القريبة
+        // عمودياً من أكبر مجموعة (نفس الصفّ)، لا أي مجموعة بمستوى الصفحة.
         var groups = [];
         for (var g = 0; g < order.length; g++) {
           var grp = byCls[order[g]];
@@ -5291,13 +5286,26 @@ export const SHEIN_CAPTURE_SCRIPT = `
         ' sel=' + sheinCurrentSelectionKey() +
         ' path=' + location.pathname);
     } catch (e) {}
-    // Swan tray p-517537202: the sole sales attr sits under a "مقاس" heading
-    // but its values are colour names, so color and size resolve to the SAME
-    // group/value. Ship it once (as the colour, which carries the swatch image).
+    var sheinColorSel = colorState.selected;
+    var sheinColorImg = colorState.image;
     var sheinSizeSel = sizeState.selected;
     var sheinSizesAvail = sizeState.available || [];
     var sheinSizesUnavail = sizeState.unavailable || [];
-    if (sheinSizeSel && colorState.selected && sheinSizeSel === colorState.selected) {
+    // Drawer products (jewelry tray p-534350565): the SKU sheet closes at add-
+    // time so a fresh read reverts to the stale main-page heading (green sent as
+    // "أرجواني أحمر"). Use the variant committed when the price mutated.
+    if (__otlobliSheinDrawerPath === location.pathname &&
+        __otlobliSelectedSkuPricePath === location.pathname &&
+        Date.now() - __otlobliSelectedSkuPriceAt < 1800000) {
+      if (__otlobliSelectedSkuColor) sheinColorSel = __otlobliSelectedSkuColor;
+      if (__otlobliSelectedSkuColorImage) sheinColorImg = __otlobliSelectedSkuColorImage;
+      var kSize = String(__otlobliSelectedSkuPriceKey || '').split('|')[1];
+      if (kSize) sheinSizeSel = kSize;
+    }
+    // Swan tray p-517537202: the sole sales attr sits under a "مقاس" heading but
+    // its values are colour names, so color and size resolve to the SAME
+    // group/value. Ship it once (as the colour, which carries the swatch image).
+    if (sheinSizeSel && sheinColorSel && sheinSizeSel === sheinColorSel) {
       sheinSizeSel = '';
       sheinSizesAvail = [];
       sheinSizesUnavail = [];
@@ -5306,10 +5314,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
       title: getTitle(allowGenericTitle),
       priceUsd: sheinPriceUsd,
       priceSource: sheinPriceSource,
-      image: colorState.image || getMainImage(),
-      colorImage: colorState.image || '',
-      colorImageFound: !!colorState.image,
-      color: colorState.selected,
+      image: sheinColorImg || getMainImage(),
+      colorImage: sheinColorImg || '',
+      colorImageFound: !!sheinColorImg,
+      color: sheinColorSel,
       size: sheinSizeSel,
       sizesAvailable: sheinSizesAvail,
       sizesUnavailable: sheinSizesUnavail,

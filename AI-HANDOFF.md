@@ -2,7 +2,19 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
-## Current candidate (2026-08-02) - v86.56 SHEIN quantity + drawer-colour, DEVICE-VERIFIED
+## Current candidate (2026-08-02) - v86.57 drawer colour = committed variant, DEVICE-VERIFIED END-TO-END
+
+- Marker/version: `2026.08.02-v86.57-shein-drawer-color-committed-variant`; Android/iOS `917/86.57`; branch `claude/color-capture-fixes-v8655`.
+- **Verified end-to-end on the real Note 8 via REAL `adb shell input tap` (not synthetic DOM clicks) + cart localStorage `talabieh.cartsByStore`.** Final cart: swan `color=لون القرنفل,size=""`; jewelry `color=أخضر داكن,size=14*14*2 سم` with the GREEN swatch image. Screenshot confirms pink swan + green dish.
+- v86.56's `sheinCovered()` overlay-ignore attempt was WRONG and has been REVERTED: the jewelry drawer doesn't just get *covered* at add-time, it fully *closes* (device sample: `.SIZE_ITEM_HOOK` count → 0), so ignoring the overlay didn't help. The real fix:
+  - `sheinTrackSelectedSkuPrice()`'s price-mutation observer already commits the chosen variant's price+key while the sheet is OPEN (reliable read) - that's why the green PRICE 12.66 was captured even though colour went stale. Extended `commit()` to ALSO stash `__otlobliSelectedSkuColor` + `__otlobliSelectedSkuColorImage` from the same moment.
+  - `captureProductPayload()`: for drawer products (`__otlobliSheinDrawerPath === location.pathname`) with a recent committed key for this path, take colour/size/image from the committed stash instead of the stale live read. Size comes from `__otlobliSelectedSkuPriceKey.split('|')[1]`.
+- CRITICAL for future device testing: synthetic `dispatchEvent(new MouseEvent('click'))` on a swatch does NOT reliably fire the price observer (savedKey stayed empty) - the stash looked broken until real `input tap` was used. Always verify SKU-selection fixes with real taps, then read `window.__otlobliDiag.saved()` for the committed key.
+- Kept from earlier this session: `sheinIsQuantityEl()` ancestor-walk (swan quantity leak) and the size===color dedup.
+- Budget is EXTREMELY tight with real `.env`: largest JS raw `1,199,798/1,200,000` (202 bytes). To fit the stash code, condensed two pre-existing Arabic comment blocks (`temuPickSingleSelected`, the Temu group-merge guard) - logic untouched. Trim comments before adding ANY main-bundle bytes.
+- No price/payment/wallet/order/region/native-lifecycle changes. See [[project_note8_adb_recovery]].
+
+## Superseded (2026-08-02) - v86.56 SHEIN quantity + drawer-colour (sheinCovered attempt, reverted)
 
 - Marker/version: `2026.08.02-v86.56-shein-quantity-and-drawer-color-fix`; Android/iOS `916/86.56`; branch `claude/color-capture-fixes-v8655`.
 - **Verified on the real Note 8** (serial `988e16384e4f51395230`) via CDP against the live SHEIN WebView + real add-to-cart (hooked `mobileApp.postMessage`). v86.55 was NOT enough - the user retested and both products still failed; device diagnosis found the true DOM shapes.
