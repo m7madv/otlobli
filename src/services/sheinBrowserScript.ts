@@ -441,16 +441,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     setTimeout(function () { clearInterval(otlobliCairoFontTimer); }, 1200);
   }
 
-  // env(safe-area-inset-bottom) only resolves to the device's real inset when
-  // the PAGE's OWN viewport meta tag declares viewport-fit=cover - otherwise
-  // it silently evaluates to 0 everywhere, regardless of device. otlobli's
-  // nav bar/back button/add-to-cart button all fall back to a flat 16px in
-  // that case (see their max(env(...), 16px) CSS), which doesn't match every
-  // phone's actual gesture-bar height - on some it sits too low/cramped.
-  // SHEIN's own page doesn't necessarily declare this (it's not built for a
-  // notch-aware native shell), so force it here rather than depending on
-  // their markup. Re-asserted on every tick (not just once) since SHEIN's own
-  // SPA can rewrite this meta tag's content on certain navigations.
   function ensureViewportFitCover() {
     if (!document.head) return;
     var meta = document.querySelector('meta[name="viewport"]');
@@ -471,14 +461,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
   ensureViewportFitCover();
 
-  // SHEIN's regional sites default to English (e.g. "joen"/"lben"); the bare
-  // region code ("jo"/"lb") renders Arabic. We read the region from the URL
-  // path (/jo/ or /lb/) so this stays correct whichever source country the
-  // app is configured for, then force Arabic once via cookie + a reload so it
-  // sticks for future loads. Allows up to 2 reload attempts - direct
-  // connections can race the cookie write against the page's own first content
-  // request on a slow/just-toggled-VPN connection, so one attempt occasionally
-  // still rendered English; the retry counter resets per real navigation.
   // هل نحن داخل أحد مواقع شي إن؟ منطق الالتقاط/الحجب الخاص بشي إن يعمل فقط
   // عندها؛ على المتاجر الأخرى (تيمو/ترينديول) نكتفي بتنظيف العروض المنبثقة.
   var IS_SHEIN = /shein/i.test(location.hostname);
@@ -624,11 +606,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     setTimeout(mount, 1000);
   }
 
-  // Verification pages can be injected at documentStart before their title,
-  // challenge form, or Cloudflare script exists in the DOM.  URL detection
-  // therefore has to happen before any Saudi URL/storage normalization: a
-  // redirect during that small parsing window restarts the challenge and can
-  // look like a black flash followed by the WebView closing.
   function otlobliIsHumanChallengeUrl(href) {
     try {
       var u = new URL(href || location.href, location.href);
@@ -638,8 +615,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return false;
   }
 
-  // On an explicit challenge route leave the document completely untouched.
-  // The next successful navigation gets a new document and a fresh injection.
   if (IS_SHEIN && otlobliIsHumanChallengeUrl(location.href)) {
     try { writeSheinSaudiState(); } catch (e) {}
     otlobliEnterChallengeMode();
@@ -968,10 +943,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     try { retry.click(); } catch (e) {}
   }
 
-  // browserPageLoaded only proves that WKNavigation finished. SHEIN can still
-  // be a partially hydrated shell (section labels with no products/touchable
-  // SPA), which is the exact frozen state reported on the second iOS entry.
-  // Require live, visible store content before native code accepts readiness.
   function sheinPageLooksInteractive() {
     if (!IS_SHEIN || !document.body || document.readyState === 'loading') return false;
     if (otlobliIsHumanChallenge()) return true;
@@ -3239,10 +3210,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return '';
   }
 
-  // How strongly an element looks "ringed/highlighted". SHEIN marks the chosen
-  // swatch with a drawn outline (confirmed by the user: the selected swatch is
-  // the one with a black ring around it), which shows up as no aria/class flag
-  // at all - only as a thicker border / an outline / a box-shadow.
   function ringScore(el) {
     var cs = window.getComputedStyle(el);
     var score = 0;
@@ -3255,8 +3222,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return score;
   }
 
-  // The icon-sized swatch elements inside the color container that carry an
-  // image (an <img>, or a background-image).
   function collectSwatchEls(container) {
     var nodes = container.querySelectorAll('*');
     var out = [];
@@ -3272,15 +3237,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return out;
   }
 
-  // The color swatch the user picked is the single most reliable source for a
-  // "this is exactly the color they chose" photo - SHEIN renders each swatch as
-  // either a small cropped <img> or a CSS background-image of the actual
-  // colorway. The big hero photo can lag a tick behind the swatch click (it
-  // fades/lazy-loads in), so prefer the swatch's own image over it.
   function getSelectedColorSwatchImage(container, selectedName) {
     if (!container) return '';
-    // 1) Explicit selection signals (aria-selected/checked, a "selected"/
-    //    "active" class, a checked radio).
     var nodes = container.querySelectorAll('*');
     for (var j = -1; j < nodes.length; j++) {
       var selectedNode = j < 0 ? container : nodes[j];
@@ -3288,8 +3246,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var im1 = swatchImageFrom(selectedNode);
       if (im1) return im1;
     }
-    // 2) Match the swatch whose own label (alt/title/aria-label) equals the
-    //    color name we already captured - robust for normal named colors.
     if (selectedName && !isGenericColorName(selectedName)) {
       var want = selectedName.trim().toLowerCase();
       var swA = collectSwatchEls(container);
@@ -3303,10 +3259,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
         }
       }
     }
-    // 3) Drawn-ring fallback: pick the swatch whose outline/border clearly
-    //    stands out (the black ring around the chosen one). Only trust it when
-    //    exactly ONE swatch is ringed - if they all share the same border,
-    //    nothing actually stands out and the signal is meaningless here.
     var swB = collectSwatchEls(container);
     var bestEl = null;
     var bestRing = 0;
