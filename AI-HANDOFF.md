@@ -13,6 +13,7 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 - Kept from earlier this session: `sheinIsQuantityEl()` ancestor-walk (swan quantity leak) and the size===color dedup.
 - Budget is EXTREMELY tight with real `.env`: largest JS raw `1,199,798/1,200,000` (202 bytes). To fit the stash code, condensed two pre-existing Arabic comment blocks (`temuPickSingleSelected`, the Temu group-merge guard) - logic untouched. Trim comments before adding ANY main-bundle bytes.
 - No price/payment/wallet/order/region/native-lifecycle changes. See [[project_note8_adb_recovery]].
+- Artifacts: iOS workflow run `30749440191` succeeded at commit `a3d7e13`. IPA `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-ios-v86.57\otlobli-v86.57-iphone16-unsigned.ipa` (SHA-256 `826A65E37CC6EA2259C925C07B0DB8B084B6853C36816FD3482B59A2875951D9`, `7,067,505` bytes). APK `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-android-v86.57\otlobli-v86.57-debug.apk` (SHA-256 `E4981A9CBBBF22CF4E6D1C02CB725E89DB820A0127486C1779732CCFB7A6CD02`). The APK verified on-device was the same stash-fix code (built as 86.56 before the version-string bump to 86.57).
 
 ## Superseded (2026-08-02) - v86.56 SHEIN quantity + drawer-colour (sheinCovered attempt, reverted)
 
