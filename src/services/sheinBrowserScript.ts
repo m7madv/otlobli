@@ -2695,10 +2695,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
       skuEntry: sheinSkuSelectionEntry,
       openDrawer: sheinOpenSkuDrawer,
       pending: sheinSelectedSkuPricePending,
-      lockedColor: function () {
-        return __otlobliSelectedSkuColor + (__otlobliSelectedSkuColorImage ? ' [img]' : ' [no-img]') +
-          ' drawer=' + (__otlobliSheinDrawerPath === location.pathname);
-      },
       saved: function () {
         return {
           price: __otlobliSelectedSkuPrice, key: __otlobliSelectedSkuPriceKey,
