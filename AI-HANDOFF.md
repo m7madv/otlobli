@@ -2,6 +2,18 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
+## Current candidate (2026-08-02) - v86.56 SHEIN quantity + drawer-colour, DEVICE-VERIFIED
+
+- Marker/version: `2026.08.02-v86.56-shein-quantity-and-drawer-color-fix`; Android/iOS `916/86.56`; branch `claude/color-capture-fixes-v8655`.
+- **Verified on the real Note 8** (serial `988e16384e4f51395230`) via CDP against the live SHEIN WebView + real add-to-cart (hooked `mobileApp.postMessage`). v86.55 was NOT enough - the user retested and both products still failed; device diagnosis found the true DOM shapes.
+- Three fixes, all `sheinBrowserScript.ts` only:
+  1. `sheinIsQuantityEl()` - swan tray `p-517537202`: the quantity group's `goods-size__title` ("الكمية") is neither a descendant NOR a direct sibling; an intermediate no-class wrapper sits between them, and only the shared `goods-size__wrapper` (grandparent+) holds both الكمية and مقاس. v86.55's direct-sibling check missed it. Now walk ancestors and take the nearest level with a title PRECEDING this group as its heading (stop there). Live-validated: quantity hook → true, colour hook → false.
+  2. `captureProductPayload()` dedup (unchanged from v86.55): SHEIN size===color ⇒ blank size. Sent payload now `color=لون القرنفل, size=""` (was `1PC|1PC`).
+  3. `sheinCovered()` - jewelry tray `p-534350565`: the add-to-cart "جاري الإضافة" overlay (`#otlobli-overlay`, pointer-events:auto) sat over the open SKU drawer for the first ~450ms; `elementFromPoint` returned the overlay so `sheinCovered(drawerGroup)` was true → `sheinDrawerCompoundSizeState()` null → `getColorState()` fell back to the STALE main-page heading (`sheinPageColorHeading`), shipping the green drawer pick as `أرجواني أحمر %12-`. Fix: `sheinCovered()` treats any otlobli-owned layer (`[id^="otlobli-"]`) as NOT covering. Device-sampled the overlay hit at t=156/309/455ms to confirm. Sent payload now `color=أخضر داكن, colorImageFound=true` (green swatch), was `أرجواني أحمر %12-` + red hero.
+- No price, payment, wallet, order, region, native lifecycle changes.
+- Budget is VERY tight with real `.env` VITE values baked in: largest JS raw `1,199,946/1,200,000` (54 bytes headroom), SHEIN source `545,145/550,000`. Trim comments before adding any main-bundle bytes. Windows worktree `autocrlf=true` inflates the local SHEIN-source measurement; keep the file LF.
+- Device debugging recipe used (works, keep): copy `.env*` from main repo root into the worktree, `node scripts/inject-relay-key.cjs`, `npm run build` → `npx cap sync android` → `android/gradlew assembleDebug` (needs `android/local.properties` with `sdk.dir`) → `adb install -r`. CDP: `adb forward tcp:9222 localabstract:webview_devtools_remote_<pid>`, then a global-WebSocket Node client (`Page.navigate` + `Runtime.evaluate`). `window.__otlobliDiag` exposes color/size/key/find. See [[project_note8_adb_recovery]].
+
 ## Current candidate (2026-08-02) - v86.55 SHEIN quantity-as-size leak fix
 
 - Marker/version: `2026.08.02-v86.55-shein-quantity-size-leak-fix`; Android/iOS `915/86.55`; branch `claude/color-capture-fixes-v8655` (cut from `claude/shein-drawer-open-fix`, the newest v86.54 branch).

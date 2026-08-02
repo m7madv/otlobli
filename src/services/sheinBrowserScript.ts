@@ -2884,18 +2884,20 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (t.length < 20 && QTY_RE.test(t)) return true;
     var h = el.querySelector && el.querySelector('.goods-size__title');
     if (h && QTY_RE.test(h.textContent || '')) return true;
-    // Device-measured (swan tray p-517537202): the "الكمية" title is a SIBLING
-    // of its goods-size__sizes group, not a descendant, so the miss above lets
-    // the 1-option quantity group win findOptionContainer('size') and leak
-    // "1PC" as size. Match a quantity title among this group's direct siblings
-    // only, so a neighbouring "مقاس" group is never touched.
-    var parent = el.parentElement;
-    var kids = parent && parent.children;
-    for (var qi = 0; kids && qi < kids.length; qi++) {
-      var sib = kids[qi];
-      if (sib === el) continue;
-      if ((' ' + (sib.className || '') + ' ').indexOf('goods-size__title') === -1) continue;
-      if (QTY_RE.test(sib.textContent || '')) return true;
+    // Device-measured (swan tray p-517537202): the group's goods-size__title
+    // heading is neither descendant nor direct sibling (an intermediate wrapper
+    // sits between), and the shared goods-size__wrapper holds BOTH الكمية and
+    // مقاس titles. Walk ancestors; the nearest level with a title PRECEDING this
+    // group carries its own heading, so decide there and stop.
+    var node = el.parentElement;
+    for (var up = 0; up < 4 && node; up++) {
+      var titles = node.querySelectorAll ? node.querySelectorAll('.goods-size__title') : [];
+      var nearest = null;
+      for (var ti = 0; ti < titles.length; ti++) {
+        if (titles[ti].compareDocumentPosition(el) & 4) nearest = titles[ti];
+      }
+      if (nearest) return QTY_RE.test(nearest.textContent || '');
+      node = node.parentElement;
     }
     return false;
   }
@@ -3417,6 +3419,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (x < 0 || y < 0 || x > vw || y > vh) return false;
       var top = document.elementFromPoint(x, y);
       if (!top) return false;
+      // otlobli's own transient layers (add overlay/veils) sit ON TOP of SHEIN
+      // and must not count as it covering its options. Device-measured (jewelry
+      // tray p-534350565): the add overlay covered the open drawer for ~450ms,
+      // so the re-read saw it closed and shipped the stale main-page colour.
+      if (top.closest && top.closest('[id^="otlobli-"]')) return false;
       return !(top === el || el.contains(top) || top.contains(el));
     } catch (e) { return false; }
   }
@@ -5284,10 +5291,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
         ' sel=' + sheinCurrentSelectionKey() +
         ' path=' + location.pathname);
     } catch (e) {}
-    // Swan tray p-517537202: the sole sales attr sits under a "مقاس" heading but
-    // its values are colour names, so getColorState and getSizeState resolve to
-    // the SAME group and return the SAME value. Ship it once (as the colour,
-    // which carries the swatch image), not "لون القرنفل، لون القرنفل".
+    // Swan tray p-517537202: the sole sales attr sits under a "مقاس" heading
+    // but its values are colour names, so color and size resolve to the SAME
+    // group/value. Ship it once (as the colour, which carries the swatch image).
     var sheinSizeSel = sizeState.selected;
     var sheinSizesAvail = sizeState.available || [];
     var sheinSizesUnavail = sizeState.unavailable || [];
