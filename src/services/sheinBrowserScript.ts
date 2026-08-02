@@ -2883,7 +2883,21 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var t = (el.textContent || '').trim();
     if (t.length < 20 && QTY_RE.test(t)) return true;
     var h = el.querySelector && el.querySelector('.goods-size__title');
-    return !!(h && QTY_RE.test(h.textContent || ''));
+    if (h && QTY_RE.test(h.textContent || '')) return true;
+    // Device-measured (swan tray p-517537202): the "الكمية" title is a SIBLING
+    // of its goods-size__sizes group, not a descendant, so the miss above lets
+    // the 1-option quantity group win findOptionContainer('size') and leak
+    // "1PC" as size. Match a quantity title among this group's direct siblings
+    // only, so a neighbouring "مقاس" group is never touched.
+    var parent = el.parentElement;
+    var kids = parent && parent.children;
+    for (var qi = 0; kids && qi < kids.length; qi++) {
+      var sib = kids[qi];
+      if (sib === el) continue;
+      if ((' ' + (sib.className || '') + ' ').indexOf('goods-size__title') === -1) continue;
+      if (QTY_RE.test(sib.textContent || '')) return true;
+    }
+    return false;
   }
 
   function findOptionContainer(keyword, labelWords) {
@@ -5270,6 +5284,18 @@ export const SHEIN_CAPTURE_SCRIPT = `
         ' sel=' + sheinCurrentSelectionKey() +
         ' path=' + location.pathname);
     } catch (e) {}
+    // Swan tray p-517537202: the sole sales attr sits under a "مقاس" heading but
+    // its values are colour names, so getColorState and getSizeState resolve to
+    // the SAME group and return the SAME value. Ship it once (as the colour,
+    // which carries the swatch image), not "لون القرنفل، لون القرنفل".
+    var sheinSizeSel = sizeState.selected;
+    var sheinSizesAvail = sizeState.available || [];
+    var sheinSizesUnavail = sizeState.unavailable || [];
+    if (sheinSizeSel && colorState.selected && sheinSizeSel === colorState.selected) {
+      sheinSizeSel = '';
+      sheinSizesAvail = [];
+      sheinSizesUnavail = [];
+    }
     return {
       title: getTitle(allowGenericTitle),
       priceUsd: sheinPriceUsd,
@@ -5278,9 +5304,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
       colorImage: colorState.image || '',
       colorImageFound: !!colorState.image,
       color: colorState.selected,
-      size: sizeState.selected,
-      sizesAvailable: sizeState.available || [],
-      sizesUnavailable: sizeState.unavailable || [],
+      size: sheinSizeSel,
+      sizesAvailable: sheinSizesAvail,
+      sizesUnavailable: sheinSizesUnavail,
       link: otlobliNormalizeSheinUrl(location.href),
       needsCustomPhoto: sheinCustomReq.needsPhoto,
       customPhotoNote: sheinCustomReq.photoNote,

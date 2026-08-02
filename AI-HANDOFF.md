@@ -2,6 +2,15 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
+## Current candidate (2026-08-02) - v86.55 SHEIN quantity-as-size leak fix
+
+- Marker/version: `2026.08.02-v86.55-shein-quantity-size-leak-fix`; Android/iOS `915/86.55`; branch `claude/color-capture-fixes-v8655` (cut from `claude/shein-drawer-open-fix`, the newest v86.54 branch).
+- Ground truth came from the on-device `تشخيص` overlay, NOT from screenshots. Swan tray `p-517537202`: live capture on v86.54 already reads color `لون القرنفل` correctly (Codex's fix works), but size captured `1PC` — the quantity. DOM: two `SIZE_ITEM_HOOK goods-size__sizes` groups with identical classes; the quantity group's `goods-size__title` ("الكمية") is a SIBLING of the options, not a descendant, so `sheinIsQuantityEl()` missed it and the 1-option quantity group won `findOptionContainer('size')` over the real multi-option `مقاس` group.
+- Fix, narrow, `sheinBrowserScript.ts` only: (1) `sheinIsQuantityEl()` now also matches a quantity title among the group's DIRECT siblings (immediate parent's children) — never an ancestor, so a neighbouring `مقاس` group is safe. (2) `captureProductPayload()` dedup: on SHEIN, when size.selected === color.selected (same group matched twice — colour label `لون` lives inside the value `لون القرنفل`), blank size + its available/unavailable so the cart shows the colour once, with its swatch image. Side benefit: the spurious `1PC` also drops out of the jewelry tray's available sizes.
+- Jewelry tray (`انقر للشراء`/green): live diag shows CORRECT capture `[أخضر داكن|...]` from the drawer `bs-color-square-image__wrapper`; `آخر إضافة` was empty (no completed add). So NO jewelry-tray change was made — the evidence says v86.54 already captures it right. If it still ships red, get the `آخر إضافة` line from a completed add on v86.55 to pin the exact add-time state before touching drawer/color logic.
+- No price, payment, wallet, order, region, native lifecycle, or timing changes.
+- Validation: `npm run build` OK, freeze guard OK, performance budget OK (SHEIN source `544,753/550,000`, largest JS raw `1,198,488/1,200,000`, JS gzip `356,434/370,000`). Env note: this Windows worktree has `git core.autocrlf=true`, which inflated the local SHEIN-source byte measurement (CRLF) and tripped the budget until the file was normalized to LF (the committed blob is LF, so CI/stored size = `544,753`). Real-device acceptance pending; awaiting user retest + jewelry-tray `آخر إضافة`.
+
 ## Current candidate (2026-08-02) - v86.54 SHEIN selected color capture
 
 - Marker/version: `2026.08.02-v86.54-shein-selected-color-capture-fix`; Android/iOS `914/86.54`; branch `claude/shein-drawer-open-fix`.
