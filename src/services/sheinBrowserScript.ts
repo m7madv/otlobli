@@ -3344,26 +3344,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return '';
   }
 
-  // Label of the single ring/outline-highlighted swatch (same element the image
-  // trusts). iOS jewelry tray p-534350565: green swatch selected only by an
-  // outline, so getSelectedWithin misses its text and colour fell to the heading.
-  function sheinRingSelectedLabel(container) {
-    if (!container) return '';
-    var sw = collectSwatchEls(container);
-    var best = null, bestRing = 0, ringCount = 0;
-    for (var b = 0; b < sw.length; b++) {
-      var rs = ringScore(sw[b]);
-      if (rs >= 2) ringCount++;
-      if (rs > bestRing) { bestRing = rs; best = sw[b]; }
-    }
-    return (best && bestRing >= 2 && ringCount === 1) ? sheinSelectionLabel(best) : '';
-  }
-
   function getColorState() {
     var container = findOptionContainer('color', OTLOBLI_COLOR_LABELS);
     var pageVal = sheinDrawerCompoundSizeState() ? '' : sheinPageColorHeading();
     var labelVal = pageVal || getAttrLabelValue(container, ['اللون', 'Color', 'color']) || getColorHeadingLabel(container);
-    var swatchVal = getSelectedWithin(container) || sheinRingSelectedLabel(container);
+    var swatchVal = getSelectedWithin(container);
     var selected;
     if (swatchVal && !isGenericColorName(swatchVal)) selected = swatchVal;
     else if (labelVal && !isGenericColorName(labelVal)) selected = labelVal;
