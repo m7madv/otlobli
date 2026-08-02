@@ -2563,6 +2563,21 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (!inActiveDrawerGroup &&
         (!colorBox || !colorBox.contains(target)) &&
         (!sizeBox || !sizeBox.contains(target))) return;
+    // Deterministic colour lock (race-free): when the tap lands on a COLOUR
+    // swatch, record its label+image from the TAPPED element NOW - not from a
+    // later getColorState() read that races the click-to-buy sheet closing on
+    // iOS (device: name randomly reverted to the stale main-page hero colour).
+    if (colorBox && colorBox.contains(target)) {
+      var tappedSw = target.closest(
+        'li,button,[role="radio"],[role="option"],[class*="item" i],[class*="color" i]') || target;
+      var tapLbl = sheinSelectionLabel(tappedSw);
+      if (tapLbl && !isGenericColorName(tapLbl)) {
+        __otlobliSelectedSkuColor = tapLbl;
+        __otlobliSelectedSkuColorImage = swatchImageFrom(tappedSw) || '';
+        __otlobliSelectedSkuPricePath = location.pathname;
+        __otlobliSelectedSkuPriceAt = Date.now();
+      }
+    }
     __otlobliSelectedSkuPriceBefore = getPrice();
     __otlobliSelectedSkuPriceAt = 0;
     if (__otlobliSelectedSkuPriceObserver) __otlobliSelectedSkuPriceObserver.disconnect();
@@ -2607,14 +2622,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
       __otlobliSelectedSkuPriceKey = sheinCurrentSelectionKey();
       __otlobliSelectedSkuPricePath = location.pathname;
       __otlobliSelectedSkuPriceAt = Date.now();
-      // Stash colour+swatch image with the price, read while the drawer is open
-      // (reliable); the click-to-buy sheet closes at add-time, degrading reads.
-      var ckColor = String(__otlobliSelectedSkuPriceKey).split('|')[0];
-      if (ckColor && !isGenericColorName(ckColor)) {
-        __otlobliSelectedSkuColor = ckColor;
-        var ckImg = getColorState().image;
-        if (ckImg) __otlobliSelectedSkuColorImage = ckImg;
-      }
+      // Colour/image are NOT stashed here (getColorState races the closing
+      // sheet). They are locked deterministically at swatch-tap time above.
     };
     setTimeout(commit, 90);
     setTimeout(commit, 260);
@@ -2686,6 +2695,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
       skuEntry: sheinSkuSelectionEntry,
       openDrawer: sheinOpenSkuDrawer,
       pending: sheinSelectedSkuPricePending,
+      lockedColor: function () {
+        return __otlobliSelectedSkuColor + (__otlobliSelectedSkuColorImage ? ' [img]' : ' [no-img]') +
+          ' drawer=' + (__otlobliSheinDrawerPath === location.pathname);
+      },
       saved: function () {
         return {
           price: __otlobliSelectedSkuPrice, key: __otlobliSelectedSkuPriceKey,
