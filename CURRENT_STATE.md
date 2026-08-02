@@ -1,6 +1,16 @@
 # Otlobli Current State
 
-Last updated: 2026-08-01
+Last updated: 2026-08-02
+
+## v86.53 Note8 cart gold swatch + v86.52 freeze chain (2026-08-02)
+
+- Current marker is `2026.08.02-v86.53-cart-solid-color-swatch-fix`; Android/iOS are `913/86.53`. Branch is `claude/shein-drawer-open-fix`. The worktree is intentionally dirty with this session's changes; nothing was committed or pushed.
+- User-reported cart issue: items whose text says `ذهبي أصفر` could show a circular `colorImage` copied from a previous SHEIN product. Device storage confirmed the same old 96px SHEIN URL persisted across different cart items. v86.53 renders `ذهبي/Gold` variants as a local gold CSS swatch and strips `colorImage` for new adds with that color.
+- Included underneath from the same session: v86.49-v86.52 Note 8 fixes for slow first product/cart reopen, login-bar hiding, low-end throttling, selected SKU price capture in `.SIZE_ITEM_HOOK` drawer groups, stale fixed-body unlock, security challenge body-lock release, and the v86.52 freeze root cause: product `[role=tab]` review tabs were misclassified as shipping address tabs. Shipping-tab detection is now scoped to `.address-header-tab`.
+- Note 8 validation: installed `86.53/913`; existing cart still had stale `colorImage` data, but DOM for the three checked `ذهبي أصفر` rows now reports `.cart-item-color-swatch` as `SPAN` with gold `linear-gradient(...)`, not `IMG` and not the stale product URL. v86.52 product tab/body-lock tests passed before the cart swatch patch.
+- Build/sync validation: `npm run build` passed; `verify:shein-freeze-guard` OK; `verify:performance-budget` OK with largest JS raw `1,199,944 / 1,200,000`, JS gzip `357,474 / 370,000`, CSS `63,029`, fonts `81,364`, SHEIN script source `546,210 / 550,000`. Headroom is only 56 bytes.
+- Android/iOS sync passed and Android Gradle `assembleDebug` passed. APK: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA\.claude\worktrees\brave-gould-c49b60\android\app\build\outputs\apk\debug\app-debug.apk`; SHA-256 `4E2FF8629077ECB8306E8E04D108C57B635201DA503B891F0E7806E97B9A0985`; size `11,123,806` bytes.
+- Evidence screenshots: `output\note8-v8653-cart-swatch.png` plus earlier freeze diagnostics under `output\`. Real iPhone 16 acceptance, five background/resume cycles, and force-quit/cold-launch were not performed.
 
 ## v86.47 SHEIN drawer: أربعة أعطال حقيقية (2026-08-01)
 

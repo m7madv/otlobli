@@ -133,6 +133,10 @@ const buildStoreCaptureScript = (regions: StoreRegions) =>
   // The price-diagnostics overlay is injected LAST and in its own try block, so
   // a fault in it can never stop the capture script from running.
   `window.__OTLOBLI_STORE_REGIONS__=${JSON.stringify(regions)};\n${SHEIN_REGION_DIAGNOSTICS_SCRIPT}\ntry{\n${SHEIN_CAPTURE_SCRIPT}\n}catch(__otlobliCaptureError){try{window.__otlobliRegionDiagnostic('capture-runtime-error',{message:String(__otlobliCaptureError&&(__otlobliCaptureError.stack||__otlobliCaptureError.message)||__otlobliCaptureError)},'runtime')}catch(__otlobliDiagnosticError){}}\ntry{\n${SHEIN_PRICE_DIAGNOSTICS_SCRIPT}\n}catch(__otlobliPriceDiagError){}`
+
+const cartColorPreviewBackground = (color: string) => {
+  return /ذهبي|gold/i.test(color) ? 'linear-gradient(135deg,#9f6b12,#f8df8b,#b77812)' : ''
+}
 const SHEIN_CHALLENGE_PATH_RE = /\/(?:cdn-cgi|challenge|captcha|verify|verification|security|robot|risk|anti[-_]?bot|human)(?:\/|\?|#|$)/i
 const SHEIN_CHALLENGE_QUERY_RE = /(?:^|[?&#])(?:captcha|challenge|verification|security_token|risk|robot|anti[-_]?bot|human)=/i
 // يكشف موقع خروج الإنترنت الحالي (بلد/منطقة الـVPN فعلياً) عبر خدمتي geo
@@ -554,6 +558,16 @@ const temuProductIdentityFromUrl = (rawUrl: string) => {
 const sameTemuProductNavigation = (expectedUrl: string, visibleUrl: string) => {
   if (!expectedUrl || !visibleUrl) return true
   return temuProductIdentityFromUrl(expectedUrl) === temuProductIdentityFromUrl(visibleUrl)
+}
+
+const sheinProductIdentityFromUrl = (rawUrl: string) => {
+  const match = rawUrl.match(/-p-(\d+)/i)
+  return match?.[1] ?? ''
+}
+
+const sameSheinProductNavigation = (expectedUrl: string, visibleUrl: string) => {
+  const expected = sheinProductIdentityFromUrl(expectedUrl)
+  return !!expected && expected === sheinProductIdentityFromUrl(visibleUrl)
 }
 
 const storeFromProductUrl = (rawUrl: string): StoreId | undefined => {
@@ -3321,6 +3335,19 @@ function App() {
       return
     }
     const targetUrl = normalizeStoreBrowserUrl(sourceLink, selectedStoreRef.current, storeRegionsRef.current)
+    // Opening the cart item that is already loaded must reuse the warm document.
+    // Reloading the exact same SHEIN URL clears the host readiness flag, but the
+    // existing page does not emit a new interactive message. On a Note 8 that
+    // left the ready WebView hidden until the 45-second preparation timeout.
+    if (selectedStoreRef.current === 'shein' && sheinOpenedRef.current &&
+        !webviewOpeningRef.current && sheinReadyRef.current &&
+        sameSheinProductNavigation(targetUrl, currentWebviewUrlRef.current)) {
+      clearPendingProductPreparation()
+      pendingBackTargetRef.current = 'cart'
+      screenRef.current = 'home'
+      flushSync(() => setScreen('home'))
+      return
+    }
     beginPendingProductPreparation(targetUrl)
     pendingBackTargetRef.current = 'cart'
     showNotice('جاري تجهيز صفحة المنتج...')
@@ -3723,12 +3750,15 @@ function App() {
       const sizesUnavailable = Array.isArray(product?.sizesUnavailable)
         ? (product.sizesUnavailable as unknown[]).filter((s): s is string => typeof s === 'string')
         : []
+      const color = typeof product?.color === 'string' ? product.color : ''
+      const rawColorImage = typeof product?.colorImage === 'string' ? product.colorImage : ''
+      const colorImage = cartColorPreviewBackground(color) ? '' : rawColorImage
       setCartItems((items) => [...items, {
         id: `shein-${Date.now()}`,
         title,
         image: typeof product?.image === 'string' ? product.image : '',
-        colorImage: typeof product?.colorImage === 'string' ? product.colorImage : '',
-        color: typeof product?.color === 'string' ? product.color : '',
+        colorImage,
+        color,
         size: typeof product?.size === 'string' ? product.size : '',
         sizesAvailable,
         sizesUnavailable,
@@ -4735,6 +4765,7 @@ function App() {
                 {cartItems.map((item) => {
                   const issue = getAvailabilityIssue(item)
                   const maxQty = typeof item.availableStock === 'number' ? Math.max(0, item.availableStock) : undefined
+                  const colorPreviewBackground = cartColorPreviewBackground(item.color)
                   return (
                   <article className="cart-item" key={item.id}>
                     <button
@@ -4772,7 +4803,13 @@ function App() {
                         </button>
                       </div>
                       <p className="cart-item-variant">
-                        {item.colorImage && (
+                        {colorPreviewBackground ? (
+                          <span
+                            className="cart-item-color-swatch"
+                            style={{ background: colorPreviewBackground }}
+                            aria-hidden="true"
+                          />
+                        ) : item.colorImage && (
                           <img
                             className="cart-item-color-swatch"
                             src={item.colorImage}

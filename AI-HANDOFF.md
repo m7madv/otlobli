@@ -2,6 +2,16 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
+## Current candidate (2026-08-02) - v86.53 cart gold swatch + Note 8 freeze fixes
+
+- Marker/version: `2026.08.02-v86.53-cart-solid-color-swatch-fix`; Android/iOS `913/86.53`; branch `claude/shein-drawer-open-fix`. Not committed or pushed.
+- Latest user screenshot showed cart rows saying `ذهبي أصفر` with a tiny color icon from another product. Confirmed in `talabieh.cartsByStore`: several different items had the same stale `colorImage` URL from product `p-424094842`. v86.53 fixes display and future adds by treating `ذهبي/Gold` as a local gold CSS swatch and dropping `colorImage` for new gold items.
+- Device check after installing v86.53: existing stale cart rows now render `.cart-item-color-swatch` as `SPAN` with gold gradient, not `IMG`. This preserves the product thumbnail and variant text; only the misleading tiny color icon is replaced.
+- Underlying v86.52 fix must stay: `sheinVisibleShippingTabs()` must remain scoped to `.address-header-tab .j-tab-item,.address-header-tab [role="tab"]`. The old generic `[role="tab"]` matched product floor/review tabs and could leave `body{position:fixed}` plus `#otlobli-nav-region-guard`, freezing product pages on Note 8.
+- Other included session fixes: warm same-SHEIN-product reopen from cart; `.login-bar.j-login-bar{display:none!important}`; low-end mutation/scan throttles; selected-price tracking for active `.SIZE_ITEM_HOOK` drawer groups; stale body-lock cleanup; challenge-mode lock release.
+- Validation performed: `npm run build` passed, freeze guard OK, performance budget OK (`largest JS raw 1,199,944/1,200,000`, only 56 bytes headroom), `npx cap sync android`, `npx cap sync ios`, Gradle debug build, APK installed on Note 8 as `913/86.53`. APK SHA-256 `4E2FF8629077ECB8306E8E04D108C57B635201DA503B891F0E7806E97B9A0985`, size `11,123,806` bytes.
+- Do not add more main-bundle code casually: the budget is nearly full. If another UI fix needs bytes, remove/split code first. iPhone 16 acceptance was not performed.
+
 ## Current candidate (2026-08-01) - v86.47 four device-measured fixes
 
 - Marker/version: `2026.08.01-v86.47-shein-options-clear-of-button`; Android/iOS `907/86.47`; branch `claude/shein-drawer-open-fix`, commit `154338c`.
