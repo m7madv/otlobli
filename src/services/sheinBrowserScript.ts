@@ -3344,11 +3344,26 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return '';
   }
 
+  // Label of the single ring/outline-highlighted swatch (same element the image
+  // trusts). iOS jewelry tray p-534350565: green swatch selected only by an
+  // outline, so getSelectedWithin misses its text and colour fell to the heading.
+  function sheinRingSelectedLabel(container) {
+    if (!container) return '';
+    var sw = collectSwatchEls(container);
+    var best = null, bestRing = 0, ringCount = 0;
+    for (var b = 0; b < sw.length; b++) {
+      var rs = ringScore(sw[b]);
+      if (rs >= 2) ringCount++;
+      if (rs > bestRing) { bestRing = rs; best = sw[b]; }
+    }
+    return (best && bestRing >= 2 && ringCount === 1) ? sheinSelectionLabel(best) : '';
+  }
+
   function getColorState() {
     var container = findOptionContainer('color', OTLOBLI_COLOR_LABELS);
     var pageVal = sheinDrawerCompoundSizeState() ? '' : sheinPageColorHeading();
     var labelVal = pageVal || getAttrLabelValue(container, ['اللون', 'Color', 'color']) || getColorHeadingLabel(container);
-    var swatchVal = getSelectedWithin(container);
+    var swatchVal = getSelectedWithin(container) || sheinRingSelectedLabel(container);
     var selected;
     if (swatchVal && !isGenericColorName(swatchVal)) selected = swatchVal;
     else if (labelVal && !isGenericColorName(labelVal)) selected = labelVal;
@@ -4920,14 +4935,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return '';
   }
 
-  // (v58) إشارات التخصيص الصارمة — "خربطة صفر":
-  // تُطبَّق على عنوان المنتج (أو نص تحكم قصير مؤكد) فقط، وحُذفت منها الكلمات
-  // العامة المفردة (اسم/نص/كتابة/صورة/رفع/عين/وجه) لأنها تظهر في كل صفحة
-  // (مراجعات، شحن، واجهة المتجر، منتجات مقترحة) وكانت السبب الرئيسي في تحويل
-  // منتجات عادية إلى "مخصصة" وحجز الدفع عبثاً.
-  // تنبيه (v60): كلمة "نقش" وحدها ممنوعة — "بنقشة التنين/منقوش بطبعة" تعني
-  // مطبوعاً بنمط جاهز لا تخصيصاً (جراب هاتف عادي فُعّل خطأً بسببها). نطابق
-  // نقش فقط في سياق تخصيص صريح: "نقش اسم/نص"، "قابل للنقش"، "انقش اسمك".
+  // إشارات التخصيص الصارمة (تُطبَّق على العنوان/نص تحكم قصير فقط): بلا كلمات
+  // عامة مفردة (اسم/نص/صورة/رفع) لأنها بكل صفحة وكانت تفعّل منتجات عادية كمخصصة.
+  // "نقش" وحدها ممنوعة (بنقشة/منقوش = طبعة جاهزة) — فقط بسياق صريح: "نقش اسم".
   function otlobliCustomTextSignal(text) {
     return /custom\\s*(?:text|name)|personali[sz]|engrav|monogram|name\\s*plate|your\\s*(?:name|text)|enter\\s*(?:name|text)|نقش\\s*(?:اسم|الاسم|نص|النص|حسب)|قابل\\s*للنقش|انقش|محفور(?:ة)?\\s*(?:باسم|بالاسم|باسمك)|حفر\\s*(?:اسم|الاسم|نص)|بالاسم|باسمك|بأسمك|اسم\\s*مخصص|نص\\s*مخصص|اكتب\\s*(?:اسم|الاسم|نص|النص)/i.test(text || '');
   }

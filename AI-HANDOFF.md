@@ -2,6 +2,16 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
+**Work cheap: read `docs/AI_FASTPATH.md` first** (device-debug playbook, `scripts/otlobli-cdp.mjs`, function line-map — never read the 550 KB `sheinBrowserScript.ts` whole).
+
+## Current candidate (2026-08-02) - v86.58 iOS colour text = ring-selected swatch
+
+- Version `2026.08.02-v86.58-...`; Android/iOS `918/86.58`; branch `claude/color-capture-fixes-v8655`.
+- User (real iPhone) report: jewelry tray colour IMAGE correct (green) but the TEXT said `أرجواني أحمر`; and "text always follows the hero/default colour" (red hero → red text even when green picked; green hero → correct). Root cause: on iOS the selected swatch is marked ONLY by an outline (no aria/class/dark-bg), so `getSelectedColorSwatchImage()` finds it via `ringScore` (image correct) but `getSelectedWithin()` misses its label, so `getColorState` fell back to the stale main-page `sheinPageColorHeading()` (the hero default).
+- Fix: new `sheinRingSelectedLabel(container)` reads the label of the SAME single ring-highlighted swatch the image trusts; `getColorState` uses `getSelectedWithin(container) || sheinRingSelectedLabel(container)`. Logically guaranteed: if the image is the green swatch, the label now is too. Also feeds the v86.57 stash (commit reads getColorState) so drawer-closed capture stays green. INERT on Android (getSelectedWithin returns non-empty there → `||` short-circuits) = no regression to the device-verified v86.57 behavior.
+- Budget razor-thin with real `.env`: largest JS raw `1,199,981/1,200,000`. Condensed two Arabic comment blocks (`otlobliCustomTextSignal` header, my own) to fit; logic untouched.
+- Not re-verified on a real iPhone yet (no iOS remote-debug here); reasoning is airtight from the user's "image is correct" observation. Confirm on device.
+
 ## Current candidate (2026-08-02) - v86.57 drawer colour = committed variant, DEVICE-VERIFIED END-TO-END
 
 - Marker/version: `2026.08.02-v86.57-shein-drawer-color-committed-variant`; Android/iOS `917/86.57`; branch `claude/color-capture-fixes-v8655`.
