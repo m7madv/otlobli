@@ -191,11 +191,8 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
         }
       }
       if (!cookieScope) continue;
-      // otlobli: auto-accept the cookie consent. High-confidence match - the
-      // button label matched acceptPattern AND its surrounding scope matched
-      // cookiePattern - so click it so the banner dismisses itself. The customer
-      // never has to reach it (it sits behind the fixed nav on tall devices) and
-      // can never pick "reject all". Bounded attempts; if the click does not
+      // otlobli: auto-accept the cookie consent (label matched acceptPattern AND
+      // scope matched cookiePattern). Bounded attempts; if the click does not
       // dismiss it we fall through to the raise logic so buttons stay tappable.
       // The human-check prompt never matches acceptPattern, so it is untouched.
       if (__otlobliCookieAcceptClicks < 4) {
@@ -466,13 +463,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var IS_SHEIN = /shein/i.test(location.hostname);
   var IS_TEMU = /temu/i.test(location.hostname);
 
-  // (v66-fix) بيانات الـWebView مشتركة/دائمة بين جلسات المتجر. أكّد المستخدم أن
-  // شي إن «كصور لا تنكبس» بعد تبديل المتجر (تيمو ثم شي إن)، بينما حذف/إعادة
-  // تنصيب التطبيق يُصلحه — أي أن حالة service worker/كاش مُتراكمة من جلسة سابقة
-  // تخدم أصولاً معطوبة فلا تُفعَّل الصفحة (hydration). نُلغي تسجيل أي service
-  // worker ونمسح Cache Storage عند بداية كل تحميل — fire-and-forget كي لا يعطّل
-  // الرسم — فتُطبَّق حالة نظيفة على التحميل التالي (يقارب التنصيب النظيف). لا
-  // نلمس localStorage (مسحه العريض يسبب skeleton loading — درس موثق).
+  // (v66-fix) كاش/service worker مُتراكم من جلسة متجر سابقة يخدم أصولاً معطوبة
+  // فلا تُفعَّل صفحة شي إن (hydration) → «صور لا تنكبس». نُلغي تسجيل الـservice
+  // worker ونمسح Cache Storage عند كل تحميل (fire-and-forget). لا نلمس
+  // localStorage (مسحه العريض يسبب skeleton loading — درس موثق).
   var cleanSheinRuntimeCache = IS_SHEIN;
   try {
     if (sessionStorage.getItem('otlobli_shein_runtime_cleaned') === '1') {
@@ -2450,11 +2444,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (score >= bestScore) { best = value; bestScore = score; }
     };
     inspect(root);
-    // Targeted first: the old blind walk stopped at the 60th descendant, and on
-    // products with coupon/flash-sale/member chips the real price node sits past
-    // it, so this returned 0 and getPrice() fell to the JSON-LD base price -
-    // product-dependent, hence "intermittent". Class-targeted lookup finds it
-    // with fewer getComputedStyle calls than before, keeping the v86.23 budget.
+    // Targeted first: a blind walk stopped at the 60th descendant, past which the
+    // real price node can sit (coupon/flash/member chips), so getPrice() fell to
+    // the JSON-LD base - "intermittent". Class-targeted needs fewer style reads.
     var priced = root.querySelectorAll('[class*="price" i], [class*="amount" i]');
     for (var i = 0; i < priced.length && i < 40; i++) inspect(priced[i]);
     if (bestScore < 0) {
@@ -2500,11 +2492,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return null;
   }
 
-  // "من $8.63" / "from $8.63" is a RANGE start - the cheapest variant, the same
-  // number as offers.lowPrice, and never what the shopper is buying. Seen on the
-  // click-to-buy template before a variant is committed. If that is all the page
-  // exposes, capture must fail closed instead of charging the low end.
-  // Device diagnostics returned "roots: 0" - SHEIN replaced the PDP price markup.
+  // "من $8.63" / "from $8.63" is a RANGE start (== offers.lowPrice), never what
+  // the shopper buys - seen on the click-to-buy template before a variant is
+  // committed. If that is all the page exposes, capture must fail closed.
   // See v86.33 in docs/SHEIN_IOS_FREEZE_GUARD.md.
   var OTLOBLI_PRICE_SEL = '.product-intro__head-price, [class*="productPriceContainer" i], [class*="head-price" i]';
   var OTLOBLI_MAIN_PRICE_SEL = '[class*="bsc-main-price" i], [class*="main-price" i]';
@@ -2777,11 +2767,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (isInPromoWidget(img)) continue;
       var src = realImgSrc(img);
       if (!src) continue;
-      // Drop icon-sized images (rating stars, color swatches, share/wishlist
-      // glyphs). Several of them share a parent class in groups of 3+ (five
-      // rating stars, a swatch row), and the old "biggest group wins" rule
-      // could pick that over the real photo carousel - a confirmed failure
-      // where a cart item showed a gold rating star as its product photo.
+      // Drop icon-sized images (rating stars, swatches, glyphs): they cluster in
+      // 3+ groups too and the old "biggest group wins" once shipped a star photo.
       var dim = renderedMinDim(img);
       if (dim > 0 && dim < 64) continue;
       var pCls = img.parentElement ? (img.parentElement.className || '').trim() : '';
@@ -2789,9 +2776,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (!byParentClass[pCls]) { byParentClass[pCls] = []; order.push(pCls); }
       byParentClass[pCls].push(img);
     }
-    // Pick the group whose images render LARGEST (the hero photo carousel), not
-    // the one with the most members - a "you may also like" strip can carry
-    // more thumbnails than the gallery has photos, yet each is far smaller.
+    // Pick the group rendering LARGEST (hero carousel), not the most members: a
+    // "you may also like" strip can have more thumbnails, yet each is smaller.
     var bestKey = null;
     var bestArea = 0;
     for (var k = 0; k < order.length; k++) {
