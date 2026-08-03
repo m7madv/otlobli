@@ -2740,19 +2740,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return '';
   }
 
-  // SHEIN product pages often carry promo banners ("install our app", ad
-  // strips, etc.) with their own logo/icon <img> - those can be larger or
-  // load faster than the actual product photo, so any heuristic that just
-  // grabs "an image on the page" risks grabbing the wrong one. Walk up from
-  // each candidate image and skip it entirely if an ancestor's class/id
-  // hints it's a banner/ad/app-download widget rather than the product
-  // gallery.
-  // Confirmed via real captured page data: a generic "banner"/"ad"/"popup"
-  // blocklist false-positives on the actual product photo carousel itself
-  // (SHEIN's gallery wrapper class chain apparently includes a generic
-  // "banner"-ish name used for ANY image carousel, not just promo ones) -
-  // that single overly-broad match was excluding every real gallery photo.
-  // Scope this down to only the exact "install our app" widget signature.
+  // Skip images inside an app-download/promo widget (their logo can outsize the
+  // product photo). A broad "banner"/"ad"/"popup" blocklist false-positived the
+  // real gallery carousel, so match only the exact "install our app" signature.
   function isInPromoWidget(img) {
     var el = img;
     var depth = 0;
@@ -2765,16 +2755,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return false;
   }
 
-  // A real photo gallery is a cluster of 3+ same-ish SHEIN-hosted <img>
-  // siblings - a far more reliable fingerprint than "biggest image on the
-  // page", which can match an oversized promo banner instead. Confirmed from
-  // a captured page: each gallery photo sits in its OWN <li>, so grouping by a
-  // shared ancestor ELEMENT only ever yields groups of 1. What they share is
-  // the wrapper *className* string (class="crop-image-container") - group by
-  // that. renderedMinDim = smallest rendered side in CSS px: off-screen
-  // carousel clones still report full size (translated, not collapsed) so they
-  // pass, while a not-yet-laid-out lazy image reports 0 = "unknown", which we
-  // do not filter out on size alone.
+  // A real gallery = 3+ SHEIN-hosted <img> sharing a wrapper *className*
+  // (each photo sits in its own <li>, so grouping by ancestor element fails).
+  // renderedMinDim = smallest rendered CSS side; off-screen carousel clones
+  // still report full size, a lazy image reports 0 = unknown (not filtered).
   function renderedMinDim(img) {
     var r = img.getBoundingClientRect();
     var w = r.width || img.clientWidth || 0;
@@ -2823,15 +2807,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (maxArea > bestArea) { bestArea = maxArea; bestKey = key; }
     }
     if (!bestKey) return '';
-    // Picking items[0] (first in DOM order) is unreliable, and so is picking
-    // the largest on-screen rect: this carousel is an infinite-loop slider
-    // that prepends a clone of the LAST slide and appends a clone of the
-    // FIRST slide so it can wrap around, and every clone renders at the same
-    // size as a real slide (confirmed via logcat: 12 slides in the group,
-    // but only 10 unique src hashes - N0 duplicates N10, N11 duplicates N1).
-    // The clones sit parked off to the sides of the viewport; only the slide
-    // actually visible right now has a bounding rect left close to 0. So
-    // pick whichever loaded slide's left is closest to 0 instead.
+    // Infinite-loop slider: it clones the first/last slides to wrap around, and
+    // clones render full-size parked off to the sides. Only the visible slide
+    // has left close to 0, so pick the loaded slide whose left is nearest 0.
     var group = byParentClass[bestKey];
     var best = group[0];
     var bestAbsLeft = Infinity;
@@ -5247,6 +5225,49 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return unmet;
   }
 
+  // Read the variant SHEIN committed. Path A: committed leaf SKU in the store.
+  // Path B (quick-add/click-to-buy, which never commits): the selected DOM cells,
+  // each tagged with a CLEAN data-attr_value (no "فقط N بيقي" noise). Classified by
+  // attr name / heading (مقاس=size لون=colour الكمية=qty); colour falls back to the
+  // current goods_id's main swatch. Null on total miss => DOM heuristics fallback.
+  function sheinStoreSelectedSku() {
+    try {
+      var el = document.getElementById('app');
+      var comp = el && el._vnode && el._vnode.component;
+      var store = comp && comp.proxy && comp.proxy.$store;
+      if (!(store && store.state && store.state.productDetail)) return null;
+      var pd = store.state.productDetail, cold = pd.coldModules || {};
+      var info = (pd.common || {}).select_sku_info;
+      var size = '', color = '', qty = '';
+      function cls(name, en, v) {
+        name = normalizedOptionText(name); en = String(en || '').toLowerCase(); v = normalizedOptionText(v);
+        if (!v) return;
+        if (en === 'size' || /مقاس|الحجم/.test(name)) size = v;
+        else if (en === 'color' || en === 'colour' || /^ال?لون$/.test(name)) color = v;
+        else if (/كمية|quantity/i.test(name + ' ' + en)) qty = v;
+        else if (!color) color = v;
+      }
+      var skuCode = (info && info.sku_code) ? String(info.sku_code) : '', a;
+      if (skuCode && (info.sku_sale_attr || []).length) {
+        a = info.sku_sale_attr;
+        for (var i = 0; i < a.length; i++) cls(a[i].attr_name, a[i].attr_name_en, a[i].attr_value_name || a[i].sku_calc_name);
+      } else {
+        a = document.querySelectorAll('[data-attr_value_id][aria-checked="true"],[data-attr_value_id].size-active');
+        for (var s = 0; s < a.length; s++) cls(sheinGroupHeading(a[s]), '', a[s].getAttribute('data-attr_value'));
+      }
+      if (!color) {
+        var msa = cold.saleAttr && cold.saleAttr.mainSaleAttribute;
+        var gid = String((cold.productInfo || {}).goods_id || '');
+        var arr = (msa && msa.info && msa.info.length !== undefined) ? msa.info : [];
+        for (var m = 0; m < arr.length; m++) if (String(arr[m].goods_id) === gid) { color = normalizedOptionText(arr[m].attr_value); break; }
+        if (!color && arr.length === 1) color = normalizedOptionText(arr[0].attr_value);
+      }
+      if (qty) size = size ? (size + ' / ' + qty) : qty;
+      if (!size && !color) return null;
+      return { skuCode: skuCode, color: color, size: size };
+    } catch (e) { return null; }
+  }
+
   function captureProductPayload(colorState, sizeState, allowGenericTitle) {
     if (IS_TEMU) {
       var perso = temuPersonalization();
@@ -5300,25 +5321,16 @@ export const SHEIN_CAPTURE_SCRIPT = `
       };
     }
     var sheinCustomReq = sheinCustomRequirements();
-    // Resolve price before the payload so the source describes THIS read, and
-    // ship it: the source used to be computed then dropped, so a wrong price on
-    // a real device gave no way to tell which branch produced it.
+    // Resolve price + its source before the payload so the source describes THIS read.
     var sheinPriceUsd = getPrice();
     var sheinPriceSource = __otlobliSkuPriceSource;
-    try {
-      console.log('[otlobli][shein-price] usd=' + sheinPriceUsd +
-        ' source=' + sheinPriceSource +
-        ' sel=' + sheinCurrentSelectionKey() +
-        ' path=' + location.pathname);
-    } catch (e) {}
     var sheinColorSel = colorState.selected;
     var sheinColorImg = colorState.image;
     var sheinSizeSel = sizeState.selected;
     var sheinSizesAvail = sizeState.available || [];
     var sheinSizesUnavail = sizeState.unavailable || [];
-    // Drawer products (jewelry tray p-534350565): the SKU sheet closes at add-
-    // time so a fresh read reverts to the stale main-page heading (green sent as
-    // "أرجواني أحمر"). Use the variant committed when the price mutated.
+    // Drawer products (jewelry tray p-534350565): the SKU sheet closes at add-time,
+    // so use the variant committed when the price mutated, not the stale heading.
     if (__otlobliSheinDrawerPath === location.pathname &&
         __otlobliSelectedSkuPricePath === location.pathname &&
         Date.now() - __otlobliSelectedSkuPriceAt < 1800000) {
@@ -5327,9 +5339,19 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var kSize = String(__otlobliSelectedSkuPriceKey || '').split('|')[1];
       if (kSize) sheinSizeSel = kSize;
     }
-    // Swan tray p-517537202: the sole sales attr sits under a "مقاس" heading but
-    // its values are colour names, so color and size resolve to the SAME
-    // group/value. Ship it once (as the colour, which carries the swatch image).
+    // Authoritative override: trust SHEIN's committed SKU over the DOM above.
+    var sheinStoreSku = sheinStoreSelectedSku();
+    var sheinSkuCode = '';
+    if (sheinStoreSku) {
+      sheinSkuCode = sheinStoreSku.skuCode;
+      if (sheinStoreSku.color) sheinColorSel = sheinStoreSku.color;
+      if (sheinStoreSku.size) {
+        sheinSizeSel = sheinStoreSku.size;
+        sheinSizesAvail = []; sheinSizesUnavail = [];
+      }
+    }
+    // Swan tray p-517537202: one sales attr under a "مقاس" heading whose values are
+    // colour names => color === size. Ship once as the colour (it holds the image).
     if (sheinSizeSel && sheinColorSel && sheinSizeSel === sheinColorSel) {
       sheinSizeSel = '';
       sheinSizesAvail = [];
@@ -5344,6 +5366,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       colorImageFound: !!sheinColorImg,
       color: sheinColorSel,
       size: sheinSizeSel,
+      skuCode: sheinSkuCode,
       sizesAvailable: sheinSizesAvail,
       sizesUnavailable: sheinSizesUnavail,
       link: otlobliNormalizeSheinUrl(location.href),
