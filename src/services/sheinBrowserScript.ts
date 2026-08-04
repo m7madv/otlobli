@@ -5212,10 +5212,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   // Read the variant SHEIN committed. Path A: committed leaf SKU in the store.
-  // Path B (quick-add/click-to-buy, which never commits): the selected DOM cells,
-  // each tagged with a CLEAN data-attr_value (no "فقط N بيقي" noise). Classified by
-  // attr name / heading (مقاس=size لون=colour الكمية=qty); colour falls back to the
-  // current goods_id's main swatch. Null on total miss => DOM heuristics fallback.
+  // Path B (quick-add, never commits): selected DOM cells' CLEAN data-attr_value.
+  // Classified by attr name/heading (مقاس=size لون=colour الكمية=qty); colour falls
+  // back to the current goods_id's main swatch. Null => DOM heuristics fallback.
   function sheinStoreSelectedSku() {
     try {
       var el = document.getElementById('app');
@@ -5252,6 +5251,27 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (!size && !color) return null;
       return { skuCode: skuCode, color: color, size: size };
     } catch (e) { return null; }
+  }
+
+  // Reliable size gate (the heuristic sizeState misses quick-add): true when a
+  // مقاس group shows 2+ choices and none is selected; scrolls the first into view.
+  function sheinSizeUnselected() {
+    try {
+      var o = document.querySelectorAll('[data-attr_value][data-attr_value_id]');
+      var tot = 0, sel = 0, first = null;
+      for (var i = 0; i < o.length; i++) {
+        var h = normalizedOptionText(sheinGroupHeading(o[i]));
+        if (!/مقاس|الحجم/.test(h) && h.toLowerCase() !== 'size') continue;
+        tot++;
+        if (!first) first = o[i];
+        if (o[i].getAttribute('aria-checked') === 'true' || /size-active/.test(o[i].className)) sel++;
+      }
+      if (tot >= 2 && !sel) {
+        try { if (first && first.scrollIntoView) first.scrollIntoView({ block: 'center' }); } catch (e) {}
+        return true;
+      }
+      return false;
+    } catch (e) { return false; }
   }
 
   function captureProductPayload(colorState, sizeState, allowGenericTitle) {
@@ -5381,6 +5401,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (sizeState && sizeState.exists && !sizeState.selected) {
         sheinRevealSizeOptions();
         showMessage(addBtn, 'حدد المقاس أولاً');
+        return;
+      }
+      // Authoritative gate on top of the heuristic above: never add a sized
+      // product with no size chosen (quick-add products slipped through before).
+      if (sheinSizeUnselected()) {
+        showMessage(addBtn, 'الرجاء تحديد المقاس أولاً');
         return;
       }
     }
@@ -6034,19 +6060,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
       }
       otlobliResetTemuNavContentOffset(existingNav);
       otlobliStabilizeTemuNavLayer(existingNav);
-      // Re-claiming "last child of body" fixes a real bug (SHEIN's own SPA
-      // keeps inserting new elements - promo banners, popups, app-install
-      // prompts - some at the SAME max z-index we use, and on a tie the
-      // LATER sibling in DOM order wins paint priority; without re-claiming,
-      // one of those could end up physically covering, and silently
-      // swallowing taps on, our own nav bar - confirmed symptom: cart tab
-      // going unresponsive until switching tabs and back). But moving an
-      // already-mounted node still costs a reflow even though its position:
-      // fixed coordinates don't change, and doing that every single 300ms
-      // tick (this runs that often) was visibly unsettling the bar/causing a
-      // flicker on a page that's nearly always inserting *something*. Once
-      // every ~2s is still fast enough that a stray SHEIN element can't sit
-      // on top for long, at a fraction of the reflow cost.
+      // Re-claim "last child of body": SHEIN keeps inserting nodes at our max
+      // z-index, and on a tie the later sibling wins paint, so one could cover +
+      // swallow taps on our nav (symptom: cart tab going dead). Throttle to ~2s -
+      // moving a mounted node still reflows, and doing it every 300ms flickered.
       var now = Date.now();
       var navHost = IS_TEMU && document.documentElement ? document.documentElement : document.body;
       if (existingNav !== navHost.lastElementChild && now - __otlobliNavLastReclaim > 2000 &&
@@ -6060,20 +6077,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
     ensureShakeStyle();
     var nav = document.createElement('div');
     nav.id = 'otlobli-nav';
-    // Max z-index (tied with the other otlobli overlays, appended last so it
-    // wins paint order among ties): sits above any bottom bar SHEIN renders.
-    // Mirrors otlobli's real .bottom-nav: colors --primary #006948 / --muted
-    // #3d4a42, ~74px min-height, 4px active-tab indicator, 440px max-width
-    // centering (tablets only - identical to full width on a phone).
-    // max(env(safe-area-inset-bottom),16px) floor: Android can report 0 even
-    // with a 3-button system bar on screen, and taps then land in the
-    // system's strip. 16px is right because the native side already shrinks
-    // the WebView bounds (enabledSafeBottomMargin in App.tsx); more would
-    // only add empty space. translateZ(0)/will-change forces its own GPU
-    // layer - confirmed symptom: a plain position:fixed bar on Android
-    // WebView vanished behind the system nav bar when scrolling back up.
-    // direction:rtl ثابت حتى يكون ترتيب الأزرار (الرئيسية يمين ← حسابي يسار)
-    // نفسه على كل المتاجر؛ بدونه ينقلب على المتاجر LTR مثل تيمو.
+    // Max z-index (appended last so it wins ties) above any SHEIN bottom bar,
+    // mirroring otlobli's real .bottom-nav. safe-area floor = max(inset,16px):
+    // Android can report 0 with a 3-button bar so taps land in the system strip
+    // (native already shrinks WebView bounds via enabledSafeBottomMargin).
+    // translateZ(0)/will-change forces a GPU layer (a plain fixed bar vanished
+    // behind the Android system bar on scroll-up). direction:rtl ثابت ليبقى
+    // ترتيب الأزرار نفسه على كل المتاجر (بدونه ينقلب على LTR مثل تيمو).
     nav.style.cssText = OTLOBLI_NAV_CSS;
     nav.setAttribute('data-otlobli-nav-style', OTLOBLI_NAV_STYLE_VERSION);
     var items = [
