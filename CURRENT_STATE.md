@@ -1,6 +1,14 @@
 # Otlobli Current State
 
-Last updated: 2026-08-02
+Last updated: 2026-08-07
+
+## v86.64 SHEIN SKU image/color leak + size-select freeze (2026-08-07)
+
+- Marker `2026.08.07-v86.64-shein-sku-image-freeze-fix`; branch `claude/shein-sku-image-freeze-bugs-52b525` (fast-forwarded onto v86.63 base). Fixes the two open bugs from the v86.63 SKU-capture handoff.
+- **Bug 1 (image/color/icon leaked from product A to B):** the colour/image/price stash and `__otlobliSkuMemo` were keyed only on `location.pathname`, which is shared across quick-add products on one listing route, so product A's stale colour + colour image + memo bled into product B. Fix: new `sheinGoodsId()` (reads Vue `store.state.productDetail.coldModules.productInfo.goods_id`, falls back to pathname). Stash now stamps `__otlobliSelectedSkuGoodsId` at swatch-tap and at price `commit()`, and every consumer (`getPrice`, `sheinSelectedSkuPricePending`, the drawer colour/image/size payload block) requires the stamped goods_id to equal the current one. `sheinSkuMemo` and its three drawer resets are now keyed by `sheinGoodsId()` instead of pathname.
+- **Bug 2 (size-select freeze + false "close the shipping list first"):** the SKU size/colour drawer is also a `.sui-drawer__body` with `role="option"` items, so `sheinResolvedShippingUiRoot()` misread it as the shipping/address drawer, which locked the page (froze) and blocked add-to-cart. Fix: `inspect()` now rejects any candidate that contains SKU markers `[data-attr_value_id],.SIZE_ITEM_HOOK,.j-select-to-buy,.goods-size__sizes` — those never appear in the real shipping drawer.
+- No timer/region/price/payment/wallet/order or native WebView lifecycle behavior changed. Condensed three Arabic Temu comment blocks (logic untouched) to hold the CI budget.
+- Validation: `npm run build` OK; `verify:shein-freeze-guard` OK; `verify:performance-budget` OK — largest JS raw `1,198,401 / 1,200,000` (base v86.63 was `1,198,358`), SHEIN script source `544,668 / 550,000`. **Not yet device-verified on Note 8** (browser preview can't exercise SHEIN's real DOM/Vue store); on-device acceptance of the two products + native APK/IPA build still pending.
 
 ## v86.54 SHEIN selected color capture from cart screenshots (2026-08-02)
 

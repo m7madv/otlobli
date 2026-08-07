@@ -4,6 +4,13 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
 **Work cheap: read `docs/AI_FASTPATH.md` first** (device-debug playbook, `scripts/otlobli-cdp.mjs`, function line-map — never read the 550 KB `sheinBrowserScript.ts` whole).
 
+## Current candidate (2026-08-07) - v86.64 SKU image/color leak + size-select freeze
+
+- Version `2026.08.07-v86.64-shein-sku-image-freeze-fix`; branch `claude/shein-sku-image-freeze-bugs-52b525` (fast-forwarded onto the v86.63 SKU-capture base — that branch started at v86.61 and was missing v86.62/63).
+- **Root cause of both bugs was pathname-keyed state.** Fix 1: added `sheinGoodsId()` (Vue store goods_id → pathname fallback); the colour/image/price stash + `__otlobliSkuMemo` are now keyed/guarded on goods_id, so a quick-add product no longer inherits the previous product's colour, colour image, or memo. Fix 2: `sheinResolvedShippingUiRoot().inspect()` now rejects any candidate holding SKU markers (`[data-attr_value_id],.SIZE_ITEM_HOOK,.j-select-to-buy,.goods-size__sizes`), so the size drawer is never misread as the shipping drawer (that misread was locking the page = the "freeze" + false "close the shipping list first" block).
+- Budget: largest JS raw `1,198,401/1,200,000` after condensing three Arabic Temu comment blocks; logic untouched. Freeze guard + budget both OK.
+- **Not device-verified yet** (no SHEIN Vue store in the local browser preview). Confirm on Note 8: add product A (correct), then a second quick-add product B — B must show its OWN colour+image, and selecting a size must not freeze or trigger the shipping block.
+
 ## Current candidate (2026-08-02) - v86.58 iOS colour text = ring-selected swatch
 
 - Version `2026.08.02-v86.58-...`; Android/iOS `918/86.58`; branch `claude/color-capture-fixes-v8655`.

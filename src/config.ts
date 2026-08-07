@@ -17,4 +17,4 @@ export const SOURCE_COUNTRY: 'JO' | 'LB' | 'SA' = 'SA'
 export const TEST_ONLY_AUTH_BYPASS = false
 
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '2026.08.04-v86.63-shein-size-gate'
+export const APP_VERSION = '2026.08.07-v86.64-shein-sku-image-freeze-fix'
