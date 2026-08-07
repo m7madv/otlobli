@@ -2,6 +2,11 @@
 
 Last updated: 2026-08-07
 
+## Admin colour swatch + WhatsApp iOS "waiting" hardening (2026-08-07)
+
+- **Admin colour swatch (`admin/src/AdminApp.tsx`):** ambiguous colour names («متعدد الألوان») can't be told apart in order text. The app already captures `colorImage` (each variant's distinct image), but admin showed the name only. Added `ColorCell` — renders the swatch (image, or gold gradient for ذهبي like the customer app) before the colour name in both order views (list card + modal); added `colorImage` to admin `CartItem`. **Deploy:** admin is Vercel (`talabieh-admin.vercel.app`) — needs a redeploy (merge to main / Vercel deploy). App side already ships `colorImage` (v86.67).
+- **WhatsApp OTP "waiting for this message" on iOS recipients (`server/src/whatsapp.js`):** known Baileys+iOS issue; iOS asks for a resend (retry receipt) minutes later but the session was cut after 5 min idle so it never resent → stuck. Fixes: `IDLE_TIMEOUT_MS` 5m→30m (env `WHATSAPP_IDLE_TIMEOUT_MS`) to catch late retries + cut reconnect churn; persist the resend message store to disk (`_wa-msg-store.json`) so restarts don't lose it; diagnostic log in `getMessage`. **Deploy:** scp `server/src/whatsapp.js` to Oracle VM + `pm2 restart`. **Recommended root fix:** upgrade Baileys 6.6.0→6.7.24 on the VM (`npm install @whiskeysockets/baileys@6.7.24`), test, rollback to 6.6.0 if it needs a re-link.
+
 ## v86.66 SHEIN store-based capture — authoritative, not DOM guessing (2026-08-07)
 
 - Marker `2026.08.07-v86.66-shein-store-based-capture`; iOS `86.66/926`; branch `claude/shein-sku-image-freeze-bugs-52b525`. Built on the WORKING v86.65 baseline (v86.63 code), so it does NOT reintroduce the v86.64 iOS breakage.
