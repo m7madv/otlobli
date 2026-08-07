@@ -21,7 +21,13 @@ const LEGACY_AUTH_DIR = VOLUME_PATH
   ? path.join(VOLUME_PATH, 'baileys-auth')
   : path.join(__dirname, '..', 'baileys-auth')
 
-const IDLE_TIMEOUT_MS = 5 * 60 * 1000
+// كان 5 دقائق فقط — قصير جداً: مستلم iOS الذي يفشل بفكّ الرسالة يطلب إعادتها
+// (retry receipt) بعد دقائق، وإن كانت جلستنا قد قُطعت وقتها لا يُعاد الإرسال
+// فتعلق الرسالة بحالة «في انتظار هذه الرسالة» للأبد. نُبقيها حيّة 30 دقيقة
+// (قابلة للضبط) لالتقاط طلب الإعادة، ونقلّل تكرار إعادة الاتصال (سببٌ معروف
+// للمشكلة: «إغلاق جلسة قديمة عند حزمة prekey جديدة»). markOnlineOnConnect=false
+// يعني أننا لا نبدو «متصلين دائماً»، فلا خطر حظر إضافي من طول الاتصال.
+const IDLE_TIMEOUT_MS = Math.max(60 * 1000, parseInt(process.env.WHATSAPP_IDLE_TIMEOUT_MS || '1800000', 10) || 1800000)
 
 // تنبيه المشرف عبر تيليغرام (مثلاً عند حظر رقم) — يعمل فقط إذا توفّرت المتغيّرات.
 const TG_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ''
@@ -356,6 +362,10 @@ async function initSession(session) {
     // الأصلي من المخزن فتُعاد بنجاح. هذا هو الإصلاح الجذري لتلك المشكلة.
     getMessage: async (key) => {
       const stored = __waMsgStore.get(key?.id)
+      // سجّل طلبات إعادة الإرسال (تشخيص «في انتظار هذه الرسالة» عبر pm2 logs):
+      // stored=نُعيد الإرسال بنجاح؛ غياب=رسالة قديمة غير مخزّنة قد تعلق.
+      if (stored) console.log(`🔁 retry: أُعيد إرسال ${key?.id} (حلّ «في انتظار هذه الرسالة»)`)
+      else console.log(`⚠️ retry: رسالة غير مخزّنة ${key?.id} — قد تعلق (أُرسلت قبل إعادة تشغيل/خارج المخزن)`)
       return stored || undefined
     },
     keepAliveIntervalMs: 30000,
@@ -499,6 +509,32 @@ let __sendChain = Promise.resolve()
 // تتضخم الذاكرة على الحاوية الدائمة.
 const __waMsgStore = new Map()
 const WA_MSG_STORE_MAX = 1500
+// نحفظ المخزن على القرص (قرص Oracle الدائم) ليبقى بعد إعادة تشغيل pm2/إعادة النشر،
+// فلا نفقد إمكانية إعادة إرسال رسالة طُلبت إعادتها بعد إعادة التشغيل. رسائلنا نصّية
+// (OTP/إشعارات) فتتحمّل JSON بأمان. كتابة مؤجَّلة (debounce) حتى لا نُرهق القرص.
+const WA_MSG_STORE_FILE = path.join(BASE_AUTH_DIR, '_wa-msg-store.json')
+let __waStoreDirty = false, __waStoreTimer = null
+function loadMsgStore() {
+  try {
+    const arr = JSON.parse(fs.readFileSync(WA_MSG_STORE_FILE, 'utf-8'))
+    if (Array.isArray(arr)) {
+      for (const pair of arr) {
+        if (Array.isArray(pair) && pair[0] && pair[1]) __waMsgStore.set(pair[0], pair[1])
+      }
+    }
+    console.log(`💾 مخزن رسائل واتساب: حُمّل ${__waMsgStore.size} رسالة من القرص`)
+  } catch (_) {}
+}
+function scheduleMsgStoreSave() {
+  __waStoreDirty = true
+  if (__waStoreTimer) return
+  __waStoreTimer = setTimeout(() => {
+    __waStoreTimer = null
+    if (!__waStoreDirty) return
+    __waStoreDirty = false
+    try { fs.writeFileSync(WA_MSG_STORE_FILE, JSON.stringify([...__waMsgStore.entries()])) } catch (_) {}
+  }, 3000)
+}
 function rememberMessage(id, message) {
   if (!id || !message) return
   if (__waMsgStore.has(id)) __waMsgStore.delete(id)
@@ -507,6 +543,7 @@ function rememberMessage(id, message) {
     const oldest = __waMsgStore.keys().next().value
     if (oldest !== undefined) __waMsgStore.delete(oldest)
   }
+  scheduleMsgStoreSave()
 }
 
 function jitter(minMs, maxMs) {
@@ -593,6 +630,7 @@ export function getSocket() {
   return connected?.sock ?? null
 }
 
-// تحميل الجلسات الموجودة عند بدء السيرفر
+// تحميل الجلسات ومخزن الرسائل عند بدء السيرفر
+loadMsgStore()
 loadExistingSessions()
 console.log(`📱 ${sessions.size} جلسة واتساب محمّلة`)
