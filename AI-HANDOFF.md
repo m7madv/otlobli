@@ -4,9 +4,11 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
 **Work cheap: read `docs/AI_FASTPATH.md` first** (device-debug playbook, `scripts/otlobli-cdp.mjs`, function line-map — never read the 550 KB `sheinBrowserScript.ts` whole).
 
-## ⭐ HEAD OF `main` = v86.67 (2026-08-07)
+## ⭐ HEAD OF `main` = `bb75cf8` / v86.67 (2026-08-08)
 
-`main` was fast-forwarded to `679f476` (from `claude/shein-sku-image-freeze-bugs-52b525`). It carries v86.66/v86.67 SHEIN store-based capture + admin colour swatch + WhatsApp iOS hardening. The "Current candidate" sections below (v86.64 etc.) are historical — v86.66/67 supersede them; read `CURRENT_STATE.md` top for the live status. Deploy state: **Vercel admin auto-deployed (live)**; **WhatsApp Oracle deploy + iPhone reinstall still pending (user-run)** — details in `CURRENT_STATE.md`.
+`main` was fast-forwarded to `679f476` (from `claude/shein-sku-image-freeze-bugs-52b525`), then WhatsApp server fixes landed on top (`bb75cf8`). It carries v86.66/v86.67 SHEIN store-based capture + admin colour swatch + WhatsApp iOS "waiting for this message" fix. The "Current candidate" sections below (v86.64 etc.) are historical — read `CURRENT_STATE.md` top for live status.
+
+Deploy state (2026-08-08): **Vercel admin auto-deployed (live)**; **WhatsApp Oracle server DEPLOYED via SSH + LID fresh-session fix DEPLOYED — user confirmed WhatsApp works** («زبط الواتساب»); **iPhone app reinstall still pending (user-run)**. WhatsApp root cause was LID addressing (not the earlier getMessage/IDLE guess) — fixed by forcing a fresh Signal session per send (`WHATSAPP_FRESH_SESSION_PER_SEND`); full detail + rollback + server access (`ubuntu@84.8.100.128`, key `~/Downloads/ssh-key-2026-07-22.key`, server drifts from repo → manual scp) in `CURRENT_STATE.md`.
 
 ## Current candidate (2026-08-07) - v86.64 SKU image/color leak + size-select freeze
 
