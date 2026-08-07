@@ -567,8 +567,44 @@ function paceSend(task) {
   return run
 }
 
+// ── إصلاح «في انتظار هذه الرسالة» (عنونة LID على iPhone) ─────────────
+// السبب الجذري (مؤكّد في قضايا Baileys #1739/#1744/#1701): الواتساب الحديث،
+// وخاصّةً iPhone، يسجّل الهوية تحت معرّف @lid لا phone@s.whatsapp.net. مفاتيح
+// جلسة Signal تُحفظ لهوية @lid، فحين نرسل إلى @s.whatsapp.net تجد Baileys ملف
+// جلسة بالاسم الخطأ ومفاتيحه لا تطابق الهوية → «Closing stale open session» →
+// جهاز iPhone لا يستطيع فكّ الرسالة → تعلق بـ«في انتظار هذه الرسالة». أول رسالة
+// تنجح (جلسة جديدة من الصفر)، والثانية تعلق أبداً (تعيد استخدام الجلسة القديمة).
+// نحن مُرسِلون فقط (OTP/إشعار) ولا نستقبل من هذه الأرقام، فلا نعرف LID الخاص بها
+// لنرسل إليه مباشرةً. الحلّ المناسب لحالتنا (رسالة واحدة، لا نحتاج استمرارية
+// جلسة): نحذف جلسة المستلم قبل كل إرسال، فتُبنى جلسة نظيفة كل مرة = تتصرّف كـ«أول
+// رسالة» الناجحة دائماً. آمن: الإرسالات متسلسلة (paceSend) فلا نحذف جلسة يستخدمها
+// إرسال متزامن؛ ولا نمسّ مصادقة الرقم (creds) فلا يلزم QR جديد. الكلفة: جلب مفاتيح
+// مسبقة إضافي لكل إرسال — مقبول لحجم OTP المنخفض. يُعطّل فوراً عبر البيئة:
+// WHATSAPP_FRESH_SESSION_PER_SEND=0 (بلا إعادة نشر كود).
+const FRESH_SESSION_PER_SEND = (process.env.WHATSAPP_FRESH_SESSION_PER_SEND || '1') !== '0'
+async function forceFreshRecipientSession(session, jid) {
+  try {
+    const user = jid.split('@')[0]
+    const files = fs.readdirSync(session.authDir).filter(
+      f => f.startsWith(`session-${user}.`) && f.endsWith('.json')
+    )
+    if (!files.length) return // لا جلسة سابقة (أول رسالة) — لا شيء نحذفه
+    const ids = {}
+    for (const f of files) ids[f.slice('session-'.length, -'.json'.length)] = null
+    // keys.set(null) في useMultiFileAuthState يحذف ملف الجلسة؛ فيعيد Baileys جلب
+    // المفاتيح المسبقة ويبني جلسة نظيفة عند sendMessage التالي (assertSessions).
+    await session.sock.authState.keys.set({ session: ids })
+    console.log(`🧹 جلسة نظيفة للمستلم ${user} (${files.length} جهاز) — إصلاح LID «في انتظار الرسالة»`)
+  } catch (e) {
+    console.log(`⚠️ تعذّر تنظيف جلسة المستلم: ${(e && e.message) || e}`)
+  }
+}
+
 // إرسال يحاكي إنساناً: اشتراك بالحضور + «يكتب» + تأخير قصير ثم الرسالة.
-async function sendHumanLike(sock, jid, content) {
+async function sendHumanLike(session, jid, content) {
+  const sock = session.sock
+  // جلسة نظيفة قبل الإرسال (إصلاح LID أعلاه) — قبل أي تفاعل مع السوكت.
+  if (FRESH_SESSION_PER_SEND) await forceFreshRecipientSession(session, jid)
   try { await sock.presenceSubscribe(jid) } catch (_) {}
   try { await sock.sendPresenceUpdate('composing', jid) } catch (_) {}
   await sleep(jitter(900, 2200))
@@ -601,7 +637,7 @@ export async function sendOtpMessage(phone, code) {
   }
 
   await paceSend(() => sendWithFallback(async (session) => {
-    await sendHumanLike(session.sock, jid, { text: msg })
+    await sendHumanLike(session, jid, { text: msg })
     console.log(`✅ OTP ${code} → ${phone} (session ${session.id})`)
   }))
 }
@@ -610,7 +646,7 @@ export async function sendNotificationMessage(phone, text) {
   const jid = phone.replace(/[\s\-\(\)\+]/g, '') + '@s.whatsapp.net'
 
   await paceSend(() => sendWithFallback(async (session) => {
-    await sendHumanLike(session.sock, jid, { text })
+    await sendHumanLike(session, jid, { text })
     console.log(`✅ إشعار → ${phone} (session ${session.id})`)
   }))
 }

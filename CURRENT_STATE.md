@@ -2,6 +2,14 @@
 
 Last updated: 2026-08-07
 
+## WhatsApp "waiting for this message" (iOS) — LID root cause + fresh-session fix (2026-08-08)
+
+- **Symptom (device-confirmed by user, post-deploy):** iOS recipient — first OTP eventually decrypts after opening the chat (~2-3s), but a SECOND OTP is stuck on «في انتظار هذه الرسالة» forever. Server error log showed `Closing stale open session for new outgoing prekey bundle` on every send.
+- **Root cause = LID addressing** (confirmed via Baileys issues #1739/#1744/#1701, not my earlier getMessage/IDLE guess): modern WhatsApp (esp. iPhone) registers identity under `xxxx@lid`, Signal keys are saved for the @lid identity, but we send to `phone@s.whatsapp.net` → key/identity mismatch → recipient can't decrypt. First msg works (fresh session from scratch); second reuses the mismatched session → stuck. The `Closing stale open session` log itself is benign (per a Baileys contributor); LID is the real fault. My prior getMessage/IDLE hardening does NOT fix it (resend reuses the broken session).
+- **Constraint:** we're outbound-only (OTP/notify) — we never receive from these numbers, so we can't learn their LID to send to it; and Baileys is `6.6.0` (LID send-support is in the 7.0.0-rc line / `add-lid-to-message-key` PR).
+- **Fix chosen (user-approved, low-risk, no QR/upgrade):** force a fresh Signal session on EVERY send so each message behaves like the always-working "first message". New `forceFreshRecipientSession(session, jid)` in `server/src/whatsapp.js` deletes the recipient's `session-<pn>.*.json` records via `sock.authState.keys.set({session:{...:null}})` before `sendMessage`; Baileys then re-fetches prekeys and builds a clean session. Wired into `sendHumanLike(session, jid, …)` (both OTP + notification paths). Toggle off without redeploy via env `WHATSAPP_FRESH_SESSION_PER_SEND=0`. Safe: sends are serialized (`paceSend`) so no concurrent-session race; creds untouched (no re-link). Cost: an extra prekey fetch per send (fine at OTP volume).
+- **DEPLOYED 2026-08-08** to Oracle VM; process online/stable, error log empty. Backup `~/otlobli-server/src/whatsapp.js.bak-prelid-20260808-005915`. **NOT yet verified end-to-end** — user must request a real OTP on iPhone (esp. TWO in a row, the broken case). Logs will show `🧹 جلسة نظيفة للمستلم …` before each send. If it regresses, rollback: restore the `.bak-prelid-…` file + `pm2 restart otlobli-wa`, or just set `WHATSAPP_FRESH_SESSION_PER_SEND=0` in `.env` + restart. If still stuck → escalate to Baileys 7.0.0-rc + LID send (needs phone ready for possible QR).
+
 ## `main` promoted to v86.67 — admin swatch deployed (2026-08-07)
 
 - **Merged** `claude/shein-sku-image-freeze-bugs-52b525` → `main` as a clean **fast-forward** (`3d0566c` → `679f476`). `origin/main` now carries v86.66/v86.67 SHEIN store-based capture + admin colour swatch + WhatsApp iOS hardening. No merge commit, no history loss.
