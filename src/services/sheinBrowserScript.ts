@@ -1668,10 +1668,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
     function inspect(el) {
       if (!el || el === document.body || el === document.documentElement || !sheinElementIsPainted(el)) return false;
-      // The SKU (size/colour) drawer is also a .sui-drawer__body, so it was
-      // misread as shipping - locking the page ("froze") and blocking add. SKU
-      // markers never appear in the real shipping drawer, so reject them.
-      if (el.querySelector && el.querySelector('[data-attr_value_id],.SIZE_ITEM_HOOK,.j-select-to-buy,.goods-size__sizes')) return false;
       var rect = el.getBoundingClientRect();
       if (rect.width < vp.width * 0.72 || rect.height < vp.height * 0.2) return false;
       var text = sheinUiText(el);
@@ -2409,7 +2405,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var __otlobliSelectedSkuPriceKey = '';
   var __otlobliSelectedSkuColor = '';
   var __otlobliSelectedSkuColorImage = '';
-  var __otlobliSelectedSkuGoodsId = '';
   var __otlobliSelectedSkuPricePath = '';
   var __otlobliSelectedSkuPriceAt = 0;
   var __otlobliSelectedSkuPriceBefore = 0;
@@ -2419,19 +2414,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var color = getColorState();
     var size = getSizeState();
     return String(color.selected || '') + '|' + String(size.selected || '');
-  }
-
-  // Per-PRODUCT id: pathname is shared across quick-add products, leaking stale
-  // colour/image/memo from one into the next. Store goods_id is per-product.
-  function sheinGoodsId() {
-    try {
-      var el = document.getElementById('app');
-      var st = el && el._vnode && el._vnode.component && el._vnode.component.proxy && el._vnode.component.proxy.$store;
-      var pd = st && st.state && st.state.productDetail;
-      var g = pd && pd.coldModules && pd.coldModules.productInfo && pd.coldModules.productInfo.goods_id;
-      if (g) return 'g' + g;
-    } catch (e) {}
-    return location.pathname;
   }
 
   function sheinUsdValue(text) {
@@ -2583,7 +2565,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
         __otlobliSelectedSkuColor = tapLbl;
         __otlobliSelectedSkuColorImage = swatchImageFrom(tappedSw) || '';
         __otlobliSelectedSkuPricePath = location.pathname;
-        __otlobliSelectedSkuGoodsId = sheinGoodsId();
         __otlobliSelectedSkuPriceAt = Date.now();
       }
     }
@@ -2630,7 +2611,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
       __otlobliSelectedSkuPrice = price;
       __otlobliSelectedSkuPriceKey = sheinCurrentSelectionKey();
       __otlobliSelectedSkuPricePath = location.pathname;
-      __otlobliSelectedSkuGoodsId = sheinGoodsId();
       __otlobliSelectedSkuPriceAt = Date.now();
       // Colour/image are NOT stashed here (getColorState races the closing
       // sheet). They are locked deterministically at swatch-tap time above.
@@ -2651,7 +2631,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (!__otlobliSelectedSkuPriceObserver) return false;
     var ready = __otlobliSelectedSkuPrice > 0 &&
       __otlobliSelectedSkuPricePath === location.pathname &&
-      __otlobliSelectedSkuGoodsId === sheinGoodsId() &&
       __otlobliSelectedSkuPriceKey === sheinCurrentSelectionKey() &&
       __otlobliSelectedSkuPriceAt > 0;
     return !ready || Math.abs(__otlobliSelectedSkuPrice - __otlobliSelectedSkuPriceBefore) < 0.0001;
@@ -2665,7 +2644,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // the correct drawer price would be thrown away the moment the sheet shuts.
     if (__otlobliSelectedSkuPrice > 0 &&
         __otlobliSelectedSkuPricePath === location.pathname &&
-        __otlobliSelectedSkuGoodsId === sheinGoodsId() &&
         (__otlobliSelectedSkuPriceKey === selectionKey || selectionKey === '|') &&
         Date.now() - __otlobliSelectedSkuPriceAt < 1800000) {
       __otlobliSkuPriceSource = 'selected-mutation';
@@ -3451,8 +3429,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var __otlobliSkuMemo = {};
   var __otlobliSheinDrawerPath = '';
   function sheinSkuMemo(key, value) {
-    var gid = sheinGoodsId();
-    var m = __otlobliSkuMemo[gid] || (__otlobliSkuMemo[gid] = {});
+    var m = __otlobliSkuMemo[location.pathname] || (__otlobliSkuMemo[location.pathname] = {});
     if (value) m[key] = value;
     return m[key] || '';
   }
@@ -3496,7 +3473,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
     if (shippingRoot) {
       __otlobliSheinDrawerPath = '';
-      __otlobliSkuMemo[sheinGoodsId()] = {};
+      __otlobliSkuMemo[location.pathname] = {};
       showMessage(document.getElementById('otlobli-add-btn'), 'أغلق قائمة الشحن أولاً');
       return true;
     }
@@ -3510,7 +3487,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         return false;
       }
       __otlobliSheinDrawerPath = location.pathname;
-      __otlobliSkuMemo[sheinGoodsId()] = {};
+      __otlobliSkuMemo[location.pathname] = {};
       // Bring the control on screen before pressing it: at rest it sits below
       // the fold, and a press aimed at clamped coordinates lands on whatever
       // happens to be at the viewport edge.
@@ -3526,7 +3503,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // happens while NO variant is committed, so refuse rather than ship the low
     // end with a stale remembered combination. See v86.43 in the freeze doc.
     if (sheinHeadPriceIsRange()) {
-      __otlobliSkuMemo[sheinGoodsId()] = {};
+      __otlobliSkuMemo[location.pathname] = {};
       // Telling the shopper to choose while the chips sit behind our own
       // floating button is the same dead end as doing nothing (device-measured
       // on 3-Tier-Large-Capacity: the only group lived at 717-753, under both
@@ -3714,8 +3691,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   // جذب تيمو
-  // ينظّف رموز التحكم بالاتجاه غير المرئية (RLM/LRM/ALM وعزل Unicode Bidi)
-  // التي تدرجها تيمو حول النص العربي فتُفشل === والـregex رغم تطابق الشكل.
+  // ينظّف نصاً من رموز التحكم بالاتجاه غير المرئية (RLM/LRM/ALM وعلامات
+  // العزل الاتجاهي Unicode Bidi Isolates) التي تُدرجها تيمو أحياناً حول
+  // النصوص العربية لضبط اتجاه العرض — تجعل المقارنة الحرفية (===) والـregex
+  // تفشل صامتة رغم تطابق الشكل المرئي 100%. ثبت من جهاز حقيقي: عنواني
+  // "اللون"/"مقاس" ظاهران بوضوح على الصفحة لكن كشف الرأس كان يُرجع "لا
+  // رأس قسم لون/مقاس" — بلا هذا التنظيف نفس فئة خلل BOM بالأسرار بالضبط.
   function temuCleanText(s) {
     return (s || '')
       .replace(/[\\u200e\\u200f\\u061c\\u2066\\u2067\\u2068\\u2069\\ufeff\\u200b]/g, '')
@@ -4344,9 +4325,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
       window.__otlobliTemuSizeDiag = headFound ? 'رأس موجود، صفر أزرار مطابقة' : 'لا رأس قسم مقاس';
       return temuSelectedSizeFromLabel();
     }
-    // 1) نقرة الزبون المسجّلة (لنفس المنتج، وضمن مقاساته الحالية). ننظّف نص
-    // الزر بـtemuCleanText بالضبط كمعالج النقر: تيمو تحقن رموز اتجاه حول نص
-    // الزر أثناء حالة "مُختار" فتفشل المقارنة الخام ضد القيمة المسجّلة النظيفة.
+    // 1) نقرة الزبون المسجّلة (لنفس المنتج، وما زالت ضمن مقاساته الحالية).
+    // مهم: ننظّف نص الزر هنا بنفس دالة معالج النقر (temuCleanText) بالضبط —
+    // ثبت من تشخيص جهاز حقيقي: تيمو تضيف أحياناً رموز اتجاه غير مرئية حول
+    // نص الزر فقط أثناء حالة "مُختار" (الحدّ الأسود ظاهر)، فتصير المقارنة
+    // الخام هنا (نص حالي ملوّث) ضد القيمة المسجّلة وقت النقر (نظيفة) فاشلة
+    // تحديداً في اللحظة التي الزر ظاهر فيها كمُختار — عكس المطلوب تماماً.
     if (window.__otlobliTemuSize && window.__otlobliTemuSizeGid === temuGoodsId()) {
       for (var k = 0; k < pills.length; k++) {
         if (!temuOptionUnavailable(pills[k]) && temuCleanText(pills[k].textContent) === window.__otlobliTemuSize) return window.__otlobliTemuSize;
@@ -5076,10 +5060,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   // كاشف الخيارات البنيوي (v85.8.40): يقرأ عنصر skuSelector الفعلي فقط، بدل
-  // بنية SKU تيمو (بلا مسح نصي للصفحة الذي كان يلتقط شحناً كرأس مقاس):
-  //  - مطوي: div.skuSelector-* [role=button] > .info-* ("N اللون, M مقاس").
-  //  - مفرود: .specListWrap-*؛ رأسه .type-*[aria-label]، خياراته [role=radio]،
-  //    المختار aria-checked="true" (الكمية منفصلة .specTypeName-*).
+  // مسح نصوص الصفحة كلها (الذي كان يلتقط "قياسي: مجانًا" الشحن كرأس مقاس، ونص
+  // "أكثر من..." كأزرار مقاس وهمية → بوابة "حدد المقاس" خاطئة). ثبت من DOM
+  // جوّال حقيقي لثلاثة منتجات. البنية:
+  //  - مطوي: div.skuSelector-* [role=button] > .info-* نصّه "N اللون, M مقاس"
+  //    أو "يتوفر خيار واحد فقط" (singleOnsale).
+  //  - مفرود: .specListWrap-* لكل بُعد؛ رأسه .type-*[aria-label] (اللون/المقاس،
+  //    والكمية منفصلة .specTypeName-*)، وخياراته [role=radio]، والمختار
+  //    aria-checked="true" (إشارة موثوقة، لا تخمين حدود/حلقات).
   function otlobliTemuSkuOptionGroupName(opt) {
     try {
       var optRect = opt && opt.getBoundingClientRect ? opt.getBoundingClientRect() : null;
@@ -5351,7 +5339,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // so use the variant committed when the price mutated, not the stale heading.
     if (__otlobliSheinDrawerPath === location.pathname &&
         __otlobliSelectedSkuPricePath === location.pathname &&
-        __otlobliSelectedSkuGoodsId === sheinGoodsId() &&
         Date.now() - __otlobliSelectedSkuPriceAt < 1800000) {
       if (__otlobliSelectedSkuColor) sheinColorSel = __otlobliSelectedSkuColor;
       if (__otlobliSelectedSkuColorImage) sheinColorImg = __otlobliSelectedSkuColorImage;
