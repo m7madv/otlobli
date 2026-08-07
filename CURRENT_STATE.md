@@ -2,6 +2,13 @@
 
 Last updated: 2026-08-07
 
+## `main` promoted to v86.67 — admin swatch deployed (2026-08-07)
+
+- **Merged** `claude/shein-sku-image-freeze-bugs-52b525` → `main` as a clean **fast-forward** (`3d0566c` → `679f476`). `origin/main` now carries v86.66/v86.67 SHEIN store-based capture + admin colour swatch + WhatsApp iOS hardening. No merge commit, no history loss.
+- **Admin (Vercel `talabieh-admin.vercel.app`):** auto-deploy triggered by the push to `main`; site verified live (login screen responds). Visual confirmation of the swatch needs an admin PIN login on an order that has a colour — pending user check.
+- **WhatsApp server (Oracle VM) — STILL PENDING (user-run, needs SSH key + public IP):** the `server/src/whatsapp.js` fix does NOT deploy via the Vercel merge. Deploy: `scp` the single file to `~/otlobli-server/src/whatsapp.js` + `pm2 restart otlobli-wa`. No `npm install` needed (uses already-imported `fs`/`path`, no new deps). New pm2 log markers confirm it: `💾 مخزن رسائل واتساب…` at boot, `🔁 retry: أُعيد إرسال…` on a successful iOS resend. Optional root fix: upgrade Baileys `6.6.0`→`6.7.24` on the VM, rollback to `6.6.0` if it demands a re-link.
+- **iPhone — STILL PENDING (user-run):** delete + clean-install `otlobli-v86.67-iphone16-unsigned.ipa` (SHA-256 `db0c608694bf1ac6cc5384c6fdae3b46451b4d2ebe53598fdfac255a62de5ff7`). Installing over the old app keeps stale/frozen WebView state — always delete first.
+
 ## Admin colour swatch + WhatsApp iOS "waiting" hardening (2026-08-07)
 
 - **Admin colour swatch (`admin/src/AdminApp.tsx`):** ambiguous colour names («متعدد الألوان») can't be told apart in order text. The app already captures `colorImage` (each variant's distinct image), but admin showed the name only. Added `ColorCell` — renders the swatch (image, or gold gradient for ذهبي like the customer app) before the colour name in both order views (list card + modal); added `colorImage` to admin `CartItem`. **Deploy:** admin is Vercel (`talabieh-admin.vercel.app`) — needs a redeploy (merge to main / Vercel deploy). App side already ships `colorImage` (v86.67).

@@ -4,6 +4,10 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
 **Work cheap: read `docs/AI_FASTPATH.md` first** (device-debug playbook, `scripts/otlobli-cdp.mjs`, function line-map — never read the 550 KB `sheinBrowserScript.ts` whole).
 
+## ⭐ HEAD OF `main` = v86.67 (2026-08-07)
+
+`main` was fast-forwarded to `679f476` (from `claude/shein-sku-image-freeze-bugs-52b525`). It carries v86.66/v86.67 SHEIN store-based capture + admin colour swatch + WhatsApp iOS hardening. The "Current candidate" sections below (v86.64 etc.) are historical — v86.66/67 supersede them; read `CURRENT_STATE.md` top for the live status. Deploy state: **Vercel admin auto-deployed (live)**; **WhatsApp Oracle deploy + iPhone reinstall still pending (user-run)** — details in `CURRENT_STATE.md`.
+
 ## Current candidate (2026-08-07) - v86.64 SKU image/color leak + size-select freeze
 
 - Version `2026.08.07-v86.64-shein-sku-image-freeze-fix`; branch `claude/shein-sku-image-freeze-bugs-52b525` (fast-forwarded onto the v86.63 SKU-capture base — that branch started at v86.61 and was missing v86.62/63).
