@@ -148,6 +148,9 @@ type CartItem = {
   title: string
   image: string
   color: string
+  // أيقونة اللون (السواتش) — يرسلها تطبيق الزبون. مهمة للألوان الغامضة الاسم
+  // مثل «متعدد الألوان»: يميّز المشرف التصميم المطلوب بالصورة لا بالاسم وحده.
+  colorImage?: string
   size: string
   quantity: number
   priceSyp: number
@@ -158,6 +161,28 @@ type CartItem = {
   needsCustomPhoto?: boolean
   customPhotoNote?: string
   customPhotoDataUrl?: string
+}
+
+// يعرض أيقونة اللون (السواتش) قبل اسمه ليميّز المشرف الألوان الغامضة الاسم
+// («متعدد الألوان») بالصورة. الذهبي يُرسم تدرّجاً (لا صورة له عادةً) مثل تطبيق الزبون.
+function ColorCell({ item }: { item: CartItem }) {
+  if (!item.color && !item.colorImage) return null
+  const gold = /ذهبي|gold/i.test(item.color) ? 'linear-gradient(135deg,#9f6b12,#f8df8b,#b77812)' : ''
+  const sw = {
+    width: 18, height: 18, borderRadius: '50%', objectFit: 'cover' as const,
+    border: '1px solid rgba(0,0,0,.15)', verticalAlign: 'middle',
+    marginInlineEnd: 4, display: 'inline-block', flexShrink: 0,
+  }
+  return (
+    <span>
+      {gold
+        ? <span style={{ ...sw, background: gold }} aria-hidden="true" />
+        : item.colorImage
+          ? <img style={sw} src={item.colorImage} alt={item.color} width={18} height={18} decoding="async" />
+          : <>🎨 </>}
+      {item.color}
+    </span>
+  )
 }
 
 type Order = {
@@ -1164,7 +1189,7 @@ function OrderDetail({
             <div>
               <h3>{item.title}</h3>
               <p className="item-meta">
-                {item.color && <span>🎨 {item.color}</span>}
+                {(item.color || item.colorImage) && <span><ColorCell item={item} /></span>}
                 {item.size && <span>📐 {item.size}</span>}
                 <span>× {item.quantity}</span>
                 <span>{formatMoney((item.priceSyp ?? 0) * (item.quantity ?? 0))}</span>
@@ -1540,7 +1565,7 @@ function OrderModal({
                 <div className="modal-item-body">
                   <h3>{item.title}</h3>
                   <div className="item-meta">
-                    {item.color && <span>🎨 {item.color}</span>}
+                    {(item.color || item.colorImage) && <span><ColorCell item={item} /></span>}
                     {item.size && <span>📐 {item.size}</span>}
                     <span>× {item.quantity ?? 1}</span>
                     <span>{formatMoney((item.priceSyp ?? 0) * (item.quantity ?? 1))}</span>
