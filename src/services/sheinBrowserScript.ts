@@ -2684,6 +2684,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       key: sheinCurrentSelectionKey,
       skuEntry: sheinSkuSelectionEntry,
       openDrawer: sheinOpenSkuDrawer,
+      storeVariant: sheinStoreVariant,
       pending: sheinSelectedSkuPricePending,
       saved: function () {
         return {
@@ -3691,12 +3692,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   // جذب تيمو
-  // ينظّف نصاً من رموز التحكم بالاتجاه غير المرئية (RLM/LRM/ALM وعلامات
-  // العزل الاتجاهي Unicode Bidi Isolates) التي تُدرجها تيمو أحياناً حول
-  // النصوص العربية لضبط اتجاه العرض — تجعل المقارنة الحرفية (===) والـregex
-  // تفشل صامتة رغم تطابق الشكل المرئي 100%. ثبت من جهاز حقيقي: عنواني
-  // "اللون"/"مقاس" ظاهران بوضوح على الصفحة لكن كشف الرأس كان يُرجع "لا
-  // رأس قسم لون/مقاس" — بلا هذا التنظيف نفس فئة خلل BOM بالأسرار بالضبط.
+  // ينظّف رموز التحكم بالاتجاه غير المرئية (RLM/LRM/ALM وعزل Unicode Bidi)
+  // التي تدرجها تيمو حول النص العربي فتُفشل === والـregex رغم تطابق الشكل.
   function temuCleanText(s) {
     return (s || '')
       .replace(/[\\u200e\\u200f\\u061c\\u2066\\u2067\\u2068\\u2069\\ufeff\\u200b]/g, '')
@@ -4325,12 +4322,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
       window.__otlobliTemuSizeDiag = headFound ? 'رأس موجود، صفر أزرار مطابقة' : 'لا رأس قسم مقاس';
       return temuSelectedSizeFromLabel();
     }
-    // 1) نقرة الزبون المسجّلة (لنفس المنتج، وما زالت ضمن مقاساته الحالية).
-    // مهم: ننظّف نص الزر هنا بنفس دالة معالج النقر (temuCleanText) بالضبط —
-    // ثبت من تشخيص جهاز حقيقي: تيمو تضيف أحياناً رموز اتجاه غير مرئية حول
-    // نص الزر فقط أثناء حالة "مُختار" (الحدّ الأسود ظاهر)، فتصير المقارنة
-    // الخام هنا (نص حالي ملوّث) ضد القيمة المسجّلة وقت النقر (نظيفة) فاشلة
-    // تحديداً في اللحظة التي الزر ظاهر فيها كمُختار — عكس المطلوب تماماً.
+    // 1) نقرة الزبون المسجّلة (لنفس المنتج، وضمن مقاساته الحالية). ننظّف نص
+    // الزر بـtemuCleanText بالضبط كمعالج النقر: تيمو تحقن رموز اتجاه حول نص
+    // الزر أثناء حالة "مُختار" فتفشل المقارنة الخام ضد القيمة المسجّلة النظيفة.
     if (window.__otlobliTemuSize && window.__otlobliTemuSizeGid === temuGoodsId()) {
       for (var k = 0; k < pills.length; k++) {
         if (!temuOptionUnavailable(pills[k]) && temuCleanText(pills[k].textContent) === window.__otlobliTemuSize) return window.__otlobliTemuSize;
@@ -5060,14 +5054,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   // كاشف الخيارات البنيوي (v85.8.40): يقرأ عنصر skuSelector الفعلي فقط، بدل
-  // مسح نصوص الصفحة كلها (الذي كان يلتقط "قياسي: مجانًا" الشحن كرأس مقاس، ونص
-  // "أكثر من..." كأزرار مقاس وهمية → بوابة "حدد المقاس" خاطئة). ثبت من DOM
-  // جوّال حقيقي لثلاثة منتجات. البنية:
-  //  - مطوي: div.skuSelector-* [role=button] > .info-* نصّه "N اللون, M مقاس"
-  //    أو "يتوفر خيار واحد فقط" (singleOnsale).
-  //  - مفرود: .specListWrap-* لكل بُعد؛ رأسه .type-*[aria-label] (اللون/المقاس،
-  //    والكمية منفصلة .specTypeName-*)، وخياراته [role=radio]، والمختار
-  //    aria-checked="true" (إشارة موثوقة، لا تخمين حدود/حلقات).
+  // بنية SKU تيمو (بلا مسح نصي للصفحة الذي كان يلتقط شحناً كرأس مقاس):
+  //  - مطوي: div.skuSelector-* [role=button] > .info-* ("N اللون, M مقاس").
+  //  - مفرود: .specListWrap-*؛ رأسه .type-*[aria-label]، خياراته [role=radio]،
+  //    المختار aria-checked="true" (الكمية منفصلة .specTypeName-*).
   function otlobliTemuSkuOptionGroupName(opt) {
     try {
       var optRect = opt && opt.getBoundingClientRect ? opt.getBoundingClientRect() : null;
@@ -5211,45 +5201,67 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return unmet;
   }
 
-  // Read the variant SHEIN committed. Path A: committed leaf SKU in the store.
-  // Path B (quick-add, never commits): selected DOM cells' CLEAN data-attr_value.
-  // Classified by attr name/heading (مقاس=size لون=colour الكمية=qty); colour falls
-  // back to the current goods_id's main swatch. Null => DOM heuristics fallback.
-  function sheinStoreSelectedSku() {
+  // Authoritative capture from SHEIN's own structured store (beats DOM guesses):
+  // colour+image from mainSaleAttribute[current goods_id]; size+real price+sku_code
+  // from the sku_list entry matching the selected values. Null => DOM fallback.
+  function sheinStoreVariant() {
     try {
       var el = document.getElementById('app');
       var comp = el && el._vnode && el._vnode.component;
       var store = comp && comp.proxy && comp.proxy.$store;
-      if (!(store && store.state && store.state.productDetail)) return null;
-      var pd = store.state.productDetail, cold = pd.coldModules || {};
-      var info = (pd.common || {}).select_sku_info;
-      var size = '', color = '', qty = '';
-      function cls(name, en, v) {
-        name = normalizedOptionText(name); en = String(en || '').toLowerCase(); v = normalizedOptionText(v);
-        if (!v) return;
-        if (en === 'size' || /مقاس|الحجم/.test(name)) size = v;
-        else if (en === 'color' || en === 'colour' || /^ال?لون$/.test(name)) color = v;
-        else if (/كمية|quantity/i.test(name + ' ' + en)) qty = v;
-        else if (!color) color = v;
+      var pd = store && store.state && store.state.productDetail;
+      if (!pd) return null;
+      var cold = pd.coldModules || {}, hot = pd.hotModules || {};
+      var gid = String((cold.productInfo || {}).goods_id || '');
+      var color = '', image = '';
+      var msa = (cold.saleAttr && cold.saleAttr.mainSaleAttribute) ||
+        (hot.saleAttr && hot.saleAttr.mainSaleAttribute);
+      var mArr = (msa && msa.info && msa.info.length !== undefined) ? msa.info : [];
+      for (var i = 0; i < mArr.length; i++) {
+        if (String(mArr[i].goods_id) === gid) {
+          color = normalizedOptionText(mArr[i].attr_value || '');
+          image = normalizeImageUrl(mArr[i].goods_image || mArr[i].goods_color_image || mArr[i].attrImg || '');
+          break;
+        }
       }
-      var skuCode = (info && info.sku_code) ? String(info.sku_code) : '', a;
-      if (skuCode && (info.sku_sale_attr || []).length) {
-        a = info.sku_sale_attr;
-        for (var i = 0; i < a.length; i++) cls(a[i].attr_name, a[i].attr_name_en, a[i].attr_value_name || a[i].sku_calc_name);
-      } else {
-        a = document.querySelectorAll('[data-attr_value_id][aria-checked="true"],[data-attr_value_id].size-active');
-        for (var s = 0; s < a.length; s++) cls(sheinGroupHeading(a[s]), '', a[s].getAttribute('data-attr_value'));
+      if (!color && mArr.length === 1) {
+        color = normalizedOptionText(mArr[0].attr_value || '');
+        image = normalizeImageUrl(mArr[0].goods_image || '');
       }
-      if (!color) {
-        var msa = cold.saleAttr && cold.saleAttr.mainSaleAttribute;
-        var gid = String((cold.productInfo || {}).goods_id || '');
-        var arr = (msa && msa.info && msa.info.length !== undefined) ? msa.info : [];
-        for (var m = 0; m < arr.length; m++) if (String(arr[m].goods_id) === gid) { color = normalizedOptionText(arr[m].attr_value); break; }
-        if (!color && arr.length === 1) color = normalizedOptionText(arr[0].attr_value);
+      var selVals = [];
+      var domSel = document.querySelectorAll('[data-attr_value_id][aria-checked="true"],[data-attr_value_id].size-active');
+      for (var d = 0; d < domSel.length; d++) {
+        var sv = normalizedOptionText(domSel[d].getAttribute('data-attr_value') || '');
+        if (sv) selVals.push(sv);
       }
-      if (qty) size = size ? (size + ' / ' + qty) : qty;
-      if (!size && !color) return null;
-      return { skuCode: skuCode, color: color, size: size };
+      var ml = (hot.saleAttr && hot.saleAttr.multiLevelSaleAttribute) ||
+        (cold.saleAttr && cold.saleAttr.multiLevelSaleAttribute);
+      var skuList = (ml && ml.sku_list && ml.sku_list.length !== undefined) ? ml.sku_list : [];
+      var matched = null;
+      for (var s = 0; s < skuList.length; s++) {
+        var names = (skuList[s].sku_sale_attr || []).map(function (a) { return normalizedOptionText(a.attr_value_name || ''); });
+        var all = selVals.length > 0;
+        for (var w = 0; w < selVals.length; w++) { if (names.indexOf(selVals[w]) < 0) { all = false; break; } }
+        if (all) { matched = skuList[s]; break; }
+      }
+      if (!matched && skuList.length === 1) matched = skuList[0];
+      var size = '', skuCode = '', priceUsd = 0;
+      if (matched) {
+        skuCode = String(matched.sku_code || '');
+        var parts = [], attrs = matched.sku_sale_attr || [];
+        for (var b = 0; b < attrs.length; b++) {
+          var an = normalizedOptionText(attrs[b].attr_name || '');
+          var vn = normalizedOptionText(attrs[b].attr_value_name || '');
+          if (!vn) continue;
+          if (/^ال?لون$/.test(an) || (color && vn === color)) { if (!color) color = vn; continue; }
+          parts.push(vn);
+        }
+        size = parts.join(' / ');
+        var sp = matched.priceInfo && matched.priceInfo.salePrice;
+        if (sp) priceUsd = parseFloat(sp.usdAmount || sp.amount || 0) || 0;
+      }
+      if (!color && !size && !(priceUsd > 0)) return null;
+      return { skuCode: skuCode, color: color, image: image, size: size, priceUsd: priceUsd };
     } catch (e) { return null; }
   }
 
@@ -5345,15 +5357,21 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var kSize = String(__otlobliSelectedSkuPriceKey || '').split('|')[1];
       if (kSize) sheinSizeSel = kSize;
     }
-    // Authoritative override: trust SHEIN's committed SKU over the DOM above.
-    var sheinStoreSku = sheinStoreSelectedSku();
+    // Authoritative override: SHEIN's own structured store data beats DOM guesses.
+    var sheinStoreV = sheinStoreVariant();
     var sheinSkuCode = '';
-    if (sheinStoreSku) {
-      sheinSkuCode = sheinStoreSku.skuCode;
-      if (sheinStoreSku.color) sheinColorSel = sheinStoreSku.color;
-      if (sheinStoreSku.size) {
-        sheinSizeSel = sheinStoreSku.size;
+    if (sheinStoreV) {
+      sheinSkuCode = sheinStoreV.skuCode;
+      if (sheinStoreV.color) sheinColorSel = sheinStoreV.color;
+      if (sheinStoreV.image) sheinColorImg = sheinStoreV.image;
+      if (sheinStoreV.size) {
+        sheinSizeSel = sheinStoreV.size;
         sheinSizesAvail = []; sheinSizesUnavail = [];
+      }
+      // The matched SKU's real salePrice replaces a range-blocked / DOM-missed read.
+      if (sheinStoreV.priceUsd > 0) {
+        sheinPriceUsd = sheinStoreV.priceUsd;
+        sheinPriceSource = 'store-sku';
       }
     }
     // Swan tray p-517537202: one sales attr under a "مقاس" heading whose values are

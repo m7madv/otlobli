@@ -2,6 +2,18 @@
 
 Last updated: 2026-08-07
 
+## v86.66 SHEIN store-based capture — authoritative, not DOM guessing (2026-08-07)
+
+- Marker `2026.08.07-v86.66-shein-store-based-capture`; iOS `86.66/926`; branch `claude/shein-sku-image-freeze-bugs-52b525`. Built on the WORKING v86.65 baseline (v86.63 code), so it does NOT reintroduce the v86.64 iOS breakage.
+- **Rewrote capture to read SHEIN's own structured Vue store as the authoritative source** (DOM heuristics were the root of the wrong colour/size/price bugs). New `sheinStoreVariant()` replaces `sheinStoreSelectedSku()`:
+  - colour + image from `mainSaleAttribute.info[goods_id === current]` → the current variant's true colour + image.
+  - size + real price + sku_code from the `multiLevelSaleAttribute.sku_list` entry whose `sku_sale_attr` matches the shopper's selected DOM values (`priceInfo.salePrice.usdAmount`). «نوع الموديلات» is kept in size, not leaked as colour; range products ("من $X") ship the real per-variant price instead of 0.
+  - `captureProductPayload` overrides colour/image/size/price with it; falls back to the existing DOM path when the store shape is unavailable. `__otlobliDiag.storeVariant` added for CDP diagnosis.
+- **CONTAINMENT (iOS safety):** all new code runs ONLY in the cold capture path (`captureProductPayload`, on add-tap), NOT in tick/observer/shipping/interaction — unlike v86.64's hot-path store reads that broke iOS.
+- **Device-validated on Note 8 (CDP, real store data)** for the jewelry set `p-327715649`: colour `فضي`/`«35 عنصرًا»` → **ذهبي أصفر**; image wrong-swatch → correct 405×552; size mixed → **مقاس واحد / 35 عنصرًا**; price `0/range-blocked` → **$3.43** (sku `I9dop5b11wy9`). Normal product `p-413586970` (socks): no regression, image quality improved (405×552 vs 96×).
+- Budget: local (real env) largest JS raw `1,199,380/1,200,000`; freeze guard OK. Re-trimmed three Temu comment blocks to fit.
+- **iOS still needs clean delete+reinstall to test** (installing over the old app keeps stale WebView state — see below).
+
 ## v86.65 REVERT capture to v86.63 — v86.64 froze SHEIN on iPhone (2026-08-07)
 
 - Marker `2026.08.07-v86.65-revert-capture-to-v86.63`; iOS `86.65/925`; branch `claude/shein-sku-image-freeze-bugs-52b525`.

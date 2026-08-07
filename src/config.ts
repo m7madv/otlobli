@@ -17,4 +17,4 @@ export const SOURCE_COUNTRY: 'JO' | 'LB' | 'SA' = 'SA'
 export const TEST_ONLY_AUTH_BYPASS = false
 
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '2026.08.07-v86.65-revert-capture-to-v86.63'
+export const APP_VERSION = '2026.08.07-v86.66-shein-store-based-capture'
