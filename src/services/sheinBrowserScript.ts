@@ -5228,6 +5228,32 @@ export const SHEIN_CAPTURE_SCRIPT = `
         color = normalizedOptionText(mArr[0].attr_value || '');
         image = normalizeImageUrl(mArr[0].goods_image || '');
       }
+      // Drawer colour beats the page gid: shopper picks a colour in the add
+      // drawer but SHEIN keeps the page goods_id, so gid colour is stale.
+      try {
+        var drs = document.querySelectorAll('.sui-drawer');
+        for (var dd = 0; dd < drs.length; dd++) {
+          if (!sheinElementIsVisible(drs[dd])) continue;
+          var cis = drs[dd].querySelectorAll('.bs-color-square-image__item,[class*="color__item" i]');
+          var dcol = '';
+          for (var ci = 0; ci < cis.length; ci++) {
+            if (!(/(?:^|\\s)active/.test(cis[ci].className) || cis[ci].getAttribute('aria-checked') === 'true')) continue;
+            var cim = cis[ci].querySelector('img');
+            dcol = normalizedOptionText(cis[ci].getAttribute('aria-label') || (cim && cim.getAttribute('alt')) || '');
+            if (dcol) break;
+          }
+          if (dcol) {
+            color = dcol;
+            for (var mj = 0; mj < mArr.length; mj++) {
+              if (normalizedOptionText(mArr[mj].attr_value || '') === dcol) {
+                image = normalizeImageUrl(mArr[mj].goods_image || mArr[mj].goods_color_image || mArr[mj].attrImg || '') || image;
+                break;
+              }
+            }
+            break;
+          }
+        }
+      } catch (e) {}
       var selVals = [];
       var domSel = document.querySelectorAll('[data-attr_value_id][aria-checked="true"],[data-attr_value_id].size-active');
       for (var d = 0; d < domSel.length; d++) {
@@ -5872,34 +5898,19 @@ export const SHEIN_CAPTURE_SCRIPT = `
       }, true);
       document.body.appendChild(btn);
     }
-    // Deliberately NOT re-claiming "last child of body" here on every tick
-    // like ensureOtlobliNav does - this button has a pop-in entrance
-    // animation (otlobli-pop2), and re-appendChild-ing an EXISTING node
-    // retriggers that animation every time, which on a busy SPA page (where
-    // something else is *always* getting added after it) meant this button
-    // visibly flickered/re-popped every ~300ms. The nav bar doesn't have
-    // that animation and visually can't tell the difference, so it was safe
-    // there; this one very much could.
-    // A full-screen product gallery is for viewing/swiping only. Keeping the
-    // floating add button alive inside it exposed a tappable area in SHEIN's
-    // black lower letterbox (confirmed on iPhone 16), so both stores suppress
-    // the action until their viewer closes.
+    // NOT re-claiming last-child-of-body per tick (unlike ensureOtlobliNav):
+    // re-appendChild retriggers the otlobli-pop2 entrance so the button flickered
+    // every ~300ms on busy SPA pages. Also hidden inside a full-screen gallery
+    // (its tappable area leaked into SHEIN's black letterbox on iPhone 16).
     var showAddBtn = looksLikeProductPage() &&
       !(IS_TEMU && temuImageViewerOpen()) &&
       !(IS_SHEIN && sheinImageViewerOpen());
     btn.style.display = showAddBtn ? 'flex' : 'none';
   }
 
-  // otlobli's own bottom navigation bar, drawn as part of this page instead
-  // of relying on a separately-sized native layer underneath to line up with
-  // it pixel-for-pixel (that cross-layer alignment is what went wrong on
-  // iOS - the webview and otlobli's React nav drifted out of sync and left a
-  // black gap where the nav should be). Since this bar lives inside the same
-  // webview as everything else here, env(safe-area-inset-bottom) handles the
-  // home-indicator inset correctly with zero native-side math.
-  // Plain inline-SVG outline icons instead of emoji - emoji glyphs render
-  // inconsistently across platforms/fonts, while these always look the same
-  // regardless of what page/font context they're injected into.
+  // otlobli's own bottom nav, drawn inside this webview (a separate native layer
+  // drifted out of sync on iOS and left a black gap); env(safe-area-inset-bottom)
+  // handles the inset here. Inline-SVG icons, not emoji (emoji render unevenly).
   var OTLOBLI_NAV_ICONS = {
     home: '<path d="M4 11.5 12 4l8 7.5"/><path d="M6 10v9h12v-9"/><path d="M10 19v-5h4v5"/>',
     orders: '<rect x="4" y="7" width="16" height="13" rx="1.3"/><path d="M4 7l8-4 8 4"/><path d="M12 11v9"/>',
