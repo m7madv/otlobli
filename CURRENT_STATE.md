@@ -2,7 +2,15 @@
 
 Last updated: 2026-08-08
 
-## Active candidate — v86.71 automatic SHEIN region-transition recovery (2026-08-08)
+## Active candidate — v86.72 SHEIN swatch-variant priority (2026-08-08)
+
+SHEIN products whose real colour choices use graphical icons but share the generic label «متعدد الألوان» now preserve the selected icon as the cart colour image. The selected colour row is resolved as a group rather than one nested tile; a tapped icon is retained even without a unique text label; and SHEIN's generic product/hero image is only a fallback, never an override. This also removes composite parent values such as `SMLXL` from size choices, leaving only selectable leaf sizes. Descriptive «المزيد من الخيارات» chips remain descriptions, not invented SKU variants.
+
+Validation: `npm run build`, freeze guard, and low-end budget pass (largest JS `1,199,338 / 1,200,000`, gzip `355,629 / 370,000`, SHEIN source `545,661 / 550,000`); Android and iOS synchronized; Android `86.72 / 932` `assembleDebug` passes and is installed on real Note 8 `988e16384e4f51395230`. Real SHEIN DOM inspection on the Note 8 confirmed the target shape: selected `role=radio`, generic «متعدد الألوان», and the real icon held in a CSS background image. The installed capture path returns the selected icon and separate `S/M/L/XL` values for that shape. No native lifecycle, region-transition, polling, or iPhone recompose logic changed.
+
+Artifact: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-android-v86.72\otlobli-v86.72-note8-debug.apk` (11,122,238 bytes, SHA-256 `94C182583A75BB30C11614E4F38E251177141D683B14AC7634FD44C3B68C1F66`). iOS source is synchronized at `86.72 / 932`, but no new IPA was requested or built. User should add one real icon-based product with a size to the cart on Android and iPhone; iPhone still requires its separate five background/resume cycles and cold launch acceptance.
+
+## Previous candidate — v86.71 automatic SHEIN region-transition recovery (2026-08-08)
 
 Admin remains restricted to Jordan (JO), United Arab Emirates (AE), Qatar (QA), and Saudi Arabia (SA) for each independent store; the Edge Function rejects all other or malformed regions. User diagnosis confirmed that changing to Temu then returning to SHEIN immediately fixes a failed country switch. The proven difference was a fresh SHEIN session with WebKit runtime cache cleared. v86.71 automatically performs that exact bounded recovery whenever the active SHEIN region changes: it preserves cookies/localStorage and the signed address, clears only WebKit disk/memory cache, then opens the requested country once. This removes the repeating «جاري ضبط المنطقة» path without changing address selection, the product-tap fallback, or iPhone recompose timing.
 Validation: freeze guard, customer build and low-end budget pass (largest JS `1,198,171 / 1,200,000`, gzip `355,221 / 370,000`, SHEIN source `544,497 / 550,000`); Android/iOS synchronized; Android `86.71 / 931` assemble passes; iPhone workflow [run `31264563690`](https://github.com/m7madv/otlobli/actions/runs/31264563690) passed from `56d1c56`.

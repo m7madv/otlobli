@@ -4,7 +4,13 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
 **Work cheap: read `docs/AI_FASTPATH.md` first** (device-debug playbook, `scripts/otlobli-cdp.mjs`, function line-map — never read the 550 KB `sheinBrowserScript.ts` whole).
 
-## Active work — v86.71 automatic SHEIN region-transition recovery (2026-08-08)
+## Active work — v86.72 SHEIN swatch-variant priority (2026-08-08)
+
+User-reported cart issue: a genuine SHEIN colour option may be represented only by an icon while every choice has the generic label «متعدد الألوان». The prior code could select one nested tile, then allow `sheinStoreVariant().image` (the product hero) to overwrite it. v86.72 makes the nearest colour row with two or more `role=radio` siblings the option container; allows the selected radio tile to yield its CSS-background swatch; locks a tapped swatch image even when its label is generic; and treats the store image strictly as a fallback. `getSizeOptions` now skips composite parents, so `SMLXL` is not a selectable size. Do not treat descriptive «المزيد من الخيارات» chips as SKU attributes.
+
+Do not alter the iPhone native recompose burst, region code, polling, or tap fallback for this work. Shared source is at `src/services/sheinBrowserScript.ts`; marker `2026.08.08-v86.72-shein-swatch-variant-priority`; native version `86.72 / 932`. Validation passed: build, freeze guard, performance budget (`1,199,338 / 1,200,000` raw JS; SHEIN source `545,661 / 550,000`), Android/iOS sync and Android `assembleDebug`. APK installed on real Note 8 `988e16384e4f51395230`: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-android-v86.72\otlobli-v86.72-note8-debug.apk` (SHA-256 `94C182583A75BB30C11614E4F38E251177141D683B14AC7634FD44C3B68C1F66`). The Note 8 DOM inspection confirmed SHEIN's actual selected radio/CSS-background icon shape; installed-script check returned that icon plus individual `S/M/L/XL` leaves. Full user cart QA for a live icon-based product remains needed; no iPhone IPA was built.
+
+## Previous work — v86.71 automatic SHEIN region-transition recovery (2026-08-08)
 
 Admin exposes only JO/AE/QA/SA for both independent stores. The Edge Function validates the same list, USD/ar, and Saudi's exact address path. Jordan is recognized in SHEIN's live drawer, index shortcut, Arabic label, scroll order, and signed variable-depth readiness.
 User proved the failed region switch recovers immediately after Temu → SHEIN. The active region effect already closes/reopens the native session but did not reset WebKit's runtime cache; v86.71 sets `sheinCacheResetPendingRef` on every changed active SHEIN region before that one close/open. `InAppBrowser.clearCache()` removes only WebKit disk/memory cache, preserving cookies/localStorage and the signed address. No region drawer logic, product-tap fallback, polling rate, or native iPhone recompose burst changed.

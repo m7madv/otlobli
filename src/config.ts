@@ -17,4 +17,4 @@ export const SOURCE_COUNTRY: 'JO' | 'LB' | 'SA' = 'SA'
 export const TEST_ONLY_AUTH_BYPASS = false
 
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '2026.08.08-v86.71-region-transition-recovery'
+export const APP_VERSION = '2026.08.08-v86.72-shein-swatch-variant-priority'

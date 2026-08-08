@@ -2544,9 +2544,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var tappedSw = target.closest(
         'li,button,[role="radio"],[role="option"],[class*="item" i],[class*="color" i]') || target;
       var tapLbl = sheinSelectionLabel(tappedSw);
-      if (tapLbl && !isGenericColorName(tapLbl)) {
-        __otlobliSelectedSkuColor = tapLbl;
-        __otlobliSelectedSkuColorImage = swatchImageFrom(tappedSw) || '';
+      var tapImage = swatchImageFrom(tappedSw);
+      // Some real SHEIN colour choices share a generic label. Their icon,
+      // rather than the product hero, is the only precise chosen variant.
+      if ((tapLbl && !isGenericColorName(tapLbl)) || tapImage) {
+        if (tapLbl) __otlobliSelectedSkuColor = tapLbl;
+        if (tapImage) __otlobliSelectedSkuColorImage = tapImage;
         __otlobliSelectedSkuPricePath = location.pathname;
         __otlobliSelectedSkuPriceAt = Date.now();
       }
@@ -2911,6 +2914,15 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (better) { active = el; activeCount = opts.length; activeMatch = matches; }
     }
     if (__otlobliSheinDrawerPath === location.pathname && !active) return null;
+    // SHEIN gives every colour tile an "item" class, so the selected tile can
+    // otherwise win over its row. Return the row: all sibling icons must be
+    // recognised both for selection and for the tapped-swatch lock.
+    if (IS_SHEIN && keyword === 'color' && active && active.getAttribute('role') === 'radio') {
+      var colorRow = active.parentElement;
+      for (var cr = 0; cr < 4 && colorRow; cr++, colorRow = colorRow.parentElement) {
+        if (colorRow.querySelectorAll('[role="radio"]').length >= 2) return colorRow;
+      }
+    }
     var base = active || fallback;
     if (base && active && labelWords) {
       var heads = base.querySelectorAll('div, span, p, h1, h2, h3, label, b, strong');
@@ -3273,7 +3285,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
     for (var j = -1; j < nodes.length; j++) {
       var selectedNode = j < 0 ? container : nodes[j];
       if (!isSelectedSwatchEl(selectedNode)) continue;
-      if (sheinHasManyOptionChildren(selectedNode)) continue;
+      // SHEIN's selected colour <li> contains visual wrapper/inner nodes
+      // whose class names include "item". It is still one radio choice.
+      if (sheinHasManyOptionChildren(selectedNode) && selectedNode.getAttribute('role') !== 'radio') continue;
       var im1 = swatchImageFrom(selectedNode);
       if (im1) return im1;
     }
@@ -3342,6 +3356,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var opts = container.querySelectorAll('li, button, [class*="item" i]');
     for (var i = 0; i < opts.length; i++) {
       var el = opts[i];
+      if (sheinHasManyOptionChildren(el)) continue;
       var label = (el.getAttribute('aria-label') || el.getAttribute('title') || el.textContent || '').trim();
       if (!label || label.length > 40 || looksLikeJunkValue(label)) continue;
       var cls = ' ' + (el.className || '') + ' ';
@@ -5356,23 +5371,26 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var sheinSizeSel = sizeState.selected;
     var sheinSizesAvail = sizeState.available || [];
     var sheinSizesUnavail = sizeState.unavailable || [];
-    // Drawer products (jewelry tray p-534350565): the SKU sheet closes at add-time,
-    // so use the variant committed when the price mutated, not the stale heading.
-    if (__otlobliSheinDrawerPath === location.pathname &&
-        __otlobliSelectedSkuPricePath === location.pathname &&
+    // A tapped swatch is more precise than the general product image, even
+    // when every icon is labelled "متعدد الألوان".
+    if (__otlobliSelectedSkuPricePath === location.pathname &&
         Date.now() - __otlobliSelectedSkuPriceAt < 1800000) {
-      if (__otlobliSelectedSkuColor) sheinColorSel = __otlobliSelectedSkuColor;
       if (__otlobliSelectedSkuColorImage) sheinColorImg = __otlobliSelectedSkuColorImage;
-      var kSize = String(__otlobliSelectedSkuPriceKey || '').split('|')[1];
-      if (kSize) sheinSizeSel = kSize;
+      // Drawer products (jewelry tray p-534350565): the SKU sheet closes at
+      // add-time, so retain the rest of the committed variant too.
+      if (__otlobliSheinDrawerPath === location.pathname) {
+        if (__otlobliSelectedSkuColor) sheinColorSel = __otlobliSelectedSkuColor;
+        var kSize = String(__otlobliSelectedSkuPriceKey || '').split('|')[1];
+        if (kSize) sheinSizeSel = kSize;
+      }
     }
-    // Authoritative override: SHEIN's own structured store data beats DOM guesses.
+    // The structured store fills missing facts but never replaces a selected icon.
     var sheinStoreV = sheinStoreVariant();
     var sheinSkuCode = '';
     if (sheinStoreV) {
       sheinSkuCode = sheinStoreV.skuCode;
       if (sheinStoreV.color) sheinColorSel = sheinStoreV.color;
-      if (sheinStoreV.image) sheinColorImg = sheinStoreV.image;
+      if (sheinStoreV.image && !sheinColorImg) sheinColorImg = sheinStoreV.image;
       if (sheinStoreV.size) {
         sheinSizeSel = sheinStoreV.size;
         sheinSizesAvail = []; sheinSizesUnavail = [];
