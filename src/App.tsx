@@ -3098,7 +3098,8 @@ function App() {
   }
 
   const recoverSheinChunkLoad = (reportedUrl: string) => {
-    if (selectedStoreRef.current !== 'shein' || !sheinOpenedRef.current || sheinChallengeActiveRef.current) return
+    if (Capacitor.getPlatform() !== 'ios' || selectedStoreRef.current !== 'shein' ||
+        !sheinOpenedRef.current || sheinChallengeActiveRef.current) return
 
     const now = Date.now()
     // A broken PWA can emit dozens of rejected chunk promises in one frame.

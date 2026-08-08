@@ -155,6 +155,7 @@ const checks = [
       'const OTLOBLI_SHEIN_CHUNK_FAILURE_BRIDGE_JS',
       "type:'sheinChunkLoadFailure'",
       'ChunkLoadError|Loading chunk',
+      '!/-p-\\\\d+/i.test(location.pathname)',
     ],
   },
   {
@@ -162,6 +163,7 @@ const checks = [
     file: 'src/App.tsx',
     markers: [
       'const recoverSheinChunkLoad = (reportedUrl: string)',
+      "Capacitor.getPlatform() !== 'ios'",
       "detail?.type === 'sheinChunkLoadFailure'",
       'now - sheinChunkRecoveryAtRef.current < 60_000',
       'sheinCacheResetPendingRef.current = true',
@@ -176,6 +178,19 @@ const checks = [
       'otlobli_shein_runtime_cleaned',
       'navigator.serviceWorker.getRegistrations',
       'caches.delete(keys[k])',
+    ],
+  },
+  {
+    label: 'SHEIN weak-device background-work guard',
+    file: 'src/services/sheinBrowserScript.ts',
+    markers: [
+      'function restoreOtlobliNavOnWake()',
+      "window.addEventListener('pageshow', restoreOtlobliNavOnWake, false)",
+      'if (!document.hidden) restoreOtlobliNavOnWake()',
+      'if (document.hidden) return;',
+    ],
+    forbidden: [
+      'bootstrapLowEnd ? 2500 : 1500',
     ],
   },
   {

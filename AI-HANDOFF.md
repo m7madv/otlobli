@@ -1,5 +1,14 @@
 # Otlobli AI Handoff
 
+## Current — v86.82 no-flash recovery and weak-device maintenance (2026-08-09)
+
+- User reported that v86.81 was generally smooth but could show «جاري إصلاح…» / a flash after entering or returning. The root is not a new generic iOS freeze: v86.81 handled every page's `ChunkLoadError`, including home errors that did not actually block SHEIN, and used a close/reopen recovery on both platforms.
+- `OTLOBLI_SHEIN_CHUNK_FAILURE_BRIDGE_JS` now reports only if the active SHEIN path is a real product `-p-<id>`. `recoverSheinChunkLoad()` now returns unless the platform is iOS. The same one-per-60-seconds recovery remains available for a confirmed broken **iPhone product** only. Do not broaden it to home, Android, resume, or generic load errors; that reintroduces the flash.
+- Do not touch the native recompose. Keep the proven single guarded `appDidBecomeActive` 0.25s detach/reattach, lifecycle generation, active-state checks, scroll/constraints and Android host-resume defense exactly as guarded.
+- The injected maintenance loops now exit while `document.hidden`, and the old permanent nav-bootstrap interval was replaced with `pageshow`/`visibilitychange` wake events. This is deliberate low-end maintenance: no polling is added and no customer feature was removed. The freeze guard enforces `restoreOtlobliNavOnWake()` and forbids the old 1.5–2.5s watchdog.
+- `docs/KNOWN_ISSUES_AND_DECISIONS.md` is now the permanent, Git-tracked problem log. Never delete or replace it with a chat summary. It carries confirmed vs. suspected causes, rejected fixes, and the incident template. `docs/PROJECT_MAP.md` maps source ownership. Start with these, `CURRENT_STATE.md`, and this file.
+- Candidate marker/version: `2026.08.09-v86.82-shein-no-flicker`, `86.82 / 942`. Freeze guard, production build, low-end budget, patch reverse-check, Android/iOS sync and Android `assembleDebug` pass. Android artifact: `android/app/build/outputs/apk/debug/app-debug.apk`, 11,120,162 bytes, SHA-256 `981D11A3C55499793ECDE8A259E3BAB109026F0E0E2AD3BCE11220576456DD93`. iPhone workflow/artifact and physical device acceptance are pending; do not claim real iPhone/Note 8 approval until it is actually performed.
+
 ## Current — v86.81 automatic recovery for confirmed SHEIN chunk failures (2026-08-09)
 
 - New device report `C:\Users\MOHAMMAD\.codex\attachments\1475a04c-07db-4a9a-8bb7-61f6b938ceb9\pasted-text.txt` provides the most direct sequence yet. It begins on a **live** `/ar/` document (`perf ≈ 41.7s`, `loading:false`, view attached/visible), then logs repeated `ChunkLoadError` for chunk `72143`; a cart product starts and ends navigation but the product’s route later has more chunk failures. The second home session fails dozens of versioned chunks then enters `blank`, `/ct.html`, and `/syncframe`. Screenshot confirms image + skeleton only. This is a failed SHEIN PWA asset graph, not an Otlobli touch overlay.

@@ -64,7 +64,7 @@ otlobliInstallIosProductTapFallback();
 
 // Reports only a confirmed SHEIN PWA chunk failure once; it does not alter
 // navigation or site storage. The host performs the bounded fresh-session recovery.
-const OTLOBLI_SHEIN_CHUNK_FAILURE_BRIDGE_JS = `function otlobliInstallSheinChunkFailureBridge(){if(!/shein/i.test(location.hostname)||window.__otlobliSheinChunkFailureBridge)return;window.__otlobliSheinChunkFailureBridge=1;var sent=0;function p(v){if(sent)return;var m='';try{m=String(v&&((v.message||v.reason)||(v.error&&v.error.message))||v||'')}catch(e){}if(!/ChunkLoadError|Loading chunk\\s+\\d+\\s+failed/i.test(m))return;sent=1;try{var d={type:'sheinChunkLoadFailure',url:location.href,message:m.slice(0,180)},h=window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.messageHandler;if(window.mobileApp&&window.mobileApp.postMessage)window.mobileApp.postMessage({detail:d});else if(h)h.postMessage({detail:d})}catch(e){}}addEventListener('error',function(e){p(e&&((e.error&&e.error.message)||e.message))},true);addEventListener('unhandledrejection',function(e){p(e&&e.reason)})}otlobliInstallSheinChunkFailureBridge();`
+const OTLOBLI_SHEIN_CHUNK_FAILURE_BRIDGE_JS = `function otlobliInstallSheinChunkFailureBridge(){if(!/shein/i.test(location.hostname)||!/-p-\\d+/i.test(location.pathname)||window.__otlobliSheinChunkFailureBridge)return;window.__otlobliSheinChunkFailureBridge=1;var sent=0;function p(v){if(sent)return;var m='';try{m=String(v&&((v.message||v.reason)||(v.error&&v.error.message))||v||'')}catch(e){}if(!/ChunkLoadError|Loading chunk\\s+\\d+\\s+failed/i.test(m))return;sent=1;try{var d={type:'sheinChunkLoadFailure',url:location.href,message:m.slice(0,180)},h=window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.messageHandler;if(window.mobileApp&&window.mobileApp.postMessage)window.mobileApp.postMessage({detail:d});else if(h)h.postMessage({detail:d})}catch(e){}}addEventListener('error',function(e){p(e&&((e.error&&e.error.message)||e.message))},true);addEventListener('unhandledrejection',function(e){p(e&&e.reason)})}otlobliInstallSheinChunkFailureBridge();`
 
 // Runs as a real WKUserScript before SHEIN's first document starts. It mounts
 // only Otlobli's existing bottom navigation; it does not touch SHEIN network,
@@ -404,14 +404,16 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
     runEarlyProtections();
     if (protectionRuns >= 180) clearInterval(protectionTimer);
   }, 250);
-  // SHEIN can replace the complete app root long after initial load. Keep one
-  // tiny document-start watchdog alive so Otlobli's nav is remounted even if
-  // the heavier capture script is delayed or its document injection fails.
-  var bootstrapLowEnd = ((navigator.hardwareConcurrency || 4) <= 4) ||
-    (navigator.deviceMemory && navigator.deviceMemory <= 3);
-  setInterval(function () {
+  // The nav is attached to documentElement, so replacing SHEIN's app root
+  // normally leaves it intact. Recheck on real wake events rather than waking
+  // every weak device forever with a background DOM timer.
+  function restoreOtlobliNavOnWake() {
     try { mount(); } catch (e) {}
-  }, bootstrapLowEnd ? 2500 : 1500);
+  }
+  window.addEventListener('pageshow', restoreOtlobliNavOnWake, false);
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) restoreOtlobliNavOnWake();
+  }, false);
 })();
 `
 
@@ -9971,7 +9973,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
     setTimeout(function () { clearInterval(otlobliObserverTimer); }, 1200);
   }
 
-  setInterval(tick, OTLOBLI_LOW_END ? 650 : 300);
+  setInterval(function () {
+    if (document.hidden) return;
+    tick();
+  }, OTLOBLI_LOW_END ? 650 : 300);
   // hideKnownHeaderIconsByHint specifically needs to win what looks like an
   // ongoing fight against SHEIN periodically re-rendering its own header (a
   // user found the hamburger/wishlist icons could stay reachable for
@@ -9980,12 +9985,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // freshly re-created icon gets caught within ~120ms instead of waiting
   // for the next general tick.
   setInterval(function () {
+    if (document.hidden) return;
     if (otlobliChallengeActive || !IS_SHEIN || otlobliInteractionActive()) return;
     hideKnownHeaderIconsByHint();
     hideSheinHeaderControls();
     hideListingCardAddButtons();
   }, OTLOBLI_LOW_END ? 650 : 120);
   setInterval(function () {
+    if (document.hidden) return;
     if (!otlobliInteractionActive() || !document.getElementById('otlobli-nav')) ensureOtlobliNav();
     if (IS_TEMU) {
       injectTemuHeaderHideCSS();
@@ -9999,6 +10006,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // Own slower interval, not part of tick() - see checkForSheinSecurityBlock's
   // comment on why innerText needs to stay off the 300ms timer. خاص بشي إن فقط.
   setInterval(function () {
+    if (document.hidden) return;
     if (IS_SHEIN && !otlobliInteractionActive()) checkForSheinSecurityBlock();
   }, OTLOBLI_LOW_END ? 1600 : 1000);
   tick();

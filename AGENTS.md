@@ -6,8 +6,9 @@ Mandatory rules for any AI working on this project.
 
 1. Read `CURRENT_STATE.md`.
 2. Read `AI-HANDOFF.md`.
-3. Read this file.
-4. Run:
+3. Read `docs/KNOWN_ISSUES_AND_DECISIONS.md`.
+4. Read this file.
+5. Run:
 
 ```bash
 git status --short
@@ -21,7 +22,8 @@ If files are already modified, assume they belong to the user or another AI. Do 
 
 - Usual active branch: `codex/customer-wallet-group-orders`
 - Do not assume `main` is latest.
-- Prefer current code plus `CURRENT_STATE.md` and `AI-HANDOFF.md`.
+- Prefer current code plus `CURRENT_STATE.md`, `AI-HANDOFF.md`, and
+  `docs/KNOWN_ISSUES_AND_DECISIONS.md`.
 - Older docs such as `PROJECT-CONTEXT.md` or `CHAT_SUMMARY.md` are not first-read sources.
 
 ## Forbidden

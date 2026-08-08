@@ -35,6 +35,7 @@ android/app/src/main/assets/public
 /syria_easy_exam_model.*
 /fakebattery.sh
 /mirror_note8.bat
+/tmp-*.png
 
 # iOS build output
 ios/App/Pods

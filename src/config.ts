@@ -23,4 +23,4 @@ export const SHEIN_IOS_FREEZE_DIAGNOSTICS = true
 export const SHEIN_IOS_FREEZE_DIAGNOSTICS_BYPASS_RECOVERY = false
 
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '2026.08.09-v86.81-shein-chunk-recovery'
+export const APP_VERSION = '2026.08.09-v86.82-shein-no-flicker'

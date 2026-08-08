@@ -1,54 +1,30 @@
-# Otlobli Quick Handoff
+# Otlobli quick handoff
 
-Minimal context for Codex/Claude.
+Read this only as an entry point; it deliberately does not duplicate release
+history.
 
-- Repo: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA`
-- Branch: `codex/customer-wallet-group-orders`
-- Customer: `https://talabieh.vercel.app`
-- Admin: `https://talabieh-admin.vercel.app`
-- Latest feature commit: `f7b4456`
-- Latest docs commit before cleanup: `c733c72`
-- iPhone artifact: `C:\Users\MOHAMMAD\Desktop\otlobli-v69.ipa`
-- v69 IPA SHA-256: `B4EE4E92D2F7AA383309120AE514515C37055576EFCA67F8E92A2B20900E04A0`
+## First read
 
-Before edits:
+1. `CURRENT_STATE.md` — live candidate, artifacts, and honest acceptance state.
+2. `AI-HANDOFF.md` — implementation detail for the next change.
+3. `docs/KNOWN_ISSUES_AND_DECISIONS.md` — permanent problem log and rejected
+   fixes; do not delete it.
+4. `docs/PROJECT_MAP.md` and `AGENTS.md` — ownership and mandatory workflow.
 
-```bash
-git status --short
-git rev-parse --abbrev-ref HEAD
-git log -5 --oneline
-```
+## Current priorities
 
-Read `CURRENT_STATE.md` and `AI-HANDOFF.md`. Use git history only when needed.
+- SHEIN iPhone behavior is the highest-risk path. Read both
+  `docs/SHEIN_IOS_FREEZE_GUARD.md` and
+  `docs/LOW_END_DEVICE_PERFORMANCE_GUARD.md` before touching it.
+- Preserve the guarded native recompose, store-region equality guard, and
+  narrow product-only chunk recovery. A normal resume must not close/reopen a
+  healthy SHEIN WebView or produce a visible flash.
+- `server/` is the active WhatsApp server. `server-whatsapp/` is historical.
+- `supabase/schema.sql` is not proof of production schema; query the linked
+  project before database changes.
 
-## Open Priority
+## Completion standard
 
-v69 fix is pushed and the iPhone IPA is built.
-
-- Temu is forced to `/sa/` with USD and no longer reloads product-back/root URLs only because currency params are absent.
-- Temu writes exact Saudi/USD session keys and protects price-looking elements from hide filters.
-- SHEIN challenge pages keep otlobli bottom nav.
-- SHEIN normal opening ignores load errors that previously closed the WebView during the black security check.
-- Switching stores no longer clears all cookies automatically; SHEIN writes Saudi shipping/currency keys during challenge.
-- Wallet balance RPC errors no longer show false zero.
-
-Test on a real device: SHEIN -> Temu -> SHEIN, Temu product open/back, Temu USD price visibility, wallet balance. Do not bypass SHEIN security verification.
-
-## Already Done In v66
-
-- Empty-cart group invite linking.
-- Shared order visibility and owner-scoped item issues.
-- Qadmous recipient selection from group members.
-- My Orders issue resolution with options/text/photo.
-- Admin inline order selection and dynamic issue options/photo request.
-- VPN/load-failure fallback improvements.
-- Temu search shell stabilization.
-
-## Hard Rules
-
-- Use approved Figma designs when provided; otherwise direct professional code-native design is allowed and must be visually validated.
-- Do not change money logic unless explicitly asked.
-- Treat existing git changes as user/other-AI work.
-- After every completed modification batch, immediately update `CURRENT_STATE.md`, `AI-HANDOFF.md`, and `SESSION_SUMMARY.md`, and synchronize/build every affected web, Android, iOS, Admin, database, or backend target as defined in `AGENTS.md`. Never leave project state documentation for a later chat.
-- Before touching SHEIN, InAppBrowser, WebView lifecycle, injected store scripts, or store-region polling, read `docs/SHEIN_IOS_FREEZE_GUARD.md` and preserve its automated build guard and real iPhone 16 acceptance gate.
-- Preserve all features while optimizing weak-device performance. Read `docs/LOW_END_DEVICE_PERFORMANCE_GUARD.md`; every affected build must pass its size budget and receive honest low-end device acceptance.
+For every modification batch: update the three state documents, run the
+relevant build/guards, synchronize affected native shells, preserve unrelated
+local work, and report unperformed physical-device testing honestly.
