@@ -783,19 +783,7 @@ diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowser
 index 116e296..e8eb43c 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
-@@ -152,9 +152,11 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
- 
-         #if swift(>=4.2)
-         NotificationCenter.default.addObserver(self, selector: #selector(appDidBecomeActive(_:)), name: UIApplication.didBecomeActiveNotification, object: nil)
-+        NotificationCenter.default.addObserver(self, selector: #selector(appWillEnterForeground(_:)), name: UIApplication.willEnterForegroundNotification, object: nil)
-         NotificationCenter.default.addObserver(self, selector: #selector(appWillResignActive(_:)), name: UIApplication.willResignActiveNotification, object: nil)
-         #else
-         NotificationCenter.default.addObserver(self, selector: #selector(appDidBecomeActive(_:)), name: .UIApplicationDidBecomeActive, object: nil)
-+        NotificationCenter.default.addObserver(self, selector: #selector(appWillEnterForeground(_:)), name: .UIApplicationWillEnterForeground, object: nil)
-         NotificationCenter.default.addObserver(self, selector: #selector(appWillResignActive(_:)), name: .UIApplicationWillResignActive, object: nil)
-         #endif
-     }
-@@ -206,6 +208,18 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -206,6 +206,18 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
          return navigationWebViewController
      }
  
@@ -814,7 +802,7 @@ index 116e296..e8eb43c 100644
      private func notifyPopupWindowOpened(id: String, parentId: String?, url: String?, visible: Bool) {
          var event: [String: Any] = [
              "id": id,
-@@ -355,19 +369,79 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -355,19 +367,79 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
          }
      }
  
@@ -899,7 +887,7 @@ index 116e296..e8eb43c 100644
      }
  
      private func dismissActiveKeyboard() {
-@@ -907,6 +981,15 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -907,6 +979,15 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
                  self.proxySchemeHandlers[webViewId] = proxyHandler
              }
  
@@ -915,7 +903,7 @@ index 116e296..e8eb43c 100644
              self.webViewController = WKWebViewController.init(
                  url: url,
                  headers: headers,
-@@ -923,10 +1006,7 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -923,10 +1004,7 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
                  captureConsoleLogs: captureConsoleLogs,
                  proxyRequests: legacyProxyRequests.isEnabled,
                  proxySchemeHandler: proxyHandler,
@@ -927,7 +915,7 @@ index 116e296..e8eb43c 100644
                  openBlankTargetInWebView: openBlankTargetInWebView
              )
  
-@@ -936,6 +1016,9 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -936,6 +1014,9 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
              }
  
              webViewController.instanceId = webViewId
@@ -937,7 +925,7 @@ index 116e296..e8eb43c 100644
  
              // Set HTTP method and body if provided
              if let method = httpMethod {
-@@ -1258,9 +1341,15 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -1258,9 +1339,15 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
                      return
                  }
              } else if !self.isPresentAfterPageLoad {
@@ -954,7 +942,7 @@ index 116e296..e8eb43c 100644
          }
      }
  
-@@ -1324,22 +1413,39 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -1324,22 +1411,39 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
              self.isHidden = hidden
  
              if hidden {
@@ -1008,7 +996,7 @@ index 116e296..e8eb43c 100644
                      return
                  }
              } else {
-@@ -1351,21 +1457,35 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -1351,21 +1455,35 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
                      if let resolvedId {
                          self.setActiveWebView(id: resolvedId, webView: webViewController, navigationController: navController)
                      }
@@ -1055,7 +1043,7 @@ index 116e296..e8eb43c 100644
                          return
                      }
                  }
-@@ -1386,6 +1506,32 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -1386,6 +1504,32 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
          )
      }
  
@@ -1088,7 +1076,7 @@ index 116e296..e8eb43c 100644
      @objc func hide(_ call: CAPPluginCall) {
          self.setHiddenState(true, targetId: call.getString("id"), call: call)
      }
-@@ -1811,6 +1957,34 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -1811,6 +1955,25 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
  
      @objc func appDidBecomeActive(_ notification: NSNotification) {
          self.hidePrivacyScreen()
@@ -1101,25 +1089,16 @@ index 116e296..e8eb43c 100644
 +        // rAF watchdog cannot be trusted to catch this, because JS timers are
 +        // throttled/suspended while the app is in the background, so the
 +        // __otlobliRecompose message often never arrives (or arrives late).
-+        // didBecomeActive, on the other hand, fires reliably on resume. Start a
-+        // short bounded burst so one detach/reattach lands after WebKit's remote
-+        // layer tree is ready, without adding any continuous background work.
-+        self.otlobliRecomposeAllWebViews()
-+    }
-+
-+    private func otlobliRecomposeAllWebViews() {
-+        for delay in [0.12, 0.5, 1.2, 2.2] {
-+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-+                guard let self = self else { return }
-+                for (_, controller) in self.webViewControllers {
-+                    controller.otlobliForceRecompose(force: true)
-+                }
++        // didBecomeActive is the only reliable lifecycle point here. One
++        // delayed reattach matches the previously device-proven fix; repeated
++        // forced detach/reattach calls race WebKit while its remote layer tree
++        // is restoring and can leave a new frozen frame behind.
++        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
++            guard let self = self else { return }
++            for (_, controller) in self.webViewControllers {
++                controller.otlobliForceRecompose()
 +            }
 +        }
-+    }
-+
-+    @objc func appWillEnterForeground(_ notification: NSNotification) {
-+        self.otlobliRecomposeAllWebViews()
      }
  
      @objc func appWillResignActive(_ notification: NSNotification) {
@@ -1800,9 +1779,9 @@ index 97a2fc1..af5a599 100644
 +    // (same Auto Layout constraints) and preserve scroll offset so nothing else
 +    // about the page changes. A ~1 frame blank is imperceptible next to a
 +    // permanent freeze.
-+    func otlobliForceRecompose(force: Bool = false) {
++    func otlobliForceRecompose() {
 +        let now = Date().timeIntervalSince1970
-+        if !force && now - otlobliLastRecomposeAt < 1.0 { return }
++        if now - otlobliLastRecomposeAt < 1.0 { return }
 +        otlobliLastRecomposeAt = now
 +        DispatchQueue.main.async { [weak self] in
 +            guard let self = self,
