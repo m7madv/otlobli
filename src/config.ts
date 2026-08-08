@@ -16,5 +16,9 @@ export const SOURCE_COUNTRY: 'JO' | 'LB' | 'SA' = 'SA'
 // and must be false before any production build.
 export const TEST_ONLY_AUTH_BYPASS = false
 
+// This temporary iPhone-only candidate observes a freeze without applying the
+// native recompose or loading-cover workarounds. Never enable in production.
+export const SHEIN_IOS_FREEZE_DIAGNOSTICS = true
+
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '2026.08.08-v86.76-iphone-resume-single-recompose'
+export const APP_VERSION = '2026.08.09-v86.77-shein-ios-freeze-diagnostics'

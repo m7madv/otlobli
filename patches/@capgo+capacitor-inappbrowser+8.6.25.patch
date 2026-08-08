@@ -12,7 +12,7 @@ index 9979670..fcfd30a 100644
 +        targetCompatibility JavaVersion.VERSION_17
      }
  }
- 
+
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/CapgoInAppBrowserPlugin.java b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/CapgoInAppBrowserPlugin.java
 index ae420ed..ae452de 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/CapgoInAppBrowserPlugin.java
@@ -33,7 +33,7 @@ index ae420ed..ae452de 100644
 +            webViewDialog.otlobliOnHostResume();
 +        }
      }
- 
+
      protected void handleOnPause() {
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/MobileAppBridgeScript.java b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/MobileAppBridgeScript.java
 index 6b4115a..8e557cf 100644
@@ -162,7 +162,7 @@ index 8ae3e61..3c18e7d 100644
 @@ -433,6 +499,390 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          openWebViewResolved = true;
      }
- 
+
 +    private boolean isOtlobliLoadingCoverEnabled() {
 +        if (_options == null || _options.getPluginCall() == null) return false;
 +        return Boolean.TRUE.equals(_options.getPluginCall().getBoolean("otlobliLoadingCover", false));
@@ -549,11 +549,11 @@ index 8ae3e61..3c18e7d 100644
 +
      // Add this class to provide safer JavaScript interface
      private class JavaScriptInterface {
- 
+
 @@ -480,6 +930,60 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
              activity.runOnUiThread(() -> setHidden(true));
          }
- 
+
 +        @JavascriptInterface
 +        public void navigate(String target) {
 +            if (!isJavaScriptControlAllowed()) {
@@ -614,7 +614,7 @@ index 8ae3e61..3c18e7d 100644
 @@ -1263,6 +1767,32 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          return false;
      }
- 
+
 +    // otlobli: cross-platform guard against the "frozen still frame after the
 +    // app returns from the background" bug. It is confirmed only on iPhone16 /
 +    // iOS27 (WKWebView) and is fixed natively on iOS by detaching + reattaching
@@ -646,16 +646,16 @@ index 8ae3e61..3c18e7d 100644
          if (webView == null || isDismissing) {
 @@ -1807,6 +2337,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          applyDimensions();
- 
+
          this._webView = findViewById(R.id.browser_view);
 +        if (isOtlobliLoadingCoverEnabled()) showOtlobliLoadingCover();
- 
+
          // Apply insets to fix edge-to-edge issues on Android 15+
          applyInsets();
 @@ -2991,6 +3522,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                  return;
              }
- 
+
 +            handleOtlobliLoadingCoverMessage(message);
              _options.getCallbacks().javascriptCallback(message);
          } catch (Exception e) {
@@ -724,13 +724,13 @@ index 8ae3e61..3c18e7d 100644
 +        otlobliOfflineCover = null;
 +        otlobliOfflineStatusLabel = null;
 +        otlobliOfflineRetryButton = null;
- 
+
          // First, stop any ongoing operations and disable further interactions
          if (_webView != null) {
 @@ -5586,17 +6154,50 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          );
      }
- 
+
 +    private static final int OTLOBLI_MAX_TRANSIENT_RETRIES = 2;
 +
      private NativeResponseData performNativeRequest(NativeRequestContext requestContext) throws IOException {
@@ -776,17 +776,17 @@ index 8ae3e61..3c18e7d 100644
              conn.setInstanceFollowRedirects(false);
 +            conn.setRequestProperty("X-Relay-Key", OTLOBLI_RELAY_KEY);
 +            conn.setRequestProperty("X-Relay-Url", requestContext.url);
- 
+
              // Strip conditional cache validators on the wire so upstream cannot return 304/3xx,
              // which WebResourceResponse.setStatusCodeAndReasonPhrase rejects (kills the renderer).
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
-index 116e296..e8eb43c 100644
+index 116e296..5a912a7 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
 @@ -206,6 +206,18 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
          return navigationWebViewController
      }
- 
+
 +    private func dismissNavigationControllerIfPresented(
 +        _ navigationController: UINavigationController?,
 +        completion: (() -> Void)? = nil
@@ -805,7 +805,7 @@ index 116e296..e8eb43c 100644
 @@ -355,19 +367,79 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
          }
      }
- 
+
 -    func presentView(webViewId: String? = nil, isAnimated: Bool = true) {
 +    private func topPresenter(from root: UIViewController) -> UIViewController {
 +        var top = root
@@ -866,7 +866,7 @@ index 116e296..e8eb43c 100644
 +           self.isHidden {
 +            return true
          }
- 
+
          dismissActiveKeyboard()
          let presenter = self.bridge?.viewController?.presentedViewController ?? self.bridge?.viewController
 -        presenter?.present(navigationController, animated: isAnimated, completion: {
@@ -885,12 +885,12 @@ index 116e296..e8eb43c 100644
 +        }
 +        return true
      }
- 
+
      private func dismissActiveKeyboard() {
 @@ -907,6 +979,15 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
                  self.proxySchemeHandlers[webViewId] = proxyHandler
              }
- 
+
 +            var initialDocumentStartScripts = self.documentStartUserScripts(
 +                authorizedAppLinks: authorizedAppLinks,
 +                openBlankTargetInWebView: openBlankTargetInWebView
@@ -914,18 +914,19 @@ index 116e296..e8eb43c 100644
 +                documentStartUserScripts: initialDocumentStartScripts,
                  openBlankTargetInWebView: openBlankTargetInWebView
              )
- 
-@@ -936,6 +1014,9 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+
+@@ -936,6 +1014,10 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
              }
- 
+
              webViewController.instanceId = webViewId
 +            webViewController.otlobliLoadingCoverEnabled = call.getBool("otlobliLoadingCover", false)
 +            webViewController.otlobliPreserveAttachedWhenHidden = call.getBool("otlobliPreserveAttachedWhenHidden", false)
 +            webViewController.otlobliDismissModalWhenHidden = call.getBool("otlobliDismissModalWhenHidden", false)
- 
++            webViewController.otlobliFreezeDiagnosticsEnabled = call.getBool("otlobliFreezeDiagnostics", false)
+
              // Set HTTP method and body if provided
              if let method = httpMethod {
-@@ -1258,9 +1339,15 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -1258,9 +1340,15 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
                      return
                  }
              } else if !self.isPresentAfterPageLoad {
@@ -941,10 +942,10 @@ index 116e296..e8eb43c 100644
 +            }
          }
      }
- 
-@@ -1324,22 +1411,39 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+
+@@ -1324,22 +1412,39 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
              self.isHidden = hidden
- 
+
              if hidden {
 -                if let navController = navigationController, navController.presentingViewController != nil {
 -                    navController.view.isHidden = true
@@ -996,7 +997,7 @@ index 116e296..e8eb43c 100644
                      return
                  }
              } else {
-@@ -1351,21 +1455,35 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -1351,21 +1456,35 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
                      if let resolvedId {
                          self.setActiveWebView(id: resolvedId, webView: webViewController, navigationController: navController)
                      }
@@ -1020,7 +1021,7 @@ index 116e296..e8eb43c 100644
 +                            self.presentationContainerPreviousAlpha = 1
 +                        }
                      }
- 
+
                      if navController.presentingViewController == nil {
                          let presenter = self.bridge?.viewController?.presentedViewController ?? self.bridge?.viewController
 -                        presenter?.present(navController, animated: true, completion: {
@@ -1043,10 +1044,10 @@ index 116e296..e8eb43c 100644
                          return
                      }
                  }
-@@ -1386,6 +1504,32 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -1386,6 +1505,32 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
          )
      }
- 
+
 +    func navigateHostFromJavaScript(_ target: String, sourceId: String? = nil) {
 +        let route: String
 +        switch target {
@@ -1076,10 +1077,14 @@ index 116e296..e8eb43c 100644
      @objc func hide(_ call: CAPPluginCall) {
          self.setHiddenState(true, targetId: call.getString("id"), call: call)
      }
-@@ -1811,6 +1955,25 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
- 
+@@ -1811,10 +1956,43 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+
      @objc func appDidBecomeActive(_ notification: NSNotification) {
          self.hidePrivacyScreen()
++
++        for (_, controller) in self.webViewControllers where controller.otlobliFreezeDiagnosticsEnabled {
++            controller.otlobliFreezeDiagnosticLog("app-did-become-active")
++        }
 +
 +        // otlobli: THE iPhone16/iOS27 "frozen still image" reproduces 100% when
 +        // the app is backgrounded (or swiped out of the app switcher and
@@ -1096,12 +1101,27 @@ index 116e296..e8eb43c 100644
 +        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
 +            guard let self = self else { return }
 +            for (_, controller) in self.webViewControllers {
-+                controller.otlobliForceRecompose()
++                if controller.otlobliFreezeDiagnosticsEnabled {
++                    controller.otlobliFreezeDiagnosticLog("app-did-become-active-recompose-skipped")
++                } else {
++                    controller.otlobliForceRecompose()
++                }
 +            }
 +        }
      }
- 
+
      @objc func appWillResignActive(_ notification: NSNotification) {
+-        self.showPrivacyScreen()
++        let diagnosticSessionActive = self.webViewControllers.values.contains { $0.otlobliFreezeDiagnosticsEnabled }
++        for (_, controller) in self.webViewControllers {
++            controller.otlobliFreezeDiagnosticLog("app-will-resign-active")
++        }
++        if !diagnosticSessionActive {
++            self.showPrivacyScreen()
++        }
+     }
+
+     private func readCredentials(_ call: CAPPluginCall) -> WKWebViewCredentials? {
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
 index 1c70884..60018b4 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
@@ -1109,7 +1129,7 @@ index 1c70884..60018b4 100644
 @@ -449,6 +449,34 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
      /// still reach finish() or the scheme task strands.
      static let redirectStatusCodes: Set<Int> = [301, 302, 303, 307, 308]
- 
+
 +    /// otlobli: every native fetch this handler makes is routed through a
 +    /// Cloudflare Worker relay instead of contacting the target host
 +    /// directly. The relay forwards the request byte-for-byte and streams
@@ -1208,12 +1228,12 @@ index 1c70884..60018b4 100644
 +                self.writeCookiesOnMain(cookies) {}
 +            }
          }
- 
+
          taskLock.lock()
 @@ -819,23 +876,35 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
              return
          }
- 
+
 +        let responseHeaders = ProxySchemeRequestSupport.normalizedResponseHeaders(from: response)
          let redirectResponse = NativeResponseData(
              statusCode: response.statusCode,
@@ -1222,7 +1242,7 @@ index 1c70884..60018b4 100644
              body: Data(),
              contentType: response.value(forHTTPHeaderField: "Content-Type") ?? "application/octet-stream"
          )
- 
+
 -        pendingTask.requestContext.url = ProxySchemeRequestSupport.resolvedResponseURL(
 -            response,
 -            fallback: pendingTask.requestContext.url
@@ -1238,7 +1258,7 @@ index 1c70884..60018b4 100644
          pendingTask.responseData = redirectResponse
          pendingTask.redirectRequest = request
          completionHandler(nil)
- 
+
 -        syncResponseCookies(from: response, fallbackURL: pendingTask.requestContext.url) { [weak self] in
 -            self?.executeInboundDecision(requestId: requestId)
 +        // otlobli: manual header parsing against preRedirectURL instead of
@@ -1252,10 +1272,10 @@ index 1c70884..60018b4 100644
 +            writeCookiesOnMain(cookies) {}
          }
      }
- 
+
 @@ -958,10 +1027,13 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
      }
- 
+
      private func makeURLRequest(from context: NativeRequestContext) throws -> URLRequest {
 -        guard let url = URL(string: context.url) else {
 +        guard URL(string: context.url) != nil else {
@@ -1283,21 +1303,50 @@ index 1c70884..60018b4 100644
          if
              ProxySchemeRequestSupport.supportsRequestBody(method: context.method),
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
-index 97a2fc1..af5a599 100644
+index 97a2fc1..f8d9564 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
-@@ -9,6 +9,7 @@
+@@ -9,6 +9,36 @@
  import UIKit
  import QuickLook
  import WebKit
 +import Network
- 
++
++// Diagnostic IPA only. The ring survives a force-quit so the report can be
++// copied after the first frozen frame, without a network request or a timer.
++private enum OtlobliFreezeDiagnostics {
++    private static let storageKey = "otlobli.shein.freeze.diagnostics.v1"
++    private static let limit = 180
++
++    static func record(_ event: String, fields: [String: Any] = [:]) {
++        var item = fields
++        item["event"] = event
++        item["at"] = Int(Date().timeIntervalSince1970 * 1000)
++        var records = UserDefaults.standard.array(forKey: storageKey) as? [[String: Any]] ?? []
++        if records.count >= limit {
++            records.removeFirst(records.count - limit + 1)
++        }
++        records.append(item)
++        UserDefaults.standard.set(records, forKey: storageKey)
++    }
++
++    static func report() -> String {
++        let records = UserDefaults.standard.array(forKey: storageKey) as? [[String: Any]] ?? []
++        guard JSONSerialization.isValidJSONObject(records),
++              let data = try? JSONSerialization.data(withJSONObject: records, options: [.prettyPrinted, .sortedKeys]),
++              let json = String(data: data, encoding: .utf8) else {
++            return "OTLOBLI_SHEIN_FREEZE_DIAGNOSTIC\nreport encoding failed"
++        }
++        return "OTLOBLI_SHEIN_FREEZE_DIAGNOSTIC\n" + json
++    }
++}
+
  private let estimatedProgressKeyPath = "estimatedProgress"
  private let titleKeyPath = "title"
-@@ -748,6 +749,35 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -748,6 +778,98 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
      fileprivate var webView: WKWebView?
      fileprivate var progressView: UIProgressView?
- 
+
 +    // Otlobli keeps the real WKWebView attached, sized, and interactive while
 +    // SHEIN resolves its signed Saudi address. This native cover hides only the
 +    // transient automation frames; it never reparents or alpha-hides WKWebView.
@@ -1310,7 +1359,15 @@ index 97a2fc1..af5a599 100644
 +    }
 +    open var otlobliPreserveAttachedWhenHidden = false
 +    open var otlobliDismissModalWhenHidden = false
++    open var otlobliFreezeDiagnosticsEnabled = false {
++        didSet {
++            guard otlobliFreezeDiagnosticsEnabled else { return }
++            otlobliFreezeDiagnosticLog("diagnostic-enabled")
++            if isViewLoaded { installOtlobliFreezeDiagnosticButton() }
++        }
++    }
 +    var otlobliVisibilityHideInProgress = false
++    private var otlobliFreezeDiagnosticButton: UIButton?
 +    private var otlobliLoadingCoverView: UIView?
 +    private var otlobliLoadingCoverLabel: UILabel?
 +    private var otlobliLoadingCoverBottomConstraint: NSLayoutConstraint?
@@ -1327,34 +1384,94 @@ index 97a2fc1..af5a599 100644
 +    private var otlobliPathMonitor: NWPathMonitor?
 +    private let otlobliPathMonitorQueue = DispatchQueue(label: "com.otlobli.inappbrowser.offline-monitor")
 +
++    func otlobliFreezeDiagnosticLog(_ event: String, extra: [String: Any] = [:]) {
++        guard otlobliFreezeDiagnosticsEnabled else { return }
++        var fields = extra
++        let activeWebView = webView
++        fields["id"] = instanceId ?? ""
++        fields["route"] = activeWebView?.url?.path ?? url?.path ?? ""
++        fields["attached"] = activeWebView?.superview === view
++        fields["window"] = activeWebView?.window != nil
++        fields["hidden"] = activeWebView?.isHidden ?? true
++        fields["alpha"] = activeWebView?.alpha ?? 0
++        fields["loading"] = activeWebView?.isLoading ?? false
++        fields["progress"] = activeWebView?.estimatedProgress ?? 0
++        fields["width"] = Int(activeWebView?.bounds.width ?? 0)
++        fields["height"] = Int(activeWebView?.bounds.height ?? 0)
++        fields["scrollY"] = Int(activeWebView?.scrollView.contentOffset.y ?? 0)
++        fields["appState"] = UIApplication.shared.applicationState.rawValue
++        OtlobliFreezeDiagnostics.record(event, fields: fields)
++    }
++
++    private func installOtlobliFreezeDiagnosticButton() {
++        guard otlobliFreezeDiagnosticsEnabled, isViewLoaded, otlobliFreezeDiagnosticButton == nil else { return }
++        let button = UIButton(type: .system)
++        button.setTitle("LOG", for: .normal)
++        button.setTitleColor(.white, for: .normal)
++        button.titleLabel?.font = .systemFont(ofSize: 12, weight: .bold)
++        button.backgroundColor = UIColor(red: 0.12, green: 0.2, blue: 0.32, alpha: 0.9)
++        button.layer.cornerRadius = 14
++        button.layer.borderWidth = 1
++        button.layer.borderColor = UIColor.white.withAlphaComponent(0.45).cgColor
++        button.accessibilityLabel = "نسخ تقرير تجمّد SHEIN"
++        button.addTarget(self, action: #selector(copyOtlobliFreezeDiagnosticReport), for: .touchUpInside)
++        button.translatesAutoresizingMaskIntoConstraints = false
++        view.addSubview(button)
++        NSLayoutConstraint.activate([
++            button.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 10),
++            button.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 10),
++            button.widthAnchor.constraint(equalToConstant: 48),
++            button.heightAnchor.constraint(equalToConstant: 28)
++        ])
++        otlobliFreezeDiagnosticButton = button
++        otlobliFreezeDiagnosticLog("native-log-button-ready")
++    }
++
++    @objc private func copyOtlobliFreezeDiagnosticReport() {
++        otlobliFreezeDiagnosticLog("report-copied-requested")
++        UIPasteboard.general.string = OtlobliFreezeDiagnostics.report()
++        let alert = UIAlertController(
++            title: "تم نسخ تقرير التجمّد",
++            message: "ألصق التقرير كاملاً في الشات. هذه النسخة لا تعيد تركيب صفحة SHEIN تلقائياً.",
++            preferredStyle: .alert
++        )
++        alert.addAction(UIAlertAction(title: "حسناً", style: .default))
++        present(alert, animated: true)
++    }
++
      fileprivate var previousNavigationBarState: (tintColor: UIColor, hidden: Bool) = (.black, false)
      fileprivate var previousToolbarState: (tintColor: UIColor, hidden: Bool) = (.black, false)
- 
-@@ -862,7 +892,8 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+
+@@ -861,8 +983,10 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+
      override open func viewDidDisappear(_ animated: Bool) {
          super.viewDidDisappear(animated)
- 
++        otlobliFreezeDiagnosticLog("view-did-disappear")
+
 -        if self.isBeingDismissed || self.isMovingFromParent {
 +        if (self.isBeingDismissed || self.isMovingFromParent) &&
 +            !otlobliVisibilityHideInProgress {
              self.cleanupWebView()
          }
- 
-@@ -878,6 +909,10 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+
+@@ -878,6 +1002,12 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
              self.initWebview()
          }
- 
+
 +        if otlobliLoadingCoverEnabled {
 +            showOtlobliLoadingCover()
 +        }
++        installOtlobliFreezeDiagnosticButton()
++        otlobliFreezeDiagnosticLog("view-did-load")
 +
          // Apply navigation gestures setting
          updateNavigationGestures()
- 
-@@ -899,6 +934,364 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+
+@@ -899,6 +1029,365 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
      override open func viewDidLayoutSubviews() {
          super.viewDidLayoutSubviews()
          refreshWebViewViewportIfNeeded()
++        if let button = otlobliFreezeDiagnosticButton { view.bringSubviewToFront(button) }
 +        if let cover = otlobliLoadingCoverView {
 +            otlobliLoadingCoverBottomConstraint?.constant = view.safeAreaInsets.bottom > 0 ? -(74 + max(view.safeAreaInsets.bottom, 16)) : CGFloat(0)
 +            view.bringSubviewToFront(cover)
@@ -1714,12 +1831,12 @@ index 97a2fc1..af5a599 100644
 +            break
 +        }
      }
- 
+
      func updateButtonTintColors() {
-@@ -1001,6 +1394,37 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1001,6 +1490,37 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          capBrowserPlugin?.notifyListeners(eventName, data: payload(with: data))
      }
- 
+
 +    private func emitPageLoadError(_ webView: WKWebView?, error: Error?, phase: String) {
 +        var data: [String: Any] = ["phase": phase]
 +
@@ -1754,10 +1871,10 @@ index 97a2fc1..af5a599 100644
      private func startObservingKeyboardViewportChanges() {
          guard !isObservingKeyboardViewportChanges else {
              return
-@@ -1025,6 +1449,72 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1025,6 +1545,72 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          return max(0.05, duration.doubleValue)
      }
- 
+
 +    // otlobli: cooldown so a stall storm can't nudge every second.
 +    private var otlobliLastRecomposeAt: TimeInterval = 0
 +
@@ -1827,17 +1944,26 @@ index 97a2fc1..af5a599 100644
      private func scheduleWebViewViewportRefresh(force: Bool = false, delay: TimeInterval = 0.05) {
          DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
              self?.refreshWebViewViewportIfNeeded(force: force)
-@@ -1135,7 +1625,17 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1135,7 +1721,26 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
      public func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
          if message.name == "messageHandler" {
              if let messageBody = message.body as? [String: Any] {
++                if let detail = messageBody["detail"] as? [String: Any],
++                   detail["type"] as? String == "otlobliFreezeDiagnostic" {
++                    otlobliFreezeDiagnosticLog("js:\(detail["stage"] as? String ?? "unknown")", extra: detail)
++                    return
++                }
 +                // otlobli: iOS 27 can throttle a heavy page's WebContent rendering
 +                // while the page stays alive (taps still route, but the composited
 +                // frame is frozen as a still image). The injected render-stall
 +                // watchdog posts this when requestAnimationFrame stops firing while
 +                // the tab is visible; force an invisible recomposite to wake it.
 +                if messageBody["__otlobliRecompose"] as? Bool == true {
-+                    otlobliForceRecompose()
++                    if otlobliFreezeDiagnosticsEnabled {
++                        otlobliFreezeDiagnosticLog("js-recompose-request-skipped")
++                    } else {
++                        otlobliForceRecompose()
++                    }
 +                    return
 +                }
                  print("Received message from JavaScript:", messageBody)
@@ -1845,7 +1971,7 @@ index 97a2fc1..af5a599 100644
                  emit("messageFromWebview", data: messageBody)
              } else {
                  print("Received non-dictionary message from JavaScript:", message.body)
-@@ -1176,6 +1676,12 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1176,6 +1781,12 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
                  return
              }
              capBrowserPlugin?.setHiddenFromJavaScript(true, sourceId: instanceId)
@@ -1858,7 +1984,7 @@ index 97a2fc1..af5a599 100644
          } else if message.name == "show" {
              guard allowWebViewJsVisibilityControl else {
                  return
-@@ -1237,6 +1743,9 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1237,6 +1848,9 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
                                  hide: function() {
                                          window.webkit.messageHandlers.hide.postMessage(null);
                                  },
@@ -1868,7 +1994,7 @@ index 97a2fc1..af5a599 100644
                                  show: function() {
                                          window.webkit.messageHandlers.show.postMessage(null);
                                  }
-@@ -1337,6 +1846,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1337,6 +1951,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          userContentController.removeScriptMessageHandler(forName: "preShowScriptSuccess")
          userContentController.removeScriptMessageHandler(forName: "close")
          userContentController.removeScriptMessageHandler(forName: "hide")
@@ -1876,7 +2002,7 @@ index 97a2fc1..af5a599 100644
          userContentController.removeScriptMessageHandler(forName: "show")
          userContentController.removeScriptMessageHandler(forName: "takeScreenshot")
          userContentController.removeScriptMessageHandler(forName: "consoleMessageHandler")
-@@ -1358,6 +1868,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1358,6 +1973,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          userContentController.add(weakHandler, name: "preShowScriptSuccess")
          userContentController.add(weakHandler, name: "close")
          userContentController.add(weakHandler, name: "hide")
@@ -1884,7 +2010,7 @@ index 97a2fc1..af5a599 100644
          userContentController.add(weakHandler, name: "show")
          if allowScreenshotsFromWebPage {
              userContentController.add(weakHandler, name: "takeScreenshot")
-@@ -1581,6 +2092,8 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1581,6 +2197,8 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          self.hiddenPopupWindow = parent.hiddenPopupWindow
          self.opensHidden = parent.hiddenPopupWindow
          self.captureConsoleLogs = parent.captureConsoleLogs
@@ -1893,8 +2019,8 @@ index 97a2fc1..af5a599 100644
          self.allowWebViewJsVisibilityControl = parent.allowWebViewJsVisibilityControl
          self.allowScreenshotsFromWebPage = parent.allowScreenshotsFromWebPage
          self.handleDownloads = parent.handleDownloads
-@@ -1818,6 +2331,18 @@ public extension WKWebViewController {
- 
+@@ -1818,6 +2436,18 @@ public extension WKWebViewController {
+
      open func cleanupWebView() {
          guard let webView = self.webView else { return }
 +        cancelOtlobliChallengeReveal()
@@ -1911,8 +2037,8 @@ index 97a2fc1..af5a599 100644
 +        otlobliOfflineRetryButton = nil
          webView.stopLoading()
          previewItemURL = nil
- 
-@@ -1837,6 +2362,7 @@ public extension WKWebViewController {
+
+@@ -1837,6 +2467,7 @@ public extension WKWebViewController {
          webView.configuration.userContentController.removeScriptMessageHandler(forName: "messageHandler")
          webView.configuration.userContentController.removeScriptMessageHandler(forName: "close")
          webView.configuration.userContentController.removeScriptMessageHandler(forName: "hide")
@@ -1920,8 +2046,11 @@ index 97a2fc1..af5a599 100644
          webView.configuration.userContentController.removeScriptMessageHandler(forName: "show")
          if allowScreenshotsFromWebPage {
              webView.configuration.userContentController.removeScriptMessageHandler(forName: "takeScreenshot")
-@@ -2682,12 +3208,30 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2680,14 +3311,34 @@ extension WKWebViewController: WKNavigationDelegate {
+     }
+
      public func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
++        otlobliFreezeDiagnosticLog("navigation-start")
          updateBarButtonItems()
          self.progressView?.progress = 0
 +        if otlobliLoadingCoverEnabled && !otlobliOfflineRetryInFlight {
@@ -1942,6 +2071,7 @@ index 97a2fc1..af5a599 100644
          }
      }
      public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
++        otlobliFreezeDiagnosticLog("navigation-finish")
 +        if otlobliOfflineNavigationFailed {
 +            return
 +        }
@@ -1951,7 +2081,7 @@ index 97a2fc1..af5a599 100644
          if !didpageInit && self.capBrowserPlugin?.isPresentAfterPageLoad == true {
              // Only inject preShowScript if it wasn't already injected at document start
              let shouldInjectScript = self.preShowScript.map { !$0.isEmpty } ?? false &&
-@@ -2703,12 +3247,18 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2703,12 +3354,18 @@ extension WKWebViewController: WKNavigationDelegate {
                      DispatchQueue.global(qos: .userInitiated).async {
                          self.injectPreShowScript()
                          DispatchQueue.main.async { [weak self] in
@@ -1972,7 +2102,14 @@ index 97a2fc1..af5a599 100644
              }
          } else if self.preShowScript != nil &&
                      !self.preShowScript!.isEmpty &&
-@@ -2743,7 +3293,10 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2737,23 +3394,41 @@ extension WKWebViewController: WKNavigationDelegate {
+     }
+
+     public func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
++        otlobliFreezeDiagnosticLog("navigation-fail-provisional", extra: ["error": error.localizedDescription])
+         updateBarButtonItems()
+         self.progressView?.progress = 0
+         if let url = webView.url {
              self.url = url
              delegate?.webViewController?(self, didFail: url, withError: error)
          }
@@ -1982,9 +2119,12 @@ index 97a2fc1..af5a599 100644
 +        }
 +        emitPageLoadError(webView, error: error, phase: "didFailProvisionalNavigation")
      }
- 
+
      public func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-@@ -2753,7 +3306,19 @@ extension WKWebViewController: WKNavigationDelegate {
++        otlobliFreezeDiagnosticLog("navigation-fail", extra: ["error": error.localizedDescription])
+         updateBarButtonItems()
+         self.progressView?.progress = 0
+         if let url = webView.url {
              self.url = url
              delegate?.webViewController?(self, didFail: url, withError: error)
          }
@@ -1996,6 +2136,7 @@ index 97a2fc1..af5a599 100644
 +    }
 +
 +    public func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
++        otlobliFreezeDiagnosticLog("web-content-process-terminated")
 +        updateBarButtonItems()
 +        self.progressView?.progress = 0
 +        if let url = webView.url {
@@ -2003,5 +2144,5 @@ index 97a2fc1..af5a599 100644
 +        }
 +        emitPageLoadError(webView, error: nil, phase: "webContentProcessDidTerminate")
      }
- 
+
      public func webView(_ webView: WKWebView, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {

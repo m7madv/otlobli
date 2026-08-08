@@ -16,7 +16,7 @@ import type { PaymentCurrency } from './domain/pricing'
 import type { Address, AppNotification, CartGroupSnapshot, CartItem, NotificationPrefs, Order, OrderIssue, Product, ProductColor, Recipient, Screen, StatusTone, UserProfile, WalletTransaction } from './domain/types'
 import { getDeviceId, readStoredJson, storageKeys, useStoredState } from './infrastructure/localStorage'
 import { appApi } from './services'
-import { PAYMENT_MODE, APP_VERSION, TEST_ONLY_AUTH_BYPASS, cleanEnvValue } from './config'
+import { PAYMENT_MODE, APP_VERSION, SHEIN_IOS_FREEZE_DIAGNOSTICS, TEST_ONLY_AUTH_BYPASS, cleanEnvValue } from './config'
 import { buildWhatsappLink } from './services/whatsappLink'
 import {
   getAccountAuthMethods,
@@ -31,6 +31,7 @@ import { registerPushNotifications } from './services/pushNotifications'
 import { OTLOBLI_NAV_BOOTSTRAP_SCRIPT, SHEIN_CAPTURE_SCRIPT } from './services/sheinBrowserScript'
 import { SHEIN_REGION_DIAGNOSTICS_SCRIPT } from './services/sheinRegionDiagnostics'
 import { SHEIN_PRICE_DIAGNOSTICS_SCRIPT } from './services/sheinPriceDiagnostics'
+import { SHEIN_FREEZE_DIAGNOSTIC_SCRIPT } from './services/sheinFreezeDiagnostics'
 import { App as CapacitorApp } from '@capacitor/app'
 import { Capacitor } from '@capacitor/core'
 import { BackgroundColor, InAppBrowser, ToolBarType } from '@capgo/capacitor-inappbrowser'
@@ -3174,12 +3175,17 @@ function App() {
       otlobliLoadingCover?: boolean
       otlobliDocumentStartScript?: string
       otlobliPreserveAttachedWhenHidden?: boolean
+      otlobliFreezeDiagnostics?: boolean
     } = {
       url: targetUrl,
       ...(activeStore === 'shein'
         ? {
-          otlobliLoadingCover: true,
-          otlobliDocumentStartScript: OTLOBLI_NAV_BOOTSTRAP_SCRIPT,
+          // The diagnostic IPA deliberately leaves the frozen frame untouched:
+          // no native loading cover and no automatic recompose. It records the
+          // lifecycle/native/JS evidence instead, behind this release-only flag.
+          otlobliLoadingCover: !(SHEIN_IOS_FREEZE_DIAGNOSTICS && isIosNative),
+          otlobliFreezeDiagnostics: SHEIN_IOS_FREEZE_DIAGNOSTICS && isIosNative,
+          otlobliDocumentStartScript: `${OTLOBLI_NAV_BOOTSTRAP_SCRIPT}\n${SHEIN_IOS_FREEZE_DIAGNOSTICS && isIosNative ? SHEIN_FREEZE_DIAGNOSTIC_SCRIPT : ''}`,
           otlobliPreserveAttachedWhenHidden: true,
           // Keep React's already-mounted Otlobli shell and bottom nav visible
           // while the first SHEIN document is loading. The native browser is
