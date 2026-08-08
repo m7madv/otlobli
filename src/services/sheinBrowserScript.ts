@@ -5412,7 +5412,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       title: getTitle(allowGenericTitle),
       priceUsd: sheinPriceUsd,
       priceSource: sheinPriceSource,
-      image: sheinColorImg || getMainImage(),
+      image: getMainImage() || sheinColorImg,
       colorImage: sheinColorImg || '',
       colorImageFound: !!sheinColorImg,
       color: sheinColorSel,

@@ -2,13 +2,13 @@
 
 Last updated: 2026-08-08
 
-## Active candidate — v86.72 SHEIN swatch-variant priority (2026-08-08)
+## Active candidate — v86.73 SHEIN product-image / swatch separation (2026-08-08)
 
-SHEIN products whose real colour choices use graphical icons but share the generic label «متعدد الألوان» now preserve the selected icon as the cart colour image. The selected colour row is resolved as a group rather than one nested tile; a tapped icon is retained even without a unique text label; and SHEIN's generic product/hero image is only a fallback, never an override. This also removes composite parent values such as `SMLXL` from size choices, leaving only selectable leaf sizes. Descriptive «المزيد من الخيارات» chips remain descriptions, not invented SKU variants.
+v86.73 corrects the image-field mix-up in v86.72: the cart's large `image` is now the SHEIN product image; `colorImage` alone carries the selected small swatch. The swatch is used for the large image only if SHEIN has no product image at all. The real «المزيد من الخيارات» DOM on the Note 8 has five descriptive `<div>` properties (back tie, embroidery, twist, ruffle lace, square neck), with no SKU value, selected state, or purchase control, so it remains product information rather than an invented cart variant. Existing cart rows retain their previously saved wrong image and must be removed/re-added; the app does not erase the user's cart automatically.
 
-Validation: `npm run build`, freeze guard, and low-end budget pass (largest JS `1,199,338 / 1,200,000`, gzip `355,629 / 370,000`, SHEIN source `545,661 / 550,000`); Android and iOS synchronized; Android `86.72 / 932` `assembleDebug` passes and is installed on real Note 8 `988e16384e4f51395230`. Real SHEIN DOM inspection on the Note 8 confirmed the target shape: selected `role=radio`, generic «متعدد الألوان», and the real icon held in a CSS background image. The installed capture path returns the selected icon and separate `S/M/L/XL` values for that shape. No native lifecycle, region-transition, polling, or iPhone recompose logic changed.
+Validation: `npm run build`, freeze guard, and low-end budget pass (largest JS `1,199,339 / 1,200,000`, gzip `355,626 / 370,000`, SHEIN source `545,661 / 550,000`); Android and iOS synchronized; Android `86.73 / 933` `assembleDebug` passes and is installed on real Note 8 `988e16384e4f51395230`. No native lifecycle, region-transition, polling, or iPhone recompose logic changed.
 
-Artifact: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-android-v86.72\otlobli-v86.72-note8-debug.apk` (11,122,238 bytes, SHA-256 `94C182583A75BB30C11614E4F38E251177141D683B14AC7634FD44C3B68C1F66`). iOS source is synchronized at `86.72 / 932`, but no new IPA was requested or built. User should add one real icon-based product with a size to the cart on Android and iPhone; iPhone still requires its separate five background/resume cycles and cold launch acceptance.
+Artifact: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-android-v86.73\otlobli-v86.73-note8-debug.apk` (11,121,502 bytes, SHA-256 `43E7726E87CDF4D855E132CD1DAF9A6CC06D4D2ED8A261910DE678FDE5D3E1DE`). iOS source is synchronized at `86.73 / 933`, but no new IPA was requested or built. User should remove one old wrong-image row, add that real icon-based product again with a size, and verify the large card image vs. small colour swatch; iPhone still requires its separate five background/resume cycles and cold launch acceptance.
 
 ## Previous candidate — v86.71 automatic SHEIN region-transition recovery (2026-08-08)
 
