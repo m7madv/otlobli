@@ -1,5 +1,21 @@
 # Otlobli Current State
 
+## Active candidate — v86.84 Curvy quick-add + diagnostics off (2026-08-09)
+
+SHEIN can open a `bsc-quick-add-cart` form for the Curvy/plus-size choice over the regular product page. The previous flow read the regular PDP's still-unselected sizes first, so a real selected Curvy value such as `5XL` was rejected before capture and the Otlobli add button looked unresponsive. v86.84 detects the visible quick-add form before the normal PDP gate; it reads the form's own selected color/size, scopes the required-size check to that form, and captures the same form. It never opens or reads the background PDP while that form is active. This keeps ordinary product selection unchanged and prevents a selected Curvy SKU from being mistaken for an unselected background one.
+
+The Note 8 has the v86.84 debug build installed for validation: `android/app/build/outputs/apk/debug/app-debug.apk` (11,118,174 bytes; SHA-256 `09089059115600186193B537E0540D0FCED293E85E192E48DCA4D87C57EB3D54`). Direct automated access to the exact product is currently served a SHEIN human-verification page, so the final physical Curvy add-to-cart test must be repeated from a normal, already-accepted SHEIN session; no CAPTCHA bypass is implemented or claimed. Local TypeScript/build, performance budget and iPhone-freeze guard pass: raw JS `1,192,836 / 1,200,000`, gzip `352,616 / 370,000`, SHEIN source `546,375 / 550,000`.
+
+Marker: `2026.08.09-v86.84-curvy-quick-add`; native version `86.84 / 944`. This candidate includes the v86.83 diagnostics-off change below.
+
+## Active candidate — v86.83 diagnostics off (2026-08-09)
+
+The customer requested normal releases without the two active diagnostic tools. v86.83 removes the SHEIN price/option diagnostic from the normal customer bundle entirely: no red diagnostic button, no diagnostic overlay, and no 500 ms / 1.5 s diagnostic timers. Its source remains retained for a separately requested diagnostic build, but `App.tsx` no longer imports it. The production bundle is therefore smaller than v86.82: raw JS `1,189,850` bytes (down `8,827`), gzip `351,813` bytes (down `2,583`).
+
+The iPhone freeze probe and native `LOG` trace are also disabled through `SHEIN_IOS_FREEZE_DIAGNOSTICS=false`. This removes observability only; it does **not** remove the iPhone 0.25-second guarded recompose, lifecycle race checks, bounded product-only chunk recovery, region guard, or Android resume defense. The guard verifies both that iPhone diagnostics are off and that the price diagnostic cannot be imported into a normal release.
+
+Marker: `2026.08.09-v86.83-diagnostics-off`; native version `86.83 / 943`. Local build, low-end budget, freeze guard, patch reversibility and Android/iOS synchronization pass. A new iPhone artifact and physical iPhone/Note 8 acceptance are pending. If a new incident occurs, restore diagnostics only in a dedicated build after recording exact steps/device in `docs/KNOWN_ISSUES_AND_DECISIONS.md`.
+
 ## Active candidate — v86.82 no-flash SHEIN recovery + weak-device maintenance (2026-08-09)
 
 The v86.81 emergency path correctly proved that a fresh HTTP-cache-only SHEIN session can heal a real PWA chunk incident, but it reacted too broadly: a harmless home-page `ChunkLoadError` could close/reopen a still-healthy store and visibly flash «جاري إصلاح…». v86.82 narrows the bridge to a real product route (`-p-<id>`) and makes host recovery iPhone-only. It retains one 60-second-bounded HTTP cache reset for a confirmed broken iPhone product, but a normal home, normal resume, and all Android chunk notices now remain visually untouched. This is a scope correction; the guarded native iPhone 0.25-second recompose is unchanged.

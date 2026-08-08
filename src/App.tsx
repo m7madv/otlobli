@@ -30,7 +30,6 @@ import type { AccountAuthMethods, GoogleProfile } from './services/googleAuthApi
 import { registerPushNotifications } from './services/pushNotifications'
 import { OTLOBLI_NAV_BOOTSTRAP_SCRIPT, SHEIN_CAPTURE_SCRIPT } from './services/sheinBrowserScript'
 import { SHEIN_REGION_DIAGNOSTICS_SCRIPT } from './services/sheinRegionDiagnostics'
-import { SHEIN_PRICE_DIAGNOSTICS_SCRIPT } from './services/sheinPriceDiagnostics'
 import { SHEIN_FREEZE_DIAGNOSTIC_SCRIPT } from './services/sheinFreezeDiagnostics'
 import { App as CapacitorApp } from '@capacitor/app'
 import { Capacitor } from '@capacitor/core'
@@ -131,9 +130,9 @@ const buildTemuHomeUrl = (region: StoreRegion) =>
 const SHEIN_HOME_URL = buildSheinHomeUrl(DEFAULT_STORE_REGIONS.shein)
 const TEMU_HOME_URL = buildTemuHomeUrl(DEFAULT_STORE_REGIONS.temu)
 const buildStoreCaptureScript = (regions: StoreRegions) =>
-  // The price-diagnostics overlay is injected LAST and in its own try block, so
-  // a fault in it can never stop the capture script from running.
-  `window.__OTLOBLI_STORE_REGIONS__=${JSON.stringify(regions)};\n${SHEIN_REGION_DIAGNOSTICS_SCRIPT}\ntry{\n${SHEIN_CAPTURE_SCRIPT}\n}catch(__otlobliCaptureError){try{window.__otlobliRegionDiagnostic('capture-runtime-error',{message:String(__otlobliCaptureError&&(__otlobliCaptureError.stack||__otlobliCaptureError.message)||__otlobliCaptureError)},'runtime')}catch(__otlobliDiagnosticError){}}\ntry{\n${SHEIN_PRICE_DIAGNOSTICS_SCRIPT}\n}catch(__otlobliPriceDiagError){}`
+  // Price diagnostics deliberately stay out of customer bundles. The retained
+  // source file is imported only by a dedicated diagnostic release.
+  `window.__OTLOBLI_STORE_REGIONS__=${JSON.stringify(regions)};\n${SHEIN_REGION_DIAGNOSTICS_SCRIPT}\ntry{\n${SHEIN_CAPTURE_SCRIPT}\n}catch(__otlobliCaptureError){try{window.__otlobliRegionDiagnostic('capture-runtime-error',{message:String(__otlobliCaptureError&&(__otlobliCaptureError.stack||__otlobliCaptureError.message)||__otlobliCaptureError)},'runtime')}catch(__otlobliDiagnosticError){}}`
 
 const cartColorPreviewBackground = (color: string) => {
   return /ذهبي|gold/i.test(color) ? 'linear-gradient(135deg,#9f6b12,#f8df8b,#b77812)' : ''

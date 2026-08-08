@@ -119,6 +119,22 @@ const checks = [
     ],
   },
   {
+    label: 'normal-release diagnostics disabled',
+    file: 'src/config.ts',
+    markers: [
+      'export const SHEIN_IOS_FREEZE_DIAGNOSTICS = false',
+    ],
+  },
+  {
+    label: 'price diagnostic excluded from normal releases',
+    file: 'src/App.tsx',
+    markers: [],
+    forbidden: [
+      "./services/sheinPriceDiagnostics",
+      'SHEIN_PRICE_DIAGNOSTICS_SCRIPT',
+    ],
+  },
+  {
     label: 'diagnostic SHEIN event probe',
     file: 'src/services/sheinFreezeDiagnostics.ts',
     markers: [

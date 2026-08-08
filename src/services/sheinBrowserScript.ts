@@ -5225,9 +5225,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   // Reliable size gate (the heuristic sizeState misses quick-add): true when a
   // مقاس group shows 2+ choices and none is selected; scrolls the first into view.
-  function sheinSizeUnselected() {
+  function sheinSizeUnselected(scope) {
     try {
-      var o = document.querySelectorAll('[data-attr_value][data-attr_value_id]');
+      // A Curvy quick-add sheet is a separate product form painted over the
+      // PDP.  Never let its required-size gate inspect the still-visible
+      // background form: that made a selected 5XL look unselected and turned
+      // the floating Otlobli button into an apparent no-op.
+      var host = scope && scope.querySelectorAll ? scope : document;
+      var o = host.querySelectorAll('[data-attr_value][data-attr_value_id]');
       var tot = 0, sel = 0, first = null;
       for (var i = 0; i < o.length; i++) {
         var h = normalizedOptionText(sheinGroupHeading(o[i]));
@@ -5250,6 +5255,41 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (sheinElementIsPainted(drawers[i]) && drawers[i].querySelector('.quickAddName__name')) return drawers[i];
     }
     return null;
+  }
+
+  // SHEIN's Curvy entry opens bsc-quick-add-cart without navigating away from
+  // the main PDP. Keep every validation read inside that active sheet. The
+  // normal page helpers intentionally remain untouched because their job is
+  // to resolve the full PDP, not an overlay product form.
+  function sheinQuickAddSelectionState() {
+    var root = sheinActiveQuickAddDrawer();
+    if (!root) return null;
+    var sizeBox = root.querySelector('.goods-size');
+    if (!sizeBox) {
+      var candidates = root.querySelectorAll('[class*="size" i]');
+      for (var i = 0; i < candidates.length; i++) {
+        var options = getSizeOptions(candidates[i]);
+        if (options.available.length + options.unavailable.length >= 2) {
+          sizeBox = candidates[i];
+          break;
+        }
+      }
+    }
+    var sizeOptions = getSizeOptions(sizeBox);
+    var sizePick = sizeBox && sizeBox.querySelector('.goods-size__sizes-item.size-active,[data-attr_value][aria-checked="true"],.size-active');
+    var size = normalizedOptionText((sizePick && (sizePick.getAttribute('data-attr_value') || sizePick.textContent)) || getSelectedWithin(sizeBox));
+    var colorBox = root.querySelector('.bs-main-sales-attr');
+    var colorPick = colorBox && colorBox.querySelector('.bs-color__item.active,.bs-color__item[aria-checked="true"]');
+    var colorText = normalizedOptionText((root.querySelector('.bs-main-sales-attr__header-title') || {}).textContent || '')
+      .replace(/^[^:：]+[:：]\s*/, '').trim() || getSelectedWithin(colorBox);
+    var colorOptions = colorBox ? colorBox.querySelectorAll('.bs-color__item,[role="radio"],[data-attr_value]') : [];
+    return {
+      root: root,
+      sizeBox: sizeBox,
+      color: { exists: colorOptions.length > 1, selected: colorText, image: swatchImageFrom(colorPick) },
+      size: { exists: !!sizeBox && sizeOptions.available.length + sizeOptions.unavailable.length >= 2,
+        selected: size, available: sizeOptions.available || [], unavailable: sizeOptions.unavailable || [] }
+    };
   }
 
   function sheinQuickAddProductLink(root,info){
@@ -5419,19 +5459,31 @@ export const SHEIN_CAPTURE_SCRIPT = `
         showMessage(addBtn, 'نثبت منطقة الشحن المختارة والدولار... حاول بعد لحظة');
         return;
       }
-      if (sheinOpenSkuDrawer()) return;
+      var quickAddState = sheinQuickAddSelectionState();
+      if (quickAddState) {
+        // The picker has its own independent selections.  Using the background
+        // state here is what broke Curvy sizes after the first product page.
+        colorState = quickAddState.color;
+        sizeState = quickAddState.size;
+      } else if (sheinOpenSkuDrawer()) {
+        return;
+      }
       if (colorState && colorState.exists && !colorState.selected) {
         showMessage(addBtn, 'حدد اللون أولاً');
         return;
       }
       if (sizeState && sizeState.exists && !sizeState.selected) {
-        sheinRevealSizeOptions();
+        if (quickAddState && quickAddState.sizeBox && quickAddState.sizeBox.scrollIntoView) {
+          try { quickAddState.sizeBox.scrollIntoView({ block: 'center' }); } catch (e) {}
+        } else {
+          sheinRevealSizeOptions();
+        }
         showMessage(addBtn, 'حدد المقاس أولاً');
         return;
       }
       // Authoritative gate on top of the heuristic above: never add a sized
       // product with no size chosen (quick-add products slipped through before).
-      if (sheinSizeUnselected()) {
+      if (sheinSizeUnselected(quickAddState && quickAddState.root)) {
         showMessage(addBtn, 'الرجاء تحديد المقاس أولاً');
         return;
       }

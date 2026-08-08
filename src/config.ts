@@ -16,11 +16,10 @@ export const SOURCE_COUNTRY: 'JO' | 'LB' | 'SA' = 'SA'
 // and must be false before any production build.
 export const TEST_ONLY_AUTH_BYPASS = false
 
-// Temporary iPhone-only trace capture. It keeps the normal guarded recovery
-// active so the trace represents the release path, not an intentionally broken
-// store session. Never enable in a normal production build.
-export const SHEIN_IOS_FREEZE_DIAGNOSTICS = true
+// Diagnostic tools ship disabled in normal customer builds. Enable only in a
+// dedicated diagnostic release after recording the affected device and steps.
+export const SHEIN_IOS_FREEZE_DIAGNOSTICS = false
 export const SHEIN_IOS_FREEZE_DIAGNOSTICS_BYPASS_RECOVERY = false
 
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '2026.08.09-v86.82-shein-no-flicker'
+export const APP_VERSION = '2026.08.09-v86.84-curvy-quick-add'

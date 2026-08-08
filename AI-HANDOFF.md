@@ -1,5 +1,20 @@
 # Otlobli AI Handoff
 
+## Current — v86.84 Curvy quick-add form isolation + diagnostics disabled (2026-08-09)
+
+- User-reported bug: in the product `IslaSuriya ...` selecting `قوام كيرفي` opens a `bsc-quick-add-cart` overlay, then choosing `5XL` and pressing the Otlobli green button did nothing. Root cause is confirmed from the code path plus the prior real Note 8 overlay inspection: `addToCartFlow()` gated on `getSizeState()` / `sheinSizeUnselected()` across the background PDP before `captureProductPayload()` switched to `sheinQuickAddPayload()`. Background size was blank, while the overlay had the user’s 5XL selection.
+- v86.84 adds `sheinQuickAddSelectionState()` and makes the add flow use its form-local color/size state before any normal-PDP drawer/gate. `sheinSizeUnselected(scope)` now accepts the active quick-add root, preventing cross-form reads. Do not simplify this back to a document-wide gate: an active `bsc-quick-add-cart` is a separate product configuration surface.
+- Validation: `npm run build`, performance budget and freeze guard pass (`1,192,836 / 1,200,000` raw JS; `546,375 / 550,000` SHEIN source). v86.84 must still be device-tested by opening Curvy from a normal accepted SHEIN session, selecting 5XL, tapping Otlobli add, then verifying the cart records 5XL. Direct automated navigation currently reaches SHEIN’s human-verification page; do not bypass or automate that challenge.
+- Marker/version: `2026.08.09-v86.84-curvy-quick-add`, `86.84 / 944`. Includes the v86.83 diagnostics-off work below; iPhone build/artifact and final real-device acceptance remain pending.
+
+## Current — v86.83 diagnostics disabled in normal releases (2026-08-09)
+
+- The customer explicitly stopped the two active diagnostics: SHEIN price/option diagnostic and iPhone freeze trace/`LOG`.
+- `src/services/sheinPriceDiagnostics.ts` is retained but no longer imported by `src/App.tsx`; the normal browser script has no price button, panel, timer, or diagnostic code in the customer bundle. Do not restore the import except for a separately requested diagnostic build.
+- `SHEIN_IOS_FREEZE_DIAGNOSTICS=false`, so no freeze probe is injected and native `LOG` is off. This does not alter native recompose, iOS lifecycle guards, product-only recovery, region behavior, or Android host-resume defense.
+- The freeze guard now requires the disabled iPhone flag and forbids price-diagnostic imports from `App.tsx` so normal releases cannot accidentally regain either tool.
+- Marker/version: `2026.08.09-v86.83-diagnostics-off`, `86.83 / 943`. Local build, budget, guard, patch reverse-check and Android/iOS sync pass: raw JS `1,189,850 / 1,200,000`, gzip `351,813 / 370,000`, SHEIN source `543,389 / 550,000`. iPhone build/artifact and physical-device acceptance remain pending.
+
 ## Current — v86.82 no-flash recovery and weak-device maintenance (2026-08-09)
 
 - User reported that v86.81 was generally smooth but could show «جاري إصلاح…» / a flash after entering or returning. The root is not a new generic iOS freeze: v86.81 handled every page's `ChunkLoadError`, including home errors that did not actually block SHEIN, and used a close/reopen recovery on both platforms.
