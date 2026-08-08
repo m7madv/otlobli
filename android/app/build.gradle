@@ -7,8 +7,8 @@ android {
         applicationId "com.otlobli.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 933
-        versionName "86.73"
+        versionCode 934
+        versionName "86.74"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

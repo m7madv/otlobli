@@ -2,7 +2,15 @@
 
 Last updated: 2026-08-08
 
-## Active candidate — v86.73 SHEIN product-image / swatch separation (2026-08-08)
+## Active candidate — v86.74 SHEIN quick-add product identity (2026-08-08)
+
+v86.74 fixes the device-proven mix-up where a SHEIN recommendation quick-add drawer sat over a different PDP: Rafferiza’s selected swatch/size were captured from the drawer while the Franclia background supplied the title, image and price. The new cold-path-only capture treats `.bsc-quick-add-cart` as a self-contained product: it reads its Vue `productInfo` (`goods_id`, title, source image), active gallery hero, selected colour icon, active size, displayed quick-add price, and a normalized direct product link. It never reads the background PDP cache or structured product store while that drawer is open. `sheinSelectedSkuPricePending()` also skips the background mutation wait for this distinct drawer. This deliberately avoids restoring v86.64’s hot-path global goods-ID logic, which regressed iPhone interaction.
+
+Validation: `npm run build`, the iPhone freeze guard, and the low-end budget pass (largest JS `1,199,417 / 1,200,000`, gzip `355,224 / 370,000`, SHEIN source `545,737 / 550,000`); Android and iOS are synchronized. Android `86.74 / 934` `assembleDebug` passes and is installed on physical Note 8 `988e16384e4f51395230`. The installed runtime passed a bounded CDP payload test built from the inspected real drawer structure and values: **Rafferiza**, `$13.13`, active product image, its selected swatch, `XL`, and a direct `p-143690938` link; that generated link was then opened on the Note 8 and resolved to the Rafferiza PDP. No native lifecycle, region-transition, polling, or iPhone recompose logic changed.
+
+Artifact: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-android-v86.74\otlobli-v86.74-note8-debug.apk` (11,121,750 bytes, SHA-256 `D883F984AF8F96266F988A6B4B1F4F713847029AA0A593E22F28B33BE5B43937`). Existing wrong cart rows are intentionally not migrated; remove/re-add them and complete one live interactive add from a quick-add drawer. iOS source is synchronized at `86.74 / 934`, but no new IPA was requested or built. Real iPhone acceptance remains required: add from a quick-add drawer, five background/resume cycles, then force-quit/cold launch.
+
+## Previous candidate — v86.73 SHEIN product-image / swatch separation (2026-08-08)
 
 v86.73 corrects the image-field mix-up in v86.72: the cart's large `image` is now the SHEIN product image; `colorImage` alone carries the selected small swatch. The swatch is used for the large image only if SHEIN has no product image at all. The real «المزيد من الخيارات» DOM on the Note 8 has five descriptive `<div>` properties (back tie, embroidery, twist, ruffle lace, square neck), with no SKU value, selected state, or purchase control, so it remains product information rather than an invented cart variant. Existing cart rows retain their previously saved wrong image and must be removed/re-added; the app does not erase the user's cart automatically.
 

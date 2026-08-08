@@ -2456,8 +2456,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return false;
   }
 
-  // The PDP block owning this product's name + price, used to scope the generic
-  // .product-price fallback so it can never reach a rail below.
   function sheinPdpPriceScope() {
     var anchor = document.querySelector('.product-intro__head-price') ||
       document.querySelector('.product-intro__head-name');
@@ -2497,7 +2495,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (!IS_SHEIN) return 0;
     if (sheinHeadPriceIsRange()) return 0;
     var price = 0;
-    // 0) Current markup: bsc-main-price is the live price on its own.
     var mains = document.querySelectorAll(OTLOBLI_MAIN_PRICE_SEL);
     for (var m = 0; m < mains.length && m < 4; m++) {
       if (!sheinElementIsPainted(mains[m])) continue;
@@ -2505,15 +2502,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (mv > 0) price = mv;
     }
     if (price > 0) return price;
-    // 1) Head-price class is header-only, never a rail, so keep v86.23's "last
-    //    painted root wins" (SHEIN leaves a stale root and appends the live one).
     var heads = document.querySelectorAll(OTLOBLI_PRICE_SEL);
     for (var i = 0; i < heads.length && i < 8; i++) {
       var head = sheinPriceFromChangedRoot(heads[i]);
       if (head > 0) price = head;
     }
     if (price > 0) return price;
-    // 2) Fallback: generic .product-price, but only inside this product's block.
     var scope = sheinPdpPriceScope();
     var roots = (scope || document).querySelectorAll('.product-price');
     for (var j = 0; j < roots.length && j < 12; j++) {
@@ -2536,17 +2530,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (!inActiveDrawerGroup &&
         (!colorBox || !colorBox.contains(target)) &&
         (!sizeBox || !sizeBox.contains(target))) return;
-    // Deterministic colour lock (race-free): when the tap lands on a COLOUR
-    // swatch, record its label+image from the TAPPED element NOW - not from a
-    // later getColorState() read that races the click-to-buy sheet closing on
-    // iOS (device: name randomly reverted to the stale main-page hero colour).
     if (colorBox && colorBox.contains(target)) {
       var tappedSw = target.closest(
         'li,button,[role="radio"],[role="option"],[class*="item" i],[class*="color" i]') || target;
       var tapLbl = sheinSelectionLabel(tappedSw);
       var tapImage = swatchImageFrom(tappedSw);
-      // Some real SHEIN colour choices share a generic label. Their icon,
-      // rather than the product hero, is the only precise chosen variant.
       if ((tapLbl && !isGenericColorName(tapLbl)) || tapImage) {
         if (tapLbl) __otlobliSelectedSkuColor = tapLbl;
         if (tapImage) __otlobliSelectedSkuColorImage = tapImage;
@@ -2614,6 +2602,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   function sheinSelectedSkuPricePending() {
+    if (sheinActiveQuickAddDrawer()) return false;
     if (!__otlobliSelectedSkuPriceObserver) return false;
     var ready = __otlobliSelectedSkuPrice > 0 &&
       __otlobliSelectedSkuPricePath === location.pathname &&
@@ -2671,6 +2660,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       skuEntry: sheinSkuSelectionEntry,
       openDrawer: sheinOpenSkuDrawer,
       storeVariant: sheinStoreVariant,
+      quick: sheinQuickAddPayload,
       pending: sheinSelectedSkuPricePending,
       saved: function () {
         return {
@@ -2717,9 +2707,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return '';
   }
 
-  // Skip images inside an app-download/promo widget (their logo can outsize the
-  // product photo). A broad "banner"/"ad"/"popup" blocklist false-positived the
-  // real gallery carousel, so match only the exact "install our app" signature.
   function isInPromoWidget(img) {
     var el = img;
     var depth = 0;
@@ -2732,10 +2719,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return false;
   }
 
-  // A real gallery = 3+ SHEIN-hosted <img> sharing a wrapper *className*
-  // (each photo sits in its own <li>, so grouping by ancestor element fails).
-  // renderedMinDim = smallest rendered CSS side; off-screen carousel clones
-  // still report full size, a lazy image reports 0 = unknown (not filtered).
   function renderedMinDim(img) {
     var r = img.getBoundingClientRect();
     var w = r.width || img.clientWidth || 0;
@@ -2754,8 +2737,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (isInPromoWidget(img)) continue;
       var src = realImgSrc(img);
       if (!src) continue;
-      // Drop icon-sized images (rating stars, swatches, glyphs): they cluster in
-      // 3+ groups too and the old "biggest group wins" once shipped a star photo.
       var dim = renderedMinDim(img);
       if (dim > 0 && dim < 64) continue;
       var pCls = img.parentElement ? (img.parentElement.className || '').trim() : '';
@@ -2763,8 +2744,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (!byParentClass[pCls]) { byParentClass[pCls] = []; order.push(pCls); }
       byParentClass[pCls].push(img);
     }
-    // Pick the group rendering LARGEST (hero carousel), not the most members: a
-    // "you may also like" strip can have more thumbnails, yet each is smaller.
     var bestKey = null;
     var bestArea = 0;
     for (var k = 0; k < order.length; k++) {
@@ -2780,9 +2759,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (maxArea > bestArea) { bestArea = maxArea; bestKey = key; }
     }
     if (!bestKey) return '';
-    // Infinite-loop slider: it clones the first/last slides to wrap around, and
-    // clones render full-size parked off to the sides. Only the visible slide
-    // has left close to 0, so pick the loaded slide whose left is nearest 0.
     var group = byParentClass[bestKey];
     var best = group[0];
     var bestAbsLeft = Infinity;
@@ -2795,8 +2771,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return realImgSrc(best);
   }
 
-  // Last-resort fallback: scan every non-promo SHEIN-hosted <img> on the page
-  // and pick the one with the largest rendered/declared area.
   function getLargestSheinImage() {
     var imgs = document.querySelectorAll(
       'img[src*="ltwebstatic"], img[src*="img.shein"], img[data-src*="ltwebstatic"], img[data-src*="img.shein"]'
@@ -2807,8 +2781,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (isInPromoWidget(imgs[i])) continue;
       var src = realImgSrc(imgs[i]);
       if (!src) continue;
-      // Same icon-sized skip as getGalleryImage - never let a rating star or
-      // swatch win the last-resort "largest image" pick.
       var rdim = renderedMinDim(imgs[i]);
       if (rdim > 0 && rdim < 64) continue;
       var w = imgs[i].naturalWidth || imgs[i].clientWidth || parseInt(imgs[i].getAttribute('width') || '0', 10) || 0;
@@ -5199,9 +5171,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return unmet;
   }
 
-  // Authoritative capture from SHEIN's own structured store (beats DOM guesses):
-  // colour+image from mainSaleAttribute[current goods_id]; size+real price+sku_code
-  // from the sku_list entry matching the selected values. Null => DOM fallback.
   function sheinStoreVariant() {
     try {
       var el = document.getElementById('app');
@@ -5226,8 +5195,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
         color = normalizedOptionText(mArr[0].attr_value || '');
         image = normalizeImageUrl(mArr[0].goods_image || '');
       }
-      // Drawer colour beats the page gid: shopper picks a colour in the add
-      // drawer but SHEIN keeps the page goods_id, so gid colour is stale.
       try {
         var drs = document.querySelectorAll('.sui-drawer');
         for (var dd = 0; dd < drs.length; dd++) {
@@ -5310,6 +5277,43 @@ export const SHEIN_CAPTURE_SCRIPT = `
     } catch (e) { return false; }
   }
 
+  function sheinActiveQuickAddDrawer() {
+    var drawers = document.querySelectorAll('.bsc-quick-add-cart');
+    for (var i = drawers.length - 1; i >= 0; i--) {
+      if (sheinElementIsPainted(drawers[i]) && drawers[i].querySelector('.quickAddName__name')) return drawers[i];
+    }
+    return null;
+  }
+
+  function sheinQuickAddPayload() {
+    var root = sheinActiveQuickAddDrawer();
+    if (!root) return null;
+    var info = {}, node = root, app, comp;
+    for (var hop = 0; node && hop < 9 && !info.goods_id; node = node.parentElement, hop++) try {
+      app = node.__vue_app__; comp = app && app._container && app._container._vnode && app._container._vnode.component;
+      info = (comp && comp.setupState && comp.setupState.productInfo) || info;
+    } catch (e) {}
+    var title = cleanTitle((root.querySelector('.quickAddName__name') || {}).textContent || info.goods_name || '');
+    var active = root.querySelector('.bsc-gallery__swiper-slide-active');
+    var image = realImgSrc(active && active.querySelector('img.crop-image-container__real-image,img:not([aria-hidden])')) ||
+      realImgSrc(root.querySelector('.crop-image-container__real-image')) || normalizeImageUrl(info.goods_img || '');
+    var colorHead = root.querySelector('.bs-main-sales-attr__header-title');
+    var color = normalizedOptionText((colorHead && colorHead.textContent) || '').replace(/^[^:：]+[:：]\s*/, '').trim();
+    var colorPick = root.querySelector('.bs-color__item.active,.bs-color__item[aria-checked="true"]');
+    var colorImage = swatchImageFrom(colorPick);
+    var sizeBox = root.querySelector('.goods-size');
+    var sizePick = sizeBox && sizeBox.querySelector('.goods-size__sizes-item.size-active,[data-attr_value][aria-checked="true"]');
+    var size = normalizedOptionText((sizePick && (sizePick.getAttribute('data-attr_value') || sizePick.textContent)) || '');
+    var sizes = getSizeOptions(sizeBox);
+    var price = sheinUsdValue((root.querySelector('.quickPrice__main') || {}).textContent || '') || sheinPriceFromChangedRoot(root);
+    var link = info.goods_id ? (location.origin + '/ar/-p-' + info.goods_id + '.html') : location.href;
+    if (!title || !(price > 0) || !image) return null;
+    return { title: title, priceUsd: price, priceSource: 'quick-add', image: image, colorImage: colorImage,
+      colorImageFound: !!colorImage, color: color, size: size, skuCode: '', sizesAvailable: sizes.available || [],
+      sizesUnavailable: sizes.unavailable || [], link: otlobliNormalizeSheinUrl(link), needsCustomPhoto: false,
+      customPhotoNote: '', needsCustomText: false, customText: '', customTextLimit: 0 };
+  }
+
   function captureProductPayload(colorState, sizeState, allowGenericTitle) {
     if (IS_TEMU) {
       var perso = temuPersonalization();
@@ -5362,6 +5366,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
         customTextLimit: customReq.textLimit || 0,
       };
     }
+    var sheinQuick = sheinQuickAddPayload();
+    if (sheinQuick) return sheinQuick;
     var sheinCustomReq = sheinCustomRequirements();
     // Resolve price + its source before the payload so the source describes THIS read.
     var sheinPriceUsd = getPrice();
