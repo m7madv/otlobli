@@ -3409,9 +3409,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function sheinSkuSelectionEntry() {
     if (!IS_SHEIN || !document.body) return null;
-    // SHEIN's own JS hook class. Device-measured on three products: the text
-    // scan below kept resolving to the goods-size WRAPPER, which ignores the
-    // press, while this is the node that actually carries the handler.
     var hook = document.querySelector('.j-select-to-buy');
     if (hook && sheinElementIsVisible(hook)) return hook;
     var titles = document.querySelectorAll('.goods-size__title,[class*="size__title" i]');
@@ -5689,13 +5686,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }, 8000);
   }
 
-  // Dedicated "add to cart" action. Used to share a corner with a floating
-  // cart-icon button, but that button was dropped entirely - the bottom nav
-  // (see ensureOtlobliNav) already has its own "السلة" tab that does the
-  // exact same thing, so the floating icon was pure redundancy. Placed
-  // bottom-right (thumb reach, doesn't cover the header or SHEIN's own
-  // price/title block), and only visible while looking at an actual
-  // product page.
+  var __otlobliQuickAddClearanceNext = 0;
   function ensureAddToCartButton() {
     var btn = document.getElementById('otlobli-add-btn');
     if (!btn) {
@@ -5913,6 +5904,29 @@ export const SHEIN_CAPTURE_SCRIPT = `
       !(IS_TEMU && temuImageViewerOpen()) &&
       !(IS_SHEIN && sheinImageViewerOpen());
     btn.style.display = showAddBtn ? 'flex' : 'none';
+    if (IS_SHEIN && showAddBtn && Date.now() >= __otlobliQuickAddClearanceNext) {
+      __otlobliQuickAddClearanceNext = Date.now() + 500;
+      var quick = sheinActiveQuickAddDrawer();
+      var scroller = quick && quick.parentElement;
+      if (quick && scroller && scroller.classList.contains('sui-drawer__body')) {
+        var room = Math.ceil(innerHeight - btn.getBoundingClientRect().top) + 20;
+        var roomText = room + 'px';
+        if (scroller.style.paddingBottom !== roomText) {
+          scroller.style.paddingBottom = roomText;
+          scroller.style.scrollPaddingBottom = roomText;
+        }
+        var groups = quick.querySelectorAll('.goods-size');
+        var lastGroup = groups[groups.length - 1];
+        if (lastGroup) {
+          var key = scroller.scrollHeight + ':' + lastGroup.offsetTop + ':' + lastGroup.offsetHeight + ':' + room;
+          if (quick.getAttribute('data-otlobli-add-clearance') !== key) {
+            var shift = Math.ceil(lastGroup.getBoundingClientRect().bottom - (btn.getBoundingClientRect().top - 14));
+            if (shift > 0) scroller.scrollTop += shift;
+            quick.setAttribute('data-otlobli-add-clearance', key);
+          }
+        }
+      }
+    }
   }
 
   // otlobli's own bottom nav, drawn inside this webview (a separate native layer

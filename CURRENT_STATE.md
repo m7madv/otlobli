@@ -2,6 +2,12 @@
 
 Last updated: 2026-08-08
 
+## Active candidate — v86.75 SHEIN quick-add safe space (2026-08-08)
+
+v86.75 fixes the real overlap in the SHEIN quick-add drawer: the drawer owns an independent `.sui-drawer__body` scroller, while Otlobli’s floating add button stays above it. On the live Note 8, the button began at `y=620` while the active size reached `y=648`, so `XL`/`L` could be physically covered. The new bounded SHEIN-only path adds a bottom inset to that drawer and, once per changed drawer state, scrolls its final `.goods-size` group above the button. It is not a global page scroll, does not move the button, and does not touch capture, region, native lifecycle, polling, or iPhone recompose logic.
+
+Marker: `2026.08.08-v86.75-shein-sku-safe-space`; native version `86.75 / 935`. `npm run build`, the iPhone freeze guard, and the low-end budget pass: largest JS `1,199,969 / 1,200,000`, gzip `355,243 / 370,000`, SHEIN source `546,301 / 550,000`. Android and iOS were synchronized. An unsigned iPhone workflow is requested for this exact source; it still needs the real iPhone acceptance set: quick-add size visibility, five background/resume cycles, and force-quit/cold launch. Do not claim the prior iPhone freeze resolved without those tests.
+
 ## Active candidate — v86.74 SHEIN quick-add product identity (2026-08-08)
 
 v86.74 fixes the device-proven mix-up where a SHEIN recommendation quick-add drawer sat over a different PDP: Rafferiza’s selected swatch/size were captured from the drawer while the Franclia background supplied the title, image and price. The new cold-path-only capture treats `.bsc-quick-add-cart` as a self-contained product: it reads its Vue `productInfo` (`goods_id`, title, source image), active gallery hero, selected colour icon, active size, displayed quick-add price, and a normalized direct product link. It never reads the background PDP cache or structured product store while that drawer is open. `sheinSelectedSkuPricePending()` also skips the background mutation wait for this distinct drawer. This deliberately avoids restoring v86.64’s hot-path global goods-ID logic, which regressed iPhone interaction.
