@@ -508,6 +508,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       }).filter(Boolean).slice(0, 4)
     : [];
   var SHEIN_SUPPORTED_COUNTRY_NAMES = {
+    JO: ['Jordan', 'الأردن'],
     SA: ['Saudi Arabia', 'السعودية', 'المملكة العربية السعودية'],
     AE: ['United Arab Emirates', 'UAE', 'الإمارات', 'الإمارات العربية المتحدة'],
     BH: ['Bahrain', 'البحرين'],
@@ -985,7 +986,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   var sheinRegionVeilStartedAt = 0;
   function sheinRegionCountryLabel() {
-    return ({ SA: '\u0627\u0644\u0633\u0639\u0648\u062f\u064a\u0629', AE: '\u0627\u0644\u0625\u0645\u0627\u0631\u0627\u062a', QA: '\u0642\u0637\u0631', KW: '\u0627\u0644\u0643\u0648\u064a\u062a', BH: '\u0627\u0644\u0628\u062d\u0631\u064a\u0646', OM: '\u0639\u064f\u0645\u0627\u0646', LB: '\u0644\u0628\u0646\u0627\u0646' })[SHEIN_REQUIRED_COUNTRY] || SHEIN_REQUIRED_COUNTRY;
+    return ({ JO: '\u0627\u0644\u0623\u0631\u062f\u0646', SA: '\u0627\u0644\u0633\u0639\u0648\u062f\u064a\u0629', AE: '\u0627\u0644\u0625\u0645\u0627\u0631\u0627\u062a', QA: '\u0642\u0637\u0631', KW: '\u0627\u0644\u0643\u0648\u064a\u062a', BH: '\u0627\u0644\u0628\u062d\u0631\u064a\u0646', OM: '\u0639\u064f\u0645\u0627\u0646', LB: '\u0644\u0628\u0646\u0627\u0646' })[SHEIN_REQUIRED_COUNTRY] || SHEIN_REQUIRED_COUNTRY;
   }
   function sheinRegionTransitionVeil(show) {
     if (!IS_SHEIN || !document.body) return;
@@ -1142,7 +1143,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function sheinShippingRegionFromText(value) {
     try {
       var text = String(value || '').replace(/\\s+/g, ' ').trim();
-      var match = text.match(/(?:Shipping|Ships?|Delivery|Deliver(?:ing)?|الشحن|التوصيل)\\s*(?:to|إلى|الي|ل)?\\s*(Saudi Arabia|السعودية|المملكة العربية السعودية|Bahrain|United Arab Emirates|UAE|Kuwait|Qatar|Oman|Lebanon|البحرين|الإمارات(?: العربية المتحدة)?|الكويت|قطر|عمان|عُمان|لبنان)(?:\\b|(?=\\s|$|[،,.;:()]))/i);
+      var match = text.match(/(?:Shipping|Ships?|Delivery|Deliver(?:ing)?|الشحن|التوصيل)\\s*(?:to|إلى|الي|ل)?\\s*(Jordan|الأردن|Saudi Arabia|السعودية|المملكة العربية السعودية|Bahrain|United Arab Emirates|UAE|Kuwait|Qatar|Oman|Lebanon|البحرين|الإمارات(?: العربية المتحدة)?|الكويت|قطر|عمان|عُمان|لبنان)(?:\\b|(?=\\s|$|[،,.;:()]))/i);
       if (!match) return '';
       var code = sheinCountryCodeFromLabel(match[1] || '');
       return code === SHEIN_REQUIRED_COUNTRY ? SHEIN_REQUIRED_COUNTRY : 'FOREIGN';
@@ -1379,7 +1380,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function sheinTranslateRegionLabels(options, tabs) {
     var map = {
       'Saudi Arabia': 'السعودية', 'Riyadh Province': 'منطقة الرياض', 'Riyadh': 'الرياض', 'Al Olaya': 'العليا',
-      'United Arab Emirates': 'الإمارات', 'UAE': 'الإمارات', 'Kuwait': 'الكويت', 'Qatar': 'قطر',
+      'Jordan': 'الأردن', 'United Arab Emirates': 'الإمارات', 'UAE': 'الإمارات', 'Kuwait': 'الكويت', 'Qatar': 'قطر',
       'Bahrain': 'البحرين', 'Oman': 'عُمان', 'Lebanon': 'لبنان'
     };
     var nodes = (options || []).concat(tabs || []);
@@ -1435,7 +1436,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   function sheinCountryIndexLetter() {
-    var map = { SA: 'S', AE: 'U', BH: 'B', KW: 'K', LB: 'L', OM: 'O', QA: 'Q' };
+    var map = { JO: 'J', SA: 'S', AE: 'U', BH: 'B', KW: 'K', LB: 'L', OM: 'O', QA: 'Q' };
     return map[SHEIN_REQUIRED_COUNTRY] || String((SHEIN_SUPPORTED_COUNTRY_NAMES[SHEIN_REQUIRED_COUNTRY] || [''])[0] || '').charAt(0).toUpperCase();
   }
 
@@ -1490,7 +1491,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     try {
       var before = scroller.scrollTop;
       var delta = Math.max(160, Math.floor((scroller.clientHeight || 360) * 0.72));
-      var order = { BH: 0, KW: 1, LB: 2, OM: 3, QA: 4, SA: 5, AE: 6 };
+      var order = { BH: 0, JO: 1, KW: 2, LB: 3, OM: 4, QA: 5, SA: 6, AE: 7 };
       var firstCode = sheinCountryCodeFromLabel(sheinUiText(options[0]));
       var direction = firstCode && order[SHEIN_REQUIRED_COUNTRY] < order[firstCode] ? -1 : 1;
       scroller.scrollTop = Math.max(0, before + (direction * delta));
@@ -1667,7 +1668,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (rect.width < vp.width * 0.72 || rect.height < vp.height * 0.2) return false;
       var text = sheinUiText(el);
       if (!text || text.length > 6500) return false;
-      var hasCountry = /Saudi Arabia|United Arab Emirates|Bahrain|Kuwait|Lebanon|Oman|Qatar|\\u0627\\u0644\\u0633\\u0639\\u0648\\u062f\\u064a\\u0629|\\u0627\\u0644\\u0625\\u0645\\u0627\\u0631\\u0627\\u062a|\\u0627\\u0644\\u0628\\u062d\\u0631\\u064a\\u0646|\\u0627\\u0644\\u0643\\u0648\\u064a\\u062a|\\u0644\\u0628\\u0646\\u0627\\u0646|\\u0639\\u0645\\u0627\\u0646|\\u0642\\u0637\\u0631/i.test(text);
+      var hasCountry = /Jordan|Saudi Arabia|United Arab Emirates|Bahrain|Kuwait|Lebanon|Oman|Qatar|\\u0627\\u0644\\u0623\\u0631\\u062f\\u0646|\\u0627\\u0644\\u0633\\u0639\\u0648\\u062f\\u064a\\u0629|\\u0627\\u0644\\u0625\\u0645\\u0627\\u0631\\u0627\\u062a|\\u0627\\u0644\\u0628\\u062d\\u0631\\u064a\\u0646|\\u0627\\u0644\\u0643\\u0648\\u064a\\u062a|\\u0644\\u0628\\u0646\\u0627\\u0646|\\u0639\\u0645\\u0627\\u0646|\\u0642\\u0637\\u0631/i.test(text);
       var hasAddressShape = /(?:Choose|Select)\\s+(?:a\\s+)?location|Province|Governorate|District|Riyadh|Al Olaya|\\u0627\\u062e\\u062a\\u064a\\u0627\\u0631\\s+\\u0645\\u0648\\u0642\\u0639|\\u0645\\u0642\\u0627\\u0637\\u0639\\u0629|\\u0645\\u062d\\u0627\\u0641\\u0638\\u0629|\\u0627\\u0644\\u0645\\u062f\\u064a\\u0646\\u0629|\\u0645\\u0646\\u0637\\u0642\\u0629/i.test(text);
       var hasVerifiedUpperDrawerShape = !!(
         el.querySelector &&
@@ -1675,7 +1676,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         el.querySelector('.address-header-tab') &&
         el.querySelector('ul.upper-list,[role="listbox"],[class*="upper-list" i]')
       );
-      var countryMatches = text.match(/Saudi Arabia|United Arab Emirates|Bahrain|Kuwait|Lebanon|Oman|Qatar|\\u0627\\u0644\\u0633\\u0639\\u0648\\u062f\\u064a\\u0629|\\u0627\\u0644\\u0625\\u0645\\u0627\\u0631\\u0627\\u062a|\\u0627\\u0644\\u0628\\u062d\\u0631\\u064a\\u0646|\\u0627\\u0644\\u0643\\u0648\\u064a\\u062a|\\u0644\\u0628\\u0646\\u0627\\u0646|\\u0639\\u0645\\u0627\\u0646|\\u0642\\u0637\\u0631/ig) || [];
+      var countryMatches = text.match(/Jordan|Saudi Arabia|United Arab Emirates|Bahrain|Kuwait|Lebanon|Oman|Qatar|\\u0627\\u0644\\u0623\\u0631\\u062f\\u0646|\\u0627\\u0644\\u0633\\u0639\\u0648\\u062f\\u064a\\u0629|\\u0627\\u0644\\u0625\\u0645\\u0627\\u0631\\u0627\\u062a|\\u0627\\u0644\\u0628\\u062d\\u0631\\u064a\\u0646|\\u0627\\u0644\\u0643\\u0648\\u064a\\u062a|\\u0644\\u0628\\u0646\\u0627\\u0646|\\u0639\\u0645\\u0627\\u0646|\\u0642\\u0637\\u0631/ig) || [];
       var hasCountryListShape = countryMatches.length >= 3 &&
         /Shipping\\s+to|Ship\\s+to|\\u0627\\u0644\\u0634\\u062d\\u0646\\s+(?:\\u0625\\u0644\\u0649|\\u0627\\u0644\\u064a)/i.test(text);
       return hasCountry && (hasAddressShape || hasVerifiedUpperDrawerShape || hasCountryListShape);

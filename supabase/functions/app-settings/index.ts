@@ -35,6 +35,28 @@ const DEFAULTS: Record<string, string> = {
   support_whatsapp_phone: '',
 }
 
+const STORE_REGION_COUNTRIES = new Set(['JO', 'AE', 'QA', 'SA'])
+const SAUDI_ADDRESS_PATH = ['Riyadh Province', 'Riyadh', 'Al Olaya']
+
+function isAllowedStoreRegion(value: unknown) {
+  try {
+    const region = JSON.parse(String(value)) as {
+      countryCode?: unknown
+      currency?: unknown
+      language?: unknown
+      addressPath?: unknown
+    }
+    const countryCode = String(region.countryCode ?? '').toUpperCase()
+    if (!STORE_REGION_COUNTRIES.has(countryCode) || region.currency !== 'USD' || region.language !== 'ar' || !Array.isArray(region.addressPath)) return false
+    const addressPath = region.addressPath.map((part) => String(part).trim()).filter(Boolean)
+    return countryCode === 'SA'
+      ? addressPath.length === SAUDI_ADDRESS_PATH.length && addressPath.every((part, index) => part === SAUDI_ADDRESS_PATH[index])
+      : addressPath.length === 0
+  } catch {
+    return false
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders })
 
@@ -84,6 +106,13 @@ Deno.serve(async (req) => {
     const body = (await req.json()) as { key?: string; value?: string }
     if (!body.key || body.value === undefined) {
       return new Response(JSON.stringify({ error: 'missing key/value' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'content-type': 'application/json' },
+      })
+    }
+
+    if ((body.key === 'store_region_shein' || body.key === 'store_region_temu') && !isAllowedStoreRegion(body.value)) {
+      return new Response(JSON.stringify({ error: 'unsupported store region' }), {
         status: 400,
         headers: { ...corsHeaders, 'content-type': 'application/json' },
       })

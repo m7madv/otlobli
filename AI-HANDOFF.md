@@ -4,8 +4,9 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
 **Work cheap: read `docs/AI_FASTPATH.md` first** (device-debug playbook, `scripts/otlobli-cdp.mjs`, function line-map — never read the 550 KB `sheinBrowserScript.ts` whole).
 
-## Active work — v86.69 iPhone listing tap + Saudi bootstrap + portrait lock (2026-08-08)
+## Active work — v86.70 four managed store regions (2026-08-08)
 
+Admin exposes only JO/AE/QA/SA for both independent stores. The Edge Function validates the same list, USD/ar, and Saudi's exact address path. Jordan is recognized in SHEIN's live drawer, index shortcut, Arabic label, scroll order, and signed variable-depth readiness. Builds, sync, and Android 86.70 / 930 pass; deploy app-settings and Admin, build the v86.70 IPA, then perform real JO/AE/QA switches.
 - Branch in this worktree: `claude/shein-ios-freeze-d75f65`; native version `86.69 / 929`; marker `2026.08.08-v86.69-ios-list-tap-region`.
 - Exact iPhone symptom: a home card opens a second SHEIN listing, then short taps on that listing do not route while long press shows SHEIN’s native menu. Treat it as an iOS short-tap route failure, not a general freeze.
 - Candidate fix in `src/services/sheinBrowserScript.ts`: document-start iOS fallback waits 280 ms for SHEIN, then clicks the unchanged exact card once. It covers `.product-card`, the proven `LI.sd-ccc-products__item[role="link"]`, and narrowly named product/goods card classes. It rejects swipes / >650 ms presses. Preserve its scope: no recompose bursts, polling, reloads, or touch prevention.

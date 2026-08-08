@@ -2,8 +2,9 @@
 
 Last updated: 2026-08-08
 
-## Active candidate — v86.69 iPhone listing tap + Saudi bootstrap + portrait lock (2026-08-08)
+## Active candidate — v86.70 four managed store regions (2026-08-08)
 
+Admin now allows only Jordan (JO), United Arab Emirates (AE), Qatar (QA), and Saudi Arabia (SA) for each independent store; the Edge Function rejects any other or malformed region. Jordan now participates in the automatic SHEIN signed-address path. Builds, sync, and Android 86.70 / 930 pass; deployments and real JO/AE/QA acceptance remain pending.
 - **iPhone diagnosis:** SHEIN home is interactive and a long press opens SHEIN’s native “Not interested” menu, but a short tap on a product card in the second listing opened from home does not route. This is a short-tap route failure, not a complete page freeze; Android does not reproduce it.
 - **Chosen fix:** the iOS-only, document-start fallback still gives SHEIN 280 ms to handle the original tap, then calls the exact same card’s native `.click()` once only if the URL did not change. It now recognizes the proven second-listing card `LI.sd-ccc-products__item[role="link"]`, in addition to `.product-card` and narrowly named product/goods cards. A real Note 8 CDP click on that exact `LI` navigated SHEIN to its flash-sale route. Swipes and presses longer than 650 ms are excluded, so the native long-press menu remains intact. No polling, overlay, reload, touch prevention, or native recompose timing changed.
 - **Saudi bootstrap:** the existing home semantic entry remains `.area-selector-entrance[role="button"]`; the address cascade’s real mobile tabs (`.cascade__tabs [role="tab"]` / `.sui-tab-item-mobile`) are now included in the bounded region path. On the Note 8, signed Saudi state remains `Riyadh Province → Riyadh → Al Olaya`; a fresh first-ever-SHEIN session still needs iPhone acceptance.
