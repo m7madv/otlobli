@@ -131,9 +131,9 @@ const checks = [
     label: 'SHEIN quick-add cart-link guard',
     file: 'src/services/sheinBrowserScript.ts',
     markers: [
-      'function sheinQuickAddProductLink(root, info)',
-      "'goods_url_name'",
-      "'/ar/product-p-' + id + '.html'",
+      'function sheinQuickAddProductLink(root,info)',
+      "var suffix='-p-'+id+'.html'",
+      "'/ar/product-p-'+id+'.html'",
     ],
     forbidden: ["location.origin + '/ar/-p-' + info.goods_id + '.html'"],
   },

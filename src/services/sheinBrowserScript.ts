@@ -5278,30 +5278,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return null;
   }
 
-  function sheinQuickAddProductLink(root, info) {
-    var id = String((info && info.goods_id) || '').replace(/\D/g, '');
-    if (!id) return '';
-    var idPath = new RegExp('-p-' + id + '\\.html', 'i');
-    try {
-      var exact = root.querySelector('a[href*="-p-' + id + '.html"]');
-      if (exact && exact.href && idPath.test(exact.href)) return exact.href;
-    } catch (e) {}
-    var fields = ['goods_url', 'goodsUrl', 'goods_url_name', 'goodsUrlName', 'detail_url', 'detailUrl', 'url', 'href'];
-    for (var i = 0; i < fields.length; i++) {
-      var value = String((info && info[fields[i]]) || '').trim();
-      if (!value) continue;
-      try {
-        var resolved = new URL(value, location.origin);
-        if (idPath.test(resolved.pathname)) return resolved.toString();
-      } catch (e) {}
-      var slug = value.replace(/^https?:\/\/[^/]+\//i, '').replace(/^\/?(?:ar\/)?/i, '')
-        .replace(/\.html(?:[?#].*)?$/i, '').replace(/-p-\d+$/i, '').replace(/^[-/]+|[-/]+$/g, '');
-      if (slug && /^[a-z0-9][a-z0-9_.,%()&+\-\/]{1,500}$/i.test(slug)) {
-        return location.origin + '/ar/' + slug + '-p-' + id + '.html';
-      }
-    }
-    // SHEIN requires text before the product-id suffix; never persist the old bare path.
-    return location.origin + '/ar/product-p-' + id + '.html';
+  function sheinQuickAddProductLink(root,info){
+    var id=String(info&&info.goods_id||'').replace(/\D/g,'');
+    if(!id)return location.href;
+    var suffix='-p-'+id+'.html';
+    try{var a=root.querySelector('a[href*="'+suffix+'"]');if(a&&a.href)return a.href}catch(e){}
+    return location.origin+'/ar/product-p-'+id+'.html';
   }
 
   function sheinQuickAddPayload() {
