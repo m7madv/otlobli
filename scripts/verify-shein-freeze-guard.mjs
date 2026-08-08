@@ -149,6 +149,25 @@ const checks = [
     ],
   },
   {
+    label: 'SHEIN confirmed chunk-failure recovery',
+    file: 'src/services/sheinBrowserScript.ts',
+    markers: [
+      'const OTLOBLI_SHEIN_CHUNK_FAILURE_BRIDGE_JS',
+      "type:'sheinChunkLoadFailure'",
+      'ChunkLoadError|Loading chunk',
+    ],
+  },
+  {
+    label: 'SHEIN chunk recovery host path',
+    file: 'src/App.tsx',
+    markers: [
+      'const recoverSheinChunkLoad = (reportedUrl: string)',
+      "detail?.type === 'sheinChunkLoadFailure'",
+      'now - sheinChunkRecoveryAtRef.current < 60_000',
+      'sheinCacheResetPendingRef.current = true',
+    ],
+  },
+  {
     label: 'SHEIN runtime-cache ownership',
     file: 'src/services/sheinBrowserScript.ts',
     markers: [],

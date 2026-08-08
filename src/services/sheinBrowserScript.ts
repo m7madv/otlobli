@@ -62,6 +62,10 @@ function otlobliInstallIosProductTapFallback(){var u=navigator.userAgent||'',s,t
 otlobliInstallIosProductTapFallback();
 `
 
+// Reports only a confirmed SHEIN PWA chunk failure once; it does not alter
+// navigation or site storage. The host performs the bounded fresh-session recovery.
+const OTLOBLI_SHEIN_CHUNK_FAILURE_BRIDGE_JS = `function otlobliInstallSheinChunkFailureBridge(){if(!/shein/i.test(location.hostname)||window.__otlobliSheinChunkFailureBridge)return;window.__otlobliSheinChunkFailureBridge=1;var sent=0;function p(v){if(sent)return;var m='';try{m=String(v&&((v.message||v.reason)||(v.error&&v.error.message))||v||'')}catch(e){}if(!/ChunkLoadError|Loading chunk\\s+\\d+\\s+failed/i.test(m))return;sent=1;try{var d={type:'sheinChunkLoadFailure',url:location.href,message:m.slice(0,180)},h=window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.messageHandler;if(window.mobileApp&&window.mobileApp.postMessage)window.mobileApp.postMessage({detail:d});else if(h)h.postMessage({detail:d})}catch(e){}}addEventListener('error',function(e){p(e&&((e.error&&e.error.message)||e.message))},true);addEventListener('unhandledrejection',function(e){p(e&&e.reason)})}otlobliInstallSheinChunkFailureBridge();`
+
 // Runs as a real WKUserScript before SHEIN's first document starts. It mounts
 // only Otlobli's existing bottom navigation; it does not touch SHEIN network,
 // storage, region, CSS, or page lifecycle. The full capture script adopts the
@@ -73,6 +77,7 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
 
   ${OTLOBLI_NAV_TOUCH_BRIDGE_JS}
   ${OTLOBLI_IOS_PRODUCT_TAP_FALLBACK_JS}
+  ${OTLOBLI_SHEIN_CHUNK_FAILURE_BRIDGE_JS}
 
   var timer = 0;
   var attempts = 0;

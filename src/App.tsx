@@ -2625,6 +2625,8 @@ function App() {
   const sheinReadinessTimerRef = useRef<number | undefined>(undefined)
   const sheinRecoveryAttemptRef = useRef(0)
   const sheinCacheResetPendingRef = useRef(false)
+  const sheinChunkRecoveryInFlightRef = useRef(false)
+  const sheinChunkRecoveryAtRef = useRef(0)
   // فُتح المتجر عبر «فتح على أي حال» رغم فشل بوابة VPN. عندها لو لم تُحمّل الصفحة
   // فعلاً، نرجع لبوابة «شغّل VPN» بدل عرض صفحة بيضاء (بدل الإظهار القسري).
   const openedViaBypassRef = useRef(false)
@@ -3092,6 +3094,55 @@ function App() {
         webviewAutoOpenPausedUntilRef.current = 0
         suppressAutoReopenRef.current = false
         if (screenRef.current === 'home') showStoreOpenFailure()
+      })
+  }
+
+  const recoverSheinChunkLoad = (reportedUrl: string) => {
+    if (selectedStoreRef.current !== 'shein' || !sheinOpenedRef.current || sheinChallengeActiveRef.current) return
+
+    const now = Date.now()
+    // A broken PWA can emit dozens of rejected chunk promises in one frame.
+    // Treat them as one incident and never make a close/open loop from them.
+    if (sheinChunkRecoveryInFlightRef.current || now - sheinChunkRecoveryAtRef.current < 60_000) return
+    sheinChunkRecoveryInFlightRef.current = true
+    sheinChunkRecoveryAtRef.current = now
+
+    const candidateUrl = reportedUrl || currentWebviewUrlRef.current
+    const resumeProductUrl = sheinProductIdentityFromUrl(candidateUrl)
+      ? normalizeSheinBrowserUrl(candidateUrl, storeRegionsRef.current.shein)
+      : ''
+
+    clearSheinReadinessWatchdog()
+    clearPendingProductPreparation()
+    suppressAutoReopenRef.current = true
+    webviewClosingRef.current = true
+    webviewSessionRef.current += 1
+    webviewOpeningRef.current = false
+    webviewOpenedAtRef.current = 0
+    webviewIdRef.current = ''
+    sheinChallengeActiveRef.current = false
+    currentWebviewUrlRef.current = ''
+    sheinOpenedRef.current = false
+    setSheinReady(false)
+    // This is the same limited disk/memory-cache reset that makes the proven
+    // Temu → SHEIN recovery healthy. It deliberately leaves cookies, storage,
+    // service-worker registration, and the selected address untouched.
+    sheinCacheResetPendingRef.current = true
+    showNotice('جاري إصلاح تحميل متجر SHEIN…')
+
+    void InAppBrowser.close()
+      .catch(() => undefined)
+      .finally(() => {
+        webviewClosingRef.current = false
+        suppressAutoReopenRef.current = false
+        sheinChunkRecoveryInFlightRef.current = false
+        if (selectedStoreRef.current !== 'shein' || vpnStateRef.current !== 'ok' ||
+            sheinOpenedRef.current || webviewOpeningRef.current) return
+        if (resumeProductUrl) {
+          beginPendingProductPreparation(resumeProductUrl)
+          pendingBackTargetRef.current = screenRef.current === 'cart' ? 'cart' : 'home'
+        }
+        window.setTimeout(() => browseSheinRef.current(), 80)
       })
   }
 
@@ -3651,6 +3702,11 @@ function App() {
     const handle = InAppBrowser.addListener('messageFromWebview', (event: { id?: string; detail?: Record<string, unknown> }) => {
       if (event?.id && webviewIdRef.current && event.id !== webviewIdRef.current) return
       const detail = event?.detail
+
+      if (detail?.type === 'sheinChunkLoadFailure') {
+        recoverSheinChunkLoad(typeof detail.url === 'string' ? detail.url : '')
+        return
+      }
 
       if (detail?.type === 'sheinRegionDiagnostic') {
         recordSheinRegionDiagnostic({
