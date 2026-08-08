@@ -644,8 +644,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   function writeSheinSaudiState() {
-    // Seed once per document. Rewriting cookies/storage on every 300 ms tick
-    // races SHEIN's own SPA state and can leave rendered controls unhydrated.
+    // Seed once per document; re-seeding each tick races SHEIN's SPA hydration.
     if (window.__otlobliSheinSaudiStateSeeded) return;
     window.__otlobliSheinSaudiStateSeeded = true;
     try {
@@ -859,10 +858,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return '';
   }
 
-  // A country-only value is not enough. SHEIN signs the resolved native
-  // country/state/city/district tuple in xAdFlag; that signed tuple is what its
-  // product APIs actually use for shipping. Never claim readiness before all
-  // four levels and the server signature exist.
+  // country-only is not enough: SHEIN signs country/state/city/district in
+  // xAdFlag and its product APIs use that. Require all four + signature.
   function sheinSignedSaudiAddressReady() {
     try {
       var parsed = sheinAddressCookieData();
@@ -998,8 +995,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       return;
     }
     sheinRegionVeilStartedAt = sheinRegionVeilStartedAt || Date.now();
-    // otlobli: \u0645\u0624\u0634\u0651\u0631 \u0639\u0644\u0648\u064a \u063a\u064a\u0631 \u062d\u0627\u062c\u0628 (pointer-events:none) \u0628\u062f\u0644 \u063a\u0637\u0627\u0621 \u0645\u0644\u0621 \u0627\u0644\u0634\u0627\u0634\u0629
-    // \u0627\u0644\u0630\u064a \u0643\u0627\u0646 \u064a\u0645\u0646\u0639 \u0641\u062a\u062d \u0627\u0644\u0645\u0646\u062a\u062c\u0627\u062a\u061b \u0628\u0648\u0627\u0628\u0629 \u0627\u0644\u0625\u0636\u0627\u0641\u0629 \u0648\u062d\u062f\u0647\u0627 \u062a\u0636\u0628\u0637 \u0627\u0644\u062c\u0627\u0647\u0632\u064a\u0629.
+    // otlobli: \u0645\u0624\u0634\u0651\u0631 \u0639\u0644\u0648\u064a \u063a\u064a\u0631 \u062d\u0627\u062c\u0628 \u0628\u062f\u0644 \u063a\u0637\u0627\u0621 \u0645\u0644\u0621 \u0627\u0644\u0634\u0627\u0634\u0629 \u0627\u0644\u0630\u064a \u0643\u0627\u0646 \u064a\u0645\u0646\u0639 \u0641\u062a\u062d \u0627\u0644\u0645\u0646\u062a\u062c\u0627\u062a.
     if (!el) {
       el = document.createElement('div');
       el.id = id;
@@ -1057,9 +1053,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function updateSheinNativeCoverState() {
     if (!IS_SHEIN) return;
     if (sheinSignedSaudiAddressReady()) {
-      // Do not uncover a fully resolved address drawer for one last frame.
-      // Close SHEIN's own surface first, then let the next short progress tick
-      // release the native cover after its closing animation has detached it.
+      // Close SHEIN's resolved drawer first, then release the cover on the
+      // next tick after its close animation detaches it.
       if (sheinShippingUiLikelyOpen() && sheinResolvedShippingUiRoot()) {
         closeResolvedSheinShippingUi();
         scheduleSheinShippingProgress(OTLOBLI_LOW_END ? 260 : 160);
@@ -2146,8 +2141,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     try {
       if (!sheinLooksLikeProductRouteForShipping()) return false;
       var a = new URL(location.href), b = new URL(normalized);
-      // otlobli: اختلاف المسار وحده ليس نقص منطقة (فتح منتج يغيّر pathname)؛
-      // كان يفرض إعادة تحميل على كل ضغطة. نعيد التمهيد فقط عند نقص البارامترات.
+      // otlobli: اختلاف المسار وحده ليس نقص منطقة؛ نعيد التمهيد فقط عند نقص البارامترات.
       if (a.hostname !== b.hostname) return true;
       var keys = ['currency','localcountry','country','countryCode','country_code','lang','language','ship_to','shipTo','shipToCountry','shippingCountry','shipping_country','store_country'];
       for (var i = 0; i < keys.length; i++) {
@@ -2260,36 +2254,15 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
-  // otlobli: مراقب توقّف الرسم (iOS). rAF يتوقف عند تجمّد المُركِّب بينما
-  // setInterval يظل يعمل؛ الفجوة تكشف التجمّد فنبعث __otlobliRecompose (الباتش ينفّذه).
-  (function otlobliRenderStallWatchdog() {
-    try {
-      var ua = navigator.userAgent || '';
-      var isApple = /iP(?:hone|od|ad)/i.test(ua) ||
-        ((navigator.platform || '') === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1);
-      if (!isApple || !(window.webkit && window.webkit.messageHandlers &&
-        window.webkit.messageHandlers.messageHandler)) return;
-      var lastRaf = Date.now(), lastFix = 0;
-      (function loop() { lastRaf = Date.now(); requestAnimationFrame(loop); })();
-      setInterval(function () {
-        var now = Date.now();
-        if (document.hidden) { lastRaf = now; return; }
-        if (now - lastRaf > 1400 && now - lastFix > 3000) {
-          lastFix = now;
-          try { window.webkit.messageHandlers.messageHandler.postMessage({ __otlobliRecompose: true }); } catch (e) {}
-        }
-      }, 1000);
-    } catch (e) {}
-  })();
+  // otlobli: مراقب توقّف رسم iOS — rAF يقف عند تجمّد المُركِّب وsetInterval لا، فنبعث __otlobliRecompose.
+  (function(){try{var ua=navigator.userAgent||'';if(!(/iP(?:hone|od|ad)/i.test(ua)||(navigator.platform||'')==='MacIntel'&&(navigator.maxTouchPoints||0)>1))return;var mh=window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.messageHandler;if(!mh)return;var r=Date.now(),f=0;(function l(){r=Date.now();requestAnimationFrame(l);})();setInterval(function(){var n=Date.now();if(document.hidden){r=n;return;}if(n-r>1400&&n-f>3000){f=n;try{mh.postMessage({__otlobliRecompose:true});}catch(e){}}},1000);}catch(e){}})();
 
-  // منطق فرض اللغة العربية خاص بمواقع شي إن فقط - على المتاجر الأخرى (تيمو/
-  // ترينديول) قد يضبط كوكي لغة خاطئة ويسبب إعادة تحميل بلا داعٍ، فنحصره بشي إن.
+  // فرض العربية خاص بشي إن فقط (غيره قد يضبط كوكي لغة خاطئة فيعيد التحميل بلا داعٍ).
   if (IS_SHEIN) {
     clearOvercoercedSheinStorage();
     installSheinSaudiStorageGuard();
     var normalizedArabicUrl = otlobliNormalizeSheinUrl(location.href);
-    // حارس صفحة تحقق «أنا إنسان»: ممنوع أي إعادة تحميل أثناءها — تُعيد بدء
-    // التحقق فلا يُكمله المستخدم أبداً (كان سبباً في «يطلعني/واجهة صورة»).
+    // ممنوع إعادة تحميل أثناء تحقق «أنا إنسان» — تصفّر حل المستخدم.
     if (shouldReloadSheinForSaudi() && !otlobliIsHumanChallenge()) {
       var arRedirectAttempts = parseInt(sessionStorage.getItem('__otlobliArRedirects') || '0', 10);
       if (arRedirectAttempts < 2) {
