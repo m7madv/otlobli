@@ -2260,6 +2260,28 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
+  // otlobli: مراقب توقّف الرسم (iOS). rAF يتوقف عند تجمّد المُركِّب بينما
+  // setInterval يظل يعمل؛ الفجوة تكشف التجمّد فنبعث __otlobliRecompose (الباتش ينفّذه).
+  (function otlobliRenderStallWatchdog() {
+    try {
+      var ua = navigator.userAgent || '';
+      var isApple = /iP(?:hone|od|ad)/i.test(ua) ||
+        ((navigator.platform || '') === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1);
+      if (!isApple || !(window.webkit && window.webkit.messageHandlers &&
+        window.webkit.messageHandlers.messageHandler)) return;
+      var lastRaf = Date.now(), lastFix = 0;
+      (function loop() { lastRaf = Date.now(); requestAnimationFrame(loop); })();
+      setInterval(function () {
+        var now = Date.now();
+        if (document.hidden) { lastRaf = now; return; }
+        if (now - lastRaf > 1400 && now - lastFix > 3000) {
+          lastFix = now;
+          try { window.webkit.messageHandlers.messageHandler.postMessage({ __otlobliRecompose: true }); } catch (e) {}
+        }
+      }, 1000);
+    } catch (e) {}
+  })();
+
   // منطق فرض اللغة العربية خاص بمواقع شي إن فقط - على المتاجر الأخرى (تيمو/
   // ترينديول) قد يضبط كوكي لغة خاطئة ويسبب إعادة تحميل بلا داعٍ، فنحصره بشي إن.
   if (IS_SHEIN) {
