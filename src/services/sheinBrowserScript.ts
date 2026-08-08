@@ -998,24 +998,17 @@ export const SHEIN_CAPTURE_SCRIPT = `
       return;
     }
     sheinRegionVeilStartedAt = sheinRegionVeilStartedAt || Date.now();
-    if (!document.getElementById('otlobli-region-switching-style') && document.documentElement) {
-      var st = document.createElement('style');
-      st.id = 'otlobli-region-switching-style';
-      st.textContent = 'html.otlobli-shein-region-veil-active #otlobli-add-btn,html.otlobli-shein-region-veil-active #otlobli-back-btn{visibility:hidden!important;opacity:0!important;pointer-events:none!important}';
-      document.documentElement.appendChild(st);
-    }
+    // otlobli: \u0645\u0624\u0634\u0651\u0631 \u0639\u0644\u0648\u064a \u063a\u064a\u0631 \u062d\u0627\u062c\u0628 (pointer-events:none) \u0628\u062f\u0644 \u063a\u0637\u0627\u0621 \u0645\u0644\u0621 \u0627\u0644\u0634\u0627\u0634\u0629
+    // \u0627\u0644\u0630\u064a \u0643\u0627\u0646 \u064a\u0645\u0646\u0639 \u0641\u062a\u062d \u0627\u0644\u0645\u0646\u062a\u062c\u0627\u062a\u061b \u0628\u0648\u0627\u0628\u0629 \u0627\u0644\u0625\u0636\u0627\u0641\u0629 \u0648\u062d\u062f\u0647\u0627 \u062a\u0636\u0628\u0637 \u0627\u0644\u062c\u0627\u0647\u0632\u064a\u0629.
     if (!el) {
       el = document.createElement('div');
       el.id = id;
       el.setAttribute('role', 'status');
       el.setAttribute('aria-live', 'polite');
-      el.style.cssText = 'position:fixed!important;inset:0!important;background:#fff!important;z-index:2147483646!important;display:flex!important;align-items:center!important;justify-content:center!important;direction:rtl!important;font-family:OtlobliCairo,system-ui,sans-serif!important;color:#063f2d!important;text-align:center!important;pointer-events:auto!important;';
-      el.addEventListener('touchmove', function (e) { if (e.cancelable) e.preventDefault(); }, { passive: false });
-      el.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); }, true);
+      el.style.cssText = 'position:fixed!important;top:calc(env(safe-area-inset-top, 0px) + 10px)!important;left:50%!important;transform:translateX(-50%)!important;max-width:90vw!important;background:rgba(255,255,255,.97)!important;box-shadow:0 6px 20px rgba(6,63,45,.18)!important;border:1px solid rgba(0,122,82,.18)!important;border-radius:999px!important;z-index:2147483646!important;display:flex!important;align-items:center!important;gap:9px!important;padding:8px 15px!important;direction:rtl!important;font-family:OtlobliCairo,system-ui,sans-serif!important;color:#063f2d!important;pointer-events:none!important;';
       document.body.appendChild(el);
     }
-    el.innerHTML = '<div style="display:grid;gap:10px;place-items:center;padding:22px"><div style="width:34px;height:34px;border:4px solid #d8efe4;border-top-color:#007a52;border-radius:50%;animation:otlobli-spin .8s linear infinite"></div><div style="font-weight:800;font-size:17px">\u062c\u0627\u0631\u064a \u062a\u0647\u064a\u0626\u0629 \u0645\u062a\u062c\u0631 SHEIN</div><div style="font-size:13px;color:#55746a">\u0625\u0644\u0649 ' + sheinRegionCountryLabel() + '</div></div>';
-    if (document.documentElement) document.documentElement.classList.add('otlobli-shein-region-veil-active');
+    el.innerHTML = '<span style="width:16px;height:16px;border:3px solid #d8efe4;border-top-color:#007a52;border-radius:50%;display:inline-block;flex-shrink:0;animation:otlobli-spin .8s linear infinite"></span><span style="font-weight:800;font-size:13px;white-space:nowrap">\u062c\u0627\u0631\u064a \u0636\u0628\u0637 \u0627\u0644\u0645\u0646\u0637\u0642\u0629\u2026 \u0625\u0644\u0649 ' + sheinRegionCountryLabel() + '</span>';
   }
   function sheinUpdateRegionTransitionVeil() {
     var el = document.getElementById('otlobli-region-switching');
@@ -2153,7 +2146,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
     try {
       if (!sheinLooksLikeProductRouteForShipping()) return false;
       var a = new URL(location.href), b = new URL(normalized);
-      if (a.hostname !== b.hostname || a.pathname !== b.pathname) return true;
+      // otlobli: اختلاف المسار وحده ليس نقص منطقة (فتح منتج يغيّر pathname)؛
+      // كان يفرض إعادة تحميل على كل ضغطة. نعيد التمهيد فقط عند نقص البارامترات.
+      if (a.hostname !== b.hostname) return true;
       var keys = ['currency','localcountry','country','countryCode','country_code','lang','language','ship_to','shipTo','shipToCountry','shippingCountry','shipping_country','store_country'];
       for (var i = 0; i < keys.length; i++) {
         if (String(a.searchParams.get(keys[i]) || '').toLowerCase() !== String(b.searchParams.get(keys[i]) || '').toLowerCase()) return true;
