@@ -4,14 +4,14 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
 **Work cheap: read `docs/AI_FASTPATH.md` first** (device-debug playbook, `scripts/otlobli-cdp.mjs`, function line-map — never read the 550 KB `sheinBrowserScript.ts` whole).
 
-## Active work — v86.68 iPhone product tap + home-region bootstrap (2026-08-08)
+## Active work — v86.69 iPhone listing tap + Saudi bootstrap + portrait lock (2026-08-08)
 
-- Branch in this worktree: `claude/shein-ios-freeze-d75f65`; native version `86.68 / 928`; marker `2026.08.08-v86.68-ios-tap-home-region`.
-- Exact iPhone symptom: SHEIN listing works and long press shows SHEIN’s native “Not interested” menu, but a single tap on a product does not navigate. Treat this as an iOS short-tap route failure, not a general freeze.
-- Candidate fix in `src/services/sheinBrowserScript.ts`: remove the unverified rAF render-stall watchdog; add the iOS-only product-card fallback at document start. It waits 280 ms for SHEIN’s original route, replays `.click()` only if unchanged, and rejects swipes / >650 ms presses. Preserve this scope; do not add recompose bursts, polling, reloads, or touch prevention.
-- Region fix: `sheinFindHomeShippingEntryControl()` uses `.area-selector-entrance[role="button"]`; do not restore a bounding-rect visibility gate. SHEIN’s visible mobile header nests a zero-size label, yet the semantic entry successfully opens its real cascade.
-- Device proof on Note 8 `988e16384e4f51395230`: after clearing only `localStorage.addressCookie` on SHEIN home, v86.68 recreated the signed Saudi address for Riyadh Province/Riyadh/Al Olaya within 5 seconds without manual selection. Not a clean first-site-session test.
-- Local build / freeze guard / low-end budget pass (`1,197,562 / 1,200,000` raw JS; SHEIN source `543,922 / 550,000`). First iOS workflow `31261227578` failed only on the Mac bundle budget (`1,201,042` bytes); the fallback was compacted and redundant injected comments removed without behavior change. Retry `31261376389` passed from `9cea927`; IPA is `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-ios-v86.68\otlobli-v86.68-iphone16-unsigned.ipa` (SHA-256 `5752F54B2206F0371AD2E7BE7BC5930DCFEA588CAE825EAD2876FCEB6B09FF96`). User must still do clean delete/reinstall plus product taps, long press, five resumes, and cold launch.
+- Branch in this worktree: `claude/shein-ios-freeze-d75f65`; native version `86.69 / 929`; marker `2026.08.08-v86.69-ios-list-tap-region`.
+- Exact iPhone symptom: a home card opens a second SHEIN listing, then short taps on that listing do not route while long press shows SHEIN’s native menu. Treat it as an iOS short-tap route failure, not a general freeze.
+- Candidate fix in `src/services/sheinBrowserScript.ts`: document-start iOS fallback waits 280 ms for SHEIN, then clicks the unchanged exact card once. It covers `.product-card`, the proven `LI.sd-ccc-products__item[role="link"]`, and narrowly named product/goods card classes. It rejects swipes / >650 ms presses. Preserve its scope: no recompose bursts, polling, reloads, or touch prevention.
+- Region: preserve `sheinFindHomeShippingEntryControl()` and its no-geometry gate. `sheinVisibleShippingTabs()` additionally recognizes the real Cascade tabs: `.cascade__tabs [role="tab"]` and `.cascade__tabs .sui-tab-item-mobile`. Note 8 holds the signed Saudi address Riyadh Province/Riyadh/Al Olaya, but clean first-site session remains untested.
+- Orientation: iOS `Info.plist` already lists portrait only. Android `MainActivity` now has `android:screenOrientation="portrait"`; do not add WebView rotation work.
+- Current validation: `npm run build`, freeze guard, and budget pass (`1,197,893 / 1,200,000` raw JS; SHEIN `544,255 / 550,000`); both native projects synchronized. Android `86.69 / 929` debug build installed on Note 8 `988e16384e4f51395230`. Must build the iPhone IPA, then user must clean delete/reinstall and test home → second listing → product, long press, five resumes, and cold launch.
 
 ## ⭐ HEAD OF `main` = `bb75cf8` / v86.67 (2026-08-08)
 

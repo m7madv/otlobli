@@ -147,7 +147,7 @@
   - يشغّلان `otlobliRecomposeAllWebViews()`.
   - ينفّذان burst محدوداً عند `0.12/0.5/1.2/2.2` ثانية.
   - يستدعيان `otlobliForceRecompose(force: true)` لكل WebView مسجل حتى تقع إعادة إرفاق بعد جهوزية طبقة WebKit البعيدة.
-- رسالة الحارس `__otlobliRecompose` تعيد الاستدعاء عند رصد توقف الرسم.
+- معالج native لرسالة `__otlobliRecompose` ما زال موجوداً للتوافق، لكن الحقن الحالي لا يملك مراقب `requestAnimationFrame` ولا يرسل هذه الرسالة؛ لا تُعد إضافة مراقب رسم من دون قبول حقيقي على iPhone 16.
 - Android يحتفظ بالحماية الدفاعية `WebViewDialog.otlobliOnHostResume()` من دون فصل طبقة Chromium.
 - `src/App.tsx` يحتفظ بمقارنة `JSON.stringify(previous[activeStore])` مع `JSON.stringify(storeRegions[activeStore])`، فلا يعاد إنشاء WebView النشط إلا إذا تغيّرت منطقة المتجر فعلاً.
 

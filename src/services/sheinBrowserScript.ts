@@ -58,7 +58,7 @@ const OTLOBLI_NAV_TOUCH_BRIDGE_JS = `
 `
 
 const OTLOBLI_IOS_PRODUCT_TAP_FALLBACK_JS = `
-function otlobliInstallIosProductTapFallback(){var u=navigator.userAgent||'',s,t;if(!(/iP(?:hone|od|ad)/i.test(u)||navigator.platform==='MacIntel'&&(navigator.maxTouchPoints||0)>1))return;function c(n){return n&&n.closest&&n.closest('.product-card')}function p(e){var n=e.changedTouches&&e.changedTouches[0];return n&&[n.clientX,n.clientY]}document.addEventListener('touchstart',function(e){clearTimeout(t);var n=c(e.target),v=p(e);s=n&&v?[n,location.href,Date.now(),v[0],v[1]]:null},{capture:true,passive:true});document.addEventListener('touchend',function(e){var n=s,v=p(e);s=null;if(!n||!v||c(e.target)!==n[0]||Date.now()-n[2]>650||Math.abs(v[0]-n[3])+Math.abs(v[1]-n[4])>16)return;clearTimeout(t);t=setTimeout(function(){if(location.href===n[1]&&n[0].isConnected)n[0].click()},280)},{capture:true,passive:true})}
+function otlobliInstallIosProductTapFallback(){var u=navigator.userAgent||'',s,t;if(!(/iP(?:hone|od|ad)/i.test(u)||navigator.platform==='MacIntel'&&(navigator.maxTouchPoints||0)>1))return;function c(n){for(var i=0;n&&i<9;i++,n=n.parentElement){var k=String(n.className||'');if((n.classList&&n.classList.contains('product-card'))||/sd-ccc-products__item|(?:^|\s)(?:product|goods)[-_][^\s]*(?:item|card)/i.test(k)||n.getAttribute&&n.getAttribute('role')==='link'&&/(?:product|goods|sd-ccc)/i.test(k))return n}return null}function p(e){var n=e.changedTouches&&e.changedTouches[0];return n&&[n.clientX,n.clientY]}document.addEventListener('touchstart',function(e){clearTimeout(t);var n=c(e.target),v=p(e);s=n&&v?[n,location.href,Date.now(),v[0],v[1]]:null},{capture:true,passive:true});document.addEventListener('touchend',function(e){var n=s,v=p(e);s=null;if(!n||!v||c(e.target)!==n[0]||Date.now()-n[2]>650||Math.abs(v[0]-n[3])+Math.abs(v[1]-n[4])>16)return;clearTimeout(t);t=setTimeout(function(){if(location.href===n[1]&&n[0].isConnected)n[0].click()},280)},{capture:true,passive:true})}
 otlobliInstallIosProductTapFallback();
 `
 
@@ -1368,7 +1368,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function sheinVisibleShippingTabs() {
     if (!document.body) return [];
-    var nodes = document.querySelectorAll('.address-header-tab .j-tab-item,.address-header-tab [role="tab"]');
+    var nodes = document.querySelectorAll('.address-header-tab .j-tab-item,.address-header-tab [role="tab"],.cascade__tabs [role="tab"],.cascade__tabs .sui-tab-item-mobile');
     var result = [];
     for (var i = 0; i < nodes.length; i++) {
       if (sheinElementIsPainted(nodes[i])) result.push(nodes[i]);
