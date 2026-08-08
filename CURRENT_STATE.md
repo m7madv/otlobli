@@ -1,6 +1,15 @@
 # Otlobli Current State
 
-Last updated: 2026-08-07
+Last updated: 2026-08-08
+
+## Active candidate — v86.68 iPhone product tap + home-region bootstrap (2026-08-08)
+
+- **iPhone product-tap diagnosis:** user confirmed SHEIN listings load normally and a long press opens SHEIN's own “Not interested because” menu, while a short tap does not open the product. That proves the page is interactive; the failing path is the short-tap-to-product route, not a full listing freeze. Android does not reproduce it.
+- **Fix:** removed the unverified iOS render-stall watchdog that could request a WebView recompose while the user was touching a card. Added an iOS-only, document-start fallback: it leaves SHEIN's original short tap untouched, then calls that same `.product-card`'s native click only once after 280 ms if the route did not change. It ignores swipes and presses longer than 650 ms, so the long-press menu remains a long press. No DOM polling, overlay, reload, or native lifecycle timing changed.
+- **Region bootstrap:** home-page region repair now targets SHEIN's real semantic entry (`.area-selector-entrance[role="button"]`) instead of rejecting it when SHEIN reports a zero-size nested address label. This opens the native cascade immediately on the home page and reuses the existing bounded country → address-path sequence.
+- **Note 8 verification (real device, 2026-08-08):** installed v86.68 debug APK, removed only `localStorage.addressCookie` on SHEIN home, made no manual selection, and observed a newly signed Saudi `addressCookie` for Riyadh Province → Riyadh → Al Olaya within 5 seconds. This is a real WebView result, not a browser mock. Full clean-install / first-ever-SHEIN-session coverage is still pending.
+- **Build/sync:** `npm run build`, `verify:shein-freeze-guard`, and the low-end budget pass: largest JS `1,197,562 / 1,200,000`, gzip `355,015 / 370,000`, SHEIN source `543,922 / 550,000`. The first iOS workflow (`31261227578`) stopped only because its Mac-specific bundle was `1,201,042` bytes; no behavior failed. The injected fallback was compacted and redundant injected comments removed without changing logic, then Android/iOS were re-synced for a retry. Android `86.68 / 928` had already been built and installed on the Note 8. iOS IPA and physical acceptance remain pending.
+- **Required iPhone acceptance:** clean delete/reinstall the v86.68 IPA, short-tap several products from home/search, confirm a long press still only opens SHEIN’s menu, then perform five background/resume cycles and a force-quit cold launch. Do not mark the iPhone issue resolved until this is done.
 
 ## WhatsApp "waiting for this message" (iOS) — LID root cause + fresh-session fix (2026-08-08)
 

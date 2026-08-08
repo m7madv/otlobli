@@ -57,6 +57,11 @@ const OTLOBLI_NAV_TOUCH_BRIDGE_JS = `
   otlobliInstallNavTouchBridge();
 `
 
+const OTLOBLI_IOS_PRODUCT_TAP_FALLBACK_JS = `
+function otlobliInstallIosProductTapFallback(){var u=navigator.userAgent||'',s,t;if(!(/iP(?:hone|od|ad)/i.test(u)||navigator.platform==='MacIntel'&&(navigator.maxTouchPoints||0)>1))return;function c(n){return n&&n.closest&&n.closest('.product-card')}function p(e){var n=e.changedTouches&&e.changedTouches[0];return n&&[n.clientX,n.clientY]}document.addEventListener('touchstart',function(e){clearTimeout(t);var n=c(e.target),v=p(e);s=n&&v?[n,location.href,Date.now(),v[0],v[1]]:null},{capture:true,passive:true});document.addEventListener('touchend',function(e){var n=s,v=p(e);s=null;if(!n||!v||c(e.target)!==n[0]||Date.now()-n[2]>650||Math.abs(v[0]-n[3])+Math.abs(v[1]-n[4])>16)return;clearTimeout(t);t=setTimeout(function(){if(location.href===n[1]&&n[0].isConnected)n[0].click()},280)},{capture:true,passive:true})}
+otlobliInstallIosProductTapFallback();
+`
+
 // Runs as a real WKUserScript before SHEIN's first document starts. It mounts
 // only Otlobli's existing bottom navigation; it does not touch SHEIN network,
 // storage, region, CSS, or page lifecycle. The full capture script adopts the
@@ -67,6 +72,7 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
   window.__otlobliNavBootstrapInstalled = true;
 
   ${OTLOBLI_NAV_TOUCH_BRIDGE_JS}
+  ${OTLOBLI_IOS_PRODUCT_TAP_FALLBACK_JS}
 
   var timer = 0;
   var attempts = 0;
@@ -644,7 +650,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   function writeSheinSaudiState() {
-    // Seed once per document; re-seeding each tick races SHEIN's SPA hydration.
     if (window.__otlobliSheinSaudiStateSeeded) return;
     window.__otlobliSheinSaudiStateSeeded = true;
     try {
@@ -849,10 +854,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var countryFromName = sheinCountryCodeFromLabel(name);
       if (countryFromName) return countryFromName;
       if (countryId === '186') return 'SA';
-      // Fully resolved native addresses omit value/countryAbbr and keep only
-      // countryName/countryId. Any explicit non-Saudi country is authoritative
-      // foreign state, even when the visible PDP label has changed to a
-      // district name such as "Zone 1".
       if (name || countryId) return 'FOREIGN';
     } catch (e) {}
     return '';
@@ -1272,6 +1273,16 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return sheinBestVisibleControl(function (text) { return sheinExactSaudiOptionText(text); });
   }
 
+  function sheinFindHomeShippingEntryControl() {
+    var target = document.querySelector('.area-selector-entrance[role="button"],.area-selector-entrance');
+    if (!target) return null;
+    try {
+      var style = window.getComputedStyle(target);
+      if (style.display !== 'none' && style.visibility !== 'hidden' && style.pointerEvents !== 'none') return target;
+    } catch (e) {}
+    return null;
+  }
+
   function sheinFindForeignShippingControl() {
     var productTitle = document.querySelector('.productShippingTitle');
     var addressCountry = sheinAddressCookieCountry();
@@ -1316,6 +1327,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   function sheinFindShippingEntryControl() {
+    var homeAddress = sheinFindHomeShippingEntryControl();
+    if (homeAddress) return homeAddress;
     var productTitle = document.querySelector('.productShippingTitle');
     if (productTitle && sheinElementIsVisible(productTitle)) {
       var productButton = productTitle.querySelector('button.productShippingTitle__text-container,button,[role="button"]');
@@ -1341,10 +1354,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function sheinVisibleCascadeOptions() {
     if (!document.body) return [];
-    // SHEIN currently serves two native address drawers. One uses the
-    // cascade/role=option markup; the other uses a letter-grouped upper-list.
-    // Both are scoped to the visible drawer so product/listing <li> elements
-    // can never become automatic address targets.
     var nodes = document.querySelectorAll(
       'li.cascade__list--option,[role="option"],.sui-drawer__body ul.upper-list > li,' +
       '.c-address-upper-drawer ul.upper-list > li,.c-address-upper-drawer [role="listbox"] > li,' +
@@ -1500,7 +1509,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function sheinNativeSaudiAddressStep(addressCountry, visibleOptions, visibleTabs) {
     var options = visibleOptions || sheinVisibleCascadeOptions();
     var tabs = visibleTabs || sheinVisibleShippingTabs();
-    if (!options.length || !sheinLooksLikeProductPageForShipping()) return false;
+    if (!options.length) return false;
 
     var countryList = sheinCountryListState(options);
     if (countryList.isCountryList) {
@@ -1554,8 +1563,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var sheinShippingLastActionAt = 0;
   var sheinShippingLastScanAt = 0;
   var sheinShippingCloseLastAt = 0;
-  // Keep enough retries for old phones, but avoid the old long waits that made
-  // a visible country drawer feel stuck.
   var SHEIN_SHIPPING_MAX_ACTIONS = 24;
   var sheinShippingLastOptionText = '';
   var sheinShippingLastOptionAt = 0;
@@ -2009,8 +2016,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function ensureSheinSaudiShippingSelection() {
     if (!IS_SHEIN || !document.body || document.readyState === 'loading') return;
-    if (!sheinLooksLikeProductPageForShipping()) {
-      sheinRegionDiag('product-page-not-detected', {
+    if (!sheinLooksLikeProductPageForShipping() && !sheinFindHomeShippingEntryControl()) {
+      sheinRegionDiag('shipping-entry-not-detected', {
         productRoute: sheinLooksLikeProductRouteForShipping()
       }, String(location.href || '').slice(-180) + '|' + String(document.title || '').slice(0, 80));
       return;
@@ -2064,9 +2071,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
       sheinShippingLastOptionText = '';
       sheinShippingLastOptionAt = 0;
     }
-    // An exhausted click budget is no longer a two-minute dead end. If the
-    // drawer has made no progress for a bounded window, start one clean retry
-    // from its current live state while keeping the overall budget finite.
     if (sheinShippingActionCount >= SHEIN_SHIPPING_MAX_ACTIONS) {
       if (now - sheinShippingProgressAt < 6000) {
         scheduleSheinShippingProgress(OTLOBLI_LOW_END ? 420 : 220);
@@ -2082,17 +2086,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
       return;
     }
     if (sheinNativeSaudiAddressStep(addressCountry, visibleOptions, visibleTabs)) return;
-    // A native address drawer may be between async cascade stages. Never
-    // click the underlying PDP shipping button while that drawer is visible;
-    // doing so merely closes it and restarts the selection.
     if (visibleOptions.length || visibleTabs.length) {
       scheduleSheinShippingProgress(OTLOBLI_LOW_END ? 360 : 160);
       return;
     }
     var visibleRegion = sheinVisibleShippingRegion();
-    // Country text on the PDP is only level one, not completion. Re-open the
-    // product's shipping control even when it already shows the requested
-    // country, then finish every lower level behind the native cover.
     var entryControl = visibleRegion === 'FOREIGN' ||
       (addressCountry && addressCountry !== SHEIN_REQUIRED_COUNTRY)
       ? sheinFindForeignShippingControl() || sheinFindShippingEntryControl()
@@ -2107,9 +2105,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
-  // Keep region failure internal. The old visible reset button cleared broad
-  // storage keys and reloaded SHEIN, which could restart Cloudflare or damage
-  // the active SPA. Browsing remains interactive; add-to-cart has its own guard.
   function setSheinSaudiGuardOverlay(visible) {
     if (!IS_SHEIN) return;
     var id = 'otlobli-shein-saudi-guard';
@@ -2253,9 +2248,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
       return false;
     }
   }
-
-  // otlobli: مراقب توقّف رسم iOS — rAF يقف عند تجمّد المُركِّب وsetInterval لا، فنبعث __otlobliRecompose.
-  (function(){try{var ua=navigator.userAgent||'';if(!(/iP(?:hone|od|ad)/i.test(ua)||(navigator.platform||'')==='MacIntel'&&(navigator.maxTouchPoints||0)>1))return;var mh=window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.messageHandler;if(!mh)return;var r=Date.now(),f=0;(function l(){r=Date.now();requestAnimationFrame(l);})();setInterval(function(){var n=Date.now();if(document.hidden){r=n;return;}if(n-r>1400&&n-f>3000){f=n;try{mh.postMessage({__otlobliRecompose:true});}catch(e){}}},1000);}catch(e){}})();
 
   // فرض العربية خاص بشي إن فقط (غيره قد يضبط كوكي لغة خاطئة فيعيد التحميل بلا داعٍ).
   if (IS_SHEIN) {

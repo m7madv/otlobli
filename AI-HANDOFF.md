@@ -4,6 +4,15 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
 **Work cheap: read `docs/AI_FASTPATH.md` first** (device-debug playbook, `scripts/otlobli-cdp.mjs`, function line-map — never read the 550 KB `sheinBrowserScript.ts` whole).
 
+## Active work — v86.68 iPhone product tap + home-region bootstrap (2026-08-08)
+
+- Branch in this worktree: `claude/shein-ios-freeze-d75f65`; native version `86.68 / 928`; marker `2026.08.08-v86.68-ios-tap-home-region`.
+- Exact iPhone symptom: SHEIN listing works and long press shows SHEIN’s native “Not interested” menu, but a single tap on a product does not navigate. Treat this as an iOS short-tap route failure, not a general freeze.
+- Candidate fix in `src/services/sheinBrowserScript.ts`: remove the unverified rAF render-stall watchdog; add the iOS-only product-card fallback at document start. It waits 280 ms for SHEIN’s original route, replays `.click()` only if unchanged, and rejects swipes / >650 ms presses. Preserve this scope; do not add recompose bursts, polling, reloads, or touch prevention.
+- Region fix: `sheinFindHomeShippingEntryControl()` uses `.area-selector-entrance[role="button"]`; do not restore a bounding-rect visibility gate. SHEIN’s visible mobile header nests a zero-size label, yet the semantic entry successfully opens its real cascade.
+- Device proof on Note 8 `988e16384e4f51395230`: after clearing only `localStorage.addressCookie` on SHEIN home, v86.68 recreated the signed Saudi address for Riyadh Province/Riyadh/Al Olaya within 5 seconds without manual selection. Not a clean first-site-session test.
+- Local build / freeze guard / low-end budget pass (`1,197,562 / 1,200,000` raw JS; SHEIN source `543,922 / 550,000`). First iOS workflow `31261227578` failed only on the Mac bundle budget (`1,201,042` bytes); the fallback was compacted and redundant injected comments removed without behavior change. Re-sync, push, and rerun `ios-unsigned-build.yml` from the amended commit, then user must do clean delete/reinstall plus product taps, long press, five resumes, and cold launch.
+
 ## ⭐ HEAD OF `main` = `bb75cf8` / v86.67 (2026-08-08)
 
 `main` was fast-forwarded to `679f476` (from `claude/shein-sku-image-freeze-bugs-52b525`), then WhatsApp server fixes landed on top (`bb75cf8`). It carries v86.66/v86.67 SHEIN store-based capture + admin colour swatch + WhatsApp iOS "waiting for this message" fix. The "Current candidate" sections below (v86.64 etc.) are historical — read `CURRENT_STATE.md` top for live status.
