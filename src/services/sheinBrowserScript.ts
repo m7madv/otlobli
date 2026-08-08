@@ -58,7 +58,7 @@ const OTLOBLI_NAV_TOUCH_BRIDGE_JS = `
 `
 
 const OTLOBLI_IOS_PRODUCT_TAP_FALLBACK_JS = `
-function otlobliInstallIosProductTapFallback(){var u=navigator.userAgent||'',s,t;if(!(/iP(?:hone|od|ad)/i.test(u)||navigator.platform==='MacIntel'&&(navigator.maxTouchPoints||0)>1))return;function c(n){for(var i=0;n&&i<9;i++,n=n.parentElement){var k=String(n.className||'');if((n.classList&&n.classList.contains('product-card'))||/sd-ccc-products__item|(?:^|\s)(?:product|goods)[-_][^\s]*(?:item|card)/i.test(k)||n.getAttribute&&n.getAttribute('role')==='link'&&/(?:product|goods|sd-ccc)/i.test(k))return n}return null}function p(e){var n=e.changedTouches&&e.changedTouches[0];return n&&[n.clientX,n.clientY]}document.addEventListener('touchstart',function(e){clearTimeout(t);var n=c(e.target),v=p(e);s=n&&v?[n,location.href,Date.now(),v[0],v[1]]:null},{capture:true,passive:true});document.addEventListener('touchend',function(e){var n=s,v=p(e);s=null;if(!n||!v||c(e.target)!==n[0]||Date.now()-n[2]>650||Math.abs(v[0]-n[3])+Math.abs(v[1]-n[4])>16)return;clearTimeout(t);t=setTimeout(function(){if(location.href===n[1]&&n[0].isConnected)n[0].click()},280)},{capture:true,passive:true})}
+function otlobliInstallIosProductTapFallback(){var u=navigator.userAgent||'',s,t;if(!(/iP(?:hone|od|ad)/i.test(u)||navigator.platform==='MacIntel'&&(navigator.maxTouchPoints||0)>1))return;function c(n){for(var i=0;n&&i<9;i++,n=n.parentElement){var k=String(n.className||'');if((n.classList&&n.classList.contains('product-card'))||/sd-ccc-products__item|(?:^|\s)(?:product|goods)[-_][^\s]*(?:item|card)/i.test(k)||n.getAttribute&&n.getAttribute('role')==='link'&&/(?:product|goods|sd-ccc)/i.test(k))return n}return null}function p(e){var n=e.changedTouches&&e.changedTouches[0];return n&&[n.clientX,n.clientY]}function h(n){try{var a=n&&n.querySelector&&n.querySelector('a[href*="-p-"]');return a&&a.href||''}catch(e){return''}}function d(x){try{window.__otlobliFreezeProbe&&window.__otlobliFreezeProbe(x)}catch(e){}}document.addEventListener('touchstart',function(e){clearTimeout(t);var n=c(e.target),v=p(e),r=h(n);s=n&&v?[n,location.href,Date.now(),v[0],v[1],r]:null;if(n)d('product-tap-start'+(r?'-href':''))},{capture:true,passive:true});document.addEventListener('touchend',function(e){var n=s,v=p(e);s=null;if(!n||!v||c(e.target)!==n[0]||Date.now()-n[2]>650||Math.abs(v[0]-n[3])+Math.abs(v[1]-n[4])>16)return;d('product-tap-fallback');clearTimeout(t);t=setTimeout(function(){if(location.href!==n[1])return;if(n[0].isConnected)n[0].click();setTimeout(function(){if(location.href===n[1]&&n[5]){d('product-tap-route-fallback');location.assign(n[5])}},220)},280)},{capture:true,passive:true})}
 otlobliInstallIosProductTapFallback();
 `
 
@@ -331,12 +331,6 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
 
   function mount() {
     ensureEarlyViewportFitCover();
-    // (v85.8.5) حمّل خط Cairo داخل مستند شي إن أيضاً. التطبيق يحمّله عبر @import،
-    // لكن WebView شي إن مستند منفصل لا يرث خطوط التطبيق، فكان الشريط المحقون
-    // يسقط لخط النظام (SF) بينما شريط React بخط Cairo — وهذا سبب «اختلاف الخط
-    // والسماكة» الذي لاحظه المستخدم (Cairo أعرض/أثقل من SF بنفس الحجم). بحقن نفس
-    // رابط جوجل هنا يصير الشريطان بخط Cairo نفسه تماماً. إن فشل التحميل (نادر)
-    // يسقط لـSF كما هو الحال الآن — لا ضرر إضافي.
     if (!document.getElementById('otlobli-cairo-font')) {
       var fontParent = document.head || document.documentElement;
       if (fontParent) {
@@ -464,33 +458,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // عندها؛ على المتاجر الأخرى (تيمو/ترينديول) نكتفي بتنظيف العروض المنبثقة.
   var IS_SHEIN = /shein/i.test(location.hostname);
   var IS_TEMU = /temu/i.test(location.hostname);
-
-  // (v66-fix) كاش/service worker مُتراكم من جلسة متجر سابقة يخدم أصولاً معطوبة
-  // فلا تُفعَّل صفحة شي إن (hydration) → «صور لا تنكبس». نُلغي تسجيل الـservice
-  // worker ونمسح Cache Storage عند كل تحميل (fire-and-forget). لا نلمس
-  // localStorage (مسحه العريض يسبب skeleton loading — درس موثق).
-  var cleanSheinRuntimeCache = IS_SHEIN;
-  try {
-    if (sessionStorage.getItem('otlobli_shein_runtime_cleaned') === '1') {
-      cleanSheinRuntimeCache = false;
-    } else if (IS_SHEIN) {
-      sessionStorage.setItem('otlobli_shein_runtime_cleaned', '1');
-    }
-  } catch (e) {}
-  if (cleanSheinRuntimeCache) {
-    try {
-      if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
-        navigator.serviceWorker.getRegistrations().then(function (regs) {
-          for (var i = 0; i < regs.length; i++) { try { regs[i].unregister(); } catch (e) {} }
-        }).catch(function () {});
-      }
-      if (window.caches && caches.keys) {
-        caches.keys().then(function (keys) {
-          for (var k = 0; k < keys.length; k++) { try { caches.delete(keys[k]); } catch (e) {} }
-        }).catch(function () {});
-      }
-    } catch (e) {}
-  }
 
   var OTLOBLI_STORE_REGIONS = window.__OTLOBLI_STORE_REGIONS__ || {};
   var OTLOBLI_SHEIN_REGION = OTLOBLI_STORE_REGIONS.shein || {};

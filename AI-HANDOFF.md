@@ -1,5 +1,16 @@
 # Otlobli AI Handoff
 
+## Current — v86.80 SHEIN PWA chunk-load root cause (2026-08-09)
+
+- User report: fresh v86.79 install was smooth and challenge-free; after leaving/re-entering, product cards visually remained but short taps stopped routing while long press still worked. The report copied from that failed grid is at `C:\Users\MOHAMMAD\.codex\attachments\109908f3-5973-4aea-8528-bd1faf15bcd1\pasted-text.txt` (truncated JSON, but direct event text is usable).
+- **Confirmed first root:** repeated `js:promise` events are `ChunkLoadError: Loading chunk … failed` for SHEIN `https://sheinm.ltwebstatic.com/pwa_dist/assets/...` resources. The view can be visible and scrollable, but SHEIN has lost the JS chunks needed to route a card. Long press only proves the native/context-menu path is alive; it does not prove SHEIN’s click route is available.
+- **Cause removed in v86.80:** `src/services/sheinBrowserScript.ts` had document-start code that, on every cold WebView session, unregistered `navigator.serviceWorker` and deleted all CacheStorage keys (`cleanSheinRuntimeCache`). It raced SHEIN’s own versioned PWA asset graph and can cause the recorded chunk failures. Never restore this purge or any equivalent JS-side SHEIN cache/service-worker clearing. SHEIN owns its PWA runtime cache.
+- The bounded native `InAppBrowser.clearCache()` remains only for an actual region transition / intentional Temu → SHEIN fresh session before a new WebView starts. It preserves cookies/localStorage. Do not widen it to ordinary resumes or document start.
+- **iOS tap guard (not the root fix):** `OTLOBLI_IOS_PRODUCT_TAP_FALLBACK_JS` captures the exact card’s direct product anchor at `touchstart`. After a genuine short stationary touch it waits 280 ms, invokes the same card once, then after 220 ms routes to the saved direct anchor only if URL is unchanged. It excludes swipe and >650 ms long press. Diagnostic events: `product-tap-start`, `product-tap-fallback`, `product-tap-route-fallback`.
+- `scripts/verify-shein-freeze-guard.mjs` now rejects `cleanSheinRuntimeCache`, its marker, service-worker registration purges, and cache-delete loops, and requires the iOS fallback markers. Keep `markers: []` on a forbidden-only rule because the verifier iterates `check.markers`.
+- Marker/version: `2026.08.09-v86.80-shein-resume-product-tap`, `86.80 / 940`. Local build, freeze guard, budget, patch reverse-check and both native sync pass: raw JS `1,196,768 / 1,200,000`, gzip `353,859 / 370,000`, SHEIN script `542,018 / 550,000`. Artifact/device acceptance pending at this update.
+- **Never alter native recompose timing for this fix.** Preserve the proven 0.25 s `appDidBecomeActive` path, lifecycle generation/state guards, scroll/constraints and Android host-resume guard. Five real iPhone background/resume cycles + cold launch remain required before a release can be called accepted.
+
 ## v86.79 handoff — repair malformed SHEIN cart product links (2026-08-09)
 
 The latest diagnostic report found a concrete cart-path failure, not a generic new iPhone freeze: a quick-add row saved `https://m.shein.com/ar/-p-57281932.html`. That is an invalid bare product route; SHEIN shows **Oops**, and its return-to-home flow creates the later blank/frame events that leave the visible home blocked. The same report contains the proper long canonical URL for product `57281932`.

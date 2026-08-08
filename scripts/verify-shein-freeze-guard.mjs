@@ -138,6 +138,28 @@ const checks = [
     forbidden: ["location.origin + '/ar/-p-' + info.goods_id + '.html'"],
   },
   {
+    label: 'iPhone resumed product-tap fallback',
+    file: 'src/services/sheinBrowserScript.ts',
+    markers: [
+      'const OTLOBLI_IOS_PRODUCT_TAP_FALLBACK_JS',
+      "d('product-tap-start'+(r?'-href':''))",
+      "d('product-tap-fallback')",
+      "d('product-tap-route-fallback')",
+      'location.assign(n[5])',
+    ],
+  },
+  {
+    label: 'SHEIN runtime-cache ownership',
+    file: 'src/services/sheinBrowserScript.ts',
+    markers: [],
+    forbidden: [
+      'cleanSheinRuntimeCache',
+      'otlobli_shein_runtime_cleaned',
+      'navigator.serviceWorker.getRegistrations',
+      'caches.delete(keys[k])',
+    ],
+  },
+  {
     label: 'legacy SHEIN cart-link repair',
     file: 'src/App.tsx',
     markers: [
