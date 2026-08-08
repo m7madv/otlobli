@@ -4,7 +4,7 @@
 
 Live Note 8 geometry proved the quick-add overlap: Otlobli add-button top `620`, `.goods-size` bottom `630`, active size bottom `648`. `.bsc-quick-add-cart` has its own `.sui-drawer__body` scroller, so the earlier product-page `scroll-margin-bottom` could not fix it. `ensureAddToCartButton()` now does a bounded SHEIN-only 500 ms check: it adds a bottom inset to that direct scroller and scrolls the final `.goods-size` once per changed drawer state above the button by 14 px. Do not expand it to all drawers or an unbounded scan; do not change lifecycle, region, polling, tap fallback, or recompose logic.
 
-Marker `2026.08.08-v86.75-shein-sku-safe-space`; `86.75 / 935`. Build, freeze guard and performance budget pass (`1,199,969 / 1,200,000` raw JS; `546,301 / 550,000` SHEIN source); Android/iOS synchronized. Build an unsigned iPhone IPA from this commit. Real iPhone QA remains mandatory: quick-add XL/L visible+tappable, five background/resume cycles, then force-quit/cold launch.
+Marker `2026.08.08-v86.75-shein-sku-safe-space`; `86.75 / 935`. Build, freeze guard and performance budget pass (`1,198,121 / 1,200,000` raw JS; `544,453 / 550,000` SHEIN source); Android/iOS synchronized. CI run `31276759661` failed before Xcode because secret injection made the bundle `1,201,157`; 1.8KB of non-functional shipped-script comments were compacted and this retry must use the follow-up commit. Real iPhone QA remains mandatory: quick-add XL/L visible+tappable, five background/resume cycles, then force-quit/cold launch.
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 

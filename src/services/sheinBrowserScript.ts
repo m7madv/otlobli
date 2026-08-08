@@ -6281,15 +6281,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return true;
   }
 
-  // SHEIN's "quick add" popup (opened from a listing card, without ever
-  // visiting the real product page) doesn't necessarily reuse the same
-  // wording as the real product page's button - a user confirmed the exact
-  // isAddToCartButton text match above still let one through. This is a
-  // deliberately looser net: ANY short button-ish text while we're not on a
-  // real product page that even loosely reads like a submit/confirm/add
-  // action gets caught too, since the consequence of a false positive here
-  // (blocking some unrelated short label) is far cheaper than letting a
-  // real add-to-SHEIN's-cart action slip through.
   function isQuickAddSubmitButton(el) {
     if (looksLikeProductPage()) return false;
     var text = (el.textContent || '').trim();
@@ -6309,11 +6300,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return /\\s(cart-icon|header-cart|j-header-cart|shopping-bag|bag-icon)\\s/i.test(cls);
   }
 
-  // Blocks wishlist/favorite anywhere it shows up - header, product page,
-  // or inside SHEIN's own quick-add bottom sheet (the heart icon sitting
-  // right next to its add-to-cart button). Matched on text/class/aria-label
-  // rather than position, so it's caught no matter which of those places it
-  // appears in, instead of needing a separate point-probe per location.
   function isWishlistButton(el) {
     if (el.id && el.id.indexOf('otlobli') === 0) return false;
     var text = (el.textContent || '').trim();
@@ -6506,17 +6492,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }, true);
 
-  // Hide every SHEIN header icon except search (wishlist heart, inbox,
-  // hamburger). Never a blind document-wide querySelectorAll('a,button') like
-  // the earlier cart-icon lockout: that matched an oversized wrapper once and
-  // tore a transparent hole in SHEIN's header. Cap at icon-sized elements and
-  // skip anything that looks like the search input.
-  // Point-probing (hideExtraHeaderIcons below) can miss a small icon that
-  // happens to sit between two sample points - reported as the heart/hamburger
-  // taking minutes to disappear. This pass is grid-independent: query them by
-  // name so they go on the first tick. The hamburger is a real risk, not just
-  // clutter - it reaches SHEIN's own region/currency settings, and a currency
-  // switch there would silently break price capture (which assumes USD).
   function hideKnownHeaderIconsByHint() {
     var candidates = document.querySelectorAll(
       '[class*="menu" i], [aria-label*="menu" i], [class*="hamburger" i], [class*="nav-toggle" i], ' +
