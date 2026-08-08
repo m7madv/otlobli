@@ -16,9 +16,11 @@ export const SOURCE_COUNTRY: 'JO' | 'LB' | 'SA' = 'SA'
 // and must be false before any production build.
 export const TEST_ONLY_AUTH_BYPASS = false
 
-// This temporary iPhone-only candidate observes a freeze without applying the
-// native recompose or loading-cover workarounds. Never enable in production.
+// Temporary iPhone-only trace capture. It keeps the normal guarded recovery
+// active so the trace represents the release path, not an intentionally broken
+// store session. Never enable in a normal production build.
 export const SHEIN_IOS_FREEZE_DIAGNOSTICS = true
+export const SHEIN_IOS_FREEZE_DIAGNOSTICS_BYPASS_RECOVERY = false
 
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '2026.08.09-v86.77-shein-ios-freeze-diagnostics'
+export const APP_VERSION = '2026.08.09-v86.78-shein-ios-freeze-race-guard'

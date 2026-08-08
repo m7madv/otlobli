@@ -16,7 +16,7 @@ import type { PaymentCurrency } from './domain/pricing'
 import type { Address, AppNotification, CartGroupSnapshot, CartItem, NotificationPrefs, Order, OrderIssue, Product, ProductColor, Recipient, Screen, StatusTone, UserProfile, WalletTransaction } from './domain/types'
 import { getDeviceId, readStoredJson, storageKeys, useStoredState } from './infrastructure/localStorage'
 import { appApi } from './services'
-import { PAYMENT_MODE, APP_VERSION, SHEIN_IOS_FREEZE_DIAGNOSTICS, TEST_ONLY_AUTH_BYPASS, cleanEnvValue } from './config'
+import { PAYMENT_MODE, APP_VERSION, SHEIN_IOS_FREEZE_DIAGNOSTICS, SHEIN_IOS_FREEZE_DIAGNOSTICS_BYPASS_RECOVERY, TEST_ONLY_AUTH_BYPASS, cleanEnvValue } from './config'
 import { buildWhatsappLink } from './services/whatsappLink'
 import {
   getAccountAuthMethods,
@@ -3176,15 +3176,19 @@ function App() {
       otlobliDocumentStartScript?: string
       otlobliPreserveAttachedWhenHidden?: boolean
       otlobliFreezeDiagnostics?: boolean
+      otlobliFreezeDiagnosticsBypassRecovery?: boolean
     } = {
       url: targetUrl,
       ...(activeStore === 'shein'
         ? {
-          // The diagnostic IPA deliberately leaves the frozen frame untouched:
-          // no native loading cover and no automatic recompose. It records the
-          // lifecycle/native/JS evidence instead, behind this release-only flag.
-          otlobliLoadingCover: !(SHEIN_IOS_FREEZE_DIAGNOSTICS && isIosNative),
+          // Keep diagnostics visible while exercising the real guarded recovery
+          // path. The isolated no-recovery mode remains explicit and off.
+          otlobliLoadingCover: true,
           otlobliFreezeDiagnostics: SHEIN_IOS_FREEZE_DIAGNOSTICS && isIosNative,
+          otlobliFreezeDiagnosticsBypassRecovery:
+            SHEIN_IOS_FREEZE_DIAGNOSTICS &&
+            SHEIN_IOS_FREEZE_DIAGNOSTICS_BYPASS_RECOVERY &&
+            isIosNative,
           otlobliDocumentStartScript: `${OTLOBLI_NAV_BOOTSTRAP_SCRIPT}\n${SHEIN_IOS_FREEZE_DIAGNOSTICS && isIosNative ? SHEIN_FREEZE_DIAGNOSTIC_SCRIPT : ''}`,
           otlobliPreserveAttachedWhenHidden: true,
           // Keep React's already-mounted Otlobli shell and bottom nav visible
