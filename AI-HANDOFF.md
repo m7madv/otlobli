@@ -8,7 +8,7 @@ The latest diagnostic report found a concrete cart-path failure, not a generic n
 
 SHEIN anti-bot verification is site-owned: do not bypass, automate, suppress, or promise a permanent one-time verification. The app preserves successful SHEIN cookies/localStorage, the bounded cache clear does not delete those, and known challenge URLs are excluded from app reroutes/reloads. That is the safe, reliable behavior; SHEIN decides whether/when it asks again.
 
-Marker `2026.08.09-v86.79-shein-cart-product-link`; native `86.79 / 939`. Local guard/build/budget/patch-reverse/sync pass: `1,198,378 / 1,200,000` raw JS, `354,659 / 370,000` gzip, SHEIN source `543,629 / 550,000`. IPA build is pending. When it completes, record run, path/hash and archive version here and in `CURRENT_STATE.md`/`SESSION_SUMMARY.md`. Real iPhone acceptance remains mandatory: old affected cart row, new quick-add row, five resumes, force-quit/cold launch.
+Marker `2026.08.09-v86.79-shein-cart-product-link`; native `86.79 / 939`. Local guard/build/budget/patch-reverse/sync pass: `1,198,378 / 1,200,000` raw JS, `354,659 / 370,000` gzip, SHEIN source `543,629 / 550,000`. GitHub/Xcode [run `31280651233`](https://github.com/m7madv/otlobli/actions/runs/31280651233) passed from `0b3ddba`; IPA: `C:\Users\MOHAMMAD\OneDrive\Desktop\otlobli-ios-v86.79-cart-product-link\otlobli-ios-v86.79-iphone16\otlobli-v86.79-iphone16-unsigned.ipa` (7,071,127 bytes; SHA-256 `30A7ECB4BB1FC470B28FCF6F4C4A2BEE185CBB66DC79ED1B053E63F0FF6E64E4`; archive confirms `86.79 / 939`). Real iPhone acceptance remains mandatory: old affected cart row, new quick-add row, five resumes, force-quit/cold launch.
 
 ## v86.78 handoff — iPhone resume-race guard (2026-08-09)
 
