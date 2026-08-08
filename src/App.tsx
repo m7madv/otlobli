@@ -2706,6 +2706,12 @@ function App() {
 
     temuArabicRedirectRef.current = 0
     sheinSaudiRedirectRef.current = 0
+    // A country change needs the same bounded recovery the customer proved by
+    // switching Temu -> SHEIN: preserve cookies/localStorage (including the
+    // signed address), but clear WebKit's runtime cache before the fresh SHEIN
+    // session opens. Without it, the previous country's rendered shell can
+    // survive the close/open and keep the native country cascade retrying.
+    if (activeStore === 'shein') sheinCacheResetPendingRef.current = true
     if (!sheinOpenedRef.current) return
 
     // Region constants are injected when the native WebView is created.
