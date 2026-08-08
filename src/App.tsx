@@ -479,8 +479,13 @@ const normalizeSheinBrowserUrl = (rawUrl: string, region = DEFAULT_STORE_REGIONS
     const url = new URL(rawUrl)
     if (!/shein/i.test(url.hostname)) return rawUrl
 
-    const path = url.pathname
+    let path = url.pathname
       .replace(/^\/(?:[a-z]{2}(?:en)?|ar-en|ar)(?=\/|$)/i, '') || '/'
+    // v86.74 quick-add rows could save a bare `/-p-<id>.html` path. SHEIN
+    // renders that as its Oops page; use a non-empty canonical slug so existing
+    // cart rows remain openable while newly captured rows retain their exact URL.
+    const bareQuickAddProduct = path.match(/^\/-p-(\d+)\.html$/i)
+    if (bareQuickAddProduct) path = `/product-p-${bareQuickAddProduct[1]}.html`
 
     url.protocol = 'https:'
     url.hostname = 'm.shein.com'

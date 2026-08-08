@@ -128,6 +128,24 @@ const checks = [
     ],
   },
   {
+    label: 'SHEIN quick-add cart-link guard',
+    file: 'src/services/sheinBrowserScript.ts',
+    markers: [
+      'function sheinQuickAddProductLink(root, info)',
+      "'goods_url_name'",
+      "'/ar/product-p-' + id + '.html'",
+    ],
+    forbidden: ["location.origin + '/ar/-p-' + info.goods_id + '.html'"],
+  },
+  {
+    label: 'legacy SHEIN cart-link repair',
+    file: 'src/App.tsx',
+    markers: [
+      'const bareQuickAddProduct = path.match(/^\\/-p-(\\d+)\\.html$/i)',
+      'path = `/product-p-${bareQuickAddProduct[1]}.html`',
+    ],
+  },
+  {
     label: 'SHEIN scroll/navigation interaction guard',
     file: 'src/services/sheinBrowserScript.ts',
     markers: [

@@ -1,5 +1,15 @@
 # Otlobli Current State
 
+## Active candidate — v86.79 SHEIN cart product-link repair (2026-08-09)
+
+The diagnostic report isolated the repeatable trigger behind the latest apparent iPhone freeze: a quick-add cart row persisted the malformed route `/ar/-p-57281932.html`. SHEIN renders that path as its **Oops** page. Tapping its return-to-home button then creates the `blank`/frame navigation churn visible in the log, which made the later blocked home look like a WebView rendering failure. The recorded product had a valid long canonical path with the same ID, so this is a cart-link defect, not a reason to retime or remove iPhone recovery.
+
+v86.79 prevents a new bad row by resolving the quick-add product link from the drawer's exact product anchor or its own `productInfo` URL fields first. Only if the exact URL is unavailable does it use the valid non-empty `product-p-<id>.html` form—never the old bare `-p-<id>` form. `normalizeSheinBrowserUrl()` also repairs saved legacy cart links at open time, so the user's existing affected cart row is handled without deleting their cart. The freeze guard now rejects a return of the old generator and requires both protections. No native WebView lifecycle/recompose timing, region transition, polling, or challenge handling changed.
+
+SHEIN's “I am not a robot” page is site-controlled and is not bypassed. The app already preserves cookies and localStorage, does not clear them during the bounded cache reset, and leaves recognized challenge URLs untouched; therefore a successfully accepted SHEIN verification is retained for as long as SHEIN itself honors the session. A lifetime/never-again guarantee is impossible because that decision belongs to SHEIN, not the app.
+
+Marker: `2026.08.09-v86.79-shein-cart-product-link`; native version `86.79 / 939`. Local validation passes: freeze guard, `npm run build`, performance budget (largest JS `1,199,349 / 1,200,000`, gzip `354,969 / 370,000`, SHEIN source `544,600 / 550,000`), patch reversibility and Android/iOS synchronization. iPhone IPA workflow/artifact and real-device acceptance are pending; acceptance must cover opening the existing cart item, a newly quick-added item, five background/resume cycles, and a force-quit/cold launch.
+
 Last updated: 2026-08-09
 
 ## Active candidate — v86.78 iPhone resume-race guard (2026-08-09)

@@ -1,5 +1,15 @@
 # Otlobli AI Handoff
 
+## v86.79 handoff — repair malformed SHEIN cart product links (2026-08-09)
+
+The latest diagnostic report found a concrete cart-path failure, not a generic new iPhone freeze: a quick-add row saved `https://m.shein.com/ar/-p-57281932.html`. That is an invalid bare product route; SHEIN shows **Oops**, and its return-to-home flow creates the later blank/frame events that leave the visible home blocked. The same report contains the proper long canonical URL for product `57281932`.
+
+`sheinQuickAddProductLink(root, info)` in `src/services/sheinBrowserScript.ts` now chooses a matching drawer anchor first, then its own `productInfo` URL fields, and only then the valid generic `/ar/product-p-<id>.html` fallback. Never restore the old `/ar/-p-<id>.html` generator. `normalizeSheinBrowserUrl()` in `src/App.tsx` repairs already-saved bare links on opening, so do not force-delete customer carts. The freeze verification script enforces both invariants. This release deliberately makes **no** native recompose, foreground/background, region, polling, or challenge-flow change.
+
+SHEIN anti-bot verification is site-owned: do not bypass, automate, suppress, or promise a permanent one-time verification. The app preserves successful SHEIN cookies/localStorage, the bounded cache clear does not delete those, and known challenge URLs are excluded from app reroutes/reloads. That is the safe, reliable behavior; SHEIN decides whether/when it asks again.
+
+Marker `2026.08.09-v86.79-shein-cart-product-link`; native `86.79 / 939`. Local guard/build/budget/patch-reverse/sync pass: `1,199,349 / 1,200,000` raw JS, `354,969 / 370,000` gzip, SHEIN source `544,600 / 550,000`. IPA build is pending. When it completes, record run, path/hash and archive version here and in `CURRENT_STATE.md`/`SESSION_SUMMARY.md`. Real iPhone acceptance remains mandatory: old affected cart row, new quick-add row, five resumes, force-quit/cold launch.
+
 ## v86.78 handoff — iPhone resume-race guard (2026-08-09)
 
 The v86.77 trace found a stale-callback lifecycle race: its final foreground transition was followed by `willResignActive` 39 ms later, but the pre-existing 0.25-second recovery callback could still have run while backgrounded. v86.78 increments `otlobliLifecycleGeneration` on every active/resign transition; a delayed recovery must match its captured generation and `UIApplication.shared.applicationState == .active`. `otlobliForceRecompose()` checks active state again at the detach point. Preserve this two-layer guard, the one 0.25-second recovery, saved scroll/constraints, Android host resume and store-region JSON comparison.
