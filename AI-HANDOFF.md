@@ -1,33 +1,34 @@
-# Current candidate — v86.119 fast concealment without duplicate scans (2026-08-10)
+# Current candidate — v86.120 supported-region SHEIN recovery (2026-08-10)
 
-- v86.118's `950/2800/2200ms` two-core pacing is rejected by real iPhone 6
-  evidence: SHEIN's dynamically created native action remained visible too long.
-- Keep low-end general/critical concealment at `650ms`, nav at `2200ms`, and
-  security inspection at `1600ms`. `runOtlobliCriticalSheinHiders()` runs once
-  immediately, scans product-action controls only on product routes and listing
-  quick-add controls only off product routes. Do not restore the duplicate
-  `hideSheinNativeProductAdd()` call in `tick()`.
-- Keep document-start CSS, active-interaction pauses, approved 42x42 native back
-  appearance and 12/58px positions. Keep v86.118's native cart/history/home
-  action; this batch deliberately changes concealment scheduling only.
-- Protected `otlobliForceRecompose()`, foreground timing/bursts, scroll and
-  constraint restoration, Android resume defense and JSON region comparison
-  are unchanged. No cart/payment/wallet/order logic changed.
-- Version `86.119/979`; diagnostics off. Build, guards, native syncs, Android
-  debug assemble and Xcode run `31339488536` pass. Local bundle SHA-256 is
-  `97B3E3CB6A92AE58088E275BC1D12A104ED6D8761D32CCBE458FCD04B622D2CD`;
+- Real-device evidence: the host confirmed Qatar but showed the network/VPN
+  failure and its retry did not enter SHEIN. Unexpected `closeEvent` wrote
+  `network` directly, bypassing the trusted-access conversion. A later supported
+  geo result updated `vpnState` only, and retry could race the close listener.
+- Keep supported geo/store success/trusted continuity mapped to `preparation`.
+  Arm `sheinCacheResetPendingRef` for that user-driven retry; clear HTTP
+  memory/disk cache only. Preserve cookies, localStorage, verification and the
+  signed address. Never show the VPN diagnostic action for confirmed support.
+- The primary retry resets `sheinRecoveryAttemptRef`, suppresses the intentional
+  close event only, then opens one fresh WebView after close completion. Do not
+  turn it into an automatic open/close loop or add polling/timers/effects.
+- Preserve v86.119's 650ms route-aware concealment and no duplicate product
+  scan, plus the approved native back control and all protected lifecycle code.
+- Version `86.120/980`; diagnostics off. Build, guards, native syncs, Android
+  debug assemble and Xcode run `31340352422` pass. Local bundle SHA-256 is
+  `5E7E2860003D7C15D6BBAC88B5953650D12DE16E9D57668565E52CEAB3331C6A`;
   debug APK SHA-256 is
-  `DD4805EED9411BCAF33BD962EE0742CBA2D3BB85B984E72D3D61A91FCFD19208`.
+  `5D3F7B9214226C269FC374DD488E06F208155D30514DB86ACBE929867E8A5E7E`.
+  Repo lint remains red on the unrelated existing 33 errors/16 warnings.
 - Desktop IPA:
-  `C:\Users\MOHAMMAD\Desktop\otlobli-ios-v86.119-iphone\otlobli-v86.119-iphone16-unsigned.ipa`,
-  7,050,579 bytes, SHA-256
-  `342DF62836C855FBB5A57FE813DFFE960C5E2D42183281883F667B3DF442DBB0`.
-  CI JS is `index-ZySWJZXt.js`, SHA-256
-  `F88A21B46CD5272D9A1933348FADC2845D7367F7EB420780D158956226AD20EB`.
+  `C:\Users\MOHAMMAD\Desktop\otlobli-ios-v86.120-iphone\otlobli-v86.120-iphone16-unsigned.ipa`,
+  7,050,591 bytes, SHA-256
+  `85B8ED5EBAC73930C44EBED56E9EABD2CFBC2704715EE23795ECCBE323395392`.
+  CI JS is `index-D0TTUAIG.js`, SHA-256
+  `B6CC7FE4D8FC9F7F2959CA548EDC60A05695D17CBD5166E5424092C244F3EC8A`.
   IPA is unsigned/unprovisioned and lacks production APNs/Google iOS setup.
-- Required acceptance: confirm the old phone never exposes the native action
-  for the prior long interval, assess scrolling speed, run multi-product repair
-  then back, plus five iPhone 16 resume cycles, cold launch and store switching.
+- Required acceptance: cold entry from Qatar on the pictured device, retry
+  after an interrupted open, product/back/concealment, five iPhone 16 resume
+  cycles, cold launch and SHEIN → Temu → SHEIN.
 
 # Current candidate — v86.116 iPhone 6 recovery and sticky-price back layer (2026-08-10)
 
