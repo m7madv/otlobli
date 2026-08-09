@@ -54,7 +54,7 @@ index 6b4115a..8e557cf 100644
                            try {
                              window.AndroidInterface.show();
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
-index 8ae3e61..3c18e7d 100644
+index 8ae3e61..883c69a 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
 +++ b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
 @@ -16,7 +16,13 @@ import android.graphics.Color;
@@ -170,7 +170,7 @@ index 8ae3e61..3c18e7d 100644
 +
 +    private void scheduleOtlobliLoadingCoverTimeout() {
 +        mainHandler.removeCallbacks(otlobliLoadingCoverTimeout);
-+        mainHandler.postDelayed(otlobliLoadingCoverTimeout, 45_000L);
++        mainHandler.postDelayed(otlobliLoadingCoverTimeout, 12_000L);
 +    }
 +
 +    private void showOtlobliLoadingCover() {
@@ -644,15 +644,30 @@ index 8ae3e61..3c18e7d 100644
      private void previewDownloadedFileInWebView(File file, String mimeType, String sourceUrl) {
          WebView webView = _webView;
          if (webView == null || isDismissing) {
-@@ -1807,6 +2337,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -1807,6 +2337,22 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          applyDimensions();
 
          this._webView = findViewById(R.id.browser_view);
 +        if (isOtlobliLoadingCoverEnabled()) showOtlobliLoadingCover();
++
++        // SHEIN's legitimate human verification runs in a third-party security
++        // frame. Modern Android WebViews reject third-party cookies by default,
++        // so a checked verification could finish visually but not carry its
++        // session back to SHEIN. Limit this policy to SHEIN; no verification is
++        // bypassed, clicked, or otherwise automated.
++        try {
++            Uri initialUri = Uri.parse(_options.getUrl());
++            String initialHost = initialUri.getHost();
++            if (initialHost != null && ("shein.com".equalsIgnoreCase(initialHost) || initialHost.toLowerCase(Locale.ROOT).endsWith(".shein.com"))) {
++                CookieManager.getInstance().setAcceptThirdPartyCookies(_webView, true);
++            }
++        } catch (Exception ignored) {
++            // Keep the browser usable if a caller provides a non-HTTP URL.
++        }
 
          // Apply insets to fix edge-to-edge issues on Android 15+
          applyInsets();
-@@ -2991,6 +3522,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -2991,6 +3537,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                  return;
              }
 
@@ -660,7 +675,7 @@ index 8ae3e61..3c18e7d 100644
              _options.getCallbacks().javascriptCallback(message);
          } catch (Exception e) {
              Log.e("InAppBrowser", "Error in postMessage: " + e.getMessage());
-@@ -4703,6 +5235,9 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4703,6 +5250,9 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                      if (view == null || _webView == null) {
                          return;
                      }
@@ -670,7 +685,7 @@ index 8ae3e61..3c18e7d 100644
                      if (ProxyRequestSupport.shouldInjectBridge(_options) && proxyBridgeScript != null && proxyAccessToken != null) {
                          String preparedProxyBridgeScript = prepareProxyBridgeScript();
                          if (preparedProxyBridgeScript != null) {
-@@ -4742,6 +5277,13 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4742,6 +5292,13 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                      if (view == null || _webView == null) {
                          return;
                      }
@@ -684,7 +699,7 @@ index 8ae3e61..3c18e7d 100644
                      if (!isInitialized) {
                          isInitialized = true;
                          _webView.clearHistory();
-@@ -4801,8 +5343,21 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4801,8 +5358,21 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                      if (view == null || _webView == null) {
                          return;
                      }
@@ -707,7 +722,7 @@ index 8ae3e61..3c18e7d 100644
                          CharSequence description = error != null ? error.getDescription() : null;
                          String message = description != null ? "Initial page load failed: " + description : "Initial page load failed";
                          rejectOpenWebViewIfNeeded(message);
-@@ -4932,6 +5487,19 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4932,6 +5502,19 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
      @Override
      public void dismiss() {
          scheduleHostWebViewInsetRestore();
@@ -727,7 +742,7 @@ index 8ae3e61..3c18e7d 100644
 
          // First, stop any ongoing operations and disable further interactions
          if (_webView != null) {
-@@ -5586,17 +6154,50 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -5586,17 +6169,50 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          );
      }
 
@@ -1510,7 +1525,7 @@ index 97a2fc1..9a469e1 100644
 +            self?.hideOtlobliLoadingCover()
 +        }
 +        otlobliLoadingCoverTimeout = timeout
-+        DispatchQueue.main.asyncAfter(deadline: .now() + 45, execute: timeout)
++        DispatchQueue.main.asyncAfter(deadline: .now() + 12, execute: timeout)
 +    }
 +
 +    private func cancelOtlobliChallengeReveal() {

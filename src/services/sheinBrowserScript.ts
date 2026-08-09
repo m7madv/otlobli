@@ -3162,6 +3162,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   function swatchImageFrom(el) {
+    // Some valid SHEIN forms, including Curvy quick-add, expose only a size
+    // group. A missing colour control is not an error and must not abort the
+    // whole add-to-cart flow while trying to read its thumbnail.
+    if (!el) return '';
     var rankedImage = rankedSwatchImageFrom(el);
     if (rankedImage) return rankedImage;
     var scope = isColorBadgeEl(el) && el.parentElement ? el.parentElement : el;
@@ -5257,14 +5261,24 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return null;
   }
 
-  // SHEIN's Curvy entry opens bsc-quick-add-cart without navigating away from
-  // the main PDP. Keep every validation read inside that active sheet. The
-  // normal page helpers intentionally remain untouched because their job is
-  // to resolve the full PDP, not an overlay product form.
+  function sheinQuickSizeBox(root) {
+    var groups = root.querySelectorAll('.goods-size__wrapper > div');
+    for (var i = 0; i < groups.length; i++) {
+      var label = normalizedOptionText((groups[i].querySelector('.goods-size__title') || {}).textContent || '');
+      if (/\u0645\u0642\u0627\u0633|\u062d\u062c\u0645|size/i.test(label)) return groups[i];
+    }
+    return root.querySelector('.goods-size');
+  }
+
+  function sheinQuickBundleCount(size) {
+    var count = (String(size || '').match(/\+/g) || []).length;
+    return count ? count + 1 : 1;
+  }
+
   function sheinQuickAddSelectionState() {
     var root = sheinActiveQuickAddDrawer();
     if (!root) return null;
-    var sizeBox = root.querySelector('.goods-size');
+    var sizeBox = sheinQuickSizeBox(root);
     if (!sizeBox) {
       var candidates = root.querySelectorAll('[class*="size" i]');
       for (var i = 0; i < candidates.length; i++) {
@@ -5316,7 +5330,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var color = normalizedOptionText((colorHead && colorHead.textContent) || '').replace(/^[^:：]+[:：]\s*/, '').trim();
     var colorPick = root.querySelector('.bs-color__item.active,.bs-color__item[aria-checked="true"]');
     var colorImage = swatchImageFrom(colorPick);
-    var sizeBox = root.querySelector('.goods-size');
+    var sizeBox = sheinQuickSizeBox(root);
     var sizePick = sizeBox && sizeBox.querySelector('.goods-size__sizes-item.size-active,[data-attr_value][aria-checked="true"]');
     var size = normalizedOptionText((sizePick && (sizePick.getAttribute('data-attr_value') || sizePick.textContent)) || '');
     var sizes = getSizeOptions(sizeBox);
@@ -5325,6 +5339,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (!title || !(price > 0) || !image) return null;
     return { title: title, priceUsd: price, priceSource: 'quick-add', image: image, colorImage: colorImage,
       colorImageFound: !!colorImage, color: color, size: size, skuCode: '', sizesAvailable: sizes.available || [],
+      bundleCount: sheinQuickBundleCount(size),
       sizesUnavailable: sizes.unavailable || [], link: otlobliNormalizeSheinUrl(link), needsCustomPhoto: false,
       customPhotoNote: '', needsCustomText: false, customText: '', customTextLimit: 0 };
   }
@@ -5452,6 +5467,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function addToCartFlow(colorState, sizeState) {
     if (document.getElementById('otlobli-overlay')) return;
+    // A Curvy drawer is a separate, live SKU form. Snapshot it once at the
+    // beginning of the action: the page behind it can re-render while the
+    // add overlay is mounting, and falling back to that background PDP would
+    // put the wrong size/product into Otlobli's cart.
+    var quickPayload = null;
     if (IS_SHEIN) {
       __otlobliCartToastGuardUntil = Date.now() + 7000;
       var addBtn = document.getElementById('otlobli-add-btn');
@@ -5465,6 +5485,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
         // state here is what broke Curvy sizes after the first product page.
         colorState = quickAddState.color;
         sizeState = quickAddState.size;
+        quickPayload = sheinQuickAddPayload();
+        if (!quickPayload) {
+          showMessage(addBtn, 'تعذّر قراءة خيار المنتج — حاول مرة ثانية');
+          return;
+        }
       } else if (sheinOpenSkuDrawer()) {
         return;
       }
@@ -5488,7 +5513,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         return;
       }
     }
-    var payload = captureProductPayload(colorState, sizeState);
+    var payload = quickPayload || captureProductPayload(colorState, sizeState);
     showAddingOverlay(payload);
 
     var attempts = 0;
@@ -5544,6 +5569,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
 
     function attempt() {
+      if (quickPayload) {
+        finalize(quickPayload);
+        return;
+      }
       if (IS_SHEIN && sheinSelectedSkuPricePending() && priceWaits++ < 16) {
         updateOverlayContent(payload, 'جاري تثبيت سعر الخيار المختار...');
         setTimeout(attempt, 120);
@@ -5717,8 +5746,17 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   var __otlobliQuickAddClearanceNext = 0;
+  // The full SHEIN script can be injected both by the native page-load hook
+  // and the host's page-loaded event. Recreate only a stale button from an
+  // earlier script revision, so the active click handler always has the same
+  // Curvy form logic as the latest injected capture helpers.
+  var OTLOBLI_ADD_BUTTON_REVISION = '2026-08-09-curvy-form-snapshot';
   function ensureAddToCartButton() {
     var btn = document.getElementById('otlobli-add-btn');
+    if (btn && btn.getAttribute('data-otlobli-add-revision') !== OTLOBLI_ADD_BUTTON_REVISION) {
+      try { btn.remove(); } catch (e) { if (btn.parentNode) btn.parentNode.removeChild(btn); }
+      btn = null;
+    }
     if (!btn) {
       ensureShakeStyle();
       btn = document.createElement('button');
@@ -5910,22 +5948,17 @@ export const SHEIN_CAPTURE_SCRIPT = `
           addToCartFlow({ exists: false }, { exists: false });
           return;
         }
-        if (sheinOpenSkuDrawer()) return;
+        // Keep a single SHEIN gate.  In particular, a Curvy quick-add form is
+        // a separate product above the PDP; checking the PDP here first makes
+        // the selected Curvy size unreachable.  addToCartFlow() resolves the
+        // active quick-add form before it performs the ordinary PDP checks.
         var colorState = getColorState();
         var sizeState = getSizeState();
-        if (sizeState.exists && !sizeState.selected) {
-          sheinRevealSizeOptions();
-          showMessage(btn, 'حدد المقاس أولاً');
-          return;
-        }
-        if (colorState.exists && !colorState.selected) {
-          showMessage(btn, 'حدد اللون أولاً');
-          return;
-        }
         addToCartFlow(colorState, sizeState);
       }, true);
       document.body.appendChild(btn);
     }
+    btn.setAttribute('data-otlobli-add-revision', OTLOBLI_ADD_BUTTON_REVISION);
     // NOT re-claiming last-child-of-body per tick (unlike ensureOtlobliNav):
     // re-appendChild retriggers the otlobli-pop2 entrance so the button flickered
     // every ~300ms on busy SPA pages. Also hidden inside a full-screen gallery
@@ -7215,7 +7248,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // message; the real product button and every other bottom action remain.
   var __otlobliCartToastGuardUntil = 0;
   function hideSheinCartSuccessToast() {
-    if (!IS_SHEIN || !document.body || Date.now() > __otlobliCartToastGuardUntil) return;
+    if (!IS_SHEIN || !document.body) return;
+    var quickFooter = document.querySelector('.sui-drawer__open .bsc-quick-add-cart__footerBar');
+    if (quickFooter) quickFooter.style.setProperty('display', 'none', 'important');
+    if (Date.now() > __otlobliCartToastGuardUntil) return;
     var vp = viewportSize();
     var successPattern = /added to (?:the )?(?:shopping )?(?:bag|cart) successfully|\\u0623\\u0636(?:\\u064a\\u0641|\\u0641)\\s+\\u0625\\u0644\\u0649\\s+(?:\\u0639\\u0631\\u0628\\u0629|\\u062d\\u0642\\u064a\\u0628\\u0629)\\s+\\u0627\\u0644\\u062a\\u0633\\u0648\\u0642\\s+\\u0628\\u0646\\u062c\\u0627\\u062d/i;
 
@@ -7253,7 +7289,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
         var stack = document.elementsFromPoint(Math.round(vp.width * 0.5), ys[yi]);
         for (var si = 0; si < stack.length; si++) inspect(stack[si]);
       }
-      return;
     }
 
     var alerts = document.querySelectorAll('[role="alert"], [role="status"], [class*="toast" i], [class*="message" i]');
@@ -7270,6 +7305,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // المستخدم فتعلق للأبد. الحل: نكتشف التحدي، نجمّد تدخلاتنا ونزيل عناصرنا،
   // ونبلغ التطبيق (humanCheck) ليطفئ مؤقت «تعذر الفتح» وينتظر.
   var __otlobliChallengeNotified = false;
+  // A completed challenge can return to the storefront with a same-document
+  // update, which Android does not always surface as a native URL change.
+  // This is a status signal only: it never clicks, reloads, or alters the
+  // verification page.
+  var __otlobliChallengeResolvedNotified = false;
   // While a Cloudflare / "verify you are human" challenge is on screen we
   // deliberately do nothing (our nodes are removed; the nav is kept by
   // otlobliScheduleChallengeNav). This flag lets the hot polling paths back off
@@ -7370,6 +7410,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function isSheinImageViewerCandidate(el, vp) {
     if (!el || (el.id || '').indexOf('otlobli') === 0 || !el.getBoundingClientRect) return false;
+    // Curvy uses a fixed, image-rich quick-add drawer. It deliberately looks
+    // like a gallery to the generic viewer heuristic (large thumbnails plus a
+    // 1/N counter), but it is a live SKU form. Treating it as a gallery makes
+    // the viewer guard stop the Otlobli add button's event before its handler
+    // can read the selected Curvy size. Keep the real full-screen gallery
+    // guard intact; exclude only roots that own this exact quick-add form.
+    if ((el.matches && el.matches('.bsc-quick-add-cart')) ||
+        (el.querySelector && el.querySelector('.bsc-quick-add-cart'))) return false;
     var style = window.getComputedStyle(el);
     if (style.display === 'none' || style.visibility === 'hidden' || parseFloat(style.opacity || '1') <= 0.01) return false;
     var role = String(el.getAttribute && el.getAttribute('role') || '').toLowerCase();
@@ -7621,7 +7669,20 @@ export const SHEIN_CAPTURE_SCRIPT = `
       return;
     }
     // صفحة تحقق «أنا إنسان» — تجميد كامل لكل تدخلاتنا حتى يكملها المستخدم.
-    if (otlobliIsHumanChallenge()) { otlobliChallengeActive = true; otlobliEnterChallengeMode(); return; }
+    if (otlobliIsHumanChallenge()) {
+      otlobliChallengeActive = true;
+      __otlobliChallengeResolvedNotified = false;
+      otlobliEnterChallengeMode();
+      return;
+    }
+    if (otlobliChallengeActive && __otlobliChallengeNotified && !__otlobliChallengeResolvedNotified) {
+      __otlobliChallengeResolvedNotified = true;
+      try {
+        if (window.mobileApp && window.mobileApp.postMessage) {
+          window.mobileApp.postMessage({ detail: { type: 'humanCheckResolved' } });
+        }
+      } catch (e) {}
+    }
     otlobliChallengeActive = false;
     if (IS_SHEIN) ensureSheinSaudiShippingSelection();
     if (IS_SHEIN) retrySheinFeedError();

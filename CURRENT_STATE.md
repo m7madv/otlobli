@@ -1,5 +1,40 @@
 # Otlobli Current State
 
+## Active candidate — v86.91 SHEIN three-piece bundle capture (2026-08-09)
+
+The pink bow makeup-bag product (`p-216351093`) has two separate controls in
+SHEIN's quick form: `الكمية = 1PC` and `المقاس = مجموعة (صغير + متوسط + كبير)`.
+The old generic selector could capture the first control and save `1PC` as the
+size. v86.91 scopes the read to the group whose heading is size/measurement,
+so the selected bundle is captured as the bundle name and its three members are
+shown in the Otlobli cart as `… · 3 قطع`.
+
+`quantity` deliberately remains `1`: it represents one purchased package.
+Changing it to `3` would order and charge three complete three-piece packages.
+Live Note 8 DOM evidence confirmed the two groups and the selected target; the
+release build, freeze guard, performance budget, Android/iOS sync, and Android
+debug build pass. The v86.91 APK is installed on the connected Note 8. Manual
+customer acceptance remains: choose that bundle, add once, and confirm its cart
+line says `3 قطع` while the price is for one bundle. Real iPhone 16 background
+cycles and cold launch are still required before iPhone acceptance.
+
+The native SHEIN loading cover now has a quiet 12-second fail-safe on Android
+and iOS. It is a cover-only fallback for a missed readiness event, not a WebView
+rebuild or a change to the protected iPhone recompose timing. Note 8 restart
+inspection confirmed the cover had cleared while the live storefront remained
+visible; a full product-flow acceptance is still pending.
+
+Android artifact: `android/app/build/outputs/apk/debug/app-debug.apk`;
+`86.91/951`; `11,120,402` bytes; SHA-256
+`5F1C8BE741CB25F1535E4831737EA4091320D8C74DBDE2D84B3E75A1F5AB0B3B`.
+It was installed successfully on the connected SM-N950F / Note 8.
+
+## Active candidate — v86.85 Curvy button reaches its form-aware gate (2026-08-09)
+
+The first v86.84 change correctly made `addToCartFlow()` form-aware, but live Note 8 inspection found a second, earlier gate inside the floating button’s own `click` handler. That duplicate gate called `sheinOpenSkuDrawer()` and checked the background PDP before `addToCartFlow()` ran, so it could still reject a valid Curvy selection. v86.85 removes only that duplicate pre-gate: both normal PDP products and `bsc-quick-add-cart` now use the single form-aware gate in `addToCartFlow()`. This is the chosen fix because it eliminates conflicting decisions rather than adding another Curvy exception.
+
+Device evidence from the live product: the Otlobli button was enabled, painted above the Curvy sheet, and selected `4XL` was visible in the sheet. The SHEIN success toast was also present, but it is unrelated to Otlobli’s cart event. Build/device acceptance for v86.85 remains next.
+
 ## Active candidate — v86.84 Curvy quick-add + diagnostics off (2026-08-09)
 
 SHEIN can open a `bsc-quick-add-cart` form for the Curvy/plus-size choice over the regular product page. The previous flow read the regular PDP's still-unselected sizes first, so a real selected Curvy value such as `5XL` was rejected before capture and the Otlobli add button looked unresponsive. v86.84 detects the visible quick-add form before the normal PDP gate; it reads the form's own selected color/size, scopes the required-size check to that form, and captures the same form. It never opens or reads the background PDP while that form is active. This keeps ordinary product selection unchanged and prevents a selected Curvy SKU from being mistaken for an unselected background one.

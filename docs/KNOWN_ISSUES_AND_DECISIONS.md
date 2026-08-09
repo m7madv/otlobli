@@ -1,5 +1,42 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
+## SHEIN quick form: package count is not cart quantity (v86.91, 2026-08-09)
+
+- **Symptom:** The pink bow makeup-bag quick form could store `1PC` instead of
+  the chosen `مجموعة (صغير + متوسط + كبير)` option.
+- **Evidence:** On the live Note 8 page for `p-216351093`, `1PC` belongs to
+  the `الكمية` group, while the three-piece bundle belongs to the separate
+  `مقاس` group.
+- **Decision:** Scope quick-form selection to the size/measurement group and
+  preserve the selected bundle text. Derive the number of items inside a
+  bundle for the cart display only (`… · 3 قطع`).
+- **Do not do:** Do not set cart `quantity` to the internal bundle count; that
+  would place multiple complete packages. Do not return to a first-match
+  `.goods-size` selector, because it can read the quantity group first.
+- **Acceptance:** Select the three-piece package, add it once, verify the cart
+  label shows `3 قطع`, cart quantity remains one package, and price is not
+  tripled.
+
+## Native SHEIN loading cover must fail open (v86.91, 2026-08-09)
+
+- **Symptom:** A live storefront could remain covered after a missed ready
+  bridge, making it look stuck even though the page had loaded.
+- **Decision:** Keep the loading cover visual and dismiss it after 12 seconds
+  on Android and iOS if no ready event arrives. This is only a cover timeout;
+  it does not reload or recreate the WebView.
+- **Do not do:** Do not use this timeout to retime/remove the protected iPhone
+  recompose or to add a background retry loop.
+- **Build evidence:** Android `86.91/951` APK SHA-256 is
+  `5F1C8BE741CB25F1535E4831737EA4091320D8C74DBDE2D84B3E75A1F5AB0B3B`;
+  it installed successfully on the connected Note 8.
+
+## زر Curvy: بوابة سابقة كانت تحجب الإصلاح — v86.85 (2026-08-09)
+
+- **الدليل الحي:** في Note 8 كانت قائمة `bsc-quick-add-cart` مفتوحة، و4XL مختار والزر الأخضر ظاهر وقابل للنقر في طبقات DOM.
+- **السبب الثاني:** معالج زر Otlobli كان ينفذ `sheinOpenSkuDrawer()` وفحوص اللون/المقاس العامة قبل `addToCartFlow()`؛ لذلك لا يصل أبداً إلى منطق القائمة السريعة الذي أضيف في v86.84.
+- **القرار:** إزالة الفحوص المكررة من معالج الزر. `addToCartFlow()` هو نقطة القرار الوحيدة: يقرأ قائمة Curvy إن كانت نشطة، وإلا يطبق منطق صفحة المنتج الطبيعي.
+- **ممنوع:** لا تضف حارساً ثانياً في `ensureAddToCartButton()` ولا تعيد `sheinOpenSkuDrawer()` إليه؛ أي تغيير يجب اختباره بإضافة Curvy ومقاس عادي.
+
 ## Curvy quick-add فوق صفحة المنتج — v86.84 (2026-08-09)
 
 - **العرض:** فتح «قوام كيرفي» في منتج SHEIN، اختيار `5XL` ثم ضغط زر Otlobli الأخضر لا يضيف شيئاً.

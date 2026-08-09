@@ -3245,6 +3245,12 @@ function App() {
             SHEIN_IOS_FREEZE_DIAGNOSTICS &&
             SHEIN_IOS_FREEZE_DIAGNOSTICS_BYPASS_RECOVERY &&
             isIosNative,
+          // The document-start bootstrap is intentionally tiny. The complete
+          // SHEIN script must run only after page load, where it owns the
+          // selected admin region, customer controls, and cart capture. Without
+          // it Android silently shows raw SHEIN with its stale stored country.
+          preShowScript: captureScript,
+          preShowScriptInjectionTime: 'pageLoad' as const,
           otlobliDocumentStartScript: `${OTLOBLI_NAV_BOOTSTRAP_SCRIPT}\n${SHEIN_IOS_FREEZE_DIAGNOSTICS && isIosNative ? SHEIN_FREEZE_DIAGNOSTIC_SCRIPT : ''}`,
           otlobliPreserveAttachedWhenHidden: true,
           // Keep React's already-mounted Otlobli shell and bottom nav visible
@@ -3783,6 +3789,20 @@ function App() {
         return
       }
 
+      if (detail?.type === 'humanCheckResolved') {
+        // Android may complete the genuine challenge without a top-level URL
+        // event. This is status only: never reload/recreate the WebView or
+        // touch challenge cookies after the customer has completed it.
+        if (selectedStoreRef.current === 'shein') {
+          sheinChallengeActiveRef.current = false
+          humanCheckNoticeRef.current = false
+          setSheinBlockedError(false)
+          markStoreWebviewReadyRef.current(webviewSessionRef.current)
+          revealPreparedProductIfReady()
+        }
+        return
+      }
+
       if (detail?.type === 'sheinBlocked') {
         sheinChallengeActiveRef.current = false
         showStoreOpenFailure()
@@ -3828,6 +3848,9 @@ function App() {
         ? (product.sizesUnavailable as unknown[]).filter((s): s is string => typeof s === 'string')
         : []
       const color = typeof product?.color === 'string' ? product.color : ''
+      const rawBundleCount = Number(product?.bundleCount)
+      const bundleCount = Number.isInteger(rawBundleCount) && rawBundleCount > 1 ? rawBundleCount : 1
+      const size = typeof product?.size === 'string' ? product.size : ''
       const rawColorImage = typeof product?.colorImage === 'string' ? product.colorImage : ''
       const colorImage = cartColorPreviewBackground(color) ? '' : rawColorImage
       setCartItems((items) => [...items, {
@@ -3836,7 +3859,7 @@ function App() {
         image: typeof product?.image === 'string' ? product.image : '',
         colorImage,
         color,
-        size: typeof product?.size === 'string' ? product.size : '',
+        size: [size, bundleCount > 1 ? `${bundleCount} قطع` : ''].filter(Boolean).join(' · '),
         sizesAvailable,
         sizesUnavailable,
         quantity: 1,

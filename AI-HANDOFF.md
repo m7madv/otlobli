@@ -1,5 +1,38 @@
 # Otlobli AI Handoff
 
+## Current candidate — v86.91 three-piece quick-form bundle (2026-08-09)
+
+- The second reported product is SHEIN `p-216351093` (pink bow makeup bags).
+  Its active quick form contains **two** sibling controls: `الكمية / 1PC` and
+  `مقاس / مجموعة (صغير + متوسط + كبير)`. Never treat `1PC` as the selected
+  size: it is the package purchase quantity.
+- `sheinQuickSizeBox()` in `src/services/sheinBrowserScript.ts` selects only
+  the group whose heading means size/measurement. `sheinQuickBundleCount()`
+  derives the member count from the selected bundle; the host records the
+  display label `… · 3 قطع`.
+- Keep cart `quantity: 1` for this choice. A value of 3 would mean ordering
+  three whole packages, not representing the three items inside one package.
+- Live Note 8 DOM confirmed the selected bundle after choosing it. A complete
+  physical Otlobli add/cart acceptance is still needed. v86.91 / code 951 is
+  installed on the Note 8; build, freeze guard, performance budget, and native
+  sync passed. Do not claim iPhone acceptance: five real resume cycles plus a
+  cold launch remain required.
+- The native loading cover fallback is now 12 seconds on Android/iOS so a
+  missed ready bridge cannot block a live storefront for the old 45 seconds.
+  It only hides the cover; it does not recreate the WebView or alter protected
+  iPhone recompose timing. Note 8 restart inspection saw the storefront with no
+  lingering cover.
+- Current Android artifact: `android/app/build/outputs/apk/debug/app-debug.apk`,
+  `86.91/951`, `11,120,402` bytes, SHA-256
+  `5F1C8BE741CB25F1535E4831737EA4091320D8C74DBDE2D84B3E75A1F5AB0B3B`.
+  Installed successfully on the connected Note 8 (SM-N950F).
+
+## Current — v86.85 removes the duplicate Curvy pre-gate (2026-08-09)
+
+- Live Note 8 investigation disproved the v86.84 final assumption: the visible Otlobli button was enabled and atop `bsc-quick-add-cart`, but its own handler still ran `sheinOpenSkuDrawer()` plus document-wide color/size gates **before** it reached `addToCartFlow()`. Thus the new form-aware code was unreachable for Curvy.
+- v86.85 removes those duplicate pre-checks. The button now calls `addToCartFlow(getColorState(), getSizeState())` directly; that one gate first detects `sheinQuickAddSelectionState()` and only uses normal drawer logic if no active quick-add form exists. Do not restore the caller-side gates—there must be one decision point.
+- The Note 8 currently displays the exact Curvy sheet (4XL selected). Rebuild/install v86.85, then test a real user tap: one Otlobli row must appear in the app cart with `4XL فقط 2 بيقي` (or the newly selected size). The touch injection command was not accepted by this device session, so do not call ADB’s failed coordinate taps device acceptance.
+
 ## Current — v86.84 Curvy quick-add form isolation + diagnostics disabled (2026-08-09)
 
 - User-reported bug: in the product `IslaSuriya ...` selecting `قوام كيرفي` opens a `bsc-quick-add-cart` overlay, then choosing `5XL` and pressing the Otlobli green button did nothing. Root cause is confirmed from the code path plus the prior real Note 8 overlay inspection: `addToCartFlow()` gated on `getSizeState()` / `sheinSizeUnselected()` across the background PDP before `captureProductPayload()` switched to `sheinQuickAddPayload()`. Background size was blank, while the overlay had the user’s 5XL selection.
