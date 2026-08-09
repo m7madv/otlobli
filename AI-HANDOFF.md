@@ -24,7 +24,18 @@
   is identical across dist/Android/iOS. Debug APK SHA-256 is
   `8258C347DB214BFABF11141E17C44259C7D6394D5DF7491FDDC533036E44E916`.
 - Full lint remains at the pre-existing baseline (33 errors, 16 warnings) and
-  reports no v86.113 line. iOS CI/IPA and real-device acceptance are pending.
+  reports no v86.113 line.
+- Xcode run `31332963586` passed from `247908a`. Desktop IPA:
+  `C:\Users\MOHAMMAD\Desktop\otlobli-ios-v86.113-iphone\otlobli-ios-v86.113-iphone16\otlobli-v86.113-iphone16-unsigned.ipa`,
+  7,045,681 bytes, SHA-256
+  `A767F73D56AB17F3A2FB54A7FCC41CC29E311D31D66A43C3A0FF16BFF140AB43`.
+  Archive is `com.otlobli.app`, `86.113/973`, arm64/iOS 15+, and contains
+  production Supabase, push, version/`FAKE_VISIBLE`, and native recompose
+  markers. CI JS is `index-DguZdE19.js`, SHA-256
+  `19A81FF6CB7541FC3533EEC6EA2818274699469F8A7B0E287491A1DF6BD57E51`.
+- IPA is unsigned/unprovisioned, lacks APNs entitlement, and has no Google iOS
+  callback scheme because that CI secret remains absent. Real-device acceptance
+  is still pending; do not describe this artifact as App-Store-ready.
 
 # Previous candidate — v86.112 iPhone 6 black success-toast entry guard (2026-08-09)
 

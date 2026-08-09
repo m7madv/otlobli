@@ -31,10 +31,22 @@ SHA-256 `67BFFFB018100AE645D37661B6D1C00AA002105AE951119F942ECE6B9C154028`.
 Android debug APK is 11,169,316 bytes, SHA-256
 `8258C347DB214BFABF11141E17C44259C7D6394D5DF7491FDDC533036E44E916`.
 Repository-wide lint still fails on the documented pre-existing 33 errors and
-16 warnings; no reported lint item points at the v86.113 changes. iOS CI/IPA
-and real-device acceptance are pending. Required acceptance is iPhone 6 cold
-open plus cart-product open, and five iPhone 16 background/resume cycles plus a
-separate force-quit/cold-launch test; do not claim those from local checks.
+16 warnings; no reported lint item points at the v86.113 changes.
+
+GitHub/Xcode run `31332963586` succeeded from commit `247908a`. Downloaded IPA:
+`C:\Users\MOHAMMAD\Desktop\otlobli-ios-v86.113-iphone\otlobli-ios-v86.113-iphone16\otlobli-v86.113-iphone16-unsigned.ipa`,
+7,045,681 bytes, SHA-256
+`A767F73D56AB17F3A2FB54A7FCC41CC29E311D31D66A43C3A0FF16BFF140AB43`.
+Archive inspection confirms `com.otlobli.app`, `86.113/973`, iPhoneOS arm64,
+iOS 15+, production Supabase input, push code, the version/`FAKE_VISIBLE`
+markers, and the preserved native recompose symbol. CI asset
+`index-DguZdE19.js` is 1,167,202 bytes, SHA-256
+`19A81FF6CB7541FC3533EEC6EA2818274699469F8A7B0E287491A1DF6BD57E51`.
+The IPA remains unsigned/unprovisioned, has no APNs entitlement, and contains
+only the `otlobli` URL scheme because the GitHub Google iOS client secret is
+still absent; it is a real-device test artifact, not App-Store-ready. Required
+acceptance remains iPhone 6 cold open plus cart-product open, and five iPhone
+16 background/resume cycles plus a separate force-quit/cold-launch test.
 
 # Previous candidate — v86.112 iPhone 6 product-entry black-toast guard (2026-08-09)
 
