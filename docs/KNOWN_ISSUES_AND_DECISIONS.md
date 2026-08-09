@@ -1,5 +1,40 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
+## Several SHEIN loading screens and clipped first-frame nav (v86.97, 2026-08-09)
+
+- **Symptom:** Opening the app could expose several visually different loading
+  screens. The native SHEIN guard showed a static-looking circular spinner,
+  and on Note 8 its full-height overlay sometimes left only bottom-tab labels
+  visible while their icons appeared later.
+- **Root cause (confirmed on device):** Three independent layers painted
+  different startup UI: the static HTML boot shell, React's VPN/preparation
+  state, and the native InAppBrowser cover. Android's native cover filled the
+  whole window; when the early SHEIN nav was underneath, its SVG icon row was
+  clipped before the full page became ready.
+- **Decision:** Retain the native cover as a touch/raw-SHEIN guard, but render
+  it as the same static Otlobli wordmark plus one status line used by the boot
+  and React surfaces. Remove the spinner. Reserve 120dp below the Android
+  cover for the actual injected SVG nav; retain the equivalent safe-area
+  reserve on iOS. Keep native fade as opacity-only.
+- **Why this choice:** Removing the guard would expose a raw SHEIN page and
+  reintroduce the flash it was built to prevent. A unified static surface is
+  cheaper and calmer than another animation, while reserving the real nav
+  preserves the customer requirement that icons are present from the first
+  visible store frame.
+- **Do not do:** Do not change otlobliForceRecompose, its 0.25s foreground
+  scheduling, otlobliOnHostResume(), the JSON region comparison, or WebView
+  reopening as part of a loading-visual change. Do not replace the native
+  cover with a full-screen spinner or remove Android's 120dp reserve.
+- **Validation:** v86.97/957 passed patch reverse-check, freeze guard,
+  production build, low-end budget, Android/iOS sync and Android debug build.
+  It is installed on the connected Note 8. A cold-start capture at 2.2s
+  visibly confirmed the single wordmark/status layout and all four complete
+  bottom-nav SVG icons; a subsequent capture reached SHEIN home. iPhone
+  source is synchronized, but real iPhone 16 cold-launch and five
+  background/resume cycles are still mandatory before iPhone acceptance.
+  APK: android/app/build/outputs/apk/debug/app-debug.apk, 11,464,241 bytes,
+  SHA-256 6925ED05C4AF125FEF1DA623F250C211C5B36EB2F3F9606C8E4E0CCFC6B24BA5.
+
 ## Slow cold startup and intermittent icon-less navigation (v86.96, 2026-08-09)
 
 - **Symptom:** The app was usable once open, but initial entry could feel

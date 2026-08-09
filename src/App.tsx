@@ -6825,17 +6825,11 @@ function App() {
       // hiding the webview just reveals a nav that was already laid out,
       // not one that still needs to render.
       <MobileShell active="home" onNavigate={setScreen}>
-        {(!sheinReady || sheinBlockedError || vpnState !== 'ok') && (
+        {(sheinBlockedError || vpnState === 'no-vpn' || vpnState === 'bad-region' || vpnState === 'offline') && (
           <Header title="otlobli" unreadCount={unreadCount} onNotifications={openNotifications} />
         )}
         {vpnState === 'checking' ? (
-          <main className="mobile-content shein-home">
-            <section className="greeting">
-              <h1>جاري التحقق من الاتصال...</h1>
-              <p>نتأكد إن في طريق شبكة سليم لمتجر {currentStoreName}</p>
-            </section>
-            <span className="spinner" />
-          </main>
+          <StoreLoadingScreen label={'جاري تجهيز متجر ' + currentStoreName + '…'} />
         ) : vpnState === 'no-vpn' ? (
           <main className="mobile-content shein-home">
             <div className="empty-state">
@@ -6917,7 +6911,7 @@ function App() {
             </button>
           </main>
         ) : !sheinReady ? (
-          <HomeScreen userName={userProfile?.name} storeName={currentStoreName} failureAdvice={storeFailureAdvice} onRetry={() => { webviewAutoOpenPausedUntilRef.current = 0; sheinOpenedRef.current = false; browseShein() }} />
+          <HomeScreen storeName={currentStoreName} failureAdvice={storeFailureAdvice} onRetry={() => { webviewAutoOpenPausedUntilRef.current = 0; sheinOpenedRef.current = false; browseShein() }} />
         ) : null}
       </MobileShell>
     )
@@ -7031,29 +7025,33 @@ function Toast({ message }: { message: string }) {
   return <div className="toast" role="status" aria-live="polite">{message}</div>
 }
 
+function StoreLoadingScreen({ label }: { label: string }) {
+  return (
+    <main className="mobile-content shein-home store-loading" role="status" aria-live="polite">
+      <h1 className="store-loading__brand" translate="no">otlobli</h1>
+      <p className="store-loading__copy">{label}</p>
+    </main>
+  )
+}
+
 function HomeScreen({ userName, onRetry, storeName = 'المتجر', failureAdvice }: { userName?: string; onRetry?: () => void; storeName?: string; failureAdvice: ReturnType<typeof getStoreFailureAdvice> }) {
   const [timedOut, setTimedOut] = useState(false)
   useEffect(() => {
     const t = window.setTimeout(() => setTimedOut(true), 30_000)
     return () => window.clearTimeout(t)
   }, [])
+  if (!timedOut) {
+    return <StoreLoadingScreen label={'جاري تجهيز متجر ' + storeName + '…'} />
+  }
   return (
     <main className="mobile-content shein-home">
       <section className="greeting">
         <h1>{userName ? `أهلاً، ${userName}` : 'أهلاً بك'}</h1>
-        {timedOut ? (
-          <p style={{ color: 'var(--danger)' }}>{failureAdvice.body}</p>
-        ) : (
-          <p>جاري تجهيز متجر {storeName}...</p>
-        )}
+        <p style={{ color: 'var(--danger)' }}>{failureAdvice.body}</p>
       </section>
-      {timedOut ? (
-        <button className="ghost-action" onClick={onRetry}>
-          <Icon name="refresh" /> {failureAdvice.action}
-        </button>
-      ) : (
-        <span className="spinner" />
-      )}
+      <button className="ghost-action" onClick={onRetry}>
+        <Icon name="refresh" /> {failureAdvice.action}
+      </button>
     </main>
   )
 }

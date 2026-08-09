@@ -1,5 +1,34 @@
 # Otlobli Current State
 
+## Active candidate — v86.97 unified SHEIN loading surface (2026-08-09)
+
+The Android native SHEIN loading guard used a full-screen circular spinner,
+while the web boot shell and React host used different loading layouts. This
+made a normal open look like several unrelated screens; on Note 8 the native
+cover could also clip the top half of the injected Otlobli navigation, leaving
+labels without icons.
+
+v86.97 keeps the native guard that prevents raw SHEIN from flashing, but makes
+all normal loading states use the same quiet Otlobli wordmark and one concise
+status line. The spinner is removed. Android reserves 120dp below the cover
+for the real document-start SVG bottom bar (including its WebView safe-area
+rounding), and iOS reserves the same established nav footprint with its safe
+area. React's connection/preparation states use the same surface instead of a
+second header/spinner page. No WebView lifecycle, region-rebuild comparison,
+cache recovery, iPhone recompose, or Android resume behavior changed.
+
+Android 86.97/957 was built and installed on the connected SM-N950F / Note 8.
+Cold-start capture at the native-cover stage visibly showed otlobli, the
+single preparation line, and all four full SVG navigation icons; a later
+capture reached the normal SHEIN home. Validation passed: patch reverse-check,
+iPhone freeze guard, production build, low-end budget, Android/iOS sync,
+Android debug build and Note 8 install. The real iPhone 16 cold launch and
+five background/resume cycles remain required; iOS is synchronized but has not
+received real-device acceptance from this change.
+
+APK: android/app/build/outputs/apk/debug/app-debug.apk, 11,464,241 bytes,
+SHA-256 6925ED05C4AF125FEF1DA623F250C211C5B36EB2F3F9606C8E4E0CCFC6B24BA5.
+
 ## Active candidate — v86.96 fast startup + persistent SVG navigation (2026-08-09)
 
 The cold path was waiting for two avoidable delays: it held a usable cached

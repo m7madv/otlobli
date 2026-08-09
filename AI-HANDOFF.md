@@ -1,5 +1,27 @@
 # Otlobli AI Handoff
 
+## Current candidate — v86.97 one loading surface, no spinner (2026-08-09)
+
+- The SHEIN loading guard must remain enabled: it prevents raw/unprepared
+  SHEIN from appearing. Its implementation is in
+  patches/@capgo+capacitor-inappbrowser+8.6.25.patch, not only node_modules.
+- The acceptable normal loading visual is one static surface: green otlobli
+  wordmark plus one preparation line, with no circular spinner. index.html,
+  StoreLoadingScreen in src/App.tsx, and the Android/iOS native cover are
+  deliberately aligned. Do not reintroduce another loading header/spinner.
+- Android's native cover must retain its otlobliDp(120) lower reserve. 90dp
+  clipped the top half of the document-start inline SVG bar on Note 8, showing
+  labels with no icons. Do not make the cover full height again.
+- iOS cover keeps the nav-safe-area reserve but this change does not alter
+  otlobliForceRecompose, the guarded 0.25s active callback, the Android
+  otlobliOnHostResume() defense, cache recovery, or the JSON region guard.
+- Android 86.97/957 is installed on Note 8. Cold native-cover capture
+  confirmed wordmark + status + four complete icons; freeze guard, patch
+  reverse-check, production build, low-end budget and Android/iOS sync pass.
+  APK is android/app/build/outputs/apk/debug/app-debug.apk (11,464,241 bytes,
+  SHA-256 6925ED05C4AF125FEF1DA623F250C211C5B36EB2F3F9606C8E4E0CCFC6B24BA5).
+  Real iPhone 16 cold launch plus five resume cycles remain required.
+
 ## Current candidate — v86.96 fast startup without icon gaps (2026-08-09)
 
 - `index.html` now contains a tiny static boot shell with the four exact
