@@ -602,6 +602,11 @@ const sheinProductIdentityFromUrl = (rawUrl: string) => {
   return match?.[1] ?? ''
 }
 
+const sheinRecoveryProductUrl = (region: StoreRegion, ...candidates: string[]) => {
+  const candidate = candidates.find((url) => sheinProductIdentityFromUrl(url))
+  return candidate ? normalizeSheinBrowserUrl(candidate, region) : ''
+}
+
 const sameSheinProductNavigation = (expectedUrl: string, visibleUrl: string) => {
   const expected = sheinProductIdentityFromUrl(expectedUrl)
   return !!expected && expected === sheinProductIdentityFromUrl(visibleUrl)
@@ -3037,7 +3042,7 @@ function App() {
         !pendingProductNavigationRequestedRef.current ||
         !pendingProductPageLoadedRef.current ||
         (pendingProductRequiresVisualReadyRef.current && !pendingProductVisualReadyRef.current)) return false
-    const shouldReveal = screenRef.current === 'cart'
+    const shouldReveal = screenRef.current === 'cart' || pendingBackTargetRef.current === 'cart'
     clearPendingProductPreparation()
     if (!shouldReveal) {
       pendingBackTargetRef.current = 'home'
@@ -3237,7 +3242,7 @@ function App() {
     // keep the same prepared WebView hidden. It will be shown without reload.
     if (screenRef.current !== 'home') return
     const target = pendingBackTargetRef.current
-    pendingBackTargetRef.current = 'home'
+    if (!pendingProductRevealRef.current) pendingBackTargetRef.current = 'home'
     postWebviewChromeState(target)
   }
 
@@ -3251,6 +3256,17 @@ function App() {
       showStoreOpenFailure('preparation')
       return
     }
+
+    const resumeProductUrl = sheinRecoveryProductUrl(
+      storeRegionsRef.current.shein,
+      pendingProductRevealUrlRef.current,
+      pendingProductUrlRef.current,
+      currentWebviewUrlRef.current,
+    )
+    const resumeBackTarget: 'home' | 'cart' = sheinCartProductSessionRef.current || pendingBackTargetRef.current === 'cart'
+      ? 'cart'
+      : 'home'
+    clearPendingProductPreparation()
 
     // A single fresh WKWebView is the same recovery the user proved by
     // switching to Temu and back, without changing store or clearing the
@@ -3271,6 +3287,11 @@ function App() {
       .then(() => {
         webviewAutoOpenPausedUntilRef.current = 0
         if (screenRef.current !== 'home' || vpnStateRef.current !== 'ok' || sheinOpenedRef.current) return
+        if (resumeProductUrl) {
+          beginPendingProductPreparation(resumeProductUrl)
+          pendingBackTargetRef.current = resumeBackTarget
+          sheinCartProductSessionRef.current = resumeBackTarget === 'cart'
+        }
         window.setTimeout(() => browseSheinRef.current(), 150)
       })
       .catch(() => {
@@ -3291,10 +3312,16 @@ function App() {
     sheinChunkRecoveryInFlightRef.current = true
     sheinChunkRecoveryAtRef.current = now
 
-    const candidateUrl = reportedUrl || currentWebviewUrlRef.current
-    const resumeProductUrl = sheinProductIdentityFromUrl(candidateUrl)
-      ? normalizeSheinBrowserUrl(candidateUrl, storeRegionsRef.current.shein)
-      : ''
+    const resumeProductUrl = sheinRecoveryProductUrl(
+      storeRegionsRef.current.shein,
+      reportedUrl,
+      currentWebviewUrlRef.current,
+      pendingProductRevealUrlRef.current,
+      pendingProductUrlRef.current,
+    )
+    const resumeBackTarget: 'home' | 'cart' = sheinCartProductSessionRef.current || pendingBackTargetRef.current === 'cart'
+      ? 'cart'
+      : 'home'
 
     clearSheinReadinessWatchdog()
     clearPendingProductPreparation()
@@ -3324,7 +3351,8 @@ function App() {
             sheinOpenedRef.current || webviewOpeningRef.current) return
         if (resumeProductUrl) {
           beginPendingProductPreparation(resumeProductUrl)
-          pendingBackTargetRef.current = screenRef.current === 'cart' ? 'cart' : 'home'
+          pendingBackTargetRef.current = resumeBackTarget
+          sheinCartProductSessionRef.current = resumeBackTarget === 'cart'
         }
         window.setTimeout(() => browseSheinRef.current(), 80)
       })

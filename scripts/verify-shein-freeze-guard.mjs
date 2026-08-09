@@ -237,6 +237,9 @@ const checks = [
       "detail?.type === 'sheinChunkLoadFailure'",
       'now - sheinChunkRecoveryAtRef.current < 60_000',
       'sheinCacheResetPendingRef.current = true',
+      'const sheinRecoveryProductUrl = (region: StoreRegion, ...candidates: string[])',
+      "const resumeBackTarget: 'home' | 'cart'",
+      'pendingBackTargetRef.current = resumeBackTarget',
     ],
   },
   {
@@ -303,8 +306,25 @@ const checks = [
       "el.style.setProperty('animation', 'none', 'important')",
       "el.style.setProperty('z-index', '2147483647', 'important')",
       'otlobliStabilizeBackOverlay(btn)',
+      '|| looksLikeProductPage() || temuSearchBack',
+      "type: 'otlobliBackButtonState'",
+      'window.__otlobliNativeBackState !== nativeState',
+      'if (shouldShow) otlobliStabilizeBackOverlay(btn)',
     ],
     forbidden: ['function otlobliStabilizeTemuRootOverlay(el)'],
+  },
+  {
+    label: 'iPhone native back button remains above SHEIN compositor layers',
+    file: 'patches/@capgo+capacitor-inappbrowser+8.6.25.patch',
+    markers: [
+      'private var otlobliNativeBackButton: UIButton?',
+      'button.topAnchor.constraint(equalTo: self.view.safeAreaLayoutGuide.topAnchor, constant: top)',
+      'self.view.bringSubviewToFront(button)',
+      'otlobliNativeBackButtonDidTap',
+      "document.getElementById('otlobli-back-btn');if(b)b.click()",
+      'detail["type"] as? String == "otlobliBackButtonState"',
+      'otlobliNativeBackButton?.isHidden = true',
+    ],
   },
   {
     label: 'legacy SHEIN cart-link repair',
@@ -470,6 +490,12 @@ try {
     const backLayerStart = captureScript.indexOf('function otlobliStabilizeBackOverlay')
     const backLayerEnd = captureScript.indexOf('function ensureOtlobliNav', backLayerStart)
     const backLayerHelper = captureScript.slice(backLayerStart, backLayerEnd)
+    const backDisplayAt = captureScript.indexOf("btn.style.display = shouldShow ? 'flex' : 'none'")
+    const nativeBackStateAt = captureScript.indexOf("type: 'otlobliBackButtonState'")
+    const visibleBackReclaimAt = captureScript.indexOf('if (shouldShow) otlobliStabilizeBackOverlay(btn)', nativeBackStateAt)
+    if (backDisplayAt < 0 || nativeBackStateAt < backDisplayAt || visibleBackReclaimAt < nativeBackStateAt) {
+      failures.push('iPhone 6 back layer: visible/native state must be resolved before the final paint reclaim')
+    }
     const backLayerStyles = {}
     const backLayerChildren = []
     const backLayerBody = {

@@ -6331,21 +6331,26 @@ export const SHEIN_CAPTURE_SCRIPT = `
         // يغلق الكيبورد. history.back كان يعلّق الشاشة (لا صفحة سابقة).
         if (IS_TEMU && otlobliTemuSearchBackActive()) {
           otlobliTemuExitSearchMode();
-        } else if (!looksLikeHomeRoot() || (IS_TEMU && looksLikeProductPage())) {
+        } else if (!looksLikeHomeRoot() || looksLikeProductPage()) {
           history.back();
         }
       }, true);
       otlobliStabilizeBackOverlay(btn);
     }
-    // A top-level last body child wins WebKit's sticky-price paint layer.
-    otlobliStabilizeBackOverlay(btn);
-    // تيمو SPA قد تفتح المنتج على نفس مسار الرئيسية (query string فقط)
-    // فكان looksLikeHomeRoot يخفي زر الرجوع داخل المنتج ويحبس الزبون.
     var temuSearchBack = IS_TEMU && otlobliTemuSearchBackActive();
     var shouldShow = __otlobliBackTarget === 'cart' || !looksLikeHomeRoot()
-      || (IS_TEMU && looksLikeProductPage()) || temuSearchBack;
-    btn.style.setProperty('top', temuSearchBack ? '30px' : ((IS_SHEIN && viewportSize().width <= 390) ? '58px' : '12px'), 'important');
+      || looksLikeProductPage() || temuSearchBack;
+    var backTop = temuSearchBack ? 30 : ((IS_SHEIN && viewportSize().width <= 390) ? 58 : 12);
+    btn.style.setProperty('top', backTop + 'px', 'important');
     btn.style.display = shouldShow ? 'flex' : 'none';
+    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.messageHandler) {
+      var nativeState = (shouldShow ? '1:' : '0:') + backTop;
+      if (window.__otlobliNativeBackState !== nativeState) {
+        window.__otlobliNativeBackState = nativeState;
+        window.mobileApp.postMessage({ detail: { type: 'otlobliBackButtonState', visible: shouldShow, top: backTop } });
+      }
+    }
+    if (shouldShow) otlobliStabilizeBackOverlay(btn);
   }
 
   function isAddToCartText(el) {
