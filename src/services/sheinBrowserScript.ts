@@ -6320,15 +6320,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
           } catch (e) {}
           return;
         }
-        // Only ever go back while we're actually somewhere other than the
-        // SHEIN home root - history.length isn't a safe proxy for that (the
-        // language-redirect reload and SHEIN's own verification redirect
-        // both add entries that were never real user navigation, so a back()
-        // from the root could land back on a half-finished verification
-        // page instead of doing nothing).
-        // تيمو أثناء البحث: البحث overlay بلا history، فتفريغ حقل البحث + إطلاق
-        // input event يجعل تيمو يُخفي لوحة الاقتراحات ويرجع للرئيسية، ثم blur
-        // يغلق الكيبورد. history.back كان يعلّق الشاشة (لا صفحة سابقة).
+        // لا تستخدم history على جذر المتجر لأن تحويلات اللغة/التحقق ليست تنقلاً حقيقياً.
         if (IS_TEMU && otlobliTemuSearchBackActive()) {
           otlobliTemuExitSearchMode();
         } else if (!looksLikeHomeRoot() || looksLikeProductPage()) {
@@ -6344,10 +6336,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
     btn.style.setProperty('top', backTop + 'px', 'important');
     btn.style.display = shouldShow ? 'flex' : 'none';
     if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.messageHandler) {
-      var nativeState = (shouldShow ? '1:' : '0:') + backTop;
+      var nativeTarget = __otlobliBackTarget === 'cart' ? 'cart' : 'home';
+      var nativeHome = window.__otlobliNativeBackHome || (window.__otlobliNativeBackHome = IS_SHEIN ? normalizeSheinUrl('https://m.shein.com/ar/') : '');
+      var nativeState = (shouldShow ? '1:' : '0:') + backTop + ':' + nativeTarget + ':' + nativeHome;
       if (window.__otlobliNativeBackState !== nativeState) {
         window.__otlobliNativeBackState = nativeState;
-        window.mobileApp.postMessage({ detail: { type: 'otlobliBackButtonState', visible: shouldShow, top: backTop } });
+        window.mobileApp.postMessage({ detail: { type: 'otlobliBackButtonState', visible: shouldShow, top: backTop, target: nativeTarget, fallbackUrl: nativeHome } });
       }
     }
     if (shouldShow) otlobliStabilizeBackOverlay(btn);
@@ -10038,8 +10032,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // weak-CPU device feel heavy and slow. Relax every hot interval there so the
   // device spends its cycles rendering / passing the challenge instead of on
   // our scans. Modern devices (iPhone 16) keep the original tight timings.
+  var OTLOBLI_VERY_LOW_END = typeof navigator !== 'undefined' && (navigator.hardwareConcurrency || 4) <= 2;
   var OTLOBLI_LOW_END = typeof navigator !== 'undefined' && (
-    (navigator.hardwareConcurrency || 4) <= 4 ||
+    OTLOBLI_VERY_LOW_END || (navigator.hardwareConcurrency || 4) <= 4 ||
     (navigator.deviceMemory && navigator.deviceMemory <= 3) ||
     /Android\\s(?:7|8|9|10)(?:\\D|$)/i.test(navigator.userAgent || '')
   );
@@ -10100,7 +10095,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   setInterval(function () {
     if (document.hidden) return;
     tick();
-  }, OTLOBLI_LOW_END ? 650 : 300);
+  }, OTLOBLI_VERY_LOW_END ? 950 : (OTLOBLI_LOW_END ? 650 : 300));
   // hideKnownHeaderIconsByHint specifically needs to win what looks like an
   // ongoing fight against SHEIN periodically re-rendering its own header (a
   // user found the hamburger/wishlist icons could stay reachable for
@@ -10115,7 +10110,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     hideSheinHeaderControls();
     hideListingCardAddButtons();
     hideSheinNativeProductAdd();
-  }, OTLOBLI_LOW_END ? 650 : 120);
+  }, OTLOBLI_VERY_LOW_END ? 950 : (OTLOBLI_LOW_END ? 650 : 120));
   setInterval(function () {
     if (document.hidden) return;
     if (!otlobliInteractionActive() || !document.getElementById('otlobli-nav')) ensureOtlobliNav();
@@ -10127,13 +10122,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
       try { hideTemuSearchVisibleAccountCart(intervalTemuSearching); } catch (e) {}
       try { otlobliCleanTemuBlockers(true); } catch (e) {}
     }
-  }, OTLOBLI_LOW_END ? 2200 : 1200);
+  }, OTLOBLI_VERY_LOW_END ? 2800 : (OTLOBLI_LOW_END ? 2200 : 1200));
   // Own slower interval, not part of tick() - see checkForSheinSecurityBlock's
   // comment on why innerText needs to stay off the 300ms timer. خاص بشي إن فقط.
   setInterval(function () {
     if (document.hidden) return;
     if (IS_SHEIN && !otlobliInteractionActive()) checkForSheinSecurityBlock();
-  }, OTLOBLI_LOW_END ? 1600 : 1000);
+  }, OTLOBLI_VERY_LOW_END ? 2200 : (OTLOBLI_LOW_END ? 1600 : 1000));
   tick();
 })();
 `
