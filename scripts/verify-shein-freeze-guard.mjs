@@ -274,6 +274,27 @@ const checks = [
     ],
   },
   {
+    label: 'supported VPN does not become a false network gate',
+    file: 'src/App.tsx',
+    markers: [
+      'const previouslyReachable = storeReachableRef.current',
+      'const trustedStoreAccess = !isBlockedStoreCountry',
+      "reason === 'network' && trustedStoreAccess ? 'preparation' : reason",
+      'storeReachableRef.current = true',
+    ],
+  },
+  {
+    label: 'iPhone 6 back button root stacking layer',
+    file: 'src/services/sheinBrowserScript.ts',
+    markers: [
+      'function otlobliStabilizeBackOverlay(el)',
+      'el.parentNode !== document.documentElement',
+      "el.style.setProperty('z-index', '2147483647', 'important')",
+      'otlobliStabilizeBackOverlay(btn)',
+    ],
+    forbidden: ['function otlobliStabilizeTemuRootOverlay(el)'],
+  },
+  {
     label: 'legacy SHEIN cart-link repair',
     file: 'src/App.tsx',
     markers: [
@@ -434,6 +455,23 @@ try {
     failures.push('SHEIN capture-script syntax: emitted script is missing')
   } else {
     new Function(captureScript)
+    const backLayerStart = captureScript.indexOf('function otlobliStabilizeBackOverlay')
+    const backLayerEnd = captureScript.indexOf('function ensureOtlobliNav', backLayerStart)
+    const backLayerHelper = captureScript.slice(backLayerStart, backLayerEnd)
+    const backLayerStyles = {}
+    const backLayerRoot = { appendChild: (node) => { node.parentNode = backLayerRoot } }
+    const backLayerButton = {
+      parentNode: {},
+      style: { setProperty: (name, value, priority) => { backLayerStyles[name] = `${value}:${priority}` } },
+    }
+    runInNewContext(`${backLayerHelper}\notlobliStabilizeBackOverlay(button)`, {
+      document: { documentElement: backLayerRoot }, button: backLayerButton,
+    })
+    if (backLayerButton.parentNode !== backLayerRoot ||
+        backLayerStyles['z-index'] !== '2147483647:important' ||
+        backLayerStyles['pointer-events'] !== 'auto:important') {
+      failures.push('iPhone 6 back layer: button is not rooted above later SHEIN body portals')
+    }
     const viewerStart = captureScript.indexOf('function sheinViewerHasLargeMedia')
     const viewerEnd = captureScript.indexOf('function sheinImageViewerRoot', viewerStart)
     const viewerHelpers = captureScript.slice(viewerStart, viewerEnd)

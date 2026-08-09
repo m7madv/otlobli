@@ -1,4 +1,30 @@
-# Current candidate — v86.114 instant SHEIN native add concealment (2026-08-09)
+# Current candidate — v86.115 supported VPN continuity and iPhone 6 back layer (2026-08-09)
+
+- Do not reintroduce false VPN advice after Qatar/another supported location
+  or a successful store session is known. A transient geo/store-probe timeout
+  now preserves that evidence; explicit Syria still gates, offline stays
+  offline, and store switching clears the reachability evidence.
+- `showStoreOpenFailure()` maps a network-looking WebView failure to bounded
+  store preparation when access is already trusted. This prevents an ordinary
+  SHEIN load failure from telling a Qatar user to change VPN.
+- The iPhone 6 back issue was stacking order, not its offset. Keep
+  `otlobliStabilizeBackOverlay()`: the button is rooted directly under
+  `document.documentElement` with fixed/max-important stacking and pointer
+  events. Keep the existing `58px` top at widths `<=390px`; modern iPhones keep
+  their existing position. The helper is idempotent and adds no timer/scan.
+- The freeze verifier contains static VPN/back-layer assertions plus an
+  executable reparent/style fixture. Preserve them.
+- Version `86.115/975`; diagnostics off. Build, freeze/performance guards,
+  Android/iOS sync, diff check and Android debug assemble pass. Synchronized
+  bundle `index-DJYgI4go.js`, 1,166,206 bytes, SHA-256
+  `7E2302F00879ED6C4C46AE08AF1AFF0EAAB2D8D641860BFE13D14F087F91162F`.
+  Debug APK is 11,170,941 bytes, SHA-256
+  `31E342B6B8156E5A54453E6E0D1AB43C3E18D0E310ABDF4402503F48E18947F8`.
+- iPhone CI/artifact and real-device acceptance are pending. Do not call the
+  result accepted until iPhone 6 product navigation is checked and the required
+  five iPhone 16 resume cycles plus force-quit/cold-launch test pass.
+
+# Previous candidate — v86.114 instant SHEIN native add concealment (2026-08-09)
 
 - User symptom: on product entry, SHEIN's own black add-to-cart control remains
   visible until a down/up scroll. This is concealment, not Otlobli button size.

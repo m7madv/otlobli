@@ -1,4 +1,36 @@
-# Active candidate — v86.114 instant SHEIN native add-button concealment (2026-08-09)
+# Active candidate — v86.115 Qatar VPN continuity and iPhone 6 back layer (2026-08-09)
+
+The remaining issues were independent. First, a transient timeout from the
+geo/store probes could overwrite a Qatar or already-working store session and
+show VPN advice. v86.115 now keeps a confirmed supported country or successful
+store session authoritative across a transient probe failure. An explicit
+blocked-country result still opens the real VPN gate, offline remains offline,
+and changing stores resets the store-reachability evidence. A store loading
+failure after supported access is reported as preparation/recovery, not as a
+false VPN problem.
+
+Second, the injected back button already used the maximum z-index, but it was
+inside `body`. SHEIN can append a later body portal with the same stacking
+priority, which covered the button on the small iPhone 6 layout. The button is
+now an idempotent direct child of `document.documentElement`, with fixed
+position, maximum important z-index, GPU compositing and pointer events. The
+existing iPhone 6 top offset (`58px` at widths up to 390px) and modern-iPhone
+position are unchanged. No timer, observer, scan or native recompose was added.
+
+Version is `86.115/975`; diagnostics remain off. Production build,
+freeze/executable guard, low-end budget, Android/iOS sync, diff check and
+Android debug assemble pass. Budgets: JS raw `1,166,206/1,200,000`, total JS
+gzip `322,557/370,000`, CSS `63,670/70,000`, fonts `81,364/100,000`, SHEIN
+source `549,495/550,000`. Bundle `index-DJYgI4go.js` is identical in
+dist/Android/iOS, SHA-256
+`7E2302F00879ED6C4C46AE08AF1AFF0EAAB2D8D641860BFE13D14F087F91162F`.
+Android debug APK is 11,170,941 bytes, SHA-256
+`31E342B6B8156E5A54453E6E0D1AB43C3E18D0E310ABDF4402503F48E18947F8`.
+iPhone CI/artifact and physical iPhone 6/iPhone 16 acceptance remain pending.
+Preserve the exact iPhone 0.25-second recompose, Android resume defense,
+store-region JSON guard and v86.113 host-first reveal.
+
+# Previous candidate — v86.114 instant SHEIN native add-button concealment (2026-08-09)
 
 The user clarified that the remaining product-entry defect was concealment,
 not Otlobli button sizing: SHEIN's own black add-to-cart control stayed visible

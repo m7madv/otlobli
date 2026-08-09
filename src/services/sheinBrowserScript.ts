@@ -6190,14 +6190,16 @@ export const SHEIN_CAPTURE_SCRIPT = `
     nav.setAttribute('data-otlobli-temu-nav-content-align', 'v85.8.54-reset');
   }
 
-  function otlobliStabilizeTemuRootOverlay(el) {
-    if (!IS_TEMU || !el || !document.documentElement) return;
+  function otlobliStabilizeBackOverlay(el) {
+    if (!el || !document.documentElement) return;
     if (el.parentNode !== document.documentElement) {
       document.documentElement.appendChild(el);
     }
     el.style.setProperty('-webkit-backface-visibility', 'hidden', 'important');
     el.style.setProperty('backface-visibility', 'hidden', 'important');
-    el.style.setProperty('transform', el.id === 'otlobli-back-btn' ? 'translate3d(0,0,0)' : 'translateZ(0)', 'important');
+    el.style.setProperty('position', 'fixed', 'important');
+    el.style.setProperty('z-index', '2147483647', 'important');
+    el.style.setProperty('transform', 'translate3d(0,0,0)', 'important');
     el.style.setProperty('pointer-events', 'auto', 'important');
   }
 
@@ -6330,15 +6332,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
           history.back();
         }
       }, true);
-      if (IS_TEMU) otlobliStabilizeTemuRootOverlay(btn);
-      else document.body.appendChild(btn);
+      otlobliStabilizeBackOverlay(btn);
     }
-    if (IS_TEMU) otlobliStabilizeTemuRootOverlay(btn);
-    // Deliberately NOT re-claiming "last child of body" here on every tick -
-    // see the matching comment in ensureAddToCartButton. This button has the
-    // same otlobli-pop2 entrance animation, which a repeated appendChild on
-    // an already-mounted node retriggers, causing a visible flicker every
-    // ~300ms on a page that's always inserting something else after it.
+    // Root placement keeps later SHEIN body portals below the back button;
+    // this is idempotent and does not re-append or reanimate it every tick.
+    otlobliStabilizeBackOverlay(btn);
     // تيمو SPA قد تفتح المنتج على نفس مسار الرئيسية (query string فقط)
     // فكان looksLikeHomeRoot يخفي زر الرجوع داخل المنتج ويحبس الزبون.
     var temuSearchBack = IS_TEMU && otlobliTemuSearchBackActive();
@@ -7527,7 +7525,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (nav) (document.documentElement || document.body).appendChild(nav);
       if (back) {
         back.style.setProperty('animation', 'none', 'important');
-        document.body.appendChild(back);
+        otlobliStabilizeBackOverlay(back);
       }
       __otlobliSheinViewerRoot = viewer;
     }

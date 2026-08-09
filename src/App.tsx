@@ -317,7 +317,7 @@ const getStoreFailureAdvice = (
     return {
       icon: 'refresh',
       title: 'تعذّر تجهيز المتجر',
-      body: `اتصال الـ VPN يعمل، لكن منتجات ${store} لم تكتمل على هذا الجهاز. أعد التجهيز وسنبدأ جلسة نظيفة مرة واحدة.`,
+      body: `اتصالك من منطقة مدعومة، لكن منتجات ${store} لم تكتمل على هذا الجهاز. أعد التجهيز وسنبدأ جلسة نظيفة مرة واحدة.`,
       action: 'إعادة تجهيز المتجر',
     }
   }
@@ -2891,7 +2891,10 @@ function App() {
         if (first.source === 'store' && first.reachable) {
           storeReachableRef.current = true
           void geoPromise.then((geo) => {
-            if (!cancelled && geo) setVpnGeo(geo)
+            if (!cancelled && geo) {
+              vpnGeoRef.current = geo
+              setVpnGeo(geo)
+            }
           })
           return 'ok'
         }
@@ -2899,14 +2902,26 @@ function App() {
         const geo = first.source === 'geo' ? first.geo : await geoPromise
         if (cancelled) return null
         if (geo) {
+          vpnGeoRef.current = geo
           setVpnGeo(geo)
           if (!isBlockedStoreCountry(geo.countryCode)) return 'ok'
         }
         const storeOk = first.source === 'store' ? first.reachable : await storeReachablePromise
         if (cancelled) return null
+        const previouslyReachable = storeReachableRef.current
         storeReachableRef.current = storeOk
-        setVpnGeo(null)
         if (storeOk) return 'ok'
+        // A store page or a supported exit country already confirmed during
+        // this session outranks one transient failure from all probe services.
+        // Keep Qatar/other supported users browsing; a later explicit Syria
+        // result still falls through to the real no-VPN gate.
+        const previousGeo = vpnGeoRef.current
+        if (navigator.onLine !== false &&
+            (previouslyReachable || (previousGeo?.countryCode && !isBlockedStoreCountry(previousGeo.countryCode)))) {
+          return 'ok'
+        }
+        vpnGeoRef.current = null
+        setVpnGeo(null)
         return navigator.onLine !== false ? 'no-vpn' : 'offline'
       }
       let state = await resolveState()
@@ -2937,15 +2952,36 @@ function App() {
     const storeReachablePromise = checkStoreReachable(selectedStoreRef.current)
     void probeVpnGeo().then(async (geo) => {
       if (geo) {
+        vpnGeoRef.current = geo
         setVpnGeo(geo)
-        if (isBlockedStoreCountry(geo.countryCode)) { setVpnState('no-vpn'); return }
+        if (isBlockedStoreCountry(geo.countryCode)) {
+          storeReachableRef.current = false
+          setVpnState('no-vpn')
+          return
+        }
         setVpnState('ok')
         return
       }
       const storeOk = await storeReachablePromise
-      storeReachableRef.current = storeOk
+      if (storeOk) {
+        storeReachableRef.current = true
+        setVpnState('ok')
+        return
+      }
+      if (navigator.onLine === false) {
+        setVpnState('offline')
+        return
+      }
+      // Do not erase a confirmed Qatar/other supported location merely
+      // because both external probes timed out during an active session.
+      if (storeReachableRef.current ||
+          (vpnGeoRef.current?.countryCode && !isBlockedStoreCountry(vpnGeoRef.current.countryCode))) {
+        setVpnState('ok')
+        return
+      }
+      vpnGeoRef.current = null
       setVpnGeo(null)
-      setVpnState(storeOk ? 'ok' : (navigator.onLine === false ? 'offline' : 'no-vpn'))
+      setVpnState('no-vpn')
     })
   }
 
@@ -3084,10 +3120,8 @@ function App() {
     sheinChallengeActiveRef.current = false
     currentWebviewUrlRef.current = ''
     sheinOpenedRef.current = false
-    storeReachableRef.current = false
     setSheinReady(false)
     setSheinBlockedError(false)
-    setVpnGeo(null)
     setVpnState('checking')
     void InAppBrowser.close().catch(() => undefined).finally(() => {
       suppressAutoReopenRef.current = false
@@ -3112,10 +3146,14 @@ function App() {
     currentWebviewUrlRef.current = ''
     sheinOpenedRef.current = false
     setSheinReady(false)
-    setStoreOpenFailureReason(reason)
-    if (reason === 'preparation') sheinCacheResetPendingRef.current = true
+    const geo = vpnGeoRef.current
+    const trustedStoreAccess = !isBlockedStoreCountry(geo?.countryCode) &&
+      (storeReachableRef.current || !!geo?.countryCode)
+    const effectiveReason = reason === 'network' && trustedStoreAccess ? 'preparation' : reason
+    setStoreOpenFailureReason(effectiveReason)
+    if (effectiveReason === 'preparation') sheinCacheResetPendingRef.current = true
     setSheinBlockedError(true)
-    if (reason === 'network') refreshVpnDiagnosisForStoreFailure()
+    if (effectiveReason === 'network') refreshVpnDiagnosisForStoreFailure()
     void InAppBrowser.close().catch(() => undefined).finally(() => {
       suppressAutoReopenRef.current = false
     })
@@ -3171,6 +3209,7 @@ function App() {
     }
     webviewAutoOpenPausedUntilRef.current = 0
     setSheinBlockedError(false)
+    storeReachableRef.current = true
 
     webviewOpeningRef.current = false
 
@@ -6837,6 +6876,7 @@ function App() {
         if (id !== selectedStore) {
           setSelectedStore(id)
           selectedStoreRef.current = id
+          storeReachableRef.current = false
           webviewAutoOpenPausedUntilRef.current = 0
           // لا تبسّط هذا التسلسل: تم تأكيد خلل شاشة بيضاء بتاريخ 2026-07-03.
           // إغلاق متصفّح المتجر الحالي ثم إعادة فتحه على المتجر الجديد (تُحقن
