@@ -264,6 +264,16 @@ const checks = [
     ],
   },
   {
+    label: 'SHEIN document-start native product-add concealment',
+    file: 'src/services/sheinBrowserScript.ts',
+    markers: [
+      "style.id = 'otlobli-native-add-style'",
+      '[class*="add-to-bag" i]',
+      '[class*="add-cart" i]',
+      '[aria-label*="أضف إلى عربة" i]',
+    ],
+  },
+  {
     label: 'legacy SHEIN cart-link repair',
     file: 'src/App.tsx',
     markers: [
@@ -414,6 +424,12 @@ try {
   const scriptModule = { exports: {} }
   new Function('exports', 'require', 'module', output)(scriptModule.exports, () => ({}), scriptModule)
   const captureScript = scriptModule.exports.SHEIN_CAPTURE_SCRIPT
+  const bootstrapScript = scriptModule.exports.OTLOBLI_NAV_BOOTSTRAP_SCRIPT
+  const nativeAddStyleAt = bootstrapScript.indexOf("style.id = 'otlobli-native-add-style'")
+  const nativeAddProductGuardAt = bootstrapScript.indexOf("if (!/-p-\\d+/i.test(location.pathname)) return;", nativeAddStyleAt)
+  if (nativeAddStyleAt < 0 || nativeAddProductGuardAt < nativeAddStyleAt) {
+    failures.push('SHEIN native product-add concealment: CSS must mount before a later SPA product route')
+  }
   if (typeof captureScript !== 'string' || !captureScript.trim()) {
     failures.push('SHEIN capture-script syntax: emitted script is missing')
   } else {

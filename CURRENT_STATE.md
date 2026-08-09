@@ -1,3 +1,35 @@
+# Active candidate — v86.114 instant SHEIN native add-button concealment (2026-08-09)
+
+The user clarified that the remaining product-entry defect was concealment,
+not Otlobli button sizing: SHEIN's own black add-to-cart control stayed visible
+until the shopper scrolled down and back up. Live inspection of the current
+Arabic SHEIN product page found the exact control class
+`j-add-to-bag add-cart__normal-btn productAddBtn`. The document-start CSS only
+covered `add-bag`/`addbag`, so it did not match SHEIN's real `add-to-bag` name;
+the later geometry/text scan could eventually catch it after scroll/layout.
+
+v86.114 mounts the lightweight SHEIN-only concealment stylesheet while the
+session is still on the home route, before the product-path guard. It covers
+the current `add-to-bag`/`add-cart` variants plus bounded equivalent class and
+ARIA names. A product action created later by the SPA is therefore hidden by
+the browser's CSS engine on insertion, with no scroll, new timer, mutation
+geometry scan, recompose burst, or permanent watcher. The freeze verifier now
+enforces the document-start selectors and their ordering ahead of a later SPA
+product route.
+
+Version is `86.114/974`; diagnostics remain off. Production build,
+freeze/executable guard, low-end budget, diff check, Android/iOS sync and
+Android debug assemble pass. Budgets: JS raw `1,166,026/1,200,000`, total JS
+gzip `322,526/370,000`, CSS `63,670/70,000`, fonts `81,364/100,000`, SHEIN
+source `549,739/550,000`. Bundle `index-DsS0ZeUp.js` is identical in
+dist/Android/iOS, SHA-256
+`0C2F9B163923FB1467313983DA2A0B0FBED7DEDBA29D796EEBE72B703E367520`.
+Android debug APK is 11,547,910 bytes, SHA-256
+`9678319D4A7762D65F3004079C68421CC0BFF64849B0FF40A642215AD2851AEA`.
+The iOS CI artifact and real-device acceptance are still pending. Preserve the
+exact iPhone 0.25-second recompose, Android resume defense, store-region JSON
+guard and v86.113 host-first reveal.
+
 # Active candidate — v86.113 fixed host-first SHEIN reveal on iPhone (2026-08-09)
 
 The remaining iPhone 6 first-open defect was not another nav-height problem.

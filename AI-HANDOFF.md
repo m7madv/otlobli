@@ -1,3 +1,28 @@
+# Current candidate — v86.114 instant SHEIN native add concealment (2026-08-09)
+
+- User symptom: on product entry, SHEIN's own black add-to-cart control remains
+  visible until a down/up scroll. This is concealment, not Otlobli button size.
+- Live Arabic SHEIN inspection identified the control as
+  `j-add-to-bag add-cart__normal-btn productAddBtn`. The bootstrap stylesheet
+  matched `add-bag`, not the real `add-to-bag`; the bounded geometry/text scan
+  only caught it after later layout work.
+- Keep v86.114's fix: `hideEarlySheinProductAdd()` installs the SHEIN-only CSS
+  before checking `/-p-\\d+/`, so a home session is already protected when SPA
+  navigation creates the product control. Selectors cover `add-to-bag`,
+  `add-cart`, equivalent compact variants and exact add-to-cart ARIA hints.
+- This is intentionally CSS-only at insertion time: no new interval,
+  MutationObserver scan, scroll event, or native recomposition was added. The
+  freeze verifier enforces the selectors and ordering.
+- Version `86.114/974`; diagnostics off. Build, freeze/performance guards,
+  both native syncs, diff check and Android debug assemble pass. Synchronized
+  bundle `index-DsS0ZeUp.js`, 1,166,026 bytes, SHA-256
+  `0C2F9B163923FB1467313983DA2A0B0FBED7DEDBA29D796EEBE72B703E367520`.
+  Debug APK SHA-256 is
+  `9678319D4A7762D65F3004079C68421CC0BFF64849B0FF40A642215AD2851AEA`.
+- iOS CI/IPA and real iPhone acceptance are pending. Do not claim device
+  acceptance. Preserve v86.113 hidden `FAKE_VISIBLE` reveal and all iPhone 16
+  freeze invariants.
+
 # Current candidate — v86.113 host-first iOS SHEIN reveal (2026-08-09)
 
 - The iPhone 6 screenshot showed the native Otlobli loading cover plus only

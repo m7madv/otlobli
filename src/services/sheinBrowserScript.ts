@@ -175,14 +175,17 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
 
   var __otlobliEarlyNativeAddScanAt = 0;
   function hideEarlySheinProductAdd() {
-    if (!/-p-\\d+/i.test(location.pathname)) return;
+    if (!/shein/i.test(location.hostname)) return;
     if (document.head && !document.getElementById('otlobli-native-add-style')) {
       var style = document.createElement('style');
       style.id = 'otlobli-native-add-style';
-      style.textContent = '[class*="add-bag" i]:not([id^="otlobli"]),[class*="addbag" i]:not([id^="otlobli"]),' +
-        '[class*="add-to-cart" i]:not([id^="otlobli"]),[class*="addtocart" i]:not([id^="otlobli"]){display:none!important;visibility:hidden!important;pointer-events:none!important}';
+      style.textContent = '[class*="add-bag" i],[class*="addbag" i],[class*="add-to-bag" i],[class*="addtobag" i],' +
+        '[class*="add-cart" i],[class*="addcart" i],[class*="add-to-cart" i],[class*="addtocart" i],' +
+        '[aria-label*="add to bag" i],[aria-label*="add to cart" i],[aria-label*="أضف إلى عربة" i],[aria-label*="أضف للسلة" i]' +
+        '{display:none!important;visibility:hidden!important;pointer-events:none!important}';
       document.head.appendChild(style);
     }
+    if (!/-p-\\d+/i.test(location.pathname)) return;
     if (!document.body) return;
     var now = Date.now();
     if (now - __otlobliEarlyNativeAddScanAt < 350) return;
@@ -10074,10 +10077,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // and the first tick() never ran for that whole page load. WebKit can run
   // this before <html> is exposed too, so attach as soon as a root node
   // actually exists instead of assuming documentElement does.
-  // Do not run geometry/text scans from MutationObserver. SHEIN mutates the
-  // product DOM continuously; doing layout work before every paint starves
-  // older WKWebView devices and delays image decoding. The coalesced tick owns
-  // all inspections at their explicit throttled intervals.
+  // Keep this callback geometry/text-free; coalesced tick owns DOM inspection.
   var observer = new MutationObserver(scheduleTick);
   function observeOtlobliDocumentRoot() {
     var root = document.documentElement || document.body;
