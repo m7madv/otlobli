@@ -209,6 +209,17 @@ const checks = [
     ],
   },
   {
+    label: 'iPhone 6 SHEIN cart-toast entry guard',
+    file: 'src/services/sheinBrowserScript.ts',
+    markers: [
+      "var __otlobliCartToastProductKey = '';",
+      'var productMatch = location.pathname.match(/-p-(\\\\d+)/i);',
+      'if (productKey !== __otlobliCartToastProductKey)',
+      '__otlobliCartToastGuardUntil = Date.now() + 15000;',
+      "current.setAttribute('data-otlobli-hidden-cart-toast', '1')",
+    ],
+  },
+  {
     label: 'SHEIN chunk recovery host path',
     file: 'src/App.tsx',
     markers: [
@@ -421,6 +432,38 @@ try {
     if (detectsViewer('التقييمات 4.9/5', '4.9/5')) failures.push('SHEIN viewer guard: rating was mistaken for an image counter')
     if (detectsViewer('التعليقات 1/7', '1/7')) failures.push('SHEIN viewer guard: review section was mistaken for a photo viewer')
     if (!detectsViewer('1/7', '1/7')) failures.push('SHEIN viewer guard: real image counter no longer detects the photo viewer')
+
+    const toastStart = captureScript.indexOf('var __otlobliCartToastGuardUntil = 0;')
+    const toastEnd = captureScript.indexOf('var sheinBlockReported', toastStart)
+    const toastHelpers = captureScript.slice(toastStart, toastEnd)
+    const runCartToastGuard = (pathname) => {
+      const hidden = {}
+      const body = {}, documentElement = {}
+      const toast = {
+        id: '', textContent: 'أضف إلى عربة التسوق بنجاح', parentElement: body,
+        style: { setProperty: (name, value) => { hidden[name] = value } },
+        setAttribute: (name, value) => { hidden[name] = value },
+        getBoundingClientRect: () => ({ width: 340, height: 52, top: 595, bottom: 647 }),
+      }
+      runInNewContext(`${toastHelpers}\nhideSheinCartSuccessToast();`, {
+        IS_SHEIN: true, location: { pathname }, Date: { now: () => 1_000 },
+        viewportSize: () => ({ width: 375, height: 667 }),
+        document: {
+          body, documentElement,
+          querySelector: () => null,
+          querySelectorAll: () => [toast],
+          elementsFromPoint: () => [toast],
+        },
+      })
+      return hidden
+    }
+    const productToast = runCartToastGuard('/ar/item-p-123.html')
+    if (productToast.display !== 'none' || productToast['data-otlobli-hidden-cart-toast'] !== '1') {
+      failures.push('SHEIN cart toast: product entry did not hide the restored black success bar')
+    }
+    if (runCartToastGuard('/ar/').display === 'none') {
+      failures.push('SHEIN cart toast: non-product entry armed the success-bar guard')
+    }
   }
 
   const chunkCase = (pathname, attemptedTap) => {
@@ -478,6 +521,23 @@ try {
   if (recoveryCalls !== 0) failures.push('SHEIN product tap fallback: direct product anchor caused an unnecessary recovery')
 } catch (error) {
   failures.push(`SHEIN capture-script syntax: ${error instanceof Error ? error.message : String(error)}`)
+}
+
+try {
+  const sheinSource = readFileSync(resolve(projectRoot, 'src/services/sheinBrowserScript.ts'), 'utf8')
+  const tickStart = sheinSource.indexOf('function tick()')
+  const tickEnd = sheinSource.indexOf('var tickScheduled = false', tickStart)
+  const tickSource = sheinSource.slice(tickStart, tickEnd)
+  const sheinBranchStart = tickSource.indexOf('ensureLoadingOverlay();')
+  const sheinBranch = tickSource.slice(sheinBranchStart)
+  const toastGuard = sheinBranch.indexOf('hideSheinCartSuccessToast();')
+  const addButton = sheinBranch.indexOf('ensureAddToCartButton();')
+  if (tickStart < 0 || tickEnd < 0 || sheinBranchStart < 0 || toastGuard < 0 ||
+      addButton < 0 || toastGuard > addButton) {
+    failures.push('SHEIN cart toast: entry guard must run before the Otlobli add button is exposed')
+  }
+} catch (error) {
+  failures.push(`SHEIN cart toast ordering: ${error instanceof Error ? error.message : String(error)}`)
 }
 
 // The cart regression is specifically caused by navigating an already-used

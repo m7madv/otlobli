@@ -7307,10 +7307,20 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // nav after our capture completes. Hide only that exact compact success
   // message; the real product button and every other bottom action remain.
   var __otlobliCartToastGuardUntil = 0;
+  var __otlobliCartToastProductKey = '';
   function hideSheinCartSuccessToast() {
     if (!IS_SHEIN || !document.body) return;
     var quickFooter = document.querySelector('.sui-drawer__open .bsc-quick-add-cart__footerBar');
     if (quickFooter) quickFooter.style.setProperty('display', 'none', 'important');
+    // iPhone 6 can restore SHEIN's old black success bar as the product paints.
+    // Arm this bounded guard on product entry, not only after Otlobli's add tap.
+    var productMatch = location.pathname.match(/-p-(\\d+)/i);
+    var productKey = productMatch ? productMatch[1] : '';
+    if (!productKey) __otlobliCartToastProductKey = '';
+    else if (productKey !== __otlobliCartToastProductKey) {
+      __otlobliCartToastProductKey = productKey;
+      __otlobliCartToastGuardUntil = Date.now() + 15000;
+    }
     if (Date.now() > __otlobliCartToastGuardUntil) return;
     var vp = viewportSize();
     var successPattern = /added to (?:the )?(?:shopping )?(?:bag|cart) successfully|\\u0623\\u0636(?:\\u064a\\u0641|\\u0641)\\s+\\u0625\\u0644\\u0649\\s+(?:\\u0639\\u0631\\u0628\\u0629|\\u062d\\u0642\\u064a\\u0628\\u0629)\\s+\\u0627\\u0644\\u062a\\u0633\\u0648\\u0642\\s+\\u0628\\u0646\\u062c\\u0627\\u062d/i;
@@ -7735,6 +7745,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
     ensureLoadingOverlay();
     blockCartNavigation();
+    hideSheinCartSuccessToast();
     ensureAddToCartButton();
     hideSheinNativeProductAdd();
     stabilizeSheinImageViewerChrome();
@@ -7745,7 +7756,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     protectSheinCookieConsentAction();
     hideSheinSignupDiscountBanner();
     dismissSheinProductLoginPrompt();
-    hideSheinCartSuccessToast();
     hideSheinAppInstallPrompts();
     // Readiness must be the final step. Previously it was posted before the
     // header/cart/listing/nav blockers below ran, so native code could reveal

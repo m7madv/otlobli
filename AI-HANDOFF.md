@@ -1,4 +1,29 @@
-# Current candidate — v86.111 iOS SHEIN cart-product fresh session (2026-08-09)
+# Current candidate — v86.112 iPhone 6 black success-toast entry guard (2026-08-09)
+
+- The user clarified the iPhone 6 symptom: the compact black SHEIN “added to
+  shopping cart successfully” bar is already visible above Otlobli nav on
+  product entry. It disappears after pressing Otlobli add or quickly navigating
+  to Otlobli cart. Do not conflate this with the iPhone 16 tap-session defect.
+- Exact cause: `hideSheinCartSuccessToast()` was gated by
+  `__otlobliCartToastGuardUntil`, but that deadline was assigned only inside
+  `addToCartFlow()`. Thus the user's add click was what enabled the already
+  correct detector; cart navigation only hid the WebView.
+- Preserve v86.112 behavior: track the current `-p-<id>` key, arm the existing
+  bounded scan for 15 seconds on new product entry, reset the key off product
+  routes, and run the guard before `ensureAddToCartButton()`. The later seven-
+  second add-flow rearm remains. No timer or observer was added.
+- The freeze verifier evaluates the real emitted helper with a 375×667 Arabic
+  black-toast fixture: product entry hides it without an add click, non-product
+  entry does not, and static ordering keeps the guard ahead of the add button.
+- Version `86.112/972`; diagnostics off. Build/freeze/performance, patch reverse
+  check, diff check and both native syncs pass. Bundle `index-CtL87wKm.js`,
+  1,165,969 bytes, SHA-256
+  `5C4B6FDBFB705FCA400E5EFC924AE92010C52EAC28FC2754C6CB0BC574AC3DBB`,
+  is identical across dist/Android/iOS. SHEIN source is `549,734/550,000`, so
+  reduce source before any further addition. Xcode IPA and real iPhone 6
+  acceptance are pending.
+
+# Previous candidate — v86.111 iOS SHEIN cart-product fresh session (2026-08-09)
 
 - The user tested v86.110 on both iPhone 16 Pro Max and iPhone 6 and confirmed
   the cart-triggered product-navigation failure remains. Treat that result as a

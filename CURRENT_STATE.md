@@ -1,4 +1,38 @@
-# Active candidate — v86.111 iOS SHEIN cart-product session isolation (2026-08-09)
+# Active candidate — v86.112 iPhone 6 product-entry black-toast guard (2026-08-09)
+
+The user clarified that the remaining iPhone 6 defect is the compact black
+SHEIN “added to shopping cart successfully” bar above Otlobli's bottom nav. It
+is already visible on product entry and disappears only after Otlobli's add
+button is pressed or the customer quickly opens Otlobli cart.
+
+The cause is exact in the existing code: `hideSheinCartSuccessToast()` already
+recognizes and hides this specific black bar, but its seven-second guard window
+was armed only inside `addToCartFlow()`. Therefore product entry returned before
+the scan; pressing Otlobli add armed the guard, and opening cart merely hid the
+entire SHEIN WebView. v86.112 arms the same bounded guard for 15 seconds when a
+new `-p-<id>` route is entered and runs it before Otlobli's add button is
+exposed. It resets its product key off product routes and retains the existing
+add-flow window for later actions.
+
+No timer, MutationObserver work, full-page scan, native WebView/lifecycle,
+region, verification, cart write, payment, wallet or order logic changed. The
+existing low-end tick performs the same bounded point/alert inspection only
+during the entry window. The freeze verifier now executes the actual injected
+helper against a 375×667 black-toast fixture, proves it hides on product entry
+without any add click, proves non-product entry does not arm it, and enforces
+that the guard runs before the Otlobli add button.
+
+Version is `86.112/972`; diagnostics disabled. Production build,
+freeze/executable regressions, low-end budget, patch reverse-check, diff check,
+and Android/iOS sync pass. Budgets: JS raw `1,165,969/1,200,000`, total JS gzip
+`322,546/370,000`, CSS `63,670/70,000`, fonts `81,364/100,000`, SHEIN source
+`549,734/550,000`. Synchronized bundle `index-CtL87wKm.js` is 1,165,969 bytes,
+SHA-256 `5C4B6FDBFB705FCA400E5EFC924AE92010C52EAC28FC2754C6CB0BC574AC3DBB`,
+identical in dist/Android/iOS. Xcode IPA and real iPhone 6 acceptance are
+pending; do not claim the symptom closed until the product-entry bar is absent
+on that device.
+
+# Previous candidate — v86.111 iOS SHEIN cart-product session isolation (2026-08-09)
 
 The user's real iPhone 16 Pro Max and iPhone 6 results reject v86.110 as a fix
 for the cart-triggered dead-product-navigation sequence. The exact reproduction

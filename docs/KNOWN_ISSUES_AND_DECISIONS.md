@@ -1,5 +1,24 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
+## iPhone 6 product entry restores SHEIN's black cart-success bar (v86.112, 2026-08-09)
+
+- **Clarified symptom:** The remaining black element is SHEIN's compact
+  “added to shopping cart successfully” toast above Otlobli nav, not Otlobli's
+  green add button and not the iPhone 16 dead-tap issue. Pressing Otlobli add
+  made it disappear; opening Otlobli cart hid the whole store surface.
+- **Cause:** `hideSheinCartSuccessToast()` already had the correct exact-text,
+  geometry and Otlobli-exclusion checks, but its deadline was armed only by
+  `addToCartFlow()`. On product entry it therefore returned before inspecting
+  the black bar. The user action appeared to “fix” it because it enabled the
+  existing seven-second guard.
+- **Decision:** Arm the same scan for 15 seconds on each new `-p-<id>` entry,
+  run it before exposing Otlobli add, and reset the route key off product pages.
+  Reuse the low-end tick; do not add a timer, observer or permanent DOM scan.
+- **Validation boundary:** Executable injected-script fixture at 375×667 proves
+  product entry hides the Arabic success toast without an add click and home
+  does not arm it. Production build, freeze/performance guards and native sync
+  pass. Real iPhone 6 acceptance is pending.
+
 ## iPhone 6 exposes SHEIN's product add action before Otlobli acts (v86.109, 2026-08-09)
 
 - **Cause:** The listing quick-add cleaner intentionally rejects controls wider
