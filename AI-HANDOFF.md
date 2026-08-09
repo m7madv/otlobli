@@ -24,9 +24,19 @@
   `65324888D9C71274148A93B9319B17260262900401F45B4096901CEAE85CD9C3`.
   Budgets: JS raw `1,165,420/1,200,000`, gzip `322,344/370,000`, SHEIN source
   `549,182/550,000`.
-- IPA workflow and real-device acceptance are pending. Test the exact saved-cart
-  sequence on iPhone 6 and iPhone 16 Pro Max, then several listing products,
-  five iPhone 16 resume cycles and one cold launch before claiming acceptance.
+- Xcode run `31330410350` passed from `c2eb127`. Desktop IPA:
+  `C:\Users\MOHAMMAD\Desktop\otlobli-ios-v86.111-iphone\otlobli-ios-v86.111-iphone16\otlobli-v86.111-iphone16-unsigned.ipa`,
+  7,045,461 bytes, SHA-256
+  `A9F04E68C55E7DE5EC9C35701D413B941986165AFA4CE148F5D178E2E1505390`.
+  Archive: `com.otlobli.app`, `86.111/971`, arm64, iOS 15+, production
+  Supabase input, push code, fresh-session/version markers and preserved native
+  lifecycle symbols. CI asset `index-BJBAX-bI.js` is 1,166,608 bytes, SHA-256
+  `0FEDE1104A15B0C8C66DCB4A61EA86C135D1ACB47BE98DDAAB344C5722418AA4`.
+- The IPA is unsigned/unprovisioned, lacks an APNs entitlement, and GitHub still
+  lacks the Google iOS OAuth client. It is not App-Store-ready. Real-device
+  acceptance remains: exact saved-cart sequence on iPhone 6 and iPhone 16 Pro
+  Max, several listing products, five iPhone 16 resume cycles and one cold
+  launch before claiming acceptance.
 
 # Previous candidate — v86.110 SHEIN review guard and stalled-tap recovery (2026-08-09)
 

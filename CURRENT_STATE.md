@@ -33,12 +33,25 @@ Production build, freeze guard, low-end performance budget, patch reverse-check,
 `65324888D9C71274148A93B9319B17260262900401F45B4096901CEAE85CD9C3`,
 identical in `dist`, Android assets and iOS assets.
 
-The Xcode/IPA workflow and real-device acceptance are pending. Required device
-test: from a warmed SHEIN session open an existing saved product from Otlobli
-cart, return through Otlobli navigation, open several listing products, repeat
-on iPhone 6 and iPhone 16 Pro Max, then perform five iPhone 16 background/resume
-cycles plus a separate force-quit/cold launch. Do not claim the symptom closed
-until those real-device checks pass.
+GitHub/Xcode run `31330410350` succeeded from commit `c2eb127`. Downloaded IPA:
+`C:\Users\MOHAMMAD\Desktop\otlobli-ios-v86.111-iphone\otlobli-ios-v86.111-iphone16\otlobli-v86.111-iphone16-unsigned.ipa`,
+7,045,461 bytes, SHA-256
+`A9F04E68C55E7DE5EC9C35701D413B941986165AFA4CE148F5D178E2E1505390`.
+Archive inspection confirms `com.otlobli.app`, `86.111/971`, iPhoneOS arm64,
+minimum iOS 15, production Supabase input, push plugin code, the v86.111 marker
+and fresh-session notice, plus all preserved native lifecycle symbols. The CI
+asset is `index-BJBAX-bI.js`, 1,166,608 bytes, SHA-256
+`0FEDE1104A15B0C8C66DCB4A61EA86C135D1ACB47BE98DDAAB344C5722418AA4`.
+
+This IPA is unsigned/unprovisioned: it has no app `_CodeSignature`, embedded
+profile or APNs entitlement. GitHub still has no Google iOS OAuth client, so
+only the `otlobli` URL scheme is present. It is a real Release/Xcode device-test
+artifact, not an App Store submission archive. Required device test: from a
+warmed SHEIN session open an existing saved product from Otlobli cart, return
+through Otlobli navigation, open several listing products, repeat on iPhone 6
+and iPhone 16 Pro Max, then perform five iPhone 16 background/resume cycles plus
+a separate force-quit/cold launch. Do not claim the symptom closed until those
+real-device checks pass.
 
 # Previous candidate — v86.110 SHEIN review guard + delayed iPhone tap recovery (2026-08-09)
 
