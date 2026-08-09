@@ -1,28 +1,28 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
-## Native iOS back overlay and recovery origin (v86.117, 2026-08-10)
+## Native iOS back action after recovery (v86.118, 2026-08-10)
 
-- **Evidence:** v86.116 could fail on initial SHEIN product entry, not only
-  after scroll. After the host's bounded store-repair state, the back control
-  could disappear completely.
-- **Cause:** DOM paint order cannot guarantee elevation above every old-WebKit
-  composited SHEIN portal. Cart-first product entry can also resemble the first
-  captured home path, and recovery could clear the pending cart destination.
-- **Decision:** iOS owns a 42x42 UIKit back button above WKWebView. A deduped
-  injected message supplies visibility and the existing 12/58px top offset;
-  native taps delegate to the existing DOM action. Keep loading/offline covers
-  above it and keep Android on the DOM fallback. Product evidence wins over
-  home classification, and both recovery paths preserve product URL plus
-  cart/home origin before reopening.
-- **Freeze/performance boundary:** Existing native recompose semantics and the
-  0.25-second foreground timing are unchanged; reattach only restores overlay
-  order. No new React loop, permanent observer, native timer or DOM scan.
+- **Evidence:** v86.117 fixed the button's appearance, but after several product
+  transitions and bounded store repair the visible button could no-op on the
+  next product. The same session felt very slow on an iPhone 6-class device.
+- **Cause:** Native still delegated to a hidden DOM click. A recovered WebView
+  can start at a product with no usable JavaScript history. Existing 650ms
+  maintenance also remained unnecessarily frequent on two-core devices.
+- **Decision:** Send deduped cart/home target and cached normalized home fallback
+  with native state. Cart returns directly to the host; normal back selects the
+  newest distinct safe SHEIN WKBackForwardList item, skips challenge and
+  same-product duplicates, and loads home when no item survives. Keep the
+  approved visual layer unchanged. Two-core maintenance uses 950/2800/2200ms
+  intervals while document-start CSS remains immediate and interaction keeps
+  scans paused.
+- **Freeze/performance boundary:** No new timer, observer, React render or scan.
+  Protected recompose/lifecycle and Android resume behavior are unchanged.
 - **Validation boundary:** Guards, production build, native syncs, Android
-  assemble and Xcode run `31338096861` pass for `86.117/977`. Inspected desktop
-  IPA SHA-256 is
-  `A90B12131BC0BF8F2F6C7BF691289078C41CE8D7CD9B38DC8C73A1933FE03C84`.
-  Real iPhone 6 cart/scroll/repair and required iPhone 16 lifecycle acceptance
-  remain pending; do not infer them from archive inspection.
+  assemble and Xcode run `31338978321` pass for `86.118/978`. Inspected IPA
+  SHA-256 is
+  `38CB73A4BB0E8F5FC29E9B2211BFF730AD965E1A4E0EBCF91E65C7D98EE4D104`.
+  Exact real-device multi-product/repair/back, perceived speed and iPhone 16
+  lifecycle acceptance remain pending.
 
 ## iPhone 6 preparation false negative and sticky-price back cover (v86.116, 2026-08-10)
 

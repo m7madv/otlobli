@@ -1,48 +1,50 @@
-# Active candidate — v86.117 native iOS back button and cart recovery continuity (2026-08-10)
+# Active candidate — v86.118 native iOS back action and iPhone 6 pacing (2026-08-10)
 
-The user's real-device result disproved v86.116: the SHEIN back button could
-already be unreliable on first product entry, and after the host displayed its
-bounded store-repair state the button disappeared. This was not another
-z-index value problem. A DOM button remains inside WKWebView's compositor, so
-old iOS can still paint SHEIN's sticky/portal layers above it. Cart-first product
-entry could also be classified as the initial home path, while recovery reset
-the pending back destination to home.
+The real-device v86.117 result proves the button's appearance and stacking are
+fixed, but also isolates a separate action failure: after browsing several
+products and the bounded `جاري إصلاح تحميل متجر SHEIN…` recovery, the visible
+native button could be tapped without leaving the next product. v86.117 still
+delegated the native tap to a hidden DOM button. A recovered WebView can start
+from a product with no usable browser history, so its `history.back()` is a
+valid no-op even though the native control is healthy.
 
-v86.117 adds an iOS-native 42x42 UIKit back button as a sibling above WKWebView.
-The bounded injected state message controls only visibility and top offset;
-the native tap delegates to the existing DOM action so cart/home semantics stay
-centralized. iPhone 6 keeps its `58px` placement and modern iPhones keep `12px`.
-The native button is brought back above the WebView after the existing
-`otlobliForceRecompose()` reattach, without adding or retiming any recompose
-burst. Loading/offline covers intentionally remain above it. Android retains
-the existing DOM fallback.
+v86.118 leaves the approved 42x42 appearance and 12/58px placement unchanged,
+but moves the action fully into UIKit. The deduped state message now carries
+the cart/home target and one cached normalized SHEIN-home fallback. A cart
+target emits `backToCart` directly to the host. Otherwise the controller picks
+the newest distinct, same-SHEIN, non-challenge item from WKBackForwardList and
+uses `go(to:)`; if recovery erased all usable entries, it loads the normalized
+home URL. DOM click remains only a compatibility fallback.
 
-Product visibility now explicitly wins over a home-path guess. Both stuck-view
-and chunk-load recovery snapshot the current/pending product URL and whether it
-came from Otlobli cart, then re-arm that origin before reopening SHEIN. A
-recovered product therefore restores the back button and returns to Otlobli
-cart instead of losing its target.
+For the reported iPhone 6 slowness, two-core devices now run general/header
+maintenance every `950ms` instead of `650ms`, nav upkeep every `2800ms` instead
+of `2200ms`, and the security text check every `2200ms` instead of `1600ms`.
+The fallback URL is computed once per document. Existing document-start CSS
+still hides native SHEIN actions immediately, and all heavy scans remain paused
+during touch/scroll. No feature, React render, observer or native timer was
+added. Protected recompose/lifecycle and cart/payment/order logic are unchanged.
 
-Version is `86.117/977`; diagnostics remain off. Production build,
+Version is `86.118/978`; diagnostics remain off. Production build,
 freeze/performance guards, Android/iOS sync, diff check, Android debug assemble
-and GitHub/Xcode run `31338096861` pass. Synchronized local bundle
-`index-CyB7fWr_.js` is 1,166,876 bytes, SHA-256
-`C0F0AD670F7D0D81F3A5EB634A4ADCC18F09273D72E44E7D77CA50EF67C00905`.
-Android debug APK is 11,169,424 bytes, SHA-256
-`C77777025AD4B311B2661D33C88C196E1B44761583103838FBD900AAD19B3484`.
+and GitHub/Xcode run `31338978321` pass. Local synchronized bundle
+`index-CzdNSOqq.js` is 1,166,821 bytes, SHA-256
+`884C6511B66AD584E7E62EA9988A57516E051E9CE3FA3D74AFD625BFD523596C`.
+Budgets are JS gzip `322,588/370,000`, CSS `63,670/70,000`, fonts
+`81,364/100,000`, and SHEIN source `549,668/550,000`. Android debug APK is
+11,169,320 bytes, SHA-256
+`ED6C0C6C9B136DA65C357C950317EE2F2B5E32AC1BD292B0257E9E27E3760979`.
 Desktop IPA is
-`C:\Users\MOHAMMAD\Desktop\otlobli-ios-v86.117-iphone\otlobli-ios-v86.117-iphone16\otlobli-v86.117-iphone16-unsigned.ipa`,
-7,047,045 bytes, SHA-256
-`A90B12131BC0BF8F2F6C7BF691289078C41CE8D7CD9B38DC8C73A1933FE03C84`.
-Archive inspection confirms `com.otlobli.app`, `86.117/977`, arm64/iOS 15+,
-the native back/state/recompose markers and push code. CI JS
-`index-DN8CkAAy.js` is 1,168,064 bytes, SHA-256
-`17C6DD2A83313E063EFB1B441738B45DCF89CD09F34BEC38B463272AF85D825E`.
-The IPA is unsigned/unprovisioned, has no APNs entitlement and contains only
-the `otlobli` URL scheme because the Google iOS secret is absent. It is a
-device-test artifact, not App-Store-ready. Real iPhone 6 cart-entry/scroll/
-repair acceptance and the required iPhone 16 resume/cold-launch acceptance
-remain pending.
+`C:\Users\MOHAMMAD\Desktop\otlobli-ios-v86.118-iphone\otlobli-ios-v86.118-iphone16\otlobli-v86.118-iphone16-unsigned.ipa`,
+7,050,705 bytes, SHA-256
+`38CB73A4BB0E8F5FC29E9B2211BFF730AD965E1A4E0EBCF91E65C7D98EE4D104`.
+Archive inspection confirms `com.otlobli.app`, `86.118/978`, arm64/iOS 15+,
+native history/cart/fallback and protected recompose markers, two-core pacing,
+push code and hidden reveal. CI JS `index-DCPhYEp7.js` is 1,168,009 bytes,
+SHA-256 `529A144D29F80DE4F08681F7E721FE12A5FCBE6BB0B33B9FB6222DAA49E2FC22`.
+The IPA remains unsigned/unprovisioned, lacks APNs entitlement and contains
+only the `otlobli` URL scheme because the Google iOS secret is absent. The exact
+multi-product → repair → product → back flow, perceived iPhone 6 speed, and the
+required iPhone 16 lifecycle suite still require real-device acceptance.
 
 # Active candidate — v86.116 iPhone 6 store recovery and sticky-price back layer (2026-08-10)
 
