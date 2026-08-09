@@ -1,0 +1,24 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="360dp"
+    android:height="120dp"
+    android:viewportWidth="360"
+    android:viewportHeight="120">
+    <!-- One vector is deliberate: Android's starting-window layer-list can
+         collapse independently positioned children on legacy devices. -->
+    <path android:fillColor="#FFFFFFFF" android:pathData="M0,0L360,0L360,120L0,120Z" />
+    <path android:fillColor="#FFDDE5DF" android:pathData="M0,0L360,0L360,1L0,1Z" />
+    <path android:fillColor="#FF006948" android:pathData="M299,9L331,9L331,13L299,13Z" />
+
+    <group android:translateX="304" android:translateY="20" android:scaleX="0.917" android:scaleY="0.917">
+        <path android:fillColor="#00000000" android:strokeColor="#FF006948" android:strokeWidth="1.8" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M4,11.5L12,4L20,11.5M6,10V19H18V10M10,19V14H14V19" />
+    </group>
+    <group android:translateX="214" android:translateY="20" android:scaleX="0.917" android:scaleY="0.917">
+        <path android:fillColor="#00000000" android:strokeColor="#FF3D4A42" android:strokeWidth="1.8" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M5.3,7H18.7Q20,7 20,8.3V18.7Q20,20 18.7,20H5.3Q4,20 4,18.7V8.3Q4,7 5.3,7M4,7L12,3L20,7M12,11V20" />
+    </group>
+    <group android:translateX="124" android:translateY="20" android:scaleX="0.917" android:scaleY="0.917">
+        <path android:fillColor="#00000000" android:strokeColor="#FF3D4A42" android:strokeWidth="1.8" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M3,4H5L7.2,15.5Q7.55,17.1 9.2,17.1H17.8Q19.45,17.1 19.8,15.5L21,8H6M9,20m-1.3,0a1.3,1.3 0,1 0,2.6 0a1.3,1.3 0,1 0,-2.6 0M18,20m-1.3,0a1.3,1.3 0,1 0,2.6 0a1.3,1.3 0,1 0,-2.6 0" />
+    </group>
+    <group android:translateX="34" android:translateY="20" android:scaleX="0.917" android:scaleY="0.917">
+        <path android:fillColor="#00000000" android:strokeColor="#FF3D4A42" android:strokeWidth="1.8" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M12,11.6A3.6,3.6 0,1 0,12,4.4A3.6,3.6 0,1 0,12,11.6M5,20C5,16.2 8.1,13.6 12,13.6S19,16.2 19,20" />
+    </group>
+</vector>

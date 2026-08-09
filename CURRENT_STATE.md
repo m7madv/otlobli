@@ -1537,3 +1537,10 @@ Test on iPhone 6 and iPhone 16 Pro Max:
 - Xcode unsigned build and packaging passed in run `29414121203`.
 - Embedded v85.8.11 marker and desktop IPA SHA-256 were verified.
 - Xcode unsigned build and packaging passed in run `29416945278`; the embedded v85.8.12 marker and desktop IPA SHA-256 were verified.
+# Active candidate — v86.99 persistent startup navigation (2026-08-09)
+
+Frame-by-frame cold-launch recording on the connected SM-N950F / Note 8 found a gap that precedes Java, React, the WebView, and the existing SHEIN loading guard: Android's activity preview was a bare white splash window. That is why the Otlobli tabs could disappear for 1–2 seconds even though later loading layers were correct.
+
+v86.99 makes navigation ownership continuous: the Android 9-and-earlier activity window paints a compact static Otlobli tab strip immediately; `MainActivity` replaces it with a complete native, RTL, labelled strip before Capacitor creates the WebView; the established SHEIN cover keeps its navigation footprint; React dismisses the native surface only after two rendered frames. The static preview intentionally has icons only because it is a system drawable; it exists only for the pre-Java moment and hands off to the labelled native bar without a blank interval. The Android-only bridge is never called on iOS.
+
+No iPhone recompose timing, Android resume defense, region rebuild guard, SHEIN script size, cart behavior, or human-check behavior changed. Production build, iPhone-freeze guard, performance budget, Android/iOS sync, Android debug build, install, and a final 5-fps Note 8 cold-start recording passed. Android 86.99/959 APK: `android/app/build/outputs/apk/debug/app-debug.apk`, 12,574,241 bytes, SHA-256 `89680514B56FE6FD14992079A2B66D85BFA84CABD9E6BC8B99D7EA050E9D0BA9`. The real iPhone 16 cold launch plus five background/resume cycles remain required before iOS acceptance.

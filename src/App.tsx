@@ -32,9 +32,11 @@ import { OTLOBLI_NAV_BOOTSTRAP_SCRIPT, SHEIN_CAPTURE_SCRIPT } from './services/s
 import { SHEIN_REGION_DIAGNOSTICS_SCRIPT } from './services/sheinRegionDiagnostics'
 import { SHEIN_FREEZE_DIAGNOSTIC_SCRIPT } from './services/sheinFreezeDiagnostics'
 import { App as CapacitorApp } from '@capacitor/app'
-import { Capacitor } from '@capacitor/core'
+import { Capacitor, registerPlugin } from '@capacitor/core'
 import { BackgroundColor, InAppBrowser, ToolBarType } from '@capgo/capacitor-inappbrowser'
 import { flushSync } from 'react-dom'
+
+const OtlobliLaunchSurface = registerPlugin<{ ready: () => Promise<void> }>('OtlobliLaunchSurface')
 
 const API_BASE = cleanEnvValue(import.meta.env.VITE_WHATSAPP_API_URL)
 const SUPABASE_URL = cleanEnvValue(import.meta.env.VITE_SUPABASE_URL)
@@ -914,6 +916,27 @@ function extractFallbackTitle(rawText: string, urlPart: string) {
 }
 
 function App() {
+  // Android keeps a native copy of this exact surface over the WebView while
+  // Capacitor starts. Release it only after React has produced two frames, so
+  // the customer never sees the temporary empty Android window between the
+  // system splash and Otlobli's own fixed navigation.
+  useEffect(() => {
+    // This bridge exists only to dismiss Android's pre-WebView launch surface.
+    // Do not make an iOS plugin call here: the protected iPhone resume path
+    // must stay free of extra foreground/startup native work.
+    if (Capacitor.getPlatform() !== 'android') return undefined
+    let secondFrame = 0
+    const firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(() => {
+        void OtlobliLaunchSurface.ready().catch(() => undefined)
+      })
+    })
+    return () => {
+      window.cancelAnimationFrame(firstFrame)
+      if (secondFrame) window.cancelAnimationFrame(secondFrame)
+    }
+  }, [])
+
   const [pendingWhatsappAuth, setPendingWhatsappAuth] = useStoredState<PendingWhatsappAuth | null>(
     storageKeys.pendingWhatsappAuth,
     null,

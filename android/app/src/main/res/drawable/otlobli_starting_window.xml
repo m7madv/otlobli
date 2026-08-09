@@ -1,0 +1,6 @@
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/splash_background" />
+    <!-- This is the real Android starting window, shown before Java/WebView can
+         run. A single static vector avoids legacy layer-list positioning bugs. -->
+    <item android:gravity="bottom|fill_horizontal" android:height="120dp" android:drawable="@drawable/otlobli_starting_nav_static" />
+</layer-list>
