@@ -1,5 +1,35 @@
 # Otlobli Current State
 
+## Active candidate — v86.95 SHEIN product quantity-option capture (2026-08-09)
+
+The connected Note 8 live DOM for the pink three-makeup-bag product
+(`p-216351093`) confirms two independently selected options: `M` under the
+SHEIN `مقاس` heading and `1PC` under its `الكمية` heading. Earlier work
+correctly prevented `1PC` from being mistaken for a size, but consequently
+did not retain it at all. v86.95 captures that product/SKU option separately
+as `quantityOption` and appends it to the descriptive cart label only. A new
+line will read `متعدد الألوان · M · 1PC`.
+
+Otlobli cart `quantity` deliberately remains `1`, so this does not multiply a
+package, its price, or the cart count. The helper reads only selected option
+nodes inside an existing SHEIN form and identifies the `الكمية` group; it adds
+no polling, page-wide scan, navigation, WebView restart, or iPhone lifecycle
+work. Existing cart rows cannot recover an option that was not stored when
+they were added; add the current product once after updating to validate the
+new label.
+
+Android `86.95/955` was built and installed on the connected SM-N950F / Note
+8. APK: `android/app/build/outputs/apk/debug/app-debug.apk`, 11,119,526 bytes,
+SHA-256 `A0BE6F3C2DBB696FC3BD7CB8084096034D88F2003DFFE976FBACD9FED761A7A0`.
+The emitted-script parser, iPhone freeze guard, production build, low-end
+performance budget, Android/iOS synchronization, and Android debug build
+pass. Build measurements: largest JS `1,196,613 / 1,200,000`, gzip
+`353,786 / 370,000`, CSS `63,029 / 70,000`, fonts `81,364 / 100,000`, SHEIN
+source `549,827 / 550,000`. Manual acceptance remains: add that selected
+product once and confirm `M · 1PC` in its cart row while the cart stepper stays
+at one. The required real iPhone 16 cold-launch and five background/resume
+cycles remain unperformed.
+
 ## Active candidate — v86.94 challenge-navigation icons (2026-08-09)
 
 The connected Note 8 showed a real SHEIN `/ar/risk/challenge` page. This was

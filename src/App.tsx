@@ -3845,6 +3845,7 @@ function App() {
       const rawBundleCount = Number(product?.bundleCount)
       const bundleCount = Number.isInteger(rawBundleCount) && rawBundleCount > 1 ? rawBundleCount : 1
       const size = typeof product?.size === 'string' ? product.size : ''
+      const quantityOption = typeof product?.quantityOption === 'string' ? product.quantityOption : ''
       const rawColorImage = typeof product?.colorImage === 'string' ? product.colorImage : ''
       const colorImage = cartColorPreviewBackground(color) ? '' : rawColorImage
       setCartItems((items) => [...items, {
@@ -3853,7 +3854,7 @@ function App() {
         image: typeof product?.image === 'string' ? product.image : '',
         colorImage,
         color,
-        size: [size, bundleCount > 1 ? `${bundleCount} قطع` : ''].filter(Boolean).join(' · '),
+        size: [size, quantityOption && !size.includes(quantityOption) ? quantityOption : '', bundleCount > 1 ? `${bundleCount} قطع` : ''].filter(Boolean).join(' · '),
         sizesAvailable,
         sizesUnavailable,
         quantity: 1,

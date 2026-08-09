@@ -1,5 +1,35 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
+## SHEIN SKU quantity option was omitted from the cart label (v86.95, 2026-08-09)
+
+- **Symptom:** For the pink three-makeup-bag product `p-216351093`, the cart
+  line could show the colour and `M` but omit the selected `1PC` option.
+- **Live evidence:** The connected Note 8 page exposed selected `M` beneath
+  the `مقاس` heading and selected `1PC` beneath the separate `الكمية` heading.
+  They are sibling SKU controls in the same product form.
+- **Root cause (confirmed):** v86.91 correctly narrowed size selection so
+  that `1PC` could not be mis-recorded as the size. That corrected the old
+  first-match bug, but no separate product-quantity field was retained for the
+  cart description.
+- **Decision:** `sheinSelectedQuantityOption()` reads only selected option
+  nodes whose own group is `الكمية`/quantity. The capture payload carries it
+  as `quantityOption`; `App.tsx` appends it after the actual size in the stored
+  display text, for example `M · 1PC`.
+- **Non-negotiable meaning:** `quantityOption` is a SHEIN SKU descriptor, not
+  `CartItem.quantity`. The cart stepper remains `1`, and neither price nor
+  item count is multiplied. Do not combine this with `bundleCount` or use the
+  old generic first `.goods-size` match.
+- **Performance/freeze safety:** The helper performs one local selected-node
+  read at capture time. It adds no interval, mutation observer, whole-document
+  recurring scan, retry, WebView rebuild, cache action, or native lifecycle
+  change.
+- **Validation:** v86.95/955 passes emitted-script parsing, freeze guard,
+  production build, low-end budget, Android/iOS sync, Android build and Note
+  8 installation. User acceptance remains: add the selected product after the
+  update, confirm `M · 1PC` in the new cart row, and confirm the stepper and
+  price still represent one package. An existing row cannot be repaired
+  without re-adding because the earlier event never stored this data.
+
 ## SHEIN human-check bar lost its icons (v86.94, 2026-08-09)
 
 - **Symptom:** The Otlobli bottom bar sometimes began with labels only, then

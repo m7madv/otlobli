@@ -1,5 +1,27 @@
 # Otlobli AI Handoff
 
+## Current candidate — v86.95 product `1PC` option retained separately (2026-08-09)
+
+- Live Note 8 DOM evidence for SHEIN `p-216351093`: selected `M` belongs to
+  `مقاس`; selected `1PC` belongs to a separate `الكمية` group. They are both
+  SKU descriptors, not the Otlobli cart item count.
+- `sheinSelectedQuantityOption()` reads only selected SHEIN option nodes,
+  filters them through the existing group-heading detector, and emits
+  `quantityOption` in both normal PDP and quick-form payloads. `App.tsx`
+  appends it to the stored display string, yielding e.g. `M · 1PC`.
+- Do not fold this value into `CartItem.quantity`, `bundleCount`, pricing, or
+  availability. Cart `quantity` must remain one purchased package. Do not
+  return to a first-match size selector: it will again lose one of the two
+  independent choices.
+- This is deliberately a local capture path: no timer, global DOM scan,
+  reload, cache reset, or WebView/lifecycle modification. Keep it that way for
+  the protected iPhone freeze invariant and weak devices.
+- Android `86.95/955` is installed on the connected Note 8. The build,
+  emitted-script parser, performance budget, freeze guard, and Android/iOS
+  sync pass. Acceptance still required: add the currently selected product
+  once and confirm the new cart row says `M · 1PC` while its stepper remains
+  one. Older rows cannot retroactively contain data they did not store.
+
 ## Current candidate — v86.94 challenge-nav SVG parity (2026-08-09)
 
 - A live Note 8 inspection identified the "bottom-bar icons vanish then

@@ -2791,10 +2791,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var OTLOBLI_SIZE_LABELS = ['المقاس', 'مقاس', 'الحجم', 'Size'];
 
   var QTY_RE = /الكمية|كمية|quantity/i;
-  // The group's resolved heading text: goods-size__title is often NOT a
-  // descendant (intermediate wrapper), and a shared wrapper holds several
-  // titles. Walk ancestors; the nearest title PRECEDING this group is its
-  // heading (swan p-517537202, cloud tray p-420303185).
   function sheinGroupHeading(el) {
     if (!el) return '';
     var h = el.querySelector && el.querySelector('.goods-size__title');
@@ -2976,6 +2972,16 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return '';
   }
 
+  function sheinSelectedQuantityOption(scope) {
+    var picks = (scope || document).querySelectorAll('.goods-size__sizes-item.size-active,[data-attr_value][aria-checked="true"]');
+    for (var i = 0; i < picks.length; i++) {
+      if (!sheinIsQuantityEl(picks[i])) continue;
+      var value = normalizedOptionText(picks[i].getAttribute('data-attr_value') || picks[i].textContent);
+      if (value && value.length < 60) return value;
+    }
+    return '';
+  }
+
   function normalizedOptionText(value) {
     return String(value || '').replace(/\\s+/g, ' ').trim();
   }
@@ -2992,7 +2998,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return /^(?:xxs|xs|s|m|l|xl|xxl|xxxl|one\\s*size|[2-9]\\d|[1-9]\\d{2})$/i.test(text) ? text : '';
   }
 
-  // Complete an explicit combined summary or the legacy 1PC + size.
   function completeSelectedCompoundSize(container, selected) {
     if (container && selected) {
       var combinedUnconfirmed = false;
@@ -5228,8 +5233,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     } catch (e) { return null; }
   }
 
-  // Reliable size gate (the heuristic sizeState misses quick-add): true when a
-  // مقاس group shows 2+ choices and none is selected; scrolls the first into view.
   function sheinSizeUnselected(scope) {
     try {
       // A Curvy quick-add sheet is a separate product form painted over the
@@ -5334,12 +5337,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var sizeBox = sheinQuickSizeBox(root);
     var sizePick = sizeBox && sizeBox.querySelector('.goods-size__sizes-item.size-active,[data-attr_value][aria-checked="true"]');
     var size = normalizedOptionText((sizePick && (sizePick.getAttribute('data-attr_value') || sizePick.textContent)) || '');
+    var quantityOption = sheinSelectedQuantityOption(root);
     var sizes = getSizeOptions(sizeBox);
     var price = sheinUsdValue((root.querySelector('.quickPrice__main') || {}).textContent || '') || sheinPriceFromChangedRoot(root);
     var link = sheinQuickAddProductLink(root, info);
     if (!title || !(price > 0) || !image) return null;
     return { title: title, priceUsd: price, priceSource: 'quick-add', image: image, colorImage: colorImage,
-      colorImageFound: !!colorImage, color: color, size: size, skuCode: '', sizesAvailable: sizes.available || [],
+      colorImageFound: !!colorImage, color: color, size: size, quantityOption: quantityOption, skuCode: '', sizesAvailable: sizes.available || [],
       bundleCount: sheinQuickBundleCount(size),
       sizesUnavailable: sizes.unavailable || [], link: otlobliNormalizeSheinUrl(link), needsCustomPhoto: false,
       customPhotoNote: '', needsCustomText: false, customText: '', customTextLimit: 0 };
@@ -5406,6 +5410,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var sheinColorSel = colorState.selected;
     var sheinColorImg = colorState.image;
     var sheinSizeSel = sizeState.selected;
+    var sheinQuantityOption = sheinSelectedQuantityOption();
     var sheinSizesAvail = sizeState.available || [];
     var sheinSizesUnavail = sizeState.unavailable || [];
     // A tapped swatch is more precise than the general product image, even
@@ -5454,6 +5459,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       colorImageFound: !!sheinColorImg,
       color: sheinColorSel,
       size: sheinSizeSel,
+      quantityOption: sheinQuantityOption,
       skuCode: sheinSkuCode,
       sizesAvailable: sheinSizesAvail,
       sizesUnavailable: sheinSizesUnavail,
@@ -5468,10 +5474,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function addToCartFlow(colorState, sizeState) {
     if (document.getElementById('otlobli-overlay')) return;
-    // A Curvy drawer is a separate, live SKU form. Snapshot it once at the
-    // beginning of the action: the page behind it can re-render while the
-    // add overlay is mounting, and falling back to that background PDP would
-    // put the wrong size/product into Otlobli's cart.
     var quickPayload = null;
     if (IS_SHEIN) {
       __otlobliCartToastGuardUntil = Date.now() + 7000;
