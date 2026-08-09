@@ -22,13 +22,24 @@ Version is `86.109/969`. The production build, SHEIN freeze guard, low-end
 budget, patch reverse-apply check, `git diff --check`, and Android/iOS sync pass.
 Budgets: JS raw `1,166,162/1,200,000`, total JS gzip `323,337/370,000`, CSS
 `63,670/70,000`, fonts `81,364/100,000`, SHEIN source `549,717/550,000`.
-The identical synchronized customer bundle is `index--wBuHHo_.js`, SHA-256
-`1F659B17400E4909520486A87BCA6D8A1CBBC37C539C5A7B116951775B9ADECF`, in
-`dist`, Android assets and iOS assets. It contains the live public Supabase
-configuration, Google sign-in, push registration and the new native-add marker.
-No IPA was produced on Windows and no external workflow was started. Real
-iPhone 6 product-load acceptance is still required; the separate iPhone 16
-cold-launch and five background/resume cycles also remain mandatory.
+The identical local synchronized customer bundle is `index--wBuHHo_.js`,
+SHA-256 `1F659B17400E4909520486A87BCA6D8A1CBBC37C539C5A7B116951775B9ADECF`, in
+`dist`, Android assets and iOS assets.
+
+GitHub/Xcode run `31328598144` succeeded from commit `7504cda`. Downloaded IPA:
+`C:\Users\MOHAMMAD\Desktop\otlobli-ios-v86.109-iphone\otlobli-v86.109-iphone16-unsigned.ipa`,
+7,045,851 bytes, SHA-256
+`876CA8BB521B24FDC9D0FE2D9E450D259A07C6BF35841FDE5A7309F73EC1FD39`.
+Archive inspection confirms `com.otlobli.app`, `86.109/969`, iPhoneOS arm64,
+minimum iOS 15, production Supabase, push code, the version marker and native
+add concealment marker. It has no app signature or provisioning profile.
+GitHub still lacks `VITE_GOOGLE_IOS_CLIENT_ID`, so the iOS Google action and
+callback are intentionally absent. There is also no `aps-environment`
+entitlement or Apple/APNs signing configuration. This is an unsigned device
+test artifact, not a publish-ready App Store build; completing the user's
+production requirement needs the Apple signing/profile/APNs values and the
+Google Cloud iOS OAuth client. Real iPhone product-load acceptance and the
+separate five background/resume cycles plus cold launch remain mandatory.
 
 # Previous candidate — v86.108 persistent SHEIN verification session (2026-08-09)
 

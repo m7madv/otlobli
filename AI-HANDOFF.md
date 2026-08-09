@@ -16,12 +16,20 @@
   obfuscated native add controls were hidden in bootstrap and full-script
   phases; Otlobli nav remained visible and interactive.
 - Version `86.109/969`. Production build/freeze/performance, patch reverse
-  apply, diff check and both native syncs pass. Bundle `index--wBuHHo_.js` is
-  identical in dist/Android/iOS, SHA-256
+  apply, diff check and both native syncs pass. Local synchronized bundle
+  `index--wBuHHo_.js` is identical in dist/Android/iOS, SHA-256
   `1F659B17400E4909520486A87BCA6D8A1CBBC37C539C5A7B116951775B9ADECF`.
-  It embeds production Supabase plus Google/push markers.
-- No IPA or external CI run was created from Windows. Real iPhone 6 product
-  acceptance remains pending, as do the mandatory iPhone 16 cold start and five
+- Xcode run `31328598144` passed from `7504cda`. IPA is
+  `C:\Users\MOHAMMAD\Desktop\otlobli-ios-v86.109-iphone\otlobli-v86.109-iphone16-unsigned.ipa`,
+  7,045,851 bytes, SHA-256
+  `876CA8BB521B24FDC9D0FE2D9E450D259A07C6BF35841FDE5A7309F73EC1FD39`.
+  Archive: `com.otlobli.app`, `86.109/969`, arm64, minimum iOS 15, expected
+  product-action/push/Supabase markers, no signature or provisioning profile.
+- Do not call this publish-ready: `VITE_GOOGLE_IOS_CLIENT_ID` is still absent,
+  so Google/callback are hidden; Apple signing, `aps-environment`, provisioning
+  and APNs server credentials are also absent. Those owner-controlled values
+  are required for the user's Google/push/App Store requirement.
+- Real iPhone product acceptance remains pending, as do cold start and five
   background/resume cycles. No recompose/lifecycle/region/payment logic changed.
 
 # Previous candidate — v86.108 persistent SHEIN verification session (2026-08-09)

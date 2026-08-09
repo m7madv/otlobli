@@ -12,8 +12,10 @@
 - **Performance:** Reuse existing loops; cap each scan at 140 candidates and a
   3×3 point probe. Do not move geometry/text work into MutationObserver.
 - **Validation boundary:** 375×667 browser fixture and production guards/build/
-  sync pass. Real iPhone 6 acceptance and required iPhone 16 lifecycle tests are
-  not yet performed; no IPA was built from Windows.
+  sync pass. Xcode run `31328598144` produced the inspected `86.109/969` IPA on
+  the desktop. It is unsigned/unprovisioned; Google iOS OAuth and APNs signing/
+  entitlement are still absent, so it is not publish-ready. Real iPhone
+  acceptance and required lifecycle tests are not yet performed.
 
 ## Preserve SHEIN's genuine verification session (v86.108, 2026-08-09)
 
