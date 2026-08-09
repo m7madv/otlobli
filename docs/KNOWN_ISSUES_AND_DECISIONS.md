@@ -1,5 +1,97 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
+## SHEIN bottom nav moves after the first product frame (v86.104, 2026-08-09)
+
+- **Cause:** The document-start nav could paint with its 90px/16px fallback
+  before SHEIN installed `viewport-fit=cover`; WebKit then exposed the real
+  iPhone bottom inset and increased the nav height, producing the visible jump.
+- **Decision:** Read the already settled host `.bottom-nav` padding once before
+  opening the store, pass the bounded `16…60` value to document start, and let
+  nav CSS use the maximum of host inset, WebKit env inset and 16px. This avoids
+  timers, repeated layout reads, native frame nudges and WebView reconstruction.
+- **Diagnostic release ended:** The customer path explicitly sets
+  `otlobliTapDiagnostics: false` and excludes the tap script/context, so the
+  top `نسخ` button is absent. v86.103 recovery remains active.
+- **Validation boundary:** Build/freeze/performance/native sync pass. A
+  `440×932` browser fixture with 34px host inset measured a stable 108px nav
+  from the first frame. Real iPhone product-open and lifecycle acceptance is
+  still required; no simulator/browser result can claim it.
+
+## Cart-origin SHEIN session loses product navigation on iPhone (v86.103, 2026-08-09)
+
+- **Confirmed sequence:** Open an old SHEIN item from Otlobli cart, leave and
+  return to the app, then SHEIN can still paint its shell/categories while all
+  product navigation stops. Temu → SHEIN restores the store.
+- **Evidence boundary:** v86.102 reported a healthy attached/visible/interactive
+  `440×894` WKWebView, stable QA region state and scroll movement `0→734`.
+  Absence of a product event was inconclusive because the old diagnostic first
+  required a product DOM match and logged document-start executions from
+  third-party iframes.
+- **Decision:** Mark only iOS SHEIN sessions opened from Otlobli cart. When the
+  app resumes or that session exits to an Otlobli destination, close it once
+  and use the existing runtime-cache reset before a fresh SHEIN open. This is
+  the same recovery proved by Temu → SHEIN. Preserve cookies, localStorage,
+  signed address, cart/payment logic and the native 0.25s resume recompose.
+- **Diagnostic correction:** Top frame only; raw touch/click attempts no longer
+  depend on product recognition; href/label/scroll and touchcancel are included;
+  after-URL is scheduled from capture; final cancellation is read in a zero-
+  delay task after page listeners. No polling or page-wide scan was added.
+- **Validation:** Playwright passed known and unknown targets, late event
+  cancellation, synthetic touchstart/touchend, after-URL and iframe exclusion.
+  Build, freeze/performance guards, native syncs and Android APK pass. APK
+  `86.103/963` SHA-256:
+  `1EDC0BFED9DF367F6046F30DE9432F9695F13033AD22E1A464B049B2DBB8897B`.
+  Commit `49b734e` is pushed; GitHub/Xcode
+  [run `31310138809`](https://github.com/m7madv/otlobli/actions/runs/31310138809)
+  passed. Inspected unsigned IPA:
+  `release-artifacts/ios-v86.103-run-31310138809/otlobli-v86.103-iphone16-unsigned.ipa`,
+  7,046,214 bytes, SHA-256
+  `E83EF7ECDD885E8CBB6FD49C9BDB1888411C444EA2708BFE5487503DFC2C712F`.
+  Archive metadata and recovery/diagnostic/recompose markers passed; the app
+  root has no signature or embedded provisioning profile.
+- **Acceptance:** iPhone must reproduce cart-product → leave/resume → ordinary
+  product entry, then pass five background/resume cycles and cold launch. Keep
+  the diagnostic enabled only until this evidence is collected.
+
+## iPhone SHEIN product taps can stop after cart navigation (v86.102 diagnostic, 2026-08-09)
+
+- **Symptom:** The page still paints and a long press reaches iOS, but ordinary
+  product activation/navigation can stop, most often after opening a SHEIN
+  item from the Otlobli cart. Temu → SHEIN recreates the session and restores
+  taps, but is evidence only and must not become the fix.
+- **Decision:** Ship an observation-only diagnostic before changing behavior.
+  Record touchstart/touchend/click capture+bubble, post-dispatch cancellation,
+  target/painted element, eight ancestors, bounded fixed layers, URL, actual
+  region/transition and native WKWebView/lifecycle/recompose state in a
+  180-entry in-memory ring. Copy only on demand with the native `نسخ` button.
+- **Fallback boundary:** Preserve `otlobliInstallIosProductTapFallback()` and
+  its exact timing. Report whether it armed, scheduled, invoked `.click()`,
+  skipped after a natural route change or invoked `location.assign()`; do not
+  delete or retime it before the device trace proves responsibility.
+- **Why this choice:** A passive event-driven trace distinguishes an overlay,
+  cancellation/propagation fault, fallback race, region transition and native
+  WebView state without adding polling, DOM-wide scans, reloads or another
+  lifecycle path. Native records stay in memory to avoid disk I/O on touch.
+- **Validation:** Playwright identified a synthetic 1%-opacity fixed layer as
+  target/top layer while also finding the product below; capture+bubble and
+  touchstart/touchend shared one attempt and no event was prevented by the
+  diagnostic. Build, freeze/performance guards, Android/iOS sync and APK build
+  pass. APK SHA-256 is
+  `30DBE8CF87AAF04098CDE6F3101DEC6DD40DE23858E53703F7A806AF44E3E643`.
+  Note 8 was ADB unauthorized. Commit `b5a6e7a` is pushed; GitHub/Xcode
+  [run `31308844558`](https://github.com/m7madv/otlobli/actions/runs/31308844558)
+  passed. The inspected unsigned IPA is
+  `release-artifacts/ios-v86.102-run-31308844558/otlobli-v86.102-iphone16-unsigned.ipa`,
+  7,045,998 bytes, SHA-256
+  `3E9C88CFF994D64C4688F904737E8CDE34FAA0DB319A46716B158121E4FA96E4`.
+  Archive metadata and diagnostic/recompose markers passed; the app root has
+  no signature or embedded provisioning profile. Real iPhone acceptance does
+  not exist yet.
+- **Acceptance:** On first real failure press `نسخ` before store switching,
+  then complete the five-path reproduction matrix, five background/resume
+  cycles and a separate force-quit/cold launch. Do not claim a fix from build,
+  simulator or diagnostic presence alone.
+
 ## Hidden SHEIN colour template falsely blocks a no-option product (v86.101, 2026-08-09)
 
 - **Symptom:** A no-option SHEIN nail product showed `حدد اللون أولاً` from
@@ -25,8 +117,10 @@
   Android/iOS sync and Android debug build passed. Android 86.101/961 was
   installed on the connected Note 8. The original no-option diagnostic was
   false both before and after; the hidden-fixture reproduction is true before
-  the patch and false after it. No cart write was performed. Real iPhone
-  product and required iPhone 16 resume acceptance remain pending.
+  the patch and false after it. No cart write was performed. The unsigned
+  iPhone 86.101/961 build completed in [run 31305701128](https://github.com/m7madv/otlobli/actions/runs/31305701128),
+  with SHA-256 `D9AC194F1EBA2594F82B68103701A58830289259C95930474EE4F30785B00F4D`.
+  Real iPhone product and required iPhone 16 resume acceptance remain pending.
 
 ## iPhone launch video: system transition, not Otlobli navigation flash (2026-08-09)
 

@@ -1,4 +1,113 @@
-# Current candidate — v86.101 hidden SHEIN colour-template guard (2026-08-09)
+# Current candidate — v86.104 stable SHEIN nav from first frame (2026-08-09)
+
+- Device screenshot showed the injected Otlobli nav initially at the 90px/16px
+  fallback, then rising when SHEIN's viewport meta made the iPhone bottom safe
+  area available. This is a first-frame geometry transition, not the frozen
+  WKWebView failure and not a reason to retime native recomposition.
+- `readHostSafeBottomInset()` reads the already settled React `.bottom-nav`
+  padding once at store open. The value is passed as `window.__otlobliSafeBottom`
+  to the real document-start script. `OTLOBLI_NAV_CSS` uses the maximum of that
+  value, WebKit's env inset, and 16px, so later viewport hydration cannot move
+  the nav. Keep the value bounded to `16…60`; do not add a timer or layout loop.
+- The user asked to close the top diagnostic. The release no longer imports or
+  injects `SHEIN_TAP_DIAGNOSTIC_SCRIPT`/capture context and passes
+  `otlobliTapDiagnostics: false`, so the native `نسخ` button is absent. The
+  retained source/native diagnostic helpers are dormant and not customer UI.
+- Version `86.104/964`. Build, freeze guard, performance budget and both native
+  syncs pass. Budgets: `1,157,905` raw JS, `321,473` gzip JS, `549,920` SHEIN
+  source. Playwright at `440×932` with a 34px inset returned height `108px`,
+  padding `34px`, top `824`, bottom `932`, `stable=true`. Android debug APK is
+  11,167,800 bytes with SHA-256
+  `5CE18F7657FE34322E303D1F25A85AA2944C7FE2384C77C1CA83F7C2B0D3B18C`.
+- Pending: push the code, run/download/inspect the unsigned Xcode IPA, copy it
+  to the desktop, then record artifact path/hash. Real iPhone must still verify
+  product-open first frame, five background/resume cycles, cold launch, and
+  SHEIN → Temu → SHEIN; none is claimed locally.
+
+# Current recovery candidate — v86.103 SHEIN cart-session reset (2026-08-09)
+
+- User-confirmed sequence: after opening an old SHEIN item from Otlobli cart
+  and leaving/returning to the app, SHEIN still paints its shell/categories but
+  product cards no longer navigate. Temu → SHEIN fixes the same session.
+- The supplied v86.102 report shows a live WKWebView (`440×894`, attached,
+  window=true, interactive, scroll `0→734`) and stable QA region state. It had
+  no product event, but the old diagnostic discarded any tap whose DOM did not
+  first match its product predicate and also logged third-party iframes, so it
+  cannot prove that JavaScript input was absent.
+- v86.103 sets `sheinCartProductSessionRef` only for iOS SHEIN products opened
+  from Otlobli cart. App resume or navigation from that session to Otlobli
+  cart/orders/profile retires the one WebView, sets the existing cache reset,
+  and opens a fresh SHEIN session when Home is active. This matches the proven
+  Temu → SHEIN recovery without clearing cookies/localStorage/signed address or
+  changing native recompose timing. Android and ordinary SHEIN browsing retain
+  their current preserve/hide behavior.
+- Diagnostic v86.103 is top-frame only and captures raw touch/click attempts
+  even with `productDetected=false`; it includes href/label/scroll, touchcancel,
+  a capture-scheduled after record, and a true post-dispatch final record via a
+  zero-delay task. Keep `SHEIN_IOS_TAP_DIAGNOSTICS=true` only through device
+  acceptance, then disable it for a normal customer release.
+- Playwright verified known/unknown targets, product href, capture+bubble,
+  late `preventDefault`, synthetic touchstart/touchend under one attempt,
+  `tap-after`, and no iframe install. Build/freeze/performance, both native
+  syncs and Android debug build pass. Budgets: `1,163,553` raw JS, `323,209`
+  gzip JS, `549,929` SHEIN source. APK: `86.103/963`, 11,171,342 bytes,
+  SHA-256 `1EDC0BFED9DF367F6046F30DE9432F9695F13033AD22E1A464B049B2DBB8897B`.
+- Pushed commit: `49b734e` (`49b734e36c0c5ffbafe7b1d03502a5e6288c3548`).
+  GitHub/Xcode [run `31310138809`](https://github.com/m7madv/otlobli/actions/runs/31310138809)
+  passed. Inspected IPA:
+  `release-artifacts/ios-v86.103-run-31310138809/otlobli-v86.103-iphone16-unsigned.ipa`,
+  7,046,214 bytes, SHA-256
+  `E83EF7ECDD885E8CBB6FD49C9BDB1888411C444EA2708BFE5487503DFC2C712F`.
+  A verified identical copy is on the desktop at
+  `C:\Users\MOHAMMAD\Desktop\otlobli-ios-v86.103\otlobli-v86.103-iphone16-unsigned.ipa`.
+  Archive confirms `com.otlobli.app` `86.103/963`, recovery/diagnostic/recompose
+  markers, no app-root signature and no embedded provisioning profile.
+- Pending: reproduce the cart path and verify ordinary product entry, five
+  resume cycles and cold launch on a real iPhone. If it still fails, copy the
+  v86.103 report before switching stores.
+
+# Current diagnostic candidate — v86.102 SHEIN iOS tap-path trace (2026-08-09)
+
+- Pushed branch/commit: `codex/shein-ios-tap-diagnostic` / `b5a6e7a`
+  (`b5a6e7a194410b1d774cad3a1a07c52fdb8a4170`). GitHub/Xcode
+  [run `31308844558`](https://github.com/m7madv/otlobli/actions/runs/31308844558)
+  passed. Inspected IPA:
+  `release-artifacts/ios-v86.102-run-31308844558/otlobli-v86.102-iphone16-unsigned.ipa`,
+  7,045,998 bytes, SHA-256
+  `3E9C88CFF994D64C4688F904737E8CDE34FAA0DB319A46716B158121E4FA96E4`.
+  Archive metadata is `com.otlobli.app`, `86.102/962`; web/native diagnostic
+  and recompose markers are present. The app root is unsigned/unprovisioned;
+  prebuilt Facebook frameworks retain vendor signatures.
+- `SHEIN_IOS_TAP_DIAGNOSTICS=true` is diagnostic-only. It installs passive
+  product listeners for touchstart/touchend/click in capture+bubble and a
+  post-dispatch microtask for final `defaultPrevented`/`bubbleSeen`; it must be
+  false again before a normal customer release. Old freeze diagnostics remain
+  false.
+- Every capture snapshot is bounded: target, painted element, eight ancestors,
+  up to twelve fixed/sticky layers from `elementsFromPoint`, styles/rects,
+  URL and region state. There is no page-wide scan or persistent diagnostic
+  polling. The native ring is in-memory, capped at 180 and copied only with the
+  small `نسخ` button; report prefix is `OTLOBLI_SHEIN_TAP_DIAGNOSTIC`.
+- The existing `otlobliInstallIosProductTapFallback()` behavior is unchanged.
+  Its original freeze-probe markers and `280ms` then `220ms` timings remain;
+  the new trace only reports armed/scheduled/click/route-skip/location-assign.
+- Native records host `setUrl` (the cart-product path), navigation, active/
+  resign-active, recompose requested/completed and WKWebView state. Do not add
+  `appWillEnterForeground`: the freeze guard forbids it. Document visibility,
+  page show/hide and focus/blur cover the corresponding page events.
+- Playwright passed both an actual click intercepted by a 1%-opacity fixed
+  layer and touchstart/touchend capture+bubble. The diagnostic did not prevent
+  the event. Production/freeze/performance, both native syncs and Android debug
+  build pass. APK is `android/app/build/outputs/apk/debug/app-debug.apk`,
+  11,548,135 bytes, SHA-256
+  `30DBE8CF87AAF04098CDE6F3101DEC6DD40DE23858E53703F7A806AF44E3E643`.
+  Note 8 was `unauthorized`; no install/device acceptance occurred.
+- Next: install/sign the unsigned IPA as appropriate, then on the real iPhone
+  run all five reproduction paths. At the first failure press `نسخ`
+  before Temu → SHEIN and paste the complete report. Do not fix anything until
+  that report identifies the failing layer/event.
+
+# Previous candidate — v86.101 hidden SHEIN colour-template guard (2026-08-09)
 
 - A no-option SHEIN nail product showed `حدد اللون أولاً`. Diagnose this class
   of bug from the live DOM before changing it.
@@ -21,7 +130,11 @@
   syncs, debug build and install on Note 8. APK:
   `android/app/build/outputs/apk/debug/app-debug.apk`, 11,167,224 bytes,
   SHA-256 `957D4D540D81A8162DF501CD9251760AD9F9CC5274349CA52C852E6F9C23FCF1`.
-  iPhone source is synchronized; no IPA or real iPhone acceptance yet.
+  The unsigned iPhone IPA completed successfully in [run 31305701128](https://github.com/m7madv/otlobli/actions/runs/31305701128):
+  `release-artifacts/ios-v86.101/otlobli-v86.101-iphone16-unsigned.ipa`,
+  SHA-256 `D9AC194F1EBA2594F82B68103701A58830289259C95930474EE4F30785B00F4D`.
+  It is deliberately unsigned/provision-less. Physical iPhone 16 acceptance is still
+  required: verify the no-option product, cold launch, and five background/resume cycles.
 
 # Previous candidate — v86.100 Otlobli-first store opening (2026-08-09)
 

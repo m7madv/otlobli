@@ -20,7 +20,6 @@ export const TEST_ONLY_AUTH_BYPASS = false
 // dedicated diagnostic release after recording the affected device and steps.
 export const SHEIN_IOS_FREEZE_DIAGNOSTICS = false
 export const SHEIN_IOS_FREEZE_DIAGNOSTICS_BYPASS_RECOVERY = false
-export const SHEIN_IOS_TAP_DIAGNOSTICS = true
 
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '2026.08.09-v86.103-shein-cart-session-recovery'
+export const APP_VERSION = '2026.08.09-v86.104-shein-first-frame-nav'

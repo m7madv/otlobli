@@ -16,7 +16,7 @@ import type { PaymentCurrency } from './domain/pricing'
 import type { Address, AppNotification, CartGroupSnapshot, CartItem, NotificationPrefs, Order, OrderIssue, Product, ProductColor, Recipient, Screen, StatusTone, UserProfile, WalletTransaction } from './domain/types'
 import { getDeviceId, readStoredJson, storageKeys, useStoredState } from './infrastructure/localStorage'
 import { appApi } from './services'
-import { PAYMENT_MODE, APP_VERSION, SHEIN_IOS_FREEZE_DIAGNOSTICS, SHEIN_IOS_FREEZE_DIAGNOSTICS_BYPASS_RECOVERY, SHEIN_IOS_TAP_DIAGNOSTICS, TEST_ONLY_AUTH_BYPASS, cleanEnvValue } from './config'
+import { PAYMENT_MODE, APP_VERSION, SHEIN_IOS_FREEZE_DIAGNOSTICS, SHEIN_IOS_FREEZE_DIAGNOSTICS_BYPASS_RECOVERY, TEST_ONLY_AUTH_BYPASS, cleanEnvValue } from './config'
 import { buildWhatsappLink } from './services/whatsappLink'
 import {
   getAccountAuthMethods,
@@ -31,7 +31,6 @@ import { registerPushNotifications } from './services/pushNotifications'
 import { OTLOBLI_NAV_BOOTSTRAP_SCRIPT, SHEIN_CAPTURE_SCRIPT } from './services/sheinBrowserScript'
 import { SHEIN_REGION_DIAGNOSTICS_SCRIPT } from './services/sheinRegionDiagnostics'
 import { SHEIN_FREEZE_DIAGNOSTIC_SCRIPT } from './services/sheinFreezeDiagnostics'
-import { SHEIN_TAP_DIAGNOSTIC_SCRIPT } from './services/sheinTapDiagnostics'
 import { App as CapacitorApp } from '@capacitor/app'
 import { Capacitor, registerPlugin } from '@capacitor/core'
 import { BackgroundColor, InAppBrowser, ToolBarType } from '@capgo/capacitor-inappbrowser'
@@ -153,6 +152,19 @@ const buildStoreCaptureScript = (regions: StoreRegions) =>
   // Price diagnostics deliberately stay out of customer bundles. The retained
   // source file is imported only by a dedicated diagnostic release.
   `window.__OTLOBLI_STORE_REGIONS__=${JSON.stringify(regions)};\n${SHEIN_REGION_DIAGNOSTICS_SCRIPT}\ntry{\n${SHEIN_CAPTURE_SCRIPT}\n}catch(__otlobliCaptureError){try{window.__otlobliRegionDiagnostic('capture-runtime-error',{message:String(__otlobliCaptureError&&(__otlobliCaptureError.stack||__otlobliCaptureError.message)||__otlobliCaptureError)},'runtime')}catch(__otlobliDiagnosticError){}}`
+
+// The host app already has viewport-fit=cover from its static HTML, so its
+// mounted navigation knows the final iPhone safe-area before SHEIN starts.
+// Pass that stable value into the document-start script to prevent SHEIN's
+// injected navigation from first painting at the 16px fallback and jumping
+// upward after SHEIN later installs its own viewport meta tag.
+const readHostSafeBottomInset = (): number => {
+  const nav = document.querySelector<HTMLElement>('.bottom-nav')
+  if (!nav) return 16
+  const inset = Number.parseFloat(window.getComputedStyle(nav).paddingBottom)
+  if (!Number.isFinite(inset)) return 16
+  return Math.round(Math.min(60, Math.max(16, inset)))
+}
 
 const cartColorPreviewBackground = (color: string) => {
   return /ذهبي|gold/i.test(color) ? 'linear-gradient(135deg,#9f6b12,#f8df8b,#b77812)' : ''
@@ -3344,6 +3356,7 @@ function App() {
       ? normalizeSheinBrowserUrl(rawTargetUrl, activeRegions.shein)
       : normalizeTemuBrowserUrl(rawTargetUrl, activeRegions.temu)
     const captureScript = buildStoreCaptureScript(activeRegions)
+    const hostSafeBottomInset = readHostSafeBottomInset()
     if (initialPendingUrl && pendingProductRevealRef.current &&
         pendingProductRevealUrlRef.current === targetUrl) {
       markPendingProductNavigationRequested()
@@ -3370,16 +3383,15 @@ function App() {
       url: targetUrl,
       ...(activeStore === 'shein'
         ? {
-          // Keep diagnostics visible while exercising the real guarded recovery
-          // path. The isolated no-recovery mode remains explicit and off.
           otlobliLoadingCover: true,
           otlobliFreezeDiagnostics: SHEIN_IOS_FREEZE_DIAGNOSTICS && isIosNative,
           otlobliFreezeDiagnosticsBypassRecovery:
             SHEIN_IOS_FREEZE_DIAGNOSTICS &&
             SHEIN_IOS_FREEZE_DIAGNOSTICS_BYPASS_RECOVERY &&
             isIosNative,
-          otlobliTapDiagnostics: SHEIN_IOS_TAP_DIAGNOSTICS && isIosNative,
-          otlobliDocumentStartScript: `${OTLOBLI_NAV_BOOTSTRAP_SCRIPT}\n${SHEIN_IOS_FREEZE_DIAGNOSTICS && isIosNative ? SHEIN_FREEZE_DIAGNOSTIC_SCRIPT : ''}\n${SHEIN_IOS_TAP_DIAGNOSTICS && isIosNative ? SHEIN_TAP_DIAGNOSTIC_SCRIPT : ''}`,
+          // Customer releases must not expose the native diagnostic copy button.
+          otlobliTapDiagnostics: false,
+          otlobliDocumentStartScript: `window.__otlobliSafeBottom=${hostSafeBottomInset};\n${OTLOBLI_NAV_BOOTSTRAP_SCRIPT}\n${SHEIN_IOS_FREEZE_DIAGNOSTICS && isIosNative ? SHEIN_FREEZE_DIAGNOSTIC_SCRIPT : ''}`,
           otlobliPreserveAttachedWhenHidden: true,
           // Keep React's already-mounted Otlobli shell and bottom nav visible
           // while the first SHEIN document is loading. The native browser is

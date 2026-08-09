@@ -1,21 +1,21 @@
 import { OTLOBLI_SKU_TAP_JS } from './sheinSkuTap'
-import { SHEIN_TAP_DIAGNOSTIC_CONTEXT_JS } from './sheinTapDiagnostics'
 
 const OTLOBLI_SHEIN_BASE_CSS = '.login-bar.j-login-bar{display:none!important}'
 
-const OTLOBLI_NAV_STYLE_VERSION = 'v86.4.0'
+const OTLOBLI_NAV_STYLE_VERSION = 'v86.104.0'
+const SB = 'max(env(safe-area-inset-bottom,0px),var(--otlobli-sb,16px),16px)'
 const OTLOBLI_NAV_CSS =
   'position:fixed!important;left:50%!important;right:auto!important;bottom:0!important;top:auto!important;' +
   'transform:translate3d(-50%,0,0)!important;will-change:transform!important;width:100%!important;max-width:440px!important;' +
   'width:min(100vw, 440px)!important;height:90px!important;min-height:90px!important;max-height:90px!important;' +
-  'height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;' +
-  'min-height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;' +
-  'max-height:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px))!important;' +
+  'height:calc(74px + ' + SB + ')!important;' +
+  'min-height:calc(74px + ' + SB + ')!important;' +
+  'max-height:calc(74px + ' + SB + ')!important;' +
   'z-index:2147483647!important;display:flex!important;flex-direction:row!important;align-items:stretch!important;' +
   'direction:rtl!important;overflow:hidden!important;box-sizing:border-box!important;' +
   'background:#fff!important;border-top:1px solid #bccac0!important;' +
   'backdrop-filter:none!important;-webkit-backdrop-filter:none!important;' +
-  'padding:0 0 16px 0!important;padding:0 0 max(env(safe-area-inset-bottom, 0px), 16px) 0!important;margin:0!important;' +
+  'padding:0 0 16px 0!important;padding:0 0 ' + SB + ' 0!important;margin:0!important;' +
   'font-family:system-ui,-apple-system,sans-serif!important;font-size:12px!important;line-height:normal!important;' +
   'opacity:1!important;visibility:visible!important;pointer-events:auto!important;'
 
@@ -333,6 +333,8 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
   }
 
   function mount() {
+    var root = document.documentElement, inset = Number(window.__otlobliSafeBottom || 0);
+    if (root && isFinite(inset)) root.style.setProperty('--otlobli-sb', Math.round(Math.min(60, Math.max(16, inset))) + 'px');
     ensureEarlyViewportFitCover();
     if (!document.getElementById('otlobli-base-style')) {
       var fontParent = document.head || document.documentElement;
@@ -860,7 +862,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var sheinNativeCoverRepairStartedAt = 0;
   var sheinNativeCoverCooldownUntil = 0;
   var sheinNativeCoverLastKey = '';
-  ${SHEIN_TAP_DIAGNOSTIC_CONTEXT_JS}
   sheinRegionDiag('capture-script-injected', {
     requiredCountry: SHEIN_REQUIRED_COUNTRY,
     productRoute: sheinLooksLikeProductRouteForShipping(),

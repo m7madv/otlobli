@@ -127,6 +127,22 @@ const checks = [
     ],
   },
   {
+    label: 'customer tap diagnostics disabled',
+    file: 'src/App.tsx',
+    markers: [
+      'otlobliTapDiagnostics: false',
+    ],
+  },
+  {
+    label: 'stable iPhone first-frame navigation inset',
+    file: 'src/services/sheinBrowserScript.ts',
+    markers: [
+      'var(--otlobli-sb,16px)',
+      'window.__otlobliSafeBottom',
+      "root.style.setProperty('--otlobli-sb'",
+    ],
+  },
+  {
     label: 'price diagnostic excluded from normal releases',
     file: 'src/App.tsx',
     markers: [],
