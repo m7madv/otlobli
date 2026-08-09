@@ -21,6 +21,9 @@
   flush once after `humanCheckResolved`; it is not implemented yet because
   `CookieManager.flush()` can perform blocking I/O. Measure it separately and
   never run it on startup, navigation, or before a user completes a challenge.
+- Unsigned iPhone build [31287796920](https://github.com/m7madv/otlobli/actions/runs/31287796920)
+  was queued from `9562276`; CI is source/native build verification only, not
+  iPhone device acceptance.
 
 ## Current candidate — v86.93 raw-SHEIN regression repair (2026-08-09)
 

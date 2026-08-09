@@ -30,6 +30,12 @@ separate experiment may flush Android cookies once *after the user completes*
 a challenge, provided it is measured for UI blocking and does not alter the
 challenge itself. See `docs/KNOWN_ISSUES_AND_DECISIONS.md`.
 
+An unsigned iPhone build was triggered from commit `9562276`: [run
+31287796920](https://github.com/m7madv/otlobli/actions/runs/31287796920) was
+queued at the time of this update. It checks source/native build sync only; the
+required real iPhone 16 cold-launch and five background/resume cycles remain
+unperformed and must not be inferred from CI.
+
 ## Active candidate — v86.93 SHEIN injected-script parse repair (2026-08-09)
 
 v86.91 introduced a package-member counter using `/\+/g` inside the

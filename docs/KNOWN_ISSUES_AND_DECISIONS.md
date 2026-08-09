@@ -17,6 +17,9 @@
   Note 8 install. A cold live storefront showed four visible 22×22 SVG icons.
   The legitimate challenge route was no longer active after restart, so do not
   claim physical challenge-screen acceptance until SHEIN presents it again.
+- **iPhone CI:** [run 31287796920](https://github.com/m7madv/otlobli/actions/runs/31287796920)
+  was queued from the v86.94 source commit. It cannot validate the required
+  real iPhone 16 cold-launch and five background/resume cycles.
 
 ## SHEIN human-verification: session preservation, never bypass (2026-08-09)
 
