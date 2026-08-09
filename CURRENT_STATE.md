@@ -1,3 +1,49 @@
+# Active candidate — v86.117 native iOS back button and cart recovery continuity (2026-08-10)
+
+The user's real-device result disproved v86.116: the SHEIN back button could
+already be unreliable on first product entry, and after the host displayed its
+bounded store-repair state the button disappeared. This was not another
+z-index value problem. A DOM button remains inside WKWebView's compositor, so
+old iOS can still paint SHEIN's sticky/portal layers above it. Cart-first product
+entry could also be classified as the initial home path, while recovery reset
+the pending back destination to home.
+
+v86.117 adds an iOS-native 42x42 UIKit back button as a sibling above WKWebView.
+The bounded injected state message controls only visibility and top offset;
+the native tap delegates to the existing DOM action so cart/home semantics stay
+centralized. iPhone 6 keeps its `58px` placement and modern iPhones keep `12px`.
+The native button is brought back above the WebView after the existing
+`otlobliForceRecompose()` reattach, without adding or retiming any recompose
+burst. Loading/offline covers intentionally remain above it. Android retains
+the existing DOM fallback.
+
+Product visibility now explicitly wins over a home-path guess. Both stuck-view
+and chunk-load recovery snapshot the current/pending product URL and whether it
+came from Otlobli cart, then re-arm that origin before reopening SHEIN. A
+recovered product therefore restores the back button and returns to Otlobli
+cart instead of losing its target.
+
+Version is `86.117/977`; diagnostics remain off. Production build,
+freeze/performance guards, Android/iOS sync, diff check, Android debug assemble
+and GitHub/Xcode run `31338096861` pass. Synchronized local bundle
+`index-CyB7fWr_.js` is 1,166,876 bytes, SHA-256
+`C0F0AD670F7D0D81F3A5EB634A4ADCC18F09273D72E44E7D77CA50EF67C00905`.
+Android debug APK is 11,169,424 bytes, SHA-256
+`C77777025AD4B311B2661D33C88C196E1B44761583103838FBD900AAD19B3484`.
+Desktop IPA is
+`C:\Users\MOHAMMAD\Desktop\otlobli-ios-v86.117-iphone\otlobli-ios-v86.117-iphone16\otlobli-v86.117-iphone16-unsigned.ipa`,
+7,047,045 bytes, SHA-256
+`A90B12131BC0BF8F2F6C7BF691289078C41CE8D7CD9B38DC8C73A1933FE03C84`.
+Archive inspection confirms `com.otlobli.app`, `86.117/977`, arm64/iOS 15+,
+the native back/state/recompose markers and push code. CI JS
+`index-DN8CkAAy.js` is 1,168,064 bytes, SHA-256
+`17C6DD2A83313E063EFB1B441738B45DCF89CD09F34BEC38B463272AF85D825E`.
+The IPA is unsigned/unprovisioned, has no APNs entitlement and contains only
+the `otlobli` URL scheme because the Google iOS secret is absent. It is a
+device-test artifact, not App-Store-ready. Real iPhone 6 cart-entry/scroll/
+repair acceptance and the required iPhone 16 resume/cold-launch acceptance
+remain pending.
+
 # Active candidate — v86.116 iPhone 6 store recovery and sticky-price back layer (2026-08-10)
 
 The user's v86.115 iPhone 6 screenshots proved both reported issues remained.

@@ -1,3 +1,40 @@
+# Current candidate — v86.117 native iOS back button and cart recovery continuity (2026-08-10)
+
+- Real-device v86.116 failed from first product entry and could lose the back
+  button entirely after the host's bounded SHEIN repair. Do not treat this as
+  another DOM z-index issue.
+- Keep the native `otlobliNativeBackButton` in the patched iOS browser plugin.
+  It is a 42x42 UIKit sibling above WKWebView, receives only deduped
+  `otlobliBackButtonState` visibility/top state and delegates taps to the
+  existing DOM action. Old iPhone keeps `58px`; modern iPhone keeps `12px`.
+  Loading/offline covers intentionally stay above it.
+- `viewDidLayoutSubviews()` and the unchanged `otlobliForceRecompose()` path
+  restore the native overlay's front order. The protected 0.25-second
+  `appDidBecomeActive` recompose timing, scroll/constraint restoration and
+  Android host-resume defense were not removed or retimed.
+- Product-route evidence overrides a stale home-path guess. Preserve
+  `sheinRecoveryProductUrl()` and the cart-origin snapshot/re-arm in both
+  stuck-view and chunk-load recovery; this is what keeps the button visible
+  and returning to Otlobli cart after `جاري إصلاح تحميل متجر SHEIN…`.
+- The state bridge is bounded/deduped and reuses existing maintenance work; no
+  React render loop, permanent observer, native timer or new DOM scan was
+  added. Android retains the existing DOM overlay fallback.
+- Version `86.117/977`; diagnostics off. Build, freeze/performance guards,
+  native syncs, Android debug assemble and Xcode run `31338096861` pass.
+  Local synchronized bundle SHA-256 is
+  `C0F0AD670F7D0D81F3A5EB634A4ADCC18F09273D72E44E7D77CA50EF67C00905`;
+  debug APK SHA-256 is
+  `C77777025AD4B311B2661D33C88C196E1B44761583103838FBD900AAD19B3484`.
+- Desktop IPA:
+  `C:\Users\MOHAMMAD\Desktop\otlobli-ios-v86.117-iphone\otlobli-ios-v86.117-iphone16\otlobli-v86.117-iphone16-unsigned.ipa`,
+  7,047,045 bytes, SHA-256
+  `A90B12131BC0BF8F2F6C7BF691289078C41CE8D7CD9B38DC8C73A1933FE03C84`.
+  It is unsigned/unprovisioned and lacks APNs/Google iOS signing configuration;
+  do not call it App-Store-ready.
+- Real-device acceptance still required: iPhone 6 saved-cart product entry,
+  sticky-price scroll and automatic-repair return-to-cart; plus five iPhone 16
+  background/resume cycles and one force-quit/cold-launch.
+
 # Current candidate — v86.116 iPhone 6 recovery and sticky-price back layer (2026-08-10)
 
 - v86.115 failed on the real iPhone 6: the host still showed a preparation

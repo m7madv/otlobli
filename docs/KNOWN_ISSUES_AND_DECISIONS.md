@@ -1,5 +1,29 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
+## Native iOS back overlay and recovery origin (v86.117, 2026-08-10)
+
+- **Evidence:** v86.116 could fail on initial SHEIN product entry, not only
+  after scroll. After the host's bounded store-repair state, the back control
+  could disappear completely.
+- **Cause:** DOM paint order cannot guarantee elevation above every old-WebKit
+  composited SHEIN portal. Cart-first product entry can also resemble the first
+  captured home path, and recovery could clear the pending cart destination.
+- **Decision:** iOS owns a 42x42 UIKit back button above WKWebView. A deduped
+  injected message supplies visibility and the existing 12/58px top offset;
+  native taps delegate to the existing DOM action. Keep loading/offline covers
+  above it and keep Android on the DOM fallback. Product evidence wins over
+  home classification, and both recovery paths preserve product URL plus
+  cart/home origin before reopening.
+- **Freeze/performance boundary:** Existing native recompose semantics and the
+  0.25-second foreground timing are unchanged; reattach only restores overlay
+  order. No new React loop, permanent observer, native timer or DOM scan.
+- **Validation boundary:** Guards, production build, native syncs, Android
+  assemble and Xcode run `31338096861` pass for `86.117/977`. Inspected desktop
+  IPA SHA-256 is
+  `A90B12131BC0BF8F2F6C7BF691289078C41CE8D7CD9B38DC8C73A1933FE03C84`.
+  Real iPhone 6 cart/scroll/repair and required iPhone 16 lifecycle acceptance
+  remain pending; do not infer them from archive inspection.
+
 ## iPhone 6 preparation false negative and sticky-price back cover (v86.116, 2026-08-10)
 
 - **Device/evidence:** v86.115 real iPhone 6 screenshots show the host
