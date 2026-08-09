@@ -144,6 +144,15 @@ const checks = [
     ],
   },
   {
+    label: 'iOS SHEIN ready-reveal gate',
+    file: 'src/App.tsx',
+    markers: [
+      'InvisibilityMode.FAKE_VISIBLE',
+      'hidden: true',
+      'if (webviewOpeningRef.current || !sheinReadyRef.current) return undefined',
+    ],
+  },
+  {
     label: 'price diagnostic excluded from normal releases',
     file: 'src/App.tsx',
     markers: [],
@@ -564,6 +573,24 @@ try {
       !freshOpenSource.includes('browseSheinRef.current()') ||
       freshOpenSource.includes('InAppBrowser.setUrl')) {
     failures.push('SHEIN cart isolation: fresh iOS session must reset cache and reopen without setUrl reuse')
+  }
+
+  const sheinOptionsStart = appSource.indexOf("...(activeStore === 'shein'")
+  const temuOptionsStart = appSource.indexOf("        : {", sheinOptionsStart)
+  const sheinOptionsSource = appSource.slice(sheinOptionsStart, temuOptionsStart)
+  if (sheinOptionsStart < 0 || temuOptionsStart < 0 ||
+      !sheinOptionsSource.includes('hidden: true') ||
+      !sheinOptionsSource.includes('invisibilityMode: InvisibilityMode.FAKE_VISIBLE')) {
+    failures.push('SHEIN ready reveal: iOS must prepare the SHEIN WebView offscreen at full device size')
+  }
+
+  const homeVisibilityStart = appSource.indexOf("if (screen === 'home')", temuOptionsStart)
+  const homeVisibilityEnd = appSource.indexOf("} else if (sheinOpenedRef.current)", homeVisibilityStart)
+  const homeVisibilitySource = appSource.slice(homeVisibilityStart, homeVisibilityEnd)
+  const readyGuard = homeVisibilitySource.indexOf('if (webviewOpeningRef.current || !sheinReadyRef.current) return undefined')
+  const showCall = homeVisibilitySource.indexOf('InAppBrowser.show()')
+  if (homeVisibilityStart < 0 || homeVisibilityEnd < 0 || readyGuard < 0 || showCall < 0 || readyGuard > showCall) {
+    failures.push('SHEIN ready reveal: readiness guard must run before the native WebView is shown')
   }
 } catch (error) {
   failures.push(`SHEIN cart isolation: ${error instanceof Error ? error.message : String(error)}`)

@@ -1,4 +1,42 @@
-# Active candidate — v86.112 iPhone 6 product-entry black-toast guard (2026-08-09)
+# Active candidate — v86.113 fixed host-first SHEIN reveal on iPhone (2026-08-09)
+
+The remaining iPhone 6 first-open defect was not another nav-height problem.
+The native loading cover deliberately stopped above the injected bottom nav,
+so SHEIN's document-start nav could become visible while its hidden controller
+was still moving from the pre-presentation viewport to the real device frame.
+That exposed a horizontally clipped two-tab frame for about two seconds before
+WebKit's later layout corrected it.
+
+v86.113 uses the plugin's existing hidden `FAKE_VISIBLE` mode for iOS SHEIN.
+The WebView now loads offscreen at the real window size while React's already
+mounted Otlobli loading screen and bottom nav remain the only visible surface.
+The existing `sheinSaudiReady` / `sheinPageInteractive` / `humanCheck` path
+marks the session ready; only then may the home visibility effect call
+`InAppBrowser.show()`. A new freeze-guard assertion enforces both the full-size
+hidden option and readiness-before-show ordering, including fresh cart-product
+sessions and bounded recovery reopens.
+
+No new timer, DOM scan, native recompose call, region transition, verification
+bypass, cart/payment/wallet/order change, or plugin patch was added. The exact
+iPhone `appDidBecomeActive` + 0.25-second recompose, Android resume defense,
+scroll/constraints and `JSON.stringify` region guard remain unchanged.
+
+Version is `86.113/973`; diagnostics are disabled. Production build,
+freeze/executable guard, low-end performance budget, diff check, Android/iOS
+sync, and Android debug build pass. Budgets: JS raw
+`1,166,014/1,200,000`, total JS gzip `322,581/370,000`, CSS
+`63,670/70,000`, fonts `81,364/100,000`, SHEIN source
+`549,734/550,000`. Bundle `index-DL3biifD.js` is identical in dist/Android/iOS,
+SHA-256 `67BFFFB018100AE645D37661B6D1C00AA002105AE951119F942ECE6B9C154028`.
+Android debug APK is 11,169,316 bytes, SHA-256
+`8258C347DB214BFABF11141E17C44259C7D6394D5DF7491FDDC533036E44E916`.
+Repository-wide lint still fails on the documented pre-existing 33 errors and
+16 warnings; no reported lint item points at the v86.113 changes. iOS CI/IPA
+and real-device acceptance are pending. Required acceptance is iPhone 6 cold
+open plus cart-product open, and five iPhone 16 background/resume cycles plus a
+separate force-quit/cold-launch test; do not claim those from local checks.
+
+# Previous candidate — v86.112 iPhone 6 product-entry black-toast guard (2026-08-09)
 
 The user clarified that the remaining iPhone 6 defect is the compact black
 SHEIN “added to shopping cart successfully” bar above Otlobli's bottom nav. It

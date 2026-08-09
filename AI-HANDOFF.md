@@ -1,4 +1,32 @@
-# Current candidate — v86.112 iPhone 6 black success-toast entry guard (2026-08-09)
+# Current candidate — v86.113 host-first iOS SHEIN reveal (2026-08-09)
+
+- The iPhone 6 screenshot showed the native Otlobli loading cover plus only
+  two/clipped injected nav tabs for about two seconds. The cover reserved the
+  nav gap while the not-yet-presented WKWebView changed from its preparation
+  viewport to the actual device frame.
+- Keep the chosen boundary: iOS SHEIN opens with `hidden: true` and
+  `InvisibilityMode.FAKE_VISIBLE`, so it executes at full window dimensions
+  offscreen. React's already-mounted loading screen/nav stays visible until the
+  existing readiness path clears `webviewOpeningRef` and sets `sheinReady`.
+- Keep the home visibility guard before `InAppBrowser.show()`:
+  `if (webviewOpeningRef.current || !sheinReadyRef.current) return undefined`.
+  This is essential on recovery reopens where `setSheinReady(false)` can cause
+  another render before the new hidden WebView is ready.
+- `verify:shein-freeze-guard` now enforces the full-size hidden options and the
+  readiness-before-show ordering. Do not replace this with a reveal timeout.
+- No plugin/native change was required. Preserve the exact iPhone 0.25-second
+  recompose invariant, Android resume defense, store-region JSON comparison,
+  cart-session isolation, toast guard, and all verification/payment logic.
+- Version `86.113/973`; diagnostics off. Build, freeze/performance guards,
+  diff check, Android/iOS sync and Android debug assemble pass. Bundle
+  `index-DL3biifD.js`, 1,166,014 bytes, SHA-256
+  `67BFFFB018100AE645D37661B6D1C00AA002105AE951119F942ECE6B9C154028`,
+  is identical across dist/Android/iOS. Debug APK SHA-256 is
+  `8258C347DB214BFABF11141E17C44259C7D6394D5DF7491FDDC533036E44E916`.
+- Full lint remains at the pre-existing baseline (33 errors, 16 warnings) and
+  reports no v86.113 line. iOS CI/IPA and real-device acceptance are pending.
+
+# Previous candidate — v86.112 iPhone 6 black success-toast entry guard (2026-08-09)
 
 - The user clarified the iPhone 6 symptom: the compact black SHEIN “added to
   shopping cart successfully” bar is already visible above Otlobli nav on

@@ -33,7 +33,7 @@ import { SHEIN_REGION_DIAGNOSTICS_SCRIPT } from './services/sheinRegionDiagnosti
 import { SHEIN_FREEZE_DIAGNOSTIC_SCRIPT } from './services/sheinFreezeDiagnostics'
 import { App as CapacitorApp } from '@capacitor/app'
 import { Capacitor, registerPlugin } from '@capacitor/core'
-import { BackgroundColor, InAppBrowser, ToolBarType } from '@capgo/capacitor-inappbrowser'
+import { BackgroundColor, InAppBrowser, InvisibilityMode, ToolBarType } from '@capgo/capacitor-inappbrowser'
 import { flushSync } from 'react-dom'
 
 const OtlobliLaunchSurface = registerPlugin<{ ready: () => Promise<void> }>('OtlobliLaunchSurface')
@@ -3393,10 +3393,13 @@ function App() {
           otlobliTapDiagnostics: false,
           otlobliDocumentStartScript: `window.__otlobliSafeBottom=${hostSafeBottomInset};\n${OTLOBLI_NAV_BOOTSTRAP_SCRIPT}\n${SHEIN_IOS_FREEZE_DIAGNOSTICS && isIosNative ? SHEIN_FREEZE_DIAGNOSTIC_SCRIPT : ''}`,
           otlobliPreserveAttachedWhenHidden: true,
-          // Keep React's already-mounted Otlobli shell and bottom nav visible
-          // while the first SHEIN document is loading. The native browser is
-          // presented only after WebKit has a live page and the document-start
-          // bootstrap has mounted the identical in-page nav.
+          // Prepare SHEIN at the real device size without presenting it. The
+          // already-mounted Otlobli shell therefore owns the only visible nav
+          // until capture reports a genuinely interactive store frame.
+          ...(isIosNative ? {
+            hidden: true,
+            invisibilityMode: InvisibilityMode.FAKE_VISIBLE,
+          } : {}),
           isPresentAfterPageLoad: true,
           isAnimated: false,
         }
@@ -3509,8 +3512,12 @@ function App() {
     if (screen === 'home') {
       if (!storeRegionsReady) return undefined
       if (sheinOpenedRef.current) {
+        // A newly-created iOS SHEIN view is intentionally full-size but
+        // offscreen. Never reveal it on a state re-render before its own
+        // readiness signal; this is what keeps the host nav fixed on the very
+        // first frame, including after a recovery/reopen.
+        if (webviewOpeningRef.current || !sheinReadyRef.current) return undefined
         void InAppBrowser.show().catch(() => undefined).then(() => {
-          if (webviewOpeningRef.current || !sheinReadyRef.current) return
           const target = pendingBackTargetRef.current
           pendingBackTargetRef.current = 'home'
           postWebviewChromeState(target)
