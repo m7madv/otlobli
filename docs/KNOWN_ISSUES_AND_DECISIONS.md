@@ -1,5 +1,86 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
+## iPhone 6 exposes SHEIN's product add action before Otlobli acts (v86.109, 2026-08-09)
+
+- **Cause:** The listing quick-add cleaner intentionally rejects controls wider
+  than 96px. SHEIN's older iPhone 6 product action is a wide/obfuscated bottom
+  control, so it was visible until Otlobli's add flow changed the product UI.
+- **Decision:** On SHEIN product routes only, install a document-start CSS guard
+  for stable add classes and use exact add text plus bottom geometry for old
+  obfuscated markup. Keep Otlobli nodes excluded and retain the click interceptor
+  as defense in depth.
+- **Performance:** Reuse existing loops; cap each scan at 140 candidates and a
+  3×3 point probe. Do not move geometry/text work into MutationObserver.
+- **Validation boundary:** 375×667 browser fixture and production guards/build/
+  sync pass. Real iPhone 6 acceptance and required iPhone 16 lifecycle tests are
+  not yet performed; no IPA was built from Windows.
+
+## Preserve SHEIN's genuine verification session (v86.108, 2026-08-09)
+
+- **Decision:** Never mint, extend or replay a verification certificate. Reuse
+  only SHEIN's own persistent cookie state for as long as the store accepts it.
+- **Android:** Enable verifier-frame third-party cookies only when the initial
+  host is SHEIN, then flush the cookie jar on the existing
+  `humanCheckResolved` event. This is event-driven and adds no polling.
+- **iOS/cache boundary:** Keep `WKWebsiteDataStore.default()`. Cache recovery
+  may clear memory/disk cache but must not clear cookies or local storage.
+- **Promise boundary:** App close and store switches should retain verification;
+  expiry, revocation and risk changes remain SHEIN-controlled and may require a
+  new check. “Once forever” is not a supportable claim.
+- **Validation:** Production build, both guards/syncs, clean patch apply,
+  Release compile, DEX marker and real Note 8 in-place install pass. Real
+  complete-check → relaunch → Temu-switch reuse and iPhone lifecycle acceptance
+  remain to be performed.
+
+## SHEIN human check falls through to “product removed” (v86.107, 2026-08-09)
+
+- **Cause:** SHEIN moved the visible verifier to `.one-pass-dialog` beside a
+  zero-sized custom-element host, so checking only painted custom hosts missed
+  it. Closing the verifier then lands on SHEIN's misleading removed-product
+  page. A second detector call inside one tick could also hit the scan throttle.
+- **Decision:** Detect the visible dialog, cache the bounded scan result for the
+  tick, and reuse the existing store loop. Do not add polling and never solve,
+  click or bypass the verification.
+- **UX:** Keep the challenge visible, show a compact Arabic instruction, block
+  Otlobli's product action, and preserve bottom navigation. If verification is
+  skipped and the removed-product signature appears, explain it and return to
+  the listing/cart; successful verification resumes normally.
+- **Validation boundary:** Production build, freeze/performance guards and both
+  native syncs pass. Real Note 8 DOM inspection confirmed the challenge shape;
+  a controlled diagnostic confirmed guide/action gating. Final Android Release
+  packaging/install and real iPhone lifecycle acceptance remain pending.
+
+## Android nav text/system controls differed across WebViews (v86.106, 2026-08-09)
+
+- **v86.105 correction:** Equal UIAutomator bounds were not acceptance; they
+  belonged to the preserved hidden store WebView. The user's screenshots still
+  showed larger React labels and white SHEIN system controls.
+- **Text cause:** On the Note 8, SHEIN opts out of Android text adjustment and
+  renders 12px. React respected `font_scale=1.1`, producing 13.2px. Icon, cell,
+  bar and safe-area geometry matched.
+- **Text decision:** One Android-only pre-mount probe calculates a CSS variable
+  for the four fixed labels. Preserve accessibility scaling everywhere else;
+  do not disable root text adjustment or add a timer/layout loop.
+- **System-bar cause/decision:** The foreground store dialog lacked
+  `LIGHT_NAVIGATION_BAR`; the hidden host had it. Apply the same light surface
+  and dark controls to both the dialog and activity.
+- **Release decision:** Production builds fail closed without a dedicated key.
+  Do not sign with the debug or ShamCash listener identity. The owner must
+  explicitly approve a new upload identity or provide the existing one, then
+  its SHA must be registered in Firebase before Google device acceptance. The
+  app/listener guards are task-scoped so neither module incorrectly demands the
+  other module's key.
+- **Device validation:** The user narrowed delivery to the existing Note 8, so
+  a non-debuggable Release was signed with its matching registered certificate
+  to preserve data. `86.106/966` installed over v86.105. Home/Orders have dark
+  system controls; inactive `حسابي` pixels are identical (`79×35`, 489 pixels),
+  cold launch has no fatal/ANR/push-registration errors, and the user accepted
+  the visual fix. Nothing was published.
+- **Publication boundary:** The device-update certificate is not the claimed
+  Play upload identity. Store publication still requires explicit approval for
+  a permanent key and access to the Firebase owner account to register both
+  upload and Play app-signing certificates.
+
 ## SHEIN bottom nav moves after the first product frame (v86.104, 2026-08-09)
 
 - **Cause:** The document-start nav could paint with its 90px/16px fallback

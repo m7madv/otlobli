@@ -22,4 +22,4 @@ export const SHEIN_IOS_FREEZE_DIAGNOSTICS = false
 export const SHEIN_IOS_FREEZE_DIAGNOSTICS_BYPASS_RECOVERY = false
 
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '2026.08.09-v86.104-shein-first-frame-nav'
+export const APP_VERSION = '2026.08.09-v86.109-shein-ios6-native-add-first-frame'

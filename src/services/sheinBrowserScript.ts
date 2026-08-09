@@ -1,4 +1,5 @@
 import { OTLOBLI_SKU_TAP_JS } from './sheinSkuTap'
+import { OTLOBLI_SHEIN_HUMAN_CHECK_JS } from './sheinHumanCheck'
 
 const OTLOBLI_SHEIN_BASE_CSS = '.login-bar.j-login-bar{display:none!important}'
 
@@ -174,6 +175,48 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
     }
   }
 
+  var __otlobliEarlyNativeAddScanAt = 0;
+  function hideEarlySheinProductAdd() {
+    if (!/-p-\\d+/i.test(location.pathname)) return;
+    if (document.head && !document.getElementById('otlobli-native-add-style')) {
+      var style = document.createElement('style');
+      style.id = 'otlobli-native-add-style';
+      style.textContent = '[class*="add-bag" i]:not([id^="otlobli"]),[class*="addbag" i]:not([id^="otlobli"]),' +
+        '[class*="add-to-cart" i]:not([id^="otlobli"]),[class*="addtocart" i]:not([id^="otlobli"]){display:none!important;visibility:hidden!important;pointer-events:none!important}';
+      document.head.appendChild(style);
+    }
+    if (!document.body) return;
+    var now = Date.now();
+    if (now - __otlobliEarlyNativeAddScanAt < 350) return;
+    __otlobliEarlyNativeAddScanAt = now;
+    var vh = window.innerHeight || document.documentElement.clientHeight || 0;
+    var vw = window.innerWidth || document.documentElement.clientWidth || 0;
+    var nav = document.getElementById('otlobli-nav');
+    var nr = nav && nav.getBoundingClientRect ? nav.getBoundingClientRect() : null;
+    var navTop = nr && nr.top > 0 ? nr.top : vh - 90;
+    var addPattern = /add\\s+to\\s+(?:bag|cart)|أضف[\\s\\S]{0,24}(?:عربة|السلة|للسلة|الحقيبة|التسوق)/i;
+    function hide(el) {
+      if (!el || !el.getBoundingClientRect || (el.closest && el.closest('[id^="otlobli"]'))) return;
+      var label = normalizedText(el) + ' ' + String(el.getAttribute && el.getAttribute('aria-label') || '');
+      if (!label || label.length > 90 || !addPattern.test(label)) return;
+      var r = el.getBoundingClientRect();
+      if (r.width < 64 || r.width > vw * 1.05 || r.height < 24 || r.height > 100 || r.bottom < navTop - 190 || r.top > navTop + 24) return;
+      el.style.setProperty('display', 'none', 'important');
+      el.style.setProperty('visibility', 'hidden', 'important');
+      el.style.setProperty('pointer-events', 'none', 'important');
+      el.setAttribute('data-otlobli-hidden-native-add', 'bootstrap-product-action');
+    }
+    var nodes = document.querySelectorAll('button,a,[role="button"],[class*="add" i],[aria-label*="add" i]');
+    for (var i = 0; i < nodes.length && i < 140; i++) hide(nodes[i]);
+    if (!document.elementsFromPoint) return;
+    var xs = [Math.round(vw * .2), Math.round(vw * .5), Math.round(vw * .8)];
+    var ys = [Math.max(1, navTop - 12), Math.max(1, navTop - 48), Math.max(1, navTop - 84)];
+    for (var y = 0; y < ys.length; y++) for (var x = 0; x < xs.length; x++) {
+      var stack = document.elementsFromPoint(xs[x], ys[y]);
+      for (var s = 0; s < stack.length; s++) hide(stack[s]);
+    }
+  }
+
   var __otlobliEarlyCookieScanAt = 0;
   var __otlobliCookieAcceptClicks = 0;
   function protectCookieConsentAction() {
@@ -327,6 +370,7 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
   }
 
   function runEarlyProtections() {
+    try { hideEarlySheinProductAdd(); } catch (e) {}
     try { hideVerifiedStoreBottomNav(); } catch (e) {}
     try { protectCookieConsentAction(); } catch (e) {}
     try { hideExactSheinSignupDiscountBanner(); } catch (e) {}
@@ -336,6 +380,7 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
     var root = document.documentElement, inset = Number(window.__otlobliSafeBottom || 0);
     if (root && isFinite(inset)) root.style.setProperty('--otlobli-sb', Math.round(Math.min(60, Math.max(16, inset))) + 'px');
     ensureEarlyViewportFitCover();
+    try { hideEarlySheinProductAdd(); } catch (e) {}
     if (!document.getElementById('otlobli-base-style')) {
       var fontParent = document.head || document.documentElement;
       if (fontParent) {
@@ -6311,7 +6356,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   function isAddToCartText(el) {
-    var text = (el.textContent || '').trim();
+    var text = String(el.textContent || (el.getAttribute && el.getAttribute('aria-label')) || el.value || '').trim();
     if (!text || text.length > 60) return false;
     // The Arabic-only regex below is what was actually missing - SHEIN's
     // Jordan site (forced to Arabic above) labels this "أضف إلى عربة
@@ -6319,7 +6364,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     // matched, so the click interceptor never caught it and SHEIN's real
     // add-to-cart fired untouched (confirmed by a user screenshot showing
     // SHEIN's own "أضف إلى عربة التسوق بنجاح" success bar).
-    return /add to (bag|cart)/i.test(text) || /أضف.*(عربة|السلة|الحقيبة|التسوق)/.test(text);
+    return /add to (bag|cart)/i.test(text) || /أضف.*(عربة|السلة|للسلة|الحقيبة|التسوق)/.test(text);
   }
 
   function isAddToCartButton(el, event) {
@@ -6803,13 +6848,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
-  // Deletes SHEIN's per-listing-card "quick add to cart" controls - both the
-  // little cart icon sitting on each product thumbnail and the quick-add button
-  // under the card - so a tap does nothing (the user explicitly asked for these
-  // to be removed entirely, not redirected). Matched on SHEIN's add-bag / cart
-  // class & aria hints and capped at icon/pill size so it never touches the
-  // full-width add bar on a real product page (which the user reaches through
-  // otlobli's own button instead).
+  // Remove compact quick-add controls from listing cards.
   function hideListingCardAddButtons() {
     var nodes = document.querySelectorAll(
       '[class*="addbag" i], [class*="add-bag" i], [class*="addtobag" i], [class*="add-to-bag" i], ' +
@@ -6826,6 +6865,36 @@ export const SHEIN_CAPTURE_SCRIPT = `
       el.setAttribute('data-otlobli-blocked', '1');
       el.style.setProperty('visibility', 'hidden', 'important');
       el.style.setProperty('pointer-events', 'none', 'important');
+    }
+  }
+
+  var __otlobliNativeAddScanAt = 0;
+  function hideSheinNativeProductAdd() {
+    if (!IS_SHEIN || !looksLikeProductPage()) return;
+    var now = Date.now();
+    if (now - __otlobliNativeAddScanAt < 450) return;
+    __otlobliNativeAddScanAt = now;
+    var vp = viewportSize();
+    var nav = document.getElementById('otlobli-nav');
+    var nr = nav && nav.getBoundingClientRect ? nav.getBoundingClientRect() : null;
+    var navTop = nr && nr.top > 0 ? nr.top : vp.height - 90;
+    function hide(el) {
+      if (!el || !el.getBoundingClientRect || (el.closest && el.closest('[id^="otlobli"]')) || !isAddToCartText(el)) return;
+      var r = el.getBoundingClientRect();
+      if (r.width < 64 || r.width > vp.width * 1.05 || r.height < 24 || r.height > 100 || r.bottom < navTop - 190 || r.top > navTop + 24) return;
+      el.style.setProperty('display', 'none', 'important');
+      el.style.setProperty('visibility', 'hidden', 'important');
+      el.style.setProperty('pointer-events', 'none', 'important');
+      el.setAttribute('data-otlobli-hidden-native-add', 'product-action');
+    }
+    var nodes = document.querySelectorAll('button,a,[role="button"],[class*="add" i],[aria-label*="add" i]');
+    for (var i = 0; i < nodes.length && i < 140; i++) hide(nodes[i]);
+    if (!document.elementsFromPoint) return;
+    var xs = [Math.round(vp.width * .2), Math.round(vp.width * .5), Math.round(vp.width * .8)];
+    var ys = [Math.max(1, navTop - 12), Math.max(1, navTop - 48), Math.max(1, navTop - 84)];
+    for (var y = 0; y < ys.length; y++) for (var x = 0; x < xs.length; x++) {
+      var stack = document.elementsFromPoint(xs[x], ys[y]);
+      for (var s = 0; s < stack.length; s++) hide(stack[s]);
     }
   }
 
@@ -7296,77 +7365,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     for (var ai = 0; ai < alerts.length; ai++) inspect(alerts[ai]);
   }
 
-  // SHEIN's anti-bot sometimes serves a "GSRM Security" block page, tied to
-  // session cookies. Only native code can clear HttpOnly cookies, so we detect
-  // and the app handles it. Reset on navigation.
-  // وضع التحقق «أنا إنسان» (Cloudflare) — v62: صفحة "Just a moment..." تظهر
-  // قبل أي محتوى (ثبت: HTTP 403 وتحدٍّ من challenges.cloudflare.com). القاعدة
-  // الراسخة: لا نتجاوزه ولا نغطيه ولا نعيد التحميل أثناءه. ما كان يكسر شي إن:
-  // حارس السعودية لا يجد مؤشرات سعودية في صفحة التحدي فيعيد تحميلها ويصفّر حل
-  // المستخدم فتعلق للأبد. الحل: نكتشف التحدي، نجمّد تدخلاتنا ونزيل عناصرنا،
-  // ونبلغ التطبيق (humanCheck) ليطفئ مؤقت «تعذر الفتح» وينتظر.
-  var __otlobliChallengeNotified = false;
-  // A completed challenge can return to the storefront with a same-document
-  // update, which Android does not always surface as a native URL change.
-  // This is a status signal only: it never clicks, reloads, or alters the
-  // verification page.
-  var __otlobliChallengeResolvedNotified = false;
-  // While a Cloudflare / "verify you are human" challenge is on screen we
-  // deliberately do nothing (our nodes are removed; the nav is kept by
-  // otlobliScheduleChallengeNav). This flag lets the hot polling paths back off
-  // so the challenge's own JS gets the CPU and resolves faster — the security
-  // check and first paint were slow largely because our 80ms mutation-driven
-  // tick kept forcing innerText reflows while Cloudflare was working. The 300ms
-  // interval keeps calling tick(), which clears this flag the moment the
-  // challenge is gone, so normal hiding/blocking resumes immediately after.
-  var otlobliChallengeActive = false, __otlobliChallengeScanAt = 0;
-  function otlobliIsHumanChallenge() {
-    try {
-      if (otlobliIsHumanChallengeUrl(location.href)) return true;
-      if (/just a moment/i.test(document.title || '')) return true;
-      var challengeNow = Date.now();
-      if (!otlobliChallengeActive && challengeNow - __otlobliChallengeScanAt < 1500) return false;
-      __otlobliChallengeScanAt = challengeNow;
-      if (document.getElementById('challenge-form')) return true;
-      if (document.querySelector('script[src*="challenges.cloudflare.com"], iframe[src*="challenges.cloudflare.com"]')) return true;
-      var sheinVerify = document.querySelector('.si-verify-block-request-dialog');
-      if (sheinVerify && (sheinElementIsPainted(sheinVerify) || document.querySelector('#nine-captcha-custom,nine-captcha-custom'))) return true;
-      if (document.querySelector('[id*="challenge" i], [class*="challenge" i], [data-testid*="challenge" i]')) {
-        var challengeText = document.body ? (document.body.textContent || '').slice(0, 2400) : '';
-        if (/verify you are human|security verification|checking your browser|cloudflare|إجراء التحقق من الأمان|التحقق من الأمان|لست روبوت|لستَ روبوت|لست روبوتاً|لست روبوتا/i.test(challengeText)) return true;
-      }
-      var bodyText = document.body ? (document.body.textContent || '').slice(0, 2400) : '';
-      if (/m\\.shein\\.com.*إجراء التحقق من الأمان|إجراء التحقق من الأمان|التحقق من أنك لست روبوت|لست روبوت|برامج الروبوت/i.test(bodyText)) return true;
-    } catch (e) {}
-    return false;
-  }
-  function otlobliEnterChallengeMode() {
-    try { writeSheinSaudiState(); } catch (e) {}
-    try {
-      var ours = document.querySelectorAll('[id^="otlobli"]');
-      for (var ci = 0; ci < ours.length; ci++) {
-        try {
-          var oid = ours[ci].id || '';
-          if (oid === 'otlobli-nav' || oid.indexOf('otlobli-nav-tab-') === 0) continue;
-          if (ours[ci].parentNode) ours[ci].parentNode.removeChild(ours[ci]);
-        } catch (e) {}
-      }
-    } catch (e) {}
-    otlobliScheduleChallengeNav();
-    // An add/loading overlay may have locked scrolling immediately before a
-    // same-document challenge appeared.  Removing our nodes is not enough;
-    // release that lock so the real verification control remains reachable.
-    try { sheinUnlockPageBehindShippingDrawer(); sheinReleaseFixedBodyLock(); } catch (e) {}
-    try { if (document.body) document.body.style.overflow = ''; } catch (e) {}
-    if (!__otlobliChallengeNotified) {
-      __otlobliChallengeNotified = true;
-      try {
-        if (window.mobileApp && window.mobileApp.postMessage) {
-          window.mobileApp.postMessage({ detail: { type: 'humanCheck' } });
-        }
-      } catch (e) {}
-    }
-  }
+  ${OTLOBLI_SHEIN_HUMAN_CHECK_JS}
 
   var sheinBlockReported = false;
   function checkForSheinSecurityBlock() {
@@ -7676,15 +7675,26 @@ export const SHEIN_CAPTURE_SCRIPT = `
       otlobliEnterChallengeMode();
       return;
     }
-    if (otlobliChallengeActive && __otlobliChallengeNotified && !__otlobliChallengeResolvedNotified) {
-      __otlobliChallengeResolvedNotified = true;
-      try {
-        if (window.mobileApp && window.mobileApp.postMessage) {
-          window.mobileApp.postMessage({ detail: { type: 'humanCheckResolved' } });
-        }
-      } catch (e) {}
+    if (otlobliChallengeActive) {
+      if (otlobliLooksLikeRemovedProductPage()) {
+        otlobliNotifyHumanCheckSkipped();
+        return;
+      }
+      if (!sheinPageLooksInteractive()) {
+        otlobliScheduleChallengeNav();
+        return;
+      }
+      otlobliChallengeActive = false;
+      otlobliForgetHumanChallenge();
+      if (!__otlobliChallengeResolvedNotified) {
+        __otlobliChallengeResolvedNotified = true;
+        try {
+          if (window.mobileApp && window.mobileApp.postMessage) {
+            window.mobileApp.postMessage({ detail: { type: 'humanCheckResolved' } });
+          }
+        } catch (e) {}
+      }
     }
-    otlobliChallengeActive = false;
     if (IS_SHEIN) ensureSheinSaudiShippingSelection();
     if (IS_SHEIN) retrySheinFeedError();
     ensureNoTextSelection();
@@ -7742,6 +7752,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     ensureLoadingOverlay();
     blockCartNavigation();
     ensureAddToCartButton();
+    hideSheinNativeProductAdd();
     stabilizeSheinImageViewerChrome();
     hideExtraHeaderIcons();
     hideSheinCartIcons();
@@ -10104,6 +10115,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     hideKnownHeaderIconsByHint();
     hideSheinHeaderControls();
     hideListingCardAddButtons();
+    hideSheinNativeProductAdd();
   }, OTLOBLI_LOW_END ? 650 : 120);
   setInterval(function () {
     if (document.hidden) return;

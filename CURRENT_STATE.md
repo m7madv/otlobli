@@ -1,3 +1,155 @@
+# Active candidate — v86.109 iPhone 6 first-frame SHEIN add-button concealment (2026-08-09)
+
+The old iPhone 6 SHEIN product layout exposed its own wide “add to cart”
+action until Otlobli's add flow began. The existing listing-card cleaner was
+intentionally capped at 96px, so it could not remove this product-width action.
+The document-start bootstrap now installs a product-route-only CSS guard before
+SHEIN paints known add-button classes, then uses the existing bounded early
+protection loop to identify older obfuscated markup by exact Arabic/English add
+semantics plus bottom-action geometry. The long-lived capture loop applies the
+same bounded defense. Both `أضف إلى السلة` and `أضف للسلة` wording are covered;
+all Otlobli-owned nodes are explicitly excluded.
+
+No MutationObserver scan, timer, network request, WebView lifecycle change or
+native recompose retiming was added. Each fallback scan is capped at 140
+candidate controls plus a 3×3 bottom point probe, throttled to 350/450ms and
+reusing existing timers. A real-browser 375×667/iPhone-6 fixture confirmed that
+both a known-class SHEIN action and an obfuscated role-button are hidden during
+the early bootstrap and remain hidden after the full capture script, while the
+Otlobli nav stays visible and interactive.
+
+Version is `86.109/969`. The production build, SHEIN freeze guard, low-end
+budget, patch reverse-apply check, `git diff --check`, and Android/iOS sync pass.
+Budgets: JS raw `1,166,162/1,200,000`, total JS gzip `323,337/370,000`, CSS
+`63,670/70,000`, fonts `81,364/100,000`, SHEIN source `549,717/550,000`.
+The identical synchronized customer bundle is `index--wBuHHo_.js`, SHA-256
+`1F659B17400E4909520486A87BCA6D8A1CBBC37C539C5A7B116951775B9ADECF`, in
+`dist`, Android assets and iOS assets. It contains the live public Supabase
+configuration, Google sign-in, push registration and the new native-add marker.
+No IPA was produced on Windows and no external workflow was started. Real
+iPhone 6 product-load acceptance is still required; the separate iPhone 16
+cold-launch and five background/resume cycles also remain mandatory.
+
+# Previous candidate — v86.108 persistent SHEIN verification session (2026-08-09)
+
+The app now preserves SHEIN's genuine completed human-check session as far as
+the store permits. Android already uses the shared persistent WebView cookie
+jar; the SHEIN WebView now accepts the verifier's required third-party cookies,
+and receipt of the existing `humanCheckResolved` status immediately flushes
+that real cookie jar to disk. iOS continues to use `WKWebsiteDataStore.default()`
+and its persistent cookie store. No token/certificate is fabricated, copied,
+extended or replayed, and the app never clicks or solves the challenge.
+
+Closing the app, switching SHEIN → Temu → SHEIN, cache-only recovery and native
+WebView recreation do not clear cookies or local storage. A completed check can
+therefore be reused across those flows instead of being lost with the process.
+SHEIN still owns expiry and risk decisions, so a network/device change or an
+expired/revoked trust cookie can legitimately require another check; the app
+cannot promise “once forever.” The v86.107 guide, action gate and safe return
+from the misleading removed-product page remain unchanged.
+
+Version is `86.108/968`. Production build, SHEIN freeze guard, low-end budget,
+Android/iOS sync, persistent-patch clean-apply check and Android Release compile
+pass. Budgets: JS raw `1,161,971/1,200,000`, total JS gzip `322,555/370,000`,
+CSS `63,670/70,000`, fonts `81,364/100,000`, SHEIN source
+`545,533/550,000`. Release APK:
+`android/app/build/outputs/apk/release/app-release.apk`, 9,179,632 bytes,
+SHA-256 `E15B9BF4BC677A4A1F9256AD8A7F79BA133D74FAADD87DAB866C0675D8459AD1`.
+It is v2/v3 signed with the Note 8's existing update certificate, is
+non-debuggable, and contains the native verification-session marker.
+
+Installation over v86.107 on real `SM-N950F` succeeded without clearing data.
+The package reports `86.108/968`, starts with a live process and has no fatal
+startup/ANR marker. End-to-end reuse still requires the customer to complete
+one real SHEIN check, close/reopen, then switch Temu → SHEIN; do not claim that
+server-controlled acceptance from build inspection. Real iPhone five-cycle
+resume and separate cold-launch acceptance also remain unperformed.
+
+# Active candidate — v86.107 SHEIN human-check guard (2026-08-09)
+
+SHEIN's current product challenge renders as a visible `.one-pass-dialog`
+beside a zero-sized `#one-pass-custom` host. The old detector tested only the
+host and therefore missed the challenge; closing it then made SHEIN show the
+misleading Arabic “product removed” page. A second detector call in the same
+tick could also consume the existing 1.5-second scan throttle. v86.107 detects
+the visible dialog and caches the scan result for the whole tick.
+
+The app does not solve or bypass SHEIN's verification. While it is visible, a
+compact Arabic guide explains that the customer must press “أنا إنسان”, and
+Otlobli's product action is withheld. The pending state survives SHEIN document
+transitions for up to 15 minutes. If the customer closes/skips verification and
+SHEIN falls through to “تمت إزالة المنتج”, the app explains what happened and
+returns to the product list (or the Otlobli cart when that was the source).
+Successful verification resumes the normal product flow. No payment, wallet,
+cart/order, store-region, WebView lifecycle or native recompose behavior changed.
+
+Version is `86.107/967`. The production web build embeds the live public
+Supabase configuration and enables Google and push. SHEIN freeze guard and
+low-end budgets pass: JS raw `1,161,968/1,200,000`, total JS gzip
+`322,563/370,000`, CSS `63,670/70,000`, fonts `81,364/100,000`, and SHEIN
+source `545,533/550,000`. Android and iOS are synchronized, and both native
+asset trees contain the `.one-pass-dialog` detector and cached scan result.
+
+Real Note 8 inspection confirmed the live challenge text/button and the
+zero-sized-host/visible-dialog structure. A controlled live diagnostic showed
+the guide mounted, the product action removed and the bottom navigation kept.
+Final source was built and synchronized after the detector-cache correction.
+Final Android Release packaging remains pending an execution approval; the
+temporary debuggable test app was removed and the device was restored to the
+previous non-debuggable v86.107 Release artifact. Do not treat that installed
+artifact as containing this final correction. Real iPhone acceptance (five
+background/resume cycles plus a separate cold launch) is still unperformed.
+
+# Active candidate — v86.106 Android native-nav parity + production release gate (2026-08-09)
+
+The user's screenshots rejected v86.105: the four tab rectangles were equal,
+but that check measured the preserved hidden store WebView instead of the
+foreground React screen. Real Note 8 DevTools then showed the actual cause:
+SHEIN renders the nav label at `12px` with text adjustment fixed at `100%`,
+while Android's `font_scale=1.1` made the React label `13.2px`. A one-time
+Android startup probe now compensates only the four fixed nav labels back to
+the accepted `12px`; accessibility font scaling remains intact everywhere
+else. The existing Flex/icon/spacing parity and Arabic accessibility semantics
+from v86.105 remain.
+
+The white/black Android system-navigation mismatch was separate. Window state
+showed the foreground InAppBrowser dialog lacked `LIGHT_NAVIGATION_BAR`, while
+the obscured Capacitor activity had it. The persistent InAppBrowser patch now
+uses Otlobli's light navigation surface and explicitly requests dark system
+icons; the main app theme declares the same policy. No iPhone recompose burst,
+`appDidBecomeActive` 0.25-second timing, scroll/constraint restoration,
+Android host-resume defense or unchanged-region comparison changed.
+
+Version is `86.106/966`. The production web build embeds the live Supabase
+public configuration and explicitly enables Google and push. Google services,
+the FCM sender/app resources, notification permission/service, Social Login
+component and all four Capacitor plugins are present in the Release variant.
+SHEIN freeze guard, Android/iOS sync and Release Java/resource compilation pass.
+Budgets: JS raw `1,159,657/1,200,000`, JS gzip `322,314/370,000`, CSS
+`63,670/70,000`, fonts `81,364/100,000`, SHEIN source `549,985/550,000`.
+
+Release signing is now fail-closed: `assembleRelease`/`bundleRelease` cannot
+silently fall back to the debug identity. The customer app and ShamCash listener
+guards are task-scoped, so each Release requests only its own independent key.
+The user then narrowed the delivery to updating the existing Note 8. Android
+requires the same certificate to update without deleting app data, so a
+non-debuggable Release APK was signed with that device's already-installed,
+Firebase-registered debug certificate only for this in-place device update.
+Signature matching, package `com.otlobli.app` `86.106/966`, production Supabase,
+Google, push and release marker inspection all pass. APK:
+`android/app/build/outputs/apk/release/app-release.apk`, 9,179,401 bytes,
+SHA-256 `BFB289191B867CD6B2E84E63AE4D433726D8F9015EFC2046C9A51F63E49CEC17`.
+
+Installation over v86.105 succeeded with data preserved. On the real Note 8,
+Home and Orders now use dark Android system-navigation controls, and the
+inactive `حسابي` label is pixel-identical in both screenshots: bounds
+`x=96…174`, `y=1989…2023`, `79×35`, 489 dark pixels. A subsequent cold launch
+kept the process alive with zero app fatal/ANR and zero push-registration error
+markers. The user visually accepted the result as fully fixed. Nothing was
+published. This APK is not the future Play upload artifact: a permanent upload
+key plus Firebase/Play certificate registration still require explicit owner
+approval if store publication is requested later.
+
 # Active candidate — v86.104 stable first-frame SHEIN navigation (2026-08-09)
 
 The reported product-open frame showed Otlobli's injected bottom navigation at

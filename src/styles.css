@@ -664,8 +664,11 @@ a {
   right: 0;
   bottom: 0;
   z-index: 9999;
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  direction: rtl;
+  overflow: hidden;
   width: 100%;
   max-width: 440px;
   width: min(100%, 440px);
@@ -684,14 +687,22 @@ a {
 
 .bottom-nav button {
   position: relative;
-  display: grid;
-  place-items: center;
-  align-content: center;
+  flex: 1 1 25%;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 25%;
+  max-width: 25%;
+  min-width: 0;
+  height: auto;
+  min-height: 0;
   /* Nudges the icon+label block down from dead-center within the button
      (the bar itself - height, position, padding-bottom safe-area math -
      is untouched; only where the icon sits inside it moves). */
-  padding-top: 10px;
-  gap: 4px;
+  margin: 0;
+  padding: 10px 0 0;
   border: 0;
   background: transparent;
   color: var(--muted);
@@ -699,13 +710,28 @@ a {
      font-size:12px) بالبكسل. rem يتمدّد مع حجم خط جذر المستند وإعداد «تكبير
      النص» في iOS، فكان حجم الخط يقفز عند التنقّل بين الرئيسية (شريط SHEIN
      المحقون 12px) وطلباتي/السلة/حسابي (شريط React بـ rem) — نفس ما لاحظه
-     المستخدم. القيمة الثابتة تجعل الشريطين متطابقين فلا يتغيّر شيء أبداً. */
-  font-size: 12px;
+     المستخدم. الهدف 12px ثابت بصرياً؛ متغير Android يعوّض تكبير النظام لهذا
+     الشريط فقط، من دون تعطيل تفضيل حجم الخط في بقية التطبيق. */
+  font-size: var(--otlobli-nav-font-size, 12px);
   font-weight: 700;
+  line-height: normal;
   /* The injected SHEIN bar is intentionally system-ui too. Keeping this
      identical avoids a visible Arabic-weight jump on Android when the user
      moves between the store and Otlobli's own screens. */
   font-family: system-ui, -apple-system, sans-serif;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bottom-nav button > svg {
+  display: block;
+  flex: none;
+}
+
+.bottom-nav button > span {
+  margin-top: 4px;
+  font: inherit;
+  line-height: normal;
 }
 
 .bottom-nav button.is-active {

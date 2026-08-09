@@ -54,7 +54,7 @@ index 6b4115a..8e557cf 100644
                            try {
                              window.AndroidInterface.show();
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
-index 8ae3e61..6a7da24 100644
+index 8ae3e61..eb11fce 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
 +++ b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
 @@ -16,7 +16,13 @@ import android.graphics.Color;
@@ -810,15 +810,43 @@ index 8ae3e61..6a7da24 100644
  
          // Apply insets to fix edge-to-edge issues on Android 15+
          applyInsets();
-@@ -2991,6 +3673,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -2715,6 +3397,20 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+                     }
+                 }
+             }
++
++            // Otlobli uses the same light system-navigation surface behind
++            // both its Capacitor activity and this preserved store dialog.
++            // The upstream dialog made the bar transparent but never selected
++            // dark navigation icons, so Android switched from black controls
++            // on Orders/Cart/Profile to white controls on SHEIN Home.
++            if (!isAndroid15Plus) {
++                getWindow().setNavigationBarColor(Color.rgb(247, 249, 251));
++            }
++            WindowInsetsControllerCompat navigationController = new WindowInsetsControllerCompat(
++                getWindow(),
++                getWindow().getDecorView()
++            );
++            navigationController.setAppearanceLightNavigationBars(true);
+         }
+
+         requestSafeAreaInsets();
+@@ -2991,6 +3687,14 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                  return;
              }
  
 +            handleOtlobliLoadingCoverMessage(message);
++            // SHEIN's verifier owns the real trust token. Persist the cookies
++            // it just wrote before a store switch or process stop can occur,
++            // so a completed check is reused for as long as SHEIN allows it.
++            // This never creates, edits, clicks, or bypasses verification.
++            if (message.contains("\"type\":\"humanCheckResolved\"")) {
++                CookieManager.getInstance().flush();
++            }
              _options.getCallbacks().javascriptCallback(message);
          } catch (Exception e) {
              Log.e("InAppBrowser", "Error in postMessage: " + e.getMessage());
-@@ -4703,6 +5386,9 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4703,6 +5400,9 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                      if (view == null || _webView == null) {
                          return;
                      }
@@ -828,7 +856,7 @@ index 8ae3e61..6a7da24 100644
                      if (ProxyRequestSupport.shouldInjectBridge(_options) && proxyBridgeScript != null && proxyAccessToken != null) {
                          String preparedProxyBridgeScript = prepareProxyBridgeScript();
                          if (preparedProxyBridgeScript != null) {
-@@ -4742,6 +5428,13 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4742,6 +5442,13 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                      if (view == null || _webView == null) {
                          return;
                      }
@@ -842,7 +870,7 @@ index 8ae3e61..6a7da24 100644
                      if (!isInitialized) {
                          isInitialized = true;
                          _webView.clearHistory();
-@@ -4801,8 +5494,21 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4801,8 +5508,21 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                      if (view == null || _webView == null) {
                          return;
                      }
@@ -865,7 +893,7 @@ index 8ae3e61..6a7da24 100644
                          CharSequence description = error != null ? error.getDescription() : null;
                          String message = description != null ? "Initial page load failed: " + description : "Initial page load failed";
                          rejectOpenWebViewIfNeeded(message);
-@@ -4932,6 +5638,19 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4932,6 +5652,19 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
      @Override
      public void dismiss() {
          scheduleHostWebViewInsetRestore();
@@ -885,7 +913,7 @@ index 8ae3e61..6a7da24 100644
  
          // First, stop any ongoing operations and disable further interactions
          if (_webView != null) {
-@@ -5586,17 +6305,50 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -5586,17 +6319,50 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          );
      }
  

@@ -1,5 +1,35 @@
 apply plugin: 'com.android.application'
 
+def releaseSigningProperties = new Properties()
+def releaseSigningPropertiesFile = new File(System.getProperty('user.home'), '.android/otlobli-main-upload.properties')
+if (releaseSigningPropertiesFile.exists()) {
+    releaseSigningPropertiesFile.withInputStream { releaseSigningProperties.load(it) }
+}
+
+def signingValue = { String name ->
+    def value = project.findProperty(name) ?: System.getenv(name) ?: releaseSigningProperties.getProperty(name)
+    return value?.toString()?.trim()
+}
+
+def releaseStoreFile = signingValue('OTLOBLI_APP_STORE_FILE')
+def releaseStorePassword = signingValue('OTLOBLI_APP_STORE_PASSWORD')
+def releaseKeyAlias = signingValue('OTLOBLI_APP_KEY_ALIAS')
+def releaseKeyPassword = signingValue('OTLOBLI_APP_KEY_PASSWORD')
+def releaseSigningConfigured = [
+    releaseStoreFile,
+    releaseStorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword,
+].every { it }
+
+def releaseArtifactRequested = gradle.startParameter.taskNames.any { taskName ->
+    def normalized = taskName.toLowerCase()
+    return normalized == 'assemblerelease' ||
+        normalized == 'bundlerelease' ||
+        normalized.endsWith(':app:assemblerelease') ||
+        normalized.endsWith(':app:bundlerelease')
+}
+
 android {
     namespace = "com.otlobli.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +37,8 @@ android {
         applicationId "com.otlobli.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 964
-        versionName "86.104"
+        versionCode 969
+        versionName "86.109"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,11 +46,37 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        if (releaseSigningConfigured) {
+            otlobliRelease {
+                storeFile file(releaseStoreFile)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+                enableV1Signing true
+                enableV2Signing true
+                enableV3Signing true
+                enableV4Signing true
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (releaseSigningConfigured) signingConfig signingConfigs.otlobliRelease
         }
+    }
+}
+
+gradle.taskGraph.whenReady {
+    if (releaseArtifactRequested && !releaseSigningConfigured) {
+        throw new GradleException(
+            'Production release signing is required. Configure the four OTLOBLI_APP_* signing values.'
+        )
+    }
+    if (releaseArtifactRequested && !file(releaseStoreFile).exists()) {
+        throw new GradleException('The configured Otlobli production keystore does not exist.')
     }
 }
 

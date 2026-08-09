@@ -3791,7 +3791,6 @@ function App() {
           markStoreWebviewReadyRef.current(webviewSessionRef.current)
           return
         }
-        sheinChallengeActiveRef.current = false
         const sheinRegion = storeRegionsRef.current.shein
         if (!shouldRedirectSheinToRegion(url, sheinRegion)) {
           sheinSaudiRedirectRef.current = 0
@@ -3900,6 +3899,7 @@ function App() {
       }
 
       if (detail?.type === 'sheinSaudiReady' || detail?.type === 'sheinPageInteractive') {
+        if (selectedStoreRef.current === 'shein' && sheinChallengeActiveRef.current) return
         markStoreWebviewReadyRef.current(webviewSessionRef.current)
         revealPreparedProductIfReady()
         return
@@ -3919,7 +3919,7 @@ function App() {
           revealPreparedProductIfReady()
           if (!humanCheckNoticeRef.current) {
             humanCheckNoticeRef.current = true
-            showNotice('المتجر يطلب تحققاً بسيطاً — اضغط مربع التحقق داخل الصفحة وسيفتح مباشرة')
+            showNotice('يلزم إكمال تحقق SHEIN لفتح المنتجات — اضغط «أنا إنسان» داخل الصفحة')
           }
           return
         }
@@ -3933,7 +3933,7 @@ function App() {
         markStoreWebviewReadyRef.current(webviewSessionRef.current)
         if (!humanCheckNoticeRef.current) {
           humanCheckNoticeRef.current = true
-          showNotice('المتجر يطلب تحققاً بسيطاً — اضغط مربع التحقق داخل الصفحة وسيفتح مباشرة')
+          showNotice('يلزم إكمال تحقق SHEIN لفتح المنتجات — اضغط «أنا إنسان» داخل الصفحة')
         }
         return
       }
@@ -3949,6 +3949,30 @@ function App() {
           markStoreWebviewReadyRef.current(webviewSessionRef.current)
           revealPreparedProductIfReady()
         }
+        return
+      }
+
+      if (detail?.type === 'humanCheckSkipped') {
+        if (selectedStoreRef.current !== 'shein') return
+        const returnToCart = pendingBackTargetRef.current === 'cart'
+        sheinChallengeActiveRef.current = false
+        humanCheckNoticeRef.current = false
+        sheinCartProductSessionRef.current = false
+        clearPendingProductPreparation()
+        pendingBackTargetRef.current = 'home'
+        showNotice('لم يكتمل تحقق SHEIN، لذلك أعدناك للمنتجات. عند فتح المنتج اضغط «أنا إنسان» للمتابعة.')
+        if (returnToCart) {
+          screenRef.current = 'cart'
+          flushSync(() => setScreen('cart'))
+          void InAppBrowser.hide().catch(() => undefined)
+          return
+        }
+        const wid = webviewIdRef.current || undefined
+        const homeUrl = buildSheinHomeUrl(storeRegionsRef.current.shein)
+        void InAppBrowser.executeScript({
+          ...(wid ? { id: wid } : {}),
+          code: `try{if(history.length>1)history.back();else location.assign(${JSON.stringify(homeUrl)})}catch(e){location.href=${JSON.stringify(homeUrl)}}`,
+        }).catch(() => InAppBrowser.setUrl({ ...(wid ? { id: wid } : {}), url: homeUrl }).catch(() => undefined))
         return
       }
 
@@ -7184,7 +7208,7 @@ function MobileShell({
     <div className="mobile-shell">
       {children}
       {!hideBottomNav && onNavigate && (
-        <nav className="bottom-nav">
+        <nav className="bottom-nav" aria-label="التنقل الرئيسي">
           <NavButton active={active === 'home'}    svgPaths={NAV_ICONS.home}    label="الرئيسية" onClick={() => onNavigate('home')} />
           <NavButton active={active === 'orders'}  svgPaths={NAV_ICONS.orders}  label="طلباتي"   onClick={() => onNavigate('orders')} />
           <NavButton active={active === 'cart'}    svgPaths={NAV_ICONS.cart}    label="السلة"    onClick={() => onNavigate('cart')} />
@@ -7197,8 +7221,8 @@ function MobileShell({
 
 function NavButton({ active, svgPaths, label, onClick }: { active: boolean; svgPaths: string; label: string; onClick: () => void }) {
   return (
-    <button className={active ? 'is-active' : ''} onClick={onClick}>
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" dangerouslySetInnerHTML={{ __html: svgPaths }} />
+    <button type="button" className={active ? 'is-active' : ''} aria-current={active ? 'page' : undefined} onClick={onClick}>
+      <svg aria-hidden="true" focusable="false" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" dangerouslySetInnerHTML={{ __html: svgPaths }} />
       <span>{label}</span>
     </button>
   )
