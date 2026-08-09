@@ -533,10 +533,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
       nav.id = 'otlobli-nav';
       nav.setAttribute('data-otlobli-challenge-nav', '1');
       var items = [
-        { label: '\\u0627\\u0644\\u0631\\u0626\\u064a\\u0633\\u064a\\u0629', type: '' },
-        { label: '\\u0637\\u0644\\u0628\\u0627\\u062a\\u064a', type: 'openOrders' },
-        { label: '\\u0627\\u0644\\u0633\\u0644\\u0629', type: 'openCart' },
-        { label: '\\u062d\\u0633\\u0627\\u0628\\u064a', type: 'openProfile' },
+        {label:'\\u0627\\u0644\\u0631\\u0626\\u064a\\u0633\\u064a\\u0629',icon:'home',type:''},
+        {label:'\\u0637\\u0644\\u0628\\u0627\\u062a\\u064a',icon:'orders',type:'openOrders'},
+        {label:'\\u0627\\u0644\\u0633\\u0644\\u0629',icon:'cart',type:'openCart'},
+        {label:'\\u062d\\u0633\\u0627\\u0628\\u064a',icon:'profile',type:'openProfile'},
       ];
       for (var ni = 0; ni < items.length; ni++) {
         var item = items[ni];
@@ -544,9 +544,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
         tab.id = 'otlobli-nav-tab-' + ni;
         tab.textContent = item.label;
         tab.style.cssText = 'position:relative!important;flex:1 1 0!important;height:74px!important;min-height:74px!important;max-height:74px!important;' +
-          'border:0!important;background:transparent!important;display:grid!important;place-items:center!important;align-content:center!important;' +
-          'padding:10px 0 0 0!important;margin:0!important;box-sizing:border-box!important;font-size:12px!important;line-height:1.15!important;' +
+          'border:0!important;background:transparent!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:4px!important;' +
+          'padding:10px 0 0 0!important;margin:0!important;box-sizing:border-box!important;font-size:12px!important;line-height:normal!important;' +
           'font-family:OtlobliCairo,system-ui,-apple-system,sans-serif!important;font-weight:700!important;color:' + (item.type ? '#3d4a42' : '#006948') + '!important;';
+        tab.insertAdjacentHTML('afterbegin','<svg width=22 height=22 viewBox="0 0 24 24" fill=none stroke=currentColor stroke-width=1.8 stroke-linecap=round stroke-linejoin=round>' + OTLOBLI_NAV_ICONS[item.icon] + '</svg>');
         if (!item.type) {
           var indicator = document.createElement('span');
           indicator.style.cssText = 'position:absolute!important;top:0!important;width:32px!important;height:4px!important;border-radius:999px!important;background:#006948!important;';

@@ -1,5 +1,48 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
+## SHEIN human-check bar lost its icons (v86.94, 2026-08-09)
+
+- **Symptom:** The Otlobli bottom bar sometimes began with labels only, then
+  looked normal later. On the connected Note 8, the active page was the real
+  SHEIN `/ar/risk/challenge` route.
+- **Root cause (confirmed):** `otlobliEnsureChallengeNav()` was a separate
+  fallback which rendered text-only buttons. Normal store pages use inline SVG
+  icons, so the two navigation paths were visually different. This was not a
+  failed icon font, a network delay, or an Android paint race.
+- **Decision:** Reuse the existing four inline SVG paths and the normal flex
+  alignment in the challenge fallback. Inline SVG paints immediately and adds
+  no new request, listener, timer, or recompose work.
+- **Validation:** v86.94/954 passes the emitted-script parser, freeze guard,
+  production build, performance budget, Android/iOS sync, Android build and
+  Note 8 install. A cold live storefront showed four visible 22×22 SVG icons.
+  The legitimate challenge route was no longer active after restart, so do not
+  claim physical challenge-screen acceptance until SHEIN presents it again.
+
+## SHEIN human-verification: session preservation, never bypass (2026-08-09)
+
+- **Observed:** SHEIN served `/ar/risk/challenge?captcha_type=909` on the
+  Note 8. This is a site-controlled security route, not an Otlobli dialog.
+- **Decision:** Do not attempt to disable, hide, auto-click, solve, replay, or
+  otherwise evade a human-verification challenge. The app may only preserve a
+  real user's successful session and keep the check usable.
+- **Current protections:** Android enables SHEIN third-party cookies per
+  WebView; normal opens and the bounded HTTP-cache recovery preserve cookies
+  and localStorage; the injected script recognizes the challenge, removes its
+  own conflicting controls, releases an Otlobli body lock, and stops expensive
+  scans until the page itself resolves. No challenge cookie or security header
+  is fabricated.
+- **Why no permanent guarantee:** challenge systems can vary by request,
+  device/session signals, configured duration and site policy. Generic
+  challenge documentation describes clearance as time- and behavior-bound, so
+  a “never ask again” promise is technically and contractually false.
+- **Safe follow-up:** evaluate a single Android `CookieManager.flush()` after
+  the user's `humanCheckResolved` signal only. Android documents that this can
+  perform blocking I/O, so it must be benchmarked on the Note 8 and never run
+  on launch, navigation, or as a retry loop. This is not yet implemented.
+- **References:** [Android CookieManager](https://developer.android.com/reference/android/webkit/CookieManager),
+  [Android WebView lifecycle](https://developer.android.com/reference/android/webkit/WebView),
+  [Cloudflare challenge clearance concept](https://developers.cloudflare.com/cloudflare-challenges/concepts/clearance/).
+
 ## SHEIN raw UI + false VPN/preparation message (v86.93, 2026-08-09)
 
 - **Symptom:** Native SHEIN icons/controls reappeared, Otlobli's bottom nav and

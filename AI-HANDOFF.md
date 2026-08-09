@@ -1,5 +1,27 @@
 # Otlobli AI Handoff
 
+## Current candidate — v86.94 challenge-nav SVG parity (2026-08-09)
+
+- A live Note 8 inspection identified the "bottom-bar icons vanish then
+  appear" root cause: on SHEIN `/risk/challenge`,
+  `otlobliEnsureChallengeNav()` created text-only tabs. It was not a Cairo
+  font load failure. v86.94 gives that fallback the same inline SVGs and flex
+  layout as `ensureOtlobliNav()`. Do not replace them with remote icon fonts,
+  emojis, or a delayed mount.
+- Android `86.94/954` is installed on the Note 8. Cold-launch inspection on a
+  normal SHEIN page found all four 22×22 SVG icons visible. The new branch is
+  present in the built app; the prior real challenge had cleared, so obtain a
+  passive visual confirmation only when SHEIN next legitimately opens it.
+- Do not bypass, automate, suppress, or solve SHEIN's human check. Keep the
+  current contract: preserve cookies/localStorage, set Android third-party
+  cookies for SHEIN, leave the challenge DOM/controls alone, pause Otlobli's
+  own scans during it, and resume only after its URL/page changes. A user's
+  successful clearance may still expire or be re-evaluated by SHEIN.
+- The only researched follow-up worth testing is an Android cookie persistence
+  flush once after `humanCheckResolved`; it is not implemented yet because
+  `CookieManager.flush()` can perform blocking I/O. Measure it separately and
+  never run it on startup, navigation, or before a user completes a challenge.
+
 ## Current candidate — v86.93 raw-SHEIN regression repair (2026-08-09)
 
 - The visible raw SHEIN icons, missing Otlobli nav, and false

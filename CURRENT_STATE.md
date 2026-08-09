@@ -1,5 +1,35 @@
 # Otlobli Current State
 
+## Active candidate — v86.94 challenge-navigation icons (2026-08-09)
+
+The connected Note 8 showed a real SHEIN `/ar/risk/challenge` page. This was
+not a missing-font or delayed-paint issue: the dedicated
+`otlobliEnsureChallengeNav()` fallback intentionally created text-only tabs,
+whereas normal Otlobli navigation uses inline SVG icons. v86.94 makes that
+fallback reuse the exact four inline SVG icons and the normal flex layout, so
+the navigation stays visually identical from the first challenge frame through
+the storefront. It does not add a timer, font request, WebView restart, or any
+iPhone lifecycle change.
+
+The v86.94 Android debug APK (`86.94/954`) was built, installed on the
+connected SM-N950F / Note 8, and cold-launched. Live storefront inspection
+found all four tabs visible with 22×22 inline SVGs; the built bundle contains
+the challenge-nav icon branch. The actual challenge page had already cleared
+after the fresh launch, so physical challenge-page rendering must be confirmed
+the next time SHEIN legitimately presents it. APK:
+`android/app/build/outputs/apk/debug/app-debug.apk`, 11,119,702 bytes,
+SHA-256 `291286C4959EA946842A3FCA2FC51440DA78D96201FF721D03048DA661197B8D`.
+
+Research decision: a SHEIN human-verification page is site-controlled and
+must not be bypassed, auto-solved, or hidden. The app already keeps SHEIN
+cookies/localStorage through normal opens and HTTP-cache-only recovery, enables
+Android third-party cookies for SHEIN, and pauses its own heavy page work while
+the challenge is on screen. This is the legitimate path to reduce needless
+re-prompts; it cannot promise a lifetime/no-challenge result. A future,
+separate experiment may flush Android cookies once *after the user completes*
+a challenge, provided it is measured for UI blocking and does not alter the
+challenge itself. See `docs/KNOWN_ISSUES_AND_DECISIONS.md`.
+
 ## Active candidate — v86.93 SHEIN injected-script parse repair (2026-08-09)
 
 v86.91 introduced a package-member counter using `/\+/g` inside the
