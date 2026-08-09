@@ -3546,6 +3546,62 @@ function App() {
     })
   }
 
+  const openIosSheinCartProductInFreshSession = (targetUrl: string) => {
+    const startFreshProductSession = () => {
+      if (screenRef.current !== 'cart' || selectedStoreRef.current !== 'shein' ||
+          vpnStateRef.current !== 'ok' || sheinOpenedRef.current || webviewOpeningRef.current) return
+      beginPendingProductPreparation(targetUrl)
+      pendingBackTargetRef.current = 'cart'
+      sheinCartProductSessionRef.current = true
+      // Match the only recovery the two real iPhones consistently prove:
+      // Temu -> SHEIN closes the old WKWebView, clears HTTP memory/disk cache,
+      // then creates a new one. Cookies, localStorage and the signed address
+      // remain in WKWebsiteDataStore.default().
+      sheinCacheResetPendingRef.current = true
+      browseSheinRef.current()
+    }
+
+    showNotice('جاري فتح المنتج في جلسة SHEIN جديدة…')
+    clearSheinReadinessWatchdog()
+    clearPendingProductPreparation()
+    sheinCartProductSessionRef.current = false
+    sheinCartProductRecoveryInFlightRef.current = false
+    humanCheckNoticeRef.current = false
+    if (webviewErrorTimerRef.current !== undefined) {
+      window.clearTimeout(webviewErrorTimerRef.current)
+      webviewErrorTimerRef.current = undefined
+    }
+
+    if (!sheinOpenedRef.current && !webviewOpeningRef.current) {
+      startFreshProductSession()
+      return
+    }
+
+    suppressAutoReopenRef.current = true
+    webviewClosingRef.current = true
+    webviewSessionRef.current += 1
+    webviewOpeningRef.current = false
+    webviewOpenedAtRef.current = 0
+    const closingWebviewId = webviewIdRef.current
+    if (closingWebviewId) ignoredWebviewCloseIdsRef.current.add(closingWebviewId)
+    webviewIdRef.current = ''
+    currentWebviewUrlRef.current = ''
+    sheinChallengeActiveRef.current = false
+    sheinOpenedRef.current = false
+    sheinRecoveryAttemptRef.current = 0
+    webviewAutoOpenPausedUntilRef.current = 0
+    setSheinReady(false)
+    setSheinBlockedError(false)
+
+    void InAppBrowser.close(closingWebviewId ? { id: closingWebviewId } : undefined)
+      .catch(() => undefined)
+      .finally(() => {
+        webviewClosingRef.current = false
+        suppressAutoReopenRef.current = false
+        startFreshProductSession()
+      })
+  }
+
   // Prepare a cart product inside the preserved, hidden store WebView. The
   // cart stays visible until browserPageLoaded + blocker readiness both arrive.
   const openStoreProductFromCart = (sourceLink: string) => {
@@ -3555,6 +3611,14 @@ function App() {
     }
     const targetUrl = normalizeStoreBrowserUrl(sourceLink, selectedStoreRef.current, storeRegionsRef.current)
     const isIosSheinCartProduct = selectedStoreRef.current === 'shein' && Capacitor.getPlatform() === 'ios'
+    if (isIosSheinCartProduct) {
+      if (vpnStateRef.current !== 'ok') {
+        showNotice('شغّل VPN ثم جرّب فتح المنتج مرة أخرى.')
+        return
+      }
+      openIosSheinCartProductInFreshSession(targetUrl)
+      return
+    }
     // Opening the cart item that is already loaded must reuse the warm document.
     // Reloading the exact same SHEIN URL clears the host readiness flag, but the
     // existing page does not emit a new interactive message. On a Note 8 that

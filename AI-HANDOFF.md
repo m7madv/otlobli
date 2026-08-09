@@ -1,4 +1,34 @@
-# Current candidate — v86.110 SHEIN review guard and stalled-tap recovery (2026-08-09)
+# Current candidate — v86.111 iOS SHEIN cart-product fresh session (2026-08-09)
+
+- The user tested v86.110 on both iPhone 16 Pro Max and iPhone 6 and confirmed
+  the cart-triggered product-navigation failure remains. Treat that result as a
+  rejection of the previous delayed recovery hypothesis.
+- Proven reproduction: warm SHEIN → Otlobli cart → open a saved SHEIN product;
+  later the SHEIN shell/categories may still paint but product taps do not
+  commit. Temu → SHEIN immediately restores product navigation.
+- Root code difference: the old cart path reused the hidden active WebView via
+  `InAppBrowser.setUrl`; store switching closes the old WebView, clears only
+  WebKit disk/memory HTTP cache, and opens a new WebView. v86.111 applies that
+  proven boundary automatically before every iOS SHEIN cart-product open.
+- Keep `openIosSheinCartProductInFreshSession()`: it closes the tracked
+  singleton, invalidates any in-flight session, resets the existing bounded
+  cache flag, and opens the target in a new session while the React cart stays
+  visible until readiness. Cookies, localStorage and signed region persist.
+- Keep the new verifier invariant: the iOS branch must return before warm reuse
+  and `setUrl`; the fresh helper must reset cache/reopen and must not contain
+  `setUrl`. Do not replace this with another tap timer, reload loop, or native
+  recompose burst.
+- Version `86.111/971`; diagnostics disabled. Build/freeze/performance,
+  persistent patch reverse-check, diff check and both native syncs pass. Bundle
+  `index-CcGBMKpA.js` is identical across dist/Android/iOS, SHA-256
+  `65324888D9C71274148A93B9319B17260262900401F45B4096901CEAE85CD9C3`.
+  Budgets: JS raw `1,165,420/1,200,000`, gzip `322,344/370,000`, SHEIN source
+  `549,182/550,000`.
+- IPA workflow and real-device acceptance are pending. Test the exact saved-cart
+  sequence on iPhone 6 and iPhone 16 Pro Max, then several listing products,
+  five iPhone 16 resume cycles and one cold launch before claiming acceptance.
+
+# Previous candidate — v86.110 SHEIN review guard and stalled-tap recovery (2026-08-09)
 
 - The add button disappearing at ratings/comments was a local false viewer
   classification: the old loose counter regex accepted the `9/5` substring in

@@ -1,4 +1,46 @@
-# Active candidate — v86.110 SHEIN review guard + delayed iPhone tap recovery (2026-08-09)
+# Active candidate — v86.111 iOS SHEIN cart-product session isolation (2026-08-09)
+
+The user's real iPhone 16 Pro Max and iPhone 6 results reject v86.110 as a fix
+for the cart-triggered dead-product-navigation sequence. The exact reproduction
+is: keep SHEIN open, enter Otlobli cart, open a saved SHEIN product, then later
+SHEIN's shell/categories can still paint while product navigation stops. A
+manual Temu → SHEIN switch restores it immediately.
+
+The decisive local difference is now removed. The cart path previously called
+`InAppBrowser.setUrl()` on the already-used hidden SHEIN WebView; the proven
+Temu → SHEIN recovery closes that WebView, clears only WebKit disk/memory HTTP
+cache, and creates a new one. Every iOS SHEIN cart-product open now performs
+that same bounded close/cache-reset/fresh-open sequence *before* the product is
+shown. It keeps the React cart visible until the new product document and the
+existing blockers report ready, preserves persistent cookies/localStorage and
+the signed region, and marks the product session disposable so returning to an
+Otlobli destination cannot preserve the suspect product runtime.
+
+An expanded freeze guard enforces that the iOS fresh-session branch occurs
+before warm-product reuse or `setUrl`, includes the cache reset and singleton
+reopen, and contains no `setUrl` itself. No native recompose timing, background
+lifecycle, injected polling, region, verification, payment, wallet or order
+logic changed. The exact iPhone `appDidBecomeActive` + 0.25-second recompose,
+Android resume defense and region `JSON.stringify` guard remain intact.
+
+Version is `86.111/971`; diagnostics and diagnostic copy UI are disabled.
+Production build, freeze guard, low-end performance budget, patch reverse-check,
+`git diff --check`, and Android/iOS sync pass. Budgets: JS raw
+`1,165,420/1,200,000`, total JS gzip `322,344/370,000`, CSS
+`63,670/70,000`, fonts `81,364/100,000`, SHEIN source
+`549,182/550,000`. The synchronized local bundle is `index-CcGBMKpA.js`,
+1,165,420 bytes, SHA-256
+`65324888D9C71274148A93B9319B17260262900401F45B4096901CEAE85CD9C3`,
+identical in `dist`, Android assets and iOS assets.
+
+The Xcode/IPA workflow and real-device acceptance are pending. Required device
+test: from a warmed SHEIN session open an existing saved product from Otlobli
+cart, return through Otlobli navigation, open several listing products, repeat
+on iPhone 6 and iPhone 16 Pro Max, then perform five iPhone 16 background/resume
+cycles plus a separate force-quit/cold launch. Do not claim the symptom closed
+until those real-device checks pass.
+
+# Previous candidate — v86.110 SHEIN review guard + delayed iPhone tap recovery (2026-08-09)
 
 Two separate iPhone reports are addressed. First, the full-screen photo-viewer
 heuristic accepted any `number/number` text. A rating such as `4.9/5` could

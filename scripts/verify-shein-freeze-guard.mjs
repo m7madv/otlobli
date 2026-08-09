@@ -252,6 +252,17 @@ const checks = [
     ],
   },
   {
+    label: 'iOS SHEIN cart-product fresh-session isolation',
+    file: 'src/App.tsx',
+    markers: [
+      'const openIosSheinCartProductInFreshSession = (targetUrl: string)',
+      'InAppBrowser.close(closingWebviewId ? { id: closingWebviewId } : undefined)',
+      'sheinCacheResetPendingRef.current = true',
+      'beginPendingProductPreparation(targetUrl)',
+      'openIosSheinCartProductInFreshSession(targetUrl)',
+    ],
+  },
+  {
     label: 'SHEIN scroll/navigation interaction guard',
     file: 'src/services/sheinBrowserScript.ts',
     markers: [
@@ -467,6 +478,35 @@ try {
   if (recoveryCalls !== 0) failures.push('SHEIN product tap fallback: direct product anchor caused an unnecessary recovery')
 } catch (error) {
   failures.push(`SHEIN capture-script syntax: ${error instanceof Error ? error.message : String(error)}`)
+}
+
+// The cart regression is specifically caused by navigating an already-used
+// iOS SHEIN WebView. Keep the iOS branch ahead of every warm-session shortcut
+// and setUrl path so a future refactor cannot silently reintroduce it.
+try {
+  const appSource = readFileSync(resolve(projectRoot, 'src/App.tsx'), 'utf8')
+  const cartOpenStart = appSource.indexOf('const openStoreProductFromCart = (sourceLink: string)')
+  const cartOpenEnd = appSource.indexOf("InAppBrowser.addListener('closeEvent'", cartOpenStart)
+  const cartOpenSource = appSource.slice(cartOpenStart, cartOpenEnd)
+  const iosFreshOpen = cartOpenSource.indexOf('openIosSheinCartProductInFreshSession(targetUrl)')
+  const warmReuse = cartOpenSource.indexOf('sameSheinProductNavigation(targetUrl, currentWebviewUrlRef.current)')
+  const sameSessionSetUrl = cartOpenSource.indexOf('InAppBrowser.setUrl({ url: targetUrl })')
+  if (cartOpenStart < 0 || cartOpenEnd < 0 || iosFreshOpen < 0 || warmReuse < 0 || sameSessionSetUrl < 0 ||
+      iosFreshOpen > warmReuse || iosFreshOpen > sameSessionSetUrl) {
+    failures.push('SHEIN cart isolation: iOS fresh-session branch must return before warm reuse and setUrl')
+  }
+
+  const freshOpenStart = appSource.indexOf('const openIosSheinCartProductInFreshSession = (targetUrl: string)')
+  const freshOpenEnd = appSource.indexOf('const openStoreProductFromCart = (sourceLink: string)', freshOpenStart)
+  const freshOpenSource = appSource.slice(freshOpenStart, freshOpenEnd)
+  if (freshOpenStart < 0 || freshOpenEnd < 0 ||
+      !freshOpenSource.includes('sheinCacheResetPendingRef.current = true') ||
+      !freshOpenSource.includes('browseSheinRef.current()') ||
+      freshOpenSource.includes('InAppBrowser.setUrl')) {
+    failures.push('SHEIN cart isolation: fresh iOS session must reset cache and reopen without setUrl reuse')
+  }
+} catch (error) {
+  failures.push(`SHEIN cart isolation: ${error instanceof Error ? error.message : String(error)}`)
 }
 
 for (const check of checks) {
