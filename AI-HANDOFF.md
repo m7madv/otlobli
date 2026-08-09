@@ -1,4 +1,29 @@
-# Current candidate — v86.100 Otlobli-first store opening (2026-08-09)
+# Current candidate — v86.101 hidden SHEIN colour-template guard (2026-08-09)
+
+- A no-option SHEIN nail product showed `حدد اللون أولاً`. Diagnose this class
+  of bug from the live DOM before changing it.
+- Root cause proved on the connected Note 8: `findOptionContainer('color')`
+  stored its first class-matching fallback even when that node was hidden. A
+  two-button hidden fixture changed the old live diagnostic from
+  `{exists:false}` to `{exists:true, selected:''}`.
+- v86.101 creates `rendered` once and only permits rendered containers as a
+  fallback. It does not select a colour, weaken real visible colour gates,
+  write to the cart, add polling, or touch pricing/region/WebView lifecycle.
+  Do not restore the unconditional `fallback = fallback || el`.
+- Device verification after install: the same no-option page with the same
+  hidden fixture reports `{exists:false, selected:''}`. The actual add flow
+  was intentionally not fired so the user's cart was not mutated.
+- Video evidence: the supplied iPhone video has a stable Otlobli nav from
+  0.25 s onward. Its preceding black rounded card is iOS's home-to-app launch
+  animation before app code runs, not an app nav flicker. Do not add a timer,
+  fade, WebView work, or recompose change to fight it.
+- Android 86.101/961 passed build, freeze guard, low-end budget, both native
+  syncs, debug build and install on Note 8. APK:
+  `android/app/build/outputs/apk/debug/app-debug.apk`, 11,167,224 bytes,
+  SHA-256 `957D4D540D81A8162DF501CD9251760AD9F9CC5274349CA52C852E6F9C23FCF1`.
+  iPhone source is synchronized; no IPA or real iPhone acceptance yet.
+
+# Previous candidate — v86.100 Otlobli-first store opening (2026-08-09)
 
 - Product rule: display the complete Otlobli surface first; only after it is
   present may SHEIN/Temu open above it. Do not show raw store UI or add another

@@ -1,4 +1,28 @@
-# Active candidate — v86.100 Otlobli-first store opening (2026-08-09)
+# Active candidate — v86.101 hidden SHEIN colour-template guard (2026-08-09)
+
+The false "choose a colour first" block on no-option SHEIN products is fixed.
+Live Note 8 evidence proved the cause: `findOptionContainer()` accepted a
+hidden DOM template whose class happened to include `color`, turning it into
+an unselected mandatory colour. A no-option nail page reported
+`color.exists:false`; adding one hidden two-button colour fixture made the old
+code report `exists:true`; v86.101 keeps it `false`. Only rendered option
+containers can now become the fallback, so real visible colour choices keep
+their existing protection.
+
+The user video was inspected at 60 fps. The bottom navigation is already
+complete and unchanged from 0.25 s until the store paints. The dark rounded
+card before that is the iOS home-to-app launch animation, which happens before
+app code, React, or the WebView exists. No navigation, launch timing, WebView,
+region, cache, or iPhone recompose code was changed for that system transition.
+
+Android 86.101/961 passed production build, iPhone-freeze guard, low-end
+budget, Android/iOS sync, Android debug build, and was installed over the
+connected Note 8 without clearing data. The device diagnostic passed; no cart
+write was performed. APK: `android/app/build/outputs/apk/debug/app-debug.apk`,
+11,167,224 bytes, SHA-256 `957D4D540D81A8162DF501CD9251760AD9F9CC5274349CA52C852E6F9C23FCF1`.
+An unsigned iPhone build and real iPhone 16 acceptance remain pending.
+
+# Previous candidate — v86.100 Otlobli-first store opening (2026-08-09)
 
 The user requires Otlobli itself to open first, with its name, status line,
 and persistent navigation already visible, then SHEIN/Temu to load above that

@@ -1,5 +1,44 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
+## Hidden SHEIN colour template falsely blocks a no-option product (v86.101, 2026-08-09)
+
+- **Symptom:** A no-option SHEIN nail product showed `حدد اللون أولاً` from
+  Otlobli even though the visible product contained quantity only and no
+  colour selector.
+- **Root cause (confirmed on live Note 8):** `findOptionContainer('color')`
+  assigned `fallback` before checking that the candidate was rendered. SHEIN
+  may retain hidden colour/recommendation templates in the DOM. A temporary,
+  hidden two-button colour fixture reproduced the old result exactly:
+  `getColorState()` changed from `{exists:false}` to
+  `{exists:true, selected:''}`.
+- **Decision:** Evaluate `rendered = sheinElementIsVisible(el) &&
+  !sheinCovered(el)` once and admit an option-container fallback only when it
+  is rendered. The visible/in-viewport ranking remains unchanged.
+- **Why this choice:** It rejects only an impossible customer choice; it does
+  not auto-select a colour, remove the real visible-colour guard, scan more
+  DOM, add timers, or risk an incomplete cart item.
+- **Do not do:** Do not restore the unconditional fallback or suppress every
+  colour requirement. A real visible unselected colour must still block add.
+  Do not change the iPhone recompose timing, region guard, cache policy, or
+  WebView lifecycle for this capture-only issue.
+- **Validation:** Production build, iPhone-freeze guard, performance budget,
+  Android/iOS sync and Android debug build passed. Android 86.101/961 was
+  installed on the connected Note 8. The original no-option diagnostic was
+  false both before and after; the hidden-fixture reproduction is true before
+  the patch and false after it. No cart write was performed. Real iPhone
+  product and required iPhone 16 resume acceptance remain pending.
+
+## iPhone launch video: system transition, not Otlobli navigation flash (2026-08-09)
+
+- **Evidence:** The supplied 60-fps video shows the black home-to-app card
+  from roughly 0.07 to 0.22 seconds. At 0.25 seconds the Otlobli loading
+  surface already contains the complete bottom navigation, which remains
+  unchanged through store paint at 2.4 seconds.
+- **Decision:** Make no app lifecycle, WebView, recompose, timer, or navigation
+  change for this phase. It is SpringBoard's launch animation before app code
+  can render; attempting to hide it with another app layer would introduce the
+  real visual flicker the project is avoiding.
+
 ## App-first store handoff, not a raw browser (v86.100, 2026-08-09)
 
 - **Symptom:** The Android opening could begin with a blank/static strip, then

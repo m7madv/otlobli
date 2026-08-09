@@ -2827,12 +2827,15 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (IS_SHEIN && sheinIsQuantityEl(el)) continue;
       var opts = el.querySelectorAll('li, button, [class*="item" i]');
       if (opts.length < 2) continue;
-      fallback = fallback || el;
       var rect = el.getBoundingClientRect();
+      var rendered = sheinElementIsVisible(el) && !sheinCovered(el);
+      // SHEIN keeps hidden product/recommendation templates in the DOM.  A
+      // hidden colour row is not a customer choice and must never block add.
+      if (rendered) fallback = fallback || el;
       var inView = rect.bottom > 0 && rect.right > 0 &&
         rect.top < (document.documentElement.clientHeight || 0) &&
         rect.left < (document.documentElement.clientWidth || 0);
-      if (!(inView && sheinElementIsVisible(el) && !sheinCovered(el))) continue;
+      if (!(inView && rendered)) continue;
       // Prefer the group whose heading matches the requested attribute so a
       // "نوع الموديلات" group never wins the size slot over the real "مقاس"
       // (cloud tray p-420303185). Same-tier tiebreak: fewest options.
