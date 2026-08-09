@@ -7749,6 +7749,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     blockCartNavigation();
     hideSheinCartSuccessToast();
     ensureAddToCartButton();
+    hideSheinNativeProductAdd();
     stabilizeSheinImageViewerChrome();
     hideExtraHeaderIcons();
     hideSheinCartIcons();
@@ -10026,10 +10027,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
   document.addEventListener('touchmove', markOtlobliInteraction, { capture: true, passive: true });
   document.addEventListener('scroll', markOtlobliInteraction, { capture: true, passive: true });
   document.addEventListener('click', sheinTrackSelectedSkuPrice, true);
-  // Low-end devices keep fast visible concealment; route-aware hiders below
-  // avoid redundant full-page scans instead of delaying the concealment.
+  // On low-end devices (iPhone 6 etc. — 2 CPU cores) our own polling competes
+  // with Cloudflare's verification JS and SHEIN's image decoding, making a
+  // weak-CPU device feel heavy and slow. Relax every hot interval there so the
+  // device spends its cycles rendering / passing the challenge instead of on
+  // our scans. Modern devices (iPhone 16) keep the original tight timings.
+  var OTLOBLI_VERY_LOW_END = typeof navigator !== 'undefined' && (navigator.hardwareConcurrency || 4) <= 2;
   var OTLOBLI_LOW_END = typeof navigator !== 'undefined' && (
-    (navigator.hardwareConcurrency || 4) <= 4 ||
+    OTLOBLI_VERY_LOW_END || (navigator.hardwareConcurrency || 4) <= 4 ||
     (navigator.deviceMemory && navigator.deviceMemory <= 3) ||
     /Android\\s(?:7|8|9|10)(?:\\D|$)/i.test(navigator.userAgent || '')
   );
@@ -10090,7 +10095,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   setInterval(function () {
     if (document.hidden) return;
     tick();
-  }, OTLOBLI_LOW_END ? 650 : 300);
+  }, OTLOBLI_VERY_LOW_END ? 950 : (OTLOBLI_LOW_END ? 650 : 300));
   // hideKnownHeaderIconsByHint specifically needs to win what looks like an
   // ongoing fight against SHEIN periodically re-rendering its own header (a
   // user found the hamburger/wishlist icons could stay reachable for
@@ -10098,15 +10103,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // instantly elsewhere) - run it on its own much tighter interval so any
   // freshly re-created icon gets caught within ~120ms instead of waiting
   // for the next general tick.
-  function runOtlobliCriticalSheinHiders() {
+  setInterval(function () {
     if (document.hidden) return;
     if (otlobliChallengeActive || !IS_SHEIN || otlobliInteractionActive()) return;
     hideKnownHeaderIconsByHint();
     hideSheinHeaderControls();
-    if (looksLikeProductPage()) hideSheinNativeProductAdd();
-    else hideListingCardAddButtons();
-  }
-  setInterval(runOtlobliCriticalSheinHiders, OTLOBLI_LOW_END ? 650 : 120);
+    hideListingCardAddButtons();
+    hideSheinNativeProductAdd();
+  }, OTLOBLI_VERY_LOW_END ? 950 : (OTLOBLI_LOW_END ? 650 : 120));
   setInterval(function () {
     if (document.hidden) return;
     if (!otlobliInteractionActive() || !document.getElementById('otlobli-nav')) ensureOtlobliNav();
@@ -10118,14 +10122,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
       try { hideTemuSearchVisibleAccountCart(intervalTemuSearching); } catch (e) {}
       try { otlobliCleanTemuBlockers(true); } catch (e) {}
     }
-  }, OTLOBLI_LOW_END ? 2200 : 1200);
+  }, OTLOBLI_VERY_LOW_END ? 2800 : (OTLOBLI_LOW_END ? 2200 : 1200));
   // Own slower interval, not part of tick() - see checkForSheinSecurityBlock's
   // comment on why innerText needs to stay off the 300ms timer. خاص بشي إن فقط.
   setInterval(function () {
     if (document.hidden) return;
     if (IS_SHEIN && !otlobliInteractionActive()) checkForSheinSecurityBlock();
-  }, OTLOBLI_LOW_END ? 1600 : 1000);
-  runOtlobliCriticalSheinHiders();
+  }, OTLOBLI_VERY_LOW_END ? 2200 : (OTLOBLI_LOW_END ? 1600 : 1000));
   tick();
 })();
 `

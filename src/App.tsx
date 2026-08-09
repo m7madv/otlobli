@@ -2944,6 +2944,10 @@ function App() {
   }
 
   const refreshVpnDiagnosisForStoreFailure = () => {
+    // Real iPhone acceptance established v86.118 as the last healthy startup.
+    // A supported geo or successful reachability probe must only authorize the
+    // open; it must not turn every healthy launch into a cold cache-reset path.
+    // Keep cache reset limited to the existing bounded recovery paths below.
     const storeReachablePromise = checkStoreReachable(selectedStoreRef.current)
     void probeVpnGeo().then(async (geo) => {
       if (geo) {
@@ -2954,16 +2958,12 @@ function App() {
           setVpnState('no-vpn')
           return
         }
-        setStoreOpenFailureReason('preparation')
-        sheinCacheResetPendingRef.current = true
         setVpnState('ok')
         return
       }
       const storeOk = await storeReachablePromise
       if (storeOk) {
         storeReachableRef.current = true
-        setStoreOpenFailureReason('preparation')
-        sheinCacheResetPendingRef.current = true
         setVpnState('ok')
         return
       }
@@ -2975,8 +2975,6 @@ function App() {
       // because both external probes timed out during an active session.
       if (storeReachableRef.current ||
           (vpnGeoRef.current?.countryCode && !isBlockedStoreCountry(vpnGeoRef.current.countryCode))) {
-        setStoreOpenFailureReason('preparation')
-        sheinCacheResetPendingRef.current = true
         setVpnState('ok')
         return
       }
@@ -3777,7 +3775,6 @@ function App() {
         const trustedStoreAccess = !isBlockedStoreCountry(geo?.countryCode) &&
           (storeReachableRef.current || !!geo?.countryCode)
         setStoreOpenFailureReason(trustedStoreAccess ? 'preparation' : 'network')
-        if (trustedStoreAccess) sheinCacheResetPendingRef.current = true
         setSheinBlockedError(true)
         if (!trustedStoreAccess) refreshVpnDiagnosisForStoreFailure()
         return
@@ -7153,9 +7150,6 @@ function App() {
             <button className="primary-action" onClick={() => {
               webviewAutoOpenPausedUntilRef.current = 0
               sheinRecoveryAttemptRef.current = 0
-              if (storeOpenFailureReason === 'preparation' || isVpnConfirmed(vpnState, vpnGeo)) {
-                sheinCacheResetPendingRef.current = true
-              }
               setSheinBlockedError(false)
               suppressAutoReopenRef.current = true
               // User-driven fresh session; suppress closeEvent's failure path
