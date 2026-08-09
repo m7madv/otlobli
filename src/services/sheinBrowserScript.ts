@@ -980,7 +980,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
 
     var homeLike = /^\\/ar\\/?$/i.test(location.pathname || '');
-    if (homeLike) return interactiveCount >= 3 && loadedImageCount >= 2;
+    if (homeLike) return loadedImageCount >= 2 && (interactiveCount >= 1 || bodyText.length >= 500);
     return interactiveCount >= 1 && (loadedImageCount >= 1 || bodyText.length >= 500);
   }
 
@@ -6191,9 +6191,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   function otlobliStabilizeBackOverlay(el) {
-    if (!el || !document.documentElement) return;
-    if (el.parentNode !== document.documentElement) {
-      document.documentElement.appendChild(el);
+    var host = document.body || document.documentElement;
+    if (!el || !host) return;
+    if (el.parentNode !== host ||
+        (host.lastElementChild !== el && otlobliNavIsActuallyCovered(el))) {
+      el.style.setProperty('animation', 'none', 'important');
+      host.appendChild(el);
     }
     el.style.setProperty('-webkit-backface-visibility', 'hidden', 'important');
     el.style.setProperty('backface-visibility', 'hidden', 'important');
@@ -6334,8 +6337,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       }, true);
       otlobliStabilizeBackOverlay(btn);
     }
-    // Root placement keeps later SHEIN body portals below the back button;
-    // this is idempotent and does not re-append or reanimate it every tick.
+    // A top-level last body child wins WebKit's sticky-price paint layer.
     otlobliStabilizeBackOverlay(btn);
     // تيمو SPA قد تفتح المنتج على نفس مسار الرئيسية (query string فقط)
     // فكان looksLikeHomeRoot يخفي زر الرجوع داخل المنتج ويحبس الزبون.

@@ -22,4 +22,4 @@ export const SHEIN_IOS_FREEZE_DIAGNOSTICS = false
 export const SHEIN_IOS_FREEZE_DIAGNOSTICS_BYPASS_RECOVERY = false
 
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '2026.08.09-v86.115-qa-vpn-back-layer'
+export const APP_VERSION = '2026.08.10-v86.116-ios6-store-back-stability'

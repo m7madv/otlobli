@@ -1,4 +1,36 @@
-# Current candidate — v86.115 supported VPN continuity and iPhone 6 back layer (2026-08-09)
+# Current candidate — v86.116 iPhone 6 recovery and sticky-price back layer (2026-08-10)
+
+- v86.115 failed on the real iPhone 6: the host still showed a preparation
+  screen and SHEIN's sticky price header covered the back button after scroll.
+- Keep the broadened but bounded home readiness rule: two decoded images plus
+  one semantic control or 500 characters. New SHEIN cards are often clickable
+  non-semantic wrappers, so requiring three `a/button/role=button` controls
+  falsely rejects a painted store on the old phone.
+- Fatal iOS WebKit errors and an unexpected close of a ready SHEIN view reuse
+  `recoverSheinChunkLoad()`. It is still iOS/SHEIN-only, one incident per 60s,
+  preserves the current product URL, cookies/storage/signed address, and clears
+  HTTP runtime cache only. If that bounded recovery is unavailable, the host
+  error remains. Preparation errors do not show the VPN diagnostic action.
+- Keep `otlobliStabilizeBackOverlay()` under `document.body`, not directly
+  under `html`. It reclaims last body paint order only when the existing
+  hit-test proves coverage, disables animation before reparenting, and keeps
+  the iPhone 6 top at `58px`. The executable guard inserts a synthetic sticky
+  price layer after the button and proves the button reclaims the last layer.
+- No new listener, timer, observer, scan, WebView loop or native recompose was
+  added. The performance approach follows the installed React guidance: reuse
+  refs and the existing event-driven bounded recovery instead of new state or
+  polling.
+- Version `86.116/976`; diagnostics off. Build, freeze/performance guards,
+  Android/iOS sync, diff check and Android debug assemble pass. Bundle
+  `index-D5vXFFT1.js`, 1,166,461 bytes, SHA-256
+  `4C588085CFE27B56B27DDF4A98FEB83376F0D40929C13683DF67D4D2BEFAA9A9`.
+  Debug APK is 11,169,400 bytes, SHA-256
+  `D3686E905715E41F392459B3A5A750CF3A350F9E2475C69F118D3469540CD734`.
+- iPhone CI/artifact and real-device acceptance are pending. Required: repeat
+  the pictured iPhone 6 scroll, exercise a longer browsing session/recovery,
+  then five iPhone 16 resume cycles plus force-quit/cold-launch.
+
+# Previous candidate — v86.115 supported VPN continuity and iPhone 6 back layer (2026-08-09)
 
 - Do not reintroduce false VPN advice after Qatar/another supported location
   or a successful store session is known. A transient geo/store-probe timeout

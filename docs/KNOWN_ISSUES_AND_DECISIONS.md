@@ -1,5 +1,32 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
+## iPhone 6 preparation false negative and sticky-price back cover (v86.116, 2026-08-10)
+
+- **Device/evidence:** v86.115 real iPhone 6 screenshots show the host
+  `تعذّر تجهيز المتجر` screen despite a supported connection, and a SHEIN
+  sticky price/header layer covering the back button only after product scroll.
+- **Preparation causes:** Home readiness required three visible semantic
+  controls, while current SHEIN product cards can use non-semantic clickable
+  wrappers. A painted home could be rejected until recovery failed. Confirmed
+  WebKit termination and unexpected ready-view close also went directly to the
+  host failure instead of using the existing bounded runtime recovery.
+- **Decision:** A SHEIN home is visually ready only with two decoded images and
+  either one semantic control or 500 characters of page content. Fatal WebKit
+  and unexpected ready-view closure reuse the existing iOS/SHEIN-only recovery,
+  preserve the current product URL and website data, clear HTTP runtime cache
+  only, and retain the 60-second incident guard. Preparation UI does not offer
+  VPN diagnosis; actual network/VPN failures still do.
+- **Back cause/decision:** In old WebKit, a composited sticky descendant of
+  `body` can paint above a fixed direct child of `html` despite equal maximum
+  z-index. Keep the button as a top-level body child; after a real point-hit
+  proves coverage, reclaim last paint order and suppress entrance animation.
+  Reuse the existing post-interaction tick—no new scroll listener/timer/scan.
+- **Validation boundary:** Executable fixture adds a sticky-price layer after
+  the button and proves last-body reclamation, max z-index, no animation and
+  pointer events. Production build, freeze/performance guards, native syncs and
+  Android debug build pass for `86.116/976`. Real iPhone 6 and iPhone 16
+  acceptance remains pending; do not claim it from build or the fixture.
+
 ## iPhone 6 product entry restores SHEIN's black cart-success bar (v86.112, 2026-08-09)
 
 - **Clarified symptom:** The remaining black element is SHEIN's compact

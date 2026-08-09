@@ -3196,7 +3196,8 @@ function App() {
       domain: event.domain,
       url: event.url ?? event.failingUrlString,
     })
-    showStoreOpenFailure()
+    const failingUrl = event.url ?? event.failingUrlString ?? currentWebviewUrlRef.current
+    if (!recoverSheinChunkLoad(failingUrl)) showStoreOpenFailure()
   }
 
   const markStoreWebviewReady = (sessionId: number) => {
@@ -3281,12 +3282,12 @@ function App() {
 
   const recoverSheinChunkLoad = (reportedUrl: string) => {
     if (Capacitor.getPlatform() !== 'ios' || selectedStoreRef.current !== 'shein' ||
-        !sheinOpenedRef.current || sheinChallengeActiveRef.current) return
+        !sheinOpenedRef.current || sheinChallengeActiveRef.current) return false
 
     const now = Date.now()
     // A broken PWA can emit dozens of rejected chunk promises in one frame.
     // Treat them as one incident and never make a close/open loop from them.
-    if (sheinChunkRecoveryInFlightRef.current || now - sheinChunkRecoveryAtRef.current < 60_000) return
+    if (sheinChunkRecoveryInFlightRef.current || now - sheinChunkRecoveryAtRef.current < 60_000) return false
     sheinChunkRecoveryInFlightRef.current = true
     sheinChunkRecoveryAtRef.current = now
 
@@ -3327,6 +3328,7 @@ function App() {
         }
         window.setTimeout(() => browseSheinRef.current(), 80)
       })
+    return true
   }
 
   const startSheinReadinessWatchdog = (sessionId: number) => {
@@ -3720,6 +3722,9 @@ function App() {
       const closedId = event?.id ?? ''
       if (closedId && ignoredWebviewCloseIdsRef.current.delete(closedId)) return
       if (closedId && webviewIdRef.current && closedId !== webviewIdRef.current) return
+      if (!suppressAutoReopenRef.current && screenRef.current === 'home' &&
+          selectedStoreRef.current === 'shein' && sheinReadyRef.current &&
+          recoverSheinChunkLoad(currentWebviewUrlRef.current)) return
       const productWasPreparing = pendingProductRevealRef.current
       clearPendingProductPreparation()
       webviewSessionRef.current += 1
@@ -7134,7 +7139,7 @@ function App() {
               <Icon name="refresh" />
               {storeFailureAdvice.action}
             </button>
-            <button className="ghost-action" onClick={() => {
+            {storeOpenFailureReason === 'network' ? <button className="ghost-action" onClick={() => {
               // يرجع لبوابة الفحص الذكي: يغلق الـwebview العالق ويعيد فحص
               // الوصول + منطقة الـVPN فيوجَّه المستخدم (شغّل/غيّر المنطقة).
               webviewAutoOpenPausedUntilRef.current = 0
@@ -7149,7 +7154,7 @@ function App() {
             }}>
               <Icon name="vpn_key" />
               فحص الاتصال والـ VPN
-            </button>
+            </button> : null}
           </main>
         ) : !sheinReady ? (
           <HomeScreen storeName={currentStoreName} failureAdvice={storeFailureAdvice} onRetry={() => { webviewAutoOpenPausedUntilRef.current = 0; sheinOpenedRef.current = false; browseShein() }} />

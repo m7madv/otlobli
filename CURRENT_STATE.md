@@ -1,4 +1,44 @@
-# Active candidate — v86.115 Qatar VPN continuity and iPhone 6 back layer (2026-08-09)
+# Active candidate — v86.116 iPhone 6 store recovery and sticky-price back layer (2026-08-10)
+
+The user's v86.115 iPhone 6 screenshots proved both reported issues remained.
+The host could still show `تعذّر تجهيز المتجر` with a VPN diagnostic action,
+and SHEIN's sticky price strip covered the back button after a small scroll.
+
+The preparation failure had two concrete application causes. SHEIN's newer
+home cards can be visually loaded without exposing three semantic links or
+buttons, but `sheinPageLooksInteractive()` required three; an old phone could
+therefore reject a genuinely painted page until the bounded recovery ended.
+Home readiness now still requires two decoded images, plus either a visible
+semantic control or at least 500 characters of real page content. Confirmed
+iOS WebKit termination and an unexpected close of an already-ready SHEIN view
+now enter the existing single runtime-cache recovery (60-second incident
+guard), preserving cookies, storage, signed address and the current product
+URL. They no longer jump straight to the host error. If preparation genuinely
+fails after bounded recovery, its screen no longer offers the irrelevant VPN
+diagnostic; real network/VPN failures retain it.
+
+The back-button root move in v86.115 was wrong for old WebKit paint ordering:
+a composited sticky descendant of `body` can cover a direct `html` child even
+at maximum z-index. v86.116 keeps the existing iPhone 6 `58px` top, moves the
+button to a top-level `body` child and reclaims last paint order only when the
+existing point-hit test proves it is actually covered. Reparenting disables
+the entrance animation, so no flicker is retriggered. It reuses the current
+maintenance tick and adds no timer, observer, scroll scan or native recompose.
+
+Version is `86.116/976`; diagnostics remain off. Production build,
+freeze/executable guard, low-end budget, Android/iOS sync, diff check and
+Android debug assemble pass. Budgets: JS raw `1,166,461/1,200,000`, total JS
+gzip `322,636/370,000`, CSS `63,670/70,000`, fonts `81,364/100,000`, SHEIN
+source `549,582/550,000`. Bundle `index-D5vXFFT1.js` is identical in
+dist/Android/iOS, SHA-256
+`4C588085CFE27B56B27DDF4A98FEB83376F0D40929C13683DF67D4D2BEFAA9A9`.
+Android debug APK is 11,169,400 bytes, SHA-256
+`D3686E905715E41F392459B3A5A750CF3A350F9E2475C69F118D3469540CD734`.
+iPhone CI/artifact and physical iPhone 6/iPhone 16 acceptance remain pending.
+All protected native resume/recompose, region JSON, cart and verification
+paths remain unchanged.
+
+# Previous candidate — v86.115 Qatar VPN continuity and iPhone 6 back layer (2026-08-09)
 
 The remaining issues were independent. First, a transient timeout from the
 geo/store probes could overwrite a Qatar or already-working store session and

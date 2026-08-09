@@ -264,6 +264,13 @@ const checks = [
     ],
   },
   {
+    label: 'SHEIN home visual readiness accepts non-semantic product cards',
+    file: 'src/services/sheinBrowserScript.ts',
+    markers: [
+      'if (homeLike) return loadedImageCount >= 2 && (interactiveCount >= 1 || bodyText.length >= 500);',
+    ],
+  },
+  {
     label: 'SHEIN document-start native product-add concealment',
     file: 'src/services/sheinBrowserScript.ts',
     markers: [
@@ -281,14 +288,19 @@ const checks = [
       'const trustedStoreAccess = !isBlockedStoreCountry',
       "reason === 'network' && trustedStoreAccess ? 'preparation' : reason",
       'storeReachableRef.current = true',
+      "storeOpenFailureReason === 'network' ? <button",
+      'if (!recoverSheinChunkLoad(failingUrl)) showStoreOpenFailure()',
     ],
   },
   {
-    label: 'iPhone 6 back button root stacking layer',
+    label: 'iPhone 6 back button body stacking layer',
     file: 'src/services/sheinBrowserScript.ts',
     markers: [
       'function otlobliStabilizeBackOverlay(el)',
-      'el.parentNode !== document.documentElement',
+      'document.body || document.documentElement',
+      'host.lastElementChild !== el',
+      'otlobliNavIsActuallyCovered(el)',
+      "el.style.setProperty('animation', 'none', 'important')",
       "el.style.setProperty('z-index', '2147483647', 'important')",
       'otlobliStabilizeBackOverlay(btn)',
     ],
@@ -459,18 +471,46 @@ try {
     const backLayerEnd = captureScript.indexOf('function ensureOtlobliNav', backLayerStart)
     const backLayerHelper = captureScript.slice(backLayerStart, backLayerEnd)
     const backLayerStyles = {}
-    const backLayerRoot = { appendChild: (node) => { node.parentNode = backLayerRoot } }
+    const backLayerChildren = []
+    const backLayerBody = {
+      lastElementChild: null,
+      appendChild: (node) => {
+        const previous = backLayerChildren.indexOf(node)
+        if (previous >= 0) backLayerChildren.splice(previous, 1)
+        backLayerChildren.push(node)
+        node.parentNode = backLayerBody
+        backLayerBody.lastElementChild = node
+      },
+    }
     const backLayerButton = {
       parentNode: {},
+      getBoundingClientRect: () => ({ left: 320, top: 58, width: 42, height: 42 }),
+      contains: () => false,
       style: { setProperty: (name, value, priority) => { backLayerStyles[name] = `${value}:${priority}` } },
     }
+    let backLayerHit = backLayerButton
+    const backLayerDocument = {
+      body: backLayerBody,
+      documentElement: {},
+      elementFromPoint: () => backLayerHit,
+    }
     runInNewContext(`${backLayerHelper}\notlobliStabilizeBackOverlay(button)`, {
-      document: { documentElement: backLayerRoot }, button: backLayerButton,
+      document: backLayerDocument, window: { innerHeight: 667 }, button: backLayerButton,
+      otlobliNavIsActuallyCovered: () => backLayerHit !== backLayerButton,
     })
-    if (backLayerButton.parentNode !== backLayerRoot ||
+    const stickyPrice = { id: 'shein-sticky-price' }
+    backLayerBody.appendChild(stickyPrice)
+    backLayerHit = stickyPrice
+    runInNewContext(`${backLayerHelper}\notlobliStabilizeBackOverlay(button)`, {
+      document: backLayerDocument, window: { innerHeight: 667 }, button: backLayerButton,
+      otlobliNavIsActuallyCovered: () => backLayerHit !== backLayerButton,
+    })
+    if (backLayerButton.parentNode !== backLayerBody ||
+        backLayerBody.lastElementChild !== backLayerButton ||
         backLayerStyles['z-index'] !== '2147483647:important' ||
+        backLayerStyles.animation !== 'none:important' ||
         backLayerStyles['pointer-events'] !== 'auto:important') {
-      failures.push('iPhone 6 back layer: button is not rooted above later SHEIN body portals')
+      failures.push('iPhone 6 back layer: button does not reclaim the last body paint layer')
     }
     const viewerStart = captureScript.indexOf('function sheinViewerHasLargeMedia')
     const viewerEnd = captureScript.indexOf('function sheinImageViewerRoot', viewerStart)
