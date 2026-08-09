@@ -21,6 +21,8 @@
 - No native freeze guard/recompose timing/region rebuild logic changed. Do not
   claim real iPhone acceptance; the five resume cycles and cold-launch test
   remain mandatory.
+- Unsigned iPhone build run `31287002745` was started from commit `0c6bb29`;
+  record its final artifact or failure before the next handoff.
 
 ## Current candidate — v86.91 three-piece quick-form bundle (2026-08-09)
 

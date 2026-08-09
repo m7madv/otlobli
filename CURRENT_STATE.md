@@ -24,6 +24,10 @@ SHA-256 `F4B4A97402DA28DC38F09F0814EA3EF08870A6A0C8958224716C4342AE194339`.
 It is installed on the connected Note 8. Customer add-to-cart and real iPhone
 acceptance remain required.
 
+Unsigned iPhone run `31287002745` was triggered from commit `0c6bb29` and was
+still in progress at handoff. It verifies build synchronization only; it is not
+a replacement for iPhone device acceptance.
+
 ## Active candidate — v86.91 SHEIN three-piece bundle capture (2026-08-09)
 
 The pink bow makeup-bag product (`p-216351093`) has two separate controls in
