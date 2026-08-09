@@ -23,4 +23,4 @@ export const SHEIN_IOS_FREEZE_DIAGNOSTICS_BYPASS_RECOVERY = false
 export const SHEIN_IOS_TAP_DIAGNOSTICS = true
 
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '2026.08.09-v86.102-shein-ios-tap-diagnostic'
+export const APP_VERSION = '2026.08.09-v86.103-shein-cart-session-recovery'
