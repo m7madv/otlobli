@@ -17,7 +17,9 @@
 - **Validation boundary:** Executable injected-script fixture at 375×667 proves
   product entry hides the Arabic success toast without an add click and home
   does not arm it. Production build, freeze/performance guards and native sync
-  pass. Real iPhone 6 acceptance is pending.
+  pass. Xcode run `31331834857` produced inspected `86.112/972` IPA on Desktop,
+  SHA-256 `8FCFD6E90D70AC32F8726B6FD0CB3A30716E2EDA4A71AB750861263488D2CE71`.
+  Real iPhone 6 acceptance is pending.
 
 ## iPhone 6 exposes SHEIN's product add action before Otlobli acts (v86.109, 2026-08-09)
 

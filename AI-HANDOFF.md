@@ -20,8 +20,18 @@
   1,165,969 bytes, SHA-256
   `5C4B6FDBFB705FCA400E5EFC924AE92010C52EAC28FC2754C6CB0BC574AC3DBB`,
   is identical across dist/Android/iOS. SHEIN source is `549,734/550,000`, so
-  reduce source before any further addition. Xcode IPA and real iPhone 6
-  acceptance are pending.
+  reduce source before any further addition.
+- Xcode run `31331834857` passed from `9759e2b`. Desktop IPA:
+  `C:\Users\MOHAMMAD\Desktop\otlobli-ios-v86.112-iphone\otlobli-ios-v86.112-iphone16\otlobli-v86.112-iphone16-unsigned.ipa`,
+  7,045,614 bytes, SHA-256
+  `8FCFD6E90D70AC32F8726B6FD0CB3A30716E2EDA4A71AB750861263488D2CE71`.
+  Archive is `com.otlobli.app`, `86.112/972`, arm64/iOS 15+, and contains the
+  version/product-entry/15-second/hidden-toast markers, push code and preserved
+  native lifecycle/navigation symbols. CI asset `index-BLmbZ9qY.js` is
+  1,167,157 bytes, SHA-256
+  `AD3A15C15A653970C9C7862CB4182B7AB5B052CEDCED26EACB1B9483C4507614`.
+- IPA remains unsigned/unprovisioned, without APNs entitlement or Google iOS
+  callback. Real iPhone 6 acceptance is still required.
 
 # Previous candidate — v86.111 iOS SHEIN cart-product fresh session (2026-08-09)
 
