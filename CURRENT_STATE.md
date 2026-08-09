@@ -1,51 +1,43 @@
-# Active candidate — v86.120 supported-region SHEIN recovery (2026-08-10)
+# Active candidate — v86.121 restores the device-proven v86.118 runtime (2026-08-10)
 
-The real iPhone screenshot showed the exact contradictory state: VPN/location
-was confirmed as Qatar, yet the app displayed `غيّر سيرفر الـ VPN` and the retry
-did not enter SHEIN. This was an application state bug, not evidence that Qatar
-was blocked. An unexpected native WebView close during opening bypassed
-`showStoreOpenFailure()` and wrote the failure reason directly as `network`.
-When the asynchronous geo check later confirmed Qatar, it updated VPN state but
-did not reclassify the failure or arm the bounded cache reset. The retry could
-also race `closeEvent`, which restored the blocker while the new open started.
+The v86.120 real-iPhone screenshot proved the corrected Qatar/preparation copy
+was present, but SHEIN still never entered. The user then identified v86.118 as
+the last version that actually opened the store. A direct `c2cc383..HEAD`
+comparison isolated the post-v86.118 runtime changes: v86.119 increased hot
+concealment work on two-core iPhones and v86.120 armed a native HTTP cache reset
+whenever supported geo/reachability was confirmed, turning healthy starts into
+cold sessions.
 
-v86.120 makes supported access fail as preparation, never VPN. A confirmed
-supported geo, successful storefront probe, or previously trusted access now
-sets `preparation` and arms one native HTTP memory/disk-cache reset. The same
-classification applies inside unexpected `closeEvent`. The manual retry resets
-the one-attempt recovery allowance, suppresses only that intentional close
-event, waits for close completion and opens one fresh WebView. Cookies,
-localStorage, verification state and the signed shipping address are preserved;
-there is no automatic retry loop, new timer, polling, DOM scan or React effect.
+v86.121 restores `src/services/sheinBrowserScript.ts` exactly to the v86.118
+runtime and removes cache-reset arming from successful geo/store probes,
+supported unexpected closes and the primary retry. Cache reset remains only in
+the pre-existing bounded stuck/chunk recovery and the proven Temu → SHEIN fresh
+session. The supported-Qatar preparation wording, intentional-close retry
+coordination, approved back action/layer, iPhone 16 recompose/lifecycle fix,
+Android resume defense, JSON region comparison and order/payment logic remain.
+No new timer, polling loop, observer, WebView burst or React effect was added.
 
-The v86.119 fast route-aware concealment, approved native back appearance/action,
-protected iPhone 16 recompose/lifecycle behavior, Android resume defense, JSON
-region comparison, and cart/payment/order logic are unchanged.
-
-Version is `86.120/980`; diagnostics remain off. Production build,
+Version is `86.121/981`; diagnostics remain off. Production build,
 freeze/performance guards, Android/iOS sync, diff check, Android debug assemble
-and GitHub/Xcode run `31340352422` pass. Local bundle `index-D8UTshK9.js` is
-1,166,391 bytes, SHA-256
-`5E7E2860003D7C15D6BBAC88B5953650D12DE16E9D57668565E52CEAB3331C6A`.
-Budgets are JS gzip `322,494/370,000`, CSS `63,670/70,000`, fonts
-`81,364/100,000`, and SHEIN source `549,266/550,000`. Android debug APK is
-11,169,276 bytes, SHA-256
-`5D3F7B9214226C269FC374DD488E06F208155D30514DB86ACBE929867E8A5E7E`.
-Repository-wide lint still has the unrelated existing baseline of 33 errors
-and 16 warnings; no lint failure points to this change.
+and GitHub/Xcode run `31340886636` pass. Local bundle `index-BWvDqCCZ.js` is
+1,166,623 bytes, SHA-256
+`683F1D6EB6F004F1F85D4BCB5C1E29129DE4DF9A59CAE81F02DD3FB36BA89CD4`.
+Budgets are JS gzip `322,578/370,000`, CSS `63,670/70,000`, fonts
+`81,364/100,000`, and SHEIN source `549,668/550,000`. Android debug APK is
+11,169,320 bytes, SHA-256
+`DB955A35C9F48AFF4775EBCDC1BFA634FEF25E02E5F036DD34D35A4F10A9F492`.
 
 Desktop IPA is
-`C:\Users\MOHAMMAD\Desktop\otlobli-ios-v86.120-iphone\otlobli-v86.120-iphone16-unsigned.ipa`,
-7,050,591 bytes, SHA-256
-`85B8ED5EBAC73930C44EBED56E9EABD2CFBC2704715EE23795ECCBE323395392`.
-Archive inspection confirms `com.otlobli.app`, `86.120/980`, arm64/iOS 15+,
-the preparation/retry copy, absence of the rejected confirmed-Qatar VPN copy,
-native back/cart/fallback, protected recompose and push code. CI JS
-`index-D0TTUAIG.js` is 1,167,579 bytes, SHA-256
-`B6CC7FE4D8FC9F7F2959CA548EDC60A05695D17CBD5166E5424092C244F3EC8A`.
-The IPA remains unsigned/unprovisioned and lacks production APNs/Google iOS
-setup. Real iPhone entry and the required iPhone 16 lifecycle suite remain
-pending; build/archive checks are not device acceptance.
+`C:\Users\MOHAMMAD\Desktop\otlobli-ios-v86.121-iphone\otlobli-v86.121-iphone16-unsigned.ipa`,
+7,050,682 bytes, SHA-256
+`43C31B9BEBECA834DD74DACA038CCD7EAB774CA73D2AB7462316A7A4D81303BF`.
+Archive inspection confirms `com.otlobli.app`, `86.121/981`, iOS 15+, the
+v86.121 runtime marker and supported-region copy, and absence of the rejected
+confirmed-Qatar VPN copy. CI JS is `index-CIfG9Dfv.js`, 1,167,811 bytes,
+SHA-256 `4D774702530EA647D7CF7AE84529AF128FD9B449E989242F608D6EA6F0994525`.
+The IPA is unsigned/unprovisioned; the workflow has no configured Google iOS
+callback and it lacks production APNs entitlement. Real iPhone entry and the
+required five iPhone 16 resume cycles plus cold launch remain pending.
 
 # Active candidate — v86.116 iPhone 6 store recovery and sticky-price back layer (2026-08-10)
 

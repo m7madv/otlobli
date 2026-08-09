@@ -1,34 +1,31 @@
-# Current candidate — v86.120 supported-region SHEIN recovery (2026-08-10)
+# Current candidate — v86.121 restores the v86.118 runtime (2026-08-10)
 
-- Real-device evidence: the host confirmed Qatar but showed the network/VPN
-  failure and its retry did not enter SHEIN. Unexpected `closeEvent` wrote
-  `network` directly, bypassing the trusted-access conversion. A later supported
-  geo result updated `vpnState` only, and retry could race the close listener.
-- Keep supported geo/store success/trusted continuity mapped to `preparation`.
-  Arm `sheinCacheResetPendingRef` for that user-driven retry; clear HTTP
-  memory/disk cache only. Preserve cookies, localStorage, verification and the
-  signed address. Never show the VPN diagnostic action for confirmed support.
-- The primary retry resets `sheinRecoveryAttemptRef`, suppresses the intentional
-  close event only, then opens one fresh WebView after close completion. Do not
-  turn it into an automatic open/close loop or add polling/timers/effects.
-- Preserve v86.119's 650ms route-aware concealment and no duplicate product
-  scan, plus the approved native back control and all protected lifecycle code.
-- Version `86.120/980`; diagnostics off. Build, guards, native syncs, Android
-  debug assemble and Xcode run `31340352422` pass. Local bundle SHA-256 is
-  `5E7E2860003D7C15D6BBAC88B5953650D12DE16E9D57668565E52CEAB3331C6A`;
-  debug APK SHA-256 is
-  `5D3F7B9214226C269FC374DD488E06F208155D30514DB86ACBE929867E8A5E7E`.
-  Repo lint remains red on the unrelated existing 33 errors/16 warnings.
+- Real-device evidence: v86.120 displayed the corrected supported-region text
+  but did not enter SHEIN; the user identified v86.118 as the last working IPA.
+- `src/services/sheinBrowserScript.ts` now matches v86.118 commit `c2cc383`
+  exactly. Do not reapply v86.119's faster two-core intervals/immediate critical
+  scan without new device evidence.
+- A supported geo/reachability result authorizes opening but must not arm
+  `sheinCacheResetPendingRef`. That v86.120 change made every healthy start a
+  cold-cache launch. Cache reset stays limited to the existing bounded recovery
+  and Temu → SHEIN fresh-session paths.
+- Keep the corrected Qatar/preparation copy, coordinated manual retry, approved
+  back behavior, iPhone 16 recompose lifecycle, Android resume defense and
+  `JSON.stringify` region comparison. No new polling/timers/effects were added.
+- Version `86.121/981`; diagnostics off. Build, freeze/performance guards,
+  native syncs, Android debug assemble and Xcode run `31340886636` pass. Local
+  JS SHA is `683F1D6EB6F004F1F85D4BCB5C1E29129DE4DF9A59CAE81F02DD3FB36BA89CD4`;
+  APK SHA is `DB955A35C9F48AFF4775EBCDC1BFA634FEF25E02E5F036DD34D35A4F10A9F492`.
 - Desktop IPA:
-  `C:\Users\MOHAMMAD\Desktop\otlobli-ios-v86.120-iphone\otlobli-v86.120-iphone16-unsigned.ipa`,
-  7,050,591 bytes, SHA-256
-  `85B8ED5EBAC73930C44EBED56E9EABD2CFBC2704715EE23795ECCBE323395392`.
-  CI JS is `index-D0TTUAIG.js`, SHA-256
-  `B6CC7FE4D8FC9F7F2959CA548EDC60A05695D17CBD5166E5424092C244F3EC8A`.
-  IPA is unsigned/unprovisioned and lacks production APNs/Google iOS setup.
-- Required acceptance: cold entry from Qatar on the pictured device, retry
-  after an interrupted open, product/back/concealment, five iPhone 16 resume
-  cycles, cold launch and SHEIN → Temu → SHEIN.
+  `C:\Users\MOHAMMAD\Desktop\otlobli-ios-v86.121-iphone\otlobli-v86.121-iphone16-unsigned.ipa`,
+  7,050,682 bytes, SHA-256
+  `43C31B9BEBECA834DD74DACA038CCD7EAB774CA73D2AB7462316A7A4D81303BF`.
+  Archive is `com.otlobli.app`, `86.121/981`; CI JS SHA is
+  `4D774702530EA647D7CF7AE84529AF128FD9B449E989242F608D6EA6F0994525`.
+  It is unsigned/unprovisioned and lacks production APNs/Google iOS setup.
+- Required acceptance: clean/cold Qatar entry on the pictured iPhone, cart
+  product open/back/concealment, five iPhone 16 resumes, separate cold launch,
+  and SHEIN → Temu → SHEIN.
 
 # Current candidate — v86.116 iPhone 6 recovery and sticky-price back layer (2026-08-10)
 

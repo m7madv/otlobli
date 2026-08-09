@@ -1,25 +1,26 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
-## Supported geo remains trapped behind the VPN failure (v86.120, 2026-08-10)
+## Post-v86.118 SHEIN startup regression (v86.121, 2026-08-10)
 
-- **Device/evidence:** The real iPhone screen explicitly confirmed `Qatar` but
-  still said to change VPN server, and retry did not enter SHEIN.
-- **Cause:** Unexpected WebView close during opening bypassed
-  `showStoreOpenFailure()` and directly stored `network`. The later geo probe
-  updated VPN state without changing the failure reason or arming cache reset.
-  The retry close could also trigger the same close listener while reopening.
-- **Decision:** Supported geo, successful store reachability or trusted session
-  continuity maps to `preparation`, never VPN advice, and arms one native HTTP
-  memory/disk-cache reset. The manual action suppresses only its intentional
-  close event, resets the bounded recovery allowance, then opens one new view
-  after close. Preserve cookies, localStorage, verification and signed address.
-- **Boundary:** No automatic retry loop, timer, observer, DOM scan, new effect,
-  native lifecycle change or store-region rebuild. Preserve v86.119 concealment,
-  native back action and every iPhone 16 freeze invariant.
+- **Device/evidence:** v86.120 showed the corrected supported-Qatar preparation
+  screen but never entered SHEIN. The user identified v86.118 as the last IPA
+  that actually opened the store.
+- **Cause:** The direct v86.118→v86.120 comparison found two post-baseline
+  runtime changes: v86.119 increased recurring concealment work on two-core
+  iPhones and v86.120 armed cache reset on every successful supported geo/store
+  diagnosis. The latter forced healthy opens onto a cold-cache path.
+- **Decision:** Preserve v86.118's SHEIN capture runtime exactly. A supported
+  geo or successful reachability probe authorizes opening but never arms cache
+  reset. Keep cache reset confined to the existing bounded stuck/chunk recovery
+  and explicit Temu→SHEIN fresh-session path. Keep the correct supported-region
+  copy and coordinated manual retry from v86.120.
+- **Boundary:** Preserve native back behavior, iPhone 16 recompose timing,
+  Android resume defense, region JSON comparison and all order/payment logic.
+  No new timer, loop, observer, scan, lifecycle burst or React effect.
 - **Validation:** Production/freeze/performance builds, native syncs, Android
-  debug assemble and Xcode run `31340352422` pass for `86.120/980`. Inspected
+  debug assemble and Xcode run `31340886636` pass for `86.121/981`. Inspected
   IPA SHA-256 is
-  `85B8ED5EBAC73930C44EBED56E9EABD2CFBC2704715EE23795ECCBE323395392`.
+  `43C31B9BEBECA834DD74DACA038CCD7EAB774CA73D2AB7462316A7A4D81303BF`.
   Real-device entry and lifecycle acceptance remain pending.
 
 ## Fast concealment without duplicate scans (v86.119, 2026-08-10)

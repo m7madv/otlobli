@@ -2944,7 +2944,7 @@ function App() {
   }
 
   const refreshVpnDiagnosisForStoreFailure = () => {
-    // Real iPhone acceptance established v86.118 as the last healthy startup.
+    // Real iPhone evidence identified v86.118 as the last healthy startup.
     // A supported geo or successful reachability probe must only authorize the
     // open; it must not turn every healthy launch into a cold cache-reset path.
     // Keep cache reset limited to the existing bounded recovery paths below.
