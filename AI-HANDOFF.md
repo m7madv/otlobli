@@ -19,10 +19,20 @@
   padding `34px`, top `824`, bottom `932`, `stable=true`. Android debug APK is
   11,167,800 bytes with SHA-256
   `5CE18F7657FE34322E303D1F25A85AA2944C7FE2384C77C1CA83F7C2B0D3B18C`.
-- Pending: push the code, run/download/inspect the unsigned Xcode IPA, copy it
-  to the desktop, then record artifact path/hash. Real iPhone must still verify
-  product-open first frame, five background/resume cycles, cold launch, and
-  SHEIN → Temu → SHEIN; none is claimed locally.
+- Commit `b7f6d27` is pushed. GitHub/Xcode
+  [run `31313269405`](https://github.com/m7madv/otlobli/actions/runs/31313269405)
+  passed. Inspected unsigned IPA:
+  `release-artifacts/ios-v86.104-run-31313269405/otlobli-v86.104-iphone16-unsigned.ipa`,
+  7,044,634 bytes, SHA-256
+  `70D1EC898C8C4244A3D787642DC5C815D293FF553F55BEA1C1C95E0AE3D23AE4`.
+  Verified desktop copy:
+  `C:\Users\MOHAMMAD\Desktop\otlobli-ios-v86.104\otlobli-v86.104-iphone16-unsigned.ipa`.
+  Archive metadata is `com.otlobli.app` `86.104/964`; the first-frame marker is
+  present, tap diagnostic script is absent, and the built option is false. The
+  app root is unsigned/unprovisioned; four vendor frameworks retain signatures.
+- Pending only real iPhone acceptance: product-open first frame, five
+  background/resume cycles, cold launch, and SHEIN → Temu → SHEIN. None is
+  claimed from local/browser/CI checks.
 
 # Current recovery candidate — v86.103 SHEIN cart-session reset (2026-08-09)
 

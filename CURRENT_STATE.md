@@ -21,11 +21,22 @@ performance budget, and Android/iOS sync pass. Budgets: JS raw
 `1,157,905/1,200,000`, JS gzip `321,473/370,000`, CSS `63,291/70,000`, fonts
 `81,364/100,000`, SHEIN source `549,920/550,000`. A Playwright `440×932`
 first-frame fixture with a 34px iPhone inset measured `108px` navigation height,
-`34px` bottom padding, top `824`, bottom `932`, and `stable=true`. The Xcode
-unsigned IPA build and all real-iPhone acceptance remain pending. Android debug
+`34px` bottom padding, top `824`, bottom `932`, and `stable=true`. Android debug
 APK: `android/app/build/outputs/apk/debug/app-debug.apk`, 11,167,800 bytes,
 SHA-256 `5CE18F7657FE34322E303D1F25A85AA2944C7FE2384C77C1CA83F7C2B0D3B18C`.
-Do not claim device acceptance from the browser/build checks.
+Commit `b7f6d27` is pushed and GitHub/Xcode
+[run `31313269405`](https://github.com/m7madv/otlobli/actions/runs/31313269405)
+passed. Inspected IPA:
+`release-artifacts/ios-v86.104-run-31313269405/otlobli-v86.104-iphone16-unsigned.ipa`,
+7,044,634 bytes, SHA-256
+`70D1EC898C8C4244A3D787642DC5C815D293FF553F55BEA1C1C95E0AE3D23AE4`.
+An identical verified copy is on the desktop at
+`C:\Users\MOHAMMAD\Desktop\otlobli-ios-v86.104\otlobli-v86.104-iphone16-unsigned.ipa`.
+Archive metadata is `com.otlobli.app` `86.104/964`; the customer bundle contains
+the first-frame inset marker, has `otlobliTapDiagnostics:false`, and excludes
+the tap diagnostic script. The app root has no signature or embedded
+provisioning profile; four vendor frameworks retain signatures. All real
+iPhone acceptance remains pending; do not claim it from browser/build checks.
 
 # Active recovery candidate — v86.103 SHEIN cart-session reset (2026-08-09)
 

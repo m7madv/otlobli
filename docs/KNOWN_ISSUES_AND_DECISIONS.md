@@ -14,8 +14,12 @@
   top `نسخ` button is absent. v86.103 recovery remains active.
 - **Validation boundary:** Build/freeze/performance/native sync pass. A
   `440×932` browser fixture with 34px host inset measured a stable 108px nav
-  from the first frame. Real iPhone product-open and lifecycle acceptance is
-  still required; no simulator/browser result can claim it.
+  from the first frame. Commit `b7f6d27` is pushed; Xcode run `31313269405`
+  passed. Inspected unsigned IPA is `86.104/964`, 7,044,634 bytes, SHA-256
+  `70D1EC898C8C4244A3D787642DC5C815D293FF553F55BEA1C1C95E0AE3D23AE4`;
+  its customer bundle has the inset marker and no tap diagnostic script. Real
+  iPhone product-open and lifecycle acceptance is still required; no
+  simulator/browser/CI result can claim it.
 
 ## Cart-origin SHEIN session loses product navigation on iPhone (v86.103, 2026-08-09)
 
