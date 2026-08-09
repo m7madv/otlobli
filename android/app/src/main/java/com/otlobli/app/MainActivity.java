@@ -14,6 +14,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import androidx.annotation.Nullable;
+import androidx.core.splashscreen.SplashScreen;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
@@ -24,6 +25,12 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         registerPlugin(OtlobliLaunchSurfacePlugin.class);
+        // Android 12+ owns the first system frame. Install its documented
+        // splash handoff before BridgeActivity initialises; Android 9 on the
+        // connected Note 8 keeps the custom full navigation preview theme.
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            SplashScreen.installSplashScreen(this);
+        }
         super.onCreate(savedInstanceState);
     }
 
@@ -41,16 +48,15 @@ public class MainActivity extends BridgeActivity {
             if (otlobliLaunchSurface == null) return;
             final FrameLayout surface = otlobliLaunchSurface;
             surface.animate().cancel();
-            surface.animate()
-                .alpha(0f)
-                .setDuration(100L)
-                .withEndAction(() -> {
-                    if (surface.getParent() instanceof ViewGroup) {
-                        ((ViewGroup) surface.getParent()).removeView(surface);
-                    }
-                    if (otlobliLaunchSurface == surface) otlobliLaunchSurface = null;
-                })
-                .start();
+            // React calls this only after two rendered frames. Fading this
+            // already-matched native surface over that ready app frame paints
+            // the wordmark and tabs twice on a slow device. Remove it in one
+            // transaction so Otlobli opens first as one stable interface;
+            // SHEIN/Temu can then load above the ready app separately.
+            if (surface.getParent() instanceof ViewGroup) {
+                ((ViewGroup) surface.getParent()).removeView(surface);
+            }
+            if (otlobliLaunchSurface == surface) otlobliLaunchSurface = null;
         });
     }
 

@@ -1,3 +1,28 @@
+# Current candidate — v86.100 Otlobli-first store opening (2026-08-09)
+
+- Product rule: display the complete Otlobli surface first; only after it is
+  present may SHEIN/Temu open above it. Do not show raw store UI or add another
+  loading layout on the cold path.
+- The real Note 8 recording identified duplicated text/tabs as an opacity
+  fade between two otherwise matching Otlobli layers. `dismissOtlobliLaunchSurface()`
+  intentionally removes its native view immediately after React's existing
+  two RAF handoff. Do not restore an alpha animation, delay, or retry there.
+- `android/app/src/main/res/drawable-nodpi/otlobli_starting_screen.png` is the
+  pre-Activity representation of this exact app surface. It prevents an empty
+  pre-Java frame on Android 9. `otlobli_starting_window.xml` must continue to
+  reference it; it must not reference a standalone spinner or a raw browser.
+- Android 12+ calls `SplashScreen.installSplashScreen()` before `super.onCreate`;
+  keep that ordering. The app's own static/native shell then takes over.
+- This batch never changes the WebView lifecycle: preserve the iPhone
+  `otlobliForceRecompose` 0.25s guard, `otlobliOnHostResume()`, and the active
+  `JSON.stringify` region comparison. The user has old iPhone v86.82 where
+  SHEIN can stop at skeleton content; build v86.100 before diagnosing it on
+  the real device. It is not yet iPhone-accepted.
+- Android 86.100/960 passed production build, freeze guard, low-end budget,
+  Android/iOS sync, debug build, Note 8 install, and 10-fps cold-start video.
+  APK `android/app/build/outputs/apk/debug/app-debug.apk`: 12,581,116 bytes,
+  SHA-256 `5D8C52CE73A26DC6C94C3E2E3A0493967814BD84AE6EEB18FB33B062DFC0104F`.
+
 # Otlobli AI Handoff
 
 ## Current candidate — v86.98 stable first store surface (2026-08-09)

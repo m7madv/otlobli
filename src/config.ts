@@ -22,4 +22,4 @@ export const SHEIN_IOS_FREEZE_DIAGNOSTICS = false
 export const SHEIN_IOS_FREEZE_DIAGNOSTICS_BYPASS_RECOVERY = false
 
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '2026.08.09-v86.99-persistent-store-navigation'
+export const APP_VERSION = '2026.08.09-v86.100-unified-native-store-opening'

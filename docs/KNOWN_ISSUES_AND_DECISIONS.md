@@ -1,5 +1,38 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
+## App-first store handoff, not a raw browser (v86.100, 2026-08-09)
+
+- **Symptom:** The Android opening could begin with a blank/static strip, then
+  repaint Otlobli, then start the store. When the native Otlobli layer faded
+  over the React Otlobli layer, a recorded Note 8 frame visibly doubled the
+  wordmark and all bottom tabs. The user explicitly requires the app itself
+  to open first, then the SHEIN/Temu browser only after that app shell exists.
+- **Root cause (confirmed at 10 fps on Note 8):** The fade was a compositing
+  transition between two matching Otlobli surfaces—not a SHEIN page,
+  networking, region routing, or iPhone rendering fault. Android also needs a
+  drawable before Java can create the full native app surface.
+- **Decision:** Use the exact local Otlobli loading surface as the Android
+  starting-window drawable, retain the matching native surface while the
+  Capacitor app renders, then remove the native surface atomically after the
+  existing two-render-frame readiness handoff. Keep the store WebView opening
+  separately behind the existing region/VPN gate. Android 12+ uses the
+  platform SplashScreen API before BridgeActivity initialization.
+- **Why this choice:** It removes the observable duplicate draw instead of
+  hiding it with more timeouts, reloads, opacity animations, WebView creation,
+  or a separate browser screen. It costs one 55 KB local image and adds no
+  startup network, JavaScript, polling, or work to weak devices.
+- **Do not do:** Do not reintroduce the native alpha fade, replace the
+  app-first surface with SHEIN/Temu UI, or trigger a WebView rebuild as part of
+  the visual handoff. Do not touch iPhone recompose timing, Android resume,
+  or the unchanged-region guard for this incident.
+- **Validation:** Android 86.100/960 was built, installed, and recorded on
+  the connected Note 8. The post-fix frame series has one stable full Otlobli
+  surface before store preparation, without the previously observed double
+  wordmark. Production build, iPhone freeze guard, low-end budget,
+  Android/iOS sync, and Android debug build passed. APK SHA-256:
+  `5D8C52CE73A26DC6C94C3E2E3A0493967814BD84AE6EEB18FB33B062DFC0104F`.
+  A current iPhone build/device acceptance remains pending.
+
 ## Compressed Android SHEIN opening cover (v86.98, 2026-08-09)
 
 - **Symptom:** On Android, startup could show a compact top-aligned Otlobli wordmark/nav, then jump into the intended centred loading screen. This made the customer perceive several different opening screens even after the spinner had been removed.

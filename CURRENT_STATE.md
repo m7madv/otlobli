@@ -1,3 +1,33 @@
+# Active candidate — v86.100 Otlobli-first store opening (2026-08-09)
+
+The user requires Otlobli itself to open first, with its name, status line,
+and persistent navigation already visible, then SHEIN/Temu to load above that
+ready app. A Note 8 frame capture confirmed that the previous native surface
+fade painted the same wordmark/tabs twice. v86.100 uses one local pre-activity
+render of that exact Otlobli loading surface, keeps the matching native app
+surface while Capacitor starts, and removes it atomically only after React has
+rendered two frames. The store WebView is unchanged and opens only after the
+existing region/VPN readiness path.
+
+The startup resource is local and static (no WebView, JavaScript, network,
+timer, store-region polling, cache reset, or remote font). Android 12+ also
+uses the platform SplashScreen handoff before BridgeActivity starts; the Note
+8 keeps the exact static app preview. No iPhone recomposition, foreground
+timing, Android resume defense, or `JSON.stringify` region guard changed.
+
+Android 86.100/960 was built and installed on the connected Note 8. A
+10-fps cold-start recording confirms a stable Otlobli surface with no opacity
+cross-fade/double wordmark before store preparation. Production build,
+iPhone-freeze guard, low-end performance budget, Android/iOS sync, and Android
+debug build pass. APK: `android/app/build/outputs/apk/debug/app-debug.apk`,
+12,581,116 bytes, SHA-256
+`5D8C52CE73A26DC6C94C3E2E3A0493967814BD84AE6EEB18FB33B062DFC0104F`.
+
+The user reported that their iPhone still runs old v86.82 and can stall on
+the SHEIN skeleton until a manual store switch. A new unsigned iPhone build
+must be triggered from this candidate. Its real iPhone 16 cold-launch and
+five background/resume acceptance remain mandatory and are not yet claimed.
+
 # Otlobli Current State
 
 ## Active candidate — v86.98 stable store opening (2026-08-09)
