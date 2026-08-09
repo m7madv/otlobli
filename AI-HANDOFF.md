@@ -19,9 +19,17 @@
   `0C2F9B163923FB1467313983DA2A0B0FBED7DEDBA29D796EEBE72B703E367520`.
   Debug APK SHA-256 is
   `9678319D4A7762D65F3004079C68421CC0BFF64849B0FF40A642215AD2851AEA`.
-- iOS CI/IPA and real iPhone acceptance are pending. Do not claim device
-  acceptance. Preserve v86.113 hidden `FAKE_VISIBLE` reveal and all iPhone 16
-  freeze invariants.
+- Xcode run `31333940354` passed from `dd45e4f`. Desktop IPA:
+  `C:\Users\MOHAMMAD\Desktop\otlobli-ios-v86.114-iphone\otlobli-v86.114-iphone16-unsigned.ipa`,
+  7,045,624 bytes, SHA-256
+  `4B2A982E5563552C95F0AB4818D7659EEDF7ABF58F171EC099C281D83858856B`.
+  Archive is `com.otlobli.app`, `86.114/974`, arm64/iOS 15+, and contains the
+  new add-button selectors, push code, `FAKE_VISIBLE`, and native recompose
+  marker. CI JS is `index-DMbii6YN.js`, SHA-256
+  `58F70542C0A2C45DCF1890DB147A38C47E1983442F288206810D8E7C4C7D067D`.
+- IPA is unsigned/unprovisioned, lacks APNs entitlement, and has no Google iOS
+  callback scheme. Real-device acceptance is pending; do not describe it as
+  App-Store-ready. Preserve v86.113 hidden reveal and iPhone 16 invariants.
 
 # Current candidate — v86.113 host-first iOS SHEIN reveal (2026-08-09)
 
