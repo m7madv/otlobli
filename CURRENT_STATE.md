@@ -33,12 +33,25 @@ Budgets: JS raw `1,164,614/1,200,000`, total JS gzip `322,199/370,000`, CSS
 `63,670/70,000`, fonts `81,364/100,000`, SHEIN source `549,182/550,000`.
 The synchronized bundle is `index-D_2Iz6xX.js`, SHA-256
 `4E4D026114738DD33E66A0B1BB56F2144F51ED927630A5CA38CEFC6BDA5CFF7E`,
-identical in `dist`, Android assets and iOS assets. Xcode/IPA creation and real
-iPhone acceptance are still pending. Required acceptance: scroll a product to
-ratings/comments and confirm Otlobli add stays present; leave SHEIN active long
-enough to reproduce the old tap stall and confirm either direct navigation or
-one bounded recovery; then five iPhone 16 background/resume cycles and a
-separate force-quit/cold-launch test.
+identical in `dist`, Android assets and iOS assets.
+
+GitHub/Xcode run `31329654038` succeeded from commit `ecc7224`. Downloaded IPA:
+`C:\Users\MOHAMMAD\Desktop\otlobli-ios-v86.110-iphone\otlobli-ios-v86.110-iphone16\otlobli-v86.110-iphone16-unsigned.ipa`,
+7,045,328 bytes, SHA-256
+`2E78266CA7BCB7CFAF2F9D56CAE17E148C256707229AB0C15967E67D41C8A634`.
+Archive inspection confirms `com.otlobli.app`, `86.110/970`, iPhoneOS arm64,
+minimum iOS 15, production Supabase build input, push plugin code, both new fix
+markers, and the preserved native lifecycle markers. The CI asset is
+`index-v4sDXob3.js`, 1,165,802 bytes, SHA-256
+`424838ED1B5E2C95AA37FB4CB254818873124F3F02DBFA835A770D4CEF0A2B86`.
+The app itself has no signature or provisioning profile. GitHub still lacks
+`VITE_GOOGLE_IOS_CLIENT_ID`, so Google is hidden, and there is no
+`aps-environment` entitlement. This is an unsigned device-test artifact, not a
+publish-ready App Store archive. Real iPhone acceptance is still pending:
+scroll a product to ratings/comments and confirm Otlobli add stays present;
+leave SHEIN active long enough to reproduce the old tap stall and confirm
+either direct navigation or one bounded recovery; then perform five iPhone 16
+background/resume cycles and a separate force-quit/cold-launch test.
 
 # Previous candidate — v86.109 iPhone 6 first-frame SHEIN add-button concealment (2026-08-09)
 

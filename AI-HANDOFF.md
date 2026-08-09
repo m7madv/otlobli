@@ -23,8 +23,15 @@
 - Version `86.110/970`. Build/freeze/performance, diff check and both native
   syncs pass. Bundle `index-D_2Iz6xX.js` is identical across dist/Android/iOS,
   SHA-256 `4E4D026114738DD33E66A0B1BB56F2144F51ED927630A5CA38CEFC6BDA5CFF7E`.
-  SHEIN source is `549,182/550,000`; reduce before adding more. Xcode artifact
-  and all real-iPhone acceptance remain pending.
+  SHEIN source is `549,182/550,000`; reduce before adding more.
+- Xcode run `31329654038` passed from `ecc7224`. Desktop IPA:
+  `C:\Users\MOHAMMAD\Desktop\otlobli-ios-v86.110-iphone\otlobli-ios-v86.110-iphone16\otlobli-v86.110-iphone16-unsigned.ipa`,
+  7,045,328 bytes, SHA-256
+  `2E78266CA7BCB7CFAF2F9D56CAE17E148C256707229AB0C15967E67D41C8A634`.
+  Archive is `com.otlobli.app`, `86.110/970`, arm64, iOS 15+, and contains the
+  new review/tap markers plus native recompose and push code. App-level signing,
+  provisioning, `aps-environment`, and Google iOS OAuth callback are absent;
+  do not call it publish-ready. All real-iPhone acceptance remains pending.
 
 # Previous candidate — v86.109 iPhone 6 first-frame SHEIN add concealment (2026-08-09)
 
