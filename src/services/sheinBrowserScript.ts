@@ -1,9 +1,6 @@
-import cairoArabicFontDataUrl from '@fontsource-variable/cairo/files/cairo-arabic-wght-normal.woff2?inline'
 import { OTLOBLI_SKU_TAP_JS } from './sheinSkuTap'
 
-const OTLOBLI_CAIRO_FONT_CSS =
-  '@font-face{font-family:"OtlobliCairo";src:url("' + cairoArabicFontDataUrl + '") format("woff2");font-style:normal;font-weight:200 1000;font-display:block;}' +
-  '.login-bar.j-login-bar{display:none!important}'
+const OTLOBLI_SHEIN_BASE_CSS = '.login-bar.j-login-bar{display:none!important}'
 
 const OTLOBLI_NAV_STYLE_VERSION = 'v86.4.0'
 const OTLOBLI_NAV_CSS =
@@ -18,7 +15,7 @@ const OTLOBLI_NAV_CSS =
   'background:#fff!important;border-top:1px solid #bccac0!important;' +
   'backdrop-filter:none!important;-webkit-backdrop-filter:none!important;' +
   'padding:0 0 16px 0!important;padding:0 0 max(env(safe-area-inset-bottom, 0px), 16px) 0!important;margin:0!important;' +
-  'font-family:OtlobliCairo,system-ui,-apple-system,sans-serif!important;font-size:12px!important;line-height:normal!important;' +
+  'font-family:system-ui,-apple-system,sans-serif!important;font-size:12px!important;line-height:normal!important;' +
   'opacity:1!important;visibility:visible!important;pointer-events:auto!important;'
 
 // Document-start touch routing beats modal click cancellation. The timestamp
@@ -336,12 +333,12 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
 
   function mount() {
     ensureEarlyViewportFitCover();
-    if (!document.getElementById('otlobli-cairo-font')) {
+    if (!document.getElementById('otlobli-base-style')) {
       var fontParent = document.head || document.documentElement;
       if (fontParent) {
         var fontStyle = document.createElement('style');
-        fontStyle.id = 'otlobli-cairo-font';
-        fontStyle.textContent = ${JSON.stringify(OTLOBLI_CAIRO_FONT_CSS)};
+        fontStyle.id = 'otlobli-base-style';
+        fontStyle.textContent = ${JSON.stringify(OTLOBLI_SHEIN_BASE_CSS)};
         fontParent.appendChild(fontStyle);
       }
     }
@@ -372,7 +369,7 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
         'min-width:0!important;height:auto!important;min-height:0!important;align-self:stretch!important;border:0!important;' +
         'background:transparent!important;display:flex!important;flex-direction:column!important;align-items:center!important;' +
         'justify-content:center!important;padding:10px 0 0 0!important;margin:0!important;box-sizing:border-box!important;font-size:12px!important;' +
-        'line-height:normal!important;font-weight:700!important;font-family:OtlobliCairo,system-ui,-apple-system,sans-serif!important;color:' +
+        'line-height:normal!important;font-weight:700!important;font-family:system-ui,-apple-system,sans-serif!important;color:' +
         (active ? '#006948' : '#3d4a42') + '!important;';
       if (active) {
         var indicator = document.createElement('span');
@@ -424,22 +421,17 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   ${OTLOBLI_NAV_TOUCH_BRIDGE_JS}
 
-  function ensureOtlobliCairoFont() {
+  function ensureOtlobliBaseStyle() {
     var parent = document.head || document.documentElement;
     if (!parent) return false;
-    if (document.getElementById('otlobli-cairo-font')) return true;
+    if (document.getElementById('otlobli-base-style')) return true;
     var fontStyle = document.createElement('style');
-    fontStyle.id = 'otlobli-cairo-font';
-    fontStyle.textContent = ${JSON.stringify(OTLOBLI_CAIRO_FONT_CSS)};
+    fontStyle.id = 'otlobli-base-style';
+    fontStyle.textContent = ${JSON.stringify(OTLOBLI_SHEIN_BASE_CSS)};
     parent.appendChild(fontStyle);
     return true;
   }
-  if (!ensureOtlobliCairoFont()) {
-    var otlobliCairoFontTimer = setInterval(function () {
-      if (ensureOtlobliCairoFont()) clearInterval(otlobliCairoFontTimer);
-    }, 25);
-    setTimeout(function () { clearInterval(otlobliCairoFontTimer); }, 1200);
-  }
+  ensureOtlobliBaseStyle();
 
   function ensureViewportFitCover() {
     if (!document.head) return;
@@ -546,7 +538,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         tab.style.cssText = 'position:relative!important;flex:1 1 0!important;height:74px!important;min-height:74px!important;max-height:74px!important;' +
           'border:0!important;background:transparent!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:4px!important;' +
           'padding:10px 0 0 0!important;margin:0!important;box-sizing:border-box!important;font-size:12px!important;line-height:normal!important;' +
-          'font-family:OtlobliCairo,system-ui,-apple-system,sans-serif!important;font-weight:700!important;color:' + (item.type ? '#3d4a42' : '#006948') + '!important;';
+          'font-family:system-ui,-apple-system,sans-serif!important;font-weight:700!important;color:' + (item.type ? '#3d4a42' : '#006948') + '!important;';
         tab.insertAdjacentHTML('afterbegin','<svg width=22 height=22 viewBox="0 0 24 24" fill=none stroke=currentColor stroke-width=1.8 stroke-linecap=round stroke-linejoin=round>' + OTLOBLI_NAV_ICONS[item.icon] + '</svg>');
         if (!item.type) {
           var indicator = document.createElement('span');
@@ -974,7 +966,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       el.id = id;
       el.setAttribute('role', 'status');
       el.setAttribute('aria-live', 'polite');
-      el.style.cssText = 'position:fixed!important;top:calc(env(safe-area-inset-top, 0px) + 10px)!important;left:50%!important;transform:translateX(-50%)!important;max-width:90vw!important;background:rgba(255,255,255,.97)!important;box-shadow:0 6px 20px rgba(6,63,45,.18)!important;border:1px solid rgba(0,122,82,.18)!important;border-radius:999px!important;z-index:2147483646!important;display:flex!important;align-items:center!important;gap:9px!important;padding:8px 15px!important;direction:rtl!important;font-family:OtlobliCairo,system-ui,sans-serif!important;color:#063f2d!important;pointer-events:none!important;';
+      el.style.cssText = 'position:fixed!important;top:calc(env(safe-area-inset-top, 0px) + 10px)!important;left:50%!important;transform:translateX(-50%)!important;max-width:90vw!important;background:rgba(255,255,255,.97)!important;box-shadow:0 6px 20px rgba(6,63,45,.18)!important;border:1px solid rgba(0,122,82,.18)!important;border-radius:999px!important;z-index:2147483646!important;display:flex!important;align-items:center!important;gap:9px!important;padding:8px 15px!important;direction:rtl!important;font-family:system-ui,-apple-system,sans-serif!important;color:#063f2d!important;pointer-events:none!important;';
       document.body.appendChild(el);
     }
     el.innerHTML = '<span style="width:16px;height:16px;border:3px solid #d8efe4;border-top-color:#007a52;border-radius:50%;display:inline-block;flex-shrink:0;animation:otlobli-spin .8s linear infinite"></span><span style="font-weight:800;font-size:13px;white-space:nowrap">\u062c\u0627\u0631\u064a \u0636\u0628\u0637 \u0627\u0644\u0645\u0646\u0637\u0642\u0629\u2026 \u0625\u0644\u0649 ' + sheinRegionCountryLabel() + '</span>';
@@ -6234,7 +6226,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         'background:transparent!important;display:flex!important;flex-direction:column!important;align-items:center!important;' +
         'justify-content:center!important;padding:10px 0 0 0!important;margin:0!important;' +
         'box-sizing:border-box!important;font-size:12px!important;line-height:normal!important;font-weight:700!important;' +
-        'font-family:OtlobliCairo,system-ui,-apple-system,sans-serif!important;color:' + (isActiveTab ? '#006948' : '#3d4a42') + '!important;';
+        'font-family:system-ui,-apple-system,sans-serif!important;color:' + (isActiveTab ? '#006948' : '#3d4a42') + '!important;';
       if (isActiveTab) {
         var indicator = document.createElement('span');
         indicator.style.cssText = 'position:absolute!important;top:0!important;left:50%!important;transform:translateX(-50%)!important;width:32px!important;height:4px!important;border-radius:999px!important;background:#006948!important;';

@@ -1,5 +1,41 @@
 # Otlobli Current State
 
+## Active candidate — v86.96 fast startup + persistent SVG navigation (2026-08-09)
+
+The cold path was waiting for two avoidable delays: it held a usable cached
+store region behind the remote settings response, and it waited for the
+slower VPN-geo service even when the selected store had already proved
+reachable. v86.96 opens immediately from a valid cached region; the existing
+`JSON.stringify` guard still recreates the store only if the eventual admin
+response truly changes that region. The VPN gate now opens as soon as a real
+asset from the selected store decodes, while the geo lookup continues only for
+later diagnostic text. A failure still follows the existing VPN/offline path.
+
+An inline, zero-network boot shell now paints the Otlobli brand and four SVG
+navigation tabs before the main JavaScript bundle parses. React replaces that
+shell on its first render, so there is no empty/icon-less interval. SHEIN's
+injected nav also no longer embeds or waits on a complete Cairo font file; it
+uses the device system font with the same inline SVG icons. This removes the
+short 25 ms font bootstrap loop and a large base64 font payload. No native
+WebView lifecycle, cache-recovery rules, recompose timing, or region-change
+behavior changed.
+
+Android `86.96/956` was built and installed on the connected SM-N950F / Note
+8. A cold activity launch measured `TotalTime: 1741 ms`; passive live
+inspection then confirmed a loaded Qatar SHEIN home page with visible
+`#otlobli-nav` and four SVGs, while the underlying React shell also contained
+four bottom-nav SVGs. No cart/account data was changed. APK:
+`android/app/build/outputs/apk/debug/app-debug.apk`, 11,087,570 bytes,
+SHA-256 `23ACB683FB90ECF118A8AF15948A1A74B1F5E2402660C8E811391124B83D0E50`.
+
+Validation passed: emitted-script parser, iPhone freeze guard, production
+build, low-end budget, Android/iOS sync, Android debug build and Note 8
+install. Largest JS is now `1,155,517 / 1,200,000` bytes and total gzip JS
+`320,778 / 370,000`, down from v86.95 by 41,096 raw and 33,008 gzip bytes;
+CSS/fonts remain within budget. First installs still wait for a real region
+and reachability decision, but show the static shell immediately. Real iPhone
+16 cold-launch plus five background/resume acceptance remains required.
+
 ## Active candidate — v86.95 SHEIN product quantity-option capture (2026-08-09)
 
 The connected Note 8 live DOM for the pink three-makeup-bag product

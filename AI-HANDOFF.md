@@ -1,5 +1,27 @@
 # Otlobli AI Handoff
 
+## Current candidate — v86.96 fast startup without icon gaps (2026-08-09)
+
+- `index.html` now contains a tiny static boot shell with the four exact
+  inline-SVG nav icons. It is visible before the bundle evaluates and React
+  replaces it on its first render. Do not remove it, replace it with a remote
+  font/icon library, or make its boot tabs interactive before React is ready.
+- Valid cached store regions now set `storeRegionsReady` immediately; remote
+  settings still fetch at launch and the protected `JSON.stringify` region
+  comparison remains the sole trigger for a true region rebuild. First install
+  still waits for the remote region instead of guessing a country.
+- `checkStoreReachable()` resolves on the first real selected-store image, and
+  the startup VPN gate races that against geo. Store success opens immediately;
+  geo can finish later for diagnostics. Do not restore the geo-first await or
+  make a failed probe silently pass.
+- The injected SHEIN nav now uses system Arabic text and inline SVG. The
+  previous embedded Cairo data URL and its 25 ms startup retry were removed;
+  do not reintroduce a blocking font download into the store's first paint.
+- Android `86.96/956` is installed on Note 8. One cold activity launch measured
+  1.741 s, and passive inspection confirmed four visible SHEIN nav SVGs plus
+  four React bottom-nav SVGs. Freeze guard/build/performance/Android+iOS sync
+  pass; real iPhone acceptance remains required.
+
 ## Current candidate — v86.95 product `1PC` option retained separately (2026-08-09)
 
 - Live Note 8 DOM evidence for SHEIN `p-216351093`: selected `M` belongs to

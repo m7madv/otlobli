@@ -1,5 +1,40 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
+## Slow cold startup and intermittent icon-less navigation (v86.96, 2026-08-09)
+
+- **Symptom:** The app was usable once open, but initial entry could feel
+  delayed; the customer specifically required the bottom navigation and its
+  icons to be visible immediately rather than appearing later.
+- **Root causes (confirmed in source):** Startup waited for the remote region
+  response even when a valid cached region existed. Its VPN decision started a
+  direct selected-store check in parallel but always awaited the separate geo
+  service first. In addition, the SHEIN injected nav embedded a full Cairo font
+  as a base64 payload and used `font-display:block`, plus a brief font-style
+  retry loop. Those are unnecessary first-paint dependencies for a four-tab
+  bar whose icons are already inline SVG.
+- **Decision:** Show a static local boot shell in `index.html` before React
+  parses; it contains the permanent four SVG tabs and is replaced on React's
+  first render. Release cached regions immediately and preserve the existing
+  JSON comparison before any rebuild. Treat the first decoded image from the
+  selected storefront as a successful startup gate; retain geo only as
+  non-blocking diagnostic information. Replace the injected-nav font with the
+  platform system font and remove the embedded font/retry.
+- **Why this choice:** It removes startup waits and payload instead of masking
+  them with extra timers, a WebView restart, an optimistic VPN bypass, or a
+  delayed navigation mount. It keeps a deliberate first-install safety path
+  and every existing region/failure guard.
+- **Do not do:** Do not reintroduce a remote/blocking nav font, remove the
+  boot shell, await geo before a proven store connection, or open from the
+  default region when no cache exists. Do not touch protected iPhone
+  recompose/cache-recovery code for this performance change.
+- **Validation:** v86.96/956 passed emitted-script parsing, freeze guard,
+  production build, low-end budget, Android/iOS sync, Android debug build and
+  Note 8 install. The app cold activity launch measured 1.741 s. Passive live
+  inspection found a loaded Qatar SHEIN page with visible `#otlobli-nav` and
+  four SVGs; the React shell had four SVG bottom-nav icons too. Bundle size
+  fell from `1,196,613` to `1,155,517` raw JS bytes and from `353,786` to
+  `320,778` gzip JS bytes. This is not iPhone device acceptance.
+
 ## SHEIN SKU quantity option was omitted from the cart label (v86.95, 2026-08-09)
 
 - **Symptom:** For the pink three-makeup-bag product `p-216351093`, the cart

@@ -121,6 +121,23 @@ const readCachedStoreRegions = (): StoreRegions => {
   }
 }
 
+const hasCachedStoreRegions = () => {
+  if (typeof window === 'undefined') return false
+  try {
+    const cached = JSON.parse(window.localStorage.getItem(STORE_REGIONS_CACHE_KEY) || '{}') as {
+      shein?: unknown
+      temu?: unknown
+    }
+    const hasRegion = (value: unknown) =>
+      typeof value === 'string'
+        ? value.trim().length > 0
+        : !!value && typeof value === 'object'
+    return hasRegion(cached.shein) && hasRegion(cached.temu)
+  } catch {
+    return false
+  }
+}
+
 const buildSheinHomeUrl = (region: StoreRegion) =>
   `https://m.shein.com/ar/?currency=${region.currency}&localcountry=${region.countryCode}&country=${region.countryCode}&countryCode=${region.countryCode}&country_code=${region.countryCode}&lang=${region.language}&language=${region.language}&ship_to=${region.countryCode}&shipTo=${region.countryCode}&shipToCountry=${region.countryCode}&shippingCountry=${region.countryCode}&shipping_country=${region.countryCode}&store_country=${region.countryCode}`
 
@@ -910,7 +927,10 @@ function App() {
   const [shippingCostShein, setShippingCostShein] = useState(FIXED_SHIPPING_SYP)
   const [shippingCostTemu, setShippingCostTemu] = useState(FIXED_SHIPPING_SYP)
   const [storeRegions, setStoreRegions] = useState<StoreRegions>(readCachedStoreRegions)
-  const [storeRegionsReady, setStoreRegionsReady] = useState(!APP_SETTINGS_URL)
+  // A previously verified region lets a returning customer open immediately.
+  // The settings request still runs and the existing equality guard rebuilds
+  // the store only when an administrator actually changed that region.
+  const [storeRegionsReady, setStoreRegionsReady] = useState(() => !APP_SETTINGS_URL || hasCachedStoreRegions())
   const storeRegionsRef = useRef(storeRegions)
   useEffect(() => { storeRegionsRef.current = storeRegions }, [storeRegions])
   const commitStoreRegions = useCallback((next: StoreRegions) => {
@@ -2788,9 +2808,28 @@ function App() {
         probeImage('https://m.shein.com/favicon.ico'),
         probeImage('https://img.ltwebstatic.com/images3_spmp/2024/06/20/17/1718854498b4a8f5ebce05ea476acae42de72b810a_thumbnail_80x80.webp'),
       ]
-    return Promise.all(probes)
-      .then((results) => results.some(Boolean))
-      .catch(() => false)
+    // The first successfully decoded store asset is enough to prove that the
+    // selected storefront is reachable. Waiting for every probe left a cold
+    // launch behind one slow CDN request even when the store was already ready.
+    return new Promise<boolean>((resolve) => {
+      let remaining = probes.length
+      let settled = false
+      const finish = (reachable: boolean) => {
+        if (settled) return
+        settled = true
+        resolve(reachable)
+      }
+      probes.forEach((probe) => {
+        void probe.then((reachable) => {
+          if (reachable) {
+            finish(true)
+            return
+          }
+          remaining -= 1
+          if (remaining === 0) finish(false)
+        })
+      })
+    })
   }
 
   useEffect(() => {
@@ -2800,13 +2839,31 @@ function App() {
       // الفحصان بالتوازي: وصول المتجر + الموقع الجغرافي لخروج الإنترنت.
       const resolveState = async (): Promise<'ok' | 'no-vpn' | 'offline' | null> => {
         const storeReachablePromise = checkStoreReachable(selectedStore)
-        const geo = await probeVpnGeo()
+        const geoPromise = probeVpnGeo()
+        const first = await Promise.race([
+          storeReachablePromise.then((reachable) => ({ source: 'store' as const, reachable })),
+          geoPromise.then((geo) => ({ source: 'geo' as const, geo })),
+        ])
+        if (cancelled) return null
+
+        // A real asset from the chosen store is the fastest reliable success
+        // signal. Keep the geo lookup for the later diagnostic text, but never
+        // hold a ready storefront behind it.
+        if (first.source === 'store' && first.reachable) {
+          storeReachableRef.current = true
+          void geoPromise.then((geo) => {
+            if (!cancelled && geo) setVpnGeo(geo)
+          })
+          return 'ok'
+        }
+
+        const geo = first.source === 'geo' ? first.geo : await geoPromise
         if (cancelled) return null
         if (geo) {
           setVpnGeo(geo)
-          return isBlockedStoreCountry(geo.countryCode) ? 'no-vpn' : 'ok'
+          if (!isBlockedStoreCountry(geo.countryCode)) return 'ok'
         }
-        const storeOk = await storeReachablePromise
+        const storeOk = first.source === 'store' ? first.reachable : await storeReachablePromise
         if (cancelled) return null
         storeReachableRef.current = storeOk
         setVpnGeo(null)
