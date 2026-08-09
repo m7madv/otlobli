@@ -3245,12 +3245,6 @@ function App() {
             SHEIN_IOS_FREEZE_DIAGNOSTICS &&
             SHEIN_IOS_FREEZE_DIAGNOSTICS_BYPASS_RECOVERY &&
             isIosNative,
-          // The document-start bootstrap is intentionally tiny. The complete
-          // SHEIN script must run only after page load, where it owns the
-          // selected admin region, customer controls, and cart capture. Without
-          // it Android silently shows raw SHEIN with its stale stored country.
-          preShowScript: captureScript,
-          preShowScriptInjectionTime: 'pageLoad' as const,
           otlobliDocumentStartScript: `${OTLOBLI_NAV_BOOTSTRAP_SCRIPT}\n${SHEIN_IOS_FREEZE_DIAGNOSTICS && isIosNative ? SHEIN_FREEZE_DIAGNOSTIC_SCRIPT : ''}`,
           otlobliPreserveAttachedWhenHidden: true,
           // Keep React's already-mounted Otlobli shell and bottom nav visible

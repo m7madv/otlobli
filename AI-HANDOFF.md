@@ -1,5 +1,27 @@
 # Otlobli AI Handoff
 
+## Current candidate — v86.93 raw-SHEIN regression repair (2026-08-09)
+
+- The visible raw SHEIN icons, missing Otlobli nav, and false
+  `تعذر تجهيز المتجر`/VPN message were one failure: `SHEIN_CAPTURE_SCRIPT`
+  failed to parse. In a TypeScript template literal, source `/\+/g` emitted
+  invalid `/+/g`; Chromium discarded the whole script before any blocker/nav
+  mounted. Do not blame or change the VPN gate for this incident.
+- The counter now uses source `/\\+/g`, which emits a valid plus-sign regex.
+  `scripts/verify-shein-freeze-guard.mjs` now transpiles the source with inert
+  imports and parses the emitted capture script. Keep this guard; TypeScript
+  does not otherwise parse the JavaScript hidden inside the template literal.
+- The redundant SHEIN `preShowScript` path was removed; normal `browserPageLoaded`
+  injection remains the single supported path. This avoids a second heavy run
+  before the host bridge is ready.
+- Live Note 8 validation after installing `86.93/953`: Otlobli nav and add
+  button are visible/enabled on the live home/product; a raw SHEIN bottom-nav
+  candidate was absent. APK SHA-256:
+  `F4B4A97402DA28DC38F09F0814EA3EF08870A6A0C8958224716C4342AE194339`.
+- No native freeze guard/recompose timing/region rebuild logic changed. Do not
+  claim real iPhone acceptance; the five resume cycles and cold-launch test
+  remain mandatory.
+
 ## Current candidate — v86.91 three-piece quick-form bundle (2026-08-09)
 
 - The second reported product is SHEIN `p-216351093` (pink bow makeup bags).

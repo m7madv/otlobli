@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import ts from 'typescript'
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -334,6 +335,29 @@ const checks = [
 ]
 
 const failures = []
+
+// SHEIN_CAPTURE_SCRIPT is a TypeScript template literal, so TypeScript/Vite
+// validate the host file but do not parse the JavaScript eventually injected
+// into the remote store page. A single missing escape can otherwise make the
+// entire capture script fail before it mounts the Otlobli blockers and nav.
+// Transpile just this source with inert imports, then parse the emitted string
+// exactly as the WebView will receive it.
+try {
+  const source = readFileSync(resolve(projectRoot, 'src/services/sheinBrowserScript.ts'), 'utf8')
+  const output = ts.transpileModule(source, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText
+  const scriptModule = { exports: {} }
+  new Function('exports', 'require', 'module', output)(scriptModule.exports, () => ({}), scriptModule)
+  const captureScript = scriptModule.exports.SHEIN_CAPTURE_SCRIPT
+  if (typeof captureScript !== 'string' || !captureScript.trim()) {
+    failures.push('SHEIN capture-script syntax: emitted script is missing')
+  } else {
+    new Function(captureScript)
+  }
+} catch (error) {
+  failures.push(`SHEIN capture-script syntax: ${error instanceof Error ? error.message : String(error)}`)
+}
 
 for (const check of checks) {
   const absolutePath = resolve(projectRoot, check.file)

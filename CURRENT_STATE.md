@@ -1,5 +1,29 @@
 # Otlobli Current State
 
+## Active candidate — v86.93 SHEIN injected-script parse repair (2026-08-09)
+
+v86.91 introduced a package-member counter using `/\+/g` inside the
+`SHEIN_CAPTURE_SCRIPT` TypeScript template literal. Template-literal escaping
+emitted the invalid JavaScript regex `/+/g`; Chromium consequently rejected the
+**entire** injected script before it could create Otlobli's blocker, add button,
+or bottom navigation. The host then timed out waiting for the script's ready
+message and incorrectly displayed the preparation/VPN-style error. The VPN was
+not the cause.
+
+v86.93 emits `/\\+/g` correctly, removes the redundant heavy SHEIN
+`preShowScript` route, and adds a build guard that transpiles and parses the
+actual emitted `SHEIN_CAPTURE_SCRIPT`. This makes this class of escaped-template
+syntax failure fail the build instead of releasing raw SHEIN. No iPhone
+recompose timing, store-region comparison, or WebView reconstruction changed.
+
+Real Note 8 evidence after installation: on the live SHEIN home, `#otlobli-nav`
+is `display:flex` with pointer events enabled; on `p-216351093`, both the
+Otlobli add button and nav are visible/enabled and no raw SHEIN bottom-nav
+candidate is visible. The Android APK is `86.93/953`, `11,120,406` bytes,
+SHA-256 `F4B4A97402DA28DC38F09F0814EA3EF08870A6A0C8958224716C4342AE194339`.
+It is installed on the connected Note 8. Customer add-to-cart and real iPhone
+acceptance remain required.
+
 ## Active candidate — v86.91 SHEIN three-piece bundle capture (2026-08-09)
 
 The pink bow makeup-bag product (`p-216351093`) has two separate controls in

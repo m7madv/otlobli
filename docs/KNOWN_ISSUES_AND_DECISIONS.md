@@ -1,5 +1,25 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
+## SHEIN raw UI + false VPN/preparation message (v86.93, 2026-08-09)
+
+- **Symptom:** Native SHEIN icons/controls reappeared, Otlobli's bottom nav and
+  blockers disappeared, then the host showed `تعذر تجهيز المتجر` as if VPN had
+  failed.
+- **Root cause (confirmed):** The generated capture script was syntactically
+  invalid. Source `/\+/g` sat inside a TypeScript template literal and emitted
+  `/+/g`, which Chromium rejects. A parse error prevents **every** statement in
+  that script from running, including nav/blockers and the ready bridge.
+- **Decision:** Emit the literal plus matcher as `/\\+/g`; keep page-loaded
+  capture injection as the single path; remove the redundant `preShowScript`
+  run. Parse the emitted script in `verify:shein-freeze-guard` before every
+  build.
+- **Do not do:** Do not diagnose this signature as a VPN/region failure, add a
+  WebView restart loop, or weaken native iPhone recompose. Do not write a new
+  regex/backslash inside `SHEIN_CAPTURE_SCRIPT` without the emitted-script
+  parser passing.
+- **Evidence:** Note 8 / v86.93 live home and product had enabled Otlobli nav
+  and add button; no raw SHEIN bottom-nav candidate was visible.
+
 ## SHEIN quick form: package count is not cart quantity (v86.91, 2026-08-09)
 
 - **Symptom:** The pink bow makeup-bag quick form could store `1PC` instead of

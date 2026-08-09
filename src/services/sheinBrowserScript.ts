@@ -5271,7 +5271,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   function sheinQuickBundleCount(size) {
-    var count = (String(size || '').match(/\+/g) || []).length;
+    var count = (String(size || '').match(/\\+/g) || []).length;
     return count ? count + 1 : 1;
   }
 
