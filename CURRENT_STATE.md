@@ -29,6 +29,10 @@ Android artifact: `android/app/build/outputs/apk/debug/app-debug.apk`;
 `5F1C8BE741CB25F1535E4831737EA4091320D8C74DBDE2D84B3E75A1F5AB0B3B`.
 It was installed successfully on the connected SM-N950F / Note 8.
 
+Unsigned iPhone build run `31286513512` was started from commit `488374d` and
+was still in progress at handoff. It is build verification only, not device
+acceptance; download/inspection and the required real iPhone tests remain next.
+
 ## Active candidate — v86.85 Curvy button reaches its form-aware gate (2026-08-09)
 
 The first v86.84 change correctly made `addToCartFlow()` form-aware, but live Note 8 inspection found a second, earlier gate inside the floating button’s own `click` handler. That duplicate gate called `sheinOpenSkuDrawer()` and checked the background PDP before `addToCartFlow()` ran, so it could still reject a valid Curvy selection. v86.85 removes only that duplicate pre-gate: both normal PDP products and `bsc-quick-add-cart` now use the single form-aware gate in `addToCartFlow()`. This is the chosen fix because it eliminates conflicting decisions rather than adding another Curvy exception.

@@ -26,6 +26,9 @@
   `86.91/951`, `11,120,402` bytes, SHA-256
   `5F1C8BE741CB25F1535E4831737EA4091320D8C74DBDE2D84B3E75A1F5AB0B3B`.
   Installed successfully on the connected Note 8 (SM-N950F).
+- GitHub unsigned-iPhone run `31286513512` was triggered from `488374d` and
+  was in progress at handoff. It does not replace the mandatory five real
+  iPhone resume cycles and cold-launch acceptance.
 
 ## Current — v86.85 removes the duplicate Curvy pre-gate (2026-08-09)
 
