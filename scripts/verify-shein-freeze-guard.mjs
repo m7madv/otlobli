@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { runInNewContext } from 'node:vm'
 import ts from 'typescript'
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -178,6 +179,8 @@ const checks = [
       "d('product-tap-start'+(r?'-href':''))",
       "d('product-tap-fallback')",
       "d('product-tap-route-fallback')",
+      "window.__otlobliProductTapAttemptAt=Date.now()",
+      "window.__otlobliRecoverSheinChunkOnStalledTap(n[5])",
       'location.assign(n[5])',
     ],
   },
@@ -188,7 +191,21 @@ const checks = [
       'const OTLOBLI_SHEIN_CHUNK_FAILURE_BRIDGE_JS',
       "type:'sheinChunkLoadFailure'",
       'ChunkLoadError|Loading chunk',
-      '!/-p-\\\\d+/i.test(location.pathname)',
+      'product=/-p-\\\\d+/i.test(location.pathname)',
+      'window.__otlobliSheinChunkFailureAt=Date.now()',
+      'window.__otlobliRecoverSheinChunkOnStalledTap=function(url)',
+    ],
+    forbidden: [
+      "Bridge(){if(!/shein/i.test(location.hostname)||!/-p-",
+    ],
+  },
+  {
+    label: 'SHEIN review section is not a photo viewer',
+    file: 'src/services/sheinBrowserScript.ts',
+    markers: [
+      'function sheinViewerHasVisibleCounter(el, vp)',
+      '!sheinViewerHasVisibleCounter(el, vp)',
+      '/review|rating|comment|feedback|',
     ],
   },
   {
@@ -362,7 +379,7 @@ try {
   const source = readFileSync(resolve(projectRoot, 'src/services/sheinBrowserScript.ts'), 'utf8')
   const output = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-  }).outputText
+  }).outputText + '\nexports.__tapFallback=OTLOBLI_IOS_PRODUCT_TAP_FALLBACK_JS;exports.__chunkBridge=OTLOBLI_SHEIN_CHUNK_FAILURE_BRIDGE_JS;'
   const scriptModule = { exports: {} }
   new Function('exports', 'require', 'module', output)(scriptModule.exports, () => ({}), scriptModule)
   const captureScript = scriptModule.exports.SHEIN_CAPTURE_SCRIPT
@@ -370,7 +387,84 @@ try {
     failures.push('SHEIN capture-script syntax: emitted script is missing')
   } else {
     new Function(captureScript)
+    const viewerStart = captureScript.indexOf('function sheinViewerHasLargeMedia')
+    const viewerEnd = captureScript.indexOf('function sheinImageViewerRoot', viewerStart)
+    const viewerHelpers = captureScript.slice(viewerStart, viewerEnd)
+    const viewerCandidate = (text, counter) => ({
+      id: '', innerText: text,
+      matches: () => false,
+      querySelector: () => null,
+      getBoundingClientRect: () => ({ width: 400, height: 780, top: 0, bottom: 780 }),
+      querySelectorAll: (selector) => selector.startsWith('img')
+        ? [{ getBoundingClientRect: () => ({ width: 300, height: 400 }) }]
+        : [{ textContent: counter, getBoundingClientRect: () => ({ width: 34, height: 18, top: 20, bottom: 38 }) }],
+    })
+    const detectsViewer = (text, counter) => runInNewContext(
+      `${viewerHelpers}\nisSheinImageViewerCandidate(candidate, vp)`,
+      {
+        candidate: viewerCandidate(text, counter), vp: { width: 400, height: 800 },
+        window: { getComputedStyle: () => ({ display: 'block', visibility: 'visible', opacity: '1', position: 'fixed' }) },
+        parseFloat, parseInt, String,
+      },
+    )
+    if (detectsViewer('التقييمات 4.9/5', '4.9/5')) failures.push('SHEIN viewer guard: rating was mistaken for an image counter')
+    if (detectsViewer('التعليقات 1/7', '1/7')) failures.push('SHEIN viewer guard: review section was mistaken for a photo viewer')
+    if (!detectsViewer('1/7', '1/7')) failures.push('SHEIN viewer guard: real image counter no longer detects the photo viewer')
   }
+
+  const chunkCase = (pathname, attemptedTap) => {
+    const listeners = {}
+    const messages = []
+    const now = 100_000
+    const window = {
+      mobileApp: { postMessage: (message) => messages.push(message) },
+      __otlobliProductTapAttemptAt: attemptedTap ? now : 0,
+      __otlobliProductTapAttemptUrl: attemptedTap ? 'https://m.shein.com/ar/item-p-77.html' : '',
+    }
+    runInNewContext(scriptModule.exports.__chunkBridge, {
+      window,
+      location: { hostname: 'm.shein.com', pathname, href: `https://m.shein.com${pathname}` },
+      Date: { now: () => now },
+      addEventListener: (name, listener) => { listeners[name] = listener },
+    })
+    listeners.error({ message: 'ChunkLoadError: Loading chunk 42 failed' })
+    return { messages, window }
+  }
+
+  let chunk = chunkCase('/ar/', false)
+  if (chunk.messages.length !== 0) failures.push('SHEIN chunk bridge: listing error caused eager recovery')
+  if (!chunk.window.__otlobliRecoverSheinChunkOnStalledTap('https://m.shein.com/ar/item-p-88.html') ||
+      chunk.messages.length !== 1) failures.push('SHEIN chunk bridge: stalled tap did not recover a recorded listing chunk')
+  chunk = chunkCase('/ar/', true)
+  if (chunk.messages.length !== 1 || !String(chunk.messages[0]?.detail?.url).includes('-p-77')) {
+    failures.push('SHEIN chunk bridge: chunk after a stalled product tap did not preserve the product URL')
+  }
+  chunk = chunkCase('/ar/item-p-99.html', false)
+  if (chunk.messages.length !== 1) failures.push('SHEIN chunk bridge: confirmed product-route recovery regressed')
+
+  const handlers = {}, timers = [], assigned = []
+  let recoveryCalls = 0
+  const anchor = {
+    tagName: 'A', parentElement: null, isConnected: true,
+    href: 'https://m.shein.com/ar/item-p-123.html',
+    getAttribute: (name) => name === 'href' ? '/ar/item-p-123.html' : '',
+    click: () => undefined, querySelector: () => null,
+  }
+  const location = { href: 'https://m.shein.com/ar/', assign: (url) => assigned.push(url) }
+  runInNewContext(scriptModule.exports.__tapFallback, {
+    window: { __otlobliRecoverSheinChunkOnStalledTap: () => { recoveryCalls++; return true } }, location,
+    navigator: { userAgent: 'iPhone', platform: 'iPhone', maxTouchPoints: 5 },
+    document: { addEventListener: (name, listener) => { handlers[name] = listener } },
+    clearTimeout: () => undefined,
+    setTimeout: (callback) => { timers.push(callback); return timers.length },
+    Date, Math,
+  })
+  const touch = { target: { tagName: 'IMG', parentElement: anchor }, changedTouches: [{ clientX: 20, clientY: 30 }] }
+  handlers.touchstart(touch)
+  handlers.touchend(touch)
+  while (timers.length) timers.shift()()
+  if (assigned[0] !== anchor.href) failures.push('SHEIN product tap fallback: direct product anchor was not assigned')
+  if (recoveryCalls !== 0) failures.push('SHEIN product tap fallback: direct product anchor caused an unnecessary recovery')
 } catch (error) {
   failures.push(`SHEIN capture-script syntax: ${error instanceof Error ? error.message : String(error)}`)
 }

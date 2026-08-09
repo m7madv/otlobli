@@ -1,4 +1,46 @@
-# Active candidate — v86.109 iPhone 6 first-frame SHEIN add-button concealment (2026-08-09)
+# Active candidate — v86.110 SHEIN review guard + delayed iPhone tap recovery (2026-08-09)
+
+Two separate iPhone reports are addressed. First, the full-screen photo-viewer
+heuristic accepted any `number/number` text. A rating such as `4.9/5` could
+therefore make a fixed SHEIN product root look like a photo viewer after the
+customer scrolled to ratings/comments; Otlobli then correctly followed the
+wrong state and hid its add button. Viewer detection now requires a visible,
+standalone integer image counter such as `1/7`, rejects review/rating/comment
+surfaces, and still recognizes the real photo viewer.
+
+Second, the prior confirmed `ChunkLoadError` recovery listened only inside a
+product URL to avoid v86.81's eager home-page close/reopen flash. That left a
+gap when SHEIN's listing runtime failed after a long session: the visible grid
+could scroll, but tapping a product could not load its route. v86.110 records a
+confirmed listing chunk failure without reopening anything. Recovery is
+requested only when a real short iPhone product tap then remains on the same
+URL, or when a chunk fails within 15 seconds of that stalled tap. A direct
+`-p-<id>` anchor is also recognized regardless of changing card class names.
+The existing one-recovery-per-60-seconds host path, native HTTP-cache-only
+reset, cookies/storage preservation, and product URL restoration remain.
+
+No polling, MutationObserver, WebView lifecycle/recompose timing, region,
+verification, payment, wallet or order logic changed. The exact iPhone
+`appDidBecomeActive` + 0.25-second guarded recompose and Android resume defense
+are preserved. The guard now executes regression harnesses proving: listing
+chunk errors do not recover eagerly; a stalled tap after one does recover; a
+post-tap chunk preserves the product URL; direct product anchors still route;
+`4.9/5` and comment surfaces are not viewers; and a real `1/7` viewer remains.
+
+Version is `86.110/970`. Production build, expanded SHEIN freeze guard,
+low-end budget, `git diff --check`, and Android/iOS synchronization pass.
+Budgets: JS raw `1,164,614/1,200,000`, total JS gzip `322,199/370,000`, CSS
+`63,670/70,000`, fonts `81,364/100,000`, SHEIN source `549,182/550,000`.
+The synchronized bundle is `index-D_2Iz6xX.js`, SHA-256
+`4E4D026114738DD33E66A0B1BB56F2144F51ED927630A5CA38CEFC6BDA5CFF7E`,
+identical in `dist`, Android assets and iOS assets. Xcode/IPA creation and real
+iPhone acceptance are still pending. Required acceptance: scroll a product to
+ratings/comments and confirm Otlobli add stays present; leave SHEIN active long
+enough to reproduce the old tap stall and confirm either direct navigation or
+one bounded recovery; then five iPhone 16 background/resume cycles and a
+separate force-quit/cold-launch test.
+
+# Previous candidate — v86.109 iPhone 6 first-frame SHEIN add-button concealment (2026-08-09)
 
 The old iPhone 6 SHEIN product layout exposed its own wide “add to cart”
 action until Otlobli's add flow began. The existing listing-card cleaner was

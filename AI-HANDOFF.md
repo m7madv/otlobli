@@ -1,4 +1,32 @@
-# Current candidate — v86.109 iPhone 6 first-frame SHEIN add concealment (2026-08-09)
+# Current candidate — v86.110 SHEIN review guard and stalled-tap recovery (2026-08-09)
+
+- The add button disappearing at ratings/comments was a local false viewer
+  classification: the old loose counter regex accepted the `9/5` substring in
+  a rating such as `4.9/5`. Keep `sheinViewerHasVisibleCounter()` and the
+  review/rating/comment exclusion. The real viewer must still have a visible
+  standalone integer counter such as `1/7` plus large media and near-full-screen
+  geometry.
+- Long-session iPhone product taps can coincide with the already proven SHEIN
+  PWA chunk failure. Do not restore eager recovery for every home/listing
+  `ChunkLoadError`; v86.81 showed that causes needless close/open flashes.
+  `OTLOBLI_SHEIN_CHUNK_FAILURE_BRIDGE_JS` now records that error silently and
+  reports it only on a product route or after a real stalled iPhone product
+  tap. The tap fallback recognizes direct `-p-<id>` anchors before obfuscated
+  card classes and preserves the product URL for the host recovery.
+- Preserve the host's existing iOS-only 60-second recovery debounce,
+  HTTP-cache-only reset, cookies/localStorage, and product resume URL. No new
+  timers/scans were added. Preserve the exact native 0.25-second guarded
+  `appDidBecomeActive` recompose and Android `otlobliOnHostResume()` defense.
+- The expanded freeze verifier has executable regressions for non-eager listing
+  errors, stalled-tap recovery, product URL preservation, direct-anchor routing,
+  review/rating false positives and real viewer detection.
+- Version `86.110/970`. Build/freeze/performance, diff check and both native
+  syncs pass. Bundle `index-D_2Iz6xX.js` is identical across dist/Android/iOS,
+  SHA-256 `4E4D026114738DD33E66A0B1BB56F2144F51ED927630A5CA38CEFC6BDA5CFF7E`.
+  SHEIN source is `549,182/550,000`; reduce before adding more. Xcode artifact
+  and all real-iPhone acceptance remain pending.
+
+# Previous candidate — v86.109 iPhone 6 first-frame SHEIN add concealment (2026-08-09)
 
 - Cause: `hideListingCardAddButtons()` deliberately allowed only controls up to
   96px, so the old iPhone 6 product-width SHEIN add action stayed visible until

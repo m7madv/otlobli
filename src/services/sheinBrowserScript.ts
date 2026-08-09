@@ -57,13 +57,11 @@ const OTLOBLI_NAV_TOUCH_BRIDGE_JS = `
 `
 
 const OTLOBLI_IOS_PRODUCT_TAP_FALLBACK_JS = `
-function otlobliInstallIosProductTapFallback(){var u=navigator.userAgent||'',s,t;if(!(/iP(?:hone|od|ad)/i.test(u)||navigator.platform==='MacIntel'&&(navigator.maxTouchPoints||0)>1))return;function c(n){for(var i=0;n&&i<9;i++,n=n.parentElement){var k=String(n.className||'');if((n.classList&&n.classList.contains('product-card'))||/sd-ccc-products__item|(?:^|\s)(?:product|goods)[-_][^\s]*(?:item|card)/i.test(k)||n.getAttribute&&n.getAttribute('role')==='link'&&/(?:product|goods|sd-ccc)/i.test(k))return n}return null}function p(e){var n=e.changedTouches&&e.changedTouches[0];return n&&[n.clientX,n.clientY]}function h(n){try{var a=n&&n.querySelector&&n.querySelector('a[href*="-p-"]');return a&&a.href||''}catch(e){return''}}function d(x){try{window.__otlobliFreezeProbe&&window.__otlobliFreezeProbe(x)}catch(e){}}function g(x,o){try{window.__otlobliTapDiagnostic&&window.__otlobliTapDiagnostic(x,o||{})}catch(e){}}document.addEventListener('touchstart',function(e){clearTimeout(t);var n=c(e.target),v=p(e),r=h(n);s=n&&v?[n,location.href,Date.now(),v[0],v[1],r]:null;if(n){d('product-tap-start'+(r?'-href':''));g('armed',{productHref:r||'',pageHref:location.href})}},{capture:true,passive:true});document.addEventListener('touchend',function(e){var n=s,v=p(e);s=null;if(!n||!v||c(e.target)!==n[0]||Date.now()-n[2]>650||Math.abs(v[0]-n[3])+Math.abs(v[1]-n[4])>16)return;d('product-tap-fallback');g('scheduled',{pageHref:n[1],productHref:n[5]||''});clearTimeout(t);t=setTimeout(function(){if(location.href!==n[1]){g('skipped-route-changed',{before:n[1],after:location.href});return}if(n[0].isConnected){g('click',{pageHref:location.href});n[0].click()}setTimeout(function(){if(location.href===n[1]&&n[5]){d('product-tap-route-fallback');g('location-assign',{from:n[1],to:n[5]});location.assign(n[5])}},220)},280)},{capture:true,passive:true})}
+function otlobliInstallIosProductTapFallback(){var u=navigator.userAgent||'',s,t;if(!(/iP(?:hone|od|ad)/i.test(u)||navigator.platform==='MacIntel'&&(navigator.maxTouchPoints||0)>1))return;function a(n){for(var i=0;n&&i<10;i++,n=n.parentElement)if(n.tagName==='A'&&/-p-\\d+/i.test(n.getAttribute('href')||''))return n;return null}function c(n){var l=a(n);if(l)return l;for(var i=0;n&&i<9;i++,n=n.parentElement){var k=String(n.className||'');if((n.classList&&n.classList.contains('product-card'))||/sd-ccc-products__item|(?:^|\s)(?:product|goods)[-_][^\s]*(?:item|card)/i.test(k)||n.getAttribute&&n.getAttribute('role')==='link'&&/(?:product|goods|sd-ccc)/i.test(k))return n}return null}function p(e){var n=e.changedTouches&&e.changedTouches[0];return n&&[n.clientX,n.clientY]}function h(n){try{var l=a(n),q=l||n&&n.querySelector&&n.querySelector('a[href*="-p-"]');return q&&q.href||''}catch(e){return''}}function d(x){try{window.__otlobliFreezeProbe&&window.__otlobliFreezeProbe(x)}catch(e){}}function g(x,o){try{window.__otlobliTapDiagnostic&&window.__otlobliTapDiagnostic(x,o||{})}catch(e){}}document.addEventListener('touchstart',function(e){clearTimeout(t);var n=c(e.target),v=p(e),r=h(n);s=n&&v?[n,location.href,Date.now(),v[0],v[1],r]:null;if(n){d('product-tap-start'+(r?'-href':''));g('armed',{productHref:r||'',pageHref:location.href})}},{capture:true,passive:true});document.addEventListener('touchend',function(e){var n=s,v=p(e);s=null;if(!n||!v||c(e.target)!==n[0]||Date.now()-n[2]>650||Math.abs(v[0]-n[3])+Math.abs(v[1]-n[4])>16)return;d('product-tap-fallback');g('scheduled',{pageHref:n[1],productHref:n[5]||''});clearTimeout(t);t=setTimeout(function(){if(location.href!==n[1]){g('skipped-route-changed',{before:n[1],after:location.href});return}window.__otlobliProductTapAttemptAt=Date.now();window.__otlobliProductTapAttemptUrl=n[5]||'';if(n[0].isConnected){g('click',{pageHref:location.href});n[0].click()}setTimeout(function(){if(location.href!==n[1])return;d('product-tap-route-fallback');g('location-assign',{from:n[1],to:n[5]||''});if(n[5]){location.assign(n[5]);return}if(window.__otlobliRecoverSheinChunkOnStalledTap&&window.__otlobliRecoverSheinChunkOnStalledTap(n[5]))return},220)},280)},{capture:true,passive:true})}
 otlobliInstallIosProductTapFallback();
 `
 
-// Reports only a confirmed SHEIN PWA chunk failure once; it does not alter
-// navigation or site storage. The host performs the bounded fresh-session recovery.
-const OTLOBLI_SHEIN_CHUNK_FAILURE_BRIDGE_JS = `function otlobliInstallSheinChunkFailureBridge(){if(!/shein/i.test(location.hostname)||!/-p-\\d+/i.test(location.pathname)||window.__otlobliSheinChunkFailureBridge)return;window.__otlobliSheinChunkFailureBridge=1;var sent=0;function p(v){if(sent)return;var m='';try{m=String(v&&((v.message||v.reason)||(v.error&&v.error.message))||v||'')}catch(e){}if(!/ChunkLoadError|Loading chunk\\s+\\d+\\s+failed/i.test(m))return;sent=1;try{var d={type:'sheinChunkLoadFailure',url:location.href,message:m.slice(0,180)},h=window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.messageHandler;if(window.mobileApp&&window.mobileApp.postMessage)window.mobileApp.postMessage({detail:d});else if(h)h.postMessage({detail:d})}catch(e){}}addEventListener('error',function(e){p(e&&((e.error&&e.error.message)||e.message))},true);addEventListener('unhandledrejection',function(e){p(e&&e.reason)})}otlobliInstallSheinChunkFailureBridge();`
+const OTLOBLI_SHEIN_CHUNK_FAILURE_BRIDGE_JS = `function otlobliInstallSheinChunkFailureBridge(){if(!/shein/i.test(location.hostname)||window.__otlobliSheinChunkFailureBridge)return;window.__otlobliSheinChunkFailureBridge=1;var sent=0,product=/-p-\\d+/i.test(location.pathname);function s(url,m){if(sent)return false;sent=1;try{var d={type:'sheinChunkLoadFailure',url:url||location.href,message:String(m||'').slice(0,180)},h=window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.messageHandler;if(window.mobileApp&&window.mobileApp.postMessage)window.mobileApp.postMessage({detail:d});else if(h)h.postMessage({detail:d});return true}catch(e){return false}}function p(v){var m='';try{m=String(v&&((v.message||v.reason)||(v.error&&v.error.message))||v||'')}catch(e){}if(!/ChunkLoadError|Loading chunk\\s+\\d+\\s+failed/i.test(m))return;window.__otlobliSheinChunkFailureAt=Date.now();if(product||Date.now()-(window.__otlobliProductTapAttemptAt||0)<15000)s(window.__otlobliProductTapAttemptUrl,m)}window.__otlobliRecoverSheinChunkOnStalledTap=function(url){if(sent)return true;return Date.now()-(window.__otlobliSheinChunkFailureAt||0)<600000&&s(url,'stalled product tap after ChunkLoadError')};addEventListener('error',function(e){p(e&&((e.error&&e.error.message)||e.message))},true);addEventListener('unhandledrejection',function(e){p(e&&e.reason)})}otlobliInstallSheinChunkFailureBridge();`
 
 // Runs as a real WKUserScript before SHEIN's first document starts. It mounts
 // only Otlobli's existing bottom navigation; it does not touch SHEIN network,
@@ -5792,10 +5790,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   var __otlobliQuickAddClearanceNext = 0;
-  // The full SHEIN script can be injected both by the native page-load hook
-  // and the host's page-loaded event. Recreate only a stale button from an
-  // earlier script revision, so the active click handler always has the same
-  // Curvy form logic as the latest injected capture helpers.
   var OTLOBLI_ADD_BUTTON_REVISION = '2026-08-09-curvy-form-snapshot';
   function ensureAddToCartButton() {
     var btn = document.getElementById('otlobli-add-btn');
@@ -6005,10 +5999,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
       document.body.appendChild(btn);
     }
     btn.setAttribute('data-otlobli-add-revision', OTLOBLI_ADD_BUTTON_REVISION);
-    // NOT re-claiming last-child-of-body per tick (unlike ensureOtlobliNav):
-    // re-appendChild retriggers the otlobli-pop2 entrance so the button flickered
-    // every ~300ms on busy SPA pages. Also hidden inside a full-screen gallery
-    // (its tappable area leaked into SHEIN's black letterbox on iPhone 16).
     var showAddBtn = looksLikeProductPage() &&
       !(IS_TEMU && temuImageViewerOpen()) &&
       !(IS_SHEIN && sheinImageViewerOpen());
@@ -7391,10 +7381,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
   }
 
-  // SHEIN's photo viewer is fixed and near-full-screen, but on older layouts
-  // that fixed root is nested several levels below body. Detect it from a few
-  // painted points and walk upward to the fixed root; this stays independent
-  // of obfuscated classes without scanning the entire product DOM.
   var __otlobliSheinViewerRoot = null;
   var __otlobliSheinViewerDetectedRoot = null;
   var __otlobliSheinViewerScanAt = 0;
@@ -7408,14 +7394,21 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return false;
   }
 
+  function sheinViewerHasVisibleCounter(el, vp) {
+    var nodes = el.querySelectorAll ? el.querySelectorAll('span,em,i,[class*="count" i],[class*="index" i]') : [];
+    for (var i = 0; i < nodes.length && i < 120; i++) {
+      var value = String(nodes[i].textContent || '').trim();
+      if (!/^\\d{1,3}\\s*\\/\\s*\\d{1,3}$/.test(value)) continue;
+      var parts = value.split('/');
+      var current = parseInt(parts[0], 10), total = parseInt(parts[1], 10);
+      var rect = nodes[i].getBoundingClientRect();
+      if (current > 0 && total > 1 && current <= total && rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < vp.height) return true;
+    }
+    return false;
+  }
+
   function isSheinImageViewerCandidate(el, vp) {
     if (!el || (el.id || '').indexOf('otlobli') === 0 || !el.getBoundingClientRect) return false;
-    // Curvy uses a fixed, image-rich quick-add drawer. It deliberately looks
-    // like a gallery to the generic viewer heuristic (large thumbnails plus a
-    // 1/N counter), but it is a live SKU form. Treating it as a gallery makes
-    // the viewer guard stop the Otlobli add button's event before its handler
-    // can read the selected Curvy size. Keep the real full-screen gallery
-    // guard intact; exclude only roots that own this exact quick-add form.
     if ((el.matches && el.matches('.bsc-quick-add-cart')) ||
         (el.querySelector && el.querySelector('.bsc-quick-add-cart'))) return false;
     var style = window.getComputedStyle(el);
@@ -7427,7 +7420,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (rect.width < vp.width * 0.88 || rect.height < vp.height * 0.55) return false;
     if (rect.top > 120 || rect.bottom < vp.height * 0.72) return false;
     var text = String(el.innerText || el.textContent || '').replace(/\\s+/g, ' ').trim();
-    if (text.length > 700 || !/\\d+\\s*\\/\\s*\\d+/.test(text)) return false;
+    if (text.length > 700 || /review|rating|comment|feedback|\\u0627\\u0644\\u062a\\u0642\\u064a\\u064a\\u0645|\\u0627\\u0644\\u062a\\u0639\\u0644\\u064a\\u0642/i.test(text) || !sheinViewerHasVisibleCounter(el, vp)) return false;
     return sheinViewerHasLargeMedia(el, vp);
   }
 
@@ -7484,12 +7477,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return !!sheinImageViewerRoot(!!forceScan);
   }
 
-  // Older WKWebView can keep hit-testing a max-z fixed element while painting
-  // a newer composited full-screen sibling over it. When the exact SHEIN
-  // viewer appears, reclaim paint order once (not every tick), make the back
-  // button opaque over SHEIN's close glyph, and place a transparent guard in
-  // the lower black letterbox so taps cannot fall through to a native/add
-  // action. Outside the viewer every v85.8.10 nav style remains untouched.
   function stabilizeSheinImageViewerChrome() {
     if (!IS_SHEIN || !document.body) return;
     var viewer = sheinImageViewerRoot();
@@ -7523,9 +7510,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
       viewerFollowsChrome = !!(back.compareDocumentPosition(viewer) & 4);
     }
     if (__otlobliSheinViewerRoot !== viewer || viewerFollowsChrome || !guard.parentElement) {
-      // Append in back-to-front order. Moving these existing nodes only on a
-      // viewer transition avoids the repeating animation/flicker caused by
-      // reclaiming them on every 300ms tick.
       document.body.appendChild(guard);
       if (nav) (document.documentElement || document.body).appendChild(nav);
       if (back) {
