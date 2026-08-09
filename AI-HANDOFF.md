@@ -16,12 +16,15 @@
 - This batch never changes the WebView lifecycle: preserve the iPhone
   `otlobliForceRecompose` 0.25s guard, `otlobliOnHostResume()`, and the active
   `JSON.stringify` region comparison. The user has old iPhone v86.82 where
-  SHEIN can stop at skeleton content; build v86.100 before diagnosing it on
-  the real device. It is not yet iPhone-accepted.
+  SHEIN can stop at skeleton content. v86.100's unsigned IPA built successfully
+  at [run 31304414080](https://github.com/m7madv/otlobli/actions/runs/31304414080)
+  from `0b387d9`; it is not yet real-device accepted.
 - Android 86.100/960 passed production build, freeze guard, low-end budget,
   Android/iOS sync, debug build, Note 8 install, and 10-fps cold-start video.
   APK `android/app/build/outputs/apk/debug/app-debug.apk`: 12,581,116 bytes,
   SHA-256 `5D8C52CE73A26DC6C94C3E2E3A0493967814BD84AE6EEB18FB33B062DFC0104F`.
+  The downloaded iPhone IPA is 7,039,678 bytes, SHA-256
+  `5DAD64EFB8620B8C5677A97A80A809EB3C61EE3D65199F80C3874EA776A59BFC`.
 
 # Otlobli AI Handoff
 

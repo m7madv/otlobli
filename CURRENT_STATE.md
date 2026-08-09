@@ -24,9 +24,13 @@ debug build pass. APK: `android/app/build/outputs/apk/debug/app-debug.apk`,
 `5D8C52CE73A26DC6C94C3E2E3A0493967814BD84AE6EEB18FB33B062DFC0104F`.
 
 The user reported that their iPhone still runs old v86.82 and can stall on
-the SHEIN skeleton until a manual store switch. A new unsigned iPhone build
-must be triggered from this candidate. Its real iPhone 16 cold-launch and
-five background/resume acceptance remain mandatory and are not yet claimed.
+the SHEIN skeleton until a manual store switch. The current unsigned iPhone
+build completed successfully from commit `0b387d9`:
+[run 31304414080](https://github.com/m7madv/otlobli/actions/runs/31304414080).
+Its IPA is `otlobli-v86.100-iphone16-unsigned.ipa`, 7,039,678 bytes, SHA-256
+`5DAD64EFB8620B8C5677A97A80A809EB3C61EE3D65199F80C3874EA776A59BFC`.
+Real iPhone 16 cold-launch and five background/resume acceptance remain
+mandatory and are not yet claimed.
 
 # Otlobli Current State
 

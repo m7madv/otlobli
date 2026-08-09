@@ -31,7 +31,11 @@
   wordmark. Production build, iPhone freeze guard, low-end budget,
   Android/iOS sync, and Android debug build passed. APK SHA-256:
   `5D8C52CE73A26DC6C94C3E2E3A0493967814BD84AE6EEB18FB33B062DFC0104F`.
-  A current iPhone build/device acceptance remains pending.
+  The unsigned iPhone build completed successfully at
+  [run 31304414080](https://github.com/m7madv/otlobli/actions/runs/31304414080)
+  from the same source. IPA SHA-256:
+  `5DAD64EFB8620B8C5677A97A80A809EB3C61EE3D65199F80C3874EA776A59BFC`.
+  Real iPhone device acceptance remains pending.
 
 ## Compressed Android SHEIN opening cover (v86.98, 2026-08-09)
 
