@@ -24,8 +24,11 @@
 - **Validation boundary:** Executable fixture adds a sticky-price layer after
   the button and proves last-body reclamation, max z-index, no animation and
   pointer events. Production build, freeze/performance guards, native syncs and
-  Android debug build pass for `86.116/976`. Real iPhone 6 and iPhone 16
-  acceptance remains pending; do not claim it from build or the fixture.
+  Android debug build pass for `86.116/976`. Xcode run `31336148034` produced
+  the inspected unsigned IPA on Desktop, SHA-256
+  `A3E8741247DD9F80FAEF98ED2EA6D1F81E1E0B9E72045D8E73342308D0FD920C`.
+  Real iPhone 6 and iPhone 16 acceptance remains pending; do not claim it from
+  build, archive inspection or the fixture.
 
 ## iPhone 6 product entry restores SHEIN's black cart-success bar (v86.112, 2026-08-09)
 

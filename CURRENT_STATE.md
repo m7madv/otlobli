@@ -34,9 +34,20 @@ dist/Android/iOS, SHA-256
 `4C588085CFE27B56B27DDF4A98FEB83376F0D40929C13683DF67D4D2BEFAA9A9`.
 Android debug APK is 11,169,400 bytes, SHA-256
 `D3686E905715E41F392459B3A5A750CF3A350F9E2475C69F118D3469540CD734`.
-iPhone CI/artifact and physical iPhone 6/iPhone 16 acceptance remain pending.
-All protected native resume/recompose, region JSON, cart and verification
-paths remain unchanged.
+GitHub/Xcode run `31336148034` succeeded from commit `bbb3143`. Downloaded IPA:
+`C:\Users\MOHAMMAD\Desktop\otlobli-ios-v86.116-iphone\otlobli-v86.116-iphone16-unsigned.ipa`,
+7,045,748 bytes, SHA-256
+`A3E8741247DD9F80FAEF98ED2EA6D1F81E1E0B9E72045D8E73342308D0FD920C`.
+Archive inspection confirms `com.otlobli.app`, `86.116/976`, arm64/iOS 15+,
+the body/last-child back helper, non-reanimation, broadened visual readiness,
+push code, `FAKE_VISIBLE`, and native `otlobliForceRecompose`. CI asset
+`index-D6AvzqBz.js` is 1,167,649 bytes, SHA-256
+`F02FD430BC9643D8E442AEC98E7819FCA028A8E49F2E1DF8EC1C4203AC05F416`.
+The IPA remains unsigned/unprovisioned, lacks APNs entitlement, and contains
+only the `otlobli` URL scheme because the Google iOS secret remains absent; it
+is a device-test artifact, not App-Store-ready. Physical iPhone 6/iPhone 16
+acceptance remains pending. All protected native resume/recompose, region JSON,
+cart and verification paths remain unchanged.
 
 # Previous candidate — v86.115 Qatar VPN continuity and iPhone 6 back layer (2026-08-09)
 

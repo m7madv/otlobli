@@ -26,9 +26,18 @@
   `4C588085CFE27B56B27DDF4A98FEB83376F0D40929C13683DF67D4D2BEFAA9A9`.
   Debug APK is 11,169,400 bytes, SHA-256
   `D3686E905715E41F392459B3A5A750CF3A350F9E2475C69F118D3469540CD734`.
-- iPhone CI/artifact and real-device acceptance are pending. Required: repeat
-  the pictured iPhone 6 scroll, exercise a longer browsing session/recovery,
-  then five iPhone 16 resume cycles plus force-quit/cold-launch.
+- Xcode run `31336148034` passed from `bbb3143`. Desktop IPA:
+  `C:\Users\MOHAMMAD\Desktop\otlobli-ios-v86.116-iphone\otlobli-v86.116-iphone16-unsigned.ipa`,
+  7,045,748 bytes, SHA-256
+  `A3E8741247DD9F80FAEF98ED2EA6D1F81E1E0B9E72045D8E73342308D0FD920C`.
+  It is `com.otlobli.app`, `86.116/976`, arm64/iOS 15+, and contains the body
+  back-layer, readiness, push, hidden-reveal and native-recompose markers. CI
+  JS is `index-D6AvzqBz.js`, SHA-256
+  `F02FD430BC9643D8E442AEC98E7819FCA028A8E49F2E1DF8EC1C4203AC05F416`.
+- IPA is unsigned/unprovisioned, lacks APNs entitlement and Google iOS callback
+  scheme; do not call it App-Store-ready. Real-device acceptance remains:
+  pictured iPhone 6 scroll, longer browsing/recovery, five iPhone 16 resume
+  cycles, and one force-quit/cold-launch.
 
 # Previous candidate — v86.115 supported VPN continuity and iPhone 6 back layer (2026-08-09)
 
