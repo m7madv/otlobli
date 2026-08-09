@@ -29,6 +29,10 @@
   update, confirm `M · 1PC` in the new cart row, and confirm the stepper and
   price still represent one package. An existing row cannot be repaired
   without re-adding because the earlier event never stored this data.
+- **iPhone build:** [run 31288237127](https://github.com/m7madv/otlobli/actions/runs/31288237127)
+  was triggered from `8d3120b` and is in progress. It verifies build sync only;
+  the real iPhone 16 cold launch and five background/resume cycles are still
+  required.
 
 ## SHEIN human-check bar lost its icons (v86.94, 2026-08-09)
 

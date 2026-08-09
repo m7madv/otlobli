@@ -20,7 +20,10 @@
   emitted-script parser, performance budget, freeze guard, and Android/iOS
   sync pass. Acceptance still required: add the currently selected product
   once and confirm the new cart row says `M · 1PC` while its stepper remains
-  one. Older rows cannot retroactively contain data they did not store.
+one. Older rows cannot retroactively contain data they did not store.
+- Unsigned iPhone build [31288237127](https://github.com/m7madv/otlobli/actions/runs/31288237127)
+  was triggered from commit `8d3120b` and is in progress. It is build sync
+  verification only; real iPhone 16 acceptance remains separately required.
 
 ## Current candidate — v86.94 challenge-nav SVG parity (2026-08-09)
 

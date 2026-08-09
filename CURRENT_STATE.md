@@ -30,6 +30,10 @@ product once and confirm `M · 1PC` in its cart row while the cart stepper stays
 at one. The required real iPhone 16 cold-launch and five background/resume
 cycles remain unperformed.
 
+Unsigned iPhone build [31288237127](https://github.com/m7madv/otlobli/actions/runs/31288237127)
+was triggered from source commit `8d3120b` and is currently in progress. It
+verifies the synchronized source/native build only, not real iPhone behavior.
+
 ## Active candidate — v86.94 challenge-navigation icons (2026-08-09)
 
 The connected Note 8 showed a real SHEIN `/ar/risk/challenge` page. This was
