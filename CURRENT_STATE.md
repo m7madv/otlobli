@@ -26,9 +26,21 @@ dist/Android/iOS, SHA-256
 `7E2302F00879ED6C4C46AE08AF1AFF0EAAB2D8D641860BFE13D14F087F91162F`.
 Android debug APK is 11,170,941 bytes, SHA-256
 `31E342B6B8156E5A54453E6E0D1AB43C3E18D0E310ABDF4402503F48E18947F8`.
-iPhone CI/artifact and physical iPhone 6/iPhone 16 acceptance remain pending.
-Preserve the exact iPhone 0.25-second recompose, Android resume defense,
-store-region JSON guard and v86.113 host-first reveal.
+GitHub/Xcode run `31334667716` succeeded from commit `d6236e5`. Downloaded IPA:
+`C:\Users\MOHAMMAD\Desktop\otlobli-ios-v86.115-iphone\otlobli-v86.115-iphone16-unsigned.ipa`,
+7,045,678 bytes, SHA-256
+`487557AD139DDE8DEF37BCC8E90B6CD0ED13D001334E676878D97953407BB6A5`.
+Archive inspection confirms `com.otlobli.app`, `86.115/975`, arm64/iOS 15+,
+the root back-layer helper, supported-connection recovery copy, push code,
+`FAKE_VISIBLE`, and native `otlobliForceRecompose`. CI asset
+`index-BSb3bB3x.js` is 1,167,394 bytes, SHA-256
+`E2827A8BDD1F7FD0375DDF739D3C716901BBE4F58E882EDE5E30BF13CC63D287`.
+The IPA is unsigned/unprovisioned, has no APNs entitlement, and contains only
+the `otlobli` URL scheme because the Google iOS secret remains absent; it is a
+real-device test artifact, not an App-Store-ready archive. Physical iPhone 6
+and iPhone 16 acceptance remain pending. Preserve the exact iPhone 0.25-second
+recompose, Android resume defense, store-region JSON guard and v86.113
+host-first reveal.
 
 # Previous candidate — v86.114 instant SHEIN native add-button concealment (2026-08-09)
 

@@ -20,9 +20,18 @@
   `7E2302F00879ED6C4C46AE08AF1AFF0EAAB2D8D641860BFE13D14F087F91162F`.
   Debug APK is 11,170,941 bytes, SHA-256
   `31E342B6B8156E5A54453E6E0D1AB43C3E18D0E310ABDF4402503F48E18947F8`.
-- iPhone CI/artifact and real-device acceptance are pending. Do not call the
-  result accepted until iPhone 6 product navigation is checked and the required
-  five iPhone 16 resume cycles plus force-quit/cold-launch test pass.
+- Xcode run `31334667716` passed from `d6236e5`. Desktop IPA:
+  `C:\Users\MOHAMMAD\Desktop\otlobli-ios-v86.115-iphone\otlobli-v86.115-iphone16-unsigned.ipa`,
+  7,045,678 bytes, SHA-256
+  `487557AD139DDE8DEF37BCC8E90B6CD0ED13D001334E676878D97953407BB6A5`.
+  It is `com.otlobli.app`, `86.115/975`, arm64/iOS 15+, and contains the back,
+  VPN-recovery copy, push, hidden-reveal and native-recompose markers. CI JS is
+  `index-BSb3bB3x.js`, SHA-256
+  `E2827A8BDD1F7FD0375DDF739D3C716901BBE4F58E882EDE5E30BF13CC63D287`.
+- IPA is unsigned/unprovisioned, lacks APNs entitlement and Google iOS callback
+  scheme. Do not call it App-Store-ready. Real-device acceptance remains:
+  iPhone 6 product navigation, five iPhone 16 resume cycles, and one separate
+  force-quit/cold-launch test.
 
 # Previous candidate — v86.114 instant SHEIN native add concealment (2026-08-09)
 
