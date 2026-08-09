@@ -1,50 +1,48 @@
-# Active candidate — v86.118 native iOS back action and iPhone 6 pacing (2026-08-10)
+# Active candidate — v86.119 fast concealment without duplicate scans (2026-08-10)
 
-The real-device v86.117 result proves the button's appearance and stacking are
-fixed, but also isolates a separate action failure: after browsing several
-products and the bounded `جاري إصلاح تحميل متجر SHEIN…` recovery, the visible
-native button could be tapped without leaving the next product. v86.117 still
-delegated the native tap to a hidden DOM button. A recovered WebView can start
-from a product with no usable browser history, so its `history.back()` is a
-valid no-op even though the native control is healthy.
+The real iPhone 6 result rejects v86.118's two-core pacing: changing the
+general and critical concealment intervals from `650ms` to `950ms` let SHEIN's
+dynamic native action remain visible too long. Document-start CSS cannot cover
+every obfuscated control that SHEIN creates after the first frame, so delaying
+the fallback hider was a visible regression, not an acceptable optimization.
 
-v86.118 leaves the approved 42x42 appearance and 12/58px placement unchanged,
-but moves the action fully into UIKit. The deduped state message now carries
-the cart/home target and one cached normalized SHEIN-home fallback. A cart
-target emits `backToCart` directly to the host. Otherwise the controller picks
-the newest distinct, same-SHEIN, non-challenge item from WKBackForwardList and
-uses `go(to:)`; if recovery erased all usable entries, it loads the normalized
-home URL. DOM click remains only a compatibility fallback.
+v86.119 restores the prior low-end timings: general and critical concealment
+are `650ms`, nav upkeep is `2200ms`, and security inspection is `1600ms`.
+Performance is reduced by avoiding work, not delaying concealment. The critical
+hider now runs once immediately and is route-aware: product pages scan only the
+native product action, while listing pages scan only card quick-add controls.
+The duplicate product-action scan was removed from the general tick. Existing
+document-start CSS and interaction pauses remain unchanged.
 
-For the reported iPhone 6 slowness, two-core devices now run general/header
-maintenance every `950ms` instead of `650ms`, nav upkeep every `2800ms` instead
-of `2200ms`, and the security text check every `2200ms` instead of `1600ms`.
-The fallback URL is computed once per document. Existing document-start CSS
-still hides native SHEIN actions immediately, and all heavy scans remain paused
-during touch/scroll. No feature, React render, observer or native timer was
-added. Protected recompose/lifecycle and cart/payment/order logic are unchanged.
+The approved 42x42 native back appearance and v86.118 UIKit action are untouched:
+cart returns to the host, normal browsing selects a safe WKBackForwardList item,
+and a normalized SHEIN home remains the no-history fallback. Protected iPhone 16
+recompose/lifecycle behavior, Android resume defense, JSON region comparison,
+and cart/payment/order logic are unchanged.
 
-Version is `86.118/978`; diagnostics remain off. Production build,
+Version is `86.119/979`; diagnostics remain off. Production build,
 freeze/performance guards, Android/iOS sync, diff check, Android debug assemble
-and GitHub/Xcode run `31338978321` pass. Local synchronized bundle
-`index-CzdNSOqq.js` is 1,166,821 bytes, SHA-256
-`884C6511B66AD584E7E62EA9988A57516E051E9CE3FA3D74AFD625BFD523596C`.
-Budgets are JS gzip `322,588/370,000`, CSS `63,670/70,000`, fonts
-`81,364/100,000`, and SHEIN source `549,668/550,000`. Android debug APK is
-11,169,320 bytes, SHA-256
-`ED6C0C6C9B136DA65C357C950317EE2F2B5E32AC1BD292B0257E9E27E3760979`.
+and GitHub/Xcode run `31339488536` pass. The local bundle
+`index-QXkGrZkx.js` is 1,166,417 bytes, SHA-256
+`97B3E3CB6A92AE58088E275BC1D12A104ED6D8761D32CCBE458FCD04B622D2CD`.
+Budgets are JS gzip `322,455/370,000`, CSS `63,670/70,000`, fonts
+`81,364/100,000`, and SHEIN source `549,266/550,000`. Android debug APK is
+11,169,188 bytes, SHA-256
+`DD4805EED9411BCAF33BD962EE0742CBA2D3BB85B984E72D3D61A91FCFD19208`;
+local Android release build remains correctly blocked without the four listener
+signing values.
+
 Desktop IPA is
-`C:\Users\MOHAMMAD\Desktop\otlobli-ios-v86.118-iphone\otlobli-ios-v86.118-iphone16\otlobli-v86.118-iphone16-unsigned.ipa`,
-7,050,705 bytes, SHA-256
-`38CB73A4BB0E8F5FC29E9B2211BFF730AD965E1A4E0EBCF91E65C7D98EE4D104`.
-Archive inspection confirms `com.otlobli.app`, `86.118/978`, arm64/iOS 15+,
-native history/cart/fallback and protected recompose markers, two-core pacing,
-push code and hidden reveal. CI JS `index-DCPhYEp7.js` is 1,168,009 bytes,
-SHA-256 `529A144D29F80DE4F08681F7E721FE12A5FCBE6BB0B33B9FB6222DAA49E2FC22`.
-The IPA remains unsigned/unprovisioned, lacks APNs entitlement and contains
-only the `otlobli` URL scheme because the Google iOS secret is absent. The exact
-multi-product → repair → product → back flow, perceived iPhone 6 speed, and the
-required iPhone 16 lifecycle suite still require real-device acceptance.
+`C:\Users\MOHAMMAD\Desktop\otlobli-ios-v86.119-iphone\otlobli-v86.119-iphone16-unsigned.ipa`,
+7,050,579 bytes, SHA-256
+`342DF62836C855FBB5A57FE813DFFE960C5E2D42183281883F667B3DF442DBB0`.
+Archive inspection confirms `com.otlobli.app`, `86.119/979`, arm64/iOS 15+,
+route-aware fast concealment, native back/cart/fallback, protected recompose and
+push code. CI JS `index-ZySWJZXt.js` is 1,167,605 bytes, SHA-256
+`F88A21B46CD5272D9A1933348FADC2845D7367F7EB420780D158956226AD20EB`.
+The IPA remains unsigned/unprovisioned and therefore has no production APNs
+entitlement; the Google iOS callback secret was absent. Real iPhone 6 visual and
+speed acceptance plus the required iPhone 16 lifecycle suite remain pending.
 
 # Active candidate — v86.116 iPhone 6 store recovery and sticky-price back layer (2026-08-10)
 

@@ -1,38 +1,33 @@
-# Current candidate — v86.118 native iOS back action and iPhone 6 pacing (2026-08-10)
+# Current candidate — v86.119 fast concealment without duplicate scans (2026-08-10)
 
-- v86.117 fixed the button's shape/visibility, but real-device multi-product
-  browsing followed by bounded chunk repair proved its action could no-op.
-  Cause: native still called the hidden DOM button, whose `history.back()` has
-  nowhere to go when recovery starts a fresh WebView at a product URL.
-- Keep `otlobliNativeBackTarget`, `otlobliNativeBackFallbackURL` and
-  `otlobliNativeBackDestination(in:)`. The state key includes cart/home target
-  plus cached normalized home URL. Cart emits host `backToCart` directly;
-  home uses the newest distinct safe SHEIN back-list item, skips challenge and
-  same-product duplicates, then loads normalized home if no entry survives.
-- Do not change the approved 42x42 appearance or 12/58px positions. Loading and
-  offline covers remain above it; Android keeps its DOM fallback.
-- Preserve `OTLOBLI_VERY_LOW_END`: two-core devices use 950ms general/header,
-  2800ms nav and 2200ms security maintenance. Document-start CSS stays instant,
-  and scan work remains paused during interaction. The native home fallback is
-  cached once per document. No new observer/timer/render loop was added.
+- v86.118's `950/2800/2200ms` two-core pacing is rejected by real iPhone 6
+  evidence: SHEIN's dynamically created native action remained visible too long.
+- Keep low-end general/critical concealment at `650ms`, nav at `2200ms`, and
+  security inspection at `1600ms`. `runOtlobliCriticalSheinHiders()` runs once
+  immediately, scans product-action controls only on product routes and listing
+  quick-add controls only off product routes. Do not restore the duplicate
+  `hideSheinNativeProductAdd()` call in `tick()`.
+- Keep document-start CSS, active-interaction pauses, approved 42x42 native back
+  appearance and 12/58px positions. Keep v86.118's native cart/history/home
+  action; this batch deliberately changes concealment scheduling only.
 - Protected `otlobliForceRecompose()`, foreground timing/bursts, scroll and
   constraint restoration, Android resume defense and JSON region comparison
-  are unchanged. No cart/payment/wallet/order data logic changed.
-- Version `86.118/978`; diagnostics off. Build, guards, native syncs, Android
-  assemble and Xcode run `31338978321` pass. Local bundle SHA-256 is
-  `884C6511B66AD584E7E62EA9988A57516E051E9CE3FA3D74AFD625BFD523596C`;
+  are unchanged. No cart/payment/wallet/order logic changed.
+- Version `86.119/979`; diagnostics off. Build, guards, native syncs, Android
+  debug assemble and Xcode run `31339488536` pass. Local bundle SHA-256 is
+  `97B3E3CB6A92AE58088E275BC1D12A104ED6D8761D32CCBE458FCD04B622D2CD`;
   debug APK SHA-256 is
-  `ED6C0C6C9B136DA65C357C950317EE2F2B5E32AC1BD292B0257E9E27E3760979`.
+  `DD4805EED9411BCAF33BD962EE0742CBA2D3BB85B984E72D3D61A91FCFD19208`.
 - Desktop IPA:
-  `C:\Users\MOHAMMAD\Desktop\otlobli-ios-v86.118-iphone\otlobli-ios-v86.118-iphone16\otlobli-v86.118-iphone16-unsigned.ipa`,
-  7,050,705 bytes, SHA-256
-  `38CB73A4BB0E8F5FC29E9B2211BFF730AD965E1A4E0EBCF91E65C7D98EE4D104`.
-  CI JS is `index-DCPhYEp7.js`, SHA-256
-  `529A144D29F80DE4F08681F7E721FE12A5FCBE6BB0B33B9FB6222DAA49E2FC22`.
-  IPA is unsigned/unprovisioned and lacks APNs/Google iOS configuration.
-- Required acceptance: reproduce several product transitions, bounded repair,
-  enter a product and press back; assess iPhone 6 speed; then five iPhone 16
-  resume cycles, cold launch and SHEIN → Temu → SHEIN.
+  `C:\Users\MOHAMMAD\Desktop\otlobli-ios-v86.119-iphone\otlobli-v86.119-iphone16-unsigned.ipa`,
+  7,050,579 bytes, SHA-256
+  `342DF62836C855FBB5A57FE813DFFE960C5E2D42183281883F667B3DF442DBB0`.
+  CI JS is `index-ZySWJZXt.js`, SHA-256
+  `F88A21B46CD5272D9A1933348FADC2845D7367F7EB420780D158956226AD20EB`.
+  IPA is unsigned/unprovisioned and lacks production APNs/Google iOS setup.
+- Required acceptance: confirm the old phone never exposes the native action
+  for the prior long interval, assess scrolling speed, run multi-product repair
+  then back, plus five iPhone 16 resume cycles, cold launch and store switching.
 
 # Current candidate — v86.116 iPhone 6 recovery and sticky-price back layer (2026-08-10)
 

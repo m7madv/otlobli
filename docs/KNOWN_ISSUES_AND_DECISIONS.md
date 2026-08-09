@@ -1,28 +1,24 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
-## Native iOS back action after recovery (v86.118, 2026-08-10)
+## Fast concealment without duplicate scans (v86.119, 2026-08-10)
 
-- **Evidence:** v86.117 fixed the button's appearance, but after several product
-  transitions and bounded store repair the visible button could no-op on the
-  next product. The same session felt very slow on an iPhone 6-class device.
-- **Cause:** Native still delegated to a hidden DOM click. A recovered WebView
-  can start at a product with no usable JavaScript history. Existing 650ms
-  maintenance also remained unnecessarily frequent on two-core devices.
-- **Decision:** Send deduped cart/home target and cached normalized home fallback
-  with native state. Cart returns directly to the host; normal back selects the
-  newest distinct safe SHEIN WKBackForwardList item, skips challenge and
-  same-product duplicates, and loads home when no item survives. Keep the
-  approved visual layer unchanged. Two-core maintenance uses 950/2800/2200ms
-  intervals while document-start CSS remains immediate and interaction keeps
-  scans paused.
-- **Freeze/performance boundary:** No new timer, observer, React render or scan.
-  Protected recompose/lifecycle and Android resume behavior are unchanged.
-- **Validation boundary:** Guards, production build, native syncs, Android
-  assemble and Xcode run `31338978321` pass for `86.118/978`. Inspected IPA
+- **Evidence:** Real iPhone 6 use rejects v86.118's slower two-core intervals.
+  SHEIN creates some native actions after document start, so the fallback
+  hider's `950ms` interval left a forbidden control visible too long.
+- **Decision:** Restore low-end general/critical concealment to `650ms`, nav to
+  `2200ms`, and security inspection to `1600ms`. Reduce CPU work by routing the
+  critical hider: product routes scan only native product actions and other
+  routes scan only listing quick-add controls. Run it once immediately and
+  remove the duplicate product-action scan from the general tick.
+- **Boundary:** Keep document-start CSS, active-interaction pauses, the approved
+  native back appearance/action and all protected iPhone 16 lifecycle code.
+  No new timer, observer, React render or DOM scan was added.
+- **Validation boundary:** Guards, production build, native syncs, Android debug
+  assemble and Xcode run `31339488536` pass for `86.119/979`. Inspected IPA
   SHA-256 is
-  `38CB73A4BB0E8F5FC29E9B2211BFF730AD965E1A4E0EBCF91E65C7D98EE4D104`.
-  Exact real-device multi-product/repair/back, perceived speed and iPhone 16
-  lifecycle acceptance remain pending.
+  `342DF62836C855FBB5A57FE813DFFE960C5E2D42183281883F667B3DF442DBB0`.
+  Real-device iPhone 6 concealment/speed and iPhone 16 lifecycle acceptance
+  remain pending.
 
 ## iPhone 6 preparation false negative and sticky-price back cover (v86.116, 2026-08-10)
 
