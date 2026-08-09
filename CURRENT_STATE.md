@@ -1,5 +1,15 @@
 # Otlobli Current State
 
+## Active candidate — v86.98 stable store opening (2026-08-09)
+
+Frame-by-frame cold-start capture on the connected SM-N950F / Note 8 found the concrete cause of the visibly changing SHEIN opening screen. Android was adding the native loading cover inside `presentWebView()` while the Dialog was still measured as a short wrap-content window. It painted a compressed, top-aligned wordmark and navigation before the dialog later expanded and painted the full centred cover.
+
+v86.98 creates that guard only from `WebViewDialog.show()` and waits for at least 70% of the real display height before its first paint. The old compact first frame is therefore not drawn. All normal loading layers now use the same text (`جاري تجهيز المتجر…`), 24/14 system typography and green Otlobli wordmark. The React bottom navigation also uses the same platform system font as the injected SHEIN navigation, removing the visible Arabic font-weight change when moving between Home and Orders on Android. No remote font, additional timer, WebView recreation, store-region logic, cache recovery, iPhone recompose timing, or Android resume behavior was changed.
+
+Android 86.98/958 was built and installed on the connected Note 8. A second 0.2-second cold-start capture series confirms the early compressed Otlobli frame is gone; the only branded loading view that appears is the stable, full-height surface with the four complete SVG tabs. Validation passed: production build, low-end performance budget, patch reverse-check, iPhone freeze guard, Android and iOS sync, Android debug build and device install. The real iPhone 16 cold launch and five background/resume cycles remain required; iOS source was synchronized but has not received device acceptance.
+
+APK: android/app/build/outputs/apk/debug/app-debug.apk, 11,234,493 bytes, SHA-256 028C9D1A71B78463546EEBA311B1D5C9B0F35DAF6A9A0366AB0F612CC5E79416.
+
 ## Active candidate — v86.97 unified SHEIN loading surface (2026-08-09)
 
 The Android native SHEIN loading guard used a full-screen circular spinner,

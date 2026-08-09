@@ -1,5 +1,12 @@
 # Otlobli AI Handoff
 
+## Current candidate — v86.98 stable first store surface (2026-08-09)
+
+- A real Note 8 frame series proved the former opening jump was not a lifecycle/freeze issue: `showOtlobliLoadingCover()` ran in `presentWebView()` while the Android `Dialog` still had a short wrap-content root. It produced a compressed top-aligned Otlobli layout, then the same cover expanded later.
+- The permanent patch now invokes the cover after `WebViewDialog.show()` and refuses to paint until the root is at least 70% of the physical display height. Keep this display-relative gate and Android's 120dp nav reserve; do not move the call back to `presentWebView()` or replace it with another timed/retry screen.
+- Normal preparation copy is exactly `جاري تجهيز المتجر…` in the static boot shell, React `StoreLoadingScreen`, and Android/iOS native covers. The brand is 24px/pt/sp system bold and copy is 14px/pt/sp system regular; the React bottom tabs intentionally use `system-ui,-apple-system,sans-serif` to match injected SHEIN tabs on Android. Do not restore Cairo just to those tabs: it creates the customer-visible weight switch and risks a first-paint dependency.
+- Android 86.98/958 is installed on Note 8. APK: android/app/build/outputs/apk/debug/app-debug.apk (11,234,493 bytes, SHA-256 028C9D1A71B78463546EEBA311B1D5C9B0F35DAF6A9A0366AB0F612CC5E79416). The stable cover and no compact first Otlobli frame were confirmed via repeated cold-start screenshots. Build, low-end budget, patch reverse-check, Android/iOS sync and iPhone-freeze guard pass. iPhone 16 cold launch plus five real background/resume cycles are still mandatory and unperformed.
+
 ## Current candidate — v86.97 one loading surface, no spinner (2026-08-09)
 
 - The SHEIN loading guard must remain enabled: it prevents raw/unprepared

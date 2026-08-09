@@ -1,5 +1,14 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
+## Compressed Android SHEIN opening cover (v86.98, 2026-08-09)
+
+- **Symptom:** On Android, startup could show a compact top-aligned Otlobli wordmark/nav, then jump into the intended centred loading screen. This made the customer perceive several different opening screens even after the spinner had been removed.
+- **Root cause (confirmed frame-by-frame on Note 8):** `WebViewDialog.presentWebView()` created the native loading cover while the Dialog root still had its transient wrap-content size. The same view later expanded with the Dialog, creating the apparent re-layout. This is not an iPhone remote-layer freeze, a region switch, a font download, or a SHEIN network problem.
+- **Decision:** Start the native cover from `WebViewDialog.show()` only, and gate its first paint on 70% of `DisplayMetrics.heightPixels`. The screen is portrait-only, so this display-relative threshold is more reliable than the failed fixed-dp test on the scaled Note 8. Keep the 120dp lower reserve for the real injected navigation. Use one generic preparation line and the same system font/weights across static HTML, React, Android, iOS, and the injected tab bar.
+- **Why this choice:** It removes the invalid first render rather than hiding it with an animation, a delay, a second overlay, or a WebView rebuild. System typography also matches the injected SHEIN bar without reintroducing the removed embedded Cairo payload and startup retry.
+- **Do not do:** Do not call `showOtlobliLoadingCover()` from `presentWebView()`, reduce its display-height gate to a fixed dp value, or replace it with a spinner/header. Do not alter any protected iPhone recompose timing, the Android resume defense, or store-region comparison as part of this visual fix.
+- **Validation:** Android 86.98/958 was built and installed on Note 8. A second 0.2-second cold-start capture series showed no compact Otlobli frame; the eventual branded surface was full-height with all four SVG tabs. Production build, low-end budget, iPhone-freeze guard, patch reverse-check, Android/iOS sync and Android debug build passed. APK: android/app/build/outputs/apk/debug/app-debug.apk, 11,234,493 bytes, SHA-256 028C9D1A71B78463546EEBA311B1D5C9B0F35DAF6A9A0366AB0F612CC5E79416. Real iPhone 16 cold-launch plus five background/resume cycles remain required before iOS acceptance.
+
 ## Several SHEIN loading screens and clipped first-frame nav (v86.97, 2026-08-09)
 
 - **Symptom:** Opening the app could expose several visually different loading

@@ -6829,7 +6829,7 @@ function App() {
           <Header title="otlobli" unreadCount={unreadCount} onNotifications={openNotifications} />
         )}
         {vpnState === 'checking' ? (
-          <StoreLoadingScreen label={'جاري تجهيز متجر ' + currentStoreName + '…'} />
+          <StoreLoadingScreen />
         ) : vpnState === 'no-vpn' ? (
           <main className="mobile-content shein-home">
             <div className="empty-state">
@@ -7025,11 +7025,11 @@ function Toast({ message }: { message: string }) {
   return <div className="toast" role="status" aria-live="polite">{message}</div>
 }
 
-function StoreLoadingScreen({ label }: { label: string }) {
+function StoreLoadingScreen() {
   return (
     <main className="mobile-content shein-home store-loading" role="status" aria-live="polite">
       <h1 className="store-loading__brand" translate="no">otlobli</h1>
-      <p className="store-loading__copy">{label}</p>
+      <p className="store-loading__copy">جاري تجهيز المتجر…</p>
     </main>
   )
 }
@@ -7041,7 +7041,7 @@ function HomeScreen({ userName, onRetry, storeName = 'المتجر', failureAdvi
     return () => window.clearTimeout(t)
   }, [])
   if (!timedOut) {
-    return <StoreLoadingScreen label={'جاري تجهيز متجر ' + storeName + '…'} />
+    return <StoreLoadingScreen />
   }
   return (
     <main className="mobile-content shein-home">

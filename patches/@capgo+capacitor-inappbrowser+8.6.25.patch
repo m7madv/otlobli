@@ -12,7 +12,7 @@ index 9979670..fcfd30a 100644
 +        targetCompatibility JavaVersion.VERSION_17
      }
  }
-
+ 
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/CapgoInAppBrowserPlugin.java b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/CapgoInAppBrowserPlugin.java
 index ae420ed..ae452de 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/CapgoInAppBrowserPlugin.java
@@ -33,7 +33,7 @@ index ae420ed..ae452de 100644
 +            webViewDialog.otlobliOnHostResume();
 +        }
      }
-
+ 
      protected void handleOnPause() {
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/MobileAppBridgeScript.java b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/MobileAppBridgeScript.java
 index 6b4115a..8e557cf 100644
@@ -54,7 +54,7 @@ index 6b4115a..8e557cf 100644
                            try {
                              window.AndroidInterface.show();
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
-index 8ae3e61..45e24fc 100644
+index 8ae3e61..78fb83c 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
 +++ b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
 @@ -16,7 +16,13 @@ import android.graphics.Color;
@@ -125,13 +125,14 @@ index 8ae3e61..45e24fc 100644
      private static final int MAX_MANAGED_DOWNLOAD_REDIRECTS = 10;
      private static final int BLOB_DOWNLOAD_CHUNK_BYTES = 64 * 1024;
      private static final long MAX_LEGACY_BLOB_DOWNLOAD_BYTES = 512L * 1024L;
-@@ -333,6 +372,32 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -333,6 +372,33 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
      private String proxyAccessToken;
      private final ExecutorService executorService = Executors.newCachedThreadPool();
      private final Handler mainHandler = new Handler(Looper.getMainLooper());
 +    private View otlobliLoadingCover;
 +    private TextView otlobliLoadingCoverLabel;
-+    private String otlobliLoadingCoverMessage = "جاري تجهيز متجر SHEIN…";
++    private String otlobliLoadingCoverMessage = "جاري تجهيز المتجر…";
++    private boolean otlobliLoadingCoverAwaitingLayout = false;
 +    private final Runnable otlobliLoadingCoverTimeout = this::hideOtlobliLoadingCover;
 +    private View otlobliOfflineCover;
 +    private TextView otlobliOfflineStatusLabel;
@@ -158,10 +159,27 @@ index 8ae3e61..45e24fc 100644
      private final Map<String, BlobDownloadSession> blobDownloadSessions = new ConcurrentHashMap<>();
      private final Map<String, ClientCertificateIdentity> clientCertificateIdentities = new ConcurrentHashMap<>();
      private int iconColor = Color.BLACK; // Default icon color
-@@ -433,6 +498,403 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -382,6 +448,16 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+         this.capacitorWebView = capacitorWebView;
+     }
+ 
++    @Override
++    public void show() {
++        super.show();
++        // Dialog content is measured only after show(). Adding the cover from
++        // presentWebView() painted a short, top-aligned copy for one frame on
++        // Android before the full-height cover arrived. Start only after the
++        // dialog owns a stable viewport so opening has one visual surface.
++        showOtlobliLoadingCover();
++    }
++
+     public void setInstanceId(String id) {
+         this.instanceId = id != null ? id : "";
+     }
+@@ -433,6 +509,420 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          openWebViewResolved = true;
      }
-
+ 
 +    private boolean isOtlobliLoadingCoverEnabled() {
 +        if (_options == null || _options.getPluginCall() == null) return false;
 +        return Boolean.TRUE.equals(_options.getPluginCall().getBoolean("otlobliLoadingCover", false));
@@ -173,8 +191,9 @@ index 8ae3e61..45e24fc 100644
 +    }
 +
 +    private void showOtlobliLoadingCover() {
-+        if (!isOtlobliLoadingCoverEnabled()) return;
++        if (!isOtlobliLoadingCoverEnabled() || !isShowing()) return;
 +        mainHandler.post(() -> {
++            if (!isShowing()) return;
 +            if (otlobliLoadingCover != null) {
 +                otlobliLoadingCover.animate().cancel();
 +                otlobliLoadingCover.setAlpha(1f);
@@ -187,6 +206,22 @@ index 8ae3e61..45e24fc 100644
 +
 +            ViewGroup root = findViewById(android.R.id.content);
 +            if (root == null) return;
++            // A Dialog reports a small wrap-content root until its first
++            // fullscreen layout. A dp threshold is unreliable on scaled
++            // devices, so require most of the actual display height before
++            // painting. This prevents the brief, shrunken top copy on Note 8.
++            int displayHeight = getContext().getResources().getDisplayMetrics().heightPixels;
++            int minimumStableHeight = Math.round(displayHeight * 0.70f);
++            if (root.getWidth() < otlobliDp(280) || root.getHeight() < minimumStableHeight) {
++                if (!otlobliLoadingCoverAwaitingLayout) {
++                    otlobliLoadingCoverAwaitingLayout = true;
++                    mainHandler.postDelayed(() -> {
++                        otlobliLoadingCoverAwaitingLayout = false;
++                        showOtlobliLoadingCover();
++                    }, 16L);
++                }
++                return;
++            }
 +            FrameLayout cover = new FrameLayout(getContext());
 +            // Keep this native guard visually continuous with Otlobli's boot
 +            // shell. It still blocks touches until the injected SHEIN chrome
@@ -202,7 +237,6 @@ index 8ae3e61..45e24fc 100644
 +            brand.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24);
 +            brand.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
 +            brand.setGravity(Gravity.CENTER);
-+            brand.setLetterSpacing(0.01f);
 +            brand.setTranslationY(-18f * getContext().getResources().getDisplayMetrics().density);
 +            FrameLayout.LayoutParams brandParams = new FrameLayout.LayoutParams(
 +                ViewGroup.LayoutParams.MATCH_PARENT,
@@ -253,6 +287,7 @@ index 8ae3e61..45e24fc 100644
 +
 +    private void hideOtlobliLoadingCover() {
 +        mainHandler.post(() -> {
++            otlobliLoadingCoverAwaitingLayout = false;
 +            mainHandler.removeCallbacks(otlobliLoadingCoverTimeout);
 +            final View cover = otlobliLoadingCover;
 +            if (cover == null) return;
@@ -561,11 +596,11 @@ index 8ae3e61..45e24fc 100644
 +
      // Add this class to provide safer JavaScript interface
      private class JavaScriptInterface {
-
-@@ -480,6 +942,60 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+ 
+@@ -480,6 +970,60 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
              activity.runOnUiThread(() -> setHidden(true));
          }
-
+ 
 +        @JavascriptInterface
 +        public void navigate(String target) {
 +            if (!isJavaScriptControlAllowed()) {
@@ -623,10 +658,10 @@ index 8ae3e61..45e24fc 100644
          @JavascriptInterface
          public void show() {
              if (!isJavaScriptControlAllowed()) {
-@@ -1263,6 +1779,32 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -1263,6 +1807,32 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          return false;
      }
-
+ 
 +    // otlobli: cross-platform guard against the "frozen still frame after the
 +    // app returns from the background" bug. It is confirmed only on iPhone16 /
 +    // iOS27 (WKWebView) and is fixed natively on iOS by detaching + reattaching
@@ -656,11 +691,12 @@ index 8ae3e61..45e24fc 100644
      private void previewDownloadedFileInWebView(File file, String mimeType, String sourceUrl) {
          WebView webView = _webView;
          if (webView == null || isDismissing) {
-@@ -1807,6 +2349,22 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -1807,6 +2377,23 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          applyDimensions();
-
+ 
          this._webView = findViewById(R.id.browser_view);
-+        if (isOtlobliLoadingCoverEnabled()) showOtlobliLoadingCover();
++        // The cover starts from show() once this Dialog has a stable full-size
++        // root. Calling it here produced a visibly compressed first frame.
 +
 +        // SHEIN's legitimate human verification runs in a third-party security
 +        // frame. Modern Android WebViews reject third-party cookies by default,
@@ -676,18 +712,18 @@ index 8ae3e61..45e24fc 100644
 +        } catch (Exception ignored) {
 +            // Keep the browser usable if a caller provides a non-HTTP URL.
 +        }
-
+ 
          // Apply insets to fix edge-to-edge issues on Android 15+
          applyInsets();
-@@ -2991,6 +3549,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -2991,6 +3578,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                  return;
              }
-
+ 
 +            handleOtlobliLoadingCoverMessage(message);
              _options.getCallbacks().javascriptCallback(message);
          } catch (Exception e) {
              Log.e("InAppBrowser", "Error in postMessage: " + e.getMessage());
-@@ -4703,6 +5262,9 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4703,6 +5291,9 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                      if (view == null || _webView == null) {
                          return;
                      }
@@ -697,7 +733,7 @@ index 8ae3e61..45e24fc 100644
                      if (ProxyRequestSupport.shouldInjectBridge(_options) && proxyBridgeScript != null && proxyAccessToken != null) {
                          String preparedProxyBridgeScript = prepareProxyBridgeScript();
                          if (preparedProxyBridgeScript != null) {
-@@ -4742,6 +5304,13 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4742,6 +5333,13 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                      if (view == null || _webView == null) {
                          return;
                      }
@@ -711,7 +747,7 @@ index 8ae3e61..45e24fc 100644
                      if (!isInitialized) {
                          isInitialized = true;
                          _webView.clearHistory();
-@@ -4801,8 +5370,21 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4801,8 +5399,21 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                      if (view == null || _webView == null) {
                          return;
                      }
@@ -734,7 +770,7 @@ index 8ae3e61..45e24fc 100644
                          CharSequence description = error != null ? error.getDescription() : null;
                          String message = description != null ? "Initial page load failed: " + description : "Initial page load failed";
                          rejectOpenWebViewIfNeeded(message);
-@@ -4932,6 +5514,19 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4932,6 +5543,19 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
      @Override
      public void dismiss() {
          scheduleHostWebViewInsetRestore();
@@ -751,13 +787,13 @@ index 8ae3e61..45e24fc 100644
 +        otlobliOfflineCover = null;
 +        otlobliOfflineStatusLabel = null;
 +        otlobliOfflineRetryButton = null;
-
+ 
          // First, stop any ongoing operations and disable further interactions
          if (_webView != null) {
-@@ -5586,17 +6181,50 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -5586,17 +6210,50 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          );
      }
-
+ 
 +    private static final int OTLOBLI_MAX_TRANSIENT_RETRIES = 2;
 +
      private NativeResponseData performNativeRequest(NativeRequestContext requestContext) throws IOException {
@@ -803,7 +839,7 @@ index 8ae3e61..45e24fc 100644
              conn.setInstanceFollowRedirects(false);
 +            conn.setRequestProperty("X-Relay-Key", OTLOBLI_RELAY_KEY);
 +            conn.setRequestProperty("X-Relay-Url", requestContext.url);
-
+ 
              // Strip conditional cache validators on the wire so upstream cannot return 304/3xx,
              // which WebResourceResponse.setStatusCodeAndReasonPhrase rejects (kills the renderer).
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
@@ -817,13 +853,13 @@ index 116e296..000097f 100644
 +    // Invalidates a delayed recovery when the app leaves active state again.
 +    // The next active event receives a new generation.
 +    private var otlobliLifecycleGeneration = 0
-
+ 
      private func setup() {
          self.isSetupDone = true
 @@ -206,6 +209,18 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
          return navigationWebViewController
      }
-
+ 
 +    private func dismissNavigationControllerIfPresented(
 +        _ navigationController: UINavigationController?,
 +        completion: (() -> Void)? = nil
@@ -842,7 +878,7 @@ index 116e296..000097f 100644
 @@ -355,19 +370,79 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
          }
      }
-
+ 
 -    func presentView(webViewId: String? = nil, isAnimated: Bool = true) {
 +    private func topPresenter(from root: UIViewController) -> UIViewController {
 +        var top = root
@@ -903,7 +939,7 @@ index 116e296..000097f 100644
 +           self.isHidden {
 +            return true
          }
-
+ 
          dismissActiveKeyboard()
          let presenter = self.bridge?.viewController?.presentedViewController ?? self.bridge?.viewController
 -        presenter?.present(navigationController, animated: isAnimated, completion: {
@@ -922,12 +958,12 @@ index 116e296..000097f 100644
 +        }
 +        return true
      }
-
+ 
      private func dismissActiveKeyboard() {
 @@ -907,6 +982,15 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
                  self.proxySchemeHandlers[webViewId] = proxyHandler
              }
-
+ 
 +            var initialDocumentStartScripts = self.documentStartUserScripts(
 +                authorizedAppLinks: authorizedAppLinks,
 +                openBlankTargetInWebView: openBlankTargetInWebView
@@ -951,17 +987,17 @@ index 116e296..000097f 100644
 +                documentStartUserScripts: initialDocumentStartScripts,
                  openBlankTargetInWebView: openBlankTargetInWebView
              )
-
+ 
 @@ -936,6 +1017,11 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
              }
-
+ 
              webViewController.instanceId = webViewId
 +            webViewController.otlobliLoadingCoverEnabled = call.getBool("otlobliLoadingCover", false)
 +            webViewController.otlobliPreserveAttachedWhenHidden = call.getBool("otlobliPreserveAttachedWhenHidden", false)
 +            webViewController.otlobliDismissModalWhenHidden = call.getBool("otlobliDismissModalWhenHidden", false)
 +            webViewController.otlobliFreezeDiagnosticsEnabled = call.getBool("otlobliFreezeDiagnostics", false)
 +            webViewController.otlobliFreezeDiagnosticsBypassRecovery = call.getBool("otlobliFreezeDiagnosticsBypassRecovery", false)
-
+ 
              // Set HTTP method and body if provided
              if let method = httpMethod {
 @@ -1258,9 +1344,15 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
@@ -980,10 +1016,10 @@ index 116e296..000097f 100644
 +            }
          }
      }
-
+ 
 @@ -1324,22 +1416,39 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
              self.isHidden = hidden
-
+ 
              if hidden {
 -                if let navController = navigationController, navController.presentingViewController != nil {
 -                    navController.view.isHidden = true
@@ -1059,7 +1095,7 @@ index 116e296..000097f 100644
 +                            self.presentationContainerPreviousAlpha = 1
 +                        }
                      }
-
+ 
                      if navController.presentingViewController == nil {
                          let presenter = self.bridge?.viewController?.presentedViewController ?? self.bridge?.viewController
 -                        presenter?.present(navController, animated: true, completion: {
@@ -1085,7 +1121,7 @@ index 116e296..000097f 100644
 @@ -1386,6 +1509,32 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
          )
      }
-
+ 
 +    func navigateHostFromJavaScript(_ target: String, sourceId: String? = nil) {
 +        let route: String
 +        switch target {
@@ -1116,7 +1152,7 @@ index 116e296..000097f 100644
          self.setHiddenState(true, targetId: call.getString("id"), call: call)
      }
 @@ -1811,10 +1960,54 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
-
+ 
      @objc func appDidBecomeActive(_ notification: NSNotification) {
          self.hidePrivacyScreen()
 +        self.otlobliLifecycleGeneration &+= 1
@@ -1157,7 +1193,7 @@ index 116e296..000097f 100644
 +            }
 +        }
      }
-
+ 
      @objc func appWillResignActive(_ notification: NSNotification) {
 -        self.showPrivacyScreen()
 +        self.otlobliLifecycleGeneration &+= 1
@@ -1169,7 +1205,7 @@ index 116e296..000097f 100644
 +            self.showPrivacyScreen()
 +        }
      }
-
+ 
      private func readCredentials(_ call: CAPPluginCall) -> WKWebViewCredentials? {
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/ProxySchemeHandler.swift
 index 1c70884..60018b4 100644
@@ -1178,7 +1214,7 @@ index 1c70884..60018b4 100644
 @@ -449,6 +449,34 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
      /// still reach finish() or the scheme task strands.
      static let redirectStatusCodes: Set<Int> = [301, 302, 303, 307, 308]
-
+ 
 +    /// otlobli: every native fetch this handler makes is routed through a
 +    /// Cloudflare Worker relay instead of contacting the target host
 +    /// directly. The relay forwards the request byte-for-byte and streams
@@ -1277,12 +1313,12 @@ index 1c70884..60018b4 100644
 +                self.writeCookiesOnMain(cookies) {}
 +            }
          }
-
+ 
          taskLock.lock()
 @@ -819,23 +876,35 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
              return
          }
-
+ 
 +        let responseHeaders = ProxySchemeRequestSupport.normalizedResponseHeaders(from: response)
          let redirectResponse = NativeResponseData(
              statusCode: response.statusCode,
@@ -1291,7 +1327,7 @@ index 1c70884..60018b4 100644
              body: Data(),
              contentType: response.value(forHTTPHeaderField: "Content-Type") ?? "application/octet-stream"
          )
-
+ 
 -        pendingTask.requestContext.url = ProxySchemeRequestSupport.resolvedResponseURL(
 -            response,
 -            fallback: pendingTask.requestContext.url
@@ -1307,7 +1343,7 @@ index 1c70884..60018b4 100644
          pendingTask.responseData = redirectResponse
          pendingTask.redirectRequest = request
          completionHandler(nil)
-
+ 
 -        syncResponseCookies(from: response, fallbackURL: pendingTask.requestContext.url) { [weak self] in
 -            self?.executeInboundDecision(requestId: requestId)
 +        // otlobli: manual header parsing against preRedirectURL instead of
@@ -1321,10 +1357,10 @@ index 1c70884..60018b4 100644
 +            writeCookiesOnMain(cookies) {}
          }
      }
-
+ 
 @@ -958,10 +1027,13 @@ public class ProxySchemeHandler: NSObject, WKURLSchemeHandler, URLSessionTaskDel
      }
-
+ 
      private func makeURLRequest(from context: NativeRequestContext) throws -> URLRequest {
 -        guard let url = URL(string: context.url) else {
 +        guard URL(string: context.url) != nil else {
@@ -1352,7 +1388,7 @@ index 1c70884..60018b4 100644
          if
              ProxySchemeRequestSupport.supportsRequestBody(method: context.method),
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
-index 97a2fc1..9e29b28 100644
+index 97a2fc1..c763c21 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
 @@ -9,6 +9,36 @@
@@ -1389,13 +1425,13 @@ index 97a2fc1..9e29b28 100644
 +        return "OTLOBLI_SHEIN_FREEZE_DIAGNOSTIC\n" + json
 +    }
 +}
-
+ 
  private let estimatedProgressKeyPath = "estimatedProgress"
  private let titleKeyPath = "title"
 @@ -748,6 +778,99 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
      fileprivate var webView: WKWebView?
      fileprivate var progressView: UIProgressView?
-
+ 
 +    // Otlobli keeps the real WKWebView attached, sized, and interactive while
 +    // SHEIN resolves its signed Saudi address. This native cover hides only the
 +    // transient automation frames; it never reparents or alpha-hides WKWebView.
@@ -1421,7 +1457,7 @@ index 97a2fc1..9e29b28 100644
 +    private var otlobliLoadingCoverView: UIView?
 +    private var otlobliLoadingCoverLabel: UILabel?
 +    private var otlobliLoadingCoverBottomConstraint: NSLayoutConstraint?
-+    private var otlobliLoadingCoverMessage = "جاري تجهيز متجر SHEIN…"
++    private var otlobliLoadingCoverMessage = "جاري تجهيز المتجر…"
 +    private var otlobliLoadingCoverTimeout: DispatchWorkItem?
 +    private var otlobliChallengeRevealWorkItem: DispatchWorkItem?
 +    private var otlobliOfflineCoverView: UIView?
@@ -1491,23 +1527,23 @@ index 97a2fc1..9e29b28 100644
 +
      fileprivate var previousNavigationBarState: (tintColor: UIColor, hidden: Bool) = (.black, false)
      fileprivate var previousToolbarState: (tintColor: UIColor, hidden: Bool) = (.black, false)
-
+ 
 @@ -861,8 +984,10 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
-
+ 
      override open func viewDidDisappear(_ animated: Bool) {
          super.viewDidDisappear(animated)
 +        otlobliFreezeDiagnosticLog("view-did-disappear")
-
+ 
 -        if self.isBeingDismissed || self.isMovingFromParent {
 +        if (self.isBeingDismissed || self.isMovingFromParent) &&
 +            !otlobliVisibilityHideInProgress {
              self.cleanupWebView()
          }
-
+ 
 @@ -878,6 +1003,12 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
              self.initWebview()
          }
-
+ 
 +        if otlobliLoadingCoverEnabled {
 +            showOtlobliLoadingCover()
 +        }
@@ -1516,7 +1552,7 @@ index 97a2fc1..9e29b28 100644
 +
          // Apply navigation gestures setting
          updateNavigationGestures()
-
+ 
 @@ -899,6 +1030,368 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
      override open func viewDidLayoutSubviews() {
          super.viewDidLayoutSubviews()
@@ -1599,7 +1635,7 @@ index 97a2fc1..9e29b28 100644
 +            label.textAlignment = .center
 +            label.numberOfLines = 2
 +            label.textColor = UIColor(red: 84.0 / 255.0, green: 98.0 / 255.0, blue: 90.0 / 255.0, alpha: 1)
-+            label.font = UIFont.systemFont(ofSize: 14, weight: .medium)
++            label.font = UIFont.systemFont(ofSize: 14, weight: .regular)
 +            label.accessibilityTraits = .updatesFrequently
 +            cover.addSubview(label)
 +
@@ -1884,12 +1920,12 @@ index 97a2fc1..9e29b28 100644
 +            break
 +        }
      }
-
+ 
      func updateButtonTintColors() {
 @@ -1001,6 +1494,37 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          capBrowserPlugin?.notifyListeners(eventName, data: payload(with: data))
      }
-
+ 
 +    private func emitPageLoadError(_ webView: WKWebView?, error: Error?, phase: String) {
 +        var data: [String: Any] = ["phase": phase]
 +
@@ -1927,7 +1963,7 @@ index 97a2fc1..9e29b28 100644
 @@ -1025,6 +1549,73 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          return max(0.05, duration.doubleValue)
      }
-
+ 
 +    // otlobli: cooldown so a stall storm can't nudge every second.
 +    private var otlobliLastRecomposeAt: TimeInterval = 0
 +
@@ -2075,7 +2111,7 @@ index 97a2fc1..9e29b28 100644
          self.allowScreenshotsFromWebPage = parent.allowScreenshotsFromWebPage
          self.handleDownloads = parent.handleDownloads
 @@ -1818,6 +2442,18 @@ public extension WKWebViewController {
-
+ 
      open func cleanupWebView() {
          guard let webView = self.webView else { return }
 +        cancelOtlobliChallengeReveal()
@@ -2092,7 +2128,7 @@ index 97a2fc1..9e29b28 100644
 +        otlobliOfflineRetryButton = nil
          webView.stopLoading()
          previewItemURL = nil
-
+ 
 @@ -1837,6 +2473,7 @@ public extension WKWebViewController {
          webView.configuration.userContentController.removeScriptMessageHandler(forName: "messageHandler")
          webView.configuration.userContentController.removeScriptMessageHandler(forName: "close")
@@ -2103,14 +2139,14 @@ index 97a2fc1..9e29b28 100644
              webView.configuration.userContentController.removeScriptMessageHandler(forName: "takeScreenshot")
 @@ -2680,14 +3317,34 @@ extension WKWebViewController: WKNavigationDelegate {
      }
-
+ 
      public func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
 +        otlobliFreezeDiagnosticLog("navigation-start")
          updateBarButtonItems()
          self.progressView?.progress = 0
 +        if otlobliLoadingCoverEnabled && !otlobliOfflineRetryInFlight {
 +            cancelOtlobliChallengeReveal()
-+            otlobliLoadingCoverMessage = "جاري تجهيز متجر SHEIN…"
++            otlobliLoadingCoverMessage = "جاري تجهيز المتجر…"
 +            otlobliLoadingCoverLabel?.text = otlobliLoadingCoverMessage
 +            showOtlobliLoadingCover()
 +        }
@@ -2159,7 +2195,7 @@ index 97a2fc1..9e29b28 100644
                      !self.preShowScript!.isEmpty &&
 @@ -2737,23 +3400,41 @@ extension WKWebViewController: WKNavigationDelegate {
      }
-
+ 
      public func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
 +        otlobliFreezeDiagnosticLog("navigation-fail-provisional", extra: ["error": error.localizedDescription])
          updateBarButtonItems()
@@ -2174,7 +2210,7 @@ index 97a2fc1..9e29b28 100644
 +        }
 +        emitPageLoadError(webView, error: error, phase: "didFailProvisionalNavigation")
      }
-
+ 
      public func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
 +        otlobliFreezeDiagnosticLog("navigation-fail", extra: ["error": error.localizedDescription])
          updateBarButtonItems()
@@ -2199,5 +2235,5 @@ index 97a2fc1..9e29b28 100644
 +        }
 +        emitPageLoadError(webView, error: nil, phase: "webContentProcessDidTerminate")
      }
-
+ 
      public func webView(_ webView: WKWebView, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
