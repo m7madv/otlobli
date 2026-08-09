@@ -21,6 +21,9 @@
   1.741 s, and passive inspection confirmed four visible SHEIN nav SVGs plus
   four React bottom-nav SVGs. Freeze guard/build/performance/Android+iOS sync
   pass; real iPhone acceptance remains required.
+- Unsigned iPhone build [31288703952](https://github.com/m7madv/otlobli/actions/runs/31288703952)
+  was triggered from `a9a1701` and is in progress. It verifies build health,
+  not the required iPhone 16 cold-launch or five resume cycles.
 
 ## Current candidate — v86.95 product `1PC` option retained separately (2026-08-09)
 

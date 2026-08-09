@@ -36,6 +36,10 @@ CSS/fonts remain within budget. First installs still wait for a real region
 and reachability decision, but show the static shell immediately. Real iPhone
 16 cold-launch plus five background/resume acceptance remains required.
 
+Unsigned iPhone build [31288703952](https://github.com/m7madv/otlobli/actions/runs/31288703952)
+was triggered from source commit `a9a1701` and is currently in progress. It
+checks synchronized source/native build health only, not real iPhone behavior.
+
 ## Active candidate — v86.95 SHEIN product quantity-option capture (2026-08-09)
 
 The connected Note 8 live DOM for the pink three-makeup-bag product

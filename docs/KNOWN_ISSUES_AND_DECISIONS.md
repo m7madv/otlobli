@@ -34,6 +34,9 @@
   four SVGs; the React shell had four SVG bottom-nav icons too. Bundle size
   fell from `1,196,613` to `1,155,517` raw JS bytes and from `353,786` to
   `320,778` gzip JS bytes. This is not iPhone device acceptance.
+- **iPhone build:** [run 31288703952](https://github.com/m7madv/otlobli/actions/runs/31288703952)
+  was triggered from `a9a1701` and is in progress. It is source/native build
+  validation only; real iPhone 16 acceptance remains required.
 
 ## SHEIN SKU quantity option was omitted from the cart label (v86.95, 2026-08-09)
 
