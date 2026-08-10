@@ -1,3 +1,52 @@
+# Active candidate — v86.126 stops Android killing the app when SHEIN's renderer dies (2026-08-10)
+
+Device-proven root cause, found by running v86.125 on the Galaxy Note 8
+(Android 9) and reading its crash log while browsing SHEIN:
+
+```
+Abort message: [FATAL] Render process (6444)'s crash wasn't handled by all
+associated webviews, triggering application crash.
+F/libc: Fatal signal 5 (SIGTRAP) ... pid 6331 (com.otlobli.app)
+Process com.otlobli.app has died
+```
+
+SHEIN product pages are heavy enough for Chromium to OOM-kill the renderer on an
+older phone. From Android 8 the framework then kills the WHOLE APP unless every
+WebView attached to that renderer claims the death via `onRenderProcessGone`.
+iOS already survived this through `webViewWebContentProcessDidTerminate`;
+Android had **no handler at all** — zero occurrences in the plugin or the patch.
+This is what the customer saw as the app closing by itself and as blank pages.
+
+Two WebViews share the renderer, and both had to be fixed:
+
+1. The store browser, in the InAppBrowser patch. On renderer death it now
+   claims the crash, then closes exactly like `onCloseWindow` does, handing
+   control to the host whose existing `closeEvent` recovery reopens a clean
+   session or shows its retry card.
+2. The Capacitor bridge WebView, in `MainActivity`. Capacitor's
+   `BridgeWebViewClient` already forwards `onRenderProcessGone` to registered
+   listeners but returns **false** when nobody claims it — so the app still died
+   after only the store side was fixed. A `WebViewListener` now claims it and
+   rebuilds the activity.
+
+Verified on the device by deliberately killing the renderer over CDP
+(`Page.crash`):
+
+| | before | after |
+| --- | --- | --- |
+| same deliberate kill | SIGTRAP, process died | **survived, same pid** |
+| guard log | none | `bridge render process gone, didCrash=true` |
+| "wasn't handled" crash lines | present | **zero** |
+
+Version `86.126/986`. Build, freeze guard, performance budget, Android sync and
+Android debug assemble pass. The patch was regenerated with patch-package and
+re-checked: the iOS lifecycle fix, native back button, host-resume, freeze
+diagnostics and relay key are all still present.
+
+iOS was rebuilt from the same commit but **the iOS half of this change is a
+no-op there** — iOS already handled its equivalent. Nothing else changed for
+iPhone since v86.125.
+
 # Active candidate — v86.125 stops shipping 93KB of comments to the phone (2026-08-10)
 
 Base is still v86.117 (`bf40b1c`). Nothing about behaviour, timings, checks or

@@ -32,6 +32,43 @@ public class MainActivity extends BridgeActivity {
             SplashScreen.installSplashScreen(this);
         }
         super.onCreate(savedInstanceState);
+        registerOtlobliRenderProcessGuard();
+    }
+
+    /**
+     * Android 8+ kills the whole app when a dead renderer is not claimed by
+     * EVERY WebView attached to it. Proven on the Galaxy Note 8 (Android 9)
+     * browsing SHEIN: "Render process's crash wasn't handled by all associated
+     * webviews, triggering application crash" - SIGTRAP, MainActivity
+     * force-finished, process gone. SHEIN product pages are heavy enough for
+     * the renderer to be OOM-killed on an older phone.
+     *
+     * Two WebViews share that renderer: the store browser (handled inside the
+     * InAppBrowser patch) and this Capacitor bridge WebView. Capacitor's
+     * BridgeWebViewClient already forwards onRenderProcessGone to registered
+     * listeners but returns false when nobody claims it, so the app died even
+     * after the store side was fixed. Claim it here and rebuild the activity:
+     * this WebView's content is gone either way, and a clean restart is the
+     * only honest recovery - far better than the process being killed.
+     */
+    private void registerOtlobliRenderProcessGuard() {
+        if (getBridge() == null) return;
+        getBridge().addWebViewListener(new com.getcapacitor.WebViewListener() {
+            @Override
+            public boolean onRenderProcessGone(
+                android.webkit.WebView webView,
+                android.webkit.RenderProcessGoneDetail detail
+            ) {
+                boolean didCrash = detail != null && detail.didCrash();
+                android.util.Log.w("Otlobli", "bridge render process gone, didCrash=" + didCrash);
+                runOnUiThread(() -> {
+                    try {
+                        recreate();
+                    } catch (Throwable ignored) {}
+                });
+                return true;
+            }
+        });
     }
 
     @Override

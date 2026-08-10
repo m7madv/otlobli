@@ -54,7 +54,7 @@ index 6b4115a..8e557cf 100644
                            try {
                              window.AndroidInterface.show();
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
-index 8ae3e61..b1396c2 100644
+index 8ae3e61..944be7c 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
 +++ b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
 @@ -16,7 +16,13 @@ import android.graphics.Color;
@@ -829,7 +829,7 @@ index 8ae3e61..b1396c2 100644
 +            );
 +            navigationController.setAppearanceLightNavigationBars(true);
          }
-
+ 
          requestSafeAreaInsets();
 @@ -2991,6 +3687,14 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                  return;
@@ -870,7 +870,7 @@ index 8ae3e61..b1396c2 100644
                      if (!isInitialized) {
                          isInitialized = true;
                          _webView.clearHistory();
-@@ -4801,8 +5515,21 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4801,14 +5515,63 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                      if (view == null || _webView == null) {
                          return;
                      }
@@ -893,7 +893,49 @@ index 8ae3e61..b1396c2 100644
                          CharSequence description = error != null ? error.getDescription() : null;
                          String message = description != null ? "Initial page load failed: " + description : "Initial page load failed";
                          rejectOpenWebViewIfNeeded(message);
-@@ -4932,6 +5659,19 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+                     }
+                 }
+ 
++                // Android 8+ KILLS THE WHOLE APP when a dead renderer is not
++                // claimed here. Proven on a Galaxy Note 8 (Android 9) browsing
++                // SHEIN: "Render process's crash wasn't handled by all
++                // associated webviews, triggering application crash" - SIGTRAP,
++                // MainActivity force-finished, process died. SHEIN product
++                // pages are heavy enough for the renderer to be OOM-killed on
++                // an older phone, and the app went down with it. iOS already
++                // survives this via webViewWebContentProcessDidTerminate;
++                // Android had no handler at all.
++                //
++                // Returning true claims the crash so the app stays alive. The
++                // WebView is unusable afterwards and must never be reused, so
++                // close it exactly like onCloseWindow does - that hands control
++                // back to the host, whose existing closeEvent recovery reopens
++                // a clean session or shows its retry card.
++                @SuppressLint("NewApi")
++                @Override
++                public boolean onRenderProcessGone(WebView view, android.webkit.RenderProcessGoneDetail detail) {
++                    boolean didCrash = detail != null && detail.didCrash();
++                    Log.w("InAppBrowser", "Otlobli: render process gone, didCrash=" + didCrash);
++                    if (view != _webView) {
++                        // A stale instance being torn down. Claim it anyway so
++                        // the framework does not escalate to an app kill.
++                        if (view != null) view.destroy();
++                        return true;
++                    }
++                    String currentUrl = getUrl();
++                    try {
++                        dismiss();
++                    } catch (Throwable ignored) {}
++                    if (_options != null && _options.getCallbacks() != null) {
++                        _options.getCallbacks().closeEvent(currentUrl);
++                    }
++                    return true;
++                }
++
+                 @SuppressLint("WebViewClientOnReceivedSslError")
+                 @Override
+                 public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
+@@ -4932,6 +5695,19 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
      @Override
      public void dismiss() {
          scheduleHostWebViewInsetRestore();
@@ -913,7 +955,7 @@ index 8ae3e61..b1396c2 100644
  
          // First, stop any ongoing operations and disable further interactions
          if (_webView != null) {
-@@ -5586,17 +6326,50 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -5586,17 +6362,50 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          );
      }
  
@@ -1144,7 +1186,7 @@ index 116e296..5375fd4 100644
 @@ -1307,6 +1400,7 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
              return
          }
-
+ 
 +        webViewController.otlobliTapDiagnosticLog("host-set-url", extra: ["target": url.absoluteString])
          webViewController.load(remote: url)
          call.resolve()
@@ -1528,7 +1570,7 @@ index 1c70884..60018b4 100644
          if
              ProxySchemeRequestSupport.supportsRequestBody(method: context.method),
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
-index 97a2fc1..0c5a863 100644
+index 97a2fc1..eb229c4 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
 @@ -9,6 +9,62 @@
@@ -1594,7 +1636,7 @@ index 97a2fc1..0c5a863 100644
  
  private let estimatedProgressKeyPath = "estimatedProgress"
  private let titleKeyPath = "title"
-@@ -748,6 +804,164 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -748,6 +804,166 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
      fileprivate var webView: WKWebView?
      fileprivate var progressView: UIProgressView?
  
@@ -1633,6 +1675,8 @@ index 97a2fc1..0c5a863 100644
 +    private var otlobliLoadingCoverBottomConstraint: NSLayoutConstraint?
 +    private var otlobliNativeBackButton: UIButton?
 +    private var otlobliNativeBackButtonTopConstraint: NSLayoutConstraint?
++    private var otlobliNativeBackTarget = "home"
++    private var otlobliNativeBackFallbackURL: URL?
 +    private var otlobliLoadingCoverMessage = "جاري تجهيز المتجر…"
 +    private var otlobliLoadingCoverTimeout: DispatchWorkItem?
 +    private var otlobliChallengeRevealWorkItem: DispatchWorkItem?
@@ -1759,7 +1803,7 @@ index 97a2fc1..0c5a863 100644
      fileprivate var previousNavigationBarState: (tintColor: UIColor, hidden: Bool) = (.black, false)
      fileprivate var previousToolbarState: (tintColor: UIColor, hidden: Bool) = (.black, false)
  
-@@ -861,8 +1075,11 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -861,8 +1077,11 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
  
      override open func viewDidDisappear(_ animated: Bool) {
          super.viewDidDisappear(animated)
@@ -1772,7 +1816,7 @@ index 97a2fc1..0c5a863 100644
              self.cleanupWebView()
          }
  
-@@ -878,6 +1095,14 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -878,6 +1097,14 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
              self.initWebview()
          }
  
@@ -1787,7 +1831,7 @@ index 97a2fc1..0c5a863 100644
          // Apply navigation gestures setting
          updateNavigationGestures()
  
-@@ -899,6 +1124,414 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -899,6 +1126,448 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
      override open func viewDidLayoutSubviews() {
          super.viewDidLayoutSubviews()
          refreshWebViewViewportIfNeeded()
@@ -1922,9 +1966,16 @@ index 97a2fc1..0c5a863 100644
 +        }
 +    }
 +
-+    private func updateOtlobliNativeBackButton(visible: Bool, top: CGFloat) {
++    private func updateOtlobliNativeBackButton(visible: Bool, top: CGFloat, target: String, fallbackURL: String) {
 +        DispatchQueue.main.async { [weak self] in
 +            guard let self, self.otlobliLoadingCoverEnabled else { return }
++            self.otlobliNativeBackTarget = target == "cart" ? "cart" : "home"
++            if let candidate = URL(string: fallbackURL),
++               ["http", "https"].contains(candidate.scheme?.lowercased() ?? ""),
++               let host = candidate.host?.lowercased(),
++               host == "shein.com" || host.hasSuffix(".shein.com") {
++                self.otlobliNativeBackFallbackURL = candidate
++            }
 +            if !visible, self.otlobliNativeBackButton == nil { return }
 +            if self.otlobliNativeBackButton == nil {
 +                let button = UIButton(type: .system)
@@ -1962,8 +2013,35 @@ index 97a2fc1..0c5a863 100644
 +        }
 +    }
 +
++    private func otlobliNativeBackDestination(in webView: WKWebView) -> WKBackForwardListItem? {
++        let currentURL = webView.url
++        let currentIsProduct = currentURL?.path.range(of: "-p-", options: .caseInsensitive) != nil
++        return webView.backForwardList.backList.reversed().first { item in
++            let candidate = item.url
++            guard ["http", "https"].contains(candidate.scheme?.lowercased() ?? ""),
++                  let host = candidate.host?.lowercased(),
++                  host == "shein.com" || host.hasSuffix(".shein.com"),
++                  candidate.absoluteString != currentURL?.absoluteString else { return false }
++            let lower = candidate.absoluteString.lowercased()
++            if lower.contains("/challenge") || lower.contains("/captcha") || lower.contains("/verification") { return false }
++            if currentIsProduct && candidate.path == currentURL?.path { return false }
++            return true
++        }
++    }
++
 +    @objc private func otlobliNativeBackButtonDidTap() {
-+        webView?.evaluateJavaScript("var b=document.getElementById('otlobli-back-btn');if(b)b.click()", completionHandler: nil)
++        if otlobliNativeBackTarget == "cart" {
++            emit("messageFromWebview", data: ["detail": ["type": "backToCart"]])
++            return
++        }
++        guard let webView else { return }
++        if let destination = otlobliNativeBackDestination(in: webView) {
++            webView.go(to: destination)
++        } else if let fallbackURL = otlobliNativeBackFallbackURL {
++            webView.load(URLRequest(url: fallbackURL, cachePolicy: .useProtocolCachePolicy))
++        } else {
++            webView.evaluateJavaScript("var b=document.getElementById('otlobli-back-btn');if(b)b.click()", completionHandler: nil)
++        }
 +    }
 +
 +    private func isOtlobliOfflineError(_ error: Error) -> Bool {
@@ -2202,7 +2280,7 @@ index 97a2fc1..0c5a863 100644
      }
  
      func updateButtonTintColors() {
-@@ -1001,6 +1634,37 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1001,6 +1670,37 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          capBrowserPlugin?.notifyListeners(eventName, data: payload(with: data))
      }
  
@@ -2240,7 +2318,7 @@ index 97a2fc1..0c5a863 100644
      private func startObservingKeyboardViewportChanges() {
          guard !isObservingKeyboardViewportChanges else {
              return
-@@ -1025,6 +1689,80 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1025,6 +1725,80 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          return max(0.05, duration.doubleValue)
      }
  
@@ -2321,7 +2399,7 @@ index 97a2fc1..0c5a863 100644
      private func scheduleWebViewViewportRefresh(force: Bool = false, delay: TimeInterval = 0.05) {
          DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
              self?.refreshWebViewViewportIfNeeded(force: force)
-@@ -1135,7 +1873,39 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1135,7 +1909,41 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
      public func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
          if message.name == "messageHandler" {
              if let messageBody = message.body as? [String: Any] {
@@ -2339,7 +2417,9 @@ index 97a2fc1..0c5a863 100644
 +                   detail["type"] as? String == "otlobliBackButtonState" {
 +                    let visible = detail["visible"] as? Bool ?? false
 +                    let top = (detail["top"] as? NSNumber)?.doubleValue ?? 12
-+                    updateOtlobliNativeBackButton(visible: visible, top: CGFloat(top))
++                    let target = detail["target"] as? String ?? "home"
++                    let fallbackURL = detail["fallbackUrl"] as? String ?? ""
++                    updateOtlobliNativeBackButton(visible: visible, top: CGFloat(top), target: target, fallbackURL: fallbackURL)
 +                    return
 +                }
 +                // otlobli: iOS 27 can throttle a heavy page's WebContent rendering
@@ -2361,7 +2441,7 @@ index 97a2fc1..0c5a863 100644
                  emit("messageFromWebview", data: messageBody)
              } else {
                  print("Received non-dictionary message from JavaScript:", message.body)
-@@ -1176,6 +1946,12 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1176,6 +1984,12 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
                  return
              }
              capBrowserPlugin?.setHiddenFromJavaScript(true, sourceId: instanceId)
@@ -2374,7 +2454,7 @@ index 97a2fc1..0c5a863 100644
          } else if message.name == "show" {
              guard allowWebViewJsVisibilityControl else {
                  return
-@@ -1237,6 +2013,9 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1237,6 +2051,9 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
                                  hide: function() {
                                          window.webkit.messageHandlers.hide.postMessage(null);
                                  },
@@ -2384,7 +2464,7 @@ index 97a2fc1..0c5a863 100644
                                  show: function() {
                                          window.webkit.messageHandlers.show.postMessage(null);
                                  }
-@@ -1337,6 +2116,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1337,6 +2154,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          userContentController.removeScriptMessageHandler(forName: "preShowScriptSuccess")
          userContentController.removeScriptMessageHandler(forName: "close")
          userContentController.removeScriptMessageHandler(forName: "hide")
@@ -2392,7 +2472,7 @@ index 97a2fc1..0c5a863 100644
          userContentController.removeScriptMessageHandler(forName: "show")
          userContentController.removeScriptMessageHandler(forName: "takeScreenshot")
          userContentController.removeScriptMessageHandler(forName: "consoleMessageHandler")
-@@ -1358,6 +2138,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1358,6 +2176,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          userContentController.add(weakHandler, name: "preShowScriptSuccess")
          userContentController.add(weakHandler, name: "close")
          userContentController.add(weakHandler, name: "hide")
@@ -2400,7 +2480,7 @@ index 97a2fc1..0c5a863 100644
          userContentController.add(weakHandler, name: "show")
          if allowScreenshotsFromWebPage {
              userContentController.add(weakHandler, name: "takeScreenshot")
-@@ -1581,6 +2362,8 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1581,6 +2400,8 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          self.hiddenPopupWindow = parent.hiddenPopupWindow
          self.opensHidden = parent.hiddenPopupWindow
          self.captureConsoleLogs = parent.captureConsoleLogs
@@ -2409,7 +2489,7 @@ index 97a2fc1..0c5a863 100644
          self.allowWebViewJsVisibilityControl = parent.allowWebViewJsVisibilityControl
          self.allowScreenshotsFromWebPage = parent.allowScreenshotsFromWebPage
          self.handleDownloads = parent.handleDownloads
-@@ -1818,6 +2601,21 @@ public extension WKWebViewController {
+@@ -1818,6 +2639,23 @@ public extension WKWebViewController {
  
      open func cleanupWebView() {
          guard let webView = self.webView else { return }
@@ -2423,6 +2503,8 @@ index 97a2fc1..0c5a863 100644
 +        otlobliNativeBackButton?.removeFromSuperview()
 +        otlobliNativeBackButton = nil
 +        otlobliNativeBackButtonTopConstraint = nil
++        otlobliNativeBackTarget = "home"
++        otlobliNativeBackFallbackURL = nil
 +        stopOtlobliPathMonitor()
 +        otlobliOfflineCoverView?.removeFromSuperview()
 +        otlobliOfflineCoverView = nil
@@ -2431,7 +2513,7 @@ index 97a2fc1..0c5a863 100644
          webView.stopLoading()
          previewItemURL = nil
  
-@@ -1837,6 +2635,7 @@ public extension WKWebViewController {
+@@ -1837,6 +2675,7 @@ public extension WKWebViewController {
          webView.configuration.userContentController.removeScriptMessageHandler(forName: "messageHandler")
          webView.configuration.userContentController.removeScriptMessageHandler(forName: "close")
          webView.configuration.userContentController.removeScriptMessageHandler(forName: "hide")
@@ -2439,7 +2521,7 @@ index 97a2fc1..0c5a863 100644
          webView.configuration.userContentController.removeScriptMessageHandler(forName: "show")
          if allowScreenshotsFromWebPage {
              webView.configuration.userContentController.removeScriptMessageHandler(forName: "takeScreenshot")
-@@ -2680,14 +3479,37 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2680,14 +3519,37 @@ extension WKWebViewController: WKNavigationDelegate {
      }
  
      public func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
@@ -2477,7 +2559,7 @@ index 97a2fc1..0c5a863 100644
          if !didpageInit && self.capBrowserPlugin?.isPresentAfterPageLoad == true {
              // Only inject preShowScript if it wasn't already injected at document start
              let shouldInjectScript = self.preShowScript.map { !$0.isEmpty } ?? false &&
-@@ -2703,12 +3525,18 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2703,12 +3565,18 @@ extension WKWebViewController: WKNavigationDelegate {
                      DispatchQueue.global(qos: .userInitiated).async {
                          self.injectPreShowScript()
                          DispatchQueue.main.async { [weak self] in
@@ -2498,7 +2580,7 @@ index 97a2fc1..0c5a863 100644
              }
          } else if self.preShowScript != nil &&
                      !self.preShowScript!.isEmpty &&
-@@ -2737,23 +3565,44 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2737,23 +3605,44 @@ extension WKWebViewController: WKNavigationDelegate {
      }
  
      public func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
