@@ -10032,9 +10032,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // weak-CPU device feel heavy and slow. Relax every hot interval there so the
   // device spends its cycles rendering / passing the challenge instead of on
   // our scans. Modern devices (iPhone 16) keep the original tight timings.
-  var OTLOBLI_VERY_LOW_END = typeof navigator !== 'undefined' && (navigator.hardwareConcurrency || 4) <= 2;
+  // No slower tier below this: v86.118/v86.121 tried ~950ms and the iPhone 6
+  // run rejected both. Cut work per pass, never interval length.
   var OTLOBLI_LOW_END = typeof navigator !== 'undefined' && (
-    OTLOBLI_VERY_LOW_END || (navigator.hardwareConcurrency || 4) <= 4 ||
+    (navigator.hardwareConcurrency || 4) <= 4 ||
     (navigator.deviceMemory && navigator.deviceMemory <= 3) ||
     /Android\\s(?:7|8|9|10)(?:\\D|$)/i.test(navigator.userAgent || '')
   );
@@ -10095,7 +10096,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   setInterval(function () {
     if (document.hidden) return;
     tick();
-  }, OTLOBLI_VERY_LOW_END ? 950 : (OTLOBLI_LOW_END ? 650 : 300));
+  }, OTLOBLI_LOW_END ? 650 : 300);
   // hideKnownHeaderIconsByHint specifically needs to win what looks like an
   // ongoing fight against SHEIN periodically re-rendering its own header (a
   // user found the hamburger/wishlist icons could stay reachable for
@@ -10103,14 +10104,17 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // instantly elsewhere) - run it on its own much tighter interval so any
   // freshly re-created icon gets caught within ~120ms instead of waiting
   // for the next general tick.
-  setInterval(function () {
+  // The two add-hiders are mutually exclusive by page type; running only the
+  // matching one halves this hot pass on a 2-core iPhone 6 at no cost.
+  function runOtlobliCriticalSheinHiders() {
     if (document.hidden) return;
     if (otlobliChallengeActive || !IS_SHEIN || otlobliInteractionActive()) return;
     hideKnownHeaderIconsByHint();
     hideSheinHeaderControls();
-    hideListingCardAddButtons();
-    hideSheinNativeProductAdd();
-  }, OTLOBLI_VERY_LOW_END ? 950 : (OTLOBLI_LOW_END ? 650 : 120));
+    if (looksLikeProductPage()) hideSheinNativeProductAdd();
+    else hideListingCardAddButtons();
+  }
+  setInterval(runOtlobliCriticalSheinHiders, OTLOBLI_LOW_END ? 650 : 120);
   setInterval(function () {
     if (document.hidden) return;
     if (!otlobliInteractionActive() || !document.getElementById('otlobli-nav')) ensureOtlobliNav();
@@ -10122,13 +10126,16 @@ export const SHEIN_CAPTURE_SCRIPT = `
       try { hideTemuSearchVisibleAccountCart(intervalTemuSearching); } catch (e) {}
       try { otlobliCleanTemuBlockers(true); } catch (e) {}
     }
-  }, OTLOBLI_VERY_LOW_END ? 2800 : (OTLOBLI_LOW_END ? 2200 : 1200));
+  }, OTLOBLI_LOW_END ? 2200 : 1200);
   // Own slower interval, not part of tick() - see checkForSheinSecurityBlock's
   // comment on why innerText needs to stay off the 300ms timer. خاص بشي إن فقط.
   setInterval(function () {
     if (document.hidden) return;
     if (IS_SHEIN && !otlobliInteractionActive()) checkForSheinSecurityBlock();
-  }, OTLOBLI_VERY_LOW_END ? 2200 : (OTLOBLI_LOW_END ? 1600 : 1000));
+  }, OTLOBLI_LOW_END ? 1600 : 1000);
+  // Conceal once before the first interval, else iPhone 6 shows SHEIN's own
+  // controls for 650ms after attach.
+  runOtlobliCriticalSheinHiders();
   tick();
 })();
 `

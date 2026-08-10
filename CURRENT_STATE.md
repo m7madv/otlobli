@@ -1,3 +1,61 @@
+# Active candidate — v86.122 kills the false VPN gate and restores fast concealment (2026-08-10)
+
+Qatar device report on v86.121: SHEIN opens on the first launch only; re-entering
+shows a VPN message although the user is in Qatar with no VPN, and concealment on
+the iPhone 6 became visibly slow again. A read of `6efcc33` (v86.121) traced both
+symptoms to that single commit.
+
+Three defects, all introduced by v86.121, made the blocker unrecoverable:
+
+1. The blocker's primary retry was gated on `vpnStateRef.current === 'ok'` — the
+   one state it is never in while a VPN blocker is showing. Tapping it closed the
+   WebView and did nothing. v86.117 reopened unconditionally.
+2. That retry no longer armed `sheinCacheResetPendingRef`, while the card kept
+   promising «جلسة نظيفة مرة واحدة». Every retry reused the broken session.
+3. `refreshVpnDiagnosisForStoreFailure` set `vpnState='ok'` on a healthy probe but
+   no longer corrected `storeOpenFailureReason`. When the store probe succeeds and
+   the geo probe does not, `vpnGeo` stays null, so `isVpnConfirmed` cannot vouch
+   for it and the card kept rendering «شغّل الـ VPN أولاً» for a connection the app
+   had just proven works.
+
+v86.122 fixes all three, keeping v86.121's correct insight that a healthy launch
+must not arm a cache reset: `clearFalseVpnAlarm()` now corrects the wording only,
+and cache reset is armed solely on an explicit user retry. The retry can no longer
+be a no-op — when `vpnState` is not `ok` it re-runs the probes, which renders the
+loading screen and reopens SHEIN as soon as they resolve. The `no-vpn` gate only
+claims Syria when the geo probe actually returned a blocked country; a probe
+timeout now reads «تعذّر التحقق من الاتصال» instead of accusing a Qatar customer.
+
+Concealment returns to the v86.119 shape that reduces work rather than frequency:
+`runOtlobliCriticalSheinHiders()` runs one page-appropriate add-hider instead of
+both (SHEIN's `looksLikeProductPage()` is a pathname regex, no DOM query) and runs
+once immediately before the first interval. The `OTLOBLI_VERY_LOW_END` tier is
+deleted and now **forbidden** by the freeze guard: it stretched the hot pass to
+950ms on the 2-core iPhone 6 and was rejected on device in both v86.118 and
+v86.121. iPhone 6 timings are back to 650ms critical / 650ms tick / 1600ms
+security; iPhone 16 and Android keep 120ms / 300ms / 1000ms.
+
+Guard markers were updated to lock the fixed behaviour, not the broken one. No new
+timer, observer, polling loop, WebView burst or React effect was added.
+
+Version is `86.122/982`; diagnostics remain off. Production build, freeze guard,
+performance budget, Android sync and Android debug assemble pass. ESLint reports
+49 problems both before and after this change — none introduced here. Local bundle
+`index-BZh48MgD.js` is 1,167,472 bytes, SHA-256
+`2C5BEAD46B0635FD4691BD7F7F547C53B57729489DAAEB7D192CACB559166A8E`.
+Budgets are JS gzip `322,956/370,000`, CSS `63,670/70,000`, fonts `81,364/100,000`,
+and SHEIN source `549,948/550,000` — only 52 bytes of headroom, so the next edit to
+that file must remove at least as much as it adds. Android debug APK is 11,169,788
+bytes, SHA-256
+`81C0C5203E3AB33FF72649ECCCC381557564086E8C298CD8E8AE31ABA40A7BB4`, verified by
+unzip to carry the v86.122 tag, the new copy, `runOtlobliCriticalSheinHiders`, and
+no `OTLOBLI_VERY_LOW_END`.
+
+**Not yet built or tested on iOS, and not validated on any physical device.** The
+required acceptance is unchanged: cold Qatar entry, exit and re-entry without a VPN
+message, cart product open/back, concealment speed on the iPhone 6, and five
+iPhone 16 resumes.
+
 # Active candidate — v86.121 restores the device-proven v86.118 runtime (2026-08-10)
 
 The v86.120 real-iPhone screenshot proved the corrected Qatar/preparation copy

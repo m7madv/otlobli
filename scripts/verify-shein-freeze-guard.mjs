@@ -288,7 +288,14 @@ const checks = [
     file: 'src/App.tsx',
     markers: [
       'const previouslyReachable = storeReachableRef.current',
-      'must not turn every healthy launch into a cold cache-reset path',
+      // v86.122: a probe that concludes the connection is healthy must also
+      // clear the VPN wording, or Qatar keeps reading "شغّل الـ VPN أولاً".
+      'const clearFalseVpnAlarm = () => {',
+      // v86.122: the blocker's retry must never be a no-op. v86.121 gated it on
+      // vpnState === 'ok' - the one state it is never in while that card shows.
+      "if (vpnStateRef.current !== 'checking') setVpnState('checking')",
+      // v86.122: the card promises a clean session; the retry must arm one.
+      'sheinCacheResetPendingRef.current = true',
       'const trustedStoreAccess = !isBlockedStoreCountry',
       "reason === 'network' && trustedStoreAccess ? 'preparation' : reason",
       "if (reason === 'preparation' || confirmedVpn)",
@@ -377,8 +384,15 @@ const checks = [
       'function otlobliInteractionActive()',
       'if (IS_SHEIN && otlobliInteractionActive() &&',
       '!sheinShippingBodyLockState && !sheinShippingUiLikelyOpen()',
-      'var OTLOBLI_VERY_LOW_END',
-      'OTLOBLI_VERY_LOW_END ? 950 : (OTLOBLI_LOW_END ? 650 : 300)',
+      // v86.122: concealment stays fast on 2-core iPhones. Headroom comes from
+      // doing less work per pass (one page-appropriate add-hider instead of
+      // both), never from a longer interval - see the forbidden entry below.
+      'function runOtlobliCriticalSheinHiders()',
+      'if (looksLikeProductPage()) hideSheinNativeProductAdd();',
+      'else hideListingCardAddButtons();',
+      'setInterval(runOtlobliCriticalSheinHiders, OTLOBLI_LOW_END ? 650 : 120)',
+      'runOtlobliCriticalSheinHiders();',
+      'tick();\n  }, OTLOBLI_LOW_END ? 650 : 300);',
       'scheduleSheinShippingProgress(OTLOBLI_LOW_END ? 320 : 160)',
       'sheinShippingUiLikelyOpen() && sheinResolvedShippingUiRoot()',
       "typeof window.mobileApp.navigate === 'function'",
@@ -460,6 +474,12 @@ const checks = [
       'function sheinLiveSkuPrice()',
       'stableSheinPriceReads >= 2',
       "sheinRegionDiag('price-capture'",
+      // Rejected twice on the real iPhone 6 (v86.118 and v86.121). An extra
+      // "very low end" tier stretches the concealment pass to ~950ms, so
+      // SHEIN's own price/add controls stay visible for most of a second on
+      // the weakest device - the one that needs them hidden fastest. Reduce
+      // work per pass instead; never reintroduce this tier.
+      'OTLOBLI_VERY_LOW_END',
     ],
   },
   {
