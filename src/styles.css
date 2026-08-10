@@ -324,6 +324,14 @@ a {
 .skeleton-card {
   position: relative;
   overflow: hidden;
+  /* overflow:hidden here clips children to the rounded corners, but it also
+     makes each card a scroll container - and CSS gives a grid/flex item with
+     overflow other than visible an automatic minimum size of ZERO. Inside
+     .mobile-content (display:grid) that collapsed the ShamCash payment card to
+     46px against 467px of content: the code, receiver, amount and deadline were
+     all clipped away and only a sliver of the code image showed. Restore the
+     intrinsic minimum explicitly so the corner clipping costs nothing. */
+  min-height: max-content;
   border: 1px solid var(--outline);
   border-radius: var(--radius);
   background: var(--surface);
@@ -1912,10 +1920,25 @@ a {
   border-radius: calc(var(--radius) - 2px);
 }
 
+/* The 160px square is right for the placeholder icon, but the real ShamCash
+   code is a portrait screenshot (about 776x895) that the customer has to read
+   and match by hand. Letterboxed into that square it rendered barely 140px
+   wide. Size this variant to the image instead: readable, still bounded, and
+   never taller than half the screen. */
 .qr-code--image {
+  width: min(74vw, 280px);
+  height: auto;
+  aspect-ratio: auto;
   border-style: solid;
   background: #fff;
   padding: 8px;
+}
+
+.qr-code--image img {
+  width: 100%;
+  height: auto;
+  max-height: 48vh;
+  object-fit: contain;
 }
 
 .instruction-list {
