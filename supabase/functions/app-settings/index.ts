@@ -12,9 +12,10 @@ const corsHeaders = {
 
 // القيم الافتراضية — تُستخدم إذا جدول app_settings غير موجود بعد
 const DEFAULTS: Record<string, string> = {
-  shipping_cost_shein_syp: '90000',
-  shipping_cost_temu_syp: '90000',
-  usd_to_syp_rate: '13000',
+  // الليرة السورية الجديدة (حذف صفرين، 2026): 100 قديمة = 1 جديدة.
+  shipping_cost_shein_syp: '900',
+  shipping_cost_temu_syp: '900',
+  usd_to_syp_rate: '131.7',
   shamcash_qr_shein_data_url: '',
   shamcash_qr_temu_data_url: '',
   shamcash_code_shein: '',

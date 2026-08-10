@@ -1,3 +1,14 @@
+# الليرة السورية الجديدة — فرع `claude/syp-currency-v86133` (2026-08-11)
+
+متفرّع من `claude/v86.122-vpn-conceal-fix` عند `b5d078e` / v86.133. **هجرتان جاهزتان غير منشورتين** على القاعدة الحيّة:
+
+- `20260810160000_payment_intent_nudge_window.sql` — يُصلح «payment amount collision» (المشغّل كان يشترط المساواة التامة بينما دوال الإنشاء تُزيح المبلغ؛ النافذة الحيّة **120 خطوة لا 40**).
+- `20260810170000_syp_redenomination.sql` — نقل كامل للّيرة الجديدة (100 قديمة = 1 جديدة)، مع مشغّل `guard_usd_rate_setting` يرفض أي سعر ≥ 1000 بعد الاعتماد.
+
+**الترتيب الإلزامي ثلاث أرجل: قاعدة → سيرفر أوراكل يدوياً (scp + pm2) → بناء التطبيق.** تخطّي السيرفر يُعيد السعر القديم خلال 30 دقيقة، لأن `/api/exchange-rate` هو الكاتب الفعلي للسعر لا مهمة GitHub Actions (تلك فاشلة في آخر 100 تشغيل — أسرار غير مضبوطة).
+
+مهمة مفتوحة منفصلة: `create_pending_order` الحيّة مخزَّنة بترميز عربي تالف، مستور بمشغّل تطبيع لا مُصلَح. التفاصيل والأدلة في `CURRENT_STATE.md` أعلى الملف.
+
 # Current candidate — v86.125 strips injected-script comments at build time (2026-08-10)
 
 - **Base is still v86.117 (`bf40b1c`).** Runtime behaviour is unchanged from

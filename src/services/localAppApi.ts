@@ -3,7 +3,8 @@ import { FULL_NAME_ERROR_MESSAGE, getFullNameValidationError, normalizeFullName 
 import { today } from '../domain/orders'
 import type { TalabiehApi } from './appApi'
 
-const LOCAL_USD_TO_SYP_RATE = 13000
+// الليرة الجديدة (حذف صفرين، 2026): 100 قديمة = 1 جديدة.
+const LOCAL_USD_TO_SYP_RATE = 131.7
 
 function wait(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms))
@@ -67,7 +68,7 @@ export const localAppApi: TalabiehApi = {
         paymentAmount: amount,
         paymentCurrency: 'USD',
         paymentExpiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
-        creditAmountSyp: Math.round(amount * 13000),
+        creditAmountSyp: Math.round(amount * LOCAL_USD_TO_SYP_RATE),
       }
     },
 

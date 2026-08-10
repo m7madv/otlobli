@@ -50,9 +50,9 @@ Deno.serve(async (req) => {
     // القيم الافتراضية إذا لم تكن موجودة
     await sql.unsafe(`
       INSERT INTO app_settings (key, value) VALUES
-        ('shipping_cost_shein_syp', '90000'),
-        ('shipping_cost_temu_syp',  '90000'),
-        ('usd_to_syp_rate',         '13000')
+        ('shipping_cost_shein_syp', '900'),
+        ('shipping_cost_temu_syp',  '900'),
+        ('usd_to_syp_rate',         '131.7')
       ON CONFLICT (key) DO NOTHING
     `)
     results.push('app_settings defaults: OK')

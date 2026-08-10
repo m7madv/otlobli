@@ -10,7 +10,12 @@ import { isWhatsappApiAuthEnabled, whatsappAuthApi } from './whatsappAuthApi'
 import { cleanEnvValue } from '../config'
 import { readStoredJson, storageKeys } from '../infrastructure/localStorage'
 
-const DISPLAY_USD_RATE = Number(cleanEnvValue(import.meta.env.VITE_USD_TO_SYP_RATE)) || 13000
+// الليرة الجديدة (حذف صفرين، 2026): يُمرَّر إلى redeem_coupon كـ p_usd_rate،
+// فأي قيمة بحجم الليرة القديمة (ملف .env لم يُحدَّث) تجعل خصم الكوبون مئة ضعف.
+const DISPLAY_USD_RATE = (() => {
+  const parsed = Number(cleanEnvValue(import.meta.env.VITE_USD_TO_SYP_RATE))
+  return Number.isFinite(parsed) && parsed > 0 && parsed < 1000 ? parsed : 131.7
+})()
 const SUPABASE_URL = cleanEnvValue(import.meta.env.VITE_SUPABASE_URL)
 const SUPABASE_ANON_KEY = cleanEnvValue(import.meta.env.VITE_SUPABASE_ANON_KEY)
 const CART_GROUPS_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/cart-groups` : ''

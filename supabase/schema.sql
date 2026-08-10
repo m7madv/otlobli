@@ -620,14 +620,16 @@ create table if not exists public.app_settings (
   value text not null
 );
 
+-- الليرة السورية الجديدة (حذف صفرين، 2026): 100 قديمة = 1 جديدة. انظر
+-- supabase/migrations/20260810170000_syp_redenomination.sql
 insert into public.app_settings (key, value)
-values ('usd_to_syp_rate', '13000')
+values ('usd_to_syp_rate', '131.7'), ('syp_denomination', 'new')
 on conflict (key) do nothing;
 
 insert into public.app_settings (key, value)
 values
-  ('shipping_cost_shein_syp', '90000'),
-  ('shipping_cost_temu_syp', '90000'),
+  ('shipping_cost_shein_syp', '900'),
+  ('shipping_cost_temu_syp', '900'),
   ('shamcash_qr_shein_data_url', ''),
   ('shamcash_qr_temu_data_url', ''),
   ('shamcash_code_shein', ''),
@@ -4150,6 +4152,9 @@ declare
   required_amount numeric;
   remaining_syp integer;
   metadata_requested_usd text;
+  unit_step numeric;
+  max_steps integer := 120;
+  min_amount numeric;
 begin
   select value::numeric into usd_rate from public.app_settings where key = 'usd_to_syp_rate';
   usd_rate := case when usd_rate > 0 then usd_rate else 13000 end;
@@ -4178,9 +4183,20 @@ begin
     raise exception 'unsupported payment intent table';
   end if;
 
-  if required_amount <= 0 or new.payment_amount <> required_amount then
+  -- دوال إنشاء النيّة تُزيح المبلغ للأسفل بخطوات صغيرة عند التصادم، فنقبل
+  -- نافذة الإزاحة نفسها بدل المساواة التامة (120 خطوة = أوسع حلقة إنشاء حيّة).
+  -- انظر supabase/migrations/20260810160000_payment_intent_nudge_window.sql
+  unit_step := case when new.payment_currency = 'USD' then 0.01 else 1 end;
+  min_amount := required_amount - (max_steps * unit_step);
+
+  if required_amount <= 0
+     or new.payment_amount > required_amount
+     or new.payment_amount < min_amount then
     raise exception using errcode = 'P0001',
-      message = 'payment amount collision; retry after the existing intent expires';
+      message = format(
+        'payment amount %s is outside the allowed window [%s, %s]',
+        new.payment_amount, greatest(min_amount, 0), required_amount
+      );
   end if;
   return new;
 end;

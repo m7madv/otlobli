@@ -49,7 +49,7 @@ export const blockedProducts = ['إلكترونيات', 'عطور', 'بطاري�
 
 // تكلفة شحن ثابتة واحدة تظهر كسطر واحد في تفاصيل التكلفة (تشمل شحن SHEIN
 // للأردن، شحن الأردن لسوريا، توصيل القدموس، ورسوم المنصة مجمّعة).
-export const FIXED_SHIPPING_SYP = 90000
+export const FIXED_SHIPPING_SYP = 900
 
 export const shippingFees: PriceLine[] = [
   { label: 'تكلفة الشحن', value: FIXED_SHIPPING_SYP },

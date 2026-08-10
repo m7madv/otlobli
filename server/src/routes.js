@@ -64,10 +64,20 @@ async function hasValidCustomerSession(req, phone) {
   return !error
 }
 
+// الليرة السورية الجديدة (حذف صفرين، 2026): السعر ~131 وله كسر. فلا تدوير
+// لعدد صحيح (يضيّع ~0.4% من قيمة كل طلب) ولا رفض لما دون 1000 — ذلك المجال
+// صار هو الليرة القديمة. القاعدة نفسها تحرس هذا عبر guard_usd_rate_setting.
+const NEW_LIRA_RATE_CEILING = 1000
+
+function normalizeNewLiraRate(value) {
+  const rate = Math.round(Number(value) * 100) / 100
+  return Number.isFinite(rate) && rate > 0 && rate < NEW_LIRA_RATE_CEILING ? rate : 0
+}
+
 async function persistExchangeRate(rate) {
   if (!supabase) throw new Error('Supabase is not configured for exchange-rate sync')
-  const normalizedRate = Math.round(Number(rate))
-  if (!Number.isFinite(normalizedRate) || normalizedRate < 1000 || normalizedRate > 100000) {
+  const normalizedRate = normalizeNewLiraRate(rate)
+  if (!normalizedRate) {
     throw new Error('Exchange rate is outside the accepted range')
   }
   const { error } = await supabase
@@ -85,13 +95,11 @@ async function readPersistedExchangeRate() {
     .eq('key', 'usd_to_syp_rate')
     .maybeSingle()
   if (error) throw new Error(`Failed to read persisted exchange rate: ${error.message}`)
-  const rate = Math.round(Number(data?.value))
-  return Number.isFinite(rate) && rate >= 1000 && rate <= 100000 ? rate : 0
+  return normalizeNewLiraRate(data?.value)
 }
 
 function getConfiguredExchangeRateFallback() {
-  const rate = Math.round(Number(process.env.VITE_USD_TO_SYP_RATE ?? 13000))
-  return Number.isFinite(rate) && rate >= 1000 && rate <= 100000 ? rate : 13000
+  return normalizeNewLiraRate(process.env.VITE_USD_TO_SYP_RATE ?? 131.7) || 131.7
 }
 
 // الحصول على حالة اتصال واتساب
@@ -496,17 +504,38 @@ async function fetchLiveRate() {
   // الفعلية بكثير، فلازم نرتكز على رابط بطاقة الدولار نفسها لا أول ظهور للكلمة
   const anchorIndex = html.indexOf('/currency/us-dollar')
   const usdBlock = anchorIndex === -1 ? '' : html.slice(anchorIndex, anchorIndex + 3000)
-  // الفاصلة إلزامية بالنمط هون لتجنب التقاط أكواد ألوان hex داخل أيقونة SVG
-  // (مثل D80027) يلي بتشبه رقم 5 خانات بس بدون فاصلة آلاف
-  const nums = [...usdBlock.matchAll(/\d{1,3},\d{3}/g)]
+  // نجرّد الوسوم لأن الأرقام موزّعة على عناصر متداخلة، فيصير النص المسطّح:
+  //   USD US Dollar Rate General · SYP (new) Buy 131.20 13,120 old Sell 131.70 13,170 old
+  const text = usdBlock.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')
+
+  // سوريا حذفت صفرين مطلع 2026، وsp-today ينشر القيمتين: الجديدة أولاً بلا
+  // فاصلة آلاف (131.70) وتتبعها القديمة بفاصلة (13,170 old). نعتمد الجديدة
+  // لأن كل حسابات التطبيق وشام كاش صارت بها، ونشتقّها من القديمة إن غابت.
+  // نستخدم سعر المبيع لا متوسط البيع والشراء، لأنه السعر الحقيقي لتحويل
+  // الدولار إلى ليرة بالسوق.
+  const readPair = (label) => {
+    const asNew = new RegExp(`${label}\\s+(\\d{1,4}(?:\\.\\d{1,2})?)\\b(?!\\s*,)`, 'i').exec(text)
+    if (asNew) return Number(asNew[1])
+    const asOld = new RegExp(`${label}\\s+(\\d{1,3}(?:,\\d{3})+)`, 'i').exec(text)
+    if (asOld) return Number(asOld[1].replace(/,/g, '')) / 100
+    return 0
+  }
+
+  const buy = readPair('Buy')
+  const sell = readPair('Sell')
+  if (sell) return { buy: buy || sell, sell, rate: sell }
+  if (buy) return { buy, sell: buy, rate: buy }
+
+  // احتياط أخير لو تغيّر تخطيط الصفحة واختفت كلمتا Buy/Sell: الفاصلة إلزامية
+  // لتجنب التقاط أكواد ألوان hex داخل أيقونة SVG (مثل D80027) يلي بتشبه رقم
+  // 5 خانات بس بدون فاصلة آلاف. والقيمة هون قديمة فتُقسم على 100.
+  const nums = [...text.matchAll(/\d{1,3},\d{3}/g)]
     .map(m => parseInt(m[0].replace(/,/g, ''), 10))
     .filter(n => n >= 10000 && n <= 100000)
+    .map(n => n / 100)
 
   if (nums.length >= 2) {
-    const [buy, sell] = nums
-    // نستخدم سعر المبيع (الأعلى) كسعر الصرف المعتمد بالتطبيق لا متوسط
-    // البيع والشراء، لأنه هو السعر الحقيقي لتحويل الدولار إلى ليرة بالسوق
-    return { buy, sell, rate: sell }
+    return { buy: nums[0], sell: nums[1], rate: nums[1] }
   }
   if (nums.length === 1) {
     return { buy: nums[0], sell: nums[0], rate: nums[0] }

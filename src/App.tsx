@@ -826,12 +826,20 @@ const QADMOUS_BRANCHES: Record<string, string[]> = {
 // مهم: نستخدم || وليس ?? لأن secret البناء قد يصل نصاً فارغاً ('') وليس
 // undefined، و?? لا تمسك النص الفارغ فيصير parseInt('')=NaN ويصفّر كل
 // الأسعار. وفوقها fallback نهائي لو طلعت القيمة غير صالحة لأي سبب.
+// الليرة الجديدة (حذف صفرين، 2026): السعر صار ~131 لا ~13,000. لذلك parseFloat
+// لا parseInt (كسر السعر ~0.4% من قيمة الطلب)، والحدّ الأدنى صار > 0 لا > 1000
+// وإلا رُفض كل سعر جديد وسقط على الاحتياطي القديم فصارت الأسعار 100 ضعفاً.
+// وأي قيمة ≥ 1000 هي ملف .env قديم لم يُحدَّث — نتجاهلها بدل تسعير بمئة ضعف.
+const OLD_LIRA_RATE_FLOOR = 1000
+const FALLBACK_EXCHANGE_RATE = 131.7
 const DEFAULT_EXCHANGE_RATE = (() => {
-  const parsed = parseInt(cleanEnvValue(import.meta.env.VITE_USD_TO_SYP_RATE) || '13000', 10)
-  return Number.isFinite(parsed) && parsed > 1000 ? parsed : 13000
+  const parsed = parseFloat(cleanEnvValue(import.meta.env.VITE_USD_TO_SYP_RATE) || '')
+  return Number.isFinite(parsed) && parsed > 0 && parsed < OLD_LIRA_RATE_FLOOR
+    ? parsed
+    : FALLBACK_EXCHANGE_RATE
 })()
 
-const MIN_ORDER_SYP = 500000
+const MIN_ORDER_SYP = 5000
 const MIN_ORDER_USD = 40
 
 type PendingWhatsappAuth = {
@@ -972,7 +980,12 @@ function App() {
   const [userProfile, setUserProfile] = useStoredState<UserProfile | null>(storageKeys.userProfile, null)
   const [paymentCurrency, setPaymentCurrency] = useStoredState<PaymentCurrency>(storageKeys.paymentCurrency, 'SYP')
   const [storedRate, setExchangeRate] = useStoredState<number>(storageKeys.exchangeRate, DEFAULT_EXCHANGE_RATE)
-  const exchangeRate = (storedRate && !isNaN(storedRate) && storedRate > 1000) ? storedRate : DEFAULT_EXCHANGE_RATE
+  // الليرة الجديدة: أي سعر محفوظ ≥ 1000 هو بقيّة من الليرة القديمة في
+  // localStorage عند جهاز محدَّث من نسخة سابقة — نتجاهله بدل عرض أسعار بمئة
+  // ضعف إلى أن يصل جلب الإعدادات (وقد لا يصل إن كان الجهاز دون شبكة).
+  const exchangeRate = (storedRate && !isNaN(storedRate) && storedRate > 0 && storedRate < OLD_LIRA_RATE_FLOOR)
+    ? storedRate
+    : DEFAULT_EXCHANGE_RATE
   const [exchangeRateFetchedAt, setExchangeRateFetchedAt] = useState(() => Date.now())
   const [shippingCostShein, setShippingCostShein] = useState(FIXED_SHIPPING_SYP)
   const [shippingCostTemu, setShippingCostTemu] = useState(FIXED_SHIPPING_SYP)
@@ -1102,6 +1115,29 @@ function App() {
       return { ...all, [selectedStoreRef.current]: next }
     })
   }, [setCartsByStore])
+  // الليرة الجديدة (حذف صفرين، 2026): السلال المحفوظة قبل التحويل تحمل سعراً
+  // بالليرة القديمة (priceUsd × 13,180)، والحساب يستعمل priceSyp المخزَّن إذا
+  // كان موجباً فلا يعيد اشتقاقه — فيخرج الطلب أعلى بمئة ضعف. نصحّحها مرة
+  // واحدة: أي سعر مخزَّن يتجاوز المتوقَّع بعشرة أضعاف نُعيد حسابه من الدولار.
+  // (عشرة أضعاف هامش واسع لا تبلغه نسبة الربح، وأقل بكثير من المئة.)
+  useEffect(() => {
+    if (!(exchangeRate > 0)) return
+    setCartsByStore((all) => {
+      let changed = false
+      const next: Record<string, CartItem[]> = {}
+      for (const [store, items] of Object.entries(all)) {
+        next[store] = items.map((item) => {
+          const usd = item.priceUsd ?? 0
+          if (usd <= 0 || !(item.priceSyp > 0)) return item
+          const expected = usd * exchangeRate
+          if (item.priceSyp <= expected * 10) return item
+          changed = true
+          return { ...item, priceSyp: Math.round(expected) }
+        })
+      }
+      return changed ? next : all
+    })
+  }, [exchangeRate, setCartsByStore])
   const [orders, setOrders] = useStoredState<Order[]>(storageKeys.orders, initialOrders)
   // طلب قصّ صورة معلّق (منتجات التخصيص) — يفتح شاشة القص فوق أي شاشة.
   const [cropRequest, setCropRequest] = useState<CropRequest | null>(null)
@@ -1828,7 +1864,10 @@ function App() {
       fetch(`${API_BASE}/api/exchange-rate`)
         .then((r) => r.json())
         .then((data: { rate?: number }) => {
-          if (data.rate && data.rate > 1000) {
+          // سيرفر أوراكل هو الكاتب الأساسي للسعر (يسحبه من sp-today كل ساعة).
+          // نرفض أي قيمة بحجم الليرة القديمة حتى لا يُفسد نسخةَ سيرفر لم
+          // تُحدَّث بعدُ كلَّ الأسعار بمئة ضعف — انظر OLD_LIRA_RATE_FLOOR.
+          if (data.rate && data.rate > 0 && data.rate < OLD_LIRA_RATE_FLOOR) {
             setExchangeRate(data.rate)
             setExchangeRateFetchedAt(Date.now())
           }
@@ -1854,8 +1893,9 @@ function App() {
         const profitPercent = Number(data.product_profit_percent ?? '0')
         // سعر الصرف يُحدَّث في Supabase عبر مهمة GitHub Actions (بديل سيرفر Railway).
         // نقرأه من هنا حتى يبقى التسعير يعمل بعد إيقاف السيرفر.
-        const usdRate = parseInt(data.usd_to_syp_rate ?? '0', 10)
-        if (usdRate >= 1000 && usdRate <= 100000) {
+        // نرفض أيضاً أي قيمة بحجم الليرة القديمة (كاتب قديم لم يُحدَّث بعد).
+        const usdRate = parseFloat(data.usd_to_syp_rate ?? '0')
+        if (usdRate > 0 && usdRate < OLD_LIRA_RATE_FLOOR) {
           setExchangeRate(usdRate)
           setExchangeRateFetchedAt(Date.now())
         }

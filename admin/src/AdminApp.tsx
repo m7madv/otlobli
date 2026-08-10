@@ -2450,9 +2450,10 @@ function SettingsPanel({
   useEffect(() => {
     void fetchPublicSettings()
       .then((data) => {
-        setSheinCost(data.shipping_cost_shein_syp ?? '90000')
-        setTemuCost(data.shipping_cost_temu_syp ?? '90000')
-        setUsdRate(data.usd_to_syp_rate ?? '13000')
+        // الليرة السورية الجديدة (حذف صفرين، 2026): 100 قديمة = 1 جديدة.
+        setSheinCost(data.shipping_cost_shein_syp ?? '900')
+        setTemuCost(data.shipping_cost_temu_syp ?? '900')
+        setUsdRate(data.usd_to_syp_rate ?? '131.7')
         setSheinQr(data.shamcash_qr_shein_data_url ?? '')
         setTemuQr(data.shamcash_qr_temu_data_url ?? '')
         setSheinCode(data.shamcash_code_shein ?? '')
@@ -2530,7 +2531,7 @@ function SettingsPanel({
       <div className="settings-overview">
         <article>
           <span>سعر الصرف الحالي</span>
-          <b>{usdRate || '13000'} ل.س</b>
+          <b>{usdRate || '131.7'} ل.س</b>
           <small>لكل 1 USD</small>
         </article>
         <article>
