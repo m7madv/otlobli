@@ -1,60 +1,55 @@
-# Active candidate — v86.122 kills the false VPN gate and restores fast concealment (2026-08-10)
+# Active candidate — v86.123 returns to v86.117 and fixes only the back button (2026-08-10)
 
-Qatar device report on v86.121: SHEIN opens on the first launch only; re-entering
-shows a VPN message although the user is in Qatar with no VPN, and concealment on
-the iPhone 6 became visibly slow again. A read of `6efcc33` (v86.121) traced both
-symptoms to that single commit.
+Device verdict from the customer, covering four builds:
 
-Three defects, all introduced by v86.121, made the blocker unrecoverable:
+- v86.116 — back button vanished entirely. Rejected outright.
+- v86.117 — correct in every respect, including concealment. One defect: after a
+  few product hops on the iPhone 6 the back button keeps accepting taps and
+  stops moving. The app also felt slow.
+- v86.118 — traded concealment quality for speed. Rejected: "خرب".
+- v86.119/120/121 — chased entry and cache problems that v86.117 never had.
 
-1. The blocker's primary retry was gated on `vpnStateRef.current === 'ok'` — the
-   one state it is never in while a VPN blocker is showing. Tapping it closed the
-   WebView and did nothing. v86.117 reopened unconditionally.
-2. That retry no longer armed `sheinCacheResetPendingRef`, while the card kept
-   promising «جلسة نظيفة مرة واحدة». Every retry reused the broken session.
-3. `refreshVpnDiagnosisForStoreFailure` set `vpnState='ok'` on a healthy probe but
-   no longer corrected `storeOpenFailureReason`. When the store probe succeeds and
-   the geo probe does not, `vpnGeo` stays null, so `isVpnConfirmed` cannot vouch
-   for it and the card kept rendering «شغّل الـ VPN أولاً» for a connection the app
-   had just proven works.
+The instruction is explicit: return to v86.117 and fix the back button only.
+`src/`, `patches/` and `scripts/verify-shein-freeze-guard.mjs` are therefore
+restored to `bf40b1c` verbatim, with exactly one change applied on top. The
+v86.122 candidate (false-VPN-gate work) is abandoned: those defects live in the
+v86.121 lineage, which no longer exists here.
 
-v86.122 fixes all three, keeping v86.121's correct insight that a healthy launch
-must not arm a cache reset: `clearFalseVpnAlarm()` now corrects the wording only,
-and cache reset is armed solely on an explicit user retry. The retry can no longer
-be a no-op — when `vpnState` is not `ok` it re-runs the probes, which renders the
-loading screen and reopens SHEIN as soon as they resolve. The `no-vpn` gate only
-claims Syria when the geo probe actually returned a blocked country; a probe
-timeout now reads «تعذّر التحقق من الاتصال» instead of accusing a Qatar customer.
+Root cause of the back defect: the native button forwards its tap to the in-page
+button, whose handler ends in a bare `history.back()`. Once the store's back
+stack is spent that call is a SILENT no-op — no error, no navigation, nothing
+observable. Every back consumes an entry while re-entering a product does not
+always add one, so the stack runs dry and the button dead-ends while still
+looking and feeling live. That is precisely the reported symptom: visible
+button, registered tap, no movement.
 
-Concealment returns to the v86.119 shape that reduces work rather than frequency:
-`runOtlobliCriticalSheinHiders()` runs one page-appropriate add-hider instead of
-both (SHEIN's `looksLikeProductPage()` is a pathname regex, no DOM query) and runs
-once immediately before the first interval. The `OTLOBLI_VERY_LOW_END` tier is
-deleted and now **forbidden** by the freeze guard: it stretched the hot pass to
-950ms on the 2-core iPhone 6 and was rejected on device in both v86.118 and
-v86.121. iPhone 6 timings are back to 650ms critical / 650ms tick / 1600ms
-security; iPhone 16 and Android keep 120ms / 300ms / 1000ms.
+`otlobliBackOrLeave()` records the URL, calls `history.back()`, and 900ms later
+navigates to the recorded `__otlobliHomePath` if nothing moved. A real
+navigation destroys the JS context before the timer fires, so the fallback is
+reachable only by a back that genuinely did nothing — a slow but working back is
+never overridden. The freeze guard pins the wrapper and forbids the bare call.
 
-Guard markers were updated to lock the fixed behaviour, not the broken one. No new
-timer, observer, polling loop, WebView burst or React effect was added.
+Deliberately unchanged: concealment timings and both add-hiders every pass, the
+VPN/preparation logic, the back button's look and placement, the iPhone 16
+recompose lifecycle, Android resume defense, order/payment logic. The v86.117
+slowness is left alone — chasing it is what broke v86.118. No new timer,
+observer, polling loop or React effect; the one `setTimeout` is per tap and
+self-cancelling.
 
-Version is `86.122/982`; diagnostics remain off. Production build, freeze guard,
-performance budget, Android sync and Android debug assemble pass. ESLint reports
-49 problems both before and after this change — none introduced here. Local bundle
-`index-BZh48MgD.js` is 1,167,472 bytes, SHA-256
-`2C5BEAD46B0635FD4691BD7F7F547C53B57729489DAAEB7D192CACB559166A8E`.
-Budgets are JS gzip `322,956/370,000`, CSS `63,670/70,000`, fonts `81,364/100,000`,
-and SHEIN source `549,948/550,000` — only 52 bytes of headroom, so the next edit to
-that file must remove at least as much as it adds. Android debug APK is 11,169,788
-bytes, SHA-256
-`81C0C5203E3AB33FF72649ECCCC381557564086E8C298CD8E8AE31ABA40A7BB4`, verified by
-unzip to carry the v86.122 tag, the new copy, `runOtlobliCriticalSheinHiders`, and
-no `OTLOBLI_VERY_LOW_END`.
+Version is `86.123/983`; diagnostics remain off. Production build, freeze guard,
+performance budget, Android sync and Android debug assemble pass. The fix costs
+188 bytes over v86.117, funded by condensing the comment on the code it
+replaces; SHEIN source is `549,909/550,000` and the ceiling was not raised.
+Local bundle `index-C3882LG0.js` is 1,167,065 bytes, SHA-256
+`F387266DD31FA09D61E9306EBA989A9491236B1E90396CCE94ED3CB4867E7F0D`.
+Other budgets: JS gzip `322,787/370,000`, CSS `63,670/70,000`, fonts
+`81,364/100,000`. Android debug APK is 11,169,524 bytes, SHA-256
+`2543C69A28B75437816B4CD066E2D4B7898FEEB14363BEA0E89576D606DB765F`.
 
-**Not yet built or tested on iOS, and not validated on any physical device.** The
-required acceptance is unchanged: cold Qatar entry, exit and re-entry without a VPN
-message, cart product open/back, concealment speed on the iPhone 6, and five
-iPhone 16 resumes.
+**Nothing was validated on a physical device.** Required acceptance: on the
+iPhone 6, hop through five or more products and confirm the back button never
+stops responding; when the back stack is genuinely spent it must land on the
+SHEIN home rather than freeze. Confirm concealment still matches v86.117.
 
 # Active candidate — v86.121 restores the device-proven v86.118 runtime (2026-08-10)
 

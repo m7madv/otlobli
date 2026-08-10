@@ -1,46 +1,39 @@
-# Current candidate — v86.122 removes the false VPN gate, restores fast concealment (2026-08-10)
+# Current candidate — v86.123 is v86.117 plus a back button that cannot dead-end (2026-08-10)
 
-- Real-device evidence (Qatar, v86.121): SHEIN opens on the first launch only;
-  re-entry shows a VPN message with no VPN in use, and iPhone 6 concealment is
-  visibly slow again. Both traced by code read to commit `6efcc33` (v86.121).
-- **This supersedes v86.121's "do not reapply v86.119 intervals" instruction.**
-  That instruction was written before the device reported the slowdown that the
-  restored v86.118 runtime caused. v86.119's shape is back, and the guard now
-  *forbids* `OTLOBLI_VERY_LOW_END` — the ~950ms tier was rejected on device twice
-  (v86.118, v86.121). Buy iPhone 6 headroom by cutting work per pass, never by
-  lengthening the interval.
-- The blocker's primary retry must never be a no-op. v86.121 gated it on
-  `vpnState === 'ok'`, the one state it is never in while that card shows, so the
-  button closed the WebView and did nothing. It now re-runs the probes when
-  `vpnState !== 'ok'`; the home/open effect reopens SHEIN when they resolve.
-- v86.121 was right that a healthy launch must not arm `sheinCacheResetPendingRef`
-  — keep that. But the message correction it removed alongside is required:
-  `clearFalseVpnAlarm()` sets `storeOpenFailureReason = 'preparation'` whenever a
-  probe concludes the connection is healthy. Without it, a successful store probe
-  with a failed geo probe leaves `vpnGeo` null, `isVpnConfirmed` false, and the
-  card showing «شغّل الـ VPN أولاً» for a working connection.
-- Cache reset is armed only on an explicit user retry, plus the pre-existing
-  bounded recovery and Temu → SHEIN fresh-session paths.
-- The `no-vpn` gate only asserts Syria when the geo probe returned a blocked
-  country; a probe timeout shows «تعذّر التحقق من الاتصال». Do not restore the
-  unconditional Syria wording.
-- Keep the approved back behaviour, iPhone 16 recompose lifecycle, Android resume
-  defense, `JSON.stringify` region comparison, and order/payment logic. No new
-  polling, timers, observers or effects were added.
-- Version `86.122/982`; diagnostics off. Build, freeze guard, performance budget,
-  Android sync and Android debug assemble pass. ESLint is 49 problems before and
-  after — none added. Local JS SHA is
-  `2C5BEAD46B0635FD4691BD7F7F547C53B57729489DAAEB7D192CACB559166A8E`; APK SHA is
-  `81C0C5203E3AB33FF72649ECCCC381557564086E8C298CD8E8AE31ABA40A7BB4`.
-- SHEIN source budget is at `549,948/550,000` — 52 bytes spare. The next edit to
-  `sheinBrowserScript.ts` must remove at least what it adds. Do not raise the
-  ceiling.
-- Desktop APK: `C:\Users\MOHAMMAD\Desktop\otlobli-v86.122-debug.apk`, 11,169,788
-  bytes. Debug-signed only; production signing key
-  (`~/.android/otlobli-main-upload.properties`) is absent on this machine.
-- **No iOS build was produced and nothing was validated on a device.** Required
-  acceptance: cold Qatar entry, exit/re-entry with no VPN message, cart product
-  open/back, iPhone 6 concealment speed, five iPhone 16 resumes.
+- **Base is v86.117 (`bf40b1c`), restored verbatim.** `src/`, `patches/` and the
+  freeze guard were checked out from that commit; one change is applied on top.
+  Do not reintroduce anything from v86.118 → v86.122 without new device
+  evidence. The customer rejected v86.116 (button gone) and v86.118 (concealment
+  traded for speed), and v86.119/120/121 chased problems v86.117 never had.
+- **The v86.122 false-VPN-gate work is abandoned on purpose.** Those defects
+  belong to the v86.121 lineage, which is no longer in this tree. If a VPN
+  false alarm is ever reported against a v86.117 base, re-derive it there.
+- Root cause of the one real defect: the native back button forwards its tap to
+  the in-page button, whose handler ended in a bare `history.back()`. That call
+  is a SILENT no-op once the back stack is spent — no error, no navigation. Each
+  back consumes an entry while re-entering a product does not always add one, so
+  the stack runs dry and the button dead-ends while still looking live.
+- `otlobliBackOrLeave()` records the URL, calls `history.back()`, and 900ms
+  later goes to the recorded `__otlobliHomePath` if nothing moved. A real
+  navigation tears the JS context down before the timer fires, so a slow but
+  working back is never overridden. Keep the wrapper; the guard forbids the
+  bare call.
+- **Do not chase the v86.117 slowness.** That is exactly what produced v86.118's
+  rejected concealment. Both add-hiders must run every pass, and no "very low
+  end" interval tier may be added — that shape was rejected on device twice.
+- Version `86.123/983`; diagnostics off. Build, freeze guard, performance
+  budget, Android sync and Android debug assemble pass. Local JS SHA is
+  `F387266DD31FA09D61E9306EBA989A9491236B1E90396CCE94ED3CB4867E7F0D`; APK SHA is
+  `2543C69A28B75437816B4CD066E2D4B7898FEEB14363BEA0E89576D606DB765F`.
+- SHEIN source is `549,909/550,000` — 91 bytes spare, and only because the
+  comment on the replaced code was condensed to fund the fix. The next edit to
+  that file must remove at least what it adds. Do not raise the ceiling.
+- Desktop APK: `C:\Users\MOHAMMAD\Desktop\otlobli-v86.123-debug.apk`. Debug
+  signing only; the production key is absent on this machine.
+- **Nothing was validated on a device.** Acceptance: on the iPhone 6, hop
+  through five or more products and confirm back never stops responding; when
+  the stack is genuinely spent it must land on SHEIN home, not freeze. Confirm
+  concealment still matches v86.117.
 
 # Current candidate — v86.121 restores the v86.118 runtime (2026-08-10)
 
