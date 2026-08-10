@@ -5830,15 +5830,17 @@ function App() {
         <MobileShell active="cart" onNavigate={setScreen} hideBottomNav>
           <Header title="دفع شام كاش" back={() => setScreen('checkout')} unreadCount={unreadCount} onNotifications={openNotifications} />
           <main className="mobile-content">
-            <section className="payment-card">
-              <PaymentQr src={paymentQr} />
-              <p>{`ادفع إلى حسابنا التجاري لـ${paymentStoreName}`}</p>
-              <b>{paymentSettings.receiverName}</b>
-              <span dir="ltr">{paymentCode}</span>
-              <strong>{amountLabel}</strong>
-              <small className="payment-expiry">مهلة الدفع: {paymentExpiresIn}</small>
-              <small className="payment-expiry">رقم الطلب: {pendingPayment.orderId}</small>
-            </section>
+            <div className="payment-card-frame">
+              <section className="payment-card">
+                <PaymentQr src={paymentQr} />
+                <p>{`ادفع إلى حسابنا التجاري لـ${paymentStoreName}`}</p>
+                <b>{paymentSettings.receiverName}</b>
+                <span dir="ltr">{paymentCode}</span>
+                <strong>{amountLabel}</strong>
+                <small className="payment-expiry">مهلة الدفع: {paymentExpiresIn}</small>
+                <small className="payment-expiry">رقم الطلب: {pendingPayment.orderId}</small>
+              </section>
+            </div>
             <div className="payment-action-grid">
               <button className="ghost-action" onClick={() => copyText(paymentCode, 'تم نسخ كود شام كاش')}>
                 <Icon name="content_copy" />
@@ -6735,14 +6737,16 @@ function App() {
             </section>
             {pendingWalletTopUp ? (
               <>
-                <section className="payment-card">
-                  <PaymentQr src={walletTopUpQr} />
-                  <p>اشحن المحفظة بتحويل شام كاش إلى حسابنا التجاري</p>
-                  <b>{paymentSettings.receiverName}</b>
-                  <span dir="ltr">{walletTopUpCode}</span>
-                  <strong>{pendingWalletAmountLabel}</strong>
-                  <small className="payment-expiry">مهلة الدفع: {walletTopUpExpiresIn}</small>
-                </section>
+                <div className="payment-card-frame">
+                  <section className="payment-card">
+                    <PaymentQr src={walletTopUpQr} />
+                    <p>اشحن المحفظة بتحويل شام كاش إلى حسابنا التجاري</p>
+                    <b>{paymentSettings.receiverName}</b>
+                    <span dir="ltr">{walletTopUpCode}</span>
+                    <strong>{pendingWalletAmountLabel}</strong>
+                    <small className="payment-expiry">مهلة الدفع: {walletTopUpExpiresIn}</small>
+                  </section>
+                </div>
                 <div className="payment-action-grid">
                   <button className="ghost-action" onClick={() => copyText(walletTopUpCode, 'تم نسخ كود شام كاش')}>
                     <Icon name="content_copy" />

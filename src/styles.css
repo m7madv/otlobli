@@ -195,27 +195,9 @@ a {
   overflow-y: auto;
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
-  /* Was display:grid. An auto grid row sized the ShamCash payment card at 46px
-     against 467px of content and the card then painted over "آخر حركات
-     المحفظة" below it. The card holds an image with a percentage width and an
-     automatic height, which makes its contribution to intrinsic track sizing
-     cyclic, so the row collapsed no matter what the card asked for - measured
-     on the Note 8: the track stayed 46px with overflow visible, clip or hidden
-     alike. A column flexbox sizes each child from its own content instead, and
-     is otherwise identical here: same gap, same start alignment, same
-     full-width stretch. */
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
+  display: grid;
+  align-content: start;
   gap: 20px;
-}
-
-/* A scrollable flex column lets its children shrink, and any child with an
-   explicit min-height (.cart-item sets 112px) will shrink right down to it and
-   clip its own content. The column scrolls, so nothing here should ever give up
-   height: pin every direct child to its natural size. */
-.mobile-content > * {
-  flex-shrink: 0;
   padding: 20px 16px
     calc(74px + max(env(safe-area-inset-bottom, 0px), 16px) + 16px);
 }
@@ -342,14 +324,6 @@ a {
 .skeleton-card {
   position: relative;
   overflow: hidden;
-  /* overflow:hidden here clips children to the rounded corners, but it also
-     makes each card a scroll container - and CSS gives a grid/flex item with
-     overflow other than visible an automatic minimum size of ZERO. Inside
-     .mobile-content (display:grid) that collapsed the ShamCash payment card to
-     46px against 467px of content: the code, receiver, amount and deadline were
-     all clipped away and only a sliver of the code image showed. Restore the
-     intrinsic minimum explicitly so the corner clipping costs nothing. */
-  min-height: min-content;
   border: 1px solid var(--outline);
   border-radius: var(--radius);
   background: var(--surface);
@@ -3836,4 +3810,18 @@ a {
     scroll-behavior: auto;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* The payment card holds an image with a percentage width and an automatic
+   height, which makes its contribution to intrinsic CSS Grid track sizing
+   cyclic: measured on a Note 8, .mobile-content sized its row at 46px against
+   467px of content and the card was clipped to a sliver, then - once forced
+   taller - painted over the heading below it. A plain block wrapper takes the
+   grid slot instead, so the row is sized from a box the engine can measure and
+   the card lays out normally inside it. Scoped to this one card on purpose:
+   changing .mobile-content itself to a flex column fixed this but disturbed
+   other screens. */
+.payment-card-frame {
+  display: block;
+  min-width: 0;
 }
