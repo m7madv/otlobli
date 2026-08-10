@@ -313,8 +313,7 @@ const getStoreFailureAdvice = (
   vpnGeo: VpnGeo | null,
   reason: StoreOpenFailureReason,
 ) => {
-  const confirmedVpn = isVpnConfirmed(vpnState, vpnGeo)
-  if (reason === 'preparation' || confirmedVpn) {
+  if (reason === 'preparation') {
     return {
       icon: 'refresh',
       title: 'تعذّر تجهيز المتجر',
@@ -322,12 +321,23 @@ const getStoreFailureAdvice = (
       action: 'إعادة تجهيز المتجر',
     }
   }
-  return {
-    icon: 'vpn_key',
-    title: 'شغّل الـ VPN أولاً',
-    body: `تعذّر فتح متجر ${store}. شغّل VPN خارج سوريا، أو غيّر السيرفر إذا كان VPN شغّالاً عندك، ثم أعد الدخول إلى المتجر.`,
-    action: 'إعادة الدخول إلى المتجر',
-  }
+  const confirmedVpn = isVpnConfirmed(vpnState, vpnGeo)
+  const location = confirmedVpn && vpnGeo?.country
+    ? ` (${vpnGeo.country}${vpnGeo.region ? ` - ${vpnGeo.region}` : ''})`
+    : ''
+  return confirmedVpn
+    ? {
+      icon: 'vpn_key',
+      title: 'غيّر سيرفر الـ VPN',
+      body: `تم التحقق أن الـ VPN شغّال${location}، لكن متجر ${store} لم يفتح من هذا السيرفر. غيّر السيرفر أو استخدم VPN آخر ثم أعد الدخول إلى المتجر.`,
+      action: 'إعادة الدخول إلى المتجر',
+    }
+    : {
+      icon: 'vpn_key',
+      title: 'شغّل الـ VPN أولاً',
+      body: `تعذّر فتح متجر ${store}. شغّل VPN خارج سوريا، أو غيّر السيرفر إذا كان VPN شغّالاً عندك، ثم أعد الدخول إلى المتجر.`,
+      action: 'إعادة الدخول إلى المتجر',
+    }
 }
 
 const compressFullImage = (src: string): Promise<string> => new Promise((resolve, reject) => {
@@ -2944,20 +2954,6 @@ function App() {
   }
 
   const refreshVpnDiagnosisForStoreFailure = () => {
-    // Two separate verdicts come out of this probe, and v86.120/v86.121 each got
-    // one of them wrong:
-    //   * vpnState        - may the store be opened at all?
-    //   * storeOpenFailureReason - what do we tell the user on the blocker card?
-    // v86.120 corrected the message but ALSO armed a cache reset on every
-    // healthy launch, which turned each start into a cold path and stopped SHEIN
-    // opening. v86.121 removed both, so a connection we had just proven healthy
-    // still rendered "شغّل الـ VPN أولاً" - the exact false alarm reported from
-    // Qatar. Correct the message here; leave cache reset to the bounded
-    // user-driven recovery paths only.
-    const clearFalseVpnAlarm = () => {
-      setStoreOpenFailureReason('preparation')
-      setVpnState('ok')
-    }
     const storeReachablePromise = checkStoreReachable(selectedStoreRef.current)
     void probeVpnGeo().then(async (geo) => {
       if (geo) {
@@ -2968,16 +2964,13 @@ function App() {
           setVpnState('no-vpn')
           return
         }
-        clearFalseVpnAlarm()
+        setVpnState('ok')
         return
       }
       const storeOk = await storeReachablePromise
       if (storeOk) {
-        // Store reachable but geo unknown: vpnGeo stays null, so isVpnConfirmed
-        // cannot vouch for this. Only the reason correction keeps the VPN text
-        // off a connection we just proved works.
         storeReachableRef.current = true
-        clearFalseVpnAlarm()
+        setVpnState('ok')
         return
       }
       if (navigator.onLine === false) {
@@ -2988,7 +2981,7 @@ function App() {
       // because both external probes timed out during an active session.
       if (storeReachableRef.current ||
           (vpnGeoRef.current?.countryCode && !isBlockedStoreCountry(vpnGeoRef.current.countryCode))) {
-        clearFalseVpnAlarm()
+        setVpnState('ok')
         return
       }
       vpnGeoRef.current = null
@@ -3781,15 +3774,12 @@ function App() {
       }
       if (screenRef.current === 'home') {
         // Some real devices close the native WebView during opening/security
-        // checks. Keep the retry user-driven to prevent an open/close loop,
-        // but a confirmed supported exit is preparation failure, not VPN.
+        // checks. Re-opening immediately turns that into a visible open/close
+        // loop; keep the app stable and ask for a different VPN server.
         webviewAutoOpenPausedUntilRef.current = Date.now() + 15000
-        const geo = vpnGeoRef.current
-        const trustedStoreAccess = !isBlockedStoreCountry(geo?.countryCode) &&
-          (storeReachableRef.current || !!geo?.countryCode)
-        setStoreOpenFailureReason(trustedStoreAccess ? 'preparation' : 'network')
+        setStoreOpenFailureReason('network')
         setSheinBlockedError(true)
-        if (!trustedStoreAccess) refreshVpnDiagnosisForStoreFailure()
+        refreshVpnDiagnosisForStoreFailure()
         return
       }
     })
@@ -7116,24 +7106,11 @@ function App() {
           <StoreLoadingScreen />
         ) : vpnState === 'no-vpn' ? (
           <main className="mobile-content shein-home">
-            {/* Only claim Syria when the geo probe actually returned a blocked
-                country. Reaching 'no-vpn' because both probes timed out is not
-                evidence of anything, and telling a Qatar customer their
-                connection "يظهر من داخل سوريا" was the false alarm reported on
-                v86.121. Same gate, honest cause. */}
-            {isBlockedStoreCountry(vpnGeo?.countryCode) ? (
-              <div className="empty-state">
-                <Icon name="vpn_key" />
-                <h2>شغّل الـ VPN أولاً</h2>
-                <p>اتصالك الحالي يظهر من داخل سوريا، ومتجر {currentStoreName} محجوب هنا. شغّل تطبيق VPN على جهازك ثم اضغط «تحقّق من جديد».</p>
-              </div>
-            ) : (
-              <div className="empty-state">
-                <Icon name="wifi_off" />
-                <h2>تعذّر التحقق من الاتصال</h2>
-                <p>لم نستطع الوصول إلى متجر {currentStoreName} ولا تأكيد موقع اتصالك، فقد يكون الفحص فشل مؤقتاً. اضغط «تحقّق من جديد» — وإن تكرّر الأمر وأنت داخل سوريا فشغّل الـ VPN.</p>
-              </div>
-            )}
+            <div className="empty-state">
+              <Icon name="vpn_key" />
+              <h2>شغّل الـ VPN أولاً</h2>
+              <p>اتصالك الحالي يظهر من داخل سوريا، ومتجر {currentStoreName} محجوب هنا. شغّل تطبيق VPN على جهازك ثم اضغط «تحقّق من جديد».</p>
+            </div>
             <button className="primary-action" onClick={() => setVpnState('checking')}>
               <Icon name="refresh" />
               تحقّق من جديد
@@ -7175,37 +7152,22 @@ function App() {
             </div>
             <button className="primary-action" onClick={() => {
               webviewAutoOpenPausedUntilRef.current = 0
-              sheinRecoveryAttemptRef.current = 0
-              // The card promises "جلسة نظيفة مرة واحدة". v86.121 dropped this
-              // line while keeping the promise on screen, so every retry reused
-              // the same broken SHEIN session. Arming it here only - on an
-              // explicit user tap - keeps healthy launches off the cold path.
-              sheinCacheResetPendingRef.current = true
               setSheinBlockedError(false)
-              suppressAutoReopenRef.current = true
-              // User-driven fresh session; suppress closeEvent's failure path
-              // so it cannot restore the same blocker while the retry starts.
-              void InAppBrowser.close().catch(() => undefined).finally(() => {
-                suppressAutoReopenRef.current = false
-                if (screenRef.current !== 'home') return
-                if (vpnStateRef.current === 'ok') {
-                  if (!sheinOpenedRef.current && !webviewOpeningRef.current) browseSheinRef.current()
-                  return
-                }
-                // This retry must never be a no-op. v86.121 gated it on
-                // vpnState === 'ok', which is precisely the state it is NOT in
-                // while the VPN blocker is showing - the button closed the
-                // WebView and did nothing ("مش راضي يدخل"). Re-run the probes
-                // instead; the home/open effect opens SHEIN the moment they
-                // resolve to 'ok', and an honest 'no-vpn' still lands on the
-                // gate screen rather than a dead button.
-                if (vpnStateRef.current !== 'checking') setVpnState('checking')
+              // Closes the webview outright instead of setUrl()+show() on the
+              // SAME instance - a failed connection attempt (e.g. one that
+              // raced a just-toggled VPN still settling) left this exact
+              // session stuck repeating that same failure on every retry;
+              // only a genuinely fresh instance recovered. closeEvent's own
+              // listener re-opens automatically while still on 'home' - only
+              // call browseShein() here if that somehow didn't happen.
+              void InAppBrowser.close().catch(() => undefined).then(() => {
+                if (!sheinOpenedRef.current) browseShein()
               })
             }}>
               <Icon name="refresh" />
               {storeFailureAdvice.action}
             </button>
-            {storeOpenFailureReason === 'network' && !isVpnConfirmed(vpnState, vpnGeo) ? <button className="ghost-action" onClick={() => {
+            {storeOpenFailureReason === 'network' ? <button className="ghost-action" onClick={() => {
               // يرجع لبوابة الفحص الذكي: يغلق الـwebview العالق ويعيد فحص
               // الوصول + منطقة الـVPN فيوجَّه المستخدم (شغّل/غيّر المنطقة).
               webviewAutoOpenPausedUntilRef.current = 0

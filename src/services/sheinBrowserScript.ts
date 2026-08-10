@@ -6296,6 +6296,16 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   var __otlobliBackTarget = 'home';
 
+  // history.back() is a SILENT no-op once the back stack is spent - the tap
+  // registers and nothing moves (iPhone 6, after a few product hops). A real
+  // navigation destroys this context before the timer fires, so the fallback
+  // can only reach a back that did nothing. Leave to the recorded home then.
+  function otlobliBackOrLeave() {
+    var f = location.href, h = sessionStorage.getItem('__otlobliHomePath') || '/';
+    try { history.back(); } catch (e) {}
+    setTimeout(function () { if (location.href === f) location.assign(location.origin + h); }, 900);
+  }
+
   function ensureBackButton() {
     var btn = document.getElementById('otlobli-back-btn');
     if (!btn) {
@@ -6320,11 +6330,15 @@ export const SHEIN_CAPTURE_SCRIPT = `
           } catch (e) {}
           return;
         }
-        // لا تستخدم history على جذر المتجر لأن تحويلات اللغة/التحقق ليست تنقلاً حقيقياً.
+        // Gate on the home root, never on history.length: language and
+        // verification redirects add entries that were never user navigation,
+        // so a back() from the root can land on a half-finished check page.
+        // Temu search is an overlay with no history entry - clearing the field
+        // and firing input exits it; history.back there hung the screen.
         if (IS_TEMU && otlobliTemuSearchBackActive()) {
           otlobliTemuExitSearchMode();
         } else if (!looksLikeHomeRoot() || looksLikeProductPage()) {
-          history.back();
+          otlobliBackOrLeave();
         }
       }, true);
       otlobliStabilizeBackOverlay(btn);
@@ -6336,12 +6350,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
     btn.style.setProperty('top', backTop + 'px', 'important');
     btn.style.display = shouldShow ? 'flex' : 'none';
     if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.messageHandler) {
-      var nativeTarget = __otlobliBackTarget === 'cart' ? 'cart' : 'home';
-      var nativeHome = window.__otlobliNativeBackHome || (window.__otlobliNativeBackHome = IS_SHEIN ? normalizeSheinUrl('https://m.shein.com/ar/') : '');
-      var nativeState = (shouldShow ? '1:' : '0:') + backTop + ':' + nativeTarget + ':' + nativeHome;
+      var nativeState = (shouldShow ? '1:' : '0:') + backTop;
       if (window.__otlobliNativeBackState !== nativeState) {
         window.__otlobliNativeBackState = nativeState;
-        window.mobileApp.postMessage({ detail: { type: 'otlobliBackButtonState', visible: shouldShow, top: backTop, target: nativeTarget, fallbackUrl: nativeHome } });
+        window.mobileApp.postMessage({ detail: { type: 'otlobliBackButtonState', visible: shouldShow, top: backTop } });
       }
     }
     if (shouldShow) otlobliStabilizeBackOverlay(btn);
@@ -10032,8 +10044,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // weak-CPU device feel heavy and slow. Relax every hot interval there so the
   // device spends its cycles rendering / passing the challenge instead of on
   // our scans. Modern devices (iPhone 16) keep the original tight timings.
-  // No slower tier below this: v86.118/v86.121 tried ~950ms and the iPhone 6
-  // run rejected both. Cut work per pass, never interval length.
   var OTLOBLI_LOW_END = typeof navigator !== 'undefined' && (
     (navigator.hardwareConcurrency || 4) <= 4 ||
     (navigator.deviceMemory && navigator.deviceMemory <= 3) ||
@@ -10104,17 +10114,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // instantly elsewhere) - run it on its own much tighter interval so any
   // freshly re-created icon gets caught within ~120ms instead of waiting
   // for the next general tick.
-  // The two add-hiders are mutually exclusive by page type; running only the
-  // matching one halves this hot pass on a 2-core iPhone 6 at no cost.
-  function runOtlobliCriticalSheinHiders() {
+  setInterval(function () {
     if (document.hidden) return;
     if (otlobliChallengeActive || !IS_SHEIN || otlobliInteractionActive()) return;
     hideKnownHeaderIconsByHint();
     hideSheinHeaderControls();
-    if (looksLikeProductPage()) hideSheinNativeProductAdd();
-    else hideListingCardAddButtons();
-  }
-  setInterval(runOtlobliCriticalSheinHiders, OTLOBLI_LOW_END ? 650 : 120);
+    hideListingCardAddButtons();
+    hideSheinNativeProductAdd();
+  }, OTLOBLI_LOW_END ? 650 : 120);
   setInterval(function () {
     if (document.hidden) return;
     if (!otlobliInteractionActive() || !document.getElementById('otlobli-nav')) ensureOtlobliNav();
@@ -10133,9 +10140,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (document.hidden) return;
     if (IS_SHEIN && !otlobliInteractionActive()) checkForSheinSecurityBlock();
   }, OTLOBLI_LOW_END ? 1600 : 1000);
-  // Conceal once before the first interval, else iPhone 6 shows SHEIN's own
-  // controls for 650ms after attach.
-  runOtlobliCriticalSheinHiders();
   tick();
 })();
 `
