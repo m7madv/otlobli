@@ -1,3 +1,36 @@
+# Current candidate — v86.125 strips injected-script comments at build time (2026-08-10)
+
+- **Base is still v86.117 (`bf40b1c`).** Runtime behaviour is unchanged from
+  v86.124: same timings, same hiders, same checks, same back fix.
+- The store scripts are injected into the SHEIN/Temu page **as source text**, so
+  comments were being shipped and tokenised on the device at every page load —
+  92,969 of 546,397 bytes, 17%. A Vite plugin
+  (`scripts/strip-injected-comments.mjs`) removes whole-line comments at build.
+  **Write comments freely in that file now; they cost the device nothing.**
+- Shipped into the store page: 546,397 → 453,428. App bundle: 1,167,084 →
+  1,073,774 raw, 322,756 → 283,701 gzip.
+- The stripper removes only lines whose trimmed form starts with `//`. Do not
+  extend it to trailing or block comments without a tokeniser — that needs real
+  parsing to be safe, and line comments were nearly all the weight.
+- `verify-shein-freeze-guard.mjs` now parses the **stripped** module, since that
+  is what the WebView receives. Keep it that way: validating raw source would
+  let a stripping bug reach a device.
+- Budget metrics changed. `shipped store scripts raw` (470,000) is the real
+  device budget — hold the line there. `SHEIN script source raw` was raised
+  550,000 → 600,000 because comments no longer reach the device and the old
+  ceiling had tightened to 67 bytes, where documenting an optimisation cost more
+  than it saved. **This is not permission to grow the shipped scripts.**
+- Still open from v86.124: `document.body.innerText` in
+  `checkForSheinSecurityBlock` forces a full-page layout every 1.6s. It already
+  skips while the user is interacting, so it is not a scroll-jank source — lower
+  priority than it first appeared. If addressed, gate on a total element count
+  of 600+ and test against a real block page; a previous
+  `body.children.length > 8` gate silently disabled the detector.
+- Version `86.125/985`; diagnostics off. Build, freeze guard, performance
+  budget, Android sync and Android debug assemble pass. ESLint 49 before/after.
+- **Nothing measured on a device.** Acceptance: faster product-page start,
+  concealment exactly as immediate as v86.117, back button never dead-ending.
+
 # Current candidate — v86.124 low-end speedups on the v86.117 base (2026-08-10)
 
 - **Base is v86.117 (`bf40b1c`).** The whole functional diff against it is five

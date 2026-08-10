@@ -2,16 +2,46 @@ import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { dirname, extname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { gzipSync } from 'node:zlib'
+import ts from 'typescript'
+import { stripInjectedComments, INJECTED_SCRIPT_SOURCE } from './strip-injected-comments.mjs'
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const assetsDir = resolve(projectRoot, 'dist/assets')
 
+// The store scripts are injected into the SHEIN/Temu page as source text, so
+// what matters to a two-core iPhone is the size AFTER the build strips
+// comments — that is what JavaScriptCore tokenises at documentStart, before the
+// store can paint. `shippedStoreScriptsRaw` measures exactly those emitted
+// strings and is the real device budget.
+//
+// `sheinScriptSourceRaw` still exists, but only as a coarse bound on the source
+// file. Its old 550,000 ceiling was doing double duty as the device budget, and
+// it had grown so tight (67 bytes free) that documenting an optimisation cost
+// more budget than the optimisation saved. Comments no longer reach the device,
+// so the source may carry its rationale; the device cost is now bounded
+// directly, and more tightly, by the measurement above. Do not treat this as
+// permission to grow the shipped scripts.
 const budgets = {
   largestJavaScriptRaw: 1_200_000,
   totalJavaScriptGzip: 370_000,
   totalCssRaw: 70_000,
   totalFontsRaw: 100_000,
-  sheinScriptSourceRaw: 550_000,
+  shippedStoreScriptsRaw: 470_000,
+  sheinScriptSourceRaw: 600_000,
+}
+
+// Transpile the store-script module with the same stripping the build applies,
+// then measure the template literals it exports — the bytes the WebView gets.
+const measureShippedStoreScripts = () => {
+  const source = readFileSync(resolve(projectRoot, INJECTED_SCRIPT_SOURCE), 'utf8')
+  const output = ts.transpileModule(stripInjectedComments(source), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText
+  const module = { exports: {} }
+  new Function('exports', 'require', 'module', output)(module.exports, () => ({}), module)
+  return Object.values(module.exports)
+    .filter((value) => typeof value === 'string')
+    .reduce((total, value) => total + Buffer.byteLength(value, 'utf8'), 0)
 }
 
 const files = readdirSync(assetsDir).map((name) => {
@@ -34,6 +64,7 @@ const measurements = [
   ['total JavaScript gzip', totalJsGzip, budgets.totalJavaScriptGzip, 'all JS'],
   ['total CSS raw', totalCssRaw, budgets.totalCssRaw, 'all CSS'],
   ['total fonts raw', totalFontsRaw, budgets.totalFontsRaw, 'all woff2'],
+  ['shipped store scripts raw', measureShippedStoreScripts(), budgets.shippedStoreScriptsRaw, 'injected into the store page, comments stripped'],
   ['SHEIN script source raw', sheinScriptSourceRaw, budgets.sheinScriptSourceRaw, 'src/services/sheinBrowserScript.ts'],
 ]
 

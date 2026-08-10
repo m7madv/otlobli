@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runInNewContext } from 'node:vm'
 import ts from 'typescript'
+import { stripInjectedComments } from './strip-injected-comments.mjs'
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -504,7 +505,13 @@ const failures = []
 // Transpile just this source with inert imports, then parse the emitted string
 // exactly as the WebView will receive it.
 try {
-  const source = readFileSync(resolve(projectRoot, 'src/services/sheinBrowserScript.ts'), 'utf8')
+  // Parse the STRIPPED source: the build removes whole-line comments from this
+  // module before injecting it, so the stripped text is what the WebView
+  // actually receives. Validating the raw source instead would let a stripping
+  // mistake reach a real device unnoticed.
+  const source = stripInjectedComments(
+    readFileSync(resolve(projectRoot, 'src/services/sheinBrowserScript.ts'), 'utf8'),
+  )
   const output = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText + '\nexports.__tapFallback=OTLOBLI_IOS_PRODUCT_TAP_FALLBACK_JS;exports.__chunkBridge=OTLOBLI_SHEIN_CHUNK_FAILURE_BRIDGE_JS;'

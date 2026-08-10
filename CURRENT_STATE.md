@@ -1,3 +1,57 @@
+# Active candidate — v86.125 stops shipping 93KB of comments to the phone (2026-08-10)
+
+Base is still v86.117 (`bf40b1c`). Nothing about behaviour, timings, checks or
+concealment changed here; this is purely about what the device has to read.
+
+The store scripts in `src/services/sheinBrowserScript.ts` are template literals
+injected into the SHEIN/Temu page **as source text** at `documentStart`. Every
+byte, comments included, is shipped and tokenised by JavaScriptCore before the
+product page can paint. Measured on v86.124: 92,969 of 546,397 shipped bytes
+were comments — 17% pure cost on a two-core iPhone 6, on every page load.
+
+A Vite plugin (`scripts/strip-injected-comments.mjs`) now removes whole-line
+comments from that module at build time. The source stays fully documented; only
+the device gets the stripped copy.
+
+| Measurement | v86.124 | v86.125 |
+| --- | --- | --- |
+| shipped into the store page | 546,397 | **453,428** |
+| largest JavaScript raw | 1,167,084 | **1,073,774** |
+| total JavaScript gzip | 322,756 | **283,701** |
+
+The app bundle shrank too, because the script was embedded in it as a string —
+39KB less to download and decompress.
+
+Safety, all machine-verified:
+
+- Only whole-line comments are removed (trimmed line starts with `//`). Trailing
+  comments, block comments and blank lines are untouched.
+- Both emitted scripts were proven **byte-identical** to the originals with
+  comment lines removed. No code or string literal changed.
+- The freeze guard now parses the **stripped** output rather than raw source,
+  because that is what reaches the device. A stripping mistake fails the build.
+- No line in the file begins with a `//` token that is not a comment (no
+  protocol-relative URLs at line start) — checked before implementing.
+
+Budget change, stated plainly: a new `shipped store scripts raw` metric caps the
+injected text at 470,000 bytes, and this is now the real device budget.
+`SHEIN script source raw` was raised from 550,000 to 600,000. That is not a
+relaxation — the old ceiling was serving as both the device budget and a source
+size cap, and had tightened to 67 free bytes, to the point where documenting an
+optimisation cost more budget than the optimisation saved. Comments no longer
+reach the device, so source size has no runtime cost, and device cost is now
+bounded directly and more tightly by the new metric.
+
+Version is `86.125/985`; diagnostics off. Build, freeze guard, performance
+budget, Android sync and Android debug assemble pass. ESLint reports 49 problems
+before and after. Local bundle `index-BsAtQi_A.js` is 1073774 bytes, SHA-256
+`47EAB0D3BD3806314AACF4CEE73C7CEBD36993496570D12664CF8488EEB4A39D`. Android debug APK is 11123140 bytes, SHA-256 `7D3C01D5977861B87497E9824F3C8061DB780FFA114804A30A44E7675DE45526`.
+
+**Nothing was measured on a physical device.** Expected effect: product pages
+start faster because 93KB less script is parsed before SHEIN paints. Acceptance
+is unchanged and must still include concealment being exactly as immediate as
+v86.117 and the back button never dead-ending.
+
 # Active candidate — v86.124 speeds up the iPhone 6 by removing work, not checks (2026-08-10)
 
 Base is still v86.117 (`bf40b1c`). The functional diff against it is now five
