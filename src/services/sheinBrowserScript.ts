@@ -3691,6 +3691,15 @@ export const SHEIN_CAPTURE_SCRIPT = `
       .replace(/\\s+/g, ' ')
       .trim();
   }
+  // قسم "الكمية" في تيمو شقيق لقسم اللون داخل نفس الحاضن، فأي قراءة نصية
+  // تصعد مستوى واحداً تلتصق به: ثبت على النوت 8 لون محفوظ بالسلة قيمته
+  // "【أبيض】الكمية1" وعنوان قسم نصّه "اللونالكمية1". نقصّ ذيل الكمية من أي
+  // قيمة لون/مقاس قبل حفظها. القيمة التي ليست إلا كمية تصير فارغة فيطالب
+  // التطبيق الزبون باختيار اللون بدل إرسال قيمة ملفّقة لصاحب الطلب.
+  function temuStripQuantity(value) {
+    var v = temuCleanText(value).replace(/(?:\\u0627\\u0644\\u0643\\u0645\\u064a\\u0629|\\u0643\\u0645\\u064a\\u0629|quantity|qty)\\s*[:：]?\\s*\\d*.*$/i, '');
+    return temuCleanText(v);
+  }
   // يُرفق اللون/المقاس المختارين برابط المنتج كمعاملات otlobli_* (تُتجاهَل
   // من تيمو تماماً - معاملات مجهولة بلا أي تأثير على تحميل الصفحة)، لتُقرأ
   // لاحقاً عند إعادة فتح نفس الرابط (temuAutoReselectFromLink) فيُعاد اختيار
@@ -3809,7 +3818,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (/[{};]|\\bvar\\b|\\bfor\\b|\\bfunction\\b/.test(window.__otlobliTemuColor)) {
         window.__otlobliTemuColor = '';
       } else {
-        return window.__otlobliTemuColor;
+        var stored = temuStripQuantity(window.__otlobliTemuColor);
+        if (stored) return stored;
+        window.__otlobliTemuColor = '';
       }
     }
     // 2) عنوان "Color: X" (اللون الافتراضي قبل أي تغيير).
@@ -3818,7 +3829,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
       var t = temuCleanText(nodes[i].textContent);
       if (t.length > 40) continue;
       var m = t.match(/^(?:Color|colour|اللون|لون(?:\\s+[\\u0600-\\u06FF]{2,14})?)\\s*[:：]\\s*(.+)$/i);
-      if (m && m[1]) return m[1].trim();
+      if (m && m[1]) {
+        var head = temuStripQuantity(m[1]);
+        if (head) return head;
+      }
     }
     return '';
   }
@@ -4721,6 +4735,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
                     if (isOkColorName(ckTxt)) colorName2 = ckTxt;
                   }
                 }
+                colorName2 = temuStripQuantity(colorName2);
                 if (colorName2) {
                   var gidNow = temuGoodsId();
                   window.__otlobliTemuUnavailableTapTs = 0;
@@ -5421,6 +5436,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
       }
       // اختيار بكرت صورة بلا اسم (أحذية/أجهزة): الصورة هي المرجع للمالك.
       if (!temuColorVal && temuColorSwatch) temuColorVal = 'حسب الصورة المرفقة';
+      // حارس أخير قبل الحفظ: لا يصل ذيل "الكمية" إلى السلة من أي مصدر.
+      temuColorVal = temuStripQuantity(temuColorVal);
+      temuSizeVal = temuStripQuantity(temuSizeVal);
       // صورة المنتج بالسلة: عند اختيار لون، صورة كرت اللون مضمونة 100%؛
       // temuImage() احتياط (وهو نفسه يفضّل الـswatch الآن).
       return {
