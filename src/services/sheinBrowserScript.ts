@@ -6297,9 +6297,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var __otlobliBackTarget = 'home';
 
   // history.back() is a SILENT no-op once the back stack is spent - the tap
-  // registers and nothing moves (iPhone 6, after a few product hops). A real
-  // navigation destroys this context before the timer fires, so the fallback
-  // can only reach a back that did nothing. Leave to the recorded home then.
+  // registers and nothing moves (iPhone 6). A real navigation destroys this
+  // context before the timer fires, so this can only catch a dead back.
   function otlobliBackOrLeave() {
     var f = location.href, h = sessionStorage.getItem('__otlobliHomePath') || '/';
     try { history.back(); } catch (e) {}
@@ -6864,6 +6863,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
     for (var i = 0; i < nodes.length; i++) {
       var el = nodes[i];
       if (el.id && el.id.indexOf('otlobli') === 0) continue;
+      // Already hidden: skip before any geometry read. A rect read after a
+      // style write forces one layout per iteration - see the perf guard doc.
+      if (el.style.visibility === 'hidden') continue;
       var rect = el.getBoundingClientRect();
       if (rect.width <= 0 || rect.width > 96 || rect.height <= 0 || rect.height > 96) continue;
       el.setAttribute('data-otlobli-blocked', '1');
@@ -6883,7 +6885,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var nr = nav && nav.getBoundingClientRect ? nav.getBoundingClientRect() : null;
     var navTop = nr && nr.top > 0 ? nr.top : vp.height - 90;
     function hide(el) {
-      if (!el || !el.getBoundingClientRect || (el.closest && el.closest('[id^="otlobli"]')) || !isAddToCartText(el)) return;
+      if (!el || el.style && el.style.display === 'none') return;
+      if (!el.getBoundingClientRect || (el.closest && el.closest('[id^="otlobli"]')) || !isAddToCartText(el)) return;
       var r = el.getBoundingClientRect();
       if (r.width < 64 || r.width > vp.width * 1.05 || r.height < 24 || r.height > 100 || r.bottom < navTop - 190 || r.top > navTop + 24) return;
       el.style.setProperty('display', 'none', 'important');
@@ -10039,11 +10042,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
   document.addEventListener('touchmove', markOtlobliInteraction, { capture: true, passive: true });
   document.addEventListener('scroll', markOtlobliInteraction, { capture: true, passive: true });
   document.addEventListener('click', sheinTrackSelectedSkuPrice, true);
-  // On low-end devices (iPhone 6 etc. — 2 CPU cores) our own polling competes
-  // with Cloudflare's verification JS and SHEIN's image decoding, making a
-  // weak-CPU device feel heavy and slow. Relax every hot interval there so the
-  // device spends its cycles rendering / passing the challenge instead of on
-  // our scans. Modern devices (iPhone 16) keep the original tight timings.
+  // Low-end (iPhone 6, 2 cores): our polling competes with Cloudflare's JS and
+  // SHEIN's image decoding. Relax the hot intervals; iPhone 16 keeps the tight
+  // ones. Never widen these past the documented values - see the perf guard.
   var OTLOBLI_LOW_END = typeof navigator !== 'undefined' && (
     (navigator.hardwareConcurrency || 4) <= 4 ||
     (navigator.deviceMemory && navigator.deviceMemory <= 3) ||
@@ -10081,16 +10082,16 @@ export const SHEIN_CAPTURE_SCRIPT = `
   };
   window.addEventListener('popstate', scheduleTick);
 
-  // observe(document.body, ...) here used to throw at this documentStart
-  // timing - body is still null ("Failed to execute 'observe' on
-  // 'MutationObserver': parameter 1 is not of type 'Node'") - and uncaught it
-  // HALTED THE ENTIRE SCRIPT: both setInterval(tick) calls, the block-detector
-  // and the first tick() never ran for that whole page load. WebKit can run
-  // this before <html> is exposed too, so attach as soon as a root node
-  // actually exists instead of assuming documentElement does.
+  // observe(document.body) at documentStart threw (body still null) and the
+  // uncaught error HALTED THE WHOLE SCRIPT - no intervals, no block detector,
+  // no first tick for that page load. Attach to whatever root exists instead.
   // Keep this callback geometry/text-free; coalesced tick owns DOM inspection.
+  // Low-end never observes: scheduleTick() returns immediately there, so this
+  // would cost a mutation record + microtask per DOM change for nothing. The
+  // pushState/replaceState/popstate hooks still clear sheinBlockReported.
   var observer = new MutationObserver(scheduleTick);
   function observeOtlobliDocumentRoot() {
+    if (OTLOBLI_LOW_END) return true;
     var root = document.documentElement || document.body;
     if (!root) return false;
     observer.observe(root, { childList: true, subtree: true });

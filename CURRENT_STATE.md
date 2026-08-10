@@ -1,3 +1,60 @@
+# Active candidate — v86.124 speeds up the iPhone 6 by removing work, not checks (2026-08-10)
+
+Base is still v86.117 (`bf40b1c`). The functional diff against it is now five
+changes and nothing else — two for the back button (v86.123) and three pure
+speedups added here. No feature, check, hider, timing or message was weakened.
+
+The governing rule, learned from two device rejections (v86.118, v86.121): on a
+2-core phone, buy speed by **cutting work inside a pass**, never by lengthening
+the interval between passes. A ~950ms concealment pass leaves SHEIN's own price
+and add controls visible for most of a second on the very device that needs them
+hidden fastest. The freeze guard now forbids `OTLOBLI_VERY_LOW_END` outright.
+
+Three measured sources of cost, two removed here:
+
+1. **MutationObserver ran for nothing on low-end.** It watches `childList` +
+   `subtree` on the document root, so it wakes on every DOM change SHEIN makes
+   — lazy images, carousels, infinite scroll — continuously. But
+   `scheduleTick()` returns immediately on low-end, so its whole effect there
+   was clearing `sheinBlockReported`: one mutation record plus one microtask
+   per DOM change, on two cores, to set a boolean. Low-end no longer observes.
+   The `pushState`/`replaceState`/`popstate` hooks still clear that flag,
+   which is the realistic path that re-arms it after a navigation.
+2. **Layout thrashing in the concealment loops.** Each iteration read
+   `getBoundingClientRect()` and then wrote inline styles; the write invalidates
+   layout and the next read forces a synchronous recalculation, so the pass paid
+   one forced layout per element. Worse, elements hidden on an earlier pass were
+   re-measured and re-written every 650ms forever. Both hot hiders now skip an
+   already-hidden node before any geometry read, using an inline-style read that
+   costs no layout. Steady-state cost collapses; behaviour is identical.
+3. **`document.body.innerText` every 1.6s** forces a full-page layout. Not
+   addressed — the safe gate is an element count, and a previous attempt using
+   `body.children.length > 8` silently disabled the detector because the block
+   page itself exceeded it. Any new threshold must be generous (600+ total
+   elements) and tested against a real block page first.
+
+Version is `86.124/984`; diagnostics off. Production build, freeze guard,
+performance budget, Android sync and Android debug assemble pass. ESLint reports
+49 problems before and after — none added. Local bundle `index-BHQM3P73.js` is
+1167084 bytes, SHA-256 `EC28D87E75D9937E08342FFD969096650A3DC4F8194DF7C1ECAC290B1E5EFB24`. Android debug APK is 11,169,512
+bytes, SHA-256
+`AE987756CFC0EB90352F41D1D71589B8C5D75F682E042C183B0E04B9A82CAE30`.
+
+**Budget wall.** SHEIN source is `549,933/550,000` — 67 bytes free. Every change
+above was funded by condensing comments on the code it touched; no ceiling was
+raised. Measurement worth acting on: **17% of this file is comments (93,739
+bytes)**, and the file ships into the store page as an injected string, so those
+bytes are parsed by JavaScriptCore on the iPhone 6 at every page load for no
+runtime benefit. Stripping comments at build time would ship ~456,195 bytes
+instead of ~549,934 and would free the budget for the remaining work. That needs
+a build transform plus a guard that measures the emitted script rather than raw
+source — not decided yet.
+
+**Nothing was measured on a physical device.** The wins here are structural and
+provable by inspection, but "feels faster" is the customer's call. Acceptance:
+scrolling a SHEIN listing and a product page on the iPhone 6 should be smoother,
+with concealment exactly as immediate as v86.117.
+
 # Active candidate — v86.123 returns to v86.117 and fixes only the back button (2026-08-10)
 
 Device verdict from the customer, covering four builds:

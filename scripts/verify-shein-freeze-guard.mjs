@@ -470,6 +470,29 @@ const checks = [
       'clearInterval(flushTimer)',
     ],
   },
+  {
+    // v86.124 low-end speedups. Each removes work without weakening a single
+    // check, and each was reached by a slower path before. Do not drop these
+    // to "simplify" the hot loops - and never buy speed back by lengthening an
+    // interval instead, which is what produced the rejected v86.118/v86.121.
+    label: 'low-end hot-path work removal',
+    file: 'src/services/sheinBrowserScript.ts',
+    markers: [
+      // A 2-core device gains nothing from observing every childList change
+      // when scheduleTick() returns immediately there.
+      'if (OTLOBLI_LOW_END) return true;',
+      // Skip geometry on already-hidden nodes: a rect read after a style write
+      // forces one synchronous layout per iteration (layout thrashing).
+      "if (el.style.visibility === 'hidden') continue;",
+      "if (!el || el.style && el.style.display === 'none') return;",
+      // The interval itself stays at the v86.117 value, and both add-hiders
+      // still run on every pass - the speedup is inside them, not around them.
+      'hideListingCardAddButtons();\n    hideSheinNativeProductAdd();\n  }, OTLOBLI_LOW_END ? 650 : 120);',
+    ],
+    forbidden: [
+      'OTLOBLI_VERY_LOW_END',
+    ],
+  },
 ]
 
 const failures = []

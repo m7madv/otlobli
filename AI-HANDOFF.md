@@ -1,3 +1,40 @@
+# Current candidate — v86.124 low-end speedups on the v86.117 base (2026-08-10)
+
+- **Base is v86.117 (`bf40b1c`).** The whole functional diff against it is five
+  lines-groups: `otlobliBackOrLeave()` + its call site (v86.123), and three
+  speedups (v86.124). Verify with
+  `git diff bf40b1c -- src/services/sheinBrowserScript.ts`. Keep it that small.
+- **The rule: cut work per pass, never lengthen the interval.** v86.118 and
+  v86.121 both bought speed by stretching the concealment pass to ~950ms and
+  both were rejected on the iPhone 6. The guard now forbids
+  `OTLOBLI_VERY_LOW_END`. Both add-hiders still run on every 650ms pass.
+- `if (OTLOBLI_LOW_END) return true;` in `observeOtlobliDocumentRoot` — low-end
+  devices do not observe DOM mutations at all. `scheduleTick()` returns
+  immediately there, so the observer's only effect was clearing
+  `sheinBlockReported`, at the price of a mutation record and a microtask on
+  every DOM change SHEIN makes. The history hooks still clear that flag. Do not
+  re-enable observation on low-end without re-checking that reasoning.
+- The two hot hiders skip already-hidden nodes before reading geometry. This is
+  a layout-thrashing fix: a rect read after a style write forces a synchronous
+  layout per iteration. Inline-style reads are layout-free — keep the skip
+  before `getBoundingClientRect()`, never after.
+- Still open: `document.body.innerText` in `checkForSheinSecurityBlock` forces a
+  full-page layout every 1.6s. The safe gate is a total element count, but a
+  previous `body.children.length > 8` gate silently disabled the detector
+  because the block page exceeded it. Use 600+ and test on a real block page.
+- Version `86.124/984`; diagnostics off. Build, freeze guard, performance
+  budget, Android sync and Android debug assemble pass. ESLint 49 before and
+  after. APK SHA `AE987756CFC0EB90352F41D1D71589B8C5D75F682E042C183B0E04B9A82CAE30`.
+- **Budget wall: SHEIN source is 549,933/550,000 — 67 bytes free.** Every change
+  was funded by condensing comments on the code it touched; no ceiling raised.
+  17% of this file (93,739 bytes) is comments that ship into the page as part of
+  the injected string and are parsed on-device for nothing. Stripping them at
+  build time would ship ~456,195 bytes and unblock further optimisation, but it
+  needs a build transform plus a guard measuring the emitted script. Undecided.
+- **Nothing was measured on a device.** Acceptance: smoother scrolling on a
+  SHEIN listing and product page on the iPhone 6, concealment as immediate as
+  v86.117, and the back button never dead-ending.
+
 # Current candidate — v86.123 is v86.117 plus a back button that cannot dead-end (2026-08-10)
 
 - **Base is v86.117 (`bf40b1c`), restored verbatim.** `src/`, `patches/` and the
