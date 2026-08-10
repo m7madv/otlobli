@@ -22,4 +22,4 @@ export const SHEIN_IOS_FREEZE_DIAGNOSTICS = false
 export const SHEIN_IOS_FREEZE_DIAGNOSTICS_BYPASS_RECOVERY = false
 
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '2026.08.10-v86.127-restore-supabase-google-env'
+export const APP_VERSION = '2026.08.10-v86.128-wallet-floor-fix'

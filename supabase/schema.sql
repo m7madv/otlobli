@@ -2992,7 +2992,7 @@ begin
       'paymentCurrency', normalized_currency,
       'paymentExpiresAt', now(),
       'paymentStatus', 'مدفوع',
-      'walletBalanceUsd', round(public.available_wallet_syp(target_customer_id) / usd_rate, 2)
+      'walletBalanceUsd', floor(public.available_wallet_syp(target_customer_id) / usd_rate * 100) / 100
     );
   end if;
 
@@ -3079,7 +3079,7 @@ begin
         'paymentCurrency', normalized_currency,
         'paymentExpiresAt', expires,
         'paymentStatus', 'بانتظار الدفع',
-        'walletBalanceUsd', round(public.available_wallet_syp(target_customer_id) / usd_rate, 2)
+        'walletBalanceUsd', floor(public.available_wallet_syp(target_customer_id) / usd_rate * 100) / 100
       );
     exception when unique_violation then
       continue;
@@ -3838,7 +3838,7 @@ begin
   target_customer_id := public.require_customer_session(p_session_token, null);
   select value::numeric into usd_rate from public.app_settings where key = 'usd_to_syp_rate';
   usd_rate := case when usd_rate > 0 then usd_rate else 13000 end;
-  return round(public.available_wallet_syp(target_customer_id) / usd_rate, 2);
+  return floor(public.available_wallet_syp(target_customer_id) / usd_rate * 100) / 100;
 end;
 $$;
 

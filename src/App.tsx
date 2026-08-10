@@ -307,6 +307,15 @@ const isBlockedStoreCountry = (countryCode?: string | null) =>
 const isVpnConfirmed = (vpnState: VpnState, vpnGeo: VpnGeo | null) =>
   vpnState === 'ok' && !!vpnGeo?.countryCode && !isBlockedStoreCountry(vpnGeo.countryCode)
 
+// The wallet is held in SYP. Both this app and create_pending_order used to
+// ROUND the USD view of it to the nearest cent, so a 82,240 SYP balance at
+// 13,180 became $6.24, and the server then converted that back to 82,243 SYP
+// and rejected the order with "insufficient wallet balance" - the customer was
+// offered a balance that could not be spent. Always floor: never advertise a
+// cent that does not convert back inside the real balance.
+const walletUsdFromSyp = (syp: number, rate: number) =>
+  rate > 0 && Number.isFinite(syp) && syp > 0 ? Math.floor((syp / rate) * 100) / 100 : 0
+
 const getStoreFailureAdvice = (
   store: string,
   vpnState: VpnState,
@@ -1595,9 +1604,7 @@ function App() {
       ? account.walletBalanceSyp
       : account.profile?.walletBalanceSyp || 0
     setWalletBalanceSyp(nextWalletBalanceSyp)
-    setWalletBalanceUsd(exchangeRate > 0
-      ? Math.round((nextWalletBalanceSyp / exchangeRate) * 100) / 100
-      : 0)
+    setWalletBalanceUsd(walletUsdFromSyp(nextWalletBalanceSyp, exchangeRate))
     setWalletTransactions(account.walletTransactions || [])
   }, [
     exchangeRate,
@@ -2105,8 +2112,13 @@ function App() {
     ...(appliedReferralDiscountSyp > 0 ? [{ label: 'خصم الإحالة', value: -appliedReferralDiscountSyp }] : []),
   ]
   const preWalletTotal = Math.max(0, afterCouponTotal - appliedReferralDiscountSyp)
+  // Cap against the SYP balance, not only the USD view of it: SYP is what the
+  // server actually checks, and any USD figure that came from elsewhere (the
+  // create_pending_order response still rounds) could otherwise ask for a cent
+  // more than exists and fail the whole order.
+  const walletSpendableUsd = Math.min(walletBalanceUsd, walletUsdFromSyp(walletBalanceSyp, exchangeRate))
   const walletSpendUsd = useWallet
-    ? Math.min(Math.max(0, Number(walletSpendInput) || walletBalanceUsd), walletBalanceUsd, preWalletTotal / exchangeRate)
+    ? Math.min(Math.max(0, Number(walletSpendInput) || walletSpendableUsd), walletSpendableUsd, preWalletTotal / exchangeRate)
     : 0
   const walletDiscountSyp = Math.round(walletSpendUsd * exchangeRate)
   const checkoutBreakdownWithWallet = walletDiscountSyp > 0
@@ -4359,7 +4371,12 @@ function App() {
     void appApi.orders.createPendingOrder(newOrder, paymentCurrency, walletSpendUsd, selectedStore)
       .then((result) => {
         if (typeof result.walletBalanceUsd === 'number') {
-          setWalletBalanceUsd(result.walletBalanceUsd)
+          // create_pending_order returns round(syp / rate, 2), which can sit a
+          // cent above the real SYP balance. Floor it and keep the SYP mirror
+          // in step, so the next order is never offered money it cannot spend.
+          const nextUsd = Math.floor(result.walletBalanceUsd * 100) / 100
+          setWalletBalanceUsd(nextUsd)
+          setWalletBalanceSyp(Math.max(0, walletBalanceSyp - Math.round(walletSpendUsd * exchangeRate)))
         }
         if (walletSpendUsd > 0) {
           setUseWallet(false)
