@@ -792,7 +792,8 @@ try {
   const sheinOptionsSource = appSource.slice(sheinOptionsStart, temuOptionsStart)
   if (sheinOptionsStart < 0 || temuOptionsStart < 0 ||
       !sheinOptionsSource.includes('hidden: true') ||
-      !sheinOptionsSource.includes('invisibilityMode: InvisibilityMode.FAKE_VISIBLE')) {
+      !sheinOptionsSource.includes('invisibilityMode: InvisibilityMode.FAKE_VISIBLE') ||
+      !sheinOptionsSource.includes('isPresentAfterPageLoad: isIosNative')) {
     failures.push('SHEIN ready reveal: iOS must prepare the SHEIN WebView offscreen at full device size')
   }
 
@@ -803,6 +804,18 @@ try {
   const showCall = homeVisibilitySource.indexOf('InAppBrowser.show()')
   if (homeVisibilityStart < 0 || homeVisibilityEnd < 0 || readyGuard < 0 || showCall < 0 || readyGuard > showCall) {
     failures.push('SHEIN ready reveal: readiness guard must run before the native WebView is shown')
+  }
+
+  const storeSwitchStart = appSource.indexOf('const switchSelectedStore = (id: StoreId, afterSwitch: () => void)')
+  const storeSwitchEnd = appSource.indexOf('const openStoreFromHub = (id: StoreId)', storeSwitchStart)
+  const storeSwitchSource = appSource.slice(storeSwitchStart, storeSwitchEnd)
+  if (storeSwitchStart < 0 || storeSwitchEnd < 0 || storeSwitchSource.includes('InAppBrowser.clearCache()')) {
+    failures.push('SHEIN fast entry: an ordinary store switch must preserve the healthy HTTP/WebKit cache')
+  }
+  if (!appSource.includes("const shouldResetSheinCache = activeStore === 'shein' && sheinCacheResetPendingRef.current") ||
+      !appSource.includes('const prepareStoreWebview = shouldResetSheinCache') ||
+      !appSource.includes('sheinCacheResetPendingRef.current = true')) {
+    failures.push('SHEIN recovery: bounded damaged-session cache reset must remain available')
   }
 } catch (error) {
   failures.push(`SHEIN cart isolation: ${error instanceof Error ? error.message : String(error)}`)

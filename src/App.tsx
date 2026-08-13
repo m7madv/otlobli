@@ -3742,7 +3742,11 @@ function App() {
             hidden: true,
             invisibilityMode: InvisibilityMode.FAKE_VISIBLE,
           } : {}),
-          isPresentAfterPageLoad: true,
+          // Android can present the native Otlobli loading cover immediately;
+          // waiting for SHEIN's full onPageFinished made the first tap look
+          // idle for several seconds on Note 8. iOS remains offscreen until
+          // readiness because that is part of its protected freeze-safe path.
+          isPresentAfterPageLoad: isIosNative,
           isAnimated: false,
         }
         : {
@@ -3791,8 +3795,8 @@ function App() {
       // rely on the user's VPN, same as iOS always did.
     }
     // Keep the healthy HTTP/WebKit cache for the fast path on older iPhones.
-    // A cache reset remains available only for the one bounded stuck-session
-    // recovery (and the explicit Temu -> SHEIN switch already performs it).
+    // A cache reset remains available only for the bounded stuck-session and
+    // cart-product recovery paths when a real damaged session is detected.
     // This isolates the speed change from v85.9's failed document-start path.
     const shouldResetSheinCache = activeStore === 'shein' && sheinCacheResetPendingRef.current
     if (shouldResetSheinCache) sheinCacheResetPendingRef.current = false
@@ -5062,11 +5066,14 @@ function App() {
     sheinChallengeActiveRef.current = false
     sheinCartProductSessionRef.current = false
     sheinCartProductRecoveryInFlightRef.current = false
-    sheinOpenedRef.current = false
-    setSheinReady(false)
-    void InAppBrowser.close().catch(() => undefined)
-      .then(() => (id === 'shein' ? InAppBrowser.clearCache().catch(() => undefined) : undefined))
-      .then(() => {
+      sheinOpenedRef.current = false
+      setSheinReady(false)
+      // Preserve SHEIN's healthy HTTP/WebKit cache on an ordinary store switch.
+      // Clearing it here made every Temu -> SHEIN entry a cold start on weak
+      // phones. The bounded stuck/chunk recovery paths above still request the
+      // same cache reset when a session is actually damaged.
+      void InAppBrowser.close().catch(() => undefined)
+        .then(() => {
         temuPersonalSiteOpenedRef.current = false
         return TemuEmbeddedBrowser.hide().catch(() => undefined)
       })
