@@ -1,6 +1,24 @@
 import { useEffect, useMemo, useState } from 'react'
 
-type AdminTab = 'dashboard' | 'orders' | 'payments' | 'shipping' | 'customers' | 'drivers' | 'coupons' | 'stores' | 'notifications' | 'settings'
+type AdminTab = 'dashboard' | 'orders' | 'payments' | 'shipping' | 'customers' | 'drivers' | 'coupons' | 'stores' | 'reports' | 'notifications' | 'settings'
+
+type AppIssueReport = {
+  id: string
+  note: string
+  screenshotUrl: string
+  deviceId: string
+  customerPhone: string
+  customerName: string
+  screen: string
+  store: string
+  appVersion: string
+  platform: string
+  deviceModel: string
+  status: 'new' | 'in_review' | 'resolved'
+  adminNote: string
+  createdAt: string
+  updatedAt: string
+}
 type PaymentStatus = 'بانتظار الدفع' | 'مدفوع' | 'فشل المطابقة'
 
 type StoreRegionId = 'shein' | 'temu'
@@ -262,6 +280,7 @@ const ADMIN_ORDERS_FN   = `${SUPABASE_URL}/functions/v1/admin-orders`
 const ADMIN_DRIVERS_FN  = `${SUPABASE_URL}/functions/v1/admin-drivers`
 const ADMIN_COUPONS_FN  = `${SUPABASE_URL}/functions/v1/admin-coupons`
 const APP_SETTINGS_FN   = `${SUPABASE_URL}/functions/v1/app-settings`
+const APP_REPORTS_FN    = `${SUPABASE_URL}/functions/v1/app-reports`
 const SEND_PUSH_FN      = `${SUPABASE_URL}/functions/v1/send-push`
 const WA_API_BASE = stripBom(import.meta.env.VITE_WHATSAPP_API_URL as string | undefined) || ''
 const ANON_KEY = stripBom(import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)
@@ -319,6 +338,38 @@ async function saveAppSetting(pin: string, key: string, value: string) {
     body: JSON.stringify({ key, value }),
   })
   if (!response.ok) throw new Error('setting_update_failed')
+}
+
+async function fetchAppIssueReports(pin: string) {
+  const response = await fetch(APP_REPORTS_FN, {
+    headers: {
+      'x-admin-pin': pin,
+      apikey: ANON_KEY,
+      authorization: `Bearer ${ANON_KEY}`,
+    },
+  })
+  if (!response.ok) throw new Error('reports_unavailable')
+  const payload = await response.json() as { reports?: AppIssueReport[] }
+  return payload.reports ?? []
+}
+
+async function updateAppIssueReport(
+  pin: string,
+  reportId: string,
+  status: AppIssueReport['status'],
+  adminNote: string,
+) {
+  const response = await fetch(APP_REPORTS_FN, {
+    method: 'PATCH',
+    headers: {
+      'content-type': 'application/json',
+      'x-admin-pin': pin,
+      apikey: ANON_KEY,
+      authorization: `Bearer ${ANON_KEY}`,
+    },
+    body: JSON.stringify({ reportId, status, adminNote }),
+  })
+  if (!response.ok) throw new Error('report_update_failed')
 }
 
 async function fetchOrders(pin: string) {
@@ -779,6 +830,7 @@ function AdminApp() {
           ['drivers', 'السواقين', 'local_shipping'],
           ['coupons', 'أكواد الخصم', 'sell'],
           ['stores', 'المتاجر والهوية', 'storefront'],
+          ['reports', 'بلاغات التطبيق', 'bug_report'],
           ['notifications', 'الإشعارات', 'notifications'],
           ['settings', 'الإعدادات', 'settings'],
         ] as const).map(([key, label, icon]) => (
@@ -874,6 +926,7 @@ function AdminApp() {
         {tab === 'drivers' && <DriversPanel pin={pin} showNotice={showNotice} />}
         {tab === 'coupons' && <CouponsPanel pin={pin} showNotice={showNotice} />}
         {tab === 'stores' && <StoresBrandingPanel pin={pin} showNotice={showNotice} />}
+        {tab === 'reports' && <AppIssueReportsPanel pin={pin} showNotice={showNotice} />}
         {tab === 'notifications' && <NotificationsPanel pin={pin} showNotice={showNotice} />}
         {tab === 'settings' && (
           <SettingsPanel
@@ -2204,6 +2257,132 @@ function CouponsPanel({ pin, showNotice }: { pin: string; showNotice: (message: 
 }
 
 // ── Stores & branding ───────────────────────────────────────────────────────
+function AppIssueReportsPanel({ pin, showNotice }: { pin: string; showNotice: (message: string) => void }) {
+  const [reports, setReports] = useState<AppIssueReport[]>([])
+  const [filter, setFilter] = useState<'all' | AppIssueReport['status']>('all')
+  const [loading, setLoading] = useState(true)
+  const [savingId, setSavingId] = useState('')
+
+  const load = (silent = false) => {
+    if (!silent) setLoading(true)
+    void fetchAppIssueReports(pin)
+      .then(setReports)
+      .catch(() => { if (!silent) showNotice('تعذر جلب بلاغات التطبيق') })
+      .finally(() => { if (!silent) setLoading(false) })
+  }
+
+  useEffect(() => {
+    load()
+    const interval = window.setInterval(() => load(true), 20_000)
+    return () => window.clearInterval(interval)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pin])
+
+  const patchDraft = (reportId: string, patch: Partial<Pick<AppIssueReport, 'status' | 'adminNote'>>) => {
+    setReports((current) => current.map((report) => report.id === reportId ? { ...report, ...patch } : report))
+  }
+
+  const save = (report: AppIssueReport) => {
+    setSavingId(report.id)
+    void updateAppIssueReport(pin, report.id, report.status, report.adminNote)
+      .then(() => showNotice('تم تحديث البلاغ'))
+      .catch(() => { showNotice('فشل تحديث البلاغ'); load(true) })
+      .finally(() => setSavingId(''))
+  }
+
+  const visible = filter === 'all' ? reports : reports.filter((report) => report.status === filter)
+  const counts = {
+    all: reports.length,
+    new: reports.filter((report) => report.status === 'new').length,
+    in_review: reports.filter((report) => report.status === 'in_review').length,
+    resolved: reports.filter((report) => report.status === 'resolved').length,
+  }
+
+  return (
+    <section className="panel app-reports-panel">
+      <header className="app-reports-head">
+        <div>
+          <span className="section-kicker">تصل مباشرة من رجّة الهاتف</span>
+          <h2>بلاغات التطبيق</h2>
+          <p>لقطة الشاشة، ملاحظة المستخدم، والمتجر والشاشة التي كان داخلها وقت المشكلة.</p>
+        </div>
+        <button type="button" className="ghost-action" onClick={() => load()} disabled={loading}>
+          <Icon name="refresh" /> تحديث
+        </button>
+      </header>
+
+      <div className="report-filters" role="group" aria-label="تصفية البلاغات">
+        {([
+          ['all', 'الكل'],
+          ['new', 'جديد'],
+          ['in_review', 'قيد المراجعة'],
+          ['resolved', 'محلول'],
+        ] as const).map(([value, label]) => (
+          <button type="button" key={value} className={filter === value ? 'is-active' : ''} onClick={() => setFilter(value)}>
+            {label}<span>{counts[value]}</span>
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <p className="reports-empty">جاري تحميل البلاغات…</p>
+      ) : visible.length === 0 ? (
+        <div className="reports-empty">
+          <Icon name="check_circle" />
+          <strong>لا توجد بلاغات في هذه الحالة</strong>
+          <span>أي بلاغ جديد سيظهر هنا تلقائياً.</span>
+        </div>
+      ) : (
+        <div className="app-reports-grid">
+          {visible.map((report) => (
+            <article className={`app-report-card status-${report.status}`} key={report.id}>
+              <a className="report-shot" href={report.screenshotUrl} target="_blank" rel="noreferrer">
+                {report.screenshotUrl
+                  ? <img src={report.screenshotUrl} alt="لقطة الشاشة المرفقة مع البلاغ" loading="lazy" />
+                  : <span><Icon name="broken_image" /> تعذر تحميل اللقطة</span>}
+                <b><Icon name="open_in_new" /> فتح بالحجم الكامل</b>
+              </a>
+              <div className="report-body">
+                <div className="report-card-top">
+                  <span className={`report-status report-status--${report.status}`}>
+                    {report.status === 'new' ? 'جديد' : report.status === 'in_review' ? 'قيد المراجعة' : 'محلول'}
+                  </span>
+                  <time dateTime={report.createdAt}>{new Date(report.createdAt).toLocaleString('ar-SY')}</time>
+                </div>
+                <blockquote>{report.note}</blockquote>
+                <dl className="report-meta">
+                  <div><dt>المكان</dt><dd>{report.store ? `${report.store.toUpperCase()} · ` : ''}{report.screen || 'غير معروف'}</dd></div>
+                  <div><dt>المستخدم</dt><dd>{report.customerName || 'زائر'}{report.customerPhone ? ` · ${report.customerPhone}` : ''}</dd></div>
+                  <div><dt>الجهاز</dt><dd>{report.deviceModel || report.platform || 'غير معروف'}</dd></div>
+                  <div><dt>النسخة</dt><dd>{report.appVersion || 'غير معروف'}</dd></div>
+                </dl>
+                <div className="report-editor">
+                  <label>
+                    <span>الحالة</span>
+                    <select value={report.status} onChange={(event) => patchDraft(report.id, { status: event.target.value as AppIssueReport['status'] })}>
+                      <option value="new">جديد</option>
+                      <option value="in_review">قيد المراجعة</option>
+                      <option value="resolved">محلول</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>ملاحظة الإدارة</span>
+                    <textarea value={report.adminNote} maxLength={800} placeholder="ما الذي تبيّن أو كيف تم الحل؟" onChange={(event) => patchDraft(report.id, { adminNote: event.target.value })} />
+                  </label>
+                  <button type="button" className="primary-action" disabled={savingId === report.id} onClick={() => save(report)}>
+                    {savingId === report.id ? 'جاري الحفظ…' : 'حفظ المتابعة'}
+                    <Icon name="save" />
+                  </button>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
 function StoresBrandingPanel({ pin, showNotice }: { pin: string; showNotice: (msg: string) => void }) {
   const [regions, setRegions] = useState<Record<StoreRegionId, string>>({ shein: 'SA', temu: 'SA' })
   const [brandName, setBrandName] = useState('otlobli')
@@ -2450,9 +2629,9 @@ function SettingsPanel({
   useEffect(() => {
     void fetchPublicSettings()
       .then((data) => {
-        setSheinCost(data.shipping_cost_shein_syp ?? '90000')
-        setTemuCost(data.shipping_cost_temu_syp ?? '90000')
-        setUsdRate(data.usd_to_syp_rate ?? '13000')
+        setSheinCost(data.shipping_cost_shein_syp ?? '900')
+        setTemuCost(data.shipping_cost_temu_syp ?? '900')
+        setUsdRate(data.usd_to_syp_rate ?? '131.7')
         setSheinQr(data.shamcash_qr_shein_data_url ?? '')
         setTemuQr(data.shamcash_qr_temu_data_url ?? '')
         setSheinCode(data.shamcash_code_shein ?? '')
@@ -2530,7 +2709,7 @@ function SettingsPanel({
       <div className="settings-overview">
         <article>
           <span>سعر الصرف الحالي</span>
-          <b>{usdRate || '13000'} ل.س</b>
+          <b>{usdRate || '131.7'} ل.س</b>
           <small>لكل 1 USD</small>
         </article>
         <article>

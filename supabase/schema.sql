@@ -621,13 +621,13 @@ create table if not exists public.app_settings (
 );
 
 insert into public.app_settings (key, value)
-values ('usd_to_syp_rate', '13000')
+values ('usd_to_syp_rate', '131.7'), ('syp_denomination', 'new')
 on conflict (key) do nothing;
 
 insert into public.app_settings (key, value)
 values
-  ('shipping_cost_shein_syp', '90000'),
-  ('shipping_cost_temu_syp', '90000'),
+  ('shipping_cost_shein_syp', '900'),
+  ('shipping_cost_temu_syp', '900'),
   ('shamcash_qr_shein_data_url', ''),
   ('shamcash_qr_temu_data_url', ''),
   ('shamcash_code_shein', ''),
@@ -4150,6 +4150,9 @@ declare
   required_amount numeric;
   remaining_syp integer;
   metadata_requested_usd text;
+  unit_step numeric;
+  max_steps integer := 120;
+  min_amount numeric;
 begin
   select value::numeric into usd_rate from public.app_settings where key = 'usd_to_syp_rate';
   usd_rate := case when usd_rate > 0 then usd_rate else 13000 end;
@@ -4178,9 +4181,17 @@ begin
     raise exception 'unsupported payment intent table';
   end if;
 
-  if required_amount <= 0 or new.payment_amount <> required_amount then
+  unit_step := case when new.payment_currency = 'USD' then 0.01 else 1 end;
+  min_amount := required_amount - (max_steps * unit_step);
+
+  if required_amount <= 0
+     or new.payment_amount > required_amount
+     or new.payment_amount < min_amount then
     raise exception using errcode = 'P0001',
-      message = 'payment amount collision; retry after the existing intent expires';
+      message = format(
+        'payment amount %s is outside the allowed window [%s, %s]',
+        new.payment_amount, greatest(min_amount, 0), required_amount
+      );
   end if;
   return new;
 end;
@@ -4197,6 +4208,46 @@ for each row execute function public.enforce_exact_payment_intent();
 drop trigger if exists order_issue_exact_payment_amount on public.order_issue_payments;
 create trigger order_issue_exact_payment_amount before insert on public.order_issue_payments
 for each row execute function public.enforce_exact_payment_intent();
+
+-- 2026 Syrian new-lira safety: after the database adopts the new unit, a
+-- stale writer trying to restore a 13,000-style rate is rejected explicitly.
+create or replace function public.guard_usd_rate_setting()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+declare
+  denomination text;
+begin
+  if tg_op = 'DELETE' then
+    if old.key = 'usd_to_syp_rate' then
+      raise exception 'usd_to_syp_rate must never be deleted';
+    end if;
+    return old;
+  end if;
+
+  if new.key <> 'usd_to_syp_rate' then return new; end if;
+
+  if new.value !~ '^\d+(\.\d+)?$' or new.value::numeric <= 0 then
+    raise exception 'usd_to_syp_rate must be a positive number, got %', new.value;
+  end if;
+
+  select value into denomination
+  from public.app_settings
+  where key = 'syp_denomination';
+
+  if coalesce(denomination, '') = 'new' and new.value::numeric >= 1000 then
+    raise exception 'usd_to_syp_rate % looks like old SYP', new.value;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists app_settings_guard_usd_rate on public.app_settings;
+create trigger app_settings_guard_usd_rate
+before insert or update or delete on public.app_settings
+for each row execute function public.guard_usd_rate_setting();
 
 update public.wallet_topups set status = 'منتهي'
 where status = 'بانتظار الدفع' and expires_at <= now();
@@ -4256,3 +4307,28 @@ values
   ('brand_name', 'otlobli'),
   ('brand_logo_data_url', '')
 on conflict (key) do nothing;
+-- In-app shake reports: private screenshot storage plus an admin-managed inbox.
+create table if not exists public.app_issue_reports (
+  id uuid primary key default gen_random_uuid(),
+  note text not null check (char_length(note) between 3 and 800),
+  screenshot_path text not null,
+  device_id text not null default '',
+  customer_phone text not null default '',
+  customer_name text not null default '',
+  screen text not null default '',
+  store text not null default '',
+  app_version text not null default '',
+  platform text not null default '',
+  device_model text not null default '',
+  status text not null default 'new' check (status in ('new', 'in_review', 'resolved')),
+  admin_note text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists app_issue_reports_created_at_idx on public.app_issue_reports (created_at desc);
+create index if not exists app_issue_reports_status_idx on public.app_issue_reports (status, created_at desc);
+alter table public.app_issue_reports enable row level security;
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('app-issue-reports', 'app-issue-reports', false, 1572864, array['image/jpeg', 'image/png', 'image/webp'])
+on conflict (id) do update set public = false, file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;

@@ -30,16 +30,33 @@ def releaseArtifactRequested = gradle.startParameter.taskNames.any { taskName ->
         normalized.endsWith(':app:bundlerelease')
 }
 
+def temuPersonalSiteBuild = (project.findProperty('temuPersonalSite') ?: 'false').toString().toBoolean()
+def temuPersonalAbi = (project.findProperty('temuPersonalAbi') ?: 'arm64-v8a').toString().trim()
+def allowedTemuPersonalAbis = ['arm64-v8a', 'x86_64']
+if (temuPersonalSiteBuild && !allowedTemuPersonalAbis.contains(temuPersonalAbi)) {
+    throw new GradleException("Unsupported temuPersonalAbi '${temuPersonalAbi}'. Use arm64-v8a or x86_64.")
+}
+
 android {
     namespace = "com.otlobli.app"
     compileSdk = rootProject.ext.compileSdkVersion
+    buildFeatures {
+        buildConfig = true
+    }
     defaultConfig {
         applicationId "com.otlobli.app"
-        minSdkVersion rootProject.ext.minSdkVersion
+        minSdkVersion temuPersonalSiteBuild ? 26 : rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 994
-        versionName "86.134"
+        versionCode 1037
+        versionName temuPersonalSiteBuild ? "86.175-personal-release-hardening" : "86.175"
+        buildConfigField "boolean", "TEMU_PERSONAL_SITE", temuPersonalSiteBuild.toString()
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        if (temuPersonalSiteBuild) {
+            // The Gecko engine carries a large native library per ABI. The
+            // personal phone artifact defaults to Note 8's arm64 ABI; pass
+            // -PtemuPersonalAbi=x86_64 only for the laptop emulator build.
+            ndk { abiFilters temuPersonalAbi }
+        }
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
@@ -62,9 +79,22 @@ android {
     }
     buildTypes {
         release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // Published code must go through R8. Debug stays readable so local
+            // diagnostics and device acceptance remain practical.
+            minifyEnabled true
+            shrinkResources true
+            debuggable false
+            jniDebuggable false
+            zipAlignEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             if (releaseSigningConfigured) signingConfig signingConfigs.otlobliRelease
+        }
+    }
+    sourceSets {
+        main {
+            if (temuPersonalSiteBuild) {
+                assets.srcDir 'src/temuPersonal/assets'
+            }
         }
     }
 }
@@ -96,6 +126,13 @@ dependencies {
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
+    // Compile the isolated personal browser for both variants, but package
+    // Gecko's large native engine only in the explicitly requested personal
+    // build. The normal customer APK stays free of GeckoView.
+    compileOnly "org.mozilla.geckoview:geckoview:153.0.20260810162159"
+    if (temuPersonalSiteBuild) {
+        implementation "org.mozilla.geckoview:geckoview:153.0.20260810162159"
+    }
 }
 
 apply from: 'capacitor.build.gradle'

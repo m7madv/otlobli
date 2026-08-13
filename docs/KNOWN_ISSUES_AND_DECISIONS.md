@@ -1,5 +1,36 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
+## v86.174 Temu layer geometry, not CSS colour or window dim (2026-08-13)
+
+- **Measured cause:** MainActivity had one normal app window, no lingering dim, and SurfaceFlinger reported sRGB with dimming ratio `1.0`; stable Temu white pixels were `255`. The embedded layer nevertheless ended at `y=2164` while React nav began at `y=2102`, overlapping 62px. Its explicit `24dp` elevation then cast a grey gradient over the rest of the bar (`204/212/233/249` measured down the centre).
+- **Decision:** never compensate this compositor fault by changing Otlobli CSS colours. Keep the store layer at zero elevation and reserve `90dp + navigationBars.bottom`, using the pre-R system-window inset fallback. On the installed fixed build the surface ends at `y=2101`, nav begins at `y=2102`, and its blank rows remain `255`.
+- **Guard:** `verify:store-surface` locks navigation inset handling, absence of store elevation/dim, alpha restoration, session-preserving hide, and `SurfaceView`-first report capture with window fallback.
+- **Boundary:** no payment/wallet/order, SHEIN lifecycle, Temu context/session, SKU, injected-script, or report transport behaviour changed. Emulator acceptance passed; Note 8 and iPhone acceptance remain unperformed.
+
+## v86.173 Temu size dialogs and Android product screenshots (2026-08-13)
+
+- **Measured size-dialog cause:** exact Temu product `601101949689075` opened its real SKU drawer, but the first-paint promo blocker hid it because the same dialog repeats `خصم 75%`. Text alone is not sufficient classification. A genuine option dialog is now structurally allowlisted by `role=dialog` plus radio/spec/SKU descendants.
+- **Size decision:** preserve Arabic `الحجم`, Temu's current `.specTypes-*` markup, template-literal regex escaping, and the authoritative expanded radio group over a duplicate collapsed dimension. The exact product proved that an unselected add says `حدد المقاس أولاً` without closing the drawer and a selected radio captures normally. `scripts/verify-temu-size-gate.mjs` guards these invariants.
+- **Measured screenshot cause:** Android window PixelCopy produced black content for personal Temu because GeckoView paints through a separate `SurfaceView`. Shake reports must capture the largest visible store `SurfaceView` before opening the native dialog, with window capture only as the normal-screen fallback.
+- **End-to-end proof:** production report `1e108393-d2ea-4676-a7a5-3cdba6713dbb` was triggered while a real Temu product was visible. Its signed JPEG was read back and visually confirmed to contain the product image, title, price, quantity controls, and page state. The report is left as a clearly labelled resolved acceptance record.
+- **Open visual issue:** the user reports that entering Temu makes the Otlobli bar look pale while the Temu surface looks darker. No cause is established yet. Reproduce before editing and compare pixel/color state before entry, after entry, after shake-dialog dismissal, and after app resume. Check native window dim flags/scrims, Gecko/SurfaceView alpha, overlay visibility, and focus restoration; do not guess by changing CSS colors. Preserve product screenshots, the persistent Gecko session, navigation, SKU gate, and iPhone freeze guards.
+
+## Temu multi-size must never use visual selection heuristics (v86.166, 2026-08-12)
+
+- **Evidence:** On a real Note 8 PDP, Temu displayed `S/M/L/XL/XXL` with no selected size, yet the former capture path could treat one option as selected. Source inspection found two visual fallbacks (`otlobliTemuSku()` and `temuSelectedSize()`) and deterministic retry chains that delayed rejection/addition by 5–10 seconds.
+- **Cause:** Default borders/backgrounds in some Temu templates are presentation, not selection. Treating them as size state creates a false size. Repeated `500ms` polling and duplicate image preloading then made both rejection and valid addition slow.
+- **Decision:** Multi-size selection requires explicit Temu ARIA state or a same-product recorded user click that is still visible and available. Visual fallback is color-only; one size remains automatic. Reject missing dimensions immediately, bound Temu capture to `3 × 150ms`, and do not preload an already-painted Temu image.
+- **Guard:** `scripts/verify-temu-size-gate.mjs` checks source invariants and fixtures for unselected/selected multi-size, single-size, no-variant, and unavailable states. It forbids delayed option watchers and diagnostic traces.
+- **Validation boundary:** Real Note 8 showed immediate `حدد المقاس أولاً`, preserved a selected `M` and the PDP across background/resume, and logged no FATAL/ANR. A Temu-owned advance-reservation modal intercepted selected-size add taps on that product, so isolated timing through the modal is not claimed. Android builds and syncs pass; iOS device acceptance remains pending.
+
+## Temu loaded PDP was covered by a false blank-page notice (v86.161, 2026-08-12)
+
+- **Evidence:** The visible Arabic copy uniquely matched Otlobli's `#otlobli-temu-product-loading`. Gecko logs remained on the same real product route without `/login`. On Note 8, the product had already painted and exposed Otlobli's add action before the notice appeared.
+- **Cause:** `otlobliTemuBlankProductNotice()` used current-viewport image/price visibility as whole-page readiness. Temu carousel/DOM changes or normal content movement can leave no qualifying hero/price in the viewport while the product DOM and route remain valid, so the app placed an opaque fixed notice over a healthy PDP.
+- **Decision:** After the existing stable product-readiness gate, remember the product identity. A loading notice requires both an unconfirmed identity and no product DOM; blank-page reload exits for a confirmed identity. Keep true empty-new-route recovery, but never demote a confirmed PDP based on viewport visibility.
+- **Boundary:** No new timer, observer, scan, retry, WebView rebuild, or lifecycle action. Preserve the embedded Otlobli nav/add/blocking UX, coherent Android Gecko identity, persistent guest context, and all payment/cart logic.
+- **Validation:** The dedicated four-case guard passes. `86.161/1021` is installed on real Note 8; product `606482062007357` stayed open for five minutes while gallery state changed, with `LOADING_TEXT_COUNT=0`, `LOGIN_TEXT_COUNT=0`, no login navigation, FATAL, or ANR. Both web builds, freeze/performance guards, native syncs and Android standard/ARM64/x86_64 builds pass. iOS device acceptance was not performed.
+
 ## Post-v86.118 SHEIN startup regression (v86.121, 2026-08-10)
 
 - **Device/evidence:** v86.120 showed the corrected supported-Qatar preparation

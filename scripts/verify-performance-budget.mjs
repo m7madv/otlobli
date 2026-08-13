@@ -2,8 +2,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { dirname, extname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { gzipSync } from 'node:zlib'
-import ts from 'typescript'
-import { stripInjectedComments, INJECTED_SCRIPT_SOURCE } from './strip-injected-comments.mjs'
+import { INJECTED_SCRIPT_SOURCE, minifyInjectedScriptExports } from './minify-injected-scripts.mjs'
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const assetsDir = resolve(projectRoot, 'dist/assets')
@@ -32,14 +31,9 @@ const budgets = {
 
 // Transpile the store-script module with the same stripping the build applies,
 // then measure the template literals it exports — the bytes the WebView gets.
-const measureShippedStoreScripts = () => {
-  const source = readFileSync(resolve(projectRoot, INJECTED_SCRIPT_SOURCE), 'utf8')
-  const output = ts.transpileModule(stripInjectedComments(source), {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-  }).outputText
-  const module = { exports: {} }
-  new Function('exports', 'require', 'module', output)(module.exports, () => ({}), module)
-  return Object.values(module.exports)
+const measureShippedStoreScripts = async () => {
+  const { exports } = await minifyInjectedScriptExports(INJECTED_SCRIPT_SOURCE)
+  return Object.values(exports)
     .filter((value) => typeof value === 'string')
     .reduce((total, value) => total + Buffer.byteLength(value, 'utf8'), 0)
 }
@@ -64,7 +58,7 @@ const measurements = [
   ['total JavaScript gzip', totalJsGzip, budgets.totalJavaScriptGzip, 'all JS'],
   ['total CSS raw', totalCssRaw, budgets.totalCssRaw, 'all CSS'],
   ['total fonts raw', totalFontsRaw, budgets.totalFontsRaw, 'all woff2'],
-  ['shipped store scripts raw', measureShippedStoreScripts(), budgets.shippedStoreScriptsRaw, 'injected into the store page, comments stripped'],
+  ['shipped store scripts raw', await measureShippedStoreScripts(), budgets.shippedStoreScriptsRaw, 'injected into the store page, minified'],
   ['SHEIN script source raw', sheinScriptSourceRaw, budgets.sheinScriptSourceRaw, 'src/services/sheinBrowserScript.ts'],
 ]
 
