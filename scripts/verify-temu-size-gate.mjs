@@ -19,6 +19,10 @@ const generatedCaptureSource = fs.readFileSync(
 )
 
 const requiredMarkers = [
+  'function temuActiveSkuPriceText() {',
+  'var first = Math.max(0, dialogs.length - 8);',
+  `'[class*="salePriceRich" i]'`,
+  'var best = temuActiveSkuPriceText();',
   'var structuralMultiSize = false;',
   "window.__otlobliTemuSizeDiag = 'عدة مقاسات بلا اختيار صريح';",
   'if (!sel && isColor && opts.length) {',
@@ -34,6 +38,48 @@ const requiredMarkers = [
 
 for (const marker of requiredMarkers) {
   if (!source.includes(marker)) throw new Error(`Missing Temu size/speed guard: ${marker}`)
+}
+
+const temuPriceStart = source.indexOf('function temuPriceUsd()')
+const temuPriceEnd = source.indexOf('// اللون المختار:', temuPriceStart)
+const temuPriceSource = source.slice(temuPriceStart, temuPriceEnd)
+if (temuPriceStart < 0 || temuPriceEnd < 0 ||
+    temuPriceSource.indexOf('temuActiveSkuPriceText()') > temuPriceSource.indexOf('document.querySelectorAll(\'[class*="curPrice" i]\')')) {
+  throw new Error('Temu selected-variant drawer price must precede the stale PDP curPrice fallback')
+}
+
+const selectTemuPriceText = ({ dialogs, pdp }) => {
+  const boundedDialogs = dialogs.slice(-8).reverse()
+  for (const dialog of boundedDialogs) {
+    if (!dialog.visible || dialog.radios < 2 || !dialog.hasSku) continue
+    for (const key of ['salePriceRich', 'currentPrice', 'curPrice']) {
+      const text = dialog[key] || ''
+      if (text.length <= 28 && /[0-9]/.test(text) && /SAR|ر\.س|\$/i.test(text)) return text
+    }
+  }
+  return pdp
+}
+
+for (const [label, expected, input] of [
+  ['gray live SKU beats stale PDP', '528.93 ر.س.', {
+    dialogs: [{ visible: true, radios: 3, hasSku: true, salePriceRich: '528.93 ر.س.' }],
+    pdp: '531.03 ر.س.',
+  }],
+  ['blue live SKU remains exact', '531.03 ر.س.', {
+    dialogs: [{ visible: true, radios: 3, hasSku: true, salePriceRich: '531.03 ر.س.' }],
+    pdp: '528.93 ر.س.',
+  }],
+  ['hidden stale drawer cannot replace PDP', '531.03 ر.س.', {
+    dialogs: [{ visible: false, radios: 3, hasSku: true, salePriceRich: '528.93 ر.س.' }],
+    pdp: '531.03 ر.س.',
+  }],
+  ['unrelated promotional dialog cannot replace PDP', '531.03 ر.س.', {
+    dialogs: [{ visible: true, radios: 0, hasSku: false, salePriceRich: '15.00 ر.س.' }],
+    pdp: '531.03 ر.س.',
+  }],
+]) {
+  const actual = selectTemuPriceText(input)
+  if (actual !== expected) throw new Error(`${label}: expected ${expected}, received ${actual}`)
 }
 
 if (!generatedCaptureSource.includes('match(/(\\d+)\\s*(?:الحجم|حجم)/i)')) {

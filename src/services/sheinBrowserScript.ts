@@ -3777,10 +3777,36 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // تحويل شامل لأي عملة قد تظهر حسب دولة الـVPN العشوائية → دولار. عملات
   // الخليج/الأردن مثبّتة (تحويل دقيق)؛ الباقي تقريبي. **العملة المجهولة تُرجع 0
   // فيمنع النظام الإضافة** (لا يدخل سعر خاطئ أبداً = خربطة صفر).
+  // Temu keeps the PDP entry price mounted after a SKU changes.  The active
+  // option drawer owns the selected variant's live price, so read that small,
+  // visible root first and only then fall back to the PDP's curPrice.
+  function temuActiveSkuPriceText() {
+    var dialogs = document.querySelectorAll('[role="dialog"]');
+    var first = Math.max(0, dialogs.length - 8);
+    for (var d = dialogs.length - 1; d >= first; d--) {
+      var dialog = dialogs[d];
+      if (!temuProductOptionDialog(dialog)) continue;
+      var rect = dialog.getBoundingClientRect();
+      var style = window.getComputedStyle(dialog);
+      if (rect.width < 1 || rect.height < 1 || style.display === 'none' ||
+          style.visibility === 'hidden' || parseFloat(style.opacity || '1') <= 0.01) continue;
+      var selectors = [
+        '[class*="salePriceRich" i]',
+        '[class*="currentPrice" i]',
+        '[class*="curPrice" i]'
+      ];
+      for (var s = 0; s < selectors.length; s++) {
+        var priceEl = dialog.querySelector(selectors[s]);
+        var priceText = temuCleanText(priceEl && priceEl.textContent);
+        if (priceText.length <= 28 && temuLooksLikePriceText(priceText)) return priceText;
+      }
+    }
+    return '';
+  }
   function temuPriceUsd() {
-    var best = '';
+    var best = temuActiveSkuPriceText();
     var els = document.querySelectorAll('[class*="curPrice" i]');
-    for (var i = 0; i < els.length; i++) {
+    for (var i = 0; !best && i < els.length; i++) {
       var t = (els[i].textContent || '').trim();
       if (t.length <= 28 && /[0-9]/.test(t)) { best = t; break; }
     }
