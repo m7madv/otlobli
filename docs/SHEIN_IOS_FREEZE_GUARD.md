@@ -2,6 +2,12 @@
 
 هذه قاعدة إصدار إلزامية وليست ملاحظة تاريخية.
 
+## حارس Web Inspector التشخيصي — v86.195
+
+- `WKWebView.isInspectable` مسموح فقط عندما يكون علم `VITE_SHEIN_IOS_ROOT_CAUSE_DIAGNOSTICS=true`. نسخة العميل العادية يجب أن تبقى غير قابلة للفحص.
+- سجل الخطأ يسمح بالفئة والاسم وHash لمسار المصدر ورقم السطر/العمود ونوع عنصر المورد فقط. يبقى نص الخطأ نفسه Hash في native، ويمنع URL/query أو cookie/storage الخام.
+- الغرض هو ربط Console وNetwork بالصفحة المتجمّدة على الهاتف الحقيقي. لا يبرر الفحص reload أو مسح cache/website data أو إعادة بناء WKWebView أو تعديل اللمسة.
+
 ## حارس تشخيص السبب الجذري السلبي — v86.194
 
 - هذه نسخة قياس منفصلة وليست إصلاحاً ولا إصدار عميل. تُفعّل فقط عبر `VITE_SHEIN_IOS_ROOT_CAUSE_DIAGNOSTICS=true` وتكتب في unified log ضمن `SheinRootCause` وبادئة `[OtlobliSheinDiag]`.

@@ -1,5 +1,12 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
+## v86.195 live Web Inspector decision (2026-08-15)
+
+- **Clean-install result:** USB proved v86.194 was installed into new data container `A7FE8449-...`. First entry worked; exit/re-entry reproduced the same functional freeze. In 29 seconds, 24 distinct attempts reached native and DOM, rapid taps completed three documents in the same attached WKWebView, and no WebContent termination occurred. Each document was inert/partly populated and emitted JavaScript error hash `3ce0b2a11d15fff2` immediately after ready.
+- **State comparison:** clean frozen state was cookies 6/localStorage 52/sessionStorage 1/CacheStorage 0/IndexedDB 6; inherited frozen state was cookies 5/localStorage 38/sessionStorage 1/CacheStorage 0/IndexedDB 6. Cookie/local hashes differed, while the one-entry session fingerprint and exact error hash matched. Therefore old upgrade debris is not the root explanation; a deterministic first-session runtime/network/risk transition remains possible.
+- **Why v86.195:** a local WebKit reproduction with the same runtime produced a SHEIN shell plus repeated recommendation-feed HTTP 403 responses, but automation may cause those responses. Rather than infer that the phone also receives 403, the diagnostic IPA makes only its WKWebView inspectable and adds sanitized error source/type fields. Attach to the actual frozen WebView and measure Console/Network directly.
+- **Release boundary:** `WKWebView.isInspectable` must equal the explicit diagnostic flag and never be enabled in a normal/customer build. Do not log raw error text, source URL/query, cookies, or storage. Do not turn the inspector step into reload, cache clear, website-data deletion, or synthetic event recovery.
+
 ## v86.194 passive root-cause instrumentation (2026-08-15)
 
 - **Measured symptom:** on iPhone 16 Pro Max with `86.193/1055`, the same-store second entry can render SHEIN fully while every tap is dead. App-Switcher termination does not recover it; app-container deletion does. One captured Home cycle retained the same native browser/WebContent/pageProxy and produced no close or termination.

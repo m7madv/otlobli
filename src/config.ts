@@ -37,5 +37,5 @@ export const TEMU_PERSONAL_SITE_MODE =
 export const APP_VERSION = TEMU_PERSONAL_SITE_MODE
   ? '2026.08.15-v86.193-personal-passive-native-foreground'
   : SHEIN_IOS_FREEZE_DIAGNOSTICS
-    ? '2026.08.15-v86.194-ios-root-cause-diagnostic'
+    ? '2026.08.15-v86.195-ios-live-web-inspector-diagnostic'
     : '2026.08.15-v86.193-passive-native-foreground'

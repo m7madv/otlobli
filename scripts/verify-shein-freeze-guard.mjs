@@ -53,6 +53,7 @@ const checks = [
       'logWebDiagnostic(_ detail:',
       'requestPersistentStateSnapshot(_ stage:',
       'CAPPluginMethod(name: "recordDiagnostic"',
+      'webView.isInspectable = diagnosticsEnabled',
     ],
     forbidden: [
       'UIApplication.willEnterForegroundNotification',
@@ -380,7 +381,7 @@ const checks = [
       'export const STORE_SCRIPT_DIAGNOSTICS =',
       'VITE_STORE_SCRIPT_DIAGNOSTICS',
       'v86.193-passive-native-foreground',
-      'v86.194-ios-root-cause-diagnostic',
+      'v86.195-ios-live-web-inspector-diagnostic',
       'VITE_SHEIN_IOS_ROOT_CAUSE_DIAGNOSTICS',
     ],
   },
@@ -458,6 +459,8 @@ const checks = [
       "type:'otlobliFreezeDiagnostic'",
       "['visibilitychange','pageshow','pagehide','freeze','resume','focus','blur']",
       'window.__otlobliFreezeProbe',
+      "'script-chunk'",
+      'sourceHash',
     ],
   },
   {

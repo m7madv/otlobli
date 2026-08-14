@@ -315,6 +315,12 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = self
         webView.uiDelegate = self
+        // Diagnostic IPAs may be attached to Safari/WebKit Inspector so the
+        // exact failing SHEIN script and network response can be measured on
+        // the physical phone. Customer builds never expose their WebView.
+        if #available(iOS 16.4, *) {
+            webView.isInspectable = diagnosticsEnabled
+        }
         webView.allowsBackForwardNavigationGestures = true
         webView.scrollView.bounces = true
         webView.scrollView.alwaysBounceVertical = false
@@ -584,6 +590,11 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
             let center = surface.convert(CGPoint(x: surface.bounds.midX, y: surface.bounds.midY), to: host)
             fields["centerHit"] = viewClassLabel(host.hitTest(center, with: nil))
         }
+        if #available(iOS 16.4, *) {
+            fields["webInspectable"] = webView?.isInspectable == true ? "true" : "false"
+        } else {
+            fields["webInspectable"] = "unsupported"
+        }
         return fields
     }
 
@@ -644,7 +655,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         }
         if type == "otlobliFreezeDiagnostic" {
             var fields: [String: String] = [:]
-            for key in ["stage", "v", "r", "perf"] where detail[key] != nil {
+            for key in ["stage", "v", "r", "perf", "kind", "errorName", "sourceHash", "line", "column", "targetTag"] where detail[key] != nil {
                 fields[key] = diagnosticScalar(detail[key])
             }
             if let path = detail["p"] as? String {
