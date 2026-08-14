@@ -164,8 +164,17 @@ const hasCachedStoreRegions = () => {
   }
 }
 
-const buildSheinHomeUrl = (region: StoreRegion) =>
-  `https://m.shein.com/ar/?currency=${region.currency}&localcountry=${region.countryCode}&country=${region.countryCode}&countryCode=${region.countryCode}&country_code=${region.countryCode}&lang=${region.language}&language=${region.language}&ship_to=${region.countryCode}&shipTo=${region.countryCode}&shipToCountry=${region.countryCode}&shippingCountry=${region.countryCode}&shipping_country=${region.countryCode}&store_country=${region.countryCode}`
+const applySheinRegionQuery = (url: URL, region: StoreRegion) => {
+  url.searchParams.set('currency', region.currency)
+  url.searchParams.set('localcountry', region.countryCode)
+  url.searchParams.set('lang', region.language)
+}
+
+const buildSheinHomeUrl = (region: StoreRegion) => {
+  const url = new URL('https://m.shein.com/ar/')
+  applySheinRegionQuery(url, region)
+  return url.toString()
+}
 
 const buildTemuHomeUrl = (region: StoreRegion) =>
   `https://www.temu.com/${region.countryCode.toLowerCase()}/`
@@ -556,19 +565,7 @@ const normalizeSheinBrowserUrl = (rawUrl: string, region = DEFAULT_STORE_REGIONS
     url.protocol = 'https:'
     url.hostname = 'm.shein.com'
     url.pathname = `/ar${path === '/' ? '/' : path}`
-    url.searchParams.set('currency', region.currency)
-    url.searchParams.set('localcountry', region.countryCode)
-    url.searchParams.set('country', region.countryCode)
-    url.searchParams.set('countryCode', region.countryCode)
-    url.searchParams.set('country_code', region.countryCode)
-    url.searchParams.set('lang', region.language)
-    url.searchParams.set('language', region.language)
-    url.searchParams.set('ship_to', region.countryCode)
-    url.searchParams.set('shipTo', region.countryCode)
-    url.searchParams.set('shipToCountry', region.countryCode)
-    url.searchParams.set('shippingCountry', region.countryCode)
-    url.searchParams.set('shipping_country', region.countryCode)
-    url.searchParams.set('store_country', region.countryCode)
+    applySheinRegionQuery(url, region)
     return url.toString()
   } catch {
     return rawUrl
@@ -706,12 +703,14 @@ const shouldRedirectSheinToRegion = (rawUrl: string, region: StoreRegion) => {
     if (!/(^|\.)m\.shein\.com$/i.test(url.hostname)) return true
     if (!/^\/ar(?:\/|$)/i.test(url.pathname)) return true
     const country = url.searchParams.get('country')
+    const localcountry = url.searchParams.get('localcountry')
     const countryCode = url.searchParams.get('countryCode')
     const currency = url.searchParams.get('currency')
     const lang = url.searchParams.get('lang')
     const language = url.searchParams.get('language')
     const shipTo = url.searchParams.get('ship_to') || url.searchParams.get('shipTo') || url.searchParams.get('shipToCountry') || url.searchParams.get('shippingCountry') || url.searchParams.get('shipping_country') || url.searchParams.get('store_country')
     return (!!country && country.toUpperCase() !== region.countryCode) ||
+      (!!localcountry && localcountry.toUpperCase() !== region.countryCode) ||
       (!!countryCode && countryCode.toUpperCase() !== region.countryCode) ||
       (!!currency && currency.toUpperCase() !== region.currency) ||
       (!!lang && lang.toLowerCase() !== region.language) ||

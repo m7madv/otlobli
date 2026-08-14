@@ -1,8 +1,9 @@
-import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, extname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { gzipSync } from 'node:zlib'
 import { INJECTED_SCRIPT_SOURCE, minifyInjectedScriptExports } from './minify-injected-scripts.mjs'
+import { STORE_SCRIPT_SOURCE_FILES, storeScriptSourceBytes } from './store-script-sources.mjs'
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const assetsDir = resolve(projectRoot, 'dist/assets')
@@ -52,7 +53,7 @@ const largestJs = js.reduce((largest, file) => file.raw > largest.raw ? file : l
 const totalJsGzip = js.reduce((total, file) => total + file.gzip, 0)
 const totalCssRaw = css.reduce((total, file) => total + file.raw, 0)
 const totalFontsRaw = fonts.reduce((total, file) => total + file.raw, 0)
-const sheinScriptSourceRaw = statSync(resolve(projectRoot, 'src/services/sheinBrowserScript.ts')).size
+const sheinScriptSourceRaw = storeScriptSourceBytes(projectRoot)
 const indexHtml = readFileSync(resolve(projectRoot, 'dist/index.html'), 'utf8')
 const startupJavaScriptNames = [...indexHtml.matchAll(/<script[^>]+src="[^"]*\/assets\/([^"]+\.js)"/g)]
   .map((match) => match[1])
@@ -70,7 +71,7 @@ const measurements = [
   ['total CSS raw', totalCssRaw, budgets.totalCssRaw, 'all CSS'],
   ['total fonts raw', totalFontsRaw, budgets.totalFontsRaw, 'all woff2'],
   ['shipped store scripts raw', await measureShippedStoreScripts(), budgets.shippedStoreScriptsRaw, 'injected into the store page, minified'],
-  ['SHEIN script source raw', sheinScriptSourceRaw, budgets.sheinScriptSourceRaw, 'src/services/sheinBrowserScript.ts'],
+  ['store script source raw', sheinScriptSourceRaw, budgets.sheinScriptSourceRaw, STORE_SCRIPT_SOURCE_FILES.join(', ')],
 ]
 
 const failures = []

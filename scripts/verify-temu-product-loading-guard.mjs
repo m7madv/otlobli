@@ -1,9 +1,10 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { readStoreScriptSources } from './store-script-sources.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const source = fs.readFileSync(path.join(root, 'src/services/sheinBrowserScript.ts'), 'utf8')
+const source = readStoreScriptSources(root)
 
 const requiredMarkers = [
   "var __otlobliTemuConfirmedProductIdentity = '';",

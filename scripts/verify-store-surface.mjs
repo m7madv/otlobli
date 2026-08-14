@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { readStoreScriptSources } from './store-script-sources.mjs'
 
 const plugin = readFileSync(
   new URL('../android/app/src/main/java/com/otlobli/app/TemuEmbeddedBrowserPlugin.java', import.meta.url),
@@ -10,7 +11,7 @@ const reporter = readFileSync(
 )
 const appEntry = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
 const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8')
-const captureScript = readFileSync(new URL('../src/services/sheinBrowserScript.ts', import.meta.url), 'utf8')
+const captureScript = readStoreScriptSources(new URL('..', import.meta.url))
 const extensionBuilder = readFileSync(new URL('./build-temu-gecko-extension.mjs', import.meta.url), 'utf8')
 
 const requiredPluginMarkers = [

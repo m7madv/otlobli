@@ -67,20 +67,20 @@ function sanitizeDiagnostics(value: unknown) {
   const rawEvents = Array.isArray(source.events) ? source.events.slice(-60) : []
   return {
     schemaVersion: 1,
-    sessionId: clean(source.sessionId, 80),
+    sessionId: cleanDiagnosticValue(source.sessionId).slice(0, 80),
     startedAt: clean(source.startedAt, 40),
     capturedAt: clean(source.capturedAt, 40),
     uptimeMs: Math.max(0, Math.min(Number(source.uptimeMs) || 0, 604_800_000)),
     environment: {
-      platform: clean(environment.platform, 32),
-      appVersion: clean(environment.appVersion, 100),
+      platform: cleanDiagnosticValue(environment.platform).slice(0, 32),
+      appVersion: cleanDiagnosticValue(environment.appVersion).slice(0, 100),
       online: environment.online === true,
-      visibility: clean(environment.visibility, 24),
-      locale: clean(environment.locale, 24),
+      visibility: cleanDiagnosticValue(environment.visibility).slice(0, 24),
+      locale: cleanDiagnosticValue(environment.locale).slice(0, 24),
     },
     context: {
-      screen: clean(context.screen, 80),
-      store: clean(context.store, 24),
+      screen: cleanDiagnosticValue(context.screen).slice(0, 80),
+      store: cleanDiagnosticValue(context.store).slice(0, 24),
     },
     events: rawEvents.flatMap((rawEvent) => {
       if (!rawEvent || typeof rawEvent !== 'object' || Array.isArray(rawEvent)) return []

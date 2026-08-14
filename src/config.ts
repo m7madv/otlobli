@@ -29,5 +29,5 @@ export const TEMU_PERSONAL_SITE_MODE =
 
 // رقم النسخة الظاهر داخل التطبيق.
 export const APP_VERSION = TEMU_PERSONAL_SITE_MODE
-  ? '2026.08.14-v86.184-personal-shein-live-risk-guard'
-  : '2026.08.14-v86.184-shein-live-risk-guard'
+  ? '2026.08.14-v86.185-personal-store-runtime-cleanup'
+  : '2026.08.14-v86.185-store-runtime-cleanup'

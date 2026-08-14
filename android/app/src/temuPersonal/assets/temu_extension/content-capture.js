@@ -28,6 +28,7 @@ if (/^(?:www\.)?temu\.com$/i.test(location.hostname) &&
      /[?&]goods_id=\d+/i.test(location.search))) {
 
 (function () {
+
   var OTLOBLI_NAV_CSS = "position:fixed!important;left:50%!important;right:auto!important;bottom:0!important;top:auto!important;transform:translate3d(-50%,0,0)!important;will-change:transform!important;width:100%!important;max-width:440px!important;width:min(100vw, 440px)!important;height:90px!important;min-height:90px!important;max-height:90px!important;height:calc(74px + max(env(safe-area-inset-bottom,0px),var(--otlobli-sb,16px),16px))!important;min-height:calc(74px + max(env(safe-area-inset-bottom,0px),var(--otlobli-sb,16px),16px))!important;max-height:calc(74px + max(env(safe-area-inset-bottom,0px),var(--otlobli-sb,16px),16px))!important;z-index:2147483647!important;display:flex!important;flex-direction:row!important;align-items:stretch!important;direction:rtl!important;overflow:hidden!important;box-sizing:border-box!important;background:#fff!important;border-top:1px solid #bccac0!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;padding:0 0 16px 0!important;padding:0 0 max(env(safe-area-inset-bottom,0px),var(--otlobli-sb,16px),16px) 0!important;margin:0!important;font-family:system-ui,-apple-system,sans-serif!important;font-size:12px!important;line-height:normal!important;opacity:1!important;visibility:visible!important;pointer-events:auto!important;";
   var OTLOBLI_NAV_STYLE_VERSION = "v86.104.0";
 
@@ -216,144 +217,13 @@ if (/^(?:www\.)?temu\.com$/i.test(location.hostname) &&
       u.pathname = '/ar' + (cleanPath === '/' ? '/' : cleanPath);
       u.searchParams.set('currency', SHEIN_REQUIRED_CURRENCY);
       u.searchParams.set('localcountry', SHEIN_REQUIRED_COUNTRY);
-      u.searchParams.set('country', SHEIN_REQUIRED_COUNTRY);
-      u.searchParams.set('countryCode', SHEIN_REQUIRED_COUNTRY);
-      u.searchParams.set('country_code', SHEIN_REQUIRED_COUNTRY);
       u.searchParams.set('lang', SHEIN_REQUIRED_LANGUAGE);
-      u.searchParams.set('language', SHEIN_REQUIRED_LANGUAGE);
-      u.searchParams.set('ship_to', SHEIN_REQUIRED_COUNTRY);
-      u.searchParams.set('shipTo', SHEIN_REQUIRED_COUNTRY);
-      u.searchParams.set('shipToCountry', SHEIN_REQUIRED_COUNTRY);
-      u.searchParams.set('shippingCountry', SHEIN_REQUIRED_COUNTRY);
-      u.searchParams.set('shipping_country', SHEIN_REQUIRED_COUNTRY);
-      u.searchParams.set('store_country', SHEIN_REQUIRED_COUNTRY);
       return u.toString();
     } catch (e) {
       return href;
     }
   }
 
-  function writeSheinSaudiState() {
-    if (window.__otlobliSheinSaudiStateSeeded) return;
-    window.__otlobliSheinSaudiStateSeeded = true;
-    try {
-      document.cookie = 'language=' + SHEIN_REQUIRED_LANGUAGE + '; path=/; max-age=31536000';
-      document.cookie = 'language=' + SHEIN_REQUIRED_LANGUAGE + '; domain=.shein.com; path=/; max-age=31536000';
-      document.cookie = 'site_uid=' + SHEIN_REQUIRED_SITE_UID + '; path=/; max-age=31536000';
-      document.cookie = 'site_uid=' + SHEIN_REQUIRED_SITE_UID + '; domain=.shein.com; path=/; max-age=31536000';
-      document.cookie = 'currency=' + SHEIN_REQUIRED_CURRENCY + '; path=/; max-age=31536000';
-      document.cookie = 'currency=' + SHEIN_REQUIRED_CURRENCY + '; domain=.shein.com; path=/; max-age=31536000';
-      document.cookie = 'localcountry=' + SHEIN_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
-      document.cookie = 'localcountry=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
-      document.cookie = 'country=' + SHEIN_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
-      document.cookie = 'country=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
-      document.cookie = 'countryCode=' + SHEIN_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
-      document.cookie = 'countryCode=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
-      document.cookie = 'country_code=' + SHEIN_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
-      document.cookie = 'country_code=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
-      document.cookie = 'ship_to=' + SHEIN_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
-      document.cookie = 'ship_to=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
-      document.cookie = 'shipTo=' + SHEIN_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
-      document.cookie = 'shipTo=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
-      document.cookie = 'shipToCountry=' + SHEIN_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
-      document.cookie = 'shipToCountry=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
-      document.cookie = 'shippingCountry=' + SHEIN_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
-      document.cookie = 'shippingCountry=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
-      document.cookie = 'shipping_country=' + SHEIN_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
-      document.cookie = 'shipping_country=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
-      document.cookie = 'store_country=' + SHEIN_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
-      document.cookie = 'store_country=' + SHEIN_REQUIRED_COUNTRY + '; domain=.shein.com; path=/; max-age=31536000';
-      try {
-        localStorage.setItem('language', SHEIN_REQUIRED_LANGUAGE);
-        localStorage.setItem('site_uid', SHEIN_REQUIRED_SITE_UID);
-        localStorage.setItem('currency', SHEIN_REQUIRED_CURRENCY);
-        localStorage.setItem('localcountry', SHEIN_REQUIRED_COUNTRY);
-        localStorage.setItem('country', SHEIN_REQUIRED_COUNTRY);
-        localStorage.setItem('countryCode', SHEIN_REQUIRED_COUNTRY);
-        localStorage.setItem('country_code', SHEIN_REQUIRED_COUNTRY);
-        localStorage.setItem('ship_to', SHEIN_REQUIRED_COUNTRY);
-        localStorage.setItem('shipTo', SHEIN_REQUIRED_COUNTRY);
-        localStorage.setItem('shipToCountry', SHEIN_REQUIRED_COUNTRY);
-        localStorage.setItem('shippingCountry', SHEIN_REQUIRED_COUNTRY);
-        localStorage.setItem('shipping_country', SHEIN_REQUIRED_COUNTRY);
-        localStorage.setItem('store_country', SHEIN_REQUIRED_COUNTRY);
-        localStorage.setItem('otlobli_shein_country', SHEIN_REQUIRED_COUNTRY);
-        localStorage.setItem('otlobli_shein_currency', SHEIN_REQUIRED_CURRENCY);
-        sessionStorage.setItem('language', SHEIN_REQUIRED_LANGUAGE);
-        sessionStorage.setItem('site_uid', SHEIN_REQUIRED_SITE_UID);
-        sessionStorage.setItem('currency', SHEIN_REQUIRED_CURRENCY);
-        sessionStorage.setItem('localcountry', SHEIN_REQUIRED_COUNTRY);
-        sessionStorage.setItem('country', SHEIN_REQUIRED_COUNTRY);
-        sessionStorage.setItem('countryCode', SHEIN_REQUIRED_COUNTRY);
-        sessionStorage.setItem('country_code', SHEIN_REQUIRED_COUNTRY);
-        sessionStorage.setItem('ship_to', SHEIN_REQUIRED_COUNTRY);
-        sessionStorage.setItem('shipTo', SHEIN_REQUIRED_COUNTRY);
-        sessionStorage.setItem('shipToCountry', SHEIN_REQUIRED_COUNTRY);
-        sessionStorage.setItem('shippingCountry', SHEIN_REQUIRED_COUNTRY);
-        sessionStorage.setItem('shipping_country', SHEIN_REQUIRED_COUNTRY);
-        sessionStorage.setItem('store_country', SHEIN_REQUIRED_COUNTRY);
-      } catch (e) {}
-    } catch (e) {}
-  }
-
-  function coerceSheinSaudiStorageValue(key, value) {
-    var k = String(key || '').toLowerCase();
-    if (k === 'currency' || k === 'currencycode' || k === 'currency_code') return SHEIN_REQUIRED_CURRENCY;
-    if (k === 'localcountry' || k === 'country' || k === 'countrycode' || k === 'country_code' || k === 'ship_to' || k === 'shipto' || k === 'shiptocountry' || k === 'shippingcountry' || k === 'shipping_country' || k === 'store_country') return SHEIN_REQUIRED_COUNTRY;
-    if (k === 'language' || k === 'lang') return SHEIN_REQUIRED_LANGUAGE;
-    if (k === 'site_uid') return SHEIN_REQUIRED_SITE_UID;
-    return value;
-  }
-
-  function clearOvercoercedSheinStorage() {
-    if (!IS_SHEIN) return;
-    var exact = {
-      currency: true,
-      currencycode: true,
-      currency_code: true,
-      localcountry: true,
-      country: true,
-      countrycode: true,
-      country_code: true,
-      ship_to: true,
-      shipto: true,
-      shiptocountry: true,
-      shippingcountry: true,
-      shipping_country: true,
-      store_country: true,
-      language: true,
-      lang: true,
-      site_uid: true
-    };
-    var riskyKey = /country|currency|region|ship|locale|language|lang|site_uid/i;
-    [localStorage, sessionStorage].forEach(function (store) {
-      try {
-        var keys = [];
-        for (var i = 0; i < store.length; i += 1) {
-          var key = store.key(i);
-          if (!key) continue;
-          var lower = String(key).toLowerCase();
-          if (exact[lower]) continue;
-          var value = store.getItem(key);
-          if (riskyKey.test(key) && (value === SHEIN_REQUIRED_COUNTRY || value === SHEIN_REQUIRED_CURRENCY || value === SHEIN_REQUIRED_LANGUAGE)) {
-            keys.push(key);
-          }
-        }
-        keys.forEach(function (key) { try { store.removeItem(key); } catch (e) {} });
-      } catch (e) {}
-    });
-  }
-
-  function installSheinSaudiStorageGuard() {
-    if (!IS_SHEIN || window.__otlobliSheinSaudiStorageGuard) return;
-    window.__otlobliSheinSaudiStorageGuard = true;
-    try {
-      var originalSetItem = Storage.prototype.setItem;
-      Storage.prototype.setItem = function (key, value) {
-        return originalSetItem.call(this, key, coerceSheinSaudiStorageValue(key, value));
-      };
-    } catch (e) {}
-  }
 
   function sheinNormalizedAddressLabel(value) {
     return String(value || '')
@@ -696,14 +566,6 @@ if (/^(?:www\.)?temu\.com$/i.test(location.hostname) &&
     } catch (e) {
       return false;
     }
-    try {
-      if (localStorage.getItem('localcountry') && localStorage.getItem('localcountry') !== SHEIN_REQUIRED_COUNTRY) return false;
-      if (localStorage.getItem('country') && localStorage.getItem('country') !== SHEIN_REQUIRED_COUNTRY) return false;
-      if (localStorage.getItem('currency') && localStorage.getItem('currency') !== SHEIN_REQUIRED_CURRENCY) return false;
-      if (sessionStorage.getItem('localcountry') && sessionStorage.getItem('localcountry') !== SHEIN_REQUIRED_COUNTRY) return false;
-      if (sessionStorage.getItem('country') && sessionStorage.getItem('country') !== SHEIN_REQUIRED_COUNTRY) return false;
-      if (sessionStorage.getItem('currency') && sessionStorage.getItem('currency') !== SHEIN_REQUIRED_CURRENCY) return false;
-    } catch (e) {}
     var addressCountry = sheinAddressCookieCountry();
     if (addressCountry && addressCountry !== SHEIN_REQUIRED_COUNTRY) return false;
     if (sheinVisibleForeignRegion()) return false;
@@ -1686,19 +1548,6 @@ if (/^(?:www\.)?temu\.com$/i.test(location.hostname) &&
     }
   }
 
-  function sheinProductUrlNeedsRegionBootstrap(normalized) {
-    try {
-      if (!sheinLooksLikeProductRouteForShipping()) return false;
-      var a = new URL(location.href), b = new URL(normalized);
-      if (a.hostname !== b.hostname) return true;
-      var keys = ['currency','localcountry','country','countryCode','country_code','lang','language','ship_to','shipTo','shipToCountry','shippingCountry','shipping_country','store_country'];
-      for (var i = 0; i < keys.length; i++) {
-        if (String(a.searchParams.get(keys[i]) || '').toLowerCase() !== String(b.searchParams.get(keys[i]) || '').toLowerCase()) return true;
-      }
-    } catch (e) {}
-    return false;
-  }
-
   function sheinPrimeRegionRepairFromRoute() {
     if (!IS_SHEIN || !sheinLooksLikeProductRouteForShipping()) return false;
     if (otlobliIsHumanChallenge()) {
@@ -1715,11 +1564,8 @@ if (/^(?:www\.)?temu\.com$/i.test(location.hostname) &&
     sheinRegionDiag('prime-called', {
       addressCountry: sheinAddressCookieCountry()
     }, 'prime');
-    installSheinSaudiStorageGuard();
-    writeSheinSaudiState();
     if (sheinAddressCookieCountry() && sheinAddressCookieCountry() !== SHEIN_REQUIRED_COUNTRY) {
-      try { localStorage.removeItem('addressCookie'); } catch (e) {}
-      sheinRegionDiag('foreign-address-cookie-cleared', {}, 'cleared');
+      sheinRegionDiag('foreign-address-preserved-for-native-repair', {}, 'preserved');
     }
     var repairStarted = sheinPrepareNativeSaudiRepair();
     sheinRegionDiag('prime-repair-result', {
@@ -1729,17 +1575,11 @@ if (/^(?:www\.)?temu\.com$/i.test(location.hostname) &&
     return repairStarted;
   }
 
-  function ensureSheinSaudiStore(options) {
+  function ensureSheinSaudiStore() {
     if (!IS_SHEIN) return true;
     if (otlobliIsHumanChallenge()) return false;
-    installSheinSaudiStorageGuard();
-    writeSheinSaudiState();
     var normalized = otlobliNormalizeSheinUrl(location.href);
     var addressCountry = sheinAddressCookieCountry();
-    if (addressCountry && addressCountry !== SHEIN_REQUIRED_COUNTRY) {
-      try { localStorage.removeItem('addressCookie'); } catch (e) {}
-      addressCountry = '';
-    }
     var visibleForeignRegion = addressCountry === SHEIN_REQUIRED_COUNTRY ? false : sheinVisibleForeignRegion();
     if (visibleForeignRegion) {
       window.__otlobliSheinSaudiLocked = true;
@@ -1752,33 +1592,9 @@ if (/^(?:www\.)?temu\.com$/i.test(location.hostname) &&
     try { locked = locked || sessionStorage.getItem('__otlobliSheinSaudiLocked') === '1'; } catch (e) {}
     var signalsOk = sheinSaudiSignalsOk();
     var needsReload = shouldReloadSheinForSaudi();
-    var needsProductBootstrapReload = !sheinSignedSaudiAddressReady() && sheinProductUrlNeedsRegionBootstrap(normalized);
     setSheinSaudiGuardOverlay(locked || visibleForeignRegion);
-    if (needsReload || needsProductBootstrapReload || !signalsOk) {
+    if (needsReload || !signalsOk) {
       if (sheinLooksLikeProductPageForShipping()) sheinPrepareNativeSaudiRepair();
-      if ((needsReload || needsProductBootstrapReload) && sheinLooksLikeProductRouteForShipping()) {
-        var reloadKey = '__otlobliRegionBootstrapReload:' + SHEIN_REQUIRED_COUNTRY + ':' + location.pathname;
-        try {
-          if (sessionStorage.getItem(reloadKey) !== '1') {
-            sessionStorage.setItem(reloadKey, '1');
-            sheinPrepareNativeSaudiRepair();
-            sheinRegionDiag('product-bootstrap-reload', {
-              normalizedUrl: normalized.slice(0, 700)
-            }, reloadKey);
-            location.replace(normalized);
-            return false;
-          }
-        } catch (e) {}
-      }
-      if (options && options.navigate) {
-        var guardKey = '__otlobliSaudiRedirects:' + normalized + ':' + Math.floor(Date.now() / 30000);
-        var attempts = parseInt(sessionStorage.getItem(guardKey) || '0', 10);
-        if (!locked && attempts < 2) {
-          sessionStorage.setItem(guardKey, String(attempts + 1));
-          location.replace(normalized);
-          return false;
-        }
-      }
       try {
         history.replaceState(history.state, '', normalized);
       } catch (e) {}
@@ -1802,8 +1618,6 @@ if (/^(?:www\.)?temu\.com$/i.test(location.hostname) &&
   }
 
   if (IS_SHEIN) {
-    clearOvercoercedSheinStorage();
-    installSheinSaudiStorageGuard();
     var normalizedArabicUrl = otlobliNormalizeSheinUrl(location.href);
     if (shouldReloadSheinForSaudi() && !otlobliIsHumanChallenge()) {
       var arRedirectAttempts = parseInt(sessionStorage.getItem('__otlobliArRedirects') || '0', 10);
@@ -1817,7 +1631,6 @@ if (/^(?:www\.)?temu\.com$/i.test(location.hostname) &&
         history.replaceState(history.state, '', normalizedArabicUrl);
       } catch (e) {}
     }
-    writeSheinSaudiState();
     if (document.documentElement) {
       document.documentElement.setAttribute('lang', 'ar');
       document.documentElement.setAttribute('dir', 'rtl');
@@ -1827,6 +1640,7 @@ if (/^(?:www\.)?temu\.com$/i.test(location.hostname) &&
 
   if (window.__otlobliInjected) return;
   window.__otlobliInjected = true;
+  window.__otlobliStoreRuntimeReady = true;
 
   if (!sessionStorage.getItem('__otlobliHomePath')) {
     sessionStorage.setItem('__otlobliHomePath', location.pathname);
@@ -1842,6 +1656,9 @@ if (/^(?:www\.)?temu\.com$/i.test(location.hostname) &&
       height: document.documentElement.clientHeight || window.innerHeight || 640,
     };
   }
+
+
+
 
   function ensureNoTextSelection() {
     if (!document.head) return;
@@ -4924,7 +4741,7 @@ if (/^(?:www\.)?temu\.com$/i.test(location.hostname) &&
     if (IS_SHEIN) {
       __otlobliCartToastGuardUntil = Date.now() + 7000;
       var addBtn = document.getElementById('otlobli-add-btn');
-      if (!ensureSheinSaudiStore({ navigate: true })) {
+      if (!ensureSheinSaudiStore()) {
         showMessage(addBtn, 'نثبت منطقة الشحن المختارة والدولار... حاول بعد لحظة');
         return;
       }
@@ -5137,6 +4954,9 @@ if (/^(?:www\.)?temu\.com$/i.test(location.hostname) &&
     var el = document.getElementById('otlobli-gate-spinner');
     if (el) el.remove();
   }
+
+
+
 
   function ensureShakeStyle() {
     if (document.getElementById('otlobli-style')) return;
@@ -6542,6 +6362,12 @@ if (/^(?:www\.)?temu\.com$/i.test(location.hostname) &&
     if (guide) guide.remove();
   }
 
+  function otlobliMatchesHumanChallengeText(value) {
+    var text = String(value || '').replace(/s+/g, ' ').trim().slice(0, 1600);
+    if (!text) return false;
+    return /verify (?:that )?you are (?:a )?human|human verification|security verification|checking your browser|confirm (?:that )?you are (?:a )?human|i(?:'|’)m (?:not a robot|human)|cloudflare|turnstile|التحقق من أنك إنسان|تحقق أنك إنسان|أنا إنسان|لست (?:إنساناً آلياً|روبوت(?:اً)?)|التحقق الأمني|التحقق من الأمان/i.test(text);
+  }
+
   function otlobliIsHumanChallenge() {
     try {
       if (otlobliIsHumanChallengeUrl(location.href)) return true;
@@ -6551,13 +6377,19 @@ if (/^(?:www\.)?temu\.com$/i.test(location.hostname) &&
       __otlobliChallengeScanAt = challengeNow;
       if (document.getElementById('challenge-form')) return (__otlobliChallengeScanResult = true);
       if (document.querySelector('script[src*="challenges.cloudflare.com"],iframe[src*="challenges.cloudflare.com"]')) return (__otlobliChallengeScanResult = true);
-      var proprietaryChecks = document.querySelectorAll('.one-pass-dialog,#one-pass-custom,one-pass-custom,#nine-captcha-custom,nine-captcha-custom,.si-verify-block-request-dialog');
+      var proprietaryChecks = document.querySelectorAll('.one-pass-dialog,#one-pass-custom,one-pass-custom,#nine-captcha-custom,nine-captcha-custom,.si-verify-block-request-dialog,[class*="risk-one-pass" i]');
       for (var pi = 0; pi < proprietaryChecks.length; pi++) {
         if (sheinElementIsPainted(proprietaryChecks[pi])) return (__otlobliChallengeScanResult = true);
       }
-      if (document.querySelector('[id*="challenge" i],[class*="challenge" i],[data-testid*="challenge" i]')) {
-        var challengeText = document.body ? (document.body.textContent || '').slice(0, 3200) : '';
-        if (/verify you are human|security verification|checking your browser|cloudflare|التحقق الأمني|التحقق من أنك إنسان|أنا إنسان|لست روبوت|التحقق من الأمان/i.test(challengeText)) return (__otlobliChallengeScanResult = true);
+
+      var semanticChecks = document.querySelectorAll('[role="dialog"],[aria-modal="true"],.sui-dialog__wrapper,[id*="captcha" i],[class*="captcha" i],[id*="challenge" i],[class*="challenge" i],[data-testid*="challenge" i],[class*="one-pass" i],[class*="turnstile" i]');
+      var semanticStart = Math.max(0, semanticChecks.length - 12);
+      for (var si = semanticStart; si < semanticChecks.length; si++) {
+        var surface = semanticChecks[si];
+        if (!sheinElementIsPainted(surface)) continue;
+        var surfaceIdentity = String((surface.id || '') + ' ' + (surface.className || '') + ' ' + (surface.getAttribute && (surface.getAttribute('data-testid') || surface.getAttribute('aria-label')) || '')).slice(0, 600);
+        if (/risk-one-pass|captcha|challenge|cf-turnstile|si-verify-block-request/i.test(surfaceIdentity)) return (__otlobliChallengeScanResult = true);
+        if (otlobliMatchesHumanChallengeText(surface.textContent || '')) return (__otlobliChallengeScanResult = true);
       }
     } catch (e) {}
     __otlobliChallengeScanResult = false;
@@ -6873,109 +6705,8 @@ if (/^(?:www\.)?temu\.com$/i.test(location.hostname) &&
     if (colorDone && sizeDone) window.__otlobliAutoReselectDone = gid;
   }
 
-  function tick() {
-    if (!document.body) return;
-    otlobliHealOrphanScrollLock();
-    if (IS_SHEIN && sheinLooksLikeProductRouteForShipping()) {
-      sheinRegionDiag('tick-product-route', {
-        addressCountry: sheinAddressCookieCountry(),
-        signedReady: sheinSignedSaudiAddressReady()
-      }, 'tick');
-    }
-    if (IS_SHEIN) sheinPrimeRegionRepairFromRoute();
-    if (IS_SHEIN) sheinClearStaleShippingLock();
-    if (IS_SHEIN && otlobliInteractionActive() &&
-        !sheinShippingBodyLockState && !sheinShippingUiLikelyOpen()) {
-      if (!document.getElementById('otlobli-nav')) ensureOtlobliNav();
-      if (sheinNativeCoverRepairActive) scheduleSheinShippingProgress(OTLOBLI_LOW_END ? 320 : 160);
-      return;
-    }
-    if (otlobliIsHumanChallenge()) {
-      otlobliChallengeActive = true;
-      __otlobliChallengeResolvedNotified = false;
-      otlobliEnterChallengeMode();
-      return;
-    }
-    if (otlobliChallengeActive) {
-      if (otlobliLooksLikeRemovedProductPage()) {
-        otlobliNotifyHumanCheckSkipped();
-        return;
-      }
-      if (!sheinPageLooksInteractive()) {
-        otlobliScheduleChallengeNav();
-        return;
-      }
-      otlobliChallengeActive = false;
-      otlobliForgetHumanChallenge();
-      try { writeSheinSaudiState(); } catch (e) {}
-      if (!__otlobliChallengeResolvedNotified) {
-        __otlobliChallengeResolvedNotified = true;
-        try {
-          if (window.mobileApp && window.mobileApp.postMessage) {
-            window.mobileApp.postMessage({ detail: { type: 'humanCheckResolved' } });
-          }
-        } catch (e) {}
-      }
-    }
-    if (IS_SHEIN) ensureSheinSaudiShippingSelection();
-    if (IS_SHEIN) retrySheinFeedError();
-    ensureNoTextSelection();
-    ensureViewportFitCover();
-    if (IS_SHEIN) ensureSheinSaudiStore({ navigate: false });
-    ensureBackButton();
-    ensureOtlobliNav();
-    if (!IS_SHEIN) {
-      if (IS_TEMU) {
-        var temuSearching = otlobliTemuSearchMode();
-        try { injectTemuHeaderHideCSS(); } catch (e) {}
-        try { ensureTemuNoZoom(); } catch (e) {}
-        try { ensureTemuSearchTouchRepair(); } catch (e) {}
-        try { otlobliSyncTemuSearchModeState(temuSearching); } catch (e) {}
-        try { hideTemuSearchVisibleAccountCart(temuSearching); } catch (e) {}
-        try { otlobliTemuEntryCover(); } catch (e) {}
-        try { otlobliTemuRestoreCleanHidden(); } catch (e) {}
-        try { otlobliTemuBlankPageRescue(); } catch (e) {}
-        try { otlobliTemuForceProductVisible(); } catch (e) {}
-        try { otlobliPostTemuProductVisibleIfReady(); } catch (e) {}
-        try {
-          var __d1 = document.getElementById('otlobli-temu-diag'); if (__d1) __d1.remove();
-          var __d2 = document.getElementById('otlobli-temu-urlprobe'); if (__d2) __d2.remove();
-        } catch (e) {}
-        try { otlobliTemuBlankProductNotice(); } catch (e) {}
-        try { otlobliTemuBlankPageAutoReload(); } catch (e) {}
-        try {
-          var temuWheelAnchor = document.querySelector(
-            '[class*="turnable" i], [class*="diskitem" i], [class*="wheel" i], [class*="spin" i]'
-          );
-          if (temuWheelAnchor && !(temuWheelAnchor.closest && temuWheelAnchor.closest('[data-otlobli-blocked="1"]'))) {
-            hideTemuSpinWheelPopup();
-          }
-        } catch (e) {}
-        try { otlobliCleanTemuBlockers(); } catch (e) {}
-        try { ensureAddToCartButton(); } catch (e) {}
-        try { detectEmptyTemuSearch(); } catch (e) {}
-        return;
-      }
-      try { killStorePopups(); } catch (e) {}
-      return;
-    }
-    ensureLoadingOverlay();
-    blockCartNavigation();
-    hideSheinCartSuccessToast();
-    ensureAddToCartButton();
-    hideSheinNativeProductAdd();
-    stabilizeSheinImageViewerChrome();
-    hideExtraHeaderIcons();
-    hideSheinCartIcons();
-    hideForeignBottomNav();
-    otlobliForceAcceptCookies();
-    protectSheinCookieConsentAction();
-    hideSheinSignupDiscountBanner();
-    dismissSheinProductLoginPrompt();
-    hideSheinAppInstallPrompts();
-    updateSheinNativeCoverState();
-    stabilizeSheinShippingDrawerInteraction();
-  }
+
+
 
   function otlobliTemuUsableSearchField(el, vp) {
     if (!el) return false;
@@ -9037,6 +8768,111 @@ if (/^(?:www\.)?temu\.com$/i.test(location.hostname) &&
   }
 
 
+
+
+
+  function tick() {
+    if (!document.body) return;
+    otlobliHealOrphanScrollLock();
+    if (IS_SHEIN && sheinLooksLikeProductRouteForShipping()) {
+      sheinRegionDiag('tick-product-route', {
+        addressCountry: sheinAddressCookieCountry(),
+        signedReady: sheinSignedSaudiAddressReady()
+      }, 'tick');
+    }
+    if (IS_SHEIN) sheinPrimeRegionRepairFromRoute();
+    if (IS_SHEIN) sheinClearStaleShippingLock();
+    if (IS_SHEIN && otlobliInteractionActive() &&
+        !sheinShippingBodyLockState && !sheinShippingUiLikelyOpen()) {
+      if (!document.getElementById('otlobli-nav')) ensureOtlobliNav();
+      if (sheinNativeCoverRepairActive) scheduleSheinShippingProgress(OTLOBLI_LOW_END ? 320 : 160);
+      return;
+    }
+    if (otlobliIsHumanChallenge()) {
+      otlobliChallengeActive = true;
+      __otlobliChallengeResolvedNotified = false;
+      otlobliEnterChallengeMode();
+      return;
+    }
+    if (otlobliChallengeActive) {
+      if (otlobliLooksLikeRemovedProductPage()) {
+        otlobliNotifyHumanCheckSkipped();
+        return;
+      }
+      if (!sheinPageLooksInteractive()) {
+        otlobliScheduleChallengeNav();
+        return;
+      }
+      otlobliChallengeActive = false;
+      otlobliForgetHumanChallenge();
+      if (!__otlobliChallengeResolvedNotified) {
+        __otlobliChallengeResolvedNotified = true;
+        try {
+          if (window.mobileApp && window.mobileApp.postMessage) {
+            window.mobileApp.postMessage({ detail: { type: 'humanCheckResolved' } });
+          }
+        } catch (e) {}
+      }
+    }
+    if (IS_SHEIN) ensureSheinSaudiShippingSelection();
+    if (IS_SHEIN) retrySheinFeedError();
+    ensureNoTextSelection();
+    ensureViewportFitCover();
+    if (IS_SHEIN) ensureSheinSaudiStore();
+    ensureBackButton();
+    ensureOtlobliNav();
+    if (!IS_SHEIN) {
+      if (IS_TEMU) {
+        var temuSearching = otlobliTemuSearchMode();
+        try { injectTemuHeaderHideCSS(); } catch (e) {}
+        try { ensureTemuNoZoom(); } catch (e) {}
+        try { ensureTemuSearchTouchRepair(); } catch (e) {}
+        try { otlobliSyncTemuSearchModeState(temuSearching); } catch (e) {}
+        try { hideTemuSearchVisibleAccountCart(temuSearching); } catch (e) {}
+        try { otlobliTemuEntryCover(); } catch (e) {}
+        try { otlobliTemuRestoreCleanHidden(); } catch (e) {}
+        try { otlobliTemuBlankPageRescue(); } catch (e) {}
+        try { otlobliTemuForceProductVisible(); } catch (e) {}
+        try { otlobliPostTemuProductVisibleIfReady(); } catch (e) {}
+        try {
+          var __d1 = document.getElementById('otlobli-temu-diag'); if (__d1) __d1.remove();
+          var __d2 = document.getElementById('otlobli-temu-urlprobe'); if (__d2) __d2.remove();
+        } catch (e) {}
+        try { otlobliTemuBlankProductNotice(); } catch (e) {}
+        try { otlobliTemuBlankPageAutoReload(); } catch (e) {}
+        try {
+          var temuWheelAnchor = document.querySelector(
+            '[class*="turnable" i], [class*="diskitem" i], [class*="wheel" i], [class*="spin" i]'
+          );
+          if (temuWheelAnchor && !(temuWheelAnchor.closest && temuWheelAnchor.closest('[data-otlobli-blocked="1"]'))) {
+            hideTemuSpinWheelPopup();
+          }
+        } catch (e) {}
+        try { otlobliCleanTemuBlockers(); } catch (e) {}
+        try { ensureAddToCartButton(); } catch (e) {}
+        try { detectEmptyTemuSearch(); } catch (e) {}
+        return;
+      }
+      try { killStorePopups(); } catch (e) {}
+      return;
+    }
+    ensureLoadingOverlay();
+    blockCartNavigation();
+    hideSheinCartSuccessToast();
+    ensureAddToCartButton();
+    stabilizeSheinImageViewerChrome();
+    hideExtraHeaderIcons();
+    hideSheinCartIcons();
+    hideForeignBottomNav();
+    otlobliForceAcceptCookies();
+    protectSheinCookieConsentAction();
+    hideSheinSignupDiscountBanner();
+    dismissSheinProductLoginPrompt();
+    hideSheinAppInstallPrompts();
+    updateSheinNativeCoverState();
+    stabilizeSheinShippingDrawerInteraction();
+  }
+
   var tickScheduled = false;
   var otlobliInteractionUntil = 0;
   function markOtlobliInteraction() {
@@ -9085,50 +8921,77 @@ if (/^(?:www\.)?temu\.com$/i.test(location.hostname) &&
   };
   window.addEventListener('popstate', scheduleTick);
 
-  var observer = new MutationObserver(scheduleTick);
-  function observeOtlobliDocumentRoot() {
-    if (OTLOBLI_LOW_END) return true;
-    var root = document.documentElement || document.body;
-    if (!root) return false;
-    observer.observe(root, { childList: true, subtree: true });
-    return true;
-  }
-  if (!observeOtlobliDocumentRoot()) {
-    var otlobliObserverTimer = setInterval(function () {
-      if (observeOtlobliDocumentRoot()) clearInterval(otlobliObserverTimer);
-    }, 25);
-    setTimeout(function () { clearInterval(otlobliObserverTimer); }, 1200);
-  }
+  var OTLOBLI_MAIN_INTERVAL = OTLOBLI_LOW_END ? 650 : 300;
+  var OTLOBLI_BLOCK_INTERVAL = OTLOBLI_LOW_END ? 650 : 120;
+  var OTLOBLI_NAV_INTERVAL = OTLOBLI_LOW_END ? 2200 : 1200;
+  var OTLOBLI_SECURITY_INTERVAL = OTLOBLI_LOW_END ? 1600 : 1000;
+  var otlobliMainDue = 0;
+  var otlobliBlockDue = 0;
+  var otlobliNavDue = 0;
+  var otlobliSecurityDue = 0;
+  var otlobliCoordinatorTimer = 0;
 
-  setInterval(function () {
-    if (document.hidden) return;
-    tick();
-  }, OTLOBLI_LOW_END ? 650 : 300);
-  setInterval(function () {
-    if (document.hidden) return;
+  function runOtlobliBlockers() {
     if (otlobliChallengeActive || !IS_SHEIN || otlobliInteractionActive()) return;
     hideKnownHeaderIconsByHint();
     hideSheinHeaderControls();
     hideListingCardAddButtons();
     hideSheinNativeProductAdd();
-  }, OTLOBLI_LOW_END ? 650 : 120);
-  setInterval(function () {
-    if (document.hidden) return;
+  }
+
+  function runOtlobliNavigationMaintenance() {
     if (!otlobliInteractionActive() || !document.getElementById('otlobli-nav')) ensureOtlobliNav();
-    if (IS_TEMU) {
-      injectTemuHeaderHideCSS();
-      ensureTemuSearchTouchRepair();
-      var intervalTemuSearching = otlobliTemuSearchMode();
-      otlobliSyncTemuSearchModeState(intervalTemuSearching);
-      try { hideTemuSearchVisibleAccountCart(intervalTemuSearching); } catch (e) {}
-      try { otlobliCleanTemuBlockers(true); } catch (e) {}
+    if (!IS_TEMU) return;
+    injectTemuHeaderHideCSS();
+    ensureTemuSearchTouchRepair();
+    var intervalTemuSearching = otlobliTemuSearchMode();
+    otlobliSyncTemuSearchModeState(intervalTemuSearching);
+    try { hideTemuSearchVisibleAccountCart(intervalTemuSearching); } catch (e) {}
+    try { otlobliCleanTemuBlockers(true); } catch (e) {}
+  }
+
+  function scheduleOtlobliCoordinator() {
+    clearTimeout(otlobliCoordinatorTimer);
+    var nextDue = Math.min(otlobliMainDue, otlobliBlockDue, otlobliNavDue, otlobliSecurityDue);
+    otlobliCoordinatorTimer = setTimeout(runOtlobliCoordinator, Math.max(40, nextDue - Date.now()));
+  }
+
+  function runOtlobliCoordinator() {
+    var now = Date.now();
+    if (document.hidden) {
+      otlobliMainDue = now + OTLOBLI_MAIN_INTERVAL;
+      otlobliBlockDue = now + OTLOBLI_BLOCK_INTERVAL;
+      otlobliNavDue = now + OTLOBLI_NAV_INTERVAL;
+      otlobliSecurityDue = now + OTLOBLI_SECURITY_INTERVAL;
+      scheduleOtlobliCoordinator();
+      return;
     }
-  }, OTLOBLI_LOW_END ? 2200 : 1200);
-  setInterval(function () {
+    if (now >= otlobliBlockDue) {
+      runOtlobliBlockers();
+      otlobliBlockDue = now + OTLOBLI_BLOCK_INTERVAL;
+    }
+    if (now >= otlobliMainDue) {
+      tick();
+      otlobliMainDue = now + OTLOBLI_MAIN_INTERVAL;
+    }
+    if (now >= otlobliNavDue) {
+      runOtlobliNavigationMaintenance();
+      otlobliNavDue = now + OTLOBLI_NAV_INTERVAL;
+    }
+    if (now >= otlobliSecurityDue) {
+      if (IS_SHEIN && !otlobliInteractionActive()) checkForSheinSecurityBlock();
+      otlobliSecurityDue = now + OTLOBLI_SECURITY_INTERVAL;
+    }
+    scheduleOtlobliCoordinator();
+  }
+
+  document.addEventListener('visibilitychange', function () {
     if (document.hidden) return;
-    if (IS_SHEIN && !otlobliInteractionActive()) checkForSheinSecurityBlock();
-  }, OTLOBLI_LOW_END ? 1600 : 1000);
-  tick();
+    otlobliMainDue = otlobliBlockDue = otlobliNavDue = otlobliSecurityDue = 0;
+    runOtlobliCoordinator();
+  }, false);
+  runOtlobliCoordinator();
+
 })();
 
 }

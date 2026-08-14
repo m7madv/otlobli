@@ -1,18 +1,16 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
-import ts from 'typescript'
 import { chromium } from 'playwright'
+import { evaluateInjectedScriptExports } from './minify-injected-scripts.mjs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
-const require = createRequire(import.meta.url)
 const repoRoot = path.resolve(__dirname, '..')
 const outDir = path.join(repoRoot, 'output', 'playwright', 'shein-cart-harness')
 
 const SHEIN_HOME_URL =
-  'https://m.shein.com/ar/?currency=USD&localcountry=SA&country=SA&countryCode=SA&country_code=SA&lang=ar&language=ar&ship_to=SA&shipTo=SA&shipToCountry=SA&shippingCountry=SA&shipping_country=SA&store_country=SA'
+  'https://m.shein.com/ar/?currency=USD&localcountry=SA&lang=ar'
 
 function argValue(name) {
   const prefix = `--${name}=`
@@ -40,52 +38,16 @@ function normalizeSheinUrl(rawUrl) {
   const url = new URL(rawUrl || SHEIN_HOME_URL, SHEIN_HOME_URL)
   url.protocol = 'https:'
   url.hostname = 'm.shein.com'
-  const params = {
-    currency: 'USD',
-    localcountry: 'SA',
-    country: 'SA',
-    countryCode: 'SA',
-    country_code: 'SA',
-    lang: 'ar',
-    language: 'ar',
-    ship_to: 'SA',
-    shipTo: 'SA',
-    shipToCountry: 'SA',
-    shippingCountry: 'SA',
-    shipping_country: 'SA',
-    store_country: 'SA',
-  }
+  const params = { currency: 'USD', localcountry: 'SA', lang: 'ar' }
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value)
   return url.toString()
 }
 
 function loadInjectedScripts() {
-  const file = path.join(repoRoot, 'src', 'services', 'sheinBrowserScript.ts')
-  const source = fs.readFileSync(file, 'utf8')
-  const js = ts.transpileModule(source, {
-    compilerOptions: {
-      module: ts.ModuleKind.CommonJS,
-      target: ts.ScriptTarget.ES2020,
-      esModuleInterop: true,
-    },
-  }).outputText
-  const mod = { exports: {} }
-  const stubRequire = (spec) => {
-    if (/\.woff2(?:\?|$)/i.test(spec) || spec.includes('@fontsource-variable/cairo')) {
-      return '/assets/font.woff2'
-    }
-    return require(spec)
-  }
-  new Function('exports', 'require', 'module', '__filename', '__dirname', js)(
-    mod.exports,
-    stubRequire,
-    mod,
-    file,
-    path.dirname(file),
-  )
+  const exports = evaluateInjectedScriptExports('src/services/sheinBrowserScript.ts')
   return {
-    bootstrap: mod.exports.OTLOBLI_NAV_BOOTSTRAP_SCRIPT,
-    capture: mod.exports.SHEIN_CAPTURE_SCRIPT,
+    bootstrap: exports.OTLOBLI_NAV_BOOTSTRAP_SCRIPT,
+    capture: exports.SHEIN_CAPTURE_SCRIPT,
   }
 }
 

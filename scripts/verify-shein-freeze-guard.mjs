@@ -3,10 +3,25 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runInNewContext } from 'node:vm'
 import ts from 'typescript'
-import { minifyInjectedScriptExports } from './minify-injected-scripts.mjs'
+import {
+  evaluateInjectedScriptExports,
+  minifyInjectedScriptExports,
+} from './minify-injected-scripts.mjs'
 import { stripInjectedComments } from './strip-injected-comments.mjs'
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const sheinRuntimeSourceFiles = [
+  'src/services/sheinBrowserScript.ts',
+  'src/services/sheinNavigationScript.ts',
+  'src/services/sheinSessionScript.ts',
+  'src/services/storeProductCaptureScript.ts',
+  'src/services/storeBlockingScript.ts',
+  'src/services/temuBrowserScript.ts',
+  'src/services/storeRuntimeCoordinator.ts',
+]
+const readSheinRuntimeSource = () => sheinRuntimeSourceFiles
+  .map((file) => readFileSync(resolve(projectRoot, file), 'utf8'))
+  .join('\n')
 
 const checks = [
   {
@@ -123,6 +138,94 @@ const checks = [
     ],
   },
   {
+    label: 'store-script responsibility boundaries',
+    file: 'src/services/sheinBrowserScript.ts',
+    markers: [
+      "from './sheinNavigationScript'",
+      "from './sheinSessionScript'",
+      "from './storeProductCaptureScript'",
+      "from './storeBlockingScript'",
+      "from './temuBrowserScript'",
+      "from './storeRuntimeCoordinator'",
+      '${SHEIN_SESSION_SCRIPT}',
+      '${STORE_PRODUCT_CAPTURE_SCRIPT}',
+      '${STORE_BLOCKING_SCRIPT}',
+      '${TEMU_BROWSER_SCRIPT}',
+      '${STORE_RUNTIME_COORDINATOR_SCRIPT}',
+    ],
+    forbidden: [
+      'function tick()',
+      'function ensureAddToCartButton()',
+      'function hideSheinNativeProductAdd()',
+      'Storage.prototype',
+    ],
+  },
+  {
+    label: 'SHEIN site-owned persistent session',
+    file: 'src/services/sheinSessionScript.ts',
+    markers: [
+      'SHEIN owns its cookies, localStorage and sessionStorage.',
+      'preserving',
+      'signed address',
+      "sheinRegionDiag('foreign-address-preserved-for-native-repair'",
+    ],
+    forbidden: [
+      'Storage.prototype.setItem',
+      'document.cookie =',
+      "localStorage.setItem('currency'",
+      "localStorage.setItem('country'",
+      "localStorage.setItem('localcountry'",
+      "sessionStorage.setItem('currency'",
+      "sessionStorage.setItem('country'",
+      "sessionStorage.setItem('localcountry'",
+      "localStorage.getItem('currency')",
+      "sessionStorage.getItem('currency')",
+      "removeItem('addressCookie')",
+      '__otlobliRegionBootstrapReload:',
+      'product-bootstrap-reload',
+    ],
+  },
+  {
+    label: 'minimal SHEIN entry URL contract',
+    file: 'src/App.tsx',
+    markers: [
+      'const applySheinRegionQuery = (url: URL, region: StoreRegion)',
+      "url.searchParams.set('currency', region.currency)",
+      "url.searchParams.set('localcountry', region.countryCode)",
+      "url.searchParams.set('lang', region.language)",
+    ],
+    forbidden: [
+      "url.searchParams.set('countryCode'",
+      "url.searchParams.set('country_code'",
+      "url.searchParams.set('language'",
+      "url.searchParams.set('ship_to'",
+      "url.searchParams.set('shipTo'",
+      "url.searchParams.set('shipToCountry'",
+      "url.searchParams.set('shippingCountry'",
+      "url.searchParams.set('shipping_country'",
+      "url.searchParams.set('store_country'",
+    ],
+  },
+  {
+    label: 'native WebView session persistence',
+    file: 'src/App.tsx',
+    markers: [
+      'remain in WKWebsiteDataStore.default()',
+      'InAppBrowser.hide()',
+    ],
+    forbidden: [
+      'InAppBrowser.clearAllCookies(',
+      'InAppBrowser.clearCookies(',
+    ],
+  },
+  {
+    label: 'iOS default persistent website data store',
+    file: 'node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift',
+    markers: [
+      'return [WKWebsiteDataStore.default()]',
+    ],
+  },
+  {
     label: 'diagnostic iPhone trace mode',
     file: 'src/App.tsx',
     markers: [
@@ -150,7 +253,7 @@ const checks = [
   },
   {
     label: 'stable iPhone first-frame navigation inset',
-    file: 'src/services/sheinBrowserScript.ts',
+    files: sheinRuntimeSourceFiles,
     markers: [
       'var(--otlobli-sb,16px)',
       'window.__otlobliSafeBottom',
@@ -186,7 +289,7 @@ const checks = [
   },
   {
     label: 'SHEIN quick-add cart-link guard',
-    file: 'src/services/sheinBrowserScript.ts',
+    files: sheinRuntimeSourceFiles,
     markers: [
       'function sheinQuickAddProductLink(root,info)',
       "var suffix='-p-'+id+'.html'",
@@ -196,7 +299,7 @@ const checks = [
   },
   {
     label: 'iPhone resumed product-tap fallback',
-    file: 'src/services/sheinBrowserScript.ts',
+    files: sheinRuntimeSourceFiles,
     markers: [
       'const OTLOBLI_IOS_PRODUCT_TAP_FALLBACK_JS',
       "f('product-tap-start'+(o?'-target':''))",
@@ -232,7 +335,7 @@ const checks = [
   },
   {
     label: 'SHEIN confirmed chunk-failure recovery',
-    file: 'src/services/sheinBrowserScript.ts',
+    files: sheinRuntimeSourceFiles,
     markers: [
       'const OTLOBLI_SHEIN_CHUNK_FAILURE_BRIDGE_JS',
       "type:'sheinChunkLoadFailure'",
@@ -247,7 +350,7 @@ const checks = [
   },
   {
     label: 'SHEIN review section is not a photo viewer',
-    file: 'src/services/sheinBrowserScript.ts',
+    files: sheinRuntimeSourceFiles,
     markers: [
       'function sheinViewerHasVisibleCounter(el, vp)',
       '!sheinViewerHasVisibleCounter(el, vp)',
@@ -256,7 +359,7 @@ const checks = [
   },
   {
     label: 'iPhone 6 SHEIN cart-toast entry guard',
-    file: 'src/services/sheinBrowserScript.ts',
+    files: sheinRuntimeSourceFiles,
     markers: [
       "var __otlobliCartToastProductKey = '';",
       'var productMatch = location.pathname.match(/-p-(\\\\d+)/i);',
@@ -281,7 +384,7 @@ const checks = [
   },
   {
     label: 'SHEIN runtime-cache ownership',
-    file: 'src/services/sheinBrowserScript.ts',
+    files: sheinRuntimeSourceFiles,
     markers: [],
     forbidden: [
       'cleanSheinRuntimeCache',
@@ -292,7 +395,7 @@ const checks = [
   },
   {
     label: 'SHEIN weak-device background-work guard',
-    file: 'src/services/sheinBrowserScript.ts',
+    files: sheinRuntimeSourceFiles,
     markers: [
       'function restoreOtlobliNavOnWake()',
       "window.addEventListener('pageshow', restoreOtlobliNavOnWake, false)",
@@ -305,14 +408,14 @@ const checks = [
   },
   {
     label: 'SHEIN home visual readiness accepts non-semantic product cards',
-    file: 'src/services/sheinBrowserScript.ts',
+    files: sheinRuntimeSourceFiles,
     markers: [
       'if (homeLike) return loadedImageCount >= 2 && (interactiveCount >= 1 || bodyText.length >= 500);',
     ],
   },
   {
     label: 'SHEIN document-start native product-add concealment',
-    file: 'src/services/sheinBrowserScript.ts',
+    files: sheinRuntimeSourceFiles,
     markers: [
       "style.id = 'otlobli-native-add-style'",
       '[class*="add-to-bag" i]',
@@ -334,7 +437,7 @@ const checks = [
   },
   {
     label: 'iPhone 6 back button body stacking layer',
-    file: 'src/services/sheinBrowserScript.ts',
+    files: sheinRuntimeSourceFiles,
     markers: [
       'function otlobliStabilizeBackOverlay(el)',
       'document.body || document.documentElement',
@@ -395,7 +498,7 @@ const checks = [
   },
   {
     label: 'SHEIN scroll/navigation interaction guard',
-    file: 'src/services/sheinBrowserScript.ts',
+    files: sheinRuntimeSourceFiles,
     markers: [
       'function sheinRestoreNavAfterShipping()',
       'function sheinLooksLikeProductRouteForShipping()',
@@ -405,7 +508,6 @@ const checks = [
       "sheinRegionDiag('capture-script-injected'",
       "sheinRegionDiag('shipping-entry-control'",
       "sheinRegionDiag('region-veil-state'",
-      '__otlobliRegionBootstrapReload:',
       'if (IS_SHEIN) sheinPrimeRegionRepairFromRoute();',
       "nav.style.setProperty('pointer-events', 'auto', 'important')",
       "nav.removeAttribute('data-otlobli-nav-yield')",
@@ -513,48 +615,54 @@ const checks = [
     // to "simplify" the hot loops - and never buy speed back by lengthening an
     // interval instead, which is what produced the rejected v86.118/v86.121.
     label: 'low-end hot-path work removal',
-    file: 'src/services/sheinBrowserScript.ts',
+    files: sheinRuntimeSourceFiles,
     markers: [
-      // A 2-core device gains nothing from observing every childList change
-      // when scheduleTick() returns immediately there.
-      'if (OTLOBLI_LOW_END) return true;',
+      // One timer owns the recurring lanes; a full-document observer no longer
+      // turns every store repaint into another Otlobli scan.
+      'function scheduleOtlobliCoordinator()',
+      'var OTLOBLI_BLOCK_INTERVAL = OTLOBLI_LOW_END ? 650 : 120;',
+      'function runOtlobliBlockers()',
       // Skip geometry on already-hidden nodes: a rect read after a style write
       // forces one synchronous layout per iteration (layout thrashing).
       "if (el.style.visibility === 'hidden') continue;",
       "if (!el || el.style && el.style.display === 'none') return;",
-      // The interval itself stays at the v86.117 value, and both add-hiders
-      // still run on every pass - the speedup is inside them, not around them.
-      'hideListingCardAddButtons();\n    hideSheinNativeProductAdd();\n  }, OTLOBLI_LOW_END ? 650 : 120);',
+      'hideListingCardAddButtons();\n    hideSheinNativeProductAdd();',
     ],
     forbidden: [
       'OTLOBLI_VERY_LOW_END',
+      'observer.observe(root, { childList: true, subtree: true })',
+    ],
+  },
+  {
+    label: 'single recurring store coordinator',
+    file: 'src/services/storeRuntimeCoordinator.ts',
+    markers: [
+      'function runOtlobliCoordinator()',
+      'function runOtlobliNavigationMaintenance()',
+      'checkForSheinSecurityBlock();',
+      'runOtlobliCoordinator();',
+    ],
+    forbidden: [
+      'setInterval(',
+      'new MutationObserver(scheduleTick)',
     ],
   },
 ]
 
 const failures = []
 
-// SHEIN_CAPTURE_SCRIPT is a TypeScript template literal, so TypeScript/Vite
-// validate the host file but do not parse the JavaScript eventually injected
-// into the remote store page. A single missing escape can otherwise make the
-// entire capture script fail before it mounts the Otlobli blockers and nav.
-// Transpile just this source with inert imports, then parse the emitted string
-// exactly as the WebView will receive it.
+// Parse the fully composed source exactly as the WebView receives it. The
+// evaluator follows the pure local module graph, so splitting responsibilities
+// across files cannot make the guard silently validate an empty import stub.
 try {
-  // Parse the STRIPPED source: the build removes whole-line comments from this
-  // module before injecting it, so the stripped text is what the WebView
-  // actually receives. Validating the raw source instead would let a stripping
-  // mistake reach a real device unnoticed.
-  const source = stripInjectedComments(
-    readFileSync(resolve(projectRoot, 'src/services/sheinBrowserScript.ts'), 'utf8'),
-  )
-  const output = ts.transpileModule(source, {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-  }).outputText + '\nexports.__tapFallback=OTLOBLI_IOS_PRODUCT_TAP_FALLBACK_JS;exports.__chunkBridge=OTLOBLI_SHEIN_CHUNK_FAILURE_BRIDGE_JS;'
-  const scriptModule = { exports: {} }
-  new Function('exports', 'require', 'module', output)(scriptModule.exports, () => ({}), scriptModule)
+  const scriptModule = {
+    exports: evaluateInjectedScriptExports('src/services/sheinBrowserScript.ts'),
+  }
+  const navigationModule = evaluateInjectedScriptExports('src/services/sheinNavigationScript.ts')
   const captureScript = scriptModule.exports.SHEIN_CAPTURE_SCRIPT
   const bootstrapScript = scriptModule.exports.OTLOBLI_NAV_BOOTSTRAP_SCRIPT
+  scriptModule.exports.__tapFallback = navigationModule.OTLOBLI_IOS_PRODUCT_TAP_FALLBACK_JS
+  scriptModule.exports.__chunkBridge = navigationModule.OTLOBLI_SHEIN_CHUNK_FAILURE_BRIDGE_JS
 
   const humanSource = stripInjectedComments(
     readFileSync(resolve(projectRoot, 'src/services/sheinHumanCheck.ts'), 'utf8'),
@@ -947,7 +1055,7 @@ try {
 }
 
 try {
-  const sheinSource = readFileSync(resolve(projectRoot, 'src/services/sheinBrowserScript.ts'), 'utf8')
+  const sheinSource = readSheinRuntimeSource()
   const tickStart = sheinSource.indexOf('function tick()')
   const tickEnd = sheinSource.indexOf('var tickScheduled = false', tickStart)
   const tickSource = sheinSource.slice(tickStart, tickEnd)
@@ -966,7 +1074,7 @@ try {
 // Low-end PDP guard: never flatten large selector candidates before the
 // geometry check, and keep the two full-document text scans bounded/cheap.
 try {
-  const sheinSource = readFileSync(resolve(projectRoot, 'src/services/sheinBrowserScript.ts'), 'utf8')
+  const sheinSource = readSheinRuntimeSource()
   const nativeAddStart = sheinSource.indexOf('function hideSheinNativeProductAdd()')
   const nativeAddEnd = sheinSource.indexOf('var __otlobliBottomNavDebugCount', nativeAddStart)
   const nativeAdd = sheinSource.slice(nativeAddStart, nativeAddEnd)
@@ -1064,23 +1172,25 @@ try {
 }
 
 for (const check of checks) {
-  const absolutePath = resolve(projectRoot, check.file)
-  let contents
+  const files = check.files || [check.file]
+  let contents = ''
   try {
-    contents = readFileSync(absolutePath, 'utf8')
+    contents = files
+      .map((file) => readFileSync(resolve(projectRoot, file), 'utf8'))
+      .join('\n')
   } catch (error) {
-    failures.push(`${check.label}: cannot read ${check.file} (${error.message})`)
+    failures.push(`${check.label}: cannot read ${files.join(', ')} (${error.message})`)
     continue
   }
 
   for (const marker of check.markers) {
     if (!contents.includes(marker)) {
-      failures.push(`${check.label}: missing ${JSON.stringify(marker)} in ${check.file}`)
+      failures.push(`${check.label}: missing ${JSON.stringify(marker)} in ${files.join(', ')}`)
     }
   }
   for (const forbidden of check.forbidden || []) {
     if (contents.includes(forbidden)) {
-      failures.push(`${check.label}: forbidden ${JSON.stringify(forbidden)} in ${check.file}`)
+      failures.push(`${check.label}: forbidden ${JSON.stringify(forbidden)} in ${files.join(', ')}`)
     }
   }
 }
