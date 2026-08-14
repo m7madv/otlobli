@@ -30,23 +30,23 @@ const checks = [
     file: 'ios/App/App/OtlobliSheinBrowserPlugin.swift',
     markers: [
       'public final class OtlobliSheinBrowserPlugin',
-      'A WKWebView is only a disposable render surface.',
+      'One WKWebView owns one complete SHEIN browsing session.',
       'configuration.websiteDataStore = .default()',
       'UIApplication.didEnterBackgroundNotification',
       'UIApplication.didBecomeActiveNotification',
+      'UIApplication.didReceiveMemoryWarningNotification',
       'private func createRenderSurface(',
       'private func destroyRenderSurface()',
-      'private func replaceVisibleRenderSurface(with url: URL, message: String)',
-      'restoreAfterBackground = true',
-      '_ = createRenderSurface(loadingMessage: "جاري استعادة المتجر…")',
-      'private var routeReplacementQueued = false',
-      'navigationAction.navigationType == .linkActivated',
-      '!webView.isLoading',
-      'settled path change follows one universal rule',
+      'private func parkRenderSurfaceBehindApp()',
+      'private func navigateInCurrentWebView(to url: URL)',
+      'window.location.assign(',
+      'private func recomposeAttachedWebViewAfterForeground()',
+      'foregroundRecomposePending = storeWebView != nil',
+      'private func applicationDidReceiveMemoryWarning()',
       'storeWebView?.stopLoading()',
       'storeWebView?.removeFromSuperview()',
       'attachWebView(webView, to: surface)',
-      'webContentProcessDidTerminate',
+      'webViewWebContentProcessDidTerminate',
       'WKWebsiteDataTypeDiskCache',
       'WKWebsiteDataTypeMemoryCache',
       'removeScriptMessageHandler',
@@ -65,6 +65,11 @@ const checks = [
       'WKWebsiteDataTypeLocalStorage',
       'webView.reload()',
       'for delay in [0.12, 0.5, 1.2, 2.2]',
+      'replaceVisibleRenderSurface',
+      'queueRouteReplacement',
+      'routeReplacementQueued',
+      'restoreAfterBackground',
+      'navigationAction.navigationType == .linkActivated',
     ],
   },
   {
@@ -314,7 +319,7 @@ const checks = [
     label: 'native WebView session persistence',
     file: 'src/App.tsx',
     markers: [
-      'remain in WKWebsiteDataStore.default()',
+      'verified WebContent process; persistent cookies alone are insufficient.',
       'InAppBrowser.hide()',
     ],
     forbidden: [
@@ -366,7 +371,7 @@ const checks = [
     markers: [
       'export const STORE_SCRIPT_DIAGNOSTICS =',
       'VITE_STORE_SCRIPT_DIAGNOSTICS',
-      'v86.190-shein-privacy-touch-shield',
+      'v86.191-persistent-verified-store-session',
     ],
   },
   {
@@ -637,14 +642,18 @@ const checks = [
     ],
   },
   {
-    label: 'iOS SHEIN cart-product fresh-session isolation',
+    label: 'iOS SHEIN cart-product persistent verified session',
     file: 'src/App.tsx',
     markers: [
-      'const openIosSheinCartProductInFreshSession = (targetUrl: string)',
-      'InAppBrowser.close(closingWebviewId ? { id: closingWebviewId } : undefined)',
-      'sheinCacheResetPendingRef.current = true',
+      'const navigateStoreWebviewInPage = (url: string)',
+      'window.location.assign(',
       'beginPendingProductPreparation(targetUrl)',
-      'openIosSheinCartProductInFreshSession(targetUrl)',
+      'const navigate = navigateStoreWebviewInPage(targetUrl)',
+    ],
+    forbidden: [
+      'openIosSheinCartProductInFreshSession',
+      'recoverSheinCartProductSession',
+      'sheinCartProductRecoveryInFlightRef',
     ],
   },
   {
@@ -1401,30 +1410,50 @@ try {
   failures.push(`SHEIN low-end PDP guard: ${error instanceof Error ? error.message : String(error)}`)
 }
 
-// The cart regression is specifically caused by navigating an already-used
-// iOS SHEIN WebView. Keep the iOS branch ahead of every warm-session shortcut
-// and setUrl path so a future refactor cannot silently reintroduce it.
+try {
+  const nativeSource = readFileSync(resolve(projectRoot, 'ios/App/App/OtlobliSheinBrowserPlugin.swift'), 'utf8')
+  const constructors = nativeSource.match(/WKWebView\(frame:/g) || []
+  const backgroundStart = nativeSource.indexOf('@objc private func applicationDidEnterBackground()')
+  const activeStart = nativeSource.indexOf('@objc private func applicationDidBecomeActive()', backgroundStart)
+  const memoryStart = nativeSource.indexOf('@objc private func applicationDidReceiveMemoryWarning()', activeStart)
+  const backgroundLifecycle = nativeSource.slice(backgroundStart, memoryStart)
+  const hideStart = nativeSource.indexOf('case "hide":')
+  const showStart = nativeSource.indexOf('case "show":', hideStart)
+  const navigateStart = nativeSource.indexOf('case "navigate":', showStart)
+  const handlerEnd = nativeSource.indexOf('default:', navigateStart)
+  const ordinaryHide = nativeSource.slice(hideStart, showStart)
+  const ordinaryNavigate = nativeSource.slice(navigateStart, handlerEnd)
+  if (constructors.length !== 1 || backgroundStart < 0 || activeStart < 0 || memoryStart < 0 ||
+      hideStart < 0 || showStart < 0 || navigateStart < 0 || handlerEnd < 0 ||
+      backgroundLifecycle.includes('destroyRenderSurface()') ||
+      ordinaryHide.includes('destroyRenderSurface()') || ordinaryNavigate.includes('destroyRenderSurface()')) {
+    failures.push('SHEIN native session: routes, app screens and foreground transitions must keep one live WKWebView')
+  }
+} catch (error) {
+  failures.push(`SHEIN native persistent-session guard: ${error instanceof Error ? error.message : String(error)}`)
+}
+
+// SHEIN's verified home and the selected product must remain in the exact same
+// WebContent process. A fresh WKWebView can retain cookies yet lose the live
+// risk proof, producing the product-list spinner captured on the real iPhone.
 try {
   const appSource = readFileSync(resolve(projectRoot, 'src/App.tsx'), 'utf8')
   const cartOpenStart = appSource.indexOf('const openStoreProductFromCart = (sourceLink: string)')
   const cartOpenEnd = appSource.indexOf("InAppBrowser.addListener('closeEvent'", cartOpenStart)
   const cartOpenSource = appSource.slice(cartOpenStart, cartOpenEnd)
-  const iosFreshOpen = cartOpenSource.indexOf('openIosSheinCartProductInFreshSession(targetUrl)')
   const warmReuse = cartOpenSource.indexOf('sameSheinProductNavigation(targetUrl, currentWebviewUrlRef.current)')
-  const sameSessionSetUrl = cartOpenSource.indexOf('InAppBrowser.setUrl({ url: targetUrl })')
-  if (cartOpenStart < 0 || cartOpenEnd < 0 || iosFreshOpen < 0 || warmReuse < 0 || sameSessionSetUrl < 0 ||
-      iosFreshOpen > warmReuse || iosFreshOpen > sameSessionSetUrl) {
-    failures.push('SHEIN cart isolation: iOS fresh-session branch must return before warm reuse and setUrl')
+  const sameSessionNavigate = cartOpenSource.indexOf('navigateStoreWebviewInPage(targetUrl)')
+  if (cartOpenStart < 0 || cartOpenEnd < 0 || warmReuse < 0 || sameSessionNavigate < 0 ||
+      cartOpenSource.includes('openIosSheinCartProductInFreshSession') ||
+      cartOpenSource.includes('InAppBrowser.setUrl({ url: targetUrl })') ||
+      cartOpenSource.includes('InAppBrowser.close(')) {
+    failures.push('SHEIN persistent session: cart product must reuse the verified in-page WebContent context')
   }
 
-  const freshOpenStart = appSource.indexOf('const openIosSheinCartProductInFreshSession = (targetUrl: string)')
-  const freshOpenEnd = appSource.indexOf('const openStoreProductFromCart = (sourceLink: string)', freshOpenStart)
-  const freshOpenSource = appSource.slice(freshOpenStart, freshOpenEnd)
-  if (freshOpenStart < 0 || freshOpenEnd < 0 ||
-      !freshOpenSource.includes('sheinCacheResetPendingRef.current = true') ||
-      !freshOpenSource.includes('browseSheinRef.current()') ||
-      freshOpenSource.includes('InAppBrowser.setUrl')) {
-    failures.push('SHEIN cart isolation: fresh iOS session must reset cache and reopen without setUrl reuse')
+  if (appSource.includes('const openIosSheinCartProductInFreshSession') ||
+      appSource.includes('const recoverSheinCartProductSession') ||
+      appSource.includes('sheinCartProductRecoveryInFlightRef')) {
+    failures.push('SHEIN persistent session: obsolete fresh-session recovery must stay removed')
   }
 
   const sheinOptionsStart = appSource.indexOf("...(activeStore === 'shein'")
@@ -1496,7 +1525,7 @@ try {
     failures.push('SHEIN recovery: bounded damaged-session cache reset must remain available')
   }
 } catch (error) {
-  failures.push(`SHEIN cart isolation: ${error instanceof Error ? error.message : String(error)}`)
+  failures.push(`SHEIN persistent session: ${error instanceof Error ? error.message : String(error)}`)
 }
 
 for (const check of checks) {

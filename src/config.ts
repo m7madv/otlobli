@@ -34,5 +34,5 @@ export const TEMU_PERSONAL_SITE_MODE =
 
 // رقم النسخة الظاهر داخل التطبيق.
 export const APP_VERSION = TEMU_PERSONAL_SITE_MODE
-  ? '2026.08.14-v86.190-personal-shein-privacy-touch-shield'
-  : '2026.08.14-v86.190-shein-privacy-touch-shield'
+  ? '2026.08.14-v86.191-personal-persistent-verified-store-session'
+  : '2026.08.14-v86.191-persistent-verified-store-session'

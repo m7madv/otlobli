@@ -4,9 +4,12 @@ import Capacitor
 
 /// Otlobli's single iOS SHEIN browser boundary.
 ///
-/// A WKWebView is only a disposable render surface. It is never hidden and
-/// later reused, and it never survives an app background transition. SHEIN's
-/// durable session lives separately in WKWebsiteDataStore.default().
+/// One WKWebView owns one complete SHEIN browsing session. Route changes,
+/// verification, products and back/forward navigation stay in that same
+/// WebContent process, just like Safari. Website data remains persistent in
+/// WKWebsiteDataStore.default(); the view is destroyed only on an explicit
+/// close or a hidden low-memory eviction. An actual WebContent termination is
+/// recovered by loading the last route back into the same WKWebView object.
 @objc(OtlobliSheinBrowserPlugin)
 public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
     WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
@@ -28,13 +31,10 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
 
     private var browserId = ""
     private var savedURL: URL?
-    private var lastCommittedURL: URL?
     private var documentStartScript = ""
     private var loadingCoverEnabled = true
     private var isBrowserVisible = false
-    private var restoreAfterBackground = false
-    private var routeReplacementQueued = false
-    private var pendingRouteURL: URL?
+    private var foregroundRecomposePending = false
 
     private var surfaceView: UIView?
     private var storeWebView: WKWebView?
@@ -56,6 +56,12 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
             self,
             selector: #selector(applicationDidBecomeActive),
             name: UIApplication.didBecomeActiveNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(applicationDidReceiveMemoryWarning),
+            name: UIApplication.didReceiveMemoryWarningNotification,
             object: nil
         )
     }
@@ -102,9 +108,10 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
                 return
             }
             self.isBrowserVisible = true
-            self.restoreAfterBackground = false
             if let surface = self.surfaceView {
+                surface.isHidden = false
                 surface.superview?.bringSubviewToFront(surface)
+                self.refreshVisibleSurfaceLayout()
             } else if !self.createRenderSurface(loadingMessage: "جاري استعادة المتجر…") {
                 call.reject("Capacitor host view is unavailable")
                 return
@@ -116,8 +123,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
     @objc func hide(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             self.isBrowserVisible = false
-            self.restoreAfterBackground = false
-            self.destroyRenderSurface()
+            self.parkRenderSurfaceBehindApp()
             call.resolve()
         }
     }
@@ -148,10 +154,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
                 return
             }
             self.savedURL = url
-            self.lastCommittedURL = nil
-            if self.isBrowserVisible {
-                self.replaceVisibleRenderSurface(with: url, message: "جاري فتح الصفحة…")
-            }
+            self.navigateInCurrentWebView(to: url)
             call.resolve()
         }
     }
@@ -270,7 +273,6 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
 
         surfaceView = surface
         storeWebView = webView
-        routeReplacementQueued = false
         attachWebView(webView, to: surface)
         installNativeBackButton(in: surface)
         if loadingCoverEnabled {
@@ -310,16 +312,76 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         nativeBackButton = nil
         nativeBackTopConstraint = nil
         nativeBackTarget = "home"
-        lastCommittedURL = nil
-        routeReplacementQueued = false
-        pendingRouteURL = nil
     }
 
-    private func replaceVisibleRenderSurface(with url: URL, message: String) {
-        guard isBrowserVisible, isAllowedStoreURL(url) else { return }
-        destroyRenderSurface()
+    /// Keep the verified WebContent process alive while Otlobli's Capacitor
+    /// screen is visible. Hiding or removing WKWebView would let modern iOS
+    /// discard its remote layer tree and, more importantly, its live risk-
+    /// verification state.
+    private func parkRenderSurfaceBehindApp() {
+        guard let surface = surfaceView,
+              let hostView = bridge?.viewController?.view else { return }
+        surface.isHidden = false
+        surface.alpha = 1
+        if let appWebView = bridge?.webView, appWebView.superview === hostView {
+            hostView.insertSubview(surface, belowSubview: appWebView)
+        } else {
+            hostView.sendSubviewToBack(surface)
+        }
+    }
+
+    private func refreshVisibleSurfaceLayout() {
+        guard let surface = surfaceView, let webView = storeWebView else { return }
+        surface.setNeedsLayout()
+        surface.superview?.layoutIfNeeded()
+        webView.setNeedsLayout()
+        webView.layoutIfNeeded()
+        webView.setNeedsDisplay()
+    }
+
+    /// Reattach the same WKWebView once after foregrounding. This repairs the
+    /// remote render layer without replacing WKWebView or its WebContent
+    /// session, so SHEIN verification and in-page state remain intact.
+    private func recomposeAttachedWebViewAfterForeground() {
+        guard let surface = surfaceView, let webView = storeWebView else { return }
+        webView.removeFromSuperview()
+        attachWebView(webView, to: surface)
+        refreshVisibleSurfaceLayout()
+        DispatchQueue.main.async { [weak self, weak webView] in
+            guard let self, let webView, self.storeWebView === webView else { return }
+            webView.evaluateJavaScript(
+                "window.dispatchEvent(new Event('resize'));window.dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true}));",
+                completionHandler: nil
+            )
+        }
+    }
+
+    /// Route inside the currently verified page whenever possible. A normal
+    /// WKNavigation remains the fallback, but it still uses the same WKWebView.
+    private func navigateInCurrentWebView(to url: URL) {
+        guard isAllowedStoreURL(url) else { return }
         savedURL = url
-        _ = createRenderSurface(loadingMessage: message)
+        guard let webView = storeWebView else {
+            if isBrowserVisible {
+                _ = createRenderSurface(
+                    request: URLRequest(url: url, cachePolicy: .useProtocolCachePolicy, timeoutInterval: 45),
+                    loadingMessage: "جاري استعادة المتجر…"
+                )
+            }
+            return
+        }
+        guard let data = try? JSONEncoder().encode(url.absoluteString),
+              let encodedURL = String(data: data, encoding: .utf8) else {
+            webView.load(URLRequest(url: url, cachePolicy: .useProtocolCachePolicy, timeoutInterval: 45))
+            return
+        }
+        webView.evaluateJavaScript("window.location.assign(\(encodedURL));") { [weak self, weak webView] _, error in
+            guard error != nil,
+                  let self,
+                  let webView,
+                  self.storeWebView === webView else { return }
+            webView.load(URLRequest(url: url, cachePolicy: .useProtocolCachePolicy, timeoutInterval: 45))
+        }
     }
 
     private func closeBrowser(emitEvent: Bool) {
@@ -330,7 +392,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         savedURL = nil
         documentStartScript = ""
         isBrowserVisible = false
-        restoreAfterBackground = false
+        foregroundRecomposePending = false
         if emitEvent && !closingId.isEmpty {
             notifyListeners("closeEvent", data: ["id": closingId, "url": closingURL])
         }
@@ -345,36 +407,6 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
                   self.isAllowedStoreURL(changedURL) else { return }
             self.savedURL = changedURL
             self.emit("urlChangeEvent", extra: ["url": changedURL.absoluteString])
-
-            // SHEIN can move the URL with history.pushState while an old iOS
-            // WebKit never commits an interactive category document. Every
-            // settled path change follows one universal rule: replace the
-            // render surface and perform a full document request.
-            guard !webView.isLoading,
-                  self.isMeaningfulPathChange(from: self.lastCommittedURL, to: changedURL) else { return }
-            self.queueRouteReplacement(to: changedURL)
-        }
-    }
-
-    private func isMeaningfulPathChange(from previousURL: URL?, to nextURL: URL) -> Bool {
-        guard let previousURL else { return false }
-        let previousPath = previousURL.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        let nextPath = nextURL.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        return !nextPath.isEmpty && previousPath.caseInsensitiveCompare(nextPath) != .orderedSame
-    }
-
-    private func queueRouteReplacement(to url: URL) {
-        pendingRouteURL = url
-        guard !routeReplacementQueued else { return }
-        routeReplacementQueued = true
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            self.routeReplacementQueued = false
-            guard let targetURL = self.pendingRouteURL else { return }
-            self.pendingRouteURL = nil
-            guard self.isBrowserVisible,
-                  self.savedURL == targetURL else { return }
-            self.replaceVisibleRenderSurface(with: targetURL, message: "جاري فتح الصفحة…")
         }
     }
 
@@ -506,8 +538,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
             if storeWebView?.canGoBack == true {
                 storeWebView?.goBack()
             } else if let home = URL(string: "https://m.shein.com/ar/") {
-                savedURL = home
-                replaceVisibleRenderSurface(with: home, message: "جاري فتح الرئيسية…")
+                navigateInCurrentWebView(to: home)
             }
         }
     }
@@ -547,19 +578,21 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
             closeBrowser(emitEvent: true)
         case "hide":
             isBrowserVisible = false
-            restoreAfterBackground = false
-            destroyRenderSurface()
+            parkRenderSurfaceBehindApp()
         case "show":
             isBrowserVisible = true
-            if surfaceView == nil {
+            if let surface = surfaceView {
+                surface.isHidden = false
+                surface.superview?.bringSubviewToFront(surface)
+                refreshVisibleSurfaceLayout()
+            } else {
                 _ = createRenderSurface(loadingMessage: "جاري استعادة المتجر…")
             }
         case "navigate":
             guard let target = message.body as? String,
                   ["orders", "cart", "profile", "store-select"].contains(target) else { return }
             isBrowserVisible = false
-            restoreAfterBackground = false
-            destroyRenderSurface()
+            parkRenderSurfaceBehindApp()
             let encoded = target.replacingOccurrences(of: "'", with: "\\'")
             bridge?.webView?.evaluateJavaScript(
                 "window.dispatchEvent(new CustomEvent('otlobli:nativeNavigate',{detail:'\(encoded)'}));",
@@ -572,7 +605,6 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
 
     public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         guard webView === storeWebView else { return }
-        lastCommittedURL = webView.url ?? savedURL
         emit("browserPageLoaded", extra: ["url": webView.url?.absoluteString ?? ""])
     }
 
@@ -596,10 +628,21 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
 
     public func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
         guard webView === storeWebView else { return }
-        emit("pageLoadError", extra: [
-            "phase": "webContentProcessDidTerminate",
-            "url": webView.url?.absoluteString ?? savedURL?.absoluteString ?? ""
+        let recoveryURL = webView.url ?? savedURL
+        emit("messageFromWebview", detail: [
+            "type": "sheinWebContentRestarted",
+            "url": recoveryURL?.absoluteString ?? ""
         ])
+        if isBrowserVisible, loadingCoverEnabled, loadingCover == nil, let surface = surfaceView {
+            installLoadingCover(in: surface, message: "جاري استعادة المتجر…")
+        }
+        if let recoveryURL {
+            webView.load(URLRequest(
+                url: recoveryURL,
+                cachePolicy: .useProtocolCachePolicy,
+                timeoutInterval: 45
+            ))
+        }
     }
 
     private func emitPageError(_ error: Error, phase: String) {
@@ -623,7 +666,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         if navigationAction.targetFrame == nil, let url = navigationAction.request.url {
             if isAllowedStoreURL(url) {
                 savedURL = url
-                queueRouteReplacement(to: url)
+                webView.load(navigationAction.request)
             } else if UIApplication.shared.canOpenURL(url) {
                 UIApplication.shared.open(url)
             }
@@ -650,14 +693,6 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
                 decisionHandler(.cancel)
                 return
             }
-            if isTopLevel,
-               navigationAction.navigationType == .linkActivated,
-               isMeaningfulPathChange(from: lastCommittedURL, to: url) {
-                decisionHandler(.cancel)
-                savedURL = url
-                queueRouteReplacement(to: url)
-                return
-            }
             decisionHandler(.allow)
             return
         }
@@ -668,14 +703,28 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
     }
 
     @objc private func applicationDidEnterBackground() {
-        guard isBrowserVisible, storeWebView != nil else { return }
-        restoreAfterBackground = true
-        destroyRenderSurface()
+        foregroundRecomposePending = storeWebView != nil
     }
 
     @objc private func applicationDidBecomeActive() {
-        guard restoreAfterBackground, isBrowserVisible, storeWebView == nil else { return }
-        restoreAfterBackground = false
-        _ = createRenderSurface(loadingMessage: "جاري استعادة المتجر…")
+        guard foregroundRecomposePending, storeWebView != nil else { return }
+        foregroundRecomposePending = false
+        recomposeAttachedWebViewAfterForeground()
+        if isBrowserVisible {
+            if let surface = surfaceView {
+                surface.superview?.bringSubviewToFront(surface)
+            }
+            refreshVisibleSurfaceLayout()
+        } else {
+            parkRenderSurfaceBehindApp()
+        }
+    }
+
+    @objc private func applicationDidReceiveMemoryWarning() {
+        // A visible store is never sacrificed. If iOS warns while the store is
+        // parked behind Otlobli, releasing it is the only intentional fallback;
+        // persistent cookies still allow a later recovery.
+        guard !isBrowserVisible, storeWebView != nil else { return }
+        destroyRenderSurface()
     }
 }
