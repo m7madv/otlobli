@@ -1,6 +1,19 @@
 import UIKit
 import WebKit
 import Capacitor
+import OSLog
+
+private final class OtlobliSheinDiagnosticSurfaceView: UIView {
+    var touchReporter: ((CGPoint, Int, UIView?) -> Void)?
+
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        let target = super.hitTest(point, with: event)
+        if event?.type == .touches {
+            touchReporter?(point, event?.allTouches?.first?.phase.rawValue ?? -1, target)
+        }
+        return target
+    }
+}
 
 /// Otlobli's single iOS SHEIN browser boundary.
 ///
@@ -24,7 +37,8 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         CAPPluginMethod(name: "setUrl", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "executeScript", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "postMessage", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "clearCache", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "clearCache", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "recordDiagnostic", returnType: CAPPluginReturnPromise)
     ]
 
     private static let messageHandlers = ["messageHandler", "close", "hide", "show", "navigate"]
@@ -34,6 +48,12 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
     private var documentStartScript = ""
     private var loadingCoverEnabled = true
     private var isBrowserVisible = false
+    private var diagnosticsEnabled = false
+
+    private static let diagnosticsLogger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "com.otlobli.app",
+        category: "SheinRootCause"
+    )
 
     private var surfaceView: UIView?
     private var storeWebView: WKWebView?
@@ -65,13 +85,17 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
             return
         }
 
+        let requestedDiagnostics = call.getBool("otlobliFreezeDiagnostics", false) ||
+            call.getBool("otlobliTapDiagnostics", false)
         DispatchQueue.main.async {
             self.closeBrowser(emitEvent: false)
+            self.diagnosticsEnabled = requestedDiagnostics
             self.browserId = "otlobli-shein-\(UUID().uuidString.lowercased())"
             self.savedURL = url
             self.documentStartScript = call.getString("otlobliDocumentStartScript", "")
             self.loadingCoverEnabled = call.getBool("otlobliLoadingCover", true)
             self.isBrowserVisible = true
+            self.logDiagnostic("open-request", ["route": self.routeLabel(url)])
 
             // The old API requested an initially hidden browser. This browser
             // never creates hidden WebKit surfaces; its native loading cover is
@@ -84,6 +108,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
                 call.reject("Capacitor host view is unavailable")
                 return
             }
+            self.logDiagnostic("open-resolved", self.surfaceStateFields())
             call.resolve(["id": self.browserId])
         }
     }
@@ -94,6 +119,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
                 call.reject("SHEIN browser is not initialized")
                 return
             }
+            self.logDiagnostic("show-before", self.surfaceStateFields())
             self.isBrowserVisible = true
             if let surface = self.surfaceView {
                 surface.isHidden = false
@@ -103,14 +129,19 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
                 call.reject("Capacitor host view is unavailable")
                 return
             }
+            self.requestPersistentStateSnapshot("native-show")
+            self.logDiagnostic("show-after", self.surfaceStateFields())
             call.resolve()
         }
     }
 
     @objc func hide(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
+            self.logDiagnostic("hide-before", self.surfaceStateFields())
+            self.requestPersistentStateSnapshot("native-hide")
             self.isBrowserVisible = false
             self.parkRenderSurfaceBehindApp()
+            self.logDiagnostic("hide-after", self.surfaceStateFields())
             call.resolve()
         }
     }
@@ -123,6 +154,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
                 call.resolve()
                 return
             }
+            self.logDiagnostic("close-call", self.surfaceStateFields())
             self.closeBrowser(emitEvent: true)
             call.resolve()
         }
@@ -192,8 +224,27 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
     }
 
     @objc func clearCache(_ call: CAPPluginCall) {
+        logDiagnostic("clear-http-cache")
         let types: Set<String> = [WKWebsiteDataTypeDiskCache, WKWebsiteDataTypeMemoryCache]
         WKWebsiteDataStore.default().removeData(ofTypes: types, modifiedSince: .distantPast) {
+            call.resolve()
+        }
+    }
+
+    @objc func recordDiagnostic(_ call: CAPPluginCall) {
+        let detail = call.getObject("detail", [:])
+        DispatchQueue.main.async {
+            guard self.diagnosticsEnabled else {
+                call.resolve()
+                return
+            }
+            var fields: [String: String] = [:]
+            for key in ["stage", "trigger", "decision", "screen", "store", "opened", "ready", "challenge"] {
+                if let value = detail[key] {
+                    fields[key] = self.diagnosticScalar(value)
+                }
+            }
+            self.logDiagnostic("host-decision", fields)
             call.resolve()
         }
     }
@@ -207,6 +258,8 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
               let hostView = bridge?.viewController?.view,
               let targetURL = request?.url ?? savedURL,
               isAllowedStoreURL(targetURL) else { return false }
+
+        logDiagnostic("surface-create-begin", ["route": routeLabel(targetURL)])
 
         let contentController = WKUserContentController()
         for name in Self.messageHandlers {
@@ -236,7 +289,18 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
             configuration.defaultWebpagePreferences.preferredContentMode = .mobile
         }
 
-        let surface = UIView(frame: .zero)
+        let surface = OtlobliSheinDiagnosticSurfaceView(frame: .zero)
+        surface.touchReporter = { [weak self, weak surface] point, phase, target in
+            guard let self, let surface else { return }
+            self.logDiagnostic("native-hit-test", [
+                "phase": String(phase),
+                "point": self.pointLabel(point),
+                "target": self.viewClassLabel(target),
+                "targetId": self.objectLabel(target),
+                "webId": self.objectLabel(self.storeWebView),
+                "surfaceId": self.objectLabel(surface),
+            ].merging(self.surfaceStateFields()) { current, _ in current })
+        }
         surface.translatesAutoresizingMaskIntoConstraints = false
         surface.backgroundColor = .white
         surface.isOpaque = true
@@ -272,10 +336,14 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
             cachePolicy: .useProtocolCachePolicy,
             timeoutInterval: 45
         ))
+        logDiagnostic("surface-create-end", surfaceStateFields().merging([
+            "route": routeLabel(targetURL),
+        ]) { current, _ in current })
         return true
     }
 
     private func destroyRenderSurface() {
+        logDiagnostic("surface-destroy-begin", surfaceStateFields())
         if let currentURL = storeWebView?.url, isAllowedStoreURL(currentURL) {
             savedURL = currentURL
         }
@@ -299,6 +367,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         nativeBackButton = nil
         nativeBackTopConstraint = nil
         nativeBackTarget = "home"
+        logDiagnostic("surface-destroy-end", ["hasSurface": "false", "hasWeb": "false"])
     }
 
     /// Keep the verified WebContent process alive while Otlobli's Capacitor
@@ -315,6 +384,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         } else {
             hostView.sendSubviewToBack(surface)
         }
+        logDiagnostic("surface-parked", surfaceStateFields())
     }
 
     private func refreshVisibleSurfaceLayout() {
@@ -330,6 +400,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
     /// WKNavigation remains the fallback, but it still uses the same WKWebView.
     private func navigateInCurrentWebView(to url: URL) {
         guard isAllowedStoreURL(url) else { return }
+        logDiagnostic("navigate-request", ["route": routeLabel(url)])
         savedURL = url
         guard let webView = storeWebView else {
             if isBrowserVisible {
@@ -355,6 +426,9 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
     }
 
     private func closeBrowser(emitEvent: Bool) {
+        logDiagnostic("browser-close-begin", surfaceStateFields().merging([
+            "emit": emitEvent ? "true" : "false",
+        ]) { current, _ in current })
         let closingId = browserId
         let closingURL = storeWebView?.url?.absoluteString ?? savedURL?.absoluteString ?? ""
         destroyRenderSurface()
@@ -365,6 +439,8 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         if emitEvent && !closingId.isEmpty {
             notifyListeners("closeEvent", data: ["id": closingId, "url": closingURL])
         }
+        logDiagnostic("browser-close-end", ["emit": emitEvent ? "true" : "false"])
+        diagnosticsEnabled = false
     }
 
     private func observeStoreURL(on webView: WKWebView) {
@@ -375,6 +451,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
                   let changedURL = change.newValue ?? webView.url,
                   self.isAllowedStoreURL(changedURL) else { return }
             self.savedURL = changedURL
+            self.logDiagnostic("url-change", ["route": self.routeLabel(changedURL)])
             self.emit("urlChangeEvent", extra: ["url": changedURL.absoluteString])
         }
     }
@@ -416,6 +493,183 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         payload["id"] = browserId
         if let detail { payload["detail"] = detail }
         notifyListeners(name, data: payload)
+    }
+
+    private func stableHash(_ value: String) -> String {
+        var hash: UInt64 = 14_695_981_039_346_656_037
+        for byte in value.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 1_099_511_628_211
+        }
+        return String(format: "%016llx", hash)
+    }
+
+    private func diagnosticScalar(_ value: Any?) -> String {
+        if let value = value as? Bool { return value ? "true" : "false" }
+        if let value = value as? NSNumber { return value.stringValue }
+        if let value = value as? String { return sanitizeLogValue(value) }
+        return value == nil ? "nil" : sanitizeLogValue(String(describing: value!))
+    }
+
+    private func sanitizeLogValue(_ value: String, limit: Int = 96) -> String {
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_.:/"))
+        let mapped = value.unicodeScalars.map { allowed.contains($0) ? Character(String($0)) : "_" }
+        return String(mapped.prefix(limit))
+    }
+
+    private func objectLabel(_ object: AnyObject?) -> String {
+        guard let object else { return "nil" }
+        return sanitizeLogValue(String(describing: ObjectIdentifier(object)), limit: 40)
+    }
+
+    private func viewClassLabel(_ view: UIView?) -> String {
+        guard let view else { return "nil" }
+        return sanitizeLogValue(String(describing: type(of: view)), limit: 64)
+    }
+
+    private func pointLabel(_ point: CGPoint) -> String {
+        "\(Int(point.x.rounded())),\(Int(point.y.rounded()))"
+    }
+
+    private func frameLabel(_ frame: CGRect) -> String {
+        [frame.origin.x, frame.origin.y, frame.size.width, frame.size.height]
+            .map { String(Int($0.rounded())) }
+            .joined(separator: ",")
+    }
+
+    private func routeLabel(_ url: URL?) -> String {
+        guard let url else { return "nil" }
+        let path = url.path
+        let kind: String
+        if path.range(of: "challenge|captcha|/risk/", options: .regularExpression) != nil {
+            kind = "challenge"
+        } else if path.range(of: "-p-[0-9]+", options: .regularExpression) != nil {
+            kind = "product"
+        } else if path.isEmpty || path == "/" || path.range(of: "^/[a-zA-Z-]{2,7}/?$", options: .regularExpression) != nil {
+            kind = "home"
+        } else if path.range(of: "search|category|collection|campaign|daily|recommend", options: [.regularExpression, .caseInsensitive]) != nil {
+            kind = "list"
+        } else {
+            kind = "other"
+        }
+        return "\(sanitizeLogValue(url.host ?? "host")):\(kind):\(stableHash((url.host ?? "") + path))"
+    }
+
+    private func surfaceStateFields() -> [String: String] {
+        guard diagnosticsEnabled else { return [:] }
+        let host = bridge?.viewController?.view
+        let surface = surfaceView
+        let webView = storeWebView
+        let surfaceIndex = host.flatMap { owner in surface.flatMap { owner.subviews.firstIndex(of: $0) } }
+        let appIndex = host.flatMap { owner in bridge?.webView.flatMap { owner.subviews.firstIndex(of: $0) } }
+        var fields: [String: String] = [
+            "appState": String(UIApplication.shared.applicationState.rawValue),
+            "browser": browserId.isEmpty ? "none" : stableHash(browserId),
+            "visible": isBrowserVisible ? "true" : "false",
+            "surfaceId": objectLabel(surface),
+            "webId": objectLabel(webView),
+            "surfaceWindow": surface?.window == nil ? "false" : "true",
+            "webWindow": webView?.window == nil ? "false" : "true",
+            "surfaceHidden": surface?.isHidden == true ? "true" : "false",
+            "surfaceInteractive": surface?.isUserInteractionEnabled == true ? "true" : "false",
+            "surfaceAlpha": String(format: "%.2f", surface?.alpha ?? -1),
+            "surfaceFrame": frameLabel(surface?.frame ?? .zero),
+            "webFrame": frameLabel(webView?.frame ?? .zero),
+            "surfaceIndex": surfaceIndex.map(String.init) ?? "nil",
+            "appIndex": appIndex.map(String.init) ?? "nil",
+            "hostChildren": String(host?.subviews.count ?? -1),
+            "frontClass": viewClassLabel(host?.subviews.last),
+        ]
+        if let host, let surface {
+            let center = surface.convert(CGPoint(x: surface.bounds.midX, y: surface.bounds.midY), to: host)
+            fields["centerHit"] = viewClassLabel(host.hitTest(center, with: nil))
+        }
+        return fields
+    }
+
+    private func logDiagnostic(_ event: String, _ fields: [String: String] = [:]) {
+        guard diagnosticsEnabled else { return }
+        let pairs = fields.sorted { $0.key < $1.key }.map {
+            "\(sanitizeLogValue($0.key, limit: 40))=\(sanitizeLogValue($0.value))"
+        }
+        let suffix = pairs.isEmpty ? "" : " " + pairs.joined(separator: " ")
+        let line = "[OtlobliSheinDiag] event=\(sanitizeLogValue(event, limit: 64))\(suffix)"
+        Self.diagnosticsLogger.notice("\(line, privacy: .public)")
+    }
+
+    private func diagnosticNode(_ value: Any?) -> String {
+        guard let node = value as? [String: Any] else { return "nil" }
+        let tag = sanitizeLogValue(node["tag"] as? String ?? "nil", limit: 24)
+        let idHash = stableHash(node["id"] as? String ?? "")
+        let classHash = stableHash(node["cls"] as? String ?? "")
+        let pointer = sanitizeLogValue(node["pe"] as? String ?? "nil", limit: 20)
+        let display = sanitizeLogValue(node["display"] as? String ?? "nil", limit: 20)
+        let visibility = sanitizeLogValue(node["visibility"] as? String ?? "nil", limit: 20)
+        let position = sanitizeLogValue(node["position"] as? String ?? "nil", limit: 20)
+        return "\(tag).\(idHash).\(classHash).\(pointer).\(display).\(visibility).\(position)"
+    }
+
+    private func logWebDiagnostic(_ detail: [String: Any]) {
+        guard diagnosticsEnabled, let type = detail["type"] as? String else { return }
+        if type == "otlobliPersistentStateDiagnostic" {
+            var fields: [String: String] = [:]
+            for key in [
+                "stage", "seq", "route", "routeHash", "ready", "visibility",
+                "cookieCount", "cookieKeysHash", "cookieStateHash",
+                "localCount", "localKeysHash", "localStateHash",
+                "sessionCount", "sessionKeysHash", "sessionStateHash",
+                "cacheCount", "cacheHash", "workerCount", "workerHash",
+                "workerControlled", "databaseCount", "databaseHash",
+            ] where detail[key] != nil {
+                fields[key] = diagnosticScalar(detail[key])
+            }
+            logDiagnostic("persistent-state", fields)
+            return
+        }
+        if type == "otlobliTapDiagnostic" {
+            var fields: [String: String] = [:]
+            for key in ["stage", "attempt", "event", "phase", "isTrusted", "defaultPrevented", "bubbleSeen", "x", "y", "hrefChanged", "productDetected"] where detail[key] != nil {
+                fields[key] = diagnosticScalar(detail[key])
+            }
+            if let snapshot = detail["snapshot"] as? [String: Any] {
+                fields["target"] = diagnosticNode(snapshot["target"])
+                fields["top"] = diagnosticNode(snapshot["elementFromPoint"])
+                if let fixed = snapshot["fixedLayers"] as? [Any] {
+                    fields["fixedCount"] = String(fixed.count)
+                    fields["fixedTop"] = diagnosticNode(fixed.first)
+                }
+            }
+            logDiagnostic("dom-tap", fields)
+            return
+        }
+        if type == "otlobliFreezeDiagnostic" {
+            var fields: [String: String] = [:]
+            for key in ["stage", "v", "r", "perf"] where detail[key] != nil {
+                fields[key] = diagnosticScalar(detail[key])
+            }
+            if let path = detail["p"] as? String {
+                fields["pathHash"] = stableHash(path)
+            }
+            if let message = detail["m"] as? String {
+                fields["messageHash"] = stableHash(message)
+            }
+            logDiagnostic("document-lifecycle", fields)
+            return
+        }
+        if ["sheinSaudiReady", "sheinPageInteractive", "humanCheck", "humanCheckResolved", "requestStoreExit", "closeStore"].contains(type) {
+            logDiagnostic("web-message", ["type": type])
+        }
+    }
+
+    private func requestPersistentStateSnapshot(_ stage: String) {
+        guard diagnosticsEnabled, let webView = storeWebView,
+              let encoded = try? JSONEncoder().encode(stage),
+              let stageJSON = String(data: encoded, encoding: .utf8) else { return }
+        let script = "window.__otlobliPersistentStateDiagnostic&&window.__otlobliPersistentStateDiagnostic(\(stageJSON));"
+        webView.evaluateJavaScript(script) { [weak self] _, error in
+            guard let self, let error else { return }
+            self.logDiagnostic("snapshot-request-error", ["stage": stage, "errorHash": self.stableHash(error.localizedDescription)])
+        }
     }
 
     private func installLoadingCover(in surface: UIView, message: String) {
@@ -498,6 +752,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
     }
 
     @objc private func nativeBackPressed() {
+        logDiagnostic("native-back", ["target": nativeBackTarget])
         switch nativeBackTarget {
         case "cart":
             emit("messageFromWebview", detail: ["type": "backToCart"])
@@ -534,6 +789,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         case "messageHandler":
             guard let body = message.body as? [String: Any],
                   let detail = body["detail"] as? [String: Any] else { return }
+            logWebDiagnostic(detail)
             if detail["type"] as? String == "otlobliBackButtonState" {
                 updateNativeBackButton(detail)
                 return
@@ -541,14 +797,20 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
             let readyTypes = ["sheinSaudiReady", "sheinPageInteractive", "humanCheck", "humanCheckResolved"]
             if let type = detail["type"] as? String, readyTypes.contains(type) {
                 hideLoadingCover()
+                requestPersistentStateSnapshot("ready-\(type)")
             }
             emit("messageFromWebview", detail: detail)
         case "close":
+            logDiagnostic("bridge-close")
             closeBrowser(emitEvent: true)
         case "hide":
+            logDiagnostic("bridge-hide-before", surfaceStateFields())
+            requestPersistentStateSnapshot("native-hide-bridge")
             isBrowserVisible = false
             parkRenderSurfaceBehindApp()
+            logDiagnostic("bridge-hide-after", surfaceStateFields())
         case "show":
+            logDiagnostic("bridge-show-before", surfaceStateFields())
             isBrowserVisible = true
             if let surface = surfaceView {
                 surface.isHidden = false
@@ -557,10 +819,14 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
             } else {
                 _ = createRenderSurface(loadingMessage: "جاري استعادة المتجر…")
             }
+            requestPersistentStateSnapshot("native-show-bridge")
+            logDiagnostic("bridge-show-after", surfaceStateFields())
         case "navigate":
             guard let target = message.body as? String,
                   ["orders", "cart", "profile", "store-select"].contains(target) else { return }
             isBrowserVisible = false
+            logDiagnostic("bridge-navigate", ["target": target])
+            requestPersistentStateSnapshot("native-hide-navigate")
             parkRenderSurfaceBehindApp()
             let encoded = target.replacingOccurrences(of: "'", with: "\\'")
             bridge?.webView?.evaluateJavaScript(
@@ -574,6 +840,10 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
 
     public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         guard webView === storeWebView else { return }
+        logDiagnostic("navigation-finished", surfaceStateFields().merging([
+            "route": routeLabel(webView.url),
+        ]) { current, _ in current })
+        requestPersistentStateSnapshot("navigation-finished")
         emit("browserPageLoaded", extra: ["url": webView.url?.absoluteString ?? ""])
     }
 
@@ -598,6 +868,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
     public func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
         guard webView === storeWebView else { return }
         let recoveryURL = webView.url ?? savedURL
+        logDiagnostic("webcontent-terminated", ["route": routeLabel(recoveryURL)])
         emit("messageFromWebview", detail: [
             "type": "sheinWebContentRestarted",
             "url": recoveryURL?.absoluteString ?? ""
@@ -617,6 +888,13 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
     private func emitPageError(_ error: Error, phase: String) {
         let nsError = error as NSError
         if nsError.code == NSURLErrorCancelled { return }
+        logDiagnostic("navigation-error", [
+            "phase": phase,
+            "code": String(nsError.code),
+            "domain": nsError.domain,
+            "route": routeLabel(storeWebView?.url ?? savedURL),
+            "messageHash": stableHash(nsError.localizedDescription),
+        ])
         emit("pageLoadError", extra: [
             "phase": phase,
             "code": nsError.code,
@@ -675,6 +953,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         // A visible store is never sacrificed. If iOS warns while the store is
         // parked behind Otlobli, releasing it is the only intentional fallback;
         // persistent cookies still allow a later recovery.
+        logDiagnostic("memory-warning", surfaceStateFields())
         guard !isBrowserVisible, storeWebView != nil else { return }
         destroyRenderSurface()
     }

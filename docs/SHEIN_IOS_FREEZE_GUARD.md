@@ -2,6 +2,14 @@
 
 هذه قاعدة إصدار إلزامية وليست ملاحظة تاريخية.
 
+## حارس تشخيص السبب الجذري السلبي — v86.194
+
+- هذه نسخة قياس منفصلة وليست إصلاحاً ولا إصدار عميل. تُفعّل فقط عبر `VITE_SHEIN_IOS_ROOT_CAUSE_DIAGNOSTICS=true` وتكتب في unified log ضمن `SheinRootCause` وبادئة `[OtlobliSheinDiag]`.
+- يجب أن يبقى المسار التشخيصي سلبياً: `hitTest` يعيد نتيجة `super` نفسها، ومستمعات DOM تكون passive ولا تستعمل `preventDefault` أو `stopPropagation` أو replay. ممنوع إضافة reload/rebuild/clear/recovery أو network call أو `setInterval` أو `MutationObserver`.
+- لا تُسجل أي قيمة خام من cookie/localStorage/sessionStorage أو أسماء Cache/Database/ServiceWorker أو URL query/label. المسموح فقط العدد وHash ثابت داخل كل طبقة، مع نوع المسار العام.
+- سجل قرار `forceStoreVpnRecheck` قبل أي خروج منه، وسجل هوية السطح وWKWebView وترتيب الطبقات في open/show/hide/close، وسجل `webViewWebContentProcessDidTerminate` منفصلاً. غياب سجل DOM مع وجود native hit نتيجة مهمة وليس مبرراً لإعادة التحميل.
+- بوابة القبول: Xcode أولاً، ثم تثبيت نظيف واحد على iPhone 16، دخول يعمل، خروج داخلي، دخول ثانٍ جامد، ثلاث ضغطات، وجمع السجل قبل تغيير الحالة. لا يُعلن السبب أو الحل قبل مطابقة native hit مع DOM tap وبصمات التخزين.
+
 ## حارس swatch الصورة والمقاس inline — v86.42
 
 - قد تكون `.bs-color__item ... active` هي الحاوية التي اختارها `findOptionContainer()`، بينما إشارة `active` والصورة على الحاوية نفسها ولا يوجد اسم في الأبناء. يجب فحص الحاوية قبل أبنائها وإعطاء الحاوية المحددة أولوية عند تعادل عدد الخيارات.

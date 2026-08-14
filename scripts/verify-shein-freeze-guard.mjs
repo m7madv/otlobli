@@ -48,6 +48,11 @@ const checks = [
       'removeScriptMessageHandler',
       'browserId = "otlobli-shein-',
       'isAllowedStoreURL(url)',
+      'category: "SheinRootCause"',
+      'event?.type == .touches',
+      'logWebDiagnostic(_ detail:',
+      'requestPersistentStateSnapshot(_ stage:',
+      'CAPPluginMethod(name: "recordDiagnostic"',
     ],
     forbidden: [
       'UIApplication.willEnterForegroundNotification',
@@ -220,8 +225,10 @@ const checks = [
     markers: [
       "from './sheinBrowserScript'",
       "from './sheinFreezeDiagnostics'",
+      "from './sheinPersistentStateDiagnostics'",
       "from './sheinPrivacyCompatScript'",
       "from './sheinRegionDiagnostics'",
+      "from './sheinTapDiagnostics'",
       'export const buildStoreCaptureScript',
     ],
   },
@@ -373,6 +380,8 @@ const checks = [
       'export const STORE_SCRIPT_DIAGNOSTICS =',
       'VITE_STORE_SCRIPT_DIAGNOSTICS',
       'v86.193-passive-native-foreground',
+      'v86.194-ios-root-cause-diagnostic',
+      'VITE_SHEIN_IOS_ROOT_CAUSE_DIAGNOSTICS',
     ],
   },
   {
@@ -388,24 +397,31 @@ const checks = [
     markers: [
       'SHEIN_IOS_FREEZE_DIAGNOSTICS',
       'SHEIN_IOS_FREEZE_DIAGNOSTICS_BYPASS_RECOVERY',
-      'otlobliFreezeDiagnostics: SHEIN_IOS_FREEZE_DIAGNOSTICS && isIosNative',
+      "const iosRootCauseDiagnostics = SHEIN_IOS_FREEZE_DIAGNOSTICS && isIosNative && activeStore === 'shein'",
+      'otlobliFreezeDiagnostics: iosRootCauseDiagnostics',
       'otlobliFreezeDiagnosticsBypassRecovery:',
       'otlobliLoadingCover: true',
       'SHEIN_FREEZE_DIAGNOSTIC_SCRIPT',
+      'SHEIN_PERSISTENT_STATE_DIAGNOSTIC_SCRIPT',
+      'SHEIN_TAP_DIAGNOSTIC_SCRIPT',
+      "recordIosSheinRootCauseDiagnostic('foreground-decision'",
     ],
   },
   {
-    label: 'normal-release diagnostics disabled',
+    label: 'normal-release diagnostics default disabled',
     file: 'src/config.ts',
     markers: [
-      'export const SHEIN_IOS_FREEZE_DIAGNOSTICS = false',
+      'export const SHEIN_IOS_FREEZE_DIAGNOSTICS =',
+      'VITE_SHEIN_IOS_ROOT_CAUSE_DIAGNOSTICS',
+      "toLowerCase() === 'true'",
     ],
+    forbidden: ['export const SHEIN_IOS_FREEZE_DIAGNOSTICS = true'],
   },
   {
-    label: 'customer tap diagnostics disabled',
+    label: 'tap diagnostics isolated to dedicated iOS build',
     file: 'src/App.tsx',
     markers: [
-      'otlobliTapDiagnostics: false',
+      'otlobliTapDiagnostics: iosRootCauseDiagnostics',
     ],
   },
   {
@@ -442,6 +458,36 @@ const checks = [
       "type:'otlobliFreezeDiagnostic'",
       "['visibilitychange','pageshow','pagehide','freeze','resume','focus','blur']",
       'window.__otlobliFreezeProbe',
+    ],
+  },
+  {
+    label: 'passive non-sensitive persistent-state probe',
+    file: 'src/services/sheinPersistentStateDiagnostics.ts',
+    markers: [
+      'SHEIN_PERSISTENT_STATE_DIAGNOSTIC_SCRIPT',
+      "d.type='otlobliPersistentStateDiagnostic'",
+      'cookieKeysHash',
+      'cookieStateHash',
+      'localKeysHash',
+      'localStateHash',
+      'sessionKeysHash',
+      'sessionStateHash',
+      'caches.keys()',
+      'navigator.serviceWorker.getRegistrations()',
+      'indexedDB.databases()',
+      "addEventListener('touchstart'",
+      'e.isTrusted',
+    ],
+    forbidden: [
+      'setInterval(',
+      'MutationObserver',
+      'removeItem(',
+      'clear()',
+      'location.reload(',
+      'location.assign(',
+      'document.cookie=',
+      'localStorage.setItem(',
+      'sessionStorage.setItem(',
     ],
   },
   {
@@ -1218,6 +1264,10 @@ try {
 try {
   const diagnosticsModule = evaluateInjectedScriptExports('src/services/storeScriptDiagnostics.ts')
   new Function(diagnosticsModule.STORE_SCRIPT_DIAGNOSTICS_PANEL_SCRIPT)
+  const persistentDiagnostics = evaluateInjectedScriptExports('src/services/sheinPersistentStateDiagnostics.ts')
+  const tapDiagnostics = evaluateInjectedScriptExports('src/services/sheinTapDiagnostics.ts')
+  new Function(persistentDiagnostics.SHEIN_PERSISTENT_STATE_DIAGNOSTIC_SCRIPT)
+  new Function(tapDiagnostics.SHEIN_TAP_DIAGNOSTIC_SCRIPT)
   const bundleModule = evaluateInjectedScriptExports('src/services/storeCaptureBundle.ts')
   const rawFlags = { runtime: false, navigation: false, blocking: false, capture: false, session: false }
   const rawScript = bundleModule.buildStoreCaptureScript({}, rawFlags, true)
@@ -1225,8 +1275,10 @@ try {
     runtime: true, navigation: true, blocking: true, capture: true, session: true,
   }, true)
   const productionScript = bundleModule.buildStoreCaptureScript({}, undefined, false)
+  const rootCauseScript = bundleModule.buildStoreCaptureScript({}, undefined, false, true)
   new Function(rawScript)
   new Function(fullDiagnosticScript)
+  new Function(rootCauseScript)
   if (!rawScript.includes('otlobli-script-diagnostics') ||
       !rawScript.includes('__otlobliSheinPrivacyCompatInstalled') ||
       !rawScript.includes('[class*="shein_privacy_agreement"]') ||
@@ -1242,6 +1294,9 @@ try {
   }
   if (!productionScript.includes('__otlobliSheinPrivacyCompatInstalled')) {
     failures.push('SHEIN privacy compatibility: normal customer injection must include the touch-shield fix')
+  }
+  if (productionScript.includes('capture-context-ready') || !rootCauseScript.includes('capture-context-ready')) {
+    failures.push('SHEIN root-cause diagnostics: tap context must exist only in the dedicated diagnostic script')
   }
 } catch (error) {
   failures.push(`SHEIN script isolation syntax: ${error instanceof Error ? error.message : String(error)}`)

@@ -17,6 +17,7 @@ interface NativeSheinBrowserApi {
   executeScript(options: ExecuteScriptOptions): Promise<void>
   postMessage(options: PostMessageOptions): Promise<void>
   clearCache(): Promise<void>
+  recordDiagnostic(options: { detail: Record<string, unknown> }): Promise<void>
   addListener(
     eventName: string,
     listener: (event: Record<string, unknown>) => void,
@@ -100,6 +101,11 @@ export const StoreBrowser = {
       NativeSheinBrowser.clearCache(),
       CapgoInAppBrowser.clearCache(),
     ])
+  },
+
+  recordDiagnostic(detail: Record<string, unknown>) {
+    if (!isIos()) return Promise.resolve()
+    return NativeSheinBrowser.recordDiagnostic({ detail })
   },
 
   async addListener<T extends object>(eventName: string, listener: (event: T) => void): Promise<ListenerHandle> {

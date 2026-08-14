@@ -16,9 +16,10 @@ export const SOURCE_COUNTRY: 'JO' | 'LB' | 'SA' = 'SA'
 // and must be false before any production build.
 export const TEST_ONLY_AUTH_BYPASS = false
 
-// Diagnostic tools ship disabled in normal customer builds. Enable only in a
-// dedicated diagnostic release after recording the affected device and steps.
-export const SHEIN_IOS_FREEZE_DIAGNOSTICS = false
+// Diagnostic tools default to disabled and can be included only by an explicit
+// iOS diagnostic workflow input. No customer build enables this implicitly.
+export const SHEIN_IOS_FREEZE_DIAGNOSTICS =
+  cleanEnvValue(String(import.meta.env.VITE_SHEIN_IOS_ROOT_CAUSE_DIAGNOSTICS ?? '')).toLowerCase() === 'true'
 export const SHEIN_IOS_FREEZE_DIAGNOSTICS_BYPASS_RECOVERY = false
 
 // Dedicated device-isolation build only. Normal releases keep this false and
@@ -35,4 +36,6 @@ export const TEMU_PERSONAL_SITE_MODE =
 // رقم النسخة الظاهر داخل التطبيق.
 export const APP_VERSION = TEMU_PERSONAL_SITE_MODE
   ? '2026.08.15-v86.193-personal-passive-native-foreground'
-  : '2026.08.15-v86.193-passive-native-foreground'
+  : SHEIN_IOS_FREEZE_DIAGNOSTICS
+    ? '2026.08.15-v86.194-ios-root-cause-diagnostic'
+    : '2026.08.15-v86.193-passive-native-foreground'

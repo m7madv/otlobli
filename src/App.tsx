@@ -3428,17 +3428,45 @@ function App() {
     return true
   }
 
-  const forceStoreVpnRecheck = () => {
-    if (screenRef.current !== 'home') return
-    if (selectedStoreRef.current !== 'shein') return
+  const recordIosSheinRootCauseDiagnostic = (stage: string, data: Record<string, unknown> = {}) => {
+    if (!SHEIN_IOS_FREEZE_DIAGNOSTICS || Capacitor.getPlatform() !== 'ios') return
+    void InAppBrowser.recordDiagnostic({ stage, ...data }).catch(() => undefined)
+  }
+
+  const forceStoreVpnRecheck = (trigger = 'unspecified') => {
+    if (screenRef.current !== 'home') {
+      recordIosSheinRootCauseDiagnostic('foreground-decision', { trigger, decision: 'skip-screen', screen: screenRef.current })
+      return
+    }
+    if (selectedStoreRef.current !== 'shein') {
+      recordIosSheinRootCauseDiagnostic('foreground-decision', { trigger, decision: 'skip-store', store: selectedStoreRef.current })
+      return
+    }
     // A healthy store keeps its exact page/scroll state across app screens and
     // ordinary background/foreground transitions. Native iOS revives an actual
     // WebContent termination in place; normal resume is never a reason to close.
-    if (sheinOpenedRef.current && sheinReadyRef.current) return
-    if (sheinChallengeActiveRef.current) return
+    if (sheinOpenedRef.current && sheinReadyRef.current) {
+      recordIosSheinRootCauseDiagnostic('foreground-decision', { trigger, decision: 'keep-healthy', opened: true, ready: true })
+      return
+    }
+    if (sheinChallengeActiveRef.current) {
+      recordIosSheinRootCauseDiagnostic('foreground-decision', { trigger, decision: 'keep-challenge', challenge: true })
+      return
+    }
     const now = Date.now()
-    if (now - lastResumeVpnRecheckRef.current < 1200) return
+    if (now - lastResumeVpnRecheckRef.current < 1200) {
+      recordIosSheinRootCauseDiagnostic('foreground-decision', { trigger, decision: 'skip-debounce' })
+      return
+    }
     lastResumeVpnRecheckRef.current = now
+
+    recordIosSheinRootCauseDiagnostic('foreground-decision', {
+      trigger,
+      decision: 'close-unready',
+      opened: sheinOpenedRef.current,
+      ready: sheinReadyRef.current,
+      challenge: sheinChallengeActiveRef.current,
+    })
 
     clearSheinReadinessWatchdog()
     clearPendingProductPreparation()
@@ -3824,10 +3852,13 @@ function App() {
       ? normalizeSheinBrowserUrl(rawTargetUrl, activeRegions.shein)
       : normalizeTemuBrowserUrl(rawTargetUrl, activeRegions.temu)
     const activeScriptFlags = storeScriptFlagsRef.current
+    const isIosNative = Capacitor.getPlatform() === 'ios'
+    const iosRootCauseDiagnostics = SHEIN_IOS_FREEZE_DIAGNOSTICS && isIosNative && activeStore === 'shein'
     const captureScript = captureBundle.buildStoreCaptureScript(
       activeRegions,
       activeScriptFlags,
       STORE_SCRIPT_DIAGNOSTICS,
+      iosRootCauseDiagnostics,
     )
     const scriptDiagnosticsPrelude = captureBundle.buildStoreScriptDiagnosticsPrelude(
       activeScriptFlags,
@@ -3848,7 +3879,6 @@ function App() {
         at: Date.now(),
       })
     }
-    const isIosNative = Capacitor.getPlatform() === 'ios'
     const webViewOptions: Parameters<typeof InAppBrowser.openWebView>[0] & {
       otlobliLoadingCover?: boolean
       otlobliDocumentStartScript?: string
@@ -3861,14 +3891,14 @@ function App() {
       ...(activeStore === 'shein'
         ? {
           otlobliLoadingCover: true,
-          otlobliFreezeDiagnostics: SHEIN_IOS_FREEZE_DIAGNOSTICS && isIosNative,
+          otlobliFreezeDiagnostics: iosRootCauseDiagnostics,
           otlobliFreezeDiagnosticsBypassRecovery:
             SHEIN_IOS_FREEZE_DIAGNOSTICS &&
             SHEIN_IOS_FREEZE_DIAGNOSTICS_BYPASS_RECOVERY &&
             isIosNative,
-          // Customer releases must not expose the native diagnostic copy button.
-          otlobliTapDiagnostics: false,
-          otlobliDocumentStartScript: `window.__otlobliSafeBottom=${hostSafeBottomInset};\nwindow.__otlobliNativePlatform=${JSON.stringify(Capacitor.getPlatform())};\n${captureBundle.SHEIN_PRIVACY_COMPAT_SCRIPT}\n${scriptDiagnosticsPrelude}\n${!STORE_SCRIPT_DIAGNOSTICS || (activeScriptFlags.runtime && activeScriptFlags.navigation) ? captureBundle.OTLOBLI_NAV_BOOTSTRAP_SCRIPT : ''}\n${SHEIN_IOS_FREEZE_DIAGNOSTICS && isIosNative ? captureBundle.SHEIN_FREEZE_DIAGNOSTIC_SCRIPT : ''}`,
+          // Passive touch/storage probes exist only in the dedicated IPA.
+          otlobliTapDiagnostics: iosRootCauseDiagnostics,
+          otlobliDocumentStartScript: `window.__otlobliSafeBottom=${hostSafeBottomInset};\nwindow.__otlobliNativePlatform=${JSON.stringify(Capacitor.getPlatform())};\n${iosRootCauseDiagnostics ? captureBundle.SHEIN_FREEZE_DIAGNOSTIC_SCRIPT : ''}\n${iosRootCauseDiagnostics ? captureBundle.SHEIN_PERSISTENT_STATE_DIAGNOSTIC_SCRIPT : ''}\n${iosRootCauseDiagnostics ? captureBundle.SHEIN_TAP_DIAGNOSTIC_SCRIPT : ''}\n${captureBundle.SHEIN_PRIVACY_COMPAT_SCRIPT}\n${scriptDiagnosticsPrelude}\n${!STORE_SCRIPT_DIAGNOSTICS || (activeScriptFlags.runtime && activeScriptFlags.navigation) ? captureBundle.OTLOBLI_NAV_BOOTSTRAP_SCRIPT : ''}`,
           otlobliPreserveAttachedWhenHidden: true,
           // Prepare SHEIN at the real device size without presenting it. The
           // already-mounted Otlobli shell therefore owns the only visible nav
@@ -4253,6 +4283,7 @@ function App() {
               storeRegionsRef.current,
               storeScriptFlagsRef.current,
               STORE_SCRIPT_DIAGNOSTICS,
+              SHEIN_IOS_FREEZE_DIAGNOSTICS && Capacitor.getPlatform() === 'ios',
             ),
           }))
           .then(() => {
@@ -4415,7 +4446,7 @@ function App() {
   useEffect(() => {
     const handleVisibility = () => {
       if (document.visibilityState !== 'visible') return
-      forceStoreVpnRecheck()
+      forceStoreVpnRecheck('document-visible')
     }
     document.addEventListener('visibilitychange', handleVisibility)
     let appStateSub: { remove: () => Promise<void> } | undefined
@@ -4424,9 +4455,9 @@ function App() {
         if (!state.isActive) {
           return
         }
-        forceStoreVpnRecheck()
+        forceStoreVpnRecheck('app-active')
       }).then((sub) => { appStateSub = sub })
-      window.setTimeout(() => forceStoreVpnRecheck(), 0)
+      window.setTimeout(() => forceStoreVpnRecheck('listener-initial'), 0)
     }
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility)

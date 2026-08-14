@@ -8,6 +8,11 @@ on:
         required: false
         default: false
         type: boolean
+      ios_root_cause_diagnostics:
+        description: 'Include passive iOS SHEIN touch and persistent-state tracing'
+        required: false
+        default: false
+        type: boolean
   push:
     branches: [main, codex/customer-wallet-group-orders]
 
@@ -49,6 +54,7 @@ jobs:
           VITE_SHEIN_SCRAPER_URL: ${{ secrets.VITE_SHEIN_SCRAPER_URL }}
           VITE_USD_TO_SYP_RATE: ${{ secrets.VITE_USD_TO_SYP_RATE }}
           VITE_STORE_SCRIPT_DIAGNOSTICS: ${{ github.event_name == 'workflow_dispatch' && inputs.store_diagnostics || false }}
+          VITE_SHEIN_IOS_ROOT_CAUSE_DIAGNOSTICS: ${{ github.event_name == 'workflow_dispatch' && inputs.ios_root_cause_diagnostics || false }}
 
       - run: npx cap sync ios
 
