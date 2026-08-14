@@ -6,6 +6,7 @@ file owns one responsibility:
 | File | Responsibility |
 | --- | --- |
 | `sheinNavigationScript.ts` | Document-start navigation and bounded early concealment only. |
+| `sheinPrivacyCompatScript.ts` | Always-on, bounded SHEIN privacy-layer compatibility; rejects optional tracking and releases a confirmed invisible iOS touch shield. |
 | `sheinSessionScript.ts` | Shared runtime foundation, challenge-safe session rules, and native SHEIN shipping-region flow. |
 | `storeProductCaptureScript.ts` | Product identity, option/price reading, and the Otlobli add action. |
 | `storeBlockingScript.ts` | Store chrome, native add buttons, popups, and other explicitly blocked controls. |
@@ -23,6 +24,10 @@ file owns one responsibility:
   UI and verified from its signed `addressCookie`; Otlobli does not forge it.
 - Human-verification pages are user-controlled: no auto click, reload, or
   region write runs while a challenge is active.
+- SHEIN privacy consent is handled by one independent compatibility prelude,
+  including in raw-store diagnostics. It prefers "Reject all" and only the
+  native iOS app may neutralize a still-blocking, full-viewport SHEIN privacy
+  layer after bounded rejection attempts.
 
 ## Performance invariants
 
@@ -36,9 +41,10 @@ file owns one responsibility:
 ## Diagnostic isolation build
 
 - `VITE_STORE_SCRIPT_DIAGNOSTICS=true` adds one customer-visible side panel.
-- The raw-store preset injects only that panel and a painted-page readiness
-  signal; the normal navigation, blocking, capture, session, and coordinator
-  runtime is not evaluated in the store page.
+- The raw-store preset injects only the panel, a painted-page readiness signal,
+  and the mandatory privacy compatibility prelude; the normal navigation,
+  blocking, capture, session, and coordinator runtime is not evaluated in the
+  store page.
 - Changing a flag recreates one native WebView without clearing cookies,
   storage, cache, or the store's solved verification proof.
 - Normal customer builds keep the flag false and never inject or accept this

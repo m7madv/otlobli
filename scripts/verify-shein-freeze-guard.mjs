@@ -213,8 +213,32 @@ const checks = [
     markers: [
       "from './sheinBrowserScript'",
       "from './sheinFreezeDiagnostics'",
+      "from './sheinPrivacyCompatScript'",
       "from './sheinRegionDiagnostics'",
       'export const buildStoreCaptureScript',
+    ],
+  },
+  {
+    label: 'always-on SHEIN privacy touch-shield compatibility',
+    file: 'src/services/sheinPrivacyCompatScript.ts',
+    markers: [
+      'SHEIN_PRIVACY_COMPAT_SCRIPT',
+      '[class*="shein_privacy_agreement"]',
+      "type: 'sheinPrivacyResolved'",
+      "method: method",
+      "'reject-all'",
+      "window.__otlobliNativePlatform || ''",
+      "style.position !== 'fixed'",
+      "rect.width < viewport.width * 0.85",
+      "data-otlobli-privacy-neutralized",
+      'scheduledDelays = [0, 60, 160, 360, 700, 1200, 2000, 3500, 6000, 10000]',
+    ],
+    forbidden: [
+      'MutationObserver',
+      'setInterval(',
+      'localStorage.',
+      'sessionStorage.',
+      'document.cookie',
     ],
   },
   {
@@ -342,7 +366,7 @@ const checks = [
     markers: [
       'export const STORE_SCRIPT_DIAGNOSTICS =',
       'VITE_STORE_SCRIPT_DIAGNOSTICS',
-      'v86.189-disposable-render-surface',
+      'v86.190-shein-privacy-touch-shield',
     ],
   },
   {
@@ -1193,9 +1217,12 @@ try {
   const productionScript = bundleModule.buildStoreCaptureScript({}, undefined, false)
   new Function(rawScript)
   new Function(fullDiagnosticScript)
-  if (!rawScript.includes('otlobli-script-diagnostics') || rawScript.includes('function tick()') ||
+  if (!rawScript.includes('otlobli-script-diagnostics') ||
+      !rawScript.includes('__otlobliSheinPrivacyCompatInstalled') ||
+      !rawScript.includes('[class*="shein_privacy_agreement"]') ||
+      rawScript.includes('function tick()') ||
       rawScript.includes('setInterval(') || rawScript.includes('__otlobliRegionDiagnostic')) {
-    failures.push('SHEIN script isolation: raw-store preset must contain the panel and exclude the normal coordinator')
+    failures.push('SHEIN script isolation: raw-store preset must keep privacy compatibility and exclude the normal coordinator')
   }
   if (!fullDiagnosticScript.includes('otlobli-script-diagnostics') || !fullDiagnosticScript.includes('function tick()')) {
     failures.push('SHEIN script isolation: full diagnostic preset must contain both panel and normal coordinator')
@@ -1203,8 +1230,103 @@ try {
   if (productionScript.includes('otlobli-script-diagnostics')) {
     failures.push('SHEIN script isolation: normal customer injection must not include the diagnostic panel')
   }
+  if (!productionScript.includes('__otlobliSheinPrivacyCompatInstalled')) {
+    failures.push('SHEIN privacy compatibility: normal customer injection must include the touch-shield fix')
+  }
 } catch (error) {
   failures.push(`SHEIN script isolation syntax: ${error instanceof Error ? error.message : String(error)}`)
+}
+
+// Exercise the compatibility prelude against the exact failure shape found by
+// USB/browser diagnostics: a fixed, full-viewport SHEIN privacy layer whose
+// action is a styled div. First prove Reject all releases the layer, then prove
+// the iOS-only fallback releases an unresponsive shield without touching any
+// unrelated overlay selector.
+try {
+  const { SHEIN_PRIVACY_COMPAT_SCRIPT } = evaluateInjectedScriptExports(
+    'src/services/sheinPrivacyCompatScript.ts',
+  )
+
+  const runPrivacyFixture = ({ includeReject }) => {
+    const attributes = new Map()
+    const appliedStyles = new Map()
+    const messages = []
+    const scheduled = []
+    let shieldVisible = true
+    let rejectClicks = 0
+    let now = 0
+    const reject = {
+      value: '',
+      textContent: 'Reject all',
+      getAttribute(name) { return name === 'aria-label' ? '' : null },
+      setAttribute() {},
+      click() { rejectClicks++; shieldVisible = false },
+      dispatchEvent() {},
+    }
+    const shield = {
+      style: { setProperty(name, value) { appliedStyles.set(name, value) } },
+      getAttribute(name) { return attributes.get(name) || null },
+      setAttribute(name, value) { attributes.set(name, value) },
+      getBoundingClientRect() { return { left: 0, top: 0, width: 430, height: 932 } },
+      querySelectorAll() { return includeReject ? [reject] : [] },
+    }
+    const documentFixture = {
+      documentElement: { clientWidth: 430, clientHeight: 932 },
+      visibilityState: 'visible',
+      querySelectorAll(selector) {
+        return selector === '[class*="shein_privacy_agreement"]' && shieldVisible ? [shield] : []
+      },
+      addEventListener() {},
+    }
+    const windowFixture = {
+      top: null,
+      innerWidth: 430,
+      innerHeight: 932,
+      __otlobliNativePlatform: 'ios',
+      getComputedStyle() {
+        return { display: 'flex', visibility: 'visible', pointerEvents: 'auto', position: 'fixed' }
+      },
+      mobileApp: { postMessage(message) { messages.push(message) } },
+    }
+    windowFixture.top = windowFixture
+    const DateFixture = { now() { now += 400; return now } }
+    const setTimeoutFixture = (callback, delay) => {
+      scheduled.push({ callback, delay })
+      return scheduled.length
+    }
+    new Function(
+      'window', 'document', 'location', 'setTimeout', 'addEventListener', 'MouseEvent', 'Date',
+      SHEIN_PRIVACY_COMPAT_SCRIPT,
+    )(
+      windowFixture,
+      documentFixture,
+      { hostname: 'm.shein.com', pathname: '/ar/', search: '', hash: '' },
+      setTimeoutFixture,
+      () => {},
+      function MouseEvent() {},
+      DateFixture,
+    )
+    scheduled.sort((a, b) => a.delay - b.delay)
+    for (const task of scheduled) task.callback()
+    return { appliedStyles, attributes, messages, rejectClicks }
+  }
+
+  const rejectFixture = runPrivacyFixture({ includeReject: true })
+  if (rejectFixture.rejectClicks !== 1 ||
+      !rejectFixture.messages.some((message) => message?.detail?.method === 'reject-all') ||
+      rejectFixture.appliedStyles.has('display')) {
+    failures.push('SHEIN privacy compatibility: styled Reject all control must resolve the shield first')
+  }
+
+  const fallbackFixture = runPrivacyFixture({ includeReject: false })
+  if (fallbackFixture.appliedStyles.get('pointer-events') !== 'none' ||
+      fallbackFixture.appliedStyles.get('display') !== 'none' ||
+      fallbackFixture.attributes.get('data-otlobli-privacy-neutralized') !== '1' ||
+      !fallbackFixture.messages.some((message) => message?.detail?.method === 'ios-invisible-shield-neutralized')) {
+    failures.push('SHEIN privacy compatibility: confirmed unresponsive iOS shield must release pointer events')
+  }
+} catch (error) {
+  failures.push(`SHEIN privacy compatibility fixture: ${error instanceof Error ? error.message : String(error)}`)
 }
 
 try {
@@ -1261,12 +1383,10 @@ try {
     failures.push('SHEIN low-end PDP: add-text helper must bound descendant text flattening')
   }
 
-  const cookieStart = sheinSource.indexOf('function otlobliForceAcceptCookies()')
-  const cookieEnd = sheinSource.indexOf('var __otlobliCookieScanAt', cookieStart)
-  const cookieHelper = sheinSource.slice(cookieStart, cookieEnd)
-  if (!cookieHelper.includes('__otlobliForceAcceptScans >= 16') ||
-      !cookieHelper.includes('document.body.textContent') || cookieHelper.includes('document.body.innerText')) {
-    failures.push('SHEIN low-end PDP: cookie discovery must be bounded and layout-neutral')
+  if (sheinSource.includes('function otlobliForceAcceptCookies()') ||
+      sheinSource.includes('function protectSheinCookieConsentAction()') ||
+      sheinSource.includes('function protectCookieConsentAction()')) {
+    failures.push('SHEIN privacy compatibility: stale accept/raise implementations must not race the single owner')
   }
 
   const blockStart = sheinSource.indexOf('function checkForSheinSecurityBlock()')

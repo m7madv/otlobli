@@ -3920,7 +3920,7 @@ function App() {
             isIosNative,
           // Customer releases must not expose the native diagnostic copy button.
           otlobliTapDiagnostics: false,
-          otlobliDocumentStartScript: `window.__otlobliSafeBottom=${hostSafeBottomInset};\n${scriptDiagnosticsPrelude}\n${!STORE_SCRIPT_DIAGNOSTICS || (activeScriptFlags.runtime && activeScriptFlags.navigation) ? captureBundle.OTLOBLI_NAV_BOOTSTRAP_SCRIPT : ''}\n${SHEIN_IOS_FREEZE_DIAGNOSTICS && isIosNative ? captureBundle.SHEIN_FREEZE_DIAGNOSTIC_SCRIPT : ''}`,
+          otlobliDocumentStartScript: `window.__otlobliSafeBottom=${hostSafeBottomInset};\nwindow.__otlobliNativePlatform=${JSON.stringify(Capacitor.getPlatform())};\n${captureBundle.SHEIN_PRIVACY_COMPAT_SCRIPT}\n${scriptDiagnosticsPrelude}\n${!STORE_SCRIPT_DIAGNOSTICS || (activeScriptFlags.runtime && activeScriptFlags.navigation) ? captureBundle.OTLOBLI_NAV_BOOTSTRAP_SCRIPT : ''}\n${SHEIN_IOS_FREEZE_DIAGNOSTICS && isIosNative ? captureBundle.SHEIN_FREEZE_DIAGNOSTIC_SCRIPT : ''}`,
           otlobliPreserveAttachedWhenHidden: true,
           // Prepare SHEIN at the real device size without presenting it. The
           // already-mounted Otlobli shell therefore owns the only visible nav
@@ -4567,7 +4567,7 @@ function App() {
       if (event?.id && webviewIdRef.current && event.id !== webviewIdRef.current) return
       const detail = event?.detail
       const messageType = typeof detail?.type === 'string' ? detail.type : ''
-      if (['temuProductVisible', 'sheinSaudiReady', 'sheinPageInteractive', 'humanCheck', 'humanCheckResolved', 'humanCheckSkipped', 'sheinBlocked', 'openHome', 'closeStore', 'requestStoreExit', 'openCart', 'backToCart', 'openOrders', 'openProfile'].includes(messageType)) {
+      if (['temuProductVisible', 'sheinSaudiReady', 'sheinPageInteractive', 'sheinPrivacyResolved', 'humanCheck', 'humanCheckResolved', 'humanCheckSkipped', 'sheinBlocked', 'openHome', 'closeStore', 'requestStoreExit', 'openCart', 'backToCart', 'openOrders', 'openProfile'].includes(messageType)) {
         recordAppDiagnostic('store_message', { store: selectedStoreRef.current, type: messageType })
       }
 

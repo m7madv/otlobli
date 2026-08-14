@@ -227,75 +227,6 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
     }
   }
 
-  var __otlobliEarlyCookieScanAt = 0;
-  var __otlobliCookieAcceptClicks = 0;
-  function protectCookieConsentAction() {
-    if (!document.body) return;
-    var scanNow = Date.now();
-    if (scanNow - __otlobliEarlyCookieScanAt < 650) return;
-    __otlobliEarlyCookieScanAt = scanNow;
-    var buttons = document.querySelectorAll('button, [role="button"], a, input[type="button"], input[type="submit"]');
-    var acceptPattern = /^(?:accept(?: all)?|allow(?: all)?|agree(?: to all)?|\\u0642\\u0628\\u0648\\u0644(?: \\u0627\\u0644\\u0643\\u0644)?|\\u0627\\u0642\\u0628\\u0644(?: \\u0627\\u0644\\u0643\\u0644)?|\\u0627\\u0644\\u0633\\u0645\\u0627\\u062d (?:\\u0644\\u0644\\u0643\\u0644|\\u0644\\u0644\\u062c\\u0645\\u064a\\u0639)|\\u0645\\u0648\\u0627\\u0641\\u0642)$/i;
-    var rejectPattern = /^(?:reject all|decline all|deny all|\\u0631\\u0641\\u0636 \\u0627\\u0644\\u0643\\u0644|\\u0639\\u062f\\u0645 \\u0627\\u0644\\u0642\\u0628\\u0648\\u0644)$/i;
-    var cookiePattern = /cookies?|\\u0645\\u0644\\u0641\\u0627\\u062a \\u062a\\u0639\\u0631\\u064a\\u0641 \\u0627\\u0644\\u0627\\u0631\\u062a\\u0628\\u0627\\u0637|\\u0627\\u0644\\u062a\\u0642\\u0646\\u064a\\u0627\\u062a \\u0627\\u0644\\u0645\\u0645\\u0627\\u062b\\u0644\\u0629/i;
-    var vpHeight = window.innerHeight || document.documentElement.clientHeight || 0;
-    for (var i = 0; i < buttons.length; i++) {
-      var button = buttons[i];
-      var buttonLabel = normalizedText(button) || String(button.value || '').replace(/\\s+/g, ' ').trim();
-      if (!acceptPattern.test(buttonLabel)) continue;
-      var scope = button;
-      var cookieScope = null;
-      for (var hop = 0; scope && hop < 7; hop++, scope = scope.parentElement) {
-        var scopeText = normalizedText(scope);
-        if (scopeText.length < 2400 && cookiePattern.test(scopeText)) {
-          cookieScope = scope;
-          break;
-        }
-      }
-      if (!cookieScope) continue;
-      if (__otlobliCookieAcceptClicks < 4) {
-        var acceptRect0 = button.getBoundingClientRect();
-        if (acceptRect0.width > 0 && acceptRect0.height > 0) {
-          __otlobliCookieAcceptClicks++;
-          try { button.click(); } catch (eAccept0) {}
-        }
-      }
-      var scopedControls = cookieScope.querySelectorAll('button, [role="button"], a, input[type="button"], input[type="submit"]');
-      var reject = null;
-      for (var ri = 0; ri < scopedControls.length; ri++) {
-        var rejectLabel = normalizedText(scopedControls[ri]) || String(scopedControls[ri].value || '').replace(/\\s+/g, ' ').trim();
-        if (rejectPattern.test(rejectLabel)) { reject = scopedControls[ri]; break; }
-      }
-      var actionRoot = button;
-      if (reject) {
-        for (var parent = button.parentElement, depth = 0; parent && parent !== cookieScope.parentElement && depth < 6; parent = parent.parentElement, depth++) {
-          var parentRect = parent.getBoundingClientRect();
-          if (parent.contains(reject) && parentRect.height > 0 && parentRect.height <= 220) {
-            actionRoot = parent;
-            break;
-          }
-        }
-      } else if (button.parentElement) {
-        actionRoot = button.parentElement;
-      }
-      var actionRect = actionRoot.getBoundingClientRect();
-      if (actionRect.height <= 0 || actionRect.height > 220) {
-        actionRoot = button;
-        actionRect = button.getBoundingClientRect();
-      }
-      var nav = document.getElementById('otlobli-nav');
-      var navRect = nav && nav.getBoundingClientRect ? nav.getBoundingClientRect() : null;
-      var navTop = navRect && navRect.top > 0 ? navRect.top : vpHeight - 86;
-      if (actionRect.bottom < navTop - 8) continue;
-      if (actionRoot.getAttribute('data-otlobli-cookie-raised') === '1') continue;
-      var style = window.getComputedStyle(actionRoot);
-      if (style.position === 'static') actionRoot.style.setProperty('position', 'relative', 'important');
-      actionRoot.style.setProperty('bottom', Math.max(74, Math.ceil(actionRect.bottom - navTop + 12)) + 'px', 'important');
-      actionRoot.style.setProperty('z-index', '2147483646', 'important');
-      actionRoot.setAttribute('data-otlobli-cookie-raised', '1');
-    }
-  }
-
   // SHEIN injects a compact first-order registration offer after cookie
   // consent on older layouts. Identify that one strip by its exact semantics
   // and bottom-edge geometry instead of relying on obfuscated class names or
@@ -382,7 +313,6 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
   function runEarlyProtections() {
     try { hideEarlySheinProductAdd(); } catch (e) {}
     try { hideVerifiedStoreBottomNav(); } catch (e) {}
-    try { protectCookieConsentAction(); } catch (e) {}
     try { hideExactSheinSignupDiscountBanner(); } catch (e) {}
   }
 

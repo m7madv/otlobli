@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 export const STORE_SCRIPT_SOURCE_FILES = [
   'src/services/sheinBrowserScript.ts',
   'src/services/sheinNavigationScript.ts',
+  'src/services/sheinPrivacyCompatScript.ts',
   'src/services/sheinSessionScript.ts',
   'src/services/storeProductCaptureScript.ts',
   'src/services/storeBlockingScript.ts',

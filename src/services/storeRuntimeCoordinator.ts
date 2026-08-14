@@ -117,8 +117,6 @@ export const STORE_RUNTIME_COORDINATOR_SCRIPT = `
     if (otlobliScriptEnabled('blocking')) hideExtraHeaderIcons();
     if (otlobliScriptEnabled('blocking')) hideSheinCartIcons();
     if (otlobliScriptEnabled('blocking')) hideForeignBottomNav();
-    if (otlobliScriptEnabled('blocking')) otlobliForceAcceptCookies();
-    if (otlobliScriptEnabled('blocking')) protectSheinCookieConsentAction();
     if (otlobliScriptEnabled('blocking')) hideSheinSignupDiscountBanner();
     if (otlobliScriptEnabled('blocking')) dismissSheinProductLoginPrompt();
     if (otlobliScriptEnabled('blocking')) hideSheinAppInstallPrompts();

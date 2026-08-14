@@ -1,5 +1,6 @@
 import { OTLOBLI_NAV_BOOTSTRAP_SCRIPT, SHEIN_CAPTURE_SCRIPT } from './sheinBrowserScript'
 import { SHEIN_FREEZE_DIAGNOSTIC_SCRIPT } from './sheinFreezeDiagnostics'
+import { SHEIN_PRIVACY_COMPAT_SCRIPT } from './sheinPrivacyCompatScript'
 import { SHEIN_REGION_DIAGNOSTICS_SCRIPT } from './sheinRegionDiagnostics'
 import {
   normalizeStoreScriptFlags,
@@ -32,7 +33,7 @@ export const buildStoreCaptureScript = (
   const runtime = !diagnosticsEnabled || normalizedFlags.runtime
     ? `try{\n${SHEIN_CAPTURE_SCRIPT}\n}catch(__otlobliCaptureError){try{window.__otlobliRegionDiagnostic('capture-runtime-error',{message:String(__otlobliCaptureError&&(__otlobliCaptureError.stack||__otlobliCaptureError.message)||__otlobliCaptureError)},'runtime')}catch(__otlobliDiagnosticError){}}`
     : ''
-  return `window.__OTLOBLI_STORE_REGIONS__=${JSON.stringify(regions)};\n${diagnosticsPrelude}\n${diagnosticsPanel}\n${regionDiagnostics}\n${runtime}`
+  return `window.__OTLOBLI_STORE_REGIONS__=${JSON.stringify(regions)};\n${SHEIN_PRIVACY_COMPAT_SCRIPT}\n${diagnosticsPrelude}\n${diagnosticsPanel}\n${regionDiagnostics}\n${runtime}`
 }
 
-export { OTLOBLI_NAV_BOOTSTRAP_SCRIPT, SHEIN_FREEZE_DIAGNOSTIC_SCRIPT }
+export { OTLOBLI_NAV_BOOTSTRAP_SCRIPT, SHEIN_FREEZE_DIAGNOSTIC_SCRIPT, SHEIN_PRIVACY_COMPAT_SCRIPT }
