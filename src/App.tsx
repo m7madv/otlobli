@@ -4641,34 +4641,14 @@ function App() {
         screenRef.current = 'store-select'
         flushSync(() => setScreen('store-select'))
         if (selectedStoreRef.current === 'shein') {
-          suppressAutoReopenRef.current = true
-          webviewClosingRef.current = true
-          const closingWebviewId = webviewIdRef.current
-          if (closingWebviewId) ignoredWebviewCloseIdsRef.current.add(closingWebviewId)
-          webviewSessionRef.current += 1
-          webviewOpeningRef.current = false
-          webviewOpenedAtRef.current = 0
-          webviewIdRef.current = ''
-          currentWebviewUrlRef.current = ''
-          sheinChallengeActiveRef.current = false
-          sheinOpenedRef.current = false
-          setSheinReady(false)
-          void InAppBrowser.close(closingWebviewId
-            ? { id: closingWebviewId, isAnimated: false }
-            : { isAnimated: false })
-            .catch(() => undefined)
-            .finally(() => {
-              webviewClosingRef.current = false
-              suppressAutoReopenRef.current = false
-              if (!pendingStoreOpenAfterCloseRef.current || screenRef.current !== 'home' ||
-                  selectedStoreRef.current !== 'shein' || vpnStateRef.current !== 'ok') return
-              recordAppDiagnostic('store_open_resumed_after_close', { store: 'shein' })
-              window.setTimeout(() => {
-                if (!pendingStoreOpenAfterCloseRef.current || screenRef.current !== 'home' ||
-                    webviewClosingRef.current || sheinOpenedRef.current || webviewOpeningRef.current) return
-                browseSheinRef.current()
-              }, 80)
-            })
+          // Returning to the chooser is app navigation, not the end of the
+          // SHEIN session. Destroying WKWebView here made the first entry fast
+          // and every same-store re-entry a cold, partially verified page. Keep
+          // the exact ready WebContent process parked behind Otlobli; choosing
+          // SHEIN again simply calls show(). A real store switch still closes
+          // the previous backend in switchSelectedStore().
+          recordAppDiagnostic('store_session_parked_for_chooser', { store: 'shein' })
+          if (sheinOpenedRef.current) void InAppBrowser.hide().catch(() => undefined)
         } else if (TEMU_PERSONAL_SITE_MODE && Capacitor.getPlatform() === 'android') {
           void TemuEmbeddedBrowser.hide().catch(() => undefined)
         }
@@ -5274,7 +5254,7 @@ function App() {
       return
     }
     const revealSelectedStore = () => {
-      pendingStoreOpenAfterCloseRef.current = true
+      pendingStoreOpenAfterCloseRef.current = false
       webviewAutoOpenPausedUntilRef.current = 0
       setSheinBlockedError(false)
       if (vpnStateRef.current !== 'ok') {
