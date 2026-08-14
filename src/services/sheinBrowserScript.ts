@@ -10130,7 +10130,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // ones. Never widen these past the documented values - see the perf guard.
   var OTLOBLI_LOW_END = typeof navigator !== 'undefined' && (
     (navigator.hardwareConcurrency || 4) <= 4 ||
-    (navigator.deviceMemory && navigator.deviceMemory <= 3) ||
+    (navigator.deviceMemory && navigator.deviceMemory <= 4) ||
     /Android\\s(?:7|8|9|10)(?:\\D|$)/i.test(navigator.userAgent || '')
   );
   function scheduleTick() {

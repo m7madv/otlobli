@@ -8,6 +8,7 @@ const reporter = readFileSync(
   new URL('../android/app/src/main/java/com/otlobli/app/OtlobliIssueReporterPlugin.java', import.meta.url),
   'utf8',
 )
+const appEntry = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
 
 const requiredPluginMarkers = [
   'private static final int OTLBLI_NAV_RESERVE_DP = 90;',
@@ -17,6 +18,9 @@ const requiredPluginMarkers = [
   'storeLayer.animate().alpha(1f).setDuration(110L).start();',
   'storeLayer.setAlpha(1f);',
   'storeLayer.setVisibility(View.GONE);',
+  'settings.setSuspendMediaWhenInactive(true);',
+  'protected void handleOnPause()',
+  'protected void handleOnResume()',
 ]
 
 for (const marker of requiredPluginMarkers) {
@@ -43,6 +47,27 @@ for (const forbidden of ['session.close(', 'releaseSession(', 'setSession(null)'
   if (hideBody.includes(forbidden)) {
     throw new Error(`Hiding Temu must preserve its Gecko session: ${forbidden}`)
   }
+}
+
+const pauseStart = plugin.indexOf('protected void handleOnPause()')
+const resumeStart = plugin.indexOf('protected void handleOnResume()', pauseStart)
+const destroyStart = plugin.indexOf('protected void handleOnDestroy()', resumeStart)
+if (pauseStart < 0 || resumeStart < 0 || destroyStart < 0) {
+  throw new Error('Unable to inspect the Temu app background/resume lifecycle')
+}
+const pauseBody = plugin.slice(pauseStart, resumeStart)
+const resumeBody = plugin.slice(resumeStart, destroyStart)
+if (!pauseBody.includes('session.setActive(false);') || !resumeBody.includes('session.setActive(true);')) {
+  throw new Error('Temu must become inactive in background and reactivate only when its surface is visible')
+}
+
+for (const marker of [
+  'memoryGb <= 4',
+  "document.documentElement.dataset.otlobliPerformance = 'low'",
+  "lowEndStyle.id = 'otlobli-low-end-style'",
+  'content-visibility:auto',
+]) {
+  if (!appEntry.includes(marker)) throw new Error(`Low-end Android runtime profile is missing: ${marker}`)
 }
 
 for (const marker of ['findLargestVisibleSurface', 'PixelCopy.request(storeSurface', 'captureWindow(']) {

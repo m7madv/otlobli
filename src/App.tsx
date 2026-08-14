@@ -29,9 +29,6 @@ import {
 import type { AccountAuthMethods, GoogleProfile } from './services/googleAuthApi'
 import { registerPushNotifications } from './services/pushNotifications'
 import { reportDeviceLabel, submitAppIssueReport } from './services/issueReports'
-import { OTLOBLI_NAV_BOOTSTRAP_SCRIPT, SHEIN_CAPTURE_SCRIPT } from './services/sheinBrowserScript'
-import { SHEIN_REGION_DIAGNOSTICS_SCRIPT } from './services/sheinRegionDiagnostics'
-import { SHEIN_FREEZE_DIAGNOSTIC_SCRIPT } from './services/sheinFreezeDiagnostics'
 import { App as CapacitorApp } from '@capacitor/app'
 import { Capacitor, registerPlugin } from '@capacitor/core'
 import { BackgroundColor, InAppBrowser, InvisibilityMode, ToolBarType } from '@capgo/capacitor-inappbrowser'
@@ -61,6 +58,13 @@ const API_BASE = cleanEnvValue(import.meta.env.VITE_WHATSAPP_API_URL)
 const SUPABASE_URL = cleanEnvValue(import.meta.env.VITE_SUPABASE_URL)
 const SUPABASE_ANON_KEY = cleanEnvValue(import.meta.env.VITE_SUPABASE_ANON_KEY)
 const APP_SETTINGS_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/app-settings` : ''
+
+type StoreCaptureBundle = typeof import('./services/storeCaptureBundle')
+let storeCaptureBundlePromise: Promise<StoreCaptureBundle> | undefined
+const loadStoreCaptureBundle = () => {
+  storeCaptureBundlePromise ??= import('./services/storeCaptureBundle')
+  return storeCaptureBundlePromise
+}
 
 // موقع SHEIN الذي يتصفّحه الزبون. نستخدم نسخة الأردن لأنها تعرض العربية
 // بثبات (نسخة لبنان m.shein.com/lb تعرض الإنجليزية ولا تقبل العربية).
@@ -166,10 +170,6 @@ const buildTemuHomeUrl = (region: StoreRegion) =>
 
 const SHEIN_HOME_URL = buildSheinHomeUrl(DEFAULT_STORE_REGIONS.shein)
 const TEMU_HOME_URL = buildTemuHomeUrl(DEFAULT_STORE_REGIONS.temu)
-const buildStoreCaptureScript = (regions: StoreRegions) =>
-  // Price diagnostics deliberately stay out of customer bundles. The retained
-  // source file is imported only by a dedicated diagnostic release.
-  `window.__OTLOBLI_STORE_REGIONS__=${JSON.stringify(regions)};\n${SHEIN_REGION_DIAGNOSTICS_SCRIPT}\ntry{\n${SHEIN_CAPTURE_SCRIPT}\n}catch(__otlobliCaptureError){try{window.__otlobliRegionDiagnostic('capture-runtime-error',{message:String(__otlobliCaptureError&&(__otlobliCaptureError.stack||__otlobliCaptureError.message)||__otlobliCaptureError)},'runtime')}catch(__otlobliDiagnosticError){}}`
 
 // The host app already has viewport-fit=cover from its static HTML, so its
 // mounted navigation knows the final iPhone safe-area before SHEIN starts.
@@ -2926,6 +2926,8 @@ function App() {
   const sheinSaudiRedirectTsRef = useRef(0)
   const screenRef = useRef(screen)
   const browseSheinRef = useRef<() => void>(() => undefined)
+  const storeCaptureBundleRef = useRef<StoreCaptureBundle | null>(null)
+  const storeCaptureBundleLoadingRef = useRef(false)
   const markStoreWebviewReadyRef = useRef<(sessionId: number) => void>(() => undefined)
   const storeMessageHandlerRef = useRef<(event: { id?: string; detail?: Record<string, unknown> }) => void>(() => undefined)
   const recoverSheinCartProductSessionRef = useRef<() => boolean>(() => false)
@@ -3669,6 +3671,29 @@ function App() {
       })
       return
     }
+    // Keep the large store-only injected scripts out of the startup chunk.
+    // The first store tap loads this local asset once; later opens reuse the
+    // resolved module. Hold the singleton WebView flags unchanged until the
+    // module is ready so concurrent effects cannot create a second browser.
+    const captureBundle = storeCaptureBundleRef.current
+    if (!captureBundle) {
+      if (storeCaptureBundleLoadingRef.current) return
+      storeCaptureBundleLoadingRef.current = true
+      void loadStoreCaptureBundle()
+        .then((loadedBundle) => {
+          storeCaptureBundleRef.current = loadedBundle
+          storeCaptureBundleLoadingRef.current = false
+          browseSheinRef.current()
+        })
+        .catch((error: unknown) => {
+          storeCaptureBundleLoadingRef.current = false
+          storeCaptureBundlePromise = undefined
+          setStoreOpenFailureReason('network')
+          console.error('[otlobli][store-capture] lazy load failed', error)
+          showNotice('تعذّر تجهيز المتجر. جرّب مرة أخرى.')
+        })
+      return
+    }
     const sessionId = webviewSessionRef.current + 1
     const initialPendingUrl = pendingProductUrlRef.current
     webviewSessionRef.current = sessionId
@@ -3697,7 +3722,7 @@ function App() {
     const targetUrl = activeStore === 'shein'
       ? normalizeSheinBrowserUrl(rawTargetUrl, activeRegions.shein)
       : normalizeTemuBrowserUrl(rawTargetUrl, activeRegions.temu)
-    const captureScript = buildStoreCaptureScript(activeRegions)
+    const captureScript = captureBundle.buildStoreCaptureScript(activeRegions)
     const hostSafeBottomInset = readHostSafeBottomInset()
     if (initialPendingUrl && pendingProductRevealRef.current &&
         pendingProductRevealUrlRef.current === targetUrl) {
@@ -3733,7 +3758,7 @@ function App() {
             isIosNative,
           // Customer releases must not expose the native diagnostic copy button.
           otlobliTapDiagnostics: false,
-          otlobliDocumentStartScript: `window.__otlobliSafeBottom=${hostSafeBottomInset};\n${OTLOBLI_NAV_BOOTSTRAP_SCRIPT}\n${SHEIN_IOS_FREEZE_DIAGNOSTICS && isIosNative ? SHEIN_FREEZE_DIAGNOSTIC_SCRIPT : ''}`,
+          otlobliDocumentStartScript: `window.__otlobliSafeBottom=${hostSafeBottomInset};\n${captureBundle.OTLOBLI_NAV_BOOTSTRAP_SCRIPT}\n${SHEIN_IOS_FREEZE_DIAGNOSTICS && isIosNative ? captureBundle.SHEIN_FREEZE_DIAGNOSTIC_SCRIPT : ''}`,
           otlobliPreserveAttachedWhenHidden: true,
           // Prepare SHEIN at the real device size without presenting it. The
           // already-mounted Otlobli shell therefore owns the only visible nav
@@ -3796,7 +3821,7 @@ function App() {
     }
     // Keep the healthy HTTP/WebKit cache for the fast path on older iPhones.
     // A cache reset remains available only for the bounded stuck-session and
-    // cart-product recovery paths when a real damaged session is detected.
+    // iOS cart-product recovery paths, never an ordinary store switch.
     // This isolates the speed change from v85.9's failed document-start path.
     const shouldResetSheinCache = activeStore === 'shein' && sheinCacheResetPendingRef.current
     if (shouldResetSheinCache) sheinCacheResetPendingRef.current = false
@@ -4179,10 +4204,17 @@ function App() {
           sessionId: webviewSessionRef.current,
           at: Date.now(),
         })
-        void InAppBrowser.executeScript({
-          ...(id ? { id } : {}),
-          code: buildStoreCaptureScript(storeRegionsRef.current),
-        })
+        const captureBundleReady = storeCaptureBundleRef.current
+          ? Promise.resolve(storeCaptureBundleRef.current)
+          : loadStoreCaptureBundle().then((loadedBundle) => {
+              storeCaptureBundleRef.current = loadedBundle
+              return loadedBundle
+            })
+        void captureBundleReady
+          .then((loadedBundle) => InAppBrowser.executeScript({
+            ...(id ? { id } : {}),
+            code: loadedBundle.buildStoreCaptureScript(storeRegionsRef.current),
+          }))
           .then(() => {
             recordSheinRegionDiagnostic({
               stage: 'host-capture-dispatched',
@@ -5066,14 +5098,14 @@ function App() {
     sheinChallengeActiveRef.current = false
     sheinCartProductSessionRef.current = false
     sheinCartProductRecoveryInFlightRef.current = false
-      sheinOpenedRef.current = false
-      setSheinReady(false)
-      // Preserve SHEIN's healthy HTTP/WebKit cache on an ordinary store switch.
-      // Clearing it here made every Temu -> SHEIN entry a cold start on weak
-      // phones. The bounded stuck/chunk recovery paths above still request the
-      // same cache reset when a session is actually damaged.
-      void InAppBrowser.close().catch(() => undefined)
-        .then(() => {
+    sheinOpenedRef.current = false
+    setSheinReady(false)
+    // Preserve SHEIN's healthy HTTP/WebKit cache on an ordinary store switch.
+    // Clearing it here made every Temu -> SHEIN entry a cold start on weak
+    // phones. The bounded stuck/chunk recovery paths above still request the
+    // same cache reset when a session is actually damaged.
+    void InAppBrowser.close().catch(() => undefined)
+      .then(() => {
         temuPersonalSiteOpenedRef.current = false
         return TemuEmbeddedBrowser.hide().catch(() => undefined)
       })
@@ -5790,6 +5822,7 @@ function App() {
                         alt={item.title}
                         width={72}
                         height={88}
+                        loading="lazy"
                         decoding="async"
                         onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/80x100/f5f5f5/aaa?text=صورة' }}
                       />
@@ -5827,6 +5860,7 @@ function App() {
                             alt={item.color}
                             width={18}
                             height={18}
+                            loading="lazy"
                             decoding="async"
                           />
                         )}
@@ -5894,7 +5928,7 @@ function App() {
                               )}
                               {item.customPhotoDataUrl ? (
                                 <div className="cart-custom-photo-preview">
-                                  <img src={item.customPhotoDataUrl} alt="صورتك" />
+                                  <img src={item.customPhotoDataUrl} alt="صورتك" loading="lazy" decoding="async" />
                                   <button
                                     className="cart-custom-photo-change"
                                     onClick={() => setCartItems((items) => items.map((i) =>
@@ -6508,6 +6542,10 @@ function App() {
                     <img
                       src={item.items[0]?.image || 'https://placehold.co/60x60/f5f5f5/aaa?text=صورة'}
                       alt=""
+                      width={58}
+                      height={70}
+                      loading="lazy"
+                      decoding="async"
                       onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/60x60/f5f5f5/aaa?text=صورة' }}
                     />
                   </div>
@@ -6589,6 +6627,7 @@ function App() {
                         alt={item.title}
                         width={52}
                         height={52}
+                        loading="lazy"
                         decoding="async"
                         onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/54x54/f5f5f5/aaa?text=+' }}
                       />

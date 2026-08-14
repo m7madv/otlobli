@@ -61,6 +61,7 @@ public class TemuEmbeddedBrowserPlugin extends Plugin {
     private boolean extensionReady;
     private boolean canGoBack;
     private boolean onStoreHome = true;
+    private boolean appInForeground = true;
     private String currentUrl = "";
     private String queuedUrl = HOME_URL;
     private String requestedDestinationUrl = HOME_URL;
@@ -211,8 +212,8 @@ public class TemuEmbeddedBrowserPlugin extends Plugin {
         }
         storeLayer.setVisibility(View.VISIBLE);
         if (session != null && session.isOpen()) {
-            session.setActive(true);
-            session.setFocused(true);
+            session.setActive(appInForeground);
+            session.setFocused(appInForeground);
         }
         if (currentUrl.isEmpty()) loadingSurface.setVisibility(View.VISIBLE);
         storeLayer.setAlpha(0f);
@@ -226,9 +227,10 @@ public class TemuEmbeddedBrowserPlugin extends Plugin {
         storeLayer.setVisibility(View.GONE);
         if (session != null && session.isOpen()) {
             session.setFocused(false);
-            // Visibility GONE stops drawing and touch dispatch. Deliberately
-            // retain the active attached document so an in-progress security
-            // hand-off and its session storage are not discarded.
+            // Keep the attached document active during an in-app Cart/Profile
+            // visit. Temu may still be completing a security hand-off tied to
+            // this live context. The app-background callback below safely
+            // marks it inactive once the whole application is no longer shown.
         }
     }
 
@@ -247,6 +249,7 @@ public class TemuEmbeddedBrowserPlugin extends Plugin {
                 .contextId(TEMU_SESSION_CONTEXT)
                 .usePrivateMode(false)
                 .build();
+            settings.setSuspendMediaWhenInactive(true);
             session = new GeckoSession(settings);
             session.setContentDelegate(new GeckoSession.ContentDelegate() {});
             session.setNavigationDelegate(new GeckoSession.NavigationDelegate() {
@@ -274,6 +277,9 @@ public class TemuEmbeddedBrowserPlugin extends Plugin {
             });
             session.open(runtime);
             geckoView.setSession(session);
+            boolean visible = isStoreVisible() && appInForeground;
+            session.setActive(visible);
+            session.setFocused(visible);
         }
 
         if (!extensionReady) {
@@ -500,6 +506,24 @@ public class TemuEmbeddedBrowserPlugin extends Plugin {
         );
         surface.addView(content, contentParams);
         return surface;
+    }
+
+    @Override
+    protected void handleOnPause() {
+        appInForeground = false;
+        if (session != null && session.isOpen()) {
+            session.setFocused(false);
+            session.setActive(false);
+        }
+    }
+
+    @Override
+    protected void handleOnResume() {
+        appInForeground = true;
+        if (isStoreVisible() && session != null && session.isOpen()) {
+            session.setActive(true);
+            session.setFocused(true);
+        }
     }
 
     @Override

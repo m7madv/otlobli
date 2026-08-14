@@ -21,6 +21,7 @@ const assetsDir = resolve(projectRoot, 'dist/assets')
 // directly, and more tightly, by the measurement above. Do not treat this as
 // permission to grow the shipped scripts.
 const budgets = {
+  startupJavaScriptRaw: 720_000,
   largestJavaScriptRaw: 1_200_000,
   totalJavaScriptGzip: 370_000,
   totalCssRaw: 70_000,
@@ -52,8 +53,18 @@ const totalJsGzip = js.reduce((total, file) => total + file.gzip, 0)
 const totalCssRaw = css.reduce((total, file) => total + file.raw, 0)
 const totalFontsRaw = fonts.reduce((total, file) => total + file.raw, 0)
 const sheinScriptSourceRaw = statSync(resolve(projectRoot, 'src/services/sheinBrowserScript.ts')).size
+const indexHtml = readFileSync(resolve(projectRoot, 'dist/index.html'), 'utf8')
+const startupJavaScriptNames = [...indexHtml.matchAll(/<script[^>]+src="[^"]*\/assets\/([^"]+\.js)"/g)]
+  .map((match) => match[1])
+const startupJavaScriptRaw = startupJavaScriptNames.reduce((total, name) => {
+  const entry = js.find((file) => file.name === name)
+  if (!entry) throw new Error(`Startup JavaScript asset is missing: ${name}`)
+  return total + entry.raw
+}, 0)
+if (startupJavaScriptNames.length === 0) throw new Error('Unable to locate the startup JavaScript entry in dist/index.html')
 
 const measurements = [
+  ['startup JavaScript raw', startupJavaScriptRaw, budgets.startupJavaScriptRaw, startupJavaScriptNames.join(', ')],
   ['largest JavaScript raw', largestJs.raw, budgets.largestJavaScriptRaw, largestJs.name],
   ['total JavaScript gzip', totalJsGzip, budgets.totalJavaScriptGzip, 'all JS'],
   ['total CSS raw', totalCssRaw, budgets.totalCssRaw, 'all CSS'],

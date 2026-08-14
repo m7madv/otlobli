@@ -108,6 +108,18 @@ const checks = [
       "stage: 'host-page-loaded-id-adopted'",
       "detail?.type === 'sheinRegionDiagnostic'",
       '__OTLOBLI_SHEIN_REGION_DIAGNOSTICS__',
+      "import('./services/storeCaptureBundle')",
+      'storeCaptureBundleLoadingRef',
+    ],
+  },
+  {
+    label: 'lazy store-only capture bundle',
+    file: 'src/services/storeCaptureBundle.ts',
+    markers: [
+      "from './sheinBrowserScript'",
+      "from './sheinFreezeDiagnostics'",
+      "from './sheinRegionDiagnostics'",
+      'export const buildStoreCaptureScript',
     ],
   },
   {
