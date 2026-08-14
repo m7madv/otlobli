@@ -33,7 +33,8 @@ import { reportDeviceLabel, submitAppIssueReport } from './services/issueReports
 import { createAppDiagnosticSnapshot, initializeAppDiagnostics, recordAppDiagnostic } from './services/appDiagnostics'
 import { App as CapacitorApp } from '@capacitor/app'
 import { Capacitor, registerPlugin } from '@capacitor/core'
-import { BackgroundColor, InAppBrowser, InvisibilityMode, ToolBarType } from '@capgo/capacitor-inappbrowser'
+import { BackgroundColor, InvisibilityMode, ToolBarType } from '@capgo/capacitor-inappbrowser'
+import { StoreBrowser as InAppBrowser } from './services/storeBrowser'
 import { flushSync } from 'react-dom'
 
 const OtlobliLaunchSurface = registerPlugin<{ ready: () => Promise<void> }>('OtlobliLaunchSurface')

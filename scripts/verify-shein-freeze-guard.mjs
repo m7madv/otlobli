@@ -26,6 +26,72 @@ const readSheinRuntimeSource = () => sheinRuntimeSourceFiles
 
 const checks = [
   {
+    label: 'dedicated app-owned iOS SHEIN browser',
+    file: 'ios/App/App/OtlobliSheinBrowserPlugin.swift',
+    markers: [
+      'public final class OtlobliSheinBrowserPlugin',
+      'private static let processPool = WKProcessPool()',
+      'configuration.websiteDataStore = .default()',
+      'UIApplication.didEnterBackgroundNotification',
+      'UIApplication.didBecomeActiveNotification',
+      'private var rebindDisplayLink: CADisplayLink?',
+      'webView.removeFromSuperview()',
+      'let link = CADisplayLink',
+      'attachWebView(webView, to: surface)',
+      'webView.scrollView.setContentOffset(rebindOffset, animated: false)',
+      'webContentProcessDidTerminate',
+      'WKWebsiteDataTypeDiskCache',
+      'WKWebsiteDataTypeMemoryCache',
+      'removeScriptMessageHandler',
+      'browserId = "otlobli-shein-',
+      'isAllowedStoreURL(url)',
+    ],
+    forbidden: [
+      'UIApplication.willEnterForegroundNotification',
+      'WKWebsiteDataTypeCookies',
+      'WKWebsiteDataTypeLocalStorage',
+      'webView.reload()',
+      'for delay in [0.12, 0.5, 1.2, 2.2]',
+    ],
+  },
+  {
+    label: 'dedicated iOS SHEIN browser registration',
+    files: [
+      'ios/App/App/OtlobliBridgeViewController.swift',
+      'ios/App/App/Base.lproj/Main.storyboard',
+      'ios/App/App.xcodeproj/project.pbxproj',
+    ],
+    markers: [
+      'bridge?.registerPluginInstance(OtlobliSheinBrowserPlugin())',
+      'customClass="OtlobliBridgeViewController"',
+      'OtlobliBridgeViewController.swift in Sources',
+      'OtlobliSheinBrowserPlugin.swift in Sources',
+    ],
+  },
+  {
+    label: 'SHEIN platform browser boundary',
+    file: 'src/services/storeBrowser.ts',
+    markers: [
+      "registerPlugin<NativeSheinBrowserApi>('OtlobliSheinBrowser')",
+      "Capacitor.getPlatform() === 'ios'",
+      'isSheinUrl(options.url)',
+      "activeBackend = 'native-shein'",
+      'CapgoInAppBrowser.openWebView(options)',
+      'NativeSheinBrowser.clearCache()',
+      'preserving cookies/localStorage in WKWebsiteDataStore.default()',
+    ],
+  },
+  {
+    label: 'app routes store operations through platform browser boundary',
+    file: 'src/App.tsx',
+    markers: [
+      "import { StoreBrowser as InAppBrowser } from './services/storeBrowser'",
+    ],
+    forbidden: [
+      "import { BackgroundColor, InAppBrowser, InvisibilityMode, ToolBarType } from '@capgo/capacitor-inappbrowser'",
+    ],
+  },
+  {
     label: 'persistent patch',
     file: 'patches/@capgo+capacitor-inappbrowser+8.6.25.patch',
     markers: [
@@ -263,7 +329,7 @@ const checks = [
     markers: [
       'export const STORE_SCRIPT_DIAGNOSTICS =',
       'VITE_STORE_SCRIPT_DIAGNOSTICS',
-      'v86.187-script-isolation',
+      'v86.188-native-shein-browser',
     ],
   },
   {
@@ -1126,6 +1192,23 @@ try {
   }
 } catch (error) {
   failures.push(`SHEIN script isolation syntax: ${error instanceof Error ? error.message : String(error)}`)
+}
+
+try {
+  const nativeBrowserSource = readFileSync(
+    resolve(projectRoot, 'ios/App/App/OtlobliSheinBrowserPlugin.swift'),
+    'utf8',
+  )
+  const webViewConstructors = nativeBrowserSource.match(/\bWKWebView\s*\(/g)?.length ?? 0
+  const displayLinkConstructors = nativeBrowserSource.match(/\bCADisplayLink\s*\(/g)?.length ?? 0
+  if (webViewConstructors !== 1) {
+    failures.push(`dedicated iOS SHEIN browser: expected one WKWebView constructor, got ${webViewConstructors}`)
+  }
+  if (displayLinkConstructors !== 1) {
+    failures.push(`dedicated iOS SHEIN browser: expected one foreground display-link repair, got ${displayLinkConstructors}`)
+  }
+} catch (error) {
+  failures.push(`dedicated iOS SHEIN browser structure: ${error instanceof Error ? error.message : String(error)}`)
 }
 
 try {
