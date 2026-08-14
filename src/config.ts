@@ -29,5 +29,5 @@ export const TEMU_PERSONAL_SITE_MODE =
 
 // رقم النسخة الظاهر داخل التطبيق.
 export const APP_VERSION = TEMU_PERSONAL_SITE_MODE
-  ? '2026.08.14-v86.182-personal-shein-pdp-route'
-  : '2026.08.14-v86.182-shein-pdp-route'
+  ? '2026.08.14-v86.183-personal-shein-product-card-target'
+  : '2026.08.14-v86.183-shein-product-card-target'

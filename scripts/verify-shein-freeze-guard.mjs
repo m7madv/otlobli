@@ -199,10 +199,13 @@ const checks = [
     file: 'src/services/sheinBrowserScript.ts',
     markers: [
       'const OTLOBLI_IOS_PRODUCT_TAP_FALLBACK_JS',
-      "d('product-tap-start'+(r?'-href':''))",
-      "d('product-tap-fallback')",
-      "d('product-tap-route-fallback')",
-      "g(r?'armed':'ignored-no-product-href'",
+      "f('product-tap-start'+(o?'-target':''))",
+      "f('product-tap-fallback')",
+      "f('product-tap-route-fallback')",
+      "g(o?'armed':'ignored-no-product-target'",
+      "'data-goods-id','data-goods_id','data-product-id','data-product_id','data-id','fsp-key'",
+      "'/product-p-'+d+'.html'",
+      "'override-non-product-route'",
       "window.__otlobliProductTapAttemptAt=Date.now()",
       'location.assign(n[5])',
     ],
@@ -691,7 +694,10 @@ try {
     getAttribute: (name) => name === 'href' ? '/ar/item-p-123.html' : '',
     click: () => { anchorClicks++ }, querySelector: () => null,
   }
-  const location = { href: 'https://m.shein.com/ar/', assign: (url) => assigned.push(url) }
+  const location = {
+    origin: 'https://m.shein.com', pathname: '/ar/', href: 'https://m.shein.com/ar/',
+    assign: (url) => assigned.push(url),
+  }
   runInNewContext(scriptModule.exports.__tapFallback, {
     window: { __otlobliRecoverSheinChunkOnStalledTap: () => { recoveryCalls++; return true } }, location,
     navigator: { userAgent: 'iPhone', platform: 'iPhone', maxTouchPoints: 5 },
@@ -727,7 +733,59 @@ try {
     failures.push('SHEIN product tap fallback: collection/list card without a direct PDP href was changed')
   }
 
+  const searchAnchor = {
+    tagName: 'A', parentElement: null, isConnected: true,
+    href: 'https://m.shein.com/ar/BATMAN-X-SHEIN-Keychain-p-49330027.html',
+    getAttribute: (name) => name === 'href' ? '/ar/BATMAN-X-SHEIN-Keychain-p-49330027.html' : '',
+    querySelector: () => null,
+  }
+  const searchCard = {
+    tagName: 'DIV', className: 'bs-product-card multi-product-card', parentElement: null,
+    getAttribute: (name) => name === 'role' ? 'listitem' : '',
+    querySelector: (selector) => selector === 'a[href*="-p-"]' ? searchAnchor : null,
+  }
+  searchAnchor.parentElement = searchCard
+  const searchImageWrapper = {
+    tagName: 'DIV', className: 'bs-product-card__ratio-image__thumb', parentElement: searchCard,
+    getAttribute: () => '', querySelector: () => null,
+  }
+  const searchImage = {
+    tagName: 'IMG', className: 'bs-product-card-transform-img', parentElement: searchImageWrapper,
+    getAttribute: () => '', querySelector: () => null,
+  }
+  const searchTouch = { target: searchImage, changedTouches: [{ clientX: 25, clientY: 35 }] }
+  location.href = 'https://m.shein.com/ar/pdsearch/batman/'
+  location.pathname = '/ar/pdsearch/batman/'
+  const assignedBeforeSearch = assigned.length
+  handlers.touchstart(searchTouch)
+  handlers.touchend(searchTouch)
+  while (timers.length) timers.shift()()
+  if (assigned[assignedBeforeSearch] !== searchAnchor.href) {
+    failures.push('SHEIN product tap fallback: image tap inside a live bs-product-card did not use its sibling PDP link')
+  }
+
+  const flashCard = {
+    tagName: 'DIV', className: 'flash-sale__product-item flash-sale__product-waterfall-item', parentElement: null,
+    getAttribute: (name) => name === 'role' ? 'listitem' : (name === 'data-id' ? '87475338' : ''),
+    querySelector: () => null,
+  }
+  const flashImage = {
+    tagName: 'IMG', className: 'product-item__main-img', parentElement: flashCard,
+    getAttribute: () => '', querySelector: () => null,
+  }
+  const flashTouch = { target: flashImage, changedTouches: [{ clientX: 28, clientY: 38 }] }
+  location.href = 'https://m.shein.com/ar/flash-sale.html'
+  location.pathname = '/ar/flash-sale.html'
+  const assignedBeforeFlash = assigned.length
+  handlers.touchstart(flashTouch)
+  handlers.touchend(flashTouch)
+  while (timers.length) timers.shift()()
+  if (assigned[assignedBeforeFlash] !== 'https://m.shein.com/ar/product-p-87475338.html') {
+    failures.push('SHEIN product tap fallback: data-id-only flash-sale product did not receive a valid PDP route')
+  }
+
   location.href = 'https://m.shein.com/ar/'
+  location.pathname = '/ar/'
   const assignedBeforeNaturalRoute = assigned.length
   handlers.touchstart(touch)
   handlers.touchend(touch)
@@ -735,6 +793,16 @@ try {
   while (timers.length) timers.shift()()
   if (assigned.length !== assignedBeforeNaturalRoute) {
     failures.push('SHEIN product tap fallback: natural product navigation was assigned a second time')
+  }
+
+  location.href = 'https://m.shein.com/ar/pdsearch/wrong-brand/'
+  const assignedBeforeWrongRoute = assigned.length
+  handlers.touchstart(touch)
+  handlers.touchend(touch)
+  location.href = 'https://m.shein.com/ar/Brands/BATMAN-sc-123.html'
+  while (timers.length) timers.shift()()
+  if (assigned[assignedBeforeWrongRoute] !== anchor.href) {
+    failures.push('SHEIN product tap fallback: a wrong non-product SPA route suppressed the direct PDP fallback')
   }
 } catch (error) {
   failures.push(`SHEIN capture-script syntax: ${error instanceof Error ? error.message : String(error)}`)
