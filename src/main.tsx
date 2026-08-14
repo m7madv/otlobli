@@ -8,6 +8,32 @@ import './styles.css'
 
 const rootEl = document.getElementById('root')!
 
+// Apply the low-end profile before React paints. Android WebView may omit the
+// Device Memory API, so combine its 4 GB signal with CPU count and the old-OS
+// cohort that has repeatedly needed the bounded store-script path. This only
+// removes expensive visual effects; it never removes product functionality.
+if (Capacitor.getPlatform() === 'android') {
+  const deviceNavigator = navigator as Navigator & { deviceMemory?: number }
+  const memoryGb = Number(deviceNavigator.deviceMemory || 0)
+  const cpuCount = Number(deviceNavigator.hardwareConcurrency || 0)
+  const androidMajor = Number(/Android\s(\d+)/i.exec(deviceNavigator.userAgent)?.[1] || 0)
+  const lowEndAndroid =
+    (memoryGb > 0 && memoryGb <= 4) ||
+    (cpuCount > 0 && cpuCount <= 4) ||
+    (androidMajor > 0 && androidMajor <= 10)
+  if (lowEndAndroid) {
+    document.documentElement.dataset.otlobliPerformance = 'low'
+    const lowEndStyle = document.createElement('style')
+    lowEndStyle.id = 'otlobli-low-end-style'
+    lowEndStyle.textContent =
+      '.auth-card,.toast{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}' +
+      '.auth-card{background:#fff;box-shadow:0 10px 28px rgba(22,60,43,.1)}' +
+      '.toast{background:#171d24;box-shadow:0 6px 16px rgba(15,22,32,.18);animation:none}' +
+      '.cart-item,.order-card,.notification-item,.wallet-tx,.tracking-owner-group{content-visibility:auto;contain-intrinsic-size:auto 132px}'
+    document.head.appendChild(lowEndStyle)
+  }
+}
+
 // Android WebView applies the user's system font scale to ordinary app text,
 // while SHEIN explicitly opts its document out of text autosizing. Keep that
 // accessibility preference everywhere else, but compensate the four fixed nav

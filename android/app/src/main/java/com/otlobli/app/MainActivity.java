@@ -16,6 +16,8 @@ import android.widget.TextView;
 import androidx.annotation.Nullable;
 import androidx.core.splashscreen.SplashScreen;
 import com.getcapacitor.BridgeActivity;
+import com.getcapacitor.Plugin;
+import com.getcapacitor.PluginHandle;
 
 public class MainActivity extends BridgeActivity {
 
@@ -25,6 +27,18 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         registerPlugin(OtlobliLaunchSurfacePlugin.class);
+        registerPlugin(OtlobliIssueReporterPlugin.class);
+        // The regular customer APK intentionally ships without GeckoView.
+        // Register the embedded Temu engine only in the isolated personal
+        // build so class loading cannot pull Gecko into the normal variant.
+        if (BuildConfig.TEMU_PERSONAL_SITE) {
+            try {
+                Class<?> candidate = Class.forName("com.otlobli.app.TemuEmbeddedBrowserPlugin");
+                registerPlugin(candidate.asSubclass(Plugin.class));
+            } catch (ReflectiveOperationException | ClassCastException error) {
+                throw new IllegalStateException("Personal Temu engine is unavailable", error);
+            }
+        }
         // Android 12+ owns the first system frame. Install its documented
         // splash handoff before BridgeActivity initialises; Android 9 on the
         // connected Note 8 keeps the custom full navigation preview theme.
@@ -80,6 +94,22 @@ public class MainActivity extends BridgeActivity {
         super.load();
     }
 
+    @Override
+    public void onBackPressed() {
+        if (BuildConfig.TEMU_PERSONAL_SITE && getBridge() != null) {
+            PluginHandle handle = getBridge().getPlugin("TemuEmbeddedBrowser");
+            if (handle != null) {
+                try {
+                    Object handled = handle.getInstance().getClass().getMethod("handleSystemBack").invoke(handle.getInstance());
+                    if (Boolean.TRUE.equals(handled)) return;
+                } catch (ReflectiveOperationException error) {
+                    android.util.Log.e("OtlobliTemu", "Unable to route Android back", error);
+                }
+            }
+        }
+        super.onBackPressed();
+    }
+
     void dismissOtlobliLaunchSurface() {
         runOnUiThread(() -> {
             if (otlobliLaunchSurface == null) return;
@@ -116,7 +146,7 @@ public class MainActivity extends BridgeActivity {
         surface.addView(brand, centeredParams());
 
         TextView copy = new TextView(this);
-        copy.setText("جاري تجهيز المتجر…");
+        copy.setText("اختر متجرك وابدأ الطلب");
         copy.setTextColor(Color.rgb(84, 98, 90));
         copy.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
         copy.setGravity(Gravity.CENTER);

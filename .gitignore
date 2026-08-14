@@ -23,6 +23,8 @@ android/app/src/main/assets/public
 *.log
 
 # Local/debug artifacts that should not live in the repo root
+/.playwright-cli/
+/output/
 /h*.png
 /btn*.png
 /cart_hide*.png

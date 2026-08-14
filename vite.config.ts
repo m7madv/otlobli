@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { minifyInjectedScripts } from './scripts/minify-injected-scripts.mjs'
 import { stripInjectedComments, INJECTED_SCRIPT_SOURCE } from './scripts/strip-injected-comments.mjs'
 
 // خادم واتساب على Railway
@@ -19,8 +20,16 @@ const stripStoreScriptComments = () => ({
   },
 })
 
-export default defineConfig({
-  plugins: [stripStoreScriptComments(), react()],
+export default defineConfig(({ mode }) => ({
+  define: {
+    'import.meta.env.VITE_TEMU_PERSONAL_SITE_MODE': JSON.stringify(mode === 'temu-personal'),
+  },
+  plugins: [minifyInjectedScripts(), stripStoreScriptComments(), react()],
+  build: {
+    // Never publish browser source maps. The injected store scripts are also
+    // minified as executable JavaScript by the build-only plugin above.
+    sourcemap: false,
+  },
   server: {
     proxy: {
       '/api': {
@@ -29,4 +38,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))

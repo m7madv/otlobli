@@ -1,3 +1,450 @@
+# v86.179 — Temu one-tap store return and bounded capture acknowledgement (2026-08-14)
+
+Personal Android now labels the active Temu Home tab as `المتاجر`; one press hides the persistent Gecko surface and returns directly to the SHEIN/Temu chooser without reloading or destroying the Temu session. A compact `بدّل هنا ↑` cue appears only until that first successful press, persisted under `talabieh.storeSwitchHintSeen.v1`. It is event-driven and adds no observer, interval, animation, or network work. Android 15 x86_64 emulator evidence is `output/v86.179-emulator-temu-store-tab.png` and `output/v86.179-emulator-one-tap-store-return.png`; the first press returned to the hub, and the next entry retained the session with the cue gone.
+
+Temu capture is now fail-closed and bounded across the whole flow. The five-second safety guard starts when the blocking overlay appears, so an exception while parsing a product can no longer leave the spinner or scroll lock forever. Every asynchronous attempt is caught, a rejected native hand-off surfaces `addToCartNack`, and the extension shows success only after React has synchronously persisted the cart update and calls native `acknowledgeAdd()`. Gecko holds the original `sendNativeMessage()` result for at most 3.5 seconds; timeout/destruction rejects it. This preserves the existing in-place PDP behavior—capture does not navigate away to Cart—and adds no persistent timer.
+
+Exact Temu code `CA5773086` was opened on the emulator before the fix; its red-gradient option and size `M` were selected and the Otlobli capture control was present. After installing the v86.179 debug build, Temu required a visual security CAPTCHA because the installed signing/build fingerprint changed. It was not solved or bypassed, so post-fix live acceptance on that exact product remains pending and must not be claimed. The native acknowledgement path compiled in both Debug and R8 Release, and source guards cover the start-to-finish timeout, NACK, explicit cart acknowledgement, one-tap exit, and hidden-session invariants.
+
+Version is `86.179-personal-temu-capture-ack/1041` on Android and `86.179/1041` on iOS. Standard and Personal builds passed TypeScript, release hardening, SHEIN freeze guard, Temu size/price gate, store-surface guard, and low-end budgets; final Personal CSS is `69,978/70,000`, startup JS `630,865/720,000`, total JS gzip `257,334/370,000`, and shipped store scripts `248,358/470,000` bytes. Standard web was synchronized to iOS and Personal web to Android. iPhone native recompose code/timing was untouched.
+
+Android test artifact: `C:\Users\MOHAMMAD\Desktop\Otlobli-v86.179-Android-Temu-Capture-Fixed-Release-Test.apk` (workspace copy `output/otlobli-v86.179-personal-arm64-temu-capture-ack-release.apk`), `195,369,394` bytes (`186.32 MiB`), SHA-256 `28997FE21FD4CF7D573FC9D6D2FC1118EA4A5891198D7266A59982610F1F1CD8`, package `com.otlobli.app`, ARM64 only, minSdk 26/target 36, R8/resource-shrunk and non-debuggable. It is v2/v3 signed with the local Android debug certificate for device testing only; do not upload it to Play. Real Note 8/weak-phone capture and extended background acceptance remain pending.
+
+iOS Universal test artifact: `C:\Users\MOHAMMAD\Desktop\Otlobli-v86.179-iPhone-iPad-Universal-Final-Test-UNSIGNED.ipa`, `6,525,440` bytes (`6.22 MiB`), SHA-256 `E86403F3079CCB7C6A1CBB75260B0A01B7FC726BA7970EB658E751C4605F4615`. GitHub Actions run `31799688321` succeeded in `3m15s` from isolated branch `codex/ios-v86-179-universal`, commit `77598df9bf59090f322f388db4b6efbcdb0ef811`. Direct archive inspection proves `UIDeviceFamily=[1,2]`, bundle `com.otlobli.app`, ARM64, iOS 15+, version/build `86.179/1041`, the local Syrian flag, no source maps, no app-level `_CodeSignature`, and no embedded provisioning profile. It must be signed/provisioned before installation. No real iPhone/iPad acceptance was performed; five iPhone 16 background/resume cycles plus a force-quit/cold-launch test remain required.
+
+# v86.178 — low-end Android runtime and deferred store payload (2026-08-14)
+
+This batch keeps every customer feature while reducing startup/main-thread cost for 4 GB and older Android phones. The SHEIN/Temu capture constants are no longer statically imported by `App.tsx`; `src/services/storeCaptureBundle.ts` is fetched only on the first store entry. The production startup entry fell from `883,614` to `629,961` raw bytes (`253,653` bytes, or `28.7%`), while the deferred store chunk is about `256 KB` raw / `68 KB` gzip. A new `720,000`-byte startup-entry budget locks this split without raising any existing budget. Final Personal metrics passed: largest JS `629,961/1,200,000`, total JS gzip `256,792/370,000`, CSS `69,838/70,000`, fonts `81,364/100,000`, shipped store scripts `247,442/470,000`, and SHEIN source `553,085/600,000` bytes.
+
+Native Android now marks Gecko inactive and unfocused while the whole app is in the background, restores it only when the store surface is visible, and suspends media while inactive. Ordinary in-app Store → Cart/Profile hiding deliberately still keeps the Gecko session active: deactivating there can interrupt Temu's security hand-off, and `verify:temu-size-gate` continues to enforce that invariant. Likely low-end Android devices (`deviceMemory <= 4`, four or fewer logical cores, or Android 10 and older) receive a pre-paint profile that removes expensive blur/animation/shadows and applies bounded off-screen containment to long customer lists. Cart/order/tracking images now have fixed dimensions and lazy/async decoding where applicable. No payment, wallet, completed-order, capture, price, or iPhone recompose logic changed.
+
+Standard and Personal web builds, TypeScript, release hardening, SHEIN freeze guard, Temu size/price gate, store-surface lifecycle guard, and performance budgets passed. Standard web was synchronized to iOS and Personal web to Android. Playwright passed at `320×568` and `360×640` with no horizontal overflow and proved that the deferred store bundle is absent at the store hub and requested only after a store tap. On an Android 15 x86_64 emulator constrained to 4 cores and `4,013,932 kB` RAM, a clean Personal Release cold launch completed in `998 ms`; the store hub used `73,364 KB` total PSS. Live Temu reached its security challenge/feed, Cart opened on the first press, Store returned to the preserved Temu session, a background/resume cycle returned hot in `164 ms`, and no matching FATAL/ANR/MOZ_CRASH appeared. Gecko's allocated memory remained resident (settled package PSS about `274 MB`) while inactive, so the emulator result proves lifecycle stability and suspended execution, not physical-device memory reclamation or weak-CPU acceptance.
+
+Final Android test artifact: `C:\Users\MOHAMMAD\Desktop\Otlobli-v86.178-Android-4GB-Smooth-Release-Test.apk`, Personal ARM64 Release `86.178-personal-low-end-runtime/1040`, `195,368,613` bytes (`195.37 MB`, `186.32 MiB`), SHA-256 `B4B6809398F170F510C85E28917172B89B1BF4E84A3E3F9122BCE10B906E03ED`, package `com.otlobli.app`, minSdk 26/target 36. It is R8/resource-shrunk, non-debuggable, contains no source maps, and is signed with the local Android debug certificate for device testing only; do not upload it to Play. The ARM64 copy under `output/otlobli-v86.178-personal-arm64-low-end-release.apk` is authoritative because the Gradle output path was later reused for the x86_64 emulator build. A real old/weak ARM64 Android phone was not connected for this batch, so final physical-device scrolling, store-switch, product-capture, and extended background acceptance remain pending.
+
+iOS `86.178/1040` now has one Universal ARM64 device-test archive for both iPad and iPhone: `C:\Users\MOHAMMAD\Desktop\Otlobli-v86.178-iPad-iPhone-Universal-Final-Test-UNSIGNED.ipa`, `6,524,846` bytes (`6.52 MB`, `6.22 MiB`), SHA-256 `ED10F4C41A358CD144854B2138B7709C2CAFF7F4B792D2B3620AF767F5135938`. GitHub Actions run `31796588474` succeeded in `3m12s` from isolated branch `codex/ios-v86-178-ipad-universal`, commit `d803a2046ef65494a55645ff75d895516cc84e78`. The built `Info.plist` was parsed after Xcode and contains `UIDeviceFamily=[1,2]`, `com.otlobli.app`, iOS `15.0+`, and portrait orientation for iPad/iPhone; the executable is 64-bit ARM64 iPhoneOS. Archive inspection found the local Syrian flag and deferred store chunk, no source maps, no app-level `_CodeSignature`, and no embedded provisioning profile. Native binary strings retain `otlobliForceRecompose` and `appDidBecomeActive`.
+
+The workflow now checks both the Xcode target and the built app's `UIDeviceFamily` before uploading a Universal artifact. Browser visual acceptance passed at iPad `768×1024` and `1024×1366` with zero horizontal overflow; evidence is `output/playwright/v86.178-ipad-768x1024-login.png`, `output/playwright/v86.178-ipad-768x1024-store-hub.png`, and `output/playwright/v86.178-ipad-1024x1366-store-hub.png`. The IPA remains unsigned and needs the owner's normal signing/provisioning method before installation; the Apple Developer account was deliberately not connected yet. No real iPad/iPhone acceptance was performed. Because shared store bootstrap loading changed, five real iPhone 16 background/resume cycles plus a separate force-quit/cold-launch test remain mandatory; native recompose timing and the verified `0.25s` delay were untouched.
+
+# v86.177 — Temu captures the selected variant's live price (2026-08-14)
+
+The reported issue was reproduced on physical Note 8 product `607534043768396`. The blue option's active SKU drawer showed `531.03 SAR`, while the gray option showed `528.93 SAR`; Temu deliberately left the mounted PDP `.curPrice-*` at `531.03 SAR` after gray was selected. The old `temuPriceUsd()` read only the first `.curPrice-*`, so both variants captured the blue price. The corrected reader first inspects a visible, structurally proven Temu SKU dialog (last eight dialogs only), preferring its `salePriceRich`/current price, and falls back to the PDP `curPrice` only when no active variant price exists. There is no observer, permanent timer, cache, or broad price scan.
+
+Live DOM validation on that exact product returned gray `528.93 SAR → $141.22` and blue `531.03 SAR → $141.79`, even while the stale PDP value remained `531.03 SAR`. `verify:temu-size-gate` now locks both different-price cases plus hidden-drawer and unrelated-promo fallbacks. Standard and Personal builds passed release hardening, SHEIN freeze guard, Temu gate, store-surface guard, TypeScript, and the low-end budget: largest JS `883,614/1,200,000`, total JS gzip `256,338/370,000`, CSS `69,838/70,000`, fonts `81,364/100,000`, shipped store scripts `247,442/470,000` bytes. Android and iOS were synchronized successfully; iPhone recompose timing and SHEIN entry behavior were not changed.
+
+Personal ARM64 debug `86.177-personal-temu-variant-price/1039` was installed in place on the physical `SM-N950F` Note 8 with `adb install -r`, preserving app data and the existing cart. It launched, entered Temu, and returned to the normal Temu feed with no matching FATAL/ANR/MOZ_CRASH. The installed APK contains the generated Gecko capture script and the new `salePriceRich` reader. Desktop artifact: `C:\Users\MOHAMMAD\Desktop\Otlobli-v86.177-Android-Temu-Variant-Price-Final-Test.apk`, `205,003,387` bytes, SHA-256 `B441E2FA4B10C8D7A99F3EB41EE091B02CCB185F733E0B34332FC92429E05904`, package `com.otlobli.app`, ARM64, minSdk 26. After installation, reopening the exact product triggered Temu's visual security verification; it was not bypassed or automated, so a second end-to-end post-install add on that route remains unclaimed. No cart row was added or deleted during validation.
+
+The updated iPhone test archive is `C:\Users\MOHAMMAD\Desktop\Otlobli-v86.177-iPhone-Latest-Final-Test-UNSIGNED.ipa`, `6,524,330` bytes (`6.52 MB`, `6.22 MiB`), SHA-256 `DB60DB27F7E2936E5F60F476D9C6991805CA93B6BD5630CD82E72436F36B293E`. GitHub Actions run `31755017217` succeeded from isolated branch `codex/ios-v86-177-temu-variant-price`, commit `0421f5b3b0535720a015e956d47ec300f2102465`. Archive metadata is `com.otlobli.app`, `86.177/1039`, ARM64 iPhoneOS with iOS `15.0+`; inspection confirmed the v86.177 Temu selected-variant-price marker and `salePriceRich` reader, the local current Syrian flag, no source maps, no app-level `_CodeSignature`, and no embedded provisioning profile. The native binary retains `otlobliForceRecompose` and `appDidBecomeActive`. The IPA needs the owner's normal signing/provisioning before installation. No real-iPhone acceptance was performed; five real iPhone 16 background/resume cycles plus a separate force-quit/cold-launch remain mandatory. Payment, wallet, completed orders, repeat-capture behavior, Temu option selection/session logic, SHEIN capture, and native recompose timing were untouched.
+
+# v86.176 — SHEIN fast entry only; iPhone test archive (2026-08-14)
+
+This batch is deliberately limited to SHEIN store-entry speed. The measured causes were (1) `switchSelectedStore()` clearing the healthy HTTP/WebKit cache on every ordinary Temu → SHEIN switch, making every return a cold load, and (2) Android passing `isPresentAfterPageLoad: true`, so the native Otlobli loading cover itself was withheld until SHEIN finished `onPageFinished`. Ordinary switches now preserve cache; the existing bounded damaged-session/cart-product recovery still owns cache resets. Android presents the branded cover immediately, while iOS still evaluates `isPresentAfterPageLoad` to `true` and remains hidden until readiness, preserving the protected iPhone reveal/lifecycle path.
+
+Physical Note 8 validation on the final corrected `86.176-personal-shein-fast-entry/1038` debug build showed the branded cover in the screenshot taken about `0.9s` after the hub tap; native logs recorded `openWebView` at `01:36:13.959`, first `browserPageLoaded` at `01:36:18.351` (~`4.39s`), and signed `sheinSaudiReady` at `01:36:19.168` (~`5.21s`). There was no matching FATAL/ANR/MOZ_CRASH. Earlier reproduction had delayed visible native focus by roughly `7.5s`. The VPN/geo probes were not the bottleneck (measured roughly `61–396ms`). Evidence: `output/v86176-final-cover.png` and the final device log.
+
+After the user clarified scope, the attempted repeat-Temu-capture change was completely removed. The v86.175 `temuAddInFlightRef` behavior remains; there is no fingerprint/two-second capture logic in the final diff or iOS build branch. No Temu product was added during the mistaken navigation, no app data was cleared, and the corrected build was installed in-place on the Note 8 to replace the temporary test build while preserving its data. Payment, wallet, completed orders, Temu capture/SKU/session code, SHEIN injected capture code, and native iPhone recompose timing were not changed.
+
+The final iPhone file is `C:\Users\MOHAMMAD\Desktop\Otlobli-v86.176-iPhone-SHEIN-Fast-Final-Test-UNSIGNED.ipa`, `6,524,164` bytes, SHA-256 `4FDADE9249EF115DD55C9EC66DE8FE1FB2BCBBF37C134935354F556CE927F292`. GitHub Actions run `31750234595` succeeded from isolated branch `codex/ios-v86-176-shein-fast-entry`, commit `efed15b58757531cce6552bf95a510494da07475`. Archive metadata is `com.otlobli.app`, `86.176/1038`, iPhoneOS with iOS `15.0+`; it contains the local current Syrian flag, no source maps, no app-level `_CodeSignature`, and no embedded provisioning profile. `otlobliForceRecompose` and `appDidBecomeActive` remain in the native binary.
+
+Validation passed: TypeScript, standard and personal web builds, release hardening before/after build, SHEIN freeze guard, unchanged Temu gate guard, store-surface guard, low-end performance budget, Android/iOS Capacitor sync, isolated macOS/Xcode unsigned build, IPA metadata/archive inspection, and Note 8 in-place install/launch. Final standard budget: largest JS `883,072/1,200,000`, total JS gzip `256,185/370,000`, CSS `69,838/70,000`, fonts `81,364/100,000`, shipped store scripts `246,903/470,000` bytes. The IPA still needs the owner's normal signing/provisioning before installation. No real-iPhone acceptance was performed; five real iPhone 16 background/resume cycles plus force-quit/cold-launch remain mandatory before release acceptance. Active dirty-worktree changes were not staged or committed; only the isolated iOS build branch was committed and pushed.
+
+# v86.175 — hardened release pipeline + repaired login with the current Syrian flag (2026-08-13)
+
+`C:\Users\MOHAMMAD\Desktop\Otlobli-v86.175-Android-Final-Test.apk` is **rejected for the owner's Note 8**. It is the 4 MB standard customer variant, while the recent Note 8 Temu work lives behind `TEMU_PERSONAL_SITE=true` and requires the packaged Gecko engine. Installing that standard artifact after the old `86.172-personal` build therefore removed the embedded Temu path and correctly looked as though the recent work was absent. Do not use that misleadingly named standard artifact for Personal/Note 8 acceptance.
+
+The corrected Note 8 artifact is `C:\Users\MOHAMMAD\Desktop\Otlobli-v86.175-Personal-Note8-Final-Test.apk`, `195,367,479` bytes, SHA-256 `5BFF729F8920C96A71CCB7BF600ECA5E19ECFAA288427F97466418115A4C7E86`. It is the ARM64 R8/resource-shrunk Release `86.175-personal-release-hardening/1037` (minSdk 26), signed with the local Android debug certificate only for installation, verified with APK Signature v2/v3, and non-debuggable (`run-as` refused it). Archive inspection confirmed Gecko `libxul.so`, the Temu WebExtension capture script, the current local Syrian flag, and no source maps. It was clean-installed on the physical `SM-N950F` Note 8 running Android 9 after explicitly uninstalling `86.172-personal`.
+
+Final iPhone device-test artifact is `C:\Users\MOHAMMAD\Desktop\Otlobli-v86.175-iPhone-Final-Test-UNSIGNED.ipa`, `6,524,183` bytes, SHA-256 `BB70D4CE394A61CCEA18E895340C1CE1B77C8503DF3BCBEFFABD219A91BFE182`. The same ARM64 IPA is used on both weak and strong iPhones running iOS 15 or later. GitHub Actions macOS/Xcode run `31742547246` succeeded from the isolated branch `codex/ios-v86-175-final-test` at commit `d5f96ef81657b98c5332f45cde930c820dd67055`; the app metadata is `com.otlobli.app`, version/build `86.175/1037`. Archive inspection confirmed that it is unsigned and has no embedded provisioning profile, has no source maps or old Syrian flag emoji, includes the current local Syrian flag, lacks selected readable injected-script signatures, and retains `otlobliForceRecompose` plus `appDidBecomeActive`. It must be signed/provisioned through the owner's normal iPhone installation method before device testing and is not an App Store upload artifact.
+
+Version is `86.175/1037` (`86.175-personal-release-hardening` for the personal Android variant). Release hardening is now enforced instead of documented only: Android Release enables R8 minification, resource shrinking, optimized ProGuard rules, non-debuggable/JNI-non-debuggable output, zip alignment, backup/data-transfer exclusion, and cleartext blocking. Capacitor's broad plugin keep rule is narrowed while preserving bridge annotations and constructors. iOS Release has dead-code stripping, post-processing, installed-product/Swift stripping, and testability disabled. Vite emits no source maps, and build-time Terser compilation minifies the large SHEIN/Temu injected-script strings that ordinary Vite minification previously left readable. Exact patched dependencies are pinned and `verify:release-hardening` is mandatory before and after every build.
+
+The committed in-app-browser patch previously contained a live relay credential. It is sanitized to two `OTLOBLI_RELAY_KEY_PLACEHOLDER` values and the verifier rejects any committed replacement. This does **not** make a static credential inside a published client secret: postinstall still injects the local relay value into native sources, so a determined attacker can recover it from a running or published binary. The required final architecture is documented in `docs/APP_BINARY_PROTECTION.md`: Play Integrity / App Attest → backend verification → short-lived, request-bound, replay-protected relay tokens → removal and then rotation of the static key. No worker/backend deployment or key rotation happened in this batch because doing either before a compatible attested client rollout would break existing apps. No client-only technique can honestly promise that downloaded code is impossible to inspect.
+
+The login page is also repaired. Syria no longer uses the platform `🇸🇾` emoji anywhere in the country option; it uses the bundled `public/flags/syria-independence-flag.svg` (green, white, black, three red stars), including the order route. The country control shows the image plus `+963`, while the accessible select retains full country names. Copy/hierarchy, phone labeling, live submit status, keyboard focus, safe areas, zoom support, favicon and green theme colour were reviewed. Playwright passed at `320×568`, `360×740`, and desktop with no horizontal overflow; the local flag loaded at `900×600`, the old Syrian emoji was absent from options, and the only development console message was React DevTools. Native Android visual proof is `output/playwright/native-v86.175-standard-launch.png`.
+
+Validation passed: standard and personal web builds, TypeScript, release-hardening pre/post checks, exact minified injected-script syntax checks, SHEIN iPhone freeze guard, Temu size gate, store-surface guard, Android R8 personal build, Android standard debug + shrunk Release packaging, Android/iOS synchronization, and Android 15 emulator install/launch (`MainActivity` resumed; zero matching FATAL/ANR). Final low-end measurements: largest JS `883,137/1,200,000`, total JS gzip `256,190/370,000`, CSS `69,838/70,000`, fonts `81,364/100,000`, and shipped injected scripts `246,903/470,000` bytes. The CSS limit was not raised.
+
+Artifacts: personal ARM64 debug `output/otlobli-v86.175-personal-arm64-debug.apk` — `205,002,911` bytes — SHA-256 `400FC43463398DE67ADC5BB76277BC64847B975FBC12811E16A3EB2EACDDA3A5`; standard universal debug `output/otlobli-v86.175-standard-universal-debug.apk` — `11,104,319` bytes — SHA-256 `7B920C13A704E048A01BA23DCBDD4E050A6B4C6B06B65A5B54B071CF1C91ADD8`. These are test builds, not publication artifacts. The hardened standard Release audit APK is unsigned and stays under `android/app/build/outputs/apk/release/app-release-unsigned.apk` — `3,978,864` bytes — SHA-256 `9A3161B5EC637E02FAA52C843A8EB00B89BBA4714DD0F617A98B419238F2D7EF`; production signing properties are absent. Its archive contains the local flag and no source maps, old Syrian emoji, or selected readable SHEIN implementation signatures.
+
+**Acceptance limits:** the corrected Personal Release passed a real Note 8 clean install and launch, registered Gecko plus the bundled WebExtension, opened the live Temu Saudi site, continued to the live product feed after closing Temu's own security challenge, switched to Otlobli Cart on the first press, and survived three background/resume cycles without matching FATAL/ANR/MOZ_CRASH. Proofs are `output/note8-v86.175-personal-launch.png`, `output/note8-v86.175-personal-temu.png`, `output/note8-v86.175-personal-temu-after-captcha-close.png`, `output/note8-v86.175-personal-cart.png`, and `output/note8-v86.175-personal-resume3.png`. Store-open rendering measured 73 frames with 16 janky (`21.92%`), p50 `12ms`, p90 `26ms`, p95 `42ms`, and p99 `150ms`; active Gecko total PSS was approximately `289,692 KB`. Product selection/add-to-cart/checkout and SHEIN were not accepted in this turn because the first Temu navigation presented the security challenge. The standard login route also remains a real weak-phone UX issue: on Note 8 the keyboard clips the submit/alternate-login content and its startup-plus-keyboard sample was 16/34 janky frames (`47.06%`); the Personal build starts at store selection and does not expose that route. The unsigned iOS archive still has not been signed, installed, or accepted on a real iPhone; weak/strong iPhone acceptance, five iPhone 16 background/resume cycles, and a separate force-quit/cold-launch test remain mandatory. No payment, wallet, completed-order, SHEIN recompose timing, Temu session/SKU, or deployed backend behavior changed. No current dirty-worktree changes were staged or committed, and no PR or deployment occurred.
+
+# v86.174 — measured Temu surface geometry restores the true Otlobli navigation colours (2026-08-13)
+
+The reported pale Otlobli bar was reproduced on the Android 15 emulator and measured before changing code. MainActivity had no lingering dialog or `FLAG_DIM_BEHIND`; SurfaceFlinger reported the Gecko `SurfaceView` and activity at sRGB, alpha/dimming ratio `1.0`, and stable Temu whites were real `255,255,255`. The fault was geometry and elevation: the embedded Temu layer ended at `y=2164` while the React navigation began at `y=2102`, covering its first 62 pixels, and `storeLayer.setElevation(24dp)` cast a measured shadow over the remainder. At the centre of the navigation the pre-fix background fell from `204` at the store edge through `212`, `233`, and `249` instead of the host screen's constant `255`.
+
+The personal Temu layer now has no elevation shadow and reserves the system navigation-bar inset in addition to React's 90dp navigation. On the installed v86.174 emulator build its SurfaceFlinger bound ends at `y=2101`; the React navigation starts at `y=2102`, and all sampled blank navigation rows are `255,255,255`. No CSS colour was changed. `scripts/verify-store-surface.mjs` now guards the inset calculation, absence of store-layer elevation/dim, alpha restoration, session-preserving hide, and the existing `SurfaceView`-first screenshot path.
+
+Regression checks passed on Android 15: profile → Temu retained the same Gecko surface/session, background → resume retained the visible page, a real Temu product opened with `otlobli-add-btn` and returned normally while every navigation sample remained white, the shake dialog preview contained the live Temu surface rather than black, dismissal left one app window and a white navigation with no dim, and no FATAL/ANR appeared. One cold-start sample was `2582ms` versus the pre-change `3005ms`, but this single emulator sample is not claimed as a performance improvement. Temu surface appearance after the hub tap measured `2073ms` on this run.
+
+Validation passed: standard and personal web builds, `verify:shein-freeze-guard`, `verify:temu-size-gate`, new `verify:store-surface`, `verify:performance-budget`, Android/iOS synchronization, standard Android build, and personal x86_64/ARM64 Android builds. The installed emulator artifact is `output/otlobli-v86.174-temu-personal-x86_64-debug.apk` (`224,468,290` bytes, SHA-256 `597DC0F2B741EB7ED5F640BE5877C7CE53669A50736F7292C231419A3C05981F`). The ARM64 artifact is `output/otlobli-v86.174-temu-personal-arm64-debug.apk` (`205,045,396` bytes, SHA-256 `408B41F463CB558BD3E75D2CF224D276AB9EFEF2EE3486D5AC1833783B3917EB`). The standard APK is `output/otlobli-v86.174-standard-universal-debug.apk` (`11,146,812` bytes, SHA-256 `901F1AA01639596DF02454FB4812254496B61FABC162B3A64BFDA8813A8840D3`).
+
+**Acceptance limits:** v86.174 is installed and measured on the Android 15 emulator only. The real Note 8 is not connected and has not accepted this build. iOS web/version is synchronized at `86.174/1036`, but there was no Xcode build or real-iPhone acceptance and none of the mandatory iPhone 16 lifecycle cycles were performed. Payment, wallet, completed orders, SHEIN lifecycle/recompose, Temu session identity, SKU logic, and report transport were not changed.
+
+# v86.173 — exact Temu size drawer + shake-to-report with the live product screenshot (2026-08-13)
+
+The exact Temu product `601101949689075` was diagnosed through Gecko remote debugging. Its size drawer did open, but the first-paint promo blocker classified the real SKU dialog as a discount popup because the dialog contains repeated `خصم 75%`, then hid it. Real product dialogs are now structurally allowlisted by their `role=dialog`, radio/SKU/spec descendants, and the drawer remained visible after five seconds on the same product.
+
+The size gate had two additional concrete faults: Arabic `الحجم` and Temu's current `.specTypes-*` markup were not recognized, and the generated regex lost its backslashes inside the template literal. The parser now recognizes the current markup, preserves `/([0-9]+)\s*(?:الحجم|حجم)/` in the generated script, and ignores the duplicate collapsed dimension when an authoritative expanded radio group exists. On the exact product, pressing Otlobli add before choosing a size produced `حدد المقاس أولاً` and kept the drawer open; choosing `الملكة: 160*200*20 سم` then produced the normal captured-product success overlay.
+
+Android now supports an Instagram-style issue report: while the app is resumed, two strong accelerometer peaks open a native Arabic dialog. The screen is captured **before** the dialog appears, so shaking from inside a Temu product includes the product image and the exact page state. GeckoView renders through a separate `SurfaceView`; window PixelCopy returned a black image, so the reporter deliberately captures the largest visible `SurfaceView` first and falls back to the window for normal screens. The verified emulator capture contains the live Temu page, not a black placeholder. The customer adds a 3–800 character note and sends the screenshot, store/screen, app version, device identity, and available customer identity.
+
+The backend is live on Supabase project `dcicqdprtyhwmhegabay`: migration `20260813170000_app_issue_reports.sql`, private `app-issue-reports` bucket, and deployed JWT-verified `app-reports` function. Anonymous app submissions are validated, limited to a 1.5 MB image and a 20-second per-device interval; listing, signed screenshot URLs, status changes, and admin notes require `x-admin-pin`. The Admin dashboard has a responsive `بلاغات التطبيق` panel with filters, 20-second refresh, lazy screenshots, report metadata, status, and follow-up note. It was deployed to the official production alias `https://talabieh-admin.vercel.app` as Vercel deployment `dpl_7JAQTMXiFEipNpX1VzgEwjxhFXqM`; a no-cache asset readback proved that the live bundle contains both `بلاغات التطبيق` and `app-reports`. Emulator report `3efc830f-9eff-4af8-9c2d-d3f0b1438e48` was received end to end with a signed screenshot URL and was marked `resolved` as an acceptance test. A second acceptance run shook the emulator while a real Temu tool-set product page was visible: report `1e108393-d2ea-4676-a7a5-3cdba6713dbb` reached production, its signed 135,354-byte JPEG was downloaded and visually confirmed to contain the product image, title, price, quantity controls, and page state, then the report was marked `resolved`.
+
+Validation passed: exact live-product Gecko checks, shake dialog and real Surface screenshot on Android 15 emulator, an additional shake/send/readback while inside an actual Temu product, live POST/GET/PATCH, `npm run build`, `npm run build:temu-personal`, Admin build, SHEIN freeze guard, Temu size-gate guard, performance budget, Android/iOS synchronization, personal x86_64 emulator build/install, and personal ARM64 build. Admin reports were visually checked at 1440×1000 and 390×844. The ARM64 artifact is `output/otlobli-v86.173-temu-personal-arm64-debug.apk`, `205,045,388` bytes, SHA-256 `385A2D27EE3066D0FBD5917BB4513574D7CCD2DFAF164624FFA97109BA9DFB26`, package `com.otlobli.app`, version `86.173-personal-size-reports/1035`, native ABI `arm64-v8a`.
+
+**Acceptance limits:** the feature was proven on the Android emulator, not yet on the real Note 8. Shared web assets and version `86.173/1035` are synchronized into iOS, but the native shake/capture plugin in this batch is Android-only; no iOS build, no iPhone shake acceptance, and none of the required iPhone 16 background/resume cycles were performed. The existing iPhone freeze invariant was not changed.
+
+**Next-chat handoff:** `HANDOFF_TO_CODEX.md` now begins with the factual v86.173 state, exact artifact/backend/admin deployment, acceptance boundaries, and the one new open issue. Local Playwright state and `output/` are ignored by Git as tool/build evidence (not deleted). The open issue is visual only and not yet diagnosed: entering Temu reportedly makes the Otlobli bar pale and the Temu surface darker. Reproduce and measure native dim/scrim, SurfaceView alpha, overlays, and focus restoration before changing colors.
+
+# v86.172 — the invisible store gate that froze Temu product pages (2026-08-12)
+
+The user reported a Temu product that "adds itself without opening the options", where trying to reach the size options made the page "lock up". Both are one fault, found by reading the live page instead of guessing.
+
+**How it was found.** Screenshots showed a Temu product page that did not move a single pixel over four idle seconds — its own countdown timer frozen — while the injected WebExtension kept posting messages every ~1.5s and the content process burned 66% CPU. Three hypotheses were tried and each was disproven on the device: an orphaned `overflow:hidden` scroll lock (fixed anyway in v86.171, changed nothing here), a detached Gecko compositor (reattach made no difference; **that change was reverted**, not shipped), and CPU saturation (Temu's own home page runs hotter at 93% and scrolls fine).
+
+Enabling Gecko remote debugging in debug builds settled it. Over the protocol the page was completely healthy: `readyState` complete, 1097 nodes, `body.scrollTop = 600` applied instantly and **87,671 pixels changed on screen**. Yet a window-level capture listener recorded **zero** touch events from a real swipe. Rendering fine, scripting fine, no touch at all — so the blocker was above the page. `uiautomator dump` named it: a React store gate, «اتصالك من منطقة مدعومة، لكن منتجات تيمو لم تكتمل على هذا الجهاز» with an «إعادة تجهيز المتجر» button, laid over the Temu layer. Tapping that invisible button at its dumped coordinates worked instantly and the page moved.
+
+**The fault.** The gate renders whenever `sheinBlockedError`/`no-vpn`/`bad-region`/`offline` is set, but nothing retired the personal Temu surface underneath. Gecko paints over React, so the gate is invisible while still taking every touch — the customer sees a live Temu page that answers nothing, cannot scroll to the size options, and the add button therefore captures no size. The gate now hides the store surface when it appears: if a gate is worth showing, it is worth seeing.
+
+**Not yet verified end to end:** the gate could not be provoked on demand during this session, so the fix is verified by mechanism and by the proven cause, not by watching the gate appear and become visible. Provoke it (airplane mode mid-session) on the next pass.
+
+Artifact `86.172-personal-invisible-gate-fix` / `1034`: `output/otlobli-v86.172-temu-personal-arm64-debug.apk`, `205,027,384` bytes, SHA-256 `91695CAA88B1DF2C4EBDB16FD9DAFBAB462F8BC4EA4950DF2D8E4B1E81080747`. Installed on Note 8. Gecko remote debugging is enabled for `BuildConfig.DEBUG` only.
+
+# v86.171 — release an orphaned scroll lock (2026-08-12)
+
+`showAddingOverlay()` sets `overflow:hidden` and `removeOverlay()` was the only path back, so any skipped path left a page unscrollable forever. Restored on both `body` and `documentElement`, plus a self-heal in `tick()`: a scroll lock with no overlay on screen is never correct. This did **not** cause the frozen Temu product page above — it is a real defect fixed on its own merits.
+
+# v86.170 — a cart product no longer throws the customer onto a full-screen gate (2026-08-12)
+
+**A regression introduced by v86.168, reported by the user and fixed here.** Removing the stale-verdict refusal was right, but the replacement sent the customer to Home with `setScreen('home')` before the connection check had answered. When that check was slow or failed once, they landed on the full VPN gate — «تم التحقق أن الـ VPN شغّال (قطر)، لكن متجر شي إن لم يفتح من هذا السيرفر» — with no way back to what they tapped. The cart felt like it had stopped opening products entirely. The old toast was less disruptive than this, so the fix was a net loss in exactly the case it was meant to improve.
+
+Tapping a cart product now **stays in Cart** while the check runs, showing «جاري التحقق من الاتصال...». A new effect watches the settled result: `ok` enters the store and opens the queued product; `no-vpn`/`bad-region`/`offline` clears the queue and reports the reason in Cart, where the customer still has their list. Nothing reaches a full-screen gate that the customer did not navigate to themselves.
+
+Verified on Note 8 from a cold start, going straight to Cart without opening a store first — the path that previously produced the gate. The check settled and the product opened to its real SHEIN page (`$21.57`, gallery `1/7`, rating `4.92`). No FATAL or ANR.
+
+Artifacts, version `86.170-personal-cart-stays-put` / `1030`:
+
+- Personal (installed on Note 8): `output/otlobli-v86.170-temu-personal-arm64-debug.apk`, `205,026,976` bytes, SHA-256 `6ABC2982595996E40882903E269D54BBBCC95BF186D1787065C4EC3A2E8523C2`
+- Standard: `output/otlobli-v86.170-standard-universal-debug.apk`, `11,129,192` bytes, SHA-256 `16A8FD69C387866274D20E17DE61B254E6B1395F1F1F3A0C6C6D51B1ECE0FB2A`
+- iOS synced at `86.170`, **not** built in Xcode, **no iPhone device acceptance**.
+
+# v86.169 — a solved SHEIN verification no longer reports "Access timed out" (2026-08-12)
+
+The user reported completing SHEIN's human check and being told it failed. The same failure was observed independently during v86.168 device testing: SHEIN's own toast, `Access timed out, please refresh the page and try again`, appeared over a correctly solved check.
+
+**The cause is in our code and the codebase already documented the rule it broke.** `ensureSheinSaudiStore()` carries the comment «أثناء تحقق «أنا إنسان»: ممنوع أي إعادة تحميل/كتابة — تصفّر حل المستخدم» and returns early during a challenge. But both paths that *enter* challenge mode called `writeSheinSaudiState()` first — `otlobliEnterChallengeMode()` in `sheinHumanCheck.ts`, and the early challenge-URL branch in `sheinBrowserScript.ts`. That function writes **26 cookies on `.shein.com`** plus a block of `localStorage` keys. Seeding them the instant a challenge appears changes the session fingerprint between the moment SHEIN issues its token and the moment it validates the answer, so a correct answer comes back as a timeout.
+
+Both writes are removed. The Saudi state is now seeded at the first safe moment instead: in the resolution branch, after `otlobliChallengeActive` clears and the page is interactive again, so a session that began on a challenge still gets its region.
+
+Verified on Note 8 after a cold start: SHEIN opened fully in Arabic/Saudi with USD pricing, and the region cookies read back `country=SA`, `currency=USD`, `site_uid=pwar`, `language=ar`, `ship_to=SA`, `store_country=SA` with `__otlobliSheinSaudiStateSeeded` true — the deferral costs nothing on ordinary pages. **A live challenge did not appear during this run, so the fix is verified by mechanism and by absence of regression, not yet by watching a real challenge succeed end to end.** That confirmation is the first thing to do on the next challenge SHEIN issues.
+
+No CAPTCHA is solved, clicked, or bypassed anywhere in this change — the fix is strictly about not disturbing the session while the customer answers.
+
+Validation: `npx tsc -b`, `verify:shein-freeze-guard`, `npm run build`, `npm run build:temu-personal`, `verify:temu-size-gate`, `verify:performance-budget`, `npx cap sync android`, `npx cap sync ios`, personal arm64 and standard Android builds. Budgets: largest JS `1,083,079 / 1,200,000`, JS gzip `286,936 / 370,000`, CSS `69,766 / 70,000`, fonts `81,364 / 100,000`, shipped store scripts `452,006 / 470,000`, SHEIN script source `548,515 / 600,000`.
+
+Artifacts, version `86.169-personal-challenge-cookie-fix` / `1029`:
+
+- Personal (installed on Note 8): `output/otlobli-v86.169-temu-personal-arm64-debug.apk`, `205,026,832` bytes, SHA-256 `8216AAB54AEB2B1249BAB490B94A5841E9A3214908BDE8DB4322E9AB47DB05A9`
+- Standard: `output/otlobli-v86.169-standard-universal-debug.apk`, `11,129,036` bytes, SHA-256 `DDEF909607700B8D7D63B08E4FF43774751013DB3A27D9922F3F510061228988`
+- iOS synced at `86.169`, **not** built in Xcode, **no iPhone device acceptance**.
+
+# v86.168 — the false VPN gate on SHEIN cart products, proven and removed (2026-08-12)
+
+Three reported faults, all diagnosed on the real Galaxy Note 8 (`SM-N950F`, `988e16384e4f51395230`) before any code changed.
+
+**The false VPN gate was measured, not guessed.** The device network was independently confirmed to have no VPN interface at all (`no tun/ppp`), yet all four geo probes — run from inside the app's own WebView over CDP — returned `QA` (Vodafone Qatar, a fully supported exit), the fastest answering in **77ms**, later **52ms**. Instrumenting `window.fetch` proved the decisive fact: across the entire failing path (open Temu cart product → exit → cart → SHEIN tab → tap product) **not one geo probe fired**. `openStoreProductFromCart()` was refusing from a `vpnStateRef` recorded minutes earlier, showing «شغّل VPN ثم جرّب فتح المنتج مرة أخرى» without ever checking the connection. Tapping the same product *before* the Temu round trip worked; after it the tap looked completely dead, because the toast expired before it could be seen. A stored verdict is now never grounds to refuse: any non-`ok` state re-checks, and Home either opens the queued product or shows the genuine gate with its own diagnosis.
+
+**`switchSelectedStore()` was the other half.** It reset `vpnStateRef` to `idle` and discarded a confirmed supported exit on every store switch. Reachability is per-store and is still re-measured; the internet exit country belongs to the device's connection and now survives the switch. `switchCartStore()` had already learned this lesson in an earlier release — the store switch had not.
+
+**Cart products no longer open over Cart.** The personal Temu branch set `pendingBackTargetRef` to `cart` and left Cart mounted under Gecko, so the bottom bar read «السلة» while a Temu product filled the screen, and backing out landed on an inner Temu page. The product now opens over the store screen, matching where the user actually is.
+
+**A fourth fault surfaced during reproduction and is fixed too.** `openCart`/`openOrders`/`openProfile` hid the Chromium `InAppBrowser` but never the personal Gecko surface, so pressing a bottom tab while Temu was open changed the React screen underneath while Gecko stayed painted over it — the press looked completely dead. `hidePersonalTemuSurface()` now retires whichever store surface is actually on screen.
+
+Verified on the device across two full cycles, the second from a cold start: the cart tab press returns instantly, the Temu cart product opens with the bottom bar on «الرئيسية», and the SHEIN cart product opens to its real page (`$21.57`, gallery `1/7`). SHEIN then issued its genuine human-verification, which the app left usable behind its own guidance strip — **no CAPTCHA is bypassed**. No FATAL or ANR was recorded.
+
+Validation: `npx tsc -b`, `npm run build`, `npm run build:temu-personal`, `verify:shein-freeze-guard`, `verify:temu-size-gate`, `verify:performance-budget`, `npx cap sync android`, `npx cap sync ios`, plus personal arm64 and standard Android builds. Budgets: largest JS `1,082,533 / 1,200,000`, JS gzip `286,637 / 370,000`, CSS `69,766 / 70,000`, fonts `81,364 / 100,000`, shipped store scripts `452,004 / 470,000`, SHEIN script source `547,993 / 600,000`.
+
+Artifacts, version `86.168-personal-no-false-vpn-gate` / `1028`:
+
+- Personal (installed and verified on Note 8): `output/otlobli-v86.168-temu-personal-arm64-debug.apk`, `205,026,472` bytes, SHA-256 `2EE0924741A5B3C02855DF378E6420B58E1A17EC59052EAF5290E1C591C11BCF`
+- Standard: `output/otlobli-v86.168-standard-universal-debug.apk`, `11,128,660` bytes, SHA-256 `28C889A9F4DD0BC6E4EAED6DB3FC5F9964E396894F758DFACB337D1CC0EDA2CE`
+- iOS is synchronized with the standard web bundle at `86.168`, but was **not** built in Xcode and the required five iPhone 16 resume cycles plus cold-launch test were not performed. **There is no iPhone device acceptance for this batch.**
+
+# v86.167 — exact SHEIN PDP performance + Temu cart links without false VPN gate (2026-08-12)
+
+Diagnosed both reports on the real Galaxy Note 8 (`SM-N950F`, serial `988e16384e4f51395230`) before changing behavior. The Temu-cart failure was not a Temu restriction or a missing VPN: `switchSelectedStore()` reset the host VPN state to `idle`, then `openStoreProductFromCart()` ran the legacy VPN gate before calling the personal Gecko browser. The device network was independently confirmed `NOT_VPN`. Personal Android Temu cart links now enter the already-established Saudi Gecko session directly; the old VPN gate remains untouched for ordinary store launches. A real cart item opened to its Temu Saudi product twice (cart → product → cart → same product) with the session and page preserved and no VPN notice.
+
+The exact reported SHEIN product was identified as product `130872819` (`100pcs/50pcs/1set ... Morandi Hair Scrunchies`). A 12-second DevTools CPU profile on that exact route found `isAddToCartText` consuming `81.14%` of sampled JavaScript time. `hideSheinNativeProductAdd()` selected broad `[class*=add]` wrappers and flattened their large descendant `textContent` before rejecting them by geometry every 650 ms. The fix rejects impossible geometry first and only reads descendant text from bounded small controls. The perpetual cookie discovery scan is now capped, and remaining whole-page checks use layout-neutral `textContent`; the short carrier-error detector skips real 900+ element PDPs. On the installed fixed build, the exact product route was re-opened and SHEIN issued its genuine `/risk/challenge` flow; in a second 12-second profile `isAddToCartText` accounted for `0%` and the page was idle for `96.67%`. This does not bypass SHEIN CAPTCHA, and the challenge must still be completed normally when SHEIN requests it.
+
+The hidden personal Temu view now releases only its rendering attachment and marks the Gecko session inactive/unfocused, then reattaches/reactivates the same session on show. This reduces unnecessary hidden rendering without discarding product history, cookies, or scroll state. Regression guards now lock the direct personal-cart route, hidden-session lifecycle, geometry-before-text ordering, bounded text reads, cookie-scan cap, and carrier-error recognition. The existing SHEIN iPhone detach/reattach and unchanged-region invariants remain intact.
+
+Validation passed: `npx tsc -b`, `npm run build:temu-personal`, `npm run build`, `verify:shein-freeze-guard`, `verify:temu-size-gate`, `verify:performance-budget`, `npx cap sync android`, `npx cap sync ios`, personal arm64 Android build, and standard Android build. Final standard budgets: largest JS `1,082,252/1,200,000`, total JS gzip `286,555/370,000`, CSS `69,766/70,000`, fonts `81,364/100,000`, shipped store scripts `452,004/470,000`, SHEIN script source `547,993/600,000`. No recent app FATAL or ANR was found on Note 8. Personal cold launch measured `ThisTime=2484ms`.
+
+Installed Note 8 artifact: `output/otlobli-v86.167-temu-personal-arm64-debug.apk`, version `86.167-personal-cart-links-pdp-perf/1027`, `205,026,308` bytes, SHA-256 `F41F11614F58797DF787E45A0A5138624E47973FE07349590DC40A8C3F328F0E`. Standard artifact: `output/otlobli-v86.167-standard-universal-debug.apk`, version `86.167/1027`, `11,128,500` bytes, SHA-256 `BF913B434C5E1B1272A6F7E6CF8A03010EE57F5B8F4DF2EB2ADE41363F645B2E`. iOS is synchronized with the standard web bundle and version `86.167/1027`, but was not built with Xcode and the required five real iPhone 16 resume cycles plus cold-launch test were not performed; there is no iPhone device acceptance for this batch.
+
+# v86.166 — بوابة مقاس Temu فورية وصيانة الأداء (2026-08-12)
+
+شُخّص خلل المقاس من مسار الالتقاط نفسه: عند وجود عدة مقاسات بلا `aria-checked`/`aria-selected` صريح كان `temuSelectedSize()` و`otlobliTemuSku()` يستعملان حدّ/خلفية CSS كاحتياط، فيُحسب مقاس غير مختار اختيارًا حقيقيًا. أصبح الاحتياط البصري للّون الافتراضي فقط؛ المقاس المتعدد لا يمر إلا بإعلان Temu الصريح أو نقرة العميل المسجلة لنفس المنتج، بينما يبقى المقاس الوحيد تلقائيًا والمنتج بلا مقاسات صالحًا.
+
+أزيل سبب الانتظار: بوابة Temu كانت تعيد الفحص `10 × 500ms` ثم تراقب الاختيار `20 × 500ms`، مع إعادة التقاط تصل إلى `10 × 500ms` وانتظار صورة حتى `2500ms`. قرار «حدد المقاس أولاً» صار فوريًا، وأعيد التقاط Temu إلى ثلاث قراءات فقط بفاصل `150ms` (حد أقصى `300ms` بعد القراءة الأولى)، وأُرسل المنتج مباشرة لأن صورته مأخوذة من عنصر مرسوم أصلًا. أضيف `scripts/verify-temu-size-gate.mjs` إلى `prebuild` ويغطي: لون افتراضي + مقاس متعدد غير محدد، مقاس صريح، مقاس وحيد، بلا خيارات، وخيار غير متاح.
+
+ضمن صيانة الأجهزة الضعيفة، صارت مؤقتات ساعة الدفع واستطلاع OTP عبر WhatsApp/Telegram ومزامنة مجموعة السلة وتفاصيل الطلب تتوقف حين يكون التطبيق في الخلفية وتنعش مرة عند العودة؛ لم يتغير منطق الدفع أو المحفظة أو الطلبات. نجح `npm run build` و`npm run build:temu-personal` وTypeScript وحارسا SHEIN/Temu وميزانية الأداء وبناء Android القياسي والشخصي ومزامنة Android وiOS. الحدود: أكبر JS `1,081,662/1,200,000` (الشخصي `1,081,661`)، JS gzip `286,415/370,000` (الشخصي `286,411`)، CSS `69,766/70,000`، الخطوط `81,364/100,000`، سكربتات المتجر `451,727/470,000`، ومصدر السكربت `547,471/600,000`.
+
+ثُبتت النسخة الشخصية `86.166-personal-fast-size/1026` وWebExtension `1.3.14` على Galaxy Note 8 الحقيقي `SM-N950F`/`988e16384e4f51395230`. التشغيل البارد بعد فتح الجهاز `ThisTime=2299ms`. على منتج حقيقي متعدد المقاسات ظهرت `حدد المقاس أولاً` فور النقر وبقيت السلة بلا إضافة؛ منتج بمقاس وحيد دخل مسار الإضافة فورًا. بقي منتج متعدد المقاسات مع `M` محدد بعد الخلفية/العودة بلا إعادة تحميل، ولم يسجل الجهاز FATAL أو ANR. نافذة «حجز مسبق» الخاصة بـTemu غطت بعض نقرات الإضافة في منتج الاختبار، لذلك لا تُنسب سرعتها إلى التطبيق ولا ندّعي قياس قبول إضافة محددة عبرها.
+
+النسخة الشخصية: `output/otlobli-v86.166-temu-personal-arm64-debug.apk`، الحجم `205,026,080` بايت، SHA-256 `EF826AAA833D72EFCB4286082AE804D84F28DB2718E43DB0B6F47F9782D25A4C`. النسخة القياسية: `output/otlobli-v86.166-standard-universal-debug.apk`، الحجم `11,128,384` بايت، SHA-256 `6F82549098166B7B93B81B1DE0A800BEFEFF236438DFC388FEA2745D0C52DDE1`. iOS متزامن مع بناء الويب القياسي `86.166/1026` لكنه لم يُبن على Xcode ولم تُنفذ دورات iPhone 16 الخمس أو اختبار التشغيل البارد؛ لا توجد موافقة جهاز iPhone لهذه الدفعة. فحص ESLint الموجّه ما زال يفشل بسبب ديون موجودة مسبقًا في الملفات الكبيرة، بينما TypeScript والبناء ينجحان.
+
+# v86.164 — جذب Temu يبقى داخل صفحة المنتج (2026-08-12)
+
+زر Otlobli داخل منتج Temu يضيف المنتج إلى سلة Temu في الخلفية، ثم يعرض داخل الصفحة `✓ تم جذب المنتج بنجاح` ويبقي المستخدم في صفحة المنتج نفسها؛ أزيل الانتقال التلقائي إلى السلة بالكامل. تأكيد النجاح لا يصدر قبل وصول رسالة `addToCart` إلى الجسر الأصلي، ثم تؤكد WebExtension الاستلام داخل صفحة Temu. لم يتغير فصل سلة SHEIN عن سلة Temu، ويمكن فتح السلة يدويًا من شريط التطبيق.
+
+أُثبت المسار على Galaxy Note 8 الحقيقي `SM-N950F`/`988e16384e4f51395230`: اختير المقاس `S`، ظهرت رسالة النجاح في `output/temu-no-auto-success.png`، وبقي المنتج نفسه ظاهرًا بعد خمس ثوانٍ في `output/temu-no-auto-stays-product.png`. بعد الضغط اليدوي على السلة ظهر المنتج الجديد كالعنصر الثاني في سلة Temu في `output/temu-no-auto-cart-manual2.png`. وسجل الجهاز رسالة `addToCart` كاملة بعنوان المنتج والصورة والسعر `8.56 USD` والمقاس `S` قبل التأكيد. جلسة Temu المضمّنة بقيت محفوظة، وWebExtension الحالية `1.3.12`.
+
+النسخة الشخصية المثبتة على Note 8 هي `86.164-personal-integrated/1024`: `output/otlobli-v86.164-temu-personal-arm64-debug.apk`، الحجم `205,028,280` بايت، SHA-256 `4B4DEDBE3089E7D860BDC041C578D51C9320E7955ACC3C970BDB02FFE5A022D0`. النسخة القياسية: `output/otlobli-v86.164-standard-universal-debug.apk`، الإصدار `86.164/1024`، الحجم `11,466,337` بايت، SHA-256 `575B502B7DBC7F57D48EE812DF6E3F9C3C86B3105863F8019CCDFCAFF546E54B`.
+
+نجح `npm run build` و`npm run build:temu-personal` وحارس تجمد SHEIN وميزانية الأداء وبناء Android القياسي والشخصي ومزامنة Android وiOS. الحدود النهائية: أكبر JS `1,085,076/1,200,000` بايت (الشخصي `1,085,075`)، JS gzip `287,255/370,000` (الشخصي `287,250`)، CSS `69,766/70,000`، الخطوط `81,364/100,000`، سكربتات المتجر `456,288/470,000`، ومصدر SHEIN `552,710/600,000`. نُفذ تشغيل بارد للنسخة الشخصية وبقيت `MainActivity` هي الواجهة الوحيدة النشطة. iOS متزامن مع بناء الويب القياسي، لكنه لم يُبنَ على Xcode ولم تُنفذ دورات iPhone 16 الخمس أو اختبار التشغيل البارد؛ لا توجد موافقة جهاز iPhone لهذه الدفعة.
+
+# v86.163 — شاشة المتاجر، سلتان مستقلتان، وتنقّل Temu الصحيح (2026-08-12)
+
+يبدأ التطبيق الآن مباشرةً بشاشة اختيار عربية سريعة بين **SHEIN السعودية** و**Temu السعودية**، ولا يبدأ فحص الاتصال أو فتح WebView الثقيل قبل اختيار المتجر. لكل متجر جلسة وسلة مستقلة، وتعرض شاشة السلة مبدّل SHEIN/TEMU مع عدد القطع والمجموع الخاص بكل متجر؛ لا تختلط المنتجات أو الشحن أو الدفع بين المتجرين. إذا كانت مجموعة شراء مشتركة مفتوحة، يُمنع تبديل متجر السلة حتى لا يتغير مصدر الطلب الجاري.
+
+تغيّر معنى زر «الرئيسية» داخل التطبيق: من السلة/الطلبات/الحساب يرجع إلى المتجر النشط، وداخل المتجر يرجع إلى رئيسية المتجر نفسه ولا يخرج إلى شاشة الاختيار. الخروج من المتجر صار إجراءً صريحاً عبر زر الرجوع: على رئيسية Temu يبقى زر الرجوع ظاهراً، ويعرض `هل تريد الخروج من متجر تيمو؟`؛ «خروج» يغلق جلسة العرض ويرجع إلى شاشة المتجرين مع إبقاء سلة Temu محفوظة. بقيت هوية Otlobli، الشريط السفلي، حجب عناصر Temu، المنطقة السعودية، جلسة الضيف الدائمة، وحارس إصلاح صفحة المنتج كما كانت. WebExtension هي `1.3.8`.
+
+النسخة الشخصية النهائية `86.163-personal-inapp/1023` بُنيت وثُبتت على Galaxy Note 8 `SM-N950F`/`988e16384e4f51395230`. اختُبر تشغيل بارد (`ThisTime=2649ms`)، فتح Temu من شاشة الاختيار، فتح السلة ثم «الرئيسية» والعودة إلى Temu، ظهور زر الرجوع على رئيسية Temu، نافذة تأكيد الخروج، ثم رجوع «خروج» إلى شاشة الاختيار مع بقاء عداد سلة SHEIN. الأدلة: `output/note8-v86.163-store-hub-fixed.png`، `output/note8-v86.163-cart-tabs.png`، `output/note8-v86.163-temu-home.png`، `output/note8-v86.163-temu-exit-confirm.png`، و`output/note8-v86.163-after-confirm-exit.png`.
+
+APK Note 8: `output/otlobli-v86.163-store-hub-cart-temu-arm64-debug.apk`، الحجم `205,027,368` بايت، SHA-256 `BA9DD25C7A0A81F5722CCE7F4F9235D1109BB602AA305AFA5915DC916B79C186`. APK Android العادي المتزامن: `output/otlobli-v86.163-store-hub-cart-universal-debug.apk`، الحجم `11,128,628` بايت، SHA-256 `6FE083FE8A75FFA8EF2CAD544BCF6432F74DCDAFA6D6ED4EB69142E3F8AF15CF`.
+
+نجح `npm run build` و`npm run build:temu-personal` و`verify:shein-freeze-guard` وTypeScript وبناء Android العادي والشخصي ومزامنة Android وiOS. ميزانية الأداء النهائية: أكبر JS `1,082,529/1,200,000` (الشخصي `1,082,528`)، إجمالي JS gzip `286,628/370,000` (الشخصي `286,625`)، CSS `69,766/70,000`، الخطوط `81,364/100,000`، سكربتات المتجر `455,791/470,000`، ومصدر SHEIN `552,213/600,000`. iOS متزامن مع بناء الويب العادي وإصداره `86.163/1023`، لكنه لم يُبنَ على Xcode ولم تُنفذ دورات iPhone 16 الخمس أو اختبار التشغيل البارد؛ لا توجد موافقة جهاز iPhone لهذه الدفعة.
+
+# v86.161 — منع غطاء «جاري فتح المنتج» الكاذب بعد نجاح فتح Temu (2026-08-12)
+
+شُخّصت الشاشة من نصها ومصدرها وسجل Note 8: هي العنصر `#otlobli-temu-product-loading` الذي ينشئه حارس Otlobli `otlobliTemuBlankProductNotice()`، وليست صفحة Temu ولا طبقة Android ولا عودة إلى تسجيل الدخول. بقي سجل Gecko على رابط المنتج نفسه ولم يسجل `/login` وقت العطل. كان الحارس يعتبر المنتج فارغاً عندما لا توجد صورة كبيرة أو قيمة سعر **داخل مساحة الشاشة الحالية**؛ بعد أن يفتح المنتج ويغيّر Temu صورة المعرض/DOM أو تخرج الصورة والسعر من مجال الرؤية، تصير النتيجة المرئية سالبة رغم بقاء DOM المنتج سليماً، فيرسم الحارس غطاءً أبيض كاملاً فوق المنتج الصحيح.
+
+الإصلاح في النسخة الشخصية `86.161-personal-inapp/1021` وWebExtension `1.3.7`: بعد ثبات ظهور المنتج الحقيقي يسجل السكربت هويته في `__otlobliTemuConfirmedProductIdentity`. غطاء التحميل لا يظهر الآن إلا لمنتج جديد لا يملك أي DOM منتج فعلياً ولم يسبق تأكيده، وإعادة التحميل المحدودة تتوقف أيضاً فور كون المنتج مؤكداً. لم يُحذف حارس الفراغ الحقيقي ولم تُضف مؤقتات أو observers أو مسوحات DOM جديدة. أضيف الفحص `node scripts/verify-temu-product-loading-guard.mjs` لأربع حالات: DOM جديد فارغ، منتج محمّل خرجت عناصره من viewport، منتج مؤكد أثناء تبديل DOM لحظي، ومنتج جديد مختلف.
+
+ثُبتت `86.161/1021` فوق النسخة السابقة على Galaxy Note 8 `SM-N950F`/`988e16384e4f51395230` عبر `pm install -r` مع حفظ سياق Temu الدائم. فُتح المنتج الحقيقي `606482062007357` من عروض التصفيات، ظهر زر `أضف للسلة` وشريط Otlobli، وبقي مفتوحاً من 11:13 إلى 11:18 مع تغيير صور المعرض وعدة فترات انتظار تتجاوز دورات الصيانة. فحص UI النهائي أعاد `LOADING_TEXT_COUNT=0` و`LOGIN_TEXT_COUNT=0`، ولم يسجل logcat FATAL/ANR أو انتقالاً إلى صفحة الدخول. نتيجة الإصلاح موثقة في `output/temu-v86161-note8-long-swipe.png`.
+
+APK المثبت على Note 8: `output/otlobli-v86.161-temu-inapp-arm64-debug.apk` (والـalias `otlobli-v86.161-temu-inapp-debug.apk`)، الحجم `205,023,908` بايت، ABI `arm64-v8a`، وSHA-256 `FB8FF58987EACF1FAA1288C2A96CDD262AEDE99F33626E69C0DBA1C087C91900`. APK المحاكي: `output/otlobli-v86.161-temu-inapp-x86_64-emulator-debug.apk`، الحجم `224,446,802` بايت، وSHA-256 `5739C1332A84805C09E61C039C20D9C56EA78EE9153A792A3C4EDB794EAF7232`. APK العادي المتزامن: `output/otlobli-v86.156-standard-debug.apk`، الحجم `11,125,420` بايت، وSHA-256 `AE2D03603742DC5BDCD9300E0ACE7BF33E839B7B9F1AFA86EFD4755282425617`، وفحصه أعاد صفر Gecko/Temu-extension entries.
+
+نجح البناء العادي والشخصي، حارس تجمد SHEIN، ميزانية الأجهزة الضعيفة، مزامنة Android وiOS للويب العادي، وبناء Android العادي وARM64 وx86_64. أكبر JS `1,077,429/1,200,000`، إجمالي JS gzip `285,318/370,000`، والسكربتات المشحونة `454,698/470,000`. لم يُبن أو يُختبر iOS؛ التغيير يخص حارس Temu المشترك لكنه مُسلّم ومقبول جهازياً في مسار Android الشخصي فقط.
+
+# v86.160 — إصلاح جذري لرجوع Temu إلى تسجيل الدخول على Android (2026-08-12)
+
+شُخّصت المشكلة باختبار A/B على المنتج نفسه `607511226757592` ومن الشبكة نفسها: بناء Android السابق كان يفرض ترويسة iPhone Safari على محرّك GeckoView يعمل فعلياً على Android، فكانت هوية المتصفح متناقضة ويحوّل Temu فتح المنتج إلى `/login.html?login_scene=2`. فتح المنتج في Chrome Android لم يطلب حساباً بل انتقل إلى تحقق الضيف، وبعد إزالة الترويسة المزيفة من GeckoView انتقل التطبيق أيضاً إلى تحقق الضيف بدلاً من تسجيل الدخول. لذلك حُذف حل إعادة المحاولة التجريبي نهائياً؛ لا يوجد `otlobli_guest_retry` أو دوران تنقّل مخفي.
+
+النسخة الشخصية الحالية `86.160-personal-inapp/1020` تستخدم هوية Gecko/Android الأصلية وسياق ضيف دائم جديد `otlobli-temu-android-guest-v86160-final` مع `usePrivateMode(false)`. بقي Temu داخل التطبيق، وبقي شريط Otlobli السفلي وزر الإضافة الأخضر وحجب أزرار Temu وفرض السعودية كما كان. WebExtension الحالية `1.3.6`. لم تتغير CM أو السلة أو الدفع أو المحفظة، والبناء العادي بقي منفصلاً `86.156/1016` بلا GeckoView.
+
+نجح التحقق على محاكي Android 15: أُكمل تحقق الضيف مرة، ثم بعد `force-stop` وتشغيل بارد فتح المنتج مباشرة بلا صفحة دخول وبلا تحقق جديد، مع `LOGIN_COUNT=0` و`CHALLENGE_COUNT=0` وبدون FATAL/ANR. وعلى Galaxy Note 8 الحقيقي `SM-N950F`/`988e16384e4f51395230` ثُبتت النسخة النهائية مع حفظ بيانات التطبيق؛ ظهرت في السياق الجديد شاشة تحقق ضيف أولية لا صفحة دخول، وبعد الإغلاق والتشغيل البارد فتح منتج حقيقي داخل التطبيق وظهر زر `أضف للسلة` وشريط Otlobli، مع `LOGIN_COUNT=0` وبدون FATAL/ANR. لم يُحل CAPTCHA آلياً على Note 8 ولا يوجد تجاوز له؛ يحتفظ التطبيق بجلسة التحقق، لكن يظل لخادم Temu حق طلب تحقق جديد عند تغيّر تقييم المخاطر.
+
+APK المثبت على Note 8: `output/otlobli-v86.160-temu-inapp-arm64-debug.apk` (والـalias `otlobli-v86.160-temu-inapp-debug.apk`)، الحجم `205,023,728` بايت، ABI `arm64-v8a`، وSHA-256 `CD3AC4D50847BEA44F0A129DCE317BAC8FD272D7AF546E5C43BC72F79C8E1E5A`. APK المحاكي المثبت: `output/otlobli-v86.160-temu-inapp-x86_64-emulator-debug.apk`، الحجم `224,446,622` بايت، وSHA-256 `0305D5FB55ED752D380C705844E3184A6E5683B38858F83DB77FE6262F87DE22`. APK العادي: `output/otlobli-v86.156-standard-debug.apk`، الحجم `11,125,340` بايت، وSHA-256 `47C92DE395B513758AC1A86E6E0800AC1AE98670FC9F2C663CB720E2E114FAE9`، وفحصه أعاد صفر Gecko entries.
+
+نجح `npm run build` وحارس تجمد SHEIN وميزانية أداء الأجهزة الضعيفة، ثم مزامنة Android وiOS وبناء Android العادي. ونجح `npm run build:temu-personal` ومزامنة Android وبناء نسختي ARM64 وx86_64. iOS متزامن مع الويب العادي فقط ولم يُبن أو يُختبر؛ الإصلاح الحالي خاص بمسار Temu الشخصي على Android.
+
+# v86.159 — إصلاح منتج Temu وحفظ جلسة التحقق (2026-08-12)
+
+النسخة الشخصية الحالية `86.159-personal-inapp/1019` تُبقي Temu داخل `TemuGeckoActivity` بمحرك GeckoView مضمّن وبلا شريط عنوان أو اسم موقع أو قائمة متصفح. أصل غياب زر Otlobli الأخضر كان أن Temu غيّر رابط المنتج إلى صيغة iPhone مثل `-g-601103…html` بينما مشغّل الالتقاط كان يقبل فقط `/goods.html` و`goods_id=`. صار مولّد الإضافة يعرّف الصيغ الثلاث، وارتفعت نسخة WebExtension إلى `1.3.4` لضمان تحديثها على الأجهزة.
+
+على صفحة المنتج يظهر الآن زر Otlobli الأخضر `أضف للسلة`، ويُحجب زر Temu البرتقالي `حدد خياراً`/`اختر خياراً` وشريط الشراء الأصلي والتحكم العائم الزائد، من دون حجب زرنا. نُقل زرنا إلى أسفل المحتوى فوق شريط التطبيق، وصار زر الرجوع الأصلي يحترم حافة شريط الحالة مع مسافة `24dp` ويختفي تماماً على رئيسية `/sa/`. بقي شريط Otlobli السفلي وحجب حساب/سلة/قائمة Temu والعجلة والنوافذ وأشرطة فتح التطبيق كما كان. لم تتغير سلة Otlobli أو الدفع أو المحفظة أو CM.
+
+جلسة Temu غير خاصة وتستخدم السياق الدائم نفسه `otlobli-temu-ios-guest-v86158-final2`؛ لا يُغيّر هذا المعرف ولا تُمسح بياناته، لأن GeckoView يخزّن ملفات الموقع حسب `contextId`. أول منتج بعد تحديث APK ثم `force-stop` فتح بلا CAPTCHA وبلا دخول، ما يثبت بقاء تحقق الجلسة عبر الإغلاق والتحديث. بعد نقرات ADB سريعة ومتكررة أعاد خادم Temu بعض المنتجات فعلياً إلى `/login.html`؛ هذا قيد خادم وليس فقداناً محلياً للجلسة، ولا يوجد تجاوز CAPTCHA أو ادعاء بأن Temu لن يعيد التحقق عندما يحتاج.
+
+اختُبرت نسخة `x86_64` على `Pixel_7_API_35_Test`/Android 15: تشغيل بارد بلا مسح بيانات فتح الرئيسية السعودية بالعربية والريال، بلا زر رجوع زائد وبشريط Otlobli الكامل. المنتج الأول أثبت ظهور زرنا واختفاء `حدد خياراً`، ولا توجد `FATAL EXCEPTION` أو ANR. تُرك المحاكي على الرئيسية. Note 8 غير متصل بـ ADB، لذلك لم تُثبت النسخة عليه.
+
+APK الخاص بـ Note 8: `output/otlobli-v86.159-temu-inapp-arm64-debug.apk` (والـalias `otlobli-v86.159-temu-inapp-debug.apk`)، الحجم `205,023,728` بايت، ABI `arm64-v8a`، وSHA-256 `F3C403436BA4FA8E9E467FE06D1D9B0FFB7E6E2CD2233595D10214E0F7CFE5F9`. APK المحاكي المثبت: `output/otlobli-v86.159-temu-inapp-x86_64-emulator-debug.apk`، الحجم `224,446,622` بايت، وSHA-256 `DB0880D1C30A6242EBF3B13720D1EF4D1350C1374A6E455A21D874365246F72B`. اختصار `محاكي أندرويد Pixel 7.lnk` باقٍ على سطح المكتب.
+
+البناء العادي بقي منفصلاً `86.156/1016` ولا يضم GeckoView؛ فحص APK أعاد صفر Gecko entries. نجح بناؤه ومزامنة Android وiOS و`assembleDebug`. مساره `output/otlobli-v86.156-standard-debug.apk`، الحجم `11,125,340` بايت، وSHA-256 `B3789760FC756E459C43951844CD1CBF87781FFD6DBADDB1BEEA97FB93F08EDC`.
+
+نجح حارس تجمد SHEIN وميزانية الأجهزة الضعيفة: أكبر JS `1,077,128/1,200,000` (الشخصي `1,077,127`)، إجمالي JS gzip `285,219/370,000` (الشخصي `285,212`)، CSS `63,846/70,000`، الخطوط `81,364/100,000`، سكربتات المتجر `454,397/470,000`، ومصدر SHEIN `551,255/600,000`. iOS متزامن مع البناء العادي فقط ولم يُبن محلياً؛ اختبارات iPhone 16 الخمسة واختبار force-quit/cold-launch غير منفذة.
+
+# v86.156 — استعادة Temu داخل التطبيق بعد تشخيص Android (2026-08-12)
+
+المرشح الحالي `86.156/1016` ومثبت فعلياً على Galaxy Note 8 (`988e16384e4f51395230`). بناءً على طلب
+المستخدم أُبقي Temu داخل WebView التطبيق بنفس الشريط والشكل والحجب السابق، وثُبتت السعودية محلياً
+(`SA` و`/sa/` والأسعار بالريال). البناء الافتراضي لا ينفذ Custom Tab أو فتح Chrome أو تبديل شكل التطبيق؛ المسار الخارجي موجود فقط خلف وضع `temu-personal` المنفصل الموثق أعلاه.
+
+التشخيص أثبت أن Chrome الحقيقي على Note 8 يستطيع فتح منتجات السعودية كضيف بعد تحقق أمني يدوي؛ فُتح
+منتجان فعليان (`605943177830110` و`601103362618514`). لكن المسار الداخلي نفسه أعاد من خادم Temu
+`424/40001` عند `/api/passport/token/touch` ثم `403 NEED_LOGIN` عند `/api/oak/integration/render`.
+بقي ذلك صحيحاً بعد تجربة third-party cookies، وإزالة علامتي WebView من UA، وإكمال التحقق الرسمي يدوياً
+(`login_verify_result=1` ورمز تحقق صالح)، ثم إعادة طلب واجهات المنتج بهوية Chrome وعبر VPN الجهاز.
+كما فشلت تجربة أخيرة مررت كل واجهات Temu بهوية واحدة؛ لذلك ليس الفرق CAPTCHA أو كوكيز الطرف الثالث أو UA
+وحدها، بل قبول جلسة الضيف من خادم Temu عند تصنيف Android WebView.
+
+لم تُعتمد أي تجربة ثقيلة أو خارجية. أزيلت طبقة `addProxyHandler` كاملة، ومحاكاة Chrome، والمسار الأصلي
+المباشر في كود Android، وكل سجلات الأجسام/الترويسات التشخيصية. أُعيد توليد رقعة
+`@capgo/capacitor-inappbrowser` من المصدر النظيف. النتيجة النهائية تحفظ حجب عجلة الجوائز وشكل Otlobli؛
+وعندما يفرض Temu الدخول على Android تظهر صفحة الدخول الأصلية داخل التطبيق بدل شاشة بيضاء أو طرد للرئيسية.
+لم يتغير CM أو الدفع أو المحفظة أو الطلبات المكتملة.
+
+نجح `npm run build` مع حارس تجمد SHEIN وميزانية الضعيف: أكبر JS
+`1,075,812/1,200,000`، إجمالي JS gzip `284,862/370,000`، CSS `63,846/70,000`، الخطوط
+`81,364/100,000`، وسكربتات المتجر `454,397/470,000`. نجحت مزامنة Android وiOS و`assembleDebug`،
+وثُبت APK كتحديث وحافظ على البيانات. أكد الجهاز `versionName=86.156` و`versionCode=1016` ولم تظهر
+`FATAL EXCEPTION` أو ANR أو سجلات التجربة المحذوفة. مسار APK:
+`android/app/build/outputs/apk/debug/app-debug.apk`، الحجم `11,126,604` بايت، وSHA-256:
+`3A14535400020A21E4AF85D8DB4DD307514612320647796B648EBF66ADE03CC4`.
+
+iOS متزامن فقط ولم يُبنَ محلياً. لم تُنفذ دورات iPhone 16 الخمس أو force-quit/cold-launch؛ لا تدّعِ قبول iOS
+لهذه الدفعة. حل المنتجات بلا دخول المثبت على Android هو Chrome، لكنه غير معتمد لأن المستخدم طلب الشكل الداخلي.
+
+# v86.153 — تيمو: إظهار الدخول الحقيقي وإيقاف عجلة الجوائز (2026-08-12)
+
+المرشح الحالي هو `86.153/1013` ومثبّت على Galaxy Note 8
+(`988e16384e4f51395230`). صيانة هذه الدفعة محصورة بتيمو ولم تغيّر منطق الدفع أو
+المحفظة أو الطلبات المكتملة.
+
+أظهر فحص DOM الحي أن صفحة `/login.html` الحقيقية كانت موجودة، لكن منظف إعلانات
+تيمو صنّف الحاوية العامة `.container` خطأً كعرض حساب وأعطاها
+`display:none!important` مع `data-otlobli-temu-clean-hidden=1`. صار المنظف الآن
+يتوقف على مسارات الحساب/الدخول ويعيد فقط العناصر التي أخفاها هو. صفحة الدخول
+الأصلية (البريد وGoogle وFacebook) أصبحت مرئية وتفاعلية بدلاً من الشاشة البيضاء.
+كما صار مسار منتج السلة المعلّق يعرض تحقق تيمو الحقيقي ولا يبقى خلف timeout مخفي،
+وتنتهي حالة التحقق لكل متجر عند وصول `humanCheckResolved`.
+
+كذلك كانت عجلة جوائز Temu كاملة الشاشة تظهر فوق المنتجات لأن دالة الحجب الموجودة
+لم تكن تُستدعى. أضيف مرساة selectors رخيصة في tick تيمو؛ لا يبدأ الفحص الأوسع إلا
+عند وجود عنصر wheel/spin/turnable، وبعد حجب الجذر مرة واحدة تتجاوزه الدورات التالية.
+اختير هذا الأسلوب لتثبيت الواجهة من دون إضافة مسح DOM دائم على الأجهزة الضعيفة.
+
+التحقق على Note 8:
+
+- الرئيسية عرضت منتجات Temu الفعلية بعد التشغيل البارد بلا عجلة جوائز.
+- النقر على منتج وصل إلى مسار المنتج ثم فرض خادم Temu الدخول
+  (`424/40001` ثم `403 NEED_LOGIN`)؛ بقي نموذج الدخول الحقيقي ظاهراً ولم تظهر
+  `temuLoginBlocked` ولم يطرد التطبيق المستخدم إلى رابط USD أو شاشة «نفد المنتج».
+- زر الرجوع العائم أعاد إلى الرئيسية، وزر السلة فتح سلة Otlobli الأصلية. كانت
+  السلة فارغة ولم تُغيّر أي بيانات.
+- ثلاث دورات خلفية/استئناف أبقت العملية نفسها `PID 29796`. نجح force-stop ثم
+  cold launch بعملية `PID 31641`، وعادت المنتجات بلا العجلة. لم يسجل الفحص
+  `FATAL EXCEPTION` أو ANR أو موت العملية، ولم تتكرر هجرة `clearCookies`.
+
+نجح `npm run build` مع حارس تجمّد SHEIN وميزانية الأجهزة الضعيفة: أكبر JS
+`1,076,241/1,200,000`، إجمالي JS gzip `284,993/370,000`، CSS
+`63,846/70,000`، الخطوط `81,364/100,000`، والسكربتات المشحونة
+`454,397/470,000`. نجحت مزامنة Android وiOS، ونجح `assembleDebug`، وثُبّت APK
+بتحديث يحافظ على بيانات التطبيق. الملف
+`android/app/build/outputs/apk/debug/app-debug.apk` حجمه `11,124,980` بايت
+وبصمة SHA-256 هي
+`05E0885CE5D406D74F551AEE0E9A320E46305FFC5EFE1E90A468AB45EA3E4952`.
+
+فحص ESLint المستهدف ما زال يعرض الدين السابق (`31` خطأ و`15` تحذيراً)، بينما
+بناء TypeScript/Vite نجح. iOS متزامن فقط ولم يُبنَ أو يُختبر على iPhone؛ لا تزال
+خمس دورات iPhone 16 واختبار force-quit/cold-launch مطلوبة قبل قبول iOS.
+
+# v86.150 — تيمو: إظهار التحقق الحقيقي ومنع «نفد المنتج»/الطرد الوهمي (2026-08-11)
+
+المرشح المحلي الحالي هو `86.150/1010`. لا تعتبر قبول `86.147` المكتوب أدناه
+قبولاً للمنتجات: المستخدم أثبت أن كل منتج ظاهر كان يعطي «نفدت هذه السلعة» ثم
+يرجعه للرئيسية، والفحص السابق أخطأ عندما عدّ هذا الرجوع نجاحاً.
+
+إعادة الإنتاج على Galaxy Note 8 (`988e16384e4f51395230`) حسمت السبب بالشبكة:
+النقر على منتج ظاهر أرسل `/api/passport/token/touch` فأعاد `424/40001`، ثم
+`/api/oak/integration/render` فأعاد `403 NEED_LOGIN`. بعدها كان كود Otlobli
+نفسه يحوّل مسار الدخول إلى رئيسية السعودية، بينما واجهة تيمو تعرض fallback
+مضللاً كأن المنتج نافد. المنتج لم يكن مثبتاً أنه نافد.
+
+الإصلاح الحالي:
+
+- أزيل فرض عملة/دولة Otlobli داخل `localStorage` و`sessionStorage` وكوكيز تيمو؛
+  هذه الكتابات كانت تولّد `localStorageNotRegister` و`sessionStorageNotRegister`
+  وتترك SAR وUSD معاً. السعودية ما زالت ثابتة من مسار `/sa/` وإعداد المتجر،
+  والعملة المرئية يختارها تيمو (ظهرت SAR على الجهاز).
+- رئيسية تيمو صارت `/sa/` بلا `currency=USD`. روابط تيمو الأصلية
+  `/goods.html?...` تبقى كما يصدرها تيمو ولا تتحول إلى `/sa/goods.html`.
+- أزيل اعتراض `/login.html` ورسالة `temuLoginBlocked` وكل رجوع إجباري إلى
+  الرئيسية. تسجيل الدخول أو التحقق الأمني وجهة حقيقية يجب أن تبقى ظاهرة
+  وتفاعلية، لا أن تتحول إلى «نفد المنتج» أو تطرد المستخدم.
+- توجد هجرة مرة واحدة لجلسة تيمو القديمة فقط. Android يحذف كوكيز `temu.com`
+  فعلياً ككوكيز host/domain من دون اشتراط WebView مفتوحة؛ iOS يستخدم حذف
+  `WKWebsiteDataStore` المحصور بالمضيف بعد فتح WebView. فشل التنظيف لا يمنع فتح
+  المتجر. لا تُمس كوكيز SHEIN أو جلسة تطبيق Otlobli.
+
+الدليل الحي قبل بناء المرشح: حذف كوكيز تيمو المحصورة أزال 19 كوكي متضاربة وترك
+صفر كوكي تيمو، ثم أنشأ الموقع جلسة سعودية نظيفة (`region=174`, `ar`, `SAR`).
+بدلاً من «نفد المنتج» ظهر iframe التحقق الأمني الحقيقي. جرى تحليل عناصره وصوره
+وسحبها على الجهاز، لكن لم يتم تجاوز حماية تيمو آلياً؛ لذلك لا يوجد ادعاء بأن
+صفحة منتج نهائية اجتازت التحقق. المطلوب في قبول الجهاز هو إكمال التحقق يدوياً
+ثم فتح عدة منتجات والتأكد أنها تبقى مفتوحة.
+
+نجح `npm run build` مع حارس تجمّد SHEIN وميزانية الأجهزة الضعيفة
+(`453,499/470,000` بايت للشيفرة المحقونة)، وتمت مزامنة Android وiOS بعد البناء.
+`npm run lint` ما زال يفشل بسبب الدين القديم للمشروع: 33 خطأ و16 تحذيراً في
+التطبيق ولوحة الإدارة وخدمة الدفع، ولا يظهر خطأ TypeScript من هذا التعديل.
+لم يُنتج APK `86.150`: Gradle المحلي يفتقد
+`com.android.tools.build:gradle:8.13.0` و`google-services:4.4.4`، والوصول
+الخارجي المطلوب للبناء رُفض من البيئة بسبب حد الاستخدام. لذلك لا يوجد مسار أو
+hash أو تثبيت نهائي لهذه النسخة. iOS متزامن فقط ولم يُبنَ أو يُختبر على iPhone؛
+تبقى خمس دورات iPhone 16 واختبار التشغيل البارد مطلوبة.
+
+# v86.147 — إرجاع تيمو إلى الأساس المستقر مع إبقاء الجذب (2026-08-11)
+
+المرشح المحلي الحالي هو `86.147/1007` ومثبّت على Galaxy Note 8
+(`988e16384e4f51395230`). أُعيد سلوك تيمو إلى خط GitHub المستقر `v85.8.77`؛
+المرجع الحاسم هو `b22f5d1` الذي كان قد أعاد ذلك الأساس النظيف مع إبقاء إصلاح
+التجمّد. اختير لأنه آخر خط تيمو مستقر قبل أن تصبح التغييرات اللاحقة في معظمها
+عمل SHEIN، ولأنه يطابق الفترة التي ثُبّت فيها متجر السعودية.
+
+أُزيلت طبقات تيمو المتداخلة اللاحقة، مع إبقاء ما ثبت أنه صحيح فقط: حماية موت
+WebView الحديثة، قفل السعودية، وإصلاح الجذب `temuStripQuantity()` الذي يمنع شريط
+الكمية من تلويث اللون أو المقاس. التطبيق يتجاهل أي منطقة تيمو مخزنة أو قادمة من
+الإعدادات البعيدة ويستخدم السعودية حصراً (`SA`، `/sa/`، `region=174`، لغة `ar`).
+واجهة تيمو تعرض `ر.س`، بينما عملة السلة الداخلية تبقى USD كما طلب المستخدم.
+
+استرداد التصفح محدود وواضح: عند صفحة منتج فارغة يظهر «جاري فتح المنتج…»، وتوجد
+إعادة تحميل واحدة فقط لكل منتج. إذا فرض خادم تيمو `/login.html` يعترضه الغلاف
+الأصلي ويعود باتجاه واحد إلى رئيسية السعودية، أو إلى سلة التطبيق عند وجود إضافة
+معلّقة؛ لا يعيد فتح المنتج المرفوض ولا يدخل في حلقة. بعض المنتجات والبحث ما زالت
+تُحجب من خادم تيمو نفسه على هذا الاتصال، ولا يحاول التطبيق تجاوز الحماية.
+
+فحص القبول الكامل لنفس كود التصفح في `86.146` استمر `149.964s`: فُكّت وحُلّلت
+كل الإطارات وعددها `1427`، وكانت أطول فترة بياض صارمة `0.289s` فقط (إطار منفرد)،
+وسجل CDP أعطى صفر حالة بياض، وصفر منطقة أو لغة خاطئة في `93` حالة تيمو. بقيت
+العملية نفسها بعد ثلاث دورات خروج/عودة. بعد ذلك لم يتغير التصفح في `86.147`؛
+أُعيد فقط حارس تنقية بيانات الجذب، ثم نجح فحص نهائي على الجهاز للرئيسية السعودية
+ومنتج نافد ومنتج آخر أعاده الخادم للرئيسية بلا تعليق أو بياض دائم.
+
+نجح `npm run build` وحارس تجمّد SHEIN وميزانية الأجهزة الضعيفة (الشيفرة المحقونة
+`456,841/470,000` بايت)، وتمت مزامنة Android وiOS ونجح Android debug build.
+الـAPK النهائي `android/app/build/outputs/apk/debug/app-debug.apk` حجمه
+`11,125,532` بايت وبصمة SHA-256 هي
+`29B2250CBA057459440048C758A6566F99243256E579A99A07FDC11533B3666E`.
+iOS متزامن فقط؛ لم يُبنَ أو يُختبر على iPhone، ولذلك تبقى خمس دورات iPhone 16
+واختبار force-quit/cold-launch مطلوبة قبل إصدار iOS.
+
+# v86.142 — تدقيق تيمو الزمني وقفل السعودية والاسترداد المحدود (2026-08-11)
+
+المرشح المحلي الحالي هو `86.142/1002` على Android وiOS. تيمو مقفول على السعودية
+حصراً: مسار `/sa/`، كوكي المنطقة الحقيقية `region=174`، واللغة العربية السعودية.
+العملة الداخلية للسلة تبقى USD كما طلب المستخدم، بينما واجهة تيمو تعرض الأسعار
+بالريال السعودي. فُحص هذا فعلياً على Galaxy Note 8 (`988e16384e4f51395230`).
+
+أهم إصلاح أخير: بعض روابط منتجات السلة كانت ترتد `product → login` بلا نهاية في
+WebView المخفية، مع أن واجهة React عادت للسلة. تيمو كانت تمسح كوكي حارس المحاولة،
+لذلك استُبدل بعلامة `otlobli_guest_retry=1` داخل رابط الهدف نفسه. صار المسار
+محدوداً إلى محاولة ضيف واحدة ثم رجوع وحيد إلى رئيسية السعودية. فشل رندر المنتج
+الفارغ يستخدم المبدأ نفسه عبر `otlobli_blank_retry=1` بدل إعادة تحميل غير محدودة.
+
+التحقق النهائي على الجهاز:
+
+- سجل CDP لمدة 90.18 ثانية: خمسة انتقالات فقط؛ آخرها رئيسية السعودية عند
+  `9.266s`، ولا انتقالات أخرى حتى نهاية التسجيل.
+- تسجيل شاشة 89.747 ثانية حُلّل بمعدل 4 إطارات/ثانية (359 عينة): صفر فترة
+  بياض كامل/قريب من الكامل، وبقيت السلة ظاهرة أثناء فشل رابط المنتج.
+- خمس دورات خروج/عودة على Android أبقت العملية نفسها `pid 9325`.
+- الرئيسية والبحث وحالة «لا نتائج» والرجوع والسلة بقيت تفاعلية؛ كل حالات CDP ذات
+  منطقة كانت `174` وكل اللغات `ar`. لا أخطاء `StorageNotRegister`.
+- خوادم تيمو أعادت 403/429 لبعض API على هذا الاتصال، ولذلك تفرض تسجيل دخول أو
+  تحقق أمني على بعض المنتجات. التطبيق لا يتجاوز حماية تيمو: يعرض التحقق الحقيقي
+  أو يرجع بأمان للسلة/الرئيسية بدل شاشة بيضاء أو حلقة.
+
+التحقق الآلي: `npm run build` نجح، حارس تجمّد SHEIN نجح، ميزانية الأجهزة الضعيفة
+نجحت (الشيفرة المحقونة 455,975/470,000 بايت)، وتمت مزامنة Android وiOS. نجح
+`assembleDebug` وثُبت APK على الجهاز. الملف
+`android/app/build/outputs/apk/debug/app-debug.apk` حجمه `11,125,180` بايت وبصمة
+SHA-256 هي `BD7E012E459B9CFA0AB30E36310E715C7CDAE0A2D6B24088588E79D2E4BF606A`.
+iOS متزامن فقط؛ لم يُبنَ أو يُختبر على iPhone في هذه الجلسة، لذلك دورات قبول
+iPhone 16 الخمس واختبار التشغيل البارد ما زالت مطلوبة قبل إصدار iOS.
+
 # v86.134 — تيمو: قصّ ذيل «الكمية» من اللون/المقاس (2026-08-11)
 
 فُحص تيمو على النوت 8 (`988e16384e4f51395230`) عبر CDP + `screencap` مع نقرات
@@ -2545,3 +2992,22 @@ Frame-by-frame cold-launch recording on the connected SM-N950F / Note 8 found a 
 v86.99 makes navigation ownership continuous: the Android 9-and-earlier activity window paints a compact static Otlobli tab strip immediately; `MainActivity` replaces it with a complete native, RTL, labelled strip before Capacitor creates the WebView; the established SHEIN cover keeps its navigation footprint; React dismisses the native surface only after two rendered frames. The static preview intentionally has icons only because it is a system drawable; it exists only for the pre-Java moment and hands off to the labelled native bar without a blank interval. The Android-only bridge is never called on iOS.
 
 No iPhone recompose timing, Android resume defense, region rebuild guard, SHEIN script size, cart behavior, or human-check behavior changed. Production build, iPhone-freeze guard, performance budget, Android/iOS sync, Android debug build, install, and a final 5-fps Note 8 cold-start recording passed. Android 86.99/959 APK: `android/app/build/outputs/apk/debug/app-debug.apk`, 12,574,241 bytes, SHA-256 `89680514B56FE6FD14992079A2B66D85BFA84CABD9E6BC8B99D7EA050E9D0BA9`. The real iPhone 16 cold launch plus five background/resume cycles remain required before iOS acceptance.
+# v86.135 — تيمو مقفول على متجر السعودية (2026-08-11)
+
+- تيمو لا يعتمد `country=SA` أو المسار `/sa/` وحدهما؛ منطقة المتجر الحقيقية تأتي من كوكي `region`. على النوت 8 كان `region=165` (قطر) رغم كل إعدادات السعودية.
+- إعداد تيمو المنشور في الصفحة (`window.__REGION_CONFIG__`) يثبت أن السعودية رقمها الداخلي `174`. السكربت يكتب الآن `region=174` عند `documentStart` ويعيد التحميل مرة واحدة فقط إذا كانت الاستجابة قد وصلت بمنطقة أخرى، مع حارس يمنع حلقة إعادة التحميل.
+- قفل تيمو أصبح `SA` ثابتاً ولا يتبع VPN أو إعداداً بعيداً قديماً. العملة بقيت مستقلة `USD` كما كانت.
+- تحقق فعلي على Galaxy Note 8 بعد تثبيت `86.135/995`: العنوان `Temu Saudi Arabia`، الكوكي `region=174`، التخزين `country=SA`، واللغة `ar-SA` رغم أن منطقة زمن الجهاز/خروج الاتصال ما زالت قطر.
+- نجح: حارس تجمد iPhone، بناء الويب وميزانية الأداء، مزامنة Android وiOS، و`assembleDebug`. لم يُبنَ IPA ولم تُنفّذ دورات قبول iPhone 16.
+- APK: `android/app/build/outputs/apk/debug/app-debug.apk`، SHA-256: `A59EB096A2D235CA32920EA8BB05FF7694FFAE6C6FFFA930AD9BE6419C042A4B`.
+# v86.165 — سعر الصرف الحي بالليرة السورية الجديدة (2026-08-12)
+
+شُخّص العطل بالأرقام: مصدر `sp-today.com/en` يعرض الآن Buy `131.20` / Sell `131.70` بالليرة الجديدة، وخادم أوراكل `GET https://84-8-100-128.sslip.io/api/exchange-rate` يعيد `131.7` من `sp-today.com`، وSupabase `app-settings` يعيد `usd_to_syp_rate=131.7` و`syp_denomination=new`. كان العطل في عميل v86.164: كاتبا السعر في `App.tsx` يقبلان فقط ما فوق 1000، فيرفضان السعر الحي الصحيح ويبقيان الوحدة القديمة.
+
+أصبح العميل يقبل سعر الدولار الموجب دون 1000 فقط، وهذا **فحص لسعر الدولار الواحد وليس سقفاً للطلب**. فحص `npm run verify:live-syp-rate` أثبت أن طلب `$1,000` يتحول إلى `131,700` ل.س ولا يُرفض. الحد الأدنى للطلب صار `5,000` ل.س جديدة؛ لا يوجد حد أقصى 1000. القيمة `131.7` في env احتياط عند انقطاع المصدر فقط، والتطبيق يطلب السعر الحي من أوراكل كل 30 دقيقة أثناء ظهوره، وSupabase احتياط عند فشل أوراكل. السلال القديمة ذات `priceSyp` بوحدة ×100 تُصلح مرة واحدة من `priceUsd`.
+
+وُحّدت القيم الاحتياطية في التطبيق/الإدارة/Edge/Oracle/GitHub وأضيفت هجرتا `20260810160000_payment_intent_nudge_window.sql` و`20260810170000_syp_redenomination.sql` لمطابقة الحالة الحية. الإنتاج محوّل أصلاً؛ الهجرة idempotent ولم تُعد تقسيم البيانات. لم يُنشأ طلب إنتاج أو حوالة شام كاش في هذه الدفعة.
+
+ثُبتت `86.165-personal-live-syp/1025` على Note 8 فوق النسخة القديمة دون مسح البيانات. CDP أثت طلب أوراكل `[200]`، طلب `app-settings` `[200]`، و`talabieh.exchangeRate=131.7`؛ سلتا SHEIN/Temu بقيتا محفوظتين. APK: `output/otlobli-v86.165-temu-personal-arm64-debug.apk`، `205,028,564` بايت، SHA-256 `8CB8ADB246E5E2161D43E18CA1372D716DE9FF32D96B8AA4F76751D18DD22C09`. القياسي: `output/otlobli-v86.165-standard-universal-debug.apk`، `11,129,572` بايت، SHA-256 `C729CA8528A06A6F085EE880AA96D8D01C391E0833287C52258BF8D2FB5BE7A7`.
+
+نجح البناء القياسي/الشخصي/الإدارة، Android القياسي/الشخصي، مزامنة Android/iOS، حارس SHEIN، وميزانية الأداء: JS `1,085,592/1,200,000`، gzip `287,451/370,000`، CSS `69,766/70,000`، سكربتات المتجر `456,288/470,000`. iOS متزامن `86.165/1025` لكن لم يُبن على Xcode ولم تُنفذ دورات iPhone 16 الخمس/التشغيل البارد. مهمة GitHub Actions الاحتياطية ما زالت تفشل لغياب `SUPABASE_URL` و`SUPABASE_SERVICE_ROLE_KEY`؛ أوراكل هو الكاتب الحي العامل ولا توجد نسخة محلية آمنة لمفتاح service-role لإصلاح الاحتياط دون معلومات اعتماد.

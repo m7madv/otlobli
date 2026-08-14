@@ -61,6 +61,15 @@ jobs:
           /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:1:CFBundleURLSchemes array" "$plist"
           /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:1:CFBundleURLSchemes:0 string ${reversed_client_id}" "$plist"
 
+      - name: Verify universal iPhone and iPad target
+        run: |
+          family_count=$(grep -c 'TARGETED_DEVICE_FAMILY = "1,2";' ios/App/App.xcodeproj/project.pbxproj)
+          if [ "$family_count" -lt 2 ]; then
+            echo "Debug and Release must both target iPhone and iPad." >&2
+            exit 1
+          fi
+          grep -q '<key>UISupportedInterfaceOrientations~ipad</key>' ios/App/App/Info.plist
+
       - name: Build unsigned .app
         working-directory: ios/App
         run: |
@@ -84,6 +93,23 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             build
 
+      - name: Inspect iPad support in built app
+        working-directory: ios/App
+        run: |
+          python3 - <<'PY'
+          import plistlib
+          from pathlib import Path
+
+          plist_path = Path('build/Build/Products/Release-iphoneos/App.app/Info.plist')
+          with plist_path.open('rb') as stream:
+              info = plistlib.load(stream)
+          families = set(info.get('UIDeviceFamily', []))
+          if not {1, 2}.issubset(families):
+              raise SystemExit(f'Expected UIDeviceFamily [1, 2], got {sorted(families)}')
+          print(f"Universal device families: {sorted(families)}")
+          print(f"Version/build: {info.get('CFBundleShortVersionString')}/{info.get('CFBundleVersion')}")
+          PY
+
       - name: Package unsigned IPA
         working-directory: ios/App
         env:
@@ -91,11 +117,11 @@ jobs:
         run: |
           mkdir -p Payload
           cp -r build/Build/Products/Release-iphoneos/App.app Payload/
-          zip -r "otlobli-v${APP_VERSION}-iphone16-unsigned.ipa" Payload
-          shasum -a 256 "otlobli-v${APP_VERSION}-iphone16-unsigned.ipa"
+          zip -r "otlobli-v${APP_VERSION}-ipad-iphone-universal-unsigned.ipa" Payload
+          shasum -a 256 "otlobli-v${APP_VERSION}-ipad-iphone-universal-unsigned.ipa"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: otlobli-ios-v${{ steps.appver.outputs.version }}-iphone16
-          path: ios/App/otlobli-v${{ steps.appver.outputs.version }}-iphone16-unsigned.ipa
+          name: otlobli-ios-v${{ steps.appver.outputs.version }}-ipad-iphone-universal
+          path: ios/App/otlobli-v${{ steps.appver.outputs.version }}-ipad-iphone-universal-unsigned.ipa
           retention-days: 30

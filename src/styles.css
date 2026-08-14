@@ -202,11 +202,416 @@ a {
     calc(74px + max(env(safe-area-inset-bottom, 0px), 16px) + 16px);
 }
 
+/* Otlobli's real home: an immediate, local-only store chooser. The brand
+   colors live inside the destination cards while the surrounding chrome keeps
+   the same calm green identity as the rest of the app. */
+.store-hub {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  padding:
+    calc(max(env(safe-area-inset-top, 0px), 10px) + 6px)
+    18px
+    calc(74px + max(env(safe-area-inset-bottom, 0px), 16px) + 24px);
+  background:
+    radial-gradient(circle at 88% 3%, rgba(0, 105, 72, 0.13), transparent 31%),
+    linear-gradient(180deg, #f8fbf9 0%, var(--background) 48%);
+}
+
+.store-hub__topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 46px;
+  gap: 12px;
+}
+
+.store-hub__brand {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  gap: 9px;
+  color: var(--primary);
+  font-size: 1.1rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.store-hub__brand-mark {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--primary);
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(0, 105, 72, 0.18);
+  font-size: 1.45rem;
+  font-weight: 900;
+}
+
+.store-hub__brand-mark.has-image {
+  border: 1px solid rgba(0, 105, 72, 0.16);
+  background: #fff;
+}
+
+.store-hub__brand-mark img {
+  width: 38px;
+  height: 38px;
+  object-fit: cover;
+}
+
+.store-hub__notifications {
+  position: relative;
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 1px solid rgba(0, 105, 72, 0.13);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--primary);
+  box-shadow: 0 8px 20px rgba(26, 54, 43, 0.06);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.store-hub__intro {
+  display: grid;
+  gap: 8px;
+  margin-top: clamp(22px, 5.5vh, 48px);
+}
+
+.store-hub__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: 6px;
+  color: var(--primary);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.store-hub__eyebrow .material-symbols-outlined {
+  font-size: 1.05rem;
+}
+
+.store-hub__intro h1 {
+  max-width: 360px;
+  margin: 0;
+  color: #17211c;
+  font-size: clamp(1.72rem, 7.4vw, 2.08rem);
+  font-weight: 900;
+  line-height: 1.36;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+}
+
+.store-hub__intro h1 span {
+  display: block;
+  color: var(--primary);
+  font-size: 0.76em;
+}
+
+.store-hub__intro p {
+  max-width: 360px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.75;
+  text-wrap: pretty;
+}
+
+.store-hub__stores {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.store-card {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 224px;
+  overflow: hidden;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 15px;
+  border: 0;
+  border-radius: 20px;
+  text-align: start;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+
+.store-card::after {
+  position: absolute;
+  left: -30px;
+  bottom: -52px;
+  width: 135px;
+  height: 135px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  content: '';
+}
+
+.store-card--shein {
+  background: linear-gradient(148deg, #272727 0%, #080808 100%);
+  color: #fff;
+  box-shadow: 0 16px 28px rgba(17, 17, 17, 0.16);
+}
+
+.store-card--temu {
+  background: linear-gradient(148deg, #ff7a13 0%, #ed5000 100%);
+  color: #fff;
+  box-shadow: 0 16px 28px rgba(226, 82, 0, 0.19);
+}
+
+.store-card__topline,
+.store-card__footer {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 6px;
+}
+
+.store-card__topline {
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.store-card__topline .material-symbols-outlined {
+  font-size: 1.08rem;
+}
+
+.store-card__brand {
+  position: relative;
+  z-index: 1;
+  margin-top: 23px;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: clamp(1.62rem, 7vw, 2.05rem);
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
+.store-card__name {
+  position: relative;
+  z-index: 1;
+  margin-top: 7px;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.store-card__description {
+  position: relative;
+  z-index: 1;
+  min-height: 38px;
+  margin-top: 5px;
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 0.7rem;
+  line-height: 1.55;
+}
+
+.store-card__footer {
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  font-size: 0.73rem;
+  font-weight: 900;
+}
+
+.store-card__cart-count {
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+  font-size: 0.58rem;
+  white-space: nowrap;
+}
+
+.store-card:hover,
+.store-card:active {
+  transform: translateY(-2px);
+}
+
+.store-card:focus-visible,
+.store-hub__notifications:focus-visible {
+  outline: 3px solid rgba(0, 105, 72, 0.3);
+  outline-offset: 3px;
+}
+
+.store-hub__note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 12px 13px;
+  border: 1px solid rgba(0, 105, 72, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--primary);
+}
+
+.store-hub__note > .material-symbols-outlined {
+  flex: 0 0 auto;
+  font-size: 1.35rem;
+}
+
+.store-hub__note p {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+  margin: 0;
+}
+
+.store-hub__note b {
+  color: var(--text);
+  font-size: 0.78rem;
+}
+
+.store-hub__note span {
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 350px) {
+  .store-hub {
+    padding-inline: 14px;
+  }
+
+  .store-hub__stores {
+    gap: 9px;
+  }
+
+  .store-card {
+    min-height: 210px;
+    padding: 13px 11px;
+    border-radius: 17px;
+  }
+
+  .store-card__description {
+    font-size: 0.64rem;
+  }
+}
+
+@media (min-width: 700px) {
+  .store-hub {
+    padding-inline: 24px;
+  }
+
+  .store-hub__intro {
+    margin-top: 56px;
+  }
+}
+
 .mobile-content--cart {
   grid-auto-rows: max-content;
   /* 260px = أسوأ ارتفاع لشريط الدفع العائم (ملخص + تنبيهان + زر) — أقل من
      هذا كان يحجب بطاقة "اطلب مع صديق" أسفل السلة فلا يمكن الوصول إليها. */
   padding-bottom: calc(74px + max(env(safe-area-inset-bottom, 0px), 16px) + 260px);
+}
+
+.cart-store-switcher {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 4px;
+  padding: 9px;
+  background: #fff;
+  border: 1px solid rgba(0, 105, 72, 0.13);
+  border-radius: 17px;
+  box-shadow: 0 7px 22px rgba(12, 40, 28, 0.06);
+}
+
+.cart-store-switcher__tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  padding: 4px;
+  background: #f1f4f2;
+  border-radius: 13px;
+}
+
+.cart-store-switcher__tab {
+  display: flex;
+  min-width: 0;
+  min-height: 46px;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 8px 12px;
+  color: #54615a;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.cart-store-switcher__tab b {
+  display: grid;
+  min-width: 23px;
+  height: 23px;
+  place-items: center;
+  padding-inline: 5px;
+  color: #516058;
+  background: rgba(255, 255, 255, 0.78);
+  border-radius: 999px;
+  font-size: 0.68rem;
+}
+
+.cart-store-switcher__tab.is-active {
+  color: #fff;
+  background: #111;
+  box-shadow: 0 5px 13px rgba(17, 17, 17, 0.17);
+}
+
+.cart-store-switcher__tab--temu.is-active {
+  background: #f56600;
+  box-shadow: 0 5px 13px rgba(245, 102, 0, 0.22);
+}
+
+.cart-store-switcher__tab.is-active b {
+  color: inherit;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.cart-store-switcher__tab:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.cart-store-switcher__tab:focus-visible {
+  outline: 3px solid rgba(0, 105, 72, 0.28);
+  outline-offset: 2px;
+}
+
+.cart-store-switcher > p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.55;
+  text-align: center;
+}
+
+#active-store-cart {
+  display: contents;
 }
 
 .mobile-content--orders {
@@ -669,20 +1074,17 @@ a {
   align-items: stretch;
   direction: rtl;
   overflow: hidden;
-  width: 100%;
   max-width: 440px;
   width: min(100%, 440px);
-  height: 90px;
-  min-height: 90px;
-  max-height: 90px;
   margin-inline: auto;
-  padding-bottom: 16px;
   height: calc(74px + max(env(safe-area-inset-bottom, 0px), 16px));
   min-height: calc(74px + max(env(safe-area-inset-bottom, 0px), 16px));
   max-height: calc(74px + max(env(safe-area-inset-bottom, 0px), 16px));
   padding-bottom: max(env(safe-area-inset-bottom, 0px), 16px);
   border-top: 1px solid var(--outline);
   background: #ffffff;
+  contain: layout paint;
+  isolation: isolate;
 }
 
 .bottom-nav button {
@@ -728,7 +1130,7 @@ a {
   flex: none;
 }
 
-.bottom-nav button > span {
+.bottom-nav button > .nav-label {
   margin-top: 4px;
   font: inherit;
   line-height: normal;
@@ -953,6 +1355,12 @@ a {
   font-size: 0.82rem;
 }
 
+.auth-content .field > label {
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
 .auth-content .phone-field {
   min-height: 54px;
   border-color: rgba(0, 105, 72, 0.2);
@@ -974,7 +1382,7 @@ a {
 
 .auth-content .country-select {
   min-height: 52px;
-  background-color: #f5f8f6;
+  background: #f5f8f6;
 }
 
 .auth-primary-action {
@@ -3804,6 +4212,8 @@ a {
   .google-signin-btn,
   .auth-primary-action,
   .access-method-action,
+  .store-card,
+  .store-hub__notifications,
   .profile-row,
   .admin-link,
   .bottom-nav button {

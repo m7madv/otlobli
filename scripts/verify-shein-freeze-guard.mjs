@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runInNewContext } from 'node:vm'
 import ts from 'typescript'
+import { minifyInjectedScriptExports } from './minify-injected-scripts.mjs'
 import { stripInjectedComments } from './strip-injected-comments.mjs'
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -107,6 +108,18 @@ const checks = [
       "stage: 'host-page-loaded-id-adopted'",
       "detail?.type === 'sheinRegionDiagnostic'",
       '__OTLOBLI_SHEIN_REGION_DIAGNOSTICS__',
+      "import('./services/storeCaptureBundle')",
+      'storeCaptureBundleLoadingRef',
+    ],
+  },
+  {
+    label: 'lazy store-only capture bundle',
+    file: 'src/services/storeCaptureBundle.ts',
+    markers: [
+      "from './sheinBrowserScript'",
+      "from './sheinFreezeDiagnostics'",
+      "from './sheinRegionDiagnostics'",
+      'export const buildStoreCaptureScript',
     ],
   },
   {
@@ -693,6 +706,16 @@ try {
   failures.push(`SHEIN capture-script syntax: ${error instanceof Error ? error.message : String(error)}`)
 }
 
+// Parse the exact minified scripts that production packages. This keeps the
+// release hardening inside the established iPhone freeze acceptance gate.
+try {
+  const { exports } = await minifyInjectedScriptExports('src/services/sheinBrowserScript.ts')
+  new Function(exports.SHEIN_CAPTURE_SCRIPT)
+  new Function(exports.OTLOBLI_NAV_BOOTSTRAP_SCRIPT)
+} catch (error) {
+  failures.push(`SHEIN minified release scripts: ${error instanceof Error ? error.message : String(error)}`)
+}
+
 try {
   const sheinSource = readFileSync(resolve(projectRoot, 'src/services/sheinBrowserScript.ts'), 'utf8')
   const tickStart = sheinSource.indexOf('function tick()')
@@ -708,6 +731,46 @@ try {
   }
 } catch (error) {
   failures.push(`SHEIN cart toast ordering: ${error instanceof Error ? error.message : String(error)}`)
+}
+
+// Low-end PDP guard: never flatten large selector candidates before the
+// geometry check, and keep the two full-document text scans bounded/cheap.
+try {
+  const sheinSource = readFileSync(resolve(projectRoot, 'src/services/sheinBrowserScript.ts'), 'utf8')
+  const nativeAddStart = sheinSource.indexOf('function hideSheinNativeProductAdd()')
+  const nativeAddEnd = sheinSource.indexOf('var __otlobliBottomNavDebugCount', nativeAddStart)
+  const nativeAdd = sheinSource.slice(nativeAddStart, nativeAddEnd)
+  const geometryGate = nativeAdd.indexOf('if (r.width < 64')
+  const textGate = nativeAdd.indexOf('if (!isAddToCartText(el)) return;')
+  if (nativeAddStart < 0 || nativeAddEnd < 0 || geometryGate < 0 || textGate < 0 || geometryGate > textGate) {
+    failures.push('SHEIN low-end PDP: native add geometry must reject large wrappers before reading text')
+  }
+
+  const textStart = sheinSource.indexOf('function isAddToCartText(el)')
+  const textEnd = sheinSource.indexOf('function isAddToCartButton', textStart)
+  const textHelper = sheinSource.slice(textStart, textEnd)
+  if (!textHelper.includes('(el.childElementCount || 0) <= 6 ? el.textContent')) {
+    failures.push('SHEIN low-end PDP: add-text helper must bound descendant text flattening')
+  }
+
+  const cookieStart = sheinSource.indexOf('function otlobliForceAcceptCookies()')
+  const cookieEnd = sheinSource.indexOf('var __otlobliCookieScanAt', cookieStart)
+  const cookieHelper = sheinSource.slice(cookieStart, cookieEnd)
+  if (!cookieHelper.includes('__otlobliForceAcceptScans >= 16') ||
+      !cookieHelper.includes('document.body.textContent') || cookieHelper.includes('document.body.innerText')) {
+    failures.push('SHEIN low-end PDP: cookie discovery must be bounded and layout-neutral')
+  }
+
+  const blockStart = sheinSource.indexOf('function checkForSheinSecurityBlock()')
+  const blockEnd = sheinSource.indexOf('var __otlobliSheinViewerRoot', blockStart)
+  const blockHelper = sheinSource.slice(blockStart, blockEnd)
+  if (!blockHelper.includes("document.getElementsByTagName('*').length > 900") ||
+      !blockHelper.includes('document.body.textContent') || blockHelper.includes('document.body.innerText') ||
+      !/GSRM\|gone missing\|not avaliable\|not available\|system not/.test(blockHelper)) {
+    failures.push('SHEIN low-end PDP: security-block detector must stay effective without full-page layout reads')
+  }
+} catch (error) {
+  failures.push(`SHEIN low-end PDP guard: ${error instanceof Error ? error.message : String(error)}`)
 }
 
 // The cart regression is specifically caused by navigating an already-used
@@ -741,7 +804,8 @@ try {
   const sheinOptionsSource = appSource.slice(sheinOptionsStart, temuOptionsStart)
   if (sheinOptionsStart < 0 || temuOptionsStart < 0 ||
       !sheinOptionsSource.includes('hidden: true') ||
-      !sheinOptionsSource.includes('invisibilityMode: InvisibilityMode.FAKE_VISIBLE')) {
+      !sheinOptionsSource.includes('invisibilityMode: InvisibilityMode.FAKE_VISIBLE') ||
+      !sheinOptionsSource.includes('isPresentAfterPageLoad: isIosNative')) {
     failures.push('SHEIN ready reveal: iOS must prepare the SHEIN WebView offscreen at full device size')
   }
 
@@ -752,6 +816,18 @@ try {
   const showCall = homeVisibilitySource.indexOf('InAppBrowser.show()')
   if (homeVisibilityStart < 0 || homeVisibilityEnd < 0 || readyGuard < 0 || showCall < 0 || readyGuard > showCall) {
     failures.push('SHEIN ready reveal: readiness guard must run before the native WebView is shown')
+  }
+
+  const storeSwitchStart = appSource.indexOf('const switchSelectedStore = (id: StoreId, afterSwitch: () => void)')
+  const storeSwitchEnd = appSource.indexOf('const openStoreFromHub = (id: StoreId)', storeSwitchStart)
+  const storeSwitchSource = appSource.slice(storeSwitchStart, storeSwitchEnd)
+  if (storeSwitchStart < 0 || storeSwitchEnd < 0 || storeSwitchSource.includes('InAppBrowser.clearCache()')) {
+    failures.push('SHEIN fast entry: an ordinary store switch must preserve the healthy HTTP/WebKit cache')
+  }
+  if (!appSource.includes("const shouldResetSheinCache = activeStore === 'shein' && sheinCacheResetPendingRef.current") ||
+      !appSource.includes('const prepareStoreWebview = shouldResetSheinCache') ||
+      !appSource.includes('sheinCacheResetPendingRef.current = true')) {
+    failures.push('SHEIN recovery: bounded damaged-session cache reset must remain available')
   }
 } catch (error) {
   failures.push(`SHEIN cart isolation: ${error instanceof Error ? error.message : String(error)}`)

@@ -41,6 +41,13 @@ const OTLOBLI_NAV_TOUCH_BRIDGE_JS = `
       window.__otlobliNavTouchBridgeAt = now;
       try {
         if (window.mobileApp && window.mobileApp.postMessage) {
+          if (messageType === 'openHome') {
+            try {
+              var homePath = sessionStorage.getItem('__otlobliHomePath') || (location.hostname.indexOf('temu.') >= 0 ? '/sa/' : '/ar/');
+              location.assign(location.origin + homePath);
+            } catch (homeError) {}
+            return;
+          }
           var nativeTarget = messageType === 'openOrders' ? 'orders' : (messageType === 'openCart' ? 'cart' : 'profile');
           if (typeof window.mobileApp.navigate === 'function') window.mobileApp.navigate(nativeTarget);
           else {
@@ -403,7 +410,7 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
     nav.setAttribute('data-otlobli-nav-style', ${JSON.stringify(OTLOBLI_NAV_STYLE_VERSION)});
 
     var items = [
-      { label: '\\u0627\\u0644\\u0631\\u0626\\u064a\\u0633\\u064a\\u0629', icon: icons.home, type: '' },
+      { label: '\\u0627\\u0644\\u0631\\u0626\\u064a\\u0633\\u064a\\u0629', icon: icons.home, type: 'openHome' },
       { label: '\\u0637\\u0644\\u0628\\u0627\\u062a\\u064a', icon: icons.orders, type: 'openOrders' },
       { label: '\\u0627\\u0644\\u0633\\u0644\\u0629', icon: icons.cart, type: 'openCart' },
       { label: '\\u062d\\u0633\\u0627\\u0628\\u064a', icon: icons.profile, type: 'openProfile' }
@@ -412,7 +419,7 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
     for (var i = 0; i < items.length; i++) {
       var item = items[i];
       var tab = document.createElement('button');
-      var active = !item.type;
+        var active = item.type === 'openHome';
       tab.id = 'otlobli-nav-tab-' + i;
       tab.style.cssText = 'position:relative!important;flex:1 1 25%!important;width:25%!important;max-width:25%!important;' +
         'min-width:0!important;height:auto!important;min-height:0!important;align-self:stretch!important;border:0!important;' +
@@ -538,33 +545,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
     : 'SA';
   var TEMU_REQUIRED_CURRENCY = 'USD';
 
-  function writeTemuSaudiUsdState() {
-    if (!IS_TEMU) return;
-    try {
-      document.cookie = 'currency=' + TEMU_REQUIRED_CURRENCY + '; path=/; max-age=31536000';
-      document.cookie = 'currency=' + TEMU_REQUIRED_CURRENCY + '; domain=.temu.com; path=/; max-age=31536000';
-      document.cookie = 'currencyCode=' + TEMU_REQUIRED_CURRENCY + '; path=/; max-age=31536000';
-      document.cookie = 'currencyCode=' + TEMU_REQUIRED_CURRENCY + '; domain=.temu.com; path=/; max-age=31536000';
-      document.cookie = 'country=' + TEMU_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
-      document.cookie = 'country=' + TEMU_REQUIRED_COUNTRY + '; domain=.temu.com; path=/; max-age=31536000';
-      document.cookie = 'countryCode=' + TEMU_REQUIRED_COUNTRY + '; path=/; max-age=31536000';
-      document.cookie = 'countryCode=' + TEMU_REQUIRED_COUNTRY + '; domain=.temu.com; path=/; max-age=31536000';
-      try {
-        localStorage.setItem('currency', TEMU_REQUIRED_CURRENCY);
-        localStorage.setItem('currencyCode', TEMU_REQUIRED_CURRENCY);
-        localStorage.setItem('country', TEMU_REQUIRED_COUNTRY);
-        localStorage.setItem('countryCode', TEMU_REQUIRED_COUNTRY);
-        localStorage.setItem('otlobli_temu_country', TEMU_REQUIRED_COUNTRY);
-        localStorage.setItem('otlobli_temu_currency', TEMU_REQUIRED_CURRENCY);
-        sessionStorage.setItem('currency', TEMU_REQUIRED_CURRENCY);
-        sessionStorage.setItem('currencyCode', TEMU_REQUIRED_CURRENCY);
-        sessionStorage.setItem('country', TEMU_REQUIRED_COUNTRY);
-        sessionStorage.setItem('countryCode', TEMU_REQUIRED_COUNTRY);
-      } catch (e) {}
-    } catch (e) {}
-  }
-
-  writeTemuSaudiUsdState();
+  // Temu owns its currency/country storage. Writing those keys from an
+  // injected script now trips its storage registry and invalidates the guest
+  // product session (integration/render returns NEED_LOGIN). The /sa/ URL and
+  // native region guard are the only source of region truth here.
 
   function otlobliEnsureChallengeNav() {
     if (!document.body) return false;
@@ -574,7 +558,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       nav.id = 'otlobli-nav';
       nav.setAttribute('data-otlobli-challenge-nav', '1');
       var items = [
-        {label:'\\u0627\\u0644\\u0631\\u0626\\u064a\\u0633\\u064a\\u0629',icon:'home',type:''},
+        {label:'\\u0627\\u0644\\u0631\\u0626\\u064a\\u0633\\u064a\\u0629',icon:'home',type:'openHome'},
         {label:'\\u0637\\u0644\\u0628\\u0627\\u062a\\u064a',icon:'orders',type:'openOrders'},
         {label:'\\u0627\\u0644\\u0633\\u0644\\u0629',icon:'cart',type:'openCart'},
         {label:'\\u062d\\u0633\\u0627\\u0628\\u064a',icon:'profile',type:'openProfile'},
@@ -587,15 +571,14 @@ export const SHEIN_CAPTURE_SCRIPT = `
         tab.style.cssText = 'position:relative!important;flex:1 1 0!important;height:74px!important;min-height:74px!important;max-height:74px!important;' +
           'border:0!important;background:transparent!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:4px!important;' +
           'padding:10px 0 0 0!important;margin:0!important;box-sizing:border-box!important;font-size:12px!important;line-height:normal!important;' +
-          'font-family:system-ui,-apple-system,sans-serif!important;font-weight:700!important;color:' + (item.type ? '#3d4a42' : '#006948') + '!important;';
+          'font-family:system-ui,-apple-system,sans-serif!important;font-weight:700!important;color:' + (item.type === 'openHome' ? '#006948' : '#3d4a42') + '!important;';
         tab.insertAdjacentHTML('afterbegin','<svg width=22 height=22 viewBox="0 0 24 24" fill=none stroke=currentColor stroke-width=1.8 stroke-linecap=round stroke-linejoin=round>' + OTLOBLI_NAV_ICONS[item.icon] + '</svg>');
-        if (!item.type) {
+        if (item.type === 'openHome') {
           var indicator = document.createElement('span');
           indicator.style.cssText = 'position:absolute!important;top:0!important;width:32px!important;height:4px!important;border-radius:999px!important;background:#006948!important;';
           tab.appendChild(indicator);
-        } else {
-          tab.setAttribute('data-otlobli-nav-type', item.type);
         }
+        tab.setAttribute('data-otlobli-nav-type', item.type);
         nav.appendChild(tab);
       }
     }
@@ -629,7 +612,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
   }
 
   if (IS_SHEIN && otlobliIsHumanChallengeUrl(location.href)) {
-    try { writeSheinSaudiState(); } catch (e) {}
+    // Landing directly on a challenge URL is still a challenge: do not seed the
+    // region here either. Writing cookies while SHEIN's token is outstanding is
+    // what made a correctly solved verification report "Access timed out".
     otlobliEnterChallengeMode();
     return;
   }
@@ -3663,12 +3648,36 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function markOverlaySuccess() {
     var status = document.getElementById('otlobli-overlay-status');
-    if (status) status.textContent = '✓ تمت الإضافة لسلة otlobli';
+    if (status) status.textContent = '✓ تم جذب المنتج بنجاح';
     var spinner = document.getElementById('otlobli-overlay-spinner');
     if (spinner) {
       spinner.style.animation = 'none';
       spinner.style.borderColor = '#1aab6f';
     }
+  }
+
+  function markOverlayFailure() {
+    var status = document.getElementById('otlobli-overlay-status');
+    if (status) status.textContent = 'تعذّرت إضافة المنتج — حاول مرة ثانية';
+    var spinner = document.getElementById('otlobli-overlay-spinner');
+    if (spinner) {
+      spinner.style.animation = 'none';
+      spinner.style.borderColor = '#ba1a1a';
+    }
+  }
+
+  function clearAddSafetyTimer() {
+    if (!window.__otlobliAddSafetyTimer) return;
+    clearTimeout(window.__otlobliAddSafetyTimer);
+    window.__otlobliAddSafetyTimer = 0;
+  }
+
+  function failAddFlow() {
+    clearAddSafetyTimer();
+    markOverlayFailure();
+    removeOverlay(900);
+    var addButton = document.getElementById('otlobli-add-btn');
+    if (addButton) showMessage(addButton, 'تعذّرت إضافة المنتج — حاول مرة ثانية');
   }
 
   function removeOverlay(delay) {
@@ -3678,8 +3687,31 @@ export const SHEIN_CAPTURE_SCRIPT = `
         overlay.style.animation = 'otlobli-fade-out .25s ease-in forwards';
         setTimeout(function () { overlay.remove(); }, 250);
       }
-      document.body.style.overflow = '';
+      otlobliReleaseAddingScrollLock();
     }, delay || 0);
+  }
+
+  // showAddingOverlay() locks page scrolling, and removeOverlay() used to be the
+  // only way back. Any path that skipped it - an error, a back gesture, a Temu
+  // SPA route change mid-add - left the product page permanently unscrollable.
+  // Observed on the real Note 8: a Temu product page would not move a single
+  // pixel while the site itself was alive, so the customer could never reach
+  // the size options below the fold and the item was added with none chosen.
+  // Restore on both elements, since the scrolling box differs between stores.
+  function otlobliReleaseAddingScrollLock() {
+    try { if (document.body) document.body.style.overflow = ''; } catch (e) {}
+    try { if (document.documentElement) document.documentElement.style.overflow = ''; } catch (e) {}
+  }
+
+  // Self-heal: whatever went wrong, a scroll lock with no overlay on screen is
+  // never correct. Cheap enough for the low-end tick (one lookup + one read).
+  function otlobliHealOrphanScrollLock() {
+    if (document.getElementById('otlobli-overlay')) return;
+    var bodyLocked = document.body && document.body.style.overflow === 'hidden';
+    var rootLocked = document.documentElement && document.documentElement.style.overflow === 'hidden';
+    if (!bodyLocked && !rootLocked) return;
+    if (IS_SHEIN && (sheinShippingBodyLockState || sheinShippingUiLikelyOpen())) return;
+    otlobliReleaseAddingScrollLock();
   }
 
   // جذب تيمو
@@ -3691,11 +3723,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
       .replace(/\\s+/g, ' ')
       .trim();
   }
-  // قسم "الكمية" في تيمو شقيق لقسم اللون داخل نفس الحاضن، فأي قراءة نصية
-  // تصعد مستوى واحداً تلتصق به: ثبت على النوت 8 لون محفوظ بالسلة قيمته
-  // "【أبيض】الكمية1" وعنوان قسم نصّه "اللونالكمية1". نقصّ ذيل الكمية من أي
-  // قيمة لون/مقاس قبل حفظها. القيمة التي ليست إلا كمية تصير فارغة فيطالب
-  // التطبيق الزبون باختيار اللون بدل إرسال قيمة ملفّقة لصاحب الطلب.
+  // Quantity is a sibling of color/size in Temu's current product DOM. Keep
+  // that label out of captured options without changing browsing behavior.
   function temuStripQuantity(value) {
     var v = temuCleanText(value).replace(/(?:\\u0627\\u0644\\u0643\\u0645\\u064a\\u0629|\\u0643\\u0645\\u064a\\u0629|quantity|qty)\\s*[:：]?\\s*\\d*.*$/i, '');
     return temuCleanText(v);
@@ -3772,10 +3801,36 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // تحويل شامل لأي عملة قد تظهر حسب دولة الـVPN العشوائية → دولار. عملات
   // الخليج/الأردن مثبّتة (تحويل دقيق)؛ الباقي تقريبي. **العملة المجهولة تُرجع 0
   // فيمنع النظام الإضافة** (لا يدخل سعر خاطئ أبداً = خربطة صفر).
+  // Temu keeps the PDP entry price mounted after a SKU changes.  The active
+  // option drawer owns the selected variant's live price, so read that small,
+  // visible root first and only then fall back to the PDP's curPrice.
+  function temuActiveSkuPriceText() {
+    var dialogs = document.querySelectorAll('[role="dialog"]');
+    var first = Math.max(0, dialogs.length - 8);
+    for (var d = dialogs.length - 1; d >= first; d--) {
+      var dialog = dialogs[d];
+      if (!temuProductOptionDialog(dialog)) continue;
+      var rect = dialog.getBoundingClientRect();
+      var style = window.getComputedStyle(dialog);
+      if (rect.width < 1 || rect.height < 1 || style.display === 'none' ||
+          style.visibility === 'hidden' || parseFloat(style.opacity || '1') <= 0.01) continue;
+      var selectors = [
+        '[class*="salePriceRich" i]',
+        '[class*="currentPrice" i]',
+        '[class*="curPrice" i]'
+      ];
+      for (var s = 0; s < selectors.length; s++) {
+        var priceEl = dialog.querySelector(selectors[s]);
+        var priceText = temuCleanText(priceEl && priceEl.textContent);
+        if (priceText.length <= 28 && temuLooksLikePriceText(priceText)) return priceText;
+      }
+    }
+    return '';
+  }
   function temuPriceUsd() {
-    var best = '';
+    var best = temuActiveSkuPriceText();
     var els = document.querySelectorAll('[class*="curPrice" i]');
-    for (var i = 0; i < els.length; i++) {
+    for (var i = 0; !best && i < els.length; i++) {
       var t = (els[i].textContent || '').trim();
       if (t.length <= 28 && /[0-9]/.test(t)) { best = t; break; }
     }
@@ -4036,6 +4091,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
     return temuCleanText(txt).match(/(\\d+)\\s*(?:\u0627\u0644\u0644\u0648\u0646|\u0644\u0648\u0646|\u0623\u0644\u0648\u0627\u0646|\u0627\u0644\u0623\u0644\u0648\u0627\u0646|colou?rs?)/i);
   }
   function temuVariantSecondOptionCountMatch(txt) {
+    var dimensionCount = temuCleanText(txt).match(/(\\d+)\\s*(?:الحجم|حجم)/i);
+    if (dimensionCount) return dimensionCount;
     return temuCleanText(txt).match(/(\\d+)\\s*(?:\u0627\u0644\u0645\u0648\u062f\u064a\u0644|\u0645\u0648\u062f\u064a\u0644|models?|\u0645\u0642\u0627\u0633|\u0645\u0642\u0627\u0633\u0627\u062a|sizes?|\u0623\u0633\u0644\u0648\u0628|\u0646\u0645\u0637|style|\u0646\u0648\u0639|type|ram|rom|memory|storage|capacity|gb|g\\b|\u0630\u0627\u0643\u0631\u0629|\u0627\u0644\u0630\u0627\u0643\u0631\u0629|\u0631\u0627\u0645|\u0627\u0644\u0631\u0627\u0645|\u0633\u0639\u0629|\u0627\u0644\u0633\u0639\u0629|\u062a\u062e\u0632\u064a\u0646|\u0627\u0644\u062a\u062e\u0632\u064a\u0646|\u0623\u063a\u0631\u0627\u0636|\u0627\u063a\u0631\u0627\u0636|\u0627\u0644\u0623\u063a\u0631\u0627\u0636|\u0627\u0644\u0627\u063a\u0631\u0627\u0636|\u063a\u0631\u0636|\u0627\u0644\u063a\u0631\u0636|\u0639\u0646\u0635\u0631|\u0627\u0644\u0639\u0646\u0635\u0631|\u0639\u0646\u0627\u0635\u0631|\u0627\u0644\u0639\u0646\u0627\u0635\u0631|\u0642\u0637\u0639|\u0627\u0644\u0642\u0637\u0639|\u0642\u0637\u0639\u0629|\u0627\u0644\u0642\u0637\u0639\u0629|items?|pieces?|pcs?)/i);
   }
   function temuVariantSecondOptionName(txt) {
@@ -4309,16 +4366,26 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function temuSelectedSize() {
     // v85.8.41: القيمة المختارة من الخيار aria-checked داخل skuSelector — الأدقّ
     // والأنظف. يمنع التقاط كل الأزرار ("XXL XL L M S") بدل المقاس الواحد المختار.
+    var structuralMultiSize = false;
     try {
       var sk = otlobliTemuSku();
       for (var d = 0; d < sk.dims.length; d++) {
         var dd = sk.dims[d];
-        if (dd.kind === 'size' && dd.selected && dd.selected !== 'محدد' && dd.selected.length <= 30) return dd.selected;
+        if (dd.kind !== 'size') continue;
+        if (dd.selected && dd.selected !== 'محدد' && dd.selected.length <= 30) return dd.selected;
+        if (dd.count > 1) structuralMultiSize = true;
       }
     } catch (e) {}
     if (window.__otlobliTemuSize && window.__otlobliTemuSizeGid === temuGoodsId()) {
       var cachedSize0 = temuCleanText(window.__otlobliTemuSize);
       if (cachedSize0 && cachedSize0.length <= 40 && temuVisibleOptionTextAvailable(cachedSize0)) return cachedSize0;
+    }
+    // البنية الموثوقة تقول إن هناك عدة مقاسات ولم تعلن Temu واحداً محدداً.
+    // لا نسمح لأي حد/ظل/خلفية CSS أن يحوّل هذا إلى اختيار؛ هذه بالضبط كانت
+    // تضيف المنتج بالمقاس الخطأ. نقرة العميل المسجلة أعلاه تبقى صالحة فوراً.
+    if (structuralMultiSize) {
+      window.__otlobliTemuSizeDiag = 'عدة مقاسات بلا اختيار صريح';
+      return '';
     }
     var pills = temuSizePills();
     // لا توجد أزرار مقاس — قد يكون المقاس محدداً مسبقاً (مثل "One-size" على الصفحة مباشرة).
@@ -4339,23 +4406,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
     if (pills.length === 1) {
       return temuCleanText(pills[0].textContent);
     }
-    // 3) لا نقرة صريحة. ثبت من تشخيص حقيقي على جهاز فعلي: بعض قوالب تيمو
-    // تجعل حدّ **كل** الأزرار غامقاً افتراضياً (مطابقة اللون وحدها عديمة
-    // الفائدة هناك)، بينما قوالب أخرى تميّز المختار بخلفية ممتلئة أو حدّ
-    // أسمك. نستخدم كاشفاً متعدد الإشارات (خلفية → سماكة حدّ → لون حدّ) يجرّب
-    // كل إشارة حتى يجد تطابقاً واحداً واضحاً؛ أي غموض = فارغ (لا تخمين).
-    var defaultPick = temuPickSingleSelected(pills);
-    var dbgW = [], dbgF = 0, dbgR = 0;
-    for (var dp = 0; dp < pills.length; dp++) {
-      dbgW.push(temuBorderWidth(pills[dp]));
-      if (temuHasDarkBorder(pills[dp])) dbgF++;
-      if (temuHasRingHighlight(pills[dp])) dbgR++;
-    }
-    window.__otlobliTemuSizeDiag = 'أزرار=' + pills.length + ' حدّغامق=' + dbgF + ' حلقة=' + dbgR + ' سماكات=' + dbgW.join(',');
-    if (defaultPick) {
-      var dt = temuCleanText(defaultPick.textContent);
-      if (dt && dt.length <= 24) { window.__otlobliTemuSizeDiag += ' نجاح[' + dt + ']'; return dt; }
-    }
+    // عدة أزرار بلا aria صريحة وبلا نقرة عميل = غير محدد. التخمين البصري
+    // مرفوض للمقاس لأنه قد يختار أول مقاس لمجرد أن قالبه أغمق من البقية.
+    window.__otlobliTemuSizeDiag = 'أزرار متعددة بلا اختيار صريح';
     return '';
   }
   // مقاس وحيد → نحدّده تلقائياً من دون نقر الزبون (يُستدعى في معالج الزر).
@@ -4632,8 +4685,15 @@ export const SHEIN_CAPTURE_SCRIPT = `
               var relX2 = (e.clientX - nr2.left) / Math.max(1, nr2.width);
               var idx2 = Math.floor((1 - relX2) * 4);
               if (idx2 < 0) idx2 = 0; if (idx2 > 3) idx2 = 3;
-              var types2 = ['', 'openOrders', 'openCart', 'openProfile'];
+              var types2 = ['openHome', 'openOrders', 'openCart', 'openProfile'];
               if (types2[idx2] && window.mobileApp && window.mobileApp.postMessage) {
+                if (types2[idx2] === 'openHome') {
+                  try {
+                    var homePath2 = sessionStorage.getItem('__otlobliHomePath') || (location.hostname.indexOf('temu.') >= 0 ? '/sa/' : '/ar/');
+                    location.assign(location.origin + homePath2);
+                  } catch (homeError2) {}
+                  return;
+                }
                 var nativeTarget2 = types2[idx2] === 'openOrders' ? 'orders' : (types2[idx2] === 'openCart' ? 'cart' : 'profile');
                 if (typeof window.mobileApp.navigate === 'function') {
                   window.mobileApp.navigate(nativeTarget2);
@@ -5007,6 +5067,18 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   // هل توجد قائمة مقاسات؟ (عنوان "Size"/"المقاس"/"موديل متوافق")
   function temuHasSizeSection() { return !!temuSizeHeadEl(); }
+  // A Temu SKU picker is a real product form, even though its full-screen
+  // dialog repeats promotional copy such as "discount".  Both the document-
+  // start Gecko guard and the slower shared cleanup use this structural test
+  // so neither can collapse the picker while the customer chooses a size.
+  function temuProductOptionDialog(node) {
+    if (!IS_TEMU || !looksLikeProductPage() || !node || !node.querySelectorAll) return false;
+    var dialog = node.matches && node.matches('[role="dialog"]')
+      ? node
+      : (node.closest && node.closest('[role="dialog"]'));
+    if (!dialog || dialog.querySelectorAll('[role="radio"]').length < 2) return false;
+    return !!dialog.querySelector('[class*="sku" i],[class*="spec" i]');
+  }
   function temuHasSelectableSecondOption() {
     var pills = temuSizePills();
     if (pills.length > 0) return true;
@@ -5121,18 +5193,21 @@ export const SHEIN_CAPTURE_SCRIPT = `
         }
         var cM = temuVariantColorCountMatch(infoTxt);
         var sM = temuVariantSecondOptionCountMatch(infoTxt);
-        if (cM) out.dims.push({ kind: 'color', name: 'اللون', count: parseInt(cM[1], 10), selected: null });
-        if (sM) out.dims.push({ kind: 'size', name: temuVariantSecondOptionName(infoTxt), count: parseInt(sM[1], 10), selected: null });
+        if (cM) out.dims.push({ kind: 'color', name: 'اللون', count: parseInt(cM[1], 10), selected: null, source: 'collapsed' });
+        if (sM) out.dims.push({ kind: 'size', name: temuVariantSecondOptionName(infoTxt), count: parseInt(sM[1], 10), selected: null, source: 'collapsed' });
       }
       if (!collapsed) {
         var looseCollapsed = otlobliTemuCollapsedVariantRow();
         if (looseCollapsed) {
           out.hasSelector = true; out.collapsedEl = looseCollapsed.el;
-          if (looseCollapsed.colors > 0) out.dims.push({ kind: 'color', name: '\u0627\u0644\u0644\u0648\u0646', count: looseCollapsed.colors, selected: null });
-          if (looseCollapsed.sizes > 0) out.dims.push({ kind: 'size', name: looseCollapsed.sizeName || '\u0645\u0642\u0627\u0633', count: looseCollapsed.sizes, selected: null });
+          if (looseCollapsed.colors > 0) out.dims.push({ kind: 'color', name: '\u0627\u0644\u0644\u0648\u0646', count: looseCollapsed.colors, selected: null, source: 'collapsed' });
+          if (looseCollapsed.sizes > 0) out.dims.push({ kind: 'size', name: looseCollapsed.sizeName || '\u0645\u0642\u0627\u0633', count: looseCollapsed.sizes, selected: null, source: 'collapsed' });
         }
       }
-      var groups = document.querySelectorAll('[class*="specListWrap"]');
+      // Temu currently ships both the old specListWrap-* group and the newer
+      // specTypes-* group. Missing the latter left four-size products with an
+      // empty sku.dims array and allowed capture without a customer selection.
+      var groups = document.querySelectorAll('[class*="specListWrap"],[class*="specTypes-"]');
       for (var g = 0; g < groups.length; g++) {
         var head = groups[g].querySelector('[class*="type-"][aria-label], [class*="specTypeName"], [class*="type-"]');
         var nm = head ? temuCleanText((head.getAttribute && head.getAttribute('aria-label')) || head.textContent || '') : '';
@@ -5155,7 +5230,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
         // يعرض نظام المقاس "(SA)" لا القيمة المختارة، فكان يُحسب اختياراً زائفاً
         // فيمرّ المنتج بلا اختيار مقاس. الاختيار = aria-checked فقط. للّون فقط
         // نقبل specValue اسماً مساعداً (اللون الافتراضي يظهر بالرأس ": أخضر").
-        if (!sel && opts.length) {
+        // Temu قد تحدد اللون الافتراضي بصرياً فقط، لذا يبقى الاحتياط البصري
+        // للون. المقاس المتعدد لا يُقبل إلا من aria الصريحة أعلاه أو نقرة
+        // العميل المسجلة لنفس المنتج في temuSelectedSize().
+        if (!sel && isColor && opts.length) {
           var optList = [];
           for (var oo = 0; oo < availableOpts.length; oo++) optList.push(availableOpts[oo]);
           var pickedOpt = temuPickSingleSelected(optList);
@@ -5166,8 +5244,16 @@ export const SHEIN_CAPTURE_SCRIPT = `
           if (sv) { var svt = temuCleanText(sv.textContent).replace(/^[:：]\\s*/, ''); if (svt && svt.length <= 24) sel = svt; }
         }
         out.hasSelector = true;
+        // When Temu's option drawer is open, its radios are authoritative. The
+        // collapsed summary remains in the DOM behind the drawer and otherwise
+        // creates a duplicate unselected dimension after a real radio was picked.
+        for (var cd = out.dims.length - 1; cd >= 0; cd--) {
+          if (out.dims[cd].source === 'collapsed' && out.dims[cd].kind === (isColor ? 'color' : 'size')) {
+            out.dims.splice(cd, 1);
+          }
+        }
         var unavailableOnly = opts.length > 0 && availableOpts.length === 0;
-        out.dims.push({ kind: isColor ? 'color' : 'size', name: nm, count: unavailableOnly ? 2 : (availableOpts.length || 1), selected: sel || null, unavailableOnly: unavailableOnly });
+        out.dims.push({ kind: isColor ? 'color' : 'size', name: nm, count: unavailableOnly ? 2 : (availableOpts.length || 1), selected: sel || null, unavailableOnly: unavailableOnly, source: 'expanded' });
       }
     } catch (e) {}
     return out;
@@ -5436,7 +5522,6 @@ export const SHEIN_CAPTURE_SCRIPT = `
       }
       // اختيار بكرت صورة بلا اسم (أحذية/أجهزة): الصورة هي المرجع للمالك.
       if (!temuColorVal && temuColorSwatch) temuColorVal = 'حسب الصورة المرفقة';
-      // حارس أخير قبل الحفظ: لا يصل ذيل "الكمية" إلى السلة من أي مصدر.
       temuColorVal = temuStripQuantity(temuColorVal);
       temuSizeVal = temuStripQuantity(temuSizeVal);
       // صورة المنتج بالسلة: عند اختيار لون، صورة كرت اللون مضمونة 100%؛
@@ -5580,11 +5665,20 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
     var payload = quickPayload || captureProductPayload(colorState, sizeState);
     showAddingOverlay(payload);
+    clearAddSafetyTimer();
+    // Start the guard as soon as the blocking overlay appears. Previously it
+    // started only after postMessage(), so a product-specific parsing error
+    // before that point could leave the spinner and scroll lock up forever.
+    window.__otlobliAddSafetyTimer = setTimeout(function () {
+      if (document.getElementById('otlobli-overlay')) failAddFlow();
+    }, 5000);
 
     var attempts = 0;
     var priceWaits = 0;
-    var maxAttempts = 10;
-    var intervalMs = 500;
+    // Temu تكون بياناتها مرسومة قبل ظهور زر Otlobli. ثلاث قراءات قصيرة تكفي
+    // لأي تحديث متأخر، بدلاً من انتظار خمس ثوانٍ على جهاز ضعيف.
+    var maxAttempts = IS_TEMU ? 3 : 10;
+    var intervalMs = IS_TEMU ? 150 : 500;
     function isComplete(p, cs) {
       if (IS_TEMU) {
         // إذا اختار الزبون لوناً ننتظر حتى يُلتقط هيرو اللون (300ms بعد النقر)
@@ -5612,48 +5706,57 @@ export const SHEIN_CAPTURE_SCRIPT = `
           __otlobliSelectedSkuPriceKey, sheinCurrentSelectionKey()].join('|'));
       }
       if (!p.title || !p.image || !(p.priceUsd > 0)) {
+        clearAddSafetyTimer();
         removeOverlay(0);
         var ab = document.getElementById('otlobli-add-btn');
         if (ab) showMessage(ab, 'تعذّر قراءة بيانات المنتج — حاول مرة ثانية');
         return;
       }
       updateOverlayContent(p, 'جاري إضافة المنتج لسلة otlobli...');
-      preloadImage(p.image, 2500).then(function (ok) {
-        if (!ok) p.image = (IS_TEMU ? temuImage() : getMainImage()) || p.image;
+      function postProduct() {
         try {
           if (window.mobileApp && window.mobileApp.postMessage) {
             window.mobileApp.postMessage({ detail: { type: 'addToCart', product: p } });
           }
         } catch (e) {}
-        // Safety net: if the native side never acks (e.g. app backgrounded),
-        // don't leave the user stuck behind a frozen overlay forever.
-        setTimeout(function () {
-          if (document.getElementById('otlobli-overlay')) removeOverlay(0);
-        }, 4000);
+      }
+      // صورة Temu مأخوذة من عنصر مرسوم فعلاً في الصفحة، فلا نوقف الإضافة على
+      // تحميل شبكي ثانٍ لنفس الرابط. هذا كان يضيف حتى 2.5 ثانية بلا فائدة.
+      if (IS_TEMU) {
+        postProduct();
+        return;
+      }
+      preloadImage(p.image, 2500).then(function (ok) {
+        if (!ok) p.image = getMainImage() || p.image;
+        postProduct();
       });
     }
 
     function attempt() {
-      if (quickPayload) {
-        finalize(quickPayload);
-        return;
+      try {
+        if (quickPayload) {
+          finalize(quickPayload);
+          return;
+        }
+        if (IS_SHEIN && sheinSelectedSkuPricePending() && priceWaits++ < 16) {
+          updateOverlayContent(payload, 'جاري تثبيت سعر الخيار المختار...');
+          setTimeout(attempt, 120);
+          return;
+        }
+        attempts++;
+        var exhausted = attempts >= maxAttempts;
+        var freshColor = getColorState();
+        var freshSize = getSizeState();
+        payload = captureProductPayload(freshColor, freshSize, exhausted);
+        if (isComplete(payload, freshColor) || exhausted) {
+          finalize(payload);
+          return;
+        }
+        updateOverlayContent(payload, 'جاري التأكد من بيانات المنتج... (' + attempts + ')');
+        setTimeout(attempt, intervalMs);
+      } catch (e) {
+        failAddFlow();
       }
-      if (IS_SHEIN && sheinSelectedSkuPricePending() && priceWaits++ < 16) {
-        updateOverlayContent(payload, 'جاري تثبيت سعر الخيار المختار...');
-        setTimeout(attempt, 120);
-        return;
-      }
-      attempts++;
-      var exhausted = attempts >= maxAttempts;
-      var freshColor = getColorState();
-      var freshSize = getSizeState();
-      payload = captureProductPayload(freshColor, freshSize, exhausted);
-      if (isComplete(payload, freshColor) || exhausted) {
-        finalize(payload);
-        return;
-      }
-      updateOverlayContent(payload, 'جاري التأكد من بيانات المنتج... (' + attempts + ')');
-      setTimeout(attempt, intervalMs);
     }
 
     attempt();
@@ -5680,6 +5783,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       return;
     }
     if (detail && detail.type === 'addToCartAck') {
+      clearAddSafetyTimer();
       var overlay = document.getElementById('otlobli-overlay');
       if (overlay) {
         var shownAt = parseInt(overlay.getAttribute('data-shown-at') || '0', 10);
@@ -5690,6 +5794,10 @@ export const SHEIN_CAPTURE_SCRIPT = `
           removeOverlay(700);
         }, wait);
       }
+      return;
+    }
+    if (detail && detail.type === 'addToCartNack') {
+      failAddFlow();
     }
   });
 
@@ -5836,52 +5944,17 @@ export const SHEIN_CAPTURE_SCRIPT = `
         event.preventDefault();
         event.stopPropagation();
         if (IS_TEMU) {
-          // أي نقرة "أضف" جديدة تُلغي جولة انتظار خيارات سابقة (لا ازدواج إضافة).
-          window.__otlobliTemuAwaitSeq = (window.__otlobliTemuAwaitSeq || 0) + 1;
-          // مقياس تتبّع البوابة (نسخة اختبار): يسجّل كل قرار وتعرضه لوحة التشخيص.
-          var gtr = window.__otlobliGateTrace = { res: 'يفحص...' };
           // فاشلة-بأمان: لا نضيف قبل تأكيد كل بُعد مطلوب؛ أي شكّ → نطلب الاختيار.
           // نقرأ skuSelector الحقيقي: أي بُعد عدده>1 وبلا اختيار والزر مطوي → نفتح
           // الشيت وننتظر اختيار الزبون ثم نُكمل تلقائياً. (النص "4 Color, 1 Size"
           // يبقى بالـDOM خلف الشيت، فلا نعتمد عليه للتفريق.)
           var sku0 = otlobliTemuSku();
-          gtr.sum = sku0.single ? 'خيار واحد' :
-            (sku0.dims.length ? sku0.dims.map(function (d) { return d.count + ' ' + d.name; }).join(', ') : 'لا');
           var unmet0 = otlobliTemuUnmetDimResolved(sku0, null);
-          gtr.sheet = (unmet0 && sku0.collapsedEl) ? 'مغلق' : 'مفرود/جاهز';
-          if (unmet0 && sku0.collapsedEl) {
-            gtr.res = 'فتح الشيت + انتظار الاختيار';
-            try { sku0.collapsedEl.click(); } catch (e) {}
-            otlobliShowGateSpinner();
-            var awaitGid0 = temuGoodsId();
-            var awaitToken = window.__otlobliTemuAwaitSeq;
-            (function temuAwaitOptionsThenAdd(attemptsLeft) {
-              // نقرة "أضف" جديدة أو منتج آخر → نلغي هذه الجولة (لا ازدواج).
-              if (window.__otlobliTemuAwaitSeq !== awaitToken) return;
-              if (temuGoodsId() !== awaitGid0) { otlobliRemoveGateSpinner(); return; }
-              try { temuForceSingleSize(); } catch (e) {}
-              var skuA = otlobliTemuSku();
-              var unmetA = otlobliTemuUnmetDimResolved(skuA, null);
-              // اللون قد يُلتقط عبر نقرة الكرت (swatch) قبل ظهور aria-checked.
-              var colorPickedA = !!((window.__otlobliTemuColor || window.__otlobliTemuColorSwatch) &&
-                window.__otlobliTemuColorGid === temuGoodsId());
-              if (unmetA && unmetA.kind === 'color' && colorPickedA) unmetA = otlobliTemuUnmetDimResolved(skuA, 'size');
-              gtr.note = 'انتظار (' + attemptsLeft + ') ناقص=' + (unmetA ? unmetA.name : 'لا');
-              if (unmetA && unmetA.unavailableOnly) {
-                gtr.res = 'غير متوفر';
-                otlobliRemoveGateSpinner();
-                showMessage(btn, 'هذا الخيار غير متوفر حالياً');
-                return;
-              }
-              if (!unmetA) { temuFinalizeAdd(10); return; }
-              if (attemptsLeft <= 0) {
-                gtr.res = 'مهلة انتظار الاختيار';
-                otlobliRemoveGateSpinner();
-                showMessage(btn, 'حدد الخيارات ثم اضغط أضف للسلة');
-                return;
-              }
-              setTimeout(function () { temuAwaitOptionsThenAdd(attemptsLeft - 1); }, 500);
-            })(16);
+          if (unmet0) {
+            var unmetMessage0 = unmet0.unavailableOnly
+              ? 'هذا الخيار غير متوفر حالياً'
+              : (unmet0.kind === 'color' ? 'حدد اللون أولاً' : (/موديل/i.test(unmet0.name) ? 'حدد الموديل أولاً' : 'حدد المقاس أولاً'));
+            showMessage(btn, unmetMessage0);
             return;
           }
           // ب) منتج مخصص يحتاج صورة (بالكشف الصارم v58) → نُنبّه ونكمل الإضافة
@@ -5901,27 +5974,9 @@ export const SHEIN_CAPTURE_SCRIPT = `
             showMessage(btn, 'أضف الاسم/النص المطلوب في السلة قبل الدفع');
           }
           // نقرأ عدد الألوان والمقاسات من ملخّص المتغيّرات (أدق من عدّ الـpills).
-          function temuFinalizeAdd(attemptsLeft) {
-          var vCounts = temuVariantCounts();
-          var knownOneColor = vCounts.colors === 1;  // "1 اللون"
-          var knownOneSize  = vCounts.sizes  === 1;  // "1 موديل" أو "1 مقاس"
+          function temuFinalizeAdd() {
           var blockMsg = '';
           if (otlobliTemuRecentUnavailableTap()) blockMsg = 'هذا الخيار غير متوفر حالياً';
-          // تتبّع: ماذا ترى البوابة الآن بالضبط (يظهر في لوحة التشخيص).
-          try {
-            var gtrF = window.__otlobliGateTrace = window.__otlobliGateTrace || {};
-            var headT0 = temuSizeHeadEl();
-            gtrF.head = headT0 ? temuCleanText(headT0.textContent).slice(0, 24) : 'لا';
-            var pillsT0 = temuSizePills();
-            gtrF.pills = pillsT0.length;
-            var pt0 = [];
-            for (var pz = 0; pz < pillsT0.length && pz < 3; pz++) pt0.push(temuCleanText(pillsT0[pz].textContent).slice(0, 8));
-            gtrF.pillTxts = pt0.join('،');
-            gtrF.sel = temuSelectedSize() || '-';
-            gtrF.vc = vCounts.colors + '/' + vCounts.sizes;
-            gtrF.cSec = temuHasColorSection() ? 'نعم' : 'لا';
-            gtrF.cVal = (temuColor() || '-').slice(0, 14);
-          } catch (eT) {}
           // د) فيه ألوان متعددة لكن لم يُحدّد لون — لون وحيد يمرّ مباشرة.
           // يسري على منتجات التخصيص أيضاً (سوارة النقش لها ألوان يجب جذبها).
           // نقرة كرت صورة بلا اسم (أحذية/أجهزة) تُحتسب اختياراً عبر الـswatch.
@@ -5958,51 +6013,23 @@ export const SHEIN_CAPTURE_SCRIPT = `
             }
           }
           if (blockMsg) {
-            try { window.__otlobliGateTrace.res = 'حجب: ' + blockMsg + ' (بقي ' + attemptsLeft + ')'; } catch (eT2) {}
-            if (attemptsLeft > 0) { setTimeout(function () { temuFinalizeAdd(attemptsLeft - 1); }, 500); return; }
             otlobliRemoveGateSpinner();
             showMessage(btn, blockMsg);
-            // (v85.8.37) متابعة ذكية بعد رسالة الحجب: نراقب حتى 10 ثوانٍ؛ فور
-            // اختيار الزبون الناقص (لون/مقاس) نُكمل الإضافة تلقائياً — بلا نقرة
-            // "أضف" ثانية. شروط المراقبة مطابقة تماماً لشروط البوابة فلا تكرار
-            // رسائل. نقرة "أضف" جديدة أو منتج آخر يلغيان المراقبة (نفس العدّاد).
-            var watchToken = window.__otlobliTemuAwaitSeq;
-            var watchGid = temuGoodsId();
-            (function temuWatchPickThenAdd(left) {
-              if (window.__otlobliTemuAwaitSeq !== watchToken) return;
-              if (temuGoodsId() !== watchGid) return;
-              var skuW = otlobliTemuSku();
-              var unmetW = otlobliTemuUnmetDimResolved(skuW, null);
-              var colorPickedW = !!((window.__otlobliTemuColor || window.__otlobliTemuColorSwatch) &&
-                window.__otlobliTemuColorGid === temuGoodsId());
-              if (unmetW && unmetW.kind === 'color' && colorPickedW) unmetW = otlobliTemuUnmetDimResolved(skuW, 'size');
-              if (unmetW && unmetW.unavailableOnly) return;
-              if (!unmetW) { otlobliShowGateSpinner(); temuFinalizeAdd(3); return; }
-              if (left <= 0) return;
-              setTimeout(function () { temuWatchPickThenAdd(left - 1); }, 500);
-            })(20);
             return;
           }
           // ز) السعر: لا نضيف بصفر/غير مقروء.
           if (!(temuPriceUsd() > 0)) {
-            try { window.__otlobliGateTrace.res = 'سعر غير مقروء (بقي ' + attemptsLeft + ')'; } catch (eT3) {}
-            if (attemptsLeft > 0) { setTimeout(function () { temuFinalizeAdd(attemptsLeft - 1); }, 500); return; }
             otlobliRemoveGateSpinner();
             showMessage(btn, 'تعذّر قراءة السعر — انتظر ثانية وحاول');
             return;
           }
           // و) كل شيء مؤكّد → نضيف. الطبقة الكاملة (showAddingOverlay) تتولى
           // من هنا فوراً - نزيل مؤشر التحقق المؤقت أولاً حتى لا يتعارضا.
-          try { window.__otlobliGateTrace.res = 'أضاف ✓'; } catch (eT4) {}
           otlobliRemoveGateSpinner();
           addToCartFlow({ exists: false }, { exists: false });
           }
-          // مؤشر تحميل فوري: التحقق قد يستغرق حتى 5 ثوانٍ (10 محاولات) قبل
-          // إظهار طبقة الإضافة الكاملة أو رسالة الحجب - بلا هذا المؤشر يبدو
-          // التطبيق متجمداً في تلك الأثناء (شكوى مستخدم حقيقية). لا نغيّر
-          // منطق الجذب/التحقق نفسه إطلاقاً - مجرّد تغذية بصرية فورية.
-          otlobliShowGateSpinner();
-          temuFinalizeAdd(10);
+          // القرار فوري. طبقة الإضافة تظهر فقط بعد نجاح كل بوابات الخيارات.
+          temuFinalizeAdd();
           return;
         }
         if (!IS_SHEIN) {
@@ -6021,6 +6048,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     }
     btn.setAttribute('data-otlobli-add-revision', OTLOBLI_ADD_BUTTON_REVISION);
     var showAddBtn = looksLikeProductPage() &&
+      !(IS_TEMU && !otlobliTemuHasVisibleProductContent(otlobliTemuProductVitals())) &&
       !(IS_TEMU && temuImageViewerOpen()) &&
       !(IS_SHEIN && sheinImageViewerOpen());
     btn.style.display = showAddBtn ? 'flex' : 'none';
@@ -6262,7 +6290,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
     nav.style.cssText = OTLOBLI_NAV_CSS;
     nav.setAttribute('data-otlobli-nav-style', OTLOBLI_NAV_STYLE_VERSION);
     var items = [
-      { label: 'الرئيسية', icon: OTLOBLI_NAV_ICONS.home, type: '' },
+      { label: 'الرئيسية', icon: OTLOBLI_NAV_ICONS.home, type: 'openHome' },
       { label: 'طلباتي', icon: OTLOBLI_NAV_ICONS.orders, type: 'openOrders' },
       { label: 'السلة', icon: OTLOBLI_NAV_ICONS.cart, type: 'openCart' },
       { label: 'حسابي', icon: OTLOBLI_NAV_ICONS.profile, type: 'openProfile' },
@@ -6281,7 +6309,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       // one of those to it. Each tab needs its own otlobli-prefixed id so
       // that guard catches it at depth 0, before any of the is*() checks run.
       tab.id = 'otlobli-nav-tab-' + i;
-      var isActiveTab = !item.type;
+      var isActiveTab = item.type === 'openHome';
       // Keep Flex for old WKWebView compatibility, but let each cell stretch
       // through the nav's real content box. A forced 74px button sat lower;
       // CSS Grid collapsed to content width on the user's older iPhone.
@@ -6352,7 +6380,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
         // so a back() from the root can land on a half-finished check page.
         // Temu search is an overlay with no history entry - clearing the field
         // and firing input exits it; history.back there hung the screen.
-        if (IS_TEMU && otlobliTemuSearchBackActive()) {
+        if (IS_SHEIN && looksLikeHomeRoot()) {
+          try {
+            if (window.mobileApp && window.mobileApp.postMessage) {
+              window.mobileApp.postMessage({ detail: { type: 'requestStoreExit', store: 'shein' } });
+            }
+          } catch (e) {}
+        } else if (IS_TEMU && otlobliTemuSearchBackActive()) {
           otlobliTemuExitSearchMode();
         } else if (!looksLikeHomeRoot() || looksLikeProductPage()) {
           otlobliBackOrLeave();
@@ -6361,23 +6395,33 @@ export const SHEIN_CAPTURE_SCRIPT = `
       otlobliStabilizeBackOverlay(btn);
     }
     var temuSearchBack = IS_TEMU && otlobliTemuSearchBackActive();
-    var shouldShow = __otlobliBackTarget === 'cart' || !looksLikeHomeRoot()
+    var shouldShow = IS_SHEIN || __otlobliBackTarget === 'cart' || !looksLikeHomeRoot()
       || looksLikeProductPage() || temuSearchBack;
     var backTop = temuSearchBack ? 30 : ((IS_SHEIN && viewportSize().width <= 390) ? 58 : 12);
     btn.style.setProperty('top', backTop + 'px', 'important');
     btn.style.display = shouldShow ? 'flex' : 'none';
     if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.messageHandler) {
-      var nativeState = (shouldShow ? '1:' : '0:') + backTop;
+      var nativeBackTarget = __otlobliBackTarget === 'cart'
+        ? 'cart'
+        : (IS_SHEIN && looksLikeHomeRoot() ? 'exit' : 'home');
+      var nativeState = (shouldShow ? '1:' : '0:') + backTop + ':' + nativeBackTarget;
       if (window.__otlobliNativeBackState !== nativeState) {
         window.__otlobliNativeBackState = nativeState;
-        window.mobileApp.postMessage({ detail: { type: 'otlobliBackButtonState', visible: shouldShow, top: backTop } });
+        window.mobileApp.postMessage({ detail: {
+          type: 'otlobliBackButtonState', visible: shouldShow, top: backTop, target: nativeBackTarget
+        } });
       }
     }
     if (shouldShow) otlobliStabilizeBackOverlay(btn);
   }
 
   function isAddToCartText(el) {
-    var text = String(el.textContent || (el.getAttribute && el.getAttribute('aria-label')) || el.value || '').trim();
+    // Never read textContent from a product-page wrapper. On the measured
+    // SHEIN 130872819 page some broad "add" class candidates contain almost
+    // the complete document; flattening those subtrees every 650ms consumed
+    // 81% of the page's sampled JavaScript time on the Note 8.
+    var explicitLabel = (el.getAttribute && el.getAttribute('aria-label')) || el.value || '';
+    var text = String(explicitLabel || ((el.childElementCount || 0) <= 6 ? el.textContent : '') || '').trim();
     if (!text || text.length > 60) return false;
     // The Arabic-only regex below is what was actually missing - SHEIN's
     // Jordan site (forced to Arabic above) labels this "أضف إلى عربة
@@ -6904,9 +6948,13 @@ export const SHEIN_CAPTURE_SCRIPT = `
     var navTop = nr && nr.top > 0 ? nr.top : vp.height - 90;
     function hide(el) {
       if (!el || el.style && el.style.display === 'none') return;
-      if (!el.getBoundingClientRect || (el.closest && el.closest('[id^="otlobli"]')) || !isAddToCartText(el)) return;
+      if (!el.getBoundingClientRect || (el.closest && el.closest('[id^="otlobli"]'))) return;
       var r = el.getBoundingClientRect();
       if (r.width < 64 || r.width > vp.width * 1.05 || r.height < 24 || r.height > 100 || r.bottom < navTop - 190 || r.top > navTop + 24) return;
+      // Geometry is intentionally checked before text. Most broad selector
+      // matches are large wrappers and can now exit without flattening their
+      // full descendant text.
+      if (!isAddToCartText(el)) return;
       el.style.setProperty('display', 'none', 'important');
       el.style.setProperty('visibility', 'hidden', 'important');
       el.style.setProperty('pointer-events', 'none', 'important');
@@ -7099,10 +7147,16 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // screen. It runs from the same 300ms tick. The human-check ("أنا إنسان")
   // never matches acceptRe, so it is left untouched.
   var __otlobliForceAcceptTries = 0;
+  var __otlobliForceAcceptScans = 0;
   function otlobliForceAcceptCookies() {
     if (!document.body) return;
-    if (__otlobliForceAcceptTries >= 10) return;
-    var bodyText = document.body.innerText || '';
+    // Consent is an entry-time prompt. A missing banner used to leave this
+    // full-page scan running forever because only successful clicks advanced
+    // the counter. Bound the discovery window while preserving ten click
+    // retries for a banner that is actually present.
+    if (__otlobliForceAcceptTries >= 10 || __otlobliForceAcceptScans >= 16) return;
+    __otlobliForceAcceptScans++;
+    var bodyText = document.body.textContent || '';
     if (!/ملفات تعريف الارتباط|cookies?/i.test(bodyText)) return;
     function cleanLabel(s) {
       return String(s || '').replace(/[\\u200e\\u200f\\u061c\\u202a-\\u202e]/g, '').replace(/\\s+/g, ' ').trim();
@@ -7406,18 +7460,12 @@ export const SHEIN_CAPTURE_SCRIPT = `
   function checkForSheinSecurityBlock() {
     if (sheinBlockReported) return;
     if (!document.body) return;
-    // No childElement-count pre-filter here (a previous version skipped this
-    // check entirely whenever body.children.length > 8, meant to dodge the
-    // cost of a full-page reflow on busy SHEIN pages) - confirmed broken: the
-    // generic carrier-level "System Not Avaliable" block page itself has more
-    // than 8 direct body children, so that gate silently skipped the ONE page
-    // this function exists to catch, every time, without ever reaching the
-    // regex below. This whole check already runs on its own slow 1s interval
-    // (not the fast 300ms tick), so one innerText reflow/second is cheap
-    // regardless of page complexity - bodyText.length < 2000 below is the
-    // real, reliable discriminator (block pages are short; real SHEIN pages
-    // never are), not the element count.
-    var bodyText = document.body.innerText;
+    // The carrier block page has more than eight *direct* children, so that
+    // historical guard was invalid. It is still a small error document. A
+    // real PDP with 900+ total elements is not the short carrier error and
+    // must not pay for a body text flatten/layout every 1.6 seconds.
+    if (document.getElementsByTagName('*').length > 900) return;
+    var bodyText = document.body.textContent;
     if (bodyText && bodyText.length < 2000 && /GSRM|gone missing|not avaliable|not available|system not/i.test(bodyText)) {
       sheinBlockReported = true;
       if (window.mobileApp && window.mobileApp.postMessage) {
@@ -7681,6 +7729,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   function tick() {
     if (!document.body) return;
+    otlobliHealOrphanScrollLock();
     if (IS_SHEIN && sheinLooksLikeProductRouteForShipping()) {
       sheinRegionDiag('tick-product-route', {
         addressCountry: sheinAddressCookieCountry(),
@@ -7715,6 +7764,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
       }
       otlobliChallengeActive = false;
       otlobliForgetHumanChallenge();
+      // The challenge is over and the page is interactive again, so this is the
+      // first safe moment to seed the Saudi region. Entering challenge mode no
+      // longer writes it; without this line the region would be lost on any
+      // session that began at a challenge.
+      try { writeSheinSaudiState(); } catch (e) {}
       if (!__otlobliChallengeResolvedNotified) {
         __otlobliChallengeResolvedNotified = true;
         try {
@@ -7759,10 +7813,8 @@ export const SHEIN_CAPTURE_SCRIPT = `
           var __d1 = document.getElementById('otlobli-temu-diag'); if (__d1) __d1.remove();
           var __d2 = document.getElementById('otlobli-temu-urlprobe'); if (__d2) __d2.remove();
         } catch (e) {}
-        // إصلاح تلقائي لفشل رندر تيمو (DOM فارغ).
-        // ارتداد تيمو لتسجيل الدخول عند فتح منتج بتحميل بارد: أعد التوجيه للمنتج
-        // مرة واحدة (استرداد ضيف) قبل أي محاولة إعادة تحميل عمياء.
-        try { if (otlobliTemuRecoverFromLoginRedirect()) return; } catch (e) {}
+        // إصلاح تلقائي محدود لفشل رندر تيمو عندما يكون DOM نفسه فارغاً.
+        try { otlobliTemuBlankProductNotice(); } catch (e) {}
         try { otlobliTemuBlankPageAutoReload(); } catch (e) {}
         // killStorePopups معطّلة لتيمو نهائياً (v57): أكّد اختبار المستخدم
         // (2026-07-10) أنها سبب وميض الشاشة الأبيض كل نصف ثانية — كانت تحجب
@@ -7770,6 +7822,16 @@ export const SHEIN_CAPTURE_SCRIPT = `
         // لا تُعِد تفعيلها لتيمو. بانر التنزيل يُحجب عبر OTLOBLI_TEMU_HIDE_CSS
         // الثابت (downloadUI فقط، وليس الغلاف downloadsWrapper الحاوي للبحث).
         // أثناء البحث: نوقف دوال إخفاء الكروم حتى لا تبتلع صفوف الاقتراحات.
+        try {
+          // Cheap anchor probe keeps the broad legacy popup scan off normal
+          // listing ticks. Once its marked ancestor is hidden, skip it too.
+          var temuWheelAnchor = document.querySelector(
+            '[class*="turnable" i], [class*="diskitem" i], [class*="wheel" i], [class*="spin" i]'
+          );
+          if (temuWheelAnchor && !(temuWheelAnchor.closest && temuWheelAnchor.closest('[data-otlobli-blocked="1"]'))) {
+            hideTemuSpinWheelPopup();
+          }
+        } catch (e) {}
         try { otlobliCleanTemuBlockers(); } catch (e) {}
         try { ensureAddToCartButton(); } catch (e) {}
         try { detectEmptyTemuSearch(); } catch (e) {}
@@ -8444,6 +8506,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
   var __otlobliTemuProductVisibleKey = '';
   var __otlobliTemuProductVisibleTs = 0;
+  var __otlobliTemuConfirmedProductIdentity = '';
   var __otlobliTemuVisibleSinceKey = '';
   var __otlobliTemuVisibleSince = 0;
   // كم يجب أن يبقى محتوى المنتج ظاهراً بثبات قبل كشف الـWebView (بالمللي ثانية).
@@ -8478,43 +8541,11 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (__otlobliTemuProductVisibleKey === key && now - __otlobliTemuProductVisibleTs < 1400) return;
       __otlobliTemuProductVisibleKey = key;
       __otlobliTemuProductVisibleTs = now;
+      __otlobliTemuConfirmedProductIdentity = temuGoodsId() || location.pathname;
       if (window.mobileApp && window.mobileApp.postMessage) {
         window.mobileApp.postMessage({ detail: { type: 'temuProductVisible', url: location.href, key: key } });
       }
     } catch (e) {}
-  }
-
-  // استرداد من ارتداد تيمو لتسجيل الدخول: التحميل البارد لرابط منتج عميق (فتح من
-  // السلة) ترفضه تيمو لغير المسجّلين وتحوّله إلى /login.html?from=<المنتج>. غالباً
-  // تكون تيمو ثبّتت كوكيز ضيف على صفحة الدخول، فإعادة التوجيه لرابط from تفتح
-  // المنتج كضيف. نعيد المحاولة **مرة واحدة فقط لكل هدف** عبر sessionStorage (يبقى
-  // بين تنقّلات نفس الأصل، فلا ندخل حلقة login->product->login). لو فشلت، نُبلّغ
-  // التطبيق (temuLoginBlocked) ليرجع للسلة برسالة بدل الشاشة البيضاء.
-  function otlobliTemuRecoverFromLoginRedirect() {
-    if (!IS_TEMU) return false;
-    try {
-      if (!/\\/login(\\.html)?(?:$|\\/|\\?)/i.test(location.pathname)) return false;
-      var m = (location.search || '').match(/[?&]from=([^&]+)/i);
-      if (!m) return false;
-      var target;
-      try { target = decodeURIComponent(m[1]); } catch (e) { target = m[1]; }
-      if (!/temu\\.com/i.test(target)) return false;
-      // تجاهل الأهداف غير المنتجات (حساب/إعدادات/دخول/جذر) حتى لا نعطّل دخولاً مقصوداً.
-      if (/\\/(login|account|user|setting|signin|register)/i.test(target)) return false;
-      var key = 'otlobli_lr_' + target.slice(0, 180);
-      var already = false;
-      try { already = sessionStorage.getItem(key) === '1'; } catch (e) {}
-      if (already) {
-        if (window.mobileApp && window.mobileApp.postMessage) {
-          window.mobileApp.postMessage({ detail: { type: 'temuLoginBlocked', target: target } });
-        }
-        return false;
-      }
-      try { sessionStorage.setItem(key, '1'); } catch (e) {}
-      location.replace(target);
-      return true;
-    } catch (e) {}
-    return false;
   }
 
   function otlobliTemuLooksLikeLargeProductFlowContainer(el, rect, style, vp) {
@@ -8670,22 +8701,71 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // إصلاح تلقائي لفشل رندر تيمو: إن بقيت صفحة المنتج فارغة بصرياً و DOM فارغ
   // فعلاً (لا محتوى مخفي — فذاك يتكفّل به watchdog) لأكثر من 3.5 ثانية = تيمو
   // لم ترسم الصفحة → نعيد تحميل الرابط مرّة واحدة (يُصلح غالباً فشل SPA).
+  // Keep an honest loading state only while a new product route has no product
+  // DOM at all. Viewport visibility is not page readiness: after scrolling,
+  // the hero image and price legitimately leave the viewport. Once a product
+  // was confirmed visible, never cover that same product later in its lifetime.
+  function otlobliTemuBlankProductNotice() {
+    if (!IS_TEMU || !document.body) return;
+    var notice = document.getElementById('otlobli-temu-product-loading');
+    var show = false;
+    try {
+      var identity = temuGoodsId() || location.pathname;
+      var v = otlobliTemuProductVitals();
+      show = looksLikeProductPage() && !otlobliTemuSearchMode() &&
+        __otlobliTemuConfirmedProductIdentity !== identity && !v.domHasContent;
+    } catch (e) {}
+    if (!show) {
+      if (notice) notice.remove();
+      return;
+    }
+    if (notice) return;
+    ensureOverlayStyle();
+    var vp = viewportSize();
+    notice = document.createElement('div');
+    notice.id = 'otlobli-temu-product-loading';
+    notice.setAttribute('role', 'status');
+    notice.setAttribute('aria-live', 'polite');
+    notice.style.cssText = 'position:fixed;left:0;top:0;width:' + vp.width + 'px;height:' + vp.height + 'px;' +
+      'z-index:2147483646;background:#fff;display:flex;align-items:center;justify-content:center;' +
+      'box-sizing:border-box;padding:24px 24px 150px;direction:rtl;font-family:Cairo,system-ui,sans-serif;';
+    notice.innerHTML = '<div style="display:flex;max-width:290px;flex-direction:column;align-items:center;text-align:center;color:#123d30">' +
+      '<span style="width:34px;height:34px;border:4px solid #d8efe4;border-top-color:#007a52;border-radius:50%;animation:otlobli-spin .8s linear infinite"></span>' +
+      '<strong style="margin-top:16px;font-size:17px;line-height:1.5">جاري فتح المنتج…</strong>' +
+      '<span style="margin-top:5px;color:#65736e;font-size:13px;line-height:1.65">نحاول فتحه كضيف داخل تيمو السعودية</span>' +
+      '</div>';
+    notice.addEventListener('touchmove', function (event) { event.preventDefault(); }, { passive: false });
+    document.body.appendChild(notice);
+  }
+
   var __otlobliTemuBlankUrl = '';
   var __otlobliTemuBlankSince = 0;
-  var __otlobliTemuBlankReloaded = '';
   function otlobliTemuBlankPageAutoReload() {
     if (!IS_TEMU || !document.body) return;
     try {
       if (!looksLikeProductPage() || otlobliTemuSearchMode()) { __otlobliTemuBlankSince = 0; return; }
       var v = otlobliTemuProductVitals();
-      if (v.visImg > 0) { __otlobliTemuBlankSince = 0; return; }   // يظهر محتوى — سليمة
+      var identity = temuGoodsId() || (location.pathname + location.search).slice(0, 180);
+      var retryKey = '__otlobliTemuBlankReload:' + identity;
+      if (__otlobliTemuConfirmedProductIdentity === identity ||
+          v.visImg > 0 || otlobliTemuHasVisibleProductContent(v)) {
+        __otlobliTemuBlankSince = 0;
+        try { sessionStorage.removeItem(retryKey); } catch (e) {}
+        return;
+      }
       if (v.domHasContent) return;                                 // محجوب — للـwatchdog لا لإعادة التحميل
       var url = location.href, now = Date.now();
+      var retryState = '';
+      try { retryState = sessionStorage.getItem(retryKey) || ''; } catch (e) {}
+      if (retryState === 'blocked') return;
       if (__otlobliTemuBlankUrl !== url) { __otlobliTemuBlankUrl = url; __otlobliTemuBlankSince = now; return; }
       if (!__otlobliTemuBlankSince) { __otlobliTemuBlankSince = now; return; }
       if (now - __otlobliTemuBlankSince < 3500) return;
-      if (__otlobliTemuBlankReloaded === url) return;              // مرّة واحدة لكل رابط
-      __otlobliTemuBlankReloaded = url;
+      if (retryState === 'retry') {
+        try { sessionStorage.setItem(retryKey, 'blocked'); } catch (e) {}
+        return;
+      }
+      try { sessionStorage.setItem(retryKey, 'retry'); } catch (e) {}
       location.reload();
     } catch (e) {}
   }
@@ -8729,6 +8809,24 @@ export const SHEIN_CAPTURE_SCRIPT = `
   var __otlobliTemuCleanBlockersTs = 0;
   function otlobliCleanTemuBlockers(force) {
     if (!IS_TEMU || !document.body) return;
+    // Temu renders its real sign-in screen inside a generic .container.
+    // The blocker cleaner used to classify that full-page form as an account
+    // promo and hide it with important inline styles, leaving only a white
+    // page after a product was gated to /login.html. Account routes are an
+    // intentional destination: never clean them, and undo only styles that
+    // this cleaner itself applied in case an SPA transition changed routes.
+    if (otlobliTemuAccountRoute()) {
+      var authNodes = document.querySelectorAll('[data-otlobli-temu-clean-hidden="1"]');
+      for (var ai = 0; ai < authNodes.length; ai++) {
+        var authNode = authNodes[ai];
+        authNode.style.removeProperty('display');
+        authNode.style.removeProperty('visibility');
+        authNode.style.removeProperty('opacity');
+        authNode.style.removeProperty('pointer-events');
+        authNode.removeAttribute('data-otlobli-temu-clean-hidden');
+      }
+      return;
+    }
     if (window.__otlobliTemuHideOff) return; // وضع اختبار: الحجب مطفأ
     var now = Date.now();
     if (!force && now - __otlobliTemuCleanBlockersTs < (OTLOBLI_LOW_END ? 1800 : 1100)) return;
@@ -8750,6 +8848,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
 
       function protectedTemuContent(el, text, target) {
         if (!el || (el.id && el.id.indexOf('otlobli') === 0)) return true;
+        if (temuProductOptionDialog(el)) return true;
         // قائمة بيضاء دائمة: عنصر استعادته المراجعة الذاتية بعد حجب خاطئ — لا
         // يُحجب ثانيةً أبداً (يمنع دورة الحجب/الاستعادة والوميض المتكرّر).
         if (el.getAttribute && el.getAttribute('data-otlobli-temu-keep') === '1') return true;
@@ -10021,6 +10120,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
       if (onAccountRoute && otlobliTemuAccountPanelScore(txt) >= 2) continue;
       if (!WHEEL_RE.test(hint)) continue;
       if (el.querySelector && el.querySelector('input:not([type="hidden"]), textarea')) continue;
+      if (temuProductOptionDialog(el)) continue;
       var target = el;
       var up = el.parentElement;
       var hops = 0;
@@ -10033,6 +10133,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
         up = up.parentElement;
         hops++;
       }
+      if (temuProductOptionDialog(target)) continue;
       target.setAttribute('data-otlobli-blocked', '1');
       target.style.setProperty('display', 'none', 'important');
       target.style.setProperty('visibility', 'hidden', 'important');
@@ -10065,7 +10166,7 @@ export const SHEIN_CAPTURE_SCRIPT = `
   // ones. Never widen these past the documented values - see the perf guard.
   var OTLOBLI_LOW_END = typeof navigator !== 'undefined' && (
     (navigator.hardwareConcurrency || 4) <= 4 ||
-    (navigator.deviceMemory && navigator.deviceMemory <= 3) ||
+    (navigator.deviceMemory && navigator.deviceMemory <= 4) ||
     /Android\\s(?:7|8|9|10)(?:\\D|$)/i.test(navigator.userAgent || '')
   );
   function scheduleTick() {
