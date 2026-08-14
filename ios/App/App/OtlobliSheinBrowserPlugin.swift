@@ -30,7 +30,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
 
     private var browserId = ""
     private var surfaceView: UIView?
-    private var webView: WKWebView?
+    private var storeWebView: WKWebView?
     private var urlObservation: NSKeyValueObservation?
     private var loadingCover: UIView?
     private var loadingSpinner: UIActivityIndicatorView?
@@ -141,7 +141,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
             storeWebView.scrollView.backgroundColor = .white
 
             self.surfaceView = surface
-            self.webView = storeWebView
+            self.storeWebView = storeWebView
             self.attachWebView(storeWebView, to: surface)
             self.installNativeBackButton(in: surface, webView: storeWebView)
             if call.getBool("otlobliLoadingCover", true) {
@@ -151,7 +151,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
             self.urlObservation = storeWebView.observe(\.url, options: [.new]) { [weak self, weak storeWebView] _, change in
                 guard let self,
                       let storeWebView,
-                      self.webView === storeWebView,
+                      self.storeWebView === storeWebView,
                       let changedURL = change.newValue ?? storeWebView.url else { return }
                 self.emit("urlChangeEvent", extra: ["url": changedURL.absoluteString])
             }
@@ -207,7 +207,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
             return
         }
         DispatchQueue.main.async {
-            guard let webView = self.webView else {
+            guard let webView = self.storeWebView else {
                 call.reject("SHEIN browser is not initialized")
                 return
             }
@@ -222,7 +222,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
             return
         }
         DispatchQueue.main.async {
-            guard let webView = self.webView else {
+            guard let webView = self.storeWebView else {
                 call.reject("SHEIN browser is not initialized")
                 return
             }
@@ -246,7 +246,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
             return
         }
         DispatchQueue.main.async {
-            guard let webView = self.webView else {
+            guard let webView = self.storeWebView else {
                 call.reject("SHEIN browser is not initialized")
                 return
             }
@@ -316,22 +316,22 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
 
     private func closeBrowser(emitEvent: Bool) {
         let closingId = browserId
-        let closingURL = webView?.url?.absoluteString ?? ""
+        let closingURL = storeWebView?.url?.absoluteString ?? ""
         stopForegroundRebind()
         urlObservation?.invalidate()
         urlObservation = nil
-        webView?.stopLoading()
-        webView?.navigationDelegate = nil
-        webView?.uiDelegate = nil
-        if let contentController = webView?.configuration.userContentController {
+        storeWebView?.stopLoading()
+        storeWebView?.navigationDelegate = nil
+        storeWebView?.uiDelegate = nil
+        if let contentController = storeWebView?.configuration.userContentController {
             for name in Self.messageHandlers {
                 contentController.removeScriptMessageHandler(forName: name)
             }
             contentController.removeAllUserScripts()
         }
-        webView?.removeFromSuperview()
+        storeWebView?.removeFromSuperview()
         surfaceView?.removeFromSuperview()
-        webView = nil
+        storeWebView = nil
         surfaceView = nil
         loadingCover = nil
         loadingSpinner = nil
@@ -432,10 +432,10 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         case "exit":
             emit("messageFromWebview", detail: ["type": "requestStoreExit", "store": "shein"])
         default:
-            if webView?.canGoBack == true {
-                webView?.goBack()
+            if storeWebView?.canGoBack == true {
+                storeWebView?.goBack()
             } else if let home = URL(string: "https://m.shein.com/ar/") {
-                webView?.load(URLRequest(url: home))
+                storeWebView?.load(URLRequest(url: home))
             }
         }
     }
@@ -457,7 +457,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
     }
 
     public func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard message.webView === webView else { return }
+        guard message.webView === storeWebView else { return }
         switch message.name {
         case "messageHandler":
             guard let body = message.body as? [String: Any],
@@ -529,7 +529,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
             "code": nsError.code,
             "domain": nsError.domain,
             "message": nsError.localizedDescription,
-            "url": webView?.url?.absoluteString ?? ""
+            "url": storeWebView?.url?.absoluteString ?? ""
         ])
     }
 
@@ -578,7 +578,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
     }
 
     @objc private func applicationDidEnterBackground() {
-        if webView != nil { needsForegroundRebind = true }
+        if storeWebView != nil { needsForegroundRebind = true }
     }
 
     @objc private func applicationDidBecomeActive() {
@@ -590,7 +590,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         guard rebindDisplayLink == nil,
               UIApplication.shared.applicationState == .active,
               let surface = surfaceView,
-              let webView,
+              let webView = storeWebView,
               webView.superview === surface else { return }
 
         guard surface.window != nil, webView.window != nil else {
@@ -613,7 +613,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         let snapshot = webView.snapshotView(afterScreenUpdates: false)
         if let snapshot {
             snapshot.frame = webView.frame
-            snapshot.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            snapshot.autoresizingMask = [UIView.AutoresizingMask.flexibleWidth, .flexibleHeight]
             snapshot.isUserInteractionEnabled = false
             surface.insertSubview(snapshot, aboveSubview: webView)
         }
@@ -636,7 +636,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         rebindFallback = nil
 
         guard let surface = surfaceView,
-              let webView,
+              let webView = storeWebView,
               webView.superview == nil else {
             rebindSnapshot?.removeFromSuperview()
             rebindSnapshot = nil
