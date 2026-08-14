@@ -30,15 +30,22 @@ const checks = [
     file: 'ios/App/App/OtlobliSheinBrowserPlugin.swift',
     markers: [
       'public final class OtlobliSheinBrowserPlugin',
-      'private static let processPool = WKProcessPool()',
+      'A WKWebView is only a disposable render surface.',
       'configuration.websiteDataStore = .default()',
       'UIApplication.didEnterBackgroundNotification',
       'UIApplication.didBecomeActiveNotification',
-      'private var rebindDisplayLink: CADisplayLink?',
-      'webView.removeFromSuperview()',
-      'let link = CADisplayLink',
+      'private func createRenderSurface(',
+      'private func destroyRenderSurface()',
+      'private func replaceVisibleRenderSurface(with url: URL, message: String)',
+      'restoreAfterBackground = true',
+      '_ = createRenderSurface(loadingMessage: "جاري استعادة المتجر…")',
+      'private var routeReplacementQueued = false',
+      'navigationAction.navigationType == .linkActivated',
+      '!webView.isLoading',
+      'settled path change follows one universal rule',
+      'storeWebView?.stopLoading()',
+      'storeWebView?.removeFromSuperview()',
       'attachWebView(webView, to: surface)',
-      'webView.scrollView.setContentOffset(rebindOffset, animated: false)',
       'webContentProcessDidTerminate',
       'WKWebsiteDataTypeDiskCache',
       'WKWebsiteDataTypeMemoryCache',
@@ -48,6 +55,12 @@ const checks = [
     ],
     forbidden: [
       'UIApplication.willEnterForegroundNotification',
+      'WKProcessPool()',
+      'CADisplayLink',
+      'needsForegroundRebind',
+      'needsRenderSurfaceRebuild',
+      'snapshotView(',
+      'operatingSystemVersion.majorVersion',
       'WKWebsiteDataTypeCookies',
       'WKWebsiteDataTypeLocalStorage',
       'webView.reload()',
@@ -329,7 +342,7 @@ const checks = [
     markers: [
       'export const STORE_SCRIPT_DIAGNOSTICS =',
       'VITE_STORE_SCRIPT_DIAGNOSTICS',
-      'v86.188-native-shein-browser',
+      'v86.189-disposable-render-surface',
     ],
   },
   {
@@ -1204,8 +1217,8 @@ try {
   if (webViewConstructors !== 1) {
     failures.push(`dedicated iOS SHEIN browser: expected one WKWebView constructor, got ${webViewConstructors}`)
   }
-  if (displayLinkConstructors !== 1) {
-    failures.push(`dedicated iOS SHEIN browser: expected one foreground display-link repair, got ${displayLinkConstructors}`)
+  if (displayLinkConstructors !== 0) {
+    failures.push(`dedicated iOS SHEIN browser: expected no same-instance display-link repair, got ${displayLinkConstructors}`)
   }
 } catch (error) {
   failures.push(`dedicated iOS SHEIN browser structure: ${error instanceof Error ? error.message : String(error)}`)

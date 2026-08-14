@@ -34,5 +34,5 @@ export const TEMU_PERSONAL_SITE_MODE =
 
 // رقم النسخة الظاهر داخل التطبيق.
 export const APP_VERSION = TEMU_PERSONAL_SITE_MODE
-  ? '2026.08.14-v86.188-personal-native-shein-browser'
-  : '2026.08.14-v86.188-native-shein-browser'
+  ? '2026.08.14-v86.189-personal-disposable-render-surface'
+  : '2026.08.14-v86.189-disposable-render-surface'

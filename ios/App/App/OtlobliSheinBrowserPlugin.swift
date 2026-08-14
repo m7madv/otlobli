@@ -2,12 +2,11 @@ import UIKit
 import WebKit
 import Capacitor
 
-/// A deliberately small, app-owned SHEIN browser for iOS.
+/// Otlobli's single iOS SHEIN browser boundary.
 ///
-/// SHEIN no longer runs through the generic modal in-app-browser plugin. This
-/// surface has one WKWebView, one message bridge, one persistent website data
-/// store, and one foreground lifecycle. The existing store JavaScript remains
-/// a web concern; presentation/session ownership stays here.
+/// A WKWebView is only a disposable render surface. It is never hidden and
+/// later reused, and it never survives an app background transition. SHEIN's
+/// durable session lives separately in WKWebsiteDataStore.default().
 @objc(OtlobliSheinBrowserPlugin)
 public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
     WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
@@ -25,10 +24,18 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         CAPPluginMethod(name: "clearCache", returnType: CAPPluginReturnPromise)
     ]
 
-    private static let processPool = WKProcessPool()
     private static let messageHandlers = ["messageHandler", "close", "hide", "show", "navigate"]
 
     private var browserId = ""
+    private var savedURL: URL?
+    private var lastCommittedURL: URL?
+    private var documentStartScript = ""
+    private var loadingCoverEnabled = true
+    private var isBrowserVisible = false
+    private var restoreAfterBackground = false
+    private var routeReplacementQueued = false
+    private var pendingRouteURL: URL?
+
     private var surfaceView: UIView?
     private var storeWebView: WKWebView?
     private var urlObservation: NSKeyValueObservation?
@@ -37,16 +44,6 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
     private var nativeBackButton: UIButton?
     private var nativeBackTopConstraint: NSLayoutConstraint?
     private var nativeBackTarget = "home"
-    private var isSurfaceHidden = true
-
-    // A one-shot display-linked foreground repair. The same WKWebView and its
-    // DOM/session survive; only its remote rendering layer is reattached.
-    private var needsForegroundRebind = false
-    private var rebindDisplayLink: CADisplayLink?
-    private var rebindFallback: DispatchWorkItem?
-    private var rebindSnapshot: UIView?
-    private var rebindOffset = CGPoint.zero
-    private var rebindReadinessAttempt = 0
 
     public override func load() {
         NotificationCenter.default.addObserver(
@@ -65,7 +62,6 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
 
     deinit {
         NotificationCenter.default.removeObserver(self)
-        stopForegroundRebind()
     }
 
     @objc func openWebView(_ call: CAPPluginCall) {
@@ -77,103 +73,41 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         }
 
         DispatchQueue.main.async {
-            guard let hostView = self.bridge?.viewController?.view else {
+            self.closeBrowser(emitEvent: false)
+            self.browserId = "otlobli-shein-\(UUID().uuidString.lowercased())"
+            self.savedURL = url
+            self.documentStartScript = call.getString("otlobliDocumentStartScript", "")
+            self.loadingCoverEnabled = call.getBool("otlobliLoadingCover", true)
+            self.isBrowserVisible = true
+
+            // The old API requested an initially hidden browser. This browser
+            // never creates hidden WebKit surfaces; its native loading cover is
+            // the only pre-ready presentation.
+            guard self.createRenderSurface(
+                request: self.initialRequest(url: url, call: call),
+                loadingMessage: "جاري تجهيز المتجر…"
+            ) else {
+                self.closeBrowser(emitEvent: false)
                 call.reject("Capacitor host view is unavailable")
                 return
             }
-
-            self.closeBrowser(emitEvent: false)
-            self.browserId = "otlobli-shein-\(UUID().uuidString.lowercased())"
-            self.isSurfaceHidden = call.getBool("hidden", false)
-
-            let contentController = WKUserContentController()
-            for name in Self.messageHandlers {
-                contentController.add(self, name: name)
-            }
-            contentController.addUserScript(WKUserScript(
-                source: self.mobileBridgeScript(),
-                injectionTime: .atDocumentStart,
-                forMainFrameOnly: true
-            ))
-            if let documentStartScript = call.getString("otlobliDocumentStartScript"),
-               !documentStartScript.isEmpty {
-                contentController.addUserScript(WKUserScript(
-                    source: documentStartScript,
-                    injectionTime: .atDocumentStart,
-                    forMainFrameOnly: true
-                ))
-            }
-
-            let configuration = WKWebViewConfiguration()
-            configuration.websiteDataStore = .default()
-            configuration.processPool = Self.processPool
-            configuration.userContentController = contentController
-            configuration.allowsInlineMediaPlayback = true
-            configuration.mediaTypesRequiringUserActionForPlayback = []
-            configuration.suppressesIncrementalRendering = false
-            if #available(iOS 14.0, *) {
-                configuration.defaultWebpagePreferences.allowsContentJavaScript = true
-                configuration.defaultWebpagePreferences.preferredContentMode = .mobile
-            }
-
-            let surface = UIView(frame: .zero)
-            surface.translatesAutoresizingMaskIntoConstraints = false
-            surface.backgroundColor = .white
-            surface.isOpaque = true
-            surface.isHidden = self.isSurfaceHidden
-            surface.isUserInteractionEnabled = !self.isSurfaceHidden
-            hostView.addSubview(surface)
-            NSLayoutConstraint.activate([
-                surface.topAnchor.constraint(equalTo: hostView.topAnchor),
-                surface.leadingAnchor.constraint(equalTo: hostView.leadingAnchor),
-                surface.trailingAnchor.constraint(equalTo: hostView.trailingAnchor),
-                surface.bottomAnchor.constraint(equalTo: hostView.bottomAnchor)
-            ])
-
-            let storeWebView = WKWebView(frame: .zero, configuration: configuration)
-            storeWebView.navigationDelegate = self
-            storeWebView.uiDelegate = self
-            storeWebView.allowsBackForwardNavigationGestures = true
-            storeWebView.scrollView.bounces = true
-            storeWebView.scrollView.alwaysBounceVertical = false
-            storeWebView.isOpaque = true
-            storeWebView.backgroundColor = .white
-            storeWebView.scrollView.backgroundColor = .white
-
-            self.surfaceView = surface
-            self.storeWebView = storeWebView
-            self.attachWebView(storeWebView, to: surface)
-            self.installNativeBackButton(in: surface, webView: storeWebView)
-            if call.getBool("otlobliLoadingCover", true) {
-                self.installLoadingCover(in: surface)
-            }
-
-            self.urlObservation = storeWebView.observe(\.url, options: [.new]) { [weak self, weak storeWebView] _, change in
-                guard let self,
-                      let storeWebView,
-                      self.storeWebView === storeWebView,
-                      let changedURL = change.newValue ?? storeWebView.url else { return }
-                self.emit("urlChangeEvent", extra: ["url": changedURL.absoluteString])
-            }
-
-            hostView.bringSubviewToFront(surface)
-            storeWebView.load(self.initialRequest(url: url, call: call))
             call.resolve(["id": self.browserId])
         }
     }
 
     @objc func show(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
-            guard let surface = self.surfaceView else {
+            guard !self.browserId.isEmpty, self.savedURL != nil else {
                 call.reject("SHEIN browser is not initialized")
                 return
             }
-            self.isSurfaceHidden = false
-            surface.isHidden = false
-            surface.isUserInteractionEnabled = true
-            surface.superview?.bringSubviewToFront(surface)
-            if self.needsForegroundRebind {
-                self.beginForegroundRebindWhenReady()
+            self.isBrowserVisible = true
+            self.restoreAfterBackground = false
+            if let surface = self.surfaceView {
+                surface.superview?.bringSubviewToFront(surface)
+            } else if !self.createRenderSurface(loadingMessage: "جاري استعادة المتجر…") {
+                call.reject("Capacitor host view is unavailable")
+                return
             }
             call.resolve()
         }
@@ -181,7 +115,9 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
 
     @objc func hide(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
-            self.hideSurface()
+            self.isBrowserVisible = false
+            self.restoreAfterBackground = false
+            self.destroyRenderSurface()
             call.resolve()
         }
     }
@@ -207,11 +143,15 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
             return
         }
         DispatchQueue.main.async {
-            guard let webView = self.storeWebView else {
+            guard !self.browserId.isEmpty else {
                 call.reject("SHEIN browser is not initialized")
                 return
             }
-            webView.load(URLRequest(url: url, cachePolicy: .useProtocolCachePolicy, timeoutInterval: 45))
+            self.savedURL = url
+            self.lastCommittedURL = nil
+            if self.isBrowserVisible {
+                self.replaceVisibleRenderSurface(with: url, message: "جاري فتح الصفحة…")
+            }
             call.resolve()
         }
     }
@@ -223,7 +163,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         }
         DispatchQueue.main.async {
             guard let webView = self.storeWebView else {
-                call.reject("SHEIN browser is not initialized")
+                call.reject("SHEIN render surface is not active")
                 return
             }
             webView.evaluateJavaScript(code) { _, error in
@@ -247,7 +187,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         }
         DispatchQueue.main.async {
             guard let webView = self.storeWebView else {
-                call.reject("SHEIN browser is not initialized")
+                call.reject("SHEIN render surface is not active")
                 return
             }
             let script = "window.dispatchEvent(new CustomEvent('messageFromNative',{detail:\(json)}));"
@@ -268,56 +208,88 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         }
     }
 
-    private func isAllowedStoreURL(_ url: URL) -> Bool {
-        guard let scheme = url.scheme?.lowercased(),
-              scheme == "https" || scheme == "http",
-              let host = url.host?.lowercased() else { return false }
-        return host == "shein.com" || host.hasSuffix(".shein.com")
-    }
+    private func createRenderSurface(
+        request: URLRequest? = nil,
+        loadingMessage: String
+    ) -> Bool {
+        guard storeWebView == nil,
+              surfaceView == nil,
+              let hostView = bridge?.viewController?.view,
+              let targetURL = request?.url ?? savedURL,
+              isAllowedStoreURL(targetURL) else { return false }
 
-    private func initialRequest(url: URL, call: CAPPluginCall) -> URLRequest {
-        var request = URLRequest(url: url, cachePolicy: .useProtocolCachePolicy, timeoutInterval: 45)
-        let method = call.getString("method", "GET").trimmingCharacters(in: .whitespacesAndNewlines)
-        request.httpMethod = method.isEmpty ? "GET" : method.uppercased()
-        if let body = call.getString("body"), !body.isEmpty {
-            request.httpBody = body.data(using: .utf8)
+        let contentController = WKUserContentController()
+        for name in Self.messageHandlers {
+            contentController.add(self, name: name)
         }
-        for (field, value) in call.getObject("headers", [:]) {
-            request.setValue(String(describing: value), forHTTPHeaderField: field)
+        contentController.addUserScript(WKUserScript(
+            source: mobileBridgeScript(),
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true
+        ))
+        if !documentStartScript.isEmpty {
+            contentController.addUserScript(WKUserScript(
+                source: documentStartScript,
+                injectionTime: .atDocumentStart,
+                forMainFrameOnly: true
+            ))
         }
-        return request
-    }
 
-    private func attachWebView(_ webView: WKWebView, to surface: UIView) {
-        webView.removeFromSuperview()
-        webView.translatesAutoresizingMaskIntoConstraints = false
-        surface.insertSubview(webView, at: 0)
+        let configuration = WKWebViewConfiguration()
+        configuration.websiteDataStore = .default()
+        configuration.userContentController = contentController
+        configuration.allowsInlineMediaPlayback = true
+        configuration.mediaTypesRequiringUserActionForPlayback = []
+        configuration.suppressesIncrementalRendering = false
+        if #available(iOS 14.0, *) {
+            configuration.defaultWebpagePreferences.allowsContentJavaScript = true
+            configuration.defaultWebpagePreferences.preferredContentMode = .mobile
+        }
+
+        let surface = UIView(frame: .zero)
+        surface.translatesAutoresizingMaskIntoConstraints = false
+        surface.backgroundColor = .white
+        surface.isOpaque = true
+        hostView.addSubview(surface)
         NSLayoutConstraint.activate([
-            webView.topAnchor.constraint(equalTo: surface.safeAreaLayoutGuide.topAnchor),
-            webView.leadingAnchor.constraint(equalTo: surface.leadingAnchor),
-            webView.trailingAnchor.constraint(equalTo: surface.trailingAnchor),
-            webView.bottomAnchor.constraint(equalTo: surface.bottomAnchor)
+            surface.topAnchor.constraint(equalTo: hostView.topAnchor),
+            surface.leadingAnchor.constraint(equalTo: hostView.leadingAnchor),
+            surface.trailingAnchor.constraint(equalTo: hostView.trailingAnchor),
+            surface.bottomAnchor.constraint(equalTo: hostView.bottomAnchor)
         ])
+
+        let webView = WKWebView(frame: .zero, configuration: configuration)
+        webView.navigationDelegate = self
+        webView.uiDelegate = self
+        webView.allowsBackForwardNavigationGestures = true
+        webView.scrollView.bounces = true
+        webView.scrollView.alwaysBounceVertical = false
+        webView.isOpaque = true
+        webView.backgroundColor = .white
+        webView.scrollView.backgroundColor = .white
+
+        surfaceView = surface
+        storeWebView = webView
+        routeReplacementQueued = false
+        attachWebView(webView, to: surface)
+        installNativeBackButton(in: surface)
+        if loadingCoverEnabled {
+            installLoadingCover(in: surface, message: loadingMessage)
+        }
+        observeStoreURL(on: webView)
+        hostView.bringSubviewToFront(surface)
+        webView.load(request ?? URLRequest(
+            url: targetURL,
+            cachePolicy: .useProtocolCachePolicy,
+            timeoutInterval: 45
+        ))
+        return true
     }
 
-    private func emit(_ name: String, detail: [String: Any]? = nil, extra: [String: Any] = [:]) {
-        guard !browserId.isEmpty else { return }
-        var payload = extra
-        payload["id"] = browserId
-        if let detail { payload["detail"] = detail }
-        notifyListeners(name, data: payload)
-    }
-
-    private func hideSurface() {
-        isSurfaceHidden = true
-        surfaceView?.isUserInteractionEnabled = false
-        surfaceView?.isHidden = true
-    }
-
-    private func closeBrowser(emitEvent: Bool) {
-        let closingId = browserId
-        let closingURL = storeWebView?.url?.absoluteString ?? ""
-        stopForegroundRebind()
+    private func destroyRenderSurface() {
+        if let currentURL = storeWebView?.url, isAllowedStoreURL(currentURL) {
+            savedURL = currentURL
+        }
         urlObservation?.invalidate()
         urlObservation = nil
         storeWebView?.stopLoading()
@@ -338,15 +310,114 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         nativeBackButton = nil
         nativeBackTopConstraint = nil
         nativeBackTarget = "home"
+        lastCommittedURL = nil
+        routeReplacementQueued = false
+        pendingRouteURL = nil
+    }
+
+    private func replaceVisibleRenderSurface(with url: URL, message: String) {
+        guard isBrowserVisible, isAllowedStoreURL(url) else { return }
+        destroyRenderSurface()
+        savedURL = url
+        _ = createRenderSurface(loadingMessage: message)
+    }
+
+    private func closeBrowser(emitEvent: Bool) {
+        let closingId = browserId
+        let closingURL = storeWebView?.url?.absoluteString ?? savedURL?.absoluteString ?? ""
+        destroyRenderSurface()
         browserId = ""
-        isSurfaceHidden = true
-        needsForegroundRebind = false
+        savedURL = nil
+        documentStartScript = ""
+        isBrowserVisible = false
+        restoreAfterBackground = false
         if emitEvent && !closingId.isEmpty {
             notifyListeners("closeEvent", data: ["id": closingId, "url": closingURL])
         }
     }
 
-    private func installLoadingCover(in surface: UIView) {
+    private func observeStoreURL(on webView: WKWebView) {
+        urlObservation = webView.observe(\.url, options: [.new]) { [weak self, weak webView] _, change in
+            guard let self,
+                  let webView,
+                  self.storeWebView === webView,
+                  let changedURL = change.newValue ?? webView.url,
+                  self.isAllowedStoreURL(changedURL) else { return }
+            self.savedURL = changedURL
+            self.emit("urlChangeEvent", extra: ["url": changedURL.absoluteString])
+
+            // SHEIN can move the URL with history.pushState while an old iOS
+            // WebKit never commits an interactive category document. Every
+            // settled path change follows one universal rule: replace the
+            // render surface and perform a full document request.
+            guard !webView.isLoading,
+                  self.isMeaningfulPathChange(from: self.lastCommittedURL, to: changedURL) else { return }
+            self.queueRouteReplacement(to: changedURL)
+        }
+    }
+
+    private func isMeaningfulPathChange(from previousURL: URL?, to nextURL: URL) -> Bool {
+        guard let previousURL else { return false }
+        let previousPath = previousURL.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let nextPath = nextURL.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        return !nextPath.isEmpty && previousPath.caseInsensitiveCompare(nextPath) != .orderedSame
+    }
+
+    private func queueRouteReplacement(to url: URL) {
+        pendingRouteURL = url
+        guard !routeReplacementQueued else { return }
+        routeReplacementQueued = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.routeReplacementQueued = false
+            guard let targetURL = self.pendingRouteURL else { return }
+            self.pendingRouteURL = nil
+            guard self.isBrowserVisible,
+                  self.savedURL == targetURL else { return }
+            self.replaceVisibleRenderSurface(with: targetURL, message: "جاري فتح الصفحة…")
+        }
+    }
+
+    private func attachWebView(_ webView: WKWebView, to surface: UIView) {
+        webView.translatesAutoresizingMaskIntoConstraints = false
+        surface.insertSubview(webView, at: 0)
+        NSLayoutConstraint.activate([
+            webView.topAnchor.constraint(equalTo: surface.safeAreaLayoutGuide.topAnchor),
+            webView.leadingAnchor.constraint(equalTo: surface.leadingAnchor),
+            webView.trailingAnchor.constraint(equalTo: surface.trailingAnchor),
+            webView.bottomAnchor.constraint(equalTo: surface.bottomAnchor)
+        ])
+    }
+
+    private func initialRequest(url: URL, call: CAPPluginCall) -> URLRequest {
+        var request = URLRequest(url: url, cachePolicy: .useProtocolCachePolicy, timeoutInterval: 45)
+        let method = call.getString("method", "GET").trimmingCharacters(in: .whitespacesAndNewlines)
+        request.httpMethod = method.isEmpty ? "GET" : method.uppercased()
+        if let body = call.getString("body"), !body.isEmpty {
+            request.httpBody = body.data(using: .utf8)
+        }
+        for (field, value) in call.getObject("headers", [:]) {
+            request.setValue(String(describing: value), forHTTPHeaderField: field)
+        }
+        return request
+    }
+
+    private func isAllowedStoreURL(_ url: URL) -> Bool {
+        guard let scheme = url.scheme?.lowercased(),
+              scheme == "https" || scheme == "http",
+              let host = url.host?.lowercased() else { return false }
+        return host == "shein.com" || host.hasSuffix(".shein.com")
+    }
+
+    private func emit(_ name: String, detail: [String: Any]? = nil, extra: [String: Any] = [:]) {
+        guard !browserId.isEmpty else { return }
+        var payload = extra
+        payload["id"] = browserId
+        if let detail { payload["detail"] = detail }
+        notifyListeners(name, data: payload)
+    }
+
+    private func installLoadingCover(in surface: UIView, message: String) {
         let cover = UIView(frame: .zero)
         cover.translatesAutoresizingMaskIntoConstraints = false
         cover.backgroundColor = .white
@@ -360,7 +431,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
 
         let label = UILabel(frame: .zero)
         label.translatesAutoresizingMaskIntoConstraints = false
-        label.text = "جاري تجهيز المتجر…"
+        label.text = message
         label.textColor = UIColor(red: 0.08, green: 0.18, blue: 0.14, alpha: 1)
         label.font = .systemFont(ofSize: 15, weight: .semibold)
         label.textAlignment = .center
@@ -391,7 +462,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         loadingSpinner = nil
     }
 
-    private func installNativeBackButton(in surface: UIView, webView: WKWebView) {
+    private func installNativeBackButton(in surface: UIView) {
         let button = UIButton(type: .system)
         button.translatesAutoresizingMaskIntoConstraints = false
         button.setTitle("‹", for: .normal)
@@ -403,7 +474,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         button.accessibilityLabel = "رجوع"
         button.addTarget(self, action: #selector(nativeBackPressed), for: .touchUpInside)
         surface.addSubview(button)
-        let top = button.topAnchor.constraint(equalTo: webView.topAnchor, constant: 12)
+        let top = button.topAnchor.constraint(equalTo: surface.safeAreaLayoutGuide.topAnchor, constant: 12)
         NSLayoutConstraint.activate([
             top,
             button.trailingAnchor.constraint(equalTo: surface.trailingAnchor, constant: -12),
@@ -435,7 +506,8 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
             if storeWebView?.canGoBack == true {
                 storeWebView?.goBack()
             } else if let home = URL(string: "https://m.shein.com/ar/") {
-                storeWebView?.load(URLRequest(url: home))
+                savedURL = home
+                replaceVisibleRenderSurface(with: home, message: "جاري فتح الرئيسية…")
             }
         }
     }
@@ -474,16 +546,20 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         case "close":
             closeBrowser(emitEvent: true)
         case "hide":
-            hideSurface()
+            isBrowserVisible = false
+            restoreAfterBackground = false
+            destroyRenderSurface()
         case "show":
-            isSurfaceHidden = false
-            surfaceView?.isHidden = false
-            surfaceView?.isUserInteractionEnabled = true
-            if let surface = surfaceView { surface.superview?.bringSubviewToFront(surface) }
+            isBrowserVisible = true
+            if surfaceView == nil {
+                _ = createRenderSurface(loadingMessage: "جاري استعادة المتجر…")
+            }
         case "navigate":
             guard let target = message.body as? String,
                   ["orders", "cart", "profile", "store-select"].contains(target) else { return }
-            hideSurface()
+            isBrowserVisible = false
+            restoreAfterBackground = false
+            destroyRenderSurface()
             let encoded = target.replacingOccurrences(of: "'", with: "\\'")
             bridge?.webView?.evaluateJavaScript(
                 "window.dispatchEvent(new CustomEvent('otlobli:nativeNavigate',{detail:'\(encoded)'}));",
@@ -495,6 +571,8 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
     }
 
     public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        guard webView === storeWebView else { return }
+        lastCommittedURL = webView.url ?? savedURL
         emit("browserPageLoaded", extra: ["url": webView.url?.absoluteString ?? ""])
     }
 
@@ -503,6 +581,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         didFailProvisionalNavigation navigation: WKNavigation!,
         withError error: Error
     ) {
+        guard webView === storeWebView else { return }
         emitPageError(error, phase: "didFailProvisionalNavigation")
     }
 
@@ -511,13 +590,15 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         didFail navigation: WKNavigation!,
         withError error: Error
     ) {
+        guard webView === storeWebView else { return }
         emitPageError(error, phase: "didFailNavigation")
     }
 
     public func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        guard webView === storeWebView else { return }
         emit("pageLoadError", extra: [
             "phase": "webContentProcessDidTerminate",
-            "url": webView.url?.absoluteString ?? ""
+            "url": webView.url?.absoluteString ?? savedURL?.absoluteString ?? ""
         ])
     }
 
@@ -529,7 +610,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
             "code": nsError.code,
             "domain": nsError.domain,
             "message": nsError.localizedDescription,
-            "url": storeWebView?.url?.absoluteString ?? ""
+            "url": storeWebView?.url?.absoluteString ?? savedURL?.absoluteString ?? ""
         ])
     }
 
@@ -541,7 +622,8 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
     ) -> WKWebView? {
         if navigationAction.targetFrame == nil, let url = navigationAction.request.url {
             if isAllowedStoreURL(url) {
-                webView.load(URLRequest(url: url))
+                savedURL = url
+                queueRouteReplacement(to: url)
             } else if UIApplication.shared.canOpenURL(url) {
                 UIApplication.shared.open(url)
             }
@@ -568,6 +650,14 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
                 decisionHandler(.cancel)
                 return
             }
+            if isTopLevel,
+               navigationAction.navigationType == .linkActivated,
+               isMeaningfulPathChange(from: lastCommittedURL, to: url) {
+                decisionHandler(.cancel)
+                savedURL = url
+                queueRouteReplacement(to: url)
+                return
+            }
             decisionHandler(.allow)
             return
         }
@@ -578,96 +668,14 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
     }
 
     @objc private func applicationDidEnterBackground() {
-        if storeWebView != nil { needsForegroundRebind = true }
+        guard isBrowserVisible, storeWebView != nil else { return }
+        restoreAfterBackground = true
+        destroyRenderSurface()
     }
 
     @objc private func applicationDidBecomeActive() {
-        guard needsForegroundRebind, !isSurfaceHidden else { return }
-        beginForegroundRebindWhenReady()
-    }
-
-    private func beginForegroundRebindWhenReady() {
-        guard rebindDisplayLink == nil,
-              UIApplication.shared.applicationState == .active,
-              let surface = surfaceView,
-              let webView = storeWebView,
-              webView.superview === surface else { return }
-
-        guard surface.window != nil, webView.window != nil else {
-            guard rebindReadinessAttempt < 40 else {
-                // Keep the repair armed. A later explicit show/activation gets
-                // a fresh readiness window without ever detaching off-window.
-                rebindReadinessAttempt = 0
-                return
-            }
-            rebindReadinessAttempt += 1
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-                self?.beginForegroundRebindWhenReady()
-            }
-            return
-        }
-
-        rebindReadinessAttempt = 0
-        needsForegroundRebind = false
-        rebindOffset = webView.scrollView.contentOffset
-        let snapshot = webView.snapshotView(afterScreenUpdates: false)
-        if let snapshot {
-            snapshot.frame = webView.frame
-            snapshot.autoresizingMask = [UIView.AutoresizingMask.flexibleWidth, .flexibleHeight]
-            snapshot.isUserInteractionEnabled = false
-            surface.insertSubview(snapshot, aboveSubview: webView)
-        }
-        rebindSnapshot = snapshot
-        webView.removeFromSuperview()
-
-        let link = CADisplayLink(target: self, selector: #selector(finishForegroundRebind))
-        link.add(to: .main, forMode: .common)
-        rebindDisplayLink = link
-
-        let fallback = DispatchWorkItem { [weak self] in self?.finishForegroundRebind() }
-        rebindFallback = fallback
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: fallback)
-    }
-
-    @objc private func finishForegroundRebind() {
-        rebindDisplayLink?.invalidate()
-        rebindDisplayLink = nil
-        rebindFallback?.cancel()
-        rebindFallback = nil
-
-        guard let surface = surfaceView,
-              let webView = storeWebView,
-              webView.superview == nil else {
-            rebindSnapshot?.removeFromSuperview()
-            rebindSnapshot = nil
-            return
-        }
-
-        attachWebView(webView, to: surface)
-        surface.layoutIfNeeded()
-        webView.scrollView.setContentOffset(rebindOffset, animated: false)
-        webView.setNeedsDisplay()
-        webView.scrollView.setNeedsDisplay()
-        webView.evaluateJavaScript("window.dispatchEvent(new Event('resize'));", completionHandler: nil)
-
-        if let snapshot = rebindSnapshot {
-            surface.bringSubviewToFront(snapshot)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak snapshot] in
-                snapshot?.removeFromSuperview()
-            }
-        }
-        rebindSnapshot = nil
-        if let cover = loadingCover { surface.bringSubviewToFront(cover) }
-        if let button = nativeBackButton, !button.isHidden { surface.bringSubviewToFront(button) }
-    }
-
-    private func stopForegroundRebind() {
-        rebindDisplayLink?.invalidate()
-        rebindDisplayLink = nil
-        rebindFallback?.cancel()
-        rebindFallback = nil
-        rebindSnapshot?.removeFromSuperview()
-        rebindSnapshot = nil
-        rebindReadinessAttempt = 0
+        guard restoreAfterBackground, isBrowserVisible, storeWebView == nil else { return }
+        restoreAfterBackground = false
+        _ = createRenderSurface(loadingMessage: "جاري استعادة المتجر…")
     }
 }
