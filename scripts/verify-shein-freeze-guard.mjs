@@ -214,6 +214,23 @@ const checks = [
     ],
   },
   {
+    label: 'SHEIN live human-verification compatibility guard',
+    file: 'src/services/sheinHumanCheck.ts',
+    markers: [
+      'function otlobliMatchesHumanChallengeText(value)',
+      '[class*="risk-one-pass" i]',
+      '.sui-dialog__wrapper',
+      'var semanticStart = Math.max(0, semanticChecks.length - 12);',
+      'if (!sheinElementIsPainted(surface)) continue;',
+      'otlobliMatchesHumanChallengeText(surface.textContent || \'\')',
+      "type: 'humanCheck'",
+    ],
+    forbidden: [
+      '.click()',
+      'location.reload(',
+    ],
+  },
+  {
     label: 'SHEIN confirmed chunk-failure recovery',
     file: 'src/services/sheinBrowserScript.ts',
     markers: [
@@ -538,6 +555,66 @@ try {
   new Function('exports', 'require', 'module', output)(scriptModule.exports, () => ({}), scriptModule)
   const captureScript = scriptModule.exports.SHEIN_CAPTURE_SCRIPT
   const bootstrapScript = scriptModule.exports.OTLOBLI_NAV_BOOTSTRAP_SCRIPT
+
+  const humanSource = stripInjectedComments(
+    readFileSync(resolve(projectRoot, 'src/services/sheinHumanCheck.ts'), 'utf8'),
+  )
+  const humanOutput = ts.transpileModule(humanSource, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText
+  const humanModule = { exports: {} }
+  new Function('exports', 'require', 'module', humanOutput)(humanModule.exports, () => ({}), humanModule)
+  const humanCheckScript = humanModule.exports.OTLOBLI_SHEIN_HUMAN_CHECK_JS
+  new Function(humanCheckScript)
+  const humanSurface = ({ text = '', id = '', className = '', painted = true } = {}) => ({
+    id, className, textContent: text, __painted: painted,
+    getAttribute: () => '',
+  })
+  const runHumanCheck = ({ exact = [], semantic = [], title = '' } = {}) => runInNewContext(
+    `${humanCheckScript}\notlobliIsHumanChallenge();`,
+    {
+      location: { href: 'https://m.shein.com/ar/product-p-520531743.html' },
+      document: {
+        title,
+        body: { textContent: 'ordinary product page' },
+        getElementById: () => null,
+        querySelector: () => null,
+        querySelectorAll: (selector) => selector.includes('risk-one-pass') ? exact : semantic,
+      },
+      sessionStorage: { getItem: () => null, removeItem: () => undefined, setItem: () => undefined },
+      otlobliIsHumanChallengeUrl: () => false,
+      sheinElementIsPainted: (surface) => surface.__painted !== false,
+      Date, Math, String,
+    },
+  )
+  if (!runHumanCheck({
+    exact: [humanSurface({
+      className: 'risk-one-pass-content',
+      text: 'يرجى النقر لإكمال الإجراءات التالية للتحقق من أنك إنسان أنا إنسان',
+    })],
+  })) failures.push('SHEIN human check: live risk-one-pass dialog is no longer detected')
+  if (!runHumanCheck({
+    semantic: [humanSurface({
+      className: 'sui-dialog__wrapper future-dialog-name',
+      text: 'Please confirm that you are a human to continue',
+    })],
+  })) failures.push('SHEIN human check: renamed semantic verification dialog is no longer detected')
+  if (runHumanCheck({
+    semantic: [humanSurface({
+      className: 'sui-dialog__wrapper',
+      text: 'خصم إضافي سجّل الدخول للاستفادة من العرض',
+    })],
+  })) failures.push('SHEIN human check: ordinary promotion dialog was mistaken for verification')
+  if (runHumanCheck({
+    exact: [humanSurface({
+      className: 'risk-one-pass-content',
+      text: 'أنا إنسان',
+      painted: false,
+    })],
+  })) failures.push('SHEIN human check: hidden stale verification template was treated as active')
+  if (humanCheckScript.includes('.click(') || humanCheckScript.includes('location.reload(')) {
+    failures.push('SHEIN human check: verification must remain entirely user-controlled')
+  }
   const nativeAddStyleAt = bootstrapScript.indexOf("style.id = 'otlobli-native-add-style'")
   const nativeAddProductGuardAt = bootstrapScript.indexOf("if (!/-p-\\d+/i.test(location.pathname)) return;", nativeAddStyleAt)
   if (nativeAddStyleAt < 0 || nativeAddProductGuardAt < nativeAddStyleAt) {
@@ -692,7 +769,7 @@ try {
     tagName: 'A', parentElement: null, isConnected: true,
     href: 'https://m.shein.com/ar/item-p-123.html',
     getAttribute: (name) => name === 'href' ? '/ar/item-p-123.html' : '',
-    click: () => { anchorClicks++ }, querySelector: () => null,
+    click: () => { anchorClicks++ }, querySelector: () => null, querySelectorAll: () => [],
   }
   const location = {
     origin: 'https://m.shein.com', pathname: '/ar/', href: 'https://m.shein.com/ar/',
@@ -719,7 +796,7 @@ try {
     tagName: 'LI', className: 'sd-ccc-products__item', parentElement: null, isConnected: true,
     classList: { contains: () => false },
     getAttribute: (name) => name === 'role' ? 'link' : '',
-    click: () => { collectionClicks++ }, querySelector: () => null,
+    click: () => { collectionClicks++ }, querySelector: () => null, querySelectorAll: () => [],
   }
   const collectionTouch = {
     target: { tagName: 'IMG', parentElement: collectionCard },
@@ -737,21 +814,22 @@ try {
     tagName: 'A', parentElement: null, isConnected: true,
     href: 'https://m.shein.com/ar/BATMAN-X-SHEIN-Keychain-p-49330027.html',
     getAttribute: (name) => name === 'href' ? '/ar/BATMAN-X-SHEIN-Keychain-p-49330027.html' : '',
-    querySelector: () => null,
+    querySelector: () => null, querySelectorAll: () => [],
   }
   const searchCard = {
     tagName: 'DIV', className: 'bs-product-card multi-product-card', parentElement: null,
     getAttribute: (name) => name === 'role' ? 'listitem' : '',
     querySelector: (selector) => selector === 'a[href*="-p-"]' ? searchAnchor : null,
+    querySelectorAll: (selector) => selector === 'a[href*="-p-"]' ? [searchAnchor] : [],
   }
   searchAnchor.parentElement = searchCard
   const searchImageWrapper = {
     tagName: 'DIV', className: 'bs-product-card__ratio-image__thumb', parentElement: searchCard,
-    getAttribute: () => '', querySelector: () => null,
+    getAttribute: () => '', querySelector: () => null, querySelectorAll: () => [],
   }
   const searchImage = {
     tagName: 'IMG', className: 'bs-product-card-transform-img', parentElement: searchImageWrapper,
-    getAttribute: () => '', querySelector: () => null,
+    getAttribute: () => '', querySelector: () => null, querySelectorAll: () => [],
   }
   const searchTouch = { target: searchImage, changedTouches: [{ clientX: 25, clientY: 35 }] }
   location.href = 'https://m.shein.com/ar/pdsearch/batman/'
@@ -764,14 +842,64 @@ try {
     failures.push('SHEIN product tap fallback: image tap inside a live bs-product-card did not use its sibling PDP link')
   }
 
+  const renamedAnchor = {
+    tagName: 'A', parentElement: null, isConnected: true,
+    href: 'https://m.shein.com/ar/future-card-p-520531743.html',
+    getAttribute: (name) => name === 'href' ? '/ar/future-card-p-520531743.html' : '',
+    querySelector: () => null, querySelectorAll: () => [],
+  }
+  const renamedCard = {
+    tagName: 'DIV', className: 'sui-feed-unit-v9', parentElement: null,
+    getAttribute: () => '',
+    querySelector: () => renamedAnchor,
+    querySelectorAll: () => [renamedAnchor],
+  }
+  renamedAnchor.parentElement = renamedCard
+  const renamedImage = {
+    tagName: 'IMG', className: 'future-image', parentElement: renamedCard,
+    getAttribute: () => '', querySelector: () => null, querySelectorAll: () => [],
+  }
+  const assignedBeforeRenamedCard = assigned.length
+  const renamedTouch = { target: renamedImage, changedTouches: [{ clientX: 26, clientY: 36 }] }
+  handlers.touchstart(renamedTouch)
+  handlers.touchend(renamedTouch)
+  while (timers.length) timers.shift()()
+  if (assigned[assignedBeforeRenamedCard] !== renamedAnchor.href) {
+    failures.push('SHEIN product tap fallback: renamed single-product card was tied to a CSS class name')
+  }
+
+  const otherAnchor = {
+    tagName: 'A', parentElement: null, isConnected: true,
+    href: 'https://m.shein.com/ar/other-p-520531744.html',
+    getAttribute: (name) => name === 'href' ? '/ar/other-p-520531744.html' : '',
+    querySelector: () => null, querySelectorAll: () => [],
+  }
+  const multiProductList = {
+    tagName: 'SECTION', className: 'future-feed', parentElement: null,
+    getAttribute: () => '', querySelector: () => renamedAnchor,
+    querySelectorAll: () => [renamedAnchor, otherAnchor],
+  }
+  const ambiguousImage = {
+    tagName: 'IMG', parentElement: multiProductList,
+    getAttribute: () => '', querySelector: () => null, querySelectorAll: () => [],
+  }
+  const assignedBeforeAmbiguousList = assigned.length
+  const ambiguousTouch = { target: ambiguousImage, changedTouches: [{ clientX: 27, clientY: 37 }] }
+  handlers.touchstart(ambiguousTouch)
+  handlers.touchend(ambiguousTouch)
+  while (timers.length) timers.shift()()
+  if (assigned.length !== assignedBeforeAmbiguousList) {
+    failures.push('SHEIN product tap fallback: ambiguous multi-product list guessed the wrong PDP')
+  }
+
   const flashCard = {
     tagName: 'DIV', className: 'flash-sale__product-item flash-sale__product-waterfall-item', parentElement: null,
     getAttribute: (name) => name === 'role' ? 'listitem' : (name === 'data-id' ? '87475338' : ''),
-    querySelector: () => null,
+    querySelector: () => null, querySelectorAll: () => [],
   }
   const flashImage = {
     tagName: 'IMG', className: 'product-item__main-img', parentElement: flashCard,
-    getAttribute: () => '', querySelector: () => null,
+    getAttribute: () => '', querySelector: () => null, querySelectorAll: () => [],
   }
   const flashTouch = { target: flashImage, changedTouches: [{ clientX: 28, clientY: 38 }] }
   location.href = 'https://m.shein.com/ar/flash-sale.html'
