@@ -32,16 +32,12 @@ const checks = [
       'public final class OtlobliSheinBrowserPlugin',
       'One WKWebView owns one complete SHEIN browsing session.',
       'configuration.websiteDataStore = .default()',
-      'UIApplication.didEnterBackgroundNotification',
-      'UIApplication.didBecomeActiveNotification',
       'UIApplication.didReceiveMemoryWarningNotification',
       'private func createRenderSurface(',
       'private func destroyRenderSurface()',
       'private func parkRenderSurfaceBehindApp()',
       'private func navigateInCurrentWebView(to url: URL)',
       'window.location.assign(',
-      'private func recomposeAttachedWebViewAfterForeground()',
-      'foregroundRecomposePending = storeWebView != nil',
       'private func applicationDidReceiveMemoryWarning()',
       'storeWebView?.stopLoading()',
       'storeWebView?.removeFromSuperview()',
@@ -55,6 +51,12 @@ const checks = [
     ],
     forbidden: [
       'UIApplication.willEnterForegroundNotification',
+      'UIApplication.didEnterBackgroundNotification',
+      'UIApplication.didBecomeActiveNotification',
+      'foregroundRecomposePending',
+      'recomposeAttachedWebViewAfterForeground',
+      "PageTransitionEvent('pageshow'",
+      'webView.removeFromSuperview()',
       'WKProcessPool()',
       'CADisplayLink',
       'needsForegroundRebind',
@@ -370,7 +372,7 @@ const checks = [
     markers: [
       'export const STORE_SCRIPT_DIAGNOSTICS =',
       'VITE_STORE_SCRIPT_DIAGNOSTICS',
-      'v86.192-persistent-same-store-reentry',
+      'v86.193-passive-native-foreground',
     ],
   },
   {
@@ -1412,21 +1414,23 @@ try {
 try {
   const nativeSource = readFileSync(resolve(projectRoot, 'ios/App/App/OtlobliSheinBrowserPlugin.swift'), 'utf8')
   const constructors = nativeSource.match(/WKWebView\(frame:/g) || []
-  const backgroundStart = nativeSource.indexOf('@objc private func applicationDidEnterBackground()')
-  const activeStart = nativeSource.indexOf('@objc private func applicationDidBecomeActive()', backgroundStart)
-  const memoryStart = nativeSource.indexOf('@objc private func applicationDidReceiveMemoryWarning()', activeStart)
-  const backgroundLifecycle = nativeSource.slice(backgroundStart, memoryStart)
+  const memoryStart = nativeSource.indexOf('@objc private func applicationDidReceiveMemoryWarning()')
   const hideStart = nativeSource.indexOf('case "hide":')
   const showStart = nativeSource.indexOf('case "show":', hideStart)
   const navigateStart = nativeSource.indexOf('case "navigate":', showStart)
   const handlerEnd = nativeSource.indexOf('default:', navigateStart)
   const ordinaryHide = nativeSource.slice(hideStart, showStart)
   const ordinaryNavigate = nativeSource.slice(navigateStart, handlerEnd)
-  if (constructors.length !== 1 || backgroundStart < 0 || activeStart < 0 || memoryStart < 0 ||
+  const mutatesOnForeground =
+    nativeSource.includes('UIApplication.didEnterBackgroundNotification') ||
+    nativeSource.includes('UIApplication.didBecomeActiveNotification') ||
+    nativeSource.includes('recomposeAttachedWebViewAfterForeground') ||
+    nativeSource.includes('foregroundRecomposePending') ||
+    nativeSource.includes("PageTransitionEvent('pageshow'")
+  if (constructors.length !== 1 || memoryStart < 0 || mutatesOnForeground ||
       hideStart < 0 || showStart < 0 || navigateStart < 0 || handlerEnd < 0 ||
-      backgroundLifecycle.includes('destroyRenderSurface()') ||
       ordinaryHide.includes('destroyRenderSurface()') || ordinaryNavigate.includes('destroyRenderSurface()')) {
-    failures.push('SHEIN native session: routes, app screens and foreground transitions must keep one live WKWebView')
+    failures.push('SHEIN native session: background/foreground must leave the one live WKWebView attached and untouched')
   }
 } catch (error) {
   failures.push(`SHEIN native persistent-session guard: ${error instanceof Error ? error.message : String(error)}`)

@@ -34,5 +34,5 @@ export const TEMU_PERSONAL_SITE_MODE =
 
 // رقم النسخة الظاهر داخل التطبيق.
 export const APP_VERSION = TEMU_PERSONAL_SITE_MODE
-  ? '2026.08.15-v86.192-personal-persistent-same-store-reentry'
-  : '2026.08.15-v86.192-persistent-same-store-reentry'
+  ? '2026.08.15-v86.193-personal-passive-native-foreground'
+  : '2026.08.15-v86.193-passive-native-foreground'

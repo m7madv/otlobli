@@ -34,7 +34,6 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
     private var documentStartScript = ""
     private var loadingCoverEnabled = true
     private var isBrowserVisible = false
-    private var foregroundRecomposePending = false
 
     private var surfaceView: UIView?
     private var storeWebView: WKWebView?
@@ -46,18 +45,6 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
     private var nativeBackTarget = "home"
 
     public override func load() {
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(applicationDidEnterBackground),
-            name: UIApplication.didEnterBackgroundNotification,
-            object: nil
-        )
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(applicationDidBecomeActive),
-            name: UIApplication.didBecomeActiveNotification,
-            object: nil
-        )
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(applicationDidReceiveMemoryWarning),
@@ -339,23 +326,6 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         webView.setNeedsDisplay()
     }
 
-    /// Reattach the same WKWebView once after foregrounding. This repairs the
-    /// remote render layer without replacing WKWebView or its WebContent
-    /// session, so SHEIN verification and in-page state remain intact.
-    private func recomposeAttachedWebViewAfterForeground() {
-        guard let surface = surfaceView, let webView = storeWebView else { return }
-        webView.removeFromSuperview()
-        attachWebView(webView, to: surface)
-        refreshVisibleSurfaceLayout()
-        DispatchQueue.main.async { [weak self, weak webView] in
-            guard let self, let webView, self.storeWebView === webView else { return }
-            webView.evaluateJavaScript(
-                "window.dispatchEvent(new Event('resize'));window.dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true}));",
-                completionHandler: nil
-            )
-        }
-    }
-
     /// Route inside the currently verified page whenever possible. A normal
     /// WKNavigation remains the fallback, but it still uses the same WKWebView.
     private func navigateInCurrentWebView(to url: URL) {
@@ -392,7 +362,6 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         savedURL = nil
         documentStartScript = ""
         isBrowserVisible = false
-        foregroundRecomposePending = false
         if emitEvent && !closingId.isEmpty {
             notifyListeners("closeEvent", data: ["id": closingId, "url": closingURL])
         }
@@ -700,24 +669,6 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
             UIApplication.shared.open(url)
         }
         decisionHandler(.cancel)
-    }
-
-    @objc private func applicationDidEnterBackground() {
-        foregroundRecomposePending = storeWebView != nil
-    }
-
-    @objc private func applicationDidBecomeActive() {
-        guard foregroundRecomposePending, storeWebView != nil else { return }
-        foregroundRecomposePending = false
-        recomposeAttachedWebViewAfterForeground()
-        if isBrowserVisible {
-            if let surface = surfaceView {
-                surface.superview?.bringSubviewToFront(surface)
-            }
-            refreshVisibleSurfaceLayout()
-        } else {
-            parkRenderSurfaceBehindApp()
-        }
     }
 
     @objc private func applicationDidReceiveMemoryWarning() {
