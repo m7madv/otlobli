@@ -7,6 +7,7 @@
 - `WKWebView.isInspectable` مسموح فقط عندما يكون علم `VITE_SHEIN_IOS_ROOT_CAUSE_DIAGNOSTICS=true`. نسخة العميل العادية يجب أن تبقى غير قابلة للفحص.
 - سجل الخطأ يسمح بالفئة والاسم وHash لمسار المصدر ورقم السطر/العمود ونوع عنصر المورد فقط. يبقى نص الخطأ نفسه Hash في native، ويمنع URL/query أو cookie/storage الخام.
 - الغرض هو ربط Console وNetwork بالصفحة المتجمّدة على الهاتف الحقيقي. لا يبرر الفحص reload أو مسح cache/website data أو إعادة بناء WKWebView أو تعديل اللمسة.
+- artifact التشخيصي المعتمد لهذه الجولة هو `86.195/1057` من run `31851860388`، وبصمته SHA-256 `EB53DFE1EA8FDB0C93B71C4DB5B78E3E6A8E8C32632AFB8D3D58641EB30722AA`.
 
 ## حارس تشخيص السبب الجذري السلبي — v86.194
 

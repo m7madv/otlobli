@@ -5,6 +5,7 @@
 - كل صفحة جديدة سجّلت خطأ JavaScript نفسه `3ce0b2a11d15fff2` فور `sheinSaudiReady`. الحالة النظيفة: 6 cookies و52 localStorage و1 sessionStorage و0 CacheStorage و6 IndexedDB. الحالة القديمة اختلفت في cookies/localStorage لكنها شاركت خطأ JavaScript وبصمة sessionStorage الواحدة؛ لذلك لا نسمّي مخزناً بعينه سبباً بعد.
 - تجربة WebKit محلية بنفس سكربتات Otlobli عرضت هيكل SHEIN بينما API توصيات المنتجات أعاد 403 مراراً. هذا احتمال قوي يفسر الهيكل بلا محتوى، لكنه ليس إثبات الهاتف لأن SHEIN قد يحظر المتصفح الآلي نفسه.
 - النسخة التالية `86.195/1057` لا تصلح ولا تعيد تحميل شيئاً. تفتح Web Inspector فقط عندما يكون علم التشخيص مفعلاً، وتضيف نوع الخطأ وHash مصدره ورقم السطر/العمود بلا نصوص أو روابط خام. نثبتها كتحديث فوق الحالة الجامدة ثم نقرأ Console/Network من الصفحة الحقيقية. Android وiPhone 6 خارج الجولة.
+- نجح بناء GitHub رقم `31851860388` من commit `4dcd222`. فُحص الـIPA نفسه: bundle `com.otlobli.app`، arm64، iOS 15+، iPhone+iPad، بلا توقيع أو provisioning أو source maps. الحجم 6,582,113 bytes والبصمة `EB53DFE1EA8FDB0C93B71C4DB5B78E3E6A8E8C32632AFB8D3D58641EB30722AA`.
 
 # ملخص v86.194 — قياس السبب الجذري على iOS بلا أي استرداد (2026-08-15)
 
