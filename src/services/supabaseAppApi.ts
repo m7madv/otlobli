@@ -10,7 +10,12 @@ import { isWhatsappApiAuthEnabled, whatsappAuthApi } from './whatsappAuthApi'
 import { cleanEnvValue } from '../config'
 import { readStoredJson, storageKeys } from '../infrastructure/localStorage'
 
-const DISPLAY_USD_RATE = Number(cleanEnvValue(import.meta.env.VITE_USD_TO_SYP_RATE)) || 13000
+// redeem_coupon receives this as p_usd_rate; reject old-lira environment
+// values so coupons and payment totals can never become 100x too large.
+const DISPLAY_USD_RATE = (() => {
+  const parsed = Number(cleanEnvValue(import.meta.env.VITE_USD_TO_SYP_RATE))
+  return Number.isFinite(parsed) && parsed > 0 && parsed < 1000 ? parsed : 131.7
+})()
 const SUPABASE_URL = cleanEnvValue(import.meta.env.VITE_SUPABASE_URL)
 const SUPABASE_ANON_KEY = cleanEnvValue(import.meta.env.VITE_SUPABASE_ANON_KEY)
 const CART_GROUPS_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/cart-groups` : ''
@@ -909,4 +914,3 @@ export const supabaseAppApi: TalabiehApi = {
 function notifyNewOrder(orderPayload: Record<string, unknown>) {
   void orderPayload
 }
-

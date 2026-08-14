@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 600" width="900" height="600">
+  <title>علم سوريا</title>
+  <path fill="#007a3d" d="M0 0h900v200H0z"/>
+  <path fill="#fff" d="M0 200h900v200H0z"/>
+  <path fill="#000" d="M0 400h900v200H0z"/>
+  <g fill="#ce1126">
+    <path d="M0-52 12.2-16.8l37.3.7-29.7 22.5 10.8 35.7L0 20l-30.6 22.1 10.8-35.7-29.7-22.5 37.3-.7z" transform="translate(300 300)"/>
+    <path d="M0-52 12.2-16.8l37.3.7-29.7 22.5 10.8 35.7L0 20l-30.6 22.1 10.8-35.7-29.7-22.5 37.3-.7z" transform="translate(450 300)"/>
+    <path d="M0-52 12.2-16.8l37.3.7-29.7 22.5 10.8 35.7L0 20l-30.6 22.1 10.8-35.7-29.7-22.5 37.3-.7z" transform="translate(600 300)"/>
+  </g>
+</svg>

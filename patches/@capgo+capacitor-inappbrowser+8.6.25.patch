@@ -14,10 +14,99 @@ index 9979670..fcfd30a 100644
  }
  
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/CapgoInAppBrowserPlugin.java b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/CapgoInAppBrowserPlugin.java
-index ae420ed..ae452de 100644
+index ae420ed..50d3433 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/CapgoInAppBrowserPlugin.java
 +++ b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/CapgoInAppBrowserPlugin.java
-@@ -1561,6 +1561,17 @@ public class CapgoInAppBrowserPlugin extends Plugin implements WebViewDialog.Per
+@@ -810,65 +810,35 @@ public class CapgoInAppBrowserPlugin extends Plugin implements WebViewDialog.Per
+ 
+         CookieManager cookieManager = CookieManager.getInstance();
+         String cookieString = cookieManager.getCookie(url);
+-        ArrayList<String> cookiesToRemove = new ArrayList<>();
+-
+         if (cookieString != null) {
+-            String[] cookies = cookieString.split("; ");
+-
+-            String domain = uri.getHost();
+-
++            String[] cookies = cookieString.split(";");
++            String[] labels = host.split("\\.");
++            String parentDomain = labels.length > 2
++                ? host.substring(host.indexOf('.') + 1)
++                : null;
+             for (String cookie : cookies) {
+-                String[] parts = cookie.split("=");
++                String[] parts = cookie.trim().split("=", 2);
+                 if (parts.length > 0) {
+-                    cookiesToRemove.add(parts[0].trim());
+-                    CookieManager.getInstance().setCookie(url, String.format("%s=del;", parts[0].trim()));
+-                }
+-            }
+-        }
+-
+-        StringBuilder scriptToRun = new StringBuilder();
+-        for (String cookieToRemove : cookiesToRemove) {
+-            scriptToRun.append(
+-                String.format("window.cookieStore.delete('%s', {name: '%s', domain: '%s'});", cookieToRemove, cookieToRemove, url)
+-            );
+-        }
+-
+-        Log.i("DelCookies", String.format("Script to run:\n%s", scriptToRun));
+-
+-        String targetId = call.getString("id");
+-        ArrayList<WebViewDialog> targetDialogs = new ArrayList<>();
+-
+-        if (targetId != null) {
+-            WebViewDialog dialog = webViewDialogs.get(targetId);
+-            if (dialog == null) {
+-                call.reject("WebView is not initialized");
+-                return;
+-            }
+-            targetDialogs.add(dialog);
+-        } else if (!webViewDialogs.isEmpty()) {
+-            targetDialogs.addAll(webViewDialogs.values());
+-        }
+-
+-        this.getActivity().runOnUiThread(
+-            new Runnable() {
+-                @Override
+-                public void run() {
+-                    try {
+-                        if (!targetDialogs.isEmpty()) {
+-                            for (WebViewDialog dialog : targetDialogs) {
+-                                dialog.executeScript(scriptToRun.toString());
+-                            }
+-                            call.resolve();
+-                        } else {
+-                            call.reject("WebView is not initialized");
+-                        }
+-                    } catch (Exception e) {
+-                        Log.e("InAppBrowser", "Error clearing cookies: " + e.getMessage());
+-                        call.reject("Failed to clear cookies: " + e.getMessage());
++                    String name = parts[0].trim();
++                    if (name.isEmpty()) continue;
++                    String expired = String.format(
++                        "%s=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/",
++                        name
++                    );
++                    // Delete both host-only and domain cookies. The old
++                    // implementation merely changed their value to "del" and
++                    // then required an open WebView, leaving duplicate Temu
++                    // region/session cookies alive.
++                    cookieManager.setCookie(url, expired);
++                    cookieManager.setCookie(url, expired + "; Domain=" + host);
++                    if (parentDomain != null) {
++                        cookieManager.setCookie(url, expired + "; Domain=." + parentDomain);
+                     }
+                 }
+             }
+-        );
++        }
++        cookieManager.flush();
++        call.resolve();
+     }
+ 
+     @PluginMethod
+@@ -1561,6 +1531,17 @@ public class CapgoInAppBrowserPlugin extends Plugin implements WebViewDialog.Per
              openSecureWindowSavedCall.reject("OAuth cancelled or no callback received");
              openSecureWindowSavedCall = null;
          }
@@ -54,7 +143,7 @@ index 6b4115a..8e557cf 100644
                            try {
                              window.AndroidInterface.show();
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
-index 8ae3e61..944be7c 100644
+index 8ae3e61..126860d 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
 +++ b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
 @@ -16,7 +16,13 @@ import android.graphics.Color;
@@ -121,7 +210,7 @@ index 8ae3e61..944be7c 100644
 +    // Substituted at build time from the OTLOBLI_RELAY_KEY env var by
 +    // scripts/inject-relay-key.cjs (see package.json postinstall) - never
 +    // committed in real form, see CHAT_SUMMARY.md section 9.
-+    private static final String OTLOBLI_RELAY_KEY = "hPY3kD8xBt7i6n5zXq4pKCmlMwucQSRrHW1oaZU9";
++    private static final String OTLOBLI_RELAY_KEY = "OTLOBLI_RELAY_KEY_PLACEHOLDER";
      private static final int MAX_MANAGED_DOWNLOAD_REDIRECTS = 10;
      private static final int BLOB_DOWNLOAD_CHUNK_BYTES = 64 * 1024;
      private static final long MAX_LEGACY_BLOB_DOWNLOAD_BYTES = 512L * 1024L;
@@ -692,7 +781,7 @@ index 8ae3e61..944be7c 100644
      // Add this class to provide safer JavaScript interface
      private class JavaScriptInterface {
  
-@@ -480,6 +1065,60 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -480,6 +1065,63 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
              activity.runOnUiThread(() -> setHidden(true));
          }
  
@@ -709,6 +798,9 @@ index 8ae3e61..944be7c 100644
 +
 +            final String route;
 +            switch (target == null ? "" : target) {
++                case "store-select":
++                    route = "store-select";
++                    break;
 +                case "orders":
 +                    route = "orders";
 +                    break;
@@ -753,7 +845,7 @@ index 8ae3e61..944be7c 100644
          @JavascriptInterface
          public void show() {
              if (!isJavaScriptControlAllowed()) {
-@@ -1263,6 +1902,32 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -1263,6 +1905,32 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          return false;
      }
  
@@ -786,7 +878,7 @@ index 8ae3e61..944be7c 100644
      private void previewDownloadedFileInWebView(File file, String mimeType, String sourceUrl) {
          WebView webView = _webView;
          if (webView == null || isDismissing) {
-@@ -1807,6 +2472,23 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -1807,6 +2475,23 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          applyDimensions();
  
          this._webView = findViewById(R.id.browser_view);
@@ -810,7 +902,7 @@ index 8ae3e61..944be7c 100644
  
          // Apply insets to fix edge-to-edge issues on Android 15+
          applyInsets();
-@@ -2715,6 +3397,20 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -2715,6 +3400,20 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                      }
                  }
              }
@@ -831,7 +923,7 @@ index 8ae3e61..944be7c 100644
          }
  
          requestSafeAreaInsets();
-@@ -2991,6 +3687,14 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -2991,6 +3690,14 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                  return;
              }
  
@@ -846,7 +938,7 @@ index 8ae3e61..944be7c 100644
              _options.getCallbacks().javascriptCallback(message);
          } catch (Exception e) {
              Log.e("InAppBrowser", "Error in postMessage: " + e.getMessage());
-@@ -4703,6 +5407,9 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4703,6 +5410,9 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                      if (view == null || _webView == null) {
                          return;
                      }
@@ -856,7 +948,7 @@ index 8ae3e61..944be7c 100644
                      if (ProxyRequestSupport.shouldInjectBridge(_options) && proxyBridgeScript != null && proxyAccessToken != null) {
                          String preparedProxyBridgeScript = prepareProxyBridgeScript();
                          if (preparedProxyBridgeScript != null) {
-@@ -4742,6 +5449,13 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4742,6 +5452,13 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                      if (view == null || _webView == null) {
                          return;
                      }
@@ -870,7 +962,7 @@ index 8ae3e61..944be7c 100644
                      if (!isInitialized) {
                          isInitialized = true;
                          _webView.clearHistory();
-@@ -4801,14 +5515,63 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4801,14 +5518,63 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                      if (view == null || _webView == null) {
                          return;
                      }
@@ -935,7 +1027,7 @@ index 8ae3e61..944be7c 100644
                  @SuppressLint("WebViewClientOnReceivedSslError")
                  @Override
                  public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
-@@ -4932,6 +5695,19 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4932,6 +5698,19 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
      @Override
      public void dismiss() {
          scheduleHostWebViewInsetRestore();
@@ -955,7 +1047,7 @@ index 8ae3e61..944be7c 100644
  
          // First, stop any ongoing operations and disable further interactions
          if (_webView != null) {
-@@ -5586,17 +6362,50 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -5586,17 +6365,50 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          );
      }
  
@@ -994,8 +1086,8 @@ index 8ae3e61..944be7c 100644
 +    private NativeResponseData performNativeRequestOnce(NativeRequestContext requestContext) throws IOException {
 +        // otlobli: open the connection to one of the relay shards (see
 +        // OTLOBLI_RELAY_HOSTS doc comment above), not to `requestContext.url`
-+        // directly - the real target travels in the X-Relay-Url header
-+        // instead of being the connection's actual URL.
++        // directly - the real target travels in the X-Relay-Url header instead
++        // of being the connection's actual URL.
 +        HttpURLConnection conn = (HttpURLConnection) new URL(otlobliPickRelayUrl()).openConnection();
          try {
              conn.setConnectTimeout(REQUEST_CONNECT_TIMEOUT_MS);
@@ -1008,7 +1100,7 @@ index 8ae3e61..944be7c 100644
              // Strip conditional cache validators on the wire so upstream cannot return 304/3xx,
              // which WebResourceResponse.setStatusCodeAndReasonPhrase rejects (kills the renderer).
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
-index 116e296..5375fd4 100644
+index 116e296..5845989 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
 @@ -146,6 +146,9 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
@@ -1292,13 +1384,15 @@ index 116e296..5375fd4 100644
                          return
                      }
                  }
-@@ -1386,6 +1511,32 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -1386,6 +1511,34 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
          )
      }
  
 +    func navigateHostFromJavaScript(_ target: String, sourceId: String? = nil) {
 +        let route: String
 +        switch target {
++        case "store-select":
++            route = "store-select"
 +        case "orders":
 +            route = "orders"
 +        case "cart":
@@ -1325,7 +1419,7 @@ index 116e296..5375fd4 100644
      @objc func hide(_ call: CAPPluginCall) {
          self.setHiddenState(true, targetId: call.getString("id"), call: call)
      }
-@@ -1811,10 +1962,62 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -1811,10 +1964,62 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
  
      @objc func appDidBecomeActive(_ notification: NSNotification) {
          self.hidePrivacyScreen()
@@ -1423,7 +1517,7 @@ index 1c70884..60018b4 100644
 +    // Substituted at build time from the OTLOBLI_RELAY_KEY env var by
 +    // scripts/inject-relay-key.cjs (see package.json postinstall) - never
 +    // committed in real form, see CHAT_SUMMARY.md section 9.
-+    static let otlobliRelayKey = "hPY3kD8xBt7i6n5zXq4pKCmlMwucQSRrHW1oaZU9"
++    static let otlobliRelayKey = "OTLOBLI_RELAY_KEY_PLACEHOLDER"
 +
      weak var plugin: CapgoInAppBrowserPlugin?
      private var pendingTasks: [String: PendingProxyTask] = [:]
@@ -1570,7 +1664,7 @@ index 1c70884..60018b4 100644
          if
              ProxySchemeRequestSupport.supportsRequestBody(method: context.method),
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
-index 97a2fc1..eb229c4 100644
+index 97a2fc1..781a70c 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
 @@ -9,6 +9,62 @@
@@ -1831,7 +1925,7 @@ index 97a2fc1..eb229c4 100644
          // Apply navigation gestures setting
          updateNavigationGestures()
  
-@@ -899,6 +1126,448 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -899,6 +1126,452 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
      override open func viewDidLayoutSubviews() {
          super.viewDidLayoutSubviews()
          refreshWebViewViewportIfNeeded()
@@ -1969,7 +2063,7 @@ index 97a2fc1..eb229c4 100644
 +    private func updateOtlobliNativeBackButton(visible: Bool, top: CGFloat, target: String, fallbackURL: String) {
 +        DispatchQueue.main.async { [weak self] in
 +            guard let self, self.otlobliLoadingCoverEnabled else { return }
-+            self.otlobliNativeBackTarget = target == "cart" ? "cart" : "home"
++            self.otlobliNativeBackTarget = ["cart", "exit"].contains(target) ? target : "home"
 +            if let candidate = URL(string: fallbackURL),
 +               ["http", "https"].contains(candidate.scheme?.lowercased() ?? ""),
 +               let host = candidate.host?.lowercased(),
@@ -2030,6 +2124,10 @@ index 97a2fc1..eb229c4 100644
 +    }
 +
 +    @objc private func otlobliNativeBackButtonDidTap() {
++        if otlobliNativeBackTarget == "exit" {
++            emit("messageFromWebview", data: ["detail": ["type": "requestStoreExit", "store": "shein"]])
++            return
++        }
 +        if otlobliNativeBackTarget == "cart" {
 +            emit("messageFromWebview", data: ["detail": ["type": "backToCart"]])
 +            return
@@ -2280,7 +2378,7 @@ index 97a2fc1..eb229c4 100644
      }
  
      func updateButtonTintColors() {
-@@ -1001,6 +1670,37 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1001,6 +1674,37 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          capBrowserPlugin?.notifyListeners(eventName, data: payload(with: data))
      }
  
@@ -2318,7 +2416,7 @@ index 97a2fc1..eb229c4 100644
      private func startObservingKeyboardViewportChanges() {
          guard !isObservingKeyboardViewportChanges else {
              return
-@@ -1025,6 +1725,80 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1025,6 +1729,80 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          return max(0.05, duration.doubleValue)
      }
  
@@ -2399,7 +2497,7 @@ index 97a2fc1..eb229c4 100644
      private func scheduleWebViewViewportRefresh(force: Bool = false, delay: TimeInterval = 0.05) {
          DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
              self?.refreshWebViewViewportIfNeeded(force: force)
-@@ -1135,7 +1909,41 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1135,7 +1913,41 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
      public func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
          if message.name == "messageHandler" {
              if let messageBody = message.body as? [String: Any] {
@@ -2441,7 +2539,7 @@ index 97a2fc1..eb229c4 100644
                  emit("messageFromWebview", data: messageBody)
              } else {
                  print("Received non-dictionary message from JavaScript:", message.body)
-@@ -1176,6 +1984,12 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1176,6 +1988,12 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
                  return
              }
              capBrowserPlugin?.setHiddenFromJavaScript(true, sourceId: instanceId)
@@ -2454,7 +2552,7 @@ index 97a2fc1..eb229c4 100644
          } else if message.name == "show" {
              guard allowWebViewJsVisibilityControl else {
                  return
-@@ -1237,6 +2051,9 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1237,6 +2055,9 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
                                  hide: function() {
                                          window.webkit.messageHandlers.hide.postMessage(null);
                                  },
@@ -2464,7 +2562,7 @@ index 97a2fc1..eb229c4 100644
                                  show: function() {
                                          window.webkit.messageHandlers.show.postMessage(null);
                                  }
-@@ -1337,6 +2154,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1337,6 +2158,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          userContentController.removeScriptMessageHandler(forName: "preShowScriptSuccess")
          userContentController.removeScriptMessageHandler(forName: "close")
          userContentController.removeScriptMessageHandler(forName: "hide")
@@ -2472,7 +2570,7 @@ index 97a2fc1..eb229c4 100644
          userContentController.removeScriptMessageHandler(forName: "show")
          userContentController.removeScriptMessageHandler(forName: "takeScreenshot")
          userContentController.removeScriptMessageHandler(forName: "consoleMessageHandler")
-@@ -1358,6 +2176,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1358,6 +2180,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          userContentController.add(weakHandler, name: "preShowScriptSuccess")
          userContentController.add(weakHandler, name: "close")
          userContentController.add(weakHandler, name: "hide")
@@ -2480,7 +2578,7 @@ index 97a2fc1..eb229c4 100644
          userContentController.add(weakHandler, name: "show")
          if allowScreenshotsFromWebPage {
              userContentController.add(weakHandler, name: "takeScreenshot")
-@@ -1581,6 +2400,8 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1581,6 +2404,8 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          self.hiddenPopupWindow = parent.hiddenPopupWindow
          self.opensHidden = parent.hiddenPopupWindow
          self.captureConsoleLogs = parent.captureConsoleLogs
@@ -2489,7 +2587,7 @@ index 97a2fc1..eb229c4 100644
          self.allowWebViewJsVisibilityControl = parent.allowWebViewJsVisibilityControl
          self.allowScreenshotsFromWebPage = parent.allowScreenshotsFromWebPage
          self.handleDownloads = parent.handleDownloads
-@@ -1818,6 +2639,23 @@ public extension WKWebViewController {
+@@ -1818,6 +2643,23 @@ public extension WKWebViewController {
  
      open func cleanupWebView() {
          guard let webView = self.webView else { return }
@@ -2513,7 +2611,7 @@ index 97a2fc1..eb229c4 100644
          webView.stopLoading()
          previewItemURL = nil
  
-@@ -1837,6 +2675,7 @@ public extension WKWebViewController {
+@@ -1837,6 +2679,7 @@ public extension WKWebViewController {
          webView.configuration.userContentController.removeScriptMessageHandler(forName: "messageHandler")
          webView.configuration.userContentController.removeScriptMessageHandler(forName: "close")
          webView.configuration.userContentController.removeScriptMessageHandler(forName: "hide")
@@ -2521,7 +2619,7 @@ index 97a2fc1..eb229c4 100644
          webView.configuration.userContentController.removeScriptMessageHandler(forName: "show")
          if allowScreenshotsFromWebPage {
              webView.configuration.userContentController.removeScriptMessageHandler(forName: "takeScreenshot")
-@@ -2680,14 +3519,37 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2680,14 +3523,37 @@ extension WKWebViewController: WKNavigationDelegate {
      }
  
      public func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
@@ -2559,7 +2657,7 @@ index 97a2fc1..eb229c4 100644
          if !didpageInit && self.capBrowserPlugin?.isPresentAfterPageLoad == true {
              // Only inject preShowScript if it wasn't already injected at document start
              let shouldInjectScript = self.preShowScript.map { !$0.isEmpty } ?? false &&
-@@ -2703,12 +3565,18 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2703,12 +3569,18 @@ extension WKWebViewController: WKNavigationDelegate {
                      DispatchQueue.global(qos: .userInitiated).async {
                          self.injectPreShowScript()
                          DispatchQueue.main.async { [weak self] in
@@ -2580,7 +2678,7 @@ index 97a2fc1..eb229c4 100644
              }
          } else if self.preShowScript != nil &&
                      !self.preShowScript!.isEmpty &&
-@@ -2737,23 +3605,44 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2737,23 +3609,44 @@ extension WKWebViewController: WKNavigationDelegate {
      }
  
      public func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {

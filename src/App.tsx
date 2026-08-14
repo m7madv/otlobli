@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react'
+import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 import {
   allowedProducts,
   blockedProducts,
@@ -16,7 +16,7 @@ import type { PaymentCurrency } from './domain/pricing'
 import type { Address, AppNotification, CartGroupSnapshot, CartItem, NotificationPrefs, Order, OrderIssue, Product, ProductColor, Recipient, Screen, StatusTone, UserProfile, WalletTransaction } from './domain/types'
 import { getDeviceId, readStoredJson, storageKeys, useStoredState } from './infrastructure/localStorage'
 import { appApi } from './services'
-import { PAYMENT_MODE, APP_VERSION, SHEIN_IOS_FREEZE_DIAGNOSTICS, SHEIN_IOS_FREEZE_DIAGNOSTICS_BYPASS_RECOVERY, TEST_ONLY_AUTH_BYPASS, cleanEnvValue } from './config'
+import { PAYMENT_MODE, APP_VERSION, SHEIN_IOS_FREEZE_DIAGNOSTICS, SHEIN_IOS_FREEZE_DIAGNOSTICS_BYPASS_RECOVERY, TEMU_PERSONAL_SITE_MODE, TEST_ONLY_AUTH_BYPASS, cleanEnvValue } from './config'
 import { buildWhatsappLink } from './services/whatsappLink'
 import {
   getAccountAuthMethods,
@@ -28,20 +28,44 @@ import {
 } from './services/googleAuthApi'
 import type { AccountAuthMethods, GoogleProfile } from './services/googleAuthApi'
 import { registerPushNotifications } from './services/pushNotifications'
-import { OTLOBLI_NAV_BOOTSTRAP_SCRIPT, SHEIN_CAPTURE_SCRIPT } from './services/sheinBrowserScript'
-import { SHEIN_REGION_DIAGNOSTICS_SCRIPT } from './services/sheinRegionDiagnostics'
-import { SHEIN_FREEZE_DIAGNOSTIC_SCRIPT } from './services/sheinFreezeDiagnostics'
+import { reportDeviceLabel, submitAppIssueReport } from './services/issueReports'
 import { App as CapacitorApp } from '@capacitor/app'
 import { Capacitor, registerPlugin } from '@capacitor/core'
 import { BackgroundColor, InAppBrowser, InvisibilityMode, ToolBarType } from '@capgo/capacitor-inappbrowser'
 import { flushSync } from 'react-dom'
 
 const OtlobliLaunchSurface = registerPlugin<{ ready: () => Promise<void> }>('OtlobliLaunchSurface')
+const OtlobliIssueReporter = registerPlugin<{
+  openForTesting: () => Promise<void>
+  showResult: (options: { success: boolean; message: string }) => Promise<void>
+  addListener: (
+    eventName: 'issueReportSubmitted',
+    listener: (event: { note: string; screenshotDataUrl: string; capturedAt: number }) => void,
+  ) => Promise<{ remove: () => Promise<void> }>
+}>('OtlobliIssueReporter')
+const TemuEmbeddedBrowser = registerPlugin<{
+  open: (options: { url: string }) => Promise<{ opened?: boolean }>
+  show: () => Promise<{ shown: boolean }>
+  hide: () => Promise<void>
+  goHome: () => Promise<void>
+  acknowledgeAdd: () => Promise<void>
+  addListener: (
+    eventName: 'messageFromWebview',
+    listener: (event: { detail?: Record<string, unknown> }) => void,
+  ) => Promise<{ remove: () => Promise<void> }>
+}>('TemuEmbeddedBrowser')
 
 const API_BASE = cleanEnvValue(import.meta.env.VITE_WHATSAPP_API_URL)
 const SUPABASE_URL = cleanEnvValue(import.meta.env.VITE_SUPABASE_URL)
 const SUPABASE_ANON_KEY = cleanEnvValue(import.meta.env.VITE_SUPABASE_ANON_KEY)
 const APP_SETTINGS_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/app-settings` : ''
+
+type StoreCaptureBundle = typeof import('./services/storeCaptureBundle')
+let storeCaptureBundlePromise: Promise<StoreCaptureBundle> | undefined
+const loadStoreCaptureBundle = () => {
+  storeCaptureBundlePromise ??= import('./services/storeCaptureBundle')
+  return storeCaptureBundlePromise
+}
 
 // موقع SHEIN الذي يتصفّحه الزبون. نستخدم نسخة الأردن لأنها تعرض العربية
 // بثبات (نسخة لبنان m.shein.com/lb تعرض الإنجليزية ولا تقبل العربية).
@@ -113,10 +137,9 @@ const readCachedStoreRegions = (): StoreRegions => {
         typeof cached.shein === 'string' ? cached.shein : JSON.stringify(cached.shein ?? ''),
         DEFAULT_STORE_REGIONS.shein,
       ),
-      temu: parseStoreRegionSetting(
-        typeof cached.temu === 'string' ? cached.temu : JSON.stringify(cached.temu ?? ''),
-        DEFAULT_STORE_REGIONS.temu,
-      ),
+      // Temu returned to the last proven pre-SHEIN baseline: Saudi is fixed
+      // locally and is not allowed to drift with an old cache or remote setting.
+      temu: DEFAULT_STORE_REGIONS.temu,
     }
   } catch {
     return DEFAULT_STORE_REGIONS
@@ -144,14 +167,10 @@ const buildSheinHomeUrl = (region: StoreRegion) =>
   `https://m.shein.com/ar/?currency=${region.currency}&localcountry=${region.countryCode}&country=${region.countryCode}&countryCode=${region.countryCode}&country_code=${region.countryCode}&lang=${region.language}&language=${region.language}&ship_to=${region.countryCode}&shipTo=${region.countryCode}&shipToCountry=${region.countryCode}&shippingCountry=${region.countryCode}&shipping_country=${region.countryCode}&store_country=${region.countryCode}`
 
 const buildTemuHomeUrl = (region: StoreRegion) =>
-  `https://www.temu.com/${region.countryCode.toLowerCase()}/?currency=${region.currency}&currencyCode=${region.currency}`
+  `https://www.temu.com/${region.countryCode.toLowerCase()}/`
 
 const SHEIN_HOME_URL = buildSheinHomeUrl(DEFAULT_STORE_REGIONS.shein)
 const TEMU_HOME_URL = buildTemuHomeUrl(DEFAULT_STORE_REGIONS.temu)
-const buildStoreCaptureScript = (regions: StoreRegions) =>
-  // Price diagnostics deliberately stay out of customer bundles. The retained
-  // source file is imported only by a dedicated diagnostic release.
-  `window.__OTLOBLI_STORE_REGIONS__=${JSON.stringify(regions)};\n${SHEIN_REGION_DIAGNOSTICS_SCRIPT}\ntry{\n${SHEIN_CAPTURE_SCRIPT}\n}catch(__otlobliCaptureError){try{window.__otlobliRegionDiagnostic('capture-runtime-error',{message:String(__otlobliCaptureError&&(__otlobliCaptureError.stack||__otlobliCaptureError.message)||__otlobliCaptureError)},'runtime')}catch(__otlobliDiagnosticError){}}`
 
 // The host app already has viewport-fit=cover from its static HTML, so its
 // mounted navigation knows the final iPhone safe-area before SHEIN starts.
@@ -174,7 +193,7 @@ const SHEIN_CHALLENGE_QUERY_RE = /(?:^|[?&#])(?:captcha|challenge|verification|s
 // يكشف موقع خروج الإنترنت الحالي (بلد/منطقة الـVPN فعلياً) عبر خدمتي geo
 // تدعمان CORS، لتمييز «VPN مطفأ» (البلد سوريا) عن «منطقة VPN غير مدعومة»
 // (بلد آخر لكن المتجر محجوب). فشل الخدمتين معاً = الشبكة نفسها متعثرة.
-type VpnState = 'checking' | 'ok' | 'no-vpn' | 'bad-region' | 'offline'
+type VpnState = 'idle' | 'checking' | 'ok' | 'no-vpn' | 'bad-region' | 'offline'
 type VpnGeo = { countryCode: string; country: string; region: string }
 const fetchJsonWithTimeout = async (url: string, timeoutMs: number): Promise<Record<string, unknown> | null> => {
   let controller: AbortController | undefined
@@ -307,6 +326,9 @@ const isBlockedStoreCountry = (countryCode?: string | null) =>
 const isVpnConfirmed = (vpnState: VpnState, vpnGeo: VpnGeo | null) =>
   vpnState === 'ok' && !!vpnGeo?.countryCode && !isBlockedStoreCountry(vpnGeo.countryCode)
 
+const isSupportedStoreExit = (vpnGeo: VpnGeo | null) =>
+  !!vpnGeo?.countryCode && !isBlockedStoreCountry(vpnGeo.countryCode)
+
 // The wallet is held in SYP. Both this app and create_pending_order used to
 // ROUND the USD view of it to the nearest cent, so a 82,240 SYP balance at
 // 13,180 became $6.24, and the server then converted that back to 82,243 SYP
@@ -322,7 +344,10 @@ const getStoreFailureAdvice = (
   vpnGeo: VpnGeo | null,
   reason: StoreOpenFailureReason,
 ) => {
-  if (reason === 'preparation') {
+  // A confirmed Qatar/other supported exit is never a VPN failure. If the
+  // storefront itself later times out, describe the real preparation failure
+  // and keep the retry scoped to the store session.
+  if (reason === 'preparation' || isSupportedStoreExit(vpnGeo)) {
     return {
       icon: 'refresh',
       title: 'تعذّر تجهيز المتجر',
@@ -562,10 +587,10 @@ const normalizeTemuBrowserUrl = (rawUrl: string, region = DEFAULT_STORE_REGIONS.
       ? sourcePath.replace(/^\/[a-z]{2}(?:-[a-z]{2})?(?=\/|$)/i, localePath)
       : sourcePath === '/'
         ? `${localePath}/`
-        : `${localePath}${sourcePath.startsWith('/') ? sourcePath : `/${sourcePath}`}`
+        // Temu itself emits locale-less product links. Rewriting /goods.html
+        // to /sa/goods.html invalidates its guest product request.
+        : sourcePath
     url.pathname = path
-    url.searchParams.set('currency', region.currency)
-    url.searchParams.set('currencyCode', region.currency)
     return url.toString()
   } catch {
     return rawUrl
@@ -754,7 +779,7 @@ function StoreBadge({ store }: { store: StoreId }) {
 const usesInboundWhatsappAuth = cleanEnvValue(import.meta.env.VITE_WHATSAPP_AUTH_MODE) === 'inbound'
 
 const COUNTRY_CODES = [
-  { code: '963', name: 'سوريا', flag: '🇸🇾' },
+  { code: '963', name: 'سوريا', flag: '', flagImage: '/flags/syria-independence-flag.svg' },
   { code: '962', name: 'الأردن', flag: '🇯🇴' },
   { code: '966', name: 'السعودية', flag: '🇸🇦' },
   { code: '971', name: 'الإمارات', flag: '🇦🇪' },
@@ -769,6 +794,59 @@ const COUNTRY_CODES = [
   { code: '49', name: 'ألمانيا', flag: '🇩🇪' },
   { code: '1', name: 'أمريكا', flag: '🇺🇸' },
 ]
+
+const AUTH_COUNTRY_PICKER_STYLE: CSSProperties = {
+  position: 'relative',
+  display: 'flex',
+  alignItems: 'center',
+  alignSelf: 'stretch',
+  flex: '0 0 112px',
+  justifyContent: 'center',
+  gap: 6,
+  minWidth: 0,
+  paddingInline: '10px 7px',
+  borderInlineEnd: '1px solid var(--outline)',
+  background: '#f5f8f6',
+}
+const AUTH_COUNTRY_SELECT_STYLE: CSSProperties = {
+  position: 'absolute',
+  inset: 0,
+  zIndex: 1,
+  width: '100%',
+  maxWidth: 'none',
+  minHeight: 52,
+  border: 0,
+  opacity: 0.01,
+  appearance: 'none',
+}
+const AUTH_COUNTRY_CODE_STYLE: CSSProperties = {
+  color: 'var(--text)',
+  fontSize: '0.88rem',
+  fontWeight: 800,
+  lineHeight: 1,
+}
+const AUTH_COUNTRY_FLAG_STYLE: CSSProperties = {
+  flex: '0 0 auto',
+  width: 27,
+  height: 18,
+  border: '1px solid rgba(17, 31, 25, 0.14)',
+  borderRadius: 3,
+  objectFit: 'cover',
+}
+const AUTH_COUNTRY_EMOJI_STYLE: CSSProperties = { flex: '0 0 auto', fontSize: '1.05rem', lineHeight: 1 }
+const AUTH_ROUTE_DESTINATION_STYLE: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+  whiteSpace: 'nowrap',
+}
+const AUTH_ROUTE_FLAG_STYLE: CSSProperties = {
+  width: 24,
+  height: 16,
+  border: '1px solid rgba(17, 31, 25, 0.12)',
+  borderRadius: 3,
+  objectFit: 'cover',
+}
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const SYRIA_GOVERNORATES = [
@@ -826,12 +904,19 @@ const QADMOUS_BRANCHES: Record<string, string[]> = {
 // مهم: نستخدم || وليس ?? لأن secret البناء قد يصل نصاً فارغاً ('') وليس
 // undefined، و?? لا تمسك النص الفارغ فيصير parseInt('')=NaN ويصفّر كل
 // الأسعار. وفوقها fallback نهائي لو طلعت القيمة غير صالحة لأي سبب.
+// The 2026 redenomination removed two zeroes: the live USD rate is now about
+// 131 rather than 13,100. This fallback is used only during a source outage;
+// every healthy launch still refreshes from Oracle/Supabase below.
+const OLD_LIRA_RATE_FLOOR = 1000
+const FALLBACK_EXCHANGE_RATE = 131.7
 const DEFAULT_EXCHANGE_RATE = (() => {
-  const parsed = parseInt(cleanEnvValue(import.meta.env.VITE_USD_TO_SYP_RATE) || '13000', 10)
-  return Number.isFinite(parsed) && parsed > 1000 ? parsed : 13000
+  const parsed = parseFloat(cleanEnvValue(import.meta.env.VITE_USD_TO_SYP_RATE) || '')
+  return Number.isFinite(parsed) && parsed > 0 && parsed < OLD_LIRA_RATE_FLOOR
+    ? parsed
+    : FALLBACK_EXCHANGE_RATE
 })()
 
-const MIN_ORDER_SYP = 500000
+const MIN_ORDER_SYP = 5000
 const MIN_ORDER_USD = 40
 
 type PendingWhatsappAuth = {
@@ -972,8 +1057,16 @@ function App() {
   const [userProfile, setUserProfile] = useStoredState<UserProfile | null>(storageKeys.userProfile, null)
   const [paymentCurrency, setPaymentCurrency] = useStoredState<PaymentCurrency>(storageKeys.paymentCurrency, 'SYP')
   const [storedRate, setExchangeRate] = useStoredState<number>(storageKeys.exchangeRate, DEFAULT_EXCHANGE_RATE)
-  const exchangeRate = (storedRate && !isNaN(storedRate) && storedRate > 1000) ? storedRate : DEFAULT_EXCHANGE_RATE
+  // Reject stale localStorage left by an old-lira build instead of pricing a
+  // cart at 100x while the live settings request is still in flight/offline.
+  const exchangeRate = (storedRate && !isNaN(storedRate) && storedRate > 0 && storedRate < OLD_LIRA_RATE_FLOOR)
+    ? storedRate
+    : DEFAULT_EXCHANGE_RATE
   const [exchangeRateFetchedAt, setExchangeRateFetchedAt] = useState(() => Date.now())
+  // Oracle fetches and persists the live source before replying. If the
+  // startup Supabase fallback resolves later, it must not overwrite that
+  // fresher answer with the value it read just before Oracle persisted.
+  const liveExchangeRateAcceptedAtRef = useRef(0)
   const [shippingCostShein, setShippingCostShein] = useState(FIXED_SHIPPING_SYP)
   const [shippingCostTemu, setShippingCostTemu] = useState(FIXED_SHIPPING_SYP)
   const [storeRegions, setStoreRegions] = useState<StoreRegions>(readCachedStoreRegions)
@@ -1018,11 +1111,12 @@ function App() {
       : null
 
   const [screen, setScreen] = useState<Screen>(() => {
-    if (TEST_ONLY_AUTH_BYPASS) return 'home'
+    if (TEMU_PERSONAL_SITE_MODE && Capacitor.getPlatform() === 'android') return 'store-select'
+    if (TEST_ONLY_AUTH_BYPASS) return 'store-select'
     const token = readStoredJson<string>(storageKeys.sessionToken, '')
     if (token && !isLegacyPhoneSessionToken(token)) {
       const profile = readStoredJson<UserProfile | null>(storageKeys.userProfile, null)
-      return profile ? 'home' : 'onboarding'
+      return profile ? 'store-select' : 'onboarding'
     }
     return initialPendingWhatsappAuth ? 'otp' : 'login'
   })
@@ -1075,11 +1169,22 @@ function App() {
   const [quantity, setQuantity] = useState(1)
   const [activeImage, setActiveImage] = useState(0)
   const [notice, setNotice] = useState('')
+  const [pendingStoreExit, setPendingStoreExit] = useState<StoreId | null>(null)
   const noticeTimerRef = useRef<number | undefined>(undefined)
   const [savedProduct, setSavedProduct] = useStoredState(storageKeys.savedProduct, false)
-  const [selectedStore, setSelectedStore] = useStoredState<StoreId>(storageKeys.selectedStore, 'shein')
+  const [storeSwitchHintSeen, setStoreSwitchHintSeen] = useStoredState(
+    storageKeys.storeSwitchHintSeen,
+    false,
+  )
+  const [selectedStore, setSelectedStore] = useStoredState<StoreId>(
+    storageKeys.selectedStore,
+    TEMU_PERSONAL_SITE_MODE ? 'temu' : 'shein',
+  )
   const selectedStoreRef = useRef(selectedStore)
+  const temuPersonalSiteOpenedRef = useRef(false)
+  const temuAddInFlightRef = useRef(false)
   useEffect(() => { selectedStoreRef.current = selectedStore }, [selectedStore])
+  useEffect(() => { temuPersonalSiteOpenedRef.current = false }, [selectedStore])
 
   // سلة منفصلة لكل متجر، محفوظة كخريطة { storeId: items[] }. السلة القديمة
   // المفردة تُرحَّل مرة واحدة إلى سلة شي إن حتى لا تضيع طلبات الزبون الحالية.
@@ -1102,6 +1207,26 @@ function App() {
       return { ...all, [selectedStoreRef.current]: next }
     })
   }, [setCartsByStore])
+  // Carts persisted by a pre-redenomination build contain priceSyp at the old
+  // 100x unit. Repair only unmistakably stale rows from their USD source value.
+  useEffect(() => {
+    if (!(exchangeRate > 0)) return
+    setCartsByStore((all) => {
+      let changed = false
+      const next: Record<string, CartItem[]> = {}
+      for (const [store, items] of Object.entries(all)) {
+        next[store] = items.map((item) => {
+          const usd = item.priceUsd ?? 0
+          if (usd <= 0 || !(item.priceSyp > 0)) return item
+          const expected = usd * exchangeRate
+          if (item.priceSyp <= expected * 10) return item
+          changed = true
+          return { ...item, priceSyp: Math.round(expected) }
+        })
+      }
+      return changed ? next : all
+    })
+  }, [exchangeRate, setCartsByStore])
   const [orders, setOrders] = useStoredState<Order[]>(storageKeys.orders, initialOrders)
   // طلب قصّ صورة معلّق (منتجات التخصيص) — يفتح شاشة القص فوق أي شاشة.
   const [cropRequest, setCropRequest] = useState<CropRequest | null>(null)
@@ -1202,8 +1327,15 @@ function App() {
   const [paymentNowTs, setPaymentNowTs] = useState(() => Date.now())
   useEffect(() => {
     if (screen !== 'payment' || !pendingPayment) return
-    const id = window.setInterval(() => setPaymentNowTs(Date.now()), 1000)
-    return () => window.clearInterval(id)
+    const refreshPaymentClock = () => {
+      if (!document.hidden) setPaymentNowTs(Date.now())
+    }
+    const id = window.setInterval(refreshPaymentClock, 1000)
+    document.addEventListener('visibilitychange', refreshPaymentClock)
+    return () => {
+      window.clearInterval(id)
+      document.removeEventListener('visibilitychange', refreshPaymentClock)
+    }
   }, [screen, pendingPayment])
   const [pendingWalletTopUp, setPendingWalletTopUp] = useStoredState<{
     topUpId: string
@@ -1254,7 +1386,10 @@ function App() {
   // حالات البوابة الذكية: no-vpn = الاتصال يظهر من سوريا (شغّل VPN)،
   // bad-region = VPN شغّال لكن منطقته لا تفتح المتجر (غيّر السيرفر/الولاية)،
   // offline = تعذر الوصول للإنترنت أصلاً.
-  const [vpnState, setVpnState] = useState<VpnState>('checking')
+  // Store reachability is intentionally idle on the app hub. A cold launch
+  // must render Otlobli immediately; network/VPN work starts only after the
+  // customer explicitly chooses a store.
+  const [vpnState, setVpnState] = useState<VpnState>('idle')
   const [vpnGeo, setVpnGeo] = useState<VpnGeo | null>(null)
   const [notifications, setNotifications] = useStoredState<AppNotification[]>(storageKeys.notifications, [])
   const [notificationPrefs, setNotificationPrefs] = useStoredState<NotificationPrefs>(storageKeys.notificationPrefs, DEFAULT_NOTIFICATION_PREFS)
@@ -1339,6 +1474,44 @@ function App() {
       noticeTimerRef.current = undefined
     }, 2200)
   }
+
+  useEffect(() => {
+    if (Capacitor.getPlatform() !== 'android') return undefined
+    let disposed = false
+    let listener: { remove: () => Promise<void> } | undefined
+    void OtlobliIssueReporter.addListener('issueReportSubmitted', (event) => {
+      if (!event.note || !event.screenshotDataUrl) return
+      void submitAppIssueReport({
+        note: event.note,
+        screenshotDataUrl: event.screenshotDataUrl,
+        deviceId: getDeviceId(),
+        customerPhone: userProfile?.phone || phone || '',
+        customerName: userProfile?.name || recipient.name || '',
+        screen,
+        store: selectedStore,
+        appVersion: APP_VERSION,
+        platform: Capacitor.getPlatform(),
+        deviceModel: reportDeviceLabel(),
+      })
+        .then(() => {
+          if (disposed) return
+          showNotice('تم إرسال البلاغ للإدارة ✔')
+          void OtlobliIssueReporter.showResult({ success: true, message: 'تم إرسال البلاغ للإدارة' })
+        })
+        .catch(() => {
+          if (disposed) return
+          showNotice('تعذر إرسال البلاغ. تحقق من الإنترنت وحاول مجدداً')
+          void OtlobliIssueReporter.showResult({ success: false, message: 'تعذر إرسال البلاغ. حاول مجدداً.' })
+        })
+    }).then((handle) => {
+      if (disposed) void handle.remove()
+      else listener = handle
+    }).catch(() => undefined)
+    return () => {
+      disposed = true
+      if (listener) void listener.remove()
+    }
+  }, [phone, recipient.name, screen, selectedStore, userProfile?.name, userProfile?.phone])
 
   const refreshAccountAuthMethods = async (activeToken = sessionToken) => {
     if (!activeToken || isLegacyPhoneSessionToken(activeToken)) return null
@@ -1750,13 +1923,13 @@ function App() {
     window.setTimeout(() => showNotice(BLOCKED_NOTICE), 0)
   }
 
-  // تجلب ملف الزبون من الخادم بعد نجاح OTP. إذا وُجد الملف → home مباشرة.
+  // تجلب ملف الزبون من الخادم بعد نجاح OTP. إذا وُجد الملف → قائمة المتاجر مباشرة.
   // إذا لم يوجد → onboarding (سيُحفظ الاسم/المحافظة إلى الخادم بعد الإدخال).
-  const fetchProfileAfterLogin = async (loginPhone: string): Promise<'home' | 'onboarding' | 'login'> => {
+  const fetchProfileAfterLogin = async (loginPhone: string): Promise<'store-select' | 'onboarding' | 'login'> => {
     try {
       const account = await refreshCustomerAccount(loginPhone)
       if (account.profile?.name || account.orders.length > 0) {
-        return 'home'
+        return 'store-select'
       }
     } catch (e) {
       // حساب محظور → خروج فوري ورسالة، ولا نكمل لِonboarding.
@@ -1766,7 +1939,7 @@ function App() {
     const normalizedLoginPhone = normalizePhoneForCompare(loginPhone)
     const hasLocalProfile = normalizePhoneForCompare(userProfile?.phone ?? '') === normalizedLoginPhone && !!userProfile?.name
     const hasLocalOrders = false
-    return hasLocalProfile || hasLocalOrders ? 'home' : 'onboarding'
+    return hasLocalProfile || hasLocalOrders ? 'store-select' : 'onboarding'
   }
 
   const hydratedSessionRef = useRef('')
@@ -1788,7 +1961,7 @@ function App() {
     void refreshCustomerAccount(loginPhone)
       .then((account) => {
         if (cancelled) return
-        if (!userProfile?.name && account.profile?.name) setScreen('home')
+        if (!userProfile?.name && account.profile?.name) setScreen('store-select')
       })
       .catch((error: unknown) => {
         if (cancelled) return
@@ -1824,20 +1997,32 @@ function App() {
   }, [screen, sessionToken])
 
   useEffect(() => {
+    let lastAttemptAt = 0
     const fetchRate = () => {
+      if (document.hidden) return
+      lastAttemptAt = Date.now()
       fetch(`${API_BASE}/api/exchange-rate`)
         .then((r) => r.json())
         .then((data: { rate?: number }) => {
-          if (data.rate && data.rate > 1000) {
+          if (data.rate && data.rate > 0 && data.rate < OLD_LIRA_RATE_FLOOR) {
+            liveExchangeRateAcceptedAtRef.current = Date.now()
             setExchangeRate(data.rate)
             setExchangeRateFetchedAt(Date.now())
           }
         })
         .catch(() => undefined)
     }
+    const refreshIntervalMs = 30 * 60 * 1000
+    const handleVisibilityChange = () => {
+      if (!document.hidden && Date.now() - lastAttemptAt >= refreshIntervalMs) fetchRate()
+    }
     fetchRate()
-    const intervalId = window.setInterval(fetchRate, 60 * 60 * 1000)
-    return () => window.clearInterval(intervalId)
+    const intervalId = window.setInterval(fetchRate, refreshIntervalMs)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      window.clearInterval(intervalId)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
   }, [setExchangeRate])
 
   // جلب تكلفة الشحن الديناميكية من لوحة الإدارة عند التشغيل
@@ -1854,8 +2039,8 @@ function App() {
         const profitPercent = Number(data.product_profit_percent ?? '0')
         // سعر الصرف يُحدَّث في Supabase عبر مهمة GitHub Actions (بديل سيرفر Railway).
         // نقرأه من هنا حتى يبقى التسعير يعمل بعد إيقاف السيرفر.
-        const usdRate = parseInt(data.usd_to_syp_rate ?? '0', 10)
-        if (usdRate >= 1000 && usdRate <= 100000) {
+        const usdRate = parseFloat(data.usd_to_syp_rate ?? '0')
+        if (usdRate > 0 && usdRate < OLD_LIRA_RATE_FLOOR && !liveExchangeRateAcceptedAtRef.current) {
           setExchangeRate(usdRate)
           setExchangeRateFetchedAt(Date.now())
         }
@@ -1911,7 +2096,7 @@ function App() {
           if (disposed) return
           commitStoreRegions({
             shein: parseStoreRegionSetting(data.store_region_shein, DEFAULT_STORE_REGIONS.shein),
-            temu: parseStoreRegionSetting(data.store_region_temu, DEFAULT_STORE_REGIONS.temu),
+            temu: DEFAULT_STORE_REGIONS.temu,
           })
           finishFirstResolution()
         })
@@ -1955,6 +2140,7 @@ function App() {
     }
 
     const checkInboundMessage = () => {
+      if (document.hidden) return
       void appApi.auth
         .verifyOtp(phone, '')
         .then((result) => completePhoneVerification(result.sessionToken, 'تم تأكيد رقم واتساب من الرسالة'))
@@ -1963,8 +2149,12 @@ function App() {
 
     checkInboundMessage()
     const intervalId = window.setInterval(checkInboundMessage, 2500)
+    document.addEventListener('visibilitychange', checkInboundMessage)
 
-    return () => window.clearInterval(intervalId)
+    return () => {
+      window.clearInterval(intervalId)
+      document.removeEventListener('visibilitychange', checkInboundMessage)
+    }
   }, [inboundWhatsappUrl, phone, screen, setPendingWhatsappAuth, setSessionToken, userProfile])
 
   // Telegram OTP polling — يتحقق تلقائياً كل 3 ثوانٍ بعد إرسال الرمز للبوت
@@ -1972,6 +2162,7 @@ function App() {
     if (screen !== 'otp' || !telegramOtp) return undefined
 
     const check = () => {
+      if (document.hidden) return
       void appApi.auth
         .verifyOtp(phone, telegramOtp)
         .then((result) => completePhoneVerification(result.sessionToken, 'تم تأكيد رقمك بنجاح'))
@@ -1979,7 +2170,11 @@ function App() {
     }
 
     const intervalId = window.setInterval(check, 3000)
-    return () => window.clearInterval(intervalId)
+    document.addEventListener('visibilitychange', check)
+    return () => {
+      window.clearInterval(intervalId)
+      document.removeEventListener('visibilitychange', check)
+    }
   }, [telegramOtp, phone, screen, setSessionToken, userProfile])
 
   // Variant helpers
@@ -2281,8 +2476,15 @@ function App() {
 
   useEffect(() => {
     if (!cartGroup || cartGroup.status !== 'open' || screen !== 'cart') return
-    const timer = setInterval(() => syncCartGroup(true), 10_000)
-    return () => clearInterval(timer)
+    const syncVisibleGroup = () => {
+      if (!document.hidden) syncCartGroup(true)
+    }
+    const timer = window.setInterval(syncVisibleGroup, 10_000)
+    document.addEventListener('visibilitychange', syncVisibleGroup)
+    return () => {
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', syncVisibleGroup)
+    }
   }, [cartGroup?.id, cartGroup?.status, screen])
 
   useEffect(() => {
@@ -2463,7 +2665,7 @@ function App() {
           governorate: profile.governorate,
           qadmousBranch: profile.qadmousBranch,
         }))
-        setScreen('home')
+        setScreen('store-select')
         showNotice('أهلاً بك — تم إنشاء حسابك عبر Google')
         await refreshAccountAuthMethods(result.sessionToken).catch(() => undefined)
       })
@@ -2729,7 +2931,10 @@ function App() {
   const sheinSaudiRedirectTsRef = useRef(0)
   const screenRef = useRef(screen)
   const browseSheinRef = useRef<() => void>(() => undefined)
+  const storeCaptureBundleRef = useRef<StoreCaptureBundle | null>(null)
+  const storeCaptureBundleLoadingRef = useRef(false)
   const markStoreWebviewReadyRef = useRef<(sessionId: number) => void>(() => undefined)
+  const storeMessageHandlerRef = useRef<(event: { id?: string; detail?: Record<string, unknown> }) => void>(() => undefined)
   const recoverSheinCartProductSessionRef = useRef<() => boolean>(() => false)
   const sheinRegionDiagnosticsRef = useRef<SheinRegionDiagnosticRecord[]>([])
   const vpnStateRef = useRef(vpnState)
@@ -2745,6 +2950,15 @@ function App() {
   useEffect(() => { vpnStateRef.current = vpnState }, [vpnState])
   useEffect(() => { vpnGeoRef.current = vpnGeo }, [vpnGeo])
 
+  // The app now starts on the store hub, so connection work is deliberately
+  // idle until the customer asks to enter the selected store. This also covers
+  // returning to the store from Cart/Orders/Profile via the Home tab.
+  useEffect(() => {
+    if (screen !== 'home' || vpnState !== 'idle') return
+    vpnStateRef.current = 'checking'
+    setVpnState('checking')
+  }, [screen, vpnState])
+
   const recordSheinRegionDiagnostic = useCallback((record: SheinRegionDiagnosticRecord) => {
     const next = [...sheinRegionDiagnosticsRef.current.slice(-79), record]
     sheinRegionDiagnosticsRef.current = next
@@ -2755,7 +2969,7 @@ function App() {
   useEffect(() => {
     const navigateFromNativeStore = (event: Event) => {
       const target = (event as CustomEvent<unknown>).detail
-      if (target !== 'orders' && target !== 'cart' && target !== 'profile') return
+      if (target !== 'store-select' && target !== 'orders' && target !== 'cart' && target !== 'profile') return
       if (screenRef.current === target) return
 
       // The native store stays above Capacitor's host WebView. Commit the
@@ -2954,6 +3168,7 @@ function App() {
         if (cancelled || retryState === null) return
         state = retryState
       }
+      vpnStateRef.current = state
       setVpnState(state)
     })()
     return () => { cancelled = true }
@@ -2963,6 +3178,16 @@ function App() {
   const postWebviewChromeState = (target: 'home' | 'cart') => {
     void InAppBrowser.postMessage({ detail: { type: '__resize' } })
     void InAppBrowser.postMessage({ detail: { type: '__backTarget', target } })
+  }
+
+  // Leaving a store for an Otlobli tab has to retire whichever store surface is
+  // actually on screen. The personal Android build draws Temu in its own Gecko
+  // view, which the Chromium `InAppBrowser.hide()` below does not touch, so a
+  // tab press while Temu was open changed the React screen underneath while
+  // Gecko stayed painted over it — the press looked completely dead.
+  const hidePersonalTemuSurface = () => {
+    if (!TEMU_PERSONAL_SITE_MODE || Capacitor.getPlatform() !== 'android') return
+    void TemuEmbeddedBrowser.hide().catch(() => undefined)
   }
 
   const refreshVpnDiagnosisForStoreFailure = () => {
@@ -3407,6 +3632,73 @@ function App() {
       }
       return
     }
+    const activeStore = selectedStoreRef.current
+    if (TEMU_PERSONAL_SITE_MODE && Capacitor.getPlatform() === 'android' && activeStore === 'temu') {
+      // Gecko lives inside MainActivity's store-content layer. React's actual
+      // Otlobli shell stays mounted below it, so opening Temu no longer changes
+      // Activity or replaces the navigation with a native imitation.
+      if (screenRef.current !== 'home' && !pendingProductUrlRef.current) return
+      if (temuPersonalSiteOpenedRef.current) return
+      temuPersonalSiteOpenedRef.current = true
+      const activeRegions = storeRegionsRef.current
+      const requestedProductUrl = pendingProductUrlRef.current
+      const personalTargetUrl = normalizeTemuBrowserUrl(
+        requestedProductUrl || storeUrl('temu', activeRegions),
+        activeRegions.temu,
+      )
+      pendingProductUrlRef.current = ''
+      clearPendingProductPreparation()
+      pendingBackTargetRef.current = 'home'
+      console.info('[otlobli][temu-personal-site] ' + JSON.stringify({
+        stage: 'open-requested',
+        url: personalTargetUrl,
+        region: activeRegions.temu,
+        at: Date.now(),
+      }))
+      showNotice('نسخة Temu الشخصية: الموقع يعمل داخل التطبيق')
+      // Returning from Cart must reveal the existing Gecko session exactly
+      // where the customer left it (same product + scroll + selected options).
+      // A deliberate deep-link request still navigates to its requested URL;
+      // only the first cold open falls back to Temu home.
+      const revealTemu = requestedProductUrl
+        ? TemuEmbeddedBrowser.open({ url: personalTargetUrl })
+        : TemuEmbeddedBrowser.show().then((result) => result.shown
+            ? { opened: true }
+            : TemuEmbeddedBrowser.open({ url: personalTargetUrl }))
+      void revealTemu.catch((error) => {
+        temuPersonalSiteOpenedRef.current = false
+        console.error('[otlobli][temu-personal-site] ' + JSON.stringify({
+          stage: 'open-failed',
+          message: error instanceof Error ? error.message : String(error),
+          at: Date.now(),
+        }))
+        showNotice('تعذّر فتح Temu داخل التطبيق.')
+      })
+      return
+    }
+    // Keep the large store-only injected scripts out of the startup chunk.
+    // The first store tap loads this local asset once; later opens reuse the
+    // resolved module. Hold the singleton WebView flags unchanged until the
+    // module is ready so concurrent effects cannot create a second browser.
+    const captureBundle = storeCaptureBundleRef.current
+    if (!captureBundle) {
+      if (storeCaptureBundleLoadingRef.current) return
+      storeCaptureBundleLoadingRef.current = true
+      void loadStoreCaptureBundle()
+        .then((loadedBundle) => {
+          storeCaptureBundleRef.current = loadedBundle
+          storeCaptureBundleLoadingRef.current = false
+          browseSheinRef.current()
+        })
+        .catch((error: unknown) => {
+          storeCaptureBundleLoadingRef.current = false
+          storeCaptureBundlePromise = undefined
+          setStoreOpenFailureReason('network')
+          console.error('[otlobli][store-capture] lazy load failed', error)
+          showNotice('تعذّر تجهيز المتجر. جرّب مرة أخرى.')
+        })
+      return
+    }
     const sessionId = webviewSessionRef.current + 1
     const initialPendingUrl = pendingProductUrlRef.current
     webviewSessionRef.current = sessionId
@@ -3422,7 +3714,6 @@ function App() {
     // SHEIN is reached directly on both platforms now, so it only loads once
     // the user's VPN is on - the vpnState check above already confirmed that
     // before this function ever runs.
-    const activeStore = selectedStoreRef.current
     // For a Temu cart product on a cold open, load the Temu HOME first (guest
     // browsing works) instead of cold-loading the deep product URL, which Temu
     // would 302 to /login.html. Once home is warm, markStoreWebviewReady reaches
@@ -3436,7 +3727,7 @@ function App() {
     const targetUrl = activeStore === 'shein'
       ? normalizeSheinBrowserUrl(rawTargetUrl, activeRegions.shein)
       : normalizeTemuBrowserUrl(rawTargetUrl, activeRegions.temu)
-    const captureScript = buildStoreCaptureScript(activeRegions)
+    const captureScript = captureBundle.buildStoreCaptureScript(activeRegions)
     const hostSafeBottomInset = readHostSafeBottomInset()
     if (initialPendingUrl && pendingProductRevealRef.current &&
         pendingProductRevealUrlRef.current === targetUrl) {
@@ -3472,7 +3763,7 @@ function App() {
             isIosNative,
           // Customer releases must not expose the native diagnostic copy button.
           otlobliTapDiagnostics: false,
-          otlobliDocumentStartScript: `window.__otlobliSafeBottom=${hostSafeBottomInset};\n${OTLOBLI_NAV_BOOTSTRAP_SCRIPT}\n${SHEIN_IOS_FREEZE_DIAGNOSTICS && isIosNative ? SHEIN_FREEZE_DIAGNOSTIC_SCRIPT : ''}`,
+          otlobliDocumentStartScript: `window.__otlobliSafeBottom=${hostSafeBottomInset};\n${captureBundle.OTLOBLI_NAV_BOOTSTRAP_SCRIPT}\n${SHEIN_IOS_FREEZE_DIAGNOSTICS && isIosNative ? captureBundle.SHEIN_FREEZE_DIAGNOSTIC_SCRIPT : ''}`,
           otlobliPreserveAttachedWhenHidden: true,
           // Prepare SHEIN at the real device size without presenting it. The
           // already-mounted Otlobli shell therefore owns the only visible nav
@@ -3481,7 +3772,11 @@ function App() {
             hidden: true,
             invisibilityMode: InvisibilityMode.FAKE_VISIBLE,
           } : {}),
-          isPresentAfterPageLoad: true,
+          // Android can present the native Otlobli loading cover immediately;
+          // waiting for SHEIN's full onPageFinished made the first tap look
+          // idle for several seconds on Note 8. iOS remains offscreen until
+          // readiness because that is part of its protected freeze-safe path.
+          isPresentAfterPageLoad: isIosNative,
           isAnimated: false,
         }
         : {
@@ -3530,8 +3825,8 @@ function App() {
       // rely on the user's VPN, same as iOS always did.
     }
     // Keep the healthy HTTP/WebKit cache for the fast path on older iPhones.
-    // A cache reset remains available only for the one bounded stuck-session
-    // recovery (and the explicit Temu -> SHEIN switch already performs it).
+    // A cache reset remains available only for the bounded stuck-session and
+    // iOS cart-product recovery paths, never an ordinary store switch.
     // This isolates the speed change from v85.9's failed document-start path.
     const shouldResetSheinCache = activeStore === 'shein' && sheinCacheResetPendingRef.current
     if (shouldResetSheinCache) sheinCacheResetPendingRef.current = false
@@ -3698,9 +3993,40 @@ function App() {
       return
     }
     const targetUrl = normalizeStoreBrowserUrl(sourceLink, selectedStoreRef.current, storeRegionsRef.current)
+    const isPersonalTemuCartProduct = TEMU_PERSONAL_SITE_MODE &&
+      Capacitor.getPlatform() === 'android' && selectedStoreRef.current === 'temu'
+    if (isPersonalTemuCartProduct) {
+      // The personal Android build owns a persistent Gecko session. Opening a
+      // cart item is an in-session navigation and must not pass through the
+      // legacy Chromium/VPN gate. The product opens over the store screen, not
+      // over Cart: leaving Cart mounted underneath left the bottom bar showing
+      // "Cart" while a Temu product filled the screen, and backing out of the
+      // product landed on an inner Temu page with no way back to the cart.
+      pendingBackTargetRef.current = 'home'
+      screenRef.current = 'home'
+      flushSync(() => setScreen('home'))
+      temuPersonalSiteOpenedRef.current = true
+      void TemuEmbeddedBrowser.open({ url: targetUrl }).catch((error) => {
+        temuPersonalSiteOpenedRef.current = false
+        console.error('[otlobli][temu-personal-site] cart product open failed', error)
+        showNotice('تعذّر فتح المنتج داخل Temu. جرّب مرة أخرى.')
+      })
+      return
+    }
+    const supportedExitCanRestorePendingState =
+      (vpnStateRef.current === 'idle' || vpnStateRef.current === 'checking') &&
+      navigator.onLine !== false && isSupportedStoreExit(vpnGeoRef.current)
+    const cartStoreAccessReady = vpnStateRef.current === 'ok' || supportedExitCanRestorePendingState
+    if (supportedExitCanRestorePendingState) {
+      // selected-store/cart updates and the asynchronous geo probe can commit
+      // in adjacent frames. Normalize both the ref and React state before the
+      // click continues so a confirmed Qatar exit cannot hit a stale gate.
+      vpnStateRef.current = 'ok'
+      setVpnState('ok')
+    }
     const isIosSheinCartProduct = selectedStoreRef.current === 'shein' && Capacitor.getPlatform() === 'ios'
     if (isIosSheinCartProduct) {
-      if (vpnStateRef.current !== 'ok') {
+      if (!cartStoreAccessReady) {
         showNotice('شغّل VPN ثم جرّب فتح المنتج مرة أخرى.')
         return
       }
@@ -3724,11 +4050,22 @@ function App() {
     beginPendingProductPreparation(targetUrl)
     pendingBackTargetRef.current = 'cart'
     showNotice('جاري تجهيز صفحة المنتج...')
-    if (vpnStateRef.current !== 'ok') {
-      sheinCartProductSessionRef.current = false
-      clearPendingProductPreparation()
-      pendingBackTargetRef.current = 'home'
-      showNotice('شغّل VPN ثم جرّب فتح المنتج مرة أخرى.')
+    if (!cartStoreAccessReady) {
+      // A stored verdict is never grounds to refuse. The user may enter Cart
+      // before ever opening a store, and a `no-vpn` recorded minutes earlier
+      // says nothing about the connection right now. Measured on the Note 8, a
+      // real exit probe answers in ~52ms; the old branch refused every cart
+      // product with "turn on VPN" from a stale ref without probing even once,
+      // on a connection that was exiting through a fully supported country.
+      // Keep the queued product and re-check. Stay on Cart while that runs:
+      // jumping to Home turns a single slow probe into a full-screen gate the
+      // customer has to escape from, which is worse than the toast it replaced
+      // and made the cart feel like it stopped opening products altogether.
+      // The effect below moves to the store only once the check actually says
+      // the connection is fine, and reports a reason if it is not.
+      vpnStateRef.current = 'checking'
+      setVpnState('checking')
+      showNotice('جاري التحقق من الاتصال...')
       return
     }
     sheinCartProductSessionRef.current = isIosSheinCartProduct
@@ -3756,6 +4093,45 @@ function App() {
         showNotice('تعذر تجهيز صفحة المنتج. جرّب فتحها مرة أخرى.')
       })
   }
+
+  // A store gate rendered while the personal Temu layer is up is invisible and
+  // still swallows every touch: Gecko paints over React, so the customer sees a
+  // live Temu page that answers nothing. Confirmed on the Note 8 — the page
+  // scrolled fine when driven over the remote protocol, no touch event ever
+  // reached it, and the accessibility tree showed «اتصالك من منطقة مدعومة، لكن
+  // منتجات تيمو لم تكتمل على هذا الجهاز» sitting on top with its reset button.
+  // Tapping that invisible button worked instantly. If a gate is worth showing,
+  // it is worth seeing, so retire the store surface underneath it.
+  const storeGateVisible = sheinBlockedError || vpnState === 'no-vpn' ||
+    vpnState === 'bad-region' || vpnState === 'offline'
+  useEffect(() => {
+    if (!storeGateVisible || screen !== 'home') return
+    if (!TEMU_PERSONAL_SITE_MODE || Capacitor.getPlatform() !== 'android') return
+    if (!temuPersonalSiteOpenedRef.current) return
+    temuPersonalSiteOpenedRef.current = false
+    void TemuEmbeddedBrowser.hide().catch(() => undefined)
+  }, [storeGateVisible, screen])
+
+  // Cart queued a product and asked for a fresh connection check. Enter the
+  // store only once that check succeeds; if it genuinely fails, say why and
+  // leave the customer in Cart rather than stranding them on a full-screen
+  // gate they never asked for.
+  useEffect(() => {
+    if (screen !== 'cart' || !pendingProductUrlRef.current) return
+    if (vpnState === 'ok') {
+      screenRef.current = 'home'
+      setScreen('home')
+      return
+    }
+    if (vpnState !== 'no-vpn' && vpnState !== 'bad-region' && vpnState !== 'offline') return
+    sheinCartProductSessionRef.current = false
+    clearPendingProductPreparation()
+    pendingBackTargetRef.current = 'home'
+    showNotice(vpnState === 'offline'
+      ? 'لا يوجد اتصال بالإنترنت. تحقق من الشبكة ثم جرّب فتح المنتج مرة أخرى.'
+      : 'تعذّر فتح المتجر من هذا الاتصال. جرّب مرة أخرى، أو غيّر سيرفر الـ VPN إذا كان شغّالاً.')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vpnState, screen])
 
   useEffect(() => {
     const handle = InAppBrowser.addListener('closeEvent', (event: { id?: string }) => {
@@ -3833,10 +4209,17 @@ function App() {
           sessionId: webviewSessionRef.current,
           at: Date.now(),
         })
-        void InAppBrowser.executeScript({
-          ...(id ? { id } : {}),
-          code: buildStoreCaptureScript(storeRegionsRef.current),
-        })
+        const captureBundleReady = storeCaptureBundleRef.current
+          ? Promise.resolve(storeCaptureBundleRef.current)
+          : loadStoreCaptureBundle().then((loadedBundle) => {
+              storeCaptureBundleRef.current = loadedBundle
+              return loadedBundle
+            })
+        void captureBundleReady
+          .then((loadedBundle) => InAppBrowser.executeScript({
+            ...(id ? { id } : {}),
+            code: loadedBundle.buildStoreCaptureScript(storeRegionsRef.current),
+          }))
           .then(() => {
             recordSheinRegionDiagnostic({
               stage: 'host-capture-dispatched',
@@ -3966,6 +4349,9 @@ function App() {
       }
       if (!/temu\.com/i.test(url)) return
       const temuRegion = storeRegionsRef.current.temu
+      // Keep Temu's real login destination interactive. It must never be
+      // converted into a fake sold-out state or a forced trip back home.
+      if (/^https?:\/\/(?:[^/]+\.)?temu\.com\/(?:[^/?#]+\/)*login(?:\.html)?(?:[/?#]|$)/i.test(url)) return
       if (!shouldRedirectTemuToRegion(url, temuRegion)) {
         temuArabicRedirectRef.current = 0
         return
@@ -4008,7 +4394,7 @@ function App() {
   }, [])
 
   useEffect(() => {
-    const handle = InAppBrowser.addListener('messageFromWebview', (event: { id?: string; detail?: Record<string, unknown> }) => {
+    const handleMessageFromWebview = (event: { id?: string; detail?: Record<string, unknown> }) => {
       if (event?.id && webviewIdRef.current && event.id !== webviewIdRef.current) return
       const detail = event?.detail
 
@@ -4035,20 +4421,6 @@ function App() {
           pendingProductVisualReadyRef.current = true
           markStoreWebviewReadyRef.current(webviewSessionRef.current)
           revealPreparedProductIfReady()
-        }
-        return
-      }
-
-      // Temu redirected a cold cart-product load to its own /login.html and the
-      // one guest retry did not recover the product. Never reveal that login
-      // page as a white screen — abort the preparation and return to the cart
-      // with a clear explanation instead.
-      if (detail?.type === 'temuLoginBlocked') {
-        if (selectedStoreRef.current === 'temu' && pendingProductRevealRef.current) {
-          clearPendingProductPreparation()
-          pendingBackTargetRef.current = 'home'
-          if (screenRef.current !== 'cart') setScreen('cart')
-          showNotice('تيمو تطلب تسجيل الدخول لفتح هذا المنتج مباشرةً. افتحه من داخل تيمو بدل السلة.')
         }
         return
       }
@@ -4085,10 +4457,21 @@ function App() {
         }
         sheinChallengeActiveRef.current = true
         setSheinBlockedError(false)
+        // A Temu verification page is the honest destination for a gated
+        // product. Treat the painted challenge as visually ready so a product
+        // opened from Otlobli's cart is revealed instead of timing out behind
+        // the hidden WebView while waiting for product imagery that cannot
+        // exist until the customer completes the challenge.
+        if (selectedStoreRef.current === 'temu' &&
+            pendingProductRevealRef.current && pendingProductNavigationRequestedRef.current) {
+          pendingProductPageLoadedRef.current = true
+          pendingProductVisualReadyRef.current = true
+        }
         markStoreWebviewReadyRef.current(webviewSessionRef.current)
+        revealPreparedProductIfReady()
         if (!humanCheckNoticeRef.current) {
           humanCheckNoticeRef.current = true
-          showNotice('يلزم إكمال تحقق SHEIN لفتح المنتجات — اضغط «أنا إنسان» داخل الصفحة')
+          showNotice('يلزم إكمال تحقق Temu لفتح المنتجات — أكمل التحقق داخل الصفحة')
         }
         return
       }
@@ -4097,13 +4480,11 @@ function App() {
         // Android may complete the genuine challenge without a top-level URL
         // event. This is status only: never reload/recreate the WebView or
         // touch challenge cookies after the customer has completed it.
-        if (selectedStoreRef.current === 'shein') {
-          sheinChallengeActiveRef.current = false
-          humanCheckNoticeRef.current = false
-          setSheinBlockedError(false)
-          markStoreWebviewReadyRef.current(webviewSessionRef.current)
-          revealPreparedProductIfReady()
-        }
+        sheinChallengeActiveRef.current = false
+        humanCheckNoticeRef.current = false
+        setSheinBlockedError(false)
+        markStoreWebviewReadyRef.current(webviewSessionRef.current)
+        revealPreparedProductIfReady()
         return
       }
 
@@ -4137,9 +4518,55 @@ function App() {
         return
       }
 
+      if (detail?.type === 'openHome') {
+        // "Home" belongs to the active store. Leaving a store is a separate,
+        // explicit action; cached store scripts must never turn this tab into
+        // an unannounced exit to the store chooser.
+        screenRef.current = 'home'
+        flushSync(() => setScreen('home'))
+        return
+      }
+
+      if (detail?.type === 'closeStore') {
+        setPendingStoreExit(null)
+        temuPersonalSiteOpenedRef.current = false
+        screenRef.current = 'store-select'
+        flushSync(() => setScreen('store-select'))
+        if (selectedStoreRef.current === 'shein') {
+          suppressAutoReopenRef.current = true
+          webviewClosingRef.current = true
+          webviewSessionRef.current += 1
+          webviewOpeningRef.current = false
+          webviewOpenedAtRef.current = 0
+          webviewIdRef.current = ''
+          currentWebviewUrlRef.current = ''
+          sheinChallengeActiveRef.current = false
+          sheinOpenedRef.current = false
+          setSheinReady(false)
+          void InAppBrowser.close().catch(() => undefined).finally(() => {
+            webviewClosingRef.current = false
+          })
+        } else if (TEMU_PERSONAL_SITE_MODE && Capacitor.getPlatform() === 'android') {
+          void TemuEmbeddedBrowser.hide().catch(() => undefined)
+        }
+        return
+      }
+
+      if (detail?.type === 'requestStoreExit') {
+        const requestedStore = detail.store === 'temu' ? 'temu' : 'shein'
+        if (requestedStore !== selectedStoreRef.current) return
+        // Reveal Otlobli itself before asking. The decision is therefore an
+        // accessible app dialog, never a browser alert floating inside SHEIN.
+        setPendingStoreExit(requestedStore)
+        if (requestedStore === 'shein') void InAppBrowser.hide().catch(() => undefined)
+        return
+      }
+
       if (detail?.type === 'openCart' || detail?.type === 'backToCart') {
+        temuPersonalSiteOpenedRef.current = false
         screenRef.current = 'cart'
         flushSync(() => setScreen('cart'))
+        hidePersonalTemuSurface()
         // New native builds render the destination before hiding the store.
         // Keep this idempotent fallback for cached scripts and older builds.
         if (!recoverSheinCartProductSessionRef.current() && sheinOpenedRef.current) {
@@ -4149,8 +4576,10 @@ function App() {
       }
 
       if (detail?.type === 'openOrders') {
+        temuPersonalSiteOpenedRef.current = false
         screenRef.current = 'orders'
         flushSync(() => setScreen('orders'))
+        hidePersonalTemuSurface()
         if (!recoverSheinCartProductSessionRef.current() && sheinOpenedRef.current) {
           void InAppBrowser.hide().catch(() => undefined)
         }
@@ -4158,8 +4587,10 @@ function App() {
       }
 
       if (detail?.type === 'openProfile') {
+        temuPersonalSiteOpenedRef.current = false
         screenRef.current = 'profile'
         flushSync(() => setScreen('profile'))
+        hidePersonalTemuSurface()
         if (!recoverSheinCartProductSessionRef.current() && sheinOpenedRef.current) {
           void InAppBrowser.hide().catch(() => undefined)
         }
@@ -4169,6 +4600,7 @@ function App() {
       const product = detail?.type === 'addToCart' ? (detail.product as Record<string, unknown> | undefined) : undefined
       const title = typeof product?.title === 'string' ? product.title : ''
       if (!title) return
+      if (selectedStoreRef.current === 'temu' && temuAddInFlightRef.current) return
 
       // السعر قد يصل رقماً أو نصاً ("12.99") حسب طريقة تمرير جسر iOS للرسالة؛
       // نحوّله بأمان لرقم حتى لا يصير صفر بالفاتورة رغم أنه قُرئ فعلاً من SHEIN.
@@ -4188,8 +4620,10 @@ function App() {
       const quantityOption = typeof product?.quantityOption === 'string' ? product.quantityOption : ''
       const rawColorImage = typeof product?.colorImage === 'string' ? product.colorImage : ''
       const colorImage = cartColorPreviewBackground(color) ? '' : rawColorImage
+      const itemId = `${selectedStoreRef.current}-${Date.now()}`
+      if (selectedStoreRef.current === 'temu') temuAddInFlightRef.current = true
       setCartItems((items) => [...items, {
-        id: `shein-${Date.now()}`,
+        id: itemId,
         title,
         image: typeof product?.image === 'string' ? product.image : '',
         colorImage,
@@ -4209,11 +4643,43 @@ function App() {
         customText: typeof product?.customText === 'string' ? product.customText : '',
         customTextLimit: typeof product?.customTextLimit === 'number' && product.customTextLimit > 0 ? product.customTextLimit : 0,
       }])
-      void InAppBrowser.postMessage({ detail: { type: 'addToCartAck' } })
-      showNotice('تمت إضافة المنتج إلى السلة')
-    })
-    return () => { void handle.then((h) => h.remove()) }
+      if (!(TEMU_PERSONAL_SITE_MODE && Capacitor.getPlatform() === 'android')) {
+        void InAppBrowser.postMessage({ detail: { type: 'addToCartAck' } })
+      }
+      showNotice(`تمت إضافة المنتج إلى سلة ${storeName(selectedStoreRef.current)}`)
+      if (TEMU_PERSONAL_SITE_MODE && Capacitor.getPlatform() === 'android' && selectedStoreRef.current === 'temu') {
+        // Capturing a product is an in-place shopping action. Keep the exact
+        // Temu page, scroll and selections visible. Resolve Gecko's pending
+        // native-message result only after the cart state has been persisted,
+        // so the page cannot announce success before Otlobli accepts the item.
+        void TemuEmbeddedBrowser.acknowledgeAdd()
+          .catch((error) => console.error('[otlobli][temu-personal-site] add acknowledgement failed', error))
+          .finally(() => { temuAddInFlightRef.current = false })
+      }
+    }
+    storeMessageHandlerRef.current = handleMessageFromWebview
+    const handle = InAppBrowser.addListener('messageFromWebview', handleMessageFromWebview)
+    return () => {
+      storeMessageHandlerRef.current = () => undefined
+      void handle.then((h) => h.remove())
+    }
   }, [exchangeRate, recordSheinRegionDiagnostic])
+
+  useEffect(() => {
+    if (!(TEMU_PERSONAL_SITE_MODE && Capacitor.getPlatform() === 'android')) return
+    let disposed = false
+    let listener: { remove: () => Promise<void> } | undefined
+    void TemuEmbeddedBrowser.addListener('messageFromWebview', (event) => {
+      storeMessageHandlerRef.current({ detail: event.detail })
+    }).then((subscription) => {
+      if (disposed) void subscription.remove()
+      else listener = subscription
+    })
+    return () => {
+      disposed = true
+      void listener?.remove()
+    }
+  }, [])
 
   // يعبّئ رقم واتساب المستلم تلقائياً برقم المستخدم المسجَّل دخوله عند دخول
   // صفحة الدفع لأول مرة فقط (لا يطغى على قيمة عدّلها المستخدم يدوياً بعدها)
@@ -4277,9 +4743,16 @@ function App() {
         }
       }))
     }
-    void poll()
-    const interval = window.setInterval(() => { void poll() }, 30_000)
-    return () => window.clearInterval(interval)
+    const pollVisibleOrder = () => {
+      if (!document.hidden) void poll()
+    }
+    pollVisibleOrder()
+    const interval = window.setInterval(pollVisibleOrder, 30_000)
+    document.addEventListener('visibilitychange', pollVisibleOrder)
+    return () => {
+      window.clearInterval(interval)
+      document.removeEventListener('visibilitychange', pollVisibleOrder)
+    }
   }, [screen, currentOrderId])
 
   const [isStartingPayment, setIsStartingPayment] = useState(false)
@@ -4601,31 +5074,133 @@ function App() {
     showNotice('تم حفظ العنوان')
   }
 
+  const switchSelectedStore = (id: StoreId, afterSwitch: () => void) => {
+    if (id === selectedStoreRef.current) {
+      afterSwitch()
+      return
+    }
+
+    setSelectedStore(id)
+    selectedStoreRef.current = id
+    // Reachability is per-store and must be re-measured. The internet exit
+    // country is not: it belongs to the device's connection and does not change
+    // because the user picked a different store. Discarding a confirmed
+    // supported exit here was the other half of the false VPN gate — after a
+    // Temu round trip the next SHEIN cart click found no geo left to trust.
+    // `switchCartStore` already learned this; the store switch had not.
+    storeReachableRef.current = false
+    if (!isSupportedStoreExit(vpnGeoRef.current)) {
+      vpnStateRef.current = 'idle'
+      setVpnState('idle')
+    }
+    webviewAutoOpenPausedUntilRef.current = 0
+
+    // A store switch must still be serialized with native close. Opening the
+    // new WebView in the same frame as the old close is the proven white-screen
+    // failure on Android, so the current host screen stays visible until close.
+    suppressAutoReopenRef.current = true
+    webviewSessionRef.current += 1
+    webviewOpeningRef.current = false
+    webviewIdRef.current = ''
+    sheinChallengeActiveRef.current = false
+    sheinCartProductSessionRef.current = false
+    sheinCartProductRecoveryInFlightRef.current = false
+    sheinOpenedRef.current = false
+    setSheinReady(false)
+    // Preserve SHEIN's healthy HTTP/WebKit cache on an ordinary store switch.
+    // Clearing it here made every Temu -> SHEIN entry a cold start on weak
+    // phones. The bounded stuck/chunk recovery paths above still request the
+    // same cache reset when a session is actually damaged.
+    void InAppBrowser.close().catch(() => undefined)
+      .then(() => {
+        temuPersonalSiteOpenedRef.current = false
+        return TemuEmbeddedBrowser.hide().catch(() => undefined)
+      })
+      .finally(() => {
+        suppressAutoReopenRef.current = false
+        afterSwitch()
+      })
+  }
+
+  const openStoreFromHub = (id: StoreId) => {
+    if (id !== selectedStoreRef.current && cartGroup?.status === 'open') {
+      showNotice(`لديك طلب مشترك مفتوح على ${storeName(selectedStoreRef.current)} — ألغِ الربط من السلة قبل دخول متجر آخر`)
+      return
+    }
+    const revealSelectedStore = () => {
+      webviewAutoOpenPausedUntilRef.current = 0
+      setSheinBlockedError(false)
+      if (vpnStateRef.current !== 'ok') {
+        vpnStateRef.current = 'checking'
+        setVpnState('checking')
+      }
+      screenRef.current = 'home'
+      setScreen('home')
+    }
+
+    switchSelectedStore(id, revealSelectedStore)
+  }
+
+  const switchCartStore = (id: StoreId) => {
+    if (id === selectedStoreRef.current) return
+    if (cartGroup?.status === 'open') {
+      showNotice(`السلة الحالية مرتبطة بطلب مشترك على ${storeName(selectedStoreRef.current)} — ألغِ الربط قبل التبديل`)
+      return
+    }
+    // Choosing which cart to inspect is not a store-session transition. The
+    // old path reset a confirmed Qatar geo result to `idle`, destroyed the
+    // hidden SHEIN session, and even cleared its cache. That made the next
+    // SHEIN product click falsely demand a VPN. Keep both hidden sessions and
+    // the device-level connection diagnosis intact; only change cart data.
+    setSelectedStore(id)
+    selectedStoreRef.current = id
+  }
+
   const renderScreen = () => {
     if (screen === 'login') {
+      const activeCountry = COUNTRY_CODES.find((country) => country.code === countryCode) ?? COUNTRY_CODES[0]
       return (
         <AuthShell
-          title="تسجيل الدخول"
-          subtitle="اختر طريقة واحدة للدخول. إذا اخترت Google ستضيف رقم الاستلام في الخطوة التالية فقط."
+          title="تسجيل الدخول إلى حسابك"
+          subtitle="تابع سلّتك وطلباتك من أي جهاز. ادخل عبر واتساب أو Google."
           brandName={brandName}
           brandLogoDataUrl={brandLogoDataUrl}
         >
-          <label className="field">
-            <span>رقم واتساب</span>
+          <div className="field">
+            <label htmlFor="login-phone">رقم واتساب</label>
             <div className="phone-field">
-              <select
-                value={countryCode}
-                onChange={(event) => setCountryCode(event.target.value)}
-                aria-label="رمز الدولة"
-                name="country-code"
-                autoComplete="tel-country-code"
-                className="country-select"
-              >
-                {COUNTRY_CODES.map((c) => (
-                  <option key={c.code} value={c.code}>{c.flag} +{c.code}</option>
-                ))}
-              </select>
+              <div className="auth-country-picker" style={AUTH_COUNTRY_PICKER_STYLE}>
+                {activeCountry.flagImage ? (
+                  <img
+                    className="auth-country-flag"
+                    style={AUTH_COUNTRY_FLAG_STYLE}
+                    src={activeCountry.flagImage}
+                    alt=""
+                    width="27"
+                    height="18"
+                    fetchPriority="high"
+                  />
+                ) : (
+                  <span className="auth-country-emoji" style={AUTH_COUNTRY_EMOJI_STYLE} aria-hidden="true">{activeCountry.flag}</span>
+                )}
+                <span className="auth-country-code" style={AUTH_COUNTRY_CODE_STYLE} dir="ltr">+{activeCountry.code}</span>
+                <select
+                  style={AUTH_COUNTRY_SELECT_STYLE}
+                  value={countryCode}
+                  onChange={(event) => setCountryCode(event.target.value)}
+                  aria-label="الدولة ورمز الاتصال"
+                  name="country-code"
+                  autoComplete="tel-country-code"
+                  className="country-select"
+                >
+                  {COUNTRY_CODES.map((country) => (
+                    <option key={country.code} value={country.code}>{country.name} +{country.code}</option>
+                  ))}
+                </select>
+                <Icon name="expand_more" />
+              </div>
               <input
+                id="login-phone"
                 value={localPhone}
                 onChange={(event) => setLocalPhone(event.target.value.replace(/\D/g, ''))}
                 inputMode="tel"
@@ -4640,8 +5215,8 @@ function App() {
                 }}
               />
             </div>
-          </label>
-          <button className="primary-action auth-primary-action" disabled={authState === 'sending' || googleAuthBusy} onClick={startLogin}>
+          </div>
+          <button className="primary-action auth-primary-action" aria-live="polite" disabled={authState === 'sending' || googleAuthBusy} onClick={startLogin}>
             {authState === 'sending'
               ? usesInboundWhatsappAuth
                 ? 'جارٍ تجهيز واتساب…'
@@ -4947,7 +5522,7 @@ function App() {
               void appApi.customers.saveProfile(phone, profile)
                 .then((account) => applyCustomerAccount(account, profile.phone || phone))
                 .catch(() => showNotice('تم الحفظ على الجهاز، وتعذّر الحفظ على الخادم مؤقتاً'))
-              setScreen('home')
+              setScreen('store-select')
             }}
           >
             متابعة
@@ -5195,11 +5770,46 @@ function App() {
     }
 
     if (screen === 'cart') {
+      const cartCounts: Record<StoreId, number> = {
+        shein: cartsByStore.shein?.reduce((sum, item) => sum + item.quantity, 0) ?? 0,
+        temu: cartsByStore.temu?.reduce((sum, item) => sum + item.quantity, 0) ?? 0,
+      }
       return (
         <MobileShell active="cart" onNavigate={setScreen}>
-          <Header title="السلة" unreadCount={unreadCount} onNotifications={openNotifications} />
+          <Header title={`سلة ${storeName(selectedStore)}`} unreadCount={unreadCount} onNotifications={openNotifications} />
           <main className="mobile-content mobile-content--cart">
             {renderCropModal()}
+            <section className="cart-store-switcher" aria-label="اختيار سلة المتجر">
+              <div className="cart-store-switcher__tabs" role="tablist" aria-label="سلال المتاجر">
+                {STORES.map((store) => {
+                  const active = selectedStore === store.id
+                  const lockedByGroup = !!cartGroup && cartGroup.status === 'open' && !active
+                  return (
+                    <button
+                      type="button"
+                      role="tab"
+                      id={`cart-store-tab-${store.id}`}
+                      aria-selected={active}
+                      aria-controls="active-store-cart"
+                      tabIndex={active ? 0 : -1}
+                      className={`cart-store-switcher__tab cart-store-switcher__tab--${store.id}${active ? ' is-active' : ''}`}
+                      disabled={lockedByGroup}
+                      onClick={() => switchCartStore(store.id)}
+                      key={store.id}
+                    >
+                      <span translate="no">{store.id === 'shein' ? 'SHEIN' : 'TEMU'}</span>
+                      <b aria-label={`${cartCounts[store.id]} قطع`}>{cartCounts[store.id]}</b>
+                    </button>
+                  )
+                })}
+              </div>
+              <p>
+                {cartGroup?.status === 'open'
+                  ? `الطلب المشترك مرتبط بسلة ${storeName(selectedStore)} حتى إلغاء الربط.`
+                  : `كل متجر له سلة ودفع مستقلان. أنت تعرض الآن سلة ${storeName(selectedStore)}.`}
+              </p>
+            </section>
+            <section id="active-store-cart" role="tabpanel" aria-labelledby={`cart-store-tab-${selectedStore}`}>
             {cartItems.length > 0 || featureGroupOrders ? (
               <>
                 {cartItems.map((item) => {
@@ -5219,6 +5829,7 @@ function App() {
                         alt={item.title}
                         width={72}
                         height={88}
+                        loading="lazy"
                         decoding="async"
                         onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/80x100/f5f5f5/aaa?text=صورة' }}
                       />
@@ -5256,10 +5867,11 @@ function App() {
                             alt={item.color}
                             width={18}
                             height={18}
+                            loading="lazy"
                             decoding="async"
                           />
                         )}
-                        {[item.color, item.color !== item.size ? item.size : ''].filter(Boolean).join(' آ· ') || item.size}
+                        {[item.color, item.color !== item.size ? item.size : ''].filter(Boolean).join(' · ') || item.size}
                       </p>
                       {(item.needsCustomText || item.needsCustomPhoto) ? (
                         <div className="cart-custom-card">
@@ -5323,7 +5935,7 @@ function App() {
                               )}
                               {item.customPhotoDataUrl ? (
                                 <div className="cart-custom-photo-preview">
-                                  <img src={item.customPhotoDataUrl} alt="صورتك" />
+                                  <img src={item.customPhotoDataUrl} alt="صورتك" loading="lazy" decoding="async" />
                                   <button
                                     className="cart-custom-photo-change"
                                     onClick={() => setCartItems((items) => items.map((i) =>
@@ -5403,7 +6015,7 @@ function App() {
                         <div className="qty-stepper">
                           <button
                             onClick={() => setCartItems((items) => items.map((i) => i.id === item.id ? { ...i, quantity: Math.max(1, i.quantity - 1) } : i))}
-                            aria-label="?????"
+                            aria-label="إنقاص الكمية"
                           ><Icon name="remove" /></button>
                           <span>{item.quantity}</span>
                           <button
@@ -5413,7 +6025,7 @@ function App() {
                               const next = i.quantity + 1
                               return { ...i, quantity: typeof maxQty === 'number' ? Math.min(maxQty, next) : next }
                             }))}
-                            aria-label="?????"
+                            aria-label="زيادة الكمية"
                           ><Icon name="add" /></button>
                         </div>
                       </div>
@@ -5530,11 +6142,12 @@ function App() {
                 </section>}
               </>
             ) : (
-              <EmptyState title="السلة فارغة" body="تصفح SHEIN من الصفحة الرئيسية وأضف منتجات إلى السلة." />
+              <EmptyState title={`سلة ${storeName(selectedStore)} فارغة`} body={`ادخل متجر ${storeName(selectedStore)} وأضف المنتجات، أو اختر سلة المتجر الآخر من الأعلى.`} />
             )}
+            </section>
           </main>
           <div className="sticky-pay-bar">
-            {!meetsMinimumOrder && (
+            {cartItems.length > 0 && !meetsMinimumOrder && (
               <p className="min-order-notice">
                 الحد الأدنى للطلب {formatMoney(MIN_ORDER_SYP)} — أضف منتجات أكثر للمتابعة
               </p>
@@ -5936,6 +6549,10 @@ function App() {
                     <img
                       src={item.items[0]?.image || 'https://placehold.co/60x60/f5f5f5/aaa?text=صورة'}
                       alt=""
+                      width={58}
+                      height={70}
+                      loading="lazy"
+                      decoding="async"
                       onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/60x60/f5f5f5/aaa?text=صورة' }}
                     />
                   </div>
@@ -6017,6 +6634,7 @@ function App() {
                         alt={item.title}
                         width={52}
                         height={52}
+                        loading="lazy"
                         decoding="async"
                         onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/54x54/f5f5f5/aaa?text=+' }}
                       />
@@ -6926,61 +7544,23 @@ function App() {
     }
 
     if (screen === 'store-select') {
-      const switchStore = (id: StoreId) => {
-        if (id !== selectedStore) {
-          setSelectedStore(id)
-          selectedStoreRef.current = id
-          storeReachableRef.current = false
-          webviewAutoOpenPausedUntilRef.current = 0
-          // لا تبسّط هذا التسلسل: تم تأكيد خلل شاشة بيضاء بتاريخ 2026-07-03.
-          // إغلاق متصفّح المتجر الحالي ثم إعادة فتحه على المتجر الجديد (تُحقن
-          // سكربتات otlobli من جديد). ننتظر اكتمال الإغلاق فعلياً قبل التنقل
-          // للرئيسية (بدل إطلاق الإغلاق والتنقل معاً في نفس اللحظة) — إغلاق
-          // وفتح متزامنين كانا يُدخلان البراوزر الأصلي بحالة عالقة (شاشة
-          // بيضاء لا تُصلَح إلا بإغلاق التطبيق كلياً من الخلفية). العلم يمنع
-          // مستمع closeEvent من إعادة فتح مكرّرة لهذا الإغلاق المقصود.
-          suppressAutoReopenRef.current = true
-          webviewSessionRef.current += 1
-          webviewOpeningRef.current = false
-          webviewIdRef.current = ''
-          sheinChallengeActiveRef.current = false
-          sheinCartProductSessionRef.current = false
-          sheinCartProductRecoveryInFlightRef.current = false
-          sheinOpenedRef.current = false
-          setSheinReady(false)
-          // الرجوع إلى شي إن ينظف WebKit memory/disk cache فقط بين الإغلاق
-          // والفتح؛ الكوكيز وlocalStorage (ومنها عنوان السعودية) تبقى محفوظة.
-          void InAppBrowser.close().catch(() => undefined)
-            .then(() => (id === 'shein' ? InAppBrowser.clearCache().catch(() => undefined) : undefined))
-            .then(() => {
-              suppressAutoReopenRef.current = false
-              setScreen('home')
-            })
-          return
-        }
-        setScreen('home')
-      }
       return (
-        <MobileShell active="profile" onNavigate={setScreen} hideBottomNav>
-          <Header title="اختيار المتجر" back={() => setScreen('profile')} unreadCount={unreadCount} onNotifications={openNotifications} />
-          <AccountDetailLayout>
-            <p className="settings-hint">اختر المتجر الذي تريد التصفّح والطلب منه. لكل متجر سلة منفصلة.</p>
-            {STORES.map((store) => (
-              <button
-                key={store.id}
-                className="notif-setting-row"
-                onClick={() => switchStore(store.id)}
-                aria-pressed={selectedStore === store.id}
-              >
-                <span className="notif-setting-icon"><Icon name="storefront" /></span>
-                <span className="notif-setting-text">
-                  <b>{store.name}</b>
-                  <small>{store.id === 'shein' ? 'متاح بالكامل' : 'تصفّح فقط حالياً'}</small>
-                </span>
-                {selectedStore === store.id && <Icon name="check_circle" />}
-              </button>
-            ))}
-          </AccountDetailLayout>
+        <MobileShell active="home" onNavigate={(target) => {
+          if (target === 'home') return
+          setScreen(target)
+        }}>
+          <StoreHubScreen
+            brandName={brandName}
+            brandLogoDataUrl={brandLogoDataUrl}
+            userName={userProfile?.name}
+            cartCounts={{
+              shein: cartsByStore.shein?.length ?? 0,
+              temu: cartsByStore.temu?.length ?? 0,
+            }}
+            unreadCount={unreadCount}
+            onNotifications={openNotifications}
+            onOpenStore={openStoreFromHub}
+          />
           <Toast message={notice} />
         </MobileShell>
       )
@@ -7109,6 +7689,8 @@ function App() {
 
     const currentStoreName = STORES.find((s) => s.id === selectedStore)?.name ?? 'المتجر'
     const storeFailureAdvice = getStoreFailureAdvice(currentStoreName, vpnState, vpnGeo, storeOpenFailureReason)
+    const personalTemuSurfaceActive =
+      TEMU_PERSONAL_SITE_MODE && Capacitor.getPlatform() === 'android' && selectedStoreRef.current === 'temu'
     return (
       // Keep React's own nav mounted here at all times, even while SHEIN's
       // webview (with its own injected nav - see ensureOtlobliNav) is
@@ -7119,8 +7701,26 @@ function App() {
       // reported when switching screens. With it always present underneath,
       // hiding the webview just reveals a nav that was already laid out,
       // not one that still needs to render.
-      <MobileShell active="home" onNavigate={setScreen}>
-        {(sheinBlockedError || vpnState === 'no-vpn' || vpnState === 'bad-region' || vpnState === 'offline') && (
+      <MobileShell
+        active="home"
+        homeDestination={personalTemuSurfaceActive ? 'stores' : 'home'}
+        showStoreSwitchHint={personalTemuSurfaceActive && !storeSwitchHintSeen}
+        onNavigate={(target) => {
+          if (personalTemuSurfaceActive) {
+            if (target === 'home') {
+              setStoreSwitchHintSeen(true)
+              storeMessageHandlerRef.current({ detail: { type: 'closeStore' } })
+              return
+            }
+            screenRef.current = target
+            flushSync(() => setScreen(target))
+            temuPersonalSiteOpenedRef.current = false
+            void TemuEmbeddedBrowser.hide().catch(() => undefined)
+            return
+          }
+          setScreen(target)
+        }}>
+        {storeGateVisible && (
           <Header title="otlobli" unreadCount={unreadCount} onNotifications={openNotifications} />
         )}
         {vpnState === 'checking' ? (
@@ -7215,6 +7815,52 @@ function App() {
   return (
     <div className="app-root">
       {renderScreen()}
+      {pendingStoreExit && (
+        <div className="crop-overlay" role="presentation" style={{ zIndex: 20000 }}>
+          <section
+            className="crop-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="store-exit-title"
+            aria-describedby="store-exit-description"
+          >
+            <div className="crop-head">
+              <strong id="store-exit-title">الخروج من متجر {storeName(pendingStoreExit)}؟</strong>
+              <Icon name="storefront" />
+            </div>
+            <p className="hint" id="store-exit-description">
+              ستعود إلى شاشة اختيار المتجر، وستبقى سلة {storeName(pendingStoreExit)} محفوظة كما هي.
+            </p>
+            <div className="crop-actions">
+              <button
+                type="button"
+                className="ghost-action"
+                autoFocus
+                onClick={() => {
+                  const store = pendingStoreExit
+                  setPendingStoreExit(null)
+                  if (store === 'shein' && sheinOpenedRef.current) {
+                    void InAppBrowser.show().catch(() => undefined).then(() => postWebviewChromeState('home'))
+                  } else if (store === 'temu') {
+                    temuPersonalSiteOpenedRef.current = true
+                    void TemuEmbeddedBrowser.open({ url: buildTemuHomeUrl(storeRegionsRef.current.temu) })
+                      .catch(() => { temuPersonalSiteOpenedRef.current = false })
+                  }
+                }}
+              >
+                البقاء في المتجر
+              </button>
+              <button
+                type="button"
+                className="primary-action"
+                onClick={() => storeMessageHandlerRef.current({ detail: { type: 'closeStore' } })}
+              >
+                خروج
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
       <Toast message={notice} />
     </div>
   )
@@ -7262,7 +7908,10 @@ function AuthShell({
           <i />
           <b>طلبية</b>
           <i />
-          <span>سوريا</span>
+          <span className="auth-route-destination" style={AUTH_ROUTE_DESTINATION_STYLE}>
+            <img src="/flags/syria-independence-flag.svg" alt="" width="24" height="16" style={AUTH_ROUTE_FLAG_STYLE} />
+            سوريا
+          </span>
         </div>
         <header className="auth-heading">
           <span className="auth-kicker">حسابك وطلباتك في مكان واحد</span>
@@ -7320,6 +7969,96 @@ function Toast({ message }: { message: string }) {
   return <div className="toast" role="status" aria-live="polite">{message}</div>
 }
 
+function StoreHubScreen({
+  brandName,
+  brandLogoDataUrl,
+  userName,
+  cartCounts,
+  unreadCount,
+  onNotifications,
+  onOpenStore,
+}: {
+  brandName: string
+  brandLogoDataUrl: string
+  userName?: string
+  cartCounts: Record<StoreId, number>
+  unreadCount: number
+  onNotifications: () => void
+  onOpenStore: (store: StoreId) => void
+}) {
+  const firstName = userName?.trim().split(/\s+/)[0] ?? ''
+  const stores: Array<{
+    id: StoreId
+    latinName: string
+    arabicName: string
+    description: string
+  }> = [
+    { id: 'shein', latinName: 'SHEIN', arabicName: 'شي إن', description: 'الأزياء والإكسسوارات' },
+    { id: 'temu', latinName: 'TEMU', arabicName: 'تيمو', description: 'كل ما تحتاجه بمكان واحد' },
+  ]
+
+  return (
+    <main className="store-hub" id="main-content">
+      <header className="store-hub__topbar">
+        <div className="store-hub__brand">
+          <span className={`store-hub__brand-mark${brandLogoDataUrl ? ' has-image' : ''}`} aria-hidden={!brandLogoDataUrl}>
+            {brandLogoDataUrl ? (
+              <img src={brandLogoDataUrl} alt="" width="38" height="38" fetchPriority="high" />
+            ) : (
+              <span translate="no">o</span>
+            )}
+          </span>
+          <span translate="no">{brandName}</span>
+        </div>
+        <button className="store-hub__notifications" type="button" onClick={onNotifications} aria-label="الإشعارات">
+          <Icon name="notifications" />
+          {unreadCount > 0 && <span className="notif-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>}
+        </button>
+      </header>
+
+      <section className="store-hub__intro" aria-labelledby="store-hub-title">
+        <span className="store-hub__eyebrow"><Icon name="local_shipping" /> من المتجر إلى سوريا</span>
+        <h1 id="store-hub-title">
+          {firstName ? <span>أهلاً {firstName}،</span> : <span>أهلاً بك،</span>}
+          من وين بدك تطلب اليوم؟
+        </h1>
+        <p>اختر المتجر، وندخّلك مباشرة على منتجاته داخل التطبيق.</p>
+      </section>
+
+      <section className="store-hub__stores" aria-label="المتاجر المتاحة">
+        {stores.map((store) => (
+          <button
+            className={`store-card store-card--${store.id}`}
+            type="button"
+            key={store.id}
+            onClick={() => onOpenStore(store.id)}
+            aria-label={`فتح متجر ${store.arabicName}`}
+          >
+            <span className="store-card__topline">
+              <span>السعودية</span>
+              <Icon name="north_west" />
+            </span>
+            <span className="store-card__brand" translate="no">{store.latinName}</span>
+            <span className="store-card__name">{store.arabicName}</span>
+            <span className="store-card__description">{store.description}</span>
+            <span className="store-card__footer">
+              <span>دخول المتجر</span>
+              {cartCounts[store.id] > 0 && (
+                <span className="store-card__cart-count">{cartCounts[store.id]} في السلة</span>
+              )}
+            </span>
+          </button>
+        ))}
+      </section>
+
+      <div className="store-hub__note">
+        <Icon name="shopping_bag" />
+        <p><b>سلة مستقلة لكل متجر</b><span>اختياراتك وجلسة التصفّح تبقى محفوظة عند الرجوع.</span></p>
+      </div>
+    </main>
+  )
+}
+
 function StoreLoadingScreen() {
   return (
     <main className="mobile-content shein-home store-loading" role="status" aria-live="polite">
@@ -7329,7 +8068,7 @@ function StoreLoadingScreen() {
   )
 }
 
-function HomeScreen({ userName, onRetry, storeName = 'المتجر', failureAdvice }: { userName?: string; onRetry?: () => void; storeName?: string; failureAdvice: ReturnType<typeof getStoreFailureAdvice> }) {
+function HomeScreen({ userName, onRetry, failureAdvice }: { userName?: string; onRetry?: () => void; storeName?: string; failureAdvice: ReturnType<typeof getStoreFailureAdvice> }) {
   const [timedOut, setTimedOut] = useState(false)
   useEffect(() => {
     const t = window.setTimeout(() => setTimedOut(true), 30_000)
@@ -7353,6 +8092,7 @@ function HomeScreen({ userName, onRetry, storeName = 'المتجر', failureAdvi
 
 const NAV_ICONS = {
   home:    '<path d="M4 11.5 12 4l8 7.5"/><path d="M6 10v9h12v-9"/><path d="M10 19v-5h4v5"/>',
+  stores:  '<path d="M4 10v10h16V10"/><path d="M3 10l2-6h14l2 6"/><path d="M3 10c0 1.1.9 2 2 2s2-.9 2-2c0 1.1.9 2 2 2s2-.9 2-2c0 1.1.9 2 2 2s2-.9 2-2c0 1.1.9 2 2 2s2-.9 2-2"/><path d="M9 20v-5h6v5"/>',
   orders:  '<rect x="4" y="7" width="16" height="13" rx="1.3"/><path d="M4 7l8-4 8 4"/><path d="M12 11v9"/>',
   cart:    '<circle cx="9" cy="20" r="1.3"/><circle cx="18" cy="20" r="1.3"/><path d="M3 4h2l2.2 11.5a2 2 0 0 0 2 1.6h8.6a2 2 0 0 0 2-1.6L21 8H6"/>',
   profile: '<circle cx="12" cy="8" r="3.6"/><path d="M5 20c0-3.8 3.1-6.4 7-6.4s7 2.6 7 6.4"/>',
@@ -7363,18 +8103,30 @@ function MobileShell({
   active,
   onNavigate,
   hideBottomNav,
+  homeDestination = 'home',
+  showStoreSwitchHint = false,
 }: {
   active?: 'home' | 'orders' | 'cart' | 'profile'
   children: ReactNode
   onNavigate?: (screen: Screen) => void
   hideBottomNav?: boolean
+  homeDestination?: 'home' | 'stores'
+  showStoreSwitchHint?: boolean
 }) {
+  const storesDestination = homeDestination === 'stores'
   return (
     <div className="mobile-shell">
       {children}
       {!hideBottomNav && onNavigate && (
         <nav className="bottom-nav" aria-label="التنقل الرئيسي">
-          <NavButton active={active === 'home'}    svgPaths={NAV_ICONS.home}    label="الرئيسية" onClick={() => onNavigate('home')} />
+          <NavButton
+            active={active === 'home'}
+            svgPaths={storesDestination ? NAV_ICONS.stores : NAV_ICONS.home}
+            label={storesDestination ? 'المتاجر' : 'الرئيسية'}
+            hint={storesDestination && showStoreSwitchHint ? 'بدّل هنا ↑' : undefined}
+            ariaLabel={storesDestination ? 'العودة إلى المتاجر واختيار SHEIN أو Temu' : undefined}
+            onClick={() => onNavigate('home')}
+          />
           <NavButton active={active === 'orders'}  svgPaths={NAV_ICONS.orders}  label="طلباتي"   onClick={() => onNavigate('orders')} />
           <NavButton active={active === 'cart'}    svgPaths={NAV_ICONS.cart}    label="السلة"    onClick={() => onNavigate('cart')} />
           <NavButton active={active === 'profile'} svgPaths={NAV_ICONS.profile} label="حسابي"   onClick={() => onNavigate('profile')} />
@@ -7384,11 +8136,32 @@ function MobileShell({
   )
 }
 
-function NavButton({ active, svgPaths, label, onClick }: { active: boolean; svgPaths: string; label: string; onClick: () => void }) {
+function NavButton({
+  active,
+  svgPaths,
+  label,
+  hint,
+  ariaLabel,
+  onClick,
+}: {
+  active: boolean
+  svgPaths: string
+  label: string
+  hint?: string
+  ariaLabel?: string
+  onClick: () => void
+}) {
   return (
-    <button type="button" className={active ? 'is-active' : ''} aria-current={active ? 'page' : undefined} onClick={onClick}>
+    <button
+      type="button"
+      className={`${active ? 'is-active' : ''}${hint ? ' has-nav-hint' : ''}`}
+      aria-current={active ? 'page' : undefined}
+      aria-label={ariaLabel}
+      onClick={onClick}
+    >
+      {hint && <span className="nav-learning-hint" aria-hidden="true">{hint}</span>}
       <svg aria-hidden="true" focusable="false" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" dangerouslySetInnerHTML={{ __html: svgPaths }} />
-      <span>{label}</span>
+      <span className="nav-label">{label}</span>
     </button>
   )
 }

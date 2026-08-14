@@ -40,6 +40,9 @@ allprojects {
         }
         google()
         mavenCentral()
+        // The personal Temu build embeds GeckoView so the site stays inside
+        // Otlobli without being classified as Android System WebView.
+        maven { url 'https://maven.mozilla.org/maven2/' }
     }
 }
 

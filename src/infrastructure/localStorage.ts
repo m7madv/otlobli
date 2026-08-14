@@ -38,6 +38,7 @@ export const storageKeys = {
   notifications: 'talabieh.notifications',
   notificationPrefs: 'talabieh.notificationPrefs',
   selectedStore: 'talabieh.selectedStore',
+  storeSwitchHintSeen: 'talabieh.storeSwitchHintSeen.v1',
   cartsByStore: 'talabieh.cartsByStore',
   cartGroup: 'talabieh.cartGroup',
   walletBalanceSyp: 'talabieh.walletBalanceSyp',

@@ -1,4 +1,4 @@
-// Runs inside SHEIN's page. It only observes the store's own verification UI;
+// Runs inside the active store page. It only observes the store's own verification UI;
 // it never clicks, solves, reloads, or changes the verification response.
 export const OTLOBLI_SHEIN_HUMAN_CHECK_JS = `
   var OTLOBLI_HUMAN_CHECK_PENDING_KEY = '__otlobliHumanCheckPendingAt';
@@ -46,7 +46,7 @@ export const OTLOBLI_SHEIN_HUMAN_CHECK_JS = `
       }
       if (document.querySelector('[id*="challenge" i],[class*="challenge" i],[data-testid*="challenge" i]')) {
         var challengeText = document.body ? (document.body.textContent || '').slice(0, 3200) : '';
-        if (/verify you are human|security verification|checking your browser|cloudflare|التحقق من أنك إنسان|أنا إنسان|لست روبوت|التحقق من الأمان/i.test(challengeText)) return (__otlobliChallengeScanResult = true);
+        if (/verify you are human|security verification|checking your browser|cloudflare|التحقق الأمني|التحقق من أنك إنسان|أنا إنسان|لست روبوت|التحقق من الأمان/i.test(challengeText)) return (__otlobliChallengeScanResult = true);
       }
     } catch (e) {}
     __otlobliChallengeScanResult = false;
@@ -62,7 +62,8 @@ export const OTLOBLI_SHEIN_HUMAN_CHECK_JS = `
       guide.setAttribute('role', 'status');
       guide.setAttribute('aria-live', 'polite');
       guide.style.cssText = 'position:fixed!important;top:calc(env(safe-area-inset-top,0px) + 10px)!important;left:50%!important;transform:translateX(-50%)!important;width:calc(100% - 24px)!important;max-width:390px!important;box-sizing:border-box!important;z-index:2147483646!important;pointer-events:none!important;direction:rtl!important;text-align:right!important;background:#f4fbf7!important;color:#12382b!important;border:1px solid #b9ddcc!important;border-radius:14px!important;box-shadow:0 8px 24px rgba(15,61,45,.16)!important;padding:10px 12px!important;font-family:system-ui,-apple-system,sans-serif!important;line-height:1.45!important;';
-      guide.innerHTML = '<strong style="display:block;font-size:13px;font-weight:800">تحقق SHEIN مطلوب لفتح المنتجات</strong><span style="display:block;margin-top:2px;font-size:12px">اضغط «أنا إنسان» داخل الصفحة للمتابعة، أو ارجع من الشريط بالأسفل.</span>';
+      var challengeStoreLabel = IS_TEMU ? 'Temu' : 'SHEIN';
+      guide.innerHTML = '<strong style="display:block;font-size:13px;font-weight:800">تحقق ' + challengeStoreLabel + ' مطلوب لفتح المنتجات</strong><span style="display:block;margin-top:2px;font-size:12px">أكمل التحقق داخل الصفحة للمتابعة، أو ارجع من الشريط بالأسفل.</span>';
       document.body.appendChild(guide);
     }
   }
@@ -88,7 +89,13 @@ export const OTLOBLI_SHEIN_HUMAN_CHECK_JS = `
 
   function otlobliEnterChallengeMode() {
     otlobliRememberHumanChallenge();
-    try { writeSheinSaudiState(); } catch (e) {}
+    // No region write here. Seeding 26 .shein.com cookies plus localStorage the
+    // instant a challenge appears changes the session fingerprint between the
+    // moment SHEIN issues its token and the moment it validates the answer, so
+    // a correctly solved check comes back "Access timed out, please refresh the
+    // page and try again". The rule already exists in ensureSheinSaudiStore()
+    // ("ممنوع أي إعادة تحميل/كتابة أثناء التحقق") — this path was breaking it.
+    // The Saudi state is written once the customer has finished, below.
     try {
       var ours = document.querySelectorAll('[id^="otlobli"]');
       for (var ci = 0; ci < ours.length; ci++) {
