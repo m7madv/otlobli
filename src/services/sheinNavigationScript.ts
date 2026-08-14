@@ -22,6 +22,8 @@ export const OTLOBLI_NAV_CSS =
 // deduplicates the synthetic click that follows a completed touch.
 export const OTLOBLI_NAV_TOUCH_BRIDGE_JS = `
   function otlobliInstallNavTouchBridge() {
+    var featureFlags = window.__OTLOBLI_SCRIPT_FLAGS__;
+    if (featureFlags && (featureFlags.runtime === false || featureFlags.navigation === false)) return;
     if (window.__otlobliNavTouchBridgeBound) return;
     window.__otlobliNavTouchBridgeBound = true;
     var routeOtlobliNavTouch = function (event) {

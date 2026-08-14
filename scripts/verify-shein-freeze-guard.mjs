@@ -18,6 +18,7 @@ const sheinRuntimeSourceFiles = [
   'src/services/storeBlockingScript.ts',
   'src/services/temuBrowserScript.ts',
   'src/services/storeRuntimeCoordinator.ts',
+  'src/services/storeScriptDiagnostics.ts',
 ]
 const readSheinRuntimeSource = () => sheinRuntimeSourceFiles
   .map((file) => readFileSync(resolve(projectRoot, file), 'utf8'))
@@ -230,6 +231,39 @@ const checks = [
       ': { isAnimated: false })',
       'if (!pendingStoreOpenAfterCloseRef.current || screenRef.current !== \'home\' ||',
       'pendingStoreOpenAfterCloseRef.current = true',
+    ],
+  },
+  {
+    label: 'diagnostic script isolation panel',
+    file: 'src/services/storeScriptDiagnostics.ts',
+    markers: [
+      'STORE_SCRIPT_DIAGNOSTICS_PANEL_SCRIPT',
+      "['runtime', 'كل تدخلات Otlobli'",
+      "['navigation', 'الشريط والتنقّل'",
+      "['blocking', 'الحجب والتنظيف'",
+      "['capture', 'الجذب والإضافة'",
+      "['session', 'الجلسة والمنطقة'",
+      "post({ type: 'storeScriptFlagsChanged', flags: flags, label: label })",
+      "post({ type: 'closeStore' })",
+      "status.setAttribute('aria-live', 'polite')",
+      '@media(prefers-reduced-motion:reduce)',
+      'overscroll-behavior:contain',
+    ],
+    forbidden: [
+      'document.cookie',
+      'localStorage.setItem',
+      'MutationObserver',
+      'setInterval(',
+      'transition:all',
+    ],
+  },
+  {
+    label: 'diagnostic toggles remain test-build only',
+    file: 'src/config.ts',
+    markers: [
+      'export const STORE_SCRIPT_DIAGNOSTICS =',
+      'VITE_STORE_SCRIPT_DIAGNOSTICS',
+      'v86.187-script-isolation',
     ],
   },
   {
@@ -522,7 +556,7 @@ const checks = [
       "sheinRegionDiag('capture-script-injected'",
       "sheinRegionDiag('shipping-entry-control'",
       "sheinRegionDiag('region-veil-state'",
-      'if (IS_SHEIN) sheinPrimeRegionRepairFromRoute();',
+      "if (otlobliScriptEnabled('session') && IS_SHEIN) sheinPrimeRegionRepairFromRoute();",
       "nav.style.setProperty('pointer-events', 'auto', 'important')",
       "nav.removeAttribute('data-otlobli-nav-yield')",
       "if (nav.querySelector('#otlobli-nav-region-guard'))",
@@ -1066,6 +1100,32 @@ try {
   new Function(exports.OTLOBLI_NAV_BOOTSTRAP_SCRIPT)
 } catch (error) {
   failures.push(`SHEIN minified release scripts: ${error instanceof Error ? error.message : String(error)}`)
+}
+
+try {
+  const diagnosticsModule = evaluateInjectedScriptExports('src/services/storeScriptDiagnostics.ts')
+  new Function(diagnosticsModule.STORE_SCRIPT_DIAGNOSTICS_PANEL_SCRIPT)
+  const bundleModule = evaluateInjectedScriptExports('src/services/storeCaptureBundle.ts')
+  const rawFlags = { runtime: false, navigation: false, blocking: false, capture: false, session: false }
+  const rawScript = bundleModule.buildStoreCaptureScript({}, rawFlags, true)
+  const fullDiagnosticScript = bundleModule.buildStoreCaptureScript({}, {
+    runtime: true, navigation: true, blocking: true, capture: true, session: true,
+  }, true)
+  const productionScript = bundleModule.buildStoreCaptureScript({}, undefined, false)
+  new Function(rawScript)
+  new Function(fullDiagnosticScript)
+  if (!rawScript.includes('otlobli-script-diagnostics') || rawScript.includes('function tick()') ||
+      rawScript.includes('setInterval(') || rawScript.includes('__otlobliRegionDiagnostic')) {
+    failures.push('SHEIN script isolation: raw-store preset must contain the panel and exclude the normal coordinator')
+  }
+  if (!fullDiagnosticScript.includes('otlobli-script-diagnostics') || !fullDiagnosticScript.includes('function tick()')) {
+    failures.push('SHEIN script isolation: full diagnostic preset must contain both panel and normal coordinator')
+  }
+  if (productionScript.includes('otlobli-script-diagnostics')) {
+    failures.push('SHEIN script isolation: normal customer injection must not include the diagnostic panel')
+  }
+} catch (error) {
+  failures.push(`SHEIN script isolation syntax: ${error instanceof Error ? error.message : String(error)}`)
 }
 
 try {

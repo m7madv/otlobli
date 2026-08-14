@@ -16,7 +16,8 @@ import type { PaymentCurrency } from './domain/pricing'
 import type { Address, AppNotification, CartGroupSnapshot, CartItem, NotificationPrefs, Order, OrderIssue, Product, ProductColor, Recipient, Screen, StatusTone, UserProfile, WalletTransaction } from './domain/types'
 import { getDeviceId, readStoredJson, storageKeys, useStoredState } from './infrastructure/localStorage'
 import { appApi } from './services'
-import { PAYMENT_MODE, APP_VERSION, SHEIN_IOS_FREEZE_DIAGNOSTICS, SHEIN_IOS_FREEZE_DIAGNOSTICS_BYPASS_RECOVERY, TEMU_PERSONAL_SITE_MODE, TEST_ONLY_AUTH_BYPASS, cleanEnvValue } from './config'
+import { PAYMENT_MODE, APP_VERSION, SHEIN_IOS_FREEZE_DIAGNOSTICS, SHEIN_IOS_FREEZE_DIAGNOSTICS_BYPASS_RECOVERY, STORE_SCRIPT_DIAGNOSTICS, TEMU_PERSONAL_SITE_MODE, TEST_ONLY_AUTH_BYPASS, cleanEnvValue } from './config'
+import type { StoreScriptFlags } from './services/storeScriptDiagnostics'
 import { buildWhatsappLink } from './services/whatsappLink'
 import {
   getAccountAuthMethods,
@@ -67,6 +68,31 @@ const loadStoreCaptureBundle = () => {
   storeCaptureBundlePromise ??= import('./services/storeCaptureBundle')
   return storeCaptureBundlePromise
 }
+
+const STORE_SCRIPT_FLAGS_STORAGE_KEY = 'otlobli.storeScriptDiagnostics.flags.v1'
+const DEFAULT_STORE_SCRIPT_FLAGS: StoreScriptFlags = {
+  runtime: true,
+  navigation: true,
+  blocking: true,
+  capture: true,
+  session: true,
+}
+const normalizeStoreScriptFlags = (value: unknown): StoreScriptFlags => {
+  const candidate = value && typeof value === 'object' ? value as Record<string, unknown> : {}
+  return {
+    runtime: candidate.runtime !== false,
+    navigation: candidate.navigation !== false,
+    blocking: candidate.blocking !== false,
+    capture: candidate.capture !== false,
+    session: candidate.session !== false,
+  }
+}
+const readStoreScriptFlags = () => STORE_SCRIPT_DIAGNOSTICS
+  ? normalizeStoreScriptFlags(readStoredJson<StoreScriptFlags>(
+      STORE_SCRIPT_FLAGS_STORAGE_KEY,
+      DEFAULT_STORE_SCRIPT_FLAGS,
+    ))
+  : DEFAULT_STORE_SCRIPT_FLAGS
 
 // موقع SHEIN الذي يتصفّحه الزبون. نستخدم نسخة الأردن لأنها تعرض العربية
 // بثبات (نسخة لبنان m.shein.com/lb تعرض الإنجليزية ولا تقبل العربية).
@@ -2977,6 +3003,7 @@ function App() {
   // Keep one event-driven reopen request so a quick same-store tap cannot be
   // discarded by webviewClosingRef and leave Home with no browser behind it.
   const pendingStoreOpenAfterCloseRef = useRef(false)
+  const storeScriptFlagsRef = useRef<StoreScriptFlags>(readStoreScriptFlags())
   const ignoredWebviewCloseIdsRef = useRef(new Set<string>())
   const webviewErrorTimerRef = useRef<number | undefined>(undefined)
   const sheinReadinessTimerRef = useRef<number | undefined>(undefined)
@@ -3847,7 +3874,16 @@ function App() {
     const targetUrl = activeStore === 'shein'
       ? normalizeSheinBrowserUrl(rawTargetUrl, activeRegions.shein)
       : normalizeTemuBrowserUrl(rawTargetUrl, activeRegions.temu)
-    const captureScript = captureBundle.buildStoreCaptureScript(activeRegions)
+    const activeScriptFlags = storeScriptFlagsRef.current
+    const captureScript = captureBundle.buildStoreCaptureScript(
+      activeRegions,
+      activeScriptFlags,
+      STORE_SCRIPT_DIAGNOSTICS,
+    )
+    const scriptDiagnosticsPrelude = captureBundle.buildStoreScriptDiagnosticsPrelude(
+      activeScriptFlags,
+      STORE_SCRIPT_DIAGNOSTICS,
+    )
     const hostSafeBottomInset = readHostSafeBottomInset()
     if (initialPendingUrl && pendingProductRevealRef.current &&
         pendingProductRevealUrlRef.current === targetUrl) {
@@ -3883,7 +3919,7 @@ function App() {
             isIosNative,
           // Customer releases must not expose the native diagnostic copy button.
           otlobliTapDiagnostics: false,
-          otlobliDocumentStartScript: `window.__otlobliSafeBottom=${hostSafeBottomInset};\n${captureBundle.OTLOBLI_NAV_BOOTSTRAP_SCRIPT}\n${SHEIN_IOS_FREEZE_DIAGNOSTICS && isIosNative ? captureBundle.SHEIN_FREEZE_DIAGNOSTIC_SCRIPT : ''}`,
+          otlobliDocumentStartScript: `window.__otlobliSafeBottom=${hostSafeBottomInset};\n${scriptDiagnosticsPrelude}\n${!STORE_SCRIPT_DIAGNOSTICS || (activeScriptFlags.runtime && activeScriptFlags.navigation) ? captureBundle.OTLOBLI_NAV_BOOTSTRAP_SCRIPT : ''}\n${SHEIN_IOS_FREEZE_DIAGNOSTICS && isIosNative ? captureBundle.SHEIN_FREEZE_DIAGNOSTIC_SCRIPT : ''}`,
           otlobliPreserveAttachedWhenHidden: true,
           // Prepare SHEIN at the real device size without presenting it. The
           // already-mounted Otlobli shell therefore owns the only visible nav
@@ -4339,7 +4375,11 @@ function App() {
         void captureBundleReady
           .then((loadedBundle) => InAppBrowser.executeScript({
             ...(id ? { id } : {}),
-            code: loadedBundle.buildStoreCaptureScript(storeRegionsRef.current),
+            code: loadedBundle.buildStoreCaptureScript(
+              storeRegionsRef.current,
+              storeScriptFlagsRef.current,
+              STORE_SCRIPT_DIAGNOSTICS,
+            ),
           }))
           .then(() => {
             recordSheinRegionDiagnostic({
@@ -4446,6 +4486,7 @@ function App() {
       if (id && webviewIdRef.current && id !== webviewIdRef.current) return
       currentWebviewUrlRef.current = url
       if (/shein/i.test(url)) {
+        if (STORE_SCRIPT_DIAGNOSTICS && !storeScriptFlagsRef.current.session) return
         if (isSheinHumanChallengeUrl(url)) {
           sheinChallengeActiveRef.current = true
           if (webviewErrorTimerRef.current !== undefined) {
@@ -4527,6 +4568,60 @@ function App() {
       const messageType = typeof detail?.type === 'string' ? detail.type : ''
       if (['temuProductVisible', 'sheinSaudiReady', 'sheinPageInteractive', 'humanCheck', 'humanCheckResolved', 'humanCheckSkipped', 'sheinBlocked', 'openHome', 'closeStore', 'requestStoreExit', 'openCart', 'backToCart', 'openOrders', 'openProfile'].includes(messageType)) {
         recordAppDiagnostic('store_message', { store: selectedStoreRef.current, type: messageType })
+      }
+
+      if (detail?.type === 'storeScriptFlagsChanged') {
+        if (!STORE_SCRIPT_DIAGNOSTICS) return
+        const nextFlags = normalizeStoreScriptFlags(detail.flags)
+        storeScriptFlagsRef.current = nextFlags
+        try {
+          window.localStorage.setItem(STORE_SCRIPT_FLAGS_STORAGE_KEY, JSON.stringify(nextFlags))
+        } catch { /* The in-memory selection still applies to this test run. */ }
+        recordAppDiagnostic('store_script_flags_changed', {
+          store: selectedStoreRef.current,
+          runtime: nextFlags.runtime,
+          navigation: nextFlags.navigation,
+          blocking: nextFlags.blocking,
+          capture: nextFlags.capture,
+          session: nextFlags.session,
+        })
+
+        // Apply each comparison to a clean JavaScript runtime while retaining
+        // WKWebsiteDataStore/Android website data. This is the diagnostic
+        // equivalent of the user's proven Temu -> SHEIN reset, without changing
+        // stores, clearing cookies, or leaving two native browsers racing.
+        clearSheinReadinessWatchdog()
+        clearPendingProductPreparation()
+        pendingBackTargetRef.current = 'home'
+        pendingStoreOpenAfterCloseRef.current = true
+        suppressAutoReopenRef.current = true
+        webviewClosingRef.current = true
+        const closingWebviewId = webviewIdRef.current
+        if (closingWebviewId) ignoredWebviewCloseIdsRef.current.add(closingWebviewId)
+        webviewSessionRef.current += 1
+        webviewOpeningRef.current = false
+        webviewOpenedAtRef.current = 0
+        webviewIdRef.current = ''
+        currentWebviewUrlRef.current = ''
+        sheinChallengeActiveRef.current = false
+        sheinCartProductSessionRef.current = false
+        sheinOpenedRef.current = false
+        setSheinReady(false)
+        setSheinBlockedError(false)
+        void InAppBrowser.close(closingWebviewId
+          ? { id: closingWebviewId, isAnimated: false }
+          : { isAnimated: false })
+          .catch(() => undefined)
+          .finally(() => {
+            webviewClosingRef.current = false
+            suppressAutoReopenRef.current = false
+            if (screenRef.current !== 'home' || vpnStateRef.current !== 'ok') return
+            window.setTimeout(() => {
+              if (webviewClosingRef.current || sheinOpenedRef.current || webviewOpeningRef.current) return
+              browseSheinRef.current()
+            }, 80)
+          })
+        return
       }
 
       if (detail?.type === 'sheinChunkLoadFailure') {

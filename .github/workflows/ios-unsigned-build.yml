@@ -2,6 +2,12 @@ name: iOS Unsigned Build
 
 on:
   workflow_dispatch:
+    inputs:
+      store_diagnostics:
+        description: 'Include the customer-visible store script isolation panel'
+        required: false
+        default: false
+        type: boolean
   push:
     branches: [main, codex/customer-wallet-group-orders]
 
@@ -42,6 +48,7 @@ jobs:
           VITE_SHEIN_WORKER_URL: ${{ secrets.VITE_SHEIN_WORKER_URL }}
           VITE_SHEIN_SCRAPER_URL: ${{ secrets.VITE_SHEIN_SCRAPER_URL }}
           VITE_USD_TO_SYP_RATE: ${{ secrets.VITE_USD_TO_SYP_RATE }}
+          VITE_STORE_SCRIPT_DIAGNOSTICS: ${{ github.event_name == 'workflow_dispatch' && inputs.store_diagnostics || false }}
 
       - run: npx cap sync ios
 

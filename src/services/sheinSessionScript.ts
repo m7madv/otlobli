@@ -21,7 +21,7 @@ export const SHEIN_SESSION_SCRIPT = `
     parent.appendChild(fontStyle);
     return true;
   }
-  ensureOtlobliBaseStyle();
+  if (otlobliScriptEnabled('blocking')) ensureOtlobliBaseStyle();
 
   function ensureViewportFitCover() {
     if (!document.head) return;
@@ -41,7 +41,7 @@ export const SHEIN_SESSION_SCRIPT = `
       meta.setAttribute('content', nextContent);
     }
   }
-  ensureViewportFitCover();
+  if (otlobliScriptEnabled('navigation')) ensureViewportFitCover();
 
   // هل نحن داخل أحد مواقع شي إن؟ منطق الالتقاط/الحجب الخاص بشي إن يعمل فقط
   // عندها؛ على المتاجر الأخرى (تيمو/ترينديول) نكتفي بتنظيف العروض المنبثقة.
@@ -1603,7 +1603,7 @@ export const SHEIN_SESSION_SCRIPT = `
   }
 
   // فرض العربية خاص بشي إن فقط (غيره قد يضبط كوكي لغة خاطئة فيعيد التحميل بلا داعٍ).
-  if (IS_SHEIN) {
+  if (IS_SHEIN && otlobliScriptEnabled('session')) {
     var normalizedArabicUrl = otlobliNormalizeSheinUrl(location.href);
     // ممنوع إعادة تحميل أثناء تحقق «أنا إنسان» — تصفّر حل المستخدم.
     if (shouldReloadSheinForSaudi() && !otlobliIsHumanChallenge()) {

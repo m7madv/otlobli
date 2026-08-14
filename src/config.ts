@@ -21,6 +21,11 @@ export const TEST_ONLY_AUTH_BYPASS = false
 export const SHEIN_IOS_FREEZE_DIAGNOSTICS = false
 export const SHEIN_IOS_FREEZE_DIAGNOSTICS_BYPASS_RECOVERY = false
 
+// Dedicated device-isolation build only. Normal releases keep this false and
+// do not inject the side panel or accept runtime feature-toggle messages.
+export const STORE_SCRIPT_DIAGNOSTICS =
+  cleanEnvValue(String(import.meta.env.VITE_STORE_SCRIPT_DIAGNOSTICS ?? '')).toLowerCase() === 'true'
+
 // Personal Android diagnostic only: Temu opens through the device browser's
 // website session, which is the one path proven to admit guest product pages.
 // Customer builds leave this disabled and keep the existing internal WebView.
@@ -29,5 +34,9 @@ export const TEMU_PERSONAL_SITE_MODE =
 
 // رقم النسخة الظاهر داخل التطبيق.
 export const APP_VERSION = TEMU_PERSONAL_SITE_MODE
-  ? '2026.08.14-v86.186-personal-store-reentry-queue'
-  : '2026.08.14-v86.186-store-reentry-queue'
+  ? (STORE_SCRIPT_DIAGNOSTICS
+      ? '2026.08.14-v86.187-personal-script-isolation'
+      : '2026.08.14-v86.187-personal-store-reentry-queue')
+  : (STORE_SCRIPT_DIAGNOSTICS
+      ? '2026.08.14-v86.187-script-isolation'
+      : '2026.08.14-v86.187-store-reentry-queue')

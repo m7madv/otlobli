@@ -13,6 +13,12 @@ export { OTLOBLI_NAV_BOOTSTRAP_SCRIPT }
 // independently reviewable and testable.
 export const SHEIN_CAPTURE_SCRIPT = `
 (function () {
+  var OTLOBLI_SCRIPT_FLAGS = window.__OTLOBLI_SCRIPT_FLAGS__ || {
+    runtime: true, navigation: true, blocking: true, capture: true, session: true
+  };
+  function otlobliScriptEnabled(name) {
+    return OTLOBLI_SCRIPT_FLAGS.runtime !== false && OTLOBLI_SCRIPT_FLAGS[name] !== false;
+  }
 ${SHEIN_SESSION_SCRIPT}
 ${STORE_PRODUCT_CAPTURE_SCRIPT}
 ${STORE_BLOCKING_SCRIPT}

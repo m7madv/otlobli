@@ -47,8 +47,8 @@ android {
         applicationId "com.otlobli.app"
         minSdkVersion temuPersonalSiteBuild ? 26 : rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1048
-        versionName temuPersonalSiteBuild ? "86.186-personal-store-reentry-queue" : "86.186"
+        versionCode 1049
+        versionName temuPersonalSiteBuild ? "86.187-personal-script-isolation" : "86.187"
         buildConfigField "boolean", "TEMU_PERSONAL_SITE", temuPersonalSiteBuild.toString()
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         if (temuPersonalSiteBuild) {

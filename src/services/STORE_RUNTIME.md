@@ -11,6 +11,7 @@ file owns one responsibility:
 | `storeBlockingScript.ts` | Store chrome, native add buttons, popups, and other explicitly blocked controls. |
 | `temuBrowserScript.ts` | Temu-specific browsing and capture behavior. |
 | `storeRuntimeCoordinator.ts` | One recurring scheduler that invokes the other responsibilities. |
+| `storeScriptDiagnostics.ts` | Diagnostic-build-only side panel and validated feature flags; unavailable in customer builds. |
 | `sheinBrowserScript.ts` | Composition only; no page behavior belongs here. |
 
 ## Session invariants
@@ -31,3 +32,14 @@ file owns one responsibility:
   short capture window.
 - Document-start timers are bounded and stop as soon as the full runtime is
   ready.
+
+## Diagnostic isolation build
+
+- `VITE_STORE_SCRIPT_DIAGNOSTICS=true` adds one customer-visible side panel.
+- The raw-store preset injects only that panel and a painted-page readiness
+  signal; the normal navigation, blocking, capture, session, and coordinator
+  runtime is not evaluated in the store page.
+- Changing a flag recreates one native WebView without clearing cookies,
+  storage, cache, or the store's solved verification proof.
+- Normal customer builds keep the flag false and never inject or accept this
+  control surface.

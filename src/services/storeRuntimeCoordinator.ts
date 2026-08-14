@@ -1,31 +1,31 @@
 export const STORE_RUNTIME_COORDINATOR_SCRIPT = `
   function tick() {
     if (!document.body) return;
-    otlobliHealOrphanScrollLock();
-    if (IS_SHEIN && sheinLooksLikeProductRouteForShipping()) {
+    if (otlobliScriptEnabled('blocking')) otlobliHealOrphanScrollLock();
+    if (otlobliScriptEnabled('session') && IS_SHEIN && sheinLooksLikeProductRouteForShipping()) {
       sheinRegionDiag('tick-product-route', {
         addressCountry: sheinAddressCookieCountry(),
         signedReady: sheinSignedSaudiAddressReady()
       }, 'tick');
     }
-    if (IS_SHEIN) sheinPrimeRegionRepairFromRoute();
-    if (IS_SHEIN) sheinClearStaleShippingLock();
+    if (otlobliScriptEnabled('session') && IS_SHEIN) sheinPrimeRegionRepairFromRoute();
+    if (otlobliScriptEnabled('session') && IS_SHEIN) sheinClearStaleShippingLock();
     // Never compete with WebKit's async scrolling or delay a bottom-nav tap
     // with full-page scans. Region repair has its own small progress timer.
-    if (IS_SHEIN && otlobliInteractionActive() &&
+    if (otlobliScriptEnabled('session') && IS_SHEIN && otlobliInteractionActive() &&
         !sheinShippingBodyLockState && !sheinShippingUiLikelyOpen()) {
       if (!document.getElementById('otlobli-nav')) ensureOtlobliNav();
       if (sheinNativeCoverRepairActive) scheduleSheinShippingProgress(OTLOBLI_LOW_END ? 320 : 160);
       return;
     }
     // صفحة تحقق «أنا إنسان» — تجميد كامل لكل تدخلاتنا حتى يكملها المستخدم.
-    if (otlobliIsHumanChallenge()) {
+    if (otlobliScriptEnabled('blocking') && otlobliIsHumanChallenge()) {
       otlobliChallengeActive = true;
       __otlobliChallengeResolvedNotified = false;
       otlobliEnterChallengeMode();
       return;
     }
-    if (otlobliChallengeActive) {
+    if (otlobliScriptEnabled('blocking') && otlobliChallengeActive) {
       if (otlobliLooksLikeRemovedProductPage()) {
         otlobliNotifyHumanCheckSkipped();
         return;
@@ -47,13 +47,13 @@ export const STORE_RUNTIME_COORDINATOR_SCRIPT = `
         } catch (e) {}
       }
     }
-    if (IS_SHEIN) ensureSheinSaudiShippingSelection();
-    if (IS_SHEIN) retrySheinFeedError();
-    ensureNoTextSelection();
-    ensureViewportFitCover();
-    if (IS_SHEIN) ensureSheinSaudiStore();
-    ensureBackButton();
-    ensureOtlobliNav();
+    if (otlobliScriptEnabled('session') && IS_SHEIN) ensureSheinSaudiShippingSelection();
+    if (otlobliScriptEnabled('blocking') && IS_SHEIN) retrySheinFeedError();
+    if (otlobliScriptEnabled('blocking')) ensureNoTextSelection();
+    if (otlobliScriptEnabled('navigation')) ensureViewportFitCover();
+    if (otlobliScriptEnabled('session') && IS_SHEIN) ensureSheinSaudiStore();
+    if (otlobliScriptEnabled('navigation')) ensureBackButton();
+    if (otlobliScriptEnabled('navigation')) ensureOtlobliNav();
     // المتاجر غير شي إن (تيمو/ترينديول): تصفّح فقط - ننظّف العروض المنبثقة
     // المزعجة ولا نشغّل منطق الالتقاط/الحجب الخاص بشي إن (الذي قد يخرّب صفحاتهم).
     if (!IS_SHEIN) {
@@ -106,29 +106,29 @@ export const STORE_RUNTIME_COORDINATOR_SCRIPT = `
         try { detectEmptyTemuSearch(); } catch (e) {}
         return;
       }
-      try { killStorePopups(); } catch (e) {}
+      if (otlobliScriptEnabled('blocking')) try { killStorePopups(); } catch (e) {}
       return;
     }
-    ensureLoadingOverlay();
-    blockCartNavigation();
-    hideSheinCartSuccessToast();
-    ensureAddToCartButton();
-    stabilizeSheinImageViewerChrome();
-    hideExtraHeaderIcons();
-    hideSheinCartIcons();
-    hideForeignBottomNav();
-    otlobliForceAcceptCookies();
-    protectSheinCookieConsentAction();
-    hideSheinSignupDiscountBanner();
-    dismissSheinProductLoginPrompt();
-    hideSheinAppInstallPrompts();
+    if (otlobliScriptEnabled('blocking')) ensureLoadingOverlay();
+    if (otlobliScriptEnabled('blocking')) blockCartNavigation();
+    if (otlobliScriptEnabled('blocking')) hideSheinCartSuccessToast();
+    if (otlobliScriptEnabled('capture')) ensureAddToCartButton();
+    if (otlobliScriptEnabled('blocking')) stabilizeSheinImageViewerChrome();
+    if (otlobliScriptEnabled('blocking')) hideExtraHeaderIcons();
+    if (otlobliScriptEnabled('blocking')) hideSheinCartIcons();
+    if (otlobliScriptEnabled('blocking')) hideForeignBottomNav();
+    if (otlobliScriptEnabled('blocking')) otlobliForceAcceptCookies();
+    if (otlobliScriptEnabled('blocking')) protectSheinCookieConsentAction();
+    if (otlobliScriptEnabled('blocking')) hideSheinSignupDiscountBanner();
+    if (otlobliScriptEnabled('blocking')) dismissSheinProductLoginPrompt();
+    if (otlobliScriptEnabled('blocking')) hideSheinAppInstallPrompts();
     // Readiness must be the final step. Previously it was posted before the
     // header/cart/listing/nav blockers below ran, so native code could reveal
     // a product for one or two seconds with raw SHEIN chrome still visible.
-    updateSheinNativeCoverState();
+    if (otlobliScriptEnabled('session')) updateSheinNativeCoverState();
     // Must run after ensureBack/Nav/Add and after cover-state close attempts,
     // so Otlobli chrome cannot repaint over SHEIN's live shipping drawer.
-    stabilizeSheinShippingDrawerInteraction();
+    if (otlobliScriptEnabled('session')) stabilizeSheinShippingDrawerInteraction();
   }
 
   // Kept tight on purpose - every visible millisecond here is a window where
@@ -147,7 +147,7 @@ export const STORE_RUNTIME_COORDINATOR_SCRIPT = `
   document.addEventListener('touchstart', markOtlobliInteraction, { capture: true, passive: true });
   document.addEventListener('touchmove', markOtlobliInteraction, { capture: true, passive: true });
   document.addEventListener('scroll', markOtlobliInteraction, { capture: true, passive: true });
-  document.addEventListener('click', sheinTrackSelectedSkuPrice, true);
+  if (otlobliScriptEnabled('capture')) document.addEventListener('click', sheinTrackSelectedSkuPrice, true);
   // Low-end (iPhone 6, 2 cores): our polling competes with Cloudflare's JS and
   // SHEIN's image decoding. Relax the hot intervals; iPhone 16 keeps the tight
   // ones. Never widen these past the documented values - see the perf guard.
@@ -203,7 +203,7 @@ export const STORE_RUNTIME_COORDINATOR_SCRIPT = `
   var otlobliCoordinatorTimer = 0;
 
   function runOtlobliBlockers() {
-    if (otlobliChallengeActive || !IS_SHEIN || otlobliInteractionActive()) return;
+    if (!otlobliScriptEnabled('blocking') || otlobliChallengeActive || !IS_SHEIN || otlobliInteractionActive()) return;
     hideKnownHeaderIconsByHint();
     hideSheinHeaderControls();
     hideListingCardAddButtons();
@@ -211,6 +211,7 @@ export const STORE_RUNTIME_COORDINATOR_SCRIPT = `
   }
 
   function runOtlobliNavigationMaintenance() {
+    if (!otlobliScriptEnabled('navigation')) return;
     if (!otlobliInteractionActive() || !document.getElementById('otlobli-nav')) ensureOtlobliNav();
     if (!IS_TEMU) return;
     injectTemuHeaderHideCSS();
@@ -250,7 +251,7 @@ export const STORE_RUNTIME_COORDINATOR_SCRIPT = `
       otlobliNavDue = now + OTLOBLI_NAV_INTERVAL;
     }
     if (now >= otlobliSecurityDue) {
-      if (IS_SHEIN && !otlobliInteractionActive()) checkForSheinSecurityBlock();
+      if (otlobliScriptEnabled('blocking') && IS_SHEIN && !otlobliInteractionActive()) checkForSheinSecurityBlock();
       otlobliSecurityDue = now + OTLOBLI_SECURITY_INTERVAL;
     }
     scheduleOtlobliCoordinator();
