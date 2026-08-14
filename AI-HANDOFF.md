@@ -1,3 +1,11 @@
+# Active handoff — v86.189 disposable iOS render surfaces (2026-08-14)
+
+v86.188 failed physical acceptance despite the dedicated plugin. Modern iPhone: first entry healthy, second entry/list visible but taps dead. iPhone 6: Home fully loaded, next list route did not complete interactively. Android remains fully healthy. Therefore never restore same-WKWebView rebind/recompose for iOS SHEIN and stop investigating normal injected script groups for these symptoms.
+
+The only active iOS contract is now `createRenderSurface` / `destroyRenderSurface`. A render surface never becomes hidden and never crosses background. Hide/background destroys it; show/foreground creates a new WKWebView at the saved URL with `WKWebsiteDataStore.default()`. A settled SPA path change and a top-level link path change use the same replacement/full-document rule on every iPhone. No OS-version branch, process pool, CADisplayLink, snapshot, reload, same-instance detach/attach, or delay burst is allowed. The freeze guard enforces these absences and exactly one WKWebView constructor.
+
+Version `86.189/1051`; branch `codex/ios-v86-189-disposable-render-surface`, commit `6830a04`, Xcode run `31834669885`. Inspected IPA: `6,557,711` bytes, SHA-256 `8F5D73D105483733BF9D03817300429D2D79CFC2D2A50A77C8A6572BC0B874AF`, ARM64, iOS 15+, iPhone/iPad, unsigned/unprovisioned, no maps. Required result only: modern iPhone first entry → second entry → one resume; iPhone 6 Home → list → tap one product, initially with all five diagnostic groups off.
+
 # Active handoff — v86.188 dedicated iOS SHEIN browser (2026-08-14)
 
 The v86.187 physical test answered the isolation question: clean install, all five normal script groups off, first SHEIN visit healthy, flags still off, background/return frozen. Therefore stop diagnosing injected scripts for this symptom. Runtime, Navigation, Blocking, Capture, and Session/Region are not the cause of the resume freeze. Do not restore speculative multi-delay recompose bursts in the Capgo patch.

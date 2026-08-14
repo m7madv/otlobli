@@ -1,5 +1,13 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
+## v86.189 disposable iOS render-surface contract (2026-08-14)
+
+- **Measured rejection of v86.188:** the modern iPhone's first entry worked but its second visible list stopped accepting taps. iPhone 6 loaded Home completely but did not complete the next list route. Android remained fully interactive. A dedicated owner alone was insufficient because it still reused a WebKit render instance.
+- **Single architecture decision:** rendering is disposable; site session is durable. No WKWebView may survive hide/background. Re-entry creates one new WKWebView at the saved URL using `WKWebsiteDataStore.default()`. Do not add same-instance render repairs.
+- **Single navigation decision:** every settled same-site path transition that SHEIN performs without a committed load, plus top-level link path transitions, replaces the surface and makes a full document request. This applies to all iPhones; no OS or model branch and no product-specific exception.
+- **Forbidden complexity:** process pools, hidden surfaces, CADisplayLink, snapshots, recompose, reload, delay bursts, cookie/storage clearing, and repeated recovery loops. The executable guard requires exactly one WKWebView constructor and zero display-link repairs.
+- **Acceptance boundary:** commit `6830a04`, run `31834669885`, and all local/Xcode/archive checks pass at `86.189/1051`. Unsigned IPA size `6,557,711`, SHA-256 `8F5D73D105483733BF9D03817300429D2D79CFC2D2A50A77C8A6572BC0B874AF`. Device gate is intentionally minimal: modern second entry + one resume; iPhone 6 Home → list → product tap.
+
 ## v86.188 dedicated iOS SHEIN browser boundary (2026-08-14)
 
 - **Measured classification:** on a clean v86.187 install, all five normal injected-script groups were off and remained off; the first store view worked, then background/return froze it. The normal runtime cannot cause code it never evaluated. This assigns the resume fault to the generic native WKWebView owner/lifecycle and closes the injection-isolation branch for this symptom.
