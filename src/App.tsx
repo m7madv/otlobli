@@ -2973,6 +2973,10 @@ function App() {
   const webviewAutoOpenPausedUntilRef = useRef(0)
   const webviewIdRef = useRef('')
   const webviewClosingRef = useRef(false)
+  // The store chooser is exposed before a deliberate native close finishes.
+  // Keep one event-driven reopen request so a quick same-store tap cannot be
+  // discarded by webviewClosingRef and leave Home with no browser behind it.
+  const pendingStoreOpenAfterCloseRef = useRef(false)
   const ignoredWebviewCloseIdsRef = useRef(new Set<string>())
   const webviewErrorTimerRef = useRef<number | undefined>(undefined)
   const sheinReadinessTimerRef = useRef<number | undefined>(undefined)
@@ -3721,8 +3725,16 @@ function App() {
     // home/open effect can land in the same frame after a native close. Without
     // this guard both callers create a WebView; the untracked one has no capture
     // script and can cover the healthy one on iOS.
-    if (!storeRegionsReady || webviewClosingRef.current ||
-        sheinOpenedRef.current || webviewOpeningRef.current) return
+    if (!storeRegionsReady) return
+    if (webviewClosingRef.current) {
+      if (!pendingStoreOpenAfterCloseRef.current && screenRef.current === 'home') {
+        recordAppDiagnostic('store_open_deferred_for_close', { store: selectedStoreRef.current })
+      }
+      pendingStoreOpenAfterCloseRef.current = screenRef.current === 'home'
+      return
+    }
+    if (sheinOpenedRef.current || webviewOpeningRef.current) return
+    pendingStoreOpenAfterCloseRef.current = false
     const currentVpnState = vpnStateRef.current
     if (currentVpnState !== 'ok') {
       webviewOpeningRef.current = false
@@ -4649,11 +4661,14 @@ function App() {
       if (detail?.type === 'closeStore') {
         setPendingStoreExit(null)
         temuPersonalSiteOpenedRef.current = false
+        pendingStoreOpenAfterCloseRef.current = false
         screenRef.current = 'store-select'
         flushSync(() => setScreen('store-select'))
         if (selectedStoreRef.current === 'shein') {
           suppressAutoReopenRef.current = true
           webviewClosingRef.current = true
+          const closingWebviewId = webviewIdRef.current
+          if (closingWebviewId) ignoredWebviewCloseIdsRef.current.add(closingWebviewId)
           webviewSessionRef.current += 1
           webviewOpeningRef.current = false
           webviewOpenedAtRef.current = 0
@@ -4662,9 +4677,22 @@ function App() {
           sheinChallengeActiveRef.current = false
           sheinOpenedRef.current = false
           setSheinReady(false)
-          void InAppBrowser.close().catch(() => undefined).finally(() => {
-            webviewClosingRef.current = false
-          })
+          void InAppBrowser.close(closingWebviewId
+            ? { id: closingWebviewId, isAnimated: false }
+            : { isAnimated: false })
+            .catch(() => undefined)
+            .finally(() => {
+              webviewClosingRef.current = false
+              suppressAutoReopenRef.current = false
+              if (!pendingStoreOpenAfterCloseRef.current || screenRef.current !== 'home' ||
+                  selectedStoreRef.current !== 'shein' || vpnStateRef.current !== 'ok') return
+              recordAppDiagnostic('store_open_resumed_after_close', { store: 'shein' })
+              window.setTimeout(() => {
+                if (!pendingStoreOpenAfterCloseRef.current || screenRef.current !== 'home' ||
+                    webviewClosingRef.current || sheinOpenedRef.current || webviewOpeningRef.current) return
+                browseSheinRef.current()
+              }, 80)
+            })
         } else if (TEMU_PERSONAL_SITE_MODE && Capacitor.getPlatform() === 'android') {
           void TemuEmbeddedBrowser.hide().catch(() => undefined)
         }
@@ -5271,6 +5299,7 @@ function App() {
       return
     }
     const revealSelectedStore = () => {
+      pendingStoreOpenAfterCloseRef.current = true
       webviewAutoOpenPausedUntilRef.current = 0
       setSheinBlockedError(false)
       if (vpnStateRef.current !== 'ok') {

@@ -219,6 +219,20 @@ const checks = [
     ],
   },
   {
+    label: 'same-store reopen survives native close',
+    file: 'src/App.tsx',
+    markers: [
+      'const pendingStoreOpenAfterCloseRef = useRef(false)',
+      "pendingStoreOpenAfterCloseRef.current = screenRef.current === 'home'",
+      "recordAppDiagnostic('store_open_resumed_after_close', { store: 'shein' })",
+      'if (closingWebviewId) ignoredWebviewCloseIdsRef.current.add(closingWebviewId)',
+      '? { id: closingWebviewId, isAnimated: false }',
+      ': { isAnimated: false })',
+      'if (!pendingStoreOpenAfterCloseRef.current || screenRef.current !== \'home\' ||',
+      'pendingStoreOpenAfterCloseRef.current = true',
+    ],
+  },
+  {
     label: 'iOS default persistent website data store',
     file: 'node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift',
     markers: [
@@ -1162,6 +1176,44 @@ try {
   if (storeSwitchStart < 0 || storeSwitchEnd < 0 || storeSwitchSource.includes('InAppBrowser.clearCache()')) {
     failures.push('SHEIN fast entry: an ordinary store switch must preserve the healthy HTTP/WebKit cache')
   }
+
+  // The chooser becomes tappable before an intentional native close resolves.
+  // A same-store tap in that window must be queued and replayed after close;
+  // otherwise the one-shot Home effect is consumed by webviewClosingRef and
+  // the app remains on an inert Home surface until Temu -> SHEIN is toggled.
+  const browseStart = appSource.indexOf('const browseShein = () => {')
+  const browseEnd = appSource.indexOf('browseSheinRef.current = browseShein', browseStart)
+  const browseSource = appSource.slice(browseStart, browseEnd)
+  const closingGate = browseSource.indexOf('if (webviewClosingRef.current)')
+  const queueWhileClosing = browseSource.indexOf("pendingStoreOpenAfterCloseRef.current = screenRef.current === 'home'")
+  const openingGate = browseSource.indexOf('if (sheinOpenedRef.current || webviewOpeningRef.current) return')
+  if (browseStart < 0 || browseEnd < 0 || closingGate < 0 || queueWhileClosing < 0 || openingGate < 0 ||
+      closingGate > queueWhileClosing || queueWhileClosing > openingGate) {
+    failures.push('SHEIN reentry: a store-open request must be queued before the native-closing early return')
+  }
+
+  const closeStoreStart = appSource.indexOf("if (detail?.type === 'closeStore')")
+  const closeStoreEnd = appSource.indexOf("if (detail?.type === 'requestStoreExit')", closeStoreStart)
+  const closeStoreSource = appSource.slice(closeStoreStart, closeStoreEnd)
+  const intentionalClose = closeStoreSource.indexOf('? { id: closingWebviewId, isAnimated: false }')
+  const closeFinished = closeStoreSource.indexOf('webviewClosingRef.current = false', intentionalClose)
+  const replayRequest = closeStoreSource.indexOf('browseSheinRef.current()', closeFinished)
+  if (closeStoreStart < 0 || closeStoreEnd < 0 || intentionalClose < 0 || closeFinished < 0 || replayRequest < 0 ||
+      intentionalClose > closeFinished || closeFinished > replayRequest ||
+      !closeStoreSource.includes('ignoredWebviewCloseIdsRef.current.add(closingWebviewId)') ||
+      closeStoreSource.includes('InAppBrowser.clearCache()')) {
+    failures.push('SHEIN reentry: intentional close must ignore its old event, avoid animation/cache reset, then replay the queued open')
+  }
+
+  const hubOpenStart = appSource.indexOf('const openStoreFromHub = (id: StoreId)')
+  const hubOpenEnd = appSource.indexOf('const switchCartStore = (id: StoreId)', hubOpenStart)
+  const hubOpenSource = appSource.slice(hubOpenStart, hubOpenEnd)
+  const armReentry = hubOpenSource.indexOf('pendingStoreOpenAfterCloseRef.current = true')
+  const enterHome = hubOpenSource.indexOf("screenRef.current = 'home'")
+  if (hubOpenStart < 0 || hubOpenEnd < 0 || armReentry < 0 || enterHome < 0 || armReentry > enterHome) {
+    failures.push('SHEIN reentry: the hub tap must arm its close-safe request before entering Home')
+  }
+
   if (!appSource.includes("const shouldResetSheinCache = activeStore === 'shein' && sheinCacheResetPendingRef.current") ||
       !appSource.includes('const prepareStoreWebview = shouldResetSheinCache') ||
       !appSource.includes('sheinCacheResetPendingRef.current = true')) {
