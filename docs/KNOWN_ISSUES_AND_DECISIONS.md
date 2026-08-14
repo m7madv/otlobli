@@ -5,7 +5,7 @@
 - **Measured symptom:** on iPhone 16 Pro Max with `86.193/1055`, the same-store second entry can render SHEIN fully while every tap is dead. App-Switcher termination does not recover it; app-container deletion does. One captured Home cycle retained the same native browser/WebContent/pageProxy and produced no close or termination.
 - **Decision:** do not patch the back button or rebuild/reload the page. First classify one failing run across native hit routing, DOM capture/bubble/top-element state, and persistent WebKit storage fingerprints.
 - **Diagnostic boundary:** `86.194/1056` emits sanitized unified logs only when the explicit iOS diagnostic build flag is true. Storage output is counts and hashes only. It adds no interval, observer, network call, event prevention/replay, reload, cache/data clear, or recovery.
-- **Acceptance boundary:** local build/guards/sync passing is not a fix. Xcode must compile the Swift logger, then one clean-install first-entry/exit/second-entry sequence must correlate the three layers. Android and iPhone 6 are outside this diagnostic run.
+- **Acceptance boundary:** local build/guards/sync passing is not a fix. Xcode run `31849799496` compiles the Swift logger and packages the inspected `86.194/1056` IPA at SHA-256 `448DBAB412F0B7F08DF5ECA535593FBCBC3F7EF07C2D9B225E5DBD9FE722257F`. One clean-install first-entry/exit/second-entry sequence must still correlate the three layers. Android and iPhone 6 are outside this diagnostic run.
 
 ## v86.189 disposable iOS render-surface contract (2026-08-14)
 
