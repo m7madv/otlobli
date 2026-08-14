@@ -202,9 +202,12 @@ const checks = [
       "d('product-tap-start'+(r?'-href':''))",
       "d('product-tap-fallback')",
       "d('product-tap-route-fallback')",
+      "g(r?'armed':'ignored-no-product-href'",
       "window.__otlobliProductTapAttemptAt=Date.now()",
-      "window.__otlobliRecoverSheinChunkOnStalledTap(n[5])",
       'location.assign(n[5])',
+    ],
+    forbidden: [
+      'n[0].click()',
     ],
   },
   {
@@ -681,11 +684,12 @@ try {
 
   const handlers = {}, timers = [], assigned = []
   let recoveryCalls = 0
+  let anchorClicks = 0
   const anchor = {
     tagName: 'A', parentElement: null, isConnected: true,
     href: 'https://m.shein.com/ar/item-p-123.html',
     getAttribute: (name) => name === 'href' ? '/ar/item-p-123.html' : '',
-    click: () => undefined, querySelector: () => null,
+    click: () => { anchorClicks++ }, querySelector: () => null,
   }
   const location = { href: 'https://m.shein.com/ar/', assign: (url) => assigned.push(url) }
   runInNewContext(scriptModule.exports.__tapFallback, {
@@ -701,7 +705,37 @@ try {
   handlers.touchend(touch)
   while (timers.length) timers.shift()()
   if (assigned[0] !== anchor.href) failures.push('SHEIN product tap fallback: direct product anchor was not assigned')
+  if (anchorClicks !== 0) failures.push('SHEIN product tap fallback: direct product anchor was replay-clicked before assignment')
   if (recoveryCalls !== 0) failures.push('SHEIN product tap fallback: direct product anchor caused an unnecessary recovery')
+
+  let collectionClicks = 0
+  const collectionCard = {
+    tagName: 'LI', className: 'sd-ccc-products__item', parentElement: null, isConnected: true,
+    classList: { contains: () => false },
+    getAttribute: (name) => name === 'role' ? 'link' : '',
+    click: () => { collectionClicks++ }, querySelector: () => null,
+  }
+  const collectionTouch = {
+    target: { tagName: 'IMG', parentElement: collectionCard },
+    changedTouches: [{ clientX: 22, clientY: 34 }],
+  }
+  const assignedBeforeCollection = assigned.length
+  handlers.touchstart(collectionTouch)
+  handlers.touchend(collectionTouch)
+  while (timers.length) timers.shift()()
+  if (collectionClicks !== 0 || assigned.length !== assignedBeforeCollection || recoveryCalls !== 0) {
+    failures.push('SHEIN product tap fallback: collection/list card without a direct PDP href was changed')
+  }
+
+  location.href = 'https://m.shein.com/ar/'
+  const assignedBeforeNaturalRoute = assigned.length
+  handlers.touchstart(touch)
+  handlers.touchend(touch)
+  location.href = anchor.href
+  while (timers.length) timers.shift()()
+  if (assigned.length !== assignedBeforeNaturalRoute) {
+    failures.push('SHEIN product tap fallback: natural product navigation was assigned a second time')
+  }
 } catch (error) {
   failures.push(`SHEIN capture-script syntax: ${error instanceof Error ? error.message : String(error)}`)
 }
