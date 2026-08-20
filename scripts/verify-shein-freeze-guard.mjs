@@ -32,6 +32,8 @@ const checks = [
       'public final class OtlobliSheinBrowserPlugin',
       'One WKWebView owns one complete SHEIN browsing session.',
       'configuration.websiteDataStore = .default()',
+      'if #available(iOS 17.0, *)',
+      'configuration.preferences.inactiveSchedulingPolicy = .throttle',
       'UIApplication.didReceiveMemoryWarningNotification',
       'private func createRenderSurface(',
       'private func destroyRenderSurface()',
@@ -72,6 +74,7 @@ const checks = [
       'routeReplacementQueued',
       'restoreAfterBackground',
       'navigationAction.navigationType == .linkActivated',
+      'inactiveSchedulingPolicy = .none',
     ],
   },
   {
@@ -372,7 +375,7 @@ const checks = [
     markers: [
       'export const STORE_SCRIPT_DIAGNOSTICS =',
       'VITE_STORE_SCRIPT_DIAGNOSTICS',
-      'v86.193-passive-native-foreground',
+      'v86.197-inactive-scheduling-throttle',
     ],
   },
   {

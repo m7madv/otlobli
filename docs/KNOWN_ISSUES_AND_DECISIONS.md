@@ -1,5 +1,13 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
+## v86.197 decision — use WebKit inactive scheduling throttle (2026-08-20)
+
+- **Observed lifecycle signature:** first SHEIN runtime is healthy; after app inactivity the same surface can remain visually/network alive but SPA interaction freezes; Temu → SHEIN recovers by starting a fresh runtime. Raw-script v86.187 still froze, and v86.193 logs showed no WebContent termination.
+- **Root-cause target:** modern SDK-aligned WebKit promptly suspends inactive background content under the default `WKInactiveSchedulingPolicySuspend`. Loads and JavaScript evaluation can temporarily unsuspend the process, so passive diagnostics can look healthy while framework-scheduled work failed to resume coherently.
+- **Decision:** set `WKPreferences.inactiveSchedulingPolicy = .throttle` for the dedicated SHEIN WKWebView on iOS 17+. WebKit recommends throttle over none for battery life. Keep the exact v86.193 data store and lifecycle; do not add reload/rebuild/recompose or data clearing.
+- **Separate incident:** an old build such as v86.125 spinning on today's PDP is evidence of third-party DOM/chunk/risk-flow drift, not evidence against the scheduling diagnosis. Validate current PDP behavior on v86.197 independently from lifecycle acceptance.
+- **Proof boundary:** this is the strongest source-and-log-backed cause, but remains a device hypothesis until the required background/resume and cold-launch sequence passes on the affected iPhone.
+
 ## v86.189 disposable iOS render-surface contract (2026-08-14)
 
 - **Measured rejection of v86.188:** the modern iPhone's first entry worked but its second visible list stopped accepting taps. iPhone 6 loaded Home completely but did not complete the next list route. Android remained fully interactive. A dedicated owner alone was insufficient because it still reused a WebKit render instance.

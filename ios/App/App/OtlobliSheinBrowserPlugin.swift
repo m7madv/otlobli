@@ -231,6 +231,12 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         configuration.allowsInlineMediaPlayback = true
         configuration.mediaTypesRequiringUserActionForPlayback = []
         configuration.suppressesIncrementalRendering = false
+        // Apps linked against the iOS 18 SDK suspend an inactive WKWebView
+        // immediately by default. SHEIN's SPA must remain schedulable while its
+        // retained surface is parked or the app briefly enters the background.
+        if #available(iOS 17.0, *) {
+            configuration.preferences.inactiveSchedulingPolicy = .throttle
+        }
         if #available(iOS 14.0, *) {
             configuration.defaultWebpagePreferences.allowsContentJavaScript = true
             configuration.defaultWebpagePreferences.preferredContentMode = .mobile

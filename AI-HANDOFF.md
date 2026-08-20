@@ -1,3 +1,11 @@
+# Active handoff — v86.197 WebKit inactive-scheduling fix (2026-08-20)
+
+The freeze evidence now converges on WebKit scheduling rather than Otlobli's page scripts or touch interception. v86.187 froze in raw mode; v86.193 retained one live WebContent process and continued loading/navigating after foreground; v86.65 works on first entry, freezes after app inactivity, and Temu → SHEIN recovers by starting a fresh runtime. v86.125's present-day PDP spinner is a separate old-build/live-SHEIN compatibility issue and must not be folded into the lifecycle diagnosis.
+
+Branch `codex/ios-v86-197-inactive-scheduling-fix` starts from exact v86.193 commit `a6e0ca943c4d9a2722b5962a4193d3e34d2da248`. The only behavioral change is in `OtlobliSheinBrowserPlugin.createRenderSurface`: iOS 17+ uses `WKPreferences.inactiveSchedulingPolicy = .throttle`, WebKit's battery-preferred policy for keeping an inactive WKWebView schedulable. Do not replace it with `.none`, reload, recompose, detach/reattach, website-data clearing, or store recreation. One WKWebView, its lifecycle, storage, cookies, session/region, VPN, scripts, navigation, and product capture remain the v86.193 baseline.
+
+Version/build is `86.197/1059`; marker `2026.08.20-v86.197-inactive-scheduling-throttle`. Build/archive verification and real-iPhone acceptance remain pending. Required device gate: first healthy entry; five background/resume cycles with list/PDP interaction after each; force-quit/cold launch and second entry; then SHEIN → Temu → SHEIN. A successful build is not device proof.
+
 # Active handoff — v86.189 disposable iOS render surfaces (2026-08-14)
 
 v86.188 failed physical acceptance despite the dedicated plugin. Modern iPhone: first entry healthy, second entry/list visible but taps dead. iPhone 6: Home fully loaded, next list route did not complete interactively. Android remains fully healthy. Therefore never restore same-WKWebView rebind/recompose for iOS SHEIN and stop investigating normal injected script groups for these symptoms.
