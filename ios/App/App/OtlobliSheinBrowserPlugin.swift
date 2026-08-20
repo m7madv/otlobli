@@ -295,7 +295,14 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         sheinRawJsPrefetchRulePreparing = true
         logPrefetchFix("lookup-requested", ["store": "default"])
 
-        let store = WKContentRuleListStore.default()
+        guard let store = WKContentRuleListStore.default() else {
+            finishSheinRawJsPrefetchRulePreparation(
+                ruleList: nil,
+                source: "default-store",
+                errorMessage: "WKContentRuleListStore.default() returned nil"
+            )
+            return
+        }
         store.lookUpContentRuleList(
             forIdentifier: Self.sheinRawJsPrefetchRuleIdentifier
         ) { [weak self] existingRuleList, lookupError in
