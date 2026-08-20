@@ -5,6 +5,16 @@ commit `0b462a93030b5c7114012d5848ce61eac49b8b17`, preserves its store behavior,
 and uses version/build `86.202/1064` only because those numbers were verified
 unused before the branch was created.
 
+The only GitHub/Xcode build is run `32402979859` from code commit
+`a56c2e3d342eee285bde1659064ef6204ca1b8b5`; artifact ID `9419317843`.
+The inspected unsigned IPA is at
+`C:\Users\MOHAMMAD\Desktop\otlobli-ios-v86.202-root-cause-timeline-diagnostic\otlobli-v86.202-ipad-iphone-universal-unsigned.ipa`,
+size `6,592,564`, SHA-256
+`8F93DD8390DBF454070AFA709B631C69FCB6D19BB188C6E75F11D78C17489548`.
+It is `com.otlobli.app`, ARM64, iOS 15+, iPhone/iPad, with no provisioning,
+app-level signature, source maps, or relay placeholder. It must be signed by the
+owner's normal installation path before device capture.
+
 ## Passive boundary
 
 The only page namespace added is `window.__otlobliRootCauseProbe`. It does not:
