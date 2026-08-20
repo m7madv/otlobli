@@ -247,4 +247,3 @@ process.on('uncaughtException', (error) => {
 
 record('capture-started', { endpoint, outputPath });
 connect();
-
