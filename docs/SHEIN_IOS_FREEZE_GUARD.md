@@ -1,3 +1,17 @@
+# v86.203 raw-prefetch invariant
+
+The custom `OtlobliSheinBrowserPlugin` may add exactly one versioned
+`WKContentRuleList` that blocks only `resource-type: ["raw"]` for the exact
+case-sensitive `sheinm.ltwebstatic.com/pwa_dist/assets/*.js` path. The compiled
+rule must be present on the custom user-content controller before all user
+scripts, WKWebView construction, and first load. `script`, broad-domain rules,
+fetch/XHR monkey patches, removal of unrelated content rules, or silent loading
+after compile/store failure are forbidden. This does not authorize a reload,
+cache clear, data-store change, browser recreation, lifecycle fix, or navigation
+change. Physical acceptance requires Script requests to remain unblocked and
+executable across ten clean cold-launch cycles. See
+`docs/SHEIN_V86_203_PREFETCH_CACHE_FIX.md`.
+
 # SHEIN iPhone 16 WKWebView Freeze Guard
 
 هذه قاعدة إصدار إلزامية وليست ملاحظة تاريخية.

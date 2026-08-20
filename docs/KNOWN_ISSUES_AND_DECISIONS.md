@@ -1,5 +1,13 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
+## v86.203 decision — prevent only the proven raw/XHR cache poisoner (2026-08-20)
+
+- **Established cause for the capture:** SHEIN's fallback prefetch XHR reuses canonical CDN JavaScript URLs, accepts empty 304 responses, and leaves WebKit without executable bodies for the next cold process's Script loads.
+- **Single decision:** install one native, SHEIN-only `WKContentRuleList` for exact CDN asset JavaScript URLs with `resource-type: ["raw"]`. Never include `script` in this rule.
+- **Ordering/failure contract:** lookup/compile before store open; attach before user scripts, WKWebView construction, and first load; reject browser open if protection is unavailable.
+- **Explicit non-decisions:** no cache deletion, reload, cache-buster, WebView recreation, lifecycle/navigation/session change, JavaScript XHR/fetch patch, or Temu change.
+- **Acceptance boundary:** build run `32412740745`, artifact `9422864423`, and archive checks pass at `86.203/1065`; physical proof is pending. Clean prevention and upgrade-over-poisoned-cache are separate tests. A future one-time cache-only migration is considered only if clean prevention passes and in-place upgrade fails.
+
 ## v86.202 decision — one passive timeline before any further fix (2026-08-20)
 
 Device testing rejected v86.201 as a freeze solution: first SHEIN entry works, while later same-store entry can render an inert page. The next and only authorized build is diagnostic `86.202/1064` from exact v86.201 HEAD. It records event-loop, lifecycle/BFCache, bounded real-click reaction, native hosting/history, metadata-only persistent state, and genuine JS/resource failures under one namespace. No rebuild/reload/data clear or speculative fix is bundled. The removed v86.194/v86.195 tap context must not return. Evidence must identify the earliest divergence before any minimal fix is proposed.
