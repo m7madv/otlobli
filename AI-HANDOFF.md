@@ -1,3 +1,9 @@
+# Active handoff — v86.201 injected double-Home store switch (2026-08-20)
+
+The double-Home gesture previously existed only in `handlePersonalTemuHomeTap()` for the Android personal-Temu surface. It did not exist in SHEIN: `OTLOBLI_NAV_TOUCH_BRIDGE_JS` loaded Home immediately and its 450ms dedupe discarded the real second `touchend`. v86.201 gives injected SHEIN/Temu navigation the same contract. A single Home waits 320ms then runs the existing store-Home `location.assign`; a second physical Home tap cancels that timer and emits `closeStore`, revealing the existing `store-select` screen while parking the browser. Synthetic post-touch clicks are ignored separately and cannot count as the second tap. Another nav tab cancels a pending Home timer.
+
+Preserve v86.198 root-Back, v86.199 `.throttle`, and v86.200 single native exit buttons. Do not close/recreate the same-store session for this gesture. Version/build `86.201/1063`, marker `2026.08.20-v86.201-double-home-store-switch`. Build/archive and device acceptance are pending.
+
 # Active handoff — v86.200 single store-exit controls (2026-08-20)
 
 v86.200 is the user-facing candidate above clean v86.199. The user found that Temu root had no exit button and SHEIN displayed both the custom plugin's green native button and the dark injected fallback. `storeBlockingScript.ts` now always computes Temu visibility, but hides the HTML element whenever a WebKit native message handler is available. It still posts `otlobliBackButtonState`, so the native control remains functional. Search mode precedes root exit; Temu root emits `closeStore`. App.tsx now parks the normal Temu InAppBrowser before showing the picker, and the persistent Capgo patch maps native `exit` to `closeStore` instead of hard-coding SHEIN.

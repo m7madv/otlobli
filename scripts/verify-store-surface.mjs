@@ -46,6 +46,15 @@ for (const marker of [
   if (!app.includes(marker)) throw new Error(`Temu store-return/capture guard missing App marker: ${marker}`)
 }
 
+for (const marker of [
+  'var homeDoubleTapMs = 320',
+  "event.type === 'click' && now - lastPhysicalTouchAt < 450",
+  'homeTapTimer = setTimeout(navigateToStoreHome, homeDoubleTapMs)',
+  "window.mobileApp.postMessage({ detail: { type: 'closeStore' } })",
+]) {
+  if (!captureScript.includes(marker)) throw new Error(`Injected store-switch gesture guard missing marker: ${marker}`)
+}
+
 if (app.includes('temuAddInFlightRef')) {
   throw new Error('Temu capture must not use a process-wide latch that can block later products')
 }

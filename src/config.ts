@@ -34,5 +34,5 @@ export const TEMU_PERSONAL_SITE_MODE =
 
 // رقم النسخة الظاهر داخل التطبيق.
 export const APP_VERSION = TEMU_PERSONAL_SITE_MODE
-  ? '2026.08.20-v86.200-personal-store-exit-buttons'
-  : '2026.08.20-v86.200-store-exit-buttons'
+  ? '2026.08.20-v86.201-personal-double-home-store-switch'
+  : '2026.08.20-v86.201-double-home-store-switch'

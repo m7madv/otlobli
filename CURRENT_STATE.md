@@ -1,3 +1,11 @@
+# v86.201 — double Home reveals the store chooser (2026-08-20)
+
+The requested gesture was only implemented for the Android personal-Temu surface. It was impossible inside the injected SHEIN/Temu navigation: the document-start bridge immediately loaded store Home on the first tap and rejected every event inside 450ms, including the user's real second `touchend`.
+
+v86.201 preserves v86.200 and changes only injected Home-tab routing. One Home tap now waits 320ms and then performs the existing active-store Home navigation. A second physical Home tap inside that window cancels navigation and emits the existing `closeStore` message; App.tsx reveals `store-select`, hides/parks the same browser session, and its React bottom bar remains mounted. The synthetic `click` following an iOS `touchend` is explicitly deduplicated and cannot falsely open the chooser. Touching Orders, Cart, or Profile cancels a pending single-Home action before routing that tab.
+
+Version/build is `86.201/1063`; marker `2026.08.20-v86.201-double-home-store-switch`. Build/archive and physical acceptance are pending. Acceptance must cover: one Home tap from a product opens store Home after the bounded delay; two quick taps show the chooser without a store reload; the bottom bar stays visible; re-entering SHEIN/Temu preserves interaction; and all v86.200 button/background tests still pass.
+
 # v86.200 — one visible store-exit button on SHEIN and Temu (2026-08-20)
 
 The customer reported two navigation defects while the combined background candidate was being prepared: Temu has no exit control on its Home root, and SHEIN shows two overlapping controls (green native plus dark injected). Source confirms both. `ensureBackButton()` hid the Temu root entirely, while the dedicated iOS SHEIN plugin deliberately renders a native UIButton without suppressing the HTML fallback that continues to repaint at the same coordinates.

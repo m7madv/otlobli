@@ -18,14 +18,41 @@ export const OTLOBLI_NAV_CSS =
   'font-family:system-ui,-apple-system,sans-serif!important;font-size:12px!important;line-height:normal!important;' +
   'opacity:1!important;visibility:visible!important;pointer-events:auto!important;'
 
-// Document-start touch routing beats modal click cancellation. The timestamp
-// deduplicates the synthetic click that follows a completed touch.
+// Document-start touch routing beats modal click cancellation. Home deliberately
+// waits for the platform double-tap window: one tap opens the active store home,
+// while two physical taps reveal Otlobli's store chooser without destroying the
+// parked browser session. A click synthesized after touchend must never count as
+// the second tap.
 export const OTLOBLI_NAV_TOUCH_BRIDGE_JS = `
   function otlobliInstallNavTouchBridge() {
     var featureFlags = window.__OTLOBLI_SCRIPT_FLAGS__;
     if (featureFlags && (featureFlags.runtime === false || featureFlags.navigation === false)) return;
     if (window.__otlobliNavTouchBridgeBound) return;
     window.__otlobliNavTouchBridgeBound = true;
+    var homeDoubleTapMs = 320;
+    var lastPhysicalTouchAt = 0;
+    var homeTapAt = 0;
+    var homeTapTimer = 0;
+    var clearPendingHomeTap = function () {
+      if (homeTapTimer) clearTimeout(homeTapTimer);
+      homeTapTimer = 0;
+      homeTapAt = 0;
+    };
+    var navigateToStoreHome = function () {
+      clearPendingHomeTap();
+      try {
+        var homePath = sessionStorage.getItem('__otlobliHomePath') || (location.hostname.indexOf('temu.') >= 0 ? '/sa/' : '/ar/');
+        location.assign(location.origin + homePath);
+      } catch (homeError) {}
+    };
+    var revealStoreChooser = function () {
+      clearPendingHomeTap();
+      try {
+        if (window.mobileApp && window.mobileApp.postMessage) {
+          window.mobileApp.postMessage({ detail: { type: 'closeStore' } });
+        }
+      } catch (chooserError) {}
+    };
     var routeOtlobliNavTouch = function (event) {
       var node = event.target, messageType = '';
       for (var depth = 0; node && depth < 8; depth++, node = node.parentElement) {
@@ -37,17 +64,23 @@ export const OTLOBLI_NAV_TOUCH_BRIDGE_JS = `
       event.stopPropagation();
       if (event.stopImmediatePropagation) event.stopImmediatePropagation();
       var now = Date.now();
+      if (event.type === 'click' && now - lastPhysicalTouchAt < 450) return;
+      if (event.type === 'touchend') lastPhysicalTouchAt = now;
+      if (messageType === 'openHome') {
+        if (homeTapTimer && now - homeTapAt <= homeDoubleTapMs) {
+          revealStoreChooser();
+          return;
+        }
+        clearPendingHomeTap();
+        homeTapAt = now;
+        homeTapTimer = setTimeout(navigateToStoreHome, homeDoubleTapMs);
+        return;
+      }
+      clearPendingHomeTap();
       if (now - (window.__otlobliNavTouchBridgeAt || 0) < 450) return;
       window.__otlobliNavTouchBridgeAt = now;
       try {
         if (window.mobileApp && window.mobileApp.postMessage) {
-          if (messageType === 'openHome') {
-            try {
-              var homePath = sessionStorage.getItem('__otlobliHomePath') || (location.hostname.indexOf('temu.') >= 0 ? '/sa/' : '/ar/');
-              location.assign(location.origin + homePath);
-            } catch (homeError) {}
-            return;
-          }
           var nativeTarget = messageType === 'openOrders' ? 'orders' : (messageType === 'openCart' ? 'cart' : 'profile');
           if (typeof window.mobileApp.navigate === 'function') window.mobileApp.navigate(nativeTarget);
           else {

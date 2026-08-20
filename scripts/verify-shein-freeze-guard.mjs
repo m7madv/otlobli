@@ -380,7 +380,7 @@ const checks = [
     markers: [
       'export const STORE_SCRIPT_DIAGNOSTICS =',
       'VITE_STORE_SCRIPT_DIAGNOSTICS',
-      'v86.200-store-exit-buttons',
+      'v86.201-double-home-store-switch',
     ],
   },
   {
@@ -742,6 +742,10 @@ const checks = [
       'const OTLOBLI_NAV_TOUCH_BRIDGE_JS',
       'function otlobliInstallNavTouchBridge()',
       "window.addEventListener('touchend', routeOtlobliNavTouch",
+      'var homeDoubleTapMs = 320',
+      "event.type === 'click' && now - lastPhysicalTouchAt < 450",
+      'homeTapTimer = setTimeout(navigateToStoreHome, homeDoubleTapMs)',
+      'revealStoreChooser()',
       "tab.setAttribute('data-otlobli-nav-type', item.type)",
       'if (!otlobliNavIsActuallyCovered(nav)) return false;',
       "var metaPrice = parseFloat(getMeta('product:price:amount'))",
