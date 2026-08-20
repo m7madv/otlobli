@@ -1,3 +1,11 @@
+# Active handoff — v86.199 combined root-Back + scheduling candidate (2026-08-20)
+
+The customer's v86.198 device result is decisive and must not be overwritten: root Back is fixed. SHEIN/product navigation works, Back at canonical Home exits correctly, and another store can be opened. However, backgrounding the whole app and returning still freezes the retained SHEIN surface. Treat these as two independent triggers, not a failed Back fix.
+
+Branch `codex/ios-v86-199-root-back-scheduling` starts from v86.198 HEAD `16f5824` (behavior commit `a3675ff`). The only new runtime line sets `WKPreferences.inactiveSchedulingPolicy = .throttle` on iOS 17+. Preserve every v86.198 root-Back invariant and do not add `.none`, reload, rebuild, recompose, data clearing, or another lifecycle action. Version/build `86.199/1061`, marker `2026.08.20-v86.199-root-back-scheduling`. Build/archive and physical acceptance are pending.
+
+Device test must distinguish: (A) ordinary App Switcher background/return without swiping the app away, repeated five times after Home/PDP use; (B) a separate force-quit/cold launch. For A, every return must permit immediate scroll, category, and PDP interaction. Re-run Home Back once to ensure the accepted v86.198 fix remains. Do not call scheduling proven until A passes.
+
 # Active handoff — v86.198 native Back-at-root guard (2026-08-20)
 
 The reproducible trigger is now entirely foreground: Home → product → native Back to Home → native Back again. The second tap called `WKWebView.goBack()` because `canGoBack` was true and the native `nativeBackTarget` could still be the asynchronous product-page value. That can enter a redirect/login/verification/Home history item; SHEIN redirects visibly back to Home but returns inert. The pressed control is the plugin's native `UIButton`, not SHEIN and not the injected HTML button.

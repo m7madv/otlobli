@@ -2,6 +2,13 @@
 
 هذه قاعدة إصدار إلزامية وليست ملاحظة تاريخية.
 
+## الجمع بين Back-at-root وجدولة عدم النشاط — v86.199
+
+- نتيجة الجهاز في v86.198 تقبل حارس الجذر: ممنوع حذفه أو إعادة `goBack()` عند `/ar/` أو `/`.
+- التجمّد بعد خلفية التطبيق بقي مستقلًا. على iOS 17+ يجب أن يضبط تكوين SHEIN `.inactiveSchedulingPolicy = .throttle` قبل إنشاء WKWebView.
+- `.throttle` هو التغيير الجديد الوحيد فوق v86.198. ممنوع `.none` أو reload أو recompose أو detach/reattach أو recreation أو website-data clearing.
+- اختبر الخلفية العادية من App Switcher من دون قتل العملية خمس مرات، واختبر force-quit/cold launch منفصلًا. أعد أيضًا اختبار Back من Home مرة واحدة لمنع تراجع الإصلاح المقبول.
+
 ## حارس Back عند جذر SHEIN — v86.198
 
 - زر iOS الأصلي فوق WKWebView هو صاحب القرار النهائي. `nativeBackTarget` القادم من سكربت الصفحة إشارة غير متزامنة، وليس حقيقة كافية بعد product → Home.

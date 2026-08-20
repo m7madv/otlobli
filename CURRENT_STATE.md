@@ -1,3 +1,11 @@
+# v86.199 — preserve accepted root Back and test inactive scheduling (2026-08-20)
+
+Physical v86.198 results split the incident cleanly. Its native root guard is accepted: SHEIN opens normally, product/back works, Back at canonical Home now leaves the store without entering WebKit history, and the customer can choose/open another store. That fix must remain. A separate trigger remains: send the whole app to the background and return, and the retained SHEIN page still freezes. Therefore the Back race was real and fixed, but it was not the only freeze path.
+
+v86.199 is cut directly from the accepted v86.198 code. Its only new behavioral delta is `configuration.preferences.inactiveSchedulingPolicy = .throttle` for iOS 17+ before the app-owned SHEIN WKWebView is created. The root URL guard, cart priority, 0.8-second Back lock, `[OTLOBLI_BACK]` logging, one WKWebView, website data, cookies, cache, Service Workers, region/VPN, scripts, and navigation remain unchanged. `.none`, reload, recompose, detach/reattach, recreation, and website-data clearing remain forbidden.
+
+Version/build is `86.199/1061`; marker `2026.08.20-v86.199-root-back-scheduling`. Build/archive and physical acceptance are pending. The decisive test is app switching without force-quit: enter SHEIN, open a PDP, return to Home, background Otlobli for 5–10 seconds, return, then scroll/open a category and PDP. Repeat five times. A separate swipe-away force-quit/cold launch must be reported separately because process death is not a scheduling-resume cycle.
+
 # v86.198 — canonical SHEIN Home exits before WebKit history (2026-08-20)
 
 The customer found a 100% local trigger that supersedes backgrounding as the immediate reproduction: SHEIN Home → product → Back to Home → press Back once more. The second Back visibly reloads Home and leaves it inert. Source inspection identifies the pressed control as the native `UIButton` in `OtlobliSheinBrowserPlugin`, which sits above the injected page button. The injected script already classifies Home as an exit, but it publishes `nativeBackTarget` asynchronously during navigation maintenance. The native handler trusted that possibly stale target and then called `WKWebView.goBack()` whenever `canGoBack` was true. SHEIN redirects/verification entries make that history structurally nonempty without making it safe application navigation.

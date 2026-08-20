@@ -34,5 +34,5 @@ export const TEMU_PERSONAL_SITE_MODE =
 
 // رقم النسخة الظاهر داخل التطبيق.
 export const APP_VERSION = TEMU_PERSONAL_SITE_MODE
-  ? '2026.08.20-v86.198-personal-shein-root-back-guard'
-  : '2026.08.20-v86.198-shein-root-back-guard'
+  ? '2026.08.20-v86.199-personal-root-back-scheduling'
+  : '2026.08.20-v86.199-root-back-scheduling'

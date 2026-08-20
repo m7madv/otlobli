@@ -1,5 +1,12 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
+## v86.199 decision — keep root Back fix; background freeze is separate (2026-08-20)
+
+- **Accepted on device:** v86.198 prevents the Home Back reload and permits store exit/switching. Preserve it.
+- **Still failing:** ordinary app background/return freezes the retained SHEIN page even though the unsafe root-history action is no longer taken.
+- **Decision:** create a combined candidate from v86.198 and add only WebKit's battery-preferred `.throttle` inactive scheduling policy on iOS 17+. Do not contaminate the result with any other lifecycle or data-store mutation.
+- **Acceptance split:** app-switch background/resume and swipe-away process death are different tests and must be reported separately.
+
 ## v86.198 decision — native URL wins over stale Back target (2026-08-20)
 
 - **Reproduction:** Home → product → Back to Home → Back again deterministically reloads/redirects Home into an inert state, entirely while foreground and visible.

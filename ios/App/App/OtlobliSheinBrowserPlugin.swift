@@ -233,6 +233,11 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         configuration.allowsInlineMediaPlayback = true
         configuration.mediaTypesRequiringUserActionForPlayback = []
         configuration.suppressesIncrementalRendering = false
+        // Preserve the now device-accepted root-Back behavior while keeping
+        // SHEIN's retained SPA schedulable across app inactivity on modern iOS.
+        if #available(iOS 17.0, *) {
+            configuration.preferences.inactiveSchedulingPolicy = .throttle
+        }
         if #available(iOS 14.0, *) {
             configuration.defaultWebpagePreferences.allowsContentJavaScript = true
             configuration.defaultWebpagePreferences.preferredContentMode = .mobile
