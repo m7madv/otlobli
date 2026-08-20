@@ -33,6 +33,17 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         subsystem: Bundle.main.bundleIdentifier ?? "com.otlobli.app",
         category: "SheinRootCause"
     )
+    private static let sheinPrefetchCacheGuardIdentifier =
+        "com.otlobli.shein-prefetch-cache-guard.v1"
+    private static let sheinPrefetchCacheGuardJSON = #"""
+    [{
+      "trigger": {
+        "url-filter": "^https://sheinm[.]ltwebstatic[.]com/pwa_dist/assets/.*[.]js([?].*)?$",
+        "resource-type": ["raw"]
+      },
+      "action": { "type": "block" }
+    }]
+    """#
 
     private var browserId = ""
     private var savedURL: URL?
@@ -46,6 +57,9 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
     private var diagnosticNavigationSequence = 0
     private var diagnosticNavigationId = ""
     private var diagnosticLifecycleObservers: [NSObjectProtocol] = []
+    private var sheinPrefetchCacheGuard: WKContentRuleList?
+    private var sheinPrefetchCacheGuardPreparing = false
+    private var sheinPrefetchCacheGuardWaiters: [(WKContentRuleList?, String?) -> Void] = []
 
     private var surfaceView: UIView?
     private var storeWebView: WKWebView?
@@ -67,6 +81,9 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         )
         installRootCauseLifecycleObservers()
         logDiagnostic("plugin-load", surfaceStateFields())
+        DispatchQueue.main.async {
+            self.prepareSheinPrefetchCacheGuard { _, _ in }
+        }
     }
 
     deinit {
@@ -86,33 +103,40 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         }
 
         DispatchQueue.main.async {
-            self.closeBrowser(emitEvent: false)
-            self.browserId = "otlobli-shein-\(UUID().uuidString.lowercased())"
-            self.diagnosticWebViewId = "webview-\(UUID().uuidString.lowercased())"
-            self.diagnosticNavigationSequence = 0
-            self.diagnosticNavigationId = "navigation-0"
-            self.savedURL = url
-            self.documentStartScript = call.getString("otlobliDocumentStartScript", "")
-            self.loadingCoverEnabled = call.getBool("otlobliLoadingCover", true)
-            self.isBrowserVisible = true
-            self.logDiagnostic("open-request", self.surfaceStateFields().merging([
-                "requestedUrl": self.safeURLString(url)
-            ]) { current, _ in current })
+            self.prepareSheinPrefetchCacheGuard { ruleList, errorMessage in
+                guard ruleList != nil else {
+                    call.reject(errorMessage ?? "SHEIN prefetch cache guard is unavailable")
+                    return
+                }
 
-            // The old API requested an initially hidden browser. This browser
-            // never creates hidden WebKit surfaces; its native loading cover is
-            // the only pre-ready presentation.
-            guard self.createRenderSurface(
-                request: self.initialRequest(url: url, call: call),
-                loadingMessage: "جاري تجهيز المتجر…"
-            ) else {
                 self.closeBrowser(emitEvent: false)
-                call.reject("Capacitor host view is unavailable")
-                return
+                self.browserId = "otlobli-shein-\(UUID().uuidString.lowercased())"
+                self.diagnosticWebViewId = "webview-\(UUID().uuidString.lowercased())"
+                self.diagnosticNavigationSequence = 0
+                self.diagnosticNavigationId = "navigation-0"
+                self.savedURL = url
+                self.documentStartScript = call.getString("otlobliDocumentStartScript", "")
+                self.loadingCoverEnabled = call.getBool("otlobliLoadingCover", true)
+                self.isBrowserVisible = true
+                self.logDiagnostic("open-request", self.surfaceStateFields().merging([
+                    "requestedUrl": self.safeURLString(url)
+                ]) { current, _ in current })
+
+                // The old API requested an initially hidden browser. This browser
+                // never creates hidden WebKit surfaces; its native loading cover is
+                // the only pre-ready presentation.
+                guard self.createRenderSurface(
+                    request: self.initialRequest(url: url, call: call),
+                    loadingMessage: "جاري تجهيز المتجر…"
+                ) else {
+                    self.closeBrowser(emitEvent: false)
+                    call.reject("Capacitor host view or SHEIN cache guard is unavailable")
+                    return
+                }
+                self.logDiagnostic("open-resolved", self.surfaceStateFields())
+                self.captureCookieMetadata("OPEN_RESOLVED")
+                call.resolve(["id": self.browserId])
             }
-            self.logDiagnostic("open-resolved", self.surfaceStateFields())
-            self.captureCookieMetadata("OPEN_RESOLVED")
-            call.resolve(["id": self.browserId])
         }
     }
 
@@ -238,6 +262,78 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         }
     }
 
+    private func prepareSheinPrefetchCacheGuard(
+        completion: @escaping (WKContentRuleList?, String?) -> Void
+    ) {
+        dispatchPrecondition(condition: .onQueue(.main))
+        if let ruleList = sheinPrefetchCacheGuard {
+            completion(ruleList, nil)
+            return
+        }
+
+        sheinPrefetchCacheGuardWaiters.append(completion)
+        guard !sheinPrefetchCacheGuardPreparing else { return }
+        sheinPrefetchCacheGuardPreparing = true
+
+        let store = WKContentRuleListStore.default()
+        store.lookUpContentRuleList(
+            forIdentifier: Self.sheinPrefetchCacheGuardIdentifier
+        ) { [weak self] existingRuleList, _ in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if let existingRuleList {
+                    self.finishSheinPrefetchCacheGuardPreparation(
+                        ruleList: existingRuleList,
+                        source: "persistent-lookup",
+                        errorMessage: nil
+                    )
+                    return
+                }
+
+                store.compileContentRuleList(
+                    forIdentifier: Self.sheinPrefetchCacheGuardIdentifier,
+                    encodedContentRuleList: Self.sheinPrefetchCacheGuardJSON
+                ) { [weak self] compiledRuleList, error in
+                    DispatchQueue.main.async {
+                        self?.finishSheinPrefetchCacheGuardPreparation(
+                            ruleList: compiledRuleList,
+                            source: "compiled",
+                            errorMessage: error?.localizedDescription
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private func finishSheinPrefetchCacheGuardPreparation(
+        ruleList: WKContentRuleList?,
+        source: String,
+        errorMessage: String?
+    ) {
+        dispatchPrecondition(condition: .onQueue(.main))
+        sheinPrefetchCacheGuard = ruleList
+        sheinPrefetchCacheGuardPreparing = false
+        let waiters = sheinPrefetchCacheGuardWaiters
+        sheinPrefetchCacheGuardWaiters.removeAll()
+
+        if ruleList != nil {
+            logDiagnostic("prefetch-cache-guard-ready", [
+                "identifier": Self.sheinPrefetchCacheGuardIdentifier,
+                "source": source,
+                "resourceType": "raw"
+            ])
+        } else {
+            logDiagnostic("prefetch-cache-guard-failed", [
+                "identifier": Self.sheinPrefetchCacheGuardIdentifier,
+                "error": errorMessage ?? "unknown"
+            ])
+        }
+        for waiter in waiters {
+            waiter(ruleList, errorMessage)
+        }
+    }
+
     private func createRenderSurface(
         request: URLRequest? = nil,
         loadingMessage: String
@@ -248,7 +344,10 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
               let targetURL = request?.url ?? savedURL,
               isAllowedStoreURL(targetURL) else { return false }
 
+        guard let prefetchCacheGuard = sheinPrefetchCacheGuard else { return false }
+
         let contentController = WKUserContentController()
+        contentController.add(prefetchCacheGuard)
         for name in Self.messageHandlers {
             contentController.add(self, name: name)
         }

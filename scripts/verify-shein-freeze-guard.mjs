@@ -52,6 +52,12 @@ const checks = [
       'webViewWebContentProcessDidTerminate',
       'WKWebsiteDataTypeDiskCache',
       'WKWebsiteDataTypeMemoryCache',
+      'sheinPrefetchCacheGuardIdentifier',
+      '"resource-type": ["raw"]',
+      'prepareSheinPrefetchCacheGuard',
+      'lookUpContentRuleList',
+      'compileContentRuleList',
+      'contentController.add(prefetchCacheGuard)',
       'removeScriptMessageHandler',
       'browserId = "otlobli-shein-',
       'isAllowedStoreURL(url)',
@@ -77,6 +83,8 @@ const checks = [
       'restoreAfterBackground',
       'navigationAction.navigationType == .linkActivated',
       'inactiveSchedulingPolicy = .none',
+      '"resource-type": ["script"]',
+      'removeAllContentRuleLists',
     ],
   },
   {
@@ -377,7 +385,7 @@ const checks = [
     markers: [
       'export const STORE_SCRIPT_DIAGNOSTICS =',
       'VITE_STORE_SCRIPT_DIAGNOSTICS',
-      'v86.202-root-cause-timeline-diagnostic',
+      'v86.203-shein-prefetch-cache-guard',
     ],
   },
   {
@@ -1393,6 +1401,42 @@ try {
   }
   if (displayLinkConstructors !== 0) {
     failures.push(`dedicated iOS SHEIN browser: expected no same-instance display-link repair, got ${displayLinkConstructors}`)
+  }
+
+  const ruleSourceMatch = nativeBrowserSource.match(
+    /private static let sheinPrefetchCacheGuardJSON = #"""([\s\S]*?)"""#/,
+  )
+  if (!ruleSourceMatch) {
+    failures.push('SHEIN prefetch cache guard: native JSON rule source is missing')
+  } else {
+    const rules = JSON.parse(ruleSourceMatch[1])
+    const rule = rules[0]
+    if (rules.length !== 1 || rule?.action?.type !== 'block' ||
+        JSON.stringify(rule?.trigger?.['resource-type']) !== JSON.stringify(['raw']) ||
+        rule?.trigger?.['url-filter'] !== '^https://sheinm[.]ltwebstatic[.]com/pwa_dist/assets/.*[.]js([?].*)?$') {
+      failures.push('SHEIN prefetch cache guard: must block only raw canonical CDN JavaScript prefetches')
+    }
+  }
+
+  const openStart = nativeBrowserSource.indexOf('@objc func openWebView')
+  const openEnd = nativeBrowserSource.indexOf('@objc func show', openStart)
+  const openSource = nativeBrowserSource.slice(openStart, openEnd)
+  const prepareRule = openSource.indexOf('prepareSheinPrefetchCacheGuard')
+  const closeBrowser = openSource.indexOf('closeBrowser(emitEvent: false)')
+  if (openStart < 0 || openEnd < 0 || prepareRule < 0 || closeBrowser < prepareRule) {
+    failures.push('SHEIN prefetch cache guard: rule preparation must finish before replacing or loading the browser')
+  }
+
+  const surfaceStart = nativeBrowserSource.indexOf('private func createRenderSurface(')
+  const surfaceEnd = nativeBrowserSource.indexOf('private func destroyRenderSurface()', surfaceStart)
+  const surfaceSource = nativeBrowserSource.slice(surfaceStart, surfaceEnd)
+  const requireRule = surfaceSource.indexOf('guard let prefetchCacheGuard = sheinPrefetchCacheGuard')
+  const installRule = surfaceSource.indexOf('contentController.add(prefetchCacheGuard)')
+  const createConfiguration = surfaceSource.indexOf('let configuration = WKWebViewConfiguration()')
+  const loadRequest = surfaceSource.indexOf('webView.load(')
+  if (surfaceStart < 0 || surfaceEnd < 0 || requireRule < 0 || installRule < requireRule ||
+      createConfiguration < installRule || loadRequest < createConfiguration) {
+    failures.push('SHEIN prefetch cache guard: raw rule must be installed before configuration and first request')
   }
   const nativeBackStart = nativeBrowserSource.indexOf('@objc private func nativeBackPressed()')
   const nativeBackEnd = nativeBrowserSource.indexOf('private func mobileBridgeScript()', nativeBackStart)

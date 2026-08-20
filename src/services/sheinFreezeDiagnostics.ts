@@ -9,7 +9,7 @@ export const SHEIN_FREEZE_DIAGNOSTIC_SCRIPT = `!function(){
   var existing=window.__otlobliRootCauseProbe;
   if(existing&&typeof existing.noteInjection==='function'){existing.noteInjection('document-start-repeat');return}
 
-  var probeVersion='2026.08.20-v86.202-root-cause-v1';
+  var probeVersion='2026.08.20-v86.203-prefetch-cache-guard-v1';
   var sequence=0,installationAttempts=1,lastResourceIndex=0,resourceBudget=180;
   var interactionSequence=0,interactionBudget=60,lastPath='';
   var documentId=makeId('doc');
