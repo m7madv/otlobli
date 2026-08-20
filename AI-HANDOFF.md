@@ -1,3 +1,9 @@
+# Active handoff — v86.200 single store-exit controls (2026-08-20)
+
+v86.200 is the user-facing candidate above clean v86.199. The user found that Temu root had no exit button and SHEIN displayed both the custom plugin's green native button and the dark injected fallback. `storeBlockingScript.ts` now always computes Temu visibility, but hides the HTML element whenever a WebKit native message handler is available. It still posts `otlobliBackButtonState`, so the native control remains functional. Search mode precedes root exit; Temu root emits `closeStore`. App.tsx now parks the normal Temu InAppBrowser before showing the picker, and the persistent Capgo patch maps native `exit` to `closeStore` instead of hard-coding SHEIN.
+
+Preserve v86.198 canonical-root protection and v86.199 `.throttle`. Do not show both HTML and native controls. On iOS there must be exactly one native button; on Android/no-native-handler exactly one HTML fallback. Version/build `86.200/1062`, marker `2026.08.20-v86.200-store-exit-buttons`. Build/archive and device acceptance are pending.
+
 # Active handoff — v86.199 combined root-Back + scheduling candidate (2026-08-20)
 
 The customer's v86.198 device result is decisive and must not be overwritten: root Back is fixed. SHEIN/product navigation works, Back at canonical Home exits correctly, and another store can be opened. However, backgrounding the whole app and returning still freezes the retained SHEIN surface. Treat these as two independent triggers, not a failed Back fix.

@@ -2,6 +2,14 @@
 
 هذه قاعدة إصدار إلزامية وليست ملاحظة تاريخية.
 
+## زر واحد لكل متصفح متجر — v86.200
+
+- إذا كان `window.webkit.messageHandlers.messageHandler` موجودًا، زر HTML `#otlobli-back-btn` يبقى مخفيًا بصريًا لكنه يرسل `otlobliBackButtonState`; زر Native وحده يظهر.
+- إذا لم توجد طبقة Native، زر HTML هو fallback الوحيد. ممنوع إخفاؤه على Android أو إظهار الزرين معًا على iOS.
+- Temu root يجب أن يظهر زرًا. البحث له الأولوية للخروج من search mode، ثم root يرسل `closeStore`، وغير الجذر يحتفظ بالرجوع الحالي.
+- `closeStore` يجب أن يخفي/يركن Temu InAppBrowser قبل إظهار picker، من دون تدمير جلسة أو مسح بيانات.
+- أعد اختبار حارس SHEIN canonical root و`.throttle` بعد أي تعديل لهذه الشيفرة.
+
 ## الجمع بين Back-at-root وجدولة عدم النشاط — v86.199
 
 - نتيجة الجهاز في v86.198 تقبل حارس الجذر: ممنوع حذفه أو إعادة `goBack()` عند `/ar/` أو `/`.

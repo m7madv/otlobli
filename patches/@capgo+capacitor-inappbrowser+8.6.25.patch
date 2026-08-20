@@ -2125,7 +2125,7 @@ index 97a2fc1..781a70c 100644
 +
 +    @objc private func otlobliNativeBackButtonDidTap() {
 +        if otlobliNativeBackTarget == "exit" {
-+            emit("messageFromWebview", data: ["detail": ["type": "requestStoreExit", "store": "shein"]])
++            emit("messageFromWebview", data: ["detail": ["type": "closeStore"]])
 +            return
 +        }
 +        if otlobliNativeBackTarget == "cart" {

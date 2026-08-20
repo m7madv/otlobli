@@ -380,7 +380,7 @@ const checks = [
     markers: [
       'export const STORE_SCRIPT_DIAGNOSTICS =',
       'VITE_STORE_SCRIPT_DIAGNOSTICS',
-      'v86.199-root-back-scheduling',
+      'v86.200-store-exit-buttons',
     ],
   },
   {
@@ -611,10 +611,13 @@ const checks = [
       "el.style.setProperty('animation', 'none', 'important')",
       "el.style.setProperty('z-index', '2147483647', 'important')",
       'otlobliStabilizeBackOverlay(btn)',
-      '|| looksLikeProductPage() || temuSearchBack',
+      'IS_SHEIN || IS_TEMU || __otlobliBackTarget',
       "type: 'otlobliBackButtonState'",
       'window.__otlobliNativeBackState !== nativeState',
-      'if (shouldShow) otlobliStabilizeBackOverlay(btn)',
+      'var nativeBackAvailable = !!(window.webkit',
+      "btn.style.display = shouldShow && !nativeBackAvailable ? 'flex' : 'none'",
+      'if (shouldShow && !nativeBackAvailable) otlobliStabilizeBackOverlay(btn)',
+      "window.mobileApp.postMessage({ detail: { type: 'closeStore' } })",
       // v86.123: the back button must never absorb a tap and do nothing. A bare
       // history.back() is a silent no-op once the store's back stack is spent,
       // which stranded iPhone 6 customers inside a product after a few hops.
@@ -637,6 +640,7 @@ const checks = [
       'button.topAnchor.constraint(equalTo: self.view.safeAreaLayoutGuide.topAnchor, constant: top)',
       'self.view.bringSubviewToFront(button)',
       'otlobliNativeBackButtonDidTap',
+      'emit("messageFromWebview", data: ["detail": ["type": "closeStore"]])',
       "document.getElementById('otlobli-back-btn');if(b)b.click()",
       'detail["type"] as? String == "otlobliBackButtonState"',
       'otlobliNativeBackButton?.isHidden = true',
@@ -904,9 +908,9 @@ try {
     const backLayerStart = captureScript.indexOf('function otlobliStabilizeBackOverlay')
     const backLayerEnd = captureScript.indexOf('function ensureOtlobliNav', backLayerStart)
     const backLayerHelper = captureScript.slice(backLayerStart, backLayerEnd)
-    const backDisplayAt = captureScript.indexOf("btn.style.display = shouldShow ? 'flex' : 'none'")
+    const backDisplayAt = captureScript.indexOf("btn.style.display = shouldShow && !nativeBackAvailable ? 'flex' : 'none'")
     const nativeBackStateAt = captureScript.indexOf("type: 'otlobliBackButtonState'")
-    const visibleBackReclaimAt = captureScript.indexOf('if (shouldShow) otlobliStabilizeBackOverlay(btn)', nativeBackStateAt)
+    const visibleBackReclaimAt = captureScript.indexOf('if (shouldShow && !nativeBackAvailable) otlobliStabilizeBackOverlay(btn)', nativeBackStateAt)
     if (backDisplayAt < 0 || nativeBackStateAt < backDisplayAt || visibleBackReclaimAt < nativeBackStateAt) {
       failures.push('iPhone 6 back layer: visible/native state must be resolved before the final paint reclaim')
     }
@@ -1522,6 +1526,7 @@ try {
   const closeStoreSource = appSource.slice(closeStoreStart, closeStoreEnd)
   if (closeStoreStart < 0 || closeStoreEnd < 0 ||
       !closeStoreSource.includes("recordAppDiagnostic('store_session_parked_for_chooser', { store: 'shein' })") ||
+      !closeStoreSource.includes("recordAppDiagnostic('store_session_parked_for_chooser', { store: 'temu' })") ||
       !closeStoreSource.includes('InAppBrowser.hide()') ||
       closeStoreSource.includes('InAppBrowser.close(') ||
       closeStoreSource.includes('webviewSessionRef.current += 1') ||

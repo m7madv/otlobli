@@ -4651,6 +4651,9 @@ function App() {
           if (sheinOpenedRef.current) void InAppBrowser.hide().catch(() => undefined)
         } else if (TEMU_PERSONAL_SITE_MODE && Capacitor.getPlatform() === 'android') {
           void TemuEmbeddedBrowser.hide().catch(() => undefined)
+        } else if (selectedStoreRef.current === 'temu') {
+          recordAppDiagnostic('store_session_parked_for_chooser', { store: 'temu' })
+          void InAppBrowser.hide().catch(() => undefined)
         }
         return
       }

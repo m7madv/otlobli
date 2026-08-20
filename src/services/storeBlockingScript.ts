@@ -524,14 +524,20 @@ export const STORE_BLOCKING_SCRIPT = `
         // so a back() from the root can land on a half-finished check page.
         // Temu search is an overlay with no history entry - clearing the field
         // and firing input exits it; history.back there hung the screen.
-        if (IS_SHEIN && looksLikeHomeRoot()) {
+        if (IS_TEMU && otlobliTemuSearchBackActive()) {
+          otlobliTemuExitSearchMode();
+        } else if (IS_SHEIN && looksLikeHomeRoot()) {
           try {
             if (window.mobileApp && window.mobileApp.postMessage) {
               window.mobileApp.postMessage({ detail: { type: 'requestStoreExit', store: 'shein' } });
             }
           } catch (e) {}
-        } else if (IS_TEMU && otlobliTemuSearchBackActive()) {
-          otlobliTemuExitSearchMode();
+        } else if (IS_TEMU && looksLikeHomeRoot()) {
+          try {
+            if (window.mobileApp && window.mobileApp.postMessage) {
+              window.mobileApp.postMessage({ detail: { type: 'closeStore' } });
+            }
+          } catch (e) {}
         } else if (!looksLikeHomeRoot() || looksLikeProductPage()) {
           otlobliBackOrLeave();
         }
@@ -539,15 +545,17 @@ export const STORE_BLOCKING_SCRIPT = `
       otlobliStabilizeBackOverlay(btn);
     }
     var temuSearchBack = IS_TEMU && otlobliTemuSearchBackActive();
-    var shouldShow = IS_SHEIN || __otlobliBackTarget === 'cart' || !looksLikeHomeRoot()
+    var shouldShow = IS_SHEIN || IS_TEMU || __otlobliBackTarget === 'cart' || !looksLikeHomeRoot()
       || looksLikeProductPage() || temuSearchBack;
+    var nativeBackAvailable = !!(window.webkit && window.webkit.messageHandlers
+      && window.webkit.messageHandlers.messageHandler);
     var backTop = temuSearchBack ? 30 : ((IS_SHEIN && viewportSize().width <= 390) ? 58 : 12);
     btn.style.setProperty('top', backTop + 'px', 'important');
-    btn.style.display = shouldShow ? 'flex' : 'none';
-    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.messageHandler) {
+    btn.style.display = shouldShow && !nativeBackAvailable ? 'flex' : 'none';
+    if (nativeBackAvailable) {
       var nativeBackTarget = __otlobliBackTarget === 'cart'
         ? 'cart'
-        : (IS_SHEIN && looksLikeHomeRoot() ? 'exit' : 'home');
+        : ((IS_SHEIN || IS_TEMU) && looksLikeHomeRoot() ? 'exit' : 'home');
       var nativeState = (shouldShow ? '1:' : '0:') + backTop + ':' + nativeBackTarget;
       if (window.__otlobliNativeBackState !== nativeState) {
         window.__otlobliNativeBackState = nativeState;
@@ -556,7 +564,7 @@ export const STORE_BLOCKING_SCRIPT = `
         } });
       }
     }
-    if (shouldShow) otlobliStabilizeBackOverlay(btn);
+    if (shouldShow && !nativeBackAvailable) otlobliStabilizeBackOverlay(btn);
   }
 
   function isAddToCartText(el) {

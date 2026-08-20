@@ -1,3 +1,11 @@
+# v86.200 — one visible store-exit button on SHEIN and Temu (2026-08-20)
+
+The customer reported two navigation defects while the combined background candidate was being prepared: Temu has no exit control on its Home root, and SHEIN shows two overlapping controls (green native plus dark injected). Source confirms both. `ensureBackButton()` hid the Temu root entirely, while the dedicated iOS SHEIN plugin deliberately renders a native UIButton without suppressing the HTML fallback that continues to repaint at the same coordinates.
+
+v86.200 retains all v86.199 root-Back and `.throttle` behavior. On any iOS WebView that exposes the native message handler, the injected HTML Back remains `display:none` but continues computing and publishing visibility/target state; exactly one native button is visible. Temu is now eligible for a Back control even at its root. Search overlay Back still has first priority; root exit emits `closeStore`, parks/hides the Temu browser, and reveals the Otlobli picker; non-root Temu keeps the existing history behavior. Android/no-native-handler retains the injected button as its single fallback.
+
+Version/build is `86.200/1062`; marker `2026.08.20-v86.200-store-exit-buttons`. Build/archive and physical acceptance are pending. Acceptance: SHEIN must show only the green native control; Temu Home must show exactly one control; Temu search Back must exit search; Temu root Back must reveal the picker; re-entering both stores must keep them interactive; then perform the v86.199 five-cycle background test.
+
 # v86.199 — preserve accepted root Back and test inactive scheduling (2026-08-20)
 
 Physical v86.198 results split the incident cleanly. Its native root guard is accepted: SHEIN opens normally, product/back works, Back at canonical Home now leaves the store without entering WebKit history, and the customer can choose/open another store. That fix must remain. A separate trigger remains: send the whole app to the background and return, and the retained SHEIN page still freezes. Therefore the Back race was real and fixed, but it was not the only freeze path.

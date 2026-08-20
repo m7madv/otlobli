@@ -1,5 +1,12 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
+## v86.200 decision — native button owns iOS; Temu root can exit (2026-08-20)
+
+- **Observed:** SHEIN displayed green native and dark HTML Back controls together; Temu Home displayed none.
+- **Cause:** the HTML maintenance loop always repainted SHEIN Back even after publishing state to the native layer, while `shouldShow` excluded Temu root.
+- **Decision:** native WebKit handler presence suppresses HTML paint only, never state publication. Temu participates in root visibility and exits through `closeStore`; App parks its InAppBrowser. Search and non-root history behavior remain ordered and unchanged.
+- **Invariant:** one visible Back control per store surface. Preserve v86.198 root URL authority and v86.199 inactive scheduling.
+
 ## v86.199 decision — keep root Back fix; background freeze is separate (2026-08-20)
 
 - **Accepted on device:** v86.198 prevents the Home Back reload and permits store exit/switching. Preserve it.
