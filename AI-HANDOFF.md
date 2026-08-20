@@ -1,3 +1,11 @@
+# Active handoff — v86.198 native Back-at-root guard (2026-08-20)
+
+The reproducible trigger is now entirely foreground: Home → product → native Back to Home → native Back again. The second tap called `WKWebView.goBack()` because `canGoBack` was true and the native `nativeBackTarget` could still be the asynchronous product-page value. That can enter a redirect/login/verification/Home history item; SHEIN redirects visibly back to Home but returns inert. The pressed control is the plugin's native `UIButton`, not SHEIN and not the injected HTML button.
+
+Branch `codex/ios-v86-198-shein-root-back-guard` is based on exact v86.193 `a6e0ca9` and excludes v86.197 `.throttle`. The live native URL wins at tap time: `/ar/` or `/` emits `closeStore` before any history check, parks the same session, and returns directly to the picker. `cart` remains first; all non-root paths retain existing `goBack` and fallback behavior. The 0.8-second lock prevents overlapping native Back actions. `[OTLOBLI_BACK]` logs the current route, back list, decision, and navigation type. Do not add reload, rebuild, data clearing, or inactive-scheduling changes to this branch.
+
+Version/build `86.198/1060`, marker `2026.08.20-v86.198-shein-root-back-guard`. Build/archive and device acceptance are pending. Required device result: ten product opens/backs, one Back at Home must reveal picker without reload, re-enter SHEIN and open another product, then run five background/resume cycles and one cold launch. This prevents the proven bad edge; it does not yet explain SHEIN's internal inert state after unsafe history navigation.
+
 # Active handoff — v86.189 disposable iOS render surfaces (2026-08-14)
 
 v86.188 failed physical acceptance despite the dedicated plugin. Modern iPhone: first entry healthy, second entry/list visible but taps dead. iPhone 6: Home fully loaded, next list route did not complete interactively. Android remains fully healthy. Therefore never restore same-WKWebView rebind/recompose for iOS SHEIN and stop investigating normal injected script groups for these symptoms.

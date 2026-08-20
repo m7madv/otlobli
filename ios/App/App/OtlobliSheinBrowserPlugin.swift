@@ -43,6 +43,8 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
     private var nativeBackButton: UIButton?
     private var nativeBackTopConstraint: NSLayoutConstraint?
     private var nativeBackTarget = "home"
+    private var nativeBackLocked = false
+    private var pendingNativeBackTraceAction: String?
 
     public override func load() {
         NotificationCenter.default.addObserver(
@@ -299,6 +301,8 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         nativeBackButton = nil
         nativeBackTopConstraint = nil
         nativeBackTarget = "home"
+        nativeBackLocked = false
+        pendingNativeBackTraceAction = nil
     }
 
     /// Keep the verified WebContent process alive while Otlobli's Capacitor
@@ -497,18 +501,102 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         }
     }
 
+    private func isCanonicalSheinHomeURL(_ url: URL?) -> Bool {
+        guard let url, isAllowedStoreURL(url) else { return false }
+        let path = url.path
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            .lowercased()
+        return path.isEmpty || path == "ar"
+    }
+
+    private func nativeBackPageType(_ url: URL?) -> String {
+        guard let url else { return "missing" }
+        if isCanonicalSheinHomeURL(url) { return "home-root" }
+        if url.path.range(of: "-p-[0-9]+", options: .regularExpression) != nil {
+            return "product"
+        }
+        return "other"
+    }
+
+    private func nativeNavigationTypeName(_ type: WKNavigationType) -> String {
+        switch type {
+        case .linkActivated: return "linkActivated"
+        case .formSubmitted: return "formSubmitted"
+        case .backForward: return "backForward"
+        case .reload: return "reload"
+        case .formResubmitted: return "formResubmitted"
+        case .other: return "other"
+        @unknown default: return "unknown"
+        }
+    }
+
+    private func logNativeBack(
+        webView: WKWebView?,
+        chosenAction: String,
+        navigationType: String
+    ) {
+        let url = webView?.url
+        let backList = webView?.backForwardList.backList ?? []
+        let recentBackList = backList.suffix(5)
+            .map { $0.url.absoluteString }
+            .joined(separator: " | ")
+        NSLog(
+            "[OTLOBLI_BACK] pageType=%@ currentURL=%@ currentPath=%@ canGoBack=%@ backListCount=%@ target=%@ chosenAction=%@ navigationType=%@ backList=%@",
+            nativeBackPageType(url),
+            url?.absoluteString ?? "",
+            url?.path ?? "",
+            webView?.canGoBack == true ? "true" : "false",
+            String(backList.count),
+            nativeBackTarget,
+            chosenAction,
+            navigationType,
+            recentBackList
+        )
+    }
+
+    private func lockNativeBackBriefly() {
+        nativeBackLocked = true
+        nativeBackButton?.isUserInteractionEnabled = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+            self?.nativeBackLocked = false
+            self?.nativeBackButton?.isUserInteractionEnabled = true
+        }
+    }
+
     @objc private func nativeBackPressed() {
-        switch nativeBackTarget {
-        case "cart":
+        guard let webView = storeWebView else {
+            logNativeBack(webView: nil, chosenAction: "ignored-no-webview", navigationType: "none")
+            return
+        }
+        guard !nativeBackLocked else {
+            logNativeBack(webView: webView, chosenAction: "ignored-locked", navigationType: "none")
+            return
+        }
+        lockNativeBackBriefly()
+
+        if nativeBackTarget == "cart" {
+            logNativeBack(webView: webView, chosenAction: "backToCart", navigationType: "none")
             emit("messageFromWebview", detail: ["type": "backToCart"])
-        case "exit":
-            emit("messageFromWebview", detail: ["type": "requestStoreExit", "store": "shein"])
-        default:
-            if storeWebView?.canGoBack == true {
-                storeWebView?.goBack()
-            } else if let home = URL(string: "https://m.shein.com/ar/") {
-                navigateInCurrentWebView(to: home)
-            }
+            return
+        }
+
+        // The injected page state is asynchronous. After product -> Home it
+        // can still say "home" for one maintenance tick. Resolve the live URL
+        // at the instant of the native tap before consulting WebKit history.
+        if isCanonicalSheinHomeURL(webView.url) {
+            logNativeBack(webView: webView, chosenAction: "parkStoreAtRoot", navigationType: "none")
+            emit("messageFromWebview", detail: ["type": "closeStore"])
+            return
+        }
+
+        if webView.canGoBack {
+            pendingNativeBackTraceAction = "goBack"
+            logNativeBack(webView: webView, chosenAction: "goBack", navigationType: "pending")
+            webView.goBack()
+        } else if let home = URL(string: "https://m.shein.com/ar/") {
+            pendingNativeBackTraceAction = "loadHomeFallback"
+            logNativeBack(webView: webView, chosenAction: "loadHomeFallback", navigationType: "pending")
+            navigateInCurrentWebView(to: home)
         }
     }
 
@@ -653,8 +741,16 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
             decisionHandler(.cancel)
             return
         }
+        let isTopLevel = navigationAction.targetFrame?.isMainFrame == true || navigationAction.targetFrame == nil
+        if isTopLevel, let pendingAction = pendingNativeBackTraceAction {
+            logNativeBack(
+                webView: webView,
+                chosenAction: pendingAction,
+                navigationType: nativeNavigationTypeName(navigationAction.navigationType)
+            )
+            pendingNativeBackTraceAction = nil
+        }
         if scheme == "http" || scheme == "https" {
-            let isTopLevel = navigationAction.targetFrame?.isMainFrame == true || navigationAction.targetFrame == nil
             if isTopLevel && !isAllowedStoreURL(url) {
                 if UIApplication.shared.canOpenURL(url) {
                     UIApplication.shared.open(url)

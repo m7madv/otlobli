@@ -1,5 +1,13 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
+## v86.198 decision — native URL wins over stale Back target (2026-08-20)
+
+- **Reproduction:** Home → product → Back to Home → Back again deterministically reloads/redirects Home into an inert state, entirely while foreground and visible.
+- **Exact sender/action:** the custom plugin's native `UIButton` receives the tap. The injected script publishes an asynchronous target; the native default branch used `storeWebView.canGoBack` and `goBack()`. A nonempty `WKBackForwardList` may contain SHEIN redirect/login/verification items that are not valid app destinations.
+- **Decision:** on tap, preserve cart priority, then classify the live native URL. Canonical `/ar/` or `/` emits `closeStore` before history and parks the session behind the picker. Only non-root routes may enter the existing history/fallback path.
+- **Isolation:** v86.198 is cut from exact v86.193 and excludes v86.197 scheduling policy, so its device result measures only Back-at-root. No scripts, storage, cookies, cache, Service Worker, VPN, region, product, or WKWebView lifecycle behavior changed.
+- **Proof boundary:** the trigger and unsafe command are source-proven. Why SHEIN becomes internally inert after that redirect/history traversal remains unproven and is no longer required to prevent the user-facing failure.
+
 ## v86.189 disposable iOS render-surface contract (2026-08-14)
 
 - **Measured rejection of v86.188:** the modern iPhone's first entry worked but its second visible list stopped accepting taps. iPhone 6 loaded Home completely but did not complete the next list route. Android remained fully interactive. A dedicated owner alone was insufficient because it still reused a WebKit render instance.

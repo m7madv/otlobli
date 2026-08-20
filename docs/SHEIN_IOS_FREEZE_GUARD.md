@@ -2,6 +2,15 @@
 
 هذه قاعدة إصدار إلزامية وليست ملاحظة تاريخية.
 
+## حارس Back عند جذر SHEIN — v86.198
+
+- زر iOS الأصلي فوق WKWebView هو صاحب القرار النهائي. `nativeBackTarget` القادم من سكربت الصفحة إشارة غير متزامنة، وليس حقيقة كافية بعد product → Home.
+- عند الضغط، يجب فحص `storeWebView.url` أولًا. المسار canonical `/ar/` أو `/` يرسل `closeStore` ويعود إلى picker قبل أي `canGoBack` أو `goBack()`؛ وجود redirect/verification في `WKBackForwardList` لا يجعله وجهة آمنة.
+- هدف `cart` يبقى ذا الأولوية الأولى. الصفحات غير الجذرية فقط تستطيع استخدام `goBack()` الحالي أو fallback Home عند غياب history.
+- حافظ على lock قصير يمنع ضغطتي Back متداخلتين، وعلى `[OTLOBLI_BACK]` الذي يسجل الصفحة والمسار وback list والقرار و`WKNavigationType`.
+- ممنوع علاج هذا المسار بـreload أو `history.back()` عند الجذر أو تحميل Home أو إعادة بناء WKWebView أو مسح website data.
+- القبول: عشرة منتجات/رجوع، ثم Back واحد من الرئيسية يعود إلى picker بلا reload، ثم إعادة دخول SHEIN وفتح منتج، إضافة إلى خمس دورات resume وتشغيل بارد.
+
 ## حارس swatch الصورة والمقاس inline — v86.42
 
 - قد تكون `.bs-color__item ... active` هي الحاوية التي اختارها `findOptionContainer()`، بينما إشارة `active` والصورة على الحاوية نفسها ولا يوجد اسم في الأبناء. يجب فحص الحاوية قبل أبنائها وإعطاء الحاوية المحددة أولوية عند تعادل عدد الخيارات.

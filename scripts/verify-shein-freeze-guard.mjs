@@ -32,6 +32,11 @@ const checks = [
       'public final class OtlobliSheinBrowserPlugin',
       'One WKWebView owns one complete SHEIN browsing session.',
       'configuration.websiteDataStore = .default()',
+      'private func isCanonicalSheinHomeURL(_ url: URL?) -> Bool',
+      'if isCanonicalSheinHomeURL(webView.url)',
+      'chosenAction: "parkStoreAtRoot"',
+      'webView?.backForwardList.backList',
+      '[OTLOBLI_BACK]',
       'UIApplication.didReceiveMemoryWarningNotification',
       'private func createRenderSurface(',
       'private func destroyRenderSurface()',
@@ -372,7 +377,7 @@ const checks = [
     markers: [
       'export const STORE_SCRIPT_DIAGNOSTICS =',
       'VITE_STORE_SCRIPT_DIAGNOSTICS',
-      'v86.193-passive-native-foreground',
+      'v86.198-shein-root-back-guard',
     ],
   },
   {
@@ -1351,6 +1356,16 @@ try {
   }
   if (displayLinkConstructors !== 0) {
     failures.push(`dedicated iOS SHEIN browser: expected no same-instance display-link repair, got ${displayLinkConstructors}`)
+  }
+  const nativeBackStart = nativeBrowserSource.indexOf('@objc private func nativeBackPressed()')
+  const nativeBackEnd = nativeBrowserSource.indexOf('private func mobileBridgeScript()', nativeBackStart)
+  const nativeBackSource = nativeBrowserSource.slice(nativeBackStart, nativeBackEnd)
+  const cartDecision = nativeBackSource.indexOf('if nativeBackTarget == "cart"')
+  const rootDecision = nativeBackSource.indexOf('if isCanonicalSheinHomeURL(webView.url)')
+  const historyDecision = nativeBackSource.indexOf('if webView.canGoBack')
+  if (nativeBackStart < 0 || nativeBackEnd < 0 || cartDecision < 0 || rootDecision < cartDecision ||
+      historyDecision < rootDecision || !nativeBackSource.includes('lockNativeBackBriefly()')) {
+    failures.push('SHEIN native back: cart must stay first and canonical Home must exit before WebKit history')
   }
 } catch (error) {
   failures.push(`dedicated iOS SHEIN browser structure: ${error instanceof Error ? error.message : String(error)}`)
