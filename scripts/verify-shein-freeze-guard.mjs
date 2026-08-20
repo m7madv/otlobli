@@ -389,11 +389,11 @@ const checks = [
     markers: [
       'export const STORE_SCRIPT_DIAGNOSTICS =',
       'VITE_STORE_SCRIPT_DIAGNOSTICS',
-      'v86.204-shein-clean-room',
+      'v86.205-shein-clean-room-selector-fix',
     ],
   },
   {
-    label: 'v86.204 retained passive CDP prefetch proof',
+    label: 'v86.205 retained passive CDP prefetch proof',
     files: [
       'scripts/capture-shein-cdp-network.mjs',
       'scripts/analyze-shein-cdp-network.mjs',
@@ -1667,7 +1667,13 @@ try {
     failures.push('SHEIN reentry: the hub tap must clear stale close state before entering Home')
   }
 
-  if (!appSource.includes("const shouldResetSheinCache = activeStore === 'shein' && sheinCacheResetPendingRef.current") ||
+  const cacheResetStart = appSource.indexOf('const shouldResetSheinCache =')
+  const cacheResetEnd = appSource.indexOf('const prepareStoreWebview =', cacheResetStart)
+  const cacheResetSource = appSource.slice(cacheResetStart, cacheResetEnd)
+  if (cacheResetStart < 0 || cacheResetEnd < 0 ||
+      !cacheResetSource.includes("activeStore === 'shein'") ||
+      !cacheResetSource.includes('!cleanRoomDiagnosticEntry') ||
+      !cacheResetSource.includes('sheinCacheResetPendingRef.current') ||
       !appSource.includes('const prepareStoreWebview = shouldResetSheinCache') ||
       !appSource.includes('sheinCacheResetPendingRef.current = true')) {
     failures.push('SHEIN recovery: bounded damaged-session cache reset must remain available')

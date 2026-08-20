@@ -57,17 +57,34 @@ export const StoreBrowser = {
   async openWebView(options: OpenOptions) {
     if (isIos() && isSheinUrl(options.url)) {
       if (SHEIN_CLEAN_ROOM_DIAGNOSTICS) {
-        const cleanResult = await CleanSheinBrowser.openWebView(options)
+        // The native promise remains pending while the customer reads the mode
+        // menu. Mark that interval as clean too: otherwise a region/settings
+        // effect can mistake it for the legacy backend, reset the singleton
+        // flags, and issue a second open against the still-visible selector.
+        activeBackend = 'clean-shein'
+        activeNativeId = ''
+        let cleanResult: Awaited<ReturnType<NativeSheinBrowserApi['openWebView']>>
+        try {
+          cleanResult = await CleanSheinBrowser.openWebView(options)
+        } catch (error) {
+          if (activeBackend === 'clean-shein' && !activeNativeId) activeBackend = 'none'
+          throw error
+        }
         if (cleanResult.implementation !== 'legacy-control') {
-          activeBackend = 'clean-shein'
           activeNativeId = cleanResult.id ?? ''
           return cleanResult
         }
       }
-      const result = await NativeSheinBrowser.openWebView(options)
       activeBackend = 'native-shein'
-      activeNativeId = result.id ?? ''
-      return result
+      activeNativeId = ''
+      try {
+        const result = await NativeSheinBrowser.openWebView(options)
+        activeNativeId = result.id ?? ''
+        return result
+      } catch (error) {
+        if (activeBackend === 'native-shein' && !activeNativeId) activeBackend = 'none'
+        throw error
+      }
     }
     const result = await CapgoInAppBrowser.openWebView(options)
     activeBackend = 'capgo'

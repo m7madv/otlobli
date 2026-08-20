@@ -1,3 +1,23 @@
+# v86.205 — SHEIN clean-room selector single-flight fix (2026-08-21)
+
+The v86.204 device screenshot and report prove a pre-mode failure: the native
+selector appears, but choosing any option returns to Otlobli with “session or
+mode selector is already active.” The clean backend was marked active only
+after the selector promise resolved. While that promise waited for the user, a
+host settings/region effect could reset the legacy opening flags and issue a
+second native open. Its duplicate rejection then invalidated and closed the
+first selected result, making all six modes fail identically.
+
+v86.205/1067 marks clean ownership before awaiting selection and adds a
+dedicated React single-flight lock that legacy effects cannot reset. It also
+excludes clean entry from the old damaged-session cache reset, clears selector
+identity before dismissal, locks the first Select/Cancel action, and makes host
+Close cancel a pending selector explicitly. RAW, the exact raw-only guard,
+capture, blocking, persistent mode UUIDs, and legacy browser are unchanged.
+Local TypeScript/build/sync and all hardening/SHEIN/Temu/surface/performance
+guards pass. Xcode/IPA and physical selector confirmation remain pending.
+Details: `docs/SHEIN_V86_205_SELECTOR_SINGLE_FLIGHT_FIX.md`.
+
 # v86.204 — parallel SHEIN clean-room diagnostic browser (2026-08-21)
 
 Version/build `86.204/1066` is implemented on isolated branch

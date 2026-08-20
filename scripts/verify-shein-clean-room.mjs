@@ -119,6 +119,23 @@ requireText(bridge, 'registerPluginInstance(SheinCleanBrowserPlugin())', 'native
 requireText(storeBrowser, "registerPlugin<NativeSheinBrowserApi>('SheinCleanBrowser')", 'TypeScript plugin registration')
 requireText(storeBrowser, "implementation !== 'legacy-control'", 'Mode 5 legacy routing')
 requireText(storeBrowser, 'isCleanSheinSession()', 'clean host boundary')
+const cleanPendingBackend = storeBrowser.indexOf("activeBackend = 'clean-shein'", storeBrowser.indexOf('async openWebView'))
+const nativeSelectorAwait = storeBrowser.indexOf('await CleanSheinBrowser.openWebView(options)')
+if (cleanPendingBackend < 0 || nativeSelectorAwait < 0 || cleanPendingBackend > nativeSelectorAwait) {
+  fail('clean backend must become active before awaiting the native mode selector')
+}
+requireText(app, 'const cleanRoomOpenInFlightRef = useRef(false)', 'selector single-flight state')
+requireText(app, 'cleanRoomOpenInFlightRef.current', 'selector duplicate-open suppression')
+requireText(app, '!cleanRoomDiagnosticEntry && sheinCacheResetPendingRef.current', 'selector cache-reset isolation')
+const selectorClear = plugin.indexOf('selectorNavigationController = nil', plugin.indexOf('private func select'))
+const selectorDismiss = plugin.indexOf('selector.dismiss(animated: true)', plugin.indexOf('private func select'))
+if (selectorClear < 0 || selectorDismiss < 0 || selectorClear > selectorDismiss) {
+  fail('selector identity must clear before its dismissal animation')
+}
+requireText(plugin, 'private var selectionLocked = false', 'selector tap lock')
+requireText(plugin, 'SHEIN_CLEAN_SELECTION_CANCELLED', 'selector cancellation code')
+requireText(plugin, 'host-hide-cancels-selector', 'pending selector hide cleanup')
+requireText(plugin, 'host-close-cancels-selector', 'pending selector close cleanup')
 for (const hostBoundary of [
   'clean-room-host-region-change-ignored',
   'if (InAppBrowser.isCleanSheinSession()) return',
@@ -128,7 +145,7 @@ for (const hostBoundary of [
 ]) requireText(app, hostBoundary, 'clean host isolation')
 requireText(config, 'VITE_SHEIN_CLEAN_ROOM_DIAGNOSTICS', 'diagnostic feature flag')
 requireText(config, "VITE_SHEIN_CLEAN_ROOM_DIAGNOSTICS ?? 'true'", 'diagnostic IPA default')
-requireText(config, "'2026.08.21-v86.204-shein-clean-room'", 'diagnostic version marker')
+requireText(config, "'2026.08.21-v86.205-shein-clean-room-selector-fix'", 'diagnostic version marker')
 for (const privacyBoundary of [
   '--mode=',
   '--run-id=',
@@ -143,8 +160,8 @@ for (const file of [
   'SheinCleanBrowserViewController.swift',
   'SheinCleanBrowserPlugin.swift',
 ]) requireText(project, `${file} in Sources`, 'Xcode source membership')
-requireText(project, 'CURRENT_PROJECT_VERSION = 1066;', 'iOS build number')
-requireText(project, 'MARKETING_VERSION = 86.204;', 'iOS marketing version')
+requireText(project, 'CURRENT_PROJECT_VERSION = 1067;', 'iOS build number')
+requireText(project, 'MARKETING_VERSION = 86.205;', 'iOS marketing version')
 
 if (!process.exitCode) {
   console.log('SHEIN clean-room guard passed: RAW isolation, exact raw-only guard, independent modules, persistent mode profiles, and unchanged legacy browser verified.')

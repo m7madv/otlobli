@@ -21,7 +21,7 @@ export const TEST_ONLY_AUTH_BYPASS = false
 export const SHEIN_IOS_FREEZE_DIAGNOSTICS = true
 export const SHEIN_IOS_FREEZE_DIAGNOSTICS_BYPASS_RECOVERY = false
 
-// v86.204 diagnostic branch only. The flag defaults on for the one requested
+// v86.205 diagnostic branch only. The flag defaults on for the one requested
 // multi-mode IPA and can be disabled explicitly for ordinary customer builds.
 // It routes iOS SHEIN through a native locked-mode selector; Mode 5 delegates
 // back to the unchanged legacy browser.
@@ -41,5 +41,5 @@ export const TEMU_PERSONAL_SITE_MODE =
 
 // رقم النسخة الظاهر داخل التطبيق.
 export const APP_VERSION = TEMU_PERSONAL_SITE_MODE
-  ? '2026.08.21-v86.204-personal-shein-clean-room'
-  : '2026.08.21-v86.204-shein-clean-room'
+  ? '2026.08.21-v86.205-personal-shein-clean-room-selector-fix'
+  : '2026.08.21-v86.205-shein-clean-room-selector-fix'

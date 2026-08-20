@@ -3,6 +3,24 @@
 Verified through 2026-08-21. This file records current evidence only. It does
 not declare a universal SHEIN fix.
 
+## v86.205 selector correction state
+
+- Physical v86.204 symptom: the mode selector appeared, but every selection
+  returned to Otlobli with a duplicate selector/session error.
+- Root cause: clean backend ownership began after, not before, the pending
+  selector promise; a legacy host effect could schedule a second open and its
+  rejection invalidated the first selected result.
+- Version/build: `86.205/1067`.
+- Branch: `codex/ios-v86-205-shein-clean-room-selector-fix` from exact v86.204
+  final commit `5b1b687d195f57227e9da28a68fc4e1cfa8492c0`.
+- Fix: early clean ownership, independent React single-flight, no legacy cache
+  reset during clean entry, and idempotent selector Select/Cancel/Close.
+- Unchanged: all six mode definitions, RAW contents, exact cache rule,
+  capture, blocking, persistent profile IDs, and legacy browser hash.
+- Local build/gates/iOS sync: pass.
+- Pending: Xcode artifact, IPA inspection, and physical selector acceptance.
+- Protocol: `docs/SHEIN_V86_205_SELECTOR_SINGLE_FLIGHT_FIX.md`.
+
 ## v86.204 clean-room implementation state
 
 - Version/build: `86.204/1066`.

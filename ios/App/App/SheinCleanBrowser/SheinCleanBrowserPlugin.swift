@@ -40,7 +40,15 @@ public final class SheinCleanBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         DispatchQueue.main.async {
             guard self.pendingOpenCall == nil, self.activeController == nil,
                   self.selectorNavigationController == nil else {
-                call.reject("A SHEIN clean-room session or mode selector is already active")
+                self.log("duplicate-open-rejected", [
+                    "hasPendingCall": self.pendingOpenCall != nil,
+                    "hasSelector": self.selectorNavigationController != nil,
+                    "hasController": self.activeController != nil
+                ])
+                call.reject(
+                    "A SHEIN clean-room session or mode selector is already active",
+                    "SHEIN_CLEAN_OPEN_ACTIVE"
+                )
                 return
             }
             guard let presenter = self.presentationController() else {
@@ -77,6 +85,10 @@ public final class SheinCleanBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
 
     @objc func hide(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
+            if self.dismissPendingSelector(
+                reason: "host-hide-cancels-selector",
+                completion: { call.resolve() }
+            ) { return }
             self.log("host-hide-dismisses-session")
             self.dismissActiveController(emitCloseEvent: true, reason: "host-hide") { call.resolve() }
         }
@@ -84,6 +96,10 @@ public final class SheinCleanBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
 
     @objc func close(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
+            if self.dismissPendingSelector(
+                reason: "host-close-cancels-selector",
+                completion: { call.resolve() }
+            ) { return }
             if let requestedId = call.getString("id"),
                let active = self.activeController,
                !requestedId.isEmpty,
@@ -129,9 +145,12 @@ public final class SheinCleanBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
             "blocking": mode.usesBlocking,
             "implementation": mode.browserImplementation
         ])
+        // Release the selector identity before its dismissal animation. The
+        // host becomes visible during that transition; retaining this pointer
+        // until completion caused an immediate retry to be rejected as stale.
+        selectorNavigationController = nil
         selector.dismiss(animated: true) { [weak self] in
             guard let self else { return }
-            self.selectorNavigationController = nil
             if mode == .legacyControl {
                 self.pendingOpenCall = nil
                 call.resolve([
@@ -146,13 +165,26 @@ public final class SheinCleanBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
     }
 
     private func cancelModeSelection() {
-        guard let call = pendingOpenCall else { return }
-        selectorNavigationController?.dismiss(animated: true) { [weak self] in
-            self?.selectorNavigationController = nil
-        }
+        _ = dismissPendingSelector(reason: "mode-selection-cancelled") {}
+    }
+
+    @discardableResult
+    private func dismissPendingSelector(
+        reason: String,
+        completion: @escaping () -> Void
+    ) -> Bool {
+        guard let pending = pendingOpenCall else { return false }
+        let selector = selectorNavigationController
         pendingOpenCall = nil
-        log("mode-selection-cancelled")
-        call.reject("SHEIN clean-room mode selection was cancelled")
+        selectorNavigationController = nil
+        log(reason)
+        selector?.dismiss(animated: true)
+        pending.reject(
+            "SHEIN clean-room mode selection was cancelled",
+            "SHEIN_CLEAN_SELECTION_CANCELLED"
+        )
+        completion()
+        return true
     }
 
     private func prepareCleanBrowser(mode: SheinCleanBrowserMode, call: CAPPluginCall) {
@@ -325,6 +357,7 @@ public final class SheinCleanBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
 private final class SheinCleanModeSelectorViewController: UITableViewController {
     var onSelect: ((SheinCleanBrowserMode) -> Void)?
     var onCancel: (() -> Void)?
+    private var selectionLocked = false
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -341,6 +374,10 @@ private final class SheinCleanModeSelectorViewController: UITableViewController 
     }
 
     @objc private func cancelPressed() {
+        guard !selectionLocked else { return }
+        selectionLocked = true
+        navigationItem.leftBarButtonItem?.isEnabled = false
+        tableView.isUserInteractionEnabled = false
         onCancel?()
     }
 
@@ -379,6 +416,7 @@ private final class SheinCleanModeSelectorViewController: UITableViewController 
     }
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        guard !selectionLocked else { return }
         tableView.deselectRow(at: indexPath, animated: true)
         let mode = SheinCleanBrowserMode.allCases[indexPath.row]
         if mode.usesCleanController {
@@ -393,6 +431,9 @@ private final class SheinCleanModeSelectorViewController: UITableViewController 
                 return
             }
         }
+        selectionLocked = true
+        navigationItem.leftBarButtonItem?.isEnabled = false
+        tableView.isUserInteractionEnabled = false
         onSelect?(mode)
     }
 }

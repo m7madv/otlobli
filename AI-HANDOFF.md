@@ -1,3 +1,21 @@
+# Active handoff — v86.205 fixes the clean selector open race (2026-08-21)
+
+The v86.204 physical result is not a mode result: every option failed with the
+same “session or mode selector is already active” error. The clean backend was
+not marked active while the selector promise was pending, allowing a legacy
+host effect to reset the singleton and request a second selector. Its rejection
+then invalidated the original selected result.
+
+Work only on `codex/ios-v86-205-shein-clean-room-selector-fix` in
+`C:\Users\MOHAMMAD\Projects\otlobli-ios-v86-205-shein-clean-room-selector-fix`.
+Version/build is `86.205/1067`, based on exact v86.204 final commit `5b1b687`.
+The fix marks clean ownership before await, adds an independent React
+single-flight lock, excludes clean entry from the legacy cache-reset path, and
+makes selector Select/Cancel/host Close transitions idempotent. Do not modify
+RAW, the rule, capture, blocking, profile UUIDs, or legacy browser. Local gates
+pass; Xcode/IPA and a short physical selector acceptance remain pending. Read
+`docs/SHEIN_V86_205_SELECTOR_SINGLE_FLIGHT_FIX.md`.
+
 # Active handoff — v86.204 clean-room diagnostic awaits device proof (2026-08-21)
 
 Work only in `C:\Users\MOHAMMAD\Projects\otlobli-ios-shein-clean-room-browser`

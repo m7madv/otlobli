@@ -2997,6 +2997,10 @@ function App() {
   const suppressAutoReopenRef = useRef(false)
   const webviewSessionRef = useRef(0)
   const webviewOpeningRef = useRef(false)
+  // The native clean-room open promise intentionally waits for a mode choice.
+  // Keep a dedicated single-flight flag that legacy region/readiness effects
+  // cannot reset while the selector is on screen.
+  const cleanRoomOpenInFlightRef = useRef(false)
   const webviewOpenedAtRef = useRef(0)
   const webviewAutoOpenPausedUntilRef = useRef(0)
   const webviewIdRef = useRef('')
@@ -3718,6 +3722,12 @@ function App() {
     // home/open effect can land in the same frame after a native close. Without
     // this guard both callers create a WebView; the untracked one has no capture
     // script and can cover the healthy one on iOS.
+    const cleanRoomDiagnosticEntry = SHEIN_CLEAN_ROOM_DIAGNOSTICS &&
+      Capacitor.getPlatform() === 'ios' && selectedStoreRef.current === 'shein'
+    if (cleanRoomDiagnosticEntry && cleanRoomOpenInFlightRef.current) {
+      recordAppDiagnostic('clean_room_duplicate_open_suppressed', { store: 'shein' })
+      return
+    }
     if (!storeRegionsReady) return
     if (webviewClosingRef.current) {
       if (!pendingStoreOpenAfterCloseRef.current && screenRef.current === 'home') {
@@ -3729,8 +3739,6 @@ function App() {
     if (sheinOpenedRef.current || webviewOpeningRef.current) return
     pendingStoreOpenAfterCloseRef.current = false
     const currentVpnState = vpnStateRef.current
-    const cleanRoomDiagnosticEntry = SHEIN_CLEAN_ROOM_DIAGNOSTICS &&
-      Capacitor.getPlatform() === 'ios' && selectedStoreRef.current === 'shein'
     if (currentVpnState !== 'ok' && !cleanRoomDiagnosticEntry) {
       webviewOpeningRef.current = false
       webviewOpenedAtRef.current = 0
@@ -3819,6 +3827,7 @@ function App() {
     webviewSessionRef.current = sessionId
     webviewAutoOpenPausedUntilRef.current = 0
     webviewOpeningRef.current = true
+    if (cleanRoomDiagnosticEntry) cleanRoomOpenInFlightRef.current = true
     webviewOpenedAtRef.current = Date.now()
     webviewIdRef.current = ''
     sheinChallengeActiveRef.current = false
@@ -3952,7 +3961,8 @@ function App() {
     // A cache reset remains available only for the bounded stuck-session and
     // iOS cart-product recovery paths, never an ordinary store switch.
     // This isolates the speed change from v85.9's failed document-start path.
-    const shouldResetSheinCache = activeStore === 'shein' && sheinCacheResetPendingRef.current
+    const shouldResetSheinCache = activeStore === 'shein' &&
+      !cleanRoomDiagnosticEntry && sheinCacheResetPendingRef.current
     if (shouldResetSheinCache) sheinCacheResetPendingRef.current = false
     const prepareStoreWebview = shouldResetSheinCache
       ? InAppBrowser.clearCache()
@@ -4011,11 +4021,14 @@ function App() {
             reason: /cancelled/i.test(message) ? 'selection-cancelled' : 'native-open-rejected',
           })
           if (!/cancelled/i.test(message)) {
-            showNotice(`تعذّر فتح تجربة SHEIN النظيفة: ${message.slice(0, 180)}`)
+            showNotice('تعذّر فتح تجربة SHEIN النظيفة. أعد المحاولة، وإن تكرر الخطأ انسخ سجل التشخيص.')
           }
           return
         }
         if (screenRef.current === 'home') showStoreOpenFailure()
+      })
+      .finally(() => {
+        if (cleanRoomDiagnosticEntry) cleanRoomOpenInFlightRef.current = false
       })
   }
 
