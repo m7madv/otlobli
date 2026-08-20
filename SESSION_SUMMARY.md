@@ -4,7 +4,7 @@
 - لم يُطبّق أي إصلاح للتجمّد: لم يتغير `forceStoreVpnRecheck()` ولا فتح/إغلاق المتصفح ولا إنشاء/إتلاف WKWebView ولا البيانات الدائمة أو الكوكيز أو cache أو IndexedDB أو Service Workers أو المنطقة أو VPN أو النص أو الجاهزية.
 - فُعّل Web Inspector على WKWebView الخاص بـSHEIN. أُضيف تسجيل سلبي يفرّق كل تشغيل بـPID وrun ID ويسجل أخطاء JavaScript والـpromise مع المصدر والسطر والـstack، أخطاء الموارد وCSP، توقيتات navigation/resource، بصمات تخزين للقراءة فقط، lifecycle، ومسار WKWebView الأصلي حتى termination.
 - حُذف مكوّن تشخيص اللمس الملوّث بالكامل من هذا الفرع، ولا توجد في الحزمة `SHEIN_TAP_DIAGNOSTIC_CONTEXT_JS` أو `window.__otlobliTapDiagnosticContext`. التشخيص الجديد لا يراقب touch/pointer/click، ولا يمنع أي حدث، ولا يركّب synthetic click، ولا يغيّر fetch أو XHR أو console، ولا يعيد التحميل أو يمسح البيانات.
-- نجح TypeScript والبناء وكل حراس hardening/SHEIN/Temu/surface/performance، ثم تمت مزامنة iOS وAndroid. سيُسجّل هنا رابط ونتيجة بناء GitHub وبيانات IPA بعد اكتماله؛ اختبار الآيفون الفعلي لم يحصل بعد. تعليمات جمع الدليل وفك السجل موجودة في `docs/SHEIN_V86_196_RUNTIME_DIAGNOSTIC.md`.
+- نجح TypeScript والبناء وكل حراس hardening/SHEIN/Temu/surface/performance ومزامنة iOS/Android. نجح GitHub/Xcode run `32372570479` من commit `c9baa32`. ملف IPA غير الموقع موجود على سطح المكتب باسم `Otlobli-v86.196-iPhone-iPad-Clean-Runtime-Diagnostic-UNSIGNED.ipa`، حجمه `6,574,344` bytes وSHA-256 هو `137CBF5EDA5BDC6A19C4AF0353940115CD6DA991D57E5C9CFE88D016DC490787`. الفحص أكد `86.196/1058` وARM64 ودعم iPhone/iPad وغياب التوقيع وProvisioning وsource maps ومكوّن tap الملوّث. اختبار الآيفون الفعلي لم يحصل بعد؛ تعليمات جمع الدليل وفك السجل موجودة في `docs/SHEIN_V86_196_RUNTIME_DIAGNOSTIC.md`.
 
 # ملخص v86.189 — مسار رسم واحد ونظيف لكل الآيفونات (2026-08-14)
 
