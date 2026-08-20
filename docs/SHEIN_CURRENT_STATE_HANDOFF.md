@@ -17,7 +17,14 @@ not declare a universal SHEIN fix.
   clean mode; no clean/default/legacy cache sharing.
 - Local result: TypeScript, production web build, hardening, performance,
   SHEIN freeze/clean-room, Temu, and store-surface guards pass; iOS sync passes.
-- Pending: Xcode/GitHub artifact, IPA inspection, and all physical mode tests.
+- Build: GitHub/Xcode run `32420824283`, implementation commit
+  `e3488447a1a565f8cdb2e0232e1beb6c9b0cabb3`, artifact `9425726875`.
+- Inspected IPA: `6,635,948` bytes, SHA-256
+  `F12EBD8B5A10B315D7D6EC6E8D7AD5D875D220712570A0CFBA206C7D04BF68B6`;
+  ARM64, iOS 15+, iPhone/iPad, unsigned/unprovisioned, and no source maps.
+- IPA path:
+  `C:\Users\MOHAMMAD\Documents\Codex\2026-08-21\shein-current-state-handoff-md-c\outputs\otlobli-ios-v86.204-ipad-iphone-universal\otlobli-v86.204-ipad-iphone-universal-unsigned.ipa`.
+- Pending: all physical mode tests and the causal matrix.
 - Full architecture/protocol:
   `docs/SHEIN_V86_204_CLEAN_ROOM_DIAGNOSTIC.md`.
 

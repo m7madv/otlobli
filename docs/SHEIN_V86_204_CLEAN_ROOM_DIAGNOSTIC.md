@@ -1,9 +1,8 @@
 # SHEIN v86.204 clean-room diagnostic browser
 
-Status: implementation candidate. Local TypeScript/static guards pass. Xcode,
-GitHub artifact, IPA inspection, and all physical-device modes remain pending
-until recorded below. This document does not claim that the SHEIN freeze is
-fixed.
+Status: built diagnostic candidate. Local checks, Xcode, GitHub artifact, and
+IPA inspection pass. All physical-device modes remain pending. This document
+does not claim that the SHEIN freeze is fixed.
 
 ## 1. Preflight state
 
@@ -319,15 +318,61 @@ a causal proof.
 | Capture and Blocking pass alone but fail together | The two clean modules interact; locate first observer/selector/timing conflict | Pending |
 | All clean modes pass; legacy fails | Propose a separate flagged production migration; do not delete legacy yet | Pending |
 
-## 16. Delivery fields still pending
+## 16. Build and delivery record
 
-- Final changed-file list: populate from the final commit.
-- Build/test results: local gates in progress; Xcode/physical pending.
-- Commit hash: pending.
-- GitHub Actions run: pending.
-- Artifact ID: pending.
-- IPA path/size/SHA-256: pending.
-- Physical causal matrix: pending.
+- Implementation commit:
+  `e3488447a1a565f8cdb2e0232e1beb6c9b0cabb3`.
+- GitHub Actions run/job: `32420824283` / `96592255943`; success in `4m14s`.
+- Artifact: `9425726875`,
+  `otlobli-ios-v86.204-ipad-iphone-universal`.
+- GitHub artifact archive digest:
+  `sha256:1f4af518aac0d53e9624da7dcc49d57aaed62b68f0369d54d6043a126cac3e7e`.
+- IPA filename: `otlobli-v86.204-ipad-iphone-universal-unsigned.ipa`.
+- Downloaded IPA path:
+  `C:\Users\MOHAMMAD\Documents\Codex\2026-08-21\shein-current-state-handoff-md-c\outputs\otlobli-ios-v86.204-ipad-iphone-universal\otlobli-v86.204-ipad-iphone-universal-unsigned.ipa`.
+- IPA size: `6,635,948` bytes.
+- IPA SHA-256:
+  `F12EBD8B5A10B315D7D6EC6E8D7AD5D875D220712570A0CFBA206C7D04BF68B6`.
+- Inspected identity: `com.otlobli.app`, `86.204/1066`, ARM64 Mach-O,
+  iOS 15+, `UIDeviceFamily=[1,2]`, `iphoneos`.
+- Signing/exclusions: no app code-signature load command or `_CodeSignature`,
+  no `embedded.mobileprovision`, and no `.map` file.
+- Built binary markers present: `[OTLOBLI_SHEIN_CLEAN]`,
+  `RAW_WITH_CACHE_GUARD`, `CAPTURE_AND_BLOCKING`,
+  `LEGACY_BROWSER_CONTROL`, and the exact content-rule identity.
+- Local results: `npx tsc -b`, production `npm run build`, release hardening,
+  performance budget, SHEIN freeze/clean-room guards, Temu gate,
+  store-surface guard, Capacitor iOS sync, JavaScript syntax checks, and
+  `git diff --check` passed. The new `storeBrowser.ts` also passes ESLint in
+  isolation; repository-wide lint still reports 38 unrelated pre-existing
+  errors after excluding the 12 naming errors corrected in this change.
+
+Complete implementation changed-file list (22 files):
+
+- `.env.example`
+- `.github/workflows/ios-unsigned-build.yml`
+- `AI-HANDOFF.md`
+- `CURRENT_STATE.md`
+- `SESSION_SUMMARY.md`
+- `docs/SHEIN_CURRENT_STATE_HANDOFF.md`
+- `docs/SHEIN_V86_204_CLEAN_ROOM_DIAGNOSTIC.md`
+- `ios/App/App.xcodeproj/project.pbxproj`
+- `ios/App/App/OtlobliBridgeViewController.swift`
+- `ios/App/App/SheinCleanBrowser/SheinCleanBrowserMode.swift`
+- `ios/App/App/SheinCleanBrowser/SheinCleanBrowserPlugin.swift`
+- `ios/App/App/SheinCleanBrowser/SheinCleanBrowserScripts.swift`
+- `ios/App/App/SheinCleanBrowser/SheinCleanBrowserViewController.swift`
+- `package.json`
+- `scripts/analyze-shein-cdp-network.mjs`
+- `scripts/capture-shein-cdp-network.mjs`
+- `scripts/decode-shein-clean-room-log.mjs`
+- `scripts/verify-shein-clean-room.mjs`
+- `scripts/verify-shein-freeze-guard.mjs`
+- `src/App.tsx`
+- `src/config.ts`
+- `src/services/storeBrowser.ts`
+
+Physical causal matrix: pending device evidence.
 
 No production replacement or legacy deletion is authorized by this diagnostic
 implementation.

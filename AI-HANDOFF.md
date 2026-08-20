@@ -1,4 +1,4 @@
-# Active handoff — v86.204 clean-room diagnostic awaits Xcode/device proof (2026-08-21)
+# Active handoff — v86.204 clean-room diagnostic awaits device proof (2026-08-21)
 
 Work only in `C:\Users\MOHAMMAD\Projects\otlobli-ios-shein-clean-room-browser`
 on `codex/ios-shein-clean-room-browser`. It starts from exact v86.203 handoff
@@ -8,7 +8,7 @@ parallel to, not a rewrite of, `OtlobliSheinBrowserPlugin`; the legacy Swift
 file is hash-guarded and unchanged.
 
 The diagnostic selector locks RAW, RAW_WITH_CACHE_GUARD, CAPTURE_ONLY,
-BLOCKING_ONLY, CAPTURE_AND_BLOCKING, or LEGACY_CONTROL for one normally
+BLOCKING_ONLY, CAPTURE_AND_BLOCKING, or LEGACY_BROWSER_CONTROL for one normally
 presented one-WKWebView session. Clean modes use deterministic persistent iOS
 17+ profile identifiers, guest `https://m.shein.com/`, no host scripts/region/
 VPN recovery, no reload/recreation/parking, and native chrome. RAW has only the
@@ -18,10 +18,14 @@ foundation remains unguarded RAW until Tests 0/1 produce physical evidence.
 Natural login/risk pages are untouched.
 
 Local `npm run build`, TypeScript, hardening, performance, SHEIN, Temu, and
-surface guards pass and iOS sync completed. Next: commit/push, dispatch the iOS
-workflow, fix any Xcode-only issue, inspect/download one unsigned IPA, then run
-the mode-isolated physical protocol. Do not start Tests 2–4 before deciding the
-RAW foundation. Recorder/analyzer commands and the strict causal matrix are in
+surface guards pass and iOS sync completed. GitHub/Xcode run `32420824283`
+built implementation commit `e3488447a1a565f8cdb2e0232e1beb6c9b0cabb3`;
+artifact `9425726875`. The inspected unsigned universal ARM64 IPA is
+`6,635,948` bytes with SHA-256
+`F12EBD8B5A10B315D7D6EC6E8D7AD5D875D220712570A0CFBA206C7D04BF68B6`.
+It has no app signature, provisioning profile, or source maps. Next: sign the
+single IPA and run the mode-isolated physical protocol. Do not start Tests 2–4
+before deciding the RAW foundation. Recorder/analyzer commands and the strict causal matrix are in
 `docs/SHEIN_V86_204_CLEAN_ROOM_DIAGNOSTIC.md`. No physical result exists yet;
 do not report zero ChunkLoadErrors, a working guard, or a fixed freeze.
 

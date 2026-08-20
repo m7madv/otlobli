@@ -5,7 +5,7 @@ Version/build `86.204/1066` is implemented on isolated branch
 It adds a diagnostic-only native mode selector and a normally presented
 `SheinCleanBrowserViewController` containing exactly one WKWebView. Modes are
 RAW, RAW_WITH_CACHE_GUARD, CAPTURE_ONLY, BLOCKING_ONLY,
-CAPTURE_AND_BLOCKING, and LEGACY_CONTROL. Each clean mode uses its own
+CAPTURE_AND_BLOCKING, and LEGACY_BROWSER_CONTROL. Each clean mode uses its own
 persistent iOS 17+ `WKWebsiteDataStore(forIdentifier:)`; older iOS explicitly
 rejects clean modes rather than sharing a cache. Mode 5 delegates to the
 unchanged legacy plugin.
@@ -23,9 +23,17 @@ Local TypeScript, production web build, release hardening, performance budget,
 SHEIN freeze/clean-room, Temu, and store-surface guards pass; iOS assets were
 synchronized. CDP capture now requires mode/run/container identity and excludes
 queries, headers, cookies, tokens, storage values, addresses, and account data.
-The analyzer reports the five RAW/cache-guard causal answers. Xcode/GitHub IPA,
-archive inspection, and all physical-device tests remain pending; do not claim
-the freeze fixed or replace production SHEIN. Full protocol:
+The analyzer reports the five RAW/cache-guard causal answers.
+
+GitHub/Xcode run `32420824283` built implementation commit
+`e3488447a1a565f8cdb2e0232e1beb6c9b0cabb3`; artifact `9425726875`. The
+inspected unsigned IPA is `6,635,948` bytes, SHA-256
+`F12EBD8B5A10B315D7D6EC6E8D7AD5D875D220712570A0CFBA206C7D04BF68B6`,
+ARM64, `com.otlobli.app`, `86.204/1066`, iOS 15+, and iPhone/iPad `[1,2]`,
+with no app signature/provisioning/source maps. Binary markers prove the clean
+prefix, guarded/combined/control modes, and rule identity shipped. All
+physical-device mode tests remain pending; do not claim the freeze fixed or
+replace production SHEIN. Full protocol:
 `docs/SHEIN_V86_204_CLEAN_ROOM_DIAGNOSTIC.md`.
 
 # v86.203 — SHEIN raw-prefetch cache-poisoning prevention candidate (2026-08-20)
