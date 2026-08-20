@@ -12,6 +12,8 @@ const runId = process.argv.find((argument) => argument.startsWith('--run-id='))
   ?.slice('--run-id='.length) ?? '';
 const containerIdentity = process.argv.find((argument) => argument.startsWith('--container='))
   ?.slice('--container='.length) ?? '';
+const stopFilePath = process.argv.find((argument) => argument.startsWith('--stop-file='))
+  ?.slice('--stop-file='.length) ?? '';
 const allowedModes = new Set([
   'RAW',
   'RAW_WITH_CACHE_GUARD',
@@ -34,6 +36,7 @@ let socket;
 let nextCommandId = 1;
 let stopping = false;
 let reconnectTimer;
+let stopFileTimer;
 
 function safeUrl(raw = '') {
   try {
@@ -357,6 +360,7 @@ function stop(signal) {
   if (stopping) return;
   stopping = true;
   if (reconnectTimer) clearTimeout(reconnectTimer);
+  if (stopFileTimer) clearInterval(stopFileTimer);
   record('capture-stopped', { signal });
   try { socket?.close(); } catch {}
   output.end(() => process.exit(0));
@@ -377,4 +381,9 @@ record('capture-started', {
   containerIdentity,
   privacy: 'URLs exclude query/fragment; headers/cookies/tokens/storage values are excluded',
 });
+if (stopFilePath) {
+  stopFileTimer = setInterval(() => {
+    if (fs.existsSync(stopFilePath)) stop('stop-file');
+  }, 250);
+}
 connect();

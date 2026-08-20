@@ -41,6 +41,7 @@ final class SheinCleanBrowserViewController: UIViewController,
         runId: String,
         browserId: String,
         websiteDataStore: WKWebsiteDataStore,
+        dataStoreIdentity: String,
         contentRule: WKContentRuleList?
     ) {
         self.mode = mode
@@ -48,7 +49,7 @@ final class SheinCleanBrowserViewController: UIViewController,
         self.browserId = browserId
         self.webViewId = "clean-webview-\(UUID().uuidString.lowercased())"
         self.websiteDataStore = websiteDataStore
-        self.dataStoreIdentity = mode.dataStoreIdentity
+        self.dataStoreIdentity = dataStoreIdentity
         self.contentRule = contentRule
         super.init(nibName: nil, bundle: nil)
         modalPresentationStyle = .fullScreen
@@ -66,6 +67,13 @@ final class SheinCleanBrowserViewController: UIViewController,
         let userContentController = WKUserContentController()
         if let contentRule {
             userContentController.add(contentRule)
+            log("content-rule-attached-before-webview", [
+                "identifier": mode.contentRuleIdentity,
+                "urlFilter": "^https://sheinm\\.ltwebstatic\\.com/pwa_dist/assets/.*\\.js",
+                "resourceTypes": ["raw"],
+                "webViewExists": false,
+                "beforeFirstNavigation": true
+            ])
         }
         userContentController.add(self, name: Self.diagnosticHandler)
         if mode.usesBlocking {
@@ -131,7 +139,23 @@ final class SheinCleanBrowserViewController: UIViewController,
     }
 
     private func configureNativeChrome() {
-        title = mode.title
+        let modeLabel = UILabel()
+        modeLabel.text = mode.title
+        modeLabel.font = .preferredFont(forTextStyle: .headline)
+        modeLabel.textAlignment = .center
+        let containerLabel = UILabel()
+        containerLabel.text = dataStoreIdentity
+        containerLabel.font = .monospacedSystemFont(ofSize: 8, weight: .regular)
+        containerLabel.textAlignment = .center
+        containerLabel.adjustsFontSizeToFitWidth = true
+        containerLabel.minimumScaleFactor = 0.65
+        containerLabel.accessibilityIdentifier = "shein-clean-container-identity"
+        let titleStack = UIStackView(arrangedSubviews: [modeLabel, containerLabel])
+        titleStack.axis = .vertical
+        titleStack.alignment = .fill
+        titleStack.spacing = 1
+        titleStack.frame = CGRect(x: 0, y: 0, width: 250, height: 40)
+        navigationItem.titleView = titleStack
         navigationItem.leftBarButtonItem = UIBarButtonItem(
             barButtonSystemItem: .close,
             target: self,
@@ -402,6 +426,7 @@ final class SheinCleanBrowserViewController: UIViewController,
         payload["contentRuleAttached"] = contentRule != nil
         let json = Self.jsonString(payload)
         Self.logger.notice("[OTLOBLI_SHEIN_CLEAN] \(json, privacy: .public)")
+        SheinFinalForensics.record(payload)
     }
 
     private func sanitizeDictionary(_ input: [String: Any]) -> [String: Any] {

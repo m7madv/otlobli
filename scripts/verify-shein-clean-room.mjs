@@ -20,12 +20,14 @@ const mode = read('ios/App/App/SheinCleanBrowser/SheinCleanBrowserMode.swift')
 const scripts = read('ios/App/App/SheinCleanBrowser/SheinCleanBrowserScripts.swift')
 const controller = read('ios/App/App/SheinCleanBrowser/SheinCleanBrowserViewController.swift')
 const plugin = read('ios/App/App/SheinCleanBrowser/SheinCleanBrowserPlugin.swift')
+const forensics = read('ios/App/App/SheinCleanBrowser/SheinFinalForensics.swift')
 const bridge = read('ios/App/App/OtlobliBridgeViewController.swift')
 const storeBrowser = read('src/services/storeBrowser.ts')
 const app = read('src/App.tsx')
 const config = read('src/config.ts')
 const project = read('ios/App/App.xcodeproj/project.pbxproj')
 const recorder = read('scripts/capture-shein-cdp-network.mjs')
+const forensicController = read('scripts/run-shein-final-forensics.ps1')
 const legacyPath = path.join(root, 'ios/App/App/OtlobliSheinBrowserPlugin.swift')
 const legacyHash = crypto.createHash('sha256').update(fs.readFileSync(legacyPath)).digest('hex')
 
@@ -109,7 +111,34 @@ requireText(plugin, 'guard #available(iOS 17.0, *)', 'profile availability gate'
 requireText(plugin, 'setUrl is disabled for the locked clean-room session', 'host navigation isolation')
 requireText(plugin, 'Host script execution is disabled for clean-room modes', 'host script isolation')
 requireText(plugin, 'Mode containers are evidence. Never clear or mutate them implicitly.', 'mode cache preservation')
+requireText(plugin, 'SheinForensicScenario.load()', 'forensic scenario configuration')
+requireText(plugin, 'forensicScenario?.dataStoreIdentifier ?? mode.dataStoreIdentifier', 'fresh forensic profile override')
+requireText(plugin, 'forensicScenario?.runId.lowercased()', 'cross-process forensic run identity')
 rejectText(plugin, 'otlobliDocumentStartScript', 'clean plugin')
+
+for (const fragment of [
+  'shein-final-forensics-scenario.json',
+  '"A1": "RAW"',
+  '"A4": "RAW_WITH_CACHE_GUARD"',
+  '"B3": "CAPTURE_AND_BLOCKING"',
+  'UUID(uuidString: containerIdentifier)',
+  'shein-final-forensics-\\(runId.lowercased()).jsonl',
+]) requireText(forensics, fragment, 'forensic scenario infrastructure')
+for (const forbidden of [
+  'removeData(',
+  'httpCookieStore.delete',
+  'WKWebsiteDataStore.nonPersistent',
+]) rejectText(forensics, forbidden, 'forensic website-data preservation')
+
+for (const fragment of [
+  "[ValidateSet('A1', 'A2', 'A3', 'A4', 'B0', 'B1', 'B2', 'B3')]",
+  "ExpectedVersion = '86.206'",
+  "ExpectedBuild = '1068'",
+  'websiteDataMutation = $false',
+  'cacheClear = $false',
+  'Library/WebKit/WebsiteDataStore/$ContainerIdentifier/NetworkCache',
+  'SHA256SUMS.txt',
+]) requireText(forensicController, fragment, 'Windows forensic controller')
 
 if (legacyHash !== '6a6d6a16a5eed040618988c9d5b5ac6d8f88ddd187f4bc095c0f1c1aa710382e') {
   fail(`legacy OtlobliSheinBrowserPlugin.swift changed (${legacyHash})`)
@@ -145,7 +174,7 @@ for (const hostBoundary of [
 ]) requireText(app, hostBoundary, 'clean host isolation')
 requireText(config, 'VITE_SHEIN_CLEAN_ROOM_DIAGNOSTICS', 'diagnostic feature flag')
 requireText(config, "VITE_SHEIN_CLEAN_ROOM_DIAGNOSTICS ?? 'true'", 'diagnostic IPA default')
-requireText(config, "'2026.08.21-v86.205-shein-clean-room-selector-fix'", 'diagnostic version marker')
+requireText(config, "'2026.08.21-v86.206-shein-final-forensics'", 'diagnostic version marker')
 for (const privacyBoundary of [
   '--mode=',
   '--run-id=',
@@ -159,9 +188,10 @@ for (const file of [
   'SheinCleanBrowserScripts.swift',
   'SheinCleanBrowserViewController.swift',
   'SheinCleanBrowserPlugin.swift',
+  'SheinFinalForensics.swift',
 ]) requireText(project, `${file} in Sources`, 'Xcode source membership')
-requireText(project, 'CURRENT_PROJECT_VERSION = 1067;', 'iOS build number')
-requireText(project, 'MARKETING_VERSION = 86.205;', 'iOS marketing version')
+requireText(project, 'CURRENT_PROJECT_VERSION = 1068;', 'iOS build number')
+requireText(project, 'MARKETING_VERSION = 86.206;', 'iOS marketing version')
 
 if (!process.exitCode) {
   console.log('SHEIN clean-room guard passed: RAW isolation, exact raw-only guard, independent modules, persistent mode profiles, and unchanged legacy browser verified.')

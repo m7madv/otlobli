@@ -8,7 +8,7 @@ enum SheinCleanBrowserMode: Int, CaseIterable {
     case captureAndBlocking = 4
     case legacyControl = 5
 
-    static let diagnosticVersion = "2026.08.21-v86.205-clean-room-selector-single-flight-v1"
+    static let diagnosticVersion = "2026.08.21-v86.206-shein-final-forensics-v1"
 
     var wireName: String {
         switch self {

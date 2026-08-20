@@ -129,6 +129,7 @@ jobs:
           strings "$binary" > build/clean-room-binary-strings.txt
           for marker in \
             '[OTLOBLI_SHEIN_CLEAN]' \
+            'shein-final-forensics-scenario.json' \
             'RAW_WITH_CACHE_GUARD' \
             'CAPTURE_AND_BLOCKING' \
             'LEGACY_BROWSER_CONTROL' \

@@ -17,6 +17,7 @@
 		B20400000000000000000003 /* SheinCleanBrowserScripts.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20400000000000000000004 /* SheinCleanBrowserScripts.swift */; };
 		B20400000000000000000005 /* SheinCleanBrowserViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20400000000000000000006 /* SheinCleanBrowserViewController.swift */; };
 		B20400000000000000000007 /* SheinCleanBrowserPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20400000000000000000008 /* SheinCleanBrowserPlugin.swift */; };
+		B20600000000000000000001 /* SheinFinalForensics.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20600000000000000000002 /* SheinFinalForensics.swift */; };
 		504EC30D1FED79650016851F /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30B1FED79650016851F /* Main.storyboard */; };
 		504EC30F1FED79650016851F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30E1FED79650016851F /* Assets.xcassets */; };
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
@@ -34,6 +35,7 @@
 		B20400000000000000000004 /* SheinCleanBrowserScripts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SheinCleanBrowserScripts.swift; sourceTree = "<group>"; };
 		B20400000000000000000006 /* SheinCleanBrowserViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SheinCleanBrowserViewController.swift; sourceTree = "<group>"; };
 		B20400000000000000000008 /* SheinCleanBrowserPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SheinCleanBrowserPlugin.swift; sourceTree = "<group>"; };
+		B20600000000000000000002 /* SheinFinalForensics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SheinFinalForensics.swift; sourceTree = "<group>"; };
 		504EC30C1FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		504EC30E1FED79650016851F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		504EC3111FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
@@ -96,6 +98,7 @@
 				B20400000000000000000004 /* SheinCleanBrowserScripts.swift */,
 				B20400000000000000000006 /* SheinCleanBrowserViewController.swift */,
 				B20400000000000000000008 /* SheinCleanBrowserPlugin.swift */,
+				B20600000000000000000002 /* SheinFinalForensics.swift */,
 			);
 			path = SheinCleanBrowser;
 			sourceTree = "<group>";
@@ -188,6 +191,7 @@
 				B20400000000000000000003 /* SheinCleanBrowserScripts.swift in Sources */,
 				B20400000000000000000005 /* SheinCleanBrowserViewController.swift in Sources */,
 				B20400000000000000000007 /* SheinCleanBrowserPlugin.swift in Sources */,
+				B20600000000000000000001 /* SheinFinalForensics.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -334,14 +338,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1067;
+				CURRENT_PROJECT_VERSION = 1068;
 				INFOPLIST_FILE = App/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 86.205;
+				MARKETING_VERSION = 86.206;
 				OTHER_SWIFT_FLAGS = "$(inherited) \"-D\" \"COCOAPODS\" \"-DDEBUG\"";
 				PRODUCT_BUNDLE_IDENTIFIER = com.otlobli.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -357,7 +361,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = YES;
-				CURRENT_PROJECT_VERSION = 1067;
+				CURRENT_PROJECT_VERSION = 1068;
 				DEAD_CODE_STRIPPING = YES;
 				DEPLOYMENT_POSTPROCESSING = YES;
 				ENABLE_TESTABILITY = NO;
@@ -367,7 +371,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 86.205;
+				MARKETING_VERSION = 86.206;
 				PRODUCT_BUNDLE_IDENTIFIER = com.otlobli.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";

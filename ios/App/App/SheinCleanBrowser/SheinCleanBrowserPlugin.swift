@@ -56,6 +56,41 @@ public final class SheinCleanBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
                 return
             }
 
+            let forensicScenario: SheinForensicScenario?
+            do {
+                forensicScenario = try SheinForensicScenario.load()
+            } catch {
+                self.log("forensic-scenario-rejected", [
+                    "reason": error.localizedDescription
+                ])
+                call.reject("The SHEIN forensic scenario configuration is invalid")
+                return
+            }
+            if let forensicScenario {
+                guard let mode = forensicScenario.expectedMode,
+                      forensicScenario.dataStoreIdentifier != nil else {
+                    self.log("forensic-scenario-rejected", [
+                        "reason": "mode-or-container-unavailable"
+                    ])
+                    call.reject("The SHEIN forensic scenario mode or container is unavailable")
+                    return
+                }
+                self.pendingOpenCall = call
+                SheinFinalForensics.activate(forensicScenario)
+                self.log("forensic-scenario-selected", [
+                    "scenario": forensicScenario.scenario,
+                    "mode": mode.wireName,
+                    "runId": forensicScenario.runId.lowercased(),
+                    "container": forensicScenario.dataStoreIdentity,
+                    "cacheGuard": mode.usesCacheGuard,
+                    "capture": mode.usesCapture,
+                    "blocking": mode.usesBlocking,
+                    "presenter": String(describing: type(of: presenter))
+                ])
+                self.prepareCleanBrowser(mode: mode, call: call, forensicScenario: forensicScenario)
+                return
+            }
+
             self.pendingOpenCall = call
             let selector = SheinCleanModeSelectorViewController()
             selector.onCancel = { [weak self] in self?.cancelModeSelection() }
@@ -160,7 +195,7 @@ public final class SheinCleanBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
                 ])
                 return
             }
-            self.prepareCleanBrowser(mode: mode, call: call)
+            self.prepareCleanBrowser(mode: mode, call: call, forensicScenario: nil)
         }
     }
 
@@ -187,18 +222,24 @@ public final class SheinCleanBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         return true
     }
 
-    private func prepareCleanBrowser(mode: SheinCleanBrowserMode, call: CAPPluginCall) {
+    private func prepareCleanBrowser(
+        mode: SheinCleanBrowserMode,
+        call: CAPPluginCall,
+        forensicScenario: SheinForensicScenario?
+    ) {
         guard #available(iOS 17.0, *) else {
             pendingOpenCall = nil
             log("clean-open-rejected", ["reason": "persistent-profile-data-store-unavailable"])
             call.reject("Clean modes require iOS 17 or newer for isolated persistent website-data profiles")
             return
         }
-        guard let identifier = mode.dataStoreIdentifier else {
+        guard let identifier = forensicScenario?.dataStoreIdentifier ?? mode.dataStoreIdentifier else {
             pendingOpenCall = nil
             call.reject("The selected clean mode has no persistent profile identifier")
             return
         }
+        let dataStoreIdentity = forensicScenario?.dataStoreIdentity ?? mode.dataStoreIdentity
+        let runId = forensicScenario?.runId.lowercased() ?? UUID().uuidString.lowercased()
 
         let dataStore = WKWebsiteDataStore(forIdentifier: identifier)
         if mode.usesCacheGuard {
@@ -208,6 +249,16 @@ public final class SheinCleanBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
                 call.reject("The cache-guard content-rule store is unavailable")
                 return
             }
+            log("cache-guard-compile-requested", [
+                "mode": mode.wireName,
+                "runId": runId,
+                "container": dataStoreIdentity,
+                "identifier": SheinCleanBrowserContentRule.identifier,
+                "urlFilter": "^https://sheinm\\.ltwebstatic\\.com/pwa_dist/assets/.*\\.js",
+                "resourceTypes": ["raw"],
+                "beforeWebViewCreation": true,
+                "beforeFirstNavigation": true
+            ])
             store.compileContentRuleList(
                 forIdentifier: SheinCleanBrowserContentRule.identifier,
                 encodedContentRuleList: SheinCleanBrowserContentRule.json
@@ -223,18 +274,44 @@ public final class SheinCleanBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
                         call.reject("The exact raw-only cache guard could not compile or attach")
                         return
                     }
-                    self.presentCleanBrowser(mode: mode, dataStore: dataStore, contentRule: rule, call: call)
+                    self.log("cache-guard-compile-succeeded", [
+                        "mode": mode.wireName,
+                        "runId": runId,
+                        "container": dataStoreIdentity,
+                        "identifier": SheinCleanBrowserContentRule.identifier,
+                        "urlFilter": "^https://sheinm\\.ltwebstatic\\.com/pwa_dist/assets/.*\\.js",
+                        "resourceTypes": ["raw"],
+                        "beforeWebViewCreation": true,
+                        "beforeFirstNavigation": true
+                    ])
+                    self.presentCleanBrowser(
+                        mode: mode,
+                        dataStore: dataStore,
+                        dataStoreIdentity: dataStoreIdentity,
+                        runId: runId,
+                        contentRule: rule,
+                        call: call
+                    )
                 }
             }
             return
         }
 
-        presentCleanBrowser(mode: mode, dataStore: dataStore, contentRule: nil, call: call)
+        presentCleanBrowser(
+            mode: mode,
+            dataStore: dataStore,
+            dataStoreIdentity: dataStoreIdentity,
+            runId: runId,
+            contentRule: nil,
+            call: call
+        )
     }
 
     private func presentCleanBrowser(
         mode: SheinCleanBrowserMode,
         dataStore: WKWebsiteDataStore,
+        dataStoreIdentity: String,
+        runId: String,
         contentRule: WKContentRuleList?,
         call: CAPPluginCall
     ) {
@@ -243,13 +320,13 @@ public final class SheinCleanBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
             call.reject("Capacitor host controller became unavailable")
             return
         }
-        let runId = UUID().uuidString.lowercased()
         let browserId = "otlobli-shein-clean-\(UUID().uuidString.lowercased())"
         let controller = SheinCleanBrowserViewController(
             mode: mode,
             runId: runId,
             browserId: browserId,
             websiteDataStore: dataStore,
+            dataStoreIdentity: dataStoreIdentity,
             contentRule: contentRule
         )
         controller.delegate = self
@@ -262,7 +339,7 @@ public final class SheinCleanBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
                 "mode": mode.wireName,
                 "runId": runId,
                 "browserId": browserId,
-                "container": mode.dataStoreIdentity,
+                "container": dataStoreIdentity,
                 "contentRuleAttached": contentRule != nil
             ])
             call.resolve([
@@ -270,7 +347,7 @@ public final class SheinCleanBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
                 "implementation": "clean-controller",
                 "mode": mode.wireName,
                 "runId": runId,
-                "websiteDataContainer": mode.dataStoreIdentity,
+                "websiteDataContainer": dataStoreIdentity,
                 "contentRuleAttached": contentRule != nil,
                 "captureEnabled": mode.usesCapture,
                 "blockingEnabled": mode.usesBlocking,
@@ -351,6 +428,7 @@ public final class SheinCleanBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         let data = try? JSONSerialization.data(withJSONObject: safe, options: [.sortedKeys])
         let json = data.flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
         Self.logger.notice("[OTLOBLI_SHEIN_CLEAN] \(json, privacy: .public)")
+        SheinFinalForensics.record(safe)
     }
 }
 

@@ -250,9 +250,37 @@ enum SheinCleanBrowserScripts {
     (function () {
       'use strict';
       if (window.top !== window || window.__otlobliCleanCapture) return;
+      var installedAt = performance.now();
       var documentId = (self.crypto && typeof self.crypto.randomUUID === 'function')
         ? self.crypto.randomUUID()
         : 'capture-document-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+      var installRootBefore = rootFingerprint();
+
+      function rootFingerprint() {
+        return {
+          path: location.pathname,
+          readyState: document.readyState,
+          app: !!document.getElementById('app'),
+          sheinBranch: !!document.getElementById('shein-branch'),
+          documentElementChildren: document.documentElement ? document.documentElement.childElementCount : 0,
+          bodyChildren: document.body ? document.body.childElementCount : 0
+        };
+      }
+      function report(operation, fields) {
+        var handler = window.webkit && window.webkit.messageHandlers &&
+          window.webkit.messageHandlers.otlobliCleanDiagnostics;
+        if (!handler || typeof handler.postMessage !== 'function') return;
+        try {
+          handler.postMessage(Object.assign({
+            protocolVersion: 1,
+            kind: 'module-operation',
+            module: 'capture',
+            operation: operation,
+            documentId: documentId,
+            at: Date.now()
+          }, fields || {}));
+        } catch (_) {}
+      }
 
       function text(selector) {
         var node = document.querySelector(selector);
@@ -282,32 +310,62 @@ enum SheinCleanBrowserScripts {
         return match ? match[1] : text('meta[property="product:retailer_item_id"]');
       }
       function snapshot() {
-        var id = productId();
-        var title = text('meta[property="og:title"]') || text('h1');
-        var priceText = text('meta[property="product:price:amount"]') ||
-          text('[data-testid="product-price"]') || text('[class*="bsc-main-price"]');
-        return {
-          protocolVersion: 1,
-          moduleVersion: '1.0.0',
-          documentId: documentId,
-          isProductPage: !!id,
-          product: {
-            id: id,
-            sku: text('meta[property="product:retailer_item_id"]') || id,
-            title: title,
-            image: text('meta[property="og:image"]'),
-            priceUsd: cleanPrice(priceText),
-            currency: text('meta[property="product:price:currency"]') || 'USD',
-            color: selectedValue('color'),
-            size: selectedValue('size'),
-            link: safeLink()
-          }
-        };
+        var before = rootFingerprint();
+        var startedAt = performance.now();
+        try {
+          var id = productId();
+          var title = text('meta[property="og:title"]') || text('h1');
+          var priceText = text('meta[property="product:price:amount"]') ||
+            text('[data-testid="product-price"]') || text('[class*="bsc-main-price"]');
+          var result = {
+            protocolVersion: 1,
+            moduleVersion: '1.0.0',
+            documentId: documentId,
+            isProductPage: !!id,
+            product: {
+              id: id,
+              sku: text('meta[property="product:retailer_item_id"]') || id,
+              title: title,
+              image: text('meta[property="og:image"]'),
+              priceUsd: cleanPrice(priceText),
+              currency: text('meta[property="product:price:currency"]') || 'USD',
+              color: selectedValue('color'),
+              size: selectedValue('size'),
+              link: safeLink()
+            }
+          };
+          report('snapshot', {
+            durationMs: Math.round((performance.now() - startedAt) * 1000) / 1000,
+            selectorCategory: 'product-metadata-and-selected-variants',
+            elementsMatched: id ? 1 : 0,
+            elementsChanged: 0,
+            isProductPage: !!id,
+            rootBefore: before,
+            rootAfter: rootFingerprint()
+          });
+          return result;
+        } catch (error) {
+          report('snapshot-error', {
+            durationMs: Math.round((performance.now() - startedAt) * 1000) / 1000,
+            message: String(error && (error.message || error) || '').slice(0, 300),
+            rootBefore: before,
+            rootAfter: rootFingerprint()
+          });
+          throw error;
+        }
       }
       window.__otlobliCleanCapture = Object.freeze({
         version: '1.0.0',
         documentId: documentId,
         snapshot: snapshot
+      });
+      report('module-install', {
+        durationMs: Math.round((performance.now() - installedAt) * 1000) / 1000,
+        selectorCategory: 'none',
+        elementsMatched: 0,
+        elementsChanged: 0,
+        rootBefore: installRootBefore,
+        rootAfter: rootFingerprint()
       });
     })();
     """#
@@ -320,6 +378,9 @@ enum SheinCleanBrowserScripts {
     (function () {
       'use strict';
       if (window.top !== window || window.__otlobliCleanBlocking) return;
+      var documentId = (self.crypto && typeof self.crypto.randomUUID === 'function')
+        ? self.crypto.randomUUID()
+        : 'blocking-document-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
       var selector = [
         'button[aria-label="Add to Bag"]',
         'button[aria-label="Add to Cart"]',
@@ -332,6 +393,34 @@ enum SheinCleanBrowserScripts {
       var blocked = new WeakSet();
       var observer = null;
       var stopped = false;
+      var installed = false;
+
+      function rootFingerprint() {
+        return {
+          path: location.pathname,
+          readyState: document.readyState,
+          app: !!document.getElementById('app'),
+          sheinBranch: !!document.getElementById('shein-branch'),
+          documentElementChildren: document.documentElement ? document.documentElement.childElementCount : 0,
+          bodyChildren: document.body ? document.body.childElementCount : 0
+        };
+      }
+
+      function reportOperation(operation, fields) {
+        var handler = window.webkit && window.webkit.messageHandlers &&
+          window.webkit.messageHandlers.otlobliCleanDiagnostics;
+        if (!handler || typeof handler.postMessage !== 'function') return;
+        try {
+          handler.postMessage(Object.assign({
+            protocolVersion: 1,
+            kind: 'module-operation',
+            module: 'blocking',
+            operation: operation,
+            documentId: documentId,
+            at: Date.now()
+          }, fields || {}));
+        } catch (_) {}
+      }
 
       function report(count) {
         var handler = window.webkit && window.webkit.messageHandlers &&
@@ -349,41 +438,91 @@ enum SheinCleanBrowserScripts {
       }
 
       function blockElement(node) {
-        if (!node || blocked.has(node)) return 0;
+        if (!node) return { matched: 0, changed: 0 };
+        if (blocked.has(node)) return { matched: 1, changed: 0 };
         blocked.add(node);
         node.setAttribute('data-otlobli-clean-blocked', 'native-purchase-control');
         node.style.setProperty('display', 'none', 'important');
-        return 1;
+        return { matched: 1, changed: 1 };
       }
 
       function scanRoot(root) {
-        if (stopped || !root) return;
-        var count = 0;
-        if (root.matches && root.matches(selector)) count += blockElement(root);
+        var result = { matched: 0, changed: 0 };
+        if (stopped || !root) return result;
+        if (root.matches && root.matches(selector)) {
+          var rootResult = blockElement(root);
+          result.matched += rootResult.matched;
+          result.changed += rootResult.changed;
+        }
         var nodes = root.querySelectorAll ? root.querySelectorAll(selector) : [];
-        for (var i = 0; i < nodes.length && i < 32; i += 1) count += blockElement(nodes[i]);
-        if (count) report(count);
+        for (var i = 0; i < nodes.length && i < 32; i += 1) {
+          var nodeResult = blockElement(nodes[i]);
+          result.matched += nodeResult.matched;
+          result.changed += nodeResult.changed;
+        }
+        if (result.changed) report(result.changed);
+        return result;
       }
 
       function install() {
-        scanRoot(document.documentElement);
+        if (installed || stopped) return;
+        installed = true;
+        var before = rootFingerprint();
+        var startedAt = performance.now();
+        var initial = scanRoot(document.documentElement);
+        reportOperation('install-scan', {
+          durationMs: Math.round((performance.now() - startedAt) * 1000) / 1000,
+          selectorCategory: 'native-purchase-control',
+          elementsMatched: initial.matched,
+          elementsChanged: initial.changed,
+          rootBefore: before,
+          rootAfter: rootFingerprint()
+        });
         observer = new MutationObserver(function (records) {
+          var callbackBefore = rootFingerprint();
+          var callbackStartedAt = performance.now();
           var inspected = 0;
+          var matched = 0;
+          var changed = 0;
           for (var i = 0; i < records.length && inspected < 48; i += 1) {
             for (var j = 0; j < records[i].addedNodes.length && inspected < 48; j += 1) {
               var node = records[i].addedNodes[j];
-              if (node && node.nodeType === 1) scanRoot(node);
+              if (node && node.nodeType === 1) {
+                var result = scanRoot(node);
+                matched += result.matched;
+                changed += result.changed;
+              }
               inspected += 1;
             }
           }
+          reportOperation('mutation-scan', {
+            durationMs: Math.round((performance.now() - callbackStartedAt) * 1000) / 1000,
+            selectorCategory: 'native-purchase-control',
+            mutationRecordCount: records.length,
+            addedNodesInspected: inspected,
+            elementsMatched: matched,
+            elementsChanged: changed,
+            rootBefore: callbackBefore,
+            rootAfter: rootFingerprint()
+          });
         });
         observer.observe(document.documentElement, { childList: true, subtree: true });
       }
 
       function dispose() {
+        var before = rootFingerprint();
+        var startedAt = performance.now();
         stopped = true;
         if (observer) observer.disconnect();
         observer = null;
+        reportOperation('dispose', {
+          durationMs: Math.round((performance.now() - startedAt) * 1000) / 1000,
+          selectorCategory: 'none',
+          elementsMatched: 0,
+          elementsChanged: 0,
+          rootBefore: before,
+          rootAfter: rootFingerprint()
+        });
       }
 
       window.addEventListener('pagehide', dispose, { once: true, passive: true });
