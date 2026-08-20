@@ -18,7 +18,12 @@ not declare a universal SHEIN fix.
 - Unchanged: all six mode definitions, RAW contents, exact cache rule,
   capture, blocking, persistent profile IDs, and legacy browser hash.
 - Local build/gates/iOS sync: pass.
-- Pending: Xcode artifact, IPA inspection, and physical selector acceptance.
+- GitHub/Xcode run: `32422731308`; implementation commit
+  `23282957a14ddc363f430379105780098ce057e9`; artifact `9426368736`.
+- Inspected IPA: `6,638,066` bytes, SHA-256
+  `90BE1FC810DDB5F2CC1F8420661C8E96ED765328C28EE75C457C0F750A3452E0`;
+  ARM64, iOS 15+, iPhone/iPad, unsigned/unprovisioned, no source maps.
+- Pending: physical selector acceptance.
 - Protocol: `docs/SHEIN_V86_205_SELECTOR_SINGLE_FLIGHT_FIX.md`.
 
 ## v86.204 clean-room implementation state

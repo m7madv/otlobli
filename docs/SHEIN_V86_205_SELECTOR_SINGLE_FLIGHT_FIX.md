@@ -1,6 +1,6 @@
 # SHEIN v86.205 clean-room selector single-flight fix
 
-Status: locally validated candidate; Xcode/IPA and physical confirmation are
+Status: built and archive-inspected candidate; physical confirmation is
 pending. This version fixes the selector/open transaction only. It does not
 change RAW, the cache rule, capture, blocking, mode profiles, or the legacy
 browser, and it does not claim the SHEIN freeze is fixed.
@@ -91,11 +91,23 @@ Capacitor iOS sync, and `git diff --check` pass.
 8. Only after this selector acceptance should the v86.204 RAW/guard causal
    protocol continue unchanged.
 
-## Delivery fields
+## Delivery record
 
-- Implementation commit: pending.
-- GitHub Actions run/job: pending.
-- Artifact ID: pending.
-- IPA path/size/SHA-256: pending.
+- Implementation commit:
+  `23282957a14ddc363f430379105780098ce057e9`.
+- GitHub Actions run/job: `32422731308` / `96598044268`; success in `3m40s`.
+- Artifact ID/name: `9426368736` /
+  `otlobli-ios-v86.205-ipad-iphone-universal`.
+- Artifact archive digest:
+  `sha256:4c1b3e485ff244efa03e7ef03c26d245618c15fe40afa64e2a00752b2781bbca`.
+- IPA path:
+  `C:\Users\MOHAMMAD\Documents\Codex\2026-08-21\shein-current-state-handoff-md-c\outputs\otlobli-ios-v86.205-ipad-iphone-universal\otlobli-v86.205-ipad-iphone-universal-unsigned.ipa`.
+- IPA size: `6,638,066` bytes.
+- IPA SHA-256:
+  `90BE1FC810DDB5F2CC1F8420661C8E96ED765328C28EE75C457C0F750A3452E0`.
+- Inspection: `com.otlobli.app`, `86.205/1067`, ARM64, iOS 15+,
+  iPhone/iPad `[1,2]`, unsigned/unprovisioned, no source maps.
+- Built markers present: `[OTLOBLI_SHEIN_CLEAN]`,
+  `SHEIN_CLEAN_OPEN_ACTIVE`, `SHEIN_CLEAN_SELECTION_CANCELLED`,
+  `RAW_WITH_CACHE_GUARD`, and the exact content-rule identity.
 - Physical selector acceptance: pending.
-

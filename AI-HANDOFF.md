@@ -13,7 +13,11 @@ The fix marks clean ownership before await, adds an independent React
 single-flight lock, excludes clean entry from the legacy cache-reset path, and
 makes selector Select/Cancel/host Close transitions idempotent. Do not modify
 RAW, the rule, capture, blocking, profile UUIDs, or legacy browser. Local gates
-pass; Xcode/IPA and a short physical selector acceptance remain pending. Read
+and GitHub/Xcode run `32422731308` pass from implementation commit `2328295`;
+artifact `9426368736`. Inspected IPA: `6,638,066` bytes, SHA-256
+`90BE1FC810DDB5F2CC1F8420661C8E96ED765328C28EE75C457C0F750A3452E0`,
+ARM64/iOS 15+/iPhone+iPad/unsigned, with no provisioning or source maps. Only a
+short physical selector acceptance remains pending. Read
 `docs/SHEIN_V86_205_SELECTOR_SINGLE_FLIGHT_FIX.md`.
 
 # Active handoff — v86.204 clean-room diagnostic awaits device proof (2026-08-21)

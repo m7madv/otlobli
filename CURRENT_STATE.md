@@ -15,7 +15,12 @@ identity before dismissal, locks the first Select/Cancel action, and makes host
 Close cancel a pending selector explicitly. RAW, the exact raw-only guard,
 capture, blocking, persistent mode UUIDs, and legacy browser are unchanged.
 Local TypeScript/build/sync and all hardening/SHEIN/Temu/surface/performance
-guards pass. Xcode/IPA and physical selector confirmation remain pending.
+guards pass. GitHub/Xcode run `32422731308` built implementation commit
+`23282957a14ddc363f430379105780098ce057e9`; artifact `9426368736`. The
+inspected unsigned IPA is `6,638,066` bytes, SHA-256
+`90BE1FC810DDB5F2CC1F8420661C8E96ED765328C28EE75C457C0F750A3452E0`,
+ARM64, iOS 15+, and iPhone/iPad, with no app signature, provisioning, or source
+maps. Physical selector confirmation remains pending.
 Details: `docs/SHEIN_V86_205_SELECTOR_SINGLE_FLIGHT_FIX.md`.
 
 # v86.204 — parallel SHEIN clean-room diagnostic browser (2026-08-21)
