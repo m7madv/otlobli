@@ -16,7 +16,7 @@ import type { PaymentCurrency } from './domain/pricing'
 import type { Address, AppNotification, CartGroupSnapshot, CartItem, NotificationPrefs, Order, OrderIssue, Product, ProductColor, Recipient, Screen, StatusTone, UserProfile, WalletTransaction } from './domain/types'
 import { getDeviceId, readStoredJson, storageKeys, useStoredState } from './infrastructure/localStorage'
 import { appApi } from './services'
-import { PAYMENT_MODE, APP_VERSION, SHEIN_IOS_FREEZE_DIAGNOSTICS, SHEIN_IOS_FREEZE_DIAGNOSTICS_BYPASS_RECOVERY, STORE_SCRIPT_DIAGNOSTICS, TEMU_PERSONAL_SITE_MODE, TEST_ONLY_AUTH_BYPASS, cleanEnvValue } from './config'
+import { PAYMENT_MODE, APP_VERSION, SHEIN_CLEAN_ROOM_DIAGNOSTICS, SHEIN_IOS_FREEZE_DIAGNOSTICS, SHEIN_IOS_FREEZE_DIAGNOSTICS_BYPASS_RECOVERY, STORE_SCRIPT_DIAGNOSTICS, TEMU_PERSONAL_SITE_MODE, TEST_ONLY_AUTH_BYPASS, cleanEnvValue } from './config'
 import type { StoreScriptFlags } from './services/storeScriptDiagnostics'
 import { buildWhatsappLink } from './services/whatsappLink'
 import {
@@ -208,6 +208,7 @@ const buildTemuHomeUrl = (region: StoreRegion) =>
 
 const SHEIN_HOME_URL = buildSheinHomeUrl(DEFAULT_STORE_REGIONS.shein)
 const TEMU_HOME_URL = buildTemuHomeUrl(DEFAULT_STORE_REGIONS.temu)
+const isCleanSheinDiagnosticWebview = (id?: string) => !!id && id.startsWith('otlobli-shein-clean-')
 
 // The host app already has viewport-fit=cover from its static HTML, so its
 // mounted navigation knows the final iPhone safe-area before SHEIN starts.
@@ -3092,6 +3093,8 @@ function App() {
   // returning to the store from Cart/Orders/Profile via the Home tab.
   useEffect(() => {
     if (screen !== 'home' || vpnState !== 'idle') return
+    if (SHEIN_CLEAN_ROOM_DIAGNOSTICS && Capacitor.getPlatform() === 'ios' &&
+        selectedStoreRef.current === 'shein') return
     vpnStateRef.current = 'checking'
     setVpnState('checking')
   }, [screen, vpnState])
@@ -3136,6 +3139,14 @@ function App() {
         webviewOpen: sheinOpenedRef.current,
         at: Date.now(),
       })
+    }
+
+    if (InAppBrowser.isCleanSheinSession()) {
+      recordSheinRegionDiagnostic({
+        stage: 'clean-room-host-region-change-ignored',
+        at: Date.now(),
+      })
+      return
     }
 
     temuArabicRedirectRef.current = 0
@@ -3431,6 +3442,7 @@ function App() {
   const forceStoreVpnRecheck = () => {
     if (screenRef.current !== 'home') return
     if (selectedStoreRef.current !== 'shein') return
+    if (InAppBrowser.isCleanSheinSession()) return
     // A healthy store keeps its exact page/scroll state across app screens and
     // ordinary background/foreground transitions. Native iOS revives an actual
     // WebContent termination in place; normal resume is never a reason to close.
@@ -3574,6 +3586,10 @@ function App() {
   const restartStuckSheinWebview = (sessionId: number) => {
     if (sessionId !== webviewSessionRef.current) return
     if (!sheinOpenedRef.current || screenRef.current !== 'home') return
+    if (InAppBrowser.isCleanSheinSession()) {
+      clearSheinReadinessWatchdog()
+      return
+    }
     if (sheinChallengeActiveRef.current || sheinReadyRef.current) return
     clearSheinReadinessWatchdog()
 
@@ -3629,6 +3645,7 @@ function App() {
   const recoverSheinChunkLoad = (reportedUrl: string) => {
     if (Capacitor.getPlatform() !== 'ios' || selectedStoreRef.current !== 'shein' ||
         !sheinOpenedRef.current || sheinChallengeActiveRef.current) return false
+    if (InAppBrowser.isCleanSheinSession()) return false
 
     const now = Date.now()
     // A broken PWA can emit dozens of rejected chunk promises in one frame.
@@ -3712,7 +3729,9 @@ function App() {
     if (sheinOpenedRef.current || webviewOpeningRef.current) return
     pendingStoreOpenAfterCloseRef.current = false
     const currentVpnState = vpnStateRef.current
-    if (currentVpnState !== 'ok') {
+    const cleanRoomDiagnosticEntry = SHEIN_CLEAN_ROOM_DIAGNOSTICS &&
+      Capacitor.getPlatform() === 'ios' && selectedStoreRef.current === 'shein'
+    if (currentVpnState !== 'ok' && !cleanRoomDiagnosticEntry) {
       webviewOpeningRef.current = false
       webviewOpenedAtRef.current = 0
       webviewIdRef.current = ''
@@ -3976,8 +3995,26 @@ function App() {
           void checkLoaded.then((h) => h.remove())
         })
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         if (sessionId !== webviewSessionRef.current) return
+        if (cleanRoomDiagnosticEntry) {
+          const message = error instanceof Error ? error.message : String(error)
+          webviewOpeningRef.current = false
+          webviewOpenedAtRef.current = 0
+          webviewIdRef.current = ''
+          sheinOpenedRef.current = false
+          setSheinReady(false)
+          screenRef.current = 'store-select'
+          setScreen('store-select')
+          recordAppDiagnostic('clean_room_open_rejected', {
+            cancelled: /cancelled/i.test(message),
+            reason: /cancelled/i.test(message) ? 'selection-cancelled' : 'native-open-rejected',
+          })
+          if (!/cancelled/i.test(message)) {
+            showNotice(`تعذّر فتح تجربة SHEIN النظيفة: ${message.slice(0, 180)}`)
+          }
+          return
+        }
         if (screenRef.current === 'home') showStoreOpenFailure()
       })
   }
@@ -4002,7 +4039,8 @@ function App() {
           pendingBackTargetRef.current = 'home'
           postWebviewChromeState(target)
         })
-      } else if (vpnState === 'ok') {
+      } else if (vpnState === 'ok' || (SHEIN_CLEAN_ROOM_DIAGNOSTICS &&
+        Capacitor.getPlatform() === 'ios' && selectedStoreRef.current === 'shein')) {
         if (sheinBlockedError || Date.now() < webviewAutoOpenPausedUntilRef.current) return
         openTimer = window.setTimeout(() => browseSheinRef.current(), 0)
       }
@@ -4165,11 +4203,12 @@ function App() {
   }, [vpnState, screen])
 
   useEffect(() => {
-    const handle = InAppBrowser.addListener('closeEvent', (event: { id?: string }) => {
+    const handle = InAppBrowser.addListener('closeEvent', (event: { id?: string; reason?: string }) => {
       const closedId = event?.id ?? ''
+      const closedCleanRoom = InAppBrowser.isCleanSheinSession() || isCleanSheinDiagnosticWebview(closedId)
       if (closedId && ignoredWebviewCloseIdsRef.current.delete(closedId)) return
       if (closedId && webviewIdRef.current && closedId !== webviewIdRef.current) return
-      if (!suppressAutoReopenRef.current && screenRef.current === 'home' &&
+      if (!closedCleanRoom && !suppressAutoReopenRef.current && screenRef.current === 'home' &&
           selectedStoreRef.current === 'shein' && sheinReadyRef.current &&
           recoverSheinChunkLoad(currentWebviewUrlRef.current)) return
       const productWasPreparing = pendingProductRevealRef.current
@@ -4182,6 +4221,18 @@ function App() {
       sheinCartProductSessionRef.current = false
       sheinOpenedRef.current = false
       setSheinReady(false)
+      if (closedCleanRoom) {
+        pendingStoreOpenAfterCloseRef.current = false
+        if (event.reason === 'native-close' && screenRef.current === 'home') {
+          screenRef.current = 'store-select'
+          setScreen('store-select')
+        }
+        recordAppDiagnostic('clean_room_controller_closed', {
+          store: 'shein',
+          reason: event.reason ?? 'unknown',
+        })
+        return
+      }
       if (productWasPreparing && screenRef.current === 'cart') {
         pendingBackTargetRef.current = 'home'
         showNotice('توقف تجهيز المنتج. جرّب فتحه مرة أخرى.')
@@ -4227,6 +4278,19 @@ function App() {
             at: Date.now(),
           })
         }
+      }
+      if (InAppBrowser.isCleanSheinSession() || isCleanSheinDiagnosticWebview(loadedWebviewId)) {
+        clearSheinReadinessWatchdog()
+        webviewOpeningRef.current = false
+        sheinReadyRef.current = true
+        setSheinReady(true)
+        recordSheinRegionDiagnostic({
+          stage: 'clean-room-page-loaded-host-runtime-skipped',
+          webviewId: loadedWebviewId || webviewIdRef.current,
+          sessionId: webviewSessionRef.current,
+          at: Date.now(),
+        })
+        return
       }
       if (selectedStoreRef.current === 'shein') {
         if (pendingProductRevealRef.current && pendingProductNavigationRequestedRef.current) {
@@ -4290,6 +4354,14 @@ function App() {
       if (event?.id && webviewIdRef.current && event.id !== webviewIdRef.current) return
       if (!sheinOpenedRef.current) return
       const activeStore = selectedStoreRef.current
+      if (InAppBrowser.isCleanSheinSession() || isCleanSheinDiagnosticWebview(event?.id)) {
+        recordAppDiagnostic('clean_room_page_error_observed', {
+          phase: event.phase ?? '',
+          code: webviewErrorCode(event) ?? 0,
+          domain: event.domain ?? '',
+        })
+        return
+      }
       // تيمو حمّلت مسبقاً → هذا خطأ مورد فرعي (إعلان/تتبّع)، لا تُظهر البوابة.
       if (activeStore === 'temu' && temuContentLoadedRef.current) return
       recordAppDiagnostic('store_page_error', {
@@ -4359,6 +4431,7 @@ function App() {
       if (webviewClosingRef.current) return
       if (id && webviewIdRef.current && id !== webviewIdRef.current) return
       currentWebviewUrlRef.current = url
+      if (InAppBrowser.isCleanSheinSession() || isCleanSheinDiagnosticWebview(id)) return
       if (/shein/i.test(url)) {
         if (STORE_SCRIPT_DIAGNOSTICS && !storeScriptFlagsRef.current.session) return
         if (isSheinHumanChallengeUrl(url)) {

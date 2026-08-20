@@ -4,5 +4,6 @@ import Capacitor
 final class OtlobliBridgeViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(OtlobliSheinBrowserPlugin())
+        bridge?.registerPluginInstance(SheinCleanBrowserPlugin())
     }
 }

@@ -1,5 +1,6 @@
 import { Capacitor, registerPlugin } from '@capacitor/core'
 import { InAppBrowser as CapgoInAppBrowser } from '@capgo/capacitor-inappbrowser'
+import { SHEIN_CLEAN_ROOM_DIAGNOSTICS } from '../config'
 
 type ListenerHandle = { remove: () => Promise<void> }
 type OpenOptions = Parameters<typeof CapgoInAppBrowser.openWebView>[0]
@@ -9,7 +10,12 @@ type ExecuteScriptOptions = Parameters<typeof CapgoInAppBrowser.executeScript>[0
 type PostMessageOptions = Parameters<typeof CapgoInAppBrowser.postMessage>[0]
 
 interface NativeSheinBrowserApi {
-  openWebView(options: OpenOptions): Promise<{ id?: string }>
+  openWebView(options: OpenOptions): Promise<{
+    id?: string
+    implementation?: 'clean-controller' | 'legacy-control'
+    mode?: string
+    runId?: string
+  }>
   show(): Promise<void>
   hide(): Promise<void>
   close(options?: CloseOptions): Promise<void>
@@ -24,15 +30,19 @@ interface NativeSheinBrowserApi {
 }
 
 const NativeSheinBrowser = registerPlugin<NativeSheinBrowserApi>('OtlobliSheinBrowser')
+const CleanSheinBrowser = registerPlugin<NativeSheinBrowserApi>('SheinCleanBrowser')
 const isIos = () => Capacitor.getPlatform() === 'ios'
 const isSheinUrl = (url: string) => /^https?:\/\/(?:[^/]+\.)?shein\.com(?:[/:?#]|$)/i.test(url)
 const isNativeSheinId = (id?: string) => !!id && id.startsWith('otlobli-shein-')
+const isCleanSheinId = (id?: string) => !!id && id.startsWith('otlobli-shein-clean-')
 
-let activeBackend: 'capgo' | 'native-shein' | 'none' = 'none'
+let activeBackend: 'capgo' | 'native-shein' | 'clean-shein' | 'none' = 'none'
 let activeNativeId = ''
 
-const useNativeBackend = (id?: string) =>
-  isIos() && (isNativeSheinId(id) || (!id && activeBackend === 'native-shein'))
+const isCleanBackendActive = (id?: string) =>
+  isIos() && (isCleanSheinId(id) || (!id && activeBackend === 'clean-shein'))
+const isLegacyNativeBackendActive = (id?: string) =>
+  isIos() && ((isNativeSheinId(id) && !isCleanSheinId(id)) || (!id && activeBackend === 'native-shein'))
 
 /**
  * One store-facing API with a clean platform boundary:
@@ -40,8 +50,20 @@ const useNativeBackend = (id?: string) =>
  * - Android and non-SHEIN surfaces retain the existing Capgo plugin.
  */
 export const StoreBrowser = {
+  isCleanSheinSession() {
+    return activeBackend === 'clean-shein'
+  },
+
   async openWebView(options: OpenOptions) {
     if (isIos() && isSheinUrl(options.url)) {
+      if (SHEIN_CLEAN_ROOM_DIAGNOSTICS) {
+        const cleanResult = await CleanSheinBrowser.openWebView(options)
+        if (cleanResult.implementation !== 'legacy-control') {
+          activeBackend = 'clean-shein'
+          activeNativeId = cleanResult.id ?? ''
+          return cleanResult
+        }
+      }
       const result = await NativeSheinBrowser.openWebView(options)
       activeBackend = 'native-shein'
       activeNativeId = result.id ?? ''
@@ -54,15 +76,25 @@ export const StoreBrowser = {
   },
 
   show() {
-    return useNativeBackend() ? NativeSheinBrowser.show() : CapgoInAppBrowser.show()
+    if (isCleanBackendActive()) return CleanSheinBrowser.show()
+    return isLegacyNativeBackendActive() ? NativeSheinBrowser.show() : CapgoInAppBrowser.show()
   },
 
   hide() {
-    return useNativeBackend() ? NativeSheinBrowser.hide() : CapgoInAppBrowser.hide()
+    if (isCleanBackendActive()) return CleanSheinBrowser.hide()
+    return isLegacyNativeBackendActive() ? NativeSheinBrowser.hide() : CapgoInAppBrowser.hide()
   },
 
   async close(options?: CloseOptions) {
-    if (useNativeBackend(options?.id)) {
+    if (isCleanBackendActive(options?.id)) {
+      await CleanSheinBrowser.close(options)
+      if (!options?.id || options.id === activeNativeId) {
+        activeBackend = 'none'
+        activeNativeId = ''
+      }
+      return
+    }
+    if (isLegacyNativeBackendActive(options?.id)) {
       await NativeSheinBrowser.close(options)
       if (!options?.id || options.id === activeNativeId) {
         activeBackend = 'none'
@@ -75,19 +107,22 @@ export const StoreBrowser = {
   },
 
   setUrl(options: SetUrlOptions) {
-    return useNativeBackend(options.id)
+    if (isCleanBackendActive(options.id)) return CleanSheinBrowser.setUrl(options)
+    return isLegacyNativeBackendActive(options.id)
       ? NativeSheinBrowser.setUrl(options)
       : CapgoInAppBrowser.setUrl(options)
   },
 
   executeScript(options: ExecuteScriptOptions) {
-    return useNativeBackend(options.id)
+    if (isCleanBackendActive(options.id)) return CleanSheinBrowser.executeScript(options)
+    return isLegacyNativeBackendActive(options.id)
       ? NativeSheinBrowser.executeScript(options)
       : CapgoInAppBrowser.executeScript(options)
   },
 
   postMessage(options: PostMessageOptions) {
-    return useNativeBackend(options.id)
+    if (isCleanBackendActive(options.id)) return CleanSheinBrowser.postMessage(options)
+    return isLegacyNativeBackendActive(options.id)
       ? NativeSheinBrowser.postMessage(options)
       : CapgoInAppBrowser.postMessage(options)
   },
@@ -119,6 +154,15 @@ export const StoreBrowser = {
         listener(event as T)
       })
       handles.push(nativeHandle)
+
+      const cleanHandle = await CleanSheinBrowser.addListener(eventName, (event) => {
+        if (eventName === 'closeEvent' && event.id === activeNativeId) {
+          activeBackend = 'none'
+          activeNativeId = ''
+        }
+        listener(event as T)
+      })
+      handles.push(cleanHandle)
     }
 
     return {

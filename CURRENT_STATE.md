@@ -1,3 +1,33 @@
+# v86.204 — parallel SHEIN clean-room diagnostic browser (2026-08-21)
+
+Version/build `86.204/1066` is implemented on isolated branch
+`codex/ios-shein-clean-room-browser` from exact handoff commit `de255a935`.
+It adds a diagnostic-only native mode selector and a normally presented
+`SheinCleanBrowserViewController` containing exactly one WKWebView. Modes are
+RAW, RAW_WITH_CACHE_GUARD, CAPTURE_ONLY, BLOCKING_ONLY,
+CAPTURE_AND_BLOCKING, and LEGACY_CONTROL. Each clean mode uses its own
+persistent iOS 17+ `WKWebsiteDataStore(forIdentifier:)`; older iOS explicitly
+rejects clean modes rather than sharing a cache. Mode 5 delegates to the
+unchanged legacy plugin.
+
+RAW loads the public guest `https://m.shein.com/`, default WebKit navigation,
+native Close/guarded Back, Web Inspector, and one bounded passive probe only.
+The clean plugin rejects host setUrl/executeScript and skips legacy region,
+VPN-recovery, readiness-recovery, and post-load script dispatch. Guarded RAW
+adds only the exact `raw` content rule before WKWebView creation. New capture
+and exact-semantic purchase-control blocking modules are independent; both are
+off in RAW. No login/risk/privacy manipulation exists. The legacy Swift file
+remains byte-identical at SHA-256 `6a6d6a16a5eed040618988c9d5b5ac6d8f88ddd187f4bc095c0f1c1aa710382e`.
+
+Local TypeScript, production web build, release hardening, performance budget,
+SHEIN freeze/clean-room, Temu, and store-surface guards pass; iOS assets were
+synchronized. CDP capture now requires mode/run/container identity and excludes
+queries, headers, cookies, tokens, storage values, addresses, and account data.
+The analyzer reports the five RAW/cache-guard causal answers. Xcode/GitHub IPA,
+archive inspection, and all physical-device tests remain pending; do not claim
+the freeze fixed or replace production SHEIN. Full protocol:
+`docs/SHEIN_V86_204_CLEAN_ROOM_DIAGNOSTIC.md`.
+
 # v86.203 — SHEIN raw-prefetch cache-poisoning prevention candidate (2026-08-20)
 
 v86.203/1065 is the single-variable experiment requested after v86.202 proved the captured failure chain. The custom SHEIN WKWebView now receives one versioned native `WKContentRuleList` before all user scripts, WebView creation, and first load. It blocks only case-sensitive `raw` requests matching `^https://sheinm\.ltwebstatic\.com/pwa_dist/assets/.*\.js`; actual `Script` resources are deliberately untouched. The rule is retrieved/compiled through `WKContentRuleListStore`; any unavailable store/compile result rejects browser open rather than silently invalidating the experiment. No website data, cache policy, lifecycle, navigation, Back, region/session, readiness, product, Temu, or browser-ownership behavior changed.

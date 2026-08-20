@@ -3,6 +3,28 @@
 Verified through 2026-08-21. This file records current evidence only. It does
 not declare a universal SHEIN fix.
 
+## v86.204 clean-room implementation state
+
+- Version/build: `86.204/1066`.
+- Branch/worktree: `codex/ios-shein-clean-room-browser` at
+  `C:\Users\MOHAMMAD\Projects\otlobli-ios-shein-clean-room-browser`.
+- Base: exact documentation handoff commit
+  `de255a935ce3a985c05694f36899ff34d7585103`.
+- Implemented: parallel native `SheinCleanBrowser` with locked RAW,
+  RAW_WITH_CACHE_GUARD, CAPTURE_ONLY, BLOCKING_ONLY,
+  CAPTURE_AND_BLOCKING, and unchanged LEGACY_BROWSER_CONTROL paths.
+- Isolation: a different persistent iOS 17+ WebKit profile identifier for each
+  clean mode; no clean/default/legacy cache sharing.
+- Local result: TypeScript, production web build, hardening, performance,
+  SHEIN freeze/clean-room, Temu, and store-surface guards pass; iOS sync passes.
+- Pending: Xcode/GitHub artifact, IPA inspection, and all physical mode tests.
+- Full architecture/protocol:
+  `docs/SHEIN_V86_204_CLEAN_ROOM_DIAGNOSTIC.md`.
+
+The v86.204 source state is not physical evidence. RAW stability, physical
+content-rule classification, ChunkLoadError count, `#shein-branch` result, and
+the first causal layer all remain unknown.
+
 ## Latest tested and latest built states
 
 ### Latest physically tested, evidence-bearing version
@@ -266,17 +288,17 @@ Untested v86.203 artifact:
 
 ## Next approved task
 
-Build a parallel clean-room SHEIN browser, without modifying or replacing the
-preserved legacy control path, with these explicit modes:
+Finish the one v86.204 Xcode/IPA build and then run the isolated physical mode
+matrix, without modifying or replacing the preserved legacy control path:
 
 - `RAW`
 - `RAW_WITH_CACHE_GUARD`
 - `CAPTURE_ONLY`
 - `BLOCKING_ONLY`
 - `CAPTURE_AND_BLOCKING`
-- `LEGACY_CONTROL`
+- `LEGACY_BROWSER_CONTROL`
 
-The purpose of the next task is controlled physical-device comparison of those
-modes against the same reproducible sequences and evidence capture. It is not
-authorization to clear website data, merge protected history, or declare the
-legacy browser replaced before comparative results exist.
+The implementation exists but has no physical result. The next evidence task is
+controlled comparison of those modes against the same reproducible sequences.
+It is not authorization to clear mode website data, merge protected history,
+or declare the legacy browser replaced before comparative results exist.

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5174",
-    "prebuild": "npm run verify:release-hardening && npm run verify:shein-freeze-guard && npm run verify:temu-size-gate && npm run verify:store-surface",
+    "prebuild": "npm run verify:release-hardening && npm run verify:shein-freeze-guard && npm run verify:shein-clean-room && npm run verify:temu-size-gate && npm run verify:store-surface",
     "build": "tsc -b && vite build",
     "build:temu-personal": "node scripts/build-temu-gecko-extension.mjs && npm run verify:release-hardening && npm run verify:shein-freeze-guard && npm run verify:temu-size-gate && npm run verify:store-surface && tsc -b && vite build --mode temu-personal && npm run verify:performance-budget && npm run verify:release-hardening -- --dist",
     "postbuild": "npm run verify:performance-budget && npm run verify:release-hardening -- --dist",
@@ -17,8 +17,12 @@
     "verify:store-surface": "node scripts/verify-store-surface.mjs",
     "verify:temu-size-gate": "node scripts/verify-temu-size-gate.mjs",
     "verify:shein-freeze-guard": "node scripts/verify-shein-freeze-guard.mjs",
+    "verify:shein-clean-room": "node scripts/verify-shein-clean-room.mjs",
     "decode:shein-root-cause": "node scripts/decode-shein-root-cause-log.mjs",
     "analyze:shein-root-cause": "node scripts/analyze-shein-root-cause.mjs",
+    "decode:shein-clean-room": "node scripts/decode-shein-clean-room-log.mjs",
+    "capture:shein-clean-room": "node scripts/capture-shein-cdp-network.mjs",
+    "analyze:shein-clean-room": "node scripts/analyze-shein-cdp-network.mjs",
     "postinstall": "patch-package && node scripts/inject-relay-key.cjs"
   },
   "dependencies": {

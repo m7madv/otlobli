@@ -1,3 +1,30 @@
+# Active handoff — v86.204 clean-room diagnostic awaits Xcode/device proof (2026-08-21)
+
+Work only in `C:\Users\MOHAMMAD\Projects\otlobli-ios-shein-clean-room-browser`
+on `codex/ios-shein-clean-room-browser`. It starts from exact v86.203 handoff
+commit `de255a935` and uses `86.204/1066`. Do not change protected v86.193,
+v86.194, v86.202, or v86.203 history. The new `SheinCleanBrowser` module is
+parallel to, not a rewrite of, `OtlobliSheinBrowserPlugin`; the legacy Swift
+file is hash-guarded and unchanged.
+
+The diagnostic selector locks RAW, RAW_WITH_CACHE_GUARD, CAPTURE_ONLY,
+BLOCKING_ONLY, CAPTURE_AND_BLOCKING, or LEGACY_CONTROL for one normally
+presented one-WKWebView session. Clean modes use deterministic persistent iOS
+17+ profile identifiers, guest `https://m.shein.com/`, no host scripts/region/
+VPN recovery, no reload/recreation/parking, and native chrome. RAW has only the
+passive probe. The guarded mode adds the exact raw-only rule before creation.
+Capture and Blocking are new separate modules, disabled in RAW; their first IPA
+foundation remains unguarded RAW until Tests 0/1 produce physical evidence.
+Natural login/risk pages are untouched.
+
+Local `npm run build`, TypeScript, hardening, performance, SHEIN, Temu, and
+surface guards pass and iOS sync completed. Next: commit/push, dispatch the iOS
+workflow, fix any Xcode-only issue, inspect/download one unsigned IPA, then run
+the mode-isolated physical protocol. Do not start Tests 2–4 before deciding the
+RAW foundation. Recorder/analyzer commands and the strict causal matrix are in
+`docs/SHEIN_V86_204_CLEAN_ROOM_DIAGNOSTIC.md`. No physical result exists yet;
+do not report zero ChunkLoadErrors, a working guard, or a fixed freeze.
+
 # Active handoff — v86.203 raw-only prefetch prevention awaits device proof (2026-08-20)
 
 The single-variable v86.203/1065 experiment is built from exact v86.202 commit `2d7332c` on `codex/ios-v86-203-shein-prefetch-cache-fix`. The custom SHEIN plugin installs `com.otlobli.shein.raw-js-prefetch-block.v1` before any user script, `WKWebView` creation, or first load. Its only production delta blocks `raw` requests to the exact `sheinm.ltwebstatic.com/pwa_dist/assets/*.js` pattern. It does not block `Script`, patch XHR/fetch, clear data, reload, recreate, or alter lifecycle/navigation/session/Temu behavior. A missing store or failed compile rejects SHEIN open explicitly.

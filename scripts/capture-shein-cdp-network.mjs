@@ -6,6 +6,24 @@ const endpoint = process.argv.find((argument) => argument.startsWith('--endpoint
   ?.slice('--endpoint='.length) ?? 'http://127.0.0.1:9222';
 const outputPath = process.argv.find((argument) => argument.startsWith('--output='))
   ?.slice('--output='.length) ?? path.resolve('shein-cdp-network.jsonl');
+const mode = process.argv.find((argument) => argument.startsWith('--mode='))
+  ?.slice('--mode='.length) ?? '';
+const runId = process.argv.find((argument) => argument.startsWith('--run-id='))
+  ?.slice('--run-id='.length) ?? '';
+const containerIdentity = process.argv.find((argument) => argument.startsWith('--container='))
+  ?.slice('--container='.length) ?? '';
+const allowedModes = new Set([
+  'RAW',
+  'RAW_WITH_CACHE_GUARD',
+  'CAPTURE_ONLY',
+  'BLOCKING_ONLY',
+  'CAPTURE_AND_BLOCKING',
+  'LEGACY_BROWSER_CONTROL',
+]);
+
+if (!allowedModes.has(mode) || !runId || !containerIdentity) {
+  throw new Error('Required: --mode=<locked mode> --run-id=<native runId> --container=<menu identity>');
+}
 
 fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 const output = fs.createWriteStream(outputPath, { flags: 'a' });
@@ -17,11 +35,41 @@ let nextCommandId = 1;
 let stopping = false;
 let reconnectTimer;
 
+function safeUrl(raw = '') {
+  try {
+    const value = new URL(String(raw));
+    return `${value.origin}${value.pathname}`;
+  } catch {
+    return '';
+  }
+}
+
+function sanitizeForLog(value, key = '') {
+  const lowerKey = key.toLowerCase();
+  if (/(?:cookie|token|authorization|signature|storage|address|account|headers)/.test(lowerKey)) {
+    return undefined;
+  }
+  if (typeof value === 'string') {
+    if (/^https?:\/\//i.test(value)) return safeUrl(value);
+    return value.slice(0, 1000);
+  }
+  if (Array.isArray(value)) {
+    return value.slice(0, 80).map((entry) => sanitizeForLog(entry)).filter((entry) => entry !== undefined);
+  }
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value)
+      .map(([childKey, childValue]) => [childKey, sanitizeForLog(childValue, childKey)])
+      .filter(([, childValue]) => childValue !== undefined));
+  }
+  return value;
+}
+
 function record(kind, payload = {}) {
   output.write(`${JSON.stringify({
     capturedAt: new Date().toISOString(),
     kind,
-    ...payload,
+    experiment: { mode, runId, containerIdentity },
+    ...sanitizeForLog(payload),
   })}\n`);
 }
 
@@ -141,7 +189,13 @@ function handleProtocolEvent(message) {
   if (method === 'Network.requestWillBeSentExtraInfo') {
     const request = requests.get(requestKey(sessionId, params.requestId));
     if (request?.resourceType === 'Script' || isRelevantUrl(request?.url)) {
-      record(method, { sessionId, requestId: params.requestId, url: request?.url, params });
+      record(method, {
+        sessionId,
+        requestId: params.requestId,
+        url: request?.url,
+        connectTiming: params.connectTiming,
+        associatedCookieCount: Array.isArray(params.associatedCookies) ? params.associatedCookies.length : 0,
+      });
     }
     return;
   }
@@ -176,7 +230,6 @@ function handleProtocolEvent(message) {
         encodedDataLength: response.encodedDataLength,
         timestamp: params.timestamp,
         timing: response.timing,
-        responseHeaders: response.headers,
       });
     }
     return;
@@ -185,7 +238,13 @@ function handleProtocolEvent(message) {
   if (method === 'Network.responseReceivedExtraInfo') {
     const request = requests.get(requestKey(sessionId, params.requestId));
     if (request?.resourceType === 'Script' || isRelevantUrl(request?.url)) {
-      record(method, { sessionId, requestId: params.requestId, url: request?.url, params });
+      record(method, {
+        sessionId,
+        requestId: params.requestId,
+        url: request?.url,
+        statusCode: params.statusCode,
+        blockedCookieCount: Array.isArray(params.blockedCookies) ? params.blockedCookies.length : 0,
+      });
     }
     return;
   }
@@ -258,7 +317,6 @@ async function connect() {
       endpoint,
       browser: version.Browser,
       protocolVersion: version['Protocol-Version'],
-      webSocketDebuggerUrl: version.webSocketDebuggerUrl,
     });
 
     socket = new WebSocket(version.webSocketDebuggerUrl);
@@ -311,5 +369,12 @@ process.on('uncaughtException', (error) => {
   stop('uncaughtException');
 });
 
-record('capture-started', { endpoint, outputPath });
+record('capture-started', {
+  endpoint,
+  outputPath,
+  mode,
+  runId,
+  containerIdentity,
+  privacy: 'URLs exclude query/fragment; headers/cookies/tokens/storage values are excluded',
+});
 connect();

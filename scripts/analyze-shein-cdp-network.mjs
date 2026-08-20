@@ -24,7 +24,14 @@ const readJsonLines = (filePath) => readFileSync(filePath, 'utf8')
 
 const records = readJsonLines(inputPath)
 const nativeRecords = nativePath ? readJsonLines(nativePath) : []
+const captureStarted = records.find((record) => record.kind === 'capture-started')
+const experiment = captureStarted?.experiment ?? {
+  mode: captureStarted?.mode ?? '',
+  runId: captureStarted?.runId ?? '',
+  containerIdentity: captureStarted?.containerIdentity ?? '',
+}
 const nativeRunIds = [...new Set(nativeRecords.map((record) => record.runId).filter(Boolean))]
+const nativeModes = [...new Set(nativeRecords.map((record) => record.mode).filter(Boolean))]
 const matchingAssetPattern = /^https:\/\/sheinm\.ltwebstatic\.com\/pwa_dist\/assets\/.*\.js(?:[?#]|$)/
 const sessions = new Map()
 
@@ -156,20 +163,26 @@ const nativeForSession = (session) => {
 
 const summarizeNativeEvidence = (evidence) => {
   const snapshots = evidence.filter((record) =>
-    record.event === 'web-runtime' && record.stage === 'root-cause-snapshot')
+    (record.event === 'web-runtime' && record.stage === 'root-cause-snapshot') ||
+    (record.event === 'web-probe' && ['snapshot', 'heartbeat', 'document-start', 'lifecycle'].includes(record.kind)))
   const interactions = evidence.filter((record) =>
-    record.event === 'web-runtime' && record.stage === 'interaction-reaction')
+    (record.event === 'web-runtime' && record.stage === 'interaction-reaction') ||
+    (record.event === 'web-probe' && record.kind === 'click-reaction'))
   const reachedSheinBranch = snapshots.some((record) =>
-    record.fingerprint?.root?.id === 'shein-branch' || record.root?.id === 'shein-branch')
+    record.fingerprint?.root?.id === 'shein-branch' || record.root?.id === 'shein-branch' ||
+    record.root?.sheinBranchExists === true)
   const changedInteractions = interactions.filter((record) =>
     record.pathChanged || record.urlChanged || record.historyChanged || record.rootChanged)
   const nativeChunkErrors = evidence.filter((record) =>
-    record.event === 'web-runtime' &&
-    ['javascript-error', 'promise-rejection'].includes(record.stage) &&
-    /ChunkLoadError|Loading chunk/i.test(`${record.message ?? ''} ${record.stack ?? ''}`))
+    (record.event === 'web-runtime' &&
+      ['javascript-error', 'promise-rejection'].includes(record.stage) &&
+      /ChunkLoadError|Loading chunk/i.test(`${record.message ?? ''} ${record.stack ?? ''}`)) ||
+    (record.event === 'web-probe' && record.kind === 'chunk-load-error'))
+  const onlyAppRootObserved = snapshots.some((record) => record.root?.onlyAppRoot === true)
   return {
     available: evidence.length > 0,
     reachedSheinBranch: evidence.length ? reachedSheinBranch : null,
+    onlyAppRootObserved: evidence.length ? onlyAppRootObserved : null,
     interactionSnapshotCount: interactions.length,
     interactionSnapshotsChangingUrlHistoryOrRoot: changedInteractions.length,
     nativeChunkLoadErrorCount: nativeChunkErrors.length,
@@ -238,9 +251,20 @@ const bodylessTextPlain = allRequests.filter((request) =>
   (request.bodyByteLength === 0 || (request.responseStatus === 304 && Number(request.transferSize ?? 0) <= 256)))
 const chunkLoadErrorCount = sessionList.reduce((total, session) =>
   total + Math.max(session.runtimeChunkLoadErrorCount, session.nativeEvidence.nativeChunkLoadErrorCount), 0)
+const bodyless304Script = scriptRequests.filter((request) =>
+  request.responseStatus === 304 &&
+  (request.bodyByteLength === 0 || Number(request.transferSize ?? 0) <= 256 || /text\/plain/i.test(request.mimeType)))
+const poisoningSequenceDetected = successfulSpeculative.some((request) => request.responseStatus === 304) &&
+  bodyless304Script.length > 0 && chunkLoadErrorCount > 0
+const modeRecorded = Boolean(experiment.mode && experiment.runId && experiment.containerIdentity)
+const nativeIdentityMatches = !nativeRecords.length || (
+  nativeRunIds.length === 1 && nativeRunIds[0] === experiment.runId &&
+  nativeModes.length === 1 && nativeModes[0] === experiment.mode)
 
 const status = (condition, known = true) => known ? (condition ? 'pass' : 'fail') : 'unknown'
 const assertions = {
+  selectedModeAndContainerRecorded: status(modeRecorded),
+  nativeAndNetworkRunIdentityMatch: status(nativeIdentityMatches, nativeRecords.length > 0),
   matchingRawOrXhrRequestsBlockedOrAbsent: status(
     successfulSpeculative.length === 0 &&
     speculativeRequests.every((request) => blockedSpeculative.includes(request)),
@@ -262,10 +286,49 @@ const assertions = {
   ),
 }
 
+const answer = (known, value, evidence) => ({
+  answer: known ? (value ? 'yes' : 'no') : 'inconclusive',
+  evidence,
+})
+const isRaw = experiment.mode === 'RAW'
+const isGuarded = experiment.mode === 'RAW_WITH_CACHE_GUARD'
+const causalAnswers = {
+  didRawReproducePoisoningSequence: answer(
+    isRaw && sessionList.length > 0 && nativeRecords.length > 0,
+    poisoningSequenceDetected,
+    { successfulSpeculative304: successfulSpeculative.filter((request) => request.responseStatus === 304).length,
+      bodyless304ScriptCount: bodyless304Script.length, chunkLoadErrorCount },
+  ),
+  didGuardBlockOnlyRawOrXhrPrefetch: answer(
+    isGuarded && speculativeRequests.length > 0 && scriptRequests.length > 0,
+    blockedSpeculative.length === speculativeRequests.length && blockedScripts.length === 0,
+    { speculativeRequestCount: speculativeRequests.length, blockedSpeculativeRequestCount: blockedSpeculative.length,
+      scriptRequestCount: scriptRequests.length, blockedScriptRequestCount: blockedScripts.length },
+  ),
+  didActualScriptLoadsContinue: answer(
+    scriptRequests.length > 0,
+    blockedScripts.length === 0 && scriptRequests.some((request) => request.loadingFinished),
+    { scriptRequestCount: scriptRequests.length, blockedScriptRequestCount: blockedScripts.length },
+  ),
+  didCacheRemainExecutable: answer(
+    scriptRequests.length > 0,
+    executableScripts.length === scriptRequests.length && bodyless304Script.length === 0,
+    { executableScriptBodyCount: executableScripts.length, scriptRequestCount: scriptRequests.length,
+      bodyless304ScriptCount: bodyless304Script.length },
+  ),
+  didBrowserReachSheinBranch: answer(
+    nativeRecords.length > 0,
+    overallNativeEvidence.reachedSheinBranch === true,
+    { reachedSheinBranch: overallNativeEvidence.reachedSheinBranch,
+      onlyAppRootObserved: overallNativeEvidence.onlyAppRootObserved },
+  ),
+}
+
 const report = {
   inputPath,
   nativePath: nativePath ?? null,
   generatedAt: new Date().toISOString(),
+  experiment,
   matchingPattern: matchingAssetPattern.source,
   nativeRunIds,
   overallNativeEvidence,
@@ -279,9 +342,12 @@ const report = {
     blockedScriptRequestCount: blockedScripts.length,
     executableScriptBodyCount: executableScripts.length,
     bodylessTextPlainRecordCount: bodylessTextPlain.length,
+    bodyless304ScriptCount: bodyless304Script.length,
     chunkLoadErrorCount,
+    poisoningSequenceDetected,
   },
   assertions,
+  causalAnswers,
   sessions: sessionList,
 }
 

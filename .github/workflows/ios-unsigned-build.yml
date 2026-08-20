@@ -52,6 +52,7 @@ jobs:
           VITE_SHEIN_SCRAPER_URL: ${{ secrets.VITE_SHEIN_SCRAPER_URL }}
           VITE_USD_TO_SYP_RATE: ${{ secrets.VITE_USD_TO_SYP_RATE }}
           VITE_STORE_SCRIPT_DIAGNOSTICS: ${{ github.event_name == 'workflow_dispatch' && inputs.store_diagnostics || false }}
+          VITE_SHEIN_CLEAN_ROOM_DIAGNOSTICS: 'true'
 
       - run: npx cap sync ios
 
@@ -120,6 +121,27 @@ jobs:
           print(f"Universal device families: {sorted(families)}")
           print(f"Version/build: {info.get('CFBundleShortVersionString')}/{info.get('CFBundleVersion')}")
           PY
+
+      - name: Verify clean-room diagnostic binary markers
+        working-directory: ios/App
+        run: |
+          binary='build/Build/Products/Release-iphoneos/App.app/App'
+          strings "$binary" > build/clean-room-binary-strings.txt
+          for marker in \
+            '[OTLOBLI_SHEIN_CLEAN]' \
+            'RAW_WITH_CACHE_GUARD' \
+            'CAPTURE_AND_BLOCKING' \
+            'LEGACY_BROWSER_CONTROL' \
+            'com.otlobli.shein.clean.raw-js-prefetch-block.v1'; do
+            grep -Fq "$marker" build/clean-room-binary-strings.txt || {
+              echo "Missing clean-room binary marker: $marker" >&2
+              exit 1
+            }
+          done
+          if find build/Build/Products/Release-iphoneos/App.app -name '*.map' -print -quit | grep -q .; then
+            echo 'Source maps must not ship in the diagnostic IPA.' >&2
+            exit 1
+          fi
 
       - name: Package unsigned IPA
         working-directory: ios/App

@@ -389,11 +389,11 @@ const checks = [
     markers: [
       'export const STORE_SCRIPT_DIAGNOSTICS =',
       'VITE_STORE_SCRIPT_DIAGNOSTICS',
-      'v86.203-shein-prefetch-cache-fix',
+      'v86.204-shein-clean-room',
     ],
   },
   {
-    label: 'v86.203 passive CDP prefetch proof',
+    label: 'v86.204 retained passive CDP prefetch proof',
     files: [
       'scripts/capture-shein-cdp-network.mjs',
       'scripts/analyze-shein-cdp-network.mjs',
