@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 
 const endpoint = process.argv.find((argument) => argument.startsWith('--endpoint='))
   ?.slice('--endpoint='.length) ?? 'http://127.0.0.1:9222';
@@ -10,6 +11,7 @@ fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 const output = fs.createWriteStream(outputPath, { flags: 'a' });
 const requests = new Map();
 const sessions = new Map();
+const pendingCommands = new Map();
 let socket;
 let nextCommandId = 1;
 let stopping = false;
@@ -23,10 +25,11 @@ function record(kind, payload = {}) {
   })}\n`);
 }
 
-function send(method, params = {}, sessionId) {
+function send(method, params = {}, sessionId, metadata) {
   const id = nextCommandId++;
   const message = { id, method, params };
   if (sessionId) message.sessionId = sessionId;
+  if (metadata) pendingCommands.set(id, metadata);
   socket.send(JSON.stringify(message));
   return id;
 }
@@ -37,6 +40,48 @@ function requestKey(sessionId, requestId) {
 
 function isRelevantUrl(url = '') {
   return /(?:sheinm\.ltwebstatic\.com|\/pwa_dist\/|\.m?js(?:[?#]|$)|68498|26652)/i.test(url);
+}
+
+function isMatchingSheinAsset(url = '') {
+  return /^https:\/\/sheinm\.ltwebstatic\.com\/pwa_dist\/assets\/.*\.js(?:[?#]|$)/.test(url);
+}
+
+function handleCommandResponse(message) {
+  const metadata = pendingCommands.get(message.id);
+  if (!metadata) return;
+  pendingCommands.delete(message.id);
+  if (metadata.kind !== 'response-body') return;
+
+  if (message.error) {
+    record('Network.getResponseBodyFailed', {
+      ...metadata.request,
+      sessionId: metadata.sessionId,
+      requestId: metadata.requestId,
+      protocolError: message.error,
+    });
+    return;
+  }
+
+  const body = message.result?.body ?? '';
+  let bytes;
+  try {
+    bytes = message.result?.base64Encoded
+      ? Buffer.from(body, 'base64')
+      : Buffer.from(body, 'utf8');
+  } catch {
+    bytes = Buffer.alloc(0);
+  }
+  const prefix = bytes.subarray(0, 256).toString('utf8').trimStart();
+  record('Network.responseBodyMetadata', {
+    ...metadata.request,
+    sessionId: metadata.sessionId,
+    requestId: metadata.requestId,
+    base64Encoded: Boolean(message.result?.base64Encoded),
+    bodyByteLength: bytes.length,
+    bodySHA256: createHash('sha256').update(bytes).digest('hex'),
+    bodyLooksLikeHTML: prefix.startsWith('<'),
+    executableBodyObserved: bytes.length > 0 && !prefix.startsWith('<'),
+  });
 }
 
 function enablePassiveDomains(sessionId, targetInfo) {
@@ -109,6 +154,10 @@ function handleProtocolEvent(message) {
       ...request,
       url: response.url ?? request.url,
       resourceType: params.type ?? request.resourceType,
+      status: response.status,
+      mimeType: response.mimeType,
+      responseEncodedDataLength: response.encodedDataLength,
+      responseTimestamp: params.timestamp,
     };
     requests.set(key, merged);
     if (params.type === 'Script' || isRelevantUrl(merged.url) || /javascript/i.test(response.mimeType ?? '')) {
@@ -125,6 +174,7 @@ function handleProtocolEvent(message) {
         fromServiceWorker: response.fromServiceWorker,
         fromPrefetchCache: response.fromPrefetchCache,
         encodedDataLength: response.encodedDataLength,
+        timestamp: params.timestamp,
         timing: response.timing,
         responseHeaders: response.headers,
       });
@@ -165,6 +215,21 @@ function handleProtocolEvent(message) {
         request,
         encodedDataLength: params.encodedDataLength,
         timestamp: params.timestamp,
+      });
+    }
+    if (isMatchingSheinAsset(request?.url)) {
+      send('Network.getResponseBody', { requestId: params.requestId }, sessionId, {
+        kind: 'response-body',
+        sessionId,
+        requestId: params.requestId,
+        request: {
+          url: request.url,
+          resourceType: request.resourceType,
+          status: request.status,
+          mimeType: request.mimeType,
+          requestTimestamp: request.timestamp,
+          responseTimestamp: request.responseTimestamp,
+        },
       });
     }
     return;
@@ -210,6 +275,7 @@ async function connect() {
       try {
         const message = JSON.parse(event.data);
         if (message.method) handleProtocolEvent(message);
+        if (message.id) handleCommandResponse(message);
         if (message.error) record('protocol-error', message);
       } catch (error) {
         record('protocol-message-error', { error: String(error), data: String(event.data) });

@@ -2,6 +2,7 @@ import UIKit
 import WebKit
 import Capacitor
 import OSLog
+import CryptoKit
 
 /// Otlobli's single iOS SHEIN browser boundary.
 ///
@@ -33,6 +34,30 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         subsystem: Bundle.main.bundleIdentifier ?? "com.otlobli.app",
         category: "SheinRootCause"
     )
+    private static let prefetchFixLogger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "com.otlobli.app",
+        category: "SheinPrefetchFix"
+    )
+    private static let sheinRawJsPrefetchRuleIdentifier =
+        "com.otlobli.shein.raw-js-prefetch-block.v1"
+    private static let sheinRawJsPrefetchRuleJSON = #"""
+    [
+      {
+        "trigger": {
+          "url-filter": "^https://sheinm\\.ltwebstatic\\.com/pwa_dist/assets/.*\\.js",
+          "url-filter-is-case-sensitive": true,
+          "resource-type": ["raw"]
+        },
+        "action": {
+          "type": "block"
+        }
+      }
+    ]
+    """#
+    private static let sheinRawJsPrefetchRuleHash: String = {
+        let data = Data(sheinRawJsPrefetchRuleJSON.utf8)
+        return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }()
 
     private var browserId = ""
     private var savedURL: URL?
@@ -46,6 +71,9 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
     private var diagnosticNavigationSequence = 0
     private var diagnosticNavigationId = ""
     private var diagnosticLifecycleObservers: [NSObjectProtocol] = []
+    private var sheinRawJsPrefetchRule: WKContentRuleList?
+    private var sheinRawJsPrefetchRulePreparing = false
+    private var sheinRawJsPrefetchRuleWaiters: [(WKContentRuleList?, String?) -> Void] = []
 
     private var surfaceView: UIView?
     private var storeWebView: WKWebView?
@@ -67,6 +95,9 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         )
         installRootCauseLifecycleObservers()
         logDiagnostic("plugin-load", surfaceStateFields())
+        DispatchQueue.main.async {
+            self.prepareSheinRawJsPrefetchRule { _, _ in }
+        }
     }
 
     deinit {
@@ -86,33 +117,44 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         }
 
         DispatchQueue.main.async {
-            self.closeBrowser(emitEvent: false)
-            self.browserId = "otlobli-shein-\(UUID().uuidString.lowercased())"
-            self.diagnosticWebViewId = "webview-\(UUID().uuidString.lowercased())"
-            self.diagnosticNavigationSequence = 0
-            self.diagnosticNavigationId = "navigation-0"
-            self.savedURL = url
-            self.documentStartScript = call.getString("otlobliDocumentStartScript", "")
-            self.loadingCoverEnabled = call.getBool("otlobliLoadingCover", true)
-            self.isBrowserVisible = true
-            self.logDiagnostic("open-request", self.surfaceStateFields().merging([
-                "requestedUrl": self.safeURLString(url)
-            ]) { current, _ in current })
+            self.prepareSheinRawJsPrefetchRule { ruleList, errorMessage in
+                guard ruleList != nil else {
+                    self.logPrefetchFix("browser-open-rejected", [
+                        "error": errorMessage ?? "compiled rule unavailable",
+                        "rulePresentBeforeFirstLoad": false
+                    ])
+                    call.reject(errorMessage ?? "SHEIN raw JavaScript prefetch rule is unavailable")
+                    return
+                }
 
-            // The old API requested an initially hidden browser. This browser
-            // never creates hidden WebKit surfaces; its native loading cover is
-            // the only pre-ready presentation.
-            guard self.createRenderSurface(
-                request: self.initialRequest(url: url, call: call),
-                loadingMessage: "جاري تجهيز المتجر…"
-            ) else {
                 self.closeBrowser(emitEvent: false)
-                call.reject("Capacitor host view is unavailable")
-                return
+                self.browserId = "otlobli-shein-\(UUID().uuidString.lowercased())"
+                self.diagnosticWebViewId = "webview-\(UUID().uuidString.lowercased())"
+                self.diagnosticNavigationSequence = 0
+                self.diagnosticNavigationId = "navigation-0"
+                self.savedURL = url
+                self.documentStartScript = call.getString("otlobliDocumentStartScript", "")
+                self.loadingCoverEnabled = call.getBool("otlobliLoadingCover", true)
+                self.isBrowserVisible = true
+                self.logDiagnostic("open-request", self.surfaceStateFields().merging([
+                    "requestedUrl": self.safeURLString(url)
+                ]) { current, _ in current })
+
+                // The old API requested an initially hidden browser. This browser
+                // never creates hidden WebKit surfaces; its native loading cover is
+                // the only pre-ready presentation.
+                guard self.createRenderSurface(
+                    request: self.initialRequest(url: url, call: call),
+                    loadingMessage: "جاري تجهيز المتجر…"
+                ) else {
+                    self.closeBrowser(emitEvent: false)
+                    call.reject("Capacitor host view or SHEIN prefetch rule is unavailable")
+                    return
+                }
+                self.logDiagnostic("open-resolved", self.surfaceStateFields())
+                self.captureCookieMetadata("OPEN_RESOLVED")
+                call.resolve(["id": self.browserId])
             }
-            self.logDiagnostic("open-resolved", self.surfaceStateFields())
-            self.captureCookieMetadata("OPEN_RESOLVED")
-            call.resolve(["id": self.browserId])
         }
     }
 
@@ -238,6 +280,88 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         }
     }
 
+    private func prepareSheinRawJsPrefetchRule(
+        completion: @escaping (WKContentRuleList?, String?) -> Void
+    ) {
+        dispatchPrecondition(condition: .onQueue(.main))
+        if let ruleList = sheinRawJsPrefetchRule {
+            logPrefetchFix("lookup-hit-memory", ["source": "plugin-memory"])
+            completion(ruleList, nil)
+            return
+        }
+
+        sheinRawJsPrefetchRuleWaiters.append(completion)
+        guard !sheinRawJsPrefetchRulePreparing else { return }
+        sheinRawJsPrefetchRulePreparing = true
+        logPrefetchFix("lookup-requested", ["store": "default"])
+
+        let store = WKContentRuleListStore.default()
+        store.lookUpContentRuleList(
+            forIdentifier: Self.sheinRawJsPrefetchRuleIdentifier
+        ) { [weak self] existingRuleList, lookupError in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if let existingRuleList {
+                    self.logPrefetchFix("lookup-hit", ["source": "persistent-store"])
+                    self.finishSheinRawJsPrefetchRulePreparation(
+                        ruleList: existingRuleList,
+                        source: "persistent-store",
+                        errorMessage: nil
+                    )
+                    return
+                }
+
+                var missFields: [String: Any] = ["source": "persistent-store"]
+                if let lookupError {
+                    missFields["lookupError"] = String(describing: lookupError)
+                }
+                self.logPrefetchFix("lookup-miss", missFields)
+                self.logPrefetchFix("compile-requested", ["source": "rule-json"])
+                store.compileContentRuleList(
+                    forIdentifier: Self.sheinRawJsPrefetchRuleIdentifier,
+                    encodedContentRuleList: Self.sheinRawJsPrefetchRuleJSON
+                ) { [weak self] compiledRuleList, compileError in
+                    DispatchQueue.main.async {
+                        guard let self else { return }
+                        let safeError = compileError.map { String(describing: $0) }
+                        self.finishSheinRawJsPrefetchRulePreparation(
+                            ruleList: compiledRuleList,
+                            source: "compiled",
+                            errorMessage: safeError
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private func finishSheinRawJsPrefetchRulePreparation(
+        ruleList: WKContentRuleList?,
+        source: String,
+        errorMessage: String?
+    ) {
+        dispatchPrecondition(condition: .onQueue(.main))
+        sheinRawJsPrefetchRule = ruleList
+        sheinRawJsPrefetchRulePreparing = false
+        let waiters = sheinRawJsPrefetchRuleWaiters
+        sheinRawJsPrefetchRuleWaiters.removeAll()
+
+        if ruleList != nil {
+            logPrefetchFix(source == "compiled" ? "compile-success" : "rule-ready", [
+                "source": source,
+                "resourceType": "raw"
+            ])
+        } else {
+            logPrefetchFix("compile-failure", [
+                "source": source,
+                "error": errorMessage ?? "WKContentRuleListStore returned no rule and no error"
+            ])
+        }
+        for waiter in waiters {
+            waiter(ruleList, errorMessage)
+        }
+    }
+
     private func createRenderSurface(
         request: URLRequest? = nil,
         loadingMessage: String
@@ -248,7 +372,23 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
               let targetURL = request?.url ?? savedURL,
               isAllowedStoreURL(targetURL) else { return false }
 
+        guard let rawJsPrefetchRule = sheinRawJsPrefetchRule else {
+            logPrefetchFix("rule-attachment-failure", [
+                "error": "compiled rule missing",
+                "beforeWebViewCreation": true,
+                "rulePresentBeforeFirstLoad": false
+            ])
+            return false
+        }
+
         let contentController = WKUserContentController()
+        contentController.add(rawJsPrefetchRule)
+        logPrefetchFix("rule-attached", [
+            "attachmentTimestamp": ISO8601DateFormatter().string(from: Date()),
+            "beforeWebViewCreation": true,
+            "rulePresentBeforeFirstLoad": true,
+            "resourceType": "raw"
+        ])
         for name in Self.messageHandlers {
             contentController.add(self, name: name)
         }
@@ -323,6 +463,11 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         observeStoreURL(on: webView)
         hostView.bringSubviewToFront(surface)
         logDiagnostic("surface-created", surfaceStateFields())
+        logPrefetchFix("first-load-protected", [
+            "beforeWebViewCreation": false,
+            "rulePresentBeforeFirstLoad": true,
+            "webViewCreated": true
+        ])
         webView.load(request ?? URLRequest(
             url: targetURL,
             cachePolicy: .useProtocolCachePolicy,
@@ -771,6 +916,31 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
             let chunk = String(base64[start..<end])
             Self.rootCauseLogger.notice("[OtlobliRootCause] event=\(event, privacy: .public) run=\(self.diagnosticRunId, privacy: .public) pid=\(self.diagnosticPID) seq=\(sequence) part=\(part + 1)/\(chunkCount) payload_b64=\(chunk, privacy: .public)")
         }
+    }
+
+    private func logPrefetchFix(_ event: String, _ fields: [String: Any] = [:]) {
+        var payload: [String: Any] = [
+            "event": event,
+            "timestamp": ISO8601DateFormatter().string(from: Date()),
+            "ruleIdentifier": Self.sheinRawJsPrefetchRuleIdentifier,
+            "rulesJSONSHA256": Self.sheinRawJsPrefetchRuleHash,
+            "runId": diagnosticRunId,
+            "pid": diagnosticPID,
+            "browserId": browserId,
+            "webViewId": diagnosticWebViewId
+        ]
+        for key in fields.keys.sorted() {
+            guard let value = fields[key],
+                  let bounded = boundedDiagnosticValue(value, key: key) else { continue }
+            payload[key] = bounded
+        }
+        guard JSONSerialization.isValidJSONObject(payload),
+              let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
+              let json = String(data: data, encoding: .utf8) else {
+            Self.prefetchFixLogger.error("[OTLOBLI_PREFETCH_FIX] serialization-error")
+            return
+        }
+        Self.prefetchFixLogger.notice("[OTLOBLI_PREFETCH_FIX] \(json, privacy: .public)")
     }
 
     private func installLoadingCover(in surface: UIView, message: String) {

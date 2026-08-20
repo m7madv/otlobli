@@ -31,6 +31,9 @@ jobs:
         with:
           node-version: 22
 
+      - name: Compile SHEIN raw prefetch rule with WebKit
+        run: xcrun swift scripts/validate-shein-content-rule.swift
+
       - run: npm install
         env:
           OTLOBLI_RELAY_KEY: ${{ secrets.OTLOBLI_RELAY_KEY }}

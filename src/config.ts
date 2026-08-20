@@ -34,5 +34,5 @@ export const TEMU_PERSONAL_SITE_MODE =
 
 // رقم النسخة الظاهر داخل التطبيق.
 export const APP_VERSION = TEMU_PERSONAL_SITE_MODE
-  ? '2026.08.20-v86.202-personal-root-cause-timeline-diagnostic'
-  : '2026.08.20-v86.202-root-cause-timeline-diagnostic'
+  ? '2026.08.20-v86.203-personal-shein-prefetch-cache-fix'
+  : '2026.08.20-v86.203-shein-prefetch-cache-fix'

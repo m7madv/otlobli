@@ -52,6 +52,14 @@ const checks = [
       'webViewWebContentProcessDidTerminate',
       'WKWebsiteDataTypeDiskCache',
       'WKWebsiteDataTypeMemoryCache',
+      'com.otlobli.shein.raw-js-prefetch-block.v1',
+      '"url-filter-is-case-sensitive": true',
+      '"resource-type": ["raw"]',
+      'prepareSheinRawJsPrefetchRule',
+      'lookUpContentRuleList',
+      'compileContentRuleList',
+      'contentController.add(rawJsPrefetchRule)',
+      '[OTLOBLI_PREFETCH_FIX]',
       'removeScriptMessageHandler',
       'browserId = "otlobli-shein-',
       'isAllowedStoreURL(url)',
@@ -77,6 +85,10 @@ const checks = [
       'restoreAfterBackground',
       'navigationAction.navigationType == .linkActivated',
       'inactiveSchedulingPolicy = .none',
+      '"resource-type": ["script"]',
+      'removeAllContentRuleLists',
+      'WKURLSchemeHandler',
+      'URLProtocol',
     ],
   },
   {
@@ -377,7 +389,25 @@ const checks = [
     markers: [
       'export const STORE_SCRIPT_DIAGNOSTICS =',
       'VITE_STORE_SCRIPT_DIAGNOSTICS',
-      'v86.202-root-cause-timeline-diagnostic',
+      'v86.203-shein-prefetch-cache-fix',
+    ],
+  },
+  {
+    label: 'v86.203 passive CDP prefetch proof',
+    files: [
+      'scripts/capture-shein-cdp-network.mjs',
+      'scripts/analyze-shein-cdp-network.mjs',
+    ],
+    markers: [
+      'Network.responseBodyMetadata',
+      'bodyByteLength',
+      'blockedReason',
+      'isSpeculativeRawOrXHRRequest',
+      'isRealScriptLoad',
+      'noBodylessTextPlainCacheEvidence',
+      'noRealChunkLoadError',
+      'reachedSheinBranch',
+      'interactionSnapshotsChangingUrlHistoryOrRoot',
     ],
   },
   {
@@ -1393,6 +1423,57 @@ try {
   }
   if (displayLinkConstructors !== 0) {
     failures.push(`dedicated iOS SHEIN browser: expected no same-instance display-link repair, got ${displayLinkConstructors}`)
+  }
+
+  const ruleSourceMatch = nativeBrowserSource.match(
+    /private static let sheinRawJsPrefetchRuleJSON = #"""([\s\S]*?)"""#/,
+  )
+  if (!ruleSourceMatch) {
+    failures.push('SHEIN raw JavaScript prefetch fix: native JSON rule source is missing')
+  } else {
+    const rules = JSON.parse(ruleSourceMatch[1])
+    const rule = rules[0]
+    const expectedFilter = String.raw`^https://sheinm\.ltwebstatic\.com/pwa_dist/assets/.*\.js`
+    if (rules.length !== 1 || rule?.action?.type !== 'block' ||
+        JSON.stringify(rule?.trigger?.['resource-type']) !== JSON.stringify(['raw']) ||
+        rule?.trigger?.['url-filter'] !== expectedFilter ||
+        rule?.trigger?.['url-filter-is-case-sensitive'] !== true) {
+      failures.push('SHEIN raw JavaScript prefetch fix: rule must block only case-sensitive raw CDN asset JavaScript loads')
+    }
+    const serializedRule = JSON.stringify(rules)
+    if (serializedRule.includes('"script"') || serializedRule.includes('XMLHttpRequest') ||
+        serializedRule.includes('fetch(') || serializedRule.includes('fetch=')) {
+      failures.push('SHEIN raw JavaScript prefetch fix: rule must not block Script or patch fetch/XMLHttpRequest')
+    }
+  }
+
+  const openStart = nativeBrowserSource.indexOf('@objc func openWebView')
+  const openEnd = nativeBrowserSource.indexOf('@objc func show', openStart)
+  const openSource = nativeBrowserSource.slice(openStart, openEnd)
+  const prepareRule = openSource.indexOf('prepareSheinRawJsPrefetchRule')
+  const closeBrowser = openSource.indexOf('closeBrowser(emitEvent: false)')
+  if (openStart < 0 || openEnd < 0 || prepareRule < 0 || closeBrowser < prepareRule) {
+    failures.push('SHEIN raw JavaScript prefetch fix: rule preparation must finish before replacing or loading the browser')
+  }
+
+  const surfaceStart = nativeBrowserSource.indexOf('private func createRenderSurface(')
+  const surfaceEnd = nativeBrowserSource.indexOf('private func destroyRenderSurface()', surfaceStart)
+  const surfaceSource = nativeBrowserSource.slice(surfaceStart, surfaceEnd)
+  const requireRule = surfaceSource.indexOf('guard let rawJsPrefetchRule = sheinRawJsPrefetchRule')
+  const installRule = surfaceSource.indexOf('contentController.add(rawJsPrefetchRule)')
+  const firstUserScript = surfaceSource.indexOf('contentController.addUserScript')
+  const createConfiguration = surfaceSource.indexOf('let configuration = WKWebViewConfiguration()')
+  const createWebView = surfaceSource.indexOf('let webView = WKWebView(')
+  const loadRequest = surfaceSource.indexOf('webView.load(')
+  if (surfaceStart < 0 || surfaceEnd < 0 || requireRule < 0 || installRule < requireRule ||
+      firstUserScript < installRule || createConfiguration < installRule ||
+      createWebView < createConfiguration || loadRequest < createWebView) {
+    failures.push('SHEIN raw JavaScript prefetch fix: compiled raw rule must precede user scripts, WKWebView creation, and first load')
+  }
+
+  const identifierMatches = nativeBrowserSource.match(/com\.otlobli\.shein\.raw-js-prefetch-block\.v1/g)?.length ?? 0
+  if (identifierMatches !== 1 || !nativeBrowserSource.includes('public final class OtlobliSheinBrowserPlugin')) {
+    failures.push('SHEIN raw JavaScript prefetch fix: versioned rule identifier must exist only in OtlobliSheinBrowserPlugin')
   }
   const nativeBackStart = nativeBrowserSource.indexOf('@objc private func nativeBackPressed()')
   const nativeBackEnd = nativeBrowserSource.indexOf('private func mobileBridgeScript()', nativeBackStart)
