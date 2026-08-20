@@ -2,6 +2,13 @@
 
 هذه قاعدة إصدار إلزامية وليست ملاحظة تاريخية.
 
+## ضغطتان على Home لتبديل المتجر — v86.201
+
+- The injected Home tab must not navigate until the 320ms double-tap window closes.
+- A second physical Home `touchend` must emit `closeStore`, park the existing browser, and reveal the React store chooser.
+- A synthetic `click` following `touchend` must be ignored independently; it must never be interpreted as the second tap.
+- Orders/Cart/Profile must cancel a pending Home timer before their normal routing.
+
 ## زر واحد لكل متصفح متجر — v86.200
 
 - إذا كان `window.webkit.messageHandlers.messageHandler` موجودًا، زر HTML `#otlobli-back-btn` يبقى مخفيًا بصريًا لكنه يرسل `otlobliBackButtonState`; زر Native وحده يظهر.
@@ -210,9 +217,3 @@ npm run verify:shein-freeze-guard
 5. بدّل SHEIN → Temu → SHEIN مرة واحدة للتأكد من سلامة حفظ الجلسة وإظهار السطح نفسه.
 
 إذا تجمد أي مسار، لا يُوصف الإصدار بأنه مقبول على iPhone 16 ولا يُسلّم كحل نهائي.
-# v86.201 double-Home navigation invariant
-
-- The injected Home tab must not navigate until the 320ms double-tap window closes.
-- A second physical Home `touchend` must emit `closeStore`, park the existing browser, and reveal the React store chooser.
-- A synthetic `click` following `touchend` must be ignored independently; it must never be interpreted as the second tap.
-- Orders/Cart/Profile must cancel a pending Home timer before their normal routing.

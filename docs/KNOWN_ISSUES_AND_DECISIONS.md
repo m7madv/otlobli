@@ -1,5 +1,9 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
+## v86.201 decision — injected double-Home was missing, not intermittent (2026-08-20)
+
+The double-Home store-switch gesture existed only in the Android personal-Temu React path. Injected SHEIN/Temu navigation could not recognize it because the first tap navigated immediately and the bridge's 450ms touch/click dedupe rejected the physical second tap. v86.201 uses a 320ms single-tap timer and separately deduplicates synthetic post-touch clicks. Double Home emits the existing `closeStore` path, preserving the same-store session and fixed React bottom navigation.
+
 ## v86.200 decision — native button owns iOS; Temu root can exit (2026-08-20)
 
 - **Observed:** SHEIN displayed green native and dark HTML Back controls together; Temu Home displayed none.
@@ -855,6 +859,3 @@ SHEIN أو CDN قد ينشر runtime وchunks في لحظات مختلفة، أ�
 - **Why this choice:** It fixes the only phase that JavaScript and the WebView cannot reach. It is deterministic, network-free, has no polling or timer recovery, preserves the existing freeze invariants, and uses a single drawable that the legacy renderer can place correctly.
 - **Do not do:** Do not restore `Theme.SplashScreen` as the legacy launch theme, remove the starting-window vector, or replace it with a delayed/animated/remote surface. Do not add a new WebView close/reopen, alter iPhone `otlobliForceRecompose` timing, change Android `otlobliOnHostResume()`, or rebuild a store because of this visual issue.
 - **Validation:** Android 86.99/959 passed build, low-end budget, iPhone-freeze guard, Android/iOS sync and Android debug build. It was installed on the connected Note 8; an 8-second cold-start recording sampled at 5 fps showed static tabs in the starting window and the full labelled native bar immediately after, with no app-owned blank/tab-less interval. APK: `android/app/build/outputs/apk/debug/app-debug.apk`, 12,574,241 bytes, SHA-256 `89680514B56FE6FD14992079A2B66D85BFA84CABD9E6BC8B99D7EA050E9D0BA9`. This is not real iPhone acceptance.
-# 2026-08-20 — injected double-Home was missing, not intermittently broken
-
-The double-Home store-switch gesture existed only in the Android personal-Temu React path. Injected SHEIN/Temu navigation could not recognize it because the first tap navigated immediately and the bridge's 450ms touch/click dedupe rejected the physical second tap. v86.201 uses a 320ms single-tap timer and separately deduplicates synthetic post-touch clicks. Double Home emits the existing `closeStore` path, preserving the same-store session and fixed React bottom navigation.
