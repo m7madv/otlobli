@@ -47,8 +47,8 @@ android {
         applicationId "com.otlobli.app"
         minSdkVersion temuPersonalSiteBuild ? 26 : rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1055
-        versionName temuPersonalSiteBuild ? "86.193-personal-passive-native-foreground" : "86.193"
+        versionCode 1058
+        versionName temuPersonalSiteBuild ? "86.196-personal-clean-runtime-diagnostic" : "86.196"
         buildConfigField "boolean", "TEMU_PERSONAL_SITE", temuPersonalSiteBuild.toString()
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         if (temuPersonalSiteBuild) {

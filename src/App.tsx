@@ -3855,7 +3855,6 @@ function App() {
       otlobliPreserveAttachedWhenHidden?: boolean
       otlobliFreezeDiagnostics?: boolean
       otlobliFreezeDiagnosticsBypassRecovery?: boolean
-      otlobliTapDiagnostics?: boolean
     } = {
       url: targetUrl,
       ...(activeStore === 'shein'
@@ -3866,9 +3865,10 @@ function App() {
             SHEIN_IOS_FREEZE_DIAGNOSTICS &&
             SHEIN_IOS_FREEZE_DIAGNOSTICS_BYPASS_RECOVERY &&
             isIosNative,
-          // Customer releases must not expose the native diagnostic copy button.
-          otlobliTapDiagnostics: false,
-          otlobliDocumentStartScript: `window.__otlobliSafeBottom=${hostSafeBottomInset};\nwindow.__otlobliNativePlatform=${JSON.stringify(Capacitor.getPlatform())};\n${captureBundle.SHEIN_PRIVACY_COMPAT_SCRIPT}\n${scriptDiagnosticsPrelude}\n${!STORE_SCRIPT_DIAGNOSTICS || (activeScriptFlags.runtime && activeScriptFlags.navigation) ? captureBundle.OTLOBLI_NAV_BOOTSTRAP_SCRIPT : ''}\n${SHEIN_IOS_FREEZE_DIAGNOSTICS && isIosNative ? captureBundle.SHEIN_FREEZE_DIAGNOSTIC_SCRIPT : ''}`,
+          // Install the passive error/resource observer before the unchanged
+          // app-owned document-start scripts so failures in either SHEIN or an
+          // Otlobli injection retain their original source, line and stack.
+          otlobliDocumentStartScript: `window.__otlobliSafeBottom=${hostSafeBottomInset};\nwindow.__otlobliNativePlatform=${JSON.stringify(Capacitor.getPlatform())};\n${SHEIN_IOS_FREEZE_DIAGNOSTICS && isIosNative ? captureBundle.SHEIN_FREEZE_DIAGNOSTIC_SCRIPT : ''}\n${captureBundle.SHEIN_PRIVACY_COMPAT_SCRIPT}\n${scriptDiagnosticsPrelude}\n${!STORE_SCRIPT_DIAGNOSTICS || (activeScriptFlags.runtime && activeScriptFlags.navigation) ? captureBundle.OTLOBLI_NAV_BOOTSTRAP_SCRIPT : ''}`,
           otlobliPreserveAttachedWhenHidden: true,
           // Prepare SHEIN at the real device size without presenting it. The
           // already-mounted Otlobli shell therefore owns the only visible nav

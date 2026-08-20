@@ -2,6 +2,14 @@
 
 هذه قاعدة إصدار إلزامية وليست ملاحظة تاريخية.
 
+## حارس تشخيص التشغيل النظيف — v86.196
+
+- هذا فرع تشخيص فقط من commit v86.193 الدقيق. يُسمح بـ`storeWebView.isInspectable = true` وبمراقبي lifecycle الأصليين بشرط أن يكون جسمهم تسجيلًا فقط؛ يُمنع أن يستدعوا load/reload/evaluateJavaScript أو إنشاء/إتلاف/نزع/إعادة تركيب/إظهار/إخفاء WKWebView. الحارس التنفيذي يفحص هذا الفصل.
+- يجب أن يحمل كل سجل PID وrun ID وsequence حتى لا تختلط عملية الدخول الأول بعملية التشغيل البارد الثانية. WebContent termination، هوية WKWebView/data store/process pool، وكل مراحل native navigation تُسجل ولا تُعالج بمسار جديد.
+- probe الصفحة يبدأ قبل بقية document-start scripts ويستخدم listeners سلبية وأعمال قراءة محدودة فقط. ممنوع touch/pointer/click listeners، `preventDefault`، synthetic events، patch لـfetch/XHR/console، DOM scan/MutationObserver، interval/polling، reload، أو كتابة/مسح storage.
+- `SHEIN_TAP_DIAGNOSTIC_CONTEXT_JS` و`window.__otlobliTapDiagnosticContext` والمكوّن الذي أخرج `SHEIN_REQUIRED_COUNTRY` من IIFE ممنوعة من المصدر المشحون. لا تُحل المشكلة بتصدير متغيرات SHEIN عالميًا.
+- هذا الرصد لا يغيّر حارس v86.193: لا تعديل لـ`forceStoreVpnRecheck()` أو open/close أو website data store/cookies/cache/IndexedDB/Service Workers أو region/session أو text selection أو blocking/capture/navigation/VPN/readiness. الاختبار الحقيقي وحده يحدد علاقة أي دليل بالتجمّد.
+
 ## حارس swatch الصورة والمقاس inline — v86.42
 
 - قد تكون `.bs-color__item ... active` هي الحاوية التي اختارها `findOptionContainer()`، بينما إشارة `active` والصورة على الحاوية نفسها ولا يوجد اسم في الأبناء. يجب فحص الحاوية قبل أبنائها وإعطاء الحاوية المحددة أولوية عند تعادل عدد الخيارات.

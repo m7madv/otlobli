@@ -1,5 +1,13 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
+## v86.196 clean runtime evidence decision (2026-08-20)
+
+- **Established non-cause:** hash `3ce0b2a11d15fff2` represents `ReferenceError: Can't find variable: SHEIN_REQUIRED_COUNTRY`. The error was created by the later tap-diagnostic context escaping the capture IIFE. It did not exist in v86.193 and cannot explain a freeze already present there. The separate `forceStoreVpnRecheck()` race is real but also remains unassigned because a comparable freeze was recorded without close/duplication/termination.
+- **Baseline decision:** diagnose from exact v86.193 commit `a6e0ca943c4d9a2722b5962a4193d3e34d2da248`, not by merging v86.195. v86.196/1058 changes observability only. The protected diagnostic branch/commit remains untouched.
+- **Instrumentation decision:** enable the real Safari/WebKit Inspector and collect a continuous two-process unified log. The app probe may listen passively for error, rejection, resource, CSP, lifecycle, online, popstate, and hashchange events and may read bounded Performance and storage metadata. It may not intercept input, monkey-patch console/network APIs, synthesize actions, poll, mutate DOM/storage, reload, recreate the browser, clear data, or reference capture-IIFE variables.
+- **Privacy/evidence boundary:** exact bounded JavaScript text/stack is Base64-chunked to avoid unified-log truncation. URL queries/fragments and cookie/storage values are not logged. Storage values contribute only bounded fingerprints; Safari Inspector remains the source for the exact Network/Sources/Application state on the consented test phone.
+- **Acceptance boundary:** local guards/build/budgets/sync pass. There is no Xcode artifact or device result yet. Required evidence is one fresh-install successful entry, App Switcher kill, then one cold-launch frozen entry with distinct PID/run IDs plus both Safari Inspector exports. Temporal proximity alone does not establish causation.
+
 ## v86.189 disposable iOS render-surface contract (2026-08-14)
 
 - **Measured rejection of v86.188:** the modern iPhone's first entry worked but its second visible list stopped accepting taps. iPhone 6 loaded Home completely but did not complete the next list route. Android remained fully interactive. A dedicated owner alone was insufficient because it still reused a WebKit render instance.

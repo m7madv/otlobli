@@ -17,6 +17,7 @@
     "verify:store-surface": "node scripts/verify-store-surface.mjs",
     "verify:temu-size-gate": "node scripts/verify-temu-size-gate.mjs",
     "verify:shein-freeze-guard": "node scripts/verify-shein-freeze-guard.mjs",
+    "decode:shein-runtime": "node scripts/decode-shein-runtime-log.mjs",
     "postinstall": "patch-package && node scripts/inject-relay-key.cjs"
   },
   "dependencies": {

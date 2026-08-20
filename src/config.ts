@@ -16,9 +16,9 @@ export const SOURCE_COUNTRY: 'JO' | 'LB' | 'SA' = 'SA'
 // and must be false before any production build.
 export const TEST_ONLY_AUTH_BYPASS = false
 
-// Diagnostic tools ship disabled in normal customer builds. Enable only in a
-// dedicated diagnostic release after recording the affected device and steps.
-export const SHEIN_IOS_FREEZE_DIAGNOSTICS = false
+// v86.196 is one dedicated iPhone runtime-forensics build. The probe is passive
+// and this branch must not be used as a normal customer release.
+export const SHEIN_IOS_FREEZE_DIAGNOSTICS = true
 export const SHEIN_IOS_FREEZE_DIAGNOSTICS_BYPASS_RECOVERY = false
 
 // Dedicated device-isolation build only. Normal releases keep this false and
@@ -34,5 +34,5 @@ export const TEMU_PERSONAL_SITE_MODE =
 
 // رقم النسخة الظاهر داخل التطبيق.
 export const APP_VERSION = TEMU_PERSONAL_SITE_MODE
-  ? '2026.08.15-v86.193-personal-passive-native-foreground'
-  : '2026.08.15-v86.193-passive-native-foreground'
+  ? '2026.08.20-v86.196-personal-clean-runtime-diagnostic'
+  : '2026.08.20-v86.196-clean-runtime-diagnostic'

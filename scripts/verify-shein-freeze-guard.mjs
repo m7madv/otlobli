@@ -48,11 +48,12 @@ const checks = [
       'removeScriptMessageHandler',
       'browserId = "otlobli-shein-',
       'isAllowedStoreURL(url)',
+      'category: "SheinCleanRuntime"',
+      'private func installDiagnosticLifecycleObservers()',
+      'private func logWebRuntimeDiagnostic(_ detail:',
+      'storeWebView.isInspectable = true',
     ],
     forbidden: [
-      'UIApplication.willEnterForegroundNotification',
-      'UIApplication.didEnterBackgroundNotification',
-      'UIApplication.didBecomeActiveNotification',
       'foregroundRecomposePending',
       'recomposeAttachedWebViewAfterForeground',
       "PageTransitionEvent('pageshow'",
@@ -372,7 +373,7 @@ const checks = [
     markers: [
       'export const STORE_SCRIPT_DIAGNOSTICS =',
       'VITE_STORE_SCRIPT_DIAGNOSTICS',
-      'v86.193-passive-native-foreground',
+      'v86.196-clean-runtime-diagnostic',
     ],
   },
   {
@@ -395,17 +396,25 @@ const checks = [
     ],
   },
   {
-    label: 'normal-release diagnostics disabled',
+    label: 'dedicated clean runtime diagnostics enabled',
     file: 'src/config.ts',
     markers: [
-      'export const SHEIN_IOS_FREEZE_DIAGNOSTICS = false',
+      'export const SHEIN_IOS_FREEZE_DIAGNOSTICS = true',
+      'v86.196-clean-runtime-diagnostic',
     ],
   },
   {
-    label: 'customer tap diagnostics disabled',
-    file: 'src/App.tsx',
-    markers: [
-      'otlobliTapDiagnostics: false',
+    label: 'tap diagnostics excluded from clean runtime build',
+    files: [
+      'src/App.tsx',
+      'src/services/storeCaptureBundle.ts',
+    ],
+    markers: [],
+    forbidden: [
+      'otlobliTapDiagnostics',
+      'SHEIN_TAP_DIAGNOSTIC_CONTEXT_JS',
+      'SHEIN_TAP_DIAGNOSTIC_SCRIPT',
+      '__otlobliTapDiagnosticContext',
     ],
   },
   {
@@ -439,9 +448,29 @@ const checks = [
     label: 'diagnostic SHEIN event probe',
     file: 'src/services/sheinFreezeDiagnostics.ts',
     markers: [
-      "type:'otlobliFreezeDiagnostic'",
-      "['visibilitychange','pageshow','pagehide','freeze','resume','focus','blur']",
-      'window.__otlobliFreezeProbe',
+      "type:'otlobliCleanRuntimeDiagnostic'",
+      "send('javascript-error'",
+      "send('resource-error'",
+      "send('resource-summary'",
+      "send('storage-sync'",
+      "send('storage-async'",
+      "send('navigation-timing'",
+      'window.__otlobliCleanRuntimeDiagnosticInstalled',
+    ],
+    forbidden: [
+      'SHEIN_TAP_DIAGNOSTIC_CONTEXT_JS',
+      '__otlobliTapDiagnosticContext',
+      'SHEIN_REQUIRED_COUNTRY',
+      'preventDefault(',
+      "addEventListener('touch",
+      "addEventListener('pointer",
+      "addEventListener('click",
+      'window.fetch',
+      'XMLHttpRequest.prototype',
+      'console.log=',
+      'console.error=',
+      'setInterval(',
+      'MutationObserver',
     ],
   },
   {
@@ -1421,13 +1450,19 @@ try {
   const handlerEnd = nativeSource.indexOf('default:', navigateStart)
   const ordinaryHide = nativeSource.slice(hideStart, showStart)
   const ordinaryNavigate = nativeSource.slice(navigateStart, handlerEnd)
+  const lifecycleStart = nativeSource.indexOf('private func installDiagnosticLifecycleObservers()')
+  const lifecycleEnd = nativeSource.indexOf('private func safeURLString(', lifecycleStart)
+  const lifecycleSource = nativeSource.slice(lifecycleStart, lifecycleEnd)
+  const passiveLifecycleObservers = lifecycleStart >= 0 && lifecycleEnd > lifecycleStart &&
+    lifecycleSource.includes('UIApplication.didEnterBackgroundNotification') &&
+    lifecycleSource.includes('UIApplication.didBecomeActiveNotification') &&
+    lifecycleSource.includes('self.logDiagnostic("application-lifecycle"') &&
+    !/createRenderSurface|destroyRenderSurface|refreshVisibleSurfaceLayout|evaluateJavaScript|\.load\(|\.reload\(|removeFromSuperview|parkRenderSurfaceBehindApp/.test(lifecycleSource)
   const mutatesOnForeground =
-    nativeSource.includes('UIApplication.didEnterBackgroundNotification') ||
-    nativeSource.includes('UIApplication.didBecomeActiveNotification') ||
     nativeSource.includes('recomposeAttachedWebViewAfterForeground') ||
     nativeSource.includes('foregroundRecomposePending') ||
     nativeSource.includes("PageTransitionEvent('pageshow'")
-  if (constructors.length !== 1 || memoryStart < 0 || mutatesOnForeground ||
+  if (constructors.length !== 1 || memoryStart < 0 || mutatesOnForeground || !passiveLifecycleObservers ||
       hideStart < 0 || showStart < 0 || navigateStart < 0 || handlerEnd < 0 ||
       ordinaryHide.includes('destroyRenderSurface()') || ordinaryNavigate.includes('destroyRenderSurface()')) {
     failures.push('SHEIN native session: background/foreground must leave the one live WKWebView attached and untouched')
