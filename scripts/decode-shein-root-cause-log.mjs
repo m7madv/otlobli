@@ -1,6 +1,8 @@
-import { readFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 
-const inputPath = process.argv[2]
+const args = process.argv.slice(2)
+const inputPath = args.find((arg) => !arg.startsWith('--'))
+const outputPath = args.find((arg) => arg.startsWith('--output='))?.slice('--output='.length)
 const source = inputPath ? readFileSync(inputPath, 'utf8') : readFileSync(0, 'utf8')
 const pattern = /\[OtlobliRootCause\] event=(\S+) run=(\S+) pid=(\d+) seq=(\d+) part=(\d+)\/(\d+) payload_b64=(\S+)/
 const records = new Map()
@@ -23,6 +25,7 @@ for (const line of source.split(/\r?\n/)) {
 }
 
 let incomplete = 0
+const output = []
 for (const record of [...records.values()].sort((left, right) =>
   left.runId.localeCompare(right.runId) || left.sequence - right.sequence)) {
   const missing = []
@@ -38,8 +41,12 @@ for (const record of [...records.values()].sort((left, right) =>
     continue
   }
   const payload = JSON.parse(Buffer.from(chunks.join(''), 'base64').toString('utf8'))
-  console.log(JSON.stringify(payload))
+  output.push(JSON.stringify(payload))
 }
+
+const decoded = `${output.join('\n')}${output.length ? '\n' : ''}`
+if (outputPath) writeFileSync(outputPath, decoded)
+else process.stdout.write(decoded)
 
 if (records.size === 0) {
   console.error('No OtlobliRootCause records found.')

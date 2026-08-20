@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 
 const args = process.argv.slice(2)
 const inputPath = args.find((arg) => !arg.startsWith('--'))
@@ -8,6 +8,7 @@ const option = (name, fallback) => {
 }
 const goodLabel = option('good', 'FIRST_GOOD')
 const frozenLabel = option('frozen', 'SHOW_FROZEN')
+const outputPath = option('output', '')
 if (!inputPath) throw new Error('Usage: npm run analyze:shein-root-cause -- evidence.jsonl [--good=FIRST_GOOD] [--frozen=SHOW_FROZEN]')
 
 const records = readFileSync(inputPath, 'utf8')
@@ -100,4 +101,6 @@ const report = {
   errorsBeforeFrozen,
   timeline,
 }
-console.log(JSON.stringify(report, null, 2))
+const serializedReport = `${JSON.stringify(report, null, 2)}\n`
+if (outputPath) writeFileSync(outputPath, serializedReport)
+else process.stdout.write(serializedReport)
