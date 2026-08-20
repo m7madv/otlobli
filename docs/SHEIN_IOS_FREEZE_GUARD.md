@@ -2,6 +2,15 @@
 
 هذه قاعدة إصدار إلزامية وليست ملاحظة تاريخية.
 
+## تشخيص زمني سلبي واحد — v86.202
+
+- فشل قبول v86.201 على الجهاز: إصلاحات Back والأزرار والتبديل تعمل، لكن دخول SHEIN اللاحق قد يبقى مرسوماً ومتجمداً. ممنوع وصف v86.201 كحل للتجمّد.
+- v86.202/1064 تشخيص فقط من exact v86.201 HEAD. namespace الوحيد داخل الصفحة هو `window.__otlobliRootCauseProbe`، ويجب أن يبقى بلا DOM mutation للصفحة أو منع/تصنيع أحداث أو fetch/XHR/console/history patch أو navigation/reload أو كتابة/مسح website data.
+- heartbeat مسموح فقط بالوتيرة المحدودة 400ms مع تقرير مجمع كل ثانية. MutationObserver يغيّر Text node منفصلًا غير مربوط بالمستند؛ listeners التفاعل passive ومحدودة بعدد ثابت.
+- lifecycle observers في Swift مسموحة على هذا الفرع التشخيصي فقط لأنها تسجل وتطلب snapshot؛ ممنوع أن تستدعي reload أو detach/reattach أو create/destroy/show/hide أو تغيّر hierarchy.
+- Web Inspector وBase64 unified log وmetadata أسماء cookies/storage مسموحة للتشخيص؛ ممنوع تسجيل القيم أو tokens أو query/fragment أو بيانات شخصية.
+- لا يضاف أي إصلاح قبل مقارنة `FIRST_GOOD` مع حالة frozen وتحديد أول اختلاف زمني. بروتوكول الالتقاط الكامل في `docs/SHEIN_V86_202_ROOT_CAUSE_TIMELINE_DIAGNOSTIC.md`.
+
 ## ضغطتان على Home لتبديل المتجر — v86.201
 
 - The injected Home tab must not navigate until the 320ms double-tap window closes.

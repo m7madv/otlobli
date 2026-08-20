@@ -57,9 +57,6 @@ const checks = [
       'isAllowedStoreURL(url)',
     ],
     forbidden: [
-      'UIApplication.willEnterForegroundNotification',
-      'UIApplication.didEnterBackgroundNotification',
-      'UIApplication.didBecomeActiveNotification',
       'foregroundRecomposePending',
       'recomposeAttachedWebViewAfterForeground',
       "PageTransitionEvent('pageshow'",
@@ -380,7 +377,7 @@ const checks = [
     markers: [
       'export const STORE_SCRIPT_DIAGNOSTICS =',
       'VITE_STORE_SCRIPT_DIAGNOSTICS',
-      'v86.201-double-home-store-switch',
+      'v86.202-root-cause-timeline-diagnostic',
     ],
   },
   {
@@ -403,10 +400,10 @@ const checks = [
     ],
   },
   {
-    label: 'normal-release diagnostics disabled',
+    label: 'dedicated root-cause diagnostics enabled',
     file: 'src/config.ts',
     markers: [
-      'export const SHEIN_IOS_FREEZE_DIAGNOSTICS = false',
+      'export const SHEIN_IOS_FREEZE_DIAGNOSTICS = true',
     ],
   },
   {
@@ -447,9 +444,38 @@ const checks = [
     label: 'diagnostic SHEIN event probe',
     file: 'src/services/sheinFreezeDiagnostics.ts',
     markers: [
-      "type:'otlobliFreezeDiagnostic'",
-      "['visibilitychange','pageshow','pagehide','freeze','resume','focus','blur']",
-      'window.__otlobliFreezeProbe',
+      "type='otlobliRootCauseProbe'",
+      'window.__otlobliRootCauseProbe',
+      'setInterval(kickHeartbeats,400)',
+      "['pointerdown','touchstart','click']",
+      "['visibilitychange','pageshow','pagehide','focus','blur','freeze','resume','DOMContentLoaded','load','beforeunload'",
+      'new MutationObserver',
+      'new MessageChannel()',
+      'requestAnimationFrame',
+      'queueMicrotask',
+      'indexedDB.databases',
+      'caches.keys',
+      'navigator.serviceWorker.getRegistrations',
+      "addEventListener('securitypolicyviolation'",
+    ],
+    forbidden: [
+      'preventDefault(',
+      'stopPropagation(',
+      'stopImmediatePropagation(',
+      '.dispatchEvent(',
+      'XMLHttpRequest.prototype',
+      'window.fetch=',
+      'console.error=',
+      'console.log=',
+      'history.pushState=',
+      'history.replaceState=',
+      'location.assign(',
+      'location.reload(',
+      'localStorage.setItem(',
+      'sessionStorage.setItem(',
+      'appendChild(',
+      'insertBefore(',
+      'innerHTML=',
     ],
   },
   {
@@ -1448,8 +1474,6 @@ try {
   const ordinaryHide = nativeSource.slice(hideStart, showStart)
   const ordinaryNavigate = nativeSource.slice(navigateStart, handlerEnd)
   const mutatesOnForeground =
-    nativeSource.includes('UIApplication.didEnterBackgroundNotification') ||
-    nativeSource.includes('UIApplication.didBecomeActiveNotification') ||
     nativeSource.includes('recomposeAttachedWebViewAfterForeground') ||
     nativeSource.includes('foregroundRecomposePending') ||
     nativeSource.includes("PageTransitionEvent('pageshow'")
@@ -1457,6 +1481,20 @@ try {
       hideStart < 0 || showStart < 0 || navigateStart < 0 || handlerEnd < 0 ||
       ordinaryHide.includes('destroyRenderSurface()') || ordinaryNavigate.includes('destroyRenderSurface()')) {
     failures.push('SHEIN native session: background/foreground must leave the one live WKWebView attached and untouched')
+  }
+
+  const diagnosticLifecycleStart = nativeSource.indexOf('private func installRootCauseLifecycleObservers()')
+  const diagnosticLifecycleEnd = nativeSource.indexOf('private func safeURLString', diagnosticLifecycleStart)
+  const diagnosticLifecycle = nativeSource.slice(diagnosticLifecycleStart, diagnosticLifecycleEnd)
+  if (diagnosticLifecycleStart < 0 || diagnosticLifecycleEnd < 0 ||
+      !diagnosticLifecycle.includes('requestWebProbeSnapshot(label)') ||
+      diagnosticLifecycle.includes('reload()') ||
+      diagnosticLifecycle.includes('removeFromSuperview()') ||
+      diagnosticLifecycle.includes('destroyRenderSurface()') ||
+      diagnosticLifecycle.includes('createRenderSurface(') ||
+      diagnosticLifecycle.includes('bringSubviewToFront(') ||
+      diagnosticLifecycle.includes('insertSubview(')) {
+    failures.push('SHEIN root-cause lifecycle observers must record only and never mutate the live WebView hierarchy')
   }
 } catch (error) {
   failures.push(`SHEIN native persistent-session guard: ${error instanceof Error ? error.message : String(error)}`)

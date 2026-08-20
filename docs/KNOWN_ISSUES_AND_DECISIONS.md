@@ -1,5 +1,9 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
+## v86.202 decision — one passive timeline before any further fix (2026-08-20)
+
+Device testing rejected v86.201 as a freeze solution: first SHEIN entry works, while later same-store entry can render an inert page. The next and only authorized build is diagnostic `86.202/1064` from exact v86.201 HEAD. It records event-loop, lifecycle/BFCache, bounded real-click reaction, native hosting/history, metadata-only persistent state, and genuine JS/resource failures under one namespace. No rebuild/reload/data clear or speculative fix is bundled. The removed v86.194/v86.195 tap context must not return. Evidence must identify the earliest divergence before any minimal fix is proposed.
+
 ## v86.201 decision — injected double-Home was missing, not intermittent (2026-08-20)
 
 The double-Home store-switch gesture existed only in the Android personal-Temu React path. Injected SHEIN/Temu navigation could not recognize it because the first tap navigated immediately and the bridge's 450ms touch/click dedupe rejected the physical second tap. v86.201 uses a 320ms single-tap timer and separately deduplicates synthetic post-touch clicks. Double Home emits the existing `closeStore` path, preserving the same-store session and fixed React bottom navigation.

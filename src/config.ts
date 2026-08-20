@@ -18,7 +18,7 @@ export const TEST_ONLY_AUTH_BYPASS = false
 
 // Diagnostic tools ship disabled in normal customer builds. Enable only in a
 // dedicated diagnostic release after recording the affected device and steps.
-export const SHEIN_IOS_FREEZE_DIAGNOSTICS = false
+export const SHEIN_IOS_FREEZE_DIAGNOSTICS = true
 export const SHEIN_IOS_FREEZE_DIAGNOSTICS_BYPASS_RECOVERY = false
 
 // Dedicated device-isolation build only. Normal releases keep this false and
@@ -34,5 +34,5 @@ export const TEMU_PERSONAL_SITE_MODE =
 
 // رقم النسخة الظاهر داخل التطبيق.
 export const APP_VERSION = TEMU_PERSONAL_SITE_MODE
-  ? '2026.08.20-v86.201-personal-double-home-store-switch'
-  : '2026.08.20-v86.201-double-home-store-switch'
+  ? '2026.08.20-v86.202-personal-root-cause-timeline-diagnostic'
+  : '2026.08.20-v86.202-root-cause-timeline-diagnostic'

@@ -1,3 +1,11 @@
+# v86.202 — passive SHEIN root-cause timeline diagnostic (2026-08-20)
+
+The v86.201 UI/navigation fixes are retained, but device testing proved the core freeze remains: first SHEIN entry works and a later re-entry can render the page inert. v86.202/1064 is one diagnostic build only, created from exact v86.201 commit `0b462a93030b5c7114012d5848ce61eac49b8b17` on isolated branch `codex/ios-v86-202-root-cause-timeline-diagnostic`.
+
+The single `window.__otlobliRootCauseProbe` passively records event-loop heartbeats, lifecycle/BFCache, bounded real-click reactions, runtime fingerprints, metadata-only storage/session state, real JS/resource/CSP failures, and navigation/resource timing. Swift adds Base64-chunked unified logs with run/PID/browser/WKWebView/navigation identity, native hierarchy/history/cookie-name snapshots, full navigation callbacks, and `isInspectable=true`. The contaminated unused tap diagnostic file was removed; no `SHEIN_REQUIRED_COUNTRY` context is present.
+
+No fix, reload, browser recreation, website-data clearing, input cancellation, synthetic event, network/console/history patch, or store lifecycle change is included. Local static privacy/passivity checks, the SHEIN freeze guard, release-hardening guard, TypeScript, and injected-script parsing pass. Full web build, iOS sync, Xcode/CI artifact, and physical evidence capture remain pending. Protocol: `docs/SHEIN_V86_202_ROOT_CAUSE_TIMELINE_DIAGNOSTIC.md`.
+
 # v86.201 — double Home reveals the store chooser (2026-08-20)
 
 The requested gesture was only implemented for the Android personal-Temu surface. It was impossible inside the injected SHEIN/Temu navigation: the document-start bridge immediately loaded store Home on the first tap and rejected every event inside 450ms, including the user's real second `touchend`.

@@ -1,3 +1,11 @@
+# Active handoff — v86.202 passive root-cause timeline diagnostic (2026-08-20)
+
+The unresolved phenotype remains: first SHEIN entry is interactive, while a later re-entry can show the same page visually but leave SHEIN inert. Do not call v86.201 accepted and do not add another rebuild/reload/switch-store workaround. v86.202/1064 is an isolated diagnostic-only branch from exact v86.201 HEAD `0b462a93030b5c7114012d5848ce61eac49b8b17`.
+
+One document-start namespace, `window.__otlobliRootCauseProbe`, measures event-loop health, lifecycle/BFCache, bounded real-click reactions, root/runtime fingerprints, storage metadata, and genuine JS/resource failures. Native logging correlates run/PID/browser/WKWebView/navigation/document identities with hosting hierarchy/history/cookies and navigation callbacks; Web Inspector is enabled. The old unused `sheinTapDiagnostics.ts` contamination is deleted and never injected. Logging is Base64 chunked under `[OtlobliRootCause]`; decoder/analyzer commands and the exact matrix are in `docs/SHEIN_V86_202_ROOT_CAUSE_TIMELINE_DIAGNOSTIC.md`.
+
+The probe is passive: no page DOM mutation, preventDefault/propagation stop, synthetic input, fetch/XHR/console/history patch, navigation/reload, WebView lifecycle change, or website-data write/clear. Only a detached Text node is changed to test MutationObserver delivery. Local static checks, freeze guard, hardening, TypeScript, and Terser parsing pass; full build/CI/device capture are still pending and must be recorded honestly.
+
 # Active handoff — v86.201 injected double-Home store switch (2026-08-20)
 
 The double-Home gesture previously existed only in `handlePersonalTemuHomeTap()` for the Android personal-Temu surface. It did not exist in SHEIN: `OTLOBLI_NAV_TOUCH_BRIDGE_JS` loaded Home immediately and its 450ms dedupe discarded the real second `touchend`. v86.201 gives injected SHEIN/Temu navigation the same contract. A single Home waits 320ms then runs the existing store-Home `location.assign`; a second physical Home tap cancels that timer and emits `closeStore`, revealing the existing `store-select` screen while parking the browser. Synthetic post-touch clicks are ignored separately and cannot count as the second tap. Another nav tab cancels a pending Home timer.
