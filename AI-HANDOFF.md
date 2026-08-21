@@ -1,47 +1,53 @@
-# Active handoff — v86.213 unified authentication and TestFlight (2026-08-21)
+# Active handoff — v86.213 is ready in TestFlight (2026-08-22)
 
 Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`
-on `codex/otlobli-v86-212-testflight-auth`. Current customer version/build is
-`86.213/1075`. The new compact Arabic login hierarchy is implemented and synced
-to Android and iOS: phone/WhatsApp first, then Google and Apple quick login,
-provider-specific progress labels, and one-account guidance. The web preview
-correctly hides Apple because it is native/Android-only there. Do not touch
-SHEIN/Temu lifecycle, store routing/capture, orders, payment, or wallet.
+on `codex/otlobli-v86-212-testflight-auth`. Version/build `86.213/1075` is
+processed in TestFlight and shows `Ready to Test`. Internal group
+`Otlobli Internal` has automatic distribution, the exact build, and the exact
+Account Holder tester `mhm1981dx@gmail.com`, whose status is `Invited`. App Store
+Connect app ID is `6804052538`. No App Store review submission was made.
 
-Phone auth is now live-ready. The hardened `server/` is deployed to Oracle; its
-`.env` was previously never loaded, so `dotenv/config` plus the pinned `dotenv`
-dependency were added and deployed after tests. Independent 32+ byte OTP/admin
-secrets were generated on the host without disclosure, existing WhatsApp
-credentials were preserved, and session `0` reconnected. The public health gate
-currently returns every required value: `status=ok`, connected/sender ready,
-session store ready, `customer-session-v1`, and OTP security ready. Rollback
-backup: `/home/ubuntu/otlobli-server/backups/pre-v86213-envfix-20260821T194831Z`.
+Apple Team is `36D743K87T`. Services ID `com.otlobli.app.signin` is saved with
+the Supabase domain and exact Apple callback. Active SIWA key ID is
+`FAMAKDMKT6`; the old unusable `Y8K8B23VK6` remains. Distribution certificate
+ID is `9G84PQ34US`; App Store profile ID is `J8UJBNN6S8`, UUID
+`ade603b0-8cd9-42e1-8883-a39aea1c9cb1`, expiring 2027-08-22. The only revoked
+resource was unusable Distribution certificate `K99MT75HDF`, after proving its
+downloaded certificate had no matching retained private key.
 
-Supabase migrations through `20260821193000` and the current four auth/lifecycle
-functions are deployed. Google iOS exact configuration is live
-`configured=true`. GitHub now has `VITE_APPLE_ANDROID_CLIENT_ID`,
-`VITE_APPLE_ANDROID_REDIRECT_URL`, and the three App Store Connect API secrets.
-Supabase has Team/client/redirect Apple configuration, but lacks the SIWA
-private key and key ID, so Apple remains correctly fail-closed.
+Future signing material is retained under ACL-restricted
+`C:\Users\MOHAMMAD\Documents\Otlobli Apple Signing 2026`: new SIWA `.p8`,
+Distribution private key/certificate/P12, DPAPI-protected P12 password, and App
+Store profile. Never print, commit, move to the repository, or overwrite these
+files. Matching GitHub Actions secrets and exact Supabase Apple secrets are set.
+Live iOS and Android Apple configuration checks both return `configured=true`.
 
-Apple login is the correct `mhm1981dx@gmail.com` Account Holder account. The
-agreement was personally reviewed and the pending banner is now gone. Existing
-portal state: App ID `com.otlobli.app`; Services ID `com.otlobli.app.signin`
-with Apple enabled and the correct primary App ID but an empty Website URLs
-list; SIWA key `Y8K8B23VK6` whose one-time download is disabled and whose `.p8`
-is absent locally; a 2026-08-21 Distribution certificate whose matching private
-key/P12 is absent; no Otlobli App Store profile; no Otlobli App Store Connect
-record. Ask for the mandatory action-time confirmation before configuring the
-Services ID, creating/replacing persistent Apple keys/certificates/profiles,
-creating the app record, uploading, or inviting. Invitation target is exactly
-`mhm1981dx@gmail.com`, not the Google-project owner address.
+Successful TestFlight workflow is `32530248241` from commit
+`a98b9b8e4e984e7928811029d98874b29cbeae18`. Artifact `9463720205` is named
+`otlobli-ios-v86.213-build-1075-testflight`, has size 25,117,598 bytes and
+GitHub digest
+`sha256:fe8d5e310f80d406005b3426bf9ca883bfb6b2437fa0c2df7abc0627f859642b`.
+The earlier run `32529401241` is superseded; it safely stopped on preflight and
+Apple validation issues and did not upload a bad IPA.
 
-Build/validation passes, including full `npm run build`, all guards, both native
-syncs, and Android Gradle. APK:
+The last source adjustment makes iPhone portrait-only while declaring all four
+iPad orientations required for multitasking. `Info.plist` also declares
+`ITSAppUsesNonExemptEncryption=false`. Local `npm run build`, all release/auth/
+SHEIN/Temu/store/performance guards, iOS Capacitor sync, and `git diff --check`
+pass. Do not change the protected SHEIN lifecycle/recompose, store routing or
+capture, orders, payment, or wallet for follow-up TestFlight work.
+
+The hardened phone server and Supabase functions remain deployed. The WhatsApp
+sender was reconnected from stored credentials without a message or new QR so
+the TestFlight preflight could pass; its live connected state is time-sensitive
+and must be checked again before any later upload. The Android artifact remains
 `output/Otlobli-v86.213-Android-Auth-debug.apk`, 11,118,964 bytes, SHA-256
 `CD6B09ABDC23BBEFB4B93D1E150B1D3441029AF6603A13A59ACD30E261D6BF93`.
-Physical device acceptance and TestFlight remain pending and must be reported
-honestly.
+
+Still unverified: real iPhone/Android login for all three methods, weak Android
+acceptance, five real iPhone 16 background/resume cycles, and a separate
+force-quit/cold-launch test. Report these honestly; `Ready to Test` proves Apple
+processing/distribution, not device acceptance.
 
 # Active handoff — v86.212 internal TestFlight authentication (2026-08-21)
 

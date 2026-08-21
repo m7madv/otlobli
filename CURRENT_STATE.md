@@ -1,56 +1,76 @@
-# v86.213 — unified authentication build and live phone backend (2026-08-21)
+# v86.213 — TestFlight ready and exact internal invitation sent (2026-08-22)
 
 Continue in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
-`codex/otlobli-v86-212-testflight-auth`. The customer app is now
-`86.213/1075`. The login screen presents phone/WhatsApp as the primary method,
-then equal Google and Apple quick-login actions, with provider-specific busy
-feedback and explicit Arabic copy that all three methods enter the same Otlobli
-account. Apple remains platform-gated, so it is intentionally absent from the
-web preview and present in the synced Android/iOS builds. The visual change
-keeps the existing Otlobli route signature, uses a solid low-cost surface rather
-than backdrop blur, and does not change store, order, payment, or wallet logic.
+`codex/otlobli-v86-212-testflight-auth`. Customer version/build is
+`86.213/1075`. Phone/WhatsApp, Google, and Apple share the compact Arabic login
+screen and enter the same Otlobli account. Store, order, payment, wallet, SHEIN,
+and Temu behavior was not deliberately changed.
 
-The production phone backend at `https://84-8-100-128.sslip.io` is now the
-hardened `server/` deployment. A missing `dotenv` bootstrap was found during the
-first protected rollout, fixed in source, dependency-locked, tested, and
-redeployed. The Oracle host has generated non-exported independent
-`OTP_HASH_SECRET` and `WHATSAPP_ADMIN_SECRET` values, preserved the existing
-Baileys credentials, and reconnected session `0` without a new QR. External
-health now reports `status=ok`, `whatsappConnected=true`,
-`whatsappSenderReady=true`, `sessionStoreReady=true`,
-`authContract=customer-session-v1`, and `otpSecurityReady=true`. The successful
-deployment backup is
-`/home/ubuntu/otlobli-server/backups/pre-v86213-envfix-20260821T194831Z`.
+Apple Developer is configured under the exact Account Holder
+`mhm1981dx@gmail.com`, Team `36D743K87T`. Services ID
+`com.otlobli.app.signin` now uses primary App ID `com.otlobli.app`, domain
+`dcicqdprtyhwmhegabay.supabase.co`, and exact return URL
+`https://dcicqdprtyhwmhegabay.supabase.co/functions/v1/apple-oauth-callback`.
+New Sign in with Apple key `FAMAKDMKT6` is active; the unusable prior key
+`Y8K8B23VK6` was left untouched. Its one-time `.p8` is retained only in the
+ACL-restricted local signing directory
+`C:\Users\MOHAMMAD\Documents\Otlobli Apple Signing 2026`.
 
-Supabase migrations `20260821183000_apple_authorization_client_id.sql` and
-`20260821193000_harden_identity_rpc_permissions.sql` were applied, and current
-`google-auth`, `apple-auth`, `apple-oauth-callback`, and `account-lifecycle`
-functions were deployed with JWT verification disabled where required. The
-exact live Google iOS configuration check returns `configured=true`. GitHub now
-contains the public Android Apple client/redirect secrets and the existing App
-Store Connect API key/ID/issuer secrets; no private value was printed or
-committed. Supabase has the Apple Team/client/redirect allowlist, but Apple auth
-still returns `apple_auth_not_configured` until a usable SIWA `.p8` is stored.
+Only the unusable Apple Distribution certificate `K99MT75HDF`, whose downloaded
+certificate hash was
+`743D7E09F1D9CD0DB43DE72E5E422482ADEF8C3365CCBB486A6B2827E1826D92` and had
+no matching retained private key, was revoked. Replacement certificate
+`9G84PQ34US` expires 2027-08-22 and has SHA-256 fingerprint
+`62:18:6A:2E:70:CA:EE:E2:78:ED:B9:90:48:F5:09:CA:E0:E2:EF:ED:E8:8A:34:C5:16:AE:FB:0D:D8:EA:42:6B`.
+Its private key, certificate, validated P12, and DPAPI-protected local password
+are in the restricted signing directory; their GitHub Actions equivalents are
+encrypted secrets and were not printed or committed.
 
-Apple Developer was verified under `mhm1981dx@gmail.com`, Account Holder
-`mohammad alzouabi`, Team `36D743K87T`; the updated agreement alert disappeared
-after the owner completed its personal review. Services ID
-`com.otlobli.app.signin` exists and is associated with the Otlobli App ID, but
-its Website URLs list is empty. SIWA key `Y8K8B23VK6` exists but its one-time
-download is disabled and no matching local `.p8` is present. A Distribution
-certificate created on 2026-08-21 is downloaded as `distribution.cer`, but no
-matching retained private key/P12 was found. There is no Otlobli App Store
-profile and no Otlobli App Store Connect record. Do not revoke/create/modify
-these persistent Apple resources, upload, or invite until the owner gives the
-required action-time confirmation.
+App Store provisioning profile `Otlobli v86.213 App Store` has portal ID
+`J8UJBNN6S8`, UUID `ade603b0-8cd9-42e1-8883-a39aea1c9cb1`, expires
+2027-08-22, and was decoded and verified for the exact team, App ID, production
+APNs, Sign in with Apple, distribution certificate, and TestFlight entitlement.
+The `.mobileprovision` and decoded plist are retained in the restricted signing
+directory. GitHub secrets now contain the matching Distribution P12/password
+and App Store profile.
 
-`npm run build`, all release/auth/SHEIN/Temu/store/performance guards, Capacitor
-sync for Android and iOS, and the Android Gradle debug build pass. The installable
-APK is
+Supabase has the exact new `.p8`, key ID `FAMAKDMKT6`, Team ID, iOS/Services ID
+allowlist, and redirect map. Exact live configuration checks return
+`configured=true` for iOS `com.otlobli.app` and Android
+`com.otlobli.app.signin` with its callback. GitHub secret
+`VITE_SUPABASE_URL` was corrected to
+`https://dcicqdprtyhwmhegabay.supabase.co`. The hardened WhatsApp sender was
+reconnected from its stored session without sending a message or showing a new
+QR; the upload preflight then passed every readiness field.
+
+App Store Connect record `Otlobli` has numeric app ID `6804052538`, SKU
+`otlobli-ios-20260822`, Arabic primary language, and Bundle ID
+`com.otlobli.app`. Initial workflow run `32529401241` exposed and safely stopped
+on the malformed Supabase URL, disconnected sender, then Apple's iPad
+orientation validation. Commit `a98b9b8` preserves portrait-only iPhone while
+declaring all four iPad multitasking orientations and adds an exact CI plist
+assertion. A fresh `npm run build` passed every release/auth/SHEIN/Temu/store/
+performance guard, `npx cap sync ios` passed, and `git diff --check` passed.
+
+GitHub run `32530248241` succeeded from
+`a98b9b8e4e984e7928811029d98874b29cbeae18`, signed the production archive,
+validated callbacks/profile/signature/symbols, and uploaded the IPA. Artifact
+`9463720205`, `otlobli-ios-v86.213-build-1075-testflight`, is 25,117,598 bytes;
+its GitHub artifact digest is
+`sha256:fe8d5e310f80d406005b3426bf9ca883bfb6b2437fa0c2df7abc0627f859642b`
+and it expires 2026-09-20.
+
+Apple finished processing `86.213 (1075)`: TestFlight shows `Ready to Test`,
+expiring in 90 days. Internal group `Otlobli Internal` has automatic
+distribution enabled, exactly one build, and exactly one tester. The exact
+tester `mhm1981dx@gmail.com` was added and App Store Connect shows `Invited`.
+No App Store review submission was made. No Android/iPhone physical login
+acceptance, weak-device acceptance, five iPhone 16 resume cycles, or cold-launch
+acceptance is claimed.
+
+The Android artifact remains
 `output/Otlobli-v86.213-Android-Auth-debug.apk`, 11,118,964 bytes, SHA-256
 `CD6B09ABDC23BBEFB4B93D1E150B1D3441029AF6603A13A59ACD30E261D6BF93`.
-No Android/iPhone physical login acceptance, five iPhone resume cycles, cold
-launch, TestFlight upload, or invitation is claimed yet.
 
 # v86.212 — internal TestFlight authentication candidate (2026-08-21)
 
