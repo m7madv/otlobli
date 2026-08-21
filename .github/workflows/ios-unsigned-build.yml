@@ -315,7 +315,6 @@ jobs:
         working-directory: ios/App
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          EXPECTED_DEVICE_UDID_SHA256: ${{ secrets.IOS_DEVELOPMENT_DEVICE_UDID_SHA256 }}
           APP_VERSION: ${{ steps.appver.outputs.version }}
           APP_BUILD: ${{ steps.appver.outputs.build }}
         run: |
@@ -363,6 +362,7 @@ jobs:
         working-directory: ios/App
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          EXPECTED_DEVICE_UDID_SHA256: ${{ secrets.IOS_DEVELOPMENT_DEVICE_UDID_SHA256 }}
           APP_VERSION: ${{ steps.appver.outputs.version }}
           APP_BUILD: ${{ steps.appver.outputs.build }}
         run: |
