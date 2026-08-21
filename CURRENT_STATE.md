@@ -29,7 +29,16 @@ performance budgets: startup JS `656,897/720,000`, total JS gzip
 Android artifact `output/Otlobli-v86.215-Android-debug.apk` is 11,119,208 bytes,
 SHA-256
 `1D51B3FCB043F63D8A4437BBF81D6A81DEB52788EDBDCF0E6D5B54AF060B5EFA`.
-Unsigned iOS CI and all physical acceptance for v86.215 are still pending.
+Unsigned iOS run `32538249134` passed from
+`05b81a11ab62a836e119d04a3500768dd69cc38f`; Swift, production assets,
+version `86.215/1077`, and universal iPhone/iPad checks passed. Artifact
+`9466159129`, `otlobli-ios-v86.215-ipad-iphone-universal`, is 6,459,712 bytes
+with digest
+`sha256:55580f7a74a4b64e7069a8fd8d134388136ef0bd65ccf97c18aedb100c2b1fbb`.
+Downloaded unsigned IPA is 6,568,807 bytes, SHA-256
+`272C92DB84FB826140D5687A2098D03923731A3CE5F6BF7C5BCA4B800BC2FD0B`.
+Every signing and TestFlight step was skipped. All physical acceptance for
+v86.215 remains pending.
 
 The approved v86.214 upload had one safe preflight failure: run `32536442526`
 stopped before signing because WhatsApp was disconnected. The Oracle sender was

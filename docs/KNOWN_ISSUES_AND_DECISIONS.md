@@ -22,9 +22,11 @@
   recovery and could strand the new browser on the same spinner.
 - **Validation boundary:** the executable guard now reproduces a pre-route
   error followed by SPA product navigation, full build/performance guards pass,
-  both native syncs pass, and Android debug builds at `86.215/1077`. Real iPhone
-  acceptance remains mandatory; do not describe this as fixed until the same
-  product opens and the protected resume/cold-launch checks pass.
+  both native syncs pass, and Android debug builds at `86.215/1077`. Unsigned
+  Xcode run `32538249134` also passes from `05b81a1`; unsigned IPA SHA-256 is
+  `272C92DB84FB826140D5687A2098D03923731A3CE5F6BF7C5BCA4B800BC2FD0B`.
+  Real iPhone acceptance remains mandatory; do not describe this as fixed until
+  the same product opens and the protected resume/cold-launch checks pass.
 
 ## v86.214 — live SPA chunk recovery and safe visual readiness (2026-08-22)
 
