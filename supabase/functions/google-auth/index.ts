@@ -87,11 +87,6 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders })
   if (req.method !== 'POST') return new Response('Method not allowed', { status: 405, headers: corsHeaders })
 
-  // تفشل مغلقة حتى تُضبط معرّفات العملاء.
-  if (ALLOWED_AUDS.length === 0) {
-    return json({ error: 'google_auth_not_configured' }, 503)
-  }
-
   let body: {
     idToken?: string
     action?: string
@@ -123,6 +118,13 @@ Deno.serve(async (req) => {
       return json({ error: code }, 401)
     }
     return json(data ?? {})
+  }
+
+  // All Google-token operations fail closed until allowed audiences exist.
+  // Reading the current account's linked methods needs only its valid Otlobli
+  // session and remains available for Apple/phone-only configurations.
+  if (ALLOWED_AUDS.length === 0) {
+    return json({ error: 'google_auth_not_configured' }, 503)
   }
 
   const idToken = (body.idToken ?? '').trim()
@@ -157,7 +159,8 @@ Deno.serve(async (req) => {
     const rawToken = randomToken()
     const tokenHash = await sha256Hex(rawToken)
     const expiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString()
-    const { data, error } = await supabase.rpc('register_google_customer', {
+    const { data, error } = await supabase.rpc('register_external_customer', {
+      p_provider: 'google',
       p_provider_user_id: claims.sub,
       p_email: claims.email ?? null,
       p_email_verified: emailVerified,
@@ -178,10 +181,16 @@ Deno.serve(async (req) => {
           message: 'هذا الرقم مرتبط بحساب موجود. ادخل بالرقم أولاً، ثم اربط Google من «حسابي».',
         }, 409)
       }
-      if (/google identity already registered/i.test(error.message)) {
+      if (/provider identity already registered/i.test(error.message)) {
         return json({
           error: 'google_account_exists',
           message: 'حساب Google هذا مسجّل بالفعل. أعد تسجيل الدخول.',
+        }, 409)
+      }
+      if (/verified email already belongs/i.test(error.message)) {
+        return json({
+          error: 'verified_email_account_exists',
+          message: 'هذا البريد مرتبط بحساب موجود. ادخل بطريقتك الحالية ثم اربط Google.',
         }, 409)
       }
       return json({ error: error.message }, 400)

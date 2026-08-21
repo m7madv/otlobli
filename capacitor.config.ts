@@ -6,13 +6,13 @@ const config: CapacitorConfig = {
   webDir: 'dist',
   plugins: {
     PushNotifications: {
-      presentationOptions: ['badge', 'sound', 'alert'],
+      presentationOptions: ['badge', 'sound', 'banner', 'list'],
     },
     SocialLogin: {
       providers: {
         google: true,
         facebook: false,
-        apple: false,
+        apple: true,
         twitter: false,
       },
     },

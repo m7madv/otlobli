@@ -3941,6 +3941,13 @@ a {
 .google-signin-btn:active:not(:disabled) { background: #f1f3f4; }
 .google-signin-btn:disabled { opacity: 0.55; cursor: default; }
 .google-signin-btn .google-g-logo { flex-shrink: 0; }
+.apple-signin-btn {
+  margin-top: 10px;
+  color: #fff !important;
+  background: #000 !important;
+  border-color: #000;
+  font-family: -apple-system, system-ui, sans-serif;
+}
 
 .google-account-chip {
   display: flex;

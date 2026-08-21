@@ -19,7 +19,6 @@ const APNS_KEY = Deno.env.get('APNS_KEY') ?? '' // محتوى ملف .p8
 const APNS_KEY_ID = Deno.env.get('APNS_KEY_ID') ?? ''
 const APNS_TEAM_ID = Deno.env.get('APNS_TEAM_ID') ?? ''
 const APNS_BUNDLE_ID = Deno.env.get('APNS_BUNDLE_ID') ?? ''
-const APNS_PRODUCTION = (Deno.env.get('APNS_PRODUCTION') ?? 'true') !== 'false'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -173,10 +172,11 @@ async function sendApns(
   title: string,
   bodyText: string,
   data: Record<string, string>,
+  production: boolean,
 ): Promise<{ ok: boolean; invalid: boolean }> {
   const jwt = await getApnsJwt()
   if (!jwt || !APNS_BUNDLE_ID) return { ok: false, invalid: false }
-  const host = APNS_PRODUCTION ? 'https://api.push.apple.com' : 'https://api.sandbox.push.apple.com'
+  const host = production ? 'https://api.push.apple.com' : 'https://api.sandbox.push.apple.com'
   const res = await fetch(`${host}/3/device/${token}`, {
     method: 'POST',
     headers: {
@@ -186,7 +186,7 @@ async function sendApns(
       'apns-priority': '10',
     },
     body: JSON.stringify({
-      aps: { alert: { title, body: bodyText }, sound: 'default' },
+      aps: { alert: { title, body: bodyText }, sound: 'default', badge: 1 },
       ...data,
     }),
   })
@@ -211,7 +211,9 @@ Deno.serve(async (req) => {
   let body: {
     customerId?: string
     phone?: string
+    installationId?: string
     broadcast?: boolean
+    dryRun?: boolean
     title?: string
     body?: string
     data?: Record<string, string>
@@ -225,22 +227,40 @@ Deno.serve(async (req) => {
   const title = (body.title ?? '').trim()
   const bodyText = (body.body ?? '').trim()
   if (!title && !bodyText) return json({ error: 'empty_message' }, 400)
-  const data: Record<string, string> = {}
-  for (const [k, v] of Object.entries(body.data ?? {})) data[k] = String(v)
+  const rawData = body.data ?? {}
+  const version = String(rawData.version ?? '1')
+  const type = String(rawData.type ?? '').trim()
+  const route = String(rawData.route ?? '').trim()
+  const entityId = String(rawData.entityId ?? '').trim()
+  const allowedTypes = new Set(['order_update', 'payment_update', 'product_issue', 'wallet_update', 'group_order_update', 'system'])
+  const allowedRoutes = new Set(['', 'notifications', 'orders', 'orders/details', 'wallet', 'payment-methods'])
+  if (version !== '1' || !allowedTypes.has(type) || !allowedRoutes.has(route) || entityId.length > 128) {
+    return json({ error: 'invalid_payload' }, 400)
+  }
+  if (route === 'orders/details' && !entityId) return json({ error: 'missing_entity_id' }, 400)
+  const data: Record<string, string> = { version, type, route }
+  if (entityId) data.entityId = entityId
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY)
 
   // جلب الأجهزة المفعّلة: لعميل محدّد، أو لرقم، أو للكل (broadcast).
-  let query = supabase.from('device_tokens').select('token, platform').eq('enabled', true)
+  let query = supabase
+    .from('device_tokens')
+    .select('token, platform, environment')
+    .eq('enabled', true)
+    .eq('notifications_enabled', true)
+    .is('invalidated_at', null)
   if (body.customerId) query = query.eq('customer_id', body.customerId)
   else if (body.phone) query = query.eq('phone', body.phone.replace(/[^0-9]/g, ''))
+  else if (body.installationId) query = query.eq('installation_id', body.installationId)
   else if (body.broadcast === true) query = query.limit(5000) // إرسال جماعي لكل الأجهزة
   else return json({ error: 'missing_target' }, 400)
 
   const { data: rows, error } = await query
   if (error) return json({ error: error.message }, 500)
-  const devices = (rows ?? []) as { token: string; platform: string }[]
+  const devices = (rows ?? []) as { token: string; platform: string; environment?: string }[]
   if (devices.length === 0) return json({ sent: 0, reason: 'no_devices' })
+  if (body.dryRun === true) return json({ dryRun: true, eligible: devices.length, payload: data })
 
   // إن لم تُضبط أي بوابة إرسال، اخرج بهدوء (خامل وآمن).
   const fcmReady = !!FCM_SERVICE_ACCOUNT_JSON
@@ -251,7 +271,9 @@ Deno.serve(async (req) => {
   const toDisable: string[] = []
   for (const d of devices) {
     let result = { ok: false, invalid: false }
-    if (d.platform === 'ios' && apnsReady) result = await sendApns(d.token, title, bodyText, data)
+    if (d.platform === 'ios' && apnsReady) {
+      result = await sendApns(d.token, title, bodyText, data, d.environment !== 'development')
+    }
     else if (fcmReady) result = await sendFcm(d.token, title, bodyText, data)
     if (result.ok) sent++
     else if (result.invalid) toDisable.push(d.token)

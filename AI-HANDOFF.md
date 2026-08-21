@@ -1,3 +1,20 @@
+# Active handoff — v86.207 production release candidate (2026-08-21)
+
+Work only in `C:\Users\MOHAMMAD\Projects\otlobli-final-production-release` on
+`codex/otlobli-final-production-release`. Baseline is v86.201 commit
+`0b462a93030b5c7114012d5848ce61eac49b8b17`; candidate is `86.207/1069`.
+Do not modify product capture, SHEIN blocking/hiding, the working admin-driven
+region mechanism, or protected diagnostic branches. Do not revive clean-room,
+cache-guard, RAW, Web Inspector, or freeze-probe experiments.
+
+Code is prepared for direct APNs on iOS, Android FCM preservation, Google iOS,
+Sign in with Apple, and account deletion. Local build/guards/sync and Android
+debug tests pass, but live Supabase deployment, portal secrets, physical device
+OAuth/push/deletion acceptance, and signed release artifacts remain. Read all
+files in `docs/final-release/`, especially `FINAL_RELEASE_REPORT.md` and
+`REQUIRED_PORTAL_ACTIONS.md`, before continuing. Never call the release ready
+until the pending physical and signed-artifact gates pass.
+
 # Active handoff — v86.201 injected double-Home store switch (2026-08-20)
 
 The double-Home gesture previously existed only in `handlePersonalTemuHomeTap()` for the Android personal-Temu surface. It did not exist in SHEIN: `OTLOBLI_NAV_TOUCH_BRIDGE_JS` loaded Home immediately and its 450ms dedupe discarded the real second `touchend`. v86.201 gives injected SHEIN/Temu navigation the same contract. A single Home waits 320ms then runs the existing store-Home `location.assign`; a second physical Home tap cancels that timer and emits `closeStore`, revealing the existing `store-select` screen while parking the browser. Synthetic post-touch clicks are ignored separately and cannot count as the second tap. Another nav tab cancels a pending Home timer.

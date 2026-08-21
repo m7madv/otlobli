@@ -1,0 +1,145 @@
+diff --git a/node_modules/@capgo/capacitor-social-login/ios/Sources/SocialLoginPlugin/AppleProvider.swift b/node_modules/@capgo/capacitor-social-login/ios/Sources/SocialLoginPlugin/AppleProvider.swift
+index 87e76b9..e2f2448 100644
+--- a/node_modules/@capgo/capacitor-social-login/ios/Sources/SocialLoginPlugin/AppleProvider.swift
++++ b/node_modules/@capgo/capacitor-social-login/ios/Sources/SocialLoginPlugin/AppleProvider.swift
+@@ -126,7 +126,6 @@ class AppleProvider: NSObject, ASAuthorizationControllerDelegate, ASAuthorizatio
+         do {
+             try retrieveState()
+         } catch {
+-            print("retrieveState error: \(error)")
+         }
+     }
+ 
+@@ -149,31 +148,25 @@ class AppleProvider: NSObject, ASAuthorizationControllerDelegate, ASAuthorizatio
+         // Convert JSON data to a string for logging
+         if let jsonString = String(data: jsonData, encoding: .utf8) {
+             // Log the object
+-            print("Apple persistState: \(jsonString)")
+ 
+             // Save the JSON string to UserDefaults or use your helper method
+-            UserDefaults.standard.set(jsonString, forKey: SHARED_PREFERENCE_NAME)
+         } else {
+-            print("Error converting JSON data to String")
+         }
+     }
+ 
+     func retrieveState() throws {
+         // Retrieve the JSON string from persistent storage
+         guard let jsonString = UserDefaults.standard.string(forKey: SHARED_PREFERENCE_NAME) else {
+-            print("No saved state found")
+             return
+         }
+ 
+         // Convert JSON string to Data
+         guard let jsonData = jsonString.data(using: .utf8) else {
+-            print("Error converting JSON string to Data")
+             return
+         }
+ 
+         // Parse the JSON data
+         guard let object = try JSONSerialization.jsonObject(with: jsonData, options: []) as? [String: String] else {
+-            print("Error parsing JSON data")
+             return
+         }
+ 
+@@ -181,7 +174,6 @@ class AppleProvider: NSObject, ASAuthorizationControllerDelegate, ASAuthorizatio
+         guard let idToken = object["idToken"],
+               let refreshToken = object["refreshToken"],
+               let accessToken = object["accessToken"] else {
+-            print("Error: Missing tokens in retrieved data")
+             return
+         }
+ 
+@@ -191,7 +183,6 @@ class AppleProvider: NSObject, ASAuthorizationControllerDelegate, ASAuthorizatio
+         self.accessToken = accessToken
+ 
+         // Log the retrieved object
+-        print("Apple retrieveState: \(object)")
+     }
+ 
+     func login(payload: [String: Any], completion: @escaping (Result<AppleProviderResponse, Error>) -> Void) {
+@@ -286,7 +277,6 @@ class AppleProvider: NSObject, ASAuthorizationControllerDelegate, ASAuthorizatio
+ 
+                 if let decodedData = Data(base64Encoded: base64String, options: []),
+                    let payload = try? JSONSerialization.jsonObject(with: decodedData, options: []) as? [String: Any] {
+-                    print("payload", payload)
+                     decodedEmail = payload["email"] as? String ?? email
+                 }
+             }
+@@ -353,7 +343,6 @@ class AppleProvider: NSObject, ASAuthorizationControllerDelegate, ASAuthorizatio
+             // Convert the user dictionary to a JSON string
+             guard let userData = try? JSONSerialization.data(withJSONObject: user, options: []),
+                   let userJSONString = String(data: userData, encoding: .utf8) else {
+-                print("Error converting user data to JSON string")
+                 return
+             }
+ 
+@@ -372,19 +361,16 @@ class AppleProvider: NSObject, ASAuthorizationControllerDelegate, ASAuthorizatio
+         .response { response in
+             // Access the HTTPURLResponse
+             if let httpResponse = response.response {
+-                print("Status Code: \(httpResponse.statusCode)")
+ 
+                 // Check if the response is a redirect
+                 if (300...399).contains(httpResponse.statusCode) {
+                     if let location = httpResponse.headers.value(for: "Location") {
+-                        print("Redirect Location: \(location)")
+ 
+                         // Parse the redirect URL
+                         if let redirectURL = URL(string: location),
+                            let urlComponents = URLComponents(url: redirectURL, resolvingAgainstBaseURL: false),
+                            let pathComponents = urlComponents.queryItems {
+ 
+-                            print("Query items: \(String(describing: urlComponents.queryItems))")
+ 
+                             // there are 4 main ways this can go:
+                             // 1. it provides the "code" and we fetch apple servers in order to get the JWT (yuck)
+@@ -467,28 +453,23 @@ class AppleProvider: NSObject, ASAuthorizationControllerDelegate, ASAuthorizatio
+ 
+                         } else {
+                             completion(.failure(.pathComponentsNotFound))
+-                            print("Path components not found")
+                             return
+                         }
+                     } else {
+                         completion(.failure(.noLocationHeader))
+-                        print("No Location header found in the redirect response")
+                         return
+                     }
+                 } else {
+                     // Handle non-redirect responses
+                     if let data = response.data,
+                        let responseString = String(data: data, encoding: .utf8) {
+-                        print("Response: \(responseString)")
+                     } else {
+-                        print("No response data received")
+                     }
+ 
+                     completion(.failure(.invalidResponseCode(statusCode: httpResponse.statusCode)))
+                 }
+             } else if let error = response.error {
+                 completion(.failure(.responseError(error)))
+-                print("Error: \(error)")
+             }
+         }
+     }
+@@ -560,11 +541,6 @@ class AppleProvider: NSObject, ASAuthorizationControllerDelegate, ASAuthorizatio
+                         )
+ 
+                         // Log the tokens (replace with your logging mechanism)
+-                        print("Apple Access Token is: \(accessToken)")
+-                        print("Expires in: \(expiresIn)")
+-                        print("Refresh token: \(refreshToken)")
+-                        print("ID Token: \(idToken)")
+-                        print("Apple User ID: \(userId)")
+ 
+                         do {
+                             try self.persistState(idToken: idToken, refreshToken: refreshToken, accessToken: accessToken)
+@@ -582,7 +558,6 @@ class AppleProvider: NSObject, ASAuthorizationControllerDelegate, ASAuthorizatio
+                 }
+             case .failure(let error):
+                 if let statusCode = response.response?.statusCode {
+-                    print("error", response.debugDescription)
+                     completion(.failure(.invalidResponseCode(statusCode: statusCode)))
+                 } else {
+                     completion(.failure(.responseError(error)))

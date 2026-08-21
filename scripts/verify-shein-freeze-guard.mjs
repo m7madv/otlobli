@@ -18,7 +18,6 @@ const sheinRuntimeSourceFiles = [
   'src/services/storeBlockingScript.ts',
   'src/services/temuBrowserScript.ts',
   'src/services/storeRuntimeCoordinator.ts',
-  'src/services/storeScriptDiagnostics.ts',
 ]
 const readSheinRuntimeSource = () => sheinRuntimeSourceFiles
   .map((file) => readFileSync(resolve(projectRoot, file), 'utf8'))
@@ -124,13 +123,7 @@ const checks = [
     file: 'patches/@capgo+capacitor-inappbrowser+8.6.25.patch',
     markers: [
       'func otlobliForceRecompose()',
-      'otlobliFreezeDiagnosticsEnabled',
-      'otlobliFreezeDiagnosticsBypassRecovery',
       'otlobliLifecycleGeneration',
-      'app-did-become-active-recompose-skipped',
-      'app-did-become-active-recompose-cancelled-not-active',
-      'js-recompose-request-skipped',
-      'copyOtlobliFreezeDiagnosticReport',
       'webView.removeFromSuperview()',
       'self.view.addSubview(webView)',
       'webView.scrollView.setContentOffset(offset, animated: false)',
@@ -138,9 +131,6 @@ const checks = [
       'DispatchQueue.main.asyncAfter(deadline: .now() + 0.25)',
       'controller.otlobliForceRecompose()',
       'UIApplication.shared.applicationState == .active',
-      'otlobliFreezeDiagnosticsEnabled',
-      'app-did-become-active-recompose-skipped',
-      'messageBody["__otlobliRecompose"] as? Bool == true',
       'public void otlobliOnHostResume()',
       'public void navigate(String target)',
       "new CustomEvent('otlobli:nativeNavigate'",
@@ -163,7 +153,6 @@ const checks = [
       'DispatchQueue.main.asyncAfter(deadline: .now() + 0.25)',
       'controller.otlobliForceRecompose()',
       'otlobliLifecycleGeneration',
-      'app-did-become-active-recompose-cancelled-not-active',
       'UIApplication.shared.applicationState == .active',
       'func navigateHostFromJavaScript(_ target: String',
       "new CustomEvent('otlobli:nativeNavigate'",
@@ -181,13 +170,9 @@ const checks = [
     file: 'node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift',
     markers: [
       'func otlobliForceRecompose()',
-      'otlobliFreezeDiagnosticsEnabled',
-      'js-recompose-request-skipped',
-      'copyOtlobliFreezeDiagnosticReport',
       'webView.removeFromSuperview()',
       'self.view.addSubview(webView)',
       'webView.scrollView.setContentOffset(offset, animated: false)',
-      'messageBody["__otlobliRecompose"] as? Bool == true',
       'message.name == "navigate"',
       'window.webkit.messageHandlers.navigate.postMessage',
     ],
@@ -215,9 +200,6 @@ const checks = [
       'flushSync(() => setScreen(target))',
       'useTopInset: !isIosNative',
       'if (loadedWebviewId && !webviewIdRef.current && webviewOpeningRef.current && !webviewClosingRef.current)',
-      "stage: 'host-page-loaded-id-adopted'",
-      "detail?.type === 'sheinRegionDiagnostic'",
-      '__OTLOBLI_SHEIN_REGION_DIAGNOSTICS__',
       "import('./services/storeCaptureBundle')",
       'storeCaptureBundleLoadingRef',
     ],
@@ -227,10 +209,13 @@ const checks = [
     file: 'src/services/storeCaptureBundle.ts',
     markers: [
       "from './sheinBrowserScript'",
-      "from './sheinFreezeDiagnostics'",
       "from './sheinPrivacyCompatScript'",
-      "from './sheinRegionDiagnostics'",
       'export const buildStoreCaptureScript',
+    ],
+    forbidden: [
+      "from './sheinFreezeDiagnostics'",
+      "from './sheinRegionDiagnostics'",
+      "from './storeScriptDiagnostics'",
     ],
   },
   {
@@ -351,36 +336,19 @@ const checks = [
     ],
   },
   {
-    label: 'diagnostic script isolation panel',
-    file: 'src/services/storeScriptDiagnostics.ts',
-    markers: [
-      'STORE_SCRIPT_DIAGNOSTICS_PANEL_SCRIPT',
-      "['runtime', 'كل تدخلات Otlobli'",
-      "['navigation', 'الشريط والتنقّل'",
-      "['blocking', 'الحجب والتنظيف'",
-      "['capture', 'الجذب والإضافة'",
-      "['session', 'الجلسة والمنطقة'",
-      "post({ type: 'storeScriptFlagsChanged', flags: flags, label: label })",
-      "post({ type: 'closeStore' })",
-      "status.setAttribute('aria-live', 'polite')",
-      '@media(prefers-reduced-motion:reduce)',
-      'overscroll-behavior:contain',
-    ],
+    label: 'production application excludes diagnostic entry points',
+    files: ['src/App.tsx', 'src/config.ts', 'src/services/storeCaptureBundle.ts'],
+    markers: ['export const buildStoreCaptureScript'],
     forbidden: [
-      'document.cookie',
-      'localStorage.setItem',
-      'MutationObserver',
-      'setInterval(',
-      'transition:all',
-    ],
-  },
-  {
-    label: 'diagnostic toggles remain test-build only',
-    file: 'src/config.ts',
-    markers: [
-      'export const STORE_SCRIPT_DIAGNOSTICS =',
+      'SHEIN_IOS_FREEZE_DIAGNOSTICS',
+      'SHEIN_IOS_FREEZE_DIAGNOSTICS_BYPASS_RECOVERY',
+      'STORE_SCRIPT_DIAGNOSTICS',
       'VITE_STORE_SCRIPT_DIAGNOSTICS',
-      'v86.201-double-home-store-switch',
+      'SHEIN_FREEZE_DIAGNOSTIC_SCRIPT',
+      'otlobliTapDiagnostics',
+      'otlobliFreezeDiagnostics',
+      'storeScriptFlagsChanged',
+      '__OTLOBLI_SHEIN_REGION_DIAGNOSTICS__',
     ],
   },
   {
@@ -388,32 +356,6 @@ const checks = [
     file: 'node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift',
     markers: [
       'return [WKWebsiteDataStore.default()]',
-    ],
-  },
-  {
-    label: 'diagnostic iPhone trace mode',
-    file: 'src/App.tsx',
-    markers: [
-      'SHEIN_IOS_FREEZE_DIAGNOSTICS',
-      'SHEIN_IOS_FREEZE_DIAGNOSTICS_BYPASS_RECOVERY',
-      'otlobliFreezeDiagnostics: SHEIN_IOS_FREEZE_DIAGNOSTICS && isIosNative',
-      'otlobliFreezeDiagnosticsBypassRecovery:',
-      'otlobliLoadingCover: true',
-      'SHEIN_FREEZE_DIAGNOSTIC_SCRIPT',
-    ],
-  },
-  {
-    label: 'normal-release diagnostics disabled',
-    file: 'src/config.ts',
-    markers: [
-      'export const SHEIN_IOS_FREEZE_DIAGNOSTICS = false',
-    ],
-  },
-  {
-    label: 'customer tap diagnostics disabled',
-    file: 'src/App.tsx',
-    markers: [
-      'otlobliTapDiagnostics: false',
     ],
   },
   {
@@ -1232,35 +1174,29 @@ try {
 }
 
 try {
-  const diagnosticsModule = evaluateInjectedScriptExports('src/services/storeScriptDiagnostics.ts')
-  new Function(diagnosticsModule.STORE_SCRIPT_DIAGNOSTICS_PANEL_SCRIPT)
   const bundleModule = evaluateInjectedScriptExports('src/services/storeCaptureBundle.ts')
-  const rawFlags = { runtime: false, navigation: false, blocking: false, capture: false, session: false }
-  const rawScript = bundleModule.buildStoreCaptureScript({}, rawFlags, true)
-  const fullDiagnosticScript = bundleModule.buildStoreCaptureScript({}, {
-    runtime: true, navigation: true, blocking: true, capture: true, session: true,
-  }, true)
-  const productionScript = bundleModule.buildStoreCaptureScript({}, undefined, false)
-  new Function(rawScript)
-  new Function(fullDiagnosticScript)
-  if (!rawScript.includes('otlobli-script-diagnostics') ||
-      !rawScript.includes('__otlobliSheinPrivacyCompatInstalled') ||
-      !rawScript.includes('[class*="shein_privacy_agreement"]') ||
-      rawScript.includes('function tick()') ||
-      rawScript.includes('setInterval(') || rawScript.includes('__otlobliRegionDiagnostic')) {
-    failures.push('SHEIN script isolation: raw-store preset must keep privacy compatibility and exclude the normal coordinator')
-  }
-  if (!fullDiagnosticScript.includes('otlobli-script-diagnostics') || !fullDiagnosticScript.includes('function tick()')) {
-    failures.push('SHEIN script isolation: full diagnostic preset must contain both panel and normal coordinator')
-  }
-  if (productionScript.includes('otlobli-script-diagnostics')) {
-    failures.push('SHEIN script isolation: normal customer injection must not include the diagnostic panel')
+  const productionScript = bundleModule.buildStoreCaptureScript({})
+  new Function(productionScript)
+  const forbiddenReleaseMarkers = [
+    'otlobli-script-diagnostics',
+    '__otlobliTapDiagnosticContext',
+    '__otlobliFreezeProbe',
+    'storeScriptFlagsChanged',
+    '__OTLOBLI_SHEIN_REGION_DIAGNOSTICS__',
+  ]
+  for (const marker of forbiddenReleaseMarkers) {
+    if (productionScript.includes(marker)) {
+      failures.push(`SHEIN production script: diagnostic marker ${marker} must not ship`)
+    }
   }
   if (!productionScript.includes('__otlobliSheinPrivacyCompatInstalled')) {
-    failures.push('SHEIN privacy compatibility: normal customer injection must include the touch-shield fix')
+    failures.push('SHEIN privacy compatibility: customer injection must include the touch-shield fix')
+  }
+  if (!productionScript.includes('function tick()')) {
+    failures.push('SHEIN production script: established runtime coordinator must remain installed')
   }
 } catch (error) {
-  failures.push(`SHEIN script isolation syntax: ${error instanceof Error ? error.message : String(error)}`)
+  failures.push(`SHEIN production script syntax: ${error instanceof Error ? error.message : String(error)}`)
 }
 
 // Exercise the compatibility prelude against the exact failure shape found by

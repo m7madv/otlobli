@@ -37,7 +37,7 @@ let platform = 'web'
 let appVersion = ''
 
 const cleanText = (value: unknown) => String(value ?? '')
-  .replace(/Bearer\s+[A-Za-z0-9._~+\/-]+=*/gi, 'Bearer [redacted]')
+  .replace(/Bearer\s+[A-Za-z0-9._~+/-]+=*/gi, 'Bearer [redacted]')
   .replace(/[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}/g, '[redacted]')
   .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[redacted-email]')
   .replace(/\+?\d(?:[\s().-]?\d){7,15}/g, '[redacted-phone]')

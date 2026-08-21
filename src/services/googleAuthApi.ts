@@ -2,15 +2,17 @@
 // خامل تماماً حتى: (1) يُضبط VITE_GOOGLE_AUTH_ENABLED=true و VITE_GOOGLE_WEB_CLIENT_ID،
 // (2) يعمل داخل تطبيق أصلي مع إضافة @capgo/capacitor-social-login.
 // تُضمَّن الإضافة في حزمة Vite حتى لا يحاول WebView حل اسم حزمة bare specifier وقت التشغيل.
-import { SocialLogin } from '@capgo/capacitor-social-login'
 import { Capacitor } from '@capacitor/core'
 import { cleanEnvValue } from '../config'
+import {
+  GOOGLE_IOS_CLIENT_ID,
+  GOOGLE_WEB_CLIENT_ID,
+  initializeSocialLogin,
+  SocialLogin,
+} from './socialLoginNative'
 
 const SUPABASE_URL = cleanEnvValue(import.meta.env.VITE_SUPABASE_URL)
 const SUPABASE_ANON_KEY = cleanEnvValue(import.meta.env.VITE_SUPABASE_ANON_KEY)
-const DEFAULT_WEB_CLIENT_ID = '677396296147-o5q0rt5qk2rq0rqh714kuki7gabkdmcu.apps.googleusercontent.com'
-const WEB_CLIENT_ID = cleanEnvValue(import.meta.env.VITE_GOOGLE_WEB_CLIENT_ID) || DEFAULT_WEB_CLIENT_ID
-const IOS_CLIENT_ID = cleanEnvValue(import.meta.env.VITE_GOOGLE_IOS_CLIENT_ID)
 const ENABLED_FLAG = cleanEnvValue(import.meta.env.VITE_GOOGLE_AUTH_ENABLED) !== 'false'
 const NATIVE_PLATFORM = Capacitor.getPlatform()
 
@@ -20,10 +22,10 @@ const NATIVE_PLATFORM = Capacitor.getPlatform()
 // fail with "No provider was initialized".
 export const isGoogleAuthEnabled =
   ENABLED_FLAG &&
-  !!WEB_CLIENT_ID &&
+  !!GOOGLE_WEB_CLIENT_ID &&
   !!SUPABASE_URL &&
   !!SUPABASE_ANON_KEY &&
-  (NATIVE_PLATFORM !== 'ios' || !!IOS_CLIENT_ID)
+  (NATIVE_PLATFORM !== 'ios' || !!GOOGLE_IOS_CLIENT_ID)
 
 const FN_URL = `${SUPABASE_URL}/functions/v1/google-auth`
 
@@ -49,23 +51,14 @@ export type AccountAuthMethods = {
   googleLinked: boolean
   googleEmail: string
   googleName: string
+  appleLinked: boolean
+  appleEmail: string
+  appleName: string
 }
-
-let pluginInitialized = false
 
 // يحصل على idToken من إضافة جوجل الأصلية (يُهيّئها مرة واحدة).
 async function getGoogleIdToken(): Promise<string> {
-  if (!pluginInitialized) {
-    await SocialLogin.initialize({
-      google: {
-        webClientId: WEB_CLIENT_ID,
-        iOSClientId: IOS_CLIENT_ID || undefined,
-        iOSServerClientId: WEB_CLIENT_ID,
-        mode: 'online',
-      },
-    })
-    pluginInitialized = true
-  }
+  await initializeSocialLogin()
   // Standard Google identity already returns the ID token/profile requested by
   // the initialized client. Passing custom scopes on Android requires a custom
   // MainActivity implementation and the plugin rejects it at runtime.
@@ -167,5 +160,8 @@ export async function getAccountAuthMethods(sessionToken: string): Promise<Accou
     googleLinked: data.googleLinked === true,
     googleEmail: String(data.googleEmail ?? ''),
     googleName: String(data.googleName ?? ''),
+    appleLinked: data.appleLinked === true,
+    appleEmail: String(data.appleEmail ?? ''),
+    appleName: String(data.appleName ?? ''),
   }
 }

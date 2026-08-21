@@ -45,7 +45,7 @@ export async function submitAppIssueReport(input: AppIssueReportInput) {
 
 export function reportDeviceLabel() {
   const userAgent = navigator.userAgent || ''
-  const android = userAgent.match(/Android\s+([^;\)]+)(?:;\s*([^;\)]+))?/i)
+  const android = userAgent.match(/Android\s+([^;)]+)(?:;\s*([^;)]+))?/i)
   if (android) return [android[2], `Android ${android[1]}`].filter(Boolean).join(' · ').slice(0, 120)
   if (/iPhone/i.test(userAgent)) return 'iPhone'
   if (/iPad/i.test(userAgent)) return 'iPad'

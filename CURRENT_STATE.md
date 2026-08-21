@@ -1,3 +1,23 @@
+# v86.207 — final production release candidate preparation (2026-08-21)
+
+Release work is isolated on `codex/otlobli-final-production-release`, based on
+clean v86.201 commit `0b462a93030b5c7114012d5848ce61eac49b8b17` and reserved as
+`86.207/1069`. Product capture, SHEIN blocking, region/session behavior, store
+navigation, and Temu behavior remain unchanged; production diagnostics and
+Release Web Inspector access are removed/compiled out. The owner attributes the
+old freeze to an earlier iOS 27 beta/WebKit build and reports roughly 30
+successful store flows after updating the same phone. v86.207 does not claim a
+new freeze fix.
+
+iOS direct APNs, safe notification routes, Google iOS, Sign in with Apple, and
+account deletion are implemented around the existing Supabase customer/session
+model. All local web/guard/sync checks and Android unit/debug compilation pass.
+Physical OAuth/push/deletion tests, live migration/function deployment, Apple
+and Google portal configuration, signed IPA/AAB/APK, and the device matrix are
+still required; therefore Release ready is **no**. Authoritative details are in
+`docs/final-release/FINAL_RELEASE_REPORT.md` and
+`docs/final-release/REQUIRED_PORTAL_ACTIONS.md`.
+
 # v86.201 — double Home reveals the store chooser (2026-08-20)
 
 The requested gesture was only implemented for the Android personal-Temu surface. It was impossible inside the injected SHEIN/Temu navigation: the document-start bridge immediately loaded store Home on the first tap and rejected every event inside 450ms, including the user's real second `touchend`.

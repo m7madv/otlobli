@@ -16,8 +16,7 @@ import type { PaymentCurrency } from './domain/pricing'
 import type { Address, AppNotification, CartGroupSnapshot, CartItem, NotificationPrefs, Order, OrderIssue, Product, ProductColor, Recipient, Screen, StatusTone, UserProfile, WalletTransaction } from './domain/types'
 import { getDeviceId, readStoredJson, storageKeys, useStoredState } from './infrastructure/localStorage'
 import { appApi } from './services'
-import { PAYMENT_MODE, APP_VERSION, SHEIN_IOS_FREEZE_DIAGNOSTICS, SHEIN_IOS_FREEZE_DIAGNOSTICS_BYPASS_RECOVERY, STORE_SCRIPT_DIAGNOSTICS, TEMU_PERSONAL_SITE_MODE, TEST_ONLY_AUTH_BYPASS, cleanEnvValue } from './config'
-import type { StoreScriptFlags } from './services/storeScriptDiagnostics'
+import { PAYMENT_MODE, APP_VERSION, TEMU_PERSONAL_SITE_MODE, TEST_ONLY_AUTH_BYPASS, cleanEnvValue } from './config'
 import { buildWhatsappLink } from './services/whatsappLink'
 import {
   getAccountAuthMethods,
@@ -28,7 +27,24 @@ import {
   signInWithGoogle,
 } from './services/googleAuthApi'
 import type { AccountAuthMethods, GoogleProfile } from './services/googleAuthApi'
-import { registerPushNotifications } from './services/pushNotifications'
+import {
+  isAppleAuthEnabled,
+  linkAppleAccount,
+  registerAppleAccount,
+  signInWithApple,
+} from './services/appleAuthApi'
+import type { AppleProfile } from './services/appleAuthApi'
+import { deleteCustomerAccount, signOutNativeIdentityProviders } from './services/accountLifecycle'
+import {
+  addPushRouteListener,
+  clearPushBadge,
+  detachPushToken,
+  getPushPermissionStatus,
+  openPushSettings,
+  registerPushNotifications,
+  requestPushPermission,
+} from './services/pushNotifications'
+import type { PushPermissionState } from './services/pushNotifications'
 import { reportDeviceLabel, submitAppIssueReport } from './services/issueReports'
 import { createAppDiagnosticSnapshot, initializeAppDiagnostics, recordAppDiagnostic } from './services/appDiagnostics'
 import { App as CapacitorApp } from '@capacitor/app'
@@ -69,31 +85,6 @@ const loadStoreCaptureBundle = () => {
   storeCaptureBundlePromise ??= import('./services/storeCaptureBundle')
   return storeCaptureBundlePromise
 }
-
-const STORE_SCRIPT_FLAGS_STORAGE_KEY = 'otlobli.storeScriptDiagnostics.flags.v1'
-const DEFAULT_STORE_SCRIPT_FLAGS: StoreScriptFlags = {
-  runtime: true,
-  navigation: true,
-  blocking: true,
-  capture: true,
-  session: true,
-}
-const normalizeStoreScriptFlags = (value: unknown): StoreScriptFlags => {
-  const candidate = value && typeof value === 'object' ? value as Record<string, unknown> : {}
-  return {
-    runtime: candidate.runtime !== false,
-    navigation: candidate.navigation !== false,
-    blocking: candidate.blocking !== false,
-    capture: candidate.capture !== false,
-    session: candidate.session !== false,
-  }
-}
-const readStoreScriptFlags = () => STORE_SCRIPT_DIAGNOSTICS
-  ? normalizeStoreScriptFlags(readStoredJson<StoreScriptFlags>(
-      STORE_SCRIPT_FLAGS_STORAGE_KEY,
-      DEFAULT_STORE_SCRIPT_FLAGS,
-    ))
-  : DEFAULT_STORE_SCRIPT_FLAGS
 
 // موقع SHEIN الذي يتصفّحه الزبون. نستخدم نسخة الأردن لأنها تعرض العربية
 // بثبات (نسخة لبنان m.shein.com/lb تعرض الإنجليزية ولا تقبل العربية).
@@ -347,11 +338,6 @@ type WebviewPageLoadErrorEvent = {
   domain?: string
   description?: string
   code?: number | string
-}
-
-type SheinRegionDiagnosticRecord = Record<string, unknown>
-type SheinRegionDiagnosticWindow = Window & {
-  __OTLOBLI_SHEIN_REGION_DIAGNOSTICS__?: SheinRegionDiagnosticRecord[]
 }
 
 type StoreOpenFailureReason = 'network' | 'preparation'
@@ -688,7 +674,6 @@ const normalizeStoreBrowserUrl = (rawUrl: string, fallbackStore: StoreId, region
     : normalizeSheinBrowserUrl(rawUrl, regions.shein)
 }
 const GROUP_INVITE_WEB_ORIGIN = 'https://talabieh.vercel.app'
-const GROUP_INVITE_SCHEME = 'otlobli://group'
 
 type PendingGroupInvite = {
   code: string
@@ -1072,12 +1057,6 @@ function toAsciiDigits(value: string) {
   })
 }
 
-function parseSypInput(value: string) {
-  const cleaned = toAsciiDigits(value).replace(/[^\d]/g, '')
-  const amount = Number(cleaned)
-  return Number.isFinite(amount) ? Math.trunc(amount) : 0
-}
-
 const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
   orderUpdates: true,
   paymentUpdates: true,
@@ -1247,6 +1226,9 @@ function App() {
   // رقم الاستلام لا يصبح وسيلة دخول إلا بعد تأكيده اختيارياً عبر OTP.
   const [pendingGoogleIdToken, setPendingGoogleIdToken] = useState('')
   const [pendingGoogleProfile, setPendingGoogleProfile] = useState<GoogleProfile | null>(null)
+  const [pendingAppleIdToken, setPendingAppleIdToken] = useState('')
+  const [pendingAppleRawNonce, setPendingAppleRawNonce] = useState('')
+  const [pendingAppleProfile, setPendingAppleProfile] = useState<AppleProfile | null>(null)
   const [otpPurpose, setOtpPurpose] = useState<'login' | 'link-phone'>('login')
   const [accountAuthMethods, setAccountAuthMethods] = useState<AccountAuthMethods | null>(null)
   const [accountAuthBusy, setAccountAuthBusy] = useState(false)
@@ -1455,10 +1437,7 @@ function App() {
   const [isValidatingReferralCode, setIsValidatingReferralCode] = useState(false)
   const [manualPriceUsd, setManualPriceUsd] = useState('')
   const [manualColorName, setManualColorName] = useState('')
-  const [deviceNotificationStatus, setDeviceNotificationStatus] = useState<'granted' | 'denied' | 'default' | 'unsupported'>(() => {
-    if (typeof window === 'undefined' || typeof window.Notification === 'undefined') return 'unsupported'
-    return window.Notification.permission
-  })
+  const [deviceNotificationStatus, setDeviceNotificationStatus] = useState<PushPermissionState>('unsupported')
 
   const [onboardingName, setOnboardingName] = useState(userProfile?.name ?? '')
   const QADMOUS_GOVS = Object.keys(QADMOUS_BRANCHES)
@@ -1534,6 +1513,7 @@ function App() {
   const openNotifications = () => {
     previousScreenRef.current = screen
     setScreen('notifications')
+    void clearPushBadge()
   }
 
   const addNotification = (n: Omit<AppNotification, 'id' | 'createdAt' | 'read'>) => {
@@ -1813,24 +1793,18 @@ function App() {
   }
 
   const requestDeviceNotifications = () => {
-    if (typeof window === 'undefined' || typeof window.Notification === 'undefined') {
-      showNotice('إشعارات الجهاز غير مدعومة على هذا الجهاز')
+    if (deviceNotificationStatus === 'denied') {
+      void openPushSettings().catch(() => showNotice('تعذر فتح إعدادات التطبيق'))
       return
     }
-    if (window.Notification.permission === 'granted') {
-      setDeviceNotificationStatus('granted')
-      showNotice('إشعارات الجهاز مفعلة بالفعل')
-      return
-    }
-    if (window.Notification.permission === 'denied') {
-      setDeviceNotificationStatus('denied')
-      showNotice('فعّل إشعارات التطبيق من إعدادات الهاتف أو المتصفح')
-      return
-    }
-    void window.Notification.requestPermission().then((permission) => {
-      setDeviceNotificationStatus(permission)
-      showNotice(permission === 'granted' ? 'تم تفعيل إشعارات الجهاز' : 'لم يتم تفعيل إشعارات الجهاز بعد')
-    })
+    void requestPushPermission(sessionToken)
+      .then((permission) => {
+        setDeviceNotificationStatus(permission)
+        if (permission === 'granted') showNotice('تم تفعيل إشعارات الجهاز')
+        else if (permission === 'denied') showNotice('يمكنك تفعيل الإشعارات لاحقاً من إعدادات التطبيق')
+        else showNotice('إشعارات الجهاز غير مدعومة على هذا الجهاز')
+      })
+      .catch(() => showNotice('تعذر تفعيل إشعارات الجهاز'))
   }
 
   const mergeOrdersForPhone = useCallback((remoteOrders: Order[], _loginPhone: string) => {
@@ -1977,12 +1951,7 @@ function App() {
     setScreen('cart')
   }
 
-  const logout = () => {
-    const cartCount = Object.values(cartsByStore).reduce((sum, items) => sum + items.length, 0)
-    if (cartCount > 0) {
-      const confirmed = window.confirm('تسجيل الخروج سيحذف السلات الحالية من هذا الجهاز فقط. طلباتك المكتملة ومحفظتك وبيانات الاستلام ستبقى محفوظة. هل تريد المتابعة؟')
-      if (!confirmed) return
-    }
+  const clearLocalAccountState = () => {
     setSessionToken('')
     setUserProfile(null)
     setOrders([])
@@ -2001,9 +1970,39 @@ function App() {
     setCurrentOrderId('')
     setPendingGoogleIdToken('')
     setPendingGoogleProfile(null)
+    setPendingAppleIdToken('')
+    setPendingAppleRawNonce('')
+    setPendingAppleProfile(null)
     setAccountAuthMethods(null)
     setOtpPurpose('login')
     setScreen('login')
+  }
+
+  const logout = () => {
+    const cartCount = Object.values(cartsByStore).reduce((sum, items) => sum + items.length, 0)
+    if (cartCount > 0) {
+      const confirmed = window.confirm('تسجيل الخروج سيحذف السلات الحالية من هذا الجهاز فقط. طلباتك المكتملة ومحفظتك وبيانات الاستلام ستبقى محفوظة. هل تريد المتابعة؟')
+      if (!confirmed) return
+    }
+    if (sessionToken) void detachPushToken(sessionToken).catch(() => undefined)
+    void signOutNativeIdentityProviders()
+    clearLocalAccountState()
+  }
+
+  const handleDeleteAccount = () => {
+    if (!sessionToken || accountAuthBusy) return
+    const confirmed = window.confirm('سيُحذف ملفك وطرق تسجيل الدخول والعناوين نهائياً. تُحتفظ فقط بسجلات الطلبات والمدفوعات المطلوبة محاسبياً. هل تريد المتابعة؟')
+    if (!confirmed) return
+    const finalConfirmation = window.confirm('هذا الإجراء لا يمكن التراجع عنه. تأكيد حذف الحساب؟')
+    if (!finalConfirmation) return
+    setAccountAuthBusy(true)
+    void deleteCustomerAccount(sessionToken)
+      .then(() => {
+        clearLocalAccountState()
+        showNotice('تم حذف الحساب')
+      })
+      .catch((error: unknown) => showNotice(getPublicErrorMessage(error)))
+      .finally(() => setAccountAuthBusy(false))
   }
 
   // حظر المستخدم: الخادم يرفع customer_blocked من require_customer_session/
@@ -2091,8 +2090,30 @@ function App() {
   // تسجيل جهاز الإشعارات عند توفّر جلسة صالحة (خامل ما لم تُفعّل الميزة).
   useEffect(() => {
     if (!sessionToken || isLegacyPhoneSessionToken(sessionToken)) return
-    void registerPushNotifications(sessionToken)
+    void registerPushNotifications(sessionToken).catch(() => console.error('push_setup_failed'))
   }, [sessionToken])
+
+  useEffect(() => {
+    return addPushRouteListener((destination) => {
+      if (!sessionToken) return
+      if (destination.screen === 'tracking' && destination.entityId) {
+        const exists = ordersRef.current.some((order) => order.id === destination.entityId)
+        if (exists) {
+          setCurrentOrderId(destination.entityId)
+          setScreen('tracking')
+          return
+        }
+        setScreen('orders')
+        return
+      }
+      setScreen(destination.screen)
+    })
+  }, [sessionToken, setCurrentOrderId])
+
+  useEffect(() => {
+    if (screen !== 'notification-settings') return
+    void getPushPermissionStatus().then(setDeviceNotificationStatus)
+  }, [screen])
 
   useEffect(() => {
     if (screen !== 'account-access' || !sessionToken) return
@@ -2722,12 +2743,44 @@ function App() {
       .finally(() => setGoogleAuthBusy(false))
   }
 
-  const completeGoogleRegistration = () => {
+  const handleAppleSignIn = () => {
+    if (authState !== 'idle' || googleAuthBusy) return
+    setGoogleAuthBusy(true)
+    void signInWithApple()
+      .then(async (result) => {
+        if (result.mode === 'existing') {
+          const parts = extractCountryCode(result.phone)
+          setCountryCode(parts.code)
+          setLocalPhone(parts.local)
+          setSessionToken(result.sessionToken)
+          const target = await fetchProfileAfterLogin(result.phone)
+          setScreen(target)
+          showNotice('تم تسجيل الدخول عبر Apple')
+        } else {
+          setPendingAppleIdToken(result.idToken)
+          setPendingAppleRawNonce(result.rawNonce)
+          setPendingAppleProfile(result.apple)
+          if (result.apple.name) setOnboardingName(sanitizeFullNameInput(result.apple.name))
+          setScreen('google-onboarding')
+          showNotice('تم اختيار حساب Apple — أكمل معلومات الاستلام')
+        }
+      })
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? `${error.name} ${error.message}` : String(error ?? '')
+        if (/USER_CANCELLED|cancel(?:led|ed)(?: by user)?|AuthorizationError.*1001/i.test(message)) return
+        showNotice(getPublicErrorMessage(error))
+      })
+      .finally(() => setGoogleAuthBusy(false))
+  }
+
+  const completeSocialRegistration = () => {
     const deliveryPhone = phone.trim()
     const normalizedName = normalizeFullName(onboardingName)
     const nameError = getFullNameValidationError(normalizedName)
-    if (!pendingGoogleIdToken || !pendingGoogleProfile) {
-      showNotice('انتهت محاولة Google. أعد اختيار الحساب.')
+    const registeringWithApple = !!pendingAppleIdToken && !!pendingAppleRawNonce && !!pendingAppleProfile
+    const registeringWithGoogle = !!pendingGoogleIdToken && !!pendingGoogleProfile
+    if (!registeringWithApple && !registeringWithGoogle) {
+      showNotice('انتهت محاولة تسجيل الدخول. أعد اختيار الحساب.')
       setScreen('login')
       return
     }
@@ -2745,17 +2798,24 @@ function App() {
     }
 
     setGoogleAuthBusy(true)
-    void registerGoogleAccount(pendingGoogleIdToken, {
+    const profile = {
       phone: deliveryPhone,
       name: normalizedName,
       governorate: onboardingGov,
       qadmousBranch: onboardingBranch,
-    })
+    }
+    const registration = registeringWithApple
+      ? registerAppleAccount(pendingAppleIdToken, pendingAppleRawNonce, profile)
+      : registerGoogleAccount(pendingGoogleIdToken, profile)
+    void registration
       .then(async (result) => {
         setSessionToken(result.sessionToken)
         setPendingGoogleIdToken('')
         setPendingGoogleProfile(null)
-        const profile: UserProfile = {
+        setPendingAppleIdToken('')
+        setPendingAppleRawNonce('')
+        setPendingAppleProfile(null)
+        const savedProfile: UserProfile = {
           name: result.name || normalizedName,
           phone: result.phone || deliveryPhone,
           governorate: onboardingGov,
@@ -2763,16 +2823,16 @@ function App() {
           pickupLabel: '',
           notificationPrefs,
         }
-        setUserProfile(profile)
+        setUserProfile(savedProfile)
         setRecipient((current) => ({
           ...current,
-          name: profile.name,
-          phone: profile.phone ?? deliveryPhone,
-          governorate: profile.governorate,
-          qadmousBranch: profile.qadmousBranch,
+          name: savedProfile.name,
+          phone: savedProfile.phone ?? deliveryPhone,
+          governorate: savedProfile.governorate,
+          qadmousBranch: savedProfile.qadmousBranch,
         }))
         setScreen('store-select')
-        showNotice('أهلاً بك — تم إنشاء حسابك عبر Google')
+        showNotice(`أهلاً بك — تم إنشاء حسابك عبر ${registeringWithApple ? 'Apple' : 'Google'}`)
         await refreshAccountAuthMethods(result.sessionToken).catch(() => undefined)
       })
       .catch((error: unknown) => showNotice(getPublicErrorMessage(error)))
@@ -2790,6 +2850,22 @@ function App() {
       .catch((error: unknown) => {
         const message = error instanceof Error ? error.message : String(error ?? '')
         if (/USER_CANCELLED|cancel(?:led|ed)(?: by user)?/i.test(message)) return
+        showNotice(getPublicErrorMessage(error))
+      })
+      .finally(() => setAccountAuthBusy(false))
+  }
+
+  const handleLinkAppleAccount = () => {
+    if (!sessionToken || accountAuthBusy) return
+    setAccountAuthBusy(true)
+    void linkAppleAccount(sessionToken)
+      .then(async () => {
+        await refreshAccountAuthMethods(sessionToken)
+        showNotice('تم ربط Apple بنفس حسابك')
+      })
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error ?? '')
+        if (/USER_CANCELLED|cancel(?:led|ed)(?: by user)?|AuthorizationError.*1001/i.test(message)) return
         showNotice(getPublicErrorMessage(error))
       })
       .finally(() => setAccountAuthBusy(false))
@@ -3004,7 +3080,6 @@ function App() {
   // Keep one event-driven reopen request so a quick same-store tap cannot be
   // discarded by webviewClosingRef and leave Home with no browser behind it.
   const pendingStoreOpenAfterCloseRef = useRef(false)
-  const storeScriptFlagsRef = useRef<StoreScriptFlags>(readStoreScriptFlags())
   const ignoredWebviewCloseIdsRef = useRef(new Set<string>())
   const webviewErrorTimerRef = useRef<number | undefined>(undefined)
   const sheinReadinessTimerRef = useRef<number | undefined>(undefined)
@@ -3046,7 +3121,6 @@ function App() {
   const markStoreWebviewReadyRef = useRef<(sessionId: number) => void>(() => undefined)
   const storeMessageHandlerRef = useRef<(event: { id?: string; detail?: Record<string, unknown> }) => void>(() => undefined)
   const personalTemuHomeTapTimerRef = useRef<number | undefined>(undefined)
-  const sheinRegionDiagnosticsRef = useRef<SheinRegionDiagnosticRecord[]>([])
   const vpnStateRef = useRef(vpnState)
   const vpnGeoRef = useRef<VpnGeo | null>(vpnGeo)
   const storeReachableRef = useRef(false)
@@ -3096,13 +3170,6 @@ function App() {
     setVpnState('checking')
   }, [screen, vpnState])
 
-  const recordSheinRegionDiagnostic = useCallback((record: SheinRegionDiagnosticRecord) => {
-    const next = [...sheinRegionDiagnosticsRef.current.slice(-79), record]
-    sheinRegionDiagnosticsRef.current = next
-    ;(window as SheinRegionDiagnosticWindow).__OTLOBLI_SHEIN_REGION_DIAGNOSTICS__ = next
-    console.info('[otlobli][shein-region]', record)
-  }, [])
-
   useEffect(() => {
     const navigateFromNativeStore = (event: Event) => {
       const target = (event as CustomEvent<unknown>).detail
@@ -3127,16 +3194,6 @@ function App() {
     previousStoreRegionsRef.current = storeRegions
     const activeStore = selectedStoreRef.current
     if (JSON.stringify(previous[activeStore]) === JSON.stringify(storeRegions[activeStore])) return
-
-    if (activeStore === 'shein') {
-      recordSheinRegionDiagnostic({
-        stage: 'host-region-settings-changed',
-        previous: previous.shein,
-        next: storeRegions.shein,
-        webviewOpen: sheinOpenedRef.current,
-        at: Date.now(),
-      })
-    }
 
     temuArabicRedirectRef.current = 0
     sheinSaudiRedirectRef.current = 0
@@ -3172,7 +3229,7 @@ function App() {
           browseSheinRef.current()
         }, 80)
       })
-  }, [recordSheinRegionDiagnostic, storeRegions, storeRegionsReady])
+  }, [storeRegions, storeRegionsReady])
 
   // The SHEIN webview is a separate native layer floating on top of our own
   // React UI, not part of its DOM - trying to size it precisely to "leave a
@@ -3823,52 +3880,24 @@ function App() {
     const targetUrl = activeStore === 'shein'
       ? normalizeSheinBrowserUrl(rawTargetUrl, activeRegions.shein)
       : normalizeTemuBrowserUrl(rawTargetUrl, activeRegions.temu)
-    const activeScriptFlags = storeScriptFlagsRef.current
-    const captureScript = captureBundle.buildStoreCaptureScript(
-      activeRegions,
-      activeScriptFlags,
-      STORE_SCRIPT_DIAGNOSTICS,
-    )
-    const scriptDiagnosticsPrelude = captureBundle.buildStoreScriptDiagnosticsPrelude(
-      activeScriptFlags,
-      STORE_SCRIPT_DIAGNOSTICS,
-    )
+    const captureScript = captureBundle.buildStoreCaptureScript(activeRegions)
     const hostSafeBottomInset = readHostSafeBottomInset()
     if (initialPendingUrl && pendingProductRevealRef.current &&
         pendingProductRevealUrlRef.current === targetUrl) {
       markPendingProductNavigationRequested()
     }
     currentWebviewUrlRef.current = targetUrl
-    if (activeStore === 'shein') {
-      recordSheinRegionDiagnostic({
-        stage: 'host-open-requested',
-        sessionId,
-        targetUrl,
-        requiredRegion: activeRegions.shein,
-        at: Date.now(),
-      })
-    }
     const isIosNative = Capacitor.getPlatform() === 'ios'
     const webViewOptions: Parameters<typeof InAppBrowser.openWebView>[0] & {
       otlobliLoadingCover?: boolean
       otlobliDocumentStartScript?: string
       otlobliPreserveAttachedWhenHidden?: boolean
-      otlobliFreezeDiagnostics?: boolean
-      otlobliFreezeDiagnosticsBypassRecovery?: boolean
-      otlobliTapDiagnostics?: boolean
     } = {
       url: targetUrl,
       ...(activeStore === 'shein'
         ? {
           otlobliLoadingCover: true,
-          otlobliFreezeDiagnostics: SHEIN_IOS_FREEZE_DIAGNOSTICS && isIosNative,
-          otlobliFreezeDiagnosticsBypassRecovery:
-            SHEIN_IOS_FREEZE_DIAGNOSTICS &&
-            SHEIN_IOS_FREEZE_DIAGNOSTICS_BYPASS_RECOVERY &&
-            isIosNative,
-          // Customer releases must not expose the native diagnostic copy button.
-          otlobliTapDiagnostics: false,
-          otlobliDocumentStartScript: `window.__otlobliSafeBottom=${hostSafeBottomInset};\nwindow.__otlobliNativePlatform=${JSON.stringify(Capacitor.getPlatform())};\n${captureBundle.SHEIN_PRIVACY_COMPAT_SCRIPT}\n${scriptDiagnosticsPrelude}\n${!STORE_SCRIPT_DIAGNOSTICS || (activeScriptFlags.runtime && activeScriptFlags.navigation) ? captureBundle.OTLOBLI_NAV_BOOTSTRAP_SCRIPT : ''}\n${SHEIN_IOS_FREEZE_DIAGNOSTICS && isIosNative ? captureBundle.SHEIN_FREEZE_DIAGNOSTIC_SCRIPT : ''}`,
+          otlobliDocumentStartScript: `window.__otlobliSafeBottom=${hostSafeBottomInset};\nwindow.__otlobliNativePlatform=${JSON.stringify(Capacitor.getPlatform())};\n${captureBundle.SHEIN_PRIVACY_COMPAT_SCRIPT}\n${captureBundle.OTLOBLI_NAV_BOOTSTRAP_SCRIPT}`,
           otlobliPreserveAttachedWhenHidden: true,
           // Prepare SHEIN at the real device size without presenting it. The
           // already-mounted Otlobli shell therefore owns the only visible nav
@@ -3953,14 +3982,6 @@ function App() {
           return
         }
         webviewIdRef.current = result?.id ?? webviewIdRef.current
-        if (activeStore === 'shein') {
-          recordSheinRegionDiagnostic({
-            stage: 'host-open-resolved',
-            sessionId,
-            webviewId: result?.id ?? '',
-            at: Date.now(),
-          })
-        }
         if (screenRef.current !== 'home' && (!initialPendingUrl || pendingProductRevealRef.current)) {
           void InAppBrowser.hide().catch(() => undefined)
         }
@@ -4219,27 +4240,12 @@ function App() {
         // its id. Adopt the active singleton event instead of discarding the
         // only event that injects SHEIN's full capture/region script.
         webviewIdRef.current = loadedWebviewId
-        if (selectedStoreRef.current === 'shein') {
-          recordSheinRegionDiagnostic({
-            stage: 'host-page-loaded-id-adopted',
-            webviewId: loadedWebviewId,
-            sessionId: webviewSessionRef.current,
-            at: Date.now(),
-          })
-        }
       }
       if (selectedStoreRef.current === 'shein') {
         if (pendingProductRevealRef.current && pendingProductNavigationRequestedRef.current) {
           pendingProductPageLoadedRef.current = true
         }
         const id = loadedWebviewId || webviewIdRef.current || undefined
-        recordSheinRegionDiagnostic({
-          stage: 'host-page-loaded',
-          webviewId: id ?? '',
-          currentUrl: currentWebviewUrlRef.current,
-          sessionId: webviewSessionRef.current,
-          at: Date.now(),
-        })
         const captureBundleReady = storeCaptureBundleRef.current
           ? Promise.resolve(storeCaptureBundleRef.current)
           : loadStoreCaptureBundle().then((loadedBundle) => {
@@ -4249,27 +4255,12 @@ function App() {
         void captureBundleReady
           .then((loadedBundle) => InAppBrowser.executeScript({
             ...(id ? { id } : {}),
-            code: loadedBundle.buildStoreCaptureScript(
-              storeRegionsRef.current,
-              storeScriptFlagsRef.current,
-              STORE_SCRIPT_DIAGNOSTICS,
-            ),
+            code: loadedBundle.buildStoreCaptureScript(storeRegionsRef.current),
           }))
-          .then(() => {
-            recordSheinRegionDiagnostic({
-              stage: 'host-capture-dispatched',
-              webviewId: id ?? '',
-              sessionId: webviewSessionRef.current,
-              at: Date.now(),
-            })
-          })
           .catch((err) => {
-            console.warn('[otlobli] SHEIN page script injection failed', err)
-            recordSheinRegionDiagnostic({
-              stage: 'host-capture-dispatch-failed',
-              webviewId: id ?? '',
-              message: err instanceof Error ? err.message : String(err),
-              at: Date.now(),
+            recordAppDiagnostic('store_script_injection_failed', {
+              store: 'shein',
+              code: err instanceof Error ? err.name : 'unknown',
             })
           })
           .finally(() => startSheinReadinessWatchdog(webviewSessionRef.current))
@@ -4343,7 +4334,7 @@ function App() {
       void errorHandle.then((h) => h.remove())
       void startFallback.then((h) => h.remove())
     }
-  }, [recordSheinRegionDiagnostic])
+  }, [])
 
   // اعتراض تحويلات المتاجر على مستوى Native: إذا غيّر الخادم الرابط لمنطقة
   // أخرى، نعيده إلى الدولة المحددة لكل متجر قبل أن تظهر للمستخدم.
@@ -4360,7 +4351,6 @@ function App() {
       if (id && webviewIdRef.current && id !== webviewIdRef.current) return
       currentWebviewUrlRef.current = url
       if (/shein/i.test(url)) {
-        if (STORE_SCRIPT_DIAGNOSTICS && !storeScriptFlagsRef.current.session) return
         if (isSheinHumanChallengeUrl(url)) {
           sheinChallengeActiveRef.current = true
           if (webviewErrorTimerRef.current !== undefined) {
@@ -4451,72 +4441,8 @@ function App() {
         return
       }
 
-      if (detail?.type === 'storeScriptFlagsChanged') {
-        if (!STORE_SCRIPT_DIAGNOSTICS) return
-        const nextFlags = normalizeStoreScriptFlags(detail.flags)
-        storeScriptFlagsRef.current = nextFlags
-        try {
-          window.localStorage.setItem(STORE_SCRIPT_FLAGS_STORAGE_KEY, JSON.stringify(nextFlags))
-        } catch { /* The in-memory selection still applies to this test run. */ }
-        recordAppDiagnostic('store_script_flags_changed', {
-          store: selectedStoreRef.current,
-          runtime: nextFlags.runtime,
-          navigation: nextFlags.navigation,
-          blocking: nextFlags.blocking,
-          capture: nextFlags.capture,
-          session: nextFlags.session,
-        })
-
-        // Apply each comparison to a clean JavaScript runtime while retaining
-        // WKWebsiteDataStore/Android website data. This is the diagnostic
-        // equivalent of the user's proven Temu -> SHEIN reset, without changing
-        // stores, clearing cookies, or leaving two native browsers racing.
-        clearSheinReadinessWatchdog()
-        clearPendingProductPreparation()
-        pendingBackTargetRef.current = 'home'
-        pendingStoreOpenAfterCloseRef.current = true
-        suppressAutoReopenRef.current = true
-        webviewClosingRef.current = true
-        const closingWebviewId = webviewIdRef.current
-        if (closingWebviewId) ignoredWebviewCloseIdsRef.current.add(closingWebviewId)
-        webviewSessionRef.current += 1
-        webviewOpeningRef.current = false
-        webviewOpenedAtRef.current = 0
-        webviewIdRef.current = ''
-        currentWebviewUrlRef.current = ''
-        sheinChallengeActiveRef.current = false
-        sheinCartProductSessionRef.current = false
-        sheinOpenedRef.current = false
-        setSheinReady(false)
-        setSheinBlockedError(false)
-        void InAppBrowser.close(closingWebviewId
-          ? { id: closingWebviewId, isAnimated: false }
-          : { isAnimated: false })
-          .catch(() => undefined)
-          .finally(() => {
-            webviewClosingRef.current = false
-            suppressAutoReopenRef.current = false
-            if (screenRef.current !== 'home' || vpnStateRef.current !== 'ok') return
-            window.setTimeout(() => {
-              if (webviewClosingRef.current || sheinOpenedRef.current || webviewOpeningRef.current) return
-              browseSheinRef.current()
-            }, 80)
-          })
-        return
-      }
-
       if (detail?.type === 'sheinChunkLoadFailure') {
         recoverSheinChunkLoad(typeof detail.url === 'string' ? detail.url : '')
-        return
-      }
-
-      if (detail?.type === 'sheinRegionDiagnostic') {
-        recordSheinRegionDiagnostic({
-          ...detail,
-          source: 'shein-webview',
-          webviewId: event?.id ?? '',
-          receivedAt: Date.now(),
-        })
         return
       }
 
@@ -4791,7 +4717,7 @@ function App() {
       storeMessageHandlerRef.current = () => undefined
       void handle.then((h) => h.remove())
     }
-  }, [exchangeRate, recordSheinRegionDiagnostic])
+  }, [exchangeRate])
 
   useEffect(() => {
     if (!(TEMU_PERSONAL_SITE_MODE && Capacitor.getPlatform() === 'android')) return
@@ -5375,6 +5301,20 @@ function App() {
               </button>
             </>
           )}
+          {isAppleAuthEnabled && (
+            <>
+              {!isGoogleAuthEnabled && <div className="auth-divider"><span>أو</span></div>}
+              <button
+                type="button"
+                className="google-signin-btn apple-signin-btn"
+                disabled={authState !== 'idle' || googleAuthBusy}
+                onClick={handleAppleSignIn}
+              >
+                <span className="apple-signin-mark" aria-hidden="true"></span>
+                <span>{googleAuthBusy ? 'جارٍ فتح الحساب…' : 'المتابعة باستخدام Apple'}</span>
+              </button>
+            </>
+          )}
           <p className="auth-trust-note" id="phone-auth-hint">
             <Icon name="verified_user" />
             رقم الاستلام لا يصبح وسيلة دخول إلا بعد أن تؤكده بنفسك.
@@ -5387,9 +5327,14 @@ function App() {
       const cancelGoogleRegistration = () => {
         setPendingGoogleIdToken('')
         setPendingGoogleProfile(null)
+        setPendingAppleIdToken('')
+        setPendingAppleRawNonce('')
+        setPendingAppleProfile(null)
         setGoogleAuthBusy(false)
         setScreen('login')
       }
+      const pendingSocialProfile = pendingAppleProfile ?? pendingGoogleProfile
+      const pendingProviderName = pendingAppleProfile ? 'Apple' : 'Google'
       return (
         <AuthShell
           title="جهّز حسابك"
@@ -5398,11 +5343,11 @@ function App() {
           brandName={brandName}
           brandLogoDataUrl={brandLogoDataUrl}
         >
-          <div className="google-account-chip" aria-label="حساب Google المختار">
-            <span className="google-account-chip__mark" aria-hidden="true">G</span>
+          <div className="google-account-chip" aria-label={`حساب ${pendingProviderName} المختار`}>
+            <span className="google-account-chip__mark" aria-hidden="true">{pendingAppleProfile ? '' : 'G'}</span>
             <span className="google-account-chip__copy">
-              <b>{pendingGoogleProfile?.name || 'حساب Google'}</b>
-              <small dir="ltr">{pendingGoogleProfile?.email || 'Google'}</small>
+              <b>{pendingSocialProfile?.name || `حساب ${pendingProviderName}`}</b>
+              <small dir="ltr">{pendingSocialProfile?.email || pendingProviderName}</small>
             </span>
             <Icon name="verified" />
           </div>
@@ -5495,7 +5440,7 @@ function App() {
               localPhone.replace(/\D/g, '').length < 7 ||
               !!(QADMOUS_BRANCHES[onboardingGov] && !onboardingBranch)
             }
-            onClick={completeGoogleRegistration}
+            onClick={completeSocialRegistration}
           >
             {googleAuthBusy ? 'جارٍ إنشاء الحساب…' : 'إنشاء الحساب والمتابعة'}
             <Icon name="arrow_back" />
@@ -6566,7 +6511,6 @@ function App() {
       const paymentCode = shamcashCodeByStore[pendingPayment.store ?? selectedStore] || paymentSettings.receiverAccount
       const paymentExpiresIn = formatExpiryCountdown(pendingPayment.expiresAt)
       const paymentWindowClosed = new Date(pendingPayment.expiresAt).getTime() <= paymentNowTs
-      const isIssuePayment = pendingPayment.purpose === 'issue'
       const paymentStoreName = STORES.find((store) => store.id === (pendingPayment.store ?? selectedStore))?.name ?? 'المتجر'
 
       return (
@@ -7170,13 +7114,6 @@ function App() {
     }
 
     if (screen === 'profile') {
-      const avatarLetter = (userProfile?.name ?? recipient.name ?? 'م')[0] ?? 'م'
-      const displayName = userProfile?.name ?? recipient.name ?? 'مستخدم otlobli'
-      const savedPickupName = recipient.name || displayName
-      const savedPickupPhone = recipient.phone || userProfile?.phone || phone
-      const savedPickupGovernorate = userProfile?.governorate || recipient.governorate || 'دمشق'
-      const savedPickupOffice = userProfile?.qadmousBranch || recipient.qadmousBranch || 'غير محدد'
-
       if (editingProfile) {
         return (
           <MobileShell active="profile" onNavigate={setScreen}>
@@ -7291,7 +7228,10 @@ function App() {
               <span><Icon name="logout" /> تسجيل الخروج</span>
               <Icon name="chevron_left" />
             </button>
-            <p className="app-version-tag">نسخة التطبيق: {APP_VERSION}</p>
+            <button className="profile-row profile-row--danger" onClick={handleDeleteAccount} disabled={accountAuthBusy}>
+              <span><Icon name="delete_forever" /> حذف الحساب نهائياً</span>
+              <Icon name="chevron_left" />
+            </button>
           </main>
         </MobileShell>
       )
@@ -7309,37 +7249,69 @@ function App() {
               </div>
               <div>
                 <h2>حساب واحد، أكثر من طريقة دخول</h2>
-                <p>اربط Google أو رقمك بنفس الحساب. معلومات الطلبات والمحفظة لا تتكرر ولا تنتقل لحساب جديد.</p>
+                <p>اربط Google أو Apple أو رقمك بنفس الحساب. معلومات الطلبات والمحفظة لا تتكرر ولا تنتقل لحساب جديد.</p>
               </div>
             </section>
 
-            <section className="access-method-card" aria-labelledby="google-access-title">
-              <div className="access-method-card__head">
-                <span className="access-method-card__brand access-method-card__brand--google" aria-hidden="true">G</span>
-                <div>
-                  <h3 id="google-access-title">Google</h3>
-                  <p dir={accountAuthMethods?.googleEmail ? 'ltr' : 'rtl'}>
-                    {accountAuthMethods?.googleLinked
-                      ? accountAuthMethods.googleEmail || 'مرتبط بهذا الحساب'
-                      : 'دخول سريع من دون رمز واتساب'}
-                  </p>
+            {isGoogleAuthEnabled && (
+              <section className="access-method-card" aria-labelledby="google-access-title">
+                <div className="access-method-card__head">
+                  <span className="access-method-card__brand access-method-card__brand--google" aria-hidden="true">G</span>
+                  <div>
+                    <h3 id="google-access-title">Google</h3>
+                    <p dir={accountAuthMethods?.googleEmail ? 'ltr' : 'rtl'}>
+                      {accountAuthMethods?.googleLinked
+                        ? accountAuthMethods.googleEmail || 'مرتبط بهذا الحساب'
+                        : 'دخول سريع من دون رمز واتساب'}
+                    </p>
+                  </div>
+                  <StatusBadge tone={accountAuthMethods?.googleLinked ? 'success' : 'neutral'}>
+                    {accountAuthBusy && !accountAuthMethods ? 'جارٍ التحقق…' : accountAuthMethods?.googleLinked ? 'مرتبط' : 'غير مرتبط'}
+                  </StatusBadge>
                 </div>
-                <StatusBadge tone={accountAuthMethods?.googleLinked ? 'success' : 'neutral'}>
-                  {accountAuthBusy && !accountAuthMethods ? 'جارٍ التحقق…' : accountAuthMethods?.googleLinked ? 'مرتبط' : 'غير مرتبط'}
-                </StatusBadge>
-              </div>
-              {!accountAuthMethods?.googleLinked ? (
-                <button
-                  type="button"
-                  className="access-method-action"
-                  disabled={accountAuthBusy}
-                  onClick={handleLinkGoogleAccount}
-                >
-                  <Icon name="add_link" />
-                  {accountAuthBusy ? 'جارٍ ربط Google…' : 'ربط حساب Google'}
-                </button>
-              ) : null}
-            </section>
+                {!accountAuthMethods?.googleLinked ? (
+                  <button
+                    type="button"
+                    className="access-method-action"
+                    disabled={accountAuthBusy}
+                    onClick={handleLinkGoogleAccount}
+                  >
+                    <Icon name="add_link" />
+                    {accountAuthBusy ? 'جارٍ ربط Google…' : 'ربط حساب Google'}
+                  </button>
+                ) : null}
+              </section>
+            )}
+
+            {isAppleAuthEnabled && (
+              <section className="access-method-card" aria-labelledby="apple-access-title">
+                <div className="access-method-card__head">
+                  <span className="access-method-card__brand" aria-hidden="true"></span>
+                  <div>
+                    <h3 id="apple-access-title">Apple</h3>
+                    <p dir={accountAuthMethods?.appleEmail ? 'ltr' : 'rtl'}>
+                      {accountAuthMethods?.appleLinked
+                        ? accountAuthMethods.appleEmail || 'مرتبط بهذا الحساب'
+                        : 'دخول آمن باستخدام حساب Apple'}
+                    </p>
+                  </div>
+                  <StatusBadge tone={accountAuthMethods?.appleLinked ? 'success' : 'neutral'}>
+                    {accountAuthBusy && !accountAuthMethods ? 'جارٍ التحقق…' : accountAuthMethods?.appleLinked ? 'مرتبط' : 'غير مرتبط'}
+                  </StatusBadge>
+                </div>
+                {!accountAuthMethods?.appleLinked ? (
+                  <button
+                    type="button"
+                    className="access-method-action"
+                    disabled={accountAuthBusy}
+                    onClick={handleLinkAppleAccount}
+                  >
+                    <Icon name="add_link" />
+                    {accountAuthBusy ? 'جارٍ ربط Apple…' : 'ربط حساب Apple'}
+                  </button>
+                ) : null}
+              </section>
+            )}
 
             <section className="access-method-card" aria-labelledby="phone-access-title">
               <div className="access-method-card__head">
@@ -7656,6 +7628,7 @@ function App() {
                 <Icon name="open_in_new" />
               </button>
             </section>
+
             <OnlineDiagnosticsCard onSubmit={async (note) => {
               recordAppDiagnostic('diagnostic_report_submit', { screen, store: selectedStore })
               try {
@@ -7725,7 +7698,7 @@ function App() {
       const deviceNotificationsLabel =
         deviceNotificationStatus === 'granted' ? 'مفعلة على هذا الجهاز'
           : deviceNotificationStatus === 'denied' ? 'معطلة من إعدادات الجهاز'
-            : deviceNotificationStatus === 'default' ? 'تحتاج إذن من الجهاز'
+            : deviceNotificationStatus === 'prompt' ? 'تحتاج إذن من الجهاز'
               : 'غير مدعومة على هذا الجهاز'
       const prefRows: Array<{ key: keyof NotificationPrefs; icon: string; title: string; body: string }> = [
         { key: 'orderUpdates', icon: 'local_shipping', title: 'تحديثات الطلب', body: 'إشعار عند انتقال طلبك إلى مرحلة جديدة.' },
@@ -7753,7 +7726,11 @@ function App() {
               </div>
               {deviceNotificationStatus !== 'unsupported' && (
                 <button className="ghost-action ghost-action--small" onClick={requestDeviceNotifications}>
-                  {deviceNotificationStatus === 'granted' ? 'فحص الإذن' : 'تفعيل الإشعارات'}
+                  {deviceNotificationStatus === 'granted'
+                    ? 'فحص الإذن'
+                    : deviceNotificationStatus === 'denied'
+                      ? 'فتح إعدادات الجهاز'
+                      : 'تفعيل الإشعارات'}
                 </button>
               )}
             </section>

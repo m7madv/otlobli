@@ -2,14 +2,8 @@ name: iOS Unsigned Build
 
 on:
   workflow_dispatch:
-    inputs:
-      store_diagnostics:
-        description: 'Include the customer-visible store script isolation panel'
-        required: false
-        default: false
-        type: boolean
   push:
-    branches: [main, codex/customer-wallet-group-orders]
+    branches: [main, codex/customer-wallet-group-orders, codex/otlobli-final-production-release]
 
 jobs:
   build-ios:
@@ -31,7 +25,7 @@ jobs:
         with:
           node-version: 22
 
-      - run: npm install
+      - run: npm ci
         env:
           OTLOBLI_RELAY_KEY: ${{ secrets.OTLOBLI_RELAY_KEY }}
 
@@ -48,7 +42,6 @@ jobs:
           VITE_SHEIN_WORKER_URL: ${{ secrets.VITE_SHEIN_WORKER_URL }}
           VITE_SHEIN_SCRAPER_URL: ${{ secrets.VITE_SHEIN_SCRAPER_URL }}
           VITE_USD_TO_SYP_RATE: ${{ secrets.VITE_USD_TO_SYP_RATE }}
-          VITE_STORE_SCRIPT_DIAGNOSTICS: ${{ github.event_name == 'workflow_dispatch' && inputs.store_diagnostics || false }}
 
       - run: npx cap sync ios
 
@@ -63,6 +56,8 @@ jobs:
           client_prefix="${VITE_GOOGLE_IOS_CLIENT_ID%.apps.googleusercontent.com}"
           reversed_client_id="com.googleusercontent.apps.${client_prefix}"
           plist="ios/App/App/Info.plist"
+          /usr/libexec/PlistBuddy -c "Delete :GIDClientID" "$plist" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :GIDClientID string ${VITE_GOOGLE_IOS_CLIENT_ID}" "$plist"
           /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:1 dict" "$plist"
           /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:1:CFBundleURLName string google" "$plist"
           /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:1:CFBundleURLSchemes array" "$plist"
@@ -100,6 +95,9 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             build
+
+      - name: Verify generated production assets
+        run: npm run verify:production-release -- --artifacts=ios
 
       - name: Inspect iPad support in built app
         working-directory: ios/App

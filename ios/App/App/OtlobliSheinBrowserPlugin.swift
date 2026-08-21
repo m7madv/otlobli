@@ -264,6 +264,13 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         webView.isOpaque = true
         webView.backgroundColor = .white
         webView.scrollView.backgroundColor = .white
+        if #available(iOS 16.4, *) {
+#if DEBUG
+            webView.isInspectable = true
+#else
+            webView.isInspectable = false
+#endif
+        }
 
         surfaceView = surface
         storeWebView = webView
@@ -542,20 +549,15 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
     ) {
         let url = webView?.url
         let backList = webView?.backForwardList.backList ?? []
-        let recentBackList = backList.suffix(5)
-            .map { $0.url.absoluteString }
-            .joined(separator: " | ")
         NSLog(
-            "[OTLOBLI_BACK] pageType=%@ currentURL=%@ currentPath=%@ canGoBack=%@ backListCount=%@ target=%@ chosenAction=%@ navigationType=%@ backList=%@",
+            "[OTLOBLI_BACK] pageType=%@ currentPath=%@ canGoBack=%@ backListCount=%@ target=%@ chosenAction=%@ navigationType=%@",
             nativeBackPageType(url),
-            url?.absoluteString ?? "",
             url?.path ?? "",
             webView?.canGoBack == true ? "true" : "false",
             String(backList.count),
             nativeBackTarget,
             chosenAction,
-            navigationType,
-            recentBackList
+            navigationType
         )
     }
 

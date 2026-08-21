@@ -16,23 +16,10 @@ export const SOURCE_COUNTRY: 'JO' | 'LB' | 'SA' = 'SA'
 // and must be false before any production build.
 export const TEST_ONLY_AUTH_BYPASS = false
 
-// Diagnostic tools ship disabled in normal customer builds. Enable only in a
-// dedicated diagnostic release after recording the affected device and steps.
-export const SHEIN_IOS_FREEZE_DIAGNOSTICS = false
-export const SHEIN_IOS_FREEZE_DIAGNOSTICS_BYPASS_RECOVERY = false
-
-// Dedicated device-isolation build only. Normal releases keep this false and
-// do not inject the side panel or accept runtime feature-toggle messages.
-export const STORE_SCRIPT_DIAGNOSTICS =
-  cleanEnvValue(String(import.meta.env.VITE_STORE_SCRIPT_DIAGNOSTICS ?? '')).toLowerCase() === 'true'
-
-// Personal Android diagnostic only: Temu opens through the device browser's
-// website session, which is the one path proven to admit guest product pages.
-// Customer builds leave this disabled and keep the existing internal WebView.
-export const TEMU_PERSONAL_SITE_MODE =
-  cleanEnvValue(String(import.meta.env.VITE_TEMU_PERSONAL_SITE_MODE ?? '')).toLowerCase() === 'true'
+// The production release has one store implementation. Historical diagnostic
+// modes remain in Git history and reports, but cannot be enabled by an
+// environment variable in a customer artifact.
+export const TEMU_PERSONAL_SITE_MODE = false
 
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = TEMU_PERSONAL_SITE_MODE
-  ? '2026.08.20-v86.201-personal-double-home-store-switch'
-  : '2026.08.20-v86.201-double-home-store-switch'
+export const APP_VERSION = '86.207'
