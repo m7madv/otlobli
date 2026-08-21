@@ -25,7 +25,13 @@ form is prepared at its final Register step for exact `com.otlobli.app` with
 Push Notifications and Sign in with Apple enabled, but has not been submitted.
 Creating the permanent App ID/certificate/profile and storing encrypted GitHub
 signing secrets require the user's action-time approval. Apple auth is not yet
-fixed and no v86.211 IPA has been built.
+fixed. GitHub/Xcode run `32489128421` compiled commit
+`72bea51fae715229536688aa2627dc66b686a622`; artifact `9449116249` is the
+unsigned arm64 universal IPA. Inspection proves Bundle ID `com.otlobli.app`,
+version/build `86.211/1073`, iOS 15 minimum, device families 1/2, and again no
+signature, provisioning profile, `GIDClientID`, or Google callback. SHA-256 is
+`56284993D2B78F67866B5FB5B6A6E00357F4FF0F324494004CAB013DB8E1D87C`.
+A signed Apple-auth test artifact still requires the approved portal/signing work.
 
 # v86.210 — exact loading-nav copy and visible order number (2026-08-21)
 

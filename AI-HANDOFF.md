@@ -21,7 +21,12 @@ approval, register it, create a development certificate only if a usable private
 key cannot be recovered, create a development profile for the registered test
 iPhones, then store signing material only as encrypted GitHub secrets. Never
 commit private keys, certificates, profiles, UDIDs, or passwords. No v86.211 IPA
-exists yet and Apple login must not be called fixed before a signed device test.
+signed for Apple auth exists yet. GitHub/Xcode run `32489128421` compiled commit
+`72bea51fae715229536688aa2627dc66b686a622`; unsigned artifact `9449116249`
+is `86.211/1073`, arm64, universal, iOS 15+, SHA-256
+`56284993D2B78F67866B5FB5B6A6E00357F4FF0F324494004CAB013DB8E1D87C`.
+It has no signature/profile/Google iOS config. Apple login must not be called
+fixed before a properly signed physical-device test.
 
 # Active handoff — v86.210 exact bar copy and auth blockers (2026-08-21)
 
