@@ -33,9 +33,20 @@ surface guard, TypeScript, Vite build, performance budget, Capacitor iOS sync,
 Capacitor Android sync, ESLint with 0 errors (17 pre-existing warnings),
 `git diff --check`, Android unit tests, and Android Debug assembly.
 
-Xcode cannot run on Windows. Signed IPA/AAB/APK builds are blocked by missing
-portal/signing secrets. The unsigned iOS GitHub build will be recorded after
-the branch is pushed.
+Xcode cannot run on Windows, but GitHub/Xcode unsigned run `32441115523`
+completed successfully for code commit
+`6ae98b59b0aefac9471215a25cfd8f6f0888e843`. Artifact ID `9432486960`
+contains `otlobli-v86.207-ipad-iphone-universal-unsigned.ipa` (6,545,676
+bytes), SHA-256
+`85D2C181CA688AFD7BA851C097566A697BA38323C3379B650F861829DAB3FA0A`.
+Inspection confirms Bundle ID `com.otlobli.app`, `86.207/1069`, ARM64,
+iPhone/iPad families `[1,2]`, minimum iOS 15.0, no provisioning profile/code
+signature, and no forbidden diagnostic/private-key markers. The Google iOS
+callback is absent because `VITE_GOOGLE_IOS_CLIENT_ID` is still missing.
+
+Signed IPA/AAB/APK builds remain blocked by the portal/signing secrets in
+`REQUIRED_PORTAL_ACTIONS.md`; the unsigned IPA is build evidence, not an App
+Store or physical-device release.
 
 ## Acceptance boundary
 

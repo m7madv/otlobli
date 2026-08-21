@@ -11,6 +11,9 @@ Status: **code-complete, not physically accepted**.
 - Capacitor iOS and Android sync with Push Notifications plugin present.
 - Android `testDebugUnitTest` and `assembleDebug`.
 - Xcode entitlements/project configuration inspection.
+- GitHub/Xcode unsigned build `32441115523`, including production-asset scan
+  and universal iPhone/iPad inspection. This cannot validate APNs because the
+  artifact is unsigned and has no provisioning profile.
 
 ## Not executed
 
