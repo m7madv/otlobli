@@ -1327,6 +1327,7 @@ function App() {
   )
   const [authState, setAuthState] = useState<'idle' | 'sending' | 'verifying'>('idle')
   const [googleAuthBusy, setGoogleAuthBusy] = useState(false)
+  const [socialAuthProvider, setSocialAuthProvider] = useState<'google' | 'apple' | null>(null)
   const [selectedColor, setSelectedColor] = useState<ProductColor | null>(null)
   const [selectedSize, setSelectedSize] = useState<string>('')
   const [quantity, setQuantity] = useState(1)
@@ -2799,6 +2800,7 @@ function App() {
   // بيانات الاستلام من دون OTP. توثيق الرقم يبقى اختيارياً داخل «حسابي».
   const handleGoogleSignIn = () => {
     if (authState !== 'idle' || googleAuthBusy) return
+    setSocialAuthProvider('google')
     setGoogleAuthBusy(true)
     void signInWithGoogle()
       .then(async (result) => {
@@ -2828,11 +2830,15 @@ function App() {
         if (/USER_CANCELLED|cancel(?:led|ed)(?: by user)?/i.test(`${errorCode} ${errorMessage}`)) return
         showNotice(getPublicErrorMessage(error))
       })
-      .finally(() => setGoogleAuthBusy(false))
+      .finally(() => {
+        setGoogleAuthBusy(false)
+        setSocialAuthProvider(null)
+      })
   }
 
   const handleAppleSignIn = () => {
     if (authState !== 'idle' || googleAuthBusy) return
+    setSocialAuthProvider('apple')
     setGoogleAuthBusy(true)
     void signInWithApple()
       .then(async (result) => {
@@ -2858,7 +2864,10 @@ function App() {
         if (/USER_CANCELLED|cancel(?:led|ed)(?: by user)?|AuthorizationError.*1001/i.test(message)) return
         showNotice(getPublicErrorMessage(error))
       })
-      .finally(() => setGoogleAuthBusy(false))
+      .finally(() => {
+        setGoogleAuthBusy(false)
+        setSocialAuthProvider(null)
+      })
   }
 
   const completeSocialRegistration = () => {
@@ -2887,6 +2896,7 @@ function App() {
     }
 
     setGoogleAuthBusy(true)
+    setSocialAuthProvider(registeringWithApple ? 'apple' : 'google')
     const profile = {
       phone: deliveryPhone,
       name: normalizedName,
@@ -2925,7 +2935,10 @@ function App() {
         await refreshAccountAuthMethods(result.sessionToken).catch(() => undefined)
       })
       .catch((error: unknown) => showNotice(getPublicErrorMessage(error)))
-      .finally(() => setGoogleAuthBusy(false))
+      .finally(() => {
+        setGoogleAuthBusy(false)
+        setSocialAuthProvider(null)
+      })
   }
 
   const handleLinkGoogleAccount = () => {
@@ -5478,10 +5491,11 @@ function App() {
       return (
         <AuthShell
           title="تسجيل الدخول إلى حسابك"
-          subtitle="تابع سلّتك وطلباتك من أي جهاز. ادخل عبر واتساب أو Google."
+          subtitle="اختر طريقتك المفضلة. الهاتف وGoogle وApple تدخل جميعها إلى حساب Otlobli نفسه."
           brandName={brandName}
           brandLogoDataUrl={brandLogoDataUrl}
         >
+          <section className="auth-method-panel" aria-label="الدخول برقم الهاتف">
           <div className="field">
             <label htmlFor="login-phone">رقم واتساب</label>
             <div className="phone-field">
@@ -5526,6 +5540,7 @@ function App() {
                 aria-describedby="phone-auth-hint"
                 placeholder="مثال: 912345678"
                 dir="ltr"
+                spellCheck={false}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' && authState === 'idle' && !googleAuthBusy) startLogin()
                 }}
@@ -5540,16 +5555,20 @@ function App() {
               : usesInboundWhatsappAuth
                 ? 'تأكيد عبر واتساب'
                 : 'إرسال رمز التحقق'}
-            <Icon name="arrow_back" />
+            <Icon name={authState === 'sending' ? 'progress_activity' : 'arrow_back'} />
           </button>
-          {isGoogleAuthEnabled && (
-            <>
-              <div className="auth-divider"><span>أو</span></div>
+          </section>
+          {(isGoogleAuthEnabled || isAppleAuthEnabled) && (
+            <div className="auth-divider"><span>أو دخول سريع</span></div>
+          )}
+          <div className="auth-provider-stack" aria-label="الدخول بحساب خارجي">
+            {isGoogleAuthEnabled && (
               <button
                 type="button"
                 className="google-signin-btn"
                 disabled={authState !== 'idle' || googleAuthBusy}
                 onClick={handleGoogleSignIn}
+                aria-live="polite"
               >
                 <svg className="google-g-logo" viewBox="0 0 48 48" width="19" height="19" aria-hidden="true">
                   <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
@@ -5557,27 +5576,27 @@ function App() {
                   <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
                   <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
                 </svg>
-                <span>{googleAuthBusy ? 'جارٍ فتح Google…' : 'المتابعة باستخدام Google'}</span>
+                <span>{socialAuthProvider === 'google' ? 'جارٍ فتح Google…' : 'المتابعة باستخدام Google'}</span>
+                <Icon name={socialAuthProvider === 'google' ? 'progress_activity' : 'arrow_back'} />
               </button>
-            </>
-          )}
-          {isAppleAuthEnabled && (
-            <>
-              {!isGoogleAuthEnabled && <div className="auth-divider"><span>أو</span></div>}
+            )}
+            {isAppleAuthEnabled && (
               <button
                 type="button"
                 className="google-signin-btn apple-signin-btn"
                 disabled={authState !== 'idle' || googleAuthBusy}
                 onClick={handleAppleSignIn}
+                aria-live="polite"
               >
                 <span className="apple-signin-mark" aria-hidden="true"></span>
-                <span>{googleAuthBusy ? 'جارٍ فتح الحساب…' : 'المتابعة باستخدام Apple'}</span>
+                <span>{socialAuthProvider === 'apple' ? 'جارٍ فتح Apple…' : 'المتابعة باستخدام Apple'}</span>
+                <Icon name={socialAuthProvider === 'apple' ? 'progress_activity' : 'arrow_back'} />
               </button>
-            </>
-          )}
+            )}
+          </div>
           <p className="auth-trust-note" id="phone-auth-hint">
             <Icon name="verified_user" />
-            رقم الاستلام لا يصبح وسيلة دخول إلا بعد أن تؤكده بنفسك.
+            حساب واحد مهما كانت الطريقة. رقم الاستلام لا يصبح وسيلة دخول إلا بعد أن تؤكده بنفسك.
           </p>
         </AuthShell>
       )
@@ -5590,6 +5609,7 @@ function App() {
         setPendingGoogleProfile(null)
         discardPendingAppleRegistration()
         setGoogleAuthBusy(false)
+        setSocialAuthProvider(null)
         setScreen('login')
       }
       const pendingSocialProfile = pendingAppleProfile ?? pendingGoogleProfile

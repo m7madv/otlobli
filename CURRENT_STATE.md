@@ -1,10 +1,81 @@
+# v86.213 — unified authentication build and live phone backend (2026-08-21)
+
+Continue in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
+`codex/otlobli-v86-212-testflight-auth`. The customer app is now
+`86.213/1075`. The login screen presents phone/WhatsApp as the primary method,
+then equal Google and Apple quick-login actions, with provider-specific busy
+feedback and explicit Arabic copy that all three methods enter the same Otlobli
+account. Apple remains platform-gated, so it is intentionally absent from the
+web preview and present in the synced Android/iOS builds. The visual change
+keeps the existing Otlobli route signature, uses a solid low-cost surface rather
+than backdrop blur, and does not change store, order, payment, or wallet logic.
+
+The production phone backend at `https://84-8-100-128.sslip.io` is now the
+hardened `server/` deployment. A missing `dotenv` bootstrap was found during the
+first protected rollout, fixed in source, dependency-locked, tested, and
+redeployed. The Oracle host has generated non-exported independent
+`OTP_HASH_SECRET` and `WHATSAPP_ADMIN_SECRET` values, preserved the existing
+Baileys credentials, and reconnected session `0` without a new QR. External
+health now reports `status=ok`, `whatsappConnected=true`,
+`whatsappSenderReady=true`, `sessionStoreReady=true`,
+`authContract=customer-session-v1`, and `otpSecurityReady=true`. The successful
+deployment backup is
+`/home/ubuntu/otlobli-server/backups/pre-v86213-envfix-20260821T194831Z`.
+
+Supabase migrations `20260821183000_apple_authorization_client_id.sql` and
+`20260821193000_harden_identity_rpc_permissions.sql` were applied, and current
+`google-auth`, `apple-auth`, `apple-oauth-callback`, and `account-lifecycle`
+functions were deployed with JWT verification disabled where required. The
+exact live Google iOS configuration check returns `configured=true`. GitHub now
+contains the public Android Apple client/redirect secrets and the existing App
+Store Connect API key/ID/issuer secrets; no private value was printed or
+committed. Supabase has the Apple Team/client/redirect allowlist, but Apple auth
+still returns `apple_auth_not_configured` until a usable SIWA `.p8` is stored.
+
+Apple Developer was verified under `mhm1981dx@gmail.com`, Account Holder
+`mohammad alzouabi`, Team `36D743K87T`; the updated agreement alert disappeared
+after the owner completed its personal review. Services ID
+`com.otlobli.app.signin` exists and is associated with the Otlobli App ID, but
+its Website URLs list is empty. SIWA key `Y8K8B23VK6` exists but its one-time
+download is disabled and no matching local `.p8` is present. A Distribution
+certificate created on 2026-08-21 is downloaded as `distribution.cer`, but no
+matching retained private key/P12 was found. There is no Otlobli App Store
+profile and no Otlobli App Store Connect record. Do not revoke/create/modify
+these persistent Apple resources, upload, or invite until the owner gives the
+required action-time confirmation.
+
+`npm run build`, all release/auth/SHEIN/Temu/store/performance guards, Capacitor
+sync for Android and iOS, and the Android Gradle debug build pass. The installable
+APK is
+`output/Otlobli-v86.213-Android-Auth-debug.apk`, 11,118,964 bytes, SHA-256
+`CD6B09ABDC23BBEFB4B93D1E150B1D3441029AF6603A13A59ACD30E261D6BF93`.
+No Android/iPhone physical login acceptance, five iPhone resume cycles, cold
+launch, TestFlight upload, or invitation is claimed yet.
+
 # v86.212 — internal TestFlight authentication candidate (2026-08-21)
 
 Work is isolated on `codex/otlobli-v86-212-testflight-auth` in
 `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`, based on protected
 v86.211 documentation HEAD `bf654a1a84d379e1f7b2fcb8f8e0c98faa5765d3`.
 Version/build is `86.212/1074`. No TestFlight build has been uploaded and no
-Apple/Google/Supabase production resource has been changed during this batch.
+Apple resource has been changed during this batch.
+
+Google ownership and iOS OAuth configuration were completed externally on
+2026-08-21. `mhm1981x@gmail.com` accepted ownership of Google Cloud/Firebase
+project `otlobli-1ccf5`, was verified opening IAM, Credentials, and Firebase,
+and is now the sole human Owner; former owner `djjd19903@gmail.com` was removed
+after that verification. Google OAuth client `Otlobli iOS` now exists for
+Bundle ID `com.otlobli.app`, Team ID `36D743K87T`, with client ID
+`677396296147-n3337ehkgd51rt47dru8i9lle82in66q.apps.googleusercontent.com`.
+GitHub Actions secret `VITE_GOOGLE_IOS_CLIENT_ID` was set in `m7madv/otlobli`
+at `2026-08-21T19:20:36Z`. Supabase project `dcicqdprtyhwmhegabay` secret
+`GOOGLE_CLIENT_IDS` was updated at `2026-08-21T19:20:39.112Z` to retain the
+existing Web and Android audiences and add the new iOS audience. No secret
+value was committed. This was an external-configuration/documentation-only
+batch; no native rebuild or physical-device authentication claim was made. A
+live invalid-token smoke check against the deployed `google-auth` function
+returned HTTP `401` with `invalid_google_token`, confirming the provider remains
+configured after the allowlist update.
 
 The physical iPhone proved that native Apple account selection succeeds, then
 the backend returns `apple_auth_not_configured`. The failure is therefore the
@@ -13,9 +84,11 @@ development entitlement. v86.212 adds a strict multi-client Apple backend for
 the iOS bundle ID `com.otlobli.app` and Android Services ID
 `com.otlobli.app.signin`, an exact HTTPS callback, Apple token/code verification,
 per-client authorization storage, and hardened service-role-only identity RPCs.
-Android gets the native browser callback path. Google iOS remains intentionally
-hidden until `VITE_GOOGLE_IOS_CLIENT_ID` exists; CI checks both the iOS client
-and the Web server-client audience. Phone/WhatsApp now fails closed: production
+Android gets the native browser callback path. Google iOS configuration now has
+the required `VITE_GOOGLE_IOS_CLIENT_ID`; the next eligible iOS build can inject
+`GIDClientID` and the reversed callback, while physical Google sign-in remains
+unverified. CI checks both the iOS client and the Web server-client audience.
+Phone/WhatsApp now fails closed: production
 accepts only the real backend, local mock requires explicit DEV-only opt-in, and
 incomplete inbound mode is rejected.
 
@@ -45,8 +118,8 @@ cleanup. The stale v86.208 final-release workflow is hard-retired.
 External blockers are exact: Account Holder acceptance of Apple's updated
 agreement; explicit approval to register the prepared Services ID and SIWA key;
 an Apple Distribution certificate/P12 and App Store profile; an Otlobli App
-Store Connect record; the seven missing distribution/upload GitHub secrets; the
-Google project owner's iOS OAuth client; deployment of migrations through
+Store Connect record; the seven missing distribution/upload GitHub secrets;
+deployment of migrations through
 `20260821193000`, current auth Edge Functions, and the hardened WhatsApp server;
 and a connected WhatsApp sender. Exact steps are in
 `docs/final-enablement/MANUAL_PORTAL_ACTIONS.md` and `WHATSAPP_SETUP.md`.

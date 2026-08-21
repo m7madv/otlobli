@@ -3,6 +3,7 @@
  * v2.4 — QR Mode
  */
 
+import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
 import fs from 'fs'

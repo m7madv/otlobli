@@ -1,4 +1,4 @@
-# Exact remaining TestFlight enablement actions — v86.212 / 1074
+# Exact remaining TestFlight enablement actions — v86.213 / 1075
 
 This checklist is for one internal TestFlight build. It is not authorization to
 submit the app for App Store review. Do not create Apple resources, upload a
@@ -7,36 +7,43 @@ before that external action.
 
 ## Current proven blockers
 
-- The updated Apple Developer Program agreement is still pending. The Account
-  Holder must read and accept it personally.
-- App Store Connect has no `Otlobli` app record for `com.otlobli.app` yet.
-- GitHub has development signing material only. The TestFlight workflow is
-  missing every distribution/profile/upload secret listed below.
-- Google Cloud is open under an account that cannot access project
-  `otlobli-1ccf5`; the owner must switch to the Google account that owns it.
-- The live phone backend at `https://84-8-100-128.sslip.io/health` is still the
-  old deployment and reports `whatsappConnected=false`. It does not expose the
-  required v86.212 readiness contract, so CI correctly refuses to upload.
-- The v86.212 migrations, Edge Functions, and hardened WhatsApp server are local
-  only until explicitly deployed. Do not describe authentication as live before
-  those deployments and physical tests succeed.
+- The updated Apple agreement was personally reviewed; the pending banner is
+  gone and membership resources are accessible under `mhm1981dx@gmail.com`.
+- Services ID `com.otlobli.app.signin` exists with the correct primary App ID,
+  but its Website URLs list is empty. The exact domain/return URL still must be
+  saved.
+- Existing SIWA key `Y8K8B23VK6` was already downloaded once, its download
+  button is disabled, and no matching `.p8` was found locally. A usable new key
+  must be created and downloaded once; do not revoke the old key unless Apple
+  requires it and the owner explicitly confirms that destructive step.
+- A Distribution certificate exists and `distribution.cer` is downloaded, but
+  no matching private key/P12 exists locally. Create a new usable certificate
+  from a retained private key if Apple allows another certificate; otherwise
+  obtain separate approval before revoking anything.
+- There is no Otlobli App Store provisioning profile and no Otlobli App Store
+  Connect app record.
+- GitHub has the App Store Connect API key/ID/issuer, but still lacks the three
+  usable distribution certificate/password/profile secrets.
+- Google iOS, the Supabase migrations/functions, and the hardened phone backend
+  are now live-configured. Physical Google/Apple/phone acceptance is still
+  required; backend readiness is not a device-test claim.
 
 ## 1. Apple Developer resources
 
-After the Account Holder accepts the agreement and the owner gives explicit
-creation approval:
+After the owner gives explicit action-time creation/modification approval:
 
 1. Keep the existing explicit App ID `com.otlobli.app`, Team ID `36D743K87T`,
    Push Notifications, and primary Sign in with Apple assignment unchanged.
-2. Register Services ID `com.otlobli.app.signin` with description
-   `Otlobli Android Sign in with Apple`, associate it with primary App ID
-   `com.otlobli.app`, then configure:
+2. Keep the existing Services ID `com.otlobli.app.signin` and association with
+   primary App ID `com.otlobli.app`, then add and save:
    - domain: `dcicqdprtyhwmhegabay.supabase.co`
    - return URL:
      `https://dcicqdprtyhwmhegabay.supabase.co/functions/v1/apple-oauth-callback`
-3. Register a Sign in with Apple key attached to the same primary App ID. The
+3. Register a new usable Sign in with Apple key attached to the same primary
+   App ID. The
    downloaded `.p8` is one-time-only secret material; never commit or print it.
-4. Create an Apple Distribution certificate from the CSR kept outside Git, then
+4. Create a usable Apple Distribution certificate from a newly retained CSR
+   private key kept outside Git, then
    export the matching identity/private key as an encrypted P12.
 5. Create an **App Store** provisioning profile for `com.otlobli.app` using that
    distribution certificate. This is distinct from the existing development
@@ -55,18 +62,16 @@ APPLE_REDIRECT_URIS_JSON={"com.otlobli.app.signin":"https://dcicqdprtyhwmhegabay
 The existing `AuthKey_M8GFL27JUT.p8` is an App Store Connect API key. It is not a
 Sign in with Apple key and must not be used for `APPLE_SIGN_IN_KEY`.
 
-## 2. Google iOS OAuth
+## 2. Google iOS OAuth — complete configuration, device test pending
 
-In Google Cloud project `otlobli-1ccf5`, create an iOS OAuth client whose Bundle
-ID is exactly `com.otlobli.app`. Set the returned client ID as GitHub secret
-`VITE_GOOGLE_IOS_CLIENT_ID`. Keep the existing Web client ID in the backend
-allowlist because iOS configures it as `serverClientID`, so the actual Google ID
-token audience can be the Web client. Supabase secret `GOOGLE_CLIENT_IDS` must
-contain the existing Web and Android audiences plus the new iOS client ID.
+Google Cloud project `otlobli-1ccf5` now has the iOS client for
+`com.otlobli.app`, GitHub has `VITE_GOOGLE_IOS_CLIENT_ID`, and Supabase keeps the
+Web, Android, and iOS audiences. The exact iOS client configuration check is
+live `configured=true`. Only the new signed-build physical flow remains.
 
-## 3. Database and Supabase Functions
+## 3. Database and Supabase Functions — deployed
 
-Apply timestamped migrations in order through:
+Migrations were applied in order through:
 
 ```text
 20260821090000_production_auth_push.sql
@@ -74,7 +79,7 @@ Apply timestamped migrations in order through:
 20260821193000_harden_identity_rpc_permissions.sql
 ```
 
-Then deploy the current branch versions of:
+The current branch versions are deployed:
 
 ```text
 google-auth
@@ -83,14 +88,16 @@ apple-oauth-callback --no-verify-jwt
 account-lifecycle
 ```
 
-`supabase/config.toml` records `verify_jwt=false` for the Apple callback. The
-provider configuration checks must return `configured=true` and schema contract
-`auth-v86.212-1` before the TestFlight workflow may archive or upload.
+`supabase/config.toml` records `verify_jwt=false` for the Apple callback. Google
+returns `configured=true`; Apple will remain fail-closed until the new SIWA key
+and key ID are stored.
 
-## 4. Production phone/WhatsApp authentication
+## 4. Production phone/WhatsApp authentication — deployed and live-ready
 
-Deploy the hardened `server/` backend described in the root
-`WHATSAPP_SETUP.md`. Required release properties are:
+The hardened `server/` backend described in the root `WHATSAPP_SETUP.md` is live
+on Oracle. Its explicit `dotenv` bootstrap is committed, the independent
+secrets stay only on the host, and the existing session reconnected without a
+new QR. Required release properties are:
 
 - `VITE_WHATSAPP_AUTH_MODE=real`; `inbound` and production mock are rejected.
 - HTTPS API URL and a persistent, owner-controlled Baileys credential volume.
@@ -98,8 +105,8 @@ Deploy the hardened `server/` backend described in the root
   `OTP_HASH_SECRET` of at least 32 characters.
 - Admin/session/QR operations are protected by a separate strong secret and no
   raw linking QR is public or sent to a third-party QR renderer.
-- The previous exposed admin PIN is rotated and the WhatsApp sender is paired
-  again after deployment.
+- Protected operations use the new independent admin secret; the existing
+  WhatsApp credentials were preserved and reconnected.
 
 The exact `/health` gate for this internal test is:
 
@@ -116,25 +123,18 @@ The exact `/health` gate for this internal test is:
 
 ## 5. GitHub TestFlight secrets
 
-Add only encrypted repository Actions secrets. Never reuse development secret
-names for distribution material:
+Add only encrypted repository Actions secrets. The App Store Connect API trio,
+Apple Team ID, Google iOS, and public Android Apple values are already set.
+Never reuse development secret names for distribution material. Remaining
+distribution inputs are:
 
 ```text
-APPLE_TEAM_ID
 IOS_DISTRIBUTION_CERTIFICATE_BASE64
 IOS_DISTRIBUTION_CERTIFICATE_PASSWORD
 IOS_APP_STORE_PROVISIONING_PROFILE_BASE64
-APP_STORE_CONNECT_API_KEY_BASE64
-APP_STORE_CONNECT_API_KEY_ID
-APP_STORE_CONNECT_ISSUER_ID
-VITE_GOOGLE_IOS_CLIENT_ID
-VITE_SUPABASE_URL
-VITE_SUPABASE_ANON_KEY
-VITE_WHATSAPP_API_URL
-VITE_WHATSAPP_AUTH_MODE=real
 ```
 
-For matching Android builds also set:
+Already set for matching Android builds:
 
 ```text
 VITE_APPLE_ANDROID_CLIENT_ID=com.otlobli.app.signin
@@ -154,7 +154,7 @@ After the agreement is accepted and with explicit upload approval:
 2. Trigger the registered iOS workflow on this branch with
    `signing_mode=testflight`.
 3. The workflow must preflight all three login providers, archive Release,
-   verify distribution signature/profile/entitlements, `86.212/1074`, arm64,
+   verify distribution signature/profile/entitlements, `86.213/1075`, arm64,
    iOS 15+, iPhone/iPad families, validate with App Store Connect, upload, then
    preserve the verified IPA and dSYMs as workflow artifacts.
 4. Wait for Apple processing and answer export-compliance truthfully. The app

@@ -4,20 +4,24 @@
 
 - Bundle ID: `com.otlobli.app`.
 - كود Google وPush وإضافاتهما موجودة.
-- `VITE_GOOGLE_IOS_CLIENT_ID` غير موجود في GitHub Secrets، ولذلك يخفي التطبيق زر Google على iOS عمداً.
-- نسخة iOS الحالية unsigned ولا تحتوي `GIDClientID`.
-- لا يوجد ملف `.entitlements` في مشروع iOS يحتوي `aps-environment`.
+- أُنشئ Google iOS OAuth Client الصحيح وأصبح `VITE_GOOGLE_IOS_CLIENT_ID` موجوداً
+  في GitHub، كما نجح فحص الإعداد الحي `configured=true`. النسخة الجديدة الموقعة
+  هي التي يجب أن تثبت التدفق على جهاز حقيقي.
+- مشروع iOS المتزامن `86.213/1075` جاهز لحقن `GIDClientID` والـURL scheme
+  المعكوس أثناء workflow، لكنه لم يُرفع إلى TestFlight بعد.
+- `ios/App/App/App.entitlements` موجود، وApp ID الحقيقي مفعّل له Push وSign in
+  with Apple. نوع `aps-environment` الفعلي تحدده شهادة/profile البناء.
 - الخادم يحتوي إعداد FCM الخاص بـAndroid، لكنه لا يحتوي حالياً أسرار `APNS_KEY`, `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_BUNDLE_ID`.
 - ظهور نافذة السماح بالإشعارات يعني أن المستخدم سمح بعرضها فقط؛ لا يثبت نجاح التسجيل مع APNs أو وجود مسار إرسال.
 
-## Google على iPhone
+## Google على iPhone — إعداد البوابة مكتمل، اختبار الجهاز باقٍ
 
 إنشاء Google OAuth ليس جزءاً من اشتراك Apple المدفوع بحد ذاته. المطلوب:
 
-1. الوصول إلى مشروع Google Cloud/Firebase المستخدم للتطبيق.
-2. إنشاء OAuth Client من نوع iOS مرتبط بـ`com.otlobli.app`.
-3. إضافة Client ID إلى `VITE_GOOGLE_IOS_CLIENT_ID`.
-4. إضافة `GIDClientID` وURL scheme المعكوس إلى `Info.plist`؛ workflow الحالي مجهز لذلك.
+1. مشروع Google Cloud/Firebase وحساب المالك الصحيحان مؤكّدان.
+2. OAuth Client من نوع iOS مرتبط بـ`com.otlobli.app` موجود.
+3. Client ID موجود في `VITE_GOOGLE_IOS_CLIENT_ID` وفي allowlist الخلفية.
+4. يضيف workflow الحالي `GIDClientID` وURL scheme المعكوس إلى `Info.plist`.
 5. الاحتفاظ بـWeb OAuth client المستخدم لإصدار ID token للخادم.
 6. توقيع التطبيق بشهادة Apple صالحة ليعمل كتطبيق iOS طبيعي ويحفظ بيانات الاعتماد في Keychain.
 
@@ -46,12 +50,13 @@
 
 ## ما أحتاجه من المالك
 
-لا ترسل كلمة مرور Apple أو رمز 2FA داخل المحادثة. عند توفر العضوية:
+لا ترسل كلمة مرور Apple أو رمز 2FA داخل المحادثة. العضوية والحساب الصحيحان
+مؤكدان؛ المتبقي لمواد التوزيع وPush:
 
-- سجّل الدخول محلياً إلى Apple Developer/Xcode، أو امنح وصولاً مناسباً عبر فريق Apple إن كان الحساب مؤسسة.
-- وافق بنفسك على أي اتفاقيات Apple معلقة.
+- استخدم جلسة Apple Developer الحالية أو Xcode من دون مشاركة كلمة المرور.
+- الاتفاقية المحدّثة راجعها المالك واختفى تنبيهها.
 - وفّر بطريقة آمنة شهادة/ملف provisioning للتوقيع أو جهّز signing داخل Xcode/GitHub.
 - أنشئ APNs key مرة واحدة واحتفظ بنسخة آمنة؛ Apple قد لا تسمح بتنزيل ملف p8 نفسه مرة ثانية.
-- سجّل الدخول إلى Google Cloud لإنشاء iOS OAuth client.
+- لا يلزم إجراء Google Portal إضافي حالياً؛ يلزم اختبار النسخة الموقعة فقط.
 
 بعدها يمكن إكمال الربط، وضع الأسرار في GitHub/Supabase، بناء IPA موقعة، ثم تنفيذ اختبار Google وPush على iPhone حقيقي.

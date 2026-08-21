@@ -1,9 +1,58 @@
+# Active handoff — v86.213 unified authentication and TestFlight (2026-08-21)
+
+Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`
+on `codex/otlobli-v86-212-testflight-auth`. Current customer version/build is
+`86.213/1075`. The new compact Arabic login hierarchy is implemented and synced
+to Android and iOS: phone/WhatsApp first, then Google and Apple quick login,
+provider-specific progress labels, and one-account guidance. The web preview
+correctly hides Apple because it is native/Android-only there. Do not touch
+SHEIN/Temu lifecycle, store routing/capture, orders, payment, or wallet.
+
+Phone auth is now live-ready. The hardened `server/` is deployed to Oracle; its
+`.env` was previously never loaded, so `dotenv/config` plus the pinned `dotenv`
+dependency were added and deployed after tests. Independent 32+ byte OTP/admin
+secrets were generated on the host without disclosure, existing WhatsApp
+credentials were preserved, and session `0` reconnected. The public health gate
+currently returns every required value: `status=ok`, connected/sender ready,
+session store ready, `customer-session-v1`, and OTP security ready. Rollback
+backup: `/home/ubuntu/otlobli-server/backups/pre-v86213-envfix-20260821T194831Z`.
+
+Supabase migrations through `20260821193000` and the current four auth/lifecycle
+functions are deployed. Google iOS exact configuration is live
+`configured=true`. GitHub now has `VITE_APPLE_ANDROID_CLIENT_ID`,
+`VITE_APPLE_ANDROID_REDIRECT_URL`, and the three App Store Connect API secrets.
+Supabase has Team/client/redirect Apple configuration, but lacks the SIWA
+private key and key ID, so Apple remains correctly fail-closed.
+
+Apple login is the correct `mhm1981dx@gmail.com` Account Holder account. The
+agreement was personally reviewed and the pending banner is now gone. Existing
+portal state: App ID `com.otlobli.app`; Services ID `com.otlobli.app.signin`
+with Apple enabled and the correct primary App ID but an empty Website URLs
+list; SIWA key `Y8K8B23VK6` whose one-time download is disabled and whose `.p8`
+is absent locally; a 2026-08-21 Distribution certificate whose matching private
+key/P12 is absent; no Otlobli App Store profile; no Otlobli App Store Connect
+record. Ask for the mandatory action-time confirmation before configuring the
+Services ID, creating/replacing persistent Apple keys/certificates/profiles,
+creating the app record, uploading, or inviting. Invitation target is exactly
+`mhm1981dx@gmail.com`, not the Google-project owner address.
+
+Build/validation passes, including full `npm run build`, all guards, both native
+syncs, and Android Gradle. APK:
+`output/Otlobli-v86.213-Android-Auth-debug.apk`, 11,118,964 bytes, SHA-256
+`CD6B09ABDC23BBEFB4B93D1E150B1D3441029AF6603A13A59ACD30E261D6BF93`.
+Physical device acceptance and TestFlight remain pending and must be reported
+honestly.
+
 # Active handoff — v86.212 internal TestFlight authentication (2026-08-21)
 
 Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`
 on `codex/otlobli-v86-212-testflight-auth`, based on
 `bf654a1a84d379e1f7b2fcb8f8e0c98faa5765d3`. Version/build is `86.212/1074`.
-No TestFlight upload, portal creation, deployment, or invitation has happened.
+No TestFlight upload, App Store Connect record, Apple distribution resource,
+backend deployment, or invitation has happened. Google portal configuration
+did change on 2026-08-21: `mhm1981x@gmail.com` is the verified sole human Owner
+of `otlobli-1ccf5`, and former owner `djjd19903@gmail.com` was removed only after
+the new owner opened IAM, Credentials, and Firebase successfully.
 
 The user wants installation through Apple's TestFlight app/email—not Sideloadly.
 Do not submit to App Store review. Ask for explicit confirmation immediately
@@ -17,8 +66,18 @@ Android Services ID `com.otlobli.app.signin`; callback is exactly
 `https://dcicqdprtyhwmhegabay.supabase.co/functions/v1/apple-oauth-callback`,
 returning to `otlobli://apple-auth`. Google iOS uses the new iOS OAuth client for
 native configuration but the Web server client is the token audience, so both
-must remain in `GOOGLE_CLIENT_IDS` and in TestFlight preflight. The production
-phone mode is only `real`; mock is DEV-only and inbound is disabled.
+must remain in `GOOGLE_CLIENT_IDS` and in TestFlight preflight. This is now
+configured: `Otlobli iOS` uses Bundle ID `com.otlobli.app`, Team ID
+`36D743K87T`, and client ID
+`677396296147-n3337ehkgd51rt47dru8i9lle82in66q.apps.googleusercontent.com`.
+GitHub secret `VITE_GOOGLE_IOS_CLIENT_ID` was set at
+`2026-08-21T19:20:36Z`; Supabase secret `GOOGLE_CLIENT_IDS` was updated at
+`2026-08-21T19:20:39.112Z` with Web+Android+iOS audiences. Values were not
+committed. Google sign-in still requires a new build and real-device acceptance.
+A live invalid-token call to the deployed `google-auth` function returned HTTP
+`401 invalid_google_token`, proving configuration is active after the allowlist
+update. The production phone mode is only `real`; mock is DEV-only and inbound
+is disabled.
 
 Do not deploy the old WhatsApp backend. The current live `/health` lacks the new
 readiness contract and reports a disconnected sender. Deploy the hardened
