@@ -14,7 +14,12 @@
   كان غائبًا لأن GitHub لا يحتوي `VITE_GOOGLE_IOS_CLIENT_ID`؛ فحص IPA أثبت عدم
   وجود `GIDClientID` أو callback. يلزم إنشاء بيانات Apple/Google الفعلية.
 - نجح `npm ci` وبناء الإنتاج وكل حراس الإصدار والأسرار وSHEIN وTemu والأداء،
-  وTypeScript وlint. بقيت مزامنة المنصات وبناء Xcode وفحص IPA واختبار الآيفون.
+  وTypeScript وlint ومزامنة iOS/Android. نجح Xcode في run `32487355586`؛
+  artifact `9448456832` هو IPA موحّد arm64 للآيفون والآيباد، رقمها
+  `86.210/1072` وتعمل من iOS 15. بصمتها
+  `D46ACEB3127F9BC866C695280D506DF0554FE7EF5F5D87C28847A107888E0149`.
+  هي غير موقعة ولا تحتوي provisioning profile أو إعداد Google؛ بقي التوقيع
+  والاختبار الفعلي على الآيفون.
 
 # ملخص v86.208 — التفعيل النهائي (2026-08-21)
 

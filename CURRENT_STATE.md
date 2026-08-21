@@ -30,8 +30,14 @@ Google is also externally blocked, not a runtime-code failure. GitHub run
 hid the Google action. GitHub currently contains no iOS OAuth client secret.
 `npm ci`, production build, release/security guards, SHEIN freeze guard, Temu
 guards, store-surface guard, TypeScript, performance budget, and lint pass.
-iOS/Android sync, Xcode compilation, artifact inspection, and physical-device
-acceptance remain pending for v86.210.
+iOS/Android sync also passes. GitHub/Xcode run `32487355586` compiled code commit
+`b543b1c102636c7c98e8027692566f31e7059dfc`; artifact `9448456832` is the
+unsigned universal iPhone/iPad IPA. Inspection proved Bundle ID
+`com.otlobli.app`, version/build `86.210/1072`, arm64, iOS 15 minimum, and device
+families 1/2. It has no signature, provisioning profile, `GIDClientID`, or Google
+callback. Its SHA-256 is
+`D46ACEB3127F9BC866C695280D506DF0554FE7EF5F5D87C28847A107888E0149`.
+Signing and physical-device acceptance remain pending.
 
 # v86.208 — final enablement current state (2026-08-21)
 

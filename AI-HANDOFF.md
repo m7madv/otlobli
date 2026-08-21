@@ -25,11 +25,16 @@ exact corrective Arabic message. Create the bundle-bound Google iOS OAuth client
 and a real Apple profile containing Sign in with Apple before auth acceptance.
 
 Local `npm ci`, production build, all release/store/freeze/performance guards,
-TypeScript, and lint pass. Next run native sync and GitHub/Xcode compilation,
-then inspect the unsigned artifact honestly. Physical acceptance must compare
-the loading and permanent bars, confirm the full order number at the lower left,
-and separately retest auth only after the missing portal/signing inputs exist.
-Do not change product capture, region, cookies, website data, store lifecycle,
+TypeScript, lint, and iOS/Android sync pass. GitHub/Xcode run `32487355586`
+compiled code commit `b543b1c102636c7c98e8027692566f31e7059dfc`; artifact
+`9448456832` is an unsigned arm64 universal IPA with Bundle ID
+`com.otlobli.app`, version/build `86.210/1072`, and iOS 15 minimum. SHA-256 is
+`D46ACEB3127F9BC866C695280D506DF0554FE7EF5F5D87C28847A107888E0149`.
+Inspection reconfirmed there is no signature, provisioning profile,
+`GIDClientID`, or Google callback. Physical acceptance must compare the loading
+and permanent bars, confirm the full order number at the lower left, and
+separately retest auth only after the missing portal/signing inputs exist. Do
+not change product capture, region, cookies, website data, store lifecycle,
 payment, wallet, or completed-order logic.
 
 # Active handoff — v86.208 final enablement (2026-08-21)
