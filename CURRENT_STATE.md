@@ -1,9 +1,10 @@
-# v86.208 navigation follow-up — Temu root exit and interactive loading (2026-08-21)
+# v86.209 — Temu root exit and interactive loading (2026-08-21)
 
 Work is isolated on `codex/otlobli-v86-209-store-navigation` in
 `C:\Users\MOHAMMAD\Projects\otlobli-v86-209-store-navigation`, based exactly on
-v86.208 commit `10d7a22ef2a7e84e4e8c39da2b1117a231528afe`. App metadata remains
-`86.208/1070`; this task did not create an IPA or prepare an App Store release.
+v86.208 commit `10d7a22ef2a7e84e4e8c39da2b1117a231528afe`. Version/build
+`86.209/1071` were verified unused and are reserved for this physical iPhone
+test candidate; this is not an App Store release.
 
 The Temu root-exit failure had a concrete iOS cause: the page hid its HTML
 button whenever the native message bridge existed, while the native plugin

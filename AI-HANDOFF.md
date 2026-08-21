@@ -1,9 +1,9 @@
-# Active handoff — v86.208 store-navigation follow-up (2026-08-21)
+# Active handoff — v86.209 store-navigation test candidate (2026-08-21)
 
 Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-209-store-navigation`
 on `codex/otlobli-v86-209-store-navigation`, based on protected v86.208 commit
-`10d7a22ef2a7e84e4e8c39da2b1117a231528afe`. App version/build remains
-`86.208/1070`; no IPA or release candidate was created. Do not fold this work
+`10d7a22ef2a7e84e4e8c39da2b1117a231528afe`. App version/build is
+`86.209/1071`; this is a physical-test candidate, not an App Store release. Do not fold this work
 back by rewriting the protected v86.208 branch.
 
 Verified implementation: a single green 44pt Otlobli exit appears only at
