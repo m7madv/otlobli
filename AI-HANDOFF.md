@@ -25,9 +25,11 @@ device UDID fingerprint are present only in GitHub Actions secrets with separate
 `IOS_DEVELOPMENT_*` names. Never commit or print these values, private keys,
 profiles, passwords, or raw UDIDs. The existing
 registered iOS workflow now supports a manual `development-signed` mode. It uses
-an ephemeral keychain, automatic local-profile selection for the Release archive,
-overrides only the signing-time APNs entitlement to `development`, exports one
-IPA, validates all effective
+an ephemeral keychain and temporarily scopes the profile/team/identity to the App
+target inside the disposable runner checkout, avoiding Swift Package profile
+contamination without changing the committed Xcode project. It overrides only
+the signing-time APNs entitlement to `development`, exports one IPA, validates
+all effective
 Apple entitlements, intended-device membership, and binary metadata, then
 restores the runner keychain state and cleans every temporary signing asset. The
 signed run is pending this workflow commit/push. Do not call Apple login fixed

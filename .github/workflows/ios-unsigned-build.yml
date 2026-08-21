@@ -237,6 +237,31 @@ jobs:
           set -o pipefail
           archive_path="$RUNNER_TEMP/Otlobli.xcarchive"
           rm -rf "$archive_path"
+
+          python3 - "$OTLOBLI_PROFILE_NAME" "$APPLE_TEAM_ID" <<'PY'
+          import sys
+          from pathlib import Path
+
+          profile_name, team = sys.argv[1:]
+          project = Path("App.xcodeproj/project.pbxproj")
+          source = project.read_text(encoding="utf-8")
+          needle = "\t\t\t\tCODE_SIGN_STYLE = Automatic;"
+          if source.count(needle) != 2:
+              raise SystemExit("Expected exactly two app-target automatic signing settings")
+          if '"' in profile_name or not team.isalnum():
+              raise SystemExit("Unexpected signing setting value")
+          replacement = "\n".join(
+              [
+                  "\t\t\t\tCODE_SIGN_IDENTITY = \"Apple Development\";",
+                  "\t\t\t\tCODE_SIGN_STYLE = Manual;",
+                  f"\t\t\t\tDEVELOPMENT_TEAM = {team};",
+                  f"\t\t\t\tPROVISIONING_PROFILE_SPECIFIER = \"{profile_name}\";",
+              ]
+          )
+          project.write_text(source.replace(needle, replacement), encoding="utf-8")
+          print("Scoped development signing settings to the two App target configurations.")
+          PY
+
           archive_args=(
             -project App.xcodeproj
             -scheme App
@@ -244,9 +269,6 @@ jobs:
             -sdk iphoneos
             -destination 'generic/platform=iOS'
             -archivePath "$archive_path"
-            CODE_SIGN_STYLE=Automatic
-            DEVELOPMENT_TEAM="$APPLE_TEAM_ID"
-            CODE_SIGN_IDENTITY='Apple Development'
             APS_ENVIRONMENT=development
             "OTHER_CODE_SIGN_FLAGS=--keychain $OTLOBLI_KEYCHAIN_PATH"
             -quiet

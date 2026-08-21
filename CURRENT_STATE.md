@@ -33,9 +33,11 @@ are stored only in GitHub Actions secrets named
 `IOS_DEVELOPMENT_DEVICE_UDID_SHA256` target-device fingerprint; none is in Git
 and the raw device identifier is not logged. The registered iOS workflow now has
 an explicit `development-signed`
-manual mode that imports those assets into an ephemeral keychain, lets Xcode
-select the matching installed profile for the unchanged Release archive with
-development APNs entitlement, exports one
+manual mode that imports those assets into an ephemeral keychain and scopes the
+matching profile to the App target only in the disposable runner checkout. This
+avoids applying an app profile to Swift Package targets and leaves the committed
+Xcode project unchanged. It archives the Release configuration with development
+APNs entitlement and exports one
 development IPA, verifies its signature/profile/entitlements/identity/version/
 architecture/minimum iOS/device families/intended device, and removes all
 temporary runner signing assets while restoring the original keychain state.
