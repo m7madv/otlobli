@@ -1,3 +1,32 @@
+# v86.211 — complete order-card rows and verified Apple portal state (2026-08-21)
+
+Work is isolated on `codex/otlobli-v86-211-orders-apple` in
+`C:\Users\MOHAMMAD\Projects\otlobli-v86-211-orders-apple`, based exactly on
+v86.210 HEAD `ec0d76bdbaf5bda0cd305ad6ac97f9a031085922`. Version/build
+`86.211/1073` were verified unused for this physical iPhone test candidate.
+
+The v86.210 device screenshot proved that every order card clipped the lower
+part of the order-number/Reorder row. The orders screen is a CSS Grid and its
+auto tracks could shrink grid items whose shared card rule has `overflow:hidden`.
+`.mobile-content--orders` now uses `grid-auto-rows:max-content`, matching the
+existing cart/tracking sizing pattern. No order, payment, or completed-order
+logic changed. A regression guard enforces the sizing rule. Production build,
+all release/store/freeze/performance guards, lint (zero errors), iOS/Android
+sync, and visual QA at 430x932 and 320x568 pass. Measured cards have 14.8px below
+the footer and `scrollHeight === clientHeight`; no footer is clipped.
+
+Apple Developer portal access was verified read-only under active individual
+membership, Team ID `36D743K87T`, renewing August 13, 2027. Two iPhones and valid
+development/distribution certificates exist. The actual failure is confirmed:
+the only Otlobli identifier is incorrectly registered as
+`com.otlobli.app.36D743K87T`, Sign in with Apple is disabled on it, while the app
+ships as `com.otlobli.app`; no Otlobli provisioning profile exists. The portal
+form is prepared at its final Register step for exact `com.otlobli.app` with
+Push Notifications and Sign in with Apple enabled, but has not been submitted.
+Creating the permanent App ID/certificate/profile and storing encrypted GitHub
+signing secrets require the user's action-time approval. Apple auth is not yet
+fixed and no v86.211 IPA has been built.
+
 # v86.210 — exact loading-nav copy and visible order number (2026-08-21)
 
 Work is isolated on `codex/otlobli-v86-210-ui-auth` in

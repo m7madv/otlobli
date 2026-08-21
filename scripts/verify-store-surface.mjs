@@ -11,6 +11,7 @@ const reporter = readFileSync(
 )
 const appEntry = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
 const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8')
+const customerStyles = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8')
 const iosSheinBrowser = readFileSync(
   new URL('../ios/App/App/OtlobliSheinBrowserPlugin.swift', import.meta.url),
   'utf8',
@@ -106,6 +107,9 @@ for (const forbidden of ['UIImage(systemName: "house")', 'UIImage(systemName: sy
 
 for (const marker of ['order-card-footer', 'order-card-id', 'رقم الطلب ${item.id}']) {
   if (!app.includes(marker)) throw new Error(`Order-number visibility guard missing App marker: ${marker}`)
+}
+if (!/\.mobile-content--orders\s*\{[^}]*grid-auto-rows:\s*max-content/s.test(customerStyles)) {
+  throw new Error('Orders grid must size each order card from its full content so the footer cannot be clipped')
 }
 
 for (const marker of [

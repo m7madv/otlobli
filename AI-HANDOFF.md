@@ -1,3 +1,28 @@
+# Active handoff — v86.211 orders sizing and Apple registration approval (2026-08-21)
+
+Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-211-orders-apple` on
+`codex/otlobli-v86-211-orders-apple`, based on v86.210 HEAD
+`ec0d76bdbaf5bda0cd305ad6ac97f9a031085922`. Version/build is `86.211/1073`.
+
+The order footer clipping shown on the physical iPhone is fixed at the Grid
+track owner: `.mobile-content--orders` now has `grid-auto-rows:max-content`.
+Do not replace this with fixed card heights or remove shared `overflow:hidden`.
+The guard, production build, all budgets/guards, lint, native sync, and 430x932 +
+320x568 visual QA pass; measured footer clearance is 14.8px and cards do not
+overflow. Order/payment behavior is untouched.
+
+Apple portal login succeeded. Team ID is `36D743K87T`; membership is active to
+August 13, 2027; two iPhones and valid certificates exist. The registered
+Otlobli App ID is wrong (`com.otlobli.app.36D743K87T`), has Sign in with Apple
+off, and no Otlobli profile exists. A new exact `com.otlobli.app` form with Push
+Notifications and Sign in with Apple selected is waiting at the final Register
+button. Do not click it without the user's explicit action-time approval. After
+approval, register it, create a development certificate only if a usable private
+key cannot be recovered, create a development profile for the registered test
+iPhones, then store signing material only as encrypted GitHub secrets. Never
+commit private keys, certificates, profiles, UDIDs, or passwords. No v86.211 IPA
+exists yet and Apple login must not be called fixed before a signed device test.
+
 # Active handoff — v86.210 exact bar copy and auth blockers (2026-08-21)
 
 Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-210-ui-auth` on

@@ -615,6 +615,7 @@ a {
 }
 
 .mobile-content--orders {
+  grid-auto-rows: max-content;
   padding-bottom: calc(74px + max(env(safe-area-inset-bottom, 0px), 16px) + 56px);
 }
 
