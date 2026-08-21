@@ -241,10 +241,9 @@ jobs:
             -sdk iphoneos
             -destination 'generic/platform=iOS'
             -archivePath "$archive_path"
-            CODE_SIGN_STYLE=Manual
+            CODE_SIGN_STYLE=Automatic
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID"
             CODE_SIGN_IDENTITY='Apple Development'
-            PROVISIONING_PROFILE_SPECIFIER="$OTLOBLI_PROFILE_NAME"
             APS_ENVIRONMENT=development
             "OTHER_CODE_SIGN_FLAGS=--keychain $OTLOBLI_KEYCHAIN_PATH"
             -quiet
