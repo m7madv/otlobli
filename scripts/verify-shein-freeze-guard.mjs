@@ -373,7 +373,31 @@ const checks = [
     markers: [
       'InvisibilityMode.FAKE_VISIBLE',
       'hidden: true',
-      'if (webviewOpeningRef.current || !sheinReadyRef.current) return undefined',
+      'if (!sheinVisualReadyRef.current &&',
+      'isSheinCoordinatorVisuallyReady(next)',
+    ],
+  },
+  {
+    label: 'iOS SHEIN safe visual-ready cover release',
+    file: 'ios/App/App/OtlobliSheinBrowserPlugin.swift',
+    markers: [
+      'private func shouldReleaseLoadingCover(for detail: [String: Any]) -> Bool',
+      'type == "sheinPageInteractive"',
+      'coordinator["currencyState"] as? String == "matching"',
+      'coordinator["languageState"] as? String == "matching"',
+      'coordinator["policyState"] as? String == "verified"',
+      'coordinator["captureState"] as? String == "ready"',
+      'countryState != "mismatch" && regionState != "mismatch"',
+    ],
+  },
+  {
+    label: 'SHEIN bounded low-end visual-ready probe',
+    file: 'src/services/sheinSessionScript.ts',
+    markers: [
+      "var sheinNativeCoverVisualReadyPath = '';",
+      'now - sheinNativeCoverRepairStartedAt >= (OTLOBLI_LOW_END ? 2800 : 1800)',
+      'now - sheinNativeCoverInteractiveCheckAt >= (OTLOBLI_LOW_END ? 900 : 450)',
+      "sheinPostNativeCoverState('sheinPageInteractive', true)",
     ],
   },
   {
@@ -447,7 +471,7 @@ const checks = [
       'const OTLOBLI_SHEIN_CHUNK_FAILURE_BRIDGE_JS',
       "type:'sheinChunkLoadFailure'",
       'ChunkLoadError|Loading chunk',
-      'product=/-p-\\\\d+/i.test(location.pathname)',
+      'if(/-p-\\\\d+/i.test(location.pathname)',
       'window.__otlobliSheinChunkFailureAt=Date.now()',
       'window.__otlobliRecoverSheinChunkOnStalledTap=function(url)',
     ],
@@ -961,7 +985,7 @@ try {
     }
   }
 
-  const chunkCase = (pathname, attemptedTap) => {
+  const chunkCase = (pathname, attemptedTap, nextPathname = pathname) => {
     const listeners = {}
     const messages = []
     const now = 100_000
@@ -970,12 +994,15 @@ try {
       __otlobliProductTapAttemptAt: attemptedTap ? now : 0,
       __otlobliProductTapAttemptUrl: attemptedTap ? 'https://m.shein.com/ar/item-p-77.html' : '',
     }
+    const currentLocation = { hostname: 'm.shein.com', pathname, href: `https://m.shein.com${pathname}` }
     runInNewContext(scriptModule.exports.__chunkBridge, {
       window,
-      location: { hostname: 'm.shein.com', pathname, href: `https://m.shein.com${pathname}` },
+      location: currentLocation,
       Date: { now: () => now },
       addEventListener: (name, listener) => { listeners[name] = listener },
     })
+    currentLocation.pathname = nextPathname
+    currentLocation.href = `https://m.shein.com${nextPathname}`
     listeners.error({ message: 'ChunkLoadError: Loading chunk 42 failed' })
     return { messages, window }
   }
@@ -990,6 +1017,8 @@ try {
   }
   chunk = chunkCase('/ar/item-p-99.html', false)
   if (chunk.messages.length !== 1) failures.push('SHEIN chunk bridge: confirmed product-route recovery regressed')
+  chunk = chunkCase('/ar/', false, '/ar/Solid-Dress-p-101.html')
+  if (chunk.messages.length !== 1) failures.push('SHEIN chunk bridge: Home-to-SPA-product chunk failure was missed')
 
   const handlers = {}, timers = [], assigned = []
   let recoveryCalls = 0
@@ -1436,7 +1465,7 @@ try {
   const homeVisibilityStart = appSource.indexOf("if (screen === 'home')", temuOptionsStart)
   const homeVisibilityEnd = appSource.indexOf("} else if (sheinOpenedRef.current)", homeVisibilityStart)
   const homeVisibilitySource = appSource.slice(homeVisibilityStart, homeVisibilityEnd)
-  const readyGuard = homeVisibilitySource.indexOf('if (webviewOpeningRef.current || !sheinReadyRef.current) return undefined')
+  const readyGuard = homeVisibilitySource.indexOf('if (!sheinVisualReadyRef.current &&')
   const showCall = homeVisibilitySource.indexOf('InAppBrowser.show()')
   if (homeVisibilityStart < 0 || homeVisibilityEnd < 0 || readyGuard < 0 || showCall < 0 || readyGuard > showCall) {
     failures.push('SHEIN ready reveal: readiness guard must run before the native WebView is shown')

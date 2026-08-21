@@ -216,7 +216,19 @@ state = coordinator.transitionSheinRegionCoordinator(state, { type: 'SNAPSHOT', 
   loginState: 'not-required', humanVerificationState: 'none', policyState: 'verified', captureState: 'ready', interactive: true,
 } })
 assert.equal(state.phase, 'READY')
+assert.equal(coordinator.isSheinCoordinatorVisuallyReady(state), true)
 assert.deepEqual(JSON.parse(JSON.stringify(state.required)), { countryCode: 'SA', currency: 'USD', language: 'ar' })
+
+const browseReady = {
+  ...state,
+  phase: 'VERIFYING',
+  countryState: 'unknown',
+  regionState: 'unknown',
+}
+assert.equal(coordinator.isSheinCoordinatorReady(browseReady), false, 'Signed region is still required for transaction readiness')
+assert.equal(coordinator.isSheinCoordinatorVisuallyReady(browseReady), true, 'Safe localized browsing should not wait for the signed region cascade')
+assert.equal(coordinator.isSheinCoordinatorVisuallyReady({ ...browseReady, currencyState: 'mismatch' }), false)
+assert.equal(coordinator.isSheinCoordinatorVisuallyReady({ ...browseReady, humanVerificationState: 'required' }), false)
 
 let mismatch = coordinator.createSheinRegionCoordinator(requiredRegion)
 mismatch = coordinator.transitionSheinRegionCoordinator(mismatch, { type: 'OPEN', required: requiredRegion })

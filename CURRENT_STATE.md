@@ -1,10 +1,38 @@
-# v86.213 — TestFlight ready and exact internal invitation sent (2026-08-22)
+# v86.214 — lightweight SHEIN product/startup recovery candidate (2026-08-22)
 
 Continue in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
-`codex/otlobli-v86-212-testflight-auth`. Customer version/build is
-`86.213/1075`. Phone/WhatsApp, Google, and Apple share the compact Arabic login
-screen and enter the same Otlobli account. Store, order, payment, wallet, SHEIN,
-and Temu behavior was not deliberately changed.
+`codex/otlobli-v86-212-testflight-auth`. Current source version/build is
+`86.214/1076`; it is synchronized to Android and iOS but has not been uploaded
+to TestFlight. The previous `86.213/1075` remains Ready to Test and invited to
+the exact internal tester.
+
+The reported iPhone video proves a SHEIN list can paint, then a product route
+can stay on its spinner. The chunk bridge was installed on Home and cached
+`product=false`; after SHEIN's SPA changed the live path, a real
+`ChunkLoadError` therefore never reached the existing bounded host recovery.
+The bridge now checks `location.pathname` only when the error occurs. An exact
+Home → SPA product fixture proves one recovery message; listing errors still do
+not recover eagerly. The existing iOS-only one-incident recovery, 60-second
+guard, cache-only reset, cookies/storage, product URL, and back target remain.
+
+The long first-open cover now distinguishes safe visual browsing from signed
+transaction readiness. A page is revealed only after matching Arabic/USD,
+verified policy, ready capture, no login/human-check blocker, no region
+mismatch, and a bounded interactive check. A missing signed country/region may
+continue repairing behind the existing lightweight indicator; full coordinator
+READY and add-to-cart remain fail-closed until country and region both match.
+The check reuses the one runtime coordinator, waits 2.8s on weak devices before
+revealing during repair, scans at most every 900ms until the current route is
+released, and adds no observer, recurring timer, reload, or WebView rebuild.
+
+`npm run build` passes all release/auth/SHEIN/Temu/store guards and the unchanged
+low-end budgets. Shipped store scripts are 242,939/470,000 bytes and startup JS
+is 656,818/720,000 bytes. `npx cap sync android`, `npx cap sync ios`, and Android
+`assembleDebug` pass. The new Android artifact is
+`output/Otlobli-v86.214-Android-debug.apk`, 11,119,168 bytes, SHA-256
+`BBF1F54F1839F0BCFFC9EC25CCFD17945F54FC6EA7B4CAA4B9B3D46FF320D85A`.
+Windows cannot compile the Swift plugin locally; CI/Xcode compilation and all
+physical device acceptance remain pending.
 
 Apple Developer is configured under the exact Account Holder
 `mhm1981dx@gmail.com`, Team `36D743K87T`. Services ID
@@ -60,17 +88,13 @@ its GitHub artifact digest is
 `sha256:fe8d5e310f80d406005b3426bf9ca883bfb6b2437fa0c2df7abc0627f859642b`
 and it expires 2026-09-20.
 
-Apple finished processing `86.213 (1075)`: TestFlight shows `Ready to Test`,
+Apple finished processing the previous `86.213 (1075)`: TestFlight shows `Ready to Test`,
 expiring in 90 days. Internal group `Otlobli Internal` has automatic
 distribution enabled, exactly one build, and exactly one tester. The exact
 tester `mhm1981dx@gmail.com` was added and App Store Connect shows `Invited`.
-No App Store review submission was made. No Android/iPhone physical login
-acceptance, weak-device acceptance, five iPhone 16 resume cycles, or cold-launch
-acceptance is claimed.
-
-The Android artifact remains
-`output/Otlobli-v86.213-Android-Auth-debug.apk`, 11,118,964 bytes, SHA-256
-`CD6B09ABDC23BBEFB4B93D1E150B1D3441029AF6603A13A59ACD30E261D6BF93`.
+No App Store review submission was made. No v86.214 iPhone list→product or
+first-open acceptance, weak-Android acceptance, five iPhone 16 resume cycles,
+or force-quit/cold-launch acceptance is claimed.
 
 # v86.212 — internal TestFlight authentication candidate (2026-08-21)
 

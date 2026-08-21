@@ -1,5 +1,34 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
+## v86.214 — live SPA chunk recovery and safe visual readiness (2026-08-22)
+
+- **Device/evidence:** The supplied iPhone recording paints a SHEIN list shell,
+  then a product route remains on its spinner. The separate screenshot shows
+  Otlobli's native `جاري تجهيز المتجر…` cover persisting on first open.
+- **Product cause:** The chunk bridge captured `product=false` when installed on
+  Home. SHEIN later changed `location.pathname` through SPA navigation; the
+  subsequent real `ChunkLoadError` had neither a live product classification nor
+  the tap timestamp used by the 500ms fallback, so the host recovery was silent.
+- **Product decision:** Classify the live pathname only when a real chunk error
+  fires. Preserve iOS-only one-shot host recovery, the 60-second incident guard,
+  the target URL/back target, and the cache-only reset that retains cookies,
+  storage, service-worker registration, and signed address. No polling,
+  observer, synthetic click, broad scan, or eager listing recovery.
+- **Opening cause:** JS posted `sheinPageInteractive` after region repair timed
+  out, but native and React accepted only full signed-region readiness. A safe,
+  localized and policy-verified page could therefore remain hidden indefinitely.
+- **Opening decision:** Add a separate visual-ready predicate: currency/language
+  matching, policy verified, capture ready, interactive, no mismatch, no login
+  route, and no human challenge. Country/region may remain unknown while repair
+  continues; transaction READY and add-to-cart still require both matching. Reuse
+  the single coordinator; low-end checks wait 2.8s and run no more than every
+  900ms until the current route is released.
+- **Validation boundary:** Exact coordinator and Home→SPA-product fixtures,
+  production build, unchanged performance budgets, freeze guard, both native
+  syncs and Android debug assembly pass at `86.214/1076`. Xcode/Swift CI and real
+  iPhone/weak-Android acceptance remain pending. Preserve the 0.25s iPhone 16
+  recompose, Android resume defense, and JSON region equality invariant.
+
 ## v86.201 decision — injected double-Home was missing, not intermittent (2026-08-20)
 
 The double-Home store-switch gesture existed only in the Android personal-Temu React path. Injected SHEIN/Temu navigation could not recognize it because the first tap navigated immediately and the bridge's 450ms touch/click dedupe rejected the physical second tap. v86.201 uses a 320ms single-tap timer and separately deduplicates synthetic post-touch clicks. Double Home emits the existing `closeStore` path, preserving the same-store session and fixed React bottom navigation.

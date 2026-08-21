@@ -55,6 +55,7 @@ import { StoreBrowser as InAppBrowser } from './services/storeBrowser'
 import {
   createSheinRegionCoordinator,
   isSheinCoordinatorReady,
+  isSheinCoordinatorVisuallyReady,
   transitionSheinRegionCoordinator,
 } from './services/sheinRegionCoordinator'
 import type { SheinCoordinatorEvent, SheinRegionSnapshot } from './services/sheinRegionCoordinator'
@@ -3207,6 +3208,8 @@ function App() {
   const sheinCartProductSessionRef = useRef(false)
   const [sheinReady, setSheinReady] = useState(false)
   const sheinReadyRef = useRef(false)
+  const [sheinVisualReady, setSheinVisualReady] = useState(false)
+  const sheinVisualReadyRef = useRef(false)
   // Tracks which screen the in-page back button inside the SHEIN webview
   // should return to: 'cart' right after the user taps a cart item (so back
   // re-opens otlobli's cart), 'home' for ordinary browsing from the home tab.
@@ -3364,6 +3367,8 @@ function App() {
     currentWebviewUrlRef.current = ''
     sheinOpenedRef.current = false
     setSheinReady(false)
+    sheinVisualReadyRef.current = false
+    setSheinVisualReady(false)
     void InAppBrowser.close(closingWebviewId ? { id: closingWebviewId } : undefined)
       .catch(() => undefined)
       .finally(() => {
@@ -3612,6 +3617,8 @@ function App() {
     // The next document sets readiness again after all blockers have run.
     sheinReadyRef.current = false
     setSheinReady(false)
+    sheinVisualReadyRef.current = false
+    setSheinVisualReady(false)
   }
 
   const revealPreparedProductIfReady = () => {
@@ -3637,7 +3644,7 @@ function App() {
     // A healthy store keeps its exact page/scroll state across app screens and
     // ordinary background/foreground transitions. Native iOS revives an actual
     // WebContent termination in place; normal resume is never a reason to close.
-    if (sheinOpenedRef.current && sheinReadyRef.current) return
+    if (sheinOpenedRef.current && (sheinReadyRef.current || sheinVisualReadyRef.current)) return
     if (sheinChallengeActiveRef.current) return
     const now = Date.now()
     if (now - lastResumeVpnRecheckRef.current < 1200) return
@@ -3656,6 +3663,8 @@ function App() {
     currentWebviewUrlRef.current = ''
     sheinOpenedRef.current = false
     setSheinReady(false)
+    sheinVisualReadyRef.current = false
+    setSheinVisualReady(false)
     setSheinBlockedError(false)
     setVpnState('checking')
     void InAppBrowser.close().catch(() => undefined).finally(() => {
@@ -3682,6 +3691,8 @@ function App() {
     currentWebviewUrlRef.current = ''
     sheinOpenedRef.current = false
     setSheinReady(false)
+    sheinVisualReadyRef.current = false
+    setSheinVisualReady(false)
     const geo = vpnGeoRef.current
     const trustedStoreAccess = !isBlockedStoreCountry(geo?.countryCode) &&
       (storeReachableRef.current || !!geo?.countryCode)
@@ -3703,6 +3714,8 @@ function App() {
     }
     sheinReadyRef.current = false
     setSheinReady(false)
+    sheinVisualReadyRef.current = false
+    setSheinVisualReady(false)
     setStoreOpenFailureReason(reason)
     setSheinBlockedError(true)
     recordAppDiagnostic('shein_coordinator_failed', {
@@ -3756,8 +3769,30 @@ function App() {
     if (!recoverSheinChunkLoad(failingUrl)) showStoreOpenFailure()
   }
 
+  const markSheinWebviewVisuallyReady = (sessionId: number) => {
+    if (sessionId !== webviewSessionRef.current || !sheinOpenedRef.current) return false
+    clearSheinReadinessWatchdog()
+    sheinRecoveryAttemptRef.current = 0
+    webviewAutoOpenPausedUntilRef.current = 0
+    webviewOpeningRef.current = false
+    openedViaBypassRef.current = false
+    storeReachableRef.current = true
+    setSheinBlockedError(false)
+    if (!sheinVisualReadyRef.current) {
+      sheinVisualReadyRef.current = true
+      setSheinVisualReady(true)
+      recordAppDiagnostic('shein_visual_ready', {
+        fullRegionReady: sheinReadyRef.current,
+        phase: sheinCoordinatorRef.current.phase,
+      })
+      completeSheinOpening()
+    }
+    return true
+  }
+
   const markStoreWebviewReady = (sessionId: number) => {
     if (sessionId !== webviewSessionRef.current || !sheinOpenedRef.current) return
+    if (selectedStoreRef.current === 'shein') markSheinWebviewVisuallyReady(sessionId)
     clearSheinReadinessWatchdog()
     sheinRecoveryAttemptRef.current = 0
     if (webviewErrorTimerRef.current !== undefined) {
@@ -3798,7 +3833,7 @@ function App() {
   const restartStuckSheinWebview = (sessionId: number) => {
     if (sessionId !== webviewSessionRef.current) return
     if (!sheinOpenedRef.current || screenRef.current !== 'home') return
-    if (sheinChallengeActiveRef.current || sheinReadyRef.current) return
+    if (sheinChallengeActiveRef.current || sheinReadyRef.current || sheinVisualReadyRef.current) return
     clearSheinReadinessWatchdog()
 
     if (sheinRecoveryAttemptRef.current >= 1) {
@@ -3831,6 +3866,8 @@ function App() {
     currentWebviewUrlRef.current = ''
     sheinOpenedRef.current = false
     setSheinReady(false)
+    sheinVisualReadyRef.current = false
+    setSheinVisualReady(false)
     sheinCacheResetPendingRef.current = true
     void InAppBrowser.close()
       .then(() => {
@@ -3884,6 +3921,8 @@ function App() {
     currentWebviewUrlRef.current = ''
     sheinOpenedRef.current = false
     setSheinReady(false)
+    sheinVisualReadyRef.current = false
+    setSheinVisualReady(false)
     // This is the same limited disk/memory-cache reset that makes the proven
     // Temu → SHEIN recovery healthy. It deliberately leaves cookies, storage,
     // service-worker registration, and the selected address untouched.
@@ -3944,6 +3983,8 @@ function App() {
       currentWebviewUrlRef.current = ''
       sheinOpenedRef.current = false
       setSheinReady(false)
+      sheinVisualReadyRef.current = false
+      setSheinVisualReady(false)
       setSheinBlockedError(false)
       if (currentVpnState === 'checking') {
         setVpnState('checking')
@@ -4035,6 +4076,8 @@ function App() {
     sheinOpenedRef.current = true
     temuContentLoadedRef.current = false
     setSheinReady(false)
+    sheinVisualReadyRef.current = false
+    setSheinVisualReady(false)
     setStoreOpenFailureReason('network')
     // SHEIN is reached directly on both platforms now, so it only loads once
     // the user's VPN is on - the vpnState check above already confirmed that
@@ -4197,8 +4240,10 @@ function App() {
         // A newly-created iOS SHEIN view is intentionally full-size but
         // offscreen. Never reveal it on a state re-render before its own
         // readiness signal; this is what keeps the host nav fixed on the very
-        // first frame, including after a recovery/reopen.
-        if (webviewOpeningRef.current || !sheinReadyRef.current) return undefined
+        // first frame, including after a recovery/reopen. SHEIN may reveal a
+        // policy-safe localized page before its signed shipping cascade is done.
+        if (!sheinVisualReadyRef.current &&
+            (webviewOpeningRef.current || !sheinReadyRef.current)) return undefined
         void InAppBrowser.show().catch(() => undefined).then(() => {
           const target = pendingBackTargetRef.current
           pendingBackTargetRef.current = 'home'
@@ -4216,7 +4261,7 @@ function App() {
     return () => {
       if (openTimer !== undefined) window.clearTimeout(openTimer)
     }
-  }, [screen, vpnState, sheinReady, sheinBlockedError, storeRegionsReady])
+  }, [screen, vpnState, sheinReady, sheinVisualReady, sheinBlockedError, storeRegionsReady])
 
   // Deep links for either store must originate inside the already-warm page.
   // Besides preserving a same-site referrer, iOS SHEIN must keep the exact
@@ -4372,7 +4417,8 @@ function App() {
       if (closedId && ignoredWebviewCloseIdsRef.current.delete(closedId)) return
       if (closedId && webviewIdRef.current && closedId !== webviewIdRef.current) return
       if (!suppressAutoReopenRef.current && screenRef.current === 'home' &&
-          selectedStoreRef.current === 'shein' && sheinReadyRef.current &&
+          selectedStoreRef.current === 'shein' &&
+          (sheinReadyRef.current || sheinVisualReadyRef.current) &&
           recoverSheinChunkLoad(currentWebviewUrlRef.current)) return
       const productWasPreparing = pendingProductRevealRef.current
       clearPendingProductPreparation()
@@ -4384,6 +4430,8 @@ function App() {
       sheinCartProductSessionRef.current = false
       sheinOpenedRef.current = false
       setSheinReady(false)
+      sheinVisualReadyRef.current = false
+      setSheinVisualReady(false)
       if (productWasPreparing && screenRef.current === 'cart') {
         pendingBackTargetRef.current = 'home'
         showNotice('توقف تجهيز المنتج. جرّب فتحه مرة أخرى.')
@@ -4478,7 +4526,8 @@ function App() {
       }
       if (screenRef.current !== 'home') return
       if (activeStore === 'shein' && !openedViaBypassRef.current) return
-      if (activeStore === 'shein' && (sheinChallengeActiveRef.current || sheinReadyRef.current)) return
+      if (activeStore === 'shein' &&
+          (sheinChallengeActiveRef.current || sheinReadyRef.current || sheinVisualReadyRef.current)) return
       if (webviewErrorTimerRef.current !== undefined) window.clearTimeout(webviewErrorTimerRef.current)
       webviewErrorTimerRef.current = window.setTimeout(() => {
         webviewErrorTimerRef.current = undefined
@@ -4486,7 +4535,8 @@ function App() {
         const currentStore = selectedStoreRef.current
         if (currentStore === 'temu' && temuContentLoadedRef.current) return
         if (currentStore === 'shein' && !openedViaBypassRef.current) return
-        if (currentStore === 'shein' && (sheinChallengeActiveRef.current || sheinReadyRef.current)) return
+        if (currentStore === 'shein' &&
+            (sheinChallengeActiveRef.current || sheinReadyRef.current || sheinVisualReadyRef.current)) return
         // A navigation can fail after the VPN gate passed (bad VPN server,
         // 404/blocked route, or a disconnected VPN). Tear down this native
         // instance and show a clear VPN action instead of a blank screen.
@@ -4680,6 +4730,8 @@ function App() {
         sheinChallengeActiveRef.current = false
         sheinReadyRef.current = false
         setSheinReady(false)
+        sheinVisualReadyRef.current = false
+        setSheinVisualReady(false)
         if (screenRef.current === 'home') showNotice('أعاد iOS تشغيل صفحة SHEIN؛ جاري استعادتها…')
         return
       }
@@ -4713,6 +4765,10 @@ function App() {
         }
         if (next.policyState === 'verified') markSheinOpening('policyVerification')
         if (next.captureState === 'ready') markSheinOpening('captureReady')
+        if (isSheinCoordinatorVisuallyReady(next)) {
+          markSheinWebviewVisuallyReady(webviewSessionRef.current)
+          revealPreparedProductIfReady()
+        }
         if (isSheinCoordinatorReady(next)) {
           setSheinBlockedError(false)
           markStoreWebviewReadyRef.current(webviewSessionRef.current)
@@ -5422,6 +5478,8 @@ function App() {
     sheinCartProductSessionRef.current = false
     sheinOpenedRef.current = false
     setSheinReady(false)
+    sheinVisualReadyRef.current = false
+    setSheinVisualReady(false)
     // Preserve SHEIN's healthy HTTP/WebKit cache on an ordinary store switch.
     // Clearing it here made every Temu -> SHEIN entry a cold start on weak
     // phones. The bounded stuck/chunk recovery paths above still request the
@@ -8251,6 +8309,8 @@ function App() {
               sheinChallengeActiveRef.current = false
               sheinOpenedRef.current = false
               setSheinReady(false)
+              sheinVisualReadyRef.current = false
+              setSheinVisualReady(false)
               void InAppBrowser.close().catch(() => undefined)
               setVpnState('checking')
             }}>

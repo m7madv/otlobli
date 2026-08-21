@@ -967,6 +967,28 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         """
     }
 
+    private func shouldReleaseLoadingCover(for detail: [String: Any]) -> Bool {
+        guard let type = detail["type"] as? String else { return false }
+        if ["sheinSaudiReady", "humanCheck", "humanCheckResolved"].contains(type) {
+            return true
+        }
+        guard type == "sheinPageInteractive",
+              let coordinator = detail["coordinator"] as? [String: Any],
+              coordinator["interactive"] as? Bool == true,
+              coordinator["currencyState"] as? String == "matching",
+              coordinator["languageState"] as? String == "matching",
+              coordinator["policyState"] as? String == "verified",
+              coordinator["captureState"] as? String == "ready" else {
+            return false
+        }
+        let countryState = coordinator["countryState"] as? String ?? "unknown"
+        let regionState = coordinator["regionState"] as? String ?? "unknown"
+        let loginState = coordinator["loginState"] as? String ?? "unknown"
+        let humanState = coordinator["humanVerificationState"] as? String ?? "none"
+        return countryState != "mismatch" && regionState != "mismatch" &&
+            ["not-required", "blocked"].contains(loginState) && humanState != "required"
+    }
+
     public func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         guard message.webView === storeWebView else { return }
         switch message.name {
@@ -977,10 +999,10 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
                 updateNativeBackButton(detail)
                 return
             }
-            // A painted page is not sufficient readiness. Keep the cover until
-            // required state is verified, or reveal the genuine human check.
-            let readyTypes = ["sheinSaudiReady", "humanCheck", "humanCheckResolved"]
-            if let type = detail["type"] as? String, readyTypes.contains(type) {
+            // A painted page alone is not readiness. A localized, policy-safe
+            // interactive page may be browsed while signed shipping repair
+            // continues; checkout capture still waits for sheinSaudiReady.
+            if shouldReleaseLoadingCover(for: detail) {
                 hideLoadingCover()
             }
             emit("messageFromWebview", detail: detail)

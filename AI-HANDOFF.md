@@ -1,11 +1,36 @@
-# Active handoff — v86.213 is ready in TestFlight (2026-08-22)
+# Active handoff — v86.214 lightweight SHEIN recovery (2026-08-22)
 
 Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`
-on `codex/otlobli-v86-212-testflight-auth`. Version/build `86.213/1075` is
-processed in TestFlight and shows `Ready to Test`. Internal group
+on `codex/otlobli-v86-212-testflight-auth`. Current source is `86.214/1076`,
+locally built and synchronized to both native projects but not uploaded. The
+previous `86.213/1075` is processed in TestFlight and shows `Ready to Test`. Internal group
 `Otlobli Internal` has automatic distribution, the exact build, and the exact
 Account Holder tester `mhm1981dx@gmail.com`, whose status is `Invited`. App Store
 Connect app ID is `6804052538`. No App Store review submission was made.
+
+v86.214 fixes two evidence-backed SHEIN defects. First, the chunk-failure bridge
+used a product-route boolean captured when installed on Home; it missed a
+`ChunkLoadError` after an SPA list→product transition. It now tests the live
+pathname only at error time, and the executable guard covers Home install → SPA
+product → one recovery message. Preserve the existing iOS-only single recovery,
+60-second incident guard, cache-only reset, session data, target URL and back
+target.
+
+Second, native/React previously ignored `sheinPageInteractive`, so the initial
+cover could remain after the 12-second region-repair timeout. New visual
+readiness requires matching currency/language, verified policy, capture ready,
+interactive content, no mismatch, and no login/human-check blocker. It may
+reveal browsing while signed country/region repair continues, but full READY
+and add-to-cart still require matching country+region. The current-route scan
+reuses the existing coordinator and is throttled to 900ms after a 2.8s repair
+grace on low-end devices; do not replace it with another timer/observer.
+
+Fresh `npm run build`, every pre/post guard, unchanged performance budgets,
+Android/iOS sync, and Android `assembleDebug` pass. Android artifact:
+`output/Otlobli-v86.214-Android-debug.apk`, 11,119,168 bytes, SHA-256
+`BBF1F54F1839F0BCFFC9EC25CCFD17945F54FC6EA7B4CAA4B9B3D46FF320D85A`.
+Swift/Xcode CI compilation and real-device acceptance are still pending. Do not
+upload `86.214/1076` to TestFlight without action-time approval.
 
 Apple Team is `36D743K87T`. Services ID `com.otlobli.app.signin` is saved with
 the Supabase domain and exact Apple callback. Active SIWA key ID is
@@ -40,14 +65,12 @@ capture, orders, payment, or wallet for follow-up TestFlight work.
 The hardened phone server and Supabase functions remain deployed. The WhatsApp
 sender was reconnected from stored credentials without a message or new QR so
 the TestFlight preflight could pass; its live connected state is time-sensitive
-and must be checked again before any later upload. The Android artifact remains
-`output/Otlobli-v86.213-Android-Auth-debug.apk`, 11,118,964 bytes, SHA-256
-`CD6B09ABDC23BBEFB4B93D1E150B1D3441029AF6603A13A59ACD30E261D6BF93`.
+and must be checked again before any later upload.
 
 Still unverified: real iPhone/Android login for all three methods, weak Android
-acceptance, five real iPhone 16 background/resume cycles, and a separate
-force-quit/cold-launch test. Report these honestly; `Ready to Test` proves Apple
-processing/distribution, not device acceptance.
+acceptance, v86.214 first-open and list→product behavior, five real iPhone 16
+background/resume cycles, and a separate force-quit/cold-launch test. Report
+these honestly; builds and `Ready to Test` do not prove device acceptance.
 
 # Active handoff — v86.212 internal TestFlight authentication (2026-08-21)
 

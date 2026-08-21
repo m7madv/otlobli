@@ -305,6 +305,9 @@ export const SHEIN_SESSION_SCRIPT = `
   }
 
   var sheinNativeCoverInitialReleased = false;
+  var sheinNativeCoverVisualReadyPath = '';
+  var sheinNativeCoverSignedReadyPath = '';
+  var sheinNativeCoverInteractiveCheckAt = 0;
   var sheinNativeCoverRepairActive = false;
   var sheinNativeCoverRepairStartedAt = 0;
   var sheinNativeCoverCooldownUntil = 0;
@@ -403,7 +406,7 @@ export const SHEIN_SESSION_SCRIPT = `
     }
   }
 
-  function sheinCoordinatorSnapshot() {
+  function sheinCoordinatorSnapshot(interactiveOverride) {
     var addressCountry = sheinAddressCookieCountry();
     var countryState = addressCountry
       ? (addressCountry === SHEIN_REQUIRED_COUNTRY ? 'matching' : 'mismatch')
@@ -451,11 +454,13 @@ export const SHEIN_SESSION_SCRIPT = `
       humanVerificationState: otlobliIsHumanChallenge() ? 'required' : 'none',
       policyState: policyState,
       captureState: window.__otlobliStoreRuntimeReady === true ? 'ready' : 'installing',
-      interactive: sheinPageLooksInteractive()
+      interactive: typeof interactiveOverride === 'boolean'
+        ? interactiveOverride
+        : sheinPageLooksInteractive()
     };
   }
 
-  function sheinPostNativeCoverState(type) {
+  function sheinPostNativeCoverState(type, interactiveOverride) {
     if (!IS_SHEIN) return;
     var key = type + '|' + location.pathname;
     if (key === sheinNativeCoverLastKey) return;
@@ -465,7 +470,7 @@ export const SHEIN_SESSION_SCRIPT = `
         if (window.__otlobliSheinPolicyEngine && window.__otlobliSheinPolicyEngine.verify) {
           window.__otlobliSheinPolicyEngine.verify('region-state');
         }
-        window.mobileApp.postMessage({ detail: { type: type, coordinator: sheinCoordinatorSnapshot() } });
+        window.mobileApp.postMessage({ detail: { type: type, coordinator: sheinCoordinatorSnapshot(interactiveOverride) } });
       }
     } catch (e) {}
   }
@@ -540,7 +545,34 @@ export const SHEIN_SESSION_SCRIPT = `
 
   function updateSheinNativeCoverState() {
     if (!IS_SHEIN) return;
-    if (sheinSignedSaudiAddressReady()) {
+    var now = Date.now();
+    var currentPath = String(location.pathname || '');
+    var signedReady = sheinSignedSaudiAddressReady();
+    var interactive = false;
+    var interactiveChecked = false;
+    // Let the native cascade have a brief head start, then reveal a verified,
+    // localized page while signed country/region repair continues. This reuses
+    // the existing coordinator tick and stops scanning after the current route
+    // is released; weak phones receive the wider scan gap.
+    var visualGraceElapsed = !sheinNativeCoverRepairActive ||
+      now - sheinNativeCoverRepairStartedAt >= (OTLOBLI_LOW_END ? 2800 : 1800);
+    if (!signedReady && visualGraceElapsed &&
+        (!sheinNativeCoverInitialReleased || sheinNativeCoverVisualReadyPath !== currentPath) &&
+        now - sheinNativeCoverInteractiveCheckAt >= (OTLOBLI_LOW_END ? 900 : 450)) {
+      sheinNativeCoverInteractiveCheckAt = now;
+      interactive = sheinPageLooksInteractive();
+      interactiveChecked = true;
+      if (interactive) {
+        sheinNativeCoverInitialReleased = true;
+        sheinNativeCoverVisualReadyPath = currentPath;
+        sheinRegionDiag('visual-ready-before-region', {
+          repairActive: sheinNativeCoverRepairActive,
+          elapsedMs: sheinNativeCoverRepairStartedAt ? now - sheinNativeCoverRepairStartedAt : 0
+        }, currentPath);
+        sheinPostNativeCoverState('sheinPageInteractive', true);
+      }
+    }
+    if (signedReady) {
       // Close SHEIN's resolved drawer first, then release the cover on the
       // next tick after its close animation detaches it.
       if (sheinShippingUiLikelyOpen() && sheinResolvedShippingUiRoot()) {
@@ -559,9 +591,14 @@ export const SHEIN_SESSION_SCRIPT = `
         clearTimeout(sheinShippingProgressTimer);
         sheinShippingProgressTimer = 0;
       }
-      if (!sheinNativeCoverInitialReleased && sheinPageLooksInteractive()) {
-        sheinNativeCoverInitialReleased = true;
-        sheinPostNativeCoverState('sheinSaudiReady');
+      if (sheinNativeCoverSignedReadyPath !== currentPath) {
+        if (!interactiveChecked) interactive = sheinPageLooksInteractive();
+        if (interactive) {
+          sheinNativeCoverInitialReleased = true;
+          sheinNativeCoverVisualReadyPath = currentPath;
+          sheinNativeCoverSignedReadyPath = currentPath;
+          sheinPostNativeCoverState('sheinSaudiReady', true);
+        }
       }
       return;
     }
@@ -581,18 +618,15 @@ export const SHEIN_SESSION_SCRIPT = `
           clearTimeout(sheinShippingProgressTimer);
           sheinShippingProgressTimer = 0;
         }
-        if (sheinPageLooksInteractive()) {
+        if (sheinNativeCoverVisualReadyPath !== currentPath && sheinPageLooksInteractive()) {
           sheinNativeCoverInitialReleased = true;
-          sheinPostNativeCoverState('sheinPageInteractive');
+          sheinNativeCoverVisualReadyPath = currentPath;
+          sheinPostNativeCoverState('sheinPageInteractive', true);
         }
       }
       return;
     }
     sheinUpdateRegionTransitionVeil();
-    if (!sheinNativeCoverInitialReleased && sheinPageLooksInteractive()) {
-      sheinNativeCoverInitialReleased = true;
-      sheinPostNativeCoverState('sheinPageInteractive');
-    }
   }
 
   function sheinSaudiSignalsOk() {
@@ -1723,7 +1757,7 @@ export const SHEIN_SESSION_SCRIPT = `
         window.__otlobliSheinPolicyEngine.verify('host-retry');
       }
       if (sheinSignedSaudiAddressReady() && sheinPageLooksInteractive()) {
-        sheinPostNativeCoverState('sheinSaudiReady');
+        sheinPostNativeCoverState('sheinSaudiReady', true);
         return;
       }
       if (window.mobileApp && window.mobileApp.postMessage) {
