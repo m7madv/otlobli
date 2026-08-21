@@ -18,10 +18,15 @@ have an explicit direct store-switch path.
 
 All local web/security/store guards and the production build pass. The
 regenerated `@capgo/capacitor-inappbrowser` patch applies from a clean `npm ci`;
-iOS and Android sync pass; Android Debug compiles. iOS Swift compilation is not
-available on this Windows host, so the next step is one macOS/Xcode compile and
-physical iPhone acceptance: verify one Home tap causes no URL/reload change,
-double Home opens the chooser, Temu shows one exit only on root, and during
+iOS and Android sync pass; Android Debug compiles. GitHub Xcode run
+`32483692145` passes from code commit
+`b89183b76cc2012dd32ac25aea18081404c418e2`, and artifact `9447117130` has
+SHA-256 `2F1516488A1C85E33FA30084F02CC5B7CB5829A887722C2E9A1AFA01FFE5745B`.
+It is an unsigned universal arm64 IPA for iPhone/iPad, Bundle ID
+`com.otlobli.app`, version/build `86.209/1071`, minimum iOS 15; it contains no
+app signature or provisioning profile. The next step is signing and physical
+iPhone acceptance: verify one Home tap causes no URL/reload change, double Home
+opens the chooser, Temu shows one exit only on root, and during
 `جاري تجهيز المتجر…` Cart/Orders/Profile open while re-entering Home continues
 the same store load/session. Do not change product capture, region, auth,
 notification, cookies, website data, or WebView lifecycle during that test.

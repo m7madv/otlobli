@@ -26,9 +26,14 @@ loading behind the app. Returning Home shows that same retained session.
 `npm ci` proves the regenerated patch-package file installs cleanly. Production
 build, release/security guards, SHEIN freeze guard, Temu guards, store-surface
 guard, TypeScript, performance budget, iOS/Android Capacitor sync, lint (zero
-errors; 18 pre-existing warnings), and Android Debug compilation pass. iOS
-Swift was synchronized but cannot be compiled locally on Windows; physical
-iPhone acceptance and a macOS/Xcode build remain pending.
+errors; 18 pre-existing warnings), and Android Debug compilation pass. GitHub
+Xcode run `32483692145` also passes from code commit
+`b89183b76cc2012dd32ac25aea18081404c418e2`; artifact `9447117130` is the
+unsigned universal iPhone/iPad IPA. Its SHA-256 is
+`2F1516488A1C85E33FA30084F02CC5B7CB5829A887722C2E9A1AFA01FFE5745B`.
+Bundle ID/version/build, arm64, and iOS 15 minimum were inspected successfully;
+the app has no signing identity or embedded provisioning profile, so signing
+and physical iPhone acceptance remain pending.
 
 # v86.208 — final enablement current state (2026-08-21)
 
