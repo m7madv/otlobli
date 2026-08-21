@@ -1,4 +1,4 @@
-# v86.211 — complete order-card rows and verified Apple portal state (2026-08-21)
+# v86.211 — complete order cards and Apple development signing (2026-08-21)
 
 Work is isolated on `codex/otlobli-v86-211-orders-apple` in
 `C:\Users\MOHAMMAD\Projects\otlobli-v86-211-orders-apple`, based exactly on
@@ -15,23 +15,37 @@ all release/store/freeze/performance guards, lint (zero errors), iOS/Android
 sync, and visual QA at 430x932 and 320x568 pass. Measured cards have 14.8px below
 the footer and `scrollHeight === clientHeight`; no footer is clipped.
 
-Apple Developer portal access was verified read-only under active individual
-membership, Team ID `36D743K87T`, renewing August 13, 2027. Two iPhones and valid
-development/distribution certificates exist. The actual failure is confirmed:
-the only Otlobli identifier is incorrectly registered as
-`com.otlobli.app.36D743K87T`, Sign in with Apple is disabled on it, while the app
-ships as `com.otlobli.app`; no Otlobli provisioning profile exists. The portal
-form is prepared at its final Register step for exact `com.otlobli.app` with
-Push Notifications and Sign in with Apple enabled, but has not been submitted.
-Creating the permanent App ID/certificate/profile and storing encrypted GitHub
-signing secrets require the user's action-time approval. Apple auth is not yet
-fixed. GitHub/Xcode run `32489128421` compiled commit
+After explicit user approval, Apple Developer now contains a new exact
+`com.otlobli.app` App ID with Push Notifications and primary Sign in with Apple
+enabled. Team ID is `36D743K87T`. A new matching Apple Development certificate
+expires August 21, 2027. Provisioning profile `Otlobli v86.211 Development`
+contains both registered iPhones and expires August 21, 2027. Local inspection
+verified its application identifier, Team ID, `aps-environment=development`,
+Apple Sign-In `Default`, device count, and certificate match without recording
+device identifiers. The older incorrect `com.otlobli.app.36D743K87T` identifier
+was left untouched.
+
+The encrypted P12, its generated password, the development profile, and Team ID
+are stored only in GitHub Actions secrets named
+`IOS_DEVELOPMENT_CERTIFICATE_BASE64`,
+`IOS_DEVELOPMENT_CERTIFICATE_PASSWORD`,
+`IOS_DEVELOPMENT_PROVISIONING_PROFILE_BASE64`, `APPLE_TEAM_ID`, and a one-way
+`IOS_DEVELOPMENT_DEVICE_UDID_SHA256` target-device fingerprint; none is in Git
+and the raw device identifier is not logged. The registered iOS workflow now has
+an explicit `development-signed`
+manual mode that imports those assets into an ephemeral keychain, archives the
+unchanged Release configuration with development APNs entitlement, exports one
+development IPA, verifies its signature/profile/entitlements/identity/version/
+architecture/minimum iOS/device families/intended device, and removes all
+temporary runner signing assets while restoring the original keychain state.
+A signed workflow run is pending this commit and push; Apple login is not yet
+physically accepted. The prior GitHub/Xcode run `32489128421` compiled commit
 `72bea51fae715229536688aa2627dc66b686a622`; artifact `9449116249` is the
 unsigned arm64 universal IPA. Inspection proves Bundle ID `com.otlobli.app`,
 version/build `86.211/1073`, iOS 15 minimum, device families 1/2, and again no
 signature, provisioning profile, `GIDClientID`, or Google callback. SHA-256 is
 `56284993D2B78F67866B5FB5B6A6E00357F4FF0F324494004CAB013DB8E1D87C`.
-A signed Apple-auth test artifact still requires the approved portal/signing work.
+Google iOS remains separately blocked by the missing OAuth client secret.
 
 # v86.210 — exact loading-nav copy and visible order number (2026-08-21)
 

@@ -1,4 +1,4 @@
-# Active handoff — v86.211 orders sizing and Apple registration approval (2026-08-21)
+# Active handoff — v86.211 orders sizing and Apple development signing (2026-08-21)
 
 Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-211-orders-apple` on
 `codex/otlobli-v86-211-orders-apple`, based on v86.210 HEAD
@@ -11,22 +11,34 @@ The guard, production build, all budgets/guards, lint, native sync, and 430x932 
 320x568 visual QA pass; measured footer clearance is 14.8px and cards do not
 overflow. Order/payment behavior is untouched.
 
-Apple portal login succeeded. Team ID is `36D743K87T`; membership is active to
-August 13, 2027; two iPhones and valid certificates exist. The registered
-Otlobli App ID is wrong (`com.otlobli.app.36D743K87T`), has Sign in with Apple
-off, and no Otlobli profile exists. A new exact `com.otlobli.app` form with Push
-Notifications and Sign in with Apple selected is waiting at the final Register
-button. Do not click it without the user's explicit action-time approval. After
-approval, register it, create a development certificate only if a usable private
-key cannot be recovered, create a development profile for the registered test
-iPhones, then store signing material only as encrypted GitHub secrets. Never
-commit private keys, certificates, profiles, UDIDs, or passwords. No v86.211 IPA
-signed for Apple auth exists yet. GitHub/Xcode run `32489128421` compiled commit
+The user explicitly approved the Apple account actions. Exact App ID
+`com.otlobli.app` now exists with Push Notifications and primary Sign in with
+Apple. Team ID is `36D743K87T`. The new matching Apple Development certificate
+and profile `Otlobli v86.211 Development` expire August 21, 2027; the profile
+contains both registered iPhones. Its App ID, Team ID, development APNs,
+Apple-Sign-In `Default`, devices, and certificate match were verified without
+logging device identifiers. The old incorrect
+`com.otlobli.app.36D743K87T` App ID was not modified.
+
+The encrypted development P12/password/profile, Team ID, and a one-way target
+device UDID fingerprint are present only in GitHub Actions secrets with separate
+`IOS_DEVELOPMENT_*` names. Never commit or print these values, private keys,
+profiles, passwords, or raw UDIDs. The existing
+registered iOS workflow now supports a manual `development-signed` mode. It uses
+an ephemeral keychain and manual Release archive, overrides only the signing-time
+APNs entitlement to `development`, exports one IPA, validates all effective
+Apple entitlements, intended-device membership, and binary metadata, then
+restores the runner keychain state and cleans every temporary signing asset. The
+signed run is pending this workflow commit/push. Do not call Apple login fixed
+until that IPA is installed without third-party re-signing and succeeds on the
+physical iPhone. GitHub/Xcode run `32489128421` compiled commit
 `72bea51fae715229536688aa2627dc66b686a622`; unsigned artifact `9449116249`
 is `86.211/1073`, arm64, universal, iOS 15+, SHA-256
 `56284993D2B78F67866B5FB5B6A6E00357F4FF0F324494004CAB013DB8E1D87C`.
 It has no signature/profile/Google iOS config. Apple login must not be called
-fixed before a properly signed physical-device test.
+fixed before a properly signed physical-device test. Google remains separate:
+GitHub still lacks `VITE_GOOGLE_IOS_CLIENT_ID`, so the iOS Google action remains
+hidden in this build.
 
 # Active handoff — v86.210 exact bar copy and auth blockers (2026-08-21)
 
