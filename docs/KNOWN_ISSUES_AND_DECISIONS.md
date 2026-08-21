@@ -1,5 +1,31 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
+## v86.215 — recorded pre-route chunk recovery and warm-home replay (2026-08-22)
+
+- **Physical rejection:** App Store Connect confirms `mhm1981dx@gmail.com`
+  installed `86.214 (1076)` on an iPhone 16 Pro Max running iOS 27. The user
+  immediately reproduced the same list→product spinner, so v86.214 is not an
+  accepted device fix.
+- **Exact missed edge:** a chunk error can fire after the physical product tap
+  but before SHEIN changes `location.pathname`. v86.214 stored that error for a
+  bounded stalled-tap recovery, yet its 500ms tap fallback never called the
+  stored-error helper. It treated a matching product URL as success even while
+  the recorded chunk failure left only the spinner.
+- **Decision:** the existing 500ms callback makes one cheap stored-error probe
+  before its route decision. A hit enters the existing iOS-only/60-second/cache-
+  only recovery; a miss continues unchanged. No timer, polling, observer, DOM
+  scan, replay click, lifecycle mutation, or broad listing recovery was added.
+- **Recovery topology:** after the bounded cache reset, open SHEIN Home first
+  and retain the queued PDP. Only after Home is verified does the app navigate
+  to the PDP inside that same WebView. Cold-loading the deep PDP immediately
+  after clearing HTTP cache did not reproduce the user's proven Temu→SHEIN
+  recovery and could strand the new browser on the same spinner.
+- **Validation boundary:** the executable guard now reproduces a pre-route
+  error followed by SPA product navigation, full build/performance guards pass,
+  both native syncs pass, and Android debug builds at `86.215/1077`. Real iPhone
+  acceptance remains mandatory; do not describe this as fixed until the same
+  product opens and the protected resume/cold-launch checks pass.
+
 ## v86.214 — live SPA chunk recovery and safe visual readiness (2026-08-22)
 
 - **Device/evidence:** The supplied iPhone recording paints a SHEIN list shell,
@@ -28,7 +54,8 @@
   syncs and Android debug assembly pass at `86.214/1076`. Unsigned Xcode run
   `32535587249` passes from `04d274f`; the universal IPA SHA-256 is
   `1E9E380FD35F40ECDC247EA00E562B4F39D0C8D063207598462EE2BA237D47FB`.
-  Real iPhone/weak-Android acceptance remains pending. Preserve the 0.25s iPhone
+  Real iPhone acceptance later failed on the same list→product spinner; weak-
+  Android acceptance remains pending. Preserve the 0.25s iPhone
   16 recompose, Android resume defense, and JSON region equality invariant.
 
 ## v86.201 decision — injected double-Home was missing, not intermittent (2026-08-20)

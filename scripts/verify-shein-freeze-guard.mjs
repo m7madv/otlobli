@@ -474,6 +474,7 @@ const checks = [
       'if(/-p-\\\\d+/i.test(location.pathname)',
       'window.__otlobliSheinChunkFailureAt=Date.now()',
       'window.__otlobliRecoverSheinChunkOnStalledTap=function(url)',
+      "g('recover-recorded-chunk'",
     ],
     forbidden: [
       "Bridge(){if(!/shein/i.test(location.hostname)||!/-p-",
@@ -511,6 +512,9 @@ const checks = [
       'const sheinRecoveryProductUrl = (region: StoreRegion, ...candidates: string[])',
       "const resumeBackTarget: 'home' | 'cart'",
       'pendingBackTargetRef.current = resumeBackTarget',
+      'const wantsWarmSheinRecoveryProductNav',
+      'const wantsWarmProductNav = wantsWarmTemuProductNav || wantsWarmSheinRecoveryProductNav',
+      '!wantsWarmProductNav && initialPendingUrl',
     ],
   },
   {
@@ -1022,6 +1026,7 @@ try {
 
   const handlers = {}, timers = [], assigned = []
   let recoveryCalls = 0
+  let recoveryShouldHandle = false
   let anchorClicks = 0
   const anchor = {
     tagName: 'A', parentElement: null, isConnected: true,
@@ -1034,7 +1039,7 @@ try {
     assign: (url) => assigned.push(url),
   }
   runInNewContext(scriptModule.exports.__tapFallback, {
-    window: { __otlobliRecoverSheinChunkOnStalledTap: () => { recoveryCalls++; return true } }, location,
+    window: { __otlobliRecoverSheinChunkOnStalledTap: () => { recoveryCalls++; return recoveryShouldHandle } }, location,
     navigator: { userAgent: 'iPhone', platform: 'iPhone', maxTouchPoints: 5 },
     document: { addEventListener: (name, listener) => { handlers[name] = listener } },
     clearTimeout: () => undefined,
@@ -1047,7 +1052,22 @@ try {
   while (timers.length) timers.shift()()
   if (assigned[0] !== anchor.href) failures.push('SHEIN product tap fallback: direct product anchor was not assigned')
   if (anchorClicks !== 0) failures.push('SHEIN product tap fallback: direct product anchor was replay-clicked before assignment')
-  if (recoveryCalls !== 0) failures.push('SHEIN product tap fallback: direct product anchor caused an unnecessary recovery')
+  if (recoveryCalls !== 1) failures.push('SHEIN product tap fallback: direct product anchor did not make exactly one bounded chunk probe')
+
+  const assignedBeforeRecordedChunk = assigned.length
+  const recoveryBeforeRecordedChunk = recoveryCalls
+  recoveryShouldHandle = true
+  location.href = anchor.href
+  location.pathname = '/ar/item-p-123.html'
+  handlers.touchstart(touch)
+  handlers.touchend(touch)
+  while (timers.length) timers.shift()()
+  if (recoveryCalls !== recoveryBeforeRecordedChunk + 1 || assigned.length !== assignedBeforeRecordedChunk) {
+    failures.push('SHEIN product tap fallback: recorded pre-route chunk failure did not recover the stalled SPA product')
+  }
+  recoveryShouldHandle = false
+  location.href = 'https://m.shein.com/ar/'
+  location.pathname = '/ar/'
 
   let collectionClicks = 0
   const collectionCard = {
@@ -1061,10 +1081,11 @@ try {
     changedTouches: [{ clientX: 22, clientY: 34 }],
   }
   const assignedBeforeCollection = assigned.length
+  const recoveryBeforeCollection = recoveryCalls
   handlers.touchstart(collectionTouch)
   handlers.touchend(collectionTouch)
   while (timers.length) timers.shift()()
-  if (collectionClicks !== 0 || assigned.length !== assignedBeforeCollection || recoveryCalls !== 0) {
+  if (collectionClicks !== 0 || assigned.length !== assignedBeforeCollection || recoveryCalls !== recoveryBeforeCollection) {
     failures.push('SHEIN product tap fallback: collection/list card without a direct PDP href was changed')
   }
 

@@ -4082,14 +4082,18 @@ function App() {
     // SHEIN is reached directly on both platforms now, so it only loads once
     // the user's VPN is on - the vpnState check above already confirmed that
     // before this function ever runs.
-    // For a Temu cart product on a cold open, load the Temu HOME first (guest
-    // browsing works) instead of cold-loading the deep product URL, which Temu
-    // would 302 to /login.html. Once home is warm, markStoreWebviewReady reaches
-    // the queued product with an in-page navigation that carries a temu.com
-    // referrer. The queued pendingProductUrl stays set for that step.
+    // A recovered iOS SHEIN product needs the same warm-home path that the
+    // customer's proven Temu -> SHEIN recovery uses. Cold-loading the deep PDP
+    // immediately after clearing HTTP cache can strand SHEIN on its SPA spinner.
+    // Keep the queued product until Home is ready, then navigate inside the
+    // verified document with the correct same-site referrer.
     const wantsWarmTemuProductNav = activeStore === 'temu' && pendingProductRevealRef.current && !!initialPendingUrl
+    const wantsWarmSheinRecoveryProductNav = activeStore === 'shein' &&
+      Capacitor.getPlatform() === 'ios' && sheinCacheResetPendingRef.current &&
+      pendingProductRevealRef.current && !!initialPendingUrl
+    const wantsWarmProductNav = wantsWarmTemuProductNav || wantsWarmSheinRecoveryProductNav
     const activeRegions = storeRegionsRef.current
-    const rawTargetUrl = wantsWarmTemuProductNav
+    const rawTargetUrl = wantsWarmProductNav
       ? storeUrl(activeStore, activeRegions)
       : (initialPendingUrl || storeUrl(activeStore, activeRegions))
     const targetUrl = activeStore === 'shein'
@@ -4203,7 +4207,9 @@ function App() {
           void InAppBrowser.hide().catch(() => undefined)
         }
         postWebviewChromeState(pendingBackTargetRef.current)
-        if (initialPendingUrl && pendingProductUrlRef.current === initialPendingUrl) pendingProductUrlRef.current = ''
+        if (!wantsWarmProductNav && initialPendingUrl && pendingProductUrlRef.current === initialPendingUrl) {
+          pendingProductUrlRef.current = ''
+        }
         const absoluteTimeout = window.setTimeout(() => {
           if (sessionId !== webviewSessionRef.current) return
           if (!webviewOpeningRef.current) return
