@@ -31,17 +31,22 @@ contamination without changing the committed Xcode project. It overrides only
 the signing-time APNs entitlement to `development`, exports one IPA, validates
 all effective
 Apple entitlements, intended-device membership, and binary metadata, then
-restores the runner keychain state and cleans every temporary signing asset. The
-signed run is pending this workflow commit/push. Do not call Apple login fixed
-until that IPA is installed without third-party re-signing and succeeds on the
-physical iPhone. GitHub/Xcode run `32489128421` compiled commit
-`72bea51fae715229536688aa2627dc66b686a622`; unsigned artifact `9449116249`
+restores the runner keychain state and cleans every temporary signing asset.
+GitHub run `32492834328` succeeded from commit
+`ce62ce214c0da2c158916ced6d4a58022d5e483d`; signed artifact `9450517773`
 is `86.211/1073`, arm64, universal, iOS 15+, SHA-256
-`56284993D2B78F67866B5FB5B6A6E00357F4FF0F324494004CAB013DB8E1D87C`.
-It has no signature/profile/Google iOS config. Apple login must not be called
-fixed before a properly signed physical-device test. Google remains separate:
-GitHub still lacks `VITE_GOOGLE_IOS_CLIENT_ID`, so the iOS Google action remains
-hidden in this build.
+`13E3B3C5791167ED780E9710288217E63F08D544BFA360DA6DFACCB16F76C845`.
+CI cryptographically verified its signature, profile/certificate membership,
+Team ID, effective entitlements, intended-device membership, metadata, and
+architecture. Local archive inspection independently matched the SHA-256 and
+confirmed the embedded profile, code-signature resources, Bundle ID, version,
+minimum iOS, device families, and arm64 executable. The exact downloaded file is
+`C:\Users\MOHAMMAD\Desktop\otlobli-ios-v86.211-development-signed-run-32492834328\otlobli-v86.211-build-1073-development-signed.ipa`.
+Install it directly; never pass it through a re-signing step because that can
+strip or replace the Apple entitlement/profile. Apple login must not be called
+fixed until this exact IPA succeeds on the physical iPhone. Google remains
+separate: GitHub still lacks `VITE_GOOGLE_IOS_CLIENT_ID`, so the iOS Google
+action remains hidden in this build.
 
 # Active handoff — v86.210 exact bar copy and auth blockers (2026-08-21)
 

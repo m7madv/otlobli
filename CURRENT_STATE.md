@@ -41,14 +41,22 @@ APNs entitlement and exports one
 development IPA, verifies its signature/profile/entitlements/identity/version/
 architecture/minimum iOS/device families/intended device, and removes all
 temporary runner signing assets while restoring the original keychain state.
-A signed workflow run is pending this commit and push; Apple login is not yet
-physically accepted. The prior GitHub/Xcode run `32489128421` compiled commit
-`72bea51fae715229536688aa2627dc66b686a622`; artifact `9449116249` is the
-unsigned arm64 universal IPA. Inspection proves Bundle ID `com.otlobli.app`,
-version/build `86.211/1073`, iOS 15 minimum, device families 1/2, and again no
-signature, provisioning profile, `GIDClientID`, or Google callback. SHA-256 is
-`56284993D2B78F67866B5FB5B6A6E00357F4FF0F324494004CAB013DB8E1D87C`.
-Google iOS remains separately blocked by the missing OAuth client secret.
+GitHub run `32492834328` succeeded from commit
+`ce62ce214c0da2c158916ced6d4a58022d5e483d`; artifact `9450517773` is the
+Apple-development-signed universal IPA. CI verified the code signature and
+designated requirement, embedded profile and certificate membership, Team ID
+`36D743K87T`, Bundle ID `com.otlobli.app`, version/build `86.211/1073`, arm64,
+iOS 15 minimum, device families 1/2, development APNs, Sign in with Apple, and
+the intended registered iPhone. Its SHA-256 is
+`13E3B3C5791167ED780E9710288217E63F08D544BFA360DA6DFACCB16F76C845`.
+The downloaded IPA at
+`C:\Users\MOHAMMAD\Desktop\otlobli-ios-v86.211-development-signed-run-32492834328\otlobli-v86.211-build-1073-development-signed.ipa`
+matches that hash and independently contains the expected Info.plist,
+`embedded.mobileprovision`, `_CodeSignature`, capabilities, and two-device
+profile. Install it directly without Sideloadly/3uTools re-signing; Apple login
+remains pending physical-device acceptance. Google iOS remains separately
+blocked by the missing `VITE_GOOGLE_IOS_CLIENT_ID` OAuth client secret, so its
+action remains hidden.
 
 # v86.210 — exact loading-nav copy and visible order number (2026-08-21)
 
