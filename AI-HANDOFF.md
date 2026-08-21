@@ -29,8 +29,14 @@ Fresh `npm run build`, every pre/post guard, unchanged performance budgets,
 Android/iOS sync, and Android `assembleDebug` pass. Android artifact:
 `output/Otlobli-v86.214-Android-debug.apk`, 11,119,168 bytes, SHA-256
 `BBF1F54F1839F0BCFFC9EC25CCFD17945F54FC6EA7B4CAA4B9B3D46FF320D85A`.
-Swift/Xcode CI compilation and real-device acceptance are still pending. Do not
-upload `86.214/1076` to TestFlight without action-time approval.
+Unsigned iOS run `32535587249` passed from `04d274f`; artifact `9465354432`
+(`otlobli-ios-v86.214-ipad-iphone-universal`) has GitHub digest
+`sha256:9e3243511d7be430833947804b0fde5ac6224cb0c6172f02655841b040cb321d`.
+The downloaded unsigned IPA is 6,568,740 bytes, SHA-256
+`1E9E380FD35F40ECDC247EA00E562B4F39D0C8D063207598462EE2BA237D47FB`.
+Swift compilation and universal checks pass; no signing/upload step ran.
+Real-device acceptance is still pending. Do not upload `86.214/1076` to
+TestFlight without action-time approval.
 
 Apple Team is `36D743K87T`. Services ID `com.otlobli.app.signin` is saved with
 the Supabase domain and exact Apple callback. Active SIWA key ID is

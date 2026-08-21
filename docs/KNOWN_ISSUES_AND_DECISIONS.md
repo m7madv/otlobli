@@ -25,9 +25,11 @@
   900ms until the current route is released.
 - **Validation boundary:** Exact coordinator and Home→SPA-product fixtures,
   production build, unchanged performance budgets, freeze guard, both native
-  syncs and Android debug assembly pass at `86.214/1076`. Xcode/Swift CI and real
-  iPhone/weak-Android acceptance remain pending. Preserve the 0.25s iPhone 16
-  recompose, Android resume defense, and JSON region equality invariant.
+  syncs and Android debug assembly pass at `86.214/1076`. Unsigned Xcode run
+  `32535587249` passes from `04d274f`; the universal IPA SHA-256 is
+  `1E9E380FD35F40ECDC247EA00E562B4F39D0C8D063207598462EE2BA237D47FB`.
+  Real iPhone/weak-Android acceptance remains pending. Preserve the 0.25s iPhone
+  16 recompose, Android resume defense, and JSON region equality invariant.
 
 ## v86.201 decision — injected double-Home was missing, not intermittent (2026-08-20)
 

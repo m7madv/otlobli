@@ -16,6 +16,10 @@
   Android debug. الملف:
   `output/Otlobli-v86.214-Android-debug.apk`، حجمه `11,119,168` بايت، وبصمته
   `BBF1F54F1839F0BCFFC9EC25CCFD17945F54FC6EA7B4CAA4B9B3D46FF320D85A`.
+- نجح Xcode في التشغيل `32535587249` من commit `04d274f` وتجمّع Swift ودعم
+  iPhone/iPad. الـIPA غير الموقعة حجمها `6,568,740` بايت وبصمتها
+  `1E9E380FD35F40ECDC247EA00E562B4F39D0C8D063207598462EE2BA237D47FB`.
+  لم تعمل أي خطوة توقيع أو رفع إلى TestFlight.
 - لم تُرفع v86.214 إلى TestFlight بعد، ولم ندّعِ اختبارها على iPhone أو هاتف
   Android ضعيف. يلزم على iPhone تجربة الرئيسية → قائمة → منتج، أول فتح بعد
   تثبيت نظيف، خمس دورات خلفية/عودة على iPhone 16، ثم تشغيل بارد منفصل.

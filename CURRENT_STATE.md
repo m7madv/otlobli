@@ -31,8 +31,15 @@ is 656,818/720,000 bytes. `npx cap sync android`, `npx cap sync ios`, and Androi
 `assembleDebug` pass. The new Android artifact is
 `output/Otlobli-v86.214-Android-debug.apk`, 11,119,168 bytes, SHA-256
 `BBF1F54F1839F0BCFFC9EC25CCFD17945F54FC6EA7B4CAA4B9B3D46FF320D85A`.
-Windows cannot compile the Swift plugin locally; CI/Xcode compilation and all
-physical device acceptance remain pending.
+Unsigned iOS/Xcode run `32535587249` passed from source commit `04d274f`,
+including the Swift plugin, production assets, and universal iPhone/iPad checks.
+Artifact `9465354432`, `otlobli-ios-v86.214-ipad-iphone-universal`, is 6,459,609
+bytes as a GitHub artifact and expires 2026-09-20; artifact digest is
+`sha256:9e3243511d7be430833947804b0fde5ac6224cb0c6172f02655841b040cb321d`.
+Downloaded unsigned IPA is 6,568,740 bytes with SHA-256
+`1E9E380FD35F40ECDC247EA00E562B4F39D0C8D063207598462EE2BA237D47FB`.
+No signing or TestFlight upload step ran. All physical device acceptance remains
+pending.
 
 Apple Developer is configured under the exact Account Holder
 `mhm1981dx@gmail.com`, Team `36D743K87T`. Services ID
