@@ -112,7 +112,10 @@ export const SHEIN_SESSION_SCRIPT = `
         tab.style.cssText = 'position:relative!important;flex:1 1 0!important;height:74px!important;min-height:74px!important;max-height:74px!important;' +
           'border:0!important;background:transparent!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:4px!important;' +
           'padding:10px 0 0 0!important;margin:0!important;box-sizing:border-box!important;font-size:12px!important;line-height:normal!important;' +
-          'font-family:system-ui,-apple-system,sans-serif!important;font-weight:700!important;color:' + (item.type === 'openHome' ? '#006948' : '#3d4a42') + '!important;';
+          'font-family:system-ui,-apple-system,sans-serif!important;font-weight:700!important;color:' + (item.type === 'openHome' ? '#006948' : '#3d4a42') + '!important;' +
+          '-webkit-appearance:none!important;appearance:none!important;border-radius:0!important;box-shadow:none!important;' +
+          'transform:none!important;transition:none!important;opacity:1!important;touch-action:manipulation!important;' +
+          '-webkit-tap-highlight-color:transparent!important;';
         tab.insertAdjacentHTML('afterbegin','<svg width=22 height=22 viewBox="0 0 24 24" fill=none stroke=currentColor stroke-width=1.8 stroke-linecap=round stroke-linejoin=round>' + OTLOBLI_NAV_ICONS[item.icon] + '</svg>');
         if (item.type === 'openHome') {
           var indicator = document.createElement('span');

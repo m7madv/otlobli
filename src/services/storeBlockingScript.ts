@@ -465,7 +465,10 @@ export const STORE_BLOCKING_SCRIPT = `
         'background:transparent!important;display:flex!important;flex-direction:column!important;align-items:center!important;' +
         'justify-content:center!important;padding:10px 0 0 0!important;margin:0!important;' +
         'box-sizing:border-box!important;font-size:12px!important;line-height:normal!important;font-weight:700!important;' +
-        'font-family:system-ui,-apple-system,sans-serif!important;color:' + (isActiveTab ? '#006948' : '#3d4a42') + '!important;';
+        'font-family:system-ui,-apple-system,sans-serif!important;color:' + (isActiveTab ? '#006948' : '#3d4a42') + '!important;' +
+        '-webkit-appearance:none!important;appearance:none!important;border-radius:0!important;box-shadow:none!important;' +
+        'transform:none!important;transition:none!important;opacity:1!important;touch-action:manipulation!important;' +
+        '-webkit-tap-highlight-color:transparent!important;';
       if (isActiveTab) {
         var indicator = document.createElement('span');
         indicator.style.cssText = 'position:absolute!important;top:0!important;left:50%!important;transform:translateX(-50%)!important;width:32px!important;height:4px!important;border-radius:999px!important;background:#006948!important;';

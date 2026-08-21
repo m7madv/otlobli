@@ -1,35 +1,36 @@
-# Active handoff — v86.209 store-navigation test candidate (2026-08-21)
+# Active handoff — v86.210 exact bar copy and auth blockers (2026-08-21)
 
-Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-209-store-navigation`
-on `codex/otlobli-v86-209-store-navigation`, based on protected v86.208 commit
-`10d7a22ef2a7e84e4e8c39da2b1117a231528afe`. App version/build is
-`86.209/1071`; this is a physical-test candidate, not an App Store release. Do not fold this work
-back by rewriting the protected v86.208 branch.
+Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-210-ui-auth` on
+`codex/otlobli-v86-210-ui-auth`, based on v86.209 HEAD
+`7024ac56d603aedd3a52e0c82b7d13d88a498e62`. App version/build is
+`86.210/1072`; this is a physical-test candidate, not an App Store release.
 
-Verified implementation: a single green 44pt Otlobli exit appears only at
-canonical Temu Home; inner Temu pages use Temu's own Back. The former iOS
-deadlock was an option mismatch: HTML hid for a native bridge, while native
-creation incorrectly required `otlobliLoadingCoverEnabled`. One Home tap is now
-inert everywhere and two taps within 320ms open `store-select` while parking the
-same browser. Native iOS/Android loading covers now expose an interactive
-Otlobli bar; Orders/Cart/Profile synchronously reveal the React destination and
-leave the WebView loading behind it. VoiceOver, TalkBack, and keyboard activation
-have an explicit direct store-switch path.
+The user accepted v86.209 navigation behavior but saw the bar change appearance
+during SHEIN loading. Source inspection proved the transient iOS bar used SF
+Symbols while the permanent bar used custom Otlobli SVGs. The native loading bar
+now draws the same four paths and copies the existing size, colors, typography,
+spacing, indicator, safe-area footprint, and stable pressed appearance. It is
+not a redesign. Order cards expose `رقم الطلب` at the lower physical-left beside
+Reorder; browser QA at 320x780 and 360x800 showed the full sample ID. Preserve
+all v86.209 Temu exit, single/double Home, and interactive-loading behavior.
 
-All local web/security/store guards and the production build pass. The
-regenerated `@capgo/capacitor-inappbrowser` patch applies from a clean `npm ci`;
-iOS and Android sync pass; Android Debug compiles. GitHub Xcode run
-`32483692145` passes from code commit
-`b89183b76cc2012dd32ac25aea18081404c418e2`, and artifact `9447117130` has
-SHA-256 `2F1516488A1C85E33FA30084F02CC5B7CB5829A887722C2E9A1AFA01FFE5745B`.
-It is an unsigned universal arm64 IPA for iPhone/iPad, Bundle ID
-`com.otlobli.app`, version/build `86.209/1071`, minimum iOS 15; it contains no
-app signature or provisioning profile. The next step is signing and physical
-iPhone acceptance: verify one Home tap causes no URL/reload change, double Home
-opens the chooser, Temu shows one exit only on root, and during
-`جاري تجهيز المتجر…` Cart/Orders/Profile open while re-entering Home continues
-the same store load/session. Do not change product capture, region, auth,
-notification, cookies, website data, or WebView lifecycle during that test.
+Do not call Apple or Google fixed. v86.209 run `32483692145` built unsigned,
+without `embedded.mobileprovision`; its `Info.plist` also lacked `GIDClientID`
+because `VITE_GOOGLE_IOS_CLIENT_ID` was empty. Current GitHub secrets contain no
+Google iOS client and none of `APPLE_TEAM_ID`,
+`IOS_DISTRIBUTION_CERTIFICATE_BASE64`, `IOS_CERTIFICATE_PASSWORD`, or
+`IOS_PROVISIONING_PROFILE_BASE64`. Apple error 1000 is therefore a signing/
+entitlement failure; v86.210 only replaces the raw technical toast with the
+exact corrective Arabic message. Create the bundle-bound Google iOS OAuth client
+and a real Apple profile containing Sign in with Apple before auth acceptance.
+
+Local `npm ci`, production build, all release/store/freeze/performance guards,
+TypeScript, and lint pass. Next run native sync and GitHub/Xcode compilation,
+then inspect the unsigned artifact honestly. Physical acceptance must compare
+the loading and permanent bars, confirm the full order number at the lower left,
+and separately retest auth only after the missing portal/signing inputs exist.
+Do not change product capture, region, cookies, website data, store lifecycle,
+payment, wallet, or completed-order logic.
 
 # Active handoff — v86.208 final enablement (2026-08-21)
 

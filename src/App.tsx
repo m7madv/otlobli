@@ -892,6 +892,42 @@ const AUTH_ROUTE_FLAG_STYLE: CSSProperties = {
   borderRadius: 3,
   objectFit: 'cover',
 }
+const ORDER_CARD_FOOTER_STYLE: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 10,
+  direction: 'rtl',
+}
+const ORDER_CARD_REORDER_STYLE: CSSProperties = { flex: '1 1 auto', minWidth: 0 }
+const ORDER_CARD_ID_STYLE: CSSProperties = {
+  flex: '0 0 48%',
+  display: 'inline-flex',
+  flexDirection: 'column',
+  alignItems: 'flex-start',
+  justifyContent: 'center',
+  gap: 2,
+  minWidth: 0,
+  minHeight: 44,
+  padding: '6px 9px',
+  border: '1px solid var(--outline)',
+  borderRadius: 10,
+  background: 'var(--surface-soft)',
+  color: 'var(--muted)',
+  fontSize: '0.7rem',
+  fontWeight: 800,
+  lineHeight: 1.3,
+  whiteSpace: 'nowrap',
+}
+const ORDER_CARD_ID_VALUE_STYLE: CSSProperties = {
+  display: 'block',
+  minWidth: 0,
+  maxWidth: '100%',
+  overflow: 'hidden',
+  color: 'var(--text)',
+  fontVariantNumeric: 'tabular-nums',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+}
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const SYRIA_GOVERNORATES = [
@@ -1073,6 +1109,9 @@ function getPublicErrorMessage(error: unknown) {
     // حساب محظور من الإدارة: أي إجراء موثّق (طلب/محفظة/كوبون) يفشل بهذه الرسالة.
     if (/customer_blocked|account_blocked/i.test(error.message)) {
       return 'تم إيقاف حسابك من قبل الإدارة. للاستفسار تواصل مع الدعم.'
+    }
+    if (/AuthenticationServices\.AuthorizationError.*(?:error\s*)?1000|AuthorizationError.*(?:error\s*)?1000/i.test(error.message)) {
+      return 'نسخة التطبيق الحالية غير موقّعة بصلاحية تسجيل الدخول عبر Apple. ثبّت نسخة موقّعة من حساب المطوّر تتضمن Sign in with Apple.'
     }
     return error.message
   }
@@ -6818,7 +6857,6 @@ function App() {
               }}>
                 <div className="order-card-row">
                   <div>
-                    <strong>{item.id}</strong>
                     <StoreBadge store={getOrderStore(item)} />
                     <span>{orderStatuses[item.statusIndex]}</span>
                     <small>{item.items.length} منتج · {formatMoney(item.total)}</small>
@@ -6854,15 +6892,22 @@ function App() {
                     </button>
                   </div>
                 )}
-                <button
-                  className="reorder-btn"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    reorderItems(item)
-                  }}
-                >
-                  <Icon name="refresh" /> إعادة الطلب
-                </button>
+                <div className="order-card-footer" style={ORDER_CARD_FOOTER_STYLE}>
+                  <button
+                    className="reorder-btn"
+                    style={ORDER_CARD_REORDER_STYLE}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      reorderItems(item)
+                    }}
+                  >
+                    <Icon name="refresh" /> إعادة الطلب
+                  </button>
+                  <div className="order-card-id" style={ORDER_CARD_ID_STYLE} aria-label={`رقم الطلب ${item.id}`}>
+                    رقم الطلب
+                    <b dir="ltr" translate="no" style={ORDER_CARD_ID_VALUE_STYLE}>{item.id}</b>
+                  </div>
+                </div>
               </article>
             ))}
           </main>

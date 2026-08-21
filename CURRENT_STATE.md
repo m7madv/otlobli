@@ -1,39 +1,37 @@
-# v86.209 — Temu root exit and interactive loading (2026-08-21)
+# v86.210 — exact loading-nav copy and visible order number (2026-08-21)
 
-Work is isolated on `codex/otlobli-v86-209-store-navigation` in
-`C:\Users\MOHAMMAD\Projects\otlobli-v86-209-store-navigation`, based exactly on
-v86.208 commit `10d7a22ef2a7e84e4e8c39da2b1117a231528afe`. Version/build
-`86.209/1071` were verified unused and are reserved for this physical iPhone
-test candidate; this is not an App Store release.
+Work is isolated on `codex/otlobli-v86-210-ui-auth` in
+`C:\Users\MOHAMMAD\Projects\otlobli-v86-210-ui-auth`, based exactly on the
+v86.209 documentation HEAD `7024ac56d603aedd3a52e0c82b7d13d88a498e62`.
+Version/build `86.210/1072` were verified unused and are reserved for this
+physical iPhone test candidate; this is not an App Store release.
 
-The Temu root-exit failure had a concrete iOS cause: the page hid its HTML
-button whenever the native message bridge existed, while the native plugin
-refused to create its button unless the unrelated SHEIN loading-cover option
-was enabled. The native control now works independently of that option and the
-injected state shows Otlobli's single green 44pt exit only on canonical Temu
-Home. Temu owns product/category/search Back, so Otlobli no longer duplicates
-that control on inner pages.
+The v86.209 device test accepted the navigation behavior but exposed a visual
+handoff: the temporary iOS SHEIN loading bar used SF Symbols while the permanent
+React/injected bar uses Otlobli's own SVG paths. v86.210 draws those same four
+24-point paths natively at 22 points, uses the same colors, 12-point bold text,
+4-point active indicator, spacing, safe area, and stable pressed treatment.
+Injected tabs also neutralize host-site pressed styling. This is a literal copy
+of the existing bar, not a redesign. Product capture, store routing, region,
+cookies/data, and WebView lifecycle are unchanged.
 
-Home now has one contract on the injected store bar, Android Personal Temu,
-the React preparation screen, and native loading covers: one physical tap is a
-no-op and never calls `location.assign`, `goHome`, or reload; two taps within
-320ms park the same browser and show the store chooser. Keyboard and assistive
-activation opens the chooser directly. During the iOS SHEIN and Android SHEIN
-loading cover, the native Otlobli bar is interactive: Orders, Cart, and Profile
-commit their React route and hide/park the store surface while its WebView keeps
-loading behind the app. Returning Home shows that same retained session.
+Order cards now put an explicit `رقم الطلب` block in the lower physical-left
+corner beside the existing reorder action. The full sample identifier remained
+visible at both 320x780 and 360x800 in browser visual QA. No order/payment data
+logic changed. Apple error 1000 is mapped to an actionable Arabic message, but
+authentication itself is not claimed fixed: the tested v86.209 IPA was unsigned
+and contained no provisioning profile. GitHub has none of the Apple certificate,
+profile, password, or Team ID inputs, so a 3uTools/free re-sign cannot prove the
+`com.apple.developer.applesignin` entitlement.
 
-`npm ci` proves the regenerated patch-package file installs cleanly. Production
-build, release/security guards, SHEIN freeze guard, Temu guards, store-surface
-guard, TypeScript, performance budget, iOS/Android Capacitor sync, lint (zero
-errors; 18 pre-existing warnings), and Android Debug compilation pass. GitHub
-Xcode run `32483692145` also passes from code commit
-`b89183b76cc2012dd32ac25aea18081404c418e2`; artifact `9447117130` is the
-unsigned universal iPhone/iPad IPA. Its SHA-256 is
-`2F1516488A1C85E33FA30084F02CC5B7CB5829A887722C2E9A1AFA01FFE5745B`.
-Bundle ID/version/build, arm64, and iOS 15 minimum were inspected successfully;
-the app has no signing identity or embedded provisioning profile, so signing
-and physical iPhone acceptance remain pending.
+Google is also externally blocked, not a runtime-code failure. GitHub run
+`32483692145` had an empty `VITE_GOOGLE_IOS_CLIENT_ID`; inspected v86.209
+`Info.plist` had no `GIDClientID` or reversed Google callback, and the app safely
+hid the Google action. GitHub currently contains no iOS OAuth client secret.
+`npm ci`, production build, release/security guards, SHEIN freeze guard, Temu
+guards, store-surface guard, TypeScript, performance budget, and lint pass.
+iOS/Android sync, Xcode compilation, artifact inspection, and physical-device
+acceptance remain pending for v86.210.
 
 # v86.208 — final enablement current state (2026-08-21)
 

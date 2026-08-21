@@ -82,6 +82,8 @@ for (const marker of [
 
 for (const marker of [
   'private func makeLoadingNavigation() -> UIView',
+  'private func makeLoadingNavigationIcon(route: String, color: UIColor) -> UIImage',
+  'configuration.image = makeLoadingNavigationIcon(route: routes[index], color: color)',
   'button.accessibilityIdentifier = routes[index]',
   '@objc private func loadingNavigationPressed(_ sender: UIButton)',
   'if UIAccessibility.isVoiceOverRunning',
@@ -94,6 +96,16 @@ for (const marker of [
   if (!iosSheinBrowser.includes(marker)) {
     throw new Error(`iOS loading navigation guard missing marker: ${marker}`)
   }
+}
+
+for (const forbidden of ['UIImage(systemName: "house")', 'UIImage(systemName: symbols[index])']) {
+  if (iosSheinBrowser.includes(forbidden)) {
+    throw new Error(`iOS loading navigation must copy the permanent Otlobli icon paths: ${forbidden}`)
+  }
+}
+
+for (const marker of ['order-card-footer', 'order-card-id', 'رقم الطلب ${item.id}']) {
+  if (!app.includes(marker)) throw new Error(`Order-number visibility guard missing App marker: ${marker}`)
 }
 
 for (const marker of [

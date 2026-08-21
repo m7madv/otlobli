@@ -598,11 +598,13 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         navigation.addSubview(stack)
 
         let labels = ["الرئيسية", "طلباتي", "السلة", "حسابي"]
-        let symbols = ["house", "shippingbox", "cart", "person"]
         let routes = ["store-select", "orders", "cart", "profile"]
         var homeButton: UIButton?
         for index in labels.indices {
             let button = UIButton(type: .system)
+            let color = index == 0
+                ? UIColor(red: 0, green: 105.0 / 255.0, blue: 72.0 / 255.0, alpha: 1)
+                : UIColor(red: 61.0 / 255.0, green: 74.0 / 255.0, blue: 66.0 / 255.0, alpha: 1)
             button.tag = index
             button.accessibilityLabel = index == 0
                 ? "اختيار المتجر؛ اضغط مرتين بسرعة"
@@ -613,19 +615,34 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
             button.accessibilityIdentifier = routes[index]
             var configuration = UIButton.Configuration.plain()
             configuration.title = labels[index]
-            configuration.image = UIImage(systemName: symbols[index])
+            // The permanent React/injected bar uses Otlobli's own 24-point
+            // SVG paths. SF Symbols have visibly different silhouettes, so
+            // the loading cover used to flash a different-looking bar before
+            // the permanent one appeared. Draw the exact same paths here.
+            configuration.image = makeLoadingNavigationIcon(route: routes[index], color: color)
             configuration.imagePlacement = .top
-            configuration.imagePadding = 5
-            configuration.baseForegroundColor = index == 0
-                ? UIColor(red: 0, green: 105.0 / 255.0, blue: 72.0 / 255.0, alpha: 1)
-                : UIColor(red: 61.0 / 255.0, green: 74.0 / 255.0, blue: 66.0 / 255.0, alpha: 1)
+            configuration.imagePadding = 4
+            configuration.baseForegroundColor = color
             configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
                 var outgoing = incoming
                 outgoing.font = .systemFont(ofSize: 12, weight: .bold)
+                outgoing.foregroundColor = color
                 return outgoing
             }
-            configuration.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 0, bottom: 0, trailing: 0)
+            configuration.contentInsets = NSDirectionalEdgeInsets(top: 10, leading: 0, bottom: 0, trailing: 0)
+            configuration.background.backgroundColor = .clear
             button.configuration = configuration
+            button.configurationUpdateHandler = { updatedButton in
+                // Keep the loading copy visually identical while pressed;
+                // UIKit's default highlighted treatment otherwise briefly
+                // dims and reshapes a configured system button.
+                updatedButton.alpha = 1
+                updatedButton.transform = .identity
+                guard var stableConfiguration = updatedButton.configuration else { return }
+                stableConfiguration.baseForegroundColor = color
+                stableConfiguration.background.backgroundColor = .clear
+                updatedButton.configuration = stableConfiguration
+            }
             button.addTarget(self, action: #selector(loadingNavigationPressed(_:)), for: .touchUpInside)
             stack.addArrangedSubview(button)
             if index == 0 { homeButton = button }
@@ -653,6 +670,111 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
             selectedIndicator.heightAnchor.constraint(equalToConstant: 4)
         ])
         return navigation
+    }
+
+    private func makeLoadingNavigationIcon(route: String, color: UIColor) -> UIImage {
+        let canvas = CGSize(width: 22, height: 22)
+        let renderer = UIGraphicsImageRenderer(size: canvas)
+        return renderer.image { rendererContext in
+            let context = rendererContext.cgContext
+            context.saveGState()
+            context.scaleBy(x: canvas.width / 24, y: canvas.height / 24)
+            color.setStroke()
+
+            func strokedPath() -> UIBezierPath {
+                let path = UIBezierPath()
+                path.lineWidth = 1.8
+                path.lineCapStyle = .round
+                path.lineJoinStyle = .round
+                return path
+            }
+
+            switch route {
+            case "store-select":
+                let roof = strokedPath()
+                roof.move(to: CGPoint(x: 4, y: 11.5))
+                roof.addLine(to: CGPoint(x: 12, y: 4))
+                roof.addLine(to: CGPoint(x: 20, y: 11.5))
+                roof.stroke()
+
+                let house = strokedPath()
+                house.move(to: CGPoint(x: 6, y: 10))
+                house.addLine(to: CGPoint(x: 6, y: 19))
+                house.addLine(to: CGPoint(x: 18, y: 19))
+                house.addLine(to: CGPoint(x: 18, y: 10))
+                house.stroke()
+
+                let door = strokedPath()
+                door.move(to: CGPoint(x: 10, y: 19))
+                door.addLine(to: CGPoint(x: 10, y: 14))
+                door.addLine(to: CGPoint(x: 14, y: 14))
+                door.addLine(to: CGPoint(x: 14, y: 19))
+                door.stroke()
+
+            case "orders":
+                let parcel = UIBezierPath(roundedRect: CGRect(x: 4, y: 7, width: 16, height: 13), cornerRadius: 1.3)
+                parcel.lineWidth = 1.8
+                parcel.lineCapStyle = .round
+                parcel.lineJoinStyle = .round
+                parcel.stroke()
+
+                let fold = strokedPath()
+                fold.move(to: CGPoint(x: 4, y: 7))
+                fold.addLine(to: CGPoint(x: 12, y: 3))
+                fold.addLine(to: CGPoint(x: 20, y: 7))
+                fold.move(to: CGPoint(x: 12, y: 11))
+                fold.addLine(to: CGPoint(x: 12, y: 20))
+                fold.stroke()
+
+            case "cart":
+                let basket = strokedPath()
+                basket.move(to: CGPoint(x: 3, y: 4))
+                basket.addLine(to: CGPoint(x: 5, y: 4))
+                basket.addLine(to: CGPoint(x: 7.2, y: 15.5))
+                basket.addCurve(
+                    to: CGPoint(x: 9.2, y: 17.1),
+                    controlPoint1: CGPoint(x: 7.4, y: 16.5),
+                    controlPoint2: CGPoint(x: 8.2, y: 17.1)
+                )
+                basket.addLine(to: CGPoint(x: 17.8, y: 17.1))
+                basket.addCurve(
+                    to: CGPoint(x: 19.8, y: 15.5),
+                    controlPoint1: CGPoint(x: 18.8, y: 17.1),
+                    controlPoint2: CGPoint(x: 19.6, y: 16.5)
+                )
+                basket.addLine(to: CGPoint(x: 21, y: 8))
+                basket.addLine(to: CGPoint(x: 6, y: 8))
+                basket.stroke()
+
+                let firstWheel = UIBezierPath(ovalIn: CGRect(x: 7.7, y: 18.7, width: 2.6, height: 2.6))
+                firstWheel.lineWidth = 1.8
+                firstWheel.stroke()
+                let secondWheel = UIBezierPath(ovalIn: CGRect(x: 16.7, y: 18.7, width: 2.6, height: 2.6))
+                secondWheel.lineWidth = 1.8
+                secondWheel.stroke()
+
+            default:
+                let head = UIBezierPath(ovalIn: CGRect(x: 8.4, y: 4.4, width: 7.2, height: 7.2))
+                head.lineWidth = 1.8
+                head.stroke()
+
+                let shoulders = strokedPath()
+                shoulders.move(to: CGPoint(x: 5, y: 20))
+                shoulders.addCurve(
+                    to: CGPoint(x: 12, y: 13.6),
+                    controlPoint1: CGPoint(x: 5, y: 16.2),
+                    controlPoint2: CGPoint(x: 8.1, y: 13.6)
+                )
+                shoulders.addCurve(
+                    to: CGPoint(x: 19, y: 20),
+                    controlPoint1: CGPoint(x: 15.9, y: 13.6),
+                    controlPoint2: CGPoint(x: 19, y: 16.2)
+                )
+                shoulders.stroke()
+            }
+
+            context.restoreGState()
+        }.withRenderingMode(.alwaysOriginal)
     }
 
     @objc private func loadingNavigationPressed(_ sender: UIButton) {
