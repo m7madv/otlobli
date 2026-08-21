@@ -3034,7 +3034,7 @@ function SettingsPanel({
         ))}
       </fieldset>
 
-      <WhatsAppSessionsPanel pin={pin} showNotice={showNotice} />
+      <WhatsAppSessionsPanel showNotice={showNotice} />
 
       <fieldset className="settings-group">
         <legend>جلسة الإدارة</legend>
@@ -3072,13 +3072,15 @@ type WaSession = {
   status: string
   phoneNumber: string | null
   label: string
-  qrCode: string | null
+  qrAvailable: boolean
   qrImageUrl: string | null
 }
 
-function WhatsAppSessionsPanel({ pin, showNotice }: { pin: string; showNotice: (msg: string) => void }) {
+function WhatsAppSessionsPanel({ showNotice }: { showNotice: (msg: string) => void }) {
   const [sessions, setSessions] = useState<WaSession[]>([])
-  const [loading, setLoading] = useState(true)
+  const [whatsappAdminSecret, setWhatsappAdminSecret] = useState('')
+  const [authorized, setAuthorized] = useState(false)
+  const [loading, setLoading] = useState(false)
   const [adding, setAdding] = useState(false)
 
   const waFetch = (path: string, opts?: RequestInit) =>
@@ -3086,23 +3088,30 @@ function WhatsAppSessionsPanel({ pin, showNotice }: { pin: string; showNotice: (
       ...opts,
       headers: {
         'content-type': 'application/json',
-        'x-admin-pin': pin,
+        'x-whatsapp-admin-secret': whatsappAdminSecret,
         ...(opts?.headers || {}),
       },
     })
 
   const loadSessions = () => {
+    if (!whatsappAdminSecret) return
+    setLoading(true)
     waFetch('/whatsapp/sessions')
-      .then(r => r.json())
-      .then(d => setSessions(d.sessions || []))
+      .then(async r => {
+        if (!r.ok) throw new Error(r.status === 503 ? 'not_configured' : 'unauthorized')
+        return r.json()
+      })
+      .then(d => {
+        setSessions(d.sessions || [])
+        setAuthorized(true)
+      })
       .catch(() => showNotice('تعذر جلب جلسات واتساب'))
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => { loadSessions() }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
   // تحديث حالة QR كل 3 ثوانٍ إذا في جلسة بحالة qr أو connecting
   useEffect(() => {
+    if (!authorized) return
     const hasActiveQr = sessions.some(s => s.status === 'qr' || s.status === 'connecting')
     if (!hasActiveQr) return
     const timer = setInterval(loadSessions, 3000)
@@ -3142,6 +3151,35 @@ function WhatsAppSessionsPanel({ pin, showNotice }: { pin: string; showNotice: (
       <fieldset className="settings-group">
         <legend>أرقام واتساب</legend>
         <p className="settings-intro">خدمة واتساب غير مربوطة. أضف VITE_WHATSAPP_API_URL في إعدادات المشروع.</p>
+      </fieldset>
+    )
+  }
+
+  if (!authorized) {
+    return (
+      <fieldset className="settings-group">
+        <legend>أرقام واتساب (OTP + إشعارات)</legend>
+        <p className="settings-intro">
+          أدخل سر إدارة واتساب المنفصل. يبقى في الذاكرة لهذه الصفحة فقط ولا يُحفظ في المتصفح.
+        </p>
+        <label className="field">
+          <span>سر إدارة واتساب</span>
+          <input
+            value={whatsappAdminSecret}
+            type="password"
+            autoComplete="off"
+            onChange={(event) => setWhatsappAdminSecret(event.target.value)}
+            onKeyDown={(event) => { if (event.key === 'Enter') loadSessions() }}
+          />
+        </label>
+        <button
+          className="primary-action"
+          disabled={loading || new TextEncoder().encode(whatsappAdminSecret).length < 32}
+          onClick={loadSessions}
+        >
+          {loading ? 'جار التحقق...' : 'فتح إدارة أرقام واتساب'}
+          <Icon name="lock_open" />
+        </button>
       </fieldset>
     )
   }

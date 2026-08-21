@@ -1,3 +1,62 @@
+# v86.212 — internal TestFlight authentication candidate (2026-08-21)
+
+Work is isolated on `codex/otlobli-v86-212-testflight-auth` in
+`C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`, based on protected
+v86.211 documentation HEAD `bf654a1a84d379e1f7b2fcb8f8e0c98faa5765d3`.
+Version/build is `86.212/1074`. No TestFlight build has been uploaded and no
+Apple/Google/Supabase production resource has been changed during this batch.
+
+The physical iPhone proved that native Apple account selection succeeds, then
+the backend returns `apple_auth_not_configured`. The failure is therefore the
+missing server-side Sign in with Apple configuration, not the button or the
+development entitlement. v86.212 adds a strict multi-client Apple backend for
+the iOS bundle ID `com.otlobli.app` and Android Services ID
+`com.otlobli.app.signin`, an exact HTTPS callback, Apple token/code verification,
+per-client authorization storage, and hardened service-role-only identity RPCs.
+Android gets the native browser callback path. Google iOS remains intentionally
+hidden until `VITE_GOOGLE_IOS_CLIENT_ID` exists; CI checks both the iOS client
+and the Web server-client audience. Phone/WhatsApp now fails closed: production
+accepts only the real backend, local mock requires explicit DEV-only opt-in, and
+incomplete inbound mode is rejected.
+
+The active WhatsApp server now uses a six-digit CSPRNG OTP, HMAC-only storage,
+bounded attempts and resend/IP rate limits, redacted logs, Supabase session
+readiness, and a fail-closed connected-sender gate. Every session/status/QR
+operation now requires a separate 32-byte server secret before body parsing;
+legacy archive/reset/public-QR routes return 410, and QR images are generated
+locally behind authentication without serializing raw QR material. The old
+tracked admin PIN must still be rotated before deployment.
+The live server is still the old deployment: its health response reports the
+sender disconnected and lacks the `customer-session-v1` contract, so the
+TestFlight workflow correctly refuses to upload.
+
+Final local verification includes a fresh `npm ci` with all native patches
+applied, production build and every release/SHEIN/Temu/store/performance/auth
+guard, Admin production build, clean iOS and Android Capacitor sync, Android Java
+compile, and Deno checks for `apple-auth`, `apple-oauth-callback`, `google-auth`,
+and `account-lifecycle`. All three workflow YAML files parse; 30 Bash run blocks
+and 13 embedded Python programs pass syntax validation. Full lint has zero
+errors (18 pre-existing hook/directive warnings), and `git diff --check` passes.
+The registered iOS workflow has a separate manual `testflight` mode with
+authentication preflight, distribution/profile/entitlement/signature checks,
+App Store Connect validation/upload, artifact/dSYM preservation, and credential
+cleanup. The stale v86.208 final-release workflow is hard-retired.
+
+External blockers are exact: Account Holder acceptance of Apple's updated
+agreement; explicit approval to register the prepared Services ID and SIWA key;
+an Apple Distribution certificate/P12 and App Store profile; an Otlobli App
+Store Connect record; the seven missing distribution/upload GitHub secrets; the
+Google project owner's iOS OAuth client; deployment of migrations through
+`20260821193000`, current auth Edge Functions, and the hardened WhatsApp server;
+and a connected WhatsApp sender. Exact steps are in
+`docs/final-enablement/MANUAL_PORTAL_ACTIONS.md` and `WHATSAPP_SETUP.md`.
+
+This is an internal TestFlight candidate, not an App Store release. Before App
+Store submission, separately finish/verify durable Apple revocation cleanup,
+account-deletion concurrency, and policy-approved anonymization of retained
+transactional personal data. Product capture, SHEIN/Temu routing, region,
+orders, payment, and wallet behavior were not deliberately changed.
+
 # v86.211 — complete order cards and Apple development signing (2026-08-21)
 
 Work is isolated on `codex/otlobli-v86-211-orders-apple` in

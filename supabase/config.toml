@@ -1,0 +1,2 @@
+[functions.apple-oauth-callback]
+verify_jwt = false

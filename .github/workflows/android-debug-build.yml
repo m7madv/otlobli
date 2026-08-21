@@ -18,7 +18,147 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      - run: npm install
+      - run: npm ci
+
+      - name: Verify Android authentication configuration
+        env:
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          WHATSAPP_API_URL: ${{ secrets.VITE_WHATSAPP_API_URL }}
+          WHATSAPP_AUTH_MODE: ${{ secrets.VITE_WHATSAPP_AUTH_MODE }}
+          APPLE_ANDROID_CLIENT_ID: ${{ secrets.VITE_APPLE_ANDROID_CLIENT_ID }}
+          APPLE_ANDROID_REDIRECT_URL: ${{ secrets.VITE_APPLE_ANDROID_REDIRECT_URL }}
+          GOOGLE_WEB_CLIENT_ID: '677396296147-o5q0rt5qk2rq0rqh714kuki7gabkdmcu.apps.googleusercontent.com'
+        run: |
+          set -euo pipefail
+          umask 077
+          for variable in SUPABASE_URL SUPABASE_ANON_KEY WHATSAPP_API_URL WHATSAPP_AUTH_MODE APPLE_ANDROID_CLIENT_ID APPLE_ANDROID_REDIRECT_URL; do
+            if [ -z "$(printenv "$variable" 2>/dev/null || true)" ]; then
+              echo "Required Android authentication setting is missing: ${variable}" >&2
+              exit 1
+            fi
+          done
+          case "$WHATSAPP_AUTH_MODE" in
+            real) ;;
+            *) echo 'Android phone authentication must use the complete real OTP mode.' >&2; exit 1 ;;
+          esac
+          whatsapp_probe="$RUNNER_TEMP/whatsapp-health.json"
+          apple_probe="$RUNNER_TEMP/apple-auth.json"
+          google_probe="$RUNNER_TEMP/google-auth.json"
+          apple_request="$RUNNER_TEMP/apple-auth-request.json"
+          google_request="$RUNNER_TEMP/google-auth-request.json"
+          trap 'rm -f "$whatsapp_probe" "$apple_probe" "$google_probe" "$apple_request" "$google_request"' EXIT
+
+          python3 - \
+            "$WHATSAPP_API_URL" \
+            "$SUPABASE_URL" \
+            "$APPLE_ANDROID_CLIENT_ID" \
+            "$APPLE_ANDROID_REDIRECT_URL" \
+            "$GOOGLE_WEB_CLIENT_ID" \
+            "$apple_request" \
+            "$google_request" <<'PY'
+          import ipaddress
+          import json
+          import sys
+          from urllib.parse import urlsplit
+
+          (
+              whatsapp_url,
+              supabase_url,
+              apple_client_id,
+              apple_redirect_url,
+              google_client_id,
+              apple_request,
+              google_request,
+          ) = sys.argv[1:]
+
+          def validate_https_base(label, value, expected_host=None):
+              parsed = urlsplit(value)
+              if parsed.scheme != "https" or not parsed.hostname:
+                  raise SystemExit(f"{label} must be an HTTPS URL")
+              if parsed.username or parsed.password or parsed.query or parsed.fragment:
+                  raise SystemExit(f"{label} contains unsupported URL components")
+              if parsed.path not in ("", "/"):
+                  raise SystemExit(f"{label} must not contain a path")
+              hostname = parsed.hostname.lower()
+              if expected_host and hostname != expected_host:
+                  raise SystemExit(f"{label} points to an unexpected host")
+              if hostname in {"localhost", "localhost.localdomain"} or hostname.endswith(".local"):
+                  raise SystemExit(f"{label} must point to a production host")
+              try:
+                  address = ipaddress.ip_address(hostname)
+              except ValueError:
+                  address = None
+              if address and not address.is_global:
+                  raise SystemExit(f"{label} must not point to a private or local address")
+
+          validate_https_base("WhatsApp API URL", whatsapp_url)
+          validate_https_base(
+              "Supabase URL",
+              supabase_url,
+              "dcicqdprtyhwmhegabay.supabase.co",
+          )
+          expected_client = "com.otlobli.app.signin"
+          expected_redirect = (
+              "https://dcicqdprtyhwmhegabay.supabase.co/"
+              "functions/v1/apple-oauth-callback"
+          )
+          if apple_client_id != expected_client or apple_redirect_url != expected_redirect:
+              raise SystemExit("Android Apple Services ID or callback does not match production")
+          with open(apple_request, "w", encoding="utf-8") as stream:
+              json.dump(
+                  {
+                      "action": "configuration-check",
+                      "clientId": apple_client_id,
+                      "redirectUrl": apple_redirect_url,
+                  },
+                  stream,
+              )
+          with open(google_request, "w", encoding="utf-8") as stream:
+              json.dump({"action": "configuration-check", "clientId": google_client_id}, stream)
+          PY
+
+          supabase_base="${SUPABASE_URL%/}"
+          whatsapp_status=$(curl --proto '=https' --connect-timeout 10 --max-time 20 --silent --show-error \
+            --output "$whatsapp_probe" --write-out '%{http_code}' \
+            "${WHATSAPP_API_URL%/}/health")
+          apple_status=$(curl --proto '=https' --connect-timeout 10 --max-time 20 --silent --show-error \
+            --output "$apple_probe" --write-out '%{http_code}' \
+            --request POST --header 'content-type: application/json' \
+            --header "apikey: $SUPABASE_ANON_KEY" --header "authorization: Bearer $SUPABASE_ANON_KEY" \
+            --data-binary "@$apple_request" \
+            "$supabase_base/functions/v1/apple-auth")
+          google_status=$(curl --proto '=https' --connect-timeout 10 --max-time 20 --silent --show-error \
+            --output "$google_probe" --write-out '%{http_code}' \
+            --request POST --header 'content-type: application/json' \
+            --header "apikey: $SUPABASE_ANON_KEY" --header "authorization: Bearer $SUPABASE_ANON_KEY" \
+            --data-binary "@$google_request" \
+            "$supabase_base/functions/v1/google-auth")
+          if [ "$whatsapp_status" != '200' ] || [ "$apple_status" != '200' ] || [ "$google_status" != '200' ]; then
+            echo "Authentication preflight failed (phone HTTP ${whatsapp_status}, Apple HTTP ${apple_status}, Google HTTP ${google_status})." >&2
+            exit 1
+          fi
+          python3 - "$whatsapp_probe" "$apple_probe" "$google_probe" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as stream:
+              phone = json.load(stream)
+          if phone.get("status") != "ok":
+              raise SystemExit("Phone authentication service is not healthy")
+          if phone.get("sessionStoreReady") is not True or phone.get("authContract") != "customer-session-v1":
+              raise SystemExit("Phone authentication service cannot issue persisted customer sessions")
+          if phone.get("otpSecurityReady") is not True:
+              raise SystemExit("Phone authentication service does not have hardened OTP storage")
+          if phone.get("whatsappSenderReady") is not True or phone.get("whatsappConnected") is not True:
+              raise SystemExit("Phone authentication WhatsApp sender is not currently connected")
+          for provider, path in zip(("Apple Android", "Google Android"), sys.argv[2:]):
+              with open(path, encoding="utf-8") as stream:
+                  payload = json.load(stream)
+              if payload != {"configured": True}:
+                  raise SystemExit(f"{provider} is not allowlisted by the backend")
+          print("Verified phone, Apple, and Google authentication for Android.")
+          PY
 
       - run: npm run build
         env:
@@ -33,6 +173,8 @@ jobs:
           VITE_PUSH_ENABLED: 'true'
           VITE_GOOGLE_AUTH_ENABLED: 'true'
           VITE_GOOGLE_WEB_CLIENT_ID: '677396296147-o5q0rt5qk2rq0rqh714kuki7gabkdmcu.apps.googleusercontent.com'
+          VITE_APPLE_ANDROID_CLIENT_ID: ${{ secrets.VITE_APPLE_ANDROID_CLIENT_ID }}
+          VITE_APPLE_ANDROID_REDIRECT_URL: ${{ secrets.VITE_APPLE_ANDROID_REDIRECT_URL }}
 
       # استخدم مفتاح التطوير المُثبَّت (بصمته SHA-1 مسجّلة في Firebase) حتى يعمل
       # دخول جوجل على الـ APK. مفتاح debug غير سرّي (كلمة السر العامة "android").

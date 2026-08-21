@@ -32,15 +32,69 @@ assert.equal(parseSafePushPayload({ version: 1, route: 'orders/details' }), null
 assert.equal(parseSafePushPayload({ version: 1, route: 'orders/details', entityId: 'x'.repeat(129) }), null)
 
 const google = readFileSync(resolve(root, 'supabase/functions/google-auth/index.ts'), 'utf8')
-for (const marker of ['accounts.google.com', 'ALLOWED_AUDS.includes', 'exp * 1000 <= Date.now()', 'claims.sub']) {
+for (const marker of [
+  'accounts.google.com', 'ALLOWED_AUDS.includes', 'exp * 1000 <= Date.now()', 'claims.sub',
+  "body.action === 'configuration-check'", 'configured: ALLOWED_AUDS.includes(clientId)',
+  "supabase.rpc('auth_schema_readiness')", "schema.version === 'auth-v86.212-1'",
+]) {
   assert.ok(google.includes(marker), `Google verifier missing ${marker}`)
 }
 const apple = readFileSync(resolve(root, 'supabase/functions/apple-auth/index.ts'), 'utf8')
-for (const marker of ['createRemoteJWKSet', "issuer: 'https://appleid.apple.com'", 'audience: ALLOWED_AUDS', 'claims.nonce !== nonce', 'exchangeAuthorizationCode', 'apple_authorizations']) {
+for (const marker of [
+  'createRemoteJWKSet', "issuer: 'https://appleid.apple.com'", 'audience: expectedClientId ?? ALLOWED_AUDS',
+  'claims.nonce !== nonce', 'APPLE_REDIRECT_URIS_JSON', 'parameters.redirect_uri = redirectUri',
+  'exchangedToken.claims.sub !== verifiedToken.claims.sub', 'client_id: appleClientId',
+  '.eq(\'client_id\', appleClientId)', "onConflict: 'provider_user_id,client_id'", 'idToken,',
+  "body.action === 'configuration-check'",
+  'const signingReady = ALLOWED_AUD_SET.has(clientId) && redirect.valid',
+  'await appleClientSecret(clientId)', 'PENDING_AUTHORIZATION_TTL_MS',
+  "body.action === 'cancel-registration'", "gt('pending_expires_at'",
+  'cleanupExpiredPendingAuthorizations',
+  "supabase.rpc('auth_schema_readiness')", "schema.version === 'auth-v86.212-1'",
+]) {
   assert.ok(apple.includes(marker), `Apple verifier missing ${marker}`)
 }
+const appleHandler = apple.slice(apple.indexOf('Deno.serve(async (req) =>'))
+const suppliedTokenBranch = appleHandler.slice(
+  appleHandler.indexOf('if (idToken) {'),
+  appleHandler.indexOf('} else {\n    if (!authorizationCode'),
+)
+assert.ok(
+  suppliedTokenBranch.indexOf('verifyAppleIdToken(idToken, rawNonce)') <
+    suppliedTokenBranch.indexOf('exchangeAuthorizationCode(authorizationCode, verifiedToken.clientId'),
+  'Apple native flow must verify its supplied token before selecting a client for code exchange',
+)
+const codeOnlyBranch = appleHandler.slice(appleHandler.indexOf('} else {\n    if (!authorizationCode'))
+assert.ok(
+  codeOnlyBranch.indexOf('ALLOWED_AUD_SET.has(requestedClientId)') <
+    codeOnlyBranch.indexOf('exchangeAuthorizationCode(authorizationCode, requestedClientId'),
+  'Apple code-only flow must reject clients outside APPLE_CLIENT_IDS before exchange',
+)
+assert.ok(
+  codeOnlyBranch.indexOf('exchangeAuthorizationCode(authorizationCode, requestedClientId') <
+    codeOnlyBranch.indexOf('verifyAppleIdToken(exchange.idToken, rawNonce, requestedClientId)') &&
+    codeOnlyBranch.indexOf('verifyAppleIdToken(exchange.idToken, rawNonce, requestedClientId)') <
+      codeOnlyBranch.indexOf('const claims = verifiedToken.claims'),
+  'Apple code-only flow must treat the exchanged verified ID token as authoritative before account access',
+)
+assert.equal(/console\.(?:log|info|warn|error|debug)/.test(apple), false, 'Apple auth must not log credentials or secrets')
+assert.equal(apple.includes(".eq('refresh_token'"), false, 'Apple refresh tokens must never enter PostgREST filter URLs')
+const appleCallback = readFileSync(resolve(root, 'supabase/functions/apple-oauth-callback/index.ts'), 'utf8')
+for (const marker of [
+  "const APP_CALLBACK = 'otlobli://apple-auth'", "success: 'true'", "'Cache-Control': 'no-store, max-age=0'",
+  'safeState(state)', "contentType.startsWith('application/x-www-form-urlencoded')",
+]) {
+  assert.ok(appleCallback.includes(marker), `Apple callback missing ${marker}`)
+}
+for (const forbidden of ['client_secret', 'access_token', 'refresh_token', 'id_token']) {
+  assert.equal(appleCallback.includes(forbidden), false, `Apple callback must not forward ${forbidden}`)
+}
 const lifecycle = readFileSync(resolve(root, 'supabase/functions/account-lifecycle/index.ts'), 'utf8')
-for (const marker of ['appleid.apple.com/auth/revoke', 'token_type_hint', 'get_customer_id_for_session', 'delete_customer_account', 'for (const authorization of appleAuthorizations']) {
+for (const marker of [
+  'appleid.apple.com/auth/revoke', 'token_type_hint', 'resolve_customer_for_account_deletion', 'delete_customer_account',
+  'for (const authorization of appleAuthorizations', "select('refresh_token,client_id')", 'client_id: clientId',
+  "payload.error === 'invalid_grant' || payload.error === 'invalid_token'",
+]) {
   assert.ok(lifecycle.includes(marker), `Account lifecycle missing ${marker}`)
 }
 const push = readFileSync(resolve(root, 'supabase/functions/send-push/index.ts'), 'utf8')
@@ -71,6 +125,56 @@ const migration = readFileSync(resolve(root, 'supabase/migrations/20260821090000
 for (const marker of ['pg_advisory_xact_lock', 'delete from public.apple_authorizations', 'upsert_device_token_v2']) {
   assert.ok(migration.includes(marker), `Production migration missing ${marker}`)
 }
+const appleClientMigration = readFileSync(resolve(root, 'supabase/migrations/20260821183000_apple_authorization_client_id.sql'), 'utf8')
+for (const marker of [
+  "set client_id = 'com.otlobli.app'", 'alter column client_id set not null',
+  'primary key (provider_user_id, client_id)', 'apple_authorizations_client_id_nonempty',
+  'pending_expires_at', 'apple_authorizations_pending_expiry',
+]) {
+  assert.ok(appleClientMigration.includes(marker), `Apple client migration missing ${marker}`)
+}
+const authPermissionMigration = readFileSync(resolve(root, 'supabase/migrations/20260821193000_harden_identity_rpc_permissions.sql'), 'utf8')
+for (const marker of [
+  'create_customer_session_for_customer', 'find_identity_customer', 'touch_identity_login',
+  'phone_auth_readiness', "'contract', 'customer-session-v1'",
+  'auth_schema_readiness', "'version', 'auth-v86.212-1'",
+  'revoke all on function public.link_customer_identity',
+  'revoke all on function public.delete_customer_account',
+  "'customer_identity:' || p_provider || ':' || p_provider_user_id",
+  'existing_customer_id is distinct from session_customer_id',
+  'from public, anon, authenticated', 'to service_role',
+  'resolve_customer_for_account_deletion',
+]) {
+  assert.ok(authPermissionMigration.includes(marker), `Identity permission migration missing ${marker}`)
+}
+const retiredAuthMigration = readFileSync(resolve(root, 'supabase/migrations_v86_auth_push.sql'), 'utf8')
+assert.ok(
+  retiredAuthMigration.includes('is retired; deploy timestamped migrations instead') &&
+    !retiredAuthMigration.includes('grant execute on function public.link_customer_identity'),
+  'Historical auth migration must fail closed instead of reopening privileged RPCs',
+)
+const supabaseConfig = readFileSync(resolve(root, 'supabase/config.toml'), 'utf8')
+assert.ok(
+  supabaseConfig.includes('[functions.apple-oauth-callback]') && supabaseConfig.includes('verify_jwt = false'),
+  'Apple OAuth callback must be reproducibly deployed without JWT verification',
+)
+const whatsappServer = readFileSync(resolve(root, 'server/src/index.js'), 'utf8')
+for (const marker of ["supabase.rpc('phone_auth_readiness')", 'sessionStoreReady', 'authContract', 'whatsappSenderReady']) {
+  assert.ok(whatsappServer.includes(marker), `WhatsApp health contract missing ${marker}`)
+}
+const whatsappSender = readFileSync(resolve(root, 'server/src/whatsapp.js'), 'utf8')
+const otpSender = whatsappSender.slice(
+  whatsappSender.indexOf('export async function sendOtpMessage'),
+  whatsappSender.indexOf('export async function sendNotificationMessage'),
+)
+assert.equal(otpSender.includes('OTP ${code}'), false, 'WhatsApp sender must not log plaintext OTP values')
+assert.equal(otpSender.includes('${phone}'), false, 'WhatsApp sender must not log OTP recipient phone numbers')
+const socialLoginPatch = readFileSync(resolve(root, 'patches/@capgo+capacitor-social-login+8.3.38.patch'), 'utf8')
+assert.ok(socialLoginPatch.includes('-        call.setKeepAlive(true);'), 'Android Apple calls must not remain kept alive after completion')
+assert.ok(
+  socialLoginPatch.includes('-            Log.i(SocialLoginPlugin.LOG_TAG, String.format("Google restoreState: %s", object));'),
+  'Android Google restore must not log stored ID/access tokens',
+)
 
 const policy = loadTypeScriptModule('src/services/sheinPolicyEngine.ts')
 const routeCases = [

@@ -4334,3 +4334,371 @@ insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 values ('app-issue-reports', 'app-issue-reports', false, 1572864, array['image/jpeg', 'image/png', 'image/webp'])
 on conflict (id) do update set public = false, file_size_limit = excluded.file_size_limit,
   allowed_mime_types = excluded.allowed_mime_types;
+
+-- Apple authorization grants are private service-role data. `client_id` is
+-- stored with the refresh token because Apple revocation must use the same
+-- bundle/Services ID that issued that token.
+create table if not exists public.apple_authorizations (
+  provider_user_id text not null,
+  customer_id uuid references public.customers(id) on delete cascade,
+  refresh_token text not null,
+  client_id text not null,
+  pending_expires_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (provider_user_id, client_id),
+  constraint apple_authorizations_client_id_nonempty
+    check (char_length(trim(client_id)) between 3 and 255)
+);
+alter table public.apple_authorizations
+  add column if not exists client_id text;
+alter table public.apple_authorizations
+  add column if not exists pending_expires_at timestamptz;
+update public.apple_authorizations
+set client_id = 'com.otlobli.app'
+where client_id is null or trim(client_id) = '';
+update public.apple_authorizations
+set pending_expires_at = now() + interval '15 minutes'
+where customer_id is null and pending_expires_at is null;
+alter table public.apple_authorizations
+  alter column client_id set not null;
+alter table public.apple_authorizations
+  drop constraint if exists apple_authorizations_pkey;
+alter table public.apple_authorizations
+  add constraint apple_authorizations_pkey
+  primary key (provider_user_id, client_id);
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conrelid = 'public.apple_authorizations'::regclass
+      and conname = 'apple_authorizations_client_id_nonempty'
+  ) then
+    alter table public.apple_authorizations
+      add constraint apple_authorizations_client_id_nonempty
+      check (char_length(trim(client_id)) between 3 and 255);
+  end if;
+end $$;
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conrelid = 'public.apple_authorizations'::regclass
+      and conname = 'apple_authorizations_pending_expiry'
+  ) then
+    alter table public.apple_authorizations
+      add constraint apple_authorizations_pending_expiry
+      check (customer_id is not null or pending_expires_at is not null);
+  end if;
+end $$;
+create index if not exists apple_authorizations_pending_expiry_idx
+  on public.apple_authorizations (pending_expires_at)
+  where customer_id is null;
+alter table public.apple_authorizations enable row level security;
+revoke all on table public.apple_authorizations from public, anon, authenticated;
+
+-- Privileged identity helpers. Google/Apple tokens are verified by Edge
+-- Functions before these service-role-only RPCs may link an identity or mint a
+-- customer session. Explicit PUBLIC revokes are required for SECURITY DEFINER.
+create or replace function public.link_customer_identity(
+  p_session_token text,
+  p_provider text,
+  p_provider_user_id text,
+  p_email text,
+  p_email_verified boolean,
+  p_display_name text
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  session_customer_id uuid;
+  existing_customer_id uuid;
+begin
+  if p_provider not in ('google', 'apple') then raise exception 'invalid provider'; end if;
+  if coalesce(trim(p_provider_user_id), '') = '' or length(p_provider_user_id) > 512 then
+    raise exception 'invalid provider user id';
+  end if;
+  session_customer_id := public.require_customer_session(p_session_token, null);
+  perform pg_advisory_xact_lock(hashtextextended(
+    'customer_identity:' || p_provider || ':' || p_provider_user_id,
+    0
+  ));
+  select customer_id into existing_customer_id
+  from public.customer_identities
+  where provider = p_provider and provider_user_id = p_provider_user_id
+  limit 1;
+  if existing_customer_id is not null and existing_customer_id <> session_customer_id then
+    raise exception 'identity already linked to another account';
+  end if;
+  if coalesce(p_email_verified, false) and coalesce(trim(p_email), '') <> '' then
+    perform pg_advisory_xact_lock(hashtextextended(lower(trim(p_email)), 0));
+    if exists (
+      select 1 from public.customer_identities
+      where lower(email) = lower(trim(p_email)) and email_verified
+        and customer_id <> session_customer_id
+    ) then
+      raise exception 'verified email already belongs to another account';
+    end if;
+  end if;
+  insert into public.customer_identities
+    (customer_id, provider, provider_user_id, email, email_verified, display_name, last_login_at)
+  values
+    (session_customer_id, p_provider, p_provider_user_id, nullif(trim(p_email), ''),
+      coalesce(p_email_verified, false), nullif(trim(p_display_name), ''), now())
+  on conflict (provider, provider_user_id) do update set
+    email = excluded.email,
+    email_verified = excluded.email_verified,
+    display_name = excluded.display_name,
+    last_login_at = now();
+  select customer_id into existing_customer_id
+  from public.customer_identities
+  where provider = p_provider and provider_user_id = p_provider_user_id
+  limit 1;
+  if existing_customer_id is distinct from session_customer_id then
+    raise exception 'identity already linked to another account';
+  end if;
+  return jsonb_build_object('customer_id', session_customer_id, 'linked', true);
+end;
+$$;
+
+create or replace function public.create_customer_session_for_customer(
+  p_customer_id uuid,
+  p_token_hash text,
+  p_expires_at timestamptz
+) returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  target_phone text;
+  target_blocked boolean;
+  new_session_id uuid;
+begin
+  if coalesce(p_token_hash, '') !~ '^[0-9a-f]{64}$' then
+    raise exception 'invalid token hash';
+  end if;
+  if p_expires_at is null or p_expires_at <= now() or p_expires_at > now() + interval '90 days' then
+    raise exception 'invalid session expiry';
+  end if;
+  select phone, blocked into target_phone, target_blocked
+  from public.customers where id = p_customer_id limit 1;
+  if target_phone is null then raise exception 'customer not found'; end if;
+  if coalesce(target_blocked, false) then
+    raise exception 'customer_blocked' using errcode = 'P0001';
+  end if;
+  delete from public.customer_sessions where expires_at <= now() or revoked_at is not null;
+  insert into public.customer_sessions (customer_id, phone, token_hash, expires_at)
+  values (p_customer_id, target_phone, p_token_hash, p_expires_at)
+  returning id into new_session_id;
+  return new_session_id;
+end;
+$$;
+
+create or replace function public.find_identity_customer(
+  p_provider text,
+  p_provider_user_id text
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  result jsonb;
+begin
+  if p_provider not in ('google', 'apple') then raise exception 'invalid provider'; end if;
+  if coalesce(trim(p_provider_user_id), '') = '' or length(p_provider_user_id) > 512 then
+    raise exception 'invalid provider user id';
+  end if;
+  select jsonb_build_object(
+    'customer_id', customer.id,
+    'phone', customer.phone,
+    'name', customer.name
+  ) into result
+  from public.customer_identities identity
+  join public.customers customer on customer.id = identity.customer_id
+  where identity.provider = p_provider
+    and identity.provider_user_id = p_provider_user_id
+  limit 1;
+  return result;
+end;
+$$;
+
+create or replace function public.touch_identity_login(
+  p_provider text,
+  p_provider_user_id text
+) returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if p_provider not in ('google', 'apple') then raise exception 'invalid provider'; end if;
+  if coalesce(trim(p_provider_user_id), '') = '' or length(p_provider_user_id) > 512 then
+    raise exception 'invalid provider user id';
+  end if;
+  update public.customer_identities set last_login_at = now()
+  where provider = p_provider and provider_user_id = p_provider_user_id;
+end;
+$$;
+
+create or replace function public.resolve_customer_for_account_deletion(p_session_token text)
+returns uuid
+language plpgsql
+security definer
+set search_path = extensions, public, pg_temp
+as $$
+declare
+  token_digest text := encode(digest(coalesce(p_session_token, ''), 'sha256'), 'hex');
+  found_session public.customer_sessions%rowtype;
+begin
+  if length(coalesce(p_session_token, '')) < 32 then
+    raise exception 'invalid customer session';
+  end if;
+  select * into found_session
+  from public.customer_sessions
+  where token_hash = token_digest and revoked_at is null and expires_at > now()
+  limit 1 for update;
+  if not found then raise exception 'invalid customer session'; end if;
+  update public.customer_sessions set last_used_at = now() where id = found_session.id;
+  return found_session.customer_id;
+end;
+$$;
+
+create or replace function public.delete_customer_account(p_session_token text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  target_customer_id uuid;
+  replacement_phone text;
+begin
+  target_customer_id := public.resolve_customer_for_account_deletion(p_session_token);
+  replacement_phone := 'deleted-' || replace(target_customer_id::text, '-', '');
+  delete from public.addresses where customer_id = target_customer_id;
+  delete from public.apple_authorizations where customer_id = target_customer_id;
+  delete from public.customer_identities where customer_id = target_customer_id;
+  update public.device_tokens set customer_id = null, phone = '', enabled = false,
+    notifications_enabled = false, invalidated_at = now(), updated_at = now()
+    where customer_id = target_customer_id;
+  update public.customers set phone = replacement_phone, name = 'Deleted account',
+    governorate = '', qadmous_branch = '', city = '', details = '',
+    phone_login_enabled = false, phone_verified_at = null, updated_at = now()
+    where id = target_customer_id;
+  update public.customer_sessions set revoked_at = now() where customer_id = target_customer_id;
+  return jsonb_build_object(
+    'deleted', true,
+    'retained', jsonb_build_array('orders', 'payments', 'wallet ledger required for transaction records')
+  );
+end;
+$$;
+
+create or replace function public.phone_auth_readiness()
+returns jsonb
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select jsonb_build_object(
+    'ready',
+      to_regclass('public.customer_sessions') is not null
+      and to_regprocedure('public.create_customer_session(text,text,timestamp with time zone)') is not null,
+    'contract', 'customer-session-v1'
+  );
+$$;
+
+create or replace function public.auth_schema_readiness()
+returns jsonb
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select jsonb_build_object(
+    'ready',
+      exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'apple_authorizations' and column_name = 'client_id'
+      )
+      and exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'apple_authorizations' and column_name = 'pending_expires_at'
+      )
+      and exists (
+        select 1 from pg_constraint
+        where conrelid = 'public.apple_authorizations'::regclass
+          and contype = 'p'
+          and pg_get_constraintdef(oid) = 'PRIMARY KEY (provider_user_id, client_id)'
+      )
+      and to_regprocedure('public.create_customer_session_for_customer(uuid,text,timestamp with time zone)') is not null
+      and to_regprocedure('public.find_identity_customer(text,text)') is not null
+      and to_regprocedure('public.touch_identity_login(text,text)') is not null
+      and to_regprocedure('public.link_customer_identity(text,text,text,text,boolean,text)') is not null
+      and to_regprocedure('public.resolve_customer_for_account_deletion(text)') is not null
+      and to_regprocedure('public.delete_customer_account(text)') is not null
+      and not has_function_privilege('anon', 'public.link_customer_identity(text,text,text,text,boolean,text)', 'EXECUTE')
+      and not has_function_privilege('authenticated', 'public.delete_customer_account(text)', 'EXECUTE'),
+    'version', 'auth-v86.212-1'
+  );
+$$;
+
+revoke all on function public.create_customer_session_for_customer(uuid,text,timestamptz)
+  from public, anon, authenticated;
+grant execute on function public.create_customer_session_for_customer(uuid,text,timestamptz)
+  to service_role;
+revoke all on function public.find_identity_customer(text,text)
+  from public, anon, authenticated;
+grant execute on function public.find_identity_customer(text,text)
+  to service_role;
+revoke all on function public.touch_identity_login(text,text)
+  from public, anon, authenticated;
+grant execute on function public.touch_identity_login(text,text)
+  to service_role;
+
+revoke all on function public.link_customer_identity(text,text,text,text,boolean,text)
+  from public, anon, authenticated;
+grant execute on function public.link_customer_identity(text,text,text,text,boolean,text)
+  to service_role;
+
+revoke all on function public.phone_auth_readiness()
+  from public, anon, authenticated;
+grant execute on function public.phone_auth_readiness()
+  to service_role;
+
+revoke all on function public.auth_schema_readiness()
+  from public, anon, authenticated;
+grant execute on function public.auth_schema_readiness()
+  to service_role;
+
+revoke all on function public.resolve_customer_for_account_deletion(text)
+  from public, anon, authenticated;
+grant execute on function public.resolve_customer_for_account_deletion(text)
+  to service_role;
+revoke all on function public.delete_customer_account(text)
+  from public, anon, authenticated;
+grant execute on function public.delete_customer_account(text)
+  to service_role;
+
+-- These functions are supplied by the timestamped production-auth migration.
+-- Keep this snapshot executable even when that optional migration has not yet
+-- been loaded, while still locking every function that is present.
+do $$
+declare
+  signature text;
+begin
+  foreach signature in array array[
+    'public.get_customer_auth_methods(text)'
+  ] loop
+    if to_regprocedure(signature) is not null then
+      execute format('revoke all on function %s from public, anon, authenticated', signature);
+      execute format('grant execute on function %s to service_role', signature);
+    end if;
+  end loop;
+end $$;

@@ -20,7 +20,6 @@ router.post('/auth/whatsapp/start', async (req, res) => {
 
     const { code, expiresInSeconds } = createOtp(cleanPhone)
     await sendOtpMessage(cleanPhone, code)
-    console.log(`📤 OTP ${code} → ${cleanPhone}`)
     res.json({ mode: 'external', otpExpiresInSeconds: expiresInSeconds })
   } catch (error) {
     console.error('❌ send OTP:', error.message)

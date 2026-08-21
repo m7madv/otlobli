@@ -4,17 +4,25 @@ services:
     name: talabieh-whatsapp
     runtime: node
     plan: free
-    rootDir: server-whatsapp
-    buildCommand: npm install
-    startCommand: node src/index.js
+    # `server-whatsapp/` is retired and must never be deployed. The active
+    # server fails closed until Supabase, OTP, and admin secrets are present.
+    rootDir: server
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
-      # AUTH_DIR يحدد أين تُحفظ جلسة WhatsApp (baileys-auth)
-      # مهم: نفّذ ping كل 5 دقائق عبر UptimeRobot حتى لا ينام السيرفر
-      - key: AUTH_DIR
-        value: /opt/render/project/src/baileys-auth
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: OTP_HASH_SECRET
+        sync: false
+      - key: WHATSAPP_ADMIN_SECRET
+        sync: false
+      - key: ADMIN_PIN
+        sync: false
 
   # ─── Shein Scraper ────────────────────────────────────────────────────────
   - type: web
@@ -22,7 +30,7 @@ services:
     runtime: node
     plan: free
     rootDir: server-scraper
-    buildCommand: npm install
+    buildCommand: npm ci --omit=dev
     startCommand: node src/index.js
     healthCheckPath: /health
     envVars:

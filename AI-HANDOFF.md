@@ -1,3 +1,54 @@
+# Active handoff — v86.212 internal TestFlight authentication (2026-08-21)
+
+Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`
+on `codex/otlobli-v86-212-testflight-auth`, based on
+`bf654a1a84d379e1f7b2fcb8f8e0c98faa5765d3`. Version/build is `86.212/1074`.
+No TestFlight upload, portal creation, deployment, or invitation has happened.
+
+The user wants installation through Apple's TestFlight app/email—not Sideloadly.
+Do not submit to App Store review. Ask for explicit confirmation immediately
+before registering Apple resources, uploading a build, or sending invitations.
+The Apple account chooser already works; live `apple-auth` returns 503
+`apple_auth_not_configured`. The backend/portal secrets are the blocker.
+
+Current code supports phone/WhatsApp, Google, and Apple on iOS and Android with
+fail-closed configuration. Apple accepts iOS bundle ID `com.otlobli.app` and
+Android Services ID `com.otlobli.app.signin`; callback is exactly
+`https://dcicqdprtyhwmhegabay.supabase.co/functions/v1/apple-oauth-callback`,
+returning to `otlobli://apple-auth`. Google iOS uses the new iOS OAuth client for
+native configuration but the Web server client is the token audience, so both
+must remain in `GOOGLE_CLIENT_IDS` and in TestFlight preflight. The production
+phone mode is only `real`; mock is DEV-only and inbound is disabled.
+
+Do not deploy the old WhatsApp backend. The current live `/health` lacks the new
+readiness contract and reports a disconnected sender. Deploy the hardened
+`server/` with a persistent Baileys credential volume, a random
+`OTP_HASH_SECRET` of at least 32 characters, Supabase service-role credentials,
+and protected admin/session operations. Rotate the old exposed admin PIN and
+re-pair the sender. CI requires `status=ok`, `whatsappConnected=true`,
+`sessionStoreReady=true`, `authContract=customer-session-v1`,
+`otpSecurityReady=true`, and `whatsappSenderReady=true`.
+
+Before TestFlight, apply timestamped migrations through
+`20260821193000_harden_identity_rpc_permissions.sql`; deploy current
+`google-auth`, `apple-auth`, `apple-oauth-callback --no-verify-jwt`, and
+`account-lifecycle`; configure Apple/Google secrets; create distribution signing
+material and the App Store Connect record; then run the registered iOS workflow
+with `signing_mode=testflight`. The exact authoritative checklist and secret
+names are in `docs/final-enablement/MANUAL_PORTAL_ACTIONS.md`.
+
+Fresh dependency install, production and Admin builds, all protected
+store/release/performance/auth guards, Capacitor iOS/Android sync, Android Java
+compile, four Deno Edge checks, three workflow YAML parses, 30 Bash syntax
+checks, 13 Python heredoc parses, and `git diff --check` pass. Full lint has zero
+errors and 18 existing warnings. Never touch the protected SHEIN recompose,
+capture, blocking, region, store routing, orders, payment, or wallet paths for
+this auth task.
+
+Treat v86.212 as internal-test only. App Store submission remains blocked on a
+separate durable Apple revocation/deletion concurrency design and an approved
+retention/anonymization policy for transactional personal data.
+
 # Active handoff — v86.211 orders sizing and Apple development signing (2026-08-21)
 
 Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-211-orders-apple` on

@@ -86,10 +86,12 @@ async function verifyGoogleIdToken(idToken: string): Promise<GoogleClaims | null
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders })
   if (req.method !== 'POST') return new Response('Method not allowed', { status: 405, headers: corsHeaders })
+  if (!SUPABASE_URL || !SERVICE_ROLE_KEY) return json({ error: 'google_auth_not_configured' }, 503)
 
   let body: {
     idToken?: string
     action?: string
+    clientId?: string
     sessionToken?: string
     phone?: string
     name?: string
@@ -125,6 +127,20 @@ Deno.serve(async (req) => {
   // session and remains available for Apple/phone-only configurations.
   if (ALLOWED_AUDS.length === 0) {
     return json({ error: 'google_auth_not_configured' }, 503)
+  }
+
+  // OAuth client IDs are public configuration. This narrow check lets release
+  // CI prove that the exact iOS client embedded in the IPA is also accepted by
+  // the backend, without revealing the rest of the allowlist or any secret.
+  if (body.action === 'configuration-check') {
+    const clientId = (body.clientId ?? '').trim()
+    if (!clientId || clientId.length > 255) return json({ error: 'invalid_google_client' }, 400)
+    const { data: schemaStatus, error: schemaError } = await supabase.rpc('auth_schema_readiness')
+    const schema = (schemaStatus ?? {}) as { ready?: boolean; version?: string }
+    return json({
+      configured: ALLOWED_AUDS.includes(clientId) && !schemaError &&
+        schema.ready === true && schema.version === 'auth-v86.212-1',
+    })
   }
 
   const idToken = (body.idToken ?? '').trim()

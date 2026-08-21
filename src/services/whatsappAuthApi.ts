@@ -17,6 +17,12 @@ const errorMessages: Record<string, string> = {
   supabase_not_configured: 'قاعدة البيانات غير مجهزة لحفظ رموز واتساب بعد.',
   otp_storage_error: 'تعذر حفظ رمز التحقق في قاعدة البيانات.',
   whatsapp_send_error: 'تعذر إرسال رسالة واتساب من Meta حالياً.',
+  otp_not_configured: 'خدمة رمز التحقق غير مهيأة في هذه النسخة.',
+  otp_resend_too_soon: 'انتظر قليلاً قبل طلب رمز جديد.',
+  otp_send_rate_limited: 'تم طلب رموز كثيرة لهذا الرقم. حاول لاحقاً.',
+  otp_attempts_locked: 'تم إيقاف المحاولات مؤقتاً. حاول لاحقاً.',
+  otp_ip_rate_limited: 'تم طلب رموز كثيرة من هذا الجهاز. حاول لاحقاً.',
+  inbound_auth_unavailable: 'استخدم إرسال رمز واتساب.',
 }
 
 export const whatsappAuthMode = cleanEnvValue(import.meta.env.VITE_WHATSAPP_AUTH_MODE)

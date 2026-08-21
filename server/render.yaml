@@ -3,13 +3,22 @@ services:
     name: otlobli-whatsapp
     runtime: node
     rootDir: server
-    buildCommand: npm install
+    buildCommand: npm ci --omit=dev
     startCommand: npm start
     plan: free
+    healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 3001
       - key: ADMIN_PIN
-        value: 099078
+        sync: false
+      - key: WHATSAPP_ADMIN_SECRET
+        sync: false
+      - key: OTP_HASH_SECRET
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false

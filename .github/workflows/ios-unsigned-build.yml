@@ -11,6 +11,7 @@ on:
         options:
           - unsigned
           - development-signed
+          - testflight
   push:
     branches:
       [
@@ -89,6 +90,184 @@ jobs:
           fi
           grep -q '<key>UISupportedInterfaceOrientations~ipad</key>' ios/App/App/Info.plist
 
+      - name: Verify TestFlight authentication configuration
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.signing_mode == 'testflight' }}
+        env:
+          GOOGLE_IOS_CLIENT_ID: ${{ secrets.VITE_GOOGLE_IOS_CLIENT_ID }}
+          GOOGLE_WEB_CLIENT_ID: '677396296147-o5q0rt5qk2rq0rqh714kuki7gabkdmcu.apps.googleusercontent.com'
+          WHATSAPP_API_URL: ${{ secrets.VITE_WHATSAPP_API_URL }}
+          WHATSAPP_AUTH_MODE: ${{ secrets.VITE_WHATSAPP_AUTH_MODE }}
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          set -euo pipefail
+          umask 077
+          for variable in GOOGLE_IOS_CLIENT_ID WHATSAPP_API_URL WHATSAPP_AUTH_MODE SUPABASE_URL SUPABASE_ANON_KEY; do
+            if [ -z "$(printenv "$variable" 2>/dev/null || true)" ]; then
+              echo "Required TestFlight authentication setting is missing: ${variable}" >&2
+              exit 1
+            fi
+          done
+          case "$WHATSAPP_AUTH_MODE" in
+            real) ;;
+            *) echo "TestFlight phone authentication must use the complete real OTP mode." >&2; exit 1 ;;
+          esac
+          if ! [[ "$GOOGLE_IOS_CLIENT_ID" =~ ^[0-9]+-[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$ ]]; then
+            echo 'Unexpected Google iOS OAuth client ID format.' >&2
+            exit 1
+          fi
+
+          whatsapp_probe_file="$RUNNER_TEMP/otlobli-whatsapp-health.json"
+          apple_probe_file="$RUNNER_TEMP/otlobli-apple-auth-probe.json"
+          google_probe_file="$RUNNER_TEMP/otlobli-google-auth-probe.json"
+          google_web_probe_file="$RUNNER_TEMP/otlobli-google-web-auth-probe.json"
+          apple_request_file="$RUNNER_TEMP/otlobli-apple-auth-request.json"
+          google_request_file="$RUNNER_TEMP/otlobli-google-auth-request.json"
+          google_web_request_file="$RUNNER_TEMP/otlobli-google-web-auth-request.json"
+
+          python3 - \
+            "$WHATSAPP_API_URL" \
+            "$SUPABASE_URL" \
+            "$GOOGLE_IOS_CLIENT_ID" \
+            "$GOOGLE_WEB_CLIENT_ID" \
+            "$apple_request_file" \
+            "$google_request_file" \
+            "$google_web_request_file" <<'PY'
+          import ipaddress
+          import json
+          import sys
+          from urllib.parse import urlsplit
+
+          (
+              whatsapp_url,
+              supabase_url,
+              google_ios_client_id,
+              google_web_client_id,
+              apple_request,
+              google_request,
+              google_web_request,
+          ) = sys.argv[1:]
+
+          def validate_https_base(label, value, expected_host=None):
+              parsed = urlsplit(value)
+              if parsed.scheme != "https" or not parsed.hostname:
+                  raise SystemExit(f"{label} must be an HTTPS URL")
+              if parsed.username or parsed.password or parsed.query or parsed.fragment:
+                  raise SystemExit(f"{label} contains unsupported URL components")
+              if parsed.path not in ("", "/"):
+                  raise SystemExit(f"{label} must not contain a path")
+              hostname = parsed.hostname.lower()
+              if expected_host and hostname != expected_host:
+                  raise SystemExit(f"{label} points to an unexpected host")
+              if hostname in {"localhost", "localhost.localdomain"} or hostname.endswith(".local"):
+                  raise SystemExit(f"{label} must point to a production host")
+              try:
+                  address = ipaddress.ip_address(hostname)
+              except ValueError:
+                  address = None
+              if address and not address.is_global:
+                  raise SystemExit(f"{label} must not point to a private or local address")
+
+          validate_https_base("WhatsApp API URL", whatsapp_url)
+          validate_https_base(
+              "Supabase URL",
+              supabase_url,
+              "dcicqdprtyhwmhegabay.supabase.co",
+          )
+          with open(apple_request, "w", encoding="utf-8") as stream:
+              json.dump({"action": "configuration-check", "clientId": "com.otlobli.app"}, stream)
+          with open(google_request, "w", encoding="utf-8") as stream:
+              json.dump({"action": "configuration-check", "clientId": google_ios_client_id}, stream)
+          with open(google_web_request, "w", encoding="utf-8") as stream:
+              json.dump({"action": "configuration-check", "clientId": google_web_client_id}, stream)
+          PY
+
+          supabase_base="${SUPABASE_URL%/}"
+          whatsapp_probe_status=$(curl --proto '=https' --connect-timeout 10 --max-time 20 --silent --show-error \
+            --output "$whatsapp_probe_file" \
+            --write-out '%{http_code}' \
+            "${WHATSAPP_API_URL%/}/health")
+          if [ "$whatsapp_probe_status" != '200' ]; then
+            echo "Phone authentication health probe returned unexpected HTTP ${whatsapp_probe_status}." >&2
+            exit 1
+          fi
+
+          apple_probe_status=$(curl --proto '=https' --connect-timeout 10 --max-time 20 --silent --show-error \
+            --output "$apple_probe_file" \
+            --write-out '%{http_code}' \
+            --request POST \
+            --header 'content-type: application/json' \
+            --header "apikey: $SUPABASE_ANON_KEY" \
+            --header "authorization: Bearer $SUPABASE_ANON_KEY" \
+            --data-binary "@$apple_request_file" \
+            "$supabase_base/functions/v1/apple-auth")
+          if grep -q 'apple_auth_not_configured' "$apple_probe_file"; then
+            echo 'Supabase Apple Sign-In is not configured; refusing to publish a broken TestFlight build.' >&2
+            exit 1
+          fi
+          if [ "$apple_probe_status" != '200' ]; then
+            echo "Apple Sign-In backend health probe returned unexpected HTTP ${apple_probe_status}." >&2
+            exit 1
+          fi
+
+          google_probe_status=$(curl --proto '=https' --connect-timeout 10 --max-time 20 --silent --show-error \
+            --output "$google_probe_file" \
+            --write-out '%{http_code}' \
+            --request POST \
+            --header 'content-type: application/json' \
+            --header "apikey: $SUPABASE_ANON_KEY" \
+            --header "authorization: Bearer $SUPABASE_ANON_KEY" \
+            --data-binary "@$google_request_file" \
+            "$supabase_base/functions/v1/google-auth")
+          if [ "$google_probe_status" != '200' ]; then
+            echo "Google authentication backend probe returned unexpected HTTP ${google_probe_status}." >&2
+            exit 1
+          fi
+
+          google_web_probe_status=$(curl --proto '=https' --connect-timeout 10 --max-time 20 --silent --show-error \
+            --output "$google_web_probe_file" \
+            --write-out '%{http_code}' \
+            --request POST \
+            --header 'content-type: application/json' \
+            --header "apikey: $SUPABASE_ANON_KEY" \
+            --header "authorization: Bearer $SUPABASE_ANON_KEY" \
+            --data-binary "@$google_web_request_file" \
+            "$supabase_base/functions/v1/google-auth")
+          if [ "$google_web_probe_status" != '200' ]; then
+            echo "Google server-audience backend probe returned unexpected HTTP ${google_web_probe_status}." >&2
+            exit 1
+          fi
+
+          python3 - "$whatsapp_probe_file" "$apple_probe_file" "$google_probe_file" "$google_web_probe_file" <<'PY'
+          import json
+          import sys
+
+          whatsapp_path, apple_path, google_path, google_web_path = sys.argv[1:]
+          with open(whatsapp_path, encoding="utf-8") as stream:
+              whatsapp = json.load(stream)
+          with open(apple_path, encoding="utf-8") as stream:
+              apple = json.load(stream)
+          with open(google_path, encoding="utf-8") as stream:
+              google = json.load(stream)
+          with open(google_web_path, encoding="utf-8") as stream:
+              google_web = json.load(stream)
+          if whatsapp.get("status") != "ok":
+              raise SystemExit("Phone authentication service is not healthy")
+          if whatsapp.get("sessionStoreReady") is not True or whatsapp.get("authContract") != "customer-session-v1":
+              raise SystemExit("Phone authentication service cannot issue persisted customer sessions")
+          if whatsapp.get("otpSecurityReady") is not True:
+              raise SystemExit("Phone authentication service does not have hardened OTP storage")
+          if whatsapp.get("whatsappSenderReady") is not True or whatsapp.get("whatsappConnected") is not True:
+              raise SystemExit("Phone authentication WhatsApp sender is not currently connected")
+          if apple != {"configured": True}:
+              raise SystemExit("Native iOS Apple client is not allowlisted by the backend")
+          if google != {"configured": True}:
+              raise SystemExit("Google iOS OAuth client is not allowlisted by the backend")
+          if google_web != {"configured": True}:
+              raise SystemExit("Google server client used as the iOS token audience is not allowlisted")
+          print("Verified phone, Apple, and exact Google iOS backend configuration.")
+          PY
+
       - name: Install Apple Development signing assets
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.signing_mode == 'development-signed' }}
         env:
@@ -99,9 +278,10 @@ jobs:
           EXPECTED_DEVICE_UDID_SHA256: ${{ secrets.IOS_DEVELOPMENT_DEVICE_UDID_SHA256 }}
         run: |
           set -euo pipefail
+          umask 077
 
           for variable in APPLE_TEAM_ID CERTIFICATE_BASE64 CERTIFICATE_PASSWORD PROVISIONING_PROFILE_BASE64 EXPECTED_DEVICE_UDID_SHA256; do
-            if [ -z "${!variable:-}" ]; then
+            if [ -z "$(printenv "$variable" 2>/dev/null || true)" ]; then
               echo "Required development-signing secret is missing: ${variable}" >&2
               exit 1
             fi
@@ -202,6 +382,113 @@ jobs:
           echo "OTLOBLI_PROFILE_NAME=$profile_name" >> "$GITHUB_ENV"
           echo "OTLOBLI_PROFILE_UUID=$profile_uuid" >> "$GITHUB_ENV"
 
+      - name: Install Apple Distribution signing assets
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.signing_mode == 'testflight' }}
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+          PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_APP_STORE_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          set -euo pipefail
+          umask 077
+
+          for variable in APPLE_TEAM_ID CERTIFICATE_BASE64 CERTIFICATE_PASSWORD PROVISIONING_PROFILE_BASE64; do
+            if [ -z "$(printenv "$variable" 2>/dev/null || true)" ]; then
+              echo "Required App Store signing secret is missing: ${variable}" >&2
+              exit 1
+            fi
+          done
+
+          keychain_path="$RUNNER_TEMP/otlobli-distribution.keychain-db"
+          keychain_password=$(openssl rand -hex 32)
+          certificate_path="$RUNNER_TEMP/otlobli-distribution.p12"
+          profile_path="$RUNNER_TEMP/Otlobli_AppStore.mobileprovision"
+          profile_plist="$RUNNER_TEMP/Otlobli_AppStore.plist"
+          original_keychains="$RUNNER_TEMP/otlobli-original-keychains.txt"
+          original_default_keychain="$RUNNER_TEMP/otlobli-original-default-keychain.txt"
+
+          printf '%s' "$CERTIFICATE_BASE64" | base64 --decode > "$certificate_path"
+          printf '%s' "$PROVISIONING_PROFILE_BASE64" | base64 --decode > "$profile_path"
+
+          security list-keychains -d user | sed 's/^[[:space:]]*"//; s/"$//' > "$original_keychains"
+          security default-keychain -d user | sed 's/^[[:space:]]*"//; s/"$//' > "$original_default_keychain"
+          security create-keychain -p "$keychain_password" "$keychain_path"
+          security set-keychain-settings -lut 21600 "$keychain_path"
+          security unlock-keychain -p "$keychain_password" "$keychain_path"
+          existing_keychains=()
+          while IFS= read -r existing_keychain; do
+            [ -n "$existing_keychain" ] && existing_keychains+=("$existing_keychain")
+          done < "$original_keychains"
+          security list-keychains -d user -s "$keychain_path" "${existing_keychains[@]}"
+          security default-keychain -d user -s "$keychain_path"
+          security import "$certificate_path" \
+            -k "$keychain_path" \
+            -P "$CERTIFICATE_PASSWORD" \
+            -A \
+            -f pkcs12
+          security set-key-partition-list \
+            -S apple-tool:,apple: \
+            -s \
+            -k "$keychain_password" \
+            "$keychain_path" >/dev/null
+
+          identity_output=$(security find-identity -v -p codesigning "$keychain_path")
+          if ! grep -q 'Apple Distribution:' <<<"$identity_output"; then
+            echo "No Apple Distribution signing identity was imported." >&2
+            exit 1
+          fi
+
+          security cms -D -i "$profile_path" > "$profile_plist"
+          python3 - "$profile_plist" "$APPLE_TEAM_ID" <<'PY'
+          import datetime
+          import plistlib
+          import sys
+
+          path, expected_team = sys.argv[1:]
+          with open(path, "rb") as stream:
+              profile = plistlib.load(stream)
+
+          entitlements = profile.get("Entitlements", {})
+          expected_app_id = f"{expected_team}.com.otlobli.app"
+          expiry = profile.get("ExpirationDate")
+          now = datetime.datetime.now(expiry.tzinfo) if expiry and expiry.tzinfo else datetime.datetime.now()
+          checks = {
+              "TeamIdentifier": expected_team in profile.get("TeamIdentifier", []),
+              "application-identifier": entitlements.get("application-identifier") == expected_app_id,
+              "team entitlement": entitlements.get("com.apple.developer.team-identifier") == expected_team,
+              "production APNs": entitlements.get("aps-environment") == "production",
+              "Sign in with Apple": "Default" in entitlements.get("com.apple.developer.applesignin", []),
+              "TestFlight beta reports": entitlements.get("beta-reports-active") is True,
+              "distribution entitlement": entitlements.get("get-task-allow") is not True,
+              "no registered devices": not profile.get("ProvisionedDevices"),
+              "not enterprise": profile.get("ProvisionsAllDevices") is not True,
+              "not expired": expiry is not None and expiry > now,
+          }
+          failed = [name for name, passed in checks.items() if not passed]
+          if failed:
+              raise SystemExit("Invalid App Store provisioning profile: " + ", ".join(failed))
+          print(
+              "Verified App Store profile "
+              f"{profile.get('Name')} for {expected_app_id}; "
+              f"expires={profile.get('ExpirationDate').isoformat()}"
+          )
+          PY
+
+          profile_uuid=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$profile_plist")
+          profile_name=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$profile_plist")
+          legacy_profiles_dir="$HOME/Library/MobileDevice/Provisioning Profiles"
+          xcode_profiles_dir="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
+          mkdir -p "$legacy_profiles_dir" "$xcode_profiles_dir"
+          cp "$profile_path" "$legacy_profiles_dir/${profile_uuid}.mobileprovision"
+          cp "$profile_path" "$xcode_profiles_dir/${profile_uuid}.mobileprovision"
+
+          echo "OTLOBLI_KEYCHAIN_PATH=$keychain_path" >> "$GITHUB_ENV"
+          echo "OTLOBLI_PROFILE_PATH=$xcode_profiles_dir/${profile_uuid}.mobileprovision" >> "$GITHUB_ENV"
+          echo "OTLOBLI_LEGACY_PROFILE_PATH=$legacy_profiles_dir/${profile_uuid}.mobileprovision" >> "$GITHUB_ENV"
+          echo "OTLOBLI_PROFILE_NAME=$profile_name" >> "$GITHUB_ENV"
+          echo "OTLOBLI_PROFILE_UUID=$profile_uuid" >> "$GITHUB_ENV"
+
       - name: Build unsigned .app
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.signing_mode == 'unsigned' }}
         working-directory: ios/App
@@ -270,6 +557,56 @@ jobs:
             -destination 'generic/platform=iOS'
             -archivePath "$archive_path"
             APS_ENVIRONMENT=development
+            "OTHER_CODE_SIGN_FLAGS=--keychain $OTLOBLI_KEYCHAIN_PATH"
+            -quiet
+            archive
+          )
+          xcodebuild "${archive_args[@]}"
+
+          test -d "$archive_path/Products/Applications/App.app"
+
+      - name: Archive with Apple Distribution signing
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.signing_mode == 'testflight' }}
+        working-directory: ios/App
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          archive_path="$RUNNER_TEMP/Otlobli.xcarchive"
+          rm -rf "$archive_path"
+
+          python3 - "$OTLOBLI_PROFILE_NAME" "$APPLE_TEAM_ID" <<'PY'
+          import sys
+          from pathlib import Path
+
+          profile_name, team = sys.argv[1:]
+          project = Path("App.xcodeproj/project.pbxproj")
+          source = project.read_text(encoding="utf-8")
+          needle = "\t\t\t\tCODE_SIGN_STYLE = Automatic;"
+          if source.count(needle) != 2:
+              raise SystemExit("Expected exactly two app-target automatic signing settings")
+          if '"' in profile_name or not team.isalnum():
+              raise SystemExit("Unexpected signing setting value")
+          replacement = "\n".join(
+              [
+                  "\t\t\t\tCODE_SIGN_IDENTITY = \"Apple Distribution\";",
+                  "\t\t\t\tCODE_SIGN_STYLE = Manual;",
+                  f"\t\t\t\tDEVELOPMENT_TEAM = {team};",
+                  f"\t\t\t\tPROVISIONING_PROFILE_SPECIFIER = \"{profile_name}\";",
+              ]
+          )
+          project.write_text(source.replace(needle, replacement), encoding="utf-8")
+          print("Scoped App Store signing settings to the two App target configurations.")
+          PY
+
+          archive_args=(
+            -project App.xcodeproj
+            -scheme App
+            -configuration Release
+            -sdk iphoneos
+            -destination 'generic/platform=iOS'
+            -archivePath "$archive_path"
+            APS_ENVIRONMENT=production
             "OTHER_CODE_SIGN_FLAGS=--keychain $OTLOBLI_KEYCHAIN_PATH"
             -quiet
             archive
@@ -461,6 +798,183 @@ jobs:
 
           shasum -a 256 "$OTLOBLI_SIGNED_IPA"
 
+      - name: Export App Store IPA for TestFlight
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.signing_mode == 'testflight' }}
+        working-directory: ios/App
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APP_VERSION: ${{ steps.appver.outputs.version }}
+          APP_BUILD: ${{ steps.appver.outputs.build }}
+        run: |
+          set -euo pipefail
+          export_options="$RUNNER_TEMP/ExportOptions.plist"
+          export_path="$RUNNER_TEMP/otlobli-app-store-export"
+          archive_path="$RUNNER_TEMP/Otlobli.xcarchive"
+          rm -rf "$export_path"
+
+          python3 - "$export_options" "$APPLE_TEAM_ID" "$OTLOBLI_PROFILE_NAME" <<'PY'
+          import plistlib
+          import sys
+
+          output, team, profile_name = sys.argv[1:]
+          options = {
+              "method": "app-store-connect",
+              "destination": "export",
+              "signingStyle": "manual",
+              "teamID": team,
+              "signingCertificate": "Apple Distribution",
+              "provisioningProfiles": {"com.otlobli.app": profile_name},
+              "manageAppVersionAndBuildNumber": False,
+              "stripSwiftSymbols": True,
+              "uploadSymbols": True,
+          }
+          with open(output, "wb") as stream:
+              plistlib.dump(options, stream)
+          PY
+
+          xcodebuild \
+            -exportArchive \
+            -archivePath "$archive_path" \
+            -exportPath "$export_path" \
+            -exportOptionsPlist "$export_options"
+
+          source_ipa=$(find "$export_path" -maxdepth 1 -type f -name '*.ipa' -print -quit)
+          if [ -z "$source_ipa" ]; then
+            echo 'Xcode did not export an App Store IPA.' >&2
+            exit 1
+          fi
+          final_ipa="otlobli-v${APP_VERSION}-build-${APP_BUILD}-testflight.ipa"
+          cp "$source_ipa" "$final_ipa"
+          echo "OTLOBLI_TESTFLIGHT_IPA=$PWD/$final_ipa" >> "$GITHUB_ENV"
+
+      - name: Verify TestFlight signature, profile, and authentication callbacks
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.signing_mode == 'testflight' }}
+        working-directory: ios/App
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          GOOGLE_IOS_CLIENT_ID: ${{ secrets.VITE_GOOGLE_IOS_CLIENT_ID }}
+          APP_VERSION: ${{ steps.appver.outputs.version }}
+          APP_BUILD: ${{ steps.appver.outputs.build }}
+        run: |
+          set -euo pipefail
+          verify_dir="$RUNNER_TEMP/otlobli-testflight-verify"
+          rm -rf "$verify_dir"
+          mkdir -p "$verify_dir"
+          ditto -x -k "$OTLOBLI_TESTFLIGHT_IPA" "$verify_dir"
+
+          app_path="$verify_dir/Payload/App.app"
+          info_plist="$app_path/Info.plist"
+          entitlements_plist="$verify_dir/effective-entitlements.plist"
+          profile_plist="$verify_dir/embedded-profile.plist"
+          signature_info="$verify_dir/signature.txt"
+          test -f "$app_path/embedded.mobileprovision"
+
+          codesign --verify --deep --strict --verbose=2 "$app_path"
+          codesign -d --entitlements :- "$app_path" > "$entitlements_plist"
+          codesign -d --verbose=4 "$app_path" 2> "$signature_info"
+          codesign -d --extract-certificates="$verify_dir/signing-cert-" "$app_path"
+          security cms -D -i "$app_path/embedded.mobileprovision" > "$profile_plist"
+
+          grep -q '^Authority=Apple Distribution:' "$signature_info"
+          grep -q "^TeamIdentifier=${APPLE_TEAM_ID}$" "$signature_info"
+
+          python3 - \
+            "$info_plist" \
+            "$entitlements_plist" \
+            "$profile_plist" \
+            "$verify_dir/signing-cert-0" \
+            "$app_path" \
+            "$APPLE_TEAM_ID" \
+            "$GOOGLE_IOS_CLIENT_ID" \
+            "$APP_VERSION" \
+            "$APP_BUILD" <<'PY'
+          import datetime
+          import plistlib
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          info_path, entitlements_path, profile_path, certificate_path, app_path, team, google_client_id, version, build = sys.argv[1:]
+          with open(info_path, "rb") as stream:
+              info = plistlib.load(stream)
+          with open(entitlements_path, "rb") as stream:
+              entitlements = plistlib.load(stream)
+          with open(profile_path, "rb") as stream:
+              profile = plistlib.load(stream)
+
+          expected_identifier = f"{team}.com.otlobli.app"
+          executable = Path(app_path) / info["CFBundleExecutable"]
+          architectures = subprocess.check_output(["lipo", "-archs", str(executable)], text=True).split()
+          families = set(info.get("UIDeviceFamily", []))
+          signed_certificate = Path(certificate_path).read_bytes()
+          profile_entitlements = profile.get("Entitlements", {})
+          expiry = profile.get("ExpirationDate")
+          now = datetime.datetime.now(expiry.tzinfo) if expiry and expiry.tzinfo else datetime.datetime.now()
+          url_schemes = {
+              scheme
+              for entry in info.get("CFBundleURLTypes", [])
+              for scheme in entry.get("CFBundleURLSchemes", [])
+          }
+          google_prefix = google_client_id.removesuffix(".apps.googleusercontent.com")
+          expected_google_scheme = f"com.googleusercontent.apps.{google_prefix}"
+
+          checks = {
+              "Bundle ID": info.get("CFBundleIdentifier") == "com.otlobli.app",
+              "version": info.get("CFBundleShortVersionString") == version,
+              "build": str(info.get("CFBundleVersion")) == build,
+              "minimum iOS": info.get("MinimumOSVersion") == "15.0",
+              "iPhone/iPad": {1, 2}.issubset(families),
+              "arm64": "arm64" in architectures,
+              "export compliance": info.get("ITSAppUsesNonExemptEncryption") is False,
+              "Google client": info.get("GIDClientID") == google_client_id,
+              "Google callback": expected_google_scheme in url_schemes,
+              "Otlobli callback": "otlobli" in url_schemes,
+              "application identifier": entitlements.get("application-identifier") == expected_identifier,
+              "Team ID": entitlements.get("com.apple.developer.team-identifier") == team,
+              "production APNs": entitlements.get("aps-environment") == "production",
+              "Sign in with Apple": "Default" in entitlements.get("com.apple.developer.applesignin", []),
+              "distribution signature": entitlements.get("get-task-allow") is not True,
+              "profile App ID": profile_entitlements.get("application-identifier") == expected_identifier,
+              "profile Team ID": team in profile.get("TeamIdentifier", []),
+              "profile APNs": profile_entitlements.get("aps-environment") == "production",
+              "profile Apple Sign-In": "Default" in profile_entitlements.get("com.apple.developer.applesignin", []),
+              "profile TestFlight beta reports": profile_entitlements.get("beta-reports-active") is True,
+              "profile distribution": profile_entitlements.get("get-task-allow") is not True,
+              "profile has no devices": not profile.get("ProvisionedDevices"),
+              "profile is not enterprise": profile.get("ProvisionsAllDevices") is not True,
+              "profile expiry": expiry is not None and expiry > now,
+              "certificate in profile": signed_certificate in profile.get("DeveloperCertificates", []),
+          }
+          failed = [name for name, passed in checks.items() if not passed]
+          if failed:
+              raise SystemExit("TestFlight IPA validation failed: " + ", ".join(failed))
+
+          print(
+              f"Verified TestFlight com.otlobli.app {version}/{build}; "
+              f"architectures={architectures}; families={sorted(families)}; "
+              f"profile={profile.get('Name')}; expires={profile.get('ExpirationDate').isoformat()}"
+          )
+          PY
+
+          shasum -a 256 "$OTLOBLI_TESTFLIGHT_IPA"
+
+      - name: Preserve TestFlight debug symbols
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.signing_mode == 'testflight' }}
+        working-directory: ios/App
+        env:
+          APP_VERSION: ${{ steps.appver.outputs.version }}
+          APP_BUILD: ${{ steps.appver.outputs.build }}
+        run: |
+          set -euo pipefail
+          dsym_dir="$RUNNER_TEMP/Otlobli.xcarchive/dSYMs"
+          if [ ! -d "$dsym_dir/App.app.dSYM" ]; then
+            echo 'The release archive does not contain an app dSYM.' >&2
+            exit 1
+          fi
+          final_dsyms="otlobli-v${APP_VERSION}-build-${APP_BUILD}-dSYMs.zip"
+          ditto -c -k --sequesterRsrc --keepParent "$dsym_dir" "$final_dsyms"
+          shasum -a 256 "$final_dsyms"
+
       - uses: actions/upload-artifact@v4
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.signing_mode == 'unsigned' }}
         with:
@@ -473,6 +987,64 @@ jobs:
         with:
           name: otlobli-ios-v${{ steps.appver.outputs.version }}-build-${{ steps.appver.outputs.build }}-development-signed
           path: ios/App/otlobli-v${{ steps.appver.outputs.version }}-build-${{ steps.appver.outputs.build }}-development-signed.ipa
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Validate and upload build to TestFlight
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.signing_mode == 'testflight' }}
+        env:
+          ASC_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+          ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          umask 077
+          for variable in ASC_API_KEY_BASE64 ASC_API_KEY_ID ASC_ISSUER_ID; do
+            if [ -z "$(printenv "$variable" 2>/dev/null || true)" ]; then
+              echo "Required App Store Connect upload secret is missing: ${variable}" >&2
+              exit 1
+            fi
+          done
+          if ! [[ "$ASC_API_KEY_ID" =~ ^[A-Z0-9]{10}$ ]]; then
+            echo 'Unexpected App Store Connect API Key ID format.' >&2
+            exit 1
+          fi
+          if ! [[ "$ASC_ISSUER_ID" =~ ^[0-9a-fA-F-]{36}$ ]]; then
+            echo 'Unexpected App Store Connect Issuer ID format.' >&2
+            exit 1
+          fi
+
+          key_dir="$HOME/.appstoreconnect/private_keys"
+          key_path="$key_dir/AuthKey_${ASC_API_KEY_ID}.p8"
+          echo "OTLOBLI_ASC_KEY_PATH=$key_path" >> "$GITHUB_ENV"
+          mkdir -p "$key_dir"
+          printf '%s' "$ASC_API_KEY_BASE64" | base64 --decode > "$key_path"
+          chmod 600 "$key_path"
+          openssl pkey -in "$key_path" -noout >/dev/null
+
+          xcrun altool \
+            --validate-app \
+            --file "$OTLOBLI_TESTFLIGHT_IPA" \
+            --type ios \
+            --apiKey "$ASC_API_KEY_ID" \
+            --apiIssuer "$ASC_ISSUER_ID"
+
+          xcrun altool \
+            --upload-app \
+            --file "$OTLOBLI_TESTFLIGHT_IPA" \
+            --type ios \
+            --apiKey "$ASC_API_KEY_ID" \
+            --apiIssuer "$ASC_ISSUER_ID"
+
+          echo 'Apple accepted the upload transport. The build still needs App Store Connect processing before TestFlight assignment.'
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.signing_mode == 'testflight' }}
+        with:
+          name: otlobli-ios-v${{ steps.appver.outputs.version }}-build-${{ steps.appver.outputs.build }}-testflight
+          path: |
+            ios/App/otlobli-v${{ steps.appver.outputs.version }}-build-${{ steps.appver.outputs.build }}-testflight.ipa
+            ios/App/otlobli-v${{ steps.appver.outputs.version }}-build-${{ steps.appver.outputs.build }}-dSYMs.zip
           if-no-files-found: error
           retention-days: 30
 
@@ -518,3 +1090,56 @@ jobs:
             "$RUNNER_TEMP/Otlobli.xcarchive" \
             "$RUNNER_TEMP/otlobli-development-export" \
             "$RUNNER_TEMP/otlobli-signed-verify"
+
+      - name: Remove temporary TestFlight signing and upload assets
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.signing_mode == 'testflight' }}
+        run: |
+          keychain_path="${OTLOBLI_KEYCHAIN_PATH:-$RUNNER_TEMP/otlobli-distribution.keychain-db}"
+          original_keychains="$RUNNER_TEMP/otlobli-original-keychains.txt"
+          original_default_keychain="$RUNNER_TEMP/otlobli-original-default-keychain.txt"
+
+          if [ -s "$original_default_keychain" ]; then
+            default_keychain=$(cat "$original_default_keychain")
+            if [ -n "$default_keychain" ]; then
+              security default-keychain -d user -s "$default_keychain" || true
+            fi
+          fi
+          if [ -s "$original_keychains" ]; then
+            restored_keychains=()
+            while IFS= read -r restored_keychain; do
+              [ -n "$restored_keychain" ] && restored_keychains+=("$restored_keychain")
+            done < "$original_keychains"
+            if [ "${#restored_keychains[@]}" -gt 0 ]; then
+              security list-keychains -d user -s "${restored_keychains[@]}" || true
+            fi
+          fi
+          if [ -f "$keychain_path" ]; then
+            security delete-keychain "$keychain_path" || true
+          fi
+          if [ -n "${OTLOBLI_PROFILE_PATH:-}" ]; then
+            rm -f "$OTLOBLI_PROFILE_PATH"
+          fi
+          if [ -n "${OTLOBLI_LEGACY_PROFILE_PATH:-}" ]; then
+            rm -f "$OTLOBLI_LEGACY_PROFILE_PATH"
+          fi
+          if [ -n "${OTLOBLI_ASC_KEY_PATH:-}" ]; then
+            rm -f "$OTLOBLI_ASC_KEY_PATH"
+          fi
+          rm -f \
+            "$RUNNER_TEMP/otlobli-distribution.p12" \
+            "$RUNNER_TEMP/Otlobli_AppStore.mobileprovision" \
+            "$RUNNER_TEMP/Otlobli_AppStore.plist" \
+            "$RUNNER_TEMP/otlobli-whatsapp-health.json" \
+            "$RUNNER_TEMP/otlobli-apple-auth-probe.json" \
+            "$RUNNER_TEMP/otlobli-google-auth-probe.json" \
+            "$RUNNER_TEMP/otlobli-google-web-auth-probe.json" \
+            "$RUNNER_TEMP/otlobli-apple-auth-request.json" \
+            "$RUNNER_TEMP/otlobli-google-auth-request.json" \
+            "$RUNNER_TEMP/otlobli-google-web-auth-request.json" \
+            "$RUNNER_TEMP/ExportOptions.plist" \
+            "$original_keychains" \
+            "$original_default_keychain"
+          rm -rf \
+            "$RUNNER_TEMP/Otlobli.xcarchive" \
+            "$RUNNER_TEMP/otlobli-app-store-export" \
+            "$RUNNER_TEMP/otlobli-testflight-verify"

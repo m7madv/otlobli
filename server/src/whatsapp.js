@@ -5,6 +5,7 @@
 
 import { makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } from '@whiskeysockets/baileys'
 import { Boom } from '@hapi/boom'
+import QRCode from 'qrcode'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -202,10 +203,7 @@ export function getAllSessions() {
     status: s.status,
     phoneNumber: s.phoneNumber,
     label: s.label,
-    qrCode: s.qrCode,
-    qrImageUrl: s.qrCode
-      ? 'https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=' + encodeURIComponent(s.qrCode)
-      : null,
+    qrAvailable: Boolean(s.qrCode),
     // صحة الرقم (مراقبة): كم أرسل اليوم/السقف، نقاط الخطر، وهل هو موقوف مؤقتاً.
     sentToday: s.sentToday || 0,
     dailyCap: dailyCap(s),
@@ -223,9 +221,35 @@ export function getSession(id) {
     status: s.status,
     phoneNumber: s.phoneNumber,
     label: s.label,
-    qrCode: s.qrCode,
-    qrImageUrl: s.qrCode
-      ? 'https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=' + encodeURIComponent(s.qrCode)
+    qrAvailable: Boolean(s.qrCode),
+  }
+}
+
+async function localQrImageDataUrl(qrCode) {
+  if (!qrCode) return null
+  return QRCode.toDataURL(qrCode, {
+    errorCorrectionLevel: 'M',
+    margin: 2,
+    width: 350,
+  })
+}
+
+export async function getAllSessionsForAdmin() {
+  return Promise.all(getAllSessions().map(async (session) => ({
+    ...session,
+    qrImageUrl: session.qrAvailable
+      ? await localQrImageDataUrl(sessions.get(session.id)?.qrCode)
+      : null,
+  })))
+}
+
+export async function getSessionForAdmin(id) {
+  const session = getSession(id)
+  if (!session) return null
+  return {
+    ...session,
+    qrImageUrl: session.qrAvailable
+      ? await localQrImageDataUrl(sessions.get(id)?.qrCode)
       : null,
   }
 }
@@ -235,12 +259,27 @@ export function isWhatsappConnected() {
   return [...sessions.values()].some(s => s.connected)
 }
 
+export function hasWhatsappSessionCredentials() {
+  return [...sessions.values()].some((session) =>
+    fs.existsSync(path.join(getAuthDir(session.id), 'creds.json')),
+  )
+}
+
 export function getConnectionStatus() {
   const connected = [...sessions.values()].find(s => s.connected)
-  if (connected) return { connected: true, qr: null, qrImageUrl: null }
+  if (connected) return { connected: true, qrAvailable: false }
   const withQr = [...sessions.values()].find(s => s.qrCode)
-  if (withQr) return { connected: false, qr: withQr.qrCode, qrImageUrl: 'https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=' + encodeURIComponent(withQr.qrCode) }
-  return { connected: false, qr: null, qrImageUrl: null }
+  return { connected: false, qrAvailable: Boolean(withQr) }
+}
+
+export async function getConnectionStatusForAdmin() {
+  const status = getConnectionStatus()
+  if (!status.qrAvailable) return { ...status, qrImageUrl: null }
+  const session = [...sessions.values()].find(s => s.qrCode)
+  return {
+    ...status,
+    qrImageUrl: await localQrImageDataUrl(session?.qrCode),
+  }
 }
 
 export function onConnection(fn) {
@@ -638,7 +677,7 @@ export async function sendOtpMessage(phone, code) {
 
   await paceSend(() => sendWithFallback(async (session) => {
     await sendHumanLike(session, jid, { text: msg })
-    console.log(`✅ OTP ${code} → ${phone} (session ${session.id})`)
+    console.log(`✅ OTP delivered (session ${session.id})`)
   }))
 }
 

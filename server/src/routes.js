@@ -4,22 +4,59 @@
 
 import { Router } from 'express'
 import crypto from 'node:crypto'
-import fs from 'fs'
-import path from 'path'
-import zlib from 'zlib'
-import { createRequire } from 'module'
-import { fileURLToPath } from 'url'
 import { createOtp, verifyOtp, releaseOtpVerification } from './otpStore.js'
-import { sendOtpMessage, sendNotificationMessage, getConnectionStatus, connectOnDemand, getAllSessions, getSession, createSession, removeSession, connectSession } from './whatsapp.js'
+import { sendOtpMessage, sendNotificationMessage, getConnectionStatusForAdmin, getAllSessionsForAdmin, getSessionForAdmin, createSession, removeSession, connectSession } from './whatsapp.js'
 import { supabase } from './supabase.js'
 import { sendTelegramNotification, isTelegramConfigured } from './telegram.js'
-
-const require = createRequire(import.meta.url)
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
+import { requireWhatsappAdminSecret } from './adminAuth.js'
 
 const router = Router()
 const CUSTOMER_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000
+const OTP_START_IP_WINDOW_MS = 15 * 60 * 1000
+const OTP_START_IP_MAX = 10
+const otpStartRequestsByIp = new Map()
+
+function asyncRoute(handler) {
+  return (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next)
+}
+
+function consumeOtpStartIpBudget(req) {
+  const now = Date.now()
+  const requester = String(req.ip || req.socket?.remoteAddress || 'unknown').slice(0, 128)
+  const active = (otpStartRequestsByIp.get(requester) || [])
+    .filter((timestamp) => timestamp >= now - OTP_START_IP_WINDOW_MS)
+  if (active.length >= OTP_START_IP_MAX) {
+    return Math.max(1, Math.ceil((active[0] + OTP_START_IP_WINDOW_MS - now) / 1000))
+  }
+  active.push(now)
+  otpStartRequestsByIp.set(requester, active)
+  if (otpStartRequestsByIp.size > 10000) {
+    for (const [key, timestamps] of otpStartRequestsByIp) {
+      if (!timestamps.some((timestamp) => timestamp >= now - OTP_START_IP_WINDOW_MS)) {
+        otpStartRequestsByIp.delete(key)
+      }
+    }
+  }
+  return 0
+}
+
+function otpStartErrorResponse(error, res) {
+  const errorCode = String(error?.code || '')
+  const retryAfterSeconds = Math.max(1, Number(error?.retryAfterSeconds || 60))
+  const messages = {
+    otp_resend_too_soon: 'انتظر قليلاً قبل طلب رمز جديد.',
+    otp_send_rate_limited: 'تم طلب رموز كثيرة لهذا الرقم. حاول لاحقاً.',
+    otp_attempts_locked: 'تم إيقاف المحاولات مؤقتاً. حاول لاحقاً.',
+  }
+  if (errorCode === 'otp_not_configured') {
+    return res.status(503).json({ error: errorCode, message: 'خدمة رمز التحقق غير مهيأة.' })
+  }
+  if (messages[errorCode]) {
+    res.setHeader('Retry-After', String(retryAfterSeconds))
+    return res.status(429).json({ error: errorCode, message: messages[errorCode], retryAfterSeconds })
+  }
+  return null
+}
 
 async function createCustomerSession(phone) {
   if (!supabase) {
@@ -101,173 +138,56 @@ function getConfiguredExchangeRateFallback() {
 
 // الحصول على حالة اتصال واتساب
 
-// رفع جلسة واتساب مضغوطة (tar.gz base64)
-router.post('/api/session/upload', (req, res) => {
-  const { tarBase64 } = req.body
-  
-  if (!tarBase64) {
-    return res.status(400).json({ error: 'missing_data', message: 'tarBase64 required' })
-  }
-  
-  try {
-    const VOLUME_PATH = process.env.RAILWAY_VOLUME_MOUNT_PATH || process.env.RAILWAY_VOLUME_MOUNT || ''
-    const authDir = VOLUME_PATH
-      ? path.join(VOLUME_PATH, 'baileys-auth')
-      : path.join(__dirname, '..', 'baileys-auth')
-    
-    const raw = Buffer.from(tarBase64, 'base64')
-    const decompressed = zlib.gunzipSync(raw)
-    const tempDir = path.join('/tmp', '_session_extract_' + Date.now())
-    fs.mkdirSync(tempDir, { recursive: true })
-    
-    const tarPath = path.join('/tmp', '_session.tar.gz')
-    fs.writeFileSync(tarPath, decompressed)
-    require('child_process').execSync(`tar -xzf "${tarPath}" -C "${tempDir}"`, { stdio: 'pipe' })
-    
-    // Find extracted dir and move contents
-    fs.mkdirSync(authDir, { recursive: true })
-    const extractedItems = fs.readdirSync(tempDir)
-    
-    let srcDir = tempDir
-    if (extractedItems.length === 1 && fs.statSync(path.join(tempDir, extractedItems[0])).isDirectory()) {
-      srcDir = path.join(tempDir, extractedItems[0])
-    }
-    
-    fs.readdirSync(srcDir).forEach(f => {
-      const src = path.join(srcDir, f)
-      const dst = path.join(authDir, f)
-      if (fs.statSync(src).isFile()) {
-        fs.copyFileSync(src, dst)
-      }
-    })
-    
-    // Cleanup
-    fs.rmSync(tarPath, { force: true })
-    fs.rmSync(tempDir, { recursive: true, force: true })
-    
-    const fileCount = fs.readdirSync(authDir).length
-    console.log('📦 Session uploaded (' + fileCount + ' files) to ' + authDir)
-    
-    res.json({ success: true, files: fileCount })
-  } catch (e) {
-    console.error('❌ Session upload error:', e.message)
-    res.status(500).json({ error: 'upload_failed', message: e.message })
-  }
+// استيراد الأرشيف القديم معطّل: كان يشغّل tar على بيانات مرفوعة. إعادة الربط
+// الآمنة تتم بإنشاء جلسة جديدة ثم مسح QR المحلي من مسار الجلسات المحمي.
+router.post('/session/upload', requireWhatsappAdminSecret, (req, res) => {
+  res.status(410).json({ error: 'legacy_session_upload_disabled' })
 })
 
-// تصفير جلسة واتساب العالقة (محمي بالـ ADMIN_PIN) — يمسح ملفات الجلسة
-// التالفة فيولّد الاتصال التالي رمز QR جديداً للمسح من /api/qr.
-// يحلّ الانسداد: جلسة تالفة تفشل بالاتصال بغير 401 فلا تُمسح تلقائياً أبداً.
-router.post('/session/reset', (req, res) => {
-  const pin = req.headers['x-admin-pin'] || (req.body && req.body.pin)
-  if (!process.env.ADMIN_PIN || pin !== process.env.ADMIN_PIN) {
-    return res.status(403).json({ error: 'forbidden', message: 'رمز الإدارة غير صحيح.' })
-  }
-  try {
-    const VOLUME_PATH = process.env.RAILWAY_VOLUME_MOUNT_PATH || process.env.RAILWAY_VOLUME_MOUNT || ''
-    const authDir = VOLUME_PATH
-      ? path.join(VOLUME_PATH, 'baileys-auth')
-      : path.join(__dirname, '..', 'baileys-auth')
-    let removed = 0
-    if (fs.existsSync(authDir)) {
-      for (const f of fs.readdirSync(authDir)) {
-        fs.rmSync(path.join(authDir, f), { recursive: true, force: true })
-        removed++
-      }
-    }
-    // نسخة الجلسة المضغوطة القديمة أيضاً حتى لا تُستعاد عند الإقلاع
-    if (VOLUME_PATH) fs.rmSync(path.join(VOLUME_PATH, 'session.tar.gz'), { force: true })
-    console.log('🗑️ Session reset via API (' + removed + ' files removed)')
-    res.json({ success: true, removed })
-  } catch (e) {
-    console.error('❌ Session reset error:', e.message)
-    res.status(500).json({ error: 'reset_failed', message: e.message })
-  }
+// reset العام القديم معطّل حتى لا يمسح كل المرسلين دفعة واحدة. احذف جلسة
+// محددة من /whatsapp/sessions/:id ثم أنشئ بديلاً.
+router.post('/session/reset', requireWhatsappAdminSecret, (req, res) => {
+  res.status(410).json({ error: 'global_session_reset_disabled' })
 })
 
-router.get('/auth/whatsapp/status', (req, res) => {
-  const status = getConnectionStatus()
-  res.json(status)
-})
+router.get('/auth/whatsapp/status', requireWhatsappAdminSecret, asyncRoute(async (req, res) => {
+  res.json(await getConnectionStatusForAdmin())
+}))
 
 // ── إدارة جلسات واتساب (متعددة) ──────────────────────────
 
-router.get('/whatsapp/sessions', adminAuth, (req, res) => {
-  res.json({ sessions: getAllSessions() })
-})
+router.get('/whatsapp/sessions', requireWhatsappAdminSecret, asyncRoute(async (req, res) => {
+  res.json({ sessions: await getAllSessionsForAdmin() })
+}))
 
-router.get('/whatsapp/sessions/:id', adminAuth, (req, res) => {
-  const session = getSession(req.params.id)
+router.get('/whatsapp/sessions/:id', requireWhatsappAdminSecret, asyncRoute(async (req, res) => {
+  const session = await getSessionForAdmin(req.params.id)
   if (!session) return res.status(404).json({ error: 'not_found' })
   res.json(session)
-})
+}))
 
-router.post('/whatsapp/sessions', adminAuth, (req, res) => {
+router.post('/whatsapp/sessions', requireWhatsappAdminSecret, (req, res) => {
   const { label } = req.body || {}
   const result = createSession(label)
   res.json(result)
 })
 
-router.delete('/whatsapp/sessions/:id', adminAuth, (req, res) => {
+router.delete('/whatsapp/sessions/:id', requireWhatsappAdminSecret, (req, res) => {
   const removed = removeSession(req.params.id)
   if (!removed) return res.status(404).json({ error: 'not_found' })
   res.json({ ok: true })
 })
 
-router.post('/whatsapp/sessions/:id/reconnect', adminAuth, (req, res) => {
+router.post('/whatsapp/sessions/:id/reconnect', requireWhatsappAdminSecret, (req, res) => {
   connectSession(req.params.id)
-    .then(() => res.json({ ok: true, session: getSession(req.params.id) }))
+    .then(async () => res.json({ ok: true, session: await getSessionForAdmin(req.params.id) }))
     .catch((err) => res.status(500).json({ error: err.message }))
 })
 
-// صفحة ربط WhatsApp — تفتح في المتصفح وتعرض QR
-router.get('/qr', (req, res) => {
-  connectOnDemand().catch(() => {})
-  res.setHeader('Content-Type', 'text/html; charset=utf-8')
-  res.send(`<!DOCTYPE html>
-<html dir="rtl" lang="ar">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ربط WhatsApp — otlobli</title>
-<style>
-  body { font-family: system-ui; background: #0f0f0f; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; gap: 20px; }
-  h1 { font-size: 1.4rem; margin: 0; }
-  #status { color: #aaa; font-size: 0.95rem; }
-  #qr-img { width: 280px; height: 280px; border-radius: 16px; background: #fff; display: none; }
-  .connected { color: #4ade80; font-size: 1.2rem; font-weight: bold; display: none; }
-</style>
-</head>
-<body>
-<h1>🔗 ربط WhatsApp بـ otlobli</h1>
-<p id="status">جاري تشغيل الاتصال...</p>
-<img id="qr-img" alt="QR Code">
-<p class="connected" id="done">✅ تم الربط بنجاح!</p>
-<script>
-async function poll() {
-  try {
-    const r = await fetch('/api/auth/whatsapp/status')
-    const d = await r.json()
-    if (d.connected) {
-      document.getElementById('status').textContent = ''
-      document.getElementById('qr-img').style.display = 'none'
-      document.getElementById('done').style.display = 'block'
-      return
-    }
-    if (d.qrImageUrl) {
-      document.getElementById('qr-img').src = d.qrImageUrl
-      document.getElementById('qr-img').style.display = 'block'
-      document.getElementById('status').textContent = 'افتح WhatsApp ← النقاط الثلاث ← الأجهزة المرتبطة ← ربط جهاز'
-    } else {
-      document.getElementById('status').textContent = 'جاري التحضير...'
-    }
-  } catch(_) {}
-  setTimeout(poll, 2000)
-}
-poll()
-</script>
-</body>
-</html>`)
+// لا توجد صفحة QR عامة. الربط يتم فقط عبر مسارات الجلسة المحمية، والصورة
+// تُولد محلياً داخل الخادم ولا تُرسل مادتها إلى خدمة QR خارجية.
+router.get('/qr', requireWhatsappAdminSecret, (req, res) => {
+  res.status(410).json({ error: 'browser_qr_endpoint_disabled' })
 })
 
 // بدء تسجيل الدخول - إرسال OTP
@@ -286,19 +206,29 @@ router.post('/auth/whatsapp/start', async (req, res) => {
       return res.status(400).json({ error: 'invalid_phone', message: 'رقم الهاتف قصير جدًا.' })
     }
 
+    const ipRetryAfter = consumeOtpStartIpBudget(req)
+    if (ipRetryAfter > 0) {
+      res.setHeader('Retry-After', String(ipRetryAfter))
+      return res.status(429).json({
+        error: 'otp_ip_rate_limited',
+        message: 'تم طلب رموز كثيرة من هذا الجهاز. حاول لاحقاً.',
+        retryAfterSeconds: ipRetryAfter,
+      })
+    }
+
     // إنشاء OTP
     const { code, expiresInSeconds } = createOtp(cleanPhone)
 
     // إرسال OTP عبر واتساب
     await sendOtpMessage(cleanPhone, code)
 
-    console.log(`📤 OTP ${code} sent to ${cleanPhone}`)
-
     res.json({
       mode: 'external',
       otpExpiresInSeconds: expiresInSeconds,
     })
   } catch (error) {
+    const otpErrorResponse = otpStartErrorResponse(error, res)
+    if (otpErrorResponse) return otpErrorResponse
     console.error('❌ Failed to send OTP:', error.message)
 
     if (error.message.includes('WhatsApp غير متصل') || error.message.includes('لا توجد جلسة')) {
@@ -335,6 +265,9 @@ router.post('/auth/whatsapp/verify', async (req, res) => {
     }
 
     const cleanPhone = phone.replace(/[\s\-\(\)\+]/g, '')
+    if (!/^\d{6}$/.test(String(code))) {
+      return res.status(400).json({ error: 'invalid_code', message: 'رمز التحقق غير صحيح.' })
+    }
     const result = verifyOtp(cleanPhone, code)
 
     if (!result.valid) {
@@ -346,7 +279,8 @@ router.post('/auth/whatsapp/verify', async (req, res) => {
         already_verified: 'هذا الرمز تم التحقق منه مسبقاً.',
       }
 
-      return res.status(400).json({
+      const status = result.reason === 'otp_not_configured' ? 503 : 400
+      return res.status(status).json({
         error: result.reason,
         message: messages[result.reason] || 'رمز غير صحيح.',
       })
@@ -375,63 +309,12 @@ router.post('/auth/whatsapp/verify', async (req, res) => {
 })
 
 // Inbound mode - للتأكد من إرسال رسالة (optional)
-router.post('/auth/whatsapp/inbound/start', async (req, res) => {
-  try {
-    const { phone } = req.body
-
-    if (!phone) {
-      return res.status(400).json({ error: 'invalid_phone', message: 'أدخل رقم الهاتف.' })
-    }
-
-    const cleanPhone = phone.replace(/[\s\-\(\)\+]/g, '')
-    const { code, expiresInSeconds } = createOtp(cleanPhone)
-
-    console.log(`📥 Inbound OTP ${code} for ${cleanPhone}`)
-
-    res.json({
-      mode: 'external',
-      otpExpiresInSeconds: expiresInSeconds,
-      whatsappUrl: `https://wa.me/${cleanPhone}?text=${code}`,
-      requiresInboundWhatsapp: true,
-    })
-  } catch (error) {
-    res.status(500).json({ error: 'server_error', message: 'خطأ في الخادم.' })
-  }
+router.post('/auth/whatsapp/inbound/start', (_req, res) => {
+  res.status(410).json({ error: 'inbound_auth_unavailable', message: 'استخدم إرسال رمز واتساب.' })
 })
 
-router.post('/auth/whatsapp/inbound/status', async (req, res) => {
-  try {
-    const { phone, code } = req.body
-
-    if (!phone || !code) {
-      return res.status(400).json({ error: 'invalid_request', message: 'بيانات ناقصة.' })
-    }
-
-    const cleanPhone = phone.replace(/[\s\-\(\)\+]/g, '')
-    const result = verifyOtp(cleanPhone, code)
-
-    if (!result.valid) {
-      return res.status(400).json({
-        error: result.reason,
-        message: 'رمز غير صحيح أو منتهي الصلاحية.',
-      })
-    }
-
-    let sessionToken
-    try {
-      sessionToken = await createCustomerSession(cleanPhone)
-    } catch (error) {
-      releaseOtpVerification(cleanPhone, String(code))
-      throw error
-    }
-
-    res.json({
-      mode: 'external',
-      sessionToken,
-    })
-  } catch (error) {
-    res.status(500).json({ error: 'server_error', message: 'خطأ في الخادم.' })
-  }
+router.post('/auth/whatsapp/inbound/status', (_req, res) => {
+  res.status(410).json({ error: 'inbound_auth_unavailable', message: 'استخدم إرسال رمز واتساب.' })
 })
 
 // ============================================================

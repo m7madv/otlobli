@@ -1,3 +1,293 @@
+diff --git a/node_modules/@capgo/capacitor-social-login/android/src/main/java/ee/forgr/capacitor/social/login/AppleProvider.java b/node_modules/@capgo/capacitor-social-login/android/src/main/java/ee/forgr/capacitor/social/login/AppleProvider.java
+index 683ea36..d4aaedc 100644
+--- a/node_modules/@capgo/capacitor-social-login/android/src/main/java/ee/forgr/capacitor/social/login/AppleProvider.java
++++ b/node_modules/@capgo/capacitor-social-login/android/src/main/java/ee/forgr/capacitor/social/login/AppleProvider.java
+@@ -38,6 +38,8 @@ import com.getcapacitor.PluginCall;
+ import com.google.androidbrowserhelper.trusted.TwaLauncher;
+ import ee.forgr.capacitor.social.login.helpers.SocialProvider;
+ import java.io.IOException;
++import java.nio.charset.StandardCharsets;
++import java.security.MessageDigest;
+ import java.util.Objects;
+ import java.util.UUID;
+ import okhttp3.Call;
+@@ -62,6 +64,7 @@ public class AppleProvider implements SocialProvider {
+ 
+     private PluginCall lastcall;
+     private String appleAuthURLFull;
++    private String pendingState;
+ 
+     private String idToken;
+     private String refreshToken;
+@@ -118,7 +121,6 @@ public class AppleProvider implements SocialProvider {
+             AppleProvider.this.idToken = idToken;
+             AppleProvider.this.refreshToken = refreshToken;
+             AppleProvider.this.accessToken = accessToken;
+-            Log.i(SocialLoginPlugin.LOG_TAG, String.format("Apple restoreState: %s", object));
+         } catch (JSONException e) {
+             Log.e(SocialLoginPlugin.LOG_TAG, "Apple restoreState: Failed to parse JSON", e);
+         }
+@@ -128,16 +130,10 @@ public class AppleProvider implements SocialProvider {
+         // Extract information from the URI
+         Uri data = intent.getData();
+ 
+-        // Data should never be null
+-        assert data != null;
+-
+-        String scheme = data.getScheme(); // "capgo-demo-app"
+-        String host = data.getHost(); // "path"
+-        String path = data.getPath(); // Additional path segments
+-        String query = data.getQuery(); // Query parameters
+-
+-        Log.i(SocialLoginPlugin.LOG_TAG, String.format("Received apple login intent: %s, %s, %s, %s", scheme, host, path, query));
+-
++        if (data == null) {
++            rejectPendingCall("Invalid Apple callback");
++            return;
++        }
+         handleUrl(data.toString());
+         //    if (data.toString().contains("success=")) {
+         //      this.currentSession.
+@@ -153,7 +149,6 @@ public class AppleProvider implements SocialProvider {
+ 
+         // Save the call reference immediately so it's always available
+         this.lastcall = call;
+-        call.setKeepAlive(true);
+ 
+         // Check if Broadcast Channel is enabled
+         boolean useBroadcastChannel = config.optBoolean("useBroadcastChannel", this.useBroadcastChannel);
+@@ -169,6 +164,7 @@ public class AppleProvider implements SocialProvider {
+ 
+     private void loginWithBroadcastChannel(PluginCall call, JSONObject config) {
+         String state = UUID.randomUUID().toString();
++        this.pendingState = state;
+ 
+         // Extract scopes from config
+         String scopes = DEFAULT_SCOPE;
+@@ -195,24 +191,12 @@ public class AppleProvider implements SocialProvider {
+         // For Broadcast Channel, we use a special redirect URI that handles the channel communication
+         String broadcastRedirectUri = "https://capacitor-social-login.firebaseapp.com/__/auth/handler";
+ 
+-        this.appleAuthURLFull =
+-            AUTHURL +
+-            "?client_id=" +
+-            this.clientId +
+-            "&redirect_uri=" +
+-            broadcastRedirectUri +
+-            "&response_type=code&scope=" +
+-            scopes +
+-            "&response_mode=form_post&state=" +
+-            state;
+-
+-        if (nonce != null) {
+-            this.appleAuthURLFull += "&nonce=" + nonce;
+-        }
++        this.appleAuthURLFull = buildAuthorizationUrl(broadcastRedirectUri, scopes, state, nonce);
+ 
+         if (context == null || activity == null) {
+             this.lastcall.reject("Context or Activity is null");
+             this.lastcall = null;
++            this.pendingState = null;
+             return;
+         }
+ 
+@@ -221,6 +205,7 @@ public class AppleProvider implements SocialProvider {
+ 
+     private void loginWithRedirect(PluginCall call, JSONObject config) {
+         String state = UUID.randomUUID().toString();
++        this.pendingState = state;
+ 
+         // Extract scopes from config
+         String scopes = DEFAULT_SCOPE;
+@@ -244,30 +229,31 @@ public class AppleProvider implements SocialProvider {
+             }
+         }
+ 
+-        this.appleAuthURLFull =
+-            AUTHURL +
+-            "?client_id=" +
+-            this.clientId +
+-            "&redirect_uri=" +
+-            this.redirectUrl +
+-            "&response_type=code&scope=" +
+-            scopes +
+-            "&response_mode=form_post&state=" +
+-            state;
+-
+-        if (nonce != null) {
+-            this.appleAuthURLFull += "&nonce=" + nonce;
+-        }
++        this.appleAuthURLFull = buildAuthorizationUrl(this.redirectUrl, scopes, state, nonce);
+ 
+         if (context == null || activity == null) {
+             this.lastcall.reject("Context or Activity is null");
+             this.lastcall = null;
++            this.pendingState = null;
+             return;
+         }
+ 
+         activity.runOnUiThread(() -> setupWebview(context, activity, call, appleAuthURLFull));
+     }
+ 
++    private String buildAuthorizationUrl(String callbackUrl, String scopes, String state, String nonce) {
++        Uri.Builder builder = Uri.parse(AUTHURL)
++            .buildUpon()
++            .appendQueryParameter("client_id", this.clientId)
++            .appendQueryParameter("redirect_uri", callbackUrl)
++            .appendQueryParameter("response_type", "code")
++            .appendQueryParameter("scope", scopes.replace("%20", " "))
++            .appendQueryParameter("response_mode", "form_post")
++            .appendQueryParameter("state", state);
++        if (nonce != null && !nonce.isEmpty()) builder.appendQueryParameter("nonce", nonce);
++        return builder.build().toString();
++    }
++
+     @Override
+     public void logout(PluginCall call) {
+         if (this.idToken == null || this.idToken.isEmpty()) {
+@@ -319,8 +305,55 @@ public class AppleProvider implements SocialProvider {
+         }
+ 
+         Uri uri = Uri.parse(url);
++        String returnedState = uri.getQueryParameter("state");
++        if (!statesMatch(this.pendingState, returnedState)) {
++            rejectPendingCall("Apple authentication state mismatch");
++            return;
++        }
++
+         String success = uri.getQueryParameter("success");
+         if ("true".equals(success)) {
++            if (useProperTokenExchange) {
++                String appleAuthCode = uri.getQueryParameter("code");
++                if (appleAuthCode == null || appleAuthCode.isEmpty()) {
++                    rejectPendingCall("Apple authorization code is missing");
++                    return;
++                }
++
++                // The HTTPS callback may return only the one-time code and
++                // state. Apple private keys, client secrets and long-lived
++                // tokens must never be put in an app URL or exchanged here.
++                if (
++                    uri.getQueryParameter("client_secret") != null ||
++                    uri.getQueryParameter("access_token") != null ||
++                    uri.getQueryParameter("refresh_token") != null ||
++                    uri.getQueryParameter("id_token") != null
++                ) {
++                    rejectPendingCall("Unsafe Apple callback payload");
++                    return;
++                }
++
++                JSObject profile = new JSObject();
++                profile.put("user", (String) null);
++                profile.put("email", (String) null);
++                profile.put("givenName", (String) null);
++                profile.put("familyName", (String) null);
++
++                JSObject result = new JSObject();
++                result.put("accessToken", (String) null);
++                result.put("profile", profile);
++                result.put("idToken", (String) null);
++                result.put("authorizationCode", appleAuthCode);
++
++                JSObject response = new JSObject();
++                response.put("provider", "apple");
++                response.put("result", result);
++                this.lastcall.resolve(response);
++                this.lastcall = null;
++                this.pendingState = null;
++                return;
++            }
++
+             String accessToken = uri.getQueryParameter("access_token");
+             if (accessToken != null) {
+                 // We have proper tokens from the backend
+@@ -352,20 +385,33 @@ public class AppleProvider implements SocialProvider {
+                 String appleAuthCode = uri.getQueryParameter("code");
+                 String appleClientSecret = uri.getQueryParameter("client_secret");
+ 
+-                if (useProperTokenExchange) {
+-                    // In proper token exchange mode, we should have received proper tokens
+-                    // from the backend. If we only got an auth code, reject the call.
+-                    this.lastcall.reject("Expected proper tokens from backend but received authorization code only");
+-                } else {
+-                    // Legacy mode: exchange the authorization code for tokens
+-                    requestForAccessToken(appleAuthCode, appleClientSecret);
+-                    return; // Don't clear lastcall here, it will be cleared in the callback
+-                }
++                // Legacy mode: exchange the authorization code for tokens.
++                requestForAccessToken(appleAuthCode, appleClientSecret);
++                this.pendingState = null;
++                return; // Don't clear lastcall here, it will be cleared in the callback
+             }
+         } else {
+             this.lastcall.reject("We couldn't get the Auth Code");
+         }
+         this.lastcall = null;
++        this.pendingState = null;
++    }
++
++    private boolean statesMatch(String expected, String actual) {
++        if (expected == null || actual == null) return false;
++        return MessageDigest.isEqual(expected.getBytes(StandardCharsets.UTF_8), actual.getBytes(StandardCharsets.UTF_8));
++    }
++
++    private void rejectPendingCall(String message) {
++        if (this.lastcall != null) this.lastcall.reject(message);
++        this.lastcall = null;
++        this.pendingState = null;
++    }
++
++    public void cancelPendingLoginIfNoCallback() {
++        if (this.lastcall != null && this.pendingState != null) {
++            rejectPendingCall("Apple authentication cancelled");
++        }
+     }
+ 
+     private void requestForAccessToken(String code, String clientSecret) {
+diff --git a/node_modules/@capgo/capacitor-social-login/android/src/main/java/ee/forgr/capacitor/social/login/GoogleProvider.java b/node_modules/@capgo/capacitor-social-login/android/src/main/java/ee/forgr/capacitor/social/login/GoogleProvider.java
+index f7b44ce..49a23a3 100644
+--- a/node_modules/@capgo/capacitor-social-login/android/src/main/java/ee/forgr/capacitor/social/login/GoogleProvider.java
++++ b/node_modules/@capgo/capacitor-social-login/android/src/main/java/ee/forgr/capacitor/social/login/GoogleProvider.java
+@@ -203,8 +203,6 @@ public class GoogleProvider implements SocialProvider {
+                     GoogleProvider.this.scopes = scopesList.toArray(new String[0]);
+                 }
+             }
+-
+-            Log.i(SocialLoginPlugin.LOG_TAG, String.format("Google restoreState: %s", object));
+         } catch (JSONException e) {
+             Log.e(SocialLoginPlugin.LOG_TAG, "Google restoreState: Failed to parse JSON", e);
+         }
+diff --git a/node_modules/@capgo/capacitor-social-login/android/src/main/java/ee/forgr/capacitor/social/login/SocialLoginPlugin.java b/node_modules/@capgo/capacitor-social-login/android/src/main/java/ee/forgr/capacitor/social/login/SocialLoginPlugin.java
+index e9634c8..26dd5a1 100644
+--- a/node_modules/@capgo/capacitor-social-login/android/src/main/java/ee/forgr/capacitor/social/login/SocialLoginPlugin.java
++++ b/node_modules/@capgo/capacitor-social-login/android/src/main/java/ee/forgr/capacitor/social/login/SocialLoginPlugin.java
+@@ -602,6 +602,11 @@ public class SocialLoginPlugin extends Plugin {
+             openSecureWindowSavedCall.reject("OAuth cancelled or no callback received");
+             openSecureWindowSavedCall = null;
+         }
++
++        SocialProvider appleProvider = socialProviderHashMap.get("apple");
++        if (appleProvider instanceof AppleProvider) {
++            ((AppleProvider) appleProvider).cancelPendingLoginIfNoCallback();
++        }
+     }
+ 
+     @Override
+@@ -617,6 +622,14 @@ public class SocialLoginPlugin extends Plugin {
+             return;
+         }
+ 
++        if ("otlobli".equalsIgnoreCase(uri.getScheme()) && "apple-auth".equalsIgnoreCase(uri.getHost())) {
++            SocialProvider appleProvider = socialProviderHashMap.get("apple");
++            if (appleProvider instanceof AppleProvider) {
++                ((AppleProvider) appleProvider).handleIntent(intent);
++            }
++            return;
++        }
++
+         if (openSecureWindowRedirectUri == null) {
+             return;
+         }
 diff --git a/node_modules/@capgo/capacitor-social-login/ios/Sources/SocialLoginPlugin/AppleProvider.swift b/node_modules/@capgo/capacitor-social-login/ios/Sources/SocialLoginPlugin/AppleProvider.swift
 index 87e76b9..e2f2448 100644
 --- a/node_modules/@capgo/capacitor-social-login/ios/Sources/SocialLoginPlugin/AppleProvider.swift

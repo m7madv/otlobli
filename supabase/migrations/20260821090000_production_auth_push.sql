@@ -207,6 +207,10 @@ begin
   if coalesce(trim(p_provider_user_id), '') = '' then raise exception 'invalid provider user id'; end if;
   if length(p_provider_user_id) > 512 then raise exception 'invalid provider user id'; end if;
   session_customer_id := public.require_customer_session(p_session_token, null);
+  perform pg_advisory_xact_lock(hashtextextended(
+    'customer_identity:' || p_provider || ':' || p_provider_user_id,
+    0
+  ));
   select customer_id into existing_customer_id from public.customer_identities
     where provider = p_provider and provider_user_id = p_provider_user_id limit 1;
   if existing_customer_id is not null and existing_customer_id <> session_customer_id then
@@ -230,6 +234,11 @@ begin
   on conflict (provider, provider_user_id) do update set
     email = excluded.email, email_verified = excluded.email_verified,
     display_name = excluded.display_name, last_login_at = now();
+  select customer_id into existing_customer_id from public.customer_identities
+    where provider = p_provider and provider_user_id = p_provider_user_id limit 1;
+  if existing_customer_id is distinct from session_customer_id then
+    raise exception 'identity already linked to another account';
+  end if;
   return jsonb_build_object('customer_id', session_customer_id, 'linked', true);
 end;
 $$;
@@ -342,6 +351,34 @@ begin
 end;
 $$;
 
+create or replace function public.resolve_customer_for_account_deletion(p_session_token text)
+returns uuid
+language plpgsql
+security definer
+set search_path = extensions, public, pg_temp
+as $$
+declare
+  token_digest text := encode(digest(coalesce(p_session_token, ''), 'sha256'), 'hex');
+  found_session public.customer_sessions%rowtype;
+begin
+  if length(coalesce(p_session_token, '')) < 32 then
+    raise exception 'invalid customer session';
+  end if;
+  select * into found_session
+  from public.customer_sessions
+  where token_hash = token_digest
+    and revoked_at is null
+    and expires_at > now()
+  limit 1
+  for update;
+  if not found then raise exception 'invalid customer session'; end if;
+  -- Account deletion remains available to a blocked owner. This resolver is
+  -- private to the lifecycle Edge Function and authorizes no other action.
+  update public.customer_sessions set last_used_at = now() where id = found_session.id;
+  return found_session.customer_id;
+end;
+$$;
+
 create or replace function public.delete_customer_account(p_session_token text)
 returns jsonb
 language plpgsql
@@ -352,7 +389,7 @@ declare
   target_customer_id uuid;
   replacement_phone text;
 begin
-  target_customer_id := public.require_customer_session(p_session_token, null);
+  target_customer_id := public.resolve_customer_for_account_deletion(p_session_token);
   replacement_phone := 'deleted-' || replace(target_customer_id::text, '-', '');
 
   delete from public.addresses where customer_id = target_customer_id;
@@ -388,6 +425,8 @@ grant execute on function public.detach_device_token(text,text) to anon, authent
 grant execute on function public.link_customer_identity(text,text,text,text,boolean,text) to anon, authenticated;
 grant execute on function public.get_customer_auth_methods(text) to anon, authenticated, service_role;
 grant execute on function public.delete_customer_account(text) to anon, authenticated;
+revoke all on function public.resolve_customer_for_account_deletion(text) from public, anon, authenticated;
+grant execute on function public.resolve_customer_for_account_deletion(text) to service_role;
 revoke all on function public.get_customer_id_for_session(text) from public, anon, authenticated;
 grant execute on function public.get_customer_id_for_session(text) to service_role;
 revoke all on function public.register_external_customer(text,text,text,boolean,text,text,text,text,text,text,text,text,timestamptz) from public, anon, authenticated;

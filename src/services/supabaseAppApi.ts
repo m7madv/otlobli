@@ -6,7 +6,7 @@ import type { CartGroupSnapshot, CartItem, Order, PaymentStatus, Product, UserPr
 import type { ProductFetchResult, TalabiehApi } from './appApi'
 import { localAppApi } from './localAppApi'
 import { supabase } from './supabaseClient'
-import { isWhatsappApiAuthEnabled, whatsappAuthApi } from './whatsappAuthApi'
+import { phoneAuthApi } from './phoneAuthApi'
 import { cleanEnvValue } from '../config'
 import { readStoredJson, storageKeys } from '../infrastructure/localStorage'
 
@@ -313,7 +313,7 @@ async function fetchProductFromSupabase(link: string): Promise<ProductFetchResul
 }
 
 export const supabaseAppApi: TalabiehApi = {
-  auth: isWhatsappApiAuthEnabled ? whatsappAuthApi : localAppApi.auth,
+  auth: phoneAuthApi,
   catalog: {
     async fetchSheinProduct(link, fallbackTitle) {
       // 1. نحاول من Supabase أولاً

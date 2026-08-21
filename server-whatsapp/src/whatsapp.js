@@ -48,7 +48,7 @@ export async function sendOtpMessage(phone, code) {
   const jid = phone.replace(/[\s\-\(\)\+]/g, '') + '@s.whatsapp.net'
   const msg = `*Talabieh*\n\n🔐 *رمز التحقق*\n\n${code}\n\n⏰ صالح 5 دقائق`
   await sock.sendMessage(jid, { text: msg })
-  console.log(`✅ OTP ${code} → ${phone}`)
+  console.log('✅ OTP delivered')
 }
 
 export async function initWhatsapp() {

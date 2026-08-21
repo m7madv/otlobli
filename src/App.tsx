@@ -28,6 +28,7 @@ import {
 } from './services/googleAuthApi'
 import type { AccountAuthMethods, GoogleProfile } from './services/googleAuthApi'
 import {
+  cancelAppleRegistration,
   isAppleAuthEnabled,
   linkAppleAccount,
   registerAppleAccount,
@@ -1113,6 +1114,12 @@ function getPublicErrorMessage(error: unknown) {
     if (/AuthenticationServices\.AuthorizationError.*(?:error\s*)?1000|AuthorizationError.*(?:error\s*)?1000/i.test(error.message)) {
       return 'نسخة التطبيق الحالية غير موقّعة بصلاحية تسجيل الدخول عبر Apple. ثبّت نسخة موقّعة من حساب المطوّر تتضمن Sign in with Apple.'
     }
+    if (/apple_auth_not_configured/i.test(error.message)) {
+      return 'تسجيل الدخول عبر Apple قيد التجهيز حالياً. جرّب بعد قليل أو استخدم رقم الهاتف.'
+    }
+    if (/apple_token_exchange_failed|invalid_apple_token|missing_authorization_code/i.test(error.message)) {
+      return 'تعذّر إكمال تسجيل الدخول عبر Apple بأمان. أعد المحاولة واختر حسابك من جديد.'
+    }
     return error.message
   }
   return 'حدث خطأ غير متوقع. حاول مرة ثانية.'
@@ -1305,8 +1312,8 @@ function App() {
   const [accountAuthMethods, setAccountAuthMethods] = useState<AccountAuthMethods | null>(null)
   const [accountAuthBusy, setAccountAuthBusy] = useState(false)
 
-  const [otpDigits, setOtpDigits] = useState(['', '', '', ''])
-  const otpRefs = useRef<(HTMLInputElement | null)[]>([null, null, null, null])
+  const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', ''])
+  const otpRefs = useRef<(HTMLInputElement | null)[]>([null, null, null, null, null, null])
   const [otpExpiresInSeconds, setOtpExpiresInSeconds] = useState(() =>
     initialPendingWhatsappAuth
       ? Math.max(1, Math.ceil((initialPendingWhatsappAuth.expiresAt - Date.now()) / 1000))
@@ -2023,6 +2030,15 @@ function App() {
     setScreen('cart')
   }
 
+  const discardPendingAppleRegistration = () => {
+    if (pendingAppleIdToken && pendingAppleRawNonce) {
+      void cancelAppleRegistration(pendingAppleIdToken, pendingAppleRawNonce).catch(() => undefined)
+    }
+    setPendingAppleIdToken('')
+    setPendingAppleRawNonce('')
+    setPendingAppleProfile(null)
+  }
+
   const clearLocalAccountState = () => {
     setSessionToken('')
     setUserProfile(null)
@@ -2042,9 +2058,7 @@ function App() {
     setCurrentOrderId('')
     setPendingGoogleIdToken('')
     setPendingGoogleProfile(null)
-    setPendingAppleIdToken('')
-    setPendingAppleRawNonce('')
-    setPendingAppleProfile(null)
+    discardPendingAppleRegistration()
     setAccountAuthMethods(null)
     setOtpPurpose('login')
     setScreen('login')
@@ -2070,6 +2084,8 @@ function App() {
     setAccountAuthBusy(true)
     void deleteCustomerAccount(sessionToken)
       .then(() => {
+        void detachPushToken(sessionToken).catch(() => undefined)
+        void signOutNativeIdentityProviders().catch(() => undefined)
         clearLocalAccountState()
         showNotice('تم حذف الحساب')
       })
@@ -2763,7 +2779,7 @@ function App() {
     setInboundSupportPhone('')
     setInboundVerificationMessage('')
     setTelegramOtp('')
-    setOtpDigits(['', '', '', ''])
+    setOtpDigits(['', '', '', '', '', ''])
     await linkPendingGoogle(activeSessionToken)
 
     if (otpPurpose === 'link-phone') {
@@ -2846,6 +2862,7 @@ function App() {
   }
 
   const completeSocialRegistration = () => {
+    if (googleAuthBusy) return
     const deliveryPhone = phone.trim()
     const normalizedName = normalizeFullName(onboardingName)
     const nameError = getFullNameValidationError(normalizedName)
@@ -2981,7 +2998,7 @@ function App() {
             }
           : null
 
-        setOtpDigits(['', '', '', ''])
+        setOtpDigits(['', '', '', '', '', ''])
         setInboundWhatsappUrl(result.whatsappUrl ?? '')
         setInboundSupportPhone(result.supportPhone ?? '')
         setInboundVerificationMessage(result.verificationMessage ?? '')
@@ -3040,7 +3057,7 @@ function App() {
       .then((result) => completePhoneVerification(result.sessionToken, 'تم تأكيد رقم واتساب'))
       .catch((error: unknown) => {
         showNotice(getPublicErrorMessage(error))
-        setOtpDigits(['', '', '', ''])
+        setOtpDigits(['', '', '', '', '', ''])
         otpRefs.current[0]?.focus()
       })
       .finally(() => setAuthState('idle'))
@@ -5568,11 +5585,10 @@ function App() {
 
     if (screen === 'google-onboarding') {
       const cancelGoogleRegistration = () => {
+        if (googleAuthBusy) return
         setPendingGoogleIdToken('')
         setPendingGoogleProfile(null)
-        setPendingAppleIdToken('')
-        setPendingAppleRawNonce('')
-        setPendingAppleProfile(null)
+        discardPendingAppleRegistration()
         setGoogleAuthBusy(false)
         setScreen('login')
       }
@@ -5583,6 +5599,7 @@ function App() {
           title="جهّز حسابك"
           subtitle="بقيت معلومات الاستلام فقط. لن نستخدم الرقم للدخول قبل أن تؤكده لاحقاً."
           onBack={cancelGoogleRegistration}
+          backDisabled={googleAuthBusy}
           brandName={brandName}
           brandLogoDataUrl={brandLogoDataUrl}
         >
@@ -5599,6 +5616,7 @@ function App() {
             <span>الاسم الكامل</span>
             <input
               value={onboardingName}
+              disabled={googleAuthBusy}
               onChange={(event) => setOnboardingName(sanitizeFullNameInput(event.target.value))}
               name="full-name"
               autoComplete="name"
@@ -5612,6 +5630,7 @@ function App() {
             <div className="phone-field">
               <select
                 value={countryCode}
+                disabled={googleAuthBusy}
                 onChange={(event) => setCountryCode(event.target.value)}
                 aria-label="رمز الدولة لرقم الاستلام"
                 name="delivery-country-code"
@@ -5624,6 +5643,7 @@ function App() {
               </select>
               <input
                 value={localPhone}
+                disabled={googleAuthBusy}
                 onChange={(event) => setLocalPhone(event.target.value.replace(/\D/g, ''))}
                 inputMode="tel"
                 type="tel"
@@ -5643,6 +5663,7 @@ function App() {
             <span>المحافظة</span>
             <select
               value={onboardingGov}
+              disabled={googleAuthBusy}
               onChange={(event) => {
                 setOnboardingGov(event.target.value)
                 setOnboardingBranch('')
@@ -5661,6 +5682,7 @@ function App() {
               <span>فرع القدموس</span>
               <select
                 value={onboardingBranch}
+                disabled={googleAuthBusy}
                 onChange={(event) => setOnboardingBranch(event.target.value)}
                 name="qadmous-branch"
                 autoComplete="off"
@@ -5699,7 +5721,7 @@ function App() {
 
     if (screen === 'otp') {
       const goBackToLogin = () => {
-        setOtpDigits(['', '', '', ''])
+        setOtpDigits(['', '', '', '', '', ''])
         setPendingWhatsappAuth(null)
         setInboundWhatsappUrl('')
         setInboundSupportPhone('')
@@ -8282,6 +8304,7 @@ function AuthShell({
   subtitle,
   children,
   onBack,
+  backDisabled = false,
   brandName = 'otlobli',
   brandLogoDataUrl = '',
 }: {
@@ -8289,6 +8312,7 @@ function AuthShell({
   subtitle: string
   children: ReactNode
   onBack?: () => void
+  backDisabled?: boolean
   brandName?: string
   brandLogoDataUrl?: string
 }) {
@@ -8296,7 +8320,7 @@ function AuthShell({
     <div className="auth-shell" dir="rtl">
       <main className="auth-card">
         {onBack && (
-          <button type="button" className="back-btn" onClick={onBack} aria-label="رجوع">
+          <button type="button" className="back-btn" onClick={onBack} disabled={backDisabled} aria-label="رجوع">
             <Icon name="arrow_forward" />
             <span>رجوع</span>
           </button>

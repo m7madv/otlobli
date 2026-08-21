@@ -1,11 +1,10 @@
-import { localAppApi } from './localAppApi'
 import { supabaseAppApi } from './supabaseAppApi'
 import { isSupabaseConfigured } from './supabaseClient'
-import { isWhatsappApiAuthEnabled, whatsappAuthApi } from './whatsappAuthApi'
+import { phoneAuthApi } from './phoneAuthApi'
 import type { TalabiehApi } from './appApi'
 
 export const appApi: TalabiehApi = {
-  auth: isWhatsappApiAuthEnabled ? whatsappAuthApi : localAppApi.auth,
+  auth: phoneAuthApi,
   catalog: supabaseAppApi.catalog,
   // ممنوع الـ fallback الصامت لـ localAppApi: الطلبات والمدفوعات تمرّ دائماً عبر
   // Supabase. إن لم يكن مُعدّاً (مفاتيح مفقودة في البناء)، يرمي supabaseAppApi

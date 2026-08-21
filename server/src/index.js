@@ -9,8 +9,11 @@ import fs from 'fs'
 import path from 'path'
 import { createRequire } from 'module'
 import { fileURLToPath } from 'url'
-import { onConnection, isWhatsappConnected, getConnectionStatus, getAllSessions } from './whatsapp.js'
+import { onConnection, isWhatsappConnected, hasWhatsappSessionCredentials } from './whatsapp.js'
 import routes from './routes.js'
+import { supabase } from './supabase.js'
+import { isOtpSecurityConfigured } from './otpStore.js'
+import { requireWhatsappAdminSecret } from './adminAuth.js'
 
 const require = createRequire(import.meta.url)
 const __filename = fileURLToPath(import.meta.url)
@@ -66,30 +69,57 @@ if (fs.existsSync(sessionTar)) {
 }
 
 const app = express()
+app.set('trust proxy', 1)
 
 app.use(cors())
-app.use(express.json({ limit: '50mb' }))
-app.use(express.urlencoded({ extended: true, limit: '50mb' }))
+// Reject management traffic before parsing a potentially large request body.
+// CORS runs first so a browser's header preflight can complete without a secret.
+app.use('/api/session', requireWhatsappAdminSecret)
+app.use('/api/whatsapp/sessions', requireWhatsappAdminSecret)
+app.use('/api/auth/whatsapp/status', requireWhatsappAdminSecret)
+app.use('/api/qr', requireWhatsappAdminSecret)
+// Session archives are disabled, so no public API needs a multi-megabyte body.
+// Keep the parser bounded to reduce memory-amplification risk on auth routes.
+app.use(express.json({ limit: '256kb' }))
+app.use(express.urlencoded({ extended: true, limit: '256kb' }))
 
 app.use('/api', routes)
 
-app.get('/health', (req, res) => {
+let authReadinessCache = { checkedAt: 0, ready: false, contract: '' }
+
+async function getAuthReadiness() {
+  const now = Date.now()
+  if (now - authReadinessCache.checkedAt < 30000) return authReadinessCache
+  if (!supabase) {
+    authReadinessCache = { checkedAt: now, ready: false, contract: '' }
+    return authReadinessCache
+  }
+  const { data, error } = await supabase.rpc('phone_auth_readiness')
+  const result = data && typeof data === 'object' ? data : {}
+  authReadinessCache = {
+    checkedAt: now,
+    ready: !error && result.ready === true && result.contract === 'customer-session-v1' && isOtpSecurityConfigured(),
+    contract: typeof result.contract === 'string' ? result.contract : '',
+  }
+  return authReadinessCache
+}
+
+app.get('/health', async (req, res) => {
+  const authReadiness = await getAuthReadiness().catch(() => ({ ready: false, contract: '' }))
   res.json({
     status: 'ok',
     whatsappConnected: isWhatsappConnected(),
+    whatsappSenderReady: isWhatsappConnected(),
+    whatsappCredentialsPresent: hasWhatsappSessionCredentials(),
     qrAvailable: !isWhatsappConnected(),
+    sessionStoreReady: authReadiness.ready,
+    authContract: authReadiness.contract,
+    otpSecurityReady: isOtpSecurityConfigured(),
   })
 })
 
-app.get('/api/qr-url', (req, res) => {
-  const status = getConnectionStatus()
-  if (status.qrImageUrl) {
-    res.json({ qrUrl: status.qrImageUrl, connected: false })
-  } else if (status.connected) {
-    res.json({ connected: true })
-  } else {
-    res.json({ connected: false, message: 'No QR available yet' })
-  }
+app.get('/api/qr-url', requireWhatsappAdminSecret, (req, res) => {
+  res.status(410).json({ error: 'legacy_qr_endpoint_disabled' })
 })
 
 console.log('🚀 Server started — WhatsApp connects on-demand when OTP is requested')

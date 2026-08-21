@@ -91,15 +91,16 @@ node -v   # يجب أن يكون 20 أو أعلى
 # استبعد node_modules لتسريع الرفع
 scp -i /path/to/your-private-key -r "C:/Users/MOHAMMAD/Projects/SHEIN IN SIRYA/server" ubuntu@YOUR_PUBLIC_IP:~/otlobli-server
 ```
-> يتضمّن هذا مجلّد `baileys-auth/` الحالي — وهذا مطلوب: ينقل جلسة الواتساب الحالية
-> فلا تحتاج إعادة ربط QR. (إن أردت رقماً جديداً، احذف `baileys-auth/` على الجهاز
-> وأعد الربط في الخطوة 7.)
+> لا تنقل `.env` أو أي سر عبر Git. بيانات الجلسات الفعالة موجودة في
+> `wa-sessions/`؛ انقلها فقط بقناة إدارية مشفرة وموثوقة إن كنت متأكدًا أنها لم
+> تتعرض سابقًا. عند الشك، ألغِ الجهاز المرتبط القديم وأعد الربط من لوحة الإدارة
+> بعد نشر الحماية الجديدة.
 
 ثم داخل SSH:
 ```bash
 cd ~/otlobli-server
 rm -rf node_modules
-npm install
+npm ci --omit=dev
 ```
 
 ---
@@ -112,6 +113,8 @@ npm install
 PORT=3001
 SUPABASE_URL=...
 SUPABASE_SERVICE_ROLE_KEY=...
+OTP_HASH_SECRET=<at-least-32-random-bytes>
+WHATSAPP_ADMIN_SECRET=<different-at-least-32-random-bytes>
 ADMIN_PIN=...
 ADMIN_URL=...
 ORDER_NOTIFY_SECRET=...
@@ -119,21 +122,27 @@ TELEGRAM_BOT_TOKEN=...
 TELEGRAM_CHAT_ID=...
 VITE_USD_TO_SYP_RATE=131.7
 ```
-> انسخ القيم من متغيّرات Railway الحالية (Railway → Service → Variables). متغيّرات
-> `RAILWAY_*` لا تلزم على Oracle.
+> انسخ القيم من مخزن الأسرار، لا من ملف متعقّب. دوّر `ADMIN_PIN` القديم قبل
+> التشغيل، ولا تعِد استخدامه كـ`WHATSAPP_ADMIN_SECRET`. تغيير
+> `OTP_HASH_SECRET` يلغي كل رموز OTP المعلّقة. متغيّرات `RAILWAY_*` لا تلزم على
+> Oracle.
 
 ---
 
-## 7) أول تشغيل + ربط الواتساب (QR)
+## 7) أول تشغيل + ربط الواتساب المحمي
 
-شغّل السيرفر يدوياً أول مرة لترى الـ QR (لو احتجت ربطاً جديداً):
+شغّل السيرفر يدوياً أول مرة:
 ```bash
 node src/index.js
 ```
-- إن كانت جلسة `baileys-auth/` صالحة، سيتصل مباشرة بلا QR.
-- إن ظهر QR في الطرفية أو حُفظ في `qr-code.png`: افتحه وامسحه من واتساب هاتف الخدمة
-  (واتساب → الأجهزة المرتبطة → ربط جهاز).
-- تأكّد من الصحّة: `curl http://localhost:3001/health` يجب أن يردّ بنجاح.
+- إن كانت جلسة `wa-sessions/` صالحة، سيتصل مباشرة.
+- لا توجد صفحة QR عامة ولا خدمة QR خارجية. أدخل `WHATSAPP_ADMIN_SECRET` في لوحة
+  الإدارة، أنشئ جلسة، ثم امسح صورة QR المحلية المحمية من واتساب → الأجهزة
+  المرتبطة → ربط جهاز.
+- تأكّد محليًا من `/health`. لا تعتبر الخدمة جاهزة حتى تكون القيم
+  `sessionStoreReady=true` و`authContract=customer-session-v1` و
+  `otpSecurityReady=true` و`whatsappConnected=true` و
+  `whatsappSenderReady=true`.
 - أوقفه بـ `Ctrl+C` بعد نجاح الربط.
 
 ---
@@ -148,7 +157,8 @@ pm2 startup systemd    # نفّذ الأمر الذي يطبعه (يبدأ بـ 
 ```
 مراقبة السجلّات: `pm2 logs otlobli-wa` — الحالة: `pm2 status`.
 
-اختبر من الخارج: `http://YOUR_PUBLIC_IP:3001/health`.
+اختبر من الخارج عبر عنوان HTTPS النهائي فقط. لا تضع عنوان HTTP أو IP مباشرًا
+داخل التطبيق. اتبع [دليل الإعداد الكامل](../WHATSAPP_SETUP.md) قبل TestFlight.
 
 ---
 
@@ -159,8 +169,8 @@ pm2 startup systemd    # نفّذ الأمر الذي يطبعه (يبدأ بـ 
 لا حاجة لأي أداة خارجية.
 
 لإضافة رقم من **لوحة الإدارة** (بعد نجاح النشر وتوجيه العنوان في الخطوة 9):
-1. افتح لوحة الإدارة → قسم **جلسات واتساب** (WhatsApp Sessions).
-2. اضغط «إضافة رقم» → سيظهر **QR** → امسحه من هاتف الرقم الجديد
+1. افتح لوحة الإدارة → قسم **جلسات واتساب**، وأدخل سر واتساب الإداري المنفصل.
+2. اضغط «إضافة رقم» → سيظهر **QR محلي ومحمي** → امسحه من هاتف الرقم الجديد
    (واتساب → الأجهزة المرتبطة → ربط جهاز).
 3. كرّر لكل رقم تريده. الأرقام المتصلة تتناوب على الإرسال تلقائياً.
 
