@@ -247,13 +247,10 @@ jobs:
             PROVISIONING_PROFILE_SPECIFIER="$OTLOBLI_PROFILE_NAME"
             APS_ENVIRONMENT=development
             "OTHER_CODE_SIGN_FLAGS=--keychain $OTLOBLI_KEYCHAIN_PATH"
+            -quiet
             archive
           )
-          if command -v xcpretty >/dev/null 2>&1; then
-            xcodebuild "${archive_args[@]}" 2>&1 | xcpretty
-          else
-            xcodebuild "${archive_args[@]}"
-          fi
+          xcodebuild "${archive_args[@]}"
 
           test -d "$archive_path/Products/Applications/App.app"
 
