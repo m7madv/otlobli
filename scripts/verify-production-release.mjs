@@ -27,6 +27,10 @@ const releaseSources = [
   'src/App.tsx',
   'src/config.ts',
   'src/services/storeCaptureBundle.ts',
+  'src/services/sheinPolicyEngine.ts',
+  'src/services/sheinRegionCoordinator.ts',
+  'src/services/sheinOpeningPerformance.ts',
+  'src/services/pushNotifications.ts',
   'ios/App/App/OtlobliSheinBrowserPlugin.swift',
   'patches/@capgo+capacitor-inappbrowser+8.6.25.patch',
 ]
@@ -46,6 +50,9 @@ const bannedMarkers = [
   'CAPTURE_AND_BLOCKING',
   'LEGACY_CONTROL',
   'PREFETCH_FIX',
+  '__otlobliTapDiagnosticContext',
+  'clean-room container',
+  'root-cause heartbeat',
 ]
 for (const marker of bannedMarkers) {
   if (sourceText.includes(marker)) failures.push(`release source contains diagnostic marker: ${marker}`)
@@ -54,6 +61,14 @@ for (const marker of bannedMarkers) {
 const nativeBrowser = read('ios/App/App/OtlobliSheinBrowserPlugin.swift')
 if (!nativeBrowser.includes('#if DEBUG') || !nativeBrowser.includes('webView.isInspectable = false')) {
   failures.push('custom SHEIN WKWebView must be inspectable only under DEBUG and false in Release')
+}
+const xcodeProject = read('ios/App/App.xcodeproj/project.pbxproj')
+if (!xcodeProject.includes('PrivacyInfo.xcprivacy in Resources')) {
+  failures.push('iOS privacy manifest must be part of the Release resources phase')
+}
+const privacyManifest = read('ios/App/App/PrivacyInfo.xcprivacy')
+for (const marker of ['NSPrivacyTracking', 'NSPrivacyCollectedDataTypes', 'NSPrivacyAccessedAPICategoryUserDefaults', 'CA92.1']) {
+  if (!privacyManifest.includes(marker)) failures.push(`iOS privacy manifest missing ${marker}`)
 }
 const patchedBrowser = read('node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift')
 if (patchedBrowser.includes('webView.isInspectable = true')) {

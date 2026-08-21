@@ -51,6 +51,20 @@ import { App as CapacitorApp } from '@capacitor/app'
 import { Capacitor, registerPlugin } from '@capacitor/core'
 import { BackgroundColor, InvisibilityMode, ToolBarType } from '@capgo/capacitor-inappbrowser'
 import { StoreBrowser as InAppBrowser } from './services/storeBrowser'
+import {
+  createSheinRegionCoordinator,
+  isSheinCoordinatorReady,
+  transitionSheinRegionCoordinator,
+} from './services/sheinRegionCoordinator'
+import type { SheinCoordinatorEvent, SheinRegionSnapshot } from './services/sheinRegionCoordinator'
+import {
+  completeSheinOpeningTrace,
+  createSheinOpeningTrace,
+  markSheinOpeningPhase,
+  SHEIN_OPENING_PHASES,
+  summarizeSheinOpeningRecords,
+} from './services/sheinOpeningPerformance'
+import type { SheinOpeningPhase, SheinOpeningRecord, SheinOpeningTrace } from './services/sheinOpeningPerformance'
 import { flushSync } from 'react-dom'
 
 const OtlobliLaunchSurface = registerPlugin<{ ready: () => Promise<void> }>('OtlobliLaunchSurface')
@@ -78,6 +92,7 @@ const API_BASE = cleanEnvValue(import.meta.env.VITE_WHATSAPP_API_URL)
 const SUPABASE_URL = cleanEnvValue(import.meta.env.VITE_SUPABASE_URL)
 const SUPABASE_ANON_KEY = cleanEnvValue(import.meta.env.VITE_SUPABASE_ANON_KEY)
 const APP_SETTINGS_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/app-settings` : ''
+const SHEIN_OPENING_RECORDS_KEY = 'otlobli.shein-opening-performance.v1'
 
 type StoreCaptureBundle = typeof import('./services/storeCaptureBundle')
 let storeCaptureBundlePromise: Promise<StoreCaptureBundle> | undefined
@@ -118,7 +133,7 @@ const normalizeStoreCountryCode = (value: unknown, fallback = 'SA') => {
 const parseStoreRegionSetting = (value: unknown, fallback: StoreRegion): StoreRegion => {
   if (typeof value !== 'string' || !value.trim()) return fallback
   try {
-    const parsed = JSON.parse(value) as { countryCode?: unknown; addressPath?: unknown }
+    const parsed = JSON.parse(value) as { countryCode?: unknown; currency?: unknown; language?: unknown; addressPath?: unknown }
     const countryCode = normalizeStoreCountryCode(parsed.countryCode, fallback.countryCode)
     const addressPath = Array.isArray(parsed.addressPath)
       ? parsed.addressPath
@@ -128,7 +143,9 @@ const parseStoreRegionSetting = (value: unknown, fallback: StoreRegion): StoreRe
       : countryCode === fallback.countryCode
         ? fallback.addressPath
         : []
-    return { ...fallback, countryCode, addressPath }
+    const currency = String(parsed.currency ?? '').trim().toUpperCase() === 'USD' ? 'USD' : fallback.currency
+    const language = String(parsed.language ?? '').trim().toLowerCase() === 'ar' ? 'ar' : fallback.language
+    return { ...fallback, countryCode, currency, language, addressPath }
   } catch {
     const countryCode = normalizeStoreCountryCode(value, fallback.countryCode)
     return {
@@ -340,7 +357,7 @@ type WebviewPageLoadErrorEvent = {
   code?: number | string
 }
 
-type StoreOpenFailureReason = 'network' | 'preparation'
+type StoreOpenFailureReason = 'network' | 'preparation' | 'region' | 'policy'
 
 const STORE_BLOCKED_COUNTRIES = new Set(['SY'])
 const isBlockedStoreCountry = (countryCode?: string | null) =>
@@ -367,6 +384,22 @@ const getStoreFailureAdvice = (
   vpnGeo: VpnGeo | null,
   reason: StoreOpenFailureReason,
 ) => {
+  if (reason === 'region') {
+    return {
+      icon: 'public',
+      title: 'تعذّر تثبيت منطقة المتجر',
+      body: `لم يستطع ${store} تأكيد البلد والمنطقة والعملة واللغة المطلوبة بأمان. يمكنك إعادة التحقق من الجلسة نفسها أو إغلاق المتجر.`,
+      action: 'إعادة التحقق',
+    }
+  }
+  if (reason === 'policy') {
+    return {
+      icon: 'shield',
+      title: 'تعذّر تطبيق حماية المتجر',
+      body: `لم يكتمل حجب تسجيل الدخول والحساب والمنطقة في ${store}. لن نعرض المتجر قبل نجاح التحقق.`,
+      action: 'إعادة التحقق',
+    }
+  }
   // A confirmed Qatar/other supported exit is never a VPN failure. If the
   // storefront itself later times out, describe the real preparation failure
   // and keep the retry scoped to the store session.
@@ -3118,6 +3151,8 @@ function App() {
   const browseSheinRef = useRef<() => void>(() => undefined)
   const storeCaptureBundleRef = useRef<StoreCaptureBundle | null>(null)
   const storeCaptureBundleLoadingRef = useRef(false)
+  const sheinCoordinatorRef = useRef(createSheinRegionCoordinator(DEFAULT_STORE_REGIONS.shein))
+  const sheinOpeningTraceRef = useRef<SheinOpeningTrace | null>(null)
   const markStoreWebviewReadyRef = useRef<(sessionId: number) => void>(() => undefined)
   const storeMessageHandlerRef = useRef<(event: { id?: string; detail?: Record<string, unknown> }) => void>(() => undefined)
   const personalTemuHomeTapTimerRef = useRef<number | undefined>(undefined)
@@ -3133,6 +3168,51 @@ function App() {
   useEffect(() => { sheinReadyRef.current = sheinReady }, [sheinReady])
   useEffect(() => { vpnStateRef.current = vpnState }, [vpnState])
   useEffect(() => { vpnGeoRef.current = vpnGeo }, [vpnGeo])
+
+  const transitionSheinCoordinator = (event: SheinCoordinatorEvent) => {
+    const previous = sheinCoordinatorRef.current
+    const next = transitionSheinRegionCoordinator(previous, event)
+    sheinCoordinatorRef.current = next
+    if (next.phase !== previous.phase) {
+      recordAppDiagnostic('shein_coordinator_phase', {
+        phase: next.phase,
+        repairCount: next.repairCount,
+        failureCode: next.failureCode,
+      })
+    }
+    return next
+  }
+
+  const ensureSheinOpeningTrace = () => {
+    sheinOpeningTraceRef.current ??= createSheinOpeningTrace()
+    return sheinOpeningTraceRef.current
+  }
+
+  const markSheinOpening = (phase: SheinOpeningPhase) => {
+    const trace = ensureSheinOpeningTrace()
+    sheinOpeningTraceRef.current = markSheinOpeningPhase(trace, phase)
+  }
+
+  const completeSheinOpening = () => {
+    const trace = sheinOpeningTraceRef.current
+    if (!trace) return
+    sheinOpeningTraceRef.current = markSheinOpeningPhase(trace, 'storeVisibleInteractive')
+    const record = completeSheinOpeningTrace(sheinOpeningTraceRef.current)
+    sheinOpeningTraceRef.current = null
+    if (!record) return
+    let records: SheinOpeningRecord[] = []
+    try {
+      const stored = JSON.parse(localStorage.getItem(SHEIN_OPENING_RECORDS_KEY) || '[]')
+      if (Array.isArray(stored)) records = stored.filter((entry): entry is SheinOpeningRecord =>
+        !!entry && typeof entry === 'object' && Number.isFinite(Number(entry.totalMs))).slice(-39)
+    } catch {
+      records = []
+    }
+    records.push(record)
+    const summary = summarizeSheinOpeningRecords(records)
+    try { localStorage.setItem(SHEIN_OPENING_RECORDS_KEY, JSON.stringify(records)) } catch { /* bounded metrics are optional */ }
+    recordAppDiagnostic('shein_opening_complete', summary)
+  }
 
   const clearPersonalTemuHomeTap = useCallback(() => {
     if (personalTemuHomeTapTimerRef.current === undefined) return
@@ -3549,6 +3629,26 @@ function App() {
     })
   }
 
+  const showSheinCoordinatorFailure = (reason: 'region' | 'policy') => {
+    clearSheinReadinessWatchdog()
+    if (webviewErrorTimerRef.current !== undefined) {
+      window.clearTimeout(webviewErrorTimerRef.current)
+      webviewErrorTimerRef.current = undefined
+    }
+    sheinReadyRef.current = false
+    setSheinReady(false)
+    setStoreOpenFailureReason(reason)
+    setSheinBlockedError(true)
+    recordAppDiagnostic('shein_coordinator_failed', {
+      reason,
+      phase: sheinCoordinatorRef.current.phase,
+      failureCode: sheinCoordinatorRef.current.failureCode,
+    })
+    // Keep the exact browser, cookies and solved verification proof. The host
+    // presents Retry/Close while the same session is parked behind Otlobli.
+    void InAppBrowser.hide().catch(() => undefined)
+  }
+
   const webviewErrorCode = (event: WebviewPageLoadErrorEvent) => {
     if (typeof event.code === 'number' && Number.isFinite(event.code)) return event.code
     if (typeof event.code === 'string' && event.code.trim()) {
@@ -3607,6 +3707,7 @@ function App() {
     // وصلنا لعرض محتوى فعلي — التجاوز نجح، نُصفّر علم التجاوز.
     openedViaBypassRef.current = false
     setSheinReady(true)
+    if (selectedStoreRef.current === 'shein') completeSheinOpening()
     const pendingProductUrl = pendingProductUrlRef.current
     if (pendingProductUrl) {
       pendingProductUrlRef.current = ''
@@ -3786,6 +3887,11 @@ function App() {
       return
     }
     const activeStore = selectedStoreRef.current
+    if (activeStore === 'shein') {
+      ensureSheinOpeningTrace()
+      transitionSheinCoordinator({ type: 'OPEN', required: storeRegionsRef.current.shein })
+      transitionSheinCoordinator({ type: 'POLICY_INSTALLING' })
+    }
     if (TEMU_PERSONAL_SITE_MODE && Capacitor.getPlatform() === 'android' && activeStore === 'temu') {
       // Gecko lives inside MainActivity's store-content layer. React's actual
       // Otlobli shell stays mounted below it, so opening Temu no longer changes
@@ -3897,7 +4003,7 @@ function App() {
       ...(activeStore === 'shein'
         ? {
           otlobliLoadingCover: true,
-          otlobliDocumentStartScript: `window.__otlobliSafeBottom=${hostSafeBottomInset};\nwindow.__otlobliNativePlatform=${JSON.stringify(Capacitor.getPlatform())};\n${captureBundle.SHEIN_PRIVACY_COMPAT_SCRIPT}\n${captureBundle.OTLOBLI_NAV_BOOTSTRAP_SCRIPT}`,
+          otlobliDocumentStartScript: `window.__otlobliSafeBottom=${hostSafeBottomInset};\nwindow.__otlobliNativePlatform=${JSON.stringify(Capacitor.getPlatform())};\n${captureBundle.SHEIN_PRIVACY_COMPAT_SCRIPT}\n${captureBundle.SHEIN_POLICY_DOCUMENT_START_SCRIPT}\n${captureBundle.OTLOBLI_NAV_BOOTSTRAP_SCRIPT}`,
           otlobliPreserveAttachedWhenHidden: true,
           // Prepare SHEIN at the real device size without presenting it. The
           // already-mounted Otlobli shell therefore owns the only visible nav
@@ -3967,6 +4073,7 @@ function App() {
     const prepareStoreWebview = shouldResetSheinCache
       ? InAppBrowser.clearCache()
       : Promise.resolve()
+    if (activeStore === 'shein') markSheinOpening('browserOpenRequested')
     void prepareStoreWebview
       .then(() => {
         if (sessionId !== webviewSessionRef.current || !sheinOpenedRef.current) return undefined
@@ -3982,6 +4089,7 @@ function App() {
           return
         }
         webviewIdRef.current = result?.id ?? webviewIdRef.current
+        if (activeStore === 'shein') markSheinOpening('nativeBrowserCreatedShown')
         if (screenRef.current !== 'home' && (!initialPendingUrl || pendingProductRevealRef.current)) {
           void InAppBrowser.hide().catch(() => undefined)
         }
@@ -3990,7 +4098,14 @@ function App() {
         const absoluteTimeout = window.setTimeout(() => {
           if (sessionId !== webviewSessionRef.current) return
           if (!webviewOpeningRef.current) return
-          if (screenRef.current === 'home') showStoreOpenFailure('preparation')
+          if (screenRef.current !== 'home') return
+          if (activeStore === 'shein') {
+            const coordinator = sheinCoordinatorRef.current
+            transitionSheinCoordinator({ type: 'FAIL', code: 'readiness-timeout' })
+            showSheinCoordinatorFailure(coordinator.policyState === 'verified' ? 'region' : 'policy')
+            return
+          }
+          showStoreOpenFailure('preparation')
         }, 45000)
         const checkLoaded = InAppBrowser.addListener('browserPageLoaded', () => {
           window.clearTimeout(absoluteTimeout)
@@ -4242,6 +4357,7 @@ function App() {
         webviewIdRef.current = loadedWebviewId
       }
       if (selectedStoreRef.current === 'shein') {
+        markSheinOpening('navigationFinish')
         if (pendingProductRevealRef.current && pendingProductNavigationRequestedRef.current) {
           pendingProductPageLoadedRef.current = true
         }
@@ -4252,6 +4368,7 @@ function App() {
               storeCaptureBundleRef.current = loadedBundle
               return loadedBundle
             })
+        markSheinOpening('regionStateApplication')
         void captureBundleReady
           .then((loadedBundle) => InAppBrowser.executeScript({
             ...(id ? { id } : {}),
@@ -4312,6 +4429,10 @@ function App() {
     })
     let fallbackTimer: number | undefined
     const startFallback = InAppBrowser.addListener('urlChangeEvent', () => {
+      if (selectedStoreRef.current === 'shein') {
+        markSheinOpening('initialNavigationStart')
+        transitionSheinCoordinator({ type: 'NAVIGATION_STARTED' })
+      }
       if (fallbackTimer !== undefined || !webviewOpeningRef.current) return
       fallbackTimer = window.setTimeout(() => {
         fallbackTimer = undefined
@@ -4352,6 +4473,8 @@ function App() {
       currentWebviewUrlRef.current = url
       if (/shein/i.test(url)) {
         if (isSheinHumanChallengeUrl(url)) {
+          markSheinOpening('humanVerificationDetection')
+          transitionSheinCoordinator({ type: 'HUMAN_VERIFICATION_REQUIRED' })
           sheinChallengeActiveRef.current = true
           if (webviewErrorTimerRef.current !== undefined) {
             window.clearTimeout(webviewErrorTimerRef.current)
@@ -4372,8 +4495,20 @@ function App() {
           return
         }
         const now = Date.now()
-        if (sheinSaudiRedirectRef.current >= 4 && now - sheinSaudiRedirectTsRef.current < 15000) return
+        // One bounded normalization is the complete repair budget for a main
+        // navigation. A second mismatch is surfaced by the coordinator instead
+        // of creating a setUrl/redirect loop.
+        if (sheinSaudiRedirectRef.current >= 1 && now - sheinSaudiRedirectTsRef.current < 15000) {
+          transitionSheinCoordinator({ type: 'FAIL', code: 'region-repair-exhausted' })
+          if (screenRef.current === 'home') showSheinCoordinatorFailure('region')
+          return
+        }
         if (now - sheinSaudiRedirectTsRef.current > 15000) sheinSaudiRedirectRef.current = 0
+        const repairState = transitionSheinCoordinator({ type: 'REPAIR_REQUIRED', code: 'region-url-mismatch' })
+        if (repairState.phase !== 'REPAIRING_ONCE') {
+          if (screenRef.current === 'home') showSheinCoordinatorFailure('region')
+          return
+        }
         sheinSaudiRedirectRef.current++
         sheinSaudiRedirectTsRef.current = now
         void InAppBrowser.setUrl({ ...(id ? { id } : {}), url: saUrl })
@@ -4429,8 +4564,50 @@ function App() {
       if (event?.id && webviewIdRef.current && event.id !== webviewIdRef.current) return
       const detail = event?.detail
       const messageType = typeof detail?.type === 'string' ? detail.type : ''
-      if (['temuProductVisible', 'sheinSaudiReady', 'sheinPageInteractive', 'sheinPrivacyResolved', 'sheinWebContentRestarted', 'humanCheck', 'humanCheckResolved', 'humanCheckSkipped', 'sheinBlocked', 'openHome', 'closeStore', 'requestStoreExit', 'openCart', 'backToCart', 'openOrders', 'openProfile'].includes(messageType)) {
+      if (['temuProductVisible', 'sheinSaudiReady', 'sheinPageInteractive', 'sheinCoordinatorState', 'sheinCoordinatorTimeout', 'sheinPolicyState', 'sheinPolicyMismatch', 'sheinPolicyRouteBlocked', 'sheinOpeningPhase', 'sheinPrivacyResolved', 'sheinWebContentRestarted', 'humanCheck', 'humanCheckResolved', 'humanCheckSkipped', 'sheinBlocked', 'openHome', 'closeStore', 'requestStoreExit', 'openCart', 'backToCart', 'openOrders', 'openProfile'].includes(messageType)) {
         recordAppDiagnostic('store_message', { store: selectedStoreRef.current, type: messageType })
+      }
+
+      if (detail?.type === 'sheinOpeningPhase') {
+        const phase = typeof detail.phase === 'string' ? detail.phase : ''
+        if ((SHEIN_OPENING_PHASES as readonly string[]).includes(phase)) markSheinOpening(phase as SheinOpeningPhase)
+        return
+      }
+
+      if (detail?.type === 'sheinPolicyState') {
+        markSheinOpening('policyInstallation')
+        const installedOnce = detail.installed === true && Number(detail.installCount) === 1 && Number(detail.observerCount) === 1
+        const next = transitionSheinCoordinator({
+          type: 'SNAPSHOT',
+          snapshot: {
+            policyState: installedOnce ? 'verified' : 'mismatch',
+            captureState: detail.captureInstalled === true ? 'ready' : 'installing',
+            humanVerificationState: detail.humanVerificationAvailable === true ? 'required' : 'none',
+            interactive: detail.publicInteractionAvailable === true,
+          },
+        })
+        if (installedOnce) markSheinOpening('policyVerification')
+        else if (screenRef.current === 'home') showSheinCoordinatorFailure('policy')
+        if (next.captureState === 'ready') markSheinOpening('captureReady')
+        return
+      }
+
+      if (detail?.type === 'sheinPolicyMismatch' || detail?.type === 'sheinPolicyRouteBlocked') {
+        recordAppDiagnostic('shein_policy_event', {
+          type: detail.type,
+          code: typeof detail.code === 'string' ? detail.code : '',
+          routeClass: typeof detail.routeClass === 'string' ? detail.routeClass : '',
+        })
+        return
+      }
+
+      if (detail?.type === 'sheinCoordinatorTimeout') {
+        const coordinator = sheinCoordinatorRef.current
+        transitionSheinCoordinator({ type: 'FAIL', code: 'readiness-timeout' })
+        if (screenRef.current === 'home') {
+          showSheinCoordinatorFailure(coordinator.policyState === 'verified' ? 'region' : 'policy')
+        }
+        return
       }
 
       if (detail?.type === 'sheinWebContentRestarted') {
@@ -4458,10 +4635,26 @@ function App() {
         return
       }
 
-      if (detail?.type === 'sheinSaudiReady' || detail?.type === 'sheinPageInteractive') {
+      if (detail?.type === 'sheinSaudiReady' || detail?.type === 'sheinPageInteractive' || detail?.type === 'sheinCoordinatorState') {
         if (selectedStoreRef.current === 'shein' && sheinChallengeActiveRef.current) return
-        markStoreWebviewReadyRef.current(webviewSessionRef.current)
-        revealPreparedProductIfReady()
+        const snapshot = detail.coordinator && typeof detail.coordinator === 'object'
+          ? detail.coordinator as SheinRegionSnapshot
+          : {}
+        const next = transitionSheinCoordinator({ type: 'SNAPSHOT', snapshot })
+        if (next.regionState === 'matching' && next.countryState === 'matching' &&
+            next.currencyState === 'matching' && next.languageState === 'matching') {
+          markSheinOpening('regionVerification')
+        }
+        if (next.policyState === 'verified') markSheinOpening('policyVerification')
+        if (next.captureState === 'ready') markSheinOpening('captureReady')
+        if (isSheinCoordinatorReady(next)) {
+          setSheinBlockedError(false)
+          markStoreWebviewReadyRef.current(webviewSessionRef.current)
+          revealPreparedProductIfReady()
+        } else if (next.phase === 'FAILED' && screenRef.current === 'home') {
+          const policyFailed = next.policyState === 'mismatch' || next.policyState === 'unknown'
+          showSheinCoordinatorFailure(policyFailed ? 'policy' : 'region')
+        }
         return
       }
 
@@ -4474,6 +4667,8 @@ function App() {
             webviewErrorTimerRef.current = undefined
           }
           sheinChallengeActiveRef.current = true
+          markSheinOpening('humanVerificationDetection')
+          transitionSheinCoordinator({ type: 'HUMAN_VERIFICATION_REQUIRED' })
           setSheinBlockedError(false)
           markStoreWebviewReadyRef.current(webviewSessionRef.current)
           revealPreparedProductIfReady()
@@ -4514,6 +4709,7 @@ function App() {
         // event. This is status only: never reload/recreate the WebView or
         // touch challenge cookies after the customer has completed it.
         sheinChallengeActiveRef.current = false
+        transitionSheinCoordinator({ type: 'HUMAN_VERIFICATION_RESOLVED' })
         humanCheckNoticeRef.current = false
         setSheinBlockedError(false)
         markStoreWebviewReadyRef.current(webviewSessionRef.current)
@@ -5181,6 +5377,17 @@ function App() {
       recordAppDiagnostic('store_open_blocked', { store: id, reason: 'open_group_order' })
       showNotice(`لديك طلب مشترك مفتوح على ${storeName(selectedStoreRef.current)} — ألغِ الربط من السلة قبل دخول متجر آخر`)
       return
+    }
+    if (id === 'shein') {
+      sheinOpeningTraceRef.current = createSheinOpeningTrace()
+      // Start parsing the deferred store bundle while VPN reachability is being
+      // checked. This removes a real waterfall without moving store code back
+      // into application startup or weakening any readiness gate.
+      void loadStoreCaptureBundle().then((bundle) => {
+        storeCaptureBundleRef.current = bundle
+      }).catch(() => {
+        storeCaptureBundlePromise = undefined
+      })
     }
     const revealSelectedStore = () => {
       pendingStoreOpenAfterCloseRef.current = false
@@ -7906,6 +8113,16 @@ function App() {
             <button className="primary-action" onClick={() => {
               webviewAutoOpenPausedUntilRef.current = 0
               setSheinBlockedError(false)
+              if (storeOpenFailureReason === 'region' || storeOpenFailureReason === 'policy') {
+                if (webviewErrorTimerRef.current !== undefined) window.clearTimeout(webviewErrorTimerRef.current)
+                webviewErrorTimerRef.current = window.setTimeout(() => {
+                  webviewErrorTimerRef.current = undefined
+                  if (!sheinReadyRef.current && screenRef.current === 'home') setSheinBlockedError(true)
+                }, 8000)
+                void InAppBrowser.postMessage({ detail: { type: '__verifySheinState' } })
+                  .catch(() => showSheinCoordinatorFailure(storeOpenFailureReason))
+                return
+              }
               // Closes the webview outright instead of setUrl()+show() on the
               // SAME instance - a failed connection attempt (e.g. one that
               // raced a just-toggled VPN still settling) left this exact
@@ -7920,6 +8137,20 @@ function App() {
               <Icon name="refresh" />
               {storeFailureAdvice.action}
             </button>
+            {storeOpenFailureReason === 'region' || storeOpenFailureReason === 'policy' ? <button className="ghost-action" onClick={() => {
+              if (webviewErrorTimerRef.current !== undefined) {
+                window.clearTimeout(webviewErrorTimerRef.current)
+                webviewErrorTimerRef.current = undefined
+              }
+              transitionSheinCoordinator({ type: 'CLOSE' })
+              setSheinBlockedError(false)
+              screenRef.current = 'store-select'
+              flushSync(() => setScreen('store-select'))
+              void InAppBrowser.hide().catch(() => undefined)
+            }}>
+              <Icon name="close" />
+              إغلاق المتجر
+            </button> : null}
             {storeOpenFailureReason === 'network' ? <button className="ghost-action" onClick={() => {
               // يرجع لبوابة الفحص الذكي: يغلق الـwebview العالق ويعيد فحص
               // الوصول + منطقة الـVPN فيوجَّه المستخدم (شغّل/غيّر المنطقة).

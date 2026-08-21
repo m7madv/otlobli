@@ -1,4 +1,20 @@
-# Active handoff — v86.207 production release candidate (2026-08-21)
+# Active handoff — v86.208 final enablement (2026-08-21)
+
+Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-208-final-enablement`
+on `codex/otlobli-v86-208-final-enablement`. Its protected source is
+`codex/otlobli-final-production-release` at
+`c18363c9a5712239d53bdf97880058036f9b2198`. Do not modify product capture,
+Temu, root/product Back, store chooser, double-Home switching, or revive the old
+freeze diagnostics. The live SHEIN administration state is QA/USD/ar.
+
+Read every file under `docs/final-enablement/`. Code-side work and Supabase
+deployment are complete; the only allowed continuation is to supply the exact
+portal/signing values in `MANUAL_PORTAL_ACTIONS.md`, run the fail-closed signed
+workflow once, and execute the physical matrix. Never claim APNs, Google iOS,
+Apple login, account deletion, signed artifacts, or release readiness without
+that evidence.
+
+# Historical handoff — v86.207 production release candidate (2026-08-21)
 
 Work only in `C:\Users\MOHAMMAD\Projects\otlobli-final-production-release` on
 `codex/otlobli-final-production-release`. Baseline is v86.201 commit

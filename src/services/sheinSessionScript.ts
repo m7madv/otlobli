@@ -69,8 +69,15 @@ export const SHEIN_SESSION_SCRIPT = `
     OM: ['Oman', 'عمان', 'عُمان'],
     QA: ['Qatar', 'قطر']
   };
-  var SHEIN_REQUIRED_CURRENCY = 'USD';
-  var SHEIN_REQUIRED_LANGUAGE = 'ar';
+  // Currency and language come from the same validated administration setting
+  // as country/address. The production app-settings function currently accepts
+  // only USD/ar, but keeping one authoritative object prevents host/script drift.
+  var SHEIN_REQUIRED_CURRENCY_CANDIDATE = String(OTLOBLI_SHEIN_REGION.currency || 'USD').toUpperCase();
+  var SHEIN_REQUIRED_LANGUAGE_CANDIDATE = String(OTLOBLI_SHEIN_REGION.language || 'ar').toLowerCase();
+  var SHEIN_REQUIRED_CURRENCY = ['USD'].indexOf(SHEIN_REQUIRED_CURRENCY_CANDIDATE) >= 0
+    ? SHEIN_REQUIRED_CURRENCY_CANDIDATE : 'USD';
+  var SHEIN_REQUIRED_LANGUAGE = ['ar'].indexOf(SHEIN_REQUIRED_LANGUAGE_CANDIDATE) >= 0
+    ? SHEIN_REQUIRED_LANGUAGE_CANDIDATE : 'ar';
   var SHEIN_REQUIRED_SITE_UID = 'pwar';
   var SHEIN_CHALLENGE_PATH_RE = /\\/(?:cdn-cgi|challenge|captcha|verify|verification|security|robot|risk|anti[-_]?bot|human)(?:\\/|$)/i;
   var SHEIN_CHALLENGE_QUERY_RE = /(?:^|[?&#])(?:captcha|challenge|verification|security_token|risk|robot|anti[-_]?bot|human)=/i;
@@ -375,6 +382,76 @@ export const SHEIN_SESSION_SCRIPT = `
     return interactiveCount >= 1 && (loadedImageCount >= 1 || bodyText.length >= 500);
   }
 
+  function sheinStoredScalarSignal(key, required) {
+    try {
+      var raw = localStorage.getItem(key);
+      if (!raw) return 'unknown';
+      var value = raw;
+      try {
+        var parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') value = parsed.value || parsed.code || parsed.name || '';
+        else if (typeof parsed === 'string') value = parsed;
+      } catch (e) {}
+      value = String(value || '').trim();
+      if (!value) return 'unknown';
+      return value.toLowerCase() === String(required).toLowerCase() ? 'matching' : 'mismatch';
+    } catch (e) {
+      return 'unknown';
+    }
+  }
+
+  function sheinCoordinatorSnapshot() {
+    var addressCountry = sheinAddressCookieCountry();
+    var countryState = addressCountry
+      ? (addressCountry === SHEIN_REQUIRED_COUNTRY ? 'matching' : 'mismatch')
+      : 'unknown';
+    var regionState = sheinSignedSaudiAddressReady()
+      ? 'matching'
+      : (countryState === 'mismatch' ? 'mismatch' : 'unknown');
+    var currencyState = 'unknown';
+    var languageState = 'unknown';
+    var loginPathPattern = new RegExp('/(?:user/)?(?:login|signin|sign-in|auth/login)(?:[/?#.-]|$)', 'i');
+    var loginState = loginPathPattern.test(location.pathname || '')
+      ? 'detected' : 'not-required';
+    try {
+      var u = new URL(location.href);
+      var currencyParam = u.searchParams.get('currency');
+      var languageParam = u.searchParams.get('lang') || u.searchParams.get('language');
+      if (currencyParam) currencyState = currencyParam.toUpperCase() === SHEIN_REQUIRED_CURRENCY ? 'matching' : 'mismatch';
+      var storedCurrency = sheinStoredScalarSignal('currency', SHEIN_REQUIRED_CURRENCY);
+      if (storedCurrency === 'mismatch' || currencyState === 'mismatch') currencyState = 'mismatch';
+      else if (storedCurrency === 'matching' || currencyState === 'matching') currencyState = 'matching';
+
+      var pathLanguage = String(u.pathname || '').match(new RegExp('^/([a-z]{2})(?:[-/]|$)', 'i'));
+      if (pathLanguage) languageState = pathLanguage[1].toLowerCase() === SHEIN_REQUIRED_LANGUAGE ? 'matching' : 'mismatch';
+      if (languageParam) {
+        var languageParamState = languageParam.toLowerCase() === SHEIN_REQUIRED_LANGUAGE ? 'matching' : 'mismatch';
+        if (languageParamState === 'mismatch' || languageState === 'mismatch') languageState = 'mismatch';
+        else languageState = 'matching';
+      }
+      var documentLanguage = String(document.documentElement && document.documentElement.lang || '').toLowerCase();
+      if (documentLanguage) {
+        var documentLanguageState = documentLanguage.indexOf(SHEIN_REQUIRED_LANGUAGE) === 0 ? 'matching' : 'mismatch';
+        if (documentLanguageState === 'mismatch' || languageState === 'mismatch') languageState = 'mismatch';
+        else languageState = 'matching';
+      }
+    } catch (e) {}
+
+    var policy = window.__otlobliSheinPolicyEngine;
+    var policyState = policy && policy.version && policy.observer ? 'verified' : (policy ? 'installed' : 'unknown');
+    return {
+      countryState: countryState,
+      regionState: regionState,
+      currencyState: currencyState,
+      languageState: languageState,
+      loginState: loginState,
+      humanVerificationState: otlobliIsHumanChallenge() ? 'required' : 'none',
+      policyState: policyState,
+      captureState: window.__otlobliStoreRuntimeReady === true ? 'ready' : 'installing',
+      interactive: sheinPageLooksInteractive()
+    };
+  }
+
   function sheinPostNativeCoverState(type) {
     if (!IS_SHEIN) return;
     var key = type + '|' + location.pathname;
@@ -382,7 +459,10 @@ export const SHEIN_SESSION_SCRIPT = `
     try {
       if (window.mobileApp && window.mobileApp.postMessage) {
         sheinNativeCoverLastKey = key;
-        window.mobileApp.postMessage({ detail: { type: type } });
+        if (window.__otlobliSheinPolicyEngine && window.__otlobliSheinPolicyEngine.verify) {
+          window.__otlobliSheinPolicyEngine.verify('region-state');
+        }
+        window.mobileApp.postMessage({ detail: { type: type, coordinator: sheinCoordinatorSnapshot() } });
       }
     } catch (e) {}
   }
@@ -1608,7 +1688,7 @@ export const SHEIN_SESSION_SCRIPT = `
     // ممنوع إعادة تحميل أثناء تحقق «أنا إنسان» — تصفّر حل المستخدم.
     if (shouldReloadSheinForSaudi() && !otlobliIsHumanChallenge()) {
       var arRedirectAttempts = parseInt(sessionStorage.getItem('__otlobliArRedirects') || '0', 10);
-      if (arRedirectAttempts < 2) {
+      if (arRedirectAttempts < 1) {
         sessionStorage.setItem('__otlobliArRedirects', String(arRedirectAttempts + 1));
         location.replace(normalizedArabicUrl);
         return;
@@ -1631,6 +1711,23 @@ export const SHEIN_SESSION_SCRIPT = `
   if (window.__otlobliInjected) return;
   window.__otlobliInjected = true;
   window.__otlobliStoreRuntimeReady = true;
+
+  window.addEventListener('messageFromNative', function (event) {
+    var detail = event && event.detail;
+    if (!detail || detail.type !== '__verifySheinState') return;
+    try {
+      if (window.__otlobliSheinPolicyEngine && window.__otlobliSheinPolicyEngine.verify) {
+        window.__otlobliSheinPolicyEngine.verify('host-retry');
+      }
+      if (sheinSignedSaudiAddressReady() && sheinPageLooksInteractive()) {
+        sheinPostNativeCoverState('sheinSaudiReady');
+        return;
+      }
+      if (window.mobileApp && window.mobileApp.postMessage) {
+        window.mobileApp.postMessage({ detail: { type: 'sheinCoordinatorState', coordinator: sheinCoordinatorSnapshot() } });
+      }
+    } catch (e) {}
+  });
 
   if (!sessionStorage.getItem('__otlobliHomePath')) {
     sessionStorage.setItem('__otlobliHomePath', location.pathname);

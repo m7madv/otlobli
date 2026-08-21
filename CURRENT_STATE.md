@@ -1,3 +1,23 @@
+# v86.208 — final enablement current state (2026-08-21)
+
+Work is isolated on `codex/otlobli-v86-208-final-enablement` in
+`C:\Users\MOHAMMAD\Projects\otlobli-v86-208-final-enablement`, based on protected
+HEAD `c18363c9a5712239d53bdf97880058036f9b2198`, with version/build
+`86.208/1070`. Product capture remains byte-identical and Temu is unchanged.
+
+The release adds a bounded versioned SHEIN policy layer, native forbidden-route
+enforcement, independent region/readiness coordination, and opening timing.
+The live admin setting was verified as QA/USD/ar. Supabase migration
+`20260821090000_production_auth_push.sql` and functions `google-auth`,
+`send-push`, `apple-auth`, and `account-lifecycle` are deployed. Local gates,
+production build/sync, artifact scans, and Android compile/unit tests pass.
+
+Release ready remains **no**: Apple/APNs/Google iOS and Android signing inputs
+are absent, no signed IPA/AAB/APK exists, and the required physical device,
+push, OAuth, deletion, policy, region, Temu, and performance matrix has not run.
+The authoritative handoff is `docs/final-enablement/FINAL_RELEASE_ACCEPTANCE.md`
+and exact remaining actions are in `docs/final-enablement/MANUAL_PORTAL_ACTIONS.md`.
+
 # v86.207 — final production release candidate preparation (2026-08-21)
 
 Release work is isolated on `codex/otlobli-final-production-release`, based on

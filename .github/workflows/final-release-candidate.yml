@@ -75,6 +75,7 @@ jobs:
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
+          mkdir -p artifacts/final-enablement/ios
           xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
             -archivePath "$RUNNER_TEMP/Otlobli.xcarchive" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Manual \
@@ -90,13 +91,29 @@ jobs:
           <key>provisioningProfiles</key><dict><key>com.otlobli.app</key><string>${PROFILE_NAME}</string></dict>
           </dict></plist>
           PLIST
+          app="$RUNNER_TEMP/Otlobli.xcarchive/Products/Applications/App.app"
+          codesign -d --entitlements :- "$app" > artifacts/final-enablement/ios/ARCHIVE_ENTITLEMENTS.plist 2>/dev/null
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist" > artifacts/final-enablement/ios/BUNDLE_ID.txt
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Info.plist" > artifacts/final-enablement/ios/VERSION.txt
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app/Info.plist" > artifacts/final-enablement/ios/BUILD.txt
+          {
+            /usr/libexec/PlistBuddy -c 'Print :Name' "$RUNNER_TEMP/profile.plist"
+            /usr/libexec/PlistBuddy -c 'Print :UUID' "$RUNNER_TEMP/profile.plist"
+            /usr/libexec/PlistBuddy -c 'Print :TeamIdentifier' "$RUNNER_TEMP/profile.plist"
+            /usr/libexec/PlistBuddy -c 'Print :ExpirationDate' "$RUNNER_TEMP/profile.plist"
+            /usr/libexec/PlistBuddy -c 'Print :Entitlements' "$RUNNER_TEMP/profile.plist"
+          } > artifacts/final-enablement/ios/PROVISIONING_PROFILE_REPORT.txt
+          set -o pipefail
           xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/Otlobli.xcarchive" \
-            -exportPath artifacts/final-release/ios -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist"
-          shasum -a 256 artifacts/final-release/ios/*.ipa > artifacts/final-release/ios/SHA256SUMS.txt
+            -exportPath artifacts/final-enablement/ios -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            2>&1 | tee artifacts/final-enablement/ios/EXPORT_VALIDATION.log
+          unzip -q artifacts/final-enablement/ios/*.ipa -d "$RUNNER_TEMP/otlobli-ipa-scan"
+          node scripts/scan-release-artifacts.mjs "$RUNNER_TEMP/Otlobli.xcarchive/Products/Applications/App.app" "$RUNNER_TEMP/otlobli-ipa-scan"
+          shasum -a 256 artifacts/final-enablement/ios/*.ipa > artifacts/final-enablement/ios/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: otlobli-v86.207-ios-signed
-          path: artifacts/final-release/ios
+          name: otlobli-v86.208-ios-signed
+          path: artifacts/final-enablement/ios
           retention-days: 30
 
   android-signed:
@@ -129,28 +146,38 @@ jobs:
       - run: npm run verify:production-release -- --artifacts=android
       - name: Configure Android upload key
         env:
-          ANDROID_UPLOAD_KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
-          OTLOBLI_APP_STORE_PASSWORD: ${{ secrets.OTLOBLI_APP_STORE_PASSWORD }}
-          OTLOBLI_APP_KEY_ALIAS: ${{ secrets.OTLOBLI_APP_KEY_ALIAS }}
-          OTLOBLI_APP_KEY_PASSWORD: ${{ secrets.OTLOBLI_APP_KEY_PASSWORD }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          test -n "$ANDROID_UPLOAD_KEYSTORE_BASE64"
-          test -n "$OTLOBLI_APP_STORE_PASSWORD"
-          test -n "$OTLOBLI_APP_KEY_ALIAS"
-          test -n "$OTLOBLI_APP_KEY_PASSWORD"
-          echo "$ANDROID_UPLOAD_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/otlobli-upload.jks"
+          test -n "$ANDROID_KEYSTORE_BASE64"
+          test -n "$ANDROID_KEYSTORE_PASSWORD"
+          test -n "$ANDROID_KEY_ALIAS"
+          test -n "$ANDROID_KEY_PASSWORD"
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/otlobli-upload.jks"
           echo "OTLOBLI_APP_STORE_FILE=$RUNNER_TEMP/otlobli-upload.jks" >> "$GITHUB_ENV"
+          echo "OTLOBLI_APP_STORE_PASSWORD=$ANDROID_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "OTLOBLI_APP_KEY_ALIAS=$ANDROID_KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "OTLOBLI_APP_KEY_PASSWORD=$ANDROID_KEY_PASSWORD" >> "$GITHUB_ENV"
       - name: Build signed AAB and APK
         working-directory: android
         run: |
           chmod +x gradlew
           ./gradlew bundleRelease assembleRelease
-          mkdir -p ../artifacts/final-release/android
-          cp app/build/outputs/bundle/release/app-release.aab ../artifacts/final-release/android/
-          cp app/build/outputs/apk/release/app-release.apk ../artifacts/final-release/android/
-          sha256sum ../artifacts/final-release/android/* > ../artifacts/final-release/android/SHA256SUMS.txt
+          mkdir -p ../artifacts/final-enablement/android
+          cp app/build/outputs/bundle/release/app-release.aab ../artifacts/final-enablement/android/
+          cp app/build/outputs/apk/release/app-release.apk ../artifacts/final-enablement/android/
+          apksigner verify --verbose --print-certs ../artifacts/final-enablement/android/app-release.apk > ../artifacts/final-enablement/android/APK_SIGNATURE_REPORT.txt
+          jarsigner -verify -verbose -certs ../artifacts/final-enablement/android/app-release.aab > ../artifacts/final-enablement/android/AAB_SIGNATURE_REPORT.txt
+          aapt dump badging ../artifacts/final-enablement/android/app-release.apk > ../artifacts/final-enablement/android/APK_PACKAGE_REPORT.txt
+          mkdir -p "$RUNNER_TEMP/otlobli-apk-scan" "$RUNNER_TEMP/otlobli-aab-scan"
+          unzip -q ../artifacts/final-enablement/android/app-release.apk -d "$RUNNER_TEMP/otlobli-apk-scan"
+          unzip -q ../artifacts/final-enablement/android/app-release.aab -d "$RUNNER_TEMP/otlobli-aab-scan"
+          node ../scripts/scan-release-artifacts.mjs "$RUNNER_TEMP/otlobli-apk-scan" "$RUNNER_TEMP/otlobli-aab-scan"
+          sha256sum ../artifacts/final-enablement/android/app-release.aab ../artifacts/final-enablement/android/app-release.apk > ../artifacts/final-enablement/android/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: otlobli-v86.207-android-signed
-          path: artifacts/final-release/android
+          name: otlobli-v86.208-android-signed
+          path: artifacts/final-enablement/android
           retention-days: 30

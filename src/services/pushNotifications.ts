@@ -23,6 +23,7 @@ type SettingsPlugin = {
 
 const NativeSettings = registerPlugin<SettingsPlugin>('OtlobliSettings')
 const routeListeners = new Set<(destination: SafePushDestination) => void>()
+let pendingLaunchDestination: SafePushDestination | null = null
 let nativeRegistrationStarted = false
 let listenersInstalled = false
 let activeSessionToken = ''
@@ -68,6 +69,14 @@ async function getPushContext(platform: NativePlatform): Promise<{
 function emitSafeRoute(data: Record<string, unknown> | undefined): void {
   const destination = parseSafePushPayload(data)
   if (!destination) return
+  if (routeListeners.size === 0) {
+    // Capacitor retains a terminated-launch action until its JS listener is
+    // attached. Keep the validated destination one step further until React's
+    // authenticated route listener is ready, otherwise a very fast cold launch
+    // can consume and lose the tap before account hydration completes.
+    pendingLaunchDestination = destination
+    return
+  }
   for (const listener of routeListeners) listener(destination)
 }
 
@@ -210,11 +219,14 @@ export async function registerPushNotifications(sessionToken: string): Promise<v
 
 export async function detachPushToken(sessionToken: string): Promise<void> {
   if (!supabase || !sessionToken || !nativePlatform()) return
+  // Stop rotation from reattaching the logged-out owner even when the network
+  // call fails. The current device token stays in memory and will be attached
+  // only after a later authenticated session is established.
+  activeSessionToken = ''
   await supabase.rpc('detach_device_token', {
     p_session_token: sessionToken,
     p_installation_id: installationId(),
   })
-  activeSessionToken = ''
 }
 
 export async function openPushSettings(): Promise<void> {
@@ -232,6 +244,13 @@ export async function clearPushBadge(): Promise<void> {
 
 export function addPushRouteListener(listener: (destination: SafePushDestination) => void): () => void {
   routeListeners.add(listener)
+  if (pendingLaunchDestination) {
+    const destination = pendingLaunchDestination
+    pendingLaunchDestination = null
+    queueMicrotask(() => {
+      if (routeListeners.has(listener)) listener(destination)
+    })
+  }
   return () => routeListeners.delete(listener)
 }
 

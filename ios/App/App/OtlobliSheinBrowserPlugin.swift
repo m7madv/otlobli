@@ -14,6 +14,23 @@ import Capacitor
 public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
     WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
 
+    private enum SheinRouteClass: String {
+        case allowedPublic = "allowed-public"
+        case home, category, search, product
+        case humanVerification = "human-verification"
+        case blockedLogin = "blocked-login"
+        case blockedSignup = "blocked-signup"
+        case blockedAccount = "blocked-account"
+        case blockedCountry = "blocked-country"
+        case blockedRegion = "blocked-region"
+        case blockedLanguage = "blocked-language"
+        case blockedCurrency = "blocked-currency"
+        case blockedCheckout = "blocked-checkout"
+        case external, unknown
+    }
+
+    private static let sheinPolicyVersion = "2026.08.21-v86.208-policy-v1"
+
     public let identifier = "OtlobliSheinBrowserPlugin"
     public let jsName = "OtlobliSheinBrowser"
     public let pluginMethods: [CAPPluginMethod] = [
@@ -31,6 +48,9 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
 
     private var browserId = ""
     private var savedURL: URL?
+    private var lastSafePublicURL: URL?
+    private var lastBlockedRoute: SheinRouteClass?
+    private var lastBlockedRouteAt: Date?
     private var documentStartScript = ""
     private var loadingCoverEnabled = true
     private var isBrowserVisible = false
@@ -62,7 +82,8 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
     @objc func openWebView(_ call: CAPPluginCall) {
         guard let urlString = call.getString("url"),
               let url = URL(string: urlString),
-              isAllowedStoreURL(url) else {
+              isAllowedStoreURL(url),
+              !isBlockedRoute(classifySheinRoute(url)) else {
             call.reject("A valid SHEIN URL is required")
             return
         }
@@ -71,6 +92,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
             self.closeBrowser(emitEvent: false)
             self.browserId = "otlobli-shein-\(UUID().uuidString.lowercased())"
             self.savedURL = url
+            self.lastSafePublicURL = self.isSafePublicRoute(url) ? url : nil
             self.documentStartScript = call.getString("otlobliDocumentStartScript", "")
             self.loadingCoverEnabled = call.getBool("otlobliLoadingCover", true)
             self.isBrowserVisible = true
@@ -133,7 +155,8 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
     @objc func setUrl(_ call: CAPPluginCall) {
         guard let urlString = call.getString("url"),
               let url = URL(string: urlString),
-              isAllowedStoreURL(url) else {
+              isAllowedStoreURL(url),
+              !isBlockedRoute(classifySheinRoute(url)) else {
             call.reject("A valid SHEIN URL is required")
             return
         }
@@ -376,6 +399,9 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         destroyRenderSurface()
         browserId = ""
         savedURL = nil
+        lastSafePublicURL = nil
+        lastBlockedRoute = nil
+        lastBlockedRouteAt = nil
         documentStartScript = ""
         isBrowserVisible = false
         if emitEvent && !closingId.isEmpty {
@@ -391,6 +417,9 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
                   let changedURL = change.newValue ?? webView.url,
                   self.isAllowedStoreURL(changedURL) else { return }
             self.savedURL = changedURL
+            if self.isSafePublicRoute(changedURL) {
+                self.lastSafePublicURL = changedURL
+            }
             self.emit("urlChangeEvent", extra: ["url": changedURL.absoluteString])
         }
     }
@@ -424,6 +453,65 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
               scheme == "https" || scheme == "http",
               let host = url.host?.lowercased() else { return false }
         return host == "shein.com" || host.hasSuffix(".shein.com")
+    }
+
+    private func matches(_ pattern: String, in value: String) -> Bool {
+        value.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
+    }
+
+    private func classifySheinRoute(_ url: URL) -> SheinRouteClass {
+        guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else { return .unknown }
+        guard isAllowedStoreURL(url) else { return .external }
+        let path = url.path.lowercased()
+        let route = path + (url.query.map { "?" + $0 } ?? "") + (url.fragment.map { "#" + $0 } ?? "")
+        if matches(#"/(?:cdn-cgi|challenge|captcha|verify|verification|security|robot|risk|anti[-_]?bot|human)(?:[/?#.-]|$)"#, in: path) ||
+            matches(#"(?:^|[?&#])(?:captcha|challenge|verification|security_token|risk|robot|anti[-_]?bot|human)="#, in: route) { return .humanVerification }
+        if matches(#"/(?:user/)?(?:login|signin|sign-in|auth/login)(?:[/?#.-]|$)"#, in: path) { return .blockedLogin }
+        if matches(#"/(?:user/)?(?:register|signup|sign-up|join)(?:[/?#.-]|$)"#, in: path) { return .blockedSignup }
+        if matches(#"/(?:user|account|profile|my-account|member|orders?)(?:[/?#.-]|$)"#, in: path) { return .blockedAccount }
+        if matches(#"/(?:country|countries|ship-to|shipping-country)(?:[/?#.-]|$)"#, in: path) { return .blockedCountry }
+        if matches(#"/(?:region|location|shipping-address|address-book)(?:[/?#.-]|$)"#, in: path) { return .blockedRegion }
+        if matches(#"/(?:language|languages|locale)(?:[/?#.-]|$)"#, in: path) { return .blockedLanguage }
+        if matches(#"/(?:currency|currencies)(?:[/?#.-]|$)"#, in: path) { return .blockedCurrency }
+        if matches(#"/(?:cart|bag|checkout|order-confirm|payment)(?:[/?#.-]|$)"#, in: path) { return .blockedCheckout }
+        if matches(#"(?:-p-[0-9]+|/product/|/goods/|/item/)"#, in: path) ||
+            matches(#"[?&](?:goods_id|goodsid|product_id|productid|mallcode|skc)="#, in: route) { return .product }
+        if matches(#"/(?:search|search-result)(?:[/?#.-]|$)"#, in: path) || URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.contains(where: { $0.name.lowercased() == "search" }) == true { return .search }
+        if matches(#"/(?:category|categories|collection|collections|campaign|daily|women|men|kids|curve|home-living)(?:[/?#.-]|$)"#, in: path) { return .category }
+        let normalized = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        if normalized.isEmpty || matches(#"^[a-z]{2}(?:-[a-z]{2})?$"#, in: normalized) { return .home }
+        return .allowedPublic
+    }
+
+    private func isBlockedRoute(_ route: SheinRouteClass) -> Bool {
+        switch route {
+        case .blockedLogin, .blockedSignup, .blockedAccount, .blockedCountry,
+             .blockedRegion, .blockedLanguage, .blockedCurrency, .blockedCheckout:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func isSafePublicRoute(_ url: URL) -> Bool {
+        let route = classifySheinRoute(url)
+        return isAllowedStoreURL(url) && !isBlockedRoute(route) && route != .humanVerification && route != .unknown
+    }
+
+    private func emitPolicyBlocked(_ route: SheinRouteClass) {
+        let now = Date()
+        if lastBlockedRoute == route,
+           let lastBlockedRouteAt,
+           now.timeIntervalSince(lastBlockedRouteAt) < 1 {
+            return
+        }
+        lastBlockedRoute = route
+        lastBlockedRouteAt = now
+        emit("messageFromWebview", detail: [
+            "type": "sheinPolicyRouteBlocked",
+            "version": Self.sheinPolicyVersion,
+            "routeClass": route.rawValue
+        ])
     }
 
     private func emit(_ name: String, detail: [String: Any]? = nil, extra: [String: Any] = [:]) {
@@ -633,7 +721,9 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
                 updateNativeBackButton(detail)
                 return
             }
-            let readyTypes = ["sheinSaudiReady", "sheinPageInteractive", "humanCheck", "humanCheckResolved"]
+            // A painted page is not sufficient readiness. Keep the cover until
+            // required state is verified, or reveal the genuine human check.
+            let readyTypes = ["sheinSaudiReady", "humanCheck", "humanCheckResolved"]
             if let type = detail["type"] as? String, readyTypes.contains(type) {
                 hideLoadingCover()
             }
@@ -669,7 +759,18 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
 
     public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         guard webView === storeWebView else { return }
+        emit("messageFromWebview", detail: ["type": "sheinOpeningPhase", "phase": "navigationFinish"])
         emit("browserPageLoaded", extra: ["url": webView.url?.absoluteString ?? ""])
+    }
+
+    public func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+        guard webView === storeWebView else { return }
+        emit("messageFromWebview", detail: ["type": "sheinOpeningPhase", "phase": "initialNavigationStart"])
+    }
+
+    public func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+        guard webView === storeWebView else { return }
+        emit("messageFromWebview", detail: ["type": "sheinOpeningPhase", "phase": "navigationCommit"])
     }
 
     public func webView(
@@ -728,8 +829,12 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         windowFeatures: WKWindowFeatures
     ) -> WKWebView? {
         if navigationAction.targetFrame == nil, let url = navigationAction.request.url {
-            if isAllowedStoreURL(url) {
+            let route = classifySheinRoute(url)
+            if isBlockedRoute(route) {
+                emitPolicyBlocked(route)
+            } else if isAllowedStoreURL(url) {
                 savedURL = url
+                if isSafePublicRoute(url) { lastSafePublicURL = url }
                 webView.load(navigationAction.request)
             } else if UIApplication.shared.canOpenURL(url) {
                 UIApplication.shared.open(url)
@@ -764,6 +869,17 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
                 }
                 decisionHandler(.cancel)
                 return
+            }
+            if isTopLevel {
+                let route = classifySheinRoute(url)
+                if isBlockedRoute(route) {
+                    emitPolicyBlocked(route)
+                    decisionHandler(.cancel)
+                    return
+                }
+                if isSafePublicRoute(url) {
+                    lastSafePublicURL = url
+                }
             }
             decisionHandler(.allow)
             return

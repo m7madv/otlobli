@@ -19,6 +19,17 @@ const APNS_KEY = Deno.env.get('APNS_KEY') ?? '' // محتوى ملف .p8
 const APNS_KEY_ID = Deno.env.get('APNS_KEY_ID') ?? ''
 const APNS_TEAM_ID = Deno.env.get('APNS_TEAM_ID') ?? ''
 const APNS_BUNDLE_ID = Deno.env.get('APNS_BUNDLE_ID') ?? ''
+const APNS_TOPIC = 'com.otlobli.app'
+
+type DeliveryResult = {
+  provider: 'apns' | 'fcm'
+  ok: boolean
+  invalid: boolean
+  retryable: boolean
+  status: number
+  reason: string
+  requestId: string
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -108,9 +119,9 @@ async function sendFcm(
   title: string,
   bodyText: string,
   data: Record<string, string>,
-): Promise<{ ok: boolean; invalid: boolean }> {
+): Promise<DeliveryResult> {
   const auth = await getFcmAccessToken()
-  if (!auth) return { ok: false, invalid: false }
+  if (!auth) return { provider: 'fcm', ok: false, invalid: false, retryable: false, status: 0, reason: 'not_configured', requestId: '' }
   const res = await fetch(`https://fcm.googleapis.com/v1/projects/${auth.projectId}/messages:send`, {
     method: 'POST',
     headers: { authorization: `Bearer ${auth.token}`, 'content-type': 'application/json' },
@@ -129,12 +140,15 @@ async function sendFcm(
       },
     }),
   })
-  if (res.ok) return { ok: true, invalid: false }
+  if (res.ok) return { provider: 'fcm', ok: true, invalid: false, retryable: false, status: res.status, reason: '', requestId: '' }
   const errText = await res.text()
   // رموز خطأ FCM التي تعني أن الرمز لم يعد صالحاً.
   const invalid = /UNREGISTERED|INVALID_ARGUMENT|NOT_FOUND/i.test(errText)
-  console.error('FCM send failed', res.status, errText)
-  return { ok: false, invalid }
+  console.error('FCM send failed', { status: res.status, reason: invalid ? 'invalid_token' : 'provider_error' })
+  return {
+    provider: 'fcm', ok: false, invalid, retryable: res.status === 429 || res.status >= 500,
+    status: res.status, reason: invalid ? 'invalid_token' : 'provider_error', requestId: '',
+  }
 }
 
 // ── APNs (token-based, p8) ─────────────────────────────────────────────────
@@ -173,28 +187,63 @@ async function sendApns(
   bodyText: string,
   data: Record<string, string>,
   production: boolean,
-): Promise<{ ok: boolean; invalid: boolean }> {
+): Promise<DeliveryResult> {
   const jwt = await getApnsJwt()
-  if (!jwt || !APNS_BUNDLE_ID) return { ok: false, invalid: false }
+  if (!jwt || APNS_BUNDLE_ID !== APNS_TOPIC) {
+    return { provider: 'apns', ok: false, invalid: false, retryable: false, status: 0, reason: 'not_configured', requestId: '' }
+  }
   const host = production ? 'https://api.push.apple.com' : 'https://api.sandbox.push.apple.com'
-  const res = await fetch(`${host}/3/device/${token}`, {
-    method: 'POST',
-    headers: {
-      authorization: `bearer ${jwt}`,
-      'apns-topic': APNS_BUNDLE_ID,
-      'apns-push-type': 'alert',
-      'apns-priority': '10',
-    },
-    body: JSON.stringify({
-      aps: { alert: { title, body: bodyText }, sound: 'default', badge: 1 },
-      ...data,
-    }),
-  })
-  if (res.status === 200) return { ok: true, invalid: false }
-  const errText = await res.text()
-  const invalid = res.status === 410 || /BadDeviceToken|Unregistered/i.test(errText)
-  console.error('APNs send failed', res.status, errText)
-  return { ok: false, invalid }
+  const expiration = String(Math.floor(Date.now() / 1000) + 3600)
+  const retryStatuses = new Set([429, 500, 503])
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch(`${host}/3/device/${token}`, {
+        method: 'POST',
+        headers: {
+          authorization: `bearer ${jwt}`,
+          'apns-topic': APNS_TOPIC,
+          'apns-push-type': 'alert',
+          'apns-priority': '10',
+          'apns-expiration': expiration,
+        },
+        body: JSON.stringify({
+          aps: { alert: { title, body: bodyText }, sound: 'default', badge: 1 },
+          ...data,
+        }),
+      })
+      const requestId = res.headers.get('apns-id') ?? ''
+      if (res.status === 200) {
+        return { provider: 'apns', ok: true, invalid: false, retryable: false, status: 200, reason: '', requestId }
+      }
+      let reason = 'provider_error'
+      try {
+        const payload = await res.json() as { reason?: unknown }
+        if (typeof payload.reason === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(payload.reason)) reason = payload.reason
+      } catch {
+        // APNs normally returns JSON; keep a sanitized generic reason otherwise.
+      }
+      const invalid = res.status === 410 ||
+        (res.status === 400 && ['BadDeviceToken', 'DeviceTokenNotForTopic', 'Unregistered'].includes(reason))
+      const retryable = retryStatuses.has(res.status)
+      if (retryable && attempt < 2) {
+        const retryAfter = Number(res.headers.get('retry-after') ?? '')
+        const waitMs = Number.isFinite(retryAfter) && retryAfter > 0
+          ? Math.min(2000, retryAfter * 1000)
+          : [250, 750][attempt]
+        await new Promise((resolve) => setTimeout(resolve, waitMs))
+        continue
+      }
+      console.error('APNs send failed', { status: res.status, reason, requestId, attempt: attempt + 1 })
+      return { provider: 'apns', ok: false, invalid, retryable, status: res.status, reason, requestId }
+    } catch {
+      if (attempt < 2) {
+        await new Promise((resolve) => setTimeout(resolve, [250, 750][attempt]))
+        continue
+      }
+      return { provider: 'apns', ok: false, invalid: false, retryable: true, status: 0, reason: 'network_error', requestId: '' }
+    }
+  }
+  return { provider: 'apns', ok: false, invalid: false, retryable: true, status: 0, reason: 'retry_exhausted', requestId: '' }
 }
 
 Deno.serve(async (req) => {
@@ -264,19 +313,29 @@ Deno.serve(async (req) => {
 
   // إن لم تُضبط أي بوابة إرسال، اخرج بهدوء (خامل وآمن).
   const fcmReady = !!FCM_SERVICE_ACCOUNT_JSON
-  const apnsReady = !!(APNS_KEY && APNS_KEY_ID && APNS_TEAM_ID && APNS_BUNDLE_ID)
+  const apnsReady = !!(APNS_KEY && APNS_KEY_ID && APNS_TEAM_ID && APNS_BUNDLE_ID === APNS_TOPIC)
   if (!fcmReady && !apnsReady) return json({ sent: 0, reason: 'not_configured' })
 
   let sent = 0
   const toDisable: string[] = []
+  const delivery = {
+    apns: { sent: 0, invalid: 0, retryable: 0, failed: 0 },
+    fcm: { sent: 0, invalid: 0, retryable: 0, failed: 0 },
+  }
   for (const d of devices) {
-    let result = { ok: false, invalid: false }
+    let result: DeliveryResult = {
+      provider: d.platform === 'ios' ? 'apns' : 'fcm', ok: false, invalid: false,
+      retryable: false, status: 0, reason: 'provider_not_configured', requestId: '',
+    }
     if (d.platform === 'ios' && apnsReady) {
       result = await sendApns(d.token, title, bodyText, data, d.environment !== 'development')
     }
     else if (fcmReady) result = await sendFcm(d.token, title, bodyText, data)
-    if (result.ok) sent++
-    else if (result.invalid) toDisable.push(d.token)
+    const summary = delivery[result.provider]
+    if (result.ok) { sent++; summary.sent++ }
+    else if (result.invalid) { toDisable.push(d.token); summary.invalid++ }
+    else if (result.retryable) summary.retryable++
+    else summary.failed++
   }
 
   // تعطيل الرموز غير الصالحة.
@@ -284,5 +343,5 @@ Deno.serve(async (req) => {
     await supabase.rpc('disable_device_token', { p_token: t })
   }
 
-  return json({ sent, total: devices.length, disabled: toDisable.length })
+  return json({ sent, total: devices.length, disabled: toDisable.length, delivery })
 })

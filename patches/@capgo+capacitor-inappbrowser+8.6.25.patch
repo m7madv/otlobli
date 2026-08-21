@@ -143,7 +143,7 @@ index 6b4115a..8e557cf 100644
                            try {
                              window.AndroidInterface.show();
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
-index 8ae3e61..516a04a 100644
+index 8ae3e61..4988e7f 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
 +++ b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
 @@ -16,7 +16,13 @@ import android.graphics.Color;
@@ -214,15 +214,25 @@ index 8ae3e61..516a04a 100644
      private static final int MAX_MANAGED_DOWNLOAD_REDIRECTS = 10;
      private static final int BLOB_DOWNLOAD_CHUNK_BYTES = 64 * 1024;
      private static final long MAX_LEGACY_BLOB_DOWNLOAD_BYTES = 512L * 1024L;
-@@ -333,6 +372,33 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -333,6 +372,43 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
      private String proxyAccessToken;
      private final ExecutorService executorService = Executors.newCachedThreadPool();
      private final Handler mainHandler = new Handler(Looper.getMainLooper());
++    private static final String OTLOBLI_SHEIN_POLICY_VERSION = "2026.08.21-v86.208-policy-v1";
++    private String otlobliLastSafeSheinUrl = "";
++    private String otlobliLastBlockedSheinRoute = "";
++    private long otlobliLastBlockedSheinRouteAt = 0L;
 +    private View otlobliLoadingCover;
 +    private TextView otlobliLoadingCoverLabel;
 +    private String otlobliLoadingCoverMessage = "جاري تجهيز المتجر…";
 +    private boolean otlobliLoadingCoverAwaitingLayout = false;
-+    private final Runnable otlobliLoadingCoverTimeout = this::hideOtlobliLoadingCover;
++    private final Runnable otlobliLoadingCoverTimeout = () -> {
++        if (otlobliIsSheinSession()) {
++            otlobliEmitSheinMessage("sheinCoordinatorTimeout", "code", "readiness-timeout");
++            return;
++        }
++        hideOtlobliLoadingCover();
++    };
 +    private View otlobliOfflineCover;
 +    private TextView otlobliOfflineStatusLabel;
 +    private Button otlobliOfflineRetryButton;
@@ -248,7 +258,7 @@ index 8ae3e61..516a04a 100644
      private final Map<String, BlobDownloadSession> blobDownloadSessions = new ConcurrentHashMap<>();
      private final Map<String, ClientCertificateIdentity> clientCertificateIdentities = new ConcurrentHashMap<>();
      private int iconColor = Color.BLACK; // Default icon color
-@@ -382,6 +448,16 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -382,6 +458,16 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          this.capacitorWebView = capacitorWebView;
      }
  
@@ -265,7 +275,7 @@ index 8ae3e61..516a04a 100644
      public void setInstanceId(String id) {
          this.instanceId = id != null ? id : "";
      }
-@@ -433,6 +509,515 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -433,6 +519,599 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          openWebViewResolved = true;
      }
  
@@ -276,7 +286,7 @@ index 8ae3e61..516a04a 100644
 +
 +    private void scheduleOtlobliLoadingCoverTimeout() {
 +        mainHandler.removeCallbacks(otlobliLoadingCoverTimeout);
-+        mainHandler.postDelayed(otlobliLoadingCoverTimeout, 12_000L);
++        mainHandler.postDelayed(otlobliLoadingCoverTimeout, 25_000L);
 +    }
 +
 +    private void showOtlobliLoadingCover() {
@@ -768,7 +778,9 @@ index 8ae3e61..516a04a 100644
 +                    if (otlobliLoadingCoverLabel != null) otlobliLoadingCoverLabel.setText(otlobliLoadingCoverMessage);
 +                    showOtlobliLoadingCover();
 +                }
-+                case "sheinSaudiReady", "sheinPageInteractive", "humanCheck", "sheinBlocked" -> hideOtlobliLoadingCover();
++                // A painted page is not sufficient readiness. Keep the cover
++                // until required state is verified, or reveal the real check.
++                case "sheinSaudiReady", "humanCheck", "sheinBlocked" -> hideOtlobliLoadingCover();
 +                default -> {
 +                    // Other bridge messages are forwarded unchanged.
 +                }
@@ -778,10 +790,92 @@ index 8ae3e61..516a04a 100644
 +        }
 +    }
 +
++    private boolean otlobliIsSheinHost(String host) {
++        if (host == null) return false;
++        String normalized = host.toLowerCase(Locale.ROOT);
++        return "shein.com".equals(normalized) || normalized.endsWith(".shein.com");
++    }
++
++    private boolean otlobliIsSheinSession() {
++        try {
++            return _options != null && otlobliIsSheinHost(Uri.parse(_options.getUrl()).getHost());
++        } catch (Exception ignored) {
++            return false;
++        }
++    }
++
++    private boolean otlobliRouteMatches(String value, String pattern) {
++        return value != null && Pattern.compile(pattern, Pattern.CASE_INSENSITIVE).matcher(value).find();
++    }
++
++    private String otlobliClassifySheinRoute(String rawUrl) {
++        try {
++            Uri uri = Uri.parse(rawUrl);
++            String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
++            if (!"http".equals(scheme) && !"https".equals(scheme)) return "unknown";
++            if (!otlobliIsSheinHost(uri.getHost())) return "external";
++            String path = uri.getPath() == null ? "/" : uri.getPath().replaceAll("/{2,}", "/").toLowerCase(Locale.ROOT);
++            String route = path + (uri.getQuery() == null ? "" : "?" + uri.getQuery()) + (uri.getFragment() == null ? "" : "#" + uri.getFragment());
++            if (otlobliRouteMatches(path, "/(?:cdn-cgi|challenge|captcha|verify|verification|security|robot|risk|anti[-_]?bot|human)(?:[/?#.-]|$)") ||
++                otlobliRouteMatches(route, "(?:^|[?&#])(?:captcha|challenge|verification|security_token|risk|robot|anti[-_]?bot|human)=")) return "human-verification";
++            if (otlobliRouteMatches(path, "/(?:user/)?(?:login|signin|sign-in|auth/login)(?:[/?#.-]|$)")) return "blocked-login";
++            if (otlobliRouteMatches(path, "/(?:user/)?(?:register|signup|sign-up|join)(?:[/?#.-]|$)")) return "blocked-signup";
++            if (otlobliRouteMatches(path, "/(?:user|account|profile|my-account|member|orders?)(?:[/?#.-]|$)")) return "blocked-account";
++            if (otlobliRouteMatches(path, "/(?:country|countries|ship-to|shipping-country)(?:[/?#.-]|$)")) return "blocked-country";
++            if (otlobliRouteMatches(path, "/(?:region|location|shipping-address|address-book)(?:[/?#.-]|$)")) return "blocked-region";
++            if (otlobliRouteMatches(path, "/(?:language|languages|locale)(?:[/?#.-]|$)")) return "blocked-language";
++            if (otlobliRouteMatches(path, "/(?:currency|currencies)(?:[/?#.-]|$)")) return "blocked-currency";
++            if (otlobliRouteMatches(path, "/(?:cart|bag|checkout|order-confirm|payment)(?:[/?#.-]|$)")) return "blocked-checkout";
++            if (otlobliRouteMatches(path, "(?:-p-[0-9]+|/product/|/goods/|/item/)") ||
++                otlobliRouteMatches(route, "[?&](?:goods_id|goodsid|product_id|productid|mallcode|skc)=")) return "product";
++            if (otlobliRouteMatches(path, "/(?:search|search-result)(?:[/?#.-]|$)") || uri.getQueryParameter("search") != null) return "search";
++            if (otlobliRouteMatches(path, "/(?:category|categories|collection|collections|campaign|daily|women|men|kids|curve|home-living)(?:[/?#.-]|$)")) return "category";
++            String normalized = path.replaceAll("^/+|/+$", "");
++            if (normalized.isEmpty() || normalized.matches("(?i)^[a-z]{2}(?:-[a-z]{2})?$")) return "home";
++            return "allowed-public";
++        } catch (Exception ignored) {
++            return "unknown";
++        }
++    }
++
++    private boolean otlobliIsBlockedSheinRoute(String routeClass) {
++        return routeClass != null && routeClass.startsWith("blocked-");
++    }
++
++    private boolean otlobliIsSafePublicSheinRoute(String routeClass) {
++        return routeClass != null && !"external".equals(routeClass) && !"unknown".equals(routeClass) &&
++            !"human-verification".equals(routeClass) && !otlobliIsBlockedSheinRoute(routeClass);
++    }
++
++    private void otlobliEmitSheinMessage(String type, String key, String value) {
++        if (_options == null || _options.getCallbacks() == null) return;
++        try {
++            JSONObject detail = new JSONObject();
++            detail.put("type", type);
++            detail.put("version", OTLOBLI_SHEIN_POLICY_VERSION);
++            detail.put(key, value);
++            JSONObject payload = new JSONObject();
++            payload.put("detail", detail);
++            _options.getCallbacks().javascriptCallback(payload.toString());
++        } catch (JSONException ignored) {}
++    }
++
++    private void otlobliEmitOpeningPhase(String phase) {
++        if (otlobliIsSheinSession()) otlobliEmitSheinMessage("sheinOpeningPhase", "phase", phase);
++    }
++
++    private void otlobliEmitBlockedSheinRoute(String routeClass) {
++        long now = System.currentTimeMillis();
++        if (routeClass.equals(otlobliLastBlockedSheinRoute) && now - otlobliLastBlockedSheinRouteAt < 1000L) return;
++        otlobliLastBlockedSheinRoute = routeClass;
++        otlobliLastBlockedSheinRouteAt = now;
++        otlobliEmitSheinMessage("sheinPolicyRouteBlocked", "routeClass", routeClass);
++    }
++
      // Add this class to provide safer JavaScript interface
      private class JavaScriptInterface {
  
-@@ -480,6 +1065,63 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -480,6 +1159,63 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
              activity.runOnUiThread(() -> setHidden(true));
          }
  
@@ -845,7 +939,7 @@ index 8ae3e61..516a04a 100644
          @JavascriptInterface
          public void show() {
              if (!isJavaScriptControlAllowed()) {
-@@ -1263,6 +1905,32 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -1263,6 +1999,32 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          return false;
      }
  
@@ -878,7 +972,7 @@ index 8ae3e61..516a04a 100644
      private void previewDownloadedFileInWebView(File file, String mimeType, String sourceUrl) {
          WebView webView = _webView;
          if (webView == null || isDismissing) {
-@@ -1807,6 +2475,23 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -1807,6 +2569,23 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          applyDimensions();
  
          this._webView = findViewById(R.id.browser_view);
@@ -902,7 +996,7 @@ index 8ae3e61..516a04a 100644
  
          // Apply insets to fix edge-to-edge issues on Android 15+
          applyInsets();
-@@ -2715,6 +3400,20 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -2715,6 +3494,20 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                      }
                  }
              }
@@ -923,7 +1017,7 @@ index 8ae3e61..516a04a 100644
          }
  
          requestSafeAreaInsets();
-@@ -2991,6 +3690,14 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -2991,6 +3784,14 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                  return;
              }
  
@@ -938,20 +1032,48 @@ index 8ae3e61..516a04a 100644
              _options.getCallbacks().javascriptCallback(message);
          } catch (Exception e) {
              Log.e("InAppBrowser", "Error in postMessage: " + e.getMessage());
-@@ -4703,6 +5410,9 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4202,7 +5003,17 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+                     }
+                     Context context = view.getContext();
+                     String url = request.getUrl().toString();
+-                    Log.d("InAppBrowser", "shouldOverrideUrlLoading: " + url);
++                    if (request.isForMainFrame() && otlobliIsSheinSession()) {
++                        String routeClass = otlobliClassifySheinRoute(url);
++                        Log.d("InAppBrowser", "SHEIN main-frame route class: " + routeClass);
++                        if (otlobliIsBlockedSheinRoute(routeClass)) {
++                            otlobliEmitBlockedSheinRoute(routeClass);
++                            return true;
++                        }
++                        if (otlobliIsSafePublicSheinRoute(routeClass)) otlobliLastSafeSheinUrl = url;
++                    } else {
++                        Log.d("InAppBrowser", "shouldOverrideUrlLoading: non-SHEIN or subframe");
++                    }
+ 
+                     boolean isNotHttpOrHttps = !url.startsWith("https://") && !url.startsWith("http://");
+ 
+@@ -4703,6 +5514,14 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                      if (view == null || _webView == null) {
                          return;
                      }
++                    otlobliEmitOpeningPhase("initialNavigationStart");
++                    if (otlobliIsSheinSession()) {
++                        String routeClass = otlobliClassifySheinRoute(url);
++                        if (otlobliIsSafePublicSheinRoute(routeClass)) otlobliLastSafeSheinUrl = url;
++                    }
 +                    if (otlobliOfflineRetryInFlight) {
 +                        otlobliMainFrameLoadFailed = false;
 +                    }
                      if (ProxyRequestSupport.shouldInjectBridge(_options) && proxyBridgeScript != null && proxyAccessToken != null) {
                          String preparedProxyBridgeScript = prepareProxyBridgeScript();
                          if (preparedProxyBridgeScript != null) {
-@@ -4742,6 +5452,13 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4742,6 +5561,17 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                      if (view == null || _webView == null) {
                          return;
                      }
++                    // Android WebView has no public didCommit callback; page
++                    // finish is the first stable committed-main-frame boundary.
++                    otlobliEmitOpeningPhase("navigationCommit");
++                    otlobliEmitOpeningPhase("navigationFinish");
 +                    if (otlobliMainFrameLoadFailed) {
 +                        updateNavigationButtonsState();
 +                        return;
@@ -962,7 +1084,7 @@ index 8ae3e61..516a04a 100644
                      if (!isInitialized) {
                          isInitialized = true;
                          _webView.clearHistory();
-@@ -4801,14 +5518,63 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4801,14 +5631,63 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                      if (view == null || _webView == null) {
                          return;
                      }
@@ -1027,7 +1149,7 @@ index 8ae3e61..516a04a 100644
                  @SuppressLint("WebViewClientOnReceivedSslError")
                  @Override
                  public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
-@@ -4932,6 +5698,19 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4932,6 +5811,19 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
      @Override
      public void dismiss() {
          scheduleHostWebViewInsetRestore();
@@ -1047,7 +1169,7 @@ index 8ae3e61..516a04a 100644
  
          // First, stop any ongoing operations and disable further interactions
          if (_webView != null) {
-@@ -5586,17 +6365,50 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -5586,17 +6478,50 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          );
      }
  

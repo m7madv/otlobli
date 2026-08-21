@@ -1,4 +1,4 @@
--- Production identity + notification registry for v86.207.
+-- Production identity + notification registry used by v86.208.
 -- Extends the existing custom customer/session model; no second account system.
 
 create table if not exists public.customer_identities (
@@ -65,8 +65,29 @@ create index if not exists idx_device_tokens_installation on public.device_token
 create index if not exists idx_device_tokens_active_customer
   on public.device_tokens(customer_id) where notifications_enabled and invalidated_at is null;
 
+-- Keep one active provider token per installation. Preserve history by
+-- invalidating older duplicates before the partial unique index is created.
+with ranked_installations as (
+  select id, row_number() over (
+    partition by installation_id order by last_seen_at desc nulls last, updated_at desc, id desc
+  ) as rank
+  from public.device_tokens
+  where installation_id is not null and trim(installation_id) <> ''
+    and enabled and notifications_enabled and invalidated_at is null
+)
+update public.device_tokens tokens
+set enabled = false, notifications_enabled = false, invalidated_at = now(), updated_at = now()
+from ranked_installations ranked
+where tokens.id = ranked.id and ranked.rank > 1;
+
+create unique index if not exists uq_device_tokens_active_installation
+  on public.device_tokens(installation_id)
+  where installation_id is not null and enabled and notifications_enabled and invalidated_at is null;
+
 alter table public.customer_identities enable row level security;
 alter table public.device_tokens enable row level security;
+revoke all on table public.customer_identities from public, anon, authenticated;
+revoke all on table public.device_tokens from public, anon, authenticated;
 
 create table if not exists public.apple_authorizations (
   provider_user_id text primary key,

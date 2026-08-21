@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -6,13 +7,19 @@ import { runInNewContext } from 'node:vm'
 import ts from 'typescript'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const source = readFileSync(resolve(root, 'src/services/pushPayload.ts'), 'utf8')
-const compiled = ts.transpileModule(source, {
-  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-}).outputText
-const module = { exports: {} }
-runInNewContext(`(function(exports,module){${compiled}\n})(module.exports,module)`, { module, exports: module.exports })
-const { parseSafePushPayload } = module.exports
+const loadTypeScriptModule = (relativePath) => {
+  const source = readFileSync(resolve(root, relativePath), 'utf8')
+  const compiled = ts.transpileModule(source, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText
+  const module = { exports: {} }
+  runInNewContext(`(function(exports,module){${compiled}\n})(module.exports,module)`, {
+    module, exports: module.exports, URL, Set, Date, Math,
+  })
+  return module.exports
+}
+
+const { parseSafePushPayload } = loadTypeScriptModule('src/services/pushPayload.ts')
 
 assert.equal(JSON.stringify(
   parseSafePushPayload({ version: 1, type: 'order_update', route: 'orders/details', entityId: 'ORD-42' }),
@@ -37,11 +44,17 @@ for (const marker of ['appleid.apple.com/auth/revoke', 'token_type_hint', 'get_c
   assert.ok(lifecycle.includes(marker), `Account lifecycle missing ${marker}`)
 }
 const push = readFileSync(resolve(root, 'supabase/functions/send-push/index.ts'), 'utf8')
-for (const marker of ['allowedTypes', 'allowedRoutes', "return json({ error: 'invalid_payload' }, 400)", 'x-push-secret']) {
+for (const marker of [
+  'allowedTypes', 'allowedRoutes', "return json({ error: 'invalid_payload' }, 400)", 'x-push-secret',
+  "const APNS_TOPIC = 'com.otlobli.app'", "'apns-expiration': expiration", "'apns-push-type': 'alert'",
+  "'apns-priority': '10'", 'DeviceTokenNotForTopic', 'retryStatuses', 'attempt < 3',
+  "supabase.rpc('disable_device_token'", 'retryable', 'requestId',
+]) {
   assert.ok(push.includes(marker), `Push sender missing ${marker}`)
 }
+assert.ok(!push.includes("console.error('FCM send failed', res.status, errText)"), 'Push provider errors must not log raw bodies')
 const pushClient = readFileSync(resolve(root, 'src/services/pushNotifications.ts'), 'utf8')
-for (const marker of ['getPushContext', 'p_environment: pushContext.environment', 'detach_device_token']) {
+for (const marker of ['getPushContext', 'p_environment: pushContext.environment', 'detach_device_token', 'pendingLaunchDestination', 'queueMicrotask']) {
   assert.ok(pushClient.includes(marker), `Push client missing ${marker}`)
 }
 const rotationHandler = pushClient.slice(pushClient.indexOf('async function onRegistration'), pushClient.indexOf('async function installListeners'))
@@ -49,9 +62,101 @@ assert.ok(
   rotationHandler.indexOf('latestDeviceToken = token') < rotationHandler.indexOf('if (!activeSessionToken || !activePlatform) return'),
   'Push rotation must be retained even while logged out',
 )
+const detachHandler = pushClient.slice(pushClient.indexOf('export async function detachPushToken'), pushClient.indexOf('export async function openPushSettings'))
+assert.ok(
+  detachHandler.indexOf("activeSessionToken = ''") < detachHandler.indexOf("supabase.rpc('detach_device_token'"),
+  'Logout must stop token ownership before the network detach can fail',
+)
 const migration = readFileSync(resolve(root, 'supabase/migrations/20260821090000_production_auth_push.sql'), 'utf8')
 for (const marker of ['pg_advisory_xact_lock', 'delete from public.apple_authorizations', 'upsert_device_token_v2']) {
   assert.ok(migration.includes(marker), `Production migration missing ${marker}`)
 }
 
-console.log('Release service tests passed (payload allowlist + Google/Apple verification guards).')
+const policy = loadTypeScriptModule('src/services/sheinPolicyEngine.ts')
+const routeCases = [
+  ['https://m.shein.com/ar/', 'home'],
+  ['https://m.shein.com/ar/category/Women-sc-00828516.html', 'category'],
+  ['https://m.shein.com/ar/search?search=dress', 'search'],
+  ['https://m.shein.com/ar/Solid-Dress-p-123456.html', 'product'],
+  ['https://m.shein.com/user/login', 'blocked-login'],
+  ['https://m.shein.com/user/register', 'blocked-signup'],
+  ['https://m.shein.com/user/profile', 'blocked-account'],
+  ['https://m.shein.com/country', 'blocked-country'],
+  ['https://m.shein.com/region', 'blocked-region'],
+  ['https://m.shein.com/currency', 'blocked-currency'],
+  ['https://m.shein.com/language', 'blocked-language'],
+  ['https://m.shein.com/cart', 'blocked-checkout'],
+  ['https://m.shein.com/captcha/verify', 'human-verification'],
+]
+for (const [url, expected] of routeCases) {
+  assert.equal(policy.classifySheinRoute(url), expected, `Unexpected SHEIN route policy for ${url}`)
+}
+assert.equal(policy.isBlockedSheinRoute('human-verification'), false)
+assert.equal(policy.isBlockedSheinRoute('product'), false)
+const policyScript = policy.SHEIN_POLICY_DOCUMENT_START_SCRIPT
+assert.equal((policyScript.match(/new MutationObserver/g) ?? []).length, 1, 'Policy must own one observer')
+for (const forbidden of ["addEventListener('click'", "addEventListener('pointer", 'preventDefault(', 'window.fetch=', 'XMLHttpRequest.prototype', 'console.error=', 'history.pushState']) {
+  assert.ok(!policyScript.includes(forbidden), `Policy contains forbidden global interception: ${forbidden}`)
+}
+for (const required of ['installCount:1', 'MAX_ROOTS=96', 'MAX_NODES_PER_ROOT=320', 'data-otlobli-capture-owned', 'human-verification', 'duplicate-install']) {
+  assert.ok(policyScript.includes(required), `Policy missing bounded/idempotent marker: ${required}`)
+}
+
+const coordinator = loadTypeScriptModule('src/services/sheinRegionCoordinator.ts')
+const requiredRegion = { countryCode: 'sa', currency: 'usd', language: 'AR' }
+let state = coordinator.createSheinRegionCoordinator(requiredRegion)
+state = coordinator.transitionSheinRegionCoordinator(state, { type: 'OPEN', required: requiredRegion })
+state = coordinator.transitionSheinRegionCoordinator(state, { type: 'POLICY_INSTALLING' })
+state = coordinator.transitionSheinRegionCoordinator(state, { type: 'SNAPSHOT', snapshot: {
+  countryState: 'matching', regionState: 'matching', currencyState: 'matching', languageState: 'matching',
+  loginState: 'not-required', humanVerificationState: 'none', policyState: 'verified', captureState: 'ready', interactive: true,
+} })
+assert.equal(state.phase, 'READY')
+assert.deepEqual(JSON.parse(JSON.stringify(state.required)), { countryCode: 'SA', currency: 'USD', language: 'ar' })
+
+let mismatch = coordinator.createSheinRegionCoordinator(requiredRegion)
+mismatch = coordinator.transitionSheinRegionCoordinator(mismatch, { type: 'OPEN', required: requiredRegion })
+mismatch = coordinator.transitionSheinRegionCoordinator(mismatch, { type: 'SNAPSHOT', snapshot: { currencyState: 'mismatch' } })
+assert.equal(mismatch.phase, 'FAILED')
+assert.equal(mismatch.countryState, 'unknown', 'Coordinator fields must remain independent')
+
+let repair = coordinator.createSheinRegionCoordinator(requiredRegion)
+repair = coordinator.transitionSheinRegionCoordinator(repair, { type: 'OPEN', required: requiredRegion })
+repair = coordinator.transitionSheinRegionCoordinator(repair, { type: 'REPAIR_REQUIRED', code: 'first' })
+assert.equal(repair.phase, 'REPAIRING_ONCE')
+assert.equal(repair.repairCount, 1)
+repair = coordinator.transitionSheinRegionCoordinator(repair, { type: 'REPAIR_REQUIRED', code: 'second' })
+assert.equal(repair.phase, 'FAILED')
+
+let challenge = coordinator.createSheinRegionCoordinator(requiredRegion)
+challenge = coordinator.transitionSheinRegionCoordinator(challenge, { type: 'OPEN', required: requiredRegion })
+challenge = coordinator.transitionSheinRegionCoordinator(challenge, { type: 'HUMAN_VERIFICATION_REQUIRED' })
+assert.equal(challenge.phase, 'HUMAN_VERIFICATION')
+assert.equal(challenge.humanVerificationState, 'required')
+
+const opening = loadTypeScriptModule('src/services/sheinOpeningPerformance.ts')
+let trace = opening.createSheinOpeningTrace(1000)
+trace = opening.markSheinOpeningPhase(trace, 'browserOpenRequested', 1100)
+trace = opening.markSheinOpeningPhase(trace, 'storeVisibleInteractive', 2500)
+const record = opening.completeSheinOpeningTrace(trace)
+assert.equal(record.totalMs, 1500)
+assert.deepEqual(JSON.parse(JSON.stringify(opening.summarizeSheinOpeningRecords([
+  { ...record, totalMs: 1000 }, { ...record, totalMs: 2000 }, { ...record, totalMs: 3000 },
+]))), { samples: 3, medianMs: 2000, p95Ms: 3000, slowestMs: 3000 })
+
+const protectedHashes = new Map([
+  ['src/services/sheinBrowserScript.ts', '6793A8C52D46A8B4F29722A6A6E22B9ABB9B1C35FD95C1A77D0BD14DB46272FC'],
+  ['src/services/storeProductCaptureScript.ts', '5A5E2E99A3656E143C108DC2E56463B5214FBDFC4EB030D120806E79BAF41788'],
+  ['src/services/sheinSkuTap.ts', 'F675AF9D4FC75595914DF97D907FEE2472691204EEF89F89844871662F676619'],
+])
+for (const [file, expected] of protectedHashes) {
+  const actual = createHash('sha256').update(readFileSync(resolve(root, file))).digest('hex').toUpperCase()
+  assert.equal(actual, expected, `Product-capture regression: ${file}`)
+}
+
+const nativeBrowser = readFileSync(resolve(root, 'ios/App/App/OtlobliSheinBrowserPlugin.swift'), 'utf8')
+const nativeBack = nativeBrowser.slice(nativeBrowser.indexOf('@objc private func nativeBackPressed()'), nativeBrowser.indexOf('private func mobileBridgeScript()'))
+assert.ok(nativeBack.indexOf('if isCanonicalSheinHomeURL(webView.url)') < nativeBack.indexOf('if webView.canGoBack'), 'Root Back must exit before WebKit history')
+assert.ok(nativeBack.includes('webView.goBack()'), 'Product/category Back must retain WebKit history')
+
+console.log('Release service tests passed (policy, region, opening, capture hashes, push, auth and deletion guards).')
