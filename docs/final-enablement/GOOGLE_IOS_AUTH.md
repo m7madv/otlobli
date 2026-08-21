@@ -17,4 +17,3 @@ GitHub secrets. `GOOGLE_CLIENT_IDS` exists in Supabase, but it must retain the
 current Web/Android audiences and append the new iOS client. Until both actions
 are completed and physical first-login/cancel/restore/logout/account-link tests
 pass, Google Sign-In on iOS is not accepted.
-

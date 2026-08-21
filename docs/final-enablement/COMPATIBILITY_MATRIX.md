@@ -11,4 +11,3 @@ The owner previously reported about 30 successful store flows after the
 affected iPhone received a newer iOS 27 beta/WebKit build. That evidence applies
 to the earlier production line, not unbuilt/uninstalled v86.208, and is not
 counted as this candidate's acceptance.
-

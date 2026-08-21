@@ -38,4 +38,3 @@ Release ready: **no**. Exact remaining work is limited to the credentials,
 portal configuration, signed builds, and physical tests enumerated in
 `MANUAL_PORTAL_ACTIONS.md`. No App Store, TestFlight, or Google Play submission
 was performed.
-

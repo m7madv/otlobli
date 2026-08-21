@@ -35,4 +35,3 @@ store switch, WebView recreation, or SHEIN-login requirement.
 
 Automated correct/mismatch/one-repair/no-loop/human/failure/independent-field
 tests pass. Physical verification against the live QA setting remains pending.
-

@@ -22,4 +22,3 @@ exact installation or customer plus explicit `--send`.
 The function is deployed and unauthenticated smoke testing correctly returned
 401. Delivery cannot be proven until APNs key secrets, a production-enabled
 profile, and a physical device token exist.
-

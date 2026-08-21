@@ -19,4 +19,3 @@ Static and contract tests cover permission gating, payload version and route
 allowlist, token upsert/rotation/detach behavior, terminated-launch buffering,
 APNs retry/permanent status handling, and Android provider preservation. These
 checks are not a substitute for physical delivery.
-

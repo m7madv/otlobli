@@ -26,7 +26,6 @@ export type SheinOpeningRecord = {
   durationsMs: Partial<Record<SheinOpeningPhase, number>>
   humanVerification: boolean
 }
-
 export const createSheinOpeningTrace = (at = Date.now()): SheinOpeningTrace => ({
   id: `shein-${at.toString(36)}`,
   startedAt: at,
@@ -68,4 +67,3 @@ export function summarizeSheinOpeningRecords(records: SheinOpeningRecord[]) {
     slowestMs: values.length ? values[values.length - 1] : null,
   }
 }
-

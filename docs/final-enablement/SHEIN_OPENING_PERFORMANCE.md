@@ -24,4 +24,3 @@ This is a measurement target, not a shipping claim.
 The previously reported 10–11 seconds is an observation from an earlier build,
 not a measured v86.208 baseline. Physical timing data must be exported from the
 bounded local records during acceptance.
-

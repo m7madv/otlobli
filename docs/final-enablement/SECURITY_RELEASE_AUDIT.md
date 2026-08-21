@@ -24,4 +24,3 @@ capture/navigation composition still contains its historical document
 listeners/history integration. v86.208's new policy layer adds none of those;
 removing them would violate the byte-identical product-capture requirement and
 requires a separately approved regression project.
-

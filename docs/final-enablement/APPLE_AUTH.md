@@ -15,4 +15,3 @@ does not pretend to work without credentials. Missing Supabase secrets are
 `APPLE_CLIENT_IDS=com.otlobli.app`. The Apple App ID capability and regenerated
 profile also require portal confirmation. No physical Apple login, Hide My
 Email, cancel, restore, logout, linking, or revocation test has run.
-

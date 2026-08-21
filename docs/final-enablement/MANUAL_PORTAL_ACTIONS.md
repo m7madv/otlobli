@@ -60,4 +60,3 @@
 Supabase migration `20260821090000_production_auth_push.sql` and functions
 `google-auth`, `send-push`, `apple-auth`, and `account-lifecycle` are already
 deployed; do not redeploy them merely to satisfy this checklist.
-

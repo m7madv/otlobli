@@ -20,4 +20,3 @@ no embedded provisioning or production entitlement was validated.
 
 The unsigned GitHub candidate is compile evidence only. It cannot be installed
 as the requested production/internal signed release and is not App Store-ready.
-

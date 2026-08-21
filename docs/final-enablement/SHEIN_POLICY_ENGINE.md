@@ -42,4 +42,3 @@ language, interaction, and capture states. Automated route, installation,
 observer, interception, native ordering, and protected-capture guards pass.
 Physical confirmation of every blocked control and allowed interaction remains
 required before release acceptance.
-

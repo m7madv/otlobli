@@ -13,4 +13,3 @@ signature/package verification can therefore be claimed. Play App Signing
 portal state is not observable from this environment.
 
 Android Java compilation and unit tests pass; that is not release acceptance.
-

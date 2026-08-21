@@ -34,4 +34,3 @@ Verified on 2026-08-21 before application-behavior changes.
 - Temu behavior is frozen unless a concrete regression is found.
 - Existing product Back, root Back, store chooser, double-tap Home store switch, browser ownership, website data, cookies, cache, verification session, and capture bridge behavior are protected.
 - Policy/region/performance changes must stay around those boundaries and may not introduce reload recovery, WebView recreation, a second browser, synthetic input, or lifecycle experiments.
-

@@ -16,4 +16,3 @@ No destructive test was run because no dedicated disposable account was
 authorized. End-to-end session rejection, push detachment, address/profile
 removal, Apple revocation, retained-order anonymization, and re-login behavior
 remain physically/backend-test pending.
-

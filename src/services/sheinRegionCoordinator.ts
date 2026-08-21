@@ -22,7 +22,6 @@ export type SheinRequiredState = {
   currency: string
   language: string
 }
-
 export type SheinRegionSnapshot = {
   countryState?: MatchState
   regionState?: MatchState
@@ -129,4 +128,3 @@ export function transitionSheinRegionCoordinator(
   if (isSheinCoordinatorReady(next)) return { ...next, phase: 'READY' }
   return next
 }
-
