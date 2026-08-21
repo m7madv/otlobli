@@ -88,7 +88,26 @@ jobs:
             echo "Debug and Release must both target iPhone and iPad." >&2
             exit 1
           fi
-          grep -q '<key>UISupportedInterfaceOrientations~ipad</key>' ios/App/App/Info.plist
+          python3 - ios/App/App/Info.plist <<'PY'
+          import plistlib
+          import sys
+
+          with open(sys.argv[1], "rb") as stream:
+              info = plistlib.load(stream)
+
+          expected = {
+              "UIInterfaceOrientationPortrait",
+              "UIInterfaceOrientationPortraitUpsideDown",
+              "UIInterfaceOrientationLandscapeLeft",
+              "UIInterfaceOrientationLandscapeRight",
+          }
+          actual = set(info.get("UISupportedInterfaceOrientations~ipad", []))
+          if actual != expected:
+              raise SystemExit(
+                  "iPad multitasking requires all four interface orientations; "
+                  f"expected={sorted(expected)}, actual={sorted(actual)}"
+              )
+          PY
 
       - name: Verify TestFlight authentication configuration
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.signing_mode == 'testflight' }}
