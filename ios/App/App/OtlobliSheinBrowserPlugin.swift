@@ -60,6 +60,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
     private var urlObservation: NSKeyValueObservation?
     private var loadingCover: UIView?
     private var loadingSpinner: UIActivityIndicatorView?
+    private var loadingHomeTapTimeout: DispatchWorkItem?
     private var nativeBackButton: UIButton?
     private var nativeBackTopConstraint: NSLayoutConstraint?
     private var nativeBackTarget = "home"
@@ -333,6 +334,8 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         surfaceView = nil
         loadingCover = nil
         loadingSpinner = nil
+        loadingHomeTapTimeout?.cancel()
+        loadingHomeTapTimeout = nil
         nativeBackButton = nil
         nativeBackTopConstraint = nil
         nativeBackTarget = "home"
@@ -543,6 +546,8 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
 
         cover.addSubview(spinner)
         cover.addSubview(label)
+        let navigation = makeLoadingNavigation()
+        cover.addSubview(navigation)
         surface.addSubview(cover)
         NSLayoutConstraint.activate([
             cover.topAnchor.constraint(equalTo: surface.topAnchor),
@@ -554,7 +559,11 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
             label.topAnchor.constraint(equalTo: spinner.bottomAnchor, constant: 14),
             label.leadingAnchor.constraint(greaterThanOrEqualTo: cover.leadingAnchor, constant: 24),
             label.trailingAnchor.constraint(lessThanOrEqualTo: cover.trailingAnchor, constant: -24),
-            label.centerXAnchor.constraint(equalTo: cover.centerXAnchor)
+            label.centerXAnchor.constraint(equalTo: cover.centerXAnchor),
+            navigation.leadingAnchor.constraint(equalTo: cover.leadingAnchor),
+            navigation.trailingAnchor.constraint(equalTo: cover.trailingAnchor),
+            navigation.topAnchor.constraint(equalTo: cover.safeAreaLayoutGuide.bottomAnchor, constant: -74),
+            navigation.bottomAnchor.constraint(equalTo: cover.bottomAnchor)
         ])
         loadingCover = cover
         loadingSpinner = spinner
@@ -562,9 +571,134 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
 
     private func hideLoadingCover() {
         loadingSpinner?.stopAnimating()
+        loadingHomeTapTimeout?.cancel()
+        loadingHomeTapTimeout = nil
         loadingCover?.removeFromSuperview()
         loadingCover = nil
         loadingSpinner = nil
+    }
+
+    private func makeLoadingNavigation() -> UIView {
+        let navigation = UIView(frame: .zero)
+        navigation.translatesAutoresizingMaskIntoConstraints = false
+        navigation.backgroundColor = .white
+        navigation.accessibilityViewIsModal = true
+
+        let separator = UIView(frame: .zero)
+        separator.translatesAutoresizingMaskIntoConstraints = false
+        separator.backgroundColor = UIColor(red: 188.0 / 255.0, green: 202.0 / 255.0, blue: 192.0 / 255.0, alpha: 1)
+        navigation.addSubview(separator)
+
+        let stack = UIStackView(frame: .zero)
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        stack.axis = .horizontal
+        stack.distribution = .fillEqually
+        stack.alignment = .fill
+        stack.semanticContentAttribute = .forceRightToLeft
+        navigation.addSubview(stack)
+
+        let labels = ["الرئيسية", "طلباتي", "السلة", "حسابي"]
+        let symbols = ["house", "shippingbox", "cart", "person"]
+        let routes = ["store-select", "orders", "cart", "profile"]
+        var homeButton: UIButton?
+        for index in labels.indices {
+            let button = UIButton(type: .system)
+            button.tag = index
+            button.accessibilityLabel = index == 0
+                ? "اختيار المتجر؛ اضغط مرتين بسرعة"
+                : labels[index]
+            button.accessibilityHint = index == 0
+                ? "يفتح قائمة اختيار المتجر"
+                : "ينتقل إلى \(labels[index]) ويُبقي المتجر قيد التحميل"
+            button.accessibilityIdentifier = routes[index]
+            var configuration = UIButton.Configuration.plain()
+            configuration.title = labels[index]
+            configuration.image = UIImage(systemName: symbols[index])
+            configuration.imagePlacement = .top
+            configuration.imagePadding = 5
+            configuration.baseForegroundColor = index == 0
+                ? UIColor(red: 0, green: 105.0 / 255.0, blue: 72.0 / 255.0, alpha: 1)
+                : UIColor(red: 61.0 / 255.0, green: 74.0 / 255.0, blue: 66.0 / 255.0, alpha: 1)
+            configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
+                var outgoing = incoming
+                outgoing.font = .systemFont(ofSize: 12, weight: .bold)
+                return outgoing
+            }
+            configuration.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 0, bottom: 0, trailing: 0)
+            button.configuration = configuration
+            button.addTarget(self, action: #selector(loadingNavigationPressed(_:)), for: .touchUpInside)
+            stack.addArrangedSubview(button)
+            if index == 0 { homeButton = button }
+        }
+
+        let selectedIndicator = UIView(frame: .zero)
+        selectedIndicator.translatesAutoresizingMaskIntoConstraints = false
+        selectedIndicator.backgroundColor = UIColor(red: 0, green: 105.0 / 255.0, blue: 72.0 / 255.0, alpha: 1)
+        selectedIndicator.layer.cornerRadius = 2
+        navigation.addSubview(selectedIndicator)
+        guard let homeButton else { return navigation }
+
+        NSLayoutConstraint.activate([
+            separator.topAnchor.constraint(equalTo: navigation.topAnchor),
+            separator.leadingAnchor.constraint(equalTo: navigation.leadingAnchor),
+            separator.trailingAnchor.constraint(equalTo: navigation.trailingAnchor),
+            separator.heightAnchor.constraint(equalToConstant: 1),
+            stack.topAnchor.constraint(equalTo: navigation.topAnchor, constant: 1),
+            stack.leadingAnchor.constraint(equalTo: navigation.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: navigation.trailingAnchor),
+            stack.bottomAnchor.constraint(equalTo: navigation.safeAreaLayoutGuide.bottomAnchor),
+            selectedIndicator.topAnchor.constraint(equalTo: navigation.topAnchor, constant: 1),
+            selectedIndicator.centerXAnchor.constraint(equalTo: homeButton.centerXAnchor),
+            selectedIndicator.widthAnchor.constraint(equalToConstant: 32),
+            selectedIndicator.heightAnchor.constraint(equalToConstant: 4)
+        ])
+        return navigation
+    }
+
+    @objc private func loadingNavigationPressed(_ sender: UIButton) {
+        guard let target = sender.accessibilityIdentifier else { return }
+        if target != "store-select" {
+            loadingHomeTapTimeout?.cancel()
+            loadingHomeTapTimeout = nil
+            navigateHost(to: target)
+            return
+        }
+        if UIAccessibility.isVoiceOverRunning {
+            navigateHost(to: target)
+            return
+        }
+        if loadingHomeTapTimeout != nil {
+            loadingHomeTapTimeout?.cancel()
+            loadingHomeTapTimeout = nil
+            navigateHost(to: target)
+            return
+        }
+        let timeout = DispatchWorkItem { [weak self] in
+            self?.loadingHomeTapTimeout = nil
+        }
+        loadingHomeTapTimeout = timeout
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.32, execute: timeout)
+    }
+
+    private func navigateHost(to target: String) {
+        guard ["orders", "cart", "profile", "store-select"].contains(target) else { return }
+        isBrowserVisible = false
+        let encoded = target.replacingOccurrences(of: "'", with: "\\'")
+        guard let hostWebView = bridge?.webView else {
+            parkRenderSurfaceBehindApp()
+            return
+        }
+        let revealHost = DispatchWorkItem { [weak self] in
+            self?.parkRenderSurfaceBehindApp()
+        }
+        hostWebView.evaluateJavaScript(
+            "window.dispatchEvent(new CustomEvent('otlobli:nativeNavigate',{detail:'\(encoded)'}));",
+            completionHandler: { [weak self] _, _ in
+                revealHost.cancel()
+                self?.parkRenderSurfaceBehindApp()
+            }
+        )
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: revealHost)
     }
 
     private func installNativeBackButton(in surface: UIView) {
@@ -745,13 +879,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         case "navigate":
             guard let target = message.body as? String,
                   ["orders", "cart", "profile", "store-select"].contains(target) else { return }
-            isBrowserVisible = false
-            parkRenderSurfaceBehindApp()
-            let encoded = target.replacingOccurrences(of: "'", with: "\\'")
-            bridge?.webView?.evaluateJavaScript(
-                "window.dispatchEvent(new CustomEvent('otlobli:nativeNavigate',{detail:'\(encoded)'}));",
-                completionHandler: nil
-            )
+            navigateHost(to: target)
         default:
             break
         }

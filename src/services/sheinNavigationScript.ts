@@ -19,10 +19,11 @@ export const OTLOBLI_NAV_CSS =
   'opacity:1!important;visibility:visible!important;pointer-events:auto!important;'
 
 // Document-start touch routing beats modal click cancellation. Home deliberately
-// waits for the platform double-tap window: one tap opens the active store home,
+// waits for the platform double-tap window: one tap is deliberately a no-op,
 // while two physical taps reveal Otlobli's store chooser without destroying the
 // parked browser session. A click synthesized after touchend must never count as
-// the second tap.
+// the second tap. Keyboard/assistive activation is treated as the intentional
+// store-switch action so this gesture remains accessible.
 export const OTLOBLI_NAV_TOUCH_BRIDGE_JS = `
   function otlobliInstallNavTouchBridge() {
     var featureFlags = window.__OTLOBLI_SCRIPT_FLAGS__;
@@ -38,12 +39,8 @@ export const OTLOBLI_NAV_TOUCH_BRIDGE_JS = `
       homeTapTimer = 0;
       homeTapAt = 0;
     };
-    var navigateToStoreHome = function () {
+    var finishSingleHomeTap = function () {
       clearPendingHomeTap();
-      try {
-        var homePath = sessionStorage.getItem('__otlobliHomePath') || (location.hostname.indexOf('temu.') >= 0 ? '/sa/' : '/ar/');
-        location.assign(location.origin + homePath);
-      } catch (homeError) {}
     };
     var revealStoreChooser = function () {
       clearPendingHomeTap();
@@ -67,13 +64,17 @@ export const OTLOBLI_NAV_TOUCH_BRIDGE_JS = `
       if (event.type === 'click' && now - lastPhysicalTouchAt < 450) return;
       if (event.type === 'touchend') lastPhysicalTouchAt = now;
       if (messageType === 'openHome') {
+        if (event.type === 'click' && event.detail === 0) {
+          revealStoreChooser();
+          return;
+        }
         if (homeTapTimer && now - homeTapAt <= homeDoubleTapMs) {
           revealStoreChooser();
           return;
         }
         clearPendingHomeTap();
         homeTapAt = now;
-        homeTapTimer = setTimeout(navigateToStoreHome, homeDoubleTapMs);
+        homeTapTimer = setTimeout(finishSingleHomeTap, homeDoubleTapMs);
         return;
       }
       clearPendingHomeTap();

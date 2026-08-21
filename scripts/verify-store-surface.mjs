@@ -11,6 +11,14 @@ const reporter = readFileSync(
 )
 const appEntry = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
 const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8')
+const iosSheinBrowser = readFileSync(
+  new URL('../ios/App/App/OtlobliSheinBrowserPlugin.swift', import.meta.url),
+  'utf8',
+)
+const inAppBrowserPatch = readFileSync(
+  new URL('../patches/@capgo+capacitor-inappbrowser+8.6.25.patch', import.meta.url),
+  'utf8',
+)
 const captureScript = readStoreScriptSources(new URL('..', import.meta.url))
 const extensionBuilder = readFileSync(new URL('./build-temu-gecko-extension.mjs', import.meta.url), 'utf8')
 
@@ -39,6 +47,9 @@ for (const marker of requiredPluginMarkers) {
 
 for (const marker of [
   'handlePersonalTemuHomeTap()',
+  'onNavigate={(target, activationDetail) => {',
+  'if (activationDetail === 0)',
+  "onClick={(event) => onNavigate('home', event.detail)}",
   'اضغط مرتين على الرئيسية لتبديل المتجر',
   'TemuEmbeddedBrowser.acknowledgeAdd({ requestId: temuCaptureRequestId })',
   'items.some((item) => item.id === itemId)',
@@ -49,10 +60,53 @@ for (const marker of [
 for (const marker of [
   'var homeDoubleTapMs = 320',
   "event.type === 'click' && now - lastPhysicalTouchAt < 450",
-  'homeTapTimer = setTimeout(navigateToStoreHome, homeDoubleTapMs)',
+  'homeTapTimer = setTimeout(finishSingleHomeTap, homeDoubleTapMs)',
+  "event.type === 'click' && event.detail === 0",
   "window.mobileApp.postMessage({ detail: { type: 'closeStore' } })",
 ]) {
   if (!captureScript.includes(marker)) throw new Error(`Injected store-switch gesture guard missing marker: ${marker}`)
+}
+
+for (const forbidden of ['location.assign(location.origin + homePath)', 'TemuEmbeddedBrowser.goHome().catch']) {
+  if (captureScript.includes(forbidden) || app.includes(forbidden)) {
+    throw new Error(`Single Home tap must not reload or navigate the active store: ${forbidden}`)
+  }
+}
+
+for (const marker of [
+  "btn.setAttribute('aria-label', IS_TEMU ? 'العودة إلى اختيار المتجر' : 'رجوع')",
+  "(IS_TEMU ? looksLikeHomeRoot() : (!looksLikeHomeRoot() || looksLikeProductPage()))",
+]) {
+  if (!captureScript.includes(marker)) throw new Error(`Temu root-exit guard missing marker: ${marker}`)
+}
+
+for (const marker of [
+  'private func makeLoadingNavigation() -> UIView',
+  'button.accessibilityIdentifier = routes[index]',
+  '@objc private func loadingNavigationPressed(_ sender: UIButton)',
+  'if UIAccessibility.isVoiceOverRunning',
+  'navigateHost(to: target)',
+  'parkRenderSurfaceBehindApp()',
+  'let revealHost = DispatchWorkItem',
+  'DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: revealHost)',
+  "window.dispatchEvent(new CustomEvent('otlobli:nativeNavigate'",
+]) {
+  if (!iosSheinBrowser.includes(marker)) {
+    throw new Error(`iOS loading navigation guard missing marker: ${marker}`)
+  }
+}
+
+for (const marker of [
+  'private void otlobliHandleLoadingNavigationTap(String target)',
+  'accessibilityManager.isTouchExplorationEnabled()',
+  'private void otlobliNavigateHost(String target)',
+  'tab.setOnClickListener(view -> otlobliHandleLoadingNavigationTap',
+  'guard let self else { return }',
+  'The native back control is also required by Temu',
+]) {
+  if (!inAppBrowserPatch.includes(marker)) {
+    throw new Error(`Native loading/root-exit patch guard missing marker: ${marker}`)
+  }
 }
 
 if (app.includes('temuAddInFlightRef')) {

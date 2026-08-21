@@ -1,3 +1,34 @@
+# v86.208 navigation follow-up — Temu root exit and interactive loading (2026-08-21)
+
+Work is isolated on `codex/otlobli-v86-209-store-navigation` in
+`C:\Users\MOHAMMAD\Projects\otlobli-v86-209-store-navigation`, based exactly on
+v86.208 commit `10d7a22ef2a7e84e4e8c39da2b1117a231528afe`. App metadata remains
+`86.208/1070`; this task did not create an IPA or prepare an App Store release.
+
+The Temu root-exit failure had a concrete iOS cause: the page hid its HTML
+button whenever the native message bridge existed, while the native plugin
+refused to create its button unless the unrelated SHEIN loading-cover option
+was enabled. The native control now works independently of that option and the
+injected state shows Otlobli's single green 44pt exit only on canonical Temu
+Home. Temu owns product/category/search Back, so Otlobli no longer duplicates
+that control on inner pages.
+
+Home now has one contract on the injected store bar, Android Personal Temu,
+the React preparation screen, and native loading covers: one physical tap is a
+no-op and never calls `location.assign`, `goHome`, or reload; two taps within
+320ms park the same browser and show the store chooser. Keyboard and assistive
+activation opens the chooser directly. During the iOS SHEIN and Android SHEIN
+loading cover, the native Otlobli bar is interactive: Orders, Cart, and Profile
+commit their React route and hide/park the store surface while its WebView keeps
+loading behind the app. Returning Home shows that same retained session.
+
+`npm ci` proves the regenerated patch-package file installs cleanly. Production
+build, release/security guards, SHEIN freeze guard, Temu guards, store-surface
+guard, TypeScript, performance budget, iOS/Android Capacitor sync, lint (zero
+errors; 18 pre-existing warnings), and Android Debug compilation pass. iOS
+Swift was synchronized but cannot be compiled locally on Windows; physical
+iPhone acceptance and a macOS/Xcode build remain pending.
+
 # v86.208 — final enablement current state (2026-08-21)
 
 Work is isolated on `codex/otlobli-v86-208-final-enablement` in

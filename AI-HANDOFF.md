@@ -1,3 +1,31 @@
+# Active handoff — v86.208 store-navigation follow-up (2026-08-21)
+
+Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-209-store-navigation`
+on `codex/otlobli-v86-209-store-navigation`, based on protected v86.208 commit
+`10d7a22ef2a7e84e4e8c39da2b1117a231528afe`. App version/build remains
+`86.208/1070`; no IPA or release candidate was created. Do not fold this work
+back by rewriting the protected v86.208 branch.
+
+Verified implementation: a single green 44pt Otlobli exit appears only at
+canonical Temu Home; inner Temu pages use Temu's own Back. The former iOS
+deadlock was an option mismatch: HTML hid for a native bridge, while native
+creation incorrectly required `otlobliLoadingCoverEnabled`. One Home tap is now
+inert everywhere and two taps within 320ms open `store-select` while parking the
+same browser. Native iOS/Android loading covers now expose an interactive
+Otlobli bar; Orders/Cart/Profile synchronously reveal the React destination and
+leave the WebView loading behind it. VoiceOver, TalkBack, and keyboard activation
+have an explicit direct store-switch path.
+
+All local web/security/store guards and the production build pass. The
+regenerated `@capgo/capacitor-inappbrowser` patch applies from a clean `npm ci`;
+iOS and Android sync pass; Android Debug compiles. iOS Swift compilation is not
+available on this Windows host, so the next step is one macOS/Xcode compile and
+physical iPhone acceptance: verify one Home tap causes no URL/reload change,
+double Home opens the chooser, Temu shows one exit only on root, and during
+`جاري تجهيز المتجر…` Cart/Orders/Profile open while re-entering Home continues
+the same store load/session. Do not change product capture, region, auth,
+notification, cookies, website data, or WebView lifecycle during that test.
+
 # Active handoff — v86.208 final enablement (2026-08-21)
 
 Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-208-final-enablement`

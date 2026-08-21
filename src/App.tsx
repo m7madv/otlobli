@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { CSSProperties, FormEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
+import type { CSSProperties, FormEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 import {
   allowedProducts,
   blockedProducts,
@@ -3228,14 +3228,11 @@ function App() {
       return
     }
 
-    // Wait only for the platform's normal double-tap window. A single press
-    // keeps the useful Home behaviour (product -> Temu home, home -> refresh),
-    // while a second quick press changes stores without first reloading Gecko.
+    // Wait only for the platform's normal double-tap window. A single press is
+    // intentionally inert so Home never reloads the active store; a second
+    // quick press changes stores without destroying the parked Gecko session.
     personalTemuHomeTapTimerRef.current = window.setTimeout(() => {
       personalTemuHomeTapTimerRef.current = undefined
-      void TemuEmbeddedBrowser.goHome().catch((error) => {
-        console.error('[otlobli][temu-personal-site] home navigation failed', error)
-      })
     }, 320)
   }, [clearPersonalTemuHomeTap, setStoreSwitchHintSeen])
 
@@ -8044,12 +8041,18 @@ function App() {
         active="home"
         showStoreSwitchHint={personalTemuSurfaceActive && !storeSwitchHintSeen}
         onStoreSwitchHintComplete={() => setStoreSwitchHintSeen(true)}
-        onNavigate={(target) => {
-          if (personalTemuSurfaceActive) {
-            if (target === 'home') {
-              handlePersonalTemuHomeTap()
+        onNavigate={(target, activationDetail) => {
+          if (target === 'home') {
+            if (activationDetail === 0) {
+              clearPersonalTemuHomeTap()
+              setStoreSwitchHintSeen(true)
+              storeMessageHandlerRef.current({ detail: { type: 'closeStore' } })
               return
             }
+            handlePersonalTemuHomeTap()
+            return
+          }
+          if (personalTemuSurfaceActive) {
             clearPersonalTemuHomeTap()
             screenRef.current = target
             flushSync(() => setScreen(target))
@@ -8537,7 +8540,7 @@ function MobileShell({
 }: {
   active?: 'home' | 'orders' | 'cart' | 'profile'
   children: ReactNode
-  onNavigate?: (screen: Screen) => void
+  onNavigate?: (screen: Screen, activationDetail?: number) => void
   hideBottomNav?: boolean
   showStoreSwitchHint?: boolean
   onStoreSwitchHintComplete?: () => void
@@ -8555,7 +8558,7 @@ function MobileShell({
             label="الرئيسية"
             ariaLabel={storeSwitchGestureEnabled ? 'الرئيسية؛ اضغط مرتين بسرعة لتبديل المتجر' : undefined}
             style={showStoreSwitchHint ? STORE_SWITCH_HOME_BUTTON_STYLE : undefined}
-            onClick={() => onNavigate('home')}
+            onClick={(event) => onNavigate('home', event.detail)}
           />
           <NavButton active={active === 'orders'}  svgPaths={NAV_ICONS.orders}  label="طلباتي"   onClick={() => onNavigate('orders')} />
           <NavButton active={active === 'cart'}    svgPaths={NAV_ICONS.cart}    label="السلة"    onClick={() => onNavigate('cart')} />
@@ -8579,7 +8582,7 @@ function NavButton({
   label: string
   ariaLabel?: string
   style?: CSSProperties
-  onClick: () => void
+  onClick: (event: ReactMouseEvent<HTMLButtonElement>) => void
 }) {
   return (
     <button

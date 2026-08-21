@@ -501,7 +501,7 @@ export const STORE_BLOCKING_SCRIPT = `
       ensureShakeStyle();
       btn = document.createElement('button');
       btn.id = 'otlobli-back-btn';
-      btn.setAttribute('aria-label', 'رجوع');
+      btn.setAttribute('aria-label', IS_TEMU ? 'العودة إلى اختيار المتجر' : 'رجوع');
       btn.style.cssText = 'position:fixed;right:10px;top:12px;width:42px;height:42px;z-index:2147483647;' +
         'transform:translateZ(0);will-change:transform;' +
         'background:rgba(20,24,22,.6);color:#fff;border:none;border-radius:11px;display:none;' +
@@ -545,8 +545,11 @@ export const STORE_BLOCKING_SCRIPT = `
       otlobliStabilizeBackOverlay(btn);
     }
     var temuSearchBack = IS_TEMU && otlobliTemuSearchBackActive();
-    var shouldShow = IS_SHEIN || IS_TEMU || __otlobliBackTarget === 'cart' || !looksLikeHomeRoot()
-      || looksLikeProductPage() || temuSearchBack;
+    // Temu already owns product/category/search navigation. Otlobli supplies
+    // only the missing root exit, avoiding a duplicate button on inner pages.
+    // Keep SHEIN and cart-return behaviour unchanged.
+    var shouldShow = __otlobliBackTarget === 'cart' || IS_SHEIN
+      || (IS_TEMU ? looksLikeHomeRoot() : (!looksLikeHomeRoot() || looksLikeProductPage()));
     var nativeBackAvailable = !!(window.webkit && window.webkit.messageHandlers
       && window.webkit.messageHandlers.messageHandler);
     var backTop = temuSearchBack ? 30 : ((IS_SHEIN && viewportSize().width <= 390) ? 58 : 12);
