@@ -190,12 +190,15 @@ jobs:
 
           profile_uuid=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$profile_plist")
           profile_name=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$profile_plist")
-          profiles_dir="$HOME/Library/MobileDevice/Provisioning Profiles"
-          mkdir -p "$profiles_dir"
-          cp "$profile_path" "$profiles_dir/${profile_uuid}.mobileprovision"
+          legacy_profiles_dir="$HOME/Library/MobileDevice/Provisioning Profiles"
+          xcode_profiles_dir="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
+          mkdir -p "$legacy_profiles_dir" "$xcode_profiles_dir"
+          cp "$profile_path" "$legacy_profiles_dir/${profile_uuid}.mobileprovision"
+          cp "$profile_path" "$xcode_profiles_dir/${profile_uuid}.mobileprovision"
 
           echo "OTLOBLI_KEYCHAIN_PATH=$keychain_path" >> "$GITHUB_ENV"
-          echo "OTLOBLI_PROFILE_PATH=$profiles_dir/${profile_uuid}.mobileprovision" >> "$GITHUB_ENV"
+          echo "OTLOBLI_PROFILE_PATH=$xcode_profiles_dir/${profile_uuid}.mobileprovision" >> "$GITHUB_ENV"
+          echo "OTLOBLI_LEGACY_PROFILE_PATH=$legacy_profiles_dir/${profile_uuid}.mobileprovision" >> "$GITHUB_ENV"
           echo "OTLOBLI_PROFILE_NAME=$profile_name" >> "$GITHUB_ENV"
           echo "OTLOBLI_PROFILE_UUID=$profile_uuid" >> "$GITHUB_ENV"
 
@@ -478,6 +481,9 @@ jobs:
           fi
           if [ -n "${OTLOBLI_PROFILE_PATH:-}" ]; then
             rm -f "$OTLOBLI_PROFILE_PATH"
+          fi
+          if [ -n "${OTLOBLI_LEGACY_PROFILE_PATH:-}" ]; then
+            rm -f "$OTLOBLI_LEGACY_PROFILE_PATH"
           fi
           rm -f \
             "$RUNNER_TEMP/otlobli-development.p12" \
