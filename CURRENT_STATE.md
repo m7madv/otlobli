@@ -11,6 +11,8 @@ The live admin setting was verified as QA/USD/ar. Supabase migration
 `20260821090000_production_auth_push.sql` and functions `google-auth`,
 `send-push`, `apple-auth`, and `account-lifecycle` are deployed. Local gates,
 production build/sync, artifact scans, and Android compile/unit tests pass.
+GitHub/Xcode unsigned run `32476867979` also passes; artifact `9444682658`
+validates the iOS target but is not signed or provisioned.
 
 Release ready remains **no**: Apple/APNs/Google iOS and Android signing inputs
 are absent, no signed IPA/AAB/APK exists, and the required physical device,

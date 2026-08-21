@@ -22,3 +22,14 @@ Validated on 2026-08-21 before the single internal candidate build.
 
 No physical-device, signed iOS, signed Android, APNs delivery, OAuth, or
 destructive account-deletion result is represented by this file.
+
+## Internal iOS compile candidate
+
+GitHub Actions run `32476867979` completed successfully for commit
+`b679bcad28a0d17c9d33a825af4758dca0c90f1f`; artifact ID `9444682658`.
+The extracted unsigned IPA is 6,557,365 bytes with SHA-256
+`430A76756C4433719AAADB0EFF03D2E3442D491D24058E1ECDB1201836DB76EF`.
+Inspection confirms `com.otlobli.app`, `86.208/1070`, iPhone/iPad `[1,2]`,
+iOS 15.0 minimum, Privacy Manifest present, no source maps/forbidden markers,
+and deliberately no code signature or embedded provisioning profile. The run
+also confirmed the missing Google iOS client, so its action remains hidden.

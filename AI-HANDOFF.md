@@ -14,6 +14,11 @@ workflow once, and execute the physical matrix. Never claim APNs, Google iOS,
 Apple login, account deletion, signed artifacts, or release readiness without
 that evidence.
 
+Unsigned GitHub/Xcode run `32476867979` passed with artifact `9444682658`; its
+IPA SHA-256 is
+`430A76756C4433719AAADB0EFF03D2E3442D491D24058E1ECDB1201836DB76EF`.
+It has no signature/profile and cannot replace the pending signed candidate.
+
 # Historical handoff — v86.207 production release candidate (2026-08-21)
 
 Work only in `C:\Users\MOHAMMAD\Projects\otlobli-final-production-release` on

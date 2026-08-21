@@ -14,6 +14,9 @@
   Apple's intentionally missing credential state.
 - Local TypeScript, tests, guards, production build, Capacitor sync, Android
   compile/unit tests, lint without errors, XML parse, and generated scans pass.
+- GitHub/Xcode unsigned run `32476867979` passed; artifact `9444682658` has
+  SHA-256 `430A76756C4433719AAADB0EFF03D2E3442D491D24058E1ECDB1201836DB76EF`.
+  It is unsigned/unprovisioned compile evidence, not an installable release.
 
 ## Submission drafts
 
