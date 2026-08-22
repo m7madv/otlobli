@@ -14,7 +14,7 @@ export const STORE_RUNTIME_COORDINATOR_SCRIPT = `
     // with full-page scans. Region repair has its own small progress timer.
     if (otlobliScriptEnabled('session') && IS_SHEIN && otlobliInteractionActive() &&
         !sheinShippingBodyLockState && !sheinShippingUiLikelyOpen()) {
-      if (!document.getElementById('otlobli-nav')) ensureOtlobliNav();
+      if (otlobliScriptEnabled('navigationBar') && !document.getElementById('otlobli-nav')) ensureOtlobliNav();
       if (sheinNativeCoverRepairActive) scheduleSheinShippingProgress(OTLOBLI_LOW_END ? 320 : 160);
       return;
     }
@@ -33,10 +33,10 @@ export const STORE_RUNTIME_COORDINATOR_SCRIPT = `
     if (otlobliScriptEnabled('session') && IS_SHEIN) ensureSheinSaudiShippingSelection();
     if (otlobliScriptEnabled('blocking') && IS_SHEIN) retrySheinFeedError();
     if (otlobliScriptEnabled('blocking')) ensureNoTextSelection();
-    if (otlobliScriptEnabled('navigation')) ensureViewportFitCover();
+    if (otlobliScriptEnabled('navigationViewport')) ensureViewportFitCover();
     if (otlobliScriptEnabled('session') && IS_SHEIN) ensureSheinSaudiStore();
-    if (otlobliScriptEnabled('navigation')) ensureBackButton();
-    if (otlobliScriptEnabled('navigation')) ensureOtlobliNav();
+    if (otlobliScriptEnabled('navigationBack')) ensureBackButton();
+    if (otlobliScriptEnabled('navigationBar')) ensureOtlobliNav();
     // المتاجر غير شي إن (تيمو/ترينديول): تصفّح فقط - ننظّف العروض المنبثقة
     // المزعجة ولا نشغّل منطق الالتقاط/الحجب الخاص بشي إن (الذي قد يخرّب صفحاتهم).
     if (!IS_SHEIN) {
@@ -192,7 +192,7 @@ export const STORE_RUNTIME_COORDINATOR_SCRIPT = `
   }
 
   function runOtlobliNavigationMaintenance() {
-    if (!otlobliScriptEnabled('navigation')) return;
+    if (!otlobliScriptEnabled('navigationBar')) return;
     if (!otlobliInteractionActive() || !document.getElementById('otlobli-nav')) ensureOtlobliNav();
     if (!IS_TEMU) return;
     injectTemuHeaderHideCSS();

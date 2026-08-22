@@ -1,47 +1,91 @@
-# v86.220 — SHEIN-owned product navigation and bounded region repair (2026-08-23)
+# v86.221 — professional SHEIN navigation flight recorder (2026-08-23)
 
-The user's physical A-D isolation result assigns the persistent list-to-product
-spinner to Otlobli's Navigation group. With Navigation off, the same products
-open. The bottom bar can still be painted but inert because the remaining
-runtime may call `ensureOtlobliNav()` while the Navigation handlers are absent;
-that visual state is expected and is not evidence that the disabled navigation
-code ran. Enabling Session/Region separately reproduces the post-v86.214
-behavior in which region repair restarts on each newly opened PDP.
+Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
+`codex/otlobli-v86-212-testflight-auth`. Source is `86.221/1083`. This is an
+internal diagnostic candidate, not a claim that the list-to-PDP spinner or the
+region restart is fixed.
 
-v86.220 keeps the Otlobli bottom bar and its own button bridge, but removes the
-iOS-wide product-card `touchend` interception, 500ms `location.assign`
-fallback, and injected SHEIN chunk-failure bridge. Product-card navigation is
-now wholly SHEIN-owned. Native fatal WebKit/unexpected-close recovery remains
-bounded and unchanged. Automatic native region repair exhaustion is now one
-small Otlobli-namespaced `sessionStorage` guard per required country rather
-than per `country:path`; moving to another product therefore cannot rearm the
-same automatic cascade. An explicit Add action may clear that guard for one
-new fail-closed repair attempt.
+The user installed `86.220/1082` and reproduced the same product spinner. This
+physically rejects v86.220 and corrects its diagnosis: the earlier A-D result
+proved only that the broad Navigation group contains the trigger. v86.220
+removed the product fallback and chunk bridge but retained viewport mutation,
+runtime bar creation, nav touch routing, Back state, document-start mounting,
+and the bounded early DOM protection scans. The exact sublayer remains
+unproven.
 
-Source is `86.220/1082`. TypeScript, targeted ESLint (0 errors; 17 existing
-hook warnings), diff check, the freeze guard, every normal release/security/
-store guard, full marker-free production build, artifact scan, both native
-syncs, and Android `assembleDebug` pass. No diagnostic panel or removed
-product-navigation marker is present in the APK. Budgets are startup/largest
-raw JS `657,514/720,000` and `/1,200,000`, total JS gzip
-`267,073/370,000`, CSS `69,990/70,000`, fonts `81,364/100,000`, shipped
-store scripts `236,297/470,000`, and store source `566,290/600,000`.
+v86.221 replaces the broad and misleading test with one ordered flight
+recorder. `N0` starts from the device-proven composition: capture+blocking on,
+all navigation and session/region off. `N1` adds viewport only; `N2` runtime bar
+painting; `N3` bar-button touch routing; `N4` product Back; `N5` document-start
+bar mounting; `N6` early bottom-nav/native-add/signup protection; `R1` finally
+adds session/region. Every profile recreates one WebView while preserving the
+site-owned persistent data store. The old session-interaction branch now also
+respects `navigationBar`, so an intentionally disabled bar is not repainted as
+an inert ghost.
 
-The web, Android, and iOS store bundles are byte-identical: 259,077 bytes,
-SHA-256
-`09CFA7D89F3364D7A0792D1F8B2753F434CAE25E0AB3683C14F228B35044CAFD`.
+The Arabic bottom sheet records, without changing navigation, whether the
+physical product tap reached the page, the URL changed, the product document
+loaded, and a PDP surface painted. Three bounded checkpoints run only after a
+product tap. Trace storage is capped at 40 entries and error capture at six;
+there is no `setInterval`, `MutationObserver`, persistent DOM scan, or React
+state/render loop. Results persist in Otlobli host storage—not SHEIN storage—
+and `نسخ التقرير الكامل` creates one report with all N0-R1 outcomes and the
+last 12 events. The normal customer build still aliases the module to a 397-byte
+marker-free stub.
+
+Validation passes: TypeScript; targeted ESLint with zero errors (17 existing
+App hook warnings); WebKit/iPhone visual and interaction fixture with zero
+console errors; accessibility/design review; release/security/store guards;
+the expanded executable freeze guard; normal and diagnostic builds; performance
+budgets; both native syncs; post-sync freeze guard; and Android
+`assembleDebug`. Repository-wide ESLint alone is red because it descends into
+two old extracted IPA `native-bridge.js` files under ignored `output/`; changed
+source has no lint errors.
+
+Normal-build budgets are startup/largest raw JS `657,770/720,000` and
+`/1,200,000`, total JS gzip `267,526/370,000`, CSS `69,990/70,000`, fonts
+`81,364/100,000`, shipped store scripts `236,890/470,000`, and source
+`588,366/600,000`. Diagnostic totals are startup `660,872/720,000` and total
+JS gzip `277,284/370,000`; all other measured budgets are the same. Normal
+store bundle is 259,670 bytes, SHA-256
+`DBA9812E2F48F5FA190EECBBE4DB7C8EDD62B47BB3F6A07A83790505C3D9E477`.
+The diagnostic chunk is 32,159 bytes, SHA-256
+`575FFF5AFE0E2E806E879275168B8A9F8CC294F2CD8646428E1BDA925F3E973D`.
+Both files and `index.html` are byte-identical in `dist`, Android, and iOS.
+
 Android artifact
-`output/Otlobli-v86.220-SHEIN-native-navigation-region-session-Android-debug.apk`
-is 11,117,133 bytes, SHA-256
-`DE2986E409FE180BB41FBB2EE1D717C1D3150B09CDFDB10460A103CAB48389C7`,
-package `com.otlobli.app`, version `86.220/1082`.
+`output/Otlobli-v86.221-SHEIN-navigation-flight-recorder-Android-debug.apk`
+is 11,352,143 bytes, SHA-256
+`F9AEF7A24F78B109827FA4D99111CDE24149F7AB5C8981EDD38002495C57B032`.
+TestFlight delivery and real-iPhone acceptance are not recorded yet. On the
+iPhone, start at N0, open one product and mark `فتح المنتج` or `بقي يحمّل`,
+then proceed in order only until the first failure and copy the report. Test R1
+last for the separate region restart. Five background/resume cycles and a
+separate force-quit/cold-launch test remain mandatory after the responsible
+profile is identified.
 
-No TestFlight upload has been recorded yet for v86.220. Real-device acceptance
-of this candidate remains pending. The first gate is normal full mode: open at
-least five products from listings with the Otlobli bar active, then prove that
-region repair does not reopen merely because the PDP path changed. The protected
-five background/resume cycles and separate force-quit/cold-launch test remain
-mandatory; local builds do not satisfy them.
+# v86.220 — rejected SHEIN navigation hypothesis (2026-08-23)
+
+The group-level A-D result was useful: disabling Navigation opened the same
+products. v86.220 then removed the global product `touchend` fallback,
+500ms `location.assign`, and chunk bridge while preserving the rest of the
+Navigation group. It also made automatic region-repair exhaustion country-
+session scoped. Local guards/builds passed, but these facts did not prove which
+Navigation sublayer caused the spinner.
+
+Signed run `32604307896` from `3fa4e74` passed Apple verification/upload with
+delivery UUID `d5138ae7-92a0-43c7-a191-a8b3c7a1cc0f`. App Store Connect
+confirmed exact build `86.220 (1082)` as `VALID`/`IN_BETA_TESTING` in internal
+all-builds group `Otlobli Internal`; tester `mhm1981dx@gmail.com` was
+`INSTALLED`. Artifact `9483810169`,
+`otlobli-ios-v86.220-build-1082-testflight`, is 25,119,202 bytes with digest
+`sha256:12c8e0c51df882698ac20aa49d49919182c5a1ddb0e85fb0f106f84ddab86fde`.
+No public submission occurred.
+
+The user installed that TestFlight build and immediately reproduced the same
+PDP spinner. v86.220 is therefore physically rejected. Its removed fallback
+and chunk bridge are not the exact cause; all retained Navigation sublayers
+must be isolated before another fix.
 
 # v86.219 — expose diagnostic A-C below the native cover (2026-08-23)
 

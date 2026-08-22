@@ -1,17 +1,37 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
-## v86.220 — SHEIN owns product cards; region exhaustion owns the session (2026-08-23)
+## v86.221 — isolate Navigation sublayers with one flight recorder (2026-08-23)
 
-- **Physical classification:** with Navigation disabled, the same list-to-PDP
-  flow opens; with Navigation enabled it loops. Session/Region separately
-  reproduces the region cascade after changing to another PDP. This supersedes
-  the speculative v86.214-v86.216 product fallback/chunk-recovery decisions.
-- **Navigation cause and decision:** the Navigation bootstrap did more than
-  render Otlobli's bar: it globally intercepted iOS product `touchend`, armed a
-  500ms `location.assign` fallback, and bridged page chunk failures into a host
-  close/reopen recovery. Keep the bar and its own buttons, but remove every
-  product-card listener/fallback/chunk bridge. SHEIN exclusively owns its
-  product navigation.
+- **Physical correction:** the user installed `86.220/1082` and reproduced the
+  same PDP spinner. The prior A-D result classified the broad Navigation group,
+  not its removed product fallback/chunk bridge. The exact sublayer is still
+  unknown; do not ship another speculative fix.
+- **Experiment:** start from N0 capture+blocking with Navigation and Session off,
+  then cumulatively add viewport, runtime bar, nav-button touch, Back, early bar
+  mount, and early protection as N1-N6. R1 adds Session/Region only after the
+  navigation boundary. The first physical failure is the responsible boundary.
+- **Evidence:** an event-driven four-node flight recorder observes the product
+  tap, URL change, document completion, and PDP paint. It uses three bounded
+  post-tap checkpoints, caps trace/errors, persists only through the Otlobli
+  host, and generates a copyable report. It never wraps history, prevents a
+  product event, writes SHEIN storage, or adds recurring work.
+- **Gate correction:** the session interaction branch must not repaint
+  `#otlobli-nav` when `navigationBar` is off. Granular flags inherit the broad
+  flag in customer builds; the new split is diagnostic-only behavior.
+- **Release boundary:** normal builds alias the flight recorder to a marker-free
+  stub. Guards, normal+diagnostic builds, WebKit visual QA, native syncs, and
+  Android assembly pass at `86.221/1083`. TestFlight and physical acceptance
+  remain pending; preserve every native freeze and transaction invariant.
+
+## v86.220 — rejected product-navigation hypothesis (2026-08-23)
+
+- **Group classification:** with Navigation disabled, the same list-to-PDP flow
+  opened; with it enabled the spinner returned. This proved the broad group,
+  not an individual listener.
+- **Rejected hypothesis:** v86.220 removed the iOS product `touchend` fallback,
+  500ms `location.assign`, and chunk bridge while retaining the rest of
+  Navigation. The user installed the exact build and reproduced the spinner,
+  so those removed components are not the exact cause.
 - **Region cause and decision:** automatic repair exhaustion was keyed by
   country plus pathname, so every PDP rearmed the same cascade. Persist one
   namespaced exhaustion key per required country for the current SHEIN session.
@@ -20,10 +40,10 @@
 - **Boundary:** no lifecycle/native recompose timing, WebView ownership,
   region-equality comparison, capture, blocking, payment, wallet, order, auth,
   or budget was changed. Native fatal WebKit recovery remains.
-- **Acceptance:** normal build/guards/native syncs/Android assembly and artifact
-  inspection pass at `86.220/1082`, but physical acceptance remains pending.
-  Five consecutive PDPs, non-repeating region behavior, five resumes, and a
-  separate cold launch are required before calling it accepted.
+- **Delivery/rejection:** run `32604307896` delivered exact `86.220/1082` to the
+  verified internal group/tester with no public submission. The subsequent
+  physical result rejects the candidate and requires granular Navigation
+  isolation before another fix.
 
 ## v86.219 — diagnostic cover must follow coordinator availability (2026-08-23)
 

@@ -27,7 +27,7 @@ export const OTLOBLI_NAV_CSS =
 export const OTLOBLI_NAV_TOUCH_BRIDGE_JS = `
   function otlobliInstallNavTouchBridge() {
     var featureFlags = window.__OTLOBLI_SCRIPT_FLAGS__;
-    if (featureFlags && (featureFlags.runtime === false || featureFlags.navigation === false)) return;
+    if (featureFlags && (featureFlags.runtime === false || featureFlags.navigation === false || featureFlags.navigationTouch === false)) return;
     if (window.__otlobliNavTouchBridgeBound) return;
     window.__otlobliNavTouchBridgeBound = true;
     var homeDoubleTapMs = 320;
@@ -108,6 +108,14 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
 (function () {
   if (window.top !== window || window.__otlobliNavBootstrapInstalled) return;
   window.__otlobliNavBootstrapInstalled = true;
+
+  function otlobliNavBootstrapFeatureEnabled(name) {
+    var featureFlags = window.__OTLOBLI_SCRIPT_FLAGS__;
+    if (!featureFlags) return true;
+    if (featureFlags.runtime === false || featureFlags.navigation === false) return false;
+    if (Object.prototype.hasOwnProperty.call(featureFlags, name)) return featureFlags[name] !== false;
+    return true;
+  }
 
   ${OTLOBLI_NAV_TOUCH_BRIDGE_JS}
 
@@ -337,6 +345,7 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
   }
 
   function runEarlyProtections() {
+    if (!otlobliNavBootstrapFeatureEnabled('navigationEarlyProtection')) return;
     try { hideEarlySheinProductAdd(); } catch (e) {}
     try { hideVerifiedStoreBottomNav(); } catch (e) {}
     try { hideExactSheinSignupDiscountBanner(); } catch (e) {}
@@ -345,8 +354,10 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
   function mount() {
     var root = document.documentElement, inset = Number(window.__otlobliSafeBottom || 0);
     if (root && isFinite(inset)) root.style.setProperty('--otlobli-sb', Math.round(Math.min(60, Math.max(16, inset))) + 'px');
-    ensureEarlyViewportFitCover();
-    try { hideEarlySheinProductAdd(); } catch (e) {}
+    if (otlobliNavBootstrapFeatureEnabled('navigationViewport')) ensureEarlyViewportFitCover();
+    if (otlobliNavBootstrapFeatureEnabled('navigationEarlyProtection')) {
+      try { hideEarlySheinProductAdd(); } catch (e) {}
+    }
     if (!document.getElementById('otlobli-base-style')) {
       var fontParent = document.head || document.documentElement;
       if (fontParent) {
@@ -404,32 +415,40 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
     return true;
   }
 
-  if (!mount()) {
-    document.addEventListener('DOMContentLoaded', mount, false);
-    timer = setInterval(function () {
-      attempts++;
-      if (mount() || attempts >= 400) clearInterval(timer);
-    }, 25);
-  }
-  var protectionRuns = 0;
-  var protectionTimer = setInterval(function () {
-    if (window.__otlobliStoreRuntimeReady) {
-      clearInterval(protectionTimer);
-      return;
+  if (otlobliNavBootstrapFeatureEnabled('navigationViewport')) ensureEarlyViewportFitCover();
+  if (otlobliNavBootstrapFeatureEnabled('navigationEarlyMount')) {
+    if (!mount()) {
+      document.addEventListener('DOMContentLoaded', mount, false);
+      timer = setInterval(function () {
+        attempts++;
+        if (mount() || attempts >= 400) clearInterval(timer);
+      }, 25);
     }
-    protectionRuns++;
+  }
+  if (otlobliNavBootstrapFeatureEnabled('navigationEarlyProtection')) {
     runEarlyProtections();
-    if (protectionRuns >= 180) clearInterval(protectionTimer);
-  }, 250);
+    var protectionRuns = 0;
+    var protectionTimer = setInterval(function () {
+      if (window.__otlobliStoreRuntimeReady) {
+        clearInterval(protectionTimer);
+        return;
+      }
+      protectionRuns++;
+      runEarlyProtections();
+      if (protectionRuns >= 180) clearInterval(protectionTimer);
+    }, 250);
+  }
   // The nav is attached to documentElement, so replacing SHEIN's app root
   // normally leaves it intact. Recheck on real wake events rather than waking
   // every weak device forever with a background DOM timer.
   function restoreOtlobliNavOnWake() {
     try { mount(); } catch (e) {}
   }
-  window.addEventListener('pageshow', restoreOtlobliNavOnWake, false);
-  document.addEventListener('visibilitychange', function () {
-    if (!document.hidden) restoreOtlobliNavOnWake();
-  }, false);
+  if (otlobliNavBootstrapFeatureEnabled('navigationEarlyMount')) {
+    window.addEventListener('pageshow', restoreOtlobliNavOnWake, false);
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) restoreOtlobliNavOnWake();
+    }, false);
+  }
 })();
 `

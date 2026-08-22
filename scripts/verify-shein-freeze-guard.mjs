@@ -371,19 +371,27 @@ const checks = [
     forbidden: [
       'otlobli-script-diagnostics',
       'storeScriptFlagsChanged',
+      'storeDiagnosticState',
+      'OTLOBLI FLIGHT RECORDER',
     ],
   },
   {
-    label: 'A-D isolation profiles are bounded and website-data preserving',
+    label: 'navigation flight-recorder profiles are bounded and website-data preserving',
     file: 'src/services/storeScriptDiagnostics.ts',
     markers: [
       'INITIAL_STORE_SCRIPT_DIAGNOSTIC_FLAGS',
       'buildDiagnosticStoreCaptureScript',
-      "stageA.textContent = 'A — خام'",
-      "stageB.textContent = 'B — جذب فقط'",
-      "stageC.textContent = 'C — + الحجب'",
-      "stageD.textContent = 'D — + المنطقة'",
-      "post({ type: 'storeScriptFlagsChanged', flags: flags, label: label })",
+      "id: 'baseline', code: 'N0'",
+      "id: 'viewport', code: 'N1'",
+      "id: 'bar', code: 'N2'",
+      "id: 'touch', code: 'N3'",
+      "id: 'back', code: 'N4'",
+      "id: 'early-mount', code: 'N5'",
+      "id: 'early-protection', code: 'N6'",
+      "id: 'region', code: 'R1'",
+      "post({ type: 'storeScriptFlagsChanged', flags: profile.flags",
+      "post({ type: 'storeDiagnosticState', state: state })",
+      'نسخ التقرير الكامل',
       "post({ type: 'closeStore' })",
       "status.setAttribute('aria-live', 'polite')",
       '@media(prefers-reduced-motion:reduce)',
@@ -1114,6 +1122,8 @@ try {
     '__otlobliTapDiagnosticContext',
     '__otlobliFreezeProbe',
     'storeScriptFlagsChanged',
+    'storeDiagnosticState',
+    'OTLOBLI FLIGHT RECORDER',
     '__OTLOBLI_SHEIN_REGION_DIAGNOSTICS__',
   ]
   for (const marker of forbiddenReleaseMarkers) {
@@ -1134,40 +1144,41 @@ try {
 try {
   const bundleModule = evaluateInjectedScriptExports('src/services/storeCaptureBundle.ts')
   const diagnosticsModule = evaluateInjectedScriptExports('src/services/storeScriptDiagnostics.ts')
-  const stages = {
-    A: { runtime: false, navigation: false, blocking: false, capture: false, session: false },
-    B: { runtime: true, navigation: false, blocking: false, capture: true, session: false },
-    C: { runtime: true, navigation: false, blocking: true, capture: true, session: false },
-    D: { runtime: true, navigation: true, blocking: true, capture: true, session: true },
-  }
-  const scripts = Object.fromEntries(Object.entries(stages).map(([name, flags]) => [
-    name,
+  const profiles = diagnosticsModule.STORE_SCRIPT_DIAGNOSTIC_PROFILES
+  const profileById = Object.fromEntries(profiles.map((profile) => [profile.id, profile]))
+  const scripts = Object.fromEntries(profiles.map((profile) => [
+    profile.id,
     diagnosticsModule.buildDiagnosticStoreCaptureScript(
-      {}, flags, bundleModule.SHEIN_PRIVACY_COMPAT_SCRIPT, bundleModule.SHEIN_CAPTURE_SCRIPT,
+      {}, profile.flags, {}, bundleModule.SHEIN_PRIVACY_COMPAT_SCRIPT, bundleModule.SHEIN_CAPTURE_SCRIPT,
     ),
   ]))
   for (const script of Object.values(scripts)) new Function(script)
-  if (!scripts.A.includes('otlobli-script-diagnostics') ||
-      !scripts.A.includes('__otlobliSheinPrivacyCompatInstalled') ||
-      scripts.A.includes('function tick()')) {
-    failures.push('SHEIN A-D isolation: A must contain only the panel/readiness and privacy compatibility')
+  if (!scripts.baseline.includes('otlobli-script-diagnostics') ||
+      !scripts.baseline.includes('__otlobliSheinPrivacyCompatInstalled') ||
+      !scripts.baseline.includes('function tick()')) {
+    failures.push('SHEIN navigation isolation: baseline must keep the flag-gated capture/blocking runtime and panel')
   }
-  for (const stage of ['B', 'C', 'D']) {
-    if (!scripts[stage].includes('function tick()')) {
-      failures.push(`SHEIN A-D isolation: ${stage} must install the flag-gated coordinator`)
+  for (const profile of profiles) {
+    if (!scripts[profile.id].includes('function tick()')) {
+      failures.push(`SHEIN navigation isolation: ${profile.code} must install the flag-gated coordinator`)
     }
   }
-  if (!scripts.B.includes('"capture":true') || scripts.B.includes('"blocking":true') || scripts.B.includes('"session":true')) {
-    failures.push('SHEIN A-D isolation: B flags must enable capture only')
+  if (profileById.baseline.flags.navigation !== false || profileById.baseline.flags.blocking !== true ||
+      profileById.baseline.flags.capture !== true || profileById.baseline.flags.session !== false) {
+    failures.push('SHEIN navigation isolation: N0 must preserve capture/blocking while navigation/session stay off')
   }
-  if (!scripts.C.includes('"capture":true') || !scripts.C.includes('"blocking":true') || scripts.C.includes('"session":true')) {
-    failures.push('SHEIN A-D isolation: C flags must add blocking without session/region')
+  if (profileById.viewport.flags.navigationViewport !== true || profileById.viewport.flags.navigationBar !== false) {
+    failures.push('SHEIN navigation isolation: N1 must add viewport without the bar')
   }
-  if (!scripts.D.includes('"navigation":true') || !scripts.D.includes('"session":true')) {
-    failures.push('SHEIN A-D isolation: D must restore navigation and session/region')
+  if (profileById['early-protection'].flags.navigationEarlyProtection !== true ||
+      profileById['early-protection'].flags.session !== false) {
+    failures.push('SHEIN navigation isolation: N6 must restore full navigation without session/region')
+  }
+  if (profileById.region.flags.navigation !== true || profileById.region.flags.session !== true) {
+    failures.push('SHEIN navigation isolation: R1 must restore navigation and session/region')
   }
 } catch (error) {
-  failures.push(`SHEIN A-D isolation syntax: ${error instanceof Error ? error.message : String(error)}`)
+  failures.push(`SHEIN navigation isolation syntax: ${error instanceof Error ? error.message : String(error)}`)
 }
 
 // Exercise the compatibility prelude against the exact failure shape found by

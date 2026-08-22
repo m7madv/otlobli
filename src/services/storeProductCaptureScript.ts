@@ -3485,7 +3485,7 @@ export const STORE_PRODUCT_CAPTURE_SCRIPT = `
     }
     if (detail && detail.type === '__backTarget') {
       __otlobliBackTarget = detail.target === 'cart' ? 'cart' : 'home';
-      ensureBackButton();
+      if (otlobliScriptEnabled('navigationBack')) ensureBackButton();
       return;
     }
     if (detail && detail.type === 'addToCartAck') {

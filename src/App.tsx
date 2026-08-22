@@ -17,7 +17,7 @@ import type { Address, AppNotification, CartGroupSnapshot, CartItem, Notificatio
 import { getDeviceId, readStoredJson, storageKeys, useStoredState } from './infrastructure/localStorage'
 import { appApi } from './services'
 import { PAYMENT_MODE, APP_VERSION, STORE_SCRIPT_DIAGNOSTICS, TEMU_PERSONAL_SITE_MODE, TEST_ONLY_AUTH_BYPASS, cleanEnvValue } from './config'
-import type { StoreScriptFlags } from './services/storeScriptDiagnostics'
+import type { StoreDiagnosticState, StoreScriptFlags } from './services/storeScriptDiagnostics'
 import { buildWhatsappLink } from './services/whatsappLink'
 import {
   getAccountAuthMethods,
@@ -110,19 +110,36 @@ const loadStoreScriptDiagnosticsBundle = () => {
   return storeScriptDiagnosticsBundlePromise
 }
 
-const STORE_SCRIPT_FLAGS_STORAGE_KEY = 'otlobli.storeScriptDiagnostics.flags.v2'
+const STORE_SCRIPT_FLAGS_STORAGE_KEY = 'otlobli.storeScriptDiagnostics.flags.v3'
+const STORE_DIAGNOSTIC_STATE_STORAGE_KEY = 'otlobli.storeScriptDiagnostics.state.v3'
 const INITIAL_STORE_SCRIPT_FLAGS: StoreScriptFlags = {
-  runtime: false,
+  runtime: true,
   navigation: false,
-  blocking: false,
-  capture: false,
+  navigationViewport: false,
+  navigationBar: false,
+  navigationTouch: false,
+  navigationBack: false,
+  navigationEarlyMount: false,
+  navigationEarlyProtection: false,
+  blocking: true,
+  capture: true,
   session: false,
 }
 const normalizeStoreScriptFlags = (value: unknown): StoreScriptFlags => {
   const candidate = value && typeof value === 'object' ? value as Record<string, unknown> : {}
+  const navigation = candidate.navigation === true
+  const navigationFlag = (key: string) => Object.prototype.hasOwnProperty.call(candidate, key)
+    ? candidate[key] === true
+    : navigation
   return {
     runtime: candidate.runtime === true,
-    navigation: candidate.navigation === true,
+    navigation,
+    navigationViewport: navigationFlag('navigationViewport'),
+    navigationBar: navigationFlag('navigationBar'),
+    navigationTouch: navigationFlag('navigationTouch'),
+    navigationBack: navigationFlag('navigationBack'),
+    navigationEarlyMount: navigationFlag('navigationEarlyMount'),
+    navigationEarlyProtection: navigationFlag('navigationEarlyProtection'),
     blocking: candidate.blocking === true,
     capture: candidate.capture === true,
     session: candidate.session === true,
@@ -136,10 +153,31 @@ const readStoreScriptFlags = () => STORE_SCRIPT_DIAGNOSTICS
   : {
       runtime: true,
       navigation: true,
+      navigationViewport: true,
+      navigationBar: true,
+      navigationTouch: true,
+      navigationBack: true,
+      navigationEarlyMount: true,
+      navigationEarlyProtection: true,
       blocking: true,
       capture: true,
       session: true,
     }
+
+const INITIAL_STORE_DIAGNOSTIC_STATE: StoreDiagnosticState = {
+  version: 3,
+  activeProfile: 'baseline',
+  outcomes: {},
+  trace: [],
+  journey: { tap: false, url: false, document: false, product: false, error: false },
+}
+const readStoreDiagnosticState = () => STORE_SCRIPT_DIAGNOSTICS
+  ? readStoredJson<StoreDiagnosticState>(STORE_DIAGNOSTIC_STATE_STORAGE_KEY, INITIAL_STORE_DIAGNOSTIC_STATE)
+  : INITIAL_STORE_DIAGNOSTIC_STATE
+const persistStoreDiagnosticState = (state: StoreDiagnosticState) => {
+  if (!STORE_SCRIPT_DIAGNOSTICS) return
+  try { window.localStorage.setItem(STORE_DIAGNOSTIC_STATE_STORAGE_KEY, JSON.stringify(state)) } catch { /* diagnostic memory state still works */ }
+}
 
 // موقع SHEIN الذي يتصفّحه الزبون. نستخدم نسخة الأردن لأنها تعرض العربية
 // بثبات (نسخة لبنان m.shein.com/lb تعرض الإنجليزية ولا تقبل العربية).
@@ -3265,6 +3303,7 @@ function App() {
   const storeCaptureBundleRef = useRef<StoreCaptureBundle | null>(null)
   const storeScriptDiagnosticsBundleRef = useRef<StoreScriptDiagnosticsBundle | null>(null)
   const storeScriptFlagsRef = useRef<StoreScriptFlags>(readStoreScriptFlags())
+  const storeDiagnosticStateRef = useRef<StoreDiagnosticState>(readStoreDiagnosticState())
   const storeCaptureBundleLoadingRef = useRef(false)
   const sheinCoordinatorRef = useRef(createSheinRegionCoordinator(DEFAULT_STORE_REGIONS.shein))
   const sheinOpeningTraceRef = useRef<SheinOpeningTrace | null>(null)
@@ -4158,6 +4197,7 @@ function App() {
       ? diagnosticsBundle.buildDiagnosticStoreCaptureScript(
           activeRegions,
           activeScriptFlags,
+          storeDiagnosticStateRef.current,
           captureBundle.SHEIN_PRIVACY_COMPAT_SCRIPT,
           captureBundle.SHEIN_CAPTURE_SCRIPT,
         )
@@ -4165,10 +4205,10 @@ function App() {
     const scriptDiagnosticsPrelude = STORE_SCRIPT_DIAGNOSTICS && diagnosticsBundle
       ? diagnosticsBundle.buildStoreScriptDiagnosticsPrelude(activeScriptFlags)
       : ''
-    // A-C deliberately omit the full session coordinator, so the native cover
-    // has no production-ready coordinator payload that could release it. Show
-    // those internal isolation stages directly; normal builds and D keep the
-    // existing policy/region-gated cover unchanged.
+    // N0-N6 deliberately omit the session/region coordinator, so the native
+    // cover has no production-ready coordinator payload that could release it.
+    // Show those internal navigation profiles directly; normal builds and R1
+    // keep the existing policy/region-gated cover unchanged.
     const useSheinLoadingCover = !STORE_SCRIPT_DIAGNOSTICS ||
       (activeScriptFlags.runtime && activeScriptFlags.session)
     const hostSafeBottomInset = readHostSafeBottomInset()
@@ -4548,6 +4588,18 @@ function App() {
         webviewIdRef.current = loadedWebviewId
       }
       if (selectedStoreRef.current === 'shein') {
+        if (STORE_SCRIPT_DIAGNOSTICS && storeScriptDiagnosticsBundleRef.current) {
+          const nextDiagnosticState = storeScriptDiagnosticsBundleRef.current.appendStoreDiagnosticHostEvent(
+            storeDiagnosticStateRef.current,
+            'native-page-loaded',
+            currentWebviewUrlRef.current,
+          )
+          storeDiagnosticStateRef.current = nextDiagnosticState
+          persistStoreDiagnosticState(nextDiagnosticState)
+          void InAppBrowser.postMessage({
+            detail: { type: '__storeDiagnosticHostState', state: nextDiagnosticState },
+          }).catch(() => undefined)
+        }
         markSheinOpening('navigationFinish')
         if (pendingProductRevealRef.current && pendingProductNavigationRequestedRef.current) {
           pendingProductPageLoadedRef.current = true
@@ -4575,6 +4627,7 @@ function App() {
               ? loadedDiagnosticsBundle.buildDiagnosticStoreCaptureScript(
                   storeRegionsRef.current,
                   storeScriptFlagsRef.current,
+                  storeDiagnosticStateRef.current,
                   loadedBundle.SHEIN_PRIVACY_COMPAT_SCRIPT,
                   loadedBundle.SHEIN_CAPTURE_SCRIPT,
                 )
@@ -4612,6 +4665,19 @@ function App() {
         code: webviewErrorCode(event) ?? 0,
         domain: event.domain ?? '',
       })
+      if (activeStore === 'shein' && STORE_SCRIPT_DIAGNOSTICS && storeScriptDiagnosticsBundleRef.current) {
+        const nextDiagnosticState = storeScriptDiagnosticsBundleRef.current.appendStoreDiagnosticHostEvent(
+          storeDiagnosticStateRef.current,
+          'native-page-error',
+          currentWebviewUrlRef.current,
+          `${event.domain ?? ''}:${webviewErrorCode(event) ?? 0}`,
+        )
+        storeDiagnosticStateRef.current = nextDiagnosticState
+        persistStoreDiagnosticState(nextDiagnosticState)
+        void InAppBrowser.postMessage({
+          detail: { type: '__storeDiagnosticHostState', state: nextDiagnosticState },
+        }).catch(() => undefined)
+      }
       if (activeStore === 'shein' && isFatalSheinWebkitError(event)) {
         handleFatalSheinWebkitError(event)
         return
@@ -4680,7 +4746,19 @@ function App() {
       if (id && webviewIdRef.current && id !== webviewIdRef.current) return
       currentWebviewUrlRef.current = url
       if (/shein/i.test(url)) {
-        // A-C are deliberate isolation profiles: the host must not normalize
+        if (STORE_SCRIPT_DIAGNOSTICS && storeScriptDiagnosticsBundleRef.current) {
+          const nextDiagnosticState = storeScriptDiagnosticsBundleRef.current.appendStoreDiagnosticHostEvent(
+            storeDiagnosticStateRef.current,
+            'native-url-change',
+            url,
+          )
+          storeDiagnosticStateRef.current = nextDiagnosticState
+          persistStoreDiagnosticState(nextDiagnosticState)
+          void InAppBrowser.postMessage({
+            detail: { type: '__storeDiagnosticHostState', state: nextDiagnosticState },
+          }).catch(() => undefined)
+        }
+        // N0-N6 are deliberate isolation profiles: the host must not normalize
         // URLs or start a region cascade while the session layer is disabled.
         if (STORE_SCRIPT_DIAGNOSTICS && !storeScriptFlagsRef.current.session) return
         if (isSheinHumanChallengeUrl(url)) {
@@ -4779,8 +4857,20 @@ function App() {
         recordAppDiagnostic('store_message', { store: selectedStoreRef.current, type: messageType })
       }
 
+      if (STORE_SCRIPT_DIAGNOSTICS && storeScriptDiagnosticsBundleRef.current?.isStoreDiagnosticStateMessage(detail)) {
+        const nextState = storeScriptDiagnosticsBundleRef.current.normalizeStoreDiagnosticState(detail?.state)
+        storeDiagnosticStateRef.current = nextState
+        persistStoreDiagnosticState(nextState)
+        return
+      }
+
       if (storeScriptDiagnosticsBundleRef.current?.isStoreScriptFlagsChangedMessage(detail)) {
         if (!STORE_SCRIPT_DIAGNOSTICS) return
+        if (detail?.diagnosticState) {
+          const nextDiagnosticState = storeScriptDiagnosticsBundleRef.current.normalizeStoreDiagnosticState(detail.diagnosticState)
+          storeDiagnosticStateRef.current = nextDiagnosticState
+          persistStoreDiagnosticState(nextDiagnosticState)
+        }
         const nextFlags = normalizeStoreScriptFlags(detail?.flags)
         storeScriptFlagsRef.current = nextFlags
         try {
@@ -4789,12 +4879,18 @@ function App() {
         recordAppDiagnostic('store_script_flags_changed', {
           runtime: nextFlags.runtime,
           navigation: nextFlags.navigation,
+          navigationViewport: nextFlags.navigationViewport,
+          navigationBar: nextFlags.navigationBar,
+          navigationTouch: nextFlags.navigationTouch,
+          navigationBack: nextFlags.navigationBack,
+          navigationEarlyMount: nextFlags.navigationEarlyMount,
+          navigationEarlyProtection: nextFlags.navigationEarlyProtection,
           blocking: nextFlags.blocking,
           capture: nextFlags.capture,
           session: nextFlags.session,
         })
 
-        // Every A-D comparison gets a clean JavaScript runtime while the real
+        // Every navigation/region profile gets a clean JavaScript runtime while the real
         // SHEIN website data store (cookies/storage/verification) is retained.
         clearSheinReadinessWatchdog()
         clearPendingProductPreparation()
@@ -4840,7 +4936,7 @@ function App() {
       }
 
       if (detail?.type === 'sheinPageInteractive' && detail.diagnostic === true && STORE_SCRIPT_DIAGNOSTICS) {
-        // The raw/capture-only profiles intentionally omit the policy/session
+        // The navigation-only profiles intentionally omit the policy/session
         // coordinator. Their tiny panel is the sole painted-page readiness
         // bridge, so the native cover cannot hide the very page being tested.
         setSheinBlockedError(false)

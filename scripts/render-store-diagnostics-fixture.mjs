@@ -22,11 +22,13 @@ writeFileSync(outputPath, `<!doctype html>
     header{position:sticky;top:0;padding:16px;background:#fff;border-bottom:1px solid #ddd;font-weight:800}
     main{padding:14px;display:grid;grid-template-columns:1fr 1fr;gap:12px}
     article{min-height:190px;border-radius:12px;background:#f1f1f1;padding:10px;display:flex;align-items:flex-end}
+    article a{color:inherit;font-weight:800}.product-detail-fixture{position:absolute;width:1px;height:1px;overflow:hidden}
   </style>
 </head>
 <body>
   <header>SHEIN — صفحة متجر تجريبية</header>
-  <main>${Array.from({ length: 8 }, (_, index) => `<article>منتج ${index + 1}</article>`).join('')}</main>
+  <main>${Array.from({ length: 8 }, (_, index) => `<article><a href="#fixture-p-${index + 1001}">منتج ${index + 1}</a></article>`).join('')}</main>
+  <section class="product-detail-fixture" aria-hidden="true"></section>
   <script>
     window.__OTLOBLI_SCRIPT_FLAGS__={runtime:false,navigation:false,blocking:false,capture:false,session:false};
     window.mobileApp={postMessage:function(message){window.__lastDiagnosticMessage=message;}};

@@ -1,29 +1,51 @@
-# Active handoff — v86.220 product navigation ownership (2026-08-23)
+# Active handoff — v86.221 navigation flight recorder (2026-08-23)
 
 Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
-`codex/otlobli-v86-212-testflight-auth`. Current source is `86.220/1082`.
-The user's physical diagnostic result is decisive: product PDPs open with the
-Navigation group off, and the failure returns with it on. Session/Region also
-reproduces a separate repair restart for each product path. Do not return to
-speculative verification, native lifecycle, capture, or blocking changes.
+`codex/otlobli-v86-212-testflight-auth`. Source is `86.221/1083`, synchronized
+to Android and iOS as an internal diagnostic build. It is not physical-device
+acceptance or a production fix.
 
-The v86.220 boundary is deliberate. Keep the Otlobli bottom bar and its own
-button bridge, while SHEIN exclusively owns product-card navigation. Do not
-restore the global product `touchend` listener, its 500ms `location.assign`, or
-the injected chunk-promise failure bridge. Native fatal WebKit and unexpected-
-close recovery still call the existing bounded host recovery and were not
-removed. Automatic region repair exhaustion is country-session scoped through
-`__otlobliAutomaticRegionRepairExhausted`; it must not be keyed by pathname.
-Only the explicit Add flow calls `ensureSheinSaudiStore(true)` to permit one
-fresh fail-closed repair attempt.
+The user installed v86.220 and reproduced the same PDP spinner. Therefore do
+not repeat its exact-cause claim: disabling the broad Navigation group proved
+the trigger is somewhere inside that group, but removing only the product tap
+fallback/chunk bridge did not fix it. The retained candidates are viewport,
+runtime bar paint, bar touch bridge, Back state, document-start bar mount, and
+the bounded early protection scan.
 
-All normal build/guard checks, both native syncs, Android assembly, asset hash
-equality, APK metadata, and marker-absence inspection pass. Exact budgets,
-hashes, and artifact path are at the top of `CURRENT_STATE.md`. The normal APK
-contains no diagnostic panel. Preserve the iPhone `otlobliForceRecompose`,
-`appDidBecomeActive` 0.25s delay, Android resume defense, JSON-stringified
-active-store equality, payment/wallet/orders/auth, and every performance
-budget. No v86.220 physical acceptance or TestFlight delivery is recorded yet.
+The v86.221 panel must be tested in order: N0 proven-safe composition, N1
+viewport, N2 bar painting, N3 bar touch, N4 product Back, N5 early mount, N6
+early protection, then R1 session/region. For each, open one product and press
+`فتح المنتج` or `بقي يحمّل`; stop at the first failure and use
+`نسخ التقرير الكامل`. The four live journey nodes distinguish no product tap,
+no URL transition, document load without PDP paint, and a completed PDP. State
+is bounded and persisted in the Otlobli host; never move it into SHEIN storage.
+
+Preserve the granular gates. In customer builds absent granular flags inherit
+the broad Navigation flag, so production behavior is unchanged. In diagnostic
+builds `navigationViewport`, `navigationBar`, `navigationTouch`,
+`navigationBack`, `navigationEarlyMount`, and `navigationEarlyProtection` are
+independent. The session-interaction fast branch must respect
+`navigationBar`; this removes the old visually painted but inert bar when
+Navigation is off. Do not add history wrappers, synthetic clicks, recurring
+timers, reloads, or new native recovery.
+
+All local guards/builds, WebKit fixture, both native syncs, and Android assembly
+pass. Exact budgets, synchronized asset hashes, and APK path/hash are at the top
+of `CURRENT_STATE.md`. The customer build contains no flight-recorder markers.
+Preserve `otlobliForceRecompose`, `appDidBecomeActive` at 0.25s, Android resume,
+the JSON-stringified active-store comparison, payment/wallet/orders/auth, and
+all performance budgets. TestFlight and physical acceptance are pending.
+
+# Historical handoff — v86.220 product navigation ownership (rejected 2026-08-23)
+
+v86.220 removed the global product touch fallback/chunk bridge and made region
+repair exhaustion country-session scoped. Signed run `32604307896` delivered
+exact `86.220 (1082)` to the internal group; Apple status and tester
+installation were verified. The user then reproduced the same PDP spinner, so
+the candidate is physically rejected and its exact-cause claim is superseded.
+Do not restore the removed fallback/bridge, but do not assume they caused the
+failure. Use v86.221 N0-N6 evidence to classify the retained Navigation
+sublayer. No public submission occurred.
 
 # Active handoff — v86.219 diagnostic native-cover correction (2026-08-23)
 

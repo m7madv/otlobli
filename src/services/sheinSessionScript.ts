@@ -41,7 +41,7 @@ export const SHEIN_SESSION_SCRIPT = `
       meta.setAttribute('content', nextContent);
     }
   }
-  if (otlobliScriptEnabled('navigation')) ensureViewportFitCover();
+  if (otlobliScriptEnabled('navigationViewport')) ensureViewportFitCover();
 
   // هل نحن داخل أحد مواقع شي إن؟ منطق الالتقاط/الحجب الخاص بشي إن يعمل فقط
   // عندها؛ على المتاجر الأخرى (تيمو/ترينديول) نكتفي بتنظيف العروض المنبثقة.

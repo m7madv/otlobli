@@ -26,4 +26,4 @@ export const STORE_SCRIPT_DIAGNOSTICS =
 export const TEMU_PERSONAL_SITE_MODE = false
 
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '86.220'
+export const APP_VERSION = '86.221'

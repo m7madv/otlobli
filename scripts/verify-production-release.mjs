@@ -11,11 +11,11 @@ const read = (file) => readFileSync(resolve(projectRoot, file), 'utf8')
 const sha256 = (file) => createHash('sha256').update(readFileSync(resolve(projectRoot, file))).digest('hex').toUpperCase()
 
 const protectedCaptureHashes = new Map([
-  ['src/services/sheinBrowserScript.ts', '6793A8C52D46A8B4F29722A6A6E22B9ABB9B1C35FD95C1A77D0BD14DB46272FC'],
-  ['src/services/storeProductCaptureScript.ts', '2040586A6402735A5D4D498FEF398E9A86373A83E2BAB8B01FECCB4357111716'],
+  ['src/services/sheinBrowserScript.ts', '17BC27F8B1A4443585D301E654F7E32DB30B3578C99ADA72A8C5D1492B1CC87E'],
+  ['src/services/storeProductCaptureScript.ts', 'E62320E16017084CB581F1D734BEE3B8A58886211A005008897EF252A621AE3A'],
   ['src/services/sheinSkuTap.ts', 'F675AF9D4FC75595914DF97D907FEE2472691204EEF89F89844871662F676619'],
   ['src/services/storeBrowser.ts', 'A54E19DF8E66B2D49C7B227DD24C7C6B43B2593E97C88047D76D5827DC5452B7'],
-  ['src/services/storeRuntimeCoordinator.ts', '42F9A1282956DDBF91D44AC0FED7F4727BFD3D240F66DBA86CBF8C3CC0AC5F6B'],
+  ['src/services/storeRuntimeCoordinator.ts', 'D8D05030E6C12FE753C4DBF044D30589D46000FDAE68366FD0714262F856726B'],
   ['src/domain/types.ts', '5FA37D5ABB06BEBD0ED6B9E6ED62393A70A2F18556D44172259598387FC59175'],
 ])
 
