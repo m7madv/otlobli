@@ -312,6 +312,7 @@ export const SHEIN_SESSION_SCRIPT = `
   var sheinNativeCoverRepairStartedAt = 0;
   var sheinNativeCoverCooldownUntil = 0;
   var sheinNativeCoverLastKey = '';
+  var sheinNativeCoverRepairExhaustedKey = '';
   sheinRegionDiag('capture-script-injected', {
     requiredCountry: SHEIN_REQUIRED_COUNTRY,
     productRoute: sheinLooksLikeProductRouteForShipping(),
@@ -518,6 +519,11 @@ export const SHEIN_SESSION_SCRIPT = `
       scheduleSheinShippingProgress(OTLOBLI_LOW_END ? 260 : 120);
       return true;
     }
+    var repairKey = SHEIN_REQUIRED_COUNTRY + ':' + String(location.pathname || '');
+    if (sheinNativeCoverRepairExhaustedKey === repairKey) {
+      sheinRegionDiag('repair-route-exhausted', {}, repairKey);
+      return false;
+    }
     var now = Date.now();
     if (now < sheinNativeCoverCooldownUntil) {
       sheinRegionDiag('repair-cooldown', {
@@ -582,6 +588,7 @@ export const SHEIN_SESSION_SCRIPT = `
       }
       sheinNativeCoverRepairActive = false;
       sheinNativeCoverRepairStartedAt = 0;
+      sheinNativeCoverRepairExhaustedKey = '';
       sheinRegionVeilStartedAt = 0;
       sheinRegionTransitionVeil(false);
       sheinRegionDiag('repair-signed-ready', {
@@ -609,6 +616,7 @@ export const SHEIN_SESSION_SCRIPT = `
           shippingUiOpen: sheinShippingUiLikelyOpen()
         }, 'timeout');
         closeResolvedSheinShippingUi(true);
+        sheinNativeCoverRepairExhaustedKey = SHEIN_REQUIRED_COUNTRY + ':' + currentPath;
         sheinNativeCoverRepairActive = false;
         sheinNativeCoverRepairStartedAt = 0;
         sheinNativeCoverCooldownUntil = Date.now() + 2500;
@@ -1533,6 +1541,12 @@ export const SHEIN_SESSION_SCRIPT = `
 
   function ensureSheinSaudiShippingSelection() {
     if (!IS_SHEIN || !document.body || document.readyState === 'loading') return;
+    var productRoute = sheinLooksLikeProductRouteForShipping();
+    // A recovered Home is a same-site launch pad for the queued PDP. Opening
+    // the shipping cascade there made the host wait on an address signature,
+    // close the drawer, and open it again instead of ever reaching the product.
+    if (!productRoute && window.__otlobliSkipHomeRegionRepair === true &&
+        !sheinNativeCoverRepairActive) return;
     if (!sheinLooksLikeProductPageForShipping() && !sheinFindHomeShippingEntryControl()) {
       sheinRegionDiag('shipping-entry-not-detected', {
         productRoute: sheinLooksLikeProductRouteForShipping()
@@ -1542,6 +1556,7 @@ export const SHEIN_SESSION_SCRIPT = `
     var now = Date.now();
     var sessionKey = SHEIN_REQUIRED_COUNTRY + ':' + location.pathname;
     if (sessionKey !== sheinShippingSessionKey) resetSheinShippingProgress(sessionKey);
+    if (!sheinSignedSaudiAddressReady() && sheinNativeCoverRepairExhaustedKey === sessionKey) return;
     if (!sheinSignedSaudiAddressReady()) sheinPrepareNativeSaudiRepair();
     var scanGap = sheinNativeCoverRepairActive
       ? (OTLOBLI_LOW_END ? 260 : 120)

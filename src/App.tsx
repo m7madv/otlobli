@@ -3205,6 +3205,9 @@ function App() {
   const pendingProductRequiresVisualReadyRef = useRef(false)
   const pendingProductVisualReadyRef = useRef(false)
   const pendingProductPrepareTimerRef = useRef<number | undefined>(undefined)
+  // Transient routing state only; a ref keeps the recovery hand-off from
+  // causing a React render while the native WebView is offscreen.
+  const pendingSheinWarmHomeNavigationRef = useRef(false)
   const sheinCartProductSessionRef = useRef(false)
   const [sheinReady, setSheinReady] = useState(false)
   const sheinReadyRef = useRef(false)
@@ -3589,6 +3592,7 @@ function App() {
     pendingProductRequiresVisualReadyRef.current = false
     pendingProductVisualReadyRef.current = false
     pendingProductRevealUrlRef.current = ''
+    pendingSheinWarmHomeNavigationRef.current = false
     if (clearQueuedUrl) pendingProductUrlRef.current = ''
   }
 
@@ -4092,6 +4096,7 @@ function App() {
       Capacitor.getPlatform() === 'ios' && sheinCacheResetPendingRef.current &&
       pendingProductRevealRef.current && !!initialPendingUrl
     const wantsWarmProductNav = wantsWarmTemuProductNav || wantsWarmSheinRecoveryProductNav
+    pendingSheinWarmHomeNavigationRef.current = wantsWarmSheinRecoveryProductNav
     const activeRegions = storeRegionsRef.current
     const rawTargetUrl = wantsWarmProductNav
       ? storeUrl(activeStore, activeRegions)
@@ -4116,7 +4121,7 @@ function App() {
       ...(activeStore === 'shein'
         ? {
           otlobliLoadingCover: true,
-          otlobliDocumentStartScript: `window.__otlobliSafeBottom=${hostSafeBottomInset};\nwindow.__otlobliNativePlatform=${JSON.stringify(Capacitor.getPlatform())};\n${captureBundle.SHEIN_PRIVACY_COMPAT_SCRIPT}\n${captureBundle.SHEIN_POLICY_DOCUMENT_START_SCRIPT}\n${captureBundle.OTLOBLI_NAV_BOOTSTRAP_SCRIPT}`,
+          otlobliDocumentStartScript: `window.__otlobliSafeBottom=${hostSafeBottomInset};\nwindow.__otlobliNativePlatform=${JSON.stringify(Capacitor.getPlatform())};\nwindow.__otlobliSkipHomeRegionRepair=${wantsWarmSheinRecoveryProductNav};\n${captureBundle.SHEIN_PRIVACY_COMPAT_SCRIPT}\n${captureBundle.SHEIN_POLICY_DOCUMENT_START_SCRIPT}\n${captureBundle.OTLOBLI_NAV_BOOTSTRAP_SCRIPT}`,
           otlobliPreserveAttachedWhenHidden: true,
           // Prepare SHEIN at the real device size without presenting it. The
           // already-mounted Otlobli shell therefore owns the only visible nav
@@ -4773,6 +4778,21 @@ function App() {
         if (next.captureState === 'ready') markSheinOpening('captureReady')
         if (isSheinCoordinatorVisuallyReady(next)) {
           markSheinWebviewVisuallyReady(webviewSessionRef.current)
+          // The recovery Home is only a lightweight same-site launch pad. Its
+          // visible, policy-safe frame is enough to navigate to the queued PDP;
+          // waiting for a full signed shipping cascade here re-opened SHEIN's
+          // region drawer and never reached the product on the physical iPhone.
+          if (pendingSheinWarmHomeNavigationRef.current && pendingProductUrlRef.current) {
+            const targetUrl = pendingProductUrlRef.current
+            pendingSheinWarmHomeNavigationRef.current = false
+            pendingProductUrlRef.current = ''
+            markPendingProductNavigationRequested()
+            void navigateStoreWebviewInPage(targetUrl).catch(() => {
+              clearPendingProductPreparation()
+              pendingBackTargetRef.current = 'home'
+              showNotice('تعذر تجهيز صفحة المنتج. جرّب فتحها مرة أخرى.')
+            })
+          }
           revealPreparedProductIfReady()
         }
         if (isSheinCoordinatorReady(next)) {

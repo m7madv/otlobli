@@ -1,3 +1,46 @@
+# v86.216 — release warm recovery from the SHEIN region loop (2026-08-22)
+
+Continue in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
+`codex/otlobli-v86-212-testflight-auth`. Current source is `86.216/1078` and is
+synchronized to Android and iOS. It has not been signed or uploaded to
+TestFlight; a fresh explicit approval is required before that Apple mutation.
+
+The user's 34.92-second physical iPhone video rejects `86.215/1077`: SHEIN
+selects the requested area, closes the drawer, then repeatedly opens and selects
+it again, while the original list→product gray spinner remains. The exact causes
+were related. Warm recovery opened SHEIN Home but retained the PDP until full
+signed address readiness; only visual readiness completed, so the product was
+never requested. The waiting Home then ran automatic region repair; its 12s
+timeout closed the drawer and its later scan started the same repair again.
+
+v86.216 treats recovered Home only as a same-site launch pad: at policy-safe
+visual readiness the host navigates the queued PDP in the same WebView. Home
+region repair is skipped for that launch state, and any real automatic repair
+that times out is exhausted for the same country/path until route/state changes.
+The physical tap timestamp is now armed at validated `touchend`, and a chunk
+failure is eligible only when it occurred after that exact tap and both are less
+than 15 seconds old. A stale listing failure can no longer trigger or suppress a
+later product recovery.
+
+The protected iOS/Android lifecycle and recompose code, `JSON.stringify`
+store-region equality, purchase gates, payments, wallet, and orders are
+unchanged. No timer, polling loop, observer, DOM scan, WebView, or persistent
+React render was added; transient routing uses a ref.
+
+`npm run verify:shein-freeze-guard`, `npx tsc --noEmit`, targeted ESLint (zero
+errors), `git diff --check`, and the full `npm run build` pass. Performance is
+within unchanged budgets: startup JS `657,198/720,000`, largest JS
+`657,198/1,200,000`, total JS gzip `268,868/370,000`, CSS `69,990/70,000`,
+fonts `81,364/100,000`, shipped store scripts `243,384/470,000`, and source
+`568,240/600,000`. Both Capacitor syncs and the post-sync Android
+`assembleDebug` pass. Android artifact
+`output/Otlobli-v86.216-Android-debug.apk` is 11,120,845 bytes, SHA-256
+`FEFE572388DB1E830A0EA7C2B82020885576E875B6ADBAC64D82717BBAF7257D`.
+
+Unsigned iOS CI is pending. No physical acceptance is claimed. Acceptance must
+retest the same product, prove no repeated region drawer, then perform five real
+iPhone 16 background/resume cycles plus a separate force-quit/cold-launch test.
+
 # v86.215 — consume the recorded SHEIN tap failure and warm Home (2026-08-22)
 
 Continue in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on

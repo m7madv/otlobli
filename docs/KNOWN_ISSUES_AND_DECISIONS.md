@@ -1,5 +1,22 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
+## v86.216 — warm Home must not own region repair (2026-08-22)
+
+- **Physical rejection:** the user's 34.92-second iPhone video rejects
+  `86.215/1077`; it shows a successful area choice followed by an automatic
+  close/reopen/reselect loop, with the original product spinner still present.
+- **Cause:** warm recovery retained the PDP until full signed address readiness.
+  Home reached visual readiness only, so the queued PDP never navigated. Its
+  automatic region repair then timed out and was eligible to restart on the
+  same route. Tap/chunk correlation was also too broad and too late.
+- **Decision:** recovered Home is only a same-site launch pad. Skip Home repair
+  for that state and navigate the queued PDP at policy-safe visual readiness.
+  Exhaust a timed-out automatic repair for the same country/path. Arm the tap at
+  validated `touchend` and accept only a post-tap chunk failure within 15s.
+- **Boundary:** no new recurring work, WebView, lifecycle change, region
+  equality change, or transaction relaxation. Real-device acceptance remains
+  mandatory and unperformed.
+
 ## v86.215 — recorded pre-route chunk recovery and warm-home replay (2026-08-22)
 
 - **Physical rejection:** App Store Connect confirms `mhm1981dx@gmail.com`

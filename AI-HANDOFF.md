@@ -1,3 +1,48 @@
+# Active handoff — v86.216 warm-recovery/region-loop correction (2026-08-22)
+
+Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`
+on `codex/otlobli-v86-212-testflight-auth`. Current source is `86.216/1078`,
+built and synchronized to Android/iOS, but not signed or uploaded. Do not start
+a TestFlight upload without fresh explicit approval for this exact version.
+
+The user's 34.92-second iPhone recording physically rejects `86.215/1077`.
+It shows the shipping area selected successfully, the drawer closed and then
+automatically reopened/reselected, while the earlier product spinner remains.
+Do not describe v86.215 as accepted.
+
+Root cause: the v86.215 recovery opened Home but held the PDP until full signed
+region readiness. Home reached visual readiness only, so the queued product was
+never navigated. The session coordinator then opened the Home shipping cascade;
+after its bounded timeout it closed it, but later allowed the same route to start
+again. In addition, chunk correlation accepted a failure up to ten minutes old
+and armed the physical-tap timestamp only inside the 500ms fallback.
+
+Fix: recovered Home skips automatic Home-region repair and navigates the queued
+PDP as soon as its policy-safe visual state is ready. A timed-out automatic
+region repair is exhausted for that country/path until route/state change. Tap
+state is armed immediately at validated `touchend`; chunk recovery requires the
+failure to occur after the same tap and both timestamps to be within 15 seconds.
+Executable guard cases reject stale listing failures and earlier sent failures.
+
+The implementation adds no timer, polling, observer, DOM scan, WebView,
+lifecycle mutation, or persistent React state/render. It uses a ref for the
+transient warm-Home handoff. Protected detach/reattach, `appDidBecomeActive`
+0.25s recompose, Android host-resume defense, `JSON.stringify` region equality,
+transaction gates, payments, wallet, and orders remain untouched.
+
+Fresh freeze guard, TypeScript, targeted ESLint (zero errors), diff check, full
+build, both native syncs, and post-sync Android `assembleDebug` pass. Budgets:
+startup/largest JS `657,198`, total JS gzip `268,868`, CSS `69,990`, fonts
+`81,364`, shipped store scripts `243,384`, source `568,240`; no limit changed.
+Android artifact `output/Otlobli-v86.216-Android-debug.apk` is 11,120,845 bytes,
+SHA-256
+`FEFE572388DB1E830A0EA7C2B82020885576E875B6ADBAC64D82717BBAF7257D`.
+
+Unsigned iOS CI and artifact metadata are pending. TestFlight is not uploaded.
+Real acceptance is also pending: same PDP must open without a region loop,
+followed by five real iPhone 16 background/resume cycles and a separate cold
+launch. Do not infer acceptance from build, CI, simulator, or portal status.
+
 # Active handoff — v86.215 recorded-tap recovery (2026-08-22)
 
 Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`

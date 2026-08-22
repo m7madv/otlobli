@@ -1,14 +1,14 @@
-# SHEIN opening performance — v86.215
+# SHEIN opening performance — v86.216
 
-The physical `86.214/1076` result is rejected: the internal tester installed it
-on iPhone 16 Pro Max / iOS 27 and reproduced the list→product spinner. The
-failure was not the initial visual-ready predicate; the 500ms product callback
-never consumed a chunk failure recorded before SPA changed the URL.
+The user's 34.92-second physical video rejects `86.215/1077`: shipping selection
+completes, then the drawer automatically closes/reopens/reselects while the
+original list→product spinner remains.
 
-v86.215 adds one event-driven stored-error probe inside that existing callback.
-On a hit, the bounded recovery now warms SHEIN Home before replaying the queued
-PDP inside the same verified WebView. It adds no recurring work and does not
-change transaction readiness, region ownership, or lifecycle.
+v86.216 makes warm Home only a same-site launch pad: it skips Home-region repair
+and sends the queued PDP at policy-safe visual readiness in the same WebView.
+A timed-out automatic repair is exhausted for the same route, and chunk recovery
+requires a post-tap failure within 15 seconds. No recurring work or readiness
+relaxation was added.
 
 The release records bounded client-side timestamps for user tap, browser-open
 request, native browser create/show, policy installation, required-state
@@ -36,13 +36,13 @@ session: median at or below 8 seconds, p95 at or below 12 seconds, and slowest
 at or below 15 seconds across 30 openings, while all readiness fields pass.
 This is a measurement target, not a shipping claim.
 
-| Metric | v86.215 physical result |
+| Metric | v86.216 physical result |
 | --- | --- |
 | median | unavailable — 0 physical samples |
 | p95 | unavailable — 0 physical samples |
 | slowest | unavailable — 0 physical samples |
 
 The previously reported 10–11 seconds is an observation from an earlier build,
-not a measured v86.215 baseline. Physical timing data must be exported from the
+not a measured v86.216 baseline. Physical timing data must be exported from the
 bounded local records during acceptance. Also record clean-install time to
 visual ready separately from time to full signed transaction readiness.

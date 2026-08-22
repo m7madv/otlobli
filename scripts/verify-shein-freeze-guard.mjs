@@ -474,6 +474,8 @@ const checks = [
       'if(/-p-\\\\d+/i.test(location.pathname)',
       'window.__otlobliSheinChunkFailureAt=Date.now()',
       'window.__otlobliRecoverSheinChunkOnStalledTap=function(url)',
+      'a&&f>=a&&n-f<15000&&n-a<15000',
+      'window.__otlobliProductTapAttemptAt=Date.now()',
       "g('recover-recorded-chunk'",
     ],
     forbidden: [
@@ -514,7 +516,20 @@ const checks = [
       'pendingBackTargetRef.current = resumeBackTarget',
       'const wantsWarmSheinRecoveryProductNav',
       'const wantsWarmProductNav = wantsWarmTemuProductNav || wantsWarmSheinRecoveryProductNav',
+      'const pendingSheinWarmHomeNavigationRef',
+      'window.__otlobliSkipHomeRegionRepair=${wantsWarmSheinRecoveryProductNav}',
+      'pendingSheinWarmHomeNavigationRef.current && pendingProductUrlRef.current',
       '!wantsWarmProductNav && initialPendingUrl',
+    ],
+  },
+  {
+    label: 'SHEIN warm-home region repair is bounded per route',
+    file: 'src/services/sheinSessionScript.ts',
+    markers: [
+      "var sheinNativeCoverRepairExhaustedKey = '';",
+      "window.__otlobliSkipHomeRegionRepair === true",
+      "sheinNativeCoverRepairExhaustedKey = SHEIN_REQUIRED_COUNTRY + ':' + currentPath",
+      'sheinNativeCoverRepairExhaustedKey === sessionKey',
     ],
   },
   {
@@ -992,7 +1007,7 @@ try {
   const chunkCase = (pathname, attemptedTap, nextPathname = pathname) => {
     const listeners = {}
     const messages = []
-    const now = 100_000
+    let now = 100_000
     const window = {
       mobileApp: { postMessage: (message) => messages.push(message) },
       __otlobliProductTapAttemptAt: attemptedTap ? now : 0,
@@ -1008,19 +1023,24 @@ try {
     currentLocation.pathname = nextPathname
     currentLocation.href = `https://m.shein.com${nextPathname}`
     listeners.error({ message: 'ChunkLoadError: Loading chunk 42 failed' })
-    return { messages, window }
+    return { messages, window, setNow: (value) => { now = value } }
   }
 
   let chunk = chunkCase('/ar/', false)
   if (chunk.messages.length !== 0) failures.push('SHEIN chunk bridge: listing error caused eager recovery')
-  if (!chunk.window.__otlobliRecoverSheinChunkOnStalledTap('https://m.shein.com/ar/item-p-88.html') ||
-      chunk.messages.length !== 1) failures.push('SHEIN chunk bridge: stalled tap did not recover a recorded listing chunk')
+  if (chunk.window.__otlobliRecoverSheinChunkOnStalledTap('https://m.shein.com/ar/item-p-88.html') ||
+      chunk.messages.length !== 0) failures.push('SHEIN chunk bridge: stale listing failure was incorrectly attached to a later product tap')
   chunk = chunkCase('/ar/', true)
   if (chunk.messages.length !== 1 || !String(chunk.messages[0]?.detail?.url).includes('-p-77')) {
     failures.push('SHEIN chunk bridge: chunk after a stalled product tap did not preserve the product URL')
   }
   chunk = chunkCase('/ar/item-p-99.html', false)
   if (chunk.messages.length !== 1) failures.push('SHEIN chunk bridge: confirmed product-route recovery regressed')
+  chunk.setNow(100_100)
+  chunk.window.__otlobliProductTapAttemptAt = 100_100
+  if (chunk.window.__otlobliRecoverSheinChunkOnStalledTap('https://m.shein.com/ar/item-p-100.html')) {
+    failures.push('SHEIN chunk bridge: an earlier sent failure suppressed a later physical product tap')
+  }
   chunk = chunkCase('/ar/', false, '/ar/Solid-Dress-p-101.html')
   if (chunk.messages.length !== 1) failures.push('SHEIN chunk bridge: Home-to-SPA-product chunk failure was missed')
 
@@ -1038,8 +1058,9 @@ try {
     origin: 'https://m.shein.com', pathname: '/ar/', href: 'https://m.shein.com/ar/',
     assign: (url) => assigned.push(url),
   }
+  const tapWindow = { __otlobliRecoverSheinChunkOnStalledTap: () => { recoveryCalls++; return recoveryShouldHandle } }
   runInNewContext(scriptModule.exports.__tapFallback, {
-    window: { __otlobliRecoverSheinChunkOnStalledTap: () => { recoveryCalls++; return recoveryShouldHandle } }, location,
+    window: tapWindow, location,
     navigator: { userAgent: 'iPhone', platform: 'iPhone', maxTouchPoints: 5 },
     document: { addEventListener: (name, listener) => { handlers[name] = listener } },
     clearTimeout: () => undefined,
@@ -1049,6 +1070,9 @@ try {
   const touch = { target: { tagName: 'IMG', parentElement: anchor }, changedTouches: [{ clientX: 20, clientY: 30 }] }
   handlers.touchstart(touch)
   handlers.touchend(touch)
+  if (!(tapWindow.__otlobliProductTapAttemptAt > 0) || tapWindow.__otlobliProductTapAttemptUrl !== anchor.href) {
+    failures.push('SHEIN product tap fallback: physical tap was not armed before the SPA/chunk-error window')
+  }
   while (timers.length) timers.shift()()
   if (assigned[0] !== anchor.href) failures.push('SHEIN product tap fallback: direct product anchor was not assigned')
   if (anchorClicks !== 0) failures.push('SHEIN product tap fallback: direct product anchor was replay-clicked before assignment')
