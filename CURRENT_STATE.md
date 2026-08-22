@@ -37,9 +37,17 @@ fonts `81,364/100,000`, shipped store scripts `243,384/470,000`, and source
 `output/Otlobli-v86.216-Android-debug.apk` is 11,120,845 bytes, SHA-256
 `FEFE572388DB1E830A0EA7C2B82020885576E875B6ADBAC64D82717BBAF7257D`.
 
-Unsigned iOS CI is pending. No physical acceptance is claimed. Acceptance must
-retest the same product, prove no repeated region drawer, then perform five real
-iPhone 16 background/resume cycles plus a separate force-quit/cold-launch test.
+Unsigned iOS run `32540635518` passed from
+`7f016862fda486bbd583c085ff78b1cf8da5183d`. Production assets, version
+`86.216/1078`, and universal iPhone/iPad checks passed; all signing and
+TestFlight steps were skipped. Artifact `9466944399`,
+`otlobli-ios-v86.216-ipad-iphone-universal`, is 6,459,819 bytes with digest
+`sha256:c947c6561904c3956c7dc7e383a9429e79d1651f42400969f972aff49e386d04`.
+Downloaded unsigned IPA is 6,568,990 bytes, SHA-256
+`A0F5F15BF3EAC6CE1737CDF9DC79868EBB2C6AB1873124485E69D7D500393265`.
+No physical acceptance is claimed. Acceptance must retest the same product,
+prove no repeated region drawer, then perform five real iPhone 16
+background/resume cycles plus a separate force-quit/cold-launch test.
 
 # v86.215 — consume the recorded SHEIN tap failure and warm Home (2026-08-22)
 

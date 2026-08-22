@@ -38,10 +38,20 @@ Android artifact `output/Otlobli-v86.216-Android-debug.apk` is 11,120,845 bytes,
 SHA-256
 `FEFE572388DB1E830A0EA7C2B82020885576E875B6ADBAC64D82717BBAF7257D`.
 
-Unsigned iOS CI and artifact metadata are pending. TestFlight is not uploaded.
-Real acceptance is also pending: same PDP must open without a region loop,
-followed by five real iPhone 16 background/resume cycles and a separate cold
-launch. Do not infer acceptance from build, CI, simulator, or portal status.
+Unsigned iOS run `32540635518` passed from
+`7f016862fda486bbd583c085ff78b1cf8da5183d`; production assets, version
+`86.216/1078`, and universal iPhone/iPad checks passed while all signing and
+TestFlight steps were skipped. Artifact `9466944399`,
+`otlobli-ios-v86.216-ipad-iphone-universal`, is 6,459,819 bytes with digest
+`sha256:c947c6561904c3956c7dc7e383a9429e79d1651f42400969f972aff49e386d04`.
+Downloaded IPA at
+`output/otlobli-ios-v86.216-unsigned-run-32540635518/otlobli-ios-v86.216-ipad-iphone-universal/otlobli-v86.216-ipad-iphone-universal-unsigned.ipa`
+is 6,568,990 bytes, SHA-256
+`A0F5F15BF3EAC6CE1737CDF9DC79868EBB2C6AB1873124485E69D7D500393265`.
+TestFlight is not uploaded. Real acceptance is also pending: same PDP must open
+without a region loop, followed by five real iPhone 16 background/resume cycles
+and a separate cold launch. Do not infer acceptance from build, CI, simulator,
+or portal status.
 
 # Active handoff — v86.215 recorded-tap recovery (2026-08-22)
 
