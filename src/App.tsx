@@ -3931,6 +3931,9 @@ function App() {
       })
   }
 
+  // Recovery remains available only for a native fatal WebKit failure or an
+  // unexpected browser close. The injected navigation layer no longer watches
+  // page promises or converts product-card taps into a close/reopen cycle.
   const recoverSheinChunkLoad = (reportedUrl: string) => {
     if (Capacitor.getPlatform() !== 'ios' || selectedStoreRef.current !== 'shein' ||
         !sheinOpenedRef.current || sheinChallengeActiveRef.current) return false
@@ -4890,11 +4893,6 @@ function App() {
         sheinVisualReadyRef.current = false
         setSheinVisualReady(false)
         if (screenRef.current === 'home') showNotice('أعاد iOS تشغيل صفحة SHEIN؛ جاري استعادتها…')
-        return
-      }
-
-      if (detail?.type === 'sheinChunkLoadFailure') {
-        recoverSheinChunkLoad(typeof detail.url === 'string' ? detail.url : '')
         return
       }
 

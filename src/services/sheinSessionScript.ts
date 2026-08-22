@@ -312,6 +312,24 @@ export const SHEIN_SESSION_SCRIPT = `
   var sheinNativeCoverCooldownUntil = 0;
   var sheinNativeCoverLastKey = '';
   var sheinNativeCoverRepairExhaustedKey = '';
+  var SHEIN_AUTOMATIC_REGION_REPAIR_STORAGE_KEY = '__otlobliAutomaticRegionRepairExhausted';
+  function sheinAutomaticRegionRepairKey() {
+    return SHEIN_REQUIRED_COUNTRY;
+  }
+  function sheinSetAutomaticRegionRepairExhausted(exhausted) {
+    var key = exhausted ? sheinAutomaticRegionRepairKey() : '';
+    sheinNativeCoverRepairExhaustedKey = key;
+    try {
+      if (key) sessionStorage.setItem(SHEIN_AUTOMATIC_REGION_REPAIR_STORAGE_KEY, key);
+      else sessionStorage.removeItem(SHEIN_AUTOMATIC_REGION_REPAIR_STORAGE_KEY);
+    } catch (e) {}
+  }
+  try {
+    var storedAutomaticRegionRepairKey = sessionStorage.getItem(SHEIN_AUTOMATIC_REGION_REPAIR_STORAGE_KEY) || '';
+    if (storedAutomaticRegionRepairKey === sheinAutomaticRegionRepairKey()) {
+      sheinNativeCoverRepairExhaustedKey = storedAutomaticRegionRepairKey;
+    }
+  } catch (e) {}
   sheinRegionDiag('capture-script-injected', {
     requiredCountry: SHEIN_REQUIRED_COUNTRY,
     productRoute: sheinLooksLikeProductRouteForShipping(),
@@ -518,7 +536,11 @@ export const SHEIN_SESSION_SCRIPT = `
       scheduleSheinShippingProgress(OTLOBLI_LOW_END ? 260 : 120);
       return true;
     }
-    var repairKey = SHEIN_REQUIRED_COUNTRY + ':' + String(location.pathname || '');
+    // One automatic country repair is the complete budget for this WebView
+    // session. Keying exhaustion by PDP path reopened the same region cascade
+    // on every product. A signed success clears the guard, and an explicit Add
+    // action may request one new repair without weakening the purchase gate.
+    var repairKey = sheinAutomaticRegionRepairKey();
     if (sheinNativeCoverRepairExhaustedKey === repairKey) {
       sheinRegionDiag('repair-route-exhausted', {}, repairKey);
       return false;
@@ -562,7 +584,7 @@ export const SHEIN_SESSION_SCRIPT = `
       }
       sheinNativeCoverRepairActive = false;
       sheinNativeCoverRepairStartedAt = 0;
-      sheinNativeCoverRepairExhaustedKey = '';
+      sheinSetAutomaticRegionRepairExhausted(false);
       sheinRegionVeilStartedAt = 0;
       sheinRegionTransitionVeil(false);
       sheinRegionDiag('repair-signed-ready', {
@@ -589,7 +611,7 @@ export const SHEIN_SESSION_SCRIPT = `
           shippingUiOpen: sheinShippingUiLikelyOpen()
         }, 'timeout');
         closeResolvedSheinShippingUi(true);
-        sheinNativeCoverRepairExhaustedKey = SHEIN_REQUIRED_COUNTRY + ':' + currentPath;
+        sheinSetAutomaticRegionRepairExhausted(true);
         sheinNativeCoverRepairActive = false;
         sheinNativeCoverRepairStartedAt = 0;
         sheinNativeCoverCooldownUntil = Date.now() + 2500;
@@ -1558,7 +1580,8 @@ export const SHEIN_SESSION_SCRIPT = `
     var now = Date.now();
     var sessionKey = SHEIN_REQUIRED_COUNTRY + ':' + location.pathname;
     if (sessionKey !== sheinShippingSessionKey) resetSheinShippingProgress(sessionKey);
-    if (!sheinSignedSaudiAddressReady() && sheinNativeCoverRepairExhaustedKey === sessionKey) return;
+    if (!sheinSignedSaudiAddressReady() &&
+        sheinNativeCoverRepairExhaustedKey === sheinAutomaticRegionRepairKey()) return;
     if (!sheinSignedSaudiAddressReady()) sheinPrepareNativeSaudiRepair();
     var scanGap = sheinNativeCoverRepairActive
       ? (OTLOBLI_LOW_END ? 260 : 120)
@@ -1692,7 +1715,7 @@ export const SHEIN_SESSION_SCRIPT = `
     return repairStarted;
   }
 
-  function ensureSheinSaudiStore() {
+  function ensureSheinSaudiStore(manualRepair) {
     if (!IS_SHEIN) return true;
     // أثناء تحقق «أنا إنسان»: ممنوع أي إعادة تحميل/كتابة — تصفّر حل المستخدم.
     if (otlobliIsHumanChallenge()) return false;
@@ -1712,7 +1735,10 @@ export const SHEIN_SESSION_SCRIPT = `
     var needsReload = shouldReloadSheinForSaudi();
     setSheinSaudiGuardOverlay(locked || visibleForeignRegion);
     if (needsReload || !signalsOk) {
-      if (sheinLooksLikeProductPageForShipping()) sheinPrepareNativeSaudiRepair();
+      if (sheinLooksLikeProductPageForShipping()) {
+        if (manualRepair === true) sheinSetAutomaticRegionRepairExhausted(false);
+        sheinPrepareNativeSaudiRepair();
+      }
       try {
         history.replaceState(history.state, '', normalized);
       } catch (e) {}

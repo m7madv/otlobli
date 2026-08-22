@@ -1,5 +1,30 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
+## v86.220 — SHEIN owns product cards; region exhaustion owns the session (2026-08-23)
+
+- **Physical classification:** with Navigation disabled, the same list-to-PDP
+  flow opens; with Navigation enabled it loops. Session/Region separately
+  reproduces the region cascade after changing to another PDP. This supersedes
+  the speculative v86.214-v86.216 product fallback/chunk-recovery decisions.
+- **Navigation cause and decision:** the Navigation bootstrap did more than
+  render Otlobli's bar: it globally intercepted iOS product `touchend`, armed a
+  500ms `location.assign` fallback, and bridged page chunk failures into a host
+  close/reopen recovery. Keep the bar and its own buttons, but remove every
+  product-card listener/fallback/chunk bridge. SHEIN exclusively owns its
+  product navigation.
+- **Region cause and decision:** automatic repair exhaustion was keyed by
+  country plus pathname, so every PDP rearmed the same cascade. Persist one
+  namespaced exhaustion key per required country for the current SHEIN session.
+  Only an explicit Add action may request one fresh repair; checkout remains
+  fail-closed until signed region readiness.
+- **Boundary:** no lifecycle/native recompose timing, WebView ownership,
+  region-equality comparison, capture, blocking, payment, wallet, order, auth,
+  or budget was changed. Native fatal WebKit recovery remains.
+- **Acceptance:** normal build/guards/native syncs/Android assembly and artifact
+  inspection pass at `86.220/1082`, but physical acceptance remains pending.
+  Five consecutive PDPs, non-repeating region behavior, five resumes, and a
+  separate cold launch are required before calling it accepted.
+
 ## v86.219 — diagnostic cover must follow coordinator availability (2026-08-23)
 
 - **Physical rejection:** v86.218 stayed on the native Otlobli loading cover,

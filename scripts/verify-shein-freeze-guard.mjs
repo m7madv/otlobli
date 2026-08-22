@@ -488,22 +488,21 @@ const checks = [
     forbidden: ["location.origin + '/ar/-p-' + info.goods_id + '.html'"],
   },
   {
-    label: 'iPhone resumed product-tap fallback',
-    files: sheinRuntimeSourceFiles,
+    label: 'SHEIN owns product-card navigation',
+    file: 'src/services/sheinNavigationScript.ts',
     markers: [
-      'const OTLOBLI_IOS_PRODUCT_TAP_FALLBACK_JS',
-      "f('product-tap-start'+(o?'-target':''))",
-      "f('product-tap-fallback')",
-      "f('product-tap-route-fallback')",
-      "g(o?'armed':'ignored-no-product-target'",
-      "'data-goods-id','data-goods_id','data-product-id','data-product_id','data-id','fsp-key'",
-      "'/product-p-'+d+'.html'",
-      "'override-non-product-route'",
-      "window.__otlobliProductTapAttemptAt=Date.now()",
-      'location.assign(n[5])',
+      'export const OTLOBLI_NAV_TOUCH_BRIDGE_JS',
+      "if (!messageType) return;",
+      "window.addEventListener('touchend', routeOtlobliNavTouch",
+      'Product-card taps remain wholly',
     ],
     forbidden: [
-      'n[0].click()',
+      'OTLOBLI_IOS_PRODUCT_TAP_FALLBACK_JS',
+      'OTLOBLI_SHEIN_CHUNK_FAILURE_BRIDGE_JS',
+      'product-tap-route-fallback',
+      '__otlobliProductTapAttemptAt',
+      'location.assign(',
+      "type:'sheinChunkLoadFailure'",
     ],
   },
   {
@@ -548,24 +547,6 @@ const checks = [
     ],
   },
   {
-    label: 'SHEIN confirmed chunk-failure recovery',
-    files: sheinRuntimeSourceFiles,
-    markers: [
-      'const OTLOBLI_SHEIN_CHUNK_FAILURE_BRIDGE_JS',
-      "type:'sheinChunkLoadFailure'",
-      'ChunkLoadError|Loading chunk',
-      'if(/-p-\\\\d+/i.test(location.pathname)',
-      'window.__otlobliSheinChunkFailureAt=Date.now()',
-      'window.__otlobliRecoverSheinChunkOnStalledTap=function(url)',
-      'a&&f>=a&&n-f<15000&&n-a<15000',
-      'window.__otlobliProductTapAttemptAt=Date.now()',
-      "g('recover-recorded-chunk'",
-    ],
-    forbidden: [
-      "Bridge(){if(!/shein/i.test(location.hostname)||!/-p-",
-    ],
-  },
-  {
     label: 'SHEIN review section is not a photo viewer',
     files: sheinRuntimeSourceFiles,
     markers: [
@@ -586,12 +567,11 @@ const checks = [
     ],
   },
   {
-    label: 'SHEIN chunk recovery host path',
+    label: 'SHEIN native damaged-session recovery path',
     file: 'src/App.tsx',
     markers: [
       'const recoverSheinChunkLoad = (reportedUrl: string)',
       "Capacitor.getPlatform() !== 'ios'",
-      "detail?.type === 'sheinChunkLoadFailure'",
       'now - sheinChunkRecoveryAtRef.current < 60_000',
       'sheinCacheResetPendingRef.current = true',
       'const sheinRecoveryProductUrl = (region: StoreRegion, ...candidates: string[])',
@@ -606,11 +586,21 @@ const checks = [
     ],
   },
   {
-    label: 'SHEIN warm-home region repair is bounded per route',
-    file: 'src/services/sheinSessionScript.ts',
+    label: 'SHEIN automatic region repair is bounded per session-country',
+    files: [
+      'src/services/sheinSessionScript.ts',
+      'src/services/storeProductCaptureScript.ts',
+    ],
     markers: [
       "var sheinNativeCoverRepairExhaustedKey = '';",
       "window.__otlobliSkipHomeRegionRepair === true",
+      "var SHEIN_AUTOMATIC_REGION_REPAIR_STORAGE_KEY = '__otlobliAutomaticRegionRepairExhausted';",
+      'function sheinAutomaticRegionRepairKey()',
+      'sheinSetAutomaticRegionRepairExhausted(true)',
+      'manualRepair === true',
+      'ensureSheinSaudiStore(true)',
+    ],
+    forbidden: [
       "sheinNativeCoverRepairExhaustedKey = SHEIN_REQUIRED_COUNTRY + ':' + currentPath",
       'sheinNativeCoverRepairExhaustedKey === sessionKey',
     ],
@@ -905,11 +895,8 @@ try {
   const scriptModule = {
     exports: evaluateInjectedScriptExports('src/services/sheinBrowserScript.ts'),
   }
-  const navigationModule = evaluateInjectedScriptExports('src/services/sheinNavigationScript.ts')
   const captureScript = scriptModule.exports.SHEIN_CAPTURE_SCRIPT
   const bootstrapScript = scriptModule.exports.OTLOBLI_NAV_BOOTSTRAP_SCRIPT
-  scriptModule.exports.__tapFallback = navigationModule.OTLOBLI_IOS_PRODUCT_TAP_FALLBACK_JS
-  scriptModule.exports.__chunkBridge = navigationModule.OTLOBLI_SHEIN_CHUNK_FAILURE_BRIDGE_JS
 
   const humanSource = stripInjectedComments(
     readFileSync(resolve(projectRoot, 'src/services/sheinHumanCheck.ts'), 'utf8'),
@@ -1087,236 +1074,22 @@ try {
     }
   }
 
-  const chunkCase = (pathname, attemptedTap, nextPathname = pathname) => {
-    const listeners = {}
-    const messages = []
-    let now = 100_000
-    const window = {
-      mobileApp: { postMessage: (message) => messages.push(message) },
-      __otlobliProductTapAttemptAt: attemptedTap ? now : 0,
-      __otlobliProductTapAttemptUrl: attemptedTap ? 'https://m.shein.com/ar/item-p-77.html' : '',
+  if (!bootstrapScript.includes('function otlobliInstallNavTouchBridge()') ||
+      !bootstrapScript.includes("window.addEventListener('touchend', routeOtlobliNavTouch")) {
+    failures.push('SHEIN navigation ownership: Otlobli tab routing is missing from document start')
+  }
+  const forbiddenProductNavigationInterventions = [
+    'otlobliInstallIosProductTapFallback',
+    'otlobliInstallSheinChunkFailureBridge',
+    '__otlobliProductTapAttemptAt',
+    'product-tap-route-fallback',
+    'location.assign(',
+    "type:'sheinChunkLoadFailure'",
+  ]
+  for (const marker of forbiddenProductNavigationInterventions) {
+    if (bootstrapScript.includes(marker)) {
+      failures.push(`SHEIN navigation ownership: document-start bootstrap still contains ${marker}`)
     }
-    const currentLocation = { hostname: 'm.shein.com', pathname, href: `https://m.shein.com${pathname}` }
-    runInNewContext(scriptModule.exports.__chunkBridge, {
-      window,
-      location: currentLocation,
-      Date: { now: () => now },
-      addEventListener: (name, listener) => { listeners[name] = listener },
-    })
-    currentLocation.pathname = nextPathname
-    currentLocation.href = `https://m.shein.com${nextPathname}`
-    listeners.error({ message: 'ChunkLoadError: Loading chunk 42 failed' })
-    return { messages, window, setNow: (value) => { now = value } }
-  }
-
-  let chunk = chunkCase('/ar/', false)
-  if (chunk.messages.length !== 0) failures.push('SHEIN chunk bridge: listing error caused eager recovery')
-  if (chunk.window.__otlobliRecoverSheinChunkOnStalledTap('https://m.shein.com/ar/item-p-88.html') ||
-      chunk.messages.length !== 0) failures.push('SHEIN chunk bridge: stale listing failure was incorrectly attached to a later product tap')
-  chunk = chunkCase('/ar/', true)
-  if (chunk.messages.length !== 1 || !String(chunk.messages[0]?.detail?.url).includes('-p-77')) {
-    failures.push('SHEIN chunk bridge: chunk after a stalled product tap did not preserve the product URL')
-  }
-  chunk = chunkCase('/ar/item-p-99.html', false)
-  if (chunk.messages.length !== 1) failures.push('SHEIN chunk bridge: confirmed product-route recovery regressed')
-  chunk.setNow(100_100)
-  chunk.window.__otlobliProductTapAttemptAt = 100_100
-  if (chunk.window.__otlobliRecoverSheinChunkOnStalledTap('https://m.shein.com/ar/item-p-100.html')) {
-    failures.push('SHEIN chunk bridge: an earlier sent failure suppressed a later physical product tap')
-  }
-  chunk = chunkCase('/ar/', false, '/ar/Solid-Dress-p-101.html')
-  if (chunk.messages.length !== 1) failures.push('SHEIN chunk bridge: Home-to-SPA-product chunk failure was missed')
-
-  const handlers = {}, timers = [], assigned = []
-  let recoveryCalls = 0
-  let recoveryShouldHandle = false
-  let anchorClicks = 0
-  const anchor = {
-    tagName: 'A', parentElement: null, isConnected: true,
-    href: 'https://m.shein.com/ar/item-p-123.html',
-    getAttribute: (name) => name === 'href' ? '/ar/item-p-123.html' : '',
-    click: () => { anchorClicks++ }, querySelector: () => null, querySelectorAll: () => [],
-  }
-  const location = {
-    origin: 'https://m.shein.com', pathname: '/ar/', href: 'https://m.shein.com/ar/',
-    assign: (url) => assigned.push(url),
-  }
-  const tapWindow = { __otlobliRecoverSheinChunkOnStalledTap: () => { recoveryCalls++; return recoveryShouldHandle } }
-  runInNewContext(scriptModule.exports.__tapFallback, {
-    window: tapWindow, location,
-    navigator: { userAgent: 'iPhone', platform: 'iPhone', maxTouchPoints: 5 },
-    document: { addEventListener: (name, listener) => { handlers[name] = listener } },
-    clearTimeout: () => undefined,
-    setTimeout: (callback) => { timers.push(callback); return timers.length },
-    Date, Math,
-  })
-  const touch = { target: { tagName: 'IMG', parentElement: anchor }, changedTouches: [{ clientX: 20, clientY: 30 }] }
-  handlers.touchstart(touch)
-  handlers.touchend(touch)
-  if (!(tapWindow.__otlobliProductTapAttemptAt > 0) || tapWindow.__otlobliProductTapAttemptUrl !== anchor.href) {
-    failures.push('SHEIN product tap fallback: physical tap was not armed before the SPA/chunk-error window')
-  }
-  while (timers.length) timers.shift()()
-  if (assigned[0] !== anchor.href) failures.push('SHEIN product tap fallback: direct product anchor was not assigned')
-  if (anchorClicks !== 0) failures.push('SHEIN product tap fallback: direct product anchor was replay-clicked before assignment')
-  if (recoveryCalls !== 1) failures.push('SHEIN product tap fallback: direct product anchor did not make exactly one bounded chunk probe')
-
-  const assignedBeforeRecordedChunk = assigned.length
-  const recoveryBeforeRecordedChunk = recoveryCalls
-  recoveryShouldHandle = true
-  location.href = anchor.href
-  location.pathname = '/ar/item-p-123.html'
-  handlers.touchstart(touch)
-  handlers.touchend(touch)
-  while (timers.length) timers.shift()()
-  if (recoveryCalls !== recoveryBeforeRecordedChunk + 1 || assigned.length !== assignedBeforeRecordedChunk) {
-    failures.push('SHEIN product tap fallback: recorded pre-route chunk failure did not recover the stalled SPA product')
-  }
-  recoveryShouldHandle = false
-  location.href = 'https://m.shein.com/ar/'
-  location.pathname = '/ar/'
-
-  let collectionClicks = 0
-  const collectionCard = {
-    tagName: 'LI', className: 'sd-ccc-products__item', parentElement: null, isConnected: true,
-    classList: { contains: () => false },
-    getAttribute: (name) => name === 'role' ? 'link' : '',
-    click: () => { collectionClicks++ }, querySelector: () => null, querySelectorAll: () => [],
-  }
-  const collectionTouch = {
-    target: { tagName: 'IMG', parentElement: collectionCard },
-    changedTouches: [{ clientX: 22, clientY: 34 }],
-  }
-  const assignedBeforeCollection = assigned.length
-  const recoveryBeforeCollection = recoveryCalls
-  handlers.touchstart(collectionTouch)
-  handlers.touchend(collectionTouch)
-  while (timers.length) timers.shift()()
-  if (collectionClicks !== 0 || assigned.length !== assignedBeforeCollection || recoveryCalls !== recoveryBeforeCollection) {
-    failures.push('SHEIN product tap fallback: collection/list card without a direct PDP href was changed')
-  }
-
-  const searchAnchor = {
-    tagName: 'A', parentElement: null, isConnected: true,
-    href: 'https://m.shein.com/ar/BATMAN-X-SHEIN-Keychain-p-49330027.html',
-    getAttribute: (name) => name === 'href' ? '/ar/BATMAN-X-SHEIN-Keychain-p-49330027.html' : '',
-    querySelector: () => null, querySelectorAll: () => [],
-  }
-  const searchCard = {
-    tagName: 'DIV', className: 'bs-product-card multi-product-card', parentElement: null,
-    getAttribute: (name) => name === 'role' ? 'listitem' : '',
-    querySelector: (selector) => selector === 'a[href*="-p-"]' ? searchAnchor : null,
-    querySelectorAll: (selector) => selector === 'a[href*="-p-"]' ? [searchAnchor] : [],
-  }
-  searchAnchor.parentElement = searchCard
-  const searchImageWrapper = {
-    tagName: 'DIV', className: 'bs-product-card__ratio-image__thumb', parentElement: searchCard,
-    getAttribute: () => '', querySelector: () => null, querySelectorAll: () => [],
-  }
-  const searchImage = {
-    tagName: 'IMG', className: 'bs-product-card-transform-img', parentElement: searchImageWrapper,
-    getAttribute: () => '', querySelector: () => null, querySelectorAll: () => [],
-  }
-  const searchTouch = { target: searchImage, changedTouches: [{ clientX: 25, clientY: 35 }] }
-  location.href = 'https://m.shein.com/ar/pdsearch/batman/'
-  location.pathname = '/ar/pdsearch/batman/'
-  const assignedBeforeSearch = assigned.length
-  handlers.touchstart(searchTouch)
-  handlers.touchend(searchTouch)
-  while (timers.length) timers.shift()()
-  if (assigned[assignedBeforeSearch] !== searchAnchor.href) {
-    failures.push('SHEIN product tap fallback: image tap inside a live bs-product-card did not use its sibling PDP link')
-  }
-
-  const renamedAnchor = {
-    tagName: 'A', parentElement: null, isConnected: true,
-    href: 'https://m.shein.com/ar/future-card-p-520531743.html',
-    getAttribute: (name) => name === 'href' ? '/ar/future-card-p-520531743.html' : '',
-    querySelector: () => null, querySelectorAll: () => [],
-  }
-  const renamedCard = {
-    tagName: 'DIV', className: 'sui-feed-unit-v9', parentElement: null,
-    getAttribute: () => '',
-    querySelector: () => renamedAnchor,
-    querySelectorAll: () => [renamedAnchor],
-  }
-  renamedAnchor.parentElement = renamedCard
-  const renamedImage = {
-    tagName: 'IMG', className: 'future-image', parentElement: renamedCard,
-    getAttribute: () => '', querySelector: () => null, querySelectorAll: () => [],
-  }
-  const assignedBeforeRenamedCard = assigned.length
-  const renamedTouch = { target: renamedImage, changedTouches: [{ clientX: 26, clientY: 36 }] }
-  handlers.touchstart(renamedTouch)
-  handlers.touchend(renamedTouch)
-  while (timers.length) timers.shift()()
-  if (assigned[assignedBeforeRenamedCard] !== renamedAnchor.href) {
-    failures.push('SHEIN product tap fallback: renamed single-product card was tied to a CSS class name')
-  }
-
-  const otherAnchor = {
-    tagName: 'A', parentElement: null, isConnected: true,
-    href: 'https://m.shein.com/ar/other-p-520531744.html',
-    getAttribute: (name) => name === 'href' ? '/ar/other-p-520531744.html' : '',
-    querySelector: () => null, querySelectorAll: () => [],
-  }
-  const multiProductList = {
-    tagName: 'SECTION', className: 'future-feed', parentElement: null,
-    getAttribute: () => '', querySelector: () => renamedAnchor,
-    querySelectorAll: () => [renamedAnchor, otherAnchor],
-  }
-  const ambiguousImage = {
-    tagName: 'IMG', parentElement: multiProductList,
-    getAttribute: () => '', querySelector: () => null, querySelectorAll: () => [],
-  }
-  const assignedBeforeAmbiguousList = assigned.length
-  const ambiguousTouch = { target: ambiguousImage, changedTouches: [{ clientX: 27, clientY: 37 }] }
-  handlers.touchstart(ambiguousTouch)
-  handlers.touchend(ambiguousTouch)
-  while (timers.length) timers.shift()()
-  if (assigned.length !== assignedBeforeAmbiguousList) {
-    failures.push('SHEIN product tap fallback: ambiguous multi-product list guessed the wrong PDP')
-  }
-
-  const flashCard = {
-    tagName: 'DIV', className: 'flash-sale__product-item flash-sale__product-waterfall-item', parentElement: null,
-    getAttribute: (name) => name === 'role' ? 'listitem' : (name === 'data-id' ? '87475338' : ''),
-    querySelector: () => null, querySelectorAll: () => [],
-  }
-  const flashImage = {
-    tagName: 'IMG', className: 'product-item__main-img', parentElement: flashCard,
-    getAttribute: () => '', querySelector: () => null, querySelectorAll: () => [],
-  }
-  const flashTouch = { target: flashImage, changedTouches: [{ clientX: 28, clientY: 38 }] }
-  location.href = 'https://m.shein.com/ar/flash-sale.html'
-  location.pathname = '/ar/flash-sale.html'
-  const assignedBeforeFlash = assigned.length
-  handlers.touchstart(flashTouch)
-  handlers.touchend(flashTouch)
-  while (timers.length) timers.shift()()
-  if (assigned[assignedBeforeFlash] !== 'https://m.shein.com/ar/product-p-87475338.html') {
-    failures.push('SHEIN product tap fallback: data-id-only flash-sale product did not receive a valid PDP route')
-  }
-
-  location.href = 'https://m.shein.com/ar/'
-  location.pathname = '/ar/'
-  const assignedBeforeNaturalRoute = assigned.length
-  handlers.touchstart(touch)
-  handlers.touchend(touch)
-  location.href = anchor.href
-  while (timers.length) timers.shift()()
-  if (assigned.length !== assignedBeforeNaturalRoute) {
-    failures.push('SHEIN product tap fallback: natural product navigation was assigned a second time')
-  }
-
-  location.href = 'https://m.shein.com/ar/pdsearch/wrong-brand/'
-  const assignedBeforeWrongRoute = assigned.length
-  handlers.touchstart(touch)
-  handlers.touchend(touch)
-  location.href = 'https://m.shein.com/ar/Brands/BATMAN-sc-123.html'
-  while (timers.length) timers.shift()()
-  if (assigned[assignedBeforeWrongRoute] !== anchor.href) {
-    failures.push('SHEIN product tap fallback: a wrong non-product SPA route suppressed the direct PDP fallback')
   }
 } catch (error) {
   failures.push(`SHEIN capture-script syntax: ${error instanceof Error ? error.message : String(error)}`)

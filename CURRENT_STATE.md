@@ -1,3 +1,48 @@
+# v86.220 — SHEIN-owned product navigation and bounded region repair (2026-08-23)
+
+The user's physical A-D isolation result assigns the persistent list-to-product
+spinner to Otlobli's Navigation group. With Navigation off, the same products
+open. The bottom bar can still be painted but inert because the remaining
+runtime may call `ensureOtlobliNav()` while the Navigation handlers are absent;
+that visual state is expected and is not evidence that the disabled navigation
+code ran. Enabling Session/Region separately reproduces the post-v86.214
+behavior in which region repair restarts on each newly opened PDP.
+
+v86.220 keeps the Otlobli bottom bar and its own button bridge, but removes the
+iOS-wide product-card `touchend` interception, 500ms `location.assign`
+fallback, and injected SHEIN chunk-failure bridge. Product-card navigation is
+now wholly SHEIN-owned. Native fatal WebKit/unexpected-close recovery remains
+bounded and unchanged. Automatic native region repair exhaustion is now one
+small Otlobli-namespaced `sessionStorage` guard per required country rather
+than per `country:path`; moving to another product therefore cannot rearm the
+same automatic cascade. An explicit Add action may clear that guard for one
+new fail-closed repair attempt.
+
+Source is `86.220/1082`. TypeScript, targeted ESLint (0 errors; 17 existing
+hook warnings), diff check, the freeze guard, every normal release/security/
+store guard, full marker-free production build, artifact scan, both native
+syncs, and Android `assembleDebug` pass. No diagnostic panel or removed
+product-navigation marker is present in the APK. Budgets are startup/largest
+raw JS `657,514/720,000` and `/1,200,000`, total JS gzip
+`267,073/370,000`, CSS `69,990/70,000`, fonts `81,364/100,000`, shipped
+store scripts `236,297/470,000`, and store source `566,290/600,000`.
+
+The web, Android, and iOS store bundles are byte-identical: 259,077 bytes,
+SHA-256
+`09CFA7D89F3364D7A0792D1F8B2753F434CAE25E0AB3683C14F228B35044CAFD`.
+Android artifact
+`output/Otlobli-v86.220-SHEIN-native-navigation-region-session-Android-debug.apk`
+is 11,117,133 bytes, SHA-256
+`DE2986E409FE180BB41FBB2EE1D717C1D3150B09CDFDB10460A103CAB48389C7`,
+package `com.otlobli.app`, version `86.220/1082`.
+
+No TestFlight upload has been recorded yet for v86.220. Real-device acceptance
+of this candidate remains pending. The first gate is normal full mode: open at
+least five products from listings with the Otlobli bar active, then prove that
+region repair does not reopen merely because the PDP path changed. The protected
+five background/resume cycles and separate force-quit/cold-launch test remain
+mandatory; local builds do not satisfy them.
+
 # v86.219 — expose diagnostic A-C below the native cover (2026-08-23)
 
 The user's first physical `86.218/1080` attempt never reached stage A: iOS

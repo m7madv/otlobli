@@ -1,3 +1,30 @@
+# Active handoff — v86.220 product navigation ownership (2026-08-23)
+
+Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
+`codex/otlobli-v86-212-testflight-auth`. Current source is `86.220/1082`.
+The user's physical diagnostic result is decisive: product PDPs open with the
+Navigation group off, and the failure returns with it on. Session/Region also
+reproduces a separate repair restart for each product path. Do not return to
+speculative verification, native lifecycle, capture, or blocking changes.
+
+The v86.220 boundary is deliberate. Keep the Otlobli bottom bar and its own
+button bridge, while SHEIN exclusively owns product-card navigation. Do not
+restore the global product `touchend` listener, its 500ms `location.assign`, or
+the injected chunk-promise failure bridge. Native fatal WebKit and unexpected-
+close recovery still call the existing bounded host recovery and were not
+removed. Automatic region repair exhaustion is country-session scoped through
+`__otlobliAutomaticRegionRepairExhausted`; it must not be keyed by pathname.
+Only the explicit Add flow calls `ensureSheinSaudiStore(true)` to permit one
+fresh fail-closed repair attempt.
+
+All normal build/guard checks, both native syncs, Android assembly, asset hash
+equality, APK metadata, and marker-absence inspection pass. Exact budgets,
+hashes, and artifact path are at the top of `CURRENT_STATE.md`. The normal APK
+contains no diagnostic panel. Preserve the iPhone `otlobliForceRecompose`,
+`appDidBecomeActive` 0.25s delay, Android resume defense, JSON-stringified
+active-store equality, payment/wallet/orders/auth, and every performance
+budget. No v86.220 physical acceptance or TestFlight delivery is recorded yet.
+
 # Active handoff — v86.219 diagnostic native-cover correction (2026-08-23)
 
 Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
