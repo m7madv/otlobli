@@ -13,6 +13,10 @@
   open-time Boolean with no recurring work or native/lifecycle change.
 - **Acceptance:** first prove A itself is visible on the iPhone, then test the
   same PDP. No inference about the original spinner is valid before that.
+- **Internal delivery:** run `32600407694` passed Apple validation/upload and
+  verified `86.219/1081` as `VALID`/`IN_BETA_TESTING` in the internal
+  all-builds group with the expected tester `INSTALLED`. This proves delivery
+  only; no public App Store submission or physical acceptance occurred.
 
 ## v86.218 — isolate before another SHEIN fix (2026-08-22)
 

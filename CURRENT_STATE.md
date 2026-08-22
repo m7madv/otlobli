@@ -30,10 +30,28 @@ bytes, SHA-256
 `B54BBE27B0E8B182F9A8028ED721F945DA05866CBB337C83D5B7D2F2361371C7`,
 package `com.otlobli.app`, version `86.219/1081`.
 
-Signed TestFlight work and all real-device acceptance for v86.219 remain
-pending. The next device gate is only: update, enter SHEIN, confirm A shows the
-raw page and `فحص` button, then try the same PDP. Do not progress to B/C/D or
-resume-cycle acceptance until A is actually visible.
+Signed run `32600407694` from
+`997baeb003e331bc717aa9afb08a533521dc6d2b` passed the diagnostic build,
+sync, Xcode archive/export, signature/profile/auth checks, Apple validation,
+and upload. `VERIFY SUCCEEDED` and `UPLOAD SUCCEEDED` had no errors; delivery
+UUID is `9824804a-63a3-4f85-9fcd-c69371869671`. App Store Connect then
+confirmed exact build `86.219 (1081)` is `VALID` and `IN_BETA_TESTING`, the
+strictly internal `Otlobli Internal` group has all-build access, and the
+expected tester membership is `INSTALLED`. No public App Store submission was
+made. Artifact `9482813304`,
+`otlobli-ios-v86.219-build-1081-testflight`, is `25,125,297` bytes with digest
+`sha256:021c434924c02540c69e5c91aa45386c1c2b5242503ee2c5bc95ffa1987eb252`.
+Downloaded signed IPA
+`output/otlobli-ios-v86.219-testflight-run-32600407694/otlobli-v86.219-build-1081-testflight.ipa`
+is `10,468,015` bytes, SHA-256
+`A873B2C64EAF44F630114CCC58B222344ACE07D1875FEA9A18D2E28980E03F47`;
+inspection confirms the diagnostic chunk, signed provisioning, and compiled
+`runtime && session` cover condition.
+
+All real-device acceptance for v86.219 remains pending. The next device gate
+is only: update, enter SHEIN, confirm A shows the raw page and `فحص` button,
+then try the same PDP. Do not progress to B/C/D or resume-cycle acceptance
+until A is actually visible.
 
 # v86.218 — one-build SHEIN A-D isolation (2026-08-22)
 

@@ -17,9 +17,14 @@ orders, lifecycle, recompose timing, or JSON region equality changed.
 
 Normal and diagnostic builds/artifact scans, performance budgets, TypeScript,
 guards, both native syncs, and Android `assembleDebug` pass. Exact measures and
-APK hash are at the top of `CURRENT_STATE.md`. Signed TestFlight/upload is
-pending. The next physical result must first confirm A is visible; only then
-does raw PDP behavior classify the underlying SHEIN failure.
+APK hash are at the top of `CURRENT_STATE.md`. Signed run `32600407694` from
+`997baeb` passed Apple validation/upload; delivery UUID is
+`9824804a-63a3-4f85-9fcd-c69371869671`. The same run verified exact build
+`86.219 (1081)` as `VALID`/`IN_BETA_TESTING`, internal all-builds group
+`Otlobli Internal`, and expected tester state `INSTALLED`. Signed IPA SHA-256
+is `A873B2C64EAF44F630114CCC58B222344ACE07D1875FEA9A18D2E28980E03F47`.
+No public submission occurred. The next physical result must first confirm A
+is visible; only then does raw PDP behavior classify the underlying failure.
 
 # Active handoff — v86.218 SHEIN A-D isolation (2026-08-22)
 
