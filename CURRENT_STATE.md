@@ -1,3 +1,56 @@
+# v86.217 — live verification pass-through and v86.213 region gate (2026-08-22)
+
+Continue in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
+`codex/otlobli-v86-212-testflight-auth`. Current source is `86.217/1079` and is
+synchronized to Android and iOS. It is not uploaded to TestFlight; a new signed
+upload still requires exact approval for `86.217/1079`.
+
+The exact `86.213 -> 86.214` boundary is commit
+`04d274fcc834125facb66f0dca703c2c44785493` over
+`5a2788ccb7515cce93ee9ded102e6635dfc4ac0a`. Product extraction and
+`storeBlockingScript.ts` did not change there. The region-visible regression
+came from v86.214's early visual-ready release while the signed native address
+cascade was still active. v86.217 removes that pre-region release: an active
+product repair stays behind the existing cover until signed readiness or its
+bounded 12-second timeout, matching the v86.213 gate. Home with an absent/unknown
+address no longer opens or reopens the shipping drawer; Home repairs only a real
+country mismatch from the administration setting. Unsigned product routes still
+run the native address cascade before capture.
+
+The old product spinner also had a separate deadlock consistent with the user's
+human-verification hypothesis. The injected detector persisted
+`__otlobliHumanCheckPendingAt` for 15 minutes, then required
+`sheinPageLooksInteractive()` before clearing it. A spinner could therefore be
+treated as a verification page forever, pausing region, blocking, navigation,
+and capture. Verification is now live-only: while a visible/URL challenge exists
+all Otlobli interventions pause; as soon as it disappears the same coordinator
+continues immediately, even if the product is not interactive yet. No challenge
+marker, guide overlay, Otlobli-node deletion, drawer unlock, body mutation,
+automatic click, reload, or solution is retained.
+
+The extraction implementation, add-to-cart messages, blocking rules, admin
+`JSON.stringify` region comparison, protected iOS/Android lifecycle/recompose,
+payments, wallet, completed orders, and authentication are unchanged. The
+audited coordinator SHA-256 is
+`42F9A1282956DDBF91D44AC0FED7F4727BFD3D240F66DBA86CBF8C3CC0AC5F6B`;
+capture calls/order/cadence are unchanged.
+
+`git diff --check`, ESLint, the expanded executable freeze guard, and full
+`npm run build` pass. Budgets remain unchanged: startup/largest JS
+`657,198/720,000`, total JS gzip `267,929/370,000`, CSS `69,990/70,000`, fonts
+`81,364/100,000`, shipped store scripts `240,400/470,000`, and store source
+`567,685/600,000`. Both Capacitor syncs and post-sync Android `assembleDebug`
+pass. The synchronized store bundle is byte-identical across web/Android/iOS,
+contains live resolution and Home cancellation, and contains neither the sticky
+marker nor the verification guide. Android artifact
+`output/Otlobli-v86.217-Android-debug.apk` is 11,117,996 bytes, SHA-256
+`7A962975B923BAAF4BF5E599F1CDEF63D080C2843910CCDCD1A714F2A61BA5CC`.
+
+Unsigned macOS/Xcode validation and all real-device acceptance remain pending.
+Do not claim the iPhone product/region issue resolved until the same product is
+tested, followed by five iPhone 16 background/resume cycles and a separate
+force-quit/cold-launch test. Weak/old Android acceptance is also unperformed.
+
 # v86.216 — release warm recovery from the SHEIN region loop (2026-08-22)
 
 Continue in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on

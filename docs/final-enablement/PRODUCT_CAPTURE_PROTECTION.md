@@ -40,3 +40,12 @@ and option/variant behavior are unchanged. Automated capture, SHEIN, Temu,
 surface, and generated-asset guards pass.
 
 Final product capture changed: **no**.
+
+## v86.217 audited scheduler update
+
+`storeRuntimeCoordinator.ts` now hashes to
+`42F9A1282956DDBF91D44AC0FED7F4727BFD3D240F66DBA86CBF8C3CC0AC5F6B`.
+The focused diff removes the persisted/sticky human-verification wait and
+resumes the same region, blocking, navigation, and capture calls as soon as no
+live challenge is visible. No extraction field, capture message, call order,
+recurring coordinator interval, or cart acknowledgement contract changed.

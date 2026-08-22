@@ -1,3 +1,43 @@
+# Active handoff — v86.217 live challenge + v86.213 region gate (2026-08-22)
+
+Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`
+on `codex/otlobli-v86-212-testflight-auth`. Current source is `86.217/1079`,
+built and synchronized to both native projects. It has not been signed or
+uploaded; require exact approval naming `86.217/1079` before TestFlight.
+
+Use the exact historical boundary, not an old branch copy: v86.214 is
+`04d274fcc834125facb66f0dca703c2c44785493`, parent v86.213 is
+`5a2788ccb7515cce93ee9ded102e6635dfc4ac0a`. Blocking and product extraction
+did not change in that transition. v86.214 added an early visual-ready release
+while native address repair continued. v86.217 removes only that pre-region
+release and keeps an active product cascade covered until signed readiness or
+the existing 12-second timeout. Home with unknown/absent address no longer
+starts/restarts the drawer; a real admin country mismatch and an unsigned PDP
+still repair.
+
+`sheinHumanCheck.ts` no longer persists a 15-minute marker, mounts a guide,
+removes Otlobli nodes, unlocks drawers, or mutates body overflow. The detector
+only observes a live visible/URL challenge. The single existing coordinator
+pauses while it is present and calls `otlobliResolveHumanChallenge()` as soon as
+it is absent, without waiting for `sheinPageLooksInteractive()`. This removes
+the spinner-as-sticky-verification deadlock while leaving the store's challenge
+entirely user-controlled.
+
+Do not alter capture to continue this fix. Product extraction, message schema,
+blocking rules, scheduling cadence/order, JSON store-region equality, protected
+native recompose/resume, payment/wallet/orders, and auth are unchanged. The
+audited coordinator hash is
+`42F9A1282956DDBF91D44AC0FED7F4727BFD3D240F66DBA86CBF8C3CC0AC5F6B`.
+
+Fresh lint, diff check, full build/all guards, performance budget, both native
+syncs, and Android `assembleDebug` pass. Budgets: startup `657,198`, JS gzip
+`267,929`, CSS `69,990`, shipped store scripts `240,400`, source `567,685`.
+Android artifact `output/Otlobli-v86.217-Android-debug.apk` is 11,117,996 bytes,
+SHA-256 `7A962975B923BAAF4BF5E599F1CDEF63D080C2843910CCDCD1A714F2A61BA5CC`.
+The same store bundle hash is present in web/Android/iOS and has no persisted
+challenge marker or guide. Unsigned iOS CI and real-device acceptance remain
+pending; never infer acceptance from local/CI checks.
+
 # Active handoff — v86.216 warm-recovery/region-loop correction (2026-08-22)
 
 Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`

@@ -18,34 +18,17 @@ export const STORE_RUNTIME_COORDINATOR_SCRIPT = `
       if (sheinNativeCoverRepairActive) scheduleSheinShippingProgress(OTLOBLI_LOW_END ? 320 : 160);
       return;
     }
-    // صفحة تحقق «أنا إنسان» — تجميد كامل لكل تدخلاتنا حتى يكملها المستخدم.
-    if (otlobliScriptEnabled('blocking') && otlobliIsHumanChallenge()) {
-      otlobliChallengeActive = true;
-      __otlobliChallengeResolvedNotified = false;
+    // Verification is a live-only pass-through state. A stale marker must
+    // never turn an ordinary product spinner into a permanent challenge.
+    var humanChallengeNow = otlobliScriptEnabled('blocking') && otlobliIsHumanChallenge();
+    if (humanChallengeNow) {
       otlobliEnterChallengeMode();
       return;
     }
     if (otlobliScriptEnabled('blocking') && otlobliChallengeActive) {
-      if (otlobliLooksLikeRemovedProductPage()) {
-        otlobliNotifyHumanCheckSkipped();
-        return;
-      }
-      if (!sheinPageLooksInteractive()) {
-        otlobliScheduleChallengeNav();
-        return;
-      }
-      otlobliChallengeActive = false;
-      otlobliForgetHumanChallenge();
-      // The store owns the solved verification session. Resume Otlobli's UI
-      // without touching cookies or storage so the proof remains reusable.
-      if (!__otlobliChallengeResolvedNotified) {
-        __otlobliChallengeResolvedNotified = true;
-        try {
-          if (window.mobileApp && window.mobileApp.postMessage) {
-            window.mobileApp.postMessage({ detail: { type: 'humanCheckResolved' } });
-          }
-        } catch (e) {}
-      }
+      // Absence of a visible/URL challenge resolves it immediately. Do not
+      // wait for product interactivity; that was the sticky loading deadlock.
+      otlobliResolveHumanChallenge();
     }
     if (otlobliScriptEnabled('session') && IS_SHEIN) ensureSheinSaudiShippingSelection();
     if (otlobliScriptEnabled('blocking') && IS_SHEIN) retrySheinFeedError();

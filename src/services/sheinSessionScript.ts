@@ -307,7 +307,6 @@ export const SHEIN_SESSION_SCRIPT = `
   var sheinNativeCoverInitialReleased = false;
   var sheinNativeCoverVisualReadyPath = '';
   var sheinNativeCoverSignedReadyPath = '';
-  var sheinNativeCoverInteractiveCheckAt = 0;
   var sheinNativeCoverRepairActive = false;
   var sheinNativeCoverRepairStartedAt = 0;
   var sheinNativeCoverCooldownUntil = 0;
@@ -551,33 +550,8 @@ export const SHEIN_SESSION_SCRIPT = `
 
   function updateSheinNativeCoverState() {
     if (!IS_SHEIN) return;
-    var now = Date.now();
     var currentPath = String(location.pathname || '');
     var signedReady = sheinSignedSaudiAddressReady();
-    var interactive = false;
-    var interactiveChecked = false;
-    // Let the native cascade have a brief head start, then reveal a verified,
-    // localized page while signed country/region repair continues. This reuses
-    // the existing coordinator tick and stops scanning after the current route
-    // is released; weak phones receive the wider scan gap.
-    var visualGraceElapsed = !sheinNativeCoverRepairActive ||
-      now - sheinNativeCoverRepairStartedAt >= (OTLOBLI_LOW_END ? 2800 : 1800);
-    if (!signedReady && visualGraceElapsed &&
-        (!sheinNativeCoverInitialReleased || sheinNativeCoverVisualReadyPath !== currentPath) &&
-        now - sheinNativeCoverInteractiveCheckAt >= (OTLOBLI_LOW_END ? 900 : 450)) {
-      sheinNativeCoverInteractiveCheckAt = now;
-      interactive = sheinPageLooksInteractive();
-      interactiveChecked = true;
-      if (interactive) {
-        sheinNativeCoverInitialReleased = true;
-        sheinNativeCoverVisualReadyPath = currentPath;
-        sheinRegionDiag('visual-ready-before-region', {
-          repairActive: sheinNativeCoverRepairActive,
-          elapsedMs: sheinNativeCoverRepairStartedAt ? now - sheinNativeCoverRepairStartedAt : 0
-        }, currentPath);
-        sheinPostNativeCoverState('sheinPageInteractive', true);
-      }
-    }
     if (signedReady) {
       // Close SHEIN's resolved drawer first, then release the cover on the
       // next tick after its close animation detaches it.
@@ -599,8 +573,7 @@ export const SHEIN_SESSION_SCRIPT = `
         sheinShippingProgressTimer = 0;
       }
       if (sheinNativeCoverSignedReadyPath !== currentPath) {
-        if (!interactiveChecked) interactive = sheinPageLooksInteractive();
-        if (interactive) {
+        if (sheinPageLooksInteractive()) {
           sheinNativeCoverInitialReleased = true;
           sheinNativeCoverVisualReadyPath = currentPath;
           sheinNativeCoverSignedReadyPath = currentPath;
@@ -635,6 +608,14 @@ export const SHEIN_SESSION_SCRIPT = `
       return;
     }
     sheinUpdateRegionTransitionVeil();
+    // With no active address repair (notably Home with no signed address), a
+    // healthy page may reveal normally. Product repair never reaches this path
+    // until it succeeds or hits the bounded timeout above.
+    if (sheinNativeCoverVisualReadyPath !== currentPath && sheinPageLooksInteractive()) {
+      sheinNativeCoverInitialReleased = true;
+      sheinNativeCoverVisualReadyPath = currentPath;
+      sheinPostNativeCoverState('sheinPageInteractive', true);
+    }
   }
 
   function sheinSaudiSignalsOk() {
@@ -1547,6 +1528,27 @@ export const SHEIN_SESSION_SCRIPT = `
     // close the drawer, and open it again instead of ever reaching the product.
     if (!productRoute && window.__otlobliSkipHomeRegionRepair === true &&
         !sheinNativeCoverRepairActive) return;
+    var addressCountry = sheinAddressCookieCountry();
+    var explicitRegionMismatch = (addressCountry && addressCountry !== SHEIN_REQUIRED_COUNTRY) ||
+      sheinVisibleForeignRegion();
+    // Home is only a launch surface. Never open/reopen its shipping drawer
+    // because an address is merely absent. A real admin-country mismatch still
+    // repairs here; an unsigned product route still repairs before capture.
+    if (!productRoute && !explicitRegionMismatch) {
+      if (sheinNativeCoverRepairActive) {
+        sheinRegionDiag('home-unknown-repair-cancelled', {
+          addressCountry: addressCountry
+        }, String(location.pathname || ''));
+        closeResolvedSheinShippingUi(true);
+        sheinNativeCoverRepairActive = false;
+        sheinNativeCoverRepairStartedAt = 0;
+        sheinNativeCoverCooldownUntil = Date.now() + 2500;
+        sheinRegionVeilStartedAt = 0;
+        sheinRegionTransitionVeil(false);
+        resetSheinShippingProgress(SHEIN_REQUIRED_COUNTRY + ':' + location.pathname);
+      }
+      return;
+    }
     if (!sheinLooksLikeProductPageForShipping() && !sheinFindHomeShippingEntryControl()) {
       sheinRegionDiag('shipping-entry-not-detected', {
         productRoute: sheinLooksLikeProductRouteForShipping()
@@ -1568,7 +1570,6 @@ export const SHEIN_SESSION_SCRIPT = `
       return;
     }
     sheinShippingLastScanAt = now;
-    var addressCountry = sheinAddressCookieCountry();
     if (addressCountry === SHEIN_REQUIRED_COUNTRY && sheinSignedSaudiAddressReady()) {
       sheinShippingActionCount = 0;
       sheinShippingLastTarget = null;

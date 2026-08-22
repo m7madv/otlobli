@@ -391,13 +391,27 @@ const checks = [
     ],
   },
   {
-    label: 'SHEIN bounded low-end visual-ready probe',
+    label: 'SHEIN region-stable visual-ready release',
     file: 'src/services/sheinSessionScript.ts',
     markers: [
       "var sheinNativeCoverVisualReadyPath = '';",
-      'now - sheinNativeCoverRepairStartedAt >= (OTLOBLI_LOW_END ? 2800 : 1800)',
-      'now - sheinNativeCoverInteractiveCheckAt >= (OTLOBLI_LOW_END ? 900 : 450)',
+      'Date.now() - sheinNativeCoverRepairStartedAt >= 12000',
+      'if (sheinNativeCoverVisualReadyPath !== currentPath && sheinPageLooksInteractive())',
       "sheinPostNativeCoverState('sheinPageInteractive', true)",
+    ],
+    forbidden: [
+      'visual-ready-before-region',
+      'sheinNativeCoverInteractiveCheckAt',
+    ],
+  },
+  {
+    label: 'SHEIN Home region repair requires a real mismatch',
+    file: 'src/services/sheinSessionScript.ts',
+    markers: [
+      'var explicitRegionMismatch =',
+      'if (!productRoute && !explicitRegionMismatch)',
+      "sheinRegionDiag('home-unknown-repair-cancelled'",
+      "resetSheinShippingProgress(SHEIN_REQUIRED_COUNTRY + ':' + location.pathname)",
     ],
   },
   {
@@ -457,11 +471,35 @@ const checks = [
       'var semanticStart = Math.max(0, semanticChecks.length - 12);',
       'if (!sheinElementIsPainted(surface)) continue;',
       'otlobliMatchesHumanChallengeText(surface.textContent || \'\')',
+      'function otlobliResolveHumanChallenge()',
       "type: 'humanCheck'",
+      "type: 'humanCheckResolved'",
     ],
     forbidden: [
       '.click()',
       'location.reload(',
+      'sessionStorage',
+      'otlobli-human-check-guide',
+      'otlobliRememberHumanChallenge',
+      'otlobliForgetHumanChallenge',
+      'sheinUnlockPageBehindShippingDrawer()',
+    ],
+  },
+  {
+    label: 'SHEIN verification resolves without product interactivity',
+    files: [
+      'src/services/sheinHumanCheck.ts',
+      'src/services/storeRuntimeCoordinator.ts',
+    ],
+    markers: [
+      'var humanChallengeNow = otlobliScriptEnabled(\'blocking\') && otlobliIsHumanChallenge();',
+      'otlobliResolveHumanChallenge();',
+      'var challengeScanGap = otlobliChallengeActive ? 600 : 1500;',
+    ],
+    forbidden: [
+      'otlobliLooksLikeRemovedProductPage',
+      'otlobliNotifyHumanCheckSkipped',
+      'if (!sheinPageLooksInteractive())',
     ],
   },
   {
