@@ -246,8 +246,27 @@ async function ensureBuildAccess(build, group) {
 }
 
 async function ensureTesterMembership(group) {
+  const groupMembersPath = apiPath(
+    `/betaGroups/${encodeURIComponent(group.id)}/betaTesters`,
+    {
+      "fields[betaTesters]": "email,state,inviteType",
+      limit: 200,
+    },
+  );
+  const findExpectedMember = async () => {
+    const response = await apiRequest(groupMembersPath);
+    return response.data.find(
+      (candidate) =>
+        candidate.attributes?.email?.toLowerCase() === config.testerEmail,
+    );
+  };
+
+  const existingMember = await findExpectedMember();
+  if (existingMember) return existingMember.attributes?.state || "UNKNOWN";
+
   const testerQuery = {
     "filter[email]": config.testerEmail,
+    "filter[apps]": config.appId,
     "fields[betaTesters]": "email,state,inviteType",
     limit: 20,
   };
@@ -261,13 +280,7 @@ async function ensureTesterMembership(group) {
       "The expected internal tester does not exist in App Store Connect.",
     );
 
-  const membership = await apiRequest(
-    apiPath(
-      `/betaTesters/${encodeURIComponent(tester.id)}/relationships/betaGroups`,
-      { limit: 200 },
-    ),
-  );
-  if (!membership.data.some((item) => item.id === group.id)) {
+  try {
     await apiRequest(
       `/betaGroups/${encodeURIComponent(group.id)}/relationships/betaTesters`,
       {
@@ -275,20 +288,20 @@ async function ensureTesterMembership(group) {
         body: { data: [{ type: "betaTesters", id: tester.id }] },
       },
     );
+  } catch (error) {
+    const memberAfterConflict = await findExpectedMember();
+    if (memberAfterConflict)
+      return memberAfterConflict.attributes?.state || "UNKNOWN";
+    throw error;
   }
 
-  const verified = await apiRequest(
-    apiPath(
-      `/betaTesters/${encodeURIComponent(tester.id)}/relationships/betaGroups`,
-      { limit: 200 },
-    ),
-  );
-  if (!verified.data.some((item) => item.id === group.id)) {
+  const verified = await findExpectedMember();
+  if (!verified) {
     throw new Error(
       "Tester-to-group relationship was not visible after assignment.",
     );
   }
-  return tester.attributes?.state || "UNKNOWN";
+  return verified.attributes?.state || "UNKNOWN";
 }
 
 async function readInternalBuildState(build) {
@@ -311,15 +324,15 @@ function appendOutput(name, value) {
 const build = await findProcessedBuild();
 const group = await findInternalGroup();
 const buildAccess = await ensureBuildAccess(build, group);
-const testerState = await ensureTesterMembership(group);
-const internalBuildState = await readInternalBuildState(build);
-
 console.log(
   `Verified TestFlight build ${config.appVersion} (${config.appBuild}) is VALID.`,
 );
 console.log(
   `Verified internal group ${config.groupName}; build access: ${buildAccess}.`,
 );
+const testerState = await ensureTesterMembership(group);
+const internalBuildState = await readInternalBuildState(build);
+
 console.log(
   `Verified expected tester membership; tester state: ${testerState}.`,
 );
