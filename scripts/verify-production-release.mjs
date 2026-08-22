@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const failures = []
+const diagnosticsBuild = String(process.env.VITE_STORE_SCRIPT_DIAGNOSTICS || '').toLowerCase() === 'true'
 
 const read = (file) => readFileSync(resolve(projectRoot, file), 'utf8')
 const sha256 = (file) => createHash('sha256').update(readFileSync(resolve(projectRoot, file))).digest('hex').toUpperCase()
@@ -40,10 +41,7 @@ const bannedMarkers = [
   '__otlobliTapDiagnostic',
   '__otlobliTapDiagnosticContext',
   '__otlobliFreezeProbe',
-  'otlobli-script-diagnostics',
-  'storeScriptFlagsChanged',
   'SHEIN_IOS_FREEZE_DIAGNOSTICS',
-  'VITE_STORE_SCRIPT_DIAGNOSTICS',
   'RAW_WITH_CACHE_GUARD',
   'CAPTURE_ONLY',
   'BLOCKING_ONLY',
@@ -54,8 +52,24 @@ const bannedMarkers = [
   'clean-room container',
   'root-cause heartbeat',
 ]
+const storeIsolationMarkers = [
+  'otlobli-script-diagnostics',
+  'storeScriptFlagsChanged',
+  'VITE_STORE_SCRIPT_DIAGNOSTICS',
+]
 for (const marker of bannedMarkers) {
   if (sourceText.includes(marker)) failures.push(`release source contains diagnostic marker: ${marker}`)
+}
+for (const marker of ['STORE_SCRIPT_DIAGNOSTICS', 'VITE_STORE_SCRIPT_DIAGNOSTICS', 'isStoreScriptFlagsChangedMessage']) {
+  if (!sourceText.includes(marker)) failures.push(`A-D isolation build gate missing: ${marker}`)
+}
+const storeIsolationSource = read('src/services/storeScriptDiagnostics.ts')
+for (const marker of ['otlobli-script-diagnostics', 'storeScriptFlagsChanged', 'buildDiagnosticStoreCaptureScript']) {
+  if (!storeIsolationSource.includes(marker)) failures.push(`A-D isolation module missing: ${marker}`)
+}
+const disabledIsolationSource = read('src/services/storeScriptDiagnosticsDisabled.ts')
+for (const marker of ['isStoreScriptFlagsChangedMessage = () => false', "buildDiagnosticStoreCaptureScript = () => ''"]) {
+  if (!disabledIsolationSource.includes(marker)) failures.push(`customer A-D isolation stub missing: ${marker}`)
 }
 
 const nativeBrowser = read('ios/App/App/OtlobliSheinBrowserPlugin.swift')
@@ -93,6 +107,7 @@ if (artifactArgument) {
   if (platform === 'all' || platform === 'ios') roots.push('ios/App/App/public')
   if (platform === 'all' || platform === 'android') roots.push('android/app/src/main/assets/public')
   const textExtensions = new Set(['.js', '.css', '.html', '.json', '.xml'])
+  const foundStoreIsolationMarkers = new Set()
   for (const root of roots) {
     const absoluteRoot = resolve(projectRoot, root)
     if (!existsSync(absoluteRoot)) {
@@ -105,6 +120,16 @@ if (artifactArgument) {
       for (const marker of bannedMarkers) {
         if (content.includes(marker)) failures.push(`generated asset contains ${marker}: ${file}`)
       }
+      for (const marker of storeIsolationMarkers) {
+        if (!content.includes(marker)) continue
+        foundStoreIsolationMarkers.add(marker)
+        if (!diagnosticsBuild) failures.push(`customer asset contains internal A-D isolation marker ${marker}: ${file}`)
+      }
+    }
+  }
+  if (diagnosticsBuild) {
+    for (const marker of ['otlobli-script-diagnostics', 'storeScriptFlagsChanged']) {
+      if (!foundStoreIsolationMarkers.has(marker)) failures.push(`internal A-D artifact is missing ${marker}`)
     }
   }
 }

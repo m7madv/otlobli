@@ -336,19 +336,61 @@ const checks = [
     ],
   },
   {
-    label: 'production application excludes diagnostic entry points',
+    label: 'internal A-D script isolation remains explicitly build-gated',
     files: ['src/App.tsx', 'src/config.ts', 'src/services/storeCaptureBundle.ts'],
-    markers: ['export const buildStoreCaptureScript'],
+    markers: [
+      'export const buildStoreCaptureScript',
+      'export const STORE_SCRIPT_DIAGNOSTICS =',
+      'VITE_STORE_SCRIPT_DIAGNOSTICS',
+      "typeof import('./services/storeScriptDiagnostics')",
+      'isStoreScriptFlagsChangedMessage',
+      'if (!STORE_SCRIPT_DIAGNOSTICS) return',
+      'detail.diagnostic === true && STORE_SCRIPT_DIAGNOSTICS',
+    ],
     forbidden: [
       'SHEIN_IOS_FREEZE_DIAGNOSTICS',
       'SHEIN_IOS_FREEZE_DIAGNOSTICS_BYPASS_RECOVERY',
-      'STORE_SCRIPT_DIAGNOSTICS',
-      'VITE_STORE_SCRIPT_DIAGNOSTICS',
       'SHEIN_FREEZE_DIAGNOSTIC_SCRIPT',
       'otlobliTapDiagnostics',
       'otlobliFreezeDiagnostics',
-      'storeScriptFlagsChanged',
       '__OTLOBLI_SHEIN_REGION_DIAGNOSTICS__',
+    ],
+  },
+  {
+    label: 'customer build aliases the A-D module to a marker-free stub',
+    files: ['vite.config.ts', 'src/services/storeScriptDiagnosticsDisabled.ts'],
+    markers: [
+      "process.env.VITE_STORE_SCRIPT_DIAGNOSTICS === 'true'",
+      "find: './services/storeScriptDiagnostics'",
+      'storeScriptDiagnosticsDisabled.ts',
+      'export const isStoreScriptFlagsChangedMessage = () => false',
+    ],
+    forbidden: [
+      'otlobli-script-diagnostics',
+      'storeScriptFlagsChanged',
+    ],
+  },
+  {
+    label: 'A-D isolation profiles are bounded and website-data preserving',
+    file: 'src/services/storeScriptDiagnostics.ts',
+    markers: [
+      'INITIAL_STORE_SCRIPT_DIAGNOSTIC_FLAGS',
+      'buildDiagnosticStoreCaptureScript',
+      "stageA.textContent = 'A — خام'",
+      "stageB.textContent = 'B — جذب فقط'",
+      "stageC.textContent = 'C — + الحجب'",
+      "stageD.textContent = 'D — + المنطقة'",
+      "post({ type: 'storeScriptFlagsChanged', flags: flags, label: label })",
+      "post({ type: 'closeStore' })",
+      "status.setAttribute('aria-live', 'polite')",
+      '@media(prefers-reduced-motion:reduce)',
+    ],
+    forbidden: [
+      'document.cookie',
+      'localStorage.setItem',
+      'MutationObserver',
+      'setInterval(',
+      'transition:all',
     ],
   },
   {
@@ -1311,6 +1353,45 @@ try {
   }
 } catch (error) {
   failures.push(`SHEIN production script syntax: ${error instanceof Error ? error.message : String(error)}`)
+}
+
+try {
+  const bundleModule = evaluateInjectedScriptExports('src/services/storeCaptureBundle.ts')
+  const diagnosticsModule = evaluateInjectedScriptExports('src/services/storeScriptDiagnostics.ts')
+  const stages = {
+    A: { runtime: false, navigation: false, blocking: false, capture: false, session: false },
+    B: { runtime: true, navigation: false, blocking: false, capture: true, session: false },
+    C: { runtime: true, navigation: false, blocking: true, capture: true, session: false },
+    D: { runtime: true, navigation: true, blocking: true, capture: true, session: true },
+  }
+  const scripts = Object.fromEntries(Object.entries(stages).map(([name, flags]) => [
+    name,
+    diagnosticsModule.buildDiagnosticStoreCaptureScript(
+      {}, flags, bundleModule.SHEIN_PRIVACY_COMPAT_SCRIPT, bundleModule.SHEIN_CAPTURE_SCRIPT,
+    ),
+  ]))
+  for (const script of Object.values(scripts)) new Function(script)
+  if (!scripts.A.includes('otlobli-script-diagnostics') ||
+      !scripts.A.includes('__otlobliSheinPrivacyCompatInstalled') ||
+      scripts.A.includes('function tick()')) {
+    failures.push('SHEIN A-D isolation: A must contain only the panel/readiness and privacy compatibility')
+  }
+  for (const stage of ['B', 'C', 'D']) {
+    if (!scripts[stage].includes('function tick()')) {
+      failures.push(`SHEIN A-D isolation: ${stage} must install the flag-gated coordinator`)
+    }
+  }
+  if (!scripts.B.includes('"capture":true') || scripts.B.includes('"blocking":true') || scripts.B.includes('"session":true')) {
+    failures.push('SHEIN A-D isolation: B flags must enable capture only')
+  }
+  if (!scripts.C.includes('"capture":true') || !scripts.C.includes('"blocking":true') || scripts.C.includes('"session":true')) {
+    failures.push('SHEIN A-D isolation: C flags must add blocking without session/region')
+  }
+  if (!scripts.D.includes('"navigation":true') || !scripts.D.includes('"session":true')) {
+    failures.push('SHEIN A-D isolation: D must restore navigation and session/region')
+  }
+} catch (error) {
+  failures.push(`SHEIN A-D isolation syntax: ${error instanceof Error ? error.message : String(error)}`)
 }
 
 // Exercise the compatibility prelude against the exact failure shape found by

@@ -14,6 +14,14 @@ export const DEFAULT_STORE_SCRIPT_FLAGS: StoreScriptFlags = {
   session: true,
 }
 
+export const INITIAL_STORE_SCRIPT_DIAGNOSTIC_FLAGS: StoreScriptFlags = {
+  runtime: false,
+  navigation: false,
+  blocking: false,
+  capture: false,
+  session: false,
+}
+
 export const normalizeStoreScriptFlags = (value: unknown): StoreScriptFlags => {
   const candidate = value && typeof value === 'object' ? value as Record<string, unknown> : {}
   return {
@@ -23,6 +31,25 @@ export const normalizeStoreScriptFlags = (value: unknown): StoreScriptFlags => {
     capture: candidate.capture !== false,
     session: candidate.session !== false,
   }
+}
+
+export const buildStoreScriptDiagnosticsPrelude = (flags: StoreScriptFlags) =>
+  `window.__OTLOBLI_SCRIPT_FLAGS__=${JSON.stringify(normalizeStoreScriptFlags(flags))};`
+
+export const isStoreScriptFlagsChangedMessage = (detail: unknown) =>
+  Boolean(detail && typeof detail === 'object' && (detail as { type?: unknown }).type === 'storeScriptFlagsChanged')
+
+export const buildDiagnosticStoreCaptureScript = (
+  regions: unknown,
+  flags: StoreScriptFlags,
+  privacyCompatScript: string,
+  captureScript: string,
+) => {
+  const normalizedFlags = normalizeStoreScriptFlags(flags)
+  const runtime = normalizedFlags.runtime
+    ? `try{\n${captureScript}\n}catch(__otlobliCaptureError){}`
+    : ''
+  return `window.__OTLOBLI_STORE_REGIONS__=${JSON.stringify(regions)};\n${buildStoreScriptDiagnosticsPrelude(normalizedFlags)}\n${privacyCompatScript}\n${STORE_SCRIPT_DIAGNOSTICS_PANEL_SCRIPT}\n${runtime}`
 }
 
 // Diagnostic-build only. The control stays outside the normal store runtime,
@@ -35,8 +62,9 @@ export const STORE_SCRIPT_DIAGNOSTICS_PANEL_SCRIPT = `
   if (window.top !== window || window.__otlobliScriptDiagnosticsMounted) return;
   window.__otlobliScriptDiagnosticsMounted = true;
 
-  var defaults = { runtime: true, navigation: true, blocking: true, capture: true, session: true };
-  var source = window.__OTLOBLI_SCRIPT_FLAGS__ || defaults;
+  var rawPreset = { runtime: false, navigation: false, blocking: false, capture: false, session: false };
+  var fullPreset = { runtime: true, navigation: true, blocking: true, capture: true, session: true };
+  var source = window.__OTLOBLI_SCRIPT_FLAGS__ || rawPreset;
   var flags = {
     runtime: source.runtime !== false,
     navigation: source.navigation !== false,
@@ -137,14 +165,22 @@ export const STORE_SCRIPT_DIAGNOSTICS_PANEL_SCRIPT = `
 
     var presets = document.createElement('div');
     presets.id = 'otlobli-script-diagnostics-presets';
-    var raw = document.createElement('button');
-    raw.type = 'button';
-    raw.textContent = 'المتجر خام';
-    var full = document.createElement('button');
-    full.type = 'button';
-    full.textContent = 'تشغيل الكل';
-    presets.appendChild(raw);
-    presets.appendChild(full);
+    var stageA = document.createElement('button');
+    stageA.type = 'button';
+    stageA.textContent = 'A — خام';
+    var stageB = document.createElement('button');
+    stageB.type = 'button';
+    stageB.textContent = 'B — جذب فقط';
+    var stageC = document.createElement('button');
+    stageC.type = 'button';
+    stageC.textContent = 'C — + الحجب';
+    var stageD = document.createElement('button');
+    stageD.type = 'button';
+    stageD.textContent = 'D — + المنطقة';
+    presets.appendChild(stageA);
+    presets.appendChild(stageB);
+    presets.appendChild(stageC);
+    presets.appendChild(stageD);
     panel.appendChild(presets);
 
     var definitions = [
@@ -256,11 +292,17 @@ export const STORE_SCRIPT_DIAGNOSTICS_PANEL_SCRIPT = `
         first.focus();
       }
     });
-    raw.addEventListener('click', function () {
-      apply({ runtime: false, navigation: false, blocking: false, capture: false, session: false }, 'المتجر خام');
+    stageA.addEventListener('click', function () {
+      apply(rawPreset, 'A — المتجر خام');
     });
-    full.addEventListener('click', function () {
-      apply(defaults, 'تشغيل الكل');
+    stageB.addEventListener('click', function () {
+      apply({ runtime: true, navigation: false, blocking: false, capture: true, session: false }, 'B — الجذب فقط');
+    });
+    stageC.addEventListener('click', function () {
+      apply({ runtime: true, navigation: false, blocking: true, capture: true, session: false }, 'C — الجذب والحجب');
+    });
+    stageD.addEventListener('click', function () {
+      apply(fullPreset, 'D — التشغيل الكامل مع المنطقة');
     });
 
     root.appendChild(trigger);

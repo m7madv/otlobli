@@ -1,5 +1,19 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
+## v86.218 — isolate before another SHEIN fix (2026-08-22)
+
+- **Physical decision:** `86.217/1079` is rejected; neither live-only human
+  verification nor the v86.213-style region gate fixed the PDP spinner.
+- **Next experiment:** one internal build exposes ordered A raw, B capture, C
+  capture+blocking, and D full region/navigation profiles. Every transition
+  recreates one JavaScript/WebView surface but preserves site-owned persistent
+  website data and verification proof.
+- **Interpretation:** A failure assigns the PDP problem below normal injected
+  runtime (SHEIN/native/network). A success followed by the first B/C/D failure
+  assigns the responsible Otlobli layer. Do not patch before that device result.
+- **Release boundary:** the panel is build-gated and replaced with a marker-free
+  stub in ordinary customer assets. v86.218 is not a production fix.
+
 ## v86.216 — warm Home must not own region repair (2026-08-22)
 
 - **Physical rejection:** the user's 34.92-second iPhone video rejects

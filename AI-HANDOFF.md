@@ -1,3 +1,33 @@
+# Active handoff — v86.218 SHEIN A-D isolation (2026-08-22)
+
+Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
+`codex/otlobli-v86-212-testflight-auth`. Current code is `86.218/1080`. This is
+an internal diagnostic candidate following the user's physical rejection of
+`86.217/1079`; do not describe the product spinner or region loop as fixed.
+
+The build starts with A: normal SHEIN runtime, navigation, blocking, capture,
+and session/region are all off. The mandatory bounded privacy compatibility and
+small `فحص`/painted-page bridge remain so the raw page is visible and the user
+can exit. From the panel select B (capture only), C (capture+blocking), then D
+(full navigation+session/region). Each stage closes/reopens one WebView without
+clearing persistent SHEIN website data or human-verification proof. Test the
+same product at every stage and stop at the first failing stage.
+
+Preserve the production separation: `vite.config.ts` aliases the diagnostic
+module to `storeScriptDiagnosticsDisabled.ts` unless
+`VITE_STORE_SCRIPT_DIAGNOSTICS=true`. A normal build must contain neither
+`otlobli-script-diagnostics` nor `storeScriptFlagsChanged`; the internal build
+must contain both. The iOS workflow input is `store_script_diagnostics` and
+must be true only for this internal A-D artifact.
+
+All protected business/runtime sources remain unchanged. Preserve the native
+iPhone recompose, 0.25s timing, Android resume defense, WebView ownership,
+`JSON.stringify` region equality, payment/wallet/orders/auth, and v86.217's
+live-only verification behavior. Local normal+diagnostic builds, guards,
+Playwright, both syncs, and Android build pass. Budgets/hashes/artifact details
+are at the top of `CURRENT_STATE.md`. Signed iOS/TestFlight work is pending;
+real-device acceptance is unperformed.
+
 # Active handoff — v86.217 live challenge + v86.213 region gate (2026-08-22)
 
 Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`

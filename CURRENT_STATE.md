@@ -1,3 +1,56 @@
+# v86.218 — one-build SHEIN A-D isolation (2026-08-22)
+
+Continue in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
+`codex/otlobli-v86-212-testflight-auth`. Current source is `86.218/1080`.
+This is an internal TestFlight diagnostic, not a customer release and not a
+claim that the iPhone product spinner or repeated region drawer is fixed.
+
+The user's physical rejection of `86.217/1079` closes the next speculative-fix
+lane. v86.218 restores the already-existing script-isolation control on top of
+the current v86.217 code instead of copying an older branch. One build performs
+the proposed sequence: A evaluates no normal store runtime (only the mandatory
+privacy compatibility and a small painted-page/exit panel); B enables product
+capture only; C adds blocking; D restores navigation plus session/region. Each
+change recreates one WebView while preserving SHEIN's persistent website data,
+cookies, storage, and completed verification. A is the fresh default under a
+new v2 preference key.
+
+The host URL/region normalizer and policy/navigation document-start scripts are
+off whenever the diagnostic session/navigation flags are off. The panel's own
+painted-page signal releases the native cover in A-C, so the page under test is
+never hidden while waiting for the deliberately absent coordinator. Normal
+customer builds resolve the diagnostic dynamic import to a marker-free stub;
+the production artifact guard proves no panel/message marker exists. The iOS
+workflow exposes one explicit boolean input and only includes the panel when it
+is true.
+
+No extraction, blocking, session, coordinator, payment, wallet, completed-
+order, auth, native WebView, detach/reattach, resume timing, or
+`JSON.stringify` region-equality implementation was changed. The A-D executable
+guard parses all four exact scripts and proves A has no `tick()`, B capture
+only, C capture+blocking without session, and D full runtime.
+
+Local validation: TypeScript, diff check, freeze guard, all release/security
+guards, normal production build plus marker-free artifact scan, diagnostic
+build plus marker-required scan, and unchanged performance budgets pass.
+Diagnostic budgets are startup `659,081/720,000`, total JS gzip
+`273,049/370,000`, CSS `69,990/70,000`, fonts `81,364/100,000`, shipped store
+scripts `240,400/470,000`, and source `569,544/600,000`. Android/iOS syncs are
+byte-identical for the diagnostic chunk SHA-256
+`241CD059EAA8AA77216513218FB8E920247D7BB2EA20898E328E1E7786E87EED`.
+Android debug build passes; artifact
+`output/Otlobli-v86.218-SHEIN-AB-isolation-Android-debug.apk` is `11,123,705`
+bytes, SHA-256
+`18E7AE0DBE087BC9885FE66F274E2F805C1C2ED80673AECCC7E8A25295714AC7`,
+and metadata is `com.otlobli.app` `86.218/1080`.
+
+Playwright at `430x932` proves A starts with every normal group off and B/C/D
+toggle the intended flags. Evidence:
+`output/playwright/v86.218-shein-ab-panel-iphone16.png`. The only console error
+was the fixture's absent favicon. Signed iOS/TestFlight build is pending. Real
+iPhone acceptance remains entirely unperformed. Test the same PDP in A first;
+only if it opens, progress through B, C, then D. Record the first failing stage.
+
 # v86.217 — live verification pass-through and v86.213 region gate (2026-08-22)
 
 Continue in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on

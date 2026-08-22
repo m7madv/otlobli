@@ -16,7 +16,8 @@ import type { PaymentCurrency } from './domain/pricing'
 import type { Address, AppNotification, CartGroupSnapshot, CartItem, NotificationPrefs, Order, OrderIssue, Product, ProductColor, Recipient, Screen, StatusTone, UserProfile, WalletTransaction } from './domain/types'
 import { getDeviceId, readStoredJson, storageKeys, useStoredState } from './infrastructure/localStorage'
 import { appApi } from './services'
-import { PAYMENT_MODE, APP_VERSION, TEMU_PERSONAL_SITE_MODE, TEST_ONLY_AUTH_BYPASS, cleanEnvValue } from './config'
+import { PAYMENT_MODE, APP_VERSION, STORE_SCRIPT_DIAGNOSTICS, TEMU_PERSONAL_SITE_MODE, TEST_ONLY_AUTH_BYPASS, cleanEnvValue } from './config'
+import type { StoreScriptFlags } from './services/storeScriptDiagnostics'
 import { buildWhatsappLink } from './services/whatsappLink'
 import {
   getAccountAuthMethods,
@@ -97,11 +98,48 @@ const APP_SETTINGS_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/app-settin
 const SHEIN_OPENING_RECORDS_KEY = 'otlobli.shein-opening-performance.v1'
 
 type StoreCaptureBundle = typeof import('./services/storeCaptureBundle')
+type StoreScriptDiagnosticsBundle = typeof import('./services/storeScriptDiagnostics')
 let storeCaptureBundlePromise: Promise<StoreCaptureBundle> | undefined
+let storeScriptDiagnosticsBundlePromise: Promise<StoreScriptDiagnosticsBundle> | undefined
 const loadStoreCaptureBundle = () => {
   storeCaptureBundlePromise ??= import('./services/storeCaptureBundle')
   return storeCaptureBundlePromise
 }
+const loadStoreScriptDiagnosticsBundle = () => {
+  storeScriptDiagnosticsBundlePromise ??= import('./services/storeScriptDiagnostics')
+  return storeScriptDiagnosticsBundlePromise
+}
+
+const STORE_SCRIPT_FLAGS_STORAGE_KEY = 'otlobli.storeScriptDiagnostics.flags.v2'
+const INITIAL_STORE_SCRIPT_FLAGS: StoreScriptFlags = {
+  runtime: false,
+  navigation: false,
+  blocking: false,
+  capture: false,
+  session: false,
+}
+const normalizeStoreScriptFlags = (value: unknown): StoreScriptFlags => {
+  const candidate = value && typeof value === 'object' ? value as Record<string, unknown> : {}
+  return {
+    runtime: candidate.runtime === true,
+    navigation: candidate.navigation === true,
+    blocking: candidate.blocking === true,
+    capture: candidate.capture === true,
+    session: candidate.session === true,
+  }
+}
+const readStoreScriptFlags = () => STORE_SCRIPT_DIAGNOSTICS
+  ? normalizeStoreScriptFlags(readStoredJson<StoreScriptFlags>(
+      STORE_SCRIPT_FLAGS_STORAGE_KEY,
+      INITIAL_STORE_SCRIPT_FLAGS,
+    ))
+  : {
+      runtime: true,
+      navigation: true,
+      blocking: true,
+      capture: true,
+      session: true,
+    }
 
 // موقع SHEIN الذي يتصفّحه الزبون. نستخدم نسخة الأردن لأنها تعرض العربية
 // بثبات (نسخة لبنان m.shein.com/lb تعرض الإنجليزية ولا تقبل العربية).
@@ -3225,6 +3263,8 @@ function App() {
   const screenRef = useRef(screen)
   const browseSheinRef = useRef<() => void>(() => undefined)
   const storeCaptureBundleRef = useRef<StoreCaptureBundle | null>(null)
+  const storeScriptDiagnosticsBundleRef = useRef<StoreScriptDiagnosticsBundle | null>(null)
+  const storeScriptFlagsRef = useRef<StoreScriptFlags>(readStoreScriptFlags())
   const storeCaptureBundleLoadingRef = useRef(false)
   const sheinCoordinatorRef = useRef(createSheinRegionCoordinator(DEFAULT_STORE_REGIONS.shein))
   const sheinOpeningTraceRef = useRef<SheinOpeningTrace | null>(null)
@@ -4051,18 +4091,24 @@ function App() {
     // resolved module. Hold the singleton WebView flags unchanged until the
     // module is ready so concurrent effects cannot create a second browser.
     const captureBundle = storeCaptureBundleRef.current
-    if (!captureBundle) {
+    const diagnosticsBundle = STORE_SCRIPT_DIAGNOSTICS ? storeScriptDiagnosticsBundleRef.current : null
+    if (!captureBundle || (STORE_SCRIPT_DIAGNOSTICS && !diagnosticsBundle)) {
       if (storeCaptureBundleLoadingRef.current) return
       storeCaptureBundleLoadingRef.current = true
-      void loadStoreCaptureBundle()
-        .then((loadedBundle) => {
-          storeCaptureBundleRef.current = loadedBundle
+      void Promise.all([
+        loadStoreCaptureBundle(),
+        STORE_SCRIPT_DIAGNOSTICS ? loadStoreScriptDiagnosticsBundle() : Promise.resolve(null),
+      ])
+        .then(([loadedCaptureBundle, loadedDiagnosticsBundle]) => {
+          storeCaptureBundleRef.current = loadedCaptureBundle
+          if (loadedDiagnosticsBundle) storeScriptDiagnosticsBundleRef.current = loadedDiagnosticsBundle
           storeCaptureBundleLoadingRef.current = false
           browseSheinRef.current()
         })
         .catch((error: unknown) => {
           storeCaptureBundleLoadingRef.current = false
           storeCaptureBundlePromise = undefined
+          storeScriptDiagnosticsBundlePromise = undefined
           setStoreOpenFailureReason('network')
           console.error('[otlobli][store-capture] lazy load failed', error)
           showNotice('تعذّر تجهيز المتجر. جرّب مرة أخرى.')
@@ -4104,7 +4150,18 @@ function App() {
     const targetUrl = activeStore === 'shein'
       ? normalizeSheinBrowserUrl(rawTargetUrl, activeRegions.shein)
       : normalizeTemuBrowserUrl(rawTargetUrl, activeRegions.temu)
-    const captureScript = captureBundle.buildStoreCaptureScript(activeRegions)
+    const activeScriptFlags = storeScriptFlagsRef.current
+    const captureScript = STORE_SCRIPT_DIAGNOSTICS && diagnosticsBundle
+      ? diagnosticsBundle.buildDiagnosticStoreCaptureScript(
+          activeRegions,
+          activeScriptFlags,
+          captureBundle.SHEIN_PRIVACY_COMPAT_SCRIPT,
+          captureBundle.SHEIN_CAPTURE_SCRIPT,
+        )
+      : captureBundle.buildStoreCaptureScript(activeRegions)
+    const scriptDiagnosticsPrelude = STORE_SCRIPT_DIAGNOSTICS && diagnosticsBundle
+      ? diagnosticsBundle.buildStoreScriptDiagnosticsPrelude(activeScriptFlags)
+      : ''
     const hostSafeBottomInset = readHostSafeBottomInset()
     if (initialPendingUrl && pendingProductRevealRef.current &&
         pendingProductRevealUrlRef.current === targetUrl) {
@@ -4121,7 +4178,7 @@ function App() {
       ...(activeStore === 'shein'
         ? {
           otlobliLoadingCover: true,
-          otlobliDocumentStartScript: `window.__otlobliSafeBottom=${hostSafeBottomInset};\nwindow.__otlobliNativePlatform=${JSON.stringify(Capacitor.getPlatform())};\nwindow.__otlobliSkipHomeRegionRepair=${wantsWarmSheinRecoveryProductNav};\n${captureBundle.SHEIN_PRIVACY_COMPAT_SCRIPT}\n${captureBundle.SHEIN_POLICY_DOCUMENT_START_SCRIPT}\n${captureBundle.OTLOBLI_NAV_BOOTSTRAP_SCRIPT}`,
+          otlobliDocumentStartScript: `window.__otlobliSafeBottom=${hostSafeBottomInset};\nwindow.__otlobliNativePlatform=${JSON.stringify(Capacitor.getPlatform())};\nwindow.__otlobliSkipHomeRegionRepair=${wantsWarmSheinRecoveryProductNav};\n${scriptDiagnosticsPrelude}\n${captureBundle.SHEIN_PRIVACY_COMPAT_SCRIPT}\n${!STORE_SCRIPT_DIAGNOSTICS || activeScriptFlags.session ? captureBundle.SHEIN_POLICY_DOCUMENT_START_SCRIPT : ''}\n${!STORE_SCRIPT_DIAGNOSTICS || (activeScriptFlags.runtime && activeScriptFlags.navigation) ? captureBundle.OTLOBLI_NAV_BOOTSTRAP_SCRIPT : ''}`,
           otlobliPreserveAttachedWhenHidden: true,
           // Prepare SHEIN at the real device size without presenting it. The
           // already-mounted Otlobli shell therefore owns the only visible nav
@@ -4493,11 +4550,26 @@ function App() {
               storeCaptureBundleRef.current = loadedBundle
               return loadedBundle
             })
+        const diagnosticsBundleReady = STORE_SCRIPT_DIAGNOSTICS
+          ? (storeScriptDiagnosticsBundleRef.current
+              ? Promise.resolve(storeScriptDiagnosticsBundleRef.current)
+              : loadStoreScriptDiagnosticsBundle().then((loadedBundle) => {
+                  storeScriptDiagnosticsBundleRef.current = loadedBundle
+                  return loadedBundle
+                }))
+          : Promise.resolve(null)
         markSheinOpening('regionStateApplication')
-        void captureBundleReady
-          .then((loadedBundle) => InAppBrowser.executeScript({
+        void Promise.all([captureBundleReady, diagnosticsBundleReady])
+          .then(([loadedBundle, loadedDiagnosticsBundle]) => InAppBrowser.executeScript({
             ...(id ? { id } : {}),
-            code: loadedBundle.buildStoreCaptureScript(storeRegionsRef.current),
+            code: STORE_SCRIPT_DIAGNOSTICS && loadedDiagnosticsBundle
+              ? loadedDiagnosticsBundle.buildDiagnosticStoreCaptureScript(
+                  storeRegionsRef.current,
+                  storeScriptFlagsRef.current,
+                  loadedBundle.SHEIN_PRIVACY_COMPAT_SCRIPT,
+                  loadedBundle.SHEIN_CAPTURE_SCRIPT,
+                )
+              : loadedBundle.buildStoreCaptureScript(storeRegionsRef.current),
           }))
           .catch((err) => {
             recordAppDiagnostic('store_script_injection_failed', {
@@ -4599,6 +4671,9 @@ function App() {
       if (id && webviewIdRef.current && id !== webviewIdRef.current) return
       currentWebviewUrlRef.current = url
       if (/shein/i.test(url)) {
+        // A-C are deliberate isolation profiles: the host must not normalize
+        // URLs or start a region cascade while the session layer is disabled.
+        if (STORE_SCRIPT_DIAGNOSTICS && !storeScriptFlagsRef.current.session) return
         if (isSheinHumanChallengeUrl(url)) {
           markSheinOpening('humanVerificationDetection')
           transitionSheinCoordinator({ type: 'HUMAN_VERIFICATION_REQUIRED' })
@@ -4695,9 +4770,74 @@ function App() {
         recordAppDiagnostic('store_message', { store: selectedStoreRef.current, type: messageType })
       }
 
+      if (storeScriptDiagnosticsBundleRef.current?.isStoreScriptFlagsChangedMessage(detail)) {
+        if (!STORE_SCRIPT_DIAGNOSTICS) return
+        const nextFlags = normalizeStoreScriptFlags(detail?.flags)
+        storeScriptFlagsRef.current = nextFlags
+        try {
+          window.localStorage.setItem(STORE_SCRIPT_FLAGS_STORAGE_KEY, JSON.stringify(nextFlags))
+        } catch { /* The in-memory selection still applies to this test run. */ }
+        recordAppDiagnostic('store_script_flags_changed', {
+          runtime: nextFlags.runtime,
+          navigation: nextFlags.navigation,
+          blocking: nextFlags.blocking,
+          capture: nextFlags.capture,
+          session: nextFlags.session,
+        })
+
+        // Every A-D comparison gets a clean JavaScript runtime while the real
+        // SHEIN website data store (cookies/storage/verification) is retained.
+        clearSheinReadinessWatchdog()
+        clearPendingProductPreparation()
+        pendingSheinWarmHomeNavigationRef.current = false
+        pendingBackTargetRef.current = 'home'
+        pendingStoreOpenAfterCloseRef.current = true
+        suppressAutoReopenRef.current = true
+        webviewClosingRef.current = true
+        const closingWebviewId = webviewIdRef.current
+        if (closingWebviewId) ignoredWebviewCloseIdsRef.current.add(closingWebviewId)
+        webviewSessionRef.current += 1
+        webviewOpeningRef.current = false
+        webviewOpenedAtRef.current = 0
+        webviewIdRef.current = ''
+        currentWebviewUrlRef.current = ''
+        sheinChallengeActiveRef.current = false
+        sheinCartProductSessionRef.current = false
+        sheinOpenedRef.current = false
+        sheinReadyRef.current = false
+        setSheinReady(false)
+        sheinVisualReadyRef.current = false
+        setSheinVisualReady(false)
+        void InAppBrowser.close(closingWebviewId
+          ? { id: closingWebviewId, isAnimated: false }
+          : { isAnimated: false })
+          .catch(() => undefined)
+          .finally(() => {
+            webviewClosingRef.current = false
+            suppressAutoReopenRef.current = false
+            if (screenRef.current !== 'home' || vpnStateRef.current !== 'ok') return
+            window.setTimeout(() => {
+              if (webviewClosingRef.current || sheinOpenedRef.current || webviewOpeningRef.current) return
+              browseSheinRef.current()
+            }, 80)
+          })
+        return
+      }
+
       if (detail?.type === 'sheinOpeningPhase') {
         const phase = typeof detail.phase === 'string' ? detail.phase : ''
         if ((SHEIN_OPENING_PHASES as readonly string[]).includes(phase)) markSheinOpening(phase as SheinOpeningPhase)
+        return
+      }
+
+      if (detail?.type === 'sheinPageInteractive' && detail.diagnostic === true && STORE_SCRIPT_DIAGNOSTICS) {
+        // The raw/capture-only profiles intentionally omit the policy/session
+        // coordinator. Their tiny panel is the sole painted-page readiness
+        // bridge, so the native cover cannot hide the very page being tested.
+        setSheinBlockedError(false)
+        markSheinWebviewVisuallyReady(webviewSessionRef.current)
+        markStoreWebviewReadyRef.current(webviewSessionRef.current)
+        revealPreparedProductIfReady()
         return
       }
 
@@ -5533,10 +5673,15 @@ function App() {
       // Start parsing the deferred store bundle while VPN reachability is being
       // checked. This removes a real waterfall without moving store code back
       // into application startup or weakening any readiness gate.
-      void loadStoreCaptureBundle().then((bundle) => {
-        storeCaptureBundleRef.current = bundle
+      void Promise.all([
+        loadStoreCaptureBundle(),
+        STORE_SCRIPT_DIAGNOSTICS ? loadStoreScriptDiagnosticsBundle() : Promise.resolve(null),
+      ]).then(([captureBundle, diagnosticsBundle]) => {
+        storeCaptureBundleRef.current = captureBundle
+        if (diagnosticsBundle) storeScriptDiagnosticsBundleRef.current = diagnosticsBundle
       }).catch(() => {
         storeCaptureBundlePromise = undefined
+        storeScriptDiagnosticsBundlePromise = undefined
       })
     }
     const revealSelectedStore = () => {

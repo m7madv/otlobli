@@ -28,7 +28,7 @@ writeFileSync(outputPath, `<!doctype html>
   <header>SHEIN — صفحة متجر تجريبية</header>
   <main>${Array.from({ length: 8 }, (_, index) => `<article>منتج ${index + 1}</article>`).join('')}</main>
   <script>
-    window.__OTLOBLI_SCRIPT_FLAGS__={runtime:true,navigation:true,blocking:true,capture:true,session:true};
+    window.__OTLOBLI_SCRIPT_FLAGS__={runtime:false,navigation:false,blocking:false,capture:false,session:false};
     window.mobileApp={postMessage:function(message){window.__lastDiagnosticMessage=message;}};
     ${STORE_SCRIPT_DIAGNOSTICS_PANEL_SCRIPT}
   </script>

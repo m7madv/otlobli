@@ -12,6 +12,11 @@ on:
           - unsigned
           - development-signed
           - testflight
+      store_script_diagnostics:
+        description: Include the internal SHEIN A-D isolation panel
+        required: true
+        default: false
+        type: boolean
   push:
     branches:
       [
@@ -60,6 +65,7 @@ jobs:
           VITE_SHEIN_WORKER_URL: ${{ secrets.VITE_SHEIN_WORKER_URL }}
           VITE_SHEIN_SCRAPER_URL: ${{ secrets.VITE_SHEIN_SCRAPER_URL }}
           VITE_USD_TO_SYP_RATE: ${{ secrets.VITE_USD_TO_SYP_RATE }}
+          VITE_STORE_SCRIPT_DIAGNOSTICS: ${{ github.event_name == 'workflow_dispatch' && inputs.store_script_diagnostics && 'true' || 'false' }}
 
       - run: npx cap sync ios
 
@@ -636,6 +642,8 @@ jobs:
 
       - name: Verify generated production assets
         run: npm run verify:production-release -- --artifacts=ios
+        env:
+          VITE_STORE_SCRIPT_DIAGNOSTICS: ${{ github.event_name == 'workflow_dispatch' && inputs.store_script_diagnostics && 'true' || 'false' }}
 
       - name: Inspect iPad support in built app
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.signing_mode == 'unsigned' }}
