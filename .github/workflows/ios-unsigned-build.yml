@@ -17,6 +17,14 @@ on:
         required: true
         default: false
         type: boolean
+      testflight_delivery:
+        description: Upload a new TestFlight build or distribute an already uploaded matching build
+        required: true
+        default: upload-and-distribute
+        type: choice
+        options:
+          - upload-and-distribute
+          - distribute-existing
   push:
     branches:
       [
@@ -1017,7 +1025,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Validate and upload build to TestFlight
+      - name: Prepare App Store Connect API key
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.signing_mode == 'testflight' }}
         env:
           ASC_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
@@ -1049,6 +1057,14 @@ jobs:
           chmod 600 "$key_path"
           openssl pkey -in "$key_path" -noout >/dev/null
 
+      - name: Validate and upload build to TestFlight
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.signing_mode == 'testflight' && inputs.testflight_delivery == 'upload-and-distribute' }}
+        env:
+          ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+
           xcrun altool \
             --validate-app \
             --file "$OTLOBLI_TESTFLIGHT_IPA" \
@@ -1064,6 +1080,21 @@ jobs:
             --apiIssuer "$ASC_ISSUER_ID"
 
           echo 'Apple accepted the upload transport. The build still needs App Store Connect processing before TestFlight assignment.'
+
+      - name: Ensure internal TestFlight distribution
+        id: testflight_distribution
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.signing_mode == 'testflight' }}
+        env:
+          ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_API_KEY_PATH: ${{ env.OTLOBLI_ASC_KEY_PATH }}
+          OTLOBLI_ASC_APP_ID: '6804052538'
+          OTLOBLI_APP_VERSION: ${{ steps.appver.outputs.version }}
+          OTLOBLI_APP_BUILD: ${{ steps.appver.outputs.build }}
+          OTLOBLI_INTERNAL_GROUP: 'Otlobli Internal'
+          OTLOBLI_INTERNAL_TESTER_EMAIL: 'mhm1981dx@gmail.com'
+          OTLOBLI_ASC_WAIT_MINUTES: '20'
+        run: node scripts/ensure-testflight-internal.mjs
 
       - uses: actions/upload-artifact@v4
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.signing_mode == 'testflight' }}
