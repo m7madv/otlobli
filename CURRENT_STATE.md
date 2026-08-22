@@ -2,8 +2,14 @@
 
 Continue in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
 `codex/otlobli-v86-212-testflight-auth`. Current source is `86.216/1078` and is
-synchronized to Android and iOS. It has not been signed or uploaded to
-TestFlight; a fresh explicit approval is required before that Apple mutation.
+synchronized to Android and iOS. The user explicitly approved this exact
+TestFlight upload. Signed run `32551873565` succeeded from
+`3f92cc51c64629d7990a34e3f6de42c46b456be8`; Apple validation and upload both
+reported no errors, delivery UUID `b38a9b39-ae06-46e1-8610-3b85bbc9c74f`.
+App Store Connect finished processing and shows `86.216 (1078)` as `Testing`
+inside `Otlobli Internal` (`1 Tester`, `4 Builds`). The exact tester remains
+`mhm1981dx@gmail.com`; its row still says Installed `86.215 (1077)` until the
+device updates. No production App Store review submission was made.
 
 The user's 34.92-second physical iPhone video rejects `86.215/1077`: SHEIN
 selects the requested area, closes the drawer, then repeatedly opens and selects
@@ -45,9 +51,20 @@ TestFlight steps were skipped. Artifact `9466944399`,
 `sha256:c947c6561904c3956c7dc7e383a9429e79d1651f42400969f972aff49e386d04`.
 Downloaded unsigned IPA is 6,568,990 bytes, SHA-256
 `A0F5F15BF3EAC6CE1737CDF9DC79868EBB2C6AB1873124485E69D7D500393265`.
-No physical acceptance is claimed. Acceptance must retest the same product,
-prove no repeated region drawer, then perform five real iPhone 16
-background/resume cycles plus a separate force-quit/cold-launch test.
+
+The first approved signed run `32551772188` stopped before installing signing
+assets because the persisted Oracle WhatsApp sender was disconnected. The same
+session `0` was reconnected through the protected localhost admin endpoint;
+no message or QR was generated. Every live health field then passed and the
+successful run proceeded. Signed artifact `9470342666`,
+`otlobli-ios-v86.216-build-1078-testflight`, is 25,120,826 bytes with digest
+`sha256:9778761428db6fc73d74a3be0142d71bfb4f6dac730ebc835c37f6ecdaa9313b`.
+Downloaded signed IPA is 10,463,515 bytes, SHA-256
+`65417017ECAF9886142F0DF6FD24F81C701BDACB5D9AF5DE861AED98716FAC34`.
+
+No physical acceptance is claimed. Acceptance must update TestFlight, retest
+the same product, prove no repeated region drawer, then perform five real
+iPhone 16 background/resume cycles plus a separate force-quit/cold-launch test.
 
 # v86.215 — consume the recorded SHEIN tap failure and warm Home (2026-08-22)
 

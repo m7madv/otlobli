@@ -2,8 +2,14 @@
 
 Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`
 on `codex/otlobli-v86-212-testflight-auth`. Current source is `86.216/1078`,
-built and synchronized to Android/iOS, but not signed or uploaded. Do not start
-a TestFlight upload without fresh explicit approval for this exact version.
+built, synchronized, signed, and uploaded with the user's exact approval.
+Run `32551873565` succeeded from
+`3f92cc51c64629d7990a34e3f6de42c46b456be8`; Apple validation/upload had no
+errors and delivery UUID is `b38a9b39-ae06-46e1-8610-3b85bbc9c74f`.
+App Store Connect shows the processed build as `Testing` in `Otlobli Internal`
+with 1 tester and 4 builds. Tester `mhm1981dx@gmail.com` is present; its device
+still reports Installed `86.215 (1077)` until the user updates. No production
+App Store review submission was made.
 
 The user's 34.92-second iPhone recording physically rejects `86.215/1077`.
 It shows the shipping area selected successfully, the drawer closed and then
@@ -48,10 +54,22 @@ Downloaded IPA at
 `output/otlobli-ios-v86.216-unsigned-run-32540635518/otlobli-ios-v86.216-ipad-iphone-universal/otlobli-v86.216-ipad-iphone-universal-unsigned.ipa`
 is 6,568,990 bytes, SHA-256
 `A0F5F15BF3EAC6CE1737CDF9DC79868EBB2C6AB1873124485E69D7D500393265`.
-TestFlight is not uploaded. Real acceptance is also pending: same PDP must open
-without a region loop, followed by five real iPhone 16 background/resume cycles
-and a separate cold launch. Do not infer acceptance from build, CI, simulator,
-or portal status.
+The first approved signed run `32551772188` safely stopped before signing on a
+disconnected WhatsApp sender. Oracle session `0` was reconnected from stored
+credentials through its protected localhost endpoint without a message or QR;
+all live auth readiness fields passed before retry. Signed artifact
+`9470342666`, `otlobli-ios-v86.216-build-1078-testflight`, is 25,120,826 bytes,
+digest
+`sha256:9778761428db6fc73d74a3be0142d71bfb4f6dac730ebc835c37f6ecdaa9313b`.
+Downloaded signed IPA at
+`output/otlobli-ios-v86.216-testflight-run-32551873565/otlobli-ios-v86.216-build-1078-testflight/otlobli-v86.216-build-1078-testflight.ipa`
+is 10,463,515 bytes, SHA-256
+`65417017ECAF9886142F0DF6FD24F81C701BDACB5D9AF5DE861AED98716FAC34`.
+
+Real acceptance is pending: update through TestFlight, open the same PDP without
+a region loop, then perform five real iPhone 16 background/resume cycles and a
+separate cold launch. Do not infer acceptance from build, CI, simulator, or
+portal status.
 
 # Active handoff — v86.215 recorded-tap recovery (2026-08-22)
 
