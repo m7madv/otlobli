@@ -27,6 +27,11 @@
   `272C92DB84FB826140D5687A2098D03923731A3CE5F6BF7C5BCA4B800BC2FD0B`.
   Real iPhone acceptance remains mandatory; do not describe this as fixed until
   the same product opens and the protected resume/cold-launch checks pass.
+- **TestFlight delivery:** signed run `32538654061` from `6246ca8` passed Apple
+  validation/upload with delivery UUID
+  `d2d4a5d0-a03b-4a17-be81-3e13de802dea`. App Store Connect shows build 1077
+  in `Otlobli Internal` and Installed by the exact tester on iPhone 16 Pro Max /
+  iOS 27. This proves delivery only, not physical acceptance of the fix.
 
 ## v86.214 — live SPA chunk recovery and safe visual readiness (2026-08-22)
 

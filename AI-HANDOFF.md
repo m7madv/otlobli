@@ -2,10 +2,13 @@
 
 Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`
 on `codex/otlobli-v86-212-testflight-auth`. Current source is `86.215/1077`,
-built and synchronized to Android/iOS but not uploaded to TestFlight. The user
-approved only the exact prior `86.214/1076` upload; get fresh action-time
-approval before signing/uploading 86.215. App Store Connect app ID is
-`6804052538`.
+built, synchronized, signed, and uploaded to TestFlight. Run `32538654061`
+succeeded from `6246ca88a1c92470b964e5eaac610ad4dc4ca8b3`; Apple validation and
+upload had no errors, delivery UUID `d2d4a5d0-a03b-4a17-be81-3e13de802dea`.
+App Store Connect app ID is `6804052538`. The build is in `Otlobli Internal`,
+and the tester row shows Installed 86.215/1077 on iPhone 16 Pro Max / iOS 27.
+No production App Store review was submitted. Real product/lifecycle acceptance
+remains pending.
 
 The exact internal tester `mhm1981dx@gmail.com` installed 86.214/1076 on iPhone
 16 Pro Max / iOS 27 and reproduced the same product spinner. Do not describe
@@ -31,7 +34,14 @@ Unsigned iOS run `32538249134` passed from
 `sha256:55580f7a74a4b64e7069a8fd8d134388136ef0bd65ccf97c18aedb100c2b1fbb`.
 Downloaded unsigned IPA is 6,568,807 bytes, SHA-256
 `272C92DB84FB826140D5687A2098D03923731A3CE5F6BF7C5BCA4B800BC2FD0B`.
-Signing/TestFlight steps were skipped. Real-device acceptance remains pending.
+Signing/TestFlight steps were skipped in that unsigned run. Real-device product
+and lifecycle acceptance remains pending.
+
+Signed artifact `9466326356`,
+`otlobli-ios-v86.215-build-1077-testflight`, is 25,120,544 bytes with digest
+`sha256:a8547ae98c6e3d09c7dd95cca5e10d27c017918a39409d7ee08675a68e0eb033`.
+Downloaded signed IPA is 10,463,303 bytes, SHA-256
+`340462372D7218E27FCAF3F5AF4DC062DD245DCA11F8D3C4EB18D8F04AB65402`.
 
 The approved v86.214 upload run `32536820362` succeeded after run
 `32536442526` safely stopped pre-signing on a disconnected WhatsApp sender.

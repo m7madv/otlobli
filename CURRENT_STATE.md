@@ -2,8 +2,14 @@
 
 Continue in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
 `codex/otlobli-v86-212-testflight-auth`. Current source is `86.215/1077` and is
-synchronized to Android and iOS. It has not been uploaded to TestFlight; the
-user's exact upload approval covered only `86.214/1076`.
+synchronized to Android and iOS. The user approved the current upload, and
+signed run `32538654061` succeeded from
+`6246ca88a1c92470b964e5eaac610ad4dc4ca8b3`. Apple validation and upload both
+reported no errors; delivery UUID is `d2d4a5d0-a03b-4a17-be81-3e13de802dea`.
+App Store Connect shows `86.215 (1077)` in `Otlobli Internal` and the exact
+tester as Installed on iPhone 16 Pro Max / iOS 27. No production App Store
+review submission was made. Real product and lifecycle acceptance still need
+the user's physical test.
 
 App Store Connect confirms the exact internal tester `mhm1981dx@gmail.com`
 installed `86.214 (1076)` on iPhone 16 Pro Max / iOS 27. The user reproduced
@@ -37,8 +43,14 @@ with digest
 `sha256:55580f7a74a4b64e7069a8fd8d134388136ef0bd65ccf97c18aedb100c2b1fbb`.
 Downloaded unsigned IPA is 6,568,807 bytes, SHA-256
 `272C92DB84FB826140D5687A2098D03923731A3CE5F6BF7C5BCA4B800BC2FD0B`.
-Every signing and TestFlight step was skipped. All physical acceptance for
-v86.215 remains pending.
+Every signing and TestFlight step was skipped in that unsigned run. Physical
+product and lifecycle acceptance for v86.215 remains pending.
+
+The signed artifact is `9466326356`,
+`otlobli-ios-v86.215-build-1077-testflight`, 25,120,544 bytes with GitHub digest
+`sha256:a8547ae98c6e3d09c7dd95cca5e10d27c017918a39409d7ee08675a68e0eb033`.
+Downloaded signed IPA is 10,463,303 bytes, SHA-256
+`340462372D7218E27FCAF3F5AF4DC062DD245DCA11F8D3C4EB18D8F04AB65402`.
 
 The approved v86.214 upload had one safe preflight failure: run `32536442526`
 stopped before signing because WhatsApp was disconnected. The Oracle sender was
