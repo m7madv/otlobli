@@ -1,3 +1,26 @@
+# Active handoff — v86.219 diagnostic native-cover correction (2026-08-23)
+
+Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
+`codex/otlobli-v86-212-testflight-auth`. Current source is `86.219/1081`.
+Physical iPhone feedback rejects v86.218 as an isolation artifact: the user saw
+only Otlobli's native `جاري تجهيز المتجر…`, so stage A and the raw PDP were
+never observed.
+
+Do not change the native safety gate. The v86.218 panel signal reached React,
+but A-C intentionally lack the full coordinator payload required by the native
+cover. v86.219 sets `otlobliLoadingCover` false only when the explicit internal
+diagnostic build lacks runtime or session; A-C therefore show directly. D and
+all marker-free customer builds retain the exact existing cover. The freeze
+guard locks the expression. No native code, coordinator, session, region,
+blocking, capture, privacy compatibility, navigation, auth, payment, wallet,
+orders, lifecycle, recompose timing, or JSON region equality changed.
+
+Normal and diagnostic builds/artifact scans, performance budgets, TypeScript,
+guards, both native syncs, and Android `assembleDebug` pass. Exact measures and
+APK hash are at the top of `CURRENT_STATE.md`. Signed TestFlight/upload is
+pending. The next physical result must first confirm A is visible; only then
+does raw PDP behavior classify the underlying SHEIN failure.
+
 # Active handoff — v86.218 SHEIN A-D isolation (2026-08-22)
 
 Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on

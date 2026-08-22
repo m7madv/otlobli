@@ -346,6 +346,9 @@ const checks = [
       'isStoreScriptFlagsChangedMessage',
       'if (!STORE_SCRIPT_DIAGNOSTICS) return',
       'detail.diagnostic === true && STORE_SCRIPT_DIAGNOSTICS',
+      'const useSheinLoadingCover = !STORE_SCRIPT_DIAGNOSTICS ||',
+      '(activeScriptFlags.runtime && activeScriptFlags.session)',
+      'otlobliLoadingCover: useSheinLoadingCover',
     ],
     forbidden: [
       'SHEIN_IOS_FREEZE_DIAGNOSTICS',

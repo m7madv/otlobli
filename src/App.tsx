@@ -4162,6 +4162,12 @@ function App() {
     const scriptDiagnosticsPrelude = STORE_SCRIPT_DIAGNOSTICS && diagnosticsBundle
       ? diagnosticsBundle.buildStoreScriptDiagnosticsPrelude(activeScriptFlags)
       : ''
+    // A-C deliberately omit the full session coordinator, so the native cover
+    // has no production-ready coordinator payload that could release it. Show
+    // those internal isolation stages directly; normal builds and D keep the
+    // existing policy/region-gated cover unchanged.
+    const useSheinLoadingCover = !STORE_SCRIPT_DIAGNOSTICS ||
+      (activeScriptFlags.runtime && activeScriptFlags.session)
     const hostSafeBottomInset = readHostSafeBottomInset()
     if (initialPendingUrl && pendingProductRevealRef.current &&
         pendingProductRevealUrlRef.current === targetUrl) {
@@ -4177,7 +4183,7 @@ function App() {
       url: targetUrl,
       ...(activeStore === 'shein'
         ? {
-          otlobliLoadingCover: true,
+          otlobliLoadingCover: useSheinLoadingCover,
           otlobliDocumentStartScript: `window.__otlobliSafeBottom=${hostSafeBottomInset};\nwindow.__otlobliNativePlatform=${JSON.stringify(Capacitor.getPlatform())};\nwindow.__otlobliSkipHomeRegionRepair=${wantsWarmSheinRecoveryProductNav};\n${scriptDiagnosticsPrelude}\n${captureBundle.SHEIN_PRIVACY_COMPAT_SCRIPT}\n${!STORE_SCRIPT_DIAGNOSTICS || activeScriptFlags.session ? captureBundle.SHEIN_POLICY_DOCUMENT_START_SCRIPT : ''}\n${!STORE_SCRIPT_DIAGNOSTICS || (activeScriptFlags.runtime && activeScriptFlags.navigation) ? captureBundle.OTLOBLI_NAV_BOOTSTRAP_SCRIPT : ''}`,
           otlobliPreserveAttachedWhenHidden: true,
           // Prepare SHEIN at the real device size without presenting it. The

@@ -1,5 +1,19 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
+## v86.219 — diagnostic cover must follow coordinator availability (2026-08-23)
+
+- **Physical rejection:** v86.218 stayed on the native Otlobli loading cover,
+  so stage A never became visible and did not classify the raw SHEIN PDP.
+- **Cause:** React accepted the diagnostic painted-page event, but the native
+  cover independently requires the full safe coordinator payload. A-C omit the
+  session coordinator by definition and can never satisfy that production
+  contract.
+- **Decision:** do not weaken the native gate. Explicit diagnostic A-C open
+  without the cover; D and every ordinary customer build keep it. This is one
+  open-time Boolean with no recurring work or native/lifecycle change.
+- **Acceptance:** first prove A itself is visible on the iPhone, then test the
+  same PDP. No inference about the original spinner is valid before that.
+
 ## v86.218 — isolate before another SHEIN fix (2026-08-22)
 
 - **Physical decision:** `86.217/1079` is rejected; neither live-only human

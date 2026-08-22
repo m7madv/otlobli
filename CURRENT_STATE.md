@@ -1,3 +1,40 @@
+# v86.219 — expose diagnostic A-C below the native cover (2026-08-23)
+
+The user's first physical `86.218/1080` attempt never reached stage A: iOS
+remained on Otlobli's native `جاري تجهيز المتجر…` cover. This rejects v86.218
+as a usable isolation build but says nothing yet about SHEIN's raw PDP.
+
+The cause is exact. The diagnostic panel posted `sheinPageInteractive` and the
+React listener accepted `diagnostic: true`, but the independent native iOS
+cover correctly accepts only a full production coordinator payload. A-C omit
+session/region by design, so they can never produce that payload and the cover
+can never release. The fix does not weaken or edit the native gate: only an
+explicit diagnostic build opens A-C with `otlobliLoadingCover=false`. D and
+every normal customer build keep the existing policy/region-gated cover. The
+decision is the single primitive expression
+`!STORE_SCRIPT_DIAGNOSTICS || (runtime && session)` evaluated once per WebView
+open; it adds no timer, observer, DOM scan, state, render, or WebView.
+
+Source is `86.219/1081`. TypeScript, diff check, the freeze guard, all
+release/security/store guards, targeted ESLint (0 errors; 17 existing hook
+warnings), normal marker-free build/artifact scan, and diagnostic
+marker-required build/artifact scan pass. Diagnostic budgets are startup
+`659,105/720,000`, total JS gzip `273,058/370,000`, CSS `69,990/70,000`, fonts
+`81,364/100,000`, shipped store scripts `240,400/470,000`, and source
+`569,544/600,000`. Android and iOS are synchronized to the diagnostic build;
+the diagnostic chunk remains byte-identical across all three at SHA-256
+`241CD059EAA8AA77216513218FB8E920247D7BB2EA20898E328E1E7786E87EED`.
+Android `assembleDebug` passes. Artifact
+`output/Otlobli-v86.219-SHEIN-AB-cover-fix-Android-debug.apk` is `11,123,713`
+bytes, SHA-256
+`B54BBE27B0E8B182F9A8028ED721F945DA05866CBB337C83D5B7D2F2361371C7`,
+package `com.otlobli.app`, version `86.219/1081`.
+
+Signed TestFlight work and all real-device acceptance for v86.219 remain
+pending. The next device gate is only: update, enter SHEIN, confirm A shows the
+raw page and `فحص` button, then try the same PDP. Do not progress to B/C/D or
+resume-cycle acceptance until A is actually visible.
+
 # v86.218 — one-build SHEIN A-D isolation (2026-08-22)
 
 Continue in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
