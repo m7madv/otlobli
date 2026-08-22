@@ -46,10 +46,25 @@ marker nor the verification guide. Android artifact
 `output/Otlobli-v86.217-Android-debug.apk` is 11,117,996 bytes, SHA-256
 `7A962975B923BAAF4BF5E599F1CDEF63D080C2843910CCDCD1A714F2A61BA5CC`.
 
-Unsigned macOS/Xcode validation and all real-device acceptance remain pending.
-Do not claim the iPhone product/region issue resolved until the same product is
-tested, followed by five iPhone 16 background/resume cycles and a separate
-force-quit/cold-launch test. Weak/old Android acceptance is also unperformed.
+Unsigned macOS/Xcode run `32567462720` passed from
+`233bc4666eb3eb5d6d7259f1239335b6cd223d9d`. Production build/sync, universal
+iPhone+iPad target, generated assets, `.app`, and IPA checks passed; every
+development/App Store signing and TestFlight step was skipped. Artifact
+`9474493487`, `otlobli-ios-v86.217-ipad-iphone-universal`, is 6,458,996 bytes
+with digest
+`sha256:3def52542d77c84105c9ef5d9b004a49301d429575d9a746012a6af4812fd974`.
+Downloaded IPA at
+`output/otlobli-ios-v86.217-unsigned-run-32567462720/otlobli-ios-v86.217-ipad-iphone-universal/otlobli-v86.217-ipad-iphone-universal-unsigned.ipa`
+is 6,568,085 bytes, SHA-256
+`3C272E70EFBD109304C6E917588000517AF832D0FF5051586D6D5791DDC6B17F`.
+Inspection confirms `com.otlobli.app`, `86.217/1079`, iPhone+iPad, the exact
+synchronized store-bundle hash, live-resolution/Home-cancellation markers, no
+sticky marker/guide, and no app provisioning/signature.
+
+All real-device acceptance remains pending. Do not claim the iPhone
+product/region issue resolved until the same product is tested, followed by five
+iPhone 16 background/resume cycles and a separate force-quit/cold-launch test.
+Weak/old Android acceptance is also unperformed.
 
 # v86.216 — release warm recovery from the SHEIN region loop (2026-08-22)
 

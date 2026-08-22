@@ -35,8 +35,16 @@ syncs, and Android `assembleDebug` pass. Budgets: startup `657,198`, JS gzip
 Android artifact `output/Otlobli-v86.217-Android-debug.apk` is 11,117,996 bytes,
 SHA-256 `7A962975B923BAAF4BF5E599F1CDEF63D080C2843910CCDCD1A714F2A61BA5CC`.
 The same store bundle hash is present in web/Android/iOS and has no persisted
-challenge marker or guide. Unsigned iOS CI and real-device acceptance remain
-pending; never infer acceptance from local/CI checks.
+challenge marker or guide. Unsigned iOS run `32567462720` passed from
+`233bc4666eb3eb5d6d7259f1239335b6cd223d9d`. Artifact `9474493487`,
+`otlobli-ios-v86.217-ipad-iphone-universal`, is 6,458,996 bytes, digest
+`sha256:3def52542d77c84105c9ef5d9b004a49301d429575d9a746012a6af4812fd974`.
+Downloaded unsigned IPA is 6,568,085 bytes, SHA-256
+`3C272E70EFBD109304C6E917588000517AF832D0FF5051586D6D5791DDC6B17F`.
+Inspection confirms `86.217/1079`, universal device family, current repair
+markers, and no app provisioning/signature. All signing and TestFlight steps
+were skipped. Real-device acceptance remains pending; never infer acceptance
+from local/CI checks.
 
 # Active handoff — v86.216 warm-recovery/region-loop correction (2026-08-22)
 
