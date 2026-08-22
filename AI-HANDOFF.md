@@ -35,6 +35,9 @@ of `CURRENT_STATE.md`. The customer build contains no flight-recorder markers.
 Preserve `otlobliForceRecompose`, `appDidBecomeActive` at 0.25s, Android resume,
 the JSON-stringified active-store comparison, payment/wallet/orders/auth, and
 all performance budgets. TestFlight and physical acceptance are pending.
+For the internal upload, dispatch `ios-unsigned-build.yml` with
+`signing_mode=testflight`, `store_script_diagnostics=true`, and
+`testflight_delivery=upload-and-distribute`; never enable public distribution.
 
 # Historical handoff — v86.220 product navigation ownership (rejected 2026-08-23)
 

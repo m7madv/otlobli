@@ -32,6 +32,9 @@ state/render loop. Results persist in Otlobli host storage—not SHEIN storage�
 and `نسخ التقرير الكامل` creates one report with all N0-R1 outcomes and the
 last 12 events. The normal customer build still aliases the module to a 397-byte
 marker-free stub.
+The iOS workflow's existing `store_script_diagnostics` input now names this
+flight recorder explicitly; it remains false by default and is enabled only
+for the internal diagnostic delivery.
 
 Validation passes: TypeScript; targeted ESLint with zero errors (17 existing
 App hook warnings); WebKit/iPhone visual and interaction fixture with zero
