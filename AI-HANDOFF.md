@@ -25,8 +25,19 @@ iPhone recompose, 0.25s timing, Android resume defense, WebView ownership,
 `JSON.stringify` region equality, payment/wallet/orders/auth, and v86.217's
 live-only verification behavior. Local normal+diagnostic builds, guards,
 Playwright, both syncs, and Android build pass. Budgets/hashes/artifact details
-are at the top of `CURRENT_STATE.md`. Signed iOS/TestFlight work is pending;
-real-device acceptance is unperformed.
+are at the top of `CURRENT_STATE.md`.
+
+Signed upload run `32598213562` from `0bd6b14` passed Apple validation/upload
+with delivery UUID `9527dd4a-cf31-46f7-8e98-25d29678e6f8`. App Store Connect
+verification run `32599164674` from `79154c3` proves exact build
+`86.218 (1080)` is `VALID` and `IN_BETA_TESTING`, `Otlobli Internal` is an
+internal all-builds group with no public link, and the expected tester is a
+member with state `INSTALLED`. The workflow's default TestFlight lane now
+uploads and ensures this internal distribution; `distribute-existing` verifies
+an already uploaded exact version/build without uploading again. The first API
+attempt `32598963318` produced a false-negative tester relationship and was
+corrected to verify the authoritative group-member list. No public App Store
+submission occurred. Real-device acceptance is still unperformed.
 
 # Active handoff — v86.217 live challenge + v86.213 region gate (2026-08-22)
 

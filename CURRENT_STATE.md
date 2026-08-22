@@ -47,9 +47,34 @@ and metadata is `com.otlobli.app` `86.218/1080`.
 Playwright at `430x932` proves A starts with every normal group off and B/C/D
 toggle the intended flags. Evidence:
 `output/playwright/v86.218-shein-ab-panel-iphone16.png`. The only console error
-was the fixture's absent favicon. Signed iOS/TestFlight build is pending. Real
-iPhone acceptance remains entirely unperformed. Test the same PDP in A first;
-only if it opens, progress through B, C, then D. Record the first failing stage.
+was the fixture's absent favicon.
+
+Signed run `32598213562` from
+`0bd6b144fc13315947fb3de987c142271b741de4` passed Xcode export, signature,
+profile, auth, Apple validation, and upload. `VERIFY SUCCEEDED` and
+`UPLOAD SUCCEEDED` had no errors; delivery UUID is
+`9527dd4a-cf31-46f7-8e98-25d29678e6f8`. Artifact `9482209312`,
+`otlobli-ios-v86.218-build-1080-testflight`, is `25,125,417` bytes with digest
+`sha256:f08b05a49172fb4a0fb4b2fa342567163a4953ec9097a78f7c2a7660c5121f62`.
+The downloaded signed IPA at
+`output/otlobli-ios-v86.218-testflight-run-32598213562/otlobli-v86.218-build-1080-testflight.ipa`
+is `10,468,001` bytes, SHA-256
+`1FE4A06731BB86A24AB73BC9ED183A25788D2F95CAB3B37364515EDBC7AF158D`.
+
+App Store Connect API verification run `32599164674` from `79154c3` confirms
+the exact `86.218 (1080)` build is `VALID`, the strictly internal
+`Otlobli Internal` group has all-build access, the expected tester is a member
+with state `INSTALLED`, and the build state is `IN_BETA_TESTING`. The workflow
+now defaults future TestFlight uploads to upload-and-distribute, while its
+`distribute-existing` mode performs no upload and can verify/repair only the
+matching internal build/group/tester relationship. It rejects a non-internal
+group or enabled public link. No App Store review submission was made.
+
+Real iPhone acceptance remains entirely unperformed. Update from TestFlight,
+test the same PDP in A first, and only if it opens progress through B, C, then
+D. Record the first failing stage. The protected five background/resume cycles
+and separate force-quit/cold-launch test remain required after the responsible
+stage is isolated.
 
 # v86.217 — live verification pass-through and v86.213 region gate (2026-08-22)
 

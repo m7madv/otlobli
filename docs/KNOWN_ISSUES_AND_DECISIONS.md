@@ -13,6 +13,12 @@
   assigns the responsible Otlobli layer. Do not patch before that device result.
 - **Release boundary:** the panel is build-gated and replaced with a marker-free
   stub in ordinary customer assets. v86.218 is not a production fix.
+- **Internal delivery:** signed run `32598213562` passed Apple validation and
+  upload for `86.218/1080`. API verification run `32599164674` then proved the
+  build is `VALID`/`IN_BETA_TESTING`, `Otlobli Internal` is an internal
+  all-builds group without a public link, and the expected tester membership is
+  `INSTALLED`. No App Store review submission was made. This proves delivery,
+  not physical acceptance of A-D or a fix for the PDP/region failures.
 
 ## v86.216 — warm Home must not own region repair (2026-08-22)
 
