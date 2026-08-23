@@ -1,7 +1,7 @@
 
 export const OTLOBLI_SHEIN_BASE_CSS = '.login-bar.j-login-bar{display:none!important}'
 
-export const OTLOBLI_NAV_STYLE_VERSION = 'v86.210.0'
+export const OTLOBLI_NAV_STYLE_VERSION = 'v86.223.1'
 const SB = 'max(env(safe-area-inset-bottom,0px),var(--otlobli-sb,16px),16px)'
 export const OTLOBLI_NAV_CSS =
   'position:fixed!important;left:50%!important;right:auto!important;bottom:0!important;top:auto!important;' +
@@ -184,6 +184,14 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
       if (item.type) {
         tab.setAttribute('data-otlobli-nav-type', item.type);
       }
+      if (item.type === 'openHome') {
+        tab.setAttribute('aria-label', '\u0627\u0644\u0631\u0626\u064a\u0633\u064a\u0629\u060c \u0627\u0636\u063a\u0637 \u0645\u0631\u062a\u064a\u0646 \u0628\u0633\u0631\u0639\u0629 \u0644\u0644\u0639\u0648\u062f\u0629 \u0625\u0644\u0649 \u0627\u062e\u062a\u064a\u0627\u0631 \u0627\u0644\u0645\u062a\u062c\u0631');
+        var switchHint = document.createElement('span');
+        switchHint.setAttribute('data-otlobli-store-switch-hint', '1');
+        switchHint.style.cssText = 'font:700 10px/12px system-ui,-apple-system,sans-serif!important;margin-top:1px!important;color:#006948!important;white-space:nowrap!important;';
+        switchHint.textContent = '\u0627\u0636\u063a\u0637 \u0645\u0631\u062a\u064a\u0646 \u0644\u0644\u062a\u0628\u062f\u064a\u0644';
+        tab.appendChild(switchHint);
+      }
       nav.appendChild(tab);
     }
     document.documentElement.appendChild(nav);
@@ -202,7 +210,13 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
   // normally leaves it intact. Recheck on real wake events rather than waking
   // every weak device forever with a background DOM timer.
   function restoreOtlobliNavOnWake() {
-    try { mount(); } catch (e) {}
+    try {
+      // WKWebView hides its native Back control at provisional navigation.
+      // A Temu Home document restored from the back-forward cache retains the
+      // old dedupe key, so force one fresh state announcement after pageshow.
+      window.__otlobliNativeBackState = '';
+      mount();
+    } catch (e) {}
   }
   window.addEventListener('pageshow', restoreOtlobliNavOnWake, false);
   document.addEventListener('visibilitychange', function () {

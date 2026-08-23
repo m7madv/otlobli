@@ -396,6 +396,19 @@ export const STORE_BLOCKING_SCRIPT = `
     el.style.setProperty('pointer-events', 'auto', 'important');
   }
 
+  function otlobliEnsureStoreSwitchHint(nav) {
+    if (!nav || !nav.querySelector) return;
+    var homeTab = nav.querySelector('[data-otlobli-nav-type="openHome"]');
+    if (!homeTab) return;
+    homeTab.setAttribute('aria-label', 'الرئيسية، اضغط مرتين بسرعة للعودة إلى اختيار المتجر');
+    if (homeTab.querySelector('[data-otlobli-store-switch-hint="1"]')) return;
+    var hint = document.createElement('span');
+    hint.setAttribute('data-otlobli-store-switch-hint', '1');
+    hint.style.cssText = 'font:700 10px/12px system-ui,-apple-system,sans-serif!important;margin-top:1px!important;color:#006948!important;white-space:nowrap!important;';
+    hint.textContent = 'اضغط مرتين للتبديل';
+    homeTab.appendChild(hint);
+  }
+
   function ensureOtlobliNav() {
       // 12px يطابق خط شريط otlobli الحقيقي (0.76rem ≈ 12.2px) — كان 11px
       // فيبدو الشريطان مختلفين عند التنقل بين المتجر وبقية الشاشات.
@@ -407,6 +420,7 @@ export const STORE_BLOCKING_SCRIPT = `
       }
       otlobliResetTemuNavContentOffset(existingNav);
       otlobliStabilizeTemuNavLayer(existingNav);
+      otlobliEnsureStoreSwitchHint(existingNav);
       // Re-claim "last child of body": SHEIN keeps inserting nodes at our max
       // z-index, and on a tie the later sibling wins paint, so one could cover +
       // swallow taps on our nav (symptom: cart tab going dead). Throttle to ~2s -
@@ -482,6 +496,7 @@ export const STORE_BLOCKING_SCRIPT = `
       }
       nav.appendChild(tab);
     }
+    otlobliEnsureStoreSwitchHint(nav);
     otlobliResetTemuNavContentOffset(nav);
     if (IS_TEMU) otlobliStabilizeTemuNavLayer(nav);
     else (document.documentElement || document.body).appendChild(nav);

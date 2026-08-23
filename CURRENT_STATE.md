@@ -1,8 +1,33 @@
-# v86.223 — clean production/App Store candidate (2026-08-23)
+# v86.223/1086 — iPhone Back placement and Temu persistence (2026-08-23)
 
 Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
-`codex/otlobli-v86-212-testflight-auth`. Source is `86.223/1085` and is
-synchronized to Android and iOS as a production-only build.
+`codex/otlobli-v86-212-testflight-auth`. Marketing version remains `86.223`;
+iOS source is build `1086`, while Android deliberately remains `86.223/1085`.
+The final web bundle is synchronized byte-for-byte to both native projects.
+
+The iPhone green native Back button is now 14pt lower than its former
+safe-area-relative position in both browser implementations: the dedicated
+SHEIN browser and the Capgo browser used by Temu. Fourteen points is the
+requested approximate quarter-centimetre adjustment on iPhone 16; the button
+remains 44x44pt, right-anchored, and accessibility-labelled. No native
+foreground/recompose timing or WebView lifecycle behavior changed.
+
+Temu's disappearing Back button had a deterministic back-forward-cache cause:
+native code hides the button at provisional navigation, then Temu can restore
+Home with the old JavaScript state-deduplication key still present. The restored
+page therefore skipped re-sending the identical visible state. On `pageshow`
+and visible wake, the document-start bootstrap now clears only that dedupe key;
+the existing bounded coordinator then publishes the current state once and the
+native button reappears. No reload, new timer, polling loop, observer, or DOM
+scan was added.
+
+Store navigation now explains the already-supported store-switch gesture
+directly beneath `الرئيسية` with `اضغط مرتين للتبديل`, and exposes the full
+Arabic instruction through the button's accessible name. The established
+320ms double-tap route is unchanged: one tap remains inert and two quick taps
+open Otlobli's store chooser without destroying the parked store session.
+The production navigation style key is `v86.223.1` so an already-mounted bar is
+upgraded safely.
 
 The user reports that the v86.222 physical test is working and asked to remove
 all temporary experimental/diagnostic tooling and publish to the App Store.
@@ -71,22 +96,23 @@ is `10,458,318` bytes, SHA-256
 Its dSYM archive is `14,858,055` bytes, SHA-256
 `268DC270242E1DE5C38831158ADDC791A4D6C5C46DEC8845E3392ABBA1BE6057`.
 
-Local validation passes: all release/auth/security/store/Temu guards,
-TypeScript, executable/minified SHEIN freeze checks, production build,
-performance budgets, Android/iOS sync, post-sync release artifact scans, and
-Android `assembleDebug`. Generated `dist`, Android, and iOS assets contain none
-of the retired recorder/probe markers. Budgets are startup/largest JS
-`657,135/720,000` and `/1,200,000`, total JS gzip `263,660/370,000`, CSS
-`69,990/70,000`, fonts `81,364/100,000`, shipped store scripts
-`225,763/470,000`, and store source `533,264/600,000`.
+Local validation passes: clean dependency installation with all patches,
+all release/auth/security/store/Temu guards, TypeScript, executable/minified
+SHEIN freeze checks, production build, performance budgets, Android/iOS sync,
+post-sync release artifact scans, and Android `assembleDebug`. Generated
+`dist`, Android, and iOS assets contain none of the retired recorder/probe
+markers. Budgets are startup/largest JS `657,135/720,000` and `/1,200,000`,
+total JS gzip `264,021/370,000`, CSS `69,990/70,000`, fonts
+`81,364/100,000`, shipped store scripts `227,372/470,000`, and store source
+`535,270/600,000`.
 
-Store bundle `dist/assets/storeCaptureBundle-DFhvtDkv.js` is `248,285` bytes,
-SHA-256 `0E366D6324D9B36055E421946279035F4356B57277699610076D5C4099734396`.
-Main bundle `dist/assets/index-CnBRnyAj.js` is `657,135` bytes, SHA-256
-`3D2DAD0136CBAAC8439D5660B1330E70B5CCF7481373AA1FAD078544B415C916`.
+Store bundle `dist/assets/storeCaptureBundle-Clt5YaMD.js` is `250,014` bytes,
+SHA-256 `0AA55B63288CA8DDC650E4989CF7FB7A0B3AA908EC647D6165EA9DCBCA7C0A42`.
+Main bundle `dist/assets/index-vzZNXC5I.js` is `657,135` bytes, SHA-256
+`44575BB609C3917381F956B3C74CE68958B1BD63284BE911FAC1841976670F1A`.
 Local Android debug APK
-`android/app/build/outputs/apk/debug/app-debug.apk` is `11,112,724` bytes,
-SHA-256 `178FDE412A533F786BEB921123FF805A7033ED25C0672772F5028B51A426ACE7`.
+`android/app/build/outputs/apk/debug/app-debug.apk` is `11,125,147` bytes,
+SHA-256 `A19DB77002BA040FB5FC68090F9496881280DCC12FDEA9E10E8A52779187B74E`.
 No native lifecycle/recompose timing, payment, wallet, completed-order,
 authentication, database, or backend behavior changed.
 

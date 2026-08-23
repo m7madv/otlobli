@@ -38,6 +38,9 @@ const checks = [
       'chosenAction: "parkStoreAtRoot"',
       'webView?.backForwardList.backList',
       '[OTLOBLI_BACK]',
+      'private let nativeBackVerticalOffset: CGFloat = 14',
+      'constant: 12 + nativeBackVerticalOffset',
+      'CGFloat(max(8, min(top, 120))) + nativeBackVerticalOffset',
       'UIApplication.didReceiveMemoryWarningNotification',
       'private func createRenderSurface(',
       'private func destroyRenderSurface()',
@@ -661,13 +664,30 @@ const checks = [
     file: 'patches/@capgo+capacitor-inappbrowser+8.6.25.patch',
     markers: [
       'private var otlobliNativeBackButton: UIButton?',
-      'button.topAnchor.constraint(equalTo: self.view.safeAreaLayoutGuide.topAnchor, constant: top)',
+      'private let otlobliNativeBackVerticalOffset: CGFloat = 14',
+      'constant: top + self.otlobliNativeBackVerticalOffset',
+      'max(8, min(top, 72)) + self.otlobliNativeBackVerticalOffset',
       'self.view.bringSubviewToFront(button)',
       'otlobliNativeBackButtonDidTap',
       'emit("messageFromWebview", data: ["detail": ["type": "closeStore"]])',
       "document.getElementById('otlobli-back-btn');if(b)b.click()",
       'detail["type"] as? String == "otlobliBackButtonState"',
       'otlobliNativeBackButton?.isHidden = true',
+    ],
+  },
+  {
+    label: 'Temu Back state re-announcement and store-switch discovery',
+    files: [
+      'src/services/sheinNavigationScript.ts',
+      'src/services/storeBlockingScript.ts',
+    ],
+    markers: [
+      "OTLOBLI_NAV_STYLE_VERSION = 'v86.223.1'",
+      'data-otlobli-store-switch-hint',
+      'اضغط مرتين للتبديل',
+      'الرئيسية، اضغط مرتين بسرعة للعودة إلى اختيار المتجر',
+      "window.__otlobliNativeBackState = '';",
+      "window.addEventListener('pageshow', restoreOtlobliNavOnWake, false)",
     ],
   },
   {
@@ -1068,6 +1088,12 @@ try {
   const { exports } = await minifyInjectedScriptExports('src/services/sheinBrowserScript.ts')
   new Function(exports.SHEIN_CAPTURE_SCRIPT)
   new Function(exports.OTLOBLI_NAV_BOOTSTRAP_SCRIPT)
+  if (!exports.OTLOBLI_NAV_BOOTSTRAP_SCRIPT.includes('data-otlobli-store-switch-hint')) {
+    failures.push('store-switch discovery: production navigation bootstrap is missing its visible hint')
+  }
+  if (!exports.OTLOBLI_NAV_BOOTSTRAP_SCRIPT.includes('__otlobliNativeBackState')) {
+    failures.push('Temu Back persistence: production navigation bootstrap cannot re-announce native state')
+  }
 } catch (error) {
   failures.push(`SHEIN minified release scripts: ${error instanceof Error ? error.message : String(error)}`)
 }

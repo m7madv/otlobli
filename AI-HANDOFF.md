@@ -1,10 +1,28 @@
-# Active handoff — v86.223 production/App Store candidate (2026-08-23)
+# Active handoff — v86.223/1086 Back and Temu persistence (2026-08-23)
 
 Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`
-on `codex/otlobli-v86-212-testflight-auth`. Source is `86.223/1085`, locally
-built and synchronized to Android/iOS. The user reports v86.222 works on the
-physical test and explicitly authorized removal of test tooling plus App Store
-publication.
+on `codex/otlobli-v86-212-testflight-auth`. Marketing stays `86.223`; iOS is
+build `1086`, Android remains build `1085`, and the production bundle is built
+and synchronized to both native projects.
+
+This batch moves both iOS native green Back implementations 14pt down relative
+to their prior safe-area position, matching the user's approximate 0.25cm
+iPhone 16 request. Preserve the 44x44pt control, 14pt offset, and accessibility
+labels. Temu Back persistence is fixed at the actual boundary: WebKit hides the
+button during provisional navigation, while a bfcache-restored Home retained
+the old `__otlobliNativeBackState` dedupe value and would not publish the same
+visible state again. `pageshow`/visible wake now clears only that key; the
+existing bounded coordinator re-announces the state. Do not replace this with
+reloads, polling, observers, or navigation interception.
+
+The store bar now displays `اضغط مرتين للتبديل` under `الرئيسية` and has a
+complete Arabic accessible name. The existing 320ms double-tap behavior stays:
+one tap does nothing, two quick taps open the store chooser. Navigation style
+version `v86.223.1` upgrades already-mounted bars. Clean install/patch apply,
+all release/security/store/Temu/SHEIN guards, TypeScript, production build and
+low-end budgets, both syncs, three-root artifact scan, and Android assembly
+pass. Exact hashes/budgets are at the top of `CURRENT_STATE.md`. Real iPhone 16
+acceptance of button position and Temu's product→Home path is still pending.
 
 The temporary SHEIN flight recorder and every enabling path are deleted:
 module/stub/fixture, App state/listeners/imports, Vite env/alias, Workflow

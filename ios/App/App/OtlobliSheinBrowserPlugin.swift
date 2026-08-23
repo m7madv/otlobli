@@ -63,6 +63,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
     private var loadingHomeTapTimeout: DispatchWorkItem?
     private var nativeBackButton: UIButton?
     private var nativeBackTopConstraint: NSLayoutConstraint?
+    private let nativeBackVerticalOffset: CGFloat = 14
     private var nativeBackTarget = "home"
     private var nativeBackLocked = false
     private var pendingNativeBackTraceAction: String?
@@ -835,7 +836,10 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         button.accessibilityLabel = "رجوع"
         button.addTarget(self, action: #selector(nativeBackPressed), for: .touchUpInside)
         surface.addSubview(button)
-        let top = button.topAnchor.constraint(equalTo: surface.safeAreaLayoutGuide.topAnchor, constant: 12)
+        let top = button.topAnchor.constraint(
+            equalTo: surface.safeAreaLayoutGuide.topAnchor,
+            constant: 12 + nativeBackVerticalOffset
+        )
         NSLayoutConstraint.activate([
             top,
             button.trailingAnchor.constraint(equalTo: surface.trailingAnchor, constant: -12),
@@ -850,7 +854,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         let visible = detail["visible"] as? Bool ?? false
         let top = (detail["top"] as? NSNumber)?.doubleValue ?? 12
         nativeBackTarget = detail["target"] as? String ?? "home"
-        nativeBackTopConstraint?.constant = CGFloat(max(8, min(top, 120)))
+        nativeBackTopConstraint?.constant = CGFloat(max(8, min(top, 120))) + nativeBackVerticalOffset
         nativeBackButton?.isHidden = !visible
         if let button = nativeBackButton, visible {
             surfaceView?.bringSubviewToFront(button)

@@ -1780,7 +1780,7 @@ index 97a2fc1..ff504aa 100644
  
  private let estimatedProgressKeyPath = "estimatedProgress"
  private let titleKeyPath = "title"
-@@ -748,6 +749,39 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -748,6 +749,40 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
      fileprivate var webView: WKWebView?
      fileprivate var progressView: UIProgressView?
  
@@ -1802,6 +1802,7 @@ index 97a2fc1..ff504aa 100644
 +    private var otlobliLoadingCoverBottomConstraint: NSLayoutConstraint?
 +    private var otlobliNativeBackButton: UIButton?
 +    private var otlobliNativeBackButtonTopConstraint: NSLayoutConstraint?
++    private let otlobliNativeBackVerticalOffset: CGFloat = 14
 +    private var otlobliNativeBackTarget = "home"
 +    private var otlobliNativeBackFallbackURL: URL?
 +    private var otlobliLoadingCoverMessage = "جاري تجهيز المتجر…"
@@ -1820,7 +1821,7 @@ index 97a2fc1..ff504aa 100644
      fileprivate var previousNavigationBarState: (tintColor: UIColor, hidden: Bool) = (.black, false)
      fileprivate var previousToolbarState: (tintColor: UIColor, hidden: Bool) = (.black, false)
  
-@@ -862,7 +896,8 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -862,7 +897,8 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
      override open func viewDidDisappear(_ animated: Bool) {
          super.viewDidDisappear(animated)
  
@@ -1830,7 +1831,7 @@ index 97a2fc1..ff504aa 100644
              self.cleanupWebView()
          }
  
-@@ -878,6 +913,9 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -878,6 +914,9 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
              self.initWebview()
          }
  
@@ -1840,7 +1841,7 @@ index 97a2fc1..ff504aa 100644
          // Apply navigation gestures setting
          updateNavigationGestures()
  
-@@ -899,6 +937,457 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -899,6 +938,460 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
      override open func viewDidLayoutSubviews() {
          super.viewDidLayoutSubviews()
          refreshWebViewViewportIfNeeded()
@@ -2003,7 +2004,10 @@ index 97a2fc1..ff504aa 100644
 +                button.accessibilityLabel = "رجوع"
 +                button.addTarget(self, action: #selector(otlobliNativeBackButtonDidTap), for: .touchUpInside)
 +                self.view.addSubview(button)
-+                let topConstraint = button.topAnchor.constraint(equalTo: self.view.safeAreaLayoutGuide.topAnchor, constant: top)
++                let topConstraint = button.topAnchor.constraint(
++                    equalTo: self.view.safeAreaLayoutGuide.topAnchor,
++                    constant: top + self.otlobliNativeBackVerticalOffset
++                )
 +                NSLayoutConstraint.activate([
 +                    button.trailingAnchor.constraint(equalTo: self.view.trailingAnchor, constant: -10),
 +                    topConstraint,
@@ -2013,7 +2017,7 @@ index 97a2fc1..ff504aa 100644
 +                self.otlobliNativeBackButton = button
 +                self.otlobliNativeBackButtonTopConstraint = topConstraint
 +            }
-+            self.otlobliNativeBackButtonTopConstraint?.constant = max(8, min(top, 72))
++            self.otlobliNativeBackButtonTopConstraint?.constant = max(8, min(top, 72)) + self.otlobliNativeBackVerticalOffset
 +            self.otlobliNativeBackButton?.accessibilityLabel = self.otlobliNativeBackTarget == "exit"
 +                ? "العودة إلى اختيار المتجر"
 +                : "رجوع"
@@ -2415,7 +2419,7 @@ index 97a2fc1..ff504aa 100644
      private func scheduleWebViewViewportRefresh(force: Bool = false, delay: TimeInterval = 0.05) {
          DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
              self?.refreshWebViewViewportIfNeeded(force: force)
-@@ -1135,10 +1727,27 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1135,10 +1731,27 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
      public func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
          if message.name == "messageHandler" {
              if let messageBody = message.body as? [String: Any] {
@@ -2445,7 +2449,7 @@ index 97a2fc1..ff504aa 100644
                  emit("messageFromWebview", data: ["rawMessage": String(describing: message.body)])
              }
          } else if message.name == "consoleMessageHandler" {
-@@ -1176,6 +1785,12 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1176,6 +1789,12 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
                  return
              }
              capBrowserPlugin?.setHiddenFromJavaScript(true, sourceId: instanceId)
@@ -2458,7 +2462,7 @@ index 97a2fc1..ff504aa 100644
          } else if message.name == "show" {
              guard allowWebViewJsVisibilityControl else {
                  return
-@@ -1237,6 +1852,9 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1237,6 +1856,9 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
                                  hide: function() {
                                          window.webkit.messageHandlers.hide.postMessage(null);
                                  },
@@ -2468,7 +2472,7 @@ index 97a2fc1..ff504aa 100644
                                  show: function() {
                                          window.webkit.messageHandlers.show.postMessage(null);
                                  }
-@@ -1337,6 +1955,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1337,6 +1959,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          userContentController.removeScriptMessageHandler(forName: "preShowScriptSuccess")
          userContentController.removeScriptMessageHandler(forName: "close")
          userContentController.removeScriptMessageHandler(forName: "hide")
@@ -2476,7 +2480,7 @@ index 97a2fc1..ff504aa 100644
          userContentController.removeScriptMessageHandler(forName: "show")
          userContentController.removeScriptMessageHandler(forName: "takeScreenshot")
          userContentController.removeScriptMessageHandler(forName: "consoleMessageHandler")
-@@ -1358,6 +1977,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1358,6 +1981,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          userContentController.add(weakHandler, name: "preShowScriptSuccess")
          userContentController.add(weakHandler, name: "close")
          userContentController.add(weakHandler, name: "hide")
@@ -2484,7 +2488,7 @@ index 97a2fc1..ff504aa 100644
          userContentController.add(weakHandler, name: "show")
          if allowScreenshotsFromWebPage {
              userContentController.add(weakHandler, name: "takeScreenshot")
-@@ -1464,7 +2084,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1464,7 +2088,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          //        }
  
          if #available(iOS 16.4, *) {
@@ -2502,7 +2506,7 @@ index 97a2fc1..ff504aa 100644
          self.allowWebViewJsVisibilityControl = parent.allowWebViewJsVisibilityControl
          self.allowScreenshotsFromWebPage = parent.allowScreenshotsFromWebPage
          self.handleDownloads = parent.handleDownloads
-@@ -1818,6 +2440,23 @@ public extension WKWebViewController {
+@@ -1818,6 +2444,23 @@ public extension WKWebViewController {
  
      open func cleanupWebView() {
          guard let webView = self.webView else { return }
@@ -2526,7 +2530,7 @@ index 97a2fc1..ff504aa 100644
          webView.stopLoading()
          previewItemURL = nil
  
-@@ -1837,6 +2476,7 @@ public extension WKWebViewController {
+@@ -1837,6 +2480,7 @@ public extension WKWebViewController {
          webView.configuration.userContentController.removeScriptMessageHandler(forName: "messageHandler")
          webView.configuration.userContentController.removeScriptMessageHandler(forName: "close")
          webView.configuration.userContentController.removeScriptMessageHandler(forName: "hide")
