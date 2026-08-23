@@ -35,8 +35,23 @@ postbuild hardening, and the unchanged low-end budgets: startup/largest JS
 Android artifact `output/Otlobli-v86.225-build-1089-Android-debug.apk` is
 `11,113,408` bytes, SHA-256
 `7E1EE70B38B992355CFC55ADCF4F05A01727DE6916F4F0052503F94921F26AAF`.
-TestFlight and physical acceptance remain pending. Temu Back code is unchanged
-in this region-only restoration and must not be claimed fixed. Preserve
+Signed workflow run `32660285054` from commit `30f7f8b` passed clean dependency
+patching, all guards/budgets, Apple Distribution archive/export, signature,
+profile, authentication callback, Apple upload, processing, and internal
+distribution. Delivery UUID is `e5ba3549-a01d-406f-be7a-3495643582db`.
+Exact build `86.225 (1090)` is `VALID`/`IN_BETA_TESTING`; `Otlobli Internal`
+has all-builds access and the expected tester state is `INSTALLED`. Public App
+Store submission was skipped. GitHub artifact `9498638837` is `25,118,359`
+bytes with digest
+`sha256:f93938f7602a6ec67c16a8b757a45ba90240e29d5fc3b3caa7795e5e7b1fbf27`.
+Downloaded IPA
+`output/testflight-v86.225-build-1090-run-32660285054/otlobli-v86.225-build-1090-testflight.ipa`
+is `10,459,881` bytes, SHA-256
+`3882D28F948656E75D0B46069302D5C454F26193DAAB2E2767ED2158DDB0A9D1`;
+the dSYM is `14,858,841` bytes, SHA-256
+`41121AE7FCF373252FD7AE6D755BFF86C2772A2BB1C3E310C3252F22062F345B`.
+Physical acceptance remains pending. Temu Back code is unchanged in this
+region-only restoration and must not be claimed fixed. Preserve
 `otlobliForceRecompose`, its 0.25s `appDidBecomeActive` call, Android resume,
 and the `JSON.stringify` server-region comparison.
 

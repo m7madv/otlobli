@@ -24,10 +24,14 @@ All local release/auth/security/store guards, the full production build, low-end
 budgets, both native syncs, and Android `assembleDebug` pass. The synchronized
 store bundle is `249,770` bytes with SHA-256
 `1EBA8CD8D892D558E1AD4E277B97777E1C8478180C6580D59E235FBF9F38179A`;
-the Android artifact and hash are at the top of `CURRENT_STATE.md`. Complete the
-signed TestFlight run and record its delivery/artifact details. Device acceptance
-remains mandatory and must not be inferred. Temu Back was not changed by this
-region-only restoration and remains an honestly open device issue.
+the Android artifact and hash are at the top of `CURRENT_STATE.md`. Signed run
+`32660285054` from `30f7f8b` also passed Apple validation/upload/processing and
+internal distribution for exact `86.225 (1090)`; delivery UUID is
+`e5ba3549-a01d-406f-be7a-3495643582db`, the build is
+`VALID`/`IN_BETA_TESTING`, and the tester state is `INSTALLED`. Public review
+was skipped. Exact artifact paths/hashes are at the top of `CURRENT_STATE.md`.
+Device acceptance remains mandatory and must not be inferred. Temu Back was not
+changed by this region-only restoration and remains an honestly open issue.
 
 # Active handoff — v86.224/1089 Home-prepared SHEIN + native Temu Back (2026-08-23)
 
