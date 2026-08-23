@@ -29,8 +29,16 @@ waits for exact build processing, creates/reuses the iOS App Store version,
 links the build, creates/reuses a draft review submission, adds the version,
 and submits it. If Apple rejects missing metadata/screenshots/privacy/review
 information, report the exact API error and leave the processed build/version
-in App Store Connect; never fabricate those values. At this handoff no
-`86.223/1085` upload or review submission has occurred yet.
+in App Store Connect; never fabricate those values. Run `32611345045` uploaded
+and processed exact build `86.223 (1085)` and assigned it to internal
+TestFlight. Artifact ID `9485690696`, size `25,115,693`, digest
+`sha256:56008db6dfbcce1fc84b72bae45b19d3d923f8dc34e0089bd21ac0039eb3cf62`.
+Its review step received Apple 409 because an older editable App Store version
+already exists. `submit-app-store-review.mjs` now reuses the one
+`PREPARE_FOR_SUBMISSION` iOS draft by renaming it to `86.223`, preserving all
+store metadata, and replaces only its linked build. It refuses multiple/non-
+editable ambiguity and does not delete a draft. Retry review submission with
+the already processed build; record Apple's exact next response.
 
 The user's functional acceptance is recorded, but no explicit evidence was
 provided for five iPhone 16 resume cycles plus separate cold launch or a real

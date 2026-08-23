@@ -155,50 +155,88 @@ async function findProcessedBuild() {
 async function findOrCreateVersion() {
   const response = await apiRequest(apiPath(`/apps/${encodeURIComponent(config.appId)}/appStoreVersions`, {
     'filter[platform]': 'IOS',
-    'filter[versionString]': config.appVersion,
     'fields[appStoreVersions]': 'platform,versionString,appStoreState,releaseType,usesIdfa,build',
-    limit: 10,
+    limit: 200,
   }))
-  const matches = response.data.filter((version) =>
-    version.attributes?.platform === 'IOS' && version.attributes?.versionString === config.appVersion)
+  const iosVersions = response.data.filter((version) => version.attributes?.platform === 'IOS')
+  const versionSummary = iosVersions
+    .map((version) => `${version.attributes?.versionString || 'UNKNOWN'}:${version.attributes?.appStoreState || 'UNKNOWN'}`)
+    .join(', ')
+  console.log(`Current iOS App Store versions: ${versionSummary || 'none'}.`)
+
+  const matches = iosVersions.filter((version) => version.attributes?.versionString === config.appVersion)
   if (matches.length > 1) throw new Error(`Found multiple iOS App Store versions named ${config.appVersion}.`)
   if (matches.length === 1) return matches[0]
 
-  const created = await apiRequest('/appStoreVersions', {
-    method: 'POST',
-    body: {
-      data: {
-        type: 'appStoreVersions',
-        attributes: {
-          platform: 'IOS',
-          versionString: config.appVersion,
-          releaseType: 'AFTER_APPROVAL',
-          usesIdfa: false,
-        },
-        relationships: {
-          app: { data: { type: 'apps', id: config.appId } },
+  // App Store Connect permits only one editable version per platform. Reuse that
+  // draft so its localized metadata, screenshots, review details, and phased
+  // release settings survive; never delete or guess at customer-owned metadata.
+  const editableDrafts = iosVersions.filter((version) =>
+    version.attributes?.appStoreState === 'PREPARE_FOR_SUBMISSION')
+  if (editableDrafts.length > 1) {
+    throw new Error('Multiple editable iOS App Store versions exist; refusing to choose one implicitly.')
+  }
+  if (editableDrafts.length === 1) {
+    const draft = editableDrafts[0]
+    const previousVersion = draft.attributes?.versionString || 'UNKNOWN'
+    const updated = await apiRequest(`/appStoreVersions/${encodeURIComponent(draft.id)}`, {
+      method: 'PATCH',
+      body: {
+        data: {
+          type: 'appStoreVersions',
+          id: draft.id,
+          attributes: { versionString: config.appVersion },
         },
       },
-    },
-  })
-  console.log(`Created App Store version ${config.appVersion}.`)
-  return created.data
+    })
+    console.log(`Reused editable App Store version ${previousVersion} as ${config.appVersion}; existing store metadata was preserved.`)
+    return updated.data
+  }
+
+  try {
+    const created = await apiRequest('/appStoreVersions', {
+      method: 'POST',
+      body: {
+        data: {
+          type: 'appStoreVersions',
+          attributes: {
+            platform: 'IOS',
+            versionString: config.appVersion,
+            releaseType: 'AFTER_APPROVAL',
+            usesIdfa: false,
+          },
+          relationships: {
+            app: { data: { type: 'apps', id: config.appId } },
+          },
+        },
+      },
+    })
+    console.log(`Created App Store version ${config.appVersion}.`)
+    return created.data
+  } catch (error) {
+    if (error instanceof AppStoreConnectError && error.status === 409) {
+      throw new Error(
+        `Apple will not create ${config.appVersion} and no PREPARE_FOR_SUBMISSION draft can be safely reused. ` +
+        `Current iOS versions: ${versionSummary || 'none'}. Original error: ${error.message}`,
+        { cause: error },
+      )
+    }
+    throw error
+  }
 }
 
 async function ensureVersionBuild(version, build) {
   const relationshipPath = `/appStoreVersions/${encodeURIComponent(version.id)}/relationships/build`
   const existing = await apiRequest(relationshipPath)
   if (existing.data?.id === build.id) return 'already-linked'
-  if (existing.data?.id && existing.data.id !== build.id) {
-    throw new Error(`App Store version ${config.appVersion} is already linked to a different build (${existing.data.id}).`)
-  }
+  const previousBuildId = existing.data?.id || null
   await apiRequest(relationshipPath, {
     method: 'PATCH',
     body: { data: { type: 'builds', id: build.id } },
   })
   const verified = await apiRequest(relationshipPath)
   if (verified.data?.id !== build.id) throw new Error('The App Store version/build relationship was not visible after assignment.')
-  return 'linked-now'
+  return previousBuildId ? `replaced-${previousBuildId}` : 'linked-now'
 }
 
 async function findDraftSubmission() {

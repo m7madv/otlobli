@@ -30,8 +30,18 @@ App Store archive is uploaded, processed, linked to an automatically released
 iOS App Store version, added to a review submission, and submitted through the
 App Store Connect API. The operation is idempotent and fails with Apple's exact
 metadata/review blockers rather than inventing privacy URLs, screenshots, or
-legal metadata. No upload or App Review submission has occurred yet for
-`86.223/1085` in this local-preparation commit.
+legal metadata. Signed run `32611345045` from `7d99f13` passed archive, export,
+signature/auth verification, Apple transport, processing, and internal
+TestFlight assignment for exact build `86.223 (1085)`. Its artifact is
+`otlobli-ios-v86.223-build-1085-testflight`, ID `9485690696`, size
+`25,115,693` bytes, GitHub digest
+`sha256:56008db6dfbcce1fc84b72bae45b19d3d923f8dc34e0089bd21ac0039eb3cf62`.
+The first App Review attempt stopped before changing any store-version data:
+Apple returned 409 because another iOS App Store version already occupies the
+editable slot. The submitter now lists all iOS versions and safely renames the
+single `PREPARE_FOR_SUBMISSION` draft to `86.223`, preserving its localized
+metadata/review details, then replaces only its selected build. It never deletes
+a draft or guesses metadata. A submission retry is pending this follow-up.
 
 Local validation passes: all release/auth/security/store/Temu guards,
 TypeScript, executable/minified SHEIN freeze checks, production build,
