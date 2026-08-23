@@ -21,9 +21,23 @@ The synchronized store bundle remains `249,770` bytes/SHA-256
 the Android artifact is `output/Otlobli-v86.226-build-1090-Android-debug.apk`,
 `11,113,448` bytes/SHA-256
 `54BF073B97C750EEC7A3C5B28844CCE7CB54226D8EE2A01B802B7AEE86A95055`.
-TestFlight and physical acceptance remain pending. Never infer device acceptance.
-Preserve every lifecycle invariant and the automatic v86.71 region path restored
-in v86.225.
+Signed run `32661353655` from `f2c6e1a` passed with delivery UUID
+`4ccd7c30-b0db-4c7b-920a-e1028c868f5a`; exact `86.226 (1091)` is
+`VALID`/`IN_BETA_TESTING`, assigned to all builds in `Otlobli Internal`, and the
+expected tester state is `INSTALLED`. Public review was skipped. The downloaded
+IPA is `10,459,918` bytes/SHA-256
+`B26A1FF26F4352EC9A91DD45478EA23B5D74B430FA6877CEF86A77C7F3DBE3BB`;
+dSYMs are `14,858,923` bytes/SHA-256
+`05DB8747EB0606A1355629E82438CB5FECF29B94F2617DC86FB873ACC163D12D`,
+under `output/testflight-v86.226-build-1091-run-32661353655`.
+
+The user newly confirmed that v86.213 changed the region successfully. Direct
+comparison shows the drawer selection cascade itself is materially retained;
+the main post-v86.213 changes are readiness and WebView coordination around it.
+Treat v86.226 as the proven infinite-cover correction, then use the physical
+result to distinguish “page opens but signed region remains old” from complete
+recovery. Never infer device acceptance. Preserve every lifecycle invariant and
+the automatic v86.71 region path restored in v86.225.
 
 # Active handoff — v86.225/1090 exact v86.71 server-region restoration (2026-08-23)
 

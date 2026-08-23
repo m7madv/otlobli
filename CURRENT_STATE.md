@@ -31,8 +31,25 @@ SHA-256 `54BF073B97C750EEC7A3C5B28844CCE7CB54226D8EE2A01B802B7AEE86A95055`.
 The full production budgets remain within their existing limits: startup/largest
 JS `658,718/720,000` and `/1,200,000`, total JS gzip `264,163/370,000`, CSS
 `69,968/70,000`, fonts `81,364/100,000`, shipped store scripts
-`227,118/470,000`, and store source `516,561/600,000`. TestFlight and physical
-acceptance are pending; do not infer device acceptance from these checks.
+`227,118/470,000`, and store source `516,561/600,000`. Physical acceptance is
+pending; do not infer device acceptance from these checks.
+
+Signed workflow [32661353655](https://github.com/m7madv/otlobli/actions/runs/32661353655)
+passed from `f2c6e1a`: Apple validation/upload succeeded, delivery UUID
+`4ccd7c30-b0db-4c7b-920a-e1028c868f5a`, and exact `86.226 (1091)` is
+`VALID`/`IN_BETA_TESTING` with all-builds access for `Otlobli Internal`; expected
+tester state is `INSTALLED`. Public App Store review was skipped. Downloaded
+artifacts are under `output/testflight-v86.226-build-1091-run-32661353655`:
+the `10,459,918`-byte IPA has SHA-256
+`B26A1FF26F4352EC9A91DD45478EA23B5D74B430FA6877CEF86A77C7F3DBE3BB`,
+and the `14,858,923`-byte dSYMs archive has SHA-256
+`05DB8747EB0606A1355629E82438CB5FECF29B94F2617DC86FB873ACC163D12D`.
+Physical acceptance remains pending. The user also confirmed that v86.213
+changed the SHEIN region successfully. A source comparison shows the drawer
+selection cascade is still materially the same; later readiness/WebView
+coordination around it is the stronger regression boundary. v86.226 fixes the
+proven infinite-cover gate, but device testing must still establish whether the
+signed region itself completes.
 
 # v86.225/1090 — restore the physically accepted v86.71 server-region path (2026-08-23)
 
