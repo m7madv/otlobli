@@ -98,7 +98,13 @@ async function apiRequest(path, { method = 'GET', body } = {}) {
       // Apple occasionally returns a plain transport error; keep it bounded.
     }
     const detail = errors.length
-      ? errors.map((error) => `${error.code || response.status}: ${error.detail || error.title || 'request failed'}`).join('; ')
+      ? errors.map((error) => {
+          const associatedErrors = error.meta?.associatedErrors
+          const associatedDetail = associatedErrors
+            ? `; associatedErrors=${JSON.stringify(associatedErrors)}`
+            : ''
+          return `${error.code || response.status}: ${error.detail || error.title || 'request failed'}${associatedDetail}`
+        }).join('; ')
       : responseText.slice(0, 1_500)
     throw new AppStoreConnectError(
       `App Store Connect ${method} ${path} failed (${response.status}): ${detail}`,

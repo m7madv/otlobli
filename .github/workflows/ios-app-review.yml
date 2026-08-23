@@ -1,0 +1,95 @@
+name: Submit Existing iOS Build to App Review
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_version:
+        description: Exact CFBundleShortVersionString already processed by Apple
+        required: true
+        type: string
+      app_build:
+        description: Exact CFBundleVersion already processed by Apple
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: otlobli-ios-app-review
+  cancel-in-progress: false
+
+jobs:
+  submit-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate exact build identity
+        env:
+          OTLOBLI_APP_VERSION: ${{ inputs.app_version }}
+          OTLOBLI_APP_BUILD: ${{ inputs.app_build }}
+        run: |
+          set -euo pipefail
+          [[ "$OTLOBLI_APP_VERSION" =~ ^[0-9]+(\.[0-9]+){1,2}$ ]] || {
+            echo 'Invalid app version.' >&2
+            exit 1
+          }
+          [[ "$OTLOBLI_APP_BUILD" =~ ^[0-9]+$ ]] || {
+            echo 'Invalid app build number.' >&2
+            exit 1
+          }
+
+      - name: Prepare App Store Connect API key
+        env:
+          ASC_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+          ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          umask 077
+          for variable in ASC_API_KEY_BASE64 ASC_API_KEY_ID ASC_ISSUER_ID; do
+            if [ -z "$(printenv "$variable" 2>/dev/null || true)" ]; then
+              echo "Required App Store Connect secret is missing: ${variable}" >&2
+              exit 1
+            fi
+          done
+          [[ "$ASC_API_KEY_ID" =~ ^[A-Z0-9]{10}$ ]] || {
+            echo 'Unexpected App Store Connect API Key ID format.' >&2
+            exit 1
+          }
+          [[ "$ASC_ISSUER_ID" =~ ^[0-9a-fA-F-]{36}$ ]] || {
+            echo 'Unexpected App Store Connect Issuer ID format.' >&2
+            exit 1
+          }
+
+          key_dir="$RUNNER_TEMP/app-store-connect/private_keys"
+          key_path="$key_dir/AuthKey_${ASC_API_KEY_ID}.p8"
+          mkdir -p "$key_dir"
+          printf '%s' "$ASC_API_KEY_BASE64" | base64 --decode > "$key_path"
+          chmod 600 "$key_path"
+          openssl pkey -in "$key_path" -noout >/dev/null
+          echo "OTLOBLI_ASC_KEY_PATH=$key_path" >> "$GITHUB_ENV"
+
+      - name: Submit exact processed build to App Review
+        env:
+          ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_API_KEY_PATH: ${{ env.OTLOBLI_ASC_KEY_PATH }}
+          OTLOBLI_ASC_APP_ID: '6804052538'
+          OTLOBLI_APP_VERSION: ${{ inputs.app_version }}
+          OTLOBLI_APP_BUILD: ${{ inputs.app_build }}
+          OTLOBLI_ASC_WAIT_MINUTES: '2'
+        run: node scripts/submit-app-store-review.mjs
+
+      - name: Remove temporary App Store Connect key
+        if: ${{ always() }}
+        run: |
+          if [ -n "${OTLOBLI_ASC_KEY_PATH:-}" ]; then
+            rm -f "$OTLOBLI_ASC_KEY_PATH"
+          fi

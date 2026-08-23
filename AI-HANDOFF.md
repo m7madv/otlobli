@@ -38,7 +38,15 @@ already exists. `submit-app-store-review.mjs` now reuses the one
 `PREPARE_FOR_SUBMISSION` iOS draft by renaming it to `86.223`, preserving all
 store metadata, and replaces only its linked build. It refuses multiple/non-
 editable ambiguity and does not delete a draft. Retry review submission with
-the already processed build; record Apple's exact next response.
+the already processed build; record Apple's exact next response. Run
+`32611795204` performed that safe reuse from `1.0`, linked `1085`, and created
+submission `e5e27b8a-b628-4116-b135-361b91266929`, but Apple reported missing
+review prerequisites in screenshots, version localization, age rating, app
+info/localization, data usage/privacy, app-level details, and price. The raw
+field entries were collapsed by Node logging. The submitter now includes the
+full nested `associatedErrors`, and `ios-app-review.yml` can inspect/retry
+`86.223/1085` in seconds without a new archive or upload. Never invent the
+owner's legal/privacy/rating/pricing values to clear these checks.
 
 The user's functional acceptance is recorded, but no explicit evidence was
 provided for five iPhone 16 resume cycles plus separate cold launch or a real

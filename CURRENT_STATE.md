@@ -41,7 +41,15 @@ Apple returned 409 because another iOS App Store version already occupies the
 editable slot. The submitter now lists all iOS versions and safely renames the
 single `PREPARE_FOR_SUBMISSION` draft to `86.223`, preserving its localized
 metadata/review details, then replaces only its selected build. It never deletes
-a draft or guesses metadata. A submission retry is pending this follow-up.
+a draft or guesses metadata. Retry `32611795204` reused draft `1.0` as
+`86.223`, linked build `1085`, and created review submission
+`e5e27b8a-b628-4116-b135-361b91266929`. Apple then refused the review item
+because store prerequisites are incomplete across screenshots, version
+localization, age rating, app info/localization, data usage/privacy, app-level
+details, and price. The raw response collapsed the field-level entries, so the
+submitter now serializes every associated Apple error and a lightweight
+`ios-app-review.yml` workflow can retry/inspect the already processed build
+without rebuilding or uploading another IPA.
 
 Local validation passes: all release/auth/security/store/Temu guards,
 TypeScript, executable/minified SHEIN freeze checks, production build,
