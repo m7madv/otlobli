@@ -296,14 +296,6 @@ export const SHEIN_SESSION_SCRIPT = `
     }
   }
 
-  function sheinRegionDiag(stage, data, key) {
-    try {
-      if (window.__otlobliRegionDiagnostic) {
-        window.__otlobliRegionDiagnostic(stage, data || {}, key || '');
-      }
-    } catch (e) {}
-  }
-
   var sheinNativeCoverInitialReleased = false;
   var sheinNativeCoverVisualReadyPath = '';
   var sheinNativeCoverSignedReadyPath = '';
@@ -330,12 +322,6 @@ export const SHEIN_SESSION_SCRIPT = `
       sheinNativeCoverRepairExhaustedKey = storedAutomaticRegionRepairKey;
     }
   } catch (e) {}
-  sheinRegionDiag('capture-script-injected', {
-    requiredCountry: SHEIN_REQUIRED_COUNTRY,
-    productRoute: sheinLooksLikeProductRouteForShipping(),
-    addressCountry: sheinAddressCookieCountry(),
-    signedReady: sheinSignedSaudiAddressReady()
-  }, 'script');
 
   var __otlobliFeedRetryCount = 0;
   var __otlobliFeedRetryAfter = 0;
@@ -529,9 +515,6 @@ export const SHEIN_SESSION_SCRIPT = `
 
   function sheinPrepareNativeSaudiRepair() {
     if (sheinNativeCoverRepairActive) {
-      sheinRegionDiag('repair-active', {
-        elapsedMs: Date.now() - sheinNativeCoverRepairStartedAt
-      }, 'active');
       sheinRegionTransitionVeil(true);
       scheduleSheinShippingProgress(OTLOBLI_LOW_END ? 260 : 120);
       return true;
@@ -542,30 +525,18 @@ export const SHEIN_SESSION_SCRIPT = `
     // action may request one new repair without weakening the purchase gate.
     var repairKey = sheinAutomaticRegionRepairKey();
     if (sheinNativeCoverRepairExhaustedKey === repairKey) {
-      sheinRegionDiag('repair-route-exhausted', {}, repairKey);
       return false;
     }
     var now = Date.now();
     if (now < sheinNativeCoverCooldownUntil) {
-      sheinRegionDiag('repair-cooldown', {
-        remainingMs: sheinNativeCoverCooldownUntil - now
-      }, 'cooldown');
       return false;
     }
     sheinNativeCoverRepairActive = true;
     sheinNativeCoverRepairStartedAt = now;
     sheinShippingProgressAt = now;
     sheinRegionVeilStartedAt = now;
-    sheinRegionDiag('repair-started', {
-      addressCountry: sheinAddressCookieCountry(),
-      signedReady: sheinSignedSaudiAddressReady()
-    }, 'started');
     sheinRegionTransitionVeil(true);
     var regionVeil = document.getElementById('otlobli-region-switching');
-    sheinRegionDiag('region-veil-state', {
-      mounted: !!regionVeil,
-      zIndex: regionVeil ? regionVeil.style.zIndex : ''
-    }, regionVeil ? 'mounted' : 'missing');
     scheduleSheinShippingProgress(OTLOBLI_LOW_END ? 240 : 90);
     return true;
   }
@@ -587,9 +558,6 @@ export const SHEIN_SESSION_SCRIPT = `
       sheinSetAutomaticRegionRepairExhausted(false);
       sheinRegionVeilStartedAt = 0;
       sheinRegionTransitionVeil(false);
-      sheinRegionDiag('repair-signed-ready', {
-        addressCountry: sheinAddressCookieCountry()
-      }, 'ready');
       if (sheinShippingProgressTimer) {
         clearTimeout(sheinShippingProgressTimer);
         sheinShippingProgressTimer = 0;
@@ -606,10 +574,6 @@ export const SHEIN_SESSION_SCRIPT = `
     }
     if (sheinNativeCoverRepairActive) {
       if (Date.now() - sheinNativeCoverRepairStartedAt >= 12000) {
-        sheinRegionDiag('repair-timeout', {
-          addressCountry: sheinAddressCookieCountry(),
-          shippingUiOpen: sheinShippingUiLikelyOpen()
-        }, 'timeout');
         closeResolvedSheinShippingUi(true);
         sheinSetAutomaticRegionRepairExhausted(true);
         sheinNativeCoverRepairActive = false;
@@ -1012,7 +976,6 @@ export const SHEIN_SESSION_SCRIPT = `
     }
     var scroller = sheinAddressListScroller(options);
     if (!scroller) {
-      sheinRegionDiag('country-list-scroll', { found: false, country: SHEIN_REQUIRED_COUNTRY }, 'missing');
       return false;
     }
     try {
@@ -1023,10 +986,6 @@ export const SHEIN_SESSION_SCRIPT = `
       var direction = firstCode && order[SHEIN_REQUIRED_COUNTRY] < order[firstCode] ? -1 : 1;
       scroller.scrollTop = Math.max(0, before + (direction * delta));
       if (Math.abs(scroller.scrollTop - before) < 2 && direction > 0) scroller.scrollTop = scroller.scrollHeight;
-      sheinRegionDiag('country-list-scroll', {
-        found: true, before: before, after: scroller.scrollTop,
-        max: scroller.scrollHeight - scroller.clientHeight, direction: direction
-      }, [before, scroller.scrollTop, direction].join('|'));
       scheduleSheinShippingProgress(OTLOBLI_LOW_END ? 520 : 260);
       return true;
     } catch (e) {
@@ -1155,10 +1114,6 @@ export const SHEIN_SESSION_SCRIPT = `
     sheinShippingLastTarget = target;
     target.removeAttribute('data-otlobli-blocked');
     target.setAttribute('data-otlobli-shein-shipping-action', '1');
-    sheinRegionDiag('shipping-control-click', {
-      label: targetText.slice(0, 160),
-      actionCount: sheinShippingActionCount
-    }, targetText.slice(0, 80));
     try {
       target.click();
       scheduleSheinShippingProgress(OTLOBLI_LOW_END ? 300 : 140);
@@ -1562,9 +1517,6 @@ export const SHEIN_SESSION_SCRIPT = `
     // repairs here; an unsigned product route still repairs before capture.
     if (!productRoute && !explicitRegionMismatch) {
       if (sheinNativeCoverRepairActive) {
-        sheinRegionDiag('home-unknown-repair-cancelled', {
-          addressCountry: addressCountry
-        }, String(location.pathname || ''));
         closeResolvedSheinShippingUi(true);
         sheinNativeCoverRepairActive = false;
         sheinNativeCoverRepairStartedAt = 0;
@@ -1576,9 +1528,6 @@ export const SHEIN_SESSION_SCRIPT = `
       return;
     }
     if (!sheinLooksLikeProductPageForShipping() && !sheinFindHomeShippingEntryControl()) {
-      sheinRegionDiag('shipping-entry-not-detected', {
-        productRoute: sheinLooksLikeProductRouteForShipping()
-      }, String(location.href || '').slice(-180) + '|' + String(document.title || '').slice(0, 80));
       return;
     }
     var now = Date.now();
@@ -1607,19 +1556,7 @@ export const SHEIN_SESSION_SCRIPT = `
     var visibleTabs = sheinVisibleShippingTabs();
     if (!visibleOptions.length) {
       visibleOptions = sheinCountryRowsInRoot(sheinResolvedShippingUiRoot());
-      if (visibleOptions.length) {
-        sheinRegionDiag('country-row-fallback', {
-          count: visibleOptions.length,
-          labels: visibleOptions.slice(0, 7).map(sheinUiText)
-        }, visibleOptions.slice(0, 7).map(sheinUiText).join('|'));
-      }
     }
-    sheinRegionDiag('shipping-scan', {
-      addressCountry: addressCountry,
-      signedReady: sheinSignedSaudiAddressReady(),
-      visibleOptions: visibleOptions.length,
-      visibleTabs: visibleTabs.length
-    }, addressCountry + '|' + visibleOptions.length + '|' + visibleTabs.length);
     sheinTranslateRegionLabels(visibleOptions, visibleTabs);
     var progressKey = addressCountry + '|' +
       visibleTabs.slice(0, 5).map(sheinUiText).join('>') + '|' +
@@ -1655,11 +1592,6 @@ export const SHEIN_SESSION_SCRIPT = `
       (addressCountry && addressCountry !== SHEIN_REQUIRED_COUNTRY)
       ? sheinFindForeignShippingControl() || sheinFindShippingEntryControl()
       : sheinFindShippingEntryControl();
-    sheinRegionDiag('shipping-entry-control', {
-      found: !!entryControl,
-      visibleRegion: visibleRegion,
-      label: entryControl ? sheinUiText(entryControl).slice(0, 160) : ''
-    }, (entryControl ? 'found|' : 'missing|') + visibleRegion);
     if (!sheinClickNativeShippingControl(entryControl) && sheinNativeCoverRepairActive) {
       scheduleSheinShippingProgress(OTLOBLI_LOW_END ? 420 : 220);
     }
@@ -1695,13 +1627,9 @@ export const SHEIN_SESSION_SCRIPT = `
   function sheinPrimeRegionRepairFromRoute() {
     if (!IS_SHEIN || !sheinLooksLikeProductRouteForShipping()) return false;
     if (otlobliIsHumanChallenge()) {
-      sheinRegionDiag('prime-blocked-challenge', {}, 'challenge');
       return false;
     }
     if (sheinSignedSaudiAddressReady()) {
-      sheinRegionDiag('prime-already-ready', {
-        addressCountry: sheinAddressCookieCountry()
-      }, 'ready');
       sheinRegionTransitionVeil(false);
       return false;
     }
@@ -1710,22 +1638,9 @@ export const SHEIN_SESSION_SCRIPT = `
     // the interaction early-return so an already-authorized Add repair keeps
     // progressing, but do not start a repair from browsing alone.
     if (!sheinNativeCoverRepairActive) {
-      sheinRegionDiag('prime-deferred-until-add', {
-        addressCountry: sheinAddressCookieCountry()
-      }, 'deferred');
       return false;
     }
-    sheinRegionDiag('prime-called', {
-      addressCountry: sheinAddressCookieCountry()
-    }, 'prime');
-    if (sheinAddressCookieCountry() && sheinAddressCookieCountry() !== SHEIN_REQUIRED_COUNTRY) {
-      sheinRegionDiag('foreign-address-preserved-for-native-repair', {}, 'preserved');
-    }
     var repairStarted = sheinPrepareNativeSaudiRepair();
-    sheinRegionDiag('prime-repair-result', {
-      repairStarted: repairStarted,
-      repairActive: sheinNativeCoverRepairActive
-    }, repairStarted ? 'started' : 'not-started');
     return repairStarted;
   }
 

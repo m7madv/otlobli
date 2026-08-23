@@ -1,8 +1,8 @@
 // SHEIN "انقر للشراء" options-drawer activation, injected into the capture
 // script's own scope.
 //
-// Lives OUTSIDE sheinBrowserScript.ts for the same reason sheinPriceDiagnostics
-// does: that file is measured by scripts/verify-performance-budget.mjs and has
+// Lives outside sheinBrowserScript.ts because that file is measured by
+// scripts/verify-performance-budget.mjs and has
 // almost no headroom left, and the budget's own instruction is to split rather
 // than raise it. The template below is interpolated verbatim into
 // SHEIN_CAPTURE_SCRIPT next to sheinSkuSelectionEntry, so it shares that

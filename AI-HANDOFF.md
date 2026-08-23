@@ -1,3 +1,41 @@
+# Active handoff — v86.223 production/App Store candidate (2026-08-23)
+
+Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`
+on `codex/otlobli-v86-212-testflight-auth`. Source is `86.223/1085`, locally
+built and synchronized to Android/iOS. The user reports v86.222 works on the
+physical test and explicitly authorized removal of test tooling plus App Store
+publication.
+
+The temporary SHEIN flight recorder and every enabling path are deleted:
+module/stub/fixture, App state/listeners/imports, Vite env/alias, Workflow
+input, injected feature flags, early-protection scans/timer, and old standalone
+freeze/tap/price/region probe modules. Do not restore them. Production behavior
+is the accepted v86.222 composition: document-start viewport + Otlobli bar,
+post-load blockers/capture/session, native-only Back on iOS, SHEIN-owned PDP
+navigation, and region repair only after explicit Add with the signed-address
+gate unchanged. The consent-based customer support report remains deliberately.
+
+All local gates/build/performance checks, both native syncs, artifact scans, and
+Android assembly pass. Exact hashes/budgets are at the top of
+`CURRENT_STATE.md`. Preserve `otlobliForceRecompose()`, `appDidBecomeActive`
+at `0.25s`, Android `otlobliOnHostResume()`, and the `JSON.stringify` active-
+store comparison. Payment, wallet, completed orders, auth, backend, and native
+lifecycle code were not changed.
+
+Workflow `ios-unsigned-build.yml` now supports
+`app_store_submission=true` with `signing_mode=testflight` and
+`testflight_delivery=upload-and-distribute`. It uploads the production archive,
+waits for exact build processing, creates/reuses the iOS App Store version,
+links the build, creates/reuses a draft review submission, adds the version,
+and submits it. If Apple rejects missing metadata/screenshots/privacy/review
+information, report the exact API error and leave the processed build/version
+in App Store Connect; never fabricate those values. At this handoff no
+`86.223/1085` upload or review submission has occurred yet.
+
+The user's functional acceptance is recorded, but no explicit evidence was
+provided for five iPhone 16 resume cycles plus separate cold launch or a real
+weak Android device. Do not claim those checks were performed.
+
 # Active handoff — v86.222 safe navigation candidate (2026-08-23)
 
 Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`

@@ -1,6 +1,5 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { fileURLToPath, URL } from 'node:url'
 import { minifyInjectedScripts } from './scripts/minify-injected-scripts.mjs'
 import { stripInjectedComments, INJECTED_SCRIPT_SOURCE } from './scripts/strip-injected-comments.mjs'
 
@@ -22,17 +21,9 @@ const stripStoreScriptComments = () => ({
 })
 
 export default defineConfig(({ mode }) => {
-  const storeScriptDiagnostics = process.env.VITE_STORE_SCRIPT_DIAGNOSTICS === 'true'
   return {
     define: {
       'import.meta.env.VITE_TEMU_PERSONAL_SITE_MODE': JSON.stringify(mode === 'temu-personal'),
-      'import.meta.env.VITE_STORE_SCRIPT_DIAGNOSTICS': JSON.stringify(storeScriptDiagnostics ? 'true' : 'false'),
-    },
-    resolve: {
-      alias: storeScriptDiagnostics ? [] : [{
-        find: './services/storeScriptDiagnostics',
-        replacement: fileURLToPath(new URL('./src/services/storeScriptDiagnosticsDisabled.ts', import.meta.url)),
-      }],
     },
     plugins: [minifyInjectedScripts(), stripStoreScriptComments(), react()],
     build: {

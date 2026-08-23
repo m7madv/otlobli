@@ -16,14 +16,9 @@ export const SOURCE_COUNTRY: 'JO' | 'LB' | 'SA' = 'SA'
 // and must be false before any production build.
 export const TEST_ONLY_AUTH_BYPASS = false
 
-// Internal TestFlight isolation only. Normal customer builds leave this false
-// and tree-shake the diagnostic loader/panel from generated assets.
-export const STORE_SCRIPT_DIAGNOSTICS =
-  import.meta.env.VITE_STORE_SCRIPT_DIAGNOSTICS === 'true'
-
 // The production release has one Temu implementation. Its historical personal
 // browser diagnostic remains unavailable in customer artifacts.
 export const TEMU_PERSONAL_SITE_MODE = false
 
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '86.222'
+export const APP_VERSION = '86.223'

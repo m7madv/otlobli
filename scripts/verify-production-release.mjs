@@ -5,17 +5,16 @@ import { fileURLToPath } from 'node:url'
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const failures = []
-const diagnosticsBuild = String(process.env.VITE_STORE_SCRIPT_DIAGNOSTICS || '').toLowerCase() === 'true'
 
 const read = (file) => readFileSync(resolve(projectRoot, file), 'utf8')
 const sha256 = (file) => createHash('sha256').update(readFileSync(resolve(projectRoot, file))).digest('hex').toUpperCase()
 
 const protectedCaptureHashes = new Map([
-  ['src/services/sheinBrowserScript.ts', '17BC27F8B1A4443585D301E654F7E32DB30B3578C99ADA72A8C5D1492B1CC87E'],
-  ['src/services/storeProductCaptureScript.ts', 'E62320E16017084CB581F1D734BEE3B8A58886211A005008897EF252A621AE3A'],
-  ['src/services/sheinSkuTap.ts', 'F675AF9D4FC75595914DF97D907FEE2472691204EEF89F89844871662F676619'],
+  ['src/services/sheinBrowserScript.ts', '332BD28F21817A40FCEE982580F0EF118BB59A1E297E2FE4104BF7002872D2DB'],
+  ['src/services/storeProductCaptureScript.ts', 'B0650CB5303867393CF81CFDE185E7EBB78178281B8E70C99594F8B69D524CAE'],
+  ['src/services/sheinSkuTap.ts', '79A1011CF55344D06BFCFC796FCAEB5CFF58F705F7FD95BA1686D69D802DEE83'],
   ['src/services/storeBrowser.ts', 'A54E19DF8E66B2D49C7B227DD24C7C6B43B2593E97C88047D76D5827DC5452B7'],
-  ['src/services/storeRuntimeCoordinator.ts', 'D8D05030E6C12FE753C4DBF044D30589D46000FDAE68366FD0714262F856726B'],
+  ['src/services/storeRuntimeCoordinator.ts', '19F29D076741430F4F06E0A61D876B6BA5FF404D74F734FF3FA80E58E540A247'],
   ['src/domain/types.ts', '5FA37D5ABB06BEBD0ED6B9E6ED62393A70A2F18556D44172259598387FC59175'],
 ])
 
@@ -28,6 +27,8 @@ const releaseSources = [
   'src/App.tsx',
   'src/config.ts',
   'src/services/storeCaptureBundle.ts',
+  'src/services/sheinBrowserScript.ts',
+  'src/services/sheinNavigationScript.ts',
   'src/services/sheinPolicyEngine.ts',
   'src/services/sheinRegionCoordinator.ts',
   'src/services/sheinOpeningPerformance.ts',
@@ -60,16 +61,8 @@ const storeIsolationMarkers = [
 for (const marker of bannedMarkers) {
   if (sourceText.includes(marker)) failures.push(`release source contains diagnostic marker: ${marker}`)
 }
-for (const marker of ['STORE_SCRIPT_DIAGNOSTICS', 'VITE_STORE_SCRIPT_DIAGNOSTICS', 'isStoreScriptFlagsChangedMessage']) {
-  if (!sourceText.includes(marker)) failures.push(`A-D isolation build gate missing: ${marker}`)
-}
-const storeIsolationSource = read('src/services/storeScriptDiagnostics.ts')
-for (const marker of ['otlobli-script-diagnostics', 'storeScriptFlagsChanged', 'buildDiagnosticStoreCaptureScript']) {
-  if (!storeIsolationSource.includes(marker)) failures.push(`A-D isolation module missing: ${marker}`)
-}
-const disabledIsolationSource = read('src/services/storeScriptDiagnosticsDisabled.ts')
-for (const marker of ['isStoreScriptFlagsChangedMessage = () => false', "buildDiagnosticStoreCaptureScript = () => ''"]) {
-  if (!disabledIsolationSource.includes(marker)) failures.push(`customer A-D isolation stub missing: ${marker}`)
+for (const marker of ['STORE_SCRIPT_DIAGNOSTICS', 'VITE_STORE_SCRIPT_DIAGNOSTICS', 'storeScriptFlagsChanged', '__OTLOBLI_SCRIPT_FLAGS__']) {
+  if (sourceText.includes(marker)) failures.push(`retired internal isolation marker remains in release source: ${marker}`)
 }
 
 const nativeBrowser = read('ios/App/App/OtlobliSheinBrowserPlugin.swift')
@@ -107,7 +100,6 @@ if (artifactArgument) {
   if (platform === 'all' || platform === 'ios') roots.push('ios/App/App/public')
   if (platform === 'all' || platform === 'android') roots.push('android/app/src/main/assets/public')
   const textExtensions = new Set(['.js', '.css', '.html', '.json', '.xml'])
-  const foundStoreIsolationMarkers = new Set()
   for (const root of roots) {
     const absoluteRoot = resolve(projectRoot, root)
     if (!existsSync(absoluteRoot)) {
@@ -122,14 +114,8 @@ if (artifactArgument) {
       }
       for (const marker of storeIsolationMarkers) {
         if (!content.includes(marker)) continue
-        foundStoreIsolationMarkers.add(marker)
-        if (!diagnosticsBuild) failures.push(`customer asset contains internal A-D isolation marker ${marker}: ${file}`)
+        failures.push(`customer asset contains retired internal isolation marker ${marker}: ${file}`)
       }
-    }
-  }
-  if (diagnosticsBuild) {
-    for (const marker of ['otlobli-script-diagnostics', 'storeScriptFlagsChanged']) {
-      if (!foundStoreIsolationMarkers.has(marker)) failures.push(`internal A-D artifact is missing ${marker}`)
     }
   }
 }

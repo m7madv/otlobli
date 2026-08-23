@@ -13,19 +13,7 @@ export { OTLOBLI_NAV_BOOTSTRAP_SCRIPT }
 // independently reviewable and testable.
 export const SHEIN_CAPTURE_SCRIPT = `
 (function () {
-  var OTLOBLI_SCRIPT_FLAGS = window.__OTLOBLI_SCRIPT_FLAGS__ || {
-    runtime: true, navigation: true, blocking: true, capture: true, session: true
-  };
-  function otlobliScriptEnabled(name) {
-    if (OTLOBLI_SCRIPT_FLAGS.runtime === false) return false;
-    if (Object.prototype.hasOwnProperty.call(OTLOBLI_SCRIPT_FLAGS, name)) {
-      return OTLOBLI_SCRIPT_FLAGS[name] !== false;
-    }
-    // Old/customer builds only carry the broad navigation flag. Granular
-    // diagnostic flags inherit it so production behaviour stays unchanged.
-    if (String(name).indexOf('navigation') === 0) return OTLOBLI_SCRIPT_FLAGS.navigation !== false;
-    return true;
-  }
+  function otlobliScriptEnabled() { return true; }
 ${SHEIN_SESSION_SCRIPT}
 ${STORE_PRODUCT_CAPTURE_SCRIPT}
 ${STORE_BLOCKING_SCRIPT}

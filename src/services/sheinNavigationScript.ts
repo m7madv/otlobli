@@ -26,8 +26,6 @@ export const OTLOBLI_NAV_CSS =
 // store-switch action so this gesture remains accessible.
 export const OTLOBLI_NAV_TOUCH_BRIDGE_JS = `
   function otlobliInstallNavTouchBridge() {
-    var featureFlags = window.__OTLOBLI_SCRIPT_FLAGS__;
-    if (featureFlags && (featureFlags.runtime === false || featureFlags.navigation === false || featureFlags.navigationTouch === false)) return;
     if (window.__otlobliNavTouchBridgeBound) return;
     window.__otlobliNavTouchBridgeBound = true;
     var homeDoubleTapMs = 320;
@@ -109,19 +107,6 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
   if (window.top !== window || window.__otlobliNavBootstrapInstalled) return;
   window.__otlobliNavBootstrapInstalled = true;
 
-  function otlobliNavBootstrapFeatureEnabled(name) {
-    // Physical iPhone isolation (v86.221/N6) proved that running the DOM
-    // protection scans from document-start is the product-spinner trigger.
-    // The post-load coordinator still owns the same blocker work; this legacy
-    // bootstrap switch is deliberately fail-closed even for old stored flags.
-    if (name === 'navigationEarlyProtection') return false;
-    var featureFlags = window.__OTLOBLI_SCRIPT_FLAGS__;
-    if (!featureFlags) return true;
-    if (featureFlags.runtime === false || featureFlags.navigation === false) return false;
-    if (Object.prototype.hasOwnProperty.call(featureFlags, name)) return featureFlags[name] !== false;
-    return true;
-  }
-
   ${OTLOBLI_NAV_TOUCH_BRIDGE_JS}
 
   var timer = 0;
@@ -148,221 +133,10 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
     }
   }
 
-  function normalizedText(el) {
-    return String((el && el.textContent) || '').replace(/\\s+/g, ' ').trim();
-  }
-
-  function storeBottomTabScore(text) {
-    var patterns = [
-      /home|\\u0627\\u0644\\u0631\\u0626\\u064a\\u0633\\u064a\\u0629/i,
-      /categor|\\u0627\\u0644\\u0641\\u0626\\u0627\\u062a|\\u0627\\u0644\\u0623\\u0642\\u0633\\u0627\\u0645/i,
-      /cart|bag|basket|\\u0627\\u0644\\u0633\\u0644\\u0629|\\u062d\\u0642\\u064a\\u0628\\u0629/i,
-      /account|profile|\\u062d\\u0633\\u0627\\u0628\\u064a|\\u0623\\u0646\\u0627/i,
-      /store|shop|trends|\\u0645\\u062a\\u062c\\u0631|\\u062a\\u0631\\u0646\\u062f\\u0627\\u062a/i
-    ];
-    var score = 0;
-    for (var i = 0; i < patterns.length; i++) if (patterns[i].test(text)) score++;
-    return score;
-  }
-
-  function hideStoreBottomFromPoint(node, vpWidth, vpHeight) {
-    var current = node;
-    var matched = null;
-    for (var depth = 0; current && current !== document.body && current !== document.documentElement && depth < 9; depth++) {
-      if (current.id && current.id.indexOf('otlobli') === 0) break;
-      var rect = current.getBoundingClientRect();
-      if (rect.width >= vpWidth * 0.55 && rect.height >= 24 && rect.height <= 170 &&
-          (rect.bottom >= vpHeight - 30 || rect.top >= vpHeight - 190) &&
-          storeBottomTabScore(normalizedText(current)) >= 3) {
-        matched = current;
-      }
-      current = current.parentElement;
-    }
-    if (!matched) return;
-    matched.style.setProperty('display', 'none', 'important');
-    matched.style.setProperty('visibility', 'hidden', 'important');
-    matched.style.setProperty('pointer-events', 'none', 'important');
-    matched.setAttribute('data-otlobli-hidden-store-bottom', 'bootstrap-point-tabs');
-  }
-
-  function hideVerifiedStoreBottomNav() {
-    if (!document.body) return;
-    var vpHeight = window.innerHeight || document.documentElement.clientHeight || 0;
-    var vpWidth = window.innerWidth || document.documentElement.clientWidth || 0;
-    var nodes = document.querySelectorAll(
-      'nav, [role="navigation"], [role="tablist"], [class*="tab-bar" i], [class*="tabbar" i], [class*="bottom-nav" i], [class*="footer-nav" i]'
-    );
-    for (var i = 0; i < nodes.length; i++) {
-      var el = nodes[i];
-      if (!el || (el.id && el.id.indexOf('otlobli') === 0)) continue;
-      var rect = el.getBoundingClientRect();
-      if (rect.width < vpWidth * 0.55 || rect.height < 24 || rect.height > 160) continue;
-      if (rect.bottom < vpHeight - 30 && rect.top < vpHeight - 180) continue;
-      if (storeBottomTabScore(normalizedText(el)) < 2) continue;
-      el.style.setProperty('display', 'none', 'important');
-      el.style.setProperty('visibility', 'hidden', 'important');
-      el.style.setProperty('pointer-events', 'none', 'important');
-      el.setAttribute('data-otlobli-hidden-store-bottom', 'bootstrap-verified-tabs');
-    }
-
-    // SHEIN's older/iPhone-6 markup uses obfuscated plain divs without nav
-    // roles or stable classes. elementsFromPoint returns the whole visual
-    // stack, including the real five-tab bar underneath Otlobli's nav, so we
-    // can identify it by exact tab semantics without scanning the whole DOM.
-    if (document.elementsFromPoint) {
-      var xs = [Math.round(vpWidth * 0.12), Math.round(vpWidth * 0.32), Math.round(vpWidth * 0.5), Math.round(vpWidth * 0.68), Math.round(vpWidth * 0.88)];
-      var ys = [Math.max(1, vpHeight - 6), Math.max(1, vpHeight - 42), Math.max(1, vpHeight - 78)];
-      for (var yi = 0; yi < ys.length; yi++) {
-        for (var xi = 0; xi < xs.length; xi++) {
-          var stack = document.elementsFromPoint(xs[xi], ys[yi]);
-          for (var si = 0; si < stack.length; si++) hideStoreBottomFromPoint(stack[si], vpWidth, vpHeight);
-        }
-      }
-    }
-  }
-
-  var __otlobliEarlyNativeAddScanAt = 0;
-  function hideEarlySheinProductAdd() {
-    if (!/shein/i.test(location.hostname)) return;
-    if (document.head && !document.getElementById('otlobli-native-add-style')) {
-      var style = document.createElement('style');
-      style.id = 'otlobli-native-add-style';
-      style.textContent = '[class*="add-bag" i],[class*="addbag" i],[class*="add-to-bag" i],[class*="addtobag" i],' +
-        '[class*="add-cart" i],[class*="addcart" i],[class*="add-to-cart" i],[class*="addtocart" i],' +
-        '[aria-label*="add to bag" i],[aria-label*="add to cart" i],[aria-label*="أضف إلى عربة" i],[aria-label*="أضف للسلة" i]' +
-        '{display:none!important;visibility:hidden!important;pointer-events:none!important}';
-      document.head.appendChild(style);
-    }
-    if (!/-p-\\d+/i.test(location.pathname)) return;
-    if (!document.body) return;
-    var now = Date.now();
-    if (now - __otlobliEarlyNativeAddScanAt < 350) return;
-    __otlobliEarlyNativeAddScanAt = now;
-    var vh = window.innerHeight || document.documentElement.clientHeight || 0;
-    var vw = window.innerWidth || document.documentElement.clientWidth || 0;
-    var nav = document.getElementById('otlobli-nav');
-    var nr = nav && nav.getBoundingClientRect ? nav.getBoundingClientRect() : null;
-    var navTop = nr && nr.top > 0 ? nr.top : vh - 90;
-    var addPattern = /add\\s+to\\s+(?:bag|cart)|أضف[\\s\\S]{0,24}(?:عربة|السلة|للسلة|الحقيبة|التسوق)/i;
-    function hide(el) {
-      if (!el || !el.getBoundingClientRect || (el.closest && el.closest('[id^="otlobli"]'))) return;
-      var label = normalizedText(el) + ' ' + String(el.getAttribute && el.getAttribute('aria-label') || '');
-      if (!label || label.length > 90 || !addPattern.test(label)) return;
-      var r = el.getBoundingClientRect();
-      if (r.width < 64 || r.width > vw * 1.05 || r.height < 24 || r.height > 100 || r.bottom < navTop - 190 || r.top > navTop + 24) return;
-      el.style.setProperty('display', 'none', 'important');
-      el.style.setProperty('visibility', 'hidden', 'important');
-      el.style.setProperty('pointer-events', 'none', 'important');
-      el.setAttribute('data-otlobli-hidden-native-add', 'bootstrap-product-action');
-    }
-    var nodes = document.querySelectorAll('button,a,[role="button"],[class*="add" i],[aria-label*="add" i]');
-    for (var i = 0; i < nodes.length && i < 140; i++) hide(nodes[i]);
-    if (!document.elementsFromPoint) return;
-    var xs = [Math.round(vw * .2), Math.round(vw * .5), Math.round(vw * .8)];
-    var ys = [Math.max(1, navTop - 12), Math.max(1, navTop - 48), Math.max(1, navTop - 84)];
-    for (var y = 0; y < ys.length; y++) for (var x = 0; x < xs.length; x++) {
-      var stack = document.elementsFromPoint(xs[x], ys[y]);
-      for (var s = 0; s < stack.length; s++) hide(stack[s]);
-    }
-  }
-
-  // SHEIN injects a compact first-order registration offer after cookie
-  // consent on older layouts. Identify that one strip by its exact semantics
-  // and bottom-edge geometry instead of relying on obfuscated class names or
-  // hiding generic promotional elements (which would also match products).
-  var __otlobliEarlySignupScanAt = 0;
-  function hideExactSheinSignupDiscountBanner() {
-    if (!document.body || !document.elementsFromPoint) return;
-    var scanNow = Date.now();
-    if (scanNow - __otlobliEarlySignupScanAt < 650) return;
-    __otlobliEarlySignupScanAt = scanNow;
-    var vpHeight = window.innerHeight || document.documentElement.clientHeight || 0;
-    var vpWidth = window.innerWidth || document.documentElement.clientWidth || 0;
-    var nav = document.getElementById('otlobli-nav');
-    var navRect = nav && nav.getBoundingClientRect ? nav.getBoundingClientRect() : null;
-    var navTop = navRect && navRect.top > 0 ? navRect.top : vpHeight - 90;
-    var offerPattern = /(?:get\\s*15\\s*%\\s*off|15\\s*%\\s*off|\\u0627\\u062d\\u0635\\u0644\\s+\\u0639\\u0644[\\u0649\\u064a]\\s+\\u062e\\u0635\\u0645\\s*15\\s*%|\\u062e\\u0635\\u0645\\s*15\\s*%)/i;
-    var signupPattern = /(?:^|\\s)(?:register|sign\\s*up|join\\s*now|\\u062a\\u0633\\u062c\\u064a\\u0644|\\u0633\\u062c\\u0644)(?:\\s|$)/i;
-    var newsletterPattern = /(?:exclusive\\s+offers|shein\\s+news|newsletter|unsubscribe|\\u0627\\u0644\\u0639\\u0631\\u0648\\u0636\\s+\\u0627\\u0644\\u062d\\u0635\\u0631\\u064a\\u0629|\\u0623\\u062e\\u0628\\u0627\\u0631\\s+shein|(?:\\u0625|\\u0627)\\u0644\\u063a\\u0627\\u0621\\s+\\u0627\\u0644\\u0627\\u0634\\u062a\\u0631\\u0627\\u0643)/i;
-    var emailPattern = /(?:email|e-mail|\\u0627\\u0644\\u0628\\u0631\\u064a\\u062f\\s+\\u0627\\u0644(?:\\u0625|\\u0627)\\u0644\\u0643\\u062a\\u0631\\u0648\\u0646\\u064a|\\u0628\\u0631\\u064a\\u062f\\u0643\\s+\\u0627\\u0644(?:\\u0625|\\u0627)\\u0644\\u0643\\u062a\\u0631\\u0648\\u0646\\u064a)/i;
-    var authPattern = /(?:sign\\s*in|log\\s*in|continue\\s+with|phone\\s+number|\\u062a\\u0633\\u062c\\u064a\\u0644\\s+\\u0627\\u0644\\u062f\\u062e\\u0648\\u0644|\\u0631\\u0642\\u0645\\s+\\u0627\\u0644\\u0645\\u0648\\u0628\\u0627\\u064a\\u0644|\\u0627\\u0644\\u0627\\u0633\\u062a\\u0645\\u0631\\u0627\\u0631\\s+\\u0628\\u062c\\u0648\\u062c\\u0644)/i;
-
-    function inspect(node) {
-      var current = node;
-      var matched = null;
-      for (var depth = 0; current && current !== document.body && current !== document.documentElement && depth < 9; depth++) {
-        if (current.id && current.id.indexOf('otlobli') === 0) break;
-        var text = normalizedText(current).replace(/[\\u064B-\\u065F\\u0670]/g, '');
-        var hasEmailInput = false;
-        if (text.length > 0 && text.length < 720 && signupPattern.test(text)) {
-          var inputs = current.querySelectorAll ? current.querySelectorAll('input') : [];
-          for (var ii = 0; ii < inputs.length; ii++) {
-            var inputHint = String(inputs[ii].getAttribute('type') || '') + ' ' +
-              String(inputs[ii].getAttribute('placeholder') || '') + ' ' +
-              String(inputs[ii].getAttribute('aria-label') || '');
-            if (emailPattern.test(inputHint)) { hasEmailInput = true; break; }
-          }
-        }
-        var authSurface = authPattern.test(text);
-        var exactOfferStrip = !authSurface && offerPattern.test(text) && signupPattern.test(text);
-        var exactNewsletterPanel = !authSurface && signupPattern.test(text) && newsletterPattern.test(text) && hasEmailInput;
-        if (text.length > 0 && text.length < 720 && (exactOfferStrip || exactNewsletterPanel)) {
-          var rect = current.getBoundingClientRect();
-          var style = window.getComputedStyle(current);
-          var positioned = style.position === 'fixed' || style.position === 'sticky' || style.position === 'absolute';
-          var touchesNav = rect.bottom >= navTop - 36 && rect.top < navTop + 20;
-          var offerPlacement = exactOfferStrip && rect.width >= vpWidth * 0.62 &&
-            rect.height >= 32 && rect.height <= 180 && rect.top >= Math.max(0, navTop - 220) &&
-            touchesNav && (positioned || Math.abs(rect.bottom - navTop) <= 48);
-          var newsletterPlacement = exactNewsletterPanel && rect.width >= vpWidth * 0.62 &&
-            rect.height >= 80 && rect.height <= 520;
-          if (offerPlacement || newsletterPlacement) {
-            matched = current;
-          }
-        }
-        current = current.parentElement;
-      }
-      if (!matched) return;
-      matched.style.setProperty('display', 'none', 'important');
-      matched.style.setProperty('visibility', 'hidden', 'important');
-      matched.style.setProperty('pointer-events', 'none', 'important');
-      matched.setAttribute('data-otlobli-hidden-shein-signup', 'exact-offer-or-newsletter');
-    }
-
-    var xs = [Math.round(vpWidth * 0.12), Math.round(vpWidth * 0.5), Math.round(vpWidth * 0.88)];
-    var ys = [Math.max(1, Math.round(navTop - 10)), Math.max(1, Math.round(navTop - 54))];
-    for (var yi = 0; yi < ys.length; yi++) {
-      for (var xi = 0; xi < xs.length; xi++) {
-        var stack = document.elementsFromPoint(xs[xi], ys[yi]);
-        for (var si = 0; si < stack.length; si++) inspect(stack[si]);
-      }
-    }
-    // The larger newsletter variant can be ordinary page content rather than
-    // fixed. Start from its tiny set of email inputs so it is removed while
-    // still off-screen, before scrolling could reveal it above the nav.
-    var emailInputs = document.getElementsByTagName('input');
-    for (var ei = 0; ei < emailInputs.length && ei < 80; ei++) {
-      var emailHint = String(emailInputs[ei].getAttribute('type') || '') + ' ' +
-        String(emailInputs[ei].getAttribute('placeholder') || '') + ' ' +
-        String(emailInputs[ei].getAttribute('aria-label') || '');
-      if (emailPattern.test(emailHint)) inspect(emailInputs[ei]);
-    }
-  }
-
-  function runEarlyProtections() {
-    if (!otlobliNavBootstrapFeatureEnabled('navigationEarlyProtection')) return;
-    try { hideEarlySheinProductAdd(); } catch (e) {}
-    try { hideVerifiedStoreBottomNav(); } catch (e) {}
-    try { hideExactSheinSignupDiscountBanner(); } catch (e) {}
-  }
-
   function mount() {
     var root = document.documentElement, inset = Number(window.__otlobliSafeBottom || 0);
     if (root && isFinite(inset)) root.style.setProperty('--otlobli-sb', Math.round(Math.min(60, Math.max(16, inset))) + 'px');
-    if (otlobliNavBootstrapFeatureEnabled('navigationViewport')) ensureEarlyViewportFitCover();
-    if (otlobliNavBootstrapFeatureEnabled('navigationEarlyProtection')) {
-      try { hideEarlySheinProductAdd(); } catch (e) {}
-    }
+    ensureEarlyViewportFitCover();
     if (!document.getElementById('otlobli-base-style')) {
       var fontParent = document.head || document.documentElement;
       if (fontParent) {
@@ -373,10 +147,7 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
       }
     }
     if (!document.body) return false;
-    if (document.getElementById('otlobli-nav')) {
-      runEarlyProtections();
-      return true;
-    }
+    if (document.getElementById('otlobli-nav')) return true;
 
     var nav = document.createElement('div');
     nav.id = 'otlobli-nav';
@@ -416,32 +187,16 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
       nav.appendChild(tab);
     }
     document.documentElement.appendChild(nav);
-    runEarlyProtections();
     return true;
   }
 
-  if (otlobliNavBootstrapFeatureEnabled('navigationViewport')) ensureEarlyViewportFitCover();
-  if (otlobliNavBootstrapFeatureEnabled('navigationEarlyMount')) {
-    if (!mount()) {
-      document.addEventListener('DOMContentLoaded', mount, false);
-      timer = setInterval(function () {
-        attempts++;
-        if (mount() || attempts >= 400) clearInterval(timer);
-      }, 25);
-    }
-  }
-  if (otlobliNavBootstrapFeatureEnabled('navigationEarlyProtection')) {
-    runEarlyProtections();
-    var protectionRuns = 0;
-    var protectionTimer = setInterval(function () {
-      if (window.__otlobliStoreRuntimeReady) {
-        clearInterval(protectionTimer);
-        return;
-      }
-      protectionRuns++;
-      runEarlyProtections();
-      if (protectionRuns >= 180) clearInterval(protectionTimer);
-    }, 250);
+  ensureEarlyViewportFitCover();
+  if (!mount()) {
+    document.addEventListener('DOMContentLoaded', mount, false);
+    timer = setInterval(function () {
+      attempts++;
+      if (mount() || attempts >= 400) clearInterval(timer);
+    }, 25);
   }
   // The nav is attached to documentElement, so replacing SHEIN's app root
   // normally leaves it intact. Recheck on real wake events rather than waking
@@ -449,11 +204,9 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
   function restoreOtlobliNavOnWake() {
     try { mount(); } catch (e) {}
   }
-  if (otlobliNavBootstrapFeatureEnabled('navigationEarlyMount')) {
-    window.addEventListener('pageshow', restoreOtlobliNavOnWake, false);
-    document.addEventListener('visibilitychange', function () {
-      if (!document.hidden) restoreOtlobliNavOnWake();
-    }, false);
-  }
+  window.addEventListener('pageshow', restoreOtlobliNavOnWake, false);
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) restoreOtlobliNavOnWake();
+  }, false);
 })();
 `

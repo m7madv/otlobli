@@ -14,24 +14,7 @@ const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 // then minify the resulting scripts as JavaScript before Vite packages them.
 const protectedScriptModules = new Set([
   INJECTED_SCRIPT_SOURCE,
-  'src/services/sheinFreezeDiagnostics.ts',
-  'src/services/sheinRegionDiagnostics.ts',
 ])
-
-// Production builds do not install the historical freeze/tap diagnostic
-// callbacks. Rename those optional hook lookups while emitting the injected
-// strings so their recognizable diagnostic entry points cannot ship. This is
-// intentionally a build-only text substitution: product routing, capture and
-// blocking source remain unchanged and the lookups remain harmless no-ops.
-const retiredProductionHookNames = [
-  '__otlobliFreezeProbe',
-  '__otlobliTapDiagnostic',
-]
-
-const retireProductionDiagnosticHooks = (source) => retiredProductionHookNames.reduce(
-  (result, hookName) => result.replaceAll(hookName, '__otlobliRetiredDiagnosticNoop'),
-  source,
-)
 
 const normalizedRelativePath = (path) => relative(projectRoot, path).replace(/\\/g, '/')
 
@@ -68,7 +51,7 @@ export const evaluateInjectedScriptExports = (relativePath = INJECTED_SCRIPT_SOU
   evaluatePureStringModule(resolve(projectRoot, relativePath))
 
 const minifyStoreScript = async (name, source) => {
-  const result = await minify(retireProductionDiagnosticHooks(source), {
+  const result = await minify(source, {
     compress: {
       passes: 2,
       unsafe: false,

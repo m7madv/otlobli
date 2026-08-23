@@ -1,5 +1,27 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
+## v86.223 — retire temporary diagnostics and use one production path (2026-08-23)
+
+- **Physical result:** the user reports the v86.222 tested flow is working and
+  explicitly requests a clean App Store release. This is functional acceptance
+  of the reported issue, not evidence that the separately required five resume
+  cycles/cold launch or weak-Android test was performed.
+- **Production decision:** delete the flight recorder, build flag/alias/input,
+  host state/listeners, standalone freeze/tap/price/region probes, injected
+  region logging, and the rejected document-start protection scans/timer.
+  There is now one runtime composition, matching v86.222 customer defaults.
+- **Preserved behavior:** document-start viewport/bar, post-load blockers,
+  capture/add, session, native iOS Back, SHEIN-owned product navigation, and
+  Add-only signed-region repair remain. Do not restore early DOM scans or
+  diagnostic feature switches.
+- **Release path:** `86.223/1085` adds an explicit App Store review action after
+  signed upload/processing. It may create/link the version and submit it, but
+  must surface missing Apple metadata/screenshots/privacy/review information
+  exactly and must never fabricate owner/legal data.
+- **Validation boundary:** local build, all guards/budgets, both native syncs,
+  generated-asset scans, and Android assembly pass. App Store upload/review is
+  not yet performed in this preparation state.
+
 ## v86.221 — isolate Navigation sublayers with one flight recorder (2026-08-23)
 
 - **Physical correction:** the user installed `86.220/1082` and reproduced the

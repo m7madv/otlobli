@@ -2,12 +2,6 @@ export const STORE_RUNTIME_COORDINATOR_SCRIPT = `
   function tick() {
     if (!document.body) return;
     if (otlobliScriptEnabled('blocking')) otlobliHealOrphanScrollLock();
-    if (otlobliScriptEnabled('session') && IS_SHEIN && sheinLooksLikeProductRouteForShipping()) {
-      sheinRegionDiag('tick-product-route', {
-        addressCountry: sheinAddressCookieCountry(),
-        signedReady: sheinSignedSaudiAddressReady()
-      }, 'tick');
-    }
     if (otlobliScriptEnabled('session') && IS_SHEIN) sheinPrimeRegionRepairFromRoute();
     if (otlobliScriptEnabled('session') && IS_SHEIN) sheinClearStaleShippingLock();
     // Never compete with WebKit's async scrolling or delay a bottom-nav tap

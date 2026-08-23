@@ -261,9 +261,9 @@ assert.deepEqual(JSON.parse(JSON.stringify(opening.summarizeSheinOpeningRecords(
 ]))), { samples: 3, medianMs: 2000, p95Ms: 3000, slowestMs: 3000 })
 
 const protectedHashes = new Map([
-  ['src/services/sheinBrowserScript.ts', '17BC27F8B1A4443585D301E654F7E32DB30B3578C99ADA72A8C5D1492B1CC87E'],
-  ['src/services/storeProductCaptureScript.ts', 'E62320E16017084CB581F1D734BEE3B8A58886211A005008897EF252A621AE3A'],
-  ['src/services/sheinSkuTap.ts', 'F675AF9D4FC75595914DF97D907FEE2472691204EEF89F89844871662F676619'],
+  ['src/services/sheinBrowserScript.ts', '332BD28F21817A40FCEE982580F0EF118BB59A1E297E2FE4104BF7002872D2DB'],
+  ['src/services/storeProductCaptureScript.ts', 'B0650CB5303867393CF81CFDE185E7EBB78178281B8E70C99594F8B69D524CAE'],
+  ['src/services/sheinSkuTap.ts', '79A1011CF55344D06BFCFC796FCAEB5CFF58F705F7FD95BA1686D69D802DEE83'],
 ])
 for (const [file, expected] of protectedHashes) {
   const actual = createHash('sha256').update(readFileSync(resolve(root, file))).digest('hex').toUpperCase()

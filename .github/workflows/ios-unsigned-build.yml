@@ -12,11 +12,6 @@ on:
           - unsigned
           - development-signed
           - testflight
-      store_script_diagnostics:
-        description: Include the internal SHEIN navigation flight recorder
-        required: true
-        default: false
-        type: boolean
       testflight_delivery:
         description: Upload a new TestFlight build or distribute an already uploaded matching build
         required: true
@@ -25,6 +20,11 @@ on:
         options:
           - upload-and-distribute
           - distribute-existing
+      app_store_submission:
+        description: Submit this production build to App Review after upload and processing
+        required: true
+        default: false
+        type: boolean
   push:
     branches:
       [
@@ -73,7 +73,6 @@ jobs:
           VITE_SHEIN_WORKER_URL: ${{ secrets.VITE_SHEIN_WORKER_URL }}
           VITE_SHEIN_SCRAPER_URL: ${{ secrets.VITE_SHEIN_SCRAPER_URL }}
           VITE_USD_TO_SYP_RATE: ${{ secrets.VITE_USD_TO_SYP_RATE }}
-          VITE_STORE_SCRIPT_DIAGNOSTICS: ${{ github.event_name == 'workflow_dispatch' && inputs.store_script_diagnostics && 'true' || 'false' }}
 
       - run: npx cap sync ios
 
@@ -650,8 +649,6 @@ jobs:
 
       - name: Verify generated production assets
         run: npm run verify:production-release -- --artifacts=ios
-        env:
-          VITE_STORE_SCRIPT_DIAGNOSTICS: ${{ github.event_name == 'workflow_dispatch' && inputs.store_script_diagnostics && 'true' || 'false' }}
 
       - name: Inspect iPad support in built app
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.signing_mode == 'unsigned' }}
@@ -1105,6 +1102,19 @@ jobs:
             ios/App/otlobli-v${{ steps.appver.outputs.version }}-build-${{ steps.appver.outputs.build }}-dSYMs.zip
           if-no-files-found: error
           retention-days: 30
+
+      - name: Submit production build to App Review
+        id: app_store_submission
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.signing_mode == 'testflight' && inputs.app_store_submission }}
+        env:
+          ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_API_KEY_PATH: ${{ env.OTLOBLI_ASC_KEY_PATH }}
+          OTLOBLI_ASC_APP_ID: '6804052538'
+          OTLOBLI_APP_VERSION: ${{ steps.appver.outputs.version }}
+          OTLOBLI_APP_BUILD: ${{ steps.appver.outputs.build }}
+          OTLOBLI_ASC_WAIT_MINUTES: '20'
+        run: node scripts/submit-app-store-review.mjs
 
       - name: Remove temporary signing assets
         if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.signing_mode == 'development-signed' }}

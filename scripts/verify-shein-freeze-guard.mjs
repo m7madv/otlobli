@@ -271,7 +271,7 @@ const checks = [
       'SHEIN owns its cookies, localStorage and sessionStorage.',
       'preserving',
       'signed address',
-      "sheinRegionDiag('foreign-address-preserved-for-native-repair'",
+      'if (!sheinNativeCoverRepairActive) {',
     ],
     forbidden: [
       'Storage.prototype.setItem',
@@ -336,72 +336,30 @@ const checks = [
     ],
   },
   {
-    label: 'internal A-D script isolation remains explicitly build-gated',
-    files: ['src/App.tsx', 'src/config.ts', 'src/services/storeCaptureBundle.ts'],
+    label: 'temporary store isolation tooling is absent from production',
+    files: ['src/App.tsx', 'src/config.ts', 'vite.config.ts', 'src/services/storeCaptureBundle.ts', 'src/services/sheinBrowserScript.ts', 'src/services/sheinNavigationScript.ts'],
     markers: [
       'export const buildStoreCaptureScript',
-      'export const STORE_SCRIPT_DIAGNOSTICS =',
-      'VITE_STORE_SCRIPT_DIAGNOSTICS',
-      "typeof import('./services/storeScriptDiagnostics')",
-      'isStoreScriptFlagsChangedMessage',
-      'if (!STORE_SCRIPT_DIAGNOSTICS) return',
-      'detail.diagnostic === true && STORE_SCRIPT_DIAGNOSTICS',
-      'const useSheinLoadingCover = !STORE_SCRIPT_DIAGNOSTICS ||',
-      '(activeScriptFlags.runtime && activeScriptFlags.session)',
-      'otlobliLoadingCover: useSheinLoadingCover',
+      'otlobliLoadingCover: true',
+      '${captureBundle.SHEIN_POLICY_DOCUMENT_START_SCRIPT}',
+      '${captureBundle.OTLOBLI_NAV_BOOTSTRAP_SCRIPT}',
+      'function otlobliScriptEnabled() { return true; }',
     ],
     forbidden: [
+      'STORE_SCRIPT_DIAGNOSTICS',
+      'VITE_STORE_SCRIPT_DIAGNOSTICS',
+      'storeScriptDiagnostics',
+      'storeScriptFlagsChanged',
+      '__OTLOBLI_SCRIPT_FLAGS__',
+      'navigationEarlyProtection',
+      'buildDiagnosticStoreCaptureScript',
+      'otlobli-script-diagnostics',
       'SHEIN_IOS_FREEZE_DIAGNOSTICS',
       'SHEIN_IOS_FREEZE_DIAGNOSTICS_BYPASS_RECOVERY',
       'SHEIN_FREEZE_DIAGNOSTIC_SCRIPT',
       'otlobliTapDiagnostics',
       'otlobliFreezeDiagnostics',
       '__OTLOBLI_SHEIN_REGION_DIAGNOSTICS__',
-    ],
-  },
-  {
-    label: 'customer build aliases the A-D module to a marker-free stub',
-    files: ['vite.config.ts', 'src/services/storeScriptDiagnosticsDisabled.ts'],
-    markers: [
-      "process.env.VITE_STORE_SCRIPT_DIAGNOSTICS === 'true'",
-      "find: './services/storeScriptDiagnostics'",
-      'storeScriptDiagnosticsDisabled.ts',
-      'export const isStoreScriptFlagsChangedMessage = () => false',
-    ],
-    forbidden: [
-      'otlobli-script-diagnostics',
-      'storeScriptFlagsChanged',
-      'storeDiagnosticState',
-      'OTLOBLI FLIGHT RECORDER',
-    ],
-  },
-  {
-    label: 'navigation flight-recorder profiles are bounded and website-data preserving',
-    file: 'src/services/storeScriptDiagnostics.ts',
-    markers: [
-      'INITIAL_STORE_SCRIPT_DIAGNOSTIC_FLAGS',
-      'buildDiagnosticStoreCaptureScript',
-      "id: 'baseline', code: 'N0'",
-      "id: 'viewport', code: 'N1'",
-      "id: 'bar', code: 'N2'",
-      "id: 'touch', code: 'N3'",
-      "id: 'back', code: 'N4'",
-      "id: 'early-mount', code: 'N5'",
-      "id: 'region', code: 'R1'",
-      'navigationEarlyProtection: false',
-      "post({ type: 'storeScriptFlagsChanged', flags: profile.flags",
-      "post({ type: 'storeDiagnosticState', state: state })",
-      'نسخ التقرير الكامل',
-      "post({ type: 'closeStore' })",
-      "status.setAttribute('aria-live', 'polite')",
-      '@media(prefers-reduced-motion:reduce)',
-    ],
-    forbidden: [
-      'document.cookie',
-      'localStorage.setItem',
-      'MutationObserver',
-      'setInterval(',
-      'transition:all',
     ],
   },
   {
@@ -463,7 +421,6 @@ const checks = [
     markers: [
       'var explicitRegionMismatch =',
       'if (!productRoute && !explicitRegionMismatch)',
-      "sheinRegionDiag('home-unknown-repair-cancelled'",
       "resetSheinShippingProgress(SHEIN_REQUIRED_COUNTRY + ':' + location.pathname)",
     ],
   },
@@ -474,15 +431,6 @@ const checks = [
     forbidden: [
       "./services/sheinPriceDiagnostics",
       'SHEIN_PRICE_DIAGNOSTICS_SCRIPT',
-    ],
-  },
-  {
-    label: 'diagnostic SHEIN event probe',
-    file: 'src/services/sheinFreezeDiagnostics.ts',
-    markers: [
-      "type:'otlobliFreezeDiagnostic'",
-      "['visibilitychange','pageshow','pagehide','freeze','resume','focus','blur']",
-      'window.__otlobliFreezeProbe',
     ],
   },
   {
@@ -648,11 +596,15 @@ const checks = [
     label: 'SHEIN document-start protection scans are retired after N6 device proof',
     files: sheinRuntimeSourceFiles,
     markers: [
-      "if (name === 'navigationEarlyProtection') return false;",
-      'function runEarlyProtections()',
-      "style.id = 'otlobli-native-add-style'",
       'hideListingCardAddButtons();',
       'hideSheinNativeProductAdd();',
+    ],
+    forbidden: [
+      'navigationEarlyProtection',
+      'function runEarlyProtections()',
+      "style.id = 'otlobli-native-add-style'",
+      'function hideVerifiedStoreBottomNav()',
+      'function hideExactSheinSignupDiscountBanner()',
     ],
   },
   {
@@ -749,7 +701,6 @@ const checks = [
     ],
     markers: [
       'if (productRoute && !sheinNativeCoverRepairActive) return;',
-      "sheinRegionDiag('prime-deferred-until-add'",
       'manualRepair !== true &&',
       'var initialProductRoute = sheinLooksLikeProductRouteForShipping();',
       'if (!initialProductRoute && shouldReloadSheinForSaudi()',
@@ -765,10 +716,6 @@ const checks = [
       'function sheinLooksLikeProductRouteForShipping()',
       'function sheinRegionTransitionVeil(show)',
       'function sheinPrimeRegionRepairFromRoute()',
-      'function sheinRegionDiag(stage, data, key)',
-      "sheinRegionDiag('capture-script-injected'",
-      "sheinRegionDiag('shipping-entry-control'",
-      "sheinRegionDiag('region-veil-state'",
       "if (otlobliScriptEnabled('session') && IS_SHEIN) sheinPrimeRegionRepairFromRoute();",
       "nav.style.setProperty('pointer-events', 'auto', 'important')",
       "nav.removeAttribute('data-otlobli-nav-yield')",
@@ -843,7 +790,6 @@ const checks = [
       'function sheinTrackSelectedSkuPrice(event)',
       "__otlobliSkuPriceSource = 'selected-mutation'",
       "document.addEventListener('click', sheinTrackSelectedSkuPrice, true)",
-      "sheinRegionDiag('selected-sku-price-capture'",
       'setTimeout(commit, 1500)',
       'var __otlobliInitialCapturePath = location.pathname',
       'function sheinSpaRoutePrice()',
@@ -852,8 +798,6 @@ const checks = [
       'function sheinSelectedSkuPricePending()',
       'priceWaits++ < 16',
       'function sheinCountryRowsInRoot(root)',
-      "sheinRegionDiag('country-row-fallback'",
-      "sheinRegionDiag('country-list-scroll'",
       'node.clientHeight < best.clientHeight',
     ],
     forbidden: [
@@ -862,17 +806,6 @@ const checks = [
       'function sheinLiveSkuPrice()',
       'stableSheinPriceReads >= 2',
       "sheinRegionDiag('price-capture'",
-    ],
-  },
-  {
-    label: 'bounded SHEIN region diagnostics',
-    file: 'src/services/sheinRegionDiagnostics.ts',
-    markers: [
-      "type: 'sheinRegionDiagnostic'",
-      "window.__otlobliRegionDiagnostic('capture-evaluation-start'",
-      'pending.length < 32',
-      'attempts >= 20',
-      'clearInterval(flushTimer)',
     ],
   },
   {
@@ -986,10 +919,10 @@ try {
   if (humanCheckScript.includes('.click(') || humanCheckScript.includes('location.reload(')) {
     failures.push('SHEIN human check: verification must remain entirely user-controlled')
   }
-  const retiredEarlyProtectionAt = bootstrapScript.indexOf("if (name === 'navigationEarlyProtection') return false;")
-  const bootstrapFlagsAt = bootstrapScript.indexOf('var featureFlags = window.__OTLOBLI_SCRIPT_FLAGS__;', retiredEarlyProtectionAt)
-  if (retiredEarlyProtectionAt < 0 || bootstrapFlagsAt < retiredEarlyProtectionAt) {
-    failures.push('SHEIN early protection: device-rejected document-start scans must be disabled before stored/default flags are read')
+  if (bootstrapScript.includes('navigationEarlyProtection') ||
+      bootstrapScript.includes('function runEarlyProtections()') ||
+      bootstrapScript.includes('__OTLOBLI_SCRIPT_FLAGS__')) {
+    failures.push('SHEIN early protection: temporary isolation flags or device-rejected document-start scans remain')
   }
   if (typeof captureScript !== 'string' || !captureScript.trim()) {
     failures.push('SHEIN capture-script syntax: emitted script is missing')
@@ -1165,46 +1098,6 @@ try {
   }
 } catch (error) {
   failures.push(`SHEIN production script syntax: ${error instanceof Error ? error.message : String(error)}`)
-}
-
-try {
-  const bundleModule = evaluateInjectedScriptExports('src/services/storeCaptureBundle.ts')
-  const diagnosticsModule = evaluateInjectedScriptExports('src/services/storeScriptDiagnostics.ts')
-  const profiles = diagnosticsModule.STORE_SCRIPT_DIAGNOSTIC_PROFILES
-  const profileById = Object.fromEntries(profiles.map((profile) => [profile.id, profile]))
-  const scripts = Object.fromEntries(profiles.map((profile) => [
-    profile.id,
-    diagnosticsModule.buildDiagnosticStoreCaptureScript(
-      {}, profile.flags, {}, bundleModule.SHEIN_PRIVACY_COMPAT_SCRIPT, bundleModule.SHEIN_CAPTURE_SCRIPT,
-    ),
-  ]))
-  for (const script of Object.values(scripts)) new Function(script)
-  if (!scripts.baseline.includes('otlobli-script-diagnostics') ||
-      !scripts.baseline.includes('__otlobliSheinPrivacyCompatInstalled') ||
-      !scripts.baseline.includes('function tick()')) {
-    failures.push('SHEIN navigation isolation: baseline must keep the flag-gated capture/blocking runtime and panel')
-  }
-  for (const profile of profiles) {
-    if (!scripts[profile.id].includes('function tick()')) {
-      failures.push(`SHEIN navigation isolation: ${profile.code} must install the flag-gated coordinator`)
-    }
-  }
-  if (profileById.baseline.flags.navigation !== false || profileById.baseline.flags.blocking !== true ||
-      profileById.baseline.flags.capture !== true || profileById.baseline.flags.session !== false) {
-    failures.push('SHEIN navigation isolation: N0 must preserve capture/blocking while navigation/session stay off')
-  }
-  if (profileById.viewport.flags.navigationViewport !== true || profileById.viewport.flags.navigationBar !== false) {
-    failures.push('SHEIN navigation isolation: N1 must add viewport without the bar')
-  }
-  if (profileById['early-protection']) {
-    failures.push('SHEIN navigation isolation: device-rejected N6 must not remain selectable')
-  }
-  if (profileById.region.flags.navigation !== true || profileById.region.flags.session !== true ||
-      profileById.region.flags.navigationEarlyProtection !== false) {
-    failures.push('SHEIN navigation isolation: R1 must restore session/region without the rejected early protection')
-  }
-} catch (error) {
-  failures.push(`SHEIN navigation isolation syntax: ${error instanceof Error ? error.message : String(error)}`)
 }
 
 // Exercise the compatibility prelude against the exact failure shape found by

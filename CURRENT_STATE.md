@@ -1,3 +1,57 @@
+# v86.223 — clean production/App Store candidate (2026-08-23)
+
+Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
+`codex/otlobli-v86-212-testflight-auth`. Source is `86.223/1085` and is
+synchronized to Android and iOS as a production-only build.
+
+The user reports that the v86.222 physical test is working and asked to remove
+all temporary experimental/diagnostic tooling and publish to the App Store.
+The tested product-navigation, native iOS Back, post-load blockers, and
+Add-only signed-region behavior are unchanged. Functional acceptance of the
+reported issue is recorded from the user; the separately mandated evidence of
+five iPhone 16 background/resume cycles plus a force-quit/cold launch was not
+enumerated, and weak/old Android acceptance is not claimed.
+
+The store flight recorder is fully retired rather than build-disabled:
+`storeScriptDiagnostics.ts`, its stub, fixture renderer, App imports/state/
+listeners, Vite alias/env flag, Workflow input, navigation feature flags, and
+old freeze/tap/price/region probe modules are deleted. The device-rejected
+document-start protection scans and 250ms protection timer are deleted from
+the navigation source. The production bootstrap now does only viewport setup,
+Otlobli bar mounting/touch routing, and wake restoration; the established
+post-load blocking/capture/session runtime remains active. Optional region
+probe calls were also removed from the injected script. The customer support
+screen's consent-based issue report remains a production support feature, not
+the retired SHEIN test panel.
+
+The iOS workflow no longer accepts a diagnostic-build input. It now has an
+explicit `app_store_submission` action. When authorized, the signed TestFlight/
+App Store archive is uploaded, processed, linked to an automatically released
+iOS App Store version, added to a review submission, and submitted through the
+App Store Connect API. The operation is idempotent and fails with Apple's exact
+metadata/review blockers rather than inventing privacy URLs, screenshots, or
+legal metadata. No upload or App Review submission has occurred yet for
+`86.223/1085` in this local-preparation commit.
+
+Local validation passes: all release/auth/security/store/Temu guards,
+TypeScript, executable/minified SHEIN freeze checks, production build,
+performance budgets, Android/iOS sync, post-sync release artifact scans, and
+Android `assembleDebug`. Generated `dist`, Android, and iOS assets contain none
+of the retired recorder/probe markers. Budgets are startup/largest JS
+`657,135/720,000` and `/1,200,000`, total JS gzip `263,660/370,000`, CSS
+`69,990/70,000`, fonts `81,364/100,000`, shipped store scripts
+`225,763/470,000`, and store source `533,264/600,000`.
+
+Store bundle `dist/assets/storeCaptureBundle-DFhvtDkv.js` is `248,285` bytes,
+SHA-256 `0E366D6324D9B36055E421946279035F4356B57277699610076D5C4099734396`.
+Main bundle `dist/assets/index-CnBRnyAj.js` is `657,135` bytes, SHA-256
+`3D2DAD0136CBAAC8439D5660B1330E70B5CCF7481373AA1FAD078544B415C916`.
+Local Android debug APK
+`android/app/build/outputs/apk/debug/app-debug.apk` is `11,112,724` bytes,
+SHA-256 `178FDE412A533F786BEB921123FF805A7033ED25C0672772F5028B51A426ACE7`.
+No native lifecycle/recompose timing, payment, wallet, completed-order,
+authentication, database, or backend behavior changed.
+
 # v86.222 — device-led safe navigation and Add-only region repair (2026-08-23)
 
 Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on

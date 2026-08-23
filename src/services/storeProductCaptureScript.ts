@@ -3398,19 +3398,6 @@ export const STORE_PRODUCT_CAPTURE_SCRIPT = `
     }
 
     function finalize(p) {
-      if (IS_SHEIN) {
-        sheinRegionDiag('selected-sku-price-capture', {
-          captured: p.priceUsd,
-          source: __otlobliSkuPriceSource,
-          spaRoute: sheinSpaCaptureRoute(),
-          before: __otlobliSelectedSkuPriceBefore,
-          priceWaits: priceWaits,
-          tracked: __otlobliSelectedSkuPrice,
-          trackedKey: __otlobliSelectedSkuPriceKey,
-          currentKey: sheinCurrentSelectionKey()
-        }, [p.priceUsd, __otlobliSkuPriceSource, __otlobliSelectedSkuPrice,
-          __otlobliSelectedSkuPriceKey, sheinCurrentSelectionKey()].join('|'));
-      }
       if (!p.title || !p.image || !(p.priceUsd > 0)) {
         clearAddSafetyTimer();
         removeOverlay(0);
