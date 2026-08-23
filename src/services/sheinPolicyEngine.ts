@@ -124,6 +124,12 @@ export const SHEIN_POLICY_DOCUMENT_START_SCRIPT = `
     if(!el||el.nodeType!==1)return true;
     if((el.id||'').indexOf('otlobli')===0)return true;
     if(el.closest&&el.closest('[id^="otlobli"],[data-otlobli-capture-owned="1"],#otlobli-add-btn,#otlobli-nav'))return true;
+    // The customer cannot open SHEIN's country/region UI because policy hides
+    // it normally. During Otlobli's own bounded signed-address repair, however,
+    // the capture runtime must be able to operate the active cascade drawer.
+    // Scope the exemption to the exact drawer and only while our repair veil
+    // exists; login/account/checkout surfaces remain blocked throughout.
+    if(document.getElementById('otlobli-region-switching')&&el.closest&&el.closest('.sui-drawer.cascade'))return true;
     return challengeOwned(el);
   }
   function semanticClass(el){

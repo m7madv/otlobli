@@ -1,3 +1,49 @@
+# v86.228/1093 — emulator-proven SHEIN Qatar policy/region fix (2026-08-23)
+
+Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
+`codex/otlobli-v86-212-testflight-auth`. Marketing is `86.228`; iOS is `1093`
+and Android is `1092`. This candidate has not been uploaded to TestFlight.
+
+The exact Desktop launcher `محاكي أندرويد Pixel 7.lnk` was used to boot
+`Pixel_7_API_35_Test`. A clean current build proved the live Admin response is
+`SHEIN QA/USD/ar` (about 1.3–2.5s), while app cold launch itself was only
+1.3–2.8s. The real delay was inside SHEIN: interactive browsing took about
+6.6–8.1s and the signed Qatar cascade took 11.8–15.3s. The old fixed 12s escape
+could therefore close a still-progressing municipality/city/zone drawer.
+
+CDP also proved the final Android SHEIN document had capture installed but no
+policy engine, causing `policyState: unknown`, false preparation failure, and a
+cover that waited for full signed readiness. Reinstalling policy post-load
+initially exposed the deeper conflict: policy hid the live `.sui-drawer.cascade`
+controls that Otlobli itself needed to choose the region. v86.228 now restores
+the idempotent one-observer policy on every final document, exempts only that
+exact cascade while Otlobli's bounded region-repair veil exists, and replaces
+the fixed 12s abort with 16s/20s stalled-progress bounds plus a 36s/45s absolute
+ceiling. Login/account/checkout/country access remains blocked for the customer;
+Add/capture remains fail-closed until the signed address matches.
+
+The clean emulator result is a fully signed Qatar address (`Al Daayen` →
+`Zone 70`, nonempty `xAdFlag`), policy `verified` with `installCount: 1` and one
+observer, a real current product page, and successful `addToCart` capture after
+selecting `iPhone 17` at `$1.60`; no wrong-region message appeared. A real
+SHEIN `si-verify-block-request-dialog` appeared during repeated rapid clean
+opens and was left visible/untouched until SHEIN resolved it, as required.
+
+Full production build and every auth/security/release/SHEIN/Temu/store guard
+pass. Existing low-end budgets pass: startup/largest JS `660,449/720,000` and
+`/1,200,000`, total JS gzip `264,924/370,000`, CSS `69,968/70,000`, fonts
+`81,364/100,000`, shipped store scripts `227,477/470,000`, and store source
+`519,044/600,000`. Android and iOS are synchronized; Android assembly and the
+three-root artifact scan pass. Bundle `storeCaptureBundle-uuEtemj5.js` is
+`250,644` bytes/SHA-256
+`DC1AD9C5AEA6C7E909371F046E121CF31E56F80CDA64B51D3B4D562F4B74BE48`.
+Android artifact `output/Otlobli-v86.228-build-1092-Android-debug.apk` is
+`11,114,252` bytes/SHA-256
+`13075F4E924361694293173F6A579426E2DB733B2EB5723804848EB5552E04AD`.
+The test-only auth bypass is back to `false` and all temporary CDP probes were
+deleted. iPhone acceptance, five background/resume cycles, and a separate cold
+launch remain unperformed; never infer them from the Android emulator.
+
 # v86.227/1092 — restore the physically accepted v86.216 region contract (2026-08-23)
 
 Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on

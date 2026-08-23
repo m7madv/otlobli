@@ -106,7 +106,8 @@ if (runtimeCoordinator.includes('otlobliCleanTemuBlockers(true)')) {
 
 for (const marker of [
   'var countryFromName = sheinCountryCodeFromLabel(name);',
-  'if (Date.now() - sheinNativeCoverRepairStartedAt >= 12000)',
+  'var repairStalledFor = repairNow - Math.max(sheinShippingProgressAt || 0, sheinNativeCoverRepairStartedAt);',
+  'if (repairStalledFor >= repairStallLimit || repairAge >= repairAbsoluteLimit)',
   'function sheinPrimeRegionRepairFromRoute()',
   'var repairStarted = sheinPrepareNativeSaudiRepair();',
   "sheinRegionCountryLabel() + '</span>'",

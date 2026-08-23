@@ -1,3 +1,35 @@
+# Active handoff — v86.228/1093 emulator-proven Qatar region/policy repair (2026-08-23)
+
+Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`
+on `codex/otlobli-v86-212-testflight-auth`. Marketing is `86.228`; iOS is
+`1093`, Android is `1092`, and this candidate is not on TestFlight yet.
+
+The exact Desktop Pixel 7/API35 launcher reproduced the problem. Live Admin and
+host cache were QA/USD/ar. The old fixed 12s timeout raced the Qatar cascade,
+which took 11.8–15.3s to produce a signed Al Daayen/Zone 70 address. Android's
+final SHEIN document also lost the document-start policy, so visual readiness
+remained `unknown`; simply reinstalling policy then hid the internal cascade
+that capture needed. Preserve all three v86.228 corrections together:
+
+- post-load capture bundle idempotently restores the policy engine;
+- policy exempts only `.sui-drawer.cascade` while
+  `#otlobli-region-switching` exists;
+- region repair uses stalled-progress and absolute bounds, not a fixed 12s.
+
+Do not broaden that policy exemption or weaken signed Add/capture readiness.
+On the emulator policy stayed at one install/observer, the signed QA address
+included `xAdFlag`, a real PDP opened, and `addToCart` captured `iPhone 17` at
+`$1.60` without a region error. Interactive browse arrived at 6.6–8.1s while
+signed preparation continued. Real SHEIN human verification appeared during
+rapid repeated clean opens and was deliberately left untouched.
+
+Full build/guards/budgets, both native syncs, Android assembly, and the
+three-root artifact scan pass. Bundle and Android artifact hashes are at the
+top of `CURRENT_STATE.md`. `TEST_ONLY_AUTH_BYPASS` is false and temporary CDP
+files are deleted. No TestFlight upload or iPhone acceptance has occurred.
+Before release, retain the freeze invariant and perform five real iPhone 16
+background/resume cycles plus one force-quit/cold-launch test.
+
 # Active handoff — v86.227/1092 exact v86.216 region regression boundary (2026-08-23)
 
 Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`

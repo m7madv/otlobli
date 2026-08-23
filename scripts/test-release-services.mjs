@@ -202,7 +202,7 @@ assert.equal((policyScript.match(/new MutationObserver/g) ?? []).length, 1, 'Pol
 for (const forbidden of ["addEventListener('click'", "addEventListener('pointer", 'preventDefault(', 'window.fetch=', 'XMLHttpRequest.prototype', 'console.error=', 'history.pushState']) {
   assert.ok(!policyScript.includes(forbidden), `Policy contains forbidden global interception: ${forbidden}`)
 }
-for (const required of ['installCount:1', 'MAX_ROOTS=96', 'MAX_NODES_PER_ROOT=320', 'data-otlobli-capture-owned', 'human-verification', 'duplicate-install']) {
+for (const required of ['installCount:1', 'MAX_ROOTS=96', 'MAX_NODES_PER_ROOT=320', 'data-otlobli-capture-owned', "document.getElementById('otlobli-region-switching')", ".closest('.sui-drawer.cascade')", 'human-verification', 'duplicate-install']) {
   assert.ok(policyScript.includes(required), `Policy missing bounded/idempotent marker: ${required}`)
 }
 

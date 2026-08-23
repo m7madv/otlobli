@@ -406,14 +406,17 @@ const checks = [
     ],
   },
   {
-    label: 'SHEIN v86.216 browse-ready region continuation',
+    label: 'SHEIN v86.216 browse-ready region continuation with progress-aware repair bound',
     file: 'src/services/sheinSessionScript.ts',
     markers: [
       'var sheinNativeCoverRepairActive = false;',
       "var sheinNativeCoverVisualReadyPath = '';",
       'now - sheinNativeCoverRepairStartedAt >= (OTLOBLI_LOW_END ? 2800 : 1800)',
       'now - sheinNativeCoverInteractiveCheckAt >= (OTLOBLI_LOW_END ? 900 : 450)',
-      'if (Date.now() - sheinNativeCoverRepairStartedAt >= 12000)',
+      'var repairStalledFor = repairNow - Math.max(sheinShippingProgressAt || 0, sheinNativeCoverRepairStartedAt);',
+      'var repairStallLimit = OTLOBLI_LOW_END ? 20000 : 16000;',
+      'var repairAbsoluteLimit = OTLOBLI_LOW_END ? 45000 : 36000;',
+      'if (repairStalledFor >= repairStallLimit || repairAge >= repairAbsoluteLimit)',
       'closeResolvedSheinShippingUi(true);',
       "sheinPostNativeCoverState('sheinSaudiReady', true)",
       "sheinPostNativeCoverState('sheinPageInteractive', true)",
@@ -1133,6 +1136,12 @@ try {
   }
   if (!productionScript.includes('__otlobliSheinPrivacyCompatInstalled')) {
     failures.push('SHEIN privacy compatibility: customer injection must include the touch-shield fix')
+  }
+  if (!productionScript.includes('__otlobliSheinPolicyEngine')) {
+    failures.push('SHEIN policy fallback: post-load customer injection must restore the final document policy')
+  }
+  if (!productionScript.includes('otlobli-region-switching') || !productionScript.includes('.sui-drawer.cascade')) {
+    failures.push('SHEIN signed-region repair: policy must permit only the active internal cascade drawer')
   }
   if (!productionScript.includes('function tick()')) {
     failures.push('SHEIN production script: established runtime coordinator must remain installed')

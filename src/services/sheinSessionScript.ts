@@ -565,7 +565,16 @@ export const SHEIN_SESSION_SCRIPT = `
       return;
     }
     if (sheinNativeCoverRepairActive) {
-      if (Date.now() - sheinNativeCoverRepairStartedAt >= 12000) {
+      var repairNow = Date.now();
+      var repairAge = repairNow - sheinNativeCoverRepairStartedAt;
+      var repairStalledFor = repairNow - Math.max(sheinShippingProgressAt || 0, sheinNativeCoverRepairStartedAt);
+      // Qatar's municipality/area/zone lists can each arrive asynchronously.
+      // Do not close a drawer that is still making progress: on a clean API 35
+      // session its signed Zone result arrived at 12.86s, just after the old
+      // fixed 12s deadline. Keep a bounded stalled and absolute escape instead.
+      var repairStallLimit = OTLOBLI_LOW_END ? 20000 : 16000;
+      var repairAbsoluteLimit = OTLOBLI_LOW_END ? 45000 : 36000;
+      if (repairStalledFor >= repairStallLimit || repairAge >= repairAbsoluteLimit) {
         closeResolvedSheinShippingUi(true);
         sheinNativeCoverRepairActive = false;
         sheinNativeCoverRepairStartedAt = 0;
