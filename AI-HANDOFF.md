@@ -33,7 +33,10 @@ TypeScript, full production build and postbuild budgets, SHEIN freeze guard,
 Temu/store guards, both native syncs, three-root artifact scan, Android
 `assembleDebug`, and Playwright `393x852` visual/accessibility inspection.
 Exact budgets and artifact hashes are at the top of `CURRENT_STATE.md`.
-The signed TestFlight result is pending. The App Store draft must remain on
+Run `32646164142` failed before build/sign/upload because the manually edited
+Capgo patch had stale hunk counts. It was regenerated with `patch-package`, and
+a fresh `npm ci` plus full build/sync/Android assembly now pass. The signed
+TestFlight retry is pending. The App Store draft must remain on
 build `1085`; do not link or submit `1087` before physical acceptance and the
 owner's missing App Store metadata.
 

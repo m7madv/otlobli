@@ -48,7 +48,12 @@ Store bundle `dist/assets/storeCaptureBundle-fmt322U7.js` is `250,324` bytes,
 SHA-256 `0386A1E947E05DE72653194B00EB5D8C28B07A16243BA63D41C19F095CF76149`.
 Android debug artifact
 `output/Otlobli-v86.223-build-1086-Android-debug.apk` is `11,113,744` bytes,
-SHA-256 `99D3B337A0AD6B1EF43FC212A45F58B8A74A70FD18D464065550F8D369D40900`.
+SHA-256 `A0A0A5E353FF306C04CD0B19E41313780C606ECEE97878F7CC2C80293F579100`.
+Initial workflow run `32646164142` stopped at `npm ci` before any archive,
+signing, or Apple upload because a manually edited patch hunk was unparsable.
+The Capgo patch was regenerated from the installed dependency; a fresh
+`npm ci` now applies all three patches cleanly, followed by another full build,
+both native syncs, Android assembly, and artifact scan.
 The signed iOS/TestFlight result is pending the workflow run from this source.
 No public App Store submission is authorized by this batch; draft `86.223`
 remains on build `1085` until physical acceptance and owner-controlled store
