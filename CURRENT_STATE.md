@@ -60,12 +60,34 @@ Android artifact
 `output/Otlobli-v86.221-SHEIN-navigation-flight-recorder-Android-debug.apk`
 is 11,352,143 bytes, SHA-256
 `F9AEF7A24F78B109827FA4D99111CDE24149F7AB5C8981EDD38002495C57B032`.
-TestFlight delivery and real-iPhone acceptance are not recorded yet. On the
-iPhone, start at N0, open one product and mark `فتح المنتج` or `بقي يحمّل`,
-then proceed in order only until the first failure and copy the report. Test R1
-last for the separate region restart. Five background/resume cycles and a
-separate force-quit/cold-launch test remain mandatory after the responsible
-profile is identified.
+Signed run `32606619539` from
+`dfc8d5acc2f6bdfa21a1ef554f81a702c500fd59` passed diagnostic build/sync,
+universal target and auth checks, Apple Distribution archive/export, generated-
+asset inspection, signature/profile/callback checks, Apple validation, upload,
+processing, and internal distribution. `VERIFY SUCCEEDED` and
+`UPLOAD SUCCEEDED` had no errors; delivery UUID is
+`048fe33e-90b2-44d8-8db9-432234e0fe33`. App Store Connect verified exact build
+`86.221 (1083)` as `VALID`/`IN_BETA_TESTING`, internal all-builds group
+`Otlobli Internal`, and expected tester `mhm1981dx@gmail.com` state
+`INSTALLED`. No public submission occurred.
+
+GitHub artifact `9484352744`,
+`otlobli-ios-v86.221-build-1083-testflight`, is 25,129,574 bytes with digest
+`sha256:49e95661c5a069b21edf362b7bf6a29afe4ca5ae823b13b51f7399ca97727f02`.
+Downloaded signed IPA
+`output/otlobli-ios-v86.221-testflight-run-32606619539/otlobli-v86.221-build-1083-testflight.ipa`
+is 10,472,179 bytes, SHA-256
+`FA3DBA27FE713D5364190F48024CE870701C20740A22C33EE4D59852538C4509`.
+dSYMs ZIP in the same folder is 14,858,053 bytes, SHA-256
+`811B59574057C146C0345A05214853910A4FB4587B9E67F86D1D5845087E268E`.
+Signed-IPA inspection confirms the exact diagnostic/store chunks above plus
+embedded provisioning and CodeResources.
+
+Real-iPhone acceptance remains unperformed. On the iPhone, start at N0, open
+one product and mark `فتح المنتج` or `بقي يحمّل`, then proceed in order only
+until the first failure and copy the report. Test R1 last for the separate
+region restart. Five background/resume cycles and a separate force-quit/cold-
+launch test remain mandatory after the responsible profile is identified.
 
 # v86.220 — rejected SHEIN navigation hypothesis (2026-08-23)
 

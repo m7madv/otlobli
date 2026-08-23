@@ -34,8 +34,14 @@ pass. Exact budgets, synchronized asset hashes, and APK path/hash are at the top
 of `CURRENT_STATE.md`. The customer build contains no flight-recorder markers.
 Preserve `otlobliForceRecompose`, `appDidBecomeActive` at 0.25s, Android resume,
 the JSON-stringified active-store comparison, payment/wallet/orders/auth, and
-all performance budgets. TestFlight and physical acceptance are pending.
-For the internal upload, dispatch `ios-unsigned-build.yml` with
+all performance budgets. Signed run `32606619539` from `dfc8d5a` passed Apple
+validation/upload and verified exact `86.221 (1083)` as
+`VALID`/`IN_BETA_TESTING` in `Otlobli Internal` with the expected tester
+`INSTALLED`; delivery UUID is `048fe33e-90b2-44d8-8db9-432234e0fe33`.
+Signed IPA SHA-256 is
+`FA3DBA27FE713D5364190F48024CE870701C20740A22C33EE4D59852538C4509`.
+No public submission occurred. Physical N0-N6/R1 acceptance is pending.
+Future internal uploads use `ios-unsigned-build.yml` with
 `signing_mode=testflight`, `store_script_diagnostics=true`, and
 `testflight_delivery=upload-and-distribute`; never enable public distribution.
 

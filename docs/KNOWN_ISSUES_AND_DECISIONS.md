@@ -20,8 +20,12 @@
   flag in customer builds; the new split is diagnostic-only behavior.
 - **Release boundary:** normal builds alias the flight recorder to a marker-free
   stub. Guards, normal+diagnostic builds, WebKit visual QA, native syncs, and
-  Android assembly pass at `86.221/1083`. TestFlight and physical acceptance
-  remain pending; preserve every native freeze and transaction invariant.
+  Android assembly pass at `86.221/1083`.
+- **Internal delivery:** run `32606619539` passed Apple validation/upload and
+  verified exact `86.221 (1083)` as `VALID`/`IN_BETA_TESTING` in the internal
+  all-builds group with the expected tester `INSTALLED`. No public submission
+  occurred. Physical N0-N6/R1 evidence remains pending; preserve every native
+  freeze and transaction invariant.
 
 ## v86.220 — rejected product-navigation hypothesis (2026-08-23)
 
