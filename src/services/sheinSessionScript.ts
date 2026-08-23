@@ -261,8 +261,13 @@ export const SHEIN_SESSION_SCRIPT = `
     try {
       var parsed = sheinAddressCookieData();
       if (!parsed) return '';
-      var value = String((parsed.value || parsed.countryAbbr || parsed.countryCode) || '').toUpperCase();
+      var rawValue = String((parsed.value || parsed.countryAbbr || parsed.countryCode) || '').trim();
+      var value = rawValue.toUpperCase();
       if (/^[A-Z]{2}$/.test(value)) return value;
+      // Variable-depth countries (including Qatar) can store the country name
+      // in value instead of the two-letter abbreviation used by Saudi.
+      var valueCountry = sheinCountryCodeFromLabel(rawValue);
+      if (valueCountry) return valueCountry;
       var name = String(parsed.countryName || '').trim();
       var countryId = String(parsed.countryId || '').trim();
       var countryFromName = sheinCountryCodeFromLabel(name);
@@ -573,7 +578,16 @@ export const SHEIN_SESSION_SCRIPT = `
       return;
     }
     if (sheinNativeCoverRepairActive) {
-      if (Date.now() - sheinNativeCoverRepairStartedAt >= 12000) {
+      var repairNow = Date.now();
+      var repairAge = repairNow - sheinNativeCoverRepairStartedAt;
+      var repairStalledFor = repairNow - Math.max(sheinShippingProgressAt || 0, sheinNativeCoverRepairStartedAt);
+      // Qatar's municipality/area/zone lists can each arrive asynchronously.
+      // The old fixed 12s deadline closed a progressing drawer exactly while
+      // its final zone-number list was loading. Keep the escape bounded, but
+      // base it on stalled progress with a separate absolute ceiling.
+      var repairStallLimit = OTLOBLI_LOW_END ? 20000 : 16000;
+      var repairAbsoluteLimit = OTLOBLI_LOW_END ? 45000 : 36000;
+      if (repairStalledFor >= repairStallLimit || repairAge >= repairAbsoluteLimit) {
         closeResolvedSheinShippingUi(true);
         sheinSetAutomaticRegionRepairExhausted(true);
         sheinNativeCoverRepairActive = false;

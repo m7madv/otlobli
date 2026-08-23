@@ -194,7 +194,9 @@ export const STORE_RUNTIME_COORDINATOR_SCRIPT = `
     var intervalTemuSearching = otlobliTemuSearchMode();
     otlobliSyncTemuSearchModeState(intervalTemuSearching);
     try { hideTemuSearchVisibleAccountCart(intervalTemuSearching); } catch (e) {}
-    try { otlobliCleanTemuBlockers(true); } catch (e) {}
+    // Header icons are suppressed by document-start CSS. Do not force a broad
+    // blocker scan from the navigation cadence; the throttled main pass still
+    // handles semantic popup fallbacks without competing with scrolling.
   }
 
   function scheduleOtlobliCoordinator() {

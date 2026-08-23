@@ -409,7 +409,9 @@ const checks = [
     file: 'src/services/sheinSessionScript.ts',
     markers: [
       "var sheinNativeCoverVisualReadyPath = '';",
-      'Date.now() - sheinNativeCoverRepairStartedAt >= 12000',
+      'var repairStalledFor = repairNow - Math.max(sheinShippingProgressAt || 0, sheinNativeCoverRepairStartedAt);',
+      'var repairAbsoluteLimit = OTLOBLI_LOW_END ? 45000 : 36000;',
+      'if (repairStalledFor >= repairStallLimit || repairAge >= repairAbsoluteLimit)',
       'if (sheinNativeCoverVisualReadyPath !== currentPath && sheinPageLooksInteractive())',
       "sheinPostNativeCoverState('sheinPageInteractive', true)",
     ],

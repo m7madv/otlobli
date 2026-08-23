@@ -1,3 +1,41 @@
+# Active handoff — v86.223/1088 Temu stability + Qatar completion (2026-08-23)
+
+Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`
+on `codex/otlobli-v86-212-testflight-auth`. Marketing remains `86.223`; the
+unreleased local source is iOS `1088` and Android `1087`. No TestFlight or
+public App Store action has been taken for this batch.
+
+The latest ZIP contains the decisive long recordings. Temu (58.538s/3272
+frames) shows the native Back present on initial Home, absent after product ->
+Home, hashed header tabs flashing during route paint, and repeated content
+jumps despite an iPhone 16 Pro Max. SHEIN (39.153s/2348 frames) shows Qatar
+already selected and the live drawer progressing through Al Daayen/zone
+levels, then being closed at the old 12-second repair timeout. Contact sheets
+are under `output/video-analysis-20260823-182417`.
+
+Preserve these corrections:
+
+- `restoreOtlobliNavOnWake()` resets the dedupe key and directly calls
+  `ensureBackButton()`; waiting only for the coordinator reproduced the loss.
+- Temu header `topTabContainer` hashed `tab-*` cells are hidden at
+  document-start. Never restore the scroll-forced cleaner, navigation-forced
+  cleaner, or the all-container candidate list. The semantic fallback remains
+  throttled, and product-vital consumers share a 240ms measurement.
+- SHEIN address parsing accepts a supported country name in
+  `addressCookie.value`. Repair is still explicit-Add-only and signed-address
+  fail-closed. Timeout is progress-aware (16s stall/36s absolute normally,
+  20s/45s low-end), not an unbounded wait.
+- The order-product worktree changes are intentional: enter Home/store
+  immediately on tap and preserve `orders` as the native Back target.
+
+All full local gates, low-end budgets, native syncs, artifact scan, and Android
+debug build pass. Exact sizes and hashes are at the top of `CURRENT_STATE.md`.
+Preserve `WKWebViewController.otlobliForceRecompose()`, the 0.25s
+`appDidBecomeActive` call, Android `otlobliOnHostResume()`, and the
+`JSON.stringify` active-region comparison. Device acceptance remains the
+recorded Temu sequence, Qatar zone completion, both order links, five resumes,
+and cold launch. Do not claim it from build/simulator checks.
+
 # Active handoff — v86.223/1087 three-path store correction (2026-08-23)
 
 Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`

@@ -438,6 +438,10 @@ export const TEMU_BROWSER_SCRIPT = `
   // downloadsWrapper, or product grids. Only hide account/cart/app/promo nodes.
   OTLOBLI_TEMU_HIDE_CSS =
     '[data-otlobli-temu-clean-hidden="1"],' +
+    // Live iPhone Temu paints cart/account/category shortcut cells as hashed
+    // tab-* children of topTabContainer. Hide that stable structural surface
+    // at document-start so the icons never flash before the JS cleaner runs.
+    'body:not([data-otlobli-temu-account-route="1"]) [class*="topTabContainer"] [class*="tab-"],' +
     '[aria-label*="cart" i], [aria-label*="basket" i], [aria-label*="shopping bag" i],' +
     '[aria-label*="account" i], [aria-label*="profile" i], [aria-label*="sign in" i],' +
     'a[href*="cart" i], a[href*="login" i], a[href*="signin" i], a[href*="account" i],' +
@@ -547,7 +551,17 @@ export const TEMU_BROWSER_SCRIPT = `
 
   // يقيس المحتوى المرئي/المخفي على صفحة منتج تيمو مرّة واحدة (يُعاد استخدامه
   // في التشخيص وإعادة التحميل التلقائي حتى لا يتكرّر المنطق).
+  var __otlobliTemuVitalsCacheKey = '';
+  var __otlobliTemuVitalsCacheAt = 0;
+  var __otlobliTemuVitalsCache = null;
   function otlobliTemuProductVitals() {
+    var cacheKey = (location.pathname || '') + (location.search || '');
+    var now = Date.now();
+    // Several product watchdogs consume the same measurement in one 300ms
+    // coordinator pass. Share that result so a single tick never walks every
+    // Temu image five separate times on the WebKit main thread.
+    if (__otlobliTemuVitalsCache && __otlobliTemuVitalsCacheKey === cacheKey &&
+        now - __otlobliTemuVitalsCacheAt < 240) return __otlobliTemuVitalsCache;
     var vp = viewportSize();
     var imgs = document.querySelectorAll('img');
     var domImg = 0, visImg = 0;
@@ -562,7 +576,10 @@ export const TEMU_BROWSER_SCRIPT = `
     try { hasPrice = !!document.querySelector('[class*="curPrice" i]'); } catch (e) {}
     var domHasContent = domImg > 0 || hasPrice;
     var state = visImg > 0 ? 'سليمة' : (domHasContent ? 'محتوى مخفي' : 'DOM فارغ');
-    return { domImg: domImg, visImg: visImg, hasPrice: hasPrice, domHasContent: domHasContent, state: state };
+    __otlobliTemuVitalsCacheKey = cacheKey;
+    __otlobliTemuVitalsCacheAt = now;
+    __otlobliTemuVitalsCache = { domImg: domImg, visImg: visImg, hasPrice: hasPrice, domHasContent: domHasContent, state: state };
+    return __otlobliTemuVitalsCache;
   }
 
   function otlobliTemuVisibleAccountSurfaceOpen() {
@@ -927,21 +944,6 @@ export const TEMU_BROWSER_SCRIPT = `
     setTimeout(function () { try { otlobliCleanTemuBlockers(true); } catch (e) {} }, 620);
   }
 
-  // إعادة الحجب أثناء التمرير (شكوى مستخدم): النزول والصعود السريع يجعل تيمو
-  // تعيد رسم أيقونات الهيدر فتظهر ثانيةً حتى يلحقها المنظّف المُمهَل. نستمع
-  // للتمرير (capture يلتقط حاويات تيمو الداخلية) ونشغّل حجباً قسرياً مخنوقاً
-  // كل ~350ms أثناء التمرير وبعده مباشرة.
-  if (IS_TEMU && !window.__otlobliTemuScrollRehideBound) {
-    window.__otlobliTemuScrollRehideBound = true;
-    var __otlobliTemuScrollHideTs = 0;
-    window.addEventListener('scroll', function () {
-      var n = Date.now();
-      if (n - __otlobliTemuScrollHideTs < 350) return;
-      __otlobliTemuScrollHideTs = n;
-      setTimeout(function () { try { otlobliCleanTemuBlockers(true); } catch (e) {} }, 120);
-    }, { passive: true, capture: true });
-  }
-
   var __otlobliTemuCleanBlockersTs = 0;
   function otlobliCleanTemuBlockers(force) {
     if (!IS_TEMU || !document.body) return;
@@ -1018,7 +1020,11 @@ export const TEMU_BROWSER_SCRIPT = `
 
       var nodes = document.querySelectorAll(
         '[data-otlobli-temu-clean-hidden="1"],' +
-        'a,button,[role="button"],div,section,aside,nav,header'
+        'a,button,[role="button"],[role="dialog"],[aria-modal="true"],' +
+        '[class*="downloadUI" i],[class*="openApp" i],' +
+        '[class*="coupon" i],[class*="voucher" i],[class*="promo" i],' +
+        '[class*="wheel" i],[class*="spin" i],[class*="reward" i],[class*="gift" i],' +
+        '[class*="popup" i],[class*="modal" i],[class*="dialog" i],[class*="overlay" i]'
       );
       var hidden = 0;
       for (var i = 0; i < nodes.length && hidden < 30; i++) {

@@ -3332,7 +3332,9 @@ export const STORE_PRODUCT_CAPTURE_SCRIPT = `
       // PDP. The customer's explicit Add action is the one safe place to grant
       // a fresh native repair attempt while the purchase gate remains closed.
       if (!ensureSheinSaudiStore(true)) {
-        showMessage(addBtn, 'نثبت منطقة الشحن المختارة والدولار... حاول بعد لحظة');
+        var requiredCountryLabel = typeof sheinRegionCountryLabel === 'function'
+          ? sheinRegionCountryLabel() : SHEIN_REQUIRED_COUNTRY;
+        showMessage(addBtn, 'جاري إكمال عنوان الشحن داخل ' + requiredCountryLabel + '… اضغط إضافة بعد إغلاق النافذة');
         return;
       }
       var quickAddState = sheinQuickAddSelectionState();

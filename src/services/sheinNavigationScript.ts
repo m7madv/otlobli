@@ -216,6 +216,11 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
       // old dedupe key, so force one fresh state announcement after pageshow.
       window.__otlobliNativeBackState = '';
       mount();
+      // mount() only restores the injected navigation. The native iOS Back
+      // control is owned by ensureBackButton(), and WebKit has already hidden
+      // it during provisional navigation. Re-publish from this exact wake
+      // event instead of waiting for a later coordinator timer.
+      if (typeof ensureBackButton === 'function') ensureBackButton();
     } catch (e) {}
   }
   window.addEventListener('pageshow', restoreOtlobliNavOnWake, false);

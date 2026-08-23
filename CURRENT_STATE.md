@@ -1,3 +1,64 @@
+# v86.223/1088 — long Temu recording and Qatar address completion (2026-08-23)
+
+Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
+`codex/otlobli-v86-212-testflight-auth`. Marketing remains `86.223`; the new
+unreleased local candidate is iOS build `1088` and Android build `1087`.
+
+The latest archive `WhatsApp Unknown 2026-08-23 at 6.24.17 PM.zip` was safely
+extracted under `output/video-analysis-20260823-182417`. Both 384x848/60fps
+recordings were inspected: Temu is 58.538s/3272 frames and SHEIN is
+39.153s/2348 frames. The Temu recording proves three runtime defects rather
+than a slow iPhone: WebKit hides the green native Back during navigation and a
+bfcache Home restore did not directly republish it; hashed Temu header tabs
+painted before delayed cleanup; and the cleanup walked nearly every visible
+DOM container repeatedly, including forced scans during scroll/navigation.
+The SHEIN recording proves Qatar is already the country while the drawer is
+advancing through Al Daayen and the zone level; the fixed 12-second deadline
+closes that still-progressing drawer and makes the next Add repeat the flow.
+
+The wake handler now calls `ensureBackButton()` immediately after resetting
+the native-state dedupe key. Temu's observed `topTabContainer > tab-*` cells
+are hidden by document-start CSS, the scroll-forced and navigation-forced
+blocker scans are removed, the remaining fallback scans semantic popup/control
+candidates instead of every `div/section/nav/header`, and repeated product
+vital consumers share one 240ms measurement. Search, product capture, Add,
+navigation, and account-route exceptions remain present.
+
+SHEIN now recognizes a country name stored in `addressCookie.value` (including
+Qatar). Region repair remains Add-only and fail-closed, but its escape is based
+on 16s of no progress with a 36s absolute ceiling on normal devices (20s/45s
+on low-end devices), so live municipality/area/zone progress no longer loses
+the drawer at a fixed 12s. The Add copy now accurately says it is completing
+the shipping address inside the configured country; it no longer implies that
+Qatar itself is wrong. The signed address remains mandatory before capture.
+
+The earlier order-product correction is included: a product in `طلباتي`
+enters the Home/store surface immediately and opens there, while native Back
+returns to the same order. Payment, wallet, completed-order, auth, backend,
+native recompose timing, and the `JSON.stringify` region comparison are
+unchanged.
+
+Validation passes: targeted ESLint has zero errors (16 established App hook
+warnings), TypeScript, release/auth/security guards, SHEIN freeze guard, Temu
+size/store-surface guards, full production build, postbuild hardening, low-end
+performance budget, Android/iOS Capacitor sync, three-root production scan, and
+Android `assembleDebug`. Budgets are startup/largest JS `659,073/720,000` and
+`/1,200,000`, total JS gzip `264,581/370,000`, CSS `69,968/70,000`, fonts
+`81,364/100,000`, shipped store scripts `228,123/470,000`, and store source
+`539,060/600,000`; no limit changed. Store bundle
+`dist/assets/storeCaptureBundle-m9EUWutG.js` is `250,775` bytes, SHA-256
+`C51AB87CD9F533ABCB447AD25DCC88B2B4C529610ADF0B4A48AB80CA53BDEACC`,
+and is byte-identical in both native projects. Android debug artifact
+`output/Otlobli-v86.223-build-1087-Android-debug.apk` is `11,113,956` bytes,
+SHA-256 `E4B0FD79261D2D2BB9C5C3267703500573EB518060C5962DCA18C074FFCA8E45`.
+
+No TestFlight upload or public App Store submission was made for build 1088.
+Real-device acceptance is still required on iPhone 16 Pro Max: repeat the
+recorded Temu product/Home/rapid-scroll sequence, confirm the green Back and
+both bars remain stable, complete Qatar Add through the zone number, open both
+stores' products from one order, then run five background/resume cycles and a
+separate force-quit/cold launch. A real weak Android acceptance is not claimed.
+
 # v86.223/1087 — Temu Home Back, Qatar cascade, and order products (2026-08-23)
 
 Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on

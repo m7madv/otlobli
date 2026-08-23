@@ -3643,16 +3643,19 @@ function App() {
         (pendingProductRequiresVisualReadyRef.current && !pendingProductVisualReadyRef.current)) return false
     const returnTarget = pendingBackTargetRef.current
     const shouldReveal = (returnTarget === 'cart' && screenRef.current === 'cart') ||
-      (returnTarget === 'orders' && screenRef.current === 'tracking')
+      (returnTarget === 'orders' && (screenRef.current === 'tracking' || screenRef.current === 'home'))
     clearPendingProductPreparation()
     if (!shouldReveal) {
       pendingBackTargetRef.current = 'home'
       activeProductReturnTargetRef.current = 'home'
       return true
     }
-    // Keep the React cart visible until the hidden target document is loaded
-    // and its injected blockers have explicitly reported readiness.
-    setScreen('home')
+    // Cart keeps its deferred reveal. Order links already move to the store
+    // surface on tap, so readiness only replaces its branded loading state.
+    if (screenRef.current !== 'home') {
+      screenRef.current = 'home'
+      setScreen('home')
+    }
     return true
   }
 
@@ -4367,7 +4370,7 @@ function App() {
     beginPendingProductPreparation(targetUrl)
     pendingBackTargetRef.current = returnTarget
     activeProductReturnTargetRef.current = returnTarget
-    showNotice('جاري تجهيز صفحة المنتج...')
+    showNotice(returnTarget === 'orders' ? 'جاري فتح المنتج داخل المتجر…' : 'جاري تجهيز صفحة المنتج…')
     if (!cartStoreAccessReady) {
       // A stored verdict is never grounds to refuse. The user may enter Cart
       // before ever opening a store, and a `no-vpn` recorded minutes earlier
@@ -4434,7 +4437,8 @@ function App() {
   // gate they never asked for.
   useEffect(() => {
     const waitingFromCart = screen === 'cart' && pendingBackTargetRef.current === 'cart'
-    const waitingFromOrder = screen === 'tracking' && pendingBackTargetRef.current === 'orders'
+    const waitingFromOrder = screen === 'home' && pendingBackTargetRef.current === 'orders' &&
+      activeProductReturnTargetRef.current === 'orders'
     if ((!waitingFromCart && !waitingFromOrder) || !pendingProductUrlRef.current) return
     if (vpnState === 'ok') {
       screenRef.current = 'home'
@@ -4472,7 +4476,8 @@ function App() {
       setSheinReady(false)
       sheinVisualReadyRef.current = false
       setSheinVisualReady(false)
-      if (productWasPreparing && (screenRef.current === 'cart' || screenRef.current === 'tracking')) {
+      if (productWasPreparing && (screenRef.current === 'cart' || screenRef.current === 'tracking' ||
+          (screenRef.current === 'home' && activeProductReturnTargetRef.current === 'orders'))) {
         pendingBackTargetRef.current = 'home'
         activeProductReturnTargetRef.current = 'home'
         showNotice('توقف تجهيز المنتج. جرّب فتحه مرة أخرى.')
@@ -5583,7 +5588,15 @@ function App() {
       return
     }
     const productStore = storeFromProductUrl(sourceLink) ?? fallbackStore
-    const openProduct = () => openStoreProductFromCart(sourceLink, 'orders')
+    const openProduct = () => {
+      openStoreProductFromCart(sourceLink, 'orders')
+      // An order item is a navigation action, not an in-place preparation
+      // task. Move to the store surface immediately; the existing readiness
+      // flow opens the target URL there and native Back still restores this
+      // exact tracking screen through activeProductReturnTargetRef.
+      screenRef.current = 'home'
+      flushSync(() => setScreen('home'))
+    }
     if (productStore === selectedStoreRef.current) {
       openProduct()
       return

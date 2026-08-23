@@ -21,6 +21,10 @@ const inAppBrowserPatch = readFileSync(
   'utf8',
 )
 const captureScript = readStoreScriptSources(new URL('..', import.meta.url))
+const runtimeCoordinator = readFileSync(
+  new URL('../src/services/storeRuntimeCoordinator.ts', import.meta.url),
+  'utf8',
+)
 const extensionBuilder = readFileSync(new URL('./build-temu-gecko-extension.mjs', import.meta.url), 'utf8')
 
 const requiredPluginMarkers = [
@@ -83,6 +87,32 @@ for (const marker of [
   if (!captureScript.includes(marker)) throw new Error(`Temu root-exit guard missing marker: ${marker}`)
 }
 
+for (const marker of [
+  "if (typeof ensureBackButton === 'function') ensureBackButton();",
+  '[class*="topTabContainer"] [class*="tab-"]',
+  'now - __otlobliTemuVitalsCacheAt < 240',
+]) {
+  if (!captureScript.includes(marker)) throw new Error(`Temu iPhone stability guard missing marker: ${marker}`)
+}
+for (const forbidden of [
+  '__otlobliTemuScrollRehideBound',
+  'a,button,[role="button"],div,section,aside,nav,header',
+]) {
+  if (captureScript.includes(forbidden)) throw new Error(`Temu hot-path scan regression detected: ${forbidden}`)
+}
+if (runtimeCoordinator.includes('otlobliCleanTemuBlockers(true)')) {
+  throw new Error('Temu navigation maintenance must not force a blocker scan')
+}
+
+for (const marker of [
+  'var valueCountry = sheinCountryCodeFromLabel(rawValue);',
+  'var repairStalledFor = repairNow - Math.max(sheinShippingProgressAt || 0, sheinNativeCoverRepairStartedAt);',
+  'var repairAbsoluteLimit = OTLOBLI_LOW_END ? 45000 : 36000;',
+  "'جاري إكمال عنوان الشحن داخل ' + requiredCountryLabel",
+]) {
+  if (!captureScript.includes(marker)) throw new Error(`SHEIN Qatar cascade guard missing marker: ${marker}`)
+}
+
 const temuHomeLikePath = (rawPath) => {
   const path = String(rawPath || '/').replace(/\/{2,}/g, '/').replace(/\/+$/, '')
   return !path || /^\/[a-z]{2}(?:-[a-z]{2})?$/i.test(path)
@@ -132,10 +162,23 @@ for (const marker of [
   'رقم الطلب ${item.id}',
   'const openStoreProductFromOrder = (sourceLink: string, fallbackStore: StoreId)',
   "openStoreProductFromCart(sourceLink, 'orders')",
+  "screen === 'home' && pendingBackTargetRef.current === 'orders'",
+  "returnTarget === 'orders' && (screenRef.current === 'tracking' || screenRef.current === 'home')",
   'className="tracking-product-button"',
   "detail?.type === 'backToOrders'",
 ]) {
   if (!app.includes(marker)) throw new Error(`Order-number visibility guard missing App marker: ${marker}`)
+}
+
+const orderProductOpenStart = app.indexOf('const openStoreProductFromOrder = (sourceLink: string, fallbackStore: StoreId)')
+const orderProductOpenEnd = app.indexOf('const openStoreFromHub = (id: StoreId)', orderProductOpenStart)
+const orderProductOpenSource = app.slice(orderProductOpenStart, orderProductOpenEnd)
+const orderWarmOpen = orderProductOpenSource.indexOf("openStoreProductFromCart(sourceLink, 'orders')")
+const orderImmediateHome = orderProductOpenSource.indexOf("screenRef.current = 'home'", orderWarmOpen)
+const orderImmediateCommit = orderProductOpenSource.indexOf("flushSync(() => setScreen('home'))", orderImmediateHome)
+if (orderProductOpenStart < 0 || orderProductOpenEnd < 0 || orderWarmOpen < 0 ||
+    orderImmediateHome < orderWarmOpen || orderImmediateCommit < orderImmediateHome) {
+  throw new Error('Order product must enter the warm store flow and commit Home immediately on tap')
 }
 if (!/\.mobile-content--orders\s*\{[^}]*grid-auto-rows:\s*max-content/s.test(customerStyles)) {
   throw new Error('Orders grid must size each order card from its full content so the footer cannot be clipped')
