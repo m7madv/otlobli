@@ -1,3 +1,27 @@
+# Active handoff — v86.227/1092 exact v86.216 region regression boundary (2026-08-23)
+
+Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`
+on `codex/otlobli-v86-212-testflight-auth`. Marketing is `86.227`; iOS is
+`1092` and Android is `1091`.
+
+The user physically established that v86.216 changes SHEIN region correctly and
+v86.217 first broke it; the failure remains in v86.226. Commit `233bc46` removed
+the v86.216 short browse-ready continuation during signed-address repair and
+added Home-unknown cancellation. The cancellation had already been removed, but
+the continuation had not. v86.227 restores the exact `1.8s`/low-end `2.8s`
+head-start plus per-path visual/signed readiness, while Add/capture still require
+full signed READY. Preserve the guard that forbids
+`home-unknown-repair-cancelled` and the explicit-mismatch-only Home rule.
+
+Full build, release/SHEIN guards, unchanged performance budgets, both native
+syncs, and Android `assembleDebug` pass. Store bundle is `250,063` bytes/SHA-256
+`102B4C016C49E6D6F36EA2AD04D0521048B8DB5C5FA4886325614CFB278B8F0B`.
+Android artifact is `output/Otlobli-v86.227-build-1091-Android-debug.apk`,
+`11,113,604` bytes/SHA-256
+`0DCBC2601DEE34D01F288A4A5D48A72E65EB1AB14256CFE977F2ACEFB3B37528`.
+TestFlight and physical acceptance remain pending. Preserve all lifecycle,
+navigation, orders, auth, Temu, and `JSON.stringify` region invariants.
+
 # Active handoff — v86.226/1091 release v86.71 interactive readiness (2026-08-23)
 
 Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`

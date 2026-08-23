@@ -406,19 +406,22 @@ const checks = [
     ],
   },
   {
-    label: 'SHEIN v86.71 signed-region cover release',
+    label: 'SHEIN v86.216 browse-ready region continuation',
     file: 'src/services/sheinSessionScript.ts',
     markers: [
       'var sheinNativeCoverRepairActive = false;',
+      "var sheinNativeCoverVisualReadyPath = '';",
+      'now - sheinNativeCoverRepairStartedAt >= (OTLOBLI_LOW_END ? 2800 : 1800)',
+      'now - sheinNativeCoverInteractiveCheckAt >= (OTLOBLI_LOW_END ? 900 : 450)',
       'if (Date.now() - sheinNativeCoverRepairStartedAt >= 12000)',
       'closeResolvedSheinShippingUi(true);',
-      "sheinPostNativeCoverState('sheinSaudiReady')",
-      "sheinPostNativeCoverState('sheinPageInteractive')",
+      "sheinPostNativeCoverState('sheinSaudiReady', true)",
+      "sheinPostNativeCoverState('sheinPageInteractive', true)",
     ],
     forbidden: [
-      'sheinNativeCoverInteractiveCheckAt',
-      'sheinNativeCoverVisualReadyPath',
       '__otlobliAutomaticRegionRepairExhausted',
+      'home-unknown-repair-cancelled',
+      'if (!productRoute && !explicitRegionMismatch)',
     ],
   },
   {

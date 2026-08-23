@@ -1,3 +1,38 @@
+# v86.227/1092 — restore the physically accepted v86.216 region contract (2026-08-23)
+
+Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
+`codex/otlobli-v86-212-testflight-auth`. Marketing is `86.227`; iOS is `1092`
+and Android is `1091`.
+
+The user physically confirmed the exact regression boundary: `86.216` changes
+the SHEIN region correctly, while `86.217` introduced the failure that remains
+in `86.226`. Commit comparison confirms v86.217 removed v86.216's bounded
+browse-ready path during signed-address repair and added a Home rule that
+cancelled repair when address state was `unknown` rather than an explicit
+`mismatch`. The later Home cancellation was already removed, but the v86.216
+short visual-ready continuation was still missing.
+
+This batch restores that remaining v86.216 contract: after a `1.8s` normal or
+`2.8s` low-end head start, a policy/currency/language/capture-safe interactive
+page may be browsed while the same bounded signed-address cascade continues.
+Per-path visual/signed readiness prevents stale page events. Add/capture remains
+fail-closed on full coordinator READY and the signed address. The release guard
+now requires the v86.216 markers and forbids the v86.217 Home-unknown cancellation.
+No reload, new polling loop, DOM observer, diagnostic UI, or lifecycle recompose
+was added.
+
+All targeted and full production guards pass. Existing performance limits pass:
+startup/largest JS `658,718/720,000` and `/1,200,000`, total JS gzip
+`264,278/370,000`, CSS `69,968/70,000`, fonts `81,364/100,000`, shipped store
+scripts `227,411/470,000`, and store source `518,366/600,000`. Android/iOS sync
+and Android `assembleDebug` pass. The synchronized store bundle
+`storeCaptureBundle-DqgI3sKU.js` is `250,063` bytes, SHA-256
+`102B4C016C49E6D6F36EA2AD04D0521048B8DB5C5FA4886325614CFB278B8F0B`.
+Android artifact `output/Otlobli-v86.227-build-1091-Android-debug.apk` is
+`11,113,604` bytes, SHA-256
+`0DCBC2601DEE34D01F288A4A5D48A72E65EB1AB14256CFE977F2ACEFB3B37528`.
+TestFlight and physical acceptance are pending; never infer device acceptance.
+
 # v86.226/1091 — release the v86.71 interactive page without weakening Add (2026-08-23)
 
 Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
