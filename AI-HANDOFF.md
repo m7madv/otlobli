@@ -19,8 +19,16 @@ syncs, and Android `assembleDebug` pass. Store bundle is `250,063` bytes/SHA-256
 Android artifact is `output/Otlobli-v86.227-build-1091-Android-debug.apk`,
 `11,113,604` bytes/SHA-256
 `0DCBC2601DEE34D01F288A4A5D48A72E65EB1AB14256CFE977F2ACEFB3B37528`.
-TestFlight and physical acceptance remain pending. Preserve all lifecycle,
-navigation, orders, auth, Temu, and `JSON.stringify` region invariants.
+Signed run `32662460797` from `8ce2cce` passed with delivery UUID
+`616777a5-f4c9-4b08-a21a-b0f226222d09`; `86.227 (1092)` is
+`VALID`/`IN_BETA_TESTING`, all-builds in `Otlobli Internal`, expected tester
+state `INSTALLED`, and public review was skipped. IPA is `10,460,026`
+bytes/SHA-256 `4484FD3B0313D0885DC5832D581BFE13203F9CB67BB206077B1D11BAACA12960`;
+dSYMs are `14,858,923` bytes/SHA-256
+`885EE512576461BFDAC3E34009F8066E74FEA4C065B3ADDC1FAEEA2B347E3F42`,
+under `output/testflight-v86.227-build-1092-run-32662460797`. Physical acceptance
+remains pending. Preserve all lifecycle, navigation, orders, auth, Temu, and
+`JSON.stringify` region invariants.
 
 # Active handoff — v86.226/1091 release v86.71 interactive readiness (2026-08-23)
 

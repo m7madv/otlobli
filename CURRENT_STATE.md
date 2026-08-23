@@ -31,7 +31,17 @@ and Android `assembleDebug` pass. The synchronized store bundle
 Android artifact `output/Otlobli-v86.227-build-1091-Android-debug.apk` is
 `11,113,604` bytes, SHA-256
 `0DCBC2601DEE34D01F288A4A5D48A72E65EB1AB14256CFE977F2ACEFB3B37528`.
-TestFlight and physical acceptance are pending; never infer device acceptance.
+Signed workflow [32662460797](https://github.com/m7madv/otlobli/actions/runs/32662460797)
+passed from `8ce2cce`: Apple validation/upload succeeded, delivery UUID
+`616777a5-f4c9-4b08-a21a-b0f226222d09`, and exact `86.227 (1092)` is
+`VALID`/`IN_BETA_TESTING` with all-builds access for `Otlobli Internal`; expected
+tester state is `INSTALLED`. Public App Store review was skipped. Downloaded
+artifacts are under `output/testflight-v86.227-build-1092-run-32662460797`:
+the `10,460,026`-byte IPA has SHA-256
+`4484FD3B0313D0885DC5832D581BFE13203F9CB67BB206077B1D11BAACA12960`,
+and the `14,858,923`-byte dSYMs archive has SHA-256
+`885EE512576461BFDAC3E34009F8066E74FEA4C065B3ADDC1FAEEA2B347E3F42`.
+Physical acceptance is pending; never infer device acceptance.
 
 # v86.226/1091 — release the v86.71 interactive page without weakening Add (2026-08-23)
 
