@@ -402,7 +402,7 @@ const checks = [
       'coordinator["languageState"] as? String == "matching"',
       'coordinator["policyState"] as? String == "verified"',
       'coordinator["captureState"] as? String == "ready"',
-      'countryState == "matching" && regionState == "matching"',
+      'countryState != "mismatch" && regionState != "mismatch"',
     ],
   },
   {
@@ -416,7 +416,6 @@ const checks = [
       "sheinPostNativeCoverState('sheinPageInteractive')",
     ],
     forbidden: [
-      'visual-ready-before-region',
       'sheinNativeCoverInteractiveCheckAt',
       'sheinNativeCoverVisualReadyPath',
       '__otlobliAutomaticRegionRepairExhausted',

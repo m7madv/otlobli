@@ -994,7 +994,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         let regionState = coordinator["regionState"] as? String ?? "unknown"
         let loginState = coordinator["loginState"] as? String ?? "unknown"
         let humanState = coordinator["humanVerificationState"] as? String ?? "none"
-        return countryState == "matching" && regionState == "matching" &&
+        return countryState != "mismatch" && regionState != "mismatch" &&
             ["not-required", "blocked"].contains(loginState) && humanState != "required"
     }
 
@@ -1008,10 +1008,9 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
                 updateNativeBackButton(detail)
                 return
             }
-            // A painted page alone is not readiness. A localized, policy-safe
-            // Keep the cover until the server-managed country and SHEIN's
-            // signed shipping address both match. A merely painted page can
-            // still belong to the previous region after an admin change.
+            // Match v86.71: a policy-safe interactive page may be browsed while
+            // the bounded signed-address repair continues. Explicit mismatch
+            // stays covered and transaction capture remains fail-closed.
             if shouldReleaseLoadingCover(for: detail) {
                 hideLoadingCover()
             }

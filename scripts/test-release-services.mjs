@@ -226,7 +226,7 @@ const browseReady = {
   regionState: 'unknown',
 }
 assert.equal(coordinator.isSheinCoordinatorReady(browseReady), false, 'Signed region is still required for transaction readiness')
-assert.equal(coordinator.isSheinCoordinatorVisuallyReady(browseReady), false, 'The v86.71 flow must keep the store covered until the signed region cascade finishes')
+assert.equal(coordinator.isSheinCoordinatorVisuallyReady(browseReady), true, 'The v86.71 flow must release safe browsing while signed region repair continues')
 assert.equal(coordinator.isSheinCoordinatorVisuallyReady({ ...browseReady, currencyState: 'mismatch' }), false)
 assert.equal(coordinator.isSheinCoordinatorVisuallyReady({ ...browseReady, humanVerificationState: 'required' }), false)
 

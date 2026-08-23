@@ -1,3 +1,39 @@
+# v86.226/1091 — release the v86.71 interactive page without weakening Add (2026-08-23)
+
+Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
+`codex/otlobli-v86-212-testflight-auth`. Marketing is `86.226`; iOS is `1091`
+and Android is `1090`.
+
+The user's physical iPhone rejects `86.225 (1090)`: SHEIN never becomes visible
+and remains on «جاري تجهيز المتجر». Windows sees the connected iPhone 16 Pro
+Max/iOS 27 USB interfaces and 3uTools initially identified the device, but its
+Apple service session timed out before syslog opened. Source-level comparison
+with accepted commit `56d1c56` is decisive: v86.71 unconditionally consumed
+`sheinPageInteractive`, while v86.225 required fully matching country+signed
+region in both React and native Swift. After the bounded 12s repair timeout the
+page emitted `sheinPageInteractive` with unknown region, both gates rejected it,
+and the preparation cover could never close.
+
+The correction restores the v86.71 separation: a policy-safe, localized,
+interactive page with no explicit country/region mismatch may be browsed while
+the bounded automatic signed-address cascade continues. Full coordinator READY
+and `sheinSignedSaudiAddressReady()` remain mandatory for Add/capture. No timer,
+polling, reload, recompose, diagnostic UI, or early DOM cleaner was added. The
+automatic product/Home region path, one-time server-change runtime-cache reset,
+human verification, current navigation/orders/auth, and lifecycle defenses are
+unchanged. Targeted release-service and SHEIN freeze guards pass. Full build,
+both native syncs, and Android `assembleDebug` pass. The unchanged synchronized
+store bundle is `249,770` bytes with SHA-256
+`1EBA8CD8D892D558E1AD4E277B97777E1C8478180C6580D59E235FBF9F38179A`.
+The Android artifact is
+`output/Otlobli-v86.226-build-1090-Android-debug.apk`, `11,113,448` bytes,
+SHA-256 `54BF073B97C750EEC7A3C5B28844CCE7CB54226D8EE2A01B802B7AEE86A95055`.
+The full production budgets remain within their existing limits: startup/largest
+JS `658,718/720,000` and `/1,200,000`, total JS gzip `264,163/370,000`, CSS
+`69,968/70,000`, fonts `81,364/100,000`, shipped store scripts
+`227,118/470,000`, and store source `516,561/600,000`. TestFlight and physical
+acceptance are pending; do not infer device acceptance from these checks.
+
 # v86.225/1090 — restore the physically accepted v86.71 server-region path (2026-08-23)
 
 Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on

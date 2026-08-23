@@ -1,3 +1,30 @@
+# Active handoff — v86.226/1091 release v86.71 interactive readiness (2026-08-23)
+
+Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`
+on `codex/otlobli-v86-212-testflight-auth`. Marketing is `86.226`; iOS is
+`1091` and Android is `1090`.
+
+The user physically rejected `86.225 (1090)` because SHEIN remained forever on
+«جاري تجهيز المتجر». USB detection confirmed iPhone 16 Pro Max/iOS 27, but
+3uTools timed out before syslog. The code cause is proven independently against
+accepted `56d1c56`: `sheinPageInteractive` after the bounded repair timeout was
+rejected by both React and Swift unless country+signed region were fully
+matching. That is stricter than v86.71 and creates an infinite cover.
+
+Preserve the v86.226 correction: visual readiness accepts `unknown` country or
+region but rejects explicit mismatch; policy/currency/language/capture/login and
+interactive checks remain. Full READY and signed-address checks still gate Add.
+No new periodic work or diagnostic UI exists. Complete full build, both native
+syncs, Android `assembleDebug`, all release guards, and performance budgets pass.
+The synchronized store bundle remains `249,770` bytes/SHA-256
+`1EBA8CD8D892D558E1AD4E277B97777E1C8478180C6580D59E235FBF9F38179A`;
+the Android artifact is `output/Otlobli-v86.226-build-1090-Android-debug.apk`,
+`11,113,448` bytes/SHA-256
+`54BF073B97C750EEC7A3C5B28844CCE7CB54226D8EE2A01B802B7AEE86A95055`.
+TestFlight and physical acceptance remain pending. Never infer device acceptance.
+Preserve every lifecycle invariant and the automatic v86.71 region path restored
+in v86.225.
+
 # Active handoff — v86.225/1090 exact v86.71 server-region restoration (2026-08-23)
 
 Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`

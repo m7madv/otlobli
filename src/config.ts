@@ -21,4 +21,4 @@ export const TEST_ONLY_AUTH_BYPASS = false
 export const TEMU_PERSONAL_SITE_MODE = false
 
 // رقم النسخة الظاهر داخل التطبيق.
-export const APP_VERSION = '86.225'
+export const APP_VERSION = '86.226'
