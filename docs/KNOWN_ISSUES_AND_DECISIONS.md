@@ -14,8 +14,10 @@
   a timer, route polling, DOM observer, reload, or duplicate HTML/native button.
 - **Boundary:** preserve Temu-owned inner navigation, root-only Otlobli exit,
   SHEIN v86.228 region/policy behavior, lifecycle timing, transactions, and
-  orders. Builds and structural guards prove packaging only; real iPhone
-  product → Back → Home acceptance remains pending.
+  orders. Signed run `32667383788` delivered exact `86.229 (1094)` internally as
+  `VALID`/`IN_BETA_TESTING` with no public submission. Builds and distribution
+  prove packaging only; real iPhone product → Back → Home acceptance remains
+  pending.
 
 ## v86.224 — prepare SHEIN region on Home; republish Temu Back natively (2026-08-23)
 

@@ -19,8 +19,18 @@ timer, retry, scan, reload, or lifecycle work. The structural store guard requir
 the call inside that observer. The patch applies strictly to a fresh dependency;
 all production guards/build/budgets, native syncs, Android assembly, and artifact
 scan pass. Android artifact/hash and exact budgets are at the top of
-`CURRENT_STATE.md`. TestFlight delivery and physical Temu acceptance remain
-pending; do not claim iPhone success until the user repeats product → Back → Home.
+`CURRENT_STATE.md`. Signed run
+[32667383788](https://github.com/m7madv/otlobli/actions/runs/32667383788)
+passed from `de3ae2593ffc5abec0eea6b241153fe780cf2c5f`; Apple delivery UUID is
+`02801af5-7936-43de-870f-af8c234194a6`. Exact `86.229 (1094)` is
+`VALID`/`IN_BETA_TESTING` in the internal all-builds group, expected tester state
+is `INSTALLED`, and public review was skipped. Local IPA is `10,460,323`
+bytes/SHA-256 `49DABD543789E8D9DBB21D06FC04F86E8ACC114557D1972AA2B3E5FE24A6ACAE`;
+dSYMs are `14,858,947` bytes/SHA-256
+`EF7CB71DB6B75FDC2FA484B88FD75D71DCB732955AB22A31D771D404DDCC0C7D`, under
+`output/testflight-v86.229-build-1094-run-32667383788`. Physical Temu acceptance
+remains pending; do not claim iPhone success until the user repeats product →
+Back → Home.
 
 # Active handoff — v86.228/1093 TestFlight Qatar region/policy repair (2026-08-24)
 

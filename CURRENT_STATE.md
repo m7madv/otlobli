@@ -33,8 +33,20 @@ SHA-256 `DC1AD9C5AEA6C7E909371F046E121CF31E56F80CDA64B51D3B4D562F4B74BE48`.
 Android artifact `output/Otlobli-v86.229-build-1093-Android-debug.apk` is
 `11,115,898` bytes, SHA-256
 `CD1543209E7E5C34143E1917029857FEE98A9820A43EF6968A6E65E51A3A1391`.
-TestFlight and physical Temu acceptance for `86.229 (1094)` are still pending;
-never infer them from guards or the Android build.
+Signed workflow
+[32667383788](https://github.com/m7madv/otlobli/actions/runs/32667383788)
+passed from `de3ae2593ffc5abec0eea6b241153fe780cf2c5f`. Apple validation/upload
+succeeded with delivery UUID `02801af5-7936-43de-870f-af8c234194a6`; exact
+`86.229 (1094)` is `VALID`/`IN_BETA_TESTING` in the `Otlobli Internal`
+all-builds group, with expected tester state `INSTALLED`. Public review was
+skipped. Downloaded artifacts are under
+`output/testflight-v86.229-build-1094-run-32667383788`: the `10,460,323`-byte
+IPA has SHA-256
+`49DABD543789E8D9DBB21D06FC04F86E8ACC114557D1972AA2B3E5FE24A6ACAE`, and
+the `14,858,947`-byte dSYMs archive has SHA-256
+`EF7CB71DB6B75FDC2FA484B88FD75D71DCB732955AB22A31D771D404DDCC0C7D`.
+Physical Temu acceptance remains pending; delivery/build success is not device
+acceptance.
 
 # v86.228/1093 — TestFlight SHEIN Qatar policy/region fix (2026-08-24)
 
