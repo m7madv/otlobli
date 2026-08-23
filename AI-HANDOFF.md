@@ -24,6 +24,20 @@ low-end budgets, both syncs, three-root artifact scan, and Android assembly
 pass. Exact hashes/budgets are at the top of `CURRENT_STATE.md`. Real iPhone 16
 acceptance of button position and Temu's product→Home path is still pending.
 
+Signed run `32642833471` from `692c835` succeeded. Apple `VERIFY`/`UPLOAD`
+reported no errors; delivery UUID `eac22189-ddc5-4089-b682-176f60569c10`.
+Exact `86.223 (1086)` is `VALID`/`IN_BETA_TESTING` in the verified all-builds
+`Otlobli Internal` group, with expected tester state `INSTALLED`. Artifact ID
+`9494161426`, size `25,115,824`, digest
+`sha256:25c860d4410387f92bc6a42d4b03c61dd338a4bcd0532f6c29685ee642ce992b`.
+Downloaded IPA is `10,459,456` bytes with SHA-256
+`A7708933F753567509EE80456754BC30797DA698EE0E4A5010227C6C6A3F9AD1`;
+dSYM is `14,858,667` bytes with SHA-256
+`CA1FF14EB740065CEF6034DE27FF8683E8D4E994C6B2A760A8C460FBF3ABF36D`.
+The App Store review step was deliberately skipped; the editable `86.223`
+draft remains on build `1085`. Do not link/submit 1086 before device acceptance
+and completion of the owner's missing App Store metadata.
+
 The temporary SHEIN flight recorder and every enabling path are deleted:
 module/stub/fixture, App state/listeners/imports, Vite env/alias, Workflow
 input, injected feature flags, early-protection scans/timer, and old standalone

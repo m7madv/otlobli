@@ -29,6 +29,26 @@ open Otlobli's store chooser without destroying the parked store session.
 The production navigation style key is `v86.223.1` so an already-mounted bar is
 upgraded safely.
 
+Signed workflow run `32642833471` from commit `692c835` passed clean patch
+installation, all release guards, Apple Distribution archive/export,
+production-asset verification, signature/profile/auth callback checks, Apple
+`VERIFY` and `UPLOAD` with no errors, processing, and internal distribution for
+exact build `86.223 (1086)`. Delivery UUID is
+`eac22189-ddc5-4089-b682-176f60569c10`; Apple reports `VALID` and
+`IN_BETA_TESTING`, the `Otlobli Internal` all-builds group is verified, and the
+expected tester remains `INSTALLED`. GitHub artifact ID `9494161426` is
+`25,115,824` bytes with digest
+`sha256:25c860d4410387f92bc6a42d4b03c61dd338a4bcd0532f6c29685ee642ce992b`.
+The accepted IPA is downloaded at
+`output/testflight-v86.223-build-1086-run-32642833471/otlobli-v86.223-build-1086-testflight.ipa`;
+it is `10,459,456` bytes, SHA-256
+`A7708933F753567509EE80456754BC30797DA698EE0E4A5010227C6C6A3F9AD1`.
+Its dSYM is `14,858,667` bytes, SHA-256
+`CA1FF14EB740065CEF6034DE27FF8683E8D4E994C6B2A760A8C460FBF3ABF36D`.
+App Store submission was intentionally skipped: draft `86.223` remains linked
+to accepted build `1085` until this new UI behavior is accepted on the real
+iPhone and the owner's missing store metadata is completed.
+
 The user reports that the v86.222 physical test is working and asked to remove
 all temporary experimental/diagnostic tooling and publish to the App Store.
 The tested product-navigation, native iOS Back, post-load blockers, and
