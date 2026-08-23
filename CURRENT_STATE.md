@@ -3,7 +3,7 @@
 Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
 `codex/otlobli-v86-212-testflight-auth`. Source is `86.222/1084`, locally
 validated and synchronized to Android/iOS as an internal diagnostic candidate.
-It is not yet uploaded to TestFlight and is not real-device acceptance.
+It is delivered to internal TestFlight but is not real-device acceptance.
 
 The physical v86.221 flight recorder produced the first exact cause: the
 persistent PDP spinner did not appear before N6, while enabling N6 immediately
@@ -57,6 +57,29 @@ artifact `output/Otlobli-v86.222-SHEIN-safe-navigation-region-Android-debug.apk`
 is 11,128,645 bytes, SHA-256
 `C67D80FC2D361D497199EA0BC8438BAA67A9967C023A7FDA919BC22BDF779AAB`,
 package `com.otlobli.app`, version `86.222/1084`.
+
+Signed workflow run `32608307685` from
+`35bcaeba71b79a87d51b0357a2548e7c1f182214` passed the diagnostic build,
+sync, universal device/auth/generated-asset checks, Apple Distribution archive
+and export, signature/profile/callback verification, Apple validation, upload,
+processing, and internal distribution. `VERIFY SUCCEEDED` and
+`UPLOAD SUCCEEDED` had no errors; delivery UUID is
+`e0e18aeb-3fd0-4362-9602-f9ec451e8227`. App Store Connect verified exact
+`86.222 (1084)` as `VALID`/`IN_BETA_TESTING`, internal all-builds group
+`Otlobli Internal`, and tester `mhm1981dx@gmail.com` state `INSTALLED`. No
+public submission occurred.
+
+GitHub artifact `9484859515`,
+`otlobli-ios-v86.222-build-1084-testflight`, is 25,129,358 bytes with digest
+`sha256:d3090e83f0056fb95ac3487a8057a548fc65d1fee7aa99ec024cd28a9c213d47`.
+Downloaded signed IPA
+`output/otlobli-ios-v86.222-testflight-run-32608307685/otlobli-v86.222-build-1084-testflight.ipa`
+is 10,472,249 bytes, SHA-256
+`D964F2E4264D87EC1750F2E5BE2C505D159FBEBD097CE0255E6AC367EF51CB7C`.
+Its dSYMs ZIP is 14,858,055 bytes, SHA-256
+`9913656EC42E8C4A0FC7EA85A542BAB716774BC4BA33D2ED2F6187A1471A9666`.
+Signed-IPA inspection confirms the exact store/diagnostic hashes above plus
+embedded provisioning and CodeResources.
 
 No native lifecycle/recompose, payment, wallet, completed-order, authentication,
 or backend behavior changed. Physical acceptance is pending: first cold-open

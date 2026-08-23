@@ -3,7 +3,7 @@
 Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`
 on `codex/otlobli-v86-212-testflight-auth`. Source is `86.222/1084` and the
 diagnostic build is synchronized to Android and iOS. It has passed local gates
-but has not yet been uploaded to TestFlight or accepted on a real device.
+and internal TestFlight delivery but is not accepted on a real device.
 
 Treat the user's v86.221 result as authoritative. N6 was the first consistent
 failure and is the proven list-to-PDP spinner trigger: document-start ran
@@ -24,9 +24,12 @@ address. Do not weaken the Add gate.
 All exact hashes, budgets, APK, and screenshot are at the top of
 `CURRENT_STATE.md`. TypeScript, guards, both builds, Playwright, native syncs,
 and Android assembly pass. No native lifecycle, payment, wallet, orders, auth,
-or backend code changed. Next external step is internal-only TestFlight with
-`store_script_diagnostics=true`; never enable public distribution. After device
-install: cold Home, several products on N5, product/Home native Back, then R1
+or backend code changed. Signed run `32608307685` passed from `35bcaeb`;
+delivery UUID `e0e18aeb-3fd0-4362-9602-f9ec451e8227`, exact build
+`86.222 (1084)` is `VALID`/`IN_BETA_TESTING` in `Otlobli Internal`, expected
+tester state `INSTALLED`, and signed IPA SHA-256 is
+`D964F2E4264D87EC1750F2E5BE2C505D159FBEBD097CE0255E6AC367EF51CB7C`.
+No public distribution occurred. After device install: cold Home, several products on N5, product/Home native Back, then R1
 and one Add. Five resume cycles and a cold launch remain mandatory before any
 fixed/release claim.
 
