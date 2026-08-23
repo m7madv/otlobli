@@ -102,15 +102,22 @@ for (const marker of [
   'allowedTypes', 'allowedRoutes', "return json({ error: 'invalid_payload' }, 400)", 'x-push-secret',
   "const APNS_TOPIC = 'com.otlobli.app'", "'apns-expiration': expiration", "'apns-push-type': 'alert'",
   "'apns-priority': '10'", 'DeviceTokenNotForTopic', 'retryStatuses', 'attempt < 3',
-  "supabase.rpc('disable_device_token'", 'retryable', 'requestId',
+  "supabase.rpc('disable_device_token'", 'retryable', 'requestId', 'providerForPushDevice',
+  'partial_provider_not_configured', 'configuration', 'notConfigured',
 ]) {
   assert.ok(push.includes(marker), `Push sender missing ${marker}`)
 }
 assert.ok(!push.includes("console.error('FCM send failed', res.status, errText)"), 'Push provider errors must not log raw bodies')
+const { providerForPushDevice } = loadTypeScriptModule('supabase/functions/send-push/routing.ts')
+assert.equal(providerForPushDevice('ios', { apns: true, fcm: true }), 'apns')
+assert.equal(providerForPushDevice('android', { apns: true, fcm: true }), 'fcm')
+assert.equal(providerForPushDevice('ios', { apns: false, fcm: true }), null, 'iOS APNs tokens must never fall back to FCM')
+assert.equal(providerForPushDevice('android', { apns: true, fcm: false }), null, 'Android FCM tokens must never fall back to APNs')
 const adminPush = readFileSync(resolve(root, 'admin/src/AdminApp.tsx'), 'utf8')
 for (const marker of [
   'MANUAL_NOTIFICATION_DATA', "version: '1'", "type: 'system'", "route: 'notifications'",
-  'data: MANUAL_NOTIFICATION_DATA', 'PUSH_ERROR_MESSAGES',
+  'data: MANUAL_NOTIFICATION_DATA', 'PUSH_ERROR_MESSAGES', 'configuration?.apns === false',
+  'إشعارات iPhone غير مُهيّأة',
 ]) {
   assert.ok(adminPush.includes(marker), `Admin push sender missing ${marker}`)
 }

@@ -1,3 +1,37 @@
+# iPhone push delivery diagnosis and provider isolation (2026-08-24)
+
+The user's post-fix Admin sends were accepted but produced no iPhone alert.
+Production data proves the TestFlight app registered a current 64-hex APNs
+token for `86.229`, iOS `27.0`, provider `apns`, environment `production`.
+At the exact send time every iOS token was changed to `enabled=false`. Live
+Supabase secrets prove all four direct APNs settings are absent: `APNS_KEY`,
+`APNS_KEY_ID`, `APNS_TEAM_ID`, and `APNS_BUNDLE_ID`.
+
+The server had a second defect: when APNs was unavailable but FCM was ready, its
+generic `else if (fcmReady)` sent iOS APNs tokens to Google's Android endpoint.
+FCM correctly rejected those foreign tokens as invalid, and the cleanup path
+disabled them. `send-push` now selects a provider through a tested strict
+mapping: iOS → APNs only and Android → FCM only. An unavailable provider is
+reported as not configured and never cross-sent or invalidated. Responses now
+include provider readiness and partial-delivery reasons. Admin displays an
+explicit Arabic iPhone/APNs warning instead of calling an Android-only send a
+success. The latest exact `86.229` production APNs token was safely restored;
+older tokens remain disabled.
+
+Release-service tests and Admin production build pass. Supabase `send-push` is
+live as version `12` with its existing `verify_jwt=false`. Vercel deployment
+`dpl_5Hox1znVUuT7da6Q9tWLvrDe2Tpv` is `READY` at
+`https://talabieh-admin.vercel.app`; no-cache asset
+`/assets/index-CYarYdQc.js` is `275,048` bytes/SHA-256
+`1522E9F1527E5CABAA379C89EBFD7A6F5F2343F45D1384135BFD0BA745942054`
+and contains the APNs readiness warning. No test notification was sent by the
+AI. Actual iPhone delivery remains blocked only on creating a dedicated Apple
+Push Notifications `.p8` key in the owner's Apple Developer account and setting
+the four Supabase secrets. The two retained keys are deliberately not reused:
+`M8GFL27JUT` is App Store Connect and `FAMAKDMKT6` is Sign in with Apple. Apple
+login/2FA is required for the key-creation step. This server/Admin-only batch
+does not require a new TestFlight build.
+
 # Production Admin push payload repair (2026-08-24)
 
 The user physically accepted the complete `86.229 (1094)` Temu behavior on the

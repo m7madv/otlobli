@@ -1,3 +1,33 @@
+# Active handoff — iPhone push blocked only on APNs key creation (2026-08-24)
+
+Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`
+on `codex/otlobli-v86-212-testflight-auth`. The user's Admin send was accepted
+but no iPhone alert arrived. Do not blame device permission or rebuild iOS:
+production has a current `86.229`, iOS 27, production APNs token with valid
+64-hex shape. The send itself disabled it because direct APNs secrets were
+absent and the old server incorrectly fell through to FCM.
+
+Preserve the strict tested provider mapping in
+`supabase/functions/send-push/routing.ts`: iOS may use APNs only; Android may
+use FCM only. Missing providers are skipped and reported, never cross-sent or
+invalidated. Admin consumes `configuration.apns` and partial failure results so
+an Android-only success cannot hide broken iPhone delivery. The newest exact
+`86.229` APNs token was restored; do not bulk-enable historical tokens.
+
+Live state: `send-push` v12, `verify_jwt=false`; Admin deployment
+`dpl_5Hox1znVUuT7da6Q9tWLvrDe2Tpv`; asset `/assets/index-CYarYdQc.js`,
+`275,048` bytes, SHA-256
+`1522E9F1527E5CABAA379C89EBFD7A6F5F2343F45D1384135BFD0BA745942054`.
+Tests/build pass. All four APNs secrets remain absent. The App Store Connect key
+`M8GFL27JUT` and SIWA key `FAMAKDMKT6` are not APNs credentials and must not be
+repurposed without verified portal capability. The next step requires the owner
+to sign in/complete 2FA at Apple Developer → Certificates, Identifiers &
+Profiles → Keys, create a dedicated Apple Push Notifications service key,
+download its one-time `.p8`, and retain Key ID. Then set `APNS_KEY`,
+`APNS_KEY_ID`, `APNS_TEAM_ID=36D743K87T`, and
+`APNS_BUNDLE_ID=com.otlobli.app` in Supabase, redeploy `send-push`, and send one
+owner-approved targeted test. No new TestFlight build is needed.
+
 # Active handoff — production Admin push contract repaired (2026-08-24)
 
 Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`

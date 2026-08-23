@@ -49,14 +49,22 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 > ملاحظة: مفتاح حساب الخدمة السرّي حُذف من مجلد التنزيلات بعد تخزينه (يمكن إعادة توليده من
 > Firebase → Project settings → Service accounts وقت الحاجة). ملف `google-services.json` غير سرّي.
 
-### ب) آيفون (APNs) — يحتاج Apple Developer (مدفوع) — مؤجَّل
+### ب) آيفون (APNs) — حساب المطور موجود، مفتاح Push ما زال مطلوباً
+
+> حالة الإنتاج في 2026-08-24: التطبيق سجّل رمز APNs إنتاجياً صحيحاً، لكن
+> `APNS_KEY` و`APNS_KEY_ID` و`APNS_TEAM_ID` و`APNS_BUNDLE_ID` غير موجودة في
+> Supabase. تم منع الخادم من تمرير رمز iPhone إلى FCM عند غيابها، وصارت لوحة
+> الإدارة تعرض نقص APNs بصراحة. المفتاح `M8GFL27JUT` خاص بـApp Store Connect،
+> والمفتاح `FAMAKDMKT6` خاص بـSign in with Apple؛ لا تستخدم أيّاً منهما كـAPNs
+> من دون إثبات أن خدمة Push مفعلة عليه في بوابة Apple.
 
 1. من <https://developer.apple.com/account> → **Keys** → أنشئ مفتاح **APNs** (نوع Apple Push Notifications service).
    نزّل ملف `.p8` وسجّل **Key ID** و**Team ID**.
 2. في Firebase → إعدادات مشروع → **Cloud Messaging** → **Apple app configuration** → ارفع مفتاح APNs.
    (بهذا يرسل FCM للآيفون أيضاً، ولن تحتاج APNs مباشرة.)
-   — أو بدل ذلك اضبط متغيّرات `send-push`: `APNS_KEY` (محتوى p8)، `APNS_KEY_ID`، `APNS_TEAM_ID`،
-   `APNS_BUNDLE_ID`، `APNS_PRODUCTION=true`.
+   — أو، وهو المسار المستخدم حالياً، اضبط متغيّرات `send-push`: `APNS_KEY`
+   (محتوى p8)، `APNS_KEY_ID`، `APNS_TEAM_ID=36D743K87T`،
+   `APNS_BUNDLE_ID=com.otlobli.app`.
 3. في Xcode: أضِف قدرة **Push Notifications** و**Background Modes → Remote notifications**.
 
 ### ج) الربط بالطلبات — ✅ مضبوط

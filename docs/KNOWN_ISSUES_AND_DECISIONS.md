@@ -1,5 +1,22 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
+## Push providers are strict; APNs requires its own live key (2026-08-24)
+
+- **Evidence:** production has a valid-shape `86.229` production APNs token, but
+  the user's send disabled every iOS row at the same timestamp. All four direct
+  APNs secrets are absent.
+- **Cause:** the old fallback sent an iOS APNs token to FCM whenever APNs was
+  unavailable but Android FCM was configured. FCM rejected the foreign token
+  and invalid-token cleanup disabled it.
+- **Decision:** provider selection is a pure tested mapping: iOS → APNs and
+  Android → FCM, with no cross-provider fallback. Missing providers are skipped
+  and reported through readiness/partial-delivery fields; Admin must surface an
+  iPhone/APNs warning. Only the newest `86.229` iOS token was restored.
+- **Remaining external step:** create a dedicated Apple Push Notifications
+  service key after owner login/2FA, then configure the four Supabase secrets.
+  Do not substitute the App Store Connect or SIWA key without verified APNs
+  capability. No customer-app rebuild is required.
+
 ## Admin push senders use the hardened payload contract (2026-08-24)
 
 - **Symptom:** manual notifications reached the live `send-push` function but

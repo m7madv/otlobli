@@ -1916,6 +1916,23 @@ const PUSH_ERROR_MESSAGES: Record<string, string> = {
   unauthorized: 'انتهت صلاحية جلسة الإدارة. سجّل الدخول مجدداً.',
 }
 
+type PushDeliverySummary = {
+  sent?: number
+  invalid?: number
+  retryable?: number
+  failed?: number
+  notConfigured?: number
+}
+
+type PushSendResponse = {
+  sent?: number
+  total?: number
+  reason?: string
+  error?: string
+  configuration?: { apns?: boolean; fcm?: boolean }
+  delivery?: { apns?: PushDeliverySummary; fcm?: PushDeliverySummary }
+}
+
 function NotificationsPanel({ pin, showNotice }: { pin: string; showNotice: (message: string) => void }) {
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
@@ -1953,20 +1970,32 @@ function NotificationsPanel({ pin, showNotice }: { pin: string; showNotice: (mes
       body: JSON.stringify(payload),
     })
       .then(async (res) => {
-        const data = (await res.json().catch(() => ({}))) as { sent?: number; total?: number; reason?: string; error?: string }
+        const data = (await res.json().catch(() => ({}))) as PushSendResponse
         if (!res.ok) throw new Error(PUSH_ERROR_MESSAGES[data.error ?? ''] ?? 'فشل إرسال الإشعار')
         if (data.reason === 'not_configured') {
-          setLastResult({ ok: false, text: '⚠️ الإشعارات غير مُفعّلة بعد (مفاتيح Firebase غير مضبوطة).' })
+          setLastResult({ ok: false, text: '⚠️ بوابات الإشعارات غير مُهيّأة بعد على الخادم.' })
           showNotice('الإشعارات غير مُفعّلة بعد')
           return
         }
         if (data.reason === 'no_devices') {
-          setLastResult({ ok: false, text: 'لا توجد أجهزة مفعّلة للإشعارات بعد. وجود حساب وحده لا يكفي؛ يجب فتح أحدث نسخة من التطبيق، تسجيل الدخول، والسماح بالإشعارات مرة واحدة.' })
+          const iosNote = data.configuration?.apns === false ? ' كما أن بوابة APNs للآيفون غير مُهيّأة.' : ''
+          setLastResult({ ok: false, text: `لا توجد أجهزة مفعّلة للإشعارات بعد. وجود حساب وحده لا يكفي؛ يجب فتح أحدث نسخة من التطبيق، تسجيل الدخول، والسماح بالإشعارات مرة واحدة.${iosNote}` })
           showNotice('لا يوجد أجهزة مسجّلة بعد')
           return
         }
-        setLastResult({ ok: true, text: `✅ تم الإرسال بنجاح إلى ${data.sent ?? 0} جهاز من أصل ${data.total ?? 0}.` })
-        showNotice(`تم الإرسال إلى ${data.sent ?? 0} جهاز`)
+        const sent = data.sent ?? 0
+        const total = data.total ?? 0
+        const apnsUnavailable = data.configuration?.apns === false
+        const deliveryIncomplete = sent < total || data.reason === 'delivery_failed' || data.reason === 'partial_delivery_failure'
+        if (apnsUnavailable || deliveryIncomplete) {
+          const iosText = apnsUnavailable ? ' بوابة APNs غير مُهيّأة، لذلك لم يصل الإشعار لأي iPhone.' : ''
+          const failedText = deliveryIncomplete ? ` تعذّر التسليم إلى ${Math.max(0, total - sent)} جهاز.` : ''
+          setLastResult({ ok: false, text: `⚠️ تم الإرسال إلى ${sent} جهاز من أصل ${total}.${iosText}${failedText}` })
+          showNotice(apnsUnavailable ? 'إشعارات iPhone غير مُهيّأة' : 'اكتمل الإرسال جزئياً')
+          return
+        }
+        setLastResult({ ok: true, text: `✅ تم الإرسال بنجاح إلى ${sent} جهاز من أصل ${total}.` })
+        showNotice(`تم الإرسال إلى ${sent} جهاز`)
         setTitle('')
         setBody('')
       })

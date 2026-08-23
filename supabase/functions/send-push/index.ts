@@ -5,6 +5,7 @@
 // المصادقة على الاستدعاء: ترويسة x-push-secret == PUSH_TRIGGER_SECRET،
 // أو x-admin-pin == ADMIN_PIN. إن لم يُضبط أي منهما → تُرفض كل الاستدعاءات.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { providerForPushDevice } from './routing.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -305,32 +306,38 @@ Deno.serve(async (req) => {
   else if (body.broadcast === true) query = query.limit(5000) // إرسال جماعي لكل الأجهزة
   else return json({ error: 'missing_target' }, 400)
 
+  const fcmReady = !!FCM_SERVICE_ACCOUNT_JSON
+  const apnsReady = !!(APNS_KEY && APNS_KEY_ID && APNS_TEAM_ID && APNS_BUNDLE_ID === APNS_TOPIC)
+  const configuration = { fcm: fcmReady, apns: apnsReady }
+
   const { data: rows, error } = await query
   if (error) return json({ error: error.message }, 500)
   const devices = (rows ?? []) as { token: string; platform: string; environment?: string }[]
-  if (devices.length === 0) return json({ sent: 0, reason: 'no_devices' })
-  if (body.dryRun === true) return json({ dryRun: true, eligible: devices.length, payload: data })
+  if (devices.length === 0) return json({ sent: 0, reason: 'no_devices', configuration })
+  if (body.dryRun === true) return json({ dryRun: true, eligible: devices.length, payload: data, configuration })
 
   // إن لم تُضبط أي بوابة إرسال، اخرج بهدوء (خامل وآمن).
-  const fcmReady = !!FCM_SERVICE_ACCOUNT_JSON
-  const apnsReady = !!(APNS_KEY && APNS_KEY_ID && APNS_TEAM_ID && APNS_BUNDLE_ID === APNS_TOPIC)
-  if (!fcmReady && !apnsReady) return json({ sent: 0, reason: 'not_configured' })
+  if (!fcmReady && !apnsReady) return json({ sent: 0, total: devices.length, reason: 'not_configured', configuration })
 
   let sent = 0
   const toDisable: string[] = []
   const delivery = {
-    apns: { sent: 0, invalid: 0, retryable: 0, failed: 0 },
-    fcm: { sent: 0, invalid: 0, retryable: 0, failed: 0 },
+    apns: { sent: 0, invalid: 0, retryable: 0, failed: 0, notConfigured: 0 },
+    fcm: { sent: 0, invalid: 0, retryable: 0, failed: 0, notConfigured: 0 },
   }
   for (const d of devices) {
-    let result: DeliveryResult = {
-      provider: d.platform === 'ios' ? 'apns' : 'fcm', ok: false, invalid: false,
-      retryable: false, status: 0, reason: 'provider_not_configured', requestId: '',
+    const provider = providerForPushDevice(d.platform, configuration)
+    if (!provider) {
+      if (d.platform === 'ios') delivery.apns.notConfigured++
+      else if (d.platform === 'android') delivery.fcm.notConfigured++
+      continue
     }
-    if (d.platform === 'ios' && apnsReady) {
+    let result: DeliveryResult
+    if (provider === 'apns') {
       result = await sendApns(d.token, title, bodyText, data, d.environment !== 'development')
+    } else {
+      result = await sendFcm(d.token, title, bodyText, data)
     }
-    else if (fcmReady) result = await sendFcm(d.token, title, bodyText, data)
     const summary = delivery[result.provider]
     if (result.ok) { sent++; summary.sent++ }
     else if (result.invalid) { toDisable.push(d.token); summary.invalid++ }
@@ -343,5 +350,12 @@ Deno.serve(async (req) => {
     await supabase.rpc('disable_device_token', { p_token: t })
   }
 
-  return json({ sent, total: devices.length, disabled: toDisable.length, delivery })
+  const notConfigured = delivery.apns.notConfigured + delivery.fcm.notConfigured
+  const undelivered = devices.length - sent
+  const reason = notConfigured > 0
+    ? (sent > 0 ? 'partial_provider_not_configured' : 'provider_not_configured')
+    : undelivered > 0
+      ? (sent > 0 ? 'partial_delivery_failure' : 'delivery_failed')
+      : undefined
+  return json({ sent, total: devices.length, disabled: toDisable.length, delivery, configuration, reason })
 })
