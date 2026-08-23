@@ -1,3 +1,27 @@
+# Active handoff — v86.229/1094 Temu Back follows SPA URL changes (2026-08-24)
+
+Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`
+on `codex/otlobli-v86-212-testflight-auth`. Marketing is `86.229`; iOS is `1094`
+and Android is `1093`. The user physically confirmed the v86.228 SHEIN Qatar
+region issue is solved. Do not disturb that three-part policy/region correction.
+
+The remaining recording proves Temu's green native Back appears on first entry,
+is correctly absent on a product, then stays absent after returning to the
+listing/Home surface. v86.224 hid it in native `didStart` and re-published only
+from `didFinish`/`pageshow`. Temu performs this product/Home transition as SPA
+history: `WKWebView.url` changes, while those completion/wake callbacks are not
+guaranteed. The already-installed URL KVO observer is the exact missing event.
+
+Preserve the v86.229 correction in the Capgo 8.6.25 patch: the `case "URL"`
+branch binds the live WebView, emits the existing URL event/interface, and calls
+`republishOtlobliNativeBackState(in: webView)`. This is event-driven and adds no
+timer, retry, scan, reload, or lifecycle work. The structural store guard requires
+the call inside that observer. The patch applies strictly to a fresh dependency;
+all production guards/build/budgets, native syncs, Android assembly, and artifact
+scan pass. Android artifact/hash and exact budgets are at the top of
+`CURRENT_STATE.md`. TestFlight delivery and physical Temu acceptance remain
+pending; do not claim iPhone success until the user repeats product → Back → Home.
+
 # Active handoff — v86.228/1093 TestFlight Qatar region/policy repair (2026-08-24)
 
 Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`

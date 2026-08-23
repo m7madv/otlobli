@@ -1,5 +1,22 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
+## v86.229 — Temu Back follows the iOS WebView URL event (2026-08-24)
+
+- **Physical evidence:** v86.228 fixed the reported SHEIN Qatar region issue.
+  In the remaining 58.54-second Temu recording, native Back is present on first
+  entry, correctly hidden on the PDP, and absent after the PDP returns to the
+  listing/Home surface.
+- **Cause:** native provisional navigation hides the button. v86.224 re-published
+  it only from `didFinish` and `pageshow`, but Temu's SPA product/Home history
+  changes `WKWebView.url` without guaranteeing those callbacks.
+- **Decision:** the existing URL KVO branch re-publishes the current document's
+  deduplicated Back state. This is the authoritative event boundary; do not add
+  a timer, route polling, DOM observer, reload, or duplicate HTML/native button.
+- **Boundary:** preserve Temu-owned inner navigation, root-only Otlobli exit,
+  SHEIN v86.228 region/policy behavior, lifecycle timing, transactions, and
+  orders. Builds and structural guards prove packaging only; real iPhone
+  product → Back → Home acceptance remains pending.
+
 ## v86.224 — prepare SHEIN region on Home; republish Temu Back natively (2026-08-23)
 
 - **Physical evidence:** `86.223 (1088)` improved some Temu speed/blocking but

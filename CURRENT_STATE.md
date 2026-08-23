@@ -1,3 +1,41 @@
+# v86.229/1094 — republish Temu iOS Back on SPA URL change (2026-08-24)
+
+Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
+`codex/otlobli-v86-212-testflight-auth`. Marketing is `86.229`; iOS is `1094`
+and Android is `1093`. The user physically accepted the v86.228 SHEIN Qatar
+region correction. This batch is limited to the remaining Temu iOS Back issue.
+
+Frame review of the supplied 58.54-second iPhone recording confirms the green
+native Back is visible on first Temu entry, is hidden on a product as intended,
+but does not return after the product navigates back to the listing/Home surface.
+Native `didStartProvisionalNavigation` owns the hide. The v86.224 repair only
+re-published from `didFinish` and JavaScript `pageshow`; Temu's SPA product/Home
+history transition instead updates the already-observed `WKWebView.url` without
+guaranteeing either callback, leaving the native control hidden.
+
+The Capgo iOS patch now reuses that exact URL KVO event to call the existing
+`republishOtlobliNativeBackState(in:)`. That event clears the document dedupe key
+and asks the current route to publish its one native Back state, so inner Temu
+pages remain owned by Temu while the root exit returns immediately on Home. No
+timer, polling, DOM scan, reload, WebView rebuild, lifecycle timing, SHEIN region,
+orders, wallet, payment, or backend behavior changed. The store guard now checks
+that the re-publication call lives inside the URL observer, not merely elsewhere
+in the patch.
+
+The dependency patch applies strictly to a fresh 8.6.25 package. Full production
+build, release/auth/security/SHEIN/Temu/store guards, both native syncs, Android
+`assembleDebug`, and the three-root artifact scan pass. Performance remains
+within the existing limits: startup/largest JS `658,718/720,000` and
+`/1,200,000`, total JS gzip `264,572/370,000`, CSS `69,968/70,000`, fonts
+`81,364/100,000`, shipped store scripts `227,477/470,000`, and source
+`519,044/600,000`. Bundle `storeCaptureBundle-uuEtemj5.js` is `250,644` bytes,
+SHA-256 `DC1AD9C5AEA6C7E909371F046E121CF31E56F80CDA64B51D3B4D562F4B74BE48`.
+Android artifact `output/Otlobli-v86.229-build-1093-Android-debug.apk` is
+`11,115,898` bytes, SHA-256
+`CD1543209E7E5C34143E1917029857FEE98A9820A43EF6968A6E65E51A3A1391`.
+TestFlight and physical Temu acceptance for `86.229 (1094)` are still pending;
+never infer them from guards or the Android build.
+
 # v86.228/1093 — TestFlight SHEIN Qatar policy/region fix (2026-08-24)
 
 Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on

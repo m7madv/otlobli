@@ -195,10 +195,22 @@ for (const marker of [
   'The native back control is also required by Temu',
   '["cart", "orders", "exit"].contains(target)',
   '["type": "backToOrders"]',
+  'guard let webView = self.webView else { return }',
+  'updates WKWebView.url without a didFinish/pageshow callback',
+  'republishOtlobliNativeBackState(in: webView)',
 ]) {
   if (!inAppBrowserPatch.includes(marker)) {
     throw new Error(`Native loading/root-exit patch guard missing marker: ${marker}`)
   }
+}
+
+const temuBackUrlObserverStart = inAppBrowserPatch.indexOf('case "URL":')
+const temuBackUrlObserverEnd = inAppBrowserPatch.indexOf('default:', temuBackUrlObserverStart)
+const temuBackUrlObserver = inAppBrowserPatch.slice(temuBackUrlObserverStart, temuBackUrlObserverEnd)
+if (temuBackUrlObserverStart < 0 || temuBackUrlObserverEnd < 0 ||
+    !temuBackUrlObserver.includes('guard let webView = self.webView else { return }') ||
+    !temuBackUrlObserver.includes('republishOtlobliNativeBackState(in: webView)')) {
+  throw new Error('Temu iOS Back must re-publish from the WKWebView URL observer for SPA product/Home transitions')
 }
 
 if (app.includes('temuAddInFlightRef')) {

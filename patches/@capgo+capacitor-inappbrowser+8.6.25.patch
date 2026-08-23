@@ -2521,6 +2521,28 @@ index 97a2fc1..b89293c 100644
          self.allowWebViewJsVisibilityControl = parent.allowWebViewJsVisibilityControl
          self.allowScreenshotsFromWebPage = parent.allowScreenshotsFromWebPage
          self.handleDownloads = parent.handleDownloads
+@@ -1717,14 +2358,19 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+             if self.hasDynamicTitle {
+                 self.navigationItem.title = webView?.url?.host
+             }
+         case "URL":
+             // Guard against notifications during cleanup when webView is being torn down
+-            guard self.webView != nil else { return }
+-            emit("urlChangeEvent", data: ["url": webView?.url?.absoluteString ?? ""])
++            guard let webView = self.webView else { return }
++            emit("urlChangeEvent", data: ["url": webView.url?.absoluteString ?? ""])
+             DispatchQueue.main.async { [weak self] in
+                 self?.updateBarButtonItems()
+             }
+             self.injectJavaScriptInterface()
++            // Temu changes product/Home routes through history state, which
++            // updates WKWebView.url without a didFinish/pageshow callback.
++            // Re-publish at that exact event so a Back-hidden native button is
++            // restored when the live SPA route returns to Home.
++            republishOtlobliNativeBackState(in: webView)
+         default:
+             super.observeValue(forKeyPath: keyPath, of: object, change: change, context: context)
+         }
 @@ -1818,6 +2459,23 @@ public extension WKWebViewController {
  
      open func cleanupWebView() {

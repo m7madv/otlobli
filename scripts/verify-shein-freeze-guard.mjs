@@ -689,6 +689,7 @@ const checks = [
       'otlobliNativeBackButton?.isHidden = true',
       'private func republishOtlobliNativeBackState(in webView: WKWebView)',
       'republishOtlobliNativeBackState(in: webView)',
+      'updates WKWebView.url without a didFinish/pageshow callback',
     ],
   },
   {
