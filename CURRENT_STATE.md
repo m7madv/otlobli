@@ -1,3 +1,30 @@
+# v86.230/1095 — TestFlight uploaded and internally distributed (2026-08-24)
+
+Signed workflow
+[32673961608](https://github.com/m7madv/otlobli/actions/runs/32673961608)
+passed from exact source `b8f05e13d6f68e9a170fc5e419209ec7e6911f64`.
+Apple accepted the upload with delivery UUID
+`39aa64a7-dc63-4895-9fe9-81a9f3ef8838`; exact `86.230 (1095)` is `VALID`
+and `IN_BETA_TESTING` in the `Otlobli Internal` all-builds group. Expected
+tester membership is verified and the tester state is `INSTALLED`. Public App
+Store review was explicitly disabled and skipped; this is a TestFlight-only
+release for physical acceptance before any store submission.
+
+Downloaded artifacts are under
+`output/testflight-v86.230-build-1095-run-32673961608`. The `10,460,853`-byte
+IPA has SHA-256
+`5F886B0D053A076AD85073079CF0152AC9709388DD04D1D575890791788FE049`;
+the `14,858,947`-byte dSYMs archive has SHA-256
+`F9E770FA70E87016B652ED3BE34AA1DC38B76DC283D982728BCBFC0F26E58C4D`.
+Workflow production build, native sync, signing/profile/auth callback checks,
+upload, processing, and internal distribution all passed.
+
+The iOS deployment target remains 15.0. An actual iPhone 6 cannot install this
+build because that model is limited to the iOS 12 generation; iPhone 6s and
+later can run iOS 15. Confirm the exact model before expecting TestFlight to
+offer the build. Real-device acceptance of v86.230 remains unperformed; test on
+a compatible iPhone before authorizing public App Store submission.
+
 # v86.230/1095 — two-store identity, unified auth, signed Android production artifacts (2026-08-24)
 
 Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on

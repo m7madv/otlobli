@@ -1,3 +1,26 @@
+# Active handoff — v86.230/1095 is live in internal TestFlight (2026-08-24)
+
+Signed run
+[32673961608](https://github.com/m7madv/otlobli/actions/runs/32673961608)
+passed from `b8f05e13d6f68e9a170fc5e419209ec7e6911f64`. Apple delivery UUID is
+`39aa64a7-dc63-4895-9fe9-81a9f3ef8838`. Exact `86.230 (1095)` is `VALID` and
+`IN_BETA_TESTING` in the internal all-builds group; expected tester state is
+`INSTALLED`. App Review submission was false and the public-review step was
+skipped. Do not submit publicly until the owner completes physical acceptance
+and explicitly asks.
+
+Local artifacts are under
+`output/testflight-v86.230-build-1095-run-32673961608`. IPA is `10,460,853`
+bytes/SHA-256
+`5F886B0D053A076AD85073079CF0152AC9709388DD04D1D575890791788FE049`;
+dSYMs are `14,858,947` bytes/SHA-256
+`F9E770FA70E87016B652ED3BE34AA1DC38B76DC283D982728BCBFC0F26E58C4D`.
+
+Deployment target remains iOS 15.0. iPhone 6 (not 6s) is incompatible because
+it belongs to the iOS 12 device set; iPhone 6s or later is required for this
+build. Ask the owner to confirm the exact model and test v86.230 on a compatible
+iPhone. No physical acceptance of this new auth/design build is recorded yet.
+
 # Active handoff — v86.230/1095 unified auth and signed Android release (2026-08-24)
 
 Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`
