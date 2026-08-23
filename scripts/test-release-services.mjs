@@ -226,7 +226,7 @@ const browseReady = {
   regionState: 'unknown',
 }
 assert.equal(coordinator.isSheinCoordinatorReady(browseReady), false, 'Signed region is still required for transaction readiness')
-assert.equal(coordinator.isSheinCoordinatorVisuallyReady(browseReady), true, 'Safe localized browsing should not wait for the signed region cascade')
+assert.equal(coordinator.isSheinCoordinatorVisuallyReady(browseReady), false, 'The v86.71 flow must keep the store covered until the signed region cascade finishes')
 assert.equal(coordinator.isSheinCoordinatorVisuallyReady({ ...browseReady, currencyState: 'mismatch' }), false)
 assert.equal(coordinator.isSheinCoordinatorVisuallyReady({ ...browseReady, humanVerificationState: 'required' }), false)
 
@@ -262,7 +262,7 @@ assert.deepEqual(JSON.parse(JSON.stringify(opening.summarizeSheinOpeningRecords(
 
 const protectedHashes = new Map([
   ['src/services/sheinBrowserScript.ts', '332BD28F21817A40FCEE982580F0EF118BB59A1E297E2FE4104BF7002872D2DB'],
-  ['src/services/storeProductCaptureScript.ts', 'F6E613631AEEA8E4FE0A0DA82D960523A9AA22201C6834F7DDCAF0849B4CE483'],
+  ['src/services/storeProductCaptureScript.ts', '25BC6DD21D3339447C343BB92D3F343ABCBA607172DB5A8CE4F5537F044F5648'],
   ['src/services/sheinSkuTap.ts', '79A1011CF55344D06BFCFC796FCAEB5CFF58F705F7FD95BA1686D69D802DEE83'],
 ])
 for (const [file, expected] of protectedHashes) {

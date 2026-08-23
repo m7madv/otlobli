@@ -3328,10 +3328,10 @@ export const STORE_PRODUCT_CAPTURE_SCRIPT = `
     if (IS_SHEIN) {
       __otlobliCartToastGuardUntil = Date.now() + 7000;
       var addBtn = document.getElementById('otlobli-add-btn');
-      // Browsing never reopens an exhausted automatic region cascade on each
-      // PDP. The customer's explicit Add action is the one safe place to grant
-      // a fresh native repair attempt while the purchase gate remains closed.
-      if (!ensureSheinSaudiStore(true)) {
+      // Use the same signed-region gate as the accepted v86.71 flow. Product
+      // entry may already have started the bounded native cascade; Add simply
+      // reuses it and remains fail-closed until the signed address matches.
+      if (!ensureSheinSaudiStore()) {
         var requiredCountryLabel = typeof sheinRegionCountryLabel === 'function'
           ? sheinRegionCountryLabel() : SHEIN_REQUIRED_COUNTRY;
         showMessage(addBtn, 'جاري إكمال عنوان الشحن داخل ' + requiredCountryLabel + '… اضغط إضافة بعد إغلاق النافذة');

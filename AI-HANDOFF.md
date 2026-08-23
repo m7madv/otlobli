@@ -1,3 +1,34 @@
+# Active handoff — v86.225/1090 exact v86.71 server-region restoration (2026-08-23)
+
+Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`
+on `codex/otlobli-v86-212-testflight-auth`. Marketing is `86.225`; iOS is
+`1090` and Android is `1089`.
+
+The user physically rejected `86.224 (1089)` with both reported failures still
+present. The exact old chat was found: after v86.69/v86.70, the one-time runtime
+cache refresh in `v86.71` commit `56d1c56` was tested and explicitly accepted
+as «كتير كتير ضابطة». Preserve the restored region contract:
+
+- A changed Admin/server SHEIN region marks `sheinCacheResetPendingRef`, closes
+  the active store session, calls `InAppBrowser.clearCache()` once on reopen,
+  and preserves cookies/localStorage/signed address.
+- Product routes and the semantic Home entry may automatically start the signed
+  region cascade. Do not restore Home-only/manual-Add gating, visual readiness
+  before signed readiness, or automatic country-exhaustion storage.
+- Add remains fail-closed. The native cover requires matching country+region,
+  while human verification remains visible and untouched.
+- Do not reintroduce diagnostics. Preserve `otlobliForceRecompose`, 0.25s,
+  Android resume, and the `JSON.stringify` region comparison.
+
+All local release/auth/security/store guards, the full production build, low-end
+budgets, both native syncs, and Android `assembleDebug` pass. The synchronized
+store bundle is `249,770` bytes with SHA-256
+`1EBA8CD8D892D558E1AD4E277B97777E1C8478180C6580D59E235FBF9F38179A`;
+the Android artifact and hash are at the top of `CURRENT_STATE.md`. Complete the
+signed TestFlight run and record its delivery/artifact details. Device acceptance
+remains mandatory and must not be inferred. Temu Back was not changed by this
+region-only restoration and remains an honestly open device issue.
+
 # Active handoff — v86.224/1089 Home-prepared SHEIN + native Temu Back (2026-08-23)
 
 Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`

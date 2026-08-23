@@ -1,3 +1,45 @@
+# v86.225/1090 — restore the physically accepted v86.71 server-region path (2026-08-23)
+
+Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
+`codex/otlobli-v86-212-testflight-auth`. Marketing is `86.225`; iOS is `1090`
+and Android is `1089`.
+
+The user's physical test rejects `86.224 (1089)`: the same SHEIN region failure
+and Temu product -> Home Back loss remain. Searching the actual Codex chat found
+the exact remembered acceptance sequence, not an inferred older snapshot:
+`v86.69` introduced the fast signed-address path, `v86.70` connected independent
+JO/AE/QA/SA Admin/server settings, and `v86.71` commit `56d1c56` refreshed only
+the runtime cache on a server-region change. After testing v86.71 the user said
+the build was «كتير كتير ضابطة».
+
+This batch restores only that v86.71 operational region path while preserving
+the current app, authentication, Orders links, navigation, blocking, capture,
+and iPhone lifecycle defenses. A server setting change marks the active SHEIN
+cache reset pending, closes the old store session, clears HTTP runtime cache
+only, and reopens once without deleting cookies/localStorage/signed address.
+An unsigned mismatch may again start automatic native region preparation from
+a product route or the Home region entry. Later Home-only/manual-Add gating,
+automatic country exhaustion, and visually-ready-before-signed behavior are
+removed. Add remains fail-closed. The native iOS preparation cover now releases
+only when both server country and signed region are matching; human verification
+remains explicitly usable. Experimental diagnostics remain deleted.
+
+Full production build passes every release/auth/security/SHEIN/Temu/store guard,
+postbuild hardening, and the unchanged low-end budgets: startup/largest JS
+`658,435/720,000` and `/1,200,000`, total JS gzip `264,132/370,000`, CSS
+`69,968/70,000`, fonts `81,364/100,000`, shipped store scripts
+`227,118/470,000`, and source `516,561/600,000`. Android/iOS sync and Android
+`assembleDebug` pass. The synchronized store bundle
+`storeCaptureBundle-BZn7Ofmk.js` is `249,770` bytes, SHA-256
+`1EBA8CD8D892D558E1AD4E277B97777E1C8478180C6580D59E235FBF9F38179A`.
+Android artifact `output/Otlobli-v86.225-build-1089-Android-debug.apk` is
+`11,113,408` bytes, SHA-256
+`7E1EE70B38B992355CFC55ADCF4F05A01727DE6916F4F0052503F94921F26AAF`.
+TestFlight and physical acceptance remain pending. Temu Back code is unchanged
+in this region-only restoration and must not be claimed fixed. Preserve
+`otlobliForceRecompose`, its 0.25s `appDidBecomeActive` call, Android resume,
+and the `JSON.stringify` server-region comparison.
+
 # v86.224/1089 — SHEIN Home preflight and native Temu Back republish (2026-08-23)
 
 Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on

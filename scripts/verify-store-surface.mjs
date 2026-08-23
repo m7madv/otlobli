@@ -105,12 +105,13 @@ if (runtimeCoordinator.includes('otlobliCleanTemuBlockers(true)')) {
 }
 
 for (const marker of [
-  'var valueCountry = sheinCountryCodeFromLabel(rawValue);',
-  'var repairStalledFor = repairNow - Math.max(sheinShippingProgressAt || 0, sheinNativeCoverRepairStartedAt);',
-  'var repairAbsoluteLimit = OTLOBLI_LOW_END ? 45000 : 36000;',
-  "'جاري إكمال عنوان الشحن داخل ' + requiredCountryLabel",
+  'var countryFromName = sheinCountryCodeFromLabel(name);',
+  'if (Date.now() - sheinNativeCoverRepairStartedAt >= 12000)',
+  'function sheinPrimeRegionRepairFromRoute()',
+  'var repairStarted = sheinPrepareNativeSaudiRepair();',
+  "sheinRegionCountryLabel() + '</span>'",
 ]) {
-  if (!captureScript.includes(marker)) throw new Error(`SHEIN Qatar cascade guard missing marker: ${marker}`)
+  if (!captureScript.includes(marker)) throw new Error(`SHEIN v86.71 region cascade guard missing marker: ${marker}`)
 }
 
 const temuHomeLikePath = (rawPath) => {

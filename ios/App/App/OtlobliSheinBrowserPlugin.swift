@@ -994,7 +994,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         let regionState = coordinator["regionState"] as? String ?? "unknown"
         let loginState = coordinator["loginState"] as? String ?? "unknown"
         let humanState = coordinator["humanVerificationState"] as? String ?? "none"
-        return countryState != "mismatch" && regionState != "mismatch" &&
+        return countryState == "matching" && regionState == "matching" &&
             ["not-required", "blocked"].contains(loginState) && humanState != "required"
     }
 
@@ -1009,8 +1009,9 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
                 return
             }
             // A painted page alone is not readiness. A localized, policy-safe
-            // interactive page may be browsed while signed shipping repair
-            // continues; checkout capture still waits for sheinSaudiReady.
+            // Keep the cover until the server-managed country and SHEIN's
+            // signed shipping address both match. A merely painted page can
+            // still belong to the previous region after an admin change.
             if shouldReleaseLoadingCover(for: detail) {
                 hideLoadingCover()
             }

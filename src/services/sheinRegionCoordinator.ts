@@ -94,16 +94,11 @@ export const isSheinCoordinatorReady = (state: SheinRegionCoordinatorState) =>
   (state.loginState === 'not-required' || state.loginState === 'blocked') &&
   state.policyState === 'verified' && state.captureState === 'ready' && state.interactive
 
-// Visual readiness is deliberately narrower than "the DOM painted" but does
-// not wait for SHEIN's signed shipping cascade. Browsing can be revealed while
-// a missing country/region is repaired in the background; transaction capture
-// remains fail-closed because full READY still requires both to match.
-export const isSheinCoordinatorVisuallyReady = (state: SheinRegionCoordinatorState) =>
-  state.countryState !== 'mismatch' && state.regionState !== 'mismatch' &&
-  state.currencyState === 'matching' && state.languageState === 'matching' &&
-  (state.loginState === 'not-required' || state.loginState === 'blocked') &&
-  state.humanVerificationState !== 'required' &&
-  state.policyState === 'verified' && state.captureState === 'ready' && state.interactive
+// Keep the store behind Otlobli's loading surface until the complete signed
+// country/address state is ready. This is the proven v86.71 contract: a painted
+// SHEIN page is not enough to reveal a storefront that is still on the old
+// server-managed region.
+export const isSheinCoordinatorVisuallyReady = isSheinCoordinatorReady
 
 export function transitionSheinRegionCoordinator(
   state: SheinRegionCoordinatorState,

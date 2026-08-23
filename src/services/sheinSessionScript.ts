@@ -261,13 +261,8 @@ export const SHEIN_SESSION_SCRIPT = `
     try {
       var parsed = sheinAddressCookieData();
       if (!parsed) return '';
-      var rawValue = String((parsed.value || parsed.countryAbbr || parsed.countryCode) || '').trim();
-      var value = rawValue.toUpperCase();
+      var value = String((parsed.value || parsed.countryAbbr || parsed.countryCode) || '').toUpperCase();
       if (/^[A-Z]{2}$/.test(value)) return value;
-      // Variable-depth countries (including Qatar) can store the country name
-      // in value instead of the two-letter abbreviation used by Saudi.
-      var valueCountry = sheinCountryCodeFromLabel(rawValue);
-      if (valueCountry) return valueCountry;
       var name = String(parsed.countryName || '').trim();
       var countryId = String(parsed.countryId || '').trim();
       var countryFromName = sheinCountryCodeFromLabel(name);
@@ -302,32 +297,10 @@ export const SHEIN_SESSION_SCRIPT = `
   }
 
   var sheinNativeCoverInitialReleased = false;
-  var sheinNativeCoverVisualReadyPath = '';
-  var sheinNativeCoverSignedReadyPath = '';
   var sheinNativeCoverRepairActive = false;
   var sheinNativeCoverRepairStartedAt = 0;
   var sheinNativeCoverCooldownUntil = 0;
   var sheinNativeCoverLastKey = '';
-  var sheinNativeCoverRepairExhaustedKey = '';
-  var SHEIN_AUTOMATIC_REGION_REPAIR_STORAGE_KEY = '__otlobliAutomaticRegionRepairExhausted';
-  function sheinAutomaticRegionRepairKey() {
-    return SHEIN_REQUIRED_COUNTRY;
-  }
-  function sheinSetAutomaticRegionRepairExhausted(exhausted) {
-    var key = exhausted ? sheinAutomaticRegionRepairKey() : '';
-    sheinNativeCoverRepairExhaustedKey = key;
-    try {
-      if (key) sessionStorage.setItem(SHEIN_AUTOMATIC_REGION_REPAIR_STORAGE_KEY, key);
-      else sessionStorage.removeItem(SHEIN_AUTOMATIC_REGION_REPAIR_STORAGE_KEY);
-    } catch (e) {}
-  }
-  try {
-    var storedAutomaticRegionRepairKey = sessionStorage.getItem(SHEIN_AUTOMATIC_REGION_REPAIR_STORAGE_KEY) || '';
-    if (storedAutomaticRegionRepairKey === sheinAutomaticRegionRepairKey()) {
-      sheinNativeCoverRepairExhaustedKey = storedAutomaticRegionRepairKey;
-    }
-  } catch (e) {}
-
   var __otlobliFeedRetryCount = 0;
   var __otlobliFeedRetryAfter = 0;
 
@@ -415,7 +388,7 @@ export const SHEIN_SESSION_SCRIPT = `
     }
   }
 
-  function sheinCoordinatorSnapshot(interactiveOverride) {
+  function sheinCoordinatorSnapshot() {
     var addressCountry = sheinAddressCookieCountry();
     var countryState = addressCountry
       ? (addressCountry === SHEIN_REQUIRED_COUNTRY ? 'matching' : 'mismatch')
@@ -463,13 +436,11 @@ export const SHEIN_SESSION_SCRIPT = `
       humanVerificationState: otlobliIsHumanChallenge() ? 'required' : 'none',
       policyState: policyState,
       captureState: window.__otlobliStoreRuntimeReady === true ? 'ready' : 'installing',
-      interactive: typeof interactiveOverride === 'boolean'
-        ? interactiveOverride
-        : sheinPageLooksInteractive()
+      interactive: sheinPageLooksInteractive()
     };
   }
 
-  function sheinPostNativeCoverState(type, interactiveOverride) {
+  function sheinPostNativeCoverState(type) {
     if (!IS_SHEIN) return;
     var key = type + '|' + location.pathname;
     if (key === sheinNativeCoverLastKey) return;
@@ -479,7 +450,7 @@ export const SHEIN_SESSION_SCRIPT = `
         if (window.__otlobliSheinPolicyEngine && window.__otlobliSheinPolicyEngine.verify) {
           window.__otlobliSheinPolicyEngine.verify('region-state');
         }
-        window.mobileApp.postMessage({ detail: { type: type, coordinator: sheinCoordinatorSnapshot(interactiveOverride) } });
+        window.mobileApp.postMessage({ detail: { type: type, coordinator: sheinCoordinatorSnapshot() } });
       }
     } catch (e) {}
   }
@@ -524,14 +495,6 @@ export const SHEIN_SESSION_SCRIPT = `
       scheduleSheinShippingProgress(OTLOBLI_LOW_END ? 260 : 120);
       return true;
     }
-    // One automatic country repair is the complete budget for this WebView
-    // session. Keying exhaustion by PDP path reopened the same region cascade
-    // on every product. A signed success clears the guard, and an explicit Add
-    // action may request one new repair without weakening the purchase gate.
-    var repairKey = sheinAutomaticRegionRepairKey();
-    if (sheinNativeCoverRepairExhaustedKey === repairKey) {
-      return false;
-    }
     var now = Date.now();
     if (now < sheinNativeCoverCooldownUntil) {
       return false;
@@ -541,16 +504,13 @@ export const SHEIN_SESSION_SCRIPT = `
     sheinShippingProgressAt = now;
     sheinRegionVeilStartedAt = now;
     sheinRegionTransitionVeil(true);
-    var regionVeil = document.getElementById('otlobli-region-switching');
     scheduleSheinShippingProgress(OTLOBLI_LOW_END ? 240 : 90);
     return true;
   }
 
   function updateSheinNativeCoverState() {
     if (!IS_SHEIN) return;
-    var currentPath = String(location.pathname || '');
-    var signedReady = sheinSignedSaudiAddressReady();
-    if (signedReady) {
+    if (sheinSignedSaudiAddressReady()) {
       // Close SHEIN's resolved drawer first, then release the cover on the
       // next tick after its close animation detaches it.
       if (sheinShippingUiLikelyOpen() && sheinResolvedShippingUiRoot()) {
@@ -560,36 +520,21 @@ export const SHEIN_SESSION_SCRIPT = `
       }
       sheinNativeCoverRepairActive = false;
       sheinNativeCoverRepairStartedAt = 0;
-      sheinSetAutomaticRegionRepairExhausted(false);
       sheinRegionVeilStartedAt = 0;
       sheinRegionTransitionVeil(false);
       if (sheinShippingProgressTimer) {
         clearTimeout(sheinShippingProgressTimer);
         sheinShippingProgressTimer = 0;
       }
-      if (sheinNativeCoverSignedReadyPath !== currentPath) {
-        if (sheinPageLooksInteractive()) {
-          sheinNativeCoverInitialReleased = true;
-          sheinNativeCoverVisualReadyPath = currentPath;
-          sheinNativeCoverSignedReadyPath = currentPath;
-          sheinPostNativeCoverState('sheinSaudiReady', true);
-        }
+      if (!sheinNativeCoverInitialReleased && sheinPageLooksInteractive()) {
+        sheinNativeCoverInitialReleased = true;
+        sheinPostNativeCoverState('sheinSaudiReady');
       }
       return;
     }
     if (sheinNativeCoverRepairActive) {
-      var repairNow = Date.now();
-      var repairAge = repairNow - sheinNativeCoverRepairStartedAt;
-      var repairStalledFor = repairNow - Math.max(sheinShippingProgressAt || 0, sheinNativeCoverRepairStartedAt);
-      // Qatar's municipality/area/zone lists can each arrive asynchronously.
-      // The old fixed 12s deadline closed a progressing drawer exactly while
-      // its final zone-number list was loading. Keep the escape bounded, but
-      // base it on stalled progress with a separate absolute ceiling.
-      var repairStallLimit = OTLOBLI_LOW_END ? 20000 : 16000;
-      var repairAbsoluteLimit = OTLOBLI_LOW_END ? 45000 : 36000;
-      if (repairStalledFor >= repairStallLimit || repairAge >= repairAbsoluteLimit) {
+      if (Date.now() - sheinNativeCoverRepairStartedAt >= 12000) {
         closeResolvedSheinShippingUi(true);
-        sheinSetAutomaticRegionRepairExhausted(true);
         sheinNativeCoverRepairActive = false;
         sheinNativeCoverRepairStartedAt = 0;
         sheinNativeCoverCooldownUntil = Date.now() + 2500;
@@ -599,22 +544,17 @@ export const SHEIN_SESSION_SCRIPT = `
           clearTimeout(sheinShippingProgressTimer);
           sheinShippingProgressTimer = 0;
         }
-        if (sheinNativeCoverVisualReadyPath !== currentPath && sheinPageLooksInteractive()) {
+        if (sheinPageLooksInteractive()) {
           sheinNativeCoverInitialReleased = true;
-          sheinNativeCoverVisualReadyPath = currentPath;
-          sheinPostNativeCoverState('sheinPageInteractive', true);
+          sheinPostNativeCoverState('sheinPageInteractive');
         }
       }
       return;
     }
     sheinUpdateRegionTransitionVeil();
-    // With no active address repair (notably Home with no signed address), a
-    // healthy page may reveal normally. Product repair never reaches this path
-    // until it succeeds or hits the bounded timeout above.
-    if (sheinNativeCoverVisualReadyPath !== currentPath && sheinPageLooksInteractive()) {
+    if (!sheinNativeCoverInitialReleased && sheinPageLooksInteractive()) {
       sheinNativeCoverInitialReleased = true;
-      sheinNativeCoverVisualReadyPath = currentPath;
-      sheinPostNativeCoverState('sheinPageInteractive', true);
+      sheinPostNativeCoverState('sheinPageInteractive');
     }
   }
 
@@ -967,15 +907,8 @@ export const SHEIN_SESSION_SCRIPT = `
     var nodes = root.querySelectorAll('[data-country],[data-country-code],button,[role="option"],[role="button"],li,div,span');
     var rows = [];
     for (var i = 0; i < nodes.length && i < 900; i++) {
-      // A selected country tab repeats the country label, but it is not a row
-      // in the country picker. Treating it as one after a later cascade level
-      // is still loading sends the address flow back to the country tab. The
-      // Qatar device recording showed exactly that at the final zone-number
-      // level: Qatar -> Al Daayen -> Al Daayen -> choose zone -> Qatar again.
-      if (nodes[i].closest && nodes[i].closest('.address-header-tab,.cascade__tabs,[role="tab"]')) continue;
       if (!sheinCountryCodeFromLabel(sheinUiText(nodes[i]))) continue;
       var row = sheinClosestInteractive(nodes[i]);
-      if (row && row.closest && row.closest('.address-header-tab,.cascade__tabs,[role="tab"]')) continue;
       if (row && row !== root && sheinElementIsPainted(row) && rows.indexOf(row) < 0) rows.push(row);
     }
     return rows;
@@ -996,9 +929,7 @@ export const SHEIN_SESSION_SCRIPT = `
       }
     }
     var scroller = sheinAddressListScroller(options);
-    if (!scroller) {
-      return false;
-    }
+    if (!scroller) return false;
     try {
       var before = scroller.scrollTop;
       var delta = Math.max(160, Math.floor((scroller.clientHeight || 360) * 0.72));
@@ -1520,26 +1451,10 @@ export const SHEIN_SESSION_SCRIPT = `
 
   function ensureSheinSaudiShippingSelection() {
     if (!IS_SHEIN || !document.body || document.readyState === 'loading') return;
-    var productRoute = sheinLooksLikeProductRouteForShipping();
-    // Browsing a PDP must not open a shipping cascade or mutate the route.
-    // The explicit Otlobli Add action starts the same signed-address repair
-    // through ensureSheinSaudiStore(true), after which this function resumes.
-    if (productRoute && !sheinNativeCoverRepairActive) return;
-    var addressCountry = sheinAddressCookieCountry();
-    // The proven v86.68 flow completed the signed shipping address from
-    // SHEIN's semantic Home entry before the customer opened a product. Keep
-    // that preparation strictly on Home: product browsing never starts it,
-    // while an explicit Add may still resume the same fail-closed repair.
-    var homeRegionBootstrap = !productRoute && !!sheinFindHomeShippingEntryControl();
-    if (!productRoute && !homeRegionBootstrap) return;
-    if (productRoute && !sheinLooksLikeProductPageForShipping()) {
-      return;
-    }
+    if (!sheinLooksLikeProductPageForShipping() && !sheinFindHomeShippingEntryControl()) return;
     var now = Date.now();
     var sessionKey = SHEIN_REQUIRED_COUNTRY + ':' + location.pathname;
     if (sessionKey !== sheinShippingSessionKey) resetSheinShippingProgress(sessionKey);
-    if (!sheinSignedSaudiAddressReady() &&
-        sheinNativeCoverRepairExhaustedKey === sheinAutomaticRegionRepairKey()) return;
     if (!sheinSignedSaudiAddressReady()) sheinPrepareNativeSaudiRepair();
     var scanGap = sheinNativeCoverRepairActive
       ? (OTLOBLI_LOW_END ? 260 : 120)
@@ -1551,6 +1466,7 @@ export const SHEIN_SESSION_SCRIPT = `
       return;
     }
     sheinShippingLastScanAt = now;
+    var addressCountry = sheinAddressCookieCountry();
     if (addressCountry === SHEIN_REQUIRED_COUNTRY && sheinSignedSaudiAddressReady()) {
       sheinShippingActionCount = 0;
       sheinShippingLastTarget = null;
@@ -1559,10 +1475,7 @@ export const SHEIN_SESSION_SCRIPT = `
     }
     var visibleOptions = sheinVisibleCascadeOptions();
     var visibleTabs = sheinVisibleShippingTabs();
-    // Once two or more cascade tabs exist, the country has already been
-    // selected. A temporarily empty next-level list must be allowed to load;
-    // never broaden the scan back to country-labelled header controls.
-    if (!visibleOptions.length && visibleTabs.length <= 1) {
+    if (!visibleOptions.length) {
       visibleOptions = sheinCountryRowsInRoot(sheinResolvedShippingUiRoot());
     }
     sheinTranslateRegionLabels(visibleOptions, visibleTabs);
@@ -1634,33 +1547,19 @@ export const SHEIN_SESSION_SCRIPT = `
 
   function sheinPrimeRegionRepairFromRoute() {
     if (!IS_SHEIN || !sheinLooksLikeProductRouteForShipping()) return false;
-    if (otlobliIsHumanChallenge()) {
-      return false;
-    }
+    if (otlobliIsHumanChallenge()) return false;
     if (sheinSignedSaudiAddressReady()) {
       sheinRegionTransitionVeil(false);
-      return false;
-    }
-    // v86.221 physical isolation showed that beginning region repair merely
-    // by entering a product recreates the old spinner. Keep this hook before
-    // the interaction early-return so an already-authorized Add repair keeps
-    // progressing, but do not start a repair from browsing alone.
-    if (!sheinNativeCoverRepairActive) {
       return false;
     }
     var repairStarted = sheinPrepareNativeSaudiRepair();
     return repairStarted;
   }
 
-  function ensureSheinSaudiStore(manualRepair) {
+  function ensureSheinSaudiStore() {
     if (!IS_SHEIN) return true;
     // أثناء تحقق «أنا إنسان»: ممنوع أي إعادة تحميل/كتابة — تصفّر حل المستخدم.
     if (otlobliIsHumanChallenge()) return false;
-    // Do not rewrite an in-flight PDP URL or start its shipping drawer during
-    // ordinary browsing. Add is the fail-closed transaction boundary that may
-    // request the existing signed-region repair explicitly.
-    if (sheinLooksLikeProductRouteForShipping() && manualRepair !== true &&
-        !sheinNativeCoverRepairActive) return sheinSaudiSignalsOk();
     var normalized = otlobliNormalizeSheinUrl(location.href);
     var addressCountry = sheinAddressCookieCountry();
     var visibleForeignRegion = addressCountry === SHEIN_REQUIRED_COUNTRY ? false : sheinVisibleForeignRegion();
@@ -1677,10 +1576,7 @@ export const SHEIN_SESSION_SCRIPT = `
     var needsReload = shouldReloadSheinForSaudi();
     setSheinSaudiGuardOverlay(locked || visibleForeignRegion);
     if (needsReload || !signalsOk) {
-      if (sheinLooksLikeProductPageForShipping()) {
-        if (manualRepair === true) sheinSetAutomaticRegionRepairExhausted(false);
-        sheinPrepareNativeSaudiRepair();
-      }
+      if (sheinLooksLikeProductPageForShipping()) sheinPrepareNativeSaudiRepair();
       try {
         history.replaceState(history.state, '', normalized);
       } catch (e) {}
@@ -1706,18 +1602,15 @@ export const SHEIN_SESSION_SCRIPT = `
   // فرض العربية خاص بشي إن فقط (غيره قد يضبط كوكي لغة خاطئة فيعيد التحميل بلا داعٍ).
   if (IS_SHEIN && otlobliScriptEnabled('session')) {
     var normalizedArabicUrl = otlobliNormalizeSheinUrl(location.href);
-    var initialProductRoute = sheinLooksLikeProductRouteForShipping();
     // ممنوع إعادة تحميل أثناء تحقق «أنا إنسان» — تصفّر حل المستخدم.
-    // A product document is never location.replace'd by the region layer;
-    // forcing a second document here was the old product-spinner path.
-    if (!initialProductRoute && shouldReloadSheinForSaudi() && !otlobliIsHumanChallenge()) {
+    if (shouldReloadSheinForSaudi() && !otlobliIsHumanChallenge()) {
       var arRedirectAttempts = parseInt(sessionStorage.getItem('__otlobliArRedirects') || '0', 10);
       if (arRedirectAttempts < 1) {
         sessionStorage.setItem('__otlobliArRedirects', String(arRedirectAttempts + 1));
         location.replace(normalizedArabicUrl);
         return;
       }
-    } else if (!initialProductRoute && normalizedArabicUrl !== location.href) {
+    } else if (normalizedArabicUrl !== location.href) {
       try {
         history.replaceState(history.state, '', normalizedArabicUrl);
       } catch (e) {}
@@ -1744,7 +1637,7 @@ export const SHEIN_SESSION_SCRIPT = `
         window.__otlobliSheinPolicyEngine.verify('host-retry');
       }
       if (sheinSignedSaudiAddressReady() && sheinPageLooksInteractive()) {
-        sheinPostNativeCoverState('sheinSaudiReady', true);
+        sheinPostNativeCoverState('sheinSaudiReady');
         return;
       }
       if (window.mobileApp && window.mobileApp.postMessage) {
