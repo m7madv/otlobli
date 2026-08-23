@@ -1,3 +1,65 @@
+# v86.230/1095 — two-store identity, unified auth, signed Android production artifacts (2026-08-24)
+
+Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
+`codex/otlobli-v86-212-testflight-auth`. Marketing version is `86.230` and both
+native build numbers are `1095`. This batch was intentionally not submitted to
+App Store, TestFlight, Google Play, or any public review track.
+
+The customer-facing identity no longer presents Otlobli as a SHEIN-only app.
+Authentication, onboarding, metadata, manifest copy, product fallbacks, and
+order-success copy now describe SHEIN and Temu together. The login is a compact
+Arabic-first native surface with a clear two-store route, integrated full-width
+Google and Apple actions, an explicit WhatsApp-phone path, trust copy, visible
+focus/pressed states, and reduced-motion support. The Apple mark is an inline
+SVG instead of the Apple private-use glyph, so it renders correctly on Android.
+Playwright visual QA passed at `320x568`, `360x640`, and `430x932`; the checked
+mobile widths have no horizontal overflow. No heavy animation, blur, timer,
+polling, store script, WebView lifecycle, payment, wallet, or completed-order
+logic changed.
+
+Android production signing is now reproducible. A dedicated 4096-bit Otlobli
+upload key is retained outside the repository at
+`C:\Users\MOHAMMAD\.android\otlobli-main-upload.jks`, with local properties at
+`C:\Users\MOHAMMAD\.android\otlobli-main-upload.properties`; its passwords and
+private key were never printed or committed. Matching encrypted GitHub Actions
+secrets exist. Public certificate SHA-1 is
+`99:6F:BA:CA:02:F2:00:76:0C:41:CB:EC:02:EC:95:0E:D1:64:E9:F4`; SHA-256 is
+`E0:B0:F4:4C:C6:77:88:8F:95:35:C0:1C:91:25:07:7E:09:B0:14:BD:B9:09:6D:C2:81:3E:3B:D0:6F:17:F7:84`.
+Both fingerprints were added to Firebase project `otlobli-1ccf5` for
+`com.otlobli.app`, and the downloaded `android/app/google-services.json` now
+contains the matching Android OAuth client. The existing Android workflow now
+performs production auth preflight, restores the protected key, builds signed
+optimized APK/AAB artifacts, validates package/version/signature/hardening, and
+uploads a versioned production artifact. ESLint now ignores generated release
+inspection content under `output/**`, matching its other build-output ignores.
+
+The exact production environment was built and copied into both native
+projects. `npm run build`, all release/auth/security guards,
+`verify:shein-freeze-guard`, Temu/store guards, and
+`verify:performance-budget` pass. Final budgets are startup/largest JS
+`661,790/720,000` and `/1,200,000`, total JS gzip `265,531/370,000`, CSS
+`69,932/70,000`, fonts `81,364/100,000`, shipped store scripts
+`227,477/470,000`, and store source `519,044/600,000`. Full ESLint exits zero
+with 17 established hook warnings and no errors. `:app:assembleRelease` and
+`:app:bundleRelease` pass. APK inspection confirms package `com.otlobli.app`,
+`versionCode=1095`, `versionName=86.230`, `debuggable=false`, one RSA-4096
+signer with the certificate above, production phone/Google/Apple markers, and
+no web source maps. AAB signature and the same embedded production markers also
+verify.
+
+Final local artifacts:
+
+- `output/Otlobli-v86.230-Android-Production.apk` — `4,070,937` bytes,
+  SHA-256 `544A405F7586B69EFD0882BACC3FB9641CB75658AAC3F930B082800C55294373`.
+- `output/Otlobli-v86.230-Android-Play.aab` — `5,720,927` bytes,
+  SHA-256 `6D1FC53520684CD1761FC7CD921A1FE78981EA6CFC647D72E2951C56A558A2BD`.
+
+Real Android device acceptance is still unperformed: install the APK and test
+one phone OTP, Google login, Apple login, SHEIN, Temu, and push delivery. A real
+weak/old Android performance pass is also still required before claiming store
+acceptance. iOS source/assets are synchronized, but no new iOS binary was built
+or uploaded in this batch.
+
 # iPhone APNs hosted key transport fixed; live delivery accepted (2026-08-24)
 
 The owner created the dedicated topic-specific production APNs key

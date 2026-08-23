@@ -14,6 +14,7 @@ export default tseslint.config(
       'driver/dist/**',
       'ios/App/App/public/**',
       'node_modules/**',
+      'output/**',
     ],
   },
   {

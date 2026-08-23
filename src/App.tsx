@@ -1028,6 +1028,14 @@ function Icon({ name }: { name: string }) {
   return <span className="material-symbols-outlined" aria-hidden="true">{name}</span>
 }
 
+function AppleLogo({ className = 'apple-logo' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 384 512" aria-hidden="true" focusable="false">
+      <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-72.6-19-39.2.6-75.3 22.8-95.5 58.1-40.7 70.5-10.4 174.3 29.2 231.4 19.8 28.5 43.5 60.5 74.6 59.4 29.9-1.2 41.2-19.2 77.3-19.2 36.1 0 46 19.2 77.7 18.5 32-.5 52.3-28.6 74.2-57.2-84.5-48.2-80.1-125-65.5-150.7zM261.5 104.5c-15.2 17.9-39.9 31.9-63.6 30.1-3-24.2 8.9-49.9 22.9-65.8 15.2-18.3 41.8-31.4 64.1-32.6 2.5 25.3-7.4 50.5-23.4 68.3z" />
+    </svg>
+  )
+}
+
 const DIAGNOSTIC_FORM_STYLE: CSSProperties = { display: 'grid', gap: 12 }
 const DIAGNOSTIC_CONSENT_STYLE: CSSProperties = { display: 'flex', alignItems: 'flex-start', gap: 10, lineHeight: 1.6 }
 const DIAGNOSTIC_CHECKBOX_STYLE: CSSProperties = { width: 20, height: 20, marginTop: 2, flex: '0 0 auto', accentColor: '#006948' }
@@ -5642,11 +5650,52 @@ function App() {
       const activeCountry = COUNTRY_CODES.find((country) => country.code === countryCode) ?? COUNTRY_CODES[0]
       return (
         <AuthShell
-          title="تسجيل الدخول إلى حسابك"
-          subtitle="اختر طريقتك المفضلة. الهاتف وGoogle وApple تدخل جميعها إلى حساب Otlobli نفسه."
+          title="أهلاً بك"
+          subtitle="سجّل مرة واحدة، وتابع سلتك وطلباتك من شي إن وتيمو في حساب واحد."
           brandName={brandName}
           brandLogoDataUrl={brandLogoDataUrl}
         >
+          {(isGoogleAuthEnabled || isAppleAuthEnabled) && (
+            <section className="auth-method-panel auth-method-panel--social" aria-label="الدخول السريع">
+              <span className="auth-kicker">دخول سريع وآمن</span>
+              <div className="auth-provider-stack">
+                {isGoogleAuthEnabled && (
+                  <button
+                    type="button"
+                    className="google-signin-btn"
+                    disabled={authState !== 'idle' || googleAuthBusy}
+                    onClick={handleGoogleSignIn}
+                    aria-live="polite"
+                  >
+                    <svg className="google-g-logo" viewBox="0 0 48 48" width="20" height="20" aria-hidden="true">
+                      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+                      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+                      <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+                      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+                    </svg>
+                    <span>{socialAuthProvider === 'google' ? 'جارٍ فتح Google…' : 'المتابعة باستخدام Google'}</span>
+                    <Icon name={socialAuthProvider === 'google' ? 'progress_activity' : 'chevron_left'} />
+                  </button>
+                )}
+                {isAppleAuthEnabled && (
+                  <button
+                    type="button"
+                    className="google-signin-btn apple-signin-btn"
+                    disabled={authState !== 'idle' || googleAuthBusy}
+                    onClick={handleAppleSignIn}
+                    aria-live="polite"
+                  >
+                    <AppleLogo className="apple-signin-mark" />
+                    <span>{socialAuthProvider === 'apple' ? 'جارٍ فتح Apple…' : 'المتابعة باستخدام Apple'}</span>
+                    <Icon name={socialAuthProvider === 'apple' ? 'progress_activity' : 'chevron_left'} />
+                  </button>
+                )}
+              </div>
+            </section>
+          )}
+          {(isGoogleAuthEnabled || isAppleAuthEnabled) && (
+            <div className="auth-divider"><span>أو برقم واتساب</span></div>
+          )}
           <section className="auth-method-panel" aria-label="الدخول برقم الهاتف">
           <div className="field">
             <label htmlFor="login-phone">رقم واتساب</label>
@@ -5690,7 +5739,7 @@ function App() {
                 name="phone"
                 autoComplete="tel-national"
                 aria-describedby="phone-auth-hint"
-                placeholder="مثال: 912345678"
+                placeholder="912 345 678…"
                 dir="ltr"
                 spellCheck={false}
                 onKeyDown={(event) => {
@@ -5710,45 +5759,9 @@ function App() {
             <Icon name={authState === 'sending' ? 'progress_activity' : 'arrow_back'} />
           </button>
           </section>
-          {(isGoogleAuthEnabled || isAppleAuthEnabled) && (
-            <div className="auth-divider"><span>أو دخول سريع</span></div>
-          )}
-          <div className="auth-provider-stack" aria-label="الدخول بحساب خارجي">
-            {isGoogleAuthEnabled && (
-              <button
-                type="button"
-                className="google-signin-btn"
-                disabled={authState !== 'idle' || googleAuthBusy}
-                onClick={handleGoogleSignIn}
-                aria-live="polite"
-              >
-                <svg className="google-g-logo" viewBox="0 0 48 48" width="19" height="19" aria-hidden="true">
-                  <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
-                  <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
-                  <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
-                  <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
-                </svg>
-                <span>{socialAuthProvider === 'google' ? 'جارٍ فتح Google…' : 'المتابعة باستخدام Google'}</span>
-                <Icon name={socialAuthProvider === 'google' ? 'progress_activity' : 'arrow_back'} />
-              </button>
-            )}
-            {isAppleAuthEnabled && (
-              <button
-                type="button"
-                className="google-signin-btn apple-signin-btn"
-                disabled={authState !== 'idle' || googleAuthBusy}
-                onClick={handleAppleSignIn}
-                aria-live="polite"
-              >
-                <span className="apple-signin-mark" aria-hidden="true"></span>
-                <span>{socialAuthProvider === 'apple' ? 'جارٍ فتح Apple…' : 'المتابعة باستخدام Apple'}</span>
-                <Icon name={socialAuthProvider === 'apple' ? 'progress_activity' : 'arrow_back'} />
-              </button>
-            )}
-          </div>
           <p className="auth-trust-note" id="phone-auth-hint">
             <Icon name="verified_user" />
-            حساب واحد مهما كانت الطريقة. رقم الاستلام لا يصبح وسيلة دخول إلا بعد أن تؤكده بنفسك.
+            كل الطرق تفتح حسابك نفسه. رقم الاستلام لا يصبح وسيلة دخول إلا بعد أن تؤكده بنفسك.
           </p>
         </AuthShell>
       )
@@ -5768,15 +5781,15 @@ function App() {
       const pendingProviderName = pendingAppleProfile ? 'Apple' : 'Google'
       return (
         <AuthShell
-          title="جهّز حسابك"
-          subtitle="بقيت معلومات الاستلام فقط. لن نستخدم الرقم للدخول قبل أن تؤكده لاحقاً."
+          title="أكمل بيانات الاستلام"
+          subtitle="حسابك جاهز. أضف بيانات الاستلام مرة واحدة لتستخدمها في طلبات شي إن وتيمو."
           onBack={cancelGoogleRegistration}
           backDisabled={googleAuthBusy}
           brandName={brandName}
           brandLogoDataUrl={brandLogoDataUrl}
         >
           <div className="google-account-chip" aria-label={`حساب ${pendingProviderName} المختار`}>
-            <span className="google-account-chip__mark" aria-hidden="true">{pendingAppleProfile ? '' : 'G'}</span>
+            <span className="google-account-chip__mark" aria-hidden="true">{pendingAppleProfile ? <AppleLogo /> : 'G'}</span>
             <span className="google-account-chip__copy">
               <b>{pendingSocialProfile?.name || `حساب ${pendingProviderName}`}</b>
               <small dir="ltr">{pendingSocialProfile?.email || pendingProviderName}</small>
@@ -5821,7 +5834,7 @@ function App() {
                 type="tel"
                 name="delivery-phone"
                 autoComplete="tel-national"
-                placeholder="مثال: 912345678"
+                placeholder="912 345 678…"
                 dir="ltr"
                 aria-describedby="google-delivery-phone-hint"
               />
@@ -6068,6 +6081,7 @@ function App() {
 
     if (screen === 'product') {
       if (!activeProduct) { setScreen('home'); return null }
+      const productStoreLabel = /temu/i.test(`${activeProduct.source} ${activeProduct.link}`) ? 'Temu' : 'SHEIN'
       return (
         <MobileShell active="home" onNavigate={setScreen} hideBottomNav>
           <Header
@@ -6094,11 +6108,11 @@ function App() {
             )}
             <section className="gallery">
               <img
-                src={activeProduct.images[activeImage] ?? 'https://placehold.co/400x500/f5f5f5/aaa?text=SHEIN'}
+                src={activeProduct.images[activeImage] ?? 'https://placehold.co/400x500/f5f5f5/aaa?text=Otlobli'}
                 alt={activeProduct.title}
                 onError={(e) => {
                   const img = e.target as HTMLImageElement
-                  img.src = 'https://placehold.co/400x500/f5f5f5/aaa?text=SHEIN'
+                  img.src = 'https://placehold.co/400x500/f5f5f5/aaa?text=Otlobli'
                 }}
               />
               {activeProduct.images.length > 1 && (
@@ -6120,14 +6134,14 @@ function App() {
               {activeProduct.priceUsd === 0 ? (
                 <div className="price-missing-banner">
                   <Icon name="info" />
-                  <p>لم يتمكن النظام من قراءة السعر تلقائياً. افتح المنتج على SHEIN، شاهد السعر، ثم أدخله هنا:</p>
+                  <p>لم نتمكن من قراءة السعر تلقائياً. افتح المنتج على {productStoreLabel}، شاهد السعر، ثم أدخله هنا:</p>
                   <button
                     type="button"
                     className="ghost-action"
                     onClick={() => window.open(activeProduct.link, '_blank', 'noopener,noreferrer')}
                   >
                     <Icon name="open_in_new" />
-                    فتح المنتج على SHEIN
+                    فتح المنتج على {productStoreLabel}
                   </button>
                   <div className="manual-price-row">
                     <input
@@ -6157,7 +6171,7 @@ function App() {
                     className="text-button"
                     onClick={() => window.open(activeProduct.link, '_blank', 'noopener,noreferrer')}
                   >
-                    تحقق من السعر على SHEIN
+                    تحقق من السعر على {productStoreLabel}
                   </button>
                 </div>
               )}
@@ -6209,7 +6223,7 @@ function App() {
                   <input
                     value={manualColorName}
                     onChange={(e) => setManualColorName(e.target.value)}
-                    placeholder="اكتب اللون كما يظهر على SHEIN، مثال: أسود"
+                    placeholder={`اكتب اللون كما يظهر على ${productStoreLabel}، مثال: أسود`}
                   />
                 </div>
               </section>
@@ -6251,7 +6265,7 @@ function App() {
                   <input
                     value={selectedSize}
                     onChange={(e) => setSelectedSize(e.target.value)}
-                    placeholder="اكتب المقاس كما يظهر على SHEIN، مثال: M"
+                    placeholder={`اكتب المقاس كما يظهر على ${productStoreLabel}، مثال: M`}
                   />
                 </div>
               </section>
@@ -7015,6 +7029,7 @@ function App() {
     }
 
     if (screen === 'success') {
+      const completedStoreName = storeName(selectedStore)
       return (
         <MobileShell active="orders" onNavigate={setScreen} hideBottomNav>
           <main className="success-screen">
@@ -7022,8 +7037,8 @@ function App() {
             <h1>{PAYMENT_MODE === 'auto' ? 'تم استلام طلبك' : 'تم تأكيد الدفع'}</h1>
             <p>
               {PAYMENT_MODE === 'auto'
-                ? 'استلمنا طلبك وسنبدأ بشرائه من SHEIN. تابع حالة الطلب من صفحة طلباتي.'
-                : 'تمت مطابقة تحويل شام كاش بالمبلغ الدقيق. سنبدأ بشراء الطلب من SHEIN.'}
+                ? `استلمنا طلبك من ${completedStoreName}. تابع حالته من صفحة طلباتي.`
+                : `تمت مطابقة تحويل شام كاش بالمبلغ الدقيق، وسنبدأ بشراء طلبك من ${completedStoreName}.`}
             </p>
             <button className="primary-action" onClick={() => setScreen('tracking')}>
               متابعة الطلب
@@ -7740,7 +7755,7 @@ function App() {
             {isAppleAuthEnabled && (
               <section className="access-method-card" aria-labelledby="apple-access-title">
                 <div className="access-method-card__head">
-                  <span className="access-method-card__brand" aria-hidden="true"></span>
+                  <span className="access-method-card__brand" aria-hidden="true"><AppleLogo /></span>
                   <div>
                     <h3 id="apple-access-title">Apple</h3>
                     <p dir={accountAuthMethods?.appleEmail ? 'ltr' : 'rtl'}>
@@ -7797,7 +7812,7 @@ function App() {
                 </>
               ) : (
                 <p className="access-method-card__note access-method-card__note--success">
-                  يمكنك الدخول بهذا الرقم أو بحساب Google، وستصل دائماً إلى نفس الحساب.
+                  يمكنك الدخول بهذا الرقم أو بحساب Google أو Apple، وستصل دائماً إلى نفس الحساب.
                 </p>
               )}
             </section>
@@ -8493,8 +8508,8 @@ function AuthShell({
   brandName = 'otlobli',
   brandLogoDataUrl = '',
 }: {
-  title: string
-  subtitle: string
+  title: ReactNode
+  subtitle: ReactNode
   children: ReactNode
   onBack?: () => void
   backDisabled?: boolean
@@ -8520,13 +8535,13 @@ function AuthShell({
           </div>
           <div className="brand-lockup">
             <span translate="no">{brandName}</span>
-            <small>من المتجر إلى سوريا، بطلب واحد</small>
+            <small>طلبات شي إن وتيمو إلى سوريا، بطلب واحد</small>
           </div>
         </div>
-        <div className="auth-route" aria-hidden="true">
-          <span translate="no">SHEIN</span>
+        <div className="auth-route" aria-label="من شي إن وتيمو إلى سوريا عبر Otlobli">
+          <span className="auth-route-stores" translate="no">SHEIN + TEMU</span>
           <i />
-          <b>طلبية</b>
+          <span className="auth-route-order"><Icon name="shopping_bag" /><span translate="no">Otlobli</span></span>
           <i />
           <span className="auth-route-destination" style={AUTH_ROUTE_DESTINATION_STYLE}>
             <img src="/flags/syria-independence-flag.svg" alt="" width="24" height="16" style={AUTH_ROUTE_FLAG_STYLE} />
@@ -8534,7 +8549,7 @@ function AuthShell({
           </span>
         </div>
         <header className="auth-heading">
-          <span className="auth-kicker">حسابك وطلباتك في مكان واحد</span>
+          <span className="auth-kicker">متجران، سلة واضحة، وحساب واحد</span>
           <h1>{title}</h1>
           <p>{subtitle}</p>
         </header>

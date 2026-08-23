@@ -1,3 +1,46 @@
+# Active handoff — v86.230/1095 unified auth and signed Android release (2026-08-24)
+
+Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`
+on `codex/otlobli-v86-212-testflight-auth`. Marketing and both native build
+numbers are `86.230 (1095)`. Nothing from this batch was published to Apple or
+Google stores.
+
+The public identity and auth UI now treat SHEIN and Temu as equal stores. Keep
+the Arabic-first two-store route, full-width Google/Apple controls,
+WhatsApp-phone alternative, and inline Apple SVG (the old glyph rendered as a
+square on Android). Metadata, manifest, onboarding, product fallback, and
+order-success copy were also generalized. Visual QA passed at 320, 360, and
+430 px widths without horizontal overflow; low-end budgets pass. No store
+runtime, WebView lifecycle, SHEIN freeze fix, Temu Back fix, payment, wallet, or
+completed-order behavior was intentionally changed.
+
+Android production signing is configured with the dedicated outside-repo key at
+`C:\Users\MOHAMMAD\.android\otlobli-main-upload.jks` and matching protected
+GitHub secrets. Never print or commit the key/passwords. Public certificate
+SHA-256 is
+`E0:B0:F4:4C:C6:77:88:8F:95:35:C0:1C:91:25:07:7E:09:B0:14:BD:B9:09:6D:C2:81:3E:3B:D0:6F:17:F7:84`.
+Firebase project `otlobli-1ccf5` has this SHA-1/SHA-256 registered for
+`com.otlobli.app`, and `android/app/google-services.json` contains the new
+Android OAuth client. The existing Android workflow now emits a signed,
+optimized production APK/AAB after live auth preflight and artifact checks.
+
+Exact production assets are copied into Android and iOS. Full build and all
+release/security/freeze/Temu/store/performance guards pass; CSS is
+`69,932/70,000`. Full ESLint exits zero with existing warnings only. Local
+signed artifacts are:
+
+- `output/Otlobli-v86.230-Android-Production.apk`, `4,070,937` bytes,
+  SHA-256 `544A405F7586B69EFD0882BACC3FB9641CB75658AAC3F930B082800C55294373`.
+- `output/Otlobli-v86.230-Android-Play.aab`, `5,720,927` bytes,
+  SHA-256 `6D1FC53520684CD1761FC7CD921A1FE78981EA6CFC647D72E2951C56A558A2BD`.
+
+APK package/version/signature, non-debuggable state, production phone/Google/
+Apple markers, and absence of web source maps are verified; AAB signature and
+content markers verify too. Do not claim physical Android acceptance yet. The
+owner must install the APK and test phone OTP, Google, Apple, both stores, and
+push; a weak/old Android device performance run also remains. iOS was synced
+only—no new iOS archive, TestFlight build, or App Store submission exists.
+
 # Active handoff — APNs real-device send accepted; visual confirmation remains (2026-08-24)
 
 Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`

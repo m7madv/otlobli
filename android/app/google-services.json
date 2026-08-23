@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "677396296147-ta7is68u5l0kj7sd191cdondf73l2q6a.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.otlobli.app",
+            "certificate_hash": "996fbaca02f200760c41cbec02ec950ed164e9f4"
+          }
+        },
+        {
           "client_id": "677396296147-o5q0rt5qk2rq0rqh714kuki7gabkdmcu.apps.googleusercontent.com",
           "client_type": 3
         }
@@ -37,6 +45,13 @@
             {
               "client_id": "677396296147-o5q0rt5qk2rq0rqh714kuki7gabkdmcu.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "677396296147-n3337ehkgd51rt47dru8i9lle82in66q.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.otlobli.app"
+              }
             }
           ]
         }
