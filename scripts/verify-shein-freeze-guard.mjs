@@ -534,7 +534,7 @@ const checks = [
       'now - sheinChunkRecoveryAtRef.current < 60_000',
       'sheinCacheResetPendingRef.current = true',
       'const sheinRecoveryProductUrl = (region: StoreRegion, ...candidates: string[])',
-      "const resumeBackTarget: 'home' | 'cart'",
+      'const resumeBackTarget: WebviewBackTarget',
       'pendingBackTargetRef.current = resumeBackTarget',
       'const wantsWarmSheinRecoveryProductNav',
       'const wantsWarmProductNav = wantsWarmTemuProductNav || wantsWarmSheinRecoveryProductNav',
@@ -633,8 +633,8 @@ const checks = [
       "el.style.setProperty('animation', 'none', 'important')",
       "el.style.setProperty('z-index', '2147483647', 'important')",
       'otlobliStabilizeBackOverlay(btn)',
-      "var shouldShow = __otlobliBackTarget === 'cart' || IS_SHEIN",
-      '(IS_TEMU ? looksLikeHomeRoot() : (!looksLikeHomeRoot() || looksLikeProductPage()))',
+      "var shouldShow = __otlobliBackTarget === 'cart' || __otlobliBackTarget === 'orders' || IS_SHEIN",
+      'var storeHomeRoot = otlobliStoreHomeRoot()',
       "type: 'otlobliBackButtonState'",
       'window.__otlobliNativeBackState !== nativeState',
       'var nativeBackAvailable = !!(window.webkit',
@@ -818,6 +818,8 @@ const checks = [
       'function sheinSelectedSkuPricePending()',
       'priceWaits++ < 16',
       'function sheinCountryRowsInRoot(root)',
+      "closest('.address-header-tab,.cascade__tabs,[role=\"tab\"]')",
+      'if (!visibleOptions.length && visibleTabs.length <= 1)',
       'node.clientHeight < best.clientHeight',
     ],
     forbidden: [
@@ -1330,7 +1332,7 @@ try {
 // risk proof, producing the product-list spinner captured on the real iPhone.
 try {
   const appSource = readFileSync(resolve(projectRoot, 'src/App.tsx'), 'utf8')
-  const cartOpenStart = appSource.indexOf('const openStoreProductFromCart = (sourceLink: string)')
+  const cartOpenStart = appSource.indexOf('const openStoreProductFromCart = (sourceLink: string,')
   const cartOpenEnd = appSource.indexOf("InAppBrowser.addListener('closeEvent'", cartOpenStart)
   const cartOpenSource = appSource.slice(cartOpenStart, cartOpenEnd)
   const warmReuse = cartOpenSource.indexOf('sameSheinProductNavigation(targetUrl, currentWebviewUrlRef.current)')
@@ -1339,7 +1341,7 @@ try {
       cartOpenSource.includes('openIosSheinCartProductInFreshSession') ||
       cartOpenSource.includes('InAppBrowser.setUrl({ url: targetUrl })') ||
       cartOpenSource.includes('InAppBrowser.close(')) {
-    failures.push('SHEIN persistent session: cart product must reuse the verified in-page WebContent context')
+    failures.push('SHEIN persistent session: cart/order product must reuse the verified in-page WebContent context')
   }
 
   if (appSource.includes('const openIosSheinCartProductInFreshSession') ||

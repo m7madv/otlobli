@@ -76,9 +76,28 @@ for (const forbidden of ['location.assign(location.origin + homePath)', 'TemuEmb
 
 for (const marker of [
   "btn.setAttribute('aria-label', IS_TEMU ? 'العودة إلى اختيار المتجر' : 'رجوع')",
-  "(IS_TEMU ? looksLikeHomeRoot() : (!looksLikeHomeRoot() || looksLikeProductPage()))",
+  'function otlobliTemuHomeLikeUrl()',
+  'function otlobliStoreHomeRoot()',
+  'var storeHomeRoot = otlobliStoreHomeRoot()',
 ]) {
   if (!captureScript.includes(marker)) throw new Error(`Temu root-exit guard missing marker: ${marker}`)
+}
+
+const temuHomeLikePath = (rawPath) => {
+  const path = String(rawPath || '/').replace(/\/{2,}/g, '/').replace(/\/+$/, '')
+  return !path || /^\/[a-z]{2}(?:-[a-z]{2})?$/i.test(path)
+}
+for (const [path, expected] of [
+  ['/', true],
+  ['/qa/', true],
+  ['/qa-en/', true],
+  ['/goods.html', false],
+  ['/qa/search_result.html', false],
+  ['/qa/channel/1001.html', false],
+]) {
+  if (temuHomeLikePath(path) !== expected) {
+    throw new Error(`Temu root classifier misclassified ${path}`)
+  }
 }
 
 for (const marker of [
@@ -93,6 +112,8 @@ for (const marker of [
   'let revealHost = DispatchWorkItem',
   'DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: revealHost)',
   "window.dispatchEvent(new CustomEvent('otlobli:nativeNavigate'",
+  'if nativeBackTarget == "orders"',
+  'emit("messageFromWebview", detail: ["type": "backToOrders"])',
 ]) {
   if (!iosSheinBrowser.includes(marker)) {
     throw new Error(`iOS loading navigation guard missing marker: ${marker}`)
@@ -105,7 +126,15 @@ for (const forbidden of ['UIImage(systemName: "house")', 'UIImage(systemName: sy
   }
 }
 
-for (const marker of ['order-card-footer', 'order-card-id', 'رقم الطلب ${item.id}']) {
+for (const marker of [
+  'order-card-footer',
+  'order-card-id',
+  'رقم الطلب ${item.id}',
+  'const openStoreProductFromOrder = (sourceLink: string, fallbackStore: StoreId)',
+  "openStoreProductFromCart(sourceLink, 'orders')",
+  'className="tracking-product-button"',
+  "detail?.type === 'backToOrders'",
+]) {
   if (!app.includes(marker)) throw new Error(`Order-number visibility guard missing App marker: ${marker}`)
 }
 if (!/\.mobile-content--orders\s*\{[^}]*grid-auto-rows:\s*max-content/s.test(customerStyles)) {
@@ -119,6 +148,8 @@ for (const marker of [
   'tab.setOnClickListener(view -> otlobliHandleLoadingNavigationTap',
   'guard let self else { return }',
   'The native back control is also required by Temu',
+  '["cart", "orders", "exit"].contains(target)',
+  '["type": "backToOrders"]',
 ]) {
   if (!inAppBrowserPatch.includes(marker)) {
     throw new Error(`Native loading/root-exit patch guard missing marker: ${marker}`)

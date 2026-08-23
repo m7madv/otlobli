@@ -646,6 +646,7 @@ const normalizeTemuBrowserUrl = (rawUrl: string, region = DEFAULT_STORE_REGIONS.
 // المتاجر المتاحة للتصفّح. الالتقاط التلقائي (سعر/إضافة للسلة) يعمل على شي إن
 // فقط حالياً؛ باقي المتاجر تُفتح للتصفّح. لكل متجر سلة منفصلة.
 type StoreId = 'shein' | 'temu'
+type WebviewBackTarget = 'home' | 'cart' | 'orders'
 const STORES: { id: StoreId; name: string; url: string }[] = [
   { id: 'shein', name: 'شي إن', url: SHEIN_HOME_URL },
   // تيمو يقرأ المنطقة أيضاً من مسار الدولة. القيمة الفعلية تأتي من إعداد
@@ -3220,7 +3221,12 @@ function App() {
   // Tracks which screen the in-page back button inside the SHEIN webview
   // should return to: 'cart' right after the user taps a cart item (so back
   // re-opens otlobli's cart), 'home' for ordinary browsing from the home tab.
-  const pendingBackTargetRef = useRef<'home' | 'cart'>('home')
+  const pendingBackTargetRef = useRef<WebviewBackTarget>('home')
+  // Persists after the hidden product page is revealed. The transient pending
+  // target is reset once native chrome receives it, but recovery and the
+  // native Back callback still need to know whether the customer came from the
+  // cart or from the currently open order.
+  const activeProductReturnTargetRef = useRef<WebviewBackTarget>('home')
   // عدّاد تحويل تيمو للعربية — يمنع الحلقة اللانهائية إذا تيمو يتجاوز التحويل
   const temuArabicRedirectRef = useRef(0)
   const temuArabicRedirectTsRef = useRef(0)
@@ -3527,7 +3533,7 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vpnState, selectedStore])
 
-  const postWebviewChromeState = (target: 'home' | 'cart') => {
+  const postWebviewChromeState = (target: WebviewBackTarget) => {
     void InAppBrowser.postMessage({ detail: { type: '__resize' } })
     void InAppBrowser.postMessage({ detail: { type: '__backTarget', target } })
   }
@@ -3612,6 +3618,7 @@ function App() {
       clearPendingProductPreparation()
       sheinCartProductSessionRef.current = false
       pendingBackTargetRef.current = 'home'
+      activeProductReturnTargetRef.current = 'home'
       showNotice('تعذر تجهيز صفحة المنتج. جرّب فتحها مرة أخرى.')
     }, 45000)
   }
@@ -3634,10 +3641,13 @@ function App() {
         !pendingProductNavigationRequestedRef.current ||
         !pendingProductPageLoadedRef.current ||
         (pendingProductRequiresVisualReadyRef.current && !pendingProductVisualReadyRef.current)) return false
-    const shouldReveal = screenRef.current === 'cart' || pendingBackTargetRef.current === 'cart'
+    const returnTarget = pendingBackTargetRef.current
+    const shouldReveal = (returnTarget === 'cart' && screenRef.current === 'cart') ||
+      (returnTarget === 'orders' && screenRef.current === 'tracking')
     clearPendingProductPreparation()
     if (!shouldReveal) {
       pendingBackTargetRef.current = 'home'
+      activeProductReturnTargetRef.current = 'home'
       return true
     }
     // Keep the React cart visible until the hidden target document is loaded
@@ -3827,6 +3837,7 @@ function App() {
       void navigate.catch(() => {
         clearPendingProductPreparation()
         pendingBackTargetRef.current = 'home'
+        activeProductReturnTargetRef.current = 'home'
         showNotice('تعذر تجهيز صفحة المنتج. جرّب فتحها مرة أخرى.')
       })
     }
@@ -3855,8 +3866,10 @@ function App() {
       pendingProductUrlRef.current,
       currentWebviewUrlRef.current,
     )
-    const resumeBackTarget: 'home' | 'cart' = sheinCartProductSessionRef.current || pendingBackTargetRef.current === 'cart'
-      ? 'cart'
+    const resumeBackTarget: WebviewBackTarget = sheinCartProductSessionRef.current
+      ? (activeProductReturnTargetRef.current !== 'home'
+          ? activeProductReturnTargetRef.current
+          : (pendingBackTargetRef.current !== 'home' ? pendingBackTargetRef.current : 'cart'))
       : 'home'
     clearPendingProductPreparation()
 
@@ -3884,7 +3897,7 @@ function App() {
         if (resumeProductUrl) {
           beginPendingProductPreparation(resumeProductUrl)
           pendingBackTargetRef.current = resumeBackTarget
-          sheinCartProductSessionRef.current = resumeBackTarget === 'cart'
+          sheinCartProductSessionRef.current = resumeBackTarget !== 'home'
         }
         window.setTimeout(() => browseSheinRef.current(), 150)
       })
@@ -3916,8 +3929,10 @@ function App() {
       pendingProductRevealUrlRef.current,
       pendingProductUrlRef.current,
     )
-    const resumeBackTarget: 'home' | 'cart' = sheinCartProductSessionRef.current || pendingBackTargetRef.current === 'cart'
-      ? 'cart'
+    const resumeBackTarget: WebviewBackTarget = sheinCartProductSessionRef.current
+      ? (activeProductReturnTargetRef.current !== 'home'
+          ? activeProductReturnTargetRef.current
+          : (pendingBackTargetRef.current !== 'home' ? pendingBackTargetRef.current : 'cart'))
       : 'home'
 
     clearSheinReadinessWatchdog()
@@ -3951,7 +3966,7 @@ function App() {
         if (resumeProductUrl) {
           beginPendingProductPreparation(resumeProductUrl)
           pendingBackTargetRef.current = resumeBackTarget
-          sheinCartProductSessionRef.current = resumeBackTarget === 'cart'
+          sheinCartProductSessionRef.current = resumeBackTarget !== 'home'
         }
         window.setTimeout(() => browseSheinRef.current(), 80)
       })
@@ -4026,6 +4041,7 @@ function App() {
       pendingProductUrlRef.current = ''
       clearPendingProductPreparation()
       pendingBackTargetRef.current = 'home'
+      activeProductReturnTargetRef.current = 'home'
       console.info('[otlobli][temu-personal-site] ' + JSON.stringify({
         stage: 'open-requested',
         url: personalTargetUrl,
@@ -4294,7 +4310,7 @@ function App() {
 
   // Prepare a cart product inside the preserved, hidden store WebView. The
   // cart stays visible until browserPageLoaded + blocker readiness both arrive.
-  const openStoreProductFromCart = (sourceLink: string) => {
+  const openStoreProductFromCart = (sourceLink: string, returnTarget: Exclude<WebviewBackTarget, 'home'> = 'cart') => {
     if (!sourceLink) {
       showNotice('رابط المنتج غير متوفر على المتجر')
       return
@@ -4310,6 +4326,7 @@ function App() {
       // "Cart" while a Temu product filled the screen, and backing out of the
       // product landed on an inner Temu page with no way back to the cart.
       pendingBackTargetRef.current = 'home'
+      activeProductReturnTargetRef.current = 'home'
       screenRef.current = 'home'
       flushSync(() => setScreen('home'))
       temuPersonalSiteOpenedRef.current = true
@@ -4331,7 +4348,7 @@ function App() {
       vpnStateRef.current = 'ok'
       setVpnState('ok')
     }
-    const isIosSheinCartProduct = selectedStoreRef.current === 'shein' && Capacitor.getPlatform() === 'ios'
+    const isIosSheinReturnProduct = selectedStoreRef.current === 'shein' && Capacitor.getPlatform() === 'ios'
     // Opening the cart item that is already loaded must reuse the warm document.
     // Reloading the exact same SHEIN URL clears the host readiness flag, but the
     // existing page does not emit a new interactive message. On a Note 8 that
@@ -4339,15 +4356,17 @@ function App() {
     if (selectedStoreRef.current === 'shein' && sheinOpenedRef.current &&
         !webviewOpeningRef.current && sheinReadyRef.current &&
         sameSheinProductNavigation(targetUrl, currentWebviewUrlRef.current)) {
-      sheinCartProductSessionRef.current = isIosSheinCartProduct
+      sheinCartProductSessionRef.current = isIosSheinReturnProduct
       clearPendingProductPreparation()
-      pendingBackTargetRef.current = 'cart'
+      pendingBackTargetRef.current = returnTarget
+      activeProductReturnTargetRef.current = returnTarget
       screenRef.current = 'home'
       flushSync(() => setScreen('home'))
       return
     }
     beginPendingProductPreparation(targetUrl)
-    pendingBackTargetRef.current = 'cart'
+    pendingBackTargetRef.current = returnTarget
+    activeProductReturnTargetRef.current = returnTarget
     showNotice('جاري تجهيز صفحة المنتج...')
     if (!cartStoreAccessReady) {
       // A stored verdict is never grounds to refuse. The user may enter Cart
@@ -4367,7 +4386,7 @@ function App() {
       showNotice('جاري التحقق من الاتصال...')
       return
     }
-    sheinCartProductSessionRef.current = isIosSheinCartProduct
+    sheinCartProductSessionRef.current = isIosSheinReturnProduct
     if (!sheinOpenedRef.current) {
       browseSheinRef.current()
       return
@@ -4386,6 +4405,7 @@ function App() {
         sheinCartProductSessionRef.current = false
         clearPendingProductPreparation()
         pendingBackTargetRef.current = 'home'
+        activeProductReturnTargetRef.current = 'home'
         showNotice('تعذر تجهيز صفحة المنتج. جرّب فتحها مرة أخرى.')
       })
   }
@@ -4413,7 +4433,9 @@ function App() {
   // leave the customer in Cart rather than stranding them on a full-screen
   // gate they never asked for.
   useEffect(() => {
-    if (screen !== 'cart' || !pendingProductUrlRef.current) return
+    const waitingFromCart = screen === 'cart' && pendingBackTargetRef.current === 'cart'
+    const waitingFromOrder = screen === 'tracking' && pendingBackTargetRef.current === 'orders'
+    if ((!waitingFromCart && !waitingFromOrder) || !pendingProductUrlRef.current) return
     if (vpnState === 'ok') {
       screenRef.current = 'home'
       setScreen('home')
@@ -4421,12 +4443,12 @@ function App() {
     }
     if (vpnState !== 'no-vpn' && vpnState !== 'bad-region' && vpnState !== 'offline') return
     sheinCartProductSessionRef.current = false
+    activeProductReturnTargetRef.current = 'home'
     clearPendingProductPreparation()
     pendingBackTargetRef.current = 'home'
     showNotice(vpnState === 'offline'
       ? 'لا يوجد اتصال بالإنترنت. تحقق من الشبكة ثم جرّب فتح المنتج مرة أخرى.'
       : 'تعذّر فتح المتجر من هذا الاتصال. جرّب مرة أخرى، أو غيّر سيرفر الـ VPN إذا كان شغّالاً.')
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vpnState, screen])
 
   useEffect(() => {
@@ -4450,8 +4472,9 @@ function App() {
       setSheinReady(false)
       sheinVisualReadyRef.current = false
       setSheinVisualReady(false)
-      if (productWasPreparing && screenRef.current === 'cart') {
+      if (productWasPreparing && (screenRef.current === 'cart' || screenRef.current === 'tracking')) {
         pendingBackTargetRef.current = 'home'
+        activeProductReturnTargetRef.current = 'home'
         showNotice('توقف تجهيز المنتج. جرّب فتحه مرة أخرى.')
       }
       if (suppressAutoReopenRef.current) {
@@ -4698,7 +4721,7 @@ function App() {
       if (event?.id && webviewIdRef.current && event.id !== webviewIdRef.current) return
       const detail = event?.detail
       const messageType = typeof detail?.type === 'string' ? detail.type : ''
-      if (['temuProductVisible', 'sheinSaudiReady', 'sheinPageInteractive', 'sheinCoordinatorState', 'sheinCoordinatorTimeout', 'sheinPolicyState', 'sheinPolicyMismatch', 'sheinPolicyRouteBlocked', 'sheinOpeningPhase', 'sheinPrivacyResolved', 'sheinWebContentRestarted', 'humanCheck', 'humanCheckResolved', 'humanCheckSkipped', 'sheinBlocked', 'openHome', 'closeStore', 'requestStoreExit', 'openCart', 'backToCart', 'openOrders', 'openProfile'].includes(messageType)) {
+      if (['temuProductVisible', 'sheinSaudiReady', 'sheinPageInteractive', 'sheinCoordinatorState', 'sheinCoordinatorTimeout', 'sheinPolicyState', 'sheinPolicyMismatch', 'sheinPolicyRouteBlocked', 'sheinOpeningPhase', 'sheinPrivacyResolved', 'sheinWebContentRestarted', 'humanCheck', 'humanCheckResolved', 'humanCheckSkipped', 'sheinBlocked', 'openHome', 'closeStore', 'requestStoreExit', 'openCart', 'backToCart', 'backToOrders', 'openOrders', 'openProfile'].includes(messageType)) {
         recordAppDiagnostic('store_message', { store: selectedStoreRef.current, type: messageType })
       }
 
@@ -4792,6 +4815,7 @@ function App() {
             void navigateStoreWebviewInPage(targetUrl).catch(() => {
               clearPendingProductPreparation()
               pendingBackTargetRef.current = 'home'
+              activeProductReturnTargetRef.current = 'home'
               showNotice('تعذر تجهيز صفحة المنتج. جرّب فتحها مرة أخرى.')
             })
           }
@@ -4869,16 +4893,20 @@ function App() {
 
       if (detail?.type === 'humanCheckSkipped') {
         if (selectedStoreRef.current !== 'shein') return
-        const returnToCart = pendingBackTargetRef.current === 'cart'
+        const returnTarget = activeProductReturnTargetRef.current !== 'home'
+          ? activeProductReturnTargetRef.current
+          : pendingBackTargetRef.current
         sheinChallengeActiveRef.current = false
         humanCheckNoticeRef.current = false
         sheinCartProductSessionRef.current = false
         clearPendingProductPreparation()
         pendingBackTargetRef.current = 'home'
+        activeProductReturnTargetRef.current = 'home'
         showNotice('لم يكتمل تحقق SHEIN، لذلك أعدناك للمنتجات. عند فتح المنتج اضغط «أنا إنسان» للمتابعة.')
-        if (returnToCart) {
-          screenRef.current = 'cart'
-          flushSync(() => setScreen('cart'))
+        if (returnTarget === 'cart' || returnTarget === 'orders') {
+          const destination: Screen = returnTarget === 'orders' ? 'tracking' : 'cart'
+          screenRef.current = destination
+          flushSync(() => setScreen(destination))
           void InAppBrowser.hide().catch(() => undefined)
           return
         }
@@ -4909,6 +4937,9 @@ function App() {
       if (detail?.type === 'closeStore') {
         setPendingStoreExit(null)
         temuPersonalSiteOpenedRef.current = false
+        sheinCartProductSessionRef.current = false
+        activeProductReturnTargetRef.current = 'home'
+        pendingBackTargetRef.current = 'home'
         pendingStoreOpenAfterCloseRef.current = false
         screenRef.current = 'store-select'
         flushSync(() => setScreen('store-select'))
@@ -4942,6 +4973,9 @@ function App() {
 
       if (detail?.type === 'openCart' || detail?.type === 'backToCart') {
         temuPersonalSiteOpenedRef.current = false
+        sheinCartProductSessionRef.current = false
+        activeProductReturnTargetRef.current = 'home'
+        pendingBackTargetRef.current = 'home'
         screenRef.current = 'cart'
         flushSync(() => setScreen('cart'))
         hidePersonalTemuSurface()
@@ -4953,8 +4987,25 @@ function App() {
         return
       }
 
+      if (detail?.type === 'backToOrders') {
+        temuPersonalSiteOpenedRef.current = false
+        sheinCartProductSessionRef.current = false
+        activeProductReturnTargetRef.current = 'home'
+        pendingBackTargetRef.current = 'home'
+        screenRef.current = 'tracking'
+        flushSync(() => setScreen('tracking'))
+        hidePersonalTemuSurface()
+        if (sheinOpenedRef.current) {
+          void InAppBrowser.hide().catch(() => undefined)
+        }
+        return
+      }
+
       if (detail?.type === 'openOrders') {
         temuPersonalSiteOpenedRef.current = false
+        sheinCartProductSessionRef.current = false
+        activeProductReturnTargetRef.current = 'home'
+        pendingBackTargetRef.current = 'home'
         screenRef.current = 'orders'
         flushSync(() => setScreen('orders'))
         hidePersonalTemuSurface()
@@ -4966,6 +5017,9 @@ function App() {
 
       if (detail?.type === 'openProfile') {
         temuPersonalSiteOpenedRef.current = false
+        sheinCartProductSessionRef.current = false
+        activeProductReturnTargetRef.current = 'home'
+        pendingBackTargetRef.current = 'home'
         screenRef.current = 'profile'
         flushSync(() => setScreen('profile'))
         hidePersonalTemuSurface()
@@ -5521,6 +5575,25 @@ function App() {
         suppressAutoReopenRef.current = false
         afterSwitch()
       })
+  }
+
+  const openStoreProductFromOrder = (sourceLink: string, fallbackStore: StoreId) => {
+    if (!sourceLink) {
+      showNotice('رابط هذا المنتج غير متوفر في الطلب')
+      return
+    }
+    const productStore = storeFromProductUrl(sourceLink) ?? fallbackStore
+    const openProduct = () => openStoreProductFromCart(sourceLink, 'orders')
+    if (productStore === selectedStoreRef.current) {
+      openProduct()
+      return
+    }
+    if (cartGroup?.status === 'open') {
+      showNotice(`الطلب المشترك المفتوح مرتبط بـ ${storeName(selectedStoreRef.current)} — ألغِ الربط من السلة قبل فتح منتج من ${storeName(productStore)}`)
+      return
+    }
+    showNotice(`جاري فتح المنتج في ${storeName(productStore)}…`)
+    switchSelectedStore(productStore, openProduct)
   }
 
   const openStoreFromHub = (id: StoreId) => {
@@ -7079,24 +7152,35 @@ function App() {
                     <h3>طلب {ownerGroup.name}</h3>
                   )}
                   {ownerGroup.items.map((item, index) => (
-                    <article key={`${item.id || item.title}-${index}`}>
+                    <button
+                      type="button"
+                      className="tracking-product-button"
+                      key={`${item.id || item.title}-${index}`}
+                      onClick={() => openStoreProductFromOrder(item.sourceLink, getOrderStore(order))}
+                      aria-label={item.sourceLink
+                        ? `عرض ${item.title} في ${storeName(storeFromProductUrl(item.sourceLink) ?? getOrderStore(order))}`
+                        : `رابط المتجر غير متوفر للمنتج ${item.title}`}
+                    >
                       <img
                         src={item.image || 'https://placehold.co/54x54/f5f5f5/aaa?text=+'}
-                        alt={item.title}
+                        alt=""
                         width={52}
                         height={52}
                         loading="lazy"
                         decoding="async"
                         onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/54x54/f5f5f5/aaa?text=+' }}
                       />
-                      <div className="tracking-item-copy">
+                      <span className="tracking-item-copy">
                         <b title={item.title}>{item.title}</b>
                         <small>
                           {[item.color, item.size, `×${item.quantity ?? 1}`].filter(Boolean).join(' · ')}
+                          {item.sourceLink
+                            ? <span className="tracking-product-action"> · عرض في المتجر ‹</span>
+                            : ' · رابط المتجر غير متوفر'}
                         </small>
-                      </div>
-                      <strong>{formatMoney((item.priceSyp ?? 0) * (item.quantity ?? 1))}</strong>
-                    </article>
+                        <strong>{formatMoney((item.priceSyp ?? 0) * (item.quantity ?? 1))}</strong>
+                      </span>
+                    </button>
                   ))}
                 </div>
               ))}

@@ -518,8 +518,9 @@ export const STORE_BLOCKING_SCRIPT = `
     // Temu already owns product/category/search navigation. Otlobli supplies
     // only the missing root exit, avoiding a duplicate button on inner pages.
     // Keep SHEIN and cart-return behaviour unchanged.
-    var shouldShow = __otlobliBackTarget === 'cart' || IS_SHEIN
-      || (IS_TEMU ? looksLikeHomeRoot() : (!looksLikeHomeRoot() || looksLikeProductPage()));
+    var storeHomeRoot = otlobliStoreHomeRoot();
+    var shouldShow = __otlobliBackTarget === 'cart' || __otlobliBackTarget === 'orders' || IS_SHEIN
+      || (IS_TEMU ? storeHomeRoot : (!storeHomeRoot || looksLikeProductPage()));
     var nativeBackAvailable = !!(window.webkit && window.webkit.messageHandlers
       && window.webkit.messageHandlers.messageHandler);
     var backTop = temuSearchBack ? 30 : ((IS_SHEIN && viewportSize().width <= 390) ? 58 : 12);
@@ -529,9 +530,9 @@ export const STORE_BLOCKING_SCRIPT = `
     // was unnecessary page DOM interference; N4 device isolation associated
     // that intervention with SHEIN's intermittent first-load system error.
     if (nativeBackAvailable) {
-      var nativeBackTarget = __otlobliBackTarget === 'cart'
-        ? 'cart'
-        : ((IS_SHEIN || IS_TEMU) && looksLikeHomeRoot() ? 'exit' : 'home');
+      var nativeBackTarget = __otlobliBackTarget === 'cart' || __otlobliBackTarget === 'orders'
+        ? __otlobliBackTarget
+        : ((IS_SHEIN || IS_TEMU) && storeHomeRoot ? 'exit' : 'home');
       var nativeState = (shouldShow ? '1:' : '0:') + backTop + ':' + nativeBackTarget;
       if (window.__otlobliNativeBackState !== nativeState) {
         window.__otlobliNativeBackState = nativeState;
@@ -567,6 +568,14 @@ export const STORE_BLOCKING_SCRIPT = `
           } catch (e) {}
           return;
         }
+        if (__otlobliBackTarget === 'orders') {
+          try {
+            if (window.mobileApp && window.mobileApp.postMessage) {
+              window.mobileApp.postMessage({ detail: { type: 'backToOrders' } });
+            }
+          } catch (e) {}
+          return;
+        }
         // Gate on the home root, never on history.length: language and
         // verification redirects add entries that were never user navigation,
         // so a back() from the root can land on a half-finished check page.
@@ -574,19 +583,19 @@ export const STORE_BLOCKING_SCRIPT = `
         // and firing input exits it; history.back there hung the screen.
         if (IS_TEMU && otlobliTemuSearchBackActive()) {
           otlobliTemuExitSearchMode();
-        } else if (IS_SHEIN && looksLikeHomeRoot()) {
+        } else if (IS_SHEIN && storeHomeRoot) {
           try {
             if (window.mobileApp && window.mobileApp.postMessage) {
               window.mobileApp.postMessage({ detail: { type: 'requestStoreExit', store: 'shein' } });
             }
           } catch (e) {}
-        } else if (IS_TEMU && looksLikeHomeRoot()) {
+        } else if (IS_TEMU && storeHomeRoot) {
           try {
             if (window.mobileApp && window.mobileApp.postMessage) {
               window.mobileApp.postMessage({ detail: { type: 'closeStore' } });
             }
           } catch (e) {}
-        } else if (!looksLikeHomeRoot() || looksLikeProductPage()) {
+        } else if (!storeHomeRoot || looksLikeProductPage()) {
           otlobliBackOrLeave();
         }
       }, true);

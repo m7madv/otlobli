@@ -953,8 +953,15 @@ export const SHEIN_SESSION_SCRIPT = `
     var nodes = root.querySelectorAll('[data-country],[data-country-code],button,[role="option"],[role="button"],li,div,span');
     var rows = [];
     for (var i = 0; i < nodes.length && i < 900; i++) {
+      // A selected country tab repeats the country label, but it is not a row
+      // in the country picker. Treating it as one after a later cascade level
+      // is still loading sends the address flow back to the country tab. The
+      // Qatar device recording showed exactly that at the final zone-number
+      // level: Qatar -> Al Daayen -> Al Daayen -> choose zone -> Qatar again.
+      if (nodes[i].closest && nodes[i].closest('.address-header-tab,.cascade__tabs,[role="tab"]')) continue;
       if (!sheinCountryCodeFromLabel(sheinUiText(nodes[i]))) continue;
       var row = sheinClosestInteractive(nodes[i]);
+      if (row && row.closest && row.closest('.address-header-tab,.cascade__tabs,[role="tab"]')) continue;
       if (row && row !== root && sheinElementIsPainted(row) && rows.indexOf(row) < 0) rows.push(row);
     }
     return rows;
@@ -1554,7 +1561,10 @@ export const SHEIN_SESSION_SCRIPT = `
     }
     var visibleOptions = sheinVisibleCascadeOptions();
     var visibleTabs = sheinVisibleShippingTabs();
-    if (!visibleOptions.length) {
+    // Once two or more cascade tabs exist, the country has already been
+    // selected. A temporarily empty next-level list must be allowed to load;
+    // never broaden the scan back to country-labelled header controls.
+    if (!visibleOptions.length && visibleTabs.length <= 1) {
       visibleOptions = sheinCountryRowsInRoot(sheinResolvedShippingUiRoot());
     }
     sheinTranslateRegionLabels(visibleOptions, visibleTabs);

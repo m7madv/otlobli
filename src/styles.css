@@ -2868,7 +2868,8 @@ a {
 .profile-row:focus-visible,
 .admin-link:focus-visible,
 .icon-button:focus-visible,
-.bottom-nav button:focus-visible {
+.bottom-nav button:focus-visible,
+.tracking-product-button:focus-visible {
   outline: 3px solid rgba(0, 105, 72, 0.25);
   outline-offset: -3px;
 }
@@ -3161,21 +3162,23 @@ a {
   font-size: 0.82rem;
 }
 
-.tracking-products article {
-  display: grid;
-  grid-template-columns: 52px minmax(0, 1fr);
-  grid-template-rows: auto auto;
+.tracking-product-button {
+  display: flex;
   align-items: center;
   gap: 10px;
-  min-width: 0;
   padding: 10px;
   border: 1px solid var(--outline);
   border-radius: 12px;
   background: var(--surface);
+  color: inherit;
+  text-align: start;
+}
+
+.tracking-product-button:is(:hover, :active) {
+  background: var(--primary-soft);
 }
 
 .tracking-products img {
-  grid-row: 1 / span 2;
   width: 52px;
   height: 52px;
   border-radius: 8px;
@@ -3183,12 +3186,9 @@ a {
 }
 
 .tracking-item-copy {
+  display: grid;
+  gap: 3px;
   min-width: 0;
-}
-
-.tracking-products b,
-.tracking-products small {
-  display: block;
 }
 
 .tracking-products b {
@@ -3197,7 +3197,6 @@ a {
   font-size: 0.8rem;
   line-height: 1.45;
   overflow-wrap: anywhere;
-  line-clamp: 2;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
@@ -3206,15 +3205,16 @@ a {
   color: var(--muted);
   font-size: 0.72rem;
   line-height: 1.5;
-  overflow-wrap: anywhere;
 }
 
 .tracking-products strong {
-  grid-column: 2;
-  justify-self: start;
   color: var(--primary);
   font-size: 0.78rem;
-  white-space: nowrap;
+}
+
+.tracking-product-action {
+  color: var(--primary);
+  font-weight: 800;
 }
 
 .timeline > div {

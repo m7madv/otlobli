@@ -1,3 +1,66 @@
+# v86.223/1087 — Temu Home Back, Qatar cascade, and order products (2026-08-23)
+
+Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
+`codex/otlobli-v86-212-testflight-auth`. Marketing stays `86.223`; this release
+candidate is iOS build `1087` and Android build `1086`. The production web
+bundle is synchronized to both native projects.
+
+The attached 8.25-second, 384x848, 60fps recording was inspected across all
+495 frames. It proves that SHEIN already had Qatar selected: the cascade showed
+`قطر`, then `الضعاين`, then `الضعاين`, and finally `رقم المنطقة اختر`. At the
+last level the option list was temporarily empty, but the old fallback scanned
+the entire drawer, mistook the visible Qatar header tab for a country option,
+clicked it, and reset the cascade to its first level. Country discovery now
+excludes header/cascade tabs, and country fallback is allowed only before a
+multi-level cascade has begun. The Add-only signed-address gate and all region
+validation remain intact.
+
+Temu's Back persistence is corrected at route classification. The previous
+implementation compared Home to the first session path; Temu may normalize or
+redirect that locale path, so a later real Home was classified as an inner
+page and the green native exit disappeared. Temu now treats only its actual
+root/locale roots (`/`, `/qa`, `/qa-en`, etc.) as Home. Product, search,
+category, channel, and other keyword-bearing routes remain inner routes. The
+existing bounded coordinator republishes the state; no reload, timer, polling,
+observer, DOM scan, navigation interception, or WebView recreation was added.
+
+Products in the currently open order are now full-card semantic buttons. A
+same-store product opens in the already-warm store WebContent; a cross-store
+product uses the existing serialized store switch and still refuses to violate
+an open group-cart boundary. The WebView Back contract now supports `orders`
+in the React coordinator, dedicated SHEIN iOS browser, and patched Capgo iOS
+browser, returning to the same `tracking` screen and preserving the selected
+order. Cart return behavior remains unchanged. Missing source links give an
+explicit notice and cannot trigger an empty navigation. Payment, wallet,
+completed-order state, auth, and backend behavior were not changed.
+
+Local verification passes: targeted ESLint has zero errors (16 established
+hook warnings), TypeScript, every release/auth/security/SHEIN/Temu/store guard,
+production build, low-end performance budget, Android/iOS Capacitor sync,
+three-root release-artifact scan, Android `assembleDebug`, and responsive
+Playwright inspection at `393x852`. Accessibility inspection exposes the two
+test products as named buttons for their respective stores. Budgets are
+startup/largest JS `658,830/720,000` and `/1,200,000`, total JS gzip
+`264,422/370,000`, CSS `69,968/70,000`, fonts `81,364/100,000`, shipped store
+scripts `227,679/470,000`, and store source `536,917/600,000`; no limit changed.
+
+Store bundle `dist/assets/storeCaptureBundle-fmt322U7.js` is `250,324` bytes,
+SHA-256 `0386A1E947E05DE72653194B00EB5D8C28B07A16243BA63D41C19F095CF76149`.
+Android debug artifact
+`output/Otlobli-v86.223-build-1086-Android-debug.apk` is `11,113,744` bytes,
+SHA-256 `99D3B337A0AD6B1EF43FC212A45F58B8A74A70FD18D464065550F8D369D40900`.
+The signed iOS/TestFlight result is pending the workflow run from this source.
+No public App Store submission is authorized by this batch; draft `86.223`
+remains on build `1085` until physical acceptance and owner-controlled store
+metadata are complete.
+
+Real-device acceptance is still required: on iPhone 16, verify Temu
+product -> Home restores the green Back button; SHEIN Qatar Add reaches and
+selects the zone number without returning to the first tab; SHEIN and Temu
+order-product taps open the correct PDP and native Back returns to the same
+order. Also perform the mandatory five background/resume cycles and a separate
+force-quit/cold launch. A real weak/old Android acceptance is not claimed.
+
 # v86.223/1086 — iPhone Back placement and Temu persistence (2026-08-23)
 
 Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on

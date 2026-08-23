@@ -1981,7 +1981,7 @@ index 97a2fc1..ff504aa 100644
 +            // the capability boundary; tying the button to that unrelated
 +            // option hid both the HTML and native buttons on Temu root.
 +            guard let self else { return }
-+            self.otlobliNativeBackTarget = ["cart", "exit"].contains(target) ? target : "home"
++            self.otlobliNativeBackTarget = ["cart", "orders", "exit"].contains(target) ? target : "home"
 +            if let candidate = URL(string: fallbackURL),
 +               ["http", "https"].contains(candidate.scheme?.lowercased() ?? ""),
 +               let host = candidate.host?.lowercased(),
@@ -2054,6 +2054,10 @@ index 97a2fc1..ff504aa 100644
 +        }
 +        if otlobliNativeBackTarget == "cart" {
 +            emit("messageFromWebview", data: ["detail": ["type": "backToCart"]])
++            return
++        }
++        if otlobliNativeBackTarget == "orders" {
++            emit("messageFromWebview", data: ["detail": ["type": "backToOrders"]])
 +            return
 +        }
 +        guard let webView else { return }

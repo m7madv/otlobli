@@ -1,3 +1,49 @@
+# Active handoff — v86.223/1087 three-path store correction (2026-08-23)
+
+Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`
+on `codex/otlobli-v86-212-testflight-auth`. Marketing is `86.223`; iOS is build
+`1087`, Android is build `1086`, and the same production bundle is synchronized
+to both native projects.
+
+The user's video is decisive: across all 495 frames, Qatar was selected and the
+cascade progressed through country, municipality, area, then the empty/loading
+zone-number level. The fallback then clicked the visible Qatar header tab and
+reset the cascade. `sheinCountryRowsInRoot` now excludes header/cascade tabs,
+and broad country fallback is disabled once two or more cascade tabs prove that
+selection has progressed. Do not turn this into an eager region repair or
+weaken the signed Add-only address gate.
+
+Temu Home Back no longer depends on equality with the first session path.
+`otlobliTemuHomeLikeUrl()` recognizes only the root and pure locale roots, and
+`otlobliStoreHomeRoot()` feeds the existing native Back state. Products,
+search, categories, and channels remain non-Home. There is no new timer,
+polling, observer, DOM scan, reload, or listener.
+
+Order details render each product as a semantic full-card button. Same-store
+links reuse warm WebContent; cross-store links go through the existing guarded
+store switch. The back-target union is now `home | cart | orders`; both iOS
+browser implementations emit `backToOrders`, which hides the store and restores
+the currently selected tracking screen. Preserve `currentOrderId`, warm-session
+opening, group-cart refusal, and the explicit missing-link notice. Payment,
+wallet, completed orders, auth, backend, and native lifecycle behavior are out
+of scope and unchanged.
+
+All local gates pass: targeted ESLint zero errors/16 established warnings,
+TypeScript, full production build and postbuild budgets, SHEIN freeze guard,
+Temu/store guards, both native syncs, three-root artifact scan, Android
+`assembleDebug`, and Playwright `393x852` visual/accessibility inspection.
+Exact budgets and artifact hashes are at the top of `CURRENT_STATE.md`.
+The signed TestFlight result is pending. The App Store draft must remain on
+build `1085`; do not link or submit `1087` before physical acceptance and the
+owner's missing App Store metadata.
+
+Preserve `WKWebViewController.otlobliForceRecompose()`, its
+`appDidBecomeActive` call at `0.25s`, Android `otlobliOnHostResume()`, and the
+`JSON.stringify` active-store comparison. Real iPhone 16 acceptance remains:
+Temu product -> Home -> green Back, Qatar Add through zone number, both stores'
+order links and Back-to-order, five resume cycles, and a cold launch. No real
+weak Android test has been performed.
+
 # Active handoff — v86.223/1086 Back and Temu persistence (2026-08-23)
 
 Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`

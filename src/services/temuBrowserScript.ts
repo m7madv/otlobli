@@ -1749,9 +1749,17 @@ export const TEMU_BROWSER_SCRIPT = `
 
   function otlobliTemuHomeLikeUrl() {
     if (!IS_TEMU) return false;
-    var path = (location.pathname || '') + ' ' + (location.search || '') + ' ' + (location.hash || '');
-    if (/search|goods|product|cart|checkout|order|account|login|sign/i.test(path)) return false;
-    return true;
+    // The first injected document is not a stable Home identity: Temu can
+    // redirect /qa/ through another locale before the runtime is installed,
+    // and its Home tab may later normalize the route again. Classify Temu's
+    // actual root forms instead of comparing against that first saved path.
+    var path = String(location.pathname || '/').replace(/\\/{2,}/g, '/').replace(/\\/+$/, '');
+    if (!path) return true;
+    return /^\\/[a-z]{2}(?:-[a-z]{2})?$/i.test(path);
+  }
+
+  function otlobliStoreHomeRoot() {
+    return IS_TEMU ? otlobliTemuHomeLikeUrl() : looksLikeHomeRoot();
   }
 
   function otlobliResetTemuHomeHeaderWakeIfNeeded() {

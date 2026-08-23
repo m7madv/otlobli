@@ -934,6 +934,11 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
             emit("messageFromWebview", detail: ["type": "backToCart"])
             return
         }
+        if nativeBackTarget == "orders" {
+            logNativeBack(webView: webView, chosenAction: "backToOrders", navigationType: "none")
+            emit("messageFromWebview", detail: ["type": "backToOrders"])
+            return
+        }
 
         // The injected page state is asynchronous. After product -> Home it
         // can still say "home" for one maintenance tick. Resolve the live URL

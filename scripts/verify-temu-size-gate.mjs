@@ -113,7 +113,7 @@ for (const marker of forbiddenMarkers) {
   if (source.includes(marker)) throw new Error(`Stale Temu delayed/diagnostic path remains: ${marker}`)
 }
 
-const cartOpenStart = appSource.indexOf('const openStoreProductFromCart = (sourceLink: string)')
+const cartOpenStart = appSource.indexOf('const openStoreProductFromCart = (sourceLink: string,')
 const cartOpenEnd = appSource.indexOf("InAppBrowser.addListener('closeEvent'", cartOpenStart)
 const cartOpenSource = appSource.slice(cartOpenStart, cartOpenEnd)
 const personalCartOpen = cartOpenSource.indexOf('const isPersonalTemuCartProduct')

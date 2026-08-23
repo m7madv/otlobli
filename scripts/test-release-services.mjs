@@ -262,7 +262,7 @@ assert.deepEqual(JSON.parse(JSON.stringify(opening.summarizeSheinOpeningRecords(
 
 const protectedHashes = new Map([
   ['src/services/sheinBrowserScript.ts', '332BD28F21817A40FCEE982580F0EF118BB59A1E297E2FE4104BF7002872D2DB'],
-  ['src/services/storeProductCaptureScript.ts', 'B0650CB5303867393CF81CFDE185E7EBB78178281B8E70C99594F8B69D524CAE'],
+  ['src/services/storeProductCaptureScript.ts', 'BD3766735D978D6E1D6DCDA72F55E85592B006E10A5C326CE4177C214D7183B5'],
   ['src/services/sheinSkuTap.ts', '79A1011CF55344D06BFCFC796FCAEB5CFF58F705F7FD95BA1686D69D802DEE83'],
 ])
 for (const [file, expected] of protectedHashes) {

@@ -3471,7 +3471,7 @@ export const STORE_PRODUCT_CAPTURE_SCRIPT = `
       return;
     }
     if (detail && detail.type === '__backTarget') {
-      __otlobliBackTarget = detail.target === 'cart' ? 'cart' : 'home';
+      __otlobliBackTarget = detail.target === 'cart' || detail.target === 'orders' ? detail.target : 'home';
       if (otlobliScriptEnabled('navigationBack')) ensureBackButton();
       return;
     }
