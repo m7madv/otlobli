@@ -49,23 +49,18 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 > ملاحظة: مفتاح حساب الخدمة السرّي حُذف من مجلد التنزيلات بعد تخزينه (يمكن إعادة توليده من
 > Firebase → Project settings → Service accounts وقت الحاجة). ملف `google-services.json` غير سرّي.
 
-### ب) آيفون (APNs) — حساب المطور موجود، مفتاح Push ما زال مطلوباً
+### ب) آيفون (APNs) — ✅ مضبوط إنتاجياً
 
-> حالة الإنتاج في 2026-08-24: التطبيق سجّل رمز APNs إنتاجياً صحيحاً، لكن
-> `APNS_KEY` و`APNS_KEY_ID` و`APNS_TEAM_ID` و`APNS_BUNDLE_ID` غير موجودة في
-> Supabase. تم منع الخادم من تمرير رمز iPhone إلى FCM عند غيابها، وصارت لوحة
-> الإدارة تعرض نقص APNs بصراحة. المفتاح `M8GFL27JUT` خاص بـApp Store Connect،
-> والمفتاح `FAMAKDMKT6` خاص بـSign in with Apple؛ لا تستخدم أيّاً منهما كـAPNs
-> من دون إثبات أن خدمة Push مفعلة عليه في بوابة Apple.
+> حالة الإنتاج في 2026-08-24: المفتاح المخصص `4GGVNXQ9UT` مفعّل لـ
+> `com.otlobli.app`، والأسرار الأربعة موجودة في Supabase. تم التحقق مباشرة
+> من قبول Apple للمفتاح/Team/Topic عبر بوابة APNs الإنتاجية. يبقى فقط
+> اختبار التسليم على الآيفون الحقيقي.
 
-1. من <https://developer.apple.com/account> → **Keys** → أنشئ مفتاح **APNs** (نوع Apple Push Notifications service).
-   نزّل ملف `.p8` وسجّل **Key ID** و**Team ID**.
-2. في Firebase → إعدادات مشروع → **Cloud Messaging** → **Apple app configuration** → ارفع مفتاح APNs.
-   (بهذا يرسل FCM للآيفون أيضاً، ولن تحتاج APNs مباشرة.)
-   — أو، وهو المسار المستخدم حالياً، اضبط متغيّرات `send-push`: `APNS_KEY`
-   (محتوى p8)، `APNS_KEY_ID`، `APNS_TEAM_ID=36D743K87T`،
-   `APNS_BUNDLE_ID=com.otlobli.app`.
-3. في Xcode: أضِف قدرة **Push Notifications** و**Background Modes → Remote notifications**.
+- ✅ أنشئ مفتاح Apple Push Notifications service المخصص واحتُفظ بملف `.p8` خارج المشروع.
+- ✅ ضُبط المسار المباشر المستخدم حالياً في `send-push`: `APNS_KEY`،
+  `APNS_KEY_ID`، `APNS_TEAM_ID=36D743K87T`، و`APNS_BUNDLE_ID=com.otlobli.app`.
+- ✅ قدرة Push Notifications وملف entitlements موجودان في مشروع iOS، ونسخة TestFlight الحالية سجلت رمز APNs إنتاجياً.
+- ⏳ المتبقي: إرسال اختبار موجّه لهاتف المالك والتحقق من الظهور ومسار الضغط.
 
 ### ج) الربط بالطلبات — ✅ مضبوط
 

@@ -11,7 +11,7 @@
   المعكوس أثناء workflow، لكنه لم يُرفع إلى TestFlight بعد.
 - `ios/App/App/App.entitlements` موجود، وApp ID الحقيقي مفعّل له Push وSign in
   with Apple. نوع `aps-environment` الفعلي تحدده شهادة/profile البناء.
-- الخادم يحتوي إعداد FCM الخاص بـAndroid، لكنه لا يحتوي حالياً أسرار `APNS_KEY`, `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_BUNDLE_ID`.
+- الخادم يحتوي إعداد FCM لـAndroid وأسرار APNs الإنتاجية الأربعة لـiPhone. نجح فحص قبول المفتاح مباشرة مع Apple، وبقي اختبار التسليم على الجهاز الحقيقي.
 - ظهور نافذة السماح بالإشعارات يعني أن المستخدم سمح بعرضها فقط؛ لا يثبت نجاح التسجيل مع APNs أو وجود مسار إرسال.
 
 ## Google على iPhone — إعداد البوابة مكتمل، اختبار الجهاز باقٍ

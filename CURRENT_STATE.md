@@ -1,36 +1,26 @@
-# iPhone push delivery diagnosis and provider isolation (2026-08-24)
+# iPhone APNs production credentials configured and verified (2026-08-24)
 
-The user's post-fix Admin sends were accepted but produced no iPhone alert.
-Production data proves the TestFlight app registered a current 64-hex APNs
-token for `86.229`, iOS `27.0`, provider `apns`, environment `production`.
-At the exact send time every iOS token was changed to `enabled=false`. Live
-Supabase secrets prove all four direct APNs settings are absent: `APNS_KEY`,
-`APNS_KEY_ID`, `APNS_TEAM_ID`, and `APNS_BUNDLE_ID`.
+The owner created the dedicated topic-specific production APNs key
+`4GGVNXQ9UT` for `com.otlobli.app` and retained the one-time file
+`C:\Users\MOHAMMAD\Downloads\AuthKey_4GGVNXQ9UT.p8`. The file is a valid
+257-byte PKCS#8 PEM with SHA-256
+`82D90432FE29D0C74313AFDFE1D57768C0FEFCA71529DA1394A7CB110357E0BE`.
+Its private contents were never printed or committed.
 
-The server had a second defect: when APNs was unavailable but FCM was ready, its
-generic `else if (fcmReady)` sent iOS APNs tokens to Google's Android endpoint.
-FCM correctly rejected those foreign tokens as invalid, and the cleanup path
-disabled them. `send-push` now selects a provider through a tested strict
-mapping: iOS → APNs only and Android → FCM only. An unavailable provider is
-reported as not configured and never cross-sent or invalidated. Responses now
-include provider readiness and partial-delivery reasons. Admin displays an
-explicit Arabic iPhone/APNs warning instead of calling an Android-only send a
-success. The latest exact `86.229` production APNs token was safely restored;
-older tokens remain disabled.
+Production Supabase now has all four direct APNs secrets: `APNS_KEY`,
+`APNS_KEY_ID=4GGVNXQ9UT`, `APNS_TEAM_ID=36D743K87T`, and
+`APNS_BUNDLE_ID=com.otlobli.app`. `send-push` was redeployed as active version
+`15` with `verify_jwt=false`. A direct HTTP/2 credential probe against Apple's
+production APNs gateway used a deliberately invalid device token and returned
+`400 BadDeviceToken`; this is the expected proof that Apple accepted the JWT,
+key id, team id, and topic. No customer notification was sent by that probe.
 
-Release-service tests and Admin production build pass. Supabase `send-push` is
-live as version `12` with its existing `verify_jwt=false`. Vercel deployment
-`dpl_5Hox1znVUuT7da6Q9tWLvrDe2Tpv` is `READY` at
-`https://talabieh-admin.vercel.app`; no-cache asset
-`/assets/index-CYarYdQc.js` is `275,048` bytes/SHA-256
-`1522E9F1527E5CABAA379C89EBFD7A6F5F2343F45D1384135BFD0BA745942054`
-and contains the APNs readiness warning. No test notification was sent by the
-AI. Actual iPhone delivery remains blocked only on creating a dedicated Apple
-Push Notifications `.p8` key in the owner's Apple Developer account and setting
-the four Supabase secrets. The two retained keys are deliberately not reused:
-`M8GFL27JUT` is App Store Connect and `FAMAKDMKT6` is Sign in with Apple. Apple
-login/2FA is required for the key-creation step. This server/Admin-only batch
-does not require a new TestFlight build.
+Preserve the strict tested mapping in `send-push`: iOS → APNs only and Android
+→ FCM only. The latest exact `86.229` production APNs token was restored in
+the preceding batch; older tokens remain disabled. The remaining acceptance is
+one owner-targeted send from Admin while the iPhone is backgrounded/locked,
+followed by confirming the alert and tap route. This server-secret/deployment
+batch does not require a new TestFlight build or native sync.
 
 # Production Admin push payload repair (2026-08-24)
 
