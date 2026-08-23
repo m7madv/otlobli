@@ -48,6 +48,24 @@ full nested `associatedErrors`, and `ios-app-review.yml` can inspect/retry
 `86.223/1085` in seconds without a new archive or upload. Never invent the
 owner's legal/privacy/rating/pricing values to clear these checks.
 
+Final inspection run `32612073248` confirms version `86.223` remains
+`PREPARE_FOR_SUBMISSION` with exact build `1085` already linked. Apple requires:
+description, keywords, support URL, iPhone 6.5-inch and iPad Pro 12.9-inch
+screenshots, primary category, App Review detail/contact record, copyright,
+content-rights declaration, published App Privacy/data usages, price,
+privacy-policy URL, and all 22 age-rating attributes. Stop and obtain owner
+decisions for those values; do not set them speculatively. Then complete them in
+App Store Connect and run `ios-app-review.yml` after it is available on the
+default branch, or rerun the existing signed workflow with
+`testflight_delivery=distribute-existing` and `app_store_submission=true`.
+
+Apple delivery UUID `98370121-bfc3-4e6e-943c-90ceaad9021b`; App Store version
+ID `a03a0acc-2555-44aa-accd-78429a3e6a39`; review submission ID
+`e5e27b8a-b628-4116-b135-361b91266929`. Accepted IPA: `10,458,318` bytes,
+SHA-256 `1EDA4263A97F496E2FDB594E1395E0D297E5D84A1E90B3E110BC220E65F1B0EC`.
+dSYM: `14,858,055` bytes, SHA-256
+`268DC270242E1DE5C38831158ADDC791A4D6C5C46DEC8845E3392ABBA1BE6057`.
+
 The user's functional acceptance is recorded, but no explicit evidence was
 provided for five iPhone 16 resume cycles plus separate cold launch or a real
 weak Android device. Do not claim those checks were performed.

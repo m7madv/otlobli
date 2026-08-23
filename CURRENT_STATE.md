@@ -51,6 +51,26 @@ submitter now serializes every associated Apple error and a lightweight
 `ios-app-review.yml` workflow can retry/inspect the already processed build
 without rebuilding or uploading another IPA.
 
+Run `32612073248` verified the final live App Store state without re-uploading:
+version `86.223` is `PREPARE_FOR_SUBMISSION`, exact build `1085` is already
+linked, and the same draft review submission remains. Apple's complete
+prerequisite list is: description, keywords, support URL, iPhone 6.5-inch and
+iPad Pro 12.9-inch screenshots, primary category, App Review contact/details,
+copyright, content-rights declaration, published App Privacy/data-usage
+answers, price, privacy-policy URL, and all 22 required age-rating questionnaire
+answers. These are owner/legal/storefront decisions and were deliberately not
+invented. The App Store review item therefore has not been submitted.
+
+Apple upload delivery UUID is `98370121-bfc3-4e6e-943c-90ceaad9021b`;
+App Store version ID is `a03a0acc-2555-44aa-accd-78429a3e6a39` and review
+submission ID is `e5e27b8a-b628-4116-b135-361b91266929`. The exact accepted
+IPA downloaded to
+`output/app-store-v86.223-run-32611345045/otlobli-v86.223-build-1085-testflight.ipa`
+is `10,458,318` bytes, SHA-256
+`1EDA4263A97F496E2FDB594E1395E0D297E5D84A1E90B3E110BC220E65F1B0EC`.
+Its dSYM archive is `14,858,055` bytes, SHA-256
+`268DC270242E1DE5C38831158ADDC791A4D6C5C46DEC8845E3392ABBA1BE6057`.
+
 Local validation passes: all release/auth/security/store/Temu guards,
 TypeScript, executable/minified SHEIN freeze checks, production build,
 performance budgets, Android/iOS sync, post-sync release artifact scans, and

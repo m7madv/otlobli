@@ -19,8 +19,14 @@
   must surface missing Apple metadata/screenshots/privacy/review information
   exactly and must never fabricate owner/legal data.
 - **Validation boundary:** local build, all guards/budgets, both native syncs,
-  generated-asset scans, and Android assembly pass. App Store upload/review is
-  not yet performed in this preparation state.
+  generated-asset scans, and Android assembly pass. Run `32611345045` passed
+  Apple validation/upload/processing and internal distribution for exact
+  `86.223/1085` (delivery `98370121-bfc3-4e6e-943c-90ceaad9021b`). The existing
+  `1.0` draft was safely renamed to `86.223` and linked to `1085` without
+  deleting metadata. Review is blocked only on owner storefront prerequisites:
+  description/keywords/support and privacy URLs, required iPhone/iPad
+  screenshots, category, review contact/details, copyright/content rights,
+  privacy data usages, pricing, and all age-rating answers. Do not guess these.
 
 ## v86.221 — isolate Navigation sublayers with one flight recorder (2026-08-23)
 
