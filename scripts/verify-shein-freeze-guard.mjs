@@ -387,8 +387,8 @@ const checks = [
       "id: 'touch', code: 'N3'",
       "id: 'back', code: 'N4'",
       "id: 'early-mount', code: 'N5'",
-      "id: 'early-protection', code: 'N6'",
       "id: 'region', code: 'R1'",
+      'navigationEarlyProtection: false',
       "post({ type: 'storeScriptFlagsChanged', flags: profile.flags",
       "post({ type: 'storeDiagnosticState', state: state })",
       'نسخ التقرير الكامل',
@@ -645,13 +645,14 @@ const checks = [
     ],
   },
   {
-    label: 'SHEIN document-start native product-add concealment',
+    label: 'SHEIN document-start protection scans are retired after N6 device proof',
     files: sheinRuntimeSourceFiles,
     markers: [
+      "if (name === 'navigationEarlyProtection') return false;",
+      'function runEarlyProtections()',
       "style.id = 'otlobli-native-add-style'",
-      '[class*="add-to-bag" i]',
-      '[class*="add-cart" i]',
-      '[aria-label*="أضف إلى عربة" i]',
+      'hideListingCardAddButtons();',
+      'hideSheinNativeProductAdd();',
     ],
   },
   {
@@ -682,8 +683,11 @@ const checks = [
       "type: 'otlobliBackButtonState'",
       'window.__otlobliNativeBackState !== nativeState',
       'var nativeBackAvailable = !!(window.webkit',
-      "btn.style.display = shouldShow && !nativeBackAvailable ? 'flex' : 'none'",
-      'if (shouldShow && !nativeBackAvailable) otlobliStabilizeBackOverlay(btn)',
+      'if (nativeBackAvailable) {',
+      "var stalePageBack = document.getElementById('otlobli-back-btn')",
+      'if (stalePageBack) stalePageBack.remove()',
+      "btn.style.display = shouldShow ? 'flex' : 'none'",
+      'if (shouldShow) otlobliStabilizeBackOverlay(btn)',
       "window.mobileApp.postMessage({ detail: { type: 'closeStore' } })",
       // v86.123: the back button must never absorb a tap and do nothing. A bare
       // history.back() is a silent no-op once the store's back stack is spent,
@@ -694,6 +698,7 @@ const checks = [
     ],
     forbidden: [
       'function otlobliStabilizeTemuRootOverlay(el)',
+      "btn.style.display = shouldShow && !nativeBackAvailable ? 'flex' : 'none'",
       // The raw call, unguarded, is what dead-ended the button. Keep the
       // verified wrapper.
       '        } else if (!looksLikeHomeRoot() || looksLikeProductPage()) {\n          history.back();',
@@ -734,6 +739,22 @@ const checks = [
       'openIosSheinCartProductInFreshSession',
       'recoverSheinCartProductSession',
       'sheinCartProductRecoveryInFlightRef',
+    ],
+  },
+  {
+    label: 'SHEIN product browsing never starts or reloads region repair',
+    files: [
+      'src/services/sheinSessionScript.ts',
+      'src/App.tsx',
+    ],
+    markers: [
+      'if (productRoute && !sheinNativeCoverRepairActive) return;',
+      "sheinRegionDiag('prime-deferred-until-add'",
+      'manualRepair !== true &&',
+      'var initialProductRoute = sheinLooksLikeProductRouteForShipping();',
+      'if (!initialProductRoute && shouldReloadSheinForSaudi()',
+      'if (sheinProductIdentityFromUrl(url.toString())) return false',
+      'ensureSheinSaudiStore(true)',
     ],
   },
   {
@@ -965,10 +986,10 @@ try {
   if (humanCheckScript.includes('.click(') || humanCheckScript.includes('location.reload(')) {
     failures.push('SHEIN human check: verification must remain entirely user-controlled')
   }
-  const nativeAddStyleAt = bootstrapScript.indexOf("style.id = 'otlobli-native-add-style'")
-  const nativeAddProductGuardAt = bootstrapScript.indexOf("if (!/-p-\\d+/i.test(location.pathname)) return;", nativeAddStyleAt)
-  if (nativeAddStyleAt < 0 || nativeAddProductGuardAt < nativeAddStyleAt) {
-    failures.push('SHEIN native product-add concealment: CSS must mount before a later SPA product route')
+  const retiredEarlyProtectionAt = bootstrapScript.indexOf("if (name === 'navigationEarlyProtection') return false;")
+  const bootstrapFlagsAt = bootstrapScript.indexOf('var featureFlags = window.__OTLOBLI_SCRIPT_FLAGS__;', retiredEarlyProtectionAt)
+  if (retiredEarlyProtectionAt < 0 || bootstrapFlagsAt < retiredEarlyProtectionAt) {
+    failures.push('SHEIN early protection: device-rejected document-start scans must be disabled before stored/default flags are read')
   }
   if (typeof captureScript !== 'string' || !captureScript.trim()) {
     failures.push('SHEIN capture-script syntax: emitted script is missing')
@@ -977,11 +998,16 @@ try {
     const backLayerStart = captureScript.indexOf('function otlobliStabilizeBackOverlay')
     const backLayerEnd = captureScript.indexOf('function ensureOtlobliNav', backLayerStart)
     const backLayerHelper = captureScript.slice(backLayerStart, backLayerEnd)
-    const backDisplayAt = captureScript.indexOf("btn.style.display = shouldShow && !nativeBackAvailable ? 'flex' : 'none'")
+    const nativeBackAvailableAt = captureScript.indexOf('var nativeBackAvailable = !!(window.webkit')
     const nativeBackStateAt = captureScript.indexOf("type: 'otlobliBackButtonState'")
-    const visibleBackReclaimAt = captureScript.indexOf('if (shouldShow && !nativeBackAvailable) otlobliStabilizeBackOverlay(btn)', nativeBackStateAt)
-    if (backDisplayAt < 0 || nativeBackStateAt < backDisplayAt || visibleBackReclaimAt < nativeBackStateAt) {
-      failures.push('iPhone 6 back layer: visible/native state must be resolved before the final paint reclaim')
+    const nativeBackReturnAt = captureScript.indexOf('if (stalePageBack) stalePageBack.remove();', nativeBackStateAt)
+    const pageBackCreationAt = captureScript.indexOf("var btn = document.getElementById('otlobli-back-btn')", nativeBackReturnAt)
+    const backDisplayAt = captureScript.indexOf("btn.style.display = shouldShow ? 'flex' : 'none'", pageBackCreationAt)
+    const visibleBackReclaimAt = captureScript.indexOf('if (shouldShow) otlobliStabilizeBackOverlay(btn)', backDisplayAt)
+    if (nativeBackAvailableAt < 0 || nativeBackStateAt < nativeBackAvailableAt ||
+        nativeBackReturnAt < nativeBackStateAt || pageBackCreationAt < nativeBackReturnAt ||
+        backDisplayAt < pageBackCreationAt || visibleBackReclaimAt < backDisplayAt) {
+      failures.push('SHEIN Back: iOS must publish native state and return before any page button is created; non-native fallback must still reclaim paint')
     }
     const backLayerStyles = {}
     const backLayerChildren = []
@@ -1170,12 +1196,12 @@ try {
   if (profileById.viewport.flags.navigationViewport !== true || profileById.viewport.flags.navigationBar !== false) {
     failures.push('SHEIN navigation isolation: N1 must add viewport without the bar')
   }
-  if (profileById['early-protection'].flags.navigationEarlyProtection !== true ||
-      profileById['early-protection'].flags.session !== false) {
-    failures.push('SHEIN navigation isolation: N6 must restore full navigation without session/region')
+  if (profileById['early-protection']) {
+    failures.push('SHEIN navigation isolation: device-rejected N6 must not remain selectable')
   }
-  if (profileById.region.flags.navigation !== true || profileById.region.flags.session !== true) {
-    failures.push('SHEIN navigation isolation: R1 must restore navigation and session/region')
+  if (profileById.region.flags.navigation !== true || profileById.region.flags.session !== true ||
+      profileById.region.flags.navigationEarlyProtection !== false) {
+    failures.push('SHEIN navigation isolation: R1 must restore session/region without the rejected early protection')
   }
 } catch (error) {
   failures.push(`SHEIN navigation isolation syntax: ${error instanceof Error ? error.message : String(error)}`)

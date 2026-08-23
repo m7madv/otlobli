@@ -1545,6 +1545,10 @@ export const SHEIN_SESSION_SCRIPT = `
   function ensureSheinSaudiShippingSelection() {
     if (!IS_SHEIN || !document.body || document.readyState === 'loading') return;
     var productRoute = sheinLooksLikeProductRouteForShipping();
+    // Browsing a PDP must not open a shipping cascade or mutate the route.
+    // The explicit Otlobli Add action starts the same signed-address repair
+    // through ensureSheinSaudiStore(true), after which this function resumes.
+    if (productRoute && !sheinNativeCoverRepairActive) return;
     // A recovered Home is a same-site launch pad for the queued PDP. Opening
     // the shipping cascade there made the host wait on an address signature,
     // close the drawer, and open it again instead of ever reaching the product.
@@ -1701,6 +1705,16 @@ export const SHEIN_SESSION_SCRIPT = `
       sheinRegionTransitionVeil(false);
       return false;
     }
+    // v86.221 physical isolation showed that beginning region repair merely
+    // by entering a product recreates the old spinner. Keep this hook before
+    // the interaction early-return so an already-authorized Add repair keeps
+    // progressing, but do not start a repair from browsing alone.
+    if (!sheinNativeCoverRepairActive) {
+      sheinRegionDiag('prime-deferred-until-add', {
+        addressCountry: sheinAddressCookieCountry()
+      }, 'deferred');
+      return false;
+    }
     sheinRegionDiag('prime-called', {
       addressCountry: sheinAddressCookieCountry()
     }, 'prime');
@@ -1719,6 +1733,11 @@ export const SHEIN_SESSION_SCRIPT = `
     if (!IS_SHEIN) return true;
     // أثناء تحقق «أنا إنسان»: ممنوع أي إعادة تحميل/كتابة — تصفّر حل المستخدم.
     if (otlobliIsHumanChallenge()) return false;
+    // Do not rewrite an in-flight PDP URL or start its shipping drawer during
+    // ordinary browsing. Add is the fail-closed transaction boundary that may
+    // request the existing signed-region repair explicitly.
+    if (sheinLooksLikeProductRouteForShipping() && manualRepair !== true &&
+        !sheinNativeCoverRepairActive) return sheinSaudiSignalsOk();
     var normalized = otlobliNormalizeSheinUrl(location.href);
     var addressCountry = sheinAddressCookieCountry();
     var visibleForeignRegion = addressCountry === SHEIN_REQUIRED_COUNTRY ? false : sheinVisibleForeignRegion();
@@ -1764,15 +1783,18 @@ export const SHEIN_SESSION_SCRIPT = `
   // فرض العربية خاص بشي إن فقط (غيره قد يضبط كوكي لغة خاطئة فيعيد التحميل بلا داعٍ).
   if (IS_SHEIN && otlobliScriptEnabled('session')) {
     var normalizedArabicUrl = otlobliNormalizeSheinUrl(location.href);
+    var initialProductRoute = sheinLooksLikeProductRouteForShipping();
     // ممنوع إعادة تحميل أثناء تحقق «أنا إنسان» — تصفّر حل المستخدم.
-    if (shouldReloadSheinForSaudi() && !otlobliIsHumanChallenge()) {
+    // A product document is never location.replace'd by the region layer;
+    // forcing a second document here was the old product-spinner path.
+    if (!initialProductRoute && shouldReloadSheinForSaudi() && !otlobliIsHumanChallenge()) {
       var arRedirectAttempts = parseInt(sessionStorage.getItem('__otlobliArRedirects') || '0', 10);
       if (arRedirectAttempts < 1) {
         sessionStorage.setItem('__otlobliArRedirects', String(arRedirectAttempts + 1));
         location.replace(normalizedArabicUrl);
         return;
       }
-    } else if (normalizedArabicUrl !== location.href) {
+    } else if (!initialProductRoute && normalizedArabicUrl !== location.href) {
       try {
         history.replaceState(history.state, '', normalizedArabicUrl);
       } catch (e) {}

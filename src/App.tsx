@@ -110,8 +110,8 @@ const loadStoreScriptDiagnosticsBundle = () => {
   return storeScriptDiagnosticsBundlePromise
 }
 
-const STORE_SCRIPT_FLAGS_STORAGE_KEY = 'otlobli.storeScriptDiagnostics.flags.v3'
-const STORE_DIAGNOSTIC_STATE_STORAGE_KEY = 'otlobli.storeScriptDiagnostics.state.v3'
+const STORE_SCRIPT_FLAGS_STORAGE_KEY = 'otlobli.storeScriptDiagnostics.flags.v4'
+const STORE_DIAGNOSTIC_STATE_STORAGE_KEY = 'otlobli.storeScriptDiagnostics.state.v4'
 const INITIAL_STORE_SCRIPT_FLAGS: StoreScriptFlags = {
   runtime: true,
   navigation: false,
@@ -139,7 +139,7 @@ const normalizeStoreScriptFlags = (value: unknown): StoreScriptFlags => {
     navigationTouch: navigationFlag('navigationTouch'),
     navigationBack: navigationFlag('navigationBack'),
     navigationEarlyMount: navigationFlag('navigationEarlyMount'),
-    navigationEarlyProtection: navigationFlag('navigationEarlyProtection'),
+    navigationEarlyProtection: false,
     blocking: candidate.blocking === true,
     capture: candidate.capture === true,
     session: candidate.session === true,
@@ -158,14 +158,14 @@ const readStoreScriptFlags = () => STORE_SCRIPT_DIAGNOSTICS
       navigationTouch: true,
       navigationBack: true,
       navigationEarlyMount: true,
-      navigationEarlyProtection: true,
+      navigationEarlyProtection: false,
       blocking: true,
       capture: true,
       session: true,
     }
 
 const INITIAL_STORE_DIAGNOSTIC_STATE: StoreDiagnosticState = {
-  version: 3,
+  version: 4,
   activeProfile: 'baseline',
   outcomes: {},
   trace: [],
@@ -818,6 +818,10 @@ const shouldRedirectSheinToRegion = (rawUrl: string, region: StoreRegion) => {
   try {
     const url = new URL(rawUrl)
     if (!/shein/i.test(url.hostname)) return false
+    // Never replace a live PDP navigation from the native URL listener. The
+    // normalized entry URL is already used when Otlobli opens a saved product,
+    // and the signed shipping region remains fail-closed at Add time.
+    if (sheinProductIdentityFromUrl(url.toString())) return false
     // Never rewrite SHEIN/Cloudflare verification routes. Replacing their URL
     // with /ar while the challenge is running restarts the challenge and can
     // make the native WebView flash/close in a loop when switching stores.

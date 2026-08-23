@@ -1,3 +1,35 @@
+# Active handoff — v86.222 safe navigation candidate (2026-08-23)
+
+Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`
+on `codex/otlobli-v86-212-testflight-auth`. Source is `86.222/1084` and the
+diagnostic build is synchronized to Android and iOS. It has passed local gates
+but has not yet been uploaded to TestFlight or accepted on a real device.
+
+Treat the user's v86.221 result as authoritative. N6 was the first consistent
+failure and is the proven list-to-PDP spinner trigger: document-start ran
+bottom-nav/native-Add/signup scans every 250ms before SHEIN readiness. The
+bootstrap now returns false for `navigationEarlyProtection` before any flag
+lookup; App/customer/diagnostic defaults and normalization also force false.
+Do not re-enable N6. Post-load blocker work remains fully present.
+
+N4 also correlated with an intermittent SHEIN system-error Home that Retry
+recovered. iOS `ensureBackButton()` now sends native state and returns before
+creating `#otlobli-back-btn`; Android/no-native-handler retains the HTML button.
+Preserve native root exit and product Back. R1 was contaminated by N6, so the
+new R1 is independent. Product browsing no longer authorizes region drawer,
+`location.replace`, history normalization, or native `setUrl`; explicit Add
+still calls `ensureSheinSaudiStore(true)` and remains fail-closed on the signed
+address. Do not weaken the Add gate.
+
+All exact hashes, budgets, APK, and screenshot are at the top of
+`CURRENT_STATE.md`. TypeScript, guards, both builds, Playwright, native syncs,
+and Android assembly pass. No native lifecycle, payment, wallet, orders, auth,
+or backend code changed. Next external step is internal-only TestFlight with
+`store_script_diagnostics=true`; never enable public distribution. After device
+install: cold Home, several products on N5, product/Home native Back, then R1
+and one Add. Five resume cycles and a cold launch remain mandatory before any
+fixed/release claim.
+
 # Active handoff — v86.221 navigation flight recorder (2026-08-23)
 
 Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on

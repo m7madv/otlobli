@@ -2,6 +2,25 @@
 
 هذه قاعدة إصدار إلزامية وليست ملاحظة تاريخية.
 
+## إلغاء الحماية المبكرة وتأجيل المنطقة إلى الإضافة — v86.222
+
+- اختبار N6 على الآيفون الحقيقي حسم أن مسح DOM المبكر لشريط SHEIN وزر
+  الإضافة وعرض التسجيل من `document-start` هو سبب حلقة تحميل المنتج. لذلك
+  `navigationEarlyProtection` متوقف إجباريًا قبل قراءة أي أعلام قديمة، ولا
+  يجوز إعادته أو تشغيل مؤقته ذي 250ms. الحجب نفسه يبقى كاملًا بعد جاهزية
+  الصفحة عبر `runOtlobliBlockers()` ودورة الصيانة المحدودة.
+- على iOS يوجد زر Back أصلي واحد. يجب إرسال `otlobliBackButtonState` والعودة
+  قبل إنشاء `#otlobli-back-btn` داخل صفحة SHEIN؛ زر HTML يبقى fallback فقط
+  للمنصات التي لا تملك message handler. حارس Home الأصلي والخروج قبل WebKit
+  history لا يتغيران.
+- فتح PDP للتصفح لا يبدأ درج الشحن، ولا ينفذ `location.replace` أو native
+  `setUrl` أو `history.replaceState` بسبب المنطقة. ضغط «إضافة» الصريح وحده
+  يفوّض محاولة الإصلاح، وتبقى الإضافة fail-closed حتى
+  `sheinSignedSaudiAddressReady()`.
+- استدعاء `sheinPrimeRegionRepairFromRoute()` يبقى قبل early-return الخاص
+  باللمس كي يواصل محاولة فُوّضت من «إضافة»، لكنه لا يبدأ محاولة من التصفح
+  وحده. هذه القاعدة تحل محل شرط v86.17 الذي كان يبدأ الإصلاح عند كل PDP.
+
 ## ملكية SHEIN لتنقّل المنتج + محاولة منطقة واحدة — v86.220
 
 - أثبت عزل الجهاز الحقيقي أن صفحة المنتج تفتح عندما تكون طبقة التنقل مطفأة
@@ -71,7 +90,8 @@
 
 ## زر واحد لكل متصفح متجر — v86.200
 
-- إذا كان `window.webkit.messageHandlers.messageHandler` موجودًا، زر HTML `#otlobli-back-btn` يبقى مخفيًا بصريًا لكنه يرسل `otlobliBackButtonState`; زر Native وحده يظهر.
+- إذا كان `window.webkit.messageHandlers.messageHandler` موجودًا، يُرسل
+  `otlobliBackButtonState` ثم يعود قبل إنشاء زر HTML؛ زر Native وحده يظهر.
 - إذا لم توجد طبقة Native، زر HTML هو fallback الوحيد. ممنوع إخفاؤه على Android أو إظهار الزرين معًا على iOS.
 - Temu root يجب أن يظهر زرًا. البحث له الأولوية للخروج من search mode، ثم root يرسل `closeStore`، وغير الجذر يحتفظ بالرجوع الحالي.
 - `closeStore` يجب أن يخفي/يركن Temu InAppBrowser قبل إظهار picker، من دون تدمير جلسة أو مسح بيانات.
@@ -198,8 +218,11 @@
 
 ## حارس أول منتج وغطاء تبديل المنطقة — v86.17
 
-- أول منتج SHEIN يجب أن يطلق إصلاح المنطقة من مسار الرابط نفسه، حتى قبل ظهور عناصر الشحن. حافظ على `sheinLooksLikeProductRouteForShipping()` و`sheinPrimeRegionRepairFromRoute()` واستدعاء `if (IS_SHEIN) sheinPrimeRegionRepairFromRoute();` قبل early-return الخاص باللمس/التمرير.
-- إذا كان رابط المنتج لا يحمل دولة/عملة/لغة الإعداد الحالي، مسموح فقط بإعادة تحميل واحدة محكومة بالمفتاح `__otlobliRegionBootstrapReload:<country>:<path>`. لا تحول هذا إلى reload/setUrl loop، ولا تشغله على صفحات التحقق البشري.
+- هذا الشرط التاريخي مُستبدل بحارس v86.222 أعلاه: يحافظ الكود على اكتشاف
+  مسار المنتج واستدعاء prime قبل early-return، لكنه لا يبدأ إصلاحًا تلقائيًا
+  لمجرد التصفح. التفويض يأتي من ضغط «إضافة» فقط.
+- لم يعد مسموحًا بإعادة تحميل PDP بسبب دولة/عملة/لغة الرابط؛ v86.222 يمنع
+  `location.replace` وnative `setUrl` وhistory normalization أثناء التصفح.
 - إخفاء تبديل المنطقة يتم عبر غطاء HTML خفيف داخل WebView: `#otlobli-region-switching`. هذا ليس غطاء `sheinSaudiRepairStart` native القديم. يجب أن يبقى شريط Otlobli فوقه، وأن تختفي أزرار add/back فقط أثناء التهيئة.
 - الجاهزية النهائية ما زالت `sheinSignedSaudiAddressReady()` فقط. لا تجعل ظهور الصفحة أو URL params كافيين للسلة.
 

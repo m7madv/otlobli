@@ -22,7 +22,7 @@ export type StoreDiagnosticTraceEntry = {
 }
 
 export type StoreDiagnosticState = {
-  version: 3
+  version: 4
   activeProfile: string
   outcomes: Record<string, StoreDiagnosticOutcome>
   trace: StoreDiagnosticTraceEntry[]
@@ -69,7 +69,7 @@ export const DEFAULT_STORE_SCRIPT_FLAGS: StoreScriptFlags = {
   navigationTouch: true,
   navigationBack: true,
   navigationEarlyMount: true,
-  navigationEarlyProtection: true,
+  navigationEarlyProtection: false,
   blocking: true,
   capture: true,
   session: true,
@@ -104,22 +104,17 @@ export const STORE_SCRIPT_DIAGNOSTIC_PROFILES: StoreScriptDiagnosticProfile[] = 
   },
   {
     id: 'back', code: 'N4', title: 'رجوع المنتج',
-    description: 'يضيف زر الرجوع وحالة سجل الصفحة فوق الطبقات السابقة.',
+    description: 'يضيف رجوع iOS الأصلي بلا زر HTML داخل صفحة SHEIN.',
     flags: { ...DIAGNOSTIC_BASE_FLAGS, navigation: true, navigationViewport: true, navigationBar: true, navigationTouch: true, navigationBack: true },
   },
   {
     id: 'early-mount', code: 'N5', title: 'التركيب المبكر',
-    description: 'يرسم الشريط منذ بداية الوثيقة قبل اكتمال SHEIN.',
+    description: 'يرسم الشريط منذ بداية الوثيقة؛ الحماية المبكرة المسببة للعطل محذوفة.',
     flags: { ...DIAGNOSTIC_BASE_FLAGS, navigation: true, navigationViewport: true, navigationBar: true, navigationTouch: true, navigationBack: true, navigationEarlyMount: true },
   },
   {
-    id: 'early-protection', code: 'N6', title: 'الحماية المبكرة',
-    description: 'يضيف ماسح شريط SHEIN وزر الإضافة والعرض السفلي المحدود.',
-    flags: { ...DIAGNOSTIC_BASE_FLAGS, navigation: true, navigationViewport: true, navigationBar: true, navigationTouch: true, navigationBack: true, navigationEarlyMount: true, navigationEarlyProtection: true },
-  },
-  {
     id: 'region', code: 'R1', title: 'الجلسة والمنطقة',
-    description: 'آخر اختبار مستقل: يضيف تغيير المنطقة بعد ثبوت طبقة التنقّل.',
+    description: 'اختبار مستقل بلا حماية مبكرة؛ إصلاح الشحن يبدأ عند الإضافة لا أثناء فتح المنتج.',
     flags: { ...DEFAULT_STORE_SCRIPT_FLAGS },
   },
 ]
@@ -151,7 +146,7 @@ export const normalizeStoreScriptFlags = (value: unknown): StoreScriptFlags => {
     navigationTouch: normalizedNavigationFlag(candidate, 'navigationTouch', navigation),
     navigationBack: normalizedNavigationFlag(candidate, 'navigationBack', navigation),
     navigationEarlyMount: normalizedNavigationFlag(candidate, 'navigationEarlyMount', navigation),
-    navigationEarlyProtection: normalizedNavigationFlag(candidate, 'navigationEarlyProtection', navigation),
+    navigationEarlyProtection: false,
     blocking: candidate.blocking !== false,
     capture: candidate.capture !== false,
     session: candidate.session !== false,
@@ -190,7 +185,7 @@ export const normalizeStoreDiagnosticState = (value: unknown): StoreDiagnosticSt
     : []
   const activeProfile = cleanText(candidate.activeProfile, 32)
   return {
-    version: 3,
+    version: 4,
     activeProfile: PROFILE_IDS.has(activeProfile) ? activeProfile : 'baseline',
     outcomes,
     trace,
@@ -259,7 +254,7 @@ export const STORE_SCRIPT_DIAGNOSTICS_PANEL_SCRIPT = `
   window.__otlobliScriptDiagnosticsMounted = true;
   var profiles = ${DIAGNOSTIC_PROFILES_JSON};
   var flags = window.__OTLOBLI_SCRIPT_FLAGS__ || profiles[0].flags;
-  var state = window.__OTLOBLI_DIAGNOSTIC_STATE__ || { version: 3, activeProfile: 'baseline', outcomes: {}, trace: [], journey: {} };
+  var state = window.__OTLOBLI_DIAGNOSTIC_STATE__ || { version: 4, activeProfile: 'baseline', outcomes: {}, trace: [], journey: {} };
   var root = null, status = null, journeyList = null, profileList = null;
   var lastProductTouchAt = 0, lastProductHref = '', startingUrl = String(location.href || ''), recordedErrors = 0;
 
@@ -279,7 +274,7 @@ export const STORE_SCRIPT_DIAGNOSTICS_PANEL_SCRIPT = `
   function normalizeState(value) {
     var source = value && typeof value === 'object' ? value : {};
     var journey = source.journey && typeof source.journey === 'object' ? source.journey : {};
-    return { version: 3, activeProfile: text(source.activeProfile || profileForFlags(flags).id, 32),
+    return { version: 4, activeProfile: text(source.activeProfile || profileForFlags(flags).id, 32),
       outcomes: source.outcomes && typeof source.outcomes === 'object' ? source.outcomes : {},
       trace: Array.isArray(source.trace) ? source.trace.slice(-40) : [],
       journey: { tap: journey.tap === true, url: journey.url === true, document: journey.document === true,

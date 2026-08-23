@@ -1,3 +1,69 @@
+# v86.222 — device-led safe navigation and Add-only region repair (2026-08-23)
+
+Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
+`codex/otlobli-v86-212-testflight-auth`. Source is `86.222/1084`, locally
+validated and synchronized to Android/iOS as an internal diagnostic candidate.
+It is not yet uploaded to TestFlight and is not real-device acceptance.
+
+The physical v86.221 flight recorder produced the first exact cause: the
+persistent PDP spinner did not appear before N6, while enabling N6 immediately
+and consistently restored it. N6 ran three DOM/layout protection scans from document-start every
+250ms until runtime readiness, for up to 180 runs. v86.222 makes
+`navigationEarlyProtection` fail-closed before reading current or stale flags.
+The blocker feature is not removed: post-load `runOtlobliBlockers()` still hides
+listing/native Add controls, and the normal runtime still hides SHEIN bottom
+navigation and the exact signup surface.
+
+N4 had a separate intermittent observation: initial SHEIN Home sometimes showed
+SHEIN's own generic system-error page and Retry recovered. The code was creating,
+styling, and repaint-reclaiming a hidden HTML Back button on iOS even though the
+app-owned native UIButton is the only visible/pressed control. iOS now publishes
+`otlobliBackButtonState` and returns before creating page Back DOM. The accepted
+native canonical-Home exit, product history, cart priority, and 0.8s lock are
+unchanged; Android/no-WebKit retains the HTML fallback.
+
+R1 in v86.221 was cumulative and still contained N6, so it was not independent
+proof against the session layer. v86.222 separates it: R1 and customer defaults
+have early protection off. It also removes every region-owned PDP navigation
+mutation: ordinary product browsing does not open the shipping cascade, call
+document-start `location.replace`, rewrite history, or let the native URL
+listener call `setUrl`. Explicit Otlobli Add remains the fail-closed boundary;
+it calls `ensureSheinSaudiStore(true)` and cannot capture/add until the signed
+address matches. Home can still correct an explicit administration-region
+mismatch before product browsing.
+
+The diagnostic state/storage is v4. N6 is no longer selectable; N0-N5 remain for
+regression isolation and R1 is now truly free of N6. Playwright at `430x932`
+verified the updated Arabic panel, interaction tree, and copy; the only console
+error is the fixture's absent favicon. Evidence is
+`output/playwright/v86.222-shein-safe-runtime-iphone16.png`.
+
+Validation passes: TypeScript; targeted ESLint with zero errors and 17 existing
+App hook warnings; release, security, store, Temu, and executable SHEIN freeze
+guards; normal and diagnostic builds; both performance budgets; Android/iOS
+sync; post-sync freeze guard; and Android `assembleDebug`. Normal budgets are
+startup/largest raw JS `657,788/720,000` and `/1,200,000`, total JS gzip
+`267,630/370,000`, CSS `69,990/70,000`, fonts `81,364/100,000`, shipped store
+scripts `237,136/470,000`, and source `590,127/600,000`. Diagnostic startup is
+`660,862/720,000` and total gzip `277,345/370,000`; the other measurements are
+identical.
+
+The store bundle is 259,916 bytes, SHA-256
+`59FA5531FA693642AE32144BFE1079F06F3C8623AEEA84C094020B27BD8ABFC3`.
+The v4 diagnostic chunk is 31,851 bytes, SHA-256
+`2CB0CA46663DE83D67357311B405C1578536973D763C4F60068FE33C127C8A4A`.
+Both and `index.html` are byte-identical in `dist`, Android, and iOS. Android
+artifact `output/Otlobli-v86.222-SHEIN-safe-navigation-region-Android-debug.apk`
+is 11,128,645 bytes, SHA-256
+`C67D80FC2D361D497199EA0BC8438BAA67A9967C023A7FDA919BC22BDF779AAB`,
+package `com.otlobli.app`, version `86.222/1084`.
+
+No native lifecycle/recompose, payment, wallet, completed-order, authentication,
+or backend behavior changed. Physical acceptance is pending: first cold-open
+Home once, open several products with N5, use native Back to Home, then test R1
+and press Add once to verify region repair starts only there. Five iPhone 16
+background/resume cycles and one separate force-quit/cold-launch remain required.
+
 # v86.221 — professional SHEIN navigation flight recorder (2026-08-23)
 
 Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on

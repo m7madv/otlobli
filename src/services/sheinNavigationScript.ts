@@ -110,6 +110,11 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
   window.__otlobliNavBootstrapInstalled = true;
 
   function otlobliNavBootstrapFeatureEnabled(name) {
+    // Physical iPhone isolation (v86.221/N6) proved that running the DOM
+    // protection scans from document-start is the product-spinner trigger.
+    // The post-load coordinator still owns the same blocker work; this legacy
+    // bootstrap switch is deliberately fail-closed even for old stored flags.
+    if (name === 'navigationEarlyProtection') return false;
     var featureFlags = window.__OTLOBLI_SCRIPT_FLAGS__;
     if (!featureFlags) return true;
     if (featureFlags.runtime === false || featureFlags.navigation === false) return false;

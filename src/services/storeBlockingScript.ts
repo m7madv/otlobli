@@ -499,6 +499,36 @@ export const STORE_BLOCKING_SCRIPT = `
   }
 
   function ensureBackButton() {
+    var temuSearchBack = IS_TEMU && otlobliTemuSearchBackActive();
+    // Temu already owns product/category/search navigation. Otlobli supplies
+    // only the missing root exit, avoiding a duplicate button on inner pages.
+    // Keep SHEIN and cart-return behaviour unchanged.
+    var shouldShow = __otlobliBackTarget === 'cart' || IS_SHEIN
+      || (IS_TEMU ? looksLikeHomeRoot() : (!looksLikeHomeRoot() || looksLikeProductPage()));
+    var nativeBackAvailable = !!(window.webkit && window.webkit.messageHandlers
+      && window.webkit.messageHandlers.messageHandler);
+    var backTop = temuSearchBack ? 30 : ((IS_SHEIN && viewportSize().width <= 390) ? 58 : 12);
+
+    // iOS already owns the one visible Back control above WKWebView. Creating,
+    // styling and repeatedly reclaiming a second (hidden) button inside SHEIN
+    // was unnecessary page DOM interference; N4 device isolation associated
+    // that intervention with SHEIN's intermittent first-load system error.
+    if (nativeBackAvailable) {
+      var nativeBackTarget = __otlobliBackTarget === 'cart'
+        ? 'cart'
+        : ((IS_SHEIN || IS_TEMU) && looksLikeHomeRoot() ? 'exit' : 'home');
+      var nativeState = (shouldShow ? '1:' : '0:') + backTop + ':' + nativeBackTarget;
+      if (window.__otlobliNativeBackState !== nativeState) {
+        window.__otlobliNativeBackState = nativeState;
+        window.mobileApp.postMessage({ detail: {
+          type: 'otlobliBackButtonState', visible: shouldShow, top: backTop, target: nativeBackTarget
+        } });
+      }
+      var stalePageBack = document.getElementById('otlobli-back-btn');
+      if (stalePageBack) stalePageBack.remove();
+      return;
+    }
+
     var btn = document.getElementById('otlobli-back-btn');
     if (!btn) {
       ensureShakeStyle();
@@ -547,30 +577,9 @@ export const STORE_BLOCKING_SCRIPT = `
       }, true);
       otlobliStabilizeBackOverlay(btn);
     }
-    var temuSearchBack = IS_TEMU && otlobliTemuSearchBackActive();
-    // Temu already owns product/category/search navigation. Otlobli supplies
-    // only the missing root exit, avoiding a duplicate button on inner pages.
-    // Keep SHEIN and cart-return behaviour unchanged.
-    var shouldShow = __otlobliBackTarget === 'cart' || IS_SHEIN
-      || (IS_TEMU ? looksLikeHomeRoot() : (!looksLikeHomeRoot() || looksLikeProductPage()));
-    var nativeBackAvailable = !!(window.webkit && window.webkit.messageHandlers
-      && window.webkit.messageHandlers.messageHandler);
-    var backTop = temuSearchBack ? 30 : ((IS_SHEIN && viewportSize().width <= 390) ? 58 : 12);
     btn.style.setProperty('top', backTop + 'px', 'important');
-    btn.style.display = shouldShow && !nativeBackAvailable ? 'flex' : 'none';
-    if (nativeBackAvailable) {
-      var nativeBackTarget = __otlobliBackTarget === 'cart'
-        ? 'cart'
-        : ((IS_SHEIN || IS_TEMU) && looksLikeHomeRoot() ? 'exit' : 'home');
-      var nativeState = (shouldShow ? '1:' : '0:') + backTop + ':' + nativeBackTarget;
-      if (window.__otlobliNativeBackState !== nativeState) {
-        window.__otlobliNativeBackState = nativeState;
-        window.mobileApp.postMessage({ detail: {
-          type: 'otlobliBackButtonState', visible: shouldShow, top: backTop, target: nativeBackTarget
-        } });
-      }
-    }
-    if (shouldShow && !nativeBackAvailable) otlobliStabilizeBackOverlay(btn);
+    btn.style.display = shouldShow ? 'flex' : 'none';
+    if (shouldShow) otlobliStabilizeBackOverlay(btn);
   }
 
   function isAddToCartText(el) {
