@@ -1,7 +1,7 @@
 
 export const OTLOBLI_SHEIN_BASE_CSS = '.login-bar.j-login-bar{display:none!important}'
 
-export const OTLOBLI_NAV_STYLE_VERSION = 'v86.223.1'
+export const OTLOBLI_NAV_STYLE_VERSION = 'v86.224.1'
 const SB = 'max(env(safe-area-inset-bottom,0px),var(--otlobli-sb,16px),16px)'
 export const OTLOBLI_NAV_CSS =
   'position:fixed!important;left:50%!important;right:auto!important;bottom:0!important;top:auto!important;' +

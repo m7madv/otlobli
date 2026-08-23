@@ -1,3 +1,60 @@
+# v86.224/1089 — SHEIN Home preflight and native Temu Back republish (2026-08-23)
+
+Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
+`codex/otlobli-v86-212-testflight-auth`. Marketing is `86.224`; the locally
+validated candidate is iOS build `1089` and Android build `1088`.
+
+The user's physical iPhone 16 Pro Max result rejects `86.223 (1088)`: Temu
+blocking/speed improved somewhat, but its green Back still disappears after a
+product returns to Home, and the SHEIN region failure is unchanged. The exact
+older flow the user remembered was found at commit `9cea927` (`v86.68`): SHEIN
+Home's semantic `.area-selector-entrance[role="button"]` opened the native
+shipping cascade and produced a signed address before product browsing. That
+flow was previously measured at about five seconds on a Note 8 after removing
+`localStorage.addressCookie`.
+
+The region architecture now restores that proven flow without restoring its
+later product-spinner coupling. Every queued SHEIN product starts from the
+configured Home URL; Home alone may use the semantic shipping entry to finish
+the signed Admin-selected address, and the host navigates to the queued PDP
+only after the full region coordinator is `READY`. The obsolete
+`__otlobliSkipHomeRegionRepair` path is deleted. Ordinary PDP browsing still
+cannot start region repair; explicit Add remains the fail-closed fallback and
+cannot capture until the signed address matches. This also covers product links
+opened from `طلباتي` when the store is not already prepared.
+
+Temu's remaining Back loss was a native race: Capgo hides the control in
+`didStartProvisionalNavigation`, while a restored Home document may not emit a
+new JavaScript state. The patched iOS controller now asks the completed
+document to republish Back state once from `didFinish`; this is event-driven and
+adds no timer, retry loop, DOM scan, reload, or WebView recreation. Temu's
+stable-product paths now stop repeated vital/blank-page scans after the product
+identity is confirmed. More than 300 lines of unreachable diagnostic/header-
+wake code and forced scroll/resize behavior were removed, entry cleanup no
+longer launches forced waves, and the unavoidable loading surface is a branded
+light green instead of a raw white page.
+
+Validation passes: targeted ESLint has zero errors (16 established App hook
+warnings), TypeScript, every release/auth/security/SHEIN/Temu/store guard, full
+production build, postbuild hardening, low-end performance budget, Android/iOS
+Capacitor sync, three-root production artifact scan, and Android
+`assembleDebug`. Budgets are startup/largest JS `658,718/720,000` and
+`/1,200,000`, total JS gzip `264,497/370,000`, CSS `69,968/70,000`, fonts
+`81,364/100,000`, shipped store scripts `227,991/470,000`, and store source
+`522,868/600,000`; no budget changed. Store bundle
+`dist/assets/storeCaptureBundle-BElCPPAm.js` is `250,643` bytes, SHA-256
+`2EBC6E66DB21BA6B162686D79E678F1B169821AF0CF1313DA14644483AF24F35`,
+and is byte-identical in both native projects. Android debug artifact
+`output/Otlobli-v86.224-build-1088-Android-debug.apk` is `11,113,872` bytes,
+SHA-256 `1AC514F19E6A736DFBE86E4A966C7E061B020962BD59FDA40402AA5CC702D9A5`.
+
+TestFlight upload for `86.224 (1089)` is the next release action; no public App
+Store submission is authorized for this batch. Real-device acceptance remains
+mandatory: Temu product -> Home must preserve Back; SHEIN must start with the
+Admin-selected region and open several products without a drawer/spinner; test
+an order product, five background/resume cycles, and a separate cold launch. A
+real weak/old Android acceptance is not claimed.
+
 # v86.223/1088 — long Temu recording and Qatar address completion (2026-08-23)
 
 Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
@@ -52,8 +109,16 @@ and is byte-identical in both native projects. Android debug artifact
 `output/Otlobli-v86.223-build-1087-Android-debug.apk` is `11,113,956` bytes,
 SHA-256 `E4B0FD79261D2D2BB9C5C3267703500573EB518060C5962DCA18C074FFCA8E45`.
 
-No TestFlight upload or public App Store submission was made for build 1088.
-Real-device acceptance is still required on iPhone 16 Pro Max: repeat the
+Signed workflow run `32651898752` from commit `1d3aab7` passed Apple validation,
+upload, processing, and internal assignment. Delivery UUID is
+`7cc28dc8-0324-4831-8864-ce8eab63c896`; exact build `86.223 (1088)` is
+`VALID`/`IN_BETA_TESTING` with expected tester state `INSTALLED`. GitHub
+artifact ID `9496522621` is `25,119,065` bytes with digest
+`sha256:057ffd767e1f9be248f3c6f65a12a2ba803e918aeb224ba1941a56b71869ed4b`.
+The local artifact download was interrupted before an IPA hash could be
+verified, so none is claimed. No public App Store submission was made. The
+user's subsequent physical test rejected this candidate as recorded above.
+Real-device acceptance remains required on iPhone 16 Pro Max: repeat the
 recorded Temu product/Home/rapid-scroll sequence, confirm the green Back and
 both bars remain stable, complete Qatar Add through the zone number, open both
 stores' products from one order, then run five background/resume cycles and a

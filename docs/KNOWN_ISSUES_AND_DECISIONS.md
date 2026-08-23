@@ -1,5 +1,29 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
+## v86.224 — prepare SHEIN region on Home; republish Temu Back natively (2026-08-23)
+
+- **Physical evidence:** `86.223 (1088)` improved some Temu speed/blocking but
+  still loses native Back after product -> Home, and did not fix SHEIN region.
+  This rejects JS `pageshow` alone and the existing Add/product-oriented region
+  topology.
+- **Recovered reference:** commit `9cea927` (`v86.68`) is the remembered fast
+  path: use SHEIN Home's semantic area selector to complete a signed address
+  before product browsing. The later product-spinner incidents do not require
+  abandoning Home preparation; they require keeping it out of PDP navigation.
+- **Region decision:** every queued SHEIN product enters the configured Home
+  first and waits for full signed coordinator readiness before same-document
+  PDP navigation. Remove the Home-repair bypass. Normal PDP browsing cannot
+  start repair; explicit Add remains a fail-closed fallback.
+- **Temu decision:** native provisional navigation owns the hide, so native
+  `didFinish` owns one state republish from the completed document. This is an
+  event, not a new retry/timer/polling/scan mechanism.
+- **Performance decision:** confirmed Temu product identity ends repeated
+  vitals/blank checks. Unreachable diagnostics, header-wake restoration,
+  forced scroll/resize, and entry cleaner waves stay deleted.
+- **Boundary:** do not change the protected native recompose timing, active-
+  region equality check, payment/wallet/order completion, or backend. Local
+  gates pass; real iPhone acceptance remains pending for `86.224 (1089)`.
+
 ## v86.223 — retire temporary diagnostics and use one production path (2026-08-23)
 
 - **Physical result:** the user reports the v86.222 tested flow is working and

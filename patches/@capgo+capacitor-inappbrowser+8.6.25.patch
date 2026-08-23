@@ -1769,7 +1769,7 @@ index 1c70884..be2b8ac 100644
          if
              ProxySchemeRequestSupport.supportsRequestBody(method: context.method),
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
-index 97a2fc1..a5378ce 100644
+index 97a2fc1..b89293c 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
 @@ -9,6 +9,7 @@
@@ -1841,7 +1841,7 @@ index 97a2fc1..a5378ce 100644
          // Apply navigation gestures setting
          updateNavigationGestures()
  
-@@ -899,6 +938,464 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -899,6 +938,475 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
      override open func viewDidLayoutSubviews() {
          super.viewDidLayoutSubviews()
          refreshWebViewViewportIfNeeded()
@@ -2029,6 +2029,17 @@ index 97a2fc1..a5378ce 100644
 +                self.webView?.evaluateJavaScript("var b=document.getElementById('otlobli-back-btn');if(b)b.style.setProperty('opacity','0','important')", completionHandler: nil)
 +            }
 +        }
++    }
++
++    private func republishOtlobliNativeBackState(in webView: WKWebView) {
++        // A real navigation hides the native control in didStart. Temu may
++        // restore Home from its own cache without producing a later JS state
++        // change, so ask the completed document for its current state once.
++        // This is event-driven and does not add polling, retries or DOM scans.
++        webView.evaluateJavaScript(
++            "window.__otlobliNativeBackState='';if(typeof ensureBackButton==='function')ensureBackButton();",
++            completionHandler: nil
++        )
 +    }
 +
 +    private func otlobliNativeBackDestination(in webView: WKWebView) -> WKBackForwardListItem? {
@@ -2306,7 +2317,7 @@ index 97a2fc1..a5378ce 100644
      }
  
      func updateButtonTintColors() {
-@@ -1001,6 +1498,37 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1001,6 +1509,37 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          capBrowserPlugin?.notifyListeners(eventName, data: payload(with: data))
      }
  
@@ -2344,7 +2355,7 @@ index 97a2fc1..a5378ce 100644
      private func startObservingKeyboardViewportChanges() {
          guard !isObservingKeyboardViewportChanges else {
              return
-@@ -1025,6 +1553,78 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1025,6 +1564,78 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          return max(0.05, duration.doubleValue)
      }
  
@@ -2423,7 +2434,7 @@ index 97a2fc1..a5378ce 100644
      private func scheduleWebViewViewportRefresh(force: Bool = false, delay: TimeInterval = 0.05) {
          DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
              self?.refreshWebViewViewportIfNeeded(force: force)
-@@ -1135,10 +1735,27 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1135,10 +1746,27 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
      public func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
          if message.name == "messageHandler" {
              if let messageBody = message.body as? [String: Any] {
@@ -2453,7 +2464,7 @@ index 97a2fc1..a5378ce 100644
                  emit("messageFromWebview", data: ["rawMessage": String(describing: message.body)])
              }
          } else if message.name == "consoleMessageHandler" {
-@@ -1176,6 +1793,12 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1176,6 +1804,12 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
                  return
              }
              capBrowserPlugin?.setHiddenFromJavaScript(true, sourceId: instanceId)
@@ -2466,7 +2477,7 @@ index 97a2fc1..a5378ce 100644
          } else if message.name == "show" {
              guard allowWebViewJsVisibilityControl else {
                  return
-@@ -1237,6 +1860,9 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1237,6 +1871,9 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
                                  hide: function() {
                                          window.webkit.messageHandlers.hide.postMessage(null);
                                  },
@@ -2476,7 +2487,7 @@ index 97a2fc1..a5378ce 100644
                                  show: function() {
                                          window.webkit.messageHandlers.show.postMessage(null);
                                  }
-@@ -1337,6 +1963,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1337,6 +1974,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          userContentController.removeScriptMessageHandler(forName: "preShowScriptSuccess")
          userContentController.removeScriptMessageHandler(forName: "close")
          userContentController.removeScriptMessageHandler(forName: "hide")
@@ -2484,7 +2495,7 @@ index 97a2fc1..a5378ce 100644
          userContentController.removeScriptMessageHandler(forName: "show")
          userContentController.removeScriptMessageHandler(forName: "takeScreenshot")
          userContentController.removeScriptMessageHandler(forName: "consoleMessageHandler")
-@@ -1358,6 +1985,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1358,6 +1996,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          userContentController.add(weakHandler, name: "preShowScriptSuccess")
          userContentController.add(weakHandler, name: "close")
          userContentController.add(weakHandler, name: "hide")
@@ -2492,7 +2503,7 @@ index 97a2fc1..a5378ce 100644
          userContentController.add(weakHandler, name: "show")
          if allowScreenshotsFromWebPage {
              userContentController.add(weakHandler, name: "takeScreenshot")
-@@ -1464,7 +2092,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1464,7 +2103,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          //        }
  
          if #available(iOS 16.4, *) {
@@ -2501,7 +2512,7 @@ index 97a2fc1..a5378ce 100644
          } else {
              // Fallback on earlier versions
          }
-@@ -1581,6 +2209,8 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1581,6 +2220,8 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          self.hiddenPopupWindow = parent.hiddenPopupWindow
          self.opensHidden = parent.hiddenPopupWindow
          self.captureConsoleLogs = parent.captureConsoleLogs
@@ -2510,7 +2521,7 @@ index 97a2fc1..a5378ce 100644
          self.allowWebViewJsVisibilityControl = parent.allowWebViewJsVisibilityControl
          self.allowScreenshotsFromWebPage = parent.allowScreenshotsFromWebPage
          self.handleDownloads = parent.handleDownloads
-@@ -1818,6 +2448,23 @@ public extension WKWebViewController {
+@@ -1818,6 +2459,23 @@ public extension WKWebViewController {
  
      open func cleanupWebView() {
          guard let webView = self.webView else { return }
@@ -2534,7 +2545,7 @@ index 97a2fc1..a5378ce 100644
          webView.stopLoading()
          previewItemURL = nil
  
-@@ -1837,6 +2484,7 @@ public extension WKWebViewController {
+@@ -1837,6 +2495,7 @@ public extension WKWebViewController {
          webView.configuration.userContentController.removeScriptMessageHandler(forName: "messageHandler")
          webView.configuration.userContentController.removeScriptMessageHandler(forName: "close")
          webView.configuration.userContentController.removeScriptMessageHandler(forName: "hide")
@@ -2542,7 +2553,7 @@ index 97a2fc1..a5378ce 100644
          webView.configuration.userContentController.removeScriptMessageHandler(forName: "show")
          if allowScreenshotsFromWebPage {
              webView.configuration.userContentController.removeScriptMessageHandler(forName: "takeScreenshot")
-@@ -2680,14 +3328,33 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2680,14 +3339,33 @@ extension WKWebViewController: WKNavigationDelegate {
      }
  
      public func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
@@ -2576,7 +2587,7 @@ index 97a2fc1..a5378ce 100644
          if !didpageInit && self.capBrowserPlugin?.isPresentAfterPageLoad == true {
              // Only inject preShowScript if it wasn't already injected at document start
              let shouldInjectScript = self.preShowScript.map { !$0.isEmpty } ?? false &&
-@@ -2703,12 +3370,18 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2703,12 +3381,18 @@ extension WKWebViewController: WKNavigationDelegate {
                      DispatchQueue.global(qos: .userInitiated).async {
                          self.injectPreShowScript()
                          DispatchQueue.main.async { [weak self] in
@@ -2597,7 +2608,15 @@ index 97a2fc1..a5378ce 100644
              }
          } else if self.preShowScript != nil &&
                      !self.preShowScript!.isEmpty &&
-@@ -2743,7 +3416,10 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2734,6 +3418,7 @@ extension WKWebViewController: WKNavigationDelegate {
+         }
+         self.injectJavaScriptInterface()
+         emit("browserPageLoaded")
++        republishOtlobliNativeBackState(in: webView)
+     }
+ 
+     public func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+@@ -2743,7 +3428,10 @@ extension WKWebViewController: WKNavigationDelegate {
              self.url = url
              delegate?.webViewController?(self, didFail: url, withError: error)
          }
@@ -2609,7 +2628,7 @@ index 97a2fc1..a5378ce 100644
      }
  
      public func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-@@ -2753,7 +3429,19 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2753,7 +3441,19 @@ extension WKWebViewController: WKNavigationDelegate {
              self.url = url
              delegate?.webViewController?(self, didFail: url, withError: error)
          }

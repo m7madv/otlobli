@@ -8,7 +8,9 @@ const source = readStoreScriptSources(root)
 
 const requiredMarkers = [
   "var __otlobliTemuConfirmedProductIdentity = '';",
-  '__otlobliTemuConfirmedProductIdentity = temuGoodsId() || location.pathname;',
+  'var identity = temuGoodsId() || location.pathname;',
+  'if (__otlobliTemuConfirmedProductIdentity === identity) return;',
+  '__otlobliTemuConfirmedProductIdentity = identity;',
   '__otlobliTemuConfirmedProductIdentity !== identity && !v.domHasContent;',
   '__otlobliTemuConfirmedProductIdentity === identity ||',
 ]

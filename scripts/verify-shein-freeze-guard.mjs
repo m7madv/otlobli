@@ -421,12 +421,12 @@ const checks = [
     ],
   },
   {
-    label: 'SHEIN Home region repair requires a real mismatch',
+    label: 'SHEIN region preparation is Home-entry-only outside explicit Add',
     file: 'src/services/sheinSessionScript.ts',
     markers: [
-      'var explicitRegionMismatch =',
-      'if (!productRoute && !explicitRegionMismatch)',
-      "resetSheinShippingProgress(SHEIN_REQUIRED_COUNTRY + ':' + location.pathname)",
+      'var homeRegionBootstrap = !productRoute && !!sheinFindHomeShippingEntryControl();',
+      'if (!productRoute && !homeRegionBootstrap) return;',
+      'if (productRoute && !sheinLooksLikeProductPageForShipping())',
     ],
   },
   {
@@ -538,12 +538,15 @@ const checks = [
       'const sheinRecoveryProductUrl = (region: StoreRegion, ...candidates: string[])',
       'const resumeBackTarget: WebviewBackTarget',
       'pendingBackTargetRef.current = resumeBackTarget',
-      'const wantsWarmSheinRecoveryProductNav',
-      'const wantsWarmProductNav = wantsWarmTemuProductNav || wantsWarmSheinRecoveryProductNav',
-      'const pendingSheinWarmHomeNavigationRef',
-      'window.__otlobliSkipHomeRegionRepair=${wantsWarmSheinRecoveryProductNav}',
-      'pendingSheinWarmHomeNavigationRef.current && pendingProductUrlRef.current',
+      'const wantsWarmSheinProductNav',
+      'const wantsWarmProductNav = wantsWarmTemuProductNav || wantsWarmSheinProductNav',
+      "const rawTargetUrl = wantsWarmProductNav",
+      'markStoreWebviewReadyRef.current(webviewSessionRef.current)',
       '!wantsWarmProductNav && initialPendingUrl',
+    ],
+    forbidden: [
+      '__otlobliSkipHomeRegionRepair',
+      'wantsWarmSheinRecoveryProductNav',
     ],
   },
   {
@@ -554,7 +557,8 @@ const checks = [
     ],
     markers: [
       "var sheinNativeCoverRepairExhaustedKey = '';",
-      "window.__otlobliSkipHomeRegionRepair === true",
+      'var homeRegionBootstrap = !productRoute && !!sheinFindHomeShippingEntryControl();',
+      'if (!productRoute && !homeRegionBootstrap) return;',
       "var SHEIN_AUTOMATIC_REGION_REPAIR_STORAGE_KEY = '__otlobliAutomaticRegionRepairExhausted';",
       'function sheinAutomaticRegionRepairKey()',
       'sheinSetAutomaticRegionRepairExhausted(true)',
@@ -675,6 +679,8 @@ const checks = [
       "document.getElementById('otlobli-back-btn');if(b)b.click()",
       'detail["type"] as? String == "otlobliBackButtonState"',
       'otlobliNativeBackButton?.isHidden = true',
+      'private func republishOtlobliNativeBackState(in webView: WKWebView)',
+      'republishOtlobliNativeBackState(in: webView)',
     ],
   },
   {
@@ -684,7 +690,7 @@ const checks = [
       'src/services/storeBlockingScript.ts',
     ],
     markers: [
-      "OTLOBLI_NAV_STYLE_VERSION = 'v86.223.1'",
+      "OTLOBLI_NAV_STYLE_VERSION = 'v86.224.1'",
       'data-otlobli-store-switch-hint',
       'اضغط مرتين للتبديل',
       'الرئيسية، اضغط مرتين بسرعة للعودة إلى اختيار المتجر',

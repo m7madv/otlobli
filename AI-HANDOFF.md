@@ -1,9 +1,45 @@
+# Active handoff — v86.224/1089 Home-prepared SHEIN + native Temu Back (2026-08-23)
+
+Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`
+on `codex/otlobli-v86-212-testflight-auth`. Marketing is `86.224`; locally
+validated source is iOS `1089` and Android `1088`.
+
+The user physically rejected `86.223 (1088)`: Temu was somewhat smoother but
+still lost its green Back after product -> Home, and SHEIN region behavior was
+unchanged. The remembered fast region implementation was located at `9cea927`
+(`v86.68`): prepare the signed address through the native semantic entry on
+SHEIN Home before browsing products.
+
+Preserve the new architecture:
+
+- Every queued SHEIN PDP cold/warm open starts from Home. Home performs the
+  signed Admin-region cascade; `markStoreWebviewReady` consumes the queued PDP
+  only after full coordinator readiness. The obsolete Home-skip flag is gone.
+- Ordinary product browsing never starts region repair. Explicit Add remains
+  the only PDP fallback and stays fail-closed until the signed address matches.
+- Capgo iOS republishes native Back state once from `didFinish` after the
+  provisional-navigation hide. Keep it event-driven; do not add timer bursts,
+  DOM scans, reloads, or a WebView rebuild.
+- Temu stable-product scans short-circuit after confirmed identity; removed
+  diagnostic/header-wake/forced-scroll code must not return.
+
+All local gates, budgets, both native syncs, three-root artifact scan, and
+Android assembly pass. Exact files, sizes and hashes are at the top of
+`CURRENT_STATE.md`. Next action is the internal TestFlight upload for exact
+`86.224 (1089)`; public App Store review is out of scope. Do not claim physical
+acceptance until the new build passes Temu product -> Home Back, first-open
+SHEIN region + several PDPs/order link, five resume cycles, and cold launch.
+Preserve `otlobliForceRecompose`, the 0.25s `appDidBecomeActive` call, Android
+resume defense, and the `JSON.stringify` active-region comparison.
+
 # Active handoff — v86.223/1088 Temu stability + Qatar completion (2026-08-23)
 
 Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`
-on `codex/otlobli-v86-212-testflight-auth`. Marketing remains `86.223`; the
-unreleased local source is iOS `1088` and Android `1087`. No TestFlight or
-public App Store action has been taken for this batch.
+on `codex/otlobli-v86-212-testflight-auth`. Marketing remains `86.223`; this
+superseded source was iOS `1088` and Android `1087`. TestFlight run
+`32651898752` delivered it internally, but the user's physical test rejected
+both the remaining Temu Back loss and unchanged SHEIN region behavior. No
+public App Store action was taken.
 
 The latest ZIP contains the decisive long recordings. Temu (58.538s/3272
 frames) shows the native Back present on initial Home, absent after product ->

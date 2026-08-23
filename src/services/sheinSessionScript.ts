@@ -1525,30 +1525,14 @@ export const SHEIN_SESSION_SCRIPT = `
     // The explicit Otlobli Add action starts the same signed-address repair
     // through ensureSheinSaudiStore(true), after which this function resumes.
     if (productRoute && !sheinNativeCoverRepairActive) return;
-    // A recovered Home is a same-site launch pad for the queued PDP. Opening
-    // the shipping cascade there made the host wait on an address signature,
-    // close the drawer, and open it again instead of ever reaching the product.
-    if (!productRoute && window.__otlobliSkipHomeRegionRepair === true &&
-        !sheinNativeCoverRepairActive) return;
     var addressCountry = sheinAddressCookieCountry();
-    var explicitRegionMismatch = (addressCountry && addressCountry !== SHEIN_REQUIRED_COUNTRY) ||
-      sheinVisibleForeignRegion();
-    // Home is only a launch surface. Never open/reopen its shipping drawer
-    // because an address is merely absent. A real admin-country mismatch still
-    // repairs here; an unsigned product route still repairs before capture.
-    if (!productRoute && !explicitRegionMismatch) {
-      if (sheinNativeCoverRepairActive) {
-        closeResolvedSheinShippingUi(true);
-        sheinNativeCoverRepairActive = false;
-        sheinNativeCoverRepairStartedAt = 0;
-        sheinNativeCoverCooldownUntil = Date.now() + 2500;
-        sheinRegionVeilStartedAt = 0;
-        sheinRegionTransitionVeil(false);
-        resetSheinShippingProgress(SHEIN_REQUIRED_COUNTRY + ':' + location.pathname);
-      }
-      return;
-    }
-    if (!sheinLooksLikeProductPageForShipping() && !sheinFindHomeShippingEntryControl()) {
+    // The proven v86.68 flow completed the signed shipping address from
+    // SHEIN's semantic Home entry before the customer opened a product. Keep
+    // that preparation strictly on Home: product browsing never starts it,
+    // while an explicit Add may still resume the same fail-closed repair.
+    var homeRegionBootstrap = !productRoute && !!sheinFindHomeShippingEntryControl();
+    if (!productRoute && !homeRegionBootstrap) return;
+    if (productRoute && !sheinLooksLikeProductPageForShipping()) {
       return;
     }
     var now = Date.now();

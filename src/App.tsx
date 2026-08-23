@@ -3210,9 +3210,6 @@ function App() {
   const pendingProductRequiresVisualReadyRef = useRef(false)
   const pendingProductVisualReadyRef = useRef(false)
   const pendingProductPrepareTimerRef = useRef<number | undefined>(undefined)
-  // Transient routing state only; a ref keeps the recovery hand-off from
-  // causing a React render while the native WebView is offscreen.
-  const pendingSheinWarmHomeNavigationRef = useRef(false)
   const sheinCartProductSessionRef = useRef(false)
   const [sheinReady, setSheinReady] = useState(false)
   const sheinReadyRef = useRef(false)
@@ -3602,7 +3599,6 @@ function App() {
     pendingProductRequiresVisualReadyRef.current = false
     pendingProductVisualReadyRef.current = false
     pendingProductRevealUrlRef.current = ''
-    pendingSheinWarmHomeNavigationRef.current = false
     if (clearQueuedUrl) pendingProductUrlRef.current = ''
   }
 
@@ -4112,17 +4108,14 @@ function App() {
     // SHEIN is reached directly on both platforms now, so it only loads once
     // the user's VPN is on - the vpnState check above already confirmed that
     // before this function ever runs.
-    // A recovered iOS SHEIN product needs the same warm-home path that the
-    // customer's proven Temu -> SHEIN recovery uses. Cold-loading the deep PDP
-    // immediately after clearing HTTP cache can strand SHEIN on its SPA spinner.
-    // Keep the queued product until Home is ready, then navigate inside the
-    // verified document with the correct same-site referrer.
+    // Every queued SHEIN product starts from Home. The v86.68 device-proven
+    // flow completes SHEIN's signed shipping cascade there before the PDP is
+    // requested. This makes the configured admin region part of session
+    // preparation instead of a product-page repair that can reopen the drawer
+    // or strand the PDP on SHEIN's spinner.
     const wantsWarmTemuProductNav = activeStore === 'temu' && pendingProductRevealRef.current && !!initialPendingUrl
-    const wantsWarmSheinRecoveryProductNav = activeStore === 'shein' &&
-      Capacitor.getPlatform() === 'ios' && sheinCacheResetPendingRef.current &&
-      pendingProductRevealRef.current && !!initialPendingUrl
-    const wantsWarmProductNav = wantsWarmTemuProductNav || wantsWarmSheinRecoveryProductNav
-    pendingSheinWarmHomeNavigationRef.current = wantsWarmSheinRecoveryProductNav
+    const wantsWarmSheinProductNav = activeStore === 'shein' && pendingProductRevealRef.current && !!initialPendingUrl
+    const wantsWarmProductNav = wantsWarmTemuProductNav || wantsWarmSheinProductNav
     const activeRegions = storeRegionsRef.current
     const rawTargetUrl = wantsWarmProductNav
       ? storeUrl(activeStore, activeRegions)
@@ -4147,7 +4140,7 @@ function App() {
       ...(activeStore === 'shein'
         ? {
           otlobliLoadingCover: true,
-          otlobliDocumentStartScript: `window.__otlobliSafeBottom=${hostSafeBottomInset};\nwindow.__otlobliNativePlatform=${JSON.stringify(Capacitor.getPlatform())};\nwindow.__otlobliSkipHomeRegionRepair=${wantsWarmSheinRecoveryProductNav};\n${captureBundle.SHEIN_PRIVACY_COMPAT_SCRIPT}\n${captureBundle.SHEIN_POLICY_DOCUMENT_START_SCRIPT}\n${captureBundle.OTLOBLI_NAV_BOOTSTRAP_SCRIPT}`,
+          otlobliDocumentStartScript: `window.__otlobliSafeBottom=${hostSafeBottomInset};\nwindow.__otlobliNativePlatform=${JSON.stringify(Capacitor.getPlatform())};\n${captureBundle.SHEIN_PRIVACY_COMPAT_SCRIPT}\n${captureBundle.SHEIN_POLICY_DOCUMENT_START_SCRIPT}\n${captureBundle.OTLOBLI_NAV_BOOTSTRAP_SCRIPT}`,
           otlobliPreserveAttachedWhenHidden: true,
           // Prepare SHEIN at the real device size without presenting it. The
           // already-mounted Otlobli shell therefore owns the only visible nav
@@ -4808,26 +4801,13 @@ function App() {
         if (next.captureState === 'ready') markSheinOpening('captureReady')
         if (isSheinCoordinatorVisuallyReady(next)) {
           markSheinWebviewVisuallyReady(webviewSessionRef.current)
-          // The recovery Home is only a lightweight same-site launch pad. Its
-          // visible, policy-safe frame is enough to navigate to the queued PDP;
-          // waiting for a full signed shipping cascade here re-opened SHEIN's
-          // region drawer and never reached the product on the physical iPhone.
-          if (pendingSheinWarmHomeNavigationRef.current && pendingProductUrlRef.current) {
-            const targetUrl = pendingProductUrlRef.current
-            pendingSheinWarmHomeNavigationRef.current = false
-            pendingProductUrlRef.current = ''
-            markPendingProductNavigationRequested()
-            void navigateStoreWebviewInPage(targetUrl).catch(() => {
-              clearPendingProductPreparation()
-              pendingBackTargetRef.current = 'home'
-              activeProductReturnTargetRef.current = 'home'
-              showNotice('تعذر تجهيز صفحة المنتج. جرّب فتحها مرة أخرى.')
-            })
-          }
           revealPreparedProductIfReady()
         }
         if (isSheinCoordinatorReady(next)) {
           setSheinBlockedError(false)
+          // markStoreWebviewReady consumes a queued product only after the
+          // signed Home-region snapshot is fully matching. No product route
+          // can race the country/address cascade anymore.
           markStoreWebviewReadyRef.current(webviewSessionRef.current)
           revealPreparedProductIfReady()
         } else if (next.phase === 'FAILED' && screenRef.current === 'home') {
