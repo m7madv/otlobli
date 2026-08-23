@@ -36,7 +36,17 @@ Exact budgets and artifact hashes are at the top of `CURRENT_STATE.md`.
 Run `32646164142` failed before build/sign/upload because the manually edited
 Capgo patch had stale hunk counts. It was regenerated with `patch-package`, and
 a fresh `npm ci` plus full build/sync/Android assembly now pass. The signed
-TestFlight retry is pending. The App Store draft must remain on
+TestFlight retry `32646548641` succeeded from `ae9cdad`; delivery UUID is
+`0d57c10d-7a8f-447a-8aee-1acfa08debcb`. Exact `86.223 (1087)` is
+`VALID`/`IN_BETA_TESTING` in the verified all-builds `Otlobli Internal` group,
+with expected tester state `INSTALLED`. Artifact ID `9495120142`, size
+`25,118,712`, digest
+`sha256:127b87e071cc819c55dfabcc935bf515d08a4113db31e0e3fdd27bac4bd3acc7`.
+Downloaded IPA is `10,459,976` bytes with SHA-256
+`CC1F0BE1A770EA166BDB65FFCBADB15561BBB571237733D3695E788FC7038574`;
+dSYM is `14,858,751` bytes with SHA-256
+`8045EECF8D5B5F76D21DF80954986B6861DF2B34F91D9AE348F93AA534E2F335`.
+The App Store review step was explicitly skipped. Draft `86.223` remains on
 build `1085`; do not link or submit `1087` before physical acceptance and the
 owner's missing App Store metadata.
 

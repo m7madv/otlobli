@@ -54,10 +54,23 @@ signing, or Apple upload because a manually edited patch hunk was unparsable.
 The Capgo patch was regenerated from the installed dependency; a fresh
 `npm ci` now applies all three patches cleanly, followed by another full build,
 both native syncs, Android assembly, and artifact scan.
-The signed iOS/TestFlight result is pending the workflow run from this source.
-No public App Store submission is authorized by this batch; draft `86.223`
-remains on build `1085` until physical acceptance and owner-controlled store
-metadata are complete.
+Signed workflow run `32646548641` from commit `ae9cdad` passed clean patch
+installation, all release guards/budgets, Apple Distribution archive/export,
+production-asset and signature/profile/auth checks, Apple `VERIFY` and `UPLOAD`
+with no errors, processing, and internal distribution. Delivery UUID is
+`0d57c10d-7a8f-447a-8aee-1acfa08debcb`. Exact build `86.223 (1087)` is
+`VALID`/`IN_BETA_TESTING`; `Otlobli Internal` is verified as an all-builds
+group, and the expected tester state is `INSTALLED`. GitHub artifact ID
+`9495120142` is `25,118,712` bytes with digest
+`sha256:127b87e071cc819c55dfabcc935bf515d08a4113db31e0e3fdd27bac4bd3acc7`.
+Downloaded IPA
+`output/testflight-v86.223-build-1087-run-32646548641/otlobli-v86.223-build-1087-testflight.ipa`
+is `10,459,976` bytes, SHA-256
+`CC1F0BE1A770EA166BDB65FFCBADB15561BBB571237733D3695E788FC7038574`;
+the dSYM is `14,858,751` bytes, SHA-256
+`8045EECF8D5B5F76D21DF80954986B6861DF2B34F91D9AE348F93AA534E2F335`.
+No public App Store submission was made; draft `86.223` remains on build `1085`
+until physical acceptance and owner-controlled store metadata are complete.
 
 Real-device acceptance is still required: on iPhone 16, verify Temu
 product -> Home restores the green Back button; SHEIN Qatar Add reaches and
