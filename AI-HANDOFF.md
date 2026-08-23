@@ -1,8 +1,13 @@
-# Active handoff — v86.228/1093 emulator-proven Qatar region/policy repair (2026-08-23)
+# Active handoff — v86.228/1093 TestFlight Qatar region/policy repair (2026-08-24)
 
 Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`
 on `codex/otlobli-v86-212-testflight-auth`. Marketing is `86.228`; iOS is
-`1093`, Android is `1092`, and this candidate is not on TestFlight yet.
+`1093` and Android is `1092`. Signed run
+[32665947122](https://github.com/m7madv/otlobli/actions/runs/32665947122)
+passed from `7dacf04ae6c606f24a222adb91aad2f9ab3b046f`; Apple delivery UUID is
+`0de5dbb3-1704-4b9c-bc17-dfa1e1bb9ff5`. Exact `86.228 (1093)` is
+`VALID`/`IN_BETA_TESTING` in the `Otlobli Internal` all-builds group, expected
+tester state is `INSTALLED`, and public App Store review was skipped.
 
 The exact Desktop Pixel 7/API35 launcher reproduced the problem. Live Admin and
 host cache were QA/USD/ar. The old fixed 12s timeout raced the Qatar cascade,
@@ -26,9 +31,15 @@ rapid repeated clean opens and was deliberately left untouched.
 Full build/guards/budgets, both native syncs, Android assembly, and the
 three-root artifact scan pass. Bundle and Android artifact hashes are at the
 top of `CURRENT_STATE.md`. `TEST_ONLY_AUTH_BYPASS` is false and temporary CDP
-files are deleted. No TestFlight upload or iPhone acceptance has occurred.
-Before release, retain the freeze invariant and perform five real iPhone 16
-background/resume cycles plus one force-quit/cold-launch test.
+files are deleted. Downloaded iOS artifacts are under
+`output/testflight-v86.228-build-1093-run-32665947122`: the IPA is
+`10,460,344` bytes/SHA-256
+`68F47AA61E8B859D2D7EA8EDA1B1D2394BCD9AA21B0D69F2FD541CA2A9A9F1AA`; dSYMs
+are `14,858,923` bytes/SHA-256
+`53C81F41932A2F81E200582C0B722AC84CE496756CB7F2A00A4E81C8465DCC30`.
+Physical iPhone acceptance has not occurred. Retain the freeze invariant and
+perform five real iPhone 16 background/resume cycles plus one
+force-quit/cold-launch test before declaring device acceptance.
 
 # Active handoff — v86.227/1092 exact v86.216 region regression boundary (2026-08-23)
 

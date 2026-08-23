@@ -1,8 +1,15 @@
-# v86.228/1093 — emulator-proven SHEIN Qatar policy/region fix (2026-08-23)
+# v86.228/1093 — TestFlight SHEIN Qatar policy/region fix (2026-08-24)
 
 Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
 `codex/otlobli-v86-212-testflight-auth`. Marketing is `86.228`; iOS is `1093`
-and Android is `1092`. This candidate has not been uploaded to TestFlight.
+and Android is `1092`. Signed workflow
+[32665947122](https://github.com/m7madv/otlobli/actions/runs/32665947122)
+passed from exact source `7dacf04ae6c606f24a222adb91aad2f9ab3b046f`.
+Apple validation and upload succeeded with delivery UUID
+`0de5dbb3-1704-4b9c-bc17-dfa1e1bb9ff5`; exact `86.228 (1093)` is `VALID` and
+`IN_BETA_TESTING` in the `Otlobli Internal` all-builds group. Expected tester
+membership is verified and its state is `INSTALLED`. Public App Store review
+was deliberately skipped.
 
 The exact Desktop launcher `محاكي أندرويد Pixel 7.lnk` was used to boot
 `Pixel_7_API_35_Test`. A clean current build proved the live Admin response is
@@ -40,6 +47,12 @@ three-root artifact scan pass. Bundle `storeCaptureBundle-uuEtemj5.js` is
 Android artifact `output/Otlobli-v86.228-build-1092-Android-debug.apk` is
 `11,114,252` bytes/SHA-256
 `13075F4E924361694293173F6A579426E2DB733B2EB5723804848EB5552E04AD`.
+Downloaded iOS artifacts are under
+`output/testflight-v86.228-build-1093-run-32665947122`: the
+`10,460,344`-byte `otlobli-v86.228-build-1093-testflight.ipa` has SHA-256
+`68F47AA61E8B859D2D7EA8EDA1B1D2394BCD9AA21B0D69F2FD541CA2A9A9F1AA`, and
+the `14,858,923`-byte `otlobli-v86.228-build-1093-dSYMs.zip` has SHA-256
+`53C81F41932A2F81E200582C0B722AC84CE496756CB7F2A00A4E81C8465DCC30`.
 The test-only auth bypass is back to `false` and all temporary CDP probes were
 deleted. iPhone acceptance, five background/resume cycles, and a separate cold
 launch remain unperformed; never infer them from the Android emulator.
