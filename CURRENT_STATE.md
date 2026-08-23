@@ -48,12 +48,27 @@ and is byte-identical in both native projects. Android debug artifact
 `output/Otlobli-v86.224-build-1088-Android-debug.apk` is `11,113,872` bytes,
 SHA-256 `1AC514F19E6A736DFBE86E4A966C7E061B020962BD59FDA40402AA5CC702D9A5`.
 
-TestFlight upload for `86.224 (1089)` is the next release action; no public App
-Store submission is authorized for this batch. Real-device acceptance remains
-mandatory: Temu product -> Home must preserve Back; SHEIN must start with the
-Admin-selected region and open several products without a drawer/spinner; test
-an order product, five background/resume cycles, and a separate cold launch. A
-real weak/old Android acceptance is not claimed.
+Signed workflow run `32657648658` from commit `7b87dc8` passed clean dependency
+patching, every release guard/budget, Apple Distribution archive/export,
+production-asset and signature/profile/auth checks, Apple `VERIFY` and `UPLOAD`
+with no errors, processing, and internal distribution. Delivery UUID is
+`941e996f-a127-4dc0-b7d2-77a113988006`. Exact build `86.224 (1089)` is
+`VALID`/`IN_BETA_TESTING`; `Otlobli Internal` is verified as an all-builds group
+and the expected tester state is `INSTALLED`. GitHub artifact ID `9497976071`
+is `25,118,233` bytes with digest
+`sha256:a0e6e503a93f7420da54762b029e96a37fd1f5fd0edce53559ca61ca8377cfd5`.
+Downloaded IPA
+`output/testflight-v86.224-build-1089-run-32657648658/otlobli-v86.224-build-1089-testflight.ipa`
+is `10,460,230` bytes, SHA-256
+`5C40665247BB41662FDEFBA2F40FECC01535A91417EE9338C79B8C0E695A6ADB`;
+the dSYM is `14,858,923` bytes, SHA-256
+`2E9CB1B2A36BA05BE35038AD5F39B1D73796D5CF3EC3B754BDCAE156CDFFDC00`.
+Public App Store submission was deliberately skipped.
+
+Real-device acceptance remains mandatory: Temu product -> Home must preserve
+Back; SHEIN must start with the Admin-selected region and open several products
+without a drawer/spinner; test an order product, five background/resume cycles,
+and a separate cold launch. A real weak/old Android acceptance is not claimed.
 
 # v86.223/1088 — long Temu recording and Qatar address completion (2026-08-23)
 

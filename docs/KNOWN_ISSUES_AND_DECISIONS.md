@@ -22,7 +22,9 @@
   forced scroll/resize, and entry cleaner waves stay deleted.
 - **Boundary:** do not change the protected native recompose timing, active-
   region equality check, payment/wallet/order completion, or backend. Local
-  gates pass; real iPhone acceptance remains pending for `86.224 (1089)`.
+  gates pass. Run `32657648658` delivered exact `86.224 (1089)` internally as
+  `VALID`/`IN_BETA_TESTING` without public submission; real iPhone acceptance
+  remains pending.
 
 ## v86.223 — retire temporary diagnostics and use one production path (2026-08-23)
 

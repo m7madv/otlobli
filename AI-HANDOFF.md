@@ -24,11 +24,15 @@ Preserve the new architecture:
   diagnostic/header-wake/forced-scroll code must not return.
 
 All local gates, budgets, both native syncs, three-root artifact scan, and
-Android assembly pass. Exact files, sizes and hashes are at the top of
-`CURRENT_STATE.md`. Next action is the internal TestFlight upload for exact
-`86.224 (1089)`; public App Store review is out of scope. Do not claim physical
-acceptance until the new build passes Temu product -> Home Back, first-open
-SHEIN region + several PDPs/order link, five resume cycles, and cold launch.
+Android assembly pass. Run `32657648658` from `7b87dc8` also passed Apple
+validation/upload/processing and internal distribution for exact
+`86.224 (1089)`; delivery UUID is
+`941e996f-a127-4dc0-b7d2-77a113988006`, the build is
+`VALID`/`IN_BETA_TESTING`, and expected tester state is `INSTALLED`. Public App
+Store review was skipped. Exact files, sizes and hashes are at the top of
+`CURRENT_STATE.md`. Do not claim physical acceptance until the new build passes
+Temu product -> Home Back, first-open SHEIN region + several PDPs/order link,
+five resume cycles, and cold launch.
 Preserve `otlobliForceRecompose`, the 0.25s `appDidBecomeActive` call, Android
 resume defense, and the `JSON.stringify` active-region comparison.
 
