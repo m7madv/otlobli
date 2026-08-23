@@ -1,4 +1,4 @@
-# iPhone APNs production credentials configured and verified (2026-08-24)
+# iPhone APNs hosted key transport fixed; live delivery accepted (2026-08-24)
 
 The owner created the dedicated topic-specific production APNs key
 `4GGVNXQ9UT` for `com.otlobli.app` and retained the one-time file
@@ -7,20 +7,28 @@ The owner created the dedicated topic-specific production APNs key
 `82D90432FE29D0C74313AFDFE1D57768C0FEFCA71529DA1394A7CB110357E0BE`.
 Its private contents were never printed or committed.
 
-Production Supabase now has all four direct APNs secrets: `APNS_KEY`,
-`APNS_KEY_ID=4GGVNXQ9UT`, `APNS_TEAM_ID=36D743K87T`, and
-`APNS_BUNDLE_ID=com.otlobli.app`. `send-push` was redeployed as active version
-`15` with `verify_jwt=false`. A direct HTTP/2 credential probe against Apple's
-production APNs gateway used a deliberately invalid device token and returned
-`400 BadDeviceToken`; this is the expected proof that Apple accepted the JWT,
-key id, team id, and topic. No customer notification was sent by that probe.
+The user's first retries still produced no alert. Production function logs gave
+the exact cause on every attempt: `APNs JWT sign failed expected valid PKCS#8
+data`. The Apple file and identifiers were correct, but the initial multiline
+CLI secret transport corrupted the PEM inside the hosted Edge runtime. The
+server now normalizes literal PEM, escaped-newline PEM, or a single-line base64
+PEM. Production `APNS_KEY` was replaced with the base64 form so shell/env
+transport cannot alter its line structure; private material is never logged.
 
-Preserve the strict tested mapping in `send-push`: iOS → APNs only and Android
-→ FCM only. The latest exact `86.229` production APNs token was restored in
-the preceding batch; older tokens remain disabled. The remaining acceptance is
-one owner-targeted send from Admin while the iPhone is backgrounded/locked,
-followed by confirming the alert and tap route. This server-secret/deployment
-batch does not require a new TestFlight build or native sync.
+The authenticated probe now runs inside Supabase itself, signs with the hosted
+secret, and receives the expected `400 BadDeviceToken` from production APNs for
+a deliberately fake token. A separate real test targeted only the newest active
+`86.229`, iOS `27.0`, production installation. The live response was `sent=1`,
+`total=1`, `delivery.apns.sent=1`, with zero invalid/retryable/failed tokens and
+`configuration.apns=true`. Apple therefore accepted the actual device message;
+visual receipt/tap confirmation remains with the owner.
+
+`send-push` is active as version `19` with `verify_jwt=false`; `admin-orders` is
+active as version `46` with `verify_jwt=true`. The shared push trigger secret was
+rotated and both functions use the same project secret. Full build, secret scan,
+release-service/security tests, SHEIN freeze guard, store guards, and low-end
+budgets pass. Preserve iOS → APNs and Android → FCM strict mapping. This
+server-only correction does not require a new TestFlight build or native sync.
 
 # Production Admin push payload repair (2026-08-24)
 

@@ -5,7 +5,7 @@
 // المصادقة على الاستدعاء: ترويسة x-push-secret == PUSH_TRIGGER_SECRET،
 // أو x-admin-pin == ADMIN_PIN. إن لم يُضبط أي منهما → تُرفض كل الاستدعاءات.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { providerForPushDevice } from './routing.ts'
+import { normalizeApnsPrivateKey, providerForPushDevice } from './routing.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -16,7 +16,7 @@ const ADMIN_PIN = Deno.env.get('ADMIN_PIN') ?? ''
 const FCM_SERVICE_ACCOUNT_JSON = Deno.env.get('FCM_SERVICE_ACCOUNT_JSON') ?? ''
 
 // APNs (اختياري، للآيفون): مفتاح p8 + معرّفاته.
-const APNS_KEY = Deno.env.get('APNS_KEY') ?? '' // محتوى ملف .p8
+const APNS_KEY = normalizeApnsPrivateKey(Deno.env.get('APNS_KEY') ?? '') // PEM أو base64 لمحتوى .p8
 const APNS_KEY_ID = Deno.env.get('APNS_KEY_ID') ?? ''
 const APNS_TEAM_ID = Deno.env.get('APNS_TEAM_ID') ?? ''
 const APNS_BUNDLE_ID = Deno.env.get('APNS_BUNDLE_ID') ?? ''
@@ -264,6 +264,7 @@ Deno.serve(async (req) => {
     installationId?: string
     broadcast?: boolean
     dryRun?: boolean
+    probeApns?: boolean
     title?: string
     body?: string
     data?: Record<string, string>
@@ -272,6 +273,28 @@ Deno.serve(async (req) => {
     body = (await req.json()) as typeof body
   } catch {
     return json({ error: 'invalid_body' }, 400)
+  }
+
+  // Authenticated, non-delivery probe: a syntactically valid provider JWT sent
+  // with a deliberately fake token must be rejected as BadDeviceToken. That
+  // proves the hosted runtime can decode/sign with the configured key without
+  // contacting or mutating any customer device.
+  if (body.probeApns === true) {
+    const result = await sendApns(
+      '0'.repeat(64),
+      'Otlobli APNs credential check',
+      'No customer notification is sent by this probe.',
+      { version: '1', type: 'system', route: '' },
+      true,
+    )
+    const accepted = result.status === 400 && result.reason === 'BadDeviceToken'
+    return json({
+      probe: 'apns',
+      accepted,
+      status: result.status,
+      reason: result.reason,
+      requestId: result.requestId,
+    }, accepted ? 200 : 503)
   }
 
   const title = (body.title ?? '').trim()

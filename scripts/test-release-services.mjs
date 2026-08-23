@@ -14,7 +14,7 @@ const loadTypeScriptModule = (relativePath) => {
   }).outputText
   const module = { exports: {} }
   runInNewContext(`(function(exports,module){${compiled}\n})(module.exports,module)`, {
-    module, exports: module.exports, URL, Set, Date, Math,
+    module, exports: module.exports, URL, Set, Date, Math, atob, TextDecoder, Uint8Array,
   })
   return module.exports
 }
@@ -103,16 +103,21 @@ for (const marker of [
   "const APNS_TOPIC = 'com.otlobli.app'", "'apns-expiration': expiration", "'apns-push-type': 'alert'",
   "'apns-priority': '10'", 'DeviceTokenNotForTopic', 'retryStatuses', 'attempt < 3',
   "supabase.rpc('disable_device_token'", 'retryable', 'requestId', 'providerForPushDevice',
-  'partial_provider_not_configured', 'configuration', 'notConfigured',
+  'partial_provider_not_configured', 'configuration', 'notConfigured', 'normalizeApnsPrivateKey',
+  'probeApns', "result.reason === 'BadDeviceToken'",
 ]) {
   assert.ok(push.includes(marker), `Push sender missing ${marker}`)
 }
 assert.ok(!push.includes("console.error('FCM send failed', res.status, errText)"), 'Push provider errors must not log raw bodies')
-const { providerForPushDevice } = loadTypeScriptModule('supabase/functions/send-push/routing.ts')
+const { normalizeApnsPrivateKey, providerForPushDevice } = loadTypeScriptModule('supabase/functions/send-push/routing.ts')
 assert.equal(providerForPushDevice('ios', { apns: true, fcm: true }), 'apns')
 assert.equal(providerForPushDevice('android', { apns: true, fcm: true }), 'fcm')
 assert.equal(providerForPushDevice('ios', { apns: false, fcm: true }), null, 'iOS APNs tokens must never fall back to FCM')
 assert.equal(providerForPushDevice('android', { apns: true, fcm: false }), null, 'Android FCM tokens must never fall back to APNs')
+const sampleApnsPem = `${['-----BEGIN', 'PRIVATE KEY-----'].join(' ')}\nAAAA\n${['-----END', 'PRIVATE KEY-----'].join(' ')}`
+assert.equal(normalizeApnsPrivateKey(sampleApnsPem), sampleApnsPem)
+assert.equal(normalizeApnsPrivateKey(sampleApnsPem.replaceAll('\n', '\\n')), sampleApnsPem)
+assert.equal(normalizeApnsPrivateKey(Buffer.from(sampleApnsPem).toString('base64')), sampleApnsPem)
 const adminPush = readFileSync(resolve(root, 'admin/src/AdminApp.tsx'), 'utf8')
 for (const marker of [
   'MANUAL_NOTIFICATION_DATA', "version: '1'", "type: 'system'", "route: 'notifications'",

@@ -1,4 +1,4 @@
-# Active handoff — APNs configured; targeted iPhone acceptance remains (2026-08-24)
+# Active handoff — APNs real-device send accepted; visual confirmation remains (2026-08-24)
 
 Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`
 on `codex/otlobli-v86-212-testflight-auth`. Production now has the dedicated
@@ -8,15 +8,21 @@ four Supabase secrets. The retained one-time `.p8` is
 move, overwrite, or delete it. Its SHA-256 is
 `82D90432FE29D0C74313AFDFE1D57768C0FEFCA71529DA1394A7CB110357E0BE`.
 
-`send-push` is active as version `15` with `verify_jwt=false`. A direct HTTP/2
-probe to production APNs returned `400 BadDeviceToken` for a deliberately fake
-token, which proves Apple accepted the provider JWT/key/team/topic. It did not
-send a customer notification. Preserve strict provider mapping in
-`supabase/functions/send-push/routing.ts`; never send iOS tokens to FCM. The
-newest `86.229` production token remains restored and older tokens remain
-disabled. Next step: have the owner send one message to their own customer/device
-from Admin with the iPhone backgrounded or locked, then confirm alert delivery
-and the Notifications tap route. No TestFlight rebuild is needed.
+The initial multiline secret was not usable in the hosted runtime: every user
+retry logged `APNs JWT sign failed expected valid PKCS#8 data`. The sender now
+normalizes PEM, escaped newlines, and single-line base64; production `APNS_KEY`
+is stored as base64 so environment transport cannot corrupt it. The authenticated
+probe executed inside Supabase and received the expected `400 BadDeviceToken`
+for its fake token. Then one real test targeted only the newest active `86.229`,
+iOS 27, production installation and returned APNs `sent=1/1`, zero invalid,
+retryable, or failed tokens, with APNs configured. Apple accepted the device
+message; wait only for the owner's visual/tap confirmation.
+
+Live functions: `send-push` v19 with `verify_jwt=false`; `admin-orders` v46 with
+`verify_jwt=true`. The shared trigger secret was rotated. Full build and all
+release/security/freeze/performance guards pass. Preserve strict provider mapping
+in `supabase/functions/send-push/routing.ts`; never send iOS tokens to FCM. No
+TestFlight rebuild or native sync is needed for this server-only correction.
 
 # Active handoff — production Admin push contract repaired (2026-08-24)
 
