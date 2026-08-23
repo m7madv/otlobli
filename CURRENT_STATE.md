@@ -1,3 +1,30 @@
+# Production Admin push payload repair (2026-08-24)
+
+The user physically accepted the complete `86.229 (1094)` Temu behavior on the
+iPhone, including the native Back returning after product → listing/Home. The
+only reported problem after that acceptance was Admin manual notifications
+returning `invalid_payload`.
+
+The live `send-push` contract requires an explicit safe navigation payload, but
+the legacy Admin sender supplied only target/title/body. Admin now sends
+`{ version: '1', type: 'system', route: 'notifications' }` for both broadcast
+and single-customer messages, so delivery is accepted and a notification tap
+opens the in-app Notifications screen. Known server errors are presented in
+Arabic instead of exposing raw protocol codes. The automatic order-status
+sender was aligned with the same contract using `order_update`,
+`orders/details`, and the exact order id; order, payment, and wallet behavior
+were not otherwise changed.
+
+Admin production build and `test:release-services` pass. Vercel deployment
+`dpl_Ffk4BRxnC18dNNAGWUY6KjB9ZtBW` is `READY` and aliased to
+`https://talabieh-admin.vercel.app`; no-cache readback of live asset
+`/assets/index-DsatHAQz.js` (`274,485` bytes, SHA-256
+`D04A7D66F3163532F1A74DF0BAE1EDA6F4F0558CBEF6AF64939EA362BD862749`)
+confirms the typed payload and localized error. Supabase `admin-orders` is live
+as version `41` with its existing `verify_jwt=true`. No customer notification
+was sent during validation. This Admin/Edge-only batch does not change app
+version or require native sync.
+
 # v86.229/1094 — republish Temu iOS Back on SPA URL change (2026-08-24)
 
 Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
@@ -45,8 +72,8 @@ IPA has SHA-256
 `49DABD543789E8D9DBB21D06FC04F86E8ACC114557D1972AA2B3E5FE24A6ACAE`, and
 the `14,858,947`-byte dSYMs archive has SHA-256
 `EF7CB71DB6B75FDC2FA484B88FD75D71DCB732955AB22A31D771D404DDCC0C7D`.
-Physical Temu acceptance remains pending; delivery/build success is not device
-acceptance.
+The user physically accepted the complete Temu behavior on the iPhone: the
+button returns after product → listing/Home and the full build is working.
 
 # v86.228/1093 — TestFlight SHEIN Qatar policy/region fix (2026-08-24)
 

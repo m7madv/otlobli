@@ -1,5 +1,18 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
+## Admin push senders use the hardened payload contract (2026-08-24)
+
+- **Symptom:** manual notifications reached the live `send-push` function but
+  returned `invalid_payload`; no provider delivery was attempted.
+- **Cause:** the hardened function requires an allowed `type` and `route`, while
+  the older Admin UI sent target/title/body only. The automatic order sender
+  also retained the retired `order_status` metadata.
+- **Decision:** manual messages explicitly use `version=1`, `type=system`, and
+  `route=notifications`; order updates use `order_update`, `orders/details`, and
+  the exact order id. Keep server validation fail-closed rather than silently
+  inventing navigation metadata. Production Admin and `admin-orders` v41 are
+  deployed. Validation deliberately sent no real customer notification.
+
 ## v86.229 — Temu Back follows the iOS WebView URL event (2026-08-24)
 
 - **Physical evidence:** v86.228 fixed the reported SHEIN Qatar region issue.
@@ -16,8 +29,8 @@
   SHEIN v86.228 region/policy behavior, lifecycle timing, transactions, and
   orders. Signed run `32667383788` delivered exact `86.229 (1094)` internally as
   `VALID`/`IN_BETA_TESTING` with no public submission. Builds and distribution
-  prove packaging only; real iPhone product → Back → Home acceptance remains
-  pending.
+  prove packaging only. The user subsequently physically accepted the complete
+  Temu result on the iPhone, including product → Back → Home.
 
 ## v86.224 — prepare SHEIN region on Home; republish Temu Back natively (2026-08-23)
 

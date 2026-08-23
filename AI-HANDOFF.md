@@ -1,3 +1,28 @@
+# Active handoff — production Admin push contract repaired (2026-08-24)
+
+Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`
+on `codex/otlobli-v86-212-testflight-auth`. The user physically accepted the
+complete `86.229 (1094)` Temu result on iPhone. Do not reopen Temu unless a new
+device report appears.
+
+The remaining `invalid_payload` screenshot was caused by Admin's legacy manual
+sender omitting the safe push `data` contract introduced by the hardened live
+`send-push` function. Both broadcast and phone-targeted Admin messages now send
+`version=1`, `type=system`, and `route=notifications`; tapping the notification
+therefore opens the safe in-app Notifications screen. Known server errors are
+localized. The automatic `admin-orders` sender was also corrected from invalid
+`order_status` metadata to `order_update` + `orders/details` + `entityId`.
+
+Admin build and release-service tests pass. Production is live at
+`https://talabieh-admin.vercel.app`, deployment
+`dpl_Ffk4BRxnC18dNNAGWUY6KjB9ZtBW`, asset `/assets/index-DsatHAQz.js`.
+The `274,485`-byte live asset has SHA-256
+`D04A7D66F3163532F1A74DF0BAE1EDA6F4F0558CBEF6AF64939EA362BD862749`.
+`admin-orders` is deployed as Supabase function version `41` and retains
+`verify_jwt=true`. No real push was sent during validation; ask the user to
+refresh Admin once and retry the intended message. This was Admin/Edge only, so
+no customer version bump or native sync was needed.
+
 # Active handoff — v86.229/1094 Temu Back follows SPA URL changes (2026-08-24)
 
 Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`
@@ -28,9 +53,9 @@ is `INSTALLED`, and public review was skipped. Local IPA is `10,460,323`
 bytes/SHA-256 `49DABD543789E8D9DBB21D06FC04F86E8ACC114557D1972AA2B3E5FE24A6ACAE`;
 dSYMs are `14,858,947` bytes/SHA-256
 `EF7CB71DB6B75FDC2FA484B88FD75D71DCB732955AB22A31D771D404DDCC0C7D`, under
-`output/testflight-v86.229-build-1094-run-32667383788`. Physical Temu acceptance
-remains pending; do not claim iPhone success until the user repeats product →
-Back → Home.
+`output/testflight-v86.229-build-1094-run-32667383788`. The user subsequently
+physically accepted the complete Temu result on the iPhone, including product →
+Back → Home and the returning native Back control.
 
 # Active handoff — v86.228/1093 TestFlight Qatar region/policy repair (2026-08-24)
 

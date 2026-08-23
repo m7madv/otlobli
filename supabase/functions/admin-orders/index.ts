@@ -207,7 +207,7 @@ async function notifyCustomerStatusChange(
     phone,
     'تحديث على طلبك',
     `طلبك ${order.id}: ${label}`,
-    { orderId: order.id, statusIndex: String(order.statusIndex), type: 'order_status' },
+    { version: '1', type: 'order_update', route: 'orders/details', entityId: order.id },
   )
 
   if (!WHATSAPP_SERVER_URL || !ORDER_NOTIFY_SECRET || !phone) return

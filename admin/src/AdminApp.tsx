@@ -1904,6 +1904,18 @@ const NOTIF_TEMPLATES: { label: string; title: string; body: string }[] = [
   { label: '🚚 شحن مجاني', title: 'شحن مجاني اليوم 🚚', body: 'اطلب الآن واستفد من الشحن المجاني على طلبك.' },
 ]
 
+const MANUAL_NOTIFICATION_DATA = {
+  version: '1',
+  type: 'system',
+  route: 'notifications',
+} as const
+
+const PUSH_ERROR_MESSAGES: Record<string, string> = {
+  invalid_payload: 'تعذر إرسال الإشعار لأن بياناته غير صالحة. حدّث الصفحة وحاول مجدداً.',
+  missing_target: 'اختر العملاء المستهدفين قبل الإرسال.',
+  unauthorized: 'انتهت صلاحية جلسة الإدارة. سجّل الدخول مجدداً.',
+}
+
 function NotificationsPanel({ pin, showNotice }: { pin: string; showNotice: (message: string) => void }) {
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
@@ -1930,8 +1942,8 @@ function NotificationsPanel({ pin, showNotice }: { pin: string; showNotice: (mes
     }
     const payload =
       target === 'all'
-        ? { broadcast: true, title: t, body: b }
-        : { phone: phone.replace(/\D/g, ''), title: t, body: b }
+        ? { broadcast: true, title: t, body: b, data: MANUAL_NOTIFICATION_DATA }
+        : { phone: phone.replace(/\D/g, ''), title: t, body: b, data: MANUAL_NOTIFICATION_DATA }
 
     setBusy(true)
     setLastResult(null)
@@ -1942,7 +1954,7 @@ function NotificationsPanel({ pin, showNotice }: { pin: string; showNotice: (mes
     })
       .then(async (res) => {
         const data = (await res.json().catch(() => ({}))) as { sent?: number; total?: number; reason?: string; error?: string }
-        if (!res.ok) throw new Error(data.error || 'فشل الإرسال')
+        if (!res.ok) throw new Error(PUSH_ERROR_MESSAGES[data.error ?? ''] ?? 'فشل إرسال الإشعار')
         if (data.reason === 'not_configured') {
           setLastResult({ ok: false, text: '⚠️ الإشعارات غير مُفعّلة بعد (مفاتيح Firebase غير مضبوطة).' })
           showNotice('الإشعارات غير مُفعّلة بعد')

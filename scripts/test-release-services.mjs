@@ -107,6 +107,19 @@ for (const marker of [
   assert.ok(push.includes(marker), `Push sender missing ${marker}`)
 }
 assert.ok(!push.includes("console.error('FCM send failed', res.status, errText)"), 'Push provider errors must not log raw bodies')
+const adminPush = readFileSync(resolve(root, 'admin/src/AdminApp.tsx'), 'utf8')
+for (const marker of [
+  'MANUAL_NOTIFICATION_DATA', "version: '1'", "type: 'system'", "route: 'notifications'",
+  'data: MANUAL_NOTIFICATION_DATA', 'PUSH_ERROR_MESSAGES',
+]) {
+  assert.ok(adminPush.includes(marker), `Admin push sender missing ${marker}`)
+}
+const adminOrders = readFileSync(resolve(root, 'supabase/functions/admin-orders/index.ts'), 'utf8')
+for (const marker of [
+  "version: '1'", "type: 'order_update'", "route: 'orders/details'", 'entityId: order.id',
+]) {
+  assert.ok(adminOrders.includes(marker), `Order push sender missing ${marker}`)
+}
 const pushClient = readFileSync(resolve(root, 'src/services/pushNotifications.ts'), 'utf8')
 for (const marker of ['getPushContext', 'p_environment: pushContext.environment', 'detach_device_token', 'pendingLaunchDestination', 'queueMicrotask']) {
   assert.ok(pushClient.includes(marker), `Push client missing ${marker}`)
