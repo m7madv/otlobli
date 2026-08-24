@@ -14,7 +14,7 @@ index 9979670..fcfd30a 100644
  }
  
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/CapgoInAppBrowserPlugin.java b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/CapgoInAppBrowserPlugin.java
-index ae420ed..50d3433 100644
+index ae420ed..3f350a3 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/CapgoInAppBrowserPlugin.java
 +++ b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/CapgoInAppBrowserPlugin.java
 @@ -265,7 +265,6 @@ public class CapgoInAppBrowserPlugin extends Plugin implements WebViewDialog.Per
@@ -25,7 +25,7 @@ index ae420ed..50d3433 100644
                  try {
                      JSONObject jsonMessage = new JSONObject(message);
                      JSObject jsObject = new JSObject();
-@@ -810,65 +810,35 @@ public class CapgoInAppBrowserPlugin extends Plugin implements WebViewDialog.Per
+@@ -810,65 +809,35 @@ public class CapgoInAppBrowserPlugin extends Plugin implements WebViewDialog.Per
  
          CookieManager cookieManager = CookieManager.getInstance();
          String cookieString = cookieManager.getCookie(url);
@@ -113,8 +113,8 @@ index ae420ed..50d3433 100644
 +        call.resolve();
      }
  
-    @PluginMethod
-@@ -1204,7 +1173,6 @@ public class CapgoInAppBrowserPlugin extends Plugin implements WebViewDialog.Pe
+     @PluginMethod
+@@ -1204,7 +1173,6 @@ public class CapgoInAppBrowserPlugin extends Plugin implements WebViewDialog.Per
          }
  
          String targetId = call.getString("id");
@@ -122,7 +122,7 @@ index ae420ed..50d3433 100644
          this.getActivity().runOnUiThread(
              new Runnable() {
                  @Override
-@@ -1561,6 +1531,17 @@ public class CapgoInAppBrowserPlugin extends Plugin implements WebViewDialog.Per
+@@ -1561,6 +1529,17 @@ public class CapgoInAppBrowserPlugin extends Plugin implements WebViewDialog.Per
              openSecureWindowSavedCall.reject("OAuth cancelled or no callback received");
              openSecureWindowSavedCall = null;
          }
@@ -159,7 +159,7 @@ index 6b4115a..8e557cf 100644
                            try {
                              window.AndroidInterface.show();
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
-index 8ae3e61..a2401a6 100644
+index 8ae3e61..38cbbf9 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
 +++ b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
 @@ -16,7 +16,13 @@ import android.graphics.Color;
@@ -1271,7 +1271,7 @@ index 8ae3e61..a2401a6 100644
              // Strip conditional cache validators on the wire so upstream cannot return 304/3xx,
              // which WebResourceResponse.setStatusCodeAndReasonPhrase rejects (kills the renderer).
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
-index 116e296..eebe83e 100644
+index 116e296..696cf60 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
 @@ -146,6 +146,9 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
@@ -1588,7 +1588,7 @@ index 116e296..eebe83e 100644
          DispatchQueue.main.async {
              if let targetId = call.getString("id") {
                  guard let webViewController = self.webViewControllers[targetId] else {
-@@ -1811,9 +1960,33 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -1811,9 +1958,33 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
  
      @objc func appDidBecomeActive(_ notification: NSNotification) {
          self.hidePrivacyScreen()
@@ -1803,7 +1803,7 @@ index 1c70884..be2b8ac 100644
          if
              ProxySchemeRequestSupport.supportsRequestBody(method: context.method),
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
-index 97a2fc1..b89293c 100644
+index 97a2fc1..fe688c3 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
 @@ -9,6 +9,7 @@
@@ -2555,9 +2555,7 @@ index 97a2fc1..b89293c 100644
          self.allowWebViewJsVisibilityControl = parent.allowWebViewJsVisibilityControl
          self.allowScreenshotsFromWebPage = parent.allowScreenshotsFromWebPage
          self.handleDownloads = parent.handleDownloads
-@@ -1717,14 +2358,19 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
-             if self.hasDynamicTitle {
-                 self.navigationItem.title = webView?.url?.host
+@@ -1720,12 +2361,17 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
              }
          case "URL":
              // Guard against notifications during cleanup when webView is being torn down
@@ -2577,7 +2575,7 @@ index 97a2fc1..b89293c 100644
          default:
              super.observeValue(forKeyPath: keyPath, of: object, change: change, context: context)
          }
-@@ -1818,6 +2459,23 @@ public extension WKWebViewController {
+@@ -1818,6 +2464,23 @@ public extension WKWebViewController {
  
      open func cleanupWebView() {
          guard let webView = self.webView else { return }
@@ -2601,7 +2599,7 @@ index 97a2fc1..b89293c 100644
          webView.stopLoading()
          previewItemURL = nil
  
-@@ -1837,6 +2495,7 @@ public extension WKWebViewController {
+@@ -1837,6 +2500,7 @@ public extension WKWebViewController {
          webView.configuration.userContentController.removeScriptMessageHandler(forName: "messageHandler")
          webView.configuration.userContentController.removeScriptMessageHandler(forName: "close")
          webView.configuration.userContentController.removeScriptMessageHandler(forName: "hide")
@@ -2609,7 +2607,8 @@ index 97a2fc1..b89293c 100644
          webView.configuration.userContentController.removeScriptMessageHandler(forName: "show")
          if allowScreenshotsFromWebPage {
              webView.configuration.userContentController.removeScriptMessageHandler(forName: "takeScreenshot")
-@@ -2658,7 +3322,5 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2657,8 +3321,6 @@ extension WKWebViewController: WKNavigationDelegate {
+         ]
  
          let script = scriptTemplate.joined(separator: "\n")
 -        print("[InAppBrowser - InjectPreShowScript] PreShowScript script: \(script)")
@@ -2617,7 +2616,7 @@ index 97a2fc1..b89293c 100644
          self.preShowSemaphore = DispatchSemaphore(value: 0)
          self.executeScript(script: script) // this will run on the main thread
  
-@@ -2680,14 +3337,33 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2680,14 +3342,33 @@ extension WKWebViewController: WKNavigationDelegate {
      }
  
      public func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
@@ -2651,7 +2650,7 @@ index 97a2fc1..b89293c 100644
          if !didpageInit && self.capBrowserPlugin?.isPresentAfterPageLoad == true {
              // Only inject preShowScript if it wasn't already injected at document start
              let shouldInjectScript = self.preShowScript.map { !$0.isEmpty } ?? false &&
-@@ -2703,12 +3379,18 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2703,12 +3384,18 @@ extension WKWebViewController: WKNavigationDelegate {
                      DispatchQueue.global(qos: .userInitiated).async {
                          self.injectPreShowScript()
                          DispatchQueue.main.async { [weak self] in
@@ -2672,7 +2671,7 @@ index 97a2fc1..b89293c 100644
              }
          } else if self.preShowScript != nil &&
                      !self.preShowScript!.isEmpty &&
-@@ -2734,6 +3416,7 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2734,6 +3421,7 @@ extension WKWebViewController: WKNavigationDelegate {
          }
          self.injectJavaScriptInterface()
          emit("browserPageLoaded")
@@ -2680,7 +2679,7 @@ index 97a2fc1..b89293c 100644
      }
  
      public func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-@@ -2743,7 +3426,10 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2743,7 +3431,10 @@ extension WKWebViewController: WKNavigationDelegate {
              self.url = url
              delegate?.webViewController?(self, didFail: url, withError: error)
          }
@@ -2692,7 +2691,7 @@ index 97a2fc1..b89293c 100644
      }
  
      public func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-@@ -2753,7 +3439,19 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2753,7 +3444,19 @@ extension WKWebViewController: WKNavigationDelegate {
              self.url = url
              delegate?.webViewController?(self, didFail: url, withError: error)
          }
