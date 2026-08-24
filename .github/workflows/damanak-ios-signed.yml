@@ -132,7 +132,8 @@ jobs:
           [[ "$PROFILE_APP_ID" == *".$APP_BUNDLE_ID" ]]
           test "$PROFILE_APPLE_SIGN_IN" = "Default"
           test "$APP_APPLE_SIGN_IN" = "Default"
-          strings "$APP_PATH/Frameworks/App.framework/App" | grep -Fq "login-callback"
+          strings "$APP_PATH/Frameworks/App.framework/App" > "$RUNNER_TEMP/damanak-app-strings.txt"
+          grep -Fq "login-callback" "$RUNNER_TEMP/damanak-app-strings.txt"
           echo "Verified signed bundle $APP_BUNDLE_ID, Apple Sign-In, and its embedded App Store profile."
 
       - name: Validate and upload to App Store Connect
