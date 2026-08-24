@@ -21,6 +21,7 @@ Last updated: 2026-08-24
 - بقي التصميم بلون علامة واحد `#087F5B` وحياديات دلالية ومن دون blur أو مؤثرات ثقيلة. روجعت العملاء والفروع والتقارير والإعدادات ونموذج الفاتورة والوثيقة عند `320×568` و`393×852` و`1280×800`. تدفق فعلي أنشأ فاتورة `649` وخصماً `49` وضريبة `78.26` وإجمالياً `600`؛ سجل المتصفح بلا أخطاء. الصور في `output/playwright/damanak-v3/` والتقرير في `docs/DESIGN_AUDIT.md`.
 - نجح `dart format` بلا تغييرات، و`flutter analyze` بلا ملاحظات، و12 اختباراً، و`flutter build web --release --no-wasm-dry-run`، و`flutter build apk --release`.
 - Android release-test APK: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA\output\damanak\damanak-3.0.0-release-test.apk`؛ الحجم `73,466,821` بايت؛ SHA-256 `B409CE6560E58FBED53D44DED9C215149F5FC12612AD681E3F3C04691B27D805`. الملف موقّع بمفتاح Flutter التجريبي وليس بمفتاح متجر إنتاج.
+- فرع GitHub هو `codex/damanak-flutter` والالتزام الوظيفي `cc12cc4`. نجح workflow iOS رقم `32721794574`. ملف `output/damanak/github-ios-32721794574/damanak-3.0.0-ios-unsigned.ipa` حجمه `8,296,300` بايت وبصمته SHA-256 `3B72982E14192126DC5B632F076D5F95FC1451FFF38257EC6FB662C7FB6C2F14`. الفحص أكد `com.damanak.damanak` و`3.0.0/3` وiOS 13، بلا توقيع لجذر التطبيق أو `embedded.mobileprovision`.
 - المتبقي خارج الشيفرة: مشروع `Supabase` مستقل ومفاتيحه، توقيع Android/Apple، وقبول على أجهزة حقيقية. بوابة دفع مباشرة اختيارية؛ رموز التفعيل وطلبات الاشتراك تعمل بلا بوابة.
 
 ## v86.42 SHEIN image-swatch colors and inline size focus (2026-08-01)
