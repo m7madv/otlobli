@@ -11,6 +11,11 @@ on:
         options:
           - inspect
           - apply
+      apply_prices:
+        description: Apply the owner-approved SAR prices and Apple Gulf equalizations
+        required: true
+        type: boolean
+        default: false
 
 jobs:
   app-store-connect:
@@ -68,8 +73,13 @@ jobs:
           if [[ "${{ inputs.mode }}" == "apply" ]]; then
             MODE_FLAG="--apply"
           fi
+          PRICE_FLAG=""
+          if [[ "${{ inputs.apply_prices }}" == "true" ]]; then
+            PRICE_FLAG="--apply-prices"
+          fi
           node scripts/app_store_setup.mjs \
             $MODE_FLAG \
+            $PRICE_FLAG \
             --output build/app-store-setup/report.json \
             --profile-output build/app-store-setup/damanak.mobileprovision
 
