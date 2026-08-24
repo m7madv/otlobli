@@ -25,8 +25,9 @@ third-party content rights; App Store Connect now records that declaration.
 Reviewer contact details and Sign in with Apple review instructions are saved
 without copying personal contact values into the repository. `Add for Review`
 is enabled. The only remaining blocker is the action-time confirmation before
-adding and submitting version 86.230 to Apple Review. Keep
-`store-assets/app-store/PREPARE_ONLY` until that final confirmation.
+adding and submitting version 86.230 to Apple Review. The owner gave that exact
+final confirmation, including automatic release after approval, and the
+`PREPARE_ONLY` safety marker has been removed for the authorized submission run.
 
 # v86.230/1095 — TestFlight uploaded and internally distributed (2026-08-24)
 

@@ -20,9 +20,10 @@ the privacy label is published.
 Reviewer first/last name, phone, email, and the Sign in with Apple workflow are
 saved in App Store Connect; personal contact values are intentionally omitted
 from repository documentation. `Add for Review` is enabled. No public review
-submission has been sent yet. Keep `PREPARE_ONLY` until the user gives the
-action-time confirmation to add version 86.230 and press the final submission
-button; then verify the resulting Apple state rather than claiming approval.
+submission has been sent yet. The user then gave the exact action-time
+confirmation to add version 86.230, submit it, and release automatically after
+approval. `PREPARE_ONLY` was removed for that authorized run. Verify the
+resulting Apple state rather than claiming approval or public availability.
 
 # Active handoff — v86.230/1095 is live in internal TestFlight (2026-08-24)
 
