@@ -1,0 +1,85 @@
+name: Damanak Apple Setup
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Inspect is read-only; apply creates missing Apple resources
+        required: true
+        type: choice
+        default: inspect
+        options:
+          - inspect
+          - apply
+
+jobs:
+  app-store-connect:
+    name: ${{ inputs.mode }} App Store Connect resources
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    defaults:
+      run:
+        working-directory: damanak_flutter
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Select the matching Apple distribution certificate
+        id: certificate
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+        shell: bash
+        run: |
+          if [[ -z "$CERTIFICATE_BASE64" || -z "$CERTIFICATE_PASSWORD" ]]; then
+            echo "No distribution certificate secret is available; profile creation may be skipped."
+            exit 0
+          fi
+          echo "$CERTIFICATE_BASE64" | base64 --decode > "$RUNNER_TEMP/distribution.p12"
+          if ! openssl pkcs12 \
+            -in "$RUNNER_TEMP/distribution.p12" \
+            -clcerts \
+            -nokeys \
+            -passin env:CERTIFICATE_PASSWORD \
+            -out "$RUNNER_TEMP/distribution.pem" 2>/dev/null; then
+            openssl pkcs12 \
+              -legacy \
+              -in "$RUNNER_TEMP/distribution.p12" \
+              -clcerts \
+              -nokeys \
+              -passin env:CERTIFICATE_PASSWORD \
+              -out "$RUNNER_TEMP/distribution.pem"
+          fi
+          SERIAL=$(openssl x509 -in "$RUNNER_TEMP/distribution.pem" -noout -serial | cut -d= -f2)
+          test -n "$SERIAL"
+          echo "serial=$SERIAL" >> "$GITHUB_OUTPUT"
+
+      - name: Inspect or apply Apple resources
+        env:
+          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APPLE_DISTRIBUTION_CERTIFICATE_SERIAL: ${{ steps.certificate.outputs.serial }}
+        shell: bash
+        run: |
+          MODE_FLAG=""
+          if [[ "${{ inputs.mode }}" == "apply" ]]; then
+            MODE_FLAG="--apply"
+          fi
+          node scripts/app_store_setup.mjs \
+            $MODE_FLAG \
+            --output build/app-store-setup/report.json \
+            --profile-output build/app-store-setup/damanak.mobileprovision
+
+      - name: Upload setup report and provisioning profile
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: damanak-apple-setup-${{ inputs.mode }}-${{ github.run_number }}
+          path: |
+            damanak_flutter/build/app-store-setup/report.json
+            damanak_flutter/build/app-store-setup/damanak.mobileprovision
+          if-no-files-found: warn
+          retention-days: 14
