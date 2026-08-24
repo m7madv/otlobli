@@ -10,7 +10,7 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 - التصميم يستخدم لون علامة واحد ومظهراً فاتحاً/داكناً تابعاً للنظام. راجع `docs/DESIGN_AUDIT.md` قبل أي تغيير واجهة، وحافظ على ختم الباركود والحد الأدنى `48dp` وتقليل الحركة. لا تضف blur أو مؤثرات ثابتة ثقيلة.
 - آخر تحقق: `flutter analyze` نظيف، 8 اختبارات ناجحة، web release ناجح، وتدفق الباركود/الإصدار/الرجوع إلى الماسح ناجح في متصفح حقيقي. أدلة المقاسات الفاتحة والداكنة في `output/playwright/damanak-apple/`.
 - Android release-test: `output/damanak/damanak-2.0.0-release-test.apk`; الحجم `72,563,673` بايت؛ SHA-256 `97237091826F2021C7E54E8E614C94246856C7B7D7D1402C5ED8F514949F66E3`. ليس موقّعاً بمفتاح متجر إنتاج.
-- فرع العمل `codex/damanak-flutter`. workflow iOS مهيأ لـ`2.0.0` لكنه يحتاج دفع الدفعة الحالية وانتظار GitHub Actions. لا يوجد قبول هاتف حقيقي؛ سجّل ذلك بوضوح.
+- فرع العمل `codex/damanak-flutter` ومرفوع إلى GitHub. نجح workflow iOS رقم `32715444002`. ملف `output/damanak/github-ios-32715444002/damanak-2.0.0-ios-unsigned.ipa` حجمه `8,173,743` بايت وبصمته SHA-256 `68D976EA9727E8C0F512CB9C23421FA686CB7492871EF26EB083468F1C89E867`؛ الفحص أكد `com.damanak.damanak` و`2.0.0/2`، بلا توقيع لجذر التطبيق أو ملف provisioning. لا يوجد قبول هاتف حقيقي؛ سجّل ذلك بوضوح.
 
 ## Current candidate (2026-08-01) - v86.42 image swatches and inline sizes
 
