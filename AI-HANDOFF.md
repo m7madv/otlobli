@@ -1,21 +1,28 @@
 # Active handoff — v86.230/1095 App Store preparation (2026-08-24)
 
-The owner has explicitly requested App Store publication. Public submission is
-not sent yet. Arabic description/keywords/support URL/copyright are saved in
-App Store Connect. `https://talabieh.vercel.app/privacy.html` and
-`https://talabieh.vercel.app/support.html` are live from READY deployment
-`dpl_2EU6QQoxjhA7xFuFsrARAUB3SS69` after local/remote secret-scan fallback,
-production build, native sync, and responsive visual QA passed.
+The owner requested App Store publication, but no public review submission has
+been sent. Preparation workflow
+[32678281991](https://github.com/m7madv/otlobli/actions/runs/32678281991)
+passed from `e812da4348dab5b5187a9af903b747a7c59877a9`. It verified build
+`86.230 (1095)`, uploaded/verified `APP_IPHONE_65` and
+`APP_IPAD_PRO_3GEN_129` under `ar-SA`, then explicitly exited because the
+tracked `PREPARE_ONLY` marker exists.
 
-Two accurate login screenshots are tracked in `store-assets/app-store` for
-`APP_IPHONE_65` (`1242x2688`) and `APP_IPAD_PRO_3GEN_129` (`2048x2732`).
-`scripts/submit-app-store-review.mjs` uploads and verifies them through App
-Store Connect. The tracked `PREPARE_ONLY` marker is a deliberate safety stop:
-the workflow may prepare screenshots/build but must not submit Apple Review
-while it exists. Keep it until screenshot upload and remaining listing fields
-are verified. Before transmitting reviewer contact information, obtain
-confirmation for the exact values; immediately before removing the marker and
-dispatching the final submission, obtain action-time confirmation again.
+Portal state: Arabic listing metadata is saved; category is Shopping; price is
+free; availability is all 175 territories; rating is calculated 13+; untested
+Mac/Vision distribution is off. The live privacy and support URLs are from
+READY deployment `dpl_2EU6QQoxjhA7xFuFsrARAUB3SS69`. Thirteen actual privacy
+data types are fully configured as App Functionality, identity-linked, and not
+used for tracking, but `Publish` has not been clicked.
+
+Do not invent the remaining declarations. Obtain the owner's explicit
+confirmation that Otlobli has the necessary rights to display/access SHEIN and
+Temu content before selecting the legal content-rights “Yes” option. Obtain the
+exact reviewer first/last name, phone, and email before transmitting them. The
+reviewer can use Sign in with Apple without a demo password and complete the
+delivery profile without OTP; put that workflow in review notes. Keep
+`PREPARE_ONLY` until the user confirms privacy publication and the final App
+Review submission in the action-time turn.
 
 # Active handoff — v86.230/1095 is live in internal TestFlight (2026-08-24)
 

@@ -1,21 +1,29 @@
 # v86.230/1095 — App Store submission preparation (2026-08-24)
 
 The owner explicitly authorized publishing this accepted build to the App
-Store. The public submission is being prepared but has **not** been sent to
-Apple Review yet. Store metadata now has an Arabic description, keywords,
-support URL, and copyright. Public privacy and support pages are live at
-`https://talabieh.vercel.app/privacy.html` and
-`https://talabieh.vercel.app/support.html`; production Vercel deployment
-`dpl_2EU6QQoxjhA7xFuFsrARAUB3SS69` is `READY`.
+Store. Public submission is prepared but has **not** been sent to Apple Review.
+Preparation workflow
+[32678281991](https://github.com/m7madv/otlobli/actions/runs/32678281991)
+passed from `e812da4348dab5b5187a9af903b747a7c59877a9`: production build/signing,
+the existing `86.230 (1095)` link, and both screenshot uploads verified. Its
+final log confirms `PREPARE_ONLY` stopped before review submission.
 
-Required screenshots are tracked under `store-assets/app-store`: iPhone 6.5 is
-`1242x2688`/`119,908` bytes and iPad Pro 12.9 is `2048x2732`/`121,152` bytes.
-The release helper now reserves, uploads, commits, and verifies those assets
-through the official App Store Connect API. `PREPARE_ONLY` deliberately stops
-the current workflow after preparation, before creating/submitting a review
-item. Remove that marker only after the owner confirms the final App Review
-submission. Remaining portal work includes category, pricing, age rating,
-privacy responses, content rights, and reviewer contact/access details.
+App Store Connect now has the Arabic description, keywords, support URL,
+copyright, Shopping category, free price, all 175 territories, and the
+calculated 13+ rating (12+ on pre-v26 systems, with regional equivalents).
+Untested Apple Silicon Mac and Vision Pro distribution are disabled. The
+iPhone 6.5 `1242x2688` and iPad Pro 12.9 `2048x2732` screenshots are COMPLETE
+under localization `ar-SA`. Privacy and user-choice URLs point to
+`https://talabieh.vercel.app/privacy.html`; all 13 accurate data types are
+configured as App Functionality, linked to the user, and not used for tracking,
+but the privacy label remains an unpublished draft.
+
+Public privacy/support pages are live from READY Vercel deployment
+`dpl_2EU6QQoxjhA7xFuFsrARAUB3SS69`. Remaining blockers are explicit owner
+confirmation for the third-party content-rights declaration, exact reviewer
+contact details, publishing the privacy label, and the action-time confirmation
+before final App Review submission. Keep `store-assets/app-store/PREPARE_ONLY`
+until that final confirmation.
 
 # v86.230/1095 — TestFlight uploaded and internally distributed (2026-08-24)
 
