@@ -269,6 +269,25 @@ async function ensureApp(report) {
   return app;
 }
 
+async function inspectBuilds(app, report) {
+  if (!app) {
+    report.builds = [];
+    return;
+  }
+  const builds = await listAll(
+    `/v1/builds?filter[app]=${app.id}&sort=-uploadedDate&limit=10`,
+  );
+  report.builds = builds.map((build) => ({
+    id: build.id,
+    version: build.attributes?.version,
+    uploadedDate: build.attributes?.uploadedDate,
+    processingState: build.attributes?.processingState,
+    expired: build.attributes?.expired,
+    expirationDate: build.attributes?.expirationDate,
+    minOsVersion: build.attributes?.minOsVersion,
+  }));
+}
+
 async function ensureSubscriptionGroup(app, report) {
   if (!app) {
     report.subscriptionGroup = 'blocked-until-app-exists';
@@ -855,6 +874,7 @@ async function main() {
     const bundleId = await ensureBundleId(report);
     await ensureProvisioningProfile(bundleId, report);
     const app = await ensureApp(report);
+    await inspectBuilds(app, report);
     const group = await ensureSubscriptionGroup(app, report);
     await ensureSubscriptionGroupLocalization(group, report);
     await ensureSubscriptions(group, report);
