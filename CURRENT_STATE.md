@@ -22,7 +22,8 @@ Last updated: 2026-08-24
 - مخطط الخادم صار ثلاثة ملفات، وآخرها `20260824160000_damanak_retail_operations.sql` وفيه الجداول و`RLS` ودوال البيع والمرتجع والتحويل والجرد والصندوق والمشتريات وحذف الحساب الذرية. لم ينشر المخطط: محاولة إنشاء مشروع مستقل فشلت لأن حساب `Supabase` يستخدم مشروعين مجانيين (`talabieh` و`VoiceBrief`)؛ لم يُوقف أو يُستخدم أي منهما.
 - نجح format و`flutter analyze` بلا ملاحظات، و14 اختباراً، وبناء web. روجعت الواجهة في متصفح عند `1036×799` و`390×844`؛ لا يوجد قبول جهاز حقيقي.
 - أنشئ مفتاح رفع Android خارج Git وصلاحيته حتى 2054. `output/damanak/damanak-4.0.0-signed.apk` حجمه `74,500,473` وبصمته `BDB9AF0E69867A93C4D96B61856C77C415D7FAC1DF2F072B758640B9FF15C18E`. `output/damanak/damanak-4.0.0-signed.aab` حجمه `55,269,196` وبصمته `2A88105FC846A304446FC59EA35E690475626B9F53FBEE160641D29C41A5CA0E`. التوقيع متحقق وSHA-256 للشهادة `C25AA74315C6438AE2E4C019C2BE4214D4C1C63FB0194C45904CF40399AA42D0`.
-- حدّث workflow iOS غير الموقع وأضيف workflow موقع. توجد شهادة توزيع وTeam ID في GitHub، لكن ملف التزويد الحالي لتطبيق آخر؛ يلزم App ID وApp Store profile خاصان بـ`com.damanak.damanak`. تعذر التحكم بواجهة Apple لأن أداة Windows لم تبدأ، ولم يُدّعَ توقيع iOS.
+- رُفع كود `4.0.0` في الالتزام `20188f9` على `codex/damanak-flutter`، ونجح GitHub/Xcode run `32734178700`. ملف iOS غير الموقع `output/damanak/github-ios-32734178700/damanak-4.0.0-ios-unsigned.ipa` حجمه `8,450,962` وبصمته `6D917F5C4AC9305C9C7B1A795E274D1336D0415CB0B57F23A47AE95C7FAAAC60`؛ فحصه أكد `com.damanak.damanak` و`4.0.0/4` وغياب التوقيع وملف provisioning.
+- أضيف workflow iOS موقع. توجد شهادة توزيع وTeam ID في GitHub، لكن ملف التزويد الحالي لتطبيق آخر؛ يلزم App ID وApp Store profile خاصان بـ`com.damanak.damanak`. تعذر التحكم بواجهة Apple لأن أداة Windows لم تبدأ، ولم يُدّعَ توقيع iOS.
 
 ## v86.42 SHEIN image-swatch colors and inline size focus (2026-08-01)
 

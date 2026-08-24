@@ -21,7 +21,8 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 - التصميم يستخدم أخضر `#087F5B` وحياديات فقط، وتنقل العمليات/البيع/المخزون/الضمانات/الإدارة، ومسار المنتج المصغر. راجع `docs/DESIGN_AUDIT.md` وحافظ على `48dp` وRTL وعدم إضافة blur أو مؤثرات ثابتة ثقيلة.
 - آخر تحقق: format وanalyze نظيفان، 14 اختباراً، web release، ومراجعة مرئية عند `1036×799` و`390×844`. اختبار الوحدة يغطي بيعاً متسلسلاً وخصم المخزون والضمان والمرتجع. لا يوجد قبول جهاز حقيقي.
 - Android موقّع بمفتاح رفع إنتاجي خارج Git. APK: `output/damanak/damanak-4.0.0-signed.apk`، `74,500,473` بايت، SHA-256 `BDB9AF0E69867A93C4D96B61856C77C415D7FAC1DF2F072B758640B9FF15C18E`. AAB: `output/damanak/damanak-4.0.0-signed.aab`، `55,269,196` بايت، SHA-256 `2A88105FC846A304446FC59EA35E690475626B9F53FBEE160641D29C41A5CA0E`. شهادة الرفع SHA-256 `C25AA74315C6438AE2E4C019C2BE4214D4C1C63FB0194C45904CF40399AA42D0`.
-- أضيف `.github/workflows/damanak-ios-signed.yml` مع مسار unsigned محدث. يلزم إنشاء App ID وApp Store provisioning profile لـ`com.damanak.damanak` ثم أسرار `DAMANAK_IOS_*`. لا تستخدم ملف تزويد تطبيق آخر، ولا تدّعِ توقيع iOS قبل نجاح workflow وفحص IPA.
+- كود `4.0.0` في الالتزام `20188f9` على `codex/damanak-flutter`. نجح GitHub/Xcode run `32734178700`، وملف unsigned في `output/damanak/github-ios-32734178700/damanak-4.0.0-ios-unsigned.ipa`، حجمه `8,450,962` وبصمته `6D917F5C4AC9305C9C7B1A795E274D1336D0415CB0B57F23A47AE95C7FAAAC60`. الفحص أكد `com.damanak.damanak` و`4.0.0/4` وغياب التوقيع وprovisioning.
+- أضيف `.github/workflows/damanak-ios-signed.yml`. يلزم إنشاء App ID وApp Store provisioning profile لـ`com.damanak.damanak` ثم أسرار `DAMANAK_IOS_*`. لا تستخدم ملف تزويد تطبيق آخر، ولا تدّعِ توقيع iOS قبل نجاح workflow الموقع وفحص IPA الناتج.
 
 ## Current candidate (2026-08-01) - v86.42 image swatches and inline sizes
 
