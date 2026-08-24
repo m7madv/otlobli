@@ -4,13 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: Inspect is read-only; apply creates missing draft subscriptions
+        description: Inspect is read-only; apply creates priced drafts; activate publishes base plans
         required: true
         type: choice
         default: inspect
         options:
           - inspect
           - apply
+          - activate
 
 jobs:
   google-play:
@@ -34,6 +35,8 @@ jobs:
           MODE_FLAG=""
           if [[ "${{ inputs.mode }}" == "apply" ]]; then
             MODE_FLAG="--apply"
+          elif [[ "${{ inputs.mode }}" == "activate" ]]; then
+            MODE_FLAG="--activate"
           fi
           node scripts/google_play_setup.mjs \
             $MODE_FLAG \

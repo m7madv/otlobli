@@ -7,7 +7,12 @@ import { dirname, resolve } from 'node:path';
 const API_ROOT = 'https://androidpublisher.googleapis.com/androidpublisher/v3';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const PACKAGE_NAME = 'com.damanak.damanak';
-const mode = process.argv.includes('--apply') ? 'apply' : 'inspect';
+const mode = process.argv.includes('--activate')
+  ? 'activate'
+  : process.argv.includes('--apply')
+    ? 'apply'
+    : 'inspect';
+const GULF_REGION_CODES = ['SA', 'AE', 'BH', 'KW', 'OM', 'QA'];
 const outputIndex = process.argv.indexOf('--output');
 const outputPath = resolve(
   outputIndex >= 0 && process.argv[outputIndex + 1]
@@ -134,17 +139,54 @@ async function findSubscription(accessToken, productId) {
   }
 }
 
-function subscriptionBody(definition) {
+function sarMoney(amount) {
+  const units = Math.trunc(amount);
+  const nanos = Math.round((amount - units) * 1_000_000_000);
+  return { currencyCode: 'SAR', units: String(units), nanos };
+}
+
+async function convertSarPrice(accessToken, amount) {
+  const conversion = await request(
+    accessToken,
+    `/applications/${PACKAGE_NAME}/pricing:convertRegionPrices`,
+    {
+      method: 'POST',
+      body: {
+        price: sarMoney(amount),
+      },
+    },
+  );
+  const version = conversion?.regionVersion?.version;
+  if (!version) {
+    throw new Error('Google Play did not return the current regions version');
+  }
+  const regionalConfigs = GULF_REGION_CODES.map((regionCode) => {
+    const converted = conversion?.convertedRegionPrices?.[regionCode];
+    if (!converted?.price) {
+      throw new Error(`Google Play did not return a price for ${regionCode}`);
+    }
+    return {
+      regionCode,
+      newSubscriberAvailability: true,
+      price: converted.price,
+    };
+  });
+  return { version, regionalConfigs };
+}
+
+function subscriptionBody(definition, pricing) {
   return {
     packageName: PACKAGE_NAME,
     productId: definition.productId,
     basePlans: [
       {
         basePlanId: 'monthly',
+        regionalConfigs: pricing.monthly.regionalConfigs,
         autoRenewingBasePlanType: { billingPeriodDuration: 'P1M' },
       },
       {
         basePlanId: 'yearly',
+        regionalConfigs: pricing.yearly.regionalConfigs,
         autoRenewingBasePlanType: { billingPeriodDuration: 'P1Y' },
       },
     ],
@@ -159,18 +201,37 @@ function subscriptionBody(definition) {
   };
 }
 
-async function ensureSubscription(accessToken, definition) {
+async function activateBasePlans(accessToken, subscription) {
+  for (const plan of subscription.basePlans || []) {
+    if (plan.state === 'ACTIVE') continue;
+    await request(
+      accessToken,
+      `/applications/${PACKAGE_NAME}/subscriptions/${encodeURIComponent(
+        subscription.productId,
+      )}/basePlans/${encodeURIComponent(plan.basePlanId)}:activate`,
+      { method: 'POST', body: {} },
+    );
+  }
+}
+
+async function ensureSubscription(accessToken, definition, pricing) {
   let subscription = await findSubscription(accessToken, definition.productId);
   let state = subscription ? 'existing' : 'missing';
-  if (!subscription && mode === 'apply') {
+  if (!subscription && mode !== 'inspect') {
     subscription = await request(
       accessToken,
       `/applications/${PACKAGE_NAME}/subscriptions?productId=${encodeURIComponent(
         definition.productId,
-      )}`,
-      { method: 'POST', body: subscriptionBody(definition) },
+      )}&regionsVersion.version=${encodeURIComponent(pricing.regionsVersion)}`,
+      { method: 'POST', body: subscriptionBody(definition, pricing) },
     );
     state = 'created-draft';
+  }
+
+  if (subscription && mode === 'activate') {
+    await activateBasePlans(accessToken, subscription);
+    subscription = await findSubscription(accessToken, definition.productId);
+    state = state === 'created-draft' ? 'created-active' : 'existing-activated';
   }
 
   const basePlans = new Map(
@@ -184,8 +245,11 @@ async function ensureSubscription(accessToken, definition) {
       yearly: basePlans.get('yearly') || (subscription ? 'missing' : 'pending'),
     },
     intendedPricesSar: definition.intendedPricesSar,
-    pricing: 'pending-explicit-regional-price-approval',
-    activation: 'pending-after-pricing-and-testing',
+    pricing:
+      mode === 'inspect'
+        ? 'not-changed'
+        : `applied-to-${GULF_REGION_CODES.join('-')}`,
+    activation: mode === 'activate' ? 'requested' : 'pending-explicit-activation',
   };
 }
 
@@ -196,8 +260,9 @@ async function main() {
     packageName: PACKAGE_NAME,
     pricesApplied: false,
     basePlansActivated: false,
+    targetRegions: GULF_REGION_CODES,
     pricingNote:
-      'Draft products do not receive regional prices or activation until the owner approves the displayed prices.',
+      'Apply creates priced drafts for the six Gulf markets; activate also activates both base plans.',
     subscriptions: [],
   };
 
@@ -206,10 +271,38 @@ async function main() {
     report.serviceAccount = account.client_email;
     const accessToken = await createAccessToken(account);
     for (const definition of definitions) {
+      let pricing;
+      if (mode !== 'inspect') {
+        const monthly = await convertSarPrice(
+          accessToken,
+          definition.intendedPricesSar.monthly,
+        );
+        const yearly = await convertSarPrice(
+          accessToken,
+          definition.intendedPricesSar.yearly,
+        );
+        if (monthly.version !== yearly.version) {
+          throw new Error('Google Play regions version changed during setup');
+        }
+        pricing = {
+          regionsVersion: monthly.version,
+          monthly,
+          yearly,
+        };
+        report.regionsVersion = monthly.version;
+      }
       report.subscriptions.push(
-        await ensureSubscription(accessToken, definition),
+        await ensureSubscription(accessToken, definition, pricing),
       );
     }
+    report.pricesApplied = mode !== 'inspect';
+    report.basePlansActivated =
+      mode === 'activate' &&
+      report.subscriptions.every(
+        (subscription) =>
+          subscription.basePlans.monthly === 'ACTIVE' &&
+          subscription.basePlans.yearly === 'ACTIVE',
+      );
     report.success = true;
   } catch (error) {
     report.success = false;

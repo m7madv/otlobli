@@ -4,11 +4,12 @@
 
 ## الحالة الحية
 
-- مشروع Supabase الحالي: `xfjgxmmecfohbbqacrcw`، مع migrations الأربع ودالة `verify-store-purchase` منشورة.
+- مشروع Supabase الإنتاجي: `exxayzlklvgeyqhvtzgi` في Mumbai `ap-south-1`، مع migrations الأربع ودالة `verify-store-purchase` منشورة.
 - Email auth معطل ورابط العودة `com.damanak.damanak://login-callback` مسموح.
 - إعدادا Supabase العامان موجودان في GitHub Secrets.
-- Google Cloud Project موجود باسم `Damanak Production` ومعرّف `damanak-production`، لكن تهيئة Google Auth Platform تنتظر موافقة المستخدم على سياسة بيانات Google.
-- منطقة Supabase الحالية Tokyo نتيجة اختيار المنطقة العام؛ يوصى بإعادة إنشاء المشروع الفارغ في Mumbai قبل الإنتاج الموجه للخليج.
+- Google Cloud Project `Damanak Production` (`damanak-production`، الرقم `521030062021`) مكتمل، وعميل Web مربوط برد Supabase، ومزود Google مفعّل ومختبر حتى صفحة حساب Google.
+- Apple App ID هو `com.damanak.damanak`، وServices ID هو `com.damanak.damanak.signin`. مفتاح Apple محفوظ خارج Git ومزود Apple مفعّل ومختبر حتى صفحة Apple.
+- ملف التوزيع الحالي `Damanak App Store 2026` يتضمن `Sign in with Apple`، ومصدر iOS يعلن الاستحقاق نفسه في `Runner.entitlements`.
 
 ## القرار المعتمد
 
@@ -20,7 +21,7 @@
 
 ## إعداد Supabase
 
-أنشئ مشروعاً مستقلاً لضمانك، ثم طبّق الهجرات الأربع ودالة `verify-store-purchase` كما هو موثق في `STORE_BILLING_SETUP.md`.
+المشروع المستقل موجود فعلياً. عند نشر تغيير قاعدة بيانات جديد، طبّق الهجرة ودالة `verify-store-purchase` على `exxayzlklvgeyqhvtzgi` فقط كما هو موثق في `STORE_BILLING_SETUP.md`.
 
 في `Authentication → URL Configuration` أضف رابط العودة:
 
@@ -34,10 +35,10 @@ com.damanak.damanak://login-callback
 
 1. أنشئ مشروع `Google Cloud` خاصاً بضمانك.
 2. جهّز شاشة الموافقة باسم ضمانك وروابط الخصوصية والشروط.
-3. أنشئ عميل `OAuth Web`، وأضف رابط Supabase التالي إلى `Authorized redirect URIs`:
+3. عميل `OAuth Web` الحالي يستخدم رابط Supabase التالي في `Authorized redirect URIs`:
 
 ```text
-https://PROJECT_REF.supabase.co/auth/v1/callback
+https://exxayzlklvgeyqhvtzgi.supabase.co/auth/v1/callback
 ```
 
 4. فعّل مزود `Google` في Supabase وأدخل `Client ID` و`Client secret`.
@@ -49,12 +50,12 @@ https://PROJECT_REF.supabase.co/auth/v1/callback
 2. أضف نطاق Supabase ورابط العودة:
 
 ```text
-https://PROJECT_REF.supabase.co/auth/v1/callback
+https://exxayzlklvgeyqhvtzgi.supabase.co/auth/v1/callback
 ```
 
 3. أنشئ مفتاح `Sign in with Apple` واحفظ ملف `.p8` خارج Git.
 4. فعّل مزود `Apple` في Supabase وأدخل `Services ID` و`Team ID` و`Key ID` والمفتاح.
-5. لأن هذا المسار يستخدم `OAuth`، يجب تدوير سر Apple قبل انتهاء مدة الستة أشهر. لا تُرفع نسخة إنتاج قبل تسجيل تذكير للتدوير وتجربة تسجيل Apple Sandbox.
+5. سر Apple الحالي مدته ستة أشهر من 2026-08-24؛ دوّره قبل 2027-02-20. يبقى تسجيل Apple الحقيقي على جهاز وSandbox ضمن اختبار القبول.
 
 ## أسرار بناء GitHub
 
@@ -76,6 +77,14 @@ DAMANAK_ANDROID_UPLOAD_KEY_ALIAS
 ```
 
 ولا تستخدم أسرار توقيع Otlobli لتطبيق ضمانك.
+
+مفتاح رفع Android الإنتاجي الحالي محفوظ محلياً فقط في:
+
+```text
+C:\Users\MOHAMMAD\.damanak\android\damanak-upload-v2.p12
+```
+
+كلمة مروره مخزنة بترميز Windows DPAPI، وشهادة الرفع SHA-256 هي `BF:0B:37:36:99:91:1F:DA:B8:BD:46:DE:90:66:4D:09:15:CE:D3:5E:2E:D0:46:A6:AD:4E:4B:03:0F:81:45:74`. لم يُرفع هذا المفتاح إلى GitHub.
 
 ## اختبار القبول
 
