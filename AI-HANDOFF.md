@@ -1,12 +1,13 @@
-# Active handoff — v86.230/1095 ready for final App Review action (2026-08-24)
+# Active handoff — v86.230/1095 is waiting for Apple Review (2026-08-24)
 
-The owner requested App Store publication, but no public review submission has
-been sent. Preparation workflow
-[32678281991](https://github.com/m7madv/otlobli/actions/runs/32678281991)
-passed from `e812da4348dab5b5187a9af903b747a7c59877a9`. It verified build
-`86.230 (1095)`, uploaded/verified `APP_IPHONE_65` and
-`APP_IPAD_PRO_3GEN_129` under `ar-SA`, then explicitly exited because the
-tracked `PREPARE_ONLY` marker exists.
+The owner explicitly confirmed final submission and automatic release after
+approval. Workflow
+[32703091122](https://github.com/m7madv/otlobli/actions/runs/32703091122)
+passed from `c45ea0114323cc71aff16f1e2e337616115085c2`. It verified and reused
+the existing build `86.230 (1095)`, confirmed `APP_IPHONE_65` and
+`APP_IPAD_PRO_3GEN_129` screenshots as COMPLETE, added the version to review
+submission `e5e27b8a-b628-4116-b135-361b91266929`, and Apple returned
+`WAITING_FOR_REVIEW`.
 
 Portal state: Arabic listing metadata is saved; category is Shopping; price is
 free; availability is all 175 territories; rating is calculated 13+; untested
@@ -19,11 +20,9 @@ the privacy label is published.
 
 Reviewer first/last name, phone, email, and the Sign in with Apple workflow are
 saved in App Store Connect; personal contact values are intentionally omitted
-from repository documentation. `Add for Review` is enabled. No public review
-submission has been sent yet. The user then gave the exact action-time
-confirmation to add version 86.230, submit it, and release automatically after
-approval. `PREPARE_ONLY` was removed for that authorized run. Verify the
-resulting Apple state rather than claiming approval or public availability.
+from repository documentation. `PREPARE_ONLY` was removed for the authorized
+submission. Do not claim approval or public availability: the confirmed state
+is only `WAITING_FOR_REVIEW`. Apple will release automatically if it approves.
 
 # Active handoff — v86.230/1095 is live in internal TestFlight (2026-08-24)
 

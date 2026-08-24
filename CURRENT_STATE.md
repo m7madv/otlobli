@@ -1,12 +1,13 @@
-# v86.230/1095 — ready for final App Store review action (2026-08-24)
+# v86.230/1095 — submitted to Apple Review (2026-08-24)
 
-The owner explicitly authorized publishing this accepted build to the App
-Store. Public submission is prepared but has **not** been sent to Apple Review.
-Preparation workflow
-[32678281991](https://github.com/m7madv/otlobli/actions/runs/32678281991)
-passed from `e812da4348dab5b5187a9af903b747a7c59877a9`: production build/signing,
-the existing `86.230 (1095)` link, and both screenshot uploads verified. Its
-final log confirms `PREPARE_ONLY` stopped before review submission.
+The owner gave the exact action-time confirmation to submit this accepted
+build and release it automatically after approval. Authorized workflow
+[32703091122](https://github.com/m7madv/otlobli/actions/runs/32703091122)
+passed from exact source `c45ea0114323cc71aff16f1e2e337616115085c2`.
+It verified and reused the existing `86.230 (1095)` build, confirmed both
+screenshots as COMPLETE, added the version to review submission
+`e5e27b8a-b628-4116-b135-361b91266929`, and Apple returned
+`WAITING_FOR_REVIEW`.
 
 App Store Connect now has the Arabic description, keywords, support URL,
 copyright, Shopping category, free price, all 175 territories, and the
@@ -20,14 +21,12 @@ The owner approved publication and the privacy label is now published in App
 Store Connect.
 
 Public privacy/support pages are live from READY Vercel deployment
-`dpl_2EU6QQoxjhA7xFuFsrARAUB3SS69`. The owner explicitly confirmed the required
-third-party content rights; App Store Connect now records that declaration.
-Reviewer contact details and Sign in with Apple review instructions are saved
-without copying personal contact values into the repository. `Add for Review`
-is enabled. The only remaining blocker is the action-time confirmation before
-adding and submitting version 86.230 to Apple Review. The owner gave that exact
-final confirmation, including automatic release after approval, and the
-`PREPARE_ONLY` safety marker has been removed for the authorized submission run.
+`dpl_2EU6QQoxjhA7xFuFsrARAUB3SS69`. The third-party content-rights declaration,
+reviewer contact details, and Sign in with Apple review instructions are saved;
+personal contact values are not copied into the repository. The app is not yet
+public or approved: it is waiting for Apple Review and is configured to release
+automatically only after approval. The `PREPARE_ONLY` marker remains removed
+because the authorized submission completed.
 
 # v86.230/1095 — TestFlight uploaded and internally distributed (2026-08-24)
 
