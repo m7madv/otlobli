@@ -2,6 +2,15 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
+## مشروع مستقل جديد (2026-08-24) - ضمانك 1.0.0
+
+- طلب المستخدم تطبيق «ضمانك» بـ `Flutter` وبتكلفة تشغيل صفرية. المشروع مستقل تماماً في `damanak_flutter/`; لا تخلطه مع Otlobli ولا تنقل إعداداته أو native code إليه.
+- الوظائف المنجزة: ملف متجر، إنشاء/بحث/تصفية بطاقات الضمان، حساب الحالة والانتهاء، مشاركة نصية، `QR` محلي بلا رقم هاتف، طلبات صيانة وتحديث الحالة، وحفظ محلي عبر `SharedPreferences`.
+- نقطة التشغيل `damanak_flutter/lib/main.dart`، ووثائق التشغيل والحدود في `damanak_flutter/README.md`. لا يوجد backend أو auth أو مزامنة متعددة الأجهزة في 1.0.0.
+- آخر تحقق ناجح: `flutter analyze`، 3 اختبارات، web release، وAndroid debug/release builds. ملف التسليم الأخف: `output/damanak/damanak-1.0.0-release-test.apk`; SHA-256 `4DEE607CFFD50D310FCD6C8E4395AA70577DEEE7BF69688A74754E7FEC86CAE0`؛ الحجم `52,118,405` بايت. هو موقّع بمفتاح debug المحلي وليس مفتاح متجر إنتاج.
+- راجعت الواجهة بمتصفح حقيقي عند `320×568` و`360×640` و`1280×800` ونفذت مسار إصدار بطاقة. أدلة Playwright في `output/playwright/damanak/.playwright-cli/`.
+- لم يُختبر على جهاز حقيقي ولم يُبنَ iOS على Windows. لا تدّعِ قبول جهاز أو جاهزية نشر متجر. أي إصدار إنتاجي لاحق يحتاج أيقونة نهائية، توقيع Android/iOS، واختبار حفظ/استعادة على جهاز فعلي.
+
 ## Current candidate (2026-08-01) - v86.42 image swatches and inline sizes
 
 - Marker/version: `2026.08.01-v86.42-shein-image-swatch-color-inline-size-focus`; Android/iOS `902/86.42`. v86.41 is device-rejected for product `p-453254089`: its active `.bs-color__item` produced an empty color, and an unselected inline `0XL–4XL` group did not receive the user. Preserve correct `$19.18/spa-dom` price.

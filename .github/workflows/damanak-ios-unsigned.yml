@@ -1,0 +1,60 @@
+name: Damanak iOS Unsigned Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - codex/damanak-flutter
+    paths:
+      - "damanak_flutter/**"
+      - ".github/workflows/damanak-ios-unsigned.yml"
+
+jobs:
+  build-ios:
+    name: Build unsigned iPhone IPA
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    defaults:
+      run:
+        working-directory: damanak_flutter
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.41.6"
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze source
+        run: flutter analyze
+
+      - name: Run tests
+        run: flutter test
+
+      - name: Build unsigned iPhone app
+        run: flutter build ios --release --no-codesign
+
+      - name: Package unsigned IPA
+        shell: bash
+        run: |
+          cd build/ios/iphoneos
+          rm -rf Payload
+          mkdir Payload
+          cp -R Runner.app Payload/
+          zip -qry damanak-1.0.0-ios-unsigned.ipa Payload
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: damanak-ios-1.0.0-unsigned
+          path: damanak_flutter/build/ios/iphoneos/damanak-1.0.0-ios-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 30
