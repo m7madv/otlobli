@@ -19,7 +19,6 @@ const productDefinitions = [
     localizedName: 'بداية شهري',
     description: 'اشتراك شهري لخطة بداية في ضمانك',
     subscriptionPeriod: 'ONE_MONTH',
-    pricePlanType: 'MONTHLY',
     groupLevel: 3,
     intendedPriceSar: 39,
   },
@@ -29,7 +28,6 @@ const productDefinitions = [
     localizedName: 'بداية سنوي',
     description: 'اشتراك سنوي لخطة بداية في ضمانك',
     subscriptionPeriod: 'ONE_YEAR',
-    pricePlanType: 'UPFRONT',
     groupLevel: 3,
     intendedPriceSar: 390,
   },
@@ -39,7 +37,6 @@ const productDefinitions = [
     localizedName: 'نمو شهري',
     description: 'اشتراك شهري لخطة نمو في ضمانك',
     subscriptionPeriod: 'ONE_MONTH',
-    pricePlanType: 'MONTHLY',
     groupLevel: 2,
     intendedPriceSar: 99,
   },
@@ -49,7 +46,6 @@ const productDefinitions = [
     localizedName: 'نمو سنوي',
     description: 'اشتراك سنوي لخطة نمو في ضمانك',
     subscriptionPeriod: 'ONE_YEAR',
-    pricePlanType: 'UPFRONT',
     groupLevel: 2,
     intendedPriceSar: 990,
   },
@@ -59,7 +55,6 @@ const productDefinitions = [
     localizedName: 'توسع شهري',
     description: 'اشتراك شهري لخطة توسع في ضمانك',
     subscriptionPeriod: 'ONE_MONTH',
-    pricePlanType: 'MONTHLY',
     groupLevel: 1,
     intendedPriceSar: 199,
   },
@@ -69,7 +64,6 @@ const productDefinitions = [
     localizedName: 'توسع سنوي',
     description: 'اشتراك سنوي لخطة توسع في ضمانك',
     subscriptionPeriod: 'ONE_YEAR',
-    pricePlanType: 'UPFRONT',
     groupLevel: 1,
     intendedPriceSar: 1990,
   },
@@ -162,7 +156,9 @@ async function request(path, { method = 'GET', body } = {}) {
   const text = await response.text();
   const parsed = text ? JSON.parse(text) : {};
   if (!response.ok) {
-    throw new Error(redactApiErrors(parsed, response.status));
+    const error = new Error(redactApiErrors(parsed, response.status));
+    error.status = response.status;
+    throw error;
   }
   return parsed;
 }
@@ -356,23 +352,25 @@ async function ensureSubscriptionLocalization(subscription, definition) {
   return 'created';
 }
 
-async function ensurePlanAvailability(subscription, definition) {
-  const { pricePlanType } = definition;
-  const rows = await listAll(
-    `/v1/subscriptions/${subscription.id}/planAvailabilities?include=availableTerritories&limit=50`,
-  );
-  let availability = rows.find(
-    (row) => row.attributes?.planType === pricePlanType,
-  );
+async function ensureSubscriptionAvailability(subscription) {
+  let availability = null;
+  try {
+    const result = await request(
+      `/v1/subscriptions/${subscription.id}/subscriptionAvailability` +
+        '?include=availableTerritories&limit[availableTerritories]=50',
+    );
+    availability = result.data || null;
+  } catch (error) {
+    if (error.status !== 404) throw error;
+  }
   let state = availability ? 'existing' : 'missing';
   if (!availability && applyPrices) {
-    const result = await request('/v1/subscriptionPlanAvailabilities', {
+    const result = await request('/v1/subscriptionAvailabilities', {
       method: 'POST',
       body: {
         data: {
-          type: 'subscriptionPlanAvailabilities',
+          type: 'subscriptionAvailabilities',
           attributes: {
-            planType: pricePlanType,
             availableInNewTerritories: false,
           },
           relationships: {
@@ -395,7 +393,7 @@ async function ensurePlanAvailability(subscription, definition) {
 
   if (availability && applyPrices) {
     await request(
-      `/v1/subscriptionPlanAvailabilities/${availability.id}/relationships/availableTerritories`,
+      `/v1/subscriptionAvailabilities/${availability.id}/relationships/availableTerritories`,
       {
         method: 'PATCH',
         body: {
@@ -414,10 +412,9 @@ function samePrice(left, right) {
   return Number(left) === Number(right);
 }
 
-async function existingPricesByTerritory(subscription, pricePlanType) {
+async function existingPricesByTerritory(subscription) {
   const rows = await listAll(
-    `/v1/subscriptions/${subscription.id}/prices?filter[planType]=${pricePlanType}` +
-      `&filter[territory]=${APP_STORE_TERRITORIES.join(',')}` +
+    `/v1/subscriptions/${subscription.id}/prices?filter[territory]=${APP_STORE_TERRITORIES.join(',')}` +
       '&include=subscriptionPricePoint,territory&limit=200',
   );
   const prices = new Map();
@@ -428,11 +425,7 @@ async function existingPricesByTerritory(subscription, pricePlanType) {
   return prices;
 }
 
-async function findApprovedPricePoints(
-  subscription,
-  intendedPriceSar,
-  pricePlanType,
-) {
+async function findApprovedPricePoints(subscription, intendedPriceSar) {
   const sourceRows = await listAll(
     `/v1/subscriptions/${subscription.id}/pricePoints?filter[territory]=SAU` +
       '&include=territory&limit=8000',
@@ -449,9 +442,7 @@ async function findApprovedPricePoints(
   const targetTerritories = APP_STORE_TERRITORIES.filter((id) => id !== 'SAU');
   const equalizedRows = await listAll(
     `/v1/subscriptionPricePoints/${encodeURIComponent(source.id)}/adjustedEqualizations` +
-      `?filter[upfrontPricePointId]=${encodeURIComponent(source.id)}` +
-      `&filter[planType]=${pricePlanType}` +
-      `&filter[territory]=${targetTerritories.join(',')}` +
+      `?filter[territory]=${targetTerritories.join(',')}` +
       '&include=territory&limit=200',
   );
   const result = new Map([['SAU', source]]);
@@ -482,12 +473,8 @@ async function ensureApprovedPrices(subscription, definition) {
   const pricePoints = await findApprovedPricePoints(
     subscription,
     definition.intendedPriceSar,
-    definition.pricePlanType,
   );
-  const existing = await existingPricesByTerritory(
-    subscription,
-    definition.pricePlanType,
-  );
+  const existing = await existingPricesByTerritory(subscription);
   const territories = {};
 
   for (const territory of APP_STORE_TERRITORIES) {
@@ -507,7 +494,6 @@ async function ensureApprovedPrices(subscription, definition) {
           type: 'subscriptionPrices',
           attributes: {
             startDate: null,
-            planType: definition.pricePlanType,
           },
           relationships: {
             subscription: {
@@ -527,7 +513,7 @@ async function ensureApprovedPrices(subscription, definition) {
   }
   return {
     state: 'applied',
-    planType: definition.pricePlanType,
+    pricingMode: 'standard-auto-renewable',
     anchorTerritory: 'SAU',
     anchorPriceSar: definition.intendedPriceSar,
     territories,
@@ -580,8 +566,8 @@ async function ensureSubscriptions(group, report) {
     const localization = subscription
       ? await ensureSubscriptionLocalization(subscription, definition)
       : 'blocked-until-subscription-exists';
-    const planAvailability = subscription
-      ? await ensurePlanAvailability(subscription, definition)
+    const availability = subscription
+      ? await ensureSubscriptionAvailability(subscription)
       : 'blocked-until-subscription-exists';
     const pricing = subscription
       ? await ensureApprovedPrices(subscription, definition)
@@ -590,7 +576,7 @@ async function ensureSubscriptions(group, report) {
       productId: definition.productId,
       state,
       localization,
-      planAvailability,
+      availability,
       intendedPriceSar: definition.intendedPriceSar,
       pricing,
     });
