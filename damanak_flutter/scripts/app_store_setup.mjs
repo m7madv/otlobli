@@ -213,22 +213,33 @@ async function ensureApp(report) {
   let app = await findApp();
   report.app = app ? 'existing' : 'missing';
   if (!app && mode === 'apply') {
-    const result = await request('/v1/apps', {
-      method: 'POST',
-      body: {
-        data: {
-          type: 'apps',
-          attributes: {
-            bundleId: BUNDLE_ID,
-            name: APP_NAME,
-            primaryLocale: PRIMARY_LOCALE,
-            sku: APP_SKU,
+    try {
+      const result = await request('/v1/apps', {
+        method: 'POST',
+        body: {
+          data: {
+            type: 'apps',
+            attributes: {
+              bundleId: BUNDLE_ID,
+              name: APP_NAME,
+              primaryLocale: PRIMARY_LOCALE,
+              sku: APP_SKU,
+            },
           },
         },
-      },
-    });
-    app = result.data;
-    report.app = 'created';
+      });
+      app = result.data;
+      report.app = 'created';
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes("resource 'apps' does not allow 'CREATE'")) {
+        report.app = 'blocked-ui-creation-required';
+        report.appCreationNote =
+          'Apple requires the initial app record to be created in App Store Connect.';
+      } else {
+        throw error;
+      }
+    }
   }
   return app;
 }
@@ -477,11 +488,11 @@ async function main() {
 
   try {
     const bundleId = await ensureBundleId(report);
+    await ensureProvisioningProfile(bundleId, report);
     const app = await ensureApp(report);
     const group = await ensureSubscriptionGroup(app, report);
     await ensureSubscriptionGroupLocalization(group, report);
     await ensureSubscriptions(group, report);
-    await ensureProvisioningProfile(bundleId, report);
     report.success = true;
   } catch (error) {
     report.success = false;
