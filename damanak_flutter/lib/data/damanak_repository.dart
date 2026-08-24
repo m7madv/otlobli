@@ -1,4 +1,7 @@
 import '../models/account.dart';
+import '../models/audit_event.dart';
+import '../models/branch.dart';
+import '../models/customer.dart';
 import '../models/maintenance_request.dart';
 import '../models/product.dart';
 import '../models/subscription.dart';
@@ -37,6 +40,7 @@ abstract interface class DamanakRepository {
     required String password,
   });
   Future<void> signOut();
+  Future<void> sendPasswordReset(String email);
 
   Future<WorkspaceSnapshot?> loadWorkspace();
   Future<WorkspaceSnapshot> createStore({
@@ -45,6 +49,28 @@ abstract interface class DamanakRepository {
     required String city,
     required String countryCode,
   });
+
+  Future<List<StoreBranch>> loadBranches(String storeId);
+  Future<StoreBranch> saveBranch({
+    required String storeId,
+    String? branchId,
+    required String name,
+    required String code,
+    required String city,
+    required String address,
+    required String phone,
+    required bool isMain,
+  });
+
+  Future<List<CustomerProfile>> loadCustomers(String storeId);
+  Future<CustomerProfile> saveCustomer({
+    required String storeId,
+    String? customerId,
+    required String name,
+    required String phone,
+    required String email,
+    required String notes,
+  });
   Future<WorkspaceSnapshot> joinStore(String invitationCode);
   Future<StoreWorkspace> updateStore({
     required String storeId,
@@ -52,6 +78,14 @@ abstract interface class DamanakRepository {
     required String phone,
     required String city,
     required String countryCode,
+    required String currencyCode,
+    required num taxRate,
+    required bool pricesIncludeTax,
+    required String taxNumber,
+    required String commercialRegistration,
+    required String address,
+    required String invoicePrefix,
+    required int defaultWarrantyMonths,
   });
 
   Future<List<Product>> loadProducts(String storeId);
@@ -59,16 +93,31 @@ abstract interface class DamanakRepository {
     required String storeId,
     required String name,
     required String brand,
+    required String category,
     required String barcode,
     required String sku,
     required int warrantyMonths,
     required num? salePrice,
+  });
+  Future<Product> updateProduct({
+    required String productId,
+    required String storeId,
+    required String name,
+    required String brand,
+    required String category,
+    required String barcode,
+    required String sku,
+    required int warrantyMonths,
+    required num? salePrice,
+    required bool isActive,
   });
 
   Future<List<Warranty>> loadWarranties(String storeId);
   Future<Warranty> createWarranty({
     required String storeId,
     required String? productId,
+    required String customerId,
+    required String? branchId,
     required String customerName,
     required String customerPhone,
     required String productName,
@@ -77,6 +126,14 @@ abstract interface class DamanakRepository {
     required DateTime purchaseDate,
     required DateTime expiryDate,
     required String notes,
+    required String invoiceNumber,
+    required num saleSubtotal,
+    required num discountAmount,
+    required num taxAmount,
+    required num saleTotal,
+    required num taxRate,
+    required String currencyCode,
+    required PaymentMethod paymentMethod,
   });
   Future<void> deleteWarranty(String id);
 
@@ -100,6 +157,8 @@ abstract interface class DamanakRepository {
     required MemberRole role,
     required bool active,
   });
+
+  Future<List<AuditEvent>> loadAuditLogs(String storeId);
 
   Future<List<PlanInfo>> loadPlans();
   Future<void> requestSubscription({

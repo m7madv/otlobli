@@ -1,6 +1,9 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/account.dart';
+import '../models/audit_event.dart';
+import '../models/branch.dart';
+import '../models/customer.dart';
 import '../models/maintenance_request.dart';
 import '../models/product.dart';
 import '../models/subscription.dart';
@@ -63,6 +66,10 @@ class SupabaseDamanakRepository implements DamanakRepository {
 
   @override
   Future<void> signOut() => _client.auth.signOut();
+
+  @override
+  Future<void> sendPasswordReset(String email) =>
+      _client.auth.resetPasswordForEmail(email.trim());
 
   AccountIdentity _identityFromUser(User user) {
     return AccountIdentity(
@@ -164,6 +171,14 @@ class SupabaseDamanakRepository implements DamanakRepository {
     required String phone,
     required String city,
     required String countryCode,
+    required String currencyCode,
+    required num taxRate,
+    required bool pricesIncludeTax,
+    required String taxNumber,
+    required String commercialRegistration,
+    required String address,
+    required String invoicePrefix,
+    required int defaultWarrantyMonths,
   }) async {
     final row = await _client
         .from('stores')
@@ -172,12 +187,132 @@ class SupabaseDamanakRepository implements DamanakRepository {
           'phone': phone.trim(),
           'city': city.trim(),
           'country_code': countryCode,
+          'currency_code': currencyCode,
+          'tax_rate': taxRate,
+          'prices_include_tax': pricesIncludeTax,
+          'tax_number': taxNumber.trim(),
+          'commercial_registration': commercialRegistration.trim(),
+          'address': address.trim(),
+          'invoice_prefix': invoicePrefix.trim().toUpperCase(),
+          'default_warranty_months': defaultWarrantyMonths,
           'updated_at': DateTime.now().toIso8601String(),
         })
         .eq('id', storeId)
         .select()
         .single();
     return StoreWorkspace.fromJson(row);
+  }
+
+  @override
+  Future<List<StoreBranch>> loadBranches(String storeId) async {
+    final rows = await _client
+        .from('branches')
+        .select()
+        .eq('store_id', storeId)
+        .eq('is_active', true)
+        .order('is_main', ascending: false)
+        .order('name');
+    return rows.map(StoreBranch.fromJson).toList();
+  }
+
+  @override
+  Future<StoreBranch> saveBranch({
+    required String storeId,
+    String? branchId,
+    required String name,
+    required String code,
+    required String city,
+    required String address,
+    required String phone,
+    required bool isMain,
+  }) async {
+    if (isMain) {
+      await _client
+          .from('branches')
+          .update({'is_main': false})
+          .eq('store_id', storeId);
+    }
+    final values = <String, dynamic>{
+      'store_id': storeId,
+      'name': name.trim(),
+      'code': code.trim().toUpperCase(),
+      'city': city.trim(),
+      'address': address.trim(),
+      'phone': phone.trim(),
+      'is_main': isMain,
+      'is_active': true,
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+    final row = branchId == null
+        ? await _client.from('branches').insert(values).select().single()
+        : await _client
+              .from('branches')
+              .update(values)
+              .eq('id', branchId)
+              .eq('store_id', storeId)
+              .select()
+              .single();
+    return StoreBranch.fromJson(row);
+  }
+
+  @override
+  Future<List<CustomerProfile>> loadCustomers(String storeId) async {
+    final rows = await _client
+        .from('customers')
+        .select()
+        .eq('store_id', storeId)
+        .order('updated_at', ascending: false);
+    return rows.map(CustomerProfile.fromJson).toList();
+  }
+
+  @override
+  Future<CustomerProfile> saveCustomer({
+    required String storeId,
+    String? customerId,
+    required String name,
+    required String phone,
+    required String email,
+    required String notes,
+  }) async {
+    final values = <String, dynamic>{
+      'store_id': storeId,
+      'name': name.trim(),
+      'phone': phone.trim(),
+      'email': _nullable(email),
+      'notes': notes.trim(),
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+    if (customerId != null) {
+      final row = await _client
+          .from('customers')
+          .update(values)
+          .eq('id', customerId)
+          .eq('store_id', storeId)
+          .select()
+          .single();
+      return CustomerProfile.fromJson(row);
+    }
+    final existing = await _client
+        .from('customers')
+        .select('id')
+        .eq('store_id', storeId)
+        .eq('phone', phone.trim())
+        .maybeSingle();
+    if (existing != null) {
+      final row = await _client
+          .from('customers')
+          .update(values)
+          .eq('id', existing['id'] as String)
+          .select()
+          .single();
+      return CustomerProfile.fromJson(row);
+    }
+    final row = await _client
+        .from('customers')
+        .insert({...values, 'created_by': _user.id})
+        .select()
+        .single();
+    return CustomerProfile.fromJson(row);
   }
 
   @override
@@ -196,6 +331,7 @@ class SupabaseDamanakRepository implements DamanakRepository {
     required String storeId,
     required String name,
     required String brand,
+    required String category,
     required String barcode,
     required String sku,
     required int warrantyMonths,
@@ -207,12 +343,46 @@ class SupabaseDamanakRepository implements DamanakRepository {
           'store_id': storeId,
           'name': name.trim(),
           'brand': brand.trim(),
+          'category': category.trim(),
           'barcode': _nullable(barcode),
           'sku': _nullable(sku),
           'warranty_months': warrantyMonths,
           'sale_price': salePrice,
           'created_by': _user.id,
         })
+        .select()
+        .single();
+    return Product.fromJson(row);
+  }
+
+  @override
+  Future<Product> updateProduct({
+    required String productId,
+    required String storeId,
+    required String name,
+    required String brand,
+    required String category,
+    required String barcode,
+    required String sku,
+    required int warrantyMonths,
+    required num? salePrice,
+    required bool isActive,
+  }) async {
+    final row = await _client
+        .from('products')
+        .update({
+          'name': name.trim(),
+          'brand': brand.trim(),
+          'category': category.trim(),
+          'barcode': _nullable(barcode),
+          'sku': _nullable(sku),
+          'warranty_months': warrantyMonths,
+          'sale_price': salePrice,
+          'is_active': isActive,
+          'updated_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', productId)
+        .eq('store_id', storeId)
         .select()
         .single();
     return Product.fromJson(row);
@@ -232,6 +402,8 @@ class SupabaseDamanakRepository implements DamanakRepository {
   Future<Warranty> createWarranty({
     required String storeId,
     required String? productId,
+    required String customerId,
+    required String? branchId,
     required String customerName,
     required String customerPhone,
     required String productName,
@@ -240,12 +412,22 @@ class SupabaseDamanakRepository implements DamanakRepository {
     required DateTime purchaseDate,
     required DateTime expiryDate,
     required String notes,
+    required String invoiceNumber,
+    required num saleSubtotal,
+    required num discountAmount,
+    required num taxAmount,
+    required num saleTotal,
+    required num taxRate,
+    required String currencyCode,
+    required PaymentMethod paymentMethod,
   }) async {
     final row = await _client
         .from('warranties')
         .insert({
           'store_id': storeId,
           'product_id': productId,
+          'customer_id': customerId,
+          'branch_id': branchId,
           'customer_name': customerName.trim(),
           'customer_phone': customerPhone.trim(),
           'product_name': productName.trim(),
@@ -254,6 +436,14 @@ class SupabaseDamanakRepository implements DamanakRepository {
           'purchase_date': _date(purchaseDate),
           'expiry_date': _date(expiryDate),
           'notes': notes.trim(),
+          'invoice_number': _nullable(invoiceNumber),
+          'sale_subtotal': saleSubtotal,
+          'discount_amount': discountAmount,
+          'tax_amount': taxAmount,
+          'sale_total': saleTotal,
+          'tax_rate': taxRate,
+          'currency_code': currencyCode,
+          'payment_method': paymentMethod.databaseValue,
           'created_by': _user.id,
         })
         .select()
@@ -363,6 +553,17 @@ class SupabaseDamanakRepository implements DamanakRepository {
         'target_status': active ? 'active' : 'suspended',
       },
     );
+  }
+
+  @override
+  Future<List<AuditEvent>> loadAuditLogs(String storeId) async {
+    final rows = await _client
+        .from('audit_logs')
+        .select()
+        .eq('store_id', storeId)
+        .order('created_at', ascending: false)
+        .limit(100);
+    return rows.map(AuditEvent.fromJson).toList();
   }
 
   @override

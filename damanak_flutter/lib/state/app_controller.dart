@@ -5,6 +5,9 @@ import 'package:flutter/foundation.dart';
 import '../data/damanak_repository.dart';
 import '../data/demo_repository.dart';
 import '../models/account.dart';
+import '../models/audit_event.dart';
+import '../models/branch.dart';
+import '../models/customer.dart';
 import '../models/maintenance_request.dart';
 import '../models/product.dart';
 import '../models/store_profile.dart';
@@ -24,10 +27,13 @@ class AppController extends ChangeNotifier {
   StoreMembership? _membership;
   SubscriptionInfo? _subscription;
   final List<Product> _products = [];
+  final List<StoreBranch> _branches = [];
+  final List<CustomerProfile> _customers = [];
   final List<Warranty> _warranties = [];
   final List<MaintenanceRequest> _requests = [];
   final List<TeamMember> _team = [];
   final List<PlanInfo> _plans = [];
+  final List<AuditEvent> _auditLogs = [];
   bool _busy = false;
   String? _errorMessage;
   String? _noticeMessage;
@@ -46,14 +52,43 @@ class AppController extends ChangeNotifier {
     name: _store?.name ?? 'متجر ضمانك',
     phone: _store?.phone ?? '',
     city: _store?.city ?? '',
+    address: _store?.address ?? '',
+    countryCode: _store?.countryCode ?? 'SA',
+    currencyCode: _store?.currencyCode ?? 'SAR',
+    taxRate: _store?.taxRate ?? 15,
+    pricesIncludeTax: _store?.pricesIncludeTax ?? true,
+    taxNumber: _store?.taxNumber ?? '',
+    commercialRegistration: _store?.commercialRegistration ?? '',
+    invoicePrefix: _store?.invoicePrefix ?? 'INV',
   );
   UnmodifiableListView<Product> get products => UnmodifiableListView(_products);
+  UnmodifiableListView<StoreBranch> get branches =>
+      UnmodifiableListView(_branches);
+  UnmodifiableListView<CustomerProfile> get customers =>
+      UnmodifiableListView(_customers);
   UnmodifiableListView<Warranty> get warranties =>
       UnmodifiableListView(_warranties);
   UnmodifiableListView<MaintenanceRequest> get requests =>
       UnmodifiableListView(_requests);
   UnmodifiableListView<TeamMember> get team => UnmodifiableListView(_team);
   UnmodifiableListView<PlanInfo> get plans => UnmodifiableListView(_plans);
+  UnmodifiableListView<AuditEvent> get auditLogs =>
+      UnmodifiableListView(_auditLogs);
+
+  num get totalSales =>
+      _warranties.fold<num>(0, (total, warranty) => total + warranty.saleTotal);
+  num get totalTax =>
+      _warranties.fold<num>(0, (total, warranty) => total + warranty.taxAmount);
+  num get currentMonthSales {
+    final now = DateTime.now();
+    return _warranties
+        .where(
+          (item) =>
+              item.createdAt.year == now.year &&
+              item.createdAt.month == now.month,
+        )
+        .fold<num>(0, (total, item) => total + item.saleTotal);
+  }
 
   Future<void> initialize() async {
     if (_repository == null) {
@@ -123,6 +158,13 @@ class AppController extends ChangeNotifier {
     });
   }
 
+  Future<void> sendPasswordReset(String email) async {
+    await _guard(() async {
+      await _repository!.sendPasswordReset(email);
+      _noticeMessage = 'أرسلنا رابط استعادة كلمة المرور إلى بريدك.';
+    });
+  }
+
   Future<void> createStore({
     required String name,
     required String phone,
@@ -156,6 +198,14 @@ class AppController extends ChangeNotifier {
     required String phone,
     required String city,
     required String countryCode,
+    required String currencyCode,
+    required num taxRate,
+    required bool pricesIncludeTax,
+    required String taxNumber,
+    required String commercialRegistration,
+    required String address,
+    required String invoicePrefix,
+    required int defaultWarrantyMonths,
   }) async {
     await _guard(() async {
       _store = await _repository!.updateStore(
@@ -164,6 +214,14 @@ class AppController extends ChangeNotifier {
         phone: phone,
         city: city,
         countryCode: countryCode,
+        currencyCode: currencyCode,
+        taxRate: taxRate,
+        pricesIncludeTax: pricesIncludeTax,
+        taxNumber: taxNumber,
+        commercialRegistration: commercialRegistration,
+        address: address,
+        invoicePrefix: invoicePrefix,
+        defaultWarrantyMonths: defaultWarrantyMonths,
       );
       _noticeMessage = 'تم حفظ بيانات المتجر.';
     });
@@ -185,6 +243,7 @@ class AppController extends ChangeNotifier {
   Future<Product?> addProduct({
     required String name,
     required String brand,
+    String category = '',
     required String barcode,
     required String sku,
     required int warrantyMonths,
@@ -196,6 +255,7 @@ class AppController extends ChangeNotifier {
         storeId: _store!.id,
         name: name,
         brand: brand,
+        category: category,
         barcode: barcode,
         sku: sku,
         warrantyMonths: warrantyMonths,
@@ -204,6 +264,42 @@ class AppController extends ChangeNotifier {
       _products.insert(0, created!);
     });
     return created;
+  }
+
+  Future<Product?> updateProduct({
+    required String productId,
+    required String name,
+    required String brand,
+    required String category,
+    required String barcode,
+    required String sku,
+    required int warrantyMonths,
+    required num? salePrice,
+    bool isActive = true,
+  }) async {
+    Product? updated;
+    await _guard(() async {
+      updated = await _repository!.updateProduct(
+        productId: productId,
+        storeId: _store!.id,
+        name: name,
+        brand: brand,
+        category: category,
+        barcode: barcode,
+        sku: sku,
+        warrantyMonths: warrantyMonths,
+        salePrice: salePrice,
+        isActive: isActive,
+      );
+      final index = _products.indexWhere((item) => item.id == productId);
+      if (!isActive) {
+        _products.removeWhere((item) => item.id == productId);
+      } else if (index >= 0) {
+        _products[index] = updated!;
+      }
+      _noticeMessage = isActive ? 'تم تحديث المنتج.' : 'تمت أرشفة المنتج.';
+    });
+    return updated;
   }
 
   List<Warranty> warrantiesByStatus(WarrantyStatus status) =>
@@ -220,6 +316,10 @@ class AppController extends ChangeNotifier {
       _requests.where((request) => request.warrantyId == warrantyId).toList();
 
   Future<Warranty?> addWarranty({
+    String? customerId,
+    String customerEmail = '',
+    String customerNotes = '',
+    String? branchId,
     String? productId,
     required String customerName,
     required String customerPhone,
@@ -229,12 +329,38 @@ class AppController extends ChangeNotifier {
     required DateTime purchaseDate,
     required DateTime expiryDate,
     required String notes,
+    String invoiceNumber = '',
+    num saleSubtotal = 0,
+    num discountAmount = 0,
+    num taxAmount = 0,
+    num saleTotal = 0,
+    num taxRate = 0,
+    String currencyCode = 'SAR',
+    PaymentMethod paymentMethod = PaymentMethod.cash,
   }) async {
     Warranty? created;
     await _guard(() async {
+      final customer = await _repository!.saveCustomer(
+        storeId: _store!.id,
+        customerId: customerId,
+        name: customerName,
+        phone: customerPhone,
+        email: customerEmail,
+        notes: customerNotes,
+      );
+      final customerIndex = _customers.indexWhere(
+        (item) => item.id == customer.id,
+      );
+      if (customerIndex >= 0) {
+        _customers[customerIndex] = customer;
+      } else {
+        _customers.insert(0, customer);
+      }
       created = await _repository!.createWarranty(
         storeId: _store!.id,
         productId: productId,
+        customerId: customer.id,
+        branchId: branchId,
         customerName: customerName,
         customerPhone: customerPhone,
         productName: productName,
@@ -243,6 +369,14 @@ class AppController extends ChangeNotifier {
         purchaseDate: purchaseDate,
         expiryDate: expiryDate,
         notes: notes,
+        invoiceNumber: invoiceNumber,
+        saleSubtotal: saleSubtotal,
+        discountAmount: discountAmount,
+        taxAmount: taxAmount,
+        saleTotal: saleTotal,
+        taxRate: taxRate,
+        currencyCode: currencyCode,
+        paymentMethod: paymentMethod,
       );
       _warranties.insert(0, created!);
       final current = _subscription;
@@ -327,6 +461,61 @@ class AppController extends ChangeNotifier {
     });
   }
 
+  Future<CustomerProfile?> saveCustomer({
+    String? customerId,
+    required String name,
+    required String phone,
+    required String email,
+    required String notes,
+  }) async {
+    CustomerProfile? saved;
+    await _guard(() async {
+      saved = await _repository!.saveCustomer(
+        storeId: _store!.id,
+        customerId: customerId,
+        name: name,
+        phone: phone,
+        email: email,
+        notes: notes,
+      );
+      final index = _customers.indexWhere((item) => item.id == saved!.id);
+      if (index >= 0) {
+        _customers[index] = saved!;
+      } else {
+        _customers.insert(0, saved!);
+      }
+    });
+    return saved;
+  }
+
+  Future<StoreBranch?> saveBranch({
+    String? branchId,
+    required String name,
+    required String code,
+    required String city,
+    required String address,
+    required String phone,
+    required bool isMain,
+  }) async {
+    StoreBranch? saved;
+    await _guard(() async {
+      saved = await _repository!.saveBranch(
+        storeId: _store!.id,
+        branchId: branchId,
+        name: name,
+        code: code,
+        city: city,
+        address: address,
+        phone: phone,
+        isMain: isMain,
+      );
+      _branches
+        ..clear()
+        ..addAll(await _repository!.loadBranches(_store!.id));
+    });
+    return saved;
+  }
+
   Future<void> requestSubscription({
     required String planId,
     required String billingCycle,
@@ -381,26 +570,41 @@ class AppController extends ChangeNotifier {
     final storeId = _store!.id;
     final results = await Future.wait<Object>([
       _repository!.loadProducts(storeId),
+      _repository!.loadBranches(storeId),
+      _repository!.loadCustomers(storeId),
       _repository!.loadWarranties(storeId),
       _repository!.loadRequests(storeId),
       _repository!.loadTeam(storeId),
       _repository!.loadPlans(),
+      if (_membership!.role.canManageTeam)
+        _repository!.loadAuditLogs(storeId)
+      else
+        Future.value(<AuditEvent>[]),
     ]);
     _products
       ..clear()
       ..addAll(results[0] as List<Product>);
+    _branches
+      ..clear()
+      ..addAll(results[1] as List<StoreBranch>);
+    _customers
+      ..clear()
+      ..addAll(results[2] as List<CustomerProfile>);
     _warranties
       ..clear()
-      ..addAll(results[1] as List<Warranty>);
+      ..addAll(results[3] as List<Warranty>);
     _requests
       ..clear()
-      ..addAll(results[2] as List<MaintenanceRequest>);
+      ..addAll(results[4] as List<MaintenanceRequest>);
     _team
       ..clear()
-      ..addAll(results[3] as List<TeamMember>);
+      ..addAll(results[5] as List<TeamMember>);
     _plans
       ..clear()
-      ..addAll(results[4] as List<PlanInfo>);
+      ..addAll(results[6] as List<PlanInfo>);
+    _auditLogs
+      ..clear()
+      ..addAll(results[7] as List<AuditEvent>);
   }
 
   Future<void> _guard(Future<void> Function() action) async {
@@ -453,9 +657,12 @@ class AppController extends ChangeNotifier {
     _membership = null;
     _subscription = null;
     _products.clear();
+    _branches.clear();
+    _customers.clear();
     _warranties.clear();
     _requests.clear();
     _team.clear();
     _plans.clear();
+    _auditLogs.clear();
   }
 }

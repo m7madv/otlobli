@@ -2,15 +2,26 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
-## مشروع مستقل (2026-08-24) — ضمانك 2.0.0
+## مشروع مستقل (2026-08-24) — VoiceBrief 0.1.0
+
+- مجلد المشروع هو `voicebrief_flutter/` وهو مستقل عن Otlobli وDamanak. ابدأ من `voicebrief_flutter/README.md` و`PLAN.md`، ثم استخدم الوثيقة المتخصصة داخل `docs/`. لا تنشر migration أو Edge Functions إلى مشروع Supabase المرتبط بالجذر؛ أنشئ مشروع VoiceBrief مستقلاً أولاً.
+- التطبيق runnable افتراضياً بـmocks. لا تضع OpenAI service key أو Supabase service-role أو RevenueCat webhook secret أو مفاتيح توقيع داخل Flutter أو ملفات Git. إعدادات العميل العامة فقط تمر عبر `--dart-define`، والأسرار تبقى في Supabase Edge secrets.
+- آخر تحقق محلي: format نظيف، analyze نظيف، 15 اختبار وحدة/واجهة، 8 golden، اختبار تكامل واحد على `Pixel_7_API_35_Test`، Deno format/lint/check نظيف، debug APK وrelease-mode AAB ناجحان. الهاشات والأحجام والتفاصيل في `voicebrief_flutter/docs/RELEASE_CHECKLIST.md`.
+- Android warm/cold share handoff وصل إلى `Prepare audio` على المحاكي، ومسار URI غير المقروء يعرض خطأ آمناً. النجاح استُخدم له ملف `file://` خاص بالتطبيق بسبب قيود ADB/DocumentsProvider؛ لا تدّعِ قبول `content://` الإنتاجي حتى اختباره من share sheet أو تطبيق مُرسِل حقيقي على جهاز.
+- iOS Share Extension هدف حقيقي في المصدر، لكن لم يُجمع محلياً لغياب Xcode/CocoaPods. شغّل `.github/workflows/voicebrief-ci.yml` أو macOS `pod install` ثم `flutter build ios --no-codesign`، وبعدها اختبر App Group/Share Extension على جهاز موقّع. لا تدّعِ قبول iOS من فحص المصدر.
+- الحزم الحالية موقعة بمفتاح Android التجريبي، ومعرف `app.voicebrief.mobile` وروابط `example.com` مؤقتة. يلزم معرف نهائي، توقيع إنتاجي، روابط قانونية، إعداد OAuth/RevenueCat/Supabase، واختبارات جهاز/متجر قبل أي رفع.
+- نقطة الرجوع قبل البناء هي tag `voicebrief-prebuild-20260824`. Apple Design Skill مثبت كـsubmodule في `.design-rules/apple-design-skill` عند `d0bac1e765a27a696839e62962e36330ce72f0b7`. تغييرات VoiceBrief غير ملتزمة في commit حتى الآن؛ حافظ على تعديلات Damanak والجذر الموجودة ولا تضمها في commit دون طلب صريح.
+
+## مشروع مستقل (2026-08-24) — ضمانك 3.0.0
 
 - `damanak_flutter/` مستقل تماماً عن Otlobli. لا تطبق مخططه على مشروع `Supabase` المرتبط حالياً في الجذر، ولا تنقل دفع/محفظة Otlobli إليه.
-- البنية الحالية: `DamanakRepository` مع تنفيذ عرض تشغيلي وتنفيذ `Supabase`. النظام يشمل الحسابات، المتاجر، دعوات الفريق، الأدوار، المنتجات، الماسح، الضمانات، الصيانة، الخطط، الاشتراكات، رموز التفعيل وطلبات الاشتراك. مخطط الخادم في `damanak_flutter/supabase/migrations/20260824090000_damanak_core.sql` ولم يُنشر بعد.
+- البنية الحالية: `DamanakRepository` مع تنفيذ عرض تشغيلي وتنفيذ `Supabase`. فوق الحسابات والفريق والاشتراك والماسح والضمانات والصيانة، يشمل الإصدار `3.0.0+3` العملات والضريبة والفواتير والعملاء والفروع والتصنيفات وتقارير المبيعات وتصدير `CSV` وسجل التدقيق واستعادة كلمة المرور.
+- مخطط الخادم مكوّن من `20260824090000_damanak_core.sql` ثم `20260824130000_damanak_business_operations.sql`. لم يُنشر أي منهما؛ لا تنفذهما على مشروع Otlobli المرتبط بالجذر.
 - إعداد السحابة موثق في `damanak_flutter/README.md` و`dart-defines.example.json`. بلا المفاتيح يفتح التطبيق عرضاً تشغيلياً صريحاً. لا تدّعِ مزامنة سحابية حية قبل إنشاء مشروع مستقل وتمرير المفاتيح.
 - التصميم يستخدم لون علامة واحد ومظهراً فاتحاً/داكناً تابعاً للنظام. راجع `docs/DESIGN_AUDIT.md` قبل أي تغيير واجهة، وحافظ على ختم الباركود والحد الأدنى `48dp` وتقليل الحركة. لا تضف blur أو مؤثرات ثابتة ثقيلة.
-- آخر تحقق: `flutter analyze` نظيف، 8 اختبارات ناجحة، web release ناجح، وتدفق الباركود/الإصدار/الرجوع إلى الماسح ناجح في متصفح حقيقي. أدلة المقاسات الفاتحة والداكنة في `output/playwright/damanak-apple/`.
-- Android release-test: `output/damanak/damanak-2.0.0-release-test.apk`; الحجم `72,563,673` بايت؛ SHA-256 `97237091826F2021C7E54E8E614C94246856C7B7D7D1402C5ED8F514949F66E3`. ليس موقّعاً بمفتاح متجر إنتاج.
-- فرع العمل `codex/damanak-flutter` ومرفوع إلى GitHub. نجح workflow iOS رقم `32715444002`. ملف `output/damanak/github-ios-32715444002/damanak-2.0.0-ios-unsigned.ipa` حجمه `8,173,743` بايت وبصمته SHA-256 `68D976EA9727E8C0F512CB9C23421FA686CB7492871EF26EB083468F1C89E867`؛ الفحص أكد `com.damanak.damanak` و`2.0.0/2`، بلا توقيع لجذر التطبيق أو ملف provisioning. لا يوجد قبول هاتف حقيقي؛ سجّل ذلك بوضوح.
+- آخر تحقق: format نظيف، `flutter analyze` نظيف، 12 اختباراً ناجحاً، وبناء web وAndroid ناجحان. تدفق فاتورة وضمان بقيمة `600 SAR` اجتاز المتصفح، وشاشات `3.0.0` راجعتها عند ثلاثة مقاسات في `output/playwright/damanak-v3/` بلا أخطاء console.
+- Android release-test: `output/damanak/damanak-3.0.0-release-test.apk`؛ الحجم `73,466,821` بايت؛ SHA-256 `B409CE6560E58FBED53D44DED9C215149F5FC12612AD681E3F3C04691B27D805`. ليس موقّعاً بمفتاح متجر إنتاج.
+- فرع العمل `codex/damanak-flutter`. شغّل workflow iOS بعد دفع commit الإصدار `3.0.0`، ثم نزّل الحزمة وافحص `com.damanak.damanak` و`3.0.0/3` وعدم وجود provisioning. لا يوجد قبول هاتف حقيقي؛ سجّل ذلك بوضوح.
 
 ## Current candidate (2026-08-01) - v86.42 image swatches and inline sizes
 

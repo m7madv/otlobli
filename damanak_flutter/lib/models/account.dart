@@ -39,6 +39,14 @@ class StoreWorkspace {
     required this.phone,
     required this.city,
     required this.countryCode,
+    this.currencyCode = 'SAR',
+    this.taxRate = 15,
+    this.pricesIncludeTax = true,
+    this.taxNumber = '',
+    this.commercialRegistration = '',
+    this.address = '',
+    this.invoicePrefix = 'INV',
+    this.defaultWarrantyMonths = 12,
   });
 
   final String id;
@@ -46,6 +54,14 @@ class StoreWorkspace {
   final String phone;
   final String city;
   final String countryCode;
+  final String currencyCode;
+  final num taxRate;
+  final bool pricesIncludeTax;
+  final String taxNumber;
+  final String commercialRegistration;
+  final String address;
+  final String invoicePrefix;
+  final int defaultWarrantyMonths;
 
   factory StoreWorkspace.fromJson(Map<String, dynamic> json) {
     return StoreWorkspace(
@@ -54,6 +70,14 @@ class StoreWorkspace {
       phone: json['phone'] as String? ?? '',
       city: json['city'] as String? ?? '',
       countryCode: json['country_code'] as String? ?? 'SA',
+      currencyCode: json['currency_code'] as String? ?? 'SAR',
+      taxRate: json['tax_rate'] as num? ?? 15,
+      pricesIncludeTax: json['prices_include_tax'] as bool? ?? true,
+      taxNumber: json['tax_number'] as String? ?? '',
+      commercialRegistration: json['commercial_registration'] as String? ?? '',
+      address: json['address'] as String? ?? '',
+      invoicePrefix: json['invoice_prefix'] as String? ?? 'INV',
+      defaultWarrantyMonths: json['default_warranty_months'] as int? ?? 12,
     );
   }
 }

@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 
 import '../core/app_theme.dart';
+import '../core/currency.dart';
+import '../models/product.dart';
 import '../state/app_scope.dart';
 import '../widgets/message_banner.dart';
 
 class ProductFormScreen extends StatefulWidget {
-  const ProductFormScreen({this.initialBarcode = '', super.key});
+  const ProductFormScreen({this.initialBarcode = '', this.product, super.key});
 
   final String initialBarcode;
+  final Product? product;
 
   @override
   State<ProductFormScreen> createState() => _ProductFormScreenState();
@@ -17,21 +20,44 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final _name = TextEditingController();
   final _brand = TextEditingController();
+  final _category = TextEditingController();
   final _barcode = TextEditingController();
   final _sku = TextEditingController();
   final _price = TextEditingController();
   int _warrantyMonths = 12;
+  bool _loadedDefaults = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_loadedDefaults) return;
+    _warrantyMonths = AppScope.of(context).store!.defaultWarrantyMonths;
+    _loadedDefaults = true;
+  }
 
   @override
   void initState() {
     super.initState();
-    _barcode.text = widget.initialBarcode;
+    final product = widget.product;
+    if (product == null) {
+      _barcode.text = widget.initialBarcode;
+    } else {
+      _name.text = product.name;
+      _brand.text = product.brand;
+      _category.text = product.category;
+      _barcode.text = product.barcode;
+      _sku.text = product.sku;
+      _price.text = product.salePrice == null ? '' : '${product.salePrice}';
+      _warrantyMonths = product.warrantyMonths;
+      _loadedDefaults = true;
+    }
   }
 
   @override
   void dispose() {
     _name.dispose();
     _brand.dispose();
+    _category.dispose();
     _barcode.dispose();
     _sku.dispose();
     _price.dispose();
@@ -40,14 +66,27 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
-    final product = await AppScope.of(context).addProduct(
-      name: _name.text,
-      brand: _brand.text,
-      barcode: _barcode.text,
-      sku: _sku.text,
-      warrantyMonths: _warrantyMonths,
-      salePrice: num.tryParse(_price.text.trim()),
-    );
+    final controller = AppScope.of(context);
+    final product = widget.product == null
+        ? await controller.addProduct(
+            name: _name.text,
+            brand: _brand.text,
+            category: _category.text,
+            barcode: _barcode.text,
+            sku: _sku.text,
+            warrantyMonths: _warrantyMonths,
+            salePrice: num.tryParse(_price.text.trim()),
+          )
+        : await controller.updateProduct(
+            productId: widget.product!.id,
+            name: _name.text,
+            brand: _brand.text,
+            category: _category.text,
+            barcode: _barcode.text,
+            sku: _sku.text,
+            warrantyMonths: _warrantyMonths,
+            salePrice: num.tryParse(_price.text.trim()),
+          );
     if (mounted && product != null) {
       Navigator.of(context).pop(product);
     }
@@ -57,8 +96,13 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   Widget build(BuildContext context) {
     final controller = AppScope.of(context);
     final colors = context.colors;
+    final currency = currencyInfo(controller.store!.currencyCode);
     return Scaffold(
-      appBar: AppBar(title: const Text('إضافة منتج للكتالوج')),
+      appBar: AppBar(
+        title: Text(
+          widget.product == null ? 'إضافة منتج للكتالوج' : 'تعديل المنتج',
+        ),
+      ),
       body: SafeArea(
         child: Align(
           alignment: Alignment.topCenter,
@@ -88,10 +132,12 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                             size: 30,
                           ),
                           const SizedBox(width: 13),
-                          const Expanded(
+                          Expanded(
                             child: Text(
-                              'سجّل المنتج مرة واحدة؛ بعدها يكفي مسح باركوده لتعبئة اسمه ومدة ضمانه.',
-                              style: TextStyle(
+                              widget.product == null
+                                  ? 'سجّل المنتج مرة واحدة؛ بعدها يكفي مسح باركوده لتعبئة اسمه ومدة ضمانه.'
+                                  : 'حدّث بيانات البيع والضمان من دون تغيير سجلات الضمان السابقة.',
+                              style: const TextStyle(
                                 height: 1.55,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -129,15 +175,24 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                               const SizedBox(width: 10),
                               Expanded(
                                 child: TextFormField(
-                                  controller: _sku,
-                                  textDirection: TextDirection.ltr,
+                                  controller: _category,
                                   textInputAction: TextInputAction.next,
                                   decoration: const InputDecoration(
-                                    labelText: 'رمز المخزون',
+                                    labelText: 'التصنيف',
                                   ),
                                 ),
                               ),
                             ],
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _sku,
+                            textDirection: TextDirection.ltr,
+                            textInputAction: TextInputAction.next,
+                            decoration: const InputDecoration(
+                              labelText: 'رمز المخزون',
+                              prefixIcon: Icon(Icons.tag_outlined),
+                            ),
                           ),
                           const SizedBox(height: 12),
                           TextFormField(
@@ -197,9 +252,12 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                               decimal: true,
                             ),
                             textDirection: TextDirection.ltr,
-                            decoration: const InputDecoration(
+                            decoration: InputDecoration(
                               labelText: 'سعر البيع الافتراضي (اختياري)',
-                              prefixIcon: Icon(Icons.payments_outlined),
+                              prefixIcon: const Icon(Icons.payments_outlined),
+                              suffixText: currency.symbol,
+                              helperText:
+                                  'يُعرض ويُحفظ بعملة ${currency.name}.',
                             ),
                             validator: (value) {
                               if ((value ?? '').trim().isEmpty) {
@@ -220,7 +278,11 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                         onPressed: controller.busy ? null : _save,
                         icon: const Icon(Icons.save_outlined),
                         label: Text(
-                          controller.busy ? 'جارٍ الحفظ…' : 'حفظ المنتج',
+                          controller.busy
+                              ? 'جارٍ الحفظ…'
+                              : widget.product == null
+                              ? 'حفظ المنتج'
+                              : 'حفظ التعديلات',
                         ),
                       ),
                     ),

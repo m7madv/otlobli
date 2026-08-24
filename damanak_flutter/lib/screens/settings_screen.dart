@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/app_theme.dart';
+import '../core/currency.dart';
 import '../models/account.dart';
 import '../state/app_scope.dart';
 import '../widgets/message_banner.dart';
@@ -17,7 +18,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _name = TextEditingController();
   final _phone = TextEditingController();
   final _city = TextEditingController();
+  final _address = TextEditingController();
+  final _taxNumber = TextEditingController();
+  final _commercialRegistration = TextEditingController();
+  final _taxRate = TextEditingController();
+  final _invoicePrefix = TextEditingController();
   String _country = 'SA';
+  String _currency = 'SAR';
+  int _defaultWarrantyMonths = 12;
+  bool _pricesIncludeTax = true;
   bool _loaded = false;
 
   @override
@@ -28,7 +37,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _name.text = store.name;
     _phone.text = store.phone;
     _city.text = store.city;
+    _address.text = store.address;
+    _taxNumber.text = store.taxNumber;
+    _commercialRegistration.text = store.commercialRegistration;
+    _taxRate.text = '${store.taxRate}';
+    _invoicePrefix.text = store.invoicePrefix;
     _country = store.countryCode;
+    _currency = store.currencyCode;
+    _pricesIncludeTax = store.pricesIncludeTax;
+    _defaultWarrantyMonths = store.defaultWarrantyMonths;
     _loaded = true;
   }
 
@@ -37,6 +54,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _name.dispose();
     _phone.dispose();
     _city.dispose();
+    _address.dispose();
+    _taxNumber.dispose();
+    _commercialRegistration.dispose();
+    _taxRate.dispose();
+    _invoicePrefix.dispose();
     super.dispose();
   }
 
@@ -47,6 +69,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
       phone: _phone.text,
       city: _city.text,
       countryCode: _country,
+      currencyCode: _currency,
+      taxRate: num.parse(_taxRate.text.trim()),
+      pricesIncludeTax: _pricesIncludeTax,
+      taxNumber: _taxNumber.text,
+      commercialRegistration: _commercialRegistration.text,
+      address: _address.text,
+      invoicePrefix: _invoicePrefix.text,
+      defaultWarrantyMonths: _defaultWarrantyMonths,
     );
   }
 
@@ -56,14 +86,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final colors = context.colors;
     final canEdit = controller.membership!.role.canManageTeam;
     return Scaffold(
-      appBar: AppBar(title: const Text('بيانات المتجر')),
+      appBar: AppBar(title: const Text('إعدادات المتجر والفواتير')),
       body: SafeArea(
         child: Align(
           alignment: Alignment.topCenter,
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(18, 8, 18, 32),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 680),
+              constraints: const BoxConstraints(maxWidth: 720),
               child: Form(
                 key: _formKey,
                 child: Column(
@@ -79,120 +109,302 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: const Text(
-                          'تعديل بيانات المتجر متاح للمالك والمدير فقط.',
+                          'تعديل إعدادات المتجر متاح للمالك والمدير فقط.',
                         ),
                       ),
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(18),
-                        child: Column(
-                          children: [
-                            TextFormField(
-                              controller: _name,
-                              enabled: canEdit,
-                              textInputAction: TextInputAction.next,
-                              decoration: const InputDecoration(
-                                labelText: 'اسم المتجر',
-                                prefixIcon: Icon(Icons.storefront_outlined),
-                              ),
-                              validator: (value) =>
-                                  value == null || value.trim().isEmpty
-                                  ? 'اسم المتجر مطلوب'
-                                  : null,
+                    _SettingsSection(
+                      title: 'هوية المتجر',
+                      icon: Icons.storefront_outlined,
+                      child: Column(
+                        children: [
+                          TextFormField(
+                            controller: _name,
+                            enabled: canEdit,
+                            textInputAction: TextInputAction.next,
+                            decoration: const InputDecoration(
+                              labelText: 'اسم المتجر',
+                              prefixIcon: Icon(Icons.storefront_outlined),
                             ),
-                            const SizedBox(height: 12),
-                            DropdownButtonFormField<String>(
-                              initialValue: _country,
-                              decoration: const InputDecoration(
-                                labelText: 'الدولة',
-                              ),
-                              items: const [
-                                DropdownMenuItem(
-                                  value: 'SA',
-                                  child: Text('السعودية'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'AE',
-                                  child: Text('الإمارات'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'KW',
-                                  child: Text('الكويت'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'QA',
-                                  child: Text('قطر'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'BH',
-                                  child: Text('البحرين'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'OM',
-                                  child: Text('عُمان'),
-                                ),
-                              ],
-                              onChanged: canEdit
-                                  ? (value) => setState(
-                                      () => _country = value ?? _country,
-                                    )
-                                  : null,
+                            validator: _required,
+                          ),
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<String>(
+                            initialValue: _country,
+                            decoration: const InputDecoration(
+                              labelText: 'الدولة',
+                              prefixIcon: Icon(Icons.public_outlined),
                             ),
-                            const SizedBox(height: 12),
-                            TextFormField(
-                              controller: _city,
-                              enabled: canEdit,
-                              textInputAction: TextInputAction.next,
-                              decoration: const InputDecoration(
-                                labelText: 'المدينة',
-                                prefixIcon: Icon(Icons.location_city_outlined),
-                              ),
-                              validator: (value) =>
-                                  value == null || value.trim().isEmpty
-                                  ? 'المدينة مطلوبة'
-                                  : null,
-                            ),
-                            const SizedBox(height: 12),
-                            TextFormField(
-                              controller: _phone,
-                              enabled: canEdit,
-                              keyboardType: TextInputType.phone,
-                              textDirection: TextDirection.ltr,
-                              textInputAction: TextInputAction.done,
-                              onFieldSubmitted: (_) => _save(),
-                              decoration: const InputDecoration(
-                                labelText: 'رقم التواصل',
-                                prefixIcon: Icon(Icons.phone_outlined),
-                              ),
-                              validator: (value) =>
-                                  (value?.trim().length ?? 0) < 7
-                                  ? 'أدخل رقم تواصل صحيحاً'
-                                  : null,
-                            ),
-                            if (canEdit) ...[
-                              const SizedBox(height: 18),
-                              SizedBox(
-                                width: double.infinity,
-                                child: FilledButton.icon(
-                                  onPressed: controller.busy ? null : _save,
-                                  icon: const Icon(Icons.save_outlined),
-                                  label: Text(
-                                    controller.busy
-                                        ? 'جارٍ الحفظ…'
-                                        : 'حفظ بيانات المتجر',
+                            items: _countries.entries
+                                .map(
+                                  (entry) => DropdownMenuItem(
+                                    value: entry.key,
+                                    child: Text(entry.value),
                                   ),
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
+                                )
+                                .toList(),
+                            onChanged: canEdit
+                                ? (value) {
+                                    if (value == null) return;
+                                    setState(() {
+                                      _country = value;
+                                      _currency = defaultCurrencyForCountry(
+                                        value,
+                                      );
+                                    });
+                                  }
+                                : null,
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _city,
+                            enabled: canEdit,
+                            textInputAction: TextInputAction.next,
+                            decoration: const InputDecoration(
+                              labelText: 'المدينة',
+                              prefixIcon: Icon(Icons.location_city_outlined),
+                            ),
+                            validator: _required,
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _address,
+                            enabled: canEdit,
+                            minLines: 2,
+                            maxLines: 3,
+                            textInputAction: TextInputAction.newline,
+                            decoration: const InputDecoration(
+                              labelText: 'العنوان التفصيلي',
+                              prefixIcon: Icon(Icons.location_on_outlined),
+                              alignLabelWithHint: true,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _phone,
+                            enabled: canEdit,
+                            keyboardType: TextInputType.phone,
+                            textDirection: TextDirection.ltr,
+                            textInputAction: TextInputAction.next,
+                            decoration: const InputDecoration(
+                              labelText: 'رقم التواصل',
+                              prefixIcon: Icon(Icons.phone_outlined),
+                            ),
+                            validator: (value) =>
+                                (value?.trim().length ?? 0) < 7
+                                ? 'أدخل رقم تواصل صحيحاً'
+                                : null,
+                          ),
+                        ],
                       ),
                     ),
+                    const SizedBox(height: 14),
+                    _SettingsSection(
+                      title: 'العملة والضريبة',
+                      icon: Icons.account_balance_outlined,
+                      child: Column(
+                        children: [
+                          DropdownButtonFormField<String>(
+                            initialValue: _currency,
+                            decoration: const InputDecoration(
+                              labelText: 'عملة المتجر الأساسية',
+                              prefixIcon: Icon(Icons.payments_outlined),
+                            ),
+                            items: supportedCurrencies
+                                .map(
+                                  (currency) => DropdownMenuItem(
+                                    value: currency.code,
+                                    child: Text(
+                                      '${currency.name} (${currency.symbol})',
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: canEdit
+                                ? (value) => setState(
+                                    () => _currency = value ?? _currency,
+                                  )
+                                : null,
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _taxRate,
+                            enabled: canEdit,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            textDirection: TextDirection.ltr,
+                            decoration: const InputDecoration(
+                              labelText: 'نسبة ضريبة القيمة المضافة',
+                              suffixText: '%',
+                              prefixIcon: Icon(Icons.percent_rounded),
+                            ),
+                            validator: (value) {
+                              final rate = num.tryParse(value?.trim() ?? '');
+                              if (rate == null || rate < 0 || rate > 100) {
+                                return 'أدخل نسبة بين 0 و100';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 4),
+                          SwitchListTile.adaptive(
+                            value: _pricesIncludeTax,
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('الأسعار تشمل الضريبة'),
+                            subtitle: Text(
+                              _pricesIncludeTax
+                                  ? 'سيُستخرج مقدار الضريبة من السعر المدخل.'
+                                  : 'ستُضاف الضريبة فوق السعر المدخل.',
+                            ),
+                            onChanged: canEdit
+                                ? (value) =>
+                                      setState(() => _pricesIncludeTax = value)
+                                : null,
+                          ),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            controller: _taxNumber,
+                            enabled: canEdit,
+                            keyboardType: TextInputType.number,
+                            textDirection: TextDirection.ltr,
+                            decoration: const InputDecoration(
+                              labelText: 'الرقم الضريبي (اختياري)',
+                              prefixIcon: Icon(Icons.receipt_long_outlined),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _commercialRegistration,
+                            enabled: canEdit,
+                            textDirection: TextDirection.ltr,
+                            decoration: const InputDecoration(
+                              labelText: 'السجل التجاري (اختياري)',
+                              prefixIcon: Icon(Icons.badge_outlined),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    _SettingsSection(
+                      title: 'ترقيم الفواتير والضمان',
+                      icon: Icons.receipt_outlined,
+                      child: Column(
+                        children: [
+                          TextFormField(
+                            controller: _invoicePrefix,
+                            enabled: canEdit,
+                            textCapitalization: TextCapitalization.characters,
+                            textDirection: TextDirection.ltr,
+                            decoration: const InputDecoration(
+                              labelText: 'بادئة رقم الفاتورة',
+                              hintText: 'INV',
+                              prefixIcon: Icon(Icons.numbers_rounded),
+                              helperText: 'من 2 إلى 8 أحرف أو أرقام لاتينية.',
+                            ),
+                            validator: (value) {
+                              final prefix = value?.trim() ?? '';
+                              return RegExp(
+                                    r'^[A-Za-z0-9]{2,8}$',
+                                  ).hasMatch(prefix)
+                                  ? null
+                                  : 'استخدم 2–8 أحرف أو أرقام لاتينية';
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<int>(
+                            initialValue: _defaultWarrantyMonths,
+                            decoration: const InputDecoration(
+                              labelText: 'مدة الضمان الافتراضية',
+                              prefixIcon: Icon(Icons.event_repeat_outlined),
+                            ),
+                            items: const [3, 6, 12, 18, 24, 36, 60]
+                                .map(
+                                  (months) => DropdownMenuItem(
+                                    value: months,
+                                    child: Text('$months شهراً'),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: canEdit
+                                ? (value) => setState(
+                                    () => _defaultWarrantyMonths =
+                                        value ?? _defaultWarrantyMonths,
+                                  )
+                                : null,
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (canEdit) ...[
+                      const SizedBox(height: 18),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: controller.busy ? null : _save,
+                          icon: const Icon(Icons.save_outlined),
+                          label: Text(
+                            controller.busy
+                                ? 'جارٍ الحفظ…'
+                                : 'حفظ إعدادات المتجر',
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  String? _required(String? value) =>
+      value == null || value.trim().isEmpty ? 'هذا الحقل مطلوب' : null;
+}
+
+const _countries = <String, String>{
+  'SA': 'السعودية',
+  'AE': 'الإمارات',
+  'KW': 'الكويت',
+  'QA': 'قطر',
+  'BH': 'البحرين',
+  'OM': 'عُمان',
+  'SY': 'سوريا',
+};
+
+class _SettingsSection extends StatelessWidget {
+  const _SettingsSection({
+    required this.title,
+    required this.icon,
+    required this.child,
+  });
+
+  final String title;
+  final IconData icon;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, color: colors.primary, size: 21),
+                const SizedBox(width: 8),
+                Text(title, style: Theme.of(context).textTheme.titleMedium),
+              ],
+            ),
+            const SizedBox(height: 14),
+            child,
+          ],
         ),
       ),
     );

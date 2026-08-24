@@ -42,6 +42,17 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
+  Future<void> _resetPassword() async {
+    final email = _email.text.trim();
+    if (!email.contains('@') || !email.contains('.')) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('أدخل بريدك الصحيح أولاً.')));
+      return;
+    }
+    await AppScope.of(context).sendPasswordReset(email);
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = AppScope.of(context);
@@ -70,6 +81,7 @@ class _AuthScreenState extends State<AuthScreen> {
                     onTogglePassword: () =>
                         setState(() => _hidePassword = !_hidePassword),
                     onSubmit: _submit,
+                    onResetPassword: _resetPassword,
                   );
                   if (!wide) {
                     return Column(
@@ -113,6 +125,7 @@ class _AuthForm extends StatelessWidget {
     required this.onToggleMode,
     required this.onTogglePassword,
     required this.onSubmit,
+    required this.onResetPassword,
   });
 
   final GlobalKey<FormState> formKey;
@@ -125,6 +138,7 @@ class _AuthForm extends StatelessWidget {
   final VoidCallback onToggleMode;
   final VoidCallback onTogglePassword;
   final VoidCallback onSubmit;
+  final VoidCallback onResetPassword;
 
   @override
   Widget build(BuildContext context) {
@@ -248,6 +262,14 @@ class _AuthForm extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
+            if (!createAccount)
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: TextButton(
+                  onPressed: busy ? null : onResetPassword,
+                  child: const Text('نسيت كلمة المرور؟'),
+                ),
+              ),
             SizedBox(
               width: double.infinity,
               child: TextButton(

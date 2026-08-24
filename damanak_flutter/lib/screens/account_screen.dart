@@ -6,6 +6,9 @@ import '../state/app_scope.dart';
 import '../widgets/brand_mark.dart';
 import '../widgets/message_banner.dart';
 import 'requests_screen.dart';
+import 'branches_screen.dart';
+import 'customers_screen.dart';
+import 'reports_screen.dart';
 import 'settings_screen.dart';
 import 'subscription_screen.dart';
 import 'team_screen.dart';
@@ -100,6 +103,26 @@ class AccountScreen extends StatelessWidget {
             Text('إدارة المتجر', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 10),
             _HubTile(
+              icon: Icons.people_outline_rounded,
+              title: 'دليل العملاء',
+              subtitle:
+                  '${controller.customers.length} عميلاً • بيانات موحدة لكل الضمانات',
+              onTap: () => _open(context, const CustomersScreen()),
+            ),
+            _HubTile(
+              icon: Icons.store_mall_directory_outlined,
+              title: 'الفروع ونقاط البيع',
+              subtitle:
+                  '${controller.branches.length} فروع • ربط المبيعات بالفرع',
+              onTap: () => _open(context, const BranchesScreen()),
+            ),
+            _HubTile(
+              icon: Icons.analytics_outlined,
+              title: 'التقارير والتصدير',
+              subtitle: 'المبيعات والضريبة وطرق الدفع وتصدير CSV',
+              onTap: () => _open(context, const ReportsScreen()),
+            ),
+            _HubTile(
               icon: Icons.groups_2_outlined,
               title: 'الفريق والصلاحيات',
               subtitle:
@@ -137,7 +160,7 @@ class AccountScreen extends StatelessWidget {
             const SizedBox(height: 14),
             Center(
               child: Text(
-                'ضمانك للأعمال 2.0.0',
+                'ضمانك للأعمال 3.0.0',
                 style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
               ),
             ),

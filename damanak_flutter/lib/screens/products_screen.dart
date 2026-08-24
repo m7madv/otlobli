@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/app_theme.dart';
+import '../core/currency.dart';
 import '../models/account.dart';
 import '../models/product.dart';
 import '../state/app_scope.dart';
@@ -27,6 +28,46 @@ class _ProductsScreenState extends State<ProductsScreen> {
   Future<void> _addProduct() async {
     await Navigator.of(context).push<Product>(
       MaterialPageRoute(builder: (_) => const ProductFormScreen()),
+    );
+  }
+
+  Future<void> _editProduct(Product product) async {
+    await Navigator.of(context).push<Product>(
+      MaterialPageRoute(builder: (_) => ProductFormScreen(product: product)),
+    );
+  }
+
+  Future<void> _archiveProduct(Product product) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('أرشفة المنتج؟'),
+        content: const Text(
+          'سيختفي المنتج من الكتالوج والمسح، وستبقى الضمانات السابقة محفوظة.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('أرشفة المنتج'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await AppScope.of(context).updateProduct(
+      productId: product.id,
+      name: product.name,
+      brand: product.brand,
+      category: product.category,
+      barcode: product.barcode,
+      sku: product.sku,
+      warrantyMonths: product.warrantyMonths,
+      salePrice: product.salePrice,
+      isActive: false,
     );
   }
 
@@ -112,8 +153,15 @@ class _ProductsScreenState extends State<ProductsScreen> {
                   sliver: SliverList.separated(
                     itemCount: products.length,
                     separatorBuilder: (_, _) => const SizedBox(height: 10),
-                    itemBuilder: (context, index) =>
-                        _ProductCard(product: products[index]),
+                    itemBuilder: (context, index) => _ProductCard(
+                      product: products[index],
+                      onEdit: canManage
+                          ? () => _editProduct(products[index])
+                          : null,
+                      onArchive: canManage
+                          ? () => _archiveProduct(products[index])
+                          : null,
+                    ),
                   ),
                 ),
             ],
@@ -125,13 +173,20 @@ class _ProductsScreenState extends State<ProductsScreen> {
 }
 
 class _ProductCard extends StatelessWidget {
-  const _ProductCard({required this.product});
+  const _ProductCard({
+    required this.product,
+    required this.onEdit,
+    required this.onArchive,
+  });
 
   final Product product;
+  final VoidCallback? onEdit;
+  final VoidCallback? onArchive;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final currencyCode = AppScope.of(context).store!.currencyCode;
     return Card(
       child: InkWell(
         onTap: () => Navigator.of(context).push(
@@ -166,6 +221,7 @@ class _ProductCard extends StatelessWidget {
                     Text(
                       [
                         product.brand,
+                        product.category,
                         product.sku,
                       ].where((value) => value.isNotEmpty).join(' • '),
                       style: TextStyle(
@@ -202,16 +258,54 @@ class _ProductCard extends StatelessWidget {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
+                        if (product.salePrice != null) ...[
+                          const SizedBox(width: 10),
+                          Text(
+                            formatMoney(product.salePrice!, currencyCode),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: colors.onSurface,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ],
                 ),
               ),
-              Icon(
-                Icons.arrow_back_ios_new_rounded,
-                size: 15,
-                color: colors.onSurfaceVariant,
-              ),
+              if (onEdit != null && onArchive != null)
+                PopupMenuButton<_ProductAction>(
+                  tooltip: 'إدارة المنتج',
+                  onSelected: (action) => switch (action) {
+                    _ProductAction.edit => onEdit!(),
+                    _ProductAction.archive => onArchive!(),
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(
+                      value: _ProductAction.edit,
+                      child: ListTile(
+                        leading: Icon(Icons.edit_outlined),
+                        title: Text('تعديل المنتج'),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: _ProductAction.archive,
+                      child: ListTile(
+                        leading: Icon(Icons.archive_outlined),
+                        title: Text('أرشفة المنتج'),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                  ],
+                )
+              else
+                Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  size: 15,
+                  color: colors.onSurfaceVariant,
+                ),
             ],
           ),
         ),
@@ -219,6 +313,8 @@ class _ProductCard extends StatelessWidget {
     );
   }
 }
+
+enum _ProductAction { edit, archive }
 
 class _EmptyProducts extends StatelessWidget {
   const _EmptyProducts({required this.hasQuery, required this.onAdd});

@@ -4,6 +4,7 @@ class Product {
     required this.storeId,
     required this.name,
     required this.brand,
+    this.category = '',
     required this.barcode,
     required this.sku,
     required this.warrantyMonths,
@@ -16,6 +17,7 @@ class Product {
   final String storeId;
   final String name;
   final String brand;
+  final String category;
   final String barcode;
   final String sku;
   final int warrantyMonths;
@@ -28,6 +30,7 @@ class Product {
     return value.isEmpty ||
         name.toLowerCase().contains(value) ||
         brand.toLowerCase().contains(value) ||
+        category.toLowerCase().contains(value) ||
         barcode.toLowerCase().contains(value) ||
         sku.toLowerCase().contains(value);
   }
@@ -38,6 +41,7 @@ class Product {
       storeId: json['store_id'] as String,
       name: json['name'] as String,
       brand: json['brand'] as String? ?? '',
+      category: json['category'] as String? ?? '',
       barcode: json['barcode'] as String? ?? '',
       sku: json['sku'] as String? ?? '',
       warrantyMonths: json['warranty_months'] as int? ?? 12,

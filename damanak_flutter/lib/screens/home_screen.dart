@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/app_theme.dart';
+import '../core/currency.dart';
 import '../models/account.dart';
 import '../models/maintenance_request.dart';
 import '../models/warranty.dart';
@@ -94,6 +95,16 @@ class HomeScreen extends StatelessWidget {
                       label: 'طلب صيانة مفتوح',
                       value: '$openRequests',
                       icon: Icons.build_circle_outlined,
+                      onTap: onShowMore,
+                    ),
+                    _Metric(
+                      width: itemWidth,
+                      label: 'مبيعات مسجلة',
+                      value: formatMoney(
+                        controller.totalSales,
+                        controller.store!.currencyCode,
+                      ),
+                      icon: Icons.payments_outlined,
                       onTap: onShowMore,
                     ),
                   ],
