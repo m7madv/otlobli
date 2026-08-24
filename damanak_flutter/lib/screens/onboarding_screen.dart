@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/app_theme.dart';
+import '../models/account.dart';
 import '../state/app_scope.dart';
 import '../widgets/brand_mark.dart';
 import '../widgets/message_banner.dart';
@@ -21,6 +22,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final _invite = TextEditingController();
   bool _joining = false;
   String _country = 'SA';
+  String? _loadedInvitationCode;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final pendingCode = AppScope.of(context).pendingInvitationCode;
+    if (pendingCode == null || pendingCode == _loadedInvitationCode) return;
+    _loadedInvitationCode = pendingCode;
+    _invite.text = pendingCode;
+    _joining = true;
+  }
 
   @override
   void dispose() {
@@ -112,6 +124,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             key: const ValueKey('join'),
                             formKey: _joinKey,
                             invite: _invite,
+                            invitationRole: controller.pendingInvitationRole,
                             busy: controller.busy,
                             onSubmit: _joinStore,
                           )
@@ -259,6 +272,7 @@ class _JoinForm extends StatelessWidget {
   const _JoinForm({
     required this.formKey,
     required this.invite,
+    required this.invitationRole,
     required this.busy,
     required this.onSubmit,
     super.key,
@@ -266,6 +280,7 @@ class _JoinForm extends StatelessWidget {
 
   final GlobalKey<FormState> formKey;
   final TextEditingController invite;
+  final MemberRole? invitationRole;
   final bool busy;
   final VoidCallback onSubmit;
 
@@ -286,7 +301,9 @@ class _JoinForm extends StatelessWidget {
               ),
               const SizedBox(height: 7),
               Text(
-                'لا تطلب كلمة مرور المالك. اطلب منه إنشاء رمز دعوة من صفحة الفريق وإرساله لك.',
+                invitationRole == null
+                    ? 'افتح رابط المدير، أو أدخل رمز الدعوة الاحتياطي. لا تحتاج إلى كلمة مرور المالك.'
+                    : 'تم تحميل الدعوة. صلاحيتك بعد الانضمام: ${invitationRole!.label}.',
                 style: TextStyle(color: colors.onSurfaceVariant),
               ),
               const SizedBox(height: 16),
@@ -311,7 +328,7 @@ class _JoinForm extends StatelessWidget {
                 child: FilledButton.icon(
                   onPressed: busy ? null : onSubmit,
                   icon: const Icon(Icons.group_add_rounded),
-                  label: Text(busy ? 'جارٍ الانضمام…' : 'الانضمام إلى المتجر'),
+                  label: Text(busy ? 'جارٍ الانضمام…' : 'تأكيد الانضمام'),
                 ),
               ),
             ],

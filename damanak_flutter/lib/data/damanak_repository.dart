@@ -12,13 +12,6 @@ import '../models/store_billing.dart';
 import '../models/supplier.dart';
 import '../models/warranty.dart';
 
-class SignUpResult {
-  const SignUpResult({required this.account, required this.needsConfirmation});
-
-  final AccountIdentity account;
-  final bool needsConfirmation;
-}
-
 class WorkspaceSnapshot {
   const WorkspaceSnapshot({
     required this.store,
@@ -35,17 +28,7 @@ abstract interface class DamanakRepository {
   bool get isDemo;
 
   Future<AccountIdentity?> restoreAccount();
-  Future<AccountIdentity> signIn({
-    required String email,
-    required String password,
-  });
-  Future<SignUpResult> signUp({
-    required String fullName,
-    required String email,
-    required String password,
-  });
   Future<void> signOut();
-  Future<void> sendPasswordReset(String email);
   Future<void> signInWithSocial(SocialAuthProvider provider);
   Future<void> deleteAccount();
 

@@ -11,7 +11,9 @@ import 'package:image/image.dart' as image_codec;
 
 import 'package:damanak/core/app_theme.dart';
 import 'package:damanak/models/store_billing.dart';
+import 'package:damanak/screens/auth_screen.dart';
 import 'package:damanak/screens/subscription_screen.dart';
+import 'package:damanak/screens/team_screen.dart';
 import 'package:damanak/services/store_billing_service.dart';
 import 'package:damanak/state/app_controller.dart';
 import 'package:damanak/state/app_scope.dart';
@@ -81,6 +83,140 @@ void main() {
       );
     });
   });
+
+  testWidgets('renders the social-only auth screen with a pending invite', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(393, 852);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final controller = AppController.unconfigured();
+    controller.handleIncomingUri(
+      Uri.parse('com.damanak.damanak://join?code=DMN-7K4P9Q&role=staff'),
+    );
+    addTearDown(controller.dispose);
+
+    final screenshotKey = GlobalKey();
+    await tester.pumpWidget(
+      _reviewShell(
+        controller: controller,
+        screenshotKey: screenshotKey,
+        child: const AuthScreen(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await _capturePng(
+      tester,
+      screenshotKey,
+      'output/visual-review/auth-invite-393x852.png',
+    );
+  });
+
+  testWidgets('renders the social-only auth screen in dark mode', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(393, 852);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final controller = AppController.unconfigured();
+    addTearDown(controller.dispose);
+
+    final screenshotKey = GlobalKey();
+    await tester.pumpWidget(
+      _reviewShell(
+        controller: controller,
+        screenshotKey: screenshotKey,
+        dark: true,
+        child: const AuthScreen(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await _capturePng(
+      tester,
+      screenshotKey,
+      'output/visual-review/auth-dark-393x852.png',
+    );
+  });
+
+  testWidgets('renders the simplified employee invitation sheet', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(393, 852);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final controller = AppController.unconfigured();
+    await controller.startDemo();
+    addTearDown(controller.dispose);
+
+    final screenshotKey = GlobalKey();
+    await tester.pumpWidget(
+      _reviewShell(
+        controller: controller,
+        screenshotKey: screenshotKey,
+        child: const TeamScreen(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('دعوة عضو'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('إنشاء رابط الدعوة'));
+    await tester.pumpAndSettle();
+    await _capturePng(
+      tester,
+      screenshotKey,
+      'output/visual-review/team-invite-link-393x852.png',
+    );
+  });
+}
+
+Widget _reviewShell({
+  required AppController controller,
+  required GlobalKey screenshotKey,
+  required Widget child,
+  bool dark = false,
+}) {
+  return RepaintBoundary(
+    key: screenshotKey,
+    child: AppScope(
+      controller: controller,
+      child: MaterialApp(
+        debugShowCheckedModeBanner: false,
+        locale: const Locale('ar'),
+        supportedLocales: const [Locale('ar')],
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        theme: _reviewTheme(),
+        darkTheme: _reviewTheme(Brightness.dark),
+        themeMode: dark ? ThemeMode.dark : ThemeMode.light,
+        home: Directionality(textDirection: TextDirection.rtl, child: child),
+      ),
+    ),
+  );
+}
+
+Future<void> _capturePng(
+  WidgetTester tester,
+  GlobalKey screenshotKey,
+  String path,
+) async {
+  final boundary =
+      screenshotKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+  final rendered = await boundary.toImage(pixelRatio: 1);
+  await tester.runAsync(() async {
+    final bytes = await rendered.toByteData(format: ui.ImageByteFormat.png);
+    final output = File(path);
+    await output.parent.create(recursive: true);
+    await output.writeAsBytes(bytes!.buffer.asUint8List(), flush: true);
+  });
 }
 
 Future<void> _loadFont(String family, String path) async {
@@ -105,8 +241,8 @@ String _materialIconsPath() {
   throw StateError('Unable to locate the Flutter Material Icons font.');
 }
 
-ThemeData _reviewTheme() {
-  final theme = buildAppTheme();
+ThemeData _reviewTheme([Brightness brightness = Brightness.light]) {
+  final theme = buildAppTheme(brightness);
   final textTheme = theme.textTheme.apply(fontFamily: 'ReviewArabic');
   final buttonTextStyle = WidgetStatePropertyAll<TextStyle?>(
     textTheme.labelLarge,

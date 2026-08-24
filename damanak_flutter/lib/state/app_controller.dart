@@ -68,6 +68,8 @@ class AppController extends ChangeNotifier {
   String? _errorMessage;
   String? _noticeMessage;
   String? _activeBranchId;
+  String? _pendingInvitationCode;
+  MemberRole? _pendingInvitationRole;
 
   AppStage get stage => _stage;
   AccountIdentity? get account => _account;
@@ -79,6 +81,8 @@ class AppController extends ChangeNotifier {
   bool get backendConfigured => _repository != null;
   String? get errorMessage => _errorMessage;
   String? get noticeMessage => _noticeMessage;
+  String? get pendingInvitationCode => _pendingInvitationCode;
+  MemberRole? get pendingInvitationRole => _pendingInvitationRole;
   StoreBillingState get storeBillingState => _storeBillingState;
   StoreBillingPlatform get storeBillingPlatform => _storeBillingPlatform;
   String? get storeBillingMessage => _storeBillingMessage;
@@ -199,19 +203,11 @@ class AppController extends ChangeNotifier {
     await initialize();
   }
 
-  Future<void> signIn({required String email, required String password}) async {
-    await _guard(() async {
-      _account = await _repository!.signIn(email: email, password: password);
-      await _loadWorkspace();
-      unawaited(refreshStoreProducts());
-      unawaited(_refreshStoreSubscriptionIfStale());
-    });
-  }
-
   Future<void> signInWithSocial(SocialAuthProvider provider) async {
     await _guard(() async {
       await _repository!.signInWithSocial(provider);
-      _noticeMessage = 'أكمل تسجيل الدخول في النافذة الآمنة ثم عد إلى ضمانك.';
+      _noticeMessage =
+          'أكمل تسجيل ${provider.label} في النافذة الآمنة ثم عد إلى ضمانك.';
     });
   }
 
@@ -229,31 +225,6 @@ class AppController extends ChangeNotifier {
     });
   }
 
-  Future<bool> signUp({
-    required String fullName,
-    required String email,
-    required String password,
-  }) async {
-    var needsConfirmation = false;
-    await _guard(() async {
-      final result = await _repository!.signUp(
-        fullName: fullName,
-        email: email,
-        password: password,
-      );
-      needsConfirmation = result.needsConfirmation;
-      if (needsConfirmation) {
-        _noticeMessage =
-            'أرسلنا رابط تأكيد إلى بريدك. أكّد البريد ثم سجّل الدخول.';
-        _stage = AppStage.signedOut;
-      } else {
-        _account = result.account;
-        _stage = AppStage.onboarding;
-      }
-    });
-    return needsConfirmation;
-  }
-
   Future<void> signOut() async {
     await _guard(() async {
       await _repository!.signOut();
@@ -265,13 +236,6 @@ class AppController extends ChangeNotifier {
       } else {
         _stage = AppStage.signedOut;
       }
-    });
-  }
-
-  Future<void> sendPasswordReset(String email) async {
-    await _guard(() async {
-      await _repository!.sendPasswordReset(email);
-      _noticeMessage = 'أرسلنا رابط استعادة كلمة المرور إلى بريدك.';
     });
   }
 
@@ -299,8 +263,38 @@ class AppController extends ChangeNotifier {
       final snapshot = await _repository!.joinStore(code);
       _applySnapshot(snapshot);
       await _loadWorkspaceData();
+      _pendingInvitationCode = null;
+      _pendingInvitationRole = null;
       _stage = AppStage.ready;
     });
+  }
+
+  bool handleIncomingUri(Uri uri) {
+    if (uri.scheme != 'com.damanak.damanak' || uri.host != 'join') {
+      return false;
+    }
+    final code = uri.queryParameters['code']?.trim().toUpperCase();
+    if (code == null || !RegExp(r'^DMN-[A-Z0-9]{6,16}$').hasMatch(code)) {
+      _errorMessage = 'رابط الدعوة غير مكتمل. اطلب من المدير إرسال دعوة جديدة.';
+      notifyListeners();
+      return true;
+    }
+    _pendingInvitationCode = code;
+    final role = uri.queryParameters['role'];
+    _pendingInvitationRole = role == 'manager' || role == 'staff'
+        ? MemberRoleText.fromValue(role)
+        : null;
+    _errorMessage = null;
+    _noticeMessage = null;
+    notifyListeners();
+    return true;
+  }
+
+  void clearPendingInvitation() {
+    if (_pendingInvitationCode == null) return;
+    _pendingInvitationCode = null;
+    _pendingInvitationRole = null;
+    notifyListeners();
   }
 
   Future<void> updateStore({
@@ -1215,14 +1209,11 @@ class AppController extends ChangeNotifier {
 
   String _friendlyError(Object error) {
     final value = error.toString().toLowerCase();
-    if (value.contains('invalid login credentials')) {
-      return 'البريد أو كلمة المرور غير صحيحة.';
+    if (value.contains('auth_window_not_opened')) {
+      return 'تعذّر فتح تسجيل الدخول. تحقق من وجود متصفح آمن وحاول مجدداً.';
     }
-    if (value.contains('email not confirmed')) {
-      return 'أكّد بريدك الإلكتروني أولاً ثم حاول مجدداً.';
-    }
-    if (value.contains('user already registered')) {
-      return 'يوجد حساب مسجل بهذا البريد.';
+    if (value.contains('oauth') || value.contains('auth_failed')) {
+      return 'لم يكتمل تسجيل الدخول. حاول مجدداً باستخدام Apple أو Google.';
     }
     if (value.contains('invite_invalid')) {
       return 'رمز الدعوة غير صحيح أو انتهت صلاحيته.';

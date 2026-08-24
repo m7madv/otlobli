@@ -38,53 +38,17 @@ class SupabaseDamanakRepository implements DamanakRepository {
   }
 
   @override
-  Future<AccountIdentity> signIn({
-    required String email,
-    required String password,
-  }) async {
-    final response = await _client.auth.signInWithPassword(
-      email: email.trim(),
-      password: password,
-    );
-    final user = response.user;
-    if (user == null) throw StateError('AUTH_FAILED');
-    return _identityFromUser(user);
-  }
-
-  @override
-  Future<SignUpResult> signUp({
-    required String fullName,
-    required String email,
-    required String password,
-  }) async {
-    final response = await _client.auth.signUp(
-      email: email.trim(),
-      password: password,
-      data: {'full_name': fullName.trim()},
-    );
-    final user = response.user;
-    if (user == null) throw StateError('AUTH_FAILED');
-    return SignUpResult(
-      account: _identityFromUser(user),
-      needsConfirmation: response.session == null,
-    );
-  }
-
-  @override
   Future<void> signOut() => _client.auth.signOut();
 
   @override
-  Future<void> sendPasswordReset(String email) =>
-      _client.auth.resetPasswordForEmail(email.trim());
-
-  @override
   Future<void> signInWithSocial(SocialAuthProvider provider) async {
-    await _client.auth.signInWithOAuth(
+    final launched = await _client.auth.signInWithOAuth(
       provider == SocialAuthProvider.google
           ? OAuthProvider.google
           : OAuthProvider.apple,
       redirectTo: kIsWeb ? null : 'com.damanak.damanak://login-callback',
     );
+    if (!launched) throw StateError('AUTH_WINDOW_NOT_OPENED');
   }
 
   @override
@@ -94,10 +58,19 @@ class SupabaseDamanakRepository implements DamanakRepository {
   }
 
   AccountIdentity _identityFromUser(User user) {
+    final metadata = user.userMetadata ?? const <String, dynamic>{};
+    final fullName =
+        [metadata['full_name'], metadata['name'], metadata['user_name']]
+            .whereType<String>()
+            .map((value) => value.trim())
+            .firstWhere(
+              (value) => value.isNotEmpty,
+              orElse: () => 'مستخدم ضمانك',
+            );
     return AccountIdentity(
       id: user.id,
       email: user.email ?? '',
-      fullName: user.userMetadata?['full_name'] as String? ?? 'مستخدم ضمانك',
+      fullName: fullName,
     );
   }
 

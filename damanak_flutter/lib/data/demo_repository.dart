@@ -365,23 +365,7 @@ class DemoDamanakRepository implements DamanakRepository {
   Future<AccountIdentity?> restoreAccount() async => _account;
 
   @override
-  Future<AccountIdentity> signIn({
-    required String email,
-    required String password,
-  }) async => _account;
-
-  @override
-  Future<SignUpResult> signUp({
-    required String fullName,
-    required String email,
-    required String password,
-  }) async => const SignUpResult(account: _account, needsConfirmation: false);
-
-  @override
   Future<void> signOut() async {}
-
-  @override
-  Future<void> sendPasswordReset(String email) async {}
 
   @override
   Future<void> signInWithSocial(SocialAuthProvider provider) async {}

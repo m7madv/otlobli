@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:app_links/app_links.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app.dart';
@@ -10,6 +11,7 @@ import 'services/store_billing_service.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final billingService = createStoreBillingService();
+  final appLinks = AppLinks();
 
   late final AppController controller;
   if (AppConfig.hasCloudBackend) {
@@ -30,6 +32,13 @@ Future<void> main() async {
   } else {
     controller = AppController.unconfigured(billingService: billingService);
   }
+  try {
+    final initialLink = await appLinks.getInitialLink();
+    if (initialLink != null) controller.handleIncomingUri(initialLink);
+  } on Object {
+    // لا نمنع تشغيل التطبيق إذا تعذر على النظام قراءة رابط البداية.
+  }
+  appLinks.uriLinkStream.listen(controller.handleIncomingUri);
   await controller.initialize();
 
   runApp(DamanakApp(controller: controller));

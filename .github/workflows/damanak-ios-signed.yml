@@ -31,11 +31,21 @@ jobs:
           cache: true
 
       - name: Install dependencies and verify source
+        env:
+          DAMANAK_SUPABASE_URL: ${{ secrets.DAMANAK_SUPABASE_URL }}
+          DAMANAK_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.DAMANAK_SUPABASE_PUBLISHABLE_KEY }}
+        shell: bash
         run: |
+          test -n "$DAMANAK_SUPABASE_URL"
+          test -n "$DAMANAK_SUPABASE_PUBLISHABLE_KEY"
           flutter pub get
           flutter analyze
           flutter test
-          flutter build ios --release --no-codesign
+          flutter build ios \
+            --release \
+            --no-codesign \
+            --dart-define="DAMANAK_SUPABASE_URL=$DAMANAK_SUPABASE_URL" \
+            --dart-define="DAMANAK_SUPABASE_PUBLISHABLE_KEY=$DAMANAK_SUPABASE_PUBLISHABLE_KEY"
 
       - name: Install Damanak signing identity and profile
         env:
@@ -117,6 +127,7 @@ jobs:
           PROFILE_APP_ID=$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "$RUNNER_TEMP/damanak-embedded-profile.plist")
           test "$APP_BUNDLE_ID" = "com.damanak.damanak"
           [[ "$PROFILE_APP_ID" == *".$APP_BUNDLE_ID" ]]
+          strings "$APP_PATH/Frameworks/App.framework/App" | grep -Fq "login-callback"
           echo "Verified signed bundle $APP_BUNDLE_ID and its embedded App Store profile."
 
       - name: Validate and upload to App Store Connect

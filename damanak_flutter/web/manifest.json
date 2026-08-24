@@ -3,9 +3,9 @@
     "short_name": "ضمانك",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#F6F7F4",
-    "theme_color": "#12263A",
-    "description": "إدارة بطاقات الضمان الرقمية وطلبات الصيانة محلياً.",
+    "background_color": "#F2F4F3",
+    "theme_color": "#087F5B",
+    "description": "إدارة المتجر والفروع ونقاط البيع والمخزون والضمان والصيانة.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

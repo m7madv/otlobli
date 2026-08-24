@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../core/app_theme.dart';
@@ -10,9 +12,10 @@ class TeamScreen extends StatelessWidget {
   const TeamScreen({super.key});
 
   Future<void> _createInvite(BuildContext context) async {
+    final controller = AppScope.of(context);
     MemberRole role = MemberRole.staff;
-    int maxUses = 1;
-    final result = await showModalBottomSheet<(MemberRole, int)>(
+    final canInviteManager = controller.membership!.role == MemberRole.owner;
+    final result = await showModalBottomSheet<MemberRole>(
       context: context,
       useSafeArea: true,
       showDragHandle: true,
@@ -35,49 +38,55 @@ class TeamScreen extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                'سيستخدم الموظف الرمز بعد إنشاء حسابه. لا تشارك كلمة مرورك أو جلستك.',
+                'اختر الصلاحية مرة واحدة، ثم أرسل الرابط للموظف. سيدخل بحسابه ويؤكد الانضمام.',
                 style: TextStyle(color: context.colors.onSurfaceVariant),
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<MemberRole>(
                 initialValue: role,
                 decoration: const InputDecoration(labelText: 'الصلاحية'),
-                items: const [
-                  DropdownMenuItem(
+                items: [
+                  const DropdownMenuItem(
                     value: MemberRole.staff,
-                    child: Text('موظف — إصدار ضمانات وصيانة'),
+                    child: Text('موظف — البيع والضمان والصيانة'),
                   ),
-                  DropdownMenuItem(
-                    value: MemberRole.manager,
-                    child: Text('مدير — إدارة المنتجات والفريق'),
-                  ),
+                  if (canInviteManager)
+                    const DropdownMenuItem(
+                      value: MemberRole.manager,
+                      child: Text('مدير — إدارة المنتجات والفريق'),
+                    ),
                 ],
                 onChanged: (value) {
                   if (value != null) setModalState(() => role = value);
                 },
               ),
               const SizedBox(height: 12),
-              DropdownButtonFormField<int>(
-                initialValue: maxUses,
-                decoration: const InputDecoration(
-                  labelText: 'عدد مرات استخدام الرمز',
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(13),
+                decoration: BoxDecoration(
+                  color: context.colors.surfaceContainer,
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                items: const [
-                  DropdownMenuItem(value: 1, child: Text('شخص واحد')),
-                  DropdownMenuItem(value: 3, child: Text('3 أشخاص')),
-                  DropdownMenuItem(value: 5, child: Text('5 أشخاص')),
-                ],
-                onChanged: (value) {
-                  if (value != null) setModalState(() => maxUses = value);
-                },
+                child: const Row(
+                  children: [
+                    Icon(Icons.lock_clock_outlined, size: 21),
+                    SizedBox(width: 9),
+                    Expanded(
+                      child: Text(
+                        'الرابط لشخص واحد وينتهي تلقائياً بعد 48 ساعة.',
+                      ),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 18),
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
-                  onPressed: () => Navigator.of(context).pop((role, maxUses)),
-                  icon: const Icon(Icons.key_rounded),
-                  label: const Text('إنشاء رمز الدعوة'),
+                  onPressed: () => Navigator.of(context).pop(role),
+                  icon: const Icon(Icons.link_rounded),
+                  label: const Text('إنشاء رابط الدعوة'),
                 ),
               ),
             ],
@@ -86,69 +95,141 @@ class TeamScreen extends StatelessWidget {
       ),
     );
     if (result == null || !context.mounted) return;
-    final controller = AppScope.of(context);
-    final invite = await controller.createInvite(result.$1, result.$2);
+    final invite = await controller.createInvite(result, 1);
     if (invite == null || !context.mounted) return;
     await showModalBottomSheet<void>(
       context: context,
       useSafeArea: true,
       showDragHandle: true,
-      builder: (context) => Padding(
+      isScrollControlled: true,
+      builder: (sheetContext) => SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               Icons.mark_email_read_outlined,
-              size: 42,
-              color: context.colors.primary,
+              size: 40,
+              color: sheetContext.colors.primary,
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 9),
             Text(
-              'رمز الدعوة جاهز',
-              style: Theme.of(context).textTheme.titleLarge,
+              'رابط الدعوة جاهز',
+              style: Theme.of(sheetContext).textTheme.titleLarge,
             ),
             const SizedBox(height: 5),
             Text(
-              'صالح حتى ${invite.expiresAt.day}/${invite.expiresAt.month} ولعدد ${invite.maxUses} مستخدم.',
-              style: TextStyle(color: context.colors.onSurfaceVariant),
+              'الصلاحية: ${invite.role.label} • صالح لشخص واحد حتى ${invite.expiresAt.day}/${invite.expiresAt.month}',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: sheetContext.colors.onSurfaceVariant),
             ),
             const SizedBox(height: 14),
+            Semantics(
+              label: 'رمز QR لفتح دعوة ضمانك',
+              image: true,
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: const Color(0xFFE2E5E3)),
+                ),
+                child: QrImageView(
+                  data: invite.deepLink.toString(),
+                  size: 146,
+                  padding: EdgeInsets.zero,
+                  semanticsLabel: 'دعوة فريق ضمانك',
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'يمكن للموظف فتح الرابط المرسل أو مسح الرمز بالكاميرا.',
+              textAlign: TextAlign.center,
+              style: Theme.of(sheetContext).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 12),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: context.colors.surfaceContainer,
+                color: sheetContext.colors.surfaceContainer,
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: SelectableText(
-                invite.code,
-                textAlign: TextAlign.center,
-                textDirection: TextDirection.ltr,
-                style: const TextStyle(
-                  fontSize: 24,
-                  letterSpacing: 2,
-                  fontWeight: FontWeight.w900,
-                ),
+              child: Column(
+                children: [
+                  Text(
+                    'الرمز الاحتياطي',
+                    style: Theme.of(sheetContext).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 3),
+                  SelectableText(
+                    invite.code,
+                    textAlign: TextAlign.center,
+                    textDirection: TextDirection.ltr,
+                    style: const TextStyle(
+                      fontSize: 21,
+                      letterSpacing: 1.5,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 14),
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
-                onPressed: () => SharePlus.instance.share(
-                  ShareParams(
-                    text:
-                        'انضم إلى متجر ${controller.store!.name} في تطبيق ضمانك. أنشئ حسابك ثم اختر «الانضمام لمتجر» وأدخل الرمز: ${invite.code}',
-                    subject: 'دعوة فريق ضمانك',
-                  ),
+                onPressed: () => _shareInvite(
+                  sheetContext,
+                  storeName: controller.store!.name,
+                  invite: invite,
                 ),
                 icon: const Icon(Icons.share_outlined),
-                label: const Text('مشاركة الدعوة'),
+                label: const Text('إرسال الدعوة للموظف'),
+              ),
+            ),
+            const SizedBox(height: 6),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton.icon(
+                onPressed: () async {
+                  await Clipboard.setData(ClipboardData(text: invite.code));
+                  if (!sheetContext.mounted) return;
+                  ScaffoldMessenger.of(sheetContext).showSnackBar(
+                    const SnackBar(content: Text('نُسخ رمز الدعوة.')),
+                  );
+                },
+                icon: const Icon(Icons.copy_rounded),
+                label: const Text('نسخ الرمز فقط'),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Future<void> _shareInvite(
+    BuildContext context, {
+    required String storeName,
+    required StoreInvite invite,
+  }) async {
+    final box = context.findRenderObject() as RenderBox?;
+    final text =
+        'دعوة للعمل في متجر $storeName عبر تطبيق ضمانك.\n'
+        'الصلاحية: ${invite.role.label}.\n'
+        'افتح الرابط ثم سجّل الدخول باستخدام Apple أو Google:\n'
+        '${invite.deepLink}\n\n'
+        'إذا لم يفتح الرابط، افتح ضمانك واختر «الانضمام لمتجر» وأدخل الرمز: ${invite.code}\n'
+        'الدعوة صالحة لشخص واحد ولمدة 48 ساعة.';
+    await SharePlus.instance.share(
+      ShareParams(
+        text: text,
+        subject: 'دعوة فريق ضمانك',
+        sharePositionOrigin: box == null
+            ? null
+            : box.localToGlobal(Offset.zero) & box.size,
       ),
     );
   }

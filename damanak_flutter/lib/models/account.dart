@@ -161,4 +161,10 @@ class StoreInvite {
   final MemberRole role;
   final DateTime expiresAt;
   final int maxUses;
+
+  Uri get deepLink => Uri(
+    scheme: 'com.damanak.damanak',
+    host: 'join',
+    queryParameters: {'code': code, 'role': role.name},
+  );
 }

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../core/app_theme.dart';
@@ -6,57 +7,13 @@ import '../state/app_scope.dart';
 import '../widgets/brand_mark.dart';
 import '../widgets/message_banner.dart';
 
-class AuthScreen extends StatefulWidget {
+class AuthScreen extends StatelessWidget {
   const AuthScreen({super.key});
-
-  @override
-  State<AuthScreen> createState() => _AuthScreenState();
-}
-
-class _AuthScreenState extends State<AuthScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _name = TextEditingController();
-  final _email = TextEditingController();
-  final _password = TextEditingController();
-  bool _createAccount = false;
-  bool _hidePassword = true;
-
-  @override
-  void dispose() {
-    _name.dispose();
-    _email.dispose();
-    _password.dispose();
-    super.dispose();
-  }
-
-  Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
-    final controller = AppScope.of(context);
-    if (_createAccount) {
-      await controller.signUp(
-        fullName: _name.text,
-        email: _email.text,
-        password: _password.text,
-      );
-    } else {
-      await controller.signIn(email: _email.text, password: _password.text);
-    }
-  }
-
-  Future<void> _resetPassword() async {
-    final email = _email.text.trim();
-    if (!email.contains('@') || !email.contains('.')) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('أدخل بريدك الصحيح أولاً.')));
-      return;
-    }
-    await AppScope.of(context).sendPasswordReset(email);
-  }
 
   @override
   Widget build(BuildContext context) {
     final controller = AppScope.of(context);
+    final inviteReady = controller.pendingInvitationCode != null;
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -66,26 +23,12 @@ class _AuthScreenState extends State<AuthScreen> {
               constraints: const BoxConstraints(maxWidth: 1040),
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final wide = constraints.maxWidth >= 780;
-                  final form = _AuthForm(
-                    formKey: _formKey,
-                    createAccount: _createAccount,
-                    hidePassword: _hidePassword,
-                    name: _name,
-                    email: _email,
-                    password: _password,
+                  final form = _AuthPanel(
                     busy: controller.busy,
-                    onToggleMode: () {
-                      controller.clearMessages();
-                      setState(() => _createAccount = !_createAccount);
-                    },
-                    onTogglePassword: () =>
-                        setState(() => _hidePassword = !_hidePassword),
-                    onSubmit: _submit,
-                    onResetPassword: _resetPassword,
+                    inviteReady: inviteReady,
                     onSocial: controller.signInWithSocial,
                   );
-                  if (!wide) {
+                  if (constraints.maxWidth < 780) {
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -115,38 +58,32 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 }
 
-class _AuthForm extends StatelessWidget {
-  const _AuthForm({
-    required this.formKey,
-    required this.createAccount,
-    required this.hidePassword,
-    required this.name,
-    required this.email,
-    required this.password,
+class _AuthPanel extends StatelessWidget {
+  const _AuthPanel({
     required this.busy,
-    required this.onToggleMode,
-    required this.onTogglePassword,
-    required this.onSubmit,
-    required this.onResetPassword,
+    required this.inviteReady,
     required this.onSocial,
   });
 
-  final GlobalKey<FormState> formKey;
-  final bool createAccount;
-  final bool hidePassword;
-  final TextEditingController name;
-  final TextEditingController email;
-  final TextEditingController password;
   final bool busy;
-  final VoidCallback onToggleMode;
-  final VoidCallback onTogglePassword;
-  final VoidCallback onSubmit;
-  final VoidCallback onResetPassword;
+  final bool inviteReady;
   final ValueChanged<SocialAuthProvider> onSocial;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final appleFirst = !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+    final buttons = <Widget>[
+      if (appleFirst) ...[
+        _AppleButton(busy: busy, onPressed: onSocial),
+        const SizedBox(height: 12),
+      ],
+      _GoogleButton(busy: busy, onPressed: onSocial),
+      if (!appleFirst) ...[
+        const SizedBox(height: 12),
+        _AppleButton(busy: busy, onPressed: onSocial),
+      ],
+    ];
     return Container(
       padding: EdgeInsets.all(MediaQuery.sizeOf(context).width < 380 ? 18 : 24),
       decoration: BoxDecoration(
@@ -154,177 +91,163 @@ class _AuthForm extends StatelessWidget {
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: colors.outlineVariant),
       ),
-      child: Form(
-        key: formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              createAccount ? 'أنشئ حساب صاحب المتجر' : 'مرحباً بعودتك',
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-            const SizedBox(height: 7),
-            Text(
-              createAccount
-                  ? 'ابدأ تجربة 14 يوماً، ثم أضف موظفيك بحسابات مستقلة.'
-                  : 'ادخل إلى المتجر والصلاحيات المرتبطة بحسابك.',
-              style: TextStyle(color: colors.onSurfaceVariant),
-            ),
-            const SizedBox(height: 18),
-            const MessageBanner(),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: busy
-                        ? null
-                        : () => onSocial(SocialAuthProvider.google),
-                    icon: const Text(
-                      'G',
-                      style: TextStyle(fontWeight: FontWeight.w900),
-                    ),
-                    label: const Text('المتابعة مع Google'),
-                  ),
-                ),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: busy
-                        ? null
-                        : () => onSocial(SocialAuthProvider.apple),
-                    icon: const Icon(Icons.apple_rounded),
-                    label: const Text('المتابعة مع Apple'),
-                  ),
-                ),
-              ],
-            ),
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            inviteReady ? 'دعوتك جاهزة' : 'الدخول إلى ضمانك',
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          const SizedBox(height: 7),
+          Text(
+            inviteReady
+                ? 'اختر حساب Apple أو Google، ثم راجع صلاحيتك وانضم إلى فريق المتجر.'
+                : 'استخدم حسابك الموجود على جهازك. لا كلمة مرور جديدة ولا جلسة مشتركة بين الموظفين.',
+            style: TextStyle(color: colors.onSurfaceVariant),
+          ),
+          if (inviteReady) ...[
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(13),
+              decoration: BoxDecoration(
+                color: colors.primaryContainer,
+                borderRadius: BorderRadius.circular(14),
+              ),
               child: Row(
                 children: [
-                  Expanded(child: Divider()),
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 10),
-                    child: Text('أو بالبريد'),
+                  Icon(
+                    Icons.group_add_outlined,
+                    color: colors.onPrimaryContainer,
                   ),
-                  Expanded(child: Divider()),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'سيبقى رابط الدعوة محفوظاً أثناء تسجيل الدخول.',
+                      style: TextStyle(
+                        color: colors.onPrimaryContainer,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
-            if (createAccount) ...[
-              TextFormField(
-                controller: name,
-                textInputAction: TextInputAction.next,
-                autofillHints: const [AutofillHints.name],
-                decoration: const InputDecoration(
-                  labelText: 'الاسم الكامل',
-                  prefixIcon: Icon(Icons.person_outline_rounded),
+          ],
+          const SizedBox(height: 18),
+          const MessageBanner(),
+          ...buttons,
+          if (busy) ...[
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
                 ),
-                validator: (value) => value == null || value.trim().length < 3
-                    ? 'أدخل اسماً واضحاً'
-                    : null,
-              ),
-              const SizedBox(height: 12),
-            ],
-            TextFormField(
-              controller: email,
-              keyboardType: TextInputType.emailAddress,
-              textDirection: TextDirection.ltr,
-              textInputAction: TextInputAction.next,
-              autofillHints: const [AutofillHints.email],
-              autocorrect: false,
-              decoration: const InputDecoration(
-                labelText: 'البريد الإلكتروني',
-                prefixIcon: Icon(Icons.alternate_email_rounded),
-              ),
-              validator: (value) {
-                final emailValue = value?.trim() ?? '';
-                if (!emailValue.contains('@') || !emailValue.contains('.')) {
-                  return 'أدخل بريداً إلكترونياً صحيحاً';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: password,
-              obscureText: hidePassword,
-              textDirection: TextDirection.ltr,
-              textInputAction: TextInputAction.done,
-              autofillHints: [
-                createAccount
-                    ? AutofillHints.newPassword
-                    : AutofillHints.password,
+                const SizedBox(width: 10),
+                Text(
+                  'جارٍ فتح تسجيل الدخول الآمن…',
+                  style: TextStyle(color: colors.onSurfaceVariant),
+                ),
               ],
-              onFieldSubmitted: (_) => onSubmit(),
-              decoration: InputDecoration(
-                labelText: 'كلمة المرور',
-                helperText: createAccount ? '8 أحرف على الأقل' : null,
-                prefixIcon: const Icon(Icons.lock_outline_rounded),
-                suffixIcon: IconButton(
-                  tooltip: hidePassword
-                      ? 'إظهار كلمة المرور'
-                      : 'إخفاء كلمة المرور',
-                  onPressed: onTogglePassword,
-                  icon: Icon(
-                    hidePassword
-                        ? Icons.visibility_outlined
-                        : Icons.visibility_off_outlined,
+            ),
+          ],
+          const SizedBox(height: 18),
+          Text(
+            'بالمتابعة، يطّلع ضمانك فقط على الاسم والبريد اللذين يرسلهما مزوّد الحساب. يمكنك حذف حسابك من داخل التطبيق.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GoogleButton extends StatelessWidget {
+  const _GoogleButton({required this.busy, required this.onPressed});
+
+  final bool busy;
+  final ValueChanged<SocialAuthProvider> onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'المتابعة باستخدام Google',
+      child: SizedBox(
+        width: double.infinity,
+        height: 54,
+        child: OutlinedButton(
+          onPressed: busy ? null : () => onPressed(SocialAuthProvider.google),
+          child: const Row(
+            children: [
+              SizedBox(
+                width: 28,
+                child: Text(
+                  'G',
+                  textAlign: TextAlign.center,
+                  textDirection: TextDirection.ltr,
+                  style: TextStyle(
+                    color: Color(0xFF4285F4),
+                    fontSize: 19,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
-              validator: (value) => (value?.length ?? 0) < 8
-                  ? 'كلمة المرور يجب ألا تقل عن 8 أحرف'
-                  : null,
-            ),
-            const SizedBox(height: 18),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: busy ? null : onSubmit,
-                icon: busy
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : Icon(
-                        createAccount
-                            ? Icons.arrow_back_rounded
-                            : Icons.login_rounded,
-                      ),
-                label: Text(
-                  busy
-                      ? 'جارٍ التحقق…'
-                      : createAccount
-                      ? 'إنشاء الحساب والمتابعة'
-                      : 'تسجيل الدخول',
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            if (!createAccount)
-              Align(
-                alignment: AlignmentDirectional.centerStart,
-                child: TextButton(
-                  onPressed: busy ? null : onResetPassword,
-                  child: const Text('نسيت كلمة المرور؟'),
-                ),
-              ),
-            SizedBox(
-              width: double.infinity,
-              child: TextButton(
-                onPressed: busy ? null : onToggleMode,
+              Expanded(
                 child: Text(
-                  createAccount
-                      ? 'لديك حساب؟ سجّل الدخول'
-                      : 'متجر جديد؟ أنشئ حساباً',
+                  'المتابعة باستخدام Google',
+                  textAlign: TextAlign.center,
                 ),
               ),
-            ),
-          ],
+              SizedBox(width: 28),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AppleButton extends StatelessWidget {
+  const _AppleButton({required this.busy, required this.onPressed});
+
+  final bool busy;
+  final ValueChanged<SocialAuthProvider> onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final foreground = dark ? Colors.black : Colors.white;
+    final background = dark ? Colors.white : Colors.black;
+    return Semantics(
+      button: true,
+      label: 'المتابعة باستخدام Apple',
+      child: SizedBox(
+        width: double.infinity,
+        height: 54,
+        child: FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: background,
+            foregroundColor: foreground,
+            disabledBackgroundColor: background.withValues(alpha: 0.45),
+            disabledForegroundColor: foreground.withValues(alpha: 0.72),
+          ),
+          onPressed: busy ? null : () => onPressed(SocialAuthProvider.apple),
+          child: const Row(
+            children: [
+              SizedBox(width: 28, child: Icon(Icons.apple_rounded, size: 23)),
+              Expanded(
+                child: Text(
+                  'المتابعة باستخدام Apple',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              SizedBox(width: 28),
+            ],
+          ),
         ),
       ),
     );
@@ -348,7 +271,7 @@ class _AuthStory extends StatelessWidget {
           BrandMark(onDark: true),
           Spacer(),
           Text(
-            'من الرف إلى البيع،\nكل شيء واضح.',
+            'حسابك لك،\nوصلاحيتك واضحة.',
             style: TextStyle(
               color: Colors.white,
               fontSize: 34,
@@ -358,7 +281,7 @@ class _AuthStory extends StatelessWidget {
           ),
           SizedBox(height: 14),
           Text(
-            'مخزون وفروع ونقاط بيع وضمان وصيانة؛ نظام واحد يشارك فيه فريقك بصلاحيات مستقلة.',
+            'المالك يدعو الفريق، وكل موظف يدخل بحساب Apple أو Google مستقل من دون مشاركة كلمة المرور.',
             style: TextStyle(color: Color(0xFFBDD0CD), height: 1.65),
           ),
           SizedBox(height: 28),
@@ -386,20 +309,20 @@ class _TrustStrip extends StatelessWidget {
       runSpacing: 9,
       children: [
         _TrustItem(
-          icon: Icons.badge_outlined,
-          text: 'حساب لكل موظف',
+          icon: Icons.person_outline_rounded,
+          text: 'حساب فردي',
           color: color,
           iconColor: iconColor,
         ),
         _TrustItem(
           icon: Icons.shield_outlined,
-          text: 'صلاحيات آمنة',
+          text: 'صلاحيات مستقلة',
           color: color,
           iconColor: iconColor,
         ),
         _TrustItem(
-          icon: Icons.sync_rounded,
-          text: 'مزامنة فورية',
+          icon: Icons.link_rounded,
+          text: 'دعوة برابط واحد',
           color: color,
           iconColor: iconColor,
         ),

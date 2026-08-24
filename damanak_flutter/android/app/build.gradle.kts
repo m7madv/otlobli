@@ -10,6 +10,16 @@ val damanakKeystorePassword = System.getenv("DAMANAK_KEYSTORE_PASSWORD")
 val damanakKeyAlias = System.getenv("DAMANAK_KEY_ALIAS") ?: "damanak-upload"
 val hasDamanakReleaseSigning = !damanakKeystorePath.isNullOrBlank() &&
     !damanakKeystorePassword.isNullOrBlank()
+val damanakReleaseRequested = gradle.startParameter.taskNames.any {
+    it.contains("release", ignoreCase = true)
+}
+
+if (damanakReleaseRequested && !hasDamanakReleaseSigning) {
+    throw GradleException(
+        "Damanak release signing is required. Set DAMANAK_KEYSTORE_PATH and " +
+            "DAMANAK_KEYSTORE_PASSWORD.",
+    )
+}
 
 android {
     namespace = "com.damanak.damanak"
@@ -52,7 +62,7 @@ android {
             signingConfig = if (hasDamanakReleaseSigning) {
                 signingConfigs.getByName("damanakRelease")
             } else {
-                signingConfigs.getByName("debug")
+                null
             }
         }
     }
