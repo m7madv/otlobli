@@ -415,13 +415,32 @@ async function findApprovedPricePoints(subscription, intendedPriceSar) {
     `/v1/subscriptions/${subscription.id}/pricePoints?filter[territory]=SAU` +
       '&include=territory&limit=8000',
   );
-  const source = sourceRows.find((row) =>
+  let source = sourceRows.find((row) =>
     samePrice(row.attributes?.customerPrice, intendedPriceSar),
   );
+  let exactAnchorPrice = true;
   if (!source) {
-    throw new Error(
-      `No exact SAU App Store price point exists for SAR ${intendedPriceSar}`,
-    );
+    source = sourceRows
+      .filter((row) => Number.isFinite(Number(row.attributes?.customerPrice)))
+      .sort(
+        (left, right) =>
+          Math.abs(Number(left.attributes.customerPrice) - intendedPriceSar) -
+          Math.abs(Number(right.attributes.customerPrice) - intendedPriceSar),
+      )[0];
+    if (!source) {
+      throw new Error(
+        `Apple returned no SAU App Store price points for SAR ${intendedPriceSar}`,
+      );
+    }
+    const effectivePrice = Number(source.attributes.customerPrice);
+    const deviationPercent =
+      (Math.abs(effectivePrice - intendedPriceSar) / intendedPriceSar) * 100;
+    if (deviationPercent > 2) {
+      throw new Error(
+        `Closest SAU App Store price point to SAR ${intendedPriceSar} is SAR ${effectivePrice}, which exceeds the 2% safety limit`,
+      );
+    }
+    exactAnchorPrice = false;
   }
 
   const targetTerritories = APP_STORE_TERRITORIES.filter((id) => id !== 'SAU');
@@ -443,7 +462,11 @@ async function findApprovedPricePoints(subscription, intendedPriceSar) {
       `Apple returned no adjusted price point for: ${missing.join(', ')}`,
     );
   }
-  return result;
+  return {
+    points: result,
+    exactAnchorPrice,
+    effectiveAnchorPriceSar: Number(source.attributes?.customerPrice),
+  };
 }
 
 async function ensureApprovedPrices(subscription, definition) {
@@ -455,10 +478,11 @@ async function ensureApprovedPrices(subscription, definition) {
     };
   }
 
-  const pricePoints = await findApprovedPricePoints(
+  const priceSelection = await findApprovedPricePoints(
     subscription,
     definition.intendedPriceSar,
   );
+  const pricePoints = priceSelection.points;
   const existing = await existingPricesByTerritory(subscription);
   const territories = {};
 
@@ -500,7 +524,9 @@ async function ensureApprovedPrices(subscription, definition) {
     state: 'applied',
     pricingMode: 'standard-auto-renewable',
     anchorTerritory: 'SAU',
-    anchorPriceSar: definition.intendedPriceSar,
+    requestedAnchorPriceSar: definition.intendedPriceSar,
+    effectiveAnchorPriceSar: priceSelection.effectiveAnchorPriceSar,
+    exactAnchorPrice: priceSelection.exactAnchorPrice,
     territories,
   };
 }
