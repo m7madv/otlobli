@@ -9,7 +9,8 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 - نقطة التشغيل `damanak_flutter/lib/main.dart`، ووثائق التشغيل والحدود في `damanak_flutter/README.md`. لا يوجد backend أو auth أو مزامنة متعددة الأجهزة في 1.0.0.
 - آخر تحقق ناجح: `flutter analyze`، 3 اختبارات، web release، وAndroid debug/release builds. ملف التسليم الأخف: `output/damanak/damanak-1.0.0-release-test.apk`; SHA-256 `4DEE607CFFD50D310FCD6C8E4395AA70577DEEE7BF69688A74754E7FEC86CAE0`؛ الحجم `52,118,405` بايت. هو موقّع بمفتاح debug المحلي وليس مفتاح متجر إنتاج.
 - راجعت الواجهة بمتصفح حقيقي عند `320×568` و`360×640` و`1280×800` ونفذت مسار إصدار بطاقة. أدلة Playwright في `output/playwright/damanak/.playwright-cli/`.
-- لم يُختبر على جهاز حقيقي ولم يُبنَ iOS على Windows. لا تدّعِ قبول جهاز أو جاهزية نشر متجر. أي إصدار إنتاجي لاحق يحتاج أيقونة نهائية، توقيع Android/iOS، واختبار حفظ/استعادة على جهاز فعلي.
+- فرع GitHub هو `codex/damanak-flutter` والالتزام الأساسي `0454408`. نجح workflow `damanak-ios-unsigned.yml` في run `32702652314`. IPA المنزّلة: `output/damanak/github-ios-32702652314/damanak-1.0.0-ios-unsigned.ipa`; SHA-256 `007FAE099D7611155C0C96AF114741E3E124DEFF80CD534D18E8190E6DC1B721`؛ الحجم `7,365,052` بايت. فحصها أكد `com.damanak.damanak` و`1.0.0/1`، بلا app-root signature أو provisioning profile.
+- لم يُختبر على جهاز حقيقي. لا تدّعِ قبول جهاز أو جاهزية نشر متجر؛ IPA تحتاج توقيع Apple، وAndroid يحتاج مفتاح إنتاج. أي إصدار إنتاجي لاحق يحتاج أيقونة نهائية واختبار حفظ/استعادة فعلياً.
 
 ## Current candidate (2026-08-01) - v86.42 image swatches and inline sizes
 

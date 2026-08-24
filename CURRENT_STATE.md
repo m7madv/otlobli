@@ -9,7 +9,8 @@ Last updated: 2026-08-24
 - الواجهة صُممت مباشرة في الكود بهوية «وثيقة ضمان مختومة»، وتتكيف مع الهاتف وسطح المكتب. القوائم الطويلة تستخدم `SliverList.builder`، ولا توجد مؤقتات أو polling أو `backdrop-filter` أو أعمال خلفية دائمة.
 - نجح `flutter analyze` بلا ملاحظات، ونجحت 3 اختبارات (`flutter test`)، ونجح `flutter build web --release`. نجح المسار المرئي/الوظيفي في متصفح حقيقي عند `320×568` و`360×640` و`1280×800`: إنشاء بطاقة من النموذج وظهور وثيقة الضمان. أدلة الصور تحت `output/playwright/damanak/.playwright-cli/`.
 - Android release-test APK: `C:\Users\MOHAMMAD\Projects\SHEIN IN SIRYA\output\damanak\damanak-1.0.0-release-test.apk`; الحجم `52,118,405` بايت؛ SHA-256 `4DEE607CFFD50D310FCD6C8E4395AA70577DEEE7BF69688A74754E7FEC86CAE0`. نسخة debug للفحص موجودة أيضاً في المجلد نفسه وحجمها `156,134,206` بايت.
-- لم يُبنَ iOS لأن الجلسة على Windows، ولم تُجرَ تجربة على هاتف Android/iPhone حقيقي. ملف `release-test` موقّع بمفتاح debug المحلي للتثبيت التجريبي، وليس إصدار متجر موقّعاً بمفتاح إنتاج. حذف التطبيق أو بياناته قد يحذف السجلات المحلية.
+- أُضيف workflow مستقل `damanak-ios-unsigned.yml` ودُفع الفرع `codex/damanak-flutter` عند commit `0454408`. نجح GitHub Actions run `32702652314`: التحليل والاختبارات وبناء iOS والتغليف والرفع. IPA المنزّلة: `output/damanak/github-ios-32702652314/damanak-1.0.0-ios-unsigned.ipa`; الحجم `7,365,052` بايت؛ SHA-256 `007FAE099D7611155C0C96AF114741E3E124DEFF80CD534D18E8190E6DC1B721`. الفحص أكد `com.damanak.damanak` و`1.0.0/1` وعدم وجود app-root signature أو provisioning profile.
+- لم تُجرَ تجربة على هاتف Android/iPhone حقيقي. IPA غير موقّعة وتحتاج توقيع Apple قبل التثبيت العادي، وAndroid `release-test` موقّع بمفتاح debug المحلي لا بمفتاح متجر إنتاج. حذف التطبيق أو بياناته قد يحذف السجلات المحلية.
 
 ## v86.42 SHEIN image-swatch colors and inline size focus (2026-08-01)
 
