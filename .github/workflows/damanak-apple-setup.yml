@@ -91,5 +91,6 @@ jobs:
           path: |
             damanak_flutter/build/app-store-setup/report.json
             damanak_flutter/build/app-store-setup/damanak.mobileprovision
+            damanak_flutter/app_store_assets/subscription-review-1024x768.jpg
           if-no-files-found: warn
           retention-days: 14

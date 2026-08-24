@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
-import { createPrivateKey, sign } from 'node:crypto';
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { createHash, createPrivateKey, sign } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { basename, dirname, resolve } from 'node:path';
 
 const API_ROOT = 'https://api.appstoreconnect.apple.com';
 const BUNDLE_ID = 'com.damanak.damanak';
@@ -82,6 +82,12 @@ const profilePath = resolve(
   profileIndex >= 0 && process.argv[profileIndex + 1]
     ? process.argv[profileIndex + 1]
     : 'build/app-store-setup/damanak.mobileprovision',
+);
+const reviewScreenshotIndex = process.argv.indexOf('--review-screenshot');
+const reviewScreenshotPath = resolve(
+  reviewScreenshotIndex >= 0 && process.argv[reviewScreenshotIndex + 1]
+    ? process.argv[reviewScreenshotIndex + 1]
+    : 'app_store_assets/subscription-review-1024x768.jpg',
 );
 
 const requiredEnvironment = [
@@ -531,6 +537,151 @@ async function ensureApprovedPrices(subscription, definition) {
   };
 }
 
+async function currentReviewScreenshot(subscription) {
+  try {
+    const result = await request(
+      `/v1/subscriptions/${subscription.id}/appStoreReviewScreenshot`,
+    );
+    return result.data || null;
+  } catch (error) {
+    if (error.status === 404) return null;
+    throw error;
+  }
+}
+
+async function waitForReviewScreenshot(screenshotId) {
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const result = await request(
+      `/v1/subscriptionAppStoreReviewScreenshots/${screenshotId}`,
+    );
+    const screenshot = result.data;
+    const delivery = screenshot?.attributes?.assetDeliveryState;
+    if (delivery?.state === 'COMPLETE') return screenshot;
+    if (delivery?.state === 'FAILED') {
+      const details = (delivery.errors || [])
+        .map((error) => error.message || error.description || error.code)
+        .filter(Boolean)
+        .join('; ');
+      throw new Error(
+        `Apple rejected the subscription review screenshot${details ? `: ${details}` : ''}`,
+      );
+    }
+    await new Promise((resolveWait) => setTimeout(resolveWait, 1500));
+  }
+  throw new Error('Apple did not finish processing the review screenshot in time');
+}
+
+async function uploadReviewScreenshot(subscription) {
+  let screenshot = await currentReviewScreenshot(subscription);
+  if (screenshot) {
+    const delivery = screenshot.attributes?.assetDeliveryState;
+    if (delivery?.state === 'COMPLETE') {
+      return {
+        state: 'existing',
+        fileName: screenshot.attributes?.fileName,
+        deliveryState: delivery.state,
+      };
+    }
+    if (mode !== 'apply') {
+      return {
+        state: 'processing',
+        fileName: screenshot.attributes?.fileName,
+        deliveryState: delivery?.state,
+      };
+    }
+    if (delivery?.state === 'UPLOAD_COMPLETE') {
+      screenshot = await waitForReviewScreenshot(screenshot.id);
+      return {
+        state: 'existing',
+        fileName: screenshot.attributes?.fileName,
+        deliveryState: screenshot.attributes?.assetDeliveryState?.state,
+      };
+    }
+    await request(
+      `/v1/subscriptionAppStoreReviewScreenshots/${screenshot.id}`,
+      { method: 'DELETE' },
+    );
+  }
+
+  if (mode !== 'apply') return { state: 'missing' };
+  if (!existsSync(reviewScreenshotPath)) {
+    throw new Error(
+      `Missing subscription review screenshot: ${reviewScreenshotPath}`,
+    );
+  }
+
+  const file = readFileSync(reviewScreenshotPath);
+  const fileName = basename(reviewScreenshotPath);
+  const reservation = await request(
+    '/v1/subscriptionAppStoreReviewScreenshots',
+    {
+      method: 'POST',
+      body: {
+        data: {
+          type: 'subscriptionAppStoreReviewScreenshots',
+          attributes: {
+            fileName,
+            fileSize: file.length,
+          },
+          relationships: {
+            subscription: {
+              data: { type: 'subscriptions', id: subscription.id },
+            },
+          },
+        },
+      },
+    },
+  );
+  screenshot = reservation.data;
+  for (const operation of screenshot.attributes?.uploadOperations || []) {
+    const offset = Number(operation.offset || 0);
+    const length = Number(operation.length || 0);
+    const headers = Object.fromEntries(
+      (operation.requestHeaders || []).map((header) => [
+        header.name,
+        header.value,
+      ]),
+    );
+    const response = await fetch(operation.url, {
+      method: operation.method,
+      headers,
+      body: file.subarray(offset, offset + length),
+    });
+    if (!response.ok) {
+      throw new Error(
+        `Apple screenshot upload failed (${response.status})`,
+      );
+    }
+  }
+
+  const sourceFileChecksum = createHash('md5').update(file).digest('hex');
+  await request(
+    `/v1/subscriptionAppStoreReviewScreenshots/${screenshot.id}`,
+    {
+      method: 'PATCH',
+      body: {
+        data: {
+          type: 'subscriptionAppStoreReviewScreenshots',
+          id: screenshot.id,
+          attributes: {
+            uploaded: true,
+            sourceFileChecksum,
+          },
+        },
+      },
+    },
+  );
+  screenshot = await waitForReviewScreenshot(screenshot.id);
+  return {
+    state: 'created',
+    fileName,
+    fileSize: file.length,
+    sha256: createHash('sha256').update(file).digest('hex'),
+    deliveryState: screenshot.attributes?.assetDeliveryState?.state,
+    imageAsset: screenshot.attributes?.imageAsset,
+  };
+}
+
 async function ensureSubscriptions(group, report) {
   report.subscriptions = [];
   if (!group) {
@@ -583,6 +734,9 @@ async function ensureSubscriptions(group, report) {
     const pricing = subscription
       ? await ensureApprovedPrices(subscription, definition)
       : { state: 'blocked-until-subscription-exists' };
+    const reviewScreenshot = subscription
+      ? await uploadReviewScreenshot(subscription)
+      : { state: 'blocked-until-subscription-exists' };
     report.subscriptions.push({
       productId: definition.productId,
       state,
@@ -590,6 +744,7 @@ async function ensureSubscriptions(group, report) {
       availability,
       intendedPriceSar: definition.intendedPriceSar,
       pricing,
+      reviewScreenshot,
     });
   }
 }
@@ -711,6 +866,16 @@ async function main() {
     if (applyPrices && !report.pricesApplied) {
       report.pricingNote =
         'Approved prices were requested but not applied because one or more required App Store resources are still missing.';
+    }
+    report.reviewScreenshotsApplied =
+      report.subscriptions.length === productDefinitions.length &&
+      report.subscriptions.every((subscription) =>
+        ['created', 'existing'].includes(subscription.reviewScreenshot?.state),
+      );
+    if (mode === 'apply' && !report.reviewScreenshotsApplied) {
+      throw new Error(
+        'One or more App Store subscription review screenshots are missing',
+      );
     }
     report.success = true;
   } catch (error) {
