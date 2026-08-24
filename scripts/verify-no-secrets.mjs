@@ -1,12 +1,41 @@
 import { execFileSync } from 'node:child_process'
-import { extname, resolve } from 'node:path'
-import { readFileSync, statSync } from 'node:fs'
+import { extname, relative, resolve } from 'node:path'
+import { readFileSync, readdirSync, statSync } from 'node:fs'
 
 const root = resolve(import.meta.dirname, '..')
-const files = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], {
-  cwd: root,
-  encoding: 'utf8',
-}).split('\0').filter(Boolean)
+const fallbackExcludedDirectories = new Set([
+  '.git',
+  '.playwright-cli',
+  '.vercel',
+  'build',
+  'dist',
+  'node_modules',
+  'output',
+])
+
+function listFilesWithoutGit(directory) {
+  const discovered = []
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    if (entry.isDirectory() && fallbackExcludedDirectories.has(entry.name)) continue
+    const absolutePath = resolve(directory, entry.name)
+    if (entry.isDirectory()) discovered.push(...listFilesWithoutGit(absolutePath))
+    else if (entry.isFile()) discovered.push(relative(root, absolutePath).replace(/\\/g, '/'))
+  }
+  return discovered
+}
+
+let files
+let sourceDescription = 'tracked/untracked source files'
+try {
+  files = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], {
+    cwd: root,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  }).split('\0').filter(Boolean)
+} catch {
+  files = listFilesWithoutGit(root)
+  sourceDescription = 'deployment source files (Git unavailable)'
+}
 
 const allowedNonProductionCredentials = new Set([
   'android/app/google-services.json', // Firebase client configuration, not a service account.
@@ -44,4 +73,4 @@ if (failures.length) {
   process.exit(1)
 }
 
-console.log(`Secret scan passed (${files.length} tracked/untracked source files; values not printed).`)
+console.log(`Secret scan passed (${files.length} ${sourceDescription}; values not printed).`)

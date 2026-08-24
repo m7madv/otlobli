@@ -62,3 +62,4 @@ server/qr-code.png
 server/workingsession_b64.txt
 server/logs
 *.tar.gz
+.vercel

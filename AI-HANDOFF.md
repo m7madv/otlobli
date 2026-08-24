@@ -1,3 +1,22 @@
+# Active handoff — v86.230/1095 App Store preparation (2026-08-24)
+
+The owner has explicitly requested App Store publication. Public submission is
+not sent yet. Arabic description/keywords/support URL/copyright are saved in
+App Store Connect. `https://talabieh.vercel.app/privacy.html` and
+`https://talabieh.vercel.app/support.html` are live from READY deployment
+`dpl_2EU6QQoxjhA7xFuFsrARAUB3SS69` after local/remote secret-scan fallback,
+production build, native sync, and responsive visual QA passed.
+
+Two accurate login screenshots are tracked in `store-assets/app-store` for
+`APP_IPHONE_65` (`1242x2688`) and `APP_IPAD_PRO_3GEN_129` (`2048x2732`).
+`scripts/submit-app-store-review.mjs` uploads and verifies them through App
+Store Connect. The tracked `PREPARE_ONLY` marker is a deliberate safety stop:
+the workflow may prepare screenshots/build but must not submit Apple Review
+while it exists. Keep it until screenshot upload and remaining listing fields
+are verified. Before transmitting reviewer contact information, obtain
+confirmation for the exact values; immediately before removing the marker and
+dispatching the final submission, obtain action-time confirmation again.
+
 # Active handoff — v86.230/1095 is live in internal TestFlight (2026-08-24)
 
 Signed run

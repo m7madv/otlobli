@@ -1,7 +1,23 @@
-import { readFile, appendFile } from 'node:fs/promises'
-import { createPrivateKey, sign } from 'node:crypto'
+import { existsSync } from 'node:fs'
+import { readFile, appendFile, stat } from 'node:fs/promises'
+import { createHash, createPrivateKey, sign } from 'node:crypto'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const API_ROOT = 'https://api.appstoreconnect.apple.com/v1'
+const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const storeAssetRoot = resolve(repositoryRoot, 'store-assets', 'app-store')
+const prepareOnlyMarker = resolve(storeAssetRoot, 'PREPARE_ONLY')
+const screenshotAssets = [
+  {
+    displayType: 'APP_IPHONE_65',
+    path: resolve(storeAssetRoot, 'otlobli-iphone-65-login.png'),
+  },
+  {
+    displayType: 'APP_IPAD_PRO_3GEN_129',
+    path: resolve(storeAssetRoot, 'otlobli-ipad-pro-129-login.png'),
+  },
+]
 const requiredEnvironment = [
   'ASC_API_KEY_ID',
   'ASC_ISSUER_ID',
@@ -23,6 +39,7 @@ const config = {
   appVersion: process.env.OTLOBLI_APP_VERSION.trim(),
   appBuild: process.env.OTLOBLI_APP_BUILD.trim(),
   waitMinutes: Number.parseInt(process.env.OTLOBLI_ASC_WAIT_MINUTES || '20', 10),
+  prepareOnly: existsSync(prepareOnlyMarker),
 }
 
 if (!/^[A-Z0-9]{10}$/.test(config.keyId)) throw new Error('Invalid App Store Connect key ID.')
@@ -245,6 +262,175 @@ async function ensureVersionBuild(version, build) {
   return previousBuildId ? `replaced-${previousBuildId}` : 'linked-now'
 }
 
+function screenshotState(screenshot) {
+  return screenshot.attributes?.assetDeliveryState?.state || 'UNKNOWN'
+}
+
+async function findStoreLocalization(version) {
+  const response = await apiRequest(apiPath(
+    `/appStoreVersions/${encodeURIComponent(version.id)}/appStoreVersionLocalizations`,
+    {
+      'fields[appStoreVersionLocalizations]': 'locale,appScreenshotSets',
+      limit: 50,
+    },
+  ))
+  if (!response.data.length) throw new Error('The App Store version has no localization for screenshot upload.')
+
+  const localized = response.data.find((entry) => /^ar(?:-|$)/i.test(entry.attributes?.locale || ''))
+    || response.data[0]
+  console.log(`Using App Store localization ${localized.attributes?.locale || localized.id} for screenshots.`)
+  return localized
+}
+
+async function findOrCreateScreenshotSet(localization, displayType) {
+  const response = await apiRequest(apiPath(
+    `/appStoreVersionLocalizations/${encodeURIComponent(localization.id)}/appScreenshotSets`,
+    {
+      'fields[appScreenshotSets]': 'screenshotDisplayType,appScreenshots',
+      limit: 50,
+    },
+  ))
+  const matches = response.data.filter((set) => set.attributes?.screenshotDisplayType === displayType)
+  if (matches.length > 1) throw new Error(`Multiple screenshot sets exist for ${displayType}.`)
+  if (matches.length === 1) return matches[0]
+
+  const created = await apiRequest('/appScreenshotSets', {
+    method: 'POST',
+    body: {
+      data: {
+        type: 'appScreenshotSets',
+        attributes: { screenshotDisplayType: displayType },
+        relationships: {
+          appStoreVersionLocalization: {
+            data: { type: 'appStoreVersionLocalizations', id: localization.id },
+          },
+        },
+      },
+    },
+  })
+  console.log(`Created screenshot set ${displayType}.`)
+  return created.data
+}
+
+async function listScreenshots(screenshotSet) {
+  const response = await apiRequest(apiPath(
+    `/appScreenshotSets/${encodeURIComponent(screenshotSet.id)}/appScreenshots`,
+    {
+      'fields[appScreenshots]': 'fileSize,fileName,sourceFileChecksum,assetDeliveryState',
+      limit: 50,
+    },
+  ))
+  return response.data
+}
+
+async function uploadScreenshotParts(screenshot, fileBuffer) {
+  const operations = screenshot.attributes?.uploadOperations || []
+  if (!operations.length) throw new Error(`Apple did not return upload operations for screenshot ${screenshot.id}.`)
+
+  for (const operation of operations) {
+    const offset = Number(operation.offset)
+    const length = Number(operation.length)
+    if (!Number.isSafeInteger(offset) || !Number.isSafeInteger(length) || offset < 0 || length < 1) {
+      throw new Error(`Apple returned an invalid upload range for screenshot ${screenshot.id}.`)
+    }
+    const part = fileBuffer.subarray(offset, offset + length)
+    if (part.length !== length) throw new Error(`Screenshot upload range exceeds the local file for ${screenshot.id}.`)
+
+    const headers = Object.fromEntries(
+      (operation.requestHeaders || []).map((header) => [header.name, header.value]),
+    )
+    const response = await fetch(operation.url, {
+      method: operation.method || 'PUT',
+      headers,
+      body: part,
+    })
+    if (!response.ok) {
+      const responseText = await response.text()
+      throw new Error(
+        `Screenshot part upload failed (${response.status}) for ${screenshot.id}: ${responseText.slice(0, 1_000)}`,
+      )
+    }
+  }
+}
+
+async function waitForScreenshot(screenshotId) {
+  const deadline = Date.now() + config.waitMinutes * 60_000
+  let lastState = 'UNKNOWN'
+  while (Date.now() <= deadline) {
+    const response = await apiRequest(apiPath(`/appScreenshots/${encodeURIComponent(screenshotId)}`, {
+      'fields[appScreenshots]': 'fileSize,fileName,sourceFileChecksum,assetDeliveryState',
+    }))
+    lastState = screenshotState(response.data)
+    if (lastState === 'COMPLETE') return response.data
+    if (lastState === 'FAILED') {
+      const errors = response.data.attributes?.assetDeliveryState?.errors || []
+      throw new Error(`Apple failed to process screenshot ${screenshotId}: ${JSON.stringify(errors)}`)
+    }
+    await sleep(5_000)
+  }
+  throw new Error(`Timed out waiting for screenshot ${screenshotId}; last state: ${lastState}.`)
+}
+
+async function ensureScreenshot(screenshotSet, asset) {
+  const fileInfo = await stat(asset.path)
+  if (!fileInfo.isFile() || fileInfo.size < 1) throw new Error(`Screenshot asset is empty: ${asset.path}`)
+  const fileBuffer = await readFile(asset.path)
+  const fileName = asset.path.split(/[\\/]/).at(-1)
+  const checksum = createHash('md5').update(fileBuffer).digest('hex')
+  const existing = await listScreenshots(screenshotSet)
+  const completeMatch = existing.find((screenshot) =>
+    screenshot.attributes?.fileName === fileName &&
+    Number(screenshot.attributes?.fileSize) === fileInfo.size &&
+    screenshotState(screenshot) === 'COMPLETE')
+  if (completeMatch) {
+    console.log(`Screenshot ${fileName} is already complete for ${asset.displayType}.`)
+    return completeMatch
+  }
+
+  const reserved = await apiRequest('/appScreenshots', {
+    method: 'POST',
+    body: {
+      data: {
+        type: 'appScreenshots',
+        attributes: {
+          fileSize: fileInfo.size,
+          fileName,
+        },
+        relationships: {
+          appScreenshotSet: {
+            data: { type: 'appScreenshotSets', id: screenshotSet.id },
+          },
+        },
+      },
+    },
+  })
+  await uploadScreenshotParts(reserved.data, fileBuffer)
+  await apiRequest(`/appScreenshots/${encodeURIComponent(reserved.data.id)}`, {
+    method: 'PATCH',
+    body: {
+      data: {
+        type: 'appScreenshots',
+        id: reserved.data.id,
+        attributes: {
+          uploaded: true,
+          sourceFileChecksum: checksum,
+        },
+      },
+    },
+  })
+  const verified = await waitForScreenshot(reserved.data.id)
+  console.log(`Uploaded and verified screenshot ${fileName} for ${asset.displayType}.`)
+  return verified
+}
+
+async function ensureStoreScreenshots(version) {
+  const localization = await findStoreLocalization(version)
+  for (const asset of screenshotAssets) {
+    const screenshotSet = await findOrCreateScreenshotSet(localization, asset.displayType)
+    await ensureScreenshot(screenshotSet, asset)
+  }
+}
+
 async function findDraftSubmission() {
   const response = await apiRequest(apiPath(`/apps/${encodeURIComponent(config.appId)}/reviewSubmissions`, {
     'filter[platform]': 'IOS',
@@ -335,11 +521,19 @@ if (alreadySubmittedStates.has(appStoreState)) {
 
 const buildLink = await ensureVersionBuild(version, build)
 console.log(`Verified App Store build ${config.appVersion} (${config.appBuild}); build link: ${buildLink}.`)
+await ensureStoreScreenshots(version)
+
+await appendOutput('app_store_version_id', version.id)
+if (config.prepareOnly) {
+  console.log('App Store preparation completed. PREPARE_ONLY is present, so this run will not submit for review.')
+  await appendOutput('app_store_state', 'PREPARED_NOT_SUBMITTED')
+  process.exit(0)
+}
+
 const submission = await findOrCreateDraftSubmission()
 await ensureSubmissionItem(submission, version)
 const submissionState = await submitReview(submission)
 console.log(`Submitted ${config.appVersion} (${config.appBuild}) to App Review; state: ${submissionState}.`)
 
-await appendOutput('app_store_version_id', version.id)
 await appendOutput('review_submission_id', submission.id)
 await appendOutput('app_store_state', submissionState)

@@ -1,3 +1,22 @@
+# v86.230/1095 — App Store submission preparation (2026-08-24)
+
+The owner explicitly authorized publishing this accepted build to the App
+Store. The public submission is being prepared but has **not** been sent to
+Apple Review yet. Store metadata now has an Arabic description, keywords,
+support URL, and copyright. Public privacy and support pages are live at
+`https://talabieh.vercel.app/privacy.html` and
+`https://talabieh.vercel.app/support.html`; production Vercel deployment
+`dpl_2EU6QQoxjhA7xFuFsrARAUB3SS69` is `READY`.
+
+Required screenshots are tracked under `store-assets/app-store`: iPhone 6.5 is
+`1242x2688`/`119,908` bytes and iPad Pro 12.9 is `2048x2732`/`121,152` bytes.
+The release helper now reserves, uploads, commits, and verifies those assets
+through the official App Store Connect API. `PREPARE_ONLY` deliberately stops
+the current workflow after preparation, before creating/submitting a review
+item. Remove that marker only after the owner confirms the final App Review
+submission. Remaining portal work includes category, pricing, age rating,
+privacy responses, content rights, and reviewer contact/access details.
+
 # v86.230/1095 — TestFlight uploaded and internally distributed (2026-08-24)
 
 Signed workflow
