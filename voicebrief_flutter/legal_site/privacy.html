@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="theme-color"
+      content="#ffffff"
+      media="(prefers-color-scheme: light)"
+    />
+    <meta
+      name="theme-color"
+      content="#000000"
+      media="(prefers-color-scheme: dark)"
+    />
+    <meta
+      name="description"
+      content="How VoiceBrief handles your data and the audio you choose."
+    />
+    <title>Privacy — VoiceBrief</title>
+    <link rel="icon" href="/favicon.png" type="image/png" />
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip" href="#content"
+      ><span class="copy-en">Skip to content</span
+      ><span class="copy-ar">انتقل إلى المحتوى</span></a
+    >
+    <header>
+      <div class="topbar">
+        <a class="brand" href="/privacy" translate="no">VoiceBrief</a>
+        <nav aria-label="Legal navigation">
+          <a href="/privacy" aria-current="page"
+            ><span class="copy-en">Privacy</span
+            ><span class="copy-ar">الخصوصية</span></a
+          ><a href="/terms"
+            ><span class="copy-en">Terms</span
+            ><span class="copy-ar">الشروط</span></a
+          ><a href="/support"
+            ><span class="copy-en">Support</span
+            ><span class="copy-ar">الدعم</span></a
+          ><a
+            class="language"
+            data-language-switch
+            href="/privacy?lang=ar"
+            lang="ar"
+            >العربية</a
+          >
+        </nav>
+      </div>
+    </header>
+    <main id="content" data-locale="en" aria-label="Privacy policy in English">
+      <div class="wave" aria-hidden="true">
+        <span></span><span></span><span></span><span></span><span></span
+        ><span></span><span></span>
+      </div>
+      <h1>Privacy</h1>
+      <p class="lede">
+        How VoiceBrief handles your data and the audio you choose.
+      </p>
+      <p class="updated">
+        Last updated: <time datetime="2026-08-24">August 24, 2026</time>
+      </p>
+      <section>
+        <h2>Scope</h2>
+        <p>
+          This policy explains how VoiceBrief handles data when you create an
+          account, share audio, purchase a subscription, or contact support.
+        </p>
+      </section>
+      <section>
+        <h2>Data We Process</h2>
+        <ul>
+          <li>
+            <strong>Account data:</strong> email address, account identifier,
+            and sign-in provider information.
+          </li>
+          <li>
+            <strong>Audio content:</strong> the file you choose to share,
+            import, or record for processing.
+          </li>
+          <li>
+            <strong>Generated results:</strong> transcript, summary, tasks,
+            dates, and suggested replies.
+          </li>
+          <li>
+            <strong>Subscription and usage:</strong> entitlement status,
+            subscription period, and processing minutes used.
+          </li>
+          <li>
+            <strong>Support and diagnostics:</strong> information you submit
+            through the support form and redacted operational error codes.
+          </li>
+        </ul>
+      </section>
+      <section>
+        <h2>How Audio Is Processed</h2>
+        <p>
+          Uploading starts only after you select or record audio. The audio is
+          uploaded to private temporary storage in Supabase, then sent to OpenAI
+          for transcription and result generation. The temporary audio is
+          deleted after processing succeeds or fails. VoiceBrief does not use
+          Gemini to process or summarize your audio.
+        </p>
+        <p>
+          Transcripts and briefs are saved in local history only when you choose
+          Save. Limited job metadata may remain for up to 24 hours to prevent
+          duplicate billing, without keeping a permanent copy of the audio.
+        </p>
+      </section>
+      <section>
+        <h2>Service Providers</h2>
+        <ul>
+          <li>
+            <strong>Supabase:</strong> authentication, database, temporary
+            storage, and server processing.
+          </li>
+          <li>
+            <strong>OpenAI:</strong> audio transcription and generation of
+            summaries, tasks, and suggested replies.
+          </li>
+          <li>
+            <strong>RevenueCat, Apple, and Google:</strong> subscription and
+            purchase status when store products are enabled.
+          </li>
+          <li>
+            <strong>Apple or Google:</strong> sign-in only when you choose that
+            option and it is enabled.
+          </li>
+        </ul>
+        <p>
+          Calendar events open in your device’s system editor for review before
+          saving. VoiceBrief does not store your calendar on its servers.
+        </p>
+      </section>
+      <section>
+        <h2>What We Do Not Do</h2>
+        <p>
+          We do not sell your data, use an advertising network, or include
+          advertising-tracking tools. VoiceBrief cannot access audio you did not
+          choose to share or record.
+        </p>
+      </section>
+      <section>
+        <h2>Retention and Deletion</h2>
+        <p>
+          Account and usage data needed to provide the service remains until you
+          delete the account or it is no longer operationally required. You can
+          delete your account in Settings; this removes the account data and
+          associated storage controlled by VoiceBrief. Canceling a subscription
+          may require a separate action in the Apple or Google store, and
+          payment records remain subject to store policies and legal
+          requirements.
+        </p>
+        <p>
+          Support requests are kept only as long as needed to respond and
+          protect the service, then removed under the operational retention
+          process.
+        </p>
+      </section>
+      <section>
+        <h2>Your Choices and Data Security</h2>
+        <p>
+          You can choose not to upload audio, delete local results, sign out,
+          revoke system permissions, and delete your account. We use encrypted
+          transport and restricted access, but no online service is completely
+          risk-free.
+        </p>
+      </section>
+      <section>
+        <h2>Changes and Contact</h2>
+        <p>
+          This policy may change when the service or requirements change. The
+          date at the top will be updated for material changes. For privacy
+          questions or data requests, use the
+          <a href="/support?lang=en">Support page</a>.
+        </p>
+      </section>
+    </main>
+    <main
+      id="content-ar"
+      data-locale="ar"
+      aria-label="سياسة الخصوصية بالعربية"
+      hidden
+    >
+      <div class="wave" aria-hidden="true">
+        <span></span><span></span><span></span><span></span><span></span
+        ><span></span><span></span>
+      </div>
+      <h1>الخصوصية</h1>
+      <p class="lede">كيف يتعامل VoiceBrief مع بياناتك والصوت الذي تختاره.</p>
+      <p class="updated">
+        آخر تحديث: <time datetime="2026-08-24">24 أغسطس 2026</time>
+      </p>
+      <section>
+        <h2>نطاق هذه السياسة</h2>
+        <p>
+          توضح هذه السياسة طريقة تعامل VoiceBrief مع البيانات عند إنشاء حساب أو
+          مشاركة تسجيل صوتي أو شراء اشتراك أو التواصل مع الدعم.
+        </p>
+      </section>
+      <section>
+        <h2>البيانات التي نعالجها</h2>
+        <ul>
+          <li>
+            <strong>بيانات الحساب:</strong> البريد الإلكتروني، معرّف الحساب،
+            ومعلومات مزود تسجيل الدخول.
+          </li>
+          <li>
+            <strong>المحتوى الصوتي:</strong> الملف الذي تختار مشاركته أو
+            استيراده أو تسجيله لمعالجته.
+          </li>
+          <li>
+            <strong>النتائج:</strong> النص المكتوب والملخص والمهام والتواريخ
+            والردود المقترحة.
+          </li>
+          <li>
+            <strong>الاشتراك والاستخدام:</strong> حالة الاستحقاق، مدة الاشتراك،
+            والدقائق المستخدمة.
+          </li>
+          <li>
+            <strong>الدعم والتشخيص:</strong> المعلومات التي ترسلها في نموذج
+            الدعم ورموز أخطاء تشغيلية منقحة.
+          </li>
+        </ul>
+      </section>
+      <section>
+        <h2>طريقة معالجة الصوت</h2>
+        <p>
+          لا يبدأ الرفع إلا بعد أن تختار ملفًا أو تسجيلًا. يُرفع الصوت إلى مساحة
+          خاصة مؤقتة في Supabase، ثم يُرسل إلى OpenAI لتحويله إلى نص وإنشاء
+          النتيجة. يُحذف الملف المؤقت بعد اكتمال المعالجة أو فشلها. لا يستخدم
+          VoiceBrief خدمة Gemini لمعالجة الصوت أو تلخيصه.
+        </p>
+        <p>
+          لا يُحفظ النص أو الملخص في سجل الجهاز إلا عندما تختار الحفظ. قد يُحتفظ
+          ببيانات عمل تقنية محدودة لمدة تصل إلى 24 ساعة لمنع تكرار احتساب الطلب
+          نفسه، من دون الاحتفاظ بنسخة دائمة من الصوت.
+        </p>
+      </section>
+      <section>
+        <h2>الخدمات التي نعتمد عليها</h2>
+        <ul>
+          <li>
+            <strong>Supabase:</strong> الحساب، قاعدة البيانات، التخزين المؤقت،
+            وتشغيل المعالجة.
+          </li>
+          <li>
+            <strong>OpenAI:</strong> تحويل الصوت إلى نص وإنشاء الملخص والمهام
+            والردود.
+          </li>
+          <li>
+            <strong>RevenueCat ومتجرا Apple وGoogle:</strong> إدارة الاشتراك
+            وحالة الشراء عند تفعيل المنتجات.
+          </li>
+          <li>
+            <strong>Apple أو Google:</strong> تسجيل الدخول فقط عندما تختار
+            أحدهما وبعد تفعيله.
+          </li>
+        </ul>
+        <p>
+          يُفتح حدث التقويم في محرر النظام لتراجعه قبل الحفظ؛ لا يحفظ VoiceBrief
+          تقويمك على خوادمه.
+        </p>
+      </section>
+      <section>
+        <h2>ما لا نفعله</h2>
+        <p>
+          لا نبيع بياناتك، ولا نستخدم شبكة إعلانات، ولا نضيف أدوات تتبع إعلاني.
+          لا يصل VoiceBrief إلى صوت لم تختر مشاركته أو تسجيله.
+        </p>
+      </section>
+      <section>
+        <h2>الاحتفاظ والحذف</h2>
+        <p>
+          تبقى بيانات الحساب والاستخدام اللازمة لتقديم الخدمة حتى حذف الحساب أو
+          انتهاء الحاجة التشغيلية إليها. يمكنك حذف الحساب من الإعدادات؛ يشمل ذلك
+          بيانات الحساب والتخزين المرتبط به. قد يتطلب إلغاء الاشتراك إجراءً
+          منفصلًا داخل متجر Apple أو Google، وتخضع سجلات الدفع لسياسة المتجر
+          والمتطلبات النظامية.
+        </p>
+        <p>
+          نحتفظ بطلبات الدعم فقط للمدة اللازمة للرد وحماية الخدمة، ثم نحذفها وفق
+          سياسة الاحتفاظ التشغيلية.
+        </p>
+      </section>
+      <section>
+        <h2>اختياراتك وأمان البيانات</h2>
+        <p>
+          يمكنك الامتناع عن رفع الصوت، حذف النتائج المحلية، تسجيل الخروج، إلغاء
+          أذونات النظام، وحذف الحساب. نستخدم اتصالًا مشفرًا وصلاحيات وصول مقيدة،
+          لكن لا توجد خدمة إلكترونية خالية تمامًا من المخاطر.
+        </p>
+      </section>
+      <section>
+        <h2>التغييرات والتواصل</h2>
+        <p>
+          قد نحدّث هذه السياسة عندما تتغير الخدمة أو المتطلبات. سنحدّث التاريخ
+          أعلى الصفحة عند إجراء تغيير جوهري. لأسئلة الخصوصية أو طلبات البيانات،
+          استخدم <a href="/support?lang=ar">صفحة الدعم</a>.
+        </p>
+      </section>
+    </main>
+    <footer>
+      <div class="footer-inner">
+        <span class="copy-en">VoiceBrief — Voice messages, made clear.</span
+        ><span class="copy-ar">VoiceBrief — رسائلك الصوتية، واضحة.</span>
+      </div>
+    </footer>
+  </body>
+</html>

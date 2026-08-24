@@ -1,0 +1,13 @@
+project_id = "voicebrief"
+
+[functions.process-audio]
+verify_jwt = false
+
+[functions.delete-account]
+verify_jwt = false
+
+[functions.revenuecat-webhook]
+verify_jwt = false
+
+[functions.legal]
+verify_jwt = false

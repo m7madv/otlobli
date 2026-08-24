@@ -1,0 +1,81 @@
+name: VoiceBrief mobile CI
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "voicebrief_flutter/**"
+      - ".github/workflows/voicebrief-ci.yml"
+  push:
+    paths:
+      - "voicebrief_flutter/**"
+      - ".github/workflows/voicebrief-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: voicebrief_flutter
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.41.6"
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: dart format --set-exit-if-changed lib test integration_test
+      - run: flutter analyze
+      - run: flutter test --exclude-tags golden
+      - run: flutter test test/golden_screens_test.dart
+      - run: flutter build apk --debug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: voicebrief-debug-apk
+          path: voicebrief_flutter/build/app/outputs/flutter-apk/app-debug.apk
+
+  ios-no-codesign:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: voicebrief_flutter
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.41.6"
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: pod install --project-directory=ios
+      - name: Build the iOS app without signing
+        run: >-
+          flutter build ios --release --no-codesign
+          --dart-define-from-file=dart-defines.example.json
+      - name: Verify and package the unsigned iOS app
+        shell: bash
+        run: |
+          set -euo pipefail
+          app="build/ios/iphoneos/Runner.app"
+          extension="$app/PlugIns/VoiceBriefShare.appex"
+          test -d "$app"
+          test -d "$extension"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist")" = "app.voicebrief.mobile"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$extension/Info.plist")" = "app.voicebrief.mobile.share"
+          rm -rf build/ios/unsigned-ipa
+          mkdir -p build/ios/unsigned-ipa/Payload
+          cp -R "$app" build/ios/unsigned-ipa/Payload/VoiceBrief.app
+          (
+            cd build/ios/unsigned-ipa
+            zip -qry ../VoiceBrief-0.1.0-build1-unsigned.ipa Payload
+          )
+          shasum -a 256 build/ios/VoiceBrief-0.1.0-build1-unsigned.ipa
+      - uses: actions/upload-artifact@v4
+        with:
+          name: voicebrief-ios-unsigned-${{ github.run_number }}
+          path: voicebrief_flutter/build/ios/VoiceBrief-0.1.0-build1-unsigned.ipa
+          if-no-files-found: error

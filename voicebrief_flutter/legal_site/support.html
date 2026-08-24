@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="theme-color"
+      content="#ffffff"
+      media="(prefers-color-scheme: light)"
+    />
+    <meta
+      name="theme-color"
+      content="#000000"
+      media="(prefers-color-scheme: dark)"
+    />
+    <meta name="description" content="VoiceBrief help and support requests." />
+    <title>Support — VoiceBrief</title>
+    <link rel="icon" href="/favicon.png" type="image/png" />
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip" href="#content"
+      ><span class="copy-en">Skip to content</span
+      ><span class="copy-ar">انتقل إلى المحتوى</span></a
+    >
+    <header>
+      <div class="topbar">
+        <a class="brand" href="/privacy" translate="no">VoiceBrief</a>
+        <nav aria-label="Legal navigation">
+          <a href="/privacy"
+            ><span class="copy-en">Privacy</span
+            ><span class="copy-ar">الخصوصية</span></a
+          ><a href="/terms"
+            ><span class="copy-en">Terms</span
+            ><span class="copy-ar">الشروط</span></a
+          ><a href="/support" aria-current="page"
+            ><span class="copy-en">Support</span
+            ><span class="copy-ar">الدعم</span></a
+          ><a
+            class="language"
+            data-language-switch
+            href="/support?lang=ar"
+            lang="ar"
+            >العربية</a
+          >
+        </nav>
+      </div>
+    </header>
+    <main id="content" data-locale="en" aria-label="Support in English">
+      <div class="wave" aria-hidden="true">
+        <span></span><span></span><span></span><span></span><span></span
+        ><span></span><span></span>
+      </div>
+      <h1>Support</h1>
+      <p class="lede">
+        Help with VoiceBrief and a direct way to send a support request.
+      </p>
+      <p class="updated">
+        Last updated: <time datetime="2026-08-24">August 24, 2026</time>
+      </p>
+      <section>
+        <h2>Quick Help</h2>
+        <ul>
+          <li>
+            <strong>Audio did not process:</strong> Check that your connection
+            is stable and the file type is supported, then try again.
+          </li>
+          <li>
+            <strong>Subscription is missing:</strong> Use Restore Purchases with
+            the same store account that made the purchase.
+          </li>
+          <li>
+            <strong>Delete your account:</strong> Open Settings and choose
+            Delete Account. Cancel an active store subscription separately.
+          </li>
+        </ul>
+      </section>
+      <section>
+        <h2>Send a Support Request</h2>
+        <p>
+          Include only the details needed to help. Never send a password, API
+          key, payment-card number, or sensitive audio.
+        </p>
+        <div
+          class="notice"
+          data-form-status
+          role="status"
+          aria-live="polite"
+          tabindex="-1"
+          hidden
+        ></div>
+        <form
+          method="post"
+          action="https://jyehqpdbayslhzebdycj.supabase.co/functions/v1/legal/support?lang=en"
+          data-support-form
+          data-language="en"
+        >
+          <label
+            >Email Address<input
+              type="email"
+              name="email"
+              autocomplete="email"
+              inputmode="email"
+              spellcheck="false"
+              maxlength="254"
+              required
+            /><span class="hint"
+              >Used only to reply to this request.</span
+            ></label
+          >
+          <label
+            >Issue Type<select name="category" required>
+              <option value="account">Account</option>
+              <option value="audio">Audio processing</option>
+              <option value="billing">Subscription and billing</option>
+              <option value="privacy">Privacy and data</option>
+              <option value="other" selected>Other</option>
+            </select></label
+          >
+          <label
+            >Subject<input
+              type="text"
+              name="subject"
+              autocomplete="off"
+              minlength="3"
+              maxlength="120"
+              required
+          /></label>
+          <label
+            >Details<textarea
+              name="message"
+              autocomplete="off"
+              minlength="20"
+              maxlength="4000"
+              required
+            ></textarea
+            ><span class="hint"
+              >Describe what happened and what you expected, without including
+              secrets.</span
+            ></label
+          >
+          <label class="trap" aria-hidden="true"
+            >Website<input
+              type="text"
+              name="website"
+              autocomplete="off"
+              tabindex="-1" /></label
+          ><button type="submit">Send Support Request</button>
+        </form>
+      </section>
+      <section>
+        <h2>Support Privacy</h2>
+        <p>
+          Your email, message, and limited anti-abuse data are kept to respond
+          and protect the service. See the
+          <a href="/privacy?lang=en">Privacy Policy</a>.
+        </p>
+      </section>
+    </main>
+    <main id="content-ar" data-locale="ar" aria-label="الدعم بالعربية" hidden>
+      <div class="wave" aria-hidden="true">
+        <span></span><span></span><span></span><span></span><span></span
+        ><span></span><span></span>
+      </div>
+      <h1>الدعم</h1>
+      <p class="lede">مساعدة VoiceBrief وطريقة مباشرة لإرسال طلب دعم.</p>
+      <p class="updated">
+        آخر تحديث: <time datetime="2026-08-24">24 أغسطس 2026</time>
+      </p>
+      <section>
+        <h2>مساعدة سريعة</h2>
+        <ul>
+          <li>
+            <strong>لم تتم معالجة الصوت:</strong> تأكد أن الاتصال مستقر وأن
+            الملف مدعوم، ثم أعد المحاولة.
+          </li>
+          <li>
+            <strong>لم يظهر الاشتراك:</strong> استخدم «استعادة المشتريات»
+            بالحساب نفسه الذي اشترى الاشتراك.
+          </li>
+          <li>
+            <strong>حذف الحساب:</strong> افتح الإعدادات ثم اختر حذف الحساب. ألغِ
+            اشتراك المتجر بصورة منفصلة إذا كان نشطًا.
+          </li>
+        </ul>
+      </section>
+      <section>
+        <h2>أرسل طلب دعم</h2>
+        <p>
+          اكتب التفاصيل اللازمة فقط. لا ترسل كلمة مرور أو مفتاح API أو رقم بطاقة
+          أو تسجيلًا صوتيًا حساسًا.
+        </p>
+        <div
+          class="notice"
+          data-form-status
+          role="status"
+          aria-live="polite"
+          tabindex="-1"
+          hidden
+        ></div>
+        <form
+          method="post"
+          action="https://jyehqpdbayslhzebdycj.supabase.co/functions/v1/legal/support?lang=ar"
+          data-support-form
+          data-language="ar"
+        >
+          <label
+            >البريد الإلكتروني<input
+              type="email"
+              name="email"
+              autocomplete="email"
+              inputmode="email"
+              spellcheck="false"
+              maxlength="254"
+              required
+            /><span class="hint">سنستخدمه للرد على هذا الطلب فقط.</span></label
+          >
+          <label
+            >نوع المشكلة<select name="category" required>
+              <option value="account">الحساب</option>
+              <option value="audio">معالجة الصوت</option>
+              <option value="billing">الاشتراك والدفع</option>
+              <option value="privacy">الخصوصية والبيانات</option>
+              <option value="other" selected>أخرى</option>
+            </select></label
+          >
+          <label
+            >العنوان<input
+              type="text"
+              name="subject"
+              autocomplete="off"
+              minlength="3"
+              maxlength="120"
+              required
+          /></label>
+          <label
+            >التفاصيل<textarea
+              name="message"
+              autocomplete="off"
+              minlength="20"
+              maxlength="4000"
+              required
+            ></textarea
+            ><span class="hint"
+              >اشرح ما حدث وما الذي كنت تتوقعه، من دون بيانات سرية.</span
+            ></label
+          >
+          <label class="trap" aria-hidden="true"
+            >الموقع<input
+              type="text"
+              name="website"
+              autocomplete="off"
+              tabindex="-1" /></label
+          ><button type="submit">إرسال طلب الدعم</button>
+        </form>
+      </section>
+      <section>
+        <h2>الخصوصية في الدعم</h2>
+        <p>
+          نحفظ بريدك ورسالتك وبيانات محدودة لمنع الإغراق بالطلبات، ونستخدمها
+          للرد وحماية الخدمة. راجع
+          <a href="/privacy?lang=ar">سياسة الخصوصية</a>.
+        </p>
+      </section>
+    </main>
+    <footer>
+      <div class="footer-inner">
+        <span class="copy-en">VoiceBrief — Voice messages, made clear.</span
+        ><span class="copy-ar">VoiceBrief — رسائلك الصوتية، واضحة.</span>
+      </div>
+    </footer>
+  </body>
+</html>
