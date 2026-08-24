@@ -10,6 +10,7 @@ on:
     paths:
       - "voicebrief_flutter/**"
       - ".github/workflows/voicebrief-ci.yml"
+      - "!voicebrief_flutter/**/*.md"
 
 permissions:
   contents: read

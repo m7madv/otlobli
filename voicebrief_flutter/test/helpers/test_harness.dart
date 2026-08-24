@@ -222,6 +222,15 @@ Future<void> loadTestFonts() async {
   }
   await loader.load();
 
+  try {
+    final bundledIconLoader = FontLoader('MaterialIcons')
+      ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
+    await bundledIconLoader.load();
+    return;
+  } on Object {
+    // Older Flutter test bundles may not expose the app font through rootBundle.
+  }
+
   var flutterCacheAncestor = File(Platform.resolvedExecutable).parent;
   File? materialIcons;
   for (var depth = 0; depth < 8; depth += 1) {
