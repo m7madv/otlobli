@@ -286,6 +286,7 @@ async function inspectBuilds(app, report) {
     expired: build.attributes?.expired,
     expirationDate: build.attributes?.expirationDate,
     minOsVersion: build.attributes?.minOsVersion,
+    usesNonExemptEncryption: build.attributes?.usesNonExemptEncryption,
   }));
 }
 
