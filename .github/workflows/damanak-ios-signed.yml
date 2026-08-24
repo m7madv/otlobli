@@ -2,6 +2,12 @@ name: Damanak iOS Signed Build
 
 on:
   workflow_dispatch:
+    inputs:
+      upload_to_testflight:
+        description: Validate and upload the signed IPA to App Store Connect
+        required: true
+        type: boolean
+        default: false
 
 jobs:
   build-ios-signed:
@@ -112,6 +118,35 @@ jobs:
           test "$APP_BUNDLE_ID" = "com.damanak.damanak"
           [[ "$PROFILE_APP_ID" == *".$APP_BUNDLE_ID" ]]
           echo "Verified signed bundle $APP_BUNDLE_ID and its embedded App Store profile."
+
+      - name: Validate and upload to App Store Connect
+        if: ${{ inputs.upload_to_testflight }}
+        env:
+          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        shell: bash
+        run: |
+          test -n "$APP_STORE_CONNECT_API_KEY_BASE64"
+          test -n "$APP_STORE_CONNECT_API_KEY_ID"
+          test -n "$APP_STORE_CONNECT_ISSUER_ID"
+          IPA_PATH=$(find build/ios/signed -maxdepth 1 -name '*.ipa' -print -quit)
+          test -n "$IPA_PATH"
+          KEY_DIRECTORY="$HOME/.appstoreconnect/private_keys"
+          mkdir -p "$KEY_DIRECTORY"
+          echo "$APP_STORE_CONNECT_API_KEY_BASE64" | base64 --decode \
+            > "$KEY_DIRECTORY/AuthKey_$APP_STORE_CONNECT_API_KEY_ID.p8"
+          chmod 600 "$KEY_DIRECTORY/AuthKey_$APP_STORE_CONNECT_API_KEY_ID.p8"
+          xcrun altool --validate-app \
+            -f "$IPA_PATH" \
+            -t ios \
+            --apiKey "$APP_STORE_CONNECT_API_KEY_ID" \
+            --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"
+          xcrun altool --upload-app \
+            -f "$IPA_PATH" \
+            -t ios \
+            --apiKey "$APP_STORE_CONNECT_API_KEY_ID" \
+            --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"
 
       - name: Upload signed IPA
         uses: actions/upload-artifact@v4
