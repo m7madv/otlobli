@@ -426,7 +426,7 @@ async function findApprovedPricePoints(subscription, intendedPriceSar) {
 
   const targetTerritories = APP_STORE_TERRITORIES.filter((id) => id !== 'SAU');
   const equalizedRows = await listAll(
-    `/v1/subscriptionPricePoints/${encodeURIComponent(source.id)}/adjustedEqualizations` +
+    `/v1/subscriptionPricePoints/${encodeURIComponent(source.id)}/equalizations` +
       `?filter[territory]=${targetTerritories.join(',')}` +
       '&include=territory&limit=200',
   );
@@ -666,7 +666,7 @@ async function main() {
     priceTerritories: APP_STORE_TERRITORIES,
     pricingNote:
       applyPrices
-        ? 'Approved SAR anchor prices and Apple-adjusted Gulf price points were requested in this run.'
+        ? 'Approved SAR anchor prices and Apple-equalized Gulf price points were requested in this run.'
         : 'Approved prices are recorded but not applied in this run.',
   };
 
