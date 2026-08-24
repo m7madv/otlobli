@@ -1,0 +1,49 @@
+name: Damanak Google Play Setup
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Inspect is read-only; apply creates missing draft subscriptions
+        required: true
+        type: choice
+        default: inspect
+        options:
+          - inspect
+          - apply
+
+jobs:
+  google-play:
+    name: ${{ inputs.mode }} Google Play subscriptions
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    defaults:
+      run:
+        working-directory: damanak_flutter
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Inspect or create draft subscriptions
+        env:
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        shell: bash
+        run: |
+          MODE_FLAG=""
+          if [[ "${{ inputs.mode }}" == "apply" ]]; then
+            MODE_FLAG="--apply"
+          fi
+          node scripts/google_play_setup.mjs \
+            $MODE_FLAG \
+            --output build/google-play-setup/report.json
+
+      - name: Upload setup report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: damanak-google-play-setup-${{ inputs.mode }}-${{ github.run_number }}
+          path: damanak_flutter/build/google-play-setup/report.json
+          if-no-files-found: warn
+          retention-days: 14
