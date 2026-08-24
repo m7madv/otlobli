@@ -32,12 +32,26 @@ jobs:
       - run: dart format --set-exit-if-changed lib test integration_test
       - run: flutter analyze
       - run: flutter test --exclude-tags golden
-      - run: flutter test test/golden_screens_test.dart
       - run: flutter build apk --debug
       - uses: actions/upload-artifact@v4
         with:
           name: voicebrief-debug-apk
           path: voicebrief_flutter/build/app/outputs/flutter-apk/app-debug.apk
+
+  golden-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: voicebrief_flutter
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.41.6"
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter test test/golden_screens_test.dart
 
   ios-no-codesign:
     runs-on: macos-latest
