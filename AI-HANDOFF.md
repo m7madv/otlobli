@@ -21,6 +21,7 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 - التصميم يستخدم أخضر `#087F5B` وحياديات فقط. شاشة الاشتراك تعرض السعر الحقيقي من المتجر ومسار «المتجر ← التحقق ← التفعيل». دليل IDs والأسرار واختبارات القبول في `damanak_flutter/docs/STORE_BILLING_SETUP.md`.
 - آخر تحقق: format/analyze نظيفان، 18 اختباراً، web release، وDeno fmt/check. راجعت الشاشة عند `1280×720` و`390×844`. لم تُختبر دفعة متجر حقيقية ولا جهاز حقيقي؛ المنتجات والخادم غير منشورين بعد.
 - Android النهائي: APK `output/damanak/damanak-4.1.0-signed.apk`، `75,305,634` بايت، SHA-256 `7982286A4E1C5BF42988BC993AF7C6E089107C4675919630CC112AC28AE8160E`. AAB `output/damanak/damanak-4.1.0-signed.aab`، `55,799,085` بايت، SHA-256 `347DE845797241674DA895552E6AED48DAF4B985DFC43D58CDEDFBA15BA45BAC`. التوقيع والشهادة متحقق منهما.
+- المصدر في `2b1a95f` وقفل Deno في `b9a22ef` على `codex/damanak-flutter`. نجح run `32747449192`. ملف iOS غير الموقع: `output/damanak/github-ios-32747449192/damanak-4.1.0-ios-unsigned.ipa`، `11,194,245` بايت، SHA-256 `D29AD41511951476E095F9BB2B9864342109DC931027327A3C620B495420BF87`. فحصه يؤكد `com.damanak.damanak` و`4.1.0/5` وغياب توقيع جذر التطبيق وprovisioning.
 - workflow iOS محدث إلى `4.1.0`. يلزم App ID وApp Store provisioning profile ومنتجات الاشتراك لـ`com.damanak.damanak` قبل تشغيل البناء الموقع واختبار الشراء.
 - أضيف `.github/workflows/damanak-ios-signed.yml`. يلزم إنشاء App ID وApp Store provisioning profile لـ`com.damanak.damanak` ثم أسرار `DAMANAK_IOS_*`. لا تستخدم ملف تزويد تطبيق آخر، ولا تدّعِ توقيع iOS قبل نجاح workflow الموقع وفحص IPA الناتج.
 

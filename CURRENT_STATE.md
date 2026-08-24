@@ -22,6 +22,7 @@ Last updated: 2026-08-24
 - الواجهة تحافظ على أخضر واحد ومحايدات. مراجعة مهارتي التصميم والإتاحة أصلحت أيضاً بدء الفوترة على الويب؛ أصبحت غير متاحة بأمان خارج Android/iPhone. روجعت شاشة الاشتراك بصرياً عند `1280×720` و`390×844` بلا تجاوزات أو أخطاء console.
 - نجح format و`flutter analyze` و18 اختباراً وبناء web، كما نجح `Deno fmt/check`. لا يوجد بعد اختبار شراء حقيقي؛ يلزم إنشاء المنتجات والأسرار واختبار Sandbox/Internal testing.
 - Android النهائي موقّع ومتحقق: `output/damanak/damanak-4.1.0-signed.apk`، `75,305,634` بايت، SHA-256 `7982286A4E1C5BF42988BC993AF7C6E089107C4675919630CC112AC28AE8160E`. و`output/damanak/damanak-4.1.0-signed.aab`، `55,799,085` بايت، SHA-256 `347DE845797241674DA895552E6AED48DAF4B985DFC43D58CDEDFBA15BA45BAC`. شهادة الرفع SHA-256 `C25AA74315C6438AE2E4C019C2BE4214D4C1C63FB0194C45904CF40399AA42D0`.
+- المصدر مرفوع على `codex/damanak-flutter` في `2b1a95f` وملف القفل في `b9a22ef`. نجح GitHub/Xcode run `32747449192`. ملف `output/damanak/github-ios-32747449192/damanak-4.1.0-ios-unsigned.ipa` حجمه `11,194,245` بايت وبصمته `D29AD41511951476E095F9BB2B9864342109DC931027327A3C620B495420BF87`؛ الفحص أكد `com.damanak.damanak` و`4.1.0/5` وiOS 13 وغياب توقيع جذر التطبيق وملف provisioning.
 - workflow iOS غير الموقع والموقع محدثان إلى `4.1.0`. البناء الموقع ما زال يتطلب App ID وApp Store profile خاصين بـ`com.damanak.damanak`؛ لا تستخدم ملف تزويد تطبيق آخر ولا تدّعِ قبول متجر قبل الاختبار الحقيقي.
 
 ## v86.42 SHEIN image-swatch colors and inline size focus (2026-08-01)
