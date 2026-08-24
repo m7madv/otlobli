@@ -10,6 +10,7 @@ const APP_NAME = 'Damanak - ضمانك';
 const APP_SKU = 'DAMANAK_IOS';
 const PRIMARY_LOCALE = 'ar-SA';
 const GROUP_REFERENCE_NAME = 'Damanak Plans';
+const INTERNAL_BETA_GROUP_NAME = 'Damanak Internal';
 const PROFILE_NAME = 'Damanak App Store';
 const APP_STORE_TERRITORIES = ['SAU', 'ARE', 'BHR', 'KWT', 'OMN', 'QAT'];
 const productDefinitions = [
@@ -286,6 +287,49 @@ async function inspectBuilds(app, report) {
     expirationDate: build.attributes?.expirationDate,
     minOsVersion: build.attributes?.minOsVersion,
   }));
+}
+
+async function ensureInternalBetaGroup(app, report) {
+  if (!app) {
+    report.internalBetaGroup = { state: 'blocked-until-app-exists' };
+    return;
+  }
+  const groups = await listAll(`/v1/apps/${app.id}/betaGroups?limit=200`);
+  let group = groups.find(
+    (row) =>
+      row.attributes?.name === INTERNAL_BETA_GROUP_NAME &&
+      row.attributes?.isInternalGroup === true,
+  );
+  let state = group ? 'existing' : 'missing';
+  if (!group && mode === 'apply') {
+    const result = await request('/v1/betaGroups', {
+      method: 'POST',
+      body: {
+        data: {
+          type: 'betaGroups',
+          attributes: {
+            name: INTERNAL_BETA_GROUP_NAME,
+            isInternalGroup: true,
+            hasAccessToAllBuilds: true,
+            feedbackEnabled: true,
+          },
+          relationships: {
+            app: { data: { type: 'apps', id: app.id } },
+          },
+        },
+      },
+    });
+    group = result.data;
+    state = 'created';
+  }
+  report.internalBetaGroup = {
+    state,
+    id: group?.id,
+    name: group?.attributes?.name,
+    isInternalGroup: group?.attributes?.isInternalGroup,
+    hasAccessToAllBuilds: group?.attributes?.hasAccessToAllBuilds,
+    feedbackEnabled: group?.attributes?.feedbackEnabled,
+  };
 }
 
 async function ensureSubscriptionGroup(app, report) {
@@ -875,6 +919,7 @@ async function main() {
     await ensureProvisioningProfile(bundleId, report);
     const app = await ensureApp(report);
     await inspectBuilds(app, report);
+    await ensureInternalBetaGroup(app, report);
     const group = await ensureSubscriptionGroup(app, report);
     await ensureSubscriptionGroupLocalization(group, report);
     await ensureSubscriptions(group, report);
