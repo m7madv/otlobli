@@ -8,32 +8,43 @@ const source = readStoreScriptSources(root)
 
 const requiredMarkers = [
   "var __otlobliTemuConfirmedProductIdentity = '';",
+  "var __otlobliTemuConfirmedProductKey = '';",
+  "var __otlobliTemuReadinessRouteKey = '';",
   'var identity = temuGoodsId() || location.pathname;',
-  'if (__otlobliTemuConfirmedProductIdentity === identity) return;',
+  'function otlobliTemuInvalidateConfirmedProduct()',
+  'function otlobliTemuCurrentProductConfirmed()',
+  '__otlobliTemuConfirmedProductKey === key',
+  '__otlobliTemuReadinessRouteKey !== key',
+  "__otlobliTemuVisibleSinceKey = '';",
   '__otlobliTemuConfirmedProductIdentity = identity;',
-  '__otlobliTemuConfirmedProductIdentity !== identity && !v.domHasContent;',
-  '__otlobliTemuConfirmedProductIdentity === identity ||',
+  '__otlobliTemuConfirmedProductKey = key;',
+  '!otlobliTemuCurrentProductConfirmed() && !v.domHasContent;',
 ]
 
 for (const marker of requiredMarkers) {
   if (!source.includes(marker)) throw new Error(`Missing Temu product-loading guard: ${marker}`)
 }
 
-const shouldShowNotice = ({ product, searching, identity, confirmedIdentity, domHasContent }) =>
-  product && !searching && confirmedIdentity !== identity && !domHasContent
+const shouldShowNotice = ({ product, searching, identity, key, confirmedIdentity, confirmedKey, domHasContent }) => {
+  const confirmed = product && confirmedIdentity === identity && confirmedKey === key
+  return product && !searching && !confirmed && !domHasContent
+}
 
 const cases = [
   ['new product with an actually empty DOM', true, {
-    product: true, searching: false, identity: 'p1', confirmedIdentity: '', domHasContent: false,
+    product: true, searching: false, identity: 'p1', key: 'p1|url-1', confirmedIdentity: '', confirmedKey: '', domHasContent: false,
   }],
   ['loaded product whose hero/price left the viewport', false, {
-    product: true, searching: false, identity: 'p1', confirmedIdentity: '', domHasContent: true,
+    product: true, searching: false, identity: 'p1', key: 'p1|url-1', confirmedIdentity: '', confirmedKey: '', domHasContent: true,
   }],
   ['confirmed product during a later transient DOM replacement', false, {
-    product: true, searching: false, identity: 'p1', confirmedIdentity: 'p1', domHasContent: false,
+    product: true, searching: false, identity: 'p1', key: 'p1|url-1', confirmedIdentity: 'p1', confirmedKey: 'p1|url-1', domHasContent: false,
+  }],
+  ['same product id after a fresh SPA route lifetime', true, {
+    product: true, searching: false, identity: 'p1', key: 'p1|url-2', confirmedIdentity: 'p1', confirmedKey: 'p1|url-1', domHasContent: false,
   }],
   ['a different new product with an empty DOM', true, {
-    product: true, searching: false, identity: 'p2', confirmedIdentity: 'p1', domHasContent: false,
+    product: true, searching: false, identity: 'p2', key: 'p2|url-2', confirmedIdentity: 'p1', confirmedKey: 'p1|url-1', domHasContent: false,
   }],
 ]
 

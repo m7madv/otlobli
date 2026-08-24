@@ -83,7 +83,11 @@ for (const [label, expected, input] of [
   if (actual !== expected) throw new Error(`${label}: expected ${expected}, received ${actual}`)
 }
 
-if (!generatedCaptureSource.includes('match(/(\\d+)\\s*(?:الحجم|حجم)/i)')) {
+const generatedArabicSizeRegex = [
+  'match(/(\\d+)\\s*(?:الحجم|حجم)/i)',
+  'match(/(\\d+)\\s*(?:\\u0627\\u0644\\u062d\\u062c\\u0645|\\u062d\\u062c\\u0645)/i)',
+]
+if (!generatedArabicSizeRegex.some((marker) => generatedCaptureSource.includes(marker))) {
   throw new Error('Generated Temu capture lost the escaped Arabic size-count regex')
 }
 

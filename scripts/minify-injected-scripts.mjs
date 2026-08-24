@@ -50,7 +50,7 @@ const evaluatePureStringModule = (absolutePath, cache = new Map()) => {
 export const evaluateInjectedScriptExports = (relativePath = INJECTED_SCRIPT_SOURCE) =>
   evaluatePureStringModule(resolve(projectRoot, relativePath))
 
-const minifyStoreScript = async (name, source) => {
+export const minifyStoreScript = async (name, source) => {
   const result = await minify(source, {
     compress: {
       passes: 2,

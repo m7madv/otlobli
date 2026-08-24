@@ -601,7 +601,7 @@ export const SHEIN_SESSION_SCRIPT = `
     }
   }
 
-  function sheinSaudiSignalsOk() {
+  function sheinSaudiSignalsOk(visibleShippingRegion) {
     try {
       var u = new URL(location.href);
       if (!/(^|\\.)m\\.shein\\.com$/i.test(u.hostname)) return false;
@@ -623,7 +623,9 @@ export const SHEIN_SESSION_SCRIPT = `
     // object and the visible shipping label are region authorities here.
     var addressCountry = sheinAddressCookieCountry();
     if (addressCountry && addressCountry !== SHEIN_REQUIRED_COUNTRY) return false;
-    if (sheinVisibleForeignRegion()) return false;
+    var visibleRegion = typeof visibleShippingRegion === 'string'
+      ? visibleShippingRegion : sheinVisibleShippingRegion();
+    if (visibleRegion === 'FOREIGN') return false;
     if (sheinLooksLikeProductPageForShipping() && !sheinSignedSaudiAddressReady()) return false;
     return true;
   }
@@ -1605,17 +1607,20 @@ export const SHEIN_SESSION_SCRIPT = `
     if (otlobliIsHumanChallenge()) return false;
     var normalized = otlobliNormalizeSheinUrl(location.href);
     var addressCountry = sheinAddressCookieCountry();
-    var visibleForeignRegion = addressCountry === SHEIN_REQUIRED_COUNTRY ? false : sheinVisibleForeignRegion();
+    // innerText forces a full visible-text/layout walk. Capture it once for
+    // this maintenance pass and reuse the parsed region through every check.
+    var visibleRegion = sheinVisibleShippingRegion();
+    var visibleForeignRegion = addressCountry === SHEIN_REQUIRED_COUNTRY ? false : visibleRegion === 'FOREIGN';
     if (visibleForeignRegion) {
       window.__otlobliSheinSaudiLocked = true;
       try { sessionStorage.setItem('__otlobliSheinSaudiLocked', '1'); } catch (e) {}
-    } else if (addressCountry === SHEIN_REQUIRED_COUNTRY || sheinVisibleSaudiRegion()) {
+    } else if (addressCountry === SHEIN_REQUIRED_COUNTRY || visibleRegion === SHEIN_REQUIRED_COUNTRY) {
       window.__otlobliSheinSaudiLocked = false;
       try { sessionStorage.removeItem('__otlobliSheinSaudiLocked'); } catch (e) {}
     }
     var locked = !!window.__otlobliSheinSaudiLocked;
     try { locked = locked || sessionStorage.getItem('__otlobliSheinSaudiLocked') === '1'; } catch (e) {}
-    var signalsOk = sheinSaudiSignalsOk();
+    var signalsOk = sheinSaudiSignalsOk(visibleRegion);
     var needsReload = shouldReloadSheinForSaudi();
     setSheinSaudiGuardOverlay(locked || visibleForeignRegion);
     if (needsReload || !signalsOk) {
@@ -1630,8 +1635,10 @@ export const SHEIN_SESSION_SCRIPT = `
       } catch (e) {}
     }
     try {
-      var ok = sheinSaudiSignalsOk();
-      if (ok && sheinVisibleSaudiRegion()) {
+      // URL normalization above can change URL-level signals, so re-evaluate
+      // them while reusing the same DOM text snapshot.
+      var ok = sheinSaudiSignalsOk(visibleRegion);
+      if (ok && visibleRegion === SHEIN_REQUIRED_COUNTRY) {
         window.__otlobliSheinSaudiLocked = false;
         try { sessionStorage.removeItem('__otlobliSheinSaudiLocked'); } catch (e) {}
         setSheinSaudiGuardOverlay(false);

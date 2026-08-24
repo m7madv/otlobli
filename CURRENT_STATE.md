@@ -1,3 +1,60 @@
+# v86.231/1096 — local WebView and blocking performance maintenance (2026-08-24)
+
+Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`
+on `codex/otlobli-v86-212-testflight-auth`. Marketing version is `86.231` and
+both native build numbers are `1096`. This maintenance build is local and was
+not uploaded to TestFlight, App Store Connect, or Google Play. The separately
+submitted `86.230 (1095)` remains in its last confirmed `WAITING_FOR_REVIEW`
+state and is still the build configured for automatic release after Apple
+approval.
+
+The injected capture runtime is now compiled per active store: SHEIN receives
+only `SHEIN_CAPTURE_SCRIPT` and Temu receives only `TEMU_CAPTURE_SCRIPT`, with
+an exact host guard before runtime work. Their minified payloads are `138,492`
+and `150,400` bytes respectively; the former shared runtime was about 220 KB.
+The Temu personal-Gecko capture fell from `416,137` to `138,945` bytes
+(`139,825` bytes including its wrapper). No blocking interval was lengthened
+and no feature was removed.
+
+Stable-page work is materially smaller. SHEIN reuses one visible-region text
+snapshot per coordinator pass, policy mutations are filtered/deduplicated, and
+already-blocked header controls bypass repeated geometry/text reads. Temu
+reuses bounded search/product vitals, ties readiness to the current route, and
+stops blank/image/product watchdogs only after that exact product is confirmed;
+route changes re-arm them. The full injected script, complete product URLs, and
+routine bridge event payloads are no longer printed by the native Android/iOS
+plugin. The persistent patch and freeze guard now enforce those deletions.
+
+`npm run build`, TypeScript, release-service/production-release verification,
+SHEIN freeze, Temu product/size, store-surface and performance gates passed.
+Final budgets are startup/largest JS `659,775/720,000` and `/1,200,000`, total
+JS gzip `285,982/370,000`, CSS `69,932/70,000`, fonts `81,364/100,000`,
+minified store scripts `296,171/470,000`, Temu Gecko `139,825/180,000`, and
+store source `523,508/600,000`. Android and iOS were synchronized. Windows
+cannot produce an iOS archive; no `86.231` IPA exists. The whole Android root
+build still requires the unrelated `OTLOBLI_LISTENER_*` signer values, while
+the requested customer task `:app:assembleRelease` passed.
+
+Signed Android artifact:
+
+- `output/Otlobli-v86.231-Android-Performance-Maintenance.apk` — `4,098,272`
+  bytes, SHA-256
+  `4EDEE16ACB3C8E1B473E0601D7CF42ECCA1ED6CFDC36EB7C60F7942185B6C4F5`.
+  Package `com.otlobli.app`, `versionCode=1096`, `versionName=86.231`, v2/v3
+  signing verified with the existing Otlobli production upload certificate.
+
+The APK was installed as an in-place update on the physical Samsung Note 8
+`SM-N950F`. A fresh process launch measured `812ms` (a subsequent cached launch
+was `632ms`). Temu Home → product → Home rendered successfully and retained the
+Otlobli Back button; SHEIN Home rendered with the controlled surface. Both had
+zero app crash/ANR and zero heavy native bridge-payload logs. Four steady SHEIN
+scrolls measured 401 frames, 9.73% jank, p50/p90/p95/p99 of
+`11/16/18/24ms`, with `181,936 KB` PSS. Four steady Temu scrolls measured
+`17/24/27/36ms`; its external page remained more render-heavy on this 2017
+device. These are Android smoke/performance results, not comprehensive store or
+checkout acceptance. The required five real iPhone 16 resume cycles plus a
+separate cold launch remain unperformed for `86.231`.
+
 # v86.230/1095 — submitted to Apple Review (2026-08-24)
 
 The owner gave the exact action-time confirmation to submit this accepted

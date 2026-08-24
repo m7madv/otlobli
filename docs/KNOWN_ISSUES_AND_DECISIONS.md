@@ -1,5 +1,31 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
+## v86.231 — inject only the active store runtime and retire stable work (2026-08-24)
+
+- **Evidence:** the shared document-start capture exported one runtime containing
+  both SHEIN and Temu branches, while repeated visible-text/layout scans,
+  mutation wakeups, Temu product watchdogs, and native full-payload logging kept
+  doing work after a page was already stable. A physical Note 8 trace also
+  exposed full Temu product URLs in every WebView callback log.
+- **Decision:** compile literal store-scoped captures so Terser deletes the
+  inactive branch, reject off-store hosts before runtime setup, reuse one SHEIN
+  region snapshot, filter/compact policy mutations, bypass already-blocked
+  header geometry, and stop exact-product Temu watchdogs after confirmation.
+  Any route change invalidates that confirmation and re-arms protection.
+- **Native decision:** the persistent Capgo patch removes full pre-show script,
+  complete callback message, and routine postMessage payload logs on Android
+  and iOS. The freeze guard verifies the applied files and deletion hunks; a
+  fresh upstream `8.6.25` apply-check and current reverse-check both pass.
+- **Performance boundary:** no interval was lengthened and no blocker/capture/
+  region/navigation feature was removed. The lazy host chunk still contains
+  both minified strings even though the WebView receives only its active one;
+  true per-store host chunk splitting is a possible later optimization, not a
+  reason to destabilize this accepted batch.
+- **Physical boundary:** Note 8 passed Temu Home → PDP → Home with Back retained
+  and loaded the controlled SHEIN Home, with no crash/ANR or heavy bridge logs.
+  Steady SHEIN p95 was `18ms`; Temu p95 was `27ms` and remains limited partly by
+  third-party rendering. This is not iPhone 16 lifecycle or checkout acceptance.
+
 ## Push providers are strict; APNs requires its own live key (2026-08-24)
 
 - **Evidence:** production has a valid-shape `86.229` production APNs token, but

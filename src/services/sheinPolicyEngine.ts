@@ -1,4 +1,4 @@
-export const SHEIN_POLICY_VERSION = '2026.08.21-v86.208-policy-v1'
+export const SHEIN_POLICY_VERSION = '2026.08.24-v86.231-policy-v2'
 
 export type SheinRouteClass =
   | 'allowed-public'
@@ -186,6 +186,18 @@ export const SHEIN_POLICY_DOCUMENT_START_SCRIPT = `
     for(var i=0;i<nodes.length&&i<MAX_NODES_PER_ROOT;i++)hide(nodes[i],classify(nodes[i]));
     if(nodes.length>MAX_NODES_PER_ROOT)mismatch('subtree-cap');
   }
+  function enqueue(root){
+    if(!root||root.nodeType!==1||pending.length>=MAX_ROOTS)return false;
+    var relevant=(root.matches&&root.matches(candidateSelector))||
+      (root.querySelector&&root.querySelector(candidateSelector));
+    if(!relevant)return false;
+    for(var i=pending.length-1;i>=0;i--){
+      var queued=pending[i];
+      if(queued===root||(queued.contains&&queued.contains(root)))return false;
+      if(root.contains&&root.contains(queued))pending.splice(i,1);
+    }
+    pending.push(root);return true;
+  }
   function mismatch(code){
     if(reported[code]||state.mismatchCount>=MAX_MISMATCHES)return;
     reported[code]=1;state.mismatchCount++;
@@ -194,9 +206,10 @@ export const SHEIN_POLICY_DOCUMENT_START_SCRIPT = `
   function flush(){
     scheduled=false;
     var roots=pending.splice(0,MAX_ROOTS);
+    var hiddenBefore=state.hiddenCount,mismatchBefore=state.mismatchCount;
     for(var i=0;i<roots.length;i++)scan(roots[i]);
     if(pending.length){pending.length=0;mismatch('mutation-root-cap');}
-    verify('mutation');
+    if(state.hiddenCount!==hiddenBefore||state.mismatchCount!==mismatchBefore)verify('mutation');
   }
   function schedule(){
     if(scheduled)return;scheduled=true;
@@ -222,14 +235,18 @@ export const SHEIN_POLICY_DOCUMENT_START_SCRIPT = `
     scan(root);
     if(!state.observer){
       state.observer=new MutationObserver(function(records){
+        var queued=false;
         for(var i=0;i<records.length&&pending.length<MAX_ROOTS;i++){
           var record=records[i];
-          if(record.type==='attributes')pending.push(record.target);
-          else for(var j=0;j<record.addedNodes.length&&pending.length<MAX_ROOTS;j++)if(record.addedNodes[j].nodeType===1)pending.push(record.addedNodes[j]);
+          if(record.type==='attributes'){
+            if(record.target.matches&&record.target.matches(candidateSelector))queued=enqueue(record.target)||queued;
+          }else for(var j=0;j<record.addedNodes.length&&pending.length<MAX_ROOTS;j++)queued=enqueue(record.addedNodes[j])||queued;
         }
-        schedule();
+        if(queued)schedule();
       });
-      state.observer.observe(root,{subtree:true,childList:true,attributes:true,attributeFilter:['href','action','aria-label','role','class','id','data-testid','data-qa','data-type','data-role','data-action','data-name']});
+      // Class/id animation churn cannot change semanticClass(). Observe only
+      // attributes that can actually turn an element into a blocked control.
+      state.observer.observe(root,{subtree:true,childList:true,attributes:true,attributeFilter:['href','action','aria-label','role','data-testid','data-qa','data-type','data-role','data-action','data-name']});
     }
     verify('install');
   }

@@ -192,7 +192,7 @@ export const STORE_BLOCKING_SCRIPT = `
     }
     btn.setAttribute('data-otlobli-add-revision', OTLOBLI_ADD_BUTTON_REVISION);
     var showAddBtn = looksLikeProductPage() &&
-      !(IS_TEMU && !otlobliTemuHasVisibleProductContent(otlobliTemuProductVitals())) &&
+      !(IS_TEMU && !otlobliTemuCurrentProductConfirmed() && !otlobliTemuHasVisibleProductContent(otlobliTemuProductVitals())) &&
       !(IS_TEMU && temuImageViewerOpen()) &&
       !(IS_SHEIN && sheinImageViewerOpen());
     btn.style.display = showAddBtn ? 'flex' : 'none';
@@ -693,6 +693,15 @@ export const STORE_BLOCKING_SCRIPT = `
     return !!(el.querySelector && el.querySelector('svg, img'));
   }
 
+  function otlobliSheinBlockedStyleIntact(el) {
+    if (!el || !el.getAttribute || !el.style ||
+        el.getAttribute('data-otlobli-blocked') !== '1') return false;
+    return el.style.getPropertyValue('visibility') === 'hidden' &&
+      el.style.getPropertyPriority('visibility') === 'important' &&
+      el.style.getPropertyValue('pointer-events') === 'none' &&
+      el.style.getPropertyPriority('pointer-events') === 'important';
+  }
+
   function isSheinAuthControl(el) {
     var node = el;
     var depth = 0;
@@ -865,6 +874,9 @@ export const STORE_BLOCKING_SCRIPT = `
     for (var i = 0; i < candidates.length; i++) {
       var el = candidates[i];
       if (el.id && el.id.indexOf('otlobli') === 0) continue;
+      // SHEIN can keep the same header node alive for minutes. Do not flatten
+      // text or force layout again while our exact blocking style is intact.
+      if (otlobliSheinBlockedStyleIntact(el)) continue;
       if (otlobliIsSheinTopCategoryEl(el)) continue;
       if (!isIconOnlySheinControl(el)) continue;
       var rect = el.getBoundingClientRect();
@@ -977,9 +989,9 @@ export const STORE_BLOCKING_SCRIPT = `
           // resort, an icon-sized element that simply contains an svg/img
           // graphic (and nothing else interactive matched first) is almost
           // always meant to be tapped even with no clickability signal at all.
+          var hasIconMedia = elIconSized && !!el.querySelector('svg, img');
           var isClickable = el.tagName === 'BUTTON' || el.tagName === 'A' || el.getAttribute('role') === 'button' ||
-            window.getComputedStyle(el).cursor === 'pointer' ||
-            (elIconSized && (el.querySelector('svg') || el.querySelector('img')));
+            hasIconMedia || window.getComputedStyle(el).cursor === 'pointer';
           if (isClickable) {
             var hasInput = !!el.querySelector('input') || otlobliNearSearchInput(el);
             var hint = ((el.className || '') + ' ' + (el.getAttribute('aria-label') || '') + ' ' + (el.textContent || '')).toLowerCase();
@@ -1090,6 +1102,7 @@ export const STORE_BLOCKING_SCRIPT = `
         }
       }
       if (el.id && el.id.indexOf('otlobli') === 0) continue;
+      if (otlobliSheinBlockedStyleIntact(el)) continue;
       if (otlobliIsSheinTopCategoryEl(el)) continue;
       if (!isIconOnlySheinControl(el)) continue;
       if (el.querySelector && el.querySelector('input')) continue; // search field wrapper

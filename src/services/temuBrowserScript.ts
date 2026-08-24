@@ -82,26 +82,42 @@ export const TEMU_BROWSER_SCRIPT = `
   // وضع البحث نشط طالما لوحة الاقتراحات ظاهرة — لا فقط أثناء التركيز. حقل بحث
   // تيمو يحتفظ بقيمته والاقتراحات (overlay ._3KC0yZ4V، z-index 999) تبقى ظاهرة
   // حتى بعد إغلاق الكيبورد (blur). الاعتماد على activeElement وحده كان يُنهي وضع
-  // البحث باكراً فتعود دوال الإخفاء وتبتلع الاقتراحات ويختفي زر الرجوع. نعتبره
-  // نشطاً إذا كان حقل البحث مركّزاً أو يحمل قيمة.
+  // البحث باكراً فتعود دوال الإخفاء وتبتلع الاقتراحات ويختفي زر الرجوع. نعتمد
+  // التركيز أو لوحة الاقتراحات المرئية؛ قيمة قديمة وحدها ليست وضع بحث نشطاً.
   var __otlobliTemuSearchModeCacheTs = 0;
   var __otlobliTemuSearchModeCacheHref = '';
   var __otlobliTemuSearchModeCacheValue = false;
   var __otlobliTemuSearchExitSuppressUntil = 0;
   var __otlobliTemuSearchBackGraceUntil = 0;
+  function otlobliInvalidateTemuSearchModeCache() {
+    __otlobliTemuSearchModeCacheTs = 0;
+    __otlobliTemuSearchModeCacheHref = '';
+  }
   function otlobliTemuSearchMode() {
     if (!IS_TEMU || !document.body) return false;
-    var si = otlobliTemuSearchInput();
-    if (si) {
-      if (document.activeElement === si) return true;
-    }
     if (Date.now() < __otlobliTemuSearchExitSuppressUntil && otlobliTemuHomeLikeUrl()) return false;
     if (/search/i.test(location.pathname) || /search/i.test(location.search)) return true;
     var now = Date.now();
     var href = location.href || '';
-    if (href === __otlobliTemuSearchModeCacheHref && now - __otlobliTemuSearchModeCacheTs < 90) {
+    // Reuse the known input before querying every field. Only focus is a safe
+    // fast signal here: Temu deliberately keeps the old value after Back, so
+    // treating a retained value as active would reopen search mode forever.
+    try {
+      if (__otlobliTemuLastSearchInput && document.contains(__otlobliTemuLastSearchInput)) {
+        if (document.activeElement === __otlobliTemuLastSearchInput) {
+          __otlobliTemuSearchModeCacheTs = now;
+          __otlobliTemuSearchModeCacheHref = href;
+          __otlobliTemuSearchModeCacheValue = true;
+          return true;
+        }
+      }
+    } catch (e) {}
+    if (href === __otlobliTemuSearchModeCacheHref &&
+        now - __otlobliTemuSearchModeCacheTs < (OTLOBLI_LOW_END ? 900 : 360)) {
       return __otlobliTemuSearchModeCacheValue;
     }
+    var si = otlobliTemuSearchInput();
+    if (si && document.activeElement === si) return true;
     var found = false;
     var overlays = document.querySelectorAll('div, section, aside');
     var vp = viewportSize();
@@ -316,12 +332,13 @@ export const TEMU_BROWSER_SCRIPT = `
 
   // يكشف صفحة بحث تيمو الفارغة (الناتجة عن حجب الإعلانات الذي يمنع تحميل
   // نتائج البحث) ويعرض رسالة توضيحية للمستخدم — يعمل مرة واحدة فقط لكل رحلة.
-  var __otlobliSearchMsgShown = false;
+  var __otlobliSearchCheckedKey = '';
   function detectEmptyTemuSearch() {
-    if (__otlobliSearchMsgShown) return;
     // صفحة نتائج البحث فقط
     if (!/search/i.test(location.href) && !/search/i.test(location.pathname)) return;
     if (looksLikeProductPage()) return;
+    var searchKey = (location.pathname || '') + (location.search || '');
+    if (__otlobliSearchCheckedKey === searchKey) return;
     // نتحقق بعد اكتمال التحميل
     if (document.readyState !== 'complete') return;
     // إذا وُجدت صور منتجات مرئية — الصفحة ليست فارغة
@@ -333,9 +350,8 @@ export const TEMU_BROWSER_SCRIPT = `
       var r = imgs[i].getBoundingClientRect();
       if (r.width > 80 && r.height > 80) { hasProducts = true; break; }
     }
-    if (hasProducts) return;
-    __otlobliSearchMsgShown = true;
-    console.info('otlobli: temu search appears empty; kept internal only');
+    __otlobliSearchCheckedKey = searchKey;
+    if (!hasProducts) console.info('otlobli: temu search appears empty; kept internal only');
   }
 
   // منع الزوم في تيمو: viewport بلا تكبير + إلغاء إيماءة القرصة + إلغاء
@@ -346,6 +362,13 @@ export const TEMU_BROWSER_SCRIPT = `
     try {
       var NO_ZOOM = 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no';
       var vpMeta = document.querySelector('meta[name="viewport"]');
+      if (!__otlobliNoZoomListeners) {
+        __otlobliNoZoomListeners = true;
+        document.addEventListener('gesturestart', function (e) { e.preventDefault(); }, { passive: false });
+        document.addEventListener('gesturechange', function (e) { e.preventDefault(); }, { passive: false });
+      }
+      var stabilityStyle = document.getElementById('otlobli-temu-stability-style');
+      if (vpMeta && vpMeta.getAttribute('content') === NO_ZOOM && stabilityStyle) return;
       if (!vpMeta && document.head) {
         vpMeta = document.createElement('meta');
         vpMeta.setAttribute('name', 'viewport');
@@ -354,39 +377,16 @@ export const TEMU_BROWSER_SCRIPT = `
       if (vpMeta && vpMeta.getAttribute('content') !== NO_ZOOM) {
         vpMeta.setAttribute('content', NO_ZOOM);
       }
-      if (document.documentElement && document.documentElement.style.touchAction !== 'pan-x pan-y') {
-        document.documentElement.style.touchAction = 'pan-x pan-y';
-      }
-      if (document.documentElement) {
-        document.documentElement.style.setProperty('-webkit-text-size-adjust', '100%', 'important');
-        document.documentElement.style.setProperty('text-size-adjust', '100%', 'important');
-        document.documentElement.style.setProperty('max-width', '100vw', 'important');
-        document.documentElement.style.setProperty('overflow-x', 'hidden', 'important');
-      }
-      if (document.body) {
-        document.body.style.setProperty('-webkit-text-size-adjust', '100%', 'important');
-        document.body.style.setProperty('text-size-adjust', '100%', 'important');
-        document.body.style.setProperty('max-width', '100vw', 'important');
-        document.body.style.setProperty('overflow-x', 'hidden', 'important');
-      }
-      if (document.head && !document.getElementById('otlobli-temu-stability-style')) {
+      if (document.head && !stabilityStyle) {
         var style = document.createElement('style');
         style.id = 'otlobli-temu-stability-style';
         style.textContent = [
-          'html,body{min-width:0!important;width:100%!important;max-width:100vw!important;overflow-x:hidden!important;-webkit-text-size-adjust:100%!important;text-size-adjust:100%!important;scroll-padding-bottom:128px!important;}',
+          'html,body{min-width:0!important;width:100%!important;max-width:100vw!important;overflow-x:hidden!important;-webkit-text-size-adjust:100%!important;text-size-adjust:100%!important;scroll-padding-bottom:128px!important;touch-action:pan-x pan-y!important;}',
           'input,textarea,select{font-size:16px!important;}',
           '#otlobli-nav{transform:translate3d(-50%,0,0)!important;will-change:transform!important;}',
           '#otlobli-add-btn,#otlobli-back-btn{will-change:transform!important;}',
         ].join('');
         document.head.appendChild(style);
-      }
-      if (!__otlobliNoZoomListeners) {
-        __otlobliNoZoomListeners = true;
-        // إيماءة القرصة على iOS WKWebView — touch-action أعلاه يمنع تكبير
-        // النقر المزدوج، وهذان يمنعان القرصة. لا نلمس touchend حتى لا نكسر
-        // النقرات السريعة المتتالية (زر الكمية مثلاً).
-        document.addEventListener('gesturestart', function (e) { e.preventDefault(); }, { passive: false });
-        document.addEventListener('gesturechange', function (e) { e.preventDefault(); }, { passive: false });
       }
     } catch (e) {}
   }
@@ -514,23 +514,10 @@ export const TEMU_BROWSER_SCRIPT = `
     try {
       if (!looksLikeProductPage()) return;
       if (otlobliTemuSearchMode()) return;
-      var identity = temuGoodsId() || location.pathname;
-      if (__otlobliTemuConfirmedProductIdentity === identity) return;
-      var vp = viewportSize();
-      var imgs = document.querySelectorAll('img');
-      var visibleProductImg = false, domProductImg = false;
-      for (var i = 0; i < imgs.length; i++) {
-        var src = imgs[i].currentSrc || imgs[i].src || '';
-        if (!/kwcdn|temu/i.test(src)) continue;
-        domProductImg = true;
-        var r = imgs[i].getBoundingClientRect();
-        if (r.width >= 110 && r.height >= 110 && r.bottom > 70 && r.top < vp.height - 60) {
-          visibleProductImg = true; break;
-        }
-      }
-      if (visibleProductImg) return; // الصفحة ليست فارغة — لا تدخّل
-      var domHasContent = domProductImg || !!document.querySelector('[class*="curPrice" i], [class*="goods" i]');
-      if (!domHasContent) return; // لا محتوى في DOM بعد — ربما تُحمّل، لا نتدخّل
+      if (otlobliTemuCurrentProductConfirmed()) return;
+      var vitals = otlobliTemuProductVitals();
+      if (vitals.visImg > 0) return; // الصفحة ليست فارغة — لا تدخّل
+      if (!vitals.domHasContent) return; // لا محتوى في DOM بعد — ربما تُحمّل، لا نتدخّل
       var hidden = document.querySelectorAll(
         '[data-otlobli-temu-clean-hidden="1"],[data-otlobli-temu-hidden="1"],[data-otlobli-temu-search-chrome-hidden="1"]'
       );
@@ -558,6 +545,10 @@ export const TEMU_BROWSER_SCRIPT = `
   function otlobliTemuProductVitals() {
     var cacheKey = (location.pathname || '') + (location.search || '');
     var now = Date.now();
+    if (otlobliTemuCurrentProductConfirmed() &&
+        __otlobliTemuVitalsCache && __otlobliTemuVitalsCacheKey === cacheKey) {
+      return __otlobliTemuVitalsCache;
+    }
     // Several product watchdogs consume the same measurement in one 300ms
     // coordinator pass. Share that result so a single tick never walks every
     // Temu image five separate times on the WebKit main thread.
@@ -661,8 +652,37 @@ export const TEMU_BROWSER_SCRIPT = `
   var __otlobliTemuProductVisibleKey = '';
   var __otlobliTemuProductVisibleTs = 0;
   var __otlobliTemuConfirmedProductIdentity = '';
+  var __otlobliTemuConfirmedProductKey = '';
+  var __otlobliTemuReadinessRouteKey = '';
   var __otlobliTemuVisibleSinceKey = '';
   var __otlobliTemuVisibleSince = 0;
+  function otlobliTemuInvalidateConfirmedProduct() {
+    __otlobliTemuConfirmedProductIdentity = '';
+    __otlobliTemuConfirmedProductKey = '';
+    __otlobliTemuReadinessRouteKey = '';
+    __otlobliTemuVisibleSinceKey = '';
+    __otlobliTemuVisibleSince = 0;
+    __otlobliTemuProductVisibleKey = '';
+    __otlobliTemuProductVisibleTs = 0;
+    __otlobliTemuVitalsCacheKey = '';
+    __otlobliTemuVitalsCacheAt = 0;
+    __otlobliTemuVitalsCache = null;
+  }
+  function otlobliTemuCurrentProductConfirmed() {
+    if (!looksLikeProductPage()) {
+      otlobliTemuInvalidateConfirmedProduct();
+      return false;
+    }
+    var identity = temuGoodsId() || location.pathname;
+    var key = identity + '|' + (location.href || '').split('#')[0];
+    if (__otlobliTemuReadinessRouteKey && __otlobliTemuReadinessRouteKey !== key) {
+      otlobliTemuInvalidateConfirmedProduct();
+    }
+    __otlobliTemuReadinessRouteKey = key;
+    if (__otlobliTemuConfirmedProductIdentity === identity &&
+        __otlobliTemuConfirmedProductKey === key) return true;
+    return false;
+  }
   // كم يجب أن يبقى محتوى المنتج ظاهراً بثبات قبل كشف الـWebView (بالمللي ثانية).
   var OTLOBLI_TEMU_STABLE_MS = 900;
   function otlobliPostTemuProductVisibleIfReady() {
@@ -670,8 +690,8 @@ export const TEMU_BROWSER_SCRIPT = `
     try {
       var now = Date.now();
       var identity = temuGoodsId() || location.pathname;
-      if (__otlobliTemuConfirmedProductIdentity === identity) return;
-      var key = temuGoodsId() + '|' + (location.href || '').split('#')[0];
+      if (otlobliTemuCurrentProductConfirmed()) return;
+      var key = identity + '|' + (location.href || '').split('#')[0];
       // أي حالة تنفي "الظهور المستقر" (ليست صفحة منتج، بحث، سطح حساب/دخول، أو لا
       // محتوى مرئي) تُصفّر المؤقّت — فلا تُحسب الرسمة العابرة التي ترتدّ عنها تيمو
       // إلى شاشة الدخول ثم البياض. هذا سبب «دخول لحظي ثم أبيض»: كانت البوابة تكشف
@@ -698,6 +718,7 @@ export const TEMU_BROWSER_SCRIPT = `
       __otlobliTemuProductVisibleKey = key;
       __otlobliTemuProductVisibleTs = now;
       __otlobliTemuConfirmedProductIdentity = identity;
+      __otlobliTemuConfirmedProductKey = key;
       if (window.mobileApp && window.mobileApp.postMessage) {
         window.mobileApp.postMessage({ detail: { type: 'temuProductVisible', url: location.href, key: key } });
       }
@@ -769,10 +790,9 @@ export const TEMU_BROWSER_SCRIPT = `
     var notice = document.getElementById('otlobli-temu-product-loading');
     var show = false;
     try {
-      var identity = temuGoodsId() || location.pathname;
       var v = otlobliTemuProductVitals();
       show = looksLikeProductPage() && !otlobliTemuSearchMode() &&
-        __otlobliTemuConfirmedProductIdentity !== identity && !v.domHasContent;
+        !otlobliTemuCurrentProductConfirmed() && !v.domHasContent;
     } catch (e) {}
     if (!show) {
       if (notice) notice.remove();
@@ -805,11 +825,10 @@ export const TEMU_BROWSER_SCRIPT = `
     try {
       if (!looksLikeProductPage() || otlobliTemuSearchMode()) { __otlobliTemuBlankSince = 0; return; }
       var identity = temuGoodsId() || (location.pathname + location.search).slice(0, 180);
-      if (__otlobliTemuConfirmedProductIdentity === identity) return;
+      if (otlobliTemuCurrentProductConfirmed()) return;
       var v = otlobliTemuProductVitals();
       var retryKey = '__otlobliTemuBlankReload:' + identity;
-      if (__otlobliTemuConfirmedProductIdentity === identity ||
-          v.visImg > 0 || otlobliTemuHasVisibleProductContent(v)) {
+      if (v.visImg > 0 || otlobliTemuHasVisibleProductContent(v)) {
         __otlobliTemuBlankSince = 0;
         try { sessionStorage.removeItem(retryKey); } catch (e) {}
         return;
@@ -971,12 +990,21 @@ export const TEMU_BROWSER_SCRIPT = `
     } catch (e) {}
   }
 
+  var __otlobliTemuSearchChromeScanAt = 0;
+  var __otlobliTemuSearchChromeScanKey = '';
   function hideTemuSearchVisibleAccountCart(searchMode) {
     if (!IS_TEMU || !document.body) return;
     if (window.__otlobliTemuHideOff) return; // وضع اختبار: الحجب مطفأ
     try {
       var active = typeof searchMode === 'boolean' ? searchMode : otlobliTemuSearchMode();
       if (!active && !/search/i.test(location.pathname + location.search + location.hash)) return;
+      var scanKey = (location.href || '') + '|' + (active ? '1' : '0');
+      var scanNow = Date.now();
+      // Main and navigation lanes can become due in the same coordinator turn.
+      // One semantic scan is enough; the next real maintenance pass is intact.
+      if (scanKey === __otlobliTemuSearchChromeScanKey && scanNow - __otlobliTemuSearchChromeScanAt < 40) return;
+      __otlobliTemuSearchChromeScanKey = scanKey;
+      __otlobliTemuSearchChromeScanAt = scanNow;
       var vp = viewportSize();
       var input = otlobliTemuSearchInputForExit() || otlobliTemuSearchInput();
       var inputRect = input && input.getBoundingClientRect ? input.getBoundingClientRect() : null;
@@ -1556,6 +1584,9 @@ export const TEMU_BROWSER_SCRIPT = `
         if (!target || (target.closest && (target.closest('#otlobli-nav') || target.closest('#otlobli-back-btn')))) return;
         var targetLooksSearch = otlobliLooksLikeSearchTrigger(target) ||
           !!(target.closest && target.closest('[class*="searchBar" i], input[type="search"], input[placeholder*="Search" i], input[placeholder*="بحث"], [role="searchbox"]'));
+        var searchStatePainted = document.body && document.body.getAttribute('data-otlobli-temu-search-mode') === '1';
+        if (!targetLooksSearch && !searchStatePainted && !/search/i.test(location.pathname + location.search + location.hash)) return;
+        if (targetLooksSearch) otlobliInvalidateTemuSearchModeCache();
         var searchModeNow = otlobliTemuSearchMode();
         if (!searchModeNow && targetLooksSearch) {
           setTimeout(function () {

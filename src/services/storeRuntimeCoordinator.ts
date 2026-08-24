@@ -1,4 +1,5 @@
 export const STORE_RUNTIME_COORDINATOR_SCRIPT = `
+  var __otlobliLegacyTemuDiagnosticsCleaned = false;
   function tick() {
     if (!document.body) return;
     if (otlobliScriptEnabled('blocking')) otlobliHealOrphanScrollLock();
@@ -47,21 +48,30 @@ export const STORE_RUNTIME_COORDINATOR_SCRIPT = `
         // غير مقيّد بمهلة المنظّف (1100ms) ليُصلح خلال ~300ms فيصير وميضاً قصيراً
         // لا شاشة بيضاء دائمة — والقائمة البيضاء تمنع تكرار الحجب بعدها.
         try { otlobliTemuRestoreCleanHidden(); } catch (e) {}
-        // شبكة أمان أخيرة: إن كانت صفحة المنتج فارغة بصرياً ومحتواها مخفيّ في
-        // DOM، نستعيد كل ما أخفيناه (يغطّي المنتجات المحددة التي تفلت من أعلاه).
-        try { otlobliTemuBlankPageRescue(); } catch (e) {}
-        // إصلاح «محتوى مخفي»: يُجبر محتوى المنتج على الظهور مهما كان مصدر الحجب
-        // (CSS ثابت منّا بالصنف، أو انهيار layout) — لا يعتمد على الـattributes.
-        try { otlobliTemuForceProductVisible(); } catch (e) {}
-        try { otlobliPostTemuProductVisibleIfReady(); } catch (e) {}
+        // Product watchdogs are only a readiness path. Once this exact product
+        // was confirmed, stop all image/layout rescans until its identity changes.
+        var temuProductConfirmed = false;
+        try { temuProductConfirmed = otlobliTemuCurrentProductConfirmed(); } catch (e) {}
+        if (!temuProductConfirmed) {
+          // شبكة أمان أخيرة: إن كانت صفحة المنتج فارغة بصرياً ومحتواها مخفيّ في
+          // DOM، نستعيد كل ما أخفيناه (يغطّي المنتجات المحددة التي تفلت من أعلاه).
+          try { otlobliTemuBlankPageRescue(); } catch (e) {}
+          // إصلاح «محتوى مخفي»: يُجبر محتوى المنتج على الظهور مهما كان مصدر الحجب
+          // (CSS ثابت منّا بالصنف، أو انهيار layout) — لا يعتمد على الـattributes.
+          try { otlobliTemuForceProductVisible(); } catch (e) {}
+          try { otlobliPostTemuProductVisibleIfReady(); } catch (e) {}
+        }
         // نظّف أي بقايا للوحات تشخيص Temu القديمة من الجلسات المحفوظة.
-        try {
+        try { if (!__otlobliLegacyTemuDiagnosticsCleaned) {
           var __d1 = document.getElementById('otlobli-temu-diag'); if (__d1) __d1.remove();
           var __d2 = document.getElementById('otlobli-temu-urlprobe'); if (__d2) __d2.remove();
-        } catch (e) {}
+          __otlobliLegacyTemuDiagnosticsCleaned = true;
+        } } catch (e) {}
         // إصلاح تلقائي محدود لفشل رندر تيمو عندما يكون DOM نفسه فارغاً.
-        try { otlobliTemuBlankProductNotice(); } catch (e) {}
-        try { otlobliTemuBlankPageAutoReload(); } catch (e) {}
+        if (!temuProductConfirmed) {
+          try { otlobliTemuBlankProductNotice(); } catch (e) {}
+          try { otlobliTemuBlankPageAutoReload(); } catch (e) {}
+        }
         // killStorePopups معطّلة لتيمو نهائياً (v57): أكّد اختبار المستخدم
         // (2026-07-10) أنها سبب وميض الشاشة الأبيض كل نصف ثانية — كانت تحجب
         // طبقة كبيرة تطابق PROMO ثم تعيدها المراجعة الذاتية، كل 300ms.

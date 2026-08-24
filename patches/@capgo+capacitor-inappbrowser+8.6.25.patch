@@ -17,6 +17,14 @@ diff --git a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee
 index ae420ed..50d3433 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/CapgoInAppBrowserPlugin.java
 +++ b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/CapgoInAppBrowserPlugin.java
+@@ -265,7 +265,6 @@ public class CapgoInAppBrowserPlugin extends Plugin implements WebViewDialog.Per
+ 
+             @Override
+             public void javascriptCallback(String message) {
+-                Log.d("WebViewDialog", "Received message from JavaScript: " + message);
+                 try {
+                     JSONObject jsonMessage = new JSONObject(message);
+                     JSObject jsObject = new JSObject();
 @@ -810,65 +810,35 @@ public class CapgoInAppBrowserPlugin extends Plugin implements WebViewDialog.Per
  
          CookieManager cookieManager = CookieManager.getInstance();
@@ -105,7 +113,15 @@ index ae420ed..50d3433 100644
 +        call.resolve();
      }
  
-     @PluginMethod
+    @PluginMethod
+@@ -1204,7 +1173,6 @@ public class CapgoInAppBrowserPlugin extends Plugin implements WebViewDialog.Pe
+         }
+ 
+         String targetId = call.getString("id");
+-        Log.d("InAppBrowserPlugin", "Event data: " + eventData.toString());
+         this.getActivity().runOnUiThread(
+             new Runnable() {
+                 @Override
 @@ -1561,6 +1531,17 @@ public class CapgoInAppBrowserPlugin extends Plugin implements WebViewDialog.Per
              openSecureWindowSavedCall.reject("OAuth cancelled or no callback received");
              openSecureWindowSavedCall = null;
@@ -1056,7 +1072,16 @@ index 8ae3e61..a2401a6 100644
              _options.getCallbacks().javascriptCallback(message);
          } catch (Exception e) {
              Log.e("InAppBrowser", "Error in postMessage: " + e.getMessage());
-@@ -4202,7 +5027,17 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -3114,8 +3939,6 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+             _options.getPreShowScript()
+         );
+ 
+-        Log.i("InjectPreShowScript", String.format("PreShowScript script:\n%s", script));
+-
+         preShowSemaphore = new Semaphore(0);
+         activity.runOnUiThread(
+             new Runnable() {
+@@ -4202,7 +5025,17 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                      }
                      Context context = view.getContext();
                      String url = request.getUrl().toString();
@@ -1075,7 +1100,7 @@ index 8ae3e61..a2401a6 100644
  
                      boolean isNotHttpOrHttps = !url.startsWith("https://") && !url.startsWith("http://");
  
-@@ -4703,6 +5538,14 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4703,6 +5536,14 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                      if (view == null || _webView == null) {
                          return;
                      }
@@ -1090,7 +1115,7 @@ index 8ae3e61..a2401a6 100644
                      if (ProxyRequestSupport.shouldInjectBridge(_options) && proxyBridgeScript != null && proxyAccessToken != null) {
                          String preparedProxyBridgeScript = prepareProxyBridgeScript();
                          if (preparedProxyBridgeScript != null) {
-@@ -4742,6 +5585,17 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4742,6 +5583,17 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                      if (view == null || _webView == null) {
                          return;
                      }
@@ -1108,7 +1133,7 @@ index 8ae3e61..a2401a6 100644
                      if (!isInitialized) {
                          isInitialized = true;
                          _webView.clearHistory();
-@@ -4801,14 +5655,63 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4801,14 +5653,63 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                      if (view == null || _webView == null) {
                          return;
                      }
@@ -1173,7 +1198,7 @@ index 8ae3e61..a2401a6 100644
                  @SuppressLint("WebViewClientOnReceivedSslError")
                  @Override
                  public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
-@@ -4932,6 +5835,19 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4932,6 +5833,19 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
      @Override
      public void dismiss() {
          scheduleHostWebViewInsetRestore();
@@ -1193,7 +1218,7 @@ index 8ae3e61..a2401a6 100644
  
          // First, stop any ongoing operations and disable further interactions
          if (_webView != null) {
-@@ -5586,17 +6502,50 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -5586,17 +6500,50 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          );
      }
  
@@ -1554,6 +1579,15 @@ index 116e296..eebe83e 100644
      @objc func hide(_ call: CAPPluginCall) {
          self.setHiddenState(true, targetId: call.getString("id"), call: call)
      }
+@@ -1433,8 +1582,6 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+             call.reject("Event data must not be empty")
+             return
+         }
+-        print("Event data: \(eventData)")
+-
+         DispatchQueue.main.async {
+             if let targetId = call.getString("id") {
+                 guard let webViewController = self.webViewControllers[targetId] else {
 @@ -1811,9 +1960,33 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
  
      @objc func appDidBecomeActive(_ notification: NSNotification) {
@@ -2575,7 +2609,15 @@ index 97a2fc1..b89293c 100644
          webView.configuration.userContentController.removeScriptMessageHandler(forName: "show")
          if allowScreenshotsFromWebPage {
              webView.configuration.userContentController.removeScriptMessageHandler(forName: "takeScreenshot")
-@@ -2680,14 +3339,33 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2658,7 +3322,5 @@ extension WKWebViewController: WKNavigationDelegate {
+ 
+         let script = scriptTemplate.joined(separator: "\n")
+-        print("[InAppBrowser - InjectPreShowScript] PreShowScript script: \(script)")
+-
+         self.preShowSemaphore = DispatchSemaphore(value: 0)
+         self.executeScript(script: script) // this will run on the main thread
+ 
+@@ -2680,14 +3337,33 @@ extension WKWebViewController: WKNavigationDelegate {
      }
  
      public func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
@@ -2609,7 +2651,7 @@ index 97a2fc1..b89293c 100644
          if !didpageInit && self.capBrowserPlugin?.isPresentAfterPageLoad == true {
              // Only inject preShowScript if it wasn't already injected at document start
              let shouldInjectScript = self.preShowScript.map { !$0.isEmpty } ?? false &&
-@@ -2703,12 +3381,18 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2703,12 +3379,18 @@ extension WKWebViewController: WKNavigationDelegate {
                      DispatchQueue.global(qos: .userInitiated).async {
                          self.injectPreShowScript()
                          DispatchQueue.main.async { [weak self] in
@@ -2630,7 +2672,7 @@ index 97a2fc1..b89293c 100644
              }
          } else if self.preShowScript != nil &&
                      !self.preShowScript!.isEmpty &&
-@@ -2734,6 +3418,7 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2734,6 +3416,7 @@ extension WKWebViewController: WKNavigationDelegate {
          }
          self.injectJavaScriptInterface()
          emit("browserPageLoaded")
@@ -2638,7 +2680,7 @@ index 97a2fc1..b89293c 100644
      }
  
      public func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-@@ -2743,7 +3428,10 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2743,7 +3426,10 @@ extension WKWebViewController: WKNavigationDelegate {
              self.url = url
              delegate?.webViewController?(self, didFail: url, withError: error)
          }
@@ -2650,7 +2692,7 @@ index 97a2fc1..b89293c 100644
      }
  
      public func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-@@ -2753,7 +3441,19 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2753,7 +3439,19 @@ extension WKWebViewController: WKNavigationDelegate {
              self.url = url
              delegate?.webViewController?(self, didFail: url, withError: error)
          }

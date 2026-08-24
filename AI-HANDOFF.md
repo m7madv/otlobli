@@ -1,3 +1,47 @@
+# Active handoff — v86.231/1096 local performance maintenance (2026-08-24)
+
+Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`
+on `codex/otlobli-v86-212-testflight-auth`. The current working tree contains
+the intentional `86.231 (1096)` blocking/WebView maintenance batch. Do not
+replace it with an older branch. It is local only; Apple is still reviewing the
+separate `86.230 (1095)` source/build in the last confirmed state. Do not claim
+that Apple has received these `86.231` changes.
+
+The store runtime is compiled per store and protected by an exact host guard.
+Minified captures are SHEIN `138,492` bytes and Temu `150,400` bytes. Temu's
+personal-Gecko capture is `138,945` bytes (`139,825` with wrapper), down from
+`416,137`. Preserve the one-snapshot SHEIN region check, filtered policy
+mutations, already-blocked header fast path, current-route Temu readiness, and
+post-confirmation watchdog shutdown/re-arm logic. Do not lengthen blocking
+intervals or remove a feature to pass a budget.
+
+The Capgo patch removes three production logging hot paths: the entire injected
+pre-show source, complete WebView callback messages/product URLs, and routine
+postMessage event payloads. The patch passes both reverse-check against current
+`node_modules` and clean apply-check against a fresh upstream `8.6.25` package.
+`verify:shein-freeze-guard` asserts those logs remain absent. Preserve the iOS
+`appDidBecomeActive` 0.25-second single recompose, Android host-resume defense,
+one persistent WebView, and JSON-stringified active-region equality.
+
+Full production web build and all release/freeze/Temu/store/performance checks
+pass, followed by `cap sync android` and `cap sync ios`. The customer Android
+release task passes; the unrelated repository-root task still needs the four
+listener signing values. Final signed APK:
+
+- `output/Otlobli-v86.231-Android-Performance-Maintenance.apk`, `4,098,272`
+  bytes, SHA-256
+  `4EDEE16ACB3C8E1B473E0601D7CF42ECCA1ED6CFDC36EB7C60F7942185B6C4F5`.
+
+It is installed on physical Note 8 `SM-N950F` as `86.231/1096`. Fresh launch
+was `812ms`. Temu Home → PDP → Home passed and Back remained visible; SHEIN
+Home loaded. There were no app crashes/ANRs and no heavy native bridge logs.
+Steady four-swipe SHEIN p50/p90/p95/p99 was `11/16/18/24ms` at `181,936 KB`
+PSS. Temu was `17/24/27/36ms`, so the third-party Temu renderer is still the
+heavier boundary on the old phone. Do not present this as iPhone acceptance or
+complete checkout/auth acceptance. iOS was synced only on Windows; no `86.231`
+archive/upload exists, and the five iPhone 16 resume cycles plus cold launch
+remain required before a release claim.
+
 # Active handoff — v86.230/1095 is waiting for Apple Review (2026-08-24)
 
 The owner explicitly confirmed final submission and automatic release after

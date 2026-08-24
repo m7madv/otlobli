@@ -7,6 +7,7 @@ import { STORE_SCRIPT_SOURCE_FILES, storeScriptSourceBytes } from './store-scrip
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const assetsDir = resolve(projectRoot, 'dist/assets')
+const temuGeckoScript = resolve(projectRoot, 'android/app/src/temuPersonal/assets/temu_extension/content-capture.js')
 
 // The store scripts are injected into the SHEIN/Temu page as source text, so
 // what matters to a two-core iPhone is the size AFTER the build strips
@@ -28,6 +29,7 @@ const budgets = {
   totalCssRaw: 70_000,
   totalFontsRaw: 100_000,
   shippedStoreScriptsRaw: 470_000,
+  temuGeckoScriptRaw: 180_000,
   sheinScriptSourceRaw: 600_000,
 }
 
@@ -54,6 +56,7 @@ const totalJsGzip = js.reduce((total, file) => total + file.gzip, 0)
 const totalCssRaw = css.reduce((total, file) => total + file.raw, 0)
 const totalFontsRaw = fonts.reduce((total, file) => total + file.raw, 0)
 const sheinScriptSourceRaw = storeScriptSourceBytes(projectRoot)
+const temuGeckoScriptRaw = readFileSync(temuGeckoScript).length
 const indexHtml = readFileSync(resolve(projectRoot, 'dist/index.html'), 'utf8')
 const startupJavaScriptNames = [...indexHtml.matchAll(/<script[^>]+src="[^"]*\/assets\/([^"]+\.js)"/g)]
   .map((match) => match[1])
@@ -71,6 +74,7 @@ const measurements = [
   ['total CSS raw', totalCssRaw, budgets.totalCssRaw, 'all CSS'],
   ['total fonts raw', totalFontsRaw, budgets.totalFontsRaw, 'all woff2'],
   ['shipped store scripts raw', await measureShippedStoreScripts(), budgets.shippedStoreScriptsRaw, 'injected into the store page, minified'],
+  ['Temu Gecko content script raw', temuGeckoScriptRaw, budgets.temuGeckoScriptRaw, 'content-capture.js'],
   ['store script source raw', sheinScriptSourceRaw, budgets.sheinScriptSourceRaw, STORE_SCRIPT_SOURCE_FILES.join(', ')],
 ]
 

@@ -3,6 +3,7 @@ import path from 'node:path'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
+import { minifyStoreScript } from './minify-injected-scripts.mjs'
 import { stripInjectedComments } from './strip-injected-comments.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -40,8 +41,8 @@ if (diagnostics.length) {
 
 const require = createRequire(import.meta.url)
 const built = require(path.join(tempDir, 'services/sheinBrowserScript.js'))
-let capture = stripInjectedComments(String(built.SHEIN_CAPTURE_SCRIPT || ''))
-if (!capture) throw new Error('SHEIN_CAPTURE_SCRIPT was empty')
+let capture = stripInjectedComments(String(built.TEMU_CAPTURE_SCRIPT || ''))
+if (!capture) throw new Error('TEMU_CAPTURE_SCRIPT was empty')
 
 // MainActivity owns the real Otlobli navigation bar. Keep every blocker and
 // product-capture routine from the proven script, but prevent the page from
@@ -58,6 +59,16 @@ capture = capture.replace(
   legacyProductCheck,
   'if (/goods/i.test(location.pathname) || /(?:^|-)g-\\d+\\.html$/i.test(location.pathname)) return true;',
 )
+
+// Gecko receives this as an executable content script, not an opaque source
+// module handled by Vite. Minify it here after the Gecko-only rewrites so the
+// phone parses the same store-scoped, dead-code-eliminated runtime as the
+// standard WebView instead of the full readable source tree.
+capture = await minifyStoreScript('temu-gecko-content-capture', capture)
+const captureBytes = Buffer.byteLength(capture)
+if (captureBytes > 180_000) {
+  throw new Error(`Temu Gecko capture script exceeds the low-end budget: ${captureBytes} bytes`)
+}
 
 const bridge = `
 (() => {
@@ -92,4 +103,4 @@ ${capture}
 }
 `
 fs.writeFileSync(path.join(extensionDir, 'content-capture.js'), `${bridge}\n;\n${captureGuard}\n`)
-console.log(`Temu Gecko capture script: ${Buffer.byteLength(capture)} bytes`)
+console.log(`Temu Gecko capture script: ${captureBytes} bytes`)

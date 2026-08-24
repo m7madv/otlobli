@@ -139,6 +139,11 @@ const checks = [
       "new CustomEvent('otlobli:nativeNavigate'",
       'func navigateHostFromJavaScript(_ target: String',
       'window.webkit.messageHandlers.navigate.postMessage',
+      '-        Log.i("InjectPreShowScript", String.format("PreShowScript script:\\n%s", script));',
+      '-        print("[InAppBrowser - InjectPreShowScript] PreShowScript script: \\(script)")',
+      '-                Log.d("WebViewDialog", "Received message from JavaScript: " + message);',
+      '-        Log.d("InAppBrowserPlugin", "Event data: " + eventData.toString());',
+      '-        print("Event data: \\(eventData)")',
     ],
     forbidden: [
       'appWillEnterForeground',
@@ -179,7 +184,10 @@ const checks = [
       'message.name == "navigate"',
       'window.webkit.messageHandlers.navigate.postMessage',
     ],
-    forbidden: ['otlobliForceRecompose(force:'],
+    forbidden: [
+      'otlobliForceRecompose(force:',
+      'print("[InAppBrowser - InjectPreShowScript] PreShowScript script:',
+    ],
   },
   {
     label: 'applied Android host-resume patch',
@@ -191,6 +199,22 @@ const checks = [
       'webView.requestLayout()',
       'public void navigate(String target)',
       "new CustomEvent('otlobli:nativeNavigate'",
+    ],
+    forbidden: [
+      'Log.i("InjectPreShowScript", String.format("PreShowScript script:',
+    ],
+  },
+  {
+    label: 'native message bridge logging guard',
+    files: [
+      'node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/CapgoInAppBrowserPlugin.java',
+      'node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift',
+    ],
+    markers: [],
+    forbidden: [
+      'Received message from JavaScript:',
+      'Log.d("InAppBrowserPlugin", "Event data:',
+      'print("Event data:',
     ],
   },
   {
@@ -205,6 +229,8 @@ const checks = [
       'if (loadedWebviewId && !webviewIdRef.current && webviewOpeningRef.current && !webviewClosingRef.current)',
       "import('./services/storeCaptureBundle')",
       'storeCaptureBundleLoadingRef',
+      'const usesPersonalTemuRuntime =',
+      'if (!usesPersonalTemuRuntime)',
     ],
   },
   {
@@ -219,6 +245,39 @@ const checks = [
       "from './sheinFreezeDiagnostics'",
       "from './sheinRegionDiagnostics'",
       "from './storeScriptDiagnostics'",
+    ],
+  },
+  {
+    label: 'low-end store hot-path hardening',
+    files: [
+      'src/services/sheinSessionScript.ts',
+      'src/services/sheinPolicyEngine.ts',
+      'src/services/temuBrowserScript.ts',
+      'src/services/storeBlockingScript.ts',
+      'src/services/storeRuntimeCoordinator.ts',
+    ],
+    markers: [
+      'var visibleRegion = sheinVisibleShippingRegion();',
+      'sheinSaudiSignalsOk(visibleRegion)',
+      'function enqueue(root)',
+      'if(queued)schedule();',
+      "attributeFilter:['href','action','aria-label','role','data-testid','data-qa','data-type','data-role','data-action','data-name']",
+      'var vitals = otlobliTemuProductVitals();',
+      'function otlobliTemuCurrentProductConfirmed()',
+      "var __otlobliTemuConfirmedProductKey = '';",
+      "var __otlobliTemuReadinessRouteKey = '';",
+      'function otlobliTemuInvalidateConfirmedProduct()',
+      '__otlobliTemuReadinessRouteKey !== key',
+      "__otlobliTemuVisibleSinceKey = '';",
+      '__otlobliTemuConfirmedProductKey === key',
+      'if (!temuProductConfirmed) {',
+      'function otlobliSheinBlockedStyleIntact(el)',
+      'if (otlobliSheinBlockedStyleIntact(el)) continue;',
+      "var hasIconMedia = elIconSized && !!el.querySelector('svg, img');",
+    ],
+    forbidden: [
+      "attributeFilter:['class'",
+      'document.activeElement === __otlobliTemuLastSearchInput || knownValue',
     ],
   },
   {
@@ -254,7 +313,7 @@ const checks = [
       "from './storeBlockingScript'",
       "from './temuBrowserScript'",
       "from './storeRuntimeCoordinator'",
-      '${SHEIN_SESSION_SCRIPT}',
+      '${sessionScript}',
       '${STORE_PRODUCT_CAPTURE_SCRIPT}',
       '${STORE_BLOCKING_SCRIPT}',
       '${TEMU_BROWSER_SCRIPT}',
@@ -1106,7 +1165,20 @@ try {
 try {
   const { exports } = await minifyInjectedScriptExports('src/services/sheinBrowserScript.ts')
   new Function(exports.SHEIN_CAPTURE_SCRIPT)
+  new Function(exports.TEMU_CAPTURE_SCRIPT)
   new Function(exports.OTLOBLI_NAV_BOOTSTRAP_SCRIPT)
+  if (Buffer.byteLength(exports.SHEIN_CAPTURE_SCRIPT, 'utf8') > 180_000 ||
+      Buffer.byteLength(exports.TEMU_CAPTURE_SCRIPT, 'utf8') > 180_000 ||
+      exports.SHEIN_CAPTURE_SCRIPT === exports.TEMU_CAPTURE_SCRIPT) {
+    failures.push('store runtime split: each minified store runtime must stay independently dead-code-eliminated')
+  }
+  for (const [store, script] of [['SHEIN', exports.SHEIN_CAPTURE_SCRIPT], ['Temu', exports.TEMU_CAPTURE_SCRIPT]]) {
+    try {
+      runInNewContext(script, { location: { hostname: 'external.example' } })
+    } catch (error) {
+      failures.push(`${store} host boundary: off-domain runtime performed work (${error instanceof Error ? error.message : String(error)})`)
+    }
+  }
   if (!exports.OTLOBLI_NAV_BOOTSTRAP_SCRIPT.includes('data-otlobli-store-switch-hint')) {
     failures.push('store-switch discovery: production navigation bootstrap is missing its visible hint')
   }
@@ -1119,8 +1191,10 @@ try {
 
 try {
   const bundleModule = evaluateInjectedScriptExports('src/services/storeCaptureBundle.ts')
-  const productionScript = bundleModule.buildStoreCaptureScript({})
+  const productionScript = bundleModule.buildStoreCaptureScript('shein', {})
+  const productionTemuScript = bundleModule.buildStoreCaptureScript('temu', {})
   new Function(productionScript)
+  new Function(productionTemuScript)
   const forbiddenReleaseMarkers = [
     'otlobli-script-diagnostics',
     '__otlobliTapDiagnosticContext',
@@ -1137,6 +1211,10 @@ try {
   }
   if (!productionScript.includes('__otlobliSheinPrivacyCompatInstalled')) {
     failures.push('SHEIN privacy compatibility: customer injection must include the touch-shield fix')
+  }
+  if (productionTemuScript.includes(bundleModule.SHEIN_PRIVACY_COMPAT_SCRIPT) ||
+      productionTemuScript.includes(bundleModule.SHEIN_POLICY_DOCUMENT_START_SCRIPT)) {
+    failures.push('store runtime split: Temu must not parse SHEIN privacy/policy code')
   }
   if (!productionScript.includes('__otlobliSheinPolicyEngine')) {
     failures.push('SHEIN policy fallback: post-load customer injection must restore the final document policy')

@@ -4131,7 +4131,7 @@ function App() {
     const targetUrl = activeStore === 'shein'
       ? normalizeSheinBrowserUrl(rawTargetUrl, activeRegions.shein)
       : normalizeTemuBrowserUrl(rawTargetUrl, activeRegions.temu)
-    const captureScript = captureBundle.buildStoreCaptureScript(activeRegions)
+    const captureScript = captureBundle.buildStoreCaptureScript(activeStore, activeRegions)
     const hostSafeBottomInset = readHostSafeBottomInset()
     if (initialPendingUrl && pendingProductRevealRef.current &&
         pendingProductRevealUrlRef.current === targetUrl) {
@@ -4533,7 +4533,7 @@ function App() {
         void captureBundleReady
           .then((loadedBundle) => InAppBrowser.executeScript({
             ...(id ? { id } : {}),
-            code: loadedBundle.buildStoreCaptureScript(storeRegionsRef.current),
+            code: loadedBundle.buildStoreCaptureScript('shein', storeRegionsRef.current),
           }))
           .catch((err) => {
             recordAppDiagnostic('store_script_injection_failed', {
@@ -5606,9 +5606,12 @@ function App() {
     }
     if (id === 'shein') {
       sheinOpeningTraceRef.current = createSheinOpeningTrace()
-      // Start parsing the deferred store bundle while VPN reachability is being
-      // checked. This removes a real waterfall without moving store code back
-      // into application startup or weakening any readiness gate.
+    }
+    const usesPersonalTemuRuntime = id === 'temu' && TEMU_PERSONAL_SITE_MODE && Capacitor.getPlatform() === 'android'
+    if (!usesPersonalTemuRuntime) {
+      // Parse the deferred store bundle while VPN reachability is being checked.
+      // Both standard stores need it; starting only SHEIN here left Temu with a
+      // second local-module waterfall after the network gate had completed.
       void loadStoreCaptureBundle().then((captureBundle) => {
         storeCaptureBundleRef.current = captureBundle
       }).catch(() => {
