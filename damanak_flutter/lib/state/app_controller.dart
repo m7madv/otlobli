@@ -8,10 +8,14 @@ import '../models/account.dart';
 import '../models/audit_event.dart';
 import '../models/branch.dart';
 import '../models/customer.dart';
+import '../models/inventory.dart';
 import '../models/maintenance_request.dart';
 import '../models/product.dart';
+import '../models/register.dart';
+import '../models/sale.dart';
 import '../models/store_profile.dart';
 import '../models/subscription.dart';
+import '../models/supplier.dart';
 import '../models/warranty.dart';
 
 class AppController extends ChangeNotifier {
@@ -29,6 +33,12 @@ class AppController extends ChangeNotifier {
   final List<Product> _products = [];
   final List<StoreBranch> _branches = [];
   final List<CustomerProfile> _customers = [];
+  final List<InventoryLevel> _inventory = [];
+  final List<StockMovement> _stockMovements = [];
+  final List<SaleTransaction> _sales = [];
+  final List<CashRegisterSession> _registerSessions = [];
+  final List<Supplier> _suppliers = [];
+  final List<PurchaseOrder> _purchaseOrders = [];
   final List<Warranty> _warranties = [];
   final List<MaintenanceRequest> _requests = [];
   final List<TeamMember> _team = [];
@@ -37,6 +47,7 @@ class AppController extends ChangeNotifier {
   bool _busy = false;
   String? _errorMessage;
   String? _noticeMessage;
+  String? _activeBranchId;
 
   AppStage get stage => _stage;
   AccountIdentity? get account => _account;
@@ -66,6 +77,18 @@ class AppController extends ChangeNotifier {
       UnmodifiableListView(_branches);
   UnmodifiableListView<CustomerProfile> get customers =>
       UnmodifiableListView(_customers);
+  UnmodifiableListView<InventoryLevel> get inventory =>
+      UnmodifiableListView(_inventory);
+  UnmodifiableListView<StockMovement> get stockMovements =>
+      UnmodifiableListView(_stockMovements);
+  UnmodifiableListView<SaleTransaction> get sales =>
+      UnmodifiableListView(_sales);
+  UnmodifiableListView<CashRegisterSession> get registerSessions =>
+      UnmodifiableListView(_registerSessions);
+  UnmodifiableListView<Supplier> get suppliers =>
+      UnmodifiableListView(_suppliers);
+  UnmodifiableListView<PurchaseOrder> get purchaseOrders =>
+      UnmodifiableListView(_purchaseOrders);
   UnmodifiableListView<Warranty> get warranties =>
       UnmodifiableListView(_warranties);
   UnmodifiableListView<MaintenanceRequest> get requests =>
@@ -75,12 +98,42 @@ class AppController extends ChangeNotifier {
   UnmodifiableListView<AuditEvent> get auditLogs =>
       UnmodifiableListView(_auditLogs);
 
-  num get totalSales =>
-      _warranties.fold<num>(0, (total, warranty) => total + warranty.saleTotal);
-  num get totalTax =>
-      _warranties.fold<num>(0, (total, warranty) => total + warranty.taxAmount);
+  StoreBranch? get activeBranch {
+    final preferred = _activeBranchId;
+    if (preferred != null) {
+      for (final branch in _branches) {
+        if (branch.id == preferred) return branch;
+      }
+    }
+    for (final branch in _branches) {
+      if (branch.isMain) return branch;
+    }
+    return _branches.firstOrNull;
+  }
+
+  num get totalSales => _sales.isNotEmpty
+      ? _sales.fold<num>(0, (total, sale) => total + sale.netTotal)
+      : _warranties.fold<num>(
+          0,
+          (total, warranty) => total + warranty.saleTotal,
+        );
+  num get totalTax => _sales.isNotEmpty
+      ? _sales.fold<num>(0, (total, sale) => total + sale.taxAmount)
+      : _warranties.fold<num>(
+          0,
+          (total, warranty) => total + warranty.taxAmount,
+        );
   num get currentMonthSales {
     final now = DateTime.now();
+    if (_sales.isNotEmpty) {
+      return _sales
+          .where(
+            (item) =>
+                item.createdAt.year == now.year &&
+                item.createdAt.month == now.month,
+          )
+          .fold<num>(0, (total, item) => total + item.netTotal);
+    }
     return _warranties
         .where(
           (item) =>
@@ -116,6 +169,27 @@ class AppController extends ChangeNotifier {
     await _guard(() async {
       _account = await _repository!.signIn(email: email, password: password);
       await _loadWorkspace();
+    });
+  }
+
+  Future<void> signInWithSocial(SocialAuthProvider provider) async {
+    await _guard(() async {
+      await _repository!.signInWithSocial(provider);
+      _noticeMessage = 'أكمل تسجيل الدخول في النافذة الآمنة ثم عد إلى ضمانك.';
+    });
+  }
+
+  Future<void> deleteAccount() async {
+    await _guard(() async {
+      await _repository!.deleteAccount();
+      final wasDemo = isDemo;
+      _clearData();
+      if (wasDemo) {
+        _repository = null;
+        _stage = AppStage.configuring;
+      } else {
+        _stage = AppStage.signedOut;
+      }
     });
   }
 
@@ -240,6 +314,40 @@ class AppController extends ChangeNotifier {
     return null;
   }
 
+  Product? productById(String id) {
+    for (final item in _products) {
+      if (item.id == id) return item;
+    }
+    return null;
+  }
+
+  InventoryLevel? inventoryLevel(String productId, [String? branchId]) {
+    final selectedBranchId = branchId ?? activeBranch?.id;
+    for (final item in _inventory) {
+      if (item.productId == productId && item.branchId == selectedBranchId) {
+        return item;
+      }
+    }
+    return null;
+  }
+
+  CashRegisterSession? openRegisterForBranch([String? branchId]) {
+    final selectedBranchId = branchId ?? activeBranch?.id;
+    for (final item in _registerSessions) {
+      if (item.branchId == selectedBranchId &&
+          item.status == RegisterStatus.open) {
+        return item;
+      }
+    }
+    return null;
+  }
+
+  void selectBranch(String branchId) {
+    if (_activeBranchId == branchId) return;
+    _activeBranchId = branchId;
+    notifyListeners();
+  }
+
   Future<Product?> addProduct({
     required String name,
     required String brand,
@@ -248,6 +356,10 @@ class AppController extends ChangeNotifier {
     required String sku,
     required int warrantyMonths,
     required num? salePrice,
+    num? costPrice,
+    bool trackInventory = true,
+    bool isSerialized = false,
+    num reorderPoint = 2,
   }) async {
     Product? created;
     await _guard(() async {
@@ -260,6 +372,10 @@ class AppController extends ChangeNotifier {
         sku: sku,
         warrantyMonths: warrantyMonths,
         salePrice: salePrice,
+        costPrice: costPrice,
+        trackInventory: trackInventory,
+        isSerialized: isSerialized,
+        reorderPoint: reorderPoint,
       );
       _products.insert(0, created!);
     });
@@ -275,6 +391,10 @@ class AppController extends ChangeNotifier {
     required String sku,
     required int warrantyMonths,
     required num? salePrice,
+    num? costPrice,
+    bool trackInventory = true,
+    bool isSerialized = false,
+    num reorderPoint = 2,
     bool isActive = true,
   }) async {
     Product? updated;
@@ -289,6 +409,10 @@ class AppController extends ChangeNotifier {
         sku: sku,
         warrantyMonths: warrantyMonths,
         salePrice: salePrice,
+        costPrice: costPrice,
+        trackInventory: trackInventory,
+        isSerialized: isSerialized,
+        reorderPoint: reorderPoint,
         isActive: isActive,
       );
       final index = _products.indexWhere((item) => item.id == productId);
@@ -496,6 +620,15 @@ class AppController extends ChangeNotifier {
     required String address,
     required String phone,
     required bool isMain,
+    String email = '',
+    String managerName = '',
+    String receiptPrefix = 'POS',
+    String timezone = 'Asia/Riyadh',
+    String opensAt = '09:00',
+    String closesAt = '23:00',
+    BranchType type = BranchType.retail,
+    bool acceptsSales = true,
+    bool handlesService = true,
   }) async {
     StoreBranch? saved;
     await _guard(() async {
@@ -508,12 +641,248 @@ class AppController extends ChangeNotifier {
         address: address,
         phone: phone,
         isMain: isMain,
+        email: email,
+        managerName: managerName,
+        receiptPrefix: receiptPrefix,
+        timezone: timezone,
+        opensAt: opensAt,
+        closesAt: closesAt,
+        type: type,
+        acceptsSales: acceptsSales,
+        handlesService: handlesService,
       );
       _branches
         ..clear()
         ..addAll(await _repository!.loadBranches(_store!.id));
     });
     return saved;
+  }
+
+  Future<void> adjustInventory({
+    required String branchId,
+    required String productId,
+    required num newQuantity,
+    required num unitCost,
+    required String note,
+  }) async {
+    await _guard(() async {
+      final level = await _repository!.adjustInventory(
+        storeId: _store!.id,
+        branchId: branchId,
+        productId: productId,
+        newQuantity: newQuantity,
+        unitCost: unitCost,
+        note: note,
+      );
+      final index = _inventory.indexWhere((item) => item.id == level.id);
+      if (index >= 0) {
+        _inventory[index] = level;
+      } else {
+        _inventory.add(level);
+      }
+      await _reloadMovements();
+      _noticeMessage = 'تمت تسوية المخزون وتسجيل الحركة.';
+    });
+  }
+
+  Future<void> transferInventory({
+    required String productId,
+    required String fromBranchId,
+    required String toBranchId,
+    required num quantity,
+    required String note,
+  }) async {
+    await _guard(() async {
+      await _repository!.transferInventory(
+        storeId: _store!.id,
+        productId: productId,
+        fromBranchId: fromBranchId,
+        toBranchId: toBranchId,
+        quantity: quantity,
+        note: note,
+      );
+      await _reloadInventory();
+      _noticeMessage = 'اكتمل تحويل المخزون بين الفرعين.';
+    });
+  }
+
+  Future<SaleTransaction?> createSale({
+    required String branchId,
+    String? customerId,
+    required String customerName,
+    required String customerPhone,
+    required List<SaleLineInput> lines,
+    required List<SalePayment> payments,
+    num orderDiscount = 0,
+    String notes = '',
+  }) async {
+    SaleTransaction? sale;
+    await _guard(() async {
+      sale = await _repository!.createSale(
+        storeId: _store!.id,
+        branchId: branchId,
+        customerId: customerId,
+        customerName: customerName,
+        customerPhone: customerPhone,
+        lines: lines,
+        payments: payments,
+        orderDiscount: orderDiscount,
+        notes: notes,
+      );
+      _sales.insert(0, sale!);
+      await _reloadInventory();
+      _warranties
+        ..clear()
+        ..addAll(await _repository!.loadWarranties(_store!.id));
+      _registerSessions
+        ..clear()
+        ..addAll(await _repository!.loadRegisterSessions(_store!.id));
+      _noticeMessage = 'تم حفظ البيع وتحديث المخزون والضمان.';
+    });
+    return sale;
+  }
+
+  Future<void> returnSale({
+    required String saleId,
+    required Map<String, num> lineQuantities,
+    required PaymentMethod refundMethod,
+    required String reason,
+  }) async {
+    await _guard(() async {
+      final updated = await _repository!.returnSale(
+        storeId: _store!.id,
+        saleId: saleId,
+        lineQuantities: lineQuantities,
+        refundMethod: refundMethod,
+        reason: reason,
+      );
+      final index = _sales.indexWhere((item) => item.id == saleId);
+      if (index >= 0) _sales[index] = updated;
+      await _reloadInventory();
+      _noticeMessage = 'تم تسجيل المرتجع وإعادة الكمية إلى المخزون.';
+    });
+  }
+
+  Future<void> openRegister({
+    required String branchId,
+    required num openingCash,
+    String notes = '',
+  }) async {
+    await _guard(() async {
+      final session = await _repository!.openRegister(
+        storeId: _store!.id,
+        branchId: branchId,
+        openingCash: openingCash,
+        notes: notes,
+      );
+      _registerSessions.insert(0, session);
+      _noticeMessage = 'تم فتح جلسة الصندوق.';
+    });
+  }
+
+  Future<void> closeRegister({
+    required String sessionId,
+    required num closingCash,
+    String notes = '',
+  }) async {
+    await _guard(() async {
+      final session = await _repository!.closeRegister(
+        sessionId: sessionId,
+        closingCash: closingCash,
+        notes: notes,
+      );
+      final index = _registerSessions.indexWhere(
+        (item) => item.id == sessionId,
+      );
+      if (index >= 0) _registerSessions[index] = session;
+      _noticeMessage = 'تم إغلاق الصندوق وتثبيت العجز أو الزيادة.';
+    });
+  }
+
+  Future<Supplier?> saveSupplier({
+    String? supplierId,
+    required String name,
+    String contactName = '',
+    String phone = '',
+    String email = '',
+    String taxNumber = '',
+    String address = '',
+    String notes = '',
+  }) async {
+    Supplier? supplier;
+    await _guard(() async {
+      supplier = await _repository!.saveSupplier(
+        storeId: _store!.id,
+        supplierId: supplierId,
+        name: name,
+        contactName: contactName,
+        phone: phone,
+        email: email,
+        taxNumber: taxNumber,
+        address: address,
+        notes: notes,
+      );
+      final index = _suppliers.indexWhere((item) => item.id == supplier!.id);
+      if (index >= 0) {
+        _suppliers[index] = supplier!;
+      } else {
+        _suppliers.add(supplier!);
+      }
+    });
+    return supplier;
+  }
+
+  Future<PurchaseOrder?> createPurchaseOrder({
+    required String branchId,
+    required String supplierId,
+    DateTime? expectedAt,
+    String notes = '',
+    required List<PurchaseOrderLineInput> lines,
+  }) async {
+    PurchaseOrder? order;
+    await _guard(() async {
+      order = await _repository!.createPurchaseOrder(
+        storeId: _store!.id,
+        branchId: branchId,
+        supplierId: supplierId,
+        expectedAt: expectedAt,
+        notes: notes,
+        lines: lines,
+      );
+      _purchaseOrders.insert(0, order!);
+    });
+    return order;
+  }
+
+  Future<void> receivePurchaseOrder(String purchaseOrderId) async {
+    await _guard(() async {
+      final updated = await _repository!.receivePurchaseOrder(purchaseOrderId);
+      final index = _purchaseOrders.indexWhere(
+        (item) => item.id == purchaseOrderId,
+      );
+      if (index >= 0) _purchaseOrders[index] = updated;
+      await _reloadInventory();
+      _noticeMessage = 'تم استلام أمر الشراء وتحديث تكلفة المخزون.';
+    });
+  }
+
+  Future<void> _reloadInventory() async {
+    final results = await Future.wait<Object>([
+      _repository!.loadInventory(_store!.id),
+      _repository!.loadStockMovements(_store!.id),
+    ]);
+    _inventory
+      ..clear()
+      ..addAll(results[0] as List<InventoryLevel>);
+    _stockMovements
+      ..clear()
+      ..addAll(results[1] as List<StockMovement>);
+  }
+
+  Future<void> _reloadMovements() async {
+    _stockMovements
+      ..clear()
+      ..addAll(await _repository!.loadStockMovements(_store!.id));
   }
 
   Future<void> requestSubscription({
@@ -572,6 +941,12 @@ class AppController extends ChangeNotifier {
       _repository!.loadProducts(storeId),
       _repository!.loadBranches(storeId),
       _repository!.loadCustomers(storeId),
+      _repository!.loadInventory(storeId),
+      _repository!.loadStockMovements(storeId),
+      _repository!.loadSales(storeId),
+      _repository!.loadRegisterSessions(storeId),
+      _repository!.loadSuppliers(storeId),
+      _repository!.loadPurchaseOrders(storeId),
       _repository!.loadWarranties(storeId),
       _repository!.loadRequests(storeId),
       _repository!.loadTeam(storeId),
@@ -590,21 +965,40 @@ class AppController extends ChangeNotifier {
     _customers
       ..clear()
       ..addAll(results[2] as List<CustomerProfile>);
+    _inventory
+      ..clear()
+      ..addAll(results[3] as List<InventoryLevel>);
+    _stockMovements
+      ..clear()
+      ..addAll(results[4] as List<StockMovement>);
+    _sales
+      ..clear()
+      ..addAll(results[5] as List<SaleTransaction>);
+    _registerSessions
+      ..clear()
+      ..addAll(results[6] as List<CashRegisterSession>);
+    _suppliers
+      ..clear()
+      ..addAll(results[7] as List<Supplier>);
+    _purchaseOrders
+      ..clear()
+      ..addAll(results[8] as List<PurchaseOrder>);
     _warranties
       ..clear()
-      ..addAll(results[3] as List<Warranty>);
+      ..addAll(results[9] as List<Warranty>);
     _requests
       ..clear()
-      ..addAll(results[4] as List<MaintenanceRequest>);
+      ..addAll(results[10] as List<MaintenanceRequest>);
     _team
       ..clear()
-      ..addAll(results[5] as List<TeamMember>);
+      ..addAll(results[11] as List<TeamMember>);
     _plans
       ..clear()
-      ..addAll(results[6] as List<PlanInfo>);
+      ..addAll(results[12] as List<PlanInfo>);
     _auditLogs
       ..clear()
-      ..addAll(results[7] as List<AuditEvent>);
+      ..addAll(results[13] as List<AuditEvent>);
+    _activeBranchId ??= activeBranch?.id;
   }
 
   Future<void> _guard(Future<void> Function() action) async {
@@ -645,6 +1039,21 @@ class AppController extends ChangeNotifier {
     if (value.contains('warranty_limit_reached')) {
       return 'استهلك المتجر حد الضمانات الشهري للخطة.';
     }
+    if (value.contains('insufficient_stock')) {
+      return 'الكمية المطلوبة أكبر من الرصيد المتاح في هذا الفرع.';
+    }
+    if (value.contains('serial_numbers_required')) {
+      return 'أدخل رقماً تسلسلياً مستقلاً لكل قطعة.';
+    }
+    if (value.contains('payment_total_mismatch')) {
+      return 'مجموع الدفعات لا يساوي إجمالي الفاتورة.';
+    }
+    if (value.contains('register_already_open')) {
+      return 'يوجد صندوق مفتوح لهذا الفرع بالفعل.';
+    }
+    if (value.contains('invalid_return_quantity')) {
+      return 'كمية المرتجع غير صحيحة أو سبق إرجاعها.';
+    }
     if (value.contains('duplicate key') || value.contains('23505')) {
       return 'هذه القيمة مسجلة مسبقاً؛ تحقق من الباركود أو الرمز.';
     }
@@ -659,10 +1068,17 @@ class AppController extends ChangeNotifier {
     _products.clear();
     _branches.clear();
     _customers.clear();
+    _inventory.clear();
+    _stockMovements.clear();
+    _sales.clear();
+    _registerSessions.clear();
+    _suppliers.clear();
+    _purchaseOrders.clear();
     _warranties.clear();
     _requests.clear();
     _team.clear();
     _plans.clear();
     _auditLogs.clear();
+    _activeBranchId = null;
   }
 }

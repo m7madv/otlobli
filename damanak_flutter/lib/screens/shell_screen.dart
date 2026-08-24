@@ -4,8 +4,8 @@ import '../core/app_theme.dart';
 import '../widgets/brand_mark.dart';
 import 'account_screen.dart';
 import 'home_screen.dart';
-import 'products_screen.dart';
-import 'scanner_screen.dart';
+import 'inventory_screen.dart';
+import 'point_of_sale_screen.dart';
 import 'warranties_screen.dart';
 import 'warranty_form_screen.dart';
 
@@ -26,19 +26,19 @@ class _ShellScreenState extends State<ShellScreen> {
       label: 'العمليات',
     ),
     NavigationDestination(
-      icon: Icon(Icons.qr_code_scanner_rounded),
-      selectedIcon: Icon(Icons.qr_code_scanner_rounded),
-      label: 'مسح',
+      icon: Icon(Icons.point_of_sale_outlined),
+      selectedIcon: Icon(Icons.point_of_sale_rounded),
+      label: 'البيع',
+    ),
+    NavigationDestination(
+      icon: Icon(Icons.inventory_2_outlined),
+      selectedIcon: Icon(Icons.inventory_2_rounded),
+      label: 'المخزون',
     ),
     NavigationDestination(
       icon: Icon(Icons.verified_user_outlined),
       selectedIcon: Icon(Icons.verified_user_rounded),
       label: 'الضمانات',
-    ),
-    NavigationDestination(
-      icon: Icon(Icons.inventory_2_outlined),
-      selectedIcon: Icon(Icons.inventory_2_rounded),
-      label: 'المنتجات',
     ),
     NavigationDestination(
       icon: Icon(Icons.grid_view_outlined),
@@ -57,13 +57,13 @@ class _ShellScreenState extends State<ShellScreen> {
     0 => HomeScreen(
       onCreateWarranty: _openNewWarranty,
       onScan: () => setState(() => _index = 1),
-      onShowAllWarranties: () => setState(() => _index = 2),
-      onShowProducts: () => setState(() => _index = 3),
+      onShowAllWarranties: () => setState(() => _index = 3),
+      onShowProducts: () => setState(() => _index = 2),
       onShowMore: () => setState(() => _index = 4),
     ),
-    1 => const ScannerScreen(),
-    2 => const WarrantiesScreen(),
-    3 => const ProductsScreen(),
+    1 => const PointOfSaleScreen(),
+    2 => const InventoryScreen(),
+    3 => const WarrantiesScreen(),
     _ => const AccountScreen(),
   };
 

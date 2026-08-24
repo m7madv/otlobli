@@ -24,7 +24,11 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   final _barcode = TextEditingController();
   final _sku = TextEditingController();
   final _price = TextEditingController();
+  final _cost = TextEditingController();
+  final _reorderPoint = TextEditingController(text: '2');
   int _warrantyMonths = 12;
+  bool _trackInventory = true;
+  bool _isSerialized = false;
   bool _loadedDefaults = false;
 
   @override
@@ -48,6 +52,10 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       _barcode.text = product.barcode;
       _sku.text = product.sku;
       _price.text = product.salePrice == null ? '' : '${product.salePrice}';
+      _cost.text = product.costPrice == null ? '' : '${product.costPrice}';
+      _reorderPoint.text = '${product.reorderPoint}';
+      _trackInventory = product.trackInventory;
+      _isSerialized = product.isSerialized;
       _warrantyMonths = product.warrantyMonths;
       _loadedDefaults = true;
     }
@@ -61,6 +69,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     _barcode.dispose();
     _sku.dispose();
     _price.dispose();
+    _cost.dispose();
+    _reorderPoint.dispose();
     super.dispose();
   }
 
@@ -76,6 +86,10 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
             sku: _sku.text,
             warrantyMonths: _warrantyMonths,
             salePrice: num.tryParse(_price.text.trim()),
+            costPrice: num.tryParse(_cost.text.trim()),
+            trackInventory: _trackInventory,
+            isSerialized: _isSerialized,
+            reorderPoint: num.tryParse(_reorderPoint.text.trim()) ?? 0,
           )
         : await controller.updateProduct(
             productId: widget.product!.id,
@@ -86,6 +100,10 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
             sku: _sku.text,
             warrantyMonths: _warrantyMonths,
             salePrice: num.tryParse(_price.text.trim()),
+            costPrice: num.tryParse(_cost.text.trim()),
+            trackInventory: _trackInventory,
+            isSerialized: _isSerialized,
+            reorderPoint: num.tryParse(_reorderPoint.text.trim()) ?? 0,
           );
     if (mounted && product != null) {
       Navigator.of(context).pop(product);
@@ -216,6 +234,69 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                               return null;
                             },
                           ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _cost,
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                        decimal: true,
+                                      ),
+                                  textDirection: TextDirection.ltr,
+                                  decoration: InputDecoration(
+                                    labelText: 'تكلفة الشراء',
+                                    suffixText: currency.symbol,
+                                  ),
+                                  validator: _optionalNonNegative,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _reorderPoint,
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                        decimal: true,
+                                      ),
+                                  textDirection: TextDirection.ltr,
+                                  decoration: const InputDecoration(
+                                    labelText: 'حد إعادة الطلب',
+                                  ),
+                                  validator: (value) {
+                                    final number = num.tryParse(value ?? '');
+                                    return number == null || number < 0
+                                        ? 'أدخل رقماً صحيحاً'
+                                        : null;
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          SwitchListTile.adaptive(
+                            contentPadding: EdgeInsets.zero,
+                            value: _trackInventory,
+                            title: const Text('تتبّع مخزون هذا المنتج'),
+                            subtitle: const Text(
+                              'يمنع البيع عند نفاد الكمية ويُسجل كل حركة.',
+                            ),
+                            onChanged: (value) =>
+                                setState(() => _trackInventory = value),
+                          ),
+                          SwitchListTile.adaptive(
+                            contentPadding: EdgeInsets.zero,
+                            value: _isSerialized,
+                            title: const Text('لكل قطعة رقم تسلسلي'),
+                            subtitle: const Text(
+                              'مناسب للهواتف والأجهزة؛ يطلب الرقم عند البيع.',
+                            ),
+                            onChanged: _trackInventory
+                                ? (value) =>
+                                      setState(() => _isSerialized = value)
+                                : null,
+                          ),
                         ],
                       ),
                     ),
@@ -298,6 +379,12 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
 
   String? _required(String? value) =>
       value == null || value.trim().isEmpty ? 'هذا الحقل مطلوب' : null;
+
+  String? _optionalNonNegative(String? value) {
+    if ((value ?? '').trim().isEmpty) return null;
+    final number = num.tryParse(value!.trim());
+    return number == null || number < 0 ? 'أدخل رقماً صحيحاً' : null;
+  }
 }
 
 class _Section extends StatelessWidget {

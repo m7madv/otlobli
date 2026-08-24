@@ -9,6 +9,10 @@ class Product {
     required this.sku,
     required this.warrantyMonths,
     required this.salePrice,
+    this.costPrice,
+    this.trackInventory = true,
+    this.isSerialized = false,
+    this.reorderPoint = 2,
     required this.isActive,
     required this.createdAt,
   });
@@ -22,6 +26,10 @@ class Product {
   final String sku;
   final int warrantyMonths;
   final num? salePrice;
+  final num? costPrice;
+  final bool trackInventory;
+  final bool isSerialized;
+  final num reorderPoint;
   final bool isActive;
   final DateTime createdAt;
 
@@ -46,6 +54,10 @@ class Product {
       sku: json['sku'] as String? ?? '',
       warrantyMonths: json['warranty_months'] as int? ?? 12,
       salePrice: json['sale_price'] as num?,
+      costPrice: json['cost_price'] as num?,
+      trackInventory: json['track_inventory'] as bool? ?? true,
+      isSerialized: json['is_serialized'] as bool? ?? false,
+      reorderPoint: json['reorder_point'] as num? ?? 2,
       isActive: json['is_active'] as bool? ?? true,
       createdAt: DateTime.parse(json['created_at'] as String),
     );

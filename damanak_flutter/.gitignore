@@ -32,6 +32,7 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
+/output/
 
 # Symbolication related
 app.*.symbols
@@ -43,3 +44,10 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local production configuration and signing secrets.
+dart-defines.json
+android/key.properties
+android/**/*.jks
+android/**/*.keystore
+firebase-debug.log

@@ -1,12 +1,17 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/account.dart';
 import '../models/audit_event.dart';
 import '../models/branch.dart';
 import '../models/customer.dart';
+import '../models/inventory.dart';
 import '../models/maintenance_request.dart';
 import '../models/product.dart';
+import '../models/register.dart';
+import '../models/sale.dart';
 import '../models/subscription.dart';
+import '../models/supplier.dart';
 import '../models/warranty.dart';
 import 'damanak_repository.dart';
 
@@ -70,6 +75,22 @@ class SupabaseDamanakRepository implements DamanakRepository {
   @override
   Future<void> sendPasswordReset(String email) =>
       _client.auth.resetPasswordForEmail(email.trim());
+
+  @override
+  Future<void> signInWithSocial(SocialAuthProvider provider) async {
+    await _client.auth.signInWithOAuth(
+      provider == SocialAuthProvider.google
+          ? OAuthProvider.google
+          : OAuthProvider.apple,
+      redirectTo: kIsWeb ? null : 'com.damanak.damanak://login-callback',
+    );
+  }
+
+  @override
+  Future<void> deleteAccount() async {
+    await _client.rpc('delete_current_account');
+    await _client.auth.signOut();
+  }
 
   AccountIdentity _identityFromUser(User user) {
     return AccountIdentity(
@@ -225,6 +246,15 @@ class SupabaseDamanakRepository implements DamanakRepository {
     required String address,
     required String phone,
     required bool isMain,
+    required String email,
+    required String managerName,
+    required String receiptPrefix,
+    required String timezone,
+    required String opensAt,
+    required String closesAt,
+    required BranchType type,
+    required bool acceptsSales,
+    required bool handlesService,
   }) async {
     if (isMain) {
       await _client
@@ -240,6 +270,15 @@ class SupabaseDamanakRepository implements DamanakRepository {
       'address': address.trim(),
       'phone': phone.trim(),
       'is_main': isMain,
+      'email': _nullable(email),
+      'manager_name': managerName.trim(),
+      'receipt_prefix': receiptPrefix.trim().toUpperCase(),
+      'timezone': timezone.trim(),
+      'opens_at': opensAt,
+      'closes_at': closesAt,
+      'branch_type': type.databaseValue,
+      'accepts_sales': acceptsSales,
+      'handles_service': handlesService,
       'is_active': true,
       'updated_at': DateTime.now().toIso8601String(),
     };
@@ -336,6 +375,10 @@ class SupabaseDamanakRepository implements DamanakRepository {
     required String sku,
     required int warrantyMonths,
     required num? salePrice,
+    required num? costPrice,
+    required bool trackInventory,
+    required bool isSerialized,
+    required num reorderPoint,
   }) async {
     final row = await _client
         .from('products')
@@ -348,6 +391,10 @@ class SupabaseDamanakRepository implements DamanakRepository {
           'sku': _nullable(sku),
           'warranty_months': warrantyMonths,
           'sale_price': salePrice,
+          'cost_price': costPrice,
+          'track_inventory': trackInventory,
+          'is_serialized': isSerialized,
+          'reorder_point': reorderPoint,
           'created_by': _user.id,
         })
         .select()
@@ -366,6 +413,10 @@ class SupabaseDamanakRepository implements DamanakRepository {
     required String sku,
     required int warrantyMonths,
     required num? salePrice,
+    required num? costPrice,
+    required bool trackInventory,
+    required bool isSerialized,
+    required num reorderPoint,
     required bool isActive,
   }) async {
     final row = await _client
@@ -378,6 +429,10 @@ class SupabaseDamanakRepository implements DamanakRepository {
           'sku': _nullable(sku),
           'warranty_months': warrantyMonths,
           'sale_price': salePrice,
+          'cost_price': costPrice,
+          'track_inventory': trackInventory,
+          'is_serialized': isSerialized,
+          'reorder_point': reorderPoint,
           'is_active': isActive,
           'updated_at': DateTime.now().toIso8601String(),
         })
@@ -389,11 +444,306 @@ class SupabaseDamanakRepository implements DamanakRepository {
   }
 
   @override
+  Future<List<InventoryLevel>> loadInventory(String storeId) async {
+    final rows = await _client
+        .from('inventory_levels')
+        .select()
+        .eq('store_id', storeId)
+        .order('updated_at', ascending: false);
+    return rows.map(InventoryLevel.fromJson).toList();
+  }
+
+  @override
+  Future<List<StockMovement>> loadStockMovements(String storeId) async {
+    final rows = await _client
+        .from('stock_movements')
+        .select()
+        .eq('store_id', storeId)
+        .order('created_at', ascending: false)
+        .limit(250);
+    return rows.map(StockMovement.fromJson).toList();
+  }
+
+  @override
+  Future<InventoryLevel> adjustInventory({
+    required String storeId,
+    required String branchId,
+    required String productId,
+    required num newQuantity,
+    required num unitCost,
+    required String note,
+  }) async {
+    final value = await _client.rpc(
+      'adjust_inventory',
+      params: {
+        'target_store_id': storeId,
+        'target_branch_id': branchId,
+        'target_product_id': productId,
+        'new_quantity': newQuantity,
+        'target_unit_cost': unitCost,
+        'target_note': note.trim(),
+      },
+    );
+    return InventoryLevel.fromJson(Map<String, dynamic>.from(value as Map));
+  }
+
+  @override
+  Future<void> transferInventory({
+    required String storeId,
+    required String productId,
+    required String fromBranchId,
+    required String toBranchId,
+    required num quantity,
+    required String note,
+  }) async {
+    await _client.rpc(
+      'transfer_inventory',
+      params: {
+        'target_store_id': storeId,
+        'target_product_id': productId,
+        'source_branch_id': fromBranchId,
+        'destination_branch_id': toBranchId,
+        'target_quantity': quantity,
+        'target_note': note.trim(),
+      },
+    );
+  }
+
+  @override
+  Future<List<SaleTransaction>> loadSales(String storeId) async {
+    final rows = await _client
+        .from('sales')
+        .select('*, sale_lines(*), sale_payments(*)')
+        .eq('store_id', storeId)
+        .order('created_at', ascending: false)
+        .limit(250);
+    return rows.map(SaleTransaction.fromJson).toList();
+  }
+
+  Future<SaleTransaction> _loadSale(String saleId) async {
+    final row = await _client
+        .from('sales')
+        .select('*, sale_lines(*), sale_payments(*)')
+        .eq('id', saleId)
+        .single();
+    return SaleTransaction.fromJson(row);
+  }
+
+  @override
+  Future<SaleTransaction> createSale({
+    required String storeId,
+    required String branchId,
+    required String? customerId,
+    required String customerName,
+    required String customerPhone,
+    required List<SaleLineInput> lines,
+    required List<SalePayment> payments,
+    required num orderDiscount,
+    required String notes,
+  }) async {
+    final value = await _client.rpc(
+      'create_sale',
+      params: {
+        'target_store_id': storeId,
+        'target_branch_id': branchId,
+        'target_customer_id': customerId,
+        'target_customer_name': customerName.trim(),
+        'target_customer_phone': customerPhone.trim(),
+        'sale_lines_input': lines.map((item) => item.toJson()).toList(),
+        'sale_payments_input': payments
+            .map(
+              (item) => {
+                'payment_method': item.method.databaseValue,
+                'amount': item.amount,
+                'reference': item.reference.trim(),
+              },
+            )
+            .toList(),
+        'order_discount': orderDiscount,
+        'target_notes': notes.trim(),
+      },
+    );
+    return _loadSale(value as String);
+  }
+
+  @override
+  Future<SaleTransaction> returnSale({
+    required String storeId,
+    required String saleId,
+    required Map<String, num> lineQuantities,
+    required PaymentMethod refundMethod,
+    required String reason,
+  }) async {
+    await _client.rpc(
+      'return_sale',
+      params: {
+        'target_store_id': storeId,
+        'target_sale_id': saleId,
+        'returned_lines': lineQuantities.entries
+            .map((item) => {'sale_line_id': item.key, 'quantity': item.value})
+            .toList(),
+        'refund_method': refundMethod.databaseValue,
+        'return_reason': reason.trim(),
+      },
+    );
+    return _loadSale(saleId);
+  }
+
+  @override
+  Future<List<CashRegisterSession>> loadRegisterSessions(String storeId) async {
+    final rows = await _client
+        .from('register_sessions')
+        .select()
+        .eq('store_id', storeId)
+        .order('opened_at', ascending: false)
+        .limit(100);
+    return rows.map(CashRegisterSession.fromJson).toList();
+  }
+
+  @override
+  Future<CashRegisterSession> openRegister({
+    required String storeId,
+    required String branchId,
+    required num openingCash,
+    required String notes,
+  }) async {
+    final value = await _client.rpc(
+      'open_register',
+      params: {
+        'target_store_id': storeId,
+        'target_branch_id': branchId,
+        'target_opening_cash': openingCash,
+        'target_notes': notes.trim(),
+      },
+    );
+    return CashRegisterSession.fromJson(
+      Map<String, dynamic>.from(value as Map),
+    );
+  }
+
+  @override
+  Future<CashRegisterSession> closeRegister({
+    required String sessionId,
+    required num closingCash,
+    required String notes,
+  }) async {
+    final value = await _client.rpc(
+      'close_register',
+      params: {
+        'target_session_id': sessionId,
+        'target_closing_cash': closingCash,
+        'target_notes': notes.trim(),
+      },
+    );
+    return CashRegisterSession.fromJson(
+      Map<String, dynamic>.from(value as Map),
+    );
+  }
+
+  @override
+  Future<List<Supplier>> loadSuppliers(String storeId) async {
+    final rows = await _client
+        .from('suppliers')
+        .select()
+        .eq('store_id', storeId)
+        .eq('is_active', true)
+        .order('name');
+    return rows.map(Supplier.fromJson).toList();
+  }
+
+  @override
+  Future<Supplier> saveSupplier({
+    required String storeId,
+    String? supplierId,
+    required String name,
+    required String contactName,
+    required String phone,
+    required String email,
+    required String taxNumber,
+    required String address,
+    required String notes,
+  }) async {
+    final values = <String, dynamic>{
+      'store_id': storeId,
+      'name': name.trim(),
+      'contact_name': contactName.trim(),
+      'phone': phone.trim(),
+      'email': _nullable(email),
+      'tax_number': taxNumber.trim(),
+      'address': address.trim(),
+      'notes': notes.trim(),
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+    final row = supplierId == null
+        ? await _client.from('suppliers').insert(values).select().single()
+        : await _client
+              .from('suppliers')
+              .update(values)
+              .eq('id', supplierId)
+              .eq('store_id', storeId)
+              .select()
+              .single();
+    return Supplier.fromJson(row);
+  }
+
+  @override
+  Future<List<PurchaseOrder>> loadPurchaseOrders(String storeId) async {
+    final rows = await _client
+        .from('purchase_orders')
+        .select('*, purchase_order_lines(*)')
+        .eq('store_id', storeId)
+        .order('created_at', ascending: false);
+    return rows.map(PurchaseOrder.fromJson).toList();
+  }
+
+  @override
+  Future<PurchaseOrder> createPurchaseOrder({
+    required String storeId,
+    required String branchId,
+    required String supplierId,
+    required DateTime? expectedAt,
+    required String notes,
+    required List<PurchaseOrderLineInput> lines,
+  }) async {
+    final value = await _client.rpc(
+      'create_purchase_order',
+      params: {
+        'target_store_id': storeId,
+        'target_branch_id': branchId,
+        'target_supplier_id': supplierId,
+        'target_expected_at': expectedAt?.toIso8601String(),
+        'target_notes': notes.trim(),
+        'purchase_lines_input': lines.map((item) => item.toJson()).toList(),
+      },
+    );
+    return _loadPurchaseOrder(value as String);
+  }
+
+  Future<PurchaseOrder> _loadPurchaseOrder(String id) async {
+    final row = await _client
+        .from('purchase_orders')
+        .select('*, purchase_order_lines(*)')
+        .eq('id', id)
+        .single();
+    return PurchaseOrder.fromJson(row);
+  }
+
+  @override
+  Future<PurchaseOrder> receivePurchaseOrder(String purchaseOrderId) async {
+    await _client.rpc(
+      'receive_purchase_order',
+      params: {'target_purchase_order_id': purchaseOrderId},
+    );
+    return _loadPurchaseOrder(purchaseOrderId);
+  }
+
+  @override
   Future<List<Warranty>> loadWarranties(String storeId) async {
     final rows = await _client
         .from('warranties')
         .select()
         .eq('store_id', storeId)
+        .filter('voided_at', 'is', null)
         .order('created_at', ascending: false);
     return rows.map(Warranty.fromJson).toList();
   }

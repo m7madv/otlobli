@@ -1,4 +1,5 @@
 import 'package:damanak/models/account.dart';
+import 'package:damanak/models/sale.dart';
 import 'package:damanak/models/warranty.dart';
 import 'package:damanak/state/app_controller.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -116,6 +117,61 @@ void main() {
       expect(invite!.role, MemberRole.staff);
       expect(invite.maxUses, 3);
       expect(invite.code, startsWith('DMN-'));
+    });
+
+    test('ينفذ بيعاً ويخصم المخزون وينشئ الضمان ثم يعيد القطعة', () async {
+      final product = controller.products.first;
+      final customer = controller.customers.first;
+      final branch = controller.branches.first;
+      final stockBefore = controller
+          .inventoryLevel(product.id, branch.id)!
+          .onHand;
+      final warrantiesBefore = controller.warranties.length;
+
+      final sale = await controller.createSale(
+        branchId: branch.id,
+        customerId: customer.id,
+        customerName: customer.name,
+        customerPhone: customer.phone,
+        lines: [
+          SaleLineInput(
+            productId: product.id,
+            quantity: 1,
+            unitPrice: product.salePrice!,
+            discountAmount: 0,
+            serialNumbers: const ['TEST-POS-SERIAL-1'],
+          ),
+        ],
+        payments: [
+          SalePayment(
+            id: '',
+            method: PaymentMethod.card,
+            amount: product.salePrice!,
+            reference: 'TEST-PAYMENT',
+          ),
+        ],
+      );
+
+      expect(sale, isNotNull);
+      expect(
+        controller.inventoryLevel(product.id, branch.id)!.onHand,
+        stockBefore - 1,
+      );
+      expect(controller.warranties.length, warrantiesBefore + 1);
+      expect(controller.sales.first.id, sale!.id);
+
+      await controller.returnSale(
+        saleId: sale.id,
+        lineQuantities: {sale.lines.first.id: 1},
+        refundMethod: PaymentMethod.card,
+        reason: 'اختبار مرتجع كامل',
+      );
+
+      expect(
+        controller.inventoryLevel(product.id, branch.id)!.onHand,
+        stockBefore,
+      );
+      expect(controller.sales.first.status, SaleStatus.returned);
     });
   });
 }

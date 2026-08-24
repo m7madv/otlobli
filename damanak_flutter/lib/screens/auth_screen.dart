@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/app_theme.dart';
+import '../models/account.dart';
 import '../state/app_scope.dart';
 import '../widgets/brand_mark.dart';
 import '../widgets/message_banner.dart';
@@ -82,6 +83,7 @@ class _AuthScreenState extends State<AuthScreen> {
                         setState(() => _hidePassword = !_hidePassword),
                     onSubmit: _submit,
                     onResetPassword: _resetPassword,
+                    onSocial: controller.signInWithSocial,
                   );
                   if (!wide) {
                     return Column(
@@ -126,6 +128,7 @@ class _AuthForm extends StatelessWidget {
     required this.onTogglePassword,
     required this.onSubmit,
     required this.onResetPassword,
+    required this.onSocial,
   });
 
   final GlobalKey<FormState> formKey;
@@ -139,6 +142,7 @@ class _AuthForm extends StatelessWidget {
   final VoidCallback onTogglePassword;
   final VoidCallback onSubmit;
   final VoidCallback onResetPassword;
+  final ValueChanged<SocialAuthProvider> onSocial;
 
   @override
   Widget build(BuildContext context) {
@@ -168,6 +172,45 @@ class _AuthForm extends StatelessWidget {
             ),
             const SizedBox(height: 18),
             const MessageBanner(),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: busy
+                        ? null
+                        : () => onSocial(SocialAuthProvider.google),
+                    icon: const Text(
+                      'G',
+                      style: TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                    label: const Text('المتابعة مع Google'),
+                  ),
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: busy
+                        ? null
+                        : () => onSocial(SocialAuthProvider.apple),
+                    icon: const Icon(Icons.apple_rounded),
+                    label: const Text('المتابعة مع Apple'),
+                  ),
+                ),
+              ],
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Row(
+                children: [
+                  Expanded(child: Divider()),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 10),
+                    child: Text('أو بالبريد'),
+                  ),
+                  Expanded(child: Divider()),
+                ],
+              ),
+            ),
             if (createAccount) ...[
               TextFormField(
                 controller: name,
@@ -305,7 +348,7 @@ class _AuthStory extends StatelessWidget {
           BrandMark(onDark: true),
           Spacer(),
           Text(
-            'كل ضمان يبدأ\nمن مسحة واحدة.',
+            'من الرف إلى البيع،\nكل شيء واضح.',
             style: TextStyle(
               color: Colors.white,
               fontSize: 34,
@@ -315,7 +358,7 @@ class _AuthStory extends StatelessWidget {
           ),
           SizedBox(height: 14),
           Text(
-            'كتالوج منتجات، باركود داخل التطبيق، فريق بصلاحيات، وسجل لا يضيع بين أجهزة الموظفين.',
+            'مخزون وفروع ونقاط بيع وضمان وصيانة؛ نظام واحد يشارك فيه فريقك بصلاحيات مستقلة.',
             style: TextStyle(color: Color(0xFFBDD0CD), height: 1.65),
           ),
           SizedBox(height: 28),

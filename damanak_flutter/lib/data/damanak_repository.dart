@@ -3,8 +3,12 @@ import '../models/audit_event.dart';
 import '../models/branch.dart';
 import '../models/customer.dart';
 import '../models/maintenance_request.dart';
+import '../models/inventory.dart';
 import '../models/product.dart';
+import '../models/register.dart';
+import '../models/sale.dart';
 import '../models/subscription.dart';
+import '../models/supplier.dart';
 import '../models/warranty.dart';
 
 class SignUpResult {
@@ -41,6 +45,8 @@ abstract interface class DamanakRepository {
   });
   Future<void> signOut();
   Future<void> sendPasswordReset(String email);
+  Future<void> signInWithSocial(SocialAuthProvider provider);
+  Future<void> deleteAccount();
 
   Future<WorkspaceSnapshot?> loadWorkspace();
   Future<WorkspaceSnapshot> createStore({
@@ -60,6 +66,15 @@ abstract interface class DamanakRepository {
     required String address,
     required String phone,
     required bool isMain,
+    required String email,
+    required String managerName,
+    required String receiptPrefix,
+    required String timezone,
+    required String opensAt,
+    required String closesAt,
+    required BranchType type,
+    required bool acceptsSales,
+    required bool handlesService,
   });
 
   Future<List<CustomerProfile>> loadCustomers(String storeId);
@@ -98,6 +113,10 @@ abstract interface class DamanakRepository {
     required String sku,
     required int warrantyMonths,
     required num? salePrice,
+    required num? costPrice,
+    required bool trackInventory,
+    required bool isSerialized,
+    required num reorderPoint,
   });
   Future<Product> updateProduct({
     required String productId,
@@ -109,8 +128,87 @@ abstract interface class DamanakRepository {
     required String sku,
     required int warrantyMonths,
     required num? salePrice,
+    required num? costPrice,
+    required bool trackInventory,
+    required bool isSerialized,
+    required num reorderPoint,
     required bool isActive,
   });
+
+  Future<List<InventoryLevel>> loadInventory(String storeId);
+  Future<List<StockMovement>> loadStockMovements(String storeId);
+  Future<InventoryLevel> adjustInventory({
+    required String storeId,
+    required String branchId,
+    required String productId,
+    required num newQuantity,
+    required num unitCost,
+    required String note,
+  });
+  Future<void> transferInventory({
+    required String storeId,
+    required String productId,
+    required String fromBranchId,
+    required String toBranchId,
+    required num quantity,
+    required String note,
+  });
+
+  Future<List<SaleTransaction>> loadSales(String storeId);
+  Future<SaleTransaction> createSale({
+    required String storeId,
+    required String branchId,
+    required String? customerId,
+    required String customerName,
+    required String customerPhone,
+    required List<SaleLineInput> lines,
+    required List<SalePayment> payments,
+    required num orderDiscount,
+    required String notes,
+  });
+  Future<SaleTransaction> returnSale({
+    required String storeId,
+    required String saleId,
+    required Map<String, num> lineQuantities,
+    required PaymentMethod refundMethod,
+    required String reason,
+  });
+
+  Future<List<CashRegisterSession>> loadRegisterSessions(String storeId);
+  Future<CashRegisterSession> openRegister({
+    required String storeId,
+    required String branchId,
+    required num openingCash,
+    required String notes,
+  });
+  Future<CashRegisterSession> closeRegister({
+    required String sessionId,
+    required num closingCash,
+    required String notes,
+  });
+
+  Future<List<Supplier>> loadSuppliers(String storeId);
+  Future<Supplier> saveSupplier({
+    required String storeId,
+    String? supplierId,
+    required String name,
+    required String contactName,
+    required String phone,
+    required String email,
+    required String taxNumber,
+    required String address,
+    required String notes,
+  });
+  Future<List<PurchaseOrder>> loadPurchaseOrders(String storeId);
+  Future<PurchaseOrder> createPurchaseOrder({
+    required String storeId,
+    required String branchId,
+    required String supplierId,
+    required DateTime? expectedAt,
+    required String notes,
+    required List<PurchaseOrderLineInput> lines,
+  });
+  Future<PurchaseOrder> receivePurchaseOrder(String purchaseOrderId);
 
   Future<List<Warranty>> loadWarranties(String storeId);
   Future<Warranty> createWarranty({

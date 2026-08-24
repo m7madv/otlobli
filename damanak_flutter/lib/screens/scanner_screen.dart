@@ -11,7 +11,9 @@ import 'warranty_form_screen.dart';
 enum _ScanAction { warranty, addProduct, cancel }
 
 class ScannerScreen extends StatefulWidget {
-  const ScannerScreen({super.key});
+  const ScannerScreen({this.returnBarcode = false, super.key});
+
+  final bool returnBarcode;
 
   @override
   State<ScannerScreen> createState() => _ScannerScreenState();
@@ -64,6 +66,10 @@ class _ScannerScreenState extends State<ScannerScreen> {
     setState(() => _handling = true);
     await _scanner.stop();
     if (!mounted) return;
+    if (widget.returnBarcode) {
+      Navigator.of(context).pop(code);
+      return;
+    }
     final controller = AppScope.of(context);
     final product = controller.productByBarcode(code);
     final action = await showModalBottomSheet<_ScanAction>(

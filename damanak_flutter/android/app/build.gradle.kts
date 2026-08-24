@@ -5,6 +5,12 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+val damanakKeystorePath = System.getenv("DAMANAK_KEYSTORE_PATH")
+val damanakKeystorePassword = System.getenv("DAMANAK_KEYSTORE_PASSWORD")
+val damanakKeyAlias = System.getenv("DAMANAK_KEY_ALIAS") ?: "damanak-upload"
+val hasDamanakReleaseSigning = !damanakKeystorePath.isNullOrBlank() &&
+    !damanakKeystorePassword.isNullOrBlank()
+
 android {
     namespace = "com.damanak.damanak"
     compileSdk = flutter.compileSdkVersion
@@ -30,11 +36,24 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (hasDamanakReleaseSigning) {
+            create("damanakRelease") {
+                storeFile = file(damanakKeystorePath!!)
+                storePassword = damanakKeystorePassword
+                keyAlias = damanakKeyAlias
+                keyPassword = damanakKeystorePassword
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (hasDamanakReleaseSigning) {
+                signingConfigs.getByName("damanakRelease")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }

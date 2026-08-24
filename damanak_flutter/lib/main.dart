@@ -19,6 +19,11 @@ Future<void> main() async {
     controller = AppController.withRepository(
       SupabaseDamanakRepository(Supabase.instance.client),
     );
+    Supabase.instance.client.auth.onAuthStateChange.listen((event) {
+      if (event.event == AuthChangeEvent.signedIn) {
+        controller.initialize();
+      }
+    });
   } else {
     controller = AppController.unconfigured();
   }

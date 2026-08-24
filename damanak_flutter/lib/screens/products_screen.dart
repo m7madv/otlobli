@@ -67,6 +67,10 @@ class _ProductsScreenState extends State<ProductsScreen> {
       sku: product.sku,
       warrantyMonths: product.warrantyMonths,
       salePrice: product.salePrice,
+      costPrice: product.costPrice,
+      trackInventory: product.trackInventory,
+      isSerialized: product.isSerialized,
+      reorderPoint: product.reorderPoint,
       isActive: false,
     );
   }

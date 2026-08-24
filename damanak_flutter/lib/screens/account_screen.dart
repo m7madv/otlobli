@@ -8,7 +8,11 @@ import '../widgets/message_banner.dart';
 import 'requests_screen.dart';
 import 'branches_screen.dart';
 import 'customers_screen.dart';
+import 'procurement_screen.dart';
+import 'products_screen.dart';
+import 'register_screen.dart';
 import 'reports_screen.dart';
+import 'sales_screen.dart';
 import 'settings_screen.dart';
 import 'subscription_screen.dart';
 import 'team_screen.dart';
@@ -103,6 +107,19 @@ class AccountScreen extends StatelessWidget {
             Text('إدارة المتجر', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 10),
             _HubTile(
+              icon: Icons.receipt_long_outlined,
+              title: 'المبيعات والمرتجعات',
+              subtitle: '${controller.sales.length} فواتير • مرتجعات موثقة',
+              onTap: () => _open(context, const SalesScreen()),
+            ),
+            _HubTile(
+              icon: Icons.inventory_2_outlined,
+              title: 'كتالوج المنتجات',
+              subtitle:
+                  '${controller.products.length} منتجات • أسعار وتكلفة وتسلسل',
+              onTap: () => _open(context, const ProductsScreen()),
+            ),
+            _HubTile(
               icon: Icons.people_outline_rounded,
               title: 'دليل العملاء',
               subtitle:
@@ -115,6 +132,20 @@ class AccountScreen extends StatelessWidget {
               subtitle:
                   '${controller.branches.length} فروع • ربط المبيعات بالفرع',
               onTap: () => _open(context, const BranchesScreen()),
+            ),
+            _HubTile(
+              icon: Icons.point_of_sale_outlined,
+              title: 'جلسات الصندوق',
+              subtitle:
+                  '${controller.registerSessions.length} ورديات • جرد وفروقات',
+              onTap: () => _open(context, const RegisterScreen()),
+            ),
+            _HubTile(
+              icon: Icons.local_shipping_outlined,
+              title: 'الموردون والمشتريات',
+              subtitle:
+                  '${controller.suppliers.length} موردين • ${controller.purchaseOrders.length} أوامر شراء',
+              onTap: () => _open(context, const ProcurementScreen()),
             ),
             _HubTile(
               icon: Icons.analytics_outlined,
@@ -157,10 +188,21 @@ class AccountScreen extends StatelessWidget {
                 controller.isDemo ? 'إغلاق العرض التشغيلي' : 'تسجيل الخروج',
               ),
             ),
+            if (!controller.isDemo) ...[
+              const SizedBox(height: 10),
+              TextButton.icon(
+                onPressed: controller.busy
+                    ? null
+                    : () => _confirmDelete(context),
+                style: TextButton.styleFrom(foregroundColor: colors.error),
+                icon: const Icon(Icons.delete_forever_outlined),
+                label: const Text('حذف الحساب نهائياً'),
+              ),
+            ],
             const SizedBox(height: 14),
             Center(
               child: Text(
-                'ضمانك للأعمال 3.0.0',
+                'ضمانك للأعمال 4.0.0',
                 style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
               ),
             ),
@@ -172,6 +214,34 @@ class AccountScreen extends StatelessWidget {
 
   void _open(BuildContext context, Widget screen) {
     Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => screen));
+  }
+
+  Future<void> _confirmDelete(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('حذف الحساب نهائياً؟'),
+        content: const Text(
+          'إذا كنت المالك الوحيد فسيُحذف المتجر وبياناته. وإذا وُجد عضو آخر فستُنقل الملكية إليه قبل حذف حسابك. لا يمكن التراجع عن هذا الإجراء.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            child: const Text('حذف نهائي'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && context.mounted) {
+      await AppScope.of(context).deleteAccount();
+    }
   }
 }
 

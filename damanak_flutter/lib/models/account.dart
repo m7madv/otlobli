@@ -1,5 +1,14 @@
 enum AppStage { configuring, signedOut, onboarding, ready }
 
+enum SocialAuthProvider { google, apple }
+
+extension SocialAuthProviderText on SocialAuthProvider {
+  String get label => switch (this) {
+    SocialAuthProvider.google => 'Google',
+    SocialAuthProvider.apple => 'Apple',
+  };
+}
+
 enum MemberRole { owner, manager, staff }
 
 extension MemberRoleText on MemberRole {

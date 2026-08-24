@@ -83,9 +83,10 @@ class BranchesScreen extends StatelessWidget {
                         ),
                         subtitle: Text(
                           [
+                            branch.type.label,
                             branch.city,
                             branch.code,
-                            branch.phone,
+                            '${branch.opensAt}–${branch.closesAt}',
                           ].where((value) => value.isNotEmpty).join(' • '),
                         ),
                         trailing: canEdit
@@ -110,9 +111,8 @@ class BranchesScreen extends StatelessWidget {
   }
 
   Future<void> _editBranch(BuildContext context, [StoreBranch? branch]) async {
-    final draft = await showDialog<_BranchDraft>(
-      context: context,
-      builder: (_) => _BranchEditor(branch: branch),
+    final draft = await Navigator.of(context).push<_BranchDraft>(
+      MaterialPageRoute(builder: (_) => _BranchEditor(branch: branch)),
     );
     if (draft == null || !context.mounted) return;
     await AppScope.of(context).saveBranch(
@@ -123,6 +123,15 @@ class BranchesScreen extends StatelessWidget {
       address: draft.address,
       phone: draft.phone,
       isMain: draft.isMain,
+      email: draft.email,
+      managerName: draft.managerName,
+      receiptPrefix: draft.receiptPrefix,
+      timezone: draft.timezone,
+      opensAt: draft.opensAt,
+      closesAt: draft.closesAt,
+      type: draft.type,
+      acceptsSales: draft.acceptsSales,
+      handlesService: draft.handlesService,
     );
   }
 }
@@ -143,7 +152,16 @@ class _BranchEditorState extends State<_BranchEditor> {
   late final TextEditingController _city;
   late final TextEditingController _address;
   late final TextEditingController _phone;
+  late final TextEditingController _email;
+  late final TextEditingController _managerName;
+  late final TextEditingController _receiptPrefix;
+  late final TextEditingController _timezone;
+  late final TextEditingController _opensAt;
+  late final TextEditingController _closesAt;
   late bool _isMain;
+  late BranchType _type;
+  late bool _acceptsSales;
+  late bool _handlesService;
 
   @override
   void initState() {
@@ -153,7 +171,24 @@ class _BranchEditorState extends State<_BranchEditor> {
     _city = TextEditingController(text: widget.branch?.city ?? '');
     _address = TextEditingController(text: widget.branch?.address ?? '');
     _phone = TextEditingController(text: widget.branch?.phone ?? '');
+    _email = TextEditingController(text: widget.branch?.email ?? '');
+    _managerName = TextEditingController(
+      text: widget.branch?.managerName ?? '',
+    );
+    _receiptPrefix = TextEditingController(
+      text: widget.branch?.receiptPrefix.isNotEmpty == true
+          ? widget.branch!.receiptPrefix
+          : widget.branch?.code ?? 'POS',
+    );
+    _timezone = TextEditingController(
+      text: widget.branch?.timezone ?? 'Asia/Riyadh',
+    );
+    _opensAt = TextEditingController(text: widget.branch?.opensAt ?? '09:00');
+    _closesAt = TextEditingController(text: widget.branch?.closesAt ?? '23:00');
     _isMain = widget.branch?.isMain ?? false;
+    _type = widget.branch?.type ?? BranchType.retail;
+    _acceptsSales = widget.branch?.acceptsSales ?? true;
+    _handlesService = widget.branch?.handlesService ?? true;
   }
 
   @override
@@ -163,109 +198,306 @@ class _BranchEditorState extends State<_BranchEditor> {
     _city.dispose();
     _address.dispose();
     _phone.dispose();
+    _email.dispose();
+    _managerName.dispose();
+    _receiptPrefix.dispose();
+    _timezone.dispose();
+    _opensAt.dispose();
+    _closesAt.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(widget.branch == null ? 'فرع جديد' : 'تعديل الفرع'),
-      content: SizedBox(
-        width: 480,
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.branch == null ? 'فرع جديد' : 'تعديل الفرع'),
+      ),
+      body: SafeArea(
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: Form(
+            key: _formKey,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(18, 8, 18, 32),
               children: [
-                TextFormField(
-                  controller: _name,
-                  textInputAction: TextInputAction.next,
-                  decoration: const InputDecoration(labelText: 'اسم الفرع'),
-                  validator: _required,
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'هوية الفرع',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _name,
+                          textInputAction: TextInputAction.next,
+                          decoration: const InputDecoration(
+                            labelText: 'اسم الفرع',
+                          ),
+                          validator: _required,
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: _code,
+                                textCapitalization:
+                                    TextCapitalization.characters,
+                                textDirection: TextDirection.ltr,
+                                decoration: const InputDecoration(
+                                  labelText: 'رمز الفرع',
+                                  hintText: 'RUH-01',
+                                ),
+                                validator: _codeValidator,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: DropdownButtonFormField<BranchType>(
+                                initialValue: _type,
+                                decoration: const InputDecoration(
+                                  labelText: 'نوع الموقع',
+                                ),
+                                items: BranchType.values
+                                    .map(
+                                      (item) => DropdownMenuItem(
+                                        value: item,
+                                        child: Text(item.label),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (value) =>
+                                    setState(() => _type = value!),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        TextFormField(
+                          controller: _managerName,
+                          decoration: const InputDecoration(
+                            labelText: 'مدير الفرع أو المسؤول',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 12),
-                TextFormField(
-                  controller: _code,
-                  textCapitalization: TextCapitalization.characters,
-                  textDirection: TextDirection.ltr,
-                  textInputAction: TextInputAction.next,
-                  decoration: const InputDecoration(
-                    labelText: 'رمز الفرع',
-                    hintText: 'RUH-01',
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'العنوان والتواصل',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _city,
+                          textInputAction: TextInputAction.next,
+                          decoration: const InputDecoration(
+                            labelText: 'المدينة',
+                          ),
+                          validator: _required,
+                        ),
+                        const SizedBox(height: 10),
+                        TextFormField(
+                          controller: _address,
+                          minLines: 2,
+                          maxLines: 3,
+                          decoration: const InputDecoration(
+                            labelText: 'العنوان التفصيلي',
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: _phone,
+                                keyboardType: TextInputType.phone,
+                                textDirection: TextDirection.ltr,
+                                decoration: const InputDecoration(
+                                  labelText: 'رقم الفرع',
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: TextFormField(
+                                controller: _email,
+                                keyboardType: TextInputType.emailAddress,
+                                textDirection: TextDirection.ltr,
+                                decoration: const InputDecoration(
+                                  labelText: 'بريد الفرع',
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                  validator: (value) =>
-                      RegExp(
-                        r'^[A-Za-z0-9-]{2,12}$',
-                      ).hasMatch(value?.trim() ?? '')
-                      ? null
-                      : 'استخدم 2–12 حرفاً أو رقماً لاتينياً',
                 ),
                 const SizedBox(height: 12),
-                TextFormField(
-                  controller: _city,
-                  textInputAction: TextInputAction.next,
-                  decoration: const InputDecoration(labelText: 'المدينة'),
-                  validator: _required,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _address,
-                  minLines: 2,
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                    labelText: 'العنوان التفصيلي (اختياري)',
-                    alignLabelWithHint: true,
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'نقطة البيع وساعات العمل',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: _receiptPrefix,
+                                textCapitalization:
+                                    TextCapitalization.characters,
+                                textDirection: TextDirection.ltr,
+                                decoration: const InputDecoration(
+                                  labelText: 'بادئة الفاتورة',
+                                  hintText: 'RUH',
+                                ),
+                                validator: _prefixValidator,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: TextFormField(
+                                controller: _timezone,
+                                textDirection: TextDirection.ltr,
+                                decoration: const InputDecoration(
+                                  labelText: 'المنطقة الزمنية',
+                                ),
+                                validator: _required,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: _opensAt,
+                                textDirection: TextDirection.ltr,
+                                decoration: const InputDecoration(
+                                  labelText: 'يفتح',
+                                  hintText: '09:00',
+                                ),
+                                validator: _timeValidator,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: TextFormField(
+                                controller: _closesAt,
+                                textDirection: TextDirection.ltr,
+                                decoration: const InputDecoration(
+                                  labelText: 'يغلق',
+                                  hintText: '23:00',
+                                ),
+                                validator: _timeValidator,
+                              ),
+                            ),
+                          ],
+                        ),
+                        SwitchListTile.adaptive(
+                          contentPadding: EdgeInsets.zero,
+                          value: _acceptsSales,
+                          title: const Text('يقبل عمليات البيع'),
+                          subtitle: const Text(
+                            'يظهر ضمن نقاط البيع ويمكن فتح صندوق له.',
+                          ),
+                          onChanged: (value) =>
+                              setState(() => _acceptsSales = value),
+                        ),
+                        SwitchListTile.adaptive(
+                          contentPadding: EdgeInsets.zero,
+                          value: _handlesService,
+                          title: const Text('يستقبل الصيانة والضمان'),
+                          subtitle: const Text(
+                            'يمكن ربط طلبات الخدمة بهذا الموقع.',
+                          ),
+                          onChanged: (value) =>
+                              setState(() => _handlesService = value),
+                        ),
+                        SwitchListTile.adaptive(
+                          contentPadding: EdgeInsets.zero,
+                          value: _isMain,
+                          title: const Text('الفرع الرئيسي'),
+                          subtitle: const Text(
+                            'يصبح الاختيار الافتراضي للعمليات.',
+                          ),
+                          onChanged: (value) => setState(() => _isMain = value),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _phone,
-                  keyboardType: TextInputType.phone,
-                  textDirection: TextDirection.ltr,
-                  decoration: const InputDecoration(
-                    labelText: 'رقم الفرع (اختياري)',
-                  ),
-                ),
-                SwitchListTile.adaptive(
-                  contentPadding: EdgeInsets.zero,
-                  value: _isMain,
-                  title: const Text('الفرع الرئيسي'),
-                  subtitle: const Text(
-                    'سيصبح الاختيار الافتراضي عند إصدار الضمان.',
-                  ),
-                  onChanged: (value) => setState(() => _isMain = value),
+                const SizedBox(height: 18),
+                FilledButton.icon(
+                  onPressed: _save,
+                  icon: const Icon(Icons.save_outlined),
+                  label: const Text('حفظ الفرع ونقطة البيع'),
                 ),
               ],
             ),
           ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('إلغاء'),
-        ),
-        FilledButton(
-          onPressed: () {
-            if (!_formKey.currentState!.validate()) return;
-            Navigator.pop(
-              context,
-              _BranchDraft(
-                name: _name.text,
-                code: _code.text,
-                city: _city.text,
-                address: _address.text,
-                phone: _phone.text,
-                isMain: _isMain,
-              ),
-            );
-          },
-          child: const Text('حفظ الفرع'),
-        ),
-      ],
     );
   }
+
+  void _save() {
+    if (!_formKey.currentState!.validate()) return;
+    Navigator.pop(
+      context,
+      _BranchDraft(
+        name: _name.text,
+        code: _code.text,
+        city: _city.text,
+        address: _address.text,
+        phone: _phone.text,
+        email: _email.text,
+        managerName: _managerName.text,
+        receiptPrefix: _receiptPrefix.text,
+        timezone: _timezone.text,
+        opensAt: _opensAt.text,
+        closesAt: _closesAt.text,
+        type: _type,
+        acceptsSales: _acceptsSales,
+        handlesService: _handlesService,
+        isMain: _isMain,
+      ),
+    );
+  }
+
+  String? _codeValidator(String? value) =>
+      RegExp(r'^[A-Za-z0-9-]{2,12}$').hasMatch(value?.trim() ?? '')
+      ? null
+      : 'استخدم 2–12 حرفاً أو رقماً لاتينياً';
+  String? _prefixValidator(String? value) =>
+      RegExp(r'^[A-Za-z0-9]{2,8}$').hasMatch(value?.trim() ?? '')
+      ? null
+      : 'استخدم 2–8 أحرف أو أرقام';
+  String? _timeValidator(String? value) =>
+      RegExp(r'^(?:[01]\d|2[0-3]):[0-5]\d$').hasMatch(value?.trim() ?? '')
+      ? null
+      : 'استخدم صيغة 09:00';
 
   String? _required(String? value) =>
       value == null || value.trim().isEmpty ? 'هذا الحقل مطلوب' : null;
@@ -278,6 +510,15 @@ class _BranchDraft {
     required this.city,
     required this.address,
     required this.phone,
+    required this.email,
+    required this.managerName,
+    required this.receiptPrefix,
+    required this.timezone,
+    required this.opensAt,
+    required this.closesAt,
+    required this.type,
+    required this.acceptsSales,
+    required this.handlesService,
     required this.isMain,
   });
 
@@ -286,6 +527,15 @@ class _BranchDraft {
   final String city;
   final String address;
   final String phone;
+  final String email;
+  final String managerName;
+  final String receiptPrefix;
+  final String timezone;
+  final String opensAt;
+  final String closesAt;
+  final BranchType type;
+  final bool acceptsSales;
+  final bool handlesService;
   final bool isMain;
 }
 

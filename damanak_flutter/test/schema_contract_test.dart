@@ -67,4 +67,42 @@ void main() {
       contains('alter table public.customers enable row level security;'),
     );
   });
+
+  test('مخطط التجزئة يعزل البيع والمخزون والمشتريات ويستخدم عمليات ذرية', () {
+    final schema = File(
+      'supabase/migrations/20260824160000_damanak_retail_operations.sql',
+    ).readAsStringSync();
+
+    for (final table in [
+      'inventory_levels',
+      'stock_movements',
+      'sales',
+      'sale_lines',
+      'sale_payments',
+      'sale_returns',
+      'register_sessions',
+      'suppliers',
+      'purchase_orders',
+      'purchase_order_lines',
+    ]) {
+      expect(
+        schema,
+        contains('alter table public.$table enable row level security;'),
+      );
+    }
+
+    for (final function in [
+      'adjust_inventory',
+      'transfer_inventory',
+      'create_sale',
+      'return_sale',
+      'open_register',
+      'close_register',
+      'create_purchase_order',
+      'receive_purchase_order',
+      'delete_current_account',
+    ]) {
+      expect(schema, contains('function public.$function'));
+    }
+  });
 }
