@@ -677,11 +677,12 @@ async function main() {
     bundleIdentifier: BUNDLE_ID,
     appName: APP_NAME,
     pricesApproved: true,
-    pricesApplied: applyPrices,
+    pricesRequested: applyPrices,
+    pricesApplied: false,
     priceTerritories: APP_STORE_TERRITORIES,
     pricingNote:
       applyPrices
-        ? 'Approved SAR anchor prices and Apple-adjusted Gulf price points are applied immediately.'
+        ? 'Approved SAR anchor prices and Apple-adjusted Gulf price points were requested in this run.'
         : 'Approved prices are recorded but not applied in this run.',
   };
 
@@ -692,6 +693,15 @@ async function main() {
     const group = await ensureSubscriptionGroup(app, report);
     await ensureSubscriptionGroupLocalization(group, report);
     await ensureSubscriptions(group, report);
+    report.pricesApplied =
+      report.subscriptions.length === productDefinitions.length &&
+      report.subscriptions.every(
+        (subscription) => subscription.pricing?.state === 'applied',
+      );
+    if (applyPrices && !report.pricesApplied) {
+      report.pricingNote =
+        'Approved prices were requested but not applied because one or more required App Store resources are still missing.';
+    }
     report.success = true;
   } catch (error) {
     report.success = false;
