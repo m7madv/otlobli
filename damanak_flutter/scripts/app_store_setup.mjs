@@ -364,7 +364,7 @@ async function ensureSubscriptionAvailability(subscription) {
     if (error.status !== 404) throw error;
   }
   let state = availability ? 'existing' : 'missing';
-  if (!availability && applyPrices) {
+  if (applyPrices) {
     const result = await request('/v1/subscriptionAvailabilities', {
       method: 'POST',
       body: {
@@ -388,22 +388,7 @@ async function ensureSubscriptionAvailability(subscription) {
       },
     });
     availability = result.data;
-    state = 'created';
-  }
-
-  if (availability && applyPrices) {
-    await request(
-      `/v1/subscriptionAvailabilities/${availability.id}/relationships/availableTerritories`,
-      {
-        method: 'PATCH',
-        body: {
-          data: APP_STORE_TERRITORIES.map((id) => ({
-            type: 'territories',
-            id,
-          })),
-        },
-      },
-    );
+    state = state === 'existing' ? 'updated' : 'created';
   }
   return state;
 }
