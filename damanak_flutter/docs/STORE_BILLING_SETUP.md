@@ -66,6 +66,8 @@ APPLE_IAP_PRIVATE_KEY_P8
 GOOGLE_PLAY_SERVICE_ACCOUNT_JSON
 ```
 
+المفتاح العامل هو `426377cca3335db2db9a17611153fb1b37e92a1d`. المفتاح الأول `d86a3e51984e7ba7b942f00595a37c268b367316` لم يصل ملفه إلى القرص وبقي مسجلاً عند آخر فحص؛ احذفه من Google Cloud بعد تأكيد المالك، ولا تستخدمه أو تعتبره نسخة احتياطية.
+
 سكربت `scripts/google_play_setup.mjs` يدعم:
 
 ```bash
