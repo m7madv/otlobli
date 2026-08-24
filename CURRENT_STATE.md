@@ -1,12 +1,27 @@
-# v86.231/1096 — local WebView and blocking performance maintenance (2026-08-24)
+# v86.231/1096 — TestFlight WebView and blocking performance maintenance (2026-08-24)
 
 Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`
 on `codex/otlobli-v86-212-testflight-auth`. Marketing version is `86.231` and
-both native build numbers are `1096`. This maintenance build is local and was
-not uploaded to TestFlight, App Store Connect, or Google Play. The separately
-submitted `86.230 (1095)` remains in its last confirmed `WAITING_FOR_REVIEW`
-state and is still the build configured for automatic release after Apple
-approval.
+both native build numbers are `1096`. Exact source
+`44a5200a127f0e3689373c5b756486fef510dd4f` is pushed. Signed workflow
+[32760648713](https://github.com/m7madv/otlobli/actions/runs/32760648713)
+passed: Apple accepted delivery UUID `05c2aefa-05ec-4ec1-994a-c3e24bcb6d65`,
+and exact `86.231 (1096)` is `VALID` and `IN_BETA_TESTING` in the internal
+all-builds group `Otlobli Internal`. The expected tester account state is
+`INSTALLED`. Public App Store submission was explicitly false and the review
+step was skipped. The separately submitted `86.230 (1095)` therefore remains
+the last confirmed `WAITING_FOR_REVIEW` build configured for automatic release
+after Apple approval; this TestFlight upload did not replace or resubmit it.
+
+Two earlier attempts stopped safely before Apple. Run `32759501489` failed at
+`npm ci` because the manually edited Capgo patch had invalid strict hunk
+metadata. The patch was mechanically regenerated and clean reverse/apply checks
+pass in commit `44a5200`. Run `32760002781` then passed build and sync but
+stopped before signing because the persisted WhatsApp sender was disconnected.
+Oracle session `0` credentials were present and were reconnected once through
+the protected loopback admin endpoint; no message or QR was generated. The live
+health contract then passed with connected sender, session store, OTP security,
+and `customer-session-v1` readiness before the successful retry.
 
 The injected capture runtime is now compiled per active store: SHEIN receives
 only `SHEIN_CAPTURE_SCRIPT` and Temu receives only `TEMU_CAPTURE_SCRIPT`, with
@@ -30,10 +45,24 @@ SHEIN freeze, Temu product/size, store-surface and performance gates passed.
 Final budgets are startup/largest JS `659,775/720,000` and `/1,200,000`, total
 JS gzip `285,982/370,000`, CSS `69,932/70,000`, fonts `81,364/100,000`,
 minified store scripts `296,171/470,000`, Temu Gecko `139,825/180,000`, and
-store source `523,508/600,000`. Android and iOS were synchronized. Windows
-cannot produce an iOS archive; no `86.231` IPA exists. The whole Android root
-build still requires the unrelated `OTLOBLI_LISTENER_*` signer values, while
-the requested customer task `:app:assembleRelease` passed.
+store source `523,508/600,000`. Android and iOS were synchronized. The signed
+macOS workflow repeated the production build, freeze/release guards, native
+sync, universal-device check, authentication preflight, archive, export,
+signature/profile/callback validation, upload, Apple processing, and internal
+distribution successfully. The whole Android root build still requires the
+unrelated `OTLOBLI_LISTENER_*` signer values, while the requested customer task
+`:app:assembleRelease` passed.
+
+Signed iOS artifacts downloaded from GitHub artifact `9532806101` are under
+`output/testflight-v86.231-build-1096-run-32760648713`:
+
+- `otlobli-v86.231-build-1096-testflight.ipa` — `10,488,204` bytes, SHA-256
+  `D9B1F22FE42FFC16AFC819ECA81E70E54D49F22688FC5DC6EF91A34F3A6D2A77`.
+- `otlobli-v86.231-build-1096-dSYMs.zip` — `14,858,853` bytes, SHA-256
+  `A8EADD8426A0B0B4DF6FF84449DA67748E656F445D35EDEAB9F80DF83D384F18`.
+
+The uploaded GitHub artifact is `25,146,693` bytes with digest
+`sha256:f5c526fd529b45d29328b395d8cd8a85b1b0a22d59278d63bf7561667d197702`.
 
 Signed Android artifact:
 

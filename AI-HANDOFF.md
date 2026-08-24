@@ -1,11 +1,27 @@
-# Active handoff — v86.231/1096 local performance maintenance (2026-08-24)
+# Active handoff — v86.231/1096 internal TestFlight performance maintenance (2026-08-24)
 
 Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`
-on `codex/otlobli-v86-212-testflight-auth`. The current working tree contains
-the intentional `86.231 (1096)` blocking/WebView maintenance batch. Do not
-replace it with an older branch. It is local only; Apple is still reviewing the
-separate `86.230 (1095)` source/build in the last confirmed state. Do not claim
-that Apple has received these `86.231` changes.
+on `codex/otlobli-v86-212-testflight-auth`. Exact source is
+`44a5200a127f0e3689373c5b756486fef510dd4f`; do not replace it with an older
+branch. Signed workflow
+[32760648713](https://github.com/m7madv/otlobli/actions/runs/32760648713)
+uploaded exact `86.231 (1096)` with delivery UUID
+`05c2aefa-05ec-4ec1-994a-c3e24bcb6d65`. Apple reports it `VALID` and
+`IN_BETA_TESTING` in the `Otlobli Internal` all-builds group; expected tester
+state is `INSTALLED`. Public App Review submission was false and its step was
+skipped. The separate `86.230 (1095)` remains in its last confirmed
+`WAITING_FOR_REVIEW` state with automatic release after approval; do not submit
+or attach `86.231` to public review without a new explicit owner instruction.
+
+Run `32759501489` stopped at `npm ci` before signing/Apple because patch-package
+rejected manually edited hunk offsets. Commit `44a5200` mechanically regenerated
+the Capgo patch and clean reverse/apply checks pass. Run `32760002781` then
+stopped before signing because the Oracle WhatsApp sender was disconnected.
+Session `0` had stored credentials and was reconnected exactly once through the
+protected localhost endpoint, without sending a message or generating QR. All
+required health fields passed before the successful run. Railway was inspected
+with the installed `use-railway` operating guidance and proved inactive/removed;
+do not redeploy it for this service because Oracle/pm2 is authoritative.
 
 The store runtime is compiled per store and protected by an exact host guard.
 Minified captures are SHEIN `138,492` bytes and Temu `150,400` bytes. Temu's
@@ -38,9 +54,14 @@ Home loaded. There were no app crashes/ANRs and no heavy native bridge logs.
 Steady four-swipe SHEIN p50/p90/p95/p99 was `11/16/18/24ms` at `181,936 KB`
 PSS. Temu was `17/24/27/36ms`, so the third-party Temu renderer is still the
 heavier boundary on the old phone. Do not present this as iPhone acceptance or
-complete checkout/auth acceptance. iOS was synced only on Windows; no `86.231`
-archive/upload exists, and the five iPhone 16 resume cycles plus cold launch
-remain required before a release claim.
+complete checkout/auth acceptance. The signed IPA is
+`output/testflight-v86.231-build-1096-run-32760648713/otlobli-v86.231-build-1096-testflight.ipa`,
+`10,488,204` bytes, SHA-256
+`D9B1F22FE42FFC16AFC819ECA81E70E54D49F22688FC5DC6EF91A34F3A6D2A77`.
+The dSYMs archive is `14,858,853` bytes, SHA-256
+`A8EADD8426A0B0B4DF6FF84449DA67748E656F445D35EDEAB9F80DF83D384F18`.
+Portal/build success is not physical iPhone acceptance: five real iPhone 16
+resume cycles plus a separate force-quit/cold-launch test remain required.
 
 # Active handoff — v86.230/1095 is waiting for Apple Review (2026-08-24)
 
