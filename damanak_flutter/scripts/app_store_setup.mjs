@@ -1,0 +1,497 @@
+#!/usr/bin/env node
+
+import { createPrivateKey, sign } from 'node:crypto';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+
+const API_ROOT = 'https://api.appstoreconnect.apple.com';
+const BUNDLE_ID = 'com.damanak.damanak';
+const APP_NAME = 'Damanak - ضمانك';
+const APP_SKU = 'DAMANAK_IOS';
+const PRIMARY_LOCALE = 'ar-SA';
+const GROUP_REFERENCE_NAME = 'Damanak Plans';
+const PROFILE_NAME = 'Damanak App Store';
+
+const productDefinitions = [
+  {
+    productId: 'com.damanak.subscription.starter.monthly',
+    name: 'Damanak Starter Monthly',
+    localizedName: 'بداية شهري',
+    description: 'اشتراك شهري لخطة بداية في ضمانك',
+    subscriptionPeriod: 'ONE_MONTH',
+    groupLevel: 3,
+    intendedPriceSar: 39,
+  },
+  {
+    productId: 'com.damanak.subscription.starter.yearly',
+    name: 'Damanak Starter Yearly',
+    localizedName: 'بداية سنوي',
+    description: 'اشتراك سنوي لخطة بداية في ضمانك',
+    subscriptionPeriod: 'ONE_YEAR',
+    groupLevel: 3,
+    intendedPriceSar: 390,
+  },
+  {
+    productId: 'com.damanak.subscription.growth.monthly',
+    name: 'Damanak Growth Monthly',
+    localizedName: 'نمو شهري',
+    description: 'اشتراك شهري لخطة نمو في ضمانك',
+    subscriptionPeriod: 'ONE_MONTH',
+    groupLevel: 2,
+    intendedPriceSar: 99,
+  },
+  {
+    productId: 'com.damanak.subscription.growth.yearly',
+    name: 'Damanak Growth Yearly',
+    localizedName: 'نمو سنوي',
+    description: 'اشتراك سنوي لخطة نمو في ضمانك',
+    subscriptionPeriod: 'ONE_YEAR',
+    groupLevel: 2,
+    intendedPriceSar: 990,
+  },
+  {
+    productId: 'com.damanak.subscription.scale.monthly',
+    name: 'Damanak Scale Monthly',
+    localizedName: 'توسع شهري',
+    description: 'اشتراك شهري لخطة توسع في ضمانك',
+    subscriptionPeriod: 'ONE_MONTH',
+    groupLevel: 1,
+    intendedPriceSar: 199,
+  },
+  {
+    productId: 'com.damanak.subscription.scale.yearly',
+    name: 'Damanak Scale Yearly',
+    localizedName: 'توسع سنوي',
+    description: 'اشتراك سنوي لخطة توسع في ضمانك',
+    subscriptionPeriod: 'ONE_YEAR',
+    groupLevel: 1,
+    intendedPriceSar: 1990,
+  },
+];
+
+const mode = process.argv.includes('--apply') ? 'apply' : 'inspect';
+const outputIndex = process.argv.indexOf('--output');
+const outputPath = resolve(
+  outputIndex >= 0 && process.argv[outputIndex + 1]
+    ? process.argv[outputIndex + 1]
+    : 'build/app-store-setup/report.json',
+);
+const profileIndex = process.argv.indexOf('--profile-output');
+const profilePath = resolve(
+  profileIndex >= 0 && process.argv[profileIndex + 1]
+    ? process.argv[profileIndex + 1]
+    : 'build/app-store-setup/damanak.mobileprovision',
+);
+
+const requiredEnvironment = [
+  'APP_STORE_CONNECT_API_KEY_ID',
+  'APP_STORE_CONNECT_ISSUER_ID',
+  'APP_STORE_CONNECT_API_KEY_BASE64',
+];
+for (const variable of requiredEnvironment) {
+  if (!process.env[variable]) {
+    throw new Error(`Missing required environment variable: ${variable}`);
+  }
+}
+
+function base64Url(value) {
+  return Buffer.from(value).toString('base64url');
+}
+
+function createToken() {
+  const now = Math.floor(Date.now() / 1000);
+  const header = base64Url(
+    JSON.stringify({
+      alg: 'ES256',
+      kid: process.env.APP_STORE_CONNECT_API_KEY_ID,
+      typ: 'JWT',
+    }),
+  );
+  const payload = base64Url(
+    JSON.stringify({
+      iss: process.env.APP_STORE_CONNECT_ISSUER_ID,
+      iat: now,
+      exp: now + 15 * 60,
+      aud: 'appstoreconnect-v1',
+    }),
+  );
+  const signingInput = `${header}.${payload}`;
+  const privateKeyText = Buffer.from(
+    process.env.APP_STORE_CONNECT_API_KEY_BASE64,
+    'base64',
+  ).toString('utf8');
+  const privateKey = createPrivateKey(privateKeyText);
+  const signature = sign('sha256', Buffer.from(signingInput), {
+    key: privateKey,
+    dsaEncoding: 'ieee-p1363',
+  }).toString('base64url');
+  return `${signingInput}.${signature}`;
+}
+
+let token = createToken();
+
+function redactApiErrors(body, status) {
+  const errors = Array.isArray(body?.errors) ? body.errors : [];
+  if (errors.length === 0) return `App Store Connect request failed (${status})`;
+  return errors
+    .map((error) => {
+      const code = error.code ? ` [${error.code}]` : '';
+      const detail = error.detail || error.title || 'Unknown error';
+      return `${detail}${code}`;
+    })
+    .join('; ');
+}
+
+async function request(path, { method = 'GET', body } = {}) {
+  const response = await fetch(`${API_ROOT}${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+    },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+  const text = await response.text();
+  const parsed = text ? JSON.parse(text) : {};
+  if (!response.ok) {
+    throw new Error(redactApiErrors(parsed, response.status));
+  }
+  return parsed;
+}
+
+async function listAll(path) {
+  const data = [];
+  let nextPath = path;
+  while (nextPath) {
+    const page = await request(nextPath);
+    data.push(...(page.data || []));
+    const nextUrl = page.links?.next;
+    nextPath = nextUrl ? new URL(nextUrl).pathname + new URL(nextUrl).search : null;
+  }
+  return data;
+}
+
+async function findBundleId() {
+  const rows = await listAll(
+    `/v1/bundleIds?filter[identifier]=${encodeURIComponent(BUNDLE_ID)}&limit=10`,
+  );
+  return rows.find((row) => row.attributes?.identifier === BUNDLE_ID) || null;
+}
+
+async function ensureBundleId(report) {
+  let bundleId = await findBundleId();
+  report.bundleId = bundleId ? 'existing' : 'missing';
+  if (!bundleId && mode === 'apply') {
+    const result = await request('/v1/bundleIds', {
+      method: 'POST',
+      body: {
+        data: {
+          type: 'bundleIds',
+          attributes: {
+            identifier: BUNDLE_ID,
+            name: 'Damanak',
+            platform: 'IOS',
+          },
+        },
+      },
+    });
+    bundleId = result.data;
+    report.bundleId = 'created';
+  }
+  return bundleId;
+}
+
+async function findApp() {
+  const rows = await listAll(
+    `/v1/apps?filter[bundleId]=${encodeURIComponent(BUNDLE_ID)}&limit=10`,
+  );
+  return rows.find((row) => row.attributes?.bundleId === BUNDLE_ID) || null;
+}
+
+async function ensureApp(report) {
+  let app = await findApp();
+  report.app = app ? 'existing' : 'missing';
+  if (!app && mode === 'apply') {
+    const result = await request('/v1/apps', {
+      method: 'POST',
+      body: {
+        data: {
+          type: 'apps',
+          attributes: {
+            bundleId: BUNDLE_ID,
+            name: APP_NAME,
+            primaryLocale: PRIMARY_LOCALE,
+            sku: APP_SKU,
+          },
+        },
+      },
+    });
+    app = result.data;
+    report.app = 'created';
+  }
+  return app;
+}
+
+async function ensureSubscriptionGroup(app, report) {
+  if (!app) {
+    report.subscriptionGroup = 'blocked-until-app-exists';
+    return null;
+  }
+  const groups = await listAll(`/v1/apps/${app.id}/subscriptionGroups?limit=200`);
+  let group = groups.find(
+    (row) => row.attributes?.referenceName === GROUP_REFERENCE_NAME,
+  );
+  report.subscriptionGroup = group ? 'existing' : 'missing';
+  if (!group && mode === 'apply') {
+    const result = await request('/v1/subscriptionGroups', {
+      method: 'POST',
+      body: {
+        data: {
+          type: 'subscriptionGroups',
+          attributes: { referenceName: GROUP_REFERENCE_NAME },
+          relationships: {
+            app: { data: { type: 'apps', id: app.id } },
+          },
+        },
+      },
+    });
+    group = result.data;
+    report.subscriptionGroup = 'created';
+  }
+  return group;
+}
+
+async function ensureSubscriptionGroupLocalization(group, report) {
+  if (!group) {
+    report.subscriptionGroupLocalization = 'blocked-until-group-exists';
+    return;
+  }
+  const rows = await listAll(
+    `/v1/subscriptionGroups/${group.id}/subscriptionGroupLocalizations?limit=50`,
+  );
+  const existing = rows.find((row) => row.attributes?.locale === PRIMARY_LOCALE);
+  report.subscriptionGroupLocalization = existing ? 'existing' : 'missing';
+  if (!existing && mode === 'apply') {
+    await request('/v1/subscriptionGroupLocalizations', {
+      method: 'POST',
+      body: {
+        data: {
+          type: 'subscriptionGroupLocalizations',
+          attributes: {
+            locale: PRIMARY_LOCALE,
+            name: 'خطط ضمانك',
+          },
+          relationships: {
+            subscriptionGroup: {
+              data: { type: 'subscriptionGroups', id: group.id },
+            },
+          },
+        },
+      },
+    });
+    report.subscriptionGroupLocalization = 'created';
+  }
+}
+
+async function ensureSubscriptionLocalization(subscription, definition) {
+  const rows = await listAll(
+    `/v1/subscriptions/${subscription.id}/subscriptionLocalizations?limit=50`,
+  );
+  const existing = rows.find((row) => row.attributes?.locale === PRIMARY_LOCALE);
+  if (existing) return 'existing';
+  if (mode !== 'apply') return 'missing';
+  await request('/v1/subscriptionLocalizations', {
+    method: 'POST',
+    body: {
+      data: {
+        type: 'subscriptionLocalizations',
+        attributes: {
+          locale: PRIMARY_LOCALE,
+          name: definition.localizedName,
+          description: definition.description,
+        },
+        relationships: {
+          subscription: {
+            data: { type: 'subscriptions', id: subscription.id },
+          },
+        },
+      },
+    },
+  });
+  return 'created';
+}
+
+async function ensureSubscriptions(group, report) {
+  report.subscriptions = [];
+  if (!group) {
+    report.subscriptions = productDefinitions.map((definition) => ({
+      productId: definition.productId,
+      state: 'blocked-until-group-exists',
+      intendedPriceSar: definition.intendedPriceSar,
+    }));
+    return;
+  }
+
+  const rows = await listAll(
+    `/v1/subscriptionGroups/${group.id}/subscriptions?limit=200`,
+  );
+  for (const definition of productDefinitions) {
+    let subscription = rows.find(
+      (row) => row.attributes?.productId === definition.productId,
+    );
+    let state = subscription ? 'existing' : 'missing';
+    if (!subscription && mode === 'apply') {
+      const result = await request('/v1/subscriptions', {
+        method: 'POST',
+        body: {
+          data: {
+            type: 'subscriptions',
+            attributes: {
+              name: definition.name,
+              productId: definition.productId,
+              familySharable: false,
+              subscriptionPeriod: definition.subscriptionPeriod,
+              groupLevel: definition.groupLevel,
+            },
+            relationships: {
+              group: {
+                data: { type: 'subscriptionGroups', id: group.id },
+              },
+            },
+          },
+        },
+      });
+      subscription = result.data;
+      state = 'created';
+    }
+    const localization = subscription
+      ? await ensureSubscriptionLocalization(subscription, definition)
+      : 'blocked-until-subscription-exists';
+    report.subscriptions.push({
+      productId: definition.productId,
+      state,
+      localization,
+      intendedPriceSar: definition.intendedPriceSar,
+      pricing: 'pending-explicit-price-point-configuration',
+    });
+  }
+}
+
+function normalizeSerial(value) {
+  return String(value || '')
+    .replace(/^0+/, '')
+    .toUpperCase();
+}
+
+async function selectDistributionCertificate(report) {
+  const certificates = await listAll('/v1/certificates?limit=200');
+  const active = certificates.filter((row) => {
+    const type = row.attributes?.certificateType || '';
+    const expires = Date.parse(row.attributes?.expirationDate || '');
+    return type.includes('DISTRIBUTION') && expires > Date.now();
+  });
+  const requestedSerial = normalizeSerial(
+    process.env.APPLE_DISTRIBUTION_CERTIFICATE_SERIAL,
+  );
+  const matching = requestedSerial
+    ? active.filter(
+        (row) => normalizeSerial(row.attributes?.serialNumber) === requestedSerial,
+      )
+    : active;
+  report.activeDistributionCertificateCount = active.length;
+  if (requestedSerial) {
+    report.distributionCertificateMatch = matching.length === 1;
+  }
+  return matching.length === 1 ? matching[0] : null;
+}
+
+async function ensureProvisioningProfile(bundleId, report) {
+  report.provisioningProfile = 'not-checked';
+  if (!bundleId) {
+    report.provisioningProfile = 'blocked-until-bundle-id-exists';
+    return;
+  }
+
+  const profiles = await listAll(`/v1/bundleIds/${bundleId.id}/profiles?limit=200`);
+  let profile = profiles.find(
+    (row) =>
+      row.attributes?.name === PROFILE_NAME &&
+      row.attributes?.profileState === 'ACTIVE' &&
+      Date.parse(row.attributes?.expirationDate || '') > Date.now(),
+  );
+  report.provisioningProfile = profile ? 'existing' : 'missing';
+
+  if (!profile && mode === 'apply') {
+    const certificate = await selectDistributionCertificate(report);
+    if (!certificate) {
+      report.provisioningProfile =
+        'blocked-no-unique-matching-distribution-certificate';
+      return;
+    }
+    const result = await request('/v1/profiles', {
+      method: 'POST',
+      body: {
+        data: {
+          type: 'profiles',
+          attributes: {
+            name: PROFILE_NAME,
+            profileType: 'IOS_APP_STORE',
+          },
+          relationships: {
+            bundleId: { data: { type: 'bundleIds', id: bundleId.id } },
+            certificates: {
+              data: [{ type: 'certificates', id: certificate.id }],
+            },
+          },
+        },
+      },
+    });
+    profile = result.data;
+    report.provisioningProfile = 'created';
+  }
+
+  if (profile && mode === 'apply') {
+    const detail = await request(`/v1/profiles/${profile.id}`);
+    const profileContent = detail.data?.attributes?.profileContent;
+    if (profileContent) {
+      mkdirSync(dirname(profilePath), { recursive: true });
+      writeFileSync(profilePath, profileContent, 'base64');
+      report.provisioningProfileArtifact = true;
+    } else {
+      report.provisioningProfileArtifact = false;
+    }
+  }
+}
+
+async function main() {
+  const report = {
+    mode,
+    generatedAt: new Date().toISOString(),
+    bundleIdentifier: BUNDLE_ID,
+    appName: APP_NAME,
+    pricesApplied: false,
+    pricingNote:
+      'Price points are deliberately not applied because an immediate App Store price change cannot be reverted after it takes effect.',
+  };
+
+  try {
+    const bundleId = await ensureBundleId(report);
+    const app = await ensureApp(report);
+    const group = await ensureSubscriptionGroup(app, report);
+    await ensureSubscriptionGroupLocalization(group, report);
+    await ensureSubscriptions(group, report);
+    await ensureProvisioningProfile(bundleId, report);
+    report.success = true;
+  } catch (error) {
+    report.success = false;
+    report.error = error instanceof Error ? error.message : String(error);
+  }
+
+  mkdirSync(dirname(outputPath), { recursive: true });
+  writeFileSync(outputPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
+  process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+  if (!report.success) process.exitCode = 1;
+}
+
+await main();

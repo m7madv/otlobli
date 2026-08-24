@@ -33,16 +33,15 @@ jobs:
 
       - name: Install Damanak signing identity and profile
         env:
-          CERTIFICATE_BASE64: ${{ secrets.DAMANAK_IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
-          CERTIFICATE_PASSWORD: ${{ secrets.DAMANAK_IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+          CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
           PROFILE_BASE64: ${{ secrets.DAMANAK_IOS_APP_STORE_PROFILE_BASE64 }}
-          KEYCHAIN_PASSWORD: ${{ secrets.DAMANAK_IOS_KEYCHAIN_PASSWORD }}
         shell: bash
         run: |
           test -n "$CERTIFICATE_BASE64"
           test -n "$CERTIFICATE_PASSWORD"
           test -n "$PROFILE_BASE64"
-          test -n "$KEYCHAIN_PASSWORD"
+          KEYCHAIN_PASSWORD=$(openssl rand -hex 24)
           echo "$CERTIFICATE_BASE64" | base64 --decode > "$RUNNER_TEMP/damanak-distribution.p12"
           echo "$PROFILE_BASE64" | base64 --decode > "$RUNNER_TEMP/damanak.mobileprovision"
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/damanak.keychain-db"
