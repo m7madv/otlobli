@@ -322,6 +322,12 @@ async function ensureInternalBetaGroup(app, report) {
     group = result.data;
     state = 'created';
   }
+  const groupBuilds = group
+    ? await listAll(`/v1/betaGroups/${group.id}/builds?limit=200`)
+    : [];
+  const groupTesters = group
+    ? await listAll(`/v1/betaGroups/${group.id}/betaTesters?limit=200`)
+    : [];
   report.internalBetaGroup = {
     state,
     id: group?.id,
@@ -329,6 +335,9 @@ async function ensureInternalBetaGroup(app, report) {
     isInternalGroup: group?.attributes?.isInternalGroup,
     hasAccessToAllBuilds: group?.attributes?.hasAccessToAllBuilds,
     feedbackEnabled: group?.attributes?.feedbackEnabled,
+    buildCount: groupBuilds.length,
+    buildIds: groupBuilds.map((build) => build.id),
+    testerCount: groupTesters.length,
   };
 }
 
