@@ -29,6 +29,13 @@
 - Merged APK permissions contain internet, network state, microphone, biometric/fingerprint, billing, and Android's non-exported dynamic-receiver permission. No broad storage permission or advertising-ID permission is present.
 - Evidence files are under `build/verification/` and are intentionally build-local.
 
+## GitHub unsigned iOS artifact — 2026-08-25
+
+- Branch `codex/voicebrief-ios`, commit `67332f42bccc2d79a33489cdc8da35cc2859410a`, run [32788817963](https://github.com/m7madv/otlobli/actions/runs/32788817963) passed all three jobs: Android analysis/tests/debug build, eight golden tests on Windows, and the macOS iOS build.
+- IPA: `output/github-run-32788817963/voicebrief-ios-unsigned-3/VoiceBrief-0.1.0-build1-unsigned.ipa`, 16,807,014 bytes, SHA-256 `79064717F6E26FC6DAA9D3CE30BEADB302AA581C82F618C7C2239E45D1AD900C`.
+- The macOS job passed `pod install`, `flutter build ios --release --no-codesign`, bundle-ID checks for `app.voicebrief.mobile` and `app.voicebrief.mobile.share`, Share Extension presence, IPA packaging, and Artifact upload.
+- Local archive inspection found 311 entries, `Payload/VoiceBrief.app/PlugIns/VoiceBriefShare.appex`, and no `embedded.mobileprovision`. This proves compilation and packaging only; the IPA is intentionally unsigned and cannot be installed normally or submitted to App Store Connect.
+
 ## Owner/external configuration
 
 - [x] Public legal/support URLs and Android upload signing.
@@ -49,7 +56,8 @@
 - [x] Granted `content://` share plus cold/warm behavior on a physical Android 9 device.
 - [x] Arabic system-locale layout plus microphone allow/start/cancel on a physical `SM_N950F` Android 9 device; no temporary audio remained.
 - [ ] Duplicate-suppression timing and hostile/oversize provider acceptance on a physical Android device.
-- [ ] macOS `pod install`, iOS simulator/no-codesign build, physical iOS Share Extension/App Group.
+- [x] macOS `pod install`, device-target no-codesign build, bundle-ID validation, Share Extension embedding, and unsigned IPA packaging through GitHub Actions.
+- [ ] Signed physical-iPhone Share Extension/App Group handoff, playback/seek/trim, and App Store archive acceptance.
 - [ ] VoiceOver, all accessibility text sizes, recording interruptions, Apple sign-in, and full Google token exchange. Google picker/cancel passed on API 35 and physical Android 9; Note 8 currently has `mhm1981d@gmail.com`, not the configured test account `mhm1981x@gmail.com`.
 - [ ] Monthly/annual purchase, renewal/cancellation, restore, reinstall/device change.
 - [ ] Account deletion removes Auth/database/Storage/local data while explaining store cancellation.

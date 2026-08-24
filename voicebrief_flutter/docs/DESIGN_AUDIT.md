@@ -36,7 +36,7 @@ Physical-device evidence on `SM_N950F` / Android 9 is stored under `output/voice
 - VoiceOver rotor/focus order, Dynamic Type at every accessibility category, Reduce Motion, and iOS contrast on a real device.
 - TalkBack traversal, switch access, display-size scaling, and font scaling at 200% on Android hardware. Arabic RTL, the default Note 8 scale, just-in-time microphone permission, active recording, imported waveform/seek/trim, Back navigation, optimistic deletion, and Undo are physically verified.
 - Landscape/tablet polish is supported by constraints but not a first-release primary layout.
-- The iOS Share Extension and calendar editor still require Xcode, VoiceOver, and physical-iPhone acceptance; Windows source/build checks are not substituted for this.
+- The iOS Runner and embedded Share Extension now compile and package through Xcode on GitHub macOS. VoiceOver, calendar interaction, Share Extension/App Group handoff, waveform/seek/trim interaction, signing, and physical-iPhone acceptance are still required; a successful unsigned build is not substituted for those device checks.
 
 No critical or high-severity source finding remains. Device-only items are release gates, not claimed as completed.
 
