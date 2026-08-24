@@ -11,6 +11,8 @@ const APP_SKU = 'DAMANAK_IOS';
 const PRIMARY_LOCALE = 'ar-SA';
 const GROUP_REFERENCE_NAME = 'Damanak Plans';
 const PROFILE_NAME = 'Damanak App Store';
+const APP_STORE_TERRITORIES = ['SAU', 'ARE', 'BHR', 'KWT', 'OMN', 'QAT'];
+const PRICE_PLAN_TYPE = 'UPFRONT';
 
 const productDefinitions = [
   {
@@ -70,6 +72,7 @@ const productDefinitions = [
 ];
 
 const mode = process.argv.includes('--apply') ? 'apply' : 'inspect';
+const applyPrices = mode === 'apply' && process.argv.includes('--apply-prices');
 const outputIndex = process.argv.indexOf('--output');
 const outputPath = resolve(
   outputIndex >= 0 && process.argv[outputIndex + 1]
@@ -333,6 +336,175 @@ async function ensureSubscriptionLocalization(subscription, definition) {
   return 'created';
 }
 
+async function ensurePlanAvailability(subscription) {
+  const rows = await listAll(
+    `/v1/subscriptions/${subscription.id}/planAvailabilities?include=availableTerritories&limit=50`,
+  );
+  let availability = rows.find(
+    (row) => row.attributes?.planType === PRICE_PLAN_TYPE,
+  );
+  let state = availability ? 'existing' : 'missing';
+  if (!availability && applyPrices) {
+    const result = await request('/v1/subscriptionPlanAvailabilities', {
+      method: 'POST',
+      body: {
+        data: {
+          type: 'subscriptionPlanAvailabilities',
+          attributes: {
+            planType: PRICE_PLAN_TYPE,
+            availableInNewTerritories: false,
+          },
+          relationships: {
+            subscription: {
+              data: { type: 'subscriptions', id: subscription.id },
+            },
+            availableTerritories: {
+              data: APP_STORE_TERRITORIES.map((id) => ({
+                type: 'territories',
+                id,
+              })),
+            },
+          },
+        },
+      },
+    });
+    availability = result.data;
+    state = 'created';
+  }
+
+  if (availability && applyPrices) {
+    await request(
+      `/v1/subscriptionPlanAvailabilities/${availability.id}/relationships/availableTerritories`,
+      {
+        method: 'PATCH',
+        body: {
+          data: APP_STORE_TERRITORIES.map((id) => ({
+            type: 'territories',
+            id,
+          })),
+        },
+      },
+    );
+  }
+  return state;
+}
+
+function samePrice(left, right) {
+  return Number(left) === Number(right);
+}
+
+async function existingPricesByTerritory(subscription) {
+  const rows = await listAll(
+    `/v1/subscriptions/${subscription.id}/prices?filter[planType]=${PRICE_PLAN_TYPE}` +
+      `&filter[territory]=${APP_STORE_TERRITORIES.join(',')}` +
+      '&include=subscriptionPricePoint,territory&limit=200',
+  );
+  const prices = new Map();
+  for (const row of rows) {
+    const territory = row.relationships?.territory?.data?.id;
+    if (territory && !prices.has(territory)) prices.set(territory, row);
+  }
+  return prices;
+}
+
+async function findApprovedPricePoints(subscription, intendedPriceSar) {
+  const sourceRows = await listAll(
+    `/v1/subscriptions/${subscription.id}/pricePoints?filter[territory]=SAU` +
+      '&include=territory&limit=8000',
+  );
+  const source = sourceRows.find((row) =>
+    samePrice(row.attributes?.customerPrice, intendedPriceSar),
+  );
+  if (!source) {
+    throw new Error(
+      `No exact SAU App Store price point exists for SAR ${intendedPriceSar}`,
+    );
+  }
+
+  const targetTerritories = APP_STORE_TERRITORIES.filter((id) => id !== 'SAU');
+  const equalizedRows = await listAll(
+    `/v1/subscriptionPricePoints/${encodeURIComponent(source.id)}/adjustedEqualizations` +
+      `?filter[upfrontPricePointId]=${encodeURIComponent(source.id)}` +
+      `&filter[planType]=${PRICE_PLAN_TYPE}` +
+      `&filter[territory]=${targetTerritories.join(',')}` +
+      '&include=territory&limit=200',
+  );
+  const result = new Map([['SAU', source]]);
+  for (const row of equalizedRows) {
+    const territory = row.relationships?.territory?.data?.id;
+    if (territory && targetTerritories.includes(territory)) {
+      result.set(territory, row);
+    }
+  }
+  const missing = APP_STORE_TERRITORIES.filter((id) => !result.has(id));
+  if (missing.length > 0) {
+    throw new Error(
+      `Apple returned no adjusted price point for: ${missing.join(', ')}`,
+    );
+  }
+  return result;
+}
+
+async function ensureApprovedPrices(subscription, definition) {
+  if (!applyPrices) {
+    return {
+      state: 'pending-approved-price-application',
+      anchorTerritory: 'SAU',
+      anchorPriceSar: definition.intendedPriceSar,
+    };
+  }
+
+  const pricePoints = await findApprovedPricePoints(
+    subscription,
+    definition.intendedPriceSar,
+  );
+  const existing = await existingPricesByTerritory(subscription);
+  const territories = {};
+
+  for (const territory of APP_STORE_TERRITORIES) {
+    const point = pricePoints.get(territory);
+    const current = existing.get(territory);
+    if (current) {
+      territories[territory] = {
+        state: 'existing-not-overwritten',
+        approvedCustomerPrice: point.attributes?.customerPrice,
+      };
+      continue;
+    }
+    await request('/v1/subscriptionPrices', {
+      method: 'POST',
+      body: {
+        data: {
+          type: 'subscriptionPrices',
+          attributes: {
+            startDate: null,
+            planType: PRICE_PLAN_TYPE,
+          },
+          relationships: {
+            subscription: {
+              data: { type: 'subscriptions', id: subscription.id },
+            },
+            subscriptionPricePoint: {
+              data: { type: 'subscriptionPricePoints', id: point.id },
+            },
+          },
+        },
+      },
+    });
+    territories[territory] = {
+      state: 'created',
+      customerPrice: point.attributes?.customerPrice,
+    };
+  }
+  return {
+    state: 'applied',
+    planType: PRICE_PLAN_TYPE,
+    anchorTerritory: 'SAU',
+    anchorPriceSar: definition.intendedPriceSar,
+    territories,
+  };
+}
+
 async function ensureSubscriptions(group, report) {
   report.subscriptions = [];
   if (!group) {
@@ -379,12 +551,19 @@ async function ensureSubscriptions(group, report) {
     const localization = subscription
       ? await ensureSubscriptionLocalization(subscription, definition)
       : 'blocked-until-subscription-exists';
+    const planAvailability = subscription
+      ? await ensurePlanAvailability(subscription)
+      : 'blocked-until-subscription-exists';
+    const pricing = subscription
+      ? await ensureApprovedPrices(subscription, definition)
+      : { state: 'blocked-until-subscription-exists' };
     report.subscriptions.push({
       productId: definition.productId,
       state,
       localization,
+      planAvailability,
       intendedPriceSar: definition.intendedPriceSar,
-      pricing: 'pending-explicit-price-point-configuration',
+      pricing,
     });
   }
 }
@@ -481,9 +660,13 @@ async function main() {
     generatedAt: new Date().toISOString(),
     bundleIdentifier: BUNDLE_ID,
     appName: APP_NAME,
-    pricesApplied: false,
+    pricesApproved: true,
+    pricesApplied: applyPrices,
+    priceTerritories: APP_STORE_TERRITORIES,
     pricingNote:
-      'Price points are deliberately not applied because an immediate App Store price change cannot be reverted after it takes effect.',
+      applyPrices
+        ? 'Approved SAR anchor prices and Apple-adjusted Gulf price points are applied immediately.'
+        : 'Approved prices are recorded but not applied in this run.',
   };
 
   try {
