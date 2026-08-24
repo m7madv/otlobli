@@ -1,4 +1,4 @@
-# Active handoff — v86.230/1095 App Store preparation (2026-08-24)
+# Active handoff — v86.230/1095 ready for final App Review action (2026-08-24)
 
 The owner requested App Store publication, but no public review submission has
 been sent. Preparation workflow
@@ -13,16 +13,16 @@ free; availability is all 175 territories; rating is calculated 13+; untested
 Mac/Vision distribution is off. The live privacy and support URLs are from
 READY deployment `dpl_2EU6QQoxjhA7xFuFsrARAUB3SS69`. Thirteen actual privacy
 data types are fully configured as App Functionality, identity-linked, and not
-used for tracking, but `Publish` has not been clicked.
+used for tracking. The owner approved the declaration and publication: the
+third-party content-rights answer is saved as having the necessary rights, and
+the privacy label is published.
 
-Do not invent the remaining declarations. Obtain the owner's explicit
-confirmation that Otlobli has the necessary rights to display/access SHEIN and
-Temu content before selecting the legal content-rights “Yes” option. Obtain the
-exact reviewer first/last name, phone, and email before transmitting them. The
-reviewer can use Sign in with Apple without a demo password and complete the
-delivery profile without OTP; put that workflow in review notes. Keep
-`PREPARE_ONLY` until the user confirms privacy publication and the final App
-Review submission in the action-time turn.
+Reviewer first/last name, phone, email, and the Sign in with Apple workflow are
+saved in App Store Connect; personal contact values are intentionally omitted
+from repository documentation. `Add for Review` is enabled. No public review
+submission has been sent yet. Keep `PREPARE_ONLY` until the user gives the
+action-time confirmation to add version 86.230 and press the final submission
+button; then verify the resulting Apple state rather than claiming approval.
 
 # Active handoff — v86.230/1095 is live in internal TestFlight (2026-08-24)
 

@@ -1,4 +1,4 @@
-# v86.230/1095 — App Store submission preparation (2026-08-24)
+# v86.230/1095 — ready for final App Store review action (2026-08-24)
 
 The owner explicitly authorized publishing this accepted build to the App
 Store. Public submission is prepared but has **not** been sent to Apple Review.
@@ -15,15 +15,18 @@ Untested Apple Silicon Mac and Vision Pro distribution are disabled. The
 iPhone 6.5 `1242x2688` and iPad Pro 12.9 `2048x2732` screenshots are COMPLETE
 under localization `ar-SA`. Privacy and user-choice URLs point to
 `https://talabieh.vercel.app/privacy.html`; all 13 accurate data types are
-configured as App Functionality, linked to the user, and not used for tracking,
-but the privacy label remains an unpublished draft.
+configured as App Functionality, linked to the user, and not used for tracking.
+The owner approved publication and the privacy label is now published in App
+Store Connect.
 
 Public privacy/support pages are live from READY Vercel deployment
-`dpl_2EU6QQoxjhA7xFuFsrARAUB3SS69`. Remaining blockers are explicit owner
-confirmation for the third-party content-rights declaration, exact reviewer
-contact details, publishing the privacy label, and the action-time confirmation
-before final App Review submission. Keep `store-assets/app-store/PREPARE_ONLY`
-until that final confirmation.
+`dpl_2EU6QQoxjhA7xFuFsrARAUB3SS69`. The owner explicitly confirmed the required
+third-party content rights; App Store Connect now records that declaration.
+Reviewer contact details and Sign in with Apple review instructions are saved
+without copying personal contact values into the repository. `Add for Review`
+is enabled. The only remaining blocker is the action-time confirmation before
+adding and submitting version 86.230 to Apple Review. Keep
+`store-assets/app-store/PREPARE_ONLY` until that final confirmation.
 
 # v86.230/1095 — TestFlight uploaded and internally distributed (2026-08-24)
 
