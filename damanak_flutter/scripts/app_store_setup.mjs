@@ -212,10 +212,26 @@ async function findApp() {
   return rows.find((row) => row.attributes?.bundleId === BUNDLE_ID) || null;
 }
 
+async function findPossibleAppRecords() {
+  const rows = await listAll('/v1/apps?limit=200');
+  return rows
+    .filter((row) => {
+      const name = String(row.attributes?.name || '').toLowerCase();
+      const sku = String(row.attributes?.sku || '').toLowerCase();
+      return name.includes('damanak') || name.includes('ضمانك') || sku.includes('damanak');
+    })
+    .map((row) => ({
+      name: row.attributes?.name,
+      sku: row.attributes?.sku,
+      bundleId: row.attributes?.bundleId,
+    }));
+}
+
 async function ensureApp(report) {
   let app = await findApp();
   report.app = app ? 'existing' : 'missing';
   if (!app && mode === 'apply') {
+    report.possibleAppRecords = await findPossibleAppRecords();
     try {
       const result = await request('/v1/apps', {
         method: 'POST',
