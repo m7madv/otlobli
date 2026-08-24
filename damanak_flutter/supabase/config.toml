@@ -18,12 +18,12 @@ port = 54333
 
 [auth]
 enabled = true
-site_url = "http://localhost:3000"
-additional_redirect_urls = []
+site_url = "com.damanak.damanak://login-callback"
+additional_redirect_urls = ["com.damanak.damanak://login-callback"]
 jwt_expiry = 3600
 enable_signup = true
 
 [auth.email]
-enable_signup = true
+enable_signup = false
 double_confirm_changes = true
 enable_confirmations = false

@@ -2,6 +2,14 @@
 
 آخر تحديث: 2026-08-24
 
+## الحالة الحية
+
+- مشروع Supabase الحالي: `xfjgxmmecfohbbqacrcw`، مع migrations الأربع ودالة `verify-store-purchase` منشورة.
+- Email auth معطل ورابط العودة `com.damanak.damanak://login-callback` مسموح.
+- إعدادا Supabase العامان موجودان في GitHub Secrets.
+- Google Cloud Project موجود باسم `Damanak Production` ومعرّف `damanak-production`، لكن تهيئة Google Auth Platform تنتظر موافقة المستخدم على سياسة بيانات Google.
+- منطقة Supabase الحالية Tokyo نتيجة اختيار المنطقة العام؛ يوصى بإعادة إنشاء المشروع الفارغ في Mumbai قبل الإنتاج الموجه للخليج.
+
 ## القرار المعتمد
 
 - تسجيل الدخول وإنشاء الحساب متاحان عبر `Apple` و`Google` فقط.

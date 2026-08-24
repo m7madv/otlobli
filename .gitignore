@@ -47,6 +47,7 @@ ios/App/App/public
 
 # Supabase local
 supabase/.temp
+**/supabase/.temp/
 
 # WhatsApp / auth session data (secrets, never commit)
 server/baileys-auth
