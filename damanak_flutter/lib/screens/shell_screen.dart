@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../core/app_theme.dart';
 import '../widgets/brand_mark.dart';
+import 'account_screen.dart';
 import 'home_screen.dart';
-import 'requests_screen.dart';
-import 'settings_screen.dart';
+import 'products_screen.dart';
+import 'scanner_screen.dart';
 import 'warranties_screen.dart';
 import 'warranty_form_screen.dart';
 
@@ -20,9 +21,14 @@ class _ShellScreenState extends State<ShellScreen> {
 
   static const _destinations = [
     NavigationDestination(
-      icon: Icon(Icons.home_outlined),
-      selectedIcon: Icon(Icons.home_rounded),
-      label: 'الرئيسية',
+      icon: Icon(Icons.space_dashboard_outlined),
+      selectedIcon: Icon(Icons.space_dashboard_rounded),
+      label: 'العمليات',
+    ),
+    NavigationDestination(
+      icon: Icon(Icons.qr_code_scanner_rounded),
+      selectedIcon: Icon(Icons.qr_code_scanner_rounded),
+      label: 'مسح',
     ),
     NavigationDestination(
       icon: Icon(Icons.verified_user_outlined),
@@ -30,14 +36,14 @@ class _ShellScreenState extends State<ShellScreen> {
       label: 'الضمانات',
     ),
     NavigationDestination(
-      icon: Icon(Icons.build_outlined),
-      selectedIcon: Icon(Icons.build_rounded),
-      label: 'الصيانة',
+      icon: Icon(Icons.inventory_2_outlined),
+      selectedIcon: Icon(Icons.inventory_2_rounded),
+      label: 'المنتجات',
     ),
     NavigationDestination(
-      icon: Icon(Icons.storefront_outlined),
-      selectedIcon: Icon(Icons.storefront_rounded),
-      label: 'المتجر',
+      icon: Icon(Icons.grid_view_outlined),
+      selectedIcon: Icon(Icons.grid_view_rounded),
+      label: 'المزيد',
     ),
   ];
 
@@ -47,51 +53,54 @@ class _ShellScreenState extends State<ShellScreen> {
     ).push(MaterialPageRoute<void>(builder: (_) => const WarrantyFormScreen()));
   }
 
+  Widget _currentPage() => switch (_index) {
+    0 => HomeScreen(
+      onCreateWarranty: _openNewWarranty,
+      onScan: () => setState(() => _index = 1),
+      onShowAllWarranties: () => setState(() => _index = 2),
+      onShowProducts: () => setState(() => _index = 3),
+      onShowMore: () => setState(() => _index = 4),
+    ),
+    1 => const ScannerScreen(),
+    2 => const WarrantiesScreen(),
+    3 => const ProductsScreen(),
+    _ => const AccountScreen(),
+  };
+
   @override
   Widget build(BuildContext context) {
-    final pages = [
-      HomeScreen(
-        onCreateWarranty: _openNewWarranty,
-        onShowAllWarranties: () => setState(() => _index = 1),
-        onShowRequests: () => setState(() => _index = 2),
-      ),
-      const WarrantiesScreen(),
-      const RequestsScreen(),
-      const SettingsScreen(),
-    ];
-
     return LayoutBuilder(
       builder: (context, constraints) {
-        final useRail = constraints.maxWidth >= 760;
-        final content = IndexedStack(index: _index, children: pages);
-
+        final useRail = constraints.maxWidth >= 820;
+        final content = _currentPage();
+        final colors = context.colors;
         if (useRail) {
           return Scaffold(
             body: SafeArea(
               child: Row(
                 children: [
                   Container(
-                    width: 210,
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      border: Border(left: BorderSide(color: AppColors.line)),
+                    width: 224,
+                    decoration: BoxDecoration(
+                      color: colors.surface,
+                      border: Border(
+                        left: BorderSide(color: colors.outlineVariant),
+                      ),
                     ),
                     child: Column(
                       children: [
                         const Padding(
-                          padding: EdgeInsets.fromLTRB(18, 24, 18, 20),
+                          padding: EdgeInsets.fromLTRB(18, 24, 18, 18),
                           child: BrandMark(compact: true),
                         ),
                         Expanded(
                           child: NavigationRail(
                             extended: true,
-                            backgroundColor: Colors.white,
                             selectedIndex: _index,
-                            onDestinationSelected: (value) {
-                              setState(() => _index = value);
-                            },
+                            onDestinationSelected: (value) =>
+                                setState(() => _index = value),
                             leading: Padding(
-                              padding: const EdgeInsets.only(bottom: 18),
+                              padding: const EdgeInsets.only(bottom: 14),
                               child: FilledButton.icon(
                                 onPressed: _openNewWarranty,
                                 icon: const Icon(Icons.add_rounded),
@@ -119,21 +128,8 @@ class _ShellScreenState extends State<ShellScreen> {
             ),
           );
         }
-
         return Scaffold(
           body: SafeArea(child: content),
-          floatingActionButton: _index == 1
-              ? FloatingActionButton.extended(
-                  onPressed: _openNewWarranty,
-                  backgroundColor: AppColors.emerald,
-                  foregroundColor: Colors.white,
-                  icon: const Icon(Icons.add_rounded),
-                  label: const Text(
-                    'ضمان جديد',
-                    style: TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                )
-              : null,
           bottomNavigationBar: NavigationBar(
             selectedIndex: _index,
             onDestinationSelected: (value) => setState(() => _index = value),

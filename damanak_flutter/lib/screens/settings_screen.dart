@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../core/app_theme.dart';
-import '../models/store_profile.dart';
+import '../models/account.dart';
 import '../state/app_scope.dart';
-import '../widgets/brand_mark.dart';
-import '../widgets/page_frame.dart';
+import '../widgets/message_banner.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -18,17 +17,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _name = TextEditingController();
   final _phone = TextEditingController();
   final _city = TextEditingController();
+  String _country = 'SA';
   bool _loaded = false;
-  bool _saving = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_loaded) return;
-    final profile = AppScope.of(context).profile;
-    _name.text = profile.name;
-    _phone.text = profile.phone;
-    _city.text = profile.city;
+    final store = AppScope.of(context).store!;
+    _name.text = store.name;
+    _phone.text = store.phone;
+    _city.text = store.city;
+    _country = store.countryCode;
     _loaded = true;
   }
 
@@ -41,96 +41,151 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _save() async {
-    if (!_formKey.currentState!.validate() || _saving) return;
-    setState(() => _saving = true);
-    await AppScope.of(context).updateProfile(
-      StoreProfile(
-        name: _name.text.trim(),
-        phone: _phone.text.trim(),
-        city: _city.text.trim(),
-      ),
+    if (!_formKey.currentState!.validate()) return;
+    await AppScope.of(context).updateStore(
+      name: _name.text,
+      phone: _phone.text,
+      city: _city.text,
+      countryCode: _country,
     );
-    if (!mounted) return;
-    setState(() => _saving = false);
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('تم حفظ بيانات المتجر.')));
   }
 
   @override
   Widget build(BuildContext context) {
     final controller = AppScope.of(context);
-    return PageFrame(
-      padding: const EdgeInsets.fromLTRB(18, 22, 18, 34),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'بيانات المتجر',
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'تظهر هذه البيانات عند مشاركة بطاقة الضمان.',
-            style: TextStyle(
-              color: AppColors.muted,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 20),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
+    final colors = context.colors;
+    final canEdit = controller.membership!.role.canManageTeam;
+    return Scaffold(
+      appBar: AppBar(title: const Text('بيانات المتجر')),
+      body: SafeArea(
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(18, 8, 18, 32),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 680),
               child: Form(
                 key: _formKey,
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Align(
-                      alignment: Alignment.centerRight,
-                      child: BrandMark(),
-                    ),
-                    const SizedBox(height: 24),
-                    TextFormField(
-                      controller: _name,
-                      textInputAction: TextInputAction.next,
-                      decoration: const InputDecoration(
-                        labelText: 'اسم المتجر',
-                        prefixIcon: Icon(Icons.storefront_outlined),
+                    const MessageBanner(),
+                    if (!canEdit)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: colors.surfaceContainer,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Text(
+                          'تعديل بيانات المتجر متاح للمالك والمدير فقط.',
+                        ),
                       ),
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'اسم المتجر مطلوب';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _phone,
-                      keyboardType: TextInputType.phone,
-                      textDirection: TextDirection.ltr,
-                      decoration: const InputDecoration(
-                        labelText: 'رقم التواصل (اختياري)',
-                        prefixIcon: Icon(Icons.phone_outlined),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _city,
-                      textInputAction: TextInputAction.done,
-                      onFieldSubmitted: (_) => _save(),
-                      decoration: const InputDecoration(
-                        labelText: 'المدينة (اختياري)',
-                        prefixIcon: Icon(Icons.location_city_outlined),
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton.icon(
-                        onPressed: _saving ? null : _save,
-                        icon: const Icon(Icons.save_outlined),
-                        label: Text(_saving ? 'جارٍ الحفظ…' : 'حفظ البيانات'),
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(18),
+                        child: Column(
+                          children: [
+                            TextFormField(
+                              controller: _name,
+                              enabled: canEdit,
+                              textInputAction: TextInputAction.next,
+                              decoration: const InputDecoration(
+                                labelText: 'اسم المتجر',
+                                prefixIcon: Icon(Icons.storefront_outlined),
+                              ),
+                              validator: (value) =>
+                                  value == null || value.trim().isEmpty
+                                  ? 'اسم المتجر مطلوب'
+                                  : null,
+                            ),
+                            const SizedBox(height: 12),
+                            DropdownButtonFormField<String>(
+                              initialValue: _country,
+                              decoration: const InputDecoration(
+                                labelText: 'الدولة',
+                              ),
+                              items: const [
+                                DropdownMenuItem(
+                                  value: 'SA',
+                                  child: Text('السعودية'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'AE',
+                                  child: Text('الإمارات'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'KW',
+                                  child: Text('الكويت'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'QA',
+                                  child: Text('قطر'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'BH',
+                                  child: Text('البحرين'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'OM',
+                                  child: Text('عُمان'),
+                                ),
+                              ],
+                              onChanged: canEdit
+                                  ? (value) => setState(
+                                      () => _country = value ?? _country,
+                                    )
+                                  : null,
+                            ),
+                            const SizedBox(height: 12),
+                            TextFormField(
+                              controller: _city,
+                              enabled: canEdit,
+                              textInputAction: TextInputAction.next,
+                              decoration: const InputDecoration(
+                                labelText: 'المدينة',
+                                prefixIcon: Icon(Icons.location_city_outlined),
+                              ),
+                              validator: (value) =>
+                                  value == null || value.trim().isEmpty
+                                  ? 'المدينة مطلوبة'
+                                  : null,
+                            ),
+                            const SizedBox(height: 12),
+                            TextFormField(
+                              controller: _phone,
+                              enabled: canEdit,
+                              keyboardType: TextInputType.phone,
+                              textDirection: TextDirection.ltr,
+                              textInputAction: TextInputAction.done,
+                              onFieldSubmitted: (_) => _save(),
+                              decoration: const InputDecoration(
+                                labelText: 'رقم التواصل',
+                                prefixIcon: Icon(Icons.phone_outlined),
+                              ),
+                              validator: (value) =>
+                                  (value?.trim().length ?? 0) < 7
+                                  ? 'أدخل رقم تواصل صحيحاً'
+                                  : null,
+                            ),
+                            if (canEdit) ...[
+                              const SizedBox(height: 18),
+                              SizedBox(
+                                width: double.infinity,
+                                child: FilledButton.icon(
+                                  onPressed: controller.busy ? null : _save,
+                                  icon: const Icon(Icons.save_outlined),
+                                  label: Text(
+                                    controller.busy
+                                        ? 'جارٍ الحفظ…'
+                                        : 'حفظ بيانات المتجر',
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
                       ),
                     ),
                   ],
@@ -138,65 +193,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 18),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: AppColors.mint,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(
-                  Icons.lock_outline_rounded,
-                  color: AppColors.emerald,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'بياناتك تبقى على جهازك',
-                        style: TextStyle(
-                          color: AppColors.emeraldDark,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(height: 5),
-                      const Text(
-                        'لا توجد حسابات أو خوادم أو رسوم اشتراك. حذف التطبيق قد يحذف البيانات المحلية، لذلك احتفظ بنسخة من البطاقات المهمة عبر المشاركة.',
-                        style: TextStyle(
-                          color: AppColors.emeraldDark,
-                          fontSize: 12,
-                          height: 1.55,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        '${controller.warranties.length} ضمان • ${controller.requests.length} طلب صيانة',
-                        style: const TextStyle(
-                          color: AppColors.emeraldDark,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          const Center(
-            child: Text(
-              'ضمانك 1.0.0',
-              style: TextStyle(color: AppColors.muted, fontSize: 12),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

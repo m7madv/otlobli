@@ -4,6 +4,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../core/app_theme.dart';
 import '../core/date_utils.dart';
+import '../models/account.dart';
 import '../models/warranty.dart';
 import '../state/app_scope.dart';
 import '../widgets/status_chip.dart';
@@ -46,13 +47,15 @@ class _WarrantyDetailScreenState extends State<WarrantyDetailScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: Text(widget.justCreated ? 'تم إصدار الضمان' : 'تفاصيل الضمان'),
-          actions: [
-            IconButton(
-              tooltip: 'حذف الضمان',
-              onPressed: () => _confirmDelete(warranty),
-              icon: const Icon(Icons.delete_outline_rounded),
-            ),
-          ],
+          actions: controller.membership!.role.canManageTeam
+              ? [
+                  IconButton(
+                    tooltip: 'حذف الضمان',
+                    onPressed: () => _confirmDelete(warranty),
+                    icon: const Icon(Icons.delete_outline_rounded),
+                  ),
+                ]
+              : null,
         ),
         body: SafeArea(
           child: Align(
@@ -185,7 +188,7 @@ class _WarrantyDetailScreenState extends State<WarrantyDetailScreen> {
 
 المنتج: ${warranty.productName}
 العميل: ${warranty.customerName}
-رقم الضمان: ${warranty.id}
+رقم الضمان: ${warranty.displayNumber}
 تاريخ الشراء: ${formatDate(warranty.purchaseDate)}
 صالح حتى: ${formatDate(warranty.expiryDate)}
 الحالة: ${warranty.statusAt().label}
@@ -198,7 +201,7 @@ ${warranty.notes.isEmpty ? '' : '\nملاحظات: ${warranty.notes}'}
     await SharePlus.instance.share(
       ShareParams(
         text: text,
-        subject: 'بطاقة ضمان ${warranty.id}',
+        subject: 'بطاقة ضمان ${warranty.displayNumber}',
         sharePositionOrigin: box == null
             ? null
             : box.localToGlobal(Offset.zero) & box.size,
@@ -230,7 +233,9 @@ ${warranty.notes.isEmpty ? '' : '\nملاحظات: ${warranty.notes}'}
           FilledButton(
             onPressed: () {
               final value = issueController.text.trim();
-              if (value.isNotEmpty) Navigator.pop(dialogContext, value);
+              if (value.isNotEmpty) {
+                Navigator.pop(dialogContext, value);
+              }
             },
             child: const Text('حفظ الطلب'),
           ),
@@ -238,7 +243,9 @@ ${warranty.notes.isEmpty ? '' : '\nملاحظات: ${warranty.notes}'}
       ),
     );
     issueController.dispose();
-    if (issue == null || !mounted) return;
+    if (issue == null || !mounted) {
+      return;
+    }
     await AppScope.of(
       context,
     ).addMaintenanceRequest(warrantyId: warranty.id, issue: issue);
@@ -255,7 +262,7 @@ ${warranty.notes.isEmpty ? '' : '\nملاحظات: ${warranty.notes}'}
       builder: (dialogContext) => AlertDialog(
         title: const Text('حذف بطاقة الضمان؟'),
         content: const Text(
-          'سيتم حذف البطاقة وطلبات الصيانة التابعة لها من هذا الجهاز نهائياً.',
+          'سيتم حذف البطاقة وطلبات الصيانة التابعة لها من سجل المتجر نهائياً.',
         ),
         actions: [
           TextButton(
@@ -270,7 +277,9 @@ ${warranty.notes.isEmpty ? '' : '\nملاحظات: ${warranty.notes}'}
         ],
       ),
     );
-    if (confirmed != true || !mounted) return;
+    if (confirmed != true || !mounted) {
+      return;
+    }
     await AppScope.of(context).deleteWarranty(warranty.id);
     if (mounted) Navigator.of(context).pop();
   }
@@ -284,21 +293,24 @@ class _WarrantyDocument extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final status = warranty.statusAt();
+    final colors = context.colors;
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colors.surface,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.line),
+        border: Border.all(color: colors.outlineVariant),
       ),
       child: Column(
         children: [
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(20),
-            decoration: const BoxDecoration(
-              color: AppColors.ink,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(23)),
+            decoration: BoxDecoration(
+              color: colors.primary,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(23),
+              ),
             ),
             child: Row(
               children: [
@@ -308,32 +320,35 @@ class _WarrantyDocument extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
-                    border: Border.all(color: AppColors.gold, width: 2),
+                    border: Border.all(
+                      color: colors.onPrimary.withValues(alpha: 0.72),
+                      width: 2,
+                    ),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.verified_user_rounded,
-                    color: AppColors.gold,
+                    color: colors.onPrimary,
                     size: 28,
                   ),
                 ),
                 const SizedBox(width: 14),
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         'وثيقة ضمان رقمية',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: colors.onPrimary,
                           fontSize: 19,
-                          fontWeight: FontWeight.w900,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
-                      SizedBox(height: 4),
+                      const SizedBox(height: 4),
                       Text(
-                        'مسجلة ومحفوظة على جهاز المتجر',
+                        'مسجلة في مساحة المتجر ومحمية بالصلاحيات',
                         style: TextStyle(
-                          color: Color(0xFFB9C3CC),
+                          color: colors.onPrimary.withValues(alpha: 0.76),
                           fontSize: 12,
                         ),
                       ),
@@ -355,12 +370,12 @@ class _WarrantyDocument extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'المنتج المشمول',
                             style: TextStyle(
-                              color: AppColors.muted,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
+                              color: colors.onSurfaceVariant,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                           const SizedBox(height: 4),
@@ -382,7 +397,17 @@ class _WarrantyDocument extends StatelessWidget {
                   value: warranty.customerPhone,
                   ltr: true,
                 ),
-                _DetailRow(label: 'رقم الضمان', value: warranty.id, ltr: true),
+                _DetailRow(
+                  label: 'رقم الضمان',
+                  value: warranty.displayNumber,
+                  ltr: true,
+                ),
+                if (warranty.barcode.isNotEmpty)
+                  _DetailRow(
+                    label: 'الباركود',
+                    value: warranty.barcode,
+                    ltr: true,
+                  ),
                 if (warranty.serialNumber.isNotEmpty)
                   _DetailRow(
                     label: 'الرقم التسلسلي',
@@ -401,10 +426,10 @@ class _WarrantyDocument extends StatelessWidget {
                 ),
                 if (warranty.notes.isNotEmpty) ...[
                   const Divider(height: 28),
-                  const Text(
+                  Text(
                     'ملاحظات وشروط',
                     style: TextStyle(
-                      color: AppColors.muted,
+                      color: colors.onSurfaceVariant,
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
                     ),
@@ -418,8 +443,8 @@ class _WarrantyDocument extends StatelessWidget {
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
                     color: status == WarrantyStatus.expired
-                        ? const Color(0xFFFBEAEA)
-                        : AppColors.mint,
+                        ? colors.errorContainer
+                        : colors.primaryContainer,
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Text(
@@ -427,9 +452,9 @@ class _WarrantyDocument extends StatelessWidget {
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: status == WarrantyStatus.expired
-                          ? AppColors.danger
-                          : AppColors.emeraldDark,
-                      fontWeight: FontWeight.w900,
+                          ? colors.onErrorContainer
+                          : colors.onPrimaryContainer,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
@@ -455,6 +480,7 @@ class _DetailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
@@ -464,8 +490,8 @@ class _DetailRow extends StatelessWidget {
             width: 105,
             child: Text(
               label,
-              style: const TextStyle(
-                color: AppColors.muted,
+              style: TextStyle(
+                color: colors.onSurfaceVariant,
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
               ),
@@ -476,9 +502,9 @@ class _DetailRow extends StatelessWidget {
               value,
               textDirection: ltr ? TextDirection.ltr : TextDirection.rtl,
               textAlign: ltr ? TextAlign.end : TextAlign.start,
-              style: const TextStyle(
-                color: AppColors.ink,
-                fontWeight: FontWeight.w800,
+              style: TextStyle(
+                color: colors.onSurface,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),
@@ -495,15 +521,16 @@ class _QrPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final qrData =
-        'DAMANAK|${warranty.id}|${warranty.productName}|${formatDate(warranty.expiryDate)}|${warranty.statusAt().label}';
+        'DAMANAK|${warranty.displayNumber}|${warranty.productName}|${formatDate(warranty.expiryDate)}|${warranty.statusAt().label}';
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
             Semantics(
-              label: 'رمز تحقق بطاقة الضمان ${warranty.id}',
+              label: 'رمز تحقق بطاقة الضمان ${warranty.displayNumber}',
               image: true,
               child: QrImageView(
                 data: qrData,
@@ -526,10 +553,10 @@ class _QrPanel extends StatelessWidget {
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 4),
-            const Text(
+            Text(
               'لا يحتوي الرمز على رقم جوال العميل.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.muted, fontSize: 12),
+              style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
             ),
           ],
         ),
@@ -543,23 +570,24 @@ class _CreatedNotice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.mint,
+        color: colors.primaryContainer,
         borderRadius: BorderRadius.circular(16),
       ),
-      child: const Row(
+      child: Row(
         children: [
-          Icon(Icons.check_circle_rounded, color: AppColors.emerald),
-          SizedBox(width: 10),
+          Icon(Icons.check_circle_rounded, color: colors.primary),
+          const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'تم إصدار البطاقة وحفظها على هذا الجهاز.',
+              'تم إصدار البطاقة ومزامنتها مع مساحة المتجر.',
               style: TextStyle(
-                color: AppColors.emeraldDark,
-                fontWeight: FontWeight.w800,
+                color: colors.onPrimaryContainer,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),
@@ -574,17 +602,18 @@ class _NoRequests extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Card(
+    final colors = context.colors;
+    return Card(
       child: Padding(
-        padding: EdgeInsets.all(20),
+        padding: const EdgeInsets.all(20),
         child: Row(
           children: [
-            Icon(Icons.handyman_outlined, color: AppColors.muted),
-            SizedBox(width: 12),
+            Icon(Icons.handyman_outlined, color: colors.onSurfaceVariant),
+            const SizedBox(width: 12),
             Expanded(
               child: Text(
                 'لا توجد طلبات صيانة لهذه البطاقة.',
-                style: TextStyle(color: AppColors.muted),
+                style: TextStyle(color: colors.onSurfaceVariant),
               ),
             ),
           ],

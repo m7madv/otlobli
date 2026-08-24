@@ -25,6 +25,7 @@ class _WarrantiesScreenState extends State<WarrantiesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final allWarranties = AppScope.of(context).warranties;
     final warranties = allWarranties.where((item) {
       return item.matches(_searchController.text) &&
@@ -49,9 +50,9 @@ class _WarrantiesScreenState extends State<WarrantiesScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      '${allWarranties.length} بطاقة محفوظة على هذا الجهاز',
-                      style: const TextStyle(
-                        color: AppColors.muted,
+                      '${allWarranties.length} بطاقة في مساحة المتجر',
+                      style: TextStyle(
+                        color: colors.onSurfaceVariant,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -151,18 +152,21 @@ class _FilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return ChoiceChip(
       label: Text(label),
       selected: selected,
       onSelected: (_) => onSelected(),
       showCheckmark: false,
-      selectedColor: AppColors.ink,
-      backgroundColor: Colors.white,
+      selectedColor: colors.primaryContainer,
+      backgroundColor: colors.surface,
       labelStyle: TextStyle(
-        color: selected ? Colors.white : AppColors.muted,
-        fontWeight: FontWeight.w700,
+        color: selected ? colors.onPrimaryContainer : colors.onSurfaceVariant,
+        fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
       ),
-      side: BorderSide(color: selected ? AppColors.ink : AppColors.line),
+      side: BorderSide(
+        color: selected ? colors.primary : colors.outlineVariant,
+      ),
     );
   }
 }
@@ -174,16 +178,17 @@ class _EmptyWarranties extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Card(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 38),
         child: Center(
           child: Column(
             children: [
-              const Icon(
+              Icon(
                 Icons.folder_off_outlined,
                 size: 44,
-                color: AppColors.muted,
+                color: colors.onSurfaceVariant,
               ),
               const SizedBox(height: 12),
               Text(
@@ -196,7 +201,7 @@ class _EmptyWarranties extends StatelessWidget {
                     ? 'جرّب كلمة بحث أخرى أو غيّر حالة الضمان.'
                     : 'أنشئ أول ضمان من زر «ضمان جديد».',
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: AppColors.muted),
+                style: TextStyle(color: colors.onSurfaceVariant),
               ),
             ],
           ),

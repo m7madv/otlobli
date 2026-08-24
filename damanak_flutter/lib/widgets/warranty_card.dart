@@ -20,6 +20,7 @@ class WarrantyCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final status = warranty.statusAt();
+    final colors = context.colors;
     return Semantics(
       button: true,
       label: 'ضمان ${warranty.productName} للعميل ${warranty.customerName}',
@@ -33,9 +34,9 @@ class WarrantyCard extends StatelessWidget {
                 Container(
                   width: 6,
                   color: switch (status) {
-                    WarrantyStatus.active => AppColors.emerald,
-                    WarrantyStatus.expiringSoon => AppColors.gold,
-                    WarrantyStatus.expired => AppColors.danger,
+                    WarrantyStatus.active => colors.primary,
+                    WarrantyStatus.expiringSoon => colors.outline,
+                    WarrantyStatus.expired => colors.error,
                   },
                 ),
                 Expanded(
@@ -64,8 +65,8 @@ class WarrantyCard extends StatelessWidget {
                                     warranty.customerName,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: AppColors.muted,
+                                    style: TextStyle(
+                                      color: colors.onSurfaceVariant,
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
@@ -87,7 +88,7 @@ class WarrantyCard extends StatelessWidget {
                             ),
                             _Meta(
                               icon: Icons.badge_outlined,
-                              text: warranty.id,
+                              text: warranty.displayNumber,
                             ),
                           ],
                         ),
@@ -95,8 +96,8 @@ class WarrantyCard extends StatelessWidget {
                           const SizedBox(height: 11),
                           Text(
                             warrantyRemainingLabel(warranty.expiryDate),
-                            style: const TextStyle(
-                              color: AppColors.muted,
+                            style: TextStyle(
+                              color: colors.onSurfaceVariant,
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
                             ),
@@ -123,16 +124,17 @@ class _Meta extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, color: AppColors.emerald, size: 16),
+        Icon(icon, color: colors.primary, size: 16),
         const SizedBox(width: 5),
         Text(
           text,
           textDirection: TextDirection.ltr,
-          style: const TextStyle(
-            color: AppColors.muted,
+          style: TextStyle(
+            color: colors.onSurfaceVariant,
             fontSize: 12,
             fontWeight: FontWeight.w700,
           ),

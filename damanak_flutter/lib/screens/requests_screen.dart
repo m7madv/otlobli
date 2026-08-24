@@ -14,6 +14,7 @@ class RequestsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = AppScope.of(context);
+    final colors = context.colors;
     final requests = controller.requests;
 
     return Align(
@@ -33,10 +34,10 @@ class RequestsScreen extends StatelessWidget {
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
                     const SizedBox(height: 6),
-                    const Text(
+                    Text(
                       'تابع الطلب من تسجيله حتى اكتمال الخدمة.',
                       style: TextStyle(
-                        color: AppColors.muted,
+                        color: colors.onSurfaceVariant,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -100,6 +101,7 @@ class _RequestCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Card(
       child: InkWell(
         onTap: onOpen,
@@ -125,8 +127,8 @@ class _RequestCard extends StatelessWidget {
                           '${warranty.customerName} • ${request.id}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: AppColors.muted,
+                          style: TextStyle(
+                            color: colors.onSurfaceVariant,
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
                           ),
@@ -148,17 +150,17 @@ class _RequestCard extends StatelessWidget {
               const SizedBox(height: 14),
               Row(
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.calendar_today_outlined,
                     size: 15,
-                    color: AppColors.muted,
+                    color: colors.onSurfaceVariant,
                   ),
                   const SizedBox(width: 6),
                   Text(
                     formatDate(request.createdAt),
                     textDirection: TextDirection.ltr,
-                    style: const TextStyle(
-                      color: AppColors.muted,
+                    style: TextStyle(
+                      color: colors.onSurfaceVariant,
                       fontSize: 12,
                     ),
                   ),
@@ -183,8 +185,8 @@ class _RequestCard extends StatelessWidget {
                           ),
                         )
                         .toList(),
-                    child: const Padding(
-                      padding: EdgeInsets.symmetric(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
                         horizontal: 8,
                         vertical: 10,
                       ),
@@ -194,14 +196,14 @@ class _RequestCard extends StatelessWidget {
                           Text(
                             'تحديث الحالة',
                             style: TextStyle(
-                              color: AppColors.emerald,
-                              fontWeight: FontWeight.w800,
+                              color: colors.primary,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
-                          SizedBox(width: 3),
+                          const SizedBox(width: 3),
                           Icon(
                             Icons.expand_more_rounded,
-                            color: AppColors.emerald,
+                            color: colors.primary,
                           ),
                         ],
                       ),
@@ -222,6 +224,7 @@ class _EmptyRequests extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Card(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 42),
@@ -232,13 +235,13 @@ class _EmptyRequests extends StatelessWidget {
                 width: 62,
                 height: 62,
                 decoration: BoxDecoration(
-                  color: AppColors.mint,
+                  color: colors.primaryContainer,
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.build_outlined,
                   size: 30,
-                  color: AppColors.emerald,
+                  color: colors.primary,
                 ),
               ),
               const SizedBox(height: 14),
@@ -247,10 +250,10 @@ class _EmptyRequests extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: 6),
-              const Text(
+              Text(
                 'يمكن تسجيل الطلب من داخل بطاقة ضمان العميل.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.muted),
+                style: TextStyle(color: colors.onSurfaceVariant),
               ),
             ],
           ),

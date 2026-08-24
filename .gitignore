@@ -4,6 +4,7 @@ dist
 .env
 .env.*
 !.env.example
+**/dart-defines.json
 .vercel
 npm-debug.log*
 yarn-debug.log*

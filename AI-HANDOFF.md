@@ -2,15 +2,15 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
-## مشروع مستقل جديد (2026-08-24) - ضمانك 1.0.0
+## مشروع مستقل (2026-08-24) — ضمانك 2.0.0
 
-- طلب المستخدم تطبيق «ضمانك» بـ `Flutter` وبتكلفة تشغيل صفرية. المشروع مستقل تماماً في `damanak_flutter/`; لا تخلطه مع Otlobli ولا تنقل إعداداته أو native code إليه.
-- الوظائف المنجزة: ملف متجر، إنشاء/بحث/تصفية بطاقات الضمان، حساب الحالة والانتهاء، مشاركة نصية، `QR` محلي بلا رقم هاتف، طلبات صيانة وتحديث الحالة، وحفظ محلي عبر `SharedPreferences`.
-- نقطة التشغيل `damanak_flutter/lib/main.dart`، ووثائق التشغيل والحدود في `damanak_flutter/README.md`. لا يوجد backend أو auth أو مزامنة متعددة الأجهزة في 1.0.0.
-- آخر تحقق ناجح: `flutter analyze`، 3 اختبارات، web release، وAndroid debug/release builds. ملف التسليم الأخف: `output/damanak/damanak-1.0.0-release-test.apk`; SHA-256 `4DEE607CFFD50D310FCD6C8E4395AA70577DEEE7BF69688A74754E7FEC86CAE0`؛ الحجم `52,118,405` بايت. هو موقّع بمفتاح debug المحلي وليس مفتاح متجر إنتاج.
-- راجعت الواجهة بمتصفح حقيقي عند `320×568` و`360×640` و`1280×800` ونفذت مسار إصدار بطاقة. أدلة Playwright في `output/playwright/damanak/.playwright-cli/`.
-- فرع GitHub هو `codex/damanak-flutter` والالتزام الأساسي `0454408`. نجح workflow `damanak-ios-unsigned.yml` في run `32702652314`. IPA المنزّلة: `output/damanak/github-ios-32702652314/damanak-1.0.0-ios-unsigned.ipa`; SHA-256 `007FAE099D7611155C0C96AF114741E3E124DEFF80CD534D18E8190E6DC1B721`؛ الحجم `7,365,052` بايت. فحصها أكد `com.damanak.damanak` و`1.0.0/1`، بلا app-root signature أو provisioning profile.
-- لم يُختبر على جهاز حقيقي. لا تدّعِ قبول جهاز أو جاهزية نشر متجر؛ IPA تحتاج توقيع Apple، وAndroid يحتاج مفتاح إنتاج. أي إصدار إنتاجي لاحق يحتاج أيقونة نهائية واختبار حفظ/استعادة فعلياً.
+- `damanak_flutter/` مستقل تماماً عن Otlobli. لا تطبق مخططه على مشروع `Supabase` المرتبط حالياً في الجذر، ولا تنقل دفع/محفظة Otlobli إليه.
+- البنية الحالية: `DamanakRepository` مع تنفيذ عرض تشغيلي وتنفيذ `Supabase`. النظام يشمل الحسابات، المتاجر، دعوات الفريق، الأدوار، المنتجات، الماسح، الضمانات، الصيانة، الخطط، الاشتراكات، رموز التفعيل وطلبات الاشتراك. مخطط الخادم في `damanak_flutter/supabase/migrations/20260824090000_damanak_core.sql` ولم يُنشر بعد.
+- إعداد السحابة موثق في `damanak_flutter/README.md` و`dart-defines.example.json`. بلا المفاتيح يفتح التطبيق عرضاً تشغيلياً صريحاً. لا تدّعِ مزامنة سحابية حية قبل إنشاء مشروع مستقل وتمرير المفاتيح.
+- التصميم يستخدم لون علامة واحد ومظهراً فاتحاً/داكناً تابعاً للنظام. راجع `docs/DESIGN_AUDIT.md` قبل أي تغيير واجهة، وحافظ على ختم الباركود والحد الأدنى `48dp` وتقليل الحركة. لا تضف blur أو مؤثرات ثابتة ثقيلة.
+- آخر تحقق: `flutter analyze` نظيف، 8 اختبارات ناجحة، web release ناجح، وتدفق الباركود/الإصدار/الرجوع إلى الماسح ناجح في متصفح حقيقي. أدلة المقاسات الفاتحة والداكنة في `output/playwright/damanak-apple/`.
+- Android release-test: `output/damanak/damanak-2.0.0-release-test.apk`; الحجم `72,563,673` بايت؛ SHA-256 `97237091826F2021C7E54E8E614C94246856C7B7D7D1402C5ED8F514949F66E3`. ليس موقّعاً بمفتاح متجر إنتاج.
+- فرع العمل `codex/damanak-flutter`. workflow iOS مهيأ لـ`2.0.0` لكنه يحتاج دفع الدفعة الحالية وانتظار GitHub Actions. لا يوجد قبول هاتف حقيقي؛ سجّل ذلك بوضوح.
 
 ## Current candidate (2026-08-01) - v86.42 image swatches and inline sizes
 

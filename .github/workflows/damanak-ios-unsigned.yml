@@ -49,12 +49,12 @@ jobs:
           rm -rf Payload
           mkdir Payload
           cp -R Runner.app Payload/
-          zip -qry damanak-1.0.0-ios-unsigned.ipa Payload
+          zip -qry damanak-2.0.0-ios-unsigned.ipa Payload
 
       - name: Upload unsigned IPA
         uses: actions/upload-artifact@v4
         with:
-          name: damanak-ios-1.0.0-unsigned
-          path: damanak_flutter/build/ios/iphoneos/damanak-1.0.0-ios-unsigned.ipa
+          name: damanak-ios-2.0.0-unsigned
+          path: damanak_flutter/build/ios/iphoneos/damanak-2.0.0-ios-unsigned.ipa
           if-no-files-found: error
           retention-days: 30

@@ -11,20 +11,21 @@ class WarrantyStatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final (foreground, background, icon) = switch (status) {
       WarrantyStatus.active => (
-        AppColors.emeraldDark,
-        AppColors.mint,
+        colors.primary,
+        colors.primaryContainer,
         Icons.check_circle_outline_rounded,
       ),
       WarrantyStatus.expiringSoon => (
-        const Color(0xFF855B12),
-        const Color(0xFFFFF2D8),
+        colors.onSurface,
+        colors.surfaceContainerHighest,
         Icons.schedule_rounded,
       ),
       WarrantyStatus.expired => (
-        AppColors.danger,
-        const Color(0xFFFBEAEA),
+        colors.error,
+        colors.errorContainer,
         Icons.cancel_outlined,
       ),
     };
@@ -45,20 +46,21 @@ class MaintenanceStatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final (foreground, background, icon) = switch (status) {
       MaintenanceStatus.newRequest => (
-        const Color(0xFF315D86),
-        const Color(0xFFEAF3FC),
+        colors.onSurface,
+        colors.surfaceContainerHighest,
         Icons.fiber_new_rounded,
       ),
       MaintenanceStatus.inProgress => (
-        const Color(0xFF855B12),
-        const Color(0xFFFFF2D8),
+        colors.onSurface,
+        colors.surfaceContainerHighest,
         Icons.build_circle_outlined,
       ),
       MaintenanceStatus.completed => (
-        AppColors.emeraldDark,
-        AppColors.mint,
+        colors.primary,
+        colors.primaryContainer,
         Icons.task_alt_rounded,
       ),
     };

@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'core/app_theme.dart';
+import 'models/account.dart';
+import 'screens/auth_screen.dart';
+import 'screens/configuration_screen.dart';
+import 'screens/onboarding_screen.dart';
 import 'screens/shell_screen.dart';
 import 'state/app_controller.dart';
 import 'state/app_scope.dart';
@@ -17,7 +21,7 @@ class DamanakApp extends StatelessWidget {
       controller: controller,
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
-        title: 'ضمانك',
+        title: 'ضمانك للأعمال',
         locale: const Locale('ar'),
         supportedLocales: const [Locale('ar')],
         localizationsDelegates: const [
@@ -26,11 +30,34 @@ class DamanakApp extends StatelessWidget {
           GlobalCupertinoLocalizations.delegate,
         ],
         theme: buildAppTheme(),
+        darkTheme: buildAppTheme(Brightness.dark),
+        themeMode: ThemeMode.system,
         home: const Directionality(
           textDirection: TextDirection.rtl,
-          child: ShellScreen(),
+          child: _AppGate(),
         ),
       ),
+    );
+  }
+}
+
+class _AppGate extends StatelessWidget {
+  const _AppGate();
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = AppScope.of(context);
+    final page = switch (controller.stage) {
+      AppStage.configuring => const ConfigurationScreen(),
+      AppStage.signedOut => const AuthScreen(),
+      AppStage.onboarding => const OnboardingScreen(),
+      AppStage.ready => const ShellScreen(),
+    };
+    return AnimatedSwitcher(
+      duration: MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : const Duration(milliseconds: 220),
+      child: KeyedSubtree(key: ValueKey(controller.stage), child: page),
     );
   }
 }
