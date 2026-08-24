@@ -8,6 +8,7 @@ import '../models/product.dart';
 import '../models/register.dart';
 import '../models/sale.dart';
 import '../models/subscription.dart';
+import '../models/store_billing.dart';
 import '../models/supplier.dart';
 import '../models/warranty.dart';
 
@@ -259,14 +260,9 @@ abstract interface class DamanakRepository {
   Future<List<AuditEvent>> loadAuditLogs(String storeId);
 
   Future<List<PlanInfo>> loadPlans();
-  Future<void> requestSubscription({
+  Future<SubscriptionInfo> verifyStorePurchase({
     required String storeId,
-    required String planId,
-    required String billingCycle,
-    required String contactPhone,
+    required StorePurchaseReceipt receipt,
   });
-  Future<SubscriptionInfo> redeemSubscriptionCode({
-    required String storeId,
-    required String code,
-  });
+  Future<SubscriptionInfo> refreshStoreSubscription(String storeId);
 }

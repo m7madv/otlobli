@@ -12,6 +12,7 @@ import '../models/product.dart';
 import '../models/register.dart';
 import '../models/sale.dart';
 import '../models/subscription.dart';
+import '../models/store_billing.dart';
 import '../models/supplier.dart';
 import '../models/warranty.dart';
 import 'damanak_repository.dart';
@@ -1411,6 +1412,12 @@ class DemoDamanakRepository implements DamanakRepository {
       trialEndsAt: _subscription.trialEndsAt,
       periodEndsAt: _subscription.periodEndsAt,
       usedWarranties: _subscription.usedWarranties + 1,
+      source: _subscription.source,
+      billingProvider: _subscription.billingProvider,
+      storeProductId: _subscription.storeProductId,
+      billingCycle: _subscription.billingCycle,
+      autoRenews: _subscription.autoRenews,
+      lastVerifiedAt: _subscription.lastVerifiedAt,
     );
     return warranty;
   }
@@ -1524,26 +1531,12 @@ class DemoDamanakRepository implements DamanakRepository {
   ];
 
   @override
-  Future<void> requestSubscription({
+  Future<SubscriptionInfo> verifyStorePurchase({
     required String storeId,
-    required String planId,
-    required String billingCycle,
-    required String contactPhone,
-  }) async {}
+    required StorePurchaseReceipt receipt,
+  }) => throw StateError('STORE_VERIFICATION_REQUIRES_CLOUD');
 
   @override
-  Future<SubscriptionInfo> redeemSubscriptionCode({
-    required String storeId,
-    required String code,
-  }) async {
-    _subscription = SubscriptionInfo(
-      id: _subscription.id,
-      status: 'active',
-      plan: _plan,
-      trialEndsAt: null,
-      periodEndsAt: DateTime.now().add(const Duration(days: 365)),
-      usedWarranties: _subscription.usedWarranties,
-    );
-    return _subscription;
-  }
+  Future<SubscriptionInfo> refreshStoreSubscription(String storeId) =>
+      throw StateError('STORE_VERIFICATION_REQUIRES_CLOUD');
 }

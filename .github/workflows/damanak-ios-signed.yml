@@ -100,7 +100,7 @@ jobs:
       - name: Upload signed IPA
         uses: actions/upload-artifact@v4
         with:
-          name: damanak-ios-4.0.0-signed
+          name: damanak-ios-4.1.0-signed
           path: damanak_flutter/build/ios/signed/*.ipa
           if-no-files-found: error
           retention-days: 30

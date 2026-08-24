@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
@@ -15,16 +16,30 @@ import '../models/register.dart';
 import '../models/sale.dart';
 import '../models/store_profile.dart';
 import '../models/subscription.dart';
+import '../models/store_billing.dart';
 import '../models/supplier.dart';
 import '../models/warranty.dart';
+import '../services/store_billing_service.dart';
 
 class AppController extends ChangeNotifier {
-  AppController.withRepository(DamanakRepository repository)
-    : _repository = repository;
+  AppController.withRepository(
+    DamanakRepository repository, {
+    StoreBillingService? billingService,
+  }) : _repository = repository,
+       _billingService =
+           billingService ?? const UnavailableStoreBillingService() {
+    _listenToStoreBilling();
+  }
 
-  AppController.unconfigured();
+  AppController.unconfigured({StoreBillingService? billingService})
+    : _billingService =
+          billingService ?? const UnavailableStoreBillingService() {
+    _listenToStoreBilling();
+  }
 
   DamanakRepository? _repository;
+  final StoreBillingService _billingService;
+  StreamSubscription<List<StorePurchaseEvent>>? _billingSubscription;
   AppStage _stage = AppStage.configuring;
   AccountIdentity? _account;
   StoreWorkspace? _store;
@@ -44,6 +59,11 @@ class AppController extends ChangeNotifier {
   final List<TeamMember> _team = [];
   final List<PlanInfo> _plans = [];
   final List<AuditEvent> _auditLogs = [];
+  final List<StoreProductOffer> _storeOffers = [];
+  final Set<String> _processingPurchases = {};
+  StoreBillingState _storeBillingState = StoreBillingState.idle;
+  StoreBillingPlatform _storeBillingPlatform = StoreBillingPlatform.unavailable;
+  String? _storeBillingMessage;
   bool _busy = false;
   String? _errorMessage;
   String? _noticeMessage;
@@ -59,6 +79,11 @@ class AppController extends ChangeNotifier {
   bool get backendConfigured => _repository != null;
   String? get errorMessage => _errorMessage;
   String? get noticeMessage => _noticeMessage;
+  StoreBillingState get storeBillingState => _storeBillingState;
+  StoreBillingPlatform get storeBillingPlatform => _storeBillingPlatform;
+  String? get storeBillingMessage => _storeBillingMessage;
+  UnmodifiableListView<StoreProductOffer> get storeOffers =>
+      UnmodifiableListView(_storeOffers);
   StoreProfile get profile => StoreProfile(
     name: _store?.name ?? 'متجر ضمانك',
     phone: _store?.phone ?? '',
@@ -97,6 +122,13 @@ class AppController extends ChangeNotifier {
   UnmodifiableListView<PlanInfo> get plans => UnmodifiableListView(_plans);
   UnmodifiableListView<AuditEvent> get auditLogs =>
       UnmodifiableListView(_auditLogs);
+
+  StoreProductOffer? storeOffer(String planId, BillingCycle cycle) {
+    for (final offer in _storeOffers) {
+      if (offer.planId == planId && offer.cycle == cycle) return offer;
+    }
+    return null;
+  }
 
   StoreBranch? get activeBranch {
     final preferred = _activeBranchId;
@@ -156,6 +188,8 @@ class AppController extends ChangeNotifier {
         return;
       }
       await _loadWorkspace();
+      unawaited(refreshStoreProducts());
+      unawaited(_refreshStoreSubscriptionIfStale());
     });
   }
 
@@ -169,6 +203,8 @@ class AppController extends ChangeNotifier {
     await _guard(() async {
       _account = await _repository!.signIn(email: email, password: password);
       await _loadWorkspace();
+      unawaited(refreshStoreProducts());
+      unawaited(_refreshStoreSubscriptionIfStale());
     });
   }
 
@@ -512,6 +548,12 @@ class AppController extends ChangeNotifier {
           trialEndsAt: current.trialEndsAt,
           periodEndsAt: current.periodEndsAt,
           usedWarranties: current.usedWarranties + 1,
+          source: current.source,
+          billingProvider: current.billingProvider,
+          storeProductId: current.storeProductId,
+          billingCycle: current.billingCycle,
+          autoRenews: current.autoRenews,
+          lastVerifiedAt: current.lastVerifiedAt,
         );
       }
     });
@@ -885,31 +927,186 @@ class AppController extends ChangeNotifier {
       ..addAll(await _repository!.loadStockMovements(_store!.id));
   }
 
-  Future<void> requestSubscription({
-    required String planId,
-    required String billingCycle,
-    required String contactPhone,
-  }) async {
-    await _guard(() async {
-      await _repository!.requestSubscription(
-        storeId: _store!.id,
-        planId: planId,
-        billingCycle: billingCycle,
-        contactPhone: contactPhone,
-      );
-      _noticeMessage =
-          'سُجّل طلب الاشتراك. سيتواصل معك فريق ضمانك لإتمام التفعيل.';
-    });
+  void _listenToStoreBilling() {
+    _billingSubscription = _billingService.purchaseUpdates.listen(
+      _handleStorePurchaseUpdates,
+      onError: (Object error) {
+        _storeBillingState = StoreBillingState.unavailable;
+        _storeBillingMessage = _friendlyError(error);
+        notifyListeners();
+      },
+    );
   }
 
-  Future<void> redeemSubscriptionCode(String code) async {
-    await _guard(() async {
-      _subscription = await _repository!.redeemSubscriptionCode(
+  Future<void> refreshStoreProducts() async {
+    if (_stage != AppStage.ready) return;
+    _storeBillingState = StoreBillingState.loading;
+    _storeBillingMessage = null;
+    notifyListeners();
+    try {
+      final result = await _billingService.loadProducts();
+      _storeBillingPlatform = result.platform;
+      _storeOffers
+        ..clear()
+        ..addAll(result.offers);
+      _storeBillingState = result.available
+          ? StoreBillingState.ready
+          : StoreBillingState.unavailable;
+      if (result.errorMessage != null) {
+        _storeBillingMessage = result.errorMessage;
+      } else if (result.missingProductIds.isNotEmpty) {
+        _storeBillingMessage =
+            'بعض منتجات الاشتراك لم تُنشأ أو تُفعّل في المتجر بعد.';
+      } else if (result.offers.isEmpty) {
+        _storeBillingMessage = 'لم يُرجع المتجر خططاً متاحة لهذا الحساب.';
+      }
+    } catch (error) {
+      _storeBillingState = StoreBillingState.unavailable;
+      _storeBillingMessage = _friendlyError(error);
+    }
+    notifyListeners();
+  }
+
+  Future<void> purchaseSubscription(StoreProductOffer offer) async {
+    if (_membership?.role.canManageSubscription != true) {
+      _errorMessage = 'إدارة الاشتراك متاحة لمالك المتجر فقط.';
+      notifyListeners();
+      return;
+    }
+    if (isDemo || _repository == null || _account == null || _store == null) {
+      _errorMessage =
+          'الشراء الحقيقي يحتاج نسخة مرتبطة بقاعدة ضمانك ومنشورة من المتجر.';
+      notifyListeners();
+      return;
+    }
+    _storeBillingState = StoreBillingState.purchasing;
+    _storeBillingMessage = 'أكمل العملية في نافذة المتجر الآمنة.';
+    notifyListeners();
+    try {
+      await _billingService.purchase(
+        offer,
+        accountId: _account!.id,
         storeId: _store!.id,
-        code: code,
       );
-      _noticeMessage = 'تم تفعيل الاشتراك بنجاح.';
-    });
+    } catch (error) {
+      _storeBillingState = StoreBillingState.ready;
+      _errorMessage = _friendlyError(error);
+      notifyListeners();
+    }
+  }
+
+  Future<void> restoreStorePurchases() async {
+    _storeBillingState = StoreBillingState.loading;
+    _storeBillingMessage = 'جارٍ طلب مشترياتك السابقة من المتجر…';
+    notifyListeners();
+    try {
+      await _billingService.restorePurchases();
+      _noticeMessage =
+          'أرسل المتجر المشتريات المتاحة للاستعادة، وسيجري التحقق منها.';
+    } catch (error) {
+      _errorMessage = _friendlyError(error);
+      _storeBillingState = StoreBillingState.unavailable;
+    }
+    notifyListeners();
+  }
+
+  Future<void> openStoreSubscriptionManagement() async {
+    final opened = await _billingService.openSubscriptionManagement();
+    if (!opened) {
+      _errorMessage = 'تعذر فتح صفحة إدارة الاشتراك في المتجر.';
+      notifyListeners();
+    }
+  }
+
+  Future<void> _handleStorePurchaseUpdates(
+    List<StorePurchaseEvent> events,
+  ) async {
+    for (final event in events) {
+      switch (event.status) {
+        case StorePurchaseStatus.pending:
+          _storeBillingState = StoreBillingState.pending;
+          _storeBillingMessage =
+              'الدفعة معلّقة لدى المتجر. لن تتفعّل الخطة قبل تأكيدها.';
+        case StorePurchaseStatus.canceled:
+          _storeBillingState = StoreBillingState.ready;
+          _storeBillingMessage = null;
+          _noticeMessage = 'أُغلقت عملية الشراء من دون خصم.';
+        case StorePurchaseStatus.error:
+          _storeBillingState = StoreBillingState.ready;
+          _errorMessage = event.errorMessage?.trim().isNotEmpty == true
+              ? event.errorMessage
+              : 'تعذر إكمال عملية الشراء في المتجر.';
+        case StorePurchaseStatus.purchased:
+        case StorePurchaseStatus.restored:
+          await _verifyAndCompleteStorePurchase(event);
+      }
+    }
+    notifyListeners();
+  }
+
+  Future<void> _verifyAndCompleteStorePurchase(StorePurchaseEvent event) async {
+    if (!_processingPurchases.add(event.key)) return;
+    try {
+      if (_repository == null || _store == null || _account == null) {
+        throw StateError('STORE_VERIFICATION_REQUIRES_CLOUD');
+      }
+      if (_membership?.role.canManageSubscription != true) {
+        throw StateError('STORE_OWNER_REQUIRED');
+      }
+      _storeBillingState = StoreBillingState.purchasing;
+      _storeBillingMessage = 'جارٍ التحقق من إيصال المتجر بأمان…';
+      notifyListeners();
+      _subscription = await _repository!.verifyStorePurchase(
+        storeId: _store!.id,
+        receipt: StorePurchaseReceipt(
+          platform: event.platform,
+          productId: event.productId,
+          basePlanId: event.basePlanId,
+          purchaseId: event.purchaseId,
+          transactionDate: event.transactionDate,
+          verificationData: event.verificationData,
+          verificationSource: event.verificationSource,
+        ),
+      );
+      if (event.needsCompletion) {
+        await _billingService.completePurchase(event);
+      }
+      _storeBillingState = StoreBillingState.ready;
+      _storeBillingMessage = null;
+      _noticeMessage = event.status == StorePurchaseStatus.restored
+          ? 'تمت استعادة الاشتراك والتحقق منه.'
+          : 'تم الدفع وتفعيل الاشتراك من ${event.platform.label}.';
+    } catch (error) {
+      _storeBillingState = StoreBillingState.ready;
+      _errorMessage = _friendlyError(error);
+    } finally {
+      _processingPurchases.remove(event.key);
+    }
+  }
+
+  Future<void> _refreshStoreSubscriptionIfStale() async {
+    final subscription = _subscription;
+    final store = _store;
+    if (_repository == null ||
+        store == null ||
+        subscription == null ||
+        !subscription.isStoreSubscription ||
+        _membership?.role.canManageSubscription != true) {
+      return;
+    }
+    final verifiedAt = subscription.lastVerifiedAt;
+    if (verifiedAt != null &&
+        DateTime.now().difference(verifiedAt.toLocal()) <
+            const Duration(hours: 6)) {
+      return;
+    }
+    try {
+      _subscription = await _repository!.refreshStoreSubscription(store.id);
+      notifyListeners();
+    } catch (_) {
+      // Keep the last server-known entitlement. A failed background refresh
+      // never grants access and should not interrupt the owner's sign-in.
+    }
   }
 
   void clearMessages() {
@@ -1036,6 +1233,21 @@ class AppController extends ChangeNotifier {
     if (value.contains('subscription_inactive')) {
       return 'الاشتراك غير فعّال. افتح صفحة الاشتراك لتجديده.';
     }
+    if (value.contains('store_product_unavailable')) {
+      return 'هذه الخطة غير متاحة في المتجر حالياً.';
+    }
+    if (value.contains('store_purchase_not_launched')) {
+      return 'لم يفتح المتجر نافذة الشراء. تحقق من حساب المتجر وحاول مجدداً.';
+    }
+    if (value.contains('store_unavailable')) {
+      return 'متجر التطبيقات غير متاح على هذا الجهاز حالياً.';
+    }
+    if (value.contains('store_verification')) {
+      return 'لم ينجح التحقق الخادمي من الإيصال؛ لم تُفعّل الخطة ولم يُعتمد الدفع.';
+    }
+    if (value.contains('store_owner_required')) {
+      return 'لا يمكن ربط الاشتراك إلا من حساب مالك المتجر.';
+    }
     if (value.contains('warranty_limit_reached')) {
       return 'استهلك المتجر حد الضمانات الشهري للخطة.';
     }
@@ -1079,6 +1291,18 @@ class AppController extends ChangeNotifier {
     _team.clear();
     _plans.clear();
     _auditLogs.clear();
+    _storeOffers.clear();
+    _storeBillingState = StoreBillingState.idle;
+    _storeBillingPlatform = StoreBillingPlatform.unavailable;
+    _storeBillingMessage = null;
+    _processingPurchases.clear();
     _activeBranchId = null;
+  }
+
+  @override
+  void dispose() {
+    unawaited(_billingSubscription?.cancel());
+    unawaited(_billingService.dispose());
+    super.dispose();
   }
 }

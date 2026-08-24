@@ -11,6 +11,7 @@ import '../models/product.dart';
 import '../models/register.dart';
 import '../models/sale.dart';
 import '../models/subscription.dart';
+import '../models/store_billing.dart';
 import '../models/supplier.dart';
 import '../models/warranty.dart';
 import 'damanak_repository.dart';
@@ -146,6 +147,12 @@ class SupabaseDamanakRepository implements DamanakRepository {
         trialEndsAt: _dateOrNull(subscriptionJson['trial_ends_at']),
         periodEndsAt: _dateOrNull(subscriptionJson['current_period_end']),
         usedWarranties: usage,
+        source: subscriptionJson['source'] as String? ?? 'trial',
+        billingProvider: subscriptionJson['billing_provider'] as String?,
+        storeProductId: subscriptionJson['store_product_id'] as String?,
+        billingCycle: subscriptionJson['billing_cycle'] as String?,
+        autoRenews: subscriptionJson['auto_renews'] as bool? ?? false,
+        lastVerifiedAt: _dateOrNull(subscriptionJson['last_store_verified_at']),
       ),
     );
   }
@@ -927,33 +934,40 @@ class SupabaseDamanakRepository implements DamanakRepository {
   }
 
   @override
-  Future<void> requestSubscription({
+  Future<SubscriptionInfo> verifyStorePurchase({
     required String storeId,
-    required String planId,
-    required String billingCycle,
-    required String contactPhone,
+    required StorePurchaseReceipt receipt,
   }) async {
-    await _client.from('subscription_requests').insert({
-      'store_id': storeId,
-      'requested_plan_id': planId,
-      'billing_cycle': billingCycle,
-      'contact_phone': contactPhone.trim(),
-      'requested_by': _user.id,
-    });
+    final response = await _client.functions.invoke(
+      'verify-store-purchase',
+      body: {
+        'storeId': storeId,
+        'platform': receipt.platform.value,
+        'productId': receipt.productId,
+        'basePlanId': receipt.basePlanId,
+        'purchaseId': receipt.purchaseId,
+        'transactionDate': receipt.transactionDate,
+        'verificationData': receipt.verificationData,
+        'verificationSource': receipt.verificationSource,
+      },
+    );
+    if (response.status < 200 || response.status >= 300) {
+      throw StateError('STORE_VERIFICATION_FAILED');
+    }
+    final snapshot = await loadWorkspace();
+    if (snapshot == null) throw StateError('WORKSPACE_NOT_FOUND');
+    return snapshot.subscription;
   }
 
   @override
-  Future<SubscriptionInfo> redeemSubscriptionCode({
-    required String storeId,
-    required String code,
-  }) async {
-    await _client.rpc(
-      'redeem_subscription_code',
-      params: {
-        'target_store_id': storeId,
-        'activation_code': code.trim().toUpperCase(),
-      },
+  Future<SubscriptionInfo> refreshStoreSubscription(String storeId) async {
+    final response = await _client.functions.invoke(
+      'verify-store-purchase',
+      body: {'storeId': storeId, 'refresh': true},
     );
+    if (response.status < 200 || response.status >= 300) {
+      throw StateError('STORE_VERIFICATION_FAILED');
+    }
     final snapshot = await loadWorkspace();
     if (snapshot == null) throw StateError('WORKSPACE_NOT_FOUND');
     return snapshot.subscription;

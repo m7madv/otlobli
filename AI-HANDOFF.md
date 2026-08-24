@@ -4,24 +4,24 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
 ## مشروع مستقل (2026-08-24) — VoiceBrief 0.1.0
 
-- مجلد المشروع هو `voicebrief_flutter/` وهو مستقل عن Otlobli وDamanak. ابدأ من `voicebrief_flutter/README.md` و`PLAN.md`، ثم استخدم الوثيقة المتخصصة داخل `docs/`. لا تنشر migration أو Edge Functions إلى مشروع Supabase المرتبط بالجذر؛ أنشئ مشروع VoiceBrief مستقلاً أولاً.
-- التطبيق runnable افتراضياً بـmocks. لا تضع OpenAI service key أو Supabase service-role أو RevenueCat webhook secret أو مفاتيح توقيع داخل Flutter أو ملفات Git. إعدادات العميل العامة فقط تمر عبر `--dart-define`، والأسرار تبقى في Supabase Edge secrets.
-- آخر تحقق محلي: format نظيف، analyze نظيف، 15 اختبار وحدة/واجهة، 8 golden، اختبار تكامل واحد على `Pixel_7_API_35_Test`، Deno format/lint/check نظيف، debug APK وrelease-mode AAB ناجحان. الهاشات والأحجام والتفاصيل في `voicebrief_flutter/docs/RELEASE_CHECKLIST.md`.
-- Android warm/cold share handoff وصل إلى `Prepare audio` على المحاكي، ومسار URI غير المقروء يعرض خطأ آمناً. النجاح استُخدم له ملف `file://` خاص بالتطبيق بسبب قيود ADB/DocumentsProvider؛ لا تدّعِ قبول `content://` الإنتاجي حتى اختباره من share sheet أو تطبيق مُرسِل حقيقي على جهاز.
-- iOS Share Extension هدف حقيقي في المصدر، لكن لم يُجمع محلياً لغياب Xcode/CocoaPods. شغّل `.github/workflows/voicebrief-ci.yml` أو macOS `pod install` ثم `flutter build ios --no-codesign`، وبعدها اختبر App Group/Share Extension على جهاز موقّع. لا تدّعِ قبول iOS من فحص المصدر.
-- الحزم الحالية موقعة بمفتاح Android التجريبي، ومعرف `app.voicebrief.mobile` وروابط `example.com` مؤقتة. يلزم معرف نهائي، توقيع إنتاجي، روابط قانونية، إعداد OAuth/RevenueCat/Supabase، واختبارات جهاز/متجر قبل أي رفع.
+- مجلد المشروع المستقل هو `voicebrief_flutter/`. مشروع Supabase الحي المستقل `jyehqpdbayslhzebdycj`؛ لا تستخدم مشروع الجذر `talabieh`. هجرتا VoiceBrief ودوال Edge الثلاث منشورة، و`process-audio` أعيد نشرها بعد إضافة فرق توقيت المستخدم وفهم المواعيد.
+- رصيد OpenAI `$10` وAuto-reload متوقفان. نافذة المتصفح جاهزة لإنشاء service-account key باسم `VoiceBrief Supabase Production` داخل `Default project`، لكن زر الإنشاء لم يُضغط لأنه يتطلب تأكيداً فورياً. بعد التأكيد: أنشئ، انسخ مرة واحدة دون طباعته، اضبط `OPENAI_API_KEY` في Supabase، امسح الحافظة، ثم نفذ smoke test بصوت اصطناعي ونظف مستخدم/ملف الاختبار.
+- لا تمرر نصوص التسجيلات إلى Gemini المجاني: شروط Google للخدمة غير المدفوعة تسمح باستعمال المحتوى والاستجابات لتحسين المنتجات وتقنيات ML. القرار الحالي هو `gpt-transcribe` للتفريغ و`gpt-5.6-luna` للملخص المنظم خلف Supabase فقط.
+- المشاركة المباشرة تدعم `audio/*` و`application/ogg`، وتحوّل أسماء `.opus` إلى `.ogg`. اختبار `content://` حقيقي بملف Ogg/Opus نجح cold/warm على API 35 وعلى `SM_N950F` Android 9، ثم أزيلت حزمة مزود الاختبار من الجهازين. يبقى اختبار WhatsApp اليدوي نفسه، التكرار ضمن نافذة 10 ثوانٍ، والموفر العدائي/الضخم.
+- آخر تحقق: `flutter analyze` نظيف، 16 اختباراً غير golden، 8 golden، اختبار تكامل ناجح، Deno fmt/lint/check ناجح، وinstrumentation ناجح على الجهازين. الحزم live-config والبصمات في `voicebrief_flutter/docs/RELEASE_CHECKLIST.md`.
+- iOS Share Extension والتقويم موجودان في المصدر، لكن يلزم Xcode وتوقيع وiPhone حقيقي. Android APK/AAB يستخدمان debug key. تبقى هوية المتاجر والروابط القانونية وGoogle/Apple OAuth وRevenueCat/signing إعدادات مالك خارجية؛ لا تدّعِ جاهزية متجر كاملة.
 - نقطة الرجوع قبل البناء هي tag `voicebrief-prebuild-20260824`. Apple Design Skill مثبت كـsubmodule في `.design-rules/apple-design-skill` عند `d0bac1e765a27a696839e62962e36330ce72f0b7`. تغييرات VoiceBrief غير ملتزمة في commit حتى الآن؛ حافظ على تعديلات Damanak والجذر الموجودة ولا تضمها في commit دون طلب صريح.
 
-## مشروع مستقل (2026-08-24) — ضمانك 4.0.0
+## مشروع مستقل (2026-08-24) — ضمانك 4.1.0
 
 - `damanak_flutter/` مستقل عن Otlobli. لا تطبق مخططه على مشروع الجذر ولا تستخدم مشروع `talabieh` أو `VoiceBrief` لضمانك.
-- الإصدار `4.0.0+4`: نقطة بيع متعددة المنتجات وتقسيم دفع وأرقام تسلسلية، مخزون لكل فرع وجرد وتحويل، مرتجعات، جلسات صندوق، موردون وأوامر شراء، وضمانات وصيانة. الفروع والمنتجات تحمل التفاصيل التشغيلية الكاملة.
-- `DamanakRepository` وتنفيذا demo و`Supabase` متطابقة. migration الثالثة `20260824160000_damanak_retail_operations.sql` تضيف `RLS` ودوال ذرية للبيع والمرتجع والمخزون والصندوق والمشتريات وحذف الحساب. شغّل الملفات الثلاثة بالترتيب فقط على مشروع Damanak مستقل.
+- الإصدار `4.1.0+5`: إلى جانب نقطة البيع والمخزون والضمان، أصبحت فوترة اشتراك صاحب المحل أصلية حصراً عبر `App Store/Google Play`. لا تخلط بينها وبين طرق دفع عملاء المحل داخل نقطة البيع.
+- `DamanakRepository` وتنفيذا demo و`Supabase` متطابقة. شغّل migrations الأربع بالترتيب فقط على مشروع Damanak مستقل، ثم انشر `verify-store-purchase`. الرابعة تعطل التفعيل اليدوي وتمنح الاستحقاق فقط بعد تحقق خادمي، وتحفظ رمز Google الخام في مخطط `private`.
 - محاولة إنشاء مشروع `Supabase` فشلت بسبب حد مشروعين مجانيين للحساب. لا توقف أي مشروع دون قرار المستخدم. تسجيل `Google/Apple` موجود في الواجهة والمستودع لكنه يحتاج تفعيل الموفرين بعد إنشاء المشروع.
-- التصميم يستخدم أخضر `#087F5B` وحياديات فقط، وتنقل العمليات/البيع/المخزون/الضمانات/الإدارة، ومسار المنتج المصغر. راجع `docs/DESIGN_AUDIT.md` وحافظ على `48dp` وRTL وعدم إضافة blur أو مؤثرات ثابتة ثقيلة.
-- آخر تحقق: format وanalyze نظيفان، 14 اختباراً، web release، ومراجعة مرئية عند `1036×799` و`390×844`. اختبار الوحدة يغطي بيعاً متسلسلاً وخصم المخزون والضمان والمرتجع. لا يوجد قبول جهاز حقيقي.
-- Android موقّع بمفتاح رفع إنتاجي خارج Git. APK: `output/damanak/damanak-4.0.0-signed.apk`، `74,500,473` بايت، SHA-256 `BDB9AF0E69867A93C4D96B61856C77C415D7FAC1DF2F072B758640B9FF15C18E`. AAB: `output/damanak/damanak-4.0.0-signed.aab`، `55,269,196` بايت، SHA-256 `2A88105FC846A304446FC59EA35E690475626B9F53FBEE160641D29C41A5CA0E`. شهادة الرفع SHA-256 `C25AA74315C6438AE2E4C019C2BE4214D4C1C63FB0194C45904CF40399AA42D0`.
-- كود `4.0.0` في الالتزام `20188f9` على `codex/damanak-flutter`. نجح GitHub/Xcode run `32734178700`، وملف unsigned في `output/damanak/github-ios-32734178700/damanak-4.0.0-ios-unsigned.ipa`، حجمه `8,450,962` وبصمته `6D917F5C4AC9305C9C7B1A795E274D1336D0415CB0B57F23A47AE95C7FAAAC60`. الفحص أكد `com.damanak.damanak` و`4.0.0/4` وغياب التوقيع وprovisioning.
+- التصميم يستخدم أخضر `#087F5B` وحياديات فقط. شاشة الاشتراك تعرض السعر الحقيقي من المتجر ومسار «المتجر ← التحقق ← التفعيل». دليل IDs والأسرار واختبارات القبول في `damanak_flutter/docs/STORE_BILLING_SETUP.md`.
+- آخر تحقق: format/analyze نظيفان، 18 اختباراً، web release، وDeno fmt/check. راجعت الشاشة عند `1280×720` و`390×844`. لم تُختبر دفعة متجر حقيقية ولا جهاز حقيقي؛ المنتجات والخادم غير منشورين بعد.
+- Android النهائي: APK `output/damanak/damanak-4.1.0-signed.apk`، `75,305,634` بايت، SHA-256 `7982286A4E1C5BF42988BC993AF7C6E089107C4675919630CC112AC28AE8160E`. AAB `output/damanak/damanak-4.1.0-signed.aab`، `55,799,085` بايت، SHA-256 `347DE845797241674DA895552E6AED48DAF4B985DFC43D58CDEDFBA15BA45BAC`. التوقيع والشهادة متحقق منهما.
+- workflow iOS محدث إلى `4.1.0`. يلزم App ID وApp Store provisioning profile ومنتجات الاشتراك لـ`com.damanak.damanak` قبل تشغيل البناء الموقع واختبار الشراء.
 - أضيف `.github/workflows/damanak-ios-signed.yml`. يلزم إنشاء App ID وApp Store provisioning profile لـ`com.damanak.damanak` ثم أسرار `DAMANAK_IOS_*`. لا تستخدم ملف تزويد تطبيق آخر، ولا تدّعِ توقيع iOS قبل نجاح workflow الموقع وفحص IPA الناتج.
 
 ## Current candidate (2026-08-01) - v86.42 image swatches and inline sizes

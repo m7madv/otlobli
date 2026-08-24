@@ -105,4 +105,40 @@ void main() {
       expect(schema, contains('function public.$function'));
     }
   });
+
+  test('مخطط فوترة المتاجر يمنع التفعيل اليدوي ويعزل الاستحقاقات', () {
+    final schema = File(
+      'supabase/migrations/20260824180000_damanak_store_billing.sql',
+    ).readAsStringSync();
+    final verifier = File(
+      'supabase/functions/verify-store-purchase/index.ts',
+    ).readAsStringSync();
+
+    for (final token in [
+      'store_product_catalog',
+      'store_entitlements',
+      'private.store_receipt_secrets',
+      'apply_verified_store_entitlement',
+      'save_store_receipt_secret',
+      'get_store_receipt_secret',
+      "billing_provider in ('app_store', 'google_play')",
+      'revoke insert on table public.subscription_requests',
+      'revoke execute on function public.redeem_subscription_code',
+      'to service_role',
+    ]) {
+      expect(schema, contains(token));
+    }
+
+    for (final token in [
+      'api.storekit.apple.com',
+      'api.storekit-sandbox.apple.com',
+      'purchases/subscriptionsv2/tokens',
+      'GOOGLE_PLAY_SERVICE_ACCOUNT_JSON',
+      'APPLE_IAP_PRIVATE_KEY_P8',
+      'STORE_OWNER_REQUIRED',
+      'refresh === true',
+    ]) {
+      expect(verifier, contains(token));
+    }
+  });
 }

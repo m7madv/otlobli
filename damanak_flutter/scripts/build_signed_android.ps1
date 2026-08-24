@@ -8,7 +8,7 @@ $damanakCredentialPath = Join-Path $damanakSigningRoot 'damanak-upload.credentia
 
 if (-not (Test-Path -LiteralPath $damanakKeystorePath) -or
     -not (Test-Path -LiteralPath $damanakCredentialPath)) {
-    throw 'ملفات توقيع ضمانك غير موجودة. أعد إنشاء مفتاح الرفع المحلي أولاً.'
+    throw 'Damanak signing files are missing. Recreate the local upload key first.'
 }
 
 $damanakCredential = Import-Clixml -LiteralPath $damanakCredentialPath

@@ -5,9 +5,11 @@ import 'app.dart';
 import 'config/app_config.dart';
 import 'data/supabase_repository.dart';
 import 'state/app_controller.dart';
+import 'services/store_billing_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  final billingService = createStoreBillingService();
 
   late final AppController controller;
   if (AppConfig.hasCloudBackend) {
@@ -18,6 +20,7 @@ Future<void> main() async {
     );
     controller = AppController.withRepository(
       SupabaseDamanakRepository(Supabase.instance.client),
+      billingService: billingService,
     );
     Supabase.instance.client.auth.onAuthStateChange.listen((event) {
       if (event.event == AuthChangeEvent.signedIn) {
@@ -25,7 +28,7 @@ Future<void> main() async {
       }
     });
   } else {
-    controller = AppController.unconfigured();
+    controller = AppController.unconfigured(billingService: billingService);
   }
   await controller.initialize();
 

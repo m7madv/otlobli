@@ -35,6 +35,12 @@ class SubscriptionInfo {
     required this.trialEndsAt,
     required this.periodEndsAt,
     required this.usedWarranties,
+    this.source = 'trial',
+    this.billingProvider,
+    this.storeProductId,
+    this.billingCycle,
+    this.autoRenews = false,
+    this.lastVerifiedAt,
   });
 
   final String id;
@@ -43,6 +49,12 @@ class SubscriptionInfo {
   final DateTime? trialEndsAt;
   final DateTime? periodEndsAt;
   final int usedWarranties;
+  final String source;
+  final String? billingProvider;
+  final String? storeProductId;
+  final String? billingCycle;
+  final bool autoRenews;
+  final DateTime? lastVerifiedAt;
 
   bool get isUsable => status == 'trialing' || status == 'active';
   int get remainingWarranties => (plan.monthlyWarranties - usedWarranties)
@@ -53,4 +65,6 @@ class SubscriptionInfo {
     final hours = end.difference(DateTime.now()).inHours;
     return hours <= 0 ? 0 : (hours / 24).ceil();
   }
+
+  bool get isStoreSubscription => source == 'store';
 }
