@@ -115,66 +115,21 @@ class _PointOfSaleScreenState extends State<PointOfSaleScreen> {
   }
 
   Future<String?> _askSerial(Product product) async {
-    final input = TextEditingController();
-    final result = await showModalBottomSheet<String>(
+    final existingSerialNumbers = _cart.values
+        .expand((line) => line.serialNumbers)
+        .map((serial) => serial.trim().toLowerCase())
+        .where((serial) => serial.isNotEmpty)
+        .toSet();
+    return showModalBottomSheet<String>(
       context: context,
       useSafeArea: true,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (sheetContext) => Padding(
-        padding: EdgeInsets.fromLTRB(
-          20,
-          0,
-          20,
-          MediaQuery.viewInsetsOf(sheetContext).bottom + 24,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'رقم القطعة',
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-            const SizedBox(height: 5),
-            Text(
-              product.name,
-              style: TextStyle(color: context.colors.onSurfaceVariant),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: input,
-              autofocus: true,
-              textDirection: TextDirection.ltr,
-              textInputAction: TextInputAction.done,
-              decoration: const InputDecoration(
-                labelText: 'الرقم التسلسلي',
-                helperText: 'يُربط بالقطعة وضمانها.',
-              ),
-              onSubmitted: (value) {
-                if (value.trim().isNotEmpty) {
-                  Navigator.pop(sheetContext, value.trim());
-                }
-              },
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () {
-                  if (input.text.trim().isNotEmpty) {
-                    Navigator.pop(sheetContext, input.text.trim());
-                  }
-                },
-                child: const Text('إضافة للسلة'),
-              ),
-            ),
-          ],
-        ),
+      builder: (_) => _SerialNumberSheet(
+        product: product,
+        existingSerialNumbers: existingSerialNumbers,
       ),
     );
-    input.dispose();
-    return result;
   }
 
   Future<void> _checkout() async {
@@ -351,6 +306,140 @@ class _PointOfSaleScreenState extends State<PointOfSaleScreen> {
   }
 }
 
+class _SerialNumberSheet extends StatefulWidget {
+  const _SerialNumberSheet({
+    required this.product,
+    required this.existingSerialNumbers,
+  });
+
+  final Product product;
+  final Set<String> existingSerialNumbers;
+
+  @override
+  State<_SerialNumberSheet> createState() => _SerialNumberSheetState();
+}
+
+class _SerialNumberSheetState extends State<_SerialNumberSheet> {
+  final _input = TextEditingController();
+  String? _errorText;
+
+  @override
+  void dispose() {
+    _input.dispose();
+    super.dispose();
+  }
+
+  void _submit(String value) {
+    final serialNumber = value.trim();
+    if (serialNumber.isEmpty) {
+      setState(() => _errorText = 'اكتب الرقم أو امسحه بالكاميرا.');
+      return;
+    }
+    if (widget.existingSerialNumbers.contains(serialNumber.toLowerCase())) {
+      _input.text = serialNumber;
+      _input.selection = TextSelection.collapsed(offset: serialNumber.length);
+      setState(() => _errorText = 'هذا الرقم موجود في السلة بالفعل.');
+      return;
+    }
+    Navigator.of(context).pop(serialNumber);
+  }
+
+  Future<void> _scanSerialNumber() async {
+    FocusScope.of(context).unfocus();
+    final serialNumber = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (_) => const ScannerScreen(
+          returnBarcode: true,
+          mode: ScannerMode.serialNumber,
+        ),
+      ),
+    );
+    if (!mounted || serialNumber == null) return;
+    _submit(serialNumber);
+  }
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: EdgeInsets.fromLTRB(
+      20,
+      0,
+      20,
+      MediaQuery.viewInsetsOf(context).bottom + 24,
+    ),
+    child: SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('رقم القطعة', style: Theme.of(context).textTheme.headlineSmall),
+          const SizedBox(height: 5),
+          Text(
+            widget.product.name,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: context.colors.onSurfaceVariant),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: _scanSerialNumber,
+              icon: const Icon(Icons.qr_code_scanner_rounded),
+              label: const Text('مسح الرقم التسلسلي'),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(child: Divider(color: context.colors.outlineVariant)),
+              Flexible(
+                flex: 3,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: Text(
+                    'أو اكتبه يدوياً',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: context.colors.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(child: Divider(color: context.colors.outlineVariant)),
+            ],
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _input,
+            keyboardType: TextInputType.visiblePassword,
+            autocorrect: false,
+            enableSuggestions: false,
+            textDirection: TextDirection.ltr,
+            textInputAction: TextInputAction.done,
+            decoration: InputDecoration(
+              labelText: 'الرقم التسلسلي',
+              helperText: 'يُربط بالقطعة وضمانها.',
+              errorText: _errorText,
+            ),
+            onChanged: (_) {
+              if (_errorText != null) setState(() => _errorText = null);
+            },
+            onSubmitted: _submit,
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: () => _submit(_input.text),
+              child: const Text('إضافة الرقم للسلة'),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
 class _BranchChip extends StatelessWidget {
   const _BranchChip({required this.name});
 
@@ -405,73 +494,92 @@ class _PosProductTile extends StatelessWidget {
   final VoidCallback onDecrease;
 
   @override
-  Widget build(BuildContext context) => Card(
-    child: InkWell(
-      onTap: onAdd,
-      borderRadius: BorderRadius.circular(20),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    product.name,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    available == null
-                        ? (product.brand.isEmpty ? 'متاح للبيع' : product.brand)
-                        : 'المتوفر ${available!.toStringAsFixed(available! % 1 == 0 ? 0 : 2)}',
-                    style: TextStyle(
-                      color: context.colors.onSurfaceVariant,
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
-              ),
+  Widget build(BuildContext context) {
+    final details = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          product.name,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          available == null
+              ? (product.brand.isEmpty ? 'متاح للبيع' : product.brand)
+              : 'المتوفر ${available!.toStringAsFixed(available! % 1 == 0 ? 0 : 2)}',
+          style: TextStyle(
+            color: context.colors.onSurfaceVariant,
+            fontSize: 13,
+          ),
+        ),
+      ],
+    );
+    final price = Text(
+      formatMoney(product.salePrice ?? 0, currency),
+      style: TextStyle(
+        color: context.colors.primary,
+        fontWeight: FontWeight.w800,
+        fontSize: 15,
+      ),
+    );
+    final quantityControl = quantity <= 0
+        ? SizedBox.square(
+            dimension: 36,
+            child: IconButton.filledTonal(
+              tooltip: 'إضافة ${product.name}',
+              onPressed: onAdd,
+              padding: EdgeInsets.zero,
+              icon: const Icon(Icons.add_rounded, size: 21),
             ),
-            const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  formatMoney(product.salePrice ?? 0, currency),
-                  style: TextStyle(
-                    color: context.colors.primary,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 15,
-                  ),
+          )
+        : _QuantityControl(
+            quantity: quantity,
+            onAdd: onAdd,
+            onDecrease: onDecrease,
+          );
+    final usesStackedLayout = MediaQuery.textScalerOf(context).scale(16) > 24;
+
+    return Card(
+      child: InkWell(
+        onTap: onAdd,
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: usesStackedLayout
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    details,
+                    const SizedBox(height: 10),
+                    Wrap(
+                      alignment: WrapAlignment.spaceBetween,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 12,
+                      runSpacing: 8,
+                      children: [price, quantityControl],
+                    ),
+                  ],
+                )
+              : Row(
+                  children: [
+                    Expanded(child: details),
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        price,
+                        const SizedBox(height: 7),
+                        quantityControl,
+                      ],
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 7),
-                if (quantity <= 0)
-                  SizedBox.square(
-                    dimension: 36,
-                    child: IconButton.filledTonal(
-                      tooltip: 'إضافة ${product.name}',
-                      onPressed: onAdd,
-                      padding: EdgeInsets.zero,
-                      icon: const Icon(Icons.add_rounded, size: 21),
-                    ),
-                  )
-                else
-                  _QuantityControl(
-                    quantity: quantity,
-                    onAdd: onAdd,
-                    onDecrease: onDecrease,
-                  ),
-              ],
-            ),
-          ],
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _QuantityControl extends StatelessWidget {

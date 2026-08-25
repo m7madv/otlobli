@@ -10,10 +10,43 @@ import 'warranty_form_screen.dart';
 
 enum _ScanAction { warranty, addProduct, cancel }
 
+enum ScannerMode { productBarcode, serialNumber }
+
+extension on ScannerMode {
+  bool get isSerialNumber => this == ScannerMode.serialNumber;
+
+  String get screenTitle =>
+      isSerialNumber ? 'مسح الرقم التسلسلي' : 'ماسح ضمانك';
+
+  String get scanInstruction => isSerialNumber
+      ? 'وجّه رمز الرقم التسلسلي داخل الإطار'
+      : 'وجّه الباركود داخل الإطار';
+
+  String get fallbackInstruction => isSerialNumber
+      ? 'إذا تعذّرت القراءة، اكتب الرقم التسلسلي يدوياً.'
+      : 'إذا تعذّرت القراءة، أدخل الرقم المكتوب تحت الباركود.';
+
+  String get manualDialogTitle =>
+      isSerialNumber ? 'إدخال الرقم التسلسلي' : 'إدخال الباركود';
+
+  String get manualFieldLabel =>
+      isSerialNumber ? 'الرقم التسلسلي' : 'رقم الباركود';
+
+  String get manualActionLabel => isSerialNumber ? 'استخدام الرقم' : 'بحث';
+}
+
 class ScannerScreen extends StatefulWidget {
-  const ScannerScreen({this.returnBarcode = false, super.key});
+  const ScannerScreen({
+    this.returnBarcode = false,
+    this.mode = ScannerMode.productBarcode,
+    super.key,
+  }) : assert(
+         returnBarcode || mode == ScannerMode.productBarcode,
+         'Serial scanning must return the scanned value.',
+       );
 
   final bool returnBarcode;
+  final ScannerMode mode;
 
   @override
   State<ScannerScreen> createState() => _ScannerScreenState();
@@ -120,11 +153,15 @@ class _ScannerScreenState extends State<ScannerScreen> {
     final code = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('إدخال الباركود'),
+        title: Text(widget.mode.manualDialogTitle),
         content: TextField(
           controller: input,
           autofocus: true,
-          keyboardType: TextInputType.number,
+          keyboardType: widget.mode.isSerialNumber
+              ? TextInputType.visiblePassword
+              : TextInputType.number,
+          autocorrect: false,
+          enableSuggestions: false,
           textDirection: TextDirection.ltr,
           textInputAction: TextInputAction.done,
           onSubmitted: (value) {
@@ -132,9 +169,9 @@ class _ScannerScreenState extends State<ScannerScreen> {
               Navigator.of(context).pop(value.trim());
             }
           },
-          decoration: const InputDecoration(
-            labelText: 'رقم الباركود',
-            prefixIcon: Icon(Icons.qr_code_2_rounded),
+          decoration: InputDecoration(
+            labelText: widget.mode.manualFieldLabel,
+            prefixIcon: const Icon(Icons.qr_code_2_rounded),
           ),
         ),
         actions: [
@@ -148,7 +185,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
                 Navigator.of(context).pop(input.text.trim());
               }
             },
-            child: const Text('بحث'),
+            child: Text(widget.mode.manualActionLabel),
           ),
         ],
       ),
@@ -224,21 +261,21 @@ class _ScannerScreenState extends State<ScannerScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                   child: Row(
                     children: [
-                      const Expanded(
+                      Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'ماسح ضمانك',
-                              style: TextStyle(
+                              widget.mode.screenTitle,
+                              style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 20,
                                 fontWeight: FontWeight.w900,
                               ),
                             ),
                             Text(
-                              'وجّه الباركود داخل الإطار',
-                              style: TextStyle(
+                              widget.mode.scanInstruction,
+                              style: const TextStyle(
                                 color: Color(0xFFCBD8D5),
                                 fontSize: 12,
                               ),
@@ -279,10 +316,10 @@ class _ScannerScreenState extends State<ScannerScreen> {
                   ),
                   child: Row(
                     children: [
-                      const Expanded(
+                      Expanded(
                         child: Text(
-                          'إذا تعذّرت القراءة، أدخل الرقم المكتوب تحت الباركود.',
-                          style: TextStyle(
+                          widget.mode.fallbackInstruction,
+                          style: const TextStyle(
                             color: Colors.white,
                             fontSize: 12,
                             height: 1.45,

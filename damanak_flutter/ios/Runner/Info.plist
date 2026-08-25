@@ -40,7 +40,7 @@
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>NSCameraUsageDescription</key>
-	<string>يستخدم ضمانك الكاميرا لقراءة باركود المنتجات داخل المتجر.</string>
+	<string>يستخدم ضمانك الكاميرا لمسح باركود المنتجات والأرقام التسلسلية داخل المتجر.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
