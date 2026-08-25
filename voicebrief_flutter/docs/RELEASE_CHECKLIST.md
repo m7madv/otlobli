@@ -33,12 +33,13 @@
 
 ## GitHub unsigned live iOS artifact — 2026-08-25
 
-- Branch `codex/voicebrief-ios`, commit `f240e2816341bc90b19165d1077c2dccefbab14c`, run [32882383216](https://github.com/m7madv/otlobli/actions/runs/32882383216) passed all three jobs: Android analysis/28 tests/debug build, eleven golden tests on Windows, and the macOS iOS build.
-- IPA: `output/github-run-32882383216/VoiceBrief-0.1.0-build3-live-unsigned.ipa`, 17,097,846 bytes, SHA-256 `68822A1217F81FB57273DE5040D3E42E92630F9FD1D45041E717AF78538C4519`.
+- Branch `codex/voicebrief-ios`, commit `116efb336d4f418c698dc6928180a83305836450`, run [32888914885](https://github.com/m7madv/otlobli/actions/runs/32888914885) passed all three jobs: Android analysis/29 tests/debug build, eleven golden tests on Windows, and the macOS iOS build.
+- IPA: `output/github-run-32888914885/VoiceBrief-0.1.0-build4-live-unsigned.ipa`, 17,099,175 bytes, SHA-256 `82762E74DAC25F320214A7B63428023492C4938332D76F7367B452204C193D00`.
 - The macOS job generated a temporary production configuration from GitHub Secrets, required non-empty Supabase values, fixed `USE_MOCK_SERVICES=false`, deleted the temporary config on exit, and passed `pod install` plus `flutter build ios --release --no-codesign`. This replaces build 1, which had accidentally used the mock example configuration and therefore returned static content.
-- The same job verified the source Apple sign-in and App Group entitlements, bundle IDs `app.voicebrief.mobile` and `app.voicebrief.mobile.share`, Share Extension presence, and exact app/extension version parity. Independent archive inspection found 311 entries and reports `0.1.0 (3)` for both bundles.
+- The same job verified the source Apple sign-in and App Group entitlements, bundle IDs `app.voicebrief.mobile` and `app.voicebrief.mobile.share`, Share Extension presence, and exact app/extension version parity. Independent archive inspection found 311 entries, the `voicebrief` callback scheme, and `0.1.0 (4)` for both bundles.
+- On iOS, Google now uses Supabase OAuth with PKCE in the external system browser and completes through `voicebrief://auth/callback`; this avoids depending on a sideload signer preserving the native Google bundle association. The account still has to be allowed by the Google OAuth audience while the project is in Testing.
 - The Share Extension now accepts WhatsApp-style audio/Opus representations, writes an atomic App Group manifest, and shows localized success or actionable failure instead of relying on unsupported automatic parent-app launch. After success the user taps Done and opens VoiceBrief manually.
-- The IPA has no provisioning and remains intentionally unsigned. The signing path must provision the app and extension together with `group.app.voicebrief.mobile`; otherwise the extension now reports an App Group error. Compilation and packaging do not replace a signed physical-iPhone handoff test or App Store archive validation.
+- The IPA has no provisioning and remains intentionally unsigned. The signing path must provision the app and extension together with `group.app.voicebrief.mobile`; otherwise the extension now reports an App Group error. The public Supabase settings still report Apple disabled, so Apple sign-in is not release-ready until the provider, Apple App ID, and signed entitlement are configured by an account with project access. Compilation and packaging do not replace a signed physical-iPhone handoff/authentication test or App Store archive validation.
 
 ## Owner/external configuration
 
