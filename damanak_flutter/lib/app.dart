@@ -19,24 +19,33 @@ class DamanakApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppScope(
       controller: controller,
-      child: MaterialApp(
-        debugShowCheckedModeBanner: false,
-        title: 'ضمانك للأعمال',
-        locale: const Locale('ar'),
-        supportedLocales: const [Locale('ar')],
-        localizationsDelegates: const [
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        theme: buildAppTheme(),
-        darkTheme: buildAppTheme(Brightness.dark),
-        themeMode: ThemeMode.system,
-        home: const Directionality(
-          textDirection: TextDirection.rtl,
-          child: _AppGate(),
-        ),
-      ),
+      child: const DamanakAppFrame(home: _AppGate()),
+    );
+  }
+}
+
+/// الغلاف البصري المشترك بين الإقلاع وبقية التطبيق، لمنع أي وميض بينهما.
+class DamanakAppFrame extends StatelessWidget {
+  const DamanakAppFrame({required this.home, super.key});
+
+  final Widget home;
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'ضمانك للأعمال',
+      locale: const Locale('ar'),
+      supportedLocales: const [Locale('ar')],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      theme: buildAppTheme(),
+      darkTheme: buildAppTheme(Brightness.dark),
+      themeMode: ThemeMode.system,
+      home: Directionality(textDirection: TextDirection.rtl, child: home),
     );
   }
 }

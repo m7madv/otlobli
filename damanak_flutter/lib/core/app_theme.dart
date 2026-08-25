@@ -6,6 +6,7 @@ abstract final class AppColors {
   static const accent = Color(0xFF087F5B);
   static const accentPressed = Color(0xFF056247);
   static const accentDark = Color(0xFF42D7A2);
+  static const ivory = Color(0xFFF7F4EA);
   static const danger = Color(0xFFBA1A1A);
 
   // أسماء توافقية مؤقتة. جميعها تعود إلى لون العلامة الواحد كي لا تعود

@@ -11,8 +11,10 @@ class BrandMark extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final markBackground = onDark ? Colors.white : colors.primary;
-    final markForeground = onDark ? AppColors.accent : colors.onPrimary;
+    final markBackground = onDark
+        ? Colors.white.withValues(alpha: 0.12)
+        : colors.primary;
+    final markForeground = onDark ? AppColors.ivory : colors.onPrimary;
     final titleColor = onDark ? Colors.white : colors.onSurface;
     final subtitleColor = onDark
         ? Colors.white.withValues(alpha: 0.72)
@@ -25,18 +27,21 @@ class BrandMark extends StatelessWidget {
           label: 'شعار ضمانك',
           image: true,
           child: Container(
-            width: compact ? 38 : 46,
-            height: compact ? 38 : 46,
+            width: compact ? 40 : 48,
+            height: compact ? 40 : 48,
             decoration: BoxDecoration(
               color: markBackground,
-              borderRadius: BorderRadius.circular(compact ? 12 : 15),
+              borderRadius: BorderRadius.circular(compact ? 13 : 16),
+              border: onDark
+                  ? Border.all(color: Colors.white.withValues(alpha: 0.18))
+                  : null,
             ),
             child: Center(
               child: SizedBox(
-                width: compact ? 23 : 28,
-                height: compact ? 20 : 24,
+                width: compact ? 25 : 30,
+                height: compact ? 27 : 32,
                 child: CustomPaint(
-                  painter: _WarrantySealPainter(color: markForeground),
+                  painter: _DamanakGlyphPainter(color: markForeground),
                 ),
               ),
             ),
@@ -74,8 +79,8 @@ class BrandMark extends StatelessWidget {
   }
 }
 
-class _WarrantySealPainter extends CustomPainter {
-  const _WarrantySealPainter({required this.color});
+class _DamanakGlyphPainter extends CustomPainter {
+  const _DamanakGlyphPainter({required this.color});
 
   final Color color;
 
@@ -83,32 +88,58 @@ class _WarrantySealPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = color
-      ..strokeCap = StrokeCap.round;
-    final widths = <double>[0.08, 0.14, 0.07, 0.18, 0.09];
-    var x = 0.0;
-    for (final width in widths) {
-      final barWidth = size.width * width;
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(x, 0, barWidth, size.height * 0.68),
-          Radius.circular(barWidth / 2),
-        ),
-        paint,
-      );
-      x += barWidth + size.width * 0.065;
-    }
-    paint
       ..style = PaintingStyle.stroke
-      ..strokeWidth = size.width * 0.08;
-    final path = Path()
-      ..moveTo(size.width * 0.34, size.height * 0.82)
-      ..lineTo(size.width * 0.46, size.height * 0.94)
-      ..lineTo(size.width * 0.70, size.height * 0.70);
-    canvas.drawPath(path, paint);
+      ..strokeCap = StrokeCap.square
+      ..strokeJoin = StrokeJoin.round
+      ..strokeWidth = size.width * 0.13;
+
+    final shield = Path()
+      ..moveTo(size.width * 0.24, size.height * 0.06)
+      ..lineTo(size.width * 0.24, size.height * 0.39)
+      ..cubicTo(
+        size.width * 0.24,
+        size.height * 0.59,
+        size.width * 0.34,
+        size.height * 0.73,
+        size.width * 0.50,
+        size.height * 0.88,
+      )
+      ..cubicTo(
+        size.width * 0.66,
+        size.height * 0.73,
+        size.width * 0.76,
+        size.height * 0.59,
+        size.width * 0.76,
+        size.height * 0.39,
+      )
+      ..lineTo(size.width * 0.76, size.height * 0.06);
+    canvas.drawPath(shield, paint);
+
+    final centerRail = Path()
+      ..moveTo(size.width * 0.50, size.height * 0.06)
+      ..lineTo(size.width * 0.50, size.height * 0.36)
+      ..cubicTo(
+        size.width * 0.50,
+        size.height * 0.46,
+        size.width * 0.46,
+        size.height * 0.51,
+        size.width * 0.39,
+        size.height * 0.56,
+      );
+    canvas.drawPath(centerRail, paint);
+
+    paint
+      ..strokeCap = StrokeCap.square
+      ..strokeWidth = size.width * 0.11;
+    final check = Path()
+      ..moveTo(size.width * 0.39, size.height * 0.65)
+      ..lineTo(size.width * 0.49, size.height * 0.76)
+      ..lineTo(size.width * 0.67, size.height * 0.54);
+    canvas.drawPath(check, paint);
   }
 
   @override
-  bool shouldRepaint(covariant _WarrantySealPainter oldDelegate) {
+  bool shouldRepaint(covariant _DamanakGlyphPainter oldDelegate) {
     return oldDelegate.color != color;
   }
 }

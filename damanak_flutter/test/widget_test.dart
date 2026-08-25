@@ -1,9 +1,34 @@
 import 'package:damanak/app.dart';
+import 'package:damanak/screens/startup_screen.dart';
 import 'package:damanak/state/app_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('يعرض هوية الإقلاع فوراً بدلاً من شاشة بيضاء', (tester) async {
+    await tester.pumpWidget(const DamanakAppFrame(home: StartupScreen()));
+
+    final scaffold = tester.widget<Scaffold>(find.byType(Scaffold));
+    expect(scaffold.backgroundColor, const Color(0xFF087F5B));
+    expect(find.text('ضمانك'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+  });
+
+  testWidgets('يعرض مسار استعادة واضحاً إذا تعذرت التهيئة', (tester) async {
+    await tester.pumpWidget(
+      DamanakAppFrame(
+        home: StartupScreen(
+          errorMessage: 'تعذّر تجهيز التطبيق.',
+          onRetry: () {},
+        ),
+      ),
+    );
+
+    expect(find.text('تعذّر تجهيز التطبيق.'), findsOneWidget);
+    expect(find.text('إعادة المحاولة'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+  });
+
   testWidgets('يفتح التطبيق مباشرة على مسار البيع المبسط', (tester) async {
     final controller = AppController.unconfigured();
     await controller.startDemo();
