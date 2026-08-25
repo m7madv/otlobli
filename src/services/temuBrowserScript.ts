@@ -550,10 +550,11 @@ export const TEMU_BROWSER_SCRIPT = `
     // (pointer-events:none باقٍ). البانر الفعلي صنفه downloadUI ويُحجب أدناه.
     '[class*="downloadUI" i], [class*="openApp" i]' +
     '{ display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; }' +
-    // Temu keeps ~60dp of padding after downloadUI is hidden. Collapse only
-    // that Android Home wrapper. iOS deliberately keeps its header clearance
-    // because the native 44pt Back control occupies that region.
-    'html[data-otlobli-native-platform="android"][data-otlobli-temu-home-route="1"] [class*="downloadsWrapper"]' +
+    // Temu keeps ~60dp of empty padding after downloadUI is hidden. Collapse
+    // the same proven wrapper on native Android and iOS Home. The Back control
+    // is a native overlay and must not reserve a second blank Temu row.
+    'html[data-otlobli-native-platform="android"][data-otlobli-temu-home-route="1"] [class*="downloadsWrapper"],' +
+    'html[data-otlobli-native-platform="ios"][data-otlobli-temu-home-route="1"] [class*="downloadsWrapper"]' +
     '{ padding: 0 !important; margin: 0 !important; min-height: 0 !important; box-shadow: none !important;' +
     ' background: transparent !important; border: 0 !important; border-radius: 0 !important; }' +
     // Current Temu wraps the banner in several anonymous fixed-height nodes
@@ -561,7 +562,9 @@ export const TEMU_BROWSER_SCRIPT = `
     // after proving it does not contain Search; collapse that shell and its
     // two direct banner children without walking or styling the product DOM.
     'html[data-otlobli-native-platform="android"][data-otlobli-temu-home-route="1"] [data-otlobli-temu-download-shell="1"],' +
-    'html[data-otlobli-native-platform="android"][data-otlobli-temu-home-route="1"] [data-otlobli-temu-download-shell="1"] > *' +
+    'html[data-otlobli-native-platform="android"][data-otlobli-temu-home-route="1"] [data-otlobli-temu-download-shell="1"] > *,' +
+    'html[data-otlobli-native-platform="ios"][data-otlobli-temu-home-route="1"] [data-otlobli-temu-download-shell="1"],' +
+    'html[data-otlobli-native-platform="ios"][data-otlobli-temu-home-route="1"] [data-otlobli-temu-download-shell="1"] > *' +
     '{ height: 0 !important; min-height: 0 !important; max-height: 0 !important; overflow: hidden !important;' +
     ' padding: 0 !important; margin: 0 !important; border: 0 !important; }' +
     // Temu keeps its sticky-header background at the removed 0.66rem download
@@ -583,10 +586,11 @@ export const TEMU_BROWSER_SCRIPT = `
     }
   }
 
-  function otlobliMarkTemuAndroidDownloadShell() {
+  function otlobliMarkTemuNativeDownloadShell() {
     var root = document.documentElement;
     if (!root) return;
-    if (root.getAttribute('data-otlobli-native-platform') !== 'android' ||
+    var nativePlatform = root.getAttribute('data-otlobli-native-platform');
+    if ((nativePlatform !== 'android' && nativePlatform !== 'ios') ||
         root.getAttribute('data-otlobli-temu-home-route') !== '1') {
       otlobliSyncTemuDownloadCollapsedMarker(root, false);
       return;
@@ -649,7 +653,7 @@ export const TEMU_BROWSER_SCRIPT = `
     try {
       otlobliSyncTemuAccountRouteState();
       otlobliSyncTemuProductRouteState();
-      otlobliMarkTemuAndroidDownloadShell();
+      otlobliMarkTemuNativeDownloadShell();
     } catch (e) {}
     if (document.getElementById('otlobli-temu-header-hide')) return;
     var parent = document.head || document.documentElement;

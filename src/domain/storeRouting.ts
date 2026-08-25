@@ -1,4 +1,7 @@
+import type { Screen } from './types'
+
 export type StoreIdentity = 'shein' | 'temu'
+export type HostHomeDestination = 'home' | 'store-select'
 
 type StoreLinkedCartItem = {
   sourceLink?: string
@@ -11,6 +14,13 @@ type StandardStoreSessionIdentity = {
 }
 
 const STORE_IDENTITIES: readonly StoreIdentity[] = ['shein', 'temu']
+
+export function resolveHostNavigationTarget(
+  target: Screen,
+  homeDestination: HostHomeDestination,
+): Screen {
+  return target === 'home' ? homeDestination : target
+}
 
 export function storeIdentityFromUrl(rawUrl: string): StoreIdentity | undefined {
   try {

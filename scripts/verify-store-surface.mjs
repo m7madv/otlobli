@@ -187,16 +187,23 @@ for (const marker of [
 const temuBlockerResetStart = captureScript.indexOf('// v85.8.26: Temu blocker reset')
 const temuBlockerResetEnd = captureScript.indexOf('function injectTemuHeaderHideCSS', temuBlockerResetStart)
 const temuBlockerReset = captureScript.slice(temuBlockerResetStart, temuBlockerResetEnd)
-const temuDownloadShellFunctionStart = temuBlockerReset.indexOf('function otlobliMarkTemuAndroidDownloadShell()')
+const temuDownloadShellFunctionStart = temuBlockerReset.indexOf('function otlobliMarkTemuNativeDownloadShell()')
 const temuBlockerCss = temuBlockerReset.slice(0, temuDownloadShellFunctionStart)
 const temuDownloadShellFunction = temuBlockerReset.slice(temuDownloadShellFunctionStart)
 const androidHomeScope =
   'html[data-otlobli-native-platform="android"][data-otlobli-temu-home-route="1"]'
+const iosHomeScope =
+  'html[data-otlobli-native-platform="ios"][data-otlobli-temu-home-route="1"]'
 const androidHomeWrapperSelector =
   `${androidHomeScope} [class*="downloadsWrapper"]`
+const iosHomeWrapperSelector =
+  `${iosHomeScope} [class*="downloadsWrapper"]`
 const androidHomeDownloadShellSelector =
   `${androidHomeScope} [data-otlobli-temu-download-shell="1"]`
+const iosHomeDownloadShellSelector =
+  `${iosHomeScope} [data-otlobli-temu-download-shell="1"]`
 const androidHomeDownloadShellChildrenSelector = `${androidHomeDownloadShellSelector} > *`
+const iosHomeDownloadShellChildrenSelector = `${iosHomeDownloadShellSelector} > *`
 const androidHomeCollapsedScope =
   `${androidHomeScope}[data-otlobli-temu-download-collapsed="1"]`
 const androidHomeStickyBackgroundSelector =
@@ -211,14 +218,20 @@ const stickyBackgroundMentions = temuBlockerCss.match(
 if (temuBlockerResetStart < 0 || temuBlockerResetEnd < 0 ||
     temuDownloadShellFunctionStart < 0 ||
     !temuBlockerReset.includes(androidHomeWrapperSelector) ||
-    wrapperMentions.length !== 1 || !wrapperMentions[0].includes(androidHomeWrapperSelector)) {
-  throw new Error('Temu download-wrapper collapse must remain scoped to Android Home only')
+    !temuBlockerReset.includes(iosHomeWrapperSelector) ||
+    wrapperMentions.length !== 2 ||
+    !wrapperMentions.some((line) => line.includes(androidHomeWrapperSelector)) ||
+    !wrapperMentions.some((line) => line.includes(iosHomeWrapperSelector))) {
+  throw new Error('Temu download-wrapper collapse must remain scoped to native Android/iOS Home only')
 }
-if (downloadShellSelectorMentions.length !== 2 ||
-    !downloadShellSelectorMentions.every((line) => line.includes(androidHomeScope)) ||
+if (downloadShellSelectorMentions.length !== 4 ||
+    downloadShellSelectorMentions.filter((line) => line.includes(androidHomeScope)).length !== 2 ||
+    downloadShellSelectorMentions.filter((line) => line.includes(iosHomeScope)).length !== 2 ||
     !temuBlockerCss.includes(androidHomeDownloadShellSelector) ||
-    !temuBlockerCss.includes(androidHomeDownloadShellChildrenSelector)) {
-  throw new Error('Temu download-shell collapse must target only the shell and its direct children on Android Home')
+    !temuBlockerCss.includes(androidHomeDownloadShellChildrenSelector) ||
+    !temuBlockerCss.includes(iosHomeDownloadShellSelector) ||
+    !temuBlockerCss.includes(iosHomeDownloadShellChildrenSelector)) {
+  throw new Error('Temu download-shell collapse must target only the shell and its direct children on native Home')
 }
 if (stickyBackgroundMentions.length !== 1 ||
     !stickyBackgroundMentions[0].includes(androidHomeScope) ||
@@ -267,11 +280,12 @@ for (const marker of [
   'border: 0 !important;',
 ]) {
   if (!downloadShellCss.includes(marker)) {
-    throw new Error(`Temu Android Home download-shell CSS no longer collapses ${marker}`)
+    throw new Error(`Temu native Home download-shell CSS no longer collapses ${marker}`)
   }
 }
 for (const marker of [
-  "root.getAttribute('data-otlobli-native-platform') !== 'android'",
+  "var nativePlatform = root.getAttribute('data-otlobli-native-platform')",
+  "nativePlatform !== 'android' && nativePlatform !== 'ios'",
   "root.getAttribute('data-otlobli-temu-home-route') !== '1'",
   'otlobliSyncTemuDownloadCollapsedMarker(root, false)',
   "document.querySelector('[class*=\"downloadsWrapper\"]')",
@@ -284,14 +298,14 @@ for (const marker of [
   'otlobliSyncTemuDownloadCollapsedMarker(root, true)',
 ]) {
   if (!temuDownloadShellFunction.includes(marker)) {
-    throw new Error(`Temu bounded Android Home download-shell detector missing marker: ${marker}`)
+    throw new Error(`Temu bounded native Home download-shell detector missing marker: ${marker}`)
   }
 }
 const temuHeaderInjectStart = captureScript.indexOf('function injectTemuHeaderHideCSS', temuBlockerResetStart)
 const temuHeaderInjectEnd = captureScript.indexOf('function otlobliSuspendTemuRuntimeForChallenge', temuHeaderInjectStart)
 const temuHeaderInject = captureScript.slice(temuHeaderInjectStart, temuHeaderInjectEnd)
 const syncHomeRouteAt = temuHeaderInject.indexOf('otlobliSyncTemuProductRouteState();')
-const markDownloadShellAt = temuHeaderInject.indexOf('otlobliMarkTemuAndroidDownloadShell();')
+const markDownloadShellAt = temuHeaderInject.indexOf('otlobliMarkTemuNativeDownloadShell();')
 if (temuHeaderInjectStart < 0 || temuHeaderInjectEnd < 0 || syncHomeRouteAt < 0 ||
     markDownloadShellAt < syncHomeRouteAt) {
   throw new Error('Temu download-shell detector must run after the current SPA Home route is synchronized')
@@ -637,10 +651,9 @@ const orderProductOpenStart = app.indexOf('const openStoreProductFromOrder = (so
 const orderProductOpenEnd = app.indexOf('const openStoreFromHub = (id: StoreId)', orderProductOpenStart)
 const orderProductOpenSource = app.slice(orderProductOpenStart, orderProductOpenEnd)
 const orderWarmOpen = orderProductOpenSource.indexOf("openStoreProductFromCart(sourceLink, 'orders')")
-const orderImmediateHome = orderProductOpenSource.indexOf("screenRef.current = 'home'", orderWarmOpen)
-const orderImmediateCommit = orderProductOpenSource.indexOf("flushSync(() => setScreen('home'))", orderImmediateHome)
+const orderImmediateHome = orderProductOpenSource.indexOf('navigateToStoreSurface(true)', orderWarmOpen)
 if (orderProductOpenStart < 0 || orderProductOpenEnd < 0 || orderWarmOpen < 0 ||
-    orderImmediateHome < orderWarmOpen || orderImmediateCommit < orderImmediateHome) {
+    orderImmediateHome < orderWarmOpen) {
   throw new Error('Order product must enter the warm store flow and commit Home immediately on tap')
 }
 if (!/\.mobile-content--orders\s*\{[^}]*grid-auto-rows:\s*max-content/s.test(customerStyles)) {

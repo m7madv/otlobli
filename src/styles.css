@@ -521,70 +521,58 @@ a {
 
 .mobile-content--cart {
   grid-auto-rows: max-content;
-  /* 260px = أسوأ ارتفاع لشريط الدفع العائم (ملخص + تنبيهان + زر) — أقل من
-     هذا كان يحجب بطاقة "اطلب مع صديق" أسفل السلة فلا يمكن الوصول إليها. */
-  padding-bottom: calc(74px + max(env(safe-area-inset-bottom, 0px), 16px) + 260px);
+  gap: 10px;
+  padding-bottom: calc(74px + max(env(safe-area-inset-bottom, 0px), 16px) + 196px);
 }
 
 .cart-store-switcher {
   display: grid;
-  gap: 8px;
-  margin-bottom: 4px;
-  padding: 9px;
-  background: #fff;
-  border: 1px solid rgba(0, 105, 72, 0.13);
-  border-radius: 17px;
-  box-shadow: 0 7px 22px rgba(12, 40, 28, 0.06);
+  gap: 6px;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--outline);
+  border-radius: 14px;
 }
 
 .cart-store-switcher__tabs {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 7px;
-  padding: 4px;
-  background: #f1f4f2;
-  border-radius: 13px;
+  gap: 4px;
+  padding: 3px;
+  background: var(--primary-soft);
+  border-radius: 11px;
 }
 
 .cart-store-switcher__tab {
   display: flex;
-  min-width: 0;
-  min-height: 46px;
+  min-height: 40px;
   align-items: center;
   justify-content: center;
-  gap: 9px;
-  padding: 8px 12px;
-  color: #54615a;
+  gap: 7px;
+  padding: 6px 10px;
+  color: var(--muted);
   background: transparent;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  font: inherit;
-  font-size: 0.78rem;
+  border: 0;
+  border-radius: 9px;
+  font-size: 0.76rem;
   font-weight: 800;
-  cursor: pointer;
 }
 
 .cart-store-switcher__tab b {
   display: grid;
-  min-width: 23px;
-  height: 23px;
+  min-width: 21px;
+  height: 21px;
   place-items: center;
-  padding-inline: 5px;
-  color: #516058;
-  background: rgba(255, 255, 255, 0.78);
+  padding-inline: 4px;
+  color: var(--primary);
+  background: var(--surface);
   border-radius: 999px;
-  font-size: 0.68rem;
+  font-size: 0.65rem;
 }
 
 .cart-store-switcher__tab.is-active {
   color: #fff;
-  background: #111;
-  box-shadow: 0 5px 13px rgba(17, 17, 17, 0.17);
-}
-
-.cart-store-switcher__tab--temu.is-active {
-  background: #f56600;
-  box-shadow: 0 5px 13px rgba(245, 102, 0, 0.22);
+  background: var(--primary);
 }
 
 .cart-store-switcher__tab.is-active b {
@@ -593,7 +581,6 @@ a {
 }
 
 .cart-store-switcher__tab:disabled {
-  cursor: not-allowed;
   opacity: 0.45;
 }
 
@@ -605,8 +592,8 @@ a {
 .cart-store-switcher > p {
   margin: 0;
   color: var(--muted);
-  font-size: 0.68rem;
-  line-height: 1.55;
+  font-size: 0.66rem;
+  line-height: 1.45;
   text-align: center;
 }
 
@@ -645,39 +632,59 @@ a {
 
 .sticky-pay-bar {
   position: fixed;
-  left: 0;
-  right: 0;
-  bottom: calc(74px + max(env(safe-area-inset-bottom, 0px), 16px) + 10px);
+  inset-inline: 0;
+  bottom: calc(74px + max(env(safe-area-inset-bottom, 0px), 16px) + 6px);
   z-index: 120;
-  width: min(calc(100% - 24px), 416px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  width: min(calc(100% - 16px), 424px);
   margin-inline: auto;
-  padding: 10px;
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid rgba(0, 105, 72, 0.14);
-  border-radius: 18px;
-  box-shadow: 0 18px 42px rgba(12, 40, 28, 0.18);
+  padding: 8px;
+  background: var(--surface);
+  border: 1px solid rgba(0, 105, 72, 0.2);
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(12, 40, 28, 0.14);
+}
+
+.sticky-pay-bar > .min-order-notice {
+  grid-column: 1 / -1;
+  margin: 0 0 7px;
+  padding: 7px 9px;
+  font-size: 0.72rem;
+  line-height: 1.4;
 }
 
 .sticky-pay-bar .primary-action {
-  min-height: 54px;
-  border-radius: 14px;
+  width: auto;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 11px;
   box-shadow: none;
+  font-size: 0.8rem;
+}
+
+.sticky-pay-bar .primary-action .material-symbols-outlined {
+  font-size: 1.05rem;
 }
 
 .sticky-pay-total {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 2px 8px 8px;
-  font-size: 0.88rem;
+  display: grid;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 1px;
+  padding-inline: 3px;
+  font-size: 0.68rem;
   color: var(--muted);
   font-weight: 700;
 }
 
 .sticky-pay-total strong {
   color: var(--primary);
-  font-size: 1.08rem;
+  font-size: 0.96rem;
   font-weight: 800;
+  line-height: 1.25;
 }
 
 .profile-row-value {
@@ -1839,31 +1846,24 @@ a {
 }
 
 .cart-item {
-  display: flex;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: 68px minmax(0, 1fr);
+  gap: 10px;
   padding: 10px;
   align-items: start;
-  width: 100%;
-  min-width: 0;
-  min-height: 112px;
-  height: auto;
   /* This card is a direct child of a scrollable CSS Grid. `overflow:hidden`
      makes its automatic grid minimum zero, so WebKit may shrink every row to
      the minimum height while the text and controls keep painting inside it.
      Keep the card overflow visible; its own children already own their radii. */
   overflow: visible;
-}
-
-.cart-item > .cart-item-view {
-  flex: 0 0 72px;
-  width: 72px;
-  min-width: 72px;
+  border-radius: 14px;
+  box-shadow: none;
 }
 
 .cart-item > .cart-item-view img {
-  width: 72px;
-  height: 88px;
-  border-radius: var(--radius);
+  width: 68px;
+  height: 86px;
+  border-radius: 11px;
   object-fit: cover;
 }
 
@@ -1872,15 +1872,11 @@ a {
   background: transparent;
   padding: 0;
   display: block;
-  text-align: inherit;
-  cursor: pointer;
 }
 
 .cart-item-body {
-  display: flex;
-  flex: 1 1 0;
-  flex-direction: column;
-  gap: 6px;
+  display: grid;
+  gap: 5px;
   min-width: 0;
 }
 
@@ -1894,30 +1890,26 @@ a {
 
 .cart-item-title {
   display: -webkit-box;
-  width: 100%;
-  max-block-size: calc(1.32em * 3);
-  min-width: 0;
   padding: 0;
   overflow: hidden;
   border: 0;
   background: transparent;
   color: var(--text);
-  font: inherit;
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   font-weight: 700;
-  line-height: 1.32;
+  line-height: 1.35;
   text-align: start;
   text-overflow: ellipsis;
   overflow-wrap: anywhere;
-  line-clamp: 3;
-  -webkit-line-clamp: 3;
+  line-clamp: 2;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
 }
 
 .cart-item p {
   margin: 0;
   color: var(--muted);
-  font-size: 0.76rem;
+  font-size: 0.72rem;
 }
 
 .cart-item-variant {
@@ -1941,9 +1933,9 @@ a {
   flex: none;
   display: inline-grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
-  margin: -8px -8px 0 0;
+  width: 32px;
+  height: 32px;
+  margin: -6px -6px 0 0;
   border: 0;
   border-radius: 50%;
   background: transparent;
@@ -1951,16 +1943,17 @@ a {
   padding: 0;
 }
 
+.cart-item .delete-cart .material-symbols-outlined { font-size: 1.05rem; }
+
 .cart-item-bottom {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-top: 2px;
+  gap: 8px;
+  margin-top: 1px;
 }
 
-.cart-item-bottom strong { color: var(--primary); font-size: 0.9rem; }
+.cart-item-bottom strong { color: var(--primary); font-size: 0.86rem; white-space: nowrap; }
 
 .cart-item-title:focus-visible,
 .cart-item .delete-cart:focus-visible {
@@ -1970,50 +1963,46 @@ a {
 
 @media (max-width: 350px) {
   .cart-item {
-    gap: 10px;
-    padding: 10px;
-  }
-
-  .cart-item > .cart-item-view {
-    flex-basis: 64px;
-    width: 64px;
-    min-width: 64px;
+    grid-template-columns: 62px minmax(0, 1fr);
+    gap: 8px;
+    padding: 9px;
   }
 
   .cart-item > .cart-item-view img {
-    width: 64px;
-    height: 80px;
+    width: 62px;
+    height: 78px;
   }
+
+  .sticky-pay-bar .primary-action { padding-inline: 10px; }
 }
 
 .qty-stepper {
   display: grid;
-  grid-template-columns: 30px minmax(24px, auto) 30px;
+  grid-template-columns: 30px 30px 30px;
   align-items: center;
   justify-items: center;
   direction: ltr;
-  gap: 4px;
   border: 1px solid var(--outline);
   border-radius: 999px;
-  padding: 3px 5px;
-  min-width: 96px;
-  flex: none;
+  padding: 2px;
+  background: var(--surface-soft);
 }
 
 .qty-stepper button {
-  display: inline-grid;
+  display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
+  padding: 0;
   border: 0;
-  background: var(--surface-soft);
+  background: var(--surface);
   border-radius: 50%;
   color: var(--primary);
-  font-weight: 900;
-  line-height: 1;
 }
 
-.qty-stepper span { min-width: 24px; text-align: center; font-size: 0.85rem; font-weight: 800; direction: rtl; }
+.qty-stepper button .material-symbols-outlined { font-size: 1rem; }
+
+.qty-stepper > span { text-align: center; font-size: 0.8rem; font-weight: 800; line-height: 1; direction: rtl; }
 
 .availability-request {
   display: grid;

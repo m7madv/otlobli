@@ -18,10 +18,11 @@ import {
   canReuseStandardStoreSession,
   isCurrentStandardStoreEvent,
   repairStoreCartBuckets,
+  resolveHostNavigationTarget,
   resolveStoreMessageIdentity,
   storeIdentityFromUrl,
 } from './domain/storeRouting'
-import type { StoreIdentity } from './domain/storeRouting'
+import type { HostHomeDestination, StoreIdentity } from './domain/storeRouting'
 import type { Address, AppNotification, CartGroupSnapshot, CartItem, NotificationPrefs, Order, OrderIssue, Product, ProductColor, Recipient, Screen, StatusTone, UserProfile, WalletTransaction } from './domain/types'
 import { getDeviceId, readStoredJson, storageKeys, useStoredState } from './infrastructure/localStorage'
 import { appApi } from './services'
@@ -1325,6 +1326,31 @@ function App() {
     }
     return initialPendingWhatsappAuth ? 'otp' : 'login'
   })
+  const screenRef = useRef(screen)
+  // The selected store and its parked WebView session are intentionally kept
+  // separate from the host Home destination. Leaving a store for the chooser
+  // must not destroy that session, but Home from Cart/Orders/Profile must still
+  // return to the chooser until the customer explicitly enters a store again.
+  const hostHomeDestinationRef = useRef<HostHomeDestination>(
+    screen === 'store-select' ? 'store-select' : 'home',
+  )
+  const navigateHostShell = useCallback((target: Screen) => {
+    const destination = resolveHostNavigationTarget(target, hostHomeDestinationRef.current)
+    screenRef.current = destination
+    setScreen(destination)
+  }, [])
+  const navigateToStoreChooser = useCallback((synchronous = false) => {
+    hostHomeDestinationRef.current = 'store-select'
+    screenRef.current = 'store-select'
+    if (synchronous) flushSync(() => setScreen('store-select'))
+    else setScreen('store-select')
+  }, [])
+  const navigateToStoreSurface = useCallback((synchronous = false) => {
+    hostHomeDestinationRef.current = 'home'
+    screenRef.current = 'home'
+    if (synchronous) flushSync(() => setScreen('home'))
+    else setScreen('home')
+  }, [])
 
   useEffect(() => {
     if (!isLegacyPhoneSessionToken(sessionToken)) return
@@ -2214,7 +2240,7 @@ function App() {
     void refreshCustomerAccount(loginPhone)
       .then((account) => {
         if (cancelled) return
-        if (!userProfile?.name && account.profile?.name) setScreen('store-select')
+        if (!userProfile?.name && account.profile?.name) navigateToStoreChooser()
       })
       .catch((error: unknown) => {
         if (cancelled) return
@@ -2814,7 +2840,7 @@ function App() {
         setScreen('product')
       })
       .catch((error: unknown) => {
-        setScreen('home')
+        navigateToStoreSurface()
         showNotice(getPublicErrorMessage(error))
       })
   }
@@ -2989,7 +3015,7 @@ function App() {
           governorate: savedProfile.governorate,
           qadmousBranch: savedProfile.qadmousBranch,
         }))
-        setScreen('store-select')
+        navigateToStoreChooser()
         showNotice(`أهلاً بك — تم إنشاء حسابك عبر ${registeringWithApple ? 'Apple' : 'Google'}`)
         await refreshAccountAuthMethods(result.sessionToken).catch(() => undefined)
       })
@@ -3325,7 +3351,6 @@ function App() {
   const temuArabicRedirectTsRef = useRef(0)
   const sheinSaudiRedirectRef = useRef(0)
   const sheinSaudiRedirectTsRef = useRef(0)
-  const screenRef = useRef(screen)
   const browseSheinRef = useRef<() => void>(() => undefined)
   const storeCaptureBundleRef = useRef<StoreCaptureBundle | null>(null)
   const storeCaptureBundleLoadingRef = useRef(false)
@@ -3343,7 +3368,12 @@ function App() {
   // على خطأ مورد فرعي — نُصفّره عند فتح جلسة متجر جديدة فقط.
   const temuContentLoadedRef = useRef(false)
   const lastResumeVpnRecheckRef = useRef(0)
-  useEffect(() => { screenRef.current = screen }, [screen])
+  useEffect(() => {
+    screenRef.current = screen
+    // Authentication and profile hydration can resolve to the chooser through
+    // a computed `target`; keep those paths under the same Home contract too.
+    if (screen === 'store-select') hostHomeDestinationRef.current = 'store-select'
+  }, [screen])
   useEffect(() => { sheinReadyRef.current = sheinReady }, [sheinReady])
   useEffect(() => { vpnStateRef.current = vpnState }, [vpnState])
   useEffect(() => { vpnGeoRef.current = vpnGeo }, [vpnGeo])
@@ -3454,6 +3484,7 @@ function App() {
     const navigateFromNativeStore = (event: Event) => {
       const target = (event as CustomEvent<unknown>).detail
       if (target !== 'store-select' && target !== 'orders' && target !== 'cart' && target !== 'profile') return
+      hostHomeDestinationRef.current = target === 'store-select' ? 'store-select' : 'home'
       if (screenRef.current === target) return
 
       // A cart tab is only a commerce view. Native navigation originates from
@@ -3815,8 +3846,7 @@ function App() {
     // Cart keeps its deferred reveal. Order links already move to the store
     // surface on tap, so readiness only replaces its branded loading state.
     if (screenRef.current !== 'home') {
-      screenRef.current = 'home'
-      setScreen('home')
+      navigateToStoreSurface()
     }
     return true
   }
@@ -3981,8 +4011,7 @@ function App() {
     const shouldReveal = (returnTarget === 'cart' && screenRef.current === 'cart') ||
       (returnTarget === 'orders' && (screenRef.current === 'tracking' || screenRef.current === 'home'))
     if (shouldReveal && screenRef.current !== 'home') {
-      screenRef.current = 'home'
-      setScreen('home')
+      navigateToStoreSurface()
     }
     if (shouldReveal) {
       // The ordinary Home effect intentionally refuses to reveal an unready
@@ -4546,8 +4575,7 @@ function App() {
       // product landed on an inner Temu page with no way back to the cart.
       pendingBackTargetRef.current = 'home'
       activeProductReturnTargetRef.current = 'home'
-      screenRef.current = 'home'
-      flushSync(() => setScreen('home'))
+      navigateToStoreSurface(true)
       temuPersonalSiteOpenedRef.current = true
       void TemuEmbeddedBrowser.open({ url: targetUrl }).catch((error) => {
         temuPersonalSiteOpenedRef.current = false
@@ -4579,8 +4607,7 @@ function App() {
       clearPendingProductPreparation()
       pendingBackTargetRef.current = returnTarget
       activeProductReturnTargetRef.current = returnTarget
-      screenRef.current = 'home'
-      flushSync(() => setScreen('home'))
+      navigateToStoreSurface(true)
       return
     }
     beginPendingProductPreparation(targetUrl)
@@ -4657,8 +4684,7 @@ function App() {
       activeProductReturnTargetRef.current === 'orders'
     if ((!waitingFromCart && !waitingFromOrder) || !pendingProductUrlRef.current) return
     if (vpnState === 'ok') {
-      screenRef.current = 'home'
-      setScreen('home')
+      navigateToStoreSurface()
       return
     }
     if (vpnState !== 'no-vpn' && vpnState !== 'bad-region' && vpnState !== 'offline') return
@@ -5389,8 +5415,7 @@ function App() {
         // explicit action; cached store scripts must never turn this tab into
         // an unannounced exit to the store chooser.
         if (messageStore !== selectedStoreRef.current) commitSelectedStore(messageStore)
-        screenRef.current = 'home'
-        flushSync(() => setScreen('home'))
+        navigateToStoreSurface(true)
         return
       }
 
@@ -5402,8 +5427,7 @@ function App() {
         activeProductReturnTargetRef.current = 'home'
         pendingBackTargetRef.current = 'home'
         pendingStoreOpenAfterCloseRef.current = false
-        screenRef.current = 'store-select'
-        flushSync(() => setScreen('store-select'))
+        navigateToStoreChooser(true)
         if (messageStore === 'shein') {
           // Returning to the chooser is app navigation, not the end of the
           // SHEIN session. Destroying WKWebView here made the first entry fast
@@ -5435,6 +5459,7 @@ function App() {
 
       if (detail?.type === 'openCart' || detail?.type === 'backToCart') {
         if (messageStore !== selectedStoreRef.current) commitSelectedStore(messageStore)
+        hostHomeDestinationRef.current = 'home'
         temuPersonalSiteOpenedRef.current = false
         sheinCartProductSessionRef.current = false
         activeProductReturnTargetRef.current = 'home'
@@ -5452,6 +5477,7 @@ function App() {
 
       if (detail?.type === 'backToOrders') {
         if (messageStore !== selectedStoreRef.current) commitSelectedStore(messageStore)
+        hostHomeDestinationRef.current = 'home'
         temuPersonalSiteOpenedRef.current = false
         sheinCartProductSessionRef.current = false
         activeProductReturnTargetRef.current = 'home'
@@ -5467,6 +5493,7 @@ function App() {
 
       if (detail?.type === 'openOrders') {
         if (messageStore !== selectedStoreRef.current) commitSelectedStore(messageStore)
+        hostHomeDestinationRef.current = 'home'
         temuPersonalSiteOpenedRef.current = false
         sheinCartProductSessionRef.current = false
         activeProductReturnTargetRef.current = 'home'
@@ -5482,6 +5509,7 @@ function App() {
 
       if (detail?.type === 'openProfile') {
         if (messageStore !== selectedStoreRef.current) commitSelectedStore(messageStore)
+        hostHomeDestinationRef.current = 'home'
         temuPersonalSiteOpenedRef.current = false
         sheinCartProductSessionRef.current = false
         activeProductReturnTargetRef.current = 'home'
@@ -6099,8 +6127,7 @@ function App() {
       // task. Move to the store surface immediately; the existing readiness
       // flow opens the target URL there and native Back still restores this
       // exact tracking screen through activeProductReturnTargetRef.
-      screenRef.current = 'home'
-      flushSync(() => setScreen('home'))
+      navigateToStoreSurface(true)
     }
     const currentOwner = standardWebviewOwnerRef.current
     const ownerStore = currentOwner?.sessionId === webviewSessionRef.current ? currentOwner.store : null
@@ -6146,8 +6173,7 @@ function App() {
         vpnStateRef.current = 'checking'
         setVpnState('checking')
       }
-      screenRef.current = 'home'
-      setScreen('home')
+      navigateToStoreSurface()
     }
 
     switchSelectedStore(id, revealSelectedStore)
@@ -6575,7 +6601,7 @@ function App() {
               void appApi.customers.saveProfile(phone, profile)
                 .then((account) => applyCustomerAccount(account, profile.phone || phone))
                 .catch(() => showNotice('تم الحفظ على الجهاز، وتعذّر الحفظ على الخادم مؤقتاً'))
-              setScreen('store-select')
+              navigateToStoreChooser()
             }}
           >
             متابعة
@@ -6587,7 +6613,7 @@ function App() {
 
     if (screen === 'loading') {
       return (
-        <MobileShell active="home" onNavigate={setScreen}>
+        <MobileShell active="home" onNavigate={navigateHostShell}>
           <Header title="جلب المنتج" unreadCount={unreadCount} onNotifications={openNotifications} />
           <main className="mobile-content">
             <div className="skeleton-card">
@@ -6608,13 +6634,13 @@ function App() {
     }
 
     if (screen === 'product') {
-      if (!activeProduct) { setScreen('home'); return null }
+      if (!activeProduct) { navigateToStoreSurface(); return null }
       const productStoreLabel = /temu/i.test(`${activeProduct.source} ${activeProduct.link}`) ? 'Temu' : 'SHEIN'
       return (
-        <MobileShell active="home" onNavigate={setScreen} hideBottomNav>
+        <MobileShell active="home" onNavigate={navigateHostShell} hideBottomNav>
           <Header
             title="تفاصيل المنتج"
-            back={() => setScreen('home')}
+            back={() => navigateToStoreSurface()}
             actions={['share', savedProduct ? 'favorite' : 'favorite']}
             onAction={(action) => {
               if (action === 'share') {
@@ -6829,7 +6855,7 @@ function App() {
         temu: cartsByStore.temu?.reduce((sum, item) => sum + item.quantity, 0) ?? 0,
       }
       return (
-        <MobileShell active="cart" onNavigate={setScreen}>
+        <MobileShell active="cart" onNavigate={navigateHostShell}>
           <Header title={`سلة ${storeName(selectedStore)}`} unreadCount={unreadCount} onNotifications={openNotifications} />
           <main className="mobile-content mobile-content--cart">
             {renderCropModal()}
@@ -7211,12 +7237,10 @@ function App() {
                 أكمل بيانات المنتجات المخصصة (الاسم/الصورة) للمتابعة
               </p>
             )}
-            {cartItems.length > 0 && (
-              <div className="sticky-pay-total">
-                <span>الإجمالي ({activeCheckoutItems.length} {activeCheckoutItems.length === 1 ? 'منتج' : 'منتجات'})</span>
-                <strong>{formatPrice(total)}</strong>
-              </div>
-            )}
+            <div className="sticky-pay-total">
+              <span>الإجمالي · {activeCheckoutItems.length} {activeCheckoutItems.length === 1 ? 'منتج' : 'منتجات'}</span>
+              <strong>{formatPrice(total)}</strong>
+            </div>
             <button
               className="primary-action"
               disabled={activeCheckoutItems.length === 0 || !meetsMinimumOrder || hasIncompleteCheckoutCustom || hasAvailabilityIssues}
@@ -7239,7 +7263,7 @@ function App() {
       const hasSavedPickupInfo = !missingBasic && !missingBranch && !!recipient.governorate
       const showCheckoutPickupForm = editingCheckoutPickup || !hasSavedPickupInfo
       return (
-        <MobileShell active="cart" onNavigate={setScreen} hideBottomNav>
+        <MobileShell active="cart" onNavigate={navigateHostShell} hideBottomNav>
           <Header title="بيانات الاستلام" back={() => setScreen('cart')} unreadCount={unreadCount} onNotifications={openNotifications} />
           <main className="mobile-content mobile-content--checkout">
             {cartGroup && cartGroup.members.length > 1 && (
@@ -7472,7 +7496,7 @@ function App() {
     if (screen === 'payment') {
       if (!pendingPayment) {
         return (
-          <MobileShell active="cart" onNavigate={setScreen} hideBottomNav>
+          <MobileShell active="cart" onNavigate={navigateHostShell} hideBottomNav>
             <Header title="دفع شام كاش" back={() => setScreen('checkout')} unreadCount={unreadCount} onNotifications={openNotifications} />
             <main className="mobile-content">
               <EmptyState title="لا يوجد طلب بانتظار الدفع" body="رجّع لسلتك وابدأ الدفع من جديد." />
@@ -7493,7 +7517,7 @@ function App() {
       const paymentStoreName = STORES.find((store) => store.id === (pendingPayment.store ?? selectedStore))?.name ?? 'المتجر'
 
       return (
-        <MobileShell active="cart" onNavigate={setScreen} hideBottomNav>
+        <MobileShell active="cart" onNavigate={navigateHostShell} hideBottomNav>
           <Header title="دفع شام كاش" back={() => setScreen('checkout')} unreadCount={unreadCount} onNotifications={openNotifications} />
           <main className="mobile-content">
             <div className="payment-card-frame">
@@ -7559,7 +7583,7 @@ function App() {
     if (screen === 'success') {
       const completedStoreName = storeName(selectedStore)
       return (
-        <MobileShell active="orders" onNavigate={setScreen} hideBottomNav>
+        <MobileShell active="orders" onNavigate={navigateHostShell} hideBottomNav>
           <main className="success-screen">
             <div className="success-icon"><Icon name="check" /></div>
             <h1>{PAYMENT_MODE === 'auto' ? 'تم استلام طلبك' : 'تم تأكيد الدفع'}</h1>
@@ -7579,7 +7603,7 @@ function App() {
 
     if (screen === 'orders') {
       return (
-        <MobileShell active="orders" onNavigate={setScreen}>
+        <MobileShell active="orders" onNavigate={navigateHostShell}>
           <Header title="طلباتي" unreadCount={unreadCount} onNotifications={openNotifications} />
           <main className="mobile-content mobile-content--orders">
             {visibleOrders.length === 0 && (
@@ -7655,7 +7679,7 @@ function App() {
     if (screen === 'tracking') {
       if (!order) {
         return (
-          <MobileShell active="orders" onNavigate={setScreen}>
+          <MobileShell active="orders" onNavigate={navigateHostShell}>
             <Header title="تتبع الطلب" back={() => setScreen('orders')} unreadCount={unreadCount} onNotifications={openNotifications} />
             <main className="mobile-content">
               <EmptyState title="لا يوجد طلب" body="اختر طلباً من قائمة طلباتك لتتبعه." />
@@ -7670,7 +7694,7 @@ function App() {
         return !ownerPhone || normalizePhoneForCompare(ownerPhone) === activeAccountPhone
       })
       return (
-        <MobileShell active="orders" onNavigate={setScreen}>
+        <MobileShell active="orders" onNavigate={navigateHostShell}>
           <Header title="تتبع الطلب" back={() => setScreen('orders')} unreadCount={unreadCount} onNotifications={openNotifications} />
           <main className="mobile-content mobile-content--tracking">
             <section className="tracking-head">
@@ -8113,7 +8137,7 @@ function App() {
     if (screen === 'profile') {
       if (editingProfile) {
         return (
-          <MobileShell active="profile" onNavigate={setScreen}>
+          <MobileShell active="profile" onNavigate={navigateHostShell}>
             <Header title="تعديل الملف الشخصي" back={() => setEditingProfile(false)} unreadCount={unreadCount} onNotifications={openNotifications} />
             <main className="mobile-content">
               <div className="form-card">
@@ -8189,7 +8213,7 @@ function App() {
       }
 
       return (
-        <MobileShell active="profile" onNavigate={setScreen}>
+        <MobileShell active="profile" onNavigate={navigateHostShell}>
           <Header title="حسابي" unreadCount={unreadCount} onNotifications={openNotifications} />
           <main className="mobile-content">
             <section className="profile-summary-card profile-summary-card--compact">
@@ -8217,7 +8241,7 @@ function App() {
               onClick={() => setPaymentCurrency(paymentCurrency === 'USD' ? 'SYP' : 'USD')}
             />
             {featureWallet && <ProfileRow icon="account_balance_wallet" label={`المحفظة: ${formatUsd(walletBalanceUsd)}`} onClick={() => setScreen('payment-methods')} />}
-            <ProfileRow icon="storefront" label={`المتجر الحالي: ${STORES.find((s) => s.id === selectedStore)?.name ?? ''}`} onClick={() => setScreen('store-select')} />
+            <ProfileRow icon="storefront" label={`المتجر الحالي: ${STORES.find((s) => s.id === selectedStore)?.name ?? ''}`} onClick={() => navigateToStoreChooser()} />
             <ProfileRow icon="notifications" label="إعدادات الإشعارات" onClick={() => setScreen('notification-settings')} />
             <ProfileRow icon="contract" label="الشروط والأحكام" onClick={() => setScreen('terms')} />
             <ProfileRow icon="support_agent" label="الدعم والمساعدة" onClick={() => setScreen('support')} />
@@ -8237,7 +8261,7 @@ function App() {
     if (screen === 'account-access') {
       const deliveryPhone = accountAuthMethods?.deliveryPhone || userProfile?.phone || recipient.phone || phone
       return (
-        <MobileShell active="profile" onNavigate={setScreen} hideBottomNav>
+        <MobileShell active="profile" onNavigate={navigateHostShell} hideBottomNav>
           <Header title="طرق تسجيل الدخول" back={() => setScreen('profile')} unreadCount={unreadCount} onNotifications={openNotifications} />
           <main className="mobile-content">
             <section className="access-intro-card">
@@ -8361,7 +8385,7 @@ function App() {
       const savedPickupGovernorate = userProfile?.governorate || recipient.governorate || 'دمشق'
       const savedPickupOffice = userProfile?.qadmousBranch || recipient.qadmousBranch || 'غير محدد'
       return (
-        <MobileShell active="profile" onNavigate={setScreen} hideBottomNav>
+        <MobileShell active="profile" onNavigate={navigateHostShell} hideBottomNav>
           <Header title="معلومات الاستلام" back={() => setScreen('profile')} unreadCount={unreadCount} onNotifications={openNotifications} />
           <main className="mobile-content">
             <section className="profile-summary-card">
@@ -8399,7 +8423,7 @@ function App() {
 
     if (screen === 'addresses') {
       return (
-        <MobileShell active="profile" onNavigate={setScreen} hideBottomNav>
+        <MobileShell active="profile" onNavigate={navigateHostShell} hideBottomNav>
           <Header title="العناوين" back={() => setScreen('profile')} unreadCount={unreadCount} onNotifications={openNotifications} />
           <AccountDetailLayout>
             {addresses.map((address) => (
@@ -8439,7 +8463,7 @@ function App() {
       const walletTopUpExpiresIn = formatExpiryCountdown(pendingWalletTopUp?.expiresAt)
 
       return (
-        <MobileShell active="profile" onNavigate={setScreen} hideBottomNav>
+        <MobileShell active="profile" onNavigate={navigateHostShell} hideBottomNav>
           <Header title="طرق الدفع" back={() => setScreen('profile')} unreadCount={unreadCount} onNotifications={openNotifications} />
           <AccountDetailLayout>
             <section className="wallet-card">
@@ -8563,7 +8587,7 @@ function App() {
 
     if (screen === 'blocked-policy') {
       return (
-        <MobileShell active="profile" onNavigate={setScreen} hideBottomNav>
+        <MobileShell active="profile" onNavigate={navigateHostShell} hideBottomNav>
           <Header title="سياسة المنتجات" back={() => setScreen('profile')} unreadCount={unreadCount} onNotifications={openNotifications} />
           <AccountDetailLayout>
             <section className="policy-card">
@@ -8589,7 +8613,7 @@ function App() {
 
     if (screen === 'terms') {
       return (
-        <MobileShell active="profile" onNavigate={setScreen} hideBottomNav>
+        <MobileShell active="profile" onNavigate={navigateHostShell} hideBottomNav>
           <Header title="الشروط والأحكام" back={() => setScreen('profile')} unreadCount={unreadCount} onNotifications={openNotifications} />
           <AccountDetailLayout>
             <LegalSection title="التسعير">
@@ -8611,7 +8635,7 @@ function App() {
 
     if (screen === 'support') {
       return (
-        <MobileShell active="profile" onNavigate={setScreen} hideBottomNav>
+        <MobileShell active="profile" onNavigate={navigateHostShell} hideBottomNav>
           <Header title="الدعم" back={() => setScreen('profile')} unreadCount={unreadCount} onNotifications={openNotifications} />
           <AccountDetailLayout>
             <section className="support-card">
@@ -8670,10 +8694,7 @@ function App() {
 
     if (screen === 'store-select') {
       return (
-        <MobileShell active="home" onNavigate={(target) => {
-          if (target === 'home') return
-          setScreen(target)
-        }}>
+        <MobileShell active="home" onNavigate={navigateHostShell}>
           <StoreHubScreen
             brandName={brandName}
             brandLogoDataUrl={brandLogoDataUrl}
@@ -8707,7 +8728,7 @@ function App() {
         { key: 'whatsapp', icon: 'chat', title: 'إشعارات واتساب', body: 'وصول نسخة من إشعاراتك على رقم الواتساب المسجَّل، إضافةً لداخل التطبيق.' },
       ]
       return (
-        <MobileShell active="profile" onNavigate={setScreen} hideBottomNav>
+        <MobileShell active="profile" onNavigate={navigateHostShell} hideBottomNav>
           <Header title="إعدادات الإشعارات" back={() => setScreen('profile')} unreadCount={unreadCount} onNotifications={openNotifications} />
           <AccountDetailLayout>
             <p className="settings-hint">تحكّم بأنواع الإشعارات التي تصلك. يمكنك إيقاف أي نوع لا يهمّك.</p>
@@ -8760,7 +8781,7 @@ function App() {
 
     if (screen === 'notifications') {
       return (
-        <MobileShell active="orders" onNavigate={setScreen} hideBottomNav>
+        <MobileShell active="orders" onNavigate={navigateHostShell} hideBottomNav>
           <Header
             title="الإشعارات"
             back={() => setScreen(previousScreenRef.current)}
@@ -8852,13 +8873,14 @@ function App() {
           if (personalTemuSurfaceActive) {
             clearPersonalTemuHomeTap()
             dismissPersonalTemuSecondTapHint()
+            hostHomeDestinationRef.current = 'home'
             screenRef.current = target
             flushSync(() => setScreen(target))
             temuPersonalSiteOpenedRef.current = false
             void TemuEmbeddedBrowser.hide().catch(() => undefined)
             return
           }
-          setScreen(target)
+          navigateHostShell(target)
         }}>
         {storeGateVisible && (
           <Header title="otlobli" unreadCount={unreadCount} onNotifications={openNotifications} />
@@ -8945,8 +8967,7 @@ function App() {
               }
               transitionSheinCoordinator({ type: 'CLOSE' })
               setSheinBlockedError(false)
-              screenRef.current = 'store-select'
-              flushSync(() => setScreen('store-select'))
+              navigateToStoreChooser(true)
               void InAppBrowser.hide().catch(() => undefined)
             }}>
               <Icon name="close" />

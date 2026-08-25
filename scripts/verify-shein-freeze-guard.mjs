@@ -326,21 +326,25 @@ const checks = [
     ],
   },
   {
-    label: 'Temu bounded Android Home-only download-shell collapse',
+    label: 'Temu bounded native Home-only download-shell collapse',
     file: 'src/services/temuBrowserScript.ts',
     markers: [
       "document.documentElement.setAttribute('data-otlobli-native-platform', OTLOBLI_NATIVE_PLATFORM)",
       'html[data-otlobli-native-platform="android"][data-otlobli-temu-home-route="1"] [class*="downloadsWrapper"]',
+      'html[data-otlobli-native-platform="ios"][data-otlobli-temu-home-route="1"] [class*="downloadsWrapper"]',
       'html[data-otlobli-native-platform="android"][data-otlobli-temu-home-route="1"] [data-otlobli-temu-download-shell="1"]',
       'html[data-otlobli-native-platform="android"][data-otlobli-temu-home-route="1"] [data-otlobli-temu-download-shell="1"] > *',
+      'html[data-otlobli-native-platform="ios"][data-otlobli-temu-home-route="1"] [data-otlobli-temu-download-shell="1"]',
+      'html[data-otlobli-native-platform="ios"][data-otlobli-temu-home-route="1"] [data-otlobli-temu-download-shell="1"] > *',
       'html[data-otlobli-native-platform="android"][data-otlobli-temu-home-route="1"][data-otlobli-temu-download-collapsed="1"] [js-selector="bg-cui-top-sticky"]',
       '{ height: 0 !important; min-height: 0 !important; max-height: 0 !important; overflow: hidden !important;',
       '{ transform: translate(-50%, 0) !important; }',
       'function otlobliSyncTemuDownloadCollapsedMarker(root, collapsed)',
-      'function otlobliMarkTemuAndroidDownloadShell()',
+      'function otlobliMarkTemuNativeDownloadShell()',
       "if (current !== '1') root.setAttribute(marker, '1')",
       'else if (current !== null)',
-      "root.getAttribute('data-otlobli-native-platform') !== 'android'",
+      "var nativePlatform = root.getAttribute('data-otlobli-native-platform')",
+      "nativePlatform !== 'android' && nativePlatform !== 'ios'",
       "root.getAttribute('data-otlobli-temu-home-route') !== '1'",
       "document.querySelector('[class*=\"downloadsWrapper\"]')",
       'for (var depth = 0; shell && depth < 8; depth++)',
@@ -351,7 +355,7 @@ const checks = [
       "shell.setAttribute('data-otlobli-temu-download-shell', '1')",
       'otlobliSyncTemuDownloadCollapsedMarker(root, true)',
       'otlobliSyncTemuProductRouteState();',
-      'otlobliMarkTemuAndroidDownloadShell();',
+      'otlobliMarkTemuNativeDownloadShell();',
       "var homePath = String(location.pathname || '/').replace(/\\\\/{2,}/g, '/').replace(/\\\\/+$/, '')",
       "var homeRoute = !homePath || /^\\\\/[a-z]{2}(?:-[a-z]{2})?$/i.test(homePath)",
       "homeRoute && !otlobliTemuAccountRoute()",
@@ -2190,7 +2194,7 @@ try {
   const hubOpenEnd = appSource.indexOf('const switchCartStore = (id: StoreId)', hubOpenStart)
   const hubOpenSource = appSource.slice(hubOpenStart, hubOpenEnd)
   const armReentry = hubOpenSource.indexOf('pendingStoreOpenAfterCloseRef.current = false')
-  const enterHome = hubOpenSource.indexOf("screenRef.current = 'home'")
+  const enterHome = hubOpenSource.indexOf('navigateToStoreSurface()')
   if (hubOpenStart < 0 || hubOpenEnd < 0 || armReentry < 0 || enterHome < 0 || armReentry > enterHome) {
     failures.push('SHEIN reentry: the hub tap must clear stale close state before entering Home')
   }

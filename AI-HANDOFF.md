@@ -3672,3 +3672,54 @@ five-cycle iPhone acceptance did not occur. SHEIN, regions, store sessions,
 human verification, payment, orders, and wallet were untouched.
 Preserve `otlobliForceRecompose()`, the `0.25s` `appDidBecomeActive` delay,
 Android resume defense, and `JSON.stringify` region comparison.
+
+# Active handoff — v86.240/1105 host destination, cart, and iOS Temu gap (2026-08-26)
+
+The user-visible store session and the host Home destination are now separate.
+`hostHomeDestinationRef` is transient and must not be persisted or merged back
+into `selectedStore`. Parking a store for the chooser sets `store-select` but
+does not close the native session. Explicit store entry sets `home`; same-store
+entry reuses the existing owner, while a different store still goes through
+the serialized close path in `switchSelectedStore`. All visible `MobileShell`
+navigation resolves Home through `resolveHostNavigationTarget`. Preserve this
+separation; it fixes chooser → Cart/Orders → Home without regressing warm
+same-store reentry or the independent cart tabs.
+
+Cart is now a compact Otlobli-green surface. The sticky checkout area is a
+two-column grid with a 44px action, quantity uses fixed centered grid columns,
+and item/store cards are quieter and smaller. Playwright acceptance passed at
+320x844 and 390x844; screenshots are under `output/playwright/`.
+
+Temu's empty download wrapper collapse is intentionally native Home-only on
+both Android and iOS. It is still the same bounded single-wrapper detector:
+depth <= 8, search exclusion, top/width/height bounds, no broad scan, observer,
+or added timer. The sticky-header transform repair remains Android-only. The
+iOS native Back button remains an overlay and no protected lifecycle code was
+changed.
+
+Final full build, release/security/freeze/Temu/store guards, TypeScript, scoped
+ESLint, performance budgets, Android+iOS sync, signed APK/AAB, signature
+verification, and Note 8 update all passed. Budgets are JS 670139/720000,
+gzip 298417/370000, CSS 69985/70000, fonts 81364/100000, shipped store scripts
+317333/470000, Gecko 172005/180000, and source 580582/600000. Artifacts:
+
+- `artifacts/release-86.240/Otlobli-86.240-1105-release.apk`, 4,110,723 bytes,
+  SHA-256 `F8E4C7429AF2AE47383102631CE87E3556D308395152DFA84049C923C7FB75BF`.
+- `artifacts/release-86.240/Otlobli-86.240-1105-release.aab`, 5,771,013 bytes,
+  SHA-256 `04313B8ED0435AE106CD70361F1028321B72E9BA4019DD56787F65A65F82FA30`.
+
+Note 8 runs `86.240 (1105)` with data preserved and screen timeout set to two
+minutes. Chooser → Orders → Home and Chooser → Cart → Home both stayed on the
+chooser; live Temu and the redesigned cart rendered without matching
+fatal/ANR/OOM. The exact final APK was reinstalled after the last auth-target
+coverage change. The two paths were replayed on that exact artifact;
+`102-final-home-after-orders.png` and `104-final-home-after-cart.png` record the
+chooser results, while `103-final-cart.png` records the final real-data cart.
+Evidence is in `artifacts/device-captures/v86.240-note8/`.
+Do not claim automated double-tap acceptance: one ADB tap took about 534ms,
+outside the 320ms real-finger window. iPhone white-gap acceptance, five resume
+cycles, and cold launch remain unperformed; no new TestFlight build exists yet.
+
+SHEIN, region policy, human verification, payment, orders, and wallet were not
+changed. Preserve `otlobliForceRecompose()`, exact 0.25s appDidBecomeActive,
+Android resume defense, and JSON.stringify region comparison.
