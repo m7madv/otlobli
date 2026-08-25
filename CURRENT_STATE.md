@@ -5186,9 +5186,13 @@ WhatsApp يتطلب مسار قوالب المصادقة الرسمي من Meta�
 و`otpMessage.js`
 `F37411D9049B62EB584E54C9D6C8480EB1580C64418172DE394456FDA0295F28`.
 أعيد تشغيل `otlobli-wa` وبقي online، والصحة تعيد `status=ok` و
-`sessionStoreReady=true` و`otpSecurityReady=true`، لكن
-`whatsappConnected=false` و`whatsappSenderReady=false`. لذلك لم يُرسل رمز حي
-ولم يُدّع قبول التعبئة على هاتف؛ يلزم إعادة ربط المرسل أولًا.
+`sessionStoreReady=true` و`otpSecurityReady=true`. قبل TestFlight كانت الجلسة
+`0` محفوظة وخاملة بلا QR وبلا حظر أو نقاط خطر؛ أُعيد وصلها عبر مسار الإدارة
+المحمي من دون حذف الملفات أو إنشاء جلسة. الصحة النهائية بعد الرفع تعيد
+`whatsappConnected=true` و`whatsappSenderReady=true` و
+`whatsappCredentialsPresent=true`. لم يُرسل رمز اختبار إلى رقم عميل، لذلك
+الاتصال والجاهزية مثبتان لكن وصول الرسالة/اقتراح لوحة المفاتيح على هاتف حقيقي
+يبقيان اختبار قبول منفصلًا.
 
 Android وiOS متزامنان ومُرقمان `86.239 (1104)`. نجح `npm run build` بكل
 حواجز الإنتاج/الأسرار/SHEIN/Temu/الأداء، واختبارات OTP والخدمات، وفحص صياغة
@@ -5213,8 +5217,20 @@ Android وiOS متزامنان ومُرقمان `86.239 (1104)`. نجح `npm run
   وثُبّت وأُطلق على `emulator-5554` Android 15/API 35 بلا fatal/ANR؛ لقطة
   الإقلاع في `artifacts/device-captures/v86.239-emulator/launch.png`.
 
-لا يوجد Note 8 أو A52 أو iPhone حقيقي متصل. لم يُبن IPA ولم يُرفع TestFlight
-لأن حارس الجاهزية سيفشل مع المرسل المفصول. لم تتغير SHEIN أو المنطقة أو
-جلسات المتاجر أو التحقق البشري أو الدفع أو الطلبات أو المحفظة. بقيت
+دُفعت الدفعة إلى GitHub في commit
+`8624f59d712df7e07a743f1853e53ee014891a03`. نجح تشغيل GitHub Actions
+`32892860453` خلال `7m33s`: تجاوز حارس مصادقة TestFlight مع واتساب متصل،
+وبنى أرشيف App Store الموقّع و`otlobli-v86.239-build-1104-testflight.ipa`،
+وتحقق منه ورفعه بلا أخطاء. رقم تسليم Apple
+`52f69212-271d-4564-8b60-48368e161b59`. أصبح البناء `VALID` ثم
+`IN_BETA_TESTING` داخل مجموعة `Otlobli Internal` ذات وصول all-builds، وتأكدت
+عضوية المختبر بحالة `INSTALLED`. لم يُرسل App Review؛ الخيار كان `false`.
+أثر GitHub الموقّع رقم `9580341324`، حجمه المضغوط `25,250,769` بايت، و
+SHA-256 للأرشيف
+`60BED115072CCDBC15F000E91296D87E2F6835C4B846C3109548FAF805FE7F2F`.
+
+لا يوجد Note 8 أو A52 أو iPhone حقيقي متصل، لذا نجاح TestFlight لا يساوي
+قبول الجهاز أو خمس دورات iPhone 16. لم تتغير SHEIN أو المنطقة أو جلسات
+المتاجر أو التحقق البشري أو الدفع أو الطلبات أو المحفظة. بقيت
 `otlobliForceRecompose()` وتأخير `appDidBecomeActive` البالغ `0.25s` ودفاع
 Android resume ومقارنة المناطق عبر `JSON.stringify` بلا تغيير.

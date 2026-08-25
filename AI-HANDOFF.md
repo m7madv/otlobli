@@ -3635,11 +3635,14 @@ Remote/local SHA-256 values match: `whatsapp.js`
 `8854E6A7CFBBEFE02CFC1DC728643750D3352AD725866E25FE4D4B730FC5D65F` and
 `otpMessage.js`
 `F37411D9049B62EB584E54C9D6C8480EB1580C64418172DE394456FDA0295F28`.
-The PM2 process is online, but production health still reports
-`whatsappConnected=false` and `whatsappSenderReady=false`; do not claim live
-delivery/autofill acceptance or bypass the release guard. Re-pair the existing
-sender, then test a real message on iPhone and an old Android phone. Plain
-WhatsApp/Baileys autofill remains an OS/keyboard heuristic; documented Meta
+The PM2 process is online. Session `0` was found idle with credentials, no QR,
+no pause, and zero risk; it was reconnected through the protected admin endpoint
+without deleting or replacing the session. Final production health after the
+TestFlight run reports `whatsappConnected=true`, `whatsappSenderReady=true`,
+`whatsappCredentialsPresent=true`, `sessionStoreReady=true`, and
+`otpSecurityReady=true`. No test OTP was sent to a customer number, so real
+delivery/autofill remains a physical-device acceptance item. Plain
+WhatsApp/Baileys autofill is an OS/keyboard heuristic; documented Meta
 authentication templates are needed if guaranteed WhatsApp behavior is later
 required.
 
@@ -3654,8 +3657,18 @@ escape errors. Do not fix those in this OTP batch. Artifacts:
 - `artifacts/release-86.239/Otlobli-86.239-1104-release.aab`, 5,770,899 bytes,
   SHA-256 `FE987CAB470FDE3271A31AEE21EE06999A7DE000D82A524E6784945D0CE23C3F`.
 
-No real Note 8, A52, or iPhone was connected; no IPA/TestFlight upload or
-physical keyboard-suggestion acceptance occurred. SHEIN, regions, store
-sessions, human verification, payment, orders, and wallet were untouched.
+Commit `8624f59d712df7e07a743f1853e53ee014891a03` is pushed. GitHub Actions run
+`32892860453` succeeded in `7m33s`: TestFlight auth preflight passed, the signed
+App Store IPA validated and uploaded without errors, Apple delivery UUID is
+`52f69212-271d-4564-8b60-48368e161b59`, and exact build `86.239 (1104)` became
+`VALID` then `IN_BETA_TESTING` in the all-builds `Otlobli Internal` group. The
+expected tester membership was verified with state `INSTALLED`. App Review was
+explicitly disabled/skipped. GitHub signed artifact `9580341324` is 25,250,769
+bytes with archive SHA-256
+`60BED115072CCDBC15F000E91296D87E2F6835C4B846C3109548FAF805FE7F2F`.
+
+No real Note 8, A52, or iPhone was connected; physical keyboard-suggestion and
+five-cycle iPhone acceptance did not occur. SHEIN, regions, store sessions,
+human verification, payment, orders, and wallet were untouched.
 Preserve `otlobliForceRecompose()`, the `0.25s` `appDidBecomeActive` delay,
 Android resume defense, and `JSON.stringify` region comparison.
