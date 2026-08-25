@@ -3600,4 +3600,13 @@ Preserve `WKWebViewController.otlobliForceRecompose()`, the exact
 `appDidBecomeActive` `0.25s` delay, scroll/constraint restoration, Android
 `otlobliOnHostResume()`, and the `JSON.stringify` region comparison. iOS is
 synced but device acceptance still requires five iPhone 16 resume cycles plus
-a separate force-quit/cold-launch. TestFlight dispatch is pending at this point.
+a separate force-quit/cold-launch.
+
+The current source commit is `a53fbf9b5d6377a159794d570c239c53f7e71d40` and
+is pushed. TestFlight runs `32886967159`, `32887220144`, and `32887640272`
+all failed in `Verify TestFlight authentication configuration` because the
+production health response had `whatsappConnected=false`. They stopped before
+signing, IPA creation, upload, or App Store submission. Do not bypass or weaken
+that guard. Reconnect the existing WhatsApp sender outside this Temu task, then
+rerun `ios-unsigned-build.yml` with `signing_mode=testflight`,
+`testflight_delivery=upload-and-distribute`, and `app_store_submission=false`.

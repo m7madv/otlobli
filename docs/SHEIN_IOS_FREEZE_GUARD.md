@@ -17,8 +17,10 @@
 - بقي `otlobliForceRecompose()` ونداء `appDidBecomeActive` وتأخير `0.25s`
   واستعادة scroll/constraints ودفاع Android resume ومقارنة
   `JSON.stringify` بلا تغيير. ينجح `verify:shein-freeze-guard`.
-- iOS متزامن إلى `86.238 (1103)`. لا تزال خمس دورات iPhone 16 واختبار
-  force-quit/cold-launch مطلوبة؛ نجاح GitHub/TestFlight لاحقًا لا يستبدلها.
+- iOS متزامن إلى `86.238 (1103)`. محاولات TestFlight الثلاث توقفت قبل بناء
+  IPA بسبب `whatsappConnected=false`؛ لم يُتجاوز حاجز مصادقة الإنتاج. لا تزال
+  خمس دورات iPhone 16 واختبار force-quit/cold-launch مطلوبة؛ نجاح
+  GitHub/TestFlight لاحقًا لا يستبدلها.
 
 ## v86.237 — فصل هوية المتجر من دون تغيير lifecycle أو المنطقة
 

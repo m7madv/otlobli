@@ -5152,5 +5152,9 @@ Android/iOS. الميزانيات من دون رفع سقف: startup/largest JS
 
 لم تتغير المنطقة أو الجلسة التجارية أو الدفع أو الطلبات أو المحفظة. بقيت
 `otlobliForceRecompose()` وتأخير `appDidBecomeActive` البالغ `0.25s` ودفاع
-Android resume ومقارنة المناطق عبر `JSON.stringify`. iOS متزامن، لكن TestFlight
-لم يُشغّل بعد في لحظة هذا السجل، ولم تُنفذ خمس دورات iPhone 16 أو cold launch.
+Android resume ومقارنة المناطق عبر `JSON.stringify`. iOS متزامن. شُغّل مسار
+TestFlight على commit `a53fbf9` ثلاث مرات: `32886967159` و`32887220144` و
+`32887640272`. توقفت كلها قبل تثبيت الشهادات أو بناء IPA أو الرفع لأن فحص
+الصحة أعاد `whatsappConnected=false`. لم يُتجاوز الحارس، ولم يُرسل App Review.
+يلزم إعادة ربط مرسل WhatsApp ثم إعادة `upload-and-distribute`. لم تُنفذ خمس
+دورات iPhone 16 أو cold launch.
