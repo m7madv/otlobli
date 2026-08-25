@@ -130,7 +130,7 @@ jobs:
           test "$extension_short_version" = "$app_short_version"
           test "$extension_build_version" = "$app_build_version"
           test "$app_short_version" = "0.1.0"
-          test "$app_build_version" = "5"
+          test "$app_build_version" = "6"
           echo "Verified app and Share Extension version $app_short_version ($app_build_version)."
           rm -rf build/ios/unsigned-ipa
           mkdir -p build/ios/unsigned-ipa/Payload
