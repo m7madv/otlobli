@@ -25,20 +25,26 @@ class AppController extends ChangeNotifier {
   AppController.withRepository(
     DamanakRepository repository, {
     StoreBillingService? billingService,
+    Duration storeProductLoadTimeout = const Duration(seconds: 24),
   }) : _repository = repository,
        _billingService =
-           billingService ?? const UnavailableStoreBillingService() {
+           billingService ?? const UnavailableStoreBillingService(),
+       _storeProductLoadTimeout = storeProductLoadTimeout {
     _listenToStoreBilling();
   }
 
-  AppController.unconfigured({StoreBillingService? billingService})
-    : _billingService =
-          billingService ?? const UnavailableStoreBillingService() {
+  AppController.unconfigured({
+    StoreBillingService? billingService,
+    Duration storeProductLoadTimeout = const Duration(seconds: 24),
+  }) : _billingService =
+           billingService ?? const UnavailableStoreBillingService(),
+       _storeProductLoadTimeout = storeProductLoadTimeout {
     _listenToStoreBilling();
   }
 
   DamanakRepository? _repository;
   final StoreBillingService _billingService;
+  final Duration _storeProductLoadTimeout;
   StreamSubscription<List<StorePurchaseEvent>>? _billingSubscription;
   AppStage _stage = AppStage.configuring;
   AccountIdentity? _account;
@@ -61,6 +67,7 @@ class AppController extends ChangeNotifier {
   final List<AuditEvent> _auditLogs = [];
   final List<StoreProductOffer> _storeOffers = [];
   final Set<String> _processingPurchases = {};
+  int _storeProductRefreshSerial = 0;
   StoreBillingState _storeBillingState = StoreBillingState.idle;
   StoreBillingPlatform _storeBillingPlatform = StoreBillingPlatform.unavailable;
   String? _storeBillingMessage;
@@ -934,16 +941,20 @@ class AppController extends ChangeNotifier {
 
   Future<void> refreshStoreProducts() async {
     if (_stage != AppStage.ready) return;
+    final refreshSerial = ++_storeProductRefreshSerial;
     _storeBillingState = StoreBillingState.loading;
     _storeBillingMessage = null;
     notifyListeners();
     try {
-      final result = await _billingService.loadProducts();
+      final result = await _billingService.loadProducts().timeout(
+        _storeProductLoadTimeout,
+      );
+      if (refreshSerial != _storeProductRefreshSerial) return;
       _storeBillingPlatform = result.platform;
       _storeOffers
         ..clear()
         ..addAll(result.offers);
-      _storeBillingState = result.available
+      _storeBillingState = result.available && result.offers.isNotEmpty
           ? StoreBillingState.ready
           : StoreBillingState.unavailable;
       if (result.errorMessage != null) {
@@ -954,7 +965,13 @@ class AppController extends ChangeNotifier {
       } else if (result.offers.isEmpty) {
         _storeBillingMessage = 'لم يُرجع المتجر خططاً متاحة لهذا الحساب.';
       }
+    } on TimeoutException {
+      if (refreshSerial != _storeProductRefreshSerial) return;
+      _storeBillingState = StoreBillingState.unavailable;
+      _storeBillingMessage =
+          'استغرق متجر التطبيقات وقتاً طويلاً. تحقق من الاتصال ثم أعد المحاولة.';
     } catch (error) {
+      if (refreshSerial != _storeProductRefreshSerial) return;
       _storeBillingState = StoreBillingState.unavailable;
       _storeBillingMessage = _friendlyError(error);
     }

@@ -1,12 +1,37 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:in_app_purchase_android/billing_client_wrappers.dart';
 import 'package:in_app_purchase_android/in_app_purchase_android.dart';
+import 'package:in_app_purchase_storekit/in_app_purchase_storekit.dart';
+import 'package:in_app_purchase_storekit/store_kit_wrappers.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../models/store_billing.dart';
+
+typedef StoreProductQuery =
+    Future<ProductDetailsResponse> Function(Set<String> productIds);
+
+@visibleForTesting
+Future<ProductDetailsResponse> queryAppleStoreProducts({
+  required Set<String> productIds,
+  required StoreProductQuery storeKit2Query,
+  required StoreProductQuery storeKit1Query,
+  required Duration timeout,
+}) async {
+  try {
+    final response = await storeKit2Query(productIds).timeout(timeout);
+    if (response.productDetails.isNotEmpty) return response;
+  } on TimeoutException {
+    // StoreKit 2 can occasionally leave a product lookup unresolved. The
+    // StoreKit 1 request below uses a separate native product-query path.
+  } on PlatformException {
+    // A native StoreKit 2 lookup failure can still be recovered by StoreKit 1.
+  }
+  return storeKit1Query(productIds).timeout(timeout);
+}
 
 abstract interface class StoreBillingService {
   Stream<List<StorePurchaseEvent>> get purchaseUpdates;
@@ -68,8 +93,11 @@ class UnavailableStoreBillingService implements StoreBillingService {
 }
 
 class PlatformStoreBillingService implements StoreBillingService {
-  PlatformStoreBillingService({InAppPurchase? client})
-    : _client = client ?? InAppPurchase.instance {
+  PlatformStoreBillingService({
+    InAppPurchase? client,
+    this.availabilityTimeout = const Duration(seconds: 6),
+    this.productQueryTimeout = const Duration(seconds: 8),
+  }) : _client = client ?? InAppPurchase.instance {
     _purchaseSubscription = _client.purchaseStream.listen(
       _forwardPurchases,
       onError: (Object error) {
@@ -91,6 +119,8 @@ class PlatformStoreBillingService implements StoreBillingService {
   }
 
   final InAppPurchase _client;
+  final Duration availabilityTimeout;
+  final Duration productQueryTimeout;
   final StreamController<List<StorePurchaseEvent>> _updates =
       StreamController<List<StorePurchaseEvent>>.broadcast();
   final Map<String, ProductDetails> _nativeProducts = {};
@@ -120,54 +150,102 @@ class PlatformStoreBillingService implements StoreBillingService {
         errorMessage: 'تتوفر الاشتراكات داخل تطبيق Android أو iPhone فقط.',
       );
     }
-    final available = await _client.isAvailable();
-    if (!available) {
+    try {
+      final available = await _client.isAvailable().timeout(
+        availabilityTimeout,
+      );
+      if (!available) {
+        return StoreProductLoadResult(
+          available: false,
+          platform: platform,
+          offers: const [],
+          errorMessage: 'تعذر الاتصال بـ${platform.label}.',
+        );
+      }
+
+      final ids = platform == StoreBillingPlatform.googlePlay
+          ? DamanakStoreCatalog.googleProductIds
+          : DamanakStoreCatalog.appleProductIds;
+      final response = platform == StoreBillingPlatform.appStore
+          ? await queryAppleStoreProducts(
+              productIds: ids,
+              storeKit2Query: _client.queryProductDetails,
+              storeKit1Query: _queryAppleProductsWithStoreKit1,
+              timeout: productQueryTimeout,
+            )
+          : await _client.queryProductDetails(ids).timeout(productQueryTimeout);
+      if (platform == StoreBillingPlatform.googlePlay) {
+        await _loadOldGoogleSubscription();
+      }
+
+      _nativeProducts.clear();
+      final offers = <StoreProductOffer>[];
+      for (final product in response.productDetails) {
+        final offer = _toOffer(product);
+        if (offer == null) continue;
+        final existing = offers.indexWhere((item) => item.key == offer.key);
+        if (existing >= 0) {
+          final current = offers[existing];
+          if (offer.rawPrice < current.rawPrice) {
+            offers[existing] = offer;
+            _nativeProducts[offer.key] = product;
+          }
+        } else {
+          offers.add(offer);
+          _nativeProducts[offer.key] = product;
+        }
+      }
+      offers.sort((a, b) {
+        final plan = DamanakStoreCatalog.planRank(
+          a.planId,
+        ).compareTo(DamanakStoreCatalog.planRank(b.planId));
+        return plan != 0 ? plan : a.cycle.index.compareTo(b.cycle.index);
+      });
+      return StoreProductLoadResult(
+        available: response.error == null,
+        platform: platform,
+        offers: offers,
+        missingProductIds: response.notFoundIDs,
+        errorMessage: response.error == null
+            ? null
+            : 'تعذر جلب الأسعار من ${platform.label}. حاول مرة أخرى.',
+      );
+    } on TimeoutException {
       return StoreProductLoadResult(
         available: false,
         platform: platform,
         offers: const [],
-        errorMessage: 'تعذر الاتصال بـ${platform.label}.',
+        errorMessage:
+            'استغرق ${platform.label} وقتاً طويلاً. تحقق من الاتصال ثم أعد المحاولة.',
       );
     }
+  }
 
-    final ids = platform == StoreBillingPlatform.googlePlay
-        ? DamanakStoreCatalog.googleProductIds
-        : DamanakStoreCatalog.appleProductIds;
-    final response = await _client.queryProductDetails(ids);
-    if (platform == StoreBillingPlatform.googlePlay) {
-      await _loadOldGoogleSubscription();
+  Future<ProductDetailsResponse> _queryAppleProductsWithStoreKit1(
+    Set<String> productIds,
+  ) async {
+    try {
+      final response = await SKRequestMaker().startProductRequest(
+        productIds.toList(growable: false),
+      );
+      return ProductDetailsResponse(
+        productDetails: response.products
+            .map(AppStoreProductDetails.fromSKProduct)
+            .toList(growable: false),
+        notFoundIDs: response.invalidProductIdentifiers,
+      );
+    } on PlatformException catch (error) {
+      return ProductDetailsResponse(
+        productDetails: const [],
+        notFoundIDs: productIds.toList(growable: false),
+        error: IAPError(
+          source: 'app_store',
+          code: error.code,
+          message: error.message ?? 'تعذر جلب أسعار App Store.',
+          details: error.details,
+        ),
+      );
     }
-
-    _nativeProducts.clear();
-    final offers = <StoreProductOffer>[];
-    for (final product in response.productDetails) {
-      final offer = _toOffer(product);
-      if (offer == null) continue;
-      final existing = offers.indexWhere((item) => item.key == offer.key);
-      if (existing >= 0) {
-        final current = offers[existing];
-        if (offer.rawPrice < current.rawPrice) {
-          offers[existing] = offer;
-          _nativeProducts[offer.key] = product;
-        }
-      } else {
-        offers.add(offer);
-        _nativeProducts[offer.key] = product;
-      }
-    }
-    offers.sort((a, b) {
-      final plan = DamanakStoreCatalog.planRank(
-        a.planId,
-      ).compareTo(DamanakStoreCatalog.planRank(b.planId));
-      return plan != 0 ? plan : a.cycle.index.compareTo(b.cycle.index);
-    });
-    return StoreProductLoadResult(
-      available: response.error == null,
-      platform: platform,
-      offers: offers,
-      missingProductIds: response.notFoundIDs,
-      errorMessage: response.error?.message,
-    );
   }
 
   StoreProductOffer? _toOffer(ProductDetails product) {
