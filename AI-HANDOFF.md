@@ -3610,3 +3610,52 @@ signing, IPA creation, upload, or App Store submission. Do not bypass or weaken
 that guard. Reconnect the existing WhatsApp sender outside this Temu task, then
 rerun `ios-unsigned-build.yml` with `signing_mode=testflight`,
 `testflight_delivery=upload-and-distribute`, and `app_store_submission=false`.
+
+# Active handoff — v86.239/1104 OTP OS-autofill best effort (2026-08-25)
+
+Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`.
+The standard Android/iOS source is now `86.239 (1104)`; Gecko remains
+`1.3.22`. Preserve all prior Temu/store-session work and the existing dirty
+artifacts.
+
+The OTP receiver fix is deliberately small. The first of six inputs now accepts
+all six characters and retains `autocomplete="one-time-code"`, a numeric
+keyboard hint, and stable `id`/`name`; the existing distributor fills the six
+boxes and submits. Explicit paste is synchronous and calls `preventDefault`, so
+the removed zero-delay timer cannot submit the same code a second time. Do not
+replace this with notification access, background clipboard reads, WebOTP,
+polling, or a hidden native listener. The visual layout did not change.
+
+`server/src/otpMessage.js` validates and formats a six-digit message with the
+code once, as the only numeric sequence. `sendOtpMessage` uses it. The two files
+were narrowly deployed to Oracle after a byte-level diff against the live
+sender. Backup:
+`/home/ubuntu/otlobli-server/backups/pre-v86239-20260825T195204Z`.
+Remote/local SHA-256 values match: `whatsapp.js`
+`8854E6A7CFBBEFE02CFC1DC728643750D3352AD725866E25FE4D4B730FC5D65F` and
+`otpMessage.js`
+`F37411D9049B62EB584E54C9D6C8480EB1580C64418172DE394456FDA0295F28`.
+The PM2 process is online, but production health still reports
+`whatsappConnected=false` and `whatsappSenderReady=false`; do not claim live
+delivery/autofill acceptance or bypass the release guard. Re-pair the existing
+sender, then test a real message on iPhone and an old Android phone. Plain
+WhatsApp/Baileys autofill remains an OS/keyboard heuristic; documented Meta
+authentication templates are needed if guaranteed WhatsApp behavior is later
+required.
+
+Validated: all OTP/release tests, full production build and guards, Android+iOS
+Capacitor sync, signed APK+AAB release build, APK signature/certificate, and an
+Android 15 emulator update/launch with no matching fatal/ANR. Scoped ESLint has
+zero errors; full lint retains three unrelated pre-existing SHEIN navigation
+escape errors. Do not fix those in this OTP batch. Artifacts:
+
+- `artifacts/release-86.239/Otlobli-86.239-1104-release.apk`, 4,110,593 bytes,
+  SHA-256 `55F045753739087B03BE6B7D394D07D6E135D7A16626EA0C01864EED1F86DACB`.
+- `artifacts/release-86.239/Otlobli-86.239-1104-release.aab`, 5,770,899 bytes,
+  SHA-256 `FE987CAB470FDE3271A31AEE21EE06999A7DE000D82A524E6784945D0CE23C3F`.
+
+No real Note 8, A52, or iPhone was connected; no IPA/TestFlight upload or
+physical keyboard-suggestion acceptance occurred. SHEIN, regions, store
+sessions, human verification, payment, orders, and wallet were untouched.
+Preserve `otlobliForceRecompose()`, the `0.25s` `appDidBecomeActive` delay,
+Android resume defense, and `JSON.stringify` region comparison.

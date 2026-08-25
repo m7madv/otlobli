@@ -6479,17 +6479,23 @@ function App() {
                 <input
                   key={index}
                   ref={(el) => { otpRefs.current[index] = el }}
+                  type="text"
+                  id={index === 0 ? 'one-time-code' : undefined}
+                  name={index === 0 ? 'one-time-code' : undefined}
                   value={digit}
                   inputMode="numeric"
-                  maxLength={1}
+                  maxLength={index === 0 ? otpDigits.length : 1}
                   autoFocus={index === 0}
                   autoComplete={index === 0 ? 'one-time-code' : 'off'}
+                  autoCapitalize="none"
+                  spellCheck={false}
                   aria-label={`رقم ${index + 1} من رمز التحقق`}
                   onChange={(event) => updateOtpDigit(index, event.target.value)}
                   onKeyDown={(event) => handleOtpKeyDown(index, event)}
                   onPaste={(event) => {
+                    event.preventDefault()
                     const pastedCode = event.clipboardData.getData('text')
-                    window.setTimeout(() => pasteOtpDigits(pastedCode), 0)
+                    pasteOtpDigits(pastedCode)
                   }}
                 />
               ))}

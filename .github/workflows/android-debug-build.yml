@@ -234,7 +234,7 @@ jobs:
           grep -qi 'e0b0f44cc677888f9535c01c9125077e09b014bdb9096dc2813e3bd06f17f784' "$RUNNER_TEMP/apk-signature.txt"
           jarsigner -verify "$aab" 2>&1 | tee "$RUNNER_TEMP/aab-signature.txt"
           grep -Fq 'jar verified.' "$RUNNER_TEMP/aab-signature.txt"
-          "$aapt" dump badging "$apk" | grep -F "package: name='com.otlobli.app' versionCode='1103' versionName='86.238'"
+          "$aapt" dump badging "$apk" | grep -F "package: name='com.otlobli.app' versionCode='1104' versionName='86.239'"
           if unzip -Z1 "$apk" | grep -q '\.map$'; then
             echo 'Source maps must not be shipped in the Android release.' >&2
             exit 1
@@ -243,7 +243,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Otlobli-v86.238-Android-Production
+          name: Otlobli-v86.239-Android-Production
           path: |
             android/app/build/outputs/apk/release/app-release.apk
             android/app/build/outputs/bundle/release/app-release.aab

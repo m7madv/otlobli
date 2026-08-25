@@ -474,6 +474,7 @@ const otpSender = whatsappSender.slice(
   whatsappSender.indexOf('export async function sendOtpMessage'),
   whatsappSender.indexOf('export async function sendNotificationMessage'),
 )
+assert.ok(otpSender.includes('buildOtpMessage(code)'), 'WhatsApp OTP sender must use the validated message contract')
 assert.equal(otpSender.includes('OTP ${code}'), false, 'WhatsApp sender must not log plaintext OTP values')
 assert.equal(otpSender.includes('${phone}'), false, 'WhatsApp sender must not log OTP recipient phone numbers')
 const socialLoginPatch = readFileSync(resolve(root, 'patches/@capgo+capacitor-social-login+8.3.38.patch'), 'utf8')
@@ -583,6 +584,22 @@ resolvedChallenge = coordinator.transitionSheinRegionCoordinator(resolvedChallen
 assert.equal(coordinator.isSheinCoordinatorReady(resolvedChallenge), true, 'Only a complete fresh snapshot may restore product readiness')
 
 const appSource = readFileSync(resolve(root, 'src/App.tsx'), 'utf8')
+const otpGridStart = appSource.indexOf('<div className="otp-grid"')
+const otpGridEnd = appSource.indexOf('</div>', otpGridStart)
+const otpGridSource = appSource.slice(otpGridStart, otpGridEnd)
+assert.ok(otpGridStart >= 0 && otpGridEnd > otpGridStart, 'OTP input grid is missing')
+for (const marker of [
+  'inputMode="numeric"',
+  "id={index === 0 ? 'one-time-code' : undefined}",
+  "name={index === 0 ? 'one-time-code' : undefined}",
+  "autoComplete={index === 0 ? 'one-time-code' : 'off'}",
+  'maxLength={index === 0 ? otpDigits.length : 1}',
+  'event.preventDefault()',
+  'pasteOtpDigits(pastedCode)',
+]) {
+  assert.ok(otpGridSource.includes(marker), `OTP autofill contract missing ${marker}`)
+}
+assert.equal(otpGridSource.includes('window.setTimeout'), false, 'OTP paste must not add a deferred timer')
 const sheinResolvedStart = appSource.indexOf('// Android may complete the genuine challenge')
 const sheinResolvedEnd = appSource.indexOf("if (detail?.type === 'humanCheckSkipped')", sheinResolvedStart)
 const sheinResolvedBranch = appSource.slice(sheinResolvedStart, sheinResolvedEnd)

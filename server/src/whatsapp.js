@@ -9,6 +9,7 @@ import QRCode from 'qrcode'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { buildOtpMessage } from './otpMessage.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -669,7 +670,7 @@ async function isRecipientOnWhatsapp(jid) {
 
 export async function sendOtpMessage(phone, code) {
   const jid = phone.replace(/[\s\-\(\)\+]/g, '') + '@s.whatsapp.net'
-  const msg = `رمز التحقق من otlobli:\n\n${code}\n\nصالح لمدة 5 دقائق.`
+  const msg = buildOtpMessage(code)
 
   if (!(await isRecipientOnWhatsapp(jid))) {
     throw new Error('recipient_not_on_whatsapp')

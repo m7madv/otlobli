@@ -2,6 +2,20 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { buildOtpMessage } from '../server/src/otpMessage.js'
+
+const otpCode = '123456'
+const otpMessage = buildOtpMessage(otpCode)
+assert.equal(
+  otpMessage,
+  `رمز التحقق لتطبيق Otlobli هو: ${otpCode}\nصالح لمدة خمس دقائق. لا تشارك هذا الرمز مع أي شخص.`,
+)
+assert.deepEqual(otpMessage.match(/\d+/g), [otpCode], 'OTP must be the only numeric sequence in the message')
+assert.equal(otpMessage.split(otpCode).length - 1, 1, 'OTP must appear exactly once in the message')
+assert.doesNotMatch(otpMessage, /https?:\/\/|www\.|wa\.me/i, 'OTP message must not contain a link')
+for (const invalidCode of ['1234', '1234567', '123 456', '١٢٣٤٥٦', 'abcdef']) {
+  assert.throws(() => buildOtpMessage(invalidCode), TypeError, `Invalid OTP must be rejected: ${invalidCode}`)
+}
 
 const tempDirectory = mkdtempSync(join(tmpdir(), 'otlobli-otp-'))
 const databasePath = join(tempDirectory, 'otp.json')
@@ -27,7 +41,7 @@ try {
   }
   assert.equal(store.verifyOtp('963900000001', '000000').reason, 'too_many_attempts')
   assert.equal(store.verifyOtp('963900000001', first.code).reason, 'too_many_attempts')
-  console.log('Server OTP security tests passed (CSPRNG, hashed storage, resend throttle, cumulative attempt lock).')
+  console.log('Server OTP security tests passed (message contract, CSPRNG, hashed storage, resend throttle, cumulative attempt lock).')
 } finally {
   rmSync(tempDirectory, { recursive: true, force: true })
 }
