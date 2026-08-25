@@ -68,7 +68,10 @@
 - [x] Enable the Apple provider in the VoiceBrief Supabase project, configure native client ID `app.voicebrief.mobile`, key `N4FK6753YL`, and a client secret expiring `2027-02-21T22:07:34Z`.
 - [x] Complete a post-fix Apple exchange on the signed physical iPhone.
 - [ ] Rotate the VoiceBrief Apple client secret before `2027-02-21T22:07:34Z`.
-- [ ] App Store/Play products and RevenueCat offering/webhook/sandbox verified.
+- [x] App Store subscription group and monthly/annual products created, localized, priced, and made available regionally; first-version submission and review screenshots remain.
+- [x] Google Play app, internal-release draft, and monthly/annual subscription products created under developer account `8441225038702199576`.
+- [ ] Google Play monthly/annual base plans saved and activated. The console currently rejects complete Qatar-priced plans with `تعذَّر حفظ التغييرات.` despite a linked merchant profile and Billing permission.
+- [ ] RevenueCat project, store imports, entitlement `pro`, offering `default`, public SDK keys, webhook secret, and sandbox purchases. Dashboard login is still required.
 - [x] Production Android upload signing configured privately; owner still must back it up before first upload.
 - [x] Apple signing/provisioning configured privately and the signed Runner plus Share Extension passed App Store validation/upload.
 - [x] Privacy policy, Terms, and Support pages published; owner/legal approval plus Apple Privacy, Google Data Safety, and reviewer notes remain.
