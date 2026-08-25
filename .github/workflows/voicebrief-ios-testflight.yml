@@ -1,0 +1,271 @@
+name: VoiceBrief iOS TestFlight
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload_to_testflight:
+        description: Validate and upload the signed IPA to App Store Connect
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-ios-signed:
+    name: Build and upload signed VoiceBrief IPA
+    runs-on: macos-latest
+    timeout-minutes: 40
+
+    defaults:
+      run:
+        working-directory: voicebrief_flutter
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.41.6"
+          channel: stable
+          cache: true
+
+      - name: Verify source
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter pub get
+          dart format --set-exit-if-changed lib test integration_test
+          flutter analyze
+          flutter test --exclude-tags golden
+          pod install --project-directory=ios
+
+      - name: Build live iOS source without signing
+        shell: bash
+        env:
+          VOICEBRIEF_SUPABASE_URL: ${{ secrets.VOICEBRIEF_SUPABASE_URL }}
+          VOICEBRIEF_SUPABASE_ANON_KEY: ${{ secrets.VOICEBRIEF_SUPABASE_ANON_KEY }}
+          VOICEBRIEF_REVENUECAT_IOS_PUBLIC_SDK_KEY: ${{ secrets.VOICEBRIEF_REVENUECAT_IOS_PUBLIC_SDK_KEY }}
+          VOICEBRIEF_REVENUECAT_ANDROID_PUBLIC_SDK_KEY: ${{ secrets.VOICEBRIEF_REVENUECAT_ANDROID_PUBLIC_SDK_KEY }}
+          VOICEBRIEF_GOOGLE_IOS_CLIENT_ID: ${{ secrets.VOICEBRIEF_GOOGLE_IOS_CLIENT_ID }}
+          VOICEBRIEF_GOOGLE_WEB_CLIENT_ID: ${{ secrets.VOICEBRIEF_GOOGLE_WEB_CLIENT_ID }}
+          VOICEBRIEF_APPLE_SERVICE_ID: ${{ secrets.VOICEBRIEF_APPLE_SERVICE_ID }}
+          VOICEBRIEF_APPLE_REDIRECT_URI: ${{ secrets.VOICEBRIEF_APPLE_REDIRECT_URI }}
+        run: |
+          set -euo pipefail
+          config="$RUNNER_TEMP/voicebrief-dart-defines.json"
+          trap 'rm -f "$config"' EXIT
+          python3 - "$config" <<'PY'
+          import json
+          import os
+          import pathlib
+          import sys
+
+          required = {
+              "SUPABASE_URL": os.environ.get("VOICEBRIEF_SUPABASE_URL", ""),
+              "SUPABASE_ANON_KEY": os.environ.get("VOICEBRIEF_SUPABASE_ANON_KEY", ""),
+              "GOOGLE_IOS_CLIENT_ID": os.environ.get("VOICEBRIEF_GOOGLE_IOS_CLIENT_ID", ""),
+              "GOOGLE_WEB_CLIENT_ID": os.environ.get("VOICEBRIEF_GOOGLE_WEB_CLIENT_ID", ""),
+          }
+          missing = [name for name, value in required.items() if not value]
+          if missing:
+              raise SystemExit("Missing required VoiceBrief live configuration: " + ", ".join(missing))
+          config = {
+              "APP_ENV": "production",
+              "USE_MOCK_SERVICES": False,
+              **required,
+              "REVENUECAT_IOS_PUBLIC_SDK_KEY": os.environ.get("VOICEBRIEF_REVENUECAT_IOS_PUBLIC_SDK_KEY", ""),
+              "REVENUECAT_ANDROID_PUBLIC_SDK_KEY": os.environ.get("VOICEBRIEF_REVENUECAT_ANDROID_PUBLIC_SDK_KEY", ""),
+              "APPLE_SERVICE_ID": os.environ.get("VOICEBRIEF_APPLE_SERVICE_ID", ""),
+              "APPLE_REDIRECT_URI": os.environ.get("VOICEBRIEF_APPLE_REDIRECT_URI", ""),
+          }
+          pathlib.Path(sys.argv[1]).write_text(json.dumps(config), encoding="utf-8")
+          PY
+          flutter build ios --release --no-codesign --dart-define-from-file="$config"
+
+      - name: Fetch the registered VoiceBrief App Store profiles
+        shell: bash
+        env:
+          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          node scripts/fetch_apple_profiles.mjs \
+            --app-output "$RUNNER_TEMP/voicebrief.mobileprovision" \
+            --share-output "$RUNNER_TEMP/voicebrief-share.mobileprovision" \
+            --report-output build/apple-profiles/report.json
+
+      - name: Install the distribution identity and profiles
+        shell: bash
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$CERTIFICATE_BASE64"
+          test -n "$CERTIFICATE_PASSWORD"
+          keychain_password=$(openssl rand -hex 24)
+          echo "$CERTIFICATE_BASE64" | base64 --decode > "$RUNNER_TEMP/voicebrief-distribution.p12"
+          security create-keychain -p "$keychain_password" "$RUNNER_TEMP/voicebrief.keychain-db"
+          security set-keychain-settings -lut 21600 "$RUNNER_TEMP/voicebrief.keychain-db"
+          security unlock-keychain -p "$keychain_password" "$RUNNER_TEMP/voicebrief.keychain-db"
+          security import "$RUNNER_TEMP/voicebrief-distribution.p12" \
+            -P "$CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 \
+            -k "$RUNNER_TEMP/voicebrief.keychain-db"
+          security list-keychain -d user -s "$RUNNER_TEMP/voicebrief.keychain-db"
+          security set-key-partition-list \
+            -S apple-tool:,apple: -k "$keychain_password" \
+            "$RUNNER_TEMP/voicebrief.keychain-db"
+
+          security cms -D -i "$RUNNER_TEMP/voicebrief.mobileprovision" \
+            > "$RUNNER_TEMP/voicebrief-profile.plist"
+          security cms -D -i "$RUNNER_TEMP/voicebrief-share.mobileprovision" \
+            > "$RUNNER_TEMP/voicebrief-share-profile.plist"
+          app_profile_uuid=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$RUNNER_TEMP/voicebrief-profile.plist")
+          app_profile_name=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$RUNNER_TEMP/voicebrief-profile.plist")
+          share_profile_uuid=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$RUNNER_TEMP/voicebrief-share-profile.plist")
+          share_profile_name=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$RUNNER_TEMP/voicebrief-share-profile.plist")
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          cp "$RUNNER_TEMP/voicebrief.mobileprovision" \
+            "$HOME/Library/MobileDevice/Provisioning Profiles/$app_profile_uuid.mobileprovision"
+          cp "$RUNNER_TEMP/voicebrief-share.mobileprovision" \
+            "$HOME/Library/MobileDevice/Provisioning Profiles/$share_profile_uuid.mobileprovision"
+
+          test "$app_profile_name" = "VoiceBrief App Store 2026"
+          test "$share_profile_name" = "VoiceBrief Share App Store 2026"
+          [[ "$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "$RUNNER_TEMP/voicebrief-profile.plist")" == *.app.voicebrief.mobile ]]
+          [[ "$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "$RUNNER_TEMP/voicebrief-share-profile.plist")" == *.app.voicebrief.mobile.share ]]
+          test "$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:com.apple.security.application-groups:0' "$RUNNER_TEMP/voicebrief-profile.plist")" = "group.app.voicebrief.mobile"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:com.apple.security.application-groups:0' "$RUNNER_TEMP/voicebrief-share-profile.plist")" = "group.app.voicebrief.mobile"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:com.apple.developer.applesignin:0' "$RUNNER_TEMP/voicebrief-profile.plist")" = "Default"
+          echo "VOICEBRIEF_APP_PROFILE_NAME=$app_profile_name" >> "$GITHUB_ENV"
+          echo "VOICEBRIEF_SHARE_PROFILE_NAME=$share_profile_name" >> "$GITHUB_ENV"
+
+      - name: Archive the signed iOS app and Share Extension
+        shell: bash
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$APPLE_TEAM_ID"
+          xcodebuild \
+            -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/ios/archive/Runner.xcarchive \
+            archive \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID"
+
+      - name: Export the signed App Store IPA
+        shell: bash
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>export</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>signingCertificate</key><string>Apple Distribution</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+            <key>provisioningProfiles</key><dict>
+              <key>app.voicebrief.mobile</key><string>$VOICEBRIEF_APP_PROFILE_NAME</string>
+              <key>app.voicebrief.mobile.share</key><string>$VOICEBRIEF_SHARE_PROFILE_NAME</string>
+            </dict>
+            <key>stripSwiftSymbols</key><true/>
+            <key>uploadSymbols</key><true/>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive \
+            -archivePath build/ios/archive/Runner.xcarchive \
+            -exportPath build/ios/signed \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist"
+
+      - name: Verify the signed app, extension, profiles, and entitlements
+        shell: bash
+        run: |
+          set -euo pipefail
+          ipa_path=$(find build/ios/signed -maxdepth 1 -name '*.ipa' -print -quit)
+          test -n "$ipa_path"
+          verify_dir=$(mktemp -d "$RUNNER_TEMP/voicebrief-verify.XXXXXX")
+          unzip -q "$ipa_path" -d "$verify_dir"
+          app_path=$(find "$verify_dir/Payload" -maxdepth 1 -name '*.app' -print -quit)
+          extension_path="$app_path/PlugIns/VoiceBriefShare.appex"
+          test -d "$app_path"
+          test -d "$extension_path"
+          test -f "$app_path/embedded.mobileprovision"
+          test -f "$extension_path/embedded.mobileprovision"
+          codesign --verify --deep --strict --verbose=2 "$app_path"
+          codesign --verify --strict --verbose=2 "$extension_path"
+
+          security cms -D -i "$app_path/embedded.mobileprovision" \
+            > "$RUNNER_TEMP/voicebrief-embedded-profile.plist"
+          security cms -D -i "$extension_path/embedded.mobileprovision" \
+            > "$RUNNER_TEMP/voicebrief-share-embedded-profile.plist"
+          codesign -d --entitlements :- "$app_path" \
+            > "$RUNNER_TEMP/voicebrief-app-entitlements.plist"
+          codesign -d --entitlements :- "$extension_path" \
+            > "$RUNNER_TEMP/voicebrief-share-entitlements.plist"
+
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app_path/Info.plist")" = "app.voicebrief.mobile"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$extension_path/Info.plist")" = "app.voicebrief.mobile.share"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app_path/Info.plist")" = "0.1.0"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app_path/Info.plist")" = "5"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$extension_path/Info.plist")" = "5"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :ITSAppUsesNonExemptEncryption' "$app_path/Info.plist")" = "false"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :com.apple.security.application-groups:0' "$RUNNER_TEMP/voicebrief-app-entitlements.plist")" = "group.app.voicebrief.mobile"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :com.apple.security.application-groups:0' "$RUNNER_TEMP/voicebrief-share-entitlements.plist")" = "group.app.voicebrief.mobile"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :com.apple.developer.applesignin:0' "$RUNNER_TEMP/voicebrief-app-entitlements.plist")" = "Default"
+
+          final_ipa="build/ios/signed/VoiceBrief-0.1.0-build5-AppStore.ipa"
+          if [[ "$ipa_path" != "$final_ipa" ]]; then
+            mv "$ipa_path" "$final_ipa"
+          fi
+          shasum -a 256 "$final_ipa" | tee build/ios/signed/VoiceBrief-0.1.0-build5-AppStore.sha256
+
+      - name: Validate and upload to App Store Connect
+        if: ${{ inputs.upload_to_testflight }}
+        shell: bash
+        env:
+          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$APP_STORE_CONNECT_API_KEY_BASE64"
+          test -n "$APP_STORE_CONNECT_API_KEY_ID"
+          test -n "$APP_STORE_CONNECT_ISSUER_ID"
+          key_directory="$HOME/.appstoreconnect/private_keys"
+          mkdir -p "$key_directory"
+          echo "$APP_STORE_CONNECT_API_KEY_BASE64" | base64 --decode \
+            > "$key_directory/AuthKey_$APP_STORE_CONNECT_API_KEY_ID.p8"
+          chmod 600 "$key_directory/AuthKey_$APP_STORE_CONNECT_API_KEY_ID.p8"
+          ipa_path="build/ios/signed/VoiceBrief-0.1.0-build5-AppStore.ipa"
+          xcrun altool --validate-app \
+            -f "$ipa_path" -t ios \
+            --apiKey "$APP_STORE_CONNECT_API_KEY_ID" \
+            --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"
+          xcrun altool --upload-app \
+            -f "$ipa_path" -t ios \
+            --apiKey "$APP_STORE_CONNECT_API_KEY_ID" \
+            --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"
+
+      - name: Upload signed IPA and verification report
+        uses: actions/upload-artifact@v4
+        with:
+          name: voicebrief-ios-0.1.0-build5-appstore
+          path: |
+            voicebrief_flutter/build/ios/signed/VoiceBrief-0.1.0-build5-AppStore.ipa
+            voicebrief_flutter/build/ios/signed/VoiceBrief-0.1.0-build5-AppStore.sha256
+            voicebrief_flutter/build/apple-profiles/report.json
+          if-no-files-found: error
+          retention-days: 30

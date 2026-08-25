@@ -45,6 +45,8 @@
 		<string>$(FLUTTER_BUILD_NUMBER)</string>
 		<key>LSRequiresIPhoneOS</key>
 		<true/>
+		<key>ITSAppUsesNonExemptEncryption</key>
+		<false/>
 		<key>NSCalendarsFullAccessUsageDescription</key>
 		<string>VoiceBrief adds an important date only after you confirm it.</string>
 		<key>NSCalendarsUsageDescription</key>
