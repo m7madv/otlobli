@@ -70,7 +70,8 @@
 - [ ] Rotate the VoiceBrief Apple client secret before `2027-02-21T22:07:34Z`.
 - [x] App Store subscription group and monthly/annual products created, localized, priced, and made available regionally; first-version submission and review screenshots remain.
 - [x] Google Play app, internal-release draft, and monthly/annual subscription products created under developer account `8441225038702199576`.
-- [ ] Google Play monthly/annual base plans saved and activated. The console currently rejects complete Qatar-priced plans with `تعذَّر حفظ التغييرات.` despite a linked merchant profile and Billing permission.
+- [x] VoiceBrief-only service-account access granted for financial viewing, order/subscription management, and store-presence/product management; subscription reads now return `200`.
+- [ ] Google Play monthly/annual base plans saved and activated. A final owner-session retry selected all 177 regions and converted Qatar to the exact `29.00 QAR`, but Save still returned `تعذَّر حفظ التغييرات.`; service-account price conversion/writes also return `The caller does not have permission`. This is an unresolved Google account-side monetization/save condition, not invalid product data. The idempotent activation script and local reports are ready under `scripts/` and `build/google-play-subscriptions/`; retry after permission propagation, then escalate to Play Support if the owner-session failure persists.
 - [ ] RevenueCat project, store imports, entitlement `pro`, offering `default`, public SDK keys, webhook secret, and sandbox purchases. Dashboard login is still required.
 - [x] Production Android upload signing configured privately; owner still must back it up before first upload.
 - [x] Apple signing/provisioning configured privately and the signed Runner plus Share Extension passed App Store validation/upload.
