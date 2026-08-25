@@ -85,12 +85,6 @@ class AppController extends StateNotifier<AppState> {
 
   void clearError() => state = state.copyWith(errorMessage: null);
 
-  Future<bool> signInWithEmail(String email, String password) =>
-      _authenticate(() => _auth.signInWithEmail(email, password));
-
-  Future<bool> createAccount(String email, String password) =>
-      _authenticate(() => _auth.createAccount(email, password));
-
   Future<bool> signInWithProvider(IdentityProvider provider) =>
       _authenticate(() => _auth.signInWithProvider(provider));
 
@@ -131,23 +125,6 @@ class AppController extends StateNotifier<AppState> {
     state = state.copyWith(user: user, authBusy: false, errorMessage: null);
     await _activateAccount(user);
     return true;
-  }
-
-  Future<bool> sendPasswordReset(String email) async {
-    try {
-      await _auth.sendPasswordReset(email);
-      return true;
-    } on AppFailure catch (failure) {
-      state = state.copyWith(errorMessage: failure.message);
-      return false;
-    } on Object {
-      state = state.copyWith(
-        errorMessage: const AppFailure(
-          AppFailureCode.serviceUnavailable,
-        ).message,
-      );
-      return false;
-    }
   }
 
   Future<void> _activateAccount(AuthUser user) async {

@@ -9,11 +9,6 @@ extension VoiceBriefLocalizations on BuildContext {
       l10n.errorNoInternet,
     'We could not sign you in. Check your details and try again.' =>
       l10n.errorAuthentication,
-    'The email or password is incorrect.' => l10n.errorInvalidCredentials,
-    'An account already uses this email. Sign in or reset your password.' =>
-      l10n.errorAccountAlreadyExists,
-    'Too many email attempts. Wait a few minutes and try again.' =>
-      l10n.errorEmailRateLimited,
     'Sign-in was canceled.' => l10n.errorProviderCanceled,
     'This sign-in method is unavailable right now.' =>
       l10n.errorIdentityProviderUnavailable,

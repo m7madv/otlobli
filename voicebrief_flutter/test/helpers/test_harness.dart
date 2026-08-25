@@ -113,27 +113,16 @@ class TestAuthRepository implements AuthRepository {
   Stream<AuthUser?> get authStateChanges => const Stream.empty();
 
   @override
-  Future<AuthUser> createAccount(String email, String password) =>
-      signInWithEmail(email, password);
-
-  @override
   Future<void> deleteAccount() async => _user = null;
 
   @override
-  Future<void> sendPasswordReset(String email) async {}
-
-  @override
-  Future<AuthUser> signInWithEmail(String email, String password) async {
+  Future<AuthUser?> signInWithProvider(IdentityProvider provider) async {
     return _user = AuthUser(
       id: 'test-account',
-      email: email,
+      email: 'owner@example.com',
       emailVerified: true,
     );
   }
-
-  @override
-  Future<AuthUser?> signInWithProvider(IdentityProvider provider) =>
-      signInWithEmail('${provider.name}@example.com', 'unused-password');
 
   @override
   Future<void> signOut() async => _user = null;

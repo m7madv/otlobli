@@ -9,56 +9,27 @@ import 'package:voicebrief/features/subscription/domain/subscription_models.dart
 import 'helpers/test_harness.dart';
 
 void main() {
-  test('Supabase auth errors preserve actionable causes', () {
+  test('Supabase auth errors preserve provider availability', () {
     expect(
       mapSupabaseAuthFailure(
         const AuthException(
-          'Invalid login credentials',
-          code: 'invalid_credentials',
+          'Provider is not enabled',
+          code: 'provider_disabled',
           statusCode: '400',
         ),
       ).code,
-      AppFailureCode.invalidCredentials,
-    );
-    expect(
-      mapSupabaseAuthFailure(
-        const AuthException(
-          'Email not confirmed',
-          code: 'email_not_confirmed',
-          statusCode: '400',
-        ),
-      ).code,
-      AppFailureCode.emailVerificationRequired,
-    );
-    expect(
-      mapSupabaseAuthFailure(
-        const AuthException(
-          'Too many requests',
-          code: 'over_email_send_rate_limit',
-          statusCode: '429',
-        ),
-      ).code,
-      AppFailureCode.emailRateLimited,
+      AppFailureCode.identityProviderUnavailable,
     );
   });
 
-  test(
-    'fake authentication validates credentials and deletes account',
-    () async {
-      final repository = FakeAuthRepository();
-      await expectLater(
-        repository.signInWithEmail('bad', 'short'),
-        throwsA(isA<AppFailure>()),
-      );
-      final user = await repository.signInWithEmail(
-        'owner@example.com',
-        'a-secure-password',
-      );
-      expect(user.emailVerified, isTrue);
-      await repository.deleteAccount();
-      expect(repository.currentUser, isNull);
-    },
-  );
+  test('fake provider authentication signs in and deletes account', () async {
+    final repository = FakeAuthRepository();
+    final user = await repository.signInWithProvider(IdentityProvider.google);
+    expect(user, isNotNull);
+    expect(user.emailVerified, isTrue);
+    await repository.deleteAccount();
+    expect(repository.currentUser, isNull);
+  });
 
   test('fake subscription supports purchase and restore', () async {
     final repository = FakeSubscriptionRepository();

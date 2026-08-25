@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:voicebrief/features/auth/data/auth_repository.dart';
 import 'package:voicebrief/features/auth/presentation/auth_screen.dart';
 import 'package:voicebrief/features/history/presentation/history_screen.dart';
 import 'package:voicebrief/features/home/presentation/home_screen.dart';
@@ -13,7 +14,7 @@ import 'helpers/test_harness.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('authentication exposes provider and email paths', (
+  testWidgets('authentication exposes only Apple and Google paths', (
     tester,
   ) async {
     final controller = createTestController();
@@ -28,7 +29,7 @@ void main() {
     expect(find.text('Continue with Google'), findsOneWidget);
     expect(find.byKey(const ValueKey('sign-in-with-apple')), findsOneWidget);
     expect(find.byKey(const ValueKey('sign-in-with-google')), findsOneWidget);
-    expect(find.text('Sign in'), findsOneWidget);
+    expect(find.byType(TextField), findsNothing);
     expect(find.text('Privacy Policy'), findsOneWidget);
   });
 
@@ -57,7 +58,7 @@ void main() {
     tester,
   ) async {
     final controller = createTestController();
-    await controller.signInWithEmail('owner@example.com', 'a-secure-password');
+    await controller.signInWithProvider(IdentityProvider.google);
     await tester.pumpWidget(
       testApp(controller: controller, home: const HomeScreen()),
     );
@@ -78,7 +79,7 @@ void main() {
     tester,
   ) async {
     final controller = createTestController();
-    await controller.signInWithEmail('owner@example.com', 'a-secure-password');
+    await controller.signInWithProvider(IdentityProvider.google);
     await tester.pumpWidget(
       testApp(
         controller: controller,
@@ -102,7 +103,7 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(360, 740));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final controller = createTestController();
-    await controller.signInWithEmail('owner@example.com', 'a-secure-password');
+    await controller.signInWithProvider(IdentityProvider.google);
     await tester.pumpWidget(
       testApp(
         controller: controller,
@@ -129,7 +130,7 @@ void main() {
     tester,
   ) async {
     final controller = createTestController();
-    await controller.signInWithEmail('owner@example.com', 'a-secure-password');
+    await controller.signInWithProvider(IdentityProvider.google);
     controller.openResult(sampleResult());
     await controller.saveActiveResult();
     await tester.pumpWidget(
@@ -158,7 +159,7 @@ void main() {
     tester,
   ) async {
     final controller = createTestController(pro: true);
-    await controller.signInWithEmail('owner@example.com', 'a-secure-password');
+    await controller.signInWithProvider(IdentityProvider.google);
     controller.openResult(sampleResult());
     await tester.pumpWidget(
       testApp(controller: controller, home: const ResultScreen()),
@@ -184,7 +185,7 @@ void main() {
     tester,
   ) async {
     final controller = createTestController();
-    await controller.signInWithEmail('owner@example.com', 'a-secure-password');
+    await controller.signInWithProvider(IdentityProvider.google);
     await tester.pumpWidget(
       testApp(controller: controller, home: const PaywallScreen()),
     );
@@ -202,7 +203,7 @@ void main() {
     tester,
   ) async {
     final controller = createTestController();
-    await controller.signInWithEmail('owner@example.com', 'a-secure-password');
+    await controller.signInWithProvider(IdentityProvider.google);
     await tester.pumpWidget(
       testApp(
         controller: controller,

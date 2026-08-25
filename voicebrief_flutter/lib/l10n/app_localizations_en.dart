@@ -57,12 +57,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get unavailable => 'Unavailable';
 
   @override
-  String get showPassword => 'Show password';
-
-  @override
-  String get hidePassword => 'Hide password';
-
-  @override
   String get replaceAudio => 'Replace audio';
 
   @override
@@ -163,41 +157,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Choose Apple or Google. VoiceBrief never sees your account password.';
 
   @override
-  String get providerSignInOpened =>
-      'Finish signing in on the open Google page. You will return to VoiceBrief automatically.';
-
-  @override
   String get continueWithApple => 'Continue with Apple';
 
   @override
   String get continueWithGoogle => 'Continue with Google';
-
-  @override
-  String get orUseEmail => 'or use email';
-
-  @override
-  String get email => 'Email';
-
-  @override
-  String get password => 'Password';
-
-  @override
-  String get invalidEmail => 'Enter a valid email address.';
-
-  @override
-  String get shortPassword => 'Use at least 8 characters.';
-
-  @override
-  String get forgotPassword => 'Forgot password?';
-
-  @override
-  String get createAccount => 'Create account';
-
-  @override
-  String get alreadyHaveAccount => 'Already have an account? Sign in';
-
-  @override
-  String get newToVoiceBrief => 'New to VoiceBrief? Create account';
 
   @override
   String get byContinuingPrefix => 'By continuing, you agree to the ';
@@ -210,9 +173,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get privacyPolicy => 'Privacy Policy';
-
-  @override
-  String get passwordResetSent => 'Password reset email sent.';
 
   @override
   String get errorIdentityProviderUnavailable =>
@@ -736,17 +696,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get errorAuthentication =>
       'We could not sign you in. Check your details and try again.';
-
-  @override
-  String get errorInvalidCredentials => 'The email or password is incorrect.';
-
-  @override
-  String get errorAccountAlreadyExists =>
-      'An account already uses this email. Sign in or reset your password.';
-
-  @override
-  String get errorEmailRateLimited =>
-      'Too many email attempts. Wait a few minutes and try again.';
 
   @override
   String get errorProviderCanceled => 'Sign-in was canceled.';

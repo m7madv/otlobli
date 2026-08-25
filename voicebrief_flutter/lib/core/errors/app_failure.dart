@@ -1,9 +1,6 @@
 enum AppFailureCode {
   noInternet,
   authentication,
-  invalidCredentials,
-  accountAlreadyExists,
-  emailRateLimited,
   providerCanceled,
   identityProviderUnavailable,
   emailVerificationRequired,
@@ -41,11 +38,6 @@ class AppFailure implements Exception {
       'You appear to be offline. Check your connection and try again.',
     AppFailureCode.authentication =>
       'We could not sign you in. Check your details and try again.',
-    AppFailureCode.invalidCredentials => 'The email or password is incorrect.',
-    AppFailureCode.accountAlreadyExists =>
-      'An account already uses this email. Sign in or reset your password.',
-    AppFailureCode.emailRateLimited =>
-      'Too many email attempts. Wait a few minutes and try again.',
     AppFailureCode.providerCanceled => 'Sign-in was canceled.',
     AppFailureCode.identityProviderUnavailable =>
       'This sign-in method is unavailable right now.',

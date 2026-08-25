@@ -194,18 +194,6 @@ abstract class AppLocalizations {
   /// **'Unavailable'**
   String get unavailable;
 
-  /// No description provided for @showPassword.
-  ///
-  /// In en, this message translates to:
-  /// **'Show password'**
-  String get showPassword;
-
-  /// No description provided for @hidePassword.
-  ///
-  /// In en, this message translates to:
-  /// **'Hide password'**
-  String get hidePassword;
-
   /// No description provided for @replaceAudio.
   ///
   /// In en, this message translates to:
@@ -374,12 +362,6 @@ abstract class AppLocalizations {
   /// **'Choose Apple or Google. VoiceBrief never sees your account password.'**
   String get providerSignInDescription;
 
-  /// No description provided for @providerSignInOpened.
-  ///
-  /// In en, this message translates to:
-  /// **'Finish signing in on the open Google page. You will return to VoiceBrief automatically.'**
-  String get providerSignInOpened;
-
   /// No description provided for @continueWithApple.
   ///
   /// In en, this message translates to:
@@ -391,60 +373,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Continue with Google'**
   String get continueWithGoogle;
-
-  /// No description provided for @orUseEmail.
-  ///
-  /// In en, this message translates to:
-  /// **'or use email'**
-  String get orUseEmail;
-
-  /// No description provided for @email.
-  ///
-  /// In en, this message translates to:
-  /// **'Email'**
-  String get email;
-
-  /// No description provided for @password.
-  ///
-  /// In en, this message translates to:
-  /// **'Password'**
-  String get password;
-
-  /// No description provided for @invalidEmail.
-  ///
-  /// In en, this message translates to:
-  /// **'Enter a valid email address.'**
-  String get invalidEmail;
-
-  /// No description provided for @shortPassword.
-  ///
-  /// In en, this message translates to:
-  /// **'Use at least 8 characters.'**
-  String get shortPassword;
-
-  /// No description provided for @forgotPassword.
-  ///
-  /// In en, this message translates to:
-  /// **'Forgot password?'**
-  String get forgotPassword;
-
-  /// No description provided for @createAccount.
-  ///
-  /// In en, this message translates to:
-  /// **'Create account'**
-  String get createAccount;
-
-  /// No description provided for @alreadyHaveAccount.
-  ///
-  /// In en, this message translates to:
-  /// **'Already have an account? Sign in'**
-  String get alreadyHaveAccount;
-
-  /// No description provided for @newToVoiceBrief.
-  ///
-  /// In en, this message translates to:
-  /// **'New to VoiceBrief? Create account'**
-  String get newToVoiceBrief;
 
   /// No description provided for @byContinuingPrefix.
   ///
@@ -469,12 +397,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Privacy Policy'**
   String get privacyPolicy;
-
-  /// No description provided for @passwordResetSent.
-  ///
-  /// In en, this message translates to:
-  /// **'Password reset email sent.'**
-  String get passwordResetSent;
 
   /// No description provided for @errorIdentityProviderUnavailable.
   ///
@@ -1399,24 +1321,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'We could not sign you in. Check your details and try again.'**
   String get errorAuthentication;
-
-  /// No description provided for @errorInvalidCredentials.
-  ///
-  /// In en, this message translates to:
-  /// **'The email or password is incorrect.'**
-  String get errorInvalidCredentials;
-
-  /// No description provided for @errorAccountAlreadyExists.
-  ///
-  /// In en, this message translates to:
-  /// **'An account already uses this email. Sign in or reset your password.'**
-  String get errorAccountAlreadyExists;
-
-  /// No description provided for @errorEmailRateLimited.
-  ///
-  /// In en, this message translates to:
-  /// **'Too many email attempts. Wait a few minutes and try again.'**
-  String get errorEmailRateLimited;
 
   /// No description provided for @errorProviderCanceled.
   ///

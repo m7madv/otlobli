@@ -57,12 +57,6 @@ class AppLocalizationsAr extends AppLocalizations {
   String get unavailable => 'غير متاح';
 
   @override
-  String get showPassword => 'إظهار كلمة المرور';
-
-  @override
-  String get hidePassword => 'إخفاء كلمة المرور';
-
-  @override
   String get replaceAudio => 'استبدال الصوت';
 
   @override
@@ -163,41 +157,10 @@ class AppLocalizationsAr extends AppLocalizations {
       'اختر Apple أو Google. لا يرى VoiceBrief كلمة مرور حسابك.';
 
   @override
-  String get providerSignInOpened =>
-      'أكمل تسجيل الدخول في صفحة Google المفتوحة، ثم ستعود إلى VoiceBrief تلقائيًا.';
-
-  @override
   String get continueWithApple => 'المتابعة باستخدام Apple';
 
   @override
   String get continueWithGoogle => 'المتابعة باستخدام Google';
-
-  @override
-  String get orUseEmail => 'أو استخدم البريد الإلكتروني';
-
-  @override
-  String get email => 'البريد الإلكتروني';
-
-  @override
-  String get password => 'كلمة المرور';
-
-  @override
-  String get invalidEmail => 'أدخل بريدًا إلكترونيًا صحيحًا.';
-
-  @override
-  String get shortPassword => 'استخدم 8 أحرف على الأقل.';
-
-  @override
-  String get forgotPassword => 'نسيت كلمة المرور؟';
-
-  @override
-  String get createAccount => 'إنشاء حساب';
-
-  @override
-  String get alreadyHaveAccount => 'لديك حساب؟ سجّل الدخول';
-
-  @override
-  String get newToVoiceBrief => 'مستخدم جديد؟ أنشئ حسابًا';
 
   @override
   String get byContinuingPrefix => 'بالمتابعة، أنت توافق على ';
@@ -210,9 +173,6 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get privacyPolicy => 'سياسة الخصوصية';
-
-  @override
-  String get passwordResetSent => 'أُرسلت رسالة إعادة تعيين كلمة المرور.';
 
   @override
   String get errorIdentityProviderUnavailable =>
@@ -714,18 +674,6 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get errorAuthentication =>
       'تعذر تسجيل الدخول. تحقق من بياناتك وحاول مجددًا.';
-
-  @override
-  String get errorInvalidCredentials =>
-      'البريد الإلكتروني أو كلمة المرور غير صحيحة.';
-
-  @override
-  String get errorAccountAlreadyExists =>
-      'يوجد حساب بهذا البريد. سجّل الدخول أو استعد كلمة المرور.';
-
-  @override
-  String get errorEmailRateLimited =>
-      'محاولات البريد كثيرة الآن. انتظر بضع دقائق ثم حاول مجددًا.';
 
   @override
   String get errorProviderCanceled => 'أُلغي تسجيل الدخول.';

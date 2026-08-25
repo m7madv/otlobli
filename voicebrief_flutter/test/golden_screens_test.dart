@@ -3,6 +3,7 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:voicebrief/features/auth/data/auth_repository.dart';
 import 'package:voicebrief/app/app_controller.dart';
 import 'package:voicebrief/app/config/app_config.dart';
 import 'package:voicebrief/features/auth/presentation/auth_screen.dart';
@@ -178,6 +179,6 @@ typedef AppControllerFactory = Future<AppController> Function();
 
 Future<AppController> signedInController() async {
   final controller = createTestController();
-  await controller.signInWithEmail('owner@example.com', 'a-secure-password');
+  await controller.signInWithProvider(IdentityProvider.google);
   return controller;
 }

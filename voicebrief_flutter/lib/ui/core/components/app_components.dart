@@ -263,58 +263,6 @@ class AppTextField extends StatelessWidget {
   }
 }
 
-class AppPasswordField extends StatefulWidget {
-  const AppPasswordField({
-    required this.label,
-    super.key,
-    this.controller,
-    this.errorText,
-    this.textInputAction,
-    this.onSubmitted,
-  });
-
-  final String label;
-  final TextEditingController? controller;
-  final String? errorText;
-  final TextInputAction? textInputAction;
-  final ValueChanged<String>? onSubmitted;
-
-  @override
-  State<AppPasswordField> createState() => _AppPasswordFieldState();
-}
-
-class _AppPasswordFieldState extends State<AppPasswordField> {
-  bool _obscure = true;
-
-  @override
-  Widget build(BuildContext context) {
-    return TextField(
-      controller: widget.controller,
-      obscureText: _obscure,
-      enableSuggestions: false,
-      autocorrect: false,
-      textInputAction: widget.textInputAction,
-      onSubmitted: widget.onSubmitted,
-      autofillHints: const [AutofillHints.password],
-      decoration: InputDecoration(
-        labelText: widget.label,
-        errorText: widget.errorText,
-        suffixIcon: IconButton(
-          tooltip: _obscure
-              ? context.l10n.showPassword
-              : context.l10n.hidePassword,
-          onPressed: () => setState(() => _obscure = !_obscure),
-          icon: Icon(
-            _obscure
-                ? Icons.visibility_outlined
-                : Icons.visibility_off_outlined,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class AppSegmentedControl<T extends Object> extends StatelessWidget {
   const AppSegmentedControl({
     required this.segments,

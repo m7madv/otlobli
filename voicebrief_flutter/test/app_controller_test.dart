@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:voicebrief/features/auth/data/auth_repository.dart';
 import 'package:voicebrief/features/history/data/history_repository.dart';
 
 import 'helpers/test_harness.dart';
@@ -14,10 +15,7 @@ void main() {
       final controller = createTestController();
       addTearDown(controller.dispose);
       expect(
-        await controller.signInWithEmail(
-          'owner@example.com',
-          'a-secure-password',
-        ),
+        await controller.signInWithProvider(IdentityProvider.google),
         isTrue,
       );
       expect(controller.state.user?.email, 'owner@example.com');
@@ -37,10 +35,7 @@ void main() {
       final history = _DelayedDeleteHistoryRepository();
       final controller = createTestController(historyRepository: history);
       addTearDown(controller.dispose);
-      await controller.signInWithEmail(
-        'owner@example.com',
-        'a-secure-password',
-      );
+      await controller.signInWithProvider(IdentityProvider.google);
       final result = sampleResult(saved: true);
       controller.openResult(result);
       await controller.saveActiveResult();
@@ -60,7 +55,7 @@ void main() {
     final history = _DelayedClearHistoryRepository();
     final controller = createTestController(historyRepository: history);
     addTearDown(controller.dispose);
-    await controller.signInWithEmail('owner@example.com', 'a-secure-password');
+    await controller.signInWithProvider(IdentityProvider.google);
     controller.openResult(sampleResult(saved: true));
     await controller.saveActiveResult();
     await Future<void>.delayed(Duration.zero);
