@@ -31,9 +31,10 @@
 
 ## GitHub unsigned iOS artifact — 2026-08-25
 
-- Branch `codex/voicebrief-ios`, commit `67332f42bccc2d79a33489cdc8da35cc2859410a`, run [32788817963](https://github.com/m7madv/otlobli/actions/runs/32788817963) passed all three jobs: Android analysis/tests/debug build, eight golden tests on Windows, and the macOS iOS build.
-- IPA: `output/github-run-32788817963/voicebrief-ios-unsigned-3/VoiceBrief-0.1.0-build1-unsigned.ipa`, 16,807,014 bytes, SHA-256 `79064717F6E26FC6DAA9D3CE30BEADB302AA581C82F618C7C2239E45D1AD900C`.
-- The macOS job passed `pod install`, `flutter build ios --release --no-codesign`, bundle-ID checks for `app.voicebrief.mobile` and `app.voicebrief.mobile.share`, Share Extension presence, IPA packaging, and Artifact upload.
+- Branch `codex/voicebrief-ios`, commit `6279ad4538c1efee9c62038ac0456c2930e4336e`, run [32829955468](https://github.com/m7madv/otlobli/actions/runs/32829955468) passed all three jobs: Android analysis/25 tests/debug build, eight golden tests on Windows, and the macOS iOS build.
+- IPA: `output/github-run-32829955468/VoiceBrief-0.1.0-build1-unsigned.ipa`, 16,807,035 bytes, SHA-256 `0BBD51929715DB597F13A8ADB92F4D9E73FC3A492451F841217BC329A1A020B8`.
+- The macOS job passed `pod install`, `flutter build ios --release --no-codesign`, bundle-ID checks for `app.voicebrief.mobile` and `app.voicebrief.mobile.share`, Share Extension presence, IPA packaging, and Artifact upload. It also verifies that both bundles have matching non-empty `CFBundleShortVersionString` and `CFBundleVersion`; the built IPA was independently inspected as `0.1.0 (1)` for both.
+- This replaces the earlier IPA rejected by the installer with `bundleVersion must be set in placeholder attributes for an app extension placeholder`. The extension target now defines its version/build explicitly instead of resolving undefined Flutter variables to empty strings.
 - Local archive inspection found 311 entries, `Payload/VoiceBrief.app/PlugIns/VoiceBriefShare.appex`, and no `embedded.mobileprovision`. This proves compilation and packaging only; the IPA is intentionally unsigned and cannot be installed normally or submitted to App Store Connect.
 
 ## Owner/external configuration
