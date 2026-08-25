@@ -7,7 +7,7 @@
 - [x] Server-only usage mutation and conservative 500-audio-minute monthly launch budget implemented for the initial `$10` OpenAI balance.
 - [x] Android receiver and iOS `VoiceBriefShare` source/target, including WhatsApp Opus normalization.
 - [x] Icons and native splash generated.
-- [x] Formatting, static analysis, 25 unit/widget tests, and eight reviewed golden baselines.
+- [x] Formatting, static analysis, 27 unit/widget tests, and ten reviewed golden baselines, including Arabic RTL Settings and Recorder views.
 - [x] Complete Arabic/English UI selected from the system locale, including RTL semantics and localized dates/errors/actions.
 - [x] Physical Note 8 Arabic visual acceptance at 1080x2220, centered Home/History empty states, correct initial `10/10` free allowance, just-in-time microphone permission, sound-reactive dBFS waveform, and cleanup of the newly canceled test recording.
 - [x] Physical Note 8 imported-audio acceptance: extensionless MP3 detection, asynchronous real waveform, slider and waveform seeking, range selection, native trim to M4A, one-step Back navigation, optimistic History deletion, and Undo restore.
@@ -29,13 +29,14 @@
 - Merged APK permissions contain internet, network state, microphone, biometric/fingerprint, billing, and Android's non-exported dynamic-receiver permission. No broad storage permission or advertising-ID permission is present.
 - Evidence files are under `build/verification/` and are intentionally build-local.
 
-## GitHub unsigned iOS artifact — 2026-08-25
+## GitHub unsigned live iOS artifact — 2026-08-25
 
-- Branch `codex/voicebrief-ios`, commit `6279ad4538c1efee9c62038ac0456c2930e4336e`, run [32829955468](https://github.com/m7madv/otlobli/actions/runs/32829955468) passed all three jobs: Android analysis/25 tests/debug build, eight golden tests on Windows, and the macOS iOS build.
-- IPA: `output/github-run-32829955468/VoiceBrief-0.1.0-build1-unsigned.ipa`, 16,807,035 bytes, SHA-256 `0BBD51929715DB597F13A8ADB92F4D9E73FC3A492451F841217BC329A1A020B8`.
-- The macOS job passed `pod install`, `flutter build ios --release --no-codesign`, bundle-ID checks for `app.voicebrief.mobile` and `app.voicebrief.mobile.share`, Share Extension presence, IPA packaging, and Artifact upload. It also verifies that both bundles have matching non-empty `CFBundleShortVersionString` and `CFBundleVersion`; the built IPA was independently inspected as `0.1.0 (1)` for both.
-- This replaces the earlier IPA rejected by the installer with `bundleVersion must be set in placeholder attributes for an app extension placeholder`. The extension target now defines its version/build explicitly instead of resolving undefined Flutter variables to empty strings.
-- Local archive inspection found 311 entries, `Payload/VoiceBrief.app/PlugIns/VoiceBriefShare.appex`, and no `embedded.mobileprovision`. This proves compilation and packaging only; the IPA is intentionally unsigned and cannot be installed normally or submitted to App Store Connect.
+- Branch `codex/voicebrief-ios`, commit `da76b887ee41475076bac8ef38738566c970ee08`, run [32834391844](https://github.com/m7madv/otlobli/actions/runs/32834391844) passed all three jobs: Android analysis/27 tests/debug build, ten golden tests on Windows, and the macOS iOS build.
+- IPA: `output/github-run-32834391844/VoiceBrief-0.1.0-build2-live-unsigned.ipa`, 17,094,824 bytes, SHA-256 `ECDE64B06BC1C599E2BACB8B47EC061237F3B07A65365511FDE14F981547C440`.
+- The macOS job generated a temporary production configuration from GitHub Secrets, required non-empty Supabase values, fixed `USE_MOCK_SERVICES=false`, deleted the temporary config on exit, and passed `pod install` plus `flutter build ios --release --no-codesign`. This replaces build 1, which had accidentally used the mock example configuration and therefore returned static content.
+- The same job verified bundle IDs `app.voicebrief.mobile` and `app.voicebrief.mobile.share`, Share Extension presence, and exact app/extension version parity. Independent archive inspection found 311 entries and reports `0.1.0 (2)` for both bundles.
+- The Share Extension now accepts WhatsApp-style audio/Opus representations, writes an atomic App Group manifest, and shows localized success or actionable failure instead of relying on unsupported automatic parent-app launch. After success the user taps Done and opens VoiceBrief manually.
+- The IPA has no provisioning and remains intentionally unsigned. The signing path must provision the app and extension together with `group.app.voicebrief.mobile`; otherwise the extension now reports an App Group error. Compilation and packaging do not replace a signed physical-iPhone handoff test or App Store archive validation.
 
 ## Owner/external configuration
 
