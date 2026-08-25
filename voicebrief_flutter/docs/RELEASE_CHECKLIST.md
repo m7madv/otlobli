@@ -7,7 +7,7 @@
 - [x] Server-only usage mutation and conservative 500-audio-minute monthly launch budget implemented for the initial `$10` OpenAI balance.
 - [x] Android receiver and iOS `VoiceBriefShare` source/target, including WhatsApp Opus normalization.
 - [x] Icons and native splash generated.
-- [x] Formatting, static analysis, 29 unit/widget tests, and eleven reviewed golden baselines, including Arabic RTL authentication, Settings, and Recorder views.
+- [x] Formatting, static analysis, 30 unit/widget tests, and eleven reviewed golden baselines, including provider-only Arabic RTL authentication, Settings, and Recorder views.
 - [x] Complete Arabic/English UI selected from the system locale, including RTL semantics and localized dates/errors/actions.
 - [x] Physical Note 8 Arabic visual acceptance at 1080x2220, centered Home/History empty states, correct initial `10/10` free allowance, just-in-time microphone permission, sound-reactive dBFS waveform, and cleanup of the newly canceled test recording.
 - [x] Physical Note 8 imported-audio acceptance: extensionless MP3 detection, asynchronous real waveform, slider and waveform seeking, range selection, native trim to M4A, one-step Back navigation, optimistic History deletion, and Undo restore.
@@ -17,9 +17,9 @@
 - [x] Time-zone-aware date extraction request, review banner, and native calendar-editor actions for dated tasks and important dates.
 - [x] Dedicated OpenAI service-account key stored only in Supabase; 14-second live transcription/summary/date smoke test passed and temporary account/audio cleaned.
 - [x] Bilingual public Privacy, Terms, and Support pages deployed; valid support POST smoke-tested and its test row deleted.
-- [x] Google Auth Platform configured with web, Android release/debug, and iOS clients; Supabase Google provider enabled with its secret stored server-side only.
-- [x] Native Google exchange supplies the required ID and access tokens, and the iOS source declares the Apple sign-in entitlement while keeping the App Group entitlement.
-- [x] iOS Google sign-in has a PKCE/deep-link path that remains independent of a sideload signer's rewritten bundle identifier; Android retains native Google tokens.
+- [x] Google Auth Platform configured with web, Android release/debug, and iOS clients; its audience is External/In production and Supabase Google is enabled with iOS-compatible nonce handling.
+- [x] Native Google exchange supplies the required ID and access tokens on Android and iOS, and the iOS source declares the Apple sign-in entitlement while keeping the App Group entitlement.
+- [x] Hosted email/password auth is disabled and the shipped application contains only Apple and Google entry points.
 
 ## Production-signed Android artifacts — 2026-08-25
 
@@ -50,15 +50,24 @@
 - Signed IPA: `VoiceBrief-0.1.0-build5-AppStore.ipa`, 34,384,042 bytes, SHA-256 `C162AD0D8BDD9BF6513BCBBACC1AB60DA855A150EE4900CDCB632F488E185A63`. GitHub artifact: `voicebrief-ios-0.1.0-build5-appstore`; local download: `artifacts/voicebrief-ios-0.1.0-build5-appstore/ios/signed/`.
 - Apple finished processing build `0.1.0 (5)` and reports it as `Ready to Submit`, expiring in 90 days. Internal TestFlight group `VoiceBrief Internal` has automatic distribution enabled, contains one build and one tester, and reports `mhm1981dx@gmail.com` as `Invited`.
 
+## Provider-only TestFlight build — 2026-08-26
+
+- Branch `codex/voicebrief-ios`, commit `1ddfd5d`, run [32901316058](https://github.com/m7madv/otlobli/actions/runs/32901316058) signed, verified, and uploaded `0.1.0 (7)`; run [32901316077](https://github.com/m7madv/otlobli/actions/runs/32901316077) passed Android, eleven golden tests, and iOS no-codesign.
+- Signed IPA: `VoiceBrief-0.1.0-build7-AppStore.ipa`, 34,368,348 bytes, SHA-256 `15950D4EC8FDD54649126BC1473D37849D46B569F7E4DB2BE40E7AC65FD48FCD`.
+- Apple completed processing, attached build 7 to `VoiceBrief Internal`, and App Store Connect reports `mhm1981dx@gmail.com` installed `0.1.0 (7)` on `iPhone 16 Pro Max / iOS 27.0`.
+- Live Auth logs identified the post-consent Google failure as a nonce mismatch and the Apple failure as `provider_disabled`. Google nonce compatibility and production audience were enabled; Apple client IDs were corrected from Damanak to `app.voicebrief.mobile`, key `N4FK6753YL` and a 180-day client secret were configured, and hosted email auth was disabled. The same signed physical iPhone then produced successful Google and Apple `Login / INFO` events at `01:06:16` and `01:08:42` Asia/Riyadh respectively.
+
 ## Owner/external configuration
 
 - [x] Public legal/support URLs and Android upload signing.
-- [x] Confirm final application IDs/App Group availability and increment the iOS store build to `0.1.0+5`.
+- [x] Confirm final application IDs/App Group availability and increment the iOS store build to `0.1.0+7`.
 - [x] Supabase migrations/functions deployed to `jyehqpdbayslhzebdycj`; anonymous server-RPC access denied and service cap live.
 - [x] OpenAI balance displays `$10.00`, automatic recharge is disabled, the dedicated service-account key is active, and the live smoke consumed one rounded service-ledger minute with zero reservation left behind.
-- [x] Google dashboard clients, branding/legal URLs, Supabase provider, and live redirect verified; app remains External/Testing with `mhm1981x@gmail.com` as its test user.
-- [ ] Add Google Play App Signing SHA after first Play setup, complete a real `mhm1981x@gmail.com` token exchange, then deliberately publish OAuth beyond Testing.
-- [ ] Enable the Apple provider in the VoiceBrief Supabase project, configure its Apple client secret/redirect, and verify a signed physical-device flow. The Apple App ID, capability, profiles, and signed TestFlight build are complete, but public Supabase settings still report Apple disabled.
+- [x] Google dashboard clients, branding/legal URLs, Supabase provider, production audience, and iOS nonce compatibility configured.
+- [ ] Add Google Play App Signing SHA after first Play setup and complete a post-fix Google exchange on Play-signed Android; signed-iPhone Google acceptance passed.
+- [x] Enable the Apple provider in the VoiceBrief Supabase project, configure native client ID `app.voicebrief.mobile`, key `N4FK6753YL`, and a client secret expiring `2027-02-21T22:07:34Z`.
+- [x] Complete a post-fix Apple exchange on the signed physical iPhone.
+- [ ] Rotate the VoiceBrief Apple client secret before `2027-02-21T22:07:34Z`.
 - [ ] App Store/Play products and RevenueCat offering/webhook/sandbox verified.
 - [x] Production Android upload signing configured privately; owner still must back it up before first upload.
 - [x] Apple signing/provisioning configured privately and the signed Runner plus Share Extension passed App Store validation/upload.
