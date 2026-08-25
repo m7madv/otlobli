@@ -13,17 +13,17 @@ Last updated: 2026-08-24
 - مصدر iOS يتضمن هدف `VoiceBriefShare` وApp Group والتقويم وworkflow مستقل، لكنه لم يُبنَ على Windows. يلزم macOS/Xcode والتوقيع واختبار WhatsApp والتقويم على iPhone حقيقي. كما تبقى إعدادات OAuth وRevenueCat وروابط الخصوصية/الشروط ومفاتيح المتاجر خارجية وغير مكتملة؛ لا يوجد ادعاء «جاهز للمتجر 100%» قبلها.
 - وُسمت نقطة ما قبل التنفيذ بالوسم `voicebrief-prebuild-20260824` عند `cd2ef7e4f602b64c7a7c5eebfab92f3abf4b764b`. أضيف Apple Design Skill كـsubmodule مثبت عند `d0bac1e765a27a696839e62962e36330ce72f0b7`، وتوجد تعليماته في `AGENTS.md`. لم تُنشأ commit نهائية لتغييرات VoiceBrief حتى لا تختلط بتعديلات المستخدم الحالية.
 
-## مشروع ضمانك المستقل 4.1.0 (2026-08-24)
+## مشروع ضمانك المستقل 4.1.0+8 (2026-08-25)
 
-- `damanak_flutter/` إصدار `4.1.0+5` بمعرّف `com.damanak.damanak`. بقي نظام الفروع ونقطة البيع والمخزون والضمان مستقلاً تماماً عن Otlobli وVoiceBrief.
-- اشتراك صاحب المحل صار أصلياً عبر `App Store` و`Google Play`: أسعار المتجر المحلية، شهري/سنوي، استعادة، وترقية/خفض. أزيلت واجهة التفعيل اليدوي؛ مدفوعات عملاء المحل داخل نقطة البيع منفصلة ولا تمر عبر متاجر التطبيقات.
-- دالة `verify-store-purchase` تتحقق خادمياً من Apple أو Google قبل منح الخطة وإكمال المعاملة. الإيصال مربوط بحساب المالك والمتجر، والدفعة المعلقة لا تمنح وصولاً، ورمز Google الخام محفوظ في مخطط `private` لإعادة فحص التجديد/الإلغاء كل 6 ساعات عند دخول المالك.
-- migration الرابعة `20260824180000_damanak_store_billing.sql` تضيف الكتالوج والاستحقاقات وحقول الفوترة وتعطل رموز التفعيل والطلبات اليدوية. دليل الإعداد الكامل في `damanak_flutter/docs/STORE_BILLING_SETUP.md`. لم تُنشر القاعدة أو الدالة لأن حساب Supabase الحالي عند حد مشروعين؛ لم يُمس `talabieh` أو `VoiceBrief`.
-- الواجهة تحافظ على أخضر واحد ومحايدات. مراجعة مهارتي التصميم والإتاحة أصلحت أيضاً بدء الفوترة على الويب؛ أصبحت غير متاحة بأمان خارج Android/iPhone. روجعت شاشة الاشتراك بصرياً عند `1280×720` و`390×844` بلا تجاوزات أو أخطاء console.
-- نجح format و`flutter analyze` و18 اختباراً وبناء web، كما نجح `Deno fmt/check`. لا يوجد بعد اختبار شراء حقيقي؛ يلزم إنشاء المنتجات والأسرار واختبار Sandbox/Internal testing.
-- Android النهائي موقّع ومتحقق: `output/damanak/damanak-4.1.0-signed.apk`، `75,305,634` بايت، SHA-256 `7982286A4E1C5BF42988BC993AF7C6E089107C4675919630CC112AC28AE8160E`. و`output/damanak/damanak-4.1.0-signed.aab`، `55,799,085` بايت، SHA-256 `347DE845797241674DA895552E6AED48DAF4B985DFC43D58CDEDFBA15BA45BAC`. شهادة الرفع SHA-256 `C25AA74315C6438AE2E4C019C2BE4214D4C1C63FB0194C45904CF40399AA42D0`.
-- المصدر مرفوع على `codex/damanak-flutter` في `2b1a95f` وملف القفل في `b9a22ef`. نجح GitHub/Xcode run `32747449192`. ملف `output/damanak/github-ios-32747449192/damanak-4.1.0-ios-unsigned.ipa` حجمه `11,194,245` بايت وبصمته `D29AD41511951476E095F9BB2B9864342109DC931027327A3C620B495420BF87`؛ الفحص أكد `com.damanak.damanak` و`4.1.0/5` وiOS 13 وغياب توقيع جذر التطبيق وملف provisioning.
-- workflow iOS غير الموقع والموقع محدثان إلى `4.1.0`. البناء الموقع ما زال يتطلب App ID وApp Store profile خاصين بـ`com.damanak.damanak`؛ لا تستخدم ملف تزويد تطبيق آخر ولا تدّعِ قبول متجر قبل الاختبار الحقيقي.
+- `damanak_flutter/` إصدار `4.1.0+8` بمعرّف `com.damanak.damanak`. الدخول حصراً عبر Apple وGoogle، ودعوة الموظف استخدام واحد لمدة 48 ساعة عبر رابط أو `QR` ورمز احتياطي.
+- اشتراك صاحب المحل أصلي عبر `App Store` و`Google Play`: أسعار محلية، شهري/سنوي، شراء واستعادة وترقية/خفض. تتحقق دالة `verify-store-purchase` من الإيصال خادمياً قبل منح الاستحقاق؛ مدفوعات عملاء المحل في نقطة البيع مستقلة.
+- مشروع Supabase الإنتاجي المستقل `exxayzlklvgeyqhvtzgi` في Mumbai. migrations الأربع ودالة التحقق منشورة، Email auth معطل، وGoogle وApple مفعّلان. لم يُمس `talabieh` أو `VoiceBrief`.
+- منتجات Apple الستة موجودة ومترجمة ومتاحة في دول الخليج الست بأسعار `39/390` و`99/990` و`199/1989.99 SAR`. اتفاقية Paid Apps والبنك والضرائب وDSA نشطة.
+- كشف اختبار build `7` على iPhone أن طلب StoreKit 2 قد يبقى معلقاً في «جارٍ جلب أسعار المتجر». في build `8` أصبحت مهلة الاتصال وجلب المنتجات محدودة؛ يستخدم iOS استعلام StoreKit 1 منفصلاً لتفاصيل الأسعار عند تعليق/فشل/فراغ StoreKit 2، ثم يعرض رسالة وزر «إعادة المحاولة» إذا فشل المساران. يبقى الشراء عبر StoreKit 2 مع `appAccountToken`.
+- نجح `flutter analyze` و23 اختباراً وبناء Android debug. راجعت Apple HIG حالة التحميل والخطأ؛ لا تعتمد على اللون وتبقى الرسالة والإجراء داخل بطاقة الاشتراك.
+- build `8` من `f196de6` نجح في GitHub run `32836689892`: بناء iOS والتوقيع وفحص الحزمة وApple Sign-In والتحقق والرفع. يظهر في TestFlight بحالة `Ready to Submit` ومضافاً إلى `Damanak Internal`.
+- IPA المحلية `C:\Users\MOHAMMAD\Downloads\damanak-ios-build8-32836689892\ضمانك.ipa`، `21,973,039` بايت، SHA-256 `31B52DACDA5555F6A9AE9B0A1B7D946A9C9127D84DE1BCFAB25ACA2004F15F55`. فحصها أكد `com.damanak.damanak` و`4.1.0 (8)` ووجود StoreKit ومعرّف منتج Apple.
+- يبقى اختبار ظهور الأسعار وشراء Sandbox والاستعادة على iPhone حقيقي. لا تستخدم buildي `5/6` لأنهما بلا إعدادات Supabase، ولا تستخدم build `7` لاختبار الأسعار.
 
 ## v86.42 SHEIN image-swatch colors and inline size focus (2026-08-01)
 
