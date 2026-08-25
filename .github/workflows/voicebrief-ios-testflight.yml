@@ -8,6 +8,11 @@ on:
         required: true
         type: boolean
         default: true
+  push:
+    branches:
+      - codex/voicebrief-ios
+    paths:
+      - ".github/workflows/voicebrief-ios-testflight.yml"
 
 permissions:
   contents: read
@@ -233,7 +238,7 @@ jobs:
           shasum -a 256 "$final_ipa" | tee build/ios/signed/VoiceBrief-0.1.0-build5-AppStore.sha256
 
       - name: Validate and upload to App Store Connect
-        if: ${{ inputs.upload_to_testflight }}
+        if: ${{ github.event_name == 'push' || inputs.upload_to_testflight }}
         shell: bash
         env:
           APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
