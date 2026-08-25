@@ -170,7 +170,7 @@ class DemoDamanakRepository implements DamanakRepository {
         contactName: 'خالد المورّد',
         phone: '0551234567',
         email: 'supply@example.com',
-        taxNumber: '310000000000003',
+        taxNumber: '',
         address: 'الرياض',
         notes: 'توريد أسبوعي للأجهزة المنزلية.',
         isActive: true,
@@ -211,9 +211,9 @@ class DemoDamanakRepository implements DamanakRepository {
     city: 'الرياض',
     countryCode: 'SA',
     currencyCode: 'SAR',
-    taxRate: 15,
+    taxRate: 0,
     pricesIncludeTax: true,
-    taxNumber: '310123456700003',
+    taxNumber: '',
     commercialRegistration: '1010123456',
     address: 'طريق الملك فهد، حي العليا',
     invoicePrefix: 'GLF',
@@ -283,9 +283,9 @@ class DemoDamanakRepository implements DamanakRepository {
       createdBy: _account.id,
       invoiceNumber: 'GLF-${id.substring(0, 6).toUpperCase()}',
       saleSubtotal: product.salePrice ?? 0,
-      taxAmount: ((product.salePrice ?? 0) * 15 / 115),
+      taxAmount: 0,
       saleTotal: product.salePrice ?? 0,
-      taxRate: 15,
+      taxRate: 0,
       currencyCode: 'SAR',
       paymentMethod: PaymentMethod.card,
     );
@@ -298,7 +298,7 @@ class DemoDamanakRepository implements DamanakRepository {
   }) {
     final id = _uuid.v4();
     final total = product.salePrice ?? 0;
-    final tax = total * 15 / 115;
+    const tax = 0;
     return SaleTransaction(
       id: id,
       storeId: _store.id,

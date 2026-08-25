@@ -80,7 +80,7 @@ void main() {
       expect(controller.totalSales, greaterThanOrEqualTo(750));
     });
 
-    test('يحفظ إعدادات العملة والضريبة ويضيف فرعاً', () async {
+    test('يحفظ العملة ويلغي إعدادات الضريبة ويضيف فرعاً', () async {
       await controller.updateStore(
         name: controller.store!.name,
         phone: controller.store!.phone,
@@ -105,8 +105,9 @@ void main() {
       );
 
       expect(controller.store!.currencyCode, 'AED');
-      expect(controller.store!.taxRate, 5);
-      expect(controller.store!.pricesIncludeTax, isFalse);
+      expect(controller.store!.taxRate, 0);
+      expect(controller.store!.pricesIncludeTax, isTrue);
+      expect(controller.store!.taxNumber, isEmpty);
       expect(branch?.isMain, isTrue);
       expect(controller.branches.where((item) => item.isMain).length, 1);
     });

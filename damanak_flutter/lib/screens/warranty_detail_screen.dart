@@ -191,7 +191,7 @@ class _WarrantyDetailScreenState extends State<WarrantyDetailScreen> {
 المنتج: ${warranty.productName}
 العميل: ${warranty.customerName}
 رقم الضمان: ${warranty.displayNumber}
-رقم الفاتورة: ${warranty.invoiceNumber.isEmpty ? 'تلقائي' : warranty.invoiceNumber}
+رقم الإيصال: ${warranty.invoiceNumber.isEmpty ? 'تلقائي' : warranty.invoiceNumber}
 تاريخ الشراء: ${formatDate(warranty.purchaseDate)}
 صالح حتى: ${formatDate(warranty.expiryDate)}
 الحالة: ${warranty.statusAt().label}
@@ -360,7 +360,7 @@ class _WarrantyDocument extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${profile.name} • فاتورة وضمان موحدان',
+                        '${profile.name} • إيصال وضمان موحدان',
                         style: TextStyle(
                           color: colors.onPrimary.withValues(alpha: 0.76),
                           fontSize: 12,
@@ -418,7 +418,7 @@ class _WarrantyDocument extends StatelessWidget {
                 ),
                 if (warranty.invoiceNumber.isNotEmpty)
                   _DetailRow(
-                    label: 'رقم الفاتورة',
+                    label: 'رقم الإيصال',
                     value: warranty.invoiceNumber,
                     ltr: true,
                   ),
@@ -448,7 +448,7 @@ class _WarrantyDocument extends StatelessWidget {
                 ),
                 const Divider(height: 28),
                 Text(
-                  'تفاصيل الفاتورة',
+                  'تفاصيل الإيصال',
                   style: TextStyle(
                     color: colors.onSurfaceVariant,
                     fontSize: 12,
@@ -472,10 +472,6 @@ class _WarrantyDocument extends StatelessWidget {
                     ),
                   ),
                 _DetailRow(
-                  label: 'الضريبة ${warranty.taxRate}%',
-                  value: formatMoney(warranty.taxAmount, warranty.currencyCode),
-                ),
-                _DetailRow(
                   label: 'الإجمالي',
                   value: formatMoney(warranty.saleTotal, warranty.currencyCode),
                 ),
@@ -483,12 +479,6 @@ class _WarrantyDocument extends StatelessWidget {
                   label: 'طريقة الدفع',
                   value: warranty.paymentMethod.label,
                 ),
-                if (profile.taxNumber.isNotEmpty)
-                  _DetailRow(
-                    label: 'الرقم الضريبي',
-                    value: profile.taxNumber,
-                    ltr: true,
-                  ),
                 if (warranty.notes.isNotEmpty) ...[
                   const Divider(height: 28),
                   Text(

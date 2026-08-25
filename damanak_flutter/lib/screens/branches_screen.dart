@@ -368,7 +368,7 @@ class _BranchEditorState extends State<_BranchEditor> {
                                     TextCapitalization.characters,
                                 textDirection: TextDirection.ltr,
                                 decoration: const InputDecoration(
-                                  labelText: 'بادئة الفاتورة',
+                                  labelText: 'بادئة الإيصال',
                                   hintText: 'RUH',
                                 ),
                                 validator: _prefixValidator,

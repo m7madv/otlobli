@@ -19,9 +19,9 @@ class ReportsScreen extends StatelessWidget {
     final controller = AppScope.of(context);
     final store = controller.store!;
     final warranties = controller.warranties;
-    final average = warranties.isEmpty
+    final average = controller.sales.isEmpty
         ? 0
-        : controller.totalSales / warranties.length;
+        : controller.totalSales / controller.sales.length;
     return Scaffold(
       appBar: AppBar(
         title: const Text('التقارير والتصدير'),
@@ -49,7 +49,7 @@ class ReportsScreen extends StatelessWidget {
                 LayoutBuilder(
                   builder: (context, constraints) {
                     final width = constraints.maxWidth >= 720
-                        ? (constraints.maxWidth - 30) / 4
+                        ? (constraints.maxWidth - 20) / 3
                         : (constraints.maxWidth - 10) / 2;
                     return Wrap(
                       spacing: 10,
@@ -75,16 +75,7 @@ class ReportsScreen extends StatelessWidget {
                         ),
                         _ReportMetric(
                           width: width,
-                          label: 'الضريبة المسجلة',
-                          value: formatMoney(
-                            controller.totalTax,
-                            store.currencyCode,
-                          ),
-                          icon: Icons.receipt_long_outlined,
-                        ),
-                        _ReportMetric(
-                          width: width,
-                          label: 'متوسط الفاتورة',
+                          label: 'متوسط الإيصال',
                           value: formatMoney(average, store.currencyCode),
                           icon: Icons.query_stats_outlined,
                         ),
@@ -118,7 +109,7 @@ class ReportsScreen extends StatelessWidget {
                       style: TextStyle(fontWeight: FontWeight.w600),
                     ),
                     subtitle: const Text(
-                      'يشمل الفاتورة والعميل والمنتج والخصم والضريبة وطريقة الدفع.',
+                      'يشمل الإيصال والعميل والمنتج والخصم وطريقة الدفع.',
                     ),
                     trailing: const Icon(Icons.ios_share_outlined),
                     onTap: () => _exportCsv(context),
@@ -164,7 +155,7 @@ class ReportsScreen extends StatelessWidget {
     final controller = AppScope.of(context);
     final rows = <List<String>>[
       [
-        'رقم الفاتورة',
+        'رقم الإيصال',
         'رقم الضمان',
         'التاريخ',
         'العميل',
@@ -172,7 +163,6 @@ class ReportsScreen extends StatelessWidget {
         'المنتج',
         'السعر',
         'الخصم',
-        'الضريبة',
         'الإجمالي',
         'العملة',
         'طريقة الدفع',
@@ -187,7 +177,6 @@ class ReportsScreen extends StatelessWidget {
           item.productName,
           '${item.saleSubtotal}',
           '${item.discountAmount}',
-          '${item.taxAmount}',
           '${item.saleTotal}',
           item.currencyCode,
           item.paymentMethod.label,
@@ -291,7 +280,7 @@ class _BreakdownCard extends StatelessWidget {
                     child: Row(
                       children: [
                         Expanded(child: Text(entry.key.label)),
-                        Text('${entry.value} فاتورة'),
+                        Text('${entry.value} إيصال'),
                         const SizedBox(width: 10),
                         SizedBox(
                           width: 80,

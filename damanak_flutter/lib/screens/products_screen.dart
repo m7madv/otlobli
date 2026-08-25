@@ -7,7 +7,7 @@ import '../models/product.dart';
 import '../state/app_scope.dart';
 import '../widgets/message_banner.dart';
 import 'product_form_screen.dart';
-import 'warranty_form_screen.dart';
+import 'scanner_screen.dart';
 
 class ProductsScreen extends StatefulWidget {
   const ProductsScreen({super.key});
@@ -29,6 +29,25 @@ class _ProductsScreenState extends State<ProductsScreen> {
     await Navigator.of(context).push<Product>(
       MaterialPageRoute(builder: (_) => const ProductFormScreen()),
     );
+  }
+
+  Future<void> _scan() async {
+    final code = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (_) => const ScannerScreen(returnBarcode: true),
+      ),
+    );
+    if (code == null || !mounted) return;
+    final product = AppScope.of(context).productByBarcode(code);
+    if (product != null) {
+      await _editProduct(product);
+    } else {
+      await Navigator.of(context).push<Product>(
+        MaterialPageRoute(
+          builder: (_) => ProductFormScreen(initialBarcode: code),
+        ),
+      );
+    }
   }
 
   Future<void> _editProduct(Product product) async {
@@ -105,12 +124,12 @@ class _ProductsScreenState extends State<ProductsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'كتالوج المنتجات',
+                        'المنتجات',
                         style: Theme.of(context).textTheme.headlineSmall,
                       ),
                       const SizedBox(height: 5),
                       Text(
-                        '${controller.products.length} منتجاً جاهزاً للمسح وإصدار الضمان',
+                        '${controller.products.length} منتج • اضغط على أي منتج لتعديله',
                         style: TextStyle(
                           color: colors.onSurfaceVariant,
                           fontWeight: FontWeight.w600,
@@ -123,18 +142,13 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         onChanged: (_) => setState(() {}),
                         textInputAction: TextInputAction.search,
                         decoration: InputDecoration(
-                          labelText: 'ابحث بالاسم أو الباركود أو رمز المخزون',
+                          hintText: 'اسم المنتج أو الباركود…',
                           prefixIcon: const Icon(Icons.search_rounded),
-                          suffixIcon: _search.text.isEmpty
-                              ? null
-                              : IconButton(
-                                  tooltip: 'مسح البحث',
-                                  onPressed: () {
-                                    _search.clear();
-                                    setState(() {});
-                                  },
-                                  icon: const Icon(Icons.close_rounded),
-                                ),
+                          suffixIcon: IconButton(
+                            tooltip: 'مسح باركود',
+                            onPressed: _scan,
+                            icon: const Icon(Icons.qr_code_scanner_rounded),
+                          ),
                         ),
                       ),
                     ],
@@ -159,6 +173,10 @@ class _ProductsScreenState extends State<ProductsScreen> {
                     separatorBuilder: (_, _) => const SizedBox(height: 10),
                     itemBuilder: (context, index) => _ProductCard(
                       product: products[index],
+                      available: controller
+                          .inventoryLevel(products[index].id)
+                          ?.available,
+                      currencyCode: controller.store!.currencyCode,
                       onEdit: canManage
                           ? () => _editProduct(products[index])
                           : null,
@@ -179,25 +197,24 @@ class _ProductsScreenState extends State<ProductsScreen> {
 class _ProductCard extends StatelessWidget {
   const _ProductCard({
     required this.product,
+    required this.available,
+    required this.currencyCode,
     required this.onEdit,
     required this.onArchive,
   });
 
   final Product product;
+  final num? available;
+  final String currencyCode;
   final VoidCallback? onEdit;
   final VoidCallback? onArchive;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final currencyCode = AppScope.of(context).store!.currencyCode;
     return Card(
       child: InkWell(
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => WarrantyFormScreen(product: product),
-          ),
-        ),
+        onTap: onEdit,
         borderRadius: BorderRadius.circular(18),
         child: Padding(
           padding: const EdgeInsets.all(14),
@@ -234,45 +251,33 @@ class _ProductCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 6),
-                    Row(
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 4,
                       children: [
-                        Icon(
-                          Icons.qr_code_2_rounded,
-                          size: 15,
-                          color: colors.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: 4),
-                        Flexible(
-                          child: Text(
-                            product.barcode,
-                            textDirection: TextDirection.ltr,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
                         Text(
-                          '${product.warrantyMonths} شهراً',
+                          formatMoney(product.salePrice ?? 0, currencyCode),
                           style: TextStyle(
-                            fontSize: 12,
                             color: colors.primary,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
-                        if (product.salePrice != null) ...[
-                          const SizedBox(width: 10),
+                        if (product.trackInventory)
                           Text(
-                            formatMoney(product.salePrice!, currencyCode),
+                            'المتوفر ${_numberText(available ?? 0)}',
                             style: TextStyle(
-                              fontSize: 12,
-                              color: colors.onSurface,
+                              color: (available ?? 0) <= product.reorderPoint
+                                  ? colors.error
+                                  : colors.onSurfaceVariant,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
-                        ],
+                        Text(
+                          product.warrantyMonths == 0
+                              ? 'بلا ضمان'
+                              : 'ضمان ${product.warrantyMonths} شهر',
+                          style: TextStyle(color: colors.onSurfaceVariant),
+                        ),
                       ],
                     ),
                   ],
@@ -316,6 +321,9 @@ class _ProductCard extends StatelessWidget {
       ),
     );
   }
+
+  String _numberText(num value) =>
+      value.toStringAsFixed(value % 1 == 0 ? 0 : 2);
 }
 
 enum _ProductAction { edit, archive }

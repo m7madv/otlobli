@@ -102,7 +102,7 @@ class AppController extends ChangeNotifier {
     address: _store?.address ?? '',
     countryCode: _store?.countryCode ?? 'SA',
     currencyCode: _store?.currencyCode ?? 'SAR',
-    taxRate: _store?.taxRate ?? 15,
+    taxRate: _store?.taxRate ?? 0,
     pricesIncludeTax: _store?.pricesIncludeTax ?? true,
     taxNumber: _store?.taxNumber ?? '',
     commercialRegistration: _store?.commercialRegistration ?? '',
@@ -326,9 +326,9 @@ class AppController extends ChangeNotifier {
         city: city,
         countryCode: countryCode,
         currencyCode: currencyCode,
-        taxRate: taxRate,
-        pricesIncludeTax: pricesIncludeTax,
-        taxNumber: taxNumber,
+        taxRate: 0,
+        pricesIncludeTax: true,
+        taxNumber: '',
         commercialRegistration: commercialRegistration,
         address: address,
         invoicePrefix: invoicePrefix,
@@ -1266,7 +1266,7 @@ class AppController extends ChangeNotifier {
       return 'أدخل رقماً تسلسلياً مستقلاً لكل قطعة.';
     }
     if (value.contains('payment_total_mismatch')) {
-      return 'مجموع الدفعات لا يساوي إجمالي الفاتورة.';
+      return 'مجموع الدفعات لا يساوي إجمالي الإيصال.';
     }
     if (value.contains('register_already_open')) {
       return 'يوجد صندوق مفتوح لهذا الفرع بالفعل.';

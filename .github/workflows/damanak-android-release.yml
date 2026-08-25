@@ -83,10 +83,9 @@ jobs:
       - name: Upload Android release artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: damanak-android-4.1.0-build-${{ github.run_number }}
+          name: damanak-android-4.2.0-build-${{ github.run_number }}
           path: |
             damanak_flutter/build/app/outputs/bundle/release/app-release.aab
             damanak_flutter/build/google-play-upload/report.json
           if-no-files-found: error
           retention-days: 30
-

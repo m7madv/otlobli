@@ -120,18 +120,10 @@ class _WarrantyFormScreenState extends State<WarrantyFormScreen> {
   _FinancialTotals _totals(StoreWorkspace store) {
     final subtotal = num.tryParse(_salePrice.text.trim()) ?? 0;
     final discount = num.tryParse(_discount.text.trim()) ?? 0;
-    final taxable = (subtotal - discount).clamp(0, double.infinity);
-    final rate = store.taxRate;
-    final tax = rate <= 0
-        ? 0
-        : store.pricesIncludeTax
-        ? taxable * rate / (100 + rate)
-        : taxable * rate / 100;
-    final total = store.pricesIncludeTax ? taxable : taxable + tax;
+    final total = (subtotal - discount).clamp(0, double.infinity);
     return _FinancialTotals(
       subtotal: roundMoney(subtotal, store.currencyCode),
       discount: roundMoney(discount, store.currencyCode),
-      tax: roundMoney(tax, store.currencyCode),
       total: roundMoney(total, store.currencyCode),
     );
   }
@@ -177,9 +169,9 @@ class _WarrantyFormScreenState extends State<WarrantyFormScreen> {
       invoiceNumber: _invoiceNumber.text,
       saleSubtotal: totals.subtotal,
       discountAmount: totals.discount,
-      taxAmount: totals.tax,
+      taxAmount: 0,
       saleTotal: totals.total,
-      taxRate: store.taxRate,
+      taxRate: 0,
       currencyCode: store.currencyCode,
       paymentMethod: _paymentMethod,
     );
@@ -200,7 +192,7 @@ class _WarrantyFormScreenState extends State<WarrantyFormScreen> {
     final currency = currencyInfo(store.currencyCode);
     final totals = _totals(store);
     return Scaffold(
-      appBar: AppBar(title: const Text('إصدار ضمان وفاتورة')),
+      appBar: AppBar(title: const Text('إصدار ضمان وإيصال')),
       body: SafeArea(
         child: Align(
           alignment: Alignment.topCenter,
@@ -380,7 +372,7 @@ class _WarrantyFormScreenState extends State<WarrantyFormScreen> {
                     ),
                     const SizedBox(height: 14),
                     _FormSection(
-                      title: 'الفرع والفاتورة',
+                      title: 'الفرع والإيصال',
                       icon: Icons.receipt_long_outlined,
                       child: Column(
                         children: [
@@ -418,7 +410,7 @@ class _WarrantyFormScreenState extends State<WarrantyFormScreen> {
                             textDirection: TextDirection.ltr,
                             textInputAction: TextInputAction.next,
                             decoration: InputDecoration(
-                              labelText: 'رقم الفاتورة (اختياري)',
+                              labelText: 'رقم الإيصال (اختياري)',
                               hintText: '${store.invoicePrefix}-000001',
                               prefixIcon: const Icon(Icons.numbers_rounded),
                               helperText:
@@ -498,8 +490,6 @@ class _WarrantyFormScreenState extends State<WarrantyFormScreen> {
                           _MoneySummary(
                             totals: totals,
                             currencyCode: store.currencyCode,
-                            taxRate: store.taxRate,
-                            pricesIncludeTax: store.pricesIncludeTax,
                           ),
                         ],
                       ),
@@ -566,7 +556,7 @@ class _WarrantyFormScreenState extends State<WarrantyFormScreen> {
                         label: Text(
                           controller.busy
                               ? 'جارٍ الإصدار…'
-                              : 'إصدار الضمان والفاتورة',
+                              : 'إصدار الضمان والإيصال',
                         ),
                       ),
                     ),
@@ -594,28 +584,19 @@ class _FinancialTotals {
   const _FinancialTotals({
     required this.subtotal,
     required this.discount,
-    required this.tax,
     required this.total,
   });
 
   final num subtotal;
   final num discount;
-  final num tax;
   final num total;
 }
 
 class _MoneySummary extends StatelessWidget {
-  const _MoneySummary({
-    required this.totals,
-    required this.currencyCode,
-    required this.taxRate,
-    required this.pricesIncludeTax,
-  });
+  const _MoneySummary({required this.totals, required this.currencyCode});
 
   final _FinancialTotals totals;
   final String currencyCode;
-  final num taxRate;
-  final bool pricesIncludeTax;
 
   @override
   Widget build(BuildContext context) {
@@ -638,25 +619,11 @@ class _MoneySummary extends StatelessWidget {
               label: 'الخصم',
               value: '- ${formatMoney(totals.discount, currencyCode)}',
             ),
-          _SummaryRow(
-            label: 'الضريبة ($taxRate%)',
-            value: formatMoney(totals.tax, currencyCode),
-          ),
           const Divider(height: 20),
           _SummaryRow(
             label: 'الإجمالي',
             value: formatMoney(totals.total, currencyCode),
             emphasized: true,
-          ),
-          const SizedBox(height: 5),
-          Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: Text(
-              pricesIncludeTax
-                  ? 'السعر المدخل شامل الضريبة.'
-                  : 'الضريبة مضافة إلى السعر المدخل.',
-              style: TextStyle(color: colors.onSurfaceVariant, fontSize: 11),
-            ),
           ),
         ],
       ),

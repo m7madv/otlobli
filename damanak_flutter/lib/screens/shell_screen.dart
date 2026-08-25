@@ -3,11 +3,9 @@ import 'package:flutter/material.dart';
 import '../core/app_theme.dart';
 import '../widgets/brand_mark.dart';
 import 'account_screen.dart';
-import 'home_screen.dart';
-import 'inventory_screen.dart';
 import 'point_of_sale_screen.dart';
+import 'products_screen.dart';
 import 'warranties_screen.dart';
-import 'warranty_form_screen.dart';
 
 class ShellScreen extends StatefulWidget {
   const ShellScreen({super.key});
@@ -21,11 +19,6 @@ class _ShellScreenState extends State<ShellScreen> {
 
   static const _destinations = [
     NavigationDestination(
-      icon: Icon(Icons.space_dashboard_outlined),
-      selectedIcon: Icon(Icons.space_dashboard_rounded),
-      label: 'العمليات',
-    ),
-    NavigationDestination(
       icon: Icon(Icons.point_of_sale_outlined),
       selectedIcon: Icon(Icons.point_of_sale_rounded),
       label: 'البيع',
@@ -33,7 +26,7 @@ class _ShellScreenState extends State<ShellScreen> {
     NavigationDestination(
       icon: Icon(Icons.inventory_2_outlined),
       selectedIcon: Icon(Icons.inventory_2_rounded),
-      label: 'المخزون',
+      label: 'المنتجات',
     ),
     NavigationDestination(
       icon: Icon(Icons.verified_user_outlined),
@@ -47,23 +40,10 @@ class _ShellScreenState extends State<ShellScreen> {
     ),
   ];
 
-  Future<void> _openNewWarranty() async {
-    await Navigator.of(
-      context,
-    ).push(MaterialPageRoute<void>(builder: (_) => const WarrantyFormScreen()));
-  }
-
   Widget _currentPage() => switch (_index) {
-    0 => HomeScreen(
-      onCreateWarranty: _openNewWarranty,
-      onScan: () => setState(() => _index = 1),
-      onShowAllWarranties: () => setState(() => _index = 3),
-      onShowProducts: () => setState(() => _index = 2),
-      onShowMore: () => setState(() => _index = 4),
-    ),
-    1 => const PointOfSaleScreen(),
-    2 => const InventoryScreen(),
-    3 => const WarrantiesScreen(),
+    0 => const PointOfSaleScreen(),
+    1 => const ProductsScreen(),
+    2 => const WarrantiesScreen(),
     _ => const AccountScreen(),
   };
 
@@ -102,9 +82,9 @@ class _ShellScreenState extends State<ShellScreen> {
                             leading: Padding(
                               padding: const EdgeInsets.only(bottom: 14),
                               child: FilledButton.icon(
-                                onPressed: _openNewWarranty,
-                                icon: const Icon(Icons.add_rounded),
-                                label: const Text('ضمان جديد'),
+                                onPressed: () => setState(() => _index = 0),
+                                icon: const Icon(Icons.point_of_sale_rounded),
+                                label: const Text('بيع جديد'),
                               ),
                             ),
                             labelType: NavigationRailLabelType.none,

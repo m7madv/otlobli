@@ -52,7 +52,7 @@ class _SalesScreenState extends State<SalesScreen> {
                   controller: _search,
                   onChanged: (_) => setState(() {}),
                   decoration: const InputDecoration(
-                    labelText: 'رقم الفاتورة أو العميل أو الهاتف',
+                    labelText: 'رقم الإيصال أو العميل أو الهاتف',
                     prefixIcon: Icon(Icons.search_rounded),
                   ),
                 ),
@@ -293,10 +293,6 @@ class _SaleDetailsState extends State<_SaleDetails> {
                   _SummaryRow(
                     label: 'الخصم',
                     value: formatMoney(sale.discountAmount, sale.currencyCode),
-                  ),
-                  _SummaryRow(
-                    label: 'الضريبة',
-                    value: formatMoney(sale.taxAmount, sale.currencyCode),
                   ),
                   if (sale.refundedAmount > 0)
                     _SummaryRow(

@@ -34,7 +34,7 @@ void main() {
     expect(schema, contains('WARRANTY_LIMIT_REACHED'));
   });
 
-  test('مخطط العمليات يربط العملة والضريبة والعملاء والفروع بالفاتورة', () {
+  test('مخطط العمليات يبقي حقول التوافق ويربط العملاء والفروع بالإيصال', () {
     final schema = File(
       'supabase/migrations/20260824130000_damanak_business_operations.sql',
     ).readAsStringSync();
@@ -104,6 +104,18 @@ void main() {
     ]) {
       expect(schema, contains('function public.$function'));
     }
+  });
+
+  test('ترحيل الإيصالات يلغي الضريبة المستقبلية ولا يعيد كتابة المبيعات', () {
+    final migration = File(
+      'supabase/migrations/20260825190000_damanak_simple_receipts.sql',
+    ).readAsStringSync();
+
+    expect(migration, contains('set tax_rate = 0'));
+    expect(migration, contains('alter column tax_rate set default 0'));
+    expect(migration, contains('check (tax_rate = 0)'));
+    expect(migration, isNot(contains('update public.sales')));
+    expect(migration, isNot(contains('update public.warranties')));
   });
 
   test('مخطط فوترة المتاجر يمنع التفعيل اليدوي ويعزل الاستحقاقات', () {

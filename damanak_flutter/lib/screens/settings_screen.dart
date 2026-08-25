@@ -19,14 +19,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _phone = TextEditingController();
   final _city = TextEditingController();
   final _address = TextEditingController();
-  final _taxNumber = TextEditingController();
   final _commercialRegistration = TextEditingController();
-  final _taxRate = TextEditingController();
   final _invoicePrefix = TextEditingController();
   String _country = 'SA';
   String _currency = 'SAR';
   int _defaultWarrantyMonths = 12;
-  bool _pricesIncludeTax = true;
   bool _loaded = false;
 
   @override
@@ -38,13 +35,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _phone.text = store.phone;
     _city.text = store.city;
     _address.text = store.address;
-    _taxNumber.text = store.taxNumber;
     _commercialRegistration.text = store.commercialRegistration;
-    _taxRate.text = '${store.taxRate}';
     _invoicePrefix.text = store.invoicePrefix;
     _country = store.countryCode;
     _currency = store.currencyCode;
-    _pricesIncludeTax = store.pricesIncludeTax;
     _defaultWarrantyMonths = store.defaultWarrantyMonths;
     _loaded = true;
   }
@@ -55,9 +49,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _phone.dispose();
     _city.dispose();
     _address.dispose();
-    _taxNumber.dispose();
     _commercialRegistration.dispose();
-    _taxRate.dispose();
     _invoicePrefix.dispose();
     super.dispose();
   }
@@ -70,9 +62,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       city: _city.text,
       countryCode: _country,
       currencyCode: _currency,
-      taxRate: num.parse(_taxRate.text.trim()),
-      pricesIncludeTax: _pricesIncludeTax,
-      taxNumber: _taxNumber.text,
+      taxRate: 0,
+      pricesIncludeTax: true,
+      taxNumber: '',
       commercialRegistration: _commercialRegistration.text,
       address: _address.text,
       invoicePrefix: _invoicePrefix.text,
@@ -86,7 +78,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final colors = context.colors;
     final canEdit = controller.membership!.role.canManageTeam;
     return Scaffold(
-      appBar: AppBar(title: const Text('إعدادات المتجر والفواتير')),
+      appBar: AppBar(title: const Text('بيانات المتجر')),
       body: SafeArea(
         child: Align(
           alignment: Alignment.topCenter,
@@ -199,8 +191,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     const SizedBox(height: 14),
                     _SettingsSection(
-                      title: 'العملة والضريبة',
-                      icon: Icons.account_balance_outlined,
+                      title: 'العملة والسجل',
+                      icon: Icons.payments_outlined,
                       child: Column(
                         children: [
                           DropdownButtonFormField<String>(
@@ -227,53 +219,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                           const SizedBox(height: 12),
                           TextFormField(
-                            controller: _taxRate,
-                            enabled: canEdit,
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            textDirection: TextDirection.ltr,
-                            decoration: const InputDecoration(
-                              labelText: 'نسبة ضريبة القيمة المضافة',
-                              suffixText: '%',
-                              prefixIcon: Icon(Icons.percent_rounded),
-                            ),
-                            validator: (value) {
-                              final rate = num.tryParse(value?.trim() ?? '');
-                              if (rate == null || rate < 0 || rate > 100) {
-                                return 'أدخل نسبة بين 0 و100';
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 4),
-                          SwitchListTile.adaptive(
-                            value: _pricesIncludeTax,
-                            contentPadding: EdgeInsets.zero,
-                            title: const Text('الأسعار تشمل الضريبة'),
-                            subtitle: Text(
-                              _pricesIncludeTax
-                                  ? 'سيُستخرج مقدار الضريبة من السعر المدخل.'
-                                  : 'ستُضاف الضريبة فوق السعر المدخل.',
-                            ),
-                            onChanged: canEdit
-                                ? (value) =>
-                                      setState(() => _pricesIncludeTax = value)
-                                : null,
-                          ),
-                          const SizedBox(height: 8),
-                          TextFormField(
-                            controller: _taxNumber,
-                            enabled: canEdit,
-                            keyboardType: TextInputType.number,
-                            textDirection: TextDirection.ltr,
-                            decoration: const InputDecoration(
-                              labelText: 'الرقم الضريبي (اختياري)',
-                              prefixIcon: Icon(Icons.receipt_long_outlined),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          TextFormField(
                             controller: _commercialRegistration,
                             enabled: canEdit,
                             textDirection: TextDirection.ltr,
@@ -287,7 +232,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     const SizedBox(height: 14),
                     _SettingsSection(
-                      title: 'ترقيم الفواتير والضمان',
+                      title: 'الإيصالات والضمان',
                       icon: Icons.receipt_outlined,
                       child: Column(
                         children: [
@@ -297,7 +242,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             textCapitalization: TextCapitalization.characters,
                             textDirection: TextDirection.ltr,
                             decoration: const InputDecoration(
-                              labelText: 'بادئة رقم الفاتورة',
+                              labelText: 'بادئة رقم الإيصال',
                               hintText: 'INV',
                               prefixIcon: Icon(Icons.numbers_rounded),
                               helperText: 'من 2 إلى 8 أحرف أو أرقام لاتينية.',
