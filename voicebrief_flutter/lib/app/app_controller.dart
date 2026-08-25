@@ -42,6 +42,7 @@ class AppController extends StateNotifier<AppState> {
         );
       },
     );
+    unawaited(takePendingSharedAudio());
   }
 
   final AuthRepository _auth;
@@ -422,9 +423,23 @@ class AppController extends StateNotifier<AppState> {
     }
   }
 
-  Future<void> clearHistory() async {
+  Future<bool> clearHistory() async {
     final accountId = state.user?.id;
-    if (accountId != null) await _history.clear(accountId);
+    if (accountId == null) return false;
+    final previousHistory = state.history;
+    state = state.copyWith(history: const []);
+    try {
+      await _history.clear(accountId);
+      return true;
+    } on Object {
+      if (state.user?.id == accountId) {
+        state = state.copyWith(
+          history: previousHistory,
+          errorMessage: const AppFailure(AppFailureCode.unknown).message,
+        );
+      }
+      return false;
+    }
   }
 
   void openResult(BriefResult result) =>

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:voicebrief/app/config/app_config.dart';
@@ -118,28 +119,48 @@ class SettingsScreen extends ConsumerWidget {
         const AppDivider(indent: 48),
         AppListTile(
           title: context.l10n.exportSavedText,
-          subtitle: context.l10n.exportSavedTextDescription,
+          subtitle: state.history.isEmpty
+              ? context.l10n.noSavedTextOnDevice
+              : context.l10n.exportSavedTextDescription,
           leading: const Icon(Icons.ios_share_outlined),
-          onTap: state.history.isEmpty
-              ? null
-              : () => _export(context, state.history),
+          onTap: () async {
+            if (state.history.isEmpty) {
+              AppToast.show(context, context.l10n.noSavedTextOnDevice);
+              return;
+            }
+            await _export(context, state.history);
+          },
         ),
         const AppDivider(indent: 48),
         AppListTile(
           title: context.l10n.clearLocalHistory,
+          subtitle: state.history.isEmpty
+              ? context.l10n.noSavedTextOnDevice
+              : context.l10n.clearSavedTextDescription,
           leading: const Icon(Icons.delete_sweep_outlined),
-          onTap: state.history.isEmpty
-              ? null
-              : () async {
-                  final confirmed = await AppDialog.confirm(
-                    context: context,
-                    title: context.l10n.clearHistoryTitle,
-                    message: context.l10n.clearHistoryMessage,
-                    confirmLabel: context.l10n.clearHistory,
-                    destructive: true,
-                  );
-                  if (confirmed) await controller.clearHistory();
-                },
+          onTap: () async {
+            if (state.history.isEmpty) {
+              AppToast.show(context, context.l10n.noSavedTextOnDevice);
+              return;
+            }
+            final confirmed = await AppDialog.confirm(
+              context: context,
+              title: context.l10n.clearHistoryTitle,
+              message: context.l10n.clearHistoryMessage,
+              confirmLabel: context.l10n.clearHistory,
+              destructive: true,
+            );
+            if (!confirmed) return;
+            final cleared = await controller.clearHistory();
+            if (context.mounted) {
+              AppToast.show(
+                context,
+                cleared
+                    ? context.l10n.savedTextCleared
+                    : context.l10n.clearSavedTextFailed,
+              );
+            }
+          },
         ),
         const AppDivider(indent: 48),
         AppListTile(
@@ -216,9 +237,35 @@ class SettingsScreen extends ConsumerWidget {
     final text = history
         .map((result) => _plainText(context, result))
         .join('\n\n──────────\n\n');
-    await SharePlus.instance.share(
-      ShareParams(text: text, subject: context.l10n.exportSubject),
-    );
+    File? exportFile;
+    try {
+      final directory = await getTemporaryDirectory();
+      exportFile = File(
+        '${directory.path}${Platform.pathSeparator}'
+        'voicebrief-text-${DateTime.now().millisecondsSinceEpoch}.txt',
+      );
+      await exportFile.writeAsString(text, flush: true);
+      if (!context.mounted) return;
+      final renderBox = context.findRenderObject() as RenderBox?;
+      final origin = renderBox == null
+          ? null
+          : renderBox.localToGlobal(Offset.zero) & renderBox.size;
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(exportFile.path, mimeType: 'text/plain')],
+          subject: context.l10n.exportSubject,
+          sharePositionOrigin: origin,
+        ),
+      );
+    } on Object {
+      if (context.mounted) {
+        AppToast.show(context, context.l10n.exportSavedTextFailed);
+      }
+    } finally {
+      if (exportFile != null && await exportFile.exists()) {
+        await exportFile.delete();
+      }
+    }
   }
 
   Future<String> _appVersion() async {
@@ -232,6 +279,23 @@ class SettingsScreen extends ConsumerWidget {
   }
 
   String _plainText(BuildContext context, BriefResult result) {
-    return '${result.title}\n\n${context.l10n.brief}\n${result.summary}\n\n${context.l10n.keyPoints}\n${result.keyPoints.map((item) => '• $item').join('\n')}\n\n${context.l10n.fullTranscript}\n${result.transcript}';
+    final actionItems = result.actionItems
+        .map((item) => '□ ${item.title}')
+        .join('\n');
+    final importantDates = result.importantDates
+        .map((date) => '• ${date.label}: ${date.originalPhrase}')
+        .join('\n');
+    return '${result.title}\n\n'
+        '${context.l10n.brief}\n${result.summary}\n\n'
+        '${context.l10n.keyPoints}\n'
+        '${result.keyPoints.map((item) => '• $item').join('\n')}\n\n'
+        '${context.l10n.actionItems}\n$actionItems\n\n'
+        '${context.l10n.importantDates}\n$importantDates\n\n'
+        '${context.l10n.suggestedReplies}\n'
+        '${context.l10n.shortTone}: ${result.suggestedReplies.short}\n'
+        '${context.l10n.friendlyTone}: ${result.suggestedReplies.friendly}\n'
+        '${context.l10n.professionalTone}: '
+        '${result.suggestedReplies.professional}\n\n'
+        '${context.l10n.fullTranscript}\n${result.transcript}';
   }
 }

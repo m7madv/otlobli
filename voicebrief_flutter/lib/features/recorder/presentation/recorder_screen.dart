@@ -34,6 +34,7 @@ class _RecorderScreenState extends ConsumerState<RecorderScreen> {
   bool _recording = false;
   bool _paused = false;
   bool _busy = false;
+  bool _hasAmplitudeSample = false;
   int _seconds = 0;
   String? _error;
 
@@ -41,10 +42,6 @@ class _RecorderScreenState extends ConsumerState<RecorderScreen> {
   void initState() {
     super.initState();
     _recorder = ref.read(recorderServiceProvider);
-    _amplitudeSubscription = _recorder.amplitudeStream().listen(
-      _onAmplitude,
-      onError: _onAmplitudeError,
-    );
   }
 
   void _onAmplitude(Amplitude amplitude) {
@@ -56,6 +53,7 @@ class _RecorderScreenState extends ConsumerState<RecorderScreen> {
     );
     setState(() {
       _currentLevel = level;
+      _hasAmplitudeSample = true;
       _levels = [..._levels.skip(1), level];
     });
   }
@@ -178,6 +176,16 @@ class _RecorderScreenState extends ConsumerState<RecorderScreen> {
                         activeFraction: _recording && !_paused ? 1 : 0,
                         live: _recording && !_paused,
                       ),
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        _recording && !_paused
+                            ? (_hasAmplitudeSample
+                                  ? context.l10n.liveWaveformActive
+                                  : context.l10n.liveWaveformStarting)
+                            : context.l10n.liveWaveformIdle,
+                        style: Theme.of(context).textTheme.bodySmall,
+                        textAlign: TextAlign.center,
+                      ),
                     ],
                   ),
                 ),
@@ -260,12 +268,20 @@ class _RecorderScreenState extends ConsumerState<RecorderScreen> {
     try {
       await HapticFeedback.selectionClick();
       await _recorder.start();
+      await _amplitudeSubscription?.cancel();
+      _amplitudeSubscription = _recorder.amplitudeStream().listen(
+        _onAmplitude,
+        onError: _onAmplitudeError,
+      );
       _timer = Timer.periodic(const Duration(seconds: 1), (_) {
         if (mounted && !_paused) setState(() => _seconds++);
       });
       setState(() {
         _recording = true;
         _busy = false;
+        _hasAmplitudeSample = false;
+        _currentLevel = AmplitudeVisualizer.restingLevel;
+        _levels = List<double>.filled(25, AmplitudeVisualizer.restingLevel);
       });
     } on AppFailure catch (failure) {
       setState(() {
@@ -315,6 +331,8 @@ class _RecorderScreenState extends ConsumerState<RecorderScreen> {
   Future<void> _stop() async {
     setState(() => _busy = true);
     final recordedPath = await _recorder.stop();
+    await _amplitudeSubscription?.cancel();
+    _amplitudeSubscription = null;
     _timer?.cancel();
     if (recordedPath == null) {
       setState(() {
@@ -333,11 +351,14 @@ class _RecorderScreenState extends ConsumerState<RecorderScreen> {
   Future<void> _cancel() async {
     _timer?.cancel();
     await _recorder.cancel();
+    await _amplitudeSubscription?.cancel();
+    _amplitudeSubscription = null;
     if (mounted) {
       setState(() {
         _recording = false;
         _paused = false;
         _seconds = 0;
+        _hasAmplitudeSample = false;
         _currentLevel = AmplitudeVisualizer.restingLevel;
         _levels = List<double>.filled(25, AmplitudeVisualizer.restingLevel);
       });

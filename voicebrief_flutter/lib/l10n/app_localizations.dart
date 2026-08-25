@@ -578,6 +578,24 @@ abstract class AppLocalizations {
   /// **'The recording could not be saved.'**
   String get recordingSaveFailed;
 
+  /// No description provided for @liveWaveformIdle.
+  ///
+  /// In en, this message translates to:
+  /// **'The real waveform appears after recording starts.'**
+  String get liveWaveformIdle;
+
+  /// No description provided for @liveWaveformStarting.
+  ///
+  /// In en, this message translates to:
+  /// **'Reading the real microphone level…'**
+  String get liveWaveformStarting;
+
+  /// No description provided for @liveWaveformActive.
+  ///
+  /// In en, this message translates to:
+  /// **'This waveform is moving with your live voice.'**
+  String get liveWaveformActive;
+
   /// No description provided for @historyLocalOnly.
   ///
   /// In en, this message translates to:
@@ -1133,19 +1151,19 @@ abstract class AppLocalizations {
   /// No description provided for @audioHandlingTitle.
   ///
   /// In en, this message translates to:
-  /// **'How your audio is handled'**
+  /// **'Audio is temporary; saving text is optional'**
   String get audioHandlingTitle;
 
   /// No description provided for @audioHandlingDescription.
   ///
   /// In en, this message translates to:
-  /// **'Audio is copied to private temporary storage, processed securely, then deleted. Original audio is never stored in history.'**
+  /// **'Audio is used temporarily for transcription, then deleted automatically. Only a brief and transcript you choose to save can remain in history.'**
   String get audioHandlingDescription;
 
   /// No description provided for @exportSavedText.
   ///
   /// In en, this message translates to:
-  /// **'Export saved text'**
+  /// **'Share saved text'**
   String get exportSavedText;
 
   /// No description provided for @exportSubject.
@@ -1157,32 +1175,62 @@ abstract class AppLocalizations {
   /// No description provided for @exportSavedTextDescription.
   ///
   /// In en, this message translates to:
-  /// **'Exports generated text only — never the original audio.'**
+  /// **'Creates a TXT file containing briefs, key points, tasks, dates, replies, and transcripts, then opens the share sheet. It never includes audio.'**
   String get exportSavedTextDescription;
+
+  /// No description provided for @exportSavedTextFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The text file could not be created for sharing.'**
+  String get exportSavedTextFailed;
+
+  /// No description provided for @noSavedTextOnDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'There is no saved text on this device.'**
+  String get noSavedTextOnDevice;
 
   /// No description provided for @clearLocalHistory.
   ///
   /// In en, this message translates to:
-  /// **'Clear local history'**
+  /// **'Delete saved text'**
   String get clearLocalHistory;
+
+  /// No description provided for @clearSavedTextDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Deletes briefs and transcripts from this device only. No audio recordings are stored here.'**
+  String get clearSavedTextDescription;
 
   /// No description provided for @clearHistoryTitle.
   ///
   /// In en, this message translates to:
-  /// **'Clear local history?'**
+  /// **'Delete saved text?'**
   String get clearHistoryTitle;
 
   /// No description provided for @clearHistoryMessage.
   ///
   /// In en, this message translates to:
-  /// **'All saved text on this device will be deleted. This cannot be undone.'**
+  /// **'All briefs and transcripts saved on this device will be permanently deleted. Audio files are already deleted after processing.'**
   String get clearHistoryMessage;
 
   /// No description provided for @clearHistory.
   ///
   /// In en, this message translates to:
-  /// **'Clear history'**
+  /// **'Delete text'**
   String get clearHistory;
+
+  /// No description provided for @savedTextCleared.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved text deleted.'**
+  String get savedTextCleared;
+
+  /// No description provided for @clearSavedTextFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved text could not be deleted. Try again.'**
+  String get clearSavedTextFailed;
 
   /// No description provided for @termsOfService.
   ///

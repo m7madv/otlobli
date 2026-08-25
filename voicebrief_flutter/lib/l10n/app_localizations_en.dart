@@ -268,6 +268,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get recordingSaveFailed => 'The recording could not be saved.';
 
   @override
+  String get liveWaveformIdle =>
+      'The real waveform appears after recording starts.';
+
+  @override
+  String get liveWaveformStarting => 'Reading the real microphone level…';
+
+  @override
+  String get liveWaveformActive =>
+      'This waveform is moving with your live voice.';
+
+  @override
   String get historyLocalOnly => 'Saved locally on this device';
 
   @override
@@ -586,34 +597,53 @@ class AppLocalizationsEn extends AppLocalizations {
   String get privacyAndData => 'Privacy and data';
 
   @override
-  String get audioHandlingTitle => 'How your audio is handled';
+  String get audioHandlingTitle =>
+      'Audio is temporary; saving text is optional';
 
   @override
   String get audioHandlingDescription =>
-      'Audio is copied to private temporary storage, processed securely, then deleted. Original audio is never stored in history.';
+      'Audio is used temporarily for transcription, then deleted automatically. Only a brief and transcript you choose to save can remain in history.';
 
   @override
-  String get exportSavedText => 'Export saved text';
+  String get exportSavedText => 'Share saved text';
 
   @override
   String get exportSubject => 'VoiceBrief export';
 
   @override
   String get exportSavedTextDescription =>
-      'Exports generated text only — never the original audio.';
+      'Creates a TXT file containing briefs, key points, tasks, dates, replies, and transcripts, then opens the share sheet. It never includes audio.';
 
   @override
-  String get clearLocalHistory => 'Clear local history';
+  String get exportSavedTextFailed =>
+      'The text file could not be created for sharing.';
 
   @override
-  String get clearHistoryTitle => 'Clear local history?';
+  String get noSavedTextOnDevice => 'There is no saved text on this device.';
+
+  @override
+  String get clearLocalHistory => 'Delete saved text';
+
+  @override
+  String get clearSavedTextDescription =>
+      'Deletes briefs and transcripts from this device only. No audio recordings are stored here.';
+
+  @override
+  String get clearHistoryTitle => 'Delete saved text?';
 
   @override
   String get clearHistoryMessage =>
-      'All saved text on this device will be deleted. This cannot be undone.';
+      'All briefs and transcripts saved on this device will be permanently deleted. Audio files are already deleted after processing.';
 
   @override
-  String get clearHistory => 'Clear history';
+  String get clearHistory => 'Delete text';
+
+  @override
+  String get savedTextCleared => 'Saved text deleted.';
+
+  @override
+  String get clearSavedTextFailed =>
+      'Saved text could not be deleted. Try again.';
 
   @override
   String get termsOfService => 'Terms of service';

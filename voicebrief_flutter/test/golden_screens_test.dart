@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:voicebrief/app/app_controller.dart';
 import 'package:voicebrief/features/auth/presentation/auth_screen.dart';
 import 'package:voicebrief/features/home/presentation/shell_screen.dart';
+import 'package:voicebrief/features/recorder/presentation/recorder_screen.dart';
+import 'package:voicebrief/features/settings/presentation/settings_screen.dart';
 import 'package:voicebrief/features/subscription/presentation/paywall_screen.dart';
 import 'package:voicebrief/features/transcription/presentation/result_screen.dart';
 import 'package:voicebrief/ui/core/components/app_components.dart';
@@ -23,6 +25,7 @@ void main() {
     required AppControllerFactory controllerFactory,
     ThemeMode themeMode = ThemeMode.light,
     double textScale = 1,
+    Locale locale = const Locale('en'),
   }) async {
     await tester.binding.setSurfaceSize(const Size(390, 844));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -35,6 +38,7 @@ void main() {
           home: screen,
           themeMode: themeMode,
           textScale: textScale,
+          locale: locale,
         ),
       ),
     );
@@ -129,6 +133,26 @@ void main() {
       name: 'home_large_text',
       screen: const ShellScreen(),
       textScale: 1.6,
+      controllerFactory: signedInController,
+    );
+  });
+
+  testWidgets('Arabic settings empty text state', (tester) async {
+    await golden(
+      tester,
+      name: 'settings_ar',
+      screen: const Scaffold(body: SettingsScreen()),
+      locale: const Locale('ar'),
+      controllerFactory: signedInController,
+    );
+  });
+
+  testWidgets('Arabic recorder idle state', (tester) async {
+    await golden(
+      tester,
+      name: 'recorder_ar',
+      screen: const RecorderScreen(),
+      locale: const Locale('ar'),
       controllerFactory: signedInController,
     );
   });

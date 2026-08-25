@@ -176,8 +176,9 @@ Widget testApp({
   Locale locale = const Locale('en'),
 }) {
   controller.setThemeMode(themeMode);
-  final lightTheme = _fontTheme(AppTheme.light());
-  final darkTheme = _fontTheme(AppTheme.dark());
+  final testFontFamily = locale.languageCode == 'ar' ? 'Arial' : 'Roboto';
+  final lightTheme = _fontTheme(AppTheme.light(), testFontFamily);
+  final darkTheme = _fontTheme(AppTheme.dark(), testFontFamily);
   return ProviderScope(
     overrides: [
       appControllerProvider.overrideWith((_) => controller),
@@ -202,9 +203,14 @@ Widget testApp({
   );
 }
 
-ThemeData _fontTheme(ThemeData base) => base.copyWith(
-  textTheme: base.textTheme.apply(fontFamily: 'Roboto'),
-  primaryTextTheme: base.primaryTextTheme.apply(fontFamily: 'Roboto'),
+ThemeData _fontTheme(ThemeData base, String fontFamily) => base.copyWith(
+  textTheme: base.textTheme.apply(fontFamily: fontFamily),
+  primaryTextTheme: base.primaryTextTheme.apply(fontFamily: fontFamily),
+  appBarTheme: base.appBarTheme.copyWith(
+    titleTextStyle: base.appBarTheme.titleTextStyle?.copyWith(
+      fontFamily: fontFamily,
+    ),
+  ),
 );
 
 Future<void> loadTestFonts() async {
@@ -221,6 +227,20 @@ Future<void> loadTestFonts() async {
     );
   }
   await loader.load();
+
+  final windowsDirectory = Platform.environment['WINDIR'];
+  if (windowsDirectory != null) {
+    final arabicFont = File('$windowsDirectory/Fonts/arial.ttf');
+    if (arabicFont.existsSync()) {
+      final arabicLoader = FontLoader('Arial')
+        ..addFont(
+          arabicFont.readAsBytes().then(
+            (bytes) => ByteData.sublistView(Uint8List.fromList(bytes)),
+          ),
+        );
+      await arabicLoader.load();
+    }
+  }
 
   try {
     final bundledIconLoader = FontLoader('MaterialIcons')

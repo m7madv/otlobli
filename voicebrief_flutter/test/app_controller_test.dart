@@ -55,6 +55,23 @@ void main() {
       expect(await deletion, isTrue);
     },
   );
+
+  test('clearing history is optimistic and reports completion', () async {
+    final history = _DelayedClearHistoryRepository();
+    final controller = createTestController(historyRepository: history);
+    addTearDown(controller.dispose);
+    await controller.signInWithEmail('owner@example.com', 'a-secure-password');
+    controller.openResult(sampleResult(saved: true));
+    await controller.saveActiveResult();
+    await Future<void>.delayed(Duration.zero);
+    expect(controller.state.history, hasLength(1));
+
+    final clearing = controller.clearHistory();
+    expect(controller.state.history, isEmpty);
+    history.finishClear();
+
+    expect(await clearing, isTrue);
+  });
 }
 
 class _DelayedDeleteHistoryRepository extends MemoryHistoryRepository {
@@ -66,5 +83,17 @@ class _DelayedDeleteHistoryRepository extends MemoryHistoryRepository {
   Future<void> delete(String accountId, String resultId) async {
     await _deleteCompleter.future;
     await super.delete(accountId, resultId);
+  }
+}
+
+class _DelayedClearHistoryRepository extends MemoryHistoryRepository {
+  final _clearCompleter = Completer<void>();
+
+  void finishClear() => _clearCompleter.complete();
+
+  @override
+  Future<void> clear(String accountId) async {
+    await _clearCompleter.future;
+    await super.clear(accountId);
   }
 }

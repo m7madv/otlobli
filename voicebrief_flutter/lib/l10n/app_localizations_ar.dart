@@ -267,6 +267,15 @@ class AppLocalizationsAr extends AppLocalizations {
   String get recordingSaveFailed => 'تعذر حفظ التسجيل.';
 
   @override
+  String get liveWaveformIdle => 'تظهر الموجة الحقيقية بعد بدء التسجيل.';
+
+  @override
+  String get liveWaveformStarting => 'جارٍ قراءة مستوى الميكروفون الحقيقي…';
+
+  @override
+  String get liveWaveformActive => 'هذه الموجة تتحرك حسب صوتك مباشرة.';
+
+  @override
   String get historyLocalOnly => 'محفوظ محليًا على هذا الجهاز';
 
   @override
@@ -569,34 +578,50 @@ class AppLocalizationsAr extends AppLocalizations {
   String get privacyAndData => 'الخصوصية والبيانات';
 
   @override
-  String get audioHandlingTitle => 'كيفية التعامل مع الصوت';
+  String get audioHandlingTitle => 'الصوت مؤقت، والنص اختياري';
 
   @override
   String get audioHandlingDescription =>
-      'يُنسخ الصوت إلى تخزين مؤقت خاص ويُعالج بأمان ثم يُحذف. لا يُحفظ الصوت الأصلي في السجل.';
+      'يُستخدم ملف الصوت مؤقتًا للتحويل ثم يُحذف تلقائيًا. لا يبقى في السجل إلا الملخص والنص عندما تضغط حفظ.';
 
   @override
-  String get exportSavedText => 'تصدير النص المحفوظ';
+  String get exportSavedText => 'مشاركة النصوص المحفوظة';
 
   @override
   String get exportSubject => 'تصدير VoiceBrief';
 
   @override
   String get exportSavedTextDescription =>
-      'يُصدّر النص الناتج فقط، ولا يُصدّر الصوت الأصلي.';
+      'ينشئ ملف TXT من الملخص والنقاط والمهام والمواعيد والردود والنص الحرفي، ثم يفتح قائمة المشاركة. لا يتضمن أي صوت.';
 
   @override
-  String get clearLocalHistory => 'مسح السجل المحلي';
+  String get exportSavedTextFailed => 'تعذر إنشاء ملف النص للمشاركة.';
 
   @override
-  String get clearHistoryTitle => 'مسح السجل المحلي؟';
+  String get noSavedTextOnDevice => 'لا توجد نصوص محفوظة على هذا الجهاز.';
+
+  @override
+  String get clearLocalHistory => 'حذف النصوص المحفوظة';
+
+  @override
+  String get clearSavedTextDescription =>
+      'يحذف الملخصات والنصوص من هذا الجهاز فقط. لا توجد تسجيلات صوتية محفوظة هنا.';
+
+  @override
+  String get clearHistoryTitle => 'حذف النصوص المحفوظة؟';
 
   @override
   String get clearHistoryMessage =>
-      'ستُحذف كل النصوص المحفوظة على هذا الجهاز ولا يمكن التراجع.';
+      'ستُحذف كل الملخصات والنصوص المحفوظة على هذا الجهاز نهائيًا. ملفات الصوت محذوفة أصلًا بعد المعالجة.';
 
   @override
-  String get clearHistory => 'مسح السجل';
+  String get clearHistory => 'حذف النصوص';
+
+  @override
+  String get savedTextCleared => 'حُذفت النصوص المحفوظة.';
+
+  @override
+  String get clearSavedTextFailed => 'تعذر حذف النصوص المحفوظة. حاول مجددًا.';
 
   @override
   String get termsOfService => 'شروط الاستخدام';

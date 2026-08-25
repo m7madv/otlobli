@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:voicebrief/features/auth/presentation/auth_screen.dart';
 import 'package:voicebrief/features/history/presentation/history_screen.dart';
 import 'package:voicebrief/features/home/presentation/home_screen.dart';
+import 'package:voicebrief/features/settings/presentation/settings_screen.dart';
 import 'package:voicebrief/features/subscription/presentation/paywall_screen.dart';
 import 'package:voicebrief/features/transcription/presentation/result_screen.dart';
 import 'package:voicebrief/ui/core/components/app_components.dart';
@@ -167,6 +168,30 @@ void main() {
       find.widgetWithText(SubscriptionOptionTile, 'Yearly'),
     );
     expect(selected.selected, isTrue);
+  });
+
+  testWidgets('empty saved-text actions explain why there is nothing to do', (
+    tester,
+  ) async {
+    final controller = createTestController();
+    await controller.signInWithEmail('owner@example.com', 'a-secure-password');
+    await tester.pumpWidget(
+      testApp(
+        controller: controller,
+        home: const Scaffold(body: SettingsScreen()),
+      ),
+    );
+    await tester.pump();
+    await tester.scrollUntilVisible(
+      find.text('Share saved text'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+
+    expect(find.text('There is no saved text on this device.'), findsWidgets);
+    await tester.tap(find.text('Share saved text'));
+    await tester.pump();
+    expect(find.text('There is no saved text on this device.'), findsWidgets);
   });
 
   testWidgets('large text error state remains usable in dark mode', (

@@ -8,15 +8,16 @@ import 'package:uuid/uuid.dart';
 import 'package:voicebrief/core/errors/app_failure.dart';
 
 class RecorderService {
-  RecorderService({AudioRecorder? recorder})
-    : _recorder = recorder ?? AudioRecorder();
+  RecorderService({AudioRecorder? recorder}) : _recorder = recorder;
 
-  final AudioRecorder _recorder;
+  AudioRecorder? _recorder;
   static const _uuid = Uuid();
   static const _microphoneChannel = MethodChannel('voicebrief/microphone');
 
+  AudioRecorder get _activeRecorder => _recorder ??= AudioRecorder();
+
   Stream<Amplitude> amplitudeStream() =>
-      _recorder.onAmplitudeChanged(const Duration(milliseconds: 120));
+      _activeRecorder.onAmplitudeChanged(const Duration(milliseconds: 120));
 
   Future<void> start() async {
     final hasPermission = await _requestPermission();
@@ -28,7 +29,7 @@ class RecorderService {
       directory.path,
       'voicebrief_recording_${_uuid.v4()}.m4a',
     );
-    await _recorder.start(
+    await _activeRecorder.start(
       const RecordConfig(
         encoder: AudioEncoder.aacLc,
         bitRate: 128000,
@@ -47,7 +48,7 @@ class RecorderService {
             ) ??
             false;
       }
-      return _recorder.hasPermission();
+      return _activeRecorder.hasPermission();
     } on PlatformException catch (error) {
       throw AppFailure(
         AppFailureCode.microphoneDenied,
@@ -56,13 +57,14 @@ class RecorderService {
     }
   }
 
-  Future<void> pause() => _recorder.pause();
-  Future<void> resume() => _recorder.resume();
-  Future<String?> stop() => _recorder.stop();
-  Future<void> cancel() => _recorder.cancel();
+  Future<void> pause() => _activeRecorder.pause();
+  Future<void> resume() => _activeRecorder.resume();
+  Future<String?> stop() => _activeRecorder.stop();
+  Future<void> cancel() => _activeRecorder.cancel();
 
   Future<void> dispose() async {
-    await _recorder.dispose();
+    await _recorder?.dispose();
+    _recorder = null;
   }
 
   Future<int> sizeOf(String filePath) => File(filePath).length();

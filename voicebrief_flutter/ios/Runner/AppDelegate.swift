@@ -8,7 +8,8 @@ final class VoiceBriefShareBridge {
   static let shared = VoiceBriefShareBridge()
 
   private let appGroup = "group.app.voicebrief.mobile"
-  private let payloadKey = "VoiceBriefPendingShare"
+  private let legacyPayloadKey = "VoiceBriefPendingShare"
+  private let manifestName = "pending-share.json"
   private var channel: FlutterMethodChannel?
   private var dartReady = false
 
@@ -31,10 +32,26 @@ final class VoiceBriefShareBridge {
   }
 
   private func takePayload() -> [String: Any]? {
+    if let container = FileManager.default.containerURL(
+      forSecurityApplicationGroupIdentifier: appGroup
+    ) {
+      let manifest = container
+        .appendingPathComponent("Incoming", isDirectory: true)
+        .appendingPathComponent(manifestName)
+      if let data = try? Data(contentsOf: manifest),
+         let object = try? JSONSerialization.jsonObject(with: data),
+         let payload = object as? [String: Any] {
+        try? FileManager.default.removeItem(at: manifest)
+        return payload
+      }
+      if FileManager.default.fileExists(atPath: manifest.path) {
+        try? FileManager.default.removeItem(at: manifest)
+      }
+    }
     guard let defaults = UserDefaults(suiteName: appGroup),
-          let payload = defaults.dictionary(forKey: payloadKey)
+          let payload = defaults.dictionary(forKey: legacyPayloadKey)
     else { return nil }
-    defaults.removeObject(forKey: payloadKey)
+    defaults.removeObject(forKey: legacyPayloadKey)
     return payload
   }
 }
