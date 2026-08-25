@@ -17,7 +17,7 @@
 
 ## متبقٍ قبل نشر 4.2.0+9
 
-- [ ] بناء Android وiOS الموقّعين من GitHub مع إعدادات Supabase الحية وفحص الحزم.
+- [x] بناء Android وiOS الموقّعين بإعدادات Supabase الحية وفحص الحزم؛ Android محلي بالمفتاح الحالي وiOS عبر GitHub run `32884908928`.
 - [ ] رفع build 9 إلى TestFlight وGoogle Play Internal testing.
 - [ ] اختبار تسجيل Apple وGoogle، البيع، المسح، الضمان، المرتجع، الدعوة، والاشتراك على هاتفين حقيقيين.
 - [ ] شراء Sandbox واستعادة وتجديد فعلي على iPhone.
