@@ -1,8 +1,45 @@
 import { OTLOBLI_SKU_TAP_JS } from './sheinSkuTap'
 
 export const STORE_PRODUCT_CAPTURE_SCRIPT = `
-  function ensureNoTextSelection() {
+  function otlobliProductCapturePausedForChallenge() {
+    try { return otlobliInterventionPausedForHumanChallenge(); } catch (e) {}
+    return typeof otlobliChallengeActive !== 'undefined' && otlobliChallengeActive;
+  }
+
+  function otlobliSuspendProductCaptureForChallenge() {
+    try { if (typeof sheinSuspendSkuReveal === 'function') sheinSuspendSkuReveal(); } catch (e) {}
+    try { if (typeof temuCancelHeroCapture === 'function') temuCancelHeroCapture(); } catch (e) {}
+    try {
+      __otlobliSelectedSkuPriceRun = Number(__otlobliSelectedSkuPriceRun || 0) + 1;
+      if (__otlobliSelectedSkuPriceObserver) __otlobliSelectedSkuPriceObserver.disconnect();
+      __otlobliSelectedSkuPriceObserver = null;
+    } catch (e) {}
+    try { clearAddSafetyTimer(); } catch (e) {}
+    try {
+      if (window.__otlobliMsgTimer) clearTimeout(window.__otlobliMsgTimer);
+      window.__otlobliMsgTimer = 0;
+    } catch (e) {}
+    var ownedIds = [
+      'otlobli-overlay','otlobli-loading','otlobli-add-btn','otlobli-back-btn',
+      'otlobli-msg','otlobli-gate-spinner','otlobli-temu-product-loading',
+      'otlobli-region-switching','otlobli-shein-saudi-guard'
+    ];
+    for (var oi = 0; oi < ownedIds.length; oi++) {
+      try {
+        var owned = document.getElementById(ownedIds[oi]);
+        if (owned && owned.parentNode) owned.parentNode.removeChild(owned);
+      } catch (e) {}
+    }
+    try {
+      var noSelect = document.getElementById('otlobli-no-select-style');
+      if (noSelect && noSelect.parentNode) noSelect.parentNode.removeChild(noSelect);
+    } catch (e) {}
+    try { otlobliReleaseAddingScrollLock(); } catch (e) {}
+  }
+
+  function ensureNoTextSelection(challengeAlreadyGuarded) {
     if (!document.head) return;
+    if (!challengeAlreadyGuarded && otlobliProductCapturePausedForChallenge()) return;
     if (document.getElementById('otlobli-no-select-style')) return;
     var style = document.createElement('style');
     style.id = 'otlobli-no-select-style';
@@ -220,6 +257,7 @@ export const STORE_PRODUCT_CAPTURE_SCRIPT = `
 
   function sheinTrackSelectedSkuPrice(event) {
     if (!IS_SHEIN || !document.body) return;
+    if (otlobliProductCapturePausedForChallenge()) return;
     var target = event && event.target;
     if (!target || !target.closest || target.closest('[id^="otlobli-"]')) return;
     var colorBox = findOptionContainer('color', OTLOBLI_COLOR_LABELS);
@@ -258,6 +296,7 @@ export const STORE_PRODUCT_CAPTURE_SCRIPT = `
       }
     };
     __otlobliSelectedSkuPriceObserver = new MutationObserver(function (records) {
+      if (otlobliProductCapturePausedForChallenge()) return;
       priceChanged = false;
       for (var i = 0; i < records.length; i++) {
         rememberRoot(records[i].target.nodeType === 3 ? records[i].target.parentElement : records[i].target);
@@ -276,6 +315,7 @@ export const STORE_PRODUCT_CAPTURE_SCRIPT = `
     }
     var commit = function () {
       if (run !== __otlobliSelectedSkuPriceRun) return;
+      if (otlobliProductCapturePausedForChallenge()) return;
       var price = 0;
       for (var i = 0; i < roots.length; i++) {
         var found = sheinPriceFromChangedRoot(roots[i]);
@@ -1174,6 +1214,7 @@ export const STORE_PRODUCT_CAPTURE_SCRIPT = `
       var ctrl = sheinSkuPromptNode(entry) || entry;
       sheinClearOptionsFromButton(ctrl);
       setTimeout(function () {
+        if (otlobliProductCapturePausedForChallenge()) return;
         sheinTapElement(ctrl);
         sheinRevealSkuOptions(0);
       }, 260);
@@ -1235,7 +1276,8 @@ export const STORE_PRODUCT_CAPTURE_SCRIPT = `
     style.id = 'otlobli-overlay-style';
     style.textContent = '@keyframes otlobli-spin{to{transform:rotate(360deg)}}' +
       '@keyframes otlobli-pop{0%{transform:scale(.86);opacity:0}100%{transform:scale(1);opacity:1}}' +
-      '@keyframes otlobli-fade-out{to{opacity:0}}';
+      '@keyframes otlobli-fade-out{to{opacity:0}}' +
+      'body[data-otlobli-add-scroll-lock="1"]{overflow:hidden!important}';
     document.head.appendChild(style);
   }
 
@@ -1247,7 +1289,7 @@ export const STORE_PRODUCT_CAPTURE_SCRIPT = `
     var existing = document.getElementById('otlobli-overlay');
     if (existing) existing.remove();
     var vp = viewportSize();
-    document.body.style.overflow = 'hidden';
+    document.body.setAttribute('data-otlobli-add-scroll-lock', '1');
 
     var overlay = document.createElement('div');
     overlay.id = 'otlobli-overlay';
@@ -1260,8 +1302,18 @@ export const STORE_PRODUCT_CAPTURE_SCRIPT = `
     // winning the stacking tie and eating the tap.
     overlay.style.cssText = 'position:fixed;left:0;top:0;width:' + vp.width + 'px;height:' + vp.height + 'px;' +
       'background:rgba(13,18,22,.42);z-index:2147483646;display:flex;align-items:center;justify-content:center;';
-    overlay.addEventListener('touchmove', function (e) { e.preventDefault(); }, { passive: false });
-    overlay.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); }, true);
+    overlay.addEventListener('touchmove', function (e) {
+      if (otlobliProductCapturePausedForChallenge()) {
+        overlay.remove(); otlobliReleaseAddingScrollLock(); return;
+      }
+      e.preventDefault();
+    }, { passive: false });
+    overlay.addEventListener('click', function (e) {
+      if (otlobliProductCapturePausedForChallenge()) {
+        overlay.remove(); otlobliReleaseAddingScrollLock(); return;
+      }
+      e.preventDefault(); e.stopPropagation();
+    }, true);
 
     var card = document.createElement('div');
     card.style.cssText = 'background:transparent;border:0;border-radius:0;padding:0 28px;width:min(86vw,340px);' +
@@ -1385,6 +1437,12 @@ export const STORE_PRODUCT_CAPTURE_SCRIPT = `
 
   function removeOverlay(delay) {
     setTimeout(function () {
+      if (otlobliProductCapturePausedForChallenge()) {
+        var pausedOverlay = document.getElementById('otlobli-overlay');
+        if (pausedOverlay) pausedOverlay.remove();
+        otlobliReleaseAddingScrollLock();
+        return;
+      }
       var overlay = document.getElementById('otlobli-overlay');
       if (overlay) {
         overlay.style.animation = 'otlobli-fade-out .25s ease-in forwards';
@@ -1400,19 +1458,19 @@ export const STORE_PRODUCT_CAPTURE_SCRIPT = `
   // Observed on the real Note 8: a Temu product page would not move a single
   // pixel while the site itself was alive, so the customer could never reach
   // the size options below the fold and the item was added with none chosen.
-  // Restore on both elements, since the scrolling box differs between stores.
+  // Ownership is an app attribute consumed by our overlay CSS, never a write to
+  // the store's inline overflow. A challenge/drawer may own its own scroll lock;
+  // removing our attribute must leave that independent lock untouched.
   function otlobliReleaseAddingScrollLock() {
-    try { if (document.body) document.body.style.overflow = ''; } catch (e) {}
-    try { if (document.documentElement) document.documentElement.style.overflow = ''; } catch (e) {}
+    try { if (document.body) document.body.removeAttribute('data-otlobli-add-scroll-lock'); } catch (e) {}
   }
 
   // Self-heal: whatever went wrong, a scroll lock with no overlay on screen is
   // never correct. Cheap enough for the low-end tick (one lookup + one read).
   function otlobliHealOrphanScrollLock() {
     if (document.getElementById('otlobli-overlay')) return;
-    var bodyLocked = document.body && document.body.style.overflow === 'hidden';
-    var rootLocked = document.documentElement && document.documentElement.style.overflow === 'hidden';
-    if (!bodyLocked && !rootLocked) return;
+    var bodyLocked = document.body && document.body.getAttribute('data-otlobli-add-scroll-lock') === '1';
+    if (!bodyLocked) return;
     if (IS_SHEIN && (sheinShippingBodyLockState || sheinShippingUiLikelyOpen())) return;
     otlobliReleaseAddingScrollLock();
   }
@@ -2298,57 +2356,90 @@ export const STORE_PRODUCT_CAPTURE_SCRIPT = `
     window.__otlobliTemuColorDiag = 'رأس موجود، صفر كروت صور (h' + hops + ')';
     return null;
   }
-  // جدولة التقاط هيرو اللون (بعد إغلاق الشيت) — مشتركة بين فرعَي الالتقاط.
-  function temuScheduleHeroCapture(gid) {
-    function captureHero2() {
-      if (window.__otlobliTemuColorGid !== gid) return;
-      var himgs = document.querySelectorAll('img');
-      var hbest = '', hbestA = 0;
-      var vpH2 = viewportSize().height;
-      for (var hi = 0; hi < himgs.length; hi++) {
-        var hsrc = himgs[hi].currentSrc || himgs[hi].src || '';
-        if (!/kwcdn|temu/i.test(hsrc)) continue;
-        var hr = himgs[hi].getBoundingClientRect();
-        if (hr.width < 200 || hr.height < 200) continue;
-        // المعرض الرئيسي أعلى الصفحة فقط — لا صور الشيت المفتوح.
-        if (hr.top > vpH2 * 0.5) continue;
-        var ha = hr.width * hr.height;
-        if (ha > hbestA) { hbestA = ha; hbest = hsrc; }
-      }
-      if (hbest) window.__otlobliTemuColorImg = hbest;
+  // مالك واحد لمحاولتَي التقاط هيرو اللون. كل اختيار أحدث يلغي عمل الاختيار
+  // السابق، والـtoken يمنع callback خرج من طابور المهام للتو من كتابة صورة
+  // قديمة. goodsId يمنع عبور الالتقاط إلى منتج SPA آخر.
+  var __otlobliTemuHeroCaptureHandles = [];
+  var __otlobliTemuHeroCaptureToken = 0;
+  var __otlobliTemuHeroCaptureGid = '';
+  function temuCancelHeroCapture() {
+    __otlobliTemuHeroCaptureToken++;
+    var handles = __otlobliTemuHeroCaptureHandles || [];
+    for (var ci = 0; ci < handles.length; ci++) {
+      try { clearTimeout(handles[ci]); } catch (e) {}
     }
-    setTimeout(captureHero2, 700);
-    setTimeout(captureHero2, 1600);
+    __otlobliTemuHeroCaptureHandles = [];
+    __otlobliTemuHeroCaptureGid = '';
+  }
+  function temuForgetHeroCaptureHandle(handle) {
+    var index = __otlobliTemuHeroCaptureHandles.indexOf(handle);
+    if (index >= 0) __otlobliTemuHeroCaptureHandles.splice(index, 1);
+  }
+  function temuCaptureScheduledHero(gid, token) {
+    if (token !== __otlobliTemuHeroCaptureToken) return;
+    if (document.hidden || otlobliProductCapturePausedForChallenge() ||
+        temuGoodsId() !== gid || window.__otlobliTemuColorGid !== gid) {
+      temuCancelHeroCapture();
+      return;
+    }
+    var himgs = document.querySelectorAll('img');
+    var hbest = '', hbestA = 0;
+    var vpH2 = viewportSize().height;
+    for (var hi = 0; hi < himgs.length; hi++) {
+      var hsrc = himgs[hi].currentSrc || himgs[hi].src || '';
+      if (!/kwcdn|temu/i.test(hsrc)) continue;
+      var hr = himgs[hi].getBoundingClientRect();
+      if (hr.width < 200 || hr.height < 200) continue;
+      // المعرض الرئيسي أعلى الصفحة فقط — لا صور الشيت المفتوح.
+      if (hr.top > vpH2 * 0.5) continue;
+      var ha = hr.width * hr.height;
+      if (ha > hbestA) { hbestA = ha; hbest = hsrc; }
+    }
+    if (hbest) window.__otlobliTemuColorImg = hbest;
+  }
+  function temuScheduleHeroCapture(gid) {
+    temuCancelHeroCapture();
+    if (!IS_TEMU || !gid || document.hidden || otlobliProductCapturePausedForChallenge() ||
+        temuGoodsId() !== gid) return;
+    __otlobliTemuHeroCaptureGid = gid;
+    var token = __otlobliTemuHeroCaptureToken;
+    var schedule = function (delay) {
+      var handle = setTimeout(function () {
+        temuForgetHeroCaptureHandle(handle);
+        temuCaptureScheduledHero(gid, token);
+        if (token === __otlobliTemuHeroCaptureToken && !__otlobliTemuHeroCaptureHandles.length) {
+          __otlobliTemuHeroCaptureGid = '';
+        }
+      }, delay);
+      __otlobliTemuHeroCaptureHandles.push(handle);
+    };
+    schedule(700);
+    schedule(1600);
+  }
+  if (IS_TEMU && !window.__otlobliTemuHeroCaptureVisibilityBound) {
+    window.__otlobliTemuHeroCaptureVisibilityBound = true;
+    document.addEventListener('visibilitychange', temuCancelHeroCapture);
   }
   // مستمع نقر يسجّل آخر زر مقاس ضغطه الزبون فعلاً (المصدر الأوثق للمقاس).
   if (IS_TEMU && !window.__otlobliTemuClickBound) {
     window.__otlobliTemuClickBound = true;
     document.addEventListener('click', function (e) {
-      // مسجّل نقرات تشخيصي (نسخة اختبار): يحسم "النقر مش راضي يُسجّل" — هل
-      // النقرة تصل خيار [role=radio]، وهل Temu تقلب aria-checked بعدها؟
+      if (otlobliProductCapturePausedForChallenge()) return;
+      // Record only the functional selected/unavailable state. The old
+      // __otlobliLastTap diagnostic object and its extra 450ms timer shipped
+      // test-only work on every Temu tap.
       try {
         var tEl0 = e.target;
         var inRadio0 = (tEl0 && tEl0.closest) ? tEl0.closest('[role="radio"]') : null;
-        var inSku0 = (tEl0 && tEl0.closest) ? tEl0.closest('[class*="skuSelector"]') : null;
-        window.__otlobliLastTap = {
-          tag: (tEl0 && tEl0.tagName) || '?',
-          radio: !!inRadio0, sku: !!inSku0,
-          before: inRadio0 ? (inRadio0.getAttribute('aria-checked') || '?') : '-',
-          after: '?'
-        };
         if (inRadio0 && temuOptionUnavailable(inRadio0)) {
-          window.__otlobliLastTap.disabled = 'yes';
           otlobliTemuMarkUnavailableTap();
         }
         if (inRadio0) {
-          setTimeout(function () {
-            try { if (window.__otlobliLastTap) window.__otlobliLastTap.after = inRadio0.getAttribute('aria-checked') || '?'; } catch (e2) {}
-          }, 450);
           (function (radioEl, gidAtClick) {
             setTimeout(function () {
               try {
+                if (otlobliProductCapturePausedForChallenge()) return;
                 if (temuOptionUnavailable(radioEl)) {
-                  if (window.__otlobliLastTap) window.__otlobliLastTap.disabled = 'yes';
                   return;
                 }
                 window.__otlobliTemuUnavailableTapTs = 0;
@@ -2412,6 +2503,28 @@ export const STORE_PRODUCT_CAPTURE_SCRIPT = `
           }
         }
       } catch (errNav) {}
+      // SKU extraction is relevant only to an option-like tap on a PDP. The
+      // legacy listener ran full size/color DOM scans after every product tap,
+      // including gallery and recommendation controls on Note 8.
+      if (!looksLikeProductPage()) return;
+      var temuSkuClick = !!inRadio0;
+      if (!temuSkuClick && tEl0 && tEl0.closest) {
+        temuSkuClick = !!tEl0.closest(
+          '[role="radio"],[aria-checked],[aria-selected],[data-attr_value],' +
+          '[class*="sku" i],[class*="spec" i],[class*="variant" i],' +
+          '[class*="size" i],[class*="color" i]'
+        );
+      }
+      if (!temuSkuClick) {
+        var skuProbe = tEl0, skuDepth = 0;
+        while (skuProbe && skuDepth < 4 && !temuSkuClick) {
+          var skuHints = String((skuProbe.className || '') + ' ' + (skuProbe.id || '') + ' ' +
+            (skuProbe.getAttribute ? (skuProbe.getAttribute('aria-label') || '') : ''));
+          temuSkuClick = /sku|spec|variant|option|size|color|مقاس|لون|موديل/i.test(skuHints);
+          skuProbe = skuProbe.parentElement; skuDepth++;
+        }
+      }
+      if (!temuSkuClick) return;
       try {
         // التقاط احتياطي للّون بعد أي نقرة: تيمو تُحدّث عنوان "اللون: X" بعد
         // الاختيار — يغطي كروت الألوان النصية (ساعات/إكسسوارات) التي لا
@@ -2420,6 +2533,7 @@ export const STORE_PRODUCT_CAPTURE_SCRIPT = `
           window.__otlobliTemuHeadingTimer = setTimeout(function () {
             window.__otlobliTemuHeadingTimer = null;
             try {
+              if (otlobliProductCapturePausedForChallenge()) return;
               var hc = temuColorFromHeading();
               var gidH = temuGoodsId();
               // نقرة كرت لون حديثة (<1.2ث) على نفس المنتج = مصدر أوثق من
@@ -2511,34 +2625,9 @@ export const STORE_PRODUCT_CAPTURE_SCRIPT = `
                   // نقبل أي URL مطلق (http/https) لأن Temu قد تعتمد CDN مختلفة.
                   var cSrc = cardImg2.currentSrc || cardImg2.src || '';
                   window.__otlobliTemuColorSwatch = (cSrc && cSrc.indexOf('http') === 0) ? cSrc : '';
-                  // امسح الهيرو القديم — سيُحدَّث بعد 250ms حين تُحدّث تيمو صورة الهيرو
+                  // امسح الهيرو القديم؛ المالك الموحّد يلتقطه بعد استقرار الشيت.
                   window.__otlobliTemuColorImg = '';
-                  // نحاول التقاط صورة الهيرو مرتين: 300ms و 600ms بعد النقر
-                  // (تيمو قد تتأخر في تحديث الهيرو، والمحاولة الثانية هي الأدق)
-                  ;(function(gid) {
-                    function captureHero() {
-                      if (window.__otlobliTemuColorGid !== gid) return;
-                      var himgs = document.querySelectorAll('img');
-                      var hbest = '', hbestA = 0;
-                      var vpH0 = viewportSize().height;
-                      for (var hi = 0; hi < himgs.length; hi++) {
-                        var hsrc = himgs[hi].currentSrc || himgs[hi].src || '';
-                        if (!/kwcdn|temu/i.test(hsrc)) continue;
-                        var hr = himgs[hi].getBoundingClientRect();
-                        if (hr.width < 200 || hr.height < 200) continue;
-                        // المعرض الرئيسي أعلى الصفحة فقط — صور الشيت المفتوح
-                        // (النصف السفلي) قد تكون للون قديم.
-                        if (hr.top > vpH0 * 0.5) continue;
-                        var ha = hr.width * hr.height;
-                        if (ha > hbestA) { hbestA = ha; hbest = hsrc; }
-                      }
-                      if (hbest) window.__otlobliTemuColorImg = hbest;
-                    }
-                    // نُطيل الانتظار: الشيت قد يبقى مفتوحاً 400-700ms فيلتقط الـtimeout
-                  // صورة لون قديمة من داخله بدل الهيرو الصحيح بعد إغلاقه.
-                  setTimeout(captureHero, 700);
-                  setTimeout(captureHero, 1600);
-                  })(gidNow);
+                  temuScheduleHeroCapture(gidNow);
                   return;
                 }
                 // كرت لون بلا اسم (صورة فقط، بلا alt ولا نص — شائع بالفساتين):
@@ -3323,6 +3412,7 @@ export const STORE_PRODUCT_CAPTURE_SCRIPT = `
   }
 
   function addToCartFlow(colorState, sizeState) {
+    if (otlobliProductCapturePausedForChallenge()) return;
     if (document.getElementById('otlobli-overlay')) return;
     var quickPayload = null;
     if (IS_SHEIN) {
@@ -3378,6 +3468,7 @@ export const STORE_PRODUCT_CAPTURE_SCRIPT = `
     // started only after postMessage(), so a product-specific parsing error
     // before that point could leave the spinner and scroll lock up forever.
     window.__otlobliAddSafetyTimer = setTimeout(function () {
+      if (otlobliProductCapturePausedForChallenge()) return;
       if (document.getElementById('otlobli-overlay')) failAddFlow();
     }, 5000);
 
@@ -3400,6 +3491,7 @@ export const STORE_PRODUCT_CAPTURE_SCRIPT = `
     }
 
     function finalize(p) {
+      if (otlobliProductCapturePausedForChallenge()) return;
       if (!p.title || !p.image || !(p.priceUsd > 0)) {
         clearAddSafetyTimer();
         removeOverlay(0);
@@ -3409,6 +3501,7 @@ export const STORE_PRODUCT_CAPTURE_SCRIPT = `
       }
       updateOverlayContent(p, 'جاري إضافة المنتج لسلة otlobli...');
       function postProduct() {
+        if (otlobliProductCapturePausedForChallenge()) return;
         try {
           if (window.mobileApp && window.mobileApp.postMessage) {
             window.mobileApp.postMessage({ detail: { type: 'addToCart', product: p } });
@@ -3422,6 +3515,7 @@ export const STORE_PRODUCT_CAPTURE_SCRIPT = `
         return;
       }
       preloadImage(p.image, 2500).then(function (ok) {
+        if (otlobliProductCapturePausedForChallenge()) return;
         if (!ok) p.image = getMainImage() || p.image;
         postProduct();
       });
@@ -3429,6 +3523,7 @@ export const STORE_PRODUCT_CAPTURE_SCRIPT = `
 
     function attempt() {
       try {
+        if (otlobliProductCapturePausedForChallenge()) return;
         if (quickPayload) {
           finalize(quickPayload);
           return;
@@ -3467,12 +3562,14 @@ export const STORE_PRODUCT_CAPTURE_SCRIPT = `
 
   window.addEventListener('messageFromNative', function (event) {
     var detail = event && event.detail;
+    if (otlobliProductCapturePausedForChallenge()) return;
     if (detail && detail.type === '__resize') {
       window.dispatchEvent(new Event('resize'));
       tick();
       return;
     }
     if (detail && detail.type === '__backTarget') {
+      if (typeof otlobliChallengeActive !== 'undefined' && otlobliChallengeActive) return;
       __otlobliBackTarget = detail.target === 'cart' || detail.target === 'orders' ? detail.target : 'home';
       if (otlobliScriptEnabled('navigationBack')) ensureBackButton();
       return;
@@ -3485,6 +3582,7 @@ export const STORE_PRODUCT_CAPTURE_SCRIPT = `
         var elapsed = Date.now() - shownAt;
         var wait = Math.max(0, 550 - elapsed);
         setTimeout(function () {
+          if (otlobliProductCapturePausedForChallenge()) return;
           markOverlaySuccess();
           removeOverlay(700);
         }, wait);
@@ -3497,6 +3595,7 @@ export const STORE_PRODUCT_CAPTURE_SCRIPT = `
   });
 
   function showMessage(btn, text, durationMs) {
+    if (otlobliProductCapturePausedForChallenge()) return;
     ensureShakeStyle();
     var msg = document.getElementById('otlobli-msg');
     if (!msg) {
@@ -3514,11 +3613,15 @@ export const STORE_PRODUCT_CAPTURE_SCRIPT = `
     clearTimeout(window.__otlobliMsgTimer);
     // رسائل التشخيص (تحوي "[" — قوس السبب) تبقى أطول لإتاحة وقت للتصوير.
     var showFor = durationMs || (text.indexOf('[') >= 0 ? 6000 : 2500);
-    window.__otlobliMsgTimer = setTimeout(function () { msg.style.display = 'none'; }, showFor);
+    window.__otlobliMsgTimer = setTimeout(function () {
+      if (otlobliProductCapturePausedForChallenge()) return;
+      msg.style.display = 'none';
+    }, showFor);
 
     if (btn) {
       btn.style.animation = 'none';
       requestAnimationFrame(function () {
+        if (otlobliProductCapturePausedForChallenge()) return;
         btn.style.animation = 'otlobli-shake 0.4s';
       });
     }
@@ -3528,6 +3631,7 @@ export const STORE_PRODUCT_CAPTURE_SCRIPT = `
   // مهلة التحقق (حتى 5 ثوانٍ) - قبل ظهور الطبقة الكاملة أو رسالة الحجب.
   // بلا هذا، الفاصل الصامت كان يبدو كأن التطبيق تجمّد (شكوى مستخدم حقيقية).
   function otlobliShowGateSpinner() {
+    if (otlobliProductCapturePausedForChallenge()) return;
     ensureOverlayStyle();
     ensureShakeStyle();
     if (document.getElementById('otlobli-gate-spinner')) return;

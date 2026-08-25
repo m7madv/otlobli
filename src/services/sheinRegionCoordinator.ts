@@ -23,6 +23,7 @@ export type SheinRequiredState = {
   language: string
 }
 export type SheinRegionSnapshot = {
+  documentGeneration?: string
   countryState?: MatchState
   regionState?: MatchState
   currencyState?: MatchState
@@ -92,6 +93,7 @@ export const isSheinCoordinatorReady = (state: SheinRegionCoordinatorState) =>
   state.countryState === 'matching' && state.regionState === 'matching' &&
   state.currencyState === 'matching' && state.languageState === 'matching' &&
   (state.loginState === 'not-required' || state.loginState === 'blocked') &&
+  state.humanVerificationState !== 'required' &&
   state.policyState === 'verified' && state.captureState === 'ready' && state.interactive
 
 // v86.71 released a healthy interactive page while the bounded signed-address

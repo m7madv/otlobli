@@ -26,12 +26,43 @@ export const OTLOBLI_NAV_CSS =
 // store-switch action so this gesture remains accessible.
 export const OTLOBLI_NAV_TOUCH_BRIDGE_JS = `
   function otlobliInstallNavTouchBridge() {
+    if (window.__otlobliNativeNavigation === true) return;
     if (window.__otlobliNavTouchBridgeBound) return;
     window.__otlobliNavTouchBridgeBound = true;
     var homeDoubleTapMs = 320;
     var lastPhysicalTouchAt = 0;
     var homeTapAt = 0;
     var homeTapTimer = 0;
+    var storeSwitchHintTimer = 0;
+    var storeNavigationPausedForHumanCheck = function () {
+      try {
+        if (window.__otlobliStoreNavigationChallengeLocked === true) return true;
+        var challengePath = String(location.pathname || '');
+        var challengeQuery = String(location.search || '') + String(location.hash || '');
+        return /\/(?:cdn-cgi|challenge|captcha|verify|verification|bgn[_-]?verification|security|robot|risk|anti[-_]?bot|human)(?:[/?#.-]|$)/i.test(challengePath) ||
+          /(?:^|[?&#])(?:captcha|challenge|verification|bgn[_-]?verification|security_token|risk|robot|anti[-_]?bot|human)=/i.test(challengeQuery);
+      } catch (e) {}
+      return false;
+    };
+    var dismissStoreSwitchHint = function () {
+      if (storeSwitchHintTimer) clearTimeout(storeSwitchHintTimer);
+      storeSwitchHintTimer = 0;
+      var hint = document.getElementById('otlobli-store-switch-hint');
+      if (hint && hint.parentNode) hint.parentNode.removeChild(hint);
+    };
+    var showStoreSwitchHint = function () {
+      if (!/(^|\.)(?:temu|shein)\.com$/i.test(location.hostname || '')) return;
+      if (storeNavigationPausedForHumanCheck()) return;
+      dismissStoreSwitchHint();
+      var hint = document.createElement('span');
+      hint.id = 'otlobli-store-switch-hint';
+      hint.setAttribute('role', 'status');
+      hint.setAttribute('aria-live', 'polite');
+      hint.textContent = 'انقر مرة ثانية لفتح قائمة المتاجر';
+      hint.style.cssText = 'position:fixed!important;left:50%!important;right:auto!important;bottom:calc(82px + max(env(safe-area-inset-bottom,0px),var(--otlobli-sb,16px),16px))!important;transform:translateX(-50%)!important;z-index:2147483647!important;min-height:44px!important;max-width:calc(100vw - 32px)!important;display:flex!important;align-items:center!important;padding:8px 14px!important;box-sizing:border-box!important;border-radius:12px!important;background:#006948!important;color:#fff!important;font:700 14px/1.35 system-ui,-apple-system,sans-serif!important;white-space:nowrap!important;pointer-events:none!important;';
+      document.documentElement.appendChild(hint);
+      storeSwitchHintTimer = setTimeout(dismissStoreSwitchHint, 1800);
+    };
     var clearPendingHomeTap = function () {
       if (homeTapTimer) clearTimeout(homeTapTimer);
       homeTapTimer = 0;
@@ -42,6 +73,7 @@ export const OTLOBLI_NAV_TOUCH_BRIDGE_JS = `
     };
     var revealStoreChooser = function () {
       clearPendingHomeTap();
+      dismissStoreSwitchHint();
       try {
         if (window.mobileApp && window.mobileApp.postMessage) {
           window.mobileApp.postMessage({ detail: { type: 'closeStore' } });
@@ -55,6 +87,7 @@ export const OTLOBLI_NAV_TOUCH_BRIDGE_JS = `
         if (messageType) break;
       }
       if (!messageType) return;
+      if (storeNavigationPausedForHumanCheck()) return;
       if (event.cancelable) event.preventDefault();
       event.stopPropagation();
       if (event.stopImmediatePropagation) event.stopImmediatePropagation();
@@ -73,9 +106,11 @@ export const OTLOBLI_NAV_TOUCH_BRIDGE_JS = `
         clearPendingHomeTap();
         homeTapAt = now;
         homeTapTimer = setTimeout(finishSingleHomeTap, homeDoubleTapMs);
+        showStoreSwitchHint();
         return;
       }
       clearPendingHomeTap();
+      dismissStoreSwitchHint();
       if (now - (window.__otlobliNavTouchBridgeAt || 0) < 450) return;
       window.__otlobliNavTouchBridgeAt = now;
       try {
@@ -106,6 +141,14 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
 (function () {
   if (window.top !== window || window.__otlobliNavBootstrapInstalled) return;
   window.__otlobliNavBootstrapInstalled = true;
+
+  // Native store containers own the permanent Otlobli chrome. Do not install
+  // document listeners, viewport mutations, or a competing fixed DOM layer.
+  if (window.__otlobliNativeNavigation === true) {
+    var staleNativeNav = document.getElementById('otlobli-nav');
+    if (staleNativeNav && staleNativeNav.parentNode) staleNativeNav.parentNode.removeChild(staleNativeNav);
+    return;
+  }
 
   ${OTLOBLI_NAV_TOUCH_BRIDGE_JS}
 
@@ -185,12 +228,7 @@ export const OTLOBLI_NAV_BOOTSTRAP_SCRIPT = `
         tab.setAttribute('data-otlobli-nav-type', item.type);
       }
       if (item.type === 'openHome') {
-        tab.setAttribute('aria-label', '\u0627\u0644\u0631\u0626\u064a\u0633\u064a\u0629\u060c \u0627\u0636\u063a\u0637 \u0645\u0631\u062a\u064a\u0646 \u0628\u0633\u0631\u0639\u0629 \u0644\u0644\u0639\u0648\u062f\u0629 \u0625\u0644\u0649 \u0627\u062e\u062a\u064a\u0627\u0631 \u0627\u0644\u0645\u062a\u062c\u0631');
-        var switchHint = document.createElement('span');
-        switchHint.setAttribute('data-otlobli-store-switch-hint', '1');
-        switchHint.style.cssText = 'font:700 10px/12px system-ui,-apple-system,sans-serif!important;margin-top:1px!important;color:#006948!important;white-space:nowrap!important;';
-        switchHint.textContent = '\u0627\u0636\u063a\u0637 \u0645\u0631\u062a\u064a\u0646 \u0644\u0644\u062a\u0628\u062f\u064a\u0644';
-        tab.appendChild(switchHint);
+        tab.setAttribute('aria-label', '\u0627\u0644\u0631\u0626\u064a\u0633\u064a\u0629\u060c \u064a\u0641\u062a\u062d \u0642\u0627\u0626\u0645\u0629 \u0627\u0644\u0645\u062a\u0627\u062c\u0631 \u0645\u0628\u0627\u0634\u0631\u0629');
       }
       nav.appendChild(tab);
     }

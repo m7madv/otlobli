@@ -3,7 +3,11 @@
 (() => {
   'use strict'
 
+  window.__otlobliDocumentGeneration = window.__otlobliDocumentGeneration ||
+    `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+
   const viewport = () => ({ width: window.innerWidth || 1, height: window.innerHeight || 1 })
+  const fullCaptureOwnsDocument = () => window.__otlobliStoreRuntimeReady === true
   const textOf = (node) => String(node?.textContent || '').replace(/\s+/g, ' ').trim()
   const isProductRoute = () =>
     /\/goods\.html$/i.test(window.location.pathname) ||
@@ -20,17 +24,41 @@
     if (!dialog || dialog.querySelectorAll('[role="radio"]').length < 2) return false
     return !!dialog.querySelector('[class*="sku" i],[class*="spec" i]')
   }
+  const OWNED_STYLE = 'data-otlobli-gecko-owned-style'
+  const rememberStyle = (node, properties) => {
+    if (!node?.style || node.hasAttribute(OWNED_STYLE)) return
+    const snapshot = {}
+    for (const property of properties) {
+      snapshot[property] = [
+        node.style.getPropertyValue(property) || '',
+        node.style.getPropertyPriority(property) || '',
+      ]
+    }
+    node.setAttribute(OWNED_STYLE, JSON.stringify(snapshot))
+  }
+  const restoreStyle = (node) => {
+    if (!node?.style) return
+    try {
+      const snapshot = JSON.parse(node.getAttribute(OWNED_STYLE) || '{}')
+      for (const [property, entry] of Object.entries(snapshot)) {
+        if (entry?.[0]) node.style.setProperty(property, entry[0], entry[1] || '')
+        else node.style.removeProperty(property)
+      }
+    } catch (_) {
+      for (const property of ['display', 'visibility', 'pointer-events']) node.style.removeProperty(property)
+    }
+    node.removeAttribute(OWNED_STYLE)
+  }
   const hide = (node) => {
     if (!node || node === document.body || node === document.documentElement) return
+    rememberStyle(node, ['display', 'visibility', 'pointer-events'])
     node.dataset.otlobliGeckoHidden = '1'
     node.style.setProperty('display', 'none', 'important')
     node.style.setProperty('visibility', 'hidden', 'important')
     node.style.setProperty('pointer-events', 'none', 'important')
   }
 
-  const style = document.createElement('style')
-  style.id = 'otlobli-temu-gecko-guard'
-  style.textContent = `
+  const guardCss = `
     html,body{max-width:100vw!important;overflow-x:hidden!important;scroll-padding-bottom:20px!important}
     [aria-label*="cart" i],[aria-label*="basket" i],[aria-label*="shopping bag" i],
     [aria-label*="account" i],[aria-label*="profile" i],[aria-label*="sign in" i],
@@ -38,15 +66,116 @@
     [class*="downloadUI" i],[class*="openApp" i]{display:none!important;visibility:hidden!important;pointer-events:none!important}
     #otlobli-add-btn{bottom:16px!important}
   `
-  ;(document.head || document.documentElement).appendChild(style)
+  const installGuardStyle = () => {
+    if (document.getElementById('otlobli-temu-gecko-guard')) return
+    const style = document.createElement('style')
+    style.id = 'otlobli-temu-gecko-guard'
+    style.textContent = guardCss
+    ;(document.head || document.documentElement).appendChild(style)
+  }
+
+  const visible = (node) => {
+    if (!node?.getBoundingClientRect) return false
+    const rect = node.getBoundingClientRect()
+    if (rect.width < 8 || rect.height < 8 || rect.bottom <= 0 || rect.top >= viewport().height) return false
+    const css = getComputedStyle(node)
+    return css.display !== 'none' && css.visibility !== 'hidden' && Number.parseFloat(css.opacity || '1') > 0.02
+  }
+  const challengeRoute = () => {
+    const route = `${location.pathname}${location.search}${location.hash}`
+    return /\/(?:cdn-cgi|challenge|captcha|verify|verification|bgn[_-]?verification|security|robot|risk|anti[-_]?bot|human)(?:[/?#.-]|$)/i.test(route) ||
+      /(?:^|[?&#])(?:captcha|challenge|verification|bgn[_-]?verification|security_token|risk|robot|anti[-_]?bot|human)=/i.test(route)
+  }
+  if (!challengeRoute()) installGuardStyle()
+  const challengeSelectors = [
+    '#one-pass-custom', '#nine-captcha-custom', '[class*="risk-one-pass" i]',
+    '[class*="captcha" i]', '[class*="verification" i]', '[id*="captcha" i]',
+    'iframe[src*="captcha" i]', 'iframe[src*="challenge" i]', 'iframe[src*="verify" i]',
+  ].join(',')
+  const challengeVisible = () => {
+    if (challengeRoute()) return true
+    const nodes = document.querySelectorAll(challengeSelectors)
+    for (const node of nodes) if (visible(node)) return true
+    const title = String(document.title || '')
+    return /verify\s+(?:you(?:'re| are)?|that you are)\s+human|security\s+check|تحقق.*(?:إنسان|بشري)|أنا\s+إنسان/i.test(title)
+  }
+  const postChallengeState = (type) => {
+    try {
+      void browser.runtime.sendNativeMessage('otlobli', {
+        detail: {
+          type,
+          documentGeneration: String(window.__otlobliDocumentGeneration || ''),
+        },
+      }).catch(() => undefined)
+    } catch (_) {}
+  }
+  const publicPageReady = () => {
+    if (challengeRoute() || isProductRoute()) return false
+    if (/(?:^|\/)(?:login|signin|auth|account|cart|checkout|orders?)(?:[/?#.-]|$)/i
+      .test(`${location.pathname}${location.search}${location.hash}`)) return false
+    const candidates = document.querySelectorAll('a[href],button,input,[role="button"],[role="searchbox"],img')
+    let paintedAnchor = false
+    const limit = Math.min(candidates.length, 60)
+    for (let index = 0; index < limit; index += 1) {
+      const node = candidates[index]
+      if (!visible(node)) continue
+      if (node.tagName === 'IMG' && (!node.complete || node.naturalWidth <= 0)) continue
+      paintedAnchor = true
+      break
+    }
+    return paintedAnchor && textOf(document.body).length >= 40
+  }
+  const postPublicReady = () => {
+    try {
+      void browser.runtime.sendNativeMessage('otlobli', {
+        detail: {
+          type: 'temuPublicReady',
+          url: location.href,
+          documentGeneration: String(window.__otlobliDocumentGeneration || ''),
+        },
+      }).catch(() => undefined)
+    } catch (_) {}
+  }
+  let publicReadyCandidateKey = ''
+  let publicReadyCandidateAt = 0
+  let publicReadyPostedKey = ''
+  const postPublicReadyIfStable = (now) => {
+    const key = `${location.href.split('#')[0]}|${String(window.__otlobliDocumentGeneration || '')}`
+    if (!publicPageReady()) {
+      publicReadyCandidateKey = ''
+      publicReadyCandidateAt = 0
+      return
+    }
+    if (publicReadyPostedKey === key) return
+    if (publicReadyCandidateKey !== key) {
+      publicReadyCandidateKey = key
+      publicReadyCandidateAt = now
+      setTimeout(schedule, 600)
+      return
+    }
+    const remaining = 600 - (now - publicReadyCandidateAt)
+    if (remaining > 0) {
+      setTimeout(schedule, remaining)
+      return
+    }
+    publicReadyPostedKey = key
+    postPublicReady()
+  }
+  const suspendForChallenge = () => {
+    document.getElementById('otlobli-temu-gecko-guard')?.remove()
+    for (const node of document.querySelectorAll('[data-otlobli-gecko-hidden="1"]')) {
+      restoreStyle(node)
+      delete node.dataset.otlobliGeckoHidden
+    }
+  }
 
   const hideSpinWheel = () => {
     const { width, height } = viewport()
     const wheelText = /(spin|wheel|reward|claim|coupon|lucky|chance|prize|free\s*gift|congratulations|SAR\s*\d|حرّ?ك|فرصة|جرب|تحصل|جائزة|مجاني|خصم)/i
     const nodes = document.querySelectorAll(
-      '[role="dialog"],[class*="popup" i],[class*="modal" i],[class*="wheel" i],[class*="spin" i],div,section,aside',
+      '[role="dialog"],[aria-modal="true"],[class*="popup" i],[class*="modal" i],[class*="wheel" i],[class*="spin" i]',
     )
-    const limit = Math.min(nodes.length, 1800)
+    const limit = Math.min(nodes.length, 160)
     for (let index = 0; index < limit; index += 1) {
       const node = nodes[index]
       if (node.dataset.otlobliGeckoHidden === '1') continue
@@ -74,8 +203,6 @@
       if (isProductOptionDialog(target)) continue
       hide(target)
     }
-    document.body.style.overflow = ''
-    document.documentElement.style.overflow = ''
   }
 
   const hideHomePromotionOverlays = () => {
@@ -85,8 +212,11 @@
     // genuine security verification live on other paths and are untouched.
     if (!/^\/(?:sa\/?)?$/.test(window.location.pathname)) return
     const { width, height } = viewport()
-    const nodes = document.querySelectorAll('div,section,aside')
-    const limit = Math.min(nodes.length, 1800)
+    const promoEvidence = /(spin|wheel|reward|coupon|lucky|prize|free\s*gift|congratulations|خصم|قسيمة|جائزة|هدية|اربح)/i
+    const nodes = document.querySelectorAll(
+      '[role="dialog"],[aria-modal="true"],[class*="popup" i],[class*="modal" i],[class*="wheel" i],[class*="spin" i]',
+    )
+    const limit = Math.min(nodes.length, 160)
     for (let index = 0; index < limit; index += 1) {
       const node = nodes[index]
       if (node.dataset.otlobliGeckoHidden === '1') continue
@@ -96,10 +226,10 @@
       const zIndex = Number.parseInt(css.zIndex, 10) || 0
       if (css.position !== 'fixed' || zIndex < 20) continue
       if (node.querySelector('input:not([type="hidden"]),textarea,select')) continue
+      const hint = `${node.className || ''} ${node.id || ''} ${textOf(node)}`
+      if (!promoEvidence.test(hint)) continue
       hide(node)
     }
-    document.body.style.overflow = ''
-    document.documentElement.style.overflow = ''
   }
 
   const hideHeaderIcons = () => {
@@ -263,10 +393,72 @@
 
   let scheduled = false
   let lastCleanAt = 0
+  let challengeActive = false
+  let challengeMissingSince = 0
+  let challengeSettledUntil = 0
+  const challengePollMs = 300
   const clean = () => {
     scheduled = false
     if (document.hidden || !document.body) return
-    lastCleanAt = Date.now()
+    // Product documents receive the generated full capture runtime immediately
+    // after this document-start guard. Retire this lightweight scanner as soon
+    // as that runtime takes ownership so weak phones never run two mutation
+    // observers and two blocker cadences over the same Temu page.
+    if (fullCaptureOwnsDocument()) {
+      // The generated runtime owns its own reversible style layer. Remove the
+      // lightweight document-start guard before retiring so it cannot keep
+      // cart/account controls hidden over a genuine product CAPTCHA.
+      suspendForChallenge()
+      observer?.disconnect()
+      observerConnected = false
+      return
+    }
+    const now = Date.now()
+    if (challengeVisible()) {
+      challengeMissingSince = 0
+      challengeSettledUntil = 0
+      publicReadyCandidateKey = ''
+      publicReadyCandidateAt = 0
+      publicReadyPostedKey = ''
+      if (!challengeActive) {
+        challengeActive = true
+        postChallengeState('humanCheck')
+      }
+      suspendForChallenge()
+      observer?.disconnect()
+      observerConnected = false
+      setTimeout(schedule, challengePollMs)
+      return
+    }
+    if (challengeActive) {
+      if (!challengeMissingSince) {
+        challengeMissingSince = now
+      }
+      if (now - challengeMissingSince < 1200) {
+        suspendForChallenge()
+        setTimeout(schedule, Math.min(challengePollMs, 1200 - (now - challengeMissingSince)))
+        return
+      }
+      challengeActive = false
+      challengeMissingSince = 0
+      challengeSettledUntil = now + 600
+      postChallengeState('humanCheckResolved')
+      suspendForChallenge()
+      setTimeout(schedule, 600)
+      return
+    }
+    if (now < challengeSettledUntil) {
+      suspendForChallenge()
+      return
+    }
+    // Every public document posts one stable ready hand-off. This covers both
+    // same-document completion and a top-level redirect that destroys the
+    // CAPTCHA document (and therefore all of its local pending state). Login,
+    // cart and account routes never qualify.
+    postPublicReadyIfStable(now)
+    installGuardStyle()
+    connectObserver()
+    lastCleanAt = now
     hideHomePromotionOverlays()
     hideSpinWheel()
     hideHeaderIcons()
@@ -281,10 +473,32 @@
     scheduled = true
     setTimeout(clean, Math.max(30, 180 - (Date.now() - lastCleanAt)))
   }
+  const observerExpiresAt = Date.now() + 12000
   const observer = new MutationObserver(schedule)
-  observer.observe(document.documentElement, { childList: true, subtree: true })
-  setTimeout(() => observer.disconnect(), 12000)
-  setInterval(schedule, 1200)
-  document.addEventListener('visibilitychange', schedule, { passive: true })
-  schedule()
+  let observerConnected = false
+  const connectObserver = () => {
+    if (fullCaptureOwnsDocument() || observerConnected || Date.now() >= observerExpiresAt) return
+    observer.observe(document.documentElement, { childList: true, subtree: true })
+    observerConnected = true
+  }
+  const lowEndDevice = (navigator.hardwareConcurrency || 8) <= 4 ||
+    (navigator.deviceMemory || 8) <= 4
+  const periodic = () => {
+    if (fullCaptureOwnsDocument()) return
+    schedule()
+    setTimeout(periodic, document.hidden ? 5000 : (lowEndDevice ? 2600 : 1800))
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && !fullCaptureOwnsDocument()) schedule()
+  }, { passive: true })
+  // Let the next content script install the full product runtime first. Home
+  // and standalone verification documents do not receive it, so they start
+  // this bounded lightweight guard on the next task.
+  setTimeout(() => {
+    if (fullCaptureOwnsDocument()) return
+    connectObserver()
+    schedule()
+    setTimeout(() => { observer.disconnect(); observerConnected = false }, 12000)
+    setTimeout(periodic, lowEndDevice ? 2600 : 1800)
+  }, 0)
 })()

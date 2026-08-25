@@ -1,4 +1,4 @@
-export const SHEIN_POLICY_VERSION = '2026.08.24-v86.231-policy-v2'
+export const SHEIN_POLICY_VERSION = '2026.08.25-v86.232-policy-v2'
 
 export type SheinRouteClass =
   | 'allowed-public'
@@ -29,8 +29,8 @@ const BLOCKED_ROUTE_CLASSES = new Set<SheinRouteClass>([
   'blocked-checkout',
 ])
 
-const HUMAN_PATH = /\/(?:cdn-cgi|challenge|captcha|verify|verification|security|robot|risk|anti[-_]?bot|human)(?:[/?#.-]|$)/i
-const HUMAN_QUERY = /(?:^|[?&#])(?:captcha|challenge|verification|security_token|risk|robot|anti[-_]?bot|human)=/i
+const HUMAN_PATH = /\/(?:cdn-cgi|challenge|captcha|verify|verification|bgn[_-]?verification|security|robot|risk|anti[-_]?bot|human)(?:[/?#.-]|$)/i
+const HUMAN_QUERY = /(?:^|[?&#])(?:captcha|challenge|verification|bgn[_-]?verification|security_token|risk|robot|anti[-_]?bot|human)=/i
 
 export function classifySheinRoute(rawUrl: string, baseUrl = 'https://m.shein.com/ar/'): SheinRouteClass {
   let url: URL
@@ -46,7 +46,7 @@ export function classifySheinRoute(rawUrl: string, baseUrl = 'https://m.shein.co
   const path = url.pathname.replace(/\/{2,}/g, '/').toLowerCase()
   const route = `${path}${url.search}${url.hash}`
   if (HUMAN_PATH.test(path) || HUMAN_QUERY.test(route)) return 'human-verification'
-  if (/\/(?:user\/)?(?:login|signin|sign-in|auth\/login)(?:[/?#.-]|$)/i.test(path)) return 'blocked-login'
+  if (/\/(?:user\/)?(?:login|signin|sign-in|auth(?:\/login)?)(?:[/?#.-]|$)/i.test(path)) return 'blocked-login'
   if (/\/(?:user\/)?(?:register|signup|sign-up|join)(?:[/?#.-]|$)/i.test(path)) return 'blocked-signup'
   if (/\/(?:user|account|profile|my-account|member|orders?)(?:[/?#.-]|$)/i.test(path)) return 'blocked-account'
   if (/\/(?:country|countries|ship-to|shipping-country)(?:[/?#.-]|$)/i.test(path)) return 'blocked-country'
@@ -86,7 +86,7 @@ export const SHEIN_POLICY_DOCUMENT_START_SCRIPT = `
   var existing=window.__otlobliSheinPolicyEngine;
   if(existing&&existing.version===VERSION){existing.verify&&existing.verify('duplicate-install');return;}
   if(existing&&existing.observer&&existing.observer.disconnect)try{existing.observer.disconnect();}catch(e){}
-  var state={version:VERSION,installCount:1,observer:null,hiddenCount:0,mismatchCount:0,lastVerification:'',verify:null};
+  var state={version:VERSION,installCount:1,observer:null,hiddenCount:0,mismatchCount:0,lastVerification:'',verify:null,pause:null,resume:null};
   window.__otlobliSheinPolicyEngine=state;
   var MAX_ROOTS=96,MAX_NODES_PER_ROOT=320,MAX_MISMATCHES=8;
   var pending=[],scheduled=false,reported={};
@@ -96,13 +96,29 @@ export const SHEIN_POLICY_DOCUMENT_START_SCRIPT = `
     'blocked-region':1,'blocked-language':1,'blocked-currency':1,'blocked-checkout':1
   };
   var humanPattern=/(captcha|challenge|verification|verify|security|robot|risk|anti[-_]?bot|human|\\u062a\\u062d\\u0642\\u0642|\\u0623\\u0646\\u0627 \\u0625\\u0646\\u0633\\u0627\\u0646)/i;
+  function paintedChallenge(){
+    // Keep this synchronous observer-side detector aligned with the runtime
+    // detector. A proprietary one-pass wrapper can mount in a microtask before
+    // the coordinator wakes; policy must recognise it before scanning that
+    // newly-added subtree.
+    var nodes=document.querySelectorAll('#challenge-form,iframe[src*="challenges.cloudflare.com"],iframe[title*="challenge" i],iframe[title*="verification" i],.one-pass-dialog,#one-pass-custom,one-pass-custom,#nine-captcha-custom,nine-captcha-custom,.si-verify-block-request-dialog,[class*="risk-one-pass" i],[class*="captcha" i],[class*="challenge" i],[class*="verification" i],[class*="turnstile" i],[aria-label*="verification" i]');
+    for(var i=Math.max(0,nodes.length-8);i<nodes.length;i++){
+      var node=nodes[i];if(!node||node.isConnected===false)continue;
+      try{
+        var style=getComputedStyle(node);if(style.display==='none'||style.visibility==='hidden'||Number(style.opacity)===0)continue;
+        var rect=node.getBoundingClientRect();if(rect.width>4&&rect.height>4)return true;
+      }catch(e){}
+    }
+    return false;
+  }
+  function challengeActive(){return humanPattern.test(location.pathname+location.search)||paintedChallenge();}
   function post(detail){try{if(window.mobileApp&&window.mobileApp.postMessage)window.mobileApp.postMessage({detail:detail});}catch(e){}}
   function routeClass(raw){
     try{
       var u=new URL(raw,location.href),host=(u.hostname||'').toLowerCase(),path=(u.pathname||'').replace(/\\/{2,}/g,'/').toLowerCase(),all=path+u.search+u.hash;
       if(host!=='shein.com'&&!/\\.shein\\.com$/.test(host))return'external';
-      if(/\\/(?:cdn-cgi|challenge|captcha|verify|verification|security|robot|risk|anti[-_]?bot|human)(?:[/?#.-]|$)/i.test(path)||/(?:^|[?&#])(?:captcha|challenge|verification|security_token|risk|robot|anti[-_]?bot|human)=/i.test(all))return'human-verification';
-      if(/\\/(?:user\\/)?(?:login|signin|sign-in|auth\\/login)(?:[/?#.-]|$)/i.test(path))return'blocked-login';
+      if(/\\/(?:cdn-cgi|challenge|captcha|verify|verification|bgn[_-]?verification|security|robot|risk|anti[-_]?bot|human)(?:[/?#.-]|$)/i.test(path)||/(?:^|[?&#])(?:captcha|challenge|verification|bgn[_-]?verification|security_token|risk|robot|anti[-_]?bot|human)=/i.test(all))return'human-verification';
+      if(/\\/(?:user\\/)?(?:login|signin|sign-in|auth(?:\\/login)?)(?:[/?#.-]|$)/i.test(path))return'blocked-login';
       if(/\\/(?:user\\/)?(?:register|signup|sign-up|join)(?:[/?#.-]|$)/i.test(path))return'blocked-signup';
       if(/\\/(?:user|account|profile|my-account|member|orders?)(?:[/?#.-]|$)/i.test(path))return'blocked-account';
       if(/\\/(?:country|countries|ship-to|shipping-country)(?:[/?#.-]|$)/i.test(path))return'blocked-country';
@@ -180,6 +196,7 @@ export const SHEIN_POLICY_DOCUMENT_START_SCRIPT = `
     state.hiddenCount++;
   }
   function scan(root){
+    if(challengeActive())return;
     if(!root||root.nodeType!==1)return;
     if(root.matches&&root.matches(candidateSelector))hide(root,classify(root));
     var nodes=root.querySelectorAll?root.querySelectorAll(candidateSelector):[];
@@ -205,6 +222,7 @@ export const SHEIN_POLICY_DOCUMENT_START_SCRIPT = `
   }
   function flush(){
     scheduled=false;
+    if(challengeActive()){pending.length=0;return;}
     var roots=pending.splice(0,MAX_ROOTS);
     var hiddenBefore=state.hiddenCount,mismatchBefore=state.mismatchCount;
     for(var i=0;i<roots.length;i++)scan(roots[i]);
@@ -216,7 +234,7 @@ export const SHEIN_POLICY_DOCUMENT_START_SCRIPT = `
     (window.requestAnimationFrame||function(cb){return setTimeout(cb,16);})(flush);
   }
   function verify(reason){
-    var challenge=humanPattern.test(location.pathname+location.search)||!!document.querySelector('[class*="captcha" i],[class*="challenge" i],[class*="verification" i],[aria-label*="verification" i]');
+    var challenge=challengeActive();
     var interactive=!!document.querySelector('a[href*="-p-"],a[href*="/product/"],a[href*="/category/"],a[href*="/search"],input[type="search"]');
     var capture=window.__otlobliStoreRuntimeReady===true;
     var key=[location.pathname,challenge,interactive,capture,state.hiddenCount,state.mismatchCount].join('|');
@@ -225,7 +243,17 @@ export const SHEIN_POLICY_DOCUMENT_START_SCRIPT = `
     post({type:'sheinPolicyState',version:VERSION,installed:true,installCount:state.installCount,observerCount:state.observer?1:0,humanVerificationAvailable:challenge,publicInteractionAvailable:interactive,captureInstalled:capture,hiddenCount:state.hiddenCount,mismatchCount:state.mismatchCount,reason:reason});
   }
   state.verify=verify;
+  function pause(){
+    pending.length=0;scheduled=false;
+    if(state.observer)try{state.observer.disconnect();}catch(e){}
+    state.observer=null;
+    // CSS is an intervention too. Remove it while a same-document SPA
+    // challenge is painted, then install() recreates it after settlement.
+    var policyStyle=document.getElementById('otlobli-shein-policy-style');
+    if(policyStyle&&policyStyle.parentNode)try{policyStyle.parentNode.removeChild(policyStyle);}catch(e){}
+  }
   function install(){
+    if(challengeActive()){verify('challenge-pass-through');return;}
     var parent=document.head||document.documentElement;
     if(parent&&!document.getElementById('otlobli-shein-policy-style')){
       var style=document.createElement('style');style.id='otlobli-shein-policy-style';style.textContent=${JSON.stringify(DOCUMENT_START_CSS)};parent.appendChild(style);
@@ -235,6 +263,7 @@ export const SHEIN_POLICY_DOCUMENT_START_SCRIPT = `
     scan(root);
     if(!state.observer){
       state.observer=new MutationObserver(function(records){
+        if(challengeActive()){pause();verify('challenge-pass-through');return;}
         var queued=false;
         for(var i=0;i<records.length&&pending.length<MAX_ROOTS;i++){
           var record=records[i];
@@ -250,6 +279,7 @@ export const SHEIN_POLICY_DOCUMENT_START_SCRIPT = `
     }
     verify('install');
   }
+  state.pause=pause;state.resume=install;
   install();
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){scan(document.documentElement);verify('dom-ready');},{once:true});
 })();

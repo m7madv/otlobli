@@ -46,7 +46,6 @@ function normalizeSheinUrl(rawUrl) {
 function loadInjectedScripts() {
   const exports = evaluateInjectedScriptExports('src/services/sheinBrowserScript.ts')
   return {
-    bootstrap: exports.OTLOBLI_NAV_BOOTSTRAP_SCRIPT,
     capture: exports.SHEIN_CAPTURE_SCRIPT,
   }
 }
@@ -76,7 +75,6 @@ async function installAppBridge(page, label) {
 }
 
 async function injectCapture(page, scripts) {
-  await page.evaluate(scripts.bootstrap).catch(() => undefined)
   await page.evaluate(scripts.capture)
 }
 

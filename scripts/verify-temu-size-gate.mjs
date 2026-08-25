@@ -117,6 +117,33 @@ for (const marker of forbiddenMarkers) {
   if (source.includes(marker)) throw new Error(`Stale Temu delayed/diagnostic path remains: ${marker}`)
 }
 
+const addButtonStart = source.indexOf('var addButtonBottom = window.__otlobliNativeNavigation === true')
+const addButtonEnd = source.indexOf("btn.addEventListener('click'", addButtonStart)
+const addButtonGeometry = source.slice(addButtonStart, addButtonEnd)
+for (const marker of [
+  "? (IS_TEMU ? '24px' : '16px')",
+  "'calc(74px + max(env(safe-area-inset-bottom, 0px), 16px) + 16px)'",
+  "'position:fixed;right:14px;bottom:' + addButtonBottom",
+  "'min-width:128px;height:48px",
+]) {
+  if (addButtonStart < 0 || addButtonEnd < 0 || !addButtonGeometry.includes(marker)) {
+    throw new Error(`Temu add button lost its native-container geometry: ${marker}`)
+  }
+}
+for (const viewportWidth of [320, 360, 393, 412, 430]) {
+  const viewportHeight = 752
+  const rect = {
+    left: viewportWidth - 14 - 128,
+    right: viewportWidth - 14,
+    top: viewportHeight - 24 - 48,
+    bottom: viewportHeight - 24,
+  }
+  if (rect.right !== viewportWidth - 14 || rect.bottom !== viewportHeight - 24 ||
+      rect.right - rect.left !== 128 || rect.bottom - rect.top !== 48) {
+    throw new Error(`Temu add button geometry drifted at ${viewportWidth}px`)
+  }
+}
+
 const cartOpenStart = appSource.indexOf('const openStoreProductFromCart = (sourceLink: string,')
 const cartOpenEnd = appSource.indexOf("InAppBrowser.addListener('closeEvent'", cartOpenStart)
 const cartOpenSource = appSource.slice(cartOpenStart, cartOpenEnd)
@@ -139,6 +166,56 @@ for (const marker of [
   if (!nativeSource.includes(marker)) throw new Error(`Missing persistent Gecko/security-session guard: ${marker}`)
 }
 
+for (const marker of [
+  'private boolean humanChallengeActive;',
+  'type.equals("humanCheck")',
+  'type.equals("humanCheckResolved")',
+  'type.equals("temuPublicReady")',
+  'type.equals("temuProductVisible")',
+  'beginHumanChallenge(detail.optString("documentGeneration", ""))',
+  'recordHumanChallengeResolution(detail.optString("documentGeneration", ""))',
+  'releaseHumanChallengeAfterTrustedReady(type, detail, senderUrl)',
+  'backButton.setEnabled(enabled);',
+  'backButton.setClickable(enabled);',
+  'backButton.setVisibility(enabled ? View.VISIBLE : View.GONE);',
+  'if (humanChallengeActive) return;',
+]) {
+  if (!nativeSource.includes(marker)) throw new Error(`Missing Gecko CAPTCHA/native-Back isolation guard: ${marker}`)
+}
+
+const resolvedBranchStart = nativeSource.indexOf('if (type.equals("humanCheckResolved"))')
+const resolvedBranchEnd = nativeSource.indexOf('if (type.equals("temuPublicReady")', resolvedBranchStart)
+const resolvedBranch = nativeSource.slice(resolvedBranchStart, resolvedBranchEnd)
+if (resolvedBranchStart < 0 || resolvedBranchEnd < 0 ||
+    !resolvedBranch.includes('notifyDetail(detail);') ||
+    resolvedBranch.includes('humanChallengeActive = false') ||
+    resolvedBranch.includes('applyBackButtonState(true)')) {
+  throw new Error('Gecko humanCheckResolved must be status-only until a trusted ready hand-off')
+}
+
+if (nativeSource.includes('type.equals("otlobliBackButtonState")')) {
+  throw new Error('Gecko native Back must not consume the shared WebView visibility hint')
+}
+
+const trustedReadyStart = nativeSource.indexOf('private boolean releaseHumanChallengeAfterTrustedReady(')
+const trustedReadyEnd = nativeSource.indexOf('private void applyBackButtonState(', trustedReadyStart)
+const trustedReadySource = nativeSource.slice(trustedReadyStart, trustedReadyEnd)
+for (const marker of [
+  'sameResolvedDocument',
+  'freshDocument',
+  'resolvedUnknownDocument',
+  'trustedFreshUnknownDocument',
+  '!isSecurityVerificationUrl(senderUrl)',
+  'sameDestination(currentUrl, senderUrl)',
+  'isNewerDocumentGeneration(',
+  'humanChallengeActive = false;',
+  'applyBackButtonState(true);',
+]) {
+  if (trustedReadyStart < 0 || trustedReadyEnd < 0 || !trustedReadySource.includes(marker)) {
+    throw new Error(`Gecko ready hand-off is missing document-scoped guard: ${marker}`)
+  }
+}
+
 const hideStart = nativeSource.indexOf('private void hideStoreLayer()')
 const hideEnd = nativeSource.indexOf('private void ensureSessionAndOpen', hideStart)
 const hideSource = nativeSource.slice(hideStart, hideEnd)
@@ -151,6 +228,23 @@ const cartSwitchEnd = appSource.indexOf('const toggleCoupon', cartSwitchStart)
 const cartSwitchSource = appSource.slice(cartSwitchStart, cartSwitchEnd)
 for (const marker of ["vpnStateRef.current = 'idle'", 'InAppBrowser.clearCache()', 'switchSelectedStore(id']) {
   if (cartSwitchSource.includes(marker)) throw new Error(`Cart tab switch must preserve geo and store sessions: ${marker}`)
+}
+if (!cartSwitchSource.includes('commitSelectedStore(id)')) {
+  throw new Error('Cart tab switch must update state/ref atomically')
+}
+
+for (const marker of [
+  'standardWebviewOwnerRef.current = { store: activeStore, sessionId }',
+  'canReuseStandardStoreSession(',
+  'canAdoptOpeningStandardStoreEvent(',
+  'isCurrentStandardStoreEvent(',
+  'owner.store !== event.sourceStore',
+  'setCartItemsForStore(messageStore,',
+  "postMessage({ id: event.id, detail: { type: 'addToCartAck' } })",
+  "sourceStore: owner.store",
+  "sourceStore: 'temu'",
+]) {
+  if (!appSource.includes(marker)) throw new Error(`Missing store/session identity guard: ${marker}`)
 }
 
 const gate = (dimensions) => {

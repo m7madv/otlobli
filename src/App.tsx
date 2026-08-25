@@ -13,6 +13,15 @@ import { makeOrderId, today } from './domain/orders'
 import { FULL_NAME_ERROR_MESSAGE, getFullNameValidationError, normalizeFullName, sanitizeFullNameInput } from './domain/profile'
 import { buildPriceBreakdown, formatMoney, formatPriceSyp, formatUsd, sumPriceLines } from './domain/pricing'
 import type { PaymentCurrency } from './domain/pricing'
+import {
+  canAdoptOpeningStandardStoreEvent,
+  canReuseStandardStoreSession,
+  isCurrentStandardStoreEvent,
+  repairStoreCartBuckets,
+  resolveStoreMessageIdentity,
+  storeIdentityFromUrl,
+} from './domain/storeRouting'
+import type { StoreIdentity } from './domain/storeRouting'
 import type { Address, AppNotification, CartGroupSnapshot, CartItem, NotificationPrefs, Order, OrderIssue, Product, ProductColor, Recipient, Screen, StatusTone, UserProfile, WalletTransaction } from './domain/types'
 import { getDeviceId, readStoredJson, storageKeys, useStoredState } from './infrastructure/localStorage'
 import { appApi } from './services'
@@ -235,8 +244,8 @@ const readHostSafeBottomInset = (): number => {
 const cartColorPreviewBackground = (color: string) => {
   return /ذهبي|gold/i.test(color) ? 'linear-gradient(135deg,#9f6b12,#f8df8b,#b77812)' : ''
 }
-const SHEIN_CHALLENGE_PATH_RE = /\/(?:cdn-cgi|challenge|captcha|verify|verification|security|robot|risk|anti[-_]?bot|human)(?:\/|\?|#|$)/i
-const SHEIN_CHALLENGE_QUERY_RE = /(?:^|[?&#])(?:captcha|challenge|verification|security_token|risk|robot|anti[-_]?bot|human)=/i
+const SHEIN_CHALLENGE_PATH_RE = /\/(?:cdn-cgi|challenge|captcha|verify|verification|bgn[_-]?verification|security|robot|risk|anti[-_]?bot|human)(?:[/?#.-]|$)/i
+const SHEIN_CHALLENGE_QUERY_RE = /(?:^|[?&#])(?:captcha|challenge|verification|bgn[_-]?verification|security_token|risk|robot|anti[-_]?bot|human)=/i
 // يكشف موقع خروج الإنترنت الحالي (بلد/منطقة الـVPN فعلياً) عبر خدمتي geo
 // تدعمان CORS، لتمييز «VPN مطفأ» (البلد سوريا) عن «منطقة VPN غير مدعومة»
 // (بلد آخر لكن المتجر محجوب). فشل الخدمتين معاً = الشبكة نفسها متعثرة.
@@ -600,7 +609,7 @@ const normalizeSheinBrowserUrl = (rawUrl: string, region = DEFAULT_STORE_REGIONS
   if (!rawUrl) return buildSheinHomeUrl(region)
   try {
     const url = new URL(rawUrl)
-    if (!/shein/i.test(url.hostname)) return rawUrl
+    if (storeIdentityFromUrl(rawUrl) !== 'shein') return rawUrl
 
     let path = url.pathname
       .replace(/^\/(?:[a-z]{2}(?:en)?|ar-en|ar)(?=\/|$)/i, '') || '/'
@@ -624,7 +633,7 @@ const normalizeTemuBrowserUrl = (rawUrl: string, region = DEFAULT_STORE_REGIONS.
   if (!rawUrl) return buildTemuHomeUrl(region)
   try {
     const url = new URL(rawUrl)
-    if (!/temu/i.test(url.hostname)) return rawUrl
+    if (storeIdentityFromUrl(rawUrl) !== 'temu') return rawUrl
     url.protocol = 'https:'
     url.hostname = 'www.temu.com'
     const localePath = `/${region.countryCode.toLowerCase()}`
@@ -645,8 +654,14 @@ const normalizeTemuBrowserUrl = (rawUrl: string, region = DEFAULT_STORE_REGIONS.
 
 // المتاجر المتاحة للتصفّح. الالتقاط التلقائي (سعر/إضافة للسلة) يعمل على شي إن
 // فقط حالياً؛ باقي المتاجر تُفتح للتصفّح. لكل متجر سلة منفصلة.
-type StoreId = 'shein' | 'temu'
+type StoreId = StoreIdentity
 type WebviewBackTarget = 'home' | 'cart' | 'orders'
+type StoreWebviewMessageEvent = {
+  id?: string
+  detail?: Record<string, unknown>
+  sourceStore?: StoreId
+  sourceSessionId?: number
+}
 const STORES: { id: StoreId; name: string; url: string }[] = [
   { id: 'shein', name: 'شي إن', url: SHEIN_HOME_URL },
   // تيمو يقرأ المنطقة أيضاً من مسار الدولة. القيمة الفعلية تأتي من إعداد
@@ -674,7 +689,7 @@ const temuProductIdentityFromUrl = (rawUrl: string) => {
 }
 
 const sameTemuProductNavigation = (expectedUrl: string, visibleUrl: string) => {
-  if (!expectedUrl || !visibleUrl) return true
+  if (!expectedUrl || !visibleUrl) return false
   return temuProductIdentityFromUrl(expectedUrl) === temuProductIdentityFromUrl(visibleUrl)
 }
 
@@ -693,16 +708,24 @@ const sameSheinProductNavigation = (expectedUrl: string, visibleUrl: string) => 
   return !!expected && expected === sheinProductIdentityFromUrl(visibleUrl)
 }
 
-const storeFromProductUrl = (rawUrl: string): StoreId | undefined => {
-  try {
-    const host = new URL(rawUrl).hostname
-    if (/temu/i.test(host)) return 'temu'
-    if (/shein/i.test(host)) return 'shein'
-  } catch {
-    return undefined
-  }
-  return undefined
+// Native capture bundles create generations as Date.now().toString(36) plus a
+// random suffix. Ordering that timestamp lets the host reject a delayed ready
+// message from the document before CAPTCHA while accepting the new document
+// even when urlChangeEvent arrives a few milliseconds later.
+const storeDocumentGenerationTimestamp = (generation: string) => {
+  const prefix = String(generation || '').split('-', 1)[0]
+  if (!/^[0-9a-z]+$/i.test(prefix)) return 0
+  const value = Number.parseInt(prefix, 36)
+  return Number.isFinite(value) && value > 0 ? value : 0
 }
+
+const isNewerStoreDocumentGeneration = (candidate: string, baseline: string) => {
+  const candidateTime = storeDocumentGenerationTimestamp(candidate)
+  const baselineTime = storeDocumentGenerationTimestamp(baseline)
+  return candidateTime > 0 && baselineTime > 0 && candidateTime > baselineTime
+}
+
+const storeFromProductUrl = storeIdentityFromUrl
 const normalizeStoreBrowserUrl = (rawUrl: string, fallbackStore: StoreId, regions = DEFAULT_STORE_REGIONS) => {
   const store = storeFromProductUrl(rawUrl) ?? fallbackStore
   return store === 'temu'
@@ -773,12 +796,19 @@ const shouldRedirectSheinToRegion = (rawUrl: string, region: StoreRegion) => {
   }
 }
 
-const isSheinHumanChallengeUrl = (rawUrl: string) => {
+const isStoreHumanChallengeUrl = (rawUrl: string) => {
   try {
     const url = new URL(rawUrl)
-    if (!/shein/i.test(url.hostname)) return false
     return SHEIN_CHALLENGE_PATH_RE.test(url.pathname) ||
       SHEIN_CHALLENGE_QUERY_RE.test(url.search + url.hash)
+  } catch {
+    return false
+  }
+}
+
+const isSheinHumanChallengeUrl = (rawUrl: string) => {
+  try {
+    return /shein/i.test(new URL(rawUrl).hostname) && isStoreHumanChallengeUrl(rawUrl)
   } catch {
     return false
   }
@@ -793,6 +823,7 @@ const shouldRedirectTemuToRegion = (rawUrl: string, region: StoreRegion) => {
     // both route forms and also repair locale-less roots. Authentication and
     // anti-bot routes are left alone to avoid the reload loop documented
     // below in the native URL handler.
+    if (SHEIN_CHALLENGE_PATH_RE.test(pathname) || SHEIN_CHALLENGE_QUERY_RE.test(url.search + url.hash)) return false
     if (/^\/(?:login|signin|verify|verification|captcha|challenge)(?:[./-]|\/|$)/i.test(pathname)) return false
     const localeMatch = pathname.match(/^\/([a-z]{2})(?:-[a-z]{2})?(?=\/|$)/i)
     if (!localeMatch) return pathname === '/' || /^\/(?:home|index)(?:\.html)?\/?$/i.test(pathname)
@@ -1354,11 +1385,16 @@ function App() {
     storageKeys.storeSwitchHintSeen,
     false,
   )
+  const [personalTemuSecondTapHintVisible, setPersonalTemuSecondTapHintVisible] = useState(false)
   const [selectedStore, setSelectedStore] = useStoredState<StoreId>(
     storageKeys.selectedStore,
     TEMU_PERSONAL_SITE_MODE ? 'temu' : 'shein',
   )
   const selectedStoreRef = useRef(selectedStore)
+  const commitSelectedStore = useCallback((id: StoreId) => {
+    selectedStoreRef.current = id
+    setSelectedStore(id)
+  }, [setSelectedStore])
   const temuPersonalSiteOpenedRef = useRef(false)
   useEffect(() => { selectedStoreRef.current = selectedStore }, [selectedStore])
   useEffect(() => { temuPersonalSiteOpenedRef.current = false }, [selectedStore])
@@ -1377,16 +1413,25 @@ function App() {
       return init
     })(),
   )
+  useEffect(() => {
+    setCartsByStore((all) => repairStoreCartBuckets(all))
+  }, [setCartsByStore])
   const cartItems = cartsByStore[selectedStore] ?? []
-  const setCartItems = useCallback((updater: CartItem[] | ((prev: CartItem[]) => CartItem[])) => {
+  const setCartItemsForStore = useCallback((
+    store: StoreId,
+    updater: CartItem[] | ((prev: CartItem[]) => CartItem[]),
+  ) => {
     setCartsByStore((all) => {
-      const current = all[selectedStoreRef.current] ?? []
+      const current = all[store] ?? []
       const next = typeof updater === 'function'
         ? (updater as (p: CartItem[]) => CartItem[])(current)
         : updater
-      return { ...all, [selectedStoreRef.current]: next }
+      return { ...all, [store]: next }
     })
   }, [setCartsByStore])
+  const setCartItems = useCallback((updater: CartItem[] | ((prev: CartItem[]) => CartItem[])) => {
+    setCartItemsForStore(selectedStoreRef.current, updater)
+  }, [setCartItemsForStore])
   // Carts persisted by a pre-redenomination build contain priceSyp at the old
   // 100x unit. Repair only unmistakably stale rows from their USD source value.
   useEffect(() => {
@@ -2593,7 +2638,7 @@ function App() {
     if (!code) { showNotice('أدخل كود أو رابط السلة المشتركة'); return }
     if (cartGroup?.code === code) { showNotice('أنت مرتبط بهذه المجموعة بالفعل'); return }
     if (inviteStore && inviteStore !== selectedStore) {
-      setSelectedStore(inviteStore)
+      commitSelectedStore(inviteStore)
       showNotice(`تم التبديل لمتجر ${storeName(inviteStore)} — الطلب المشترك مخصص لهذا المتجر`)
     }
     setIsSyncingGroup(true)
@@ -3178,6 +3223,16 @@ function App() {
   }
 
   const sheinOpenedRef = useRef(false)
+  const standardWebviewOwnerRef = useRef<{
+    store: StoreId
+    sessionId: number
+    id?: string
+  } | null>(null)
+  const clearStandardWebviewOwner = useCallback((sessionId?: number) => {
+    const owner = standardWebviewOwnerRef.current
+    if (sessionId !== undefined && owner?.sessionId !== sessionId) return
+    standardWebviewOwnerRef.current = null
+  }, [])
   // عند تبديل المتجر: نُغلق البراوزر الحالي عمداً قبل فتحه على الجديد.
   // مستمع closeEvent (أدناه) يُعيد الفتح تلقائياً أيضاً لأي إغلاق (حتى لو
   // كان الإغلاق نفسه سبّبه استدعاؤنا) — فبلا هذا العلم، تبديل المتجر يُطلق
@@ -3197,6 +3252,33 @@ function App() {
   // discarded by webviewClosingRef and leave Home with no browser behind it.
   const pendingStoreOpenAfterCloseRef = useRef(false)
   const ignoredWebviewCloseIdsRef = useRef(new Set<string>())
+  const rememberIgnoredWebviewCloseId = useCallback((id: string) => {
+    if (!id) return
+    const ignoredIds = ignoredWebviewCloseIdsRef.current
+    ignoredIds.add(id)
+    while (ignoredIds.size > 8) {
+      const oldest = ignoredIds.values().next().value as string | undefined
+      if (!oldest) break
+      ignoredIds.delete(oldest)
+    }
+  }, [])
+  const adoptOpeningStandardWebviewId = useCallback((eventId: string | undefined, eventStore: StoreId | undefined) => {
+    const owner = standardWebviewOwnerRef.current
+    if (!owner || !eventId) return false
+    if (!canAdoptOpeningStandardStoreEvent(
+      owner,
+      webviewSessionRef.current,
+      eventId,
+      eventStore,
+      !!webviewIdRef.current,
+      webviewOpeningRef.current,
+      webviewClosingRef.current,
+      ignoredWebviewCloseIdsRef.current.has(eventId),
+    )) return false
+    owner.id = eventId
+    webviewIdRef.current = eventId
+    return true
+  }, [])
   const webviewErrorTimerRef = useRef<number | undefined>(undefined)
   const sheinReadinessTimerRef = useRef<number | undefined>(undefined)
   const sheinRecoveryAttemptRef = useRef(0)
@@ -3207,6 +3289,10 @@ function App() {
   // فعلاً، نرجع لبوابة «شغّل VPN» بدل عرض صفحة بيضاء (بدل الإظهار القسري).
   const openedViaBypassRef = useRef(false)
   const sheinChallengeActiveRef = useRef(false)
+  const sheinCoordinatorDocumentGenerationRef = useRef('')
+  const sheinChallengeDocumentGenerationRef = useRef('')
+  const sheinChallengeResolutionReportedRef = useRef(false)
+  const sheinChallengeStartedAtRef = useRef(0)
   const currentWebviewUrlRef = useRef('')
   // إشعار تحقق «أنا إنسان» يُعرض مرة واحدة لكل جلسة webview كي لا يزعج.
   const humanCheckNoticeRef = useRef(false)
@@ -3218,6 +3304,8 @@ function App() {
   const pendingProductRequiresVisualReadyRef = useRef(false)
   const pendingProductVisualReadyRef = useRef(false)
   const pendingProductPrepareTimerRef = useRef<number | undefined>(undefined)
+  const pendingProductNavigationAttemptRef = useRef(0)
+  const pendingProductVerificationSeenRef = useRef(false)
   const sheinCartProductSessionRef = useRef(false)
   const [sheinReady, setSheinReady] = useState(false)
   const sheinReadyRef = useRef(false)
@@ -3244,8 +3332,9 @@ function App() {
   const sheinCoordinatorRef = useRef(createSheinRegionCoordinator(DEFAULT_STORE_REGIONS.shein))
   const sheinOpeningTraceRef = useRef<SheinOpeningTrace | null>(null)
   const markStoreWebviewReadyRef = useRef<(sessionId: number) => void>(() => undefined)
-  const storeMessageHandlerRef = useRef<(event: { id?: string; detail?: Record<string, unknown> }) => void>(() => undefined)
+  const storeMessageHandlerRef = useRef<(event: StoreWebviewMessageEvent) => void>(() => undefined)
   const personalTemuHomeTapTimerRef = useRef<number | undefined>(undefined)
+  const personalTemuSecondTapHintTimerRef = useRef<number | undefined>(undefined)
   const vpnStateRef = useRef(vpnState)
   const vpnGeoRef = useRef<VpnGeo | null>(vpnGeo)
   const storeReachableRef = useRef(false)
@@ -3310,23 +3399,47 @@ function App() {
     personalTemuHomeTapTimerRef.current = undefined
   }, [])
 
+  const dismissPersonalTemuSecondTapHint = useCallback(() => {
+    if (personalTemuSecondTapHintTimerRef.current !== undefined) {
+      window.clearTimeout(personalTemuSecondTapHintTimerRef.current)
+      personalTemuSecondTapHintTimerRef.current = undefined
+    }
+    setPersonalTemuSecondTapHintVisible(false)
+  }, [])
+
+  const showPersonalTemuSecondTapHint = useCallback(() => {
+    if (personalTemuSecondTapHintTimerRef.current !== undefined) {
+      window.clearTimeout(personalTemuSecondTapHintTimerRef.current)
+    }
+    setPersonalTemuSecondTapHintVisible(true)
+    personalTemuSecondTapHintTimerRef.current = window.setTimeout(() => {
+      personalTemuSecondTapHintTimerRef.current = undefined
+      setPersonalTemuSecondTapHintVisible(false)
+    }, 1800)
+  }, [])
+
   const handlePersonalTemuHomeTap = useCallback(() => {
     if (personalTemuHomeTapTimerRef.current !== undefined) {
       clearPersonalTemuHomeTap()
+      dismissPersonalTemuSecondTapHint()
       setStoreSwitchHintSeen(true)
-      storeMessageHandlerRef.current({ detail: { type: 'closeStore' } })
+      storeMessageHandlerRef.current({ detail: { type: 'closeStore' }, sourceStore: 'temu' })
       return
     }
 
     // Wait only for the platform's normal double-tap window. A single press is
-    // intentionally inert so Home never reloads the active store; a second
-    // quick press changes stores without destroying the parked Gecko session.
+    // intentionally inert so Home never reloads the active store. Give clear
+    // transient feedback without changing the fixed navigation measurements.
+    showPersonalTemuSecondTapHint()
     personalTemuHomeTapTimerRef.current = window.setTimeout(() => {
       personalTemuHomeTapTimerRef.current = undefined
     }, 320)
-  }, [clearPersonalTemuHomeTap, setStoreSwitchHintSeen])
+  }, [clearPersonalTemuHomeTap, dismissPersonalTemuSecondTapHint, setStoreSwitchHintSeen, showPersonalTemuSecondTapHint])
 
-  useEffect(() => clearPersonalTemuHomeTap, [clearPersonalTemuHomeTap])
+  useEffect(() => () => {
+    clearPersonalTemuHomeTap()
+    dismissPersonalTemuSecondTapHint()
+  }, [clearPersonalTemuHomeTap, dismissPersonalTemuSecondTapHint])
 
   // The app now starts on the store hub, so connection work is deliberately
   // idle until the customer asks to enter the selected store. This also covers
@@ -3342,6 +3455,15 @@ function App() {
       const target = (event as CustomEvent<unknown>).detail
       if (target !== 'store-select' && target !== 'orders' && target !== 'cart' && target !== 'profile') return
       if (screenRef.current === target) return
+
+      // A cart tab is only a commerce view. Native navigation originates from
+      // the still-live standard WebView, so restore that session's owner before
+      // exposing Cart/Orders/Profile or the chooser. Otherwise a previously
+      // inspected cart can masquerade as the browser that emitted this event.
+      const ownerStore = standardWebviewOwnerRef.current?.store
+      if (ownerStore && ownerStore !== selectedStoreRef.current) {
+        commitSelectedStore(ownerStore)
+      }
 
       // The native store stays above Capacitor's host WebView. Commit the
       // destination synchronously before native removes that cover so the
@@ -3359,7 +3481,7 @@ function App() {
   useEffect(() => {
     const previous = previousStoreRegionsRef.current
     previousStoreRegionsRef.current = storeRegions
-    const activeStore = selectedStoreRef.current
+    const activeStore = standardWebviewOwnerRef.current?.store ?? selectedStoreRef.current
     if (JSON.stringify(previous[activeStore]) === JSON.stringify(storeRegions[activeStore])) return
 
     temuArabicRedirectRef.current = 0
@@ -3378,12 +3500,14 @@ function App() {
     suppressAutoReopenRef.current = true
     webviewClosingRef.current = true
     const closingWebviewId = webviewIdRef.current
+    rememberIgnoredWebviewCloseId(closingWebviewId)
     webviewSessionRef.current += 1
     webviewOpeningRef.current = false
     webviewOpenedAtRef.current = 0
     webviewIdRef.current = ''
     currentWebviewUrlRef.current = ''
     sheinOpenedRef.current = false
+    clearStandardWebviewOwner()
     setSheinReady(false)
     sheinVisualReadyRef.current = false
     setSheinVisualReady(false)
@@ -3539,6 +3663,7 @@ function App() {
   }, [vpnState, selectedStore])
 
   const postWebviewChromeState = (target: WebviewBackTarget) => {
+    if (sheinChallengeActiveRef.current) return
     void InAppBrowser.postMessage({ detail: { type: '__resize' } })
     void InAppBrowser.postMessage({ detail: { type: '__backTarget', target } })
   }
@@ -3596,27 +3721,29 @@ function App() {
     sheinReadinessTimerRef.current = undefined
   }
 
-  const clearPendingProductPreparation = (clearQueuedUrl = true) => {
+  const pausePendingProductPreparationTimeout = () => {
     if (pendingProductPrepareTimerRef.current !== undefined) {
       window.clearTimeout(pendingProductPrepareTimerRef.current)
       pendingProductPrepareTimerRef.current = undefined
     }
+  }
+
+  const clearPendingProductPreparation = (clearQueuedUrl = true) => {
+    pausePendingProductPreparationTimeout()
     pendingProductRevealRef.current = false
     pendingProductNavigationRequestedRef.current = false
     pendingProductPageLoadedRef.current = false
     pendingProductRequiresVisualReadyRef.current = false
     pendingProductVisualReadyRef.current = false
+    pendingProductNavigationAttemptRef.current = 0
+    pendingProductVerificationSeenRef.current = false
     pendingProductRevealUrlRef.current = ''
     if (clearQueuedUrl) pendingProductUrlRef.current = ''
   }
 
-  const beginPendingProductPreparation = (targetUrl: string) => {
-    clearPendingProductPreparation()
-    pendingProductUrlRef.current = targetUrl
-    pendingProductRevealUrlRef.current = targetUrl
-    pendingProductRevealRef.current = true
-    pendingProductRequiresVisualReadyRef.current = /(^|\/\/)([^/?#]+\.)?temu\.com/i.test(targetUrl)
-    pendingProductVisualReadyRef.current = !pendingProductRequiresVisualReadyRef.current
+  const armPendingProductPreparationTimeout = () => {
+    pausePendingProductPreparationTimeout()
+    if (!pendingProductRevealRef.current) return
     pendingProductPrepareTimerRef.current = window.setTimeout(() => {
       if (!pendingProductRevealRef.current) return
       clearPendingProductPreparation()
@@ -3626,9 +3753,21 @@ function App() {
       showNotice('تعذر تجهيز صفحة المنتج. جرّب فتحها مرة أخرى.')
     }, 45000)
   }
+  // One canonical target survives opening, challenge hand-off and one bounded
+  // post-verification retry; only confirmed product readiness clears it.
+  const beginPendingProductPreparation = (targetUrl: string) => {
+    clearPendingProductPreparation()
+    pendingProductUrlRef.current = targetUrl
+    pendingProductRevealUrlRef.current = targetUrl
+    pendingProductRevealRef.current = true
+    pendingProductRequiresVisualReadyRef.current = /(^|\/\/)([^/?#]+\.)?temu\.com/i.test(targetUrl)
+    pendingProductVisualReadyRef.current = !pendingProductRequiresVisualReadyRef.current
+    armPendingProductPreparationTimeout()
+  }
 
   const markPendingProductNavigationRequested = () => {
     if (!pendingProductRevealRef.current) return
+    pendingProductNavigationAttemptRef.current += 1
     pendingProductNavigationRequestedRef.current = true
     pendingProductPageLoadedRef.current = false
     pendingProductVisualReadyRef.current = !pendingProductRequiresVisualReadyRef.current
@@ -3640,11 +3779,30 @@ function App() {
     setSheinVisualReady(false)
   }
 
+  const prepareVerifiedProductRetry = (store: StoreId, visibleUrl: string) => {
+    const queuedProductUrl = pendingProductRevealUrlRef.current
+    if (!pendingProductRevealRef.current || !pendingProductNavigationRequestedRef.current ||
+        !pendingProductVerificationSeenRef.current || pendingProductNavigationAttemptRef.current >= 2 ||
+        !queuedProductUrl || !visibleUrl) return false
+    const alreadyAtProduct = store === 'temu'
+      ? sameTemuProductNavigation(queuedProductUrl, visibleUrl)
+      : sameSheinProductNavigation(queuedProductUrl, visibleUrl)
+    if (alreadyAtProduct) return false
+    pendingProductUrlRef.current = queuedProductUrl
+    pendingProductNavigationRequestedRef.current = false
+    pendingProductPageLoadedRef.current = false
+    pendingProductVisualReadyRef.current = !pendingProductRequiresVisualReadyRef.current
+    return true
+  }
+
   const revealPreparedProductIfReady = () => {
     if (!pendingProductRevealRef.current ||
         !pendingProductNavigationRequestedRef.current ||
         !pendingProductPageLoadedRef.current ||
         (pendingProductRequiresVisualReadyRef.current && !pendingProductVisualReadyRef.current)) return false
+    if ((standardWebviewOwnerRef.current?.store ?? selectedStoreRef.current) === 'shein' && pendingProductRevealUrlRef.current &&
+        currentWebviewUrlRef.current &&
+        !sameSheinProductNavigation(pendingProductRevealUrlRef.current, currentWebviewUrlRef.current)) return false
     const returnTarget = pendingBackTargetRef.current
     const shouldReveal = (returnTarget === 'cart' && screenRef.current === 'cart') ||
       (returnTarget === 'orders' && (screenRef.current === 'tracking' || screenRef.current === 'home'))
@@ -3665,7 +3823,7 @@ function App() {
 
   const forceStoreVpnRecheck = () => {
     if (screenRef.current !== 'home') return
-    if (selectedStoreRef.current !== 'shein') return
+    if ((standardWebviewOwnerRef.current?.store ?? selectedStoreRef.current) !== 'shein') return
     // A healthy store keeps its exact page/scroll state across app screens and
     // ordinary background/foreground transitions. Native iOS revives an actual
     // WebContent termination in place; normal resume is never a reason to close.
@@ -3687,6 +3845,7 @@ function App() {
     sheinChallengeActiveRef.current = false
     currentWebviewUrlRef.current = ''
     sheinOpenedRef.current = false
+    clearStandardWebviewOwner()
     setSheinReady(false)
     sheinVisualReadyRef.current = false
     setSheinVisualReady(false)
@@ -3715,6 +3874,7 @@ function App() {
     sheinChallengeActiveRef.current = false
     currentWebviewUrlRef.current = ''
     sheinOpenedRef.current = false
+    clearStandardWebviewOwner()
     setSheinReady(false)
     sheinVisualReadyRef.current = false
     setSheinVisualReady(false)
@@ -3763,7 +3923,7 @@ function App() {
   }
 
   const isFatalSheinWebkitError = (event: WebviewPageLoadErrorEvent) => {
-    if (selectedStoreRef.current !== 'shein') return false
+    if ((standardWebviewOwnerRef.current?.store ?? selectedStoreRef.current) !== 'shein') return false
     const phase = String(event.phase ?? '')
     if (phase === 'webContentProcessDidTerminate') return true
     const code = webviewErrorCode(event)
@@ -3815,9 +3975,33 @@ function App() {
     return true
   }
 
+  const revealPendingProductVerification = () => {
+    if (!pendingProductRevealRef.current) return false
+    const returnTarget = pendingBackTargetRef.current
+    const shouldReveal = (returnTarget === 'cart' && screenRef.current === 'cart') ||
+      (returnTarget === 'orders' && (screenRef.current === 'tracking' || screenRef.current === 'home'))
+    if (shouldReveal && screenRef.current !== 'home') {
+      screenRef.current = 'home'
+      setScreen('home')
+    }
+    if (shouldReveal) {
+      // The ordinary Home effect intentionally refuses to reveal an unready
+      // store document. CAPTCHA is the one safe exception: native has already
+      // removed its cover, so show this preserved WebView directly without
+      // setting ready flags or consuming the queued product.
+      void InAppBrowser.show().catch(() => undefined).then(() => {
+        postWebviewChromeState(returnTarget)
+      })
+    }
+    // Deliberately keep every pending flag and the original return target. The
+    // challenge is visible, but only product readiness may complete this flow.
+    return true
+  }
+
   const markStoreWebviewReady = (sessionId: number) => {
     if (sessionId !== webviewSessionRef.current || !sheinOpenedRef.current) return
-    if (selectedStoreRef.current === 'shein') markSheinWebviewVisuallyReady(sessionId)
+    const activeStore = standardWebviewOwnerRef.current?.store ?? selectedStoreRef.current
+    if (activeStore === 'shein') markSheinWebviewVisuallyReady(sessionId)
     clearSheinReadinessWatchdog()
     sheinRecoveryAttemptRef.current = 0
     if (webviewErrorTimerRef.current !== undefined) {
@@ -3833,9 +4017,9 @@ function App() {
     // وصلنا لعرض محتوى فعلي — التجاوز نجح، نُصفّر علم التجاوز.
     openedViaBypassRef.current = false
     setSheinReady(true)
-    if (selectedStoreRef.current === 'shein') completeSheinOpening()
+    if (activeStore === 'shein') completeSheinOpening()
     const pendingProductUrl = pendingProductUrlRef.current
-    if (pendingProductUrl) {
+    if (pendingProductUrl && !pendingProductNavigationRequestedRef.current) {
       pendingProductUrlRef.current = ''
       markPendingProductNavigationRequested()
       // Navigate every store inside its already-verified page. This preserves
@@ -3893,6 +4077,7 @@ function App() {
     sheinChallengeActiveRef.current = false
     currentWebviewUrlRef.current = ''
     sheinOpenedRef.current = false
+    clearStandardWebviewOwner()
     setSheinReady(false)
     sheinVisualReadyRef.current = false
     setSheinVisualReady(false)
@@ -3919,7 +4104,7 @@ function App() {
   // unexpected browser close. The injected navigation layer no longer watches
   // page promises or converts product-card taps into a close/reopen cycle.
   const recoverSheinChunkLoad = (reportedUrl: string) => {
-    if (Capacitor.getPlatform() !== 'ios' || selectedStoreRef.current !== 'shein' ||
+    if (Capacitor.getPlatform() !== 'ios' || standardWebviewOwnerRef.current?.store !== 'shein' ||
         !sheinOpenedRef.current || sheinChallengeActiveRef.current) return false
 
     const now = Date.now()
@@ -3953,6 +4138,7 @@ function App() {
     sheinChallengeActiveRef.current = false
     currentWebviewUrlRef.current = ''
     sheinOpenedRef.current = false
+    clearStandardWebviewOwner()
     setSheinReady(false)
     sheinVisualReadyRef.current = false
     setSheinVisualReady(false)
@@ -3982,7 +4168,7 @@ function App() {
 
   const startSheinReadinessWatchdog = (sessionId: number) => {
     clearSheinReadinessWatchdog()
-    if (selectedStoreRef.current !== 'shein') return
+    if (standardWebviewOwnerRef.current?.store !== 'shein') return
     if (sessionId !== webviewSessionRef.current || !webviewOpeningRef.current) return
     sheinReadinessTimerRef.current = window.setTimeout(() => {
       sheinReadinessTimerRef.current = undefined
@@ -4015,6 +4201,7 @@ function App() {
       sheinChallengeActiveRef.current = false
       currentWebviewUrlRef.current = ''
       sheinOpenedRef.current = false
+      clearStandardWebviewOwner()
       setSheinReady(false)
       sheinVisualReadyRef.current = false
       setSheinVisualReady(false)
@@ -4102,11 +4289,16 @@ function App() {
     const sessionId = webviewSessionRef.current + 1
     const initialPendingUrl = pendingProductUrlRef.current
     webviewSessionRef.current = sessionId
+    standardWebviewOwnerRef.current = { store: activeStore, sessionId }
     webviewAutoOpenPausedUntilRef.current = 0
     webviewOpeningRef.current = true
     webviewOpenedAtRef.current = Date.now()
     webviewIdRef.current = ''
     sheinChallengeActiveRef.current = false
+    sheinCoordinatorDocumentGenerationRef.current = ''
+    sheinChallengeDocumentGenerationRef.current = ''
+    sheinChallengeResolutionReportedRef.current = false
+    sheinChallengeStartedAtRef.current = 0
     sheinOpenedRef.current = true
     temuContentLoadedRef.current = false
     setSheinReady(false)
@@ -4131,8 +4323,14 @@ function App() {
     const targetUrl = activeStore === 'shein'
       ? normalizeSheinBrowserUrl(rawTargetUrl, activeRegions.shein)
       : normalizeTemuBrowserUrl(rawTargetUrl, activeRegions.temu)
-    const captureScript = captureBundle.buildStoreCaptureScript(activeStore, activeRegions)
     const hostSafeBottomInset = readHostSafeBottomInset()
+    const nativeStorePlatform = Capacitor.getPlatform()
+    const nativeStorePrelude = `window.__otlobliNativeNavigation=true;\nwindow.__otlobliSafeBottom=${hostSafeBottomInset};\nwindow.__otlobliNativePlatform=${JSON.stringify(nativeStorePlatform)};\nwindow.__otlobliDocumentGeneration=window.__otlobliDocumentGeneration||(Date.now().toString(36)+'-'+Math.random().toString(36).slice(2));\n`
+    const captureScript = captureBundle.buildStoreCaptureScript(activeStore, activeRegions, {
+      nativeNavigation: true,
+      safeBottom: hostSafeBottomInset,
+      platform: nativeStorePlatform,
+    })
     if (initialPendingUrl && pendingProductRevealRef.current &&
         pendingProductRevealUrlRef.current === targetUrl) {
       markPendingProductNavigationRequested()
@@ -4142,13 +4340,21 @@ function App() {
     const webViewOptions: Parameters<typeof InAppBrowser.openWebView>[0] & {
       otlobliLoadingCover?: boolean
       otlobliDocumentStartScript?: string
+      otlobliTemuDocumentStartScript?: string
       otlobliPreserveAttachedWhenHidden?: boolean
+      otlobliNativeNavigation?: boolean
     } = {
       url: targetUrl,
+      otlobliNativeNavigation: true,
+      // Keep the live document at its real size while it is parked behind the
+      // app. Android's default AWARE mode temporarily resized WebView to 0×0,
+      // invalidating Temu's viewport and increasing verification churn.
+      invisibilityMode: InvisibilityMode.FAKE_VISIBLE,
+      openBlankTargetInWebView: true,
       ...(activeStore === 'shein'
         ? {
           otlobliLoadingCover: true,
-          otlobliDocumentStartScript: `window.__otlobliSafeBottom=${hostSafeBottomInset};\nwindow.__otlobliNativePlatform=${JSON.stringify(Capacitor.getPlatform())};\n${captureBundle.SHEIN_PRIVACY_COMPAT_SCRIPT}\n${captureBundle.SHEIN_POLICY_DOCUMENT_START_SCRIPT}\n${captureBundle.OTLOBLI_NAV_BOOTSTRAP_SCRIPT}`,
+          otlobliDocumentStartScript: `${nativeStorePrelude}${captureBundle.SHEIN_PRIVACY_COMPAT_SCRIPT}\n${captureBundle.SHEIN_POLICY_DOCUMENT_START_SCRIPT}`,
           otlobliPreserveAttachedWhenHidden: true,
           // Prepare SHEIN at the real device size without presenting it. The
           // already-mounted Otlobli shell therefore owns the only visible nav
@@ -4167,6 +4373,9 @@ function App() {
         : {
           preShowScript: captureScript,
           preShowScriptInjectionTime: 'documentStart' as const,
+          ...(nativeStorePlatform === 'android'
+            ? { otlobliTemuDocumentStartScript: captureBundle.TEMU_DOCUMENT_START_SCRIPT }
+            : {}),
           isPresentAfterPageLoad: true,
           // Temu's bottom safe-area/nav height drifted after Orders -> Home
           // because the iOS WKWebView was detached to a 1x1 hidden container
@@ -4187,16 +4396,14 @@ function App() {
       // make fixed-layer hit testing drift after keyboard/search transitions;
       // Temu chrome is stabilized inside the injected script instead.
       disableOverscroll: false,
-      // Android still needs the native safe-bottom margin for its system
-      // navigation bar. On iOS that option shrinks WKWebView to the safe-area
-      // bottom and leaves a second native strip below our own safe-area-aware
-      // nav. Let WKWebView fill the iOS controller instead; viewport-fit=cover
-      // makes the injected nav own and paint the complete bottom inset.
-      enabledSafeBottomMargin: !isIosNative,
+      // The native Otlobli bar owns the complete bottom safe area on both
+      // platforms. A second WebView safe-bottom margin would double-count the
+      // system inset and recreate the cross-device height drift.
+      enabledSafeBottomMargin: false,
       // Keep native content below the status bar/notch. Android needs the
       // explicit top inset, while iOS only needs the safe-area anchor (the
       // Android-only useTopInset flag is ignored by WKWebView). Do not apply
-      // the bottom safe margin on iOS; Otlobli's injected nav owns that inset.
+      // the bottom safe margin; Otlobli's native container owns that inset.
       enabledSafeTopMargin: true,
       useTopInset: !isIosNative,
       // Used to route Android traffic through a Cloudflare Worker relay here
@@ -4228,12 +4435,16 @@ function App() {
         if (!result) return
         if (sessionId !== webviewSessionRef.current || !sheinOpenedRef.current) {
           if (result.id) {
-            ignoredWebviewCloseIdsRef.current.add(result.id)
+            rememberIgnoredWebviewCloseId(result.id)
             void InAppBrowser.close({ id: result.id }).catch(() => undefined)
           }
           return
         }
         webviewIdRef.current = result?.id ?? webviewIdRef.current
+        const acceptedOwner = standardWebviewOwnerRef.current
+        if (acceptedOwner?.sessionId === sessionId && result?.id) {
+          acceptedOwner.id = result.id
+        }
         if (activeStore === 'shein') markSheinOpening('nativeBrowserCreatedShown')
         if (screenRef.current !== 'home' && (!initialPendingUrl || pendingProductRevealRef.current)) {
           void InAppBrowser.hide().catch(() => undefined)
@@ -4254,7 +4465,8 @@ function App() {
           }
           showStoreOpenFailure('preparation')
         }, 45000)
-        const checkLoaded = InAppBrowser.addListener('browserPageLoaded', () => {
+        const checkLoaded = InAppBrowser.addListener('browserPageLoaded', (event: { id?: string }) => {
+          if (!isCurrentStandardStoreEvent(standardWebviewOwnerRef.current, sessionId, event?.id)) return
           window.clearTimeout(absoluteTimeout)
           void checkLoaded.then((h) => h.remove())
         })
@@ -4275,6 +4487,9 @@ function App() {
     if (screen === 'home') {
       if (!storeRegionsReady) return undefined
       if (sheinOpenedRef.current) {
+        const owner = standardWebviewOwnerRef.current
+        if (!owner || owner.sessionId !== webviewSessionRef.current) return undefined
+        if (owner.store !== selectedStoreRef.current) commitSelectedStore(owner.store)
         // A newly-created iOS SHEIN view is intentionally full-size but
         // offscreen. Never reveal it on a state re-render before its own
         // readiness signal; this is what keeps the host nav fixed on the very
@@ -4299,7 +4514,7 @@ function App() {
     return () => {
       if (openTimer !== undefined) window.clearTimeout(openTimer)
     }
-  }, [screen, vpnState, sheinReady, sheinVisualReady, sheinBlockedError, storeRegionsReady])
+  }, [screen, vpnState, sheinReady, sheinVisualReady, sheinBlockedError, storeRegionsReady, commitSelectedStore])
 
   // Deep links for either store must originate inside the already-warm page.
   // Besides preserving a same-site referrer, iOS SHEIN must keep the exact
@@ -4460,9 +4675,12 @@ function App() {
     const handle = InAppBrowser.addListener('closeEvent', (event: { id?: string }) => {
       const closedId = event?.id ?? ''
       if (closedId && ignoredWebviewCloseIdsRef.current.delete(closedId)) return
+      const closingOwner = standardWebviewOwnerRef.current
+      if (closingOwner && !isCurrentStandardStoreEvent(closingOwner, webviewSessionRef.current, closedId)) return
       if (closedId && webviewIdRef.current && closedId !== webviewIdRef.current) return
+      const closingStore = closingOwner?.store ?? selectedStoreRef.current
       if (!suppressAutoReopenRef.current && screenRef.current === 'home' &&
-          selectedStoreRef.current === 'shein' &&
+          closingStore === 'shein' &&
           (sheinReadyRef.current || sheinVisualReadyRef.current) &&
           recoverSheinChunkLoad(currentWebviewUrlRef.current)) return
       const productWasPreparing = pendingProductRevealRef.current
@@ -4474,6 +4692,7 @@ function App() {
       sheinChallengeActiveRef.current = false
       sheinCartProductSessionRef.current = false
       sheinOpenedRef.current = false
+      clearStandardWebviewOwner()
       setSheinReady(false)
       sheinVisualReadyRef.current = false
       setSheinVisualReady(false)
@@ -4507,17 +4726,23 @@ function App() {
   useEffect(() => {
     const loadedHandle = InAppBrowser.addListener('browserPageLoaded', (event: { id?: string }) => {
       const loadedWebviewId = event?.id ?? ''
+      const owner = standardWebviewOwnerRef.current
+      if (!owner || owner.sessionId !== webviewSessionRef.current) return
+      const loadedSessionId = owner.sessionId
       if (loadedWebviewId && ignoredWebviewCloseIdsRef.current.has(loadedWebviewId)) return
+      if (loadedWebviewId && owner.id && loadedWebviewId !== owner.id) return
       if (loadedWebviewId && webviewIdRef.current && loadedWebviewId !== webviewIdRef.current) return
-      recordAppDiagnostic('store_page_loaded', { store: selectedStoreRef.current })
+      const activeStore = owner.store
+      recordAppDiagnostic('store_page_loaded', { store: activeStore })
       if (loadedWebviewId && !webviewIdRef.current && webviewOpeningRef.current && !webviewClosingRef.current) {
         // Android resolves openWebView only after the first page load, and a
         // very fast iOS load can also emit before the JS promise callback stores
         // its id. Adopt the active singleton event instead of discarding the
         // only event that injects SHEIN's full capture/region script.
         webviewIdRef.current = loadedWebviewId
+        owner.id = loadedWebviewId
       }
-      if (selectedStoreRef.current === 'shein') {
+      if (activeStore === 'shein') {
         markSheinOpening('navigationFinish')
         if (pendingProductRevealRef.current && pendingProductNavigationRequestedRef.current) {
           pendingProductPageLoadedRef.current = true
@@ -4533,7 +4758,11 @@ function App() {
         void captureBundleReady
           .then((loadedBundle) => InAppBrowser.executeScript({
             ...(id ? { id } : {}),
-            code: loadedBundle.buildStoreCaptureScript('shein', storeRegionsRef.current),
+            code: loadedBundle.buildStoreCaptureScript('shein', storeRegionsRef.current, {
+              nativeNavigation: true,
+              safeBottom: readHostSafeBottomInset(),
+              platform: Capacitor.getPlatform(),
+            }),
           }))
           .catch((err) => {
             recordAppDiagnostic('store_script_injection_failed', {
@@ -4541,24 +4770,27 @@ function App() {
               code: err instanceof Error ? err.name : 'unknown',
             })
           })
-          .finally(() => startSheinReadinessWatchdog(webviewSessionRef.current))
+          .finally(() => startSheinReadinessWatchdog(loadedSessionId))
         return
       }
-      if (selectedStoreRef.current === 'temu') {
+      if (activeStore === 'temu') {
+        // Native onPageFinished is only a network/document milestone. A full
+        // verification document can emit it before the injected detector has
+        // a body, so it must never consume a queued product URL. The runtime's
+        // stable temuPublicReady/temuProductVisible messages own readiness.
         temuContentLoadedRef.current = true
-        if (pendingProductRevealRef.current && pendingProductNavigationRequestedRef.current) {
-          pendingProductPageLoadedRef.current = true
-        }
-        markStoreWebviewReadyRef.current(webviewSessionRef.current)
-        revealPreparedProductIfReady()
         return
       }
       markStoreWebviewReadyRef.current(webviewSessionRef.current)
     })
     const errorHandle = InAppBrowser.addListener('pageLoadError', (event: WebviewPageLoadErrorEvent) => {
+      const owner = standardWebviewOwnerRef.current
+      if (!owner || owner.sessionId !== webviewSessionRef.current) return
+      const errorSessionId = owner.sessionId
+      if (event?.id && owner.id && event.id !== owner.id) return
       if (event?.id && webviewIdRef.current && event.id !== webviewIdRef.current) return
       if (!sheinOpenedRef.current) return
-      const activeStore = selectedStoreRef.current
+      const activeStore = owner.store
       // تيمو حمّلت مسبقاً → هذا خطأ مورد فرعي (إعلان/تتبّع)، لا تُظهر البوابة.
       if (activeStore === 'temu' && temuContentLoadedRef.current) return
       recordAppDiagnostic('store_page_error', {
@@ -4579,7 +4811,10 @@ function App() {
       webviewErrorTimerRef.current = window.setTimeout(() => {
         webviewErrorTimerRef.current = undefined
         if (!sheinOpenedRef.current || screenRef.current !== 'home') return
-        const currentStore = selectedStoreRef.current
+        const currentOwner = standardWebviewOwnerRef.current
+        if (!currentOwner || currentOwner.sessionId !== errorSessionId) return
+        const currentStore = currentOwner.store
+        if (!currentStore) return
         if (currentStore === 'temu' && temuContentLoadedRef.current) return
         if (currentStore === 'shein' && !openedViaBypassRef.current) return
         if (currentStore === 'shein' &&
@@ -4592,22 +4827,26 @@ function App() {
     })
     let fallbackTimer: number | undefined
     const startFallback = InAppBrowser.addListener('urlChangeEvent', () => {
-      if (selectedStoreRef.current === 'shein') {
-        markSheinOpening('initialNavigationStart')
-        transitionSheinCoordinator({ type: 'NAVIGATION_STARTED' })
-      }
-      if (fallbackTimer !== undefined || !webviewOpeningRef.current) return
+      // Temu readiness is owned exclusively by the document-level
+      // temuPublicReady/temuProductVisible contract. A fixed host timeout can
+      // fire while CAPTCHA is still painted and must never consume the queued
+      // product URL or reveal an unready document.
+      const navigationOwner = standardWebviewOwnerRef.current
+      if (navigationOwner?.store !== 'shein' || navigationOwner.sessionId !== webviewSessionRef.current) return
+      const fallbackSessionId = navigationOwner.sessionId
+      markSheinOpening('initialNavigationStart')
+      transitionSheinCoordinator({ type: 'NAVIGATION_STARTED' })
+      // This watchdog exists only for the explicit SHEIN "open anyway"
+      // bypass. Normal SHEIN readiness is coordinator-owned as well.
+      if (!openedViaBypassRef.current || fallbackTimer !== undefined || !webviewOpeningRef.current) return
       fallbackTimer = window.setTimeout(() => {
         fallbackTimer = undefined
-        if (!webviewOpeningRef.current) return
+        if (standardWebviewOwnerRef.current?.sessionId !== fallbackSessionId) return
+        if (!webviewOpeningRef.current || sheinChallengeActiveRef.current) return
         // فُتح عبر «فتح على أي حال» بلا VPN ولم تُحمّل الصفحة خلال 12ث — الإظهار
         // القسري هنا كان يعرض صفحة بيضاء بلا رجعة. بدلاً منه نرجع لبوابة VPN.
         if (openedViaBypassRef.current) {
           showStoreOpenFailure()
-          return
-        }
-        if (selectedStoreRef.current !== 'shein') {
-          markStoreWebviewReadyRef.current(webviewSessionRef.current)
         }
       }, 12000)
     })
@@ -4632,21 +4871,34 @@ function App() {
     // بطريقة لا تعيد تحميل الصفحة (إخفاء عناصر/منع نقر)، لا عبر setUrl.
     const handle = InAppBrowser.addListener('urlChangeEvent', ({ id, url }: { id?: string; url: string }) => {
       if (webviewClosingRef.current) return
+      const owner = standardWebviewOwnerRef.current
+      if (!owner || owner.sessionId !== webviewSessionRef.current) return
+      if (!owner.id) adoptOpeningStandardWebviewId(id, storeIdentityFromUrl(url))
+      if (id && owner.id && id !== owner.id) return
       if (id && webviewIdRef.current && id !== webviewIdRef.current) return
       currentWebviewUrlRef.current = url
-      if (/shein/i.test(url)) {
+      if (owner.store === 'shein') {
+        if (!/shein/i.test(url)) return
         if (isSheinHumanChallengeUrl(url)) {
           markSheinOpening('humanVerificationDetection')
           transitionSheinCoordinator({ type: 'HUMAN_VERIFICATION_REQUIRED' })
+          if (!sheinChallengeActiveRef.current) sheinChallengeStartedAtRef.current = Date.now()
           sheinChallengeActiveRef.current = true
+          sheinChallengeDocumentGenerationRef.current = sheinCoordinatorDocumentGenerationRef.current
+          sheinChallengeResolutionReportedRef.current = false
           if (webviewErrorTimerRef.current !== undefined) {
             window.clearTimeout(webviewErrorTimerRef.current)
             webviewErrorTimerRef.current = undefined
           }
           setSheinBlockedError(false)
-          markStoreWebviewReadyRef.current(webviewSessionRef.current)
+          markSheinWebviewVisuallyReady(webviewSessionRef.current)
           return
         }
+        // The first non-challenge URL can be SHEIN committing the freshly
+        // issued verification token. Do not rewrite that navigation while the
+        // host still considers verification active; the new document's own
+        // coordinator snapshot will release the state safely.
+        if (sheinChallengeActiveRef.current) return
         const sheinRegion = storeRegionsRef.current.shein
         if (!shouldRedirectSheinToRegion(url, sheinRegion)) {
           sheinSaudiRedirectRef.current = 0
@@ -4677,7 +4929,18 @@ function App() {
         void InAppBrowser.setUrl({ ...(id ? { id } : {}), url: saUrl })
         return
       }
-      if (!/temu\.com/i.test(url)) return
+      if (owner.store !== 'temu' || !/temu\.com/i.test(url)) return
+      if (isStoreHumanChallengeUrl(url)) {
+        // URL-level detection closes the small window before the injected DOM
+        // detector paints/posts humanCheck. Do not rewrite region or run host
+        // readiness logic over Temu's bgn_verification document.
+        if (!sheinChallengeActiveRef.current) sheinChallengeStartedAtRef.current = Date.now()
+        sheinChallengeActiveRef.current = true
+        sheinChallengeDocumentGenerationRef.current = sheinCoordinatorDocumentGenerationRef.current
+        sheinChallengeResolutionReportedRef.current = false
+        return
+      }
+      if (sheinChallengeActiveRef.current) return
       const temuRegion = storeRegionsRef.current.temu
       // Keep Temu's real login destination interactive. It must never be
       // converted into a fake sold-out state or a forced trip back home.
@@ -4696,7 +4959,7 @@ function App() {
       if (saUrl !== url) void InAppBrowser.setUrl({ ...(id ? { id } : {}), url: saUrl })
     })
     return () => { void handle.then((h) => h.remove()) }
-  }, [])
+  }, [adoptOpeningStandardWebviewId])
 
   // Native iOS recomposes the same persistent WKWebView once on foreground;
   // React only re-checks reachability and never destroys a healthy session.
@@ -4723,12 +4986,29 @@ function App() {
   }, [])
 
   useEffect(() => {
-    const handleMessageFromWebview = (event: { id?: string; detail?: Record<string, unknown> }) => {
+    const handleMessageFromWebview = (event: StoreWebviewMessageEvent) => {
+      const owner = standardWebviewOwnerRef.current
+      if (event.sourceSessionId !== undefined) {
+        if (!owner || owner.sessionId !== event.sourceSessionId || owner.store !== event.sourceStore) return
+        if (event.id && owner.id && event.id !== owner.id) return
+      }
       if (event?.id && webviewIdRef.current && event.id !== webviewIdRef.current) return
       const detail = event?.detail
       const messageType = typeof detail?.type === 'string' ? detail.type : ''
-      if (['temuProductVisible', 'sheinSaudiReady', 'sheinPageInteractive', 'sheinCoordinatorState', 'sheinCoordinatorTimeout', 'sheinPolicyState', 'sheinPolicyMismatch', 'sheinPolicyRouteBlocked', 'sheinOpeningPhase', 'sheinPrivacyResolved', 'sheinWebContentRestarted', 'humanCheck', 'humanCheckResolved', 'humanCheckSkipped', 'sheinBlocked', 'openHome', 'closeStore', 'requestStoreExit', 'openCart', 'backToCart', 'backToOrders', 'openOrders', 'openProfile'].includes(messageType)) {
-        recordAppDiagnostic('store_message', { store: selectedStoreRef.current, type: messageType })
+      const messageProduct = detail?.type === 'addToCart' && detail.product && typeof detail.product === 'object'
+        ? detail.product as Record<string, unknown>
+        : undefined
+      const messageProductUrl = typeof messageProduct?.link === 'string' ? messageProduct.link : ''
+      if (detail?.type === 'addToCart' && !event.sourceStore) return
+      const messageStore = resolveStoreMessageIdentity(event.sourceStore, messageProductUrl, selectedStoreRef.current)
+      const isPersonalTemuMessage = event.sourceStore === 'temu' && event.sourceSessionId === undefined &&
+        TEMU_PERSONAL_SITE_MODE && Capacitor.getPlatform() === 'android'
+      if (detail?.type === 'addToCart' && !isPersonalTemuMessage &&
+          (event.sourceSessionId === undefined || !event.id)) return
+      if (messageType.startsWith('shein') && messageStore !== 'shein') return
+      if (messageType.startsWith('temu') && messageStore !== 'temu') return
+      if (['temuPublicReady', 'temuProductVisible', 'sheinSaudiReady', 'sheinPageInteractive', 'sheinCoordinatorState', 'sheinCoordinatorTimeout', 'sheinPolicyState', 'sheinPolicyMismatch', 'sheinPolicyRouteBlocked', 'sheinOpeningPhase', 'sheinPrivacyResolved', 'sheinWebContentRestarted', 'humanCheck', 'humanCheckResolved', 'humanCheckSkipped', 'sheinBlocked', 'openHome', 'closeStore', 'requestStoreExit', 'openCart', 'backToCart', 'backToOrders', 'openOrders', 'openProfile'].includes(messageType)) {
+        recordAppDiagnostic('store_message', { store: messageStore, type: messageType })
       }
 
       if (detail?.type === 'sheinOpeningPhase') {
@@ -4739,18 +5019,26 @@ function App() {
 
       if (detail?.type === 'sheinPolicyState') {
         markSheinOpening('policyInstallation')
-        const installedOnce = detail.installed === true && Number(detail.installCount) === 1 && Number(detail.observerCount) === 1
+        const installedBase = detail.installed === true && Number(detail.installCount) === 1
+        const observerActive = Number(detail.observerCount) === 1
+        const humanVerificationRequired = detail.humanVerificationAvailable === true
+        // Pausing the one policy observer is the expected safe state while a
+        // painted verification surface owns the document. It is not a policy
+        // mismatch and must never hide the challenge from the customer.
+        const pausedForHumanVerification = installedBase && humanVerificationRequired &&
+          Number(detail.observerCount) === 0
+        const policyVerified = installedBase && observerActive
         const next = transitionSheinCoordinator({
           type: 'SNAPSHOT',
           snapshot: {
-            policyState: installedOnce ? 'verified' : 'mismatch',
+            policyState: policyVerified ? 'verified' : (pausedForHumanVerification ? 'installed' : 'mismatch'),
             captureState: detail.captureInstalled === true ? 'ready' : 'installing',
-            humanVerificationState: detail.humanVerificationAvailable === true ? 'required' : 'none',
+            humanVerificationState: humanVerificationRequired ? 'required' : 'none',
             interactive: detail.publicInteractionAvailable === true,
           },
         })
-        if (installedOnce) markSheinOpening('policyVerification')
-        else if (screenRef.current === 'home') showSheinCoordinatorFailure('policy')
+        if (policyVerified) markSheinOpening('policyVerification')
+        else if (!pausedForHumanVerification && screenRef.current === 'home') showSheinCoordinatorFailure('policy')
         if (next.captureState === 'ready') markSheinOpening('captureReady')
         return
       }
@@ -4775,6 +5063,10 @@ function App() {
 
       if (detail?.type === 'sheinWebContentRestarted') {
         sheinChallengeActiveRef.current = false
+        sheinCoordinatorDocumentGenerationRef.current = ''
+        sheinChallengeDocumentGenerationRef.current = ''
+        sheinChallengeResolutionReportedRef.current = false
+        sheinChallengeStartedAtRef.current = 0
         sheinReadyRef.current = false
         setSheinReady(false)
         sheinVisualReadyRef.current = false
@@ -4784,8 +5076,39 @@ function App() {
       }
 
       if (detail?.type === 'temuProductVisible') {
-        if (selectedStoreRef.current === 'temu' && pendingProductRevealRef.current) {
-          const visibleUrl = typeof detail.url === 'string' ? detail.url : ''
+        if (messageStore !== 'temu') return
+        const visibleUrl = typeof detail.url === 'string' ? detail.url : ''
+        const productDocumentGeneration = typeof detail.documentGeneration === 'string'
+          ? detail.documentGeneration
+          : ''
+        if (sheinChallengeActiveRef.current) {
+          const challengeDocumentGeneration = sheinChallengeDocumentGenerationRef.current
+          const sameResolvedDocument = !!challengeDocumentGeneration &&
+            productDocumentGeneration === challengeDocumentGeneration &&
+            sheinChallengeResolutionReportedRef.current
+          const freshProductDocument = isNewerStoreDocumentGeneration(
+            productDocumentGeneration,
+            challengeDocumentGeneration,
+          )
+          const resolvedUnknownDocument = !challengeDocumentGeneration &&
+            !!productDocumentGeneration && sheinChallengeResolutionReportedRef.current
+          const trustedFreshUnknownDocument = !challengeDocumentGeneration &&
+            sheinChallengeStartedAtRef.current > 0 &&
+            storeDocumentGenerationTimestamp(productDocumentGeneration) > sheinChallengeStartedAtRef.current &&
+            !isStoreHumanChallengeUrl(visibleUrl) &&
+            sameTemuProductNavigation(currentWebviewUrlRef.current, visibleUrl)
+          if (!visibleUrl || (!sameResolvedDocument && !freshProductDocument &&
+              !resolvedUnknownDocument && !trustedFreshUnknownDocument)) return
+          sheinChallengeActiveRef.current = false
+          sheinChallengeDocumentGenerationRef.current = ''
+          sheinChallengeResolutionReportedRef.current = false
+          sheinChallengeStartedAtRef.current = 0
+          humanCheckNoticeRef.current = false
+          setSheinBlockedError(false)
+          armPendingProductPreparationTimeout()
+          currentWebviewUrlRef.current = visibleUrl
+        }
+        if (pendingProductRevealRef.current) {
           if (!sameTemuProductNavigation(pendingProductRevealUrlRef.current, visibleUrl)) return
           pendingProductPageLoadedRef.current = true
           pendingProductVisualReadyRef.current = true
@@ -4796,10 +5119,51 @@ function App() {
       }
 
       if (detail?.type === 'sheinSaudiReady' || detail?.type === 'sheinPageInteractive' || detail?.type === 'sheinCoordinatorState') {
-        if (selectedStoreRef.current === 'shein' && sheinChallengeActiveRef.current) return
-        const snapshot = detail.coordinator && typeof detail.coordinator === 'object'
+        const hasCoordinatorSnapshot = !!detail.coordinator && typeof detail.coordinator === 'object'
+        const snapshot = hasCoordinatorSnapshot
           ? detail.coordinator as SheinRegionSnapshot
           : {}
+        const snapshotDocumentGeneration = typeof snapshot.documentGeneration === 'string'
+          ? snapshot.documentGeneration
+          : ''
+        if (messageStore === 'shein' && sheinChallengeActiveRef.current) {
+          // Ignore legacy/bare and half-installed messages. Only a current
+          // document whose complete runtime explicitly reports no challenge
+          // may hand control back after a verification navigation.
+          if (!hasCoordinatorSnapshot || !snapshotDocumentGeneration || snapshot.captureState !== 'ready' ||
+              (snapshot.humanVerificationState !== 'none' && snapshot.humanVerificationState !== 'resolved')) return
+          const challengeDocumentGeneration = sheinChallengeDocumentGenerationRef.current
+          const sameResolvedDocument = !!challengeDocumentGeneration &&
+            snapshotDocumentGeneration === challengeDocumentGeneration &&
+            sheinChallengeResolutionReportedRef.current
+          const freshSnapshotDocument = isNewerStoreDocumentGeneration(
+            snapshotDocumentGeneration,
+            challengeDocumentGeneration,
+          )
+          const resolvedUnknownDocument = !challengeDocumentGeneration &&
+            sheinChallengeResolutionReportedRef.current
+          const trustedFreshUnknownDocument = !challengeDocumentGeneration &&
+            sheinChallengeStartedAtRef.current > 0 &&
+            storeDocumentGenerationTimestamp(snapshotDocumentGeneration) > sheinChallengeStartedAtRef.current &&
+            !isSheinHumanChallengeUrl(currentWebviewUrlRef.current)
+          if (!sameResolvedDocument && !freshSnapshotDocument && !resolvedUnknownDocument &&
+              !trustedFreshUnknownDocument) return
+          // A solved challenge may commit a fresh top-level document, which
+          // cannot emit the old document's humanCheckResolved event. Accept
+          // the first non-challenge coordinator snapshot as the hand-off, but
+          // still let the normal readiness gates decide when a queued PDP may
+          // navigate.
+          sheinChallengeActiveRef.current = false
+          sheinChallengeDocumentGenerationRef.current = ''
+          sheinChallengeResolutionReportedRef.current = false
+          sheinChallengeStartedAtRef.current = 0
+          humanCheckNoticeRef.current = false
+          transitionSheinCoordinator({ type: 'HUMAN_VERIFICATION_RESOLVED' })
+          armPendingProductPreparationTimeout()
+        }
+        if (snapshotDocumentGeneration) {
+          sheinCoordinatorDocumentGenerationRef.current = snapshotDocumentGeneration
+        }
         const next = transitionSheinCoordinator({ type: 'SNAPSHOT', snapshot })
         if (next.regionState === 'matching' && next.countryState === 'matching' &&
             next.currencyState === 'matching' && next.languageState === 'matching') {
@@ -4813,6 +5177,7 @@ function App() {
         }
         if (isSheinCoordinatorReady(next)) {
           setSheinBlockedError(false)
+          prepareVerifiedProductRetry('shein', currentWebviewUrlRef.current)
           // markStoreWebviewReady consumes a queued product only after the
           // signed Home-region snapshot is fully matching. No product route
           // can race the country/address cascade anymore.
@@ -4825,20 +5190,90 @@ function App() {
         return
       }
 
+      if (detail?.type === 'temuPublicReady') {
+        if (messageStore !== 'temu') return
+        const visibleUrl = typeof detail.url === 'string' ? detail.url : ''
+        if (!visibleUrl) return
+        const readyDocumentGeneration = typeof detail.documentGeneration === 'string'
+          ? detail.documentGeneration
+          : ''
+        let currentUrlMatchesMessage = !currentWebviewUrlRef.current || !visibleUrl ||
+          sameTemuProductNavigation(currentWebviewUrlRef.current, visibleUrl)
+        if (sheinChallengeActiveRef.current) {
+          const challengeDocumentGeneration = sheinChallengeDocumentGenerationRef.current
+          // A top-level verification commit destroys the old JS context before
+          // its 1200ms absence timer can emit humanCheckResolved. A stable,
+          // visible public signal from a different document is the trustworthy
+          // hand-off. Same-document signals remain blocked until resolved.
+          const sameResolvedDocument = !!challengeDocumentGeneration &&
+            readyDocumentGeneration === challengeDocumentGeneration &&
+            sheinChallengeResolutionReportedRef.current
+          const freshReadyDocument = isNewerStoreDocumentGeneration(
+            readyDocumentGeneration,
+            challengeDocumentGeneration,
+          )
+          const resolvedUnknownDocument = !challengeDocumentGeneration &&
+            !!readyDocumentGeneration && sheinChallengeResolutionReportedRef.current
+          const trustedFreshUnknownDocument = !challengeDocumentGeneration &&
+            sheinChallengeStartedAtRef.current > 0 &&
+            storeDocumentGenerationTimestamp(readyDocumentGeneration) > sheinChallengeStartedAtRef.current &&
+            !isStoreHumanChallengeUrl(visibleUrl) &&
+            sameTemuProductNavigation(currentWebviewUrlRef.current, visibleUrl)
+          if (!readyDocumentGeneration ||
+              (!sameResolvedDocument && !freshReadyDocument && !resolvedUnknownDocument &&
+                !trustedFreshUnknownDocument)) return
+          sheinChallengeActiveRef.current = false
+          sheinChallengeDocumentGenerationRef.current = ''
+          sheinChallengeResolutionReportedRef.current = false
+          sheinChallengeStartedAtRef.current = 0
+          humanCheckNoticeRef.current = false
+          setSheinBlockedError(false)
+          armPendingProductPreparationTimeout()
+          currentWebviewUrlRef.current = visibleUrl
+          currentUrlMatchesMessage = true
+        }
+        // Some successful verification flows settle on Temu Home instead of
+        // resuming the gated PDP. Preserve the queued product through CAPTCHA
+        // and retry exactly once from the verified public document. The bound
+        // prevents a store-side redirect from becoming a navigation loop.
+        if (currentUrlMatchesMessage) prepareVerifiedProductRetry('temu', visibleUrl)
+        // If navigation to a queued product already started, a public signal
+        // from an older Home document cannot reveal it. Product reveal still
+        // requires the stronger URL-matched temuProductVisible contract.
+        if (pendingProductRevealRef.current && pendingProductNavigationRequestedRef.current &&
+            sameTemuProductNavigation(pendingProductRevealUrlRef.current, visibleUrl)) {
+          pendingProductPageLoadedRef.current = true
+        }
+        markStoreWebviewReadyRef.current(webviewSessionRef.current)
+        revealPreparedProductIfReady()
+        return
+      }
+
       if (detail?.type === 'humanCheck') {
-        if (selectedStoreRef.current === 'shein') {
+        if (messageStore === 'shein') {
           // The native cover is removed by the same message before this event
           // reaches React. Keep the real challenge visible and untouched.
           if (webviewErrorTimerRef.current !== undefined) {
             window.clearTimeout(webviewErrorTimerRef.current)
             webviewErrorTimerRef.current = undefined
           }
+          if (!sheinChallengeActiveRef.current) sheinChallengeStartedAtRef.current = Date.now()
           sheinChallengeActiveRef.current = true
+          const challengeDocumentGeneration = typeof detail.documentGeneration === 'string'
+            ? detail.documentGeneration
+            : ''
+          sheinChallengeDocumentGenerationRef.current = challengeDocumentGeneration ||
+            sheinCoordinatorDocumentGenerationRef.current
+          sheinChallengeResolutionReportedRef.current = false
+          if (pendingProductRevealRef.current) {
+            pendingProductVerificationSeenRef.current = true
+            pausePendingProductPreparationTimeout()
+          }
           markSheinOpening('humanVerificationDetection')
           transitionSheinCoordinator({ type: 'HUMAN_VERIFICATION_REQUIRED' })
           setSheinBlockedError(false)
-          markStoreWebviewReadyRef.current(webviewSessionRef.current)
-          revealPreparedProductIfReady()
+          markSheinWebviewVisuallyReady(webviewSessionRef.current)
+          revealPendingProductVerification()
           if (!humanCheckNoticeRef.current) {
             humanCheckNoticeRef.current = true
             showNotice('يلزم إكمال تحقق SHEIN لفتح المنتجات — اضغط «أنا إنسان» داخل الصفحة')
@@ -4850,20 +5285,24 @@ function App() {
           window.clearTimeout(webviewErrorTimerRef.current)
           webviewErrorTimerRef.current = undefined
         }
+        if (!sheinChallengeActiveRef.current) sheinChallengeStartedAtRef.current = Date.now()
         sheinChallengeActiveRef.current = true
+        const challengeDocumentGeneration = typeof detail.documentGeneration === 'string'
+          ? detail.documentGeneration
+          : ''
+        sheinChallengeDocumentGenerationRef.current = challengeDocumentGeneration
+        sheinChallengeResolutionReportedRef.current = false
         setSheinBlockedError(false)
-        // A Temu verification page is the honest destination for a gated
-        // product. Treat the painted challenge as visually ready so a product
-        // opened from Otlobli's cart is revealed instead of timing out behind
-        // the hidden WebView while waiting for product imagery that cannot
-        // exist until the customer completes the challenge.
-        if (selectedStoreRef.current === 'temu' &&
-            pendingProductRevealRef.current && pendingProductNavigationRequestedRef.current) {
-          pendingProductPageLoadedRef.current = true
-          pendingProductVisualReadyRef.current = true
+        // A Temu verification page is the honest destination for a queued
+        // product, including a gate raised on Home before PDP navigation.
+        // Reveal it, but keep the product and return target pending until
+        // temuProductVisible confirms the PDP.
+        if (messageStore === 'temu' &&
+            pendingProductRevealRef.current) {
+          pendingProductVerificationSeenRef.current = true
+          pausePendingProductPreparationTimeout()
+          revealPendingProductVerification()
         }
-        markStoreWebviewReadyRef.current(webviewSessionRef.current)
-        revealPreparedProductIfReady()
         if (!humanCheckNoticeRef.current) {
           humanCheckNoticeRef.current = true
           showNotice('يلزم إكمال تحقق Temu لفتح المنتجات — أكمل التحقق داخل الصفحة')
@@ -4872,24 +5311,50 @@ function App() {
       }
 
       if (detail?.type === 'humanCheckResolved') {
+        if (messageStore !== 'shein') {
+          if (!sheinChallengeActiveRef.current) return
+          const resolvedDocumentGeneration = typeof detail.documentGeneration === 'string'
+            ? detail.documentGeneration
+            : ''
+          if (!resolvedDocumentGeneration || !sheinChallengeDocumentGenerationRef.current ||
+              resolvedDocumentGeneration === sheinChallengeDocumentGenerationRef.current) {
+            sheinChallengeResolutionReportedRef.current = true
+          }
+          humanCheckNoticeRef.current = false
+          setSheinBlockedError(false)
+          armPendingProductPreparationTimeout()
+          // Keep the host gate active through provider settlement. A stable
+          // public-ready signal may release this same document only after the
+          // detector reported resolution; a fresh document can release itself.
+          return
+        }
         // Android may complete the genuine challenge without a top-level URL
         // event. This is status only: never reload/recreate the WebView or
         // touch challenge cookies after the customer has completed it.
-        sheinChallengeActiveRef.current = false
         transitionSheinCoordinator({ type: 'HUMAN_VERIFICATION_RESOLVED' })
+        armPendingProductPreparationTimeout()
+        const resolvedDocumentGeneration = typeof detail.documentGeneration === 'string'
+          ? detail.documentGeneration
+          : ''
+        if (!resolvedDocumentGeneration || !sheinChallengeDocumentGenerationRef.current ||
+            resolvedDocumentGeneration === sheinChallengeDocumentGenerationRef.current) {
+          sheinChallengeResolutionReportedRef.current = true
+        }
         humanCheckNoticeRef.current = false
         setSheinBlockedError(false)
-        markStoreWebviewReadyRef.current(webviewSessionRef.current)
-        revealPreparedProductIfReady()
+        // Keep the host gate active through the provider's token-settlement
+        // window. Only the next complete coordinator snapshot may release it;
+        // otherwise urlChangeEvent could rewrite the commit URL too early.
         return
       }
 
       if (detail?.type === 'humanCheckSkipped') {
-        if (selectedStoreRef.current !== 'shein') return
+        if (messageStore !== 'shein') return
         const returnTarget = activeProductReturnTargetRef.current !== 'home'
           ? activeProductReturnTargetRef.current
           : pendingBackTargetRef.current
         sheinChallengeActiveRef.current = false
+        sheinChallengeStartedAtRef.current = 0
         humanCheckNoticeRef.current = false
         sheinCartProductSessionRef.current = false
         clearPendingProductPreparation()
@@ -4914,6 +5379,7 @@ function App() {
 
       if (detail?.type === 'sheinBlocked') {
         sheinChallengeActiveRef.current = false
+        sheinChallengeStartedAtRef.current = 0
         showStoreOpenFailure()
         return
       }
@@ -4922,12 +5388,14 @@ function App() {
         // "Home" belongs to the active store. Leaving a store is a separate,
         // explicit action; cached store scripts must never turn this tab into
         // an unannounced exit to the store chooser.
+        if (messageStore !== selectedStoreRef.current) commitSelectedStore(messageStore)
         screenRef.current = 'home'
         flushSync(() => setScreen('home'))
         return
       }
 
       if (detail?.type === 'closeStore') {
+        if (messageStore !== selectedStoreRef.current) commitSelectedStore(messageStore)
         setPendingStoreExit(null)
         temuPersonalSiteOpenedRef.current = false
         sheinCartProductSessionRef.current = false
@@ -4936,7 +5404,7 @@ function App() {
         pendingStoreOpenAfterCloseRef.current = false
         screenRef.current = 'store-select'
         flushSync(() => setScreen('store-select'))
-        if (selectedStoreRef.current === 'shein') {
+        if (messageStore === 'shein') {
           // Returning to the chooser is app navigation, not the end of the
           // SHEIN session. Destroying WKWebView here made the first entry fast
           // and every same-store re-entry a cold, partially verified page. Keep
@@ -4947,7 +5415,7 @@ function App() {
           if (sheinOpenedRef.current) void InAppBrowser.hide().catch(() => undefined)
         } else if (TEMU_PERSONAL_SITE_MODE && Capacitor.getPlatform() === 'android') {
           void TemuEmbeddedBrowser.hide().catch(() => undefined)
-        } else if (selectedStoreRef.current === 'temu') {
+        } else if (messageStore === 'temu') {
           recordAppDiagnostic('store_session_parked_for_chooser', { store: 'temu' })
           void InAppBrowser.hide().catch(() => undefined)
         }
@@ -4956,7 +5424,8 @@ function App() {
 
       if (detail?.type === 'requestStoreExit') {
         const requestedStore = detail.store === 'temu' ? 'temu' : 'shein'
-        if (requestedStore !== selectedStoreRef.current) return
+        if (requestedStore !== messageStore) return
+        if (messageStore !== selectedStoreRef.current) commitSelectedStore(messageStore)
         // Reveal Otlobli itself before asking. The decision is therefore an
         // accessible app dialog, never a browser alert floating inside SHEIN.
         setPendingStoreExit(requestedStore)
@@ -4965,6 +5434,7 @@ function App() {
       }
 
       if (detail?.type === 'openCart' || detail?.type === 'backToCart') {
+        if (messageStore !== selectedStoreRef.current) commitSelectedStore(messageStore)
         temuPersonalSiteOpenedRef.current = false
         sheinCartProductSessionRef.current = false
         activeProductReturnTargetRef.current = 'home'
@@ -4981,6 +5451,7 @@ function App() {
       }
 
       if (detail?.type === 'backToOrders') {
+        if (messageStore !== selectedStoreRef.current) commitSelectedStore(messageStore)
         temuPersonalSiteOpenedRef.current = false
         sheinCartProductSessionRef.current = false
         activeProductReturnTargetRef.current = 'home'
@@ -4995,6 +5466,7 @@ function App() {
       }
 
       if (detail?.type === 'openOrders') {
+        if (messageStore !== selectedStoreRef.current) commitSelectedStore(messageStore)
         temuPersonalSiteOpenedRef.current = false
         sheinCartProductSessionRef.current = false
         activeProductReturnTargetRef.current = 'home'
@@ -5009,6 +5481,7 @@ function App() {
       }
 
       if (detail?.type === 'openProfile') {
+        if (messageStore !== selectedStoreRef.current) commitSelectedStore(messageStore)
         temuPersonalSiteOpenedRef.current = false
         sheinCartProductSessionRef.current = false
         activeProductReturnTargetRef.current = 'home'
@@ -5022,12 +5495,12 @@ function App() {
         return
       }
 
-      const product = detail?.type === 'addToCart' ? (detail.product as Record<string, unknown> | undefined) : undefined
+      const product = messageProduct
       const title = typeof product?.title === 'string' ? product.title : ''
       if (!title) return
       const temuCaptureRequestId = typeof detail?.requestId === 'string' ? detail.requestId : ''
       recordAppDiagnostic('capture_received', {
-        store: selectedStoreRef.current,
+        store: messageStore,
         requestIdLength: temuCaptureRequestId.length,
         hasPrice: product?.priceUsd !== undefined,
         hasSize: typeof product?.size === 'string' && Boolean(product.size),
@@ -5057,10 +5530,10 @@ function App() {
       // capture, so every later product was silently dropped here and Gecko
       // eventually displayed its acknowledgement timeout. A request-scoped id
       // both removes that shared latch and makes a repeated native event safe.
-      const itemId = selectedStoreRef.current === 'temu' && temuCaptureRequestId
+      const itemId = messageStore === 'temu' && temuCaptureRequestId
         ? `temu-${temuCaptureRequestId}`
-        : `${selectedStoreRef.current}-${Date.now()}`
-      setCartItems((items) => items.some((item) => item.id === itemId) ? items : [...items, {
+        : `${messageStore}-${Date.now()}`
+      setCartItemsForStore(messageStore, (items) => items.some((item) => item.id === itemId) ? items : [...items, {
         id: itemId,
         title,
         image: typeof product?.image === 'string' ? product.image : '',
@@ -5073,7 +5546,7 @@ function App() {
         priceUsd,
         priceSyp: Math.round(priceUsd * exchangeRate),
         sourceLink: typeof product?.link === 'string'
-          ? normalizeStoreBrowserUrl(product.link, selectedStoreRef.current, storeRegionsRef.current)
+          ? normalizeStoreBrowserUrl(product.link, messageStore, storeRegionsRef.current)
           : '',
         needsCustomPhoto: typeof product?.needsCustomPhoto === 'boolean' ? product.needsCustomPhoto : false,
         customPhotoNote: typeof product?.customPhotoNote === 'string' ? product.customPhotoNote : '',
@@ -5081,17 +5554,17 @@ function App() {
         customText: typeof product?.customText === 'string' ? product.customText : '',
         customTextLimit: typeof product?.customTextLimit === 'number' && product.customTextLimit > 0 ? product.customTextLimit : 0,
       }])
-      recordAppDiagnostic('capture_accepted', { store: selectedStoreRef.current, requestIdLength: temuCaptureRequestId.length })
-      if (!(TEMU_PERSONAL_SITE_MODE && Capacitor.getPlatform() === 'android')) {
-        void InAppBrowser.postMessage({ detail: { type: 'addToCartAck' } })
-          .then(() => recordAppDiagnostic('capture_acknowledged', { store: selectedStoreRef.current }))
+      recordAppDiagnostic('capture_accepted', { store: messageStore, requestIdLength: temuCaptureRequestId.length })
+      if (!isPersonalTemuMessage) {
+        void InAppBrowser.postMessage({ id: event.id, detail: { type: 'addToCartAck' } })
+          .then(() => recordAppDiagnostic('capture_acknowledged', { store: messageStore }))
           .catch((error) => recordAppDiagnostic('capture_ack_failed', {
-            store: selectedStoreRef.current,
+            store: messageStore,
             message: error instanceof Error ? error.message : String(error),
           }))
       }
-      showNotice(`تمت إضافة المنتج إلى سلة ${storeName(selectedStoreRef.current)}`)
-      if (TEMU_PERSONAL_SITE_MODE && Capacitor.getPlatform() === 'android' && selectedStoreRef.current === 'temu') {
+      showNotice(`تمت إضافة المنتج إلى سلة ${storeName(messageStore)}`)
+      if (isPersonalTemuMessage && messageStore === 'temu') {
         // Capturing a product is an in-place shopping action. Keep the exact
         // Temu page, scroll and selections visible. Resolve Gecko's pending
         // native-message result only after the cart state has been persisted,
@@ -5105,19 +5578,33 @@ function App() {
       }
     }
     storeMessageHandlerRef.current = handleMessageFromWebview
-    const handle = InAppBrowser.addListener('messageFromWebview', handleMessageFromWebview)
+    const handle = InAppBrowser.addListener('messageFromWebview', (event: StoreWebviewMessageEvent) => {
+      const owner = standardWebviewOwnerRef.current
+      if (!owner || owner.sessionId !== webviewSessionRef.current || !sheinOpenedRef.current) return
+      const openingMessageType = typeof event.detail?.type === 'string' ? event.detail.type : ''
+      const openingMessageStore: StoreId | undefined = openingMessageType.startsWith('temu')
+        ? 'temu'
+        : (openingMessageType.startsWith('shein') ? 'shein' : undefined)
+      if (!owner.id) adoptOpeningStandardWebviewId(event.id, openingMessageStore)
+      if (!isCurrentStandardStoreEvent(owner, webviewSessionRef.current, event.id)) return
+      handleMessageFromWebview({
+        ...event,
+        sourceStore: owner.store,
+        sourceSessionId: owner.sessionId,
+      })
+    })
     return () => {
       storeMessageHandlerRef.current = () => undefined
       void handle.then((h) => h.remove())
     }
-  }, [exchangeRate])
+  }, [adoptOpeningStandardWebviewId, commitSelectedStore, exchangeRate, setCartItemsForStore])
 
   useEffect(() => {
     if (!(TEMU_PERSONAL_SITE_MODE && Capacitor.getPlatform() === 'android')) return
     let disposed = false
     let listener: { remove: () => Promise<void> } | undefined
     void TemuEmbeddedBrowser.addListener('messageFromWebview', (event) => {
-      storeMessageHandlerRef.current({ detail: event.detail })
+      storeMessageHandlerRef.current({ detail: event.detail, sourceStore: 'temu' })
     }).then((subscription) => {
       if (disposed) void subscription.remove()
       else listener = subscription
@@ -5522,13 +6009,19 @@ function App() {
   }
 
   const switchSelectedStore = (id: StoreId, afterSwitch: () => void) => {
-    if (id === selectedStoreRef.current) {
+    const currentOwner = standardWebviewOwnerRef.current
+    const ownerStore = currentOwner?.sessionId === webviewSessionRef.current ? currentOwner.store : null
+    if (canReuseStandardStoreSession(
+      id,
+      selectedStoreRef.current,
+      ownerStore,
+      sheinOpenedRef.current,
+    )) {
       afterSwitch()
       return
     }
 
-    setSelectedStore(id)
-    selectedStoreRef.current = id
+    commitSelectedStore(id)
     // Reachability is per-store and must be re-measured. The internet exit
     // country is not: it belongs to the device's connection and does not change
     // because the user picked a different store. Discarding a confirmed
@@ -5546,12 +6039,15 @@ function App() {
     // new WebView in the same frame as the old close is the proven white-screen
     // failure on Android, so the current host screen stays visible until close.
     suppressAutoReopenRef.current = true
+    const closingWebviewId = webviewIdRef.current || currentOwner?.id || ''
+    rememberIgnoredWebviewCloseId(closingWebviewId)
     webviewSessionRef.current += 1
     webviewOpeningRef.current = false
     webviewIdRef.current = ''
     sheinChallengeActiveRef.current = false
     sheinCartProductSessionRef.current = false
     sheinOpenedRef.current = false
+    clearStandardWebviewOwner()
     setSheinReady(false)
     sheinVisualReadyRef.current = false
     setSheinVisualReady(false)
@@ -5559,7 +6055,7 @@ function App() {
     // Clearing it here made every Temu -> SHEIN entry a cold start on weak
     // phones. The bounded stuck/chunk recovery paths above still request the
     // same cache reset when a session is actually damaged.
-    void InAppBrowser.close().catch(() => undefined)
+    void InAppBrowser.close(closingWebviewId ? { id: closingWebviewId } : undefined).catch(() => undefined)
       .then(() => {
         temuPersonalSiteOpenedRef.current = false
         return TemuEmbeddedBrowser.hide().catch(() => undefined)
@@ -5568,6 +6064,27 @@ function App() {
         suppressAutoReopenRef.current = false
         afterSwitch()
       })
+  }
+
+  const openCartProductFromStore = (
+    sourceLink: string,
+    returnTarget: Exclude<WebviewBackTarget, 'home'> = 'cart',
+  ) => {
+    const productStore = storeFromProductUrl(sourceLink) ?? selectedStoreRef.current
+    const currentOwner = standardWebviewOwnerRef.current
+    const ownerStore = currentOwner?.sessionId === webviewSessionRef.current ? currentOwner.store : null
+    const canUseCurrentSession = productStore === selectedStoreRef.current &&
+      (!sheinOpenedRef.current || ownerStore === productStore)
+    if (canUseCurrentSession) {
+      openStoreProductFromCart(sourceLink, returnTarget)
+      return
+    }
+    if (productStore !== selectedStoreRef.current && cartGroup?.status === 'open') {
+      showNotice(`الطلب المشترك المفتوح مرتبط بـ ${storeName(selectedStoreRef.current)} — ألغِ الربط من السلة قبل فتح منتج من ${storeName(productStore)}`)
+      return
+    }
+    showNotice(`جاري فتح المنتج في ${storeName(productStore)}…`)
+    switchSelectedStore(productStore, () => openStoreProductFromCart(sourceLink, returnTarget))
   }
 
   const openStoreProductFromOrder = (sourceLink: string, fallbackStore: StoreId) => {
@@ -5585,7 +6102,10 @@ function App() {
       screenRef.current = 'home'
       flushSync(() => setScreen('home'))
     }
-    if (productStore === selectedStoreRef.current) {
+    const currentOwner = standardWebviewOwnerRef.current
+    const ownerStore = currentOwner?.sessionId === webviewSessionRef.current ? currentOwner.store : null
+    if (productStore === selectedStoreRef.current &&
+        (!sheinOpenedRef.current || ownerStore === productStore)) {
       openProduct()
       return
     }
@@ -5644,8 +6164,7 @@ function App() {
     // hidden SHEIN session, and even cleared its cache. That made the next
     // SHEIN product click falsely demand a VPN. Keep both hidden sessions and
     // the device-level connection diagnosis intact; only change cart data.
-    setSelectedStore(id)
-    selectedStoreRef.current = id
+    commitSelectedStore(id)
   }
 
   const renderScreen = () => {
@@ -6350,7 +6869,7 @@ function App() {
                     <button
                       type="button"
                       className="cart-item-view"
-                      onClick={() => openStoreProductFromCart(item.sourceLink)}
+                      onClick={() => openCartProductFromStore(item.sourceLink)}
                       aria-label={`عرض ${item.title} في ${storeName(selectedStore)}`}
                     >
                       <img
@@ -6369,7 +6888,7 @@ function App() {
                           <button
                             type="button"
                             className="cart-item-title"
-                            onClick={() => openStoreProductFromCart(item.sourceLink)}
+                            onClick={() => openCartProductFromStore(item.sourceLink)}
                           >
                             {item.title}
                           </button>
@@ -6562,10 +7081,10 @@ function App() {
                         <AvailabilityActionRequest
                           item={item}
                           onChangeQuantity={typeof maxQty === 'number' && maxQty > 0 ? () => setCartItems((items) => items.map((i) => i.id === item.id ? { ...i, quantity: maxQty, availabilityIssue: undefined } : i)) : undefined}
-                          onSelectAlternative={() => openStoreProductFromCart(item.sourceLink)}
+                          onSelectAlternative={() => openCartProductFromStore(item.sourceLink)}
                           onRemoveUnavailable={typeof maxQty === 'number' && maxQty > 0 ? () => setCartItems((items) => items.map((i) => i.id === item.id ? { ...i, quantity: maxQty, availabilityIssue: undefined } : i)) : undefined}
                           onRemoveProduct={() => setCartItems((items) => items.filter((i) => i.id !== item.id))}
-                          onReplace={() => openStoreProductFromCart(item.sourceLink)}
+                          onReplace={() => openCartProductFromStore(item.sourceLink)}
                           onSupport={() => openWhatsappSupport(`?????? otlobli? ????? ?????? ????? ???? ??????: ${item.title}`)}
                         />
                       )}
@@ -8307,14 +8826,18 @@ function App() {
       // not one that still needs to render.
       <MobileShell
         active="home"
-        showStoreSwitchHint={personalTemuSurfaceActive && !storeSwitchHintSeen}
+        showStoreSwitchHint={personalTemuSurfaceActive && (!storeSwitchHintSeen || personalTemuSecondTapHintVisible)}
+        storeSwitchHintText={personalTemuSecondTapHintVisible
+          ? 'انقر مرة ثانية لفتح قائمة المتاجر'
+          : 'انقر مرتين على «الرئيسية» لفتح قائمة المتاجر'}
         onStoreSwitchHintComplete={() => setStoreSwitchHintSeen(true)}
         onNavigate={(target, activationDetail) => {
           if (target === 'home') {
             if (activationDetail === 0) {
               clearPersonalTemuHomeTap()
+              dismissPersonalTemuSecondTapHint()
               setStoreSwitchHintSeen(true)
-              storeMessageHandlerRef.current({ detail: { type: 'closeStore' } })
+              storeMessageHandlerRef.current({ detail: { type: 'closeStore' }, sourceStore: 'temu' })
               return
             }
             handlePersonalTemuHomeTap()
@@ -8322,6 +8845,7 @@ function App() {
           }
           if (personalTemuSurfaceActive) {
             clearPersonalTemuHomeTap()
+            dismissPersonalTemuSecondTapHint()
             screenRef.current = target
             flushSync(() => setScreen(target))
             temuPersonalSiteOpenedRef.current = false
@@ -8431,6 +8955,7 @@ function App() {
               webviewIdRef.current = ''
               sheinChallengeActiveRef.current = false
               sheinOpenedRef.current = false
+              clearStandardWebviewOwner()
               setSheinReady(false)
               sheinVisualReadyRef.current = false
               setSheinVisualReady(false)
@@ -8442,7 +8967,10 @@ function App() {
             </button> : null}
           </main>
         ) : !sheinReady ? (
-          <HomeScreen storeName={currentStoreName} failureAdvice={storeFailureAdvice} onRetry={() => { webviewAutoOpenPausedUntilRef.current = 0; sheinOpenedRef.current = false; browseShein() }} />
+          <HomeScreen storeName={currentStoreName} failureAdvice={storeFailureAdvice} onRetry={() => {
+            webviewAutoOpenPausedUntilRef.current = 0
+            if (!sheinOpenedRef.current && !webviewOpeningRef.current) browseShein()
+          }} />
         ) : null}
       </MobileShell>
     )
@@ -8489,7 +9017,10 @@ function App() {
               <button
                 type="button"
                 className="primary-action"
-                onClick={() => storeMessageHandlerRef.current({ detail: { type: 'closeStore' } })}
+                onClick={() => storeMessageHandlerRef.current({
+                  detail: { type: 'closeStore' },
+                  sourceStore: pendingStoreExit ?? undefined,
+                })}
               >
                 خروج
               </button>
@@ -8738,22 +9269,23 @@ const NAV_ICONS = {
 
 const STORE_SWITCH_COACHMARK_STYLE: CSSProperties = {
   position: 'absolute',
-  top: 4,
-  insetInlineStart: 7,
+  bottom: 'calc(100% + 8px)',
+  insetInlineStart: 12,
   zIndex: 3,
   display: 'inline-flex',
   alignItems: 'center',
   gap: 7,
-  minHeight: 24,
-  padding: '3px 9px',
+  minHeight: 44,
+  maxWidth: 'calc(100% - 24px)',
+  padding: '8px 12px',
   border: '1px solid rgba(255,255,255,.28)',
-  borderRadius: 999,
+  borderRadius: 12,
   background: '#006948',
   boxShadow: '0 5px 14px rgba(0,76,53,.22)',
   color: '#fff',
-  fontSize: 9.5,
+  fontSize: 12,
   fontWeight: 800,
-  lineHeight: 1,
+  lineHeight: 1.35,
   whiteSpace: 'nowrap',
   pointerEvents: 'none',
 }
@@ -8761,9 +9293,8 @@ const STORE_SWITCH_GESTURE_STYLE: CSSProperties = { position: 'relative', width:
 const STORE_SWITCH_TAP_STYLE: CSSProperties = { position: 'absolute', top: 1, width: 9, height: 9, border: '2px solid currentColor', borderRadius: '50%' }
 const STORE_SWITCH_FIRST_TAP_STYLE: CSSProperties = { ...STORE_SWITCH_TAP_STYLE, insetInlineStart: 0 }
 const STORE_SWITCH_SECOND_TAP_STYLE: CSSProperties = { ...STORE_SWITCH_TAP_STYLE, insetInlineEnd: 0, opacity: 0.62 }
-const STORE_SWITCH_HOME_BUTTON_STYLE: CSSProperties = { paddingTop: 25 }
 
-function StoreSwitchCoachmark({ onComplete }: { onComplete?: () => void }) {
+function StoreSwitchCoachmark({ message, onComplete }: { message: string; onComplete?: () => void }) {
   const elementRef = useRef<HTMLSpanElement>(null)
   const completeRef = useRef(onComplete)
   useEffect(() => { completeRef.current = onComplete }, [onComplete])
@@ -8797,7 +9328,7 @@ function StoreSwitchCoachmark({ onComplete }: { onComplete?: () => void }) {
         <i style={STORE_SWITCH_FIRST_TAP_STYLE} />
         <i style={STORE_SWITCH_SECOND_TAP_STYLE} />
       </span>
-      <span>اضغط مرتين على الرئيسية لتبديل المتجر</span>
+      <span>{message}</span>
     </span>
   )
 }
@@ -8808,6 +9339,7 @@ function MobileShell({
   onNavigate,
   hideBottomNav,
   showStoreSwitchHint = false,
+  storeSwitchHintText = 'انقر مرتين على «الرئيسية» لفتح قائمة المتاجر',
   onStoreSwitchHintComplete,
 }: {
   active?: 'home' | 'orders' | 'cart' | 'profile'
@@ -8815,6 +9347,7 @@ function MobileShell({
   onNavigate?: (screen: Screen, activationDetail?: number) => void
   hideBottomNav?: boolean
   showStoreSwitchHint?: boolean
+  storeSwitchHintText?: string
   onStoreSwitchHintComplete?: () => void
 }) {
   const storeSwitchGestureEnabled = typeof onStoreSwitchHintComplete === 'function'
@@ -8823,13 +9356,14 @@ function MobileShell({
       {children}
       {!hideBottomNav && onNavigate && (
         <nav className="bottom-nav" aria-label="التنقل الرئيسي">
-          {showStoreSwitchHint && <StoreSwitchCoachmark onComplete={onStoreSwitchHintComplete} />}
+          {showStoreSwitchHint && (
+            <StoreSwitchCoachmark message={storeSwitchHintText} onComplete={onStoreSwitchHintComplete} />
+          )}
           <NavButton
             active={active === 'home'}
             svgPaths={NAV_ICONS.home}
             label="الرئيسية"
-            ariaLabel={storeSwitchGestureEnabled ? 'الرئيسية؛ اضغط مرتين بسرعة لتبديل المتجر' : undefined}
-            style={showStoreSwitchHint ? STORE_SWITCH_HOME_BUTTON_STYLE : undefined}
+            ariaLabel={storeSwitchGestureEnabled ? 'الرئيسية، يفتح قائمة المتاجر مباشرة' : undefined}
             onClick={(event) => onNavigate('home', event.detail)}
           />
           <NavButton active={active === 'orders'}  svgPaths={NAV_ICONS.orders}  label="طلباتي"   onClick={() => onNavigate('orders')} />

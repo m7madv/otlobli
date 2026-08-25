@@ -6,6 +6,7 @@ file owns one responsibility:
 | File | Responsibility |
 | --- | --- |
 | `sheinNavigationScript.ts` | Document-start viewport and Otlobli navigation only; it never scans or rewrites SHEIN product content. |
+| `temuDocumentStartScript.ts` | Android standard Temu document-start blocking and cookie preparation; bounded selectors only, no observer or interval. |
 | `sheinPrivacyCompatScript.ts` | Always-on, bounded SHEIN privacy-layer compatibility; rejects optional tracking and releases a confirmed invisible iOS touch shield. |
 | `sheinSessionScript.ts` | Shared runtime foundation, challenge-safe session rules, and native SHEIN shipping-region flow. |
 | `storeProductCaptureScript.ts` | Product identity, option/price reading, and the Otlobli add action. |
@@ -23,6 +24,8 @@ file owns one responsibility:
   UI and verified from its signed `addressCookie`; Otlobli does not forge it.
 - Human-verification pages are user-controlled: no auto click, reload, or
   region write runs while a challenge is active.
+- Store-switch education is native on shipped Android/iOS surfaces. Two Home
+  taps open the chooser; they never select a store directly.
 - SHEIN privacy consent is handled by one independent compatibility prelude,
   which prefers "Reject all". Only the native iOS app may neutralize a
   still-blocking, full-viewport SHEIN privacy

@@ -1,4 +1,55 @@
+import { TEMU_DOCUMENT_START_CSS } from './temuDocumentStartScript'
+
 export const TEMU_BROWSER_SCRIPT = `
+  var OTLOBLI_NATIVE_PLATFORM = String(window.__otlobliNativePlatform || 'web').toLowerCase();
+  try {
+    if (document.documentElement) document.documentElement.setAttribute('data-otlobli-native-platform', OTLOBLI_NATIVE_PLATFORM);
+  } catch (e) {}
+
+  // Every inline style written by Otlobli is reversible. Temu is an SPA and
+  // can reuse an existing container as a verification surface; merely removing
+  // our marker would otherwise leave display:none/pointer-events:none behind.
+  var OTLOBLI_TEMU_OWNED_STYLE_ATTR = 'data-otlobli-temu-owned-style';
+  function otlobliRememberTemuInlineStyles(el, properties) {
+    if (!el || !el.style || !properties || !properties.length) return;
+    try {
+      var snapshot = {};
+      var raw = el.getAttribute(OTLOBLI_TEMU_OWNED_STYLE_ATTR);
+      if (raw) {
+        try { snapshot = JSON.parse(raw) || {}; } catch (e) { snapshot = {}; }
+      }
+      for (var i = 0; i < properties.length; i++) {
+        var name = properties[i];
+        if (Object.prototype.hasOwnProperty.call(snapshot, name)) continue;
+        snapshot[name] = [el.style.getPropertyValue(name) || '', el.style.getPropertyPriority(name) || ''];
+      }
+      el.setAttribute(OTLOBLI_TEMU_OWNED_STYLE_ATTR, JSON.stringify(snapshot));
+    } catch (e) {}
+  }
+
+  function otlobliRestoreTemuInlineStyles(el, fallbackProperties) {
+    if (!el || !el.style) return;
+    var restored = false;
+    try {
+      var raw = el.getAttribute(OTLOBLI_TEMU_OWNED_STYLE_ATTR);
+      if (raw) {
+        var snapshot = JSON.parse(raw) || {};
+        var names = Object.keys(snapshot);
+        for (var i = 0; i < names.length; i++) {
+          var name = names[i];
+          var entry = snapshot[name] || ['', ''];
+          if (entry[0]) el.style.setProperty(name, entry[0], entry[1] || '');
+          else el.style.removeProperty(name);
+        }
+        restored = true;
+      }
+    } catch (e) {}
+    if (!restored && fallbackProperties) {
+      for (var f = 0; f < fallbackProperties.length; f++) el.style.removeProperty(fallbackProperties[f]);
+    }
+    try { el.removeAttribute(OTLOBLI_TEMU_OWNED_STYLE_ATTR); } catch (e2) {}
+  }
+
   // وضع بحث تيمو: عندما يركّز المستخدم حقل البحث ويكتب، تعرض تيمو قائمة
   // اقتراحات أسفل الشريط. دوال إخفاء «كروم» تيمو تعمل كل tick وتخفي تدريجياً
   // عناصر أعلى الصفحة — فكانت تبتلع صفوف الاقتراحات (تظهر ثم تختفي بعد ثانية).
@@ -113,13 +164,17 @@ export const TEMU_BROWSER_SCRIPT = `
       }
     } catch (e) {}
     if (href === __otlobliTemuSearchModeCacheHref &&
-        now - __otlobliTemuSearchModeCacheTs < (OTLOBLI_LOW_END ? 900 : 360)) {
+        now - __otlobliTemuSearchModeCacheTs < (OTLOBLI_LOW_END ? 1600 : 800)) {
       return __otlobliTemuSearchModeCacheValue;
     }
     var si = otlobliTemuSearchInput();
     if (si && document.activeElement === si) return true;
     var found = false;
-    var overlays = document.querySelectorAll('div, section, aside');
+    // Search-specific candidates only. Scanning every div/span on each main
+    // tick was the largest avoidable Temu layout-read lane on older phones.
+    var overlays = document.querySelectorAll(
+      '[role="listbox"],[class*="suggest" i],[class*="search" i],[data-testid*="search" i]'
+    );
     var vp = viewportSize();
     for (var i = 0; i < overlays.length; i++) {
       var el = overlays[i];
@@ -163,11 +218,15 @@ export const TEMU_BROWSER_SCRIPT = `
     try {
       var active = typeof searchMode === 'boolean' ? searchMode : otlobliTemuSearchMode();
       if (active) {
-        document.body.setAttribute('data-otlobli-temu-search-mode', '1');
-        __otlobliTemuSearchBackGraceUntil = Date.now() + (OTLOBLI_LOW_END ? 1200 : 800);
+        if (document.body.getAttribute('data-otlobli-temu-search-mode') !== '1') {
+          document.body.setAttribute('data-otlobli-temu-search-mode', '1');
+          __otlobliTemuSearchBackGraceUntil = Date.now() + (OTLOBLI_LOW_END ? 1200 : 800);
+        }
       } else {
-        document.body.removeAttribute('data-otlobli-temu-search-mode');
-        otlobliTemuClearActiveSearchShells();
+        if (document.body.hasAttribute('data-otlobli-temu-search-mode')) {
+          document.body.removeAttribute('data-otlobli-temu-search-mode');
+          otlobliTemuClearActiveSearchShells();
+        }
       }
     } catch (e) {}
   }
@@ -190,6 +249,7 @@ export const TEMU_BROWSER_SCRIPT = `
         if (!txt || txt.length > 700) continue;
         if (otlobliTemuAccountPanelScore(txt) >= 2) continue;
         if (!/(رائج الآن|اقتراح|بحث شائع|عمليات البحث|search|suggest|trending|recent searches|popular searches)/i.test(txt)) continue;
+        otlobliRememberTemuInlineStyles(el, ['display','visibility','opacity','pointer-events']);
         el.setAttribute('data-otlobli-temu-search-exit-hidden', '1');
         el.setAttribute('data-otlobli-temu-hidden', '1');
         el.style.setProperty('display', 'none', 'important');
@@ -202,6 +262,7 @@ export const TEMU_BROWSER_SCRIPT = `
 
   function otlobliResetTemuHomeAfterSearchExit(input, clearValue) {
     try {
+      if (otlobliInterventionPausedForHumanChallenge()) return;
       var now = Date.now();
       __otlobliTemuSearchExitSuppressUntil = Math.max(__otlobliTemuSearchExitSuppressUntil, now + (OTLOBLI_LOW_END ? 1400 : 900));
       __otlobliTemuSearchBackGraceUntil = 0;
@@ -225,8 +286,14 @@ export const TEMU_BROWSER_SCRIPT = `
 
   function otlobliScheduleTemuHomeAfterSearchExit(input, clearValue) {
     otlobliResetTemuHomeAfterSearchExit(input, clearValue);
-    setTimeout(function () { otlobliResetTemuHomeAfterSearchExit(null, false); }, 80);
-    setTimeout(function () { otlobliResetTemuHomeAfterSearchExit(null, false); }, OTLOBLI_LOW_END ? 520 : 260);
+    setTimeout(function () {
+      if (otlobliInterventionPausedForHumanChallenge()) return;
+      otlobliResetTemuHomeAfterSearchExit(null, false);
+    }, 80);
+    setTimeout(function () {
+      if (otlobliInterventionPausedForHumanChallenge()) return;
+      otlobliResetTemuHomeAfterSearchExit(null, false);
+    }, OTLOBLI_LOW_END ? 520 : 260);
   }
 
   function otlobliTemuClickNativeBackControl() {
@@ -291,6 +358,7 @@ export const TEMU_BROWSER_SCRIPT = `
         }
         if (!looksBack) continue;
         if (r.width > 0 && r.height > 0 && (r.top < -4 || r.top > 260 || r.right < -4 || r.left > vp.width + 4)) continue;
+        otlobliRememberTemuInlineStyles(el, ['visibility','opacity','pointer-events']);
         el.setAttribute('data-otlobli-temu-native-search-back', '1');
         el.setAttribute('data-otlobli-temu-hidden', '1');
         el.style.setProperty('visibility', 'hidden', 'important');
@@ -358,14 +426,37 @@ export const TEMU_BROWSER_SCRIPT = `
   // تكبير النقر المزدوج (touch-action). تُستدعى دورياً لأن تيمو SPA قد
   // تستبدل وسم الـviewport عند التنقل بين الصفحات.
   var __otlobliNoZoomListeners = false;
+  var __otlobliTemuViewportCaptured = false;
+  var __otlobliTemuViewportOriginallyExisted = false;
+  var __otlobliTemuOriginalViewportContent = '';
   function ensureTemuNoZoom() {
     try {
-      var NO_ZOOM = 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no';
+      // The native container owns viewport geometry. Rewriting Temu's meta
+      // viewport on a polling cadence made the site and app invalidate each
+      // other's layout after SPA transitions. Keep the DOM fallback only for
+      // non-native harness/browser use.
+      if (window.__otlobliNativeNavigation === true) return;
+      // This must agree with ensureViewportFitCover(). The previous value
+      // removed viewport-fit=cover on every coordinator tick, so the two
+      // functions rewrote the same meta tag back and forth and continuously
+      // invalidated Temu's viewport/safe-area/layout.
+      var NO_ZOOM = 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover';
       var vpMeta = document.querySelector('meta[name="viewport"]');
+      if (!__otlobliTemuViewportCaptured) {
+        __otlobliTemuViewportCaptured = true;
+        __otlobliTemuViewportOriginallyExisted = !!vpMeta;
+        __otlobliTemuOriginalViewportContent = vpMeta ? (vpMeta.getAttribute('content') || '') : '';
+      }
       if (!__otlobliNoZoomListeners) {
         __otlobliNoZoomListeners = true;
-        document.addEventListener('gesturestart', function (e) { e.preventDefault(); }, { passive: false });
-        document.addEventListener('gesturechange', function (e) { e.preventDefault(); }, { passive: false });
+        document.addEventListener('gesturestart', function (e) {
+          if (otlobliInterventionPausedForHumanChallenge()) return;
+          e.preventDefault();
+        }, { passive: false });
+        document.addEventListener('gesturechange', function (e) {
+          if (otlobliInterventionPausedForHumanChallenge()) return;
+          e.preventDefault();
+        }, { passive: false });
       }
       var stabilityStyle = document.getElementById('otlobli-temu-stability-style');
       if (vpMeta && vpMeta.getAttribute('content') === NO_ZOOM && stabilityStyle) return;
@@ -383,7 +474,6 @@ export const TEMU_BROWSER_SCRIPT = `
         style.textContent = [
           'html,body{min-width:0!important;width:100%!important;max-width:100vw!important;overflow-x:hidden!important;-webkit-text-size-adjust:100%!important;text-size-adjust:100%!important;scroll-padding-bottom:128px!important;touch-action:pan-x pan-y!important;}',
           'input,textarea,select{font-size:16px!important;}',
-          '#otlobli-nav{transform:translate3d(-50%,0,0)!important;will-change:transform!important;}',
           '#otlobli-add-btn,#otlobli-back-btn{will-change:transform!important;}',
         ].join('');
         document.head.appendChild(style);
@@ -434,9 +524,11 @@ export const TEMU_BROWSER_SCRIPT = `
     '{ display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; }';
 
   // v85.8.26: Temu blocker reset. Do not style search, header, category rows,
-  // downloadsWrapper, or product grids. Only hide account/cart/app/promo nodes.
-  OTLOBLI_TEMU_HIDE_CSS =
+  // or product grids. The Android Home exception below only collapses the
+  // empty download-banner wrapper; it never hides the wrapper or its search.
+  OTLOBLI_TEMU_HIDE_CSS = ${JSON.stringify(TEMU_DOCUMENT_START_CSS)} +
     '[data-otlobli-temu-clean-hidden="1"],' +
+    '[data-otlobli-temu-product-action-hidden="1"],' +
     // Live iPhone Temu paints cart/account/category shortcut cells as hashed
     // tab-* children of topTabContainer. Hide that stable structural surface
     // at document-start so the icons never flash before the JS cleaner runs.
@@ -444,28 +536,121 @@ export const TEMU_BROWSER_SCRIPT = `
     '[aria-label*="cart" i], [aria-label*="basket" i], [aria-label*="shopping bag" i],' +
     '[aria-label*="account" i], [aria-label*="profile" i], [aria-label*="sign in" i],' +
     'a[href*="cart" i], a[href*="login" i], a[href*="signin" i], a[href*="account" i],' +
+    // These are Temu's compact guest prompts, not a user-opened account
+    // route. The previous blocker reset accidentally dropped the exact rules,
+    // so the sign-in button returned on product pages.
+    'html[data-otlobli-temu-product-route="1"] body:not([data-otlobli-temu-account-route="1"]) [class*="signInWrap-"],' +
+    'html[data-otlobli-temu-product-route="1"] body:not([data-otlobli-temu-account-route="1"]) [class*="signInBtn-"],' +
+    'html[data-otlobli-temu-product-route="1"] body:not([data-otlobli-temu-account-route="1"]) [class*="guideText-"],' +
+    'html[data-otlobli-temu-product-route="1"] body:not([data-otlobli-temu-account-route="1"]) [class*="guideButton-"],' +
     // ⚠️ لا تُعِد [class*="appDownload"]/[class*="downloadApp"] أبداً: صنف Temu
     // "withAppDownload-1iFDH" يغلّف #main (الصفحة كلها) و"appDownload" جزء منه،
     // فكانا يطبّقان display:none+pointer-events:none على الصفحة بأكملها = شاشة
     // بيضاء، ثم بعد force-visible تُعاد رؤيتها لكنها تبقى مجمّدة "كأنها صورة"
     // (pointer-events:none باقٍ). البانر الفعلي صنفه downloadUI ويُحجب أدناه.
     '[class*="downloadUI" i], [class*="openApp" i]' +
-    '{ display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; }';
+    '{ display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; }' +
+    // Temu keeps ~60dp of padding after downloadUI is hidden. Collapse only
+    // that Android Home wrapper. iOS deliberately keeps its header clearance
+    // because the native 44pt Back control occupies that region.
+    'html[data-otlobli-native-platform="android"][data-otlobli-temu-home-route="1"] [class*="downloadsWrapper"]' +
+    '{ padding: 0 !important; margin: 0 !important; min-height: 0 !important; box-shadow: none !important;' +
+    ' background: transparent !important; border: 0 !important; border-radius: 0 !important; }' +
+    // Current Temu wraps the banner in several anonymous fixed-height nodes
+    // plus a separate placeholder. JS marks only the bounded banner shell
+    // after proving it does not contain Search; collapse that shell and its
+    // two direct banner children without walking or styling the product DOM.
+    'html[data-otlobli-native-platform="android"][data-otlobli-temu-home-route="1"] [data-otlobli-temu-download-shell="1"],' +
+    'html[data-otlobli-native-platform="android"][data-otlobli-temu-home-route="1"] [data-otlobli-temu-download-shell="1"] > *' +
+    '{ height: 0 !important; min-height: 0 !important; max-height: 0 !important; overflow: hidden !important;' +
+    ' padding: 0 !important; margin: 0 !important; border: 0 !important; }' +
+    // Temu keeps its sticky-header background at the removed 0.66rem download
+    // offset. On the Note 8 this moves the composited Search row down by the
+    // same 66 CSS px after a scroll round-trip, overlapping categories and the
+    // benefit row. Reset only Temu's semantic presentation marker after the
+    // bounded shell was actually found and collapsed on Android Home; no
+    // content node, search control, product route or iOS layout moves.
+    'html[data-otlobli-native-platform="android"][data-otlobli-temu-home-route="1"][data-otlobli-temu-download-collapsed="1"] [js-selector="bg-cui-top-sticky"]' +
+    '{ transform: translate(-50%, 0) !important; }';
+
+  function otlobliSyncTemuDownloadCollapsedMarker(root, collapsed) {
+    var marker = 'data-otlobli-temu-download-collapsed';
+    var current = root.getAttribute(marker);
+    if (collapsed) {
+      if (current !== '1') root.setAttribute(marker, '1');
+    } else if (current !== null) {
+      root.removeAttribute(marker);
+    }
+  }
+
+  function otlobliMarkTemuAndroidDownloadShell() {
+    var root = document.documentElement;
+    if (!root) return;
+    if (root.getAttribute('data-otlobli-native-platform') !== 'android' ||
+        root.getAttribute('data-otlobli-temu-home-route') !== '1') {
+      otlobliSyncTemuDownloadCollapsedMarker(root, false);
+      return;
+    }
+    try {
+      var wrapper = document.querySelector('[class*="downloadsWrapper"]');
+      if (!wrapper) {
+        otlobliSyncTemuDownloadCollapsedMarker(root, false);
+        return;
+      }
+      var existingShell = document.querySelector('[data-otlobli-temu-download-shell="1"]');
+      if (existingShell && existingShell.contains(wrapper)) {
+        otlobliSyncTemuDownloadCollapsedMarker(root, true);
+        return;
+      }
+      if (existingShell) existingShell.removeAttribute('data-otlobli-temu-download-shell');
+      var shell = wrapper;
+      var boundedShellFound = false;
+      for (var depth = 0; shell && depth < 8; depth++) {
+        var parent = shell.parentElement;
+        if (!parent || parent === document.body || parent === root) break;
+        shell = parent;
+        if (shell.childElementCount > 1) {
+          boundedShellFound = true;
+          break;
+        }
+      }
+      if (!boundedShellFound || !shell ||
+          shell.querySelector('input,[role="searchbox"],[class*="wrapperWithSearch"],[class*="searchBar" i]')) {
+        otlobliSyncTemuDownloadCollapsedMarker(root, false);
+        return;
+      }
+      var rect = shell.getBoundingClientRect();
+      var viewportWidth = Math.max(1, window.innerWidth || root.clientWidth || 1);
+      if (rect.top > 96 || rect.width < viewportWidth * 0.65 || rect.height > 180) {
+        otlobliSyncTemuDownloadCollapsedMarker(root, false);
+        return;
+      }
+      shell.setAttribute('data-otlobli-temu-download-shell', '1');
+      otlobliSyncTemuDownloadCollapsedMarker(root, true);
+    } catch (e) {
+      otlobliSyncTemuDownloadCollapsedMarker(root, false);
+    }
+  }
   // نحقن القاعدة في أبكر لحظة ممكنة (documentStart، قبل رسم أي شيء) لمنع أي
   // وميض للعناصر المخفية. لا نعتمد على flag لمرة واحدة، بل نفحص وجود <style>
   // فعلياً في كل استدعاء: لو أزالت تيمو عنصرنا أثناء إعادة بناء الصفحة (عند
   // فتح منتج والرجوع مثلاً) نعيد حقنه فوراً فلا يظهر المخفي أبداً. نستخدم
   // document.head إن وُجد وإلا document.documentElement (المتوفّر دائماً هذا
   // الوقت المبكر) فتُطبَّق القاعدة حتى قبل إنشاء <head>.
-  function injectTemuHeaderHideCSS() {
+  function injectTemuHeaderHideCSS(challengeAlreadyGuarded) {
     if (!IS_TEMU) return;
+    if (!challengeAlreadyGuarded && otlobliInterventionPausedForHumanChallenge()) return;
     // وضع اختبار "الحجب مطفأ" (زر لوحة التشخيص): نزيل CSS الحجب ولا نعيده.
     if (window.__otlobliTemuHideOff) {
       var stOff = document.getElementById('otlobli-temu-header-hide');
       if (stOff && stOff.parentNode) stOff.parentNode.removeChild(stOff);
       return;
     }
-    try { otlobliSyncTemuAccountRouteState(); } catch (e) {}
+    try {
+      otlobliSyncTemuAccountRouteState();
+      otlobliSyncTemuProductRouteState();
+      otlobliMarkTemuAndroidDownloadShell();
+    } catch (e) {}
     if (document.getElementById('otlobli-temu-header-hide')) return;
     var parent = document.head || document.documentElement;
     if (!parent) return;
@@ -473,10 +658,90 @@ export const TEMU_BROWSER_SCRIPT = `
     style.id = 'otlobli-temu-header-hide';
     style.textContent = OTLOBLI_TEMU_HIDE_CSS;
     parent.appendChild(style);
+    var documentStartStyle = document.getElementById('otlobli-temu-document-start-style');
+    if (documentStartStyle && documentStartStyle.parentNode) documentStartStyle.parentNode.removeChild(documentStartStyle);
   }
   // حقن فوري لحظة تحميل السكربت (preShowScript يعمل عند documentStart) — هذا
   // هو ما يمنع ظهور الأزرار/البانر ولو لجزء من الثانية عند أول دخول للمتجر.
   try { injectTemuHeaderHideCSS(); } catch (e) {}
+
+  function otlobliSuspendTemuRuntimeForChallenge() {
+    if (!IS_TEMU) return;
+    __otlobliTemuPublicReadyCandidateKey = '';
+    __otlobliTemuPublicReadyCandidateAt = 0;
+    __otlobliTemuPublicReadyPostedKey = '';
+    try {
+      if (window.__otlobliTemuHeadingTimer) clearTimeout(window.__otlobliTemuHeadingTimer);
+      window.__otlobliTemuHeadingTimer = null;
+    } catch (e) {}
+    window.__otlobliTemuDocumentStartPaused = true;
+    var styleIds = ['otlobli-temu-document-start-style','otlobli-temu-header-hide','otlobli-temu-stability-style'];
+    for (var si = 0; si < styleIds.length; si++) {
+      try {
+        var style = document.getElementById(styleIds[si]);
+        if (style && style.parentNode) style.parentNode.removeChild(style);
+      } catch (e) {}
+    }
+    // Only the non-native fallback writes viewport metadata. Restore the exact
+    // site-owned value while verification is present; native production never
+    // rewrites it in the first place.
+    try {
+      if (__otlobliTemuViewportCaptured) {
+        var viewport = document.querySelector('meta[name="viewport"]');
+        if (__otlobliTemuViewportOriginallyExisted) {
+          if (viewport) viewport.setAttribute('content', __otlobliTemuOriginalViewportContent);
+        } else if (viewport && viewport.parentNode) {
+          viewport.parentNode.removeChild(viewport);
+        }
+      }
+    } catch (e) {}
+    try {
+      var hidden = document.querySelectorAll(
+        '[data-otlobli-temu-clean-hidden="1"],[data-otlobli-temu-hidden="1"],' +
+        '[data-otlobli-blocked="1"],[data-otlobli-temu-pinned-header="1"],' +
+        '[data-otlobli-temu-search-restored="1"],' +
+        '[data-otlobli-temu-search-chrome-hidden="1"],[data-otlobli-temu-search-login-hidden="1"],' +
+        '[data-otlobli-temu-search-exit-hidden="1"]'
+      );
+      for (var hi = 0; hi < hidden.length; hi++) {
+        var owned = hidden[hi];
+        otlobliRestoreTemuInlineStyles(owned, [
+          'display','visibility','opacity','pointer-events','transform','transition','top',
+          '-webkit-user-select','user-select'
+        ]);
+        owned.removeAttribute('data-otlobli-temu-clean-hidden');
+        owned.removeAttribute('data-otlobli-temu-hidden');
+        owned.removeAttribute('data-otlobli-blocked');
+        owned.removeAttribute('data-otlobli-temu-search-chrome-hidden');
+        owned.removeAttribute('data-otlobli-temu-search-login-hidden');
+        owned.removeAttribute('data-otlobli-temu-search-exit-hidden');
+        owned.removeAttribute('data-otlobli-temu-native-search-back');
+        owned.removeAttribute('data-otlobli-temu-pinned-header');
+        owned.removeAttribute('data-otlobli-temu-search-restored');
+        owned.removeAttribute('data-otlobli-temu-original-transform');
+        owned.removeAttribute('data-otlobli-temu-original-transition');
+      }
+    } catch (e) {}
+    try {
+      var shells = document.querySelectorAll(
+        '[data-otlobli-temu-search-shell="1"],[data-otlobli-temu-active-search-shell="1"],' +
+        '[data-otlobli-temu-active-search-frame="1"]'
+      );
+      for (var sh = 0; sh < shells.length; sh++) {
+        shells[sh].removeAttribute('data-otlobli-temu-search-shell');
+        shells[sh].removeAttribute('data-otlobli-temu-active-search-shell');
+        shells[sh].removeAttribute('data-otlobli-temu-active-search-frame');
+        shells[sh].style.removeProperty('--otlobli-temu-search-left');
+        shells[sh].style.removeProperty('--otlobli-temu-search-width');
+      }
+      if (document.body) {
+        document.body.removeAttribute('data-otlobli-temu-search-mode');
+        document.body.removeAttribute('data-otlobli-temu-account-route');
+      }
+      __otlobliTemuLastSearchInput = null;
+      otlobliInvalidateTemuSearchModeCache();
+    } catch (e) {}
+  }
 
   // مراجعة ذاتية لِما حجبته otlobliCleanTemuBlockers: العنصر المحجوب يصير
   // rect=0 فيتخطّاه المنظّف ولا يُعاد فحصه أبداً — فأي حجب خاطئ يبقى دائماً.
@@ -495,10 +760,7 @@ export const TEMU_BROWSER_SCRIPT = `
         if (!temuContainsPrice(el) && !temuLooksLikeProductContent(el)) continue;
         el.setAttribute('data-otlobli-temu-keep', '1');
         el.removeAttribute('data-otlobli-temu-clean-hidden');
-        el.style.removeProperty('display');
-        el.style.removeProperty('visibility');
-        el.style.removeProperty('opacity');
-        el.style.removeProperty('pointer-events');
+        otlobliRestoreTemuInlineStyles(el, ['display','visibility','opacity','pointer-events']);
       }
     } catch (e) {}
   }
@@ -529,10 +791,7 @@ export const TEMU_BROWSER_SCRIPT = `
         el.removeAttribute('data-otlobli-temu-clean-hidden');
         el.removeAttribute('data-otlobli-temu-hidden');
         el.removeAttribute('data-otlobli-temu-search-chrome-hidden');
-        el.style.removeProperty('display');
-        el.style.removeProperty('visibility');
-        el.style.removeProperty('opacity');
-        el.style.removeProperty('pointer-events');
+        otlobliRestoreTemuInlineStyles(el, ['display','visibility','opacity','pointer-events']);
       }
     } catch (e) {}
   }
@@ -542,9 +801,11 @@ export const TEMU_BROWSER_SCRIPT = `
   var __otlobliTemuVitalsCacheKey = '';
   var __otlobliTemuVitalsCacheAt = 0;
   var __otlobliTemuVitalsCache = null;
+  var __otlobliTemuVitalsRouteAt = 0;
   function otlobliTemuProductVitals() {
     var cacheKey = (location.pathname || '') + (location.search || '');
     var now = Date.now();
+    if (__otlobliTemuVitalsCacheKey !== cacheKey) __otlobliTemuVitalsRouteAt = now;
     if (otlobliTemuCurrentProductConfirmed() &&
         __otlobliTemuVitalsCache && __otlobliTemuVitalsCacheKey === cacheKey) {
       return __otlobliTemuVitalsCache;
@@ -552,8 +813,12 @@ export const TEMU_BROWSER_SCRIPT = `
     // Several product watchdogs consume the same measurement in one 300ms
     // coordinator pass. Share that result so a single tick never walks every
     // Temu image five separate times on the WebKit main thread.
+    var routeAge = now - (__otlobliTemuVitalsRouteAt || now);
+    var cacheGap = routeAge > 3000
+      ? (OTLOBLI_LOW_END ? 1600 : 900)
+      : (OTLOBLI_LOW_END ? 600 : 280);
     if (__otlobliTemuVitalsCache && __otlobliTemuVitalsCacheKey === cacheKey &&
-        now - __otlobliTemuVitalsCacheAt < 240) return __otlobliTemuVitalsCache;
+        now - __otlobliTemuVitalsCacheAt < cacheGap) return __otlobliTemuVitalsCache;
     var vp = viewportSize();
     var imgs = document.querySelectorAll('img');
     var domImg = 0, visImg = 0;
@@ -656,6 +921,62 @@ export const TEMU_BROWSER_SCRIPT = `
   var __otlobliTemuReadinessRouteKey = '';
   var __otlobliTemuVisibleSinceKey = '';
   var __otlobliTemuVisibleSince = 0;
+  var __otlobliTemuPublicReadyCandidateKey = '';
+  var __otlobliTemuPublicReadyCandidateAt = 0;
+  var __otlobliTemuPublicReadyPostedKey = '';
+
+  function otlobliPostTemuPublicReadyIfStable(challengeAlreadyGuarded) {
+    if (!IS_TEMU || !document.body || document.readyState === 'loading') return;
+    if (!challengeAlreadyGuarded && otlobliInterventionPausedForHumanChallenge()) return;
+    try {
+      // Product reveal has a stronger 900ms visual contract below. This
+      // signal is only the public Home/category/search hand-off used before a
+      // queued product navigation; never treat login/account as guest-ready.
+      if (looksLikeProductPage() || otlobliTemuAccountRoute()) {
+        __otlobliTemuPublicReadyCandidateKey = '';
+        __otlobliTemuPublicReadyCandidateAt = 0;
+        return;
+      }
+      var key = (location.href || '').split('#')[0] + '|' + String(window.__otlobliDocumentGeneration || '');
+      // After this exact public document has handed readiness to native, stop
+      // reading the full body text on every coordinator wake. A URL or document
+      // generation change produces a new key and naturally re-arms the probe.
+      if (__otlobliTemuPublicReadyPostedKey === key) return;
+      var publicNodes = document.querySelectorAll('a[href],button,input,[role="button"],[role="searchbox"],img');
+      var visiblePublicAnchor = false;
+      for (var pi = 0; pi < publicNodes.length && pi < 80; pi++) {
+        var publicNode = publicNodes[pi];
+        if (!sheinElementIsVisible(publicNode)) continue;
+        var publicRect = publicNode.getBoundingClientRect();
+        if (publicNode.tagName === 'IMG') {
+          if (!publicNode.complete || publicNode.naturalWidth <= 0 ||
+              publicRect.width < 40 || publicRect.height < 40) continue;
+        } else if (publicRect.width < 12 || publicRect.height < 12) {
+          continue;
+        }
+        visiblePublicAnchor = true;
+        break;
+      }
+      if (!visiblePublicAnchor) return;
+      var text = temuCleanText(document.body.textContent || '');
+      if (text.length < 40) return;
+      var now = Date.now();
+      if (__otlobliTemuPublicReadyCandidateKey !== key) {
+        __otlobliTemuPublicReadyCandidateKey = key;
+        __otlobliTemuPublicReadyCandidateAt = now;
+        return;
+      }
+      if (now - __otlobliTemuPublicReadyCandidateAt < (OTLOBLI_LOW_END ? 900 : 600)) return;
+      __otlobliTemuPublicReadyPostedKey = key;
+      if (window.mobileApp && window.mobileApp.postMessage) {
+        window.mobileApp.postMessage({ detail: {
+          type: 'temuPublicReady',
+          url: location.href,
+          documentGeneration: String(window.__otlobliDocumentGeneration || '')
+        } });
+      }
+    } catch (e) {}
+  }
   function otlobliTemuInvalidateConfirmedProduct() {
     __otlobliTemuConfirmedProductIdentity = '';
     __otlobliTemuConfirmedProductKey = '';
@@ -720,7 +1041,10 @@ export const TEMU_BROWSER_SCRIPT = `
       __otlobliTemuConfirmedProductIdentity = identity;
       __otlobliTemuConfirmedProductKey = key;
       if (window.mobileApp && window.mobileApp.postMessage) {
-        window.mobileApp.postMessage({ detail: { type: 'temuProductVisible', url: location.href, key: key } });
+        window.mobileApp.postMessage({ detail: {
+          type: 'temuProductVisible', url: location.href, key: key,
+          documentGeneration: String(window.__otlobliDocumentGeneration || '')
+        } });
       }
     } catch (e) {}
   }
@@ -790,9 +1114,10 @@ export const TEMU_BROWSER_SCRIPT = `
     var notice = document.getElementById('otlobli-temu-product-loading');
     var show = false;
     try {
-      var v = otlobliTemuProductVitals();
-      show = looksLikeProductPage() && !otlobliTemuSearchMode() &&
-        !otlobliTemuCurrentProductConfirmed() && !v.domHasContent;
+      if (looksLikeProductPage() && !otlobliTemuSearchMode()) {
+        var v = otlobliTemuProductVitals();
+        show = !otlobliTemuCurrentProductConfirmed() && !v.domHasContent;
+      }
     } catch (e) {}
     if (!show) {
       if (notice) notice.remove();
@@ -814,7 +1139,10 @@ export const TEMU_BROWSER_SCRIPT = `
       '<strong style="margin-top:16px;font-size:17px;line-height:1.5">جاري فتح المنتج…</strong>' +
       '<span style="margin-top:5px;color:#65736e;font-size:13px;line-height:1.65">نحاول فتحه كضيف داخل تيمو السعودية</span>' +
       '</div>';
-    notice.addEventListener('touchmove', function (event) { event.preventDefault(); }, { passive: false });
+    notice.addEventListener('touchmove', function (event) {
+      if (otlobliInterventionPausedForHumanChallenge()) { notice.remove(); return; }
+      event.preventDefault();
+    }, { passive: false });
     document.body.appendChild(notice);
   }
 
@@ -840,7 +1168,7 @@ export const TEMU_BROWSER_SCRIPT = `
       if (retryState === 'blocked') return;
       if (__otlobliTemuBlankUrl !== url) { __otlobliTemuBlankUrl = url; __otlobliTemuBlankSince = now; return; }
       if (!__otlobliTemuBlankSince) { __otlobliTemuBlankSince = now; return; }
-      if (now - __otlobliTemuBlankSince < 3500) return;
+      if (now - __otlobliTemuBlankSince < (OTLOBLI_LOW_END ? 8000 : 4500)) return;
       if (retryState === 'retry') {
         try { sessionStorage.setItem(retryKey, 'blocked'); } catch (e) {}
         return;
@@ -870,6 +1198,7 @@ export const TEMU_BROWSER_SCRIPT = `
   var __otlobliTemuCleanBlockersTs = 0;
   function otlobliCleanTemuBlockers(force) {
     if (!IS_TEMU || !document.body) return;
+    if (otlobliInterventionPausedForHumanChallenge()) return;
     // Temu renders its real sign-in screen inside a generic .container.
     // The blocker cleaner used to classify that full-page form as an account
     // promo and hide it with important inline styles, leaving only a white
@@ -880,26 +1209,24 @@ export const TEMU_BROWSER_SCRIPT = `
       var authNodes = document.querySelectorAll('[data-otlobli-temu-clean-hidden="1"]');
       for (var ai = 0; ai < authNodes.length; ai++) {
         var authNode = authNodes[ai];
-        authNode.style.removeProperty('display');
-        authNode.style.removeProperty('visibility');
-        authNode.style.removeProperty('opacity');
-        authNode.style.removeProperty('pointer-events');
+        otlobliRestoreTemuInlineStyles(authNode, ['display','visibility','opacity','pointer-events']);
         authNode.removeAttribute('data-otlobli-temu-clean-hidden');
       }
       return;
     }
     if (window.__otlobliTemuHideOff) return; // وضع اختبار: الحجب مطفأ
     var now = Date.now();
-    if (!force && now - __otlobliTemuCleanBlockersTs < (OTLOBLI_LOW_END ? 1800 : 1100)) return;
+    if (!force && now - __otlobliTemuCleanBlockersTs < (OTLOBLI_LOW_END ? 2400 : 1500)) return;
     __otlobliTemuCleanBlockersTs = now;
     try {
       if (otlobliTemuSearchMode()) return;
       var vp = viewportSize();
-      var accountCartRe = /cart|basket|shopping\\s*bag|bag|account|profile|sign\\s*in|signin|login|log\\s*in|\u0633\u0644\u0629|\u0639\u0631\u0628\u0629|\u062d\u0633\u0627\u0628|\u062f\u062e\u0648\u0644|\u062a\u0633\u062c\u064a\u0644/i;
+      var accountCartRe = /cart|basket|shopping\\s*bag|\\bbag\\b|account|profile|sign\\s*in|signin|login|log\\s*in|\u0633\u0644\u0629|\u0639\u0631\u0628\u0629|\u062d\u0633\u0627\u0628|\u062f\u062e\u0648\u0644|\u062a\u0633\u062c\u064a\u0644/i;
       var appRe = /download\\s*(the\\s*)?app|open\\s*app|get\\s*app|install\\s*app|app\\s*download|\u062a\u0637\u0628\u064a\u0642|\u062a\u0646\u0632\u064a\u0644|\u062d\u0645\u0644|\u0627\u0644\u062a\u0637\u0628\u064a\u0642/i;
       var promoRe = /coupon|voucher|offer|deal|promo|promotion|reward|spin|free\\s*gift|claim|flash\\s*sale|\u0642\u0633\u064a\u0645|\u0643\u0648\u0628\u0648\u0646|\u0639\u0631\u0636|\u0639\u0631\u0648\u0636|\u062e\u0635\u0645|\u0647\u062f\u064a\u0629|\u062c\u0627\u0626\u0632\u0629|\u0627\u0631\u0628\u062d|\u0634\u062d\u0646\\s*\u0645\u062c\u0627\u0646/i;
 
       function hideCleanNode(el) {
+        otlobliRememberTemuInlineStyles(el, ['display','visibility','opacity','pointer-events']);
         el.setAttribute('data-otlobli-temu-clean-hidden', '1');
         el.style.setProperty('display', 'none', 'important');
         el.style.setProperty('visibility', 'hidden', 'important');
@@ -943,11 +1270,17 @@ export const TEMU_BROWSER_SCRIPT = `
 
       var nodes = document.querySelectorAll(
         '[data-otlobli-temu-clean-hidden="1"],' +
-        'a,button,[role="button"],[role="dialog"],[aria-modal="true"],' +
+        '[role="dialog"],[aria-modal="true"],' +
         '[class*="downloadUI" i],[class*="openApp" i],' +
         '[class*="coupon" i],[class*="voucher" i],[class*="promo" i],' +
         '[class*="wheel" i],[class*="spin" i],[class*="reward" i],[class*="gift" i],' +
-        '[class*="popup" i],[class*="modal" i],[class*="dialog" i],[class*="overlay" i]'
+        '[class*="popup" i],[class*="modal" i],[class*="dialog" i],[class*="overlay" i],' +
+        'header a,header button,header [role="button"],nav a,nav button,' +
+        '[role="dialog"] a,[role="dialog"] button,[aria-modal="true"] a,[aria-modal="true"] button,' +
+        'a[href*="cart" i],a[href*="basket" i],a[href*="account" i],a[href*="login" i],' +
+        'a[href*="signin" i],a[href*="download" i],a[href*="app" i],' +
+        'button[aria-label*="cart" i],button[aria-label*="account" i],' +
+        'button[aria-label*="login" i],button[aria-label*="app" i]'
       );
       var hidden = 0;
       for (var i = 0; i < nodes.length && hidden < 30; i++) {
@@ -1002,17 +1335,23 @@ export const TEMU_BROWSER_SCRIPT = `
       var scanNow = Date.now();
       // Main and navigation lanes can become due in the same coordinator turn.
       // One semantic scan is enough; the next real maintenance pass is intact.
-      if (scanKey === __otlobliTemuSearchChromeScanKey && scanNow - __otlobliTemuSearchChromeScanAt < 40) return;
+      if (scanKey === __otlobliTemuSearchChromeScanKey &&
+          scanNow - __otlobliTemuSearchChromeScanAt < (OTLOBLI_LOW_END ? 1600 : 900)) return;
       __otlobliTemuSearchChromeScanKey = scanKey;
       __otlobliTemuSearchChromeScanAt = scanNow;
       var vp = viewportSize();
       var input = otlobliTemuSearchInputForExit() || otlobliTemuSearchInput();
       var inputRect = input && input.getBoundingClientRect ? input.getBoundingClientRect() : null;
       var searchTop = inputRect && inputRect.height > 0 ? inputRect.top : 230;
-      var nodes = document.querySelectorAll('a,button,[role="button"],div,span,i');
+      var nodes = document.querySelectorAll(
+        'header a,header button,header [role="button"],header [aria-label],header [data-testid],' +
+        'a[aria-label*="cart" i],a[aria-label*="account" i],button[aria-label*="cart" i],' +
+        'button[aria-label*="account" i],[data-testid*="cart" i],[data-testid*="account" i]'
+      );
       for (var i = 0; i < nodes.length; i++) {
         var el = nodes[i];
         if (!el || !el.getBoundingClientRect) continue;
+        if (el.getAttribute('data-otlobli-temu-search-chrome-hidden') === '1') continue;
         if (el.id && el.id.indexOf('otlobli') === 0) continue;
         if (el.closest && (el.closest('#otlobli-nav') || el.closest('#otlobli-back-btn') || el.closest('#otlobli-add-btn'))) continue;
         if (el.querySelector && el.querySelector('input,textarea,[role="searchbox"]')) continue;
@@ -1033,6 +1372,7 @@ export const TEMU_BROWSER_SCRIPT = `
           r.width >= 18 && r.width <= 90 && r.height >= 18 && r.height <= 90 &&
           txt.length <= 32 && !temuContainsPrice(el);
         if (topIconOnly || compactSemantic) {
+          otlobliRememberTemuInlineStyles(el, ['visibility','opacity','pointer-events']);
           el.setAttribute('data-otlobli-temu-search-chrome-hidden', '1');
           el.style.setProperty('visibility', 'hidden', 'important');
           el.style.setProperty('opacity', '0', 'important');
@@ -1040,7 +1380,9 @@ export const TEMU_BROWSER_SCRIPT = `
         }
       }
 
-      var bars = document.querySelectorAll('nav,footer,div,[role="navigation"],[role="tablist"]');
+      var bars = document.querySelectorAll(
+        'nav,footer,[role="navigation"],[role="tablist"],[class*="bottomNav" i],[class*="tabBar" i]'
+      );
       for (var b = 0; b < bars.length; b++) {
         var bar = bars[b];
         if (!bar || !bar.getBoundingClientRect) continue;
@@ -1057,41 +1399,12 @@ export const TEMU_BROWSER_SCRIPT = `
         var navLikeChildren = bar.children && bar.children.length >= 3 && bar.children.length <= 5;
         if (!/(account|profile|cart|basket|orders?|home|\u062d\u0633\u0627\u0628\u064a|\u0627\u0644\u0633\u0644\u0629|\u0637\u0644\u0628\u0627\u062a\u064a|\u0627\u0644\u0631\u0626\u064a\u0633\u064a\u0629)/i.test(barText) &&
             !(navLikeChildren && br.height >= 48 && br.height <= 120)) continue;
+        otlobliRememberTemuInlineStyles(bar, ['display','visibility','opacity','pointer-events']);
         bar.setAttribute('data-otlobli-temu-search-chrome-hidden', '1');
         bar.style.setProperty('display', 'none', 'important');
         bar.style.setProperty('visibility', 'hidden', 'important');
         bar.style.setProperty('opacity', '0', 'important');
         bar.style.setProperty('pointer-events', 'none', 'important');
-      }
-    } catch (e) {}
-  }
-
-  function hideTemuHeaderIconsByProbe() {
-    if (!IS_TEMU || !document.body) return;
-    try {
-      var all = document.querySelectorAll('a, button, div, span, i, [role="button"]');
-      for (var i = 0; i < all.length; i++) {
-        var el = all[i];
-        if (el.id && el.id.indexOf('otlobli') === 0) continue;
-        if (otlobliTemuLooksLikeCategoryOrFilter(el)) continue;
-        if (el.closest && el.closest('[data-otlobli-temu-search-shell="1"]')) continue;
-        if (el.getAttribute && el.getAttribute('data-otlobli-temu-hidden') === '1') continue;
-        var r = el.getBoundingClientRect();
-        if (r.width === 0 || r.height === 0) continue;
-        if (r.top < 0 || r.top > 240) continue;
-        if (r.width > 64 || r.height > 64) continue;
-        if (r.width < 14 || r.height < 14) continue;
-        var txt = (el.textContent || '').trim();
-        var isKnownDistraction = OTLOBLI_KNOWN_DISTRACTION.test(txt) || OTLOBLI_KNOWN_DISTRACTION.test(otlobliCollectIdentityHints(el));
-        if (txt.length > 20 && !isKnownDistraction) continue;
-        if (otlobliLooksLikeTemuLogo(el)) continue;
-        var hints = otlobliCollectIdentityHints(el);
-        if (/search|بحث|magnif/i.test(hints)) continue;
-        if (el.querySelector && el.querySelector('input, textarea')) continue;
-        if (temuContainsPrice(el)) continue;
-        el.setAttribute('data-otlobli-temu-hidden', '1');
-        el.style.setProperty('visibility', 'hidden', 'important');
-        el.style.setProperty('pointer-events', 'none', 'important');
       }
     } catch (e) {}
   }
@@ -1153,6 +1466,7 @@ export const TEMU_BROWSER_SCRIPT = `
         try { el.click(); } catch (e) {}
       }
       if (!clicked && searchMode) {
+        otlobliRememberTemuInlineStyles(el, ['display','visibility','pointer-events']);
         el.setAttribute('data-otlobli-temu-search-login-hidden', '1');
         el.style.setProperty('display', 'none', 'important');
         el.style.setProperty('visibility', 'hidden', 'important');
@@ -1219,6 +1533,7 @@ export const TEMU_BROWSER_SCRIPT = `
           if (Math.abs(hiddenBuckets[hb] - candidates[c].left) < 18) duplicateBucket = true;
         }
         if (duplicateBucket) continue;
+        otlobliRememberTemuInlineStyles(candidates[c].el, ['visibility','pointer-events']);
         candidates[c].el.setAttribute('data-otlobli-temu-hidden', '1');
         candidates[c].el.style.setProperty('visibility', 'hidden', 'important');
         candidates[c].el.style.setProperty('pointer-events', 'none', 'important');
@@ -1239,6 +1554,7 @@ export const TEMU_BROWSER_SCRIPT = `
         var looksCart = /(cart|shopping|basket|bag|عربة|سلة|التسوق)/i.test(fcHints);
         var leftFloatingCart = fr.left <= 130 && fr.top >= 70 && fr.top <= viewportSize().height * 0.7 && (looksCart || !!(fcEl.querySelector && fcEl.querySelector('svg,img')));
         if (!leftFloatingCart && fr.top > 180 && fr.bottom < viewportSize().height - 120) continue;
+        otlobliRememberTemuInlineStyles(fcEl, ['display','visibility','pointer-events']);
         fcEl.setAttribute('data-otlobli-temu-hidden', '1');
         fcEl.style.setProperty('display', 'none', 'important');
         fcEl.style.setProperty('visibility', 'hidden', 'important');
@@ -1251,6 +1567,8 @@ export const TEMU_BROWSER_SCRIPT = `
     if (!el || (el.id && el.id.indexOf('otlobli') === 0)) return;
     if (el.getAttribute && el.getAttribute('data-otlobli-temu-hidden') === '1') return;
     if (el.getAttribute && el.getAttribute('data-otlobli-temu-search-exit-hidden') === '1') return;
+    otlobliRememberTemuInlineStyles(el, ['display','visibility','opacity','pointer-events']);
+    el.setAttribute('data-otlobli-temu-search-restored', '1');
     el.removeAttribute('data-otlobli-blocked');
     el.style.removeProperty('display');
     el.style.setProperty('visibility', 'visible', 'important');
@@ -1316,6 +1634,108 @@ export const TEMU_BROWSER_SCRIPT = `
       document.body.setAttribute('data-otlobli-temu-account-route', '1');
     } else {
       document.body.removeAttribute('data-otlobli-temu-account-route');
+    }
+  }
+
+  function otlobliSyncTemuProductRouteState() {
+    var root = document.documentElement;
+    if (!root) return;
+    if (looksLikeProductPage() && !otlobliTemuAccountRoute()) {
+      root.setAttribute('data-otlobli-temu-product-route', '1');
+    } else {
+      root.removeAttribute('data-otlobli-temu-product-route');
+    }
+    var homePath = String(location.pathname || '/').replace(/\\/{2,}/g, '/').replace(/\\/+$/, '');
+    var homeRoute = !homePath || /^\\/[a-z]{2}(?:-[a-z]{2})?$/i.test(homePath);
+    if (homeRoute && !otlobliTemuAccountRoute()) {
+      root.setAttribute('data-otlobli-temu-home-route', '1');
+    } else {
+      root.removeAttribute('data-otlobli-temu-home-route');
+    }
+  }
+
+  var OTLOBLI_TEMU_PRODUCT_ACTION_TEXT = /(?:حدد\\s+خيار(?:اً|ا)?|اختر\\s+خيار(?:اً|ا)?|أضف\\s+(?:إلى\\s+)?(?:السلة|سلة\\s+التسوق)|اضف\\s+(?:إلى\\s+)?(?:السلة|سلة\\s+التسوق)|add\\s+to\\s+(?:cart|bag)|select\\s+(?:an?\\s+)?options?|choose\\s+options?|buy\\s+now|اشتر(?:ي)?\\s+الآن)/i;
+  var OTLOBLI_TEMU_PRODUCT_LOGIN_TEXT = /(?:تسجيل\\s*الدخول|سجل\\s*الدخول|sign\\s*in|log\\s*in|login)/i;
+
+  // Temu's product action row is site chrome, not the Otlobli cart action.
+  // Use exact semantic selectors plus a small painted-point probe instead of
+  // walking thousands of product nodes. This remains bounded on weak phones,
+  // leaves the real SKU dialog usable, and never touches a full login route.
+  function hideTemuNativeProductActions() {
+    if (!IS_TEMU || !document.body) return;
+    if (otlobliInterventionPausedForHumanChallenge()) return;
+    var productRoute = looksLikeProductPage() && !otlobliTemuAccountRoute();
+    otlobliSyncTemuProductRouteState();
+    if (!productRoute) {
+      var stale = document.querySelectorAll('[data-otlobli-temu-product-action-hidden="1"]');
+      for (var sr = 0; sr < stale.length; sr++) {
+        otlobliRestoreTemuInlineStyles(stale[sr], ['display','visibility','opacity','pointer-events']);
+        stale[sr].removeAttribute('data-otlobli-temu-product-action-hidden');
+      }
+      return;
+    }
+
+    var vp = viewportSize();
+    var seen = [];
+    function seenBefore(node) {
+      for (var si = 0; si < seen.length; si++) if (seen[si] === node) return true;
+      seen.push(node);
+      return false;
+    }
+    function interactiveAncestor(node) {
+      var candidate = node;
+      for (var depth = 0; candidate && candidate !== document.body && depth < 5; depth++) {
+        var tag = String(candidate.tagName || '').toUpperCase();
+        var role = String(candidate.getAttribute && candidate.getAttribute('role') || '').toLowerCase();
+        if (tag === 'BUTTON' || tag === 'A' || role === 'button' ||
+            (candidate.getAttribute && candidate.getAttribute('tabindex') === '0')) return candidate;
+        candidate = candidate.parentElement;
+      }
+      return null;
+    }
+    function hideCandidate(raw) {
+      var el = interactiveAncestor(raw);
+      if (!el || seenBefore(el)) return;
+      if (el.id && el.id.indexOf('otlobli') === 0) return;
+      if (el.closest && el.closest('[id^="otlobli"]')) return;
+      if (el.querySelector && el.querySelector('input,textarea,select')) return;
+      if (temuProductOptionDialog(el)) return;
+      var rect = el.getBoundingClientRect ? el.getBoundingClientRect() : null;
+      if (!rect || rect.width < 42 || rect.height < 24 || rect.height > 130 ||
+          rect.bottom < -4 || rect.top > vp.height + 4) return;
+      var explicit = (el.getAttribute && (el.getAttribute('aria-label') || el.getAttribute('title'))) || el.value || '';
+      var text = temuCleanText(explicit || ((el.childElementCount || 0) <= 8 ? el.textContent : ''));
+      if (!text || text.length > 90 ||
+          (!OTLOBLI_TEMU_PRODUCT_ACTION_TEXT.test(text) && !OTLOBLI_TEMU_PRODUCT_LOGIN_TEXT.test(text))) return;
+      // Text-only fallback is limited to the product's painted action bands.
+      // Exact aria/class candidates may live in the compact top header too.
+      var hints = String((el.className || '') + ' ' + (el.id || '') + ' ' + explicit);
+      var exactHint = /add.?to.?cart|cart.?add|purchase|buy.?now|sign.?in|login/i.test(hints);
+      var inActionBand = rect.bottom >= vp.height - 230 || rect.top <= 220;
+      if (!exactHint && !inActionBand) return;
+      otlobliRememberTemuInlineStyles(el, ['display','visibility','opacity','pointer-events']);
+      el.setAttribute('data-otlobli-temu-product-action-hidden', '1');
+      el.style.setProperty('display', 'none', 'important');
+      el.style.setProperty('visibility', 'hidden', 'important');
+      el.style.setProperty('opacity', '0', 'important');
+      el.style.setProperty('pointer-events', 'none', 'important');
+    }
+
+    var exact = document.querySelectorAll(
+      '[data-otlobli-temu-product-action-hidden="1"],' +
+      'button[aria-label*="add to cart" i],button[aria-label*="add to bag" i],' +
+      '[role="button"][aria-label*="add to cart" i],[role="button"][aria-label*="add to bag" i],' +
+      'button[class*="addToCart" i],button[class*="add-cart" i],button[class*="cartAdd" i],' +
+      'button[class*="buyNow" i],button[class*="signInBtn-" i]'
+    );
+    for (var ei = 0; ei < exact.length && ei < 48; ei++) hideCandidate(exact[ei]);
+
+    if (!document.elementsFromPoint) return;
+    var xs = [vp.width * 0.12, vp.width * 0.32, vp.width * 0.52, vp.width * 0.72, vp.width * 0.9];
+    var ys = [Math.max(1, vp.height - 24), Math.max(1, vp.height - 64), Math.max(1, vp.height - 112), Math.max(1, vp.height - 168), 54, 108];
+    for (var yi = 0; yi < ys.length; yi++) for (var xi = 0; xi < xs.length; xi++) {
+      var stack = document.elementsFromPoint(xs[xi], ys[yi]);
+      for (var pi = 0; pi < stack.length && pi < 8; pi++) hideCandidate(stack[pi]);
     }
   }
 
@@ -1400,6 +1820,7 @@ export const TEMU_BROWSER_SCRIPT = `
         }
         if (looksLikeProductPage() && temuLooksLikeProductContent(el)) continue;
         if (!fixedish && !bottomLogin && r.top > 180) continue;
+        otlobliRememberTemuInlineStyles(el, ['display','visibility','opacity','pointer-events']);
         el.setAttribute('data-otlobli-temu-account-surface', '1');
         el.setAttribute('data-otlobli-temu-hidden', '1');
         el.style.setProperty('display', 'none', 'important');
@@ -1436,6 +1857,7 @@ export const TEMU_BROWSER_SCRIPT = `
         if (otlobliTemuLooksLikeLargeProductFlowContainer(el, r, cs, vp)) continue;
         var modalLike = fixedish || r.top < 260 || r.bottom > vp.height - 220;
         if (!modalLike) continue;
+        otlobliRememberTemuInlineStyles(el, ['display','visibility','opacity','pointer-events']);
         el.setAttribute('data-otlobli-temu-distraction-sheet', '1');
         el.setAttribute('data-otlobli-temu-hidden', '1');
         el.style.setProperty('display', 'none', 'important');
@@ -1468,6 +1890,8 @@ export const TEMU_BROWSER_SCRIPT = `
             if (parent.getAttribute && parent.getAttribute('data-otlobli-temu-hidden') === '1') break;
             var parentText = temuCleanText(parent.textContent);
             if (parentText.length > 80 && otlobliTemuLooksLikeAccountPanelText(parentText)) break;
+            otlobliRememberTemuInlineStyles(parent, ['display','visibility','opacity','pointer-events']);
+            parent.setAttribute('data-otlobli-temu-search-restored', '1');
             parent.removeAttribute('data-otlobli-temu-hidden');
             parent.style.removeProperty('display');
             parent.style.setProperty('visibility', 'visible', 'important');
@@ -1475,6 +1899,8 @@ export const TEMU_BROWSER_SCRIPT = `
             parent.style.setProperty('pointer-events', 'auto', 'important');
           }
           if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.getAttribute('role') === 'searchbox') {
+            otlobliRememberTemuInlineStyles(el, ['pointer-events','-webkit-user-select','user-select']);
+            el.setAttribute('data-otlobli-temu-search-restored', '1');
             el.style.setProperty('pointer-events', 'auto', 'important');
             el.style.setProperty('-webkit-user-select', 'text', 'important');
             el.style.setProperty('user-select', 'text', 'important');
@@ -1517,6 +1943,9 @@ export const TEMU_BROWSER_SCRIPT = `
         node.setAttribute('data-otlobli-temu-original-transform', node.style.transform || '');
         node.setAttribute('data-otlobli-temu-original-transition', node.style.transition || '');
       }
+      otlobliRememberTemuInlineStyles(node, [
+        'transform','transition','top','visibility','opacity','pointer-events'
+      ]);
       // Temu centres this header with translateX(-50%) and changes only Y to
       // hide/show it while scrolling. The old fix replaced the whole transform
       // with translateY(0), losing that X centring and breaking half the page.
@@ -1546,12 +1975,9 @@ export const TEMU_BROWSER_SCRIPT = `
       var pinned = document.querySelectorAll('[data-otlobli-temu-pinned-header="1"]');
       for (var p = 0; p < pinned.length; p++) {
         var el = pinned[p];
-        var originalTransform = el.getAttribute('data-otlobli-temu-original-transform');
-        var originalTransition = el.getAttribute('data-otlobli-temu-original-transition');
-        if (originalTransform) el.style.setProperty('transform', originalTransform);
-        else el.style.removeProperty('transform');
-        if (originalTransition) el.style.setProperty('transition', originalTransition);
-        else el.style.removeProperty('transition');
+        otlobliRestoreTemuInlineStyles(el, [
+          'transform','transition','top','visibility','opacity','pointer-events'
+        ]);
         el.removeAttribute('data-otlobli-temu-pinned-header');
         el.removeAttribute('data-otlobli-temu-original-transform');
         el.removeAttribute('data-otlobli-temu-original-transition');
@@ -1580,6 +2006,7 @@ export const TEMU_BROWSER_SCRIPT = `
     __otlobliTemuSearchTouchRepairInstalled = true;
     var repair = function (event) {
       try {
+        if (otlobliInterventionPausedForHumanChallenge()) return;
         var target = event.target;
         if (!target || (target.closest && (target.closest('#otlobli-nav') || target.closest('#otlobli-back-btn')))) return;
         var targetLooksSearch = otlobliLooksLikeSearchTrigger(target) ||
@@ -1591,6 +2018,7 @@ export const TEMU_BROWSER_SCRIPT = `
         if (!searchModeNow && targetLooksSearch) {
           setTimeout(function () {
             try {
+              if (otlobliInterventionPausedForHumanChallenge()) return;
               var delayedInput = otlobliTemuSearchInput();
               var delayedSearchMode = otlobliTemuSearchMode();
               otlobliSyncTemuSearchModeState(delayedSearchMode);
@@ -1718,7 +2146,7 @@ export const TEMU_BROWSER_SCRIPT = `
       var hvImgs = hv.querySelectorAll ? hv.querySelectorAll('img').length : 0;
       var hvPrice = temuContainsPrice(hv);
       if (hvTxt > 600 || hvImgs >= 4 || hvPrice) {
-        hv.style.removeProperty('display');
+        otlobliRestoreTemuInlineStyles(hv, ['display','visibility','opacity','pointer-events']);
         hv.setAttribute('data-otlobli-blocked', '0'); // قائمة بيضاء — لن يُحجب ثانية
       }
     }
@@ -1754,12 +2182,10 @@ export const TEMU_BROWSER_SCRIPT = `
         if (/kwcdn/i.test(kimgs[ki].currentSrc || kimgs[ki].src || '')) kwc++;
       }
       if (kwc >= 3) continue;
+      otlobliRememberTemuInlineStyles(el, ['display']);
       el.setAttribute('data-otlobli-blocked', '1');
       el.style.setProperty('display', 'none', 'important');
     }
-    // العروض المنبثقة تقفل تمرير الصفحة عادةً - نعيد تمكينه
-    if (document.body) document.body.style.overflow = '';
-    if (document.documentElement) document.documentElement.style.overflow = '';
     // بانر تثبيت التطبيق الأصلي (Smart App Banner) إن وُجد
     var appMeta = document.querySelector('meta[name="apple-itunes-app"]');
     if (appMeta && appMeta.parentNode) appMeta.parentNode.removeChild(appMeta);
@@ -1789,6 +2215,7 @@ export const TEMU_BROWSER_SCRIPT = `
         if (nvCs.position !== 'fixed') continue;
         var nvR = nv.getBoundingClientRect();
         if (nvR.top < vp.height * 0.7) continue; // لا بد أن يكون في أسفل الشاشة
+        otlobliRememberTemuInlineStyles(nv, ['display']);
         nv.setAttribute('data-otlobli-blocked', '1');
         nv.style.setProperty('display', 'none', 'important');
         hiddenBarDiag.push('[' + nvTxt.replace(/\\s+/g, ' ').slice(0, 70) + ']');
@@ -1803,6 +2230,8 @@ export const TEMU_BROWSER_SCRIPT = `
         if (fcR.width < 40 || fcR.width > 120 || fcR.height < 40 || fcR.height > 120) continue;
         var fcCs = window.getComputedStyle(fcEl);
         if (fcCs.position !== 'fixed' && fcCs.position !== 'absolute') continue;
+        otlobliRememberTemuInlineStyles(fcEl, ['display']);
+        fcEl.setAttribute('data-otlobli-blocked', '1');
         fcEl.style.setProperty('display', 'none', 'important');
       }
       // أيقونات الحساب/السلة في رأس الصفحة (أعلى الشاشة) — نخفيها.
@@ -1856,6 +2285,7 @@ export const TEMU_BROWSER_SCRIPT = `
             visibleTopIconDiag.push('[' + otlobliCollectIdentityHints(ic).trim().slice(0, 30) + ' @' + Math.round(irAll.left) + ',' + Math.round(irAll.top) + ']');
             continue;
           }
+          otlobliRememberTemuInlineStyles(ic, ['visibility','pointer-events']);
           ic.setAttribute('data-otlobli-blocked', '1');
           ic.style.setProperty('visibility', 'hidden', 'important');
           ic.style.setProperty('pointer-events', 'none', 'important');
@@ -1897,6 +2327,7 @@ export const TEMU_BROWSER_SCRIPT = `
       if (txt.length < bestLen) { best = el; bestLen = txt.length; }
     }
     if (best) {
+      otlobliRememberTemuInlineStyles(best, ['display']);
       best.setAttribute('data-otlobli-blocked', '1');
       best.style.setProperty('display', 'none', 'important');
     }
@@ -1943,6 +2374,7 @@ export const TEMU_BROWSER_SCRIPT = `
         up = up.parentElement; hops++;
       }
       if (containsSearch(target)) target = el; // أمان إضافي: نخفي البانر نفسه فقط
+      otlobliRememberTemuInlineStyles(target, ['display']);
       target.setAttribute('data-otlobli-blocked', '1');
       target.style.setProperty('display', 'none', 'important');
     }
@@ -1951,6 +2383,7 @@ export const TEMU_BROWSER_SCRIPT = `
   var __otlobliAppPromptScanAt = 0;
   function hideSheinAppInstallPrompts() {
     if (!IS_SHEIN) return;
+    if (otlobliInterventionPausedForHumanChallenge()) return;
     var scanNow = Date.now();
     if (scanNow - __otlobliAppPromptScanAt < 1800) return;
     __otlobliAppPromptScanAt = scanNow;
@@ -1985,17 +2418,25 @@ export const TEMU_BROWSER_SCRIPT = `
         up = up.parentElement;
         hops++;
       }
+      otlobliRememberTemuInlineStyles(target, ['display','visibility','pointer-events']);
       target.setAttribute('data-otlobli-blocked', '1');
       target.style.setProperty('display', 'none', 'important');
       target.style.setProperty('visibility', 'hidden', 'important');
       target.style.setProperty('pointer-events', 'none', 'important');
     }
-    if (document.body) document.body.style.overflow = '';
-    if (document.documentElement) document.documentElement.style.overflow = '';
   }
 
+  var __otlobliTemuWheelScanAt = 0;
+  var __otlobliTemuWheelScanKey = '';
   function hideTemuSpinWheelPopup() {
     if (!IS_TEMU) return;
+    if (otlobliInterventionPausedForHumanChallenge()) return;
+    var scanKey = location.pathname + location.search;
+    var scanNow = Date.now();
+    if (__otlobliTemuWheelScanKey === scanKey &&
+        scanNow - __otlobliTemuWheelScanAt < (OTLOBLI_LOW_END ? 3200 : 1800)) return;
+    __otlobliTemuWheelScanKey = scanKey;
+    __otlobliTemuWheelScanAt = scanNow;
     var vp = viewportSize();
     var onAccountRoute = otlobliTemuAccountRoute();
     var WHEEL_RE = /(spin|wheel|reward|claim|coupon|lucky|chance|prize|free\\s*gift|congratulations|SAR\\s*\\d|\\u062d\\u0631\\u0651?\\u0643|\\u0641\\u0631\\u0635\\u0629|\\u062c\\u0631\\u0628|\\u062a\\u062d\\u0635\\u0644|\\u062c\\u0627\\u0626\\u0632\\u0629|\\u0645\\u062c\\u0627\\u0646\\u064a|\\u062e\\u0635\\u0645)/i;
@@ -2031,13 +2472,12 @@ export const TEMU_BROWSER_SCRIPT = `
         hops++;
       }
       if (temuProductOptionDialog(target)) continue;
+      otlobliRememberTemuInlineStyles(target, ['display','visibility','pointer-events']);
       target.setAttribute('data-otlobli-blocked', '1');
       target.style.setProperty('display', 'none', 'important');
       target.style.setProperty('visibility', 'hidden', 'important');
       target.style.setProperty('pointer-events', 'none', 'important');
     }
-    if (document.body) document.body.style.overflow = '';
-    if (document.documentElement) document.documentElement.style.overflow = '';
   }
 
 

@@ -1,3 +1,139 @@
+# Active handoff — local v86.237/1102 store-identity candidate (2026-08-25)
+
+Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
+`codex/otlobli-v86-212-testflight-auth`. Preserve the dirty worktree. This
+candidate is local, uncommitted/unpushed, and not uploaded or submitted.
+Standard Android/iOS are `86.237 (1102)`; isolated Android is
+`86.237-personal (1102)` with Gecko manifest `1.3.21`.
+
+The reproduced fault was identity aliasing, not a Temu layout failure.
+`selectedStoreRef` represented both the visible Cart tab and the store that
+actually owned the singleton native WebView. Thus Temu → Cart → SHEIN tab →
+Home → chooser → SHEIN could expose the parked Temu session, and a late capture
+could land in the selected tab's cart. Preserve the explicit standard owner
+`{store, sessionId, id}` and the rule that switching only the Cart tab never
+changes, closes, or reuses the native owner.
+
+Standard events must match the current session and WebView id. The bounded
+opening-id adoption is allowed only for the same store/session while opening,
+never while closing, never for a remembered old id; strict matching resumes
+immediately. Keep store hosts exact (`temu.com`/`shein.com` and subdomains),
+route product links by their proven host, send ACK to `event.id`, and retain
+Gecko's explicit `sourceStore:'temu'`. The mount repair moves only cart rows
+whose source URL proves the opposite store; unknown links remain untouched.
+
+The Temu add button alone uses static `bottom:24px`; SHEIN remains `16px`.
+Button size/right stay `128×48px` and `14px`. Do not replace this with dynamic
+inset work, `visualViewport`, a timer, observer, broad DOM scan, or another bar.
+The native Otlobli bar remains outside WebView. Note 8 measured
+`[706,1666][1044,1795]` with a `63` physical-pixel (`24 CSS px`) clearance to
+the WebView ending at `1858`.
+
+Physical Note 8 has the final standard APK installed in place with data
+preserved. Both store-switch directions passed, including the user's exact
+Temu/SHEIN Cart-tab sequence. Cart counts are `Temu=2`, `SHEIN=0` after the
+safe migration. A reverse Temu loading screenshot was a timing boundary, not a
+hang: native attachment occurred `19ms` later. Do not change
+`isPresentAfterPageLoad`, `preShowScript`, or add a timer/cover from that
+evidence. Acceptance files are under
+`artifacts/device-captures/v86.237-note8/`; the process log has no fatal, ANR,
+OOM, or native-crash match. Cold launch was `755ms`.
+
+The width gate passes `320/360/393/412/430 CSS px`. The A52-like emulator is
+`1080×2400 @420dpi` and accepted Debug `86.237/1102` without data deletion,
+but it is logged out; no auth bypass or live Temu claim was made. A real A52
+remains untested.
+
+All release-service, TypeScript, scoped ESLint, Temu-size, store-surface,
+hardening, freeze, full standard/personal build, and performance checks pass.
+Android and iOS are synchronized from final standard `dist`. Budgets are
+startup JS `669,726/720,000`, JS gzip `295,014/370,000`, CSS
+`69,932/70,000`, fonts `81,364/100,000`, shipped store scripts
+`315,090/470,000`, Gecko `170,458/180,000`, and store source
+`564,829/600,000`.
+
+- Standard APK: `artifacts/release-86.237/Otlobli-86.237-1102-release.apk`,
+  `4,107,374` bytes, SHA-256
+  `C05C949846881FDBB6E82B286CAEE487AE38CBF6A1DF30A65FA4B24B8A6552A8`.
+- Personal arm64 APK:
+  `artifacts/release-86.237/Otlobli-86.237-1102-temu-personal-arm64.apk`,
+  `195,389,315` bytes, SHA-256
+  `8B4009316E168DEA720ACE20186F6629625EDA002A5D927625676DC1CFB80AD9`.
+
+Both verify with the expected Otlobli certificate and APK v2/v3. SHEIN region,
+human verification, payments, orders, wallet, and lifecycle were not changed.
+Preserve `otlobliForceRecompose()`, the `0.25s` foreground delay, Android
+resume defense, and `JSON.stringify` region comparison. iOS is synchronized
+but has no IPA/device acceptance; five iPhone 16 resume cycles plus a separate
+cold launch remain mandatory.
+
+# Active handoff — local v86.236/1101 Temu sticky-offset candidate (2026-08-25)
+
+Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
+`codex/otlobli-v86-212-testflight-auth`. Preserve the dirty worktree; this
+candidate is uncommitted/unpushed and was not uploaded or submitted. Standard
+Android/iOS are `86.236 (1101)`, isolated Android is `86.236-personal (1101)`,
+and Gecko manifest is `1.3.20`. External `86.230/1095` review and
+`86.231/1096` TestFlight states were not changed.
+
+The fixed fault is not Temu's ordinary dense Home layout. On v86.235 Note 8,
+after scrolling down and returning to zero, Temu's Search/logo row moved down
+`173` physical px = `65.9 CSS px`. The bounded Otlobli download-shell collapse
+removed Temu's `0.66rem` shell while Temu retained the same `0.66rem` Y
+transform on `[js-selector="bg-cui-top-sticky"]`. Live DOM showed
+`font-size:100px`, so the causal values match exactly.
+
+Keep the correction narrow: the CSS selector requires Android, Temu Home, and
+`data-otlobli-temu-download-collapsed="1"`, which is set only after the existing
+bounded shell guards succeed. Reset only `transform: translate(-50%, 0)` on the
+semantic presentation marker. Do not add `top`, target Search/top tabs, widen
+the selector, add scroll work, or make the success marker churn every `650ms`.
+The marker synchronizer mutates only when collapsed state actually changes.
+Product/account/challenge routes, iOS, and Gecko web remain excluded.
+
+Preserve the native bar outside `WebView`, its exact Temu chooser wording, all
+human-verification ownership rules, persistent sessions, and the protected
+iPhone/Android lifecycle invariants. In particular retain
+`otlobliForceRecompose()`, the `0.25s` `appDidBecomeActive` delay, Android
+`otlobliOnHostResume()`, and `JSON.stringify` active-region comparison. SHEIN,
+region, payment, orders, wallet, and authentication were not changed.
+
+Physical Note 8 `SM-N950F` now has standard `86.236 (1101)` installed in place.
+The Home header/logo stayed at `y=95..138` initially and after 5/10 varied-
+speed scroll cycles; the cycle-10 header crop equals the initial crop pixel for
+pixel. v86.235's broken post-scroll capture was `y=268..311`. Search accepted
+English input/suggestions and Arabic keyboard input; two products opened and
+returned; another scroll and background/resume remained correct. Chrome was
+blocked by Temu's own `bgn_verification` and was not bypassed. The current app
+process has no fatal/ANR/OOM/native-crash line. Synthetic ADB taps did not meet
+the native chooser cadence in this rerun; v86.235's accepted chooser code is
+unchanged.
+
+The 80-swipe stress trace is `5,214` frames, `28.63%` jank,
+`p50/p90/p95/p99=10/21/24/32ms`, 12 missed vsyncs, and PSS
+`194,091 -> 203,757 KB`; graphics stayed `56,736 KB`. Temu remains the heavier
+third-party renderer. Final budgets pass without raising a cap: startup/largest
+JS `665,888/720,000` and `/1,200,000`, JS gzip `293,819/370,000`, CSS
+`69,932/70,000`, fonts `81,364/100,000`, shipped store scripts
+`315,089/470,000`, Gecko `170,453/180,000`, source `564,718/600,000`.
+
+Both builds, protected guards, production artifact check, and scoped ESLint
+pass; standard `dist` is synchronized to Android and iOS. Full repository
+ESLint remains blocked only by two pre-existing out-of-scope errors at
+`src/services/sheinNavigationScript.ts:44` and 18 existing warnings. Artifacts
+use the expected Otlobli certificate and APK v2/v3:
+
+- `artifacts/release-86.236/Otlobli-86.236-1101-release.apk` — `4,106,166`
+  bytes; SHA-256
+  `05AF2BBFC825235328DFA72E59EB7AD0F7E7047307ABFEDB0217EABE1E3BD32F`.
+- `artifacts/release-86.236/Otlobli-86.236-1101-temu-personal-arm64.apk` —
+  `195,388,096` bytes; SHA-256
+  `D675BC71234069569451717F09AC7B4885543682BF048A9B56F9DD892CCC2E5F`.
+
+iOS was synchronized but no IPA/iPhone test was possible on Windows. Five real
+iPhone 16 resume cycles and a separate force-quit/cold launch remain required;
+do not infer that acceptance from the passing freeze guard or Android result.
+
 # Active handoff — v86.231/1096 internal TestFlight performance maintenance (2026-08-24)
 
 Continue only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth`
@@ -3402,3 +3538,66 @@ The live source, Oracle, and Supabase all currently agree on new SYP: sp-today B
 `npm run verify:live-syp-rate` verifies source + Oracle + Supabase + a >1000 order-total case. The standard/personal/admin builds, standard/personal Android builds, Android/iOS sync, freeze guard, and performance budget passed. Note 8 is updated in place to `86.165-personal-live-syp/1025`; CDP proved Oracle `[200]`, app-settings `[200]`, and `talabieh.exchangeRate=131.7`, with both carts retained. Personal artifact: `output/otlobli-v86.165-temu-personal-arm64-debug.apk`, 205,028,564 bytes, SHA-256 `8CB8ADB246E5E2161D43E18CA1372D716DE9FF32D96B8AA4F76751D18DD22C09`. Standard artifact: `output/otlobli-v86.165-standard-universal-debug.apk`, 11,129,572 bytes, SHA-256 `C729CA8528A06A6F085EE880AA96D8D01C391E0833287C52258BF8D2FB5BE7A7`.
 
 Production DB/Oracle were already converted/deployed by the earlier v86.134 currency batch. The two matching local migrations are now present and idempotent; do not re-divide production data. No real order or ShamCash payment was created in this batch. GitHub Actions `exchange-rate.yml` is still a broken **secondary writer** because repo secrets `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are absent; latest inspected run `31589190785` failed for exactly that reason. Oracle is the healthy primary writer. No service-role key was found locally, so do not fabricate or expose one. iOS is synced/versioned `86.165/1025`, but Xcode/device build, five iPhone 16 resume cycles, and cold launch remain unperformed.
+# Active handoff — v86.238/1103 final Android artifact, iOS upload pending (2026-08-25)
+
+Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
+`codex/otlobli-v86-212-testflight-auth`. Standard Android/iOS are
+`86.238 (1103)` and Gecko is `1.3.22`. Preserve all existing dirty-batch work;
+do not restore from an older branch.
+
+The remaining Android 15/16 geometry fault was a duplicate status inset in
+Capgo's blank Temu toolbar. Keep the narrow predicate: native Otlobli
+navigation + Temu session + `toolbarType == "blank"` gets `topMargin=0`; every
+other WebView keeps the upstream status inset. A53 evidence was collected
+before the final build and proves the cause, not final physical acceptance.
+
+Entry education is native on all shipped store surfaces. After actual
+visibility, a bounded one-shot says `انقر «الرئيسية» مرتين لفتح قائمة المتاجر`.
+The first Home tap says `انقر مرة ثانية لفتح قائمة المتاجر`; a second tap
+within `320ms` routes to `store-select`, never directly to another store.
+Assistive activation opens the chooser directly. Keep the hint outside WebView,
+challenge-gated, and cancelled on hide/dismiss. Capgo iOS must retain
+`otlobliSetStoreSurfaceVisible(!hidden)` so an attached hidden controller
+re-arms an unconsumed one-shot after show. Dedicated iOS SHEIN schedules the
+same one-shot from both show paths.
+
+The fallback navigation uses `window.__otlobliStoreNavigationChallengeLocked`,
+set on challenge entry and cleared only after the settlement window. Its URL
+fallback uses exact path segments/query keys, not free substring matching.
+Do not replace it with `otlobliInterventionPausedForHumanChallenge()`; that
+prevents Terser DCE and expands both store scripts to about `242KB`.
+
+Android document-start Temu blocking/cookie preparation is bounded and has no
+persistent observer, interval, or broad DOM scan. Real human verification is
+untouched and remains user-controlled. The native bar remains outside WebView.
+Keep the standard WebView owner `{store, sessionId, id}` independent from the
+visible Cart tab; late capture/ACK must stay source-owned.
+
+Final standard APK:
+
+- `artifacts/release-86.238/Otlobli-86.238-1103-release.apk`
+- `4,110,560` bytes
+- SHA-256 `A123FFA957EFFAB8FEC44CDABC0C37B5CD9EB09166C00326A6F8581ECC0E61B9`
+- package `com.otlobli.app`, `minSdk 24`, `targetSdk 36`
+- expected certificate SHA-256
+  `e0b0f44cc677888f9535c01c9125077e09b014bdb9096dc2813e3bd06f17f784`
+
+The final APK is installed and launch-checked only on the Android 15/API 35
+emulator, which is logged out. Note 8 disconnected before the final artifact
+could be installed. Earlier v86.238 evidence proves the Note 8 button gap and
+cart-tab ownership, but not a real-finger double tap on the final artifact.
+Do not claim the missing cookie-clean-profile, A52/Android 16 final acceptance,
+or the inverse store selection as passed.
+
+All source/release/freeze/store/size/security guards, TypeScript, Java compile,
+personal and standard builds, and Android/iOS sync pass. Final budgets are
+startup `669,808/720,000`, JS gzip `298,229/370,000`, CSS `69,932/70,000`,
+fonts `81,364/100,000`, shipped scripts `316,976/470,000`, Gecko
+`172,005/180,000`, and source `580,141/600,000`. SHEIN/Temu minified runtime
+sizes are `146,069/170,907` bytes.
+
+Preserve `WKWebViewController.otlobliForceRecompose()`, the exact
+`appDidBecomeActive` `0.25s` delay, scroll/constraint restoration, Android
+`otlobliOnHostResume()`, and the `JSON.stringify` region comparison. iOS is
+synced but device acceptance still requires five iPhone 16 resume cycles plus
+a separate force-quit/cold-launch. TestFlight dispatch is pending at this point.

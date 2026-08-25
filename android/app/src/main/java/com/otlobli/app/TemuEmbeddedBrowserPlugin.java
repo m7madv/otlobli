@@ -76,6 +76,9 @@ public class TemuEmbeddedBrowserPlugin extends Plugin {
     private boolean canGoBack;
     private boolean onStoreHome = true;
     private boolean appInForeground = true;
+    private boolean humanChallengeActive;
+    private boolean humanChallengeResolutionReported;
+    private String humanChallengeDocumentGeneration = "";
     private String currentUrl = "";
     private String queuedUrl = HOME_URL;
     private String requestedDestinationUrl = HOME_URL;
@@ -141,6 +144,13 @@ public class TemuEmbeddedBrowserPlugin extends Plugin {
     @PluginMethod
     public void goHome(PluginCall call) {
         getActivity().runOnUiThread(() -> {
+            // Keep the verified Gecko document intact while the customer is
+            // completing Temu's own challenge. A Home reload here discards the
+            // provider's in-flight proof and starts the same challenge again.
+            if (humanChallengeActive) {
+                call.resolve();
+                return;
+            }
             // A single Home press deliberately remains useful: it leaves a
             // product for Temu Home, or refreshes Home when already there. The
             // React shell intercepts two quick presses before this call and
@@ -314,6 +324,9 @@ public class TemuEmbeddedBrowserPlugin extends Plugin {
                 ) {
                     currentUrl = url == null ? "" : url;
                     onStoreHome = isStoreHomeUrl(currentUrl);
+                    if (isSecurityVerificationUrl(currentUrl)) {
+                        beginHumanChallenge("");
+                    }
                 }
             });
             session.setProgressDelegate(new GeckoSession.ProgressDelegate() {
@@ -435,7 +448,7 @@ public class TemuEmbeddedBrowserPlugin extends Plugin {
     private GeckoResult<Object> handleExtensionMessage(Object message, WebExtension.MessageSender sender) {
         if (!sender.isTopLevel() || !(message instanceof JSONObject)) return null;
         String senderUrl = sender.url;
-        if (senderUrl == null || !senderUrl.startsWith("https://") || !senderUrl.contains("temu.com/")) return null;
+        if (!isTrustedTemuSenderUrl(senderUrl)) return null;
         JSONObject detail = ((JSONObject) message).optJSONObject("detail");
         if (detail == null) {
             android.util.Log.w("OtlobliTemu", "ignored native message without detail");
@@ -443,7 +456,10 @@ public class TemuEmbeddedBrowserPlugin extends Plugin {
         }
         String type = detail.optString("type", "");
         if (!(type.equals("openHome") || type.equals("openCart") || type.equals("backToCart") ||
-              type.equals("openOrders") || type.equals("openProfile") || type.equals("addToCart"))) return null;
+              type.equals("openOrders") || type.equals("openProfile") || type.equals("addToCart") ||
+              type.equals("humanCheck") || type.equals("humanCheckResolved") ||
+              type.equals("temuPublicReady") ||
+              type.equals("temuProductVisible"))) return null;
 
         PendingAddRequest addRequest = type.equals("addToCart") ? beginPendingAddRequest() : null;
         if (addRequest != null) {
@@ -457,7 +473,28 @@ public class TemuEmbeddedBrowserPlugin extends Plugin {
         }
 
         getActivity().runOnUiThread(() -> {
+            if (type.equals("humanCheck")) {
+                beginHumanChallenge(detail.optString("documentGeneration", ""));
+                notifyDetail(detail);
+                return;
+            }
+            if (type.equals("humanCheckResolved")) {
+                recordHumanChallengeResolution(detail.optString("documentGeneration", ""));
+                // Status only. A solved widget can disappear before Temu has
+                // committed its token, so neither Back nor queued navigation
+                // is released by this message alone.
+                notifyDetail(detail);
+                return;
+            }
+            if (type.equals("temuPublicReady") || type.equals("temuProductVisible")) {
+                releaseHumanChallengeAfterTrustedReady(type, detail, senderUrl);
+                // App.tsx owns the matching document-generation gate too. It
+                // needs the exact ready message to release its host-side state.
+                notifyDetail(detail);
+                return;
+            }
             if (type.equals("openHome")) {
+                if (humanChallengeActive) return;
                 if (!onStoreHome && session != null) session.loadUri(HOME_URL);
                 return;
             }
@@ -465,6 +502,91 @@ public class TemuEmbeddedBrowserPlugin extends Plugin {
             notifyDetail(detail);
         });
         return addRequest == null ? null : addRequest.result;
+    }
+
+    private boolean isTrustedTemuSenderUrl(@Nullable String rawUrl) {
+        if (rawUrl == null || rawUrl.isEmpty()) return false;
+        try {
+            Uri uri = Uri.parse(rawUrl);
+            String host = uri.getHost();
+            return "https".equalsIgnoreCase(uri.getScheme()) && host != null &&
+                (host.equalsIgnoreCase("temu.com") || host.toLowerCase().endsWith(".temu.com"));
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private void beginHumanChallenge(String documentGeneration) {
+        humanChallengeActive = true;
+        humanChallengeResolutionReported = false;
+        if (documentGeneration != null && !documentGeneration.isEmpty()) {
+            humanChallengeDocumentGeneration = documentGeneration;
+        }
+        applyBackButtonState(false);
+    }
+
+    private void recordHumanChallengeResolution(String documentGeneration) {
+        if (!humanChallengeActive) return;
+        if (documentGeneration == null || documentGeneration.isEmpty() ||
+            humanChallengeDocumentGeneration.isEmpty() ||
+            documentGeneration.equals(humanChallengeDocumentGeneration)) {
+            humanChallengeResolutionReported = true;
+        }
+    }
+
+    private long documentGenerationTimestamp(String generation) {
+        if (generation == null || generation.isEmpty()) return 0L;
+        String prefix = generation.split("-", 2)[0];
+        if (!prefix.matches("[0-9A-Za-z]+")) return 0L;
+        try {
+            return Long.parseLong(prefix, 36);
+        } catch (NumberFormatException ignored) {
+            return 0L;
+        }
+    }
+
+    private boolean isNewerDocumentGeneration(String candidate, String baseline) {
+        long candidateTime = documentGenerationTimestamp(candidate);
+        long baselineTime = documentGenerationTimestamp(baseline);
+        return candidateTime > 0L && baselineTime > 0L && candidateTime > baselineTime;
+    }
+
+    private boolean releaseHumanChallengeAfterTrustedReady(
+        String type,
+        JSONObject detail,
+        String senderUrl
+    ) {
+        if (!humanChallengeActive) return true;
+        String readyGeneration = detail.optString("documentGeneration", "");
+        boolean sameResolvedDocument = !humanChallengeDocumentGeneration.isEmpty() &&
+            readyGeneration.equals(humanChallengeDocumentGeneration) && humanChallengeResolutionReported;
+        boolean freshDocument = isNewerDocumentGeneration(
+            readyGeneration,
+            humanChallengeDocumentGeneration
+        );
+        boolean resolvedUnknownDocument = humanChallengeDocumentGeneration.isEmpty() &&
+            !readyGeneration.isEmpty() && humanChallengeResolutionReported;
+        boolean trustedFreshUnknownDocument = humanChallengeDocumentGeneration.isEmpty() &&
+            !readyGeneration.isEmpty() && !isSecurityVerificationUrl(senderUrl) &&
+            sameDestination(currentUrl, senderUrl);
+        if (!sameResolvedDocument && !freshDocument && !resolvedUnknownDocument &&
+            !trustedFreshUnknownDocument) return false;
+
+        humanChallengeActive = false;
+        humanChallengeResolutionReported = false;
+        humanChallengeDocumentGeneration = "";
+        // Gecko owns one persistent native Back surface on both Home and PDP.
+        // The shared WebView-only visibility hint is intentionally ignored.
+        applyBackButtonState(true);
+        return true;
+    }
+
+    private void applyBackButtonState(boolean visible) {
+        if (backButton == null) return;
+        boolean enabled = visible && !humanChallengeActive;
+        backButton.setEnabled(enabled);
+        backButton.setClickable(enabled);
+        backButton.setVisibility(enabled ? View.VISIBLE : View.GONE);
     }
 
     private PendingAddRequest beginPendingAddRequest() {
@@ -519,6 +641,7 @@ public class TemuEmbeddedBrowserPlugin extends Plugin {
     }
 
     private void goBackOrExit() {
+        if (humanChallengeActive) return;
         if (onStoreHome) {
             // Let the React shell own the decision so Temu and SHEIN share the
             // same branded, accessible confirmation instead of an OS alert.

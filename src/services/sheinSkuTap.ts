@@ -125,18 +125,70 @@ export const OTLOBLI_SKU_TAP_JS = `
     return best;
   }
 
+  var __otlobliSkuRevealTimers = [];
+  var __otlobliSkuScrollRestores = [];
+
+  function sheinForgetSkuRevealTimer(timer) {
+    var index = __otlobliSkuRevealTimers.indexOf(timer);
+    if (index >= 0) __otlobliSkuRevealTimers.splice(index, 1);
+  }
+
+  function sheinSuspendSkuReveal() {
+    for (var ti = 0; ti < __otlobliSkuRevealTimers.length; ti++) {
+      try { clearTimeout(__otlobliSkuRevealTimers[ti]); } catch (e) {}
+    }
+    __otlobliSkuRevealTimers = [];
+    // Restore newest-first. Two quick taps on the same group otherwise leave
+    // the second temporary margin as the final value after challenge cleanup.
+    for (var ri = __otlobliSkuScrollRestores.length - 1; ri >= 0; ri--) {
+      var restore = __otlobliSkuScrollRestores[ri];
+      try { if (restore && restore.el) restore.el.style.scrollMarginBottom = restore.prev; } catch (e) {}
+    }
+    __otlobliSkuScrollRestores = [];
+  }
+
+  function sheinScheduleSkuReveal(callback, delay) {
+    if (otlobliProductCapturePausedForChallenge()) return 0;
+    var timer = setTimeout(function () {
+      sheinForgetSkuRevealTimer(timer);
+      if (otlobliProductCapturePausedForChallenge()) {
+        sheinSuspendSkuReveal();
+        return;
+      }
+      callback();
+    }, delay);
+    __otlobliSkuRevealTimers.push(timer);
+    return timer;
+  }
+
   function sheinClearOptionsFromButton(el) {
-    if (!el) return;
+    if (!el || otlobliProductCapturePausedForChallenge()) return;
     var btn = document.getElementById('otlobli-add-btn');
     var top = btn ? btn.getBoundingClientRect().top : innerHeight;
-    var prev = el.style.scrollMarginBottom;
+    var restore = null;
+    for (var ri = 0; ri < __otlobliSkuScrollRestores.length; ri++) {
+      if (__otlobliSkuScrollRestores[ri].el === el) { restore = __otlobliSkuScrollRestores[ri]; break; }
+    }
+    if (!restore) {
+      restore = { el: el, prev: el.style.scrollMarginBottom, timer: 0 };
+      __otlobliSkuScrollRestores.push(restore);
+    } else if (restore.timer) {
+      clearTimeout(restore.timer);
+      sheinForgetSkuRevealTimer(restore.timer);
+    }
     el.style.scrollMarginBottom = (Math.max(0, innerHeight - top) + 26) + 'px';
     try { el.scrollIntoView({ block: 'end' }); } catch (e) {}
-    setTimeout(function () { el.style.scrollMarginBottom = prev; }, 700);
+    restore.timer = sheinScheduleSkuReveal(function () {
+      var index = __otlobliSkuScrollRestores.indexOf(restore);
+      if (index >= 0) __otlobliSkuScrollRestores.splice(index, 1);
+      restore.timer = 0;
+      try { el.style.scrollMarginBottom = restore.prev; } catch (e) {}
+    }, 700);
   }
 
   function sheinRevealSkuOptions(round) {
-    setTimeout(function () {
+    if (otlobliProductCapturePausedForChallenge()) return;
+    sheinScheduleSkuReveal(function () {
       var g = sheinLowestOptionGroup();
       if (!g) { if (round < 5) sheinRevealSkuOptions(round + 1); return; }
       sheinClearOptionsFromButton(g);

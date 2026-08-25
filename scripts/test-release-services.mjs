@@ -5,6 +5,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runInNewContext } from 'node:vm'
 import ts from 'typescript'
+import { evaluateInjectedScriptExports } from './minify-injected-scripts.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const loadTypeScriptModule = (relativePath) => {
@@ -20,6 +21,287 @@ const loadTypeScriptModule = (relativePath) => {
 }
 
 const { parseSafePushPayload } = loadTypeScriptModule('src/services/pushPayload.ts')
+const storeRouting = loadTypeScriptModule('src/domain/storeRouting.ts')
+const { TEMU_DOCUMENT_START_SCRIPT } = loadTypeScriptModule('src/services/temuDocumentStartScript.ts')
+const { TEMU_DOCUMENT_START_CSS } = loadTypeScriptModule('src/services/temuDocumentStartScript.ts')
+
+assert.doesNotThrow(
+  () => new Function(TEMU_DOCUMENT_START_SCRIPT),
+  'Temu document-start policy is not valid emitted JavaScript',
+)
+for (const forbidden of [
+  'MutationObserver', 'setInterval(', "querySelectorAll('*')", 'visualViewport', 'globalThis',
+  "var controls = document.querySelectorAll('button,[role=\"button\"],a",
+]) {
+  assert.equal(
+    TEMU_DOCUMENT_START_SCRIPT.includes(forbidden),
+    false,
+    `Temu document-start policy contains forbidden hot-path work: ${forbidden}`,
+  )
+}
+for (const skuBreakingSelector of [
+  'button[aria-label*="add to cart" i]',
+  '[role="button"][aria-label*="add to cart" i]',
+  'button[class*="addToCart" i]',
+  'button[class*="buyNow" i]',
+]) {
+  assert.equal(
+    TEMU_DOCUMENT_START_SCRIPT.includes(skuBreakingSelector),
+    false,
+    `Temu document-start CSS can hide the real SKU confirmation: ${skuBreakingSelector}`,
+  )
+}
+for (const protectedAriaSelector of [
+  '[aria-label*="cart" i]:not([id^="otlobli"])',
+  '[aria-label*="account" i]:not([id^="otlobli"])',
+  '[aria-label*="سلة"]:not([id^="otlobli"])',
+]) {
+  assert.ok(
+    TEMU_DOCUMENT_START_CSS.includes(protectedAriaSelector),
+    `Temu document-start CSS can hide an Otlobli-owned control: ${protectedAriaSelector}`,
+  )
+}
+for (const marker of [
+  'window.top !== window',
+  'temu\\.com$',
+  'bgn[_-]?verification',
+  "var cookieDelays = [0, 60, 160, 360, 700, 1200, 2000, 3500, 6000, 10000]",
+  'cookieAttempts >= 3',
+  "data-otlobli-temu-cookie-auto-accepted",
+  "document.addEventListener('click'",
+  'insideSkuDialog(control)',
+]) {
+  assert.ok(TEMU_DOCUMENT_START_SCRIPT.includes(marker), `Temu document-start policy missing ${marker}`)
+}
+
+const outsideTemuMetrics = { timers: 0, listeners: 0, domReads: 0 }
+const outsideTemuWindow = {}
+outsideTemuWindow.top = outsideTemuWindow
+runInNewContext(TEMU_DOCUMENT_START_SCRIPT, {
+  window: outsideTemuWindow,
+  location: { hostname: 'temu.com.evil.example', pathname: '/', search: '', hash: '', href: 'https://temu.com.evil.example/' },
+  document: new Proxy({}, { get() { outsideTemuMetrics.domReads++; return undefined } }),
+  setTimeout() { outsideTemuMetrics.timers++; return outsideTemuMetrics.timers },
+  addEventListener() { outsideTemuMetrics.listeners++ },
+  URL,
+})
+assert.deepEqual(outsideTemuMetrics, { timers: 0, listeners: 0, domReads: 0 }, 'Temu document-start policy escaped its exact host')
+
+const challengeMetrics = { timers: 0, listeners: 0, domReads: 0 }
+const challengeWindow = {}
+challengeWindow.top = challengeWindow
+runInNewContext(TEMU_DOCUMENT_START_SCRIPT, {
+  window: challengeWindow,
+  location: { hostname: 'www.temu.com', pathname: '/bgn_verification.html', search: '', hash: '', href: 'https://www.temu.com/bgn_verification.html' },
+  document: new Proxy({}, { get() { challengeMetrics.domReads++; return undefined } }),
+  setTimeout() { challengeMetrics.timers++; return challengeMetrics.timers },
+  addEventListener() { challengeMetrics.listeners++ },
+  URL,
+})
+assert.deepEqual(challengeMetrics, { timers: 0, listeners: 0, domReads: 0 }, 'Temu document-start policy touched a human challenge')
+
+const makeInlineStyle = () => {
+  const values = new Map()
+  return {
+    setProperty(name, value, priority = '') { values.set(name, [String(value), String(priority)]) },
+    removeProperty(name) { values.delete(name) },
+    getPropertyValue(name) { return values.get(name)?.[0] ?? '' },
+    getPropertyPriority(name) { return values.get(name)?.[1] ?? '' },
+  }
+}
+const clickFixture = { listener: null }
+const fixtureRoot = {
+  clientWidth: 384,
+  clientHeight: 740,
+  appendChild() {},
+  contains() { return true },
+  setAttribute() {},
+}
+const clickFixtureDocument = {
+  head: fixtureRoot,
+  documentElement: fixtureRoot,
+  body: {},
+  getElementById() { return null },
+  createElement() { return { id: '', textContent: '' } },
+  querySelectorAll() { return [] },
+  addEventListener(type, listener) { if (type === 'click') clickFixture.listener = listener },
+}
+const clickFixtureWindow = { innerWidth: 384, innerHeight: 740, getComputedStyle() { return null } }
+clickFixtureWindow.top = clickFixtureWindow
+runInNewContext(TEMU_DOCUMENT_START_SCRIPT, {
+  window: clickFixtureWindow,
+  location: { hostname: 'www.temu.com', pathname: '/goods.html', search: '?goods_id=1', hash: '', href: 'https://www.temu.com/goods.html?goods_id=1' },
+  document: clickFixtureDocument,
+  setTimeout() { return 1 },
+  addEventListener() {},
+  URL,
+})
+assert.equal(typeof clickFixture.listener, 'function', 'Temu document-start click policy was not installed')
+const makeControl = (label, { href = '', productBar = false, skuDialog = false } = {}) => {
+  const dialog = { textContent: 'Select size and color' }
+  const control = {
+    id: '', childElementCount: 0, textContent: label,
+    getAttribute(name) {
+      if (name === 'href') return href
+      if (name === 'aria-label') return label
+      return ''
+    },
+    closest(selector) {
+      if (selector === 'a,button,[role="button"]') return control
+      if (selector === '#id-shopping-bar') return productBar ? { id: 'id-shopping-bar' } : null
+      if (selector.includes('[role="dialog"]')) return skuDialog ? dialog : null
+      return null
+    },
+  }
+  return control
+}
+const dispatchGuardedClick = (control) => {
+  const result = { prevented: 0, immediate: 0, stopped: 0 }
+  clickFixture.listener({
+    target: control,
+    preventDefault() { result.prevented++ },
+    stopImmediatePropagation() { result.immediate++ },
+    stopPropagation() { result.stopped++ },
+  })
+  return result
+}
+assert.equal(dispatchGuardedClick(makeControl('Leather shopping bag', { href: '/goods.html?goods_id=2' })).prevented, 0,
+  'A legitimate Temu product name was mistaken for the cart')
+assert.equal(dispatchGuardedClick(makeControl('Cart', { href: '/cart.html' })).prevented, 1,
+  'A genuine Temu cart link was not blocked at document-start')
+assert.equal(dispatchGuardedClick(makeControl('Add to cart')).prevented, 0,
+  'A generic or hashed SKU confirmation was blocked without page-bar proof')
+assert.equal(dispatchGuardedClick(makeControl('Add to cart', { productBar: true })).prevented, 1,
+  'The observed Temu page-level shopping bar was not blocked')
+assert.equal(dispatchGuardedClick(makeControl('Add to cart', { productBar: true, skuDialog: true })).prevented, 0,
+  'The real SKU dialog confirmation was blocked')
+
+const cookieTimers = []
+let cookieAttached = true
+let cookieClicks = 0
+const cookieMarker = { value: '' }
+const cookiePageStyle = makeInlineStyle()
+const cookieScope = {
+  id: 'temu-cookie-consent', className: 'cookie-banner', textContent: 'We use cookies. Accept all',
+  style: makeInlineStyle(), parentElement: null,
+  getAttribute(name) { return name === 'role' ? 'dialog' : '' },
+  setAttribute() {}, removeAttribute() {},
+}
+const cookieControl = {
+  id: 'onetrust-accept-btn-handler', className: '', textContent: 'Accept all', value: '',
+  style: makeInlineStyle(), parentElement: cookieScope,
+  getAttribute(name) { return name === 'aria-label' ? 'Accept all' : '' },
+  click() { cookieClicks++; cookieAttached = false },
+}
+const cookieDocumentElement = {
+  clientWidth: 384, clientHeight: 740, style: cookiePageStyle,
+  appendChild() {},
+  contains(node) { return node === cookieDocumentElement || cookieAttached },
+  setAttribute(name, value) { cookieMarker.value = `${name}:${value}` },
+}
+const cookieDocument = {
+  head: cookieDocumentElement, documentElement: cookieDocumentElement, body: { style: cookiePageStyle },
+  getElementById() { return null },
+  createElement() { return { id: '', textContent: '' } },
+  addEventListener() {},
+  querySelectorAll(selector) {
+    if (selector.includes('#challenge-form')) return []
+    if (selector.includes('#onetrust-accept-btn-handler')) return [cookieControl]
+    return []
+  },
+}
+const cookieWindow = { innerWidth: 384, innerHeight: 740, getComputedStyle() { return null } }
+cookieWindow.top = cookieWindow
+runInNewContext(TEMU_DOCUMENT_START_SCRIPT, {
+  window: cookieWindow,
+  location: { hostname: 'www.temu.com', pathname: '/', search: '', hash: '', href: 'https://www.temu.com/' },
+  document: cookieDocument,
+  setTimeout(callback, delay) { cookieTimers.push({ callback, delay }); return cookieTimers.length },
+  addEventListener() {},
+  URL,
+})
+cookieTimers.find(({ delay }) => delay === 0)?.callback()
+assert.equal(cookieClicks, 1, 'The exact Temu cookie acceptance was not activated')
+assert.equal(cookiePageStyle.getPropertyValue('visibility'), '', 'Cookie automation hid the entire page')
+cookieTimers.find(({ delay }) => delay === 450)?.callback()
+assert.equal(cookieMarker.value, 'data-otlobli-temu-cookie-auto-accepted:1', 'Cookie acceptance completion was not recorded')
+
+assert.equal(storeRouting.storeIdentityFromUrl('https://www.temu.com/sa/goods.html?goods_id=1'), 'temu')
+assert.equal(storeRouting.storeIdentityFromUrl('https://m.shein.com/ar/product-p-1.html'), 'shein')
+for (const unrelatedUrl of [
+  'https://temu.com.evil.example/product',
+  'https://nottemu.example/product',
+  'https://shein.evil.example/product',
+]) {
+  assert.equal(storeRouting.storeIdentityFromUrl(unrelatedUrl), undefined, `Store host false-positive: ${unrelatedUrl}`)
+}
+assert.equal(storeRouting.resolveStoreMessageIdentity('shein', 'https://www.temu.com/goods.html', 'shein'), 'temu')
+assert.equal(storeRouting.resolveStoreMessageIdentity('temu', '', 'shein'), 'temu')
+assert.equal(storeRouting.resolveStoreMessageIdentity(undefined, '', 'shein'), 'shein')
+assert.equal(storeRouting.canReuseStandardStoreSession('shein', 'shein', null, false), true)
+assert.equal(storeRouting.canReuseStandardStoreSession('shein', 'shein', 'shein', true), true)
+assert.equal(storeRouting.canReuseStandardStoreSession('shein', 'shein', 'temu', true), false)
+assert.equal(storeRouting.canReuseStandardStoreSession('temu', 'shein', 'temu', true), false)
+assert.equal(storeRouting.isCurrentStandardStoreEvent({ store: 'shein', sessionId: 7, id: 'A' }, 7, 'A'), true)
+assert.equal(storeRouting.isCurrentStandardStoreEvent({ store: 'shein', sessionId: 7, id: 'A' }, 8, 'A'), false)
+assert.equal(storeRouting.isCurrentStandardStoreEvent({ store: 'temu', sessionId: 8 }, 8, 'A'), false)
+assert.equal(storeRouting.isCurrentStandardStoreEvent({ store: 'temu', sessionId: 8, id: 'B' }, 8, 'A'), false)
+assert.equal(storeRouting.isCurrentStandardStoreEvent(null, 8, 'A'), false)
+assert.equal(storeRouting.canAdoptOpeningStandardStoreEvent(
+  { store: 'temu', sessionId: 9 }, 9, 'C', 'temu', false, true, false, false,
+), true)
+assert.equal(storeRouting.canAdoptOpeningStandardStoreEvent(
+  { store: 'temu', sessionId: 9 }, 9, 'C', 'shein', false, true, false, false,
+), false)
+assert.equal(storeRouting.canAdoptOpeningStandardStoreEvent(
+  { store: 'temu', sessionId: 9 }, 8, 'C', 'temu', false, true, false, false,
+), false)
+assert.equal(storeRouting.canAdoptOpeningStandardStoreEvent(
+  { store: 'temu', sessionId: 9, id: 'B' }, 9, 'C', 'temu', false, true, false, false,
+), false)
+assert.equal(storeRouting.canAdoptOpeningStandardStoreEvent(
+  { store: 'temu', sessionId: 9 }, 9, 'C', 'temu', true, true, false, false,
+), false)
+assert.equal(storeRouting.canAdoptOpeningStandardStoreEvent(
+  { store: 'temu', sessionId: 9 }, 9, 'C', 'temu', false, false, false, false,
+), false)
+assert.equal(storeRouting.canAdoptOpeningStandardStoreEvent(
+  { store: 'temu', sessionId: 9 }, 9, 'C', 'temu', false, true, true, false,
+), false)
+assert.equal(storeRouting.canAdoptOpeningStandardStoreEvent(
+  { store: 'temu', sessionId: 9 }, 9, 'C', 'temu', false, true, false, true,
+), false)
+const correctlyBucketedCarts = {
+  shein: [{ id: 's', sourceLink: 'https://m.shein.com/ar/product-p-1.html' }],
+  temu: [{ id: 't', sourceLink: 'https://www.temu.com/sa/goods.html?goods_id=1' }],
+}
+assert.equal(storeRouting.repairStoreCartBuckets(correctlyBucketedCarts), correctlyBucketedCarts)
+const misbucketedCarts = {
+  shein: [
+    { id: 'wrong-temu', sourceLink: 'https://www.temu.com/sa/goods.html?goods_id=2' },
+    { id: 'unknown', sourceLink: 'https://merchant.example/item' },
+  ],
+  temu: [
+    { id: 'wrong-shein', sourceLink: 'https://m.shein.com/ar/product-p-2.html' },
+    { id: 'unknown-temu', sourceLink: 'https://merchant.example/temu-in-path' },
+  ],
+  legacy: [{ id: 'preserved' }],
+}
+const misbucketedSnapshot = JSON.stringify(misbucketedCarts)
+const repairedCarts = storeRouting.repairStoreCartBuckets(misbucketedCarts)
+assert.equal(JSON.stringify(misbucketedCarts), misbucketedSnapshot, 'Cart repair must not mutate persisted input')
+assert.equal(JSON.stringify(repairedCarts), JSON.stringify({
+  shein: [
+    { id: 'unknown', sourceLink: 'https://merchant.example/item' },
+    { id: 'wrong-shein', sourceLink: 'https://m.shein.com/ar/product-p-2.html' },
+  ],
+  temu: [
+    { id: 'wrong-temu', sourceLink: 'https://www.temu.com/sa/goods.html?goods_id=2' },
+    { id: 'unknown-temu', sourceLink: 'https://merchant.example/temu-in-path' },
+  ],
+  legacy: [{ id: 'preserved' }],
+}))
+assert.equal(storeRouting.repairStoreCartBuckets(repairedCarts), repairedCarts, 'Cart repair must be idempotent')
 
 assert.equal(JSON.stringify(
   parseSafePushPayload({ version: 1, type: 'order_update', route: 'orders/details', entityId: 'ORD-42' }),
@@ -208,6 +490,8 @@ const routeCases = [
   ['https://m.shein.com/ar/search?search=dress', 'search'],
   ['https://m.shein.com/ar/Solid-Dress-p-123456.html', 'product'],
   ['https://m.shein.com/user/login', 'blocked-login'],
+  ['https://m.shein.com/auth', 'blocked-login'],
+  ['https://m.shein.com/user/auth', 'blocked-login'],
   ['https://m.shein.com/user/register', 'blocked-signup'],
   ['https://m.shein.com/user/profile', 'blocked-account'],
   ['https://m.shein.com/country', 'blocked-country'],
@@ -216,6 +500,8 @@ const routeCases = [
   ['https://m.shein.com/language', 'blocked-language'],
   ['https://m.shein.com/cart', 'blocked-checkout'],
   ['https://m.shein.com/captcha/verify', 'human-verification'],
+  ['https://m.shein.com/captcha.html', 'human-verification'],
+  ['https://m.shein.com/verify-session', 'human-verification'],
 ]
 for (const [url, expected] of routeCases) {
   assert.equal(policy.classifySheinRoute(url), expected, `Unexpected SHEIN route policy for ${url}`)
@@ -227,7 +513,7 @@ assert.equal((policyScript.match(/new MutationObserver/g) ?? []).length, 1, 'Pol
 for (const forbidden of ["addEventListener('click'", "addEventListener('pointer", 'preventDefault(', 'window.fetch=', 'XMLHttpRequest.prototype', 'console.error=', 'history.pushState']) {
   assert.ok(!policyScript.includes(forbidden), `Policy contains forbidden global interception: ${forbidden}`)
 }
-for (const required of ['installCount:1', 'MAX_ROOTS=96', 'MAX_NODES_PER_ROOT=320', 'data-otlobli-capture-owned', "document.getElementById('otlobli-region-switching')", ".closest('.sui-drawer.cascade')", 'human-verification', 'duplicate-install']) {
+for (const required of ['installCount:1', 'MAX_ROOTS=96', 'MAX_NODES_PER_ROOT=320', 'data-otlobli-capture-owned', "document.getElementById('otlobli-region-switching')", ".closest('.sui-drawer.cascade')", 'human-verification', 'challenge-pass-through', 'function paintedChallenge()', 'state.pause=pause;state.resume=install', 'duplicate-install']) {
   assert.ok(policyScript.includes(required), `Policy missing bounded/idempotent marker: ${required}`)
 }
 
@@ -254,6 +540,11 @@ assert.equal(coordinator.isSheinCoordinatorReady(browseReady), false, 'Signed re
 assert.equal(coordinator.isSheinCoordinatorVisuallyReady(browseReady), true, 'The v86.71 flow must release safe browsing while signed region repair continues')
 assert.equal(coordinator.isSheinCoordinatorVisuallyReady({ ...browseReady, currencyState: 'mismatch' }), false)
 assert.equal(coordinator.isSheinCoordinatorVisuallyReady({ ...browseReady, humanVerificationState: 'required' }), false)
+assert.equal(
+  coordinator.isSheinCoordinatorReady({ ...state, humanVerificationState: 'required' }),
+  false,
+  'A painted human-verification surface must never consume the queued product URL',
+)
 
 let mismatch = coordinator.createSheinRegionCoordinator(requiredRegion)
 mismatch = coordinator.transitionSheinRegionCoordinator(mismatch, { type: 'OPEN', required: requiredRegion })
@@ -275,6 +566,449 @@ challenge = coordinator.transitionSheinRegionCoordinator(challenge, { type: 'HUM
 assert.equal(challenge.phase, 'HUMAN_VERIFICATION')
 assert.equal(challenge.humanVerificationState, 'required')
 
+let resolvedChallenge = coordinator.transitionSheinRegionCoordinator(state, { type: 'HUMAN_VERIFICATION_REQUIRED' })
+resolvedChallenge = coordinator.transitionSheinRegionCoordinator(resolvedChallenge, { type: 'HUMAN_VERIFICATION_RESOLVED' })
+assert.equal(coordinator.isSheinCoordinatorReady(resolvedChallenge), false, 'Resolution status alone is not product readiness')
+resolvedChallenge = coordinator.transitionSheinRegionCoordinator(resolvedChallenge, {
+  type: 'SNAPSHOT', snapshot: { captureState: 'ready' },
+})
+assert.equal(coordinator.isSheinCoordinatorReady(resolvedChallenge), false, 'An incomplete post-challenge snapshot must not release a queued product')
+resolvedChallenge = coordinator.transitionSheinRegionCoordinator(resolvedChallenge, {
+  type: 'SNAPSHOT', snapshot: {
+    documentGeneration: 'fresh-document', countryState: 'matching', regionState: 'matching',
+    currencyState: 'matching', languageState: 'matching', loginState: 'not-required',
+    humanVerificationState: 'none', policyState: 'verified', captureState: 'ready', interactive: true,
+  },
+})
+assert.equal(coordinator.isSheinCoordinatorReady(resolvedChallenge), true, 'Only a complete fresh snapshot may restore product readiness')
+
+const appSource = readFileSync(resolve(root, 'src/App.tsx'), 'utf8')
+const sheinResolvedStart = appSource.indexOf('// Android may complete the genuine challenge')
+const sheinResolvedEnd = appSource.indexOf("if (detail?.type === 'humanCheckSkipped')", sheinResolvedStart)
+const sheinResolvedBranch = appSource.slice(sheinResolvedStart, sheinResolvedEnd)
+assert.ok(sheinResolvedStart >= 0 && sheinResolvedEnd > sheinResolvedStart, 'SHEIN resolved-message branch is missing')
+for (const forbidden of [
+  'sheinChallengeActiveRef.current = false', "pendingProductUrlRef.current = ''",
+  'markStoreWebviewReadyRef', 'navigateStoreWebviewInPage',
+  'revealPreparedProductIfReady', 'clearPendingProductPreparation',
+]) {
+  assert.ok(!sheinResolvedBranch.includes(forbidden), `SHEIN resolved status consumed navigation too early: ${forbidden}`)
+}
+const challengeSnapshotStart = appSource.indexOf("if (messageStore === 'shein' && sheinChallengeActiveRef.current)")
+const challengeSnapshotEnd = appSource.indexOf("const next = transitionSheinCoordinator", challengeSnapshotStart)
+const challengeSnapshotGate = appSource.slice(challengeSnapshotStart, challengeSnapshotEnd)
+for (const required of [
+  '!snapshotDocumentGeneration', "snapshot.captureState !== 'ready'",
+  "snapshot.humanVerificationState !== 'none'", 'sheinChallengeDocumentGenerationRef.current',
+  'sameResolvedDocument', 'freshSnapshotDocument', 'resolvedUnknownDocument',
+  'trustedFreshUnknownDocument', 'sheinChallengeStartedAtRef.current',
+]) {
+  assert.ok(challengeSnapshotGate.includes(required), `Post-challenge document gate missing ${required}`)
+}
+
+const loadedEffectStart = appSource.indexOf("const loadedHandle = InAppBrowser.addListener('browserPageLoaded'")
+const temuLoadedStart = appSource.indexOf("if (activeStore === 'temu') {", loadedEffectStart)
+const temuLoadedEnd = appSource.indexOf('markStoreWebviewReadyRef.current', temuLoadedStart)
+const temuLoadedBranch = appSource.slice(temuLoadedStart, temuLoadedEnd)
+assert.ok(loadedEffectStart >= 0 && temuLoadedStart > loadedEffectStart, 'Temu browserPageLoaded branch is missing')
+assert.ok(!temuLoadedBranch.includes('pendingProductPageLoadedRef.current = true'), 'Temu native page-load raced queued product readiness')
+
+const temuHumanStart = appSource.indexOf('// Preserve the existing behavior for any non-SHEIN verification page.')
+const temuHumanEnd = appSource.indexOf("if (detail?.type === 'humanCheckResolved')", temuHumanStart)
+const temuHumanBranch = appSource.slice(temuHumanStart, temuHumanEnd)
+assert.ok(temuHumanStart >= 0 && temuHumanEnd > temuHumanStart, 'Temu human-check branch is missing')
+assert.ok(!temuHumanBranch.includes('markStoreWebviewReadyRef.current'), 'Temu challenge consumed the queued product URL')
+assert.ok(temuHumanBranch.includes('pendingProductRevealRef.current'), 'Temu challenge does not detect a queued product')
+assert.ok(!temuHumanBranch.includes('pendingProductNavigationRequestedRef.current'), 'Temu challenge remains hidden before queued PDP navigation starts')
+for (const forbidden of ['pendingProductPageLoadedRef.current = true', 'pendingProductVisualReadyRef.current = true', 'revealPreparedProductIfReady()']) {
+  assert.ok(!temuHumanBranch.includes(forbidden), `Temu verification incorrectly completes product preparation via ${forbidden}`)
+}
+for (const required of ['pendingProductVerificationSeenRef.current = true', 'pausePendingProductPreparationTimeout()', 'revealPendingProductVerification()']) {
+  assert.ok(temuHumanBranch.includes(required), `Temu verification does not preserve queued product via ${required}`)
+}
+assert.ok(temuHumanBranch.includes('sheinChallengeResolutionReportedRef.current = false'), 'A later Temu challenge can inherit an old resolved state')
+const sheinHumanStart = appSource.indexOf("if (detail?.type === 'humanCheck') {")
+const sheinHumanEnd = appSource.indexOf('// Preserve the existing behavior for any non-SHEIN verification page.', sheinHumanStart)
+const sheinHumanBranch = appSource.slice(sheinHumanStart, sheinHumanEnd)
+assert.ok(sheinHumanStart >= 0 && sheinHumanEnd > sheinHumanStart, 'SHEIN human-check branch is missing')
+assert.ok(sheinHumanBranch.includes('pendingProductRevealRef.current'), 'SHEIN challenge does not detect a queued product')
+assert.ok(!sheinHumanBranch.includes('pendingProductNavigationRequestedRef.current'), 'SHEIN challenge remains hidden before queued PDP navigation starts')
+for (const required of ['pendingProductVerificationSeenRef.current = true', 'pausePendingProductPreparationTimeout()', 'revealPendingProductVerification()']) {
+  assert.ok(sheinHumanBranch.includes(required), `SHEIN verification does not preserve queued product via ${required}`)
+}
+const verificationRevealStart = appSource.indexOf('const revealPendingProductVerification =')
+const verificationRevealEnd = appSource.indexOf('const markStoreWebviewReady =', verificationRevealStart)
+const verificationRevealBranch = appSource.slice(verificationRevealStart, verificationRevealEnd)
+assert.ok(verificationRevealBranch.includes('if (!pendingProductRevealRef.current) return false'), 'Queued verification reveal is not keyed to the pending product')
+assert.ok(!verificationRevealBranch.includes('pendingProductNavigationRequestedRef.current'), 'Queued verification reveal still waits for PDP navigation')
+for (const required of ['InAppBrowser.show()', 'postWebviewChromeState(returnTarget)']) {
+  assert.ok(verificationRevealBranch.includes(required), `Hidden pending verification is not visibly handed off via ${required}`)
+}
+for (const forbidden of ['clearPendingProductPreparation()', 'sheinReadyRef.current = true', 'pendingBackTargetRef.current =']) {
+  assert.ok(!verificationRevealBranch.includes(forbidden), `Verification reveal consumes pending state via ${forbidden}`)
+}
+
+const temuReadyStart = appSource.indexOf("if (detail?.type === 'temuPublicReady')")
+const temuReadyEnd = appSource.indexOf("if (detail?.type === 'humanCheck')", temuReadyStart)
+const temuReadyBranch = appSource.slice(temuReadyStart, temuReadyEnd)
+assert.ok(temuReadyStart >= 0 && temuReadyEnd > temuReadyStart, 'Temu stable public-readiness hand-off is missing')
+for (const marker of ['sheinChallengeActiveRef.current', 'sameTemuProductNavigation', 'markStoreWebviewReadyRef.current', 'readyDocumentGeneration', 'challengeDocumentGeneration']) {
+  assert.ok(temuReadyBranch.includes(marker), `Temu stable public-readiness missing ${marker}`)
+}
+for (const marker of ['prepareVerifiedProductRetry', 'markStoreWebviewReadyRef.current']) {
+  assert.ok(temuReadyBranch.includes(marker), `Verified Temu product retry missing ${marker}`)
+}
+for (const marker of [
+  'sameResolvedDocument',
+  'freshReadyDocument',
+  'resolvedUnknownDocument',
+  'trustedFreshUnknownDocument',
+  'sheinChallengeStartedAtRef.current',
+  'isNewerStoreDocumentGeneration',
+  'currentUrlMatchesMessage = true',
+]) {
+  assert.ok(temuReadyBranch.includes(marker), `Temu public hand-off generation gate missing ${marker}`)
+}
+
+const temuProductStart = appSource.indexOf("if (detail?.type === 'temuProductVisible')")
+const temuProductEnd = appSource.indexOf("if (detail?.type === 'sheinSaudiReady'", temuProductStart)
+const temuProductBranch = appSource.slice(temuProductStart, temuProductEnd)
+for (const marker of [
+  'productDocumentGeneration',
+  'sameResolvedDocument',
+  'freshProductDocument',
+  'resolvedUnknownDocument',
+  'trustedFreshUnknownDocument',
+  'sheinChallengeStartedAtRef.current',
+  'isNewerStoreDocumentGeneration',
+  'sheinChallengeResolutionReportedRef.current',
+  'sheinChallengeActiveRef.current = false',
+  'sameTemuProductNavigation',
+]) {
+  assert.ok(temuProductBranch.includes(marker), `Temu PDP challenge hand-off missing ${marker}`)
+}
+for (const marker of [
+  'const storeDocumentGenerationTimestamp =',
+  "Number.parseInt(prefix, 36)",
+  'const isNewerStoreDocumentGeneration =',
+  'candidateTime > baselineTime',
+]) {
+  assert.ok(appSource.includes(marker), `Ordered document-generation guard missing ${marker}`)
+}
+assert.ok(
+  temuProductBranch.indexOf('if (sheinChallengeActiveRef.current)') <
+    temuProductBranch.indexOf('if (pendingProductRevealRef.current)'),
+  'Temu PDP can release the challenge gate only when a cart/order queue exists',
+)
+
+const resolvedMessageStart = appSource.indexOf("if (detail?.type === 'humanCheckResolved')")
+const temuResolvedEnd = appSource.indexOf('// Android may complete the genuine challenge', resolvedMessageStart)
+const temuResolvedBranch = appSource.slice(resolvedMessageStart, temuResolvedEnd)
+for (const marker of [
+  'if (!sheinChallengeActiveRef.current) return',
+  'resolvedDocumentGeneration',
+  'sheinChallengeResolutionReportedRef.current = true',
+  'armPendingProductPreparationTimeout()',
+]) {
+  assert.ok(temuResolvedBranch.includes(marker), `Temu resolved-message settlement gate missing ${marker}`)
+}
+for (const forbidden of [
+  'sheinChallengeActiveRef.current = false',
+  "sheinChallengeDocumentGenerationRef.current = ''",
+  'markStoreWebviewReadyRef.current',
+  'revealPreparedProductIfReady()',
+]) {
+  assert.ok(!temuResolvedBranch.includes(forbidden), `Temu resolved message released the host gate too early via ${forbidden}`)
+}
+assert.ok(appSource.includes('pendingProductUrl && !pendingProductNavigationRequestedRef.current'), 'Ready hand-off can navigate the same queued product twice')
+assert.ok(appSource.includes('pendingProductNavigationAttemptRef.current += 1'), 'Queued product retry is not bounded by navigation attempts')
+assert.ok(appSource.includes('if (!expectedUrl || !visibleUrl) return false'), 'Missing Temu product URL can still complete a queued PDP')
+assert.match(appSource, /bgn\[_-\]\?verification/, 'Host challenge URL detector misses Temu bgn_verification')
+assert.ok(appSource.includes('SHEIN_CHALLENGE_PATH_RE.test(pathname)'), 'Temu region redirect can rewrite a verification route')
+assert.ok(appSource.includes('if (isStoreHumanChallengeUrl(url)) {'), 'Temu host does not enter challenge state at the URL boundary')
+const verifiedRetryStart = appSource.indexOf('const prepareVerifiedProductRetry =')
+const verifiedRetryEnd = appSource.indexOf('const revealPreparedProductIfReady =', verifiedRetryStart)
+const verifiedRetryBranch = appSource.slice(verifiedRetryStart, verifiedRetryEnd)
+for (const marker of ['pendingProductNavigationAttemptRef.current >= 2', 'sameTemuProductNavigation', 'sameSheinProductNavigation', 'pendingProductUrlRef.current = queuedProductUrl']) {
+  assert.ok(verifiedRetryBranch.includes(marker), `Verified product retry contract missing ${marker}`)
+}
+const revealPreparedStart = appSource.indexOf('const revealPreparedProductIfReady =')
+const revealPreparedEnd = appSource.indexOf('const revealPendingProductVerification =', revealPreparedStart)
+assert.ok(appSource.slice(revealPreparedStart, revealPreparedEnd).includes('sameSheinProductNavigation'), 'SHEIN Home/challenge page can complete a queued PDP')
+
+const fallbackStart = appSource.indexOf("const startFallback = InAppBrowser.addListener('urlChangeEvent'")
+const fallbackEnd = appSource.indexOf('return () => {', fallbackStart)
+const fallbackBranch = appSource.slice(fallbackStart, fallbackEnd)
+assert.ok(fallbackStart >= 0 && fallbackEnd > fallbackStart, 'Native opening fallback is missing')
+assert.ok(fallbackBranch.includes("navigationOwner?.store !== 'shein'") &&
+  fallbackBranch.includes('navigationOwner.sessionId !== webviewSessionRef.current'),
+'Temu or a stale session can still arm the fixed readiness fallback')
+assert.ok(!fallbackBranch.includes('markStoreWebviewReadyRef.current'), 'Fixed timeout can still consume queued store navigation')
+assert.ok(fallbackBranch.includes('sheinChallengeActiveRef.current'), 'SHEIN bypass fallback is not challenge-gated')
+
+const humanCheckSource = readFileSync(resolve(root, 'src/services/sheinHumanCheck.ts'), 'utf8')
+assert.ok(!humanCheckSource.includes('challengeScanGap'), 'Human-check negative scan cache returned')
+assert.ok(humanCheckSource.includes('otlobliSuspendSheinShippingProgressForChallenge'), 'Challenge entry does not cancel region repair')
+assert.ok(humanCheckSource.includes('otlobliSuspendProductCaptureForChallenge'), 'Challenge entry does not cancel product capture')
+assert.ok(humanCheckSource.includes('otlobliSuspendTemuRuntimeForChallenge'), 'Challenge entry does not suspend Temu-owned surfaces')
+
+const runtimeSource = readFileSync(resolve(root, 'src/services/storeRuntimeCoordinator.ts'), 'utf8')
+assert.ok(runtimeSource.indexOf('if (otlobliGuardHumanChallenge())') < runtimeSource.indexOf('if (now >= otlobliMainDue)'), 'Every coordinator wake must guard challenge before due lanes')
+const hiddenBranchStart = runtimeSource.indexOf('if (document.hidden) {', runtimeSource.indexOf('function runOtlobliCoordinator'))
+const hiddenBranchEnd = runtimeSource.indexOf('\n    }', hiddenBranchStart)
+assert.ok(!runtimeSource.slice(hiddenBranchStart, hiddenBranchEnd).includes('scheduleOtlobliCoordinator()'), 'Hidden store document still polls in the background')
+
+const sessionSource = readFileSync(resolve(root, 'src/services/sheinSessionScript.ts'), 'utf8')
+assert.match(sessionSource, /bgn\[_-\]\?verification/, 'Injected challenge URL detector misses Temu bgn_verification')
+assert.ok(sessionSource.includes('function otlobliSuspendSheinShippingProgressForChallenge'), 'Shipping challenge cleanup is missing')
+assert.ok(sessionSource.includes('if (otlobliInterventionPausedForHumanChallenge()) return;\n      try { ensureSheinSaudiShippingSelection();'), 'Deferred shipping repair is not challenge-guarded')
+assert.equal((sessionSource.match(/setTimeout\(function \(\) \{\n        if \(otlobliInterventionPausedForHumanChallenge\(\)\) return;/g) || []).length, 2, 'Shipping marker timers are not challenge-guarded')
+const shippingTouchStart = sessionSource.indexOf("document.addEventListener('touchmove'")
+const shippingTouchEnd = sessionSource.indexOf("}, { capture: true, passive: false });", shippingTouchStart)
+assert.ok(sessionSource.slice(shippingTouchStart, shippingTouchEnd).includes('otlobliInterventionPausedForHumanChallenge()'), 'Shipping touch guard can swallow fresh challenge input')
+const sessionBootstrapStart = sessionSource.indexOf("if (IS_SHEIN && otlobliScriptEnabled('session') && !OTLOBLI_DIRECT_HUMAN_CHALLENGE")
+const sessionBootstrapEnd = sessionSource.indexOf('// Current Temu routing', sessionBootstrapStart)
+const sessionBootstrapBranch = sessionSource.slice(sessionBootstrapStart, sessionBootstrapEnd)
+assert.ok(sessionBootstrapBranch.includes('!otlobliIsHumanChallenge()'), 'SHEIN bootstrap can normalize route/DOM over an SPA challenge')
+assert.ok(sessionBootstrapBranch.indexOf('!otlobliIsHumanChallenge()') < sessionBootstrapBranch.indexOf('history.replaceState'), 'SHEIN bootstrap challenge gate runs after route mutation')
+
+const policySource = readFileSync(resolve(root, 'src/services/sheinPolicyEngine.ts'), 'utf8')
+for (const marker of ['#one-pass-custom', '#nine-captcha-custom', '.si-verify-block-request-dialog', "removeChild(policyStyle)"]) {
+  assert.ok(policySource.includes(marker), `SHEIN policy challenge isolation missing ${marker}`)
+}
+
+const temuRuntimeSource = readFileSync(resolve(root, 'src/services/temuBrowserScript.ts'), 'utf8')
+assert.ok(temuRuntimeSource.includes("if (window.__otlobliNativeNavigation === true) return;"), 'Native Temu still rewrites viewport metadata')
+assert.ok(temuRuntimeSource.includes("type: 'temuPublicReady'"), 'Temu public readiness signal is missing')
+assert.ok(temuRuntimeSource.indexOf('if (__otlobliTemuPublicReadyPostedKey === key) return;') < temuRuntimeSource.indexOf("document.body.textContent || ''"), 'Stable Temu public page still rereads full body text every tick')
+assert.ok(!temuRuntimeSource.includes("querySelectorAll('a,button,[role=\"button\"],div,span,i')"), 'Temu search still scans every generic element each tick')
+assert.ok(!temuRuntimeSource.includes("'a,button,[role=\"button\"],[role=\"dialog\"]"), 'Temu blocker cleanup still scans every anchor and button')
+assert.ok(!temuRuntimeSource.includes('function hideTemuHeaderIconsByProbe()'), 'Dead full-DOM Temu header probe returned')
+assert.ok(temuRuntimeSource.includes('shopping\\\\s*bag|\\\\bbag\\\\b|account'), 'Temu category text can still collide with the bag blocker')
+for (const marker of [
+  "OTLOBLI_TEMU_OWNED_STYLE_ATTR = 'data-otlobli-temu-owned-style'",
+  'otlobliRestoreTemuInlineStyles(owned',
+  '[data-otlobli-blocked="1"],[data-otlobli-temu-pinned-header="1"]',
+  '[data-otlobli-temu-search-restored="1"]',
+  "document.body.removeAttribute('data-otlobli-temu-search-mode')",
+  'var cacheGap = routeAge > 3000',
+  'OTLOBLI_LOW_END ? 3200 : 1800',
+  'OTLOBLI_LOW_END ? 8000 : 4500',
+]) {
+  assert.ok(temuRuntimeSource.includes(marker), `Temu reversible/performance guard missing ${marker}`)
+}
+assert.ok(!temuRuntimeSource.includes("style.overflow = ''"), 'Temu cleanup still clears a store/CAPTCHA-owned scroll lock')
+
+const temuRuntime = evaluateInjectedScriptExports('src/services/temuBrowserScript.ts').TEMU_BROWSER_SCRIPT
+const temuProductActionsStart = temuRuntime.indexOf('function otlobliSyncTemuProductRouteState()')
+const temuProductActionsEnd = temuRuntime.indexOf('function otlobliTemuAccountPanelScore(', temuProductActionsStart)
+assert.ok(temuProductActionsStart >= 0 && temuProductActionsEnd > temuProductActionsStart, 'Temu bounded PDP action blocker runtime is missing')
+const temuProductActionsRuntime = temuRuntime.slice(temuProductActionsStart, temuProductActionsEnd)
+for (const marker of [
+  'data-otlobli-temu-product-route',
+  'data-otlobli-temu-product-action-hidden',
+  'document.elementsFromPoint',
+  'ei < exact.length && ei < 48',
+  'pi < stack.length && pi < 8',
+  'temuProductOptionDialog(el)',
+  'otlobliInterventionPausedForHumanChallenge()',
+]) {
+  assert.ok(temuProductActionsRuntime.includes(marker), `Temu PDP action isolation missing ${marker}`)
+}
+assert.ok(!temuProductActionsRuntime.includes("querySelectorAll('button,[role=\"button\"],a,[tabindex=\"0\"],div,span')"), 'Temu PDP action blocker regressed to a full-page interactive scan')
+assert.ok(runtimeSource.indexOf('hideTemuAccountSurfaces();') < runtimeSource.indexOf('ensureAddToCartButton(true);'), 'Temu guest sign-in is not hidden before the Otlobli action appears')
+assert.ok(runtimeSource.indexOf('hideTemuNativeProductActions();') < runtimeSource.indexOf('ensureAddToCartButton(true);'), 'Temu native purchase action is not hidden before the Otlobli action appears')
+
+const makeTemuActionFixtureNode = ({ id = '', text = '', className = '', top = 650, bottom = 704, inSkuDialog = false } = {}) => {
+  const attributes = new Map()
+  const styleWrites = []
+  return {
+    id,
+    textContent: text,
+    className,
+    tagName: 'BUTTON',
+    childElementCount: 0,
+    parentElement: null,
+    inSkuDialog,
+    styleWrites,
+    style: { setProperty: (...args) => styleWrites.push(args) },
+    getAttribute(name) { return attributes.get(name) ?? '' },
+    setAttribute(name, value) { attributes.set(name, String(value)) },
+    removeAttribute(name) { attributes.delete(name) },
+    hasAttribute(name) { return attributes.has(name) },
+    querySelector: () => null,
+    closest(selector) { return selector === '[id^="otlobli"]' && this.id.startsWith('otlobli') ? this : null },
+    getBoundingClientRect: () => ({ left: 12, right: 332, width: 320, height: bottom - top, top, bottom }),
+  }
+}
+const temuFixtureBody = { tagName: 'BODY' }
+const temuProductAdd = makeTemuActionFixtureNode({ text: 'أضف إلى السلة' })
+const temuProductLogin = makeTemuActionFixtureNode({ text: 'تسجيل الدخول', className: 'signInBtn-liveHash' })
+const otlobliProductAdd = makeTemuActionFixtureNode({ id: 'otlobli-add-btn', text: 'أضف للسلة' })
+const temuSkuConfirm = makeTemuActionFixtureNode({ text: 'Add to cart', inSkuDialog: true })
+const temuMiddleCopy = makeTemuActionFixtureNode({ text: 'Add to cart tips', top: 320, bottom: 370 })
+const temuFixtureNodes = [temuProductAdd, temuProductLogin, otlobliProductAdd, temuSkuConfirm, temuMiddleCopy]
+for (const node of temuFixtureNodes) node.parentElement = temuFixtureBody
+const rootAttributes = new Map()
+let temuFixtureProductRoute = true
+let temuFixtureAccountRoute = false
+let temuFixtureChallenge = false
+let restoredTemuActions = 0
+const temuActionFixture = {
+  IS_TEMU: true,
+  Math,
+  String,
+  location: { pathname: '/goods.html', search: '?goods_id=12345' },
+  document: {
+    body: temuFixtureBody,
+    documentElement: {
+      setAttribute: (name, value) => rootAttributes.set(name, String(value)),
+      removeAttribute: (name) => rootAttributes.delete(name),
+    },
+    querySelectorAll: (selector) => selector === '[data-otlobli-temu-product-action-hidden="1"]'
+      ? temuFixtureNodes.filter((node) => node.hasAttribute('data-otlobli-temu-product-action-hidden'))
+      : [],
+    elementsFromPoint: () => temuFixtureNodes,
+  },
+  looksLikeProductPage: () => temuFixtureProductRoute,
+  otlobliTemuAccountRoute: () => temuFixtureAccountRoute,
+  otlobliInterventionPausedForHumanChallenge: () => temuFixtureChallenge,
+  viewportSize: () => ({ width: 360, height: 720 }),
+  temuCleanText: (value) => String(value || '').replace(/\s+/g, ' ').trim(),
+  temuProductOptionDialog: (node) => !!node.inSkuDialog,
+  otlobliRememberTemuInlineStyles: () => undefined,
+  otlobliRestoreTemuInlineStyles: () => { restoredTemuActions += 1 },
+}
+runInNewContext(`${temuProductActionsRuntime}\nhideTemuNativeProductActions();`, temuActionFixture)
+assert.equal(temuProductAdd.getAttribute('data-otlobli-temu-product-action-hidden'), '1', 'Visible Temu Add to cart survived on a PDP')
+assert.equal(temuProductLogin.getAttribute('data-otlobli-temu-product-action-hidden'), '1', 'Visible Temu sign-in survived on a PDP')
+for (const node of [temuProductAdd, temuProductLogin]) {
+  for (const property of ['display', 'visibility', 'opacity', 'pointer-events']) {
+    assert.ok(
+      node.styleWrites.some(([name, , priority]) => name === property && priority === 'important'),
+      `Temu product blocker marked a control without applying important ${property}`,
+    )
+  }
+}
+assert.equal(otlobliProductAdd.hasAttribute('data-otlobli-temu-product-action-hidden'), false, 'Temu blocker hid Otlobli\'s own cart action')
+assert.equal(temuSkuConfirm.hasAttribute('data-otlobli-temu-product-action-hidden'), false, 'Temu blocker hid the real SKU option dialog action')
+assert.equal(temuMiddleCopy.hasAttribute('data-otlobli-temu-product-action-hidden'), false, 'Temu blocker hid ordinary mid-page copy')
+assert.equal(rootAttributes.get('data-otlobli-temu-product-route'), '1', 'Temu PDP route marker was not published for first-paint CSS')
+
+temuFixtureProductRoute = false
+runInNewContext(`${temuProductActionsRuntime}\nhideTemuNativeProductActions();`, temuActionFixture)
+assert.equal(temuProductAdd.hasAttribute('data-otlobli-temu-product-action-hidden'), false, 'Temu action styles leaked from PDP to Home')
+assert.equal(temuProductLogin.hasAttribute('data-otlobli-temu-product-action-hidden'), false, 'Temu sign-in styles leaked from PDP to Home')
+assert.equal(restoredTemuActions, 2, 'Temu route exit did not restore exactly the owned PDP controls')
+assert.equal(rootAttributes.has('data-otlobli-temu-product-route'), false, 'Temu PDP route marker leaked onto Home')
+
+const accountRouteAction = makeTemuActionFixtureNode({ text: 'Add to cart' })
+accountRouteAction.parentElement = temuFixtureBody
+temuFixtureNodes.splice(0, temuFixtureNodes.length, accountRouteAction)
+temuFixtureProductRoute = true
+temuFixtureAccountRoute = true
+runInNewContext(`${temuProductActionsRuntime}\nhideTemuNativeProductActions();`, temuActionFixture)
+assert.equal(accountRouteAction.hasAttribute('data-otlobli-temu-product-action-hidden'), false, 'Temu blocker modified a deliberate account/login route')
+
+temuFixtureAccountRoute = false
+temuFixtureChallenge = true
+runInNewContext(`${temuProductActionsRuntime}\nhideTemuNativeProductActions();`, temuActionFixture)
+assert.equal(accountRouteAction.hasAttribute('data-otlobli-temu-product-action-hidden'), false, 'Temu blocker modified a live human-verification surface')
+
+const skuTapSource = readFileSync(resolve(root, 'src/services/sheinSkuTap.ts'), 'utf8')
+const productCaptureSource = readFileSync(resolve(root, 'src/services/storeProductCaptureScript.ts'), 'utf8')
+for (const marker of ['function sheinSuspendSkuReveal()', 'otlobliProductCapturePausedForChallenge()', 'sheinScheduleSkuReveal(function ()']) {
+  assert.ok(skuTapSource.includes(marker), `Deferred SKU reveal isolation missing ${marker}`)
+}
+assert.ok(productCaptureSource.includes("typeof sheinSuspendSkuReveal === 'function'"), 'Product-capture suspension does not cancel SKU reveal work')
+assert.ok(productCaptureSource.includes("typeof temuCancelHeroCapture === 'function'"), 'Challenge suspension does not cancel deferred Temu colour capture')
+assert.equal((productCaptureSource.match(/temuScheduleHeroCapture\(/g) || []).length, 4, 'Temu colour capture is not owned by one shared scheduler')
+assert.equal((productCaptureSource.match(/setTimeout\(captureHero/g) || []).length, 0, 'Legacy unowned Temu hero timers returned')
+const productCaptureRuntime = evaluateInjectedScriptExports('src/services/storeProductCaptureScript.ts').STORE_PRODUCT_CAPTURE_SCRIPT
+const heroSchedulerStart = productCaptureRuntime.indexOf('var __otlobliTemuHeroCaptureHandles')
+const heroSchedulerEnd = productCaptureRuntime.indexOf("if (IS_TEMU && !window.__otlobliTemuClickBound)", heroSchedulerStart)
+assert.ok(heroSchedulerStart >= 0 && heroSchedulerEnd > heroSchedulerStart, 'Temu hero scheduler runtime is missing')
+const heroSchedulerRuntime = productCaptureRuntime.slice(heroSchedulerStart, heroSchedulerEnd)
+let heroTimerId = 0
+let heroGoodsId = '101'
+let heroChallenge = false
+let heroImageReads = 0
+const liveHeroTimers = new Map()
+const allHeroTimers = new Map()
+const heroListeners = {}
+const heroWindow = { __otlobliTemuColorGid: '101', __otlobliTemuColorImg: '' }
+const heroDocument = {
+  hidden: false,
+  addEventListener: (type, listener) => { heroListeners[type] = listener },
+  querySelectorAll: () => {
+    heroImageReads += 1
+    return [{
+      currentSrc: 'https://img.kwcdn.com/selected-hero.jpg',
+      getBoundingClientRect: () => ({ width: 320, height: 320, top: 20 }),
+    }]
+  },
+}
+const heroFixture = {
+  IS_TEMU: true,
+  window: heroWindow,
+  document: heroDocument,
+  temuGoodsId: () => heroGoodsId,
+  otlobliProductCapturePausedForChallenge: () => heroChallenge,
+  viewportSize: () => ({ height: 800 }),
+  setTimeout: (callback) => {
+    const id = ++heroTimerId
+    liveHeroTimers.set(id, callback)
+    allHeroTimers.set(id, callback)
+    return id
+  },
+  clearTimeout: (id) => liveHeroTimers.delete(id),
+}
+runInNewContext(heroSchedulerRuntime, heroFixture)
+heroFixture.temuScheduleHeroCapture('101')
+const supersededHeroTimers = [...liveHeroTimers.keys()]
+heroFixture.temuScheduleHeroCapture('101')
+assert.equal(liveHeroTimers.size, 2, 'A newer colour tap did not replace the previous 700/1600ms pair')
+for (const id of supersededHeroTimers) allHeroTimers.get(id)()
+assert.equal(heroImageReads, 0, 'A superseded colour callback still scanned the Temu gallery')
+const currentHeroTimer = Math.min(...liveHeroTimers.keys())
+const currentHeroCallback = liveHeroTimers.get(currentHeroTimer)
+liveHeroTimers.delete(currentHeroTimer)
+currentHeroCallback()
+assert.equal(heroImageReads, 1, 'The current colour callback did not capture its hero')
+assert.equal(heroWindow.__otlobliTemuColorImg, 'https://img.kwcdn.com/selected-hero.jpg')
+
+heroFixture.temuScheduleHeroCapture('101')
+const productChangeTimer = Math.min(...liveHeroTimers.keys())
+const productChangeCallback = liveHeroTimers.get(productChangeTimer)
+liveHeroTimers.delete(productChangeTimer)
+heroGoodsId = '202'
+productChangeCallback()
+assert.equal(liveHeroTimers.size, 0, 'A product change did not cancel all pending hero capture handles')
+assert.equal(heroImageReads, 1, 'A stale product callback scanned the new product gallery')
+
+heroWindow.__otlobliTemuColorGid = '202'
+heroFixture.temuScheduleHeroCapture('202')
+heroChallenge = true
+heroFixture.temuCancelHeroCapture()
+assert.equal(liveHeroTimers.size, 0, 'Challenge suspension left Temu hero capture timers alive')
+heroChallenge = false
+heroFixture.temuScheduleHeroCapture('202')
+assert.equal(typeof heroListeners.visibilitychange, 'function', 'Temu hero capture has no visibility cancellation hook')
+heroListeners.visibilitychange()
+assert.equal(liveHeroTimers.size, 0, 'visibilitychange left Temu hero capture timers alive')
+assert.ok(!productCaptureSource.includes("document.body.style.overflow = 'hidden'"), 'Add overlay still writes the store/CAPTCHA scroll lock directly')
+for (const marker of ['data-otlobli-add-scroll-lock', 'otlobliProductCapturePausedForChallenge()) {\n        overlay.remove(); otlobliReleaseAddingScrollLock(); return;']) {
+  assert.ok(productCaptureSource.includes(marker), `Product overlay challenge ownership missing ${marker}`)
+}
+const blockingSource = readFileSync(resolve(root, 'src/services/storeBlockingScript.ts'), 'utf8')
+assert.ok(blockingSource.includes('if (otlobliInterventionPausedForHumanChallenge()) { overlay.remove(); return; }'), 'Loading overlay can swallow fresh challenge input')
+const addButtonStart = blockingSource.indexOf('function ensureAddToCartButton(')
+const addButtonEnd = blockingSource.indexOf('function ensureBottomNav(', addButtonStart)
+const addButtonSource = blockingSource.slice(addButtonStart, addButtonEnd)
+assert.ok(addButtonSource.indexOf('if (!onProductPage)') < addButtonSource.indexOf("document.createElement('button')"), 'Home/listing ticks still allocate the PDP action button')
+assert.ok(addButtonSource.includes("if (btn.style.display !== targetDisplay) btn.style.display = targetDisplay"), 'PDP action still rewrites layout style every coordinator tick')
+assert.ok(temuRuntimeSource.includes('if (otlobliInterventionPausedForHumanChallenge()) { notice.remove(); return; }'), 'Temu loading notice can swallow fresh challenge input')
+
 const opening = loadTypeScriptModule('src/services/sheinOpeningPerformance.ts')
 let trace = opening.createSheinOpeningTrace(1000)
 trace = opening.markSheinOpeningPhase(trace, 'browserOpenRequested', 1100)
@@ -286,9 +1020,9 @@ assert.deepEqual(JSON.parse(JSON.stringify(opening.summarizeSheinOpeningRecords(
 ]))), { samples: 3, medianMs: 2000, p95Ms: 3000, slowestMs: 3000 })
 
 const protectedHashes = new Map([
-  ['src/services/sheinBrowserScript.ts', '6989ACED32166C57365E980BC441796CFF0FF34C37B2C6CB19928851120E2A02'],
-  ['src/services/storeProductCaptureScript.ts', '25BC6DD21D3339447C343BB92D3F343ABCBA607172DB5A8CE4F5537F044F5648'],
-  ['src/services/sheinSkuTap.ts', '79A1011CF55344D06BFCFC796FCAEB5CFF58F705F7FD95BA1686D69D802DEE83'],
+  ['src/services/sheinBrowserScript.ts', '4CB781DB7C4D8CF0FA59D597810D3899CF0F6380C35746E09DB9980224AB5943'],
+  ['src/services/storeProductCaptureScript.ts', '4640630FE1A87FED51D49418D00AA83182A2453441192F6DBFB6F7E99FE20183'],
+  ['src/services/sheinSkuTap.ts', '6D26FC080244260B13C9CA2B94B87504896F11BD5CFA31CEC76CD479ECC7B2C6'],
 ])
 for (const [file, expected] of protectedHashes) {
   const actual = createHash('sha256').update(readFileSync(resolve(root, file))).digest('hex').toUpperCase()

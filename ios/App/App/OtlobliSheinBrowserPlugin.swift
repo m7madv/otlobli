@@ -58,14 +58,20 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
     private var surfaceView: UIView?
     private var storeWebView: WKWebView?
     private var urlObservation: NSKeyValueObservation?
+    private var nativeNavigationView: UIView?
     private var loadingCover: UIView?
     private var loadingSpinner: UIActivityIndicatorView?
-    private var loadingHomeTapTimeout: DispatchWorkItem?
+    private var nativeHomeTapTimeout: DispatchWorkItem?
+    private var nativeStoreSwitchHintView: UIView?
+    private var nativeStoreSwitchHintDismissal: DispatchWorkItem?
+    private var nativeStoreSwitchDiscovery: DispatchWorkItem?
+    private var nativeStoreSwitchDiscoveryShown = false
     private var nativeBackButton: UIButton?
     private var nativeBackTopConstraint: NSLayoutConstraint?
     private let nativeBackVerticalOffset: CGFloat = 14
     private var nativeBackTarget = "home"
     private var nativeBackLocked = false
+    private var humanChallengeNavigationLocked = false
     private var pendingNativeBackTraceAction: String?
 
     public override func load() {
@@ -129,6 +135,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
                 call.reject("Capacitor host view is unavailable")
                 return
             }
+            self.scheduleNativeStoreSwitchDiscoveryHint()
             call.resolve()
         }
     }
@@ -136,6 +143,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
     @objc func hide(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             self.isBrowserVisible = false
+            self.dismissNativeStoreSwitchHint()
             self.parkRenderSurfaceBehindApp()
             call.resolve()
         }
@@ -244,6 +252,11 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
             injectionTime: .atDocumentStart,
             forMainFrameOnly: true
         ))
+        contentController.addUserScript(WKUserScript(
+            source: nativeNavigationOwnershipScript(),
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true
+        ))
         if !documentStartScript.isEmpty {
             contentController.addUserScript(WKUserScript(
                 source: documentStartScript,
@@ -283,7 +296,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = self
         webView.uiDelegate = self
-        webView.allowsBackForwardNavigationGestures = true
+        webView.allowsBackForwardNavigationGestures = !humanChallengeNavigationLocked
         webView.scrollView.bounces = true
         webView.scrollView.alwaysBounceVertical = false
         webView.isOpaque = true
@@ -299,6 +312,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
 
         surfaceView = surface
         storeWebView = webView
+        installNativeNavigation(in: surface)
         attachWebView(webView, to: surface)
         installNativeBackButton(in: surface)
         if loadingCoverEnabled {
@@ -333,14 +347,18 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         surfaceView?.removeFromSuperview()
         storeWebView = nil
         surfaceView = nil
+        nativeNavigationView = nil
         loadingCover = nil
         loadingSpinner = nil
-        loadingHomeTapTimeout?.cancel()
-        loadingHomeTapTimeout = nil
+        nativeHomeTapTimeout?.cancel()
+        nativeHomeTapTimeout = nil
+        dismissNativeStoreSwitchHint()
+        nativeStoreSwitchDiscoveryShown = false
         nativeBackButton = nil
         nativeBackTopConstraint = nil
         nativeBackTarget = "home"
         nativeBackLocked = false
+        humanChallengeNavigationLocked = false
         pendingNativeBackTraceAction = nil
     }
 
@@ -349,6 +367,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
     /// discard its remote layer tree and, more importantly, its live risk-
     /// verification state.
     private func parkRenderSurfaceBehindApp() {
+        dismissNativeStoreSwitchHint()
         guard let surface = surfaceView,
               let hostView = bridge?.viewController?.view else { return }
         surface.isHidden = false
@@ -429,13 +448,14 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
     }
 
     private func attachWebView(_ webView: WKWebView, to surface: UIView) {
+        guard let navigation = nativeNavigationView else { return }
         webView.translatesAutoresizingMaskIntoConstraints = false
         surface.insertSubview(webView, at: 0)
         NSLayoutConstraint.activate([
             webView.topAnchor.constraint(equalTo: surface.safeAreaLayoutGuide.topAnchor),
             webView.leadingAnchor.constraint(equalTo: surface.leadingAnchor),
             webView.trailingAnchor.constraint(equalTo: surface.trailingAnchor),
-            webView.bottomAnchor.constraint(equalTo: surface.bottomAnchor)
+            webView.bottomAnchor.constraint(equalTo: navigation.topAnchor)
         ])
     }
 
@@ -468,9 +488,9 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         guard isAllowedStoreURL(url) else { return .external }
         let path = url.path.lowercased()
         let route = path + (url.query.map { "?" + $0 } ?? "") + (url.fragment.map { "#" + $0 } ?? "")
-        if matches(#"/(?:cdn-cgi|challenge|captcha|verify|verification|security|robot|risk|anti[-_]?bot|human)(?:[/?#.-]|$)"#, in: path) ||
-            matches(#"(?:^|[?&#])(?:captcha|challenge|verification|security_token|risk|robot|anti[-_]?bot|human)="#, in: route) { return .humanVerification }
-        if matches(#"/(?:user/)?(?:login|signin|sign-in|auth/login)(?:[/?#.-]|$)"#, in: path) { return .blockedLogin }
+        if matches(#"/(?:cdn-cgi|challenge|captcha|verify|verification|bgn[_-]?verification|security|robot|risk|anti[-_]?bot|human)(?:[/?#.-]|$)"#, in: path) ||
+            matches(#"(?:^|[?&#])(?:captcha|challenge|verification|bgn[_-]?verification|security_token|risk|robot|anti[-_]?bot|human)="#, in: route) { return .humanVerification }
+        if matches(#"/(?:user/)?(?:login|signin|sign-in|auth(?:/login)?)(?:[/?#.-]|$)"#, in: path) { return .blockedLogin }
         if matches(#"/(?:user/)?(?:register|signup|sign-up|join)(?:[/?#.-]|$)"#, in: path) { return .blockedSignup }
         if matches(#"/(?:user|account|profile|my-account|member|orders?)(?:[/?#.-]|$)"#, in: path) { return .blockedAccount }
         if matches(#"/(?:country|countries|ship-to|shipping-country)(?:[/?#.-]|$)"#, in: path) { return .blockedCountry }
@@ -547,24 +567,19 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
 
         cover.addSubview(spinner)
         cover.addSubview(label)
-        let navigation = makeLoadingNavigation()
-        cover.addSubview(navigation)
         surface.addSubview(cover)
+        let coverBottomAnchor = nativeNavigationView?.topAnchor ?? surface.bottomAnchor
         NSLayoutConstraint.activate([
             cover.topAnchor.constraint(equalTo: surface.topAnchor),
             cover.leadingAnchor.constraint(equalTo: surface.leadingAnchor),
             cover.trailingAnchor.constraint(equalTo: surface.trailingAnchor),
-            cover.bottomAnchor.constraint(equalTo: surface.bottomAnchor),
+            cover.bottomAnchor.constraint(equalTo: coverBottomAnchor),
             spinner.centerXAnchor.constraint(equalTo: cover.centerXAnchor),
             spinner.centerYAnchor.constraint(equalTo: cover.centerYAnchor, constant: -18),
             label.topAnchor.constraint(equalTo: spinner.bottomAnchor, constant: 14),
             label.leadingAnchor.constraint(greaterThanOrEqualTo: cover.leadingAnchor, constant: 24),
             label.trailingAnchor.constraint(lessThanOrEqualTo: cover.trailingAnchor, constant: -24),
-            label.centerXAnchor.constraint(equalTo: cover.centerXAnchor),
-            navigation.leadingAnchor.constraint(equalTo: cover.leadingAnchor),
-            navigation.trailingAnchor.constraint(equalTo: cover.trailingAnchor),
-            navigation.topAnchor.constraint(equalTo: cover.safeAreaLayoutGuide.bottomAnchor, constant: -74),
-            navigation.bottomAnchor.constraint(equalTo: cover.bottomAnchor)
+            label.centerXAnchor.constraint(equalTo: cover.centerXAnchor)
         ])
         loadingCover = cover
         loadingSpinner = spinner
@@ -572,18 +587,142 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
 
     private func hideLoadingCover() {
         loadingSpinner?.stopAnimating()
-        loadingHomeTapTimeout?.cancel()
-        loadingHomeTapTimeout = nil
         loadingCover?.removeFromSuperview()
         loadingCover = nil
         loadingSpinner = nil
     }
 
-    private func makeLoadingNavigation() -> UIView {
+    private func installNativeNavigation(in surface: UIView) {
+        let navigation = makeNativeNavigation()
+        surface.addSubview(navigation)
+        let preferredSafeTop = navigation.topAnchor.constraint(
+            equalTo: surface.safeAreaLayoutGuide.bottomAnchor,
+            constant: -74
+        )
+        preferredSafeTop.priority = .defaultHigh
+        let preferredFloorTop = navigation.topAnchor.constraint(
+            equalTo: surface.bottomAnchor,
+            constant: -90
+        )
+        preferredFloorTop.priority = UILayoutPriority(rawValue: 749)
+        let preferredFullSafeWidth = navigation.widthAnchor.constraint(
+            equalTo: surface.safeAreaLayoutGuide.widthAnchor
+        )
+        preferredFullSafeWidth.priority = .defaultHigh
+        NSLayoutConstraint.activate([
+            navigation.centerXAnchor.constraint(equalTo: surface.safeAreaLayoutGuide.centerXAnchor),
+            navigation.leadingAnchor.constraint(greaterThanOrEqualTo: surface.safeAreaLayoutGuide.leadingAnchor),
+            navigation.trailingAnchor.constraint(lessThanOrEqualTo: surface.safeAreaLayoutGuide.trailingAnchor),
+            navigation.widthAnchor.constraint(lessThanOrEqualToConstant: 440),
+            preferredFullSafeWidth,
+            preferredSafeTop,
+            preferredFloorTop,
+            navigation.heightAnchor.constraint(greaterThanOrEqualToConstant: 90),
+            navigation.bottomAnchor.constraint(equalTo: surface.bottomAnchor)
+        ])
+        nativeNavigationView = navigation
+        scheduleNativeStoreSwitchDiscoveryHint()
+    }
+
+    private func dismissNativeStoreSwitchHint() {
+        nativeStoreSwitchDiscovery?.cancel()
+        nativeStoreSwitchDiscovery = nil
+        nativeStoreSwitchHintDismissal?.cancel()
+        nativeStoreSwitchHintDismissal = nil
+        nativeStoreSwitchHintView?.removeFromSuperview()
+        nativeStoreSwitchHintView = nil
+    }
+
+    private func presentNativeStoreSwitchHint(message: String, duration: TimeInterval) {
+        guard isBrowserVisible,
+              !humanChallengeNavigationLocked,
+              let surface = surfaceView,
+              let navigation = nativeNavigationView else { return }
+        dismissNativeStoreSwitchHint()
+
+        let hint = UIView(frame: .zero)
+        hint.translatesAutoresizingMaskIntoConstraints = false
+        hint.backgroundColor = UIColor(red: 0, green: 105.0 / 255.0, blue: 72.0 / 255.0, alpha: 0.96)
+        hint.layer.cornerRadius = 12
+        hint.clipsToBounds = true
+        hint.isAccessibilityElement = true
+        hint.accessibilityLabel = message
+
+        let label = UILabel(frame: .zero)
+        label.translatesAutoresizingMaskIntoConstraints = false
+        label.text = message
+        label.textColor = .white
+        label.font = .systemFont(ofSize: 14, weight: .bold)
+        label.textAlignment = .natural
+        label.numberOfLines = 1
+        label.adjustsFontSizeToFitWidth = true
+        label.minimumScaleFactor = 0.85
+        label.isAccessibilityElement = false
+        hint.addSubview(label)
+        surface.addSubview(hint)
+
+        NSLayoutConstraint.activate([
+            hint.bottomAnchor.constraint(equalTo: navigation.topAnchor, constant: -8),
+            hint.centerXAnchor.constraint(equalTo: surface.safeAreaLayoutGuide.centerXAnchor),
+            hint.leadingAnchor.constraint(greaterThanOrEqualTo: surface.safeAreaLayoutGuide.leadingAnchor, constant: 16),
+            hint.trailingAnchor.constraint(lessThanOrEqualTo: surface.safeAreaLayoutGuide.trailingAnchor, constant: -16),
+            hint.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
+            label.topAnchor.constraint(equalTo: hint.topAnchor, constant: 10),
+            label.bottomAnchor.constraint(equalTo: hint.bottomAnchor, constant: -10),
+            label.leadingAnchor.constraint(equalTo: hint.leadingAnchor, constant: 14),
+            label.trailingAnchor.constraint(equalTo: hint.trailingAnchor, constant: -14)
+        ])
+
+        nativeStoreSwitchHintView = hint
+        surface.bringSubviewToFront(hint)
+        let dismissal = DispatchWorkItem { [weak self] in
+            self?.dismissNativeStoreSwitchHint()
+        }
+        nativeStoreSwitchHintDismissal = dismissal
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration, execute: dismissal)
+    }
+
+    private func showNativeStoreSwitchDiscoveryHint() {
+        presentNativeStoreSwitchHint(
+            message: "انقر «الرئيسية» مرتين لفتح قائمة المتاجر",
+            duration: 3.2
+        )
+    }
+
+    private func showNativeStoreSwitchSecondTapHint() {
+        presentNativeStoreSwitchHint(
+            message: "انقر مرة ثانية لفتح قائمة المتاجر",
+            duration: 1.8
+        )
+    }
+
+    private func scheduleNativeStoreSwitchDiscoveryHint() {
+        guard !nativeStoreSwitchDiscoveryShown else { return }
+        nativeStoreSwitchDiscovery?.cancel()
+        let discovery = DispatchWorkItem { [weak self] in
+            guard let self = self else { return }
+            self.nativeStoreSwitchDiscovery = nil
+            guard !self.nativeStoreSwitchDiscoveryShown,
+                  self.isBrowserVisible,
+                  !self.humanChallengeNavigationLocked,
+                  self.nativeNavigationView != nil else { return }
+            self.nativeStoreSwitchDiscoveryShown = true
+            self.showNativeStoreSwitchDiscoveryHint()
+        }
+        nativeStoreSwitchDiscovery = discovery
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7, execute: discovery)
+    }
+
+    private func makeNativeNavigation() -> UIView {
         let navigation = UIView(frame: .zero)
         navigation.translatesAutoresizingMaskIntoConstraints = false
         navigation.backgroundColor = .white
-        navigation.accessibilityViewIsModal = true
+        navigation.isOpaque = true
+        navigation.clipsToBounds = true
+        navigation.layer.shadowOpacity = 0
+        navigation.transform = .identity
+        navigation.accessibilityViewIsModal = false
+        navigation.shouldGroupAccessibilityChildren = true
 
         let separator = UIView(frame: .zero)
         separator.translatesAutoresizingMaskIntoConstraints = false
@@ -598,6 +737,16 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         stack.semanticContentAttribute = .forceRightToLeft
         navigation.addSubview(stack)
 
+        let preferredSafeContentBottom = stack.bottomAnchor.constraint(
+            equalTo: navigation.safeAreaLayoutGuide.bottomAnchor
+        )
+        preferredSafeContentBottom.priority = .defaultHigh
+        let preferredFloorContentBottom = stack.bottomAnchor.constraint(
+            equalTo: navigation.bottomAnchor,
+            constant: -16
+        )
+        preferredFloorContentBottom.priority = UILayoutPriority(rawValue: 749)
+
         let labels = ["الرئيسية", "طلباتي", "السلة", "حسابي"]
         let routes = ["store-select", "orders", "cart", "profile"]
         var homeButton: UIButton?
@@ -607,20 +756,17 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
                 ? UIColor(red: 0, green: 105.0 / 255.0, blue: 72.0 / 255.0, alpha: 1)
                 : UIColor(red: 61.0 / 255.0, green: 74.0 / 255.0, blue: 66.0 / 255.0, alpha: 1)
             button.tag = index
-            button.accessibilityLabel = index == 0
-                ? "اختيار المتجر؛ اضغط مرتين بسرعة"
-                : labels[index]
+            button.accessibilityLabel = labels[index]
             button.accessibilityHint = index == 0
-                ? "يفتح قائمة اختيار المتجر"
+                ? "يفتح قائمة المتاجر مباشرة"
                 : "ينتقل إلى \(labels[index]) ويُبقي المتجر قيد التحميل"
             button.accessibilityIdentifier = routes[index]
+            if index == 0 {
+                button.accessibilityTraits.insert(.selected)
+            }
             var configuration = UIButton.Configuration.plain()
             configuration.title = labels[index]
-            // The permanent React/injected bar uses Otlobli's own 24-point
-            // SVG paths. SF Symbols have visibly different silhouettes, so
-            // the loading cover used to flash a different-looking bar before
-            // the permanent one appeared. Draw the exact same paths here.
-            configuration.image = makeLoadingNavigationIcon(route: routes[index], color: color)
+            configuration.image = makeNativeNavigationIcon(route: routes[index], color: color)
             configuration.imagePlacement = .top
             configuration.imagePadding = 4
             configuration.baseForegroundColor = color
@@ -634,9 +780,8 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
             configuration.background.backgroundColor = .clear
             button.configuration = configuration
             button.configurationUpdateHandler = { updatedButton in
-                // Keep the loading copy visually identical while pressed;
-                // UIKit's default highlighted treatment otherwise briefly
-                // dims and reshapes a configured system button.
+                // This navigation is a fixed surface control. Keep UIKit from
+                // dimming, scaling or reshaping it during repeated taps.
                 updatedButton.alpha = 1
                 updatedButton.transform = .identity
                 guard var stableConfiguration = updatedButton.configuration else { return }
@@ -644,7 +789,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
                 stableConfiguration.background.backgroundColor = .clear
                 updatedButton.configuration = stableConfiguration
             }
-            button.addTarget(self, action: #selector(loadingNavigationPressed(_:)), for: .touchUpInside)
+            button.addTarget(self, action: #selector(nativeNavigationPressed(_:)), for: .touchUpInside)
             stack.addArrangedSubview(button)
             if index == 0 { homeButton = button }
         }
@@ -664,7 +809,9 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
             stack.topAnchor.constraint(equalTo: navigation.topAnchor, constant: 1),
             stack.leadingAnchor.constraint(equalTo: navigation.leadingAnchor),
             stack.trailingAnchor.constraint(equalTo: navigation.trailingAnchor),
-            stack.bottomAnchor.constraint(equalTo: navigation.safeAreaLayoutGuide.bottomAnchor),
+            preferredSafeContentBottom,
+            preferredFloorContentBottom,
+            stack.bottomAnchor.constraint(lessThanOrEqualTo: navigation.bottomAnchor, constant: -16),
             selectedIndicator.topAnchor.constraint(equalTo: navigation.topAnchor, constant: 1),
             selectedIndicator.centerXAnchor.constraint(equalTo: homeButton.centerXAnchor),
             selectedIndicator.widthAnchor.constraint(equalToConstant: 32),
@@ -673,7 +820,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         return navigation
     }
 
-    private func makeLoadingNavigationIcon(route: String, color: UIColor) -> UIImage {
+    private func makeNativeNavigationIcon(route: String, color: UIColor) -> UIImage {
         let canvas = CGSize(width: 22, height: 22)
         let renderer = UIGraphicsImageRenderer(size: canvas)
         return renderer.image { rendererContext in
@@ -778,33 +925,44 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         }.withRenderingMode(.alwaysOriginal)
     }
 
-    @objc private func loadingNavigationPressed(_ sender: UIButton) {
+    @objc private func nativeNavigationPressed(_ sender: UIButton) {
+        guard !humanChallengeNavigationLocked else {
+            dismissNativeStoreSwitchHint()
+            return
+        }
         guard let target = sender.accessibilityIdentifier else { return }
         if target != "store-select" {
-            loadingHomeTapTimeout?.cancel()
-            loadingHomeTapTimeout = nil
+            nativeHomeTapTimeout?.cancel()
+            nativeHomeTapTimeout = nil
+            dismissNativeStoreSwitchHint()
             navigateHost(to: target)
             return
         }
         if UIAccessibility.isVoiceOverRunning {
+            nativeHomeTapTimeout?.cancel()
+            nativeHomeTapTimeout = nil
+            dismissNativeStoreSwitchHint()
             navigateHost(to: target)
             return
         }
-        if loadingHomeTapTimeout != nil {
-            loadingHomeTapTimeout?.cancel()
-            loadingHomeTapTimeout = nil
+        if nativeHomeTapTimeout != nil {
+            nativeHomeTapTimeout?.cancel()
+            nativeHomeTapTimeout = nil
+            dismissNativeStoreSwitchHint()
             navigateHost(to: target)
             return
         }
         let timeout = DispatchWorkItem { [weak self] in
-            self?.loadingHomeTapTimeout = nil
+            self?.nativeHomeTapTimeout = nil
         }
-        loadingHomeTapTimeout = timeout
+        nativeHomeTapTimeout = timeout
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.32, execute: timeout)
+        showNativeStoreSwitchSecondTapHint()
     }
 
     private func navigateHost(to target: String) {
         guard ["orders", "cart", "profile", "store-select"].contains(target) else { return }
+        dismissNativeStoreSwitchHint()
         isBrowserVisible = false
         let encoded = target.replacingOccurrences(of: "'", with: "\\'")
         guard let hostWebView = bridge?.webView else {
@@ -855,10 +1013,43 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         let top = (detail["top"] as? NSNumber)?.doubleValue ?? 12
         nativeBackTarget = detail["target"] as? String ?? "home"
         nativeBackTopConstraint?.constant = CGFloat(max(8, min(top, 120))) + nativeBackVerticalOffset
-        nativeBackButton?.isHidden = !visible
-        if let button = nativeBackButton, visible {
+        nativeBackButton?.isHidden = !visible || humanChallengeNavigationLocked
+        nativeBackButton?.isUserInteractionEnabled = visible && !humanChallengeNavigationLocked
+        if let button = nativeBackButton, visible && !humanChallengeNavigationLocked {
             surfaceView?.bringSubviewToFront(button)
         }
+    }
+
+    private func setHumanChallengeNavigationLocked(_ locked: Bool) {
+        humanChallengeNavigationLocked = locked
+        storeWebView?.allowsBackForwardNavigationGestures = !locked
+        if locked {
+            dismissNativeStoreSwitchHint()
+            nativeBackButton?.isHidden = true
+            nativeBackButton?.isUserInteractionEnabled = false
+            return
+        }
+        nativeBackButton?.isUserInteractionEnabled = true
+        scheduleNativeStoreSwitchDiscoveryHint()
+        guard let webView = storeWebView else { return }
+        webView.evaluateJavaScript(
+            "window.__otlobliNativeBackState='';if(typeof ensureBackButton==='function')ensureBackButton();"
+        )
+    }
+
+    private func shouldReleaseHumanChallengeNavigation(for detail: [String: Any]) -> Bool {
+        guard let type = detail["type"] as? String,
+              ["sheinSaudiReady", "sheinPageInteractive", "sheinCoordinatorState"].contains(type),
+              let coordinator = detail["coordinator"] as? [String: Any],
+              let generation = coordinator["documentGeneration"] as? String,
+              !generation.isEmpty,
+              coordinator["interactive"] as? Bool == true,
+              coordinator["policyState"] as? String == "verified",
+              coordinator["captureState"] as? String == "ready" else {
+            return false
+        }
+        let humanState = coordinator["humanVerificationState"] as? String ?? "required"
+        return humanState == "none" || humanState == "resolved"
     }
 
     private func isCanonicalSheinHomeURL(_ url: URL?) -> Bool {
@@ -914,13 +1105,17 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         nativeBackButton?.isUserInteractionEnabled = false
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
             self?.nativeBackLocked = false
-            self?.nativeBackButton?.isUserInteractionEnabled = true
+            self?.nativeBackButton?.isUserInteractionEnabled = self?.humanChallengeNavigationLocked == false
         }
     }
 
     @objc private func nativeBackPressed() {
         guard let webView = storeWebView else {
             logNativeBack(webView: nil, chosenAction: "ignored-no-webview", navigationType: "none")
+            return
+        }
+        guard !humanChallengeNavigationLocked else {
+            logNativeBack(webView: webView, chosenAction: "ignored-human-verification", navigationType: "none")
             return
         }
         guard !nativeBackLocked else {
@@ -976,6 +1171,33 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         """
     }
 
+    private func nativeNavigationOwnershipScript() -> String {
+        """
+        window.__otlobliNativeNavigation=true;
+        window.__otlobliNativeNavigationOwned=true;
+        (function(){
+          function suppressInjectedNavigation(){
+            var navigation=document.getElementById('otlobli-nav');
+            if(!navigation)return false;
+            navigation.setAttribute('aria-hidden','true');
+            navigation.setAttribute('inert','');
+            navigation.style.setProperty('display','none','important');
+            navigation.style.setProperty('visibility','hidden','important');
+            navigation.style.setProperty('pointer-events','none','important');
+            return true;
+          }
+          function begin(){
+            suppressInjectedNavigation();
+          }
+          if(document.documentElement)begin();
+          else document.addEventListener('DOMContentLoaded',begin,{once:true});
+          window.addEventListener('pageshow',function(){
+            suppressInjectedNavigation();
+          },false);
+        })();
+        """
+    }
+
     private func shouldReleaseLoadingCover(for detail: [String: Any]) -> Bool {
         guard let type = detail["type"] as? String else { return false }
         if ["sheinSaudiReady", "humanCheck", "humanCheckResolved"].contains(type) {
@@ -1004,6 +1226,15 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         case "messageHandler":
             guard let body = message.body as? [String: Any],
                   let detail = body["detail"] as? [String: Any] else { return }
+            let type = detail["type"] as? String ?? ""
+            if type == "humanCheck" || type == "humanCheckResolved" {
+                // Resolved is status-only: keep gestures and Back locked until
+                // a complete runtime snapshot proves the provider committed
+                // the verification session.
+                setHumanChallengeNavigationLocked(true)
+            } else if humanChallengeNavigationLocked && shouldReleaseHumanChallengeNavigation(for: detail) {
+                setHumanChallengeNavigationLocked(false)
+            }
             if detail["type"] as? String == "otlobliBackButtonState" {
                 updateNativeBackButton(detail)
                 return
@@ -1029,6 +1260,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
             } else {
                 _ = createRenderSurface(loadingMessage: "جاري استعادة المتجر…")
             }
+            scheduleNativeStoreSwitchDiscoveryHint()
         case "navigate":
             guard let target = message.body as? String,
                   ["orders", "cart", "profile", "store-select"].contains(target) else { return }

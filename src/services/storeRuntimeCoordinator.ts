@@ -1,7 +1,45 @@
 export const STORE_RUNTIME_COORDINATOR_SCRIPT = `
   var __otlobliLegacyTemuDiagnosticsCleaned = false;
-  function tick() {
-    if (!document.body) return;
+  function otlobliGuardHumanChallenge() {
+    if (!otlobliScriptEnabled('blocking')) return false;
+    var humanChallengeNow = otlobliIsHumanChallenge();
+    if (humanChallengeNow) {
+      otlobliEnterChallengeMode();
+      return true;
+    }
+    if (otlobliChallengeActive) {
+      // Challenge widgets can briefly remove/recreate an iframe while loading
+      // the next image. Requiring a stable absence prevents that transient gap
+      // from consuming a queued product before the verification token exists.
+      if (otlobliChallengeAbsenceIsStable(Date.now())) {
+        otlobliResolveHumanChallenge();
+      }
+      return true;
+    }
+    if (__otlobliChallengeResolvedAt) {
+      // The provider may remove its iframe just before clearance/session state
+      // is committed. Finish the bounded settlement in an exclusive pass.
+      if (otlobliChallengeSettlementIsStable(Date.now())) {
+        otlobliFinishChallengeSettlement();
+      }
+      return true;
+    }
+    return false;
+  }
+
+  function tick(challengeAlreadyGuarded) {
+    if (!document.body || document.hidden) return;
+    // Verification owns the live document. Detect it before any Otlobli
+    // scroll-lock healing, region work, viewport writes, or DOM blocking so a
+    // challenge image/frame cannot be disturbed by our normal store runtime.
+    if (!challengeAlreadyGuarded && otlobliGuardHumanChallenge()) return;
+    challengeAlreadyGuarded = true;
+    if (IS_TEMU) try { otlobliPostTemuPublicReadyIfStable(true); } catch (e) {}
+    // Temu's page is already doing expensive async image/layout work while the
+    // finger is down. Defer Otlobli's non-critical DOM scans until 320ms after
+    // the gesture; the permanent native bar remains immediately responsive.
+    if (IS_TEMU && otlobliInteractionActive()) return;
+    if (otlobliScriptEnabled('blocking') && IS_SHEIN) ensureOtlobliBaseStyle();
     if (otlobliScriptEnabled('blocking')) otlobliHealOrphanScrollLock();
     if (otlobliScriptEnabled('session') && IS_SHEIN) sheinPrimeRegionRepairFromRoute();
     if (otlobliScriptEnabled('session') && IS_SHEIN) sheinClearStaleShippingLock();
@@ -9,35 +47,24 @@ export const STORE_RUNTIME_COORDINATOR_SCRIPT = `
     // with full-page scans. Region repair has its own small progress timer.
     if (otlobliScriptEnabled('session') && IS_SHEIN && otlobliInteractionActive() &&
         !sheinShippingBodyLockState && !sheinShippingUiLikelyOpen()) {
-      if (otlobliScriptEnabled('navigationBar') && !document.getElementById('otlobli-nav')) ensureOtlobliNav();
+      if (window.__otlobliNativeNavigation !== true && otlobliScriptEnabled('navigationBar') &&
+          !document.getElementById('otlobli-nav')) ensureOtlobliNav();
       if (sheinNativeCoverRepairActive) scheduleSheinShippingProgress(OTLOBLI_LOW_END ? 320 : 160);
       return;
     }
-    // Verification is a live-only pass-through state. A stale marker must
-    // never turn an ordinary product spinner into a permanent challenge.
-    var humanChallengeNow = otlobliScriptEnabled('blocking') && otlobliIsHumanChallenge();
-    if (humanChallengeNow) {
-      otlobliEnterChallengeMode();
-      return;
-    }
-    if (otlobliScriptEnabled('blocking') && otlobliChallengeActive) {
-      // Absence of a visible/URL challenge resolves it immediately. Do not
-      // wait for product interactivity; that was the sticky loading deadlock.
-      otlobliResolveHumanChallenge();
-    }
-    if (otlobliScriptEnabled('session') && IS_SHEIN) ensureSheinSaudiShippingSelection();
+    if (otlobliScriptEnabled('session') && IS_SHEIN) ensureSheinSaudiShippingSelection(true);
     if (otlobliScriptEnabled('blocking') && IS_SHEIN) retrySheinFeedError();
-    if (otlobliScriptEnabled('blocking')) ensureNoTextSelection();
+    if (otlobliScriptEnabled('blocking')) ensureNoTextSelection(true);
     if (otlobliScriptEnabled('navigationViewport')) ensureViewportFitCover();
     if (otlobliScriptEnabled('session') && IS_SHEIN) ensureSheinSaudiStore();
-    if (otlobliScriptEnabled('navigationBack')) ensureBackButton();
-    if (otlobliScriptEnabled('navigationBar')) ensureOtlobliNav();
+    if (otlobliScriptEnabled('navigationBack')) ensureBackButton(true);
+    if (window.__otlobliNativeNavigation !== true && otlobliScriptEnabled('navigationBar')) ensureOtlobliNav();
     // المتاجر غير شي إن (تيمو/ترينديول): تصفّح فقط - ننظّف العروض المنبثقة
     // المزعجة ولا نشغّل منطق الالتقاط/الحجب الخاص بشي إن (الذي قد يخرّب صفحاتهم).
     if (!IS_SHEIN) {
       if (IS_TEMU) {
         var temuSearching = otlobliTemuSearchMode();
-        try { injectTemuHeaderHideCSS(); } catch (e) {}
+        try { injectTemuHeaderHideCSS(true); } catch (e) {}
         try { ensureTemuNoZoom(); } catch (e) {}
         try { ensureTemuSearchTouchRepair(); } catch (e) {}
         try { otlobliSyncTemuSearchModeState(temuSearching); } catch (e) {}
@@ -89,7 +116,12 @@ export const STORE_RUNTIME_COORDINATOR_SCRIPT = `
           }
         } catch (e) {}
         try { otlobliCleanTemuBlockers(); } catch (e) {}
-        try { ensureAddToCartButton(); } catch (e) {}
+        // Product guest chrome is narrower than the general blocker: retain
+        // Temu's real account route and SKU dialog, but remove its compact
+        // sign-in/purchase actions before exposing Otlobli's own cart button.
+        try { hideTemuAccountSurfaces(); } catch (e) {}
+        try { hideTemuNativeProductActions(); } catch (e) {}
+        try { ensureAddToCartButton(true); } catch (e) {}
         try { detectEmptyTemuSearch(); } catch (e) {}
         return;
       }
@@ -99,7 +131,7 @@ export const STORE_RUNTIME_COORDINATOR_SCRIPT = `
     if (otlobliScriptEnabled('blocking')) ensureLoadingOverlay();
     if (otlobliScriptEnabled('blocking')) blockCartNavigation();
     if (otlobliScriptEnabled('blocking')) hideSheinCartSuccessToast();
-    if (otlobliScriptEnabled('capture')) ensureAddToCartButton();
+    if (otlobliScriptEnabled('capture')) ensureAddToCartButton(true);
     if (otlobliScriptEnabled('blocking')) stabilizeSheinImageViewerChrome();
     if (otlobliScriptEnabled('blocking')) hideExtraHeaderIcons();
     if (otlobliScriptEnabled('blocking')) hideSheinCartIcons();
@@ -110,7 +142,7 @@ export const STORE_RUNTIME_COORDINATOR_SCRIPT = `
     // Readiness must be the final step. Previously it was posted before the
     // header/cart/listing/nav blockers below ran, so native code could reveal
     // a product for one or two seconds with raw SHEIN chrome still visible.
-    if (otlobliScriptEnabled('session')) updateSheinNativeCoverState();
+    if (otlobliScriptEnabled('session')) updateSheinNativeCoverState(true);
     // Must run after ensureBack/Nav/Add and after cover-state close attempts,
     // so Otlobli chrome cannot repaint over SHEIN's live shipping drawer.
     if (otlobliScriptEnabled('session')) stabilizeSheinShippingDrawerInteraction();
@@ -123,6 +155,7 @@ export const STORE_RUNTIME_COORDINATOR_SCRIPT = `
   var tickScheduled = false;
   var otlobliInteractionUntil = 0;
   function markOtlobliInteraction() {
+    if (otlobliChallengeActive) return;
     otlobliInteractionUntil = Date.now() + 320;
   }
   function otlobliInteractionActive() {
@@ -132,7 +165,10 @@ export const STORE_RUNTIME_COORDINATOR_SCRIPT = `
   document.addEventListener('touchstart', markOtlobliInteraction, { capture: true, passive: true });
   document.addEventListener('touchmove', markOtlobliInteraction, { capture: true, passive: true });
   document.addEventListener('scroll', markOtlobliInteraction, { capture: true, passive: true });
-  if (otlobliScriptEnabled('capture')) document.addEventListener('click', sheinTrackSelectedSkuPrice, true);
+  if (otlobliScriptEnabled('capture')) document.addEventListener('click', function (event) {
+    if (otlobliChallengeActive) return;
+    sheinTrackSelectedSkuPrice(event);
+  }, true);
   // Low-end (iPhone 6, 2 cores): our polling competes with Cloudflare's JS and
   // SHEIN's image decoding. Relax the hot intervals; iPhone 16 keeps the tight
   // ones. Never widen these past the documented values - see the perf guard.
@@ -143,6 +179,7 @@ export const STORE_RUNTIME_COORDINATOR_SCRIPT = `
   );
   function scheduleTick() {
     sheinBlockReported = false;
+    if (document.hidden) return;
     if (OTLOBLI_LOW_END) return;
     // Don't storm-tick on every Cloudflare DOM mutation during the challenge;
     // the 300ms interval still polls tick() to detect when it ends.
@@ -181,10 +218,13 @@ export const STORE_RUNTIME_COORDINATOR_SCRIPT = `
   var OTLOBLI_BLOCK_INTERVAL = OTLOBLI_LOW_END ? 650 : 120;
   var OTLOBLI_NAV_INTERVAL = OTLOBLI_LOW_END ? 2200 : 1200;
   var OTLOBLI_SECURITY_INTERVAL = OTLOBLI_LOW_END ? 1600 : 1000;
+  var OTLOBLI_NATIVE_NAV = window.__otlobliNativeNavigation === true;
   var otlobliMainDue = 0;
-  var otlobliBlockDue = 0;
-  var otlobliNavDue = 0;
-  var otlobliSecurityDue = 0;
+  // Block/security passes are SHEIN-only. Keeping them in Temu's min-deadline
+  // scheduler previously woke the thread every 120ms just to return early.
+  var otlobliBlockDue = IS_SHEIN ? 0 : Infinity;
+  var otlobliNavDue = OTLOBLI_NATIVE_NAV ? Infinity : 0;
+  var otlobliSecurityDue = IS_SHEIN ? 0 : Infinity;
   var otlobliCoordinatorTimer = 0;
 
   function runOtlobliBlockers() {
@@ -197,9 +237,11 @@ export const STORE_RUNTIME_COORDINATOR_SCRIPT = `
 
   function runOtlobliNavigationMaintenance() {
     if (!otlobliScriptEnabled('navigationBar')) return;
-    if (!otlobliInteractionActive() || !document.getElementById('otlobli-nav')) ensureOtlobliNav();
+    if (window.__otlobliNativeNavigation !== true &&
+        (!otlobliInteractionActive() || !document.getElementById('otlobli-nav'))) ensureOtlobliNav();
     if (!IS_TEMU) return;
-    injectTemuHeaderHideCSS();
+    if (otlobliInteractionActive()) return;
+    injectTemuHeaderHideCSS(true);
     ensureTemuSearchTouchRepair();
     var intervalTemuSearching = otlobliTemuSearchMode();
     otlobliSyncTemuSearchModeState(intervalTemuSearching);
@@ -218,27 +260,51 @@ export const STORE_RUNTIME_COORDINATOR_SCRIPT = `
   function runOtlobliCoordinator() {
     var now = Date.now();
     if (document.hidden) {
-      otlobliMainDue = now + OTLOBLI_MAIN_INTERVAL;
-      otlobliBlockDue = now + OTLOBLI_BLOCK_INTERVAL;
-      otlobliNavDue = now + OTLOBLI_NAV_INTERVAL;
-      otlobliSecurityDue = now + OTLOBLI_SECURITY_INTERVAL;
+      // No background polling. visibilitychange below re-arms all due-times
+      // when the document becomes visible again.
+      clearTimeout(otlobliCoordinatorTimer);
+      otlobliCoordinatorTimer = 0;
+      return;
+    }
+    // Every wake that could run a DOM-mutating pass performs a fresh challenge
+    // guard first. This is deliberately independent from otlobliMainDue: the
+    // blocker cadence is tighter than the main cadence, and a challenge can be
+    // mounted by an SPA between them without a URL change.
+    if (otlobliGuardHumanChallenge()) {
+      var challengeGuardFinished = !otlobliChallengeActive && !__otlobliChallengeResolvedAt;
+      otlobliMainDue = challengeGuardFinished ? 0 : now + OTLOBLI_MAIN_INTERVAL;
+      otlobliBlockDue = IS_SHEIN ? now + OTLOBLI_MAIN_INTERVAL : Infinity;
+      otlobliNavDue = OTLOBLI_NATIVE_NAV ? Infinity : now + OTLOBLI_NAV_INTERVAL;
+      otlobliSecurityDue = IS_SHEIN ? now + OTLOBLI_MAIN_INTERVAL : Infinity;
       scheduleOtlobliCoordinator();
       return;
+    }
+    if (IS_TEMU) window.__otlobliTemuDocumentStartPaused = false;
+    // The main pass owns challenge detection and must always precede every
+    // blocker/security pass. Otherwise a newly-mounted SPA challenge could be
+    // touched once by stale product-page blockers before tick() enters the
+    // no-intervention verification state.
+    if (now >= otlobliMainDue) {
+      tick(true);
+      otlobliMainDue = now + OTLOBLI_MAIN_INTERVAL;
+      if (otlobliChallengeActive || __otlobliChallengeResolvedAt) {
+        otlobliBlockDue = IS_SHEIN ? now + OTLOBLI_MAIN_INTERVAL : Infinity;
+        otlobliSecurityDue = IS_SHEIN ? now + OTLOBLI_MAIN_INTERVAL : Infinity;
+        scheduleOtlobliCoordinator();
+        return;
+      }
     }
     if (now >= otlobliBlockDue) {
       runOtlobliBlockers();
       otlobliBlockDue = now + OTLOBLI_BLOCK_INTERVAL;
-    }
-    if (now >= otlobliMainDue) {
-      tick();
-      otlobliMainDue = now + OTLOBLI_MAIN_INTERVAL;
     }
     if (now >= otlobliNavDue) {
       runOtlobliNavigationMaintenance();
       otlobliNavDue = now + OTLOBLI_NAV_INTERVAL;
     }
     if (now >= otlobliSecurityDue) {
-      if (otlobliScriptEnabled('blocking') && IS_SHEIN && !otlobliInteractionActive()) checkForSheinSecurityBlock();
+      if (otlobliScriptEnabled('blocking') && IS_SHEIN && !otlobliChallengeActive &&
+          !otlobliInteractionActive()) checkForSheinSecurityBlock();
       otlobliSecurityDue = now + OTLOBLI_SECURITY_INTERVAL;
     }
     scheduleOtlobliCoordinator();
@@ -246,7 +312,10 @@ export const STORE_RUNTIME_COORDINATOR_SCRIPT = `
 
   document.addEventListener('visibilitychange', function () {
     if (document.hidden) return;
-    otlobliMainDue = otlobliBlockDue = otlobliNavDue = otlobliSecurityDue = 0;
+    otlobliMainDue = 0;
+    otlobliBlockDue = IS_SHEIN ? 0 : Infinity;
+    otlobliSecurityDue = IS_SHEIN ? 0 : Infinity;
+    otlobliNavDue = OTLOBLI_NATIVE_NAV ? Infinity : 0;
     runOtlobliCoordinator();
   }, false);
   runOtlobliCoordinator();

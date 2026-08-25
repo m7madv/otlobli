@@ -18,6 +18,11 @@ export const STORE_BLOCKING_SCRIPT = `
 
   var __otlobliLoadingDone = false;
   function ensureLoadingOverlay() {
+    if (otlobliInterventionPausedForHumanChallenge()) {
+      var staleLoading = document.getElementById('otlobli-loading');
+      if (staleLoading) staleLoading.remove();
+      return;
+    }
     if (__otlobliLoadingDone || document.getElementById('otlobli-loading')) return;
     ensureOverlayStyle();
     var vp = viewportSize();
@@ -27,8 +32,14 @@ export const STORE_BLOCKING_SCRIPT = `
     // same reasoning: never let this win a stacking tie against the nav bar.
     overlay.style.cssText = 'position:fixed;left:0;top:0;width:' + vp.width + 'px;height:' + vp.height + 'px;' +
       'background:#ffffff;z-index:2147483646;display:flex;align-items:center;justify-content:center;';
-    overlay.addEventListener('touchmove', function (e) { e.preventDefault(); }, { passive: false });
-    overlay.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); }, true);
+    overlay.addEventListener('touchmove', function (e) {
+      if (otlobliInterventionPausedForHumanChallenge()) { overlay.remove(); return; }
+      e.preventDefault();
+    }, { passive: false });
+    overlay.addEventListener('click', function (e) {
+      if (otlobliInterventionPausedForHumanChallenge()) { overlay.remove(); return; }
+      e.preventDefault(); e.stopPropagation();
+    }, true);
     var spinner = document.createElement('div');
     spinner.style.cssText = 'width:38px;height:38px;border-radius:50%;border:4px solid #d8efe4;' +
       'border-top-color:#006948;animation:otlobli-spin .8s linear infinite;';
@@ -63,9 +74,21 @@ export const STORE_BLOCKING_SCRIPT = `
   }
 
   var __otlobliQuickAddClearanceNext = 0;
-  var OTLOBLI_ADD_BUTTON_REVISION = '2026-08-09-curvy-form-snapshot';
-  function ensureAddToCartButton() {
+  var OTLOBLI_ADD_BUTTON_REVISION = '2026-08-25-temu-native-clearance';
+  function ensureAddToCartButton(challengeAlreadyGuarded) {
+    if (!challengeAlreadyGuarded && otlobliInterventionPausedForHumanChallenge()) {
+      var challengedButton = document.getElementById('otlobli-add-btn');
+      if (challengedButton) challengedButton.remove();
+      return;
+    }
     var btn = document.getElementById('otlobli-add-btn');
+    var onProductPage = looksLikeProductPage();
+    // Home/listing ticks do not need to allocate, style or attach the product
+    // action at all. Keep an existing SPA button dormant until the next PDP.
+    if (!onProductPage) {
+      if (btn && btn.style.display !== 'none') btn.style.display = 'none';
+      return;
+    }
     if (btn && btn.getAttribute('data-otlobli-add-revision') !== OTLOBLI_ADD_BUTTON_REVISION) {
       try { btn.remove(); } catch (e) { if (btn.parentNode) btn.parentNode.removeChild(btn); }
       btn = null;
@@ -75,9 +98,14 @@ export const STORE_BLOCKING_SCRIPT = `
       btn = document.createElement('button');
       btn.id = 'otlobli-add-btn';
       btn.setAttribute('aria-label', 'إضافة إلى سلة otlobli');
-      // translateZ forces GPU layer (Android scroll drift fix).
-      // 74px + safe-area + 16px gap above the otlobli nav bar.
-      btn.style.cssText = 'position:fixed;right:14px;bottom:calc(74px + max(env(safe-area-inset-bottom, 0px), 16px) + 16px);' +
+      // The native container physically ends WebView above its permanent bar.
+      // Keep SHEIN's accepted 16px clearance unchanged and give only Temu an
+      // extra 8px of visual breathing room on tall 412px-class phones. The
+      // legacy DOM-bar fallback still reserves its own bar plus page safe-area.
+      var addButtonBottom = window.__otlobliNativeNavigation === true
+        ? (IS_TEMU ? '24px' : '16px')
+        : 'calc(74px + max(env(safe-area-inset-bottom, 0px), 16px) + 16px)';
+      btn.style.cssText = 'position:fixed;right:14px;bottom:' + addButtonBottom + ';' +
         'transform:translateZ(0);will-change:transform;' +
         'min-width:128px;height:48px;z-index:2147483647;' +
         'background:#006948;color:#fff;border:none;border-radius:24px;display:none;align-items:center;' +
@@ -85,6 +113,7 @@ export const STORE_BLOCKING_SCRIPT = `
         'box-shadow:0 6px 16px rgba(0,0,0,.32);padding:0 18px;animation:otlobli-pop2 .25s ease-out;';
       btn.textContent = '🛍 أضف للسلة';
       btn.addEventListener('click', function (event) {
+        if (otlobliInterventionPausedForHumanChallenge()) return;
         event.preventDefault();
         event.stopPropagation();
         if (IS_TEMU) {
@@ -191,11 +220,12 @@ export const STORE_BLOCKING_SCRIPT = `
       document.body.appendChild(btn);
     }
     btn.setAttribute('data-otlobli-add-revision', OTLOBLI_ADD_BUTTON_REVISION);
-    var showAddBtn = looksLikeProductPage() &&
+    var showAddBtn = onProductPage &&
       !(IS_TEMU && !otlobliTemuCurrentProductConfirmed() && !otlobliTemuHasVisibleProductContent(otlobliTemuProductVitals())) &&
       !(IS_TEMU && temuImageViewerOpen()) &&
       !(IS_SHEIN && sheinImageViewerOpen());
-    btn.style.display = showAddBtn ? 'flex' : 'none';
+    var targetDisplay = showAddBtn ? 'flex' : 'none';
+    if (btn.style.display !== targetDisplay) btn.style.display = targetDisplay;
     if (IS_SHEIN && showAddBtn && Date.now() >= __otlobliQuickAddClearanceNext) {
       __otlobliQuickAddClearanceNext = Date.now() + 500;
       var quick = sheinActiveQuickAddDrawer();
@@ -400,16 +430,20 @@ export const STORE_BLOCKING_SCRIPT = `
     if (!nav || !nav.querySelector) return;
     var homeTab = nav.querySelector('[data-otlobli-nav-type="openHome"]');
     if (!homeTab) return;
-    homeTab.setAttribute('aria-label', 'الرئيسية، اضغط مرتين بسرعة للعودة إلى اختيار المتجر');
-    if (homeTab.querySelector('[data-otlobli-store-switch-hint="1"]')) return;
-    var hint = document.createElement('span');
-    hint.setAttribute('data-otlobli-store-switch-hint', '1');
-    hint.style.cssText = 'font:700 10px/12px system-ui,-apple-system,sans-serif!important;margin-top:1px!important;color:#006948!important;white-space:nowrap!important;';
-    hint.textContent = 'اضغط مرتين للتبديل';
-    homeTab.appendChild(hint);
+    homeTab.setAttribute('aria-label', 'الرئيسية، يفتح قائمة المتاجر مباشرة');
+    // Older builds placed a permanent second line inside Home, changing the
+    // visual geometry. The touch bridge now owns a transient status hint above
+    // the fixed bar, so remove any stale in-bar copy during SPA reuse.
+    var staleHint = homeTab.querySelector('[data-otlobli-store-switch-hint="1"]');
+    if (staleHint && staleHint.parentNode) staleHint.parentNode.removeChild(staleHint);
   }
 
   function ensureOtlobliNav() {
+    if (window.__otlobliNativeNavigation === true) {
+      var staleNativeNav = document.getElementById('otlobli-nav');
+      if (staleNativeNav && staleNativeNav.parentNode) staleNativeNav.parentNode.removeChild(staleNativeNav);
+      return;
+    }
       // 12px يطابق خط شريط otlobli الحقيقي (0.76rem ≈ 12.2px) — كان 11px
       // فيبدو الشريطان مختلفين عند التنقل بين المتجر وبقية الشاشات.
     var existingNav = document.getElementById('otlobli-nav');
@@ -510,10 +544,14 @@ export const STORE_BLOCKING_SCRIPT = `
   function otlobliBackOrLeave() {
     var f = location.href, h = sessionStorage.getItem('__otlobliHomePath') || '/';
     try { history.back(); } catch (e) {}
-    setTimeout(function () { if (location.href === f) location.assign(location.origin + h); }, 900);
+    setTimeout(function () {
+      if (otlobliInterventionPausedForHumanChallenge()) return;
+      if (location.href === f) location.assign(location.origin + h);
+    }, 900);
   }
 
-  function ensureBackButton() {
+  function ensureBackButton(challengeAlreadyGuarded) {
+    if (!challengeAlreadyGuarded && otlobliInterventionPausedForHumanChallenge()) return;
     var temuSearchBack = IS_TEMU && otlobliTemuSearchBackActive();
     // Temu already owns product/category/search navigation. Otlobli supplies
     // only the missing root exit, avoiding a duplicate button on inner pages.
@@ -521,8 +559,8 @@ export const STORE_BLOCKING_SCRIPT = `
     var storeHomeRoot = otlobliStoreHomeRoot();
     var shouldShow = __otlobliBackTarget === 'cart' || __otlobliBackTarget === 'orders' || IS_SHEIN
       || (IS_TEMU ? storeHomeRoot : (!storeHomeRoot || looksLikeProductPage()));
-    var nativeBackAvailable = !!(window.webkit && window.webkit.messageHandlers
-      && window.webkit.messageHandlers.messageHandler);
+    var nativeBackAvailable = window.__otlobliNativeNavigation === true ||
+      !!(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.messageHandler);
     var backTop = temuSearchBack ? 30 : ((IS_SHEIN && viewportSize().width <= 390) ? 58 : 12);
 
     // iOS already owns the one visible Back control above WKWebView. Creating,
@@ -558,6 +596,7 @@ export const STORE_BLOCKING_SCRIPT = `
         'box-shadow:0 4px 12px rgba(0,0,0,.32);animation:otlobli-pop2 .25s ease-out;';
       btn.innerHTML = '&#8250;';
       btn.addEventListener('click', function (event) {
+        if (otlobliInterventionPausedForHumanChallenge()) return;
         event.preventDefault();
         event.stopPropagation();
         if (__otlobliBackTarget === 'cart') {
@@ -759,6 +798,10 @@ export const STORE_BLOCKING_SCRIPT = `
     // "if (!IS_SHEIN) return;" كانت أي نقرة على تيمو تُصادف نص "أضف...السلة"
     // تُضيف المنتج بلا تحقق. أبقِ هذا السطر أولاً دائماً.
     if (!IS_SHEIN) return;
+    // A live verification surface owns every pointer event. Old product nodes
+    // can remain mounted behind a SPA challenge, so no Otlobli interceptor may
+    // inspect or cancel those taps while verification is active.
+    if (otlobliInterventionPausedForHumanChallenge()) return;
     var el = event.target;
     // A full-screen product gallery may be painted above a still-hit-testable
     // PDP action on older WKWebView. While that exact viewer is open, block
@@ -1434,16 +1477,45 @@ export const STORE_BLOCKING_SCRIPT = `
   // field is hidden. This keeps cookie choices from turning into a forced
   // account interruption while preserving user-initiated authentication.
   var __otlobliSheinLoginDismissAt = 0;
+  var __otlobliSheinLoginSkipKey = '';
+  var __otlobliSheinLoginSkipAt = 0;
   function dismissSheinProductLoginPrompt() {
-    if (!IS_SHEIN || !document.body || !looksLikeProductPage()) return;
-    if (/(?:\\/user\\/login|\\/login|\\/signin|\\/sign-in|\\/auth)(?:[/?#]|$)/i.test(location.pathname + location.search)) return;
+    if (!IS_SHEIN || !document.body) return;
+    var productPage = looksLikeProductPage();
+    var authRoute = /(?:\\/user\\/login|\\/login|\\/signin|\\/sign-in|\\/auth)(?:[/?#]|$)/i.test(location.pathname + location.search);
+    if (!productPage && !authRoute) return;
     var now = Date.now();
     if (now - __otlobliSheinLoginDismissAt < 900) return;
     __otlobliSheinLoginDismissAt = now;
-    var vp = viewportSize();
     var authPattern = /(?:sign\\s*in|log\\s*in|continue\\s+with|email|phone\\s+number|\\u062a\\u0633\\u062c\\u064a\\u0644\\s+\\u0627\\u0644\\u062f\\u062e\\u0648\\u0644|\\u0627\\u0644\\u0627\\u0633\\u062a\\u0645\\u0631\\u0627\\u0631\\s+\\u0628|\\u0627\\u0644\\u0628\\u0631\\u064a\\u062f\\s+\\u0627\\u0644(?:\\u0625|\\u0627)\\u0644\\u0643\\u062a\\u0631\\u0648\\u0646\\u064a|\\u0631\\u0642\\u0645\\s+\\u0627\\u0644\\u0647\\u0627\\u062a\\u0641)/i;
     var cookiePattern = /cookies?|\\u0645\\u0644\\u0641\\u0627\\u062a \\u062a\\u0639\\u0631\\u064a\\u0641 \\u0627\\u0644\\u0627\\u0631\\u062a\\u0628\\u0627\\u0637/i;
-    var closePattern = /^(?:close|dismiss|skip|not now|maybe later|later|\\u00d7|\\u2715|\\u2716|\\u0625\\u063a\\u0644\\u0627\\u0642|\\u0627\\u063a\\u0644\\u0627\\u0642|\\u062a\\u062e\\u0637\\u064a|\\u0644\\u064a\\u0633 \\u0627\\u0644\\u0622\\u0646|\\u0644\\u0627\\u062d\\u0642(?:\\u0627|\\u0627\\u064b))$/i;
+    var closePattern = /^(?:close|dismiss|skip|not now|maybe later|later|sign\\s*in\\s*later|log\\s*in\\s*later|\\u00d7|\\u2715|\\u2716|\\u0625\\u063a\\u0644\\u0627\\u0642|\\u0627\\u063a\\u0644\\u0627\\u0642|\\u062a\\u062e\\u0637\\u064a|\\u0644\\u064a\\u0633 \\u0627\\u0644\\u0622\\u0646|\\u0644\\u0627\\u062d\\u0642\\u0627|\\u062a\\u0633\\u062c\\u064a\\u0644\\s+\\u0627\\u0644\\u062f\\u062e\\u0648\\u0644\\s+\\u0644\\u0627\\u062d\\u0642\\u0627)$/i;
+    var normalizeLoginLabel = function (value) {
+      return String(value || '').replace(/[\\u064B-\\u065F\\u0670]/g, '').replace(/\\s+/g, ' ').trim();
+    };
+
+    // The full-screen optional interstitial in the real iPhone capture is not
+    // guaranteed to use a dialog wrapper. Its explicit “sign in later” action
+    // is the narrow, site-owned opt-out and is safer than generic history back.
+    var skipKey = location.pathname + location.search;
+    if (__otlobliSheinLoginSkipKey !== skipKey || now - __otlobliSheinLoginSkipAt >= 15000) {
+      var pageControls = document.querySelectorAll('button,a,[role="button"]');
+      var controlStart = Math.max(0, pageControls.length - 120);
+      for (var pci = controlStart; pci < pageControls.length; pci++) {
+        var pageControl = pageControls[pci];
+        if (!pageControl || !sheinElementIsVisible(pageControl)) continue;
+        var pageLabel = normalizeLoginLabel(pageControl.innerText || pageControl.textContent ||
+          pageControl.getAttribute('aria-label') || pageControl.getAttribute('title') || '');
+        if (!/^(?:sign\\s*in\\s*later|log\\s*in\\s*later|\\u062a\\u0633\\u062c\\u064a\\u0644\\s+\\u0627\\u0644\\u062f\\u062e\\u0648\\u0644\\s+\\u0644\\u0627\\u062d\\u0642\\u0627)$/i.test(pageLabel)) continue;
+        if (!document.querySelector('input')) continue;
+        __otlobliSheinLoginSkipKey = skipKey;
+        __otlobliSheinLoginSkipAt = now;
+        try { pageControl.click(); } catch (e) {}
+        return;
+      }
+    }
+    if (authRoute || !productPage) return;
+    var vp = viewportSize();
     var candidates = document.querySelectorAll(
       '[role="dialog"],[aria-modal="true"],[class*="login"],[class*="signin"],[class*="sign-in"],[class*="modal"],[class*="popup"],[class*="drawer"]'
     );
@@ -1461,8 +1533,8 @@ export const STORE_BLOCKING_SCRIPT = `
       for (var bi = 0; bi < controls.length; bi++) {
         var control = controls[bi];
         if (!control || (control.id && control.id.indexOf('otlobli') === 0) || !sheinElementIsVisible(control)) continue;
-        var label = String(control.innerText || control.textContent || control.getAttribute('aria-label') || control.getAttribute('title') || '')
-          .replace(/\\s+/g, ' ').trim();
+        var label = normalizeLoginLabel(control.innerText || control.textContent ||
+          control.getAttribute('aria-label') || control.getAttribute('title') || '');
         if (closePattern.test(label)) { closeTarget = control; break; }
         var hint = String((control.className || '') + ' ' + (control.id || '') + ' ' +
           (control.getAttribute('aria-label') || '') + ' ' + (control.getAttribute('title') || '')).toLowerCase();
@@ -1542,6 +1614,13 @@ export const STORE_BLOCKING_SCRIPT = `
   }
 
   ${OTLOBLI_SHEIN_HUMAN_CHECK_JS}
+
+  // Function declarations are hoisted across the combined runtime, but their
+  // state initialisers are not. Enter direct challenge mode only after the
+  // observer variables above have their final values.
+  if (typeof OTLOBLI_DIRECT_HUMAN_CHALLENGE !== 'undefined' && OTLOBLI_DIRECT_HUMAN_CHALLENGE) {
+    otlobliEnterChallengeMode();
+  }
 
   var sheinBlockReported = false;
   function checkForSheinSecurityBlock() {

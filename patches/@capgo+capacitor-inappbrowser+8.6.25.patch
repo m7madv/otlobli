@@ -14,7 +14,7 @@ index 9979670..fcfd30a 100644
  }
  
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/CapgoInAppBrowserPlugin.java b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/CapgoInAppBrowserPlugin.java
-index ae420ed..3f350a3 100644
+index ae420ed..9db9326 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/CapgoInAppBrowserPlugin.java
 +++ b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/CapgoInAppBrowserPlugin.java
 @@ -265,7 +265,6 @@ public class CapgoInAppBrowserPlugin extends Plugin implements WebViewDialog.Per
@@ -114,7 +114,15 @@ index ae420ed..3f350a3 100644
      }
  
      @PluginMethod
-@@ -1204,7 +1173,6 @@ public class CapgoInAppBrowserPlugin extends Plugin implements WebViewDialog.Per
+@@ -996,6 +965,7 @@ public class CapgoInAppBrowserPlugin extends Plugin implements WebViewDialog.Per
+ 
+         options.setShareDisclaimer(call.getObject("shareDisclaimer", null));
+         options.setPreShowScript(call.getString("preShowScript", null));
++        options.setOtlobliTemuDocumentStartScript(call.getString("otlobliTemuDocumentStartScript", null));
+         options.setShareSubject(call.getString("shareSubject", null));
+         options.setToolbarType(call.getString("toolbarType", ""));
+         options.setPreventDeeplink(Boolean.TRUE.equals(call.getBoolean("preventDeeplink", false)));
+@@ -1204,7 +1174,6 @@ public class CapgoInAppBrowserPlugin extends Plugin implements WebViewDialog.Per
          }
  
          String targetId = call.getString("id");
@@ -122,7 +130,7 @@ index ae420ed..3f350a3 100644
          this.getActivity().runOnUiThread(
              new Runnable() {
                  @Override
-@@ -1561,6 +1529,17 @@ public class CapgoInAppBrowserPlugin extends Plugin implements WebViewDialog.Per
+@@ -1561,6 +1530,17 @@ public class CapgoInAppBrowserPlugin extends Plugin implements WebViewDialog.Per
              openSecureWindowSavedCall.reject("OAuth cancelled or no callback received");
              openSecureWindowSavedCall = null;
          }
@@ -158,12 +166,50 @@ index 6b4115a..8e557cf 100644
                          show: function() {
                            try {
                              window.AndroidInterface.show();
+diff --git a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/Options.java b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/Options.java
+index 7328e0b..999bc51 100644
+--- a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/Options.java
++++ b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/Options.java
+@@ -170,6 +170,7 @@ public class Options {
+     private boolean ShowArrow;
+     private boolean ignoreUntrustedSSLError;
+     private String preShowScript;
++    private String otlobliTemuDocumentStartScript;
+     private String toolbarTextColor;
+     private Pattern proxyRequestsPattern = null;
+     private boolean proxyRequests = false;
+@@ -560,6 +561,14 @@ public class Options {
+         this.preShowScript = preLoadScript;
+     }
+ 
++    public String getOtlobliTemuDocumentStartScript() {
++        return otlobliTemuDocumentStartScript;
++    }
++
++    public void setOtlobliTemuDocumentStartScript(String script) {
++        this.otlobliTemuDocumentStartScript = script;
++    }
++
+     public boolean getPreventDeeplink() {
+         return preventDeeplink;
+     }
+@@ -692,6 +701,7 @@ public class Options {
+         copy.setArrow(ShowArrow);
+         copy.setIgnoreUntrustedSSLError(ignoreUntrustedSSLError);
+         copy.setPreShowScript(preShowScript);
++        copy.setOtlobliTemuDocumentStartScript(otlobliTemuDocumentStartScript);
+         copy.setToolbarTextColor(toolbarTextColor);
+         copy.setProxyRequestsPattern(proxyRequestsPattern);
+         copy.setProxyRequests(proxyRequests);
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
-index 8ae3e61..38cbbf9 100644
+index 8ae3e61..11b749c 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
 +++ b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
-@@ -16,7 +16,13 @@ import android.graphics.Color;
+@@ -14,15 +14,23 @@ import android.graphics.Bitmap;
+ import android.graphics.Canvas;
+ import android.graphics.Color;
  import android.graphics.Paint;
++import android.graphics.Path;
  import android.graphics.PorterDuff;
  import android.graphics.PorterDuffColorFilter;
 +import android.graphics.Typeface;
@@ -176,7 +222,14 @@ index 8ae3e61..38cbbf9 100644
  import android.net.Uri;
  import android.net.http.SslError;
  import android.os.Build;
-@@ -33,6 +39,7 @@ import android.text.TextUtils;
+ import android.os.Environment;
+ import android.os.Handler;
+ import android.os.Looper;
++import android.os.SystemClock;
+ import android.print.PrintAttributes;
+ import android.print.PrintDocumentAdapter;
+ import android.print.PrintManager;
+@@ -33,11 +41,13 @@ import android.text.TextUtils;
  import android.util.Base64;
  import android.util.Log;
  import android.util.TypedValue;
@@ -184,7 +237,13 @@ index 8ae3e61..38cbbf9 100644
  import android.view.KeyEvent;
  import android.view.View;
  import android.view.ViewGroup;
-@@ -55,6 +62,9 @@ import android.webkit.WebView;
+ import android.view.Window;
+ import android.view.WindowManager;
++import android.view.accessibility.AccessibilityManager;
+ import android.view.inputmethod.InputMethodManager;
+ import android.webkit.ConsoleMessage;
+ import android.webkit.CookieManager;
+@@ -55,6 +65,9 @@ import android.webkit.WebView;
  import android.webkit.WebViewClient;
  import android.widget.ImageButton;
  import android.widget.ImageView;
@@ -194,7 +253,15 @@ index 8ae3e61..38cbbf9 100644
  import android.widget.RelativeLayout;
  import android.widget.TextView;
  import android.widget.Toast;
-@@ -215,6 +225,35 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -66,6 +79,7 @@ import androidx.core.graphics.Insets;
+ import androidx.core.view.ViewCompat;
+ import androidx.core.view.WindowInsetsCompat;
+ import androidx.core.view.WindowInsetsControllerCompat;
++import androidx.coordinatorlayout.widget.CoordinatorLayout;
+ import androidx.webkit.WebMessageCompat;
+ import androidx.webkit.WebSettingsCompat;
+ import androidx.webkit.WebViewCompat;
+@@ -215,6 +229,35 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
      private static final int REQUEST_CONNECT_TIMEOUT_MS = 15_000;
      private static final int REQUEST_READ_TIMEOUT_MS = 30_000;
      private static final int MAX_WEBVIEW_PROXY_REDIRECTS = 10;
@@ -230,20 +297,34 @@ index 8ae3e61..38cbbf9 100644
      private static final int MAX_MANAGED_DOWNLOAD_REDIRECTS = 10;
      private static final int BLOB_DOWNLOAD_CHUNK_BYTES = 64 * 1024;
      private static final long MAX_LEGACY_BLOB_DOWNLOAD_BYTES = 512L * 1024L;
-@@ -333,6 +372,45 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -333,6 +376,59 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
      private String proxyAccessToken;
      private final ExecutorService executorService = Executors.newCachedThreadPool();
      private final Handler mainHandler = new Handler(Looper.getMainLooper());
++    private LinearLayout otlobliNativeNavigation;
++    private View otlobliNativeNavigationContent;
++    private long otlobliLastHomeActivationAt;
++    private Toast otlobliStoreSwitchHintToast;
++    private boolean otlobliStoreSwitchDiscoveryShown;
++    private volatile boolean otlobliHumanChallengeNavigationLocked = false;
++    private final Runnable otlobliStoreSwitchDiscovery = () -> {
++        if (otlobliStoreSwitchDiscoveryShown || otlobliNativeNavigation == null ||
++            !otlobliIsStoreSession() || !otlobliStoreSurfaceVisible() ||
++            otlobliHumanChallengeNavigationLocked) return;
++        otlobliStoreSwitchDiscoveryShown = true;
++        showOtlobliStoreSwitchDiscoveryHint();
++    };
 +    private static final String OTLOBLI_SHEIN_POLICY_VERSION = "2026.08.21-v86.208-policy-v1";
 +    private String otlobliLastSafeSheinUrl = "";
 +    private String otlobliLastBlockedSheinRoute = "";
 +    private long otlobliLastBlockedSheinRouteAt = 0L;
++    private boolean otlobliHumanChallengeResolutionReported = false;
++    private String otlobliHumanChallengeDocumentGeneration = "";
++    private volatile String otlobliCurrentTopLevelUrl = "";
 +    private View otlobliLoadingCover;
 +    private TextView otlobliLoadingCoverLabel;
 +    private String otlobliLoadingCoverMessage = "جاري تجهيز المتجر…";
 +    private boolean otlobliLoadingCoverAwaitingLayout = false;
-+    private boolean otlobliLoadingHomeTapPending = false;
-+    private final Runnable otlobliLoadingHomeTapTimeout = () -> otlobliLoadingHomeTapPending = false;
 +    private final Runnable otlobliLoadingCoverTimeout = () -> {
 +        if (otlobliIsSheinSession()) {
 +            otlobliEmitSheinMessage("sheinCoordinatorTimeout", "code", "readiness-timeout");
@@ -276,7 +357,7 @@ index 8ae3e61..38cbbf9 100644
      private final Map<String, BlobDownloadSession> blobDownloadSessions = new ConcurrentHashMap<>();
      private final Map<String, ClientCertificateIdentity> clientCertificateIdentities = new ConcurrentHashMap<>();
      private int iconColor = Color.BLACK; // Default icon color
-@@ -382,6 +460,16 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -382,6 +478,17 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          this.capacitorWebView = capacitorWebView;
      }
  
@@ -288,18 +369,24 @@ index 8ae3e61..38cbbf9 100644
 +        // Android before the full-height cover arrived. Start only after the
 +        // dialog owns a stable viewport so opening has one visual surface.
 +        showOtlobliLoadingCover();
++        scheduleOtlobliStoreSwitchDiscoveryHint();
 +    }
 +
      public void setInstanceId(String id) {
          this.instanceId = id != null ? id : "";
      }
-@@ -433,6 +521,673 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -433,6 +540,1092 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          openWebViewResolved = true;
      }
  
 +    private boolean isOtlobliLoadingCoverEnabled() {
 +        if (_options == null || _options.getPluginCall() == null) return false;
 +        return Boolean.TRUE.equals(_options.getPluginCall().getBoolean("otlobliLoadingCover", false));
++    }
++
++    private boolean isOtlobliNativeNavigationEnabled() {
++        if (_options == null || _options.getPluginCall() == null) return false;
++        return Boolean.TRUE.equals(_options.getPluginCall().getBoolean("otlobliNativeNavigation", false));
 +    }
 +
 +    private void scheduleOtlobliLoadingCoverTimeout() {
@@ -321,7 +408,9 @@ index 8ae3e61..38cbbf9 100644
 +                return;
 +            }
 +
-+            ViewGroup root = findViewById(android.R.id.content);
++            ViewGroup root = isOtlobliNativeNavigationEnabled()
++                ? findViewById(R.id.content_browser_layout)
++                : findViewById(android.R.id.content);
 +            if (root == null) return;
 +            // A Dialog reports a small wrap-content root until its first
 +            // fullscreen layout. A dp threshold is unreliable on scaled
@@ -385,17 +474,6 @@ index 8ae3e61..38cbbf9 100644
 +            labelParams.gravity = Gravity.CENTER;
 +            cover.addView(label, labelParams);
 +
-+            // Paint a native copy of the permanent Otlobli bottom bar while
-+            // SHEIN's document-start script is not ready yet. Previously this
-+            // 120dp space was transparent, so a cold opening briefly had no
-+            // navigation at all. The native copy disappears together with this
-+            // cover only after the document has installed its identical bar.
-+            cover.addView(otlobliLoadingNavigation(), new FrameLayout.LayoutParams(
-+                ViewGroup.LayoutParams.MATCH_PARENT,
-+                otlobliDp(120),
-+                Gravity.BOTTOM
-+            ));
-+
 +            FrameLayout.LayoutParams coverParams = new FrameLayout.LayoutParams(
 +                ViewGroup.LayoutParams.MATCH_PARENT,
 +                ViewGroup.LayoutParams.MATCH_PARENT
@@ -414,8 +492,6 @@ index 8ae3e61..38cbbf9 100644
 +    private void hideOtlobliLoadingCover() {
 +        mainHandler.post(() -> {
 +            otlobliLoadingCoverAwaitingLayout = false;
-+            mainHandler.removeCallbacks(otlobliLoadingHomeTapTimeout);
-+            otlobliLoadingHomeTapPending = false;
 +            mainHandler.removeCallbacks(otlobliLoadingCoverTimeout);
 +            final View cover = otlobliLoadingCover;
 +            if (cover == null) return;
@@ -447,128 +523,370 @@ index 8ae3e61..38cbbf9 100644
 +        );
 +    }
 +
-+    private LinearLayout otlobliLoadingNavigation() {
-+        LinearLayout navigation = new LinearLayout(getContext());
-+        navigation.setOrientation(LinearLayout.HORIZONTAL);
-+        navigation.setGravity(Gravity.TOP);
-+        navigation.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-+        navigation.setBackgroundColor(Color.WHITE);
-+        navigation.setClickable(true);
-+        navigation.setFocusable(true);
-+
-+        String[] labels = { "الرئيسية", "طلباتي", "السلة", "حسابي" };
-+        String[] routes = { "store-select", "orders", "cart", "profile" };
-+        String[] paths = {
-+            "<path d=\"M4 11.5 12 4l8 7.5\"/><path d=\"M6 10v9h12v-9\"/><path d=\"M10 19v-5h4v5\"/>",
-+            "<rect x=\"4\" y=\"7\" width=\"16\" height=\"13\" rx=\"1.3\"/><path d=\"M4 7l8-4 8 4\"/><path d=\"M12 11v9\"/>",
-+            "<circle cx=\"9\" cy=\"20\" r=\"1.3\"/><circle cx=\"18\" cy=\"20\" r=\"1.3\"/><path d=\"M3 4h2l2.2 11.5a2 2 0 0 0 2 1.6h8.6a2 2 0 0 0 2-1.6L21 8H6\"/>",
-+            "<circle cx=\"12\" cy=\"8\" r=\"3.6\"/><path d=\"M5 20c0-3.8 3.1-6.4 7-6.4s7 2.6 7 6.4\"/>"
-+        };
-+        for (int index = 0; index < labels.length; index++) {
-+            boolean selected = index == 0;
-+            int tabColor = selected ? Color.rgb(0, 105, 72) : Color.rgb(61, 74, 66);
-+            LinearLayout tab = new LinearLayout(getContext());
-+            tab.setOrientation(LinearLayout.VERTICAL);
-+            tab.setGravity(Gravity.CENTER_HORIZONTAL);
-+            tab.setPadding(0, otlobliDp(4), 0, 0);
-+            tab.setClickable(true);
-+            tab.setFocusable(true);
-+            tab.setTag(routes[index]);
-+            tab.setContentDescription(index == 0
-+                ? "اختيار المتجر؛ اضغط مرتين بسرعة"
-+                : labels[index]);
-+            tab.setOnClickListener(view -> otlobliHandleLoadingNavigationTap(String.valueOf(view.getTag())));
-+
-+            if (selected) {
-+                View indicator = new View(getContext());
-+                GradientDrawable indicatorBackground = new GradientDrawable();
-+                indicatorBackground.setColor(tabColor);
-+                indicatorBackground.setCornerRadius(otlobliDp(999));
-+                indicator.setBackground(indicatorBackground);
-+                tab.addView(indicator, new LinearLayout.LayoutParams(otlobliDp(32), otlobliDp(4)));
-+            } else {
-+                View spacer = new View(getContext());
-+                tab.addView(spacer, new LinearLayout.LayoutParams(otlobliDp(32), otlobliDp(4)));
-+            }
-+
-+            ImageView icon = new ImageView(getContext());
-+            icon.setImageBitmap(otlobliLoadingNavIcon(paths[index], tabColor));
-+            icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
-+            LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(otlobliDp(22), otlobliDp(22));
-+            iconParams.topMargin = otlobliDp(7);
-+            tab.addView(icon, iconParams);
-+
-+            TextView label = new TextView(getContext());
-+            label.setText(labels[index]);
-+            label.setTextColor(tabColor);
-+            label.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
-+            label.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-+            label.setGravity(Gravity.CENTER);
-+            label.setIncludeFontPadding(false);
-+            LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(
-+                ViewGroup.LayoutParams.MATCH_PARENT,
-+                ViewGroup.LayoutParams.WRAP_CONTENT
-+            );
-+            labelParams.topMargin = otlobliDp(5);
-+            tab.addView(label, labelParams);
-+
-+            navigation.addView(tab, new LinearLayout.LayoutParams(
-+                0,
-+                otlobliDp(74),
-+                1f
-+            ));
-+        }
-+        return navigation;
-+    }
-+
-+    private void otlobliHandleLoadingNavigationTap(String target) {
-+        if (!"store-select".equals(target)) {
-+            mainHandler.removeCallbacks(otlobliLoadingHomeTapTimeout);
-+            otlobliLoadingHomeTapPending = false;
-+            otlobliNavigateHost(target);
-+            return;
-+        }
-+        android.view.accessibility.AccessibilityManager accessibilityManager =
-+            (android.view.accessibility.AccessibilityManager) getContext().getSystemService(Context.ACCESSIBILITY_SERVICE);
-+        if (accessibilityManager != null && accessibilityManager.isTouchExplorationEnabled()) {
-+            otlobliNavigateHost(target);
-+            return;
-+        }
-+        if (otlobliLoadingHomeTapPending) {
-+            mainHandler.removeCallbacks(otlobliLoadingHomeTapTimeout);
-+            otlobliLoadingHomeTapPending = false;
-+            otlobliNavigateHost(target);
-+            return;
-+        }
-+        otlobliLoadingHomeTapPending = true;
-+        mainHandler.postDelayed(otlobliLoadingHomeTapTimeout, 320L);
-+    }
-+
-+    private Bitmap otlobliLoadingNavIcon(String paths, int color) {
-+        int size = otlobliDp(22);
-+        try {
-+            String svgSource = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#"
-+                + String.format(Locale.US, "%06X", 0xFFFFFF & color)
-+                + "\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\">"
-+                + paths
-+                + "</svg>";
-+            SVG svg = SVG.getFromString(svgSource);
-+            svg.setDocumentWidth(size);
-+            svg.setDocumentHeight(size);
-+            Bitmap bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
-+            svg.renderToCanvas(new Canvas(bitmap));
-+            return bitmap;
-+        } catch (SVGParseException exception) {
-+            Log.w("InAppBrowser", "Unable to draw Otlobli loading navigation icon", exception);
-+            return null;
-+        }
-+    }
-+
 +    private GradientDrawable otlobliRoundedBackground(int color, float radiusDp) {
 +        GradientDrawable background = new GradientDrawable();
 +        background.setColor(color);
 +        background.setCornerRadius(otlobliDp(radiusDp));
 +        return background;
++    }
++
++    private final class OtlobliNavigationIconView extends View {
++
++        static final int HOME = 0;
++        static final int ORDERS = 1;
++        static final int CART = 2;
++        static final int PROFILE = 3;
++
++        private final int iconType;
++        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
++        private final Path path = new Path();
++
++        OtlobliNavigationIconView(int iconType, int color) {
++            super(WebViewDialog.this.getContext());
++            this.iconType = iconType;
++            paint.setColor(color);
++            paint.setStyle(Paint.Style.STROKE);
++            paint.setStrokeCap(Paint.Cap.ROUND);
++            paint.setStrokeJoin(Paint.Join.ROUND);
++            setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
++        }
++
++        @Override
++        protected void onDraw(Canvas canvas) {
++            super.onDraw(canvas);
++            float scale = Math.min(getWidth(), getHeight()) / 24f;
++            float offsetX = (getWidth() - 24f * scale) / 2f;
++            float offsetY = (getHeight() - 24f * scale) / 2f;
++            // The canvas is scaled from the 24x24 SVG viewBox below, so the
++            // stroke must stay in viewBox units. Multiplying it by `scale`
++            // here as well made density apply twice (very thick, almost
++            // filled icons on the Note 8) and no longer matched React's
++            // stroke-width="1.8" navigation icons.
++            paint.setStrokeWidth(1.8f);
++            canvas.save();
++            canvas.translate(offsetX, offsetY);
++            canvas.scale(scale, scale);
++            path.reset();
++
++            switch (iconType) {
++                case HOME:
++                    path.moveTo(4f, 11.5f);
++                    path.lineTo(12f, 4f);
++                    path.lineTo(20f, 11.5f);
++                    path.moveTo(6f, 10f);
++                    path.lineTo(6f, 19f);
++                    path.lineTo(18f, 19f);
++                    path.lineTo(18f, 10f);
++                    path.moveTo(10f, 19f);
++                    path.lineTo(10f, 14f);
++                    path.lineTo(14f, 14f);
++                    path.lineTo(14f, 19f);
++                    canvas.drawPath(path, paint);
++                    break;
++                case ORDERS:
++                    canvas.drawRoundRect(4f, 7f, 20f, 20f, 1.3f, 1.3f, paint);
++                    path.moveTo(4f, 7f);
++                    path.lineTo(12f, 3f);
++                    path.lineTo(20f, 7f);
++                    path.moveTo(12f, 11f);
++                    path.lineTo(12f, 20f);
++                    canvas.drawPath(path, paint);
++                    break;
++                case CART:
++                    canvas.drawCircle(9f, 20f, 1.3f, paint);
++                    canvas.drawCircle(18f, 20f, 1.3f, paint);
++                    path.moveTo(3f, 4f);
++                    path.lineTo(5f, 4f);
++                    path.lineTo(7.2f, 15.5f);
++                    path.cubicTo(7.4f, 16.5f, 8.2f, 17.1f, 9.2f, 17.1f);
++                    path.lineTo(17.8f, 17.1f);
++                    path.cubicTo(18.8f, 17.1f, 19.6f, 16.5f, 19.8f, 15.5f);
++                    path.lineTo(21f, 8f);
++                    path.lineTo(6f, 8f);
++                    canvas.drawPath(path, paint);
++                    break;
++                default:
++                    canvas.drawCircle(12f, 8f, 3.6f, paint);
++                    path.moveTo(5f, 20f);
++                    path.cubicTo(5f, 16.2f, 8.1f, 13.6f, 12f, 13.6f);
++                    path.cubicTo(15.9f, 13.6f, 19f, 16.2f, 19f, 20f);
++                    canvas.drawPath(path, paint);
++                    break;
++            }
++            canvas.restore();
++        }
++    }
++
++    private FrameLayout createOtlobliNativeNavigationItem(
++        String label,
++        int iconType,
++        boolean active,
++        Runnable action
++    ) {
++        final int activeColor = Color.rgb(0, 105, 72);
++        final int inactiveColor = Color.rgb(61, 74, 66);
++        final int foregroundColor = active ? activeColor : inactiveColor;
++
++        FrameLayout item = new FrameLayout(getContext());
++        item.setClickable(true);
++        item.setFocusable(true);
++        item.setMinimumHeight(otlobliDp(48));
++        item.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
++        item.setContentDescription(
++            active ? label + "، يفتح قائمة المتاجر مباشرة" : label
++        );
++        item.setOnClickListener(ignored -> action.run());
++
++        View indicator = new View(getContext());
++        indicator.setBackground(otlobliRoundedBackground(activeColor, 2));
++        indicator.setVisibility(active ? View.VISIBLE : View.INVISIBLE);
++        indicator.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
++        FrameLayout.LayoutParams indicatorParams = new FrameLayout.LayoutParams(otlobliDp(32), otlobliDp(4));
++        indicatorParams.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
++        item.addView(indicator, indicatorParams);
++
++        LinearLayout content = new LinearLayout(getContext());
++        content.setOrientation(LinearLayout.VERTICAL);
++        content.setGravity(Gravity.CENTER);
++        content.setPadding(0, otlobliDp(10), 0, 0);
++        content.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
++
++        OtlobliNavigationIconView icon = new OtlobliNavigationIconView(iconType, foregroundColor);
++        LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(otlobliDp(22), otlobliDp(22));
++        content.addView(icon, iconParams);
++
++        TextView text = new TextView(getContext());
++        text.setText(label);
++        text.setTextColor(foregroundColor);
++        // React compensates Android font scale for these four fixed labels so
++        // the store and app bars remain the same physical 12px. DP mirrors a
++        // CSS px here; SP would apply the user's scale a second time.
++        text.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
++        text.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
++        text.setIncludeFontPadding(false);
++        text.setGravity(Gravity.CENTER);
++        text.setSingleLine(true);
++        text.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
++        LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
++            ViewGroup.LayoutParams.MATCH_PARENT,
++            ViewGroup.LayoutParams.WRAP_CONTENT
++        );
++        textParams.topMargin = otlobliDp(4);
++        content.addView(text, textParams);
++
++        FrameLayout.LayoutParams contentParams = new FrameLayout.LayoutParams(
++            ViewGroup.LayoutParams.MATCH_PARENT,
++            ViewGroup.LayoutParams.MATCH_PARENT
++        );
++        item.addView(content, contentParams);
++        return item;
++    }
++
++    private void installOtlobliNativeNavigationIfNeeded() {
++        if (!isOtlobliNativeNavigationEnabled() || otlobliNativeNavigation != null) return;
++        CoordinatorLayout root = findViewById(R.id.coordinator_layout);
++        View contentBrowserLayout = findViewById(R.id.content_browser_layout);
++        if (root == null || contentBrowserLayout == null) return;
++
++        LinearLayout navigation = new LinearLayout(getContext());
++        navigation.setOrientation(LinearLayout.VERTICAL);
++        navigation.setBackgroundColor(Color.WHITE);
++        navigation.setClipToPadding(true);
++        navigation.setElevation(0f);
++        navigation.setStateListAnimator(null);
++        navigation.setAlpha(1f);
++        navigation.setScaleX(1f);
++        navigation.setScaleY(1f);
++        navigation.setTranslationX(0f);
++        navigation.setTranslationY(0f);
++        navigation.setRotation(0f);
++        navigation.setContentDescription(null);
++        navigation.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
++
++        View separator = new View(getContext());
++        separator.setBackgroundColor(Color.rgb(188, 202, 192));
++        separator.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
++        navigation.addView(
++            separator,
++            new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, otlobliDp(1))
++        );
++
++        LinearLayout items = new LinearLayout(getContext());
++        items.setOrientation(LinearLayout.HORIZONTAL);
++        items.setGravity(Gravity.CENTER);
++        items.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
++        items.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
++
++        View home = createOtlobliNativeNavigationItem(
++            "الرئيسية",
++            OtlobliNavigationIconView.HOME,
++            true,
++            this::handleOtlobliHomeNavigationActivation
++        );
++        View orders = createOtlobliNativeNavigationItem(
++            "طلباتي",
++            OtlobliNavigationIconView.ORDERS,
++            false,
++            () -> otlobliNavigateHost("orders")
++        );
++        View cart = createOtlobliNativeNavigationItem(
++            "السلة",
++            OtlobliNavigationIconView.CART,
++            false,
++            () -> otlobliNavigateHost("cart")
++        );
++        View profile = createOtlobliNativeNavigationItem(
++            "حسابي",
++            OtlobliNavigationIconView.PROFILE,
++            false,
++            () -> otlobliNavigateHost("profile")
++        );
++
++        LinearLayout.LayoutParams itemParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f);
++        items.addView(home, new LinearLayout.LayoutParams(itemParams));
++        items.addView(orders, new LinearLayout.LayoutParams(itemParams));
++        items.addView(cart, new LinearLayout.LayoutParams(itemParams));
++        items.addView(profile, new LinearLayout.LayoutParams(itemParams));
++        navigation.addView(items, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
++
++        CoordinatorLayout.LayoutParams navigationParams = new CoordinatorLayout.LayoutParams(
++            ViewGroup.LayoutParams.MATCH_PARENT,
++            otlobliDp(74)
++        );
++        navigationParams.gravity = Gravity.BOTTOM;
++        root.addView(navigation, navigationParams);
++        otlobliNativeNavigation = navigation;
++        otlobliNativeNavigationContent = contentBrowserLayout;
++        updateOtlobliNativeNavigationInsets(0, 0, 0, 0, 0, false);
++        navigation.bringToFront();
++    }
++
++    private boolean isOtlobliTouchExplorationEnabled() {
++        AccessibilityManager manager = (AccessibilityManager) getContext().getSystemService(Context.ACCESSIBILITY_SERVICE);
++        return manager != null && manager.isEnabled() && manager.isTouchExplorationEnabled();
++    }
++
++    private void dismissOtlobliStoreSwitchHint() {
++        mainHandler.removeCallbacks(otlobliStoreSwitchDiscovery);
++        if (otlobliStoreSwitchHintToast == null) return;
++        otlobliStoreSwitchHintToast.cancel();
++        otlobliStoreSwitchHintToast = null;
++    }
++
++    private void presentOtlobliStoreSwitchHint(String message, int duration) {
++        if (!otlobliIsStoreSession() || !otlobliStoreSurfaceVisible() ||
++            otlobliHumanChallengeNavigationLocked) return;
++        dismissOtlobliStoreSwitchHint();
++        otlobliStoreSwitchHintToast = Toast.makeText(
++            getContext(),
++            message,
++            duration
++        );
++        otlobliStoreSwitchHintToast.show();
++    }
++
++    private void showOtlobliStoreSwitchDiscoveryHint() {
++        presentOtlobliStoreSwitchHint("انقر «الرئيسية» مرتين لفتح قائمة المتاجر", Toast.LENGTH_LONG);
++    }
++
++    private void showOtlobliStoreSwitchHint() {
++        presentOtlobliStoreSwitchHint("انقر مرة ثانية لفتح قائمة المتاجر", Toast.LENGTH_SHORT);
++    }
++
++    private boolean otlobliStoreSurfaceVisible() {
++        return isShowing() && !isHiddenModeActive && (_options == null || !_options.isHidden());
++    }
++
++    private void scheduleOtlobliStoreSwitchDiscoveryHint() {
++        if (otlobliStoreSwitchDiscoveryShown || !otlobliIsStoreSession() ||
++            !otlobliStoreSurfaceVisible() || otlobliHumanChallengeNavigationLocked) return;
++        mainHandler.removeCallbacks(otlobliStoreSwitchDiscovery);
++        mainHandler.postDelayed(otlobliStoreSwitchDiscovery, 700L);
++    }
++
++    private void handleOtlobliHomeNavigationActivation() {
++        if (otlobliHumanChallengeNavigationLocked) {
++            dismissOtlobliStoreSwitchHint();
++            return;
++        }
++        // TalkBack, like VoiceOver, converts its physical double-tap into one
++        // click activation. One activation therefore completes the shortcut.
++        if (isOtlobliTouchExplorationEnabled()) {
++            otlobliLastHomeActivationAt = 0L;
++            dismissOtlobliStoreSwitchHint();
++            otlobliNavigateHost("store-select");
++            return;
++        }
++
++        long now = SystemClock.uptimeMillis();
++        if (now - otlobliLastHomeActivationAt <= 320L) {
++            otlobliLastHomeActivationAt = 0L;
++            dismissOtlobliStoreSwitchHint();
++            otlobliNavigateHost("store-select");
++        } else {
++            otlobliLastHomeActivationAt = now;
++            showOtlobliStoreSwitchHint();
++        }
++    }
++
++    private void updateOtlobliNativeNavigationInsets(
++        int opaqueBottomInset,
++        int gestureSafeBottomInset,
++        int safeLeftInset,
++        int safeRightInset,
++        int imeBottomInset,
++        boolean keyboardVisible
++    ) {
++        LinearLayout navigation = otlobliNativeNavigation;
++        View contentBrowserLayout = otlobliNativeNavigationContent;
++        if (navigation == null || contentBrowserLayout == null) return;
++        if (!(navigation.getLayoutParams() instanceof CoordinatorLayout.LayoutParams navigationParams)) return;
++        if (!(contentBrowserLayout.getLayoutParams() instanceof ViewGroup.MarginLayoutParams contentParams)) return;
++
++        // Keep the same 74dp content plus max(16dp, gesture-safe-area) as
++        // React/iOS. An opaque 3-button navigation bar is an outside offset;
++        // a transparent gesture area is padding inside the white surface.
++        // Mixing them used to swallow exactly 16dp on the Note 8.
++        int visibleBottomFloor = keyboardVisible
++            ? otlobliDp(16)
++            : Math.max(otlobliDp(16), Math.max(0, gestureSafeBottomInset));
++        int systemBottomOffset = keyboardVisible ? 0 : Math.max(0, opaqueBottomInset);
++        int keyboardOffset = keyboardVisible ? Math.max(0, imeBottomInset) : 0;
++        int navigationHeight = otlobliDp(74) + visibleBottomFloor;
++        navigation.setPadding(0, 0, 0, visibleBottomFloor);
++        navigationParams.height = navigationHeight;
++        View parent = (View) navigation.getParent();
++        int parentWidth = parent == null ? 0 : parent.getWidth();
++        if (parentWidth <= 0) parentWidth = getContext().getResources().getDisplayMetrics().widthPixels;
++        int appliedSafeLeft = Math.max(0, safeLeftInset);
++        int appliedSafeRight = Math.max(0, safeRightInset);
++        int availableWidth = Math.max(0, parentWidth - appliedSafeLeft - appliedSafeRight);
++        int navigationWidth = Math.min(otlobliDp(440), availableWidth);
++        int centeredGap = Math.max(0, (availableWidth - navigationWidth) / 2);
++        navigationParams.width = navigationWidth;
++        navigationParams.leftMargin = appliedSafeLeft + centeredGap;
++        navigationParams.rightMargin = appliedSafeRight + centeredGap;
++        navigationParams.bottomMargin = systemBottomOffset + keyboardOffset;
++        navigation.setLayoutParams(navigationParams);
++
++        contentParams.height = ViewGroup.LayoutParams.MATCH_PARENT;
++        contentParams.bottomMargin = navigationHeight + systemBottomOffset + keyboardOffset;
++        contentBrowserLayout.setLayoutParams(contentParams);
++        navigation.bringToFront();
++    }
++
++    private boolean otlobliUsesGestureNavigation() {
++        int modeResource = getContext().getResources().getIdentifier(
++            "config_navBarInteractionMode",
++            "integer",
++            "android"
++        );
++        if (modeResource <= 0) return false;
++        try {
++            return getContext().getResources().getInteger(modeResource) == 2;
++        } catch (Exception ignored) {
++            return false;
++        }
 +    }
 +
 +    private boolean isOtlobliOfflineError(WebResourceError error) {
@@ -674,7 +992,9 @@ index 8ae3e61..38cbbf9 100644
 +                return;
 +            }
 +
-+            ViewGroup root = findViewById(android.R.id.content);
++            ViewGroup root = isOtlobliNativeNavigationEnabled()
++                ? findViewById(R.id.content_browser_layout)
++                : findViewById(android.R.id.content);
 +            if (root == null) return;
 +
 +            FrameLayout cover = new FrameLayout(getContext());
@@ -847,11 +1167,181 @@ index 8ae3e61..38cbbf9 100644
 +        return "shein.com".equals(normalized) || normalized.endsWith(".shein.com");
 +    }
 +
++    private boolean otlobliIsTemuHost(String host) {
++        if (host == null) return false;
++        String normalized = host.toLowerCase(Locale.ROOT);
++        return "temu.com".equals(normalized) || normalized.endsWith(".temu.com");
++    }
++
 +    private boolean otlobliIsSheinSession() {
 +        try {
 +            return _options != null && otlobliIsSheinHost(Uri.parse(_options.getUrl()).getHost());
 +        } catch (Exception ignored) {
 +            return false;
++        }
++    }
++
++    private boolean otlobliIsTemuSession() {
++        try {
++            return _options != null && otlobliIsTemuHost(Uri.parse(_options.getUrl()).getHost());
++        } catch (Exception ignored) {
++            return false;
++        }
++    }
++
++    private boolean otlobliIsStoreSession() {
++        return otlobliIsTemuSession() || otlobliIsSheinSession();
++    }
++
++    private long otlobliDocumentGenerationTimestamp(String generation) {
++        if (TextUtils.isEmpty(generation)) return 0L;
++        String prefix = generation.split("-", 2)[0];
++        if (!prefix.matches("[0-9A-Za-z]+")) return 0L;
++        try {
++            return Long.parseLong(prefix, 36);
++        } catch (NumberFormatException ignored) {
++            return 0L;
++        }
++    }
++
++    private boolean otlobliReadyDocumentCanReleaseHumanChallenge(String generation) {
++        if (TextUtils.isEmpty(generation)) return false;
++        boolean sameResolvedDocument = !TextUtils.isEmpty(otlobliHumanChallengeDocumentGeneration) &&
++            generation.equals(otlobliHumanChallengeDocumentGeneration) &&
++            otlobliHumanChallengeResolutionReported;
++        long readyTimestamp = otlobliDocumentGenerationTimestamp(generation);
++        long challengeTimestamp = otlobliDocumentGenerationTimestamp(otlobliHumanChallengeDocumentGeneration);
++        boolean freshDocument = readyTimestamp > 0L && challengeTimestamp > 0L && readyTimestamp > challengeTimestamp;
++        boolean resolvedUnknownDocument = TextUtils.isEmpty(otlobliHumanChallengeDocumentGeneration) &&
++            otlobliHumanChallengeResolutionReported;
++        return sameResolvedDocument || freshDocument || resolvedUnknownDocument;
++    }
++
++    private boolean otlobliIsTrustedChallengeMessageSource(Uri sourceOrigin, boolean isMainFrame) {
++        if (!isMainFrame) return false;
++        try {
++            Uri current = Uri.parse(otlobliCurrentTopLevelUrl);
++            String currentHost = current.getHost();
++            boolean currentStoreHost = otlobliIsTemuHost(currentHost) || otlobliIsSheinHost(currentHost);
++            if (!"https".equalsIgnoreCase(current.getScheme()) || !currentStoreHost) return false;
++            // addJavascriptInterface cannot prove which frame invoked it. Only
++            // the WebMessage listener supplies an origin plus main-frame bit,
++            // so an origin-less fallback must never change native gate state.
++            if (sourceOrigin == null) return false;
++            return "https".equalsIgnoreCase(sourceOrigin.getScheme()) &&
++                TextUtils.equals(currentHost == null ? "" : currentHost.toLowerCase(Locale.ROOT),
++                    sourceOrigin.getHost() == null ? "" : sourceOrigin.getHost().toLowerCase(Locale.ROOT));
++        } catch (Exception ignored) {
++            return false;
++        }
++    }
++
++    private boolean otlobliSameTopLevelDocument(Uri first, Uri second) {
++        if (first == null || second == null) return false;
++        return TextUtils.equals(first.getScheme(), second.getScheme()) &&
++            TextUtils.equals(first.getHost(), second.getHost()) &&
++            TextUtils.equals(first.getPath(), second.getPath()) &&
++            TextUtils.equals(first.getQuery(), second.getQuery());
++    }
++
++    private boolean otlobliIsHumanChallengeUrl(Uri uri) {
++        if (uri == null) return false;
++        String path = uri.getPath() == null ? "/" : uri.getPath().toLowerCase(Locale.ROOT);
++        String route = path + (uri.getQuery() == null ? "" : "?" + uri.getQuery()) +
++            (uri.getFragment() == null ? "" : "#" + uri.getFragment());
++        return otlobliRouteMatches(path, "/(?:cdn-cgi|challenge|captcha|verify|verification|bgn[_-]?verification|security|robot|risk|anti[-_]?bot|human)(?:[/?#.-]|$)") ||
++            otlobliRouteMatches(route, "(?:^|[?&#])(?:captcha|challenge|verification|bgn[_-]?verification|security_token|risk|robot|anti[-_]?bot|human)=");
++    }
++
++    private boolean otlobliIsTrustedTemuReady(JSONObject detail) {
++        if (!otlobliIsTemuSession()) return false;
++        String type = detail.optString("type", "");
++        if (!("temuPublicReady".equals(type) || "temuProductVisible".equals(type))) return false;
++        if (TextUtils.isEmpty(detail.optString("documentGeneration", ""))) return false;
++        try {
++            Uri readyUrl = Uri.parse(detail.optString("url", ""));
++            Uri currentUrl = Uri.parse(otlobliCurrentTopLevelUrl);
++            return "https".equalsIgnoreCase(readyUrl.getScheme()) && otlobliIsTemuHost(readyUrl.getHost()) &&
++                !otlobliIsHumanChallengeUrl(readyUrl) && !otlobliIsHumanChallengeUrl(currentUrl) &&
++                otlobliSameTopLevelDocument(currentUrl, readyUrl);
++        } catch (Exception ignored) {
++            return false;
++        }
++    }
++
++    private boolean otlobliIsTrustedSheinCoordinatorReady(JSONObject detail) {
++        if (!otlobliIsSheinSession()) return false;
++        if (otlobliIsHumanChallengeUrl(Uri.parse(otlobliCurrentTopLevelUrl))) return false;
++        String type = detail.optString("type", "");
++        if (!("sheinSaudiReady".equals(type) || "sheinPageInteractive".equals(type) || "sheinCoordinatorState".equals(type))) {
++            return false;
++        }
++        JSONObject coordinator = detail.optJSONObject("coordinator");
++        if (coordinator == null || TextUtils.isEmpty(coordinator.optString("documentGeneration", ""))) return false;
++        if (!coordinator.optBoolean("interactive", false)) return false;
++        if (!"verified".equals(coordinator.optString("policyState", ""))) return false;
++        if (!"ready".equals(coordinator.optString("captureState", ""))) return false;
++        if (!"matching".equals(coordinator.optString("countryState", "")) ||
++            !"matching".equals(coordinator.optString("regionState", "")) ||
++            !"matching".equals(coordinator.optString("currencyState", "")) ||
++            !"matching".equals(coordinator.optString("languageState", ""))) return false;
++        String loginState = coordinator.optString("loginState", "unknown");
++        if (!("not-required".equals(loginState) || "blocked".equals(loginState))) return false;
++        String humanState = coordinator.optString("humanVerificationState", "required");
++        return "none".equals(humanState) || "resolved".equals(humanState);
++    }
++
++    private void otlobliClearHumanChallengeNavigationGate() {
++        otlobliHumanChallengeNavigationLocked = false;
++        otlobliHumanChallengeResolutionReported = false;
++        otlobliHumanChallengeDocumentGeneration = "";
++        mainHandler.post(this::updateNavigationButtonsState);
++    }
++
++    private void handleOtlobliHumanChallengeMessage(String message, Uri sourceOrigin, boolean isMainFrame) {
++        try {
++            if (!otlobliIsTrustedChallengeMessageSource(sourceOrigin, isMainFrame)) return;
++            JSONObject payload = new JSONObject(message);
++            JSONObject detail = payload.optJSONObject("detail");
++            if (detail == null) return;
++            String type = detail.optString("type", "");
++            if ("humanCheck".equals(type)) {
++                if (!(otlobliIsSheinSession() || otlobliIsTemuSession())) return;
++                otlobliHumanChallengeNavigationLocked = true;
++                otlobliHumanChallengeResolutionReported = false;
++                otlobliHumanChallengeDocumentGeneration = detail.optString("documentGeneration", "");
++                mainHandler.post(() -> {
++                    dismissOtlobliStoreSwitchHint();
++                    updateNavigationButtonsState();
++                });
++                return;
++            }
++            if ("humanCheckResolved".equals(type)) {
++                if (!otlobliHumanChallengeNavigationLocked) return;
++                String resolvedGeneration = detail.optString("documentGeneration", "");
++                if (TextUtils.isEmpty(resolvedGeneration) ||
++                    TextUtils.isEmpty(otlobliHumanChallengeDocumentGeneration) ||
++                    resolvedGeneration.equals(otlobliHumanChallengeDocumentGeneration)) {
++                    // Status only. A solved widget can disappear before the
++                    // provider commits its token, so Back remains locked.
++                    otlobliHumanChallengeResolutionReported = true;
++                }
++                return;
++            }
++            if (!otlobliHumanChallengeNavigationLocked) return;
++
++            String readyGeneration = "";
++            if (otlobliIsTrustedTemuReady(detail)) {
++                readyGeneration = detail.optString("documentGeneration", "");
++            } else if (otlobliIsTrustedSheinCoordinatorReady(detail)) {
++                readyGeneration = detail.optJSONObject("coordinator").optString("documentGeneration", "");
++            }
++            if (otlobliReadyDocumentCanReleaseHumanChallenge(readyGeneration)) {
++                otlobliClearHumanChallengeNavigationGate();
++                mainHandler.post(this::scheduleOtlobliStoreSwitchDiscoveryHint);
++            }
++        } catch (JSONException ignored) {
++            // Only structured bridge messages may change native navigation state.
 +        }
 +    }
 +
@@ -867,9 +1357,9 @@ index 8ae3e61..38cbbf9 100644
 +            if (!otlobliIsSheinHost(uri.getHost())) return "external";
 +            String path = uri.getPath() == null ? "/" : uri.getPath().replaceAll("/{2,}", "/").toLowerCase(Locale.ROOT);
 +            String route = path + (uri.getQuery() == null ? "" : "?" + uri.getQuery()) + (uri.getFragment() == null ? "" : "#" + uri.getFragment());
-+            if (otlobliRouteMatches(path, "/(?:cdn-cgi|challenge|captcha|verify|verification|security|robot|risk|anti[-_]?bot|human)(?:[/?#.-]|$)") ||
-+                otlobliRouteMatches(route, "(?:^|[?&#])(?:captcha|challenge|verification|security_token|risk|robot|anti[-_]?bot|human)=")) return "human-verification";
-+            if (otlobliRouteMatches(path, "/(?:user/)?(?:login|signin|sign-in|auth/login)(?:[/?#.-]|$)")) return "blocked-login";
++            if (otlobliRouteMatches(path, "/(?:cdn-cgi|challenge|captcha|verify|verification|bgn[_-]?verification|security|robot|risk|anti[-_]?bot|human)(?:[/?#.-]|$)") ||
++                otlobliRouteMatches(route, "(?:^|[?&#])(?:captcha|challenge|verification|bgn[_-]?verification|security_token|risk|robot|anti[-_]?bot|human)=")) return "human-verification";
++            if (otlobliRouteMatches(path, "/(?:user/)?(?:login|signin|sign-in|auth(?:/login)?)(?:[/?#.-]|$)")) return "blocked-login";
 +            if (otlobliRouteMatches(path, "/(?:user/)?(?:register|signup|sign-up|join)(?:[/?#.-]|$)")) return "blocked-signup";
 +            if (otlobliRouteMatches(path, "/(?:user|account|profile|my-account|member|orders?)(?:[/?#.-]|$)")) return "blocked-account";
 +            if (otlobliRouteMatches(path, "/(?:country|countries|ship-to|shipping-country)(?:[/?#.-]|$)")) return "blocked-country";
@@ -924,6 +1414,11 @@ index 8ae3e61..38cbbf9 100644
 +    }
 +
 +    private void otlobliNavigateHost(String target) {
++        dismissOtlobliStoreSwitchHint();
++        if (otlobliHumanChallengeNavigationLocked) {
++            Log.w("InAppBrowser", "Host navigation blocked during human verification");
++            return;
++        }
 +        if (!isJavaScriptControlAllowed()) {
 +            Log.w("InAppBrowser", "Host navigation blocked: allowWebViewJsVisibilityControl is false");
 +            return;
@@ -936,6 +1431,12 @@ index 8ae3e61..38cbbf9 100644
 +        final String route;
 +        switch (target == null ? "" : target) {
 +            case "store-select":
++                if (!isOtlobliNativeNavigationEnabled()) {
++                    Log.w("InAppBrowser", "Ignoring native Otlobli route without its scoped option");
++                    return;
++                }
++                route = target;
++                break;
 +            case "orders":
 +            case "cart":
 +            case "profile":
@@ -967,7 +1468,7 @@ index 8ae3e61..38cbbf9 100644
      // Add this class to provide safer JavaScript interface
      private class JavaScriptInterface {
  
-@@ -480,6 +1235,11 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -480,6 +1673,11 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
              activity.runOnUiThread(() -> setHidden(true));
          }
  
@@ -979,7 +1480,7 @@ index 8ae3e61..38cbbf9 100644
          @JavascriptInterface
          public void show() {
              if (!isJavaScriptControlAllowed()) {
-@@ -1263,6 +2023,32 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -1263,6 +2461,32 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          return false;
      }
  
@@ -1012,10 +1513,11 @@ index 8ae3e61..38cbbf9 100644
      private void previewDownloadedFileInWebView(File file, String mimeType, String sourceUrl) {
          WebView webView = _webView;
          if (webView == null || isDismissing) {
-@@ -1807,6 +2593,23 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -1807,6 +3031,24 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          applyDimensions();
  
          this._webView = findViewById(R.id.browser_view);
++        installOtlobliNativeNavigationIfNeeded();
 +        // The cover starts from show() once this Dialog has a stable full-size
 +        // root. Calling it here produced a visibly compressed first frame.
 +
@@ -1036,7 +1538,59 @@ index 8ae3e61..38cbbf9 100644
  
          // Apply insets to fix edge-to-edge issues on Android 15+
          applyInsets();
-@@ -2715,6 +3518,20 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -2507,6 +3749,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+ 
+     public void setHidden(boolean hidden) {
+         if (hidden) {
++            dismissOtlobliStoreSwitchHint();
+             if (!isHiddenModeActive) {
+                 if (getWindow() == null) {
+                     try {
+@@ -2540,6 +3783,9 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+         if (_options != null) {
+             _options.setHidden(hidden);
+         }
++        if (!hidden) {
++            scheduleOtlobliStoreSwitchDiscoveryHint();
++        }
+     }
+ 
+     public boolean isHiddenModeActive() {
+@@ -2619,7 +3865,11 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+ 
+                     // Fix AppBarLayout position
+                     ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) appBarLayout.getLayoutParams();
+-                    params.topMargin = statusBarHeight;
++                    boolean otlobliTemuBlankToolbar =
++                        isOtlobliNativeNavigationEnabled() &&
++                        otlobliIsTemuSession() &&
++                        TextUtils.equals(_options.getToolbarType(), "blank");
++                    params.topMargin = otlobliTemuBlankToolbar ? 0 : statusBarHeight;
+                     appBarLayout.setLayoutParams(params);
+                     appBarLayout.setBackgroundColor(finalBgColor);
+                 });
+@@ -2637,6 +3887,20 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+             Insets mandatoryGestures = windowInsets.getInsets(WindowInsetsCompat.Type.mandatorySystemGestures());
+             Insets ime = windowInsets.getInsets(WindowInsetsCompat.Type.ime());
+             boolean keyboardVisible = windowInsets.isVisible(WindowInsetsCompat.Type.ime());
++            int gestureBottomInset = Math.max(systemGestures.bottom, mandatoryGestures.bottom);
++            boolean usesGestureNavigation = otlobliUsesGestureNavigation();
++            int opaqueBottomInset = usesGestureNavigation
++                ? 0
++                : Math.max(bars.bottom, navigationBars.bottom);
++            int gestureSafeBottomInset = usesGestureNavigation ? gestureBottomInset : 0;
++            updateOtlobliNativeNavigationInsets(
++                opaqueBottomInset,
++                gestureSafeBottomInset,
++                bars.left,
++                bars.right,
++                ime.bottom,
++                keyboardVisible
++            );
+ 
+             boolean appBarHandlesTopInset =
+                 isAndroid15Plus &&
+@@ -2715,6 +3979,20 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                      }
                  }
              }
@@ -1057,10 +1611,80 @@ index 8ae3e61..38cbbf9 100644
          }
  
          requestSafeAreaInsets();
-@@ -2991,6 +3808,14 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -2753,7 +4031,9 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+         );
+ 
+         mlp.topMargin = navTop;
+-        mlp.bottomMargin = SafeAreaInsetsSupport.resolveBottomMargin(_options.getEnabledSafeMargin(), safeBottomInset, imeBottom);
++        mlp.bottomMargin = isOtlobliNativeNavigationEnabled()
++            ? 0
++            : SafeAreaInsetsSupport.resolveBottomMargin(_options.getEnabledSafeMargin(), safeBottomInset, imeBottom);
+         mlp.leftMargin = bars.left;
+         mlp.rightMargin = bars.right;
+         _webView.setLayoutParams(mlp);
+@@ -2943,11 +4223,35 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+         try {
+             injectDocumentStartPostMessageBridge();
+             WebViewCompat.addDocumentStartJavaScript(_webView, createMobileAppBridgeScript(), Collections.singleton("*"));
++            String temuDocumentStartScript = _options == null ? null : _options.getOtlobliTemuDocumentStartScript();
++            if (otlobliIsTemuSession() && !TextUtils.isEmpty(temuDocumentStartScript)) {
++                WebViewCompat.addDocumentStartJavaScript(_webView, temuDocumentStartScript, Collections.singleton("*"));
++            }
+         } catch (Exception e) {
+             Log.e("InAppBrowser", "Error injecting document-start JavaScript interface: " + e.getMessage());
+         }
+     }
+ 
++    private void injectTemuDocumentStartNavigationFallback(WebView view) {
++        if (
++            view == null ||
++            _options == null ||
++            WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT) ||
++            !otlobliIsTemuSession()
++        ) {
++            return;
++        }
++        String script = _options.getOtlobliTemuDocumentStartScript();
++        if (TextUtils.isEmpty(script)) {
++            return;
++        }
++        try {
++            view.evaluateJavascript(script, null);
++        } catch (Exception e) {
++            Log.e("InAppBrowser", "Error injecting Temu navigation-start fallback: " + e.getMessage());
++        }
++    }
++
+     private void injectDocumentStartPostMessageBridge() {
+         if (_webView == null) {
+             return;
+@@ -2967,7 +4271,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+                         Log.e("InAppBrowser", "Received unsupported postMessage payload from WebView");
+                         return;
+                     }
+-                    handleJavaScriptPostMessage(message.getData());
++                    handleJavaScriptPostMessage(message.getData(), sourceOrigin, isMainFrame);
+                 }
+             );
+         } catch (Exception e) {
+@@ -2980,6 +4284,12 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+     }
+ 
+     private void handleJavaScriptPostMessage(String message) {
++        // Keep forwarding legacy bridge messages, but mark them untrusted for
++        // native challenge navigation because this fallback has no frame data.
++        handleJavaScriptPostMessage(message, null, false);
++    }
++
++    private void handleJavaScriptPostMessage(String message, Uri sourceOrigin, boolean isMainFrame) {
+         try {
+             if (message == null || message.isEmpty()) {
+                 Log.e("InAppBrowser", "Received empty message from WebView");
+@@ -2991,6 +4301,15 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                  return;
              }
  
++            handleOtlobliHumanChallengeMessage(message, sourceOrigin, isMainFrame);
 +            handleOtlobliLoadingCoverMessage(message);
 +            // SHEIN's verifier owns the real trust token. Persist the cookies
 +            // it just wrote before a store switch or process stop can occur,
@@ -1072,7 +1696,7 @@ index 8ae3e61..38cbbf9 100644
              _options.getCallbacks().javascriptCallback(message);
          } catch (Exception e) {
              Log.e("InAppBrowser", "Error in postMessage: " + e.getMessage());
-@@ -3114,8 +3939,6 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -3114,8 +4433,6 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
              _options.getPreShowScript()
          );
  
@@ -1081,7 +1705,25 @@ index 8ae3e61..38cbbf9 100644
          preShowSemaphore = new Semaphore(0);
          activity.runOnUiThread(
              new Runnable() {
-@@ -4202,7 +5025,17 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -3819,7 +5136,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+             return;
+         }
+ 
+-        boolean canGoBack = _webView.canGoBack();
++        boolean canGoBack = !otlobliHumanChallengeNavigationLocked && _webView.canGoBack();
+         boolean canGoForward = _webView.canGoForward();
+ 
+         if (canGoBack) {
+@@ -3830,7 +5147,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+                 new View.OnClickListener() {
+                     @Override
+                     public void onClick(View view) {
+-                        if (_webView != null && _webView.canGoBack()) {
++                        if (!otlobliHumanChallengeNavigationLocked && _webView != null && _webView.canGoBack()) {
+                             _webView.goBack();
+                         }
+                     }
+@@ -4202,7 +5519,17 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                      }
                      Context context = view.getContext();
                      String url = request.getUrl().toString();
@@ -1100,10 +1742,15 @@ index 8ae3e61..38cbbf9 100644
  
                      boolean isNotHttpOrHttps = !url.startsWith("https://") && !url.startsWith("http://");
  
-@@ -4703,6 +5536,14 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4700,9 +6027,19 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+                 @Override
+                 public void onPageStarted(WebView view, String url, Bitmap favicon) {
+                     super.onPageStarted(view, url, favicon);
++                    otlobliCurrentTopLevelUrl = url == null ? "" : url;
                      if (view == null || _webView == null) {
                          return;
                      }
++                    injectTemuDocumentStartNavigationFallback(view);
 +                    otlobliEmitOpeningPhase("initialNavigationStart");
 +                    if (otlobliIsSheinSession()) {
 +                        String routeClass = otlobliClassifySheinRoute(url);
@@ -1115,7 +1762,27 @@ index 8ae3e61..38cbbf9 100644
                      if (ProxyRequestSupport.shouldInjectBridge(_options) && proxyBridgeScript != null && proxyAccessToken != null) {
                          String preparedProxyBridgeScript = prepareProxyBridgeScript();
                          if (preparedProxyBridgeScript != null) {
-@@ -4742,6 +5583,17 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4720,6 +6057,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+                 }
+ 
+                 public void doUpdateVisitedHistory(WebView view, String url, boolean isReload) {
++                    otlobliCurrentTopLevelUrl = url == null ? "" : url;
+                     if (view == null || _webView == null) {
+                         return;
+                     }
+@@ -4728,6 +6066,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+                     }
+                     updateNavigationButtonsState();
+                     super.doUpdateVisitedHistory(view, url, isReload);
++                    injectTemuDocumentStartNavigationFallback(view);
+                     injectJavaScriptInterface();
+ 
+                     // Inject Google Pay polyfills if enabled
+@@ -4739,9 +6078,21 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+                 @Override
+                 public void onPageFinished(WebView view, String url) {
+                     super.onPageFinished(view, url);
++                    otlobliCurrentTopLevelUrl = url == null ? "" : url;
                      if (view == null || _webView == null) {
                          return;
                      }
@@ -1133,7 +1800,7 @@ index 8ae3e61..38cbbf9 100644
                      if (!isInitialized) {
                          isInitialized = true;
                          _webView.clearHistory();
-@@ -4801,14 +5653,63 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4801,14 +6152,63 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                      if (view == null || _webView == null) {
                          return;
                      }
@@ -1198,9 +1865,33 @@ index 8ae3e61..38cbbf9 100644
                  @SuppressLint("WebViewClientOnReceivedSslError")
                  @Override
                  public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
-@@ -4932,6 +5833,19 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4833,6 +6233,9 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+      * @return true if navigation was successful, false otherwise
+      */
+     public boolean goBack() {
++        if (otlobliHumanChallengeNavigationLocked) {
++            return false;
++        }
+         if (_webView != null && _webView.canGoBack()) {
+             _webView.goBack();
+             return true;
+@@ -4842,6 +6245,9 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+ 
+     @Override
+     public void onBackPressed() {
++        if (otlobliHumanChallengeNavigationLocked) {
++            return;
++        }
+         if (
+             _webView != null &&
+             _webView.canGoBack() &&
+@@ -4931,7 +6337,23 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+ 
      @Override
      public void dismiss() {
++        dismissOtlobliStoreSwitchHint();
++        otlobliClearHumanChallengeNavigationGate();
++        otlobliCurrentTopLevelUrl = "";
          scheduleHostWebViewInsetRestore();
 +        mainHandler.removeCallbacks(otlobliLoadingCoverTimeout);
 +        unregisterOtlobliNetworkCallback();
@@ -1218,7 +1909,7 @@ index 8ae3e61..38cbbf9 100644
  
          // First, stop any ongoing operations and disable further interactions
          if (_webView != null) {
-@@ -5586,17 +6500,50 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -5586,17 +7008,50 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          );
      }
  
@@ -1271,7 +1962,7 @@ index 8ae3e61..38cbbf9 100644
              // Strip conditional cache validators on the wire so upstream cannot return 304/3xx,
              // which WebResourceResponse.setStatusCodeAndReasonPhrase rejects (kills the renderer).
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
-index 116e296..696cf60 100644
+index 116e296..1e87e44 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/InAppBrowserPlugin.swift
 @@ -146,6 +146,9 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
@@ -1388,7 +2079,35 @@ index 116e296..696cf60 100644
      }
  
      private func dismissActiveKeyboard() {
-@@ -907,6 +982,15 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -473,10 +548,6 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+         webView.translatesAutoresizingMaskIntoConstraints = false
+         webViewController.view.addSubview(webView)
+ 
+-        let bottomAnchor = webViewController.enabledSafeBottomMargin
+-            ? webViewController.view.safeAreaLayoutGuide.bottomAnchor
+-            : webViewController.view.bottomAnchor
+-
+         let topAnchor = webViewController.enabledSafeTopMargin
+             ? webViewController.view.safeAreaLayoutGuide.topAnchor
+             : webViewController.view.topAnchor
+@@ -485,7 +556,7 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+             webView.topAnchor.constraint(equalTo: topAnchor),
+             webView.leadingAnchor.constraint(equalTo: webViewController.view.leadingAnchor),
+             webView.trailingAnchor.constraint(equalTo: webViewController.view.trailingAnchor),
+-            webView.bottomAnchor.constraint(equalTo: bottomAnchor)
++            webView.bottomAnchor.constraint(equalTo: webViewController.otlobliManagedWebViewBottomAnchor())
+         ])
+ 
+         if let backgroundColor = webViewController.view.backgroundColor {
+@@ -495,6 +566,7 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+         webView.alpha = 1
+         webView.isOpaque = true
+         webView.isUserInteractionEnabled = true
++        webViewController.refreshOtlobliOverlayOrder()
+     }
+ 
+     func handleWebViewDidClose(id: String, url: String) {
+@@ -907,6 +979,15 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
                  self.proxySchemeHandlers[webViewId] = proxyHandler
              }
  
@@ -1404,7 +2123,7 @@ index 116e296..696cf60 100644
              self.webViewController = WKWebViewController.init(
                  url: url,
                  headers: headers,
-@@ -923,10 +1007,7 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -923,10 +1004,7 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
                  captureConsoleLogs: captureConsoleLogs,
                  proxyRequests: legacyProxyRequests.isEnabled,
                  proxySchemeHandler: proxyHandler,
@@ -1416,17 +2135,18 @@ index 116e296..696cf60 100644
                  openBlankTargetInWebView: openBlankTargetInWebView
              )
  
-@@ -936,6 +1017,9 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -936,6 +1014,10 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
              }
  
              webViewController.instanceId = webViewId
++            webViewController.otlobliNativeNavigation = call.getBool("otlobliNativeNavigation", false)
 +            webViewController.otlobliLoadingCoverEnabled = call.getBool("otlobliLoadingCover", false)
 +            webViewController.otlobliPreserveAttachedWhenHidden = call.getBool("otlobliPreserveAttachedWhenHidden", false)
 +            webViewController.otlobliDismissModalWhenHidden = call.getBool("otlobliDismissModalWhenHidden", false)
  
              // Set HTTP method and body if provided
              if let method = httpMethod {
-@@ -1258,9 +1342,15 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -1258,9 +1340,15 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
                      return
                  }
              } else if !self.isPresentAfterPageLoad {
@@ -1443,8 +2163,11 @@ index 116e296..696cf60 100644
          }
      }
  
-@@ -1324,22 +1414,39 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -1322,24 +1410,42 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+             let navigationController = self.resolveNavigationController(for: resolvedId)
+ 
              self.isHidden = hidden
++            webViewController.otlobliSetStoreSurfaceVisible(!hidden)
  
              if hidden {
 -                if let navController = navigationController, navController.presentingViewController != nil {
@@ -1497,7 +2220,7 @@ index 116e296..696cf60 100644
                      return
                  }
              } else {
-@@ -1351,21 +1458,35 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -1351,21 +1457,35 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
                      if let resolvedId {
                          self.setActiveWebView(id: resolvedId, webView: webViewController, navigationController: navController)
                      }
@@ -1544,7 +2267,7 @@ index 116e296..696cf60 100644
                          return
                      }
                  }
-@@ -1386,6 +1507,34 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -1386,6 +1506,37 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
          )
      }
  
@@ -1552,6 +2275,9 @@ index 116e296..696cf60 100644
 +        let route: String
 +        switch target {
 +        case "store-select":
++            guard self.resolveWebViewController(for: sourceId)?.otlobliNativeNavigation == true else {
++                return
++            }
 +            route = "store-select"
 +        case "orders":
 +            route = "orders"
@@ -1579,7 +2305,7 @@ index 116e296..696cf60 100644
      @objc func hide(_ call: CAPPluginCall) {
          self.setHiddenState(true, targetId: call.getString("id"), call: call)
      }
-@@ -1433,8 +1582,6 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -1433,8 +1584,6 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
              call.reject("Event data must not be empty")
              return
          }
@@ -1588,7 +2314,7 @@ index 116e296..696cf60 100644
          DispatchQueue.main.async {
              if let targetId = call.getString("id") {
                  guard let webViewController = self.webViewControllers[targetId] else {
-@@ -1811,9 +1958,33 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -1811,9 +1960,33 @@ public class CapgoInAppBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
  
      @objc func appDidBecomeActive(_ notification: NSNotification) {
          self.hidePrivacyScreen()
@@ -1803,7 +2529,7 @@ index 1c70884..be2b8ac 100644
          if
              ProxySchemeRequestSupport.supportsRequestBody(method: context.method),
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
-index 97a2fc1..fe688c3 100644
+index 97a2fc1..f823863 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
 @@ -9,6 +9,7 @@
@@ -1814,7 +2540,196 @@ index 97a2fc1..fe688c3 100644
  
  private let estimatedProgressKeyPath = "estimatedProgress"
  private let titleKeyPath = "title"
-@@ -748,6 +749,40 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -236,6 +237,188 @@ enum WebViewViewportLayoutSupport {
+     }
+ }
+ 
++private final class OtlobliNativeNavigationButton: UIControl {
++    private let indicator = UIView(frame: .zero)
++    private let iconView = UIImageView(frame: .zero)
++    private let textLabel = UILabel(frame: .zero)
++    private let activeColor = UIColor(red: 0, green: 105.0 / 255.0, blue: 72.0 / 255.0, alpha: 1)
++    private let inactiveColor = UIColor(red: 61.0 / 255.0, green: 74.0 / 255.0, blue: 66.0 / 255.0, alpha: 1)
++
++    init(title: String, route: String, active: Bool) {
++        super.init(frame: .zero)
++
++        let foregroundColor = active ? activeColor : inactiveColor
++        alpha = 1
++        transform = .identity
++        layer.shadowOpacity = 0
++        isAccessibilityElement = true
++        accessibilityLabel = title
++        accessibilityTraits = active ? [.button, .selected] : .button
++
++        indicator.translatesAutoresizingMaskIntoConstraints = false
++        indicator.backgroundColor = activeColor
++        indicator.layer.cornerRadius = 2
++        indicator.isHidden = !active
++        indicator.isAccessibilityElement = false
++        addSubview(indicator)
++
++        iconView.translatesAutoresizingMaskIntoConstraints = false
++        iconView.image = Self.makeNativeNavigationIcon(route: route, color: foregroundColor)
++        iconView.contentMode = .scaleAspectFit
++        iconView.isAccessibilityElement = false
++        iconView.adjustsImageSizeForAccessibilityContentSizeCategory = true
++
++        textLabel.translatesAutoresizingMaskIntoConstraints = false
++        // The React navigation deliberately keeps these four fixed labels at
++        // 12px/700 so the store surface cannot jump when it replaces the app
++        // surface. Keep the native owner on the same visual contract; the
++        // complete 74pt cell remains the accessible hit target.
++        textLabel.font = .systemFont(ofSize: 12, weight: .bold)
++        textLabel.adjustsFontForContentSizeCategory = false
++        textLabel.text = title
++        textLabel.textAlignment = .center
++        textLabel.numberOfLines = 1
++        textLabel.adjustsFontSizeToFitWidth = true
++        textLabel.minimumScaleFactor = 0.85
++        textLabel.isAccessibilityElement = false
++
++        iconView.tintColor = foregroundColor
++        textLabel.textColor = foregroundColor
++
++        let content = UIStackView(arrangedSubviews: [iconView, textLabel])
++        content.translatesAutoresizingMaskIntoConstraints = false
++        content.axis = .vertical
++        content.alignment = .center
++        content.distribution = .fill
++        content.spacing = 4
++        content.isUserInteractionEnabled = false
++        content.isAccessibilityElement = false
++        addSubview(content)
++
++        NSLayoutConstraint.activate([
++            indicator.topAnchor.constraint(equalTo: topAnchor),
++            indicator.centerXAnchor.constraint(equalTo: centerXAnchor),
++            indicator.widthAnchor.constraint(equalToConstant: 32),
++            indicator.heightAnchor.constraint(equalToConstant: 4),
++            iconView.widthAnchor.constraint(equalToConstant: 22),
++            iconView.heightAnchor.constraint(equalToConstant: 22),
++            content.centerXAnchor.constraint(equalTo: centerXAnchor),
++            content.centerYAnchor.constraint(equalTo: centerYAnchor, constant: 5),
++            content.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: 4),
++            content.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -4)
++        ])
++    }
++
++    private static func makeNativeNavigationIcon(route: String, color: UIColor) -> UIImage {
++        let canvas = CGSize(width: 22, height: 22)
++        let renderer = UIGraphicsImageRenderer(size: canvas)
++        return renderer.image { rendererContext in
++            let context = rendererContext.cgContext
++            context.saveGState()
++            context.scaleBy(x: canvas.width / 24, y: canvas.height / 24)
++            color.setStroke()
++
++            func strokedPath() -> UIBezierPath {
++                let path = UIBezierPath()
++                path.lineWidth = 1.8
++                path.lineCapStyle = .round
++                path.lineJoinStyle = .round
++                return path
++            }
++
++            switch route {
++            case "store-select":
++                let roof = strokedPath()
++                roof.move(to: CGPoint(x: 4, y: 11.5))
++                roof.addLine(to: CGPoint(x: 12, y: 4))
++                roof.addLine(to: CGPoint(x: 20, y: 11.5))
++                roof.stroke()
++
++                let house = strokedPath()
++                house.move(to: CGPoint(x: 6, y: 10))
++                house.addLine(to: CGPoint(x: 6, y: 19))
++                house.addLine(to: CGPoint(x: 18, y: 19))
++                house.addLine(to: CGPoint(x: 18, y: 10))
++                house.stroke()
++
++                let door = strokedPath()
++                door.move(to: CGPoint(x: 10, y: 19))
++                door.addLine(to: CGPoint(x: 10, y: 14))
++                door.addLine(to: CGPoint(x: 14, y: 14))
++                door.addLine(to: CGPoint(x: 14, y: 19))
++                door.stroke()
++
++            case "orders":
++                let parcel = UIBezierPath(roundedRect: CGRect(x: 4, y: 7, width: 16, height: 13), cornerRadius: 1.3)
++                parcel.lineWidth = 1.8
++                parcel.lineCapStyle = .round
++                parcel.lineJoinStyle = .round
++                parcel.stroke()
++
++                let fold = strokedPath()
++                fold.move(to: CGPoint(x: 4, y: 7))
++                fold.addLine(to: CGPoint(x: 12, y: 3))
++                fold.addLine(to: CGPoint(x: 20, y: 7))
++                fold.move(to: CGPoint(x: 12, y: 11))
++                fold.addLine(to: CGPoint(x: 12, y: 20))
++                fold.stroke()
++
++            case "cart":
++                let basket = strokedPath()
++                basket.move(to: CGPoint(x: 3, y: 4))
++                basket.addLine(to: CGPoint(x: 5, y: 4))
++                basket.addLine(to: CGPoint(x: 7.2, y: 15.5))
++                basket.addCurve(
++                    to: CGPoint(x: 9.2, y: 17.1),
++                    controlPoint1: CGPoint(x: 7.4, y: 16.5),
++                    controlPoint2: CGPoint(x: 8.2, y: 17.1)
++                )
++                basket.addLine(to: CGPoint(x: 17.8, y: 17.1))
++                basket.addCurve(
++                    to: CGPoint(x: 19.8, y: 15.5),
++                    controlPoint1: CGPoint(x: 18.8, y: 17.1),
++                    controlPoint2: CGPoint(x: 19.6, y: 16.5)
++                )
++                basket.addLine(to: CGPoint(x: 21, y: 8))
++                basket.addLine(to: CGPoint(x: 6, y: 8))
++                basket.stroke()
++
++                let firstWheel = UIBezierPath(ovalIn: CGRect(x: 7.7, y: 18.7, width: 2.6, height: 2.6))
++                firstWheel.lineWidth = 1.8
++                firstWheel.stroke()
++                let secondWheel = UIBezierPath(ovalIn: CGRect(x: 16.7, y: 18.7, width: 2.6, height: 2.6))
++                secondWheel.lineWidth = 1.8
++                secondWheel.stroke()
++
++            default:
++                let head = UIBezierPath(ovalIn: CGRect(x: 8.4, y: 4.4, width: 7.2, height: 7.2))
++                head.lineWidth = 1.8
++                head.stroke()
++
++                let shoulders = strokedPath()
++                shoulders.move(to: CGPoint(x: 5, y: 20))
++                shoulders.addCurve(
++                    to: CGPoint(x: 12, y: 13.6),
++                    controlPoint1: CGPoint(x: 5, y: 16.2),
++                    controlPoint2: CGPoint(x: 8.1, y: 13.6)
++                )
++                shoulders.addCurve(
++                    to: CGPoint(x: 19, y: 20),
++                    controlPoint1: CGPoint(x: 15.9, y: 13.6),
++                    controlPoint2: CGPoint(x: 19, y: 16.2)
++                )
++                shoulders.stroke()
++            }
++
++            context.restoreGState()
++        }.withRenderingMode(.alwaysOriginal)
++    }
++
++    required init?(coder: NSCoder) {
++        fatalError("init(coder:) has not been implemented")
++    }
++}
++
+ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+ 
+     public init() {
+@@ -748,6 +931,61 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
      fileprivate var webView: WKWebView?
      fileprivate var progressView: UIProgressView?
  
@@ -1828,21 +2743,42 @@ index 97a2fc1..fe688c3 100644
 +            }
 +        }
 +    }
++    var otlobliNativeNavigation = false {
++        didSet {
++            guard oldValue != otlobliNativeNavigation, isViewLoaded else { return }
++            configureOtlobliNativeNavigation()
++        }
++    }
 +    open var otlobliPreserveAttachedWhenHidden = false
 +    open var otlobliDismissModalWhenHidden = false
 +    var otlobliVisibilityHideInProgress = false
 +    private var otlobliLoadingCoverView: UIView?
 +    private var otlobliLoadingCoverLabel: UILabel?
 +    private var otlobliLoadingCoverBottomConstraint: NSLayoutConstraint?
++    private var otlobliNativeNavigationView: UIView?
++    private var otlobliNativeNavigationStack: UIStackView?
++    private var otlobliLastHomeActivationAt: TimeInterval = 0
++    private var otlobliStoreSwitchHintView: UIView?
++    private var otlobliStoreSwitchHintDismissal: DispatchWorkItem?
++    private var otlobliStoreSwitchDiscoveryWorkItem: DispatchWorkItem?
++    private var otlobliStoreSwitchDiscoveryShown = false
++    private var otlobliStoreSurfaceExternallyVisible = true
 +    private var otlobliNativeBackButton: UIButton?
 +    private var otlobliNativeBackButtonTopConstraint: NSLayoutConstraint?
 +    private let otlobliNativeBackVerticalOffset: CGFloat = 14
 +    private var otlobliNativeBackTarget = "home"
 +    private var otlobliNativeBackFallbackURL: URL?
++    private var otlobliHumanChallengeActive = false
++    private var otlobliHumanChallengeResolutionReported = false
++    private var otlobliHumanChallengeDocumentGeneration = ""
++    private var otlobliHumanChallengeStartedAtMilliseconds: Int64 = 0
++    private var otlobliNativeBackRequestedVisible = false
++    private var otlobliNativeBackVisibleBeforeChallenge = false
 +    private var otlobliLoadingCoverMessage = "جاري تجهيز المتجر…"
 +    private var otlobliLoadingCoverTimeout: DispatchWorkItem?
 +    private var otlobliChallengeRevealWorkItem: DispatchWorkItem?
 +    private var otlobliOfflineCoverView: UIView?
++    private var otlobliOfflineCoverBottomConstraint: NSLayoutConstraint?
 +    private weak var otlobliOfflineStatusLabel: UILabel?
 +    private weak var otlobliOfflineRetryButton: UIButton?
 +    private var otlobliOfflineRetryURL: URL?
@@ -1855,9 +2791,11 @@ index 97a2fc1..fe688c3 100644
      fileprivate var previousNavigationBarState: (tintColor: UIColor, hidden: Bool) = (.black, false)
      fileprivate var previousToolbarState: (tintColor: UIColor, hidden: Bool) = (.black, false)
  
-@@ -862,7 +897,8 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -861,8 +1099,10 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+ 
      override open func viewDidDisappear(_ animated: Bool) {
          super.viewDidDisappear(animated)
++        dismissOtlobliStoreSwitchHint()
  
 -        if self.isBeingDismissed || self.isMovingFromParent {
 +        if (self.isBeingDismissed || self.isMovingFromParent) &&
@@ -1865,7 +2803,7 @@ index 97a2fc1..fe688c3 100644
              self.cleanupWebView()
          }
  
-@@ -878,6 +914,9 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -878,6 +1118,9 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
              self.initWebview()
          }
  
@@ -1875,17 +2813,370 @@ index 97a2fc1..fe688c3 100644
          // Apply navigation gestures setting
          updateNavigationGestures()
  
-@@ -899,6 +938,475 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -899,6 +1142,996 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
      override open func viewDidLayoutSubviews() {
          super.viewDidLayoutSubviews()
          refreshWebViewViewportIfNeeded()
 +        if let button = otlobliNativeBackButton, !button.isHidden { view.bringSubviewToFront(button) }
 +        if let cover = otlobliLoadingCoverView {
-+            otlobliLoadingCoverBottomConstraint?.constant = -(74 + max(view.safeAreaInsets.bottom, 16))
++            if !otlobliNativeNavigation {
++                otlobliLoadingCoverBottomConstraint?.constant = view.safeAreaInsets.bottom > 0 ? -(74 + max(view.safeAreaInsets.bottom, 16)) : CGFloat(0)
++            }
 +            view.bringSubviewToFront(cover)
 +        }
 +        if let offlineCover = otlobliOfflineCoverView {
 +            view.bringSubviewToFront(offlineCover)
++        }
++        if let navigationView = otlobliNativeNavigationView {
++            view.bringSubviewToFront(navigationView)
++        }
++    }
++
++    private func configureOtlobliNativeNavigation() {
++        guard Thread.isMainThread else {
++            DispatchQueue.main.async { [weak self] in
++                self?.configureOtlobliNativeNavigation()
++            }
++            return
++        }
++
++        if otlobliNativeNavigation {
++            installOtlobliNativeNavigationIfNeeded()
++        } else {
++            dismissOtlobliStoreSwitchHint()
++            otlobliNativeNavigationView?.removeFromSuperview()
++            otlobliNativeNavigationView = nil
++            otlobliNativeNavigationStack = nil
++            otlobliLastHomeActivationAt = 0
++        }
++
++        rebindManagedWebViewBottomConstraint()
++        rebindOtlobliLoadingCoverBottomConstraint()
++        rebindOtlobliOfflineCoverBottomConstraint()
++        refreshOtlobliOverlayOrder()
++    }
++
++    private func installOtlobliNativeNavigationIfNeeded() {
++        guard otlobliNativeNavigation, isViewLoaded else { return }
++        if otlobliNativeNavigationView != nil { return }
++
++        let navigationView = UIView(frame: .zero)
++        navigationView.translatesAutoresizingMaskIntoConstraints = false
++        navigationView.backgroundColor = .white
++        navigationView.isOpaque = true
++        navigationView.clipsToBounds = true
++        navigationView.layer.shadowOpacity = 0
++        navigationView.transform = .identity
++        navigationView.accessibilityIdentifier = "otlobli-native-navigation"
++        navigationView.shouldGroupAccessibilityChildren = true
++
++        let separator = UIView(frame: .zero)
++        separator.translatesAutoresizingMaskIntoConstraints = false
++        separator.backgroundColor = UIColor(red: 188.0 / 255.0, green: 202.0 / 255.0, blue: 192.0 / 255.0, alpha: 1)
++        separator.isAccessibilityElement = false
++        navigationView.addSubview(separator)
++
++        let homeButton = OtlobliNativeNavigationButton(title: "الرئيسية", route: "store-select", active: true)
++        homeButton.accessibilityHint = "يفتح قائمة المتاجر مباشرة"
++        homeButton.addTarget(self, action: #selector(otlobliHomeNavigationDidActivate), for: .touchUpInside)
++
++        let ordersButton = OtlobliNativeNavigationButton(title: "طلباتي", route: "orders", active: false)
++        ordersButton.addTarget(self, action: #selector(otlobliOrdersNavigationDidActivate), for: .touchUpInside)
++
++        let cartButton = OtlobliNativeNavigationButton(title: "السلة", route: "cart", active: false)
++        cartButton.addTarget(self, action: #selector(otlobliCartNavigationDidActivate), for: .touchUpInside)
++
++        let profileButton = OtlobliNativeNavigationButton(title: "حسابي", route: "profile", active: false)
++        profileButton.addTarget(self, action: #selector(otlobliProfileNavigationDidActivate), for: .touchUpInside)
++
++        let stack = UIStackView(arrangedSubviews: [homeButton, ordersButton, cartButton, profileButton])
++        stack.translatesAutoresizingMaskIntoConstraints = false
++        stack.axis = .horizontal
++        stack.alignment = .fill
++        stack.distribution = .fillEqually
++        stack.spacing = 0
++        stack.semanticContentAttribute = .forceRightToLeft
++        navigationView.addSubview(stack)
++
++        view.addSubview(navigationView)
++        let preferredSafeTop = navigationView.topAnchor.constraint(
++            equalTo: view.safeAreaLayoutGuide.bottomAnchor,
++            constant: -74
++        )
++        preferredSafeTop.priority = .defaultHigh
++        let preferredFloorTop = navigationView.topAnchor.constraint(
++            equalTo: view.bottomAnchor,
++            constant: -90
++        )
++        preferredFloorTop.priority = UILayoutPriority(rawValue: 749)
++        let preferredSafeContentBottom = stack.bottomAnchor.constraint(
++            equalTo: view.safeAreaLayoutGuide.bottomAnchor
++        )
++        preferredSafeContentBottom.priority = .defaultHigh
++        let preferredFloorContentBottom = stack.bottomAnchor.constraint(
++            equalTo: navigationView.bottomAnchor,
++            constant: -16
++        )
++        preferredFloorContentBottom.priority = UILayoutPriority(rawValue: 749)
++        let preferredFullSafeWidth = navigationView.widthAnchor.constraint(
++            equalTo: view.safeAreaLayoutGuide.widthAnchor
++        )
++        preferredFullSafeWidth.priority = .defaultHigh
++        NSLayoutConstraint.activate([
++            navigationView.centerXAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerXAnchor),
++            navigationView.leadingAnchor.constraint(greaterThanOrEqualTo: view.safeAreaLayoutGuide.leadingAnchor),
++            navigationView.trailingAnchor.constraint(lessThanOrEqualTo: view.safeAreaLayoutGuide.trailingAnchor),
++            navigationView.widthAnchor.constraint(lessThanOrEqualToConstant: 440),
++            preferredFullSafeWidth,
++            navigationView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
++            preferredSafeTop,
++            preferredFloorTop,
++            navigationView.heightAnchor.constraint(greaterThanOrEqualToConstant: 90),
++            separator.topAnchor.constraint(equalTo: navigationView.topAnchor),
++            separator.leadingAnchor.constraint(equalTo: navigationView.leadingAnchor),
++            separator.trailingAnchor.constraint(equalTo: navigationView.trailingAnchor),
++            separator.heightAnchor.constraint(equalToConstant: 1),
++            stack.topAnchor.constraint(equalTo: navigationView.topAnchor, constant: 1),
++            preferredSafeContentBottom,
++            preferredFloorContentBottom,
++            stack.bottomAnchor.constraint(lessThanOrEqualTo: navigationView.bottomAnchor, constant: -16),
++            stack.leadingAnchor.constraint(equalTo: navigationView.leadingAnchor),
++            stack.trailingAnchor.constraint(equalTo: navigationView.trailingAnchor)
++        ])
++
++        otlobliNativeNavigationView = navigationView
++        otlobliNativeNavigationStack = stack
++    }
++
++    private func otlobliIsTemuSession() -> Bool {
++        let host = (webView?.url ?? source?.url)?.host?.lowercased() ?? ""
++        return host == "temu.com" || host.hasSuffix(".temu.com")
++    }
++
++    private func otlobliIsStoreSession() -> Bool {
++        let host = (webView?.url ?? source?.url)?.host?.lowercased() ?? ""
++        return host == "temu.com" || host.hasSuffix(".temu.com") ||
++            host == "shein.com" || host.hasSuffix(".shein.com")
++    }
++
++    private func dismissOtlobliStoreSwitchHint() {
++        otlobliStoreSwitchDiscoveryWorkItem?.cancel()
++        otlobliStoreSwitchDiscoveryWorkItem = nil
++        otlobliStoreSwitchHintDismissal?.cancel()
++        otlobliStoreSwitchHintDismissal = nil
++        otlobliStoreSwitchHintView?.removeFromSuperview()
++        otlobliStoreSwitchHintView = nil
++    }
++
++    private func presentOtlobliStoreSwitchHint(message: String, duration: TimeInterval) {
++        guard otlobliIsStoreSession(),
++              otlobliStoreSurfaceExternallyVisible,
++              !otlobliHumanChallengeActive,
++              !otlobliVisibilityHideInProgress,
++              isViewLoaded,
++              view.window != nil,
++              let navigationView = otlobliNativeNavigationView else { return }
++        dismissOtlobliStoreSwitchHint()
++
++        let hint = UIView(frame: .zero)
++        hint.translatesAutoresizingMaskIntoConstraints = false
++        hint.backgroundColor = UIColor(red: 0, green: 105.0 / 255.0, blue: 72.0 / 255.0, alpha: 0.96)
++        hint.layer.cornerRadius = 12
++        hint.clipsToBounds = true
++        hint.isAccessibilityElement = true
++        hint.accessibilityLabel = message
++
++        let label = UILabel(frame: .zero)
++        label.translatesAutoresizingMaskIntoConstraints = false
++        label.text = message
++        label.textColor = .white
++        label.font = .systemFont(ofSize: 14, weight: .bold)
++        label.textAlignment = .natural
++        label.numberOfLines = 1
++        label.adjustsFontSizeToFitWidth = true
++        label.minimumScaleFactor = 0.85
++        label.isAccessibilityElement = false
++        hint.addSubview(label)
++        view.addSubview(hint)
++
++        NSLayoutConstraint.activate([
++            hint.bottomAnchor.constraint(equalTo: navigationView.topAnchor, constant: -8),
++            hint.centerXAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerXAnchor),
++            hint.leadingAnchor.constraint(greaterThanOrEqualTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 16),
++            hint.trailingAnchor.constraint(lessThanOrEqualTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -16),
++            hint.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
++            label.topAnchor.constraint(equalTo: hint.topAnchor, constant: 10),
++            label.bottomAnchor.constraint(equalTo: hint.bottomAnchor, constant: -10),
++            label.leadingAnchor.constraint(equalTo: hint.leadingAnchor, constant: 14),
++            label.trailingAnchor.constraint(equalTo: hint.trailingAnchor, constant: -14)
++        ])
++
++        otlobliStoreSwitchHintView = hint
++        view.bringSubviewToFront(hint)
++        let dismissal = DispatchWorkItem { [weak self] in
++            self?.dismissOtlobliStoreSwitchHint()
++        }
++        otlobliStoreSwitchHintDismissal = dismissal
++        DispatchQueue.main.asyncAfter(deadline: .now() + duration, execute: dismissal)
++    }
++
++    private func showOtlobliStoreSwitchDiscoveryHint() {
++        presentOtlobliStoreSwitchHint(
++            message: "انقر «الرئيسية» مرتين لفتح قائمة المتاجر",
++            duration: 3.2
++        )
++    }
++
++    private func scheduleOtlobliStoreSwitchDiscoveryHint() {
++        guard !otlobliStoreSwitchDiscoveryShown,
++              otlobliIsStoreSession(),
++              otlobliStoreSurfaceExternallyVisible,
++              !otlobliHumanChallengeActive,
++              !otlobliVisibilityHideInProgress,
++              isViewLoaded,
++              view.window != nil else { return }
++        otlobliStoreSwitchDiscoveryWorkItem?.cancel()
++        let discovery = DispatchWorkItem { [weak self] in
++            guard let self = self else { return }
++            self.otlobliStoreSwitchDiscoveryWorkItem = nil
++            guard !self.otlobliStoreSwitchDiscoveryShown,
++                  self.otlobliNativeNavigationView != nil,
++                  self.otlobliIsStoreSession(),
++                  self.otlobliStoreSurfaceExternallyVisible,
++                  !self.otlobliHumanChallengeActive,
++                  !self.otlobliVisibilityHideInProgress,
++                  self.isViewLoaded,
++                  self.view.window != nil else { return }
++            self.otlobliStoreSwitchDiscoveryShown = true
++            self.showOtlobliStoreSwitchDiscoveryHint()
++        }
++        otlobliStoreSwitchDiscoveryWorkItem = discovery
++        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7, execute: discovery)
++    }
++
++    func otlobliSetStoreSurfaceVisible(_ visible: Bool) {
++        otlobliStoreSurfaceExternallyVisible = visible
++        if !visible {
++            dismissOtlobliStoreSwitchHint()
++            return
++        }
++        // setHiddenState unhides the retained navigation controller later in
++        // the same main-thread turn. Schedule from the next turn so the
++        // one-shot hint sees the actual visible hierarchy.
++        DispatchQueue.main.async { [weak self] in
++            self?.scheduleOtlobliStoreSwitchDiscoveryHint()
++        }
++    }
++
++    private func showOtlobliStoreSwitchHint() {
++        presentOtlobliStoreSwitchHint(
++            message: "انقر مرة ثانية لفتح قائمة المتاجر",
++            duration: 1.8
++        )
++    }
++
++    @objc private func otlobliHomeNavigationDidActivate() {
++        guard !otlobliHumanChallengeActive else {
++            dismissOtlobliStoreSwitchHint()
++            return
++        }
++        if UIAccessibility.isVoiceOverRunning {
++            otlobliLastHomeActivationAt = 0
++            dismissOtlobliStoreSwitchHint()
++            capBrowserPlugin?.navigateHostFromJavaScript("store-select", sourceId: instanceId)
++            return
++        }
++
++        let now = ProcessInfo.processInfo.systemUptime
++        guard now - otlobliLastHomeActivationAt <= 0.32 else {
++            otlobliLastHomeActivationAt = now
++            showOtlobliStoreSwitchHint()
++            return
++        }
++
++        otlobliLastHomeActivationAt = 0
++        dismissOtlobliStoreSwitchHint()
++        capBrowserPlugin?.navigateHostFromJavaScript("store-select", sourceId: instanceId)
++    }
++
++    @objc private func otlobliOrdersNavigationDidActivate() {
++        dismissOtlobliStoreSwitchHint()
++        guard !otlobliHumanChallengeActive else { return }
++        capBrowserPlugin?.navigateHostFromJavaScript("orders", sourceId: instanceId)
++    }
++
++    @objc private func otlobliCartNavigationDidActivate() {
++        dismissOtlobliStoreSwitchHint()
++        guard !otlobliHumanChallengeActive else { return }
++        capBrowserPlugin?.navigateHostFromJavaScript("cart", sourceId: instanceId)
++    }
++
++    @objc private func otlobliProfileNavigationDidActivate() {
++        dismissOtlobliStoreSwitchHint()
++        guard !otlobliHumanChallengeActive else { return }
++        capBrowserPlugin?.navigateHostFromJavaScript("profile", sourceId: instanceId)
++    }
++
++    func otlobliManagedWebViewBottomAnchor() -> NSLayoutYAxisAnchor {
++        if otlobliNativeNavigation, let navigationView = otlobliNativeNavigationView {
++            return navigationView.topAnchor
++        }
++        return enabledSafeBottomMargin ? view.safeAreaLayoutGuide.bottomAnchor : view.bottomAnchor
++    }
++
++    private func rebindManagedWebViewBottomConstraint() {
++        guard let webView, webView.superview === view else { return }
++        let existingBottomConstraints = view.constraints.filter {
++            ($0.firstItem as? WKWebView) == webView && $0.firstAttribute == .bottom
++        }
++        NSLayoutConstraint.deactivate(existingBottomConstraints)
++        webView.bottomAnchor.constraint(equalTo: otlobliManagedWebViewBottomAnchor()).isActive = true
++        view.setNeedsLayout()
++        view.layoutIfNeeded()
++        refreshWebViewViewportIfNeeded(force: true)
++    }
++
++    private func rebindOtlobliLoadingCoverBottomConstraint() {
++        guard let cover = otlobliLoadingCoverView else { return }
++        otlobliLoadingCoverBottomConstraint?.isActive = false
++        let constraint: NSLayoutConstraint
++        if otlobliNativeNavigation, let navigationView = otlobliNativeNavigationView {
++            constraint = cover.bottomAnchor.constraint(equalTo: navigationView.topAnchor)
++        } else {
++            constraint = cover.bottomAnchor.constraint(
++                equalTo: view.bottomAnchor,
++                constant: view.safeAreaInsets.bottom > 0 ? -(74 + max(view.safeAreaInsets.bottom, 16)) : CGFloat(0)
++            )
++        }
++        constraint.isActive = true
++        otlobliLoadingCoverBottomConstraint = constraint
++    }
++
++    private func rebindOtlobliOfflineCoverBottomConstraint() {
++        guard let cover = otlobliOfflineCoverView else { return }
++        otlobliOfflineCoverBottomConstraint?.isActive = false
++        let constraint: NSLayoutConstraint
++        if otlobliNativeNavigation, let navigationView = otlobliNativeNavigationView {
++            constraint = cover.bottomAnchor.constraint(equalTo: navigationView.topAnchor)
++        } else {
++            constraint = cover.bottomAnchor.constraint(equalTo: view.bottomAnchor)
++        }
++        constraint.isActive = true
++        otlobliOfflineCoverBottomConstraint = constraint
++    }
++
++    func refreshOtlobliOverlayOrder() {
++        if let loadingCover = otlobliLoadingCoverView {
++            view.bringSubviewToFront(loadingCover)
++        }
++        if let offlineCover = otlobliOfflineCoverView {
++            view.bringSubviewToFront(offlineCover)
++        }
++        if let navigationView = otlobliNativeNavigationView {
++            view.bringSubviewToFront(navigationView)
++        }
++        if let hint = otlobliStoreSwitchHintView {
++            view.bringSubviewToFront(hint)
 +        }
 +    }
 +
@@ -1962,16 +3253,22 @@ index 97a2fc1..fe688c3 100644
 +            cover.addSubview(label)
 +
 +            self.view.addSubview(cover)
-+            let coverBottomConstraint = cover.bottomAnchor.constraint(
-+                equalTo: self.view.bottomAnchor,
-+                constant: -(74 + max(self.view.safeAreaInsets.bottom, 16))
-+            )
++            let coverBottomConstraint: NSLayoutConstraint
++            if self.otlobliNativeNavigation,
++               let navigationView = self.otlobliNativeNavigationView {
++                coverBottomConstraint = cover.bottomAnchor.constraint(equalTo: navigationView.topAnchor)
++            } else {
++                coverBottomConstraint = cover.bottomAnchor.constraint(
++                    equalTo: self.view.bottomAnchor,
++                    constant: self.view.safeAreaInsets.bottom > 0 ? -(74 + max(self.view.safeAreaInsets.bottom, 16)) : CGFloat(0)
++                )
++            }
 +            NSLayoutConstraint.activate([
 +                cover.topAnchor.constraint(equalTo: self.view.topAnchor),
 +                cover.leadingAnchor.constraint(equalTo: self.view.leadingAnchor),
 +                cover.trailingAnchor.constraint(equalTo: self.view.trailingAnchor),
-+                // Match the existing nav exactly: its 74pt content plus the
-+                // larger of the real iOS safe-area or the existing 16pt floor.
++                // Native navigation owns the bottom safe area. Legacy callers
++                // retain the injected bar's 74pt + safe-area reservation.
 +                coverBottomConstraint,
 +                brand.centerXAnchor.constraint(equalTo: cover.centerXAnchor),
 +                brand.centerYAnchor.constraint(equalTo: cover.centerYAnchor, constant: -18),
@@ -2015,6 +3312,9 @@ index 97a2fc1..fe688c3 100644
 +            // the capability boundary; tying the button to that unrelated
 +            // option hid both the HTML and native buttons on Temu root.
 +            guard let self else { return }
++            if !self.otlobliHumanChallengeActive {
++                self.otlobliNativeBackRequestedVisible = visible
++            }
 +            self.otlobliNativeBackTarget = ["cart", "orders", "exit"].contains(target) ? target : "home"
 +            if let candidate = URL(string: fallbackURL),
 +               ["http", "https"].contains(candidate.scheme?.lowercased() ?? ""),
@@ -2055,8 +3355,11 @@ index 97a2fc1..fe688c3 100644
 +            self.otlobliNativeBackButton?.accessibilityLabel = self.otlobliNativeBackTarget == "exit"
 +                ? "العودة إلى اختيار المتجر"
 +                : "رجوع"
-+            self.otlobliNativeBackButton?.isHidden = !visible
-+            if visible, let button = self.otlobliNativeBackButton {
++            let canShow = visible && !self.otlobliHumanChallengeActive
++            self.otlobliNativeBackButton?.isEnabled = canShow
++            self.otlobliNativeBackButton?.isUserInteractionEnabled = canShow
++            self.otlobliNativeBackButton?.isHidden = !canShow
++            if canShow, let button = self.otlobliNativeBackButton {
 +                self.view.bringSubviewToFront(button)
 +                if let cover = self.otlobliLoadingCoverView { self.view.bringSubviewToFront(cover) }
 +                if let offlineCover = self.otlobliOfflineCoverView { self.view.bringSubviewToFront(offlineCover) }
@@ -2066,6 +3369,7 @@ index 97a2fc1..fe688c3 100644
 +    }
 +
 +    private func republishOtlobliNativeBackState(in webView: WKWebView) {
++        guard !otlobliHumanChallengeActive else { return }
 +        // A real navigation hides the native control in didStart. Temu may
 +        // restore Home from its own cache without producing a later JS state
 +        // change, so ask the completed document for its current state once.
@@ -2093,6 +3397,7 @@ index 97a2fc1..fe688c3 100644
 +    }
 +
 +    @objc private func otlobliNativeBackButtonDidTap() {
++        guard !otlobliHumanChallengeActive else { return }
 +        if otlobliNativeBackTarget == "exit" {
 +            emit("messageFromWebview", data: ["detail": ["type": "closeStore"]])
 +            return
@@ -2197,7 +3502,7 @@ index 97a2fc1..fe688c3 100644
 +                self.otlobliOfflineRetryButton?.setTitle("إعادة المحاولة", for: .normal)
 +                self.otlobliOfflineRetryButton?.alpha = 1
 +                existing.isHidden = false
-+                self.view.bringSubviewToFront(existing)
++                self.refreshOtlobliOverlayOrder()
 +                self.startOtlobliPathMonitor()
 +                return
 +            }
@@ -2292,11 +3597,18 @@ index 97a2fc1..fe688c3 100644
 +
 +            cover.addSubview(stack)
 +            self.view.addSubview(cover)
++            let coverBottomConstraint: NSLayoutConstraint
++            if self.otlobliNativeNavigation,
++               let navigationView = self.otlobliNativeNavigationView {
++                coverBottomConstraint = cover.bottomAnchor.constraint(equalTo: navigationView.topAnchor)
++            } else {
++                coverBottomConstraint = cover.bottomAnchor.constraint(equalTo: self.view.bottomAnchor)
++            }
 +            NSLayoutConstraint.activate([
 +                cover.topAnchor.constraint(equalTo: self.view.topAnchor),
 +                cover.leadingAnchor.constraint(equalTo: self.view.leadingAnchor),
 +                cover.trailingAnchor.constraint(equalTo: self.view.trailingAnchor),
-+                cover.bottomAnchor.constraint(equalTo: self.view.bottomAnchor),
++                coverBottomConstraint,
 +                stack.centerYAnchor.constraint(equalTo: cover.centerYAnchor),
 +                stack.centerXAnchor.constraint(equalTo: cover.centerXAnchor),
 +                stack.leadingAnchor.constraint(greaterThanOrEqualTo: cover.leadingAnchor, constant: 24),
@@ -2304,9 +3616,10 @@ index 97a2fc1..fe688c3 100644
 +                stack.widthAnchor.constraint(lessThanOrEqualToConstant: 420)
 +            ])
 +            self.otlobliOfflineCoverView = cover
++            self.otlobliOfflineCoverBottomConstraint = coverBottomConstraint
 +            self.otlobliOfflineStatusLabel = status
 +            self.otlobliOfflineRetryButton = retryButton
-+            self.view.bringSubviewToFront(cover)
++            self.refreshOtlobliOverlayOrder()
 +            UIAccessibility.post(notification: .screenChanged, argument: title)
 +            self.startOtlobliPathMonitor()
 +        }
@@ -2320,38 +3633,184 @@ index 97a2fc1..fe688c3 100644
 +            self.otlobliOfflineRetryInFlight = false
 +            self.otlobliOfflineCoverView?.removeFromSuperview()
 +            self.otlobliOfflineCoverView = nil
++            self.otlobliOfflineCoverBottomConstraint = nil
 +            self.otlobliOfflineStatusLabel = nil
 +            self.otlobliOfflineRetryButton = nil
 +        }
 +    }
 +
 +    private func handleOtlobliLoadingCoverMessage(_ messageBody: [String: Any]) {
-+        guard otlobliLoadingCoverEnabled,
-+              let detail = messageBody["detail"] as? [String: Any],
++        guard let detail = messageBody["detail"] as? [String: Any],
 +              let type = detail["type"] as? String else {
 +            return
 +        }
++        // Back belongs to native navigation even when this store does not use
++        // the optional loading cover (Temu). Hide it for every verification
++        // surface before applying cover-specific behavior below.
++        if type == "humanCheck" || type == "humanCheckResolved" {
++            otlobliNativeBackButton?.isHidden = true
++        }
++        guard otlobliLoadingCoverEnabled else { return }
 +        switch type {
 +        case "sheinSaudiRepairStart":
 +            cancelOtlobliChallengeReveal()
 +            otlobliLoadingCoverMessage = "جاري ضبط منطقة المتجر…"
 +            otlobliLoadingCoverLabel?.text = otlobliLoadingCoverMessage
 +            showOtlobliLoadingCover()
-+        case "humanCheck":
-+            otlobliLoadingCoverMessage = "جاري التحقق من اتصال المتجر…"
-+            otlobliLoadingCoverLabel?.text = otlobliLoadingCoverMessage
-+            showOtlobliLoadingCover()
-+            scheduleOtlobliChallengeReveal()
++        case "humanCheck", "humanCheckResolved":
++            // Verification is genuine store UI and must be visible/touchable
++            // immediately. A six-second native cover made the challenge look
++            // frozen and could hide its first interaction entirely on iPhone.
++            cancelOtlobliChallengeReveal()
++            hideOtlobliLoadingCover()
 +        case "sheinSaudiReady", "sheinPageInteractive", "sheinBlocked":
 +            cancelOtlobliChallengeReveal()
 +            hideOtlobliLoadingCover()
 +        default:
 +            break
 +        }
++    }
++
++    private func otlobliStoreHost(for message: WKScriptMessage) -> String? {
++        guard message.frameInfo.isMainFrame,
++              message.webView === webView,
++              let host = (message.webView?.url ?? message.frameInfo.request.url)?.host?.lowercased(),
++              (host == "temu.com" || host.hasSuffix(".temu.com") ||
++                host == "shein.com" || host.hasSuffix(".shein.com")) else {
++            return nil
++        }
++        return host
++    }
++
++    private func otlobliDocumentGenerationTimestamp(_ generation: String) -> Int64 {
++        guard let prefix = generation.split(separator: "-", maxSplits: 1).first,
++              !prefix.isEmpty else { return 0 }
++        return Int64(String(prefix), radix: 36) ?? 0
++    }
++
++    private func otlobliReadyGenerationCanRelease(_ generation: String) -> Bool {
++        guard !generation.isEmpty else { return false }
++        if otlobliHumanChallengeDocumentGeneration.isEmpty {
++            if otlobliHumanChallengeResolutionReported { return true }
++            return otlobliDocumentGenerationTimestamp(generation) >
++                otlobliHumanChallengeStartedAtMilliseconds
++        }
++        if generation == otlobliHumanChallengeDocumentGeneration {
++            return otlobliHumanChallengeResolutionReported
++        }
++        return otlobliDocumentGenerationTimestamp(generation) >
++            otlobliDocumentGenerationTimestamp(otlobliHumanChallengeDocumentGeneration)
++    }
++
++    private func otlobliIsHumanChallengeURL(_ url: URL?) -> Bool {
++        guard let raw = url?.absoluteString.lowercased(), !raw.isEmpty else { return false }
++        return ["/challenge", "/captcha", "/verify", "/verification", "/bgn_verification",
++                "/bgn-verification", "/security", "/robot", "/risk/", "/anti-bot", "/human",
++                "?captcha=", "&captcha=", "?challenge=", "&challenge=", "?verification=",
++                "&verification=", "?bgn_verification=", "&bgn_verification="].contains { raw.contains($0) }
++    }
++
++    private func otlobliSameTopLevelDocument(_ first: URL?, _ second: URL?) -> Bool {
++        guard let first, let second else { return false }
++        return first.scheme?.lowercased() == second.scheme?.lowercased() &&
++            first.host?.lowercased() == second.host?.lowercased() &&
++            first.path == second.path && first.query == second.query
++    }
++
++    private func otlobliSheinCoordinatorReady(_ detail: [String: Any]) -> Bool {
++        guard let coordinator = detail["coordinator"] as? [String: Any] else { return false }
++        let login = coordinator["loginState"] as? String ?? "unknown"
++        let human = coordinator["humanVerificationState"] as? String ?? "required"
++        return (coordinator["countryState"] as? String) == "matching" &&
++            (coordinator["regionState"] as? String) == "matching" &&
++            (coordinator["currencyState"] as? String) == "matching" &&
++            (coordinator["languageState"] as? String) == "matching" &&
++            (login == "not-required" || login == "blocked") &&
++            (human == "none" || human == "resolved") &&
++            (coordinator["policyState"] as? String) == "verified" &&
++            (coordinator["captureState"] as? String) == "ready" &&
++            (coordinator["interactive"] as? Bool) == true
++    }
++
++    private func setOtlobliHumanChallengeActive(_ active: Bool) {
++        guard otlobliHumanChallengeActive != active else {
++            if active { updateNavigationGestures() }
++            return
++        }
++        if active {
++            otlobliNativeBackVisibleBeforeChallenge = !(otlobliNativeBackButton?.isHidden ?? true)
++        }
++        otlobliHumanChallengeActive = active
++        updateNavigationGestures()
++        backBarButtonItem.isEnabled = !active && (webView?.canGoBack ?? false)
++        if active {
++            dismissOtlobliStoreSwitchHint()
++            otlobliNativeBackButton?.isEnabled = false
++            otlobliNativeBackButton?.isUserInteractionEnabled = false
++            otlobliNativeBackButton?.isHidden = true
++        } else {
++            let restoreNativeBack = otlobliNativeBackVisibleBeforeChallenge || otlobliNativeBackRequestedVisible
++            otlobliNativeBackRequestedVisible = restoreNativeBack
++            otlobliNativeBackVisibleBeforeChallenge = false
++            otlobliNativeBackButton?.isEnabled = restoreNativeBack
++            otlobliNativeBackButton?.isUserInteractionEnabled = restoreNativeBack
++            otlobliNativeBackButton?.isHidden = !restoreNativeBack
++            scheduleOtlobliStoreSwitchDiscoveryHint()
++        }
++    }
++
++    private func handleOtlobliHumanChallengeMessage(_ messageBody: [String: Any], message: WKScriptMessage) {
++        guard let detail = messageBody["detail"] as? [String: Any],
++              let type = detail["type"] as? String,
++              let host = otlobliStoreHost(for: message) else { return }
++        let generation = detail["documentGeneration"] as? String ?? ""
++        if type == "humanCheck" {
++            if !otlobliHumanChallengeActive ||
++                (!generation.isEmpty && generation != otlobliHumanChallengeDocumentGeneration) {
++                otlobliHumanChallengeStartedAtMilliseconds = Int64(Date().timeIntervalSince1970 * 1000)
++            }
++            otlobliHumanChallengeDocumentGeneration = generation
++            otlobliHumanChallengeResolutionReported = false
++            setOtlobliHumanChallengeActive(true)
++            return
++        }
++        guard otlobliHumanChallengeActive else { return }
++        if type == "humanCheckResolved" {
++            if generation.isEmpty || otlobliHumanChallengeDocumentGeneration.isEmpty ||
++                generation == otlobliHumanChallengeDocumentGeneration {
++                otlobliHumanChallengeResolutionReported = true
++            }
++            setOtlobliHumanChallengeActive(true)
++            return
++        }
++
++        var readyGeneration = ""
++        var trustedReady = false
++        if (type == "temuPublicReady" || type == "temuProductVisible"),
++           (host == "temu.com" || host.hasSuffix(".temu.com")),
++           let rawURL = detail["url"] as? String,
++           let readyURL = URL(string: rawURL),
++           !otlobliIsHumanChallengeURL(readyURL),
++           otlobliSameTopLevelDocument(message.webView?.url, readyURL) {
++            readyGeneration = generation
++            trustedReady = true
++        } else if ["sheinSaudiReady", "sheinPageInteractive", "sheinCoordinatorState"].contains(type),
++                  (host == "shein.com" || host.hasSuffix(".shein.com")),
++                  !otlobliIsHumanChallengeURL(message.webView?.url),
++                  otlobliSheinCoordinatorReady(detail),
++                  let coordinator = detail["coordinator"] as? [String: Any] {
++            readyGeneration = coordinator["documentGeneration"] as? String ?? ""
++            trustedReady = true
++        }
++        guard trustedReady, otlobliReadyGenerationCanRelease(readyGeneration) else { return }
++        otlobliHumanChallengeResolutionReported = false
++        otlobliHumanChallengeDocumentGeneration = ""
++        otlobliHumanChallengeStartedAtMilliseconds = 0
++        setOtlobliHumanChallengeActive(false)
      }
  
      func updateButtonTintColors() {
-@@ -1001,6 +1509,37 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1001,6 +2234,37 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          capBrowserPlugin?.notifyListeners(eventName, data: payload(with: data))
      }
  
@@ -2389,7 +3848,7 @@ index 97a2fc1..fe688c3 100644
      private func startObservingKeyboardViewportChanges() {
          guard !isObservingKeyboardViewportChanges else {
              return
-@@ -1025,6 +1564,78 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1025,6 +2289,76 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          return max(0.05, duration.doubleValue)
      }
  
@@ -2435,9 +3894,6 @@ index 97a2fc1..fe688c3 100644
 +            webView.translatesAutoresizingMaskIntoConstraints = false
 +            self.view.addSubview(webView)
 +
-+            let bottomAnchor = self.enabledSafeBottomMargin
-+                ? self.view.safeAreaLayoutGuide.bottomAnchor
-+                : self.view.bottomAnchor
 +            let topAnchor = self.enabledSafeTopMargin
 +                ? self.view.safeAreaLayoutGuide.topAnchor
 +                : self.view.topAnchor
@@ -2446,7 +3902,7 @@ index 97a2fc1..fe688c3 100644
 +                webView.topAnchor.constraint(equalTo: topAnchor),
 +                webView.leadingAnchor.constraint(equalTo: self.view.leadingAnchor),
 +                webView.trailingAnchor.constraint(equalTo: self.view.trailingAnchor),
-+                webView.bottomAnchor.constraint(equalTo: bottomAnchor)
++                webView.bottomAnchor.constraint(equalTo: self.otlobliManagedWebViewBottomAnchor())
 +            ])
 +
 +            webView.alpha = 1
@@ -2457,6 +3913,7 @@ index 97a2fc1..fe688c3 100644
 +            self.view.layoutIfNeeded()
 +            webView.scrollView.setContentOffset(offset, animated: false)
 +            webView.evaluateJavaScript("window.dispatchEvent(new Event('resize'));", completionHandler: nil)
++            self.refreshOtlobliOverlayOrder()
 +            if let button = self.otlobliNativeBackButton, !button.isHidden {
 +                self.view.bringSubviewToFront(button)
 +            }
@@ -2468,11 +3925,12 @@ index 97a2fc1..fe688c3 100644
      private func scheduleWebViewViewportRefresh(force: Bool = false, delay: TimeInterval = 0.05) {
          DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
              self?.refreshWebViewViewportIfNeeded(force: force)
-@@ -1135,10 +1746,27 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1135,10 +2469,28 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
      public func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
          if message.name == "messageHandler" {
              if let messageBody = message.body as? [String: Any] {
 -                print("Received message from JavaScript:", messageBody)
++                handleOtlobliHumanChallengeMessage(messageBody, message: message)
 +                if let detail = messageBody["detail"] as? [String: Any],
 +                   detail["type"] as? String == "otlobliBackButtonState" {
 +                    let visible = detail["visible"] as? Bool ?? false
@@ -2498,7 +3956,7 @@ index 97a2fc1..fe688c3 100644
                  emit("messageFromWebview", data: ["rawMessage": String(describing: message.body)])
              }
          } else if message.name == "consoleMessageHandler" {
-@@ -1176,6 +1804,12 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1176,6 +2528,12 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
                  return
              }
              capBrowserPlugin?.setHiddenFromJavaScript(true, sourceId: instanceId)
@@ -2511,7 +3969,7 @@ index 97a2fc1..fe688c3 100644
          } else if message.name == "show" {
              guard allowWebViewJsVisibilityControl else {
                  return
-@@ -1237,6 +1871,9 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1237,6 +2595,9 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
                                  hide: function() {
                                          window.webkit.messageHandlers.hide.postMessage(null);
                                  },
@@ -2521,7 +3979,7 @@ index 97a2fc1..fe688c3 100644
                                  show: function() {
                                          window.webkit.messageHandlers.show.postMessage(null);
                                  }
-@@ -1337,6 +1974,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1337,6 +2698,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          userContentController.removeScriptMessageHandler(forName: "preShowScriptSuccess")
          userContentController.removeScriptMessageHandler(forName: "close")
          userContentController.removeScriptMessageHandler(forName: "hide")
@@ -2529,7 +3987,7 @@ index 97a2fc1..fe688c3 100644
          userContentController.removeScriptMessageHandler(forName: "show")
          userContentController.removeScriptMessageHandler(forName: "takeScreenshot")
          userContentController.removeScriptMessageHandler(forName: "consoleMessageHandler")
-@@ -1358,6 +1996,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1358,6 +2720,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          userContentController.add(weakHandler, name: "preShowScriptSuccess")
          userContentController.add(weakHandler, name: "close")
          userContentController.add(weakHandler, name: "hide")
@@ -2537,7 +3995,7 @@ index 97a2fc1..fe688c3 100644
          userContentController.add(weakHandler, name: "show")
          if allowScreenshotsFromWebPage {
              userContentController.add(weakHandler, name: "takeScreenshot")
-@@ -1464,7 +2103,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1464,7 +2827,7 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          //        }
  
          if #available(iOS 16.4, *) {
@@ -2546,16 +4004,50 @@ index 97a2fc1..fe688c3 100644
          } else {
              // Fallback on earlier versions
          }
-@@ -1581,6 +2220,8 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1495,7 +2858,8 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+         webView.uiDelegate = self
+         webView.navigationDelegate = self
+ 
+-        webView.allowsBackForwardNavigationGestures = self.activeNativeNavigationForWebview
++        webView.allowsBackForwardNavigationGestures = self.activeNativeNavigationForWebview &&
++            !self.otlobliHumanChallengeActive
+         webView.isMultipleTouchEnabled = true
+ 
+         // Disable bounce effect by setting scrollView.bounces to false when disableOverscroll is true
+@@ -1513,6 +2877,11 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+             webView.translatesAutoresizingMaskIntoConstraints = false
+         }
+         self.webView = webView
++        if otlobliNativeNavigation {
++            installOtlobliNativeNavigationIfNeeded()
++            rebindManagedWebViewBottomConstraint()
++            refreshOtlobliOverlayOrder()
++        }
+ 
+         self.webView?.customUserAgent = self.customUserAgent ?? self.userAgent ?? self.originalUserAgent
+ 
+@@ -1581,6 +2950,9 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
          self.hiddenPopupWindow = parent.hiddenPopupWindow
          self.opensHidden = parent.hiddenPopupWindow
          self.captureConsoleLogs = parent.captureConsoleLogs
 +        self.otlobliPreserveAttachedWhenHidden = parent.otlobliPreserveAttachedWhenHidden
++        self.otlobliNativeNavigation = parent.otlobliNativeNavigation
 +        self.otlobliDismissModalWhenHidden = parent.otlobliDismissModalWhenHidden
          self.allowWebViewJsVisibilityControl = parent.allowWebViewJsVisibilityControl
          self.allowScreenshotsFromWebPage = parent.allowScreenshotsFromWebPage
          self.handleDownloads = parent.handleDownloads
-@@ -1720,12 +2361,17 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+@@ -1654,6 +3026,10 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
+         super.viewDidAppear(animated)
+         refreshWebViewViewportIfNeeded(force: true)
+         scheduleWebViewViewportRefresh(force: true, delay: 0.25)
++        // The controller may be constructed long before an
++        // isPresentAfterPageLoad browser is actually presented. Teach the
++        // store-switch gesture only from this real visibility boundary.
++        scheduleOtlobliStoreSwitchDiscoveryHint()
+ 
+         // Force add buttonNearDone if it's not visible yet
+         if buttonNearDoneIcon != nil {
+@@ -1720,12 +3096,17 @@ open class WKWebViewController: UIViewController, WKScriptMessageHandler {
              }
          case "URL":
              // Guard against notifications during cleanup when webView is being torn down
@@ -2575,11 +4067,20 @@ index 97a2fc1..fe688c3 100644
          default:
              super.observeValue(forKeyPath: keyPath, of: object, change: change, context: context)
          }
-@@ -1818,6 +2464,23 @@ public extension WKWebViewController {
+@@ -1813,11 +3194,37 @@ public extension WKWebViewController {
+     }
+ 
+     func updateNavigationGestures() {
+-        self.webView?.allowsBackForwardNavigationGestures = self.activeNativeNavigationForWebview
++        self.webView?.allowsBackForwardNavigationGestures = self.activeNativeNavigationForWebview &&
++            !self.otlobliHumanChallengeActive
+     }
  
      open func cleanupWebView() {
          guard let webView = self.webView else { return }
 +        cancelOtlobliChallengeReveal()
++        dismissOtlobliStoreSwitchHint()
++        otlobliStoreSwitchDiscoveryShown = false
 +        otlobliLoadingCoverTimeout?.cancel()
 +        otlobliLoadingCoverTimeout = nil
 +        otlobliLoadingCoverView?.removeFromSuperview()
@@ -2591,6 +4092,12 @@ index 97a2fc1..fe688c3 100644
 +        otlobliNativeBackButtonTopConstraint = nil
 +        otlobliNativeBackTarget = "home"
 +        otlobliNativeBackFallbackURL = nil
++        otlobliHumanChallengeActive = false
++        otlobliHumanChallengeResolutionReported = false
++        otlobliHumanChallengeDocumentGeneration = ""
++        otlobliHumanChallengeStartedAtMilliseconds = 0
++        otlobliNativeBackRequestedVisible = false
++        otlobliNativeBackVisibleBeforeChallenge = false
 +        stopOtlobliPathMonitor()
 +        otlobliOfflineCoverView?.removeFromSuperview()
 +        otlobliOfflineCoverView = nil
@@ -2599,7 +4106,7 @@ index 97a2fc1..fe688c3 100644
          webView.stopLoading()
          previewItemURL = nil
  
-@@ -1837,6 +2500,7 @@ public extension WKWebViewController {
+@@ -1837,6 +3244,7 @@ public extension WKWebViewController {
          webView.configuration.userContentController.removeScriptMessageHandler(forName: "messageHandler")
          webView.configuration.userContentController.removeScriptMessageHandler(forName: "close")
          webView.configuration.userContentController.removeScriptMessageHandler(forName: "hide")
@@ -2607,7 +4114,32 @@ index 97a2fc1..fe688c3 100644
          webView.configuration.userContentController.removeScriptMessageHandler(forName: "show")
          if allowScreenshotsFromWebPage {
              webView.configuration.userContentController.removeScriptMessageHandler(forName: "takeScreenshot")
-@@ -2657,8 +3321,6 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2035,7 +3443,7 @@ fileprivate extension WKWebViewController {
+ 
+     func updateBarButtonItems() {
+         // Update navigation buttons (completely separate from close button)
+-        backBarButtonItem.isEnabled = webView?.canGoBack ?? false
++        backBarButtonItem.isEnabled = !otlobliHumanChallengeActive && (webView?.canGoBack ?? false)
+         forwardBarButtonItem.isEnabled = webView?.canGoForward ?? false
+ 
+         let updateReloadBarButtonItem: (UIBarButtonItem, Bool) -> UIBarButtonItem = {
+@@ -2257,6 +3665,7 @@ fileprivate extension WKWebViewController {
+     }
+ 
+     @objc func backDidClick(sender: AnyObject) {
++        guard !otlobliHumanChallengeActive else { return }
+         // Only handle back navigation, not closing
+         if webView?.canGoBack ?? false {
+             webView?.goBack()
+@@ -2265,6 +3674,7 @@ fileprivate extension WKWebViewController {
+ 
+     // Public method for safe back navigation
+     public func goBack() -> Bool {
++        guard !otlobliHumanChallengeActive else { return false }
+         if webView?.canGoBack ?? false {
+             webView?.goBack()
+             return true
+@@ -2657,8 +4067,6 @@ extension WKWebViewController: WKNavigationDelegate {
          ]
  
          let script = scriptTemplate.joined(separator: "\n")
@@ -2616,7 +4148,7 @@ index 97a2fc1..fe688c3 100644
          self.preShowSemaphore = DispatchSemaphore(value: 0)
          self.executeScript(script: script) // this will run on the main thread
  
-@@ -2680,14 +3342,33 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2680,14 +4088,33 @@ extension WKWebViewController: WKNavigationDelegate {
      }
  
      public func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
@@ -2650,7 +4182,7 @@ index 97a2fc1..fe688c3 100644
          if !didpageInit && self.capBrowserPlugin?.isPresentAfterPageLoad == true {
              // Only inject preShowScript if it wasn't already injected at document start
              let shouldInjectScript = self.preShowScript.map { !$0.isEmpty } ?? false &&
-@@ -2703,12 +3384,18 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2703,12 +4130,18 @@ extension WKWebViewController: WKNavigationDelegate {
                      DispatchQueue.global(qos: .userInitiated).async {
                          self.injectPreShowScript()
                          DispatchQueue.main.async { [weak self] in
@@ -2671,7 +4203,7 @@ index 97a2fc1..fe688c3 100644
              }
          } else if self.preShowScript != nil &&
                      !self.preShowScript!.isEmpty &&
-@@ -2734,6 +3421,7 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2734,6 +4167,7 @@ extension WKWebViewController: WKNavigationDelegate {
          }
          self.injectJavaScriptInterface()
          emit("browserPageLoaded")
@@ -2679,7 +4211,7 @@ index 97a2fc1..fe688c3 100644
      }
  
      public func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-@@ -2743,7 +3431,10 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2743,7 +4177,10 @@ extension WKWebViewController: WKNavigationDelegate {
              self.url = url
              delegate?.webViewController?(self, didFail: url, withError: error)
          }
@@ -2691,7 +4223,7 @@ index 97a2fc1..fe688c3 100644
      }
  
      public func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-@@ -2753,7 +3444,19 @@ extension WKWebViewController: WKNavigationDelegate {
+@@ -2753,7 +4190,19 @@ extension WKWebViewController: WKNavigationDelegate {
              self.url = url
              delegate?.webViewController?(self, didFail: url, withError: error)
          }
@@ -2712,3 +4244,15 @@ index 97a2fc1..fe688c3 100644
      }
  
      public func webView(_ webView: WKWebView, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+@@ -2962,10 +4411,8 @@ extension WKWebViewController: WKNavigationDelegate {
+         }
+         NSLayoutConstraint.deactivate(existingBottomConstraints)
+ 
+-        // Create new bottom constraint based on enabled value
+-        let bottomAnchor = enabled ? self.view.safeAreaLayoutGuide.bottomAnchor : self.view.bottomAnchor
+         NSLayoutConstraint.activate([
+-            webView.bottomAnchor.constraint(equalTo: bottomAnchor)
++            webView.bottomAnchor.constraint(equalTo: otlobliManagedWebViewBottomAnchor())
+         ])
+         self.view.layoutIfNeeded()
+         refreshWebViewViewportIfNeeded(force: true)

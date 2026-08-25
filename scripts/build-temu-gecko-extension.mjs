@@ -44,12 +44,13 @@ const built = require(path.join(tempDir, 'services/sheinBrowserScript.js'))
 let capture = stripInjectedComments(String(built.TEMU_CAPTURE_SCRIPT || ''))
 if (!capture) throw new Error('TEMU_CAPTURE_SCRIPT was empty')
 
-// MainActivity owns the real Otlobli navigation bar. Keep every blocker and
-// product-capture routine from the proven script, but prevent the page from
-// creating a duplicate navigation or back button inside GeckoView.
-capture = capture
-  .replace('function ensureOtlobliNav() {', 'function ensureOtlobliNav() { return;')
-  .replace('function ensureBackButton() {', 'function ensureBackButton() { return;')
+// MainActivity owns the real Otlobli navigation/back surfaces. Set the same
+// explicit ownership contract used by WKWebView/WebView before any runtime
+// code executes; all shared guards then avoid duplicate DOM chrome, viewport
+// rewrites and challenge navigation without brittle function-text rewrites.
+capture = `window.__otlobliNativeNavigation=true;
+window.__otlobliDocumentGeneration=window.__otlobliDocumentGeneration||(Date.now().toString(36)+'-'+Math.random().toString(36).slice(2));
+${capture}`
 
 const legacyProductCheck = 'if (/goods/i.test(location.pathname)) return true;'
 if (!capture.includes(legacyProductCheck)) {

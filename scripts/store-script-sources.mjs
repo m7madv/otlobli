@@ -10,6 +10,7 @@ export const STORE_SCRIPT_SOURCE_FILES = [
   'src/services/storeProductCaptureScript.ts',
   'src/services/storeBlockingScript.ts',
   'src/services/temuBrowserScript.ts',
+  'src/services/temuDocumentStartScript.ts',
   'src/services/storeRuntimeCoordinator.ts',
 ]
 

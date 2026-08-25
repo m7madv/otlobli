@@ -21,9 +21,13 @@ export const SHEIN_SESSION_SCRIPT = `
     parent.appendChild(fontStyle);
     return true;
   }
-  if (otlobliScriptEnabled('blocking')) ensureOtlobliBaseStyle();
+  if (otlobliScriptEnabled('blocking') && window.__otlobliNativeNavigation !== true) ensureOtlobliBaseStyle();
 
   function ensureViewportFitCover() {
+    // The native container now owns every system inset and physically sizes
+    // WebView above its bar. Do not rewrite the store's viewport (especially
+    // while a verification provider is measuring its challenge surface).
+    if (window.__otlobliNativeNavigation === true) return;
     if (!document.head) return;
     var meta = document.querySelector('meta[name="viewport"]');
     if (!meta) {
@@ -79,8 +83,8 @@ export const SHEIN_SESSION_SCRIPT = `
   var SHEIN_REQUIRED_LANGUAGE = ['ar'].indexOf(SHEIN_REQUIRED_LANGUAGE_CANDIDATE) >= 0
     ? SHEIN_REQUIRED_LANGUAGE_CANDIDATE : 'ar';
   var SHEIN_REQUIRED_SITE_UID = 'pwar';
-  var SHEIN_CHALLENGE_PATH_RE = /\\/(?:cdn-cgi|challenge|captcha|verify|verification|security|robot|risk|anti[-_]?bot|human)(?:\\/|$)/i;
-  var SHEIN_CHALLENGE_QUERY_RE = /(?:^|[?&#])(?:captcha|challenge|verification|security_token|risk|robot|anti[-_]?bot|human)=/i;
+  var SHEIN_CHALLENGE_PATH_RE = /\\/(?:cdn-cgi|challenge|captcha|verify|verification|bgn[_-]?verification|security|robot|risk|anti[-_]?bot|human)(?:[/?#.-]|$)/i;
+  var SHEIN_CHALLENGE_QUERY_RE = /(?:^|[?&#])(?:captcha|challenge|verification|bgn[_-]?verification|security_token|risk|robot|anti[-_]?bot|human)=/i;
   var TEMU_REQUIRED_COUNTRY = /^[A-Z]{2}$/.test(String(OTLOBLI_TEMU_REGION.countryCode || '').toUpperCase())
     ? String(OTLOBLI_TEMU_REGION.countryCode).toUpperCase()
     : 'SA';
@@ -92,6 +96,7 @@ export const SHEIN_SESSION_SCRIPT = `
   // native region guard are the only source of region truth here.
 
   function otlobliEnsureChallengeNav() {
+    if (window.__otlobliNativeNavigation === true) return true;
     if (!document.body) return false;
     var nav = document.getElementById('otlobli-nav');
     if (!nav) {
@@ -155,12 +160,22 @@ export const SHEIN_SESSION_SCRIPT = `
     return false;
   }
 
-  if (IS_SHEIN && otlobliIsHumanChallengeUrl(location.href)) {
-    // Landing directly on a challenge URL is still a challenge: do not seed the
-    // region here either. Writing cookies while SHEIN's token is outstanding is
-    // what made a correctly solved verification report "Access timed out".
-    otlobliEnterChallengeMode();
-    return;
+  // Keep constructing the lightweight observer/runtime on a direct challenge
+  // document so it can report a stable completion without a reload. The actual
+  // challenge mode is entered after its state variables are initialised in the
+  // blocking section; until then every session mutation below is skipped.
+  var OTLOBLI_DIRECT_HUMAN_CHALLENGE = IS_SHEIN && otlobliIsHumanChallengeUrl(location.href);
+
+  // Shared fail-closed gate for every deferred callback outside the main
+  // coordinator. Function declarations from the complete injected bundle are
+  // available before execution, so callbacks can use the same live detector
+  // instead of trusting a stale boolean from a previous timer pass.
+  function otlobliInterventionPausedForHumanChallenge() {
+    try {
+      if (typeof otlobliChallengeActive !== 'undefined' && otlobliChallengeActive) return true;
+      if (typeof otlobliGuardHumanChallenge === 'function') return otlobliGuardHumanChallenge();
+    } catch (e) {}
+    return !!OTLOBLI_DIRECT_HUMAN_CHALLENGE;
   }
 
   function otlobliNormalizeSheinUrl(href) {
@@ -401,7 +416,7 @@ export const SHEIN_SESSION_SCRIPT = `
       : (countryState === 'mismatch' ? 'mismatch' : 'unknown');
     var currencyState = 'unknown';
     var languageState = 'unknown';
-    var loginPathPattern = new RegExp('/(?:user/)?(?:login|signin|sign-in|auth/login)(?:[/?#.-]|$)', 'i');
+    var loginPathPattern = new RegExp('/(?:user/)?(?:login|signin|sign-in|auth(?:/login)?)(?:[/?#.-]|$)', 'i');
     var loginState = loginPathPattern.test(location.pathname || '')
       ? 'detected' : 'not-required';
     try {
@@ -431,6 +446,7 @@ export const SHEIN_SESSION_SCRIPT = `
     var policy = window.__otlobliSheinPolicyEngine;
     var policyState = policy && policy.version && policy.observer ? 'verified' : (policy ? 'installed' : 'unknown');
     return {
+      documentGeneration: String(window.__otlobliDocumentGeneration || ''),
       countryState: countryState,
       regionState: regionState,
       currencyState: currencyState,
@@ -513,8 +529,9 @@ export const SHEIN_SESSION_SCRIPT = `
     return true;
   }
 
-  function updateSheinNativeCoverState() {
+  function updateSheinNativeCoverState(challengeAlreadyGuarded) {
     if (!IS_SHEIN) return;
+    if (!challengeAlreadyGuarded && otlobliInterventionPausedForHumanChallenge()) return;
     var now = Date.now();
     var currentPath = String(location.pathname || '');
     var signedReady = sheinSignedSaudiAddressReady();
@@ -1075,15 +1092,51 @@ export const SHEIN_SESSION_SCRIPT = `
   }
 
   function scheduleSheinShippingProgress(delay) {
-    if (!IS_SHEIN || !sheinNativeCoverRepairActive || sheinShippingProgressTimer) return;
+    if (!IS_SHEIN || !sheinNativeCoverRepairActive || sheinShippingProgressTimer ||
+        otlobliInterventionPausedForHumanChallenge()) return;
     sheinShippingProgressTimer = setTimeout(function () {
       sheinShippingProgressTimer = 0;
+      if (otlobliInterventionPausedForHumanChallenge()) return;
       try { ensureSheinSaudiShippingSelection(); } catch (e) {}
       try { updateSheinNativeCoverState(); } catch (e) {}
     }, Math.max(80, Number(delay) || 0));
   }
 
+  function otlobliSuspendSheinShippingProgressForChallenge() {
+    if (!IS_SHEIN) return;
+    if (sheinShippingProgressTimer) {
+      clearTimeout(sheinShippingProgressTimer);
+      sheinShippingProgressTimer = 0;
+    }
+    // A verification surface supersedes an in-flight region drawer. Restore
+    // every app-owned lock/style once, then let the ordinary post-verification
+    // coordinator restart region repair from current signed state.
+    sheinNativeCoverRepairActive = false;
+    sheinNativeCoverRepairStartedAt = 0;
+    sheinNativeCoverCooldownUntil = 0;
+    sheinRegionVeilStartedAt = 0;
+    sheinResolvedShippingRootCache = null;
+    sheinResolvedShippingRootCacheAt = 0;
+    try { sheinRegionTransitionVeil(false); } catch (e) {}
+    try { setSheinSaudiGuardOverlay(false); } catch (e) {}
+    try {
+      var navGuard = document.getElementById('otlobli-nav-region-guard');
+      if (navGuard) navGuard.remove();
+    } catch (e) {}
+    sheinShippingInteractionRoot = null;
+    try { sheinRestoreShippingInteractionStyles(); } catch (e) {}
+    try { sheinUnlockPageBehindShippingDrawer(); } catch (e) {}
+    try {
+      var shippingActions = document.querySelectorAll('[data-otlobli-shein-shipping-action="1"]');
+      for (var sai = 0; sai < shippingActions.length; sai++) {
+        shippingActions[sai].removeAttribute('data-otlobli-shein-shipping-action');
+      }
+    } catch (e) {}
+    resetSheinShippingProgress('');
+  }
+
   function sheinClickNativeShippingControl(target) {
+    if (otlobliInterventionPausedForHumanChallenge()) return false;
     if (!target || typeof target.click !== 'function') return false;
     if (!sheinPrepareNativeSaudiRepair()) return false;
     var now = Date.now();
@@ -1119,6 +1172,7 @@ export const SHEIN_SESSION_SCRIPT = `
       return false;
     } finally {
       setTimeout(function () {
+        if (otlobliInterventionPausedForHumanChallenge()) return;
         try { target.removeAttribute('data-otlobli-shein-shipping-action'); } catch (e) {}
       }, 900);
     }
@@ -1194,6 +1248,7 @@ export const SHEIN_SESSION_SCRIPT = `
   }
 
   function closeResolvedSheinShippingUi(allowIncomplete) {
+    if (otlobliInterventionPausedForHumanChallenge()) return false;
     if (!allowIncomplete && !sheinSignedSaudiAddressReady()) return false;
     var now = Date.now();
     if (now - sheinShippingCloseLastAt < 1200) return false;
@@ -1242,6 +1297,7 @@ export const SHEIN_SESSION_SCRIPT = `
       return false;
     } finally {
       setTimeout(function () {
+        if (otlobliInterventionPausedForHumanChallenge()) return;
         try { target.removeAttribute('data-otlobli-shein-shipping-action'); } catch (e) {}
       }, 1500);
     }
@@ -1411,6 +1467,10 @@ export const SHEIN_SESSION_SCRIPT = `
     if (sheinShippingTouchGuardInstalled) return;
     sheinShippingTouchGuardInstalled = true;
     document.addEventListener('touchmove', function (event) {
+      // A challenge may be painted by an SPA mutation before the coordinator's
+      // next wake updates otlobliChallengeActive. Use the live detector before
+      // any preventDefault so the genuine CAPTCHA always owns touch input.
+      if (otlobliInterventionPausedForHumanChallenge()) return;
       var root = sheinShippingInteractionRoot;
       if (!root || !root.isConnected) return;
       var target = event.target;
@@ -1494,8 +1554,9 @@ export const SHEIN_SESSION_SCRIPT = `
     }
   }
 
-  function ensureSheinSaudiShippingSelection() {
+  function ensureSheinSaudiShippingSelection(challengeAlreadyGuarded) {
     if (!IS_SHEIN || !document.body || document.readyState === 'loading') return;
+    if (!challengeAlreadyGuarded && otlobliInterventionPausedForHumanChallenge()) return;
     if (!sheinLooksLikeProductPageForShipping() && !sheinFindHomeShippingEntryControl()) return;
     var now = Date.now();
     var sessionKey = SHEIN_REQUIRED_COUNTRY + ':' + location.pathname;
@@ -1650,10 +1711,11 @@ export const SHEIN_SESSION_SCRIPT = `
   }
 
   // فرض العربية خاص بشي إن فقط (غيره قد يضبط كوكي لغة خاطئة فيعيد التحميل بلا داعٍ).
-  if (IS_SHEIN && otlobliScriptEnabled('session')) {
+  if (IS_SHEIN && otlobliScriptEnabled('session') && !OTLOBLI_DIRECT_HUMAN_CHALLENGE &&
+      !otlobliIsHumanChallenge()) {
     var normalizedArabicUrl = otlobliNormalizeSheinUrl(location.href);
     // ممنوع إعادة تحميل أثناء تحقق «أنا إنسان» — تصفّر حل المستخدم.
-    if (shouldReloadSheinForSaudi() && !otlobliIsHumanChallenge()) {
+    if (shouldReloadSheinForSaudi()) {
       var arRedirectAttempts = parseInt(sessionStorage.getItem('__otlobliArRedirects') || '0', 10);
       if (arRedirectAttempts < 1) {
         sessionStorage.setItem('__otlobliArRedirects', String(arRedirectAttempts + 1));
@@ -1682,6 +1744,7 @@ export const SHEIN_SESSION_SCRIPT = `
   window.addEventListener('messageFromNative', function (event) {
     var detail = event && event.detail;
     if (!detail || detail.type !== '__verifySheinState') return;
+    if (otlobliChallengeActive) return;
     try {
       if (window.__otlobliSheinPolicyEngine && window.__otlobliSheinPolicyEngine.verify) {
         window.__otlobliSheinPolicyEngine.verify('host-retry');

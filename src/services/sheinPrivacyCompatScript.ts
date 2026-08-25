@@ -41,8 +41,19 @@ export const SHEIN_PRIVACY_COMPAT_SCRIPT = `
   }
 
   function isHumanChallenge() {
-    return /\\/(?:cdn-cgi|challenge|captcha|verify|verification|security|robot|risk|anti[-_]?bot|human)(?:\\/|$)/i.test(location.pathname || '') ||
-      /(?:^|[?&#])(?:captcha|challenge|verification|security_token|risk|robot|anti[-_]?bot|human)=/i.test((location.search || '') + (location.hash || ''));
+    if (/\\/(?:cdn-cgi|challenge|captcha|verify|verification|bgn[_-]?verification|security|robot|risk|anti[-_]?bot|human)(?:[/?#.-]|$)/i.test(location.pathname || '') ||
+        /(?:^|[?&#])(?:captcha|challenge|verification|bgn[_-]?verification|security_token|risk|robot|anti[-_]?bot|human)=/i.test((location.search || '') + (location.hash || ''))) return true;
+    try {
+      var nodes = document.querySelectorAll('#challenge-form,iframe[title*="challenge" i],iframe[title*="verification" i],.one-pass-dialog,#one-pass-custom,one-pass-custom,#nine-captcha-custom,nine-captcha-custom,.si-verify-block-request-dialog,[class*="risk-one-pass" i],[class*="captcha" i],[class*="challenge" i],[class*="verification" i]');
+      for (var i = Math.max(0, nodes.length - 12); i < nodes.length; i++) {
+        var node = nodes[i];
+        var style = window.getComputedStyle(node);
+        var rect = node.getBoundingClientRect();
+        if (style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity || 1) > 0 &&
+            rect.width > 4 && rect.height > 4) return true;
+      }
+    } catch (e) {}
+    return false;
   }
 
   function viewportSize() {

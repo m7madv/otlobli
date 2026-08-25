@@ -10,6 +10,15 @@ import {
 import { stripInjectedComments } from './strip-injected-comments.mjs'
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const capgoPatchFile = 'patches/@capgo+capacitor-inappbrowser+8.6.25.patch'
+const capgoPatchSource = readFileSync(resolve(projectRoot, capgoPatchFile), 'utf8')
+const projectPatchSide = (patch, prefix) => patch
+  .split(/\r?\n/)
+  .filter((line) => line.startsWith(prefix) && !line.startsWith(prefix.repeat(3)))
+  .map((line) => line.slice(1))
+  .join('\n')
+const capgoPatchAdded = projectPatchSide(capgoPatchSource, '+')
+const capgoPatchRemoved = projectPatchSide(capgoPatchSource, '-')
 const sheinRuntimeSourceFiles = [
   'src/services/sheinBrowserScript.ts',
   'src/services/sheinNavigationScript.ts',
@@ -123,14 +132,13 @@ const checks = [
   },
   {
     label: 'persistent patch',
-    file: 'patches/@capgo+capacitor-inappbrowser+8.6.25.patch',
+    file: capgoPatchFile,
     markers: [
       'func otlobliForceRecompose()',
       'otlobliLifecycleGeneration',
       'webView.removeFromSuperview()',
       'self.view.addSubview(webView)',
       'webView.scrollView.setContentOffset(offset, animated: false)',
-      '@objc func appDidBecomeActive(_ notification: NSNotification)',
       'DispatchQueue.main.asyncAfter(deadline: .now() + 0.25)',
       'controller.otlobliForceRecompose()',
       'UIApplication.shared.applicationState == .active',
@@ -139,11 +147,36 @@ const checks = [
       "new CustomEvent('otlobli:nativeNavigate'",
       'func navigateHostFromJavaScript(_ target: String',
       'window.webkit.messageHandlers.navigate.postMessage',
-      '-        Log.i("InjectPreShowScript", String.format("PreShowScript script:\\n%s", script));',
-      '-        print("[InAppBrowser - InjectPreShowScript] PreShowScript script: \\(script)")',
-      '-                Log.d("WebViewDialog", "Received message from JavaScript: " + message);',
-      '-        Log.d("InAppBrowserPlugin", "Event data: " + eventData.toString());',
-      '-        print("Event data: \\(eventData)")',
+      'انقر «الرئيسية» مرتين لفتح قائمة المتاجر',
+      'انقر مرة ثانية لفتح قائمة المتاجر',
+      'يفتح قائمة المتاجر مباشرة',
+      'if (isOtlobliTouchExplorationEnabled())',
+      'now - otlobliLastHomeActivationAt <= 320L',
+      'if UIAccessibility.isVoiceOverRunning',
+      'now - otlobliLastHomeActivationAt <= 0.32',
+      'int opaqueBottomInset,',
+      'int gestureSafeBottomInset,',
+      'int visibleBottomFloor = keyboardVisible',
+      ': Math.max(otlobliDp(16), Math.max(0, gestureSafeBottomInset));',
+      'int systemBottomOffset = keyboardVisible ? 0 : Math.max(0, opaqueBottomInset);',
+      '"config_navBarInteractionMode"',
+      'getInteger(modeResource) == 2',
+      'int opaqueBottomInset = usesGestureNavigation',
+      'int gestureSafeBottomInset = usesGestureNavigation ? gestureBottomInset : 0;',
+      'int navigationHeight = otlobliDp(74) + visibleBottomFloor;',
+      'navigation.setPadding(0, 0, 0, visibleBottomFloor);',
+      'navigationParams.bottomMargin = systemBottomOffset + keyboardOffset;',
+      'contentParams.bottomMargin = navigationHeight + systemBottomOffset + keyboardOffset;',
+      'int navigationWidth = Math.min(otlobliDp(440), availableWidth);',
+      'navigationView.centerXAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerXAnchor)',
+      'navigationView.widthAnchor.constraint(lessThanOrEqualToConstant: 440)',
+    ],
+    removedMarkers: [
+      '        Log.i("InjectPreShowScript", String.format("PreShowScript script:\\n%s", script));',
+      '        print("[InAppBrowser - InjectPreShowScript] PreShowScript script: \\(script)")',
+      '                Log.d("WebViewDialog", "Received message from JavaScript: " + message);',
+      '        Log.d("InAppBrowserPlugin", "Event data: " + eventData.toString());',
+      '        print("Event data: \\(eventData)")',
     ],
     forbidden: [
       'appWillEnterForeground',
@@ -151,6 +184,10 @@ const checks = [
       'otlobliRecomposeAllWebViews',
       'for delay in [0.12, 0.5, 1.2, 2.2]',
       'otlobliForceRecompose(force:',
+      'اضغط مرتين للتبديل',
+      'Math.max(otlobliDp(16), safeBottomInset)',
+      'int navigationHeight = otlobliDp(74) + visibleBottomFloor + systemBottomInset;',
+      'navigation.setPadding(0, 0, 0, visibleBottomFloor + systemBottomInset);',
     ],
   },
   {
@@ -183,10 +220,20 @@ const checks = [
       'webView.scrollView.setContentOffset(offset, animated: false)',
       'message.name == "navigate"',
       'window.webkit.messageHandlers.navigate.postMessage',
+      'homeButton.accessibilityHint = "يفتح قائمة المتاجر مباشرة"',
+      'hint.accessibilityLabel = message',
+      'message: "انقر «الرئيسية» مرتين لفتح قائمة المتاجر"',
+      'DispatchQueue.main.asyncAfter(deadline: .now() + 0.7, execute: discovery)',
+      'if UIAccessibility.isVoiceOverRunning',
+      'guard now - otlobliLastHomeActivationAt <= 0.32 else',
+      'showOtlobliStoreSwitchHint()',
+      'navigationView.centerXAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerXAnchor)',
+      'navigationView.widthAnchor.constraint(lessThanOrEqualToConstant: 440)',
     ],
     forbidden: [
       'otlobliForceRecompose(force:',
       'print("[InAppBrowser - InjectPreShowScript] PreShowScript script:',
+      'اضغط مرتين للتبديل',
     ],
   },
   {
@@ -199,9 +246,117 @@ const checks = [
       'webView.requestLayout()',
       'public void navigate(String target)',
       "new CustomEvent('otlobli:nativeNavigate'",
+      'active ? label + "، يفتح قائمة المتاجر مباشرة" : label',
+      'if (isOtlobliTouchExplorationEnabled())',
+      'now - otlobliLastHomeActivationAt <= 320L',
+      '"انقر «الرئيسية» مرتين لفتح قائمة المتاجر"',
+      '"انقر مرة ثانية لفتح قائمة المتاجر"',
+      'mainHandler.postDelayed(otlobliStoreSwitchDiscovery, 700L);',
+      'showOtlobliStoreSwitchHint();',
+      'int opaqueBottomInset,',
+      'int gestureSafeBottomInset,',
+      'int visibleBottomFloor = keyboardVisible',
+      ': Math.max(otlobliDp(16), Math.max(0, gestureSafeBottomInset));',
+      'int systemBottomOffset = keyboardVisible ? 0 : Math.max(0, opaqueBottomInset);',
+      '"config_navBarInteractionMode"',
+      'getInteger(modeResource) == 2',
+      'int opaqueBottomInset = usesGestureNavigation',
+      'int gestureSafeBottomInset = usesGestureNavigation ? gestureBottomInset : 0;',
+      'int navigationHeight = otlobliDp(74) + visibleBottomFloor;',
+      'navigation.setPadding(0, 0, 0, visibleBottomFloor);',
+      'navigationParams.bottomMargin = systemBottomOffset + keyboardOffset;',
+      'contentParams.bottomMargin = navigationHeight + systemBottomOffset + keyboardOffset;',
+      'int navigationWidth = Math.min(otlobliDp(440), availableWidth);',
+      'int centeredGap = Math.max(0, (availableWidth - navigationWidth) / 2);',
     ],
     forbidden: [
       'Log.i("InjectPreShowScript", String.format("PreShowScript script:',
+      'اضغط مرتين للتبديل',
+      'Math.max(otlobliDp(16), safeBottomInset)',
+      'int navigationHeight = otlobliDp(74) + visibleBottomFloor + systemBottomInset;',
+      'navigation.setPadding(0, 0, 0, visibleBottomFloor + systemBottomInset);',
+    ],
+  },
+  {
+    label: 'dedicated iOS store-navigation parity',
+    file: 'ios/App/App/OtlobliSheinBrowserPlugin.swift',
+    markers: [
+      'navigation.centerXAnchor.constraint(equalTo: surface.safeAreaLayoutGuide.centerXAnchor)',
+      'navigation.widthAnchor.constraint(lessThanOrEqualToConstant: 440)',
+      'button.accessibilityLabel = labels[index]',
+      '? "يفتح قائمة المتاجر مباشرة"',
+      'if UIAccessibility.isVoiceOverRunning',
+      'navigateHost(to: target)',
+      'DispatchQueue.main.asyncAfter(deadline: .now() + 0.32, execute: timeout)',
+      'message: "انقر «الرئيسية» مرتين لفتح قائمة المتاجر"',
+      'message: "انقر مرة ثانية لفتح قائمة المتاجر"',
+      'scheduleNativeStoreSwitchDiscoveryHint()',
+      'showNativeStoreSwitchSecondTapHint()',
+      'if locked {',
+      'dismissNativeStoreSwitchHint()',
+    ],
+    forbidden: [
+      'اضغط مرتين للتبديل',
+    ],
+  },
+  {
+    label: 'Temu first-tap chooser feedback and direct assistive activation',
+    file: 'src/App.tsx',
+    markers: [
+      'showPersonalTemuSecondTapHint()',
+      'personalTemuHomeTapTimerRef.current = window.setTimeout(() => {',
+      '}, 320)',
+      '? \'انقر مرة ثانية لفتح قائمة المتاجر\'',
+      '\'انقر مرتين على «الرئيسية» لفتح قائمة المتاجر\'',
+      "if (activationDetail === 0)",
+      "storeMessageHandlerRef.current({ detail: { type: 'closeStore' }, sourceStore: 'temu' })",
+      "ariaLabel={storeSwitchGestureEnabled ? 'الرئيسية، يفتح قائمة المتاجر مباشرة' : undefined}",
+    ],
+    forbidden: [
+      'اضغط مرتين للتبديل',
+      'اضغط مرتين على الرئيسية لتبديل المتجر',
+    ],
+  },
+  {
+    label: 'Android Personal Temu centered 440dp surface',
+    file: 'android/app/src/main/java/com/otlobli/app/TemuEmbeddedBrowserPlugin.java',
+    markers: [
+      'Math.min(getContext().getResources().getDisplayMetrics().widthPixels, dp(440))',
+      'Gravity.TOP | Gravity.CENTER_HORIZONTAL',
+    ],
+  },
+  {
+    label: 'Temu bounded Android Home-only download-shell collapse',
+    file: 'src/services/temuBrowserScript.ts',
+    markers: [
+      "document.documentElement.setAttribute('data-otlobli-native-platform', OTLOBLI_NATIVE_PLATFORM)",
+      'html[data-otlobli-native-platform="android"][data-otlobli-temu-home-route="1"] [class*="downloadsWrapper"]',
+      'html[data-otlobli-native-platform="android"][data-otlobli-temu-home-route="1"] [data-otlobli-temu-download-shell="1"]',
+      'html[data-otlobli-native-platform="android"][data-otlobli-temu-home-route="1"] [data-otlobli-temu-download-shell="1"] > *',
+      'html[data-otlobli-native-platform="android"][data-otlobli-temu-home-route="1"][data-otlobli-temu-download-collapsed="1"] [js-selector="bg-cui-top-sticky"]',
+      '{ height: 0 !important; min-height: 0 !important; max-height: 0 !important; overflow: hidden !important;',
+      '{ transform: translate(-50%, 0) !important; }',
+      'function otlobliSyncTemuDownloadCollapsedMarker(root, collapsed)',
+      'function otlobliMarkTemuAndroidDownloadShell()',
+      "if (current !== '1') root.setAttribute(marker, '1')",
+      'else if (current !== null)',
+      "root.getAttribute('data-otlobli-native-platform') !== 'android'",
+      "root.getAttribute('data-otlobli-temu-home-route') !== '1'",
+      "document.querySelector('[class*=\"downloadsWrapper\"]')",
+      'for (var depth = 0; shell && depth < 8; depth++)',
+      'if (shell.childElementCount > 1)',
+      "shell.querySelector('input,[role=\"searchbox\"],[class*=\"wrapperWithSearch\"],[class*=\"searchBar\" i]')",
+      'var rect = shell.getBoundingClientRect();',
+      'rect.top > 96 || rect.width < viewportWidth * 0.65 || rect.height > 180',
+      "shell.setAttribute('data-otlobli-temu-download-shell', '1')",
+      'otlobliSyncTemuDownloadCollapsedMarker(root, true)',
+      'otlobliSyncTemuProductRouteState();',
+      'otlobliMarkTemuAndroidDownloadShell();',
+      "var homePath = String(location.pathname || '/').replace(/\\\\/{2,}/g, '/').replace(/\\\\/+$/, '')",
+      "var homeRoute = !homePath || /^\\\\/[a-z]{2}(?:-[a-z]{2})?$/i.test(homePath)",
+      "homeRoute && !otlobliTemuAccountRoute()",
+      "root.setAttribute('data-otlobli-temu-home-route', '1')",
+      "root.removeAttribute('data-otlobli-temu-home-route')",
     ],
   },
   {
@@ -307,7 +462,6 @@ const checks = [
     label: 'store-script responsibility boundaries',
     file: 'src/services/sheinBrowserScript.ts',
     markers: [
-      "from './sheinNavigationScript'",
       "from './sheinSessionScript'",
       "from './storeProductCaptureScript'",
       "from './storeBlockingScript'",
@@ -324,6 +478,15 @@ const checks = [
       'function ensureAddToCartButton()',
       'function hideSheinNativeProductAdd()',
       'Storage.prototype',
+      'OTLOBLI_NAV_BOOTSTRAP_SCRIPT',
+    ],
+  },
+  {
+    label: 'isolated DOM navigation fallback dependency',
+    file: 'src/services/sheinSessionScript.ts',
+    markers: [
+      "from './sheinNavigationScript'",
+      'OTLOBLI_NAV_TOUCH_BRIDGE_JS',
     ],
   },
   {
@@ -405,7 +568,8 @@ const checks = [
       'export const buildStoreCaptureScript',
       'otlobliLoadingCover: true',
       '${captureBundle.SHEIN_POLICY_DOCUMENT_START_SCRIPT}',
-      '${captureBundle.OTLOBLI_NAV_BOOTSTRAP_SCRIPT}',
+      'const nativeStorePrelude = `window.__otlobliNativeNavigation=true;',
+      'otlobliNativeNavigation: true',
       'function otlobliScriptEnabled() { return true; }',
     ],
     forbidden: [
@@ -544,9 +708,14 @@ const checks = [
       'var semanticStart = Math.max(0, semanticChecks.length - 12);',
       'if (!sheinElementIsPainted(surface)) continue;',
       'otlobliMatchesHumanChallengeText(surface.textContent || \'\')',
+      'if (otlobliChallengeActive && challengeNow - __otlobliChallengeScanAt < 600)',
       'function otlobliResolveHumanChallenge()',
       "type: 'humanCheck'",
       "type: 'humanCheckResolved'",
+      "documentGeneration: String(window.__otlobliDocumentGeneration || '')",
+      'function otlobliHideBackControlForHumanChallenge()',
+      "window.__otlobliNativeBackState = 'challenge-hidden'",
+      "type: 'otlobliBackButtonState', visible: false",
     ],
     forbidden: [
       '.click()',
@@ -565,14 +734,28 @@ const checks = [
       'src/services/storeRuntimeCoordinator.ts',
     ],
     markers: [
-      'var humanChallengeNow = otlobliScriptEnabled(\'blocking\') && otlobliIsHumanChallenge();',
+      'function otlobliGuardHumanChallenge()',
+      'if (otlobliGuardHumanChallenge())',
+      'if (otlobliChallengeAbsenceIsStable(Date.now()))',
       'otlobliResolveHumanChallenge();',
-      'var challengeScanGap = otlobliChallengeActive ? 600 : 1500;',
+      'if (otlobliChallengeSettlementIsStable(Date.now()))',
+      'otlobliFinishChallengeSettlement();',
     ],
     forbidden: [
       'otlobliLooksLikeRemovedProductPage',
       'otlobliNotifyHumanCheckSkipped',
       'if (!sheinPageLooksInteractive())',
+    ],
+  },
+  {
+    label: 'SHEIN auth-route delimiter compatibility',
+    files: [
+      'src/services/sheinPolicyEngine.ts',
+      'src/services/sheinSessionScript.ts',
+    ],
+    markers: [
+      'auth(?:\\/login)?)(?:[/?#.-]|$)',
+      'auth(?:/login)?)(?:[/?#.-]|$)',
     ],
   },
   {
@@ -710,7 +893,7 @@ const checks = [
       'var storeHomeRoot = otlobliStoreHomeRoot()',
       "type: 'otlobliBackButtonState'",
       'window.__otlobliNativeBackState !== nativeState',
-      'var nativeBackAvailable = !!(window.webkit',
+      'var nativeBackAvailable = window.__otlobliNativeNavigation === true ||',
       'if (nativeBackAvailable) {',
       "var stalePageBack = document.getElementById('otlobli-back-btn')",
       'if (stalePageBack) stalePageBack.remove()',
@@ -760,10 +943,16 @@ const checks = [
     markers: [
       "OTLOBLI_NAV_STYLE_VERSION = 'v86.224.1'",
       'data-otlobli-store-switch-hint',
-      'اضغط مرتين للتبديل',
-      'الرئيسية، اضغط مرتين بسرعة للعودة إلى اختيار المتجر',
+      "hint.textContent = 'انقر مرة ثانية لفتح قائمة المتاجر'",
+      'showStoreSwitchHint();',
+      "homeTab.setAttribute('aria-label', 'الرئيسية، يفتح قائمة المتاجر مباشرة')",
+      "staleHint.parentNode.removeChild(staleHint)",
       "window.__otlobliNativeBackState = '';",
       "window.addEventListener('pageshow', restoreOtlobliNavOnWake, false)",
+    ],
+    forbidden: [
+      'اضغط مرتين للتبديل',
+      'اضغط مرتين على الرئيسية لتبديل المتجر',
     ],
   },
   {
@@ -798,7 +987,9 @@ const checks = [
     markers: [
       'if (!IS_SHEIN || !sheinLooksLikeProductRouteForShipping()) return false;',
       'var repairStarted = sheinPrepareNativeSaudiRepair();',
-      'if (shouldReloadSheinForSaudi() && !otlobliIsHumanChallenge())',
+      '!OTLOBLI_DIRECT_HUMAN_CHALLENGE &&',
+      '!otlobliIsHumanChallenge()) {',
+      'if (shouldReloadSheinForSaudi())',
       'if (sheinProductIdentityFromUrl(url.toString())) return false',
       'ensureSheinSaudiStore()',
     ],
@@ -887,7 +1078,7 @@ const checks = [
       'return !!p.title && !!p.image && p.priceUsd > 0 && (!cs.exists || !!p.color)',
       'function sheinTrackSelectedSkuPrice(event)',
       "__otlobliSkuPriceSource = 'selected-mutation'",
-      "document.addEventListener('click', sheinTrackSelectedSkuPrice, true)",
+      'sheinTrackSelectedSkuPrice(event);',
       'setTimeout(commit, 1500)',
       'var __otlobliInitialCapturePath = location.pathname',
       'function sheinSpaRoutePrice()',
@@ -956,7 +1147,134 @@ try {
     exports: evaluateInjectedScriptExports('src/services/sheinBrowserScript.ts'),
   }
   const captureScript = scriptModule.exports.SHEIN_CAPTURE_SCRIPT
-  const bootstrapScript = scriptModule.exports.OTLOBLI_NAV_BOOTSTRAP_SCRIPT
+  const temuCaptureScript = scriptModule.exports.TEMU_CAPTURE_SCRIPT
+  const navigationModule = evaluateInjectedScriptExports('src/services/sheinNavigationScript.ts')
+  const bootstrapScript = navigationModule.OTLOBLI_NAV_BOOTSTRAP_SCRIPT
+  if (Object.hasOwn(scriptModule.exports, 'OTLOBLI_NAV_BOOTSTRAP_SCRIPT')) {
+    failures.push('native navigation ownership: sheinBrowserScript must not export or package the legacy DOM bootstrap')
+  }
+
+  const exerciseNativeDomGuard = (script, label, { expectStaleRemoval = false } = {}) => {
+    const metrics = { created: 0, listeners: 0, timers: 0, observers: 0, removed: 0 }
+    const staleNavigation = { id: 'otlobli-nav', parentNode: null }
+    const staleParent = {
+      removeChild(node) {
+        if (node === staleNavigation) {
+          metrics.removed++
+          staleNavigation.parentNode = null
+        }
+      },
+    }
+    staleNavigation.parentNode = staleParent
+    const documentFixture = {
+      body: {},
+      head: {},
+      documentElement: { style: { setProperty() {} }, appendChild() {} },
+      getElementById(id) { return id === 'otlobli-nav' ? staleNavigation : null },
+      createElement() { metrics.created++; return { style: {}, setAttribute() {}, appendChild() {} } },
+      addEventListener() { metrics.listeners++ },
+      querySelector() { return null },
+      querySelectorAll() { return [] },
+    }
+    const windowFixture = {
+      __otlobliNativeNavigation: true,
+      addEventListener() { metrics.listeners++ },
+    }
+    windowFixture.top = windowFixture
+    const context = {
+      window: windowFixture,
+      document: documentFixture,
+      location: { hostname: 'm.shein.com', href: 'https://m.shein.com/ar/' },
+      setTimeout() { metrics.timers++; return metrics.timers },
+      clearTimeout() {},
+      setInterval() { metrics.timers++; return metrics.timers },
+      clearInterval() {},
+      MutationObserver: class {
+        constructor() { metrics.observers++ }
+        observe() {}
+        disconnect() {}
+      },
+    }
+    try {
+      runInNewContext(script, context)
+    } catch (error) {
+      failures.push(`${label}: native-path fixture failed (${error instanceof Error ? error.message : String(error)})`)
+      return
+    }
+    if (metrics.created || metrics.listeners || metrics.timers || metrics.observers) {
+      failures.push(`${label}: native path created DOM/listener maintenance (${JSON.stringify(metrics)})`)
+    }
+    if (expectStaleRemoval && metrics.removed !== 1) {
+      failures.push(`${label}: native path did not remove the one stale #otlobli-nav node`)
+    }
+  }
+
+  const sourceBetween = (source, startMarker, endMarker, label) => {
+    const start = source.indexOf(startMarker)
+    const end = source.indexOf(endMarker, start + startMarker.length)
+    if (start < 0 || end < 0) {
+      failures.push(`${label}: cannot inspect ${startMarker}`)
+      return ''
+    }
+    return source.slice(start, end)
+  }
+
+  exerciseNativeDomGuard(
+    bootstrapScript,
+    'legacy DOM bootstrap suppression',
+    { expectStaleRemoval: true },
+  )
+  for (const [store, runtimeScript] of [['SHEIN', captureScript], ['Temu', temuCaptureScript]]) {
+    const touchBridge = sourceBetween(
+      runtimeScript,
+      'function otlobliInstallNavTouchBridge()',
+      'otlobliInstallNavTouchBridge();',
+      `${store} native touch bridge suppression`,
+    )
+    if (touchBridge) {
+      exerciseNativeDomGuard(
+        `${touchBridge}\notlobliInstallNavTouchBridge();`,
+        `${store} native touch bridge suppression`,
+      )
+    }
+    const ensureNavigation = sourceBetween(
+      runtimeScript,
+      'function ensureOtlobliNav()',
+      'function ensureBackButton',
+      `${store} native DOM navigation suppression`,
+    )
+    if (ensureNavigation) {
+      exerciseNativeDomGuard(
+        `${ensureNavigation}\nensureOtlobliNav();`,
+        `${store} native DOM navigation suppression`,
+        { expectStaleRemoval: true },
+      )
+    }
+  }
+  const challengeNavigation = sourceBetween(
+    captureScript,
+    'function otlobliEnsureChallengeNav()',
+    'function otlobliScheduleChallengeNav',
+    'SHEIN challenge native DOM navigation suppression',
+  )
+  if (challengeNavigation) {
+    exerciseNativeDomGuard(
+      `${challengeNavigation}\notlobliEnsureChallengeNav();`,
+      'SHEIN challenge native DOM navigation suppression',
+    )
+    const challengeSchedule = sourceBetween(
+      captureScript,
+      'function otlobliScheduleChallengeNav()',
+      'function otlobliIsHumanChallengeUrl',
+      'SHEIN challenge native navigation scheduling suppression',
+    )
+    if (challengeSchedule) {
+      exerciseNativeDomGuard(
+        `${challengeNavigation}\n${challengeSchedule}\notlobliScheduleChallengeNav();`,
+        'SHEIN challenge native navigation scheduling suppression',
+      )
+    }
+  }
 
   const humanSource = stripInjectedComments(
     readFileSync(resolve(projectRoot, 'src/services/sheinHumanCheck.ts'), 'utf8'),
@@ -972,7 +1290,7 @@ try {
     id, className, textContent: text, __painted: painted,
     getAttribute: () => '',
   })
-  const runHumanCheck = ({ exact = [], semantic = [], title = '' } = {}) => runInNewContext(
+  const runHumanCheck = ({ exact = [], provider = [], semantic = [], title = '' } = {}) => runInNewContext(
     `${humanCheckScript}\notlobliIsHumanChallenge();`,
     {
       location: { href: 'https://m.shein.com/ar/product-p-520531743.html' },
@@ -981,7 +1299,11 @@ try {
         body: { textContent: 'ordinary product page' },
         getElementById: () => null,
         querySelector: () => null,
-        querySelectorAll: (selector) => selector.includes('risk-one-pass') ? exact : semantic,
+        querySelectorAll: (selector) => {
+          if (selector.includes('risk-one-pass')) return exact
+          if (selector.startsWith('iframe[')) return provider
+          return semantic
+        },
       },
       sessionStorage: { getItem: () => null, removeItem: () => undefined, setItem: () => undefined },
       otlobliIsHumanChallengeUrl: () => false,
@@ -1014,6 +1336,265 @@ try {
       painted: false,
     })],
   })) failures.push('SHEIN human check: hidden stale verification template was treated as active')
+  if (!runHumanCheck({ provider: [humanSurface({ painted: true })] })) {
+    failures.push('SHEIN human check: a painted provider iframe is no longer detected')
+  }
+  if (runHumanCheck({ provider: [humanSurface({ painted: false })] })) {
+    failures.push('SHEIN human check: a hidden stale provider iframe was treated as active')
+  }
+
+  const negativeCacheFixture = { visible: false, scans: 0 }
+  const negativeCacheResult = runInNewContext(
+    `${humanCheckScript}
+     var firstNegative = otlobliIsHumanChallenge();
+     __fixture.visible = true;
+     var immediateMountedChallenge = otlobliIsHumanChallenge();
+     ({ firstNegative:firstNegative, immediateMountedChallenge:immediateMountedChallenge });`,
+    {
+      __fixture: negativeCacheFixture,
+      location: { href: 'https://m.shein.com/ar/' },
+      document: {
+        title: '',
+        getElementById: () => null,
+        querySelectorAll: (selector) => {
+          negativeCacheFixture.scans++
+          if (selector.startsWith('iframe[') && negativeCacheFixture.visible) {
+            return [humanSurface({ painted: true })]
+          }
+          return []
+        },
+      },
+      otlobliIsHumanChallengeUrl: () => false,
+      sheinElementIsPainted: (surface) => surface.__painted !== false,
+      Date: { now: () => 1000 },
+      Math, String,
+    },
+  )
+  if (negativeCacheResult.firstNegative !== false ||
+      negativeCacheResult.immediateMountedChallenge !== true ||
+      negativeCacheFixture.scans < 4) {
+    failures.push(`SHEIN human check: an ordinary-page negative scan was cached across a newly mounted SPA challenge (${JSON.stringify({
+      result: negativeCacheResult,
+      scans: negativeCacheFixture.scans,
+    })})`)
+  }
+
+  const challengeGuardSource = sourceBetween(
+    captureScript,
+    'function otlobliGuardHumanChallenge()',
+    'function tick(',
+    'SHEIN challenge-exclusive guard fixture',
+  )
+  const coordinatorWakeSource = sourceBetween(
+    captureScript,
+    'function runOtlobliCoordinator()',
+    "document.addEventListener('visibilitychange'",
+    'SHEIN challenge-exclusive coordinator fixture',
+  )
+  if (challengeGuardSource && coordinatorWakeSource) {
+    const challengeLifecycleFixture = {
+      now: 100,
+      visible: true,
+      readyState: 'complete',
+      pauses: 0,
+      resumes: 0,
+      schedules: 0,
+      coordinatorSchedules: 0,
+      blockers: 0,
+      navigation: 0,
+      security: 0,
+      normalTicks: 0,
+      tickArguments: [],
+      messages: [],
+    }
+    const challengeLifecycle = runInNewContext(
+      `${humanCheckScript}
+       ${challengeGuardSource}
+       var IS_SHEIN=true,IS_TEMU=false,OTLOBLI_NATIVE_NAV=true;
+       var OTLOBLI_MAIN_INTERVAL=300,OTLOBLI_BLOCK_INTERVAL=120,OTLOBLI_NAV_INTERVAL=1200,OTLOBLI_SECURITY_INTERVAL=1000;
+       var otlobliMainDue=0,otlobliBlockDue=0,otlobliNavDue=Infinity,otlobliSecurityDue=0;
+       otlobliIsHumanChallenge=function(){return __fixture.visible;};
+       function tick(challengeAlreadyGuarded){__fixture.normalTicks++;__fixture.tickArguments.push(challengeAlreadyGuarded);}
+       function runOtlobliBlockers(){__fixture.blockers++;}
+       function runOtlobliNavigationMaintenance(){__fixture.navigation++;}
+       function checkForSheinSecurityBlock(){__fixture.security++;}
+       function otlobliInteractionActive(){return false;}
+       function scheduleOtlobliCoordinator(){__fixture.coordinatorSchedules++;}
+       ${coordinatorWakeSource}
+       function wake(at,visible,readyState){
+         __fixture.now=at;__fixture.visible=visible;__fixture.readyState=readyState;
+         runOtlobliCoordinator();
+       }
+       wake(100,true,'complete');
+       wake(400,true,'complete');
+       wake(700,false,'complete');
+       wake(1500,true,'complete');
+       wake(1600,false,'complete');
+       wake(2799,false,'complete');
+       var beforeBoundary={blockers:__fixture.blockers,security:__fixture.security,navigation:__fixture.navigation};
+       wake(2800,false,'loading');
+       var whileLoading={active:otlobliChallengeActive,resolvedAt:__otlobliChallengeResolvedAt};
+       wake(2800,false,'complete');
+       var atResolve={active:otlobliChallengeActive,resolvedAt:__otlobliChallengeResolvedAt,blockers:__fixture.blockers,security:__fixture.security};
+       wake(3399,false,'complete');
+       var beforeSettlement={resumes:__fixture.resumes,blockers:__fixture.blockers,security:__fixture.security};
+       wake(3400,false,'complete');
+       var atSettlement={resumes:__fixture.resumes,blockers:__fixture.blockers,security:__fixture.security,mainDue:otlobliMainDue};
+       wake(3440,false,'complete');
+       var afterReassessment={ticks:__fixture.normalTicks,args:__fixture.tickArguments.slice(),blockers:__fixture.blockers,security:__fixture.security};
+       wake(3700,false,'complete');
+       ({beforeBoundary:beforeBoundary,whileLoading:whileLoading,atResolve:atResolve,
+         beforeSettlement:beforeSettlement,atSettlement:atSettlement,
+         afterReassessment:afterReassessment,afterRelease:{blockers:__fixture.blockers,security:__fixture.security,navigation:__fixture.navigation},
+         active:otlobliChallengeActive,resolvedAt:__otlobliChallengeResolvedAt});`,
+      {
+        __fixture: challengeLifecycleFixture,
+        window: {
+          __otlobliDocumentGeneration: 'doc-1',
+          __otlobliSheinPolicyEngine: {
+            pause: () => { challengeLifecycleFixture.pauses++ },
+            resume: () => { challengeLifecycleFixture.resumes++ },
+          },
+          mobileApp: {
+            postMessage: (message) => challengeLifecycleFixture.messages.push(
+              `${message?.detail?.type ?? ''}:${message?.detail?.documentGeneration ?? ''}`,
+            ),
+          },
+        },
+        document: {
+          hidden: false,
+          body: {},
+          get readyState() { return challengeLifecycleFixture.readyState },
+        },
+        Date: { now: () => challengeLifecycleFixture.now },
+        otlobliScriptEnabled: () => true,
+        otlobliScheduleChallengeNav: () => { challengeLifecycleFixture.schedules++ },
+        Math, String, Infinity,
+      },
+    )
+    const protectedPassesStayedZero = [
+      challengeLifecycle.beforeBoundary,
+      challengeLifecycle.atResolve,
+      challengeLifecycle.beforeSettlement,
+      challengeLifecycle.atSettlement,
+    ].every((sample) => sample.blockers === 0 && sample.security === 0 && (sample.navigation ?? 0) === 0)
+    if (!protectedPassesStayedZero ||
+        challengeLifecycle.whileLoading.active !== true || challengeLifecycle.whileLoading.resolvedAt !== 0 ||
+        challengeLifecycle.atResolve.active !== false || challengeLifecycle.atResolve.resolvedAt !== 2800 ||
+        challengeLifecycle.beforeSettlement.resumes !== 0 || challengeLifecycle.atSettlement.resumes !== 1 ||
+        challengeLifecycle.atSettlement.mainDue !== 0 ||
+        challengeLifecycle.afterReassessment.ticks !== 1 ||
+        challengeLifecycle.afterReassessment.args.join(',') !== 'true' ||
+        challengeLifecycle.afterReassessment.blockers !== 0 || challengeLifecycle.afterReassessment.security !== 0 ||
+        challengeLifecycle.afterRelease.blockers !== 1 || challengeLifecycle.afterRelease.security !== 1 ||
+        challengeLifecycle.afterRelease.navigation !== 0 ||
+        challengeLifecycle.active !== false || challengeLifecycle.resolvedAt !== 0 ||
+        challengeLifecycleFixture.pauses !== 1 || challengeLifecycleFixture.resumes !== 1 ||
+        challengeLifecycleFixture.schedules !== 1 ||
+        challengeLifecycleFixture.messages.join(',') !== 'otlobliBackButtonState:,humanCheck:doc-1,humanCheckResolved:doc-1') {
+      failures.push(`SHEIN human check: 1200ms absence/600ms settlement is not coordinator-exclusive (${JSON.stringify({
+        lifecycle: challengeLifecycle,
+        fixture: challengeLifecycleFixture,
+      })})`)
+    }
+
+    const nativeTemuCadenceFixture = { now: 100, guards: 0, ticks: 0, blockers: 0, navigation: 0, security: 0, schedules: 0 }
+    const nativeTemuCadence = runInNewContext(
+      `var IS_SHEIN=false,IS_TEMU=true,OTLOBLI_NATIVE_NAV=true;
+       var OTLOBLI_MAIN_INTERVAL=300,OTLOBLI_BLOCK_INTERVAL=120,OTLOBLI_NAV_INTERVAL=1200,OTLOBLI_SECURITY_INTERVAL=1000;
+       var otlobliChallengeActive=false,__otlobliChallengeResolvedAt=0;
+       var otlobliMainDue=0,otlobliBlockDue=Infinity,otlobliNavDue=Infinity,otlobliSecurityDue=Infinity;
+       function otlobliGuardHumanChallenge(){__fixture.guards++;return false;}
+       function tick(challengeAlreadyGuarded){if(challengeAlreadyGuarded)__fixture.ticks++;}
+       function runOtlobliBlockers(){__fixture.blockers++;}
+       function runOtlobliNavigationMaintenance(){__fixture.navigation++;}
+       function checkForSheinSecurityBlock(){__fixture.security++;}
+       function otlobliScriptEnabled(){return true;}
+       function otlobliInteractionActive(){return false;}
+       function scheduleOtlobliCoordinator(){__fixture.schedules++;}
+       ${coordinatorWakeSource}
+       runOtlobliCoordinator();
+       __fixture.now=200;runOtlobliCoordinator();
+       __fixture.now=400;runOtlobliCoordinator();
+       ({mainDue:otlobliMainDue,blockDue:otlobliBlockDue,navDue:otlobliNavDue,securityDue:otlobliSecurityDue});`,
+      {
+        __fixture: nativeTemuCadenceFixture,
+        window: {},
+        document: { hidden: false },
+        Date: { now: () => nativeTemuCadenceFixture.now },
+        Infinity,
+      },
+    )
+    const nativeNavDueAssignments = captureScript.match(
+      /otlobliNavDue\s*=\s*OTLOBLI_NATIVE_NAV\s*\?\s*Infinity\s*:\s*(?:0|now\s*\+\s*OTLOBLI_NAV_INTERVAL)/g,
+    ) ?? []
+    if (nativeNavDueAssignments.length < 3 ||
+        !/var\s+otlobliBlockDue\s*=\s*IS_SHEIN\s*\?\s*0\s*:\s*Infinity/.test(captureScript) ||
+        !/var\s+otlobliSecurityDue\s*=\s*IS_SHEIN\s*\?\s*0\s*:\s*Infinity/.test(captureScript) ||
+        nativeTemuCadenceFixture.guards !== 3 || nativeTemuCadenceFixture.ticks !== 2 ||
+        nativeTemuCadenceFixture.blockers !== 0 || nativeTemuCadenceFixture.navigation !== 0 ||
+        nativeTemuCadenceFixture.security !== 0 || nativeTemuCadenceFixture.schedules !== 3 ||
+        nativeTemuCadence.blockDue !== Infinity || nativeTemuCadence.navDue !== Infinity ||
+        nativeTemuCadence.securityDue !== Infinity) {
+      failures.push(`Temu native navigation cadence: native mode still schedules duplicate DOM-nav/block/security passes (${JSON.stringify({
+        cadence: nativeTemuCadence,
+        fixture: nativeTemuCadenceFixture,
+      })})`)
+    }
+  }
+
+  const temuViewportSource = sourceBetween(
+    temuCaptureScript,
+    'var __otlobliNoZoomListeners = false;',
+    'var OTLOBLI_TEMU_HIDE_CSS',
+    'Temu viewport stability fixture',
+  )
+  if (temuViewportSource) {
+    const viewportFixture = {
+      content: 'width=device-width, initial-scale=1, viewport-fit=cover',
+      contentWrites: 0,
+      listeners: 0,
+      styleCreates: 0,
+      style: null,
+    }
+    const viewportMeta = {
+      getAttribute: (name) => name === 'content' ? viewportFixture.content : '',
+      setAttribute: (name, value) => {
+        if (name === 'content') {
+          viewportFixture.content = value
+          viewportFixture.contentWrites++
+        }
+      },
+    }
+    const viewportResult = runInNewContext(
+      `${temuViewportSource}
+       ensureTemuNoZoom();
+       ensureTemuNoZoom();
+       ({content:__fixture.content,writes:__fixture.contentWrites,listeners:__fixture.listeners,styles:__fixture.styleCreates});`,
+      {
+        __fixture: viewportFixture,
+        document: {
+          head: {
+            appendChild: (node) => {
+              if (node?.id === 'otlobli-temu-stability-style') viewportFixture.style = node
+            },
+          },
+          querySelector: (selector) => selector === 'meta[name="viewport"]' ? viewportMeta : null,
+          getElementById: (id) => id === 'otlobli-temu-stability-style' ? viewportFixture.style : null,
+          createElement: (tag) => {
+            if (tag === 'style') viewportFixture.styleCreates++
+            return { id: '', textContent: '', setAttribute() {} }
+          },
+          addEventListener: () => { viewportFixture.listeners++ },
+        },
+      },
+    )
+    const expectedViewport = 'width=device-width, initial-scale=1, viewport-fit=cover'
+    if (viewportResult.content !== expectedViewport || viewportResult.writes !== 0 ||
+        viewportResult.listeners !== 0 || viewportResult.styles !== 0) {
+      failures.push(`Temu native viewport ownership: injected maintenance changed viewport or installed gesture/style work (${JSON.stringify(viewportResult)})`)
+    }
+  }
   if (humanCheckScript.includes('.click(') || humanCheckScript.includes('location.reload(')) {
     failures.push('SHEIN human check: verification must remain entirely user-controlled')
   }
@@ -1029,7 +1610,7 @@ try {
     const backLayerStart = captureScript.indexOf('function otlobliStabilizeBackOverlay')
     const backLayerEnd = captureScript.indexOf('function ensureOtlobliNav', backLayerStart)
     const backLayerHelper = captureScript.slice(backLayerStart, backLayerEnd)
-    const nativeBackAvailableAt = captureScript.indexOf('var nativeBackAvailable = !!(window.webkit')
+    const nativeBackAvailableAt = captureScript.indexOf('var nativeBackAvailable = window.__otlobliNativeNavigation === true ||')
     const nativeBackStateAt = captureScript.indexOf("type: 'otlobliBackButtonState'")
     const nativeBackReturnAt = captureScript.indexOf('if (stalePageBack) stalePageBack.remove();', nativeBackStateAt)
     const pageBackCreationAt = captureScript.indexOf("var btn = document.getElementById('otlobli-back-btn')", nativeBackReturnAt)
@@ -1141,7 +1722,14 @@ try {
 
   if (!bootstrapScript.includes('function otlobliInstallNavTouchBridge()') ||
       !bootstrapScript.includes("window.addEventListener('touchend', routeOtlobliNavTouch")) {
-    failures.push('SHEIN navigation ownership: Otlobli tab routing is missing from document start')
+    failures.push('DOM fallback navigation: Otlobli tab routing is missing from the isolated fallback bootstrap')
+  }
+  const bootstrapNativeGuardAt = bootstrapScript.indexOf('if (window.__otlobliNativeNavigation === true)')
+  const bootstrapTouchBridgeAt = bootstrapScript.indexOf('function otlobliInstallNavTouchBridge()')
+  const bootstrapDomCreationAt = bootstrapScript.indexOf("document.createElement('div')")
+  if (bootstrapNativeGuardAt < 0 || bootstrapTouchBridgeAt < bootstrapNativeGuardAt ||
+      bootstrapDomCreationAt < bootstrapNativeGuardAt) {
+    failures.push('DOM fallback navigation: native ownership must return before listeners, viewport work or #otlobli-nav creation')
   }
   const forbiddenProductNavigationInterventions = [
     'otlobliInstallIosProductTapFallback',
@@ -1166,7 +1754,9 @@ try {
   const { exports } = await minifyInjectedScriptExports('src/services/sheinBrowserScript.ts')
   new Function(exports.SHEIN_CAPTURE_SCRIPT)
   new Function(exports.TEMU_CAPTURE_SCRIPT)
-  new Function(exports.OTLOBLI_NAV_BOOTSTRAP_SCRIPT)
+  if (Object.hasOwn(exports, 'OTLOBLI_NAV_BOOTSTRAP_SCRIPT')) {
+    failures.push('native navigation ownership: minified production runtime still exports the legacy DOM bootstrap')
+  }
   if (Buffer.byteLength(exports.SHEIN_CAPTURE_SCRIPT, 'utf8') > 180_000 ||
       Buffer.byteLength(exports.TEMU_CAPTURE_SCRIPT, 'utf8') > 180_000 ||
       exports.SHEIN_CAPTURE_SCRIPT === exports.TEMU_CAPTURE_SCRIPT) {
@@ -1179,18 +1769,21 @@ try {
       failures.push(`${store} host boundary: off-domain runtime performed work (${error instanceof Error ? error.message : String(error)})`)
     }
   }
-  if (!exports.OTLOBLI_NAV_BOOTSTRAP_SCRIPT.includes('data-otlobli-store-switch-hint')) {
-    failures.push('store-switch discovery: production navigation bootstrap is missing its visible hint')
-  }
-  if (!exports.OTLOBLI_NAV_BOOTSTRAP_SCRIPT.includes('__otlobliNativeBackState')) {
-    failures.push('Temu Back persistence: production navigation bootstrap cannot re-announce native state')
-  }
 } catch (error) {
   failures.push(`SHEIN minified release scripts: ${error instanceof Error ? error.message : String(error)}`)
 }
 
 try {
   const bundleModule = evaluateInjectedScriptExports('src/services/storeCaptureBundle.ts')
+  const appSource = readFileSync(resolve(projectRoot, 'src/App.tsx'), 'utf8')
+  const bundleSource = readFileSync(resolve(projectRoot, 'src/services/storeCaptureBundle.ts'), 'utf8')
+  const browserSource = readFileSync(resolve(projectRoot, 'src/services/sheinBrowserScript.ts'), 'utf8')
+  if (Object.hasOwn(bundleModule, 'OTLOBLI_NAV_BOOTSTRAP_SCRIPT') ||
+      appSource.includes('OTLOBLI_NAV_BOOTSTRAP_SCRIPT') ||
+      bundleSource.includes('OTLOBLI_NAV_BOOTSTRAP_SCRIPT') ||
+      browserSource.includes('OTLOBLI_NAV_BOOTSTRAP_SCRIPT')) {
+    failures.push('native navigation ownership: App/store capture bundle must not ship the legacy DOM bootstrap')
+  }
   const productionScript = bundleModule.buildStoreCaptureScript('shein', {})
   const productionTemuScript = bundleModule.buildStoreCaptureScript('temu', {})
   new Function(productionScript)
@@ -1222,11 +1815,72 @@ try {
   if (!productionScript.includes('otlobli-region-switching') || !productionScript.includes('.sui-drawer.cascade')) {
     failures.push('SHEIN signed-region repair: policy must permit only the active internal cascade drawer')
   }
-  if (!productionScript.includes('function tick()')) {
+  if (!productionScript.includes('function tick(')) {
     failures.push('SHEIN production script: established runtime coordinator must remain installed')
   }
 } catch (error) {
   failures.push(`SHEIN production script syntax: ${error instanceof Error ? error.message : String(error)}`)
+}
+
+try {
+  const appSource = readFileSync(resolve(projectRoot, 'src/App.tsx'), 'utf8')
+  const bundleSource = readFileSync(resolve(projectRoot, 'src/services/storeCaptureBundle.ts'), 'utf8')
+  const resolvedStart = appSource.indexOf("if (detail?.type === 'humanCheckResolved')")
+  const resolvedEnd = appSource.indexOf("if (detail?.type === 'humanCheckSkipped')", resolvedStart)
+  const resolvedSource = appSource.slice(resolvedStart, resolvedEnd)
+  const resolvedForbidden = [
+    "pendingProductUrlRef.current = ''",
+    'markStoreWebviewReadyRef.current',
+    'navigateStoreWebviewInPage',
+    'revealPreparedProductIfReady',
+    'clearPendingProductPreparation',
+  ]
+  if (resolvedStart < 0 || resolvedEnd < 0 ||
+      !resolvedSource.includes("transitionSheinCoordinator({ type: 'HUMAN_VERIFICATION_RESOLVED' })") ||
+      !resolvedSource.includes('resolvedDocumentGeneration') ||
+      !resolvedSource.includes('sheinChallengeResolutionReportedRef.current = true') ||
+      !/return\s*\r?\n\s*}/.test(resolvedSource) ||
+      resolvedForbidden.some((marker) => resolvedSource.includes(marker))) {
+    failures.push('SHEIN host challenge: humanCheckResolved must be status-only and must not consume/navigate/clear a queued product')
+  }
+
+  const snapshotBranchStart = appSource.indexOf("if (detail?.type === 'sheinSaudiReady' || detail?.type === 'sheinPageInteractive'")
+  const snapshotBranchEnd = appSource.indexOf("if (detail?.type === 'humanCheck')", snapshotBranchStart)
+  const snapshotBranch = appSource.slice(snapshotBranchStart, snapshotBranchEnd)
+  for (const marker of [
+    'snapshotDocumentGeneration',
+    '!hasCoordinatorSnapshot',
+    '!snapshotDocumentGeneration',
+    "snapshot.captureState !== 'ready'",
+    "snapshot.humanVerificationState !== 'none'",
+    "snapshot.humanVerificationState !== 'resolved'",
+    'sheinChallengeDocumentGenerationRef.current',
+    'sheinChallengeResolutionReportedRef.current',
+  ]) {
+    if (snapshotBranchStart < 0 || snapshotBranchEnd < 0 || !snapshotBranch.includes(marker)) {
+      failures.push(`SHEIN host challenge: coordinator hand-off is missing document-scoped gate ${marker}`)
+    }
+  }
+
+  const optionsStart = appSource.indexOf('const webViewOptions: Parameters<typeof InAppBrowser.openWebView>')
+  const storeBranchStart = appSource.indexOf("...(activeStore === 'shein'", optionsStart)
+  const optionsEnd = appSource.indexOf('InAppBrowser.openWebView(webViewOptions)', storeBranchStart)
+  const commonOptions = appSource.slice(optionsStart, storeBranchStart)
+  const completeOptions = appSource.slice(optionsStart, optionsEnd)
+  if (optionsStart < 0 || storeBranchStart < 0 || optionsEnd < 0 ||
+      !commonOptions.includes('otlobliNativeNavigation: true') ||
+      !commonOptions.includes('invisibilityMode: InvisibilityMode.FAKE_VISIBLE') ||
+      !completeOptions.includes('enabledSafeBottomMargin: false') ||
+      completeOptions.includes('InvisibilityMode.AWARE')) {
+    failures.push('Store WebView options: SHEIN and Temu must both inherit native navigation and FAKE_VISIBLE without a safe-bottom duplicate')
+  }
+  for (const [source, label] of [[appSource, 'App'], [bundleSource, 'storeCaptureBundle']]) {
+    if (!source.includes('__otlobliDocumentGeneration=window.__otlobliDocumentGeneration||')) {
+      failures.push(`SHEIN document generation: ${label} does not seed a stable per-document identity`)
+    }
+  }
+} catch (error) {
+  failures.push(`SHEIN host challenge contract: ${error instanceof Error ? error.message : String(error)}`)
 }
 
 // Exercise the compatibility prelude against the exact failure shape found by
@@ -1334,6 +1988,33 @@ try {
   if (displayLinkConstructors !== 0) {
     failures.push(`dedicated iOS SHEIN browser: expected no same-instance display-link repair, got ${displayLinkConstructors}`)
   }
+  const createSurfaceStart = nativeBrowserSource.indexOf('private func createRenderSurface(')
+  const createSurfaceEnd = nativeBrowserSource.indexOf('private func destroyRenderSurface()', createSurfaceStart)
+  const createSurfaceSource = nativeBrowserSource.slice(createSurfaceStart, createSurfaceEnd)
+  const installNavigationAt = createSurfaceSource.indexOf('installNativeNavigation(in: surface)')
+  const attachWebViewAt = createSurfaceSource.indexOf('attachWebView(webView, to: surface)')
+  const installCoverAt = createSurfaceSource.indexOf('installLoadingCover(in: surface')
+  if (createSurfaceStart < 0 || createSurfaceEnd < 0 || installNavigationAt < 0 ||
+      attachWebViewAt < installNavigationAt || installCoverAt < attachWebViewAt) {
+    failures.push('dedicated iOS native navigation: surface must own the permanent bar before constraining WebView and loading cover above it')
+  }
+  const loadingCoverStart = nativeBrowserSource.indexOf('private func installLoadingCover(')
+  const loadingCoverEnd = nativeBrowserSource.indexOf('private func hideLoadingCover()', loadingCoverStart)
+  const loadingCoverSource = nativeBrowserSource.slice(loadingCoverStart, loadingCoverEnd)
+  if (loadingCoverStart < 0 || loadingCoverEnd < 0 ||
+      !loadingCoverSource.includes('cover.bottomAnchor.constraint(equalTo: coverBottomAnchor)') ||
+      loadingCoverSource.includes('makeNativeNavigation') ||
+      loadingCoverSource.includes('cover.addSubview(navigation)')) {
+    failures.push('dedicated iOS native navigation: loading cover must stop at the bar and must not own a duplicate bar')
+  }
+  const ownershipStart = nativeBrowserSource.indexOf('private func nativeNavigationOwnershipScript()')
+  const ownershipEnd = nativeBrowserSource.indexOf('private func shouldReleaseLoadingCover(', ownershipStart)
+  const ownershipSource = nativeBrowserSource.slice(ownershipStart, ownershipEnd)
+  if (ownershipStart < 0 || ownershipEnd < 0 ||
+      !ownershipSource.includes('window.__otlobliNativeNavigation=true;') ||
+      ['MutationObserver', 'setTimeout(', 'setInterval(', 'observer.observe('].some((marker) => ownershipSource.includes(marker))) {
+    failures.push('dedicated iOS native navigation: document-start ownership must not run a DOM observer or maintenance timer')
+  }
   const nativeBackStart = nativeBrowserSource.indexOf('@objc private func nativeBackPressed()')
   const nativeBackEnd = nativeBrowserSource.indexOf('private func mobileBridgeScript()', nativeBackStart)
   const nativeBackSource = nativeBrowserSource.slice(nativeBackStart, nativeBackEnd)
@@ -1350,13 +2031,13 @@ try {
 
 try {
   const sheinSource = readSheinRuntimeSource()
-  const tickStart = sheinSource.indexOf('function tick()')
+  const tickStart = sheinSource.indexOf('function tick(')
   const tickEnd = sheinSource.indexOf('var tickScheduled = false', tickStart)
   const tickSource = sheinSource.slice(tickStart, tickEnd)
   const sheinBranchStart = tickSource.indexOf('ensureLoadingOverlay();')
   const sheinBranch = tickSource.slice(sheinBranchStart)
   const toastGuard = sheinBranch.indexOf('hideSheinCartSuccessToast();')
-  const addButton = sheinBranch.indexOf('ensureAddToCartButton();')
+  const addButton = sheinBranch.search(/ensureAddToCartButton\([^)]*\);/)
   if (tickStart < 0 || tickEnd < 0 || sheinBranchStart < 0 || toastGuard < 0 ||
       addButton < 0 || toastGuard > addButton) {
     failures.push('SHEIN cart toast: entry guard must run before the Otlobli add button is exposed')
@@ -1535,13 +2216,21 @@ for (const check of checks) {
     continue
   }
 
+  const isCapgoPatchCheck = files.length === 1 && files[0] === capgoPatchFile
+  const markerContents = isCapgoPatchCheck ? capgoPatchAdded : contents
+  const forbiddenContents = isCapgoPatchCheck ? capgoPatchAdded : contents
   for (const marker of check.markers) {
-    if (!contents.includes(marker)) {
+    if (!markerContents.includes(marker)) {
       failures.push(`${check.label}: missing ${JSON.stringify(marker)} in ${files.join(', ')}`)
     }
   }
+  for (const marker of check.removedMarkers || []) {
+    if (!capgoPatchRemoved.includes(marker)) {
+      failures.push(`${check.label}: missing removed ${JSON.stringify(marker)} in ${files.join(', ')}`)
+    }
+  }
   for (const forbidden of check.forbidden || []) {
-    if (contents.includes(forbidden)) {
+    if (forbiddenContents.includes(forbidden)) {
       failures.push(`${check.label}: forbidden ${JSON.stringify(forbidden)} in ${files.join(', ')}`)
     }
   }
