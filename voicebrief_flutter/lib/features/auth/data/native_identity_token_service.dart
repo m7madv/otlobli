@@ -54,7 +54,9 @@ class NativeIdentityTokenService implements NativeIdentityTokenProvider {
       if (error.code == AuthorizationErrorCode.canceled) {
         throw const AppFailure(AppFailureCode.providerCanceled);
       }
-      rethrow;
+      throw const AppFailure(AppFailureCode.identityProviderUnavailable);
+    } on SignInWithAppleNotSupportedException {
+      throw const AppFailure(AppFailureCode.identityProviderUnavailable);
     }
     final idToken = credential.identityToken;
     if (idToken == null || idToken.isEmpty) {

@@ -51,6 +51,15 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(appControllerProvider);
+    ref.listen(appControllerProvider.select((value) => value.user), (
+      previous,
+      next,
+    ) {
+      if (previous?.id == next?.id || next == null) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) context.go('/app');
+      });
+    });
     final config = ref.watch(appConfigProvider);
     final showApple =
         Platform.isIOS ||
@@ -272,6 +281,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     final message = ref.read(appControllerProvider).errorMessage;
     if (message != null) {
       AppToast.show(context, context.localizeFailure(message));
+    } else if (provider == IdentityProvider.google && Platform.isIOS) {
+      AppToast.show(context, context.l10n.providerSignInOpened);
     }
   }
 

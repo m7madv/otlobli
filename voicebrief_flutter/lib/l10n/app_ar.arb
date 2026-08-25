@@ -46,6 +46,7 @@
   "demoServicesActive": "خدمات العرض التجريبي مفعلة. لن يُستخدم حساب خارجي أو واجهة مدفوعة.",
   "providerSignInTitle": "تسجيل سريع وآمن",
   "providerSignInDescription": "اختر Apple أو Google. لا يرى VoiceBrief كلمة مرور حسابك.",
+  "providerSignInOpened": "أكمل تسجيل الدخول في صفحة Google المفتوحة، ثم ستعود إلى VoiceBrief تلقائيًا.",
   "continueWithApple": "المتابعة باستخدام Apple",
   "continueWithGoogle": "المتابعة باستخدام Google",
   "orUseEmail": "أو استخدم البريد الإلكتروني",

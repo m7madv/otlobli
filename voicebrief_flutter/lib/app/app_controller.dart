@@ -42,6 +42,26 @@ class AppController extends StateNotifier<AppState> {
         );
       },
     );
+    _authStateSubscription = _auth.authStateChanges.listen(
+      (user) {
+        if (user == null || state.user?.id == user.id) return;
+        if (state.authBusy) {
+          _deferredAuthUser = user;
+          return;
+        }
+        unawaited(_acceptAuthenticatedUser(user));
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        if (state.user == null) {
+          state = state.copyWith(
+            authBusy: false,
+            errorMessage: const AppFailure(
+              AppFailureCode.authentication,
+            ).message,
+          );
+        }
+      },
+    );
     unawaited(takePendingSharedAudio());
   }
 
@@ -54,6 +74,8 @@ class AppController extends StateNotifier<AppState> {
   static const _uuid = Uuid();
   StreamSubscription<List<BriefResult>>? _historySubscription;
   StreamSubscription<SharedAudioPayload>? _sharedAudioSubscription;
+  StreamSubscription<AuthUser?>? _authStateSubscription;
+  AuthUser? _deferredAuthUser;
   String? _activeJobId;
 
   void setNavigationIndex(int index) =>
@@ -72,23 +94,17 @@ class AppController extends StateNotifier<AppState> {
   Future<bool> signInWithProvider(IdentityProvider provider) =>
       _authenticate(() => _auth.signInWithProvider(provider));
 
-  Future<bool> _authenticate(Future<AuthUser> Function() action) async {
+  Future<bool> _authenticate(Future<AuthUser?> Function() action) async {
     state = state.copyWith(authBusy: true, errorMessage: null);
     try {
-      final user = await action();
-      if (!user.emailVerified) {
-        state = state.copyWith(
-          user: null,
-          authBusy: false,
-          errorMessage: const AppFailure(
-            AppFailureCode.emailVerificationRequired,
-          ).message,
-        );
+      final returnedUser = await action();
+      final user = returnedUser ?? _deferredAuthUser;
+      _deferredAuthUser = null;
+      if (user == null) {
+        state = state.copyWith(authBusy: false);
         return false;
       }
-      state = state.copyWith(user: user, authBusy: false);
-      await _activateAccount(user);
-      return true;
+      return _acceptAuthenticatedUser(user);
     } on AppFailure catch (failure) {
       state = state.copyWith(authBusy: false, errorMessage: failure.message);
       return false;
@@ -99,6 +115,22 @@ class AppController extends StateNotifier<AppState> {
       );
       return false;
     }
+  }
+
+  Future<bool> _acceptAuthenticatedUser(AuthUser user) async {
+    if (!user.emailVerified) {
+      state = state.copyWith(
+        user: null,
+        authBusy: false,
+        errorMessage: const AppFailure(
+          AppFailureCode.emailVerificationRequired,
+        ).message,
+      );
+      return false;
+    }
+    state = state.copyWith(user: user, authBusy: false, errorMessage: null);
+    await _activateAccount(user);
+    return true;
   }
 
   Future<bool> sendPasswordReset(String email) async {
@@ -482,6 +514,7 @@ class AppController extends StateNotifier<AppState> {
   void dispose() {
     unawaited(_historySubscription?.cancel());
     unawaited(_sharedAudioSubscription?.cancel());
+    unawaited(_authStateSubscription?.cancel());
     super.dispose();
   }
 }

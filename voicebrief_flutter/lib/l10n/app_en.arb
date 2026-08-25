@@ -51,6 +51,7 @@
   "demoServicesActive": "Demo services are active. No external account or paid API is used.",
   "providerSignInTitle": "Fast, secure sign-in",
   "providerSignInDescription": "Choose Apple or Google. VoiceBrief never sees your account password.",
+  "providerSignInOpened": "Finish signing in on the open Google page. You will return to VoiceBrief automatically.",
   "continueWithApple": "Continue with Apple",
   "continueWithGoogle": "Continue with Google",
   "orUseEmail": "or use email",

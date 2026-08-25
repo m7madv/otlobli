@@ -6,6 +6,7 @@ Reviewed on 2026-08-24 against the pinned Apple Design Skill commit `d0bac1e765a
 
 - **High — narrow authentication action overflow:** Google action now reserves symmetric brand slots and lets its label flex.
 - **Authentication provider visibility:** Apple and Google now have an explicit, equally prominent sign-in section before email. Both actions are 52 pixels high, retain readable provider branding in RTL/LTR and light/dark themes, and expose an immediate localized failure toast instead of leaving an error below the email form. The Apple action uses the application font so Arabic never falls back to missing `.SF Pro Text` glyphs.
+- **iOS OAuth return feedback:** Google sign-in on iPhone now opens the provider page with a concise localized instruction, releases the in-app loading state immediately, and observes the PKCE callback session. A successful callback routes to the app automatically; cancellation or provider failure does not leave an indefinite spinner. This keeps status feedback textual and nearby while relying on the system browser for the sensitive account step.
 - **High — subscription option overflow:** title/badge wrap and the localized price lives inside the flexible content column.
 - **High — large-text action overflow:** primary/secondary actions use minimum height and flexible text instead of a fixed 52-pixel box.
 - **High — large-text error overflow:** error state is centered in a scrollable constrained layout.

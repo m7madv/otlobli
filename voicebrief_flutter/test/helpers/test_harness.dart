@@ -91,9 +91,10 @@ class TestSharedAudioInbox extends SharedAudioInbox {
 AppController createTestController({
   bool pro = false,
   HistoryRepository? historyRepository,
+  AuthRepository? authRepository,
 }) {
   return AppController(
-    authRepository: TestAuthRepository(),
+    authRepository: authRepository ?? TestAuthRepository(),
     subscriptionRepository: TestSubscriptionRepository(pro: pro),
     transcriptionRepository: FakeTranscriptionRepository(),
     historyRepository: historyRepository ?? MemoryHistoryRepository(),
@@ -107,6 +108,9 @@ class TestAuthRepository implements AuthRepository {
 
   @override
   AuthUser? get currentUser => _user;
+
+  @override
+  Stream<AuthUser?> get authStateChanges => const Stream.empty();
 
   @override
   Future<AuthUser> createAccount(String email, String password) =>
@@ -128,7 +132,7 @@ class TestAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<AuthUser> signInWithProvider(IdentityProvider provider) =>
+  Future<AuthUser?> signInWithProvider(IdentityProvider provider) =>
       signInWithEmail('${provider.name}@example.com', 'unused-password');
 
   @override

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthUser;
 import 'package:voicebrief/core/errors/app_failure.dart';
 import 'package:voicebrief/features/auth/domain/auth_user.dart';
@@ -12,9 +14,10 @@ abstract interface class NativeIdentityTokenProvider {
 
 abstract interface class AuthRepository {
   AuthUser? get currentUser;
+  Stream<AuthUser?> get authStateChanges;
   Future<AuthUser> signInWithEmail(String email, String password);
   Future<AuthUser> createAccount(String email, String password);
-  Future<AuthUser> signInWithProvider(IdentityProvider provider);
+  Future<AuthUser?> signInWithProvider(IdentityProvider provider);
   Future<void> sendPasswordReset(String email);
   Future<void> signOut();
   Future<void> deleteAccount();
@@ -25,6 +28,9 @@ class FakeAuthRepository implements AuthRepository {
 
   @override
   AuthUser? get currentUser => _currentUser;
+
+  @override
+  Stream<AuthUser?> get authStateChanges => const Stream.empty();
 
   @override
   Future<AuthUser> signInWithEmail(String email, String password) async {
@@ -79,6 +85,11 @@ class SupabaseAuthRepository implements AuthRepository {
   AuthUser? get currentUser => _mapUser(_client.auth.currentUser);
 
   @override
+  Stream<AuthUser?> get authStateChanges => _client.auth.onAuthStateChange.map(
+    (event) => _mapUser(event.session?.user),
+  );
+
+  @override
   Future<AuthUser> signInWithEmail(String email, String password) async {
     try {
       final response = await _client.auth.signInWithPassword(
@@ -112,8 +123,24 @@ class SupabaseAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<AuthUser> signInWithProvider(IdentityProvider provider) async {
+  Future<AuthUser?> signInWithProvider(IdentityProvider provider) async {
     try {
+      // A sideload signer can rewrite an iOS bundle identifier, invalidating
+      // the native Google OAuth client association of the original app.
+      // Supabase's PKCE redirect uses the configured web client instead and
+      // remains valid as long as the custom VoiceBrief URL scheme is kept.
+      if (Platform.isIOS && provider == IdentityProvider.google) {
+        final launched = await _client.auth.signInWithOAuth(
+          OAuthProvider.google,
+          redirectTo: 'voicebrief://auth/callback',
+          authScreenLaunchMode: LaunchMode.externalApplication,
+          queryParams: const {'prompt': 'select_account'},
+        );
+        if (!launched) {
+          throw const AppFailure(AppFailureCode.identityProviderUnavailable);
+        }
+        return null;
+      }
       final tokens = await _nativeTokens.authenticate(provider);
       final response = await _client.auth.signInWithIdToken(
         provider: provider == IdentityProvider.apple

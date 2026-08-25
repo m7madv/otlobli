@@ -374,6 +374,12 @@ abstract class AppLocalizations {
   /// **'Choose Apple or Google. VoiceBrief never sees your account password.'**
   String get providerSignInDescription;
 
+  /// No description provided for @providerSignInOpened.
+  ///
+  /// In en, this message translates to:
+  /// **'Finish signing in on the open Google page. You will return to VoiceBrief automatically.'**
+  String get providerSignInOpened;
+
   /// No description provided for @continueWithApple.
   ///
   /// In en, this message translates to:

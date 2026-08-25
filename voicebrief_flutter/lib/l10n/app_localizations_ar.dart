@@ -163,6 +163,10 @@ class AppLocalizationsAr extends AppLocalizations {
       'اختر Apple أو Google. لا يرى VoiceBrief كلمة مرور حسابك.';
 
   @override
+  String get providerSignInOpened =>
+      'أكمل تسجيل الدخول في صفحة Google المفتوحة، ثم ستعود إلى VoiceBrief تلقائيًا.';
+
+  @override
   String get continueWithApple => 'المتابعة باستخدام Apple';
 
   @override

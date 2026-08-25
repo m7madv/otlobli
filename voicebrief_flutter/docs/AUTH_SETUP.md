@@ -2,7 +2,7 @@
 
 ## Implemented
 
-The repository supports Supabase email/password, verification-aware user state, password reset, local sign-out, account deletion, native Apple identity-token exchange with SHA-256 nonce, Google Sign-In v7 ID-token exchange, PKCE, and `voicebrief` deep links. It never merges identities by email text.
+The repository supports Supabase email/password, verification-aware user state, password reset, local sign-out, account deletion, native Apple identity-token exchange with SHA-256 nonce, native Google Sign-In v7 ID-token exchange on Android, Supabase Google OAuth with PKCE on iOS, and `voicebrief` deep links. It never merges identities by email text.
 
 ## Apple owner/dashboard work
 
@@ -30,6 +30,8 @@ Configured public clients:
 - iOS: `872187920899-72jkr1l4pb84u6umrkhdkidun1iieapd.apps.googleusercontent.com` for `app.voicebrief.mobile`; the reversed scheme is committed in `ios/Runner/Info.plist`.
 
 Supabase Google Auth is enabled and the web client secret is stored only in hosted Auth configuration. A live `/auth/v1/authorize?provider=google` probe redirects to `accounts.google.com` with the correct web client and Supabase callback. Branding includes the public home, privacy, and terms URLs plus authorized Supabase/Vercel domains. Publishing status remains External/Testing and `mhm1981x@gmail.com` is the sole test user. Native Google picker/cancel passed on API 35 and `SM_N950F`; the phone only exposes `mhm1981d@gmail.com`, so no wrong account was selected and a real X-account token exchange remains pending. Add the Play App Signing SHA after Play creates it.
+
+Build 4 uses the Supabase-hosted Google OAuth/PKCE flow on iOS and returns through `voicebrief://auth/callback`. This intentionally avoids relying on the native iOS OAuth client association after an unsigned IPA is re-signed by a sideloading service that may rewrite the app identifier. Android keeps the native token exchange. The controller observes Supabase auth events so both warm and callback sign-in complete without storing or logging provider tokens. The live provider redirect still reports the expected web client and callback. A physical signed-iPhone callback remains required.
 
 ## Supabase redirects
 
