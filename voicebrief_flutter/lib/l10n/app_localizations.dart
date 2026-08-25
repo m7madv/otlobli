@@ -362,6 +362,18 @@ abstract class AppLocalizations {
   /// **'Demo services are active. No external account or paid API is used.'**
   String get demoServicesActive;
 
+  /// No description provided for @providerSignInTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Fast, secure sign-in'**
+  String get providerSignInTitle;
+
+  /// No description provided for @providerSignInDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose Apple or Google. VoiceBrief never sees your account password.'**
+  String get providerSignInDescription;
+
   /// No description provided for @continueWithApple.
   ///
   /// In en, this message translates to:
@@ -457,6 +469,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Password reset email sent.'**
   String get passwordResetSent;
+
+  /// No description provided for @errorIdentityProviderUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This sign-in method is unavailable right now. Try another method.'**
+  String get errorIdentityProviderUnavailable;
 
   /// No description provided for @onboardingSignIn.
   ///

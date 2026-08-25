@@ -14,6 +14,7 @@ class NativeIdentityTokenService implements NativeIdentityTokenProvider {
 
   final AppConfig _config;
   bool _googleInitialized = false;
+  static const _googleScopes = <String>['email', 'profile'];
 
   @override
   Future<({String idToken, String? accessToken, String? nonce})> authenticate(
@@ -64,34 +65,54 @@ class NativeIdentityTokenService implements NativeIdentityTokenProvider {
 
   Future<({String idToken, String? accessToken, String? nonce})>
   _google() async {
-    if (!_googleInitialized) {
-      await GoogleSignIn.instance.initialize(
-        clientId: _config.googleIosClientId.isEmpty
-            ? null
-            : _config.googleIosClientId,
-        serverClientId: _config.googleWebClientId.isEmpty
-            ? null
-            : _config.googleWebClientId,
-      );
-      _googleInitialized = true;
+    if (_config.googleWebClientId.isEmpty ||
+        (Platform.isIOS && _config.googleIosClientId.isEmpty)) {
+      throw const AppFailure(AppFailureCode.identityProviderUnavailable);
     }
-    if (!GoogleSignIn.instance.supportsAuthenticate()) {
-      throw const AppFailure(AppFailureCode.configuration);
-    }
-    late final GoogleSignInAccount account;
     try {
-      account = await GoogleSignIn.instance.authenticate();
-    } on GoogleSignInException catch (error) {
-      if (error.code == GoogleSignInExceptionCode.canceled) {
-        throw const AppFailure(AppFailureCode.providerCanceled);
+      if (!_googleInitialized) {
+        await GoogleSignIn.instance.initialize(
+          clientId: Platform.isIOS ? _config.googleIosClientId : null,
+          serverClientId: _config.googleWebClientId,
+        );
+        _googleInitialized = true;
       }
-      rethrow;
+      if (!GoogleSignIn.instance.supportsAuthenticate()) {
+        throw const AppFailure(AppFailureCode.identityProviderUnavailable);
+      }
+      final account = await GoogleSignIn.instance.authenticate(
+        scopeHint: _googleScopes,
+      );
+      final authorization =
+          await account.authorizationClient.authorizationForScopes(
+            _googleScopes,
+          ) ??
+          await account.authorizationClient.authorizeScopes(_googleScopes);
+      final idToken = account.authentication.idToken;
+      if (idToken == null || idToken.isEmpty) {
+        throw const AppFailure(AppFailureCode.authentication);
+      }
+      if (authorization.accessToken.isEmpty) {
+        throw const AppFailure(AppFailureCode.authentication);
+      }
+      return (
+        idToken: idToken,
+        accessToken: authorization.accessToken,
+        nonce: null,
+      );
+    } on GoogleSignInException catch (error) {
+      switch (error.code) {
+        case GoogleSignInExceptionCode.canceled:
+        case GoogleSignInExceptionCode.interrupted:
+          throw const AppFailure(AppFailureCode.providerCanceled);
+        case GoogleSignInExceptionCode.clientConfigurationError:
+        case GoogleSignInExceptionCode.providerConfigurationError:
+        case GoogleSignInExceptionCode.uiUnavailable:
+          throw const AppFailure(AppFailureCode.identityProviderUnavailable);
+        default:
+          throw const AppFailure(AppFailureCode.authentication);
+      }
     }
-    final idToken = account.authentication.idToken;
-    if (idToken == null || idToken.isEmpty) {
-      throw const AppFailure(AppFailureCode.authentication);
-    }
-    return (idToken: idToken, accessToken: null, nonce: null);
   }
 
   String _nonce([int length = 32]) {

@@ -156,6 +156,13 @@ class AppLocalizationsAr extends AppLocalizations {
       'خدمات العرض التجريبي مفعلة. لن يُستخدم حساب خارجي أو واجهة مدفوعة.';
 
   @override
+  String get providerSignInTitle => 'تسجيل سريع وآمن';
+
+  @override
+  String get providerSignInDescription =>
+      'اختر Apple أو Google. لا يرى VoiceBrief كلمة مرور حسابك.';
+
+  @override
   String get continueWithApple => 'المتابعة باستخدام Apple';
 
   @override
@@ -202,6 +209,10 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get passwordResetSent => 'أُرسلت رسالة إعادة تعيين كلمة المرور.';
+
+  @override
+  String get errorIdentityProviderUnavailable =>
+      'طريقة تسجيل الدخول هذه غير متاحة الآن. جرّب طريقة أخرى.';
 
   @override
   String get onboardingSignIn => 'تسجيل الدخول';

@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:voicebrief/app/config/app_config.dart';
 import 'package:voicebrief/app/providers.dart';
@@ -55,6 +54,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     final config = ref.watch(appConfigProvider);
     final showApple =
         Platform.isIOS ||
+        Platform.isMacOS ||
         (config.appleServiceId.isNotEmpty &&
             config.appleRedirectUri.isNotEmpty);
     return AppScaffold(
@@ -95,26 +95,32 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                     ),
                   ],
                   const SizedBox(height: AppSpacing.lg),
+                  Text(
+                    context.l10n.providerSignInTitle,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    context.l10n.providerSignInDescription,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: context.palette.secondaryText,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
                   if (showApple) ...[
                     SizedBox(
+                      key: const ValueKey('sign-in-with-apple'),
                       height: 52,
-                      child: IgnorePointer(
-                        ignoring: state.authBusy,
-                        child: SignInWithAppleButton(
-                          onPressed: () => _provider(IdentityProvider.apple),
-                          text: context.l10n.continueWithApple,
-                          borderRadius: const BorderRadius.all(
-                            Radius.circular(AppRadii.control),
-                          ),
-                          style: Theme.of(context).brightness == Brightness.dark
-                              ? SignInWithAppleButtonStyle.white
-                              : SignInWithAppleButtonStyle.black,
-                        ),
+                      child: _AppleIdentityButton(
+                        onPressed: state.authBusy
+                            ? null
+                            : () => _provider(IdentityProvider.apple),
                       ),
                     ),
                     const SizedBox(height: AppSpacing.sm),
                   ],
                   SizedBox(
+                    key: const ValueKey('sign-in-with-google'),
                     height: 52,
                     child: OutlinedButton(
                       onPressed: state.authBusy
@@ -258,7 +264,15 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     final success = await ref
         .read(appControllerProvider.notifier)
         .signInWithProvider(provider);
-    if (success && mounted) context.go('/app');
+    if (!mounted) return;
+    if (success) {
+      context.go('/app');
+      return;
+    }
+    final message = ref.read(appControllerProvider).errorMessage;
+    if (message != null) {
+      AppToast.show(context, context.localizeFailure(message));
+    }
   }
 
   Future<void> _submit() async {
@@ -283,6 +297,52 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     if (sent && mounted) {
       AppToast.show(context, context.l10n.passwordResetSent);
     }
+  }
+}
+
+class _AppleIdentityButton extends StatelessWidget {
+  const _AppleIdentityButton({required this.onPressed});
+
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final background = dark ? Colors.white : Colors.black;
+    final foreground = dark ? Colors.black : Colors.white;
+
+    return FilledButton(
+      onPressed: onPressed,
+      style: FilledButton.styleFrom(
+        backgroundColor: background,
+        foregroundColor: foreground,
+        disabledBackgroundColor: background.withValues(alpha: 0.62),
+        disabledForegroundColor: foreground.withValues(alpha: 0.72),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.control),
+        ),
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        alignment: Alignment.center,
+        children: [
+          const Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: Icon(Icons.apple, size: 25),
+          ),
+          Center(
+            child: Text(
+              context.l10n.continueWithApple,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

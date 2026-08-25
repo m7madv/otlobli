@@ -91,6 +91,8 @@ jobs:
           required = {
               "SUPABASE_URL": os.environ.get("VOICEBRIEF_SUPABASE_URL", ""),
               "SUPABASE_ANON_KEY": os.environ.get("VOICEBRIEF_SUPABASE_ANON_KEY", ""),
+              "GOOGLE_IOS_CLIENT_ID": os.environ.get("VOICEBRIEF_GOOGLE_IOS_CLIENT_ID", ""),
+              "GOOGLE_WEB_CLIENT_ID": os.environ.get("VOICEBRIEF_GOOGLE_WEB_CLIENT_ID", ""),
           }
           missing = [name for name, value in required.items() if not value]
           if missing:
@@ -101,8 +103,6 @@ jobs:
               **required,
               "REVENUECAT_IOS_PUBLIC_SDK_KEY": os.environ.get("VOICEBRIEF_REVENUECAT_IOS_PUBLIC_SDK_KEY", ""),
               "REVENUECAT_ANDROID_PUBLIC_SDK_KEY": os.environ.get("VOICEBRIEF_REVENUECAT_ANDROID_PUBLIC_SDK_KEY", ""),
-              "GOOGLE_IOS_CLIENT_ID": os.environ.get("VOICEBRIEF_GOOGLE_IOS_CLIENT_ID", ""),
-              "GOOGLE_WEB_CLIENT_ID": os.environ.get("VOICEBRIEF_GOOGLE_WEB_CLIENT_ID", ""),
               "APPLE_SERVICE_ID": os.environ.get("VOICEBRIEF_APPLE_SERVICE_ID", ""),
               "APPLE_REDIRECT_URI": os.environ.get("VOICEBRIEF_APPLE_REDIRECT_URI", ""),
           }
@@ -117,6 +117,8 @@ jobs:
           extension="$app/PlugIns/VoiceBriefShare.appex"
           test -d "$app"
           test -d "$extension"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :com.apple.developer.applesignin:0' ios/Runner/Runner.entitlements)" = "Default"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :com.apple.security.application-groups:0' ios/Runner/Runner.entitlements)" = "group.app.voicebrief.mobile"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist")" = "app.voicebrief.mobile"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$extension/Info.plist")" = "app.voicebrief.mobile.share"
           app_short_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Info.plist")"
@@ -128,18 +130,18 @@ jobs:
           test "$extension_short_version" = "$app_short_version"
           test "$extension_build_version" = "$app_build_version"
           test "$app_short_version" = "0.1.0"
-          test "$app_build_version" = "2"
+          test "$app_build_version" = "3"
           echo "Verified app and Share Extension version $app_short_version ($app_build_version)."
           rm -rf build/ios/unsigned-ipa
           mkdir -p build/ios/unsigned-ipa/Payload
           cp -R "$app" build/ios/unsigned-ipa/Payload/VoiceBrief.app
           (
             cd build/ios/unsigned-ipa
-            zip -qry ../VoiceBrief-0.1.0-build2-live-unsigned.ipa Payload
+            zip -qry ../VoiceBrief-0.1.0-build3-live-unsigned.ipa Payload
           )
-          shasum -a 256 build/ios/VoiceBrief-0.1.0-build2-live-unsigned.ipa
+          shasum -a 256 build/ios/VoiceBrief-0.1.0-build3-live-unsigned.ipa
       - uses: actions/upload-artifact@v4
         with:
           name: voicebrief-ios-live-unsigned-${{ github.run_number }}
-          path: voicebrief_flutter/build/ios/VoiceBrief-0.1.0-build2-live-unsigned.ipa
+          path: voicebrief_flutter/build/ios/VoiceBrief-0.1.0-build3-live-unsigned.ipa
           if-no-files-found: error

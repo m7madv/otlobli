@@ -113,16 +113,28 @@ class SupabaseAuthRepository implements AuthRepository {
 
   @override
   Future<AuthUser> signInWithProvider(IdentityProvider provider) async {
-    final tokens = await _nativeTokens.authenticate(provider);
-    final response = await _client.auth.signInWithIdToken(
-      provider: provider == IdentityProvider.apple
-          ? OAuthProvider.apple
-          : OAuthProvider.google,
-      idToken: tokens.idToken,
-      accessToken: tokens.accessToken,
-      nonce: tokens.nonce,
-    );
-    return _requiredUser(response.user);
+    try {
+      final tokens = await _nativeTokens.authenticate(provider);
+      final response = await _client.auth.signInWithIdToken(
+        provider: provider == IdentityProvider.apple
+            ? OAuthProvider.apple
+            : OAuthProvider.google,
+        idToken: tokens.idToken,
+        accessToken: tokens.accessToken,
+        nonce: tokens.nonce,
+      );
+      return _requiredUser(response.user);
+    } on AuthException catch (error) {
+      final providerUnavailable = error.message.toLowerCase().contains(
+        'provider is not enabled',
+      );
+      throw AppFailure(
+        providerUnavailable
+            ? AppFailureCode.identityProviderUnavailable
+            : AppFailureCode.authentication,
+        debugContext: error.statusCode,
+      );
+    }
   }
 
   @override

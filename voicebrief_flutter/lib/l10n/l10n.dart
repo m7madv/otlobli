@@ -10,6 +10,8 @@ extension VoiceBriefLocalizations on BuildContext {
     'We could not sign you in. Check your details and try again.' =>
       l10n.errorAuthentication,
     'Sign-in was canceled.' => l10n.errorProviderCanceled,
+    'This sign-in method is unavailable right now.' =>
+      l10n.errorIdentityProviderUnavailable,
     'Verify your email before continuing.' => l10n.errorEmailVerification,
     'This audio format is not supported.' => l10n.errorUnsupportedAudio,
     'This audio file is larger than the current upload limit.' =>

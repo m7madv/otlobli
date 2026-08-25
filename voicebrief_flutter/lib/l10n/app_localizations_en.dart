@@ -156,6 +156,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Demo services are active. No external account or paid API is used.';
 
   @override
+  String get providerSignInTitle => 'Fast, secure sign-in';
+
+  @override
+  String get providerSignInDescription =>
+      'Choose Apple or Google. VoiceBrief never sees your account password.';
+
+  @override
   String get continueWithApple => 'Continue with Apple';
 
   @override
@@ -202,6 +209,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get passwordResetSent => 'Password reset email sent.';
+
+  @override
+  String get errorIdentityProviderUnavailable =>
+      'This sign-in method is unavailable right now. Try another method.';
 
   @override
   String get onboardingSignIn => 'Sign in';

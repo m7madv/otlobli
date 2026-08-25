@@ -7,7 +7,7 @@
 - [x] Server-only usage mutation and conservative 500-audio-minute monthly launch budget implemented for the initial `$10` OpenAI balance.
 - [x] Android receiver and iOS `VoiceBriefShare` source/target, including WhatsApp Opus normalization.
 - [x] Icons and native splash generated.
-- [x] Formatting, static analysis, 27 unit/widget tests, and ten reviewed golden baselines, including Arabic RTL Settings and Recorder views.
+- [x] Formatting, static analysis, 28 unit/widget tests, and eleven reviewed golden baselines, including Arabic RTL authentication, Settings, and Recorder views.
 - [x] Complete Arabic/English UI selected from the system locale, including RTL semantics and localized dates/errors/actions.
 - [x] Physical Note 8 Arabic visual acceptance at 1080x2220, centered Home/History empty states, correct initial `10/10` free allowance, just-in-time microphone permission, sound-reactive dBFS waveform, and cleanup of the newly canceled test recording.
 - [x] Physical Note 8 imported-audio acceptance: extensionless MP3 detection, asynchronous real waveform, slider and waveform seeking, range selection, native trim to M4A, one-step Back navigation, optimistic History deletion, and Undo restore.
@@ -18,6 +18,7 @@
 - [x] Dedicated OpenAI service-account key stored only in Supabase; 14-second live transcription/summary/date smoke test passed and temporary account/audio cleaned.
 - [x] Bilingual public Privacy, Terms, and Support pages deployed; valid support POST smoke-tested and its test row deleted.
 - [x] Google Auth Platform configured with web, Android release/debug, and iOS clients; Supabase Google provider enabled with its secret stored server-side only.
+- [x] Native Google exchange supplies the required ID and access tokens, and the iOS source declares the Apple sign-in entitlement while keeping the App Group entitlement.
 
 ## Production-signed Android artifacts — 2026-08-25
 

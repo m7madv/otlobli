@@ -31,6 +31,19 @@ const testConfig = AppConfig(
   appleRedirectUri: '',
 );
 
+const providerReadyTestConfig = AppConfig(
+  environment: 'test',
+  useMocks: true,
+  supabaseUrl: '',
+  supabaseAnonKey: '',
+  revenueCatIosKey: '',
+  revenueCatAndroidKey: '',
+  googleIosClientId: 'test-ios.apps.googleusercontent.com',
+  googleWebClientId: 'test-web.apps.googleusercontent.com',
+  appleServiceId: 'app.voicebrief.test.signin',
+  appleRedirectUri: 'https://example.test/auth/callback',
+);
+
 BriefResult sampleResult({bool saved = false}) => BriefResult(
   id: '4a63937a-c449-4e42-96ec-33e33214bb04',
   detectedLanguage: 'en',
@@ -174,6 +187,7 @@ Widget testApp({
   ThemeMode themeMode = ThemeMode.light,
   double textScale = 1,
   Locale locale = const Locale('en'),
+  AppConfig config = testConfig,
 }) {
   controller.setThemeMode(themeMode);
   final testFontFamily = locale.languageCode == 'ar' ? 'Arial' : 'Roboto';
@@ -182,7 +196,7 @@ Widget testApp({
   return ProviderScope(
     overrides: [
       appControllerProvider.overrideWith((_) => controller),
-      appConfigProvider.overrideWithValue(testConfig),
+      appConfigProvider.overrideWithValue(config),
     ],
     child: MaterialApp(
       debugShowCheckedModeBanner: false,

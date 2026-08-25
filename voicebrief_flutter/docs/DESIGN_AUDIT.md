@@ -5,6 +5,7 @@ Reviewed on 2026-08-24 against the pinned Apple Design Skill commit `d0bac1e765a
 ## Resolved findings
 
 - **High — narrow authentication action overflow:** Google action now reserves symmetric brand slots and lets its label flex.
+- **Authentication provider visibility:** Apple and Google now have an explicit, equally prominent sign-in section before email. Both actions are 52 pixels high, retain readable provider branding in RTL/LTR and light/dark themes, and expose an immediate localized failure toast instead of leaving an error below the email form. The Apple action uses the application font so Arabic never falls back to missing `.SF Pro Text` glyphs.
 - **High — subscription option overflow:** title/badge wrap and the localized price lives inside the flexible content column.
 - **High — large-text action overflow:** primary/secondary actions use minimum height and flexible text instead of a fixed 52-pixel box.
 - **High — large-text error overflow:** error state is centered in a scrollable constrained layout.
@@ -12,7 +13,7 @@ Reviewed on 2026-08-24 against the pinned Apple Design Skill commit `d0bac1e765a
 - **Generated-content clarity:** result hierarchy labels the generated Brief separately from the word-for-word transcript, explains the distinction, keeps the transcript collapsed by default, preserves uncertain spoken date phrases, and requires confirmation before opening calendar UI.
 - **Loading:** processing uses truthful named stages with no fabricated percentage.
 - **Dark mode/contrast:** exact light/dark palettes and non-color status labels are present.
-- **Platform behavior:** Material navigation and controls remain Android-appropriate; Apple/Google sign-in use platform/provider components.
+- **Platform behavior:** Material navigation and controls remain Android-appropriate; Apple/Google sign-in open the native provider flows, while their entry actions preserve provider colors, names, and logos.
 - **Direct-share discoverability:** Home now teaches the WhatsApp flow in one compact guide instead of a tall three-step card, and a shared note lands on a dedicated ready state with one primary `Create my brief` action.
 - **iOS Share feedback:** the Share Extension no longer fails silently or implies that iOS will open the containing app automatically. It presents localized progress, success, and actionable audio/App Group errors with Dynamic Type, system colors, a 48-pixel labelled action, and a VoiceOver announcement. On success it tells the user to tap Done and open VoiceBrief, where the atomic pending manifest is consumed immediately.
 - **Settings data actions:** export and deletion are always tappable and explain an empty state instead of appearing broken. Export creates a real TXT file containing every saved text section and opens the system share sheet; deletion is optimistic, confirms success, and restores the prior history if local persistence fails. Copy explicitly distinguishes temporary audio from optional saved text.
@@ -30,7 +31,7 @@ Reviewed on 2026-08-24 against the pinned Apple Design Skill commit `d0bac1e765a
 
 The cross-platform portions of Vercel's current Web Interface Guidelines were also applied: specific action labels, minimum touch targets, semantic labels for icon actions, visible asynchronous state, safe areas, long/empty content handling, locale-aware date formatting, and no gesture-only path. Web-only DOM/ARIA rules are not applicable to Flutter semantics.
 
-Ten visually reviewed golden baselines cover light/dark authentication, light/dark home, processing, the date-aware result, paywall, 1.6x large text, and Arabic RTL Settings/Recorder views at 390x844. They pass after the resolved layout and copy fixes.
+Eleven visually reviewed golden baselines cover light/dark authentication, Arabic RTL authentication, light/dark home, processing, the date-aware result, paywall, 1.6x large text, and Arabic RTL Settings/Recorder views at 390x844. They pass after the resolved layout and copy fixes.
 
 Physical-device evidence on `SM_N950F` / Android 9 is stored under `output/voicebrief/design-audit-note8/`: `home-after.png` shows the Arabic RTL Home layout and `10/10` allowance, `history-centered.png` shows the empty History state centered without right-edge clipping, `mic-permission-after.png` shows the Arabic Android microphone prompt, and `waveform-live-1.png` plus `waveform-live-2.png` prove that the recorder bars react to sound. `audio-editor-imported.png` and `audio-editor-waveform.png` show the imported-file editor before and after real waveform extraction. `history-before-delete-final.png` and `history-after-delete-final.png` show the saved result and its immediate removal with Undo. On the same device, a 2:46 extensionless provider MP3 was imported, waveform seeking reached 2:29, the slider reached 1:34, the range was set to 0:42–1:11, and a real 0:29 M4A reached Result within the bounded 15-second wait. A single Back after picker import returned to Home.
 

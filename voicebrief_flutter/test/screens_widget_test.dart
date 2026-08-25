@@ -18,11 +18,39 @@ void main() {
   ) async {
     final controller = createTestController();
     await tester.pumpWidget(
-      testApp(controller: controller, home: const AuthScreen()),
+      testApp(
+        controller: controller,
+        home: const AuthScreen(),
+        config: providerReadyTestConfig,
+      ),
     );
+    expect(find.text('Continue with Apple'), findsOneWidget);
     expect(find.text('Continue with Google'), findsOneWidget);
+    expect(find.byKey(const ValueKey('sign-in-with-apple')), findsOneWidget);
+    expect(find.byKey(const ValueKey('sign-in-with-google')), findsOneWidget);
     expect(find.text('Sign in'), findsOneWidget);
     expect(find.text('Privacy Policy'), findsOneWidget);
+  });
+
+  testWidgets('Arabic authentication keeps both providers visible', (
+    tester,
+  ) async {
+    final controller = createTestController();
+    await tester.pumpWidget(
+      testApp(
+        controller: controller,
+        home: const AuthScreen(),
+        locale: const Locale('ar'),
+        config: providerReadyTestConfig,
+      ),
+    );
+
+    expect(find.text('المتابعة باستخدام Apple'), findsOneWidget);
+    expect(find.text('المتابعة باستخدام Google'), findsOneWidget);
+    expect(
+      Directionality.of(tester.element(find.byType(AuthScreen))),
+      TextDirection.rtl,
+    );
   });
 
   testWidgets('home presents direct sharing, import, record, and empty state', (

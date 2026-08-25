@@ -4,6 +4,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:voicebrief/app/app_controller.dart';
+import 'package:voicebrief/app/config/app_config.dart';
 import 'package:voicebrief/features/auth/presentation/auth_screen.dart';
 import 'package:voicebrief/features/home/presentation/shell_screen.dart';
 import 'package:voicebrief/features/recorder/presentation/recorder_screen.dart';
@@ -26,6 +27,7 @@ void main() {
     ThemeMode themeMode = ThemeMode.light,
     double textScale = 1,
     Locale locale = const Locale('en'),
+    AppConfig config = testConfig,
   }) async {
     await tester.binding.setSurfaceSize(const Size(390, 844));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -39,6 +41,7 @@ void main() {
           themeMode: themeMode,
           textScale: textScale,
           locale: locale,
+          config: config,
         ),
       ),
     );
@@ -55,6 +58,7 @@ void main() {
       name: 'auth_light',
       screen: const AuthScreen(),
       controllerFactory: () async => createTestController(),
+      config: providerReadyTestConfig,
     );
   });
 
@@ -65,6 +69,18 @@ void main() {
       screen: const AuthScreen(),
       themeMode: ThemeMode.dark,
       controllerFactory: () async => createTestController(),
+      config: providerReadyTestConfig,
+    );
+  });
+
+  testWidgets('Arabic authentication providers', (tester) async {
+    await golden(
+      tester,
+      name: 'auth_ar',
+      screen: const AuthScreen(),
+      locale: const Locale('ar'),
+      controllerFactory: () async => createTestController(),
+      config: providerReadyTestConfig,
     );
   });
 

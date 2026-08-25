@@ -2,6 +2,7 @@ enum AppFailureCode {
   noInternet,
   authentication,
   providerCanceled,
+  identityProviderUnavailable,
   emailVerificationRequired,
   unsupportedAudio,
   fileTooLarge,
@@ -38,6 +39,8 @@ class AppFailure implements Exception {
     AppFailureCode.authentication =>
       'We could not sign you in. Check your details and try again.',
     AppFailureCode.providerCanceled => 'Sign-in was canceled.',
+    AppFailureCode.identityProviderUnavailable =>
+      'This sign-in method is unavailable right now.',
     AppFailureCode.emailVerificationRequired =>
       'Verify your email before continuing.',
     AppFailureCode.unsupportedAudio => 'This audio format is not supported.',
