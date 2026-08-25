@@ -1400,6 +1400,24 @@ abstract class AppLocalizations {
   /// **'We could not sign you in. Check your details and try again.'**
   String get errorAuthentication;
 
+  /// No description provided for @errorInvalidCredentials.
+  ///
+  /// In en, this message translates to:
+  /// **'The email or password is incorrect.'**
+  String get errorInvalidCredentials;
+
+  /// No description provided for @errorAccountAlreadyExists.
+  ///
+  /// In en, this message translates to:
+  /// **'An account already uses this email. Sign in or reset your password.'**
+  String get errorAccountAlreadyExists;
+
+  /// No description provided for @errorEmailRateLimited.
+  ///
+  /// In en, this message translates to:
+  /// **'Too many email attempts. Wait a few minutes and try again.'**
+  String get errorEmailRateLimited;
+
   /// No description provided for @errorProviderCanceled.
   ///
   /// In en, this message translates to:
@@ -1409,7 +1427,7 @@ abstract class AppLocalizations {
   /// No description provided for @errorEmailVerification.
   ///
   /// In en, this message translates to:
-  /// **'Verify your email before continuing.'**
+  /// **'Check your email and open the verification link, then return to VoiceBrief.'**
   String get errorEmailVerification;
 
   /// No description provided for @errorUnsupportedAudio.

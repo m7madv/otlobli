@@ -281,8 +281,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     final message = ref.read(appControllerProvider).errorMessage;
     if (message != null) {
       AppToast.show(context, context.localizeFailure(message));
-    } else if (provider == IdentityProvider.google && Platform.isIOS) {
-      AppToast.show(context, context.l10n.providerSignInOpened);
     }
   }
 

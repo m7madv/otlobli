@@ -716,10 +716,23 @@ class AppLocalizationsAr extends AppLocalizations {
       'تعذر تسجيل الدخول. تحقق من بياناتك وحاول مجددًا.';
 
   @override
+  String get errorInvalidCredentials =>
+      'البريد الإلكتروني أو كلمة المرور غير صحيحة.';
+
+  @override
+  String get errorAccountAlreadyExists =>
+      'يوجد حساب بهذا البريد. سجّل الدخول أو استعد كلمة المرور.';
+
+  @override
+  String get errorEmailRateLimited =>
+      'محاولات البريد كثيرة الآن. انتظر بضع دقائق ثم حاول مجددًا.';
+
+  @override
   String get errorProviderCanceled => 'أُلغي تسجيل الدخول.';
 
   @override
-  String get errorEmailVerification => 'وثّق بريدك الإلكتروني قبل المتابعة.';
+  String get errorEmailVerification =>
+      'تحقق من بريدك وافتح رابط التوثيق، ثم ارجع إلى VoiceBrief.';
 
   @override
   String get errorUnsupportedAudio => 'صيغة الصوت هذه غير مدعومة.';

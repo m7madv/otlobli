@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:voicebrief/core/errors/app_failure.dart';
 import 'package:voicebrief/features/auth/data/auth_repository.dart';
 import 'package:voicebrief/features/history/data/history_repository.dart';
@@ -8,6 +9,39 @@ import 'package:voicebrief/features/subscription/domain/subscription_models.dart
 import 'helpers/test_harness.dart';
 
 void main() {
+  test('Supabase auth errors preserve actionable causes', () {
+    expect(
+      mapSupabaseAuthFailure(
+        const AuthException(
+          'Invalid login credentials',
+          code: 'invalid_credentials',
+          statusCode: '400',
+        ),
+      ).code,
+      AppFailureCode.invalidCredentials,
+    );
+    expect(
+      mapSupabaseAuthFailure(
+        const AuthException(
+          'Email not confirmed',
+          code: 'email_not_confirmed',
+          statusCode: '400',
+        ),
+      ).code,
+      AppFailureCode.emailVerificationRequired,
+    );
+    expect(
+      mapSupabaseAuthFailure(
+        const AuthException(
+          'Too many requests',
+          code: 'over_email_send_rate_limit',
+          statusCode: '429',
+        ),
+      ).code,
+      AppFailureCode.emailRateLimited,
+    );
+  });
+
   test(
     'fake authentication validates credentials and deletes account',
     () async {

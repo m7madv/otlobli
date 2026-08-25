@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthUser;
 import 'package:voicebrief/core/errors/app_failure.dart';
 import 'package:voicebrief/features/auth/domain/auth_user.dart';
@@ -98,10 +96,7 @@ class SupabaseAuthRepository implements AuthRepository {
       );
       return _requiredUser(response.user);
     } on AuthException catch (error) {
-      throw AppFailure(
-        AppFailureCode.authentication,
-        debugContext: error.statusCode,
-      );
+      throw mapSupabaseAuthFailure(error);
     }
   }
 
@@ -113,34 +108,18 @@ class SupabaseAuthRepository implements AuthRepository {
         password: password,
         emailRedirectTo: 'voicebrief://auth/callback',
       );
+      if (response.user?.identities?.isEmpty ?? false) {
+        throw const AppFailure(AppFailureCode.accountAlreadyExists);
+      }
       return _requiredUser(response.user);
     } on AuthException catch (error) {
-      throw AppFailure(
-        AppFailureCode.authentication,
-        debugContext: error.statusCode,
-      );
+      throw mapSupabaseAuthFailure(error);
     }
   }
 
   @override
   Future<AuthUser?> signInWithProvider(IdentityProvider provider) async {
     try {
-      // A sideload signer can rewrite an iOS bundle identifier, invalidating
-      // the native Google OAuth client association of the original app.
-      // Supabase's PKCE redirect uses the configured web client instead and
-      // remains valid as long as the custom VoiceBrief URL scheme is kept.
-      if (Platform.isIOS && provider == IdentityProvider.google) {
-        final launched = await _client.auth.signInWithOAuth(
-          OAuthProvider.google,
-          redirectTo: 'voicebrief://auth/callback',
-          authScreenLaunchMode: LaunchMode.externalApplication,
-          queryParams: const {'prompt': 'select_account'},
-        );
-        if (!launched) {
-          throw const AppFailure(AppFailureCode.identityProviderUnavailable);
-        }
-        return null;
-      }
       final tokens = await _nativeTokens.authenticate(provider);
       final response = await _client.auth.signInWithIdToken(
         provider: provider == IdentityProvider.apple
@@ -152,24 +131,20 @@ class SupabaseAuthRepository implements AuthRepository {
       );
       return _requiredUser(response.user);
     } on AuthException catch (error) {
-      final providerUnavailable = error.message.toLowerCase().contains(
-        'provider is not enabled',
-      );
-      throw AppFailure(
-        providerUnavailable
-            ? AppFailureCode.identityProviderUnavailable
-            : AppFailureCode.authentication,
-        debugContext: error.statusCode,
-      );
+      throw mapSupabaseAuthFailure(error);
     }
   }
 
   @override
-  Future<void> sendPasswordReset(String email) {
-    return _client.auth.resetPasswordForEmail(
-      email.trim(),
-      redirectTo: 'voicebrief://auth/reset',
-    );
+  Future<void> sendPasswordReset(String email) async {
+    try {
+      await _client.auth.resetPasswordForEmail(
+        email.trim(),
+        redirectTo: 'voicebrief://auth/reset',
+      );
+    } on AuthException catch (error) {
+      throw mapSupabaseAuthFailure(error);
+    }
   }
 
   @override
@@ -197,4 +172,23 @@ class SupabaseAuthRepository implements AuthRepository {
       emailVerified: user.emailConfirmedAt != null,
     );
   }
+}
+
+AppFailure mapSupabaseAuthFailure(AuthException error) {
+  final code = error.code;
+  final failureCode = switch (code) {
+    'email_not_confirmed' => AppFailureCode.emailVerificationRequired,
+    'invalid_credentials' => AppFailureCode.invalidCredentials,
+    'email_exists' ||
+    'user_already_exists' => AppFailureCode.accountAlreadyExists,
+    'over_request_rate_limit' ||
+    'over_email_send_rate_limit' => AppFailureCode.emailRateLimited,
+    'provider_disabled' || 'oauth_provider_not_supported' =>
+      AppFailureCode.identityProviderUnavailable,
+    _ when error.statusCode == '429' => AppFailureCode.emailRateLimited,
+    _ when error.statusCode?.startsWith('5') ?? false =>
+      AppFailureCode.serviceUnavailable,
+    _ => AppFailureCode.authentication,
+  };
+  return AppFailure(failureCode, debugContext: code ?? error.statusCode);
 }

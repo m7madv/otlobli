@@ -738,10 +738,22 @@ class AppLocalizationsEn extends AppLocalizations {
       'We could not sign you in. Check your details and try again.';
 
   @override
+  String get errorInvalidCredentials => 'The email or password is incorrect.';
+
+  @override
+  String get errorAccountAlreadyExists =>
+      'An account already uses this email. Sign in or reset your password.';
+
+  @override
+  String get errorEmailRateLimited =>
+      'Too many email attempts. Wait a few minutes and try again.';
+
+  @override
   String get errorProviderCanceled => 'Sign-in was canceled.';
 
   @override
-  String get errorEmailVerification => 'Verify your email before continuing.';
+  String get errorEmailVerification =>
+      'Check your email and open the verification link, then return to VoiceBrief.';
 
   @override
   String get errorUnsupportedAudio => 'This audio format is not supported.';
