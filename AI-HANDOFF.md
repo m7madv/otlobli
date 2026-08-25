@@ -3718,7 +3718,25 @@ chooser results, while `103-final-cart.png` records the final real-data cart.
 Evidence is in `artifacts/device-captures/v86.240-note8/`.
 Do not claim automated double-tap acceptance: one ADB tap took about 534ms,
 outside the 320ms real-finger window. iPhone white-gap acceptance, five resume
-cycles, and cold launch remain unperformed; no new TestFlight build exists yet.
+cycles, and cold launch remain unperformed.
+
+Source commit `b7623e538942187db6ce0b33c9d6e1302d350b01` is pushed. TestFlight run
+`32905062307` stopped safely before signing because the persisted WhatsApp
+sender was disconnected. Session `0` was reconnected from stored credentials
+through the protected loopback admin endpoint; no QR, reset, or message was
+produced. Health then passed with connected/ready sender, persisted customer
+sessions, and hardened OTP storage. Retry `32905392346` succeeded in `8m43s`.
+Apple delivery UUID is `0470dc1f-5a1e-4b1f-918c-4e09c6b3de9e`; exact build
+`86.240 (1105)` is `VALID` and `IN_BETA_TESTING` in all-builds group
+`Otlobli Internal`, and expected tester membership is `INSTALLED`. App Review
+was disabled and skipped.
+
+Signed GitHub artifact `9584831793`,
+`otlobli-ios-v86.240-build-1105-testflight`, is 25,250,403 bytes with archive
+SHA-256 `70AF49A8D40B20D68130B1555620E61947B9DE2F57B7B11AABAB74D9698DF409`.
+Downloaded IPA under `output/testflight-v86.240-build-1105-run-32905392346/`
+is 10,543,182 bytes with SHA-256
+`0F1382E07C4E7ABC4C011DE90F9A2CE8048433CB4CF4B6B1F6D90696A898E382`.
 
 SHEIN, region policy, human verification, payment, orders, and wallet were not
 changed. Preserve `otlobliForceRecompose()`, exact 0.25s appDidBecomeActive,
