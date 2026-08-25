@@ -41,18 +41,27 @@
 - The Share Extension now accepts WhatsApp-style audio/Opus representations, writes an atomic App Group manifest, and shows localized success or actionable failure instead of relying on unsupported automatic parent-app launch. After success the user taps Done and opens VoiceBrief manually.
 - The IPA has no provisioning and remains intentionally unsigned. The signing path must provision the app and extension together with `group.app.voicebrief.mobile`; otherwise the extension now reports an App Group error. The public Supabase settings still report Apple disabled, so Apple sign-in is not release-ready until the provider, Apple App ID, and signed entitlement are configured by an account with project access. Compilation and packaging do not replace a signed physical-iPhone handoff/authentication test or App Store archive validation.
 
+## Signed TestFlight build — 2026-08-25
+
+- App Store Connect app `VoiceBrief` was created with Apple ID `6805194629`, primary language Arabic, SKU `VOICEBRIEF_IOS_001`, and bundle ID `app.voicebrief.mobile`.
+- Apple identifiers `app.voicebrief.mobile` and `app.voicebrief.mobile.share` are registered under team `36D743K87T`. Both use App Group `group.app.voicebrief.mobile`; the Runner identifier also has Sign in with Apple enabled.
+- App Store profiles `VoiceBrief App Store 2026` and `VoiceBrief Share App Store 2026` were created for the Runner and Share Extension respectively. Both expire on 2027-08-22.
+- Branch `codex/voicebrief-ios`, commit `0bd55182db150b07b07546e1b4591f68a11dd87e`, run [32893325708](https://github.com/m7madv/otlobli/actions/runs/32893325708) passed format, analysis, 29 tests, live no-codesign compilation, profile entitlement checks, signed archive/export, embedded profile and entitlement verification, App Store validation, and upload.
+- Signed IPA: `VoiceBrief-0.1.0-build5-AppStore.ipa`, 34,384,042 bytes, SHA-256 `C162AD0D8BDD9BF6513BCBBACC1AB60DA855A150EE4900CDCB632F488E185A63`. GitHub artifact: `voicebrief-ios-0.1.0-build5-appstore`; local download: `artifacts/voicebrief-ios-0.1.0-build5-appstore/ios/signed/`.
+- Apple finished processing build `0.1.0 (5)` and reports it as `Ready to Submit`, expiring in 90 days. Internal TestFlight group `VoiceBrief Internal` has automatic distribution enabled, contains one build and one tester, and reports `mhm1981dx@gmail.com` as `Invited`.
+
 ## Owner/external configuration
 
 - [x] Public legal/support URLs and Android upload signing.
-- [ ] Confirm final application IDs/App Group availability and increment the store version/build when submission begins.
+- [x] Confirm final application IDs/App Group availability and increment the iOS store build to `0.1.0+5`.
 - [x] Supabase migrations/functions deployed to `jyehqpdbayslhzebdycj`; anonymous server-RPC access denied and service cap live.
 - [x] OpenAI balance displays `$10.00`, automatic recharge is disabled, the dedicated service-account key is active, and the live smoke consumed one rounded service-ledger minute with zero reservation left behind.
 - [x] Google dashboard clients, branding/legal URLs, Supabase provider, and live redirect verified; app remains External/Testing with `mhm1981x@gmail.com` as its test user.
 - [ ] Add Google Play App Signing SHA after first Play setup, complete a real `mhm1981x@gmail.com` token exchange, then deliberately publish OAuth beyond Testing.
-- [ ] Enable the Apple provider in the VoiceBrief Supabase project, configure its Apple client secret/redirect, enable the capability on the Apple App ID, and verify a signed physical-device flow. The public project settings still report Apple disabled; source code and entitlements alone cannot enable it.
+- [ ] Enable the Apple provider in the VoiceBrief Supabase project, configure its Apple client secret/redirect, and verify a signed physical-device flow. The Apple App ID, capability, profiles, and signed TestFlight build are complete, but public Supabase settings still report Apple disabled.
 - [ ] App Store/Play products and RevenueCat offering/webhook/sandbox verified.
 - [x] Production Android upload signing configured privately; owner still must back it up before first upload.
-- [ ] Apple signing/provisioning configured privately.
+- [x] Apple signing/provisioning configured privately and the signed Runner plus Share Extension passed App Store validation/upload.
 - [x] Privacy policy, Terms, and Support pages published; owner/legal approval plus Apple Privacy, Google Data Safety, and reviewer notes remain.
 
 ## Device acceptance
@@ -62,6 +71,7 @@
 - [x] Arabic system-locale layout plus microphone allow/start/cancel on a physical `SM_N950F` Android 9 device; no temporary audio remained.
 - [ ] Duplicate-suppression timing and hostile/oversize provider acceptance on a physical Android device.
 - [x] macOS `pod install`, device-target no-codesign build, bundle-ID validation, Share Extension embedding, and unsigned IPA packaging through GitHub Actions.
+- [x] Signed App Store archive/export, embedded provisioning and entitlement verification, App Store validation, and TestFlight upload through GitHub Actions.
 - [ ] Signed physical-iPhone Share Extension/App Group handoff, playback/seek/trim, and App Store archive acceptance.
 - [ ] VoiceOver, all accessibility text sizes, recording interruptions, Apple sign-in, and full Google token exchange. Google picker/cancel passed on API 35 and physical Android 9; Note 8 currently has `mhm1981d@gmail.com`, not the configured test account `mhm1981x@gmail.com`.
 - [ ] Monthly/annual purchase, renewal/cancellation, restore, reinstall/device change.

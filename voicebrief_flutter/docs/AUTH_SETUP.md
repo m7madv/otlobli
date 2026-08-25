@@ -11,6 +11,13 @@ The repository supports Supabase email/password, verification-aware user state, 
 3. Put only `APPLE_SERVICE_ID` and `APPLE_REDIRECT_URI` in Dart defines. Keep Team ID, Key ID, `.p8`, and generated client secret in the provider/Supabase dashboard.
 4. Configure the native bundle in Supabase Apple provider. Test first sign-in, cancellation, hidden-email relay, logout/relogin, and revoked authorization.
 
+Apple registration status on 2026-08-25:
+
+- Native App ID `app.voicebrief.mobile` is registered under team `36D743K87T` with Sign in with Apple and App Group `group.app.voicebrief.mobile`.
+- Share Extension App ID `app.voicebrief.mobile.share` is registered with the same App Group.
+- Separate App Store profiles for the Runner and Share Extension were created, installed in GitHub Actions, embedded, and entitlement-verified in TestFlight build `0.1.0 (5)`.
+- This completes Apple-side native registration and signing, not the Supabase provider. Public project settings still report Apple disabled, so the button must not be described as working until the Apple client secret/provider is configured and a physical signed-device exchange passes.
+
 ## Google owner/dashboard work
 
 1. Create iOS, Android, and web OAuth clients. Android requires the final application ID plus debug/release/play-app-signing SHA-1/SHA-256 fingerprints.
