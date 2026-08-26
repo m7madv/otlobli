@@ -197,15 +197,15 @@ async function findBundleId(config) {
   return selectBundleId(bundleIds, config.bundleIdentifier);
 }
 
-async function listCapabilities(config, bundleId) {
+function capabilityListResource(bundleId) {
   const query = new URLSearchParams({
     "fields[bundleIdCapabilities]": "capabilityType,settings",
-    limit: "200",
   });
-  return listAll(
-    config,
-    `/bundleIds/${encodeURIComponent(bundleId)}/bundleIdCapabilities?${query}`,
-  );
+  return `/bundleIds/${encodeURIComponent(bundleId)}/bundleIdCapabilities?${query}`;
+}
+
+async function listCapabilities(config, bundleId) {
+  return listAll(config, capabilityListResource(bundleId));
 }
 
 async function ensureAssociatedDomainsCapability(config, bundleId) {
@@ -418,6 +418,17 @@ function runSelfTest() {
     profile.data.relationships.certificates.data[0].id !== "certificate-1"
   )
     throw new Error("Profile request fixture is invalid.");
+  const capabilityResource = capabilityListResource("bundle/1");
+  if (
+    !capabilityResource.startsWith(
+      "/bundleIds/bundle%2F1/bundleIdCapabilities?",
+    ) ||
+    !capabilityResource.includes(
+      "fields%5BbundleIdCapabilities%5D=capabilityType%2Csettings",
+    ) ||
+    capabilityResource.includes("limit=")
+  )
+    throw new Error("Capability list request fixture is invalid.");
   const universalBundle = selectBundleId(
     [
       {
