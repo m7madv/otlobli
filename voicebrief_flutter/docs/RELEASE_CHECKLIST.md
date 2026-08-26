@@ -59,7 +59,7 @@
 
 ## RevenueCat-enabled candidate — 2026-08-26
 
-- Source version is `0.1.0+8`. GitHub Actions now holds both platform-specific RevenueCat public SDK keys, and the signed plus unsigned iOS workflows verify/package build `8` consistently.
+- Source version is `0.1.0+8`. GitHub Actions now holds both platform-specific RevenueCat public SDK keys; Runner and Share Extension use build `8`, and the signed plus unsigned iOS workflows verify/package that number consistently.
 - RevenueCat has both store apps, all four monthly/annual products attached to entitlement `pro`, and both cross-platform packages in offering `default`.
 - Local verification passed: `dart format --set-exit-if-changed .`, `flutter analyze`, 30 non-golden tests, eleven golden tests, and `flutter build apk --debug`.
 - The signed TestFlight upload, Apple sandbox purchase/restore, webhook delivery, and real-device acceptance are not complete yet. Android purchase acceptance also waits for Google Play to save and activate both base plans.
