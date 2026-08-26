@@ -6,20 +6,28 @@
 // page still has to remain usable.
 //
 // The current SHEIN control is a styled <div>, so this code matches its exact
-// action text rather than assuming a button tag. It prefers "Reject all" to
-// avoid opting the customer into optional tracking. Only a confirmed SHEIN
+// action text rather than assuming a button tag. It activates the site-owned
+// "Accept all" action. Only a confirmed SHEIN
 // privacy-agreement layer that covers almost the entire viewport may be
 // neutralized, and that last-resort path is restricted to the native iOS app.
 export const SHEIN_PRIVACY_COMPAT_SCRIPT = `
 (function () {
   if (window.top !== window || !/(^|\\.)shein\\.com$/i.test(location.hostname)) return;
-  if (window.__otlobliSheinPrivacyCompatInstalled) return;
+  if (window.__otlobliSheinPrivacyCompatInstalled) {
+    try {
+      if (window.__otlobliSheinPrivacyCompat && window.__otlobliSheinPrivacyCompat.resume) {
+        window.__otlobliSheinPrivacyCompat.resume();
+      }
+    } catch (e) {}
+    return;
+  }
   window.__otlobliSheinPrivacyCompatInstalled = true;
 
   var startedAt = Date.now();
-  var rejectAttempts = 0;
+  var acceptAttempts = 0;
   var sawBlockingShield = false;
   var reportedMethod = '';
+  var burstId = 0;
   var scheduledDelays = [0, 60, 160, 360, 700, 1200, 2000, 3500, 6000, 10000];
 
   function cleanLabel(value) {
@@ -88,23 +96,23 @@ export const SHEIN_PRIVACY_COMPAT_SCRIPT = `
     return null;
   }
 
-  function findRejectAllControl(shield) {
-    var rejectPattern = /^(?:reject all|decline all|deny all|use necessary only|necessary only|\\u0631\\u0641\\u0636 \\u0627\\u0644\\u0643\\u0644|\\u0631\\u0641\\u0636 \\u0627\\u0644\\u062c\\u0645\\u064a\\u0639|\\u0627\\u0644\\u0636\\u0631\\u0648\\u0631\\u064a\\u0629 \\u0641\\u0642\\u0637)$/i;
-    var controls = shield.querySelectorAll('button,[role="button"],a,input[type="button"],input[type="submit"],div,span');
-    for (var i = 0; i < controls.length && i < 500; i++) {
+  function findAcceptAllControl(shield) {
+    var acceptPattern = /^(?:accept all|\\u0642\\u0628\\u0648\\u0644 \\u0627\\u0644\\u0643\\u0644)$/i;
+    var controls = shield.querySelectorAll('button,[role="button"],div');
+    for (var i = 0; i < controls.length && i < 160; i++) {
       var control = controls[i];
-      var label = cleanLabel(control.getAttribute('aria-label') || control.value || control.textContent || '');
-      if (label.length > 40 || !rejectPattern.test(label)) continue;
+      var label = cleanLabel(control.textContent || '');
+      if (label.length > 24 || !acceptPattern.test(label)) continue;
       return control;
     }
     return null;
   }
 
-  function activateReject(control) {
-    rejectAttempts++;
-    control.setAttribute('data-otlobli-privacy-action', 'reject-all');
+  function activateAccept(control) {
+    acceptAttempts++;
+    control.setAttribute('data-otlobli-privacy-action', 'accept-all');
     try { control.click(); } catch (e1) {}
-    if (rejectAttempts < 2) return;
+    if (acceptAttempts < 2) return;
     try {
       var events = ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'];
       for (var i = 0; i < events.length; i++) {
@@ -126,22 +134,39 @@ export const SHEIN_PRIVACY_COMPAT_SCRIPT = `
     if (isHumanChallenge()) return;
     var shield = findBlockingPrivacyShield();
     if (!shield) {
-      if (sawBlockingShield && rejectAttempts > 0) report('reject-all');
+      if (sawBlockingShield && acceptAttempts > 0) report('accept-all');
       return;
     }
     sawBlockingShield = true;
-    var reject = findRejectAllControl(shield);
-    if (reject && rejectAttempts < 3) {
-      activateReject(reject);
+    var accept = findAcceptAllControl(shield);
+    if (accept && acceptAttempts < 3) {
+      activateAccept(accept);
       return;
     }
     var isNativeIos = String(window.__otlobliNativePlatform || '').toLowerCase() === 'ios';
-    if (isNativeIos && (rejectAttempts >= 2 || Date.now() - startedAt >= 1500)) {
+    if (isNativeIos && (acceptAttempts >= 2 || Date.now() - startedAt >= 1500)) {
       neutralizeIosShield(shield);
     }
   }
 
-  for (var i = 0; i < scheduledDelays.length; i++) setTimeout(scan, scheduledDelays[i]);
+  function runBurst(id, index) {
+    if (id !== burstId) return;
+    scan();
+    if (index + 1 >= scheduledDelays.length) return;
+    setTimeout(function () {
+      runBurst(id, index + 1);
+    }, scheduledDelays[index + 1] - scheduledDelays[index]);
+  }
+
+  function resume() {
+    startedAt = Date.now();
+    acceptAttempts = 0;
+    sawBlockingShield = false;
+    burstId++;
+    runBurst(burstId, 0);
+  }
+
+  window.__otlobliSheinPrivacyCompat = { resume: resume };
   try { document.addEventListener('DOMContentLoaded', scan, { once: true }); } catch (e1) {}
   try { addEventListener('pageshow', scan, false); } catch (e2) {}
   try {
@@ -149,5 +174,7 @@ export const SHEIN_PRIVACY_COMPAT_SCRIPT = `
       if (document.visibilityState === 'visible') scan();
     }, false);
   } catch (e3) {}
+  try { addEventListener('privacyCookieAgreementShow', resume, false); } catch (e4) {}
+  resume();
 })();
 `

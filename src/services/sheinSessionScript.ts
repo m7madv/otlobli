@@ -1740,6 +1740,13 @@ export const SHEIN_SESSION_SCRIPT = `
   if (window.__otlobliInjected) return;
   window.__otlobliInjected = true;
   window.__otlobliStoreRuntimeReady = true;
+  if (!OTLOBLI_DIRECT_HUMAN_CHALLENGE && !otlobliIsHumanChallenge()) {
+    try {
+      if (window.__otlobliSheinPolicyEngine && window.__otlobliSheinPolicyEngine.resume) {
+        window.__otlobliSheinPolicyEngine.resume();
+      }
+    } catch (e) {}
+  }
 
   window.addEventListener('messageFromNative', function (event) {
     var detail = event && event.detail;

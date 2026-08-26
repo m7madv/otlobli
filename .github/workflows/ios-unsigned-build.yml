@@ -56,6 +56,9 @@ jobs:
         with:
           node-version: 22
 
+      - name: Verify iOS provisioning helper
+        run: node scripts/prepare-ios-app-store-profile.mjs --self-test
+
       - run: npm ci
         env:
           OTLOBLI_RELAY_KEY: ${{ secrets.OTLOBLI_RELAY_KEY }}
@@ -414,18 +417,82 @@ jobs:
           echo "OTLOBLI_PROFILE_NAME=$profile_name" >> "$GITHUB_ENV"
           echo "OTLOBLI_PROFILE_UUID=$profile_uuid" >> "$GITHUB_ENV"
 
+      - name: Keep development signing compatible with its profile
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.signing_mode == 'development-signed' }}
+        run: |
+          set -euo pipefail
+          python3 - \
+            "$RUNNER_TEMP/Otlobli_Development.plist" \
+            "ios/App/App/App.entitlements" <<'PY'
+          import plistlib
+          import sys
+
+          profile_path, entitlements_path = sys.argv[1:]
+          key = "com.apple.developer.associated-domains"
+          with open(profile_path, "rb") as stream:
+              profile = plistlib.load(stream)
+          with open(entitlements_path, "rb") as stream:
+              requested = plistlib.load(stream)
+
+          if not requested.get(key):
+              print("The development target does not request Associated Domains.")
+          elif profile.get("Entitlements", {}).get(key):
+              print("The installed development profile authorizes Associated Domains.")
+          else:
+              requested.pop(key, None)
+              with open(entitlements_path, "wb") as stream:
+                  plistlib.dump(requested, stream)
+              print(
+                  "The installed development profile predates Associated Domains; "
+                  "this development-only artifact omits that entitlement instead of failing signing."
+              )
+          PY
+
+      - name: Prepare App Store Connect API key for signing
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.signing_mode == 'testflight' }}
+        env:
+          ASC_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+          ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          umask 077
+          for variable in ASC_API_KEY_BASE64 ASC_API_KEY_ID ASC_ISSUER_ID; do
+            if [ -z "$(printenv "$variable" 2>/dev/null || true)" ]; then
+              echo "Required App Store Connect signing secret is missing: ${variable}" >&2
+              exit 1
+            fi
+          done
+          if ! [[ "$ASC_API_KEY_ID" =~ ^[A-Z0-9]{10}$ ]]; then
+            echo 'Unexpected App Store Connect API Key ID format.' >&2
+            exit 1
+          fi
+          if ! [[ "$ASC_ISSUER_ID" =~ ^[0-9a-fA-F-]{36}$ ]]; then
+            echo 'Unexpected App Store Connect Issuer ID format.' >&2
+            exit 1
+          fi
+
+          key_dir="$HOME/.appstoreconnect/private_keys"
+          key_path="$key_dir/AuthKey_${ASC_API_KEY_ID}.p8"
+          echo "OTLOBLI_ASC_KEY_PATH=$key_path" >> "$GITHUB_ENV"
+          mkdir -p "$key_dir"
+          printf '%s' "$ASC_API_KEY_BASE64" | base64 --decode > "$key_path"
+          chmod 600 "$key_path"
+          openssl pkey -in "$key_path" -noout >/dev/null
+
       - name: Install Apple Distribution signing assets
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.signing_mode == 'testflight' }}
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
           CERTIFICATE_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
-          PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_APP_STORE_PROVISIONING_PROFILE_BASE64 }}
+          ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
         run: |
           set -euo pipefail
           umask 077
 
-          for variable in APPLE_TEAM_ID CERTIFICATE_BASE64 CERTIFICATE_PASSWORD PROVISIONING_PROFILE_BASE64; do
+          for variable in APPLE_TEAM_ID CERTIFICATE_BASE64 CERTIFICATE_PASSWORD ASC_API_KEY_ID ASC_ISSUER_ID OTLOBLI_ASC_KEY_PATH; do
             if [ -z "$(printenv "$variable" 2>/dev/null || true)" ]; then
               echo "Required App Store signing secret is missing: ${variable}" >&2
               exit 1
@@ -435,13 +502,21 @@ jobs:
           keychain_path="$RUNNER_TEMP/otlobli-distribution.keychain-db"
           keychain_password=$(openssl rand -hex 32)
           certificate_path="$RUNNER_TEMP/otlobli-distribution.p12"
+          certificate_pem="$RUNNER_TEMP/otlobli-distribution.pem"
+          certificate_der="$RUNNER_TEMP/otlobli-distribution.der"
           profile_path="$RUNNER_TEMP/Otlobli_AppStore.mobileprovision"
           profile_plist="$RUNNER_TEMP/Otlobli_AppStore.plist"
           original_keychains="$RUNNER_TEMP/otlobli-original-keychains.txt"
           original_default_keychain="$RUNNER_TEMP/otlobli-original-default-keychain.txt"
 
           printf '%s' "$CERTIFICATE_BASE64" | base64 --decode > "$certificate_path"
-          printf '%s' "$PROVISIONING_PROFILE_BASE64" | base64 --decode > "$profile_path"
+          openssl pkcs12 \
+            -in "$certificate_path" \
+            -clcerts \
+            -nokeys \
+            -passin env:CERTIFICATE_PASSWORD \
+            -out "$certificate_pem"
+          openssl x509 -in "$certificate_pem" -outform der -out "$certificate_der"
 
           security list-keychains -d user | sed 's/^[[:space:]]*"//; s/"$//' > "$original_keychains"
           security default-keychain -d user | sed 's/^[[:space:]]*"//; s/"$//' > "$original_default_keychain"
@@ -471,6 +546,13 @@ jobs:
             exit 1
           fi
 
+          OTLOBLI_ASC_BUNDLE_ID='com.otlobli.app' \
+          OTLOBLI_ASSOCIATED_DOMAIN='applinks:talabieh.vercel.app' \
+          OTLOBLI_DISTRIBUTION_CERTIFICATE_DER="$certificate_der" \
+          OTLOBLI_PROFILE_OUTPUT="$profile_path" \
+          ASC_API_KEY_PATH="$OTLOBLI_ASC_KEY_PATH" \
+            node scripts/prepare-ios-app-store-profile.mjs
+
           security cms -D -i "$profile_path" > "$profile_plist"
           python3 - "$profile_plist" "$APPLE_TEAM_ID" <<'PY'
           import datetime
@@ -491,6 +573,7 @@ jobs:
               "team entitlement": entitlements.get("com.apple.developer.team-identifier") == expected_team,
               "production APNs": entitlements.get("aps-environment") == "production",
               "Sign in with Apple": "Default" in entitlements.get("com.apple.developer.applesignin", []),
+              "Associated Domains": isinstance(entitlements.get("com.apple.developer.associated-domains"), list) and bool(entitlements.get("com.apple.developer.associated-domains")),
               "TestFlight beta reports": entitlements.get("beta-reports-active") is True,
               "distribution entitlement": entitlements.get("get-task-allow") is not True,
               "no registered devices": not profile.get("ProvisionedDevices"),
@@ -791,6 +874,9 @@ jobs:
           expiry = profile.get("ExpirationDate")
           now = datetime.datetime.now(expiry.tzinfo) if expiry and expiry.tzinfo else datetime.datetime.now()
           devices = profile.get("ProvisionedDevices", [])
+          app_domains = entitlements.get("com.apple.developer.associated-domains")
+          profile_domains = profile_entitlements.get("com.apple.developer.associated-domains")
+          profile_domains_authorized = isinstance(profile_domains, list) and bool(profile_domains)
           intended_device_present = any(
               hashlib.sha256(device.encode("utf-8")).hexdigest().lower() == expected_device_hash.lower()
               for device in devices
@@ -807,6 +893,10 @@ jobs:
               "Team ID": entitlements.get("com.apple.developer.team-identifier") == team,
               "development APNs": entitlements.get("aps-environment") == "development",
               "Sign in with Apple": "Default" in entitlements.get("com.apple.developer.applesignin", []),
+              "Associated Domains profile compatibility": (
+                  (app_domains == ["applinks:talabieh.vercel.app"] and profile_domains_authorized)
+                  or (not app_domains and not profile_domains)
+              ),
               "development signature": entitlements.get("get-task-allow") is True,
               "profile App ID": profile_entitlements.get("application-identifier") == expected_identifier,
               "profile Team ID": team in profile.get("TeamIdentifier", []),
@@ -965,11 +1055,13 @@ jobs:
               "Team ID": entitlements.get("com.apple.developer.team-identifier") == team,
               "production APNs": entitlements.get("aps-environment") == "production",
               "Sign in with Apple": "Default" in entitlements.get("com.apple.developer.applesignin", []),
+              "Associated Domains": entitlements.get("com.apple.developer.associated-domains") == ["applinks:talabieh.vercel.app"],
               "distribution signature": entitlements.get("get-task-allow") is not True,
               "profile App ID": profile_entitlements.get("application-identifier") == expected_identifier,
               "profile Team ID": team in profile.get("TeamIdentifier", []),
               "profile APNs": profile_entitlements.get("aps-environment") == "production",
               "profile Apple Sign-In": "Default" in profile_entitlements.get("com.apple.developer.applesignin", []),
+              "profile Associated Domains": isinstance(profile_entitlements.get("com.apple.developer.associated-domains"), list) and bool(profile_entitlements.get("com.apple.developer.associated-domains")),
               "profile TestFlight beta reports": profile_entitlements.get("beta-reports-active") is True,
               "profile distribution": profile_entitlements.get("get-task-allow") is not True,
               "profile has no devices": not profile.get("ProvisionedDevices"),
@@ -1021,38 +1113,6 @@ jobs:
           path: ios/App/otlobli-v${{ steps.appver.outputs.version }}-build-${{ steps.appver.outputs.build }}-development-signed.ipa
           if-no-files-found: error
           retention-days: 30
-
-      - name: Prepare App Store Connect API key
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.signing_mode == 'testflight' }}
-        env:
-          ASC_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
-          ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-        run: |
-          set -euo pipefail
-          umask 077
-          for variable in ASC_API_KEY_BASE64 ASC_API_KEY_ID ASC_ISSUER_ID; do
-            if [ -z "$(printenv "$variable" 2>/dev/null || true)" ]; then
-              echo "Required App Store Connect upload secret is missing: ${variable}" >&2
-              exit 1
-            fi
-          done
-          if ! [[ "$ASC_API_KEY_ID" =~ ^[A-Z0-9]{10}$ ]]; then
-            echo 'Unexpected App Store Connect API Key ID format.' >&2
-            exit 1
-          fi
-          if ! [[ "$ASC_ISSUER_ID" =~ ^[0-9a-fA-F-]{36}$ ]]; then
-            echo 'Unexpected App Store Connect Issuer ID format.' >&2
-            exit 1
-          fi
-
-          key_dir="$HOME/.appstoreconnect/private_keys"
-          key_path="$key_dir/AuthKey_${ASC_API_KEY_ID}.p8"
-          echo "OTLOBLI_ASC_KEY_PATH=$key_path" >> "$GITHUB_ENV"
-          mkdir -p "$key_dir"
-          printf '%s' "$ASC_API_KEY_BASE64" | base64 --decode > "$key_path"
-          chmod 600 "$key_path"
-          openssl pkey -in "$key_path" -noout >/dev/null
 
       - name: Validate and upload build to TestFlight
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.signing_mode == 'testflight' && inputs.testflight_delivery == 'upload-and-distribute' }}
@@ -1195,6 +1255,8 @@ jobs:
           fi
           rm -f \
             "$RUNNER_TEMP/otlobli-distribution.p12" \
+            "$RUNNER_TEMP/otlobli-distribution.pem" \
+            "$RUNNER_TEMP/otlobli-distribution.der" \
             "$RUNNER_TEMP/Otlobli_AppStore.mobileprovision" \
             "$RUNNER_TEMP/Otlobli_AppStore.plist" \
             "$RUNNER_TEMP/otlobli-whatsapp-health.json" \

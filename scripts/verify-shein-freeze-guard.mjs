@@ -448,7 +448,10 @@ const checks = [
       '[class*="shein_privacy_agreement"]',
       "type: 'sheinPrivacyResolved'",
       "method: method",
-      "'reject-all'",
+      "'accept-all'",
+      'window.__otlobliSheinPrivacyCompat = { resume: resume };',
+      "addEventListener('privacyCookieAgreementShow', resume, false)",
+      'function runBurst(id, index)',
       "window.__otlobliNativePlatform || ''",
       "style.position !== 'fixed'",
       "rect.width < viewport.width * 0.85",
@@ -461,6 +464,8 @@ const checks = [
       'localStorage.',
       'sessionStorage.',
       'document.cookie',
+      "'reject-all'",
+      'findRejectAllControl',
     ],
   },
   {
@@ -768,15 +773,36 @@ const checks = [
     file: 'src/services/sheinPolicyEngine.ts',
     markers: [
       'function exactLoginLaterLabel(value)',
-      'function dismissExactLoginLater(el,enabled)',
-      "window.__otlobliStoreRuntimeReady===true&&(route==='product'||route==='blocked-login')",
+      'MAX_DEFERRED_LOGIN_LATER=12',
+      'deferredLoginLater=[]',
+      'function rememberDeferredLoginLater(el)',
+      'function dismissExactLoginLater(el,enabled,defer)',
+      'function flushDeferredLoginLater()',
+      "LOGIN_LATER_SCOPE_SELECTOR='.s_auth__block-login-tip'",
+      "LOGIN_LATER_CONTROL_SELECTOR='button,[role=\"button\"]'",
+      'function scanExactLoginLater(root,enabled,defer)',
+      'login later|',
       "data-otlobli-login-later-fired",
-      'if(!dismissExactLoginLater(nodes[i],canDismiss))hide(nodes[i],classify(nodes[i]))',
+      'scanExactLoginLater(root,canDismiss,canDefer);',
+      'for(var i=0;i<nodes.length&&i<MAX_NODES_PER_ROOT;i++)hide(nodes[i],classify(nodes[i]));',
+      'flushDeferredLoginLater();',
     ],
     forbidden: [
       'setInterval(',
       'history.back(',
       'location.assign(',
+      "querySelectorAll('div",
+      "querySelectorAll('span",
+      "LOGIN_LATER_CONTROL_SELECTOR='button,a",
+    ],
+  },
+  {
+    label: 'SHEIN runtime readiness resumes the deferred policy outside challenges',
+    file: 'src/services/sheinSessionScript.ts',
+    markers: [
+      'window.__otlobliStoreRuntimeReady = true;',
+      'if (!OTLOBLI_DIRECT_HUMAN_CHALLENGE && !otlobliIsHumanChallenge())',
+      'window.__otlobliSheinPolicyEngine.resume();',
     ],
   },
   {
@@ -1185,6 +1211,132 @@ if (exactSkipStart < 0 || exactSkipEnd < 0 ||
   failures.push('SHEIN login-later fallback: exact opt-out must remain reachable without layout or form gates')
 }
 
+try {
+  const { SHEIN_POLICY_DOCUMENT_START_SCRIPT } = evaluateInjectedScriptExports(
+    'src/services/sheinPolicyEngine.ts',
+  )
+  const fixture = { observerConstructions: 0, scopeQueries: 0, controlQueries: 0, messages: [] }
+  let loginLaterScope = null
+  const makeControl = (label, scoped = true) => {
+    const attributes = new Map([['role', 'button']])
+    return {
+      nodeType: 1,
+      tagName: 'DIV',
+      id: '',
+      className: '',
+      textContent: label,
+      parentElement: null,
+      isConnected: true,
+      clicks: 0,
+      getAttribute(name) { return attributes.get(name) ?? '' },
+      setAttribute(name, value) { attributes.set(name, value) },
+      removeAttribute(name) { attributes.delete(name) },
+      closest(selector) {
+        return scoped && selector === '.s_auth__block-login-tip' ? loginLaterScope : null
+      },
+      click() { this.clicks++ },
+    }
+  }
+  const exactControls = [
+    makeControl('Login Later'),
+    makeControl('تسجيل لاحقًا'),
+    makeControl('التسجيل لاحقًا'),
+    makeControl('تسجيل الدخول لاحقًا'),
+    makeControl('التسجيل الدخول لاحقًا'),
+  ]
+  const inexactControl = makeControl('Login Later Please')
+  const outsideExactControl = makeControl('Login Later', false)
+  const scopedControls = [...exactControls, inexactControl]
+  const candidateControls = [...scopedControls, outsideExactControl]
+  loginLaterScope = {
+    nodeType: 1,
+    matches(selector) { return selector === '.s_auth__block-login-tip' },
+    closest() { return null },
+    querySelectorAll(selector) {
+      fixture.controlQueries++
+      return selector === 'button,[role="button"]' ? scopedControls : []
+    },
+  }
+  const styleNodes = new Map()
+  const documentElement = {
+    nodeType: 1,
+    matches() { return false },
+    querySelectorAll(selector) {
+      if (selector === '.s_auth__block-login-tip') {
+        fixture.scopeQueries++
+        return [loginLaterScope]
+      }
+      return candidateControls
+    },
+    querySelector() { return candidateControls[0] },
+    appendChild(node) {
+      node.parentNode = this
+      styleNodes.set(node.id, node)
+    },
+  }
+  const documentFixture = {
+    head: documentElement,
+    documentElement,
+    readyState: 'complete',
+    getElementById(id) { return styleNodes.get(id) ?? null },
+    createElement() { return { id: '', textContent: '', parentNode: null } },
+    querySelectorAll() { return [] },
+    querySelector() { return null },
+    addEventListener() {},
+  }
+  class MutationObserverFixture {
+    constructor(callback) {
+      fixture.observerConstructions++
+      this.callback = callback
+    }
+    observe() {}
+    disconnect() {}
+  }
+  const windowFixture = {
+    mobileApp: { postMessage(message) { fixture.messages.push(message) } },
+  }
+  const locationFixture = {
+    hostname: 'm.shein.com',
+    href: 'https://m.shein.com/ar/Black-Dress-p-123.html',
+    pathname: '/ar/Black-Dress-p-123.html',
+    search: '',
+    hash: '',
+  }
+  runInNewContext(SHEIN_POLICY_DOCUMENT_START_SCRIPT, {
+    window: windowFixture,
+    document: documentFixture,
+    location: locationFixture,
+    MutationObserver: MutationObserverFixture,
+    URL,
+    setTimeout: () => 0,
+    getComputedStyle: () => ({ display: 'none', visibility: 'hidden', opacity: '0' }),
+  })
+  const beforeReady = exactControls.map((control) => control.clicks)
+  windowFixture.__otlobliStoreRuntimeReady = true
+  windowFixture.__otlobliSheinPolicyEngine.resume()
+  const afterFirstResume = exactControls.map((control) => control.clicks)
+  windowFixture.__otlobliSheinPolicyEngine.resume()
+  const afterSecondResume = exactControls.map((control) => control.clicks)
+  if (beforeReady.some((count) => count !== 0) ||
+      afterFirstResume.some((count) => count !== 1) ||
+      afterSecondResume.some((count) => count !== 1) ||
+      inexactControl.clicks !== 0 || outsideExactControl.clicks !== 0 ||
+      fixture.observerConstructions !== 1 || fixture.scopeQueries < 3 || fixture.controlQueries < 3) {
+    failures.push(`SHEIN login-later policy: exact pre-runtime nodes must defer and fire once on resume (${JSON.stringify({
+      beforeReady,
+      afterFirstResume,
+      afterSecondResume,
+      inexactClicks: inexactControl.clicks,
+      outsideExactClicks: outsideExactControl.clicks,
+      observerConstructions: fixture.observerConstructions,
+      scopeQueries: fixture.scopeQueries,
+      controlQueries: fixture.controlQueries,
+    })})`)
+  }
+} catch (error) {
+  failures.push(`SHEIN login-later deferred fixture: ${error instanceof Error ? error.message : String(error)}`)
+}
+
 // Parse the fully composed source exactly as the WebView receives it. The
 // evaluator follows the pure local module graph, so splitting responsibilities
 // across files cannot make the guard silently validate an empty import stub.
@@ -1444,6 +1596,8 @@ try {
       readyState: 'complete',
       pauses: 0,
       resumes: 0,
+      privacyResumes: 0,
+      resumeOrder: [],
       schedules: 0,
       coordinatorSchedules: 0,
       blockers: 0,
@@ -1483,9 +1637,9 @@ try {
        wake(2800,false,'complete');
        var atResolve={active:otlobliChallengeActive,resolvedAt:__otlobliChallengeResolvedAt,blockers:__fixture.blockers,security:__fixture.security};
        wake(3399,false,'complete');
-       var beforeSettlement={resumes:__fixture.resumes,blockers:__fixture.blockers,security:__fixture.security};
+       var beforeSettlement={resumes:__fixture.resumes,privacyResumes:__fixture.privacyResumes,blockers:__fixture.blockers,security:__fixture.security};
        wake(3400,false,'complete');
-       var atSettlement={resumes:__fixture.resumes,blockers:__fixture.blockers,security:__fixture.security,mainDue:otlobliMainDue};
+       var atSettlement={resumes:__fixture.resumes,privacyResumes:__fixture.privacyResumes,blockers:__fixture.blockers,security:__fixture.security,mainDue:otlobliMainDue};
        wake(3440,false,'complete');
        var afterReassessment={ticks:__fixture.normalTicks,args:__fixture.tickArguments.slice(),blockers:__fixture.blockers,security:__fixture.security};
        wake(3700,false,'complete');
@@ -1499,7 +1653,16 @@ try {
           __otlobliDocumentGeneration: 'doc-1',
           __otlobliSheinPolicyEngine: {
             pause: () => { challengeLifecycleFixture.pauses++ },
-            resume: () => { challengeLifecycleFixture.resumes++ },
+            resume: () => {
+              challengeLifecycleFixture.resumes++
+              challengeLifecycleFixture.resumeOrder.push('policy')
+            },
+          },
+          __otlobliSheinPrivacyCompat: {
+            resume: () => {
+              challengeLifecycleFixture.privacyResumes++
+              challengeLifecycleFixture.resumeOrder.push('privacy')
+            },
           },
           mobileApp: {
             postMessage: (message) => challengeLifecycleFixture.messages.push(
@@ -1527,7 +1690,8 @@ try {
     if (!protectedPassesStayedZero ||
         challengeLifecycle.whileLoading.active !== true || challengeLifecycle.whileLoading.resolvedAt !== 0 ||
         challengeLifecycle.atResolve.active !== false || challengeLifecycle.atResolve.resolvedAt !== 2800 ||
-        challengeLifecycle.beforeSettlement.resumes !== 0 || challengeLifecycle.atSettlement.resumes !== 1 ||
+        challengeLifecycle.beforeSettlement.resumes !== 0 || challengeLifecycle.beforeSettlement.privacyResumes !== 0 ||
+        challengeLifecycle.atSettlement.resumes !== 1 || challengeLifecycle.atSettlement.privacyResumes !== 1 ||
         challengeLifecycle.atSettlement.mainDue !== 0 ||
         challengeLifecycle.afterReassessment.ticks !== 1 ||
         challengeLifecycle.afterReassessment.args.join(',') !== 'true' ||
@@ -1536,6 +1700,7 @@ try {
         challengeLifecycle.afterRelease.navigation !== 0 ||
         challengeLifecycle.active !== false || challengeLifecycle.resolvedAt !== 0 ||
         challengeLifecycleFixture.pauses !== 1 || challengeLifecycleFixture.resumes !== 1 ||
+        challengeLifecycleFixture.privacyResumes !== 1 || challengeLifecycleFixture.resumeOrder.join(',') !== 'policy,privacy' ||
         challengeLifecycleFixture.schedules !== 1 ||
         challengeLifecycleFixture.messages.join(',') !== 'otlobliBackButtonState:,humanCheck:doc-1,humanCheckResolved:doc-1') {
       failures.push(`SHEIN human check: 1200ms absence/600ms settlement is not coordinator-exclusive (${JSON.stringify({
@@ -1931,28 +2096,33 @@ try {
 
 // Exercise the compatibility prelude against the exact failure shape found by
 // USB/browser diagnostics: a fixed, full-viewport SHEIN privacy layer whose
-// action is a styled div. First prove Reject all releases the layer, then prove
-// the iOS-only fallback releases an unresponsive shield without touching any
-// unrelated overlay selector.
+// action is a styled div. Prove both exact Accept all labels resume after a
+// challenge, then prove Reject all is not activated and the iOS-only fallback
+// releases the confirmed unresponsive shield.
 try {
   const { SHEIN_PRIVACY_COMPAT_SCRIPT } = evaluateInjectedScriptExports(
     'src/services/sheinPrivacyCompatScript.ts',
   )
 
-  const runPrivacyFixture = ({ includeReject }) => {
+  const runPrivacyFixture = ({ controlLabel, wakeWith }) => {
     const attributes = new Map()
+    const controlAttributes = new Map()
     const appliedStyles = new Map()
     const messages = []
     const scheduled = []
+    const globalListeners = new Map()
     let shieldVisible = true
-    let rejectClicks = 0
+    let challengeVisible = true
+    let controlClicks = 0
     let now = 0
-    const reject = {
+    const control = {
+      nodeType: 1,
+      tagName: 'DIV',
       value: '',
-      textContent: 'Reject all',
+      textContent: controlLabel || '',
       getAttribute(name) { return name === 'aria-label' ? '' : null },
-      setAttribute() {},
-      click() { rejectClicks++; shieldVisible = false },
+      setAttribute(name, value) { controlAttributes.set(name, value) },
+      click() { controlClicks++; shieldVisible = false },
       dispatchEvent() {},
     }
     const shield = {
@@ -1960,12 +2130,16 @@ try {
       getAttribute(name) { return attributes.get(name) || null },
       setAttribute(name, value) { attributes.set(name, value) },
       getBoundingClientRect() { return { left: 0, top: 0, width: 430, height: 932 } },
-      querySelectorAll() { return includeReject ? [reject] : [] },
+      querySelectorAll() { return controlLabel ? [control] : [] },
+    }
+    const challengeNode = {
+      getBoundingClientRect() { return { left: 20, top: 40, width: 390, height: 700 } },
     }
     const documentFixture = {
       documentElement: { clientWidth: 430, clientHeight: 932 },
       visibilityState: 'visible',
       querySelectorAll(selector) {
+        if (selector.includes('#challenge-form')) return challengeVisible ? [challengeNode] : []
         return selector === '[class*="shein_privacy_agreement"]' && shieldVisible ? [shield] : []
       },
       addEventListener() {},
@@ -1976,7 +2150,7 @@ try {
       innerHeight: 932,
       __otlobliNativePlatform: 'ios',
       getComputedStyle() {
-        return { display: 'flex', visibility: 'visible', pointerEvents: 'auto', position: 'fixed' }
+        return { display: 'flex', visibility: 'visible', pointerEvents: 'auto', position: 'fixed', opacity: '1' }
       },
       mobileApp: { postMessage(message) { messages.push(message) } },
     }
@@ -1986,6 +2160,9 @@ try {
       scheduled.push({ callback, delay })
       return scheduled.length
     }
+    const addEventListenerFixture = (name, callback) => {
+      globalListeners.set(name, callback)
+    }
     new Function(
       'window', 'document', 'location', 'setTimeout', 'addEventListener', 'MouseEvent', 'Date',
       SHEIN_PRIVACY_COMPAT_SCRIPT,
@@ -1994,28 +2171,57 @@ try {
       documentFixture,
       { hostname: 'm.shein.com', pathname: '/ar/', search: '', hash: '' },
       setTimeoutFixture,
-      () => {},
+      addEventListenerFixture,
       function MouseEvent() {},
       DateFixture,
     )
-    scheduled.sort((a, b) => a.delay - b.delay)
-    for (const task of scheduled) task.callback()
-    return { appliedStyles, attributes, messages, rejectClicks }
+    let scheduledIndex = 0
+    const drainScheduled = () => {
+      let passes = 0
+      while (scheduledIndex < scheduled.length && passes < 40) {
+        scheduled[scheduledIndex++].callback()
+        passes++
+      }
+      return passes
+    }
+    drainScheduled()
+    challengeVisible = false
+    if (wakeWith === 'event') globalListeners.get('privacyCookieAgreementShow')?.()
+    else windowFixture.__otlobliSheinPrivacyCompat?.resume()
+    drainScheduled()
+    return {
+      appliedStyles,
+      attributes,
+      controlAttributes,
+      messages,
+      controlClicks,
+      controlTag: control.tagName,
+      scheduledCount: scheduled.length,
+      hasResume: typeof windowFixture.__otlobliSheinPrivacyCompat?.resume === 'function',
+      hasPrivacyEvent: typeof globalListeners.get('privacyCookieAgreementShow') === 'function',
+    }
   }
 
-  const rejectFixture = runPrivacyFixture({ includeReject: true })
-  if (rejectFixture.rejectClicks !== 1 ||
-      !rejectFixture.messages.some((message) => message?.detail?.method === 'reject-all') ||
-      rejectFixture.appliedStyles.has('display')) {
-    failures.push('SHEIN privacy compatibility: styled Reject all control must resolve the shield first')
+  const acceptFixture = runPrivacyFixture({ controlLabel: 'Accept all', wakeWith: 'resume' })
+  const arabicAcceptFixture = runPrivacyFixture({ controlLabel: 'قبول الكل', wakeWith: 'event' })
+  for (const [label, fixture] of [['Accept all', acceptFixture], ['قبول الكل', arabicAcceptFixture]]) {
+    if (fixture.controlClicks !== 1 ||
+        fixture.controlTag !== 'DIV' ||
+        fixture.controlAttributes.get('data-otlobli-privacy-action') !== 'accept-all' ||
+        !fixture.messages.some((message) => message?.detail?.method === 'accept-all') ||
+        fixture.appliedStyles.has('display') || !fixture.hasResume || !fixture.hasPrivacyEvent ||
+        fixture.scheduledCount !== 18) {
+      failures.push(`SHEIN privacy compatibility: exact styled ${label} must run one bounded post-challenge burst`)
+    }
   }
 
-  const fallbackFixture = runPrivacyFixture({ includeReject: false })
+  const fallbackFixture = runPrivacyFixture({ controlLabel: 'Reject all', wakeWith: 'resume' })
   if (fallbackFixture.appliedStyles.get('pointer-events') !== 'none' ||
       fallbackFixture.appliedStyles.get('display') !== 'none' ||
       fallbackFixture.attributes.get('data-otlobli-privacy-neutralized') !== '1' ||
+      fallbackFixture.controlClicks !== 0 ||
       !fallbackFixture.messages.some((message) => message?.detail?.method === 'ios-invisible-shield-neutralized')) {
-    failures.push('SHEIN privacy compatibility: confirmed unresponsive iOS shield must release pointer events')
+    failures.push('SHEIN privacy compatibility: Reject all must stay untouched while confirmed iOS fallback releases the shield')
   }
 } catch (error) {
   failures.push(`SHEIN privacy compatibility fixture: ${error instanceof Error ? error.message : String(error)}`)

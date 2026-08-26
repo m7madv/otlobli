@@ -35,7 +35,7 @@
   <h1>دعوة طلب مشترك</h1>
   <p id="msg">هذه الدعوة تجمع صاحب الطلب مع صديق واحد فقط.</p>
   <a id="openBtn" class="btn">فتح في تطبيق otlobli</a>
-  <p class="hint" id="hint">إذا لم يفتح التطبيق تلقائيًا، اضغط الزر الأخضر.</p>
+  <p class="hint" id="hint">اضغط الزر الأخضر لفتح الدعوة في التطبيق.</p>
 </div>
 <script>
 (function() {
@@ -56,10 +56,6 @@
 
   var btn = document.getElementById('openBtn');
   btn.href = appUrl;
-
-  // Keep the manual action visible from first paint because WhatsApp's
-  // in-app browser can reject automatic custom-scheme navigation.
-  window.location.href = appUrl;
 })();
 </script>
 </body>

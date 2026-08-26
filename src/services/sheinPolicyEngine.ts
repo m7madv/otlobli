@@ -88,9 +88,10 @@ export const SHEIN_POLICY_DOCUMENT_START_SCRIPT = `
   if(existing&&existing.observer&&existing.observer.disconnect)try{existing.observer.disconnect();}catch(e){}
   var state={version:VERSION,installCount:1,observer:null,hiddenCount:0,mismatchCount:0,lastVerification:'',verify:null,pause:null,resume:null};
   window.__otlobliSheinPolicyEngine=state;
-  var MAX_ROOTS=96,MAX_NODES_PER_ROOT=320,MAX_MISMATCHES=8;
-  var pending=[],scheduled=false,reported={};
+  var MAX_ROOTS=96,MAX_NODES_PER_ROOT=320,MAX_MISMATCHES=8,MAX_DEFERRED_LOGIN_LATER=12;
+  var pending=[],deferredLoginLater=[],scheduled=false,reported={};
   var candidateSelector='a[href],area[href],form[action],button,[role="button"],[role="link"],[aria-label],[data-testid],[data-qa],[data-type],[data-role],[data-action],[data-name]';
+  var LOGIN_LATER_SCOPE_SELECTOR='.s_auth__block-login-tip',LOGIN_LATER_CONTROL_SELECTOR='button,[role="button"]';
   var blockedClasses={
     'blocked-login':1,'blocked-signup':1,'blocked-account':1,'blocked-country':1,
     'blocked-region':1,'blocked-language':1,'blocked-currency':1,'blocked-checkout':1
@@ -151,17 +152,54 @@ export const SHEIN_POLICY_DOCUMENT_START_SCRIPT = `
   }
   function exactLoginLaterLabel(value){
     var label=String(value||'').replace(/[\\u064B-\\u065F\\u0670]/g,'').replace(/\\s+/g,' ').trim().toLowerCase();
-    return /^(?:sign in later|log in later|\\u062a\\u0633\\u062c\\u064a\\u0644 \\u0627\\u0644\\u062f\\u062e\\u0648\\u0644 \\u0644\\u0627\\u062d\\u0642\\u0627)$/.test(label);
+    return /^(?:sign in later|log in later|login later|(?:\\u0627\\u0644)?\\u062a\\u0633\\u062c\\u064a\\u0644 (?:\\u0627\\u0644\\u062f\\u062e\\u0648\\u0644 )?\\u0644\\u0627\\u062d\\u0642\\u0627)$/.test(label);
   }
-  function dismissExactLoginLater(el,enabled){
-    if(!enabled||!el||el.nodeType!==1)return false;
+  function rememberDeferredLoginLater(el){
+    for(var i=deferredLoginLater.length-1;i>=0;i--){
+      if(deferredLoginLater[i]===el)return;
+      if(deferredLoginLater[i]&&deferredLoginLater[i].isConnected===false)deferredLoginLater.splice(i,1);
+    }
+    if(deferredLoginLater.length<MAX_DEFERRED_LOGIN_LATER)deferredLoginLater.push(el);
+  }
+  function dismissExactLoginLater(el,enabled,defer){
+    if(!el||el.nodeType!==1)return false;
     var role=String(el.getAttribute('role')||'').toLowerCase(),tag=String(el.tagName||'').toUpperCase();
-    if(role!=='button'&&tag!=='BUTTON'&&tag!=='A')return false;
+    if(role!=='button'&&tag!=='BUTTON')return false;
     if(!exactLoginLaterLabel(el.textContent)&&!exactLoginLaterLabel(el.getAttribute('aria-label'))&&!exactLoginLaterLabel(el.getAttribute('title')))return false;
     if(owned(el))return false;
+    el.setAttribute('data-otlobli-login-later-action','1');
+    if(!enabled){if(defer){rememberDeferredLoginLater(el);return true;}return false;}
     if(el.getAttribute('data-otlobli-login-later-fired')==='1')return true;
     el.setAttribute('data-otlobli-login-later-fired','1');
     try{el.click();return true;}catch(e){el.removeAttribute('data-otlobli-login-later-fired');return false;}
+  }
+  function flushDeferredLoginLater(){
+    if(window.__otlobliStoreRuntimeReady!==true||!deferredLoginLater.length)return false;
+    var route=routeClass(location.href);
+    if(route!=='product'&&route!=='blocked-login'){deferredLoginLater.length=0;return false;}
+    var nodes=deferredLoginLater.splice(0,MAX_DEFERRED_LOGIN_LATER);
+    deferredLoginLater.length=0;
+    for(var i=0;i<nodes.length;i++){
+      var node=nodes[i];
+      if(node&&node.isConnected!==false&&dismissExactLoginLater(node,true,false))return true;
+    }
+    return false;
+  }
+  function scanExactLoginLater(root,enabled,defer){
+    var scopes=[];
+    function addScope(scope){
+      if(!scope||scope.nodeType!==1||scopes.length>=8)return;
+      for(var i=0;i<scopes.length;i++)if(scopes[i]===scope)return;
+      scopes.push(scope);
+    }
+    if(root.matches&&root.matches(LOGIN_LATER_SCOPE_SELECTOR))addScope(root);
+    if(root.closest)addScope(root.closest(LOGIN_LATER_SCOPE_SELECTOR));
+    var nested=root.querySelectorAll?root.querySelectorAll(LOGIN_LATER_SCOPE_SELECTOR):[];
+    for(var i=0;i<nested.length&&i<8;i++)addScope(nested[i]);
+    for(var si=0;si<scopes.length;si++){
+      var controls=scopes[si].querySelectorAll?scopes[si].querySelectorAll(LOGIN_LATER_CONTROL_SELECTOR):[];
+      for(var ci=0;ci<controls.length&&ci<16;ci++)dismissExactLoginLater(controls[ci],enabled,defer);
+    }
   }
   function semanticClass(el){
     var aria=String(el.getAttribute('aria-label')||'').trim().toLowerCase();
@@ -203,7 +241,7 @@ export const SHEIN_POLICY_DOCUMENT_START_SCRIPT = `
     return semanticClass(el);
   }
   function hide(el,kind){
-    if(!kind||owned(el)||el.getAttribute('data-otlobli-policy-hidden')==='1')return;
+    if(!kind||owned(el)||el.getAttribute('data-otlobli-login-later-action')==='1'||el.getAttribute('data-otlobli-policy-hidden')==='1')return;
     el.setAttribute('data-otlobli-policy-hidden','1');
     el.setAttribute('data-otlobli-policy-class',kind);
     el.setAttribute('aria-hidden','true');
@@ -213,10 +251,12 @@ export const SHEIN_POLICY_DOCUMENT_START_SCRIPT = `
   function scan(root){
     if(challengeActive())return;
     if(!root||root.nodeType!==1)return;
-    var route=routeClass(location.href),canDismiss=window.__otlobliStoreRuntimeReady===true&&(route==='product'||route==='blocked-login');
-    if(root.matches&&root.matches(candidateSelector)&&!dismissExactLoginLater(root,canDismiss))hide(root,classify(root));
+    var route=routeClass(location.href),eligibleRoute=route==='product'||route==='blocked-login';
+    var runtimeReady=window.__otlobliStoreRuntimeReady===true,canDismiss=runtimeReady&&eligibleRoute,canDefer=!runtimeReady&&eligibleRoute;
+    scanExactLoginLater(root,canDismiss,canDefer);
+    if(root.matches&&root.matches(candidateSelector))hide(root,classify(root));
     var nodes=root.querySelectorAll?root.querySelectorAll(candidateSelector):[];
-    for(var i=0;i<nodes.length&&i<MAX_NODES_PER_ROOT;i++)if(!dismissExactLoginLater(nodes[i],canDismiss))hide(nodes[i],classify(nodes[i]));
+    for(var i=0;i<nodes.length&&i<MAX_NODES_PER_ROOT;i++)hide(nodes[i],classify(nodes[i]));
     if(nodes.length>MAX_NODES_PER_ROOT)mismatch('subtree-cap');
   }
   function enqueue(root){
@@ -276,6 +316,7 @@ export const SHEIN_POLICY_DOCUMENT_START_SCRIPT = `
     }
     var root=document.documentElement;
     if(!root)return;
+    flushDeferredLoginLater();
     scan(root);
     if(!state.observer){
       state.observer=new MutationObserver(function(records){

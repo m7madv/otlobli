@@ -85,6 +85,11 @@ export const OTLOBLI_SHEIN_HUMAN_CHECK_JS = `
         window.__otlobliSheinPolicyEngine.resume();
       }
     } catch (e) {}
+    try {
+      if (window.__otlobliSheinPrivacyCompat && window.__otlobliSheinPrivacyCompat.resume) {
+        window.__otlobliSheinPrivacyCompat.resume();
+      }
+    } catch (e) {}
     return true;
   }
 

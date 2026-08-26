@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.otlobli.app",
+      "sha256_cert_fingerprints": [
+        "E0:B0:F4:4C:C6:77:88:8F:95:35:C0:1C:91:25:07:7E:09:B0:14:BD:B9:09:6D:C2:81:3E:3B:D0:6F:17:F7:84"
+      ]
+    }
+  }
+]
