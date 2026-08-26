@@ -1263,6 +1263,28 @@ assertDedicatedIosNativeNavigationParity(iosSheinBrowser, 'dedicated iOS store s
 assertIosCapgoNativeNavigation(inAppBrowserPatchAdded, inAppBrowserPatchAdded, 'iOS Capgo patch')
 assertAndroidCapgoNativeNavigation(inAppBrowserPatchAdded, 'Android Capgo patch', { requireInsetSources: false })
 
+const blankNavigationStateLine =
+  'navigationController?.setNavigationBarHidden(blankNavigationTab, animated: !blankNavigationTab)'
+const legacyNavigationStateLine =
+  'navigationController?.setNavigationBarHidden(false, animated: true)'
+
+if (!appliedCapgoIosController.includes(blankNavigationStateLine)) {
+  throw new Error('Applied iOS Capgo must keep the blank toolbar navigation bar hidden')
+}
+if (!inAppBrowserPatchAdded.includes(blankNavigationStateLine)) {
+  throw new Error('Capgo patch must persist the blank toolbar navigation bar guard')
+}
+
+const capgoSetUpStateStart = appliedCapgoIosController.indexOf('func setUpState()')
+const capgoSetUpStateEnd = appliedCapgoIosController.indexOf('func rollbackState()', capgoSetUpStateStart)
+const capgoSetUpState = appliedCapgoIosController.slice(capgoSetUpStateStart, capgoSetUpStateEnd)
+if (capgoSetUpStateStart < 0 || capgoSetUpStateEnd < 0) {
+  throw new Error('Applied iOS Capgo setUpState body could not be verified')
+}
+if (capgoSetUpState.includes(legacyNavigationStateLine)) {
+  throw new Error('Applied iOS Capgo setUpState restored the blank navigation bar')
+}
+
 if (/^\s*params\.topMargin\s*=\s*statusBarHeight\s*;/m.test(appliedCapgoAndroid)) {
   throw new Error('Applied Android Capgo restored the unconditional Android 15/16 AppBar status inset')
 }

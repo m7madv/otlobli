@@ -4123,6 +4123,15 @@ index 97a2fc1..f823863 100644
          forwardBarButtonItem.isEnabled = webView?.canGoForward ?? false
  
          let updateReloadBarButtonItem: (UIBarButtonItem, Bool) -> UIBarButtonItem = {
+@@ -2061,7 +3469,7 @@ fileprivate extension WKWebViewController {
+     }
+ 
+     func setUpState() {
+-        navigationController?.setNavigationBarHidden(false, animated: true)
++        navigationController?.setNavigationBarHidden(blankNavigationTab, animated: !blankNavigationTab)
+ 
+         // Always hide toolbar since we never want it
+         navigationController?.setToolbarHidden(true, animated: true)
 @@ -2257,6 +3665,7 @@ fileprivate extension WKWebViewController {
      }
  
