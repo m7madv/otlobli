@@ -1,3 +1,64 @@
+# Active handoff — v86.244/1109 full SHEIN auth-route exit (2026-08-26)
+
+Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
+`codex/otlobli-v86-212-testflight-auth`. Standard Android/iOS are
+`86.244 (1109)`. This batch is intended for internal TestFlight only; App Store
+Review must remain disabled.
+
+The user's screenshot is the live full SHEIN route `/ar/user/login`, not the
+optional `.s_auth__block-login-tip` interstitial. The existing route classifier
+already returns `blocked-login`, but SHEIN's same-document History API routing
+bypassed iOS `decidePolicy` and Android `shouldOverrideUrlLoading`. iOS KVO and
+Android `doUpdateVisitedHistory` observed the new URL without leaving it, while
+the full page could open Facebook externally.
+
+v86.244 reuses those existing native URL events. A blocked History route gets
+one native Back; a single bounded `200ms` check falls back to
+`https://m.shein.com/ar/` only if Back did not leave the blocked route, while
+missing Back history uses Home immediately. Every popup from that blocked page
+is canceled before internal popup handling or an external intent, so Google or
+Facebook cannot escape to another app. No DOM selectors, extra observer,
+persistent interval, reload, WebView recreation, or social-OAuth implementation
+was added. The clean Capgo `8.6.25` install accepts the persistent patch.
+
+Preserve `otlobliForceRecompose()`, exact `0.25s` app-active delay, scroll and
+constraint restoration, Android `otlobliOnHostResume()`, and the
+`JSON.stringify` region comparison. Region, cookies/session, human verification,
+payment, wallet, completed orders, and Temu are untouched. The exact
+login-later and privacy behavior from v86.243 remains separate and unchanged.
+
+`npm ci`, all release/service/store/freeze/security guards, full build,
+performance budgets, Android/iOS sync, Android debug/release Java compilation,
+R8 APK/AAB build, signatures, package identity, and artifact guards pass.
+Budgets are startup `673,159/720,000`, total JS gzip `300,219/370,000`, CSS
+`69,989/70,000`, shipped store scripts `318,044/470,000`, Temu Gecko
+`172,513/180,000`, and store source `581,616/600,000`; no limit changed.
+
+Note 8 was updated in place to `86.244 (1109)`, retains the `120000ms` screen
+timeout, and cold-launched without a matching fatal/ANR/OOM. This is packaging
+and weak-device smoke evidence, not acceptance of the reported iPhone route.
+
+The TestFlight phone-auth preflight initially found session `0` in an in-memory
+`error` state after an old connection termination, with zero risk, no pause,
+and no QR. No reconnect POST was sent in that state. Restarting only the
+`otlobli-wa` PM2 process restored the persisted session to exact safe `idle`;
+one protected reconnect POST then returned connected. Final health is
+`whatsappConnected=true`, `whatsappSenderReady=true`, session store/OTP ready,
+with no session deletion, QR, or customer OTP sent.
+
+- APK: `artifacts/release-86.244/Otlobli-86.244-1109-release.apk`,
+  `4,112,470` bytes, SHA-256
+  `917605B307DC5A32FF10430181965EE686FEDBEBB36F0EF7B817F0EAAE1820CB`.
+- AAB: `artifacts/release-86.244/Otlobli-86.244-1109-release.aab`,
+  `5,773,596` bytes, SHA-256
+  `15D0DE97BA2F75E319188BB2412B550178EB61756995432377C25FC270DFDE89`.
+
+The immediate remaining task is the exact-source TestFlight upload and internal
+distribution. After delivery, the user must test first-product guest entry on
+iPhone 16 Pro Max, confirm the full auth page never remains and no external
+browser opens, then run five background/resume cycles plus a separate
+force-quit/cold-launch. Do not claim device acceptance from CI.
+
 # Active handoff — v86.243/1108 post-challenge SHEIN resume and verified group links (2026-08-26)
 
 Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on

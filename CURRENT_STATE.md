@@ -1,3 +1,63 @@
+# v86.244/1109 — مغادرة صفحة دخول SHEIN الكاملة ومنع OAuth الخارجي (2026-08-26)
+
+تابع فقط داخل
+`C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` على الفرع
+`codex/otlobli-v86-212-testflight-auth`. الإصداران القياسيان Android وiOS هما
+`86.244 (1109)`. لم تُرسل هذه الدفعة إلى App Review.
+
+الصورة وتجربة الصفحة الحية أثبتتا أن الواجهة المبلغ عنها هي صفحة SHEIN
+الكاملة `/ar/user/login`، وليست نافذة `.s_auth__block-login-tip` ذات زر
+«تسجيل لاحقًا». كان المسار مصنفًا أصلًا `blocked-login` وتمنعه قرارات التنقل
+الشبكية، لكن انتقال SHEIN الداخلي عبر History API يغيّر URL من دون المرور
+بـ`WKNavigationDelegate` أو `shouldOverrideUrlLoading`. لذلك كان iOS يحفظ
+المسار عبر مراقب URL، وكان Android يمرره عبر `doUpdateVisitedHistory`، ثم
+أتاح popup الخاص بـFacebook الخروج إلى Safari.
+
+الإصلاح لا يصلح Google أو Facebook ولا يمس DOM. عند وصول إشعار URL الموجود
+أصلًا إلى أي مسار محجوب، ينفذ المتصفح الأصلي رجوعًا واحدًا. إذا أعاد SHEIN
+صفحة الدخول بعد الرجوع، يفحص العنوان مرة واحدة بعد `200ms` ويعود إلى Home؛
+وإذا لم يوجد سجل رجوع يذهب إلى Home مباشرة. وأي رابط أو نافذة منبثقة صادرة
+من صفحة الدخول تُلغى قبل فتح Safari/تطبيق خارجي. المسار
+نفسه مطبق في iOS المخصص وAndroid Capgo، والرقعة الدائمة تقبلها حزمة npm
+نظيفة. لا يوجد observer أو interval أو DOM scan أو reload/WebView جديدة،
+والفحص الاحتياطي مؤقت أحادي محدود لا يعمل إلا عند وقوع المسار المحجوب.
+
+لم تتغير SHEIN region/cookies/session أو التحقق البشري أو الدفع أو الطلبات أو
+المحفظة أو Temu. بقيت حرفيًا `otlobliForceRecompose()`، مهلة
+`appDidBecomeActive` ذات `0.25s`، استعادة scroll/constraints، دفاع Android
+`otlobliOnHostResume()`، ومقارنة المنطقة عبر `JSON.stringify`.
+
+نجح `npm ci` وتطبيق الرقعة من الصفر، واختبارات route والخدمات، وحارس تجمد
+SHEIN، وحارس سطح المتجر، ومسح الأسرار، والبناء والمزامنة للمنصتين. لم تُرفع
+ميزانية: startup `673,159/720,000`، إجمالي JS gzip `300,219/370,000`، CSS
+`69,989/70,000`، نصوص المتاجر `318,044/470,000`، Temu Gecko
+`172,513/180,000`، ومصدر المتاجر `581,616/600,000`.
+
+بُني Android Release الموقّع وثُبت كتحديث يحفظ البيانات على Note 8. الجهاز
+يؤكد `86.244 (1109)` ومهلة الشاشة `120000ms`، وأقلع التطبيق من دون
+fatal/ANR/OOM مطابق. هذا لا يثبت صفحة الدخول على iPhone أو دورة lifecycle.
+
+قبل TestFlight أعادت صحة الهاتف `status=ok` لكن جلسة WhatsApp `0` كانت
+`error` بعد انقطاع قديم، مع `riskScore=0` ومن دون QR أو إيقاف. لم يُرسل طلب
+إعادة اتصال في تلك الحالة. أُعيد تشغيل عملية `otlobli-wa` فقط لإزالة الحالة
+الذاكرية، ثم أثبت الفحص `idle/connected=false/qrAvailable=false` واعتمادات
+سليمة؛ أُرسل POST محمي واحد إلى `/api/whatsapp/sessions/0/reconnect`. النتيجة
+النهائية `connected=true` و`whatsappConnected=true` و
+`whatsappSenderReady=true`، بلا حذف جلسة أو QR أو OTP تجريبي.
+
+- APK: `artifacts/release-86.244/Otlobli-86.244-1109-release.apk` —
+  `4,112,470` بايت، SHA-256
+  `917605B307DC5A32FF10430181965EE686FEDBEBB36F0EF7B817F0EAAE1820CB`.
+- AAB: `artifacts/release-86.244/Otlobli-86.244-1109-release.aab` —
+  `5,773,596` بايت، SHA-256
+  `15D0DE97BA2F75E319188BB2412B550178EB61756995432377C25FC270DFDE89`.
+
+رفع TestFlight الداخلي للبناء نفسه هو الخطوة التالية في هذه المهمة. بعد
+وصوله يلزم على iPhone 16 Pro Max فتح أول منتج من جلسة غير مسجلة، والتأكد أن
+صفحة الدخول لا تبقى وأن Google/Facebook لا يخرجان من التطبيق، ثم خمس دورات
+background/resume واختبار force-quit/cold-launch مستقل. لا يُدعى قبول الجهاز
+من البناء أو Note 8.
+
 # v86.243/1108 — استئناف SHEIN بعد التحقق وروابط المجموعة المباشرة (2026-08-26)
 
 تابع فقط داخل

@@ -2277,8 +2277,100 @@ try {
       historyDecision < rootDecision || !nativeBackSource.includes('lockNativeBackBriefly()')) {
     failures.push('SHEIN native back: cart must stay first and canonical Home must exit before WebKit history')
   }
+
+  const observedRouteStart = nativeBrowserSource.indexOf('private func observeStoreURL(on webView: WKWebView)')
+  const observedRouteEnd = nativeBrowserSource.indexOf('private func attachWebView(', observedRouteStart)
+  const observedRouteSource = nativeBrowserSource.slice(observedRouteStart, observedRouteEnd)
+  const recoveryStart = nativeBrowserSource.indexOf('private func recoverFromBlockedSheinRoute(')
+  const recoveryEnd = nativeBrowserSource.indexOf('private func isOutboundFromBlockedSheinRoute(', recoveryStart)
+  const recoverySource = nativeBrowserSource.slice(recoveryStart, recoveryEnd)
+  if (observedRouteStart < 0 || observedRouteEnd < 0 || recoveryStart < 0 || recoveryEnd < 0 ||
+      !observedRouteSource.includes('if self.isBlockedRoute(route)') ||
+      observedRouteSource.indexOf('self.recoverFromBlockedSheinRoute(') > observedRouteSource.indexOf('self.savedURL = changedURL') ||
+      !recoverySource.includes('if webView.canGoBack') ||
+      !recoverySource.includes('webView.goBack()') ||
+      !recoverySource.includes('DispatchQueue.main.asyncAfter(deadline: .now() + 0.2)') ||
+      !recoverySource.includes('self.isBlockedRoute(self.classifySheinRoute(currentURL))') ||
+      !recoverySource.includes('https://m.shein.com/ar/') ||
+      ['MutationObserver', 'setInterval(', 'location.reload('].some((marker) => recoverySource.includes(marker))) {
+    failures.push('SHEIN iOS SPA auth route: the existing URL observer must leave blocked login once without persisting it or adding recurring work')
+  }
+
+  const popupSignature = nativeBrowserSource.indexOf('createWebViewWith configuration:')
+  const popupStart = nativeBrowserSource.lastIndexOf('public func webView(', popupSignature)
+  const popupEnd = nativeBrowserSource.indexOf('decidePolicyFor navigationAction:', popupSignature)
+  const popupSource = nativeBrowserSource.slice(popupStart, popupEnd)
+  const popupBlockedGuard = popupSource.indexOf('isBlockedRoute(classifySheinRoute(source))')
+  const popupExternalOpen = popupSource.indexOf('UIApplication.shared.open(url)')
+  if (popupStart < 0 || popupEnd < 0 || popupBlockedGuard < 0 || popupExternalOpen < 0 ||
+      popupBlockedGuard > popupExternalOpen || !popupSource.includes('recoverFromBlockedSheinRoute(')) {
+    failures.push('SHEIN iOS SPA auth route: every popup from the blocked login page must be cancelled before any external application can open')
+  }
+
+  const outboundStart = nativeBrowserSource.indexOf('private func isOutboundFromBlockedSheinRoute(')
+  const outboundEnd = nativeBrowserSource.indexOf('private func emit(', outboundStart)
+  const outboundSource = nativeBrowserSource.slice(outboundStart, outboundEnd)
+  if (outboundStart < 0 || outboundEnd < 0 ||
+      !outboundSource.includes('isBlockedRoute(classifySheinRoute(source))') ||
+      !outboundSource.includes('destinationRoute == .external || destinationRoute == .unknown') ||
+      (nativeBrowserSource.match(/isOutboundFromBlockedSheinRoute\(url, in: webView\)/g)?.length ?? 0) !== 2) {
+    failures.push('SHEIN iOS SPA auth route: Google/Facebook outbound navigation is not fail-closed while the blocked page is being left')
+  }
 } catch (error) {
   failures.push(`dedicated iOS SHEIN browser structure: ${error instanceof Error ? error.message : String(error)}`)
+}
+
+try {
+  const androidBrowserSources = [
+    readFileSync(resolve(projectRoot, 'node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java'), 'utf8'),
+    capgoPatchAdded,
+  ]
+  for (const [index, source] of androidBrowserSources.entries()) {
+    const label = index === 0 ? 'applied source' : 'persistent patch'
+    const recoveryStart = source.indexOf('private boolean otlobliRecoverBlockedSheinHistoryRoute(')
+    const recoveryEnd = source.indexOf('private boolean otlobliIsOutboundFromBlockedSheinRoute(', recoveryStart)
+    const recoverySource = source.slice(recoveryStart, recoveryEnd)
+    if (recoveryStart < 0 || recoveryEnd < 0 ||
+        !recoverySource.includes('otlobliIsBlockedSheinRoute(routeClass)') ||
+        !recoverySource.includes('if (view.canGoBack())') ||
+        !recoverySource.includes('view.goBack();') ||
+        !recoverySource.includes('view.postDelayed(() ->') ||
+        !recoverySource.includes('String currentUrl = view.getUrl();') ||
+        !recoverySource.includes('otlobliIsBlockedSheinRoute(otlobliClassifySheinRoute(currentUrl))') ||
+        !recoverySource.includes('}, 200L);') ||
+        !recoverySource.includes('view.loadUrl("https://m.shein.com/ar/");') ||
+        ['MutationObserver', 'setInterval(', 'reload('].some((marker) => recoverySource.includes(marker)) ||
+        !source.includes('if (otlobliRecoverBlockedSheinHistoryRoute(view, url))') ||
+        !source.includes('if (otlobliIsOutboundFromBlockedSheinRoute(url))')) {
+      failures.push(`SHEIN Android SPA auth route (${label}): visited-history recovery or outbound fail-closed guard is missing`)
+    }
+
+    const popupVerificationSource = index === 0 ? source : capgoPatchSource
+    const popupStart = index === 0
+      ? popupVerificationSource.indexOf('public boolean onCreateWindow(WebView view, boolean isDialog, boolean isUserGesture, android.os.Message resultMsg)')
+      : popupVerificationSource.indexOf('String sourceUrl = view != null ? view.getUrl() : null;')
+    const popupAnchor = popupVerificationSource.indexOf('WebView.HitTestResult result = view.getHitTestResult();', popupStart)
+    const popupSource = popupVerificationSource.slice(popupStart, index === 0
+      ? popupVerificationSource.indexOf('public void onCloseWindow(', popupStart)
+      : popupAnchor + 'WebView.HitTestResult result = view.getHitTestResult();'.length)
+    const popupRecovery = popupSource.indexOf('otlobliRecoverBlockedSheinHistoryRoute(view, sourceUrl)')
+    if (popupStart < 0 || popupAnchor < 0 || popupRecovery < 0 || popupRecovery > popupSource.indexOf('WebView.HitTestResult result')) {
+      failures.push(`SHEIN Android SPA auth route (${label}): blocked login popups are not cancelled before target=_blank handling`)
+    } else if (index === 0) {
+      for (const outboundMarker of [
+        'shouldLoadBlankTargetInCurrentWebView(data)',
+        'permissionHandler.createManagedPopupWindow',
+        'Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(data))',
+      ]) {
+        const outboundIndex = popupSource.indexOf(outboundMarker)
+        if (outboundIndex < 0 || popupRecovery > outboundIndex) {
+          failures.push(`SHEIN Android SPA auth route (${label}): popup recovery must precede ${outboundMarker}`)
+        }
+      }
+    }
+  }
+} catch (error) {
+  failures.push(`SHEIN Android SPA auth route guard: ${error instanceof Error ? error.message : String(error)}`)
 }
 
 try {

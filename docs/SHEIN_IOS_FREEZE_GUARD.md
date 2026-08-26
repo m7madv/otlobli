@@ -2,6 +2,24 @@
 
 هذه قاعدة إصدار إلزامية وليست ملاحظة تاريخية.
 
+## v86.244 — عكس auth route من KVO من دون تغيير lifecycle
+
+- التغيير في متصفح SHEIN المخصص يعيد استخدام مراقب `WKWebView.url` الموجود
+  أصلًا لإمساك History API الذي لا يمر بـ`decidePolicy`. المسار
+  `blocked-login` لا يُحفظ كـ`savedURL`؛ يُنفذ Back واحد، وHome fallback فقط
+  عند غياب history أو عندما يثبت فحص أحادي بعد `200ms` أن Back لم يغادر.
+- خلال المغادرة فقط، كل popup من صفحة محجوبة يُلغى قبل
+  `UIApplication.shared.open`. لا يتغير سلوك الروابط الخارجية من صفحات SHEIN
+  العامة المسموحة.
+- لا foreground hook أو detach/reattach أو recompose burst أو timer دوري أو
+  observer أو DOM scan أو reload جديد. بقيت حرفيًا
+  `WKWebViewController.otlobliForceRecompose()`، مهلة `appDidBecomeActive`
+  البالغة `0.25s`، استعادة scroll/constraints، دفاع Android resume، ومقارنة
+  المنطقة عبر `JSON.stringify`.
+- نجح `verify:shein-freeze-guard` والبناء والمزامنة. يلزم اختبار iPhone 16
+  الحقيقي لمسار الدخول، ثم خمس دورات background/resume وforce-quit/cold
+  launch مستقل؛ لا يُستنتج القبول من CI أو Note 8.
+
 ## v86.243 — استئناف السياسة بعد التحقق من دون تغيير lifecycle
 
 - أثبت المستخدم أن صفحة SHEIN المتوقفة بعد التحقق تعمل تمامًا بعد الدخول إلى

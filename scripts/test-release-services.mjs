@@ -495,6 +495,7 @@ const routeCases = [
   ['https://m.shein.com/ar/search?search=dress', 'search'],
   ['https://m.shein.com/ar/Solid-Dress-p-123456.html', 'product'],
   ['https://m.shein.com/user/login', 'blocked-login'],
+  ['https://m.shein.com/ar/user/login?redirection=%2Far%2Fproduct-p-123456.html', 'blocked-login'],
   ['https://m.shein.com/auth', 'blocked-login'],
   ['https://m.shein.com/user/auth', 'blocked-login'],
   ['https://m.shein.com/user/register', 'blocked-signup'],

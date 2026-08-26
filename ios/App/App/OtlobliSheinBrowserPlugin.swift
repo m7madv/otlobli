@@ -29,7 +29,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         case external, unknown
     }
 
-    private static let sheinPolicyVersion = "2026.08.21-v86.208-policy-v1"
+    private static let sheinPolicyVersion = "2026.08.26-v86.244-auth-route-v1"
 
     public let identifier = "OtlobliSheinBrowserPlugin"
     public let jsName = "OtlobliSheinBrowser"
@@ -51,6 +51,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
     private var lastSafePublicURL: URL?
     private var lastBlockedRoute: SheinRouteClass?
     private var lastBlockedRouteAt: Date?
+    private var recoveringBlockedRouteURL: URL?
     private var documentStartScript = ""
     private var loadingCoverEnabled = true
     private var isBrowserVisible = false
@@ -241,7 +242,8 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
               surfaceView == nil,
               let hostView = bridge?.viewController?.view,
               let targetURL = request?.url ?? savedURL,
-              isAllowedStoreURL(targetURL) else { return false }
+              isAllowedStoreURL(targetURL),
+              !isBlockedRoute(classifySheinRoute(targetURL)) else { return false }
 
         let contentController = WKUserContentController()
         for name in Self.messageHandlers {
@@ -329,7 +331,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
     }
 
     private func destroyRenderSurface() {
-        if let currentURL = storeWebView?.url, isAllowedStoreURL(currentURL) {
+        if let currentURL = storeWebView?.url, isSafePublicRoute(currentURL) {
             savedURL = currentURL
         }
         urlObservation?.invalidate()
@@ -356,6 +358,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         nativeStoreSwitchDiscoveryShown = false
         nativeBackButton = nil
         nativeBackTopConstraint = nil
+        recoveringBlockedRouteURL = nil
         nativeBackTarget = "home"
         nativeBackLocked = false
         humanChallengeNavigationLocked = false
@@ -425,6 +428,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         lastSafePublicURL = nil
         lastBlockedRoute = nil
         lastBlockedRouteAt = nil
+        recoveringBlockedRouteURL = nil
         documentStartScript = ""
         isBrowserVisible = false
         if emitEvent && !closingId.isEmpty {
@@ -439,6 +443,12 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
                   self.storeWebView === webView,
                   let changedURL = change.newValue ?? webView.url,
                   self.isAllowedStoreURL(changedURL) else { return }
+            let route = self.classifySheinRoute(changedURL)
+            if self.isBlockedRoute(route) {
+                self.recoverFromBlockedSheinRoute(route, url: changedURL, in: webView)
+                return
+            }
+            self.recoveringBlockedRouteURL = nil
             self.savedURL = changedURL
             if self.isSafePublicRoute(changedURL) {
                 self.lastSafePublicURL = changedURL
@@ -536,6 +546,63 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
             "version": Self.sheinPolicyVersion,
             "routeClass": route.rawValue
         ])
+    }
+
+    /// Normal delegate policy catches network navigations. SHEIN can also
+    /// enter `/user/login` with same-document History API routing, which is
+    /// observable through WKWebView.url but does not call decidePolicy. Reuse
+    /// that existing URL observation and perform one native Back action, just
+    /// like SHEIN's own visible Back control. A single bounded check then falls
+    /// back to Home if Back did not actually leave the blocked route. There is
+    /// no persistent timer, DOM observer, or document scan.
+    private func recoverFromBlockedSheinRoute(
+        _ route: SheinRouteClass,
+        url blockedURL: URL,
+        in webView: WKWebView
+    ) {
+        emitPolicyBlocked(route)
+        if recoveringBlockedRouteURL == blockedURL { return }
+
+        recoveringBlockedRouteURL = blockedURL
+
+        DispatchQueue.main.async { [weak self, weak webView] in
+            guard let self,
+                  let webView,
+                  self.storeWebView === webView,
+                  self.recoveringBlockedRouteURL == blockedURL else { return }
+            if webView.canGoBack {
+                webView.goBack()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self, weak webView] in
+                    guard let self,
+                          let webView,
+                          self.storeWebView === webView,
+                          self.recoveringBlockedRouteURL == blockedURL,
+                          let currentURL = webView.url,
+                          self.isBlockedRoute(self.classifySheinRoute(currentURL)),
+                          let home = URL(string: "https://m.shein.com/ar/") else { return }
+                    webView.load(URLRequest(
+                        url: home,
+                        cachePolicy: .useProtocolCachePolicy,
+                        timeoutInterval: 45
+                    ))
+                }
+                return
+            }
+            if let home = URL(string: "https://m.shein.com/ar/") {
+                webView.load(URLRequest(
+                    url: home,
+                    cachePolicy: .useProtocolCachePolicy,
+                    timeoutInterval: 45
+                ))
+            }
+        }
+    }
+
+    private func isOutboundFromBlockedSheinRoute(_ destination: URL, in webView: WKWebView) -> Bool {
+        guard let source = webView.url,
+              isBlockedRoute(classifySheinRoute(source)) else { return false }
+        let destinationRoute = classifySheinRoute(destination)
+        return destinationRoute == .external || destinationRoute == .unknown
     }
 
     private func emit(_ name: String, detail: [String: Any]? = nil, extra: [String: Any] = [:]) {
@@ -1306,7 +1373,8 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
 
     public func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
         guard webView === storeWebView else { return }
-        let recoveryURL = webView.url ?? savedURL
+        let recoveryURL = webView.url.flatMap { isSafePublicRoute($0) ? $0 : nil } ??
+            lastSafePublicURL ?? savedURL
         emit("messageFromWebview", detail: [
             "type": "sheinWebContentRestarted",
             "url": recoveryURL?.absoluteString ?? ""
@@ -1341,7 +1409,19 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         for navigationAction: WKNavigationAction,
         windowFeatures: WKWindowFeatures
     ) -> WKWebView? {
+        if navigationAction.targetFrame == nil,
+           let source = webView.url,
+           isBlockedRoute(classifySheinRoute(source)) {
+            recoverFromBlockedSheinRoute(classifySheinRoute(source), url: source, in: webView)
+            return nil
+        }
         if navigationAction.targetFrame == nil, let url = navigationAction.request.url {
+            if isOutboundFromBlockedSheinRoute(url, in: webView),
+               let source = webView.url {
+                let sourceRoute = classifySheinRoute(source)
+                recoverFromBlockedSheinRoute(sourceRoute, url: source, in: webView)
+                return nil
+            }
             let route = classifySheinRoute(url)
             if isBlockedRoute(route) {
                 emitPolicyBlocked(route)
@@ -1374,6 +1454,14 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
                 navigationType: nativeNavigationTypeName(navigationAction.navigationType)
             )
             pendingNativeBackTraceAction = nil
+        }
+        if isTopLevel,
+           isOutboundFromBlockedSheinRoute(url, in: webView),
+           let source = webView.url {
+            let sourceRoute = classifySheinRoute(source)
+            recoverFromBlockedSheinRoute(sourceRoute, url: source, in: webView)
+            decisionHandler(.cancel)
+            return
         }
         if scheme == "http" || scheme == "https" {
             if isTopLevel && !isAllowedStoreURL(url) {

@@ -202,7 +202,7 @@ index 7328e0b..999bc51 100644
          copy.setProxyRequestsPattern(proxyRequestsPattern);
          copy.setProxyRequests(proxyRequests);
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
-index 8ae3e61..11b749c 100644
+index 8ae3e61..1ca0e4f 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
 +++ b/node_modules/@capgo/capacitor-inappbrowser/android/src/main/java/ee/forgr/capacitor_inappbrowser/WebViewDialog.java
 @@ -14,15 +14,23 @@ import android.graphics.Bitmap;
@@ -297,7 +297,7 @@ index 8ae3e61..11b749c 100644
      private static final int MAX_MANAGED_DOWNLOAD_REDIRECTS = 10;
      private static final int BLOB_DOWNLOAD_CHUNK_BYTES = 64 * 1024;
      private static final long MAX_LEGACY_BLOB_DOWNLOAD_BYTES = 512L * 1024L;
-@@ -333,6 +376,59 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -333,6 +376,60 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
      private String proxyAccessToken;
      private final ExecutorService executorService = Executors.newCachedThreadPool();
      private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -314,10 +314,11 @@ index 8ae3e61..11b749c 100644
 +        otlobliStoreSwitchDiscoveryShown = true;
 +        showOtlobliStoreSwitchDiscoveryHint();
 +    };
-+    private static final String OTLOBLI_SHEIN_POLICY_VERSION = "2026.08.21-v86.208-policy-v1";
++    private static final String OTLOBLI_SHEIN_POLICY_VERSION = "2026.08.26-v86.244-auth-route-v1";
 +    private String otlobliLastSafeSheinUrl = "";
 +    private String otlobliLastBlockedSheinRoute = "";
 +    private long otlobliLastBlockedSheinRouteAt = 0L;
++    private String otlobliRecoveringBlockedSheinUrl = "";
 +    private boolean otlobliHumanChallengeResolutionReported = false;
 +    private String otlobliHumanChallengeDocumentGeneration = "";
 +    private volatile String otlobliCurrentTopLevelUrl = "";
@@ -357,7 +358,7 @@ index 8ae3e61..11b749c 100644
      private final Map<String, BlobDownloadSession> blobDownloadSessions = new ConcurrentHashMap<>();
      private final Map<String, ClientCertificateIdentity> clientCertificateIdentities = new ConcurrentHashMap<>();
      private int iconColor = Color.BLACK; // Default icon color
-@@ -382,6 +478,17 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -382,6 +479,17 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          this.capacitorWebView = capacitorWebView;
      }
  
@@ -375,7 +376,7 @@ index 8ae3e61..11b749c 100644
      public void setInstanceId(String id) {
          this.instanceId = id != null ? id : "";
      }
-@@ -433,6 +540,1092 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -433,6 +541,1137 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          openWebViewResolved = true;
      }
  
@@ -1413,6 +1414,51 @@ index 8ae3e61..11b749c 100644
 +        otlobliEmitSheinMessage("sheinPolicyRouteBlocked", "routeClass", routeClass);
 +    }
 +
++    // Network navigations are rejected by shouldOverrideUrlLoading. SHEIN can
++    // also enter /user/login through same-document History API routing, which
++    // is reported only by doUpdateVisitedHistory. Reuse that callback and
++    // perform one native Back action, matching the site's own Back control. A
++    // single bounded check falls back to Home if Back did not actually leave
++    // the blocked route. No persistent timer, observer or DOM scan is added.
++    private boolean otlobliRecoverBlockedSheinHistoryRoute(WebView view, String rawUrl) {
++        if (view == null || !otlobliIsSheinSession()) return false;
++        String url = rawUrl == null ? "" : rawUrl;
++        String routeClass = otlobliClassifySheinRoute(url);
++        if (!otlobliIsBlockedSheinRoute(routeClass)) {
++            otlobliRecoveringBlockedSheinUrl = "";
++            if (otlobliIsSafePublicSheinRoute(routeClass)) otlobliLastSafeSheinUrl = url;
++            return false;
++        }
++
++        otlobliEmitBlockedSheinRoute(routeClass);
++        if (url.equals(otlobliRecoveringBlockedSheinUrl)) return true;
++
++        otlobliRecoveringBlockedSheinUrl = url;
++        view.post(() -> {
++            if (_webView != view) return;
++            if (view.canGoBack()) {
++                view.goBack();
++                view.postDelayed(() -> {
++                    if (_webView != view || !url.equals(otlobliRecoveringBlockedSheinUrl)) return;
++                    String currentUrl = view.getUrl();
++                    if (otlobliIsBlockedSheinRoute(otlobliClassifySheinRoute(currentUrl))) {
++                        view.loadUrl("https://m.shein.com/ar/");
++                    }
++                }, 200L);
++            } else {
++                view.loadUrl("https://m.shein.com/ar/");
++            }
++        });
++        return true;
++    }
++
++    private boolean otlobliIsOutboundFromBlockedSheinRoute(String destinationUrl) {
++        if (!otlobliIsSheinSession() ||
++            !otlobliIsBlockedSheinRoute(otlobliClassifySheinRoute(otlobliCurrentTopLevelUrl))) return false;
++        String destinationRoute = otlobliClassifySheinRoute(destinationUrl);
++        return "external".equals(destinationRoute) || "unknown".equals(destinationRoute);
++    }
++
 +    private void otlobliNavigateHost(String target) {
 +        dismissOtlobliStoreSwitchHint();
 +        if (otlobliHumanChallengeNavigationLocked) {
@@ -1468,7 +1514,7 @@ index 8ae3e61..11b749c 100644
      // Add this class to provide safer JavaScript interface
      private class JavaScriptInterface {
  
-@@ -480,6 +1673,11 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -480,6 +1719,11 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
              activity.runOnUiThread(() -> setHidden(true));
          }
  
@@ -1480,7 +1526,7 @@ index 8ae3e61..11b749c 100644
          @JavascriptInterface
          public void show() {
              if (!isJavaScriptControlAllowed()) {
-@@ -1263,6 +2461,32 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -1263,6 +2507,32 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          return false;
      }
  
@@ -1513,7 +1559,7 @@ index 8ae3e61..11b749c 100644
      private void previewDownloadedFileInWebView(File file, String mimeType, String sourceUrl) {
          WebView webView = _webView;
          if (webView == null || isDismissing) {
-@@ -1807,6 +3031,24 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -1807,6 +3077,24 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          applyDimensions();
  
          this._webView = findViewById(R.id.browser_view);
@@ -1538,7 +1584,24 @@ index 8ae3e61..11b749c 100644
  
          // Apply insets to fix edge-to-edge issues on Android 15+
          applyInsets();
-@@ -2507,6 +3749,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -2272,6 +3560,16 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+                             _options.getOpenBlankTargetInWebView()
+                     );
+ 
++                    String sourceUrl = view != null ? view.getUrl() : null;
++                    if (TextUtils.isEmpty(sourceUrl)) sourceUrl = otlobliCurrentTopLevelUrl;
++                    if (
++                        otlobliIsSheinSession() &&
++                        otlobliIsBlockedSheinRoute(otlobliClassifySheinRoute(sourceUrl))
++                    ) {
++                        otlobliRecoverBlockedSheinHistoryRoute(view, sourceUrl);
++                        return false;
++                    }
++
+                     WebView.HitTestResult result = view.getHitTestResult();
+                     String data = result != null ? result.getExtra() : null;
+ 
+@@ -2507,6 +3805,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
  
      public void setHidden(boolean hidden) {
          if (hidden) {
@@ -1546,7 +1609,7 @@ index 8ae3e61..11b749c 100644
              if (!isHiddenModeActive) {
                  if (getWindow() == null) {
                      try {
-@@ -2540,6 +3783,9 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -2540,6 +3839,9 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          if (_options != null) {
              _options.setHidden(hidden);
          }
@@ -1556,7 +1619,7 @@ index 8ae3e61..11b749c 100644
      }
  
      public boolean isHiddenModeActive() {
-@@ -2619,7 +3865,11 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -2619,7 +3921,11 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
  
                      // Fix AppBarLayout position
                      ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) appBarLayout.getLayoutParams();
@@ -1569,7 +1632,7 @@ index 8ae3e61..11b749c 100644
                      appBarLayout.setLayoutParams(params);
                      appBarLayout.setBackgroundColor(finalBgColor);
                  });
-@@ -2637,6 +3887,20 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -2637,6 +3943,20 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
              Insets mandatoryGestures = windowInsets.getInsets(WindowInsetsCompat.Type.mandatorySystemGestures());
              Insets ime = windowInsets.getInsets(WindowInsetsCompat.Type.ime());
              boolean keyboardVisible = windowInsets.isVisible(WindowInsetsCompat.Type.ime());
@@ -1590,7 +1653,7 @@ index 8ae3e61..11b749c 100644
  
              boolean appBarHandlesTopInset =
                  isAndroid15Plus &&
-@@ -2715,6 +3979,20 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -2715,6 +4035,20 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                      }
                  }
              }
@@ -1611,7 +1674,7 @@ index 8ae3e61..11b749c 100644
          }
  
          requestSafeAreaInsets();
-@@ -2753,7 +4031,9 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -2753,7 +4087,9 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          );
  
          mlp.topMargin = navTop;
@@ -1622,7 +1685,7 @@ index 8ae3e61..11b749c 100644
          mlp.leftMargin = bars.left;
          mlp.rightMargin = bars.right;
          _webView.setLayoutParams(mlp);
-@@ -2943,11 +4223,35 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -2943,11 +4279,35 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          try {
              injectDocumentStartPostMessageBridge();
              WebViewCompat.addDocumentStartJavaScript(_webView, createMobileAppBridgeScript(), Collections.singleton("*"));
@@ -1658,7 +1721,7 @@ index 8ae3e61..11b749c 100644
      private void injectDocumentStartPostMessageBridge() {
          if (_webView == null) {
              return;
-@@ -2967,7 +4271,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -2967,7 +4327,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                          Log.e("InAppBrowser", "Received unsupported postMessage payload from WebView");
                          return;
                      }
@@ -1667,7 +1730,7 @@ index 8ae3e61..11b749c 100644
                  }
              );
          } catch (Exception e) {
-@@ -2980,6 +4284,12 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -2980,6 +4340,12 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
      }
  
      private void handleJavaScriptPostMessage(String message) {
@@ -1680,7 +1743,7 @@ index 8ae3e61..11b749c 100644
          try {
              if (message == null || message.isEmpty()) {
                  Log.e("InAppBrowser", "Received empty message from WebView");
-@@ -2991,6 +4301,15 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -2991,6 +4357,15 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                  return;
              }
  
@@ -1696,7 +1759,7 @@ index 8ae3e61..11b749c 100644
              _options.getCallbacks().javascriptCallback(message);
          } catch (Exception e) {
              Log.e("InAppBrowser", "Error in postMessage: " + e.getMessage());
-@@ -3114,8 +4433,6 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -3114,8 +4489,6 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
              _options.getPreShowScript()
          );
  
@@ -1705,7 +1768,7 @@ index 8ae3e61..11b749c 100644
          preShowSemaphore = new Semaphore(0);
          activity.runOnUiThread(
              new Runnable() {
-@@ -3819,7 +5136,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -3819,7 +5192,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
              return;
          }
  
@@ -1714,7 +1777,7 @@ index 8ae3e61..11b749c 100644
          boolean canGoForward = _webView.canGoForward();
  
          if (canGoBack) {
-@@ -3830,7 +5147,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -3830,7 +5203,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                  new View.OnClickListener() {
                      @Override
                      public void onClick(View view) {
@@ -1723,12 +1786,17 @@ index 8ae3e61..11b749c 100644
                              _webView.goBack();
                          }
                      }
-@@ -4202,7 +5519,17 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4202,7 +5575,22 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                      }
                      Context context = view.getContext();
                      String url = request.getUrl().toString();
 -                    Log.d("InAppBrowser", "shouldOverrideUrlLoading: " + url);
 +                    if (request.isForMainFrame() && otlobliIsSheinSession()) {
++                        if (otlobliIsOutboundFromBlockedSheinRoute(url)) {
++                            String sourceRoute = otlobliClassifySheinRoute(otlobliCurrentTopLevelUrl);
++                            otlobliEmitBlockedSheinRoute(sourceRoute);
++                            return true;
++                        }
 +                        String routeClass = otlobliClassifySheinRoute(url);
 +                        Log.d("InAppBrowser", "SHEIN main-frame route class: " + routeClass);
 +                        if (otlobliIsBlockedSheinRoute(routeClass)) {
@@ -1742,7 +1810,7 @@ index 8ae3e61..11b749c 100644
  
                      boolean isNotHttpOrHttps = !url.startsWith("https://") && !url.startsWith("http://");
  
-@@ -4700,9 +6027,19 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4700,9 +6088,19 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                  @Override
                  public void onPageStarted(WebView view, String url, Bitmap favicon) {
                      super.onPageStarted(view, url, favicon);
@@ -1762,7 +1830,7 @@ index 8ae3e61..11b749c 100644
                      if (ProxyRequestSupport.shouldInjectBridge(_options) && proxyBridgeScript != null && proxyAccessToken != null) {
                          String preparedProxyBridgeScript = prepareProxyBridgeScript();
                          if (preparedProxyBridgeScript != null) {
-@@ -4720,6 +6057,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4720,14 +6118,20 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                  }
  
                  public void doUpdateVisitedHistory(WebView view, String url, boolean isReload) {
@@ -1770,7 +1838,12 @@ index 8ae3e61..11b749c 100644
                      if (view == null || _webView == null) {
                          return;
                      }
-@@ -4728,6 +6066,7 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
++                    if (otlobliRecoverBlockedSheinHistoryRoute(view, url)) {
++                        super.doUpdateVisitedHistory(view, url, isReload);
++                        return;
++                    }
+                     if (!isReload) {
+                         _options.getCallbacks().urlChangeEvent(url);
                      }
                      updateNavigationButtonsState();
                      super.doUpdateVisitedHistory(view, url, isReload);
@@ -1778,7 +1851,7 @@ index 8ae3e61..11b749c 100644
                      injectJavaScriptInterface();
  
                      // Inject Google Pay polyfills if enabled
-@@ -4739,9 +6078,21 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4739,9 +6143,21 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                  @Override
                  public void onPageFinished(WebView view, String url) {
                      super.onPageFinished(view, url);
@@ -1800,7 +1873,7 @@ index 8ae3e61..11b749c 100644
                      if (!isInitialized) {
                          isInitialized = true;
                          _webView.clearHistory();
-@@ -4801,14 +6152,63 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4801,14 +6217,63 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
                      if (view == null || _webView == null) {
                          return;
                      }
@@ -1865,7 +1938,7 @@ index 8ae3e61..11b749c 100644
                  @SuppressLint("WebViewClientOnReceivedSslError")
                  @Override
                  public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
-@@ -4833,6 +6233,9 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4833,6 +6298,9 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
       * @return true if navigation was successful, false otherwise
       */
      public boolean goBack() {
@@ -1875,7 +1948,7 @@ index 8ae3e61..11b749c 100644
          if (_webView != null && _webView.canGoBack()) {
              _webView.goBack();
              return true;
-@@ -4842,6 +6245,9 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4842,6 +6310,9 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
  
      @Override
      public void onBackPressed() {
@@ -1885,7 +1958,7 @@ index 8ae3e61..11b749c 100644
          if (
              _webView != null &&
              _webView.canGoBack() &&
-@@ -4931,7 +6337,23 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -4931,7 +6402,23 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
  
      @Override
      public void dismiss() {
@@ -1909,7 +1982,7 @@ index 8ae3e61..11b749c 100644
  
          // First, stop any ongoing operations and disable further interactions
          if (_webView != null) {
-@@ -5586,17 +7008,50 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
+@@ -5586,17 +7073,50 @@ public class WebViewDialog extends Dialog implements ProxyResponseRouting.ProxyR
          );
      }
  
@@ -2529,7 +2602,7 @@ index 1c70884..be2b8ac 100644
          if
              ProxySchemeRequestSupport.supportsRequestBody(method: context.method),
 diff --git a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
-index 97a2fc1..f823863 100644
+index 97a2fc1..1321f0e 100644
 --- a/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
 +++ b/node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift
 @@ -9,6 +9,7 @@
@@ -4123,7 +4196,7 @@ index 97a2fc1..f823863 100644
          forwardBarButtonItem.isEnabled = webView?.canGoForward ?? false
  
          let updateReloadBarButtonItem: (UIBarButtonItem, Bool) -> UIBarButtonItem = {
-@@ -2061,7 +3469,7 @@ fileprivate extension WKWebViewController {
+@@ -2062,7 +3470,7 @@ fileprivate extension WKWebViewController {
      }
  
      func setUpState() {
