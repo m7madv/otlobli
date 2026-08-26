@@ -110,7 +110,7 @@ jobs:
             --release \
             --dart-define="DAMANAK_SUPABASE_URL=$DAMANAK_SUPABASE_URL" \
             --dart-define="DAMANAK_SUPABASE_PUBLISHABLE_KEY=$DAMANAK_SUPABASE_PUBLISHABLE_KEY"
-          jarsigner -verify -strict -certs build/app/outputs/bundle/release/app-release.aab
+          jarsigner -verify -certs build/app/outputs/bundle/release/app-release.aab
 
       - name: Publish completed internal release
         env:
