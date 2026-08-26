@@ -1,3 +1,54 @@
+# Active handoff — v86.242/1107 iOS blank-navigation fix (2026-08-26)
+
+Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
+`codex/otlobli-v86-212-testflight-auth`. Standard Android and iOS are
+`86.242 (1107)`. Source commit
+`e46dbf9ab01dc594942501f0ba3ac223c3a9c373` is pushed. TestFlight run
+`32923259010` succeeded in `8m6s` with internal distribution and
+`app_store_submission=false`.
+
+The iPhone 16 Pro Max screenshot proves the PDP gap is a native blank
+`UINavigationBar`, not Temu DOM or safe-area geometry: the status surface ends
+at downscaled `y=132`, pure white spans `y=136..295`, and a native separator is
+at `y=296..298`, matching about `75pt`. Capgo initially hides the bar for
+`ToolBarType.BLANK`, but its old `setUpState()` unconditionally showed it with
+animation during `viewWillAppear`. The persistent patch now uses
+`setNavigationBarHidden(blankNavigationTab, animated: !blankNavigationTab)`.
+Do not replace this with DOM/CSS, inset compensation, another layer, a timer,
+observer, or scan. The WebView remains anchored to the safe-area top.
+
+The dedicated iOS SHEIN browser is untouched. Preserve exact
+`otlobliForceRecompose()`, the `0.25s` app-active delay, Android resume defense,
+and `JSON.stringify` region equality. Store region, sessions, human
+verification, payment, completed orders, and wallet remain out of scope.
+
+All release/build/performance/freeze/store guards pass. Local startup/total-gzip
+budgets are `673,159/720,000` and `299,506/370,000`; CI records
+`673,350/720,000` and `299,553/370,000`. CSS is `69,989/70,000`. Standard iOS
+and Android sync pass. The clean upstream Capgo package accepts the persistent
+patch, and the new guard rejects the legacy unconditional navigation-bar line.
+
+Release APK/AAB are under `artifacts/release-86.242/`. APK SHA-256 is
+`208FFB9B5B333C7731FB816ECDDA33BE95B06BA9721B167C79D41F3704594A78`; AAB
+SHA-256 is `C42AE0279ACF5FAEDCA23E9FFDC43584FB4913FC741DF386DB4F420C1B648557`.
+The APK is installed in place on Note 8 as `86.242 (1107)`; live Temu remains
+correct and logs contain no fatal/ANR/OOM match. Evidence is under
+`artifacts/device-captures/v86.242-note8/`.
+
+Apple delivery UUID is `e7ab793a-ba55-49c0-b03b-ca25cb7f3a04`. Build
+`86.242 (1107)` is `VALID` and `IN_BETA_TESTING` in the all-builds group
+`Otlobli Internal`; expected tester state is `INSTALLED`. Signed IPA is
+`10,544,361` bytes with SHA-256
+`F814CD76FB3D9F82D9F7FCF98D7BB45BD66C48BC3178616509E6B36A357D92A3`.
+GitHub artifact `9590730095`,
+`otlobli-ios-v86.242-build-1107-testflight`, is `25,251,919` bytes with digest
+`sha256:2a6a8ce5795e900e74de760bd22651978fa0c6ad3a7f5765d1a68653688c9a54`.
+WhatsApp/authentication preflight passed without sending a test OTP.
+
+Do not claim real iPhone acceptance from CI. Verify the PDP gap on iPhone 16
+Pro Max, then perform five background/resume cycles and one separate
+force-quit/cold-launch test.
+
 # Active handoff — v86.241/1106 Temu/SHEIN/group-order release (2026-08-26)
 
 Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on

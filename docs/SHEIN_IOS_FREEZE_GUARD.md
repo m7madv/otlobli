@@ -2,6 +2,18 @@
 
 هذه قاعدة إصدار إلزامية وليست ملاحظة تاريخية.
 
+## v86.242 — إصلاح شريط Temu الفارغ من دون لمس دورة SHEIN
+
+- التغيير الوحيد في `WKWebViewController.setUpState()` يجعل متصفح Capgo
+  يحافظ على إخفاء `UINavigationBar` عندما يكون `blankNavigationTab=true`.
+  لا يغير قيود WKWebView أو safe area أو مسار إعادة التركيب.
+- SHEIN على iOS ما زال يمر عبر `OtlobliSheinBrowser` المنفصل. بقيت
+  `otlobliForceRecompose()` واستدعاء `appDidBecomeActive` بعد `0.25s` واستعادة
+  التمرير/القيود ودفاع Android resume ومقارنة المنطقة عبر `JSON.stringify`
+  كما هي.
+- نجح `npm run verify:shein-freeze-guard` قبل البناء وضمنه. لا يُستنتج من
+  ذلك قبول الجهاز؛ تبقى خمس دورات iPhone 16 واختبار cold launch مطلوبة.
+
 ## v86.238 — تلميح أصلي من دون تغيير إصلاح إعادة التركيب
 
 - التغيير المرئي الوحيد المشترك مع SHEIN هو تلميح أصلي مؤقت يشرح أن الضغط

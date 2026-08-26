@@ -1,3 +1,59 @@
+# v86.242/1107 — إزالة شريط iOS الفارغ فوق منتج Temu (2026-08-26)
+
+تابع فقط داخل
+`C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` على الفرع
+`codex/otlobli-v86-212-testflight-auth`. الإصداران القياسيان Android وiOS هما
+`86.242 (1107)`. التزام المصدر `e46dbf9ab01dc594942501f0ba3ac223c3a9c373`
+مدفوع، ونجح مسار TestFlight الداخلي `32923259010` في `8m6s`. لا يوجد إرسال
+إلى App Review في هذه الدفعة.
+
+أثبت قياس لقطة iPhone 16 Pro Max أن الفراغ ليس من Temu DOM ولا من safe area:
+ينتهي شريط الحالة عند `y=132`، ثم يظهر أبيض خالص حتى `y=295` وفاصل أصلي عند
+`y=296..298`. الارتفاع المحوّل يقارب `75pt`، أي ارتفاع `UINavigationBar`
+الفارغ. كان Capgo يخفي الشريط عند `ToolBarType.BLANK` ثم يعيد `setUpState()`
+إظهاره وبحركة عند `viewWillAppear`. صار `setUpState()` يخفي الشريط عندما
+`blankNavigationTab=true`، ويحافظ على السلوك السابق للأنماط الأخرى. لم تتغير
+قيود WebView أو safe area أو DOM/CSS أو أي مؤقت/مراقب/مسح.
+
+مسار SHEIN المنفصل لم يتغير، وبقيت حرفيًا حماية
+`otlobliForceRecompose()` وتأخير `appDidBecomeActive` البالغ `0.25s` ودفاع
+Android resume ومقارنة المناطق عبر `JSON.stringify`. لم تتغير المنطقة أو
+الجلسات أو التحقق البشري أو الدفع أو الطلبات أو المحفظة. أضيف حارس ثابت يفشل
+إذا أعادت ترقية Capgo سطر إظهار شريط `BLANK` القديم.
+
+نجح البناء الكامل و`verify:shein-freeze-guard` و`verify:store-surface` وكل
+حواجز الإصدار. بقيت الميزانيات من دون رفع سقف. القياس المحلي: JavaScript
+الابتدائي `673,159/720,000` وإجمالي gzip `299,506/370,000`؛ بناء TestFlight:
+`673,350/720,000` و`299,553/370,000`. بقي CSS `69,989/70,000`. تزامن iOS
+القياسي وAndroid بنجاح.
+
+بُني Android Release وثُبت كتحديث يحفظ البيانات على Note 8. الجهاز يؤكد
+`86.242 (1107)` ومهلة الشاشة `120000ms`؛ دخل Temu بالمقاسات الصحيحة نفسها
+وبلا فراغ أو fatal/ANR/OOM. الأدلة في
+`artifacts/device-captures/v86.242-note8/`.
+
+- APK: `artifacts/release-86.242/Otlobli-86.242-1107-release.apk` —
+  `4,111,902` بايت، SHA-256
+  `208FFB9B5B333C7731FB816ECDDA33BE95B06BA9721B167C79D41F3704594A78`،
+  توقيع APK v2/v3، `minSdk 24` و`targetSdk 36`.
+- AAB: `artifacts/release-86.242/Otlobli-86.242-1107-release.aab` —
+  `5,772,210` بايت، SHA-256
+  `C42AE0279ACF5FAEDCA23E9FFDC43584FB4913FC741DF386DB4F420C1B648557`.
+
+تحقق Apple من IPA ورفعها بلا أخطاء؛ Delivery UUID هو
+`e7ab793a-ba55-49c0-b03b-ca25cb7f3a04`. البناء `86.242 (1107)` صار
+`VALID` ثم `IN_BETA_TESTING` ضمن مجموعة all-builds `Otlobli Internal`، وحالة
+عضوية المختبر `INSTALLED`. IPA حجمها `10,544,361` بايت وSHA-256
+`F814CD76FB3D9F82D9F7FCF98D7BB45BD66C48BC3178616509E6B36A357D92A3`.
+Artifact GitHub رقم `9590730095`، اسمه
+`otlobli-ios-v86.242-build-1107-testflight`، حجمه `25,251,919` بايت وdigest
+`sha256:2a6a8ce5795e900e74de760bd22651978fa0c6ad3a7f5765d1a68653688c9a54`.
+اجتاز preflight خدمة WhatsApp والمصادقة من دون إرسال رمز تجريبي.
+
+لا يجوز ادعاء قبول iPhone من البناء أو TestFlight. يلزم فتح منتج Temu على
+iPhone 16 Pro Max والتأكد من زوال الفراغ وثبات الرأس، ثم خمس دورات
+background/resume واختبار force-quit/cold-launch مستقل.
+
 # v86.241/1106 — تثبيت رأس Temu على iPhone وربط طلب الصديق (2026-08-26)
 
 تابع فقط داخل
