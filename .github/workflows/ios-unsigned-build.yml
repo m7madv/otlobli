@@ -564,6 +564,10 @@ jobs:
               profile = plistlib.load(stream)
 
           entitlements = profile.get("Entitlements", {})
+          profile_domains = entitlements.get("com.apple.developer.associated-domains")
+          profile_domains_authorized = profile_domains == "*" or (
+              isinstance(profile_domains, list) and bool(profile_domains)
+          )
           expected_app_id = f"{expected_team}.com.otlobli.app"
           expiry = profile.get("ExpirationDate")
           now = datetime.datetime.now(expiry.tzinfo) if expiry and expiry.tzinfo else datetime.datetime.now()
@@ -573,7 +577,7 @@ jobs:
               "team entitlement": entitlements.get("com.apple.developer.team-identifier") == expected_team,
               "production APNs": entitlements.get("aps-environment") == "production",
               "Sign in with Apple": "Default" in entitlements.get("com.apple.developer.applesignin", []),
-              "Associated Domains": isinstance(entitlements.get("com.apple.developer.associated-domains"), list) and bool(entitlements.get("com.apple.developer.associated-domains")),
+              "Associated Domains": profile_domains_authorized,
               "TestFlight beta reports": entitlements.get("beta-reports-active") is True,
               "distribution entitlement": entitlements.get("get-task-allow") is not True,
               "no registered devices": not profile.get("ProvisionedDevices"),
@@ -876,7 +880,9 @@ jobs:
           devices = profile.get("ProvisionedDevices", [])
           app_domains = entitlements.get("com.apple.developer.associated-domains")
           profile_domains = profile_entitlements.get("com.apple.developer.associated-domains")
-          profile_domains_authorized = isinstance(profile_domains, list) and bool(profile_domains)
+          profile_domains_authorized = profile_domains == "*" or (
+              isinstance(profile_domains, list) and bool(profile_domains)
+          )
           intended_device_present = any(
               hashlib.sha256(device.encode("utf-8")).hexdigest().lower() == expected_device_hash.lower()
               for device in devices
@@ -1030,6 +1036,10 @@ jobs:
           families = set(info.get("UIDeviceFamily", []))
           signed_certificate = Path(certificate_path).read_bytes()
           profile_entitlements = profile.get("Entitlements", {})
+          profile_domains = profile_entitlements.get("com.apple.developer.associated-domains")
+          profile_domains_authorized = profile_domains == "*" or (
+              isinstance(profile_domains, list) and bool(profile_domains)
+          )
           expiry = profile.get("ExpirationDate")
           now = datetime.datetime.now(expiry.tzinfo) if expiry and expiry.tzinfo else datetime.datetime.now()
           url_schemes = {
@@ -1061,7 +1071,7 @@ jobs:
               "profile Team ID": team in profile.get("TeamIdentifier", []),
               "profile APNs": profile_entitlements.get("aps-environment") == "production",
               "profile Apple Sign-In": "Default" in profile_entitlements.get("com.apple.developer.applesignin", []),
-              "profile Associated Domains": isinstance(profile_entitlements.get("com.apple.developer.associated-domains"), list) and bool(profile_entitlements.get("com.apple.developer.associated-domains")),
+              "profile Associated Domains": profile_domains_authorized,
               "profile TestFlight beta reports": profile_entitlements.get("beta-reports-active") is True,
               "profile distribution": profile_entitlements.get("get-task-allow") is not True,
               "profile has no devices": not profile.get("ProvisionedDevices"),

@@ -36,17 +36,65 @@ function embeddedProvisioningPlist(content) {
   return content.subarray(start, end + closing.length).toString("utf8");
 }
 
+function plistElementBody(xml, startIndex, tagName) {
+  const token = new RegExp(`<\\/?${tagName}\\b[^>]*>`, "g");
+  token.lastIndex = startIndex;
+  let depth = 0;
+  let bodyStart = -1;
+  for (let match = token.exec(xml); match; match = token.exec(xml)) {
+    const value = match[0];
+    const closing = value.startsWith("</");
+    const selfClosing = value.endsWith("/>");
+    if (!closing) {
+      if (depth === 0) bodyStart = token.lastIndex;
+      if (!selfClosing) depth += 1;
+    } else {
+      depth -= 1;
+      if (depth === 0 && bodyStart >= 0) {
+        return xml.slice(bodyStart, match.index);
+      }
+      if (depth < 0) return "";
+    }
+  }
+  return "";
+}
+
 function profileSupportsAssociatedDomains(content) {
   const plist = embeddedProvisioningPlist(content);
-  const entitlementKey = "<key>com.apple.developer.associated-domains</key>";
-  const keyIndex = plist.indexOf(entitlementKey);
-  if (keyIndex < 0) return false;
+  const entitlementsKey = "<key>Entitlements</key>";
+  const entitlementsKeyIndex = plist.indexOf(entitlementsKey);
+  if (entitlementsKeyIndex < 0) return false;
+  const afterEntitlementsKey = entitlementsKeyIndex + entitlementsKey.length;
+  const entitlementsOpen = /\s*<dict\s*>/y;
+  entitlementsOpen.lastIndex = afterEntitlementsKey;
+  const entitlementsMatch = entitlementsOpen.exec(plist);
+  if (!entitlementsMatch) return false;
+  const entitlements = plistElementBody(
+    plist,
+    entitlementsMatch.index + entitlementsMatch[0].search(/<dict/),
+    "dict",
+  );
+  if (!entitlements) return false;
 
-  const afterKey = plist.slice(keyIndex + entitlementKey.length);
-  const arrayEnd = afterKey.indexOf("</array>");
-  if (arrayEnd < 0) return false;
-  const array = afterKey.slice(0, arrayEnd);
-  return /<array\s*>[\s\S]*<string>[^<]+<\/string>/.test(array);
+  const associatedDomainsKey =
+    "<key>com.apple.developer.associated-domains</key>";
+  const associatedDomainsKeyIndex = entitlements.indexOf(associatedDomainsKey);
+  if (associatedDomainsKeyIndex < 0) return false;
+  const afterAssociatedDomainsKey =
+    associatedDomainsKeyIndex + associatedDomainsKey.length;
+  const wildcard = /\s*<string>\s*\*\s*<\/string>/y;
+  wildcard.lastIndex = afterAssociatedDomainsKey;
+  if (wildcard.test(entitlements)) return true;
+  const arrayOpen = /\s*<array\s*>/y;
+  arrayOpen.lastIndex = afterAssociatedDomainsKey;
+  const arrayMatch = arrayOpen.exec(entitlements);
+  if (!arrayMatch) return false;
+  const domains = plistElementBody(
+    entitlements,
+    arrayMatch.index + arrayMatch[0].search(/<array/),
+    "array",
+  );
+  return /<string>\s*[^<\s][^<]*<\/string>/.test(domains);
 }
 
 function capabilityCreateRequest(bundleId) {
@@ -396,15 +444,25 @@ async function loadConfig() {
 
 function runSelfTest() {
   const supported = Buffer.from(
-    `<?xml version="1.0"?><plist><dict><key>com.apple.developer.associated-domains</key><array><string>*</string></array></dict></plist>`,
+    `<?xml version="1.0"?><plist><dict><key>Entitlements</key><dict><key>com.apple.developer.associated-domains</key><string>*</string></dict></dict></plist>`,
+  );
+  const supportedArray = Buffer.from(
+    `<?xml version="1.0"?><plist><dict><key>Entitlements</key><dict><key>com.apple.developer.associated-domains</key><array><string>applinks:talabieh.vercel.app</string></array></dict></dict></plist>`,
   );
   const unsupported = Buffer.from(
-    `<?xml version="1.0"?><plist><dict><key>aps-environment</key><string>production</string></dict></plist>`,
+    `<?xml version="1.0"?><plist><dict><key>Entitlements</key><dict><key>aps-environment</key><string>production</string></dict></dict></plist>`,
+  );
+  const falsePositive = Buffer.from(
+    `<?xml version="1.0"?><plist><dict><key>Entitlements</key><dict><key>com.apple.developer.associated-domains</key><true/><key>unrelated</key><array><string>value</string></array></dict></dict></plist>`,
   );
   if (!profileSupportsAssociatedDomains(supported))
     throw new Error("Associated Domains profile fixture was not recognized.");
+  if (!profileSupportsAssociatedDomains(supportedArray))
+    throw new Error("Associated Domains array fixture was not recognized.");
   if (profileSupportsAssociatedDomains(unsupported))
     throw new Error("Profile fixture without Associated Domains was accepted.");
+  if (profileSupportsAssociatedDomains(falsePositive))
+    throw new Error("Invalid Associated Domains fixture was accepted.");
   const capability = capabilityCreateRequest("bundle-1");
   if (
     capability.data.attributes.capabilityType !==
