@@ -2,6 +2,26 @@
 
 هذه قاعدة إصدار إلزامية وليست ملاحظة تاريخية.
 
+## v86.243 — استئناف السياسة بعد التحقق من دون تغيير lifecycle
+
+- أثبت المستخدم أن صفحة SHEIN المتوقفة بعد التحقق تعمل تمامًا بعد الدخول إلى
+  Temu والرجوع؛ هذا يحدد حالة runtime قديمة بعد challenge، لا عطل WebView
+  دائمًا ولا حاجة إلى reload/recreate.
+- بعد فحص غياب التحقق الحالي لمدة `1200ms` ثم تسوية `600ms`، يستأنف المسار
+  سياسة SHEIN مرة واحدة ثم الخصوصية مرة واحدة. عند وجود challenge يخرج بلا
+  نقر أو إخفاء أو تعديل منطقة. مؤقت المنطقة الحالي يُلغى كما كان.
+- «تسجيل لاحقًا» محصور داخل `.s_auth__block-login-tip`، و«قبول الكل» داخل
+  غلاف الخصوصية المؤكد. لا يوجد foreground hook جديد أو recompose burst أو
+  observer/interval دائم أو مسح DOM واسع.
+- بقيت حرفيًا `WKWebViewController.otlobliForceRecompose()`، استدعاء
+  `appDidBecomeActive` بتأخير `0.25s`، استعادة scroll/constraints، دفاع
+  Android `otlobliOnHostResume()`، ومقارنة إعدادات المنطقة عبر
+  `JSON.stringify`. لا تمسح cookies أو `localStorage` ولا تعِد بناء SHEIN
+  عندما لم تتغير الإعدادات.
+- نجح `verify:shein-freeze-guard` والبناء والمزامنة. Note 8 فتح SHEIN ومرّرها،
+  لكنه ليس دليل iOS. يلزم على iPhone 16 اختبار أول challenge ثم خمس دورات
+  background/resume واختبار force-quit/cold-launch مستقل.
+
 ## v86.242 — إصلاح شريط Temu الفارغ من دون لمس دورة SHEIN
 
 - التغيير الوحيد في `WKWebViewController.setUpState()` يجعل متصفح Capgo

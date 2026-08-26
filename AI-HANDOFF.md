@@ -1,3 +1,82 @@
+# Active handoff — v86.243/1108 post-challenge SHEIN resume and verified group links (2026-08-26)
+
+Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
+`codex/otlobli-v86-212-testflight-auth`. Standard Android/iOS are
+`86.243 (1108)`. Functional app commit
+`a962b0d2553925f0ae6a1fb38883a4e204a2a174` and TestFlight workflow fixes
+through `142eacd1ddf9cfe27c221110274cd961c3b3b80c` are pushed.
+
+The user's exact observation confirms the SHEIN failure mode: after manually
+completing the first human challenge, the page could retain stale policy/privacy
+state and stop scrolling; entering Temu and then returning to SHEIN made it work
+fully. v86.243 resumes policy once and privacy once only after the existing
+`1200ms` challenge-absence proof plus `600ms` settlement. Login-later is exact
+text inside `.s_auth__block-login-tip`; Accept All is exact text inside the
+confirmed privacy wrapper, bounded to 160 candidates. Privacy adds no observer
+or interval. Never automate the challenge, add reload/recreate, broaden the
+scans, or change region/cookies/session behavior.
+
+Preserve `otlobliForceRecompose()`, exact `0.25s` app-active delay, scroll and
+constraint restoration, Android `otlobliOnHostResume()`, and the
+`JSON.stringify` region comparison. Payment, wallet, completed orders, human
+verification, and Temu DOM/layout are untouched in v86.243. The v86.242 native
+blank-navigation fix remains the only fix for the prior iPhone Temu PDP gap.
+
+Group invites now have verified platform associations at
+`https://talabieh.vercel.app`: Android `assetlinks.json`, Apple AASA, exact JSON
+headers, Android domain status `always : 200000000`, and Apple CDN `200` for
+`36D743K87T.com.otlobli.app` with `/group` and `/group/*`. The fallback never
+auto-runs the custom scheme; joining remains explicit and limited to one friend.
+TestFlight's signed app entitlement is exactly
+`["applinks:talabieh.vercel.app"]`. No real iPhone WhatsApp-link tap was
+performed, so do not claim physical Universal Link acceptance yet.
+
+Vercel production deployment is `dpl_4iZnSZqiDgMN3EtVQkzpSoYoRGND`, aliased
+to `https://talabieh.vercel.app`. The first cached dependency deployment failed
+safely at `patch-package`; the forced clean production deployment passed all
+guards. Origin and Apple CDN are both valid now.
+
+All build/freeze/store/group/security guards and Android/iOS sync pass. Local
+budgets: startup `673,159/720,000`, total JS gzip `300,217/370,000`, CSS
+`69,989/70,000`, shipped store scripts `318,044/470,000`, Temu Gecko
+`172,513/180,000`, store source `581,616/600,000`. CI startup/gzip are
+`673,350` and `300,262`. No budget was raised.
+
+Note 8 has `86.243 (1108)` installed in place with data preserved. SHEIN
+rendered after about 25 seconds and scrolled; no matching fatal/ANR/OOM was
+found. Evidence is under `artifacts/device-captures/v86.243-note8/`. Existing
+cookies mean this is not clean-install acceptance of Accept All/Login Later.
+
+- APK: `artifacts/release-86.243/Otlobli-86.243-1108-release.apk`,
+  `4,112,457` bytes, SHA-256
+  `D8AC90063B7CD15C95A0278BA9369A160BC9ADA5DF316356C74F9450E164AFF3`.
+- AAB: `artifacts/release-86.243/Otlobli-86.243-1108-release.aab`,
+  `5,772,733` bytes, SHA-256
+  `CD7AB051E00C2535BBF8A4763A237ACC262C1FFEA8992D8C831D323D14AB4B13`.
+
+TestFlight run `32952198744` succeeded in `7m56s`; Delivery UUID
+`4ea11eda-a514-4c24-a05a-8b39d04c646c`. Build `86.243 (1108)` is `VALID` and
+`IN_BETA_TESTING` in all-builds group `Otlobli Internal`, expected tester state
+`INSTALLED`, with App Review disabled. Signed IPA is `10,546,318` bytes,
+SHA-256 `5637399386858365D318C40FFE6F4000815553556BB093CB884E67A38CDB11A5`.
+Artifact `9600827192`, `otlobli-ios-v86.243-build-1108-testflight`, is
+`25,253,256` bytes with digest
+`sha256:a509dd9fa5fef6be5ad1ae2dd1a0e6a7de0965671853799d5581e3cbe493183a`.
+
+The persisted Oracle WhatsApp session `0` was reconnected once from stored
+credentials after the first run stopped before signing; no QR, new session, or
+message was generated. Final health reports connected/ready sender, credentials,
+`customer-session-v1`, session store, and OTP security ready. Apple capability
+`ASSOCIATED_DOMAINS` is enabled. Profile
+`053cb721-6618-48ae-8d16-1c6ba86feed5` uses Apple's authorization wildcard
+`*`; this is intentionally distinct from the app's exact array entitlement.
+Never weaken the exact IPA check or delete/revoke signing assets to refresh it.
+
+Remaining physical acceptance: update TestFlight on iPhone 16 Pro Max; test the
+first SHEIN challenge/privacy/login-later sequence and scroll; tap a real group
+link from WhatsApp; run five background/resume cycles and one separate
+force-quit/cold-launch. No physical iPhone acceptance is claimed from CI.
+
 # Active handoff — v86.242/1107 iOS blank-navigation fix (2026-08-26)
 
 Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
