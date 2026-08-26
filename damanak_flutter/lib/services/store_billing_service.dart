@@ -48,13 +48,35 @@ abstract interface class StoreBillingService {
   Future<void> dispose();
 }
 
-StoreBillingService createStoreBillingService() {
+Future<StoreBillingService> createStoreBillingService() async {
   if (kIsWeb ||
       (defaultTargetPlatform != TargetPlatform.android &&
           defaultTargetPlatform != TargetPlatform.iOS)) {
     return const UnavailableStoreBillingService();
   }
+
+  await configureAppleStoreKit(
+    isWeb: kIsWeb,
+    platform: defaultTargetPlatform,
+    // ignore: deprecated_member_use
+    enableStoreKit1: InAppPurchaseStoreKitPlatform.enableStoreKit1,
+  );
   return PlatformStoreBillingService();
+}
+
+@visibleForTesting
+Future<void> configureAppleStoreKit({
+  required bool isWeb,
+  required TargetPlatform platform,
+  required Future<bool> Function() enableStoreKit1,
+}) async {
+  if (!isWeb && platform == TargetPlatform.iOS) {
+    // StoreKit 2 product requests can stay unresolved on some recent iOS
+    // versions. Configure the plugin before InAppPurchase.instance is created
+    // so loading, purchasing, restoring, and completing all use one stable
+    // StoreKit 1 transaction pipeline.
+    await enableStoreKit1();
+  }
 }
 
 class UnavailableStoreBillingService implements StoreBillingService {

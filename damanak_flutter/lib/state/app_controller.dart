@@ -262,6 +262,7 @@ class AppController extends ChangeNotifier {
       _applySnapshot(snapshot);
       await _loadWorkspaceData();
       _stage = AppStage.ready;
+      unawaited(refreshStoreProducts());
     });
   }
 
@@ -273,6 +274,7 @@ class AppController extends ChangeNotifier {
       _pendingInvitationCode = null;
       _pendingInvitationRole = null;
       _stage = AppStage.ready;
+      unawaited(refreshStoreProducts());
     });
   }
 

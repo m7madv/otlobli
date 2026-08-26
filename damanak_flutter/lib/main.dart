@@ -77,7 +77,7 @@ class _DamanakBootstrapState extends State<_DamanakBootstrap> {
 }
 
 Future<AppController> _createController() async {
-  final billingService = createStoreBillingService();
+  final billingService = await createStoreBillingService();
   final appLinks = AppLinks();
   AppController? controller;
 
