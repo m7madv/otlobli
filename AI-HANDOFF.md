@@ -53,11 +53,22 @@ with no session deletion, QR, or customer OTP sent.
   `5,773,596` bytes, SHA-256
   `15D0DE97BA2F75E319188BB2412B550178EB61756995432377C25FC270DFDE89`.
 
-The immediate remaining task is the exact-source TestFlight upload and internal
-distribution. After delivery, the user must test first-product guest entry on
-iPhone 16 Pro Max, confirm the full auth page never remains and no external
-browser opens, then run five background/resume cycles plus a separate
-force-quit/cold-launch. Do not claim device acceptance from CI.
+Release commit `28ea4518d6bd47575fd594d4020c460649876b31` is pushed. GitHub
+run [32988536909](https://github.com/m7madv/otlobli/actions/runs/32988536909)
+succeeded and uploaded `otlobli-v86.244-build-1109-testflight.ipa`: `10,551,296`
+bytes, SHA-256
+`E40902F61230CDE3D279C9A1281AF56DB5445D705513F4CB4B157C05D0382ED1`,
+delivery UUID `25645ee5-2f2e-4e68-8f09-d6161e4fc7de`. App Store Connect
+reports `VALID` and `IN_BETA_TESTING`; `Otlobli Internal` has access and the
+expected tester is `INSTALLED`. GitHub artifact `9614099128` is `25,260,142`
+bytes with ZIP digest
+`A3178BA4B5076A691DE9CBBA5084D1B915A20F15D6586693460BB92579442E19`.
+App Review submission was skipped as required.
+
+The user must now test first-product guest entry on iPhone 16 Pro Max, confirm
+the full auth page never remains and no external browser opens, then run five
+background/resume cycles plus a separate force-quit/cold-launch. Do not claim
+device acceptance from CI.
 
 # Active handoff — v86.243/1108 post-challenge SHEIN resume and verified group links (2026-08-26)
 
