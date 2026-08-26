@@ -21,16 +21,116 @@ Future<ProductDetailsResponse> queryAppleStoreProducts({
   required StoreProductQuery storeKit1Query,
   required Duration timeout,
 }) async {
+  ProductDetailsResponse? emptyResponse;
   try {
     final response = await storeKit2Query(productIds).timeout(timeout);
     if (response.productDetails.isNotEmpty) return response;
+    emptyResponse = response;
   } on TimeoutException {
     // StoreKit 2 can occasionally leave a product lookup unresolved. The
     // StoreKit 1 request below uses a separate native product-query path.
   } on PlatformException {
     // A native StoreKit 2 lookup failure can still be recovered by StoreKit 1.
   }
-  return storeKit1Query(productIds).timeout(timeout);
+
+  try {
+    final response = await storeKit1Query(productIds).timeout(timeout);
+    if (response.productDetails.isNotEmpty) return response;
+    final emptyResponses = <ProductDetailsResponse>[response];
+    if (emptyResponse != null) emptyResponses.insert(0, emptyResponse);
+    emptyResponse = _mergeProductResponses(
+      productIds: productIds,
+      responses: emptyResponses,
+    );
+  } on TimeoutException {
+    if (emptyResponse == null) rethrow;
+    return emptyResponse;
+  } on PlatformException {
+    if (emptyResponse == null) rethrow;
+    return emptyResponse;
+  }
+
+  if (productIds.length < 2) return emptyResponse;
+
+  // A few recent iOS/TestFlight combinations return an empty catalog for one
+  // request containing all identifiers. Retry once using two bounded batches.
+  // The two native requests run together, so this adds at most one timeout and
+  // does not create polling or background work.
+  final sortedIds = productIds.toList()..sort();
+  final splitAt = (sortedIds.length / 2).ceil();
+  final batches = [
+    sortedIds.take(splitAt).toSet(),
+    sortedIds.skip(splitAt).toSet(),
+  ].where((batch) => batch.isNotEmpty);
+  try {
+    final responses = await Future.wait(
+      batches.map(storeKit1Query),
+    ).timeout(timeout);
+    return _mergeProductResponses(
+      productIds: productIds,
+      responses: [emptyResponse, ...responses],
+    );
+  } on TimeoutException {
+    return emptyResponse;
+  } on PlatformException {
+    return emptyResponse;
+  }
+}
+
+ProductDetailsResponse _mergeProductResponses({
+  required Set<String> productIds,
+  required Iterable<ProductDetailsResponse> responses,
+}) {
+  final productsById = <String, ProductDetails>{};
+  IAPError? firstError;
+  for (final response in responses) {
+    firstError ??= response.error;
+    for (final product in response.productDetails) {
+      productsById[product.id] = product;
+    }
+  }
+  final foundIds = productsById.keys.toSet();
+  final missingIds = productIds.difference(foundIds).toList()..sort();
+  return ProductDetailsResponse(
+    productDetails: productsById.values.toList(growable: false),
+    notFoundIDs: missingIds,
+    error: productsById.isEmpty ? firstError : null,
+  );
+}
+
+const _gulfStorefrontCountryCodes = {
+  'SA',
+  'SAU',
+  'AE',
+  'ARE',
+  'QA',
+  'QAT',
+  'KW',
+  'KWT',
+  'BH',
+  'BHR',
+  'OM',
+  'OMN',
+};
+
+@visibleForTesting
+String appleCatalogUnavailableMessage(String? storefrontCountryCode) {
+  final countryCode = storefrontCountryCode?.trim().toUpperCase();
+  if (countryCode != null &&
+      countryCode.isNotEmpty &&
+      !_gulfStorefrontCountryCodes.contains(countryCode)) {
+    return 'متجر Apple المستخدم للمشتريات هو $countryCode، بينما خطط ضمانك '
+        'متاحة في دول الخليج فقط. غيّر بلد حساب App Store إلى قطر ثم أعد المحاولة. '
+        'رمز التشخيص: APPLE-STOREFRONT-$countryCode.';
+  }
+  if (countryCode == null || countryCode.isEmpty) {
+    return 'لم يحدد App Store بلد حساب المشتريات، ولم يُرجع أي خطة. تحقق من '
+        'تسجيل الدخول إلى الوسائط والمشتريات ثم أعد المحاولة. '
+        'رمز التشخيص: APPLE-STOREFRONT-UNKNOWN.';
+  }
+  return 'اتصل التطبيق بمتجر Apple في $countryCode، لكن المتجر أعاد 0 من 6 '
+      'خطط. تحقق من حساب الوسائط والمشتريات ثم أعد المحاولة. '
+      'رمز التشخيص: APPLE-CATALOG-0-$countryCode.';
 }
 
 abstract interface class StoreBillingService {
@@ -188,6 +288,9 @@ class PlatformStoreBillingService implements StoreBillingService {
       final ids = platform == StoreBillingPlatform.googlePlay
           ? DamanakStoreCatalog.googleProductIds
           : DamanakStoreCatalog.appleProductIds;
+      final appleCountryCode = platform == StoreBillingPlatform.appStore
+          ? _appleStorefrontCountryCode()
+          : Future<String?>.value();
       final response = platform == StoreBillingPlatform.appStore
           ? await queryAppleStoreProducts(
               productIds: ids,
@@ -196,6 +299,7 @@ class PlatformStoreBillingService implements StoreBillingService {
               timeout: productQueryTimeout,
             )
           : await _client.queryProductDetails(ids).timeout(productQueryTimeout);
+      final storefrontCountryCode = await appleCountryCode;
       if (platform == StoreBillingPlatform.googlePlay) {
         await _loadOldGoogleSubscription();
       }
@@ -228,9 +332,12 @@ class PlatformStoreBillingService implements StoreBillingService {
         platform: platform,
         offers: offers,
         missingProductIds: response.notFoundIDs,
-        errorMessage: response.error == null
-            ? null
-            : 'تعذر جلب الأسعار من ${platform.label}. حاول مرة أخرى.',
+        errorMessage: response.error != null
+            ? 'تعذر جلب الأسعار من ${platform.label}. حاول مرة أخرى. '
+                  'رمز المتجر: ${response.error!.code}.'
+            : platform == StoreBillingPlatform.appStore && offers.isEmpty
+            ? appleCatalogUnavailableMessage(storefrontCountryCode)
+            : null,
       );
     } on TimeoutException {
       return StoreProductLoadResult(
@@ -240,6 +347,22 @@ class PlatformStoreBillingService implements StoreBillingService {
         errorMessage:
             'استغرق ${platform.label} وقتاً طويلاً. تحقق من الاتصال ثم أعد المحاولة.',
       );
+    }
+  }
+
+  Future<String?> _appleStorefrontCountryCode() async {
+    try {
+      final countryCode = await _client.countryCode().timeout(
+        const Duration(seconds: 4),
+      );
+      final normalized = countryCode.trim().toUpperCase();
+      return normalized.isEmpty ? null : normalized;
+    } on TimeoutException {
+      return null;
+    } on PlatformException {
+      return null;
+    } on UnimplementedError {
+      return null;
     }
   }
 

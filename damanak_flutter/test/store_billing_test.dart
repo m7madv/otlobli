@@ -116,6 +116,67 @@ void main() {
       expect(fallbackCalls, 1);
     });
 
+    test('يعيد استعلام كتالوج Apple على دفعتين عند رجوعه فارغاً', () async {
+      final requestedBatches = <Set<String>>[];
+      final starterMonthly = DamanakStoreCatalog.appleProductId(
+        'starter',
+        BillingCycle.monthly,
+      );
+      final response = await queryAppleStoreProducts(
+        productIds: DamanakStoreCatalog.appleProductIds,
+        storeKit2Query: (ids) async => ProductDetailsResponse(
+          productDetails: const [],
+          notFoundIDs: ids.toList(growable: false),
+        ),
+        storeKit1Query: (ids) async {
+          requestedBatches.add(ids);
+          final products =
+              ids.length < DamanakStoreCatalog.appleProductIds.length &&
+                  ids.contains(starterMonthly)
+              ? [
+                  ProductDetails(
+                    id: starterMonthly,
+                    title: 'البداية',
+                    description: 'الخطة الشهرية',
+                    price: '39.00 QAR',
+                    rawPrice: 39,
+                    currencyCode: 'QAR',
+                  ),
+                ]
+              : <ProductDetails>[];
+          return ProductDetailsResponse(
+            productDetails: products,
+            notFoundIDs: ids.difference({starterMonthly}).toList(),
+          );
+        },
+        timeout: const Duration(milliseconds: 50),
+      );
+
+      expect(requestedBatches, hasLength(3));
+      expect(requestedBatches.first, DamanakStoreCatalog.appleProductIds);
+      expect(
+        requestedBatches.skip(1).every((batch) => batch.length == 3),
+        isTrue,
+      );
+      expect(response.productDetails.single.id, starterMonthly);
+      expect(response.notFoundIDs, hasLength(5));
+    });
+
+    test('يوضح متجر Apple الفعلي عند غياب المنتجات', () {
+      expect(
+        appleCatalogUnavailableMessage('USA'),
+        allOf(contains('USA'), contains('دول الخليج')),
+      );
+      expect(
+        appleCatalogUnavailableMessage('QAT'),
+        contains('APPLE-CATALOG-0-QAT'),
+      );
+      expect(
+        appleCatalogUnavailableMessage(null),
+        contains('APPLE-STOREFRONT-UNKNOWN'),
+      );
+    });
+
     test('يوقف حالة التحميل المعلقة ويتيح إعادة المحاولة', () async {
       final controller = AppController.unconfigured(
         billingService: _HangingStoreBillingService(),
