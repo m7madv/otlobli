@@ -71,7 +71,7 @@ const productDefinitions = [
 ];
 
 const mode = process.argv.includes('--apply') ? 'apply' : 'inspect';
-const applyPrices = mode === 'apply' && process.argv.includes('--apply-prices');
+const applyPrices = process.argv.includes('--apply-prices');
 const outputIndex = process.argv.indexOf('--output');
 const outputPath = resolve(
   outputIndex >= 0 && process.argv[outputIndex + 1]

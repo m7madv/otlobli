@@ -41,6 +41,8 @@ class NativeIdentityTokenService implements NativeIdentityTokenProvider {
   final String googleWebClientId;
   final String googleIosClientId;
   bool _googleInitialized = false;
+  String? _googleRawNonce;
+  static const _googleScopes = <String>['email', 'profile'];
 
   @override
   Future<NativeIdentityTokens> authenticate(SocialAuthProvider provider) {
@@ -88,11 +90,15 @@ class NativeIdentityTokenService implements NativeIdentityTokenProvider {
 
     try {
       if (!_googleInitialized) {
+        final rawNonce = defaultTargetPlatform == TargetPlatform.iOS
+            ? (_googleRawNonce ??= _secureNonce())
+            : null;
         await GoogleSignIn.instance.initialize(
           clientId: defaultTargetPlatform == TargetPlatform.iOS
               ? googleIosClientId
               : null,
           serverClientId: googleWebClientId,
+          nonce: rawNonce == null ? null : hashIdentityNonce(rawNonce),
         );
         _googleInitialized = true;
       }
@@ -101,13 +107,26 @@ class NativeIdentityTokenService implements NativeIdentityTokenProvider {
       }
 
       final account = await GoogleSignIn.instance.authenticate(
-        scopeHint: const ['email', 'profile'],
+        scopeHint: _googleScopes,
       );
+      final authorization =
+          await account.authorizationClient.authorizationForScopes(
+            _googleScopes,
+          ) ??
+          await account.authorizationClient.authorizeScopes(_googleScopes);
       final idToken = account.authentication.idToken;
-      if (idToken == null || idToken.isEmpty) {
+      if (idToken == null ||
+          idToken.isEmpty ||
+          authorization.accessToken.isEmpty) {
         throw StateError('AUTH_TOKEN_MISSING');
       }
-      return (idToken: idToken, accessToken: null, nonce: null);
+      return (
+        idToken: idToken,
+        accessToken: authorization.accessToken,
+        nonce: defaultTargetPlatform == TargetPlatform.iOS
+            ? _googleRawNonce
+            : null,
+      );
     } on GoogleSignInException catch (error) {
       switch (error.code) {
         case GoogleSignInExceptionCode.canceled:
@@ -133,3 +152,6 @@ class NativeIdentityTokenService implements NativeIdentityTokenProvider {
     ).join();
   }
 }
+
+String hashIdentityNonce(String rawNonce) =>
+    sha256.convert(utf8.encode(rawNonce)).toString();

@@ -55,14 +55,18 @@ class SupabaseDamanakRepository implements DamanakRepository {
           platform: defaultTargetPlatform,
         )) {
       final tokens = await nativeIdentityTokens.authenticate(provider);
-      await _client.auth.signInWithIdToken(
-        provider: provider == SocialAuthProvider.google
-            ? OAuthProvider.google
-            : OAuthProvider.apple,
-        idToken: tokens.idToken,
-        accessToken: tokens.accessToken,
-        nonce: tokens.nonce,
-      );
+      try {
+        await _client.auth.signInWithIdToken(
+          provider: provider == SocialAuthProvider.google
+              ? OAuthProvider.google
+              : OAuthProvider.apple,
+          idToken: tokens.idToken,
+          accessToken: tokens.accessToken,
+          nonce: tokens.nonce,
+        );
+      } on AuthException {
+        throw StateError('AUTH_FAILED');
+      }
       return;
     }
 

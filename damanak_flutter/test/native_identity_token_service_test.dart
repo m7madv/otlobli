@@ -4,6 +4,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('يشفّر nonce تسجيل الهوية بصيغة SHA-256 التي يتوقعها المزود', () {
+    expect(
+      hashIdentityNonce('damanak-google-nonce'),
+      '47598bac04c7ae54cad37b3ef2e8becee78e1a7c4d72876182719fdaacc6369b',
+    );
+  });
+
   group('supportsNativeSocialAuth', () {
     test('يدعم Apple وGoogle أصلياً على iOS', () {
       expect(
