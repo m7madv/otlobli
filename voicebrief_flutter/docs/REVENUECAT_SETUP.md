@@ -22,18 +22,22 @@
 - Service account `damanak-play-verifier@damanak-production.iam.gserviceaccount.com` now has VoiceBrief-only access with the minimum explicit permissions for financial viewing, order/subscription management, and store-presence/product management. Play Console confirmed `تم تحديث تفاصيل المستخدم.` The Developer API immediately changed subscription reads from `403` to `200`, but price conversion and base-plan writes still return `The caller does not have permission`; Google documents that permission changes may take time to propagate. Because an account-owner Play Console save also fails after price conversion, treat this as an unresolved Google account-side monetization/save condition rather than an application-data or request-shape error.
 - `scripts/google_play_subscriptions.mjs` safely inspects the two existing products, refuses to replace partial configuration, converts the exact `29/229 QAR` seed prices into regional prices, creates `monthly`/`annual` auto-renewing base plans, and activates them only with `--activate`. It accepts either a service-account JSON environment value or a private-key path and never writes credentials to its report. Current reports under `build/google-play-subscriptions/` confirm both plans are still `MISSING` and activation is permission-blocked.
 - The separate Google Play developer account reached through `mhm1981x@gmail.com` is `Mohammad samir Alzouabi` (`7616754513484681287`). It cannot publish because Google reports failed identity verification and an unconfirmed contact phone, and it does not contain the current VoiceBrief app. Do not move the app or change developer-account permissions without owner approval.
-- The RevenueCat dashboard still redirects to login, so no project, store import, entitlement, offering, SDK keys, or webhook secret has been configured there.
+- RevenueCat project `VoiceBrief` now exists with project ID `59213dad`. Onboarding created entitlement `pro` and offering `default`; the offering currently includes RevenueCat's suggested monthly, yearly, and lifetime package placeholders, but no store products are attached yet.
+- Apple app configuration is prepared with name `VoiceBrief (App Store)` and bundle ID `app.voicebrief.mobile`. The correct local In-App Purchase key is `C:\Users\MOHAMMAD\Downloads\SubscriptionKey_49HN3HGNM2.p8` with key ID `49HN3HGNM2`; it has not been uploaded and the app has not been saved because the browser extension currently cannot open the local file chooser. The Apple Issuer ID is also still required.
+- RevenueCat still shows the account email as unconfirmed. The Google Play app connection, production public SDK keys, product imports, package-to-product mapping, and webhook authorization secret are not configured yet.
 
 ## Remaining owner/dashboard work
 
 1. Re-run `scripts/google_play_subscriptions.mjs --activate` after Google finishes propagating the VoiceBrief grant. If the owner-session Save still fails, open a Play Console support case with the reproduced message and account/app IDs; after Google clears the account-side condition, verify both plans report `ACTIVE`.
 2. Attach both Apple subscriptions to the next app-version submission and add review screenshots.
-3. Log in to RevenueCat, import the Apple and Google products, attach entitlement `pro`, and add both packages to offering `default`.
-4. Add public iOS/Android SDK keys to private Dart defines.
-5. Set the RevenueCat App User ID to the authenticated Supabase UUID (the repository already calls `Purchases.logIn`).
-6. Configure webhook URL `https://jyehqpdbayslhzebdycj.supabase.co/functions/v1/revenuecat-webhook` with Authorization `Bearer YOUR_RANDOM_SECRET`; store only the random value as `REVENUECAT_WEBHOOK_SECRET`.
+3. Confirm the RevenueCat account email, enable local-file access for the browser extension, upload the Apple In-App Purchase key, enter key ID `49HN3HGNM2` and the Apple Issuer ID, then save the App Store connection.
+4. Add the Google Play app connection with package `app.voicebrief.mobile` and a dedicated service-account JSON credential. Do not commit or print either store credential.
+5. Import `voicebrief_pro_monthly` and `voicebrief_pro_annual` from both stores, attach them to entitlement `pro`, and map only the monthly and annual packages in offering `default`; remove or leave unused the onboarding lifetime placeholder.
+6. Add public iOS/Android SDK keys to private Dart defines.
+7. Set the RevenueCat App User ID to the authenticated Supabase UUID (the repository already calls `Purchases.logIn`).
+8. Configure webhook URL `https://jyehqpdbayslhzebdycj.supabase.co/functions/v1/revenuecat-webhook` with Authorization `Bearer YOUR_RANDOM_SECRET`; store only the random value as `REVENUECAT_WEBHOOK_SECRET`.
 
-The live webhook URL is `https://jyehqpdbayslhzebdycj.supabase.co/functions/v1/revenuecat-webhook`, and the function is deployed. On 2026-08-26 the RevenueCat dashboard was still at its login screen, so no account/app/product/offering or public SDK key was created without owner sign-in. Configure the random webhook secret only after the RevenueCat project exists so the same value can be placed in both systems without entering source control.
+The live webhook URL is `https://jyehqpdbayslhzebdycj.supabase.co/functions/v1/revenuecat-webhook`, and the function is deployed. On 2026-08-26 the RevenueCat project, entitlement, and default offering were created after owner sign-in, but neither store connection is saved and no product, public SDK key, or webhook secret is configured. Configure the random webhook secret only when the same value can be placed in both RevenueCat and Supabase without entering source control.
 
 ## Verification
 
@@ -43,4 +47,4 @@ The live webhook URL is `https://jyehqpdbayslhzebdycj.supabase.co/functions/v1/r
 - Cancellation does not revoke access before expiration; renewal creates/updates the new quota period; older out-of-order events cannot roll back newer state.
 - Restore works after reinstall/device change, logout clears local customer state, and webhook replay reports `duplicate: true` without resetting quota.
 
-Store products are now created in both stores, but Google base plans and all RevenueCat dashboard objects remain incomplete. No purchase was made.
+Store products are now created in both stores. RevenueCat's project shell, entitlement, and default offering exist, but store credentials, product mappings, SDK keys, and webhook authorization remain incomplete; Google base plans also remain blocked. No purchase was made.
