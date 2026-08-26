@@ -14,12 +14,17 @@ import '../models/subscription.dart';
 import '../models/store_billing.dart';
 import '../models/supplier.dart';
 import '../models/warranty.dart';
+import '../services/native_identity_token_service.dart';
 import 'damanak_repository.dart';
 
 class SupabaseDamanakRepository implements DamanakRepository {
-  SupabaseDamanakRepository(this._client);
+  SupabaseDamanakRepository(
+    this._client, {
+    NativeIdentityTokenProvider? nativeIdentityTokens,
+  }) : _nativeIdentityTokens = nativeIdentityTokens;
 
   final SupabaseClient _client;
+  final NativeIdentityTokenProvider? _nativeIdentityTokens;
 
   @override
   bool get isDemo => false;
@@ -42,6 +47,25 @@ class SupabaseDamanakRepository implements DamanakRepository {
 
   @override
   Future<void> signInWithSocial(SocialAuthProvider provider) async {
+    final nativeIdentityTokens = _nativeIdentityTokens;
+    if (nativeIdentityTokens != null &&
+        supportsNativeSocialAuth(
+          provider: provider,
+          isWeb: kIsWeb,
+          platform: defaultTargetPlatform,
+        )) {
+      final tokens = await nativeIdentityTokens.authenticate(provider);
+      await _client.auth.signInWithIdToken(
+        provider: provider == SocialAuthProvider.google
+            ? OAuthProvider.google
+            : OAuthProvider.apple,
+        idToken: tokens.idToken,
+        accessToken: tokens.accessToken,
+        nonce: tokens.nonce,
+      );
+      return;
+    }
+
     final launched = await _client.auth.signInWithOAuth(
       provider == SocialAuthProvider.google
           ? OAuthProvider.google

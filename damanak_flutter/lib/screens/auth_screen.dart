@@ -148,7 +148,7 @@ class _AuthPanel extends StatelessWidget {
                 ),
                 const SizedBox(width: 10),
                 Text(
-                  'جارٍ فتح تسجيل الدخول الآمن…',
+                  'جارٍ تسجيل الدخول بأمان…',
                   style: TextStyle(color: colors.onSurfaceVariant),
                 ),
               ],

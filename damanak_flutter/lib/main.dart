@@ -8,6 +8,7 @@ import 'app.dart';
 import 'config/app_config.dart';
 import 'data/supabase_repository.dart';
 import 'state/app_controller.dart';
+import 'services/native_identity_token_service.dart';
 import 'services/store_billing_service.dart';
 import 'screens/startup_screen.dart';
 
@@ -89,7 +90,10 @@ Future<AppController> _createController() async {
         debug: false,
       );
       final cloudController = AppController.withRepository(
-        SupabaseDamanakRepository(Supabase.instance.client),
+        SupabaseDamanakRepository(
+          Supabase.instance.client,
+          nativeIdentityTokens: NativeIdentityTokenService(),
+        ),
         billingService: billingService,
       );
       controller = cloudController;

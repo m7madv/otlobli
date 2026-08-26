@@ -213,8 +213,7 @@ class AppController extends ChangeNotifier {
   Future<void> signInWithSocial(SocialAuthProvider provider) async {
     await _guard(() async {
       await _repository!.signInWithSocial(provider);
-      _noticeMessage =
-          'أكمل تسجيل ${provider.label} في النافذة الآمنة ثم عد إلى ضمانك.';
+      _noticeMessage = 'تم تسجيل الدخول باستخدام ${provider.label}.';
     });
   }
 
@@ -1219,7 +1218,9 @@ class AppController extends ChangeNotifier {
     try {
       await action();
     } on Object catch (error) {
-      _errorMessage = _friendlyError(error);
+      if (!error.toString().toLowerCase().contains('auth_canceled')) {
+        _errorMessage = _friendlyError(error);
+      }
     } finally {
       _busy = false;
       notifyListeners();
@@ -1228,6 +1229,12 @@ class AppController extends ChangeNotifier {
 
   String _friendlyError(Object error) {
     final value = error.toString().toLowerCase();
+    if (value.contains('auth_provider_unavailable')) {
+      return 'تسجيل الدخول هذا غير متاح على الجهاز حالياً. تحقق من إعداد الحساب ثم حاول مجدداً.';
+    }
+    if (value.contains('auth_token_missing')) {
+      return 'لم يرسل مزوّد الحساب بيانات الدخول المطلوبة. حاول مجدداً.';
+    }
     if (value.contains('auth_window_not_opened')) {
       return 'تعذّر فتح تسجيل الدخول. تحقق من وجود متصفح آمن وحاول مجدداً.';
     }
