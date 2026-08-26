@@ -9,6 +9,7 @@ const DISTRIBUTION_CERTIFICATE_TYPES = new Set([
   "DISTRIBUTION",
   "IOS_DISTRIBUTION",
 ]);
+const IOS_BUNDLE_ID_PLATFORMS = new Set(["IOS", "UNIVERSAL"]);
 
 class AppStoreConnectError extends Error {
   constructor(message, status, errors = []) {
@@ -172,25 +173,28 @@ async function listAll(config, resource) {
   return resources;
 }
 
+function selectBundleId(entries, bundleIdentifier) {
+  const matches = entries.filter(
+    (entry) =>
+      entry.attributes?.identifier === bundleIdentifier &&
+      IOS_BUNDLE_ID_PLATFORMS.has(entry.attributes?.platform),
+  );
+  if (matches.length !== 1) {
+    throw new Error(
+      `Expected exactly one registered iOS-compatible bundle ID ${bundleIdentifier}; found ${matches.length}.`,
+    );
+  }
+  return matches[0];
+}
+
 async function findBundleId(config) {
   const query = new URLSearchParams({
     "filter[identifier]": config.bundleIdentifier,
-    "filter[platform]": "IOS",
     "fields[bundleIds]": "name,identifier,platform",
     limit: "10",
   });
   const bundleIds = await listAll(config, `/bundleIds?${query}`);
-  const matches = bundleIds.filter(
-    (entry) =>
-      entry.attributes?.identifier === config.bundleIdentifier &&
-      entry.attributes?.platform === "IOS",
-  );
-  if (matches.length !== 1) {
-    throw new Error(
-      `Expected exactly one registered iOS bundle ID ${config.bundleIdentifier}; found ${matches.length}.`,
-    );
-  }
-  return matches[0];
+  return selectBundleId(bundleIds, config.bundleIdentifier);
 }
 
 async function listCapabilities(config, bundleId) {
@@ -414,6 +418,87 @@ function runSelfTest() {
     profile.data.relationships.certificates.data[0].id !== "certificate-1"
   )
     throw new Error("Profile request fixture is invalid.");
+  const universalBundle = selectBundleId(
+    [
+      {
+        id: "bundle-related-service",
+        attributes: {
+          identifier: "com.otlobli.app.signin",
+          platform: "IOS",
+        },
+      },
+      {
+        id: "bundle-universal",
+        attributes: {
+          identifier: "com.otlobli.app",
+          platform: "UNIVERSAL",
+        },
+      },
+      {
+        id: "bundle-macos",
+        attributes: {
+          identifier: "com.otlobli.app",
+          platform: "MAC_OS",
+        },
+      },
+    ],
+    "com.otlobli.app",
+  );
+  if (universalBundle.id !== "bundle-universal")
+    throw new Error("Universal iOS-compatible bundle ID was not selected.");
+  const iosBundle = selectBundleId(
+    [
+      {
+        id: "bundle-ios",
+        attributes: { identifier: "com.otlobli.app", platform: "IOS" },
+      },
+    ],
+    "com.otlobli.app",
+  );
+  if (iosBundle.id !== "bundle-ios")
+    throw new Error("iOS bundle ID fixture was not selected.");
+  let rejectedMacOnly = false;
+  try {
+    selectBundleId(
+      [
+        {
+          id: "bundle-macos",
+          attributes: {
+            identifier: "com.otlobli.app",
+            platform: "MAC_OS",
+          },
+        },
+      ],
+      "com.otlobli.app",
+    );
+  } catch {
+    rejectedMacOnly = true;
+  }
+  if (!rejectedMacOnly)
+    throw new Error("macOS-only bundle ID fixture was accepted.");
+  let rejectedAmbiguous = false;
+  try {
+    selectBundleId(
+      [
+        {
+          id: "bundle-ios",
+          attributes: { identifier: "com.otlobli.app", platform: "IOS" },
+        },
+        {
+          id: "bundle-universal",
+          attributes: {
+            identifier: "com.otlobli.app",
+            platform: "UNIVERSAL",
+          },
+        },
+      ],
+      "com.otlobli.app",
+    );
+  } catch {
+    rejectedAmbiguous = true;
+  }
+  if (!rejectedAmbiguous)
+    throw new Error("Ambiguous iOS-compatible bundle IDs were accepted.");
   console.log("iOS App Store provisioning-profile helper self-test passed.");
 }
 
@@ -434,7 +519,7 @@ async function main() {
   await writeProfile(config, profile);
 
   console.log(
-    `Associated Domains capability: ${capabilityState}; profile: ${profileState} ${profile.attributes?.uuid || profile.id}; certificate matched by DER SHA-256 ${fingerprint.slice(0, 12)}…; expires=${profile.attributes?.expirationDate}.`,
+    `Associated Domains capability: ${capabilityState}; bundle platform=${bundle.attributes?.platform}; profile: ${profileState} ${profile.attributes?.uuid || profile.id}; certificate matched by DER SHA-256 ${fingerprint.slice(0, 12)}…; expires=${profile.attributes?.expirationDate}.`,
   );
 }
 
