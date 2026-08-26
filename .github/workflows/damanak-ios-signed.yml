@@ -128,13 +128,17 @@ jobs:
           PROFILE_APPLE_SIGN_IN=$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:com.apple.developer.applesignin:0' "$RUNNER_TEMP/damanak-embedded-profile.plist")
           codesign -d --entitlements :- "$APP_PATH" > "$RUNNER_TEMP/damanak-app-entitlements.plist"
           APP_APPLE_SIGN_IN=$(/usr/libexec/PlistBuddy -c 'Print :com.apple.developer.applesignin:0' "$RUNNER_TEMP/damanak-app-entitlements.plist")
+          APP_DEEP_LINK_SCHEME=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleURLTypes:0:CFBundleURLSchemes:0' "$APP_PATH/Info.plist")
+          GOOGLE_CALLBACK_SCHEME=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleURLTypes:1:CFBundleURLSchemes:0' "$APP_PATH/Info.plist")
           test "$APP_BUNDLE_ID" = "com.damanak.damanak"
           [[ "$PROFILE_APP_ID" == *".$APP_BUNDLE_ID" ]]
           test "$PROFILE_APPLE_SIGN_IN" = "Default"
           test "$APP_APPLE_SIGN_IN" = "Default"
-          strings "$APP_PATH/Frameworks/App.framework/App" > "$RUNNER_TEMP/damanak-app-strings.txt"
-          grep -Fq "login-callback" "$RUNNER_TEMP/damanak-app-strings.txt"
-          echo "Verified signed bundle $APP_BUNDLE_ID, Apple Sign-In, and its embedded App Store profile."
+          test "$APP_DEEP_LINK_SCHEME" = "com.damanak.damanak"
+          test "$GOOGLE_CALLBACK_SCHEME" = "com.googleusercontent.apps.521030062021-lupo3mel3si0nmu9tijcblo13d4sqg4d"
+          test -d "$APP_PATH/Frameworks/GoogleSignIn.framework"
+          test -d "$APP_PATH/Frameworks/sign_in_with_apple.framework"
+          echo "Verified signed bundle $APP_BUNDLE_ID, native Apple/Google sign-in, and its embedded App Store profile."
 
       - name: Validate and upload to App Store Connect
         if: ${{ inputs.upload_to_testflight }}
