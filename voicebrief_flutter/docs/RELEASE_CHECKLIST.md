@@ -62,7 +62,9 @@
 - Source version is `0.1.0+8`. GitHub Actions now holds both platform-specific RevenueCat public SDK keys; Runner and Share Extension use build `8`, and the signed plus unsigned iOS workflows verify/package that number consistently.
 - RevenueCat has both store apps, all four monthly/annual products attached to entitlement `pro`, and both cross-platform packages in offering `default`.
 - Local verification passed: `dart format --set-exit-if-changed .`, `flutter analyze`, 30 non-golden tests, eleven golden tests, and `flutter build apk --debug`.
-- The signed TestFlight upload, Apple sandbox purchase/restore, webhook delivery, and real-device acceptance are not complete yet. Android purchase acceptance also waits for Google Play to save and activate both base plans.
+- Commit `eccc611` passed the complete mobile CI run [32922121853](https://github.com/m7madv/otlobli/actions/runs/32922121853): Android build/analyze/tests, eleven Windows golden tests, and unsigned iOS build all completed successfully. Signed run [32922142795](https://github.com/m7madv/otlobli/actions/runs/32922142795) archived Runner plus the Share Extension, verified their profiles and entitlements, and Apple accepted the upload.
+- Apple finished processing build `0.1.0 (8)` as `Complete` with TestFlight build ID `71d308f7-b859-46ec-9d56-7622e58ffe79`. It is attached automatically to `VoiceBrief Internal`, which has one invited tester. Signed IPA `VoiceBrief-0.1.0-build8-AppStore.ipa` is 34,411,364 bytes with SHA-256 `459B17DDAC178B40C598574B70A0769141B35C78A6890DEDA4F3019A9BDB72CA`.
+- Apple sandbox purchase/restore, webhook delivery, and build 8 real-device acceptance are not complete yet. Android purchase acceptance also waits for Google Play to save and activate both base plans.
 
 ## Owner/external configuration
 

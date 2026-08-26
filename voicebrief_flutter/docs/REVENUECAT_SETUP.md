@@ -26,7 +26,7 @@
 - RevenueCat App Store app `VoiceBrief (App Store)` was saved successfully with app ID `app85cd86a950`, bundle ID `app.voicebrief.mobile`, In-App Purchase key ID `49HN3HGNM2`, and Apple Issuer ID `631dc2f6-b1d1-423e-8617-d3d37fc4514a`. RevenueCat displayed `App created successfully`; the private P8 remains outside Git.
 - RevenueCat Google Play app `VoiceBrief (Play Store)` was saved successfully with app ID `appa60d40b8c1` and package `app.voicebrief.mobile`. The uploaded service-account JSON remains private outside Git at `C:\Users\MOHAMMAD\.voicebrief\google\revenuecat-play-service-account.json`; its SHA-256 is `60BF02E2D1AD0C9AE2B2321A4EC207B7EAD0134C38D52AC5D467E15D56497107`, and its Windows ACL allows only the current user and SYSTEM.
 - RevenueCat products were created manually because automatic import was unavailable: App Store monthly `prodd7310149f3`, App Store annual `prod917a173c57`, Google monthly `prod4fffb4ba55` (`voicebrief_pro_monthly:monthly`), and Google annual `prode9c5469afa` (`voicebrief_pro_annual:annual`). All four are attached to entitlement `pro`; monthly products are mapped to `$rc_monthly`, and annual products to `$rc_annual` in offering `default`.
-- The public SDK keys generated for both production apps are stored as GitHub Actions secrets `VOICEBRIEF_REVENUECAT_IOS_PUBLIC_SDK_KEY` and `VOICEBRIEF_REVENUECAT_ANDROID_PUBLIC_SDK_KEY`. Build `0.1.0+8` is the first source version prepared to consume them. RevenueCat still shows the account email as unconfirmed, and no webhook authorization secret or sandbox purchase has been configured yet.
+- The public SDK keys generated for both production apps are stored as GitHub Actions secrets `VOICEBRIEF_REVENUECAT_IOS_PUBLIC_SDK_KEY` and `VOICEBRIEF_REVENUECAT_ANDROID_PUBLIC_SDK_KEY`. Build `0.1.0+8` is the first source version prepared to consume them. Signed run `32922142795` was accepted by Apple, completed processing as TestFlight build `71d308f7-b859-46ec-9d56-7622e58ffe79`, and is attached to `VoiceBrief Internal`. RevenueCat still shows the account email as unconfirmed, and no webhook authorization secret or sandbox purchase has been configured yet.
 
 ## Remaining owner/dashboard work
 
@@ -34,7 +34,7 @@
 2. Attach both Apple subscriptions to the next app-version submission and add review screenshots.
 3. Confirm the RevenueCat account email.
 4. Configure webhook URL `https://jyehqpdbayslhzebdycj.supabase.co/functions/v1/revenuecat-webhook` with Authorization `Bearer YOUR_RANDOM_SECRET`; store only the random value as `REVENUECAT_WEBHOOK_SECRET`.
-5. Build and install `0.1.0+8`, then complete Apple sandbox purchase and restore checks. Repeat on Android only after Google saves and activates both base plans.
+5. Install TestFlight build `0.1.0 (8)`, then complete Apple sandbox purchase and restore checks. Repeat on Android only after Google saves and activates both base plans.
 
 The live webhook URL is `https://jyehqpdbayslhzebdycj.supabase.co/functions/v1/revenuecat-webhook`, and the function is deployed. On 2026-08-26 both store connections, all four production product mappings, entitlement `pro`, offering `default`, and both public SDK build keys were completed. Configure the random webhook secret only when the same value can be placed in both RevenueCat and Supabase without entering source control.
 
