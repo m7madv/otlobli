@@ -19,6 +19,10 @@ function argument(name, fallback = '') {
 
 const aabPath = resolve(argument('--aab'));
 const track = argument('--track', 'internal');
+const releaseStatus = argument('--status', 'draft');
+if (!['draft', 'completed'].includes(releaseStatus)) {
+  throw new Error(`Unsupported release status: ${releaseStatus}`);
+}
 const outputPath = resolve(
   argument('--output', 'build/google-play-upload/report.json'),
 );
@@ -111,7 +115,7 @@ async function main() {
     track,
     artifact: basename(aabPath),
     generatedAt: new Date().toISOString(),
-    releaseStatus: 'draft',
+    releaseStatus,
   };
   try {
     const account = readServiceAccount();
@@ -132,7 +136,7 @@ async function main() {
           releases: [
             {
               name: `Damanak build ${bundle.versionCode}`,
-              status: 'draft',
+              status: releaseStatus,
               versionCodes: [String(bundle.versionCode)],
             },
           ],

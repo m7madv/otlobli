@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:in_app_purchase_android/billing_client_wrappers.dart';
 import 'package:in_app_purchase_android/in_app_purchase_android.dart';
+import 'package:in_app_purchase_platform_interface/in_app_purchase_platform_interface.dart';
 import 'package:in_app_purchase_storekit/in_app_purchase_storekit.dart';
 import 'package:in_app_purchase_storekit/store_kit_wrappers.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -95,6 +96,77 @@ ProductDetailsResponse _mergeProductResponses({
     productDetails: productsById.values.toList(growable: false),
     notFoundIDs: missingIds,
     error: productsById.isEmpty ? firstError : null,
+  );
+}
+
+@visibleForTesting
+ProductDetailsResponse googleSubscriptionProductResponse({
+  required Set<String> productIds,
+  required ProductDetailsResponseWrapper response,
+}) {
+  final products = response.productDetailsList
+      .where((product) => product.productType == ProductType.subs)
+      .expand(GooglePlayProductDetails.fromProductDetails)
+      .toList(growable: false);
+  final foundIds = products.map((product) => product.id).toSet();
+  final unfetchedIds = response.unfetchedProductList
+      .map((product) => product.productId)
+      .toSet();
+  final missingIds = {
+    ...productIds.difference(foundIds),
+    ...unfetchedIds,
+  }.toList()..sort();
+  final succeeded = response.responseCode == BillingResponse.ok;
+  return ProductDetailsResponse(
+    productDetails: products,
+    notFoundIDs: missingIds,
+    error: succeeded || products.isNotEmpty
+        ? null
+        : IAPError(
+            source: 'google_play',
+            code: response.responseCode.name,
+            message:
+                response.billingResult.debugMessage ??
+                'تعذر جلب اشتراكات Google Play.',
+            details: {
+              'subResponseCode': response.billingResult.subResponseCode,
+              'unfetchedProductIds': unfetchedIds.toList()..sort(),
+            },
+          ),
+  );
+}
+
+Future<ProductDetailsResponse> _queryGoogleSubscriptionProducts({
+  required Set<String> productIds,
+  required Duration timeout,
+}) async {
+  final platform = InAppPurchasePlatform.instance;
+  if (platform is! InAppPurchaseAndroidPlatform) {
+    throw StateError('GOOGLE_PLAY_PLATFORM_UNAVAILABLE');
+  }
+
+  // The generic Flutter API queries every identifier as both an in-app item
+  // and a subscription. With Play Billing 8, a failed in-app query can discard
+  // the valid subscription response. Damanak only sells subscriptions, so ask
+  // the already-connected Android billing client for that product type alone.
+  // ignore: invalid_use_of_visible_for_testing_member
+  final response = await platform.billingClientManager
+      .runWithClient(
+        (client) => client.queryProductDetails(
+          productList: productIds
+              .map(
+                (productId) => ProductWrapper(
+                  productId: productId,
+                  productType: ProductType.subs,
+                ),
+              )
+              .toList(growable: false),
+        ),
+      )
+      .timeout(timeout);
+  return googleSubscriptionProductResponse(
+    productIds: productIds,
+    response: response,
   );
 }
 
@@ -298,7 +370,10 @@ class PlatformStoreBillingService implements StoreBillingService {
               storeKit1Query: _queryAppleProductsWithStoreKit1,
               timeout: productQueryTimeout,
             )
-          : await _client.queryProductDetails(ids).timeout(productQueryTimeout);
+          : await _queryGoogleSubscriptionProducts(
+              productIds: ids,
+              timeout: productQueryTimeout,
+            );
       final storefrontCountryCode = await appleCountryCode;
       if (platform == StoreBillingPlatform.googlePlay) {
         await _loadOldGoogleSubscription();
@@ -337,6 +412,11 @@ class PlatformStoreBillingService implements StoreBillingService {
                   'رمز المتجر: ${response.error!.code}.'
             : platform == StoreBillingPlatform.appStore && offers.isEmpty
             ? appleCatalogUnavailableMessage(storefrontCountryCode)
+            : platform == StoreBillingPlatform.googlePlay && offers.isEmpty
+            ? 'اتصل التطبيق بـGoogle Play، لكن المتجر لم يُرجع أي خطة. '
+                  'رمز التشخيص: GOOGLE-CATALOG-'
+                  '${response.productDetails.length}-'
+                  '${response.notFoundIDs.length}.'
             : null,
       );
     } on TimeoutException {
@@ -346,6 +426,15 @@ class PlatformStoreBillingService implements StoreBillingService {
         offers: const [],
         errorMessage:
             'استغرق ${platform.label} وقتاً طويلاً. تحقق من الاتصال ثم أعد المحاولة.',
+      );
+    } on PlatformException catch (error) {
+      return StoreProductLoadResult(
+        available: false,
+        platform: platform,
+        offers: const [],
+        errorMessage:
+            'تعذر جلب الأسعار من ${platform.label}. حاول مرة أخرى. '
+            'رمز المتجر: ${error.code}.',
       );
     }
   }

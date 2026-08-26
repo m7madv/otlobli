@@ -6,6 +6,7 @@ import 'package:damanak/state/app_controller.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
+import 'package:in_app_purchase_android/billing_client_wrappers.dart';
 
 void main() {
   group('تهيئة متجر Apple', () {
@@ -74,6 +75,46 @@ void main() {
         DamanakStoreCatalog.cycleFromGoogleBasePlan('yearly'),
         BillingCycle.yearly,
       );
+    });
+
+    test('يحوّل استجابة اشتراكات Google دون طلب منتجات عادية', () {
+      const productId = 'com.damanak.subscription.starter';
+      final response = googleSubscriptionProductResponse(
+        productIds: const {productId},
+        response: const ProductDetailsResponseWrapper(
+          billingResult: BillingResultWrapper(responseCode: BillingResponse.ok),
+          productDetailsList: [
+            ProductDetailsWrapper(
+              description: 'الخطة الشهرية',
+              name: 'بداية',
+              productId: productId,
+              productType: ProductType.subs,
+              title: 'خطة بداية',
+              subscriptionOfferDetails: [
+                SubscriptionOfferDetailsWrapper(
+                  basePlanId: 'monthly',
+                  offerTags: [],
+                  offerIdToken: 'monthly-token',
+                  pricingPhases: [
+                    PricingPhaseWrapper(
+                      billingCycleCount: 0,
+                      billingPeriod: 'P1M',
+                      formattedPrice: '33 ر.ق',
+                      priceAmountMicros: 33000000,
+                      priceCurrencyCode: 'QAR',
+                      recurrenceMode: RecurrenceMode.infiniteRecurring,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+
+      expect(response.error, isNull);
+      expect(response.notFoundIDs, isEmpty);
+      expect(response.productDetails.single.id, productId);
     });
 
     test('يرفض المعرفات والدورات غير المدرجة', () {
