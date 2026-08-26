@@ -1,3 +1,60 @@
+# Active handoff — v86.241/1106 Temu/SHEIN/group-order release (2026-08-26)
+
+Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
+`codex/otlobli-v86-212-testflight-auth`. Android and iOS are `86.241 (1106)`.
+The production web alias is `https://talabieh.vercel.app`; Supabase migration
+`20260826123000_group_order_single_friend.sql` and the `cart-groups` Edge
+Function are live in project `dcicqdprtyhwmhegabay`. At this snapshot the
+TestFlight workflow is not yet started; push the release commit, run
+`ios-unsigned-build.yml` with `signing_mode=testflight`,
+`testflight_delivery=upload-and-distribute`, and
+`app_store_submission=false`, then record the exact run and Apple state.
+
+Preserve the narrow Temu fix. The iPhone video proved that Otlobli's native bar
+stayed fixed while Temu's own search/logo header moved about `70px`. iOS now
+gets the same semantic sticky-marker Y correction as Android, only when the
+bounded download-shell detector has marked Temu Home as collapsed. Do not add
+`top`, scroll work, a timer, observer, broad scan, or an in-page bar.
+
+Preserve the SHEIN behavior: the existing policy cadence may activate only the
+exact site-owned «تسجيل الدخول لاحقًا» action on the optional first-product
+interstitial. Human verification exits first. Never fill an account form,
+hide deliberate login, or add another cadence/observer.
+
+Group orders are intentionally exactly two people. Invite URLs carry only
+`code`, `group`, and `store`; joining is explicit. Keep session-authenticated
+atomic RPCs, the one-host/one-friend partial indexes, `200`-item cap, UUID
+validation, per-operation epoch, and matching-group/item cleanup. Never restore
+the old anonymous RPCs or globally deduplicate historical customers: nine
+expired legacy groups have duplicates and one is linked to an order. The live
+transactional test rolled back and left `30` groups and `44` memberships.
+
+The full production build, TypeScript, Deno, group guard, store/freeze guards,
+release hardening, and performance budgets pass. Final budgets are startup JS
+`673,159/720,000`, total JS gzip `299,501/370,000`, and CSS
+`69,989/70,000`. Android/iOS sync passed. Repository lint still has only the
+pre-existing out-of-scope escapes at `src/services/sheinNavigationScript.ts:44`
+plus known warnings.
+
+Physical Note 8 has `86.241 (1106)` installed in place with data preserved.
+Temu's header stayed fixed at open and after deep scroll. A native Temu security
+challenge appeared on Back, so testing stopped without interaction or bypass.
+No fatal/ANR/OOM match was found. Evidence is in
+`artifacts/device-captures/v86.241-note8/`.
+
+- APK: `artifacts/release-86.241/Otlobli-86.241-1106-release.apk`,
+  `4,111,877` bytes, SHA-256
+  `122BF44912874CC78F9D3D2D29C4D3A2DAE1B27DBC3957A160AE53232AB47D8F`.
+- AAB: `artifacts/release-86.241/Otlobli-86.241-1106-release.aab`,
+  `5,772,199` bytes, SHA-256
+  `F931E6262CC113325DA770C192C18734E47F1708456E6340290F0933F49A13B3`.
+
+Preserve `otlobliForceRecompose()`, exact `0.25s` app-active delay, Android
+resume defense, and `JSON.stringify` region equality. SHEIN region, sessions,
+human verification, payment, completed orders, and wallet were not changed.
+Five real iPhone 16 resume cycles plus a separate force-quit/cold launch remain
+mandatory even after a successful TestFlight upload.
+
 # Active handoff — local v86.237/1102 store-identity candidate (2026-08-25)
 
 Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on

@@ -571,9 +571,12 @@ export const TEMU_BROWSER_SCRIPT = `
     // offset. On the Note 8 this moves the composited Search row down by the
     // same 66 CSS px after a scroll round-trip, overlapping categories and the
     // benefit row. Reset only Temu's semantic presentation marker after the
-    // bounded shell was actually found and collapsed on Android Home; no
-    // content node, search control, product route or iOS layout moves.
-    'html[data-otlobli-native-platform="android"][data-otlobli-temu-home-route="1"][data-otlobli-temu-download-collapsed="1"] [js-selector="bg-cui-top-sticky"]' +
+    // bounded shell was actually found and collapsed on native Home; no
+    // content node, search control or product route moves. Keep this paired
+    // with the Android/iOS shell collapse above: applying only half of the
+    // pair lets Temu restore the removed offset after a scroll round-trip.
+    'html[data-otlobli-native-platform="android"][data-otlobli-temu-home-route="1"][data-otlobli-temu-download-collapsed="1"] [js-selector="bg-cui-top-sticky"],' +
+    'html[data-otlobli-native-platform="ios"][data-otlobli-temu-home-route="1"][data-otlobli-temu-download-collapsed="1"] [js-selector="bg-cui-top-sticky"]' +
     '{ transform: translate(-50%, 0) !important; }';
 
   function otlobliSyncTemuDownloadCollapsedMarker(root, collapsed) {

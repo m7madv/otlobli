@@ -259,16 +259,29 @@ async function postCartGroup(body: Record<string, unknown>) {
       authorization: `Bearer ${SUPABASE_ANON_KEY}`,
       'content-type': 'application/json',
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ ...body, sessionToken: requireCustomerSessionToken() }),
   })
   const data = await response.json().catch(() => null)
   if (!response.ok || !data) {
     const error = (data && typeof data === 'object' ? (data as { error?: string }).error : '') || ''
-    if (error === 'group_not_found') throw new Error('كود الصديق غير صحيح أو انتهت صلاحيته.')
-    if (error === 'missing_code') throw new Error('أدخل كود أو رابط الصديق أولاً.')
-    if (error === 'same_customer') throw new Error('لا يمكن الانضمام لنفس السلة بنفس رقم واتساب. افتح الرابط من حساب صديقك أو سجّل دخول برقم مختلف.')
-    if (error === 'group_full') throw new Error('هذه السلة مرتبطة بشخصين بالفعل.')
-    throw new Error('تعذر تحديث الطلب المشترك حالياً. حاول مرة أخرى.')
+    const message = error === 'group_not_found'
+      ? 'كود الصديق غير صحيح أو انتهت صلاحيته.'
+      : error === 'missing_code'
+        ? 'أدخل كود أو رابط الصديق أولاً.'
+        : error === 'same_customer'
+          ? 'لا يمكن الانضمام لنفس السلة بنفس رقم واتساب. افتح الرابط من حساب صديقك أو سجّل دخول برقم مختلف.'
+          : error === 'group_full'
+            ? 'هذه السلة مرتبطة بشخصين بالفعل.'
+            : error === 'invalid_session'
+              ? 'انتهت جلسة الدخول. سجّل الدخول من جديد.'
+              : error === 'group_closed' || error === 'not_member'
+                ? 'أُغلقت السلة المشتركة أو انتهى ارتباطك بها.'
+                : error === 'invalid_group_items'
+                  ? 'تعذر مزامنة منتجات السلة المشتركة. حدّث السلة وحاول مجددًا.'
+                  : 'تعذر تحديث الطلب المشترك حالياً. حاول مرة أخرى.'
+    const cartGroupError = new Error(message) as Error & { code?: string }
+    cartGroupError.code = error || 'cart_group_failed'
+    throw cartGroupError
   }
   return normalizeCartGroup(data)
 }
@@ -646,55 +659,38 @@ export const supabaseAppApi: TalabiehApi = {
     },
   },
   cartGroups: {
-    async create(phone, name, store, items, memberKey) {
+    async create(phone, name, store, items, _memberKey) {
       if (!supabase || !CART_GROUPS_URL) return localAppApi.cartGroups.create(phone, name, store, items)
 
       return postCartGroup({
         action: 'create',
-        phone: phone.trim(),
-        name: name.trim(),
-        memberKey,
         store,
         items,
       })
     },
 
-    async join(phone, name, code, items, memberKey) {
+    async join(phone, name, code, items, _memberKey) {
       const inviteCode = extractCartGroupCode(code)
       if (!supabase || !CART_GROUPS_URL) return localAppApi.cartGroups.join(phone, name, inviteCode, items)
       return postCartGroup({
         action: 'join',
-        phone: phone.trim(),
-        name: name.trim(),
-        memberKey,
         code: inviteCode,
         items,
       })
     },
 
-    async syncItems(phone, groupId, items, memberKey) {
+    async syncItems(phone, groupId, items, _memberKey) {
       if (!supabase || !CART_GROUPS_URL) return localAppApi.cartGroups.syncItems(phone, groupId, items)
       return postCartGroup({
         action: 'sync',
-        phone: phone.trim(),
-        memberKey,
         groupId,
         items,
       })
     },
 
-    async cancel(_phone, groupId) {
-      if (!supabase || !CART_GROUPS_URL) { await localAppApi.cartGroups.cancel(_phone, groupId); return }
-      const response = await fetch(CART_GROUPS_URL, {
-        method: 'POST',
-        headers: {
-          apikey: SUPABASE_ANON_KEY,
-          authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({ action: 'cancel', groupId }),
-      })
-      if (!response.ok) throw new Error('تعذر إلغاء المجموعة')
+    async cancel(phone, groupId) {
+      if (!supabase || !CART_GROUPS_URL) { await localAppApi.cartGroups.cancel(phone, groupId); return }
+      await postCartGroup({ action: 'cancel', groupId })
     },
   },
   orders: {

@@ -337,6 +337,7 @@ const checks = [
       'html[data-otlobli-native-platform="ios"][data-otlobli-temu-home-route="1"] [data-otlobli-temu-download-shell="1"]',
       'html[data-otlobli-native-platform="ios"][data-otlobli-temu-home-route="1"] [data-otlobli-temu-download-shell="1"] > *',
       'html[data-otlobli-native-platform="android"][data-otlobli-temu-home-route="1"][data-otlobli-temu-download-collapsed="1"] [js-selector="bg-cui-top-sticky"]',
+      'html[data-otlobli-native-platform="ios"][data-otlobli-temu-home-route="1"][data-otlobli-temu-download-collapsed="1"] [js-selector="bg-cui-top-sticky"]',
       '{ height: 0 !important; min-height: 0 !important; max-height: 0 !important; overflow: hidden !important;',
       '{ transform: translate(-50%, 0) !important; }',
       'function otlobliSyncTemuDownloadCollapsedMarker(root, collapsed)',
@@ -763,6 +764,33 @@ const checks = [
     ],
   },
   {
+    label: 'SHEIN exact login-later dismissal reuses the bounded policy observer',
+    file: 'src/services/sheinPolicyEngine.ts',
+    markers: [
+      'function exactLoginLaterLabel(value)',
+      'function dismissExactLoginLater(el,enabled)',
+      "window.__otlobliStoreRuntimeReady===true&&(route==='product'||route==='blocked-login')",
+      "data-otlobli-login-later-fired",
+      'if(!dismissExactLoginLater(nodes[i],canDismiss))hide(nodes[i],classify(nodes[i]))',
+    ],
+    forbidden: [
+      'setInterval(',
+      'history.back(',
+      'location.assign(',
+    ],
+  },
+  {
+    label: 'SHEIN login-later fallback can reach an exact hidden opt-out',
+    file: 'src/services/storeBlockingScript.ts',
+    markers: [
+      'var exactSkipPattern = /^(?:sign',
+      "var pageLabel = normalizeLoginLabel(pageControl.textContent || '')",
+      "var pageAriaLabel = normalizeLoginLabel(pageControl.getAttribute('aria-label') || '')",
+      "var pageTitle = normalizeLoginLabel(pageControl.getAttribute('title') || '')",
+      '!exactSkipPattern.test(pageLabel) && !exactSkipPattern.test(pageAriaLabel) && !exactSkipPattern.test(pageTitle)',
+    ],
+  },
+  {
     label: 'SHEIN review section is not a photo viewer',
     files: sheinRuntimeSourceFiles,
     markers: [
@@ -1142,6 +1170,20 @@ const checks = [
 ]
 
 const failures = []
+
+const sheinPolicySource = readFileSync(resolve(projectRoot, 'src/services/sheinPolicyEngine.ts'), 'utf8')
+if ((sheinPolicySource.match(/new MutationObserver\(/g) ?? []).length !== 1) {
+  failures.push('SHEIN login-later policy: dismissal must reuse exactly the one existing policy observer')
+}
+const sheinLoginFallbackSource = readFileSync(resolve(projectRoot, 'src/services/storeBlockingScript.ts'), 'utf8')
+const exactSkipStart = sheinLoginFallbackSource.indexOf('var exactSkipPattern =')
+const exactSkipEnd = sheinLoginFallbackSource.indexOf('__otlobliSheinLoginSkipKey = skipKey;', exactSkipStart)
+const exactSkipSource = sheinLoginFallbackSource.slice(exactSkipStart, exactSkipEnd)
+if (exactSkipStart < 0 || exactSkipEnd < 0 ||
+    exactSkipSource.includes('sheinElementIsVisible') ||
+    exactSkipSource.includes("document.querySelector('input')")) {
+  failures.push('SHEIN login-later fallback: exact opt-out must remain reachable without layout or form gates')
+}
 
 // Parse the fully composed source exactly as the WebView receives it. The
 // evaluator follows the pure local module graph, so splitting responsibilities

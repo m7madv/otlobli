@@ -1,4 +1,4 @@
-export const SHEIN_POLICY_VERSION = '2026.08.25-v86.232-policy-v2'
+export const SHEIN_POLICY_VERSION = '2026.08.26-v86.241-login-later-v3'
 
 export type SheinRouteClass =
   | 'allowed-public'
@@ -126,6 +126,7 @@ export const SHEIN_POLICY_DOCUMENT_START_SCRIPT = `
       if(/\\/(?:language|languages|locale)(?:[/?#.-]|$)/i.test(path))return'blocked-language';
       if(/\\/(?:currency|currencies)(?:[/?#.-]|$)/i.test(path))return'blocked-currency';
       if(/\\/(?:cart|bag|checkout|order-confirm|payment)(?:[/?#.-]|$)/i.test(path))return'blocked-checkout';
+      if(/(?:-p-\\d+|\\/product\\/|\\/goods\\/|\\/item\\/)/i.test(path)||/[?&](?:goods_id|goodsid|product_id|productid|mallcode|skc)=/i.test(u.search))return'product';
       return'allowed-public';
     }catch(e){return'unknown';}
   }
@@ -147,6 +148,20 @@ export const SHEIN_POLICY_DOCUMENT_START_SCRIPT = `
     // exists; login/account/checkout surfaces remain blocked throughout.
     if(document.getElementById('otlobli-region-switching')&&el.closest&&el.closest('.sui-drawer.cascade'))return true;
     return challengeOwned(el);
+  }
+  function exactLoginLaterLabel(value){
+    var label=String(value||'').replace(/[\\u064B-\\u065F\\u0670]/g,'').replace(/\\s+/g,' ').trim().toLowerCase();
+    return /^(?:sign in later|log in later|\\u062a\\u0633\\u062c\\u064a\\u0644 \\u0627\\u0644\\u062f\\u062e\\u0648\\u0644 \\u0644\\u0627\\u062d\\u0642\\u0627)$/.test(label);
+  }
+  function dismissExactLoginLater(el,enabled){
+    if(!enabled||!el||el.nodeType!==1)return false;
+    var role=String(el.getAttribute('role')||'').toLowerCase(),tag=String(el.tagName||'').toUpperCase();
+    if(role!=='button'&&tag!=='BUTTON'&&tag!=='A')return false;
+    if(!exactLoginLaterLabel(el.textContent)&&!exactLoginLaterLabel(el.getAttribute('aria-label'))&&!exactLoginLaterLabel(el.getAttribute('title')))return false;
+    if(owned(el))return false;
+    if(el.getAttribute('data-otlobli-login-later-fired')==='1')return true;
+    el.setAttribute('data-otlobli-login-later-fired','1');
+    try{el.click();return true;}catch(e){el.removeAttribute('data-otlobli-login-later-fired');return false;}
   }
   function semanticClass(el){
     var aria=String(el.getAttribute('aria-label')||'').trim().toLowerCase();
@@ -198,9 +213,10 @@ export const SHEIN_POLICY_DOCUMENT_START_SCRIPT = `
   function scan(root){
     if(challengeActive())return;
     if(!root||root.nodeType!==1)return;
-    if(root.matches&&root.matches(candidateSelector))hide(root,classify(root));
+    var route=routeClass(location.href),canDismiss=window.__otlobliStoreRuntimeReady===true&&(route==='product'||route==='blocked-login');
+    if(root.matches&&root.matches(candidateSelector)&&!dismissExactLoginLater(root,canDismiss))hide(root,classify(root));
     var nodes=root.querySelectorAll?root.querySelectorAll(candidateSelector):[];
-    for(var i=0;i<nodes.length&&i<MAX_NODES_PER_ROOT;i++)hide(nodes[i],classify(nodes[i]));
+    for(var i=0;i<nodes.length&&i<MAX_NODES_PER_ROOT;i++)if(!dismissExactLoginLater(nodes[i],canDismiss))hide(nodes[i],classify(nodes[i]));
     if(nodes.length>MAX_NODES_PER_ROOT)mismatch('subtree-cap');
   }
   function enqueue(root){

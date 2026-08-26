@@ -2062,11 +2062,10 @@ a {
 
 .group-order-card {
   display: grid;
-  gap: 10px;
-  border: 1px solid var(--outline);
-  border-radius: var(--radius);
-  background: var(--surface);
-  padding: 12px;
+  gap: 8px;
+  border: 1px solid rgba(0, 105, 72, 0.22);
+  border-radius: 14px;
+  padding: 10px;
 }
 
 .group-order-card h2,
@@ -2074,93 +2073,108 @@ a {
   margin: 0;
 }
 
-.group-order-card h2 {
-  font-size: 1rem;
+.group-order-head h2 {
+  font-size: 0.9rem;
 }
 
-.group-order-card p {
+.group-order-head p,
+.group-ready-row span,
+.group-waiting-note,
+.group-empty-hint {
   color: var(--muted);
-  font-size: 0.82rem;
+  font-size: 0.72rem;
 }
 
-.group-code-row,
-.group-join-row,
-.group-members {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.group-code-row span,
-.group-members span {
+.group-limit-badge,
+.group-ready-row code {
   border-radius: 999px;
+  padding: 4px 7px;
   background: var(--primary-soft);
   color: var(--primary);
   font-weight: 800;
-  padding: 6px 10px;
+  font-size: 0.68rem;
 }
 
-.group-code-row button,
-.group-join-row button {
-  min-height: 36px;
-  border: 1px solid var(--outline);
-  border-radius: var(--radius);
-  background: var(--surface-soft);
-  color: var(--primary);
+.group-order-head,
+.group-ready-row,
+.group-code-row,
+.group-join-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.group-order-head > div,
+.group-ready-row > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.group-create-action,
+.group-whatsapp-action,
+.group-icon-action,
+.group-join-row button,
+.group-invite-actions button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 11px;
   font-weight: 800;
-  padding: 0 10px;
+}
+
+.group-create-action,
+.group-whatsapp-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  background: var(--primary);
+  color: #fff;
+}
+
+.group-whatsapp-action {
+  flex: 1;
+}
+
+.group-icon-action {
+  flex: 0 0 44px;
 }
 
 .group-join-row input {
-  flex: 1 1 120px;
   min-width: 0;
-  min-height: 38px;
+  min-height: 44px;
+  flex: 1;
   border: 1px solid var(--outline);
-  border-radius: var(--radius);
-  background: var(--surface-soft);
+  border-radius: 11px;
+  background: var(--surface);
   padding: 0 10px;
 }
 
-.group-invite-card {
-  display: grid;
-  gap: 8px;
-  padding: 10px;
-  border: 1px solid rgba(0, 121, 83, 0.22);
-  border-radius: var(--radius);
-  background: var(--primary-soft);
+.group-join-row button {
+  padding: 0 14px;
 }
 
-.group-invite-card strong {
+.group-join-row button,
+.group-icon-action {
+  background: var(--surface-soft);
   color: var(--primary);
-  font-size: 0.92rem;
-}
-
-.group-invite-card span {
-  color: var(--muted);
-  font-size: 0.78rem;
 }
 
 .group-invite-actions {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 8px;
+  display: flex;
+  gap: 7px;
 }
 
 .group-invite-actions button {
-  min-height: 38px;
-  border: 1px solid var(--outline);
-  border-radius: var(--radius);
   background: var(--surface);
   color: var(--primary);
-  font-weight: 800;
-  padding: 0 10px;
+  padding: 0 9px;
 }
 
 .group-invite-actions button:first-child {
+  flex: 1;
   background: var(--primary);
-  color: white;
-  border-color: var(--primary);
+  color: #fff;
 }
 
 .group-total-ok {

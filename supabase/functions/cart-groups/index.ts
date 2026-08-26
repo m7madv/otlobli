@@ -2,10 +2,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-const CODE_LENGTH = 7
-const MIN_TOTAL_USD = 40
-const MAX_MEMBERS = 2
+const MAX_GROUP_ITEMS = 200
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -20,14 +18,6 @@ function json(body: unknown, status = 200) {
   })
 }
 
-function makeInviteCode() {
-  const bytes = new Uint8Array(CODE_LENGTH)
-  crypto.getRandomValues(bytes)
-  let code = ''
-  for (const byte of bytes) code += CODE_ALPHABET[byte % CODE_ALPHABET.length]
-  return code
-}
-
 function cleanCode(value: string) {
   try {
     const url = new URL(value)
@@ -40,24 +30,29 @@ function cleanCode(value: string) {
   }
 }
 
-function cleanMemberKey(value: string) {
-  return value.trim().replace(/[^a-zA-Z0-9:_-]/g, '').slice(0, 80)
+function databaseErrorText(error: { message?: string; details?: string; hint?: string } | null) {
+  return [error?.message, error?.details, error?.hint].filter(Boolean).join(' ')
 }
 
-function getItemNumber(item: unknown, key: string, fallback = 0) {
-  if (!item || typeof item !== 'object') return fallback
-  const value = (item as Record<string, unknown>)[key]
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : fallback
-}
-
-function getItemId(item: unknown, index: number, customerId: string) {
-  if (item && typeof item === 'object') {
-    const row = item as Record<string, unknown>
-    const value = row.id ?? row.localItemId
-    if (value) return String(value)
+function databaseErrorResponse(
+  error: { code?: string; message?: string; details?: string; hint?: string },
+  action: string,
+) {
+  const errorText = databaseErrorText(error)
+  if (/invalid_session/i.test(errorText)) return json({ error: 'invalid_session' }, 401)
+  if (/group_not_open/i.test(errorText)) return json({ error: 'group_closed' }, 409)
+  if (/not_group_member/i.test(errorText)) return json({ error: 'not_member' }, 403)
+  if (/invalid_group_items|invalid input syntax|out of range/i.test(errorText)) {
+    return json({ error: 'invalid_group_items' }, 400)
   }
-  return `${customerId}-${index}`
+  if (
+    action === 'join' &&
+    error.code === '23505' &&
+    /cart_group_members_one_friend_per_group_idx/i.test(errorText)
+  ) {
+    return json({ error: 'group_full', message: 'المجموعة ممتلئة — شخصان فقط' }, 409)
+  }
+  return json({ error: action === 'create' ? 'create_failed' : 'member_failed' }, 500)
 }
 
 Deno.serve(async (req) => {
@@ -67,190 +62,114 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json() as {
       action?: string
-      phone?: string
-      name?: string
       store?: string
       code?: string
       groupId?: string
-      memberKey?: string
-      items?: unknown[]
+      sessionToken?: string
+      items?: unknown
     }
     const action = (body.action ?? 'create').trim().toLowerCase()
-    const phone = (body.phone ?? '').replace(/\s+/g, '')
-    const name = (body.name ?? '').trim() || 'عضو'
-    const store = (body.store ?? 'shein').trim() || 'shein'
-    const items = Array.isArray(body.items) ? body.items : []
+    if (!['create', 'join', 'sync', 'cancel'].includes(action)) {
+      return json({ error: 'bad_action' }, 400)
+    }
+    let phone = ''
+    let name = 'عضو'
+    const store = body.store?.trim().toLowerCase() === 'temu' ? 'temu' : 'shein'
+    const sessionToken = (body.sessionToken ?? '').trim()
 
     if (!SUPABASE_URL || !SERVICE_ROLE_KEY) return json({ error: 'not_configured' }, 500)
-    if (!phone) return json({ error: 'missing_phone' }, 400)
-
+    if (!sessionToken || sessionToken.length > 512) return json({ error: 'invalid_session' }, 401)
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY)
-    const { data: customerId, error: customerError } = await supabase.rpc('ensure_customer', {
-      p_phone: phone,
-      p_name: name,
-      p_governorate: 'دمشق',
-      p_city: '',
-      p_details: '',
-      p_qadmous_branch: '',
+    const { data: sessionCustomerId, error: sessionError } = await supabase.rpc('require_customer_session', {
+      p_session_token: sessionToken,
+      p_phone: null,
     })
-    if (customerError || !customerId) return json({ error: 'customer_failed' }, 500)
-    const memberKey = cleanMemberKey(body.memberKey ?? '') || `phone:${phone}`
+    if (sessionError || !sessionCustomerId) return json({ error: 'invalid_session' }, 401)
+    const customerId = String(sessionCustomerId)
+
+    const { data: customer, error: customerError } = await supabase
+      .from('customers')
+      .select('phone, name')
+      .eq('id', customerId)
+      .single()
+    if (customerError || !customer?.phone) return json({ error: 'customer_failed' }, 500)
+    phone = String(customer.phone).replace(/\s+/g, '')
+    name = String(customer.name || '').trim() || 'عضو'
+
+    if (action === 'cancel') {
+      const groupId = (body.groupId ?? '').trim()
+      if (!groupId) return json({ error: 'missing_group' }, 400)
+      if (!UUID_PATTERN.test(groupId)) return json({ error: 'invalid_group' }, 400)
+
+      const { data: leaveState, error: leaveError } = await supabase.rpc('leave_cart_group_authenticated', {
+        p_session_token: sessionToken,
+        p_group_id: groupId,
+      })
+      if (leaveError) return databaseErrorResponse(leaveError, action)
+      if (typeof leaveState === 'string' && leaveState.startsWith('closed:')) {
+        return json({ error: 'group_closed' }, 409)
+      }
+      return json({ ok: true })
+    }
+
+    if (!Array.isArray(body.items) || body.items.length > MAX_GROUP_ITEMS) {
+      return json({ error: 'invalid_group_items' }, 400)
+    }
+    const items = body.items
+
+    if (action === 'create') {
+      const { data: snapshot, error: createError } = await supabase.rpc('create_cart_group_authenticated', {
+        p_session_token: sessionToken,
+        p_store: store,
+        p_phone: phone,
+        p_name: name,
+        p_items: items,
+      })
+      if (createError) return databaseErrorResponse(createError, action)
+      if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
+        return json({ error: 'snapshot_failed' }, 500)
+      }
+      return json(snapshot)
+    }
 
     let groupId = ''
     let role = 'member'
-
-    if (action === 'create') {
-      role = 'host'
-      for (let attempt = 0; attempt < 16 && !groupId; attempt += 1) {
-        const code = makeInviteCode()
-        const { data, error } = await supabase
-          .from('cart_groups')
-          .insert({ code, host_customer_id: customerId, source_store: store })
-          .select('id')
-          .single()
-
-        if (!error && data?.id) groupId = data.id
-        else if (error && error.code !== '23505') return json({ error: 'create_failed' }, 500)
-      }
-    } else if (action === 'join') {
+    if (action === 'join') {
       const code = cleanCode(body.code ?? '')
       if (!code) return json({ error: 'missing_code' }, 400)
 
       const { data: foundGroup, error: findError } = await supabase
         .from('cart_groups')
-        .select('id, host_customer_id')
+        .select('id, host_customer_id, expires_at')
         .eq('code', code)
         .eq('status', 'open')
+        .gt('expires_at', new Date().toISOString())
         .maybeSingle()
       if (findError || !foundGroup?.id) return json({ error: 'group_not_found' }, 404)
+      if (String(foundGroup.host_customer_id) === customerId) return json({ error: 'same_customer' }, 400)
       groupId = foundGroup.id
 
-      const { count: memberCount } = await supabase
-        .from('cart_group_members')
-        .select('*', { count: 'exact', head: true })
-        .eq('group_id', groupId)
-      const { data: alreadyMember } = await supabase
-        .from('cart_group_members')
-        .select('member_key, role')
-        .eq('group_id', groupId)
-        .eq('member_key', memberKey)
-        .maybeSingle()
-      if (!alreadyMember && (memberCount ?? 0) >= MAX_MEMBERS) {
-        return json({ error: 'group_full', message: 'المجموعة ممتلئة — شخصين فقط' }, 400)
-      }
-      role = alreadyMember?.role || 'member'
-    } else if (action === 'sync') {
+      role = 'member'
+    } else {
       groupId = (body.groupId ?? '').trim()
       if (!groupId) return json({ error: 'missing_group' }, 400)
-
-      const { data: membership } = await supabase
-        .from('cart_group_members')
-        .select('group_id, role')
-        .eq('group_id', groupId)
-        .eq('member_key', memberKey)
-        .maybeSingle()
-      if (!membership?.group_id) return json({ error: 'not_member' }, 403)
-      role = membership.role || 'member'
-    } else {
-      return json({ error: 'bad_action' }, 400)
+      if (!UUID_PATTERN.test(groupId)) return json({ error: 'invalid_group' }, 400)
     }
 
-    if (!groupId) return json({ error: 'create_failed' }, 500)
-
-    const { error: memberError } = await supabase
-      .from('cart_group_members')
-      .upsert({
-        group_id: groupId,
-        customer_id: customerId,
-        member_key: memberKey,
-        phone,
-        display_name: name,
-        role,
-      }, { onConflict: 'group_id,member_key' })
-    if (memberError) return json({ error: 'member_failed' }, 500)
-
-    const { error: deleteError } = await supabase
-      .from('cart_group_items')
-      .delete()
-      .eq('group_id', groupId)
-      .eq('member_key', memberKey)
-    if (deleteError) return json({ error: 'items_failed' }, 500)
-
-    const rows = items.map((item, index) => {
-      const quantity = Math.max(1, getItemNumber(item, 'quantity', 1))
-      return {
-        group_id: groupId,
-        customer_id: customerId,
-        member_key: memberKey,
-        local_item_id: getItemId(item, index, customerId),
-        payload: item,
-        price_usd: getItemNumber(item, 'priceUsd'),
-        price_syp: getItemNumber(item, 'priceSyp'),
-        quantity,
-      }
+    const { data: snapshot, error: saveError } = await supabase.rpc('save_cart_group_member_authenticated', {
+      p_session_token: sessionToken,
+      p_group_id: groupId,
+      p_phone: phone,
+      p_name: name,
+      p_role: role,
+      p_allow_insert: action === 'join',
+      p_items: items,
     })
-
-    if (rows.length) {
-      const { error: insertError } = await supabase
-        .from('cart_group_items')
-        .insert(rows)
-      if (insertError) return json({ error: 'items_failed' }, 500)
+    if (saveError) return databaseErrorResponse(saveError, action)
+    if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
+      return json({ error: 'snapshot_failed' }, 500)
     }
-
-    const { data: group, error: groupError } = await supabase
-      .from('cart_groups')
-      .select('id, code, status, source_store')
-      .eq('id', groupId)
-      .single()
-    if (groupError || !group) return json({ error: 'snapshot_failed' }, 500)
-
-    const { data: members, error: membersError } = await supabase
-      .from('cart_group_members')
-      .select('customer_id, member_key, phone, display_name, role')
-      .eq('group_id', groupId)
-      .order('joined_at', { ascending: true })
-    if (membersError) return json({ error: 'snapshot_failed' }, 500)
-
-    const { data: groupItems, error: itemsError } = await supabase
-      .from('cart_group_items')
-      .select('payload, price_usd, quantity, customer_id, member_key')
-      .eq('group_id', groupId)
-    if (itemsError) return json({ error: 'snapshot_failed' }, 500)
-
-    const memberByCustomer = new Map<string, { phone: string; name: string }>()
-    for (const member of members ?? []) {
-      memberByCustomer.set(String(member.member_key || member.customer_id), {
-        phone: String(member.phone ?? ''),
-        name: String(member.display_name ?? ''),
-      })
-    }
-
-    return json({
-      id: group.id,
-      code: group.code,
-      sourceStore: group.source_store,
-      status: group.status,
-      minTotalUsd: MIN_TOTAL_USD,
-      totalUsd: (groupItems ?? []).reduce((sum, entry) => {
-        return sum + Number(entry.price_usd ?? 0) * Math.max(1, Number(entry.quantity ?? 1) || 1)
-      }, 0),
-      members: (members ?? []).map((member) => ({
-        memberKey: member.member_key ?? '',
-        phone: member.phone ?? '',
-        name: member.display_name ?? '',
-        role: member.role === 'host' ? 'host' : 'member',
-      })),
-      items: (groupItems ?? []).map((entry) => {
-        const ownerKey = String(entry.member_key || entry.customer_id)
-        const owner = memberByCustomer.get(ownerKey)
-        return {
-          ownerMemberKey: ownerKey,
-          ownerPhone: owner?.phone ?? '',
-          ownerName: owner?.name ?? '',
-          item: entry.payload,
-        }
-      }),
-    })
+    return json(snapshot)
   } catch {
     return json({ error: 'create_failed' }, 500)
   }

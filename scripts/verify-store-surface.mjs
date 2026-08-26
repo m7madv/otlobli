@@ -206,8 +206,12 @@ const androidHomeDownloadShellChildrenSelector = `${androidHomeDownloadShellSele
 const iosHomeDownloadShellChildrenSelector = `${iosHomeDownloadShellSelector} > *`
 const androidHomeCollapsedScope =
   `${androidHomeScope}[data-otlobli-temu-download-collapsed="1"]`
+const iosHomeCollapsedScope =
+  `${iosHomeScope}[data-otlobli-temu-download-collapsed="1"]`
 const androidHomeStickyBackgroundSelector =
   `${androidHomeCollapsedScope} [js-selector="bg-cui-top-sticky"]`
+const iosHomeStickyBackgroundSelector =
+  `${iosHomeCollapsedScope} [js-selector="bg-cui-top-sticky"]`
 const wrapperMentions = temuBlockerCss.match(/[^\r\n]*downloadsWrapper[^\r\n]*/g) ?? []
 const downloadShellSelectorMentions = temuBlockerCss.match(
   /[^\r\n]*\[data-otlobli-temu-download-shell="1"\][^\r\n]*/g,
@@ -233,10 +237,12 @@ if (downloadShellSelectorMentions.length !== 4 ||
     !temuBlockerCss.includes(iosHomeDownloadShellChildrenSelector)) {
   throw new Error('Temu download-shell collapse must target only the shell and its direct children on native Home')
 }
-if (stickyBackgroundMentions.length !== 1 ||
-    !stickyBackgroundMentions[0].includes(androidHomeScope) ||
-    !temuBlockerCss.includes(androidHomeStickyBackgroundSelector)) {
-  throw new Error('Temu sticky-header offset repair must remain scoped to its semantic marker on Android Home only')
+if (stickyBackgroundMentions.length !== 2 ||
+    stickyBackgroundMentions.filter((line) => line.includes(androidHomeScope)).length !== 1 ||
+    stickyBackgroundMentions.filter((line) => line.includes(iosHomeScope)).length !== 1 ||
+    !temuBlockerCss.includes(androidHomeStickyBackgroundSelector) ||
+    !temuBlockerCss.includes(iosHomeStickyBackgroundSelector)) {
+  throw new Error('Temu sticky-header offset repair must remain paired on native Android/iOS Home only')
 }
 const stickyBackgroundCss = temuBlockerCss.slice(
   temuBlockerCss.indexOf(androidHomeStickyBackgroundSelector),
@@ -245,17 +251,19 @@ for (const marker of [
   'transform: translate(-50%, 0) !important;',
 ]) {
   if (!stickyBackgroundCss.includes(marker)) {
-    throw new Error(`Temu Android Home sticky-header offset repair missing ${marker}`)
+    throw new Error(`Temu native Home sticky-header offset repair missing ${marker}`)
   }
 }
-for (const forbidden of [
-  '[class*="sticky"',
-  'top: 0',
-  'querySelectorAll',
-  'setInterval',
-]) {
-  if (stickyBackgroundMentions[0].includes(forbidden)) {
-    throw new Error(`Temu sticky-header offset repair widened to forbidden marker: ${forbidden}`)
+for (const mention of stickyBackgroundMentions) {
+  for (const forbidden of [
+    '[class*="sticky"',
+    'top: 0',
+    'querySelectorAll',
+    'setInterval',
+  ]) {
+    if (mention.includes(forbidden)) {
+      throw new Error(`Temu sticky-header offset repair widened to forbidden marker: ${forbidden}`)
+    }
   }
 }
 for (const marker of [

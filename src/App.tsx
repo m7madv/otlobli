@@ -834,8 +834,8 @@ const shouldRedirectTemuToRegion = (rawUrl: string, region: StoreRegion) => {
   }
 }
 
-function buildGroupInviteLink(code: string, store: StoreId, host: string, inviterKey: string) {
-  const params = new URLSearchParams({ code, group: code, store, host, from: inviterKey })
+function buildGroupInviteLink(code: string, store: StoreId) {
+  const params = new URLSearchParams({ code, group: code, store })
   return `${GROUP_INVITE_WEB_ORIGIN}/group/?${params.toString()}`
 }
 
@@ -1558,11 +1558,22 @@ function App() {
   const [featureCoupons, setFeatureCoupons] = useState(true)
   const [walletTransactions, setWalletTransactions] = useStoredState<WalletTransaction[]>(storageKeys.walletTransactions, [])
   const [cartGroup, setCartGroup] = useStoredState<CartGroupSnapshot | null>(storageKeys.cartGroup, null)
+  const groupOperationEpochRef = useRef(0)
+  const cartGroupRef = useRef(cartGroup)
+  const isSyncingRef = useRef(false)
+  cartGroupRef.current = cartGroup
   const [groupJoinCode, setGroupJoinCode] = useState('')
   const [pendingGroupInvite, setPendingGroupInvite] = useState<PendingGroupInvite | null>(null)
-  const autoJoinInviteRef = useRef('')
   const [deliveryMemberKey, setDeliveryMemberKey] = useState('')
   const [isSyncingGroup, setIsSyncingGroup] = useState(false)
+  const clearMatchingCartGroup = (expectedGroupId?: string) => {
+    if (!expectedGroupId || cartGroupRef.current?.id !== expectedGroupId) return false
+    groupOperationEpochRef.current += 1
+    isSyncingRef.current = false
+    setIsSyncingGroup(false)
+    setCartGroup(null)
+    return true
+  }
   const [verificationState, setVerificationState] = useState<'idle' | 'checking' | 'matched'>('idle')
   const [pendingPayment, setPendingPayment] = useStoredState<{
     orderId: string
@@ -1572,6 +1583,8 @@ function App() {
     store?: StoreId
     purpose?: 'order' | 'issue'
     issuePaymentId?: string
+    groupId?: string
+    itemIds?: string[]
   } | null>(storageKeys.pendingPayment, null)
   // مؤقّت يعيد الرسم كل ثانية أثناء شاشة الدفع، ليُعطَّل زر "لقد دفعت" فور
   // انتهاء نافذة الدفع (5 دقائق) ويظهر بدله طلب التواصل معنا.
@@ -1774,12 +1787,11 @@ function App() {
   const handleGroupInviteUrl = useCallback((url: string) => {
     const invite = parseGroupInvite(url)
     if (!invite) return false
-    setCartGroup((current) => (current?.code === invite.code ? current : null))
     setPendingGroupInvite(invite)
     setGroupJoinCode(invite.code)
     setScreen('cart')
     return true
-  }, [setCartGroup])
+  }, [])
 
   useEffect(() => {
     handleGroupInviteUrl(window.location.href)
@@ -2126,6 +2138,9 @@ function App() {
   }
 
   const clearLocalAccountState = () => {
+    groupOperationEpochRef.current += 1
+    isSyncingRef.current = false
+    setIsSyncingGroup(false)
     setSessionToken('')
     setUserProfile(null)
     setOrders([])
@@ -2186,6 +2201,9 @@ function App() {
   const isBlockedError = (e: unknown) =>
     e instanceof Error && /customer_blocked|account_blocked/i.test(e.message)
   const forceLogoutBlocked = () => {
+    groupOperationEpochRef.current += 1
+    isSyncingRef.current = false
+    setIsSyncingGroup(false)
     setSessionToken('')
     setUserProfile(null)
     setOrders([])
@@ -2563,17 +2581,22 @@ function App() {
   const groupInviteStore = normalizeInviteStore(cartGroup?.sourceStore) ?? selectedStore
   const groupInviteHost = userProfile?.name || recipient.name || 'صاحب السلة'
   const groupMemberKey = getDeviceId()
-  const groupInviteLink = cartGroup ? buildGroupInviteLink(cartGroup.code, groupInviteStore, groupInviteHost, groupMemberKey) : ''
+  const groupInviteLink = cartGroup ? buildGroupInviteLink(cartGroup.code, groupInviteStore) : ''
+  const groupCustomerPhone = normalizePhoneForCompare(userProfile?.phone || phone).length >= 8
+    ? (userProfile?.phone || phone).trim()
+    : ''
   const activeCheckoutItems = cartGroup && groupCheckoutItems.length > 0 ? groupCheckoutItems : cartItems
   const activeCheckoutProductsTotal = activeCheckoutItems.reduce((sum, item) => sum + getItemPriceSyp(item) * item.quantity, 0)
   const shippingTotalSyp = currentShippingFees.reduce((sum, line) => sum + line.value, 0)
   const activeCheckoutTotal = activeCheckoutProductsTotal + shippingTotalSyp
 
-  const myPhone = normalizePhoneForCompare(phone)
+  const myPhone = normalizePhoneForCompare(groupCustomerPhone)
   const isMyGroupLine = (line: { ownerMemberKey?: string; ownerPhone: string }) =>
-    line.ownerMemberKey ? line.ownerMemberKey === groupMemberKey : normalizePhoneForCompare(line.ownerPhone) === myPhone
+    (!!myPhone && normalizePhoneForCompare(line.ownerPhone) === myPhone) ||
+    (!line.ownerPhone && !!line.ownerMemberKey && line.ownerMemberKey === groupMemberKey)
   const isMyGroupMember = (member: { memberKey?: string; phone: string }) =>
-    member.memberKey ? member.memberKey === groupMemberKey : normalizePhoneForCompare(member.phone) === myPhone
+    (!!myPhone && normalizePhoneForCompare(member.phone) === myPhone) ||
+    (!member.phone && !!member.memberKey && member.memberKey === groupMemberKey)
   const myGroupItems = cartGroup?.items.filter(isMyGroupLine) ?? []
   const friendGroupItems = cartGroup?.items.filter((line) => !isMyGroupLine(line)) ?? []
   const friendName = friendGroupItems[0]?.ownerName || cartGroup?.members.find((m) => !isMyGroupMember(m))?.name || 'الصديق'
@@ -2639,84 +2662,86 @@ function App() {
   const hasAvailabilityIssues = activeCheckoutItems.some((item) => !!getAvailabilityIssue(item))
   const formatPrice = (syp: number) => formatPriceSyp(syp, paymentCurrency, exchangeRate)
 
-  const isSyncingRef = useRef(false)
   const cartItemsRef = useRef(cartItems)
   cartItemsRef.current = cartItems
 
+  useEffect(() => {
+    groupOperationEpochRef.current += 1
+    isSyncingRef.current = false
+  }, [sessionToken])
+
   const createCartGroup = () => {
     if (isSyncingGroup) return
-    if (!phone) { showNotice('سجل دخولك أولاً'); return }
+    if (!groupCustomerPhone) { showNotice('سجل دخولك أولاً'); return }
     if (cartItems.length === 0) { showNotice('أضف منتجات للسلة أولاً'); return }
+    const operationEpoch = ++groupOperationEpochRef.current
     setIsSyncingGroup(true)
-    void appApi.cartGroups.create(phone, userProfile?.name || recipient.name || 'صاحب الطلب', selectedStore, cartItems, groupMemberKey)
+    void appApi.cartGroups.create(groupCustomerPhone, userProfile?.name || recipient.name || 'صاحب الطلب', selectedStore, cartItems, groupMemberKey)
       .then((snapshot) => {
+        if (operationEpoch !== groupOperationEpochRef.current) return
         setCartGroup(snapshot)
-        // اسم المتجر صريح: الطلب المشترك مخصّص لمتجر واحد فقط، فيعرف الطرفان أي سلة.
-        showNotice(`طلب مشترك على ${storeName(selectedStore)} — الكود: ${snapshot.code}`)
+        showNotice('تم إنشاء الرابط — أرسله الآن لصديق واحد')
       })
-      .catch((error: unknown) => showNotice(getPublicErrorMessage(error)))
-      .finally(() => setIsSyncingGroup(false))
+      .catch((error: unknown) => {
+        if (operationEpoch === groupOperationEpochRef.current) showNotice(getPublicErrorMessage(error))
+      })
+      .finally(() => {
+        if (operationEpoch === groupOperationEpochRef.current) setIsSyncingGroup(false)
+      })
   }
 
   const joinCartGroupFromValue = (inputCode?: string, inviteStore?: StoreId) => {
     const code = extractGroupInviteCode(inputCode ?? groupJoinCode)
-    if (!phone) { showNotice('سجل دخولك أولاً'); return }
+    if (!groupCustomerPhone) { showNotice('سجل دخولك أولاً'); return }
     if (!code) { showNotice('أدخل كود أو رابط السلة المشتركة'); return }
     if (cartGroup?.code === code) { showNotice('أنت مرتبط بهذه المجموعة بالفعل'); return }
+    if (cartGroup) { showNotice('ألغِ ربط السلة المشتركة الحالية أولاً'); return }
     if (inviteStore && inviteStore !== selectedStore) {
       commitSelectedStore(inviteStore)
       showNotice(`تم التبديل لمتجر ${storeName(inviteStore)} — الطلب المشترك مخصص لهذا المتجر`)
     }
+    const operationEpoch = ++groupOperationEpochRef.current
     setIsSyncingGroup(true)
     const joinStore = inviteStore || selectedStore
     const storeCart = cartsByStore[joinStore] ?? []
-    void appApi.cartGroups.join(phone, userProfile?.name || recipient.name || 'عضو', code, storeCart, groupMemberKey)
+    void appApi.cartGroups.join(groupCustomerPhone, userProfile?.name || recipient.name || 'عضو', code, storeCart, groupMemberKey)
       .then((snapshot) => {
+        if (operationEpoch !== groupOperationEpochRef.current) return
         setCartGroup(snapshot)
         setGroupJoinCode('')
         setPendingGroupInvite(null)
         // اسم المتجر صريح حتى يعرف المستخدم بأي سلة ارتبط (نفس متجر مُنشئ الرابط).
         showNotice(`تم ربط سلة ${storeName(joinStore)} مع صديقك`)
       })
-      .catch((error: unknown) => showNotice(getPublicErrorMessage(error)))
-      .finally(() => setIsSyncingGroup(false))
+      .catch((error: unknown) => {
+        if (operationEpoch === groupOperationEpochRef.current) showNotice(getPublicErrorMessage(error))
+      })
+      .finally(() => {
+        if (operationEpoch === groupOperationEpochRef.current) setIsSyncingGroup(false)
+      })
   }
 
   const shareCartGroupInvite = () => {
     if (!cartGroup || !groupInviteLink) return
     const message = [
-      `${groupInviteHost} يدعوك لطلب مشترك على otlobli`,
-      `المتجر: ${storeName(groupInviteStore)}`,
-      ``,
-      `اضغط الرابط للانضمام:`,
+      `${groupInviteHost} يدعوك لتجميع طلب ${storeName(groupInviteStore)} معه على otlobli.`,
+      'الدعوة مخصصة لصديق واحد فقط؛ أول شخص ينضم يحجز المقعد.',
+      '',
+      'افتح الدعوة:',
       groupInviteLink,
     ].join('\n')
-    if (navigator.share) {
-      void navigator.share({ title: 'otlobli — طلب مشترك', text: message, url: groupInviteLink }).catch(() => undefined)
-      return
+    showNotice('تم تجهيز الدعوة — اختر صديقك في واتساب')
+    try {
+      window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank', 'noreferrer')
+    } catch {
+      copyText(groupInviteLink, 'تعذر فتح واتساب؛ تم نسخ الرابط')
     }
-    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank', 'noreferrer')
   }
 
   const acceptPendingGroupInvite = () => {
     if (!pendingGroupInvite) return
     joinCartGroupFromValue(pendingGroupInvite.code, pendingGroupInvite.store)
   }
-
-  // Invite links are consent to join this specific shared cart. Join
-  // immediately even when the recipient's local cart is empty; the cart page
-  // then shows the linked-group state instead of hiding the invite behind the
-  // empty-cart branch.
-  useEffect(() => {
-    if (!pendingGroupInvite || !phone || isSyncingGroup) return
-    const inviteKey = `${pendingGroupInvite.code}:${pendingGroupInvite.store || ''}`
-    if (autoJoinInviteRef.current === inviteKey) return
-    autoJoinInviteRef.current = inviteKey
-    acceptPendingGroupInvite()
-    // The invite code/store are the event identity; the join function clears
-    // pendingGroupInvite after a successful join.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingGroupInvite?.code, pendingGroupInvite?.store, phone, isSyncingGroup])
 
   const cancelPendingGroupInvite = () => {
     setPendingGroupInvite(null)
@@ -2742,37 +2767,88 @@ function App() {
   }
 
   const cancelCartGroupOnServer = () => {
-    if (!cartGroup) { setCartGroup(null); return }
+    if (!cartGroup) {
+      groupOperationEpochRef.current += 1
+      isSyncingRef.current = false
+      setCartGroup(null)
+      return
+    }
+    if (isSyncingRef.current || isSyncingGroup) {
+      showNotice('انتظر انتهاء مزامنة السلة ثم حاول مجددًا')
+      return
+    }
+    const operationEpoch = ++groupOperationEpochRef.current
     setIsSyncingGroup(true)
-    void appApi.cartGroups.cancel(phone, cartGroup.id)
+    void appApi.cartGroups.cancel(groupCustomerPhone, cartGroup.id)
       .then(() => {
+        if (operationEpoch !== groupOperationEpochRef.current) return
+        groupOperationEpochRef.current += 1
+        isSyncingRef.current = false
         setCartGroup(null)
-        showNotice('تم إلغاء المجموعة')
+        setIsSyncingGroup(false)
+        showNotice(pendingGroupInvite ? 'تم إلغاء السلة الحالية — يمكنك قبول الدعوة الآن' : 'تم إلغاء المجموعة')
       })
-      .catch(() => {
-        setCartGroup(null)
-        showNotice('تم إلغاء المجموعة محلياً')
+      .catch((error: unknown) => {
+        if (operationEpoch !== groupOperationEpochRef.current) return
+        const errorCode = error && typeof error === 'object' && 'code' in error
+          ? String((error as { code?: unknown }).code ?? '')
+          : ''
+        if (errorCode === 'group_closed' || errorCode === 'not_member') {
+          groupOperationEpochRef.current += 1
+          isSyncingRef.current = false
+          setCartGroup(null)
+          setIsSyncingGroup(false)
+          showNotice('انتهى ارتباط السلة المشتركة')
+          return
+        }
+        showNotice(getPublicErrorMessage(error))
       })
-      .finally(() => setIsSyncingGroup(false))
+      .finally(() => {
+        if (operationEpoch === groupOperationEpochRef.current) setIsSyncingGroup(false)
+      })
   }
 
   const syncCartGroup = (silent = false) => {
     if (!cartGroup) return
     if (isSyncingRef.current) return
+    const operationEpoch = groupOperationEpochRef.current
     isSyncingRef.current = true
     if (!silent) setIsSyncingGroup(true)
-    void appApi.cartGroups.syncItems(phone, cartGroup.id, cartItemsRef.current, groupMemberKey)
+    void appApi.cartGroups.syncItems(groupCustomerPhone, cartGroup.id, cartItemsRef.current, groupMemberKey)
       .then((snapshot) => {
+        if (operationEpoch !== groupOperationEpochRef.current) return
         if (snapshot.status !== 'open') {
+          groupOperationEpochRef.current += 1
+          isSyncingRef.current = false
           setCartGroup(null)
+          if (!silent) setIsSyncingGroup(false)
           showNotice('تم إغلاق المجموعة')
           return
         }
         setCartGroup(snapshot)
         if (!silent) showNotice('تم تحديث سلة الطلب المشترك')
       })
-      .catch((error: unknown) => { if (!silent) showNotice(getPublicErrorMessage(error)) })
-      .finally(() => { isSyncingRef.current = false; if (!silent) setIsSyncingGroup(false) })
+      .catch((error: unknown) => {
+        if (operationEpoch !== groupOperationEpochRef.current) return
+        const errorCode = error && typeof error === 'object' && 'code' in error
+          ? String((error as { code?: unknown }).code ?? '')
+          : ''
+        if (errorCode === 'group_closed' || errorCode === 'not_member') {
+          groupOperationEpochRef.current += 1
+          isSyncingRef.current = false
+          setCartGroup(null)
+          if (!silent) setIsSyncingGroup(false)
+          showNotice('أُغلقت السلة المشتركة أو انتهى ارتباطك بها')
+          return
+        }
+        if (!silent) showNotice(getPublicErrorMessage(error))
+      })
+      .finally(() => {
+        if (operationEpoch === groupOperationEpochRef.current) {
+          isSyncingRef.current = false
+          if (!silent) setIsSyncingGroup(false)
+        }
+      })
   }
 
   useEffect(() => {
@@ -5805,6 +5881,10 @@ function App() {
 
     void appApi.orders.createPendingOrder(newOrder, paymentCurrency, walletSpendUsd, selectedStore)
       .then((result) => {
+        const hasDifferentActiveGroup = Boolean(
+          cartGroupRef.current && cartGroupRef.current.id !== newOrder.groupId,
+        )
+        clearMatchingCartGroup(newOrder.groupId)
         if (typeof result.walletBalanceUsd === 'number') {
           // create_pending_order returns round(syp / rate, 2), which can sit a
           // cent above the real SYP balance. Floor it and keep the SYP mirror
@@ -5828,8 +5908,12 @@ function App() {
           }
           setOrders((list) => [savedOrder, ...list])
           setCurrentOrderId(result.orderId)
-          setCartItems([])
-          setCartGroup(null)
+          if (!hasDifferentActiveGroup) {
+            const submittedItemIds = new Set(newOrder.items.map((item) => item.id))
+            setCartItemsForStore(selectedStore, (items) => (
+              items.filter((item) => !submittedItemIds.has(item.id))
+            ))
+          }
           setAppliedCoupon(null)
           setCouponInput('')
           setCouponMsg('')
@@ -5849,6 +5933,8 @@ function App() {
           expiresAt: result.paymentExpiresAt,
           store: selectedStore,
           purpose: 'order',
+          groupId: newOrder.groupId,
+          itemIds: newOrder.items.map((item) => item.id),
         })
         setAppliedCoupon(null)
         setCouponInput('')
@@ -5896,8 +5982,16 @@ function App() {
             ? { ...item, paymentStatus: 'مدفوع', statusIndex: 1, paidAt: result.paidAt ?? today() }
             : item
         )))
-        setCartItems([])
-        setCartGroup(null)
+        const hasDifferentActiveGroup = Boolean(
+          cartGroupRef.current && cartGroupRef.current.id !== pendingPayment.groupId,
+        )
+        if (!hasDifferentActiveGroup && pendingPayment.itemIds?.length) {
+          const paidItemIds = new Set(pendingPayment.itemIds)
+          setCartItemsForStore(pendingPayment.store ?? selectedStoreRef.current, (items) => (
+            items.filter((item) => !paidItemIds.has(item.id))
+          ))
+        }
+        clearMatchingCartGroup(pendingPayment.groupId)
         setPendingPayment(null)
         setVerificationState('matched')
         addNotification({ type: 'payment', title: 'تم تأكيد الدفع', body: `تم مطابقة تحويلك للطلب ${pendingPayment.orderId}.`, orderId: pendingPayment.orderId })
@@ -7130,37 +7224,53 @@ function App() {
                   </>
                 )}
                 {featureGroupOrders && <section className="group-order-card">
-                  <div>
-                    <h2>اطلب مع صديق</h2>
-                    <p>اجمعوا السلات على كود واحد لتجاوز حد {formatPrice(groupMinimumSyp)}، وشخص واحد يقدر يدفع الطلب كامل.</p>
+                  <div className="group-order-head">
+                    <div>
+                      <h2>اطلب مع صديق</h2>
+                      <p>سلة متجر واحدة تجمعك بصديق، والدفع مرة واحدة.</p>
+                    </div>
+                    <span className="group-limit-badge">شخصان فقط</span>
                   </div>
-                  {pendingGroupInvite && !cartGroup && (
-                    <div className="group-invite-card">
+                  {pendingGroupInvite && cartGroup?.code !== pendingGroupInvite.code && (
+                    <div className="group-split-summary">
                       <strong>ربط سلة مشتركة</strong>
-                      <p>هل تريد شبك سلتك مع {pendingGroupInvite.host || 'صديقك'}؟</p>
-                      <span>{pendingGroupInvite.store ? `هذا الرابط لمتجر ${storeName(pendingGroupInvite.store)}` : 'سيتم ربط السلة بالكود المرسل'}</span>
+                      <p>{cartGroup ? 'لديك سلة مشتركة حالية؛ ألغِها قبل قبول الدعوة الجديدة.' : 'هل تريد ربط سلتك مع صديقك؟ لن تُرسل المنتجات قبل موافقتك.'}</p>
+                      <span>{pendingGroupInvite.store ? `هذه الدعوة لمتجر ${storeName(pendingGroupInvite.store)}` : 'سيتم ربط السلة بالكود المرسل'}</span>
                       <div className="group-invite-actions">
-                        <button disabled={isSyncingGroup} onClick={acceptPendingGroupInvite}>موافق وربط السلة</button>
+                        <button disabled={isSyncingGroup} onClick={cartGroup ? cancelCartGroupOnServer : acceptPendingGroupInvite}>
+                          {cartGroup ? 'إلغاء السلة الحالية أولاً' : 'موافق وربط السلة'}
+                        </button>
                         <button type="button" onClick={cancelPendingGroupInvite}>إلغاء</button>
                       </div>
                     </div>
                   )}
                   {cartGroup ? (
                     <>
+                      <div className="group-ready-row">
+                        <div>
+                          <strong>{groupHasFriend ? 'اكتمل الطلب المشترك' : 'الرابط جاهز'}</strong>
+                          <br />
+                          <span>{groupHasFriend ? `انضم ${friendName}` : 'أول صديق يفتح الرابط يحجز المقعد'}</span>
+                        </div>
+                        <code dir="ltr">{cartGroup.code}</code>
+                      </div>
                       <div className="group-code-row">
-                        <span dir="ltr">{cartGroup.code}</span>
-                        <button onClick={() => copyText(groupInviteLink, 'تم نسخ رابط الدعوة')}>
-                          <Icon name="link" /> نسخ الرابط
-                        </button>
-                        <button onClick={shareCartGroupInvite}>
-                          <Icon name="ios_share" /> مشاركة
-                        </button>
-                        <button disabled={isSyncingGroup} onClick={() => syncCartGroup()}>
+                        {!groupHasFriend && <button className="group-whatsapp-action" onClick={shareCartGroupInvite}>
+                          <Icon name="send" /> إرساله عبر واتساب
+                        </button>}
+                        {!groupHasFriend && <button
+                          className="group-icon-action"
+                          onClick={() => copyText(groupInviteLink, 'تم نسخ رابط الدعوة')}
+                          aria-label="نسخ رابط الدعوة"
+                        >
+                          <Icon name="link" />
+                        </button>}
+                        <button className="group-icon-action" disabled={isSyncingGroup} onClick={() => syncCartGroup()} aria-label="تحديث السلة المشتركة">
                           <Icon name="sync" />
                         </button>
                       </div>
                       {!groupHasFriend && (
-                        <p className="min-order-notice">بانتظار انضمام صديقك — شارك الرابط عبر واتساب</p>
+                        <p className="group-waiting-note">يمكنك إرسال الرابط لأكثر من شخص، لكن أول صديق ينضم فقط سيشاركك السلة.</p>
                       )}
                       {groupHasFriend && (
                         <div className="group-split-summary">
@@ -7197,26 +7307,31 @@ function App() {
                       <p className={groupTotalSyp >= groupMinimumSyp ? 'group-total-ok' : 'min-order-notice'}>
                         مجموع المجموعة: {formatPrice(groupTotalSyp)} / {formatPrice(groupMinimumSyp)}
                       </p>
-                      <button className="ghost-action" disabled={isSyncingGroup} onClick={cancelCartGroupOnServer}>
+                      <button className="edit-link" disabled={isSyncingGroup} onClick={cancelCartGroupOnServer}>
                         إلغاء ربط السلة
                       </button>
                     </>
                   ) : (
                     <>
-                      <button className="ghost-action" disabled={isSyncingGroup || cartItems.length === 0} onClick={createCartGroup}>
-                        <Icon name="group_add" /> إنشاء كود لصديقي
+                      <button className="group-create-action" disabled={isSyncingGroup || cartItems.length === 0} onClick={createCartGroup}>
+                        <Icon name="link" /> {isSyncingGroup ? 'جارٍ إنشاء الرابط…' : 'إنشاء رابط واتساب'}
                       </button>
-                      <div className="group-join-row">
-                        <input
-                          value={groupJoinCode}
-                          onChange={(e) => setGroupJoinCode(e.target.value)}
-                          placeholder="كود أو رابط الصديق"
-                          dir="ltr"
-                        />
-                        <button disabled={isSyncingGroup} onClick={() => joinCartGroupFromValue()}>
-                          انضمام
-                        </button>
-                      </div>
+                      {cartItems.length === 0 && <p className="group-empty-hint">أضف منتجًا إلى سلة المتجر أولًا، ثم أنشئ الرابط.</p>}
+                      <details className="group-join-disclosure">
+                        <summary>لدي رابط أو كود من صديقي</summary>
+                        <div className="group-join-row">
+                          <input
+                            value={groupJoinCode}
+                            onChange={(e) => setGroupJoinCode(e.target.value)}
+                            placeholder="الصق الرابط أو اكتب الكود"
+                            aria-label="رابط أو كود الطلب المشترك"
+                            dir="ltr"
+                          />
+                          <button disabled={isSyncingGroup} onClick={() => joinCartGroupFromValue()}>
+                            انضمام
+                          </button>
+                        </div>
+                      </details>
                     </>
                   )}
                 </section>}
