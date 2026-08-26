@@ -4,11 +4,10 @@ Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
 `codex/otlobli-v86-212-testflight-auth`. Android and iOS are `86.241 (1106)`.
 The production web alias is `https://talabieh.vercel.app`; Supabase migration
 `20260826123000_group_order_single_friend.sql` and the `cart-groups` Edge
-Function are live in project `dcicqdprtyhwmhegabay`. At this snapshot the
-TestFlight workflow is not yet started; push the release commit, run
-`ios-unsigned-build.yml` with `signing_mode=testflight`,
-`testflight_delivery=upload-and-distribute`, and
-`app_store_submission=false`, then record the exact run and Apple state.
+Function are live in project `dcicqdprtyhwmhegabay`. Source commit
+`33da0d8505f4979115b2659a04e711ec05b076fa` is pushed. TestFlight run
+`32918348290` succeeded on attempt 2 with internal distribution and
+`app_store_submission=false`.
 
 Preserve the narrow Temu fix. The iPhone video proved that Otlobli's native bar
 stayed fixed while Temu's own search/logo header moved about `70px`. iOS now
@@ -48,6 +47,23 @@ No fatal/ANR/OOM match was found. Evidence is in
 - AAB: `artifacts/release-86.241/Otlobli-86.241-1106-release.aab`,
   `5,772,199` bytes, SHA-256
   `F931E6262CC113325DA770C192C18734E47F1708456E6340290F0933F49A13B3`.
+
+Attempt 1 stopped safely before signing because the persisted WhatsApp sender
+was idle. Session `0` had credentials, no QR, no pause, and zero risk. It was
+reconnected exactly once through the protected Oracle loopback admin endpoint;
+no session was deleted/created and no message was sent. Live health after the
+workflow still reports connected/ready sender, stored credentials,
+`customer-session-v1`, and hardened OTP storage.
+
+Attempt 2 completed in `8m37s`. Apple delivery UUID is
+`62c29df1-3eb2-4578-8855-68d79716acd6`; build `86.241 (1106)` is `VALID` and
+`IN_BETA_TESTING` in all-builds group `Otlobli Internal`, with expected tester
+membership `INSTALLED`. The signed IPA is `10,544,380` bytes with SHA-256
+`23DEACC520F414E01919BA15AAF2AEB25160F3A20D4FB5706B993467C7472425`.
+GitHub artifact `9589184204`,
+`otlobli-ios-v86.241-build-1106-testflight`, is `25,251,950` bytes with digest
+`sha256:826a0531247e67cf8ddb72b86d9beea08b6d23ac43f09fef78f17a4cdc778678`.
+App Review was disabled and skipped.
 
 Preserve `otlobliForceRecompose()`, exact `0.25s` app-active delay, Android
 resume defense, and `JSON.stringify` region equality. SHEIN region, sessions,

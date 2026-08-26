@@ -3,11 +3,12 @@
 تابع فقط داخل
 `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` على الفرع
 `codex/otlobli-v86-212-testflight-auth`. الإصداران القياسيان Android وiOS هما
-`86.241 (1106)`. التغييرات مبنية ومزامنة محليًا، ورفعت خدمة الويب إلى
+`86.241 (1106)`. التغييرات مبنية ومزامنة، ورفعت خدمة الويب إلى
 `https://talabieh.vercel.app`، وطبقت قاعدة البيانات وEdge Function في مشروع
-Supabase الحي `dcicqdprtyhwmhegabay`. لم يبدأ مسار TestFlight بعد في هذه
-اللقطة؛ يجب دفع الالتزام أولًا ثم تشغيل `ios-unsigned-build.yml` بوضع
-`testflight` مع التوزيع الداخلي ومن دون App Store submission.
+Supabase الحي `dcicqdprtyhwmhegabay`. الالتزام
+`33da0d8505f4979115b2659a04e711ec05b076fa` مدفوع، ومسار TestFlight
+`32918348290` نجح في المحاولة الثانية مع التوزيع الداخلي ومن دون App Store
+submission.
 
 حل تحليل فيديو iPhone 16 Pro Max فصل بين سطح Otlobli الثابت ورأس Temu
 الداخلي الذي كان يتحرك بنحو `70px`. السبب هو أن طي غلاف تنزيل Temu صار يعمل
@@ -63,6 +64,24 @@ Samsung Note 8 `SM-N950F`. الجهاز يؤكد `86.241 (1106)` ومهلة ال
 - AAB: `artifacts/release-86.241/Otlobli-86.241-1106-release.aab` —
   `5,772,199` بايت، SHA-256
   `F931E6262CC113325DA770C192C18734E47F1708456E6340290F0933F49A13B3`.
+
+المحاولة الأولى من [المسار `32918348290`](https://github.com/m7madv/otlobli/actions/runs/32918348290)
+توقفت بأمان قبل التوقيع لأن مرسل WhatsApp المحفوظ كان خاملًا. كانت الجلسة
+`0` موجودة، بلا QR أو إيقاف أو نقاط خطر، فأعيد وصلها مرة واحدة من بياناتها
+المحفوظة عبر endpoint الإدارة المحلي المحمي؛ لم تُحذف جلسة ولم تُرسل رسالة.
+أعادت الصحة بعدها، وبعد نهاية المسار، `whatsappConnected=true` و
+`whatsappSenderReady=true` و`whatsappCredentialsPresent=true` مع
+`customer-session-v1` وOTP hardened.
+
+نجحت المحاولة الثانية في `8m37s`. Apple قبلت IPA ذات SHA-256
+`23DEACC520F414E01919BA15AAF2AEB25160F3A20D4FB5706B993467C7472425`
+وحجم `10,544,380` بايت؛ Delivery UUID هو
+`62c29df1-3eb2-4578-8855-68d79716acd6`. البناء الدقيق `86.241 (1106)` صار
+`VALID` ثم `IN_BETA_TESTING` ضمن مجموعة all-builds `Otlobli Internal`، وحالة
+عضوية المختبر المتوقعة `INSTALLED`. Artifact GitHub رقم `9589184204`، اسمه
+`otlobli-ios-v86.241-build-1106-testflight`، حجمه `25,251,950` بايت وdigest
+`sha256:826a0531247e67cf8ddb72b86d9beea08b6d23ac43f09fef78f17a4cdc778678`.
+خطوة App Review كانت معطلة وتخطيت صراحةً.
 
 بقيت `otlobliForceRecompose()` وتأخير `appDidBecomeActive` البالغ `0.25s`
 ودفاع Android resume ومقارنة المناطق عبر `JSON.stringify` كما هي. لم تتغير
