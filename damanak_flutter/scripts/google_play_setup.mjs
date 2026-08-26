@@ -7,6 +7,7 @@ import { dirname, resolve } from 'node:path';
 const API_ROOT = 'https://androidpublisher.googleapis.com/androidpublisher/v3';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const PACKAGE_NAME = 'com.damanak.damanak';
+const SAUDI_VAT_RATE = 0.15;
 const mode = process.argv.includes('--activate')
   ? 'activate'
   : process.argv.includes('--apply')
@@ -146,13 +147,16 @@ function sarMoney(amount) {
 }
 
 async function convertSarPrice(accessToken, amount) {
+  // convertRegionPrices expects a tax-exclusive seed price, while the plan
+  // amounts in this script are the customer-facing Saudi prices.
+  const taxExclusiveAmount = amount / (1 + SAUDI_VAT_RATE);
   const conversion = await request(
     accessToken,
     `/applications/${PACKAGE_NAME}/pricing:convertRegionPrices`,
     {
       method: 'POST',
       body: {
-        price: sarMoney(amount),
+        price: sarMoney(taxExclusiveAmount),
       },
     },
   );
@@ -168,28 +172,32 @@ async function convertSarPrice(accessToken, amount) {
     return {
       regionCode,
       newSubscriberAvailability: true,
-      price: converted.price,
+      price: regionCode === 'SA' ? sarMoney(amount) : converted.price,
     };
   });
   return { version, regionalConfigs };
+}
+
+function desiredBasePlans(pricing) {
+  return [
+    {
+      basePlanId: 'monthly',
+      regionalConfigs: pricing.monthly.regionalConfigs,
+      autoRenewingBasePlanType: { billingPeriodDuration: 'P1M' },
+    },
+    {
+      basePlanId: 'yearly',
+      regionalConfigs: pricing.yearly.regionalConfigs,
+      autoRenewingBasePlanType: { billingPeriodDuration: 'P1Y' },
+    },
+  ];
 }
 
 function subscriptionBody(definition, pricing) {
   return {
     packageName: PACKAGE_NAME,
     productId: definition.productId,
-    basePlans: [
-      {
-        basePlanId: 'monthly',
-        regionalConfigs: pricing.monthly.regionalConfigs,
-        autoRenewingBasePlanType: { billingPeriodDuration: 'P1M' },
-      },
-      {
-        basePlanId: 'yearly',
-        regionalConfigs: pricing.yearly.regionalConfigs,
-        autoRenewingBasePlanType: { billingPeriodDuration: 'P1Y' },
-      },
-    ],
+    basePlans: desiredBasePlans(pricing),
     listings: [
       {
         languageCode: 'ar-SA',
@@ -202,7 +210,9 @@ function subscriptionBody(definition, pricing) {
 }
 
 async function activateBasePlans(accessToken, subscription) {
+  const targetPlanIds = new Set(['monthly', 'yearly']);
   for (const plan of subscription.basePlans || []) {
+    if (!targetPlanIds.has(plan.basePlanId)) continue;
     if (plan.state === 'ACTIVE') continue;
     await request(
       accessToken,
@@ -212,6 +222,44 @@ async function activateBasePlans(accessToken, subscription) {
       { method: 'POST', body: {} },
     );
   }
+}
+
+async function addBasePlansToEmptySubscription(
+  accessToken,
+  subscription,
+  pricing,
+) {
+  const existingPlans = subscription.basePlans || [];
+  const existingPlanIds = new Set(existingPlans.map((plan) => plan.basePlanId));
+  const missingPlanIds = ['monthly', 'yearly'].filter(
+    (planId) => !existingPlanIds.has(planId),
+  );
+  if (missingPlanIds.length === 0) {
+    return { subscription, changed: false };
+  }
+  if (existingPlans.length > 0) {
+    throw new Error(
+      `Refusing to replace partially configured subscription ${subscription.productId}; missing base plans: ${missingPlanIds.join(', ')}`,
+    );
+  }
+
+  const updated = await request(
+    accessToken,
+    `/applications/${PACKAGE_NAME}/subscriptions/${encodeURIComponent(
+      subscription.productId,
+    )}?updateMask=basePlans&regionsVersion.version=${encodeURIComponent(
+      pricing.regionsVersion,
+    )}`,
+    {
+      method: 'PATCH',
+      body: {
+        packageName: PACKAGE_NAME,
+        productId: subscription.productId,
+        basePlans: desiredBasePlans(pricing),
+      },
+    },
+  );
+  return { subscription: updated, changed: true };
 }
 
 async function ensureSubscription(accessToken, definition, pricing) {
@@ -226,6 +274,14 @@ async function ensureSubscription(accessToken, definition, pricing) {
       { method: 'POST', body: subscriptionBody(definition, pricing) },
     );
     state = 'created-draft';
+  } else if (subscription && mode !== 'inspect') {
+    const update = await addBasePlansToEmptySubscription(
+      accessToken,
+      subscription,
+      pricing,
+    );
+    subscription = update.subscription;
+    if (update.changed) state = 'existing-updated-draft';
   }
 
   if (subscription && mode === 'activate') {
@@ -262,7 +318,7 @@ async function main() {
     basePlansActivated: false,
     targetRegions: GULF_REGION_CODES,
     pricingNote:
-      'Apply creates priced drafts for the six Gulf markets; activate also activates both base plans.',
+      'Amounts are customer-facing Saudi prices; Apply creates tax-adjusted drafts for the six Gulf markets, and activate also activates both base plans.',
     subscriptions: [],
   };
 
