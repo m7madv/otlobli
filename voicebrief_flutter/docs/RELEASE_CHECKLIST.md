@@ -57,6 +57,13 @@
 - Apple completed processing, attached build 7 to `VoiceBrief Internal`, and App Store Connect reports `mhm1981dx@gmail.com` installed `0.1.0 (7)` on `iPhone 16 Pro Max / iOS 27.0`.
 - Live Auth logs identified the post-consent Google failure as a nonce mismatch and the Apple failure as `provider_disabled`. Google nonce compatibility and production audience were enabled; Apple client IDs were corrected from Damanak to `app.voicebrief.mobile`, key `N4FK6753YL` and a 180-day client secret were configured, and hosted email auth was disabled. The same signed physical iPhone then produced successful Google and Apple `Login / INFO` events at `01:06:16` and `01:08:42` Asia/Riyadh respectively.
 
+## RevenueCat-enabled candidate — 2026-08-26
+
+- Source version is `0.1.0+8`. GitHub Actions now holds both platform-specific RevenueCat public SDK keys, and the signed plus unsigned iOS workflows verify/package build `8` consistently.
+- RevenueCat has both store apps, all four monthly/annual products attached to entitlement `pro`, and both cross-platform packages in offering `default`.
+- Local verification passed: `dart format --set-exit-if-changed .`, `flutter analyze`, 30 non-golden tests, eleven golden tests, and `flutter build apk --debug`.
+- The signed TestFlight upload, Apple sandbox purchase/restore, webhook delivery, and real-device acceptance are not complete yet. Android purchase acceptance also waits for Google Play to save and activate both base plans.
+
 ## Owner/external configuration
 
 - [x] Public legal/support URLs and Android upload signing.
@@ -72,7 +79,8 @@
 - [x] Google Play app, internal-release draft, and monthly/annual subscription products created under developer account `8441225038702199576`.
 - [x] VoiceBrief-only service-account access granted for financial viewing, order/subscription management, and store-presence/product management; subscription reads now return `200`.
 - [ ] Google Play monthly/annual base plans saved and activated. A final owner-session retry selected all 177 regions and converted Qatar to the exact `29.00 QAR`, but Save still returned `تعذَّر حفظ التغييرات.`; service-account price conversion/writes also return `The caller does not have permission`. This is an unresolved Google account-side monetization/save condition, not invalid product data. The idempotent activation script and local reports are ready under `scripts/` and `build/google-play-subscriptions/`; retry after permission propagation, then escalate to Play Support if the owner-session failure persists.
-- [ ] RevenueCat project `VoiceBrief` (`59213dad`), entitlement `pro`, offering `default`, and App Store connection `app85cd86a950` for `app.voicebrief.mobile` are created; the P8, key ID `49HN3HGNM2`, and issuer ID were accepted. Google connection/imports, monthly/annual package mappings, public SDK keys, webhook secret, and sandbox purchases remain. A verified Google service-account JSON is prepared privately outside Git with a restricted ACL, and the open Play Store form already contains the package name, but the JSON has not been uploaded and the connection is not saved. The account email also remains unconfirmed.
+- [x] RevenueCat project `VoiceBrief` (`59213dad`), entitlement `pro`, offering `default`, App Store connection `app85cd86a950`, and Google Play connection `appa60d40b8c1` are created. Four production products are attached to `pro`; the iOS/Android monthly products map to `$rc_monthly` and the annual products map to `$rc_annual`. Both public SDK keys are stored in GitHub Actions secrets for build `0.1.0+8`.
+- [ ] Configure the RevenueCat webhook authorization secret in RevenueCat and Supabase, confirm the RevenueCat account email, and complete sandbox purchase/restore checks. Google purchase acceptance additionally waits for Google to save and activate the missing `monthly` and `annual` base plans.
 - [x] Production Android upload signing configured privately; owner still must back it up before first upload.
 - [x] Apple signing/provisioning configured privately and the signed Runner plus Share Extension passed App Store validation/upload.
 - [x] Privacy policy, Terms, and Support pages published; owner/legal approval plus Apple Privacy, Google Data Safety, and reviewer notes remain.
