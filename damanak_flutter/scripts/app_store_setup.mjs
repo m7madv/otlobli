@@ -10,9 +10,13 @@ const APP_NAME = 'Damanak - ضمانك';
 const APP_SKU = 'DAMANAK_IOS';
 const PRIMARY_LOCALE = 'ar-SA';
 const GROUP_REFERENCE_NAME = 'Damanak Plans';
+const GROUP_LOCALIZED_NAME = 'خطط ضمانك';
+const GROUP_CUSTOM_APP_NAME = 'ضمانك';
 const INTERNAL_BETA_GROUP_NAME = 'Damanak Internal';
 const PROFILE_NAME = 'Damanak App Store';
 const APP_STORE_TERRITORIES = ['SAU', 'ARE', 'BHR', 'KWT', 'OMN', 'QAT'];
+const SUBSCRIPTION_REVIEW_NOTE =
+  'Damanak is a B2B warranty-management app for Gulf retailers. Sign in with Apple or Google, create a store, then open Administration > Subscription. The subscription unlocks warranty issuance quotas and team seats; it does not sell physical goods. The review screenshot shows the paywall. No pre-created account is required because reviewers can use Sign in with Apple.';
 const productDefinitions = [
   {
     productId: 'com.damanak.subscription.starter.monthly',
@@ -379,17 +383,20 @@ async function ensureSubscriptionGroupLocalization(group, report) {
   const rows = await listAll(
     `/v1/subscriptionGroups/${group.id}/subscriptionGroupLocalizations?limit=50`,
   );
-  const existing = rows.find((row) => row.attributes?.locale === PRIMARY_LOCALE);
-  report.subscriptionGroupLocalization = existing ? 'existing' : 'missing';
-  if (!existing && mode === 'apply') {
-    await request('/v1/subscriptionGroupLocalizations', {
+  let localization = rows.find(
+    (row) => row.attributes?.locale === PRIMARY_LOCALE,
+  );
+  let state = localization ? 'existing' : 'missing';
+  if (!localization && mode === 'apply') {
+    const result = await request('/v1/subscriptionGroupLocalizations', {
       method: 'POST',
       body: {
         data: {
           type: 'subscriptionGroupLocalizations',
           attributes: {
             locale: PRIMARY_LOCALE,
-            name: 'خطط ضمانك',
+            name: GROUP_LOCALIZED_NAME,
+            customAppName: GROUP_CUSTOM_APP_NAME,
           },
           relationships: {
             subscriptionGroup: {
@@ -399,36 +406,128 @@ async function ensureSubscriptionGroupLocalization(group, report) {
         },
       },
     });
-    report.subscriptionGroupLocalization = 'created';
+    localization = result.data;
+    state = 'created';
+  } else if (
+    localization &&
+    mode === 'apply' &&
+    (localization.attributes?.name !== GROUP_LOCALIZED_NAME ||
+      localization.attributes?.customAppName !== GROUP_CUSTOM_APP_NAME)
+  ) {
+    const result = await request(
+      `/v1/subscriptionGroupLocalizations/${localization.id}`,
+      {
+        method: 'PATCH',
+        body: {
+          data: {
+            type: 'subscriptionGroupLocalizations',
+            id: localization.id,
+            attributes: {
+              name: GROUP_LOCALIZED_NAME,
+              customAppName: GROUP_CUSTOM_APP_NAME,
+            },
+          },
+        },
+      },
+    );
+    localization = result.data;
+    state = 'updated';
   }
+  report.subscriptionGroupLocalization = {
+    state,
+    locale: localization?.attributes?.locale ?? null,
+    name: localization?.attributes?.name ?? null,
+    customAppName: localization?.attributes?.customAppName ?? null,
+    reviewState: localization?.attributes?.state ?? null,
+  };
 }
 
 async function ensureSubscriptionLocalization(subscription, definition) {
   const rows = await listAll(
     `/v1/subscriptions/${subscription.id}/subscriptionLocalizations?limit=50`,
   );
-  const existing = rows.find((row) => row.attributes?.locale === PRIMARY_LOCALE);
-  if (existing) return 'existing';
-  if (mode !== 'apply') return 'missing';
-  await request('/v1/subscriptionLocalizations', {
-    method: 'POST',
+  let localization = rows.find(
+    (row) => row.attributes?.locale === PRIMARY_LOCALE,
+  );
+  let state = localization ? 'existing' : 'missing';
+  if (!localization && mode === 'apply') {
+    const result = await request('/v1/subscriptionLocalizations', {
+      method: 'POST',
+      body: {
+        data: {
+          type: 'subscriptionLocalizations',
+          attributes: {
+            locale: PRIMARY_LOCALE,
+            name: definition.localizedName,
+            description: definition.description,
+          },
+          relationships: {
+            subscription: {
+              data: { type: 'subscriptions', id: subscription.id },
+            },
+          },
+        },
+      },
+    });
+    localization = result.data;
+    state = 'created';
+  } else if (
+    localization &&
+    mode === 'apply' &&
+    (localization.attributes?.name !== definition.localizedName ||
+      localization.attributes?.description !== definition.description)
+  ) {
+    const result = await request(
+      `/v1/subscriptionLocalizations/${localization.id}`,
+      {
+        method: 'PATCH',
+        body: {
+          data: {
+            type: 'subscriptionLocalizations',
+            id: localization.id,
+            attributes: {
+              name: definition.localizedName,
+              description: definition.description,
+            },
+          },
+        },
+      },
+    );
+    localization = result.data;
+    state = 'updated';
+  }
+  return {
+    state,
+    locale: localization?.attributes?.locale ?? null,
+    name: localization?.attributes?.name ?? null,
+    description: localization?.attributes?.description ?? null,
+    reviewState: localization?.attributes?.state ?? null,
+  };
+}
+
+async function ensureSubscriptionReviewMetadata(subscription, definition) {
+  const attributes = subscription.attributes || {};
+  const needsUpdate =
+    attributes.reviewNote !== SUBSCRIPTION_REVIEW_NOTE ||
+    attributes.familySharable !== false ||
+    attributes.groupLevel !== definition.groupLevel;
+  if (mode !== 'apply' || !needsUpdate) return subscription;
+  const result = await request(`/v1/subscriptions/${subscription.id}`, {
+    method: 'PATCH',
     body: {
       data: {
-        type: 'subscriptionLocalizations',
+        type: 'subscriptions',
+        id: subscription.id,
         attributes: {
-          locale: PRIMARY_LOCALE,
-          name: definition.localizedName,
-          description: definition.description,
-        },
-        relationships: {
-          subscription: {
-            data: { type: 'subscriptions', id: subscription.id },
-          },
+          name: definition.name,
+          familySharable: false,
+          reviewNote: SUBSCRIPTION_REVIEW_NOTE,
+          groupLevel: definition.groupLevel,
         },
       },
     },
   });
-  return 'created';
+  return result.data;
 }
 
 async function ensureSubscriptionAvailability(subscription) {
@@ -841,6 +940,12 @@ async function ensureSubscriptions(group, report) {
       subscription = result.data;
       state = 'created';
     }
+    if (subscription) {
+      subscription = await ensureSubscriptionReviewMetadata(
+        subscription,
+        definition,
+      );
+    }
     const localization = subscription
       ? await ensureSubscriptionLocalization(subscription, definition)
       : 'blocked-until-subscription-exists';
@@ -853,12 +958,21 @@ async function ensureSubscriptions(group, report) {
     const reviewScreenshot = subscription
       ? await uploadReviewScreenshot(subscription)
       : { state: 'blocked-until-subscription-exists' };
+    const refreshedSubscription = subscription
+      ? (await request(`/v1/subscriptions/${subscription.id}`)).data
+      : null;
     report.subscriptions.push({
       productId: definition.productId,
       state,
-      reviewState: subscription?.attributes?.state ?? null,
-      subscriptionPeriod: subscription?.attributes?.subscriptionPeriod ?? null,
-      groupLevel: subscription?.attributes?.groupLevel ?? null,
+      reviewState: refreshedSubscription?.attributes?.state ?? null,
+      subscriptionPeriod:
+        refreshedSubscription?.attributes?.subscriptionPeriod ?? null,
+      groupLevel: refreshedSubscription?.attributes?.groupLevel ?? null,
+      familySharable:
+        refreshedSubscription?.attributes?.familySharable ?? null,
+      hasReviewNote: Boolean(
+        refreshedSubscription?.attributes?.reviewNote?.trim(),
+      ),
       localization,
       availability,
       intendedPriceSar: definition.intendedPriceSar,
