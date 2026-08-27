@@ -79,6 +79,9 @@ const productDefinitions = [
 
 const mode = process.argv.includes('--apply') ? 'apply' : 'inspect';
 const applyPrices = process.argv.includes('--apply-prices');
+const addSubscriptionsToReviewDraft = process.argv.includes(
+  '--add-subscriptions-to-review-draft',
+);
 const outputIndex = process.argv.indexOf('--output');
 const outputPath = resolve(
   outputIndex >= 0 && process.argv[outputIndex + 1]
@@ -1345,6 +1348,243 @@ async function ensureSubscriptions(group, report) {
   }
 }
 
+function relatedResourceId(item, relationshipName) {
+  const relationship = item.relationships?.[relationshipName]?.data;
+  return relationship && !Array.isArray(relationship)
+    ? relationship.id ?? null
+    : null;
+}
+
+function currentReviewVersionIds(report) {
+  return {
+    groupVersionId:
+      report.subscriptionGroupVersionMetadata?.ready === true
+        ? report.subscriptionGroupVersionMetadata.selectedVersionId ?? null
+        : null,
+    subscriptionVersionIds: report.subscriptions
+      .filter((subscription) => subscription.versionMetadata?.ready === true)
+      .map((subscription) => subscription.versionMetadata.selectedVersionId)
+      .filter(Boolean),
+  };
+}
+
+async function inspectReadyReviewDrafts(app, report) {
+  const { groupVersionId, subscriptionVersionIds } =
+    currentReviewVersionIds(report);
+  const expectedSubscriptionVersionIds = new Set(subscriptionVersionIds);
+  if (!app) {
+    return {
+      state: 'blocked-until-app-exists',
+      currentGroupVersionId: groupVersionId,
+      configuredSubscriptionVersionCount: subscriptionVersionIds.length,
+      requiredSubscriptionVersionCount: productDefinitions.length,
+      readySubmissionCount: 0,
+      matchingDraftCount: 0,
+      readySubscriptionVersionCount: 0,
+      drafts: [],
+    };
+  }
+
+  const submissions = await listAll(
+    `/v1/apps/${app.id}/reviewSubmissions?filter[state]=READY_FOR_REVIEW&filter[platform]=IOS&limit=200`,
+  );
+  const drafts = [];
+  for (const submission of submissions) {
+    const items = await listAll(
+      `/v1/reviewSubmissions/${submission.id}/items?fields[reviewSubmissionItems]=state,subscriptionVersion,subscriptionGroupVersion&include=subscriptionVersion,subscriptionGroupVersion&limit=200`,
+    );
+    const summarizedItems = items.map((item) => ({
+      id: item.id,
+      state: item.attributes?.state ?? null,
+      subscriptionVersionId: relatedResourceId(item, 'subscriptionVersion'),
+      subscriptionGroupVersionId: relatedResourceId(
+        item,
+        'subscriptionGroupVersion',
+      ),
+      relationshipTypes: Object.entries(item.relationships || {})
+        .filter(([, relationship]) => relationship?.data)
+        .map(([name]) => name),
+    }));
+    const currentSubscriptionItems = summarizedItems.filter(
+      (item) =>
+        item.subscriptionVersionId &&
+        expectedSubscriptionVersionIds.has(item.subscriptionVersionId),
+    );
+    drafts.push({
+      id: submission.id,
+      platform: submission.attributes?.platform ?? null,
+      state: submission.attributes?.state ?? null,
+      itemCount: summarizedItems.length,
+      readyItemCount: summarizedItems.filter(
+        (item) => item.state === 'READY_FOR_REVIEW',
+      ).length,
+      containsCurrentGroupVersion: summarizedItems.some(
+        (item) =>
+          groupVersionId &&
+          item.subscriptionGroupVersionId === groupVersionId,
+      ),
+      currentSubscriptionVersionItemCount: currentSubscriptionItems.length,
+      currentSubscriptionVersionReadyCount: currentSubscriptionItems.filter(
+        (item) => item.state === 'READY_FOR_REVIEW',
+      ).length,
+      subscriptionVersionIds: summarizedItems
+        .map((item) => item.subscriptionVersionId)
+        .filter(Boolean),
+      subscriptionGroupVersionIds: summarizedItems
+        .map((item) => item.subscriptionGroupVersionId)
+        .filter(Boolean),
+      items: summarizedItems,
+    });
+  }
+
+  const matchingDrafts = drafts.filter(
+    (draft) => draft.containsCurrentGroupVersion,
+  );
+  return {
+    state: 'inspected',
+    currentGroupVersionId: groupVersionId,
+    configuredSubscriptionVersionCount: subscriptionVersionIds.length,
+    requiredSubscriptionVersionCount: productDefinitions.length,
+    readySubmissionCount: submissions.length,
+    matchingDraftCount: matchingDrafts.length,
+    readySubscriptionVersionCount:
+      matchingDrafts.length === 1
+        ? matchingDrafts[0].currentSubscriptionVersionReadyCount
+        : 0,
+    drafts,
+  };
+}
+
+async function inspectReviewDrafts(app, report) {
+  const inspection = await inspectReadyReviewDrafts(app, report);
+  report.reviewDraft = {
+    mutationRequested: addSubscriptionsToReviewDraft,
+    mutationAttempted: false,
+    mutationState: addSubscriptionsToReviewDraft
+      ? 'pending-validation'
+      : 'not-requested',
+    addedSubscriptionVersionIds: [],
+    before: inspection,
+    after: inspection,
+    readySubmissionCount: inspection.readySubmissionCount,
+    matchingDraftCount: inspection.matchingDraftCount,
+    readySubscriptionVersionCount: inspection.readySubscriptionVersionCount,
+  };
+}
+
+async function addReadySubscriptionsToReviewDraft(app, report) {
+  if (!addSubscriptionsToReviewDraft) return;
+  if (mode !== 'apply') {
+    report.reviewDraft.mutationState = 'refused-requires-apply-mode';
+    throw new Error(
+      '--add-subscriptions-to-review-draft requires --apply',
+    );
+  }
+
+  const { groupVersionId, subscriptionVersionIds } =
+    currentReviewVersionIds(report);
+  const uniqueSubscriptionVersionIds = [...new Set(subscriptionVersionIds)];
+  if (
+    !app ||
+    !groupVersionId ||
+    uniqueSubscriptionVersionIds.length !== productDefinitions.length
+  ) {
+    report.reviewDraft.mutationState = 'refused-incomplete-current-versions';
+    throw new Error(
+      'Review draft mutation requires one ready current group version and all six ready current subscription versions',
+    );
+  }
+
+  const matchingDrafts = report.reviewDraft.before.drafts.filter(
+    (draft) => draft.containsCurrentGroupVersion,
+  );
+  if (matchingDrafts.length !== 1) {
+    report.reviewDraft.mutationState = 'refused-ambiguous-review-draft';
+    throw new Error(
+      `Expected exactly one READY_FOR_REVIEW iOS draft containing the current subscription group version; found ${matchingDrafts.length}`,
+    );
+  }
+
+  const reviewDraft = matchingDrafts[0];
+  const existingSubscriptionVersionIds = new Set(
+    reviewDraft.subscriptionVersionIds,
+  );
+  const missingSubscriptionVersionIds = uniqueSubscriptionVersionIds.filter(
+    (versionId) => !existingSubscriptionVersionIds.has(versionId),
+  );
+  report.reviewDraft.mutationAttempted = true;
+  report.reviewDraft.mutationState =
+    missingSubscriptionVersionIds.length === 0
+      ? 'already-complete'
+      : 'adding-missing-subscriptions';
+  report.reviewDraft.selectedDraftId = reviewDraft.id;
+  report.reviewDraft.missingSubscriptionVersionIds =
+    missingSubscriptionVersionIds;
+
+  let mutationError = null;
+  for (const subscriptionVersionId of missingSubscriptionVersionIds) {
+    try {
+      await request('/v1/reviewSubmissionItems', {
+        method: 'POST',
+        body: {
+          data: {
+            type: 'reviewSubmissionItems',
+            relationships: {
+              reviewSubmission: {
+                data: { type: 'reviewSubmissions', id: reviewDraft.id },
+              },
+              subscriptionVersion: {
+                data: {
+                  type: 'subscriptionVersions',
+                  id: subscriptionVersionId,
+                },
+              },
+            },
+          },
+        },
+      });
+      report.reviewDraft.addedSubscriptionVersionIds.push(
+        subscriptionVersionId,
+      );
+    } catch (error) {
+      mutationError = error;
+      break;
+    }
+  }
+
+  const after = await inspectReadyReviewDrafts(app, report);
+  report.reviewDraft.after = after;
+  report.reviewDraft.readySubmissionCount = after.readySubmissionCount;
+  report.reviewDraft.matchingDraftCount = after.matchingDraftCount;
+  report.reviewDraft.readySubscriptionVersionCount =
+    after.readySubscriptionVersionCount;
+
+  if (mutationError) {
+    report.reviewDraft.mutationState = 'failed-after-partial-reinspection';
+    throw mutationError;
+  }
+
+  const selectedAfter = after.drafts.filter(
+    (draft) => draft.containsCurrentGroupVersion,
+  );
+  if (
+    selectedAfter.length !== 1 ||
+    selectedAfter[0].currentSubscriptionVersionItemCount !==
+      productDefinitions.length ||
+    selectedAfter[0].currentSubscriptionVersionReadyCount !==
+      productDefinitions.length
+  ) {
+    report.reviewDraft.mutationState = 'failed-postcondition';
+    throw new Error(
+      `Review draft contains ${after.readySubscriptionVersionCount} of ${productDefinitions.length} ready current subscription versions after mutation`,
+    );
+  }
+  report.reviewDraft.mutationState =
+    missingSubscriptionVersionIds.length === 0
+      ? 'already-complete'
+      : 'added-and-reinspected';
+}
+
 function normalizeSerial(value) {
   return String(value || '')
     .replace(/^0+/, '')
@@ -1445,6 +1685,8 @@ async function main() {
     planAvailabilityTerritories: APP_STORE_TERRITORIES,
     planAvailabilityScope: 'exact-gulf-only',
     planAvailabilityRequested: mode === 'apply' && applyPrices,
+    addSubscriptionsToReviewDraftRequested:
+      addSubscriptionsToReviewDraft,
     planAvailabilityReady: false,
     planAvailabilityConfiguredProductCount: 0,
     catalogMetadataApiVersion: '4.4.1-version-based-v2',
@@ -1466,6 +1708,7 @@ async function main() {
     await inspectLegacySubscriptionGroupLocalization(group, report);
     await ensureSubscriptionGroupVersionMetadata(group, report);
     await ensureSubscriptions(group, report);
+    await inspectReviewDrafts(app, report);
     const configuredVersionMetadata = report.subscriptions.filter(
       (subscription) => subscription.versionMetadata?.ready === true,
     );
@@ -1521,6 +1764,7 @@ async function main() {
         'One or more App Store subscription review screenshots are missing',
       );
     }
+    await addReadySubscriptionsToReviewDraft(app, report);
     try {
       await ensureProvisioningProfile(bundleId, report);
     } catch (error) {

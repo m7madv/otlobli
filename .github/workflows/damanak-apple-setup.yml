@@ -16,6 +16,11 @@ on:
         required: true
         type: boolean
         default: false
+      add_subscriptions_to_review_draft:
+        description: Add six ready subscription versions to one existing review draft without submitting it
+        required: true
+        type: boolean
+        default: false
 
 jobs:
   app-store-connect:
@@ -73,6 +78,10 @@ jobs:
             echo "Price changes require mode=apply. Refusing a mutating inspect run."
             exit 1
           fi
+          if [[ "${{ inputs.add_subscriptions_to_review_draft }}" == "true" && "${{ inputs.mode }}" != "apply" ]]; then
+            echo "Adding subscriptions to a review draft requires mode=apply."
+            exit 1
+          fi
           MODE_FLAG=""
           if [[ "${{ inputs.mode }}" == "apply" ]]; then
             MODE_FLAG="--apply"
@@ -81,9 +90,14 @@ jobs:
           if [[ "${{ inputs.apply_prices }}" == "true" ]]; then
             PRICE_FLAG="--apply-prices"
           fi
+          REVIEW_DRAFT_FLAG=""
+          if [[ "${{ inputs.add_subscriptions_to_review_draft }}" == "true" ]]; then
+            REVIEW_DRAFT_FLAG="--add-subscriptions-to-review-draft"
+          fi
           node scripts/app_store_setup.mjs \
             $MODE_FLAG \
             $PRICE_FLAG \
+            $REVIEW_DRAFT_FLAG \
             --output build/app-store-setup/report.json \
             --profile-output build/app-store-setup/damanak.mobileprovision
 
