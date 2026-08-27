@@ -135,7 +135,7 @@ jobs:
           GOOGLE_CALLBACK_SCHEME=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleURLTypes:1:CFBundleURLSchemes:0' "$APP_PATH/Info.plist")
           test "$APP_BUNDLE_ID" = "com.damanak.damanak"
           test "$APP_VERSION" = "4.3.0"
-          test "$APP_BUILD" = "17"
+          test "$APP_BUILD" = "18"
           [[ "$PROFILE_APP_ID" == *".$APP_BUNDLE_ID" ]]
           test "$PROFILE_APPLE_SIGN_IN" = "Default"
           test "$APP_APPLE_SIGN_IN" = "Default"
