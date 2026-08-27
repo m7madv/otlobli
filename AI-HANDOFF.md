@@ -2,20 +2,15 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
-## مشروع مستقل (2026-08-25) — VoiceBrief 0.1.0
+## مشروع مستقل (2026-08-27) — VoiceBrief 0.1.0 build 9
 
-- مجلد المشروع `voicebrief_flutter/` ومشروع Supabase المستقل `jyehqpdbayslhzebdycj`؛ لا تستخدم `talabieh`. لا تلمس Otlobli أو Damanak ضمن إصلاح VoiceBrief، ولا تضم تغييرات الجذر الموجودة في commit دون طلب صريح.
-- محرر الصوت الجديد في `audio_preparation_screen.dart` يستخدم `audio_waveforms` للاستخراج الحقيقي و`just_audio` للتشغيل والقفز. `RangeSlider` يحدد الجزء، و`AudioImportService.trim` يستدعي قناة `voicebrief/audio_edit`: Media3 Transformer على Android و`AVAssetExportSession.timeRange` على iOS. لا تعد إلى قص وهمي أو موجة مزخرفة.
-- لا تنتظر `PlayerController.stopAllPlayers()` عند الاستبدال/الإزالة/القص؛ Future الإضافة قد يعلق على Android. الإلغاء الحالي fire-and-forget مقصود. بعد القص لا تستدعِ `_loadSelected()` لأن الملف سيُعالج ويُحذف فوراً؛ إعادة الاستخراج سببت تعليقاً تجاوز 60 ثانية على Note 8.
-- التنقل في `ShellScreen` يتابع السجل `(audioImporting, path, source)` ويدفع شاشة الإعداد تلقائياً فقط عند اكتمال استيراد Android/iOS المشترك. المنتقي والمسجل يدفعان مسارهما صراحة. لا تعد للاستماع إلى `selectedAudio.path` وحده؛ كان يصنع شاشتين ويجعل Back يبدو معطلاً.
-- `deleteResult` و`restoreResult` متفائلان. History يزيل العنصر ويظهر Undo فوراً، وResult ينتقل مباشرة بعد التأكيد. لا تربط الحركة بزمن Drift. «النص الحرفي للتسجيل» تلقائي ومطوي ومشروح؛ لا تعِد مفتاحاً يخلط بينه وبين الملخص.
-- الاستيراد المشترك يعتمد ملف handoff الخاص مباشرة بدل نسخه ثانية، ويرسل الحجم والمدة من native. `detectMimeTypeForFile` يقرأ تواقيع MP3/WAV/OGG/FLAC/M4A/WebM عندما يحذف document provider الامتداد. حافظ على التحقق من الحجم/المدة والمسارات الخاصة.
-- تحقق Note 8 الفعلي: MP3 بلا امتداد 2:46، موجة حقيقية، seek بالشريط 1:34 وبالموجة 2:29، تحديد 0:42–1:11، إخراج M4A مدته 0:29 والوصول للنتيجة ضمن مهلة 15 ثانية؛ Back مرة واحدة إلى Home؛ حذف RTL فوري مع Undo واستعادة ناجحة. الأدلة تحت `output/voicebrief/design-audit-note8/`.
-- آخر تحقق: `flutter analyze` نجح، 25 اختباراً غير golden نجحت، 8 golden نجحت، و`:app:connectedDebugAndroidTest` نجح لمشاركة Opus على `SM_N950F`. لا تستخدم المهمة العامة `connectedDebugAndroidTest` كمقياس؛ تحاول أيضاً instrument مكتبات plugins منفصلة بحدود SDK متعارضة.
-- الحزم النهائية الموقعة: AAB حجمها `58,905,864` وبصمتها `08FE3948C581BCCA2D0C52AF781E4299C69EC9F09BA9D1FC7EDEF4165954EB44`، وAPK حجمها `68,643,138` وبصمتها `7A9DB99D12781D0CC3AD8AD178CEB2118A1D53531230DAF71726FFCF2D54CD03`، تحت `voicebrief_flutter/output/voicebrief/`. APK تحقق v2 وAAB تحقق JAR، وشهادة RSA-4096 لم تتغير. لا تطبع سر التوقيع أو تنقل المفتاح إلى Git.
-- رصيد OpenAI `$10.00` وAuto-reload متوقف. المفتاح موجود فقط في Supabase، والمسار `gpt-transcribe` ثم `gpt-5.6-luna`. لا ترسل التسجيلات إلى Gemini المجاني. الروابط القانونية هي `https://voicebrief-legal.vercel.app/{privacy,terms,support}`.
-- Google Cloud مكتمل وOAuth ما يزال External/Testing مع `mhm1981x@gmail.com`؛ Note 8 يحتوي `mhm1981d@gmail.com` فقط. RevenueCat ومنتجات المتاجر وApple signing لم تكتمل. فرع GitHub `codex/voicebrief-ios` عند `6279ad4` اجتاز run `32829955468`: Android، ثماني golden على Windows، وmacOS iOS release بلا توقيع مع Share Extension مضمّنة. عولج خطأ المثبّت `bundleVersion must be set` بتعيين الإصدار والبناء للإضافة صراحةً؛ workflow والحزمة المنزّلة يؤكدان أن التطبيق والإضافة كلاهما `0.1.0 (1)`. IPA حجمها `16,807,035` وبصمتها `0BBD51929715DB597F13A8ADB92F4D9E73FC3A492451F841217BC329A1A020B8` تحت `output/github-run-32829955468/`. هي بلا provisioning؛ يجب أن يوقّع مسار التثبيت التطبيق والإضافة معاً، ولا تدّعِ قبول iOS قبل تجربة iPhone الحقيقي.
-- نقطة الرجوع `voicebrief-prebuild-20260824`، وApple Design Skill مثبت عند `d0bac1e765a27a696839e62962e36330ce72f0b7`.
+- اعمل فقط داخل `voicebrief_flutter/` وملفي workflow الخاصين به على الفرع `codex/voicebrief-ios`. مشروع Supabase الصحيح `jyehqpdbayslhzebdycj`؛ لا تستخدم Damanak أو `talabieh`.
+- `ShareViewController.swift` يحفظ manifest ذرياً في App Group ثم يستعمل public `NSExtensionContext.open` لطلب `voicebrief://shared-audio`. هذا best-effort لأن iOS قد يرفض فتح التطبيق من Share Extension؛ عند الرفض يظهر زر إعادة محاولة. لا تضف `UIApplication.shared` أو responder-chain hacks.
+- `process-audio/date_normalization.ts` يصحح فقط العبارات ذات علامة تاريخ صريحة (`يوم`/`بتاريخ`/`تاريخ`) كي لا تتحول أوقات الساعة إلى تواريخ. `يوم خمسة تسعة` ينتج 5 سبتمبر القادم، ويظل الوقت غير المذكور بحاجة إلى تأكيد.
+- مرشح السرعة يرسل `languageHint` مضبوطاً على `ar/en`، يضبط التفريغ الافتراضي على `gpt-4o-mini-transcribe`، ويكتب stage timing لا يحتوي أي محتوى. لا تسجل transcript أو اسم ملف أو هوية المستخدم.
+- التحقق المحلي الحالي: format نظيف، analyze نظيف، 30 non-golden، 11 golden، خمسة date tests، وAndroid debug build كلها ناجحة. CI يضيف Deno `fmt/test/check`.
+- الإصدار المصدر `0.1.0+9` وShare Extension `9`، وworkflow TestFlight محدث للبناء 9. Supabase CLI المحلي يرى حساباً آخر فقط؛ جلسة Edge ترى مشروع VoiceBrief. لا تدّع نشر الدالة أو TestFlight حتى ينجح كل منهما ويُسجل run/hash.
+
 
 ## مشروع مستقل (2026-08-25) — ضمانك 4.1.0+7
 

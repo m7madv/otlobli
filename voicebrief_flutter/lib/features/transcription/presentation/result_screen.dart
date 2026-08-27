@@ -357,6 +357,8 @@ class ResultScreen extends ConsumerWidget {
     required String? dateIso,
   }) async {
     final parsed = dateIso == null ? null : DateTime.tryParse(dateIso);
+    final isDateOnly =
+        dateIso != null && RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(dateIso);
     final selectedDate = await showDatePicker(
       context: context,
       firstDate: DateTime.now().subtract(const Duration(days: 1)),
@@ -368,7 +370,7 @@ class ResultScreen extends ConsumerWidget {
     if (selectedDate == null || !context.mounted) return;
     final selectedTime = await showTimePicker(
       context: context,
-      initialTime: parsed == null
+      initialTime: parsed == null || isDateOnly
           ? const TimeOfDay(hour: 17, minute: 0)
           : TimeOfDay.fromDateTime(parsed.toLocal()),
       helpText: context.l10n.confirmEventTime,

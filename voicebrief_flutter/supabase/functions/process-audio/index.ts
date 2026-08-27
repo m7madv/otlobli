@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { bearerToken, jsonResponse, sha256 } from "../_shared/http.ts";
+import { normalizeSpokenDates } from "./date_normalization.ts";
 
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
 const MAX_DURATION_SECONDS = 6 * 60 * 60;
@@ -40,6 +41,7 @@ type RequestBody = {
   sizeBytes: number;
   durationSeconds: number;
   timeZoneOffsetMinutes?: number;
+  languageHint?: "ar" | "en";
   options?: Record<string, boolean>;
 };
 
@@ -104,7 +106,23 @@ function validateBody(value: unknown, userId: string): RequestBody {
   ) {
     throw new SafeError("invalid_time_zone");
   }
+  if (
+    body.languageHint !== undefined &&
+    body.languageHint !== "ar" && body.languageHint !== "en"
+  ) {
+    throw new SafeError("invalid_language_hint");
+  }
   return body as RequestBody;
+}
+
+function localDateIso(
+  referenceInstant: string,
+  timeZoneOffsetMinutes: number,
+  dayOffset = 0,
+): string {
+  const instant = Date.parse(referenceInstant) +
+    (timeZoneOffsetMinutes * 60_000) + (dayOffset * 86_400_000);
+  return new Date(instant).toISOString().slice(0, 10);
 }
 
 async function openAiRequest(
@@ -278,6 +296,10 @@ Deno.serve(async (request) => {
   }
 
   const jobHash = (await sha256(body.jobId)).slice(0, 12);
+  const processingStartedAt = performance.now();
+  let downloadMs = 0;
+  let transcriptionMs = 0;
+  let summaryMs = 0;
   let reserved = false;
   try {
     const { data, error } = await serviceClient.rpc(
@@ -311,8 +333,10 @@ Deno.serve(async (request) => {
     }
     reserved = true;
 
+    const downloadStartedAt = performance.now();
     const { data: blob, error: downloadError } = await serviceClient.storage
       .from(AUDIO_BUCKET).download(body.storagePath);
+    downloadMs = performance.now() - downloadStartedAt;
     if (
       downloadError || !blob || blob.size <= 0 || blob.size > MAX_AUDIO_BYTES ||
       blob.size !== body.sizeBytes
@@ -327,13 +351,21 @@ Deno.serve(async (request) => {
     if (aiStartedError) throw new SafeError("usage_reservation_failed", 409);
 
     const transcriptionModel = Deno.env.get("OPENAI_TRANSCRIPTION_MODEL") ||
-      "gpt-transcribe";
+      "gpt-4o-mini-transcribe";
+    const transcriptionStartedAt = performance.now();
     const transcription = await openAiRequest(
       "https://api.openai.com/v1/audio/transcriptions",
       () => {
         const form = new FormData();
         form.append("model", transcriptionModel);
         form.append("response_format", "json");
+        if (body.languageHint) form.append("language", body.languageHint);
+        form.append(
+          "prompt",
+          body.languageHint === "ar"
+            ? "اكتب الكلام العربي كما قيل بدقة، وحافظ على ألفاظ الأرقام والتواريخ، مثل «يوم خمسة تسعة»، دون تحويل التاريخ إلى وقت."
+            : "Transcribe exactly as spoken. Preserve date and number wording without converting it into a different date or time.",
+        );
         form.append("file", blob, body.displayName);
         return {
           method: "POST",
@@ -342,6 +374,7 @@ Deno.serve(async (request) => {
         };
       },
     );
+    transcriptionMs = performance.now() - transcriptionStartedAt;
     if (
       typeof transcription.text !== "string" ||
       transcription.text.trim().length === 0
@@ -353,6 +386,15 @@ Deno.serve(async (request) => {
     const requested = body.options ?? {};
     const referenceInstant = new Date().toISOString();
     const timeZoneOffsetMinutes = body.timeZoneOffsetMinutes ?? 0;
+    const localReferenceDate = localDateIso(
+      referenceInstant,
+      timeZoneOffsetMinutes,
+    );
+    const localTomorrowDate = localDateIso(
+      referenceInstant,
+      timeZoneOffsetMinutes,
+      1,
+    );
     const productRules = plan === "pro"
       ? "Return every requested section and all three reply tones."
       : "This is the Free plan: return transcript and summary, no key points/actions/dates, and only the short reply; friendly and professional must be empty strings.";
@@ -360,8 +402,11 @@ Deno.serve(async (request) => {
       "Create an accurate VoiceBrief result from the transcript below.",
       "The audio may be English, Arabic, or mixed Arabic/English. detectedLanguage should be en, ar, or mixed.",
       "Never invent facts, owners, dates, phone numbers, or commitments.",
-      `Reference instant: ${referenceInstant}. The user's UTC offset is ${timeZoneOffsetMinutes} minutes. Resolve relative dates such as tomorrow or next Thursday from the user's local date.`,
+      `Reference instant: ${referenceInstant}. The user's UTC offset is ${timeZoneOffsetMinutes} minutes. Their local calendar date is ${localReferenceDate}, and tomorrow is ${localTomorrowDate}. Resolve relative dates from those local dates.`,
       "When a date or time is sufficiently clear, return an ISO 8601 value with the user's explicit UTC offset. Preserve the spoken phrase in originalPhrase.",
+      "In Arabic, a phrase introduced by «يوم» or «بتاريخ» followed by two numbers is day then month: «يوم خمسة تسعة» means September 5 (05-09), never 5:09. If its year is omitted, choose the next upcoming occurrence. If its time is omitted, use a date-only YYYY-MM-DD value and require confirmation.",
+      "Keep separate calendar references separate. For example, «بكرة الساعة خمسة» and «يوم خمسة تسعة» are two different events and must never be merged or assigned the same date.",
+      "A clock time such as «الساعة خمسة» without morning/evening remains time-ambiguous: keep its resolved date, preserve the spoken phrase, and require confirmation.",
       "For ambiguous dates, keep dateIso null, preserve originalPhrase, lower confidence, and set requiresConfirmation true.",
       "Do not duplicate an action-item deadline in importantDates unless it is also a distinct calendar event.",
       "Suggested replies must preserve the speaker's meaning and must not add commitments.",
@@ -372,6 +417,7 @@ Deno.serve(async (request) => {
     ].join("\n\n");
 
     const summaryModel = Deno.env.get("OPENAI_SUMMARY_MODEL") || "gpt-5.6-luna";
+    const summaryStartedAt = performance.now();
     const structured = await openAiRequest(
       "https://api.openai.com/v1/responses",
       () => ({
@@ -394,10 +440,15 @@ Deno.serve(async (request) => {
         }),
       }),
     );
-    const generated = JSON.parse(outputText(structured)) as Record<
+    summaryMs = performance.now() - summaryStartedAt;
+    const generated = normalizeSpokenDates(
+      JSON.parse(outputText(structured)) as Record<
       string,
       unknown
-    >;
+      >,
+      referenceInstant,
+      timeZoneOffsetMinutes,
+    );
     if (plan === "free" || requested.actionItems === false) {
       generated.keyPoints = [];
       generated.actionItems = [];
@@ -441,6 +492,17 @@ Deno.serve(async (request) => {
     );
     if (completeError) throw new SafeError("usage_charge_failed", 500);
     reserved = false;
+    console.info(
+      JSON.stringify({
+        event: "voicebrief_processing_timing",
+        job: jobHash,
+        model: transcriptionModel,
+        downloadMs: Math.round(downloadMs),
+        transcriptionMs: Math.round(transcriptionMs),
+        summaryMs: Math.round(summaryMs),
+        totalMs: Math.round(performance.now() - processingStartedAt),
+      }),
+    );
     return jsonResponse(200, { result });
   } catch (error) {
     const safe = error instanceof SafeError

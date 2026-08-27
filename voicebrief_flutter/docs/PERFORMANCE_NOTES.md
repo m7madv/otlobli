@@ -8,6 +8,9 @@
 - Files are capped at 25 MB. Native share copies stream in fixed buffers. Production upload should use the Supabase file upload API rather than loading extra transformed copies; no FFmpeg binary is included.
 - Result lists remain lazy at screen level, but a single extremely long selectable transcript is still one text layout. Profile real multi-hour transcripts; introduce chunked transcript paragraphs only if traces show a measurable issue.
 - Temporary players/recorders/subscriptions are disposed; audio files are cleaned after terminal processing.
+- The client sends a validated `ar`/`en` language hint from the system locale to the transcription endpoint. The production candidate uses `gpt-4o-mini-transcribe`, which is cheaper and intended for low-latency transcription; exact device/network latency must still be measured after deployment.
+- `process-audio` records privacy-safe stage timings for storage download, transcription, summarization, and total processing. Logs contain only a short job hash, model name, and millisecond durations—never file names, audio, transcript, or generated text.
+- Arabic transcription prompting preserves spoken number/date wording so the summary stage receives `يوم خمسة تسعة` instead of a guessed time.
 
 ## Profiling gates
 

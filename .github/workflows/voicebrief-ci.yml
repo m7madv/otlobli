@@ -16,6 +16,20 @@ permissions:
   contents: read
 
 jobs:
+  edge-function:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - run: deno fmt --check supabase/functions/process-audio
+        working-directory: voicebrief_flutter
+      - run: deno test supabase/functions/process-audio/date_normalization_test.ts
+        working-directory: voicebrief_flutter
+      - run: deno check supabase/functions/process-audio/index.ts
+        working-directory: voicebrief_flutter
+
   android:
     runs-on: ubuntu-latest
     defaults:
@@ -130,18 +144,18 @@ jobs:
           test "$extension_short_version" = "$app_short_version"
           test "$extension_build_version" = "$app_build_version"
           test "$app_short_version" = "0.1.0"
-          test "$app_build_version" = "8"
+          test "$app_build_version" = "9"
           echo "Verified app and Share Extension version $app_short_version ($app_build_version)."
           rm -rf build/ios/unsigned-ipa
           mkdir -p build/ios/unsigned-ipa/Payload
           cp -R "$app" build/ios/unsigned-ipa/Payload/VoiceBrief.app
           (
             cd build/ios/unsigned-ipa
-            zip -qry ../VoiceBrief-0.1.0-build8-live-unsigned.ipa Payload
+            zip -qry ../VoiceBrief-0.1.0-build9-live-unsigned.ipa Payload
           )
-          shasum -a 256 build/ios/VoiceBrief-0.1.0-build8-live-unsigned.ipa
+          shasum -a 256 build/ios/VoiceBrief-0.1.0-build9-live-unsigned.ipa
       - uses: actions/upload-artifact@v4
         with:
           name: voicebrief-ios-live-unsigned-${{ github.run_number }}
-          path: voicebrief_flutter/build/ios/VoiceBrief-0.1.0-build8-live-unsigned.ipa
+          path: voicebrief_flutter/build/ios/VoiceBrief-0.1.0-build9-live-unsigned.ipa
           if-no-files-found: error

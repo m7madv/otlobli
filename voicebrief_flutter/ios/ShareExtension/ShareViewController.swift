@@ -16,6 +16,7 @@ final class ShareViewController: UIViewController {
   private let manifestName = "pending-share.json"
   private let maxAudioBytes: Int64 = 25 * 1024 * 1024
   private var importStarted = false
+  private var openAttemptInProgress = false
 
   private let symbolView: UIImageView = {
     let view = UIImageView(image: UIImage(systemName: "waveform.circle.fill"))
@@ -63,7 +64,6 @@ final class ShareViewController: UIViewController {
     button.contentEdgeInsets = UIEdgeInsets(top: 13, left: 24, bottom: 13, right: 24)
     button.isHidden = true
     button.translatesAutoresizingMaskIntoConstraints = false
-    button.addTarget(self, action: #selector(closeExtension), for: .touchUpInside)
     return button
   }()
 
@@ -218,7 +218,7 @@ final class ShareViewController: UIViewController {
         try? FileManager.default.removeItem(at: target)
         throw ImportFailure.writeFailed
       }
-      showSuccess()
+      showSuccessAndOpenApp()
     } catch let failure as ImportFailure {
       showFailure(failure)
     } catch {
@@ -293,7 +293,7 @@ final class ShareViewController: UIViewController {
     return "\(stem.isEmpty ? "shared-audio" : stem).\(canonicalExtension)"
   }
 
-  private func showSuccess() {
+  private func showSuccessAndOpenApp() {
     DispatchQueue.main.async {
       self.progressView.stopAnimating()
       self.symbolView.image = UIImage(systemName: "checkmark.circle.fill")
@@ -303,15 +303,48 @@ final class ShareViewController: UIViewController {
         english: "Voice note imported"
       )
       self.messageLabel.text = self.localized(
-        arabic: "اضغط «تم»، ثم افتح VoiceBrief لإكمال التحويل. سيجد التطبيق التسجيل جاهزًا.",
-        english: "Tap Done, then open VoiceBrief to continue. Your voice note will be ready."
+        arabic: "جارٍ فتح VoiceBrief والتسجيل جاهز للتحويل…",
+        english: "Opening VoiceBrief with your voice note ready to process…"
       )
-      self.actionButton.setTitle(
-        self.localized(arabic: "تم", english: "Done"),
-        for: .normal
-      )
-      self.actionButton.isHidden = false
+      self.actionButton.isHidden = true
       UIAccessibility.post(notification: .announcement, argument: self.titleLabel.text)
+      self.openContainingApp()
+    }
+  }
+
+  @objc private func openContainingApp() {
+    guard !openAttemptInProgress else { return }
+    guard let url = URL(string: "voicebrief://shared-audio"),
+          let context = extensionContext
+    else {
+      showOpenFallback()
+      return
+    }
+    openAttemptInProgress = true
+    context.open(url) { [weak self] opened in
+      DispatchQueue.main.async {
+        guard let self else { return }
+        self.openAttemptInProgress = false
+        if opened {
+          context.completeRequest(returningItems: nil)
+        } else {
+          self.showOpenFallback()
+        }
+      }
+    }
+  }
+
+  private func showOpenFallback() {
+    DispatchQueue.main.async {
+      self.messageLabel.text = self.localized(
+        arabic: "حُفظ التسجيل، لكن iOS منع فتح التطبيق تلقائيًا. اضغط «فتح VoiceBrief» للمحاولة مرة أخرى.",
+        english: "Your voice note is saved, but iOS prevented the app from opening automatically. Tap Open VoiceBrief to try again."
+      )
+      self.configureActionButton(
+        title: self.localized(arabic: "فتح VoiceBrief", english: "Open VoiceBrief"),
+        action: #selector(openContainingApp)
+      )
+      UIAccessibility.post(notification: .announcement, argument: self.messageLabel.text)
     }
   }
 
@@ -325,13 +358,19 @@ final class ShareViewController: UIViewController {
         english: "Import failed"
       )
       self.messageLabel.text = self.failureMessage(failure)
-      self.actionButton.setTitle(
-        self.localized(arabic: "إغلاق", english: "Close"),
-        for: .normal
+      self.configureActionButton(
+        title: self.localized(arabic: "إغلاق", english: "Close"),
+        action: #selector(closeExtension)
       )
-      self.actionButton.isHidden = false
       UIAccessibility.post(notification: .announcement, argument: self.messageLabel.text)
     }
+  }
+
+  private func configureActionButton(title: String, action: Selector) {
+    actionButton.removeTarget(nil, action: nil, for: .allEvents)
+    actionButton.setTitle(title, for: .normal)
+    actionButton.addTarget(self, action: action, for: .touchUpInside)
+    actionButton.isHidden = false
   }
 
   private func failureMessage(_ failure: ImportFailure) -> String {

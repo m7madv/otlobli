@@ -25,7 +25,7 @@ Screen → AppController (StateNotifier) → repository interface → fake or pr
 1. Import/record/share copies the audio into private application storage and validates extension, size, readability, and duration.
 2. Production repository uploads to the private user/job path in `audio-temp`.
 3. `process-audio` verifies JWT and metadata, then uses server-only RPCs to atomically reserve rounded-up customer and global service minutes before downloading the object and calling OpenAI.
-4. Transcription uses `gpt-transcribe`; structured extraction uses Responses strict JSON Schema with the configurable `gpt-5.6-luna` default. The request includes the user's bounded UTC offset, and the prompt anchors relative spoken dates to that local date without inventing missing time details.
+4. Transcription uses the configurable `gpt-4o-mini-transcribe` default with a validated Arabic/English language hint; structured extraction uses Responses strict JSON Schema with the configurable `gpt-5.6-luna` default. The request includes the user's bounded UTC offset, anchors relative dates to the local calendar day, and deterministically normalizes explicit Arabic day/month phrases without inventing missing time details.
 5. Completion moves both reservations to used minutes in one database transaction. Failure refunds the customer quota, while the service reservation is refunded only when the AI call never started. The job UUID makes retries idempotent.
 6. The server object is removed in `finally`; the client removes its private copy after success/failure.
 7. Result text is transient until the user taps Save, when it is stored in account-scoped Drift rows. Original audio is never stored in history.

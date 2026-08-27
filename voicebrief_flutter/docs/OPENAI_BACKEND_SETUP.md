@@ -7,18 +7,24 @@ Only `supabase/functions/process-audio/index.ts` calls OpenAI. The Flutter clien
 Default server configuration:
 
 ```text
-OPENAI_TRANSCRIPTION_MODEL=gpt-transcribe
+OPENAI_TRANSCRIPTION_MODEL=gpt-4o-mini-transcribe
 OPENAI_SUMMARY_MODEL=gpt-5.6-luna
 ```
 
-This pairing deliberately favors quality per dollar: OpenAI documents
-`gpt-transcribe` as its high-accuracy file transcription model at `$0.0045`
+This pairing deliberately favors speed and quality per dollar: OpenAI documents
+`gpt-4o-mini-transcribe` at an estimated `$0.003`
 per audio minute, while `gpt-5.6-luna` is the cost-sensitive GPT-5.6 tier at
 `$0.20` input and `$1.20` output per million text tokens as checked on
 2026-08-24. Recheck the official model pages before release because pricing
 and availability can change.
 
 The function accepts the current audio formats enforced in mobile/server/Storage, sends transcription multipart data, then uses the Responses API with strict JSON Schema. It retries only 429/5xx responses with bounded exponential delay, uses a 90-second attempt timeout, validates output, avoids content logs, and deletes audio in `finally`.
+
+The mobile request supplies a validated Arabic/English system-language hint. The transcription prompt preserves spoken number/date wording. Privacy-safe timing logs record only a short job hash, model, and stage durations. Explicit Arabic day/month phrases are normalized deterministically after structured generation.
+
+## Deployment candidate — 2026-08-27
+
+The source default and intended production secret are now `gpt-4o-mini-transcribe`. Deployment to project `jyehqpdbayslhzebdycj` remains pending because the local Supabase CLI session is authenticated to a different account; the older live deployment below remains the last verified server state until that is resolved.
 
 ## Live status — 2026-08-24
 
@@ -31,7 +37,7 @@ The function accepts the current audio formats enforced in mobile/server/Storage
 
 ```bash
 supabase secrets set OPENAI_API_KEY=... \
-  OPENAI_TRANSCRIPTION_MODEL=gpt-transcribe \
+  OPENAI_TRANSCRIPTION_MODEL=gpt-4o-mini-transcribe \
   OPENAI_SUMMARY_MODEL=gpt-5.6-luna
 ```
 

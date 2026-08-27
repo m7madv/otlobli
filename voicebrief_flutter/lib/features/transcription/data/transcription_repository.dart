@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui' show PlatformDispatcher;
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:path/path.dart' as path;
@@ -119,18 +120,25 @@ class SupabaseTranscriptionRepository implements TranscriptionRepository {
     onStage?.call('transcribing');
     try {
       final timeZoneOffsetMinutes = DateTime.now().timeZoneOffset.inMinutes;
+      final deviceLanguage = PlatformDispatcher.instance.locale.languageCode
+          .toLowerCase();
+      final languageHint = deviceLanguage == 'ar' || deviceLanguage == 'en'
+          ? deviceLanguage
+          : null;
+      final requestBody = <String, Object?>{
+        'jobId': jobId,
+        'storagePath': storagePath,
+        'displayName': audio.displayName,
+        'mimeType': audio.mimeType,
+        'sizeBytes': audio.sizeBytes,
+        'durationSeconds': audio.durationSeconds,
+        'timeZoneOffsetMinutes': timeZoneOffsetMinutes,
+        'options': options.toJson(),
+      };
+      if (languageHint != null) requestBody['languageHint'] = languageHint;
       final response = await _client.functions.invoke(
         'process-audio',
-        body: {
-          'jobId': jobId,
-          'storagePath': storagePath,
-          'displayName': audio.displayName,
-          'mimeType': audio.mimeType,
-          'sizeBytes': audio.sizeBytes,
-          'durationSeconds': audio.durationSeconds,
-          'timeZoneOffsetMinutes': timeZoneOffsetMinutes,
-          'options': options.toJson(),
-        },
+        body: requestBody,
       );
       if (response.status != 200 || response.data is! Map) {
         throw const AppFailure(AppFailureCode.invalidResponse);
