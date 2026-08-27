@@ -352,6 +352,7 @@ async function ensureInternalBetaGroup(app, report) {
 async function ensureSubscriptionGroup(app, report) {
   if (!app) {
     report.subscriptionGroup = 'blocked-until-app-exists';
+    report.groupId = null;
     return null;
   }
   const groups = await listAll(`/v1/apps/${app.id}/subscriptionGroups?limit=200`);
@@ -375,32 +376,129 @@ async function ensureSubscriptionGroup(app, report) {
     group = result.data;
     report.subscriptionGroup = 'created';
   }
+  report.groupId = group?.id ?? null;
   return group;
 }
 
-async function ensureSubscriptionGroupLocalization(group, report) {
+function summarizeLocalization(localization) {
+  return {
+    id: localization?.id ?? null,
+    locale: localization?.attributes?.locale ?? null,
+    name: localization?.attributes?.name ?? null,
+    description: localization?.attributes?.description ?? null,
+    customAppName: localization?.attributes?.customAppName ?? null,
+    reviewState: localization?.attributes?.state ?? null,
+  };
+}
+
+function summarizeVersion(version, localizations, isExpectedLocalization) {
+  return {
+    id: version?.id ?? null,
+    version: version?.attributes?.version ?? null,
+    state: version?.attributes?.state ?? null,
+    localizationCount: localizations.length,
+    expectedMetadataMatches: localizations.some(isExpectedLocalization),
+    localizations: localizations.map(summarizeLocalization),
+  };
+}
+
+function newestVersion(left, right) {
+  const leftVersion = Number(left?.version?.attributes?.version);
+  const rightVersion = Number(right?.version?.attributes?.version);
+  if (Number.isFinite(leftVersion) && Number.isFinite(rightVersion)) {
+    return rightVersion - leftVersion;
+  }
+  return String(right?.version?.attributes?.version ?? '').localeCompare(
+    String(left?.version?.attributes?.version ?? ''),
+    undefined,
+    { numeric: true },
+  );
+}
+
+function isGroupLocalizationCorrect(localization) {
+  return (
+    localization?.attributes?.locale === PRIMARY_LOCALE &&
+    localization?.attributes?.name === GROUP_LOCALIZED_NAME &&
+    localization?.attributes?.customAppName === GROUP_CUSTOM_APP_NAME
+  );
+}
+
+function isSubscriptionLocalizationCorrect(localization, definition) {
+  return (
+    localization?.attributes?.locale === PRIMARY_LOCALE &&
+    localization?.attributes?.name === definition.localizedName &&
+    localization?.attributes?.description === definition.description
+  );
+}
+
+async function inspectLegacySubscriptionGroupLocalization(group, report) {
   if (!group) {
-    report.subscriptionGroupLocalization = 'blocked-until-group-exists';
+    report.subscriptionGroupLocalization = {
+      state: 'blocked-until-group-exists',
+      apiVersion: 'legacy-v1',
+      preserved: true,
+    };
     return;
   }
   const rows = await listAll(
     `/v1/subscriptionGroups/${group.id}/subscriptionGroupLocalizations?limit=50`,
   );
-  let localization = rows.find(
+  const localization = rows.find(
     (row) => row.attributes?.locale === PRIMARY_LOCALE,
   );
-  let state = localization ? 'existing' : 'missing';
-  if (!localization && mode === 'apply') {
-    const result = await request('/v1/subscriptionGroupLocalizations', {
+  report.subscriptionGroupLocalization = {
+    state: localization ? 'existing-preserved' : 'missing',
+    apiVersion: 'legacy-v1',
+    preserved: true,
+    ...summarizeLocalization(localization),
+  };
+}
+
+async function ensureSubscriptionGroupVersionMetadata(group, report) {
+  if (!group) {
+    report.subscriptionGroupVersionMetadata = {
+      state: 'blocked-until-group-exists',
+      ready: false,
+      groupId: null,
+      versions: [],
+    };
+    return;
+  }
+
+  const versions = await listAll(
+    `/v1/subscriptionGroups/${group.id}/versions?limit=200`,
+  );
+  const inspected = [];
+  for (const version of versions) {
+    const localizations = await listAll(
+      `/v1/subscriptionGroupVersions/${version.id}/localizations?limit=50`,
+    );
+    inspected.push({ version, localizations });
+  }
+  inspected.sort(newestVersion);
+
+  let selected = inspected.find(
+    ({ version, localizations }) =>
+      ['PREPARE_FOR_SUBMISSION', 'READY_FOR_REVIEW'].includes(
+        version.attributes?.state,
+      ) && localizations.some(isGroupLocalizationCorrect),
+  );
+  let state = selected ? 'existing-correct-version' : 'missing-correct-version';
+
+  if (!selected) {
+    selected = inspected.find(
+      ({ version }) =>
+        version.attributes?.state === 'PREPARE_FOR_SUBMISSION',
+    );
+    if (selected) state = 'existing-draft';
+  }
+
+  if (!selected && mode === 'apply') {
+    const result = await request('/v1/subscriptionGroupVersions', {
       method: 'POST',
       body: {
         data: {
-          type: 'subscriptionGroupLocalizations',
-          attributes: {
-            locale: PRIMARY_LOCALE,
-            name: GROUP_LOCALIZED_NAME,
-            customAppName: GROUP_CUSTOM_APP_NAME,
-          },
+          type: 'subscriptionGroupVersions',
           relationships: {
             subscriptionGroup: {
               data: { type: 'subscriptionGroups', id: group.id },
@@ -409,61 +507,155 @@ async function ensureSubscriptionGroupLocalization(group, report) {
         },
       },
     });
-    localization = result.data;
-    state = 'created';
-  } else if (
-    localization &&
-    mode === 'apply' &&
-    (localization.attributes?.name !== GROUP_LOCALIZED_NAME ||
-      localization.attributes?.customAppName !== GROUP_CUSTOM_APP_NAME)
+    selected = { version: result.data, localizations: [] };
+    inspected.unshift(selected);
+    state = 'created-draft';
+  }
+
+  let localization =
+    selected?.localizations.find(isGroupLocalizationCorrect) ||
+    selected?.localizations.find(
+      (row) => row.attributes?.locale === PRIMARY_LOCALE,
+    );
+  if (
+    selected &&
+    selected.version.attributes?.state === 'PREPARE_FOR_SUBMISSION' &&
+    mode === 'apply'
   ) {
-    const result = await request(
-      `/v1/subscriptionGroupLocalizations/${localization.id}`,
-      {
-        method: 'PATCH',
+    if (!localization) {
+      const result = await request('/v2/subscriptionGroupLocalizations', {
+        method: 'POST',
         body: {
           data: {
             type: 'subscriptionGroupLocalizations',
-            id: localization.id,
             attributes: {
+              locale: PRIMARY_LOCALE,
               name: GROUP_LOCALIZED_NAME,
               customAppName: GROUP_CUSTOM_APP_NAME,
             },
+            relationships: {
+              version: {
+                data: {
+                  type: 'subscriptionGroupVersions',
+                  id: selected.version.id,
+                },
+              },
+            },
           },
         },
-      },
-    );
-    localization = result.data;
-    state = 'updated';
+      });
+      localization = result.data;
+      selected.localizations.push(localization);
+      state = state === 'created-draft' ? state : 'created-localization';
+    } else if (!isGroupLocalizationCorrect(localization)) {
+      const result = await request(
+        `/v2/subscriptionGroupLocalizations/${localization.id}`,
+        {
+          method: 'PATCH',
+          body: {
+            data: {
+              type: 'subscriptionGroupLocalizations',
+              id: localization.id,
+              attributes: {
+                name: GROUP_LOCALIZED_NAME,
+                customAppName: GROUP_CUSTOM_APP_NAME,
+              },
+            },
+          },
+        },
+      );
+      localization = result.data;
+      const index = selected.localizations.findIndex(
+        (row) => row.id === localization.id,
+      );
+      if (index >= 0) {
+        selected.localizations[index] = localization;
+      } else {
+        selected.localizations.push(localization);
+      }
+      state = 'updated-localization';
+    }
   }
-  report.subscriptionGroupLocalization = {
+
+  const ready = Boolean(
+    selected &&
+      ['PREPARE_FOR_SUBMISSION', 'READY_FOR_REVIEW'].includes(
+        selected.version.attributes?.state,
+      ) &&
+      selected.localizations.some(isGroupLocalizationCorrect),
+  );
+  report.subscriptionGroupVersionMetadata = {
     state,
-    locale: localization?.attributes?.locale ?? null,
-    name: localization?.attributes?.name ?? null,
-    customAppName: localization?.attributes?.customAppName ?? null,
-    reviewState: localization?.attributes?.state ?? null,
+    ready,
+    groupId: group.id,
+    selectedVersionId: selected?.version.id ?? null,
+    selectedVersion: selected?.version.attributes?.version ?? null,
+    selectedVersionState: selected?.version.attributes?.state ?? null,
+    localization: summarizeLocalization(localization),
+    versionCount: inspected.length,
+    versions: inspected.map(({ version, localizations }) =>
+      summarizeVersion(version, localizations, isGroupLocalizationCorrect),
+    ),
   };
 }
 
-async function ensureSubscriptionLocalization(subscription, definition) {
+async function inspectLegacySubscriptionLocalization(subscription, definition) {
   const rows = await listAll(
     `/v1/subscriptions/${subscription.id}/subscriptionLocalizations?limit=50`,
   );
-  let localization = rows.find(
+  const localization = rows.find(
     (row) => row.attributes?.locale === PRIMARY_LOCALE,
   );
-  let state = localization ? 'existing' : 'missing';
-  if (!localization && mode === 'apply') {
-    const result = await request('/v1/subscriptionLocalizations', {
+  return {
+    state: localization ? 'existing-preserved' : 'missing',
+    apiVersion: 'legacy-v1',
+    preserved: true,
+    expectedMetadataMatches: isSubscriptionLocalizationCorrect(
+      localization,
+      definition,
+    ),
+    ...summarizeLocalization(localization),
+  };
+}
+
+async function ensureSubscriptionVersionMetadata(subscription, definition) {
+  const versions = await listAll(
+    `/v1/subscriptions/${subscription.id}/versions?limit=200`,
+  );
+  const inspected = [];
+  for (const version of versions) {
+    const localizations = await listAll(
+      `/v1/subscriptionVersions/${version.id}/localizations?limit=50`,
+    );
+    inspected.push({ version, localizations });
+  }
+  inspected.sort(newestVersion);
+
+  let selected = inspected.find(
+    ({ version, localizations }) =>
+      ['PREPARE_FOR_SUBMISSION', 'READY_FOR_REVIEW'].includes(
+        version.attributes?.state,
+      ) &&
+      localizations.some((localization) =>
+        isSubscriptionLocalizationCorrect(localization, definition),
+      ),
+  );
+  let state = selected ? 'existing-correct-version' : 'missing-correct-version';
+
+  if (!selected) {
+    selected = inspected.find(
+      ({ version }) =>
+        version.attributes?.state === 'PREPARE_FOR_SUBMISSION',
+    );
+    if (selected) state = 'existing-draft';
+  }
+
+  if (!selected && mode === 'apply') {
+    const result = await request('/v1/subscriptionVersions', {
       method: 'POST',
       body: {
         data: {
-          type: 'subscriptionLocalizations',
-          attributes: {
-            locale: PRIMARY_LOCALE,
-            name: definition.localizedName,
-            description: definition.description,
-          },
+          type: 'subscriptionVersions',
           relationships: {
             subscription: {
               data: { type: 'subscriptions', id: subscription.id },
@@ -472,39 +664,101 @@ async function ensureSubscriptionLocalization(subscription, definition) {
         },
       },
     });
-    localization = result.data;
-    state = 'created';
-  } else if (
-    localization &&
-    mode === 'apply' &&
-    (localization.attributes?.name !== definition.localizedName ||
-      localization.attributes?.description !== definition.description)
+    selected = { version: result.data, localizations: [] };
+    inspected.unshift(selected);
+    state = 'created-draft';
+  }
+
+  let localization =
+    selected?.localizations.find((row) =>
+      isSubscriptionLocalizationCorrect(row, definition),
+    ) ||
+    selected?.localizations.find(
+      (row) => row.attributes?.locale === PRIMARY_LOCALE,
+    );
+  if (
+    selected &&
+    selected.version.attributes?.state === 'PREPARE_FOR_SUBMISSION' &&
+    mode === 'apply'
   ) {
-    const result = await request(
-      `/v1/subscriptionLocalizations/${localization.id}`,
-      {
-        method: 'PATCH',
+    if (!localization) {
+      const result = await request('/v2/subscriptionLocalizations', {
+        method: 'POST',
         body: {
           data: {
             type: 'subscriptionLocalizations',
-            id: localization.id,
             attributes: {
+              locale: PRIMARY_LOCALE,
               name: definition.localizedName,
               description: definition.description,
             },
+            relationships: {
+              version: {
+                data: {
+                  type: 'subscriptionVersions',
+                  id: selected.version.id,
+                },
+              },
+            },
           },
         },
-      },
-    );
-    localization = result.data;
-    state = 'updated';
+      });
+      localization = result.data;
+      selected.localizations.push(localization);
+      state = state === 'created-draft' ? state : 'created-localization';
+    } else if (!isSubscriptionLocalizationCorrect(localization, definition)) {
+      const result = await request(
+        `/v2/subscriptionLocalizations/${localization.id}`,
+        {
+          method: 'PATCH',
+          body: {
+            data: {
+              type: 'subscriptionLocalizations',
+              id: localization.id,
+              attributes: {
+                name: definition.localizedName,
+                description: definition.description,
+              },
+            },
+          },
+        },
+      );
+      localization = result.data;
+      const index = selected.localizations.findIndex(
+        (row) => row.id === localization.id,
+      );
+      if (index >= 0) {
+        selected.localizations[index] = localization;
+      } else {
+        selected.localizations.push(localization);
+      }
+      state = 'updated-localization';
+    }
   }
+
+  const ready = Boolean(
+    selected &&
+      ['PREPARE_FOR_SUBMISSION', 'READY_FOR_REVIEW'].includes(
+        selected.version.attributes?.state,
+      ) &&
+      selected.localizations.some((row) =>
+        isSubscriptionLocalizationCorrect(row, definition),
+      ),
+  );
   return {
     state,
-    locale: localization?.attributes?.locale ?? null,
-    name: localization?.attributes?.name ?? null,
-    description: localization?.attributes?.description ?? null,
-    reviewState: localization?.attributes?.state ?? null,
+    ready,
+    subscriptionId: subscription.id,
+    selectedVersionId: selected?.version.id ?? null,
+    selectedVersion: selected?.version.attributes?.version ?? null,
+    selectedVersionState: selected?.version.attributes?.state ?? null,
+    localization: summarizeLocalization(localization),
+    versionCount: inspected.length,
+    versions: inspected.map(({ version, localizations }) =>
+      summarizeVersion(version, localizations, (row) =>
+        isSubscriptionLocalizationCorrect(row, definition),
+      ),
+    ),
   };
 }
 
@@ -997,6 +1251,7 @@ async function ensureSubscriptions(group, report) {
   if (!group) {
     report.subscriptions = productDefinitions.map((definition) => ({
       productId: definition.productId,
+      subscriptionId: null,
       state: 'blocked-until-group-exists',
       intendedPriceSar: definition.intendedPriceSar,
     }));
@@ -1042,8 +1297,19 @@ async function ensureSubscriptions(group, report) {
       );
     }
     const localization = subscription
-      ? await ensureSubscriptionLocalization(subscription, definition)
-      : 'blocked-until-subscription-exists';
+      ? await inspectLegacySubscriptionLocalization(subscription, definition)
+      : {
+          state: 'blocked-until-subscription-exists',
+          apiVersion: 'legacy-v1',
+          preserved: true,
+        };
+    const versionMetadata = subscription
+      ? await ensureSubscriptionVersionMetadata(subscription, definition)
+      : {
+          state: 'blocked-until-subscription-exists',
+          ready: false,
+          versions: [],
+        };
     const availability = subscription
       ? await ensureSubscriptionPlanAvailability(subscription)
       : 'blocked-until-subscription-exists';
@@ -1058,6 +1324,7 @@ async function ensureSubscriptions(group, report) {
       : null;
     report.subscriptions.push({
       productId: definition.productId,
+      subscriptionId: refreshedSubscription?.id ?? subscription?.id ?? null,
       state,
       reviewState: refreshedSubscription?.attributes?.state ?? null,
       subscriptionPeriod:
@@ -1069,6 +1336,7 @@ async function ensureSubscriptions(group, report) {
         refreshedSubscription?.attributes?.reviewNote?.trim(),
       ),
       localization,
+      versionMetadata,
       availability,
       intendedPriceSar: definition.intendedPriceSar,
       pricing,
@@ -1179,6 +1447,9 @@ async function main() {
     planAvailabilityRequested: mode === 'apply' && applyPrices,
     planAvailabilityReady: false,
     planAvailabilityConfiguredProductCount: 0,
+    catalogMetadataApiVersion: '4.4.1-version-based-v2',
+    catalogMetadataReady: false,
+    catalogMetadataConfiguredProductCount: 0,
     availableInNewTerritories: false,
     pricingNote:
       applyPrices
@@ -1192,8 +1463,26 @@ async function main() {
     await inspectBuilds(app, report);
     await ensureInternalBetaGroup(app, report);
     const group = await ensureSubscriptionGroup(app, report);
-    await ensureSubscriptionGroupLocalization(group, report);
+    await inspectLegacySubscriptionGroupLocalization(group, report);
+    await ensureSubscriptionGroupVersionMetadata(group, report);
     await ensureSubscriptions(group, report);
+    const configuredVersionMetadata = report.subscriptions.filter(
+      (subscription) => subscription.versionMetadata?.ready === true,
+    );
+    report.catalogMetadataConfiguredProductCount =
+      configuredVersionMetadata.length;
+    report.catalogMetadataReady =
+      report.subscriptionGroupVersionMetadata?.ready === true &&
+      report.subscriptions.length === productDefinitions.length &&
+      configuredVersionMetadata.length === productDefinitions.length;
+    report.catalogMetadataNote = report.catalogMetadataReady
+      ? 'The subscription group and all six subscriptions have exact Arabic metadata on reusable PREPARE_FOR_SUBMISSION or READY_FOR_REVIEW versions.'
+      : `${configuredVersionMetadata.length} of ${productDefinitions.length} subscriptions have exact version-based metadata; group ready: ${report.subscriptionGroupVersionMetadata?.ready === true}.`;
+    if (mode === 'apply' && !report.catalogMetadataReady) {
+      throw new Error(
+        'One or more subscriptions are missing exact App Store Connect 4.4.1 version-based metadata',
+      );
+    }
     const configuredPlanAvailabilities = report.subscriptions.filter(
       (subscription) =>
         subscription.availability?.planType === SUBSCRIPTION_PLAN_TYPE &&
