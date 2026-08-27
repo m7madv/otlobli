@@ -1504,14 +1504,26 @@ export const STORE_BLOCKING_SCRIPT = `
       for (var pci = controlStart; pci < pageControls.length; pci++) {
         var pageControl = pageControls[pci];
         if (!pageControl) continue;
-        var exactSkipPattern = /^(?:sign\\s*in\\s*later|log\\s*in\\s*later|\\u062a\\u0633\\u062c\\u064a\\u0644\\s+\\u0627\\u0644\\u062f\\u062e\\u0648\\u0644\\s+\\u0644\\u0627\\u062d\\u0642\\u0627)$/i;
+        var exactSkipPattern = /^(?:sign\\s*in\\s*later|log\\s*in\\s*later|login\\s*later|(?:\\u0627\\u0644)?\\u062a\\u0633\\u062c\\u064a\\u0644\\s+(?:\\u0627\\u0644\\u062f\\u062e\\u0648\\u0644\\s+)?\\u0644\\u0627\\u062d\\u0642\\u0627)$/i;
         var pageLabel = normalizeLoginLabel(pageControl.textContent || '');
         var pageAriaLabel = normalizeLoginLabel(pageControl.getAttribute('aria-label') || '');
         var pageTitle = normalizeLoginLabel(pageControl.getAttribute('title') || '');
         if (!exactSkipPattern.test(pageLabel) && !exactSkipPattern.test(pageAriaLabel) && !exactSkipPattern.test(pageTitle)) continue;
-        __otlobliSheinLoginSkipKey = skipKey;
-        __otlobliSheinLoginSkipAt = now;
-        try { pageControl.click(); } catch (e) {}
+        if (pageControl.getAttribute('data-otlobli-login-later-fired') === '1') {
+          __otlobliSheinLoginSkipKey = skipKey;
+          __otlobliSheinLoginSkipAt = now;
+          return;
+        }
+        pageControl.setAttribute('data-otlobli-login-later-action', '1');
+        pageControl.setAttribute('data-otlobli-login-later-fired', '1');
+        try {
+          pageControl.click();
+          __otlobliSheinLoginSkipKey = skipKey;
+          __otlobliSheinLoginSkipAt = now;
+        } catch (e) {
+          pageControl.removeAttribute('data-otlobli-login-later-fired');
+          pageControl.removeAttribute('data-otlobli-login-later-action');
+        }
         return;
       }
     }

@@ -778,12 +778,13 @@ const checks = [
       'function rememberDeferredLoginLater(el)',
       'function dismissExactLoginLater(el,enabled,defer)',
       'function flushDeferredLoginLater()',
+      'function scanLoginLaterCandidates(root,candidates,enabled,defer)',
       "LOGIN_LATER_SCOPE_SELECTOR='.s_auth__block-login-tip'",
       "LOGIN_LATER_CONTROL_SELECTOR='button,[role=\"button\"]'",
-      'function scanExactLoginLater(root,enabled,defer)',
+      'function scanExactLoginLater(root,candidates,enabled,defer)',
       'login later|',
       "data-otlobli-login-later-fired",
-      'scanExactLoginLater(root,canDismiss,canDefer);',
+      'scanExactLoginLater(root,nodes,canDismiss,canDefer);',
       'for(var i=0;i<nodes.length&&i<MAX_NODES_PER_ROOT;i++)hide(nodes[i],classify(nodes[i]));',
       'flushDeferredLoginLater();',
     ],
@@ -814,6 +815,10 @@ const checks = [
       "var pageAriaLabel = normalizeLoginLabel(pageControl.getAttribute('aria-label') || '')",
       "var pageTitle = normalizeLoginLabel(pageControl.getAttribute('title') || '')",
       '!exactSkipPattern.test(pageLabel) && !exactSkipPattern.test(pageAriaLabel) && !exactSkipPattern.test(pageTitle)',
+      "pageControl.getAttribute('data-otlobli-login-later-fired') === '1'",
+      "pageControl.setAttribute('data-otlobli-login-later-action', '1')",
+      "pageControl.setAttribute('data-otlobli-login-later-fired', '1')",
+      'pageControl.click();',
     ],
   },
   {
@@ -1203,11 +1208,18 @@ if ((sheinPolicySource.match(/new MutationObserver\(/g) ?? []).length !== 1) {
 }
 const sheinLoginFallbackSource = readFileSync(resolve(projectRoot, 'src/services/storeBlockingScript.ts'), 'utf8')
 const exactSkipStart = sheinLoginFallbackSource.indexOf('var exactSkipPattern =')
-const exactSkipEnd = sheinLoginFallbackSource.indexOf('__otlobliSheinLoginSkipKey = skipKey;', exactSkipStart)
+const exactSkipEnd = sheinLoginFallbackSource.indexOf('if (authRoute || !productPage) return;', exactSkipStart)
 const exactSkipSource = sheinLoginFallbackSource.slice(exactSkipStart, exactSkipEnd)
+const fallbackFiredRead = exactSkipSource.indexOf("pageControl.getAttribute('data-otlobli-login-later-fired')")
+const fallbackFiredWrite = exactSkipSource.indexOf("pageControl.setAttribute('data-otlobli-login-later-fired', '1')")
+const fallbackActionWrite = exactSkipSource.indexOf("pageControl.setAttribute('data-otlobli-login-later-action', '1')")
+const fallbackClick = exactSkipSource.indexOf('pageControl.click();')
 if (exactSkipStart < 0 || exactSkipEnd < 0 ||
     exactSkipSource.includes('sheinElementIsVisible') ||
-    exactSkipSource.includes("document.querySelector('input')")) {
+    exactSkipSource.includes("document.querySelector('input')") ||
+    fallbackFiredRead < 0 || fallbackFiredWrite < 0 || fallbackActionWrite < 0 || fallbackClick < 0 ||
+    fallbackFiredRead > fallbackFiredWrite || fallbackFiredRead > fallbackActionWrite ||
+    fallbackFiredRead > fallbackClick || fallbackFiredWrite > fallbackClick || fallbackActionWrite > fallbackClick) {
   failures.push('SHEIN login-later fallback: exact opt-out must remain reachable without layout or form gates')
 }
 
@@ -1215,7 +1227,7 @@ try {
   const { SHEIN_POLICY_DOCUMENT_START_SCRIPT } = evaluateInjectedScriptExports(
     'src/services/sheinPolicyEngine.ts',
   )
-  const fixture = { observerConstructions: 0, scopeQueries: 0, controlQueries: 0, messages: [] }
+  const fixture = { observerConstructions: 0, scopeQueries: 0, controlQueries: 0, documentControlQueries: 0, messages: [] }
   let loginLaterScope = null
   const makeControl = (label, scoped = true) => {
     const attributes = new Map([['role', 'button']])
@@ -1245,9 +1257,9 @@ try {
     makeControl('التسجيل الدخول لاحقًا'),
   ]
   const inexactControl = makeControl('Login Later Please')
-  const outsideExactControl = makeControl('Login Later', false)
+  const unscopedExactControl = makeControl('Login Later', false)
   const scopedControls = [...exactControls, inexactControl]
-  const candidateControls = [...scopedControls, outsideExactControl]
+  const candidateControls = [...scopedControls, unscopedExactControl]
   loginLaterScope = {
     nodeType: 1,
     matches(selector) { return selector === '.s_auth__block-login-tip' },
@@ -1265,6 +1277,10 @@ try {
       if (selector === '.s_auth__block-login-tip') {
         fixture.scopeQueries++
         return [loginLaterScope]
+      }
+      if (selector === 'button,[role="button"]') {
+        fixture.documentControlQueries++
+        return candidateControls
       }
       return candidateControls
     },
@@ -1288,12 +1304,14 @@ try {
     constructor(callback) {
       fixture.observerConstructions++
       this.callback = callback
+      fixture.observer = this
     }
     observe() {}
     disconnect() {}
   }
   const windowFixture = {
     mobileApp: { postMessage(message) { fixture.messages.push(message) } },
+    requestAnimationFrame(callback) { callback(); return 1 },
   }
   const locationFixture = {
     hostname: 'm.shein.com',
@@ -1317,20 +1335,67 @@ try {
   const afterFirstResume = exactControls.map((control) => control.clicks)
   windowFixture.__otlobliSheinPolicyEngine.resume()
   const afterSecondResume = exactControls.map((control) => control.clicks)
+  const lateUnscopedControl = makeControl('تسجيل لاحقًا', false)
+  const lateRoot = {
+    nodeType: 1,
+    matches() { return false },
+    querySelector() { return lateUnscopedControl },
+    querySelectorAll(selector) {
+      return selector === 'button,[role="button"]' ? [lateUnscopedControl] : [lateUnscopedControl]
+    },
+    contains() { return false },
+  }
+  fixture.observer.callback([{ type: 'childList', target: lateRoot, addedNodes: [lateRoot] }])
+  const fallbackAttempt = (control) => {
+    if (control.getAttribute('data-otlobli-login-later-fired') === '1') return
+    control.setAttribute('data-otlobli-login-later-action', '1')
+    control.setAttribute('data-otlobli-login-later-fired', '1')
+    control.click()
+  }
+  fallbackAttempt(lateUnscopedControl)
+  const fallbackFirstControl = makeControl('Login Later', false)
+  fallbackAttempt(fallbackFirstControl)
+  const fallbackFirstRoot = {
+    nodeType: 1,
+    matches() { return false },
+    querySelector() { return fallbackFirstControl },
+    querySelectorAll() { return [fallbackFirstControl] },
+    contains() { return false },
+  }
+  fixture.observer.callback([{ type: 'childList', target: fallbackFirstRoot, addedNodes: [fallbackFirstRoot] }])
+  const challengeControl = makeControl('تسجيل لاحقًا', false)
+  const challengeRoot = {
+    nodeType: 1,
+    matches() { return false },
+    querySelector() { return challengeControl },
+    querySelectorAll() { return [challengeControl] },
+    contains() { return false },
+  }
+  locationFixture.href = 'https://m.shein.com/ar/challenge'
+  locationFixture.pathname = '/ar/challenge'
+  fixture.observer.callback([{ type: 'childList', target: challengeRoot, addedNodes: [challengeRoot] }])
+  locationFixture.href = 'https://m.shein.com/ar/Black-Dress-p-123.html'
+  locationFixture.pathname = '/ar/Black-Dress-p-123.html'
   if (beforeReady.some((count) => count !== 0) ||
       afterFirstResume.some((count) => count !== 1) ||
       afterSecondResume.some((count) => count !== 1) ||
-      inexactControl.clicks !== 0 || outsideExactControl.clicks !== 0 ||
-      fixture.observerConstructions !== 1 || fixture.scopeQueries < 3 || fixture.controlQueries < 3) {
+      inexactControl.clicks !== 0 || unscopedExactControl.clicks !== 1 || lateUnscopedControl.clicks !== 1 ||
+      fallbackFirstControl.clicks !== 1 || challengeControl.clicks !== 0 ||
+      fixture.observerConstructions !== 1 || fixture.scopeQueries < 3 || fixture.controlQueries < 3 ||
+      fixture.documentControlQueries !== 0) {
     failures.push(`SHEIN login-later policy: exact pre-runtime nodes must defer and fire once on resume (${JSON.stringify({
       beforeReady,
       afterFirstResume,
       afterSecondResume,
       inexactClicks: inexactControl.clicks,
-      outsideExactClicks: outsideExactControl.clicks,
+      unscopedExactClicks: unscopedExactControl.clicks,
+      lateUnscopedExactClicks: lateUnscopedControl.clicks,
+      fallbackFirstExactClicks: fallbackFirstControl.clicks,
+      challengeExactClicks: challengeControl.clicks,
       observerConstructions: fixture.observerConstructions,
       scopeQueries: fixture.scopeQueries,
       controlQueries: fixture.controlQueries,
+      documentControlQueries: fixture.documentControlQueries,
     })})`)
   }
 } catch (error) {

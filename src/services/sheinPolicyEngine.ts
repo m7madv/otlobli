@@ -1,4 +1,4 @@
-export const SHEIN_POLICY_VERSION = '2026.08.26-v86.241-login-later-v3'
+export const SHEIN_POLICY_VERSION = '2026.08.27-v86.244-login-later-v4'
 
 export type SheinRouteClass =
   | 'allowed-public'
@@ -185,7 +185,15 @@ export const SHEIN_POLICY_DOCUMENT_START_SCRIPT = `
     }
     return false;
   }
-  function scanExactLoginLater(root,enabled,defer){
+  function scanLoginLaterCandidates(root,candidates,enabled,defer){
+    if(root&&root.nodeType===1&&root.matches&&root.matches(LOGIN_LATER_CONTROL_SELECTOR))dismissExactLoginLater(root,enabled,defer);
+    for(var ci=Math.max(0,candidates.length-16);ci<candidates.length;ci++)dismissExactLoginLater(candidates[ci],enabled,defer);
+  }
+  function scanExactLoginLater(root,candidates,enabled,defer){
+    // SHEIN has used more than one wrapper for the same optional opt-out.
+    // Reuse both the existing bounded policy observer and its candidate list,
+    // so a wrapper rename cannot leave the interstitial up or add a DOM scan.
+    scanLoginLaterCandidates(root,candidates,enabled,defer);
     var scopes=[];
     function addScope(scope){
       if(!scope||scope.nodeType!==1||scopes.length>=8)return;
@@ -198,7 +206,7 @@ export const SHEIN_POLICY_DOCUMENT_START_SCRIPT = `
     for(var i=0;i<nested.length&&i<8;i++)addScope(nested[i]);
     for(var si=0;si<scopes.length;si++){
       var controls=scopes[si].querySelectorAll?scopes[si].querySelectorAll(LOGIN_LATER_CONTROL_SELECTOR):[];
-      for(var ci=0;ci<controls.length&&ci<16;ci++)dismissExactLoginLater(controls[ci],enabled,defer);
+      scanLoginLaterCandidates(scopes[si],controls,enabled,defer);
     }
   }
   function semanticClass(el){
@@ -253,9 +261,9 @@ export const SHEIN_POLICY_DOCUMENT_START_SCRIPT = `
     if(!root||root.nodeType!==1)return;
     var route=routeClass(location.href),eligibleRoute=route==='product'||route==='blocked-login';
     var runtimeReady=window.__otlobliStoreRuntimeReady===true,canDismiss=runtimeReady&&eligibleRoute,canDefer=!runtimeReady&&eligibleRoute;
-    scanExactLoginLater(root,canDismiss,canDefer);
-    if(root.matches&&root.matches(candidateSelector))hide(root,classify(root));
     var nodes=root.querySelectorAll?root.querySelectorAll(candidateSelector):[];
+    scanExactLoginLater(root,nodes,canDismiss,canDefer);
+    if(root.matches&&root.matches(candidateSelector))hide(root,classify(root));
     for(var i=0;i<nodes.length&&i<MAX_NODES_PER_ROOT;i++)hide(nodes[i],classify(nodes[i]));
     if(nodes.length>MAX_NODES_PER_ROOT)mismatch('subtree-cap');
   }

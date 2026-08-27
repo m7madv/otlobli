@@ -1,3 +1,65 @@
+# Active handoff — v86.244/1110 event-driven SHEIN login-later (2026-08-27)
+
+Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
+`codex/otlobli-v86-212-testflight-auth`. Marketing version remains `86.244`;
+the new build is `1110` because uploaded build `1109` is immutable.
+
+Keep the two SHEIN auth surfaces separate. Full `/ar/user/login` has no later
+button and still exits through the v86.244 native URL-event Back/Home recovery.
+The optional product interstitial does have an exact Login Later action. Its
+document-start policy used to discover it immediately only under
+`.s_auth__block-login-tip`, so a SHEIN wrapper rename could miss the action.
+
+The policy's single existing MutationObserver now reuses the existing
+`candidateSelector` NodeList from `scan()`: it checks the added root and the
+last 16 candidates for an exact Arabic/English Login Later label. It adds no
+document-wide selector, observer, interval, timer, or WebView. The known scope
+remains as a bounded fallback. Challenge detection exits first; generic login,
+inexact labels, fields, and deliberate authentication are untouched. The old
+coordinator fallback only gained the same exact Arabic label variants. Both
+paths now set/read the shared `data-otlobli-login-later-action/fired` markers
+before clicking, so policy→fallback and fallback→policy each click once.
+
+The executable freeze fixture proves unscoped wrapper matching, post-mutation
+one-shot clicking, pre-runtime defer/resume, no inexact or challenge click,
+exactly one observer, and zero generic control queries on document root.
+Preserve `otlobliForceRecompose()`, the exact `0.25s` app-active delay,
+scroll/constraint restoration, Android `otlobliOnHostResume()`, and the
+`JSON.stringify` region comparison. Do not change region, cookies/session,
+human verification, Temu, payment, wallet, completed orders, or lifecycle.
+
+Full build, freeze/store/release/security guards, performance budgets, and both
+native syncs pass. Budgets are startup `673,159/720,000`, total JS gzip
+`300,476/370,000`, CSS `69,989/70,000`, shipped store scripts
+`318,372/470,000`, Temu Gecko `172,513/180,000`, and store source
+`582,181/600,000`; no limit changed.
+
+Signed Android artifacts are under `artifacts/release-86.244/`: APK build 1110
+is `4,112,739` bytes, SHA-256
+`DAF3A6D0BD3ADAE41873CCD4D425D9134F265BA68018CFCFCC1B32A1FA8956BC`;
+AAB is `5,773,866` bytes, SHA-256
+`6BBF28ACFC24D96D491160719E0D392EB388BD5B20BE14C872E178EB4E322C95`.
+Note 8 was updated in place, confirms `86.244 (1110)` and `120000ms`, and
+opened SHEIN Home → listing → PDP without matching fatal/ANR/OOM. Its retained
+session did not show the optional auth prompt, so this is not prompt acceptance.
+
+Live App Store Connect GET shows public `86.230 (1095)` is `REJECTED`, with its
+review submission `UNRESOLVED_ISSUES`. `86.244 (1109)` is `VALID`,
+`APP_STORE_ELIGIBLE`, and `IN_BETA_TESTING`, but has no appStoreVersion relation
+and was never submitted for review. The rejection text is available only in
+App Review Issues & Messages after account login. Do not run the current
+submission script blindly: it only reuses `PREPARE_FOR_SUBMISSION`, not
+`REJECTED`, and may hit a 409 trying to create 86.244. Read the message first,
+then either rename/reuse the rejected record if Apple permits it, or choose a
+non-destructive compatible build path. Build 1110 is not on TestFlight yet.
+
+Immediately before the planned 1110 upload, WhatsApp session `0` was in an
+in-memory `error` state with persisted credentials, zero risk, and no actual
+QR. Restarting only `otlobli-wa` restored `idle`; one protected reconnect POST
+reused those credentials. Final health has WhatsApp connected/sender ready and
+session store/OTP ready. No session was deleted, no QR was scanned, and no
+message or test OTP was sent.
+
 # Active handoff — v86.244/1109 full SHEIN auth-route exit (2026-08-26)
 
 Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
