@@ -433,12 +433,17 @@ async function ensureSubscriptionLocalization(subscription, definition) {
 
 async function ensureSubscriptionAvailability(subscription) {
   let availability = null;
+  let availableTerritoryIds = [];
   try {
     const result = await request(
       `/v1/subscriptions/${subscription.id}/subscriptionAvailability` +
         '?include=availableTerritories&limit[availableTerritories]=50',
     );
     availability = result.data || null;
+    availableTerritoryIds = (result.included || [])
+      .filter((row) => row.type === 'territories')
+      .map((row) => row.id)
+      .sort();
   } catch (error) {
     if (error.status !== 404) throw error;
   }
@@ -467,9 +472,16 @@ async function ensureSubscriptionAvailability(subscription) {
       },
     });
     availability = result.data;
+    availableTerritoryIds = [...APP_STORE_TERRITORIES].sort();
     state = state === 'existing' ? 'updated' : 'created';
   }
-  return state;
+  return {
+    state,
+    availableInNewTerritories:
+      availability?.attributes?.availableInNewTerritories ?? null,
+    territoryIds: availableTerritoryIds,
+    qatarAvailable: availableTerritoryIds.includes('QAT'),
+  };
 }
 
 function samePrice(left, right) {
@@ -487,6 +499,32 @@ async function existingPricesByTerritory(subscription) {
     if (territory && !prices.has(territory)) prices.set(territory, row);
   }
   return prices;
+}
+
+async function inspectExistingPrices(subscription) {
+  const response = await request(
+    `/v1/subscriptions/${subscription.id}/prices?filter[territory]=${APP_STORE_TERRITORIES.join(',')}` +
+      '&include=subscriptionPricePoint,territory&limit=200',
+  );
+  const includedById = new Map(
+    (response.included || []).map((row) => [row.id, row]),
+  );
+  return (response.data || [])
+    .map((row) => {
+      const territoryId = row.relationships?.territory?.data?.id || null;
+      const pricePointId =
+        row.relationships?.subscriptionPricePoint?.data?.id || null;
+      const pricePoint = pricePointId ? includedById.get(pricePointId) : null;
+      return {
+        territory: territoryId,
+        customerPrice: pricePoint?.attributes?.customerPrice ?? null,
+        startDate: row.attributes?.startDate ?? null,
+        preserved: row.attributes?.preserved ?? null,
+      };
+    })
+    .sort((left, right) =>
+      String(left.territory).localeCompare(String(right.territory)),
+    );
 }
 
 async function findApprovedPricePoints(subscription, intendedPriceSar) {
@@ -550,10 +588,15 @@ async function findApprovedPricePoints(subscription, intendedPriceSar) {
 
 async function ensureApprovedPrices(subscription, definition) {
   if (!applyPrices) {
+    const existingPrices = await inspectExistingPrices(subscription);
     return {
-      state: 'pending-approved-price-application',
+      state: existingPrices.length > 0 ? 'existing' : 'missing',
       anchorTerritory: 'SAU',
-      anchorPriceSar: definition.intendedPriceSar,
+      intendedAnchorPriceSar: definition.intendedPriceSar,
+      existingPrices,
+      qatarPrice:
+        existingPrices.find((price) => price.territory === 'QAT')
+          ?.customerPrice ?? null,
     };
   }
 
@@ -813,6 +856,9 @@ async function ensureSubscriptions(group, report) {
     report.subscriptions.push({
       productId: definition.productId,
       state,
+      reviewState: subscription?.attributes?.state ?? null,
+      subscriptionPeriod: subscription?.attributes?.subscriptionPeriod ?? null,
+      groupLevel: subscription?.attributes?.groupLevel ?? null,
       localization,
       availability,
       intendedPriceSar: definition.intendedPriceSar,
@@ -926,7 +972,6 @@ async function main() {
 
   try {
     const bundleId = await ensureBundleId(report);
-    await ensureProvisioningProfile(bundleId, report);
     const app = await ensureApp(report);
     await inspectBuilds(app, report);
     await ensureInternalBetaGroup(app, report);
@@ -951,6 +996,13 @@ async function main() {
       throw new Error(
         'One or more App Store subscription review screenshots are missing',
       );
+    }
+    try {
+      await ensureProvisioningProfile(bundleId, report);
+    } catch (error) {
+      report.provisioningProfile = 'needs-cleanup';
+      report.provisioningProfileError =
+        error instanceof Error ? error.message : String(error);
     }
     report.success = true;
   } catch (error) {
