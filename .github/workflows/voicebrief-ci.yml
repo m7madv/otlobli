@@ -27,7 +27,7 @@ jobs:
         working-directory: voicebrief_flutter
       - run: deno test supabase/functions/process-audio/date_normalization_test.ts
         working-directory: voicebrief_flutter
-      - run: deno check supabase/functions/process-audio/index.ts
+      - run: deno check --config supabase/functions/process-audio/deno.json supabase/functions/process-audio/index.ts
         working-directory: voicebrief_flutter
 
   android:
