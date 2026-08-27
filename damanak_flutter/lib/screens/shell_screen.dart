@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import '../core/app_theme.dart';
 import '../widgets/brand_mark.dart';
 import 'account_screen.dart';
-import 'point_of_sale_screen.dart';
-import 'products_screen.dart';
+import 'home_screen.dart';
+import 'requests_screen.dart';
+import 'scanner_screen.dart';
 import 'warranties_screen.dart';
+import 'warranty_form_screen.dart';
 
 class ShellScreen extends StatefulWidget {
   const ShellScreen({super.key});
@@ -19,14 +21,9 @@ class _ShellScreenState extends State<ShellScreen> {
 
   static const _destinations = [
     NavigationDestination(
-      icon: Icon(Icons.point_of_sale_outlined),
-      selectedIcon: Icon(Icons.point_of_sale_rounded),
-      label: 'البيع',
-    ),
-    NavigationDestination(
-      icon: Icon(Icons.inventory_2_outlined),
-      selectedIcon: Icon(Icons.inventory_2_rounded),
-      label: 'المنتجات',
+      icon: Icon(Icons.home_outlined),
+      selectedIcon: Icon(Icons.home_rounded),
+      label: 'الرئيسية',
     ),
     NavigationDestination(
       icon: Icon(Icons.verified_user_outlined),
@@ -34,18 +31,46 @@ class _ShellScreenState extends State<ShellScreen> {
       label: 'الضمانات',
     ),
     NavigationDestination(
-      icon: Icon(Icons.grid_view_outlined),
-      selectedIcon: Icon(Icons.grid_view_rounded),
-      label: 'المزيد',
+      icon: Icon(Icons.build_outlined),
+      selectedIcon: Icon(Icons.build_rounded),
+      label: 'الصيانة',
+    ),
+    NavigationDestination(
+      icon: Icon(Icons.admin_panel_settings_outlined),
+      selectedIcon: Icon(Icons.admin_panel_settings_rounded),
+      label: 'الإدارة',
     ),
   ];
 
   Widget _currentPage() => switch (_index) {
-    0 => const PointOfSaleScreen(),
-    1 => const ProductsScreen(),
-    2 => const WarrantiesScreen(),
+    0 => HomeScreen(
+      onCreateWarranty: _openWarrantyForm,
+      onScan: _openScanner,
+      onShowAllWarranties: () => _selectDestination(1),
+      onShowRequests: () => _selectDestination(2),
+      onShowAdmin: () => _selectDestination(3),
+    ),
+    1 => WarrantiesScreen(onCreateWarranty: _openWarrantyForm),
+    2 => const RequestsScreen(),
     _ => const AccountScreen(),
   };
+
+  void _selectDestination(int value) {
+    if (_index == value) return;
+    setState(() => _index = value);
+  }
+
+  void _openWarrantyForm() {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const WarrantyFormScreen()));
+  }
+
+  void _openScanner() {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const ScannerScreen()));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -77,14 +102,15 @@ class _ShellScreenState extends State<ShellScreen> {
                           child: NavigationRail(
                             extended: true,
                             selectedIndex: _index,
-                            onDestinationSelected: (value) =>
-                                setState(() => _index = value),
+                            onDestinationSelected: _selectDestination,
                             leading: Padding(
                               padding: const EdgeInsets.only(bottom: 14),
                               child: FilledButton.icon(
-                                onPressed: () => setState(() => _index = 0),
-                                icon: const Icon(Icons.point_of_sale_rounded),
-                                label: const Text('بيع جديد'),
+                                onPressed: _openWarrantyForm,
+                                icon: const Icon(
+                                  Icons.add_circle_outline_rounded,
+                                ),
+                                label: const Text('إصدار ضمان'),
                               ),
                             ),
                             labelType: NavigationRailLabelType.none,
@@ -112,7 +138,7 @@ class _ShellScreenState extends State<ShellScreen> {
           body: SafeArea(child: content),
           bottomNavigationBar: NavigationBar(
             selectedIndex: _index,
-            onDestinationSelected: (value) => setState(() => _index = value),
+            onDestinationSelected: _selectDestination,
             destinations: _destinations,
           ),
         );

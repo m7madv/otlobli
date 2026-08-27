@@ -29,17 +29,116 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsNothing);
   });
 
-  testWidgets('يفتح التطبيق مباشرة على مسار البيع المبسط', (tester) async {
+  testWidgets('يفتح التطبيق على مسار الضمان ويعرض الوجهات الرئيسية', (
+    tester,
+  ) async {
     final controller = AppController.unconfigured();
     await controller.startDemo();
 
     await tester.pumpWidget(DamanakApp(controller: controller));
     await tester.pumpAndSettle();
 
-    expect(find.text('بيع'), findsWidgets);
-    expect(find.text('اسم المنتج أو الباركود…'), findsOneWidget);
-    expect(find.text('المنتجات'), findsOneWidget);
-    expect(find.text('المزيد'), findsOneWidget);
+    expect(find.text('الرئيسية'), findsOneWidget);
+    expect(find.text('الضمانات'), findsOneWidget);
+    expect(find.text('الصيانة'), findsOneWidget);
+    expect(find.text('الإدارة'), findsOneWidget);
+    expect(find.byKey(const ValueKey('home-scan-warranty')), findsOneWidget);
+    expect(find.byKey(const ValueKey('home-manual-warranty')), findsOneWidget);
+    expect(find.text('طلبات الصيانة الحديثة'), findsOneWidget);
+  });
+
+  testWidgets('يبحث في الضمانات بالهاتف ويعرض فلاتر الحالة', (tester) async {
+    final controller = AppController.unconfigured();
+    await controller.startDemo();
+
+    await tester.pumpWidget(DamanakApp(controller: controller));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('الضمانات'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('رقم الجوال أو التسلسلي أو رقم الضمان'), findsOneWidget);
+    expect(find.textContaining('ساري'), findsWidgets);
+    expect(find.textContaining('قريب'), findsOneWidget);
+    expect(find.textContaining('منتهي'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('warranties-create-button')),
+      findsOneWidget,
+    );
+
+    await tester.enterText(
+      find.byKey(const ValueKey('warranty-search-field')),
+      '0550007788',
+    );
+    await tester.pump();
+
+    expect(find.text('أحمد خالد'), findsOneWidget);
+    expect(find.text('سارة العتيبي'), findsNothing);
+  });
+
+  testWidgets('يبقي نموذج الضمان مختصراً ويطوي التفاصيل الاختيارية', (
+    tester,
+  ) async {
+    final controller = AppController.unconfigured();
+    await controller.startDemo();
+
+    await tester.pumpWidget(DamanakApp(controller: controller));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('home-manual-warranty')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('المنتج'), findsOneWidget);
+    expect(find.text('العميل'), findsOneWidget);
+    expect(find.text('مدة الضمان'), findsWidgets);
+    expect(find.byTooltip('مسح الباركود'), findsOneWidget);
+    expect(find.byTooltip('مسح الرقم التسلسلي'), findsOneWidget);
+    expect(find.text('البريد الإلكتروني'), findsNothing);
+    expect(find.text('سعر البيع'), findsNothing);
+
+    final optionalToggle = find.byKey(
+      const ValueKey('optional-warranty-details-toggle'),
+    );
+    await tester.ensureVisible(optionalToggle);
+    await tester.tap(optionalToggle);
+    await tester.pumpAndSettle();
+
+    expect(find.text('البريد الإلكتروني'), findsOneWidget);
+    expect(find.text('سعر البيع'), findsOneWidget);
+    expect(find.text('رقم الإيصال'), findsOneWidget);
+  });
+
+  testWidgets('يبقى مسار إصدار الضمان قابلاً للاستخدام عند 320×568 و200%', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 568);
+    tester.view.devicePixelRatio = 1;
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+    final controller = AppController.unconfigured();
+    await controller.startDemo();
+
+    await tester.pumpWidget(DamanakApp(controller: controller));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    final manualWarranty = find.byKey(const ValueKey('home-manual-warranty'));
+    await tester.ensureVisible(manualWarranty);
+    await tester.pumpAndSettle();
+    await tester.tap(manualWarranty);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('warranty-product-name')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('warranty-customer-name')),
+      findsOneWidget,
+    );
+    final issueButton = find.byKey(const ValueKey('issue-warranty-button'));
+    await tester.ensureVisible(issueButton);
+    await tester.pumpAndSettle();
+    expect(issueButton, findsOneWidget);
   });
 
   testWidgets('يتيح مسح الرقم التسلسلي أو كتابته عند إضافة قطعة', (
@@ -50,6 +149,8 @@ void main() {
 
     await tester.pumpWidget(DamanakApp(controller: controller));
     await tester.pumpAndSettle();
+
+    await _openPointOfSale(tester);
 
     await tester.tap(find.byTooltip('إضافة ماكينة قهوة منزلية'));
     await tester.pumpAndSettle();
@@ -95,6 +196,7 @@ void main() {
 
     await tester.pumpWidget(DamanakApp(controller: controller));
     await tester.pumpAndSettle();
+    await _openPointOfSale(tester);
     final addProduct = find.byTooltip('إضافة ماكينة قهوة منزلية');
     await tester.ensureVisible(addProduct);
     await tester.pumpAndSettle();
@@ -105,4 +207,17 @@ void main() {
     expect(find.text('إضافة الرقم للسلة'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+}
+
+Future<void> _openPointOfSale(WidgetTester tester) async {
+  await tester.tap(find.text('الإدارة'));
+  await tester.pumpAndSettle();
+  final pointOfSale = find.ancestor(
+    of: find.text('نقطة البيع'),
+    matching: find.byType(ListTile),
+  );
+  await tester.ensureVisible(pointOfSale);
+  await tester.pumpAndSettle();
+  await tester.tap(pointOfSale);
+  await tester.pumpAndSettle();
 }

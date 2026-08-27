@@ -22,6 +22,8 @@ import '../models/warranty.dart';
 import '../services/store_billing_service.dart';
 
 class AppController extends ChangeNotifier {
+  static const int _warrantyPageSize = 100;
+
   AppController.withRepository(
     DamanakRepository repository, {
     StoreBillingService? billingService,
@@ -72,6 +74,8 @@ class AppController extends ChangeNotifier {
   StoreBillingPlatform _storeBillingPlatform = StoreBillingPlatform.unavailable;
   String? _storeBillingMessage;
   bool _busy = false;
+  bool _hasMoreWarranties = false;
+  bool _loadingMoreWarranties = false;
   String? _errorMessage;
   String? _noticeMessage;
   String? _activeBranchId;
@@ -127,6 +131,8 @@ class AppController extends ChangeNotifier {
       UnmodifiableListView(_purchaseOrders);
   UnmodifiableListView<Warranty> get warranties =>
       UnmodifiableListView(_warranties);
+  bool get hasMoreWarranties => _hasMoreWarranties;
+  bool get loadingMoreWarranties => _loadingMoreWarranties;
   UnmodifiableListView<MaintenanceRequest> get requests =>
       UnmodifiableListView(_requests);
   UnmodifiableListView<TeamMember> get team => UnmodifiableListView(_team);
@@ -342,6 +348,37 @@ class AppController extends ChangeNotifier {
   Future<void> refresh() async {
     if (_store == null) return;
     await _guard(_loadWorkspace);
+  }
+
+  Future<void> loadMoreWarranties() async {
+    final repository = _repository;
+    final store = _store;
+    if (repository == null ||
+        store == null ||
+        !_hasMoreWarranties ||
+        _loadingMoreWarranties ||
+        _busy) {
+      return;
+    }
+
+    _loadingMoreWarranties = true;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      final page = await repository.loadWarranties(
+        store.id,
+        limit: _warrantyPageSize,
+        offset: _warranties.length,
+      );
+      if (_store?.id != store.id) return;
+      final added = _mergeWarranties(page);
+      _hasMoreWarranties = page.length == _warrantyPageSize && added > 0;
+    } on Object catch (error) {
+      _errorMessage = _friendlyError(error);
+    } finally {
+      _loadingMoreWarranties = false;
+      notifyListeners();
+    }
   }
 
   Product? productByBarcode(String value) {
@@ -570,6 +607,14 @@ class AppController extends ChangeNotifier {
     });
   }
 
+  Future<Uri?> createWarrantyShareLink(String warrantyId) async {
+    Uri? link;
+    await _guard(() async {
+      link = await _repository!.createWarrantyShareLink(warrantyId);
+    });
+    return link;
+  }
+
   Future<MaintenanceRequest?> addMaintenanceRequest({
     required String warrantyId,
     required String issue,
@@ -775,9 +820,11 @@ class AppController extends ChangeNotifier {
       );
       _sales.insert(0, sale!);
       await _reloadInventory();
-      _warranties
-        ..clear()
-        ..addAll(await _repository!.loadWarranties(_store!.id));
+      final saleWarranties = await _repository!.loadWarrantiesForInvoice(
+        _store!.id,
+        sale!.invoiceNumber,
+      );
+      _mergeWarranties(saleWarranties);
       _registerSessions
         ..clear()
         ..addAll(await _repository!.loadRegisterSessions(_store!.id));
@@ -1156,7 +1203,7 @@ class AppController extends ChangeNotifier {
       _repository!.loadRegisterSessions(storeId),
       _repository!.loadSuppliers(storeId),
       _repository!.loadPurchaseOrders(storeId),
-      _repository!.loadWarranties(storeId),
+      _repository!.loadWarranties(storeId, limit: _warrantyPageSize, offset: 0),
       _repository!.loadRequests(storeId),
       _repository!.loadTeam(storeId),
       _repository!.loadPlans(),
@@ -1195,6 +1242,7 @@ class AppController extends ChangeNotifier {
     _warranties
       ..clear()
       ..addAll(results[9] as List<Warranty>);
+    _hasMoreWarranties = _warranties.length == _warrantyPageSize;
     _requests
       ..clear()
       ..addAll(results[10] as List<MaintenanceRequest>);
@@ -1225,6 +1273,27 @@ class AppController extends ChangeNotifier {
       _busy = false;
       notifyListeners();
     }
+  }
+
+  int _mergeWarranties(Iterable<Warranty> incoming) {
+    final byId = <String, Warranty>{
+      for (final warranty in _warranties) warranty.id: warranty,
+    };
+    var added = 0;
+    for (final warranty in incoming) {
+      if (!byId.containsKey(warranty.id)) added++;
+      byId[warranty.id] = warranty;
+    }
+    _warranties
+      ..clear()
+      ..addAll(byId.values)
+      ..sort((left, right) {
+        final dateComparison = right.createdAt.compareTo(left.createdAt);
+        return dateComparison != 0
+            ? dateComparison
+            : right.id.compareTo(left.id);
+      });
+    return added;
   }
 
   String _friendlyError(Object error) {
@@ -1268,6 +1337,9 @@ class AppController extends ChangeNotifier {
     if (value.contains('warranty_limit_reached')) {
       return 'استهلك المتجر حد الضمانات الشهري للخطة.';
     }
+    if (value.contains('warranty_share_link')) {
+      return 'تعذّر تجهيز رابط التحقق من الضمان. حاول مرة أخرى بعد لحظات.';
+    }
     if (value.contains('insufficient_stock')) {
       return 'الكمية المطلوبة أكبر من الرصيد المتاح في هذا الفرع.';
     }
@@ -1304,6 +1376,8 @@ class AppController extends ChangeNotifier {
     _suppliers.clear();
     _purchaseOrders.clear();
     _warranties.clear();
+    _hasMoreWarranties = false;
+    _loadingMoreWarranties = false;
     _requests.clear();
     _team.clear();
     _plans.clear();

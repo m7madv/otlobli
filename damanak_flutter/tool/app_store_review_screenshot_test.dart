@@ -12,8 +12,10 @@ import 'package:image/image.dart' as image_codec;
 import 'package:damanak/core/app_theme.dart';
 import 'package:damanak/models/store_billing.dart';
 import 'package:damanak/screens/auth_screen.dart';
+import 'package:damanak/screens/shell_screen.dart';
 import 'package:damanak/screens/subscription_screen.dart';
 import 'package:damanak/screens/team_screen.dart';
+import 'package:damanak/screens/warranty_form_screen.dart';
 import 'package:damanak/services/store_billing_service.dart';
 import 'package:damanak/state/app_controller.dart';
 import 'package:damanak/state/app_scope.dart';
@@ -173,6 +175,62 @@ void main() {
       'output/visual-review/team-invite-link-393x852.png',
     );
   });
+
+  testWidgets('renders the warranty-first home at Qatar phone size', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(393, 852);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final controller = AppController.unconfigured();
+    await controller.startDemo();
+    addTearDown(controller.dispose);
+
+    final screenshotKey = GlobalKey();
+    await tester.pumpWidget(
+      _reviewShell(
+        controller: controller,
+        screenshotKey: screenshotKey,
+        child: const ShellScreen(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await _capturePng(
+      tester,
+      screenshotKey,
+      'output/visual-review/warranty-home-393x852.png',
+    );
+  });
+
+  testWidgets('renders the simplified warranty form at Qatar phone size', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(393, 852);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final controller = AppController.unconfigured();
+    await controller.startDemo();
+    addTearDown(controller.dispose);
+
+    final screenshotKey = GlobalKey();
+    await tester.pumpWidget(
+      _reviewShell(
+        controller: controller,
+        screenshotKey: screenshotKey,
+        child: const WarrantyFormScreen(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await _capturePng(
+      tester,
+      screenshotKey,
+      'output/visual-review/warranty-form-393x852.png',
+    );
+  });
 }
 
 Widget _reviewShell({
@@ -284,12 +342,12 @@ class _ReviewController extends AppController {
 
 class _ReviewBillingService implements StoreBillingService {
   static const _prices = <String, double>{
-    'starter:monthly': 39,
-    'starter:yearly': 390,
-    'growth:monthly': 99,
-    'growth:yearly': 990,
-    'scale:monthly': 199,
-    'scale:yearly': 1989.99,
+    'starter:monthly': 39.99,
+    'starter:yearly': 399.99,
+    'growth:monthly': 79.99,
+    'growth:yearly': 799.99,
+    'scale:monthly': 199.99,
+    'scale:yearly': 1999.99,
   };
 
   @override
@@ -310,9 +368,9 @@ class _ReviewBillingService implements StoreBillingService {
         productId: DamanakStoreCatalog.appleProductId(planId, cycle),
         title: planId,
         description: '',
-        localizedPrice: '${entry.value.toStringAsFixed(2)} ر.س',
+        localizedPrice: '${entry.value.toStringAsFixed(2)} ر.ق',
         rawPrice: entry.value,
-        currencyCode: 'SAR',
+        currencyCode: 'QAR',
       );
     }).toList();
     return StoreProductLoadResult(

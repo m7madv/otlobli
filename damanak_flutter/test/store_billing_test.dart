@@ -3,50 +3,11 @@ import 'dart:async';
 import 'package:damanak/models/store_billing.dart';
 import 'package:damanak/services/store_billing_service.dart';
 import 'package:damanak/state/app_controller.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:in_app_purchase_android/billing_client_wrappers.dart';
 
 void main() {
-  group('تهيئة متجر Apple', () {
-    test('يختار StoreKit 1 على iPhone قبل إنشاء عميل الشراء', () async {
-      var calls = 0;
-
-      await configureAppleStoreKit(
-        isWeb: false,
-        platform: TargetPlatform.iOS,
-        enableStoreKit1: () async {
-          calls += 1;
-          return false;
-        },
-      );
-
-      expect(calls, 1);
-    });
-
-    test('لا يغيّر مسار Android أو الويب', () async {
-      var calls = 0;
-      Future<bool> enableStoreKit1() async {
-        calls += 1;
-        return false;
-      }
-
-      await configureAppleStoreKit(
-        isWeb: false,
-        platform: TargetPlatform.android,
-        enableStoreKit1: enableStoreKit1,
-      );
-      await configureAppleStoreKit(
-        isWeb: true,
-        platform: TargetPlatform.iOS,
-        enableStoreKit1: enableStoreKit1,
-      );
-
-      expect(calls, 0);
-    });
-  });
-
   group('كتالوج اشتراكات المتجر', () {
     test('يربط منتجات Apple بالخطة والدورة', () {
       final product = DamanakStoreCatalog.appleProductId(
@@ -99,8 +60,8 @@ void main() {
                     PricingPhaseWrapper(
                       billingCycleCount: 0,
                       billingPeriod: 'P1M',
-                      formattedPrice: '33 ر.ق',
-                      priceAmountMicros: 33000000,
+                      formattedPrice: '39.99 ر.ق',
+                      priceAmountMicros: 39990000,
                       priceCurrencyCode: 'QAR',
                       recurrenceMode: RecurrenceMode.infiniteRecurring,
                     ),

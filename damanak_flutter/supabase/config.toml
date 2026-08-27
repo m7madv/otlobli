@@ -30,3 +30,6 @@ enable_confirmations = false
 
 [functions.legal]
 verify_jwt = false
+
+[functions.warranty-card]
+verify_jwt = false

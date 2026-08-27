@@ -69,6 +69,10 @@ jobs:
           APPLE_DISTRIBUTION_CERTIFICATE_SERIAL: ${{ steps.certificate.outputs.serial }}
         shell: bash
         run: |
+          if [[ "${{ inputs.apply_prices }}" == "true" && "${{ inputs.mode }}" != "apply" ]]; then
+            echo "Price changes require mode=apply. Refusing a mutating inspect run."
+            exit 1
+          fi
           MODE_FLAG=""
           if [[ "${{ inputs.mode }}" == "apply" ]]; then
             MODE_FLAG="--apply"

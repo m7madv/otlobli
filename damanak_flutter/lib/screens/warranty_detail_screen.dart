@@ -27,6 +27,8 @@ class WarrantyDetailScreen extends StatefulWidget {
 
 class _WarrantyDetailScreenState extends State<WarrantyDetailScreen> {
   bool _showQr = false;
+  bool _sharing = false;
+  Uri? _publicLink;
 
   @override
   Widget build(BuildContext context) {
@@ -78,9 +80,20 @@ class _WarrantyDetailScreenState extends State<WarrantyDetailScreen> {
                       children: [
                         Expanded(
                           child: FilledButton.icon(
-                            onPressed: () => _shareWarranty(warranty),
-                            icon: const Icon(Icons.ios_share_rounded),
-                            label: const Text('مشاركة البطاقة'),
+                            onPressed: _sharing
+                                ? null
+                                : () => _shareWarranty(warranty),
+                            icon: _sharing
+                                ? const SizedBox.square(
+                                    dimension: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.ios_share_rounded),
+                            label: Text(
+                              _sharing ? 'جارٍ تجهيز الرابط…' : 'مشاركة الضمان',
+                            ),
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -94,8 +107,9 @@ class _WarrantyDetailScreenState extends State<WarrantyDetailScreen> {
                                 ? 'إخفاء رمز التحقق'
                                 : 'عرض رمز التحقق',
                             child: OutlinedButton(
-                              onPressed: () =>
-                                  setState(() => _showQr = !_showQr),
+                              onPressed: _sharing
+                                  ? null
+                                  : () => _toggleQr(warranty),
                               child: Icon(
                                 _showQr
                                     ? Icons.close_rounded
@@ -116,7 +130,10 @@ class _WarrantyDetailScreenState extends State<WarrantyDetailScreen> {
                       firstChild: const SizedBox(width: double.infinity),
                       secondChild: Padding(
                         padding: const EdgeInsets.only(top: 14),
-                        child: _QrPanel(warranty: warranty),
+                        child: _QrPanel(
+                          warranty: warranty,
+                          publicLink: _publicLink,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 26),
@@ -179,7 +196,11 @@ class _WarrantyDetailScreenState extends State<WarrantyDetailScreen> {
   }
 
   Future<void> _shareWarranty(Warranty warranty) async {
-    final profile = AppScope.of(context).profile;
+    setState(() => _sharing = true);
+    final controller = AppScope.of(context);
+    final link = await _loadPublicLink(warranty);
+    if (!mounted) return;
+    final profile = controller.profile;
     final storeLine = [
       profile.name,
       profile.city,
@@ -198,20 +219,48 @@ class _WarrantyDetailScreenState extends State<WarrantyDetailScreen> {
 الإجمالي: ${formatMoney(warranty.saleTotal, warranty.currencyCode)}
 طريقة الدفع: ${warranty.paymentMethod.label}
 ${warranty.notes.isEmpty ? '' : '\nملاحظات: ${warranty.notes}'}
+${link == null ? '' : '\nتحقق من الضمان واحتفظ بالرابط:\n$link'}
 
 احتفظ بهذه الرسالة للرجوع إليها عند طلب الصيانة.
 '''
             .trim();
     final box = context.findRenderObject() as RenderBox?;
-    await SharePlus.instance.share(
-      ShareParams(
-        text: text,
-        subject: 'بطاقة ضمان ${warranty.displayNumber}',
-        sharePositionOrigin: box == null
-            ? null
-            : box.localToGlobal(Offset.zero) & box.size,
-      ),
-    );
+    try {
+      await SharePlus.instance.share(
+        ShareParams(
+          text: text,
+          subject: 'بطاقة ضمان ${warranty.displayNumber}',
+          sharePositionOrigin: box == null
+              ? null
+              : box.localToGlobal(Offset.zero) & box.size,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _sharing = false);
+    }
+  }
+
+  Future<void> _toggleQr(Warranty warranty) async {
+    if (_showQr) {
+      setState(() => _showQr = false);
+      return;
+    }
+    setState(() => _sharing = true);
+    await _loadPublicLink(warranty);
+    if (!mounted) return;
+    setState(() {
+      _sharing = false;
+      _showQr = true;
+    });
+  }
+
+  Future<Uri?> _loadPublicLink(Warranty warranty) async {
+    if (_publicLink != null) return _publicLink;
+    final controller = AppScope.of(context);
+    if (controller.isDemo) return null;
+    final link = await controller.createWarrantyShareLink(warranty.id);
+    if (mounted && link != null) setState(() => _publicLink = link);
+    return link;
   }
 
   Future<void> _openMaintenanceDialog(Warranty warranty) async {
@@ -570,14 +619,16 @@ class _DetailRow extends StatelessWidget {
 }
 
 class _QrPanel extends StatelessWidget {
-  const _QrPanel({required this.warranty});
+  const _QrPanel({required this.warranty, required this.publicLink});
 
   final Warranty warranty;
+  final Uri? publicLink;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final qrData =
+        publicLink?.toString() ??
         'DAMANAK|${warranty.displayNumber}|${warranty.productName}|${formatDate(warranty.expiryDate)}|${warranty.statusAt().label}';
     return Card(
       child: Padding(
@@ -604,12 +655,14 @@ class _QrPanel extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(
-              'رمز تحقق محلي',
+              publicLink == null ? 'معاينة محلية' : 'رابط تحقق آمن',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 4),
             Text(
-              'لا يحتوي الرمز على رقم جوال العميل.',
+              publicLink == null
+                  ? 'تظهر روابط التحقق السحابية في مساحة المتجر الحقيقية.'
+                  : 'يفتح بطاقة عربية موثّقة، مع إخفاء بيانات العميل الحساسة.',
               textAlign: TextAlign.center,
               style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
             ),

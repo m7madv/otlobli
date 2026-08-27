@@ -21,7 +21,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final _city = TextEditingController();
   final _invite = TextEditingController();
   bool _joining = false;
-  String _country = 'SA';
+  String _country = 'QA';
   String? _loadedInvitationCode;
 
   @override
@@ -200,39 +200,49 @@ class _CreateStoreForm extends StatelessWidget {
                     : null,
               ),
               const SizedBox(height: 12),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      initialValue: country,
-                      decoration: const InputDecoration(labelText: 'الدولة'),
-                      items: const [
-                        DropdownMenuItem(value: 'SA', child: Text('السعودية')),
-                        DropdownMenuItem(value: 'AE', child: Text('الإمارات')),
-                        DropdownMenuItem(value: 'KW', child: Text('الكويت')),
-                        DropdownMenuItem(value: 'QA', child: Text('قطر')),
-                        DropdownMenuItem(value: 'BH', child: Text('البحرين')),
-                        DropdownMenuItem(value: 'OM', child: Text('عُمان')),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final countryField = DropdownButtonFormField<String>(
+                    initialValue: country,
+                    decoration: const InputDecoration(labelText: 'الدولة'),
+                    items: const [
+                      DropdownMenuItem(value: 'QA', child: Text('قطر')),
+                      DropdownMenuItem(value: 'SA', child: Text('السعودية')),
+                      DropdownMenuItem(value: 'AE', child: Text('الإمارات')),
+                      DropdownMenuItem(value: 'KW', child: Text('الكويت')),
+                      DropdownMenuItem(value: 'BH', child: Text('البحرين')),
+                      DropdownMenuItem(value: 'OM', child: Text('عُمان')),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) onCountryChanged(value);
+                    },
+                  );
+                  final cityField = TextFormField(
+                    controller: city,
+                    textInputAction: TextInputAction.next,
+                    decoration: const InputDecoration(labelText: 'المدينة'),
+                    validator: (value) => value == null || value.trim().isEmpty
+                        ? 'أدخل المدينة'
+                        : null,
+                  );
+                  if (constraints.maxWidth < 440) {
+                    return Column(
+                      children: [
+                        countryField,
+                        const SizedBox(height: 12),
+                        cityField,
                       ],
-                      onChanged: (value) {
-                        if (value != null) onCountryChanged(value);
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: TextFormField(
-                      controller: city,
-                      textInputAction: TextInputAction.next,
-                      decoration: const InputDecoration(labelText: 'المدينة'),
-                      validator: (value) =>
-                          value == null || value.trim().isEmpty
-                          ? 'أدخل المدينة'
-                          : null,
-                    ),
-                  ),
-                ],
+                    );
+                  }
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: countryField),
+                      const SizedBox(width: 10),
+                      Expanded(child: cityField),
+                    ],
+                  );
+                },
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -243,6 +253,7 @@ class _CreateStoreForm extends StatelessWidget {
                 onFieldSubmitted: (_) => onSubmit(),
                 decoration: const InputDecoration(
                   labelText: 'رقم تواصل المتجر',
+                  hintText: '+974 0000 0000',
                   prefixIcon: Icon(Icons.phone_outlined),
                 ),
                 validator: (value) => (value?.trim().length ?? 0) < 7

@@ -746,13 +746,40 @@ class SupabaseDamanakRepository implements DamanakRepository {
   }
 
   @override
-  Future<List<Warranty>> loadWarranties(String storeId) async {
+  Future<List<Warranty>> loadWarranties(
+    String storeId, {
+    int limit = 100,
+    int offset = 0,
+  }) async {
+    final safeLimit = limit.clamp(1, 100).toInt();
+    final safeOffset = offset < 0 ? 0 : offset;
     final rows = await _client
         .from('warranties')
         .select()
         .eq('store_id', storeId)
         .filter('voided_at', 'is', null)
-        .order('created_at', ascending: false);
+        .order('created_at', ascending: false)
+        .order('id', ascending: false)
+        .range(safeOffset, safeOffset + safeLimit - 1);
+    return rows.map(Warranty.fromJson).toList();
+  }
+
+  @override
+  Future<List<Warranty>> loadWarrantiesForInvoice(
+    String storeId,
+    String invoiceNumber,
+  ) async {
+    final normalizedInvoice = invoiceNumber.trim();
+    if (normalizedInvoice.isEmpty) return const [];
+    final rows = await _client
+        .from('warranties')
+        .select()
+        .eq('store_id', storeId)
+        .eq('invoice_number', normalizedInvoice)
+        .filter('voided_at', 'is', null)
+        .order('created_at', ascending: false)
+        .order('id', ascending: false)
+        .limit(500);
     return rows.map(Warranty.fromJson).toList();
   }
 
@@ -812,6 +839,26 @@ class SupabaseDamanakRepository implements DamanakRepository {
   @override
   Future<void> deleteWarranty(String id) async {
     await _client.from('warranties').delete().eq('id', id);
+  }
+
+  @override
+  Future<Uri?> createWarrantyShareLink(String warrantyId) async {
+    final response = await _client.functions.invoke(
+      'warranty-card',
+      body: {'warrantyId': warrantyId},
+    );
+    if (response.status != 200 || response.data is! Map) {
+      throw StateError('WARRANTY_SHARE_LINK_UNAVAILABLE');
+    }
+    final value = Map<String, dynamic>.from(response.data as Map)['url'];
+    if (value is! String) {
+      throw StateError('WARRANTY_SHARE_LINK_UNAVAILABLE');
+    }
+    final uri = Uri.tryParse(value);
+    if (uri == null || !uri.isScheme('https')) {
+      throw StateError('WARRANTY_SHARE_LINK_INVALID');
+    }
+    return uri;
   }
 
   @override

@@ -7,10 +7,11 @@ import '../widgets/brand_mark.dart';
 import '../widgets/message_banner.dart';
 import 'branches_screen.dart';
 import 'customers_screen.dart';
+import 'point_of_sale_screen.dart';
 import 'procurement_screen.dart';
+import 'products_screen.dart';
 import 'register_screen.dart';
 import 'reports_screen.dart';
-import 'requests_screen.dart';
 import 'sales_screen.dart';
 import 'settings_screen.dart';
 import 'subscription_screen.dart';
@@ -37,7 +38,7 @@ class AccountScreen extends StatelessWidget {
               const SizedBox(height: 18),
             ],
             const MessageBanner(),
-            Text('المزيد', style: Theme.of(context).textTheme.headlineSmall),
+            Text('الإدارة', style: Theme.of(context).textTheme.headlineSmall),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(16),
@@ -86,6 +87,24 @@ class AccountScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             _HubSection(
+              title: 'أدوات المتجر',
+              children: [
+                _HubTile(
+                  icon: Icons.point_of_sale_outlined,
+                  title: 'نقطة البيع',
+                  subtitle: 'بيع سريع وإيصال داخلي',
+                  onTap: () => _open(context, const PointOfSaleScreen()),
+                ),
+                _HubTile(
+                  icon: Icons.inventory_2_outlined,
+                  title: 'المنتجات',
+                  subtitle: '${controller.products.length} منتج في الكتالوج',
+                  onTap: () => _open(context, const ProductsScreen()),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            _HubSection(
               title: 'العمل اليومي',
               children: [
                 _HubTile(
@@ -99,12 +118,6 @@ class AccountScreen extends StatelessWidget {
                   title: 'العملاء',
                   subtitle: '${controller.customers.length} عميل',
                   onTap: () => _open(context, const CustomersScreen()),
-                ),
-                _HubTile(
-                  icon: Icons.build_circle_outlined,
-                  title: 'طلبات الصيانة',
-                  subtitle: '${controller.requests.length} طلب',
-                  onTap: () => _open(context, const RequestsScreen()),
                 ),
               ],
             ),
@@ -185,7 +198,7 @@ class AccountScreen extends StatelessWidget {
             const SizedBox(height: 14),
             Center(
               child: Text(
-                'ضمانك للأعمال 4.2.0',
+                'ضمانك للأعمال 4.3.0',
                 style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
               ),
             ),

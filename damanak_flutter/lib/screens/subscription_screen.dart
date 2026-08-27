@@ -31,18 +31,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     }.contains(controller.storeBillingState);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('الاشتراك والفوترة'),
-        actions: [
-          IconButton(
-            tooltip: 'استعادة المشتريات',
-            onPressed: !canManage || storeBusy
-                ? null
-                : controller.restoreStorePurchases,
-            icon: const Icon(Icons.restore_rounded),
-          ),
-        ],
-      ),
+      appBar: AppBar(title: const Text('الاشتراك والفوترة')),
       body: SafeArea(
         child: Align(
           alignment: Alignment.topCenter,
@@ -56,27 +45,33 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 onManage: subscription.isStoreSubscription
                     ? controller.openStoreSubscriptionManagement
                     : null,
+                onRestore: canManage && !storeBusy && !controller.isDemo
+                    ? controller.restoreStorePurchases
+                    : null,
+                canManage: canManage,
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
+              const _RecordContinuityNotice(),
+              const SizedBox(height: 12),
               _StoreStatus(
                 state: controller.storeBillingState,
                 platform: controller.storeBillingPlatform,
                 message: controller.storeBillingMessage,
                 onRetry: storeBusy ? null : controller.refreshStoreProducts,
               ),
-              const SizedBox(height: 22),
+              const SizedBox(height: 20),
               LayoutBuilder(
                 builder: (context, constraints) {
                   final heading = Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'اختر الخطة',
+                        'قارن الباقات',
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        'السعر والعملة يظهران مباشرةً من متجر جهازك.',
+                        'السعر والعملة النهائيان يأتيان من متجر جهازك، وليس من قيم محفوظة داخل التطبيق.',
                         style: TextStyle(
                           color: colors.onSurfaceVariant,
                           fontSize: 12,
@@ -151,8 +146,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   );
                 },
               ),
-              const SizedBox(height: 18),
-              _PurchasePath(platform: controller.storeBillingPlatform),
               const SizedBox(height: 12),
               const _BillingTerms(),
             ],
@@ -168,11 +161,15 @@ class _CurrentPlan extends StatelessWidget {
     required this.subscription,
     required this.platform,
     required this.onManage,
+    required this.onRestore,
+    required this.canManage,
   });
 
   final SubscriptionInfo subscription;
   final StoreBillingPlatform platform;
   final VoidCallback? onManage;
+  final VoidCallback? onRestore;
+  final bool canManage;
 
   @override
   Widget build(BuildContext context) {
@@ -197,8 +194,15 @@ class _CurrentPlan extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
+              Text(
+                'خطة ${subscription.plan.name}',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
@@ -216,11 +220,6 @@ class _CurrentPlan extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-              ),
-              const Spacer(),
-              Text(
-                'خطة ${subscription.plan.name}',
-                style: const TextStyle(fontWeight: FontWeight.w700),
               ),
             ],
           ),
@@ -262,6 +261,10 @@ class _CurrentPlan extends StatelessWidget {
                 '${subscription.plan.maxMembers} أعضاء كحد أقصى',
                 style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
               ),
+              Text(
+                subscription.plan.branchLabel,
+                style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
+              ),
               if (subscription.periodEndsAt != null)
                 Text(
                   'الفترة حتى ${formatDate(subscription.periodEndsAt!)}',
@@ -272,15 +275,98 @@ class _CurrentPlan extends StatelessWidget {
                 ),
             ],
           ),
-          if (onManage != null) ...[
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: onManage,
-              icon: const Icon(Icons.open_in_new_rounded, size: 18),
-              label: Text('إدارة الاشتراك في ${platform.label}'),
+          const SizedBox(height: 14),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final stackActions = constraints.maxWidth < 470;
+              final actions = <Widget>[
+                if (onManage != null)
+                  OutlinedButton.icon(
+                    onPressed: onManage,
+                    icon: const Icon(Icons.settings_outlined, size: 18),
+                    label: Text('إدارة الاشتراك في ${platform.label}'),
+                  ),
+                OutlinedButton.icon(
+                  onPressed: onRestore,
+                  icon: const Icon(Icons.restore_rounded, size: 18),
+                  label: const Text('استعادة المشتريات'),
+                ),
+              ];
+              if (stackActions) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var index = 0; index < actions.length; index++) ...[
+                      actions[index],
+                      if (index != actions.length - 1)
+                        const SizedBox(height: 8),
+                    ],
+                  ],
+                );
+              }
+              return Wrap(spacing: 8, runSpacing: 8, children: actions);
+            },
+          ),
+          if (!canManage) ...[
+            const SizedBox(height: 8),
+            Text(
+              'الشراء والاستعادة وإدارة الاشتراك متاحة لمالك المتجر.',
+              style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+class _RecordContinuityNotice extends StatelessWidget {
+  const _RecordContinuityNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Semantics(
+      container: true,
+      excludeSemantics: true,
+      label:
+          'سجل الضمانات محفوظ. بعد انتهاء الاشتراك تبقى الضمانات السابقة متاحة للعرض والمتابعة، ويتوقف إصدار ضمانات جديدة.',
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: colors.primaryContainer,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.inventory_2_outlined, color: colors.primary),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'سجل ضماناتك يبقى محفوظاً',
+                    style: TextStyle(
+                      color: colors.onPrimaryContainer,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    'بعد انتهاء الاشتراك تبقى الضمانات السابقة متاحة للعرض والمتابعة؛ يتوقف إصدار ضمانات جديدة فقط.',
+                    style: TextStyle(
+                      color: colors.onPrimaryContainer,
+                      fontSize: 12,
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -321,46 +407,58 @@ class _StoreStatus extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: colors.outlineVariant),
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (loading)
-              const SizedBox.square(
-                dimension: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            else
-              Icon(
-                state == StoreBillingState.ready
-                    ? Icons.verified_user_outlined
-                    : Icons.storefront_outlined,
-                color: colors.primary,
-              ),
-            const SizedBox(width: 11),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (loading)
+                  const SizedBox.square(
+                    dimension: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                else
+                  Icon(
+                    state == StoreBillingState.ready
+                        ? Icons.verified_user_outlined
+                        : Icons.storefront_outlined,
+                    color: colors.primary,
                   ),
-                  if (message != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      message!,
-                      style: TextStyle(
-                        color: colors.onSurfaceVariant,
-                        fontSize: 12,
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
-                    ),
-                  ],
-                ],
-              ),
+                      if (message != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          message!,
+                          style: TextStyle(
+                            color: colors.onSurfaceVariant,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
             ),
             if (onRetry != null && state == StoreBillingState.unavailable)
-              TextButton(
-                onPressed: onRetry,
-                child: const Text('إعادة المحاولة'),
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: TextButton(
+                    onPressed: onRetry,
+                    child: const Text('إعادة المحاولة'),
+                  ),
+                ),
               ),
           ],
         ),
@@ -391,39 +489,76 @@ class _PlanCard extends StatelessWidget {
     final colors = context.colors;
     final available = offer != null;
     return Card(
-      color: current ? colors.primaryContainer : colors.surface,
+      color: colors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(
+          color: current || plan.isRecommended
+              ? colors.primary
+              : colors.outlineVariant,
+          width: current || plan.isRecommended ? 1.5 : 1,
+        ),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(17),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            Wrap(
+              spacing: 7,
+              runSpacing: 7,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                Expanded(
-                  child: Text(
-                    plan.name,
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                ),
+                Text(plan.name, style: Theme.of(context).textTheme.titleLarge),
+                if (plan.isRecommended)
+                  _PlanBadge(label: 'موصى بها', emphasized: true),
                 if (current)
-                  Icon(Icons.check_circle_rounded, color: colors.primary),
+                  const _PlanBadge(
+                    label: 'الخطة الحالية',
+                    icon: Icons.check_rounded,
+                  ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 4),
             Text(
-              offer?.localizedPrice ?? 'غير متاح',
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
-            ),
-            Text(
-              offer == null
-                  ? 'فعّل المنتج في لوحة المتجر'
-                  : 'تجديد ${offer!.cycle.label.toLowerCase()} تلقائي',
+              plan.audience,
               style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
             ),
             const SizedBox(height: 14),
-            _PlanFeature(text: '${plan.monthlyWarranties} ضماناً كل شهر'),
-            _PlanFeature(text: '${plan.maxMembers} حسابات للفريق'),
-            const _PlanFeature(text: 'كل الفروع والمخزون ونقطة البيع'),
+            Text(
+              offer?.localizedPrice ?? 'بانتظار سعر المتجر',
+              style: TextStyle(
+                color: available ? colors.onSurface : colors.onSurfaceVariant,
+                fontSize: available ? 24 : 17,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            Text(
+              offer == null
+                  ? 'لا يُعرض أي سعر محلي بديل.'
+                  : '${offer!.cycle.label} • السعر والعملة من المتجر',
+              style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 7,
+              runSpacing: 7,
+              children: [
+                _PlanMetric(
+                  icon: Icons.verified_user_outlined,
+                  text: '${plan.monthlyWarranties} ضمان/شهر',
+                ),
+                _PlanMetric(
+                  icon: Icons.group_outlined,
+                  text: '${plan.maxMembers} أعضاء',
+                ),
+                _PlanMetric(icon: Icons.store_outlined, text: plan.branchLabel),
+              ],
+            ),
+            const SizedBox(height: 15),
+            Text('تشمل', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            ...plan.features.map((feature) => _PlanFeature(text: feature)),
             const SizedBox(height: 14),
             SizedBox(
               width: double.infinity,
@@ -435,18 +570,92 @@ class _PlanCard extends StatelessWidget {
                       child: Text(
                         sameStoreSelection
                             ? 'الخطة الحالية'
-                            : 'تغيير دورة الخطة',
+                            : available
+                            ? 'اختيار الفوترة ${offer!.cycle.label.toLowerCase()}'
+                            : 'سعر المتجر غير متاح',
                       ),
                     )
                   : FilledButton(
                       onPressed: available && canBuy
                           ? () => onBuy(offer!)
                           : null,
-                      child: const Text('اشترك من المتجر'),
+                      child: Text(
+                        available
+                            ? 'اختيار ${plan.name}'
+                            : 'سعر المتجر غير متاح',
+                      ),
                     ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _PlanBadge extends StatelessWidget {
+  const _PlanBadge({required this.label, this.icon, this.emphasized = false});
+
+  final String label;
+  final IconData? icon;
+  final bool emphasized;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final foreground = emphasized ? colors.onPrimary : colors.onSurfaceVariant;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: emphasized ? colors.primary : colors.surfaceContainer,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 14, color: foreground),
+            const SizedBox(width: 3),
+          ],
+          Text(
+            label,
+            style: TextStyle(
+              color: foreground,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PlanMetric extends StatelessWidget {
+  const _PlanMetric({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainer,
+        borderRadius: BorderRadius.circular(11),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: colors.primary),
+          const SizedBox(width: 5),
+          Text(
+            text,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+          ),
+        ],
       ),
     );
   }
@@ -461,94 +670,23 @@ class _PlanFeature extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: 7),
     child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(Icons.check_rounded, size: 17, color: context.colors.primary),
+        Padding(
+          padding: const EdgeInsets.only(top: 1),
+          child: Icon(
+            Icons.check_rounded,
+            size: 17,
+            color: context.colors.primary,
+          ),
+        ),
         const SizedBox(width: 6),
-        Expanded(child: Text(text, style: const TextStyle(fontSize: 12))),
+        Expanded(
+          child: Text(text, style: const TextStyle(fontSize: 12, height: 1.45)),
+        ),
       ],
     ),
   );
-}
-
-class _PurchasePath extends StatelessWidget {
-  const _PurchasePath({required this.platform});
-
-  final StoreBillingPlatform platform;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    const steps = [
-      ('1', 'المتجر', 'يعرض السعر ويستلم موافقتك'),
-      ('2', 'التحقق', 'الخادم يتحقق من الإيصال'),
-      ('3', 'التفعيل', 'تُفتح الخطة بعد نجاح التحقق'),
-    ];
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: colors.outlineVariant),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'مسار دفع واحد وواضح',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 3),
-          Text(
-            'لا يستقبل ضمانك بيانات بطاقتك؛ تتم الفوترة داخل ${platform.label}.',
-            style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
-          ),
-          const SizedBox(height: 14),
-          ...steps.map(
-            (step) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Row(
-                children: [
-                  Container(
-                    width: 30,
-                    height: 30,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: colors.primaryContainer,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Text(
-                      step.$1,
-                      style: TextStyle(
-                        color: colors.onPrimaryContainer,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  SizedBox(
-                    width: 58,
-                    child: Text(
-                      step.$2,
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                  Expanded(
-                    child: Text(
-                      step.$3,
-                      style: TextStyle(
-                        color: colors.onSurfaceVariant,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class _BillingTerms extends StatelessWidget {
@@ -556,7 +694,7 @@ class _BillingTerms extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Text(
-    'بالاشتراك توافق على أن يتجدد الاشتراك تلقائياً وفق السعر والفترة المعروضين في نافذة المتجر. يمكنك الإلغاء أو تغيير وسيلة الدفع من إعدادات اشتراكات App Store أو Google Play. لا تُفعّل الدفعات المعلّقة، ويمكنك استخدام «استعادة المشتريات» عند تغيير الجهاز.',
+    'تعرض نافذة المتجر السعر والعملة والفترة النهائية قبل التأكيد. يتجدد الاشتراك تلقائياً ويمكنك إدارته أو إلغاؤه من App Store أو Google Play. لا تُفعّل الدفعات المعلّقة. الحصة الشهرية هي الأساس، وقد يتيح النظام هامش تشغيل تلقائياً حتى 10% لتجنب توقف العمل المفاجئ.',
     style: TextStyle(
       color: context.colors.onSurfaceVariant,
       fontSize: 11,

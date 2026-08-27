@@ -1,3 +1,4 @@
+import 'package:damanak/data/demo_repository.dart';
 import 'package:damanak/models/account.dart';
 import 'package:damanak/models/sale.dart';
 import 'package:damanak/models/warranty.dart';
@@ -7,10 +8,12 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   group('نظام المتجر التجريبي', () {
     late AppController controller;
+    late _CountingDemoRepository repository;
 
     setUp(() async {
-      controller = AppController.unconfigured();
-      await controller.startDemo();
+      repository = _CountingDemoRepository();
+      controller = AppController.withRepository(repository);
+      await controller.initialize();
     });
 
     test('يفتح مساحة متجر كاملة بخطة وفريق ومنتجات', () {
@@ -120,6 +123,57 @@ void main() {
       expect(invite.code, startsWith('DMN-'));
     });
 
+    test('يحمّل الضمانات على صفحات من 100 من دون تكرار', () async {
+      final store = controller.store!;
+      final branch = controller.branches.first;
+      final customer = controller.customers.first;
+      for (var index = 0; index < 102; index++) {
+        await repository.createWarranty(
+          storeId: store.id,
+          productId: null,
+          customerId: customer.id,
+          branchId: branch.id,
+          customerName: customer.name,
+          customerPhone: customer.phone,
+          productName: 'منتج الصفحة $index',
+          barcode: '',
+          serialNumber: 'PAGE-SERIAL-$index',
+          purchaseDate: DateTime(2026, 8, 27),
+          expiryDate: DateTime(2027, 8, 27),
+          notes: '',
+          invoiceNumber: 'PAGE-INVOICE-$index',
+          saleSubtotal: 0,
+          discountAmount: 0,
+          taxAmount: 0,
+          saleTotal: 0,
+          taxRate: 0,
+          currencyCode: 'QAR',
+          paymentMethod: PaymentMethod.card,
+        );
+      }
+
+      await controller.refresh();
+
+      expect(controller.warranties, hasLength(100));
+      expect(controller.hasMoreWarranties, isTrue);
+
+      await Future.wait([
+        controller.loadMoreWarranties(),
+        controller.loadMoreWarranties(),
+      ]);
+
+      expect(controller.warranties.length, greaterThan(100));
+      expect(controller.hasMoreWarranties, isFalse);
+      expect(
+        controller.warranties.map((item) => item.id).toSet(),
+        hasLength(controller.warranties.length),
+      );
+      expect(repository.warrantyOffsets.last, 100);
+      expect(repository.warrantyOffsets.where((offset) => offset == 100), [
+        100,
+      ]);
+    });
+
     test('ينفذ بيعاً ويخصم المخزون وينشئ الضمان ثم يعيد القطعة', () async {
       final product = controller.products.first;
       final customer = controller.customers.first;
@@ -128,6 +182,8 @@ void main() {
           .inventoryLevel(product.id, branch.id)!
           .onHand;
       final warrantiesBefore = controller.warranties.length;
+      final fullWarrantyLoadsBefore = repository.fullWarrantyLoads;
+      final invoiceWarrantyLoadsBefore = repository.invoiceWarrantyLoads;
 
       final sale = await controller.createSale(
         branchId: branch.id,
@@ -160,6 +216,8 @@ void main() {
       );
       expect(controller.warranties.length, warrantiesBefore + 1);
       expect(controller.sales.first.id, sale!.id);
+      expect(repository.fullWarrantyLoads, fullWarrantyLoadsBefore);
+      expect(repository.invoiceWarrantyLoads, invoiceWarrantyLoadsBefore + 1);
 
       await controller.returnSale(
         saleId: sale.id,
@@ -175,4 +233,30 @@ void main() {
       expect(controller.sales.first.status, SaleStatus.returned);
     });
   });
+}
+
+class _CountingDemoRepository extends DemoDamanakRepository {
+  int fullWarrantyLoads = 0;
+  int invoiceWarrantyLoads = 0;
+  final List<int> warrantyOffsets = [];
+
+  @override
+  Future<List<Warranty>> loadWarranties(
+    String storeId, {
+    int limit = 100,
+    int offset = 0,
+  }) {
+    fullWarrantyLoads++;
+    warrantyOffsets.add(offset);
+    return super.loadWarranties(storeId, limit: limit, offset: offset);
+  }
+
+  @override
+  Future<List<Warranty>> loadWarrantiesForInvoice(
+    String storeId,
+    String invoiceNumber,
+  ) {
+    invoiceWarrantyLoads++;
+    return super.loadWarrantiesForInvoice(storeId, invoiceNumber);
+  }
 }

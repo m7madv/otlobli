@@ -26,22 +26,25 @@ const definitions = [
     productId: 'com.damanak.subscription.starter',
     title: 'خطة بداية في ضمانك',
     description: 'إدارة الضمانات والمبيعات لفريق صغير.',
-    benefits: ['عضوان في الفريق', '60 ضماناً شهرياً'],
+    benefits: ['عضوان في الفريق', '100 ضمان شهرياً'],
     intendedPricesSar: { monthly: 39, yearly: 390 },
+    intendedPricesQar: { monthly: 39.99, yearly: 399.99 },
   },
   {
     productId: 'com.damanak.subscription.growth',
     title: 'خطة نمو في ضمانك',
     description: 'إدارة متقدمة للمحل والفروع والفريق.',
-    benefits: ['5 أعضاء في الفريق', '250 ضماناً شهرياً'],
+    benefits: ['5 أعضاء في الفريق', '600 ضمان شهرياً'],
     intendedPricesSar: { monthly: 99, yearly: 990 },
+    intendedPricesQar: { monthly: 79.99, yearly: 799.99 },
   },
   {
     productId: 'com.damanak.subscription.scale',
     title: 'خطة توسع في ضمانك',
     description: 'تشغيل متعدد الفروع للمتاجر المتوسعة.',
-    benefits: ['15 عضواً في الفريق', '1200 ضمان شهرياً'],
+    benefits: ['15 عضواً في الفريق', '3000 ضمان شهرياً'],
     intendedPricesSar: { monthly: 199, yearly: 1990 },
+    intendedPricesQar: { monthly: 199.99, yearly: 1999.99 },
   },
 ];
 
@@ -140,13 +143,16 @@ async function findSubscription(accessToken, productId) {
   }
 }
 
-function sarMoney(amount) {
+function currencyMoney(currencyCode, amount) {
   const units = Math.trunc(amount);
   const nanos = Math.round((amount - units) * 1_000_000_000);
-  return { currencyCode: 'SAR', units: String(units), nanos };
+  return { currencyCode, units: String(units), nanos };
 }
 
-async function convertSarPrice(accessToken, amount) {
+const sarMoney = (amount) => currencyMoney('SAR', amount);
+const qarMoney = (amount) => currencyMoney('QAR', amount);
+
+async function convertSarPrice(accessToken, amount, qatarAmount) {
   // convertRegionPrices expects a tax-exclusive seed price, while the plan
   // amounts in this script are the customer-facing Saudi prices.
   const taxExclusiveAmount = amount / (1 + SAUDI_VAT_RATE);
@@ -172,7 +178,11 @@ async function convertSarPrice(accessToken, amount) {
     return {
       regionCode,
       newSubscriberAvailability: true,
-      price: regionCode === 'SA' ? sarMoney(amount) : converted.price,
+      price: regionCode === 'SA'
+        ? sarMoney(amount)
+        : regionCode === 'QA'
+          ? qarMoney(qatarAmount)
+          : converted.price,
     };
   });
   return { version, regionalConfigs };
@@ -206,6 +216,68 @@ function subscriptionBody(definition, pricing) {
         benefits: definition.benefits,
       },
     ],
+  };
+}
+
+function desiredListings(definition) {
+  return [
+    {
+      languageCode: 'ar-SA',
+      title: definition.title,
+      description: definition.description,
+      benefits: definition.benefits,
+    },
+  ];
+}
+
+async function ensureSubscriptionListing(accessToken, subscription, definition) {
+  const currentArabic = (subscription.listings || []).find(
+    (listing) => listing.languageCode === 'ar-SA',
+  );
+  const expected = desiredListings(definition)[0];
+  const unchanged =
+    currentArabic?.title === expected.title &&
+    currentArabic?.description === expected.description &&
+    JSON.stringify(currentArabic?.benefits || []) ===
+      JSON.stringify(expected.benefits);
+  if (unchanged || mode === 'inspect') {
+    return { subscription, state: unchanged ? 'existing' : 'needs-update' };
+  }
+  const updated = await request(
+    accessToken,
+    `/applications/${PACKAGE_NAME}/subscriptions/${encodeURIComponent(
+      subscription.productId,
+    )}?updateMask=listings`,
+    {
+      method: 'PATCH',
+      body: {
+        packageName: PACKAGE_NAME,
+        productId: subscription.productId,
+        listings: desiredListings(definition),
+      },
+    },
+  );
+  return { subscription: updated, state: 'updated' };
+}
+
+function moneyLabel(money) {
+  if (!money?.currencyCode) return null;
+  const units = Number(money.units || 0);
+  const nanos = Number(money.nanos || 0) / 1_000_000_000;
+  return `${(units + nanos).toFixed(2)} ${money.currencyCode}`;
+}
+
+function basePlanSummary(subscription, basePlanId) {
+  const plan = (subscription?.basePlans || []).find(
+    (candidate) => candidate.basePlanId === basePlanId,
+  );
+  const qatar = (plan?.regionalConfigs || []).find(
+    (region) => region.regionCode === 'QA',
+  );
+  return {
+    state: plan?.state || (subscription ? 'missing' : 'pending'),
+    qatarPrice: moneyLabel(qatar?.price),
+    qatarAvailable: qatar?.newSubscriberAvailability ?? null,
   };
 }
 
@@ -262,6 +334,96 @@ async function addBasePlansToEmptySubscription(
   return { subscription: updated, changed: true };
 }
 
+function comparableRegionalConfig(config) {
+  return {
+    regionCode: config.regionCode,
+    newSubscriberAvailability: config.newSubscriberAvailability ?? false,
+    price: {
+      currencyCode: config.price?.currencyCode ?? '',
+      units: String(config.price?.units ?? '0'),
+      nanos: Number(config.price?.nanos ?? 0),
+    },
+  };
+}
+
+function sanitizedBasePlan(plan, desiredPlan) {
+  const desiredByRegion = new Map(
+    desiredPlan.regionalConfigs.map((config) => [config.regionCode, config]),
+  );
+  const mergedByRegion = new Map(
+    (plan.regionalConfigs || []).map((config) => [config.regionCode, config]),
+  );
+  for (const [regionCode, config] of desiredByRegion) {
+    mergedByRegion.set(regionCode, config);
+  }
+  const value = {
+    basePlanId: plan.basePlanId,
+    regionalConfigs: [...mergedByRegion.values()].map(comparableRegionalConfig),
+  };
+  if (plan.offerTags?.length) value.offerTags = plan.offerTags;
+  if (plan.otherRegionsConfig) value.otherRegionsConfig = plan.otherRegionsConfig;
+  for (const field of [
+    'autoRenewingBasePlanType',
+    'prepaidBasePlanType',
+    'installmentsBasePlanType',
+  ]) {
+    if (plan[field]) value[field] = plan[field];
+  }
+  return value;
+}
+
+function gulfPricingMatches(plan, desiredPlan) {
+  const currentByRegion = new Map(
+    (plan.regionalConfigs || []).map((config) => [config.regionCode, config]),
+  );
+  return desiredPlan.regionalConfigs.every((expected) => {
+    const current = currentByRegion.get(expected.regionCode);
+    return (
+      current &&
+      JSON.stringify(comparableRegionalConfig(current)) ===
+        JSON.stringify(comparableRegionalConfig(expected))
+    );
+  });
+}
+
+async function ensureBasePlanPricing(accessToken, subscription, pricing) {
+  const expectedPlans = desiredBasePlans(pricing);
+  const expectedById = new Map(
+    expectedPlans.map((plan) => [plan.basePlanId, plan]),
+  );
+  const currentPlans = subscription.basePlans || [];
+  const needsUpdate = currentPlans.some((plan) => {
+    const expected = expectedById.get(plan.basePlanId);
+    return expected && !gulfPricingMatches(plan, expected);
+  });
+  if (!needsUpdate || mode === 'inspect') {
+    return {
+      subscription,
+      state: needsUpdate ? 'needs-update' : 'existing',
+    };
+  }
+  const updated = await request(
+    accessToken,
+    `/applications/${PACKAGE_NAME}/subscriptions/${encodeURIComponent(
+      subscription.productId,
+    )}?updateMask=basePlans&regionsVersion.version=${encodeURIComponent(
+      pricing.regionsVersion,
+    )}`,
+    {
+      method: 'PATCH',
+      body: {
+        packageName: PACKAGE_NAME,
+        productId: subscription.productId,
+        basePlans: currentPlans.map((plan) => {
+          const expected = expectedById.get(plan.basePlanId);
+          return expected ? sanitizedBasePlan(plan, expected) : plan;
+        }),
+      },
+    },
+  );
+  return { subscription: updated, state: 'updated' };
+}
+
 async function ensureSubscription(accessToken, definition, pricing) {
   let subscription = await findSubscription(accessToken, definition.productId);
   let state = subscription ? 'existing' : 'missing';
@@ -284,27 +446,48 @@ async function ensureSubscription(accessToken, definition, pricing) {
     if (update.changed) state = 'existing-updated-draft';
   }
 
+  let pricingState = subscription
+    ? mode === 'inspect'
+      ? 'not-changed'
+      : 'pending'
+    : 'missing';
+  if (subscription && mode !== 'inspect') {
+    const priceUpdate = await ensureBasePlanPricing(
+      accessToken,
+      subscription,
+      pricing,
+    );
+    subscription = priceUpdate.subscription;
+    pricingState = priceUpdate.state;
+  }
+
+  let listingState = subscription ? 'pending' : 'missing';
+  if (subscription) {
+    const listing = await ensureSubscriptionListing(
+      accessToken,
+      subscription,
+      definition,
+    );
+    subscription = listing.subscription;
+    listingState = listing.state;
+  }
+
   if (subscription && mode === 'activate') {
     await activateBasePlans(accessToken, subscription);
     subscription = await findSubscription(accessToken, definition.productId);
     state = state === 'created-draft' ? 'created-active' : 'existing-activated';
   }
 
-  const basePlans = new Map(
-    (subscription?.basePlans || []).map((plan) => [plan.basePlanId, plan.state]),
-  );
+  const monthly = basePlanSummary(subscription, 'monthly');
+  const yearly = basePlanSummary(subscription, 'yearly');
   return {
     productId: definition.productId,
     state,
-    basePlans: {
-      monthly: basePlans.get('monthly') || (subscription ? 'missing' : 'pending'),
-      yearly: basePlans.get('yearly') || (subscription ? 'missing' : 'pending'),
-    },
+    listing: listingState,
+    basePlans: { monthly, yearly },
     intendedPricesSar: definition.intendedPricesSar,
-    pricing:
-      mode === 'inspect'
-        ? 'not-changed'
-        : `applied-to-${GULF_REGION_CODES.join('-')}`,
+    intendedPricesQar: definition.intendedPricesQar,
+    pricing: pricingState,
     activation: mode === 'activate' ? 'requested' : 'pending-explicit-activation',
   };
 }
@@ -318,7 +501,7 @@ async function main() {
     basePlansActivated: false,
     targetRegions: GULF_REGION_CODES,
     pricingNote:
-      'Amounts are customer-facing Saudi prices; Apply creates tax-adjusted drafts for the six Gulf markets, and activate also activates both base plans.',
+      'Gulf prices use Google conversion from the Saudi customer price, with explicit Qatar prices aligned to the Apple catalog. Apply updates new-purchase prices; activate also activates both base plans.',
     subscriptions: [],
   };
 
@@ -332,10 +515,12 @@ async function main() {
         const monthly = await convertSarPrice(
           accessToken,
           definition.intendedPricesSar.monthly,
+          definition.intendedPricesQar.monthly,
         );
         const yearly = await convertSarPrice(
           accessToken,
           definition.intendedPricesSar.yearly,
+          definition.intendedPricesQar.yearly,
         );
         if (monthly.version !== yearly.version) {
           throw new Error('Google Play regions version changed during setup');
@@ -351,13 +536,17 @@ async function main() {
         await ensureSubscription(accessToken, definition, pricing),
       );
     }
-    report.pricesApplied = mode !== 'inspect';
+    report.pricesApplied =
+      mode !== 'inspect' &&
+      report.subscriptions.every((subscription) =>
+        ['existing', 'updated'].includes(subscription.pricing),
+      );
     report.basePlansActivated =
       mode === 'activate' &&
       report.subscriptions.every(
         (subscription) =>
-          subscription.basePlans.monthly === 'ACTIVE' &&
-          subscription.basePlans.yearly === 'ACTIVE',
+          subscription.basePlans.monthly.state === 'ACTIVE' &&
+          subscription.basePlans.yearly.state === 'ACTIVE',
       );
     report.success = true;
   } catch (error) {

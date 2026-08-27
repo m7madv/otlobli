@@ -194,7 +194,15 @@ abstract interface class DamanakRepository {
   });
   Future<PurchaseOrder> receivePurchaseOrder(String purchaseOrderId);
 
-  Future<List<Warranty>> loadWarranties(String storeId);
+  Future<List<Warranty>> loadWarranties(
+    String storeId, {
+    int limit = 100,
+    int offset = 0,
+  });
+  Future<List<Warranty>> loadWarrantiesForInvoice(
+    String storeId,
+    String invoiceNumber,
+  );
   Future<Warranty> createWarranty({
     required String storeId,
     required String? productId,
@@ -218,6 +226,7 @@ abstract interface class DamanakRepository {
     required PaymentMethod paymentMethod,
   });
   Future<void> deleteWarranty(String id);
+  Future<Uri?> createWarrantyShareLink(String warrantyId);
 
   Future<List<MaintenanceRequest>> loadRequests(String storeId);
   Future<MaintenanceRequest> createRequest({

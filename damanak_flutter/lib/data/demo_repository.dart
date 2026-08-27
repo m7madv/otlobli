@@ -17,6 +17,11 @@ import '../models/supplier.dart';
 import '../models/warranty.dart';
 import 'damanak_repository.dart';
 
+int _compareWarrantiesNewestFirst(Warranty left, Warranty right) {
+  final dateComparison = right.createdAt.compareTo(left.createdAt);
+  return dateComparison != 0 ? dateComparison : right.id.compareTo(left.id);
+}
+
 class DemoDamanakRepository implements DamanakRepository {
   DemoDamanakRepository() {
     final now = DateTime.now();
@@ -225,7 +230,7 @@ class DemoDamanakRepository implements DamanakRepository {
     monthlyPrice: 99,
     yearlyPrice: 990,
     maxMembers: 5,
-    monthlyWarranties: 250,
+    monthlyWarranties: 600,
   );
 
   final List<Product> _products = [];
@@ -1332,9 +1337,38 @@ class DemoDamanakRepository implements DamanakRepository {
   }
 
   @override
-  Future<List<Warranty>> loadWarranties(String storeId) async => [
-    ..._warranties,
-  ];
+  Future<List<Warranty>> loadWarranties(
+    String storeId, {
+    int limit = 100,
+    int offset = 0,
+  }) async {
+    final safeLimit = limit.clamp(1, 100).toInt();
+    final safeOffset = offset < 0 ? 0 : offset;
+    final sorted = _warranties.where((item) => item.storeId == storeId).toList()
+      ..sort(_compareWarrantiesNewestFirst);
+    if (safeOffset >= sorted.length) return const [];
+    final end = (safeOffset + safeLimit).clamp(0, sorted.length).toInt();
+    return sorted.sublist(safeOffset, end);
+  }
+
+  @override
+  Future<List<Warranty>> loadWarrantiesForInvoice(
+    String storeId,
+    String invoiceNumber,
+  ) async {
+    final normalizedInvoice = invoiceNumber.trim();
+    if (normalizedInvoice.isEmpty) return const [];
+    final matches =
+        _warranties
+            .where(
+              (item) =>
+                  item.storeId == storeId &&
+                  item.invoiceNumber == normalizedInvoice,
+            )
+            .toList()
+          ..sort(_compareWarrantiesNewestFirst);
+    return matches.take(500).toList();
+  }
 
   @override
   Future<Warranty> createWarranty({
@@ -1411,6 +1445,9 @@ class DemoDamanakRepository implements DamanakRepository {
     _warranties.removeWhere((item) => item.id == id);
     _requests.removeWhere((item) => item.warrantyId == id);
   }
+
+  @override
+  Future<Uri?> createWarrantyShareLink(String warrantyId) async => null;
 
   @override
   Future<List<MaintenanceRequest>> loadRequests(String storeId) async => [
@@ -1501,7 +1538,7 @@ class DemoDamanakRepository implements DamanakRepository {
       monthlyPrice: 39,
       yearlyPrice: 390,
       maxMembers: 2,
-      monthlyWarranties: 60,
+      monthlyWarranties: 100,
     ),
     _plan,
     PlanInfo(
@@ -1510,7 +1547,7 @@ class DemoDamanakRepository implements DamanakRepository {
       monthlyPrice: 199,
       yearlyPrice: 1990,
       maxMembers: 15,
-      monthlyWarranties: 1200,
+      monthlyWarranties: 3000,
     ),
   ];
 
