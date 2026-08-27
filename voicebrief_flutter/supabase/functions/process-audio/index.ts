@@ -443,8 +443,8 @@ Deno.serve(async (request) => {
     summaryMs = performance.now() - summaryStartedAt;
     const generated = normalizeSpokenDates(
       JSON.parse(outputText(structured)) as Record<
-      string,
-      unknown
+        string,
+        unknown
       >,
       referenceInstant,
       timeZoneOffsetMinutes,
