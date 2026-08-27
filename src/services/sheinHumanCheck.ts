@@ -8,11 +8,47 @@ export const OTLOBLI_SHEIN_HUMAN_CHECK_JS = `
   var __otlobliChallengeScanResult = false;
   var __otlobliChallengeMissingSince = 0;
   var __otlobliChallengeResolvedAt = 0;
+  var __otlobliSheinChallengeCommitCookieBefore = null;
+  var __otlobliSheinChallengeCommitProof = false;
+  var __otlobliSheinFullPageChallenge = false;
+
+  function otlobliIsSheinFullPageChallenge(href) {
+    var route = String(href || '');
+    return /\\/risk\\/challenge(?:[/?#]|$)/i.test(route);
+  }
+
+  function otlobliReadSheinChallengeCommitCookie() {
+    try {
+      var entries = String(document.cookie || '').split(';');
+      for (var ci = 0; ci < entries.length; ci++) {
+        var entry = entries[ci].trim();
+        var separator = entry.indexOf('=');
+        var name = separator < 0 ? entry : entry.slice(0, separator);
+        if (name === '_f_c_llbs_') return separator < 0 ? '' : entry.slice(separator + 1);
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  function otlobliSheinChallengeCommitIsConfirmed() {
+    if (typeof IS_SHEIN === 'undefined' || !IS_SHEIN) return false;
+    if (__otlobliSheinChallengeCommitProof) return true;
+    var current = otlobliReadSheinChallengeCommitCookie();
+    if (current === null || current === __otlobliSheinChallengeCommitCookieBefore) return false;
+    __otlobliSheinChallengeCommitProof = true;
+    return true;
+  }
 
   function otlobliMatchesHumanChallengeText(value) {
-    var text = String(value || '').replace(/\s+/g, ' ').trim().slice(0, 1600);
+    var text = String(value || '').replace(/\\s+/g, ' ').trim().slice(0, 1600);
     if (!text) return false;
     return /verify (?:that )?you are (?:a )?human|human verification|security verification|checking your browser|confirm (?:that )?you are (?:a )?human|i(?:'|’)m (?:not a robot|human)|cloudflare|turnstile|التحقق من أنك إنسان|تحقق أنك إنسان|أنا إنسان|لست (?:إنساناً آلياً|روبوت(?:اً)?)|التحقق الأمني|التحقق من الأمان/i.test(text);
+  }
+
+  function otlobliMatchesHumanChallengeTimeoutText(value) {
+    var text = String(value || '').replace(/\\s+/g, ' ').trim().slice(0, 1600);
+    if (!text) return false;
+    return /access timed out|access timeout|request timed out|please refresh (?:the )?page and try again|انتهت مهلة الوصول|انتهت مهلة (?:الطلب|الاتصال)|يرجى تحديث الصفحة والمحاولة مرة أخرى/i.test(text);
   }
 
   function otlobliIsHumanChallenge() {
@@ -56,6 +92,7 @@ export const OTLOBLI_SHEIN_HUMAN_CHECK_JS = `
         if (!sheinElementIsPainted(surface)) continue;
         var surfaceIdentity = String((surface.id || '') + ' ' + (surface.className || '') + ' ' + (surface.getAttribute && (surface.getAttribute('data-testid') || surface.getAttribute('aria-label')) || '')).slice(0, 600);
         if (/risk-one-pass|captcha|challenge|cf-turnstile|si-verify-block-request/i.test(surfaceIdentity)) return (__otlobliChallengeScanResult = true);
+        if (otlobliMatchesHumanChallengeTimeoutText(surface.textContent || '')) return (__otlobliChallengeScanResult = true);
         if (otlobliMatchesHumanChallengeText(surface.textContent || '')) return (__otlobliChallengeScanResult = true);
       }
     } catch (e) {}
@@ -68,7 +105,20 @@ export const OTLOBLI_SHEIN_HUMAN_CHECK_JS = `
       __otlobliChallengeMissingSince = now;
       return false;
     }
-    return document.readyState !== 'loading' && now - __otlobliChallengeMissingSince >= 1200;
+    if (document.readyState === 'loading' || now - __otlobliChallengeMissingSince < 1200) return false;
+    // A full-page SHEIN risk challenge removes one-pass before flow_check commits and then
+    // replaces the document. Never release the old document by elapsed time;
+    // the host already accepts the fresh non-challenge document hand-off.
+    if (typeof IS_SHEIN !== 'undefined' && IS_SHEIN) {
+      if (__otlobliSheinFullPageChallenge) return false;
+      // Same-document checks can safely finish as soon as the exact provider
+      // cookie appears/changes. A longer bounded fallback covers a same-value
+      // cookie rewrite that document.cookie cannot distinguish.
+      if (otlobliSheinChallengeCommitIsConfirmed()) return true;
+      return now - __otlobliChallengeMissingSince >= 5000;
+    }
+    // Other stores retain the conservative, bounded absence fallback.
+    return true;
   }
 
   function otlobliChallengeSettlementIsStable(now) {
@@ -100,6 +150,13 @@ export const OTLOBLI_SHEIN_HUMAN_CHECK_JS = `
     __otlobliChallengeMissingSince = 0;
     __otlobliChallengeResolvedAt = Date.now();
     __otlobliChallengeNotified = false;
+    if (typeof IS_SHEIN !== 'undefined' && IS_SHEIN && !__otlobliSheinFullPageChallenge) {
+      try {
+        if (typeof otlobliResetSheinReadinessAfterChallengeCommit === 'function') {
+          otlobliResetSheinReadinessAfterChallengeCommit();
+        }
+      } catch (e) {}
+    }
     if (!__otlobliChallengeResolvedNotified) {
       __otlobliChallengeResolvedNotified = true;
       try {
@@ -139,6 +196,12 @@ export const OTLOBLI_SHEIN_HUMAN_CHECK_JS = `
     // absence window and must not re-disconnect policy observers or re-post.
     if (wasActive) return;
     __otlobliChallengeResolvedNotified = false;
+    __otlobliSheinChallengeCommitCookieBefore = typeof IS_SHEIN !== 'undefined' && IS_SHEIN
+      ? otlobliReadSheinChallengeCommitCookie()
+      : null;
+    __otlobliSheinChallengeCommitProof = false;
+    __otlobliSheinFullPageChallenge = typeof IS_SHEIN !== 'undefined' && IS_SHEIN &&
+      otlobliIsSheinFullPageChallenge(location.href);
     try {
       if (window.__otlobliSheinPolicyEngine && window.__otlobliSheinPolicyEngine.pause) {
         window.__otlobliSheinPolicyEngine.pause();

@@ -713,6 +713,13 @@ const checks = [
     file: 'src/services/sheinHumanCheck.ts',
     markers: [
       'function otlobliMatchesHumanChallengeText(value)',
+      'function otlobliMatchesHumanChallengeTimeoutText(value)',
+      'function otlobliReadSheinChallengeCommitCookie()',
+      "if (name === '_f_c_llbs_')",
+      'function otlobliIsSheinFullPageChallenge(href)',
+      'if (__otlobliSheinFullPageChallenge) return false;',
+      'if (otlobliSheinChallengeCommitIsConfirmed()) return true;',
+      'return now - __otlobliChallengeMissingSince >= 5000;',
       '[class*="risk-one-pass" i]',
       '.sui-dialog__wrapper',
       'var semanticStart = Math.max(0, semanticChecks.length - 12);',
@@ -939,6 +946,8 @@ const checks = [
       'storeReachableRef.current = true',
       "storeOpenFailureReason === 'network' ? <button",
       'if (!recoverSheinChunkLoad(failingUrl)) showStoreOpenFailure()',
+      "sheinCoordinatorRef.current.humanVerificationState === 'required'",
+      'if (humanVerificationOwnsWebview && [-1001, -1004, -1005, -1009].includes(code)) return false',
     ],
   },
   {
@@ -1586,6 +1595,18 @@ try {
       text: 'Please confirm that you are a human to continue',
     })],
   })) failures.push('SHEIN human check: renamed semantic verification dialog is no longer detected')
+  if (!runHumanCheck({
+    semantic: [humanSurface({
+      className: 'sui-dialog__wrapper',
+      text: 'Access timed out, please refresh the page and try again',
+    })],
+  })) failures.push('SHEIN human check: English access-timeout dialog is no longer held as verification')
+  if (!runHumanCheck({
+    semantic: [humanSurface({
+      className: 'sui-dialog__wrapper',
+      text: 'انتهت مهلة الوصول، يرجى تحديث الصفحة والمحاولة مرة أخرى',
+    })],
+  })) failures.push('SHEIN human check: Arabic access-timeout dialog is no longer held as verification')
   if (runHumanCheck({
     semantic: [humanSurface({
       className: 'sui-dialog__wrapper',
@@ -1654,14 +1675,103 @@ try {
     "document.addEventListener('visibilitychange'",
     'SHEIN challenge-exclusive coordinator fixture',
   )
-  if (challengeGuardSource && coordinatorWakeSource) {
+  const readinessResetSource = sourceBetween(
+    captureScript,
+    'function otlobliResetSheinReadinessAfterChallengeCommit()',
+    'function sheinRetryableFeedErrorButton()',
+    'SHEIN post-challenge readiness reset fixture',
+  )
+  const nonSheinAbsenceFallback = runInNewContext(
+    `${humanCheckScript}
+     var IS_SHEIN=false;
+     __otlobliChallengeMissingSince=100;
+     otlobliChallengeAbsenceIsStable(1300);`,
+    {
+      document: { readyState: 'complete', cookie: '' },
+      Math, String,
+    },
+  )
+  if (nonSheinAbsenceFallback !== true) {
+    failures.push('Human check: non-SHEIN challenges lost the conservative 1200ms absence fallback')
+  }
+  const sameDocumentFallbackFixture = { cookie: 'session=1; _f_c_llbs_=same-value' }
+  const sameDocumentFallback = runInNewContext(
+    `${humanCheckScript}
+     var IS_SHEIN=true;
+     var sheinNativeCoverVisualReadyPath='/ar/product-p-520531743.html';
+     var sheinNativeCoverSignedReadyPath='/ar/product-p-520531743.html';
+     var sheinNativeCoverLastKey='sheinSaudiReady|/ar/product-p-520531743.html';
+     ${readinessResetSource}
+     otlobliEnterChallengeMode();
+     __otlobliChallengeMissingSince=100;
+     var beforeFallback=otlobliChallengeAbsenceIsStable(2600);
+     var atFallback=otlobliChallengeAbsenceIsStable(5100);
+     if(atFallback)otlobliResolveHumanChallenge();
+     ({beforeFallback:beforeFallback,atFallback:atFallback,
+       fullPage:__otlobliSheinFullPageChallenge,proof:__otlobliSheinChallengeCommitProof,
+       resolvedAt:__otlobliChallengeResolvedAt,visual:sheinNativeCoverVisualReadyPath,
+       signed:sheinNativeCoverSignedReadyPath,lastKey:sheinNativeCoverLastKey});`,
+    {
+      location: { href: 'https://m.shein.com/ar/product-p-520531743.html' },
+      window: {},
+      document: {
+        readyState: 'complete',
+        get cookie() { return sameDocumentFallbackFixture.cookie },
+        getElementById: () => null,
+      },
+      Date: { now: () => 5100 },
+      otlobliScheduleChallengeNav: () => undefined,
+      Math, String,
+    },
+  )
+  if (sameDocumentFallback.beforeFallback !== false || sameDocumentFallback.atFallback !== true ||
+      sameDocumentFallback.fullPage !== false || sameDocumentFallback.proof !== false ||
+      sameDocumentFallback.resolvedAt !== 5100 || sameDocumentFallback.visual !== '' ||
+      sameDocumentFallback.signed !== '' || sameDocumentFallback.lastKey !== '') {
+    failures.push(`SHEIN human check: same-document same-value cookie fallback/readiness reset regressed (${JSON.stringify(sameDocumentFallback)})`)
+  }
+
+  const fullPage909Fixture = { cookie: 'session=1; _f_c_llbs_=proof-a' }
+  const fullPage909 = runInNewContext(
+    `${humanCheckScript}
+     var IS_SHEIN=true;
+     otlobliEnterChallengeMode();
+     __otlobliChallengeMissingSince=100;
+     var after2500=otlobliChallengeAbsenceIsStable(2600);
+     __fixture.cookie='session=1; _f_c_llbs_=proof-b';
+     var after5000WithDelta=otlobliChallengeAbsenceIsStable(5100);
+     ({after2500:after2500,after5000WithDelta:after5000WithDelta,
+       fullPage:__otlobliSheinFullPageChallenge,active:otlobliChallengeActive,
+       resolvedAt:__otlobliChallengeResolvedAt});`,
+    {
+      __fixture: fullPage909Fixture,
+      location: { href: 'https://m.shein.com/ar/risk/challenge?captcha_type=909&redirection=%2Far%2Fproduct-p-520531743.html' },
+      window: {},
+      document: {
+        readyState: 'complete',
+        get cookie() { return fullPage909Fixture.cookie },
+        getElementById: () => null,
+      },
+      otlobliScheduleChallengeNav: () => undefined,
+      Math, String,
+    },
+  )
+  if (fullPage909.after2500 !== false || fullPage909.after5000WithDelta !== false ||
+      fullPage909.fullPage !== true || fullPage909.active !== true || fullPage909.resolvedAt !== 0) {
+    failures.push(`SHEIN human check: full-page 909 old document can resolve before fresh-document hand-off (${JSON.stringify(fullPage909)})`)
+  }
+
+  if (challengeGuardSource && coordinatorWakeSource && readinessResetSource) {
     const challengeLifecycleFixture = {
       now: 100,
       visible: true,
+      timeoutText: '',
+      cookie: 'session=1; _f_c_llbs_=proof-a; tail=1',
       readyState: 'complete',
       pauses: 0,
       resumes: 0,
       privacyResumes: 0,
+      readinessResets: 0,
       resumeOrder: [],
       schedules: 0,
       coordinatorSchedules: 0,
@@ -1676,9 +1786,20 @@ try {
       `${humanCheckScript}
        ${challengeGuardSource}
        var IS_SHEIN=true,IS_TEMU=false,OTLOBLI_NATIVE_NAV=true;
+       var sheinNativeCoverVisualReadyPath='/ar/product-p-520531743.html';
+       var sheinNativeCoverSignedReadyPath='/ar/product-p-520531743.html';
+       var sheinNativeCoverLastKey='sheinSaudiReady|/ar/product-p-520531743.html';
+       ${readinessResetSource}
+       var __otlobliActualReadinessReset=otlobliResetSheinReadinessAfterChallengeCommit;
+       otlobliResetSheinReadinessAfterChallengeCommit=function(){
+         __fixture.readinessResets++;
+         return __otlobliActualReadinessReset();
+       };
        var OTLOBLI_MAIN_INTERVAL=300,OTLOBLI_BLOCK_INTERVAL=120,OTLOBLI_NAV_INTERVAL=1200,OTLOBLI_SECURITY_INTERVAL=1000;
        var otlobliMainDue=0,otlobliBlockDue=0,otlobliNavDue=Infinity,otlobliSecurityDue=0;
-       otlobliIsHumanChallenge=function(){return __fixture.visible;};
+       otlobliIsHumanChallenge=function(){
+         return __fixture.visible || otlobliMatchesHumanChallengeTimeoutText(__fixture.timeoutText);
+       };
        function tick(challengeAlreadyGuarded){__fixture.normalTicks++;__fixture.tickArguments.push(challengeAlreadyGuarded);}
        function runOtlobliBlockers(){__fixture.blockers++;}
        function runOtlobliNavigationMaintenance(){__fixture.navigation++;}
@@ -1695,25 +1816,38 @@ try {
        wake(700,false,'complete');
        wake(1500,true,'complete');
        wake(1600,false,'complete');
-       wake(2799,false,'complete');
-       var beforeBoundary={blockers:__fixture.blockers,security:__fixture.security,navigation:__fixture.navigation};
-       wake(2800,false,'loading');
-       var whileLoading={active:otlobliChallengeActive,resolvedAt:__otlobliChallengeResolvedAt};
-       wake(2800,false,'complete');
-       var atResolve={active:otlobliChallengeActive,resolvedAt:__otlobliChallengeResolvedAt,blockers:__fixture.blockers,security:__fixture.security};
-       wake(3399,false,'complete');
+       wake(4100,false,'complete');
+       var afterUnprovenAbsence={active:otlobliChallengeActive,resolvedAt:__otlobliChallengeResolvedAt,
+         resumes:__fixture.resumes,blockers:__fixture.blockers,security:__fixture.security,navigation:__fixture.navigation};
+       __fixture.timeoutText='انتهت مهلة الوصول، يرجى تحديث الصفحة والمحاولة مرة أخرى';
+       wake(4400,false,'complete');
+       wake(5000,false,'complete');
+       var duringTimeout={active:otlobliChallengeActive,resolvedAt:__otlobliChallengeResolvedAt,
+         resumes:__fixture.resumes,blockers:__fixture.blockers,security:__fixture.security,navigation:__fixture.navigation};
+       __fixture.timeoutText='';
+       __fixture.cookie='session=1; _f_c_llbs_=proof-b; tail=1';
+       wake(5100,false,'complete');
+       wake(6299,false,'complete');
+       wake(6300,false,'complete');
+       var atResolve={active:otlobliChallengeActive,resolvedAt:__otlobliChallengeResolvedAt,
+         blockers:__fixture.blockers,security:__fixture.security,proof:__otlobliSheinChallengeCommitProof,
+         visual:sheinNativeCoverVisualReadyPath,signed:sheinNativeCoverSignedReadyPath,lastKey:sheinNativeCoverLastKey};
+       wake(6899,false,'complete');
        var beforeSettlement={resumes:__fixture.resumes,privacyResumes:__fixture.privacyResumes,blockers:__fixture.blockers,security:__fixture.security};
-       wake(3400,false,'complete');
+       wake(6900,false,'complete');
        var atSettlement={resumes:__fixture.resumes,privacyResumes:__fixture.privacyResumes,blockers:__fixture.blockers,security:__fixture.security,mainDue:otlobliMainDue};
-       wake(3440,false,'complete');
+       wake(6940,false,'complete');
        var afterReassessment={ticks:__fixture.normalTicks,args:__fixture.tickArguments.slice(),blockers:__fixture.blockers,security:__fixture.security};
-       wake(3700,false,'complete');
-       ({beforeBoundary:beforeBoundary,whileLoading:whileLoading,atResolve:atResolve,
+       wake(7200,false,'complete');
+       var afterRelease={blockers:__fixture.blockers,security:__fixture.security,navigation:__fixture.navigation};
+       wake(7500,false,'complete');
+       ({afterUnprovenAbsence:afterUnprovenAbsence,duringTimeout:duringTimeout,atResolve:atResolve,
          beforeSettlement:beforeSettlement,atSettlement:atSettlement,
-         afterReassessment:afterReassessment,afterRelease:{blockers:__fixture.blockers,security:__fixture.security,navigation:__fixture.navigation},
+         afterReassessment:afterReassessment,afterRelease:afterRelease,
          active:otlobliChallengeActive,resolvedAt:__otlobliChallengeResolvedAt});`,
       {
         __fixture: challengeLifecycleFixture,
+        location: { href: 'https://m.shein.com/ar/product-p-520531743.html' },
         window: {
           __otlobliDocumentGeneration: 'doc-1',
           __otlobliSheinPolicyEngine: {
@@ -1738,6 +1872,7 @@ try {
         document: {
           hidden: false,
           body: {},
+          get cookie() { return challengeLifecycleFixture.cookie },
           get readyState() { return challengeLifecycleFixture.readyState },
         },
         Date: { now: () => challengeLifecycleFixture.now },
@@ -1747,14 +1882,20 @@ try {
       },
     )
     const protectedPassesStayedZero = [
-      challengeLifecycle.beforeBoundary,
+      challengeLifecycle.afterUnprovenAbsence,
+      challengeLifecycle.duringTimeout,
       challengeLifecycle.atResolve,
       challengeLifecycle.beforeSettlement,
       challengeLifecycle.atSettlement,
     ].every((sample) => sample.blockers === 0 && sample.security === 0 && (sample.navigation ?? 0) === 0)
     if (!protectedPassesStayedZero ||
-        challengeLifecycle.whileLoading.active !== true || challengeLifecycle.whileLoading.resolvedAt !== 0 ||
-        challengeLifecycle.atResolve.active !== false || challengeLifecycle.atResolve.resolvedAt !== 2800 ||
+        challengeLifecycle.afterUnprovenAbsence.active !== true || challengeLifecycle.afterUnprovenAbsence.resolvedAt !== 0 ||
+        challengeLifecycle.afterUnprovenAbsence.resumes !== 0 ||
+        challengeLifecycle.duringTimeout.active !== true || challengeLifecycle.duringTimeout.resolvedAt !== 0 ||
+        challengeLifecycle.duringTimeout.resumes !== 0 ||
+        challengeLifecycle.atResolve.active !== false || challengeLifecycle.atResolve.resolvedAt !== 6300 ||
+        challengeLifecycle.atResolve.proof !== true || challengeLifecycle.atResolve.visual !== '' ||
+        challengeLifecycle.atResolve.signed !== '' || challengeLifecycle.atResolve.lastKey !== '' ||
         challengeLifecycle.beforeSettlement.resumes !== 0 || challengeLifecycle.beforeSettlement.privacyResumes !== 0 ||
         challengeLifecycle.atSettlement.resumes !== 1 || challengeLifecycle.atSettlement.privacyResumes !== 1 ||
         challengeLifecycle.atSettlement.mainDue !== 0 ||
@@ -1765,10 +1906,11 @@ try {
         challengeLifecycle.afterRelease.navigation !== 0 ||
         challengeLifecycle.active !== false || challengeLifecycle.resolvedAt !== 0 ||
         challengeLifecycleFixture.pauses !== 1 || challengeLifecycleFixture.resumes !== 1 ||
+        challengeLifecycleFixture.readinessResets !== 1 ||
         challengeLifecycleFixture.privacyResumes !== 1 || challengeLifecycleFixture.resumeOrder.join(',') !== 'policy,privacy' ||
         challengeLifecycleFixture.schedules !== 1 ||
         challengeLifecycleFixture.messages.join(',') !== 'otlobliBackButtonState:,humanCheck:doc-1,humanCheckResolved:doc-1') {
-      failures.push(`SHEIN human check: 1200ms absence/600ms settlement is not coordinator-exclusive (${JSON.stringify({
+      failures.push(`SHEIN human check: commit-proof/timeout/settlement lifecycle is not coordinator-exclusive (${JSON.stringify({
         lifecycle: challengeLifecycle,
         fixture: challengeLifecycleFixture,
       })})`)
@@ -2132,6 +2274,9 @@ try {
     "snapshot.humanVerificationState !== 'resolved'",
     'sheinChallengeDocumentGenerationRef.current',
     'sheinChallengeResolutionReportedRef.current',
+    'const freshSnapshotDocument = isNewerStoreDocumentGeneration(',
+    '!sameResolvedDocument && !freshSnapshotDocument',
+    'sheinChallengeActiveRef.current = false',
   ]) {
     if (snapshotBranchStart < 0 || snapshotBranchEnd < 0 || !snapshotBranch.includes(marker)) {
       failures.push(`SHEIN host challenge: coordinator hand-off is missing document-scoped gate ${marker}`)
@@ -2381,6 +2526,28 @@ try {
       (nativeBrowserSource.match(/isOutboundFromBlockedSheinRoute\(url, in: webView\)/g)?.length ?? 0) !== 2) {
     failures.push('SHEIN iOS SPA auth route: Google/Facebook outbound navigation is not fail-closed while the blocked page is being left')
   }
+
+  const challengeLockStart = nativeBrowserSource.indexOf('private func setHumanChallengeNavigationLocked(_ locked: Bool)')
+  const challengeLockEnd = nativeBrowserSource.indexOf('private func shouldReleaseHumanChallengeNavigation(', challengeLockStart)
+  const challengeLockSource = nativeBrowserSource.slice(challengeLockStart, challengeLockEnd)
+  const navigationPolicySignature = nativeBrowserSource.indexOf('decidePolicyFor navigationAction:')
+  const navigationPolicyStart = nativeBrowserSource.lastIndexOf('public func webView(', navigationPolicySignature)
+  const navigationPolicyEnd = nativeBrowserSource.indexOf('@objc private func applicationDidReceiveMemoryWarning()', navigationPolicySignature)
+  const navigationPolicySource = nativeBrowserSource.slice(navigationPolicyStart, navigationPolicyEnd)
+  if (!observedRouteSource.includes('if self.humanChallengeNavigationLocked { return }') ||
+      !recoverySource.includes('guard !humanChallengeNavigationLocked else { return }') ||
+      !recoverySource.includes('!self.humanChallengeNavigationLocked,') ||
+      challengeLockStart < 0 || challengeLockEnd < 0 ||
+      !challengeLockSource.includes('recoveringBlockedRouteURL = nil') ||
+      !challengeLockSource.includes('recoverFromBlockedSheinRoute(route, url: currentURL, in: webView)') ||
+      popupStart < 0 || popupEnd < 0 ||
+      !popupSource.includes('humanChallengeNavigationLocked {') ||
+      popupSource.indexOf('humanChallengeNavigationLocked {') > popupBlockedGuard ||
+      navigationPolicyStart < 0 || navigationPolicyEnd < 0 ||
+      !navigationPolicySource.includes('if isTopLevel && humanChallengeNavigationLocked') ||
+      !navigationPolicySource.includes('decisionHandler(isAllowedStoreURL(url) ? .allow : .cancel)')) {
+    failures.push('SHEIN iOS human verification: internal top-level navigation must remain allowed while every blocked-route recovery waits for trusted unlock')
+  }
 } catch (error) {
   failures.push(`dedicated iOS SHEIN browser structure: ${error instanceof Error ? error.message : String(error)}`)
 }
@@ -2397,6 +2564,8 @@ try {
     const recoverySource = source.slice(recoveryStart, recoveryEnd)
     if (recoveryStart < 0 || recoveryEnd < 0 ||
         !recoverySource.includes('otlobliIsBlockedSheinRoute(routeClass)') ||
+        !recoverySource.includes('view == null || otlobliHumanChallengeNavigationLocked || !otlobliIsSheinSession()') ||
+        !recoverySource.includes('_webView != view || otlobliHumanChallengeNavigationLocked') ||
         !recoverySource.includes('if (view.canGoBack())') ||
         !recoverySource.includes('view.goBack();') ||
         !recoverySource.includes('view.postDelayed(() ->') ||
@@ -2406,7 +2575,10 @@ try {
         !recoverySource.includes('view.loadUrl("https://m.shein.com/ar/");') ||
         ['MutationObserver', 'setInterval(', 'reload('].some((marker) => recoverySource.includes(marker)) ||
         !source.includes('if (otlobliRecoverBlockedSheinHistoryRoute(view, url))') ||
-        !source.includes('if (otlobliIsOutboundFromBlockedSheinRoute(url))')) {
+        !source.includes('if (otlobliIsOutboundFromBlockedSheinRoute(url))') ||
+        !source.includes('private void otlobliRecoverBlockedSheinRouteAfterChallenge()') ||
+        !source.includes('otlobliRecoverBlockedSheinRouteAfterChallenge();') ||
+        !source.includes('if (otlobliHumanChallengeNavigationLocked) {\n                            return "external".equals(routeClass) || "unknown".equals(routeClass);')) {
       failures.push(`SHEIN Android SPA auth route (${label}): visited-history recovery or outbound fail-closed guard is missing`)
     }
 
@@ -2419,7 +2591,8 @@ try {
       ? popupVerificationSource.indexOf('public void onCloseWindow(', popupStart)
       : popupAnchor + 'WebView.HitTestResult result = view.getHitTestResult();'.length)
     const popupRecovery = popupSource.indexOf('otlobliRecoverBlockedSheinHistoryRoute(view, sourceUrl)')
-    if (popupStart < 0 || popupAnchor < 0 || popupRecovery < 0 || popupRecovery > popupSource.indexOf('WebView.HitTestResult result')) {
+    if (popupStart < 0 || popupAnchor < 0 || popupRecovery < 0 || popupRecovery > popupSource.indexOf('WebView.HitTestResult result') ||
+        !popupSource.includes('!otlobliHumanChallengeNavigationLocked &&')) {
       failures.push(`SHEIN Android SPA auth route (${label}): blocked login popups are not cancelled before target=_blank handling`)
     } else if (index === 0) {
       for (const outboundMarker of [
@@ -2436,6 +2609,25 @@ try {
   }
 } catch (error) {
   failures.push(`SHEIN Android SPA auth route guard: ${error instanceof Error ? error.message : String(error)}`)
+}
+
+try {
+  const capgoIosSources = [
+    readFileSync(resolve(projectRoot, 'node_modules/@capgo/capacitor-inappbrowser/ios/Sources/InAppBrowserPlugin/WKWebViewController.swift'), 'utf8'),
+    capgoPatchAdded,
+  ]
+  for (const [index, source] of capgoIosSources.entries()) {
+    const label = index === 0 ? 'applied source' : 'persistent patch'
+    if (!source.includes('private func otlobliIsSheinHost(_ host: String?)') ||
+        !source.includes('if otlobliHumanChallengeActive && otlobliIsSheinSession()') ||
+        !source.includes('webView.load(navigationAction.request)') ||
+        !source.includes('if isTopLevel && otlobliHumanChallengeActive && otlobliIsSheinSession()') ||
+        !source.includes('decisionHandler(otlobliIsSheinHost(url.host) ? .allow : .cancel)')) {
+      failures.push(`SHEIN patched iOS human verification (${label}): internal top-level and popup navigation are not protected from external interception`)
+    }
+  }
+} catch (error) {
+  failures.push(`SHEIN patched iOS human-verification navigation guard: ${error instanceof Error ? error.message : String(error)}`)
 }
 
 try {

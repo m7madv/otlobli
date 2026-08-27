@@ -3,8 +3,8 @@
 ## Contract
 
 `src/services/sheinPolicyEngine.ts` defines the bounded DOM policy version
-`2026.08.26-v86.241-login-later-v3`. Native route enforcement is versioned
-`2026.08.26-v86.244-auth-route-v1` in both iOS and Android. Main-frame network
+`2026.08.27-v86.244-login-later-v4`. Native route enforcement is versioned
+`2026.08.27-v86.244-challenge-commit-v1` in both iOS and Android. Main-frame network
 navigations are enforced by iOS `WKNavigationDelegate` and Android
 `WebViewClient`; same-document History API changes are enforced by the existing
 iOS URL observation and Android `doUpdateVisitedHistory` callback.
@@ -26,6 +26,15 @@ not leave the blocked route; missing Back history uses Home immediately.
 iOS/Android also reject every popup from that blocked page before internal or
 external popup handling, preventing OAuth from escaping to Safari or another
 app. Public-page external-link behavior is unchanged.
+
+Human verification temporarily owns navigation. While its trusted lock is
+active, internal SHEIN top-level/popup navigation is allowed in the same
+WebView, and every blocked-route recovery/Back/Home action waits. A complete
+coordinator snapshot unlocks navigation; only then is the existing recovery
+run once if the resulting route remains blocked. Full-page `/risk/challenge`
+success is the fresh redirected document, while same-document success is
+settled only after the exact clearance proof or its bounded conservative
+fallback. Verification is never clicked, solved, reloaded, or cleared.
 
 The last confirmed safe public URL remains retained by both native
 implementations, while a blocked route is never persisted as iOS `savedURL`.

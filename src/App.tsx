@@ -4035,6 +4035,13 @@ function App() {
     const code = webviewErrorCode(event)
     if (code === undefined) return false
 
+    // A verification navigation can briefly report a main-frame timeout or
+    // connection loss while SHEIN commits its clearance. Preserve the same
+    // WebView/cookie jar; a real WebContent process termination remains fatal.
+    const humanVerificationOwnsWebview = sheinChallengeActiveRef.current ||
+      sheinCoordinatorRef.current.humanVerificationState === 'required'
+    if (humanVerificationOwnsWebview && [-1001, -1004, -1005, -1009].includes(code)) return false
+
     // A normal offline transition is recoverable inside the same native
     // WebView. Its lightweight Otlobli cover keeps the failing product URL and
     // retries when connectivity returns, so tearing the WebView down here would

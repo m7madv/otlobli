@@ -29,7 +29,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         case external, unknown
     }
 
-    private static let sheinPolicyVersion = "2026.08.26-v86.244-auth-route-v1"
+    private static let sheinPolicyVersion = "2026.08.27-v86.244-challenge-commit-v1"
 
     public let identifier = "OtlobliSheinBrowserPlugin"
     public let jsName = "OtlobliSheinBrowser"
@@ -445,6 +445,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
                   self.isAllowedStoreURL(changedURL) else { return }
             let route = self.classifySheinRoute(changedURL)
             if self.isBlockedRoute(route) {
+                if self.humanChallengeNavigationLocked { return }
                 self.recoverFromBlockedSheinRoute(route, url: changedURL, in: webView)
                 return
             }
@@ -560,6 +561,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         url blockedURL: URL,
         in webView: WKWebView
     ) {
+        guard !humanChallengeNavigationLocked else { return }
         emitPolicyBlocked(route)
         if recoveringBlockedRouteURL == blockedURL { return }
 
@@ -569,6 +571,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
             guard let self,
                   let webView,
                   self.storeWebView === webView,
+                  !self.humanChallengeNavigationLocked,
                   self.recoveringBlockedRouteURL == blockedURL else { return }
             if webView.canGoBack {
                 webView.goBack()
@@ -576,6 +579,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
                     guard let self,
                           let webView,
                           self.storeWebView === webView,
+                          !self.humanChallengeNavigationLocked,
                           self.recoveringBlockedRouteURL == blockedURL,
                           let currentURL = webView.url,
                           self.isBlockedRoute(self.classifySheinRoute(currentURL)),
@@ -599,7 +603,8 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
     }
 
     private func isOutboundFromBlockedSheinRoute(_ destination: URL, in webView: WKWebView) -> Bool {
-        guard let source = webView.url,
+        guard !humanChallengeNavigationLocked,
+              let source = webView.url,
               isBlockedRoute(classifySheinRoute(source)) else { return false }
         let destinationRoute = classifySheinRoute(destination)
         return destinationRoute == .external || destinationRoute == .unknown
@@ -1091,6 +1096,7 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         humanChallengeNavigationLocked = locked
         storeWebView?.allowsBackForwardNavigationGestures = !locked
         if locked {
+            recoveringBlockedRouteURL = nil
             dismissNativeStoreSwitchHint()
             nativeBackButton?.isHidden = true
             nativeBackButton?.isUserInteractionEnabled = false
@@ -1099,6 +1105,12 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         nativeBackButton?.isUserInteractionEnabled = true
         scheduleNativeStoreSwitchDiscoveryHint()
         guard let webView = storeWebView else { return }
+        if let currentURL = webView.url {
+            let route = classifySheinRoute(currentURL)
+            if isBlockedRoute(route) {
+                recoverFromBlockedSheinRoute(route, url: currentURL, in: webView)
+            }
+        }
         webView.evaluateJavaScript(
             "window.__otlobliNativeBackState='';if(typeof ensureBackButton==='function')ensureBackButton();"
         )
@@ -1410,6 +1422,14 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
         windowFeatures: WKWindowFeatures
     ) -> WKWebView? {
         if navigationAction.targetFrame == nil,
+           humanChallengeNavigationLocked {
+            if let url = navigationAction.request.url,
+               isAllowedStoreURL(url) {
+                webView.load(navigationAction.request)
+            }
+            return nil
+        }
+        if navigationAction.targetFrame == nil,
            let source = webView.url,
            isBlockedRoute(classifySheinRoute(source)) {
             recoverFromBlockedSheinRoute(classifySheinRoute(source), url: source, in: webView)
@@ -1454,6 +1474,10 @@ public final class OtlobliSheinBrowserPlugin: CAPPlugin, CAPBridgedPlugin,
                 navigationType: nativeNavigationTypeName(navigationAction.navigationType)
             )
             pendingNativeBackTraceAction = nil
+        }
+        if isTopLevel && humanChallengeNavigationLocked {
+            decisionHandler(isAllowedStoreURL(url) ? .allow : .cancel)
+            return
         }
         if isTopLevel,
            isOutboundFromBlockedSheinRoute(url, in: webView),

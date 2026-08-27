@@ -1,5 +1,21 @@
 # Otlobli — سجل المشاكل والقرارات الدائم
 
+## v86.244/1111 — اختفاء واجهة التحقق يسبق التزام الجلسة (2026-08-27)
+
+- **الدليل الحي:** `one_pass` يستدعي validation check ثم يزيل واجهته بعد
+  `1000ms`، لكن SHEIN ينتظر بعد ذلك `/api/risk/flow_check` ويكتب
+  `_f_c_llbs_` ثم يحول `/risk/challenge` إلى `redirection`.
+- **السبب:** غياب same-document مدة `1200ms` مع تسوية `600ms` لم يكن إثبات
+  التزام، وكان يستطيع إعادة المنطقة والسياسة أثناء الطلب الأخير.
+- **القرار:** full-page يسلم عبر المستند الجديد فقط. same-document يستخدم
+  proof cookie دقيقة، مع fallback `5000ms` للقيمة المعادة نفسها. timeout يبقى
+  challenge، وreadiness يعاد لنفس المنتج.
+- **الحماية الأصلية:** blocked-route recovery وBack/Home ينتظران trusted
+  unlock، بينما انتقالات SHEIN الداخلية تبقى مسموحة. لا مسح جلسة أو reload أو
+  WebView/observer/timer دوري جديد.
+- **القبول:** الاختبارات والبناء والمزامنة وAndroid R8 تمر. يلزم challenge
+  حقيقي وخمس دورات resume وcold launch على iPhone 16؛ Note 8 كان غير متصل.
+
 ## v86.244/1110 — wrapper زر «تسجيل لاحقًا» ليس عقدًا ثابتًا (2026-08-27)
 
 - **الفصل:** صفحة `/user/login` الكاملة لا تملك opt-out وتبقى ملك رجوع Native

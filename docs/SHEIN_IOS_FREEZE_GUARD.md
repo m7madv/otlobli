@@ -2,6 +2,26 @@
 
 هذه قاعدة إصدار إلزامية وليست ملاحظة تاريخية.
 
+## v86.244/1111 — حاجز التزام التحقق من دون تغيير lifecycle
+
+- اختفاء `one_pass` ليس نجاحًا: أصول SHEIN الحالية تزيل الواجهة قبل
+  `/api/risk/flow_check` وكتابة `_f_c_llbs_`. مستند `/risk/challenge` القديم
+  لا يتحرر بالزمن؛ المستند الجديد وحده يسلمه. same-document يستخدم إثبات
+  الكوكي ثم fallback غياب مستقر `5000ms` لقيمة معادة مطابقة.
+- رسائل access-timeout تبقي التحقق مالكًا للوثيقة. لا ينقر Otlobli التحقق أو
+  يعيد تحميله. بعد حل same-document تصفر مفاتيح readiness الثلاثة فقط.
+- أثناء القفل لا ينفذ KVO/delegate أو Android History recovery أي Back/Home
+  لمسار محجوب، وتبقى انتقالات SHEIN الداخلية في WebView نفسها. بعد trusted
+  snapshot ينفذ recovery الموجود مرة واحدة إن ظل URL محجوبًا.
+- أخطاء الشبكة القابلة للاستعادة لا تهدم جلسة التحقق؛ إنهاء WebContent الحقيقي
+  يبقى قاتلًا. لا WebView أو foreground hook أو recompose burst أو observer أو
+  interval أو reload أو مسح DOM واسع جديد.
+- بقيت حرفيًا `WKWebViewController.otlobliForceRecompose()`، مهلة
+  `appDidBecomeActive` ذات `0.25s`، استعادة scroll/constraints، دفاع Android
+  `otlobliOnHostResume()`، `WKWebsiteDataStore.default()`، و`JSON.stringify`.
+- نجح الحارس والبناء والمزامنة. قبول iPhone 16 الحقيقي لمسار challenge وخمس
+  دورات resume وcold launch مستقل ما زال غير منفذ.
+
 ## v86.244/1110 — إغلاق opt-out حدثيًا من دون تغيير lifecycle
 
 - صفحة `/user/login` الكاملة ما زالت تغادر عبر KVO/Native Back من v86.244؛

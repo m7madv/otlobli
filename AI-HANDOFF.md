@@ -1,3 +1,55 @@
+# Active handoff — v86.244/1111 SHEIN verification commit barrier (2026-08-27)
+
+Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on
+`codex/otlobli-v86-212-testflight-auth`. Marketing version remains `86.244`;
+native build is `1111` because uploaded build `1110` is immutable.
+
+Live official SHEIN assets prove that successful one-pass UI removal precedes
+the actual session commit: validation check succeeds, the dialog is removed
+after 1000ms, then `/api/risk/flow_check` is awaited, `_f_c_llbs_` is written,
+and only then `/risk/challenge` replaces the document with its redirection.
+The prior same-document `1200ms` absence plus `600ms` settlement could resume
+region/policy work during that gap, explaining intermittent access-timeout and
+blank/unavailable-product outcomes. Cookie storage itself was not cleared.
+
+The full `/risk/challenge` document can no longer resolve by elapsed time; the
+existing fresh-document coordinator handoff owns success. An embedded
+same-document challenge resolves quickly only when the exact `_f_c_llbs_`
+value appears/changes, with a 5000ms stable-absence fallback for a same-value
+rewrite. Arabic/English access-timeout dialogs remain challenge-owned. Every
+same-document resolution resets the three readiness dedupe keys so the same
+PDP emits one new trusted snapshot. This adds no WebView, reload, observer,
+interval, broad scan, or cookie mutation/clear.
+
+Native iOS and Android blocked-route recovery, delayed goBack/Home, and popup
+source recovery all wait while the human-challenge lock is active. Internal
+`*.shein.com` top-level/popup navigation remains in the same WebView; external
+navigation stays closed. Trusted unlock performs the existing blocked-route
+recovery once if necessary. Recoverable WebKit network codes do not tear down
+the challenge WebView; real WebContent termination remains fatal. Preserve
+`otlobliForceRecompose()`, exact `0.25s` app-active delay, scroll/constraint
+restoration, Android `otlobliOnHostResume()`, `WKWebsiteDataStore.default()`,
+and `JSON.stringify` region comparison.
+
+Full build/guards, Android/iOS sync, native Java compilation, and signed Android
+R8 APK/AAB pass without budget changes. Final budgets are startup 673,259,
+total JS gzip 301,034, CSS 69,989, shipped store scripts 320,230, Temu Gecko
+172,513, and store source 582,416 bytes, all below their existing ceilings.
+Standalone `npm run lint` still exits nonzero on three pre-existing
+`no-useless-escape` errors in unchanged `src/services/sheinNavigationScript.ts`
+plus 20 established hook warnings; this batch did not widen scope to fix them.
+Artifacts:
+
+- APK `artifacts/release-86.244/Otlobli-86.244-1111-release.apk`, 4,113,286
+  bytes, SHA-256 `228AA73C6B495C4B4997F131CAF435104B4E55184209C76EC06C375774D17336`.
+- AAB `artifacts/release-86.244/Otlobli-86.244-1111-release.aab`, 5,774,680
+  bytes, SHA-256 `0D12CA3391DE720715EA8F8F6D970196FD4F7F8252A54EEF76CA9EE7138D5A19`.
+
+Note 8 was offline/disconnected, so no install or physical challenge acceptance
+was claimed. Real iPhone 16 acceptance still requires a genuine challenge,
+five background/resume cycles, and a separate force-quit/cold launch. TestFlight
+upload for 1111 is pending; App Review submission must remain disabled.
+
 # Active handoff — v86.244/1110 event-driven SHEIN login-later (2026-08-27)
 
 Work only in `C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` on

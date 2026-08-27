@@ -322,6 +322,14 @@ export const SHEIN_SESSION_SCRIPT = `
   var __otlobliFeedRetryCount = 0;
   var __otlobliFeedRetryAfter = 0;
 
+  function otlobliResetSheinReadinessAfterChallengeCommit() {
+    if (!IS_SHEIN) return false;
+    sheinNativeCoverVisualReadyPath = '';
+    sheinNativeCoverSignedReadyPath = '';
+    sheinNativeCoverLastKey = '';
+    return true;
+  }
+
   function sheinRetryableFeedErrorButton() {
     if (!IS_SHEIN || !document.body) return null;
     var retryPattern = /^(?:try again|retry|\\u062d\\u0627\\u0648\\u0644 \\u0645\\u0631\\u0629 \\u0623\\u062e\\u0631\\u0649|\\u0625\\u0639\\u0627\\u062f\\u0629 \\u0627\\u0644\\u0645\\u062d\\u0627\\u0648\\u0644\\u0629)$/i;

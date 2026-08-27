@@ -1,3 +1,58 @@
+# v86.244/1111 — انتظار التزام تحقق SHEIN قبل استئناف Otlobli (2026-08-27)
+
+اعمل فقط داخل
+`C:\Users\MOHAMMAD\Projects\otlobli-v86-212-testflight-auth` على الفرع
+`codex/otlobli-v86-212-testflight-auth`. بقي رقم الإصدار الظاهر `86.244`،
+وأصبح رقم البناء `1111` لأن البناء `1110` مرفوع ولا يمكن استبداله.
+
+فحص أصول SHEIN الحية أثبت ترتيب تحقق `one_pass`: ينجح طلب
+`/risk/verify/identity/validation/check`، ثم تختفي الواجهة بعد `1000ms`، وبعد
+ذلك فقط ينتظر SHEIN `/api/risk/flow_check` ويكتب `_f_c_llbs_` ثم ينفذ
+`location.replace(redirection)`. لذلك اختفاء الواجهة ليس التزامًا ناجحًا.
+كان مسار same-document يستطيع اعتبار الغياب `1200ms` نجاحًا ثم استئناف
+المنطقة والسياسة بعد `600ms` بينما `flow_check` لم يثبت الجلسة بعد؛ وهذا يفسر
+الفشل المتقطع ورسالة «انتهت مهلة الوصول» ثم الصفحة البيضاء/المنتج غير المتاح.
+
+الإصلاح لا يحل التحقق ولا ينقره. مستند `/risk/challenge` الكامل لا يُحرر
+بالزمن أصلًا؛ يسلم التحكم فقط المستند العام الجديد. تحدي same-document ينتظر
+ظهور/تغير الكوكي الدقيقة كإثبات سريع، مع fallback محافظ `5000ms` إذا أعاد
+SHEIN كتابة القيمة نفسها. رسائل المهلة العربية/الإنجليزية تبقي كل تدخلات
+Otlobli متوقفة. بعد نجاح same-document تُصفّر مفاتيح readiness الثلاثة كي
+يرسل المنتج نفسه لقطة جديدة. لا توجد WebView أو reload أو observer أو interval
+أو مسح DOM واسع جديد، ولا تُقرأ أو تُكتب أي كوكي غير `_f_c_llbs_` ولا تُمسح
+الجلسة.
+
+أثناء قفل التحقق، iOS وAndroid يسمحان بانتقالات `*.shein.com` الداخلية ولا
+ينفذان استرجاع مسار تسجيل الدخول أو Back/Home. عند وصول snapshot موثوق وفك
+القفل، يعاد الاسترجاع الموجود مرة واحدة فقط إن بقي المسار محجوبًا. أخطاء
+الشبكة `-1001/-1004/-1005/-1009` لا تهدم WebView أثناء التحقق، بينما إنهاء
+WebContent الحقيقي يبقى قاتلًا. بقيت حرفيًا `otlobliForceRecompose()`، مهلة
+`appDidBecomeActive` البالغة `0.25s`، استعادة scroll/constraints، دفاع Android
+`otlobliOnHostResume()`، `WKWebsiteDataStore.default()`، ومقارنة المنطقة عبر
+`JSON.stringify`.
+
+نجح `npm run build` بكل حواجز الإصدار، ثم `npx cap sync android` و
+`npx cap sync ios`. نجح Android R8 الموقّع عبر المهمتين المؤهلتين
+`:app:assembleRelease` و`:app:bundleRelease`. الميزانيات النهائية: startup
+`673,259/720,000`، JS gzip `301,034/370,000`، CSS `69,989/70,000`، نصوص
+المتاجر المشحونة `320,230/470,000`، Temu Gecko `172,513/180,000`، ومصدر
+المتاجر `582,416/600,000`؛ لم يُرفع أي حد.
+تشغيل `npm run lint` منفصلًا ما زال يفشل في ثلاثة أخطاء
+`no-useless-escape` قديمة داخل `src/services/sheinNavigationScript.ts` غير
+المعدل، مع `20` تحذير hooks قائمًا؛ لم تُوسّع الدفعة لإصلاحها.
+
+- APK: `artifacts/release-86.244/Otlobli-86.244-1111-release.apk` —
+  `4,113,286` بايت — SHA-256
+  `228AA73C6B495C4B4997F131CAF435104B4E55184209C76EC06C375774D17336`.
+- AAB: `artifacts/release-86.244/Otlobli-86.244-1111-release.aab` —
+  `5,774,680` بايت — SHA-256
+  `0D12CA3391DE720715EA8F8F6D970196FD4F7F8252A54EEF76CA9EE7138D5A19`.
+- فحص APK يؤكد `com.otlobli.app` و`86.244 (1111)` وRSA-4096 الموثق؛ AAB
+  `jar verified`. Note 8 ظهر `offline` ثم انفصل أثناء الفحص، لذلك لم يُثبت
+  البناء عليه ولم يُدّع قبول جهاز. قبول iPhone 16 لتحدي حقيقي وخمس دورات
+  background/resume واختبار cold launch ما زال مطلوبًا. رفع TestFlight لهذا
+  البناء قيد التنفيذ، ولم يُرسل شيء إلى App Review العام.
+
 # v86.244/1110 — إغلاق «تسجيل لاحقًا» عند تغيّر غلاف SHEIN (2026-08-27)
 
 اعمل فقط داخل
