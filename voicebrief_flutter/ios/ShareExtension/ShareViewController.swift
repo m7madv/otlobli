@@ -342,7 +342,7 @@ final class ShareViewController: UIViewController {
       )
       self.configureActionButton(
         title: self.localized(arabic: "فتح VoiceBrief", english: "Open VoiceBrief"),
-        action: #selector(openContainingApp)
+        action: #selector(self.openContainingApp)
       )
       UIAccessibility.post(notification: .announcement, argument: self.messageLabel.text)
     }
@@ -360,7 +360,7 @@ final class ShareViewController: UIViewController {
       self.messageLabel.text = self.failureMessage(failure)
       self.configureActionButton(
         title: self.localized(arabic: "إغلاق", english: "Close"),
-        action: #selector(closeExtension)
+        action: #selector(self.closeExtension)
       )
       UIAccessibility.post(notification: .announcement, argument: self.messageLabel.text)
     }
