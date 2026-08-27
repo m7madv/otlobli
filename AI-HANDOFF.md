@@ -51,7 +51,7 @@ App Review Issues & Messages after account login. Do not run the current
 submission script blindly: it only reuses `PREPARE_FOR_SUBMISSION`, not
 `REJECTED`, and may hit a 409 trying to create 86.244. Read the message first,
 then either rename/reuse the rejected record if Apple permits it, or choose a
-non-destructive compatible build path. Build 1110 is not on TestFlight yet.
+non-destructive compatible build path.
 
 Immediately before the planned 1110 upload, WhatsApp session `0` was in an
 in-memory `error` state with persisted credentials, zero risk, and no actual
@@ -59,6 +59,41 @@ QR. Restarting only `otlobli-wa` restored `idle`; one protected reconnect POST
 reused those credentials. Final health has WhatsApp connected/sender ready and
 session store/OTP ready. No session was deleted, no QR was scanned, and no
 message or test OTP was sent.
+
+Release commit `0a78e5764f39cbc30241c2bfd622d0d39cd022a7` is pushed. GitHub
+run [33075528666](https://github.com/m7madv/otlobli/actions/runs/33075528666)
+succeeded in `8m57s` and uploaded build `86.244 (1110)` with delivery UUID
+`bd950715-b83a-49c6-966b-ec0cf04cdf28`. App Store Connect reports `VALID` and
+`IN_BETA_TESTING`; `Otlobli Internal` has all-build access and the expected
+tester is `INSTALLED`. The IPA is `10,551,551` bytes, SHA-256
+`8FAB591376D0A6DAD28141BF6480664744B9C693B7F6F65315B64928AE7340BD`.
+Artifact `9647984843` is `25,260,454` bytes with ZIP digest
+`91E053F44FB846F319DCD2F731911A7A8FE2CE61A95FD4EA388E2BCCB8BC8796`.
+The App Review step was explicitly skipped.
+
+The authenticated App Store Connect UI exposed the exact rejection for old
+`86.230 (1095)`, submission `e5e27b8a-b628-4116-b135-361b91266929`.
+Guideline 2.3.3 says both the 6.5-inch iPhone and 13-inch iPad product-page
+screenshots show only Login. Guideline 2.1(a) says review could not continue
+payment after adding cart items on iPhone 17 Pro Max and iPad Air 11-inch M3,
+iOS/iPadOS 26.6. The rejected record's Version textbox is enabled. Prefer
+reusing it: rename 86.230→86.244, detach build 1095, attach 1110, replace Login
+screenshots with real feature screenshots, then resubmit only after clean
+iPhone/iPad checkout acceptance. No field, message, record, or review status
+was mutated during inspection.
+
+Do not claim build 1110 fixes Guideline 2.1(a). History review found that
+`a53fbf9` corrects Temu/SHEIN cart ownership and later UI makes the cart clearer,
+but the core continue-button predicates and `setScreen('checkout')` flow are
+materially the same as build 1095. Apple may have hit the 5000 SYP / $40
+minimum, an unavailable/incompletely customized item, or the old cross-store
+cart bug; none is proven without the reviewer capture/logs. Before attaching
+1110, clean-install on iPhone and iPad with a complete review account, test one
+ordinary available item per store above both minimum interpretations, verify
+the correct cart and enabled continue button, create exactly one pending order,
+and stop after a non-empty ShamCash code/amount/future expiry appears. Do not
+transfer money or press the paid button. Resolve the repository's two-hour
+expiry versus the UI/docs' five-minute statement before App Review.
 
 # Active handoff — v86.244/1109 full SHEIN auth-route exit (2026-08-26)
 
