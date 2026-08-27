@@ -22,59 +22,103 @@ Future<ProductDetailsResponse> queryAppleStoreProducts({
   required StoreProductQuery storeKit1Query,
   required Duration timeout,
 }) async {
-  ProductDetailsResponse? emptyResponse;
-  try {
-    final response = await storeKit2Query(productIds).timeout(timeout);
-    if (response.productDetails.isNotEmpty) return response;
-    emptyResponse = response;
-  } on TimeoutException {
-    // StoreKit 2 can occasionally leave a product lookup unresolved. The
-    // StoreKit 1 request below uses a separate native product-query path.
-  } on PlatformException {
-    // A native StoreKit 2 lookup failure can still be recovered by StoreKit 1.
+  final stopwatch = Stopwatch()..start();
+  final responses = <ProductDetailsResponse>[];
+  PlatformException? platformError;
+  var timedOut = false;
+
+  Set<String> missingIds() {
+    final found = responses
+        .expand((response) => response.productDetails)
+        .map((product) => product.id)
+        .toSet();
+    return productIds.difference(found);
   }
 
-  try {
-    final response = await storeKit1Query(productIds).timeout(timeout);
-    if (response.productDetails.isNotEmpty) return response;
-    final emptyResponses = <ProductDetailsResponse>[response];
-    if (emptyResponse != null) emptyResponses.insert(0, emptyResponse);
-    emptyResponse = _mergeProductResponses(
-      productIds: productIds,
-      responses: emptyResponses,
-    );
-  } on TimeoutException {
-    if (emptyResponse == null) rethrow;
-    return emptyResponse;
-  } on PlatformException {
-    if (emptyResponse == null) rethrow;
-    return emptyResponse;
+  Duration? phaseTimeout(int remainingPhases) {
+    final remaining = timeout - stopwatch.elapsed;
+    if (remaining <= Duration.zero) return null;
+    final microseconds = remaining.inMicroseconds ~/ remainingPhases;
+    return Duration(microseconds: microseconds < 1 ? 1 : microseconds);
   }
 
-  if (productIds.length < 2) return emptyResponse;
+  Future<void> collect(
+    StoreProductQuery query,
+    Set<String> ids, {
+    required int remainingPhases,
+  }) async {
+    if (ids.isEmpty) return;
+    final boundedTimeout = phaseTimeout(remainingPhases);
+    if (boundedTimeout == null) {
+      timedOut = true;
+      return;
+    }
+    try {
+      responses.add(await query(ids).timeout(boundedTimeout));
+    } on TimeoutException {
+      timedOut = true;
+    } on PlatformException catch (error) {
+      platformError ??= error;
+    }
+  }
 
-  // A few recent iOS/TestFlight combinations return an empty catalog for one
-  // request containing all identifiers. Retry once using two bounded batches.
-  // The two native requests run together, so this adds at most one timeout and
-  // does not create polling or background work.
-  final sortedIds = productIds.toList()..sort();
-  final splitAt = (sortedIds.length / 2).ceil();
-  final batches = [
-    sortedIds.take(splitAt).toSet(),
-    sortedIds.skip(splitAt).toSet(),
-  ].where((batch) => batch.isNotEmpty);
-  try {
-    final responses = await Future.wait(
-      batches.map(storeKit1Query),
-    ).timeout(timeout);
-    return _mergeProductResponses(
-      productIds: productIds,
-      responses: [emptyResponse, ...responses],
+  // StoreKit 2 remains the primary source. Keep one overall deadline for the
+  // complete lookup so the bounded fallbacks always fit below the controller's
+  // product-loading watchdog.
+  await collect(storeKit2Query, productIds, remainingPhases: 3);
+  var missing = missingIds();
+  if (missing.isEmpty) {
+    return _mergeProductResponses(productIds: productIds, responses: responses);
+  }
+
+  // Merge StoreKit 1 results only for identifiers StoreKit 2 omitted. A
+  // partial StoreKit 2 response must not hide otherwise valid plans.
+  await collect(storeKit1Query, missing, remainingPhases: 2);
+  missing = missingIds();
+  if (missing.isEmpty || missing.length < 2) {
+    if (responses.isNotEmpty) {
+      return _mergeProductResponses(
+        productIds: productIds,
+        responses: responses,
+      );
+    }
+    if (platformError != null) throw platformError!;
+    if (timedOut) throw TimeoutException('Apple product lookup timed out.');
+  }
+
+  // A few iOS/TestFlight combinations return an empty or partial catalog for
+  // one larger StoreKit 1 request. Retry the remaining identifiers once in two
+  // concurrent batches under the same overall deadline.
+  if (missing.length >= 2) {
+    final sortedIds = missing.toList()..sort();
+    final splitAt = (sortedIds.length / 2).ceil();
+    final batches = [
+      sortedIds.take(splitAt).toSet(),
+      sortedIds.skip(splitAt).toSet(),
+    ].where((batch) => batch.isNotEmpty).toList(growable: false);
+    await Future.wait(
+      batches.map(
+        (batch) => collect(storeKit1Query, batch, remainingPhases: 1),
+      ),
     );
-  } on TimeoutException {
-    return emptyResponse;
-  } on PlatformException {
-    return emptyResponse;
+  }
+
+  if (responses.isNotEmpty) {
+    return _mergeProductResponses(productIds: productIds, responses: responses);
+  }
+  if (platformError != null) throw platformError!;
+  throw TimeoutException('Apple product lookup timed out.');
+}
+
+@visibleForTesting
+Future<T?> waitForOptionalStoreResult<T>({
+  required Future<T> Function() query,
+  required Duration timeout,
+}) async {
+  try {
+    return await query().timeout(timeout);
+  } on Object {
+    return null;
   }
 }
 
@@ -268,7 +312,8 @@ class PlatformStoreBillingService implements StoreBillingService {
   PlatformStoreBillingService({
     InAppPurchase? client,
     this.availabilityTimeout = const Duration(seconds: 6),
-    this.productQueryTimeout = const Duration(seconds: 8),
+    this.productQueryTimeout = const Duration(seconds: 16),
+    this.pastPurchasesTimeout = const Duration(seconds: 2),
   }) : _client = client ?? InAppPurchase.instance {
     _purchaseSubscription = _client.purchaseStream.listen(
       _forwardPurchases,
@@ -293,6 +338,7 @@ class PlatformStoreBillingService implements StoreBillingService {
   final InAppPurchase _client;
   final Duration availabilityTimeout;
   final Duration productQueryTimeout;
+  final Duration pastPurchasesTimeout;
   final StreamController<List<StorePurchaseEvent>> _updates =
       StreamController<List<StorePurchaseEvent>>.broadcast();
   final Map<String, ProductDetails> _nativeProducts = {};
@@ -497,7 +543,14 @@ class PlatformStoreBillingService implements StoreBillingService {
     try {
       final addition = _client
           .getPlatformAddition<InAppPurchaseAndroidPlatformAddition>();
-      final response = await addition.queryPastPurchases();
+      final response = await waitForOptionalStoreResult(
+        query: addition.queryPastPurchases,
+        timeout: pastPurchasesTimeout,
+      );
+      if (response == null) {
+        _oldGoogleSubscription = null;
+        return;
+      }
       final candidates = response.pastPurchases
           .whereType<GooglePlayPurchaseDetails>()
           .where(

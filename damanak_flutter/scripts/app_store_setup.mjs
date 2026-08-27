@@ -15,6 +15,9 @@ const GROUP_CUSTOM_APP_NAME = 'ضمانك';
 const INTERNAL_BETA_GROUP_NAME = 'Damanak Internal';
 const PROFILE_NAME = 'Damanak App Store';
 const APP_STORE_TERRITORIES = ['SAU', 'ARE', 'BHR', 'KWT', 'OMN', 'QAT'];
+// Apple distinguishes paid-in-full subscriptions from 12-month commitments
+// paid monthly: https://developer.apple.com/documentation/appstoreconnectapi/subscriptionplantype
+const SUBSCRIPTION_PLAN_TYPE = 'UPFRONT';
 const SUBSCRIPTION_REVIEW_NOTE =
   'Damanak is a B2B warranty-management app for Gulf retailers. Sign in with Apple or Google, create a store, then open Administration > Subscription. The subscription unlocks warranty issuance quotas and team seats; it does not sell physical goods. The review screenshot shows the paywall. No pre-created account is required because reviewers can use Sign in with Apple.';
 const productDefinitions = [
@@ -530,56 +533,134 @@ async function ensureSubscriptionReviewMetadata(subscription, definition) {
   return result.data;
 }
 
-async function ensureSubscriptionAvailability(subscription) {
-  let availability = null;
-  let availableTerritoryIds = [];
-  try {
-    const result = await request(
-      `/v1/subscriptions/${subscription.id}/subscriptionAvailability` +
-        '?include=availableTerritories&limit[availableTerritories]=50',
+function sameTerritorySet(left, right) {
+  return (
+    left.length === right.length &&
+    left.every((territory, index) => territory === right[index])
+  );
+}
+
+async function ensureSubscriptionPlanAvailability(subscription) {
+  const planAvailabilities = await listAll(
+    `/v1/subscriptions/${subscription.id}/planAvailabilities?limit=200`,
+  );
+  const matching = planAvailabilities.filter(
+    (row) => row.attributes?.planType === SUBSCRIPTION_PLAN_TYPE,
+  );
+  if (matching.length > 1) {
+    throw new Error(
+      `Apple returned ${matching.length} ${SUBSCRIPTION_PLAN_TYPE} plan availabilities for subscription ${subscription.id}`,
     );
-    availability = result.data || null;
-    availableTerritoryIds = (result.included || [])
-      .filter((row) => row.type === 'territories')
-      .map((row) => row.id)
-      .sort();
-  } catch (error) {
-    if (error.status !== 404) throw error;
   }
+
+  let availability = matching[0] || null;
   let state = availability ? 'existing' : 'missing';
-  if (applyPrices) {
-    const result = await request('/v1/subscriptionAvailabilities', {
-      method: 'POST',
-      body: {
-        data: {
-          type: 'subscriptionAvailabilities',
-          attributes: {
-            availableInNewTerritories: false,
-          },
-          relationships: {
-            subscription: {
-              data: { type: 'subscriptions', id: subscription.id },
+  let availableTerritoryIds = availability
+    ? (
+        await listAll(
+          `/v1/subscriptionPlanAvailabilities/${encodeURIComponent(availability.id)}/availableTerritories?limit=200`,
+        )
+      )
+        .map((row) => row.id)
+        .sort()
+    : [];
+  const requestedTerritoryIds = [...APP_STORE_TERRITORIES].sort();
+  const configuredPlanTypes = new Set(
+    planAvailabilities
+      .map((row) => row.attributes?.planType)
+      .filter(Boolean),
+  );
+
+  if (mode === 'apply' && applyPrices) {
+    if (!availability) {
+      const result = await request('/v1/subscriptionPlanAvailabilities', {
+        method: 'POST',
+        body: {
+          data: {
+            type: 'subscriptionPlanAvailabilities',
+            attributes: {
+              planType: SUBSCRIPTION_PLAN_TYPE,
+              availableInNewTerritories: false,
             },
-            availableTerritories: {
+            relationships: {
+              subscription: {
+                data: { type: 'subscriptions', id: subscription.id },
+              },
+              availableTerritories: {
+                data: APP_STORE_TERRITORIES.map((id) => ({
+                  type: 'territories',
+                  id,
+                })),
+              },
+            },
+          },
+        },
+      });
+      availability = result.data;
+      configuredPlanTypes.add(SUBSCRIPTION_PLAN_TYPE);
+      availableTerritoryIds = requestedTerritoryIds;
+      state = 'created';
+    } else {
+      let updated = false;
+      if (availability.attributes?.availableInNewTerritories !== false) {
+        const result = await request(
+          `/v1/subscriptionPlanAvailabilities/${encodeURIComponent(availability.id)}`,
+          {
+            method: 'PATCH',
+            body: {
+              data: {
+                type: 'subscriptionPlanAvailabilities',
+                id: availability.id,
+                attributes: {
+                  availableInNewTerritories: false,
+                },
+              },
+            },
+          },
+        );
+        availability = result.data;
+        updated = true;
+      }
+      if (!sameTerritorySet(availableTerritoryIds, requestedTerritoryIds)) {
+        await request(
+          `/v1/subscriptionPlanAvailabilities/${encodeURIComponent(availability.id)}/relationships/availableTerritories`,
+          {
+            method: 'PATCH',
+            body: {
               data: APP_STORE_TERRITORIES.map((id) => ({
                 type: 'territories',
                 id,
               })),
             },
           },
-        },
-      },
-    });
-    availability = result.data;
-    availableTerritoryIds = [...APP_STORE_TERRITORIES].sort();
-    state = state === 'existing' ? 'updated' : 'created';
+        );
+        availableTerritoryIds = requestedTerritoryIds;
+        updated = true;
+      }
+      if (updated) state = 'updated';
+    }
   }
+
+  const missingTerritoryIds = requestedTerritoryIds.filter(
+    (id) => !availableTerritoryIds.includes(id),
+  );
+  const unexpectedTerritoryIds = availableTerritoryIds.filter(
+    (id) => !requestedTerritoryIds.includes(id),
+  );
   return {
     state,
+    resourceType: 'subscriptionPlanAvailabilities',
+    planType: availability?.attributes?.planType ?? SUBSCRIPTION_PLAN_TYPE,
     availableInNewTerritories:
       availability?.attributes?.availableInNewTerritories ?? null,
+    requestedTerritoryIds,
     territoryIds: availableTerritoryIds,
+    missingTerritoryIds,
+    unexpectedTerritoryIds,
+    exactTerritoryMatch:
+      missingTerritoryIds.length === 0 && unexpectedTerritoryIds.length === 0,
     qatarAvailable: availableTerritoryIds.includes('QAT'),
+    configuredPlanTypes: [...configuredPlanTypes].sort(),
   };
 }
 
@@ -589,20 +670,28 @@ function samePrice(left, right) {
 
 async function existingPricesByTerritory(subscription) {
   const rows = await listAll(
-    `/v1/subscriptions/${subscription.id}/prices?filter[territory]=${APP_STORE_TERRITORIES.join(',')}` +
+    `/v1/subscriptions/${subscription.id}/prices?filter[planType]=${SUBSCRIPTION_PLAN_TYPE}` +
+      `&filter[territory]=${APP_STORE_TERRITORIES.join(',')}` +
       '&include=subscriptionPricePoint,territory&limit=200',
   );
   const prices = new Map();
   for (const row of rows) {
     const territory = row.relationships?.territory?.data?.id;
-    if (territory && !prices.has(territory)) prices.set(territory, row);
+    if (
+      row.attributes?.planType === SUBSCRIPTION_PLAN_TYPE &&
+      territory &&
+      !prices.has(territory)
+    ) {
+      prices.set(territory, row);
+    }
   }
   return prices;
 }
 
 async function inspectExistingPrices(subscription) {
   const response = await request(
-    `/v1/subscriptions/${subscription.id}/prices?filter[territory]=${APP_STORE_TERRITORIES.join(',')}` +
+    `/v1/subscriptions/${subscription.id}/prices?filter[planType]=${SUBSCRIPTION_PLAN_TYPE}` +
+      `&filter[territory]=${APP_STORE_TERRITORIES.join(',')}` +
       '&include=subscriptionPricePoint,territory&limit=200',
   );
   const includedById = new Map(
@@ -619,6 +708,7 @@ async function inspectExistingPrices(subscription) {
         customerPrice: pricePoint?.attributes?.customerPrice ?? null,
         startDate: row.attributes?.startDate ?? null,
         preserved: row.attributes?.preserved ?? null,
+        planType: row.attributes?.planType ?? null,
       };
     })
     .sort((left, right) =>
@@ -690,6 +780,7 @@ async function ensureApprovedPrices(subscription, definition) {
     const existingPrices = await inspectExistingPrices(subscription);
     return {
       state: existingPrices.length > 0 ? 'existing' : 'missing',
+      planType: SUBSCRIPTION_PLAN_TYPE,
       anchorTerritory: 'SAU',
       intendedAnchorPriceSar: definition.intendedPriceSar,
       existingPrices,
@@ -713,6 +804,7 @@ async function ensureApprovedPrices(subscription, definition) {
     if (current) {
       territories[territory] = {
         state: 'existing-not-overwritten',
+        planType: current.attributes?.planType ?? null,
         approvedCustomerPrice: point.attributes?.customerPrice,
       };
       continue;
@@ -724,6 +816,7 @@ async function ensureApprovedPrices(subscription, definition) {
           type: 'subscriptionPrices',
           attributes: {
             startDate: null,
+            planType: SUBSCRIPTION_PLAN_TYPE,
           },
           relationships: {
             subscription: {
@@ -738,12 +831,14 @@ async function ensureApprovedPrices(subscription, definition) {
     });
     territories[territory] = {
       state: 'created',
+      planType: SUBSCRIPTION_PLAN_TYPE,
       customerPrice: point.attributes?.customerPrice,
     };
   }
   return {
     state: 'applied',
-    pricingMode: 'standard-auto-renewable',
+    pricingMode: 'upfront-auto-renewable',
+    planType: SUBSCRIPTION_PLAN_TYPE,
     anchorTerritory: 'SAU',
     requestedAnchorPriceSar: definition.intendedPriceSar,
     effectiveAnchorPriceSar: priceSelection.effectiveAnchorPriceSar,
@@ -950,7 +1045,7 @@ async function ensureSubscriptions(group, report) {
       ? await ensureSubscriptionLocalization(subscription, definition)
       : 'blocked-until-subscription-exists';
     const availability = subscription
-      ? await ensureSubscriptionAvailability(subscription)
+      ? await ensureSubscriptionPlanAvailability(subscription)
       : 'blocked-until-subscription-exists';
     const pricing = subscription
       ? await ensureApprovedPrices(subscription, definition)
@@ -1078,10 +1173,17 @@ async function main() {
     pricesRequested: applyPrices,
     pricesApplied: false,
     priceTerritories: APP_STORE_TERRITORIES,
+    subscriptionPlanType: SUBSCRIPTION_PLAN_TYPE,
+    planAvailabilityTerritories: APP_STORE_TERRITORIES,
+    planAvailabilityScope: 'exact-gulf-only',
+    planAvailabilityRequested: mode === 'apply' && applyPrices,
+    planAvailabilityReady: false,
+    planAvailabilityConfiguredProductCount: 0,
+    availableInNewTerritories: false,
     pricingNote:
       applyPrices
-        ? 'Approved SAR anchor prices and Apple-equalized Gulf price points were requested in this run.'
-        : 'Approved prices are recorded but not applied in this run.',
+        ? 'UPFRONT availability and approved SAR anchor prices with Apple-equalized Gulf price points were requested in this run.'
+        : 'UPFRONT availability and approved prices are inspected but not modified in this run.',
   };
 
   try {
@@ -1092,6 +1194,25 @@ async function main() {
     const group = await ensureSubscriptionGroup(app, report);
     await ensureSubscriptionGroupLocalization(group, report);
     await ensureSubscriptions(group, report);
+    const configuredPlanAvailabilities = report.subscriptions.filter(
+      (subscription) =>
+        subscription.availability?.planType === SUBSCRIPTION_PLAN_TYPE &&
+        subscription.availability?.availableInNewTerritories === false &&
+        subscription.availability?.exactTerritoryMatch === true,
+    );
+    report.planAvailabilityConfiguredProductCount =
+      configuredPlanAvailabilities.length;
+    report.planAvailabilityReady =
+      report.subscriptions.length === productDefinitions.length &&
+      configuredPlanAvailabilities.length === productDefinitions.length;
+    report.planAvailabilityNote = report.planAvailabilityReady
+      ? 'All six subscriptions use UPFRONT availability in exactly the six configured Gulf territories.'
+      : `${configuredPlanAvailabilities.length} of ${productDefinitions.length} subscriptions have exact UPFRONT Gulf availability.`;
+    if (mode === 'apply' && applyPrices && !report.planAvailabilityReady) {
+      throw new Error(
+        'One or more subscriptions are missing exact UPFRONT Gulf plan availability',
+      );
+    }
     report.pricesApplied =
       report.subscriptions.length === productDefinitions.length &&
       report.subscriptions.every(

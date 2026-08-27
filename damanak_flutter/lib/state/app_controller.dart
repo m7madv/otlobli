@@ -28,26 +28,37 @@ class AppController extends ChangeNotifier {
     DamanakRepository repository, {
     StoreBillingService? billingService,
     Duration storeProductLoadTimeout = const Duration(seconds: 24),
+    Duration storeRestoreTimeout = const Duration(seconds: 12),
+    Duration purchaseEventTimeout = const Duration(minutes: 2),
   }) : _repository = repository,
        _billingService =
            billingService ?? const UnavailableStoreBillingService(),
-       _storeProductLoadTimeout = storeProductLoadTimeout {
+       _storeProductLoadTimeout = storeProductLoadTimeout,
+       _storeRestoreTimeout = storeRestoreTimeout,
+       _purchaseEventTimeout = purchaseEventTimeout {
     _listenToStoreBilling();
   }
 
   AppController.unconfigured({
     StoreBillingService? billingService,
     Duration storeProductLoadTimeout = const Duration(seconds: 24),
+    Duration storeRestoreTimeout = const Duration(seconds: 12),
+    Duration purchaseEventTimeout = const Duration(minutes: 2),
   }) : _billingService =
            billingService ?? const UnavailableStoreBillingService(),
-       _storeProductLoadTimeout = storeProductLoadTimeout {
+       _storeProductLoadTimeout = storeProductLoadTimeout,
+       _storeRestoreTimeout = storeRestoreTimeout,
+       _purchaseEventTimeout = purchaseEventTimeout {
     _listenToStoreBilling();
   }
 
   DamanakRepository? _repository;
   final StoreBillingService _billingService;
   final Duration _storeProductLoadTimeout;
+  final Duration _storeRestoreTimeout;
+  final Duration _purchaseEventTimeout;
   StreamSubscription<List<StorePurchaseEvent>>? _billingSubscription;
+  Timer? _purchaseWatchdog;
   AppStage _stage = AppStage.configuring;
   AccountIdentity? _account;
   StoreWorkspace? _store;
@@ -1040,6 +1051,7 @@ class AppController extends ChangeNotifier {
     }
     _storeBillingState = StoreBillingState.purchasing;
     _storeBillingMessage = 'أكمل العملية في نافذة المتجر الآمنة.';
+    _startPurchaseWatchdog();
     notifyListeners();
     try {
       await _billingService.purchase(
@@ -1048,6 +1060,7 @@ class AppController extends ChangeNotifier {
         storeId: _store!.id,
       );
     } catch (error) {
+      _purchaseWatchdog?.cancel();
       _storeBillingState = StoreBillingState.ready;
       _errorMessage = _friendlyError(error);
       notifyListeners();
@@ -1055,18 +1068,43 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> restoreStorePurchases() async {
+    _purchaseWatchdog?.cancel();
     _storeBillingState = StoreBillingState.loading;
     _storeBillingMessage = 'جارٍ طلب مشترياتك السابقة من المتجر…';
     notifyListeners();
     try {
-      await _billingService.restorePurchases();
+      await _billingService.restorePurchases().timeout(_storeRestoreTimeout);
       _noticeMessage =
           'أرسل المتجر المشتريات المتاحة للاستعادة، وسيجري التحقق منها.';
+      if (_storeBillingState == StoreBillingState.loading) {
+        _storeBillingState = _idleStoreBillingState;
+        _storeBillingMessage = _storeOffers.isEmpty
+            ? 'لم يُرجع المتجر خططاً متاحة لهذا الحساب.'
+            : null;
+      }
     } catch (error) {
       _errorMessage = _friendlyError(error);
-      _storeBillingState = StoreBillingState.unavailable;
+      _storeBillingState = _idleStoreBillingState;
+      _storeBillingMessage = _storeOffers.isEmpty
+          ? 'تعذر الاتصال بمتجر التطبيقات لاستعادة المشتريات.'
+          : null;
     }
     notifyListeners();
+  }
+
+  StoreBillingState get _idleStoreBillingState => _storeOffers.isEmpty
+      ? StoreBillingState.unavailable
+      : StoreBillingState.ready;
+
+  void _startPurchaseWatchdog() {
+    _purchaseWatchdog?.cancel();
+    _purchaseWatchdog = Timer(_purchaseEventTimeout, () {
+      if (_storeBillingState != StoreBillingState.purchasing) return;
+      _storeBillingState = _idleStoreBillingState;
+      _storeBillingMessage =
+          'لم يصل تأكيد من المتجر، ولم تُفعّل أي خطة. استخدم استعادة المشتريات قبل إعادة المحاولة.';
+      notifyListeners();
+    });
   }
 
   Future<void> openStoreSubscriptionManagement() async {
@@ -1080,6 +1118,7 @@ class AppController extends ChangeNotifier {
   Future<void> _handleStorePurchaseUpdates(
     List<StorePurchaseEvent> events,
   ) async {
+    if (events.isNotEmpty) _purchaseWatchdog?.cancel();
     for (final event in events) {
       switch (event.status) {
         case StorePurchaseStatus.pending:
@@ -1362,6 +1401,7 @@ class AppController extends ChangeNotifier {
   }
 
   void _clearData() {
+    _purchaseWatchdog?.cancel();
     _account = null;
     _store = null;
     _membership = null;
@@ -1392,6 +1432,7 @@ class AppController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _purchaseWatchdog?.cancel();
     unawaited(_billingSubscription?.cancel());
     unawaited(_billingService.dispose());
     super.dispose();

@@ -73,13 +73,14 @@ class _AuthPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final appleFirst = !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+    final showApple = kIsWeb || defaultTargetPlatform == TargetPlatform.iOS;
     final buttons = <Widget>[
       if (appleFirst) ...[
         _AppleButton(busy: busy, onPressed: onSocial),
         const SizedBox(height: 12),
       ],
       _GoogleButton(busy: busy, onPressed: onSocial),
-      if (!appleFirst) ...[
+      if (showApple && !appleFirst) ...[
         const SizedBox(height: 12),
         _AppleButton(busy: busy, onPressed: onSocial),
       ],
@@ -101,7 +102,9 @@ class _AuthPanel extends StatelessWidget {
           const SizedBox(height: 7),
           Text(
             inviteReady
-                ? 'اختر حساب Apple أو Google، ثم راجع صلاحيتك وانضم إلى فريق المتجر.'
+                ? showApple
+                      ? 'اختر حساب Apple أو Google، ثم راجع صلاحيتك وانضم إلى فريق المتجر.'
+                      : 'اختر حساب Google، ثم راجع صلاحيتك وانضم إلى فريق المتجر.'
                 : 'استخدم حسابك الموجود على جهازك. لا كلمة مرور جديدة ولا جلسة مشتركة بين الموظفين.',
             style: TextStyle(color: colors.onSurfaceVariant),
           ),

@@ -8,18 +8,38 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('تعرض شاشة الدخول Apple وGoogle فقط', (tester) async {
-    final controller = AppController.unconfigured();
+  testWidgets(
+    'تعرض شاشة iPhone دخول Apple وGoogle الأصليين فقط',
+    (tester) async {
+      final controller = AppController.unconfigured();
+      addTearDown(controller.dispose);
 
-    await tester.pumpWidget(_screen(controller, const AuthScreen()));
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(_screen(controller, const AuthScreen()));
+      await tester.pumpAndSettle();
 
-    expect(find.text('المتابعة باستخدام Apple'), findsOneWidget);
-    expect(find.text('المتابعة باستخدام Google'), findsOneWidget);
-    expect(find.text('البريد الإلكتروني'), findsNothing);
-    expect(find.text('كلمة المرور'), findsNothing);
-    expect(find.text('نسيت كلمة المرور؟'), findsNothing);
-  });
+      expect(find.text('المتابعة باستخدام Apple'), findsOneWidget);
+      expect(find.text('المتابعة باستخدام Google'), findsOneWidget);
+      expect(find.text('البريد الإلكتروني'), findsNothing);
+      expect(find.text('كلمة المرور'), findsNothing);
+      expect(find.text('نسيت كلمة المرور؟'), findsNothing);
+    },
+    variant: TargetPlatformVariant(<TargetPlatform>{TargetPlatform.iOS}),
+  );
+
+  testWidgets(
+    'تعرض شاشة Android دخول Google الأصلي من دون Apple عبر الويب',
+    (tester) async {
+      final controller = AppController.unconfigured();
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(_screen(controller, const AuthScreen()));
+      await tester.pumpAndSettle();
+
+      expect(find.text('المتابعة باستخدام Google'), findsOneWidget);
+      expect(find.text('المتابعة باستخدام Apple'), findsNothing);
+    },
+    variant: TargetPlatformVariant(<TargetPlatform>{TargetPlatform.android}),
+  );
 
   testWidgets('يحفظ رابط الدعوة ويجهز نموذج الانضمام', (tester) async {
     final controller = AppController.unconfigured();
