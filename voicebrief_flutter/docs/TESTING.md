@@ -44,6 +44,15 @@ Test-only Roboto files under `test/fonts` make desktop golden glyphs determinist
 - Production release: the rebuilt owned-key APK passed v2 verification and the AAB passed JAR verification after the waveform/seek/trim/navigation/deletion changes. Earlier same-certificate production installation passed on API 35; this source-equivalent final behavior was physically exercised with the live-config debug build on Note 8.
 - Public pages: Prettier and `html-validate` passed; Arabic RTL/dark mode was visually inspected locally at 1280×720. A live support request returned 201 and its row was deleted immediately.
 
+## VoiceBrief build 9 verification — 2026-08-30
+
+- GitHub CI run `33031413075` passed Android build/analyze/tests, Windows golden tests, iOS no-codesign, and Deno format/test/check.
+- TestFlight run `33031418401` passed archive/export, app/extension profile and entitlement checks, App Store validation, and upload. Apple delivery UUID: `d3788d62-0ca7-423f-b234-425a325012f7`. App Store Connect processing remains unverified.
+- Local Deno verification passed format, five Arabic date-normalization tests, and `deno check` with the function config.
+- Current Flutter verification passed format across 70 files with no changes, analysis with no issues, 30 non-golden tests, and all eleven golden tests.
+- The deployed Arabic live smoke returned HTTP 200, detected Arabic, preserved both relative and explicit day/month markers, and returned two separate dates: `2026-08-31` and `2026-09-05`. Both require confirmation; the second remained date-only. The temporary user, uploaded object, and test entitlement were removed.
+- After setting the GPT-5.6 summary request to low reasoning effort and low verbosity, the same sample measured `1,330ms` download, `1,460ms` transcription, `7,177ms` summary, and `11,282ms` total inside the function; client elapsed time was `14,431ms`.
+
 ## Platform checklist
 
 Android remaining device checks: duplicate delivery timing, hostile/oversize provider, microphone denial/pause/resume, playback conflict/interruption, process death, background/resume, extreme font/display scaling, and TalkBack on the production-signed build. File picker import, real playback/seek/waveform/trim, Back, deletion/Undo, microphone allow/start/cancel, and the default Note 8 viewport have passed on physical hardware.

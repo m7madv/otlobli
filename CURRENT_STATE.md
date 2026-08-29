@@ -1,16 +1,19 @@
 # Otlobli Current State
 
-Last updated: 2026-08-27
+Last updated: 2026-08-30
 
-## مشروع VoiceBrief المستقل (2026-08-27)
+## مشروع VoiceBrief المستقل (2026-08-30)
 
 - المرشح الحالي هو `0.1.0+9` على الفرع `codex/voicebrief-ios`. التعديل محصور في `voicebrief_flutter/` وملفي GitHub الخاصين به؛ لم تتغير مصادر Otlobli أو Damanak أو منطق الدفع والمحفظة.
 - مشاركة iOS تحفظ الملف ذرياً في App Group ثم تطلب فتح `voicebrief://shared-audio` عبر `NSExtensionContext.open`. إذا رفض iOS فتح التطبيق من Share Extension، يبقى الملف محفوظاً وتظهر محاولة `فتح VoiceBrief`. لا توجد حيلة `UIApplication.shared` أو responder-chain، ولذلك الانتقال المباشر يحتاج قبولاً فعلياً على iPhone ولا يُدّعى من المصدر.
-- مرشح الخادم يرسل تلميح لغة النظام `ar/en`، يستخدم `gpt-4o-mini-transcribe` للتفريغ الأسرع والأرخص، ويحفظ قياسات زمنية آمنة للتنزيل والتفريغ والتلخيص من دون محتوى أو أسماء ملفات. يبقى التلخيص على `gpt-5.6-luna`.
+- الخادم المنشور يرسل تلميح لغة النظام `ar/en`، ويستخدم `gpt-4o-mini-transcribe` للنسخ و`gpt-5.6-luna` للتلخيص. ضُبط التلخيص على `reasoning.effort=low` و`text.verbosity=low` مع بقاء JSON Schema الصارم؛ في الاختبار العربي نفسه انخفض زمن الوظيفة من `19,717ms` إلى `11,282ms`، وزمن الطلب من العميل من `21,066ms` إلى `14,431ms`. القياس النهائي: تنزيل `1,330ms`، نسخ `1,460ms`، تلخيص `7,177ms`، إجمالي الوظيفة `11,282ms`، من دون محتوى أو اسم ملف أو هوية.
 - أضيف تصحيح حتمي للتواريخ العربية: `يوم خمسة تسعة` و`بتاريخ ٥/٩` يعنيان 5 سبتمبر القادم، ولا يُخلطان مع `الساعة خمسة` أو `بكرة`. القيم التي ينقصها الوقت تبقى بحاجة إلى تأكيد وتفتح منتقي الوقت على 5:00 مساءً.
-- نجح محلياً `dart format --set-exit-if-changed .` و`flutter analyze`، و30 اختباراً غير golden، و11 golden، وخمسة اختبارات لتطبيع التاريخ، وبناء `flutter build apk --debug`. أضيفت بوابة Deno في CI لـ`fmt/test/check`؛ لم يُنفذ قبول iPhone الحقيقي بعد.
-- مشروع Supabase الصحيح هو `jyehqpdbayslhzebdycj`. جلسة المتصفح تراه، لكن Supabase CLI المحلي مسجل بحساب آخر ولا يراه؛ نشر `process-audio` وتغيير `OPENAI_TRANSCRIPTION_MODEL` ما زالا معلقين حتى تفويض الحساب الصحيح. لا تنشر إلى Damanak أو `talabieh`.
-- إصدار TestFlight build 9 مجهز في المصدر وworkflow. يجب تسجيل رقم تشغيل GitHub وبصمة IPA هنا بعد نجاح الرفع؛ لا تعتبر build 9 منشوراً قبل ذلك.
+- نجح الاختبار العربي الحي بعينة `24.096s`: أُعيد حدث مستقل للغد `2026-08-31` مع تأكيد صباحاً/مساءً، وحدث مستقل `2026-09-05` بلا وقت مخترع ومع طلب تأكيد. نُظف مستخدم Auth المؤقت وملف Storage واستحقاق الاختبار. فشل `usage_reservation_failed` الأقدم كان من إعداد اختبار غيّر الاستحقاق من دون إنشاء فترة `pro`، لا من الدالة المنشورة.
+- مشروع Supabase الصحيح حصراً `jyehqpdbayslhzebdycj`. نُشر `process-audio` بحالة `ACTIVE`، الإصدار `9`، المعرّف `e4a26c2e-b9f2-43d3-9a6b-61467b8c8747`، وبصمة الحزمة `57b8304000994aec12f851eaaec8b4cf4359e739cc7ef09dd6b876f61dc7bdae`. السر `OPENAI_TRANSCRIPTION_MODEL` مضبوط على `gpt-4o-mini-transcribe` مع الحفاظ على بقية الأسرار. لا تنشر إلى Damanak أو `talabieh`.
+- نجح التحقق المحلي الحالي: `dart format --set-exit-if-changed .` على 70 ملفاً، و`flutter analyze --no-pub` بلا مشكلات، و30 اختباراً غير golden، و11 golden، وDeno format، وخمسة اختبارات تاريخ، وDeno check. بناء `flutter build apk --debug` السابق لهذا المرشح ناجح ولم يتأثر بتعديل دالة الخادم. نجح CI run `33031413075` بجميع وظائف Android وiOS غير الموقع وgolden وDeno.
+- نجح TestFlight run `33031418401` في التوقيع والتحقق والتصدير والرفع؛ `altool` أعاد `UPLOAD SUCCEEDED` وDelivery UUID `d3788d62-0ca7-423f-b234-425a325012f7`.
+- artifact GitHub هو `voicebrief-ios-0.1.0-build9-appstore`. ZIP محلي بحجم `34,166,463` وبصمة SHA-256 `DF4BFA9674C7F86C88BFBF0446B0BD1DBCC88941195D5E6AAD0F69FF937AC333`. IPA `VoiceBrief-0.1.0-build9-AppStore.ipa` بحجم `34,413,864` وبصمة SHA-256 `10514A4DEB7D40C1CE923A2556FBAF7F439B289DFEAD00347CA59C2E8545EBCA`. الفحص المستقل أكد التطبيق والامتداد `0.1.0 (9)` وملفي التوزيع الصحيحين.
+- معالجة build 9 داخل App Store Connect لم تُتحقق لأن جلسة الحساب غير مسجلة. تحذير الرفع الوحيد هو أن الحد الأدنى iOS 14؛ Apple ستطلب iOS 15 للبناءات المرفوعة بدءاً من ربيع 2027. اختبار مشاركة WhatsApp والفتح المباشر على iPhone حقيقي ما زال مطلوباً ولا يجوز ادعاء قبوله.
 
 
 ## مشروع ضمانك المستقل 4.1.0+7 (2026-08-25)

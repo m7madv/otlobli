@@ -22,9 +22,11 @@ The function accepts the current audio formats enforced in mobile/server/Storage
 
 The mobile request supplies a validated Arabic/English system-language hint. The transcription prompt preserves spoken number/date wording. Privacy-safe timing logs record only a short job hash, model, and stage durations. Explicit Arabic day/month phrases are normalized deterministically after structured generation.
 
-## Deployment candidate — 2026-08-27
+## Production deployment — 2026-08-30
 
-The source default and intended production secret are now `gpt-4o-mini-transcribe`. Deployment to project `jyehqpdbayslhzebdycj` remains pending because the local Supabase CLI session is authenticated to a different account; the older live deployment below remains the last verified server state until that is resolved.
+`process-audio` is deployed only to project `jyehqpdbayslhzebdycj` as active version `9` with bundle SHA-256 `57b8304000994aec12f851eaaec8b4cf4359e739cc7ef09dd6b876f61dc7bdae`. The production `OPENAI_TRANSCRIPTION_MODEL` secret is `gpt-4o-mini-transcribe`; all unrelated secrets were preserved.
+
+The summary request keeps `gpt-5.6-luna` and strict JSON Schema, but explicitly uses `reasoning.effort=low` and `text.verbosity=low`. On the same representative Arabic smoke sample, this reduced function processing from `19,717ms` to `11,282ms` while preserving the two required dates and confirmation flags. The final safe stage timings were download `1,330ms`, transcription `1,460ms`, summary `7,177ms`, total `11,282ms`; client-observed latency was `14,431ms`.
 
 ## Live status — 2026-08-24
 
@@ -63,6 +65,6 @@ production. Never put this key in `.env` consumed by Flutter or in CI logs.
 
 ## Verification
 
-The English live smoke test and cleanup are complete. Before store release, add non-sensitive Arabic/mixed-language, ambiguous-date, failure-refund, replay/idempotency, and oversize/hostile-upload acceptance. Ordinary automated tests intentionally use fakes and spend no API credit.
+The earlier English smoke and the 2026-08-30 Arabic smoke are complete. The Arabic test used a `24.096s` synthetic sample, preserved the tomorrow and day/month markers, produced separate `2026-08-31` and `2026-09-05` calendar dates, and required confirmation for both ambiguous-time/date-only cases. Its temporary Auth user, Storage object, and test entitlement event were deleted. Before store release, add mixed-language, failure-refund, replay/idempotency, and oversize/hostile-upload acceptance. Ordinary automated tests intentionally use fakes and spend no API credit.
 
 Recheck official model availability, pricing, supported formats, and limits before each release; defaults are configurable precisely so a server rollout need not require a mobile update.

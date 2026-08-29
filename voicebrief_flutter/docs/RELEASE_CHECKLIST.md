@@ -66,6 +66,14 @@
 - Apple finished processing build `0.1.0 (8)` as `Complete` with TestFlight build ID `71d308f7-b859-46ec-9d56-7622e58ffe79`. It is attached automatically to `VoiceBrief Internal`, which has one invited tester. Signed IPA `VoiceBrief-0.1.0-build8-AppStore.ipa` is 34,411,364 bytes with SHA-256 `459B17DDAC178B40C598574B70A0769141B35C78A6890DEDA4F3019A9BDB72CA`.
 - The authorized RevenueCat-to-Supabase webhook is configured as `whintgr41c91a4676`; an unauthenticated request correctly returns `401`, while a RevenueCat test event has not been sent yet. Apple sandbox purchase/restore and build 8 real-device acceptance are not complete. Android purchase acceptance also waits for Google Play to save and activate both base plans.
 
+## Shared-audio/performance candidate — 2026-08-30
+
+- Source version is `0.1.0+9`. CI run [33031413075](https://github.com/m7madv/otlobli/actions/runs/33031413075) passed all Android, Windows golden, iOS no-codesign, and Deno jobs.
+- TestFlight run [33031418401](https://github.com/m7madv/otlobli/actions/runs/33031418401) signed, verified, validated, and uploaded build 9. Delivery UUID is `d3788d62-0ca7-423f-b234-425a325012f7`. IPA SHA-256 is `10514A4DEB7D40C1CE923A2556FBAF7F439B289DFEAD00347CA59C2E8545EBCA`; App Store Connect processing is not yet verified.
+- `process-audio` active version `9` is deployed only to `jyehqpdbayslhzebdycj`, with bundle hash `57b8304000994aec12f851eaaec8b4cf4359e739cc7ef09dd6b876f61dc7bdae`. The live transcription model is `gpt-4o-mini-transcribe`; summary remains `gpt-5.6-luna` with low reasoning effort and low verbosity.
+- The final Arabic live smoke separated tomorrow at five (`2026-08-31`, confirmation required) from day five/month nine (`2026-09-05`, date-only and confirmation required). Function timing was `11,282ms` total with `1,460ms` transcription; all temporary Auth, Storage, and entitlement test state was cleaned.
+- Real signed-iPhone WhatsApp share/automatic-open acceptance remains incomplete. `NSExtensionContext.open` is best-effort and must not be described as guaranteed. The upload also warns that iOS 15 will become the minimum accepted upload target in Spring 2027; the current build still declares iOS 14.
+
 ## Owner/external configuration
 
 - [x] Public legal/support URLs and Android upload signing.

@@ -429,7 +429,9 @@ Deno.serve(async (request) => {
         body: JSON.stringify({
           model: summaryModel,
           input: prompt,
+          reasoning: { effort: "low" },
           text: {
+            verbosity: "low",
             format: {
               type: "json_schema",
               name: "voicebrief_result",

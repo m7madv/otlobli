@@ -11,6 +11,7 @@
 - The client sends a validated `ar`/`en` language hint from the system locale to the transcription endpoint. The production candidate uses `gpt-4o-mini-transcribe`, which is cheaper and intended for low-latency transcription; exact device/network latency must still be measured after deployment.
 - `process-audio` records privacy-safe stage timings for storage download, transcription, summarization, and total processing. Logs contain only a short job hash, model name, and millisecond durations—never file names, audio, transcript, or generated text.
 - Arabic transcription prompting preserves spoken number/date wording so the summary stage receives `يوم خمسة تسعة` instead of a guessed time.
+- Production measurement on 2026-08-30 uses `gpt-4o-mini-transcribe` plus `gpt-5.6-luna` with low reasoning effort and low verbosity. For the same `24.096s` Arabic sample, function time dropped from `19,717ms` to `11,282ms` and client time from `21,066ms` to `14,431ms`, while the two expected dates and confirmation flags remained correct. Final stages: download `1,330ms`, transcription `1,460ms`, summary `7,177ms`.
 
 ## Profiling gates
 
