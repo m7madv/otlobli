@@ -1,0 +1,196 @@
+name: VoiceBrief App Store status
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - codex/voicebrief-ios
+    paths:
+      - ".github/workflows/voicebrief-appstore-status.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-build:
+    name: Inspect VoiceBrief build 9
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      VOICEBRIEF_APP_ID: "6805194629"
+      VOICEBRIEF_BUILD_NUMBER: "9"
+
+    steps:
+      - name: Install App Store Connect client dependencies
+        run: python -m pip install --disable-pip-version-check "PyJWT[crypto]>=2.8,<3"
+
+      - name: Query App Store Connect
+        env:
+          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          REPORT_PATH: ${{ runner.temp }}/voicebrief-appstore-build9.json
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$APP_STORE_CONNECT_API_KEY_BASE64"
+          test -n "$APP_STORE_CONNECT_API_KEY_ID"
+          test -n "$APP_STORE_CONNECT_ISSUER_ID"
+          key_path="$RUNNER_TEMP/AuthKey_$APP_STORE_CONNECT_API_KEY_ID.p8"
+          trap 'rm -f "$key_path"' EXIT
+          echo "$APP_STORE_CONNECT_API_KEY_BASE64" | base64 --decode > "$key_path"
+          chmod 600 "$key_path"
+          export APP_STORE_CONNECT_API_KEY_PATH="$key_path"
+
+          python - <<'PY'
+          import json
+          import os
+          import pathlib
+          import time
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+
+          import jwt
+
+
+          app_id = os.environ["VOICEBRIEF_APP_ID"]
+          build_number = os.environ["VOICEBRIEF_BUILD_NUMBER"]
+          key_id = os.environ["APP_STORE_CONNECT_API_KEY_ID"]
+          issuer_id = os.environ["APP_STORE_CONNECT_ISSUER_ID"]
+          key_path = pathlib.Path(os.environ["APP_STORE_CONNECT_API_KEY_PATH"])
+          report_path = pathlib.Path(os.environ["REPORT_PATH"])
+
+          now = int(time.time())
+          token = jwt.encode(
+              {
+                  "iss": issuer_id,
+                  "iat": now,
+                  "exp": now + 1_200,
+                  "aud": "appstoreconnect-v1",
+              },
+              key_path.read_text(encoding="utf-8"),
+              algorithm="ES256",
+              headers={"kid": key_id, "typ": "JWT"},
+          )
+
+          params = urllib.parse.urlencode(
+              {
+                  "filter[app]": app_id,
+                  "filter[version]": build_number,
+                  "include": "preReleaseVersion",
+                  "limit": "10",
+              }
+          )
+          url = f"https://api.appstoreconnect.apple.com/v1/builds?{params}"
+          headers = {"Authorization": f"Bearer {token}"}
+
+
+          def fetch_builds():
+              request = urllib.request.Request(url, headers=headers)
+              try:
+                  with urllib.request.urlopen(request, timeout=30) as response:
+                      return json.load(response)
+              except urllib.error.HTTPError as error:
+                  try:
+                      payload = json.load(error)
+                  except (json.JSONDecodeError, UnicodeDecodeError):
+                      payload = {}
+                  safe_errors = [
+                      {
+                          "status": item.get("status"),
+                          "code": item.get("code"),
+                          "title": item.get("title"),
+                      }
+                      for item in payload.get("errors", [])
+                  ]
+                  raise SystemExit(
+                      "App Store Connect request failed: "
+                      + json.dumps(safe_errors, ensure_ascii=False)
+                  ) from error
+
+
+          deadline = time.monotonic() + 600
+          payload = {}
+          build = None
+          while True:
+              payload = fetch_builds()
+              builds = payload.get("data", [])
+              build = next(
+                  (
+                      candidate
+                      for candidate in builds
+                      if candidate.get("attributes", {}).get("version") == build_number
+                  ),
+                  None,
+              )
+              if build is not None:
+                  state = build.get("attributes", {}).get("processingState")
+                  if state != "PROCESSING":
+                      break
+              if time.monotonic() >= deadline:
+                  if build is None:
+                      raise SystemExit(
+                          f"VoiceBrief build {build_number} was not found for app {app_id}."
+                      )
+                  raise SystemExit(
+                      f"VoiceBrief build {build_number} is still processing after 10 minutes."
+                  )
+              time.sleep(20)
+
+          attributes = build.get("attributes", {})
+          prerelease_id = (
+              build.get("relationships", {})
+              .get("preReleaseVersion", {})
+              .get("data", {})
+              .get("id")
+          )
+          prerelease = next(
+              (
+                  item.get("attributes", {})
+                  for item in payload.get("included", [])
+                  if item.get("type") == "preReleaseVersions"
+                  and item.get("id") == prerelease_id
+              ),
+              {},
+          )
+          report = {
+              "appId": app_id,
+              "buildId": build.get("id"),
+              "buildNumber": attributes.get("version"),
+              "appVersion": prerelease.get("version"),
+              "platform": prerelease.get("platform"),
+              "processingState": attributes.get("processingState"),
+              "uploadedDate": attributes.get("uploadedDate"),
+              "expirationDate": attributes.get("expirationDate"),
+              "expired": attributes.get("expired"),
+              "minOsVersion": attributes.get("minOsVersion"),
+          }
+          report_path.write_text(
+              json.dumps(report, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write("## VoiceBrief App Store Connect build status\n\n")
+              summary.write(f"- App version: `{report['appVersion']}`\n")
+              summary.write(f"- Build: `{report['buildNumber']}`\n")
+              summary.write(f"- Processing state: `{report['processingState']}`\n")
+              summary.write(f"- Uploaded: `{report['uploadedDate']}`\n")
+              summary.write(f"- Expires: `{report['expirationDate']}`\n")
+              summary.write(f"- Minimum OS: `{report['minOsVersion']}`\n")
+
+          print(json.dumps(report, sort_keys=True))
+          if report["processingState"] != "VALID":
+              raise SystemExit(
+                  f"VoiceBrief build {build_number} is {report['processingState']}."
+              )
+          PY
+
+      - name: Upload the safe status report
+        uses: actions/upload-artifact@v4
+        with:
+          name: voicebrief-appstore-build9-status
+          path: ${{ runner.temp }}/voicebrief-appstore-build9.json
+          if-no-files-found: error
+          retention-days: 30
