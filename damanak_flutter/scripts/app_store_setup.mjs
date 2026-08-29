@@ -205,7 +205,7 @@ async function inspectBundleIdCapabilities(bundleId, report) {
   if (!bundleId) return;
 
   const capabilities = await listAll(
-    `/v1/bundleIds/${bundleId.id}/bundleIdCapabilities?limit=200`,
+    `/v1/bundleIds/${bundleId.id}/bundleIdCapabilities`,
   );
   report.bundleIdCapabilities = capabilities.map((row) => ({
     capabilityType: row.attributes?.capabilityType || 'UNKNOWN',
