@@ -324,6 +324,33 @@ async function findPossibleAppRecords() {
     }));
 }
 
+async function inspectAppStoreVersions(app, report) {
+  report.appStoreVersions = [];
+  report.hasEditableIosAppStoreVersion = false;
+  report.hasPendingContractAppStoreVersion = false;
+  if (!app) return;
+
+  const versions = await listAll(
+    `/v1/apps/${app.id}/appStoreVersions?filter[platform]=IOS&limit=200`,
+  );
+  report.appStoreVersions = versions.map((row) => ({
+    id: row.id,
+    versionString: row.attributes?.versionString || null,
+    appStoreState: row.attributes?.appStoreState || null,
+    platform: row.attributes?.platform || null,
+    createdDate: row.attributes?.createdDate || null,
+  }));
+  report.hasEditableIosAppStoreVersion = report.appStoreVersions.some(
+    (version) =>
+      ['PREPARE_FOR_SUBMISSION', 'READY_FOR_REVIEW'].includes(
+        version.appStoreState,
+      ),
+  );
+  report.hasPendingContractAppStoreVersion = report.appStoreVersions.some(
+    (version) => version.appStoreState === 'PENDING_CONTRACT',
+  );
+}
+
 async function ensureApp(report) {
   let app = await findApp();
   report.app = app ? 'existing' : 'missing';
@@ -1784,6 +1811,7 @@ async function main() {
     await inspectBundleIdCapabilities(bundleId, report);
     await inspectProvisioningProfiles(bundleId, report);
     const app = await ensureApp(report);
+    await inspectAppStoreVersions(app, report);
     await inspectBuilds(app, report);
     await ensureInternalBetaGroup(app, report);
     const group = await ensureSubscriptionGroup(app, report);
