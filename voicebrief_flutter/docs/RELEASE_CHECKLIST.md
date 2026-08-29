@@ -68,7 +68,7 @@
 
 ## Shared-audio/performance candidate — 2026-08-30
 
-- Source version is `0.1.0+9`. CI run [33031413075](https://github.com/m7madv/otlobli/actions/runs/33031413075) passed all Android, Windows golden, iOS no-codesign, and Deno jobs.
+- Source version is `0.1.0+9`. CI run [33031413075](https://github.com/m7madv/otlobli/actions/runs/33031413075) passed the build 9 candidate. Final run [33280858741](https://github.com/m7madv/otlobli/actions/runs/33280858741) from commit `05d9c3e` also passed all Android, Windows golden, iOS no-codesign, and Deno jobs after the summary-latency change.
 - TestFlight run [33031418401](https://github.com/m7madv/otlobli/actions/runs/33031418401) signed, verified, validated, and uploaded build 9. Delivery UUID is `d3788d62-0ca7-423f-b234-425a325012f7`. IPA SHA-256 is `10514A4DEB7D40C1CE923A2556FBAF7F439B289DFEAD00347CA59C2E8545EBCA`; App Store Connect processing is not yet verified.
 - `process-audio` active version `9` is deployed only to `jyehqpdbayslhzebdycj`, with bundle hash `57b8304000994aec12f851eaaec8b4cf4359e739cc7ef09dd6b876f61dc7bdae`. The live transcription model is `gpt-4o-mini-transcribe`; summary remains `gpt-5.6-luna` with low reasoning effort and low verbosity.
 - The final Arabic live smoke separated tomorrow at five (`2026-08-31`, confirmation required) from day five/month nine (`2026-09-05`, date-only and confirmation required). Function timing was `11,282ms` total with `1,460ms` transcription; all temporary Auth, Storage, and entitlement test state was cleaned.

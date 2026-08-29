@@ -46,7 +46,7 @@ Test-only Roboto files under `test/fonts` make desktop golden glyphs determinist
 
 ## VoiceBrief build 9 verification — 2026-08-30
 
-- GitHub CI run `33031413075` passed Android build/analyze/tests, Windows golden tests, iOS no-codesign, and Deno format/test/check.
+- GitHub CI run `33031413075` passed the build 9 candidate, and final run `33280858741` from performance commit `05d9c3e` passed Android build/analyze/tests/APK, Windows golden tests, iOS no-codesign packaging, and Deno format/test/check.
 - TestFlight run `33031418401` passed archive/export, app/extension profile and entitlement checks, App Store validation, and upload. Apple delivery UUID: `d3788d62-0ca7-423f-b234-425a325012f7`. App Store Connect processing remains unverified.
 - Local Deno verification passed format, five Arabic date-normalization tests, and `deno check` with the function config.
 - Current Flutter verification passed format across 70 files with no changes, analysis with no issues, 30 non-golden tests, and all eleven golden tests.
