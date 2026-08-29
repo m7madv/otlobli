@@ -78,7 +78,7 @@ jobs:
               {
                   "filter[app]": app_id,
                   "filter[version]": build_number,
-                  "include": "preReleaseVersion",
+                  "include": "preReleaseVersion,betaGroups",
                   "limit": "10",
               }
           )
@@ -154,8 +154,24 @@ jobs:
               ),
               {},
           )
+          beta_group_ids = {
+              item.get("id")
+              for item in (
+                  build.get("relationships", {})
+                  .get("betaGroups", {})
+                  .get("data", [])
+              )
+          }
+          beta_group_names = sorted(
+              item.get("attributes", {}).get("name")
+              for item in payload.get("included", [])
+              if item.get("type") == "betaGroups"
+              and item.get("id") in beta_group_ids
+              and item.get("attributes", {}).get("name")
+          )
           report = {
               "appId": app_id,
+              "betaGroups": beta_group_names,
               "buildId": build.get("id"),
               "buildNumber": attributes.get("version"),
               "appVersion": prerelease.get("version"),
@@ -176,6 +192,9 @@ jobs:
               summary.write(f"- App version: `{report['appVersion']}`\n")
               summary.write(f"- Build: `{report['buildNumber']}`\n")
               summary.write(f"- Processing state: `{report['processingState']}`\n")
+              summary.write(
+                  f"- Beta groups: `{', '.join(report['betaGroups']) or 'none'}`\n"
+              )
               summary.write(f"- Uploaded: `{report['uploadedDate']}`\n")
               summary.write(f"- Expires: `{report['expirationDate']}`\n")
               summary.write(f"- Minimum OS: `{report['minOsVersion']}`\n")
