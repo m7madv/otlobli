@@ -199,6 +199,86 @@ async function findBundleId() {
   return rows.find((row) => row.attributes?.identifier === BUNDLE_ID) || null;
 }
 
+async function inspectBundleIdCapabilities(bundleId, report) {
+  report.bundleIdCapabilities = [];
+  report.inAppPurchaseCapabilityEnabled = false;
+  if (!bundleId) return;
+
+  const capabilities = await listAll(
+    `/v1/bundleIds/${bundleId.id}/bundleIdCapabilities?limit=200`,
+  );
+  report.bundleIdCapabilities = capabilities.map((row) => ({
+    capabilityType: row.attributes?.capabilityType || 'UNKNOWN',
+    settings: row.attributes?.settings || [],
+  }));
+  report.inAppPurchaseCapabilityEnabled = capabilities.some(
+    (row) => row.attributes?.capabilityType === 'IN_APP_PURCHASE',
+  );
+}
+
+function sha256Base64Content(value) {
+  if (!value) return null;
+  return createHash('sha256')
+    .update(Buffer.from(value, 'base64'))
+    .digest('hex')
+    .toUpperCase();
+}
+
+async function inspectProvisioningProfiles(bundleId, report) {
+  report.provisioningProfiles = [];
+  report.embeddedProvisioningProfile = {
+    suppliedByWorkflow: false,
+    matchedAppStoreConnectProfile: false,
+  };
+  if (!bundleId) return;
+
+  const suppliedProfileHash = sha256Base64Content(
+    process.env.DAMANAK_IOS_APP_STORE_PROFILE_BASE64,
+  );
+  report.embeddedProvisioningProfile.suppliedByWorkflow =
+    Boolean(suppliedProfileHash);
+
+  const profiles = await listAll(
+    `/v1/bundleIds/${bundleId.id}/profiles?limit=200`,
+  );
+  for (const profile of profiles) {
+    let profileContent = profile.attributes?.profileContent;
+    if (!profileContent && suppliedProfileHash) {
+      const detail = await request(`/v1/profiles/${profile.id}`);
+      profileContent = detail.data?.attributes?.profileContent;
+    }
+    const profileHash = sha256Base64Content(profileContent);
+    const matchesSuppliedProfile =
+      Boolean(suppliedProfileHash) && profileHash === suppliedProfileHash;
+    const summary = {
+      id: profile.id,
+      name: profile.attributes?.name || null,
+      uuid: profile.attributes?.uuid || null,
+      profileType: profile.attributes?.profileType || null,
+      profileState: profile.attributes?.profileState || null,
+      createdDate: profile.attributes?.createdDate || null,
+      expirationDate: profile.attributes?.expirationDate || null,
+      matchesSuppliedProfile,
+    };
+    report.provisioningProfiles.push(summary);
+    if (matchesSuppliedProfile) {
+      report.embeddedProvisioningProfile = {
+        suppliedByWorkflow: true,
+        matchedAppStoreConnectProfile: true,
+        ...summary,
+      };
+    }
+  }
+
+  report.activeAppStoreProvisioningProfileCount =
+    report.provisioningProfiles.filter(
+      (profile) =>
+        profile.profileType === 'IOS_APP_STORE' &&
+        profile.profileState === 'ACTIVE' &&
+        Date.parse(profile.expirationDate || '') > Date.now(),
+    ).length;
+}
+
 async function ensureBundleId(report) {
   let bundleId = await findBundleId();
   report.bundleId = bundleId ? 'existing' : 'missing';
@@ -1701,6 +1781,8 @@ async function main() {
 
   try {
     const bundleId = await ensureBundleId(report);
+    await inspectBundleIdCapabilities(bundleId, report);
+    await inspectProvisioningProfiles(bundleId, report);
     const app = await ensureApp(report);
     await inspectBuilds(app, report);
     await ensureInternalBetaGroup(app, report);

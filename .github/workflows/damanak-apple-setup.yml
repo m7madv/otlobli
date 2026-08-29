@@ -72,6 +72,7 @@ jobs:
           APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           APPLE_DISTRIBUTION_CERTIFICATE_SERIAL: ${{ steps.certificate.outputs.serial }}
+          DAMANAK_IOS_APP_STORE_PROFILE_BASE64: ${{ secrets.DAMANAK_IOS_APP_STORE_PROFILE_BASE64 }}
         shell: bash
         run: |
           if [[ "${{ inputs.apply_prices }}" == "true" && "${{ inputs.mode }}" != "apply" ]]; then
