@@ -48,7 +48,7 @@ Test-only Roboto files under `test/fonts` make desktop golden glyphs determinist
 
 - GitHub CI run `33031413075` passed the build 9 candidate, and final run `33280858741` from performance commit `05d9c3e` passed Android build/analyze/tests/APK, Windows golden tests, iOS no-codesign packaging, and Deno format/test/check.
 - TestFlight run `33031418401` passed archive/export, app/extension profile and entitlement checks, App Store validation, and upload. Apple delivery UUID: `d3788d62-0ca7-423f-b234-425a325012f7`.
-- Read-only App Store Connect status run `33281439004` confirmed iOS `0.1.0 (9)` is `VALID` and unexpired. Its build ID matches the delivery UUID; the safe status artifact is `9723099055` with SHA-256 `EB01A2277A1648A622DD5C05EEA0F6DDF5D063DF850035DAFF51927ADF0479CF`.
+- Read-only App Store Connect status run `33281554578` confirmed iOS `0.1.0 (9)` is `VALID`, unexpired, and attached to `VoiceBrief Internal`. Its build ID matches the delivery UUID; the safe status artifact is `9723131680` with SHA-256 `15DF660E61DAA9F05FC42A3696CB071A4F7FEF5ED772892131A8717C0EB71C1F`.
 - Local Deno verification passed format, five Arabic date-normalization tests, and `deno check` with the function config.
 - Current Flutter verification passed format across 70 files with no changes, analysis with no issues, 30 non-golden tests, and all eleven golden tests.
 - The deployed Arabic live smoke returned HTTP 200, detected Arabic, preserved both relative and explicit day/month markers, and returned two separate dates: `2026-08-31` and `2026-09-05`. Both require confirmation; the second remained date-only. The temporary user, uploaded object, and test entitlement were removed.
