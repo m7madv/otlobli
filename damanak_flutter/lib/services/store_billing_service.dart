@@ -25,7 +25,6 @@ Future<ProductDetailsResponse> queryAppleStoreProducts({
   final stopwatch = Stopwatch()..start();
   final responses = <ProductDetailsResponse>[];
   PlatformException? platformError;
-  var timedOut = false;
 
   Set<String> missingIds() {
     final found = responses
@@ -35,37 +34,41 @@ Future<ProductDetailsResponse> queryAppleStoreProducts({
     return productIds.difference(found);
   }
 
-  Duration? phaseTimeout(int remainingPhases) {
+  Duration? remainingTimeout() {
     final remaining = timeout - stopwatch.elapsed;
     if (remaining <= Duration.zero) return null;
-    final microseconds = remaining.inMicroseconds ~/ remainingPhases;
-    return Duration(microseconds: microseconds < 1 ? 1 : microseconds);
+    return remaining;
   }
 
   Future<void> collect(
     StoreProductQuery query,
     Set<String> ids, {
-    required int remainingPhases,
+    required Duration maximumTimeout,
   }) async {
     if (ids.isEmpty) return;
-    final boundedTimeout = phaseTimeout(remainingPhases);
-    if (boundedTimeout == null) {
-      timedOut = true;
+    final remaining = remainingTimeout();
+    if (remaining == null) {
       return;
     }
+    final boundedTimeout = remaining < maximumTimeout
+        ? remaining
+        : maximumTimeout;
     try {
       responses.add(await query(ids).timeout(boundedTimeout));
     } on TimeoutException {
-      timedOut = true;
+      // Keep the single overall deadline and let the remaining fallback run.
     } on PlatformException catch (error) {
       platformError ??= error;
     }
   }
 
-  // StoreKit 2 remains the primary source. Keep one overall deadline for the
-  // complete lookup so the bounded fallbacks always fit below the controller's
-  // product-loading watchdog.
-  await collect(storeKit2Query, productIds, remainingPhases: 3);
+  // StoreKit 2 remains the primary source and receives most of the single
+  // overall deadline. Keep at most one StoreKit 1 fallback request so a timed
+  // out native request does not fan out into overlapping StoreKit work.
+  final storeKit2Budget = Duration(
+    microseconds: (timeout.inMicroseconds * 3) ~/ 4,
+  );
+  await collect(storeKit2Query, productIds, maximumTimeout: storeKit2Budget);
   var missing = missingIds();
   if (missing.isEmpty) {
     return _mergeProductResponses(productIds: productIds, responses: responses);
@@ -73,35 +76,8 @@ Future<ProductDetailsResponse> queryAppleStoreProducts({
 
   // Merge StoreKit 1 results only for identifiers StoreKit 2 omitted. A
   // partial StoreKit 2 response must not hide otherwise valid plans.
-  await collect(storeKit1Query, missing, remainingPhases: 2);
+  await collect(storeKit1Query, missing, maximumTimeout: timeout);
   missing = missingIds();
-  if (missing.isEmpty || missing.length < 2) {
-    if (responses.isNotEmpty) {
-      return _mergeProductResponses(
-        productIds: productIds,
-        responses: responses,
-      );
-    }
-    if (platformError != null) throw platformError!;
-    if (timedOut) throw TimeoutException('Apple product lookup timed out.');
-  }
-
-  // A few iOS/TestFlight combinations return an empty or partial catalog for
-  // one larger StoreKit 1 request. Retry the remaining identifiers once in two
-  // concurrent batches under the same overall deadline.
-  if (missing.length >= 2) {
-    final sortedIds = missing.toList()..sort();
-    final splitAt = (sortedIds.length / 2).ceil();
-    final batches = [
-      sortedIds.take(splitAt).toSet(),
-      sortedIds.skip(splitAt).toSet(),
-    ].where((batch) => batch.isNotEmpty).toList(growable: false);
-    await Future.wait(
-      batches.map(
-        (batch) => collect(storeKit1Query, batch, remainingPhases: 1),
-      ),
-    );
-  }
 
   if (responses.isNotEmpty) {
     return _mergeProductResponses(productIds: productIds, responses: responses);
@@ -129,7 +105,12 @@ ProductDetailsResponse _mergeProductResponses({
   final productsById = <String, ProductDetails>{};
   IAPError? firstError;
   for (final response in responses) {
-    firstError ??= response.error;
+    final responseIsExplicitEmptyCatalog =
+        response.productDetails.isEmpty &&
+        response.notFoundIDs.toSet().containsAll(productIds);
+    if (!responseIsExplicitEmptyCatalog) {
+      firstError ??= response.error;
+    }
     for (final product in response.productDetails) {
       productsById[product.id] = product;
     }

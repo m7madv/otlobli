@@ -140,7 +140,7 @@ void main() {
       expect(fallbackRequests.single, isNot(contains(primaryId)));
     });
 
-    test('يعيد استعلام كتالوج Apple على دفعتين عند رجوعه فارغاً', () async {
+    test('يستخدم طلب StoreKit 1 واحداً عند رجوع StoreKit 2 فارغاً', () async {
       final requestedBatches = <Set<String>>[];
       final starterMonthly = DamanakStoreCatalog.appleProductId(
         'starter',
@@ -154,9 +154,7 @@ void main() {
         ),
         storeKit1Query: (ids) async {
           requestedBatches.add(ids);
-          final products =
-              ids.length < DamanakStoreCatalog.appleProductIds.length &&
-                  ids.contains(starterMonthly)
+          final products = ids.contains(starterMonthly)
               ? [
                   ProductDetails(
                     id: starterMonthly,
@@ -176,14 +174,34 @@ void main() {
         timeout: const Duration(milliseconds: 50),
       );
 
-      expect(requestedBatches, hasLength(3));
+      expect(requestedBatches, hasLength(1));
       expect(requestedBatches.first, DamanakStoreCatalog.appleProductIds);
-      expect(
-        requestedBatches.skip(1).every((batch) => batch.length == 3),
-        isTrue,
-      );
       expect(response.productDetails.single.id, starterMonthly);
       expect(response.notFoundIDs, hasLength(5));
+    });
+
+    test('لا يعرض storekit_no_response بدل تشخيص الكتالوج الفارغ', () async {
+      final response = await queryAppleStoreProducts(
+        productIds: DamanakStoreCatalog.appleProductIds,
+        storeKit2Query: (ids) async => ProductDetailsResponse(
+          productDetails: const [],
+          notFoundIDs: ids.toList(growable: false),
+          error: IAPError(
+            source: 'app_store',
+            code: 'storekit_no_response',
+            message: 'No products returned.',
+          ),
+        ),
+        storeKit1Query: (ids) async => ProductDetailsResponse(
+          productDetails: const [],
+          notFoundIDs: ids.toList(growable: false),
+        ),
+        timeout: const Duration(milliseconds: 100),
+      );
+
+      expect(response.productDetails, isEmpty);
+      expect(response.notFoundIDs, hasLength(6));
+      expect(response.error, isNull);
     });
 
     test('يوضح متجر Apple الفعلي عند غياب المنتجات', () {
