@@ -63,6 +63,15 @@ Otlobli specifically, or reconnect Otlobli session `0` through the protected
 loopback admin route. Local Windows and Oracle Cloud Shell currently have no
 usable SSH private key; do not delete or replace the session.
 
+The owner has now confirmed a fresh real OTP from one of the two apps. The registered `iOS Unsigned
+Build` workflow has a dedicated existing-build submission job for the exact
+`testflight` + `distribute-existing` + App Review combination. It resolves the
+version/build from source, verifies the physical-acceptance gate, probes the
+live Otlobli WhatsApp health contract immediately, and then runs the App Store
+submission script. The macOS archive/sign/upload job is skipped for this exact
+combination, so this does not create or upload a new IPA. Never bypass the live
+sender gate if it still reports disconnected/not ready.
+
 Full production build, all release/auth/security/SHEIN/Temu guards, Android/iOS
 sync, performance budgets, signed Android R8 APK/AAB, APK v2/v3 signature and
 AAB JAR verification pass. Final budgets: startup 674276, JS gzip 301491, CSS
