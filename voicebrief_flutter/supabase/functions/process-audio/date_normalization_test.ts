@@ -42,7 +42,7 @@ Deno.test("does not treat a spoken clock time as a date", () => {
 });
 
 Deno.test("corrects both action and calendar date without merging events", () => {
-  const generated = {
+  const generated: Record<string, unknown> = {
     actionItems: [{
       title: "ضبط منبه للحصة",
       originalDatePhrase: "يوم خمسة تسعة",
@@ -60,9 +60,57 @@ Deno.test("corrects both action and calendar date without merging events", () =>
 
   normalizeSpokenDates(generated, reference, 180);
 
-  assertEquals(generated.actionItems[0].dueDateIso, "2026-09-05");
-  assertEquals(generated.importantDates[0].dateIso, "2026-09-05");
-  assertEquals(generated.importantDates[0].requiresConfirmation, true);
-  assertEquals(generated.actionItems.length, 1);
-  assertEquals(generated.importantDates.length, 1);
+  const actions = generated.actionItems as Record<string, unknown>[];
+  const dates = generated.importantDates as Record<string, unknown>[];
+  assertEquals(actions[0].dueDateIso, "2026-09-05");
+  assertEquals(dates[0].dateIso, "2026-09-05");
+  assertEquals(dates[0].requiresConfirmation, true);
+  assertEquals(actions.length, 1);
+  assertEquals(dates.length, 1);
+});
+
+Deno.test("recovers tomorrow appointment when the model omitted date arrays", () => {
+  const generated: Record<string, unknown> = {
+    title: "موعد الغد",
+    actionItems: [],
+    importantDates: [],
+  };
+
+  normalizeSpokenDates(
+    generated,
+    reference,
+    180,
+    "المتحدث يذكر بأن الموعد غدًا الساعة الخامسة ويطلب الاستعداد للذهاب.",
+  );
+
+  assertEquals(generated.importantDates, [{
+    label: "موعد الغد",
+    dateIso: "2026-08-27",
+    originalPhrase:
+      "المتحدث يذكر بأن الموعد غدًا الساعة الخامسة ويطلب الاستعداد للذهاب",
+    confidence: 0.9,
+    requiresConfirmation: true,
+  }]);
+});
+
+Deno.test("recovers separate tomorrow and explicit day month appointments", () => {
+  const generated: Record<string, unknown> = {
+    title: "مواعيد قادمة",
+    actionItems: [],
+    importantDates: [],
+  };
+
+  normalizeSpokenDates(
+    generated,
+    reference,
+    180,
+    "موعدنا بكرة على الساعة خمسة. وكمان حط منبه يوم خمسة تسعة.",
+  );
+
+  const dates = generated.importantDates as Record<string, unknown>[];
+  assertEquals(dates.length, 2);
+  assertEquals(dates[0].dateIso, "2026-08-27");
+  assertEquals(dates[1].dateIso, "2026-09-05");
+  assertEquals(dates[0].requiresConfirmation, true);
+  assertEquals(dates[1].requiresConfirmation, true);
 });

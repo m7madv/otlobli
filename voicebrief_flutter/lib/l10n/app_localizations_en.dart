@@ -429,6 +429,29 @@ class AppLocalizationsEn extends AppLocalizations {
   String get addToCalendar => 'Add to calendar';
 
   @override
+  String get setReminder => 'Set reminder';
+
+  @override
+  String get reminderSet => 'Reminder set.';
+
+  @override
+  String get reminderUnavailable =>
+      'The reminder could not be set. Enable VoiceBrief notifications and try again.';
+
+  @override
+  String get reminderMustBeFuture => 'Choose a future time for the reminder.';
+
+  @override
+  String reminderNotificationTitle(String title) {
+    return 'Reminder: $title';
+  }
+
+  @override
+  String reminderNotificationBody(String phrase) {
+    return 'From VoiceBrief: “$phrase”';
+  }
+
+  @override
   String ownerLabel(String owner) {
     return 'Owner: $owner';
   }
@@ -503,8 +526,8 @@ class AppLocalizationsEn extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count dates found · review and add them to your calendar',
-      one: '1 date found · review and add it to your calendar',
+      other: '$count dates found · set reminders or add them to your calendar',
+      one: '1 date found · set a reminder or add it to your calendar',
     );
     return '$_temp0';
   }
@@ -515,8 +538,9 @@ class AppLocalizationsEn extends AppLocalizations {
       count,
       locale: localeName,
       other:
-          '$count dates were found. Review them before adding to the system calendar.',
-      one: '1 date was found. Review it before adding to the system calendar.',
+          '$count dates were found. Review them, then set reminders or add them to the system calendar.',
+      one:
+          '1 date was found. Review it, then set a reminder or add it to the system calendar.',
     );
     return '$_temp0';
   }

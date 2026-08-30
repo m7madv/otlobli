@@ -20,11 +20,13 @@ and availability can change.
 
 The function accepts the current audio formats enforced in mobile/server/Storage, sends transcription multipart data, then uses the Responses API with strict JSON Schema. It retries only 429/5xx responses with bounded exponential delay, uses a 90-second attempt timeout, validates output, avoids content logs, and deletes audio in `finally`.
 
-The mobile request supplies a validated Arabic/English system-language hint. The transcription prompt preserves spoken number/date wording. Privacy-safe timing logs record only a short job hash, model, and stage durations. Explicit Arabic day/month phrases are normalized deterministically after structured generation.
+The mobile request supplies a validated Arabic/English system-language hint. The transcription prompt preserves spoken number/date wording. Privacy-safe timing logs record only a short job hash, model, and stage durations. Explicit Arabic day/month phrases and relative Arabic dates are normalized deterministically after structured generation. Free results retain `importantDates`; only paid key points and action items remain gated.
 
 ## Production deployment — 2026-08-30
 
-`process-audio` is deployed only to project `jyehqpdbayslhzebdycj` as active version `9` with bundle SHA-256 `57b8304000994aec12f851eaaec8b4cf4359e739cc7ef09dd6b876f61dc7bdae`. The production `OPENAI_TRANSCRIPTION_MODEL` secret is `gpt-4o-mini-transcribe`; all unrelated secrets were preserved.
+`process-audio` is deployed only to project `jyehqpdbayslhzebdycj` as active version `11` with bundle SHA-256 `cd2724f53c9acfe07e007db786a632a9a64ee797e3062345060a5cef17bc1bd8`. The production `OPENAI_TRANSCRIPTION_MODEL` secret is `gpt-4o-mini-transcribe`; all unrelated secrets were preserved.
+
+The post-deploy Arabic smoke returned HTTP 200 in `17,153ms`, retained the tomorrow event and the independent `2026-09-05` date, and removed the temporary Auth user, Storage object, and entitlement event. The mobile layer still asks the user to confirm an ambiguous spoken hour before scheduling a reminder.
 
 The summary request keeps `gpt-5.6-luna` and strict JSON Schema, but explicitly uses `reasoning.effort=low` and `text.verbosity=low`. On the same representative Arabic smoke sample, this reduced function processing from `19,717ms` to `11,282ms` while preserving the two required dates and confirmation flags. The final safe stage timings were download `1,330ms`, transcription `1,460ms`, summary `7,177ms`, total `11,282ms`; client-observed latency was `14,431ms`.
 

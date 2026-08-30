@@ -715,8 +715,8 @@ final class ShareViewController: UIViewController {
         english: "Preparing your brief"
       )
       self.messageLabel.text = self.localized(
-        arabic: "بدأت المعالجة. أبقِ هذه النافذة مفتوحة؛ ستُغلق تلقائيًا ويصلك إشعار عند الجاهزية.",
-        english: "Processing has started. Keep this window open; it will close automatically and notify you when ready."
+        arabic: "بدأ التلخيص. يمكنك إغلاق هذه النافذة الآن؛ سيصلك إشعار عندما يصبح الملخص جاهزًا.",
+        english: "Your brief is being prepared. You can close this window now; we'll notify you when it's ready."
       )
       self.actionButton.isHidden = true
       self.progressView.startAnimating()

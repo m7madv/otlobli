@@ -49,6 +49,8 @@ jobs:
           grep -q 'import UserNotifications' ios/ShareExtension/ShareViewController.swift
           grep -q 'voicebriefTarget.*sharedResult' ios/ShareExtension/ShareViewController.swift
           grep -q 'requestOpenProcessedResult' ios/Runner/AppDelegate.swift
+          grep -q 'يمكنك إغلاق هذه النافذة' ios/ShareExtension/ShareViewController.swift
+          grep -q 'voicebrief/reminders' ios/Runner/AppDelegate.swift
           ! grep -Eq 'UIApplication\.shared|nextResponder|performSelector|extensionContext.*\.open' ios/ShareExtension/ShareViewController.swift
           pod install --project-directory=ios
 
@@ -230,8 +232,8 @@ jobs:
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app_path/Info.plist")" = "app.voicebrief.mobile"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$extension_path/Info.plist")" = "app.voicebrief.mobile.share"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app_path/Info.plist")" = "0.1.0"
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app_path/Info.plist")" = "12"
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$extension_path/Info.plist")" = "12"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app_path/Info.plist")" = "13"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$extension_path/Info.plist")" = "13"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDocumentTypes:0:LSItemContentTypes:0' "$app_path/Info.plist")" = "public.audio"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDocumentTypes:0:LSItemContentTypes:1' "$app_path/Info.plist")" = "public.mp3"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDocumentTypes:0:LSItemContentTypes:2' "$app_path/Info.plist")" = "public.mpeg-4-audio"
@@ -242,11 +244,11 @@ jobs:
           test "$(/usr/libexec/PlistBuddy -c 'Print :com.apple.security.application-groups:0' "$RUNNER_TEMP/voicebrief-share-entitlements.plist")" = "group.app.voicebrief.mobile"
           test "$(/usr/libexec/PlistBuddy -c 'Print :com.apple.developer.applesignin:0' "$RUNNER_TEMP/voicebrief-app-entitlements.plist")" = "Default"
 
-          final_ipa="build/ios/signed/VoiceBrief-0.1.0-build12-AppStore.ipa"
+          final_ipa="build/ios/signed/VoiceBrief-0.1.0-build13-AppStore.ipa"
           if [[ "$ipa_path" != "$final_ipa" ]]; then
             mv "$ipa_path" "$final_ipa"
           fi
-          shasum -a 256 "$final_ipa" | tee build/ios/signed/VoiceBrief-0.1.0-build12-AppStore.sha256
+          shasum -a 256 "$final_ipa" | tee build/ios/signed/VoiceBrief-0.1.0-build13-AppStore.sha256
 
       - name: Validate and upload to App Store Connect
         if: ${{ github.event_name == 'push' || inputs.upload_to_testflight }}
@@ -265,7 +267,7 @@ jobs:
           echo "$APP_STORE_CONNECT_API_KEY_BASE64" | base64 --decode \
             > "$key_directory/AuthKey_$APP_STORE_CONNECT_API_KEY_ID.p8"
           chmod 600 "$key_directory/AuthKey_$APP_STORE_CONNECT_API_KEY_ID.p8"
-          ipa_path="build/ios/signed/VoiceBrief-0.1.0-build12-AppStore.ipa"
+          ipa_path="build/ios/signed/VoiceBrief-0.1.0-build13-AppStore.ipa"
           xcrun altool --validate-app \
             -f "$ipa_path" -t ios \
             --apiKey "$APP_STORE_CONNECT_API_KEY_ID" \
@@ -278,10 +280,10 @@ jobs:
       - name: Upload signed IPA and verification report
         uses: actions/upload-artifact@v4
         with:
-          name: voicebrief-ios-0.1.0-build12-appstore
+          name: voicebrief-ios-0.1.0-build13-appstore
           path: |
-            voicebrief_flutter/build/ios/signed/VoiceBrief-0.1.0-build12-AppStore.ipa
-            voicebrief_flutter/build/ios/signed/VoiceBrief-0.1.0-build12-AppStore.sha256
+            voicebrief_flutter/build/ios/signed/VoiceBrief-0.1.0-build13-AppStore.ipa
+            voicebrief_flutter/build/ios/signed/VoiceBrief-0.1.0-build13-AppStore.sha256
             voicebrief_flutter/build/apple-profiles/report.json
           if-no-files-found: error
           retention-days: 30

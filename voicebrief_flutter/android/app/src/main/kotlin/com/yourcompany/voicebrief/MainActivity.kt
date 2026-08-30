@@ -7,6 +7,7 @@ import android.database.Cursor
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.provider.AlarmClock
 import android.provider.CalendarContract
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -24,12 +25,14 @@ import io.flutter.plugin.common.MethodChannel
 import java.io.File
 import java.io.FileOutputStream
 import java.security.MessageDigest
+import java.util.Calendar
 
 @UnstableApi
 class MainActivity : FlutterActivity() {
     private val channelName = "voicebrief/share"
     private var channel: MethodChannel? = null
     private var calendarChannel: MethodChannel? = null
+    private var reminderChannel: MethodChannel? = null
     private var microphoneChannel: MethodChannel? = null
     private var audioEditChannel: MethodChannel? = null
     private var microphonePermissionResult: MethodChannel.Result? = null
@@ -84,6 +87,34 @@ class MainActivity : FlutterActivity() {
                     )
                 }.onSuccess { result.success(true) }
                     .onFailure { result.error("calendar_unavailable", "No calendar editor is available", null) }
+            }
+        }
+        reminderChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "voicebrief/reminders",
+        ).also { methodChannel ->
+            methodChannel.setMethodCallHandler { call, result ->
+                if (call.method != "schedule") {
+                    result.notImplemented()
+                    return@setMethodCallHandler
+                }
+                val fireMillis = call.argument<Number>("fireMillis")?.toLong()
+                if (fireMillis == null || fireMillis <= System.currentTimeMillis()) {
+                    result.error("invalid_reminder", "Reminder must be in the future", null)
+                    return@setMethodCallHandler
+                }
+                val fireTime = Calendar.getInstance().apply { timeInMillis = fireMillis }
+                val title = call.argument<String>("title") ?: "VoiceBrief"
+                runCatching {
+                    startActivity(
+                        Intent(AlarmClock.ACTION_SET_ALARM)
+                            .putExtra(AlarmClock.EXTRA_HOUR, fireTime.get(Calendar.HOUR_OF_DAY))
+                            .putExtra(AlarmClock.EXTRA_MINUTES, fireTime.get(Calendar.MINUTE))
+                            .putExtra(AlarmClock.EXTRA_MESSAGE, title)
+                            .putExtra(AlarmClock.EXTRA_SKIP_UI, true),
+                    )
+                }.onSuccess { result.success(true) }
+                    .onFailure { result.error("reminder_unavailable", "No alarm app is available", null) }
             }
         }
         microphoneChannel = MethodChannel(

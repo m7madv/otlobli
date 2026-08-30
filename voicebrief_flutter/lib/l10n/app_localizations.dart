@@ -866,6 +866,42 @@ abstract class AppLocalizations {
   /// **'Add to calendar'**
   String get addToCalendar;
 
+  /// No description provided for @setReminder.
+  ///
+  /// In en, this message translates to:
+  /// **'Set reminder'**
+  String get setReminder;
+
+  /// No description provided for @reminderSet.
+  ///
+  /// In en, this message translates to:
+  /// **'Reminder set.'**
+  String get reminderSet;
+
+  /// No description provided for @reminderUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'The reminder could not be set. Enable VoiceBrief notifications and try again.'**
+  String get reminderUnavailable;
+
+  /// No description provided for @reminderMustBeFuture.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a future time for the reminder.'**
+  String get reminderMustBeFuture;
+
+  /// No description provided for @reminderNotificationTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Reminder: {title}'**
+  String reminderNotificationTitle(String title);
+
+  /// No description provided for @reminderNotificationBody.
+  ///
+  /// In en, this message translates to:
+  /// **'From VoiceBrief: “{phrase}”'**
+  String reminderNotificationBody(String phrase);
+
   /// No description provided for @ownerLabel.
   ///
   /// In en, this message translates to:
@@ -989,13 +1025,13 @@ abstract class AppLocalizations {
   /// No description provided for @datesFound.
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =1{1 date found · review and add it to your calendar} other{{count} dates found · review and add them to your calendar}}'**
+  /// **'{count, plural, =1{1 date found · set a reminder or add it to your calendar} other{{count} dates found · set reminders or add them to your calendar}}'**
   String datesFound(int count);
 
   /// No description provided for @datesFoundSemantics.
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =1{1 date was found. Review it before adding to the system calendar.} other{{count} dates were found. Review them before adding to the system calendar.}}'**
+  /// **'{count, plural, =1{1 date was found. Review it, then set a reminder or add it to the system calendar.} other{{count} dates were found. Review them, then set reminders or add them to the system calendar.}}'**
   String datesFoundSemantics(int count);
 
   /// No description provided for @account.

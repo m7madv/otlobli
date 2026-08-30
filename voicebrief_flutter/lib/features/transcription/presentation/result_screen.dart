@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:voicebrief/app/providers.dart';
 import 'package:voicebrief/core/platform/calendar_launcher.dart';
+import 'package:voicebrief/core/platform/reminder_launcher.dart';
 import 'package:voicebrief/features/transcription/domain/brief_result.dart';
 import 'package:voicebrief/l10n/l10n.dart';
 import 'package:voicebrief/ui/core/components/app_components.dart';
@@ -168,8 +169,23 @@ class ResultScreen extends ConsumerWidget {
                           item.dueDateIso == null &&
                               item.originalDatePhrase == null
                           ? null
-                          : TextButton(
-                              onPressed: () => _confirmAndAddCalendarEvent(
+                          : _DateActions(
+                              onReminder: () => _confirmAndScheduleReminder(
+                                context,
+                                identifier: result.id,
+                                title: item.title,
+                                originalPhrase:
+                                    item.originalDatePhrase ??
+                                    context.l10n.taskDeadline,
+                                dateIso: item.dueDateIso,
+                                requiresConfirmation:
+                                    item.dueDateIso == null ||
+                                    _isDateOnly(item.dueDateIso) ||
+                                    _timeIsAmbiguous(
+                                      item.originalDatePhrase ?? '',
+                                    ),
+                              ),
+                              onCalendar: () => _confirmAndAddCalendarEvent(
                                 context,
                                 title: item.title,
                                 originalPhrase:
@@ -177,7 +193,6 @@ class ResultScreen extends ConsumerWidget {
                                     context.l10n.taskDeadline,
                                 dateIso: item.dueDateIso,
                               ),
-                              child: Text(context.l10n.addToCalendar),
                             ),
                     ),
                 ],
@@ -198,14 +213,23 @@ class ResultScreen extends ConsumerWidget {
                       subtitle:
                           '${context.l10n.heardLabel(date.originalPhrase)}${date.requiresConfirmation ? ' · ${context.l10n.needsConfirmation}' : ''}',
                       leading: const Icon(Icons.event_outlined),
-                      trailing: TextButton(
-                        onPressed: () => _confirmAndAddCalendarEvent(
+                      trailing: _DateActions(
+                        onReminder: () => _confirmAndScheduleReminder(
+                          context,
+                          identifier: result.id,
+                          title: date.label,
+                          originalPhrase: date.originalPhrase,
+                          dateIso: date.dateIso,
+                          requiresConfirmation:
+                              date.requiresConfirmation ||
+                              _timeIsAmbiguous(date.originalPhrase),
+                        ),
+                        onCalendar: () => _confirmAndAddCalendarEvent(
                           context,
                           title: date.label,
                           originalPhrase: date.originalPhrase,
                           dateIso: date.dateIso,
                         ),
-                        child: Text(context.l10n.addToCalendar),
                       ),
                     ),
                 ],
@@ -405,6 +429,204 @@ class ResultScreen extends ConsumerWidget {
     if (context.mounted && opened) {
       AppToast.show(context, context.l10n.calendarOpened);
     }
+  }
+
+  static Future<void> _confirmAndScheduleReminder(
+    BuildContext context, {
+    required String identifier,
+    required String title,
+    required String originalPhrase,
+    required String? dateIso,
+    required bool requiresConfirmation,
+  }) async {
+    final parsed = dateIso == null ? null : DateTime.tryParse(dateIso);
+    final dateOnly = _isDateOnly(dateIso);
+    DateTime? fireAt;
+    if (!requiresConfirmation && parsed != null && !dateOnly) {
+      fireAt = parsed.toLocal();
+    } else {
+      final selectedDate = await showDatePicker(
+        context: context,
+        firstDate: DateTime.now(),
+        lastDate: DateTime.now().add(const Duration(days: 3650)),
+        initialDate:
+            parsed?.toLocal() ?? DateTime.now().add(const Duration(days: 1)),
+        helpText: context.l10n.confirmDatePhrase(originalPhrase),
+      );
+      if (selectedDate == null || !context.mounted) return;
+      final selectedTime = await showTimePicker(
+        context: context,
+        initialTime: _initialReminderTime(
+          parsed: parsed,
+          dateOnly: dateOnly,
+          originalPhrase: originalPhrase,
+        ),
+        helpText: context.l10n.confirmEventTime,
+      );
+      if (selectedTime == null || !context.mounted) return;
+      fireAt = DateTime(
+        selectedDate.year,
+        selectedDate.month,
+        selectedDate.day,
+        selectedTime.hour,
+        selectedTime.minute,
+      );
+    }
+    if (!fireAt.isAfter(DateTime.now())) {
+      if (context.mounted) {
+        AppToast.show(context, context.l10n.reminderMustBeFuture);
+      }
+      return;
+    }
+    try {
+      final scheduled = await ReminderLauncher.schedule(
+        identifier:
+            '$identifier-${fireAt.millisecondsSinceEpoch}-${title.hashCode.abs()}',
+        title: context.l10n.reminderNotificationTitle(title),
+        body: context.l10n.reminderNotificationBody(originalPhrase),
+        fireAt: fireAt,
+      );
+      if (context.mounted) {
+        AppToast.show(
+          context,
+          scheduled
+              ? context.l10n.reminderSet
+              : context.l10n.reminderUnavailable,
+        );
+      }
+    } on Object {
+      if (context.mounted) {
+        AppToast.show(context, context.l10n.reminderUnavailable);
+      }
+    }
+  }
+
+  static bool _isDateOnly(String? dateIso) =>
+      dateIso != null && RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(dateIso);
+
+  static bool _timeIsAmbiguous(String phrase) {
+    final normalized = _normalizedTimePhrase(phrase);
+    final hasClock = RegExp(r'(?:الساعه|ساعه)\s+').hasMatch(normalized);
+    final hasPeriod = RegExp(
+      r'(?:صباح|الصبح|فجرا|مساء|المساء|المسا|ليل|بالليل|\bam\b|\bpm\b)',
+    ).hasMatch(normalized);
+    return hasClock && !hasPeriod;
+  }
+
+  static TimeOfDay _initialReminderTime({
+    required DateTime? parsed,
+    required bool dateOnly,
+    required String originalPhrase,
+  }) {
+    if (parsed != null && !dateOnly) {
+      return TimeOfDay.fromDateTime(parsed.toLocal());
+    }
+    return _spokenTime(originalPhrase) ?? const TimeOfDay(hour: 17, minute: 0);
+  }
+
+  static TimeOfDay? _spokenTime(String phrase) {
+    final normalized = _normalizedTimePhrase(phrase);
+    final match = RegExp(
+      r'(?:الساعه|ساعه)\s+([^\s،,.؛;!?؟]+)',
+    ).firstMatch(normalized);
+    if (match == null) return null;
+    var token = match.group(1)!;
+    if (token.startsWith('ال') && token.length > 2) token = token.substring(2);
+    const numbers = <String, int>{
+      'واحد': 1,
+      'واحده': 1,
+      'اولي': 1,
+      'اثنين': 2,
+      'اثنان': 2,
+      'ثانيه': 2,
+      'ثلاثه': 3,
+      'ثالثه': 3,
+      'اربعه': 4,
+      'رابعه': 4,
+      'خمسه': 5,
+      'خامسه': 5,
+      'سته': 6,
+      'سادسه': 6,
+      'سبعه': 7,
+      'سابعه': 7,
+      'ثمانيه': 8,
+      'ثامنه': 8,
+      'تسعه': 9,
+      'تاسعه': 9,
+      'عشره': 10,
+      'عاشره': 10,
+      'احدعشر': 11,
+      'احدي_عشره': 11,
+      'اثناعشر': 12,
+      'ثانيه_عشره': 12,
+    };
+    var hour = int.tryParse(token) ?? numbers[token];
+    if (hour == null || hour < 1 || hour > 12) return null;
+    final minute = RegExp(r'(?:ونص|والنصف)').hasMatch(normalized)
+        ? 30
+        : RegExp(r'(?:وربع|والربع)').hasMatch(normalized)
+        ? 15
+        : 0;
+    final morning = RegExp(r'(?:صباح|الصبح|فجرا|\bam\b)').hasMatch(normalized);
+    final evening = RegExp(
+      r'(?:مساء|المساء|المسا|ليل|بالليل|\bpm\b)',
+    ).hasMatch(normalized);
+    if (evening && hour < 12) hour += 12;
+    if (morning && hour == 12) hour = 0;
+    if (!morning && !evening && hour < 12) hour += 12;
+    return TimeOfDay(hour: hour, minute: minute);
+  }
+
+  static String _normalizedTimePhrase(String phrase) {
+    const arabicDigits = '٠١٢٣٤٥٦٧٨٩';
+    const persianDigits = '۰۱۲۳۴۵۶۷۸۹';
+    final converted = StringBuffer();
+    for (final rune in phrase.runes) {
+      final character = String.fromCharCode(rune);
+      final arabicIndex = arabicDigits.indexOf(character);
+      final persianIndex = persianDigits.indexOf(character);
+      converted.write(
+        arabicIndex >= 0
+            ? arabicIndex
+            : persianIndex >= 0
+            ? persianIndex
+            : character,
+      );
+    }
+    return converted
+        .toString()
+        .toLowerCase()
+        .replaceAll(RegExp(r'[\u064b-\u065f\u0670]'), '')
+        .replaceAll(RegExp('[إأآٱ]'), 'ا')
+        .replaceAll('ى', 'ي')
+        .replaceAll('ة', 'ه');
+  }
+}
+
+class _DateActions extends StatelessWidget {
+  const _DateActions({required this.onReminder, required this.onCalendar});
+
+  final VoidCallback onReminder;
+  final VoidCallback onCalendar;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        TextButton.icon(
+          onPressed: onReminder,
+          icon: const Icon(Icons.alarm_add_outlined, size: 18),
+          label: Text(context.l10n.setReminder),
+        ),
+        TextButton.icon(
+          onPressed: onCalendar,
+          icon: const Icon(Icons.event_outlined, size: 18),
+          label: Text(context.l10n.addToCalendar),
+        ),
+      ],
+    );
   }
 }
 

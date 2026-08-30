@@ -397,7 +397,7 @@ Deno.serve(async (request) => {
     );
     const productRules = plan === "pro"
       ? "Return every requested section and all three reply tones."
-      : "This is the Free plan: return transcript and summary, no key points/actions/dates, and only the short reply; friendly and professional must be empty strings.";
+      : "This is the Free plan: return transcript, summary, every important date, no key points or action items, and only the short reply; friendly and professional must be empty strings.";
     const prompt = [
       "Create an accurate VoiceBrief result from the transcript below.",
       "The audio may be English, Arabic, or mixed Arabic/English. detectedLanguage should be en, ar, or mixed.",
@@ -450,9 +450,13 @@ Deno.serve(async (request) => {
       >,
       referenceInstant,
       timeZoneOffsetMinutes,
+      transcription.text,
     );
-    if (plan === "free" || requested.actionItems === false) {
+    if (plan === "free") {
       generated.keyPoints = [];
+      generated.actionItems = [];
+    }
+    if (requested.actionItems === false) {
       generated.actionItems = [];
       generated.importantDates = [];
     }

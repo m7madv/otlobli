@@ -423,6 +423,29 @@ class AppLocalizationsAr extends AppLocalizations {
   String get addToCalendar => 'إضافة إلى التقويم';
 
   @override
+  String get setReminder => 'ضبط منبّه';
+
+  @override
+  String get reminderSet => 'تم ضبط المنبّه.';
+
+  @override
+  String get reminderUnavailable =>
+      'تعذّر ضبط المنبّه. فعّل إشعارات VoiceBrief ثم حاول مجددًا.';
+
+  @override
+  String get reminderMustBeFuture => 'اختر وقتًا قادمًا للمنبّه.';
+
+  @override
+  String reminderNotificationTitle(String title) {
+    return 'تذكير: $title';
+  }
+
+  @override
+  String reminderNotificationBody(String phrase) {
+    return 'من VoiceBrief: «$phrase»';
+  }
+
+  @override
   String ownerLabel(String owner) {
     return 'المسؤول: $owner';
   }
@@ -494,12 +517,12 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String datesFound(int count) {
-    return 'تم العثور على $count موعد · راجعه وأضفه إلى تقويمك';
+    return 'تم العثور على $count موعد · اضبط منبّهًا أو أضفه إلى تقويمك';
   }
 
   @override
   String datesFoundSemantics(int count) {
-    return 'تم العثور على $count موعد. راجعه قبل إضافته إلى تقويم النظام.';
+    return 'تم العثور على $count موعد. راجعه ثم اضبط منبّهًا أو أضفه إلى تقويم النظام.';
   }
 
   @override

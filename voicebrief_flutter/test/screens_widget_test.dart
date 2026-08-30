@@ -6,6 +6,7 @@ import 'package:voicebrief/features/history/presentation/history_screen.dart';
 import 'package:voicebrief/features/home/presentation/home_screen.dart';
 import 'package:voicebrief/features/settings/presentation/settings_screen.dart';
 import 'package:voicebrief/features/subscription/presentation/paywall_screen.dart';
+import 'package:voicebrief/features/transcription/domain/brief_result.dart';
 import 'package:voicebrief/features/transcription/presentation/result_screen.dart';
 import 'package:voicebrief/ui/core/components/app_components.dart';
 
@@ -179,6 +180,57 @@ void main() {
       find.text('Maya will send the proposal before Thursday.'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('ambiguous spoken hour requires confirmation before reminder', (
+    tester,
+  ) async {
+    final controller = createTestController(pro: true);
+    await controller.signInWithProvider(IdentityProvider.google);
+    final tomorrow = DateTime.now().add(const Duration(days: 1));
+    controller.openResult(
+      sampleResult().copyWith(
+        importantDates: [
+          BriefImportantDate(
+            label: 'موعد الغد',
+            dateIso: DateTime(
+              tomorrow.year,
+              tomorrow.month,
+              tomorrow.day,
+              5,
+            ).toIso8601String(),
+            originalPhrase: 'الموعد غدًا الساعة الخامسة',
+            confidence: 0.95,
+            requiresConfirmation: false,
+          ),
+        ],
+      ),
+    );
+    await tester.pumpWidget(
+      testApp(controller: controller, home: const ResultScreen()),
+    );
+    final scrollable = find.byType(Scrollable).first;
+    for (
+      var attempt = 0;
+      attempt < 8 && find.text('موعد الغد').evaluate().isEmpty;
+      attempt++
+    ) {
+      await tester.drag(scrollable, const Offset(0, -450));
+      await tester.pump();
+    }
+    final dateTile = find.ancestor(
+      of: find.text('موعد الغد'),
+      matching: find.byType(AppListTile),
+    );
+    final reminderButton = find.descendant(
+      of: dateTile,
+      matching: find.text('Set reminder'),
+    );
+
+    await tester.tap(reminderButton);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(DatePickerDialog), findsOneWidget);
   });
 
   testWidgets('paywall uses store options and annual selection', (

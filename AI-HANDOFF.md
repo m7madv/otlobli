@@ -2,15 +2,16 @@
 
 Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 
-## مشروع مستقل (2026-08-30) — VoiceBrief 0.1.0 build 12
+## مشروع مستقل (2026-08-30) — VoiceBrief 0.1.0 build 13
 
 - اعمل فقط داخل `voicebrief_flutter/` وملفات workflow الخاصة به على الفرع `codex/voicebrief-ios`. مشروع Supabase الصحيح `jyehqpdbayslhzebdycj`؛ لا تستخدم Damanak أو `talabieh`.
 - أثبت iPhone الحقيقي أن البناء 9 يحفظ الملف لكن `NSExtensionContext.open` يفشل، وأن البناء 10 لا يعرض Runner كوجهة document-open من WhatsApp. Apple لا تدعم فتح التطبيق من Share Extension؛ لا تعِد الطلب ولا تضف `UIApplication.shared` أو responder-chain hacks.
-- البناء 12 يعالج التسجيل داخل Share Extension ثم يحفظ نتيجة App Group تلقائياً، يجدول إشعاراً محلياً «الملخص جاهز»، ويغلق الامتداد. Runner يطلب إذن الإشعارات بعد تسجيل الدخول؛ ضغط الإشعار يفتح التطبيق على `/result` بعد استيراد النتيجة بلا إعادة معالجة أو خصم. شاشة النتيجة تعرض المواعيد وأزرار التقويم؛ لم يعد هناك زر `حفظ في VoiceBrief`.
+- قبل المستخدم على iPhone الحقيقي تدفق البناء 12: المعالجة داخل Share Extension، إغلاق النافذة يدوياً، وصول إشعار الجاهزية، وفتح النتيجة منه. البناء 13 يوضح صراحة أنه يمكن إغلاق النافذة وأن الإشعار سيصل. لا تعِد محاولة فتح Runner من الامتداد.
 - Runner يستعيد refresh token الأحدث من App Group قبل مزامنة جلسته مجدداً. لا تسجل الرموز أو المحتوى، ولا توسّع Runner إلى `public.data`. عند فشل الشبكة/الجلسة/الرصيد يبقى manifest الصوت القديم للاستيراد اليدوي.
-- `process-audio/date_normalization.ts` يصحح فقط العبارات ذات علامة تاريخ صريحة (`يوم`/`بتاريخ`/`تاريخ`) كي لا تتحول أوقات الساعة إلى تواريخ. `يوم خمسة تسعة` ينتج 5 سبتمبر القادم، ويظل الوقت غير المذكور بحاجة إلى تأكيد.
+- أصل غياب الموعد في صورة المستخدم كان مسح `importantDates` للخطة المجانية بعد التوليد. البناء 13 يحتفظ بالتواريخ لكل الخطط، ويستخرج حتمياً `اليوم`/`غدًا`/`بكرة`/`بعد غد` من النص عند غياب البنية، مع بقاء `يوم خمسة تسعة` كتاريخ 5 سبتمبر مستقل وعدم تحويل `الساعة خمسة` إلى تاريخ.
 - الخادم يرسل `languageHint` مضبوطاً على `ar/en`، ويستخدم `gpt-4o-mini-transcribe` للنسخ و`gpt-5.6-luna` للتلخيص. طلب التلخيص يثبت `reasoning.effort=low` و`text.verbosity=low` مع JSON Schema الصارم. لا تسجل transcript أو اسم ملف أو هوية المستخدم.
-- `process-audio` منشور حصراً إلى `jyehqpdbayslhzebdycj`: `ACTIVE` version `9`، id `e4a26c2e-b9f2-43d3-9a6b-61467b8c8747`، hash `57b8304000994aec12f851eaaec8b4cf4359e739cc7ef09dd6b876f61dc7bdae`. `OPENAI_TRANSCRIPTION_MODEL` الحي هو `gpt-4o-mini-transcribe`؛ لا تمس بقية الأسرار.
+- `process-audio` منشور حصراً إلى `jyehqpdbayslhzebdycj`: `ACTIVE` version `11`، id `e4a26c2e-b9f2-43d3-9a6b-61467b8c8747`، hash `cd2724f53c9acfe07e007db786a632a9a64ee797e3062345060a5cef17bc1bd8`. `OPENAI_TRANSCRIPTION_MODEL` الحي هو `gpt-4o-mini-transcribe`؛ لا تمس بقية الأسرار أو Damanak أو `talabieh`.
+- شاشة النتيجة تعرض «ضبط منبّه» و«إضافة إلى التقويم» لكل موعد. iOS يستخدم إشعاراً محلياً عبر `voicebrief/reminders` لأن API عامة لضبط تطبيق الساعة غير موجودة؛ Android يستخدم `AlarmClock.ACTION_SET_ALARM`. الوقت العربي المبهم يفرض منتقي التاريخ والوقت حتى لو أعاد الخادم ISO كاملًا.
 - اختبار عربي حي نهائي بعينة `24.096s` فصل الغد `2026-08-31` عن `2026-09-05`، وطلب التأكيد لكليهما، ثم حذف مستخدم وStorage واستحقاق الاختبار. قياس الوظيفة: download `1330ms`، transcription `1460ms`، summary `7177ms`، total `11282ms`؛ زمن العميل `14431ms`. قبل خفض جهد التلخيص كانت الوظيفة نفسها `19717ms` والعميل `21066ms`.
 - التحقق المحلي للبناء 10: format على 70 ملفاً، analyze بلا مشكلات، 30 non-golden، 11 golden، وAPK debug ناجح. APK حجمه `177,592,197` وبصمته `3C9B96B65281D140CAF3FEA05DAEBFB6CD636A7E78BD1ABB5803E7A548F97C15`. CI run `33283233763` نجح في Deno وAndroid وgolden وتجميع iOS غير الموقّع.
 - TestFlight run `33031418401` نجح ورفع build 9؛ Delivery UUID `d3788d62-0ca7-423f-b234-425a325012f7`. IPA SHA-256 `10514A4DEB7D40C1CE923A2556FBAF7F439B289DFEAD00347CA59C2E8545EBCA`، وZIP SHA-256 `DF4BFA9674C7F86C88BFBF0446B0BD1DBCC88941195D5E6AAD0F69FF937AC333`.
@@ -21,6 +22,7 @@ Read `CURRENT_STATE.md`, then `AGENTS.md`, before editing.
 - التحقق المحلي للبناء 12 نجح: 71 ملف format، analyze، 32 non-golden، 11 golden، وAPK debug بصمة `37729DAFEECC45CE66DF870AA167D4E660A7F3167C62E3352C003C3818029FE5`. اختبار النتيجة المشتركة يمرر `importantDates` حقيقياً، يحفظه، ويثبت طلب الانتقال إلى شاشة النتيجة.
 - CI run `33307726051` نجح بكل وظائفه، وTestFlight run `33307726042` نجح في تجميع وتوقيع وفحص ورفع `0.1.0 (12)`. Delivery UUID/build ID هو `0af3d7d3-a607-4913-9d39-a2429c73b3b0`، وبصمة IPA `12CC57885E1C9CEE4827F36D1B3072DA98CAE8DF254C3D714C44A6AC53DD7C8C`، وartifact رقم `9731160573` وبصمة ZIP `23A977FF2BECD533E5A2CF608A9E5472045DB8674817E60FCC2E4B5C20B114BE`.
 - App Store status run `33307726047` يؤكد أن `0.1.0 (12)` هو `VALID` وغير منتهٍ ومضاف إلى `VoiceBrief Internal`. تقرير الحالة artifact رقم `9731212465` وبصمة ZIP `767594E102E4DB43B67B599F7E12517C0C68289BED8DE49442D05CA88D9B7416`. الاختبار التالي على iPhone: افتح VoiceBrief مرة بعد التحديث واسمح بالإشعارات، شارك من WhatsApp، أبقِ نافذة المشاركة مفتوحة حتى تُغلق، اضغط إشعار الجاهزية، وتحقق من فتح الملخص ومن ظهور الموعد وزر التقويم. لا تدّع قبول جهاز قبل ذلك.
+- التحقق المحلي للبناء 13: format على 73 ملفاً، analyze بلا مشكلات، 34 non-golden، 11 golden، و7 اختبارات Deno مع check. APK debug حجمه `177,609,821` وبصمته `86EA9BF33CA6FC39C337A83EBE7879781EE21AE1080AC74CEBFAFDF85DA4ECE7`. الاختبار الحي للإصدار الخادمي 11 أعاد HTTP 200 خلال `17,153ms` وموعدين منفصلين، ونظف المستخدم وStorage والاستحقاق. TestFlight للبناء 13 وقبول زر المنبّه على iPhone ما زالا مطلوبين؛ حدّث هذه النقطة ببيانات run/artifact/hash الفعلية فقط.
 
 
 ## مشروع مستقل (2026-08-25) — ضمانك 4.1.0+7

@@ -79,6 +79,24 @@ function isoDate(year: number, month: number, day: number): string {
   }-${day.toString().padStart(2, "0")}`;
 }
 
+function localDate(
+  referenceInstant: string,
+  timeZoneOffsetMinutes: number,
+  dayOffset: number,
+): string | null {
+  const referenceMilliseconds = Date.parse(referenceInstant);
+  if (!Number.isFinite(referenceMilliseconds)) return null;
+  const localReference = new Date(
+    referenceMilliseconds + timeZoneOffsetMinutes * 60_000 +
+      dayOffset * 86_400_000,
+  );
+  return isoDate(
+    localReference.getUTCFullYear(),
+    localReference.getUTCMonth() + 1,
+    localReference.getUTCDate(),
+  );
+}
+
 /**
  * Resolves explicit Arabic day/month phrases such as "يوم خمسة تسعة" or
  * "بتاريخ ٥/٩". It intentionally requires a date marker so a spoken time such
@@ -150,10 +168,101 @@ function normalizeArrayDates(
   }
 }
 
+function transcriptClauses(transcript: string): string[] {
+  return transcript
+    .split(/[.!?؟،,؛;\n]+/u)
+    .map((clause) => clause.trim())
+    .filter((clause) => clause.length > 0 && clause.length <= 240);
+}
+
+function hasDateMarker(value: string): boolean {
+  return /(?:^|[^\p{L}\p{N}])(?:اليوم|غدا|بكره|بكرا|بعد\s+(?:غد|بكره|بكرا)|يوم|بتاريخ|تاريخ)(?:$|[^\p{L}\p{N}])/u
+    .test(value);
+}
+
+function resolveRelativeArabicDate(
+  clause: string,
+  referenceInstant: string,
+  timeZoneOffsetMinutes: number,
+): string | null {
+  const normalized = normalizedArabic(clause);
+  if (
+    /(?:^|[^\p{L}\p{N}])بعد\s+(?:غد|بكره|بكرا)(?:$|[^\p{L}\p{N}])/u.test(
+      normalized,
+    )
+  ) {
+    return localDate(referenceInstant, timeZoneOffsetMinutes, 2);
+  }
+  if (
+    /(?:^|[^\p{L}\p{N}])(?:غدا|بكره|بكرا)(?:$|[^\p{L}\p{N}])/u.test(normalized)
+  ) {
+    return localDate(referenceInstant, timeZoneOffsetMinutes, 1);
+  }
+  if (/(?:^|[^\p{L}\p{N}])اليوم(?:$|[^\p{L}\p{N}])/u.test(normalized)) {
+    return localDate(referenceInstant, timeZoneOffsetMinutes, 0);
+  }
+  return null;
+}
+
+function importantDateRecords(generated: JsonRecord): JsonRecord[] {
+  if (!Array.isArray(generated.importantDates)) generated.importantDates = [];
+  return generated.importantDates as JsonRecord[];
+}
+
+function containsEquivalentDate(
+  dates: JsonRecord[],
+  dateIso: string,
+  phrase: string,
+): boolean {
+  const normalizedPhrase = normalizedArabic(phrase);
+  return dates.some((date) => {
+    if (typeof date.originalPhrase !== "string") return false;
+    const existingPhrase = normalizedArabic(date.originalPhrase);
+    const samePhrase = existingPhrase.includes(normalizedPhrase) ||
+      normalizedPhrase.includes(existingPhrase);
+    return date.dateIso === dateIso && samePhrase;
+  });
+}
+
+function ensureTranscriptDates(
+  generated: JsonRecord,
+  transcript: string,
+  referenceInstant: string,
+  timeZoneOffsetMinutes: number,
+): void {
+  const dates = importantDateRecords(generated);
+  const fallbackLabel = typeof generated.title === "string" &&
+      generated.title.trim().length > 0
+    ? generated.title.trim().slice(0, 240)
+    : "موعد";
+  for (const clause of transcriptClauses(transcript)) {
+    const normalized = normalizedArabic(clause);
+    if (!hasDateMarker(normalized)) continue;
+    const resolved = resolveExplicitDayMonth(
+      clause,
+      referenceInstant,
+      timeZoneOffsetMinutes,
+    ) ?? resolveRelativeArabicDate(
+      clause,
+      referenceInstant,
+      timeZoneOffsetMinutes,
+    );
+    if (!resolved || containsEquivalentDate(dates, resolved, clause)) continue;
+    dates.push({
+      label: fallbackLabel,
+      dateIso: resolved,
+      originalPhrase: clause,
+      confidence: 0.9,
+      requiresConfirmation: true,
+    });
+  }
+}
+
 export function normalizeSpokenDates(
   generated: JsonRecord,
   referenceInstant: string,
   timeZoneOffsetMinutes: number,
+  transcript = "",
 ): JsonRecord {
   normalizeArrayDates(
     generated.actionItems,
@@ -166,6 +275,12 @@ export function normalizeSpokenDates(
     generated.importantDates,
     "originalPhrase",
     "dateIso",
+    referenceInstant,
+    timeZoneOffsetMinutes,
+  );
+  ensureTranscriptDates(
+    generated,
+    transcript,
     referenceInstant,
     timeZoneOffsetMinutes,
   );

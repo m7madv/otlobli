@@ -337,6 +337,55 @@ final class VoiceBriefCalendarBridge: NSObject, EKEventEditViewDelegate {
   }
 }
 
+final class VoiceBriefReminderBridge {
+  static let shared = VoiceBriefReminderBridge()
+
+  func configure(messenger: FlutterBinaryMessenger) {
+    let channel = FlutterMethodChannel(name: "voicebrief/reminders", binaryMessenger: messenger)
+    channel.setMethodCallHandler { call, result in
+      guard call.method == "schedule",
+            let values = call.arguments as? [String: Any],
+            let fireMillis = values["fireMillis"] as? NSNumber
+      else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      let fireDate = Date(timeIntervalSince1970: fireMillis.doubleValue / 1000)
+      guard fireDate.timeIntervalSinceNow > 1 else {
+        result(FlutterError(code: "invalid_reminder", message: "Reminder must be in the future", details: nil))
+        return
+      }
+      let center = UNUserNotificationCenter.current()
+      center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+        guard granted, error == nil else {
+          DispatchQueue.main.async { result(false) }
+          return
+        }
+        let content = UNMutableNotificationContent()
+        content.title = values["title"] as? String ?? "VoiceBrief"
+        content.body = values["body"] as? String ?? ""
+        content.sound = .default
+        content.threadIdentifier = "voicebrief-reminders"
+        content.userInfo = ["voicebriefTarget": "reminder"]
+        let identifier = values["identifier"] as? String ?? UUID().uuidString.lowercased()
+        let trigger = UNTimeIntervalNotificationTrigger(
+          timeInterval: max(fireDate.timeIntervalSinceNow, 1),
+          repeats: false
+        )
+        center.add(
+          UNNotificationRequest(
+            identifier: "voicebrief-reminder-\(identifier)",
+            content: content,
+            trigger: trigger
+          )
+        ) { addError in
+          DispatchQueue.main.async { result(addError == nil) }
+        }
+      }
+    }
+  }
+}
+
 final class VoiceBriefAudioEditorBridge {
   static let shared = VoiceBriefAudioEditorBridge()
 
@@ -434,7 +483,8 @@ final class VoiceBriefAudioEditorBridge {
     willPresent notification: UNNotification,
     withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
   ) {
-    if notification.request.content.userInfo["voicebriefTarget"] as? String == "sharedResult" {
+    let target = notification.request.content.userInfo["voicebriefTarget"] as? String
+    if target == "sharedResult" || target == "reminder" {
       completionHandler([.banner, .sound])
       return
     }
@@ -482,6 +532,9 @@ final class VoiceBriefAudioEditorBridge {
     }
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "VoiceBriefCalendarBridge") {
       VoiceBriefCalendarBridge.shared.configure(messenger: registrar.messenger())
+    }
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "VoiceBriefReminderBridge") {
+      VoiceBriefReminderBridge.shared.configure(messenger: registrar.messenger())
     }
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "VoiceBriefAudioEditorBridge") {
       VoiceBriefAudioEditorBridge.shared.configure(messenger: registrar.messenger())
