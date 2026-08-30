@@ -41,7 +41,12 @@ inside prior submission `e5e27b8a-b628-4116-b135-361b91266929` from the old
 rejection. The script now searches editable `READY_FOR_REVIEW` and
 `UNRESOLVED_ISSUES` submissions for the version, PATCHes a rejected item with
 `resolved=true`, and resubmits that same submission instead of creating a new
-one. Do not delete the old version or detach it manually while the retry runs.
+one. Retry `33304628281` proved the old submission is not returned by an `IOS`
+platform filter; Apple's current review-submission platform is optional. The
+search is now unfiltered and the 409 ownership response has a constrained
+single-ID recovery path that rereads the submission and verifies the exact
+version item before PATCH. Do not delete the old version or detach it manually
+while the retry runs.
 
 Full production build, all release/auth/security/SHEIN/Temu guards, Android/iOS
 sync, performance budgets, signed Android R8 APK/AAB, APK v2/v3 signature and

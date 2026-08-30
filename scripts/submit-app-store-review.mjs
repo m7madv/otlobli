@@ -498,7 +498,6 @@ async function listSubmissionItems(submission) {
 
 async function findVersionSubmission(version) {
   const response = await apiRequest(apiPath(`/apps/${encodeURIComponent(config.appId)}/reviewSubmissions`, {
-    'filter[platform]': 'IOS',
     'fields[reviewSubmissions]': 'platform,state,items,appStoreVersionForReview',
     limit: 200,
   }))
@@ -517,6 +516,36 @@ async function findVersionSubmission(version) {
     throw new Error(`App Store version ${config.appVersion} appears in multiple editable review submissions.`)
   }
   return matches[0] || null
+}
+
+async function readVersionSubmission(submissionId, version) {
+  const response = await apiRequest(apiPath(`/reviewSubmissions/${encodeURIComponent(submissionId)}`, {
+    'fields[reviewSubmissions]': 'platform,state,items,appStoreVersionForReview',
+  }))
+  const items = await listSubmissionItems(response.data)
+  const item = items.find((candidate) =>
+    candidate.attributes?.state !== 'REMOVED' &&
+    candidate.relationships?.appStoreVersion?.data?.id === version.id)
+  if (!item) {
+    throw new Error(`Review submission ${submissionId} does not contain App Store version ${version.id}.`)
+  }
+  return { submission: response.data, item }
+}
+
+function owningSubmissionId(error) {
+  if (!(error instanceof AppStoreConnectError)) return null
+  const submissionIds = new Set()
+  for (const apiError of error.errors || []) {
+    const associatedErrors = apiError.meta?.associatedErrors || {}
+    for (const issues of Object.values(associatedErrors)) {
+      if (!Array.isArray(issues)) continue
+      for (const issue of issues) {
+        const match = String(issue.detail || '').match(/reviewSubmission with id ([0-9a-f-]{36})/i)
+        if (match) submissionIds.add(match[1])
+      }
+    }
+  }
+  return submissionIds.size === 1 ? [...submissionIds][0] : null
 }
 
 async function findOrCreateDraftSubmission() {
@@ -632,8 +661,17 @@ if (placement) {
   )
 } else {
   const submission = await findOrCreateDraftSubmission()
-  const item = await ensureSubmissionItem(submission, version)
-  placement = { submission, item }
+  try {
+    const item = await ensureSubmissionItem(submission, version)
+    placement = { submission, item }
+  } catch (error) {
+    const submissionId = owningSubmissionId(error)
+    if (!submissionId) throw error
+    placement = await readVersionSubmission(submissionId, version)
+    console.log(
+      `Recovered existing review submission ${submissionId} from Apple's item ownership response; state ${placement.submission.attributes?.state || 'UNKNOWN'}.`,
+    )
+  }
 }
 await resolveRejectedSubmissionItem(placement.item)
 const submission = placement.submission
