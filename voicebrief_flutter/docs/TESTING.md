@@ -58,7 +58,9 @@ Test-only Roboto files under `test/fonts` make desktop golden glyphs determinist
 
 - Physical iPhone evidence rejects build 9's containing-app launch: the Share Extension saved the WhatsApp recording, but both its automatic `NSExtensionContext.open` request and visible `Open VoiceBrief` retry failed. This matches Apple's documented extension-point restriction.
 - Build 10 registers Runner for general audio plus explicit MP3/MPEG-4/WAV types, handles file URLs through scene and app delegates, performs a bounded security-scoped copy, and preserves the existing Flutter inbox. The save-only fallback is visibly named `VoiceBrief Save`, accepts providers from apps that expose only Share Extension payloads, and no longer contains an impossible open action.
-- Local verification passed format across 70 files, analysis with no issues, 30 non-golden tests, all eleven golden tests, and `flutter build apk --debug`. The 177,592,197-byte APK has SHA-256 `3C9B96B65281D140CAF3FEA05DAEBFB6CD636A7E78BD1ABB5803E7A548F97C15`. macOS compilation/signing and direct WhatsApp cold/warm acceptance remain pending.
+- Local verification passed format across 70 files, analysis with no issues, 30 non-golden tests, all eleven golden tests, and `flutter build apk --debug`. The 177,592,197-byte APK has SHA-256 `3C9B96B65281D140CAF3FEA05DAEBFB6CD636A7E78BD1ABB5803E7A548F97C15`.
+- GitHub CI run `33283233763` passed Deno, Android, Windows golden, and macOS iOS no-codesign jobs. TestFlight run `33283233779` compiled, archived, signed, verified, validated, and uploaded app plus extension. The 34,432,164-byte IPA has SHA-256 `81763F19AEE9476F255CA6D117459CD99B29DB07D289E9257D567836FB5FF1FA`; delivery UUID is `d8a16f4a-74ad-4d7f-8368-220ca5ab9152`.
+- App Store status run `33283233781` reports build `0.1.0 (10)` as `VALID`, unexpired, and attached to `VoiceBrief Internal`. Direct WhatsApp and cross-app cold/warm acceptance on the physical iPhone remain pending.
 
 ## Platform checklist
 
@@ -68,4 +70,4 @@ iOS/macOS remaining: build 10 direct file-opening visibility and cold/warm hando
 
 ## Honest environment record
 
-This Windows host has Android tooling and the `Pixel_7_API_35_Test` emulator. It has no local Xcode/CocoaPods/iOS Simulator/signing. GitHub Actions on macOS successfully compiled, signed, verified, validated, and uploaded build 9; build 10 compilation and upload are pending. The user's physical iPhone supplied build 9 failure evidence, while build 10 direct-opening acceptance remains unperformed.
+This Windows host has Android tooling and the `Pixel_7_API_35_Test` emulator. It has no local Xcode/CocoaPods/iOS Simulator/signing. GitHub Actions on macOS successfully compiled, signed, verified, validated, and uploaded build 10, and App Store Connect reports it `VALID` in `VoiceBrief Internal`. The user's physical iPhone supplied build 9 failure evidence, while build 10 direct-opening acceptance remains unperformed.

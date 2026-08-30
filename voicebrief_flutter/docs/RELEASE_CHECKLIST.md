@@ -79,7 +79,9 @@
 
 - Physical iPhone evidence rejects build 9's automatic and button-triggered Share Extension launch. Apple supports `NSExtensionContext.open` on iOS for Today and iMessage extension points, not Share Extensions; the failed request and button have been removed rather than replaced with a private API workaround.
 - Source version is `0.1.0+10`. Runner declares `CFBundleDocumentTypes` for general audio plus MP3/MPEG-4/WAV and imports cold/warm file URLs through `SceneDelegate`/`AppDelegate`; `VoiceBrief Save` remains a clearly separate save-only App Group fallback for source apps that expose only Share Extension payloads.
-- Local format, analysis, 30 non-golden tests, eleven golden tests, and APK debug pass. The local debug APK is 177,592,197 bytes with SHA-256 `3C9B96B65281D140CAF3FEA05DAEBFB6CD636A7E78BD1ABB5803E7A548F97C15`. Signed TestFlight build, App Store processing, and real WhatsApp direct-destination acceptance are pending.
+- Local format, analysis, 30 non-golden tests, eleven golden tests, and APK debug pass. The local debug APK is 177,592,197 bytes with SHA-256 `3C9B96B65281D140CAF3FEA05DAEBFB6CD636A7E78BD1ABB5803E7A548F97C15`.
+- CI run [33283233763](https://github.com/m7madv/otlobli/actions/runs/33283233763) passed Deno, Android, golden, and iOS no-codesign. TestFlight run [33283233779](https://github.com/m7madv/otlobli/actions/runs/33283233779) signed, verified, validated, and uploaded build 10. IPA size is 34,432,164 bytes; SHA-256 `81763F19AEE9476F255CA6D117459CD99B29DB07D289E9257D567836FB5FF1FA`; delivery UUID `d8a16f4a-74ad-4d7f-8368-220ca5ab9152`; GitHub artifact `9723733688`.
+- App Store status run [33283233781](https://github.com/m7madv/otlobli/actions/runs/33283233781) confirms build `0.1.0 (10)` is `VALID`, unexpired, and attached to `VoiceBrief Internal`. Real WhatsApp and cross-app direct-destination acceptance remain pending.
 
 ## Owner/external configuration
 
